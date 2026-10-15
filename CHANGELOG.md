@@ -82,6 +82,18 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 
 ### Fixed
 
+- **Git nei progetti del cloud e dei pannelli in container** (`docs/plans/2026-10-15-git-nel-cloud.md`). Non
+  funzionava per quattro motivi: l'immagine non aveva né `git` né `ssh`; le chiavi venivano solo da `~/.ssh` del
+  processo, che nel container non esiste; non c'era modo di generarne una; e un host mai visto si fermava a
+  «Host key verification failed». Ora:
+  - le immagini (amd64 e arm64) contengono `git` e `openssh-client`, e `/etc/ssh/ssh_known_hosts` con le chiavi
+    ufficiali di GitHub, GitLab e Bitbucket (`scripts/known_hosts_git.sh`, fonti verificate via HTTPS);
+  - **chiave del progetto**: «Genera la chiave del progetto» nella scheda Git; vive in `.git/sws-ssh/` (mai nei
+    commit, nelle esportazioni o nei backup; sopravvive alla ricreazione del container), l'IDE mostra la pubblica da
+    registrare come deploy key; `GET/POST /api/project/git/ssh-key/progetto`;
+  - il comando ssh di git usa `BatchMode` (mai una domanda senza terminale) e la fiducia al primo contatto per un
+    server git non precaricato, con `known_hosts` del progetto.
+
 - **Pannello LVGL, tubo col flusso vicino al bordo**: il canvas del flusso aveva il margine delle frecce anche
   senza frecce (circa 100 px per un tubo di 10) e usciva dalla pagina, rendendo lo schermo scorrevole.
 

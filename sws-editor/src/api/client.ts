@@ -2308,6 +2308,15 @@ export const api = {
    *  del runtime (è lì che gira git, non nel browser). */
   listGitSshKeys: () => request<string[]>("/api/project/git/ssh-keys"),
 
+  /** GET /api/project/git/ssh-key/progetto — la chiave pubblica del progetto
+   *  (15-10-2026), `null` se non è ancora stata generata. */
+  getChiaveProgetto: () => request<{ pubblica: string | null }>("/api/project/git/ssh-key/progetto"),
+
+  /** POST /api/project/git/ssh-key/progetto — la genera (se non c'è) e
+   *  restituisce la pubblica, da registrare come deploy key. */
+  generaChiaveProgetto: () =>
+    request<{ pubblica: string | null }>("/api/project/git/ssh-key/progetto", { method: "POST" }),
+
   /** PUT /api/project/git/identity — nome ed email dei commit di questo
    *  progetto; vuoti = quelli globali di git. */
   setGitIdentity: (name: string, email: string) =>

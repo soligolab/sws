@@ -19,7 +19,7 @@
 //!   POST   /api/project/git/tags/:name/push   — push a single tag
 //!   DELETE /api/project/git/tags/:name    — delete a tag (local + remote)
 
-use std::{path::PathBuf, process::Command};
+use std::{path::{Path, PathBuf}, process::Command};
 use tracing::{info, warn};
 
 #[derive(Debug, Clone, serde::Serialize)]
@@ -436,7 +436,7 @@ impl GitDeploy {
         let dir = self.project_dir.to_string_lossy().to_string();
         // La chiave si valida prima di `git init`: un nome sbagliato non deve
         // lasciare dietro di sé un repository mezzo agganciato.
-        let comando_ssh = ssh_key.map(comando_ssh_per).transpose()?;
+        let comando_ssh = ssh_key.map(|k| comando_ssh_per(k, &self.project_dir)).transpose()?;
         if let (Some(_), Some(url)) = (ssh_key, remote_url) {
             controlla_url_per_ssh(url)?;
         }
@@ -476,7 +476,7 @@ impl GitDeploy {
         let dir = self.project_dir.to_string_lossy().to_string();
         match ssh_key {
             Some(nome) => {
-                let cmd = comando_ssh_per(nome)?;
+                let cmd = comando_ssh_per(nome, &self.project_dir)?;
                 if let Ok(url) = git_out(&dir, &["remote", "get-url", "origin"]) {
                     controlla_url_per_ssh(&url)?;
                 }
@@ -517,6 +517,47 @@ impl GitDeploy {
         Ok(())
     }
 
+    /// La chiave pubblica del progetto, se è già stata generata.
+    pub fn chiave_pubblica_progetto(&self) -> Option<String> {
+        std::fs::read_to_string(cartella_chiave_progetto(&self.project_dir).join("id_ed25519.pub"))
+            .ok()
+            .map(|s| s.trim().to_string())
+    }
+
+    /// Genera la chiave del progetto (ed25519, senza passphrase: la usa il
+    /// runtime, non una persona) e restituisce la pubblica. Se c'è già non la
+    /// rigenera: cambiarla romperebbe la deploy key registrata su GitHub; per
+    /// sostituirla si cancella prima. Se il progetto non è ancora un
+    /// repository lo diventa (`git init`, idempotente): la chiave vive in `.git`.
+    pub fn genera_chiave_progetto(&self) -> anyhow::Result<String> {
+        if let Some(p) = self.chiave_pubblica_progetto() {
+            return Ok(p);
+        }
+        let dir = self.project_dir.to_string_lossy().to_string();
+        if !self.is_git_repo() {
+            run_git(&dir, &["init", "-b", "main"])?;
+            assicura_gitignore(&dir)?;
+        }
+        let cartella = cartella_chiave_progetto(&self.project_dir);
+        std::fs::create_dir_all(&cartella)?;
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            std::fs::set_permissions(&cartella, std::fs::Permissions::from_mode(0o700))?;
+        }
+        let nome = self.project_dir.file_name().map(|n| n.to_string_lossy().to_string()).unwrap_or_default();
+        let commento = format!("sws:{}", nome.chars().filter(|c| c.is_ascii_alphanumeric() || matches!(c, '-' | '_' | '.')).collect::<String>());
+        let out = Command::new("ssh-keygen")
+            .args(["-q", "-t", "ed25519", "-N", "", "-C", &commento, "-f"])
+            .arg(cartella.join("id_ed25519"))
+            .output()
+            .map_err(|e| anyhow::anyhow!("ssh-keygen non disponibile: {e}"))?;
+        if !out.status.success() {
+            anyhow::bail!("ssh-keygen: {}", String::from_utf8_lossy(&out.stderr).trim());
+        }
+        self.chiave_pubblica_progetto().ok_or_else(|| anyhow::anyhow!("chiave generata ma non leggibile"))
+    }
+
     /// La chiave impostata: il nome del file se il comando è quello scritto
     /// da [`Self::imposta_chiave_ssh`], altrimenti il comando così com'è.
     pub fn chiave_ssh(&self) -> Option<String> {
@@ -525,9 +566,12 @@ impl GitDeploy {
         if cmd.is_empty() {
             return None;
         }
+        if comando_ssh_progetto(&self.project_dir).ok().as_deref() == Some(cmd.as_str()) {
+            return Some(CHIAVE_PROGETTO.to_string());
+        }
         Some(
             cmd.strip_prefix("ssh -i '")
-                .and_then(|r| r.strip_suffix(SUFFISSO_SSH))
+                .and_then(|r| r.strip_suffix(SUFFISSO_SSH).or_else(|| r.strip_suffix(SUFFISSO_SSH_STORICO)))
                 .and_then(|p| std::path::Path::new(p).file_name())
                 .map(|n| n.to_string_lossy().to_string())
                 .unwrap_or(cmd),
@@ -1090,7 +1134,42 @@ fn identita_sicura(v: &str) -> bool {
 /// Coda del comando scritto in `core.sshCommand`. `IdentitiesOnly` impedisce a
 /// ssh di provare prima le chiavi dell'agente o quelle predefinite: con GitHub
 /// la prima chiave accettata decide l'account, e potrebbe non essere questa.
-const SUFFISSO_SSH: &str = "' -o IdentitiesOnly=yes";
+const SUFFISSO_SSH_STORICO: &str = "' -o IdentitiesOnly=yes";
+
+/// Dal 15-10-2026 (git nel cloud): anche `BatchMode` (senza terminale ssh non
+/// deve mai fermarsi a chiedere) e la fiducia al primo contatto per un host mai
+/// visto. GitHub, GitLab e Bitbucket arrivano già fidati dall'immagine
+/// (`/etc/ssh/ssh_known_hosts`); un server git aziendale si memorizza alla prima
+/// connessione, e se poi cambia ssh rifiuta — come MQTT e OPC UA.
+const SUFFISSO_SSH: &str = "' -o IdentitiesOnly=yes -o BatchMode=yes -o StrictHostKeyChecking=accept-new";
+
+/// Il nome con cui l'IDE indica la **chiave del progetto** (15-10-2026). Non è
+/// un file di `~/.ssh`: vive in `.git/sws-ssh/` del progetto, quindi non entra
+/// mai nei commit, nelle esportazioni né nei backup (che copiano un elenco
+/// chiuso di file), e resta dov'è il progetto — nel cloud la cartella del
+/// progetto è l'unica cosa che sopravvive al container, che si ricrea a ogni
+/// apertura. La `@` la tiene fuori dai nomi possibili di `~/.ssh`.
+pub const CHIAVE_PROGETTO: &str = "@sws";
+
+/// Dove vive la chiave del progetto.
+pub fn cartella_chiave_progetto(project_dir: &Path) -> PathBuf {
+    project_dir.join(".git").join("sws-ssh")
+}
+
+/// Il comando ssh per la chiave del progetto: la sua chiave, e il suo
+/// `known_hosts` accanto (per gli host aziendali fidati al primo contatto).
+fn comando_ssh_progetto(project_dir: &Path) -> anyhow::Result<String> {
+    let d = cartella_chiave_progetto(project_dir);
+    let chiave = d.join("id_ed25519");
+    if !chiave.is_file() {
+        anyhow::bail!("la chiave del progetto non c'è ancora: generala dall'IDE (Git → Chiave del progetto)");
+    }
+    let (k, h) = (chiave.to_string_lossy().to_string(), d.join("known_hosts").to_string_lossy().to_string());
+    if k.contains('\'') || h.contains('\'') {
+        anyhow::bail!("percorso del progetto non utilizzabile in un comando ssh: {k}");
+    }
+    Ok(format!("ssh -i '{k}{SUFFISSO_SSH} -o UserKnownHostsFile='{h}'"))
+}
 
 /// Una chiave SSH con un URL `http(s)://` non serve a niente: git parla HTTPS,
 /// ignora `core.sshCommand` e chiede utente e password — che dall'IDE nessuno
@@ -1157,7 +1236,10 @@ pub fn chiavi_ssh_disponibili() -> Vec<String> {
 /// Il valore di `core.sshCommand` per la chiave `nome`, che deve essere una
 /// di [`chiavi_ssh_disponibili`]: il browser sceglie da un elenco, non scrive
 /// un percorso, quindi niente file arbitrari passati a `ssh -i`.
-fn comando_ssh_per(nome: &str) -> anyhow::Result<String> {
+fn comando_ssh_per(nome: &str, project_dir: &Path) -> anyhow::Result<String> {
+    if nome == CHIAVE_PROGETTO {
+        return comando_ssh_progetto(project_dir);
+    }
     if !nome_chiave_sicuro(nome) || !chiavi_ssh_disponibili().iter().any(|n| n == nome) {
         anyhow::bail!("chiave SSH non trovata in ~/.ssh: «{nome}»");
     }
@@ -1483,6 +1565,28 @@ mod tests {
 
     /// Un `core.sshCommand` scritto a mano si mostra com'è; togliere la
     /// chiave lo cancella; senza, `chiave_ssh` è `None`.
+    /// La chiave del progetto (15-10-2026): nasce in `.git/sws-ssh`, non si
+    /// rigenera da sola, e l'IDE la ritrova col suo nome.
+    #[test]
+    fn la_chiave_del_progetto_vive_in_git_e_si_ritrova() {
+        if Command::new("ssh-keygen").arg("-?").output().is_err() {
+            return; // macchina senza ssh-keygen
+        }
+        let tmp = tempfile::tempdir().unwrap();
+        let gd = GitDeploy::new(tmp.path().to_path_buf());
+        let p1 = gd.genera_chiave_progetto().unwrap();
+        assert!(p1.starts_with("ssh-ed25519 "), "{p1}");
+        assert!(tmp.path().join(".git/sws-ssh/id_ed25519").is_file());
+        assert_eq!(gd.genera_chiave_progetto().unwrap(), p1, "non si rigenera");
+        gd.imposta_chiave_ssh(Some(CHIAVE_PROGETTO)).unwrap();
+        assert_eq!(gd.chiave_ssh().as_deref(), Some(CHIAVE_PROGETTO));
+        let cmd = git_out(&tmp.path().to_string_lossy(), &["config", "--get", "core.sshCommand"]).unwrap();
+        assert!(cmd.contains("StrictHostKeyChecking=accept-new") && cmd.contains("BatchMode=yes") && cmd.contains("UserKnownHostsFile="), "{cmd}");
+        // Un .gitignore che tiene fuori i segreti c'è, e la chiave non è fra i file tracciabili.
+        let stato = git_out(&tmp.path().to_string_lossy(), &["status", "--porcelain", "--untracked-files=all"]).unwrap();
+        assert!(!stato.contains("sws-ssh"), "{stato}");
+    }
+
     #[test]
     fn chiave_ssh_legge_e_toglie_core_sshcommand() {
         let tmp = repo_di_prova();

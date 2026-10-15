@@ -208,6 +208,7 @@ mkdir -p "$CTX/bin" "$CTX/templates" "$CTX/catalogo" "$CTX/www"
 install -m 755 "$BIN" "$CTX/bin/sws-runtime"
 cp -r "$REPO/examples/templates/." "$CTX/templates/"
 cp -r "$REPO/catalogo/." "$CTX/catalogo/"
+cp "$REPO/deploy/container/ssh_known_hosts" "$CTX/ssh_known_hosts"
 cp -r "$SPA_DIST/." "$CTX/www/"
 # I quadlet e l'installer viaggiano dentro l'immagine (02-10-2026, piano del
 # quadlet che viaggia): dopo un `podman auto-update` il runtime sa qual è il

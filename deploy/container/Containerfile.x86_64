@@ -46,6 +46,8 @@ RUN apt-get update && \
         curl \
         python3 \
         libpython3.12t64 \
+        git \
+        openssh-client \
         python3-pip && \
     pip install --no-cache-dir --break-system-packages "RestrictedPython>=7.0" && \
     apt-get purge -y python3-pip && apt-get autoremove -y && \
@@ -54,6 +56,11 @@ RUN apt-get update && \
 COPY bin/sws-runtime /usr/local/bin/sws-runtime
 COPY templates/      /var/sws/templates/
 COPY catalogo/       /var/sws/catalogo/
+# git nei progetti (15-10-2026, docs/plans/2026-10-15-git-nel-cloud.md): git e
+# openssh-client sopra, e qui le chiavi ufficiali di GitHub, GitLab e Bitbucket,
+# così il primo push verso di loro non deve fidarsi «al primo contatto».
+# Si rigenera con scripts/known_hosts_git.sh.
+COPY ssh_known_hosts  /etc/ssh/ssh_known_hosts
 
 # La SPA sta DENTRO l'immagine, come nel percorso aarch64 e per le stesse
 # ragioni (vedi il commento esteso in Containerfile.aarch64): col registry i

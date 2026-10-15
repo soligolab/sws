@@ -493,6 +493,9 @@ pub fn build(
         // quale identità si parla col remote.
         .route("/api/project/git/ssh-keys", get(list_git_ssh_keys))
         .route("/api/project/git/ssh-key", put(set_git_ssh_key))
+        // La chiave del progetto (15-10-2026, git nel cloud): leggerne la
+        // pubblica, generarla. La privata non esce mai dal runtime.
+        .route("/api/project/git/ssh-key/progetto", get(get_chiave_progetto).post(genera_chiave_progetto))
         // Chi firma i commit del progetto (user.name/user.email locali).
         .route("/api/project/git/identity", put(set_git_identity))
         // Push/elimina un tag — stessa classe di rischio di push/rollback.
@@ -9144,9 +9147,54 @@ async fn git_init(State(s): State<AppState>, Json(body): Json<GitInitBody>) -> i
 
 /// `GET /api/project/git/ssh-keys` — i nomi delle chiavi private in `~/.ssh`
 /// della macchina che esegue git (quella del runtime, non del browser).
-async fn list_git_ssh_keys() -> impl IntoResponse {
-    match tokio::task::spawn_blocking(crate::git_deploy::chiavi_ssh_disponibili).await {
+async fn list_git_ssh_keys(State(s): State<AppState>) -> impl IntoResponse {
+    // Prima la chiave del progetto, se c'è: nel cloud è l'unica che può
+    // esistere (il container non ha un `~/.ssh` suo).
+    let progetto = active_dir(&s).await.ok();
+    match tokio::task::spawn_blocking(move || {
+        let mut nomi = Vec::new();
+        if let Some(d) = progetto {
+            if crate::git_deploy::GitDeploy::new(d).chiave_pubblica_progetto().is_some() {
+                nomi.push(crate::git_deploy::CHIAVE_PROGETTO.to_string());
+            }
+        }
+        nomi.extend(crate::git_deploy::chiavi_ssh_disponibili());
+        nomi
+    })
+    .await
+    {
         Ok(nomi) => Json(nomi).into_response(),
+        Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response(),
+    }
+}
+
+#[derive(serde::Serialize)]
+struct ChiaveProgetto {
+    /// La chiave pubblica (`ssh-ed25519 AAAA… sws:<progetto>`), `None` se non c'è.
+    pubblica: Option<String>,
+}
+
+/// `GET /api/project/git/ssh-key/progetto` — la chiave pubblica del progetto.
+async fn get_chiave_progetto(State(s): State<AppState>) -> impl IntoResponse {
+    let dir = match active_dir(&s).await {
+        Ok(d) => d,
+        Err(c) => return c.into_response(),
+    };
+    let gd = crate::git_deploy::GitDeploy::new(dir);
+    Json(ChiaveProgetto { pubblica: gd.chiave_pubblica_progetto() }).into_response()
+}
+
+/// `POST /api/project/git/ssh-key/progetto` — genera la chiave del progetto (se
+/// non c'è già) e restituisce la pubblica, da registrare come deploy key.
+async fn genera_chiave_progetto(State(s): State<AppState>) -> impl IntoResponse {
+    let dir = match active_dir(&s).await {
+        Ok(d) => d,
+        Err(c) => return c.into_response(),
+    };
+    let gd = crate::git_deploy::GitDeploy::new(dir);
+    match tokio::task::spawn_blocking(move || gd.genera_chiave_progetto()).await {
+        Ok(Ok(p)) => Json(ChiaveProgetto { pubblica: Some(p) }).into_response(),
+        Ok(Err(e)) => (StatusCode::BAD_REQUEST, e.to_string()).into_response(),
         Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response(),
     }
 }

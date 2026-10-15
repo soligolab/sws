@@ -77,6 +77,8 @@ RUN apt-get update && \
         curl \
         python3 \
         libpython3.12t64 \
+        git \
+        openssh-client \
         python3-pip \
         $( [ "$WITH_LVGL" = "1" ] && echo libsdl2-2.0-0 libegl1 libegl-mesa0 libgles2 libgl1-mesa-dri libwayland-egl1 libgbm1 libdrm2 libfreetype6 fonts-dejavu-core ) && \
     pip install --no-cache-dir --break-system-packages "RestrictedPython>=7.0" && \
@@ -93,6 +95,11 @@ RUN apt-get update && \
 COPY bin/             /usr/local/bin/
 COPY templates/      /var/sws/templates/
 COPY catalogo/       /var/sws/catalogo/
+# git nei progetti (15-10-2026, docs/plans/2026-10-15-git-nel-cloud.md): git e
+# openssh-client sopra, e qui le chiavi ufficiali di GitHub, GitLab e Bitbucket,
+# così il primo push verso di loro non deve fidarsi «al primo contatto».
+# Si rigenera con scripts/known_hosts_git.sh.
+COPY ssh_known_hosts  /etc/ssh/ssh_known_hosts
 
 # Font emoji (T-71), solo con --with-lvgl: scripts/build_container.sh popola
 # fonts/ solo in quel caso, quindi con --no-lvgl questo layer è vuoto — un

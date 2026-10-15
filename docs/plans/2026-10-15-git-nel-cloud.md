@@ -37,7 +37,14 @@
 - **Sui pannelli** la domanda è diversa: serve davvero git sul pannello, o basta il deploy dall'IDE? Se serve, la
   chiave vive nella configurazione del pannello (`/data/user/sws/config`), che è già persistente.
 
-## Cosa si può fare subito, senza decidere
+## Decisioni del maintainer (15-10-2026) e cosa è stato fatto
+
+- **Chiave SSH per progetto**, generata da SWS; **git anche sui pannelli**; host **precaricati + primo contatto**.
+- La chiave vive in **`.git/sws-ssh/`** del progetto: fuori dai commit, dalle esportazioni (pacchetto di file
+  scelti) e dai backup (elenco chiuso); nel cloud persiste perché la cartella del progetto è montata. Al gateway non
+  serve nessuna modifica. Ramo `feat/git-nel-cloud`.
+
+## Cosa si poteva fare subito, senza decidere
 
 Il prerequisito (git, ssh e `known_hosts` nell'immagine) non chiude nessuna strada e rende di nuovo utilizzabili
 init, commit, log, diff e tag in locale al container; il push resta da sistemare con la decisione sulle chiavi.

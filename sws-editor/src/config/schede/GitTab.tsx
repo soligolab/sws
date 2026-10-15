@@ -3,6 +3,7 @@ import { Trans, useTranslation } from "react-i18next";
 import { api } from "@/api/client";
 import { TRANS_COMP } from "@/config/comuni";
 import { GitStoria } from "./GitStoria";
+import { CHIAVE_PROGETTO, ChiaveProgetto } from "./ChiaveProgetto";
 
 /** Il versionamento git del **progetto**, foglia «Git» del ramo Progetto
  *  (26-09-2026: prima stava in fondo a Istanza → Device → Stato, fra CPU e
@@ -31,7 +32,10 @@ export function GitTab() {
   // della macchina del runtime), mai scrivendo un percorso.
   const [sshKeys, setSshKeys] = useState<string[]>([]);
   const [attachKey, setAttachKey] = useState("");
-  useEffect(() => { api.listGitSshKeys().then(setSshKeys).catch(() => setSshKeys([])); }, []);
+  const ricaricaChiavi = () => { api.listGitSshKeys().then(setSshKeys).catch(() => setSshKeys([])); };
+  useEffect(ricaricaChiavi, []);
+  // La chiave del progetto ha un nome tecnico (`@sws`): nel menu si legge per esteso.
+  const nomeChiave = (k: string) => (k === CHIAVE_PROGETTO ? t("cfgUi.chiaveProgetto") : k);
 
   // Tag — elenco/crea/push/elimina, assente prima d'ora sia lato backend sia UI.
   const [tags, setTags] = useState<string[] | null>(null);
@@ -187,7 +191,7 @@ export function GitTab() {
       >
         <option value="">{t("cfgUi.sshKeyDefault")}</option>
         {attuale && !sshKeys.includes(attuale) && <option value={attuale}>{attuale}</option>}
-        {sshKeys.map((k) => <option key={k} value={k}>{k}</option>)}
+        {sshKeys.map((k) => <option key={k} value={k}>{nomeChiave(k)}</option>)}
       </select>
     </label>
   );
@@ -235,6 +239,8 @@ export function GitTab() {
             </button>
           </div>
           {selettoreChiave(attachKey, setAttachKey, attaching)}
+          <ChiaveProgetto inUso={attachKey === CHIAVE_PROGETTO} disabled={attaching}
+            onGenerata={() => { ricaricaChiavi(); setAttachKey(CHIAVE_PROGETTO); }} />
           {attachErr && <div style={{ fontSize: 11, color: "var(--brand-danger-soft, #fca5a5)" }}>{attachErr}</div>}
         </div>
       </div>
@@ -287,6 +293,8 @@ export function GitTab() {
           </button>
         </div>
         {selettoreChiave(gitStatus.ssh_key ?? "", cambiaChiave, busy || inProva)}
+        <ChiaveProgetto inUso={gitStatus.ssh_key === CHIAVE_PROGETTO} disabled={busy || inProva}
+          onUsa={() => cambiaChiave(CHIAVE_PROGETTO)} onGenerata={ricaricaChiavi} />
         <div style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap", fontSize: 12, color: "var(--brand-text-subtle, #64748b)" }}>
           <span title={t("cfgUi.gitIdentityHint")}>{t("cfgUi.gitIdentity")}:</span>
           <input

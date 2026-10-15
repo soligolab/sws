@@ -2414,7 +2414,15 @@
     "iconSize": "Dimensione icone",
     "iconSizeNote": "Le icone del menù Strumenti e le anteprime dei simboli: più grandi su monitor ad alta risoluzione o touch.",
     "opcuaAccettaTutti": "Accetta qualsiasi certificato del server (sconsigliato)",
-    "opcuaPrimoContatto": "Senza questa spunta, il primo certificato visto si memorizza da solo; se poi il server ne presenta un altro, la connessione si ferma finché non lo approvi qui sotto."
+    "opcuaPrimoContatto": "Senza questa spunta, il primo certificato visto si memorizza da solo; se poi il server ne presenta un altro, la connessione si ferma finché non lo approvi qui sotto.",
+    "chiaveProgetto": "Chiave del progetto",
+    "chiaveProgettoSpiega": "Una chiave SSH che appartiene a questo progetto: la genera SWS, resta fuori dal repository e funziona anche nel cloud. Poi la registri come deploy key del repository.",
+    "chiaveProgettoGenera": "Genera la chiave del progetto",
+    "chiaveProgettoDeployKey": "Su GitHub: repository → Settings → Deploy keys → Add deploy key, incolla la chiave e spunta «Allow write access». Su GitLab: Settings → Repository → Deploy keys.",
+    "chiaveProgettoCopia": "Copia la chiave pubblica",
+    "chiaveProgettoCopiata": "Copiata",
+    "chiaveProgettoUsa": "Usa questa chiave",
+    "chiaveProgettoInUso": "in uso per questo repository"
   },
   "boot": {
     "pngTooLarge": "PNG troppo grande ({{kb}} KB, max 5120 KB): non è stato caricato",

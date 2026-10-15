@@ -2414,7 +2414,15 @@
     "iconSize": "Icon size",
     "iconSizeNote": "Icons in the Tools menu and symbol previews: larger on high-resolution or touch monitors.",
     "opcuaAccettaTutti": "Accept any server certificate (not recommended)",
-    "opcuaPrimoContatto": "Without this option, the first certificate seen is stored automatically; if the server later presents a different one, the connection stops until you approve it below."
+    "opcuaPrimoContatto": "Without this option, the first certificate seen is stored automatically; if the server later presents a different one, the connection stops until you approve it below.",
+    "chiaveProgetto": "Project key",
+    "chiaveProgettoSpiega": "An SSH key that belongs to this project: SWS generates it, it stays out of the repository and also works in the cloud. Then register it as a deploy key of the repository.",
+    "chiaveProgettoGenera": "Generate the project key",
+    "chiaveProgettoDeployKey": "On GitHub: repository → Settings → Deploy keys → Add deploy key, paste the key and tick «Allow write access». On GitLab: Settings → Repository → Deploy keys.",
+    "chiaveProgettoCopia": "Copy the public key",
+    "chiaveProgettoCopiata": "Copied",
+    "chiaveProgettoUsa": "Use this key",
+    "chiaveProgettoInUso": "in use for this repository"
   },
   "boot": {
     "pngTooLarge": "PNG too large ({{kb}} KB, max 5120 KB): it was not uploaded",

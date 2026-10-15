@@ -19,14 +19,14 @@
 versioni:
   - versione: "2.14.0"
     voci:
+      - it: "Git funziona anche nel cloud e sui pannelli: ogni progetto può generare la sua chiave SSH da registrare come deploy key su GitHub o GitLab."
+        en: "Git now works in the cloud and on panels too: each project can generate its own SSH key to register as a deploy key on GitHub or GitLab."
       - it: "Sicurezza: le sorgenti OPC UA si fidano del certificato del server al primo contatto e fermano la connessione se cambia; le metriche chiedono l'accesso."
         en: "Security: OPC UA sources trust the server certificate on first contact and stop the connection if it changes; metrics now require access."
       - it: "Tubi in stile 2.5D come i simboli: metallo, inox, coibentato, PVC, flessibile, canale aria, cavo e segnale, con flange, bocchettoni e riduzioni alle estremità."
         en: "2.5D pipes like the symbols: metal, stainless, insulated, PVC, flexible, air duct, cable and signal, with flanges, unions and reducers at the ends."
-      - it: "I tubi si agganciano alle bocche vere di pompe, valvole e serbatoi: avvicinando un capo a una bocca si aggancia da solo, e il tubo segue il simbolo anche se ruotato."
-        en: "Pipes attach to the real nozzles of pumps, valves and tanks: bring an end close to a nozzle and it snaps on, and the pipe follows the symbol even when rotated."
-      - it: "I tubi a 90° e a 45° calcolano il percorso da soli, e ora compaiono anche sul pannello, che prima li ignorava."
-        en: "Pipes at 90° and 45° work out their own route, and now also appear on the panel, which ignored them before."
+      - it: "I tubi si agganciano da soli alle bocche di pompe, valvole e serbatoi e le seguono; a 90° e 45° calcolano il percorso, e ora compaiono anche sul pannello."
+        en: "Pipes snap onto the nozzles of pumps, valves and tanks and follow them; at 90° and 45° they route themselves, and now also appear on the panel."
       - it: "Il viewer non perde più il login quando si ricarica la pagina: prima l'operatore tornava anonimo e i comandi venivano rifiutati."
         en: "The viewer no longer loses the login when the page is reloaded: before, the operator became anonymous and commands were refused."
       - it: "Sul pannello le etichette dei bottoni sono centrate e il valore della barra di avanzamento sta dentro la barra, come nel browser."
