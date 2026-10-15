@@ -65,7 +65,7 @@ I due semi sono in archivio, con un rimando a questo piano.
 5. Test: vitest per gerarchia (nessun tipo perso, nessun gruppo vuoto sotto i filtri), ramo Simboli (clic crea con
    `symbol_id`), filtro (lingua, elenco piatto, contesto); inventari aggiornati.
 
-## Ramo 2 — `feat/simbolo-che-comanda` (web + LVGL + validatore)
+## Ramo 2 — `feat/simbolo-che-comanda` (web + LVGL + validatore) — ✅ su `main` (`163a4921`, 15-10-2026; collaudato sul TC620)
 
 1. **Le sette modalità su LVGL** per il bottone (oggi solo `write`): `toggle`, `momentary` (pressione/rilascio),
    `set`/`reset`, `increment`/`decrement` con `step`/`min`/`max` — parità con `SvgCanvas.tsx:4124`. Generalizzare

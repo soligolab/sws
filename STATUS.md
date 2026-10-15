@@ -14,7 +14,7 @@
 
 ## ▶ Riprendere da qui — il simbolo che comanda, collaudato sul TC620 (2026-10-14, notte)
 
-Ramo **`feat/simbolo-che-comanda`** aperto, in attesa dell'ok del maintainer per lo squash.
+**Su `main`** (`163a4921`, squash dopo l'ok del maintainer, 15-10), insieme al ramo annidato delle correzioni. Nessun ramo aperto. **Non pushato.**
 
 - Fatto: le sette modalità del bottone su LVGL; il simbolo che comanda (`command_tag`, scelta del maintainer);
   template nuovo `comandi-pompa-pozzo`.
