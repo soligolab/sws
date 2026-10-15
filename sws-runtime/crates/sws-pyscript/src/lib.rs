@@ -635,6 +635,26 @@ pub struct ExecOutput {
     pub sandboxed: bool,
 }
 
+/// La sandbox è obbligatoria? (CRA, onda 1, 15-10-2026.) La imposta il binario
+/// `sws-runtime` all'avvio: vero, salvo la deroga esplicita di sviluppo
+/// `SWS_SCRIPT_SENZA_SANDBOX=1`. I test delle librerie non la toccano e restano
+/// come prima. Un interruttore di processo e non un campo dell'`Engine` perché
+/// i motori nascono in più punti (runtime, script globali), e la regola è una.
+static SANDBOX_OBBLIGATORIA: AtomicBool = AtomicBool::new(false);
+
+pub fn imposta_sandbox_obbligatoria(si: bool) {
+    SANDBOX_OBBLIGATORIA.store(si, Ordering::Relaxed);
+}
+
+pub fn sandbox_obbligatoria() -> bool {
+    SANDBOX_OBBLIGATORIA.load(Ordering::Relaxed)
+}
+
+/// Il messaggio quando uno script non parte perché la sandbox manca.
+pub const MOTIVO_SENZA_SANDBOX: &str = "script non eseguito: RestrictedPython non è installato, e senza sandbox \
+uno script avrebbe pieni privilegi sul dispositivo. L'immagine ufficiale lo contiene; \
+per lo sviluppo si può derogare con SWS_SCRIPT_SENZA_SANDBOX=1";
+
 impl Engine {
     pub fn new(db: Arc<TagDb>, bus: Arc<TagWriteBus>) -> Self {
         let timeout_ms = std::env::var("SWS_SCRIPT_TIMEOUT_MS")
@@ -737,6 +757,9 @@ impl Engine {
         let db = self.db.clone();
         let bus = self.bus.clone();
         let sandbox = self.is_sandboxed();
+        if !sandbox && sandbox_obbligatoria() {
+            return Err(MOTIVO_SENZA_SANDBOX.to_string());
+        }
         let timeout = self.timeout;
         let telegram = self.telegram_tx.lock().ok().and_then(|g| g.clone());
         // L'`Arc` e non una copia: il progetto può cambiare mentre uno script
@@ -1836,3 +1859,21 @@ mod tr_tests {
         assert_eq!(out.stdout.trim(), "{{inesistente}}");
     }
 }
+
+#[cfg(test)]
+mod tests_sandbox_obbligatoria {
+    use super::*;
+
+    #[tokio::test]
+    async fn senza_sandbox_e_con_la_regola_accesa_lo_script_non_parte() {
+        let e = Engine::new(Arc::new(TagDb::new(16)), Arc::new(TagWriteBus::new()));
+        if e.is_sandboxed() {
+            return; // su una macchina con RestrictedPython la regola non scatta
+        }
+        imposta_sandbox_obbligatoria(true);
+        let r = e.execute_with_args("print(1)".into(), Default::default(), "test").await;
+        imposta_sandbox_obbligatoria(false);
+        assert_eq!(r.unwrap_err(), MOTIVO_SENZA_SANDBOX);
+    }
+}
+

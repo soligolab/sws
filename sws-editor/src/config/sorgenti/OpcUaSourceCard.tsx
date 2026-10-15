@@ -212,12 +212,19 @@ export function OpcUaSourceCard({
           <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, marginBottom: 8 }}>
             <input
               type="checkbox"
-              checked={source.trust_all_certs ?? true}
+              checked={source.trust_all_certs ?? false}
               onChange={(e) => onChange({ ...source, trust_all_certs: e.target.checked })}
             />
-            Accetta qualsiasi certificato server (PoC — disabilita per gestione trust manuale)
+            {t("cfgUi.opcuaAccettaTutti")}
           </label>
-          {!(source.trust_all_certs ?? true) && (
+          {/* 15-10-2026 (CRA): il default è la fiducia al primo contatto, e il
+              trust store si vede sempre — è lì che si conferma un certificato
+              cambiato. */}
+          <div style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)", marginBottom: 8, lineHeight: 1.4 }}>
+            {t("cfgUi.opcuaPrimoContatto")}
+          </div>
+          {(
+
             <div style={{ background: "var(--brand-surface, #1e293b)", borderRadius: 6, padding: 10, marginBottom: 8 }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
                 <span style={{ fontSize: 12, color: "var(--brand-text-muted, #94a3b8)", fontWeight: 600 }}>TRUST STORE</span>

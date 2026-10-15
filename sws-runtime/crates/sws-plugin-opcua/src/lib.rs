@@ -95,7 +95,29 @@ pub async fn run(cfg: OpcUaClientConfig, db: Arc<TagDb>, bus: Arc<TagWriteBus>, 
         &cfg.id,
         tokio_util::sync::CancellationToken::new(),
         || async {
-            run_once(&cfg, &db, &bus, &source_pki).await?;
+            if let Err(e) = run_once(&cfg, &db, &bus, &source_pki).await {
+                // Fiducia al primo contatto (15-10-2026): solo se il progetto
+                // non accetta già tutto, e solo dopo un fallimento — è lì che
+                // async-opcua ha messo il certificato sconosciuto in `rejected/`.
+                if !cfg.trust_all_certs {
+                    match fiducia_al_primo_contatto(&source_pki) {
+                        Fiducia::Memorizzato(f) => {
+                            info!(source = %cfg.id, certificato = %f, "opcua: certificato del server memorizzato al primo contatto");
+                            return Err(anyhow::anyhow!("certificato del server memorizzato al primo contatto ({f}): riconnessione"));
+                        }
+                        Fiducia::Cambiato(f) => {
+                            warn!(source = %cfg.id, certificato = %f, "opcua: certificato del server cambiato, non accettato");
+                            return Err(anyhow::anyhow!(
+                                "{}: il server presenta un certificato diverso da quello memorizzato ({f}). \
+                                 Se il cambio è atteso, fidati del nuovo dal trust store della sorgente",
+                                sws_core::pin_tls::MOTIVO_CERTIFICATO_CAMBIATO
+                            ));
+                        }
+                        Fiducia::Niente => {}
+                    }
+                }
+                return Err(e);
+            }
             Err(anyhow::anyhow!("sessione chiusa dal server"))
         },
         || async {
@@ -105,6 +127,51 @@ pub async fn run(cfg: OpcUaClientConfig, db: Arc<TagDb>, bus: Arc<TagWriteBus>, 
         },
     )
     .await;
+}
+
+/// Esito della fiducia al primo contatto.
+#[derive(Debug, PartialEq)]
+pub enum Fiducia {
+    /// Primo contatto: il certificato rifiutato è passato fra i fidati.
+    Memorizzato(String),
+    /// Ci sono già certificati fidati, e il server ne presenta un altro.
+    Cambiato(String),
+    Niente,
+}
+
+fn certificati_in(dir: &Path) -> Vec<PathBuf> {
+    let mut v: Vec<PathBuf> = std::fs::read_dir(dir)
+        .map(|r| r.filter_map(|e| e.ok().map(|e| e.path())).filter(|p| p.is_file()).collect())
+        .unwrap_or_default();
+    v.sort();
+    v
+}
+
+/// Fiducia al primo contatto (TOFU) sopra l'archivio di async-opcua, come
+/// `known_hosts` di SSH e come MQTT (Q49): se `trusted/` è vuota e in
+/// `rejected/` c'è **un solo** certificato, quello è il server al primo
+/// contatto e diventa fidato. Se `trusted/` ha già un certificato, uno nuovo
+/// rifiutato è un **cambio**: mai accettato da solo — un reset del server e un
+/// attacco da fuori sono indistinguibili. Più rifiutati con `trusted/` vuota:
+/// ambiguo, non si sceglie.
+pub fn fiducia_al_primo_contatto(pki: &Path) -> Fiducia {
+    let fidati = certificati_in(&pki.join("trusted"));
+    let rifiutati = certificati_in(&pki.join("rejected"));
+    let nome = |p: &Path| p.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
+    match (fidati.is_empty(), rifiutati.as_slice()) {
+        (true, [unico]) => {
+            let dest = pki.join("trusted").join(unico.file_name().unwrap_or_default());
+            match std::fs::rename(unico, &dest) {
+                Ok(()) => Fiducia::Memorizzato(nome(unico)),
+                Err(e) => {
+                    warn!(pki = %pki.display(), "opcua: non riesco a memorizzare il certificato: {e}");
+                    Fiducia::Niente
+                }
+            }
+        }
+        (false, [primo, ..]) => Fiducia::Cambiato(nome(primo)),
+        _ => Fiducia::Niente,
+    }
 }
 
 async fn run_once(
@@ -1233,5 +1300,46 @@ mod tests {
             Some(Variant::String(s)) => assert_eq!(s.as_ref(), "hi"),
             other => panic!("expected String, got {other:?}"),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests_fiducia {
+    use super::*;
+
+    fn pki(nome: &str) -> PathBuf {
+        let d = std::env::temp_dir().join(format!("sws-tofu-{nome}-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&d);
+        std::fs::create_dir_all(d.join("trusted")).unwrap();
+        std::fs::create_dir_all(d.join("rejected")).unwrap();
+        d
+    }
+
+    #[test]
+    fn al_primo_contatto_il_certificato_diventa_fidato() {
+        let d = pki("primo");
+        std::fs::write(d.join("rejected/server.der"), b"x").unwrap();
+        assert_eq!(fiducia_al_primo_contatto(&d), Fiducia::Memorizzato("server.der".into()));
+        assert!(d.join("trusted/server.der").exists());
+        assert!(!d.join("rejected/server.der").exists());
+        // Le volte dopo non c'è niente da fare.
+        assert_eq!(fiducia_al_primo_contatto(&d), Fiducia::Niente);
+    }
+
+    #[test]
+    fn un_certificato_cambiato_non_si_accetta_da_solo() {
+        let d = pki("cambiato");
+        std::fs::write(d.join("trusted/vecchio.der"), b"x").unwrap();
+        std::fs::write(d.join("rejected/nuovo.der"), b"y").unwrap();
+        assert_eq!(fiducia_al_primo_contatto(&d), Fiducia::Cambiato("nuovo.der".into()));
+        assert!(d.join("rejected/nuovo.der").exists(), "resta fra i rifiutati");
+    }
+
+    #[test]
+    fn piu_rifiutati_senza_fidati_e_ambiguo() {
+        let d = pki("ambiguo");
+        std::fs::write(d.join("rejected/a.der"), b"x").unwrap();
+        std::fs::write(d.join("rejected/b.der"), b"y").unwrap();
+        assert_eq!(fiducia_al_primo_contatto(&d), Fiducia::Niente);
     }
 }

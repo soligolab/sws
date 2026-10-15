@@ -490,6 +490,13 @@ async fn main() -> anyhow::Result<()> {
     // Historian starts RAM-only. open_project calls historian.swap_store() to
     // attach the per-project SQLite so history is isolated between projects.
     let historian = Arc::new(Historian::new(5_000));
+    // CRA, onda 1 (15-10-2026): senza RestrictedPython gli script non partono.
+    // Deroga solo esplicita, per lo sviluppo: l'immagine ufficiale la sandbox ce l'ha.
+    let senza_sandbox = std::env::var("SWS_SCRIPT_SENZA_SANDBOX").as_deref() == Ok("1");
+    sws_pyscript::imposta_sandbox_obbligatoria(!senza_sandbox);
+    if senza_sandbox {
+        warn!("pyscript: SWS_SCRIPT_SENZA_SANDBOX=1 — gli script possono girare SENZA sandbox (solo sviluppo)");
+    }
     let py_engine = PyEngine::new(tag_db.clone(), bus.clone());
     // Q49 — impronte TLS dei broker MQTT (TOFU), archivio a sé rispetto a
     // quello dei dispositivi (certificati::store_dispositivi): un broker non

@@ -43,11 +43,8 @@ esito() {
 # scrive accanto.
 #
 #   /health                              sonda di vita, nessun dato
-#   /metrics                             sonda Prometheus. ⚠ ESPONE dati di
-#                                        esercizio senza credenziali: è un
-#                                        residuo da decidere (autenticarla o
-#                                        confinarla su loopback), non una
-#                                        scelta presa
+#   (/metrics non c'è più: dal 15-10-2026 vuole una sessione o il token
+#                                        statico SWS_METRICS_TOKEN — CRA, onda 1)
 #   /cert                                il certificato è la chiave PUBBLICA
 #   /sw.js                               service worker che si disinstalla
 #   /api/auth/login                      senza, non si entra
@@ -85,7 +82,6 @@ esito() {
 ATTESE=(
     "/health"
     "/.well-known/security.txt"
-    "/metrics"
     "/cert"
     "/sw.js"
     "/api/auth/login"

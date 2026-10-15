@@ -1084,7 +1084,6 @@ pub fn build(
     let open = Router::new()
         .route("/health", get(|| async { "ok" }))
         .route("/.well-known/security.txt", get(crate::security_txt::get_security_txt))
-        .route("/metrics", get(crate::metrics::get_metrics))
         .route("/cert", get(get_cert))
         .route("/sw.js", sw_unregister)
         .route("/api/auth/login", post(login))
@@ -1210,7 +1209,7 @@ pub fn build(
     let mut app = if lockdown {
         deploy_only_app(state.clone())
     } else {
-        open.merge(protected)
+        open.merge(protected).merge(metriche(&state))
     };
 
     // Serve the Vite-built SPA from disk when --www is provided. Any path that
@@ -1428,7 +1427,6 @@ fn deploy_only_app(state: AppState) -> Router<AppState> {
     let aperte = Router::new()
         .route("/health", get(|| async { "ok" }))
         .route("/.well-known/security.txt", get(crate::security_txt::get_security_txt))
-        .route("/metrics", get(crate::metrics::get_metrics))
         .route("/cert", get(get_cert))
         .route("/api/auth/login", post(login))
         .route("/api/abbinamento", get(crate::abbinamento::stato))
@@ -1440,7 +1438,7 @@ fn deploy_only_app(state: AppState) -> Router<AppState> {
     // Lo stato **non** si applica qui: lo fa il chiamante alla fine, insieme al
     // CORS e al contatore HTTP. Applicarlo due volte non compila, e applicarlo
     // qui salterebbe quel tratto comune.
-    aperte.merge(gestione).merge(flussi)
+    aperte.merge(gestione).merge(flussi).merge(metriche(&state))
 }
 
 fn build_runtime_inner(state: AppState, www_dir: Option<PathBuf>) -> Router {
@@ -1522,7 +1520,6 @@ fn build_runtime_inner(state: AppState, www_dir: Option<PathBuf>) -> Router {
     let open = Router::new()
         .route("/health", get(|| async { "ok" }))
         .route("/.well-known/security.txt", get(crate::security_txt::get_security_txt))
-        .route("/metrics", get(crate::metrics::get_metrics))
         .route("/cert", get(get_cert))
         .route("/api/auth/login", post(login))
         .route("/api/abbinamento", get(crate::abbinamento::stato))
@@ -1534,7 +1531,7 @@ fn build_runtime_inner(state: AppState, www_dir: Option<PathBuf>) -> Router {
         .allow_methods(Any)
         .allow_headers(Any);
 
-    let mut router = open
+    let mut router = open.merge(metriche(&state))
         .merge(gated)
         .layer(middleware::from_fn(crate::metrics::track_http_metrics))
         // Stessa regola del router di amministrazione: anche il viewer serve
@@ -2086,6 +2083,37 @@ async fn auth_utente_o_figlio(State(s): State<AppState>, mut req: Request, next:
         return next.run(req).await;
     }
     require_auth(State(s), req, next).await
+}
+
+/// `/metrics` (CRA, onda 1, 15-10-2026): prima era pre-auth e mostrava a
+/// chiunque in rete CPU, memoria, numero di tag e di allarmi. Ora vuole una
+/// sessione, oppure il token statico `SWS_METRICS_TOKEN` (`Authorization:
+/// Bearer …`), pensato per Prometheus, a cui una sessione che scade non serve.
+fn metriche(state: &AppState) -> Router<AppState> {
+    Router::new()
+        .route("/metrics", get(crate::metrics::get_metrics))
+        .route_layer(middleware::from_fn_with_state(state.clone(), accesso_metriche))
+}
+
+async fn accesso_metriche(State(s): State<AppState>, req: Request, next: Next) -> Response {
+    let atteso = std::env::var("SWS_METRICS_TOKEN").unwrap_or_default();
+    if token_metriche_valido(req.headers(), &atteso) {
+        return next.run(req).await;
+    }
+    require_auth(State(s), req, next).await
+}
+
+/// Il token statico delle metriche: vuoto = non configurato, mai valido.
+/// Confronto a tempo costante, come per le altre credenziali.
+pub(crate) fn token_metriche_valido(h: &axum::http::HeaderMap, atteso: &str) -> bool {
+    if atteso.is_empty() {
+        return false;
+    }
+    let Some(dato) = h.get(axum::http::header::AUTHORIZATION).and_then(|v| v.to_str().ok()).and_then(|v| v.strip_prefix("Bearer ")) else {
+        return false;
+    };
+    let (a, b) = (dato.as_bytes(), atteso.as_bytes());
+    a.len() == b.len() && a.iter().zip(b).fold(0u8, |acc, (x, y)| acc | (x ^ y)) == 0
 }
 
 async fn require_auth(State(s): State<AppState>, mut req: Request, next: Next) -> Response {
@@ -11498,3 +11526,25 @@ mod rotte_del_dispositivo {
         );
     }
 }
+
+#[cfg(test)]
+mod tests_metriche {
+    use super::token_metriche_valido;
+    use axum::http::{header, HeaderMap, HeaderValue};
+
+    fn con(v: &str) -> HeaderMap {
+        let mut h = HeaderMap::new();
+        h.insert(header::AUTHORIZATION, HeaderValue::from_str(v).unwrap());
+        h
+    }
+
+    #[test]
+    fn il_token_delle_metriche_vale_solo_se_configurato_e_uguale() {
+        assert!(token_metriche_valido(&con("Bearer segreto-lungo"), "segreto-lungo"));
+        assert!(!token_metriche_valido(&con("Bearer segreto-lung"), "segreto-lungo"));
+        assert!(!token_metriche_valido(&con("Bearer "), ""), "non configurato: mai valido");
+        assert!(!token_metriche_valido(&HeaderMap::new(), "segreto-lungo"));
+        assert!(!token_metriche_valido(&con("Basic segreto-lungo"), "segreto-lungo"));
+    }
+}
+

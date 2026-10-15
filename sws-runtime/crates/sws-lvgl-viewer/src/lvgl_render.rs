@@ -2319,6 +2319,7 @@ fn ancora_di(obj: &SynopticObject, porta: Option<&str>, m: Option<&sws_core::sim
 /// fatale: il capo resta dov'era. È la stessa scelta del web (`objects.find`
 /// che torna `undefined` e lascia il punto invariato), e ha senso — un
 /// riferimento rotto deve dare una pipe storta, non una pagina in meno.
+#[cfg(test)]
 fn punti_ancorati(pipe: &SynopticObject, oggetti: &[SynopticObject]) -> Option<Vec<PipePoint>> {
     percorso_tubo(pipe, oggetti, None)
 }

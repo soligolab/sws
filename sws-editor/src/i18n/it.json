@@ -2412,7 +2412,9 @@
     "smtpTestTitle": "Manda un'email di prova con questi dati e aspetta la risposta del server: se qualcosa non va, il messaggio dice cosa. Senza destinatari di progetto la manda al mittente.",
     "smtpTestInviata": "Inviata a {{a}}.",
     "iconSize": "Dimensione icone",
-    "iconSizeNote": "Le icone del menù Strumenti e le anteprime dei simboli: più grandi su monitor ad alta risoluzione o touch."
+    "iconSizeNote": "Le icone del menù Strumenti e le anteprime dei simboli: più grandi su monitor ad alta risoluzione o touch.",
+    "opcuaAccettaTutti": "Accetta qualsiasi certificato del server (sconsigliato)",
+    "opcuaPrimoContatto": "Senza questa spunta, il primo certificato visto si memorizza da solo; se poi il server ne presenta un altro, la connessione si ferma finché non lo approvi qui sotto."
   },
   "boot": {
     "pngTooLarge": "PNG troppo grande ({{kb}} KB, max 5120 KB): non è stato caricato",

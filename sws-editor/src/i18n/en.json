@@ -2412,7 +2412,9 @@
     "smtpTestTitle": "Sends a test email with these settings and waits for the server's answer: if something is wrong, the message says what. With no project recipients it goes to the sender.",
     "smtpTestInviata": "Sent to {{a}}.",
     "iconSize": "Icon size",
-    "iconSizeNote": "Icons in the Tools menu and symbol previews: larger on high-resolution or touch monitors."
+    "iconSizeNote": "Icons in the Tools menu and symbol previews: larger on high-resolution or touch monitors.",
+    "opcuaAccettaTutti": "Accept any server certificate (not recommended)",
+    "opcuaPrimoContatto": "Without this option, the first certificate seen is stored automatically; if the server later presents a different one, the connection stops until you approve it below."
   },
   "boot": {
     "pngTooLarge": "PNG too large ({{kb}} KB, max 5120 KB): it was not uploaded",

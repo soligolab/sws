@@ -959,9 +959,11 @@ pub struct OpcUaClientConfig {
     /// e.g. `ns=2;s=Machine.CycleTime` or `ns=0;i=2253`.
     #[serde(default)]
     pub nodes: Vec<OpcUaNodeMapping>,
-    /// When true (default), any server certificate is automatically trusted.
-    /// Set to false to require explicit certificate approval via the trust store.
-    #[serde(default = "default_true")]
+    /// `true` = qualunque certificato del server è accettato (sconsigliato).
+    /// Dal 15-10-2026 (CRA, onda 1) il default è `false`: fiducia al primo
+    /// contatto (il primo certificato visto si memorizza in `opcua-pki/<id>/trusted`),
+    /// poi solo quello; un certificato cambiato si conferma a mano dal trust store.
+    #[serde(default)]
     pub trust_all_certs: bool,
 }
 
@@ -1031,9 +1033,6 @@ fn default_opcua_security_policy() -> String {
 }
 fn default_opcua_subscription_interval_ms() -> u64 {
     500
-}
-fn default_true() -> bool {
-    true
 }
 fn default_opcua_server_port() -> u16 {
     4840

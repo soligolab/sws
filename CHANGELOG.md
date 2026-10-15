@@ -447,6 +447,17 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 
 ### Security
 
+- **Sicuri per default (CRA, P1 — onda 1, C3)**:
+  - **OPC UA**: `trust_all_certs` passa a `false` di default. Al primo contatto il certificato del server si
+    memorizza da solo (`opcua-pki/<sorgente>/trusted`, come `known_hosts`); un certificato **cambiato** non è mai
+    accettato da solo e la sorgente lo dice, finché non lo si approva dal trust store, ora sempre visibile nella
+    scheda della sorgente. Con la policy `None` non cambia nulla.
+  - **`/metrics`** non è più pre-auth: vuole una sessione, oppure il token statico `SWS_METRICS_TOKEN`
+    (`Authorization: Bearer …`) per Prometheus. Tolto dalla lista bianca di `check_rotte_preauth`.
+  - **Sandbox degli script obbligatoria**: senza RestrictedPython il runtime non esegue gli script e dice perché.
+    Deroga solo esplicita per lo sviluppo, `SWS_SCRIPT_SENZA_SANDBOX=1`, che `start_runtime.sh`/`start_editor.sh`
+    impostano da soli, con un avviso, se la macchina non ha RestrictedPython.
+
 - **Contatti di sicurezza veri (CRA, P0)**: `SECURITY.md` riscritto — fabbricante Soligonet, supporto di 5 anni
   dall'ultima release, segnalazione privata GitHub o `security@soligo.net`, tempi di risposta, avvisi come GitHub
   Security Advisories. Ogni runtime serve `/.well-known/security.txt` (RFC 9116), senza credenziali, con `Expires`

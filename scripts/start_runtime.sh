@@ -247,6 +247,14 @@ SWS Runtime$INST_LABEL — pronto (HTTP)
 MSG
 fi
 
+# Sandbox degli script (CRA, onda 1, 15-10-2026): dal runtime è obbligatoria, e
+# senza RestrictedPython gli script non partono. Su una macchina di sviluppo che
+# non ce l'ha si deroga in modo esplicito e visibile; l'immagine ufficiale ce l'ha.
+if [ -z "${SWS_SCRIPT_SENZA_SANDBOX:-}" ] && ! python3 -c 'import RestrictedPython' 2>/dev/null; then
+  echo "[sviluppo] RestrictedPython assente: SWS_SCRIPT_SENZA_SANDBOX=1 (script senza sandbox)."
+  echo "[sviluppo]   per provare la sandbox: pip install --user RestrictedPython"
+  export SWS_SCRIPT_SENZA_SANDBOX=1
+fi
 exec "$REPO_ROOT/sws-runtime/target/debug/sws-runtime" \
   --config         "$CONFIG_DIR"         \
   --projects-root  "$PROJECTS_ROOT"      \

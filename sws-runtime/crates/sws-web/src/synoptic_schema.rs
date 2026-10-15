@@ -999,7 +999,7 @@ pub const SOURCE_OPCUA_CLIENT_FIELDS: &[Field] = &[
     Field { name: "auth", ty: "OpcUaAuth", required: false, group: "", doc: "" },
     Field { name: "subscription_interval_ms", ty: "number", required: false, group: "", doc: "Server-side subscription publishing interval, in milliseconds." },
     Field { name: "nodes", ty: "OpcUaNodeMapping[]", required: false, group: "", doc: "Nodes to subscribe to. NodeId format is the canonical OPC-UA one, e.g. `ns=2;s=Machine.CycleTime` or `ns=0;i=2253`." },
-    Field { name: "trust_all_certs", ty: "bool", required: false, group: "", doc: "When true (default), any server certificate is automatically trusted. Set to false to require explicit certificate approval via the trust store." },
+    Field { name: "trust_all_certs", ty: "bool", required: false, group: "", doc: "`true` = qualunque certificato del server è accettato (sconsigliato). Dal 15-10-2026 (CRA, onda 1) il default è `false`: fiducia al primo contatto (il primo certificato visto si memorizza in `opcua-pki/<id>/trusted`), poi solo quello; un certificato cambiato si conferma a mano dal trust store." },
 ];
 
 /// Campi di `OpcUaNodeMapping`, usato dentro la sorgente `opcua_client`.

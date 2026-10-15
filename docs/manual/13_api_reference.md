@@ -66,7 +66,7 @@ curl -k https://localhost:8443/health
 Metriche Prometheus (formato text/plain).
 
 ```bash
-curl -k https://localhost:8443/metrics
+curl -k -H "Authorization: Bearer $SWS_METRICS_TOKEN" https://localhost:8443/metrics
 # → sws_uptime_seconds{...} 3600
 # → sws_tag_count 42
 # → sws_cpu_usage_pct 12.3

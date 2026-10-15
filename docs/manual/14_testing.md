@@ -22,7 +22,7 @@ curl http://localhost:8443/health
 # → ok
 
 # Metriche Prometheus
-curl -k https://localhost:8443/metrics | head -5
+curl -k -H "Authorization: Bearer $SWS_METRICS_TOKEN" https://localhost:8443/metrics | head -5
 # → # HELP sws_uptime_seconds ...
 # → sws_uptime_seconds 42.1
 

@@ -1290,7 +1290,7 @@ export interface OpcUaSource {
   auth: OpcUaAuth;
   subscription_interval_ms: number;
   nodes: OpcUaNodeMapping[];
-  /** When false, only certs in the per-source trust store are accepted. Default true. */
+  /** `true` = qualunque certificato del server (sconsigliato). Default `false` dal 15-10-2026: fiducia al primo contatto, poi trust store. */
   trust_all_certs?: boolean;
 }
 
