@@ -12,6 +12,16 @@
 > resta in «Storico». Qui vive solo ciò che serve a riprendere il lavoro.
 
 
+## ▶ Riprendere da qui — onda 1: CRA P0 chiuso, avanti coi default sicuri (2026-10-15)
+
+Piano [`docs/plans/2026-10-15-piano-prima-fascia-e-cra.md`](docs/plans/2026-10-15-piano-prima-fascia-e-cra.md)
+(nasce dalla [gap analysis SCADA](docs/plans/2026-10-15-gap-analysis-scada-professionali.md)).
+
+- **Fatto e pushato**: C1 + C2 (`ec630d24`) — `SECURITY.md`, `/.well-known/security.txt`, procedura art. 14;
+  alias `security@soligo.net` verificato e segnalazione privata GitHub attivata dal maintainer; ENISA rimandata.
+- **Prossimo**: C3 (OPC UA `trust_all_certs` → `false`, `/metrics` protetto, sandbox Python obbligatoria), poi P1
+  popup generici (scelta: modali e non modali, più non modali insieme).
+
 ## ▶ Riprendere da qui — tubazioni su main e pushate (2026-10-15)
 
 - **Rami A e B su `main`** (`86cea9a4`, `6e3a80c6`), squash dopo l'ok del maintainer, **pushati** su origin.

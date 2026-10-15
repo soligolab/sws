@@ -45,7 +45,7 @@ perché, non il come.
 
 | Onda | P | C | Perché insieme |
 |---|---|---|---|
-| **1** | **P1** popup generici | **C1 + C2** (documenti, su `main`) e **C3** (un ramo) | Tutto piccolo e senza dipendenze: si parte chiudendo il P0 CRA, che è già legge, e con la mancanza HMI più visibile |
+| **1** | **P1** popup generici | ✅ **C1 + C2** (`ec630d24`, 15-10-2026) e **C3** (un ramo) | Tutto piccolo e senza dipendenze: si parte chiudendo il P0 CRA, che è già legge, e con la mancanza HMI più visibile |
 | **2** | **P5** prestazioni misurate | **C6** header e limiti | I limiti di richieste si decidono sui numeri misurati, non a occhio; lo stesso banco di prova misura anche l'effetto dei limiti |
 | **3** | **P6** 2FA e LDAP **[plan]** | **C4** TLS di default **[plan]** | Toccano gli stessi punti (login, primo accesso, «Connetti», certificati): una sola sessione di plan per le due, poi rami annidati |
 | **4** | **P3** report **[plan]** + **P4** notifiche **[plan]** | **C5** reset di fabbrica | Report e notifiche condividono invio, destinatari e pianificazione; il reset deve sapere cosa cancellare dei nuovi archivi (report salvati, destinatari) |

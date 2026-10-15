@@ -196,10 +196,13 @@ gestione utenti dell'IDE. Misurato sul codice, non dedotto dal documento.
 
 **Resta, nell'ordine proposto**
 
-*P0 — processo, art. 14 già applicabile*
-1. Contatti di sicurezza veri: `SECURITY.md` ha ancora `security@soligolab.example` e chiave PGP «placeholder»,
+*P0 — processo, art. 14 già applicabile* — **✅ chiuso il 15-10-2026** (`ec630d24`): `SECURITY.md` riscritto,
+`security@soligo.net` attivo, segnalazione privata GitHub attiva, `/.well-known/security.txt` servito da ogni
+runtime, procedura in `docs/sicurezza/procedura-art14.md`. Registrazione ENISA rimandata all'immissione sul mercato
+(decisione del maintainer).
+1. ~~Contatti di sicurezza veri~~: `SECURITY.md` ha ancora `security@soligolab.example` e chiave PGP «placeholder»,
    pagina avvisi segnaposto, nessun `security.txt`; periodo di supporto (5 anni dall'ultima release) da scrivere lì.
-2. Procedura art. 14 (24 h / 72 h / 14 gg): referente, dati, registrazione alla piattaforma ENISA.
+2. ~~Procedura art. 14 (24 h / 72 h / 14 gg)~~: referente, dati, registrazione alla piattaforma ENISA.
 
 *P1 — sicuro per default, nel codice*
 3. **TLS acceso di default sul pannello** (oggi «plain HTTP mode» finché non si genera un certificato): la lacuna
