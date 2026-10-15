@@ -1,0 +1,3 @@
+id: comandi-pompa-pozzo
+label: "Comandi — pompa del pozzo"
+description: "Banco di prova dei comandi: le modalità del bottone (commuta, momentaneo, incremento, reset), i simboli che comandano (interruttore, valvola, pulsantiera) e le assegnazioni, sul quadro della pompa di un pozzo domestico. Variabili interne: si prova senza impianto."

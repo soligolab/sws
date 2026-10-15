@@ -407,6 +407,12 @@ export interface SynopticObject {
    *  ordine, **al posto di** `button_mode`/`write_value`. Una conferma sola
    *  (`require_confirm`) per tutto il clic. */
   assegnazioni?: Assegnazione[];
+  /** La variabile che un **simbolo** scrive al clic (14-10-2026, piano
+   *  strumenti-simboli-comandi, ramo 2). Separata da `state_tag` (un pulsante
+   *  di marcia scrive START e mostra RUNNING) e da `tag` (sul simbolo è la
+   *  qualità). Presente, anche vuota = il simbolo comanda, con `button_mode`,
+   *  `write_value`, le assegnazioni e la conferma del bottone. */
+  command_tag?: string;
   /** Valore scritto al rilascio in modalità momentary (default false). */
   release_value?: string | number | boolean;
   /** Chiedi conferma prima di ogni scrittura da questo oggetto (F3.2). */

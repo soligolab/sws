@@ -23,6 +23,7 @@
 //! in una sessione lunga.
 
 use std::cell::RefCell;
+use std::rc::Rc;
 use std::sync::mpsc;
 
 use crate::effects;
@@ -134,6 +135,12 @@ pub struct RenderSummary {
 /// stesso principio degli `Style` altrove in questo file.
 #[allow(dead_code)]
 pub enum LiveKind {
+    /// Il valore corrente del tag di un comando che lo legge (commuta,
+    /// incrementa): il clic lo trova qui senza toccare la rete (14-10-2026).
+    ValoreComando {
+        tag: String,
+        corrente: Rc<RefCell<Option<TagValue>>>,
+    },
     /// Lo sfondo della pagina preso da una variabile `color` (11-10-2026,
     /// `background_tag`): si ridipinge lo schermo quando il valore cambia; un
     /// valore che non è un colore lascia lo sfondo fisso della pagina.
@@ -660,18 +667,45 @@ pub struct TagCommand {
     pub value: TagValue,
 }
 
-/// Contesto per il click di un bottone: valore fisso da scrivere, stessa
-/// semantica di `SvgCanvas.tsx` (`onWriteTag(obj.tag, obj.write_value ?? true)`)
-/// — non un contatore o altro comportamento specifico di LVGL.
+/// Contesto per il clic di un bottone: il suo [`Comando`], e il valore
+/// corrente del tag quando il comando ne ha bisogno (commuta, incrementa).
+///
+/// Fino al 14-10-2026 qui c'era solo un elenco fisso di scritture, e
+/// `button_mode` sul pannello non esisteva: toggle, momentaneo, set/reset,
+/// incremento e decremento scrivevano tutti `write_value` (piano
+/// docs/plans/2026-10-14-strumenti-simboli-comandi.md, ramo 2).
 struct ButtonClickCtx {
-    /// Le scritture del clic: una sola per un bottone normale (`tag` +
-    /// `write_value`), una per assegnazione per un bottone che assegna
-    /// (11-10-2026). Una conferma sola per tutte.
-    scritture: Vec<(String, TagValue)>,
+    comando: Comando,
+    /// L'ultimo valore del tag, aggiornato a ogni frame da `update_bindings`
+    /// (`LiveKind::ValoreComando`). Vuoto per i comandi che non lo leggono.
+    corrente: Rc<RefCell<Option<TagValue>>>,
     tx: mpsc::Sender<TagCommand>,
     /// Se presente, il click **non** scrive: apre una finestra di conferma, e
     /// a scrivere è il pulsante di quella.
-    conferma: Option<Conferma>,
+    conferma: Option<RegolaConferma>,
+    /// Le scritture decise al clic, in attesa della risposta alla conferma: il
+    /// valore di un «commuta» si calcola quando si tocca, non quando si conferma.
+    in_attesa: RefCell<Vec<(String, TagValue)>>,
+}
+
+/// Il comando di un bottone, deciso una volta al disegno della pagina.
+/// Stessa semantica del web (`SvgCanvas.tsx`, ramo `button`).
+#[derive(Debug, Clone, PartialEq)]
+pub(crate) enum Comando {
+    /// `write`, `set`, `reset` e le assegnazioni: scritture fisse.
+    Fisse(Vec<(String, TagValue)>),
+    /// `toggle`: scrive il contrario del valore corrente.
+    Commuta { tag: String },
+    /// `increment`/`decrement`: `passo` ha già il segno; il risultato resta fra `min` e `max`.
+    Passo { tag: String, passo: f64, min: Option<f64>, max: Option<f64> },
+    /// `momentary`: `premi` alla pressione, `rilascia` al rilascio o quando il dito scivola via.
+    Momentaneo { tag: String, premi: TagValue, rilascia: TagValue },
+}
+
+/// Chi deve chiedere conferma, e con quale messaggio d'autore.
+struct RegolaConferma {
+    critico: bool,
+    messaggio: Option<String>,
 }
 
 /// Cosa mostrare prima di eseguire un comando.
@@ -744,10 +778,16 @@ unsafe extern "C" fn sws_button_clicked_cb(e: *mut lvgl_sys::lv_event_t) {
         return;
     }
     let ctx = unsafe { &*(user_data as *const ButtonClickCtx) };
-    let Some(c) = &ctx.conferma else {
-        manda_scritture(ctx);
+    let scritture = scritture_al_clic(&ctx.comando, ctx.corrente.borrow().as_ref());
+    if scritture.is_empty() {
+        return;
+    }
+    let Some(regola) = &ctx.conferma else {
+        manda_scritture(&ctx.tx, &scritture);
         return;
     };
+    let c = conferma_per(regola, &scritture);
+    *ctx.in_attesa.borrow_mut() = scritture;
     // La finestra si crea al click e si distrugge alla risposta: tenerne una
     // nascosta per ogni pulsante costerebbe memoria per una cosa che succede
     // di rado. Il contesto passato è **lo stesso** già leakato per il pulsante,
@@ -768,7 +808,7 @@ unsafe extern "C" fn sws_button_clicked_cb(e: *mut lvgl_sys::lv_event_t) {
             // peggiore dei due esiti possibili.
             eprintln!(
                 "[conferma] impossibile creare la finestra per '{}': comando non eseguito",
-                ctx.scritture.iter().map(|(t, _)| t.as_str()).collect::<Vec<_>>().join(", ")
+                ctx.in_attesa.borrow().iter().map(|(t, _)| t.as_str()).collect::<Vec<_>>().join(", ")
             );
             return;
         }
@@ -823,37 +863,111 @@ unsafe extern "C" fn sws_conferma_cb(e: *mut lvgl_sys::lv_event_t) {
     }
     let ctx = unsafe { &*(user_data as *const ButtonClickCtx) };
     let scelta = unsafe { lvgl_sys::lv_msgbox_get_active_btn(mbox) };
+    let scritture = std::mem::take(&mut *ctx.in_attesa.borrow_mut());
     if scelta == 1 {
-        manda_scritture(ctx);
+        manda_scritture(&ctx.tx, &scritture);
     }
     unsafe { lvgl_sys::lv_msgbox_close(mbox) };
 }
 
 /// Una scrittura per voce, in ordine: una rifiutata non ferma le altre (ognuna
 /// è un comando a sé sul canale, come nel web).
-fn manda_scritture(ctx: &ButtonClickCtx) {
-    for (tag, value) in &ctx.scritture {
-        let _ = ctx.tx.send(TagCommand { tag: tag.clone(), value: value.clone() });
+fn manda_scritture(tx: &mpsc::Sender<TagCommand>, scritture: &[(String, TagValue)]) {
+    for (tag, value) in scritture {
+        let _ = tx.send(TagCommand { tag: tag.clone(), value: value.clone() });
     }
 }
 
-/// Le scritture di un bottone: le assegnazioni se ci sono, altrimenti
-/// `write_value` (default `true`) sul suo `tag`. Vuoto = il bottone non scrive.
-pub(crate) fn scritture_del_bottone(obj: &SynopticObject) -> Vec<(String, TagValue)> {
+/// `LV_EVENT_PRESSED` / `RELEASED` / `PRESS_LOST` di un bottone momentaneo.
+/// Il dito che scivola fuori (`PRESS_LOST`) rilascia come sul web
+/// (`onMouseLeave`): un comando non deve restare attivo perché il tocco è
+/// finito altrove. Niente conferma: una finestra fra pressione e rilascio
+/// renderebbe il comando impossibile da tenere premuto.
+unsafe extern "C" fn sws_button_momentaneo_cb(e: *mut lvgl_sys::lv_event_t) {
+    let user_data = unsafe { lvgl_sys::lv_event_get_user_data(e) };
+    if user_data.is_null() {
+        return;
+    }
+    let ctx = unsafe { &*(user_data as *const ButtonClickCtx) };
+    let Comando::Momentaneo { tag, premi, rilascia } = &ctx.comando else { return };
+    let code = unsafe { lvgl_sys::lv_event_get_code(e) };
+    let valore = if code == lvgl_sys::lv_event_code_t_LV_EVENT_PRESSED { premi } else { rilascia };
+    manda_scritture(&ctx.tx, &[(tag.clone(), valore.clone())]);
+}
+
+fn valore_json(v: &Option<serde_json::Value>) -> Option<TagValue> {
+    v.clone().and_then(|v| serde_json::from_value::<TagValue>(v).ok())
+}
+
+/// Il comando di un bottone: le assegnazioni se ci sono (qualunque sia la
+/// modalità, come sul web), altrimenti la modalità `button_mode` sul suo
+/// `tag`. `None` = il bottone non scrive niente.
+pub(crate) fn comando_del_bottone(obj: &SynopticObject) -> Option<Comando> {
     if let Some(a) = obj.assegnazioni.as_ref().filter(|a| !a.is_empty()) {
-        return a
+        let fisse: Vec<_> = a
             .iter()
             .filter(|x| !x.tag.trim().is_empty())
             .filter_map(|x| serde_json::from_value::<TagValue>(x.valore.clone()).ok().map(|v| (x.tag.clone(), v)))
             .collect();
+        return (!fisse.is_empty()).then_some(Comando::Fisse(fisse));
     }
-    let Some(tag) = &obj.tag else { return vec![] };
-    let write_value = obj
-        .write_value
-        .clone()
-        .and_then(|v| serde_json::from_value::<TagValue>(v).ok())
-        .unwrap_or(TagValue::Bool(true));
-    vec![(tag.clone(), write_value)]
+    let tag = obj.tag.clone().filter(|t| !t.trim().is_empty())?;
+    let scrivi = valore_json(&obj.write_value).unwrap_or(TagValue::Bool(true));
+    let rilascia = valore_json(&obj.release_value).unwrap_or(TagValue::Bool(false));
+    let passo = obj.step.unwrap_or(1.0);
+    Some(match obj.button_mode.as_deref().unwrap_or("write") {
+        "toggle" => Comando::Commuta { tag },
+        "reset" => Comando::Fisse(vec![(tag, rilascia)]),
+        "increment" => Comando::Passo { tag, passo, min: obj.min, max: obj.max },
+        "decrement" => Comando::Passo { tag, passo: -passo, min: obj.min, max: obj.max },
+        "momentary" => Comando::Momentaneo { tag, premi: scrivi, rilascia },
+        // `write`, `set` e una modalità sconosciuta: il valore fisso, come il web.
+        _ => Comando::Fisse(vec![(tag, scrivi)]),
+    })
+}
+
+/// Le scritture di un clic, dato il valore corrente del tag. Il momentaneo
+/// non scrive al clic: scrive alla pressione e al rilascio.
+pub(crate) fn scritture_al_clic(c: &Comando, corrente: Option<&TagValue>) -> Vec<(String, TagValue)> {
+    match c {
+        Comando::Fisse(v) => v.clone(),
+        Comando::Commuta { tag } => {
+            // Stessa verità del web: bool com'è, numero ≠ 0, testo non vuoto.
+            let acceso = match corrente {
+                Some(TagValue::Bool(b)) => *b,
+                Some(TagValue::Int(n)) => *n != 0,
+                Some(TagValue::Float(f)) => *f != 0.0,
+                Some(TagValue::Str(s)) => !s.is_empty(),
+                _ => false,
+            };
+            vec![(tag.clone(), TagValue::Bool(!acceso))]
+        }
+        Comando::Passo { tag, passo, min, max } => {
+            let base = match corrente {
+                Some(TagValue::Int(n)) => *n as f64,
+                Some(TagValue::Float(f)) if f.is_finite() => *f,
+                Some(TagValue::Bool(b)) => f64::from(u8::from(*b)),
+                Some(TagValue::Str(s)) => s.trim().parse::<f64>().ok().filter(|f| f.is_finite()).unwrap_or(0.0),
+                _ => 0.0,
+            };
+            let mut prossimo = base + passo;
+            if let Some(m) = min { prossimo = prossimo.max(*m); }
+            if let Some(m) = max { prossimo = prossimo.min(*m); }
+            // Un intero resta intero: un contatore `u16` non deve ricevere 3.0.
+            let intero = !matches!(corrente, Some(TagValue::Float(_))) && prossimo.fract() == 0.0 && prossimo.abs() < 9.0e15;
+            let v = if intero { TagValue::Int(prossimo as i64) } else { TagValue::Float(prossimo) };
+            vec![(tag.clone(), v)]
+        }
+        Comando::Momentaneo { .. } => vec![],
+    }
+}
+
+/// Il tag di cui il comando deve conoscere il valore corrente, se c'è.
+fn tag_da_seguire(c: &Comando) -> Option<&str> {
+    match c {
+        Comando::Commuta { tag } | Comando::Passo { tag, .. } => Some(tag),
+        _ => None,
+    }
 }
 
 /// `LV_EVENT_CLICKED` su un navbutton: stesso evento del bottone normale,
@@ -3098,16 +3212,20 @@ fn render_text(
 /// nell'audit; qui servirebbe una tastiera e una sessione autenticata nel
 /// viewer, che oggi non c'è. Chi ha bisogno del motivo nell'audit deve usare il
 /// pannello web — detto qui perché non lo si scopra dal registro mancante.
-fn conferma_di(obj: &SynopticObject, scritture: &[(String, TagValue)]) -> Option<Conferma> {
+fn regola_conferma(obj: &SynopticObject) -> Option<RegolaConferma> {
     let critico = obj.critical == Some(true);
     if obj.require_confirm != Some(true) && !critico {
         return None;
     }
-    let messaggio_obj = obj
-        .confirm_message
-        .as_deref()
-        .map(str::trim)
-        .filter(|m| !m.is_empty());
+    Some(RegolaConferma {
+        critico,
+        messaggio: obj.confirm_message.as_deref().map(str::trim).filter(|m| !m.is_empty()).map(str::to_string),
+    })
+}
+
+fn conferma_per(regola: &RegolaConferma, scritture: &[(String, TagValue)]) -> Conferma {
+    let critico = regola.critico;
+    let messaggio_obj = regola.messaggio.as_deref();
     let cosa = match scritture {
         [(tag, valore)] => format!("Scrivere {} su {}?", tag_value_as_string(valore), tag),
         molte => format!(
@@ -3119,7 +3237,7 @@ fn conferma_di(obj: &SynopticObject, scritture: &[(String, TagValue)]) -> Option
                 .join(", ")
         ),
     };
-    Some(Conferma {
+    Conferma {
         titolo: if critico {
             "Comando critico".to_string()
         } else {
@@ -3129,7 +3247,91 @@ fn conferma_di(obj: &SynopticObject, scritture: &[(String, TagValue)]) -> Option
             Some(m) => format!("{m}\n\n{cosa}"),
             None => cosa,
         },
-    })
+    }
+}
+
+/// Collega il comando di `obj` all'oggetto LVGL `ptr`: il clic per i comandi
+/// normali, pressione e rilascio per il momentaneo. Stessa semantica del
+/// bottone web (SvgCanvas.tsx). Senza comando l'oggetto resta com'è.
+fn collega_comando(
+    ptr: core::ptr::NonNull<lvgl_sys::lv_obj_t>,
+    comando: Option<Comando>,
+    obj: &SynopticObject,
+    tx: &mpsc::Sender<TagCommand>,
+    live: &mut Vec<LiveBinding>,
+) {
+    let Some(comando) = comando else { return };
+    let corrente = Rc::new(RefCell::new(None));
+    if let Some(tag) = tag_da_seguire(&comando) {
+        live.push(LiveBinding {
+            kind: LiveKind::ValoreComando { tag: tag.to_string(), corrente: Rc::clone(&corrente) },
+        });
+    }
+    let momentaneo = matches!(comando, Comando::Momentaneo { .. });
+    let ctx = leak_ctx(ButtonClickCtx {
+        conferma: regola_conferma(obj),
+        comando,
+        corrente,
+        tx: tx.clone(),
+        in_attesa: RefCell::new(Vec::new()),
+    });
+    unsafe {
+        if momentaneo {
+            for code in [
+                lvgl_sys::lv_event_code_t_LV_EVENT_PRESSED,
+                lvgl_sys::lv_event_code_t_LV_EVENT_RELEASED,
+                lvgl_sys::lv_event_code_t_LV_EVENT_PRESS_LOST,
+            ] {
+                lvgl_sys::lv_obj_add_event_cb(ptr.as_ptr(), Some(sws_button_momentaneo_cb), code, ctx);
+            }
+        } else {
+            lvgl_sys::lv_obj_add_event_cb(
+                ptr.as_ptr(),
+                Some(sws_button_clicked_cb),
+                lvgl_sys::lv_event_code_t_LV_EVENT_CLICKED,
+                ctx,
+            );
+        }
+    }
+}
+
+/// Il simbolo comanda se ha `command_tag` (anche vuoto) o delle assegnazioni.
+/// Senza, resta un disegno: non cliccabile, come prima.
+pub(crate) fn simbolo_comanda(obj: &SynopticObject) -> bool {
+    obj.command_tag.is_some() || obj.assegnazioni.as_ref().is_some_and(|a| !a.is_empty())
+}
+
+/// Il comando di un simbolo: quello del bottone, con `command_tag` al posto di
+/// `tag` (sul simbolo `tag` è la qualità).
+pub(crate) fn comando_del_simbolo(obj: &SynopticObject) -> Option<Comando> {
+    let mut come_bottone = obj.clone();
+    come_bottone.tag = obj.command_tag.clone();
+    comando_del_bottone(&come_bottone)
+}
+
+/// Il riquadro trasparente e cliccabile sopra un simbolo che comanda.
+fn area_comando(
+    screen: &mut lvgl::Obj,
+    obj: &SynopticObject,
+    tx: &mpsc::Sender<TagCommand>,
+    live: &mut Vec<LiveBinding>,
+) -> anyhow::Result<()> {
+    let genitore = screen.raw().map_err(|e| anyhow::anyhow!("raw: {e:?}"))?;
+    let ptr = core::ptr::NonNull::new(unsafe { lvgl_sys::lv_obj_create(genitore.as_ptr()) })
+        .ok_or_else(|| anyhow::anyhow!("lv_obj_create: memoria esaurita"))?;
+    unsafe {
+        let p = ptr.as_ptr();
+        lvgl_sys::lv_obj_set_pos(p, obj.x.unwrap_or(0.0).round() as i16, obj.y.unwrap_or(0.0).round() as i16);
+        lvgl_sys::lv_obj_set_size(p, obj.width.unwrap_or(80.0).round() as i16, obj.height.unwrap_or(80.0).round() as i16);
+        lvgl_sys::lv_obj_set_style_bg_opa(p, lvgl_sys::LV_OPA_TRANSP as u8, 0);
+        lvgl_sys::lv_obj_set_style_border_width(p, 0, 0);
+        lvgl_sys::lv_obj_set_style_outline_width(p, 0, 0);
+        lvgl_sys::lv_obj_set_style_shadow_width(p, 0, 0);
+        lvgl_sys::lv_obj_clear_flag(p, lvgl_sys::LV_OBJ_FLAG_SCROLLABLE);
+        lvgl_sys::lv_obj_add_flag(p, lvgl_sys::LV_OBJ_FLAG_CLICKABLE);
+    }
+    collega_comando(ptr, comando_del_simbolo(obj), obj, tx, live);
+    Ok(())
 }
 
 fn render_button(
@@ -3137,6 +3339,7 @@ fn render_button(
     obj: &SynopticObject,
     styles: &mut Vec<Style>,
     tx: &mpsc::Sender<TagCommand>,
+    live: &mut Vec<LiveBinding>,
 ) -> anyhow::Result<()> {
     let mut btn = Btn::create(screen).map_err(|e| anyhow::anyhow!("Btn::create: {e:?}"))?;
     set_pos_size(&mut btn, obj, 120.0, 40.0)?;
@@ -3150,6 +3353,12 @@ fn render_button(
     let mut lbl = Label::create(&mut btn).map_err(|e| anyhow::anyhow!("Label::create: {e:?}"))?;
     lbl.set_text(&text_cstring(obj.label.as_deref().unwrap_or("Button")))
         .map_err(|e| anyhow::anyhow!("set_text: {e:?}"))?;
+    // Centrata come sul web (`textAnchor="middle"`). Senza, LVGL la lascia in
+    // alto a sinistra dentro il bottone: visto sul TC620 il 15-10-2026.
+    unsafe {
+        let l = lbl.raw().map_err(|e| anyhow::anyhow!("raw: {e:?}"))?.as_ptr();
+        lvgl_sys::lv_obj_align(l, lvgl_sys::LV_ALIGN_CENTER as lvgl_sys::lv_align_t, 0, 0);
+    }
     // L'etichetta: `color` dell'oggetto, altrimenti bianca come sul web. Prima
     // ereditava il tono dello schermo — su pagina chiara, scuro su bottone blu.
     if let Some(rgb) = obj
@@ -3165,25 +3374,8 @@ fn render_button(
         styles.push(lbl_style);
     }
 
-    // Stessa semantica del bottone web (SvgCanvas.tsx): `write_value`
-    // (default true) sul tag, oppure — dall'11-10-2026 — le assegnazioni.
-    let scritture = scritture_del_bottone(obj);
-    if !scritture.is_empty() {
-        let ptr = btn.raw().map_err(|e| anyhow::anyhow!("raw: {e:?}"))?;
-        let ctx = leak_ctx(ButtonClickCtx {
-            conferma: conferma_di(obj, &scritture),
-            scritture,
-            tx: tx.clone(),
-        });
-        unsafe {
-            lvgl_sys::lv_obj_add_event_cb(
-                ptr.as_ptr(),
-                Some(sws_button_clicked_cb),
-                lvgl_sys::lv_event_code_t_LV_EVENT_CLICKED,
-                ctx,
-            );
-        }
-    }
+    let ptr = btn.raw().map_err(|e| anyhow::anyhow!("raw: {e:?}"))?;
+    collega_comando(ptr, comando_del_bottone(obj), obj, tx, live);
     Ok(())
 }
 
@@ -3569,7 +3761,7 @@ fn render_slider(
         stile::sfondo(ptr.as_ptr(), c, stile::INDICATORE);
         stile::sfondo(ptr.as_ptr(), c, stile::MANOPOLA);
     }
-    let binding = init_bar_like(screen, ptr, obj, tags)?;
+    let binding = init_bar_like(screen, ptr, obj, tags, false)?;
 
     // Solo lo slider è interattivo — non progress_bar, che condivide
     // init_bar_like ma resta un indicatore read-only (nessuna callback
@@ -3623,7 +3815,18 @@ fn render_progress_bar(
             );
         }
     }
-    init_bar_like(screen, ptr, obj, tags)
+    init_bar_like(screen, ptr, obj, tags, true)
+}
+
+/// `dentro`: il valore sta dentro la traccia, centrato (la barra di
+/// avanzamento); altrimenti sopra (il cursore). Come `SvgCanvas.tsx`.
+/// Decimali e unità del valore scritto su una barra o un cursore, come il web:
+/// la barra 1 decimale, il cursore 0 (2 con un passo sotto l'unità); l'unità
+/// separata da uno spazio. Prima erano 1 decimale per tutti e l'unità attaccata.
+pub(crate) fn formato_valore_barra(obj: &SynopticObject, barra: bool) -> (u8, String) {
+    let predefiniti = if barra { 1 } else if obj.step.is_some_and(|s| s < 1.0) { 2 } else { 0 };
+    let unita = obj.unit.as_deref().filter(|u| !u.is_empty()).map(|u| format!(" {u}")).unwrap_or_default();
+    (obj.decimals.unwrap_or(predefiniti), unita)
 }
 
 fn init_bar_like(
@@ -3631,6 +3834,7 @@ fn init_bar_like(
     ptr: core::ptr::NonNull<lvgl_sys::lv_obj_t>,
     obj: &SynopticObject,
     tags: &TagSnapshot,
+    dentro: bool,
 ) -> anyhow::Result<LiveBinding> {
     let min = obj.min.unwrap_or(0.0);
     let max = obj.max.unwrap_or(100.0);
@@ -3646,21 +3850,34 @@ fn init_bar_like(
             lvgl::Animation::OFF.into(),
         );
     }
-    let decimals = obj.decimals.unwrap_or(1);
-    let unit = obj.unit.clone().unwrap_or_default();
+    let (decimals, unit) = formato_valore_barra(obj, dentro);
     // show_value, default true come sul web (SvgCanvas.tsx, slider e
-    // progress_bar): un'etichetta sopra la traccia col valore formattato.
+    // progress_bar). Il 15-10-2026, collaudando sul TC620: la barra scriveva
+    // il valore **sopra** la traccia, addosso alla propria etichetta, mentre il
+    // web lo scrive dentro, centrato.
     let value_ptr = if obj.show_value != Some(false) {
-        let mut lbl = Label::create(screen).map_err(|e| anyhow::anyhow!("Label::create: {e:?}"))?;
-        lbl.set_pos(
-            obj.x.unwrap_or(0.0).round() as i16,
-            (obj.y.unwrap_or(0.0) - 16.0).round() as i16,
-        )
-        .map_err(|e| anyhow::anyhow!("set_pos: {e:?}"))?;
         let d = decimals as usize;
-        lbl.set_text(&text_cstring(&format!("{raw:.d$}{unit}")))
-            .map_err(|e| anyhow::anyhow!("set_text: {e:?}"))?;
-        Some(lbl.raw().map_err(|e| anyhow::anyhow!("raw: {e:?}"))?)
+        let testo = text_cstring(&format!("{raw:.d$}{unit}"));
+        if dentro {
+            let l = core::ptr::NonNull::new(unsafe { lvgl_sys::lv_label_create(ptr.as_ptr()) })
+                .ok_or_else(|| anyhow::anyhow!("lv_label_create: memoria esaurita"))?;
+            unsafe {
+                lvgl_sys::lv_label_set_text(l.as_ptr(), testo.as_ptr());
+                lvgl_sys::lv_obj_align(l.as_ptr(), lvgl_sys::LV_ALIGN_CENTER as lvgl_sys::lv_align_t, 0, 0);
+                stile::testo(l.as_ptr(), (0xe2, 0xe8, 0xf0), stile::MAIN);
+                stile::font(l.as_ptr(), 11, stile::MAIN);
+            }
+            Some(l)
+        } else {
+            let mut lbl = Label::create(screen).map_err(|e| anyhow::anyhow!("Label::create: {e:?}"))?;
+            lbl.set_pos(
+                obj.x.unwrap_or(0.0).round() as i16,
+                (obj.y.unwrap_or(0.0) - 16.0).round() as i16,
+            )
+            .map_err(|e| anyhow::anyhow!("set_pos: {e:?}"))?;
+            lbl.set_text(&testo).map_err(|e| anyhow::anyhow!("set_text: {e:?}"))?;
+            Some(lbl.raw().map_err(|e| anyhow::anyhow!("raw: {e:?}"))?)
+        }
     } else {
         None
     };
@@ -9995,7 +10212,7 @@ fn dispatch_render(
             Some(f) => disegna_svg_byte(screen, f.x, f.y, f.w, f.h, f.svg.as_bytes(), false, false).map(|b| live.push(b)),
             None => Ok(()),
         },
-        "button" => render_button(screen, obj, styles, tag_tx),
+        "button" => render_button(screen, obj, styles, tag_tx, live),
         "navbutton" => render_navbutton(screen, obj, styles, nav_tx),
         "page_navigator" => render_page_navigator(
             screen,
@@ -10166,6 +10383,16 @@ fn dispatch_render(
         ),
         _ => unreachable!("filtrato da SUPPORTED_TYPES sopra"),
     };
+
+    // Il simbolo che comanda (14-10-2026): un riquadro trasparente sopra il
+    // disegno fa da pulsante, come l'area di clic del web. Sopra e non dentro
+    // perché il disegno ha tre strade (libreria, alias, SVG) e il comando è lo
+    // stesso per tutte; prima del giro della geometria, così si muove con lui.
+    if obj_type == "symbol" && result.is_ok() && simbolo_comanda(obj) {
+        if let Err(e) = area_comando(screen, obj, tag_tx, live) {
+            eprintln!("[comando] {}: {e}", obj.id.as_deref().unwrap_or("?"));
+        }
+    }
 
     // Si accoda solo se il rendering è andato a buon fine: catturare i figli di
     // un oggetto creato a metà vorrebbe dire muovere dei rottami.
@@ -10978,6 +11205,9 @@ pub fn update_bindings(
         .unwrap_or_else(|e| e.into_inner())
         .clone();
     for b in bindings.iter_mut() {
+        if let LiveKind::ValoreComando { tag, corrente } = &b.kind {
+            *corrente.borrow_mut() = tags.get(tag.as_str()).map(|tv| tv.value.clone());
+        }
         if let LiveKind::SfondoPagina { schermo, tag, fisso, applicato } = &mut b.kind {
             let voluto = sfondo_da_variabile(tags.get(tag.as_str()).map(|tv| &tv.value)).or(*fisso);
             if let Some(rgb) = voluto.filter(|v| Some(*v) != *applicato) {
@@ -11049,6 +11279,7 @@ pub fn update_bindings(
             LiveKind::Effects { .. } => {}
             // Trattato dal giro dedicato in testa a `update_bindings`.
             LiveKind::SfondoPagina { .. } => {}
+            LiveKind::ValoreComando { .. } => {}
             LiveKind::Motion {
                 widgets,
                 percorso,
@@ -12155,18 +12386,86 @@ mod binding_tests {
         // 11-10-2026: con le assegnazioni, quelle in ordine; senza, `write_value`
         // sul `tag` come prima; senza niente, il bottone non scrive.
         let o = |v: serde_json::Value| -> SynopticObject { serde_json::from_value(v).unwrap() };
-        let a = o(serde_json::json!({ "type": "button", "tag": "proprio", "assegnazioni": [
+        let clic = |v: serde_json::Value| scritture_al_clic(&comando_del_bottone(&o(v)).unwrap(), None);
+        let s = clic(serde_json::json!({ "type": "button", "tag": "proprio", "button_mode": "toggle", "assegnazioni": [
             { "tag": "sfondo", "valore": "#7f1d1d" }, { "tag": "modo", "valore": 2 }, { "tag": "", "valore": 1 } ] }));
-        let s = scritture_del_bottone(&a);
-        assert_eq!(s.len(), 2, "la riga senza variabile si salta");
+        assert_eq!(s.len(), 2, "la riga senza variabile si salta, e le assegnazioni vincono sulla modalità");
         assert_eq!(s[0].0, "sfondo");
         assert!(matches!(&s[0].1, TagValue::Str(c) if c == "#7f1d1d"));
         assert_eq!(s[1].0, "modo");
-        let b = o(serde_json::json!({ "type": "button", "tag": "proprio", "write_value": 5 }));
-        let s = scritture_del_bottone(&b);
-        assert_eq!(s.len(), 1);
-        assert_eq!(s[0].0, "proprio");
-        assert!(scritture_del_bottone(&o(serde_json::json!({ "type": "button" }))).is_empty());
+        let s = clic(serde_json::json!({ "type": "button", "tag": "proprio", "write_value": 5 }));
+        assert_eq!(s, vec![("proprio".to_string(), TagValue::Int(5))]);
+        assert!(comando_del_bottone(&o(serde_json::json!({ "type": "button" }))).is_none());
+    }
+
+    #[test]
+    fn il_simbolo_comanda_solo_se_ha_un_comando_e_scrive_il_suo_command_tag() {
+        let o = |v: serde_json::Value| -> SynopticObject { serde_json::from_value(v).unwrap() };
+        // `tag` sul simbolo è la qualità: non basta a farlo comandare.
+        let fermo = o(serde_json::json!({ "type": "symbol", "symbol_id": "pump", "tag": "qualita" }));
+        assert!(!simbolo_comanda(&fermo));
+        let levetta = o(serde_json::json!({ "type": "symbol", "symbol_id": "pump", "tag": "qualita",
+            "state_tag": "marcia", "command_tag": "start", "button_mode": "toggle" }));
+        assert!(simbolo_comanda(&levetta));
+        assert_eq!(comando_del_simbolo(&levetta), Some(Comando::Commuta { tag: "start".into() }));
+        // Acceso ma senza variabile: comanda, e non scrive niente.
+        let vuoto = o(serde_json::json!({ "type": "symbol", "command_tag": "" }));
+        assert!(simbolo_comanda(&vuoto));
+        assert_eq!(comando_del_simbolo(&vuoto), None);
+        let assegna = o(serde_json::json!({ "type": "symbol", "assegnazioni": [{ "tag": "modo", "valore": 2 }] }));
+        assert!(simbolo_comanda(&assegna));
+        assert_eq!(comando_del_simbolo(&assegna), Some(Comando::Fisse(vec![("modo".into(), TagValue::Int(2))])));
+    }
+
+    #[test]
+    fn il_valore_di_barre_e_cursori_ha_il_formato_del_web() {
+        let o = |v: serde_json::Value| -> SynopticObject { serde_json::from_value(v).unwrap() };
+        assert_eq!(formato_valore_barra(&o(serde_json::json!({ "type": "progress_bar" })), true), (1, String::new()));
+        assert_eq!(formato_valore_barra(&o(serde_json::json!({ "type": "progress_bar", "unit": "%" })), true), (1, " %".into()));
+        assert_eq!(formato_valore_barra(&o(serde_json::json!({ "type": "slider" })), false), (0, String::new()));
+        assert_eq!(formato_valore_barra(&o(serde_json::json!({ "type": "slider", "step": 0.5, "unit": "bar" })), false), (2, " bar".into()));
+        assert_eq!(formato_valore_barra(&o(serde_json::json!({ "type": "slider", "decimals": 1 })), false).0, 1);
+    }
+
+    #[test]
+    fn le_sette_modalita_del_bottone_come_sul_web() {
+        // 14-10-2026: prima il pannello scriveva sempre `write_value`, qualunque
+        // fosse `button_mode`. I casi sono quelli di `SvgCanvas.tsx`.
+        let o = |v: serde_json::Value| -> SynopticObject { serde_json::from_value(v).unwrap() };
+        let c = |modo: &str, extra: serde_json::Value| {
+            let mut v = serde_json::json!({ "type": "button", "tag": "t", "button_mode": modo });
+            v.as_object_mut().unwrap().extend(extra.as_object().unwrap().clone());
+            comando_del_bottone(&o(v)).unwrap()
+        };
+        let uno = |cmd: &Comando, cur: Option<TagValue>| scritture_al_clic(cmd, cur.as_ref()).remove(0).1;
+        let vuoto = serde_json::json!({});
+
+        assert_eq!(uno(&c("write", vuoto.clone()), None), TagValue::Bool(true));
+        assert_eq!(uno(&c("set", serde_json::json!({ "write_value": 7 })), None), TagValue::Int(7));
+        assert_eq!(uno(&c("reset", vuoto.clone()), None), TagValue::Bool(false));
+        assert_eq!(uno(&c("reset", serde_json::json!({ "release_value": 0 })), None), TagValue::Int(0));
+
+        let commuta = c("toggle", vuoto.clone());
+        assert_eq!(uno(&commuta, Some(TagValue::Bool(true))), TagValue::Bool(false));
+        assert_eq!(uno(&commuta, Some(TagValue::Int(0))), TagValue::Bool(true));
+        assert_eq!(uno(&commuta, Some(TagValue::Str("x".into()))), TagValue::Bool(false));
+        assert_eq!(uno(&commuta, None), TagValue::Bool(true), "senza valore si accende");
+
+        let piu = c("increment", serde_json::json!({ "step": 2, "max": 5 }));
+        assert_eq!(uno(&piu, Some(TagValue::Int(1))), TagValue::Int(3));
+        assert_eq!(uno(&piu, Some(TagValue::Int(4))), TagValue::Int(5), "fermo al massimo");
+        assert_eq!(uno(&piu, None), TagValue::Int(2));
+        assert_eq!(uno(&piu, Some(TagValue::Float(1.5))), TagValue::Float(3.5));
+        let meno = c("decrement", serde_json::json!({ "min": 0 }));
+        assert_eq!(uno(&meno, Some(TagValue::Int(0))), TagValue::Int(0), "fermo al minimo");
+        assert_eq!(uno(&meno, Some(TagValue::Str("10".into()))), TagValue::Int(9));
+
+        let mom = c("momentary", serde_json::json!({ "write_value": 1, "release_value": 0 }));
+        assert!(scritture_al_clic(&mom, None).is_empty(), "il momentaneo non scrive al clic");
+        assert_eq!(mom, Comando::Momentaneo { tag: "t".into(), premi: TagValue::Int(1), rilascia: TagValue::Int(0) });
+
+        assert_eq!(tag_da_seguire(&commuta), Some("t"));
+        assert_eq!(tag_da_seguire(&mom), None);
     }
 
     use super::*;

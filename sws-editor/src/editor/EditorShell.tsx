@@ -3108,6 +3108,69 @@ export function ObjectProps({
     "alarm_bell", "alarm_banner", "recipe_panel", "grid", "image", "faceplate", "alarm_history",
   ];
 
+  /** Cosa fa il clic: assegnazioni, oppure modalità e valori. Del bottone e,
+   *  dal 14-10-2026, del simbolo che comanda — un blocco solo, così i due non
+   *  divergono (regola UI 2: un posto per dato). */
+  const sezioneComando = (
+    <>
+      {/* Le assegnazioni (11-10-2026): con almeno una, il clic fa
+          quelle e la modalità di prima non serve — non si mostra, così
+          nessun campo scrive un dato che il clic non userebbe. */}
+      {field(t("props.assegnazioni"),
+        <EditorAssegnazioni value={obj.assegnazioni}
+          onChange={(assegnazioni) => onChange({ assegnazioni })} />
+      )}
+      {!obj.assegnazioni?.length && (<>
+      {field(t("props.buttonMode"), (
+        <select style={{ ...INPUT, cursor: "pointer" }} value={obj.button_mode ?? "write"}
+          onChange={(e) => onChange({ button_mode: e.target.value === "write" ? undefined : e.target.value as SynopticObject["button_mode"] })}>
+          <option value="write">{t("props.modeWrite")}</option>
+          <option value="momentary">{t("props.modeMomentary")}</option>
+          <option value="toggle">{t("props.modeToggle")}</option>
+          <option value="set">{t("props.modeSet")}</option>
+          <option value="reset">{t("props.modeReset")}</option>
+          <option value="increment">{t("props.modeIncrement")}</option>
+          <option value="decrement">{t("props.modeDecrement")}</option>
+        </select>
+      ))}
+      {obj.button_mode === "momentary" && field(t("props.releaseValue"),
+        <input type="text" style={INPUT} placeholder="false"
+          value={obj.release_value !== undefined ? String(obj.release_value) : ""}
+          onChange={(e) => {
+            const raw = e.target.value.trim();
+            const v = raw === "" ? undefined
+              : raw === "true" ? true : raw === "false" ? false
+              : !Number.isNaN(Number(raw)) ? Number(raw) : raw;
+            onChange({ release_value: v });
+          }} />
+      )}
+      {(obj.button_mode === "increment" || obj.button_mode === "decrement") && (
+        <div style={GRIGLIA_NUMERICA}>
+          <div><div style={LABEL}>Step</div>{numInput("step", 1)}</div>
+          <div><div style={LABEL}>Min</div>{numInput("min", 0)}</div>
+          <div><div style={LABEL}>Max</div>{numInput("max", 100)}</div>
+        </div>
+      )}
+      {field(t("props.writeValue"),
+        <BindableInput obj={obj} propName="write_value" onChange={onChange}>
+          <input
+            type="text"
+            style={INPUT}
+            placeholder={t("props.trueHint")}
+            value={obj.write_value !== undefined ? String(obj.write_value) : ""}
+            onChange={(e) => {
+              const raw = e.target.value;
+              const v = raw === "true" ? true : raw === "false" ? false
+                : isNaN(Number(raw)) || raw.trim() === "" ? raw : Number(raw);
+              onChange({ write_value: v });
+            }}
+          />
+        </BindableInput>
+      )}
+      </>)}
+    </>
+  );
+
   return (
     <TipoOggetto.Provider value={obj.type}>
       {/* Le sezioni canoniche di T-56: ogni tipo di oggetto mostra le stesse,
@@ -3578,61 +3641,7 @@ export function ObjectProps({
             <>
               {field(t("props.label"), <BindableInput obj={obj} propName="label" onChange={onChange}>{textInput("label")}</BindableInput>)}
               {field(t("props.labelColor"), <BindableInput obj={obj} propName="color" onChange={onChange}>{colorInput("color")}</BindableInput>)}
-              {/* Le assegnazioni (11-10-2026): con almeno una, il clic fa
-                  quelle e la modalità di prima non serve — non si mostra, così
-                  nessun campo scrive un dato che il clic non userebbe. */}
-              {field(t("props.assegnazioni"),
-                <EditorAssegnazioni value={obj.assegnazioni}
-                  onChange={(assegnazioni) => onChange({ assegnazioni })} />
-              )}
-              {!obj.assegnazioni?.length && (<>
-              {field(t("props.buttonMode"), (
-                <select style={{ ...INPUT, cursor: "pointer" }} value={obj.button_mode ?? "write"}
-                  onChange={(e) => onChange({ button_mode: e.target.value === "write" ? undefined : e.target.value as SynopticObject["button_mode"] })}>
-                  <option value="write">{t("props.modeWrite")}</option>
-                  <option value="momentary">{t("props.modeMomentary")}</option>
-                  <option value="toggle">{t("props.modeToggle")}</option>
-                  <option value="set">{t("props.modeSet")}</option>
-                  <option value="reset">{t("props.modeReset")}</option>
-                  <option value="increment">{t("props.modeIncrement")}</option>
-                  <option value="decrement">{t("props.modeDecrement")}</option>
-                </select>
-              ))}
-              {obj.button_mode === "momentary" && field(t("props.releaseValue"),
-                <input type="text" style={INPUT} placeholder="false"
-                  value={obj.release_value !== undefined ? String(obj.release_value) : ""}
-                  onChange={(e) => {
-                    const raw = e.target.value.trim();
-                    const v = raw === "" ? undefined
-                      : raw === "true" ? true : raw === "false" ? false
-                      : !Number.isNaN(Number(raw)) ? Number(raw) : raw;
-                    onChange({ release_value: v });
-                  }} />
-              )}
-              {(obj.button_mode === "increment" || obj.button_mode === "decrement") && (
-                <div style={GRIGLIA_NUMERICA}>
-                  <div><div style={LABEL}>Step</div>{numInput("step", 1)}</div>
-                  <div><div style={LABEL}>Min</div>{numInput("min", 0)}</div>
-                  <div><div style={LABEL}>Max</div>{numInput("max", 100)}</div>
-                </div>
-              )}
-              {field(t("props.writeValue"),
-                <BindableInput obj={obj} propName="write_value" onChange={onChange}>
-                  <input
-                    type="text"
-                    style={INPUT}
-                    placeholder={t("props.trueHint")}
-                    value={obj.write_value !== undefined ? String(obj.write_value) : ""}
-                    onChange={(e) => {
-                      const raw = e.target.value;
-                      const v = raw === "true" ? true : raw === "false" ? false
-                        : isNaN(Number(raw)) || raw.trim() === "" ? raw : Number(raw);
-                      onChange({ write_value: v });
-                    }}
-                  />
-                </BindableInput>
-              )}
-              </>)}
+              {sezioneComando}
               {field(t("props.builtinAction"),
                 <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
                   <select
@@ -4916,6 +4925,24 @@ export function ObjectProps({
                   onChange={(v) => onChange({ alarm_tag: v || undefined })}
                 />
               )}
+              {/* Il simbolo che comanda (14-10-2026, piano strumenti-simboli-comandi):
+                  scrive `command_tag`, non `tag` (qui è la qualità) né `state_tag`
+                  (un pulsante di marcia scrive START e mostra RUNNING). Accendendo
+                  la spunta si parte dal tag di stato: per una levetta è quello. */}
+              {field(t("props.simboloComanda"),
+                <input type="checkbox" data-testid="simbolo-comanda" checked={obj.command_tag !== undefined || !!obj.assegnazioni?.length}
+                  onChange={(e) => onChange(e.target.checked
+                    ? { command_tag: obj.state_tag ?? "" }
+                    : { command_tag: undefined, assegnazioni: undefined, button_mode: undefined, write_value: undefined, release_value: undefined })} />
+              )}
+              {(obj.command_tag !== undefined || !!obj.assegnazioni?.length) && (<>
+                {field(t("props.commandTag"),
+                  <TagInput style={INPUT} placeholder={t("props.commandTagPh")}
+                    value={obj.command_tag ?? ""}
+                    onChange={(v) => onChange({ command_tag: v })} />
+                )}
+                {sezioneComando}
+              </>)}
               <div style={(obj.symbol_states?.length ?? 0) > 0 ? { opacity: 0.45 } : undefined}>
                 {(obj.symbol_states?.length ?? 0) > 0 && (
                   <p style={{ fontSize: 10, color: "var(--brand-warning, #f59e0b)", margin: "0 0 4px" }}>

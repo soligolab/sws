@@ -3470,6 +3470,50 @@ function SvgObjectCorpo(p: ObjProps) {
     for (const [id, v] of valide) onWriteTag?.(id, v);
   };
 
+  /** Il comando di un bottone, o di un simbolo che comanda (14-10-2026):
+   *  le assegnazioni se ci sono, altrimenti `button_mode` sulla variabile
+   *  `bersaglio` — `tag` per il bottone, `command_tag` per il simbolo.
+   *  Il momentaneo scrive su pressione e rilascio, non qui. Stessa regola del
+   *  pannello (`comando_del_bottone` in lvgl_render.rs). */
+  const comando = (bersaglio: string | undefined) => {
+    const mode = obj.button_mode ?? "write";
+    const doCommand = () => {
+      // Le assegnazioni (11-10-2026): se ci sono, il clic fa quelle.
+      if (obj.assegnazioni?.length) {
+        guardedWrites(obj.assegnazioni.map((a) => [a.tag, a.valore] as [string, string | number | boolean]));
+        return;
+      }
+      if (!bersaglio) return;
+      const cur = tagValues[bersaglio]?.value;
+      switch (mode) {
+        case "write":     guardedWrite(bersaglio, obj.write_value ?? true); break;
+        case "toggle": {
+          const on = typeof cur === "boolean" ? cur : typeof cur === "number" ? cur !== 0 : String(cur ?? "").length > 0;
+          guardedWrite(bersaglio, !on); break;
+        }
+        case "set":       guardedWrite(bersaglio, obj.write_value ?? true); break;
+        case "reset":     guardedWrite(bersaglio, obj.release_value ?? false); break;
+        case "increment":
+        case "decrement": {
+          const base = typeof cur === "number" ? cur : Number(cur) || 0;
+          const step = obj.step ?? 1;
+          let next = mode === "increment" ? base + step : base - step;
+          if (obj.min !== undefined) next = Math.max(next, obj.min);
+          if (obj.max !== undefined) next = Math.min(next, obj.max);
+          guardedWrite(bersaglio, next); break;
+        }
+        case "momentary": break; // gestito su press/release
+      }
+    };
+    const momentaneo = mode === "momentary" && !obj.assegnazioni?.length && !!bersaglio;
+    return {
+      mode,
+      doCommand,
+      premi: () => { if (momentaneo) guardedWrite(bersaglio, obj.write_value ?? true); },
+      rilascia: () => { if (momentaneo) guardedWrite(bersaglio, obj.release_value ?? false); },
+    };
+  };
+
   const handleMouseDown = (e: React.MouseEvent<SVGElement>) => {
     if (obj.locked && isEditMode) return;
     e.stopPropagation();
@@ -4117,36 +4161,7 @@ function SvgObjectCorpo(p: ObjProps) {
     const w = obj.width ?? 120; const h = obj.height ?? 40;
     // F3.5 — modalità comando: write (storica), momentary, toggle, set/reset,
     // increment/decrement. Il momentary usa press/release; le altre il click.
-    const mode = obj.button_mode ?? "write";
-    const doCommand = () => {
-      // Le assegnazioni (11-10-2026): se ci sono, il clic fa quelle.
-      if (obj.assegnazioni?.length) {
-        guardedWrites(obj.assegnazioni.map((a) => [a.tag, a.valore] as [string, string | number | boolean]));
-        return;
-      }
-      if (!obj.tag) return;
-      const tv = tagValues[obj.tag];
-      const cur = tv?.value;
-      switch (mode) {
-        case "write":     guardedWrite(obj.tag, obj.write_value ?? true); break;
-        case "toggle": {
-          const on = typeof cur === "boolean" ? cur : typeof cur === "number" ? cur !== 0 : String(cur ?? "").length > 0;
-          guardedWrite(obj.tag, !on); break;
-        }
-        case "set":       guardedWrite(obj.tag, obj.write_value ?? true); break;
-        case "reset":     guardedWrite(obj.tag, obj.release_value ?? false); break;
-        case "increment":
-        case "decrement": {
-          const base = typeof cur === "number" ? cur : Number(cur) || 0;
-          const step = obj.step ?? 1;
-          let next = mode === "increment" ? base + step : base - step;
-          if (obj.min !== undefined) next = Math.max(next, obj.min);
-          if (obj.max !== undefined) next = Math.min(next, obj.max);
-          guardedWrite(obj.tag, next); break;
-        }
-        case "momentary": break; // gestito su press/release
-      }
-    };
+    const { mode, doCommand } = comando(obj.tag);
     return (
       <g style={{ cursor: isEditMode ? editCursor : "pointer" }}
         onMouseDown={(e) => {
@@ -5983,6 +5998,9 @@ function SvgObjectCorpo(p: ObjProps) {
     }
 
     const truthy = (id?: string) => !!id && veroSimbolo(tagValues[id]?.value);
+    // Il simbolo che comanda: `command_tag` presente (anche vuoto) o assegnazioni.
+    const comandaSimbolo = obj.command_tag !== undefined || !!obj.assegnazioni?.length;
+    const cmdSimbolo = comando(obj.command_tag || undefined);
     // F6.6: mappa N-stati sul valore di state_tag (valore esatto o range,
     // stesso matcher di text_list). L'allarme vince comunque. La regola è una
     // sola e la condivide il pannello (tests/fixtures/stato-simbolo.json).
@@ -6050,10 +6068,15 @@ function SvgObjectCorpo(p: ObjProps) {
       <g style={{ cursor: editCursor }}>
         {selRect(obj.x, obj.y, w, h)}
         {/* Transparent hit-area so the symbol is always clickable/draggable even when
-            all visual children have pointerEvents:"none" (same fix as gauge). */}
+            all visual children have pointerEvents:"none" (same fix as gauge).
+            In runtime, se il simbolo comanda (14-10-2026), è anche il pulsante. */}
         <rect x={obj.x} y={obj.y} width={w} height={h} fill="transparent"
-          onMouseDown={handleMouseDown} onClick={(e) => e.stopPropagation()}
-          style={{ cursor: editCursor }} />
+          data-testid={comandaSimbolo && !isEditMode ? `simbolo-comando-${obj.id}` : undefined}
+          onMouseDown={(e) => { if (isEditMode || !comandaSimbolo) handleMouseDown(e); else cmdSimbolo.premi(); }}
+          onMouseUp={() => { if (!isEditMode && comandaSimbolo) cmdSimbolo.rilascia(); }}
+          onMouseLeave={() => { if (!isEditMode && comandaSimbolo) cmdSimbolo.rilascia(); }}
+          onClick={(e) => { e.stopPropagation(); if (!isEditMode && comandaSimbolo) cmdSimbolo.doCommand(); }}
+          style={{ cursor: !isEditMode && comandaSimbolo ? "pointer" : editCursor }} />
         {applyTransform(obj, w, h, <>
           {bgLayer(obj.x, obj.y, w, h, 4)}
           {customEntry?.svg ? (

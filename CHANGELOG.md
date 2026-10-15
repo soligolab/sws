@@ -82,6 +82,20 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 
 ### Fixed
 
+- **Il viewer perdeva la sessione a ogni ricarica.** All'apertura `RuntimeViewer` sostituiva sempre il token
+  con il sentinella `no-auth` (`whoami` → `setAuth("no-auth")`): un operatore loggato che ricaricava la pagina
+  diventava anonimo, e su un pannello abbinato ogni scrittura tornava «forbidden: Operator+ required». Ora una
+  sessione vera riconosciuta si tiene (`auth/sessioneViewer.ts`). Trovato collaudando sul TC620.
+- **LVGL, bottoni**: l'etichetta è centrata come sul web; prima stava in alto a sinistra.
+- **LVGL, barra di avanzamento e cursore**: il valore della barra sta dentro la traccia, centrato, come sul web
+  (prima stava sopra, addosso all'etichetta); unità separata da uno spazio e decimali predefiniti del web
+  (barra 1, cursore 0 o 2 con un passo sotto l'unità).
+
+- **Le modalità del bottone sul pannello LVGL.** Il pannello ignorava `button_mode` e scriveva sempre
+  `write_value`: toggle, momentaneo, set/reset, incremento e decremento non funzionavano. Ora seguono la
+  stessa regola del web (`Comando` in `lvgl_render.rs`), con il valore corrente letto al tocco.
+- Un bottone con sole assegnazioni non riceve più dal validatore l'avviso «senza tag non comanda niente».
+
 - **L'istantanea dell'assistente fotografa di nuovo la pagina.** Dall'11-10 il suo banco di prova era un
   pannello senza utenti, quindi «da abbinare»: il viewer fotografava il codice di abbinamento, a 800×480,
   qualunque progetto si chiedesse. Ora il banco nasce con un account che nessuno può usare (password
@@ -123,6 +137,16 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 - **Dopo il primo invio di un progetto il pannello passa da solo alla pagina**, senza il pulsante «Continua».
 
 ### Added
+
+- **Template «Comandi — pompa del pozzo»** (`examples/templates/comandi-pompa-pozzo`): una pagina con le
+  modalità del bottone, i simboli che comandano (interruttore, valvola, pulsantiera) e le assegnazioni,
+  su variabili interne — si prova senza impianto.
+- **Il simbolo che comanda** (piano `docs/plans/2026-10-14-strumenti-simboli-comandi.md`, ramo 2). Un
+  simbolo con `command_tag` (o con assegnazioni) al clic scrive come un bottone: le sette modalità,
+  le assegnazioni, la conferma e il comando critico. Scrive `command_tag`, campo nuovo: non `state_tag`
+  (un pulsante di marcia scrive START e mostra RUNNING) né `tag` (sul simbolo è la qualità). Senza
+  comando resta un disegno, non cliccabile. Editor: spunta «Il simbolo comanda» nei parametri del
+  simbolo, con la stessa sezione del bottone. LVGL: un riquadro trasparente cliccabile sopra il disegno.
 
 - **Menù Strumenti riorganizzato** (piano `docs/plans/2026-10-14-strumenti-simboli-comandi.md`, ramo 1):
   - dieci gruppi al posto di cinque (Forme · Testo e immagini · Comandi · Indicatori · Grafici ·

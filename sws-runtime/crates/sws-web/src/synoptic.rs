@@ -642,6 +642,13 @@ pub struct SynopticObject {
     pub fill_level: Option<f64>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub fill_level_tag: Option<String>,
+    /// La variabile che un **simbolo** scrive al clic (14-10-2026, piano
+    /// strumenti-simboli-comandi, ramo 2). Separata da `state_tag` perché un
+    /// pulsante di marcia scrive START e mostra RUNNING; separata da `tag`
+    /// perché sul simbolo quello alimenta qualità e stale. Presente (anche
+    /// vuota) = il simbolo comanda, con `button_mode` e le altre regole del bottone.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub command_tag: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub fill_level_scale: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]

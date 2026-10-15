@@ -1143,7 +1143,10 @@
     "stileLampeggio": "Lampeggio degli stati (ms)",
     "stileLivello": "Transizione del livello (ms)",
     "adattaProporzioni": "Adatta le proporzioni al disegno ({{w}}×{{h}})",
-    "adattaProporzioniHint": "Il disegno è contenuto e centrato nel riquadro: questo porta il riquadro alle proporzioni del disegno, tenendo la larghezza."
+    "adattaProporzioniHint": "Il disegno è contenuto e centrato nel riquadro: questo porta il riquadro alle proporzioni del disegno, tenendo la larghezza.",
+    "simboloComanda": "Il simbolo comanda",
+    "commandTag": "Variabile comandata",
+    "commandTagPh": "es. pompa1.start"
   },
   "shortcut": {
     "navCanvas": "Navigazione canvas",

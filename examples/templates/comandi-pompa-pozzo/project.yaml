@@ -1,0 +1,121 @@
+meta:
+  name: "Comandi — pompa del pozzo"
+  version: "0.1.0"
+  description: "Il quadro di comando della pompa di un pozzo domestico: le modalità del bottone, i simboli che comandano e le assegnazioni, su variabili interne."
+
+tags:
+  - { id: pompa.marcia, data_type: bool, description: "Pompa in marcia" }
+  - { id: pompa.prova, data_type: bool, description: "Prova in corso" }
+  - { id: valvola.aperta, data_type: bool, description: "Valvola aperta" }
+  - { id: pompa.velocita, data_type: int, description: "Velocità pompa (%)" }
+  - { id: impianto.modo, data_type: int, description: "Modo impianto (0 spento, 1 manuale, 2 automatico)" }
+
+languages:
+  default: it
+  langs: [it, en, es]
+  entries:
+    - key: t0001
+      values:
+        it: "Pozzo — quadro della pompa"
+        en: "Well — pump control board"
+        es: "Pozo — cuadro de la bomba"
+    - key: t0002
+      values:
+        it: "Ogni comando di questa pagina scrive su variabili interne: provalo senza impianto, poi lega le variabili al tuo dispositivo."
+        en: "Every command on this page writes internal variables: try it without a plant, then bind the variables to your device."
+        es: "Cada mando de esta página escribe variables internas: pruébalo sin instalación y luego vincula las variables a tu dispositivo."
+    - key: t0003
+      values:
+        it: "BOTTONI — una modalità per bottone"
+        en: "BUTTONS — one mode per button"
+        es: "BOTONES — un modo por botón"
+    - key: t0004
+      values:
+        it: "Marcia / arresto"
+        en: "Run / stop"
+        es: "Marcha / paro"
+    - key: t0005
+      values:
+        it: "Prova (tieni premuto)"
+        en: "Test (hold down)"
+        es: "Prueba (mantén pulsado)"
+    - key: t0006
+      values:
+        it: "Velocità +10"
+        en: "Speed +10"
+        es: "Velocidad +10"
+    - key: t0007
+      values:
+        it: "Velocità −10"
+        en: "Speed −10"
+        es: "Velocidad −10"
+    - key: t0008
+      values:
+        it: "Velocità a zero"
+        en: "Speed to zero"
+        es: "Velocidad a cero"
+    - key: t0009
+      values:
+        it: "Velocità pompa"
+        en: "Pump speed"
+        es: "Velocidad bomba"
+    - key: t0010
+      values:
+        it: "SIMBOLI CHE COMANDANO — tocca il disegno"
+        en: "SYMBOLS THAT COMMAND — touch the drawing"
+        es: "SÍMBOLOS QUE MANDAN — toca el dibujo"
+    - key: t0011
+      values:
+        it: "Interruttore: marcia"
+        en: "Breaker: run"
+        es: "Interruptor: marcha"
+    - key: t0012
+      values:
+        it: "Valvola: apre e chiude"
+        en: "Valve: opens and closes"
+        es: "Válvula: abre y cierra"
+    - key: t0013
+      values:
+        it: "Pulsantiera: prova"
+        en: "Push buttons: test"
+        es: "Botonera: prueba"
+    - key: t0014
+      values:
+        it: "Pompa: solo stato"
+        en: "Pump: state only"
+        es: "Bomba: solo estado"
+    - key: t0015
+      values:
+        it: "MODO IMPIANTO — assegnazioni"
+        en: "PLANT MODE — assignments"
+        es: "MODO INSTALACIÓN — asignaciones"
+    - key: t0016
+      values:
+        it: "Spento"
+        en: "Off"
+        es: "Apagado"
+    - key: t0017
+      values:
+        it: "Manuale"
+        en: "Manual"
+        es: "Manual"
+    - key: t0018
+      values:
+        it: "Automatico"
+        en: "Automatic"
+        es: "Automático"
+    - key: t0019
+      values:
+        it: "Faro: tocca per fermare tutto"
+        en: "Beacon: touch to stop everything"
+        es: "Baliza: toca para pararlo todo"
+    - key: t0020
+      values:
+        it: "Fermare la pompa e spegnere l'impianto?"
+        en: "Stop the pump and switch the plant off?"
+        es: "¿Parar la bomba y apagar la instalación?"
+    - key: t0021
+      values:
+        it: "Modo sconosciuto"
+        en: "Unknown mode"
+        es: "Modo desconocido"

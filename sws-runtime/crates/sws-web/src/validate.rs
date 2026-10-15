@@ -99,6 +99,7 @@ const CAMPI_TAG: &[&str] = &[
     "pipe_flow_tag",
     "symbol_spin_tag",
     "fill_level_tag",
+    "command_tag",
     "gauge_sp_tag",
     "pie_center_tag",
     "pipe_label_tag",
@@ -1280,13 +1281,22 @@ fn controlla_oggetto(
     // `PUT /api/tags` (per la checkbox: `guardedWrite`, SvgCanvas.tsx:4276);
     // `on_value` no, e sta nel blocco dopo.
     let tag_def = o.tag.as_deref().and_then(|id| tags.get(id)).copied();
+    // Un simbolo che comanda scrive `command_tag`, non `tag` (che sul simbolo è
+    // la qualità): i valori da scrivere si misurano su quello.
+    let simbolo_comanda = t == "symbol" && (o.command_tag.is_some() || o.assegnazioni.as_ref().is_some_and(|a| !a.is_empty()));
+    let (campo_scritto, tag_scritto) = if t == "symbol" {
+        ("command_tag", o.command_tag.as_deref())
+    } else {
+        ("tag", o.tag.as_deref())
+    };
+    let tag_scritto_def = tag_scritto.and_then(|id| tags.get(id)).copied();
     for (campo, valore) in [
         ("write_value", &o.write_value),
         ("release_value", &o.release_value),
         ("checked_value", &o.checked_value),
         ("unchecked_value", &o.unchecked_value),
     ] {
-        let (Some(v), Some(td)) = (valore.as_ref(), tag_def) else {
+        let (Some(v), Some(td)) = (valore.as_ref(), tag_scritto_def) else {
             continue;
         };
         let tipo_scrittura = td.write_data_type.as_deref().unwrap_or(&td.data_type);
@@ -1363,10 +1373,12 @@ fn controlla_oggetto(
     }
 
     // Un comando verso un tag calcolato non arriva da nessuna parte.
-    if INTERATTIVI.contains(&t) {
-        match tag_def {
+    // Il simbolo che comanda segue le stesse regole, sul suo `command_tag`.
+    let ha_assegnazioni = o.assegnazioni.as_ref().is_some_and(|a| !a.is_empty());
+    if INTERATTIVI.contains(&t) || simbolo_comanda {
+        match tag_scritto_def {
             Some(td) if td.is_computed() => out.push(Finding::err(
-                format!("{base}.tag"),
+                format!("{base}.{campo_scritto}"),
                 format!(
                     "`{}` è un tag calcolato ({}): le scritture su di esso vengono rifiutate",
                     td.id,
@@ -1378,18 +1390,18 @@ fn controlla_oggetto(
                 ),
                 "lega il comando al tag che il driver scrive davvero, non al calcolato",
             )),
-            None if o.tag.as_deref().unwrap_or("").is_empty() => out.push(Finding::warn(
-                format!("{base}.tag"),
+            None if tag_scritto.unwrap_or("").is_empty() && !ha_assegnazioni => out.push(Finding::warn(
+                format!("{base}.{campo_scritto}"),
                 format!("un `{t}` senza tag non comanda niente"),
                 "indica il tag su cui scrivere",
             )),
             _ => {}
         }
         // Il bersaglio: un comando MQTT senza canale di ritorno.
-        if let Some(id) = o.tag.as_deref() {
+        if let Some(id) = tag_scritto {
             if mqtt_scrivibile.get(id) == Some(&false) {
                 out.push(Finding::warn(
-                    format!("{base}.tag"),
+                    format!("{base}.{campo_scritto}"),
                     format!(
                         "il tag `{id}` arriva da MQTT ma il suo mapping non ha \
                              `publish_topic`: il comando resta dentro SWS"
@@ -2550,6 +2562,24 @@ alarms: []
             &pagina("- { id: x, type: button, x: 0, y: 0, tag: luce.salotto, write_value: true }"),
         );
         assert!(errori(&rs).is_empty(), "{rs:?}");
+    }
+
+    /// Il simbolo che comanda (14-10-2026): i valori si misurano su
+    /// `command_tag`, non su `tag` (che sul simbolo è la qualità).
+    #[test]
+    fn il_simbolo_che_comanda_scrive_nel_tipo_del_suo_command_tag() {
+        let rs = rilievi(PROGETTO, &pagina(
+            "- { id: s, type: symbol, x: 0, y: 0, symbol_id: pump, command_tag: luce.salotto, write_value: 'true' }"));
+        assert!(cita(&errori(&rs), "write_value"), "{rs:?}");
+        let rs = rilievi(PROGETTO, &pagina(
+            "- { id: s, type: symbol, x: 0, y: 0, symbol_id: pump, command_tag: luce.salotto, button_mode: toggle }"));
+        assert!(errori(&rs).is_empty(), "{rs:?}");
+        // Un simbolo senza comando non è un comando: nessun avviso sul tag vuoto.
+        let rs = rilievi(PROGETTO, &pagina("- { id: s, type: symbol, x: 0, y: 0, symbol_id: pump }"));
+        assert!(!rs.iter().any(|f| f.path.ends_with("command_tag")), "{rs:?}");
+        // Con il comando acceso e la variabile vuota, sì.
+        let rs = rilievi(PROGETTO, &pagina("- { id: s, type: symbol, x: 0, y: 0, symbol_id: pump, command_tag: '' }"));
+        assert!(rs.iter().any(|f| f.path.ends_with("command_tag")), "{rs:?}");
     }
 
     #[test]

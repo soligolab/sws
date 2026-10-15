@@ -1310,6 +1310,7 @@
       "State tag (alarm/stale/quality)",
       "State tag (truthy → ON)",
       "Symbol",
+      "The symbol sends a command",
       "Transition duration (ms)",
       "Visibility tag (override)",
       "W",

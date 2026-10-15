@@ -27,6 +27,7 @@ export const TAG_FIELDS = [
   "state_tag",
   "alarm_tag",
   "fill_level_tag",
+  "command_tag",
   "pipe_label_tag",
   "y_tag",
   "pie_center_tag",

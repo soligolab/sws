@@ -1143,7 +1143,10 @@
     "stileLampeggio": "State blink (ms)",
     "stileLivello": "Level transition (ms)",
     "adattaProporzioni": "Fit the box to the drawing ({{w}}×{{h}})",
-    "adattaProporzioniHint": "The drawing is contained and centred in the box: this gives the box the drawing's proportions, keeping the width."
+    "adattaProporzioniHint": "The drawing is contained and centred in the box: this gives the box the drawing's proportions, keeping the width.",
+    "simboloComanda": "The symbol sends a command",
+    "commandTag": "Commanded variable",
+    "commandTagPh": "e.g. pump1.start"
   },
   "shortcut": {
     "navCanvas": "Canvas navigation",

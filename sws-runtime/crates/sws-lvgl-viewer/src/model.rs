@@ -134,6 +134,9 @@ pub struct SynopticObject {
     /// non vuoto, il clic scrive ognuna di queste variabili, in ordine, al
     /// posto di `write_value` sul `tag` — come `SvgCanvas.tsx`.
     pub assegnazioni: Option<Vec<Assegnazione>>,
+    /// La variabile che un simbolo scrive al clic (14-10-2026): presente,
+    /// anche vuota = il simbolo comanda. Come `SvgCanvas.tsx`.
+    pub command_tag: Option<String>,
 
     // ── checkbox / radio ──
     /// Valore che rappresenta lo stato "checked" (default `true`, come

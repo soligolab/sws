@@ -12,6 +12,27 @@
 > resta in «Storico». Qui vive solo ciò che serve a riprendere il lavoro.
 
 
+## ▶ Riprendere da qui — il simbolo che comanda, collaudato sul TC620 (2026-10-14, notte)
+
+Ramo **`feat/simbolo-che-comanda`** aperto, in attesa dell'ok del maintainer per lo squash.
+
+- Fatto: le sette modalità del bottone su LVGL; il simbolo che comanda (`command_tag`, scelta del maintainer);
+  template nuovo `comandi-pompa-pozzo`.
+- **Collaudo sul TC620** con l'immagine arm64 del ramo caricata a mano (archivio, **non** pubblicata: `--push`
+  avrebbe spostato `rc-arm64`), in un container di prova su 8593/8594 accanto a quello del maintainer, poi tolto
+  insieme ai dati e all'immagine:
+  - LVGL arm64 (`--istantanea --tocca`): 12 tocchi su 12 come previsto, conferma del faro con Conferma/Annulla;
+  - web: 10 scritture su 10 accettate, valori riletti dal runtime del pannello.
+- **Ramo annidato `fix/viewer-sessione-e-lvgl`** (da `feat/simbolo-che-comanda`, 15-10): corretti i tre difetti
+  qui sotto — sessione del viewer, etichette dei bottoni LVGL, valore di barra e cursore LVGL. Rientra dal ramo padre.
+- ~~Da fare in un ramo a parte~~ — difetto trovato nel collaudo, non di questo ramo:
+  `sws-editor/src/viewer/RuntimeViewer.tsx:124` al montaggio sostituisce **sempre** il token con `no-auth`
+  (`whoami().then(me => setAuth("no-auth", …))`). Un operatore loggato che ricarica la pagina del viewer perde la
+  sessione, e su un pannello abbinato ogni sua scrittura torna «forbidden: Operator+ required». La correzione
+  sembra quella già fatta in `App.tsx` (~760): tenere il token vero se c'è e funziona.
+- Osservato su LVGL, prima di questo ramo: le etichette dei bottoni stanno in alto a sinistra (sul web centrate) e
+  la barra di avanzamento mostra «0.0» sopra la propria etichetta.
+
 ## ▶ Riprendere da qui — Strumenti riorganizzato su `main`, si apre il ramo 2 (2026-10-14, sera)
 
 Piano [`docs/plans/2026-10-14-strumenti-simboli-comandi.md`](docs/plans/2026-10-14-strumenti-simboli-comandi.md).
