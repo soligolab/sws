@@ -67,6 +67,8 @@ esito() {
 #                                        `Content-Security-Policy` +
 #                                        `nosniff`: un SVG caricato da terzi
 #                                        non deve poter eseguire script
+#   /.well-known/security.txt            (15-10-2026, CRA) dove si segnala una
+#                                        vulnerabilità: testo statico, nessun dato
 #   /api/abbinamento                     (11-10-2026) dice al pannello in
 #                                        attesa di mostrare il codice; il
 #                                        codice esce SOLO in attesa, cioè
@@ -82,6 +84,7 @@ esito() {
 #                                        gateway e pannello
 ATTESE=(
     "/health"
+    "/.well-known/security.txt"
     "/metrics"
     "/cert"
     "/sw.js"

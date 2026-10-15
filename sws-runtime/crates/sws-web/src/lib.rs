@@ -3,6 +3,7 @@ pub mod ai;
 pub mod amministrazione;
 pub mod marchi;
 pub mod backups;
+pub mod security_txt;
 pub mod boot;
 pub mod boot_image;
 pub mod cache;

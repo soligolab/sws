@@ -446,6 +446,11 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
   progetto; sui pannelli resta com'era, perché lì `admin` esiste davvero.
 
 ### Security
+
+- **Contatti di sicurezza veri (CRA, P0)**: `SECURITY.md` riscritto — fabbricante Soligonet, supporto di 5 anni
+  dall'ultima release, segnalazione privata GitHub o `security@soligo.net`, tempi di risposta, avvisi come GitHub
+  Security Advisories. Ogni runtime serve `/.well-known/security.txt` (RFC 9116), senza credenziali, con `Expires`
+  calcolata. Procedura interna art. 14 in `docs/sicurezza/procedura-art14.md`.
 - **Un certificato pubblico valido passa senza impronta; l'impronta resta per gli autofirmati.** «Connetti», il
   relay dei websocket, MQTT e il viewer LVGL si fidavano solo per impronta memorizzata al primo contatto (Q49). Con
   il gateway nel cloud (`sws.soligo.net`, Let's Encrypt) ogni rinnovo del certificato, ogni ~60 giorni, sarebbe

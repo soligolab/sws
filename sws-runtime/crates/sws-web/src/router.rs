@@ -1083,6 +1083,7 @@ pub fn build(
 
     let open = Router::new()
         .route("/health", get(|| async { "ok" }))
+        .route("/.well-known/security.txt", get(crate::security_txt::get_security_txt))
         .route("/metrics", get(crate::metrics::get_metrics))
         .route("/cert", get(get_cert))
         .route("/sw.js", sw_unregister)
@@ -1426,6 +1427,7 @@ fn deploy_only_app(state: AppState) -> Router<AppState> {
 
     let aperte = Router::new()
         .route("/health", get(|| async { "ok" }))
+        .route("/.well-known/security.txt", get(crate::security_txt::get_security_txt))
         .route("/metrics", get(crate::metrics::get_metrics))
         .route("/cert", get(get_cert))
         .route("/api/auth/login", post(login))
@@ -1519,6 +1521,7 @@ fn build_runtime_inner(state: AppState, www_dir: Option<PathBuf>) -> Router {
     // is exposed on the runtime port — project management routes live on 8444 only.
     let open = Router::new()
         .route("/health", get(|| async { "ok" }))
+        .route("/.well-known/security.txt", get(crate::security_txt::get_security_txt))
         .route("/metrics", get(crate::metrics::get_metrics))
         .route("/cert", get(get_cert))
         .route("/api/auth/login", post(login))
