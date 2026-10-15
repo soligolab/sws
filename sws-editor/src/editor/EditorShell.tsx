@@ -21,6 +21,7 @@ const FunctionEditor = lazy(() =>
   import("@/editor/FunctionEditor").then((m) => ({ default: m.FunctionEditor })));
 import { TagInput } from "@/components/TagInput";
 import { EditorAssegnazioni } from "@/editor/EditorAssegnazioni";
+import { CapoTubo } from "@/editor/CapoTubo";
 import { BindableInput } from "@/components/BindableInput";
 import { ImageBrowser } from "@/components/ImageBrowser";
 import { ASPECT_RATIOS, editorFitSize, effectiveSizeMode, getDevicePresets, isOffPage, referenceResolutionFor, STANDARD_DEVICE_PRESETS, translateObject } from "@/pageLayout";
@@ -5259,28 +5260,8 @@ export function ObjectProps({
                 <p style={{ fontSize: 10, color: "var(--brand-text-subtle, #94a3b8)", margin: "0 0 6px" }}>
                   {t("shell.whenSetTheFirstLast")}
                 </p>
-                {field(t("props.sourceObjId"), textInput("from_obj_id", "es. pump-1"))}
-                <div style={LABEL}>{t("props.sourcePort")}</div>
-                <select style={{ ...INPUT, cursor: "pointer" }}
-                  value={obj.from_port ?? "center"}
-                  onChange={(e) => onChange({ from_port: e.target.value as "top" | "bottom" | "left" | "right" | "center" })}>
-                  <option value="center">{t("props.center")}</option>
-                  <option value="top">{t("props.above")}</option>
-                  <option value="bottom">{t("props.below")}</option>
-                  <option value="left">{t("props.left")}</option>
-                  <option value="right">{t("props.right")}</option>
-                </select>
-                {field(t("props.targetObjId"), textInput("to_obj_id", "es. tank-1"))}
-                <div style={LABEL}>{t("props.targetPort")}</div>
-                <select style={{ ...INPUT, cursor: "pointer" }}
-                  value={obj.to_port ?? "center"}
-                  onChange={(e) => onChange({ to_port: e.target.value as "top" | "bottom" | "left" | "right" | "center" })}>
-                  <option value="center">{t("props.center")}</option>
-                  <option value="top">{t("props.above")}</option>
-                  <option value="bottom">{t("props.below")}</option>
-                  <option value="left">{t("props.left")}</option>
-                  <option value="right">{t("props.right")}</option>
-                </select>
+                {field(t("props.capoInizio"), <CapoTubo obj={obj} capo="from" onChange={onChange} stile={INPUT} />)}
+                {field(t("props.capoFine"), <CapoTubo obj={obj} capo="to" onChange={onChange} stile={INPUT} />)}
               </>
 
               {/* Waypoints editor */}

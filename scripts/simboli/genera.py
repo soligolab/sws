@@ -164,6 +164,12 @@ class Simbolo:
         self.veli_usati: list[str] = []
         self.strati: list[tuple[str, dict, list[str]]] = []
         self.parti: list[dict] = []
+        # Bocche (15-10-2026, piano docs/plans/2026-10-15-tubazioni-bocche-e-stili.md):
+        # tronchetti e flange disegnati, da cui `porte()` ricava dove si aggancia
+        # una tubazione; più quelle dichiarate a mano dove l'inferenza non basta.
+        self.tronchetti: list[tuple[float, float, float, float]] = []
+        self.flange: list[tuple[float, float, float, float]] = []
+        self.bocche_dichiarate: list[dict] = []
         self.n = 0
         self.statico()
 
@@ -223,6 +229,55 @@ class Simbolo:
             a.update({"stroke": MATERIALI[mat], "data-mat-stroke": mat})
         self._qui().append(f'<path d="{d}"{attrs(a)}{attrs(extra)}/>')
 
+    # ── bocche ──────────────────────────────────────────────────────────────
+    def bocca(self, x, y, side, d, pid=None):
+        """Una bocca dichiarata a mano: (x, y) sul bordo, `side` il lato d'uscita."""
+        assert side in LATI, side
+        self.bocche_dichiarate.append({"id": pid, "x": x, "y": y, "side": side, "d": d})
+
+    def porte(self) -> list[dict]:
+        """Le bocche del disegno: ogni flangia **sul bordo** del viewBox (entro
+        `TOLLERANZA_BORDO`) è una bocca, col punto sul bordo esterno della piastra,
+        centrata sul tronchetto che la tocca (o sulla piastra, se non ce n'è) e il
+        diametro del tronchetto. Le flange interne sono disegno, non bocche."""
+        trovate = []
+        for (x, y, w, h) in self.flange:
+            if h >= w:  # piastra verticale: tubo orizzontale, bocca a sinistra o a destra
+                dist = {"left": x, "right": self.w - (x + w)}
+            else:
+                dist = {"top": y, "bottom": self.h - (y + h)}
+            side = min(dist, key=dist.get)
+            if dist[side] > TOLLERANZA_BORDO:
+                continue
+            orizz = side in ("left", "right")
+            tubo = None
+            for (tx, ty, tw, th) in self.tronchetti:
+                if orizz and tw > th and ty >= y - .5 and ty + th <= y + h + .5 and (abs(tx - (x + w)) < 1 or abs(tx + tw - x) < 1 or tx <= x <= tx + tw):
+                    tubo = (tx, ty, tw, th)
+                if not orizz and th >= tw and tx >= x - .5 and tx + tw <= x + w + .5 and (abs(ty - (y + h)) < 1 or abs(ty + th - y) < 1 or ty <= y <= ty + th):
+                    tubo = (tx, ty, tw, th)
+            if orizz:
+                cy, d = ((tubo[1] + tubo[3] / 2), tubo[3]) if tubo else (y + h / 2, h - 6)
+                px = 0 if side == "left" else self.w
+                trovate.append({"x": px, "y": round(cy, 2), "side": side, "d": d})
+            else:
+                cx, d = ((tubo[0] + tubo[2] / 2), tubo[2]) if tubo else (x + w / 2, w - 6)
+                py = 0 if side == "top" else self.h
+                trovate.append({"x": round(cx, 2), "y": py, "side": side, "d": d})
+        trovate += [{k: v for k, v in b.items() if k != "id"} | ({"_id": b["id"]} if b["id"] else {}) for b in self.bocche_dichiarate]
+        # Una sola bocca per punto, poi gli id stabili per lato: `n-left`, `n-left-2`…
+        uniche = []
+        for b in trovate:
+            if not any(u["side"] == b["side"] and abs(u["x"] - b["x"]) < 1 and abs(u["y"] - b["y"]) < 1 for u in uniche):
+                uniche.append(b)
+        out = []
+        for side in LATI:
+            del_lato = sorted((b for b in uniche if b["side"] == side), key=lambda b: (b["x"], b["y"]))
+            for i, b in enumerate(del_lato):
+                pid = b.pop("_id", None) or (f"n-{side}" if i == 0 else f"n-{side}-{i + 1}")
+                out.append({"id": pid, **b})
+        return out
+
     # ── uscita ──────────────────────────────────────────────────────────────
     def svg(self) -> str:
         righe = [f'<svg xmlns="http://www.w3.org/2000/svg" width="{self.w}" height="{self.h}" viewBox="0 0 {self.w} {self.h}">']
@@ -252,12 +307,20 @@ class Simbolo:
              "viewBox": [self.w, self.h], "body": self.body_mat,
              "materials": sorted({m for m in re.findall(r'data-mat(?:-stroke)?="([^"]+)"', self.svg())}),
              "parts": self.parti}
+        if porte := self.porte():
+            v["ports"] = porte
         if self.replaces:
             v["replaces"] = self.replaces
         return v
 
 
 # ── scrittura e controllo ──────────────────────────────────────────────────
+
+# Le bocche: i lati possibili, e quanto una flangia può stare lontana dal bordo
+# del viewBox per contare come bocca (le piastre sono a filo, o quasi).
+LATI = ("left", "top", "right", "bottom")
+TOLLERANZA_BORDO = 2
+
 
 def costruisci():
     import disegni  # noqa: E402  (stessa cartella)
@@ -365,6 +428,22 @@ def regole(simboli) -> list[str]:
         for lid in ids:
             if (lid.startswith("lamp-") or lid in TIPI_PARTE) and lid not in {p["id"] for p in s.parti}:
                 male.append(f"{nome}: lo strato {lid} non è dichiarato come parte")
+        porte = s.porte()
+        dichiarate = {(b["x"], b["y"]) for b in s.bocche_dichiarate}
+        if len({p["id"] for p in porte}) != len(porte):
+            male.append(f"{nome}: due bocche con lo stesso id")
+        for p in porte:
+            if (p["x"], p["y"]) in dichiarate:
+                # Dichiarata a mano: può stare dentro il disegno (lo scarico del silo
+                # fra le gambe), ma non fuori.
+                if not (0 <= p["x"] <= s.w and 0 <= p["y"] <= s.h):
+                    male.append(f"{nome}: la bocca {p['id']} sta fuori dal disegno ({p['x']}, {p['y']})")
+                continue
+            sul_bordo = {"left": p["x"] == 0, "right": p["x"] == s.w, "top": p["y"] == 0, "bottom": p["y"] == s.h}[p["side"]]
+            if not sul_bordo or not (0 <= p["x"] <= s.w and 0 <= p["y"] <= s.h):
+                male.append(f"{nome}: la bocca {p['id']} non sta sul bordo {p['side']} ({p['x']}, {p['y']})")
+            if not p["d"] > 0:
+                male.append(f"{nome}: la bocca {p['id']} ha diametro {p['d']}")
         if max(s.w, s.h) > 512:
             male.append(f"{nome}: viewBox {s.w}×{s.h} oltre i 512 del pannello")
         if s.w % 10 or s.h % 10:

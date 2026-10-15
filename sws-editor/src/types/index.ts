@@ -683,12 +683,15 @@ export interface SynopticObject {
   stroke_dasharray?: string;
   /** ID of the object the pipe starts from (its first waypoint follows the object). */
   from_obj_id?: string;
-  /** Port on the source object to anchor to. Default "center". */
-  from_port?: "top" | "bottom" | "left" | "right" | "center";
+  /** Where on the source object the pipe starts: one of the five box points
+   *  ("top" | "bottom" | "left" | "right" | "center", default "center") or, on a
+   *  library symbol, the id of one of its nozzles (`n-left`, `n-top-2`… — see
+   *  `ports` in the symbol manifest). 15-10-2026. */
+  from_port?: string;
   /** ID of the object the pipe ends at (its last waypoint follows the object). */
   to_obj_id?: string;
-  /** Port on the destination object to anchor to. Default "center". */
-  to_port?: "top" | "bottom" | "left" | "right" | "center";
+  /** Where on the destination object the pipe ends: like `from_port`. */
+  to_port?: string;
   // ── Faceplate instance (type === "faceplate") ─────────────────────────
   /** ID of the FaceplateDef to instantiate. */
   faceplate_id?: string;

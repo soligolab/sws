@@ -1146,7 +1146,14 @@
     "adattaProporzioniHint": "The drawing is contained and centred in the box: this gives the box the drawing's proportions, keeping the width.",
     "simboloComanda": "The symbol sends a command",
     "commandTag": "Commanded variable",
-    "commandTagPh": "e.g. pump1.start"
+    "commandTagPh": "e.g. pump1.start",
+    "capoLibero": "— free —",
+    "capoMancante": "not on the page",
+    "bocche": "Symbol nozzles",
+    "bocca": "Nozzle {{lato}} ({{id}})",
+    "latiRiquadro": "Bounding box",
+    "capoInizio": "Start attached to",
+    "capoFine": "End attached to"
   },
   "shortcut": {
     "navCanvas": "Canvas navigation",
@@ -1940,7 +1947,7 @@
     "addSeries": "+ Add series",
     "addSlice": "+ Add slice",
     "showEmpty": "Show empty",
-    "whenSetTheFirstLast": "When set, the first / last waypoint follows the linked object.",
+    "whenSetTheFirstLast": "Drag the first or last yellow point near a nozzle: it snaps on, and the pipe follows the object.",
     "dragTheYellowPointsOn": "Drag the yellow points on the canvas. Use ± to add/remove.",
     "addWaypoint": "+ Add waypoint",
     "0NoAnimationAnimatesBound": "0 = no animation. Animates bound fill/stroke/opacity/rotation. Text, font-size, src and geometries stay discrete.",

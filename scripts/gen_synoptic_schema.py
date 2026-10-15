@@ -444,6 +444,26 @@ def main():
     p.append("];")
     p.append("")
 
+    # Le bocche dei simboli (15-10-2026, piano tubazioni-bocche-e-stili): per
+    # simbolo — id `lib:` e alias builtin — gli id ammessi in `from_port` e
+    # `to_port` oltre ai cinque punti del riquadro. Il validatore le usa per
+    # avvisare di un tubo agganciato a una bocca che il disegno non ha.
+    import json as _json
+    voci = _json.load(open(MANIFEST_LIB, encoding="utf-8"))["symbols"]
+    bocche = {}
+    for v in voci:
+        ids = [b["id"] for b in v.get("ports", [])]
+        bocche[v["id"]] = ids
+        if v.get("replaces"):
+            bocche[v["replaces"]] = ids
+    p.append("/// Le bocche di ogni simbolo di libreria (anche per alias): `(symbol_id, id delle bocche)`.")
+    p.append("pub const SYMBOL_PORTS: &[(&str, &[&str])] = &[")
+    for k in sorted(bocche):
+        vals = ", ".join(lit(x) for x in bocche[k])
+        p.append(f"    ({lit(k)}, &[{vals}]),")
+    p.append("];")
+    p.append("")
+
     p.append("/// I `kind` di sorgente e i campi di ciascuna configurazione.")
     p.append("pub const SOURCE_KINDS: &[&str] = &[")
     for kind, _ in kinds:

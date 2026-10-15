@@ -14,6 +14,7 @@ pub mod tag;
 pub mod testi_sistema;
 pub mod tipo;
 pub mod traduzione;
+pub mod tubazioni;
 
 pub use alarm::{
     now_ms, AlarmCondition, AlarmDb, AlarmDef, AlarmEvent, AlarmLevel, AlarmSeverity, AlarmState,

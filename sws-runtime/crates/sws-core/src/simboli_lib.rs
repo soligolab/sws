@@ -37,6 +37,19 @@ impl ParteLib {
     }
 }
 
+/// Una bocca del disegno, dove si aggancia una tubazione (15-10-2026, piano
+/// `docs/plans/2026-10-15-tubazioni-bocche-e-stili.md`). In unità del viewBox:
+/// `(x, y)` è la faccia esterna della flangia, `side` il lato da cui esce il
+/// tubo, `d` il diametro del tronchetto.
+#[derive(Debug, Clone, PartialEq, Deserialize)]
+pub struct PortaLib {
+    pub id: String,
+    pub x: f64,
+    pub y: f64,
+    pub side: String,
+    pub d: f64,
+}
+
 #[derive(Debug, Clone, Deserialize)]
 pub struct SimboloLib {
     /// `lib:<famiglia>/<slug>`: è il `symbol_id` dell'oggetto.
@@ -53,6 +66,9 @@ pub struct SimboloLib {
     pub materials: Vec<String>,
     #[serde(default)]
     pub parts: Vec<ParteLib>,
+    /// Le bocche: vuoto per i simboli che non hanno tubi (gli elettrici).
+    #[serde(default)]
+    pub ports: Vec<PortaLib>,
     /// Il builtin che questo disegno sostituisce (alias).
     #[serde(default)]
     pub replaces: Option<String>,

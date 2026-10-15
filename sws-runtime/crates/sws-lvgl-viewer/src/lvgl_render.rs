@@ -2282,36 +2282,27 @@ unsafe fn apply_rotation_from(screen_ptr: *mut lvgl_sys::lv_obj_t, da: u32, ango
 /// speciale della `line`, che ha `points` e non un riquadro: larghezza e
 /// altezza valgono zero, quindi tutte le porte cadono sulla sua origine. Una
 /// porta sconosciuta vale `center`, come sul web.
-fn ancora_di(obj: &SynopticObject, porta: Option<&str>) -> PipePoint {
+fn ancora_di(obj: &SynopticObject, porta: Option<&str>, m: Option<&sws_core::simboli_lib::ManifestLib>) -> sws_core::tubazioni::Aggancio {
+    use sws_core::tubazioni::{aggancio_bocca, aggancio_riquadro, Riquadro};
     let e_linea = obj.obj_type.as_deref() == Some("line");
-    let w = if e_linea {
-        0.0
-    } else {
-        obj.width.unwrap_or(80.0)
+    let r = Riquadro {
+        x: obj.x.unwrap_or(0.0),
+        y: obj.y.unwrap_or(0.0),
+        w: if e_linea { 0.0 } else { obj.width.unwrap_or(80.0) },
+        h: if e_linea { 0.0 } else { obj.height.unwrap_or(80.0) },
+        rotazione: obj.rotation.unwrap_or(0.0),
+        flip_h: obj.flip_h == Some(true),
+        flip_v: obj.flip_v == Some(true),
     };
-    let h = if e_linea {
-        0.0
-    } else {
-        obj.height.unwrap_or(80.0)
-    };
-    let x = obj.x.unwrap_or(0.0);
-    let y = obj.y.unwrap_or(0.0);
-    match porta.unwrap_or("center") {
-        "top" => PipePoint { x: x + w / 2.0, y },
-        "bottom" => PipePoint {
-            x: x + w / 2.0,
-            y: y + h,
-        },
-        "left" => PipePoint { x, y: y + h / 2.0 },
-        "right" => PipePoint {
-            x: x + w,
-            y: y + h / 2.0,
-        },
-        _ => PipePoint {
-            x: x + w / 2.0,
-            y: y + h / 2.0,
-        },
+    let simbolo = obj.obj_type.as_deref() == Some("symbol");
+    // 15-10-2026: la bocca vera del disegno, se il simbolo ce l'ha (`tubazioni.rs`).
+    if simbolo {
+        let sim = m.and_then(|m| obj.symbol_id.as_deref().and_then(|id| m.simbolo_o_alias(id)));
+        if let Some((sim, p)) = sim.and_then(|s| s.ports.iter().find(|p| Some(p.id.as_str()) == porta).map(|p| (s, p))) {
+            return aggancio_bocca(sim.view_box, p, &r);
+        }
     }
+    aggancio_riquadro(porta.unwrap_or("center"), &r, simbolo)
 }
 
 /// I punti di una pipe con i capi agganciati agli oggetti che dichiara.
@@ -2329,28 +2320,60 @@ fn ancora_di(obj: &SynopticObject, porta: Option<&str>) -> PipePoint {
 /// che torna `undefined` e lascia il punto invariato), e ha senso — un
 /// riferimento rotto deve dare una pipe storta, non una pagina in meno.
 fn punti_ancorati(pipe: &SynopticObject, oggetti: &[SynopticObject]) -> Option<Vec<PipePoint>> {
-    if pipe.from_obj_id.is_none() && pipe.to_obj_id.is_none() {
+    percorso_tubo(pipe, oggetti, None)
+}
+
+/// Come `percorsoTubo` sul web (15-10-2026): i capi sulle bocche vere e, con
+/// `orthogonal`/`diagonal`, il percorso calcolato. `None` = niente da cambiare.
+/// Il chiamante disegna il risultato come spezzata dritta: prima il pannello
+/// rifiutava `orthogonal` e `diagonal` e quei tubi non comparivano affatto.
+fn percorso_tubo(
+    pipe: &SynopticObject,
+    oggetti: &[SynopticObject],
+    m: Option<&sws_core::simboli_lib::ManifestLib>,
+) -> Option<Vec<PipePoint>> {
+    use sws_core::tubazioni::{instrada, Capo, Punto};
+    let routing = pipe.routing.as_deref().unwrap_or("straight");
+    let instradato = routing == "orthogonal" || routing == "diagonal";
+    if pipe.from_obj_id.is_none() && pipe.to_obj_id.is_none() && !instradato {
         return None;
     }
     let mut punti = pipe.points.clone().unwrap_or_default();
+    let trova = |id: &str| oggetti.iter().find(|o| o.id.as_deref() == Some(id));
+    let src = pipe.from_obj_id.as_deref().and_then(trova);
+    let dst = pipe.to_obj_id.as_deref().and_then(trova);
     if punti.is_empty() {
-        // Nessun punto esplicito: se entrambi i capi sono agganciati la pipe
-        // è comunque disegnabile — due estremi bastano a fare un segmento.
+        // Nessun punto esplicito: con entrambi i capi agganciati la pipe è
+        // comunque disegnabile — due estremi bastano a fare un segmento.
         if pipe.from_obj_id.is_some() && pipe.to_obj_id.is_some() {
             punti = vec![PipePoint { x: 0.0, y: 0.0 }, PipePoint { x: 0.0, y: 0.0 }];
         } else {
             return None;
         }
     }
-    let trova = |id: &str| oggetti.iter().find(|o| o.id.as_deref() == Some(id));
-    if let Some(src) = pipe.from_obj_id.as_deref().and_then(trova) {
-        punti[0] = ancora_di(src, pipe.from_port.as_deref());
+    if instradato && punti.len() < 2 {
+        return None;
     }
-    if punti.len() >= 2 {
-        if let Some(dst) = pipe.to_obj_id.as_deref().and_then(trova) {
-            let ultimo = punti.len() - 1;
-            punti[ultimo] = ancora_di(dst, pipe.to_port.as_deref());
-        }
+    let da = src.map(|o| ancora_di(o, pipe.from_port.as_deref(), m));
+    let a = dst.map(|o| ancora_di(o, pipe.to_port.as_deref(), m));
+    if instradato {
+        let punto = |p: &PipePoint| Punto { x: p.x, y: p.y };
+        let ultimo = punti.len() - 1;
+        let inter: Vec<Punto> = punti[1..ultimo].iter().map(punto).collect();
+        let p = instrada(
+            da.map(Capo::from).unwrap_or(Capo { punto: punto(&punti[0]), dir: None }),
+            a.map(Capo::from).unwrap_or(Capo { punto: punto(&punti[ultimo]), dir: None }),
+            &inter,
+            routing == "diagonal",
+        );
+        return Some(p.into_iter().map(|q| PipePoint { x: q.x, y: q.y }).collect());
+    }
+    if let Some(d) = da {
+        punti[0] = PipePoint { x: d.x, y: d.y };
+    }
+    if let Some(d) = a {
+        let ultimo = punti.len() - 1;
+        punti[ultimo] = PipePoint { x: d.x, y: d.y };
     }
     Some(punti)
 }
@@ -10857,8 +10880,14 @@ pub fn render_page_objects(
         // pagina, non sui punti scritti nel file. Va fatto qui e non dentro
         // `render_pipe`, che vede solo il proprio oggetto — la lista completa
         // ce l'ha solo il ciclo.
-        let ancorata = punti_ancorati(obj, &page.objects).map(|punti| SynopticObject {
+        let manifesto = if obj_type == "pipe" { crate::simbolo_lib::manifesto(base_url, rt_handle) } else { None };
+        let ancorata = percorso_tubo(obj, &page.objects, manifesto.as_deref()).map(|punti| SynopticObject {
             points: Some(punti),
+            // Il percorso è già calcolato: al disegno è una spezzata dritta.
+            routing: match obj.routing.as_deref() {
+                Some("orthogonal") | Some("diagonal") => Some("straight".into()),
+                _ => obj.routing.clone(),
+            },
             ..obj.clone()
         });
         let obj = ancorata.as_ref().unwrap_or(obj);
@@ -13394,6 +13423,30 @@ mod binding_tests {
         }
     }
 
+    #[test]
+    fn il_tubo_ortogonale_va_dalla_mandata_della_pompa_all_ingresso_della_valvola() {
+        // 15-10-2026: capi sulle bocche vere del manifesto, percorso calcolato.
+        let m: sws_core::simboli_lib::ManifestLib = serde_json::from_str(include_str!(
+            "../../../../sws-editor/public/symbols/lib/manifest.json"
+        ))
+        .unwrap();
+        let o = |v: serde_json::Value| -> SynopticObject { serde_json::from_value(v).unwrap() };
+        let oggetti = vec![
+            o(serde_json::json!({ "id": "p", "type": "symbol", "symbol_id": "lib:process/centrifugal-pump", "x": 100, "y": 200, "width": 80, "height": 80 })),
+            o(serde_json::json!({ "id": "v", "type": "symbol", "symbol_id": "lib:process/ball-valve", "x": 300, "y": 100, "width": 60, "height": 70 })),
+        ];
+        let t = o(serde_json::json!({ "id": "t", "type": "pipe", "routing": "orthogonal",
+            "from_obj_id": "p", "from_port": "n-top", "to_obj_id": "v", "to_port": "n-left", "points": [] }));
+        let p = percorso_tubo(&t, &oggetti, Some(&m)).expect("agganciato");
+        let xy: Vec<(f64, f64)> = p.iter().map(|q| (q.x, q.y)).collect();
+        // Mandata della pompa (150, 200), su fino all'altezza dell'ingresso
+        // della valvola (300, 150), poi a destra fino alla bocca.
+        assert_eq!(xy, vec![(150.0, 200.0), (150.0, 150.0), (300.0, 150.0)]);
+        // Senza manifesto la bocca è sconosciuta: si torna al centro del riquadro.
+        let senza = percorso_tubo(&t, &oggetti, None).unwrap();
+        assert_eq!((senza[0].x, senza[0].y), (140.0, 240.0));
+    }
+
     fn tubo(
         from: Option<&str>,
         fp: Option<&str>,
@@ -13417,36 +13470,36 @@ mod binding_tests {
     fn le_porte_cadono_sui_lati_del_riquadro() {
         let o = scatola("a", "rect", 100.0, 200.0, 60.0, 40.0);
         assert_eq!(
-            (ancora_di(&o, Some("top")).x, ancora_di(&o, Some("top")).y),
+            (ancora_di(&o, Some("top"), None).x, ancora_di(&o, Some("top"), None).y),
             (130.0, 200.0)
         );
         assert_eq!(
             (
-                ancora_di(&o, Some("bottom")).x,
-                ancora_di(&o, Some("bottom")).y
+                ancora_di(&o, Some("bottom"), None).x,
+                ancora_di(&o, Some("bottom"), None).y
             ),
             (130.0, 240.0)
         );
         assert_eq!(
-            (ancora_di(&o, Some("left")).x, ancora_di(&o, Some("left")).y),
+            (ancora_di(&o, Some("left"), None).x, ancora_di(&o, Some("left"), None).y),
             (100.0, 220.0)
         );
         assert_eq!(
             (
-                ancora_di(&o, Some("right")).x,
-                ancora_di(&o, Some("right")).y
+                ancora_di(&o, Some("right"), None).x,
+                ancora_di(&o, Some("right"), None).y
             ),
             (160.0, 220.0)
         );
         assert_eq!(
-            (ancora_di(&o, None).x, ancora_di(&o, None).y),
+            (ancora_di(&o, None, None).x, ancora_di(&o, None, None).y),
             (130.0, 220.0),
             "senza porta: centro"
         );
         assert_eq!(
             (
-                ancora_di(&o, Some("nord-ovest")).x,
-                ancora_di(&o, Some("nord-ovest")).y
+                ancora_di(&o, Some("nord-ovest"), None).x,
+                ancora_di(&o, Some("nord-ovest"), None).y
             ),
             (130.0, 220.0),
             "porta sconosciuta: centro, come sul web"
@@ -13467,7 +13520,7 @@ mod binding_tests {
             ..Default::default()
         };
         for porta in ["top", "bottom", "left", "right", "center"] {
-            let a = ancora_di(&l, Some(porta));
+            let a = ancora_di(&l, Some(porta), None);
             assert_eq!((a.x, a.y), (10.0, 20.0), "porta {porta}");
         }
     }

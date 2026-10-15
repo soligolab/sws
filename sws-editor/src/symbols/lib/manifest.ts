@@ -19,6 +19,18 @@ export type ParteLib =
   /** Accesa = visibile; spenta, sotto c'è la lente spenta disegnata nello strato statico. */
   | { id: string; kind: "lamp" };
 
+/** Una bocca del disegno, dove si aggancia una tubazione (15-10-2026): in unità
+ *  del viewBox, `(x, y)` è la faccia esterna della flangia, `side` il lato da cui
+ *  esce il tubo, `d` il diametro del tronchetto. Gemello: `PortaLib` in
+ *  `sws-core/src/simboli_lib.rs`. */
+export interface PortaLib {
+  id: string;
+  x: number;
+  y: number;
+  side: "left" | "top" | "right" | "bottom";
+  d: number;
+}
+
 export interface SimboloLib {
   /** `lib:<famiglia>/<slug>` — è il `symbol_id` dell'oggetto. */
   id: string;
@@ -34,6 +46,8 @@ export interface SimboloLib {
   body: string;
   materials: string[];
   parts: ParteLib[];
+  /** Le bocche; assente per i simboli senza tubi (gli elettrici). */
+  ports?: PortaLib[];
   /** Il builtin che questo disegno sostituisce (alias, fase 6 del piano). */
   replaces?: string;
 }

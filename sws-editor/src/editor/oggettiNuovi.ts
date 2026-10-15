@@ -147,7 +147,7 @@ function forma(type: SynopticObject["type"], x: number, y: number): OggettoNuovo
         return {
           type, x, y,
           points: [{ x, y }, { x: x + 120, y }, { x: x + 120, y: y + 80 }],
-          routing: "straight",
+          routing: "orthogonal",
           pipe_style: "flat",
           stroke_width: 8,
         };

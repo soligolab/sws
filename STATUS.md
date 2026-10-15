@@ -12,6 +12,21 @@
 > resta in «Storico». Qui vive solo ciò che serve a riprendere il lavoro.
 
 
+## ▶ Riprendere da qui — tubazioni, ramo A pronto (2026-10-15)
+
+Piano [`docs/plans/2026-10-15-tubazioni-bocche-e-stili.md`](docs/plans/2026-10-15-tubazioni-bocche-e-stili.md).
+Ramo **`feat/bocche-e-instradamento`** aperto, in attesa dell'ok del maintainer.
+
+- Fatto: bocche nel manifesto (116 su 57 simboli, dalle flange del generatore); aggancio con meet, specchiatura e
+  rotazione; `orthogonal`/`diagonal` calcolati (web e LVGL, fixture condivisa calcolata anche in Python); calamita
+  nell'IDE; menu dei capi nel pannello; avviso del validatore; i tubi nuovi nascono ortogonali.
+- Provato dal vivo: runtime di prova con pompa → valvola → serbatoio, più pompa ruotata e valvola specchiata;
+  web e istantanea LVGL coincidono; calamita con Playwright (10 bocche visibili, aggancio a `pompa/n-left`).
+- Trovati e corretti nel collaudo: l'inversione a U attraverso il serbatoio, e i tubi agganciati con `points`
+  vuoti che non avevano maniglie.
+- Fuori piano (dichiarato): il percorso non aggira gli ostacoli.
+- Dopo: ramo B, gli otto stili 2.5D.
+
 ## ▶ Riprendere da qui — il simbolo che comanda, collaudato sul TC620 (2026-10-14, notte)
 
 **Su `main`** (`163a4921`, squash dopo l'ok del maintainer, 15-10), insieme al ramo annidato delle correzioni. Nessun ramo aperto. **Non pushato.**

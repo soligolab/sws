@@ -103,6 +103,22 @@
           "cy": 64,
           "symmetry": 90
         }
+      ],
+      "ports": [
+        {
+          "id": "n-left",
+          "x": 0,
+          "y": 30.0,
+          "side": "left",
+          "d": 10
+        },
+        {
+          "id": "n-right",
+          "x": 160,
+          "y": 30.0,
+          "side": "right",
+          "d": 10
+        }
       ]
     },
     {
@@ -121,7 +137,23 @@
         "steel",
         "steel-dark"
       ],
-      "parts": []
+      "parts": [],
+      "ports": [
+        {
+          "id": "n-left",
+          "x": 0,
+          "y": 40.0,
+          "side": "left",
+          "d": 10
+        },
+        {
+          "id": "n-right",
+          "x": 70,
+          "y": 100.0,
+          "side": "right",
+          "d": 10
+        }
+      ]
     },
     {
       "id": "lib:process/ball-valve",
@@ -146,6 +178,22 @@
           "cy": 24,
           "open": 0,
           "closed": -90
+        }
+      ],
+      "ports": [
+        {
+          "id": "n-left",
+          "x": 0,
+          "y": 50.0,
+          "side": "left",
+          "d": 10
+        },
+        {
+          "id": "n-right",
+          "x": 60,
+          "y": 50.0,
+          "side": "right",
+          "d": 10
         }
       ],
       "replaces": "valve"
@@ -187,6 +235,15 @@
         "steel-dark"
       ],
       "parts": [],
+      "ports": [
+        {
+          "id": "n-top",
+          "x": 50.0,
+          "y": 0,
+          "side": "top",
+          "d": 10
+        }
+      ],
       "replaces": "boiler"
     },
     {
@@ -213,6 +270,22 @@
           "open": 0,
           "closed": -90
         }
+      ],
+      "ports": [
+        {
+          "id": "n-left",
+          "x": 0,
+          "y": 50.0,
+          "side": "left",
+          "d": 10
+        },
+        {
+          "id": "n-right",
+          "x": 60,
+          "y": 50.0,
+          "side": "right",
+          "d": 10
+        }
       ]
     },
     {
@@ -234,6 +307,22 @@
         "steel-dark"
       ],
       "parts": [],
+      "ports": [
+        {
+          "id": "n-left",
+          "x": 0,
+          "y": 40.0,
+          "side": "left",
+          "d": 10
+        },
+        {
+          "id": "n-right",
+          "x": 60,
+          "y": 40.0,
+          "side": "right",
+          "d": 10
+        }
+      ],
       "replaces": "filter"
     },
     {
@@ -263,6 +352,22 @@
           "symmetry": 60
         }
       ],
+      "ports": [
+        {
+          "id": "n-left",
+          "x": 0,
+          "y": 50.0,
+          "side": "left",
+          "d": 10
+        },
+        {
+          "id": "n-top",
+          "x": 50.0,
+          "y": 0,
+          "side": "top",
+          "d": 10
+        }
+      ],
       "replaces": "pump"
     },
     {
@@ -282,7 +387,16 @@
         "steel",
         "steel-dark"
       ],
-      "parts": []
+      "parts": [],
+      "ports": [
+        {
+          "id": "n-right",
+          "x": 140,
+          "y": 40.0,
+          "side": "right",
+          "d": 10
+        }
+      ]
     },
     {
       "id": "lib:process/check-valve",
@@ -300,6 +414,22 @@
         "steel-dark"
       ],
       "parts": [],
+      "ports": [
+        {
+          "id": "n-left",
+          "x": 0,
+          "y": 30.0,
+          "side": "left",
+          "d": 10
+        },
+        {
+          "id": "n-right",
+          "x": 60,
+          "y": 30.0,
+          "side": "right",
+          "d": 10
+        }
+      ],
       "replaces": "check_valve"
     },
     {
@@ -320,7 +450,30 @@
         "steel",
         "steel-dark"
       ],
-      "parts": []
+      "parts": [],
+      "ports": [
+        {
+          "id": "n-top",
+          "x": 40.0,
+          "y": 0,
+          "side": "top",
+          "d": 10
+        },
+        {
+          "id": "n-right",
+          "x": 80,
+          "y": 40.0,
+          "side": "right",
+          "d": 10
+        },
+        {
+          "id": "n-right-2",
+          "x": 80,
+          "y": 110.0,
+          "side": "right",
+          "d": 10
+        }
+      ]
     },
     {
       "id": "lib:process/column",
@@ -339,6 +492,43 @@
         "steel-dark"
       ],
       "parts": [],
+      "ports": [
+        {
+          "id": "n-left",
+          "x": 0,
+          "y": 40.0,
+          "side": "left",
+          "d": 10
+        },
+        {
+          "id": "n-left-2",
+          "x": 0,
+          "y": 100.0,
+          "side": "left",
+          "d": 10
+        },
+        {
+          "id": "n-left-3",
+          "x": 0,
+          "y": 160.0,
+          "side": "left",
+          "d": 10
+        },
+        {
+          "id": "n-top",
+          "x": 30.0,
+          "y": 0,
+          "side": "top",
+          "d": 10
+        },
+        {
+          "id": "n-right",
+          "x": 60,
+          "y": 180.0,
+          "side": "right",
+          "d": 10
+        }
+      ],
       "replaces": "column"
     },
     {
@@ -368,6 +558,15 @@
           "w": 16,
           "h": 64
         }
+      ],
+      "ports": [
+        {
+          "id": "n-top",
+          "x": 40.0,
+          "y": 0,
+          "side": "top",
+          "d": 10
+        }
       ]
     },
     {
@@ -389,6 +588,22 @@
         "steel-dark"
       ],
       "parts": [],
+      "ports": [
+        {
+          "id": "n-left",
+          "x": 0,
+          "y": 40.0,
+          "side": "left",
+          "d": 10
+        },
+        {
+          "id": "n-right",
+          "x": 100,
+          "y": 110.0,
+          "side": "right",
+          "d": 10
+        }
+      ],
       "replaces": "cooling_tower"
     },
     {
@@ -406,7 +621,23 @@
         "instrument",
         "steel"
       ],
-      "parts": []
+      "parts": [],
+      "ports": [
+        {
+          "id": "n-left",
+          "x": 0,
+          "y": 30.0,
+          "side": "left",
+          "d": 10
+        },
+        {
+          "id": "n-right",
+          "x": 100,
+          "y": 30.0,
+          "side": "right",
+          "d": 10
+        }
+      ]
     },
     {
       "id": "lib:process/coupling",
@@ -438,7 +669,37 @@
       "materials": [
         "steel"
       ],
-      "parts": []
+      "parts": [],
+      "ports": [
+        {
+          "id": "n-left",
+          "x": 0,
+          "y": 30.0,
+          "side": "left",
+          "d": 10
+        },
+        {
+          "id": "n-top",
+          "x": 30.0,
+          "y": 0,
+          "side": "top",
+          "d": 10
+        },
+        {
+          "id": "n-right",
+          "x": 60,
+          "y": 30.0,
+          "side": "right",
+          "d": 10
+        },
+        {
+          "id": "n-bottom",
+          "x": 30.0,
+          "y": 60,
+          "side": "bottom",
+          "d": 10
+        }
+      ]
     },
     {
       "id": "lib:process/cyclone",
@@ -456,6 +717,22 @@
         "steel"
       ],
       "parts": [],
+      "ports": [
+        {
+          "id": "n-top",
+          "x": 35.0,
+          "y": 0,
+          "side": "top",
+          "d": 10
+        },
+        {
+          "id": "n-bottom",
+          "x": 35.0,
+          "y": 140,
+          "side": "bottom",
+          "d": 10
+        }
+      ],
       "replaces": "cyclone"
     },
     {
@@ -474,7 +751,23 @@
         "steel",
         "steel-dark"
       ],
-      "parts": []
+      "parts": [],
+      "ports": [
+        {
+          "id": "n-top",
+          "x": 45.0,
+          "y": 0,
+          "side": "top",
+          "d": 10
+        },
+        {
+          "id": "n-bottom",
+          "x": 45.0,
+          "y": 100,
+          "side": "bottom",
+          "d": 10
+        }
+      ]
     },
     {
       "id": "lib:process/dosing-pump",
@@ -529,7 +822,16 @@
       "materials": [
         "steel"
       ],
-      "parts": []
+      "parts": [],
+      "ports": [
+        {
+          "id": "n-left",
+          "x": 0,
+          "y": 40.0,
+          "side": "left",
+          "d": 10
+        }
+      ]
     },
     {
       "id": "lib:process/elbow-90",
@@ -545,7 +847,23 @@
       "materials": [
         "steel"
       ],
-      "parts": []
+      "parts": [],
+      "ports": [
+        {
+          "id": "n-left",
+          "x": 0,
+          "y": 30.0,
+          "side": "left",
+          "d": 10
+        },
+        {
+          "id": "n-bottom",
+          "x": 30.0,
+          "y": 60,
+          "side": "bottom",
+          "d": 10
+        }
+      ]
     },
     {
       "id": "lib:process/flexible-hose",
@@ -613,6 +931,29 @@
           "kind": "lamp"
         }
       ],
+      "ports": [
+        {
+          "id": "n-left",
+          "x": 0,
+          "y": 90.0,
+          "side": "left",
+          "d": 10
+        },
+        {
+          "id": "n-right",
+          "x": 100,
+          "y": 50.0,
+          "side": "right",
+          "d": 10
+        },
+        {
+          "id": "n-right-2",
+          "x": 100,
+          "y": 70.0,
+          "side": "right",
+          "d": 10
+        }
+      ],
       "replaces": "furnace"
     },
     {
@@ -649,7 +990,23 @@
         "steel",
         "steel-dark"
       ],
-      "parts": []
+      "parts": [],
+      "ports": [
+        {
+          "id": "n-left",
+          "x": 0,
+          "y": 70.0,
+          "side": "left",
+          "d": 10
+        },
+        {
+          "id": "n-right",
+          "x": 60,
+          "y": 70.0,
+          "side": "right",
+          "d": 10
+        }
+      ]
     },
     {
       "id": "lib:process/gear-pump",
@@ -667,7 +1024,23 @@
         "steel",
         "steel-dark"
       ],
-      "parts": []
+      "parts": [],
+      "ports": [
+        {
+          "id": "n-left",
+          "x": 0,
+          "y": 40.0,
+          "side": "left",
+          "d": 10
+        },
+        {
+          "id": "n-right",
+          "x": 80,
+          "y": 40.0,
+          "side": "right",
+          "d": 10
+        }
+      ]
     },
     {
       "id": "lib:process/globe-valve",
@@ -685,7 +1058,23 @@
         "steel",
         "steel-dark"
       ],
-      "parts": []
+      "parts": [],
+      "ports": [
+        {
+          "id": "n-left",
+          "x": 0,
+          "y": 70.0,
+          "side": "left",
+          "d": 10
+        },
+        {
+          "id": "n-right",
+          "x": 60,
+          "y": 70.0,
+          "side": "right",
+          "d": 10
+        }
+      ]
     },
     {
       "id": "lib:process/handwheel-valve",
@@ -702,7 +1091,23 @@
         "signal-red",
         "steel"
       ],
-      "parts": []
+      "parts": [],
+      "ports": [
+        {
+          "id": "n-left",
+          "x": 0,
+          "y": 70.0,
+          "side": "left",
+          "d": 10
+        },
+        {
+          "id": "n-right",
+          "x": 60,
+          "y": 70.0,
+          "side": "right",
+          "d": 10
+        }
+      ]
     },
     {
       "id": "lib:process/hopper",
@@ -760,6 +1165,22 @@
           "w": 46,
           "h": 30
         }
+      ],
+      "ports": [
+        {
+          "id": "n-top",
+          "x": 50.0,
+          "y": 0,
+          "side": "top",
+          "d": 10
+        },
+        {
+          "id": "n-bottom",
+          "x": 120.0,
+          "y": 80,
+          "side": "bottom",
+          "d": 10
+        }
       ]
     },
     {
@@ -809,7 +1230,23 @@
         "steel",
         "steel-dark"
       ],
-      "parts": []
+      "parts": [],
+      "ports": [
+        {
+          "id": "n-left",
+          "x": 0,
+          "y": 90.0,
+          "side": "left",
+          "d": 10
+        },
+        {
+          "id": "n-right",
+          "x": 60,
+          "y": 90.0,
+          "side": "right",
+          "d": 10
+        }
+      ]
     },
     {
       "id": "lib:process/jacketed-reactor",
@@ -847,6 +1284,29 @@
           "symmetry": 120
         }
       ],
+      "ports": [
+        {
+          "id": "n-left",
+          "x": 0,
+          "y": 110.0,
+          "side": "left",
+          "d": 10
+        },
+        {
+          "id": "n-right",
+          "x": 100,
+          "y": 140.0,
+          "side": "right",
+          "d": 10
+        },
+        {
+          "id": "n-bottom",
+          "x": 50.0,
+          "y": 170,
+          "side": "bottom",
+          "d": 10
+        }
+      ],
       "replaces": "reactor"
     },
     {
@@ -867,6 +1327,22 @@
         "steel"
       ],
       "parts": [],
+      "ports": [
+        {
+          "id": "n-left",
+          "x": 0,
+          "y": 50.0,
+          "side": "left",
+          "d": 10
+        },
+        {
+          "id": "n-right",
+          "x": 80,
+          "y": 50.0,
+          "side": "right",
+          "d": 10
+        }
+      ],
       "replaces": "flow_meter"
     },
     {
@@ -905,6 +1381,15 @@
           "symmetry": 120
         }
       ],
+      "ports": [
+        {
+          "id": "n-right",
+          "x": 80,
+          "y": 140.0,
+          "side": "right",
+          "d": 10
+        }
+      ],
       "replaces": "mixer"
     },
     {
@@ -925,6 +1410,22 @@
         "steel"
       ],
       "parts": [],
+      "ports": [
+        {
+          "id": "n-left",
+          "x": 0,
+          "y": 50.0,
+          "side": "left",
+          "d": 10
+        },
+        {
+          "id": "n-right",
+          "x": 60,
+          "y": 50.0,
+          "side": "right",
+          "d": 10
+        }
+      ],
       "replaces": "valve_motorized"
     },
     {
@@ -942,7 +1443,23 @@
         "signal-red",
         "steel"
       ],
-      "parts": []
+      "parts": [],
+      "ports": [
+        {
+          "id": "n-left",
+          "x": 0,
+          "y": 40.0,
+          "side": "left",
+          "d": 10
+        },
+        {
+          "id": "n-right",
+          "x": 60,
+          "y": 40.0,
+          "side": "right",
+          "d": 10
+        }
+      ]
     },
     {
       "id": "lib:process/open-basin",
@@ -970,6 +1487,22 @@
           "y": 10,
           "w": 104,
           "h": 46
+        }
+      ],
+      "ports": [
+        {
+          "id": "n-left",
+          "x": 0,
+          "y": 20.0,
+          "side": "left",
+          "d": 10
+        },
+        {
+          "id": "n-right",
+          "x": 140,
+          "y": 50.0,
+          "side": "right",
+          "d": 10
         }
       ]
     },
@@ -1036,7 +1569,23 @@
       "materials": [
         "steel"
       ],
-      "parts": []
+      "parts": [],
+      "ports": [
+        {
+          "id": "n-left",
+          "x": 0,
+          "y": 10.0,
+          "side": "left",
+          "d": 10
+        },
+        {
+          "id": "n-right",
+          "x": 60,
+          "y": 10.0,
+          "side": "right",
+          "d": 10
+        }
+      ]
     },
     {
       "id": "lib:process/piston-pump",
@@ -1054,7 +1603,16 @@
         "steel",
         "steel-dark"
       ],
-      "parts": []
+      "parts": [],
+      "ports": [
+        {
+          "id": "n-top",
+          "x": 90.0,
+          "y": 0,
+          "side": "top",
+          "d": 10
+        }
+      ]
     },
     {
       "id": "lib:process/plate-exchanger",
@@ -1073,7 +1631,23 @@
         "steel",
         "steel-dark"
       ],
-      "parts": []
+      "parts": [],
+      "ports": [
+        {
+          "id": "n-left",
+          "x": 0,
+          "y": 30.0,
+          "side": "left",
+          "d": 10
+        },
+        {
+          "id": "n-left-2",
+          "x": 0,
+          "y": 90.0,
+          "side": "left",
+          "d": 10
+        }
+      ]
     },
     {
       "id": "lib:process/pneumatic-valve",
@@ -1091,6 +1665,22 @@
         "steel"
       ],
       "parts": [],
+      "ports": [
+        {
+          "id": "n-left",
+          "x": 0,
+          "y": 60.0,
+          "side": "left",
+          "d": 10
+        },
+        {
+          "id": "n-right",
+          "x": 60,
+          "y": 60.0,
+          "side": "right",
+          "d": 10
+        }
+      ],
       "replaces": "valve_pneumatic"
     },
     {
@@ -1138,7 +1728,23 @@
         "body-pump",
         "steel"
       ],
-      "parts": []
+      "parts": [],
+      "ports": [
+        {
+          "id": "n-left",
+          "x": 0,
+          "y": 70.0,
+          "side": "left",
+          "d": 10
+        },
+        {
+          "id": "n-right",
+          "x": 60,
+          "y": 70.0,
+          "side": "right",
+          "d": 10
+        }
+      ]
     },
     {
       "id": "lib:process/pressure-transmitter",
@@ -1192,7 +1798,23 @@
       "materials": [
         "steel"
       ],
-      "parts": []
+      "parts": [],
+      "ports": [
+        {
+          "id": "n-left",
+          "x": 0,
+          "y": 20.0,
+          "side": "left",
+          "d": 18
+        },
+        {
+          "id": "n-right",
+          "x": 60,
+          "y": 20.0,
+          "side": "right",
+          "d": 10
+        }
+      ]
     },
     {
       "id": "lib:process/relief-valve",
@@ -1210,6 +1832,22 @@
         "steel"
       ],
       "parts": [],
+      "ports": [
+        {
+          "id": "n-right",
+          "x": 60,
+          "y": 60.0,
+          "side": "right",
+          "d": 10
+        },
+        {
+          "id": "n-bottom",
+          "x": 30.0,
+          "y": 90,
+          "side": "bottom",
+          "d": 10
+        }
+      ],
       "replaces": "relief_valve"
     },
     {
@@ -1248,7 +1886,23 @@
         "steel",
         "steel-dark"
       ],
-      "parts": []
+      "parts": [],
+      "ports": [
+        {
+          "id": "n-top",
+          "x": 50.0,
+          "y": 0,
+          "side": "top",
+          "d": 10
+        },
+        {
+          "id": "n-right",
+          "x": 140,
+          "y": 40.0,
+          "side": "right",
+          "d": 10
+        }
+      ]
     },
     {
       "id": "lib:process/separator",
@@ -1278,6 +1932,29 @@
           "h": 28
         }
       ],
+      "ports": [
+        {
+          "id": "n-top",
+          "x": 40.0,
+          "y": 0,
+          "side": "top",
+          "d": 10
+        },
+        {
+          "id": "n-top-2",
+          "x": 120.0,
+          "y": 0,
+          "side": "top",
+          "d": 10
+        },
+        {
+          "id": "n-bottom",
+          "x": 100.0,
+          "y": 80,
+          "side": "bottom",
+          "d": 10
+        }
+      ],
       "replaces": "separator"
     },
     {
@@ -1297,6 +1974,36 @@
         "steel-dark"
       ],
       "parts": [],
+      "ports": [
+        {
+          "id": "n-top",
+          "x": 20.0,
+          "y": 0,
+          "side": "top",
+          "d": 10
+        },
+        {
+          "id": "n-top-2",
+          "x": 60.0,
+          "y": 0,
+          "side": "top",
+          "d": 10
+        },
+        {
+          "id": "n-bottom",
+          "x": 20.0,
+          "y": 80,
+          "side": "bottom",
+          "d": 10
+        },
+        {
+          "id": "n-bottom-2",
+          "x": 120.0,
+          "y": 80,
+          "side": "bottom",
+          "d": 10
+        }
+      ],
       "replaces": "heat_exchanger"
     },
     {
@@ -1327,6 +2034,15 @@
           "h": 60
         }
       ],
+      "ports": [
+        {
+          "id": "n-bottom",
+          "x": 40,
+          "y": 150,
+          "side": "bottom",
+          "d": 10
+        }
+      ],
       "replaces": "silo"
     },
     {
@@ -1351,6 +2067,22 @@
           "id": "led",
           "kind": "lamp"
         }
+      ],
+      "ports": [
+        {
+          "id": "n-left",
+          "x": 0,
+          "y": 60.0,
+          "side": "left",
+          "d": 10
+        },
+        {
+          "id": "n-right",
+          "x": 60,
+          "y": 60.0,
+          "side": "right",
+          "d": 10
+        }
       ]
     },
     {
@@ -1370,7 +2102,16 @@
         "rubber",
         "steel"
       ],
-      "parts": []
+      "parts": [],
+      "ports": [
+        {
+          "id": "n-top",
+          "x": 25.0,
+          "y": 0,
+          "side": "top",
+          "d": 10
+        }
+      ]
     },
     {
       "id": "lib:process/tank-on-legs",
@@ -1399,6 +2140,15 @@
           "w": 16,
           "h": 62
         }
+      ],
+      "ports": [
+        {
+          "id": "n-top",
+          "x": 40.0,
+          "y": 0,
+          "side": "top",
+          "d": 10
+        }
       ]
     },
     {
@@ -1415,7 +2165,30 @@
       "materials": [
         "steel"
       ],
-      "parts": []
+      "parts": [],
+      "ports": [
+        {
+          "id": "n-left",
+          "x": 0,
+          "y": 30.0,
+          "side": "left",
+          "d": 10
+        },
+        {
+          "id": "n-right",
+          "x": 60,
+          "y": 30.0,
+          "side": "right",
+          "d": 10
+        },
+        {
+          "id": "n-bottom",
+          "x": 30.0,
+          "y": 60,
+          "side": "bottom",
+          "d": 10
+        }
+      ]
     },
     {
       "id": "lib:process/thermometer",
@@ -1470,6 +2243,29 @@
           "closed": 180
         }
       ],
+      "ports": [
+        {
+          "id": "n-left",
+          "x": 0,
+          "y": 40.0,
+          "side": "left",
+          "d": 10
+        },
+        {
+          "id": "n-right",
+          "x": 60,
+          "y": 40.0,
+          "side": "right",
+          "d": 10
+        },
+        {
+          "id": "n-bottom",
+          "x": 30.0,
+          "y": 80,
+          "side": "bottom",
+          "d": 10
+        }
+      ],
       "replaces": "valve_3way"
     },
     {
@@ -1487,7 +2283,23 @@
         "instrument",
         "steel"
       ],
-      "parts": []
+      "parts": [],
+      "ports": [
+        {
+          "id": "n-left",
+          "x": 0,
+          "y": 50.0,
+          "side": "left",
+          "d": 10
+        },
+        {
+          "id": "n-right",
+          "x": 80,
+          "y": 50.0,
+          "side": "right",
+          "d": 10
+        }
+      ]
     },
     {
       "id": "lib:process/vertical-tank",
@@ -1517,6 +2329,22 @@
           "h": 80
         }
       ],
+      "ports": [
+        {
+          "id": "n-top",
+          "x": 40.0,
+          "y": 0,
+          "side": "top",
+          "d": 10
+        },
+        {
+          "id": "n-right",
+          "x": 80,
+          "y": 130.0,
+          "side": "right",
+          "d": 10
+        }
+      ],
       "replaces": "tank"
     },
     {
@@ -1535,6 +2363,22 @@
         "steel-dark"
       ],
       "parts": [],
+      "ports": [
+        {
+          "id": "n-left",
+          "x": 0,
+          "y": 20.0,
+          "side": "left",
+          "d": 10
+        },
+        {
+          "id": "n-right",
+          "x": 80,
+          "y": 20.0,
+          "side": "right",
+          "d": 10
+        }
+      ],
       "replaces": "strainer"
     },
     {
@@ -2195,7 +3039,16 @@
         "steel",
         "steel-dark"
       ],
-      "parts": []
+      "parts": [],
+      "ports": [
+        {
+          "id": "n-right",
+          "x": 60,
+          "y": 40.0,
+          "side": "right",
+          "d": 10
+        }
+      ]
     },
     {
       "id": "lib:machines/axial-fan",
@@ -2309,6 +3162,22 @@
           "symmetry": 180
         }
       ],
+      "ports": [
+        {
+          "id": "n-left",
+          "x": 0,
+          "y": 60.0,
+          "side": "left",
+          "d": 10
+        },
+        {
+          "id": "n-top",
+          "x": 50.0,
+          "y": 0,
+          "side": "top",
+          "d": 10
+        }
+      ],
       "replaces": "blower"
     },
     {
@@ -2328,7 +3197,16 @@
         "safety-yellow",
         "steel"
       ],
-      "parts": []
+      "parts": [],
+      "ports": [
+        {
+          "id": "n-left",
+          "x": 0,
+          "y": 150.0,
+          "side": "left",
+          "d": 10
+        }
+      ]
     },
     {
       "id": "lib:machines/centrifugal-fan",
@@ -2355,6 +3233,15 @@
           "cx": 50,
           "cy": 56,
           "symmetry": 45
+        }
+      ],
+      "ports": [
+        {
+          "id": "n-top",
+          "x": 70,
+          "y": 4,
+          "side": "top",
+          "d": 40
         }
       ]
     },
@@ -2841,6 +3728,15 @@
         "steel-dark"
       ],
       "parts": [],
+      "ports": [
+        {
+          "id": "n-top",
+          "x": 110.0,
+          "y": 0,
+          "side": "top",
+          "d": 10
+        }
+      ],
       "replaces": "compressor"
     },
     {
@@ -2859,7 +3755,23 @@
         "glass-dark",
         "steel"
       ],
-      "parts": []
+      "parts": [],
+      "ports": [
+        {
+          "id": "n-top",
+          "x": 30.0,
+          "y": 0,
+          "side": "top",
+          "d": 10
+        },
+        {
+          "id": "n-bottom",
+          "x": 140.0,
+          "y": 70,
+          "side": "bottom",
+          "d": 10
+        }
+      ]
     },
     {
       "id": "lib:machines/siren",
@@ -3001,6 +3913,22 @@
           "symmetry": 90
         }
       ],
+      "ports": [
+        {
+          "id": "n-left",
+          "x": 0,
+          "y": 70.0,
+          "side": "left",
+          "d": 10
+        },
+        {
+          "id": "n-right",
+          "x": 160,
+          "y": 70.0,
+          "side": "right",
+          "d": 10
+        }
+      ],
       "replaces": "chiller"
     },
     {
@@ -3069,6 +3997,22 @@
           "cx": 42,
           "cy": 44,
           "symmetry": 90
+        }
+      ],
+      "ports": [
+        {
+          "id": "n-right",
+          "x": 120,
+          "y": 60.0,
+          "side": "right",
+          "d": 10
+        },
+        {
+          "id": "n-right-2",
+          "x": 120,
+          "y": 80.0,
+          "side": "right",
+          "d": 10
         }
       ],
       "replaces": "heat_pump"

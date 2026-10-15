@@ -19,6 +19,10 @@
 versioni:
   - versione: "2.14.0"
     voci:
+      - it: "I tubi si agganciano alle bocche vere di pompe, valvole e serbatoi: avvicinando un capo a una bocca si aggancia da solo, e il tubo segue il simbolo anche se ruotato."
+        en: "Pipes attach to the real nozzles of pumps, valves and tanks: bring an end close to a nozzle and it snaps on, and the pipe follows the symbol even when rotated."
+      - it: "I tubi a 90° e a 45° calcolano il percorso da soli, e ora compaiono anche sul pannello, che prima li ignorava."
+        en: "Pipes at 90° and 45° work out their own route, and now also appear on the panel, which ignored them before."
       - it: "Il viewer non perde più il login quando si ricarica la pagina: prima l'operatore tornava anonimo e i comandi venivano rifiutati."
         en: "The viewer no longer loses the login when the page is reloaded: before, the operator became anonymous and commands were refused."
       - it: "Sul pannello le etichette dei bottoni sono centrate e il valore della barra di avanzamento sta dentro la barra, come nel browser."

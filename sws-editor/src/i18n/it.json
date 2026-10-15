@@ -1146,7 +1146,14 @@
     "adattaProporzioniHint": "Il disegno è contenuto e centrato nel riquadro: questo porta il riquadro alle proporzioni del disegno, tenendo la larghezza.",
     "simboloComanda": "Il simbolo comanda",
     "commandTag": "Variabile comandata",
-    "commandTagPh": "es. pompa1.start"
+    "commandTagPh": "es. pompa1.start",
+    "capoLibero": "— libero —",
+    "capoMancante": "non è sulla pagina",
+    "bocche": "Bocche del simbolo",
+    "bocca": "Bocca {{lato}} ({{id}})",
+    "latiRiquadro": "Riquadro",
+    "capoInizio": "Inizio agganciato a",
+    "capoFine": "Fine agganciata a"
   },
   "shortcut": {
     "navCanvas": "Navigazione canvas",
@@ -1940,7 +1947,7 @@
     "addSeries": "+ Aggiungi serie",
     "addSlice": "+ Aggiungi slice",
     "showEmpty": "Mostra vuoto",
-    "whenSetTheFirstLast": "Quando impostato, il primo / ultimo waypoint segue l'oggetto collegato.",
+    "whenSetTheFirstLast": "Trascina il primo o l'ultimo punto giallo vicino a una bocca: si aggancia da solo, e il tubo segue l'oggetto.",
     "dragTheYellowPointsOn": "Trascina i punti gialli sul canvas. Usa ± per aggiungere/rimuovere.",
     "addWaypoint": "+ Aggiungi waypoint",
     "0NoAnimationAnimatesBound": "0 = nessuna animazione. Anima fill/stroke/opacity/rotazione bindati. Testo, font-size, src e geometrie restano discreti.",

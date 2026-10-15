@@ -40,20 +40,25 @@ def f2(v):
 # ── attacchi ────────────────────────────────────────────────────────────────
 
 def flangia_v(s, x, y, w=4, h=16):
-    """Piastra verticale (flangia di un tubo orizzontale)."""
+    """Piastra verticale (flangia di un tubo orizzontale). Sul bordo del disegno è
+    una bocca: la registra `Simbolo.porte()`."""
     s.forma(*R(x, y, w, h, .8), mat="steel", velo="metal-h")
+    s.flange.append((x, y, w, h))
 
 
 def flangia_o(s, x, y, w=16, h=4):
     s.forma(*R(x, y, w, h, .8), mat="steel", velo="metal-v")
+    s.flange.append((x, y, w, h))
 
 
 def tubo_o(s, x, y, w, h=10):
     s.forma(*R(x, y, w, h), mat="steel", velo="metal-v")
+    s.tronchetti.append((x, y, w, h))
 
 
 def tubo_v(s, x, y, h, w=10):
     s.forma(*R(x, y, w, h), mat="steel", velo="metal-h")
+    s.tronchetti.append((x, y, w, h))
 
 
 def girante(s, cx, cy, r, pale, mozzo):
@@ -354,6 +359,7 @@ def centrifugal_fan():
                 it="Ventilatore centrifugo", en="Centrifugal fan")
     s.forma(*R(22, 94, 56, 6, 1), mat="steel-dark", velo="dark-v")
     flangia_o(s, 48, 4, 44)
+    s.bocca(70, 4, "top", 40)  # la bocca di mandata, 4 sotto il bordo
     s.corpo()
     s.forma(*P("M90 56 A40 40 0 1 1 50 16 L50 8 L90 8 Z"), velo="paint-r")
     s.statico()

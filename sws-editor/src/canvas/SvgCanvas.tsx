@@ -42,6 +42,8 @@ import {
 import type { AlarmSeverity, AlarmState, CustomSymbol, FaceplateDef, FaceplateParamDef, GridCell, PageSizeMode, PipePoint, Sample, SynopticObject, TableRow, TagDef, TagState } from "@/types";
 import { fattoreFondoRespiro, luminositaValida, parametriLuminosita } from "./luce";
 import { puntiSvg, verticiPoligono } from "./forme";
+import { aggancioSu, bersagli, calamita, percorsoTubo, type Bersaglio } from "./tubazioni";
+import { useManifestoLib } from "@/symbols/lib/libreria";
 
 // ── Canvas props ──────────────────────────────────────────────────────────────
 
@@ -305,31 +307,6 @@ function buildPipeD(pts: PipePoint[], routing: string): string {
   if (pts.length < 2) return "";
   if (routing === "bezier") return buildBezierPath(pts);
   return `M ${pts[0].x} ${pts[0].y} ` + pts.slice(1).map((p) => `L ${p.x} ${p.y}`).join(" ");
-}
-
-function computeAnchor(obj: SynopticObject, port: string): PipePoint {
-  const w = obj.type === "line" ? 0 : (obj.width ?? 80);
-  const h = obj.type === "line" ? 0 : (obj.height ?? 80);
-  switch (port) {
-    case "top":    return { x: obj.x + w / 2, y: obj.y };
-    case "bottom": return { x: obj.x + w / 2, y: obj.y + h };
-    case "left":   return { x: obj.x,         y: obj.y + h / 2 };
-    case "right":  return { x: obj.x + w,     y: obj.y + h / 2 };
-    default:       return { x: obj.x + w / 2, y: obj.y + h / 2 };
-  }
-}
-
-function resolveAnchoredPoints(pipe: SynopticObject, objects: SynopticObject[]): PipePoint[] {
-  const pts = [...(pipe.points ?? [])];
-  if (pipe.from_obj_id) {
-    const src = objects.find((o) => o.id === pipe.from_obj_id);
-    if (src) pts[0] = computeAnchor(src, pipe.from_port ?? "center");
-  }
-  if (pipe.to_obj_id && pts.length >= 2) {
-    const dst = objects.find((o) => o.id === pipe.to_obj_id);
-    if (dst) pts[pts.length - 1] = computeAnchor(dst, pipe.to_port ?? "center");
-  }
-  return pts;
 }
 
 // ── Quality helpers ───────────────────────────────────────────────────────────
@@ -802,6 +779,9 @@ export function SvgCanvas({
   // event handlers (always up-to-date); `selRect` drives the visual overlay.
   const selDragRef     = useRef<SelRect | null>(null);
   const [selRect, setSelRect] = useState<SelRect | null>(null);
+  // La calamita dei tubi (15-10-2026): mentre si trascina un capo, il tubo e il
+  // bersaglio su cui si aggancerebbe (null = capo libero).
+  const [capoInPresa, setCapoInPresa] = useState<{ pipeId: string; bersaglio: Bersaglio | null } | null>(null);
   const [expandedTrendObj, setExpandedTrendObj] = useState<SynopticObject | null>(null);
   // F6.3: popup faceplate aperto da un'azione open_faceplate (uno alla volta).
   const [popupFaceplate, setPopupFaceplate] = useState<{ id: string; params: Record<string, string> } | null>(null);
@@ -1205,10 +1185,22 @@ export function SvgCanvas({
         const wpIdx = parseInt(handle.slice(3));
         const pipeObj = objects.find((o) => o.id === objId);
         if (pipeObj?.points) {
-          const newPoints = pipeObj.points.map((p, i) =>
-            i === wpIdx ? { x: snap(startObj.x + dx), y: snap(startObj.y + dy) } : p
-          );
-          onMove(objId, { points: newPoints });
+          const ultimo = pipeObj.points.length - 1;
+          let punto = { x: snap(startObj.x + dx), y: snap(startObj.y + dy) };
+          let aggancio: Partial<SynopticObject> = {};
+          // La calamita (15-10-2026): un capo vicino a una bocca, o a un punto
+          // del riquadro di un oggetto, ci si aggancia; lontano si sgancia.
+          if (wpIdx === 0 || wpIdx === ultimo) {
+            const libero = { x: startObj.x + dx, y: startObj.y + dy };
+            const b = calamita(bersagli(objects, objId), libero, 12 / z);
+            if (b) punto = { x: b.x, y: b.y };
+            aggancio = wpIdx === 0
+              ? { from_obj_id: b?.objId, from_port: b?.porta }
+              : { to_obj_id: b?.objId, to_port: b?.porta };
+            setCapoInPresa({ pipeId: objId, bersaglio: b });
+          }
+          const newPoints = pipeObj.points.map((p, i) => (i === wpIdx ? punto : p));
+          onMove(objId, { points: newPoints, ...aggancio });
         }
       } else {
         let { x, y, width, height } = startObj;
@@ -1463,6 +1455,7 @@ export function SvgCanvas({
       suppressClick.current = true;
     }
     closeInteraction();
+    setCapoInPresa(null);
     dragRef.current = null;
     resizeRef.current = null;
     rotateRef.current = null;
@@ -2197,11 +2190,36 @@ export function SvgCanvas({
       {onMove && selIds.length === 1 && (() => {
         const obj = objects.find((o) => o.id === selIds[0]);
         if (!obj || obj.type !== "pipe") return null;
-        const pts = obj.points ?? [];
+        // I capi agganciati si mostrano dove sono davvero, non dove dice il
+        // file: un tubo agganciato può avere i punti scritti a zero.
+        // Un tubo con i due capi agganciati può non avere punti scritti: le
+        // maniglie stanno comunque sui capi, e al primo trascinamento i punti
+        // si scrivono nel tubo (sotto, nel mousedown).
+        const scritti = obj.points ?? [];
+        const base = scritti.length >= 2 ? scritti : obj.from_obj_id && obj.to_obj_id ? [{ x: 0, y: 0 }, { x: 0, y: 0 }] : scritti;
+        const pts = base.map((pt, i, tutti) => {
+          const id = i === 0 ? obj.from_obj_id : i === tutti.length - 1 ? obj.to_obj_id : undefined;
+          const o = id ? objects.find((x) => x.id === id) : undefined;
+          if (!o) return pt;
+          const a = aggancioSu(o, i === 0 ? obj.from_port : obj.to_port);
+          return { x: a.x, y: a.y };
+        });
         const r = 5 / viewT.zoom;
         const sw = 1.5 / viewT.zoom;
+        const presa = capoInPresa?.pipeId === obj.id ? capoInPresa : null;
         return (
           <>
+            {/* Mentre si trascina un capo: le bocche della pagina, e l'anello
+                sul bersaglio dove il capo si aggancerebbe. */}
+            {presa && bersagli(objects, obj.id).filter((b) => b.bocca).map((b) => (
+              <circle key={`b-${b.objId}-${b.porta}`} data-testid={`bocca-${b.objId}-${b.porta}`}
+                cx={b.x} cy={b.y} r={3.5 / viewT.zoom} fill="#22d3ee" stroke="#0e7490" strokeWidth={sw}
+                style={{ pointerEvents: "none" }} />
+            ))}
+            {presa?.bersaglio && (
+              <circle cx={presa.bersaglio.x} cy={presa.bersaglio.y} r={9 / viewT.zoom}
+                fill="none" stroke="#22d3ee" strokeWidth={2 / viewT.zoom} style={{ pointerEvents: "none" }} />
+            )}
             {pts.map((pt, i) => (
               <circle key={i}
                 cx={pt.x} cy={pt.y} r={r}
@@ -2213,6 +2231,7 @@ export function SvgCanvas({
                   selDragRef.current = null;
                   setSelRect(null);
                   openInteraction("history.moveWaypoint", { n: i });
+                  if (scritti.length < 2) onMove(obj.id, { points: pts });
                   resizeRef.current = {
                     objId: obj.id, handle: `wp-${i}`,
                     startX: e.clientX, startY: e.clientY,
@@ -3349,6 +3368,18 @@ function FaceplatePopup({ faceplateId, params, faceplates, objects, tagValues, c
  *  luminosità non esisteva. Il `<g>` esterno di chi disegna la pagina resta
  *  libero per le animazioni di lampeggio: le due cose si moltiplicano. */
 export function SvgObject(p: ObjProps) {
+  return p.obj.type === "pipe" ? <TuboVivo {...p} /> : <SvgObjectBase {...p} />;
+}
+
+/** Un tubo si ridisegna quando arriva il manifesto della libreria: le bocche
+ *  dei simboli a cui è agganciato stanno lì (15-10-2026). Solo i tubi si
+ *  iscrivono, così gli altri oggetti non si ridisegnano a ogni SVG caricato. */
+function TuboVivo(p: ObjProps) {
+  useManifestoLib();
+  return <SvgObjectBase {...p} />;
+}
+
+function SvgObjectBase(p: ObjProps) {
   const r = resolveObject(p.obj, p.tagValues);
   const opacita = typeof r.opacity === "number" && Number.isFinite(r.opacity) ? Math.max(0, Math.min(1, r.opacity)) : 1;
   const luce = parametriLuminosita(luminositaValida(r.brightness));
@@ -3886,7 +3917,8 @@ function SvgObjectCorpo(p: ObjProps) {
   // ── PIPE ────────────────────────────────────────────────────────────────────
 
   if (obj.type === "pipe") {
-    const pts = resolveAnchoredPoints(obj, objects);
+    // 15-10-2026: capi sulle bocche vere e percorso calcolato (`tubazioni.ts`).
+    const pts = percorsoTubo(obj, objects);
     if (pts.length < 2) return null;
     const pipeStyle = obj.pipe_style ?? "flat";
     const sw = obj.stroke_width ?? 8;

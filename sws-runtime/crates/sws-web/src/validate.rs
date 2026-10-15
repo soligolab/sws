@@ -38,7 +38,7 @@ use sws_core::project::ProjectTargetKind;
 use sws_core::{Project, SourceDef, TopicMapping};
 
 use crate::synoptic::{SynopticObject, SynopticPage};
-use crate::synoptic_schema::{FIELD_ENUMS, OBJECT_FIELDS, OBJECT_TYPES, PAGE_FIELDS, TAG_FIELDS};
+use crate::synoptic_schema::{FIELD_ENUMS, OBJECT_FIELDS, OBJECT_TYPES, PAGE_FIELDS, SYMBOL_PORTS, TAG_FIELDS};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "lowercase")]
@@ -1455,6 +1455,36 @@ fn controlla_oggetto(
         }
     }
 
+    // La bocca a cui si aggancia un capo (15-10-2026): uno dei cinque punti del
+    // riquadro, oppure una bocca che il simbolo ha davvero. Avviso, non errore:
+    // un nome sconosciuto ricade sul centro, e il tubo si vede comunque.
+    for (campo_obj, campo, porta) in [("from_obj_id", "from_port", &o.from_port), ("to_obj_id", "to_port", &o.to_port)] {
+        let Some(porta) = porta.as_deref().filter(|p| !p.is_empty()) else { continue };
+        if ["top", "bottom", "left", "right", "center"].contains(&porta) {
+            continue;
+        }
+        let rif = if campo_obj == "from_obj_id" { &o.from_obj_id } else { &o.to_obj_id };
+        let bersaglio = rif.as_deref().and_then(|id| page.objects.iter().find(|x| x.id == id));
+        let bocche: &[&str] = bersaglio
+            .filter(|b| b.obj_type == "symbol")
+            .and_then(|b| b.symbol_id.as_deref())
+            .and_then(|sid| SYMBOL_PORTS.iter().find(|(k, _)| *k == sid))
+            .map(|(_, v)| *v)
+            .unwrap_or(&[]);
+        if !bocche.contains(&porta) {
+            let valide = if bocche.is_empty() {
+                "top, bottom, left, right, center".to_string()
+            } else {
+                format!("{}, oppure top, bottom, left, right, center", bocche.join(", "))
+            };
+            out.push(Finding::warn(
+                format!("{base}.{campo}"),
+                format!("`{porta}` non è una bocca dell'oggetto agganciato"),
+                format!("il capo ricade sul centro del riquadro: usa {valide}"),
+            ));
+        }
+    }
+
     // `points` su una `line`: nessuno dei due motori lo legge. Difetto
     // introdotto e trovato lo stesso giorno, il 2026-08-31.
     if t == "line" && o.points.is_some() {
@@ -2580,6 +2610,22 @@ alarms: []
         // Con il comando acceso e la variabile vuota, sì.
         let rs = rilievi(PROGETTO, &pagina("- { id: s, type: symbol, x: 0, y: 0, symbol_id: pump, command_tag: '' }"));
         assert!(rs.iter().any(|f| f.path.ends_with("command_tag")), "{rs:?}");
+    }
+
+    /// Le bocche dei tubi (15-10-2026): un lato del riquadro o una bocca vera
+    /// del simbolo passano, un nome inventato è un avviso con l'elenco giusto.
+    #[test]
+    fn la_bocca_di_un_tubo_deve_esistere_sul_simbolo() {
+        let pagina_con = |porta: &str| pagina(&format!(
+            "- {{ id: pompa, type: symbol, x: 0, y: 0, width: 80, height: 80, symbol_id: \"lib:process/centrifugal-pump\" }}\n\
+             - {{ id: t, type: pipe, x: 0, y: 0, from_obj_id: pompa, from_port: {porta}, points: [{{x: 0, y: 0}}, {{x: 100, y: 0}}] }}"));
+        let sul_capo = |rs: &[Finding]| rs.iter().filter(|f| f.path.ends_with(".from_port")).count();
+        assert_eq!(sul_capo(&rilievi(PROGETTO, &pagina_con("n-top"))), 0);
+        assert_eq!(sul_capo(&rilievi(PROGETTO, &pagina_con("left"))), 0);
+        let rs = rilievi(PROGETTO, &pagina_con("n-bottom"));
+        let f = rs.iter().find(|f| f.path.ends_with(".from_port")).expect("avviso");
+        assert!(matches!(f.severity, Severity::Warning));
+        assert!(f.hint.as_deref().unwrap().contains("n-left"), "{f:?}");
     }
 
     #[test]

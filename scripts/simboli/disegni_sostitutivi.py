@@ -121,6 +121,7 @@ def silo():
     s = Simbolo("process", "silo", 80, 160, tipo="tanks", body="stainless",
                 it="Silo", en="Silo", replaces="silo")
     tubo_v(s, 35, 132, 14, w=10); flangia_o(s, 33, 146, 14)
+    s.bocca(40, 150, "bottom", 10)  # lo scarico sta fra le gambe, non sul bordo
     for x in (10, 64):
         s.forma(*R(x, 96, 6, 60), mat="steel-dark", velo="dark-h")
         s.forma(*R(x - 3, 155, 12, 5, 1), mat="steel-dark", velo="dark-v")

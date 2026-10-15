@@ -673,10 +673,14 @@ pub struct SynopticObject {
     pub stroke_dasharray: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub from_obj_id: Option<String>,
+    /// Dove si aggancia il capo iniziale: uno dei cinque punti del riquadro
+    /// (`top`, `bottom`, `left`, `right`, `center`) o, su un simbolo di
+    /// libreria, l'id di una sua bocca (`n-left`, `n-top-2`…; vedi `SYMBOL_PORTS`).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub from_port: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub to_obj_id: Option<String>,
+    /// Dove si aggancia il capo finale: come `from_port`.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub to_port: Option<String>,
     // Faceplate instance (type === "faceplate") — same pre-existing gap.

@@ -82,6 +82,10 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 
 ### Fixed
 
+- **Tubi ortogonali e diagonali**: sul web si disegnavano come spezzata dritta fra i punti, e il pannello LVGL li
+  **scartava** («routing non supportato»), quindi non comparivano affatto. Ora il percorso è calcolato e il
+  pannello lo disegna.
+
 - **Il viewer perdeva la sessione a ogni ricarica.** All'apertura `RuntimeViewer` sostituiva sempre il token
   con il sentinella `no-auth` (`whoami` → `setAuth("no-auth")`): un operatore loggato che ricaricava la pagina
   diventava anonimo, e su un pannello abbinato ogni scrittura tornava «forbidden: Operator+ required». Ora una
@@ -137,6 +141,18 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 - **Dopo il primo invio di un progetto il pannello passa da solo alla pagina**, senza il pulsante «Continua».
 
 ### Added
+
+- **Tubazioni agganciate alle bocche vere dei simboli** (piano `docs/plans/2026-10-15-tubazioni-bocche-e-stili.md`,
+  ramo A). Il generatore della libreria ricava dalle flange sul bordo dei disegni le **bocche** di ogni simbolo
+  (116 su 57 simboli: lato, punto, diametro) e le scrive nel manifesto (`ports`). Un tubo si aggancia a una bocca
+  (`from_port`/`to_port` = id della bocca, oppure uno dei cinque punti del riquadro), che segue il simbolo anche
+  ruotato o specchiato. Nell'IDE: trascinando il primo o l'ultimo punto giallo vicino a una bocca il capo si
+  aggancia da solo (calamita), e il pannello proprietà offre i menu «Inizio/Fine agganciato a» al posto dell'id
+  scritto a mano. Il validatore avvisa di una bocca che il simbolo non ha.
+- **Instradamento calcolato**: `orthogonal` (90°) e `diagonal` (45°) escono dritti dalle bocche, girano a gomito
+  passando per i punti dell'utente ed entrano dritti senza attraversare l'oggetto. Stessa regola su web e pannello
+  (`sws-core/src/tubazioni.rs` ↔ `canvas/tubazioni.ts`, fixture `tests/fixtures/tubazioni.json`). I tubi nuovi
+  nascono ortogonali.
 
 - **Template «Comandi — pompa del pozzo»** (`examples/templates/comandi-pompa-pozzo`): una pagina con le
   modalità del bottone, i simboli che comandano (interruttore, valvola, pulsantiera) e le assegnazioni,
