@@ -400,7 +400,13 @@ pub const FIELD_ENUMS: &[(&str, &[&str])] = &[
             "decrement",
         ],
     ),
-    ("end_marker", &["none", "arrow", "dot", "flange"]),
+    (
+        "end_marker",
+        &[
+            "auto", "none", "arrow", "dot", "flange", "welded", "union", "quick", "reducer",
+            "gland", "collar",
+        ],
+    ),
     ("fill_direction", &["start-to-end", "end-to-start"]),
     ("fill_gradient", &["vertical", "horizontal", "radial"]),
     ("fill_level_scale", &["0-1", "0-100"]),
@@ -422,9 +428,30 @@ pub const FIELD_ENUMS: &[(&str, &[&str])] = &[
         &["percent", "value", "value_percent", "label_percent"],
     ),
     ("pie_mode", &["pie", "donut"]),
-    ("pipe_style", &["flat", "tube", "wire"]),
+    (
+        "pipe_style",
+        &[
+            "flat",
+            "tube",
+            "wire",
+            "metallo",
+            "inox",
+            "coibentato",
+            "pvc",
+            "flessibile",
+            "canale",
+            "cavo",
+            "segnale",
+        ],
+    ),
     ("routing", &["straight", "orthogonal", "diagonal", "bezier"]),
-    ("start_marker", &["none", "arrow", "dot", "flange"]),
+    (
+        "start_marker",
+        &[
+            "auto", "none", "arrow", "dot", "flange", "welded", "union", "quick", "reducer",
+            "gland", "collar",
+        ],
+    ),
     (
         "symbol_id",
         &[
@@ -1780,7 +1807,7 @@ pub const TYPE_EXAMPLES: &[(&str, &str)] = &[
     ("navbutton", "id: nav1\ntype: navbutton\nx: 900.0\ny: 12.0\nwidth: 170.0\nheight: 32.0\nlabel: 1. Generatore\ntarget_page: t69_gen\nfill: '#2563eb'\ngroup_id: nav\nlocked: true"),
     ("page_navigator", "id: pro1_nav\ntype: page_navigator\nx: 137\ny: 738\nwidth: 993\nheight: 44\nnav_orientation: horizontal\nnav_fill: true\nnav_gap: 12\nnav_active_fill: '#1e293b'\nnav_items:\n- page_id: pro_p1\n  label: '{{t0047}}'\n- page_id: pro_p2\n  label: '{{t0004}}'\n- page_id: pro_p3\n  label: '{{t0005}}'\n- page_id: pro_p4\n  label: '{{t0006}}'\n- page_id: pro_p5\n  label: '{{t0007}}'\n- page_id: pro_p6\n  label: '{{t0008}}'\nlocked: true"),
     ("pie_chart", "id: o_pie\ntype: pie_chart\nx: 340.0\ny: 388.0\nwidth: 250.0\nheight: 220.0\npie_mode: donut\npie_inner_ratio: 0.55\npie_slices:\n- tag: demo.sim.pie_a\n  label: '{{t0057}}'\n  color: '#0ea5e9'\n- tag: demo.sim.pie_b\n  label: '{{t0058}}'\n  color: '#22c55e'\n- tag: demo.sim.pie_c\n  label: '{{t0059}}'\n  color: '#f59e0b'\npie_show_labels: true\npie_label_mode: label_percent\npie_hole_color: '#0f172a'\npie_center_tag: demo.sim.pressure\npie_center_format: '{value}'\npie_group_below_pct: 8.0\npie_group_label: '{{t0060}}'\npie_group_color: '#475569'\ndecimals: 0"),
-    ("pipe", "id: s_pipe\ntype: pipe\nx: 115\ny: 160\nwidth: 115\nheight: 70\npoints:\n- x: 115\n  y: 100\n- x: 170\n  y: 128\n- x: 230\n  y: 92\nrouting: straight\npipe_style: tube\nstroke: '#475569'\nstroke_width: 6\npipe_flow: true\npipe_flow_tag: sandokan.running"),
+    ("pipe", "id: tubo_mandata\ntype: pipe\nx: 0\ny: 0\npipe_style: metallo\nrouting: orthogonal\nfrom_obj_id: sim_pompa\nfrom_port: n-top\npipe_flow: true\npipe_flow_tag: pompa.marcia\nfill_color: '#7dd3fc'\npoints:\n- x: 0\n  y: 0\n- x: 1240\n  y: 150"),
     ("polygon", "id: d_poligono\ntype: polygon\nx: 24.0\ny: 664.0\nwidth: 72.0\nheight: 72.0\nsides: 6\nfill: '#4a90d9'\nstroke: '#e2e8f0'\nstroke_width: 2.0"),
     ("polyline", "id: d_polilinea\ntype: polyline\nx: 200.0\ny: 670.0\npoints:\n- x: 200.0\n  y: 730.0\n- x: 240.0\n  y: 670.0\n- x: 280.0\n  y: 720.0\n- x: 320.0\n  y: 672.0\n- x: 380.0\n  y: 730.0\nstroke: '#22c55e'\nstroke_width: 3.0"),
     ("progress_bar", "id: ha1_risc_prog\ntype: progress_bar\nx: 201\ny: 609\nwidth: 374\nheight: 21\ntag: clima.temperatura_attuale\nmin: 10\nmax: 30\nfill: '#dc2626'\nbackground: '#374151'"),

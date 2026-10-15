@@ -1153,7 +1153,31 @@
     "bocca": "Bocca {{lato}} ({{id}})",
     "latiRiquadro": "Riquadro",
     "capoInizio": "Inizio agganciato a",
-    "capoFine": "Fine agganciata a"
+    "capoFine": "Fine agganciata a",
+    "stiliTubo25d": "2.5D, come i simboli",
+    "stiliTuboSemplici": "Semplici",
+    "stileTubo": {
+      "metallo": "Metallo",
+      "inox": "Inox",
+      "coibentato": "Coibentato",
+      "pvc": "PVC (colore del tubo)",
+      "flessibile": "Flessibile",
+      "canale": "Canale aria (HVAC)",
+      "cavo": "Cavo",
+      "segnale": "Linea di segnale"
+    },
+    "estremita": {
+      "auto": "Automatica (dalla bocca)",
+      "flange": "Flangia",
+      "welded": "Saldato",
+      "union": "Bocchettone",
+      "quick": "Attacco rapido",
+      "reducer": "Riduzione",
+      "gland": "Pressacavo",
+      "collar": "Collare",
+      "arrow": "Freccia",
+      "dot": "Pallino"
+    }
   },
   "shortcut": {
     "navCanvas": "Navigazione canvas",

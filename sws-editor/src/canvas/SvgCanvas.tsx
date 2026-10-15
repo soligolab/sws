@@ -29,7 +29,7 @@ import { trendTraces } from "@/canvas/trendModel";
 import { xySeriesOf } from "@/canvas/xyModel";
 import { matchTextListEntry } from "@/canvas/textList";
 import { statoSimbolo, veroSimbolo } from "@/symbols/statoSimbolo";
-import { animazioniEffettive, stileProgetto } from "@/symbols/stileProgetto";
+import { animazioniEffettive, CONTORNO_DISEGNO, stileProgetto } from "@/symbols/stileProgetto";
 import { OggettoLib } from "@/symbols/lib/SimboloLib";
 import {
   PAGE_EDGE_RESIST_PX,
@@ -42,7 +42,8 @@ import {
 import type { AlarmSeverity, AlarmState, CustomSymbol, FaceplateDef, FaceplateParamDef, GridCell, PageSizeMode, PipePoint, Sample, SynopticObject, TableRow, TagDef, TagState } from "@/types";
 import { fattoreFondoRespiro, luminositaValida, parametriLuminosita } from "./luce";
 import { puntiSvg, verticiPoligono } from "./forme";
-import { aggancioSu, bersagli, calamita, percorsoTubo, type Bersaglio } from "./tubazioni";
+import { aggancioSu, bersagli, calamita, diametriCapi, percorsoTubo, type Bersaglio } from "./tubazioni";
+import { larghezzaTubo, stileTubo, svgTubo } from "./stiliTubo";
 import { useManifestoLib } from "@/symbols/lib/libreria";
 
 // ── Canvas props ──────────────────────────────────────────────────────────────
@@ -3925,6 +3926,12 @@ function SvgObjectCorpo(p: ObjProps) {
     const baseColor = coloreEffettivo(obj, "stroke");
     const routing = obj.routing ?? "straight";
     const pathD = buildPipeD(pts, routing);
+    // Gli stili 2.5D (15-10-2026): corpo ed estremità dal disegno condiviso col
+    // pannello (`stiliTubo.ts`); riempimento, flusso ed etichetta restano sotto.
+    const stileNuovo = stileTubo(obj.pipe_style);
+    const bocche = stileNuovo ? diametriCapi(obj, objects) : [undefined, undefined] as const;
+    const dTubo = obj.stroke_width ?? bocche[0] ?? bocche[1] ?? 8;
+    const larghezzaNuova = stileNuovo ? larghezzaTubo(stileNuovo, dTubo) : 0;
 
     // State / alarm colour override
     const alarmTv = obj.alarm_tag ? tagValues[obj.alarm_tag] : undefined;
@@ -3933,6 +3940,22 @@ function SvgObjectCorpo(p: ObjProps) {
       (alarmTv && alarmTv.value) ? (obj.state_alarm_color ?? "#ef4444") :
       (stateTv && stateTv.value) ? (obj.state_on_color ?? baseColor) :
       (obj.state_tag ? (obj.state_off_color ?? baseColor) : baseColor);
+
+    let svgNuovo = "";
+    if (stileNuovo) {
+      const prog = stileProgetto();
+      const coloreStato =
+        (alarmTv && alarmTv.value) ? (obj.state_alarm_color ?? "#ef4444") :
+        obj.state_tag ? ((stateTv && stateTv.value) ? obj.state_on_color : obj.state_off_color) : undefined;
+      svgNuovo = svgTubo({
+        id: `tubo-${obj.id}`, punti: pts, stile: stileNuovo, d: dTubo,
+        coloreStato, stroke: obj.stroke, materiali: prog?.materials ?? {},
+        volume: Math.min(100, Math.max(0, prog?.volume ?? 100)) / 100,
+        contorno: [prog?.outline_color ?? CONTORNO_DISEGNO, prog?.outline_width ?? 1],
+        estremita: [obj.start_marker, obj.end_marker],
+        bocche: [bocche[0], bocche[1]],
+      });
+    }
 
     // Gradient
     const useGrad = obj.pipe_gradient ?? (pipeStyle === "tube");
@@ -4012,25 +4035,27 @@ function SvgObjectCorpo(p: ObjProps) {
           )}
         </defs>
 
+        {stileNuovo && <g style={{ pointerEvents: "none", ...transitionStyle(obj) }} dangerouslySetInnerHTML={{ __html: svgNuovo }} />}
+
         {/* Outer shadow for tube style */}
-        {pipeStyle === "tube" && (
+        {!stileNuovo && pipeStyle === "tube" && (
           <path d={pathD} fill="none" stroke={darkC} strokeWidth={outerSw}
             strokeLinecap="round" strokeLinejoin="round"
             style={{ pointerEvents: "none" }} />
         )}
 
         {/* Main pipe body */}
-        <path d={pathD} fill="none"
+        {!stileNuovo && <path d={pathD} fill="none"
           stroke={useGrad ? `url(#${gradId})` : pipeColor}
           strokeWidth={bodySw}
           strokeLinecap="round" strokeLinejoin="round"
           strokeDasharray={dasharray}
           markerStart={obj.start_marker && obj.start_marker !== "none" ? `url(#${mId("s")})` : undefined}
           markerEnd={obj.end_marker && obj.end_marker !== "none" ? `url(#${mId("e")})` : undefined}
-          style={{ ...transitionStyle(obj) }} />
+          style={{ ...transitionStyle(obj) }} />}
 
         {/* Inner highlight for tube style */}
-        {pipeStyle === "tube" && (
+        {!stileNuovo && pipeStyle === "tube" && (
           <path d={pathD} fill="none" stroke={lightC}
             strokeWidth={Math.max(1, Math.round(sw * 0.22))}
             strokeLinecap="round" strokeLinejoin="round"
@@ -4040,7 +4065,7 @@ function SvgObjectCorpo(p: ObjProps) {
         {/* Fill level overlay (stroke-dasharray trick with pathLength=1) */}
         {fillLevel > 0 && (
           <path d={pathD} fill="none"
-            stroke={fillColor} strokeWidth={fillSw}
+            stroke={fillColor} strokeWidth={stileNuovo ? Math.max(1, larghezzaNuova * 0.55) : fillSw}
             strokeLinecap="round" strokeLinejoin="round"
             pathLength={1}
             strokeDasharray="1"
@@ -4071,7 +4096,7 @@ function SvgObjectCorpo(p: ObjProps) {
 
         {/* Transparent wider hit area so it's easy to click */}
         <path d={pathD} fill="none" stroke="transparent"
-          strokeWidth={Math.max(bodySw, 14)}
+          strokeWidth={Math.max(stileNuovo ? larghezzaNuova : bodySw, 14)}
           strokeLinecap="round" strokeLinejoin="round" />
 
         {/* Label — F0.2: colore e dimensione erano hardcoded. */}

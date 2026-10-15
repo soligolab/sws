@@ -8072,6 +8072,8 @@ fn render_pipe(
     obj: &SynopticObject,
     styles: &mut Vec<Style>,
     tags: &TagSnapshot,
+    base_url: &str,
+    rt_handle: &tokio::runtime::Handle,
 ) -> anyhow::Result<LiveBinding> {
     let routing = obj.routing.as_deref().unwrap_or("straight");
     if routing != "straight" {
@@ -8083,8 +8085,16 @@ fn render_pipe(
     }
     let assoluti: Vec<(f64, f64)> = waypoints.iter().map(|p| (p.x, p.y)).collect();
     let (ox, oy) = origine_polilinea(&assoluti);
+    // Gli stili 2.5D (15-10-2026): corpo ed estremità dal disegno condiviso col
+    // web (`sws_core::stili_tubo`), rasterizzato con resvg su un canvas.
+    let stile_nuovo = sws_core::stili_tubo::stile(obj.pipe_style.as_deref().unwrap_or("flat"));
+    let bocche = BOCCHE_TUBO.with(|b| b.borrow().get(obj.id.as_deref().unwrap_or("")).copied()).unwrap_or([None, None]);
+    let d_tubo = obj.stroke_width.or(bocche[0]).or(bocche[1]).unwrap_or(8.0);
     // 8 come sul web (qui era 6).
-    let sw = obj.stroke_width.unwrap_or(8.0).round() as i16;
+    let sw = match stile_nuovo {
+        Some(st) => sws_core::stili_tubo::larghezza(st, d_tubo).round() as i16,
+        None => obj.stroke_width.unwrap_or(8.0).round() as i16,
+    };
 
     // ── Corpo del tubo: sempre tutta la polilinea, sempre il colore di stato ──
     //
@@ -8151,13 +8161,19 @@ fn render_pipe(
         linee.push((p, ruolo));
         Ok(())
     };
-    if stile_tubo == "tube" {
-        nuova_linea(screen, RuoloLinea::Ombra, sw_f + 2.0)?;
-    }
-    nuova_linea(screen, RuoloLinea::Corpo, corpo_sw)?;
-    if stile_tubo == "tube" {
-        nuova_linea(screen, RuoloLinea::Riflesso, (sw_f * 0.22).round().max(1.0))?;
-    }
+    let svg_corpo = match stile_nuovo {
+        Some(st) => Some(CorpoSvg::nuovo(screen, obj, st, d_tubo, bocche, &assoluti, base_url, rt_handle)?),
+        None => {
+            if stile_tubo == "tube" {
+                nuova_linea(screen, RuoloLinea::Ombra, sw_f + 2.0)?;
+            }
+            nuova_linea(screen, RuoloLinea::Corpo, corpo_sw)?;
+            if stile_tubo == "tube" {
+                nuova_linea(screen, RuoloLinea::Riflesso, (sw_f * 0.22).round().max(1.0))?;
+            }
+            None
+        }
+    };
     let _ = &styles;
 
     // ── Riempimento: una seconda linea, più sottile, lunga quanto il livello ──
@@ -8181,7 +8197,7 @@ fn render_pipe(
     }
     // Più sottile del corpo, come sul web (`innerSw = sw - 2`): così il tubo
     // resta visibile attorno al liquido invece di essere coperto del tutto.
-    fill_style.set_line_width((sw - 2).max(1));
+    fill_style.set_line_width(if stile_nuovo.is_some() { ((sw as f64) * 0.55).round().max(1.0) as i16 } else { (sw - 2).max(1) });
     fill_style.set_line_rounded(true);
     fill.add_style(Part::Main, &mut fill_style)
         .map_err(|e| anyhow::anyhow!("add_style: {e:?}"))?;
@@ -8231,8 +8247,9 @@ fn render_pipe(
 
     // Estremità e flusso animato (1-10-2026): un canvas sopra il tubo, solo
     // se servono — un tubo semplice resta fatto di sole linee.
-    let inizio = crate::tubo::Estremita::da(obj.start_marker.as_deref());
-    let fine = crate::tubo::Estremita::da(obj.end_marker.as_deref());
+    // Con gli stili nuovi le estremità stanno nel disegno condiviso.
+    let inizio = if stile_nuovo.is_some() { None } else { crate::tubo::Estremita::da(obj.start_marker.as_deref()) };
+    let fine = if stile_nuovo.is_some() { None } else { crate::tubo::Estremita::da(obj.end_marker.as_deref()) };
     let flusso = (obj.pipe_flow == Some(true)).then(|| obj.pipe_flow_tag.clone());
     let extra = if inizio.is_some() || fine.is_some() || flusso.is_some() {
         let mut ex = crate::tubo::Extra {
@@ -8245,7 +8262,11 @@ fn render_pipe(
             colore_flusso: obj.fill_color.as_deref().and_then(parse_hex_color).unwrap_or((0xe2, 0xe8, 0xf0)),
         };
         let pts = &spec.waypoints;
-        let margine = (ex.lato() as f64).max(sw_f) + 4.0;
+        // Il lato delle frecce vale solo se ci sono: un tubo che ha soltanto il
+        // flusso, vicino al bordo, faceva uscire il canvas dalla pagina e
+        // rendeva scorrevole lo schermo (visto il 15-10-2026).
+        let lato = if ex.inizio.is_some() || ex.fine.is_some() { ex.lato() as f64 } else { 0.0 };
+        let margine = lato.max(sw_f) + 4.0;
         let (minx, maxx) = pts.iter().fold((f64::MAX, f64::MIN), |(a, b), p| (a.min(p.0), b.max(p.0)));
         let (miny, maxy) = pts.iter().fold((f64::MAX, f64::MIN), |(a, b), p| (a.min(p.1), b.max(p.1)));
         let (bx, by) = (minx - margine, miny - margine);
@@ -8278,6 +8299,7 @@ fn render_pipe(
         etichetta_tag,
         formato,
         extra,
+        svg_corpo,
     });
     corpo.colora(colore0);
     corpo.aggiorna(tags);
@@ -8353,6 +8375,8 @@ pub struct PipeCorpo {
     formato: String,
     /// Estremità e flusso animato (`tubo.rs`), su un canvas sopra il tubo.
     extra: Option<ExtraTubo>,
+    /// Il corpo degli stili 2.5D, al posto delle linee.
+    svg_corpo: Option<CorpoSvg>,
 }
 
 /// Il canvas delle parti del tubo che una linea non sa fare.
@@ -8394,6 +8418,137 @@ impl ExtraTubo {
     }
 }
 
+thread_local! {
+    /// I diametri delle bocche ai due capi di ogni tubo della pagina in corso di
+    /// disegno, per id: li calcola il ciclo, che vede tutti gli oggetti, e li
+    /// legge `render_pipe`, che vede solo il suo (15-10-2026).
+    static BOCCHE_TUBO: RefCell<std::collections::HashMap<String, [Option<f64>; 2]>> = RefCell::new(std::collections::HashMap::new());
+}
+
+/// Il diametro della bocca a cui è agganciato ciascun capo, se è una bocca.
+fn diametri_capi(pipe: &SynopticObject, oggetti: &[SynopticObject], m: Option<&sws_core::simboli_lib::ManifestLib>) -> [Option<f64>; 2] {
+    let uno = |id: Option<&str>, porta: Option<&str>| -> Option<f64> {
+        let o = oggetti.iter().find(|o| o.id.as_deref() == id && id.is_some())?;
+        if o.obj_type.as_deref() != Some("symbol") {
+            return None;
+        }
+        let sim = m?.simbolo_o_alias(o.symbol_id.as_deref()?)?;
+        let p = sim.ports.iter().find(|p| Some(p.id.as_str()) == porta)?;
+        let r = sws_core::tubazioni::Riquadro {
+            x: o.x.unwrap_or(0.0),
+            y: o.y.unwrap_or(0.0),
+            w: o.width.unwrap_or(80.0),
+            h: o.height.unwrap_or(80.0),
+            ..Default::default()
+        };
+        Some(sws_core::tubazioni::diametro_bocca(sim.view_box, p, &r))
+    };
+    [uno(pipe.from_obj_id.as_deref(), pipe.from_port.as_deref()), uno(pipe.to_obj_id.as_deref(), pipe.to_port.as_deref())]
+}
+
+/// Il corpo di un tubo 2.5D: il disegno condiviso col web, rasterizzato su un
+/// canvas e ridisegnato solo quando cambia il colore di stato.
+pub struct CorpoSvg {
+    canvas: core::ptr::NonNull<lvgl_sys::lv_obj_t>,
+    buf: Vec<u8>,
+    pixmap: resvg::tiny_skia::Pixmap,
+    origine: (f64, f64),
+    punti: Vec<sws_core::tubazioni::Punto>,
+    stile: &'static sws_core::stili_tubo::Stile,
+    d: f64,
+    stroke: Option<String>,
+    materiali: std::collections::BTreeMap<String, String>,
+    volume: f64,
+    contorno: (String, f64),
+    estremita: [Option<String>; 2],
+    bocche: [Option<f64>; 2],
+    ha_stato: bool,
+    acceso: Option<String>,
+    spento: Option<String>,
+    colore_allarme: String,
+    disegnato: Option<Option<String>>,
+}
+
+impl CorpoSvg {
+    #[allow(clippy::too_many_arguments)]
+    fn nuovo(
+        screen: &mut lvgl::Obj,
+        obj: &SynopticObject,
+        stile: &'static sws_core::stili_tubo::Stile,
+        d: f64,
+        bocche: [Option<f64>; 2],
+        assoluti: &[(f64, f64)],
+        base_url: &str,
+        rt_handle: &tokio::runtime::Handle,
+    ) -> anyhow::Result<CorpoSvg> {
+        let margine = sws_core::stili_tubo::margine(stile, d);
+        let (minx, maxx) = assoluti.iter().fold((f64::MAX, f64::MIN), |(a, b), p| (a.min(p.0), b.max(p.0)));
+        let (miny, maxy) = assoluti.iter().fold((f64::MAX, f64::MIN), |(a, b), p| (a.min(p.1), b.max(p.1)));
+        let (bx, by) = ((minx - margine).floor(), (miny - margine).floor());
+        let (w, h) = (
+            (maxx - bx + margine).ceil().clamp(1.0, 2048.0) as u32,
+            (maxy - by + margine).ceil().clamp(1.0, 2048.0) as u32,
+        );
+        let riquadro = SynopticObject { x: Some(bx), y: Some(by), ..Default::default() };
+        let (canvas, buf) = canvas_alfa(screen, &riquadro, w, h)?;
+        let prog = crate::simbolo_lib::stile_progetto(base_url, rt_handle);
+        Ok(CorpoSvg {
+            canvas,
+            buf,
+            pixmap: resvg::tiny_skia::Pixmap::new(w, h).ok_or_else(|| anyhow::anyhow!("pixmap {w}x{h}"))?,
+            origine: (bx, by),
+            punti: assoluti.iter().map(|(x, y)| sws_core::tubazioni::Punto { x: *x, y: *y }).collect(),
+            stile,
+            d,
+            stroke: obj.stroke.clone(),
+            materiali: prog.as_ref().map(|p| p.materials.clone()).unwrap_or_default(),
+            volume: prog.as_ref().and_then(|p| p.volume).unwrap_or(100.0).clamp(0.0, 100.0) / 100.0,
+            contorno: (
+                prog.as_ref().and_then(|p| p.outline_color.clone()).unwrap_or_else(|| "#1c2329".into()),
+                prog.as_ref().and_then(|p| p.outline_width).unwrap_or(1.0),
+            ),
+            estremita: [obj.start_marker.clone(), obj.end_marker.clone()],
+            bocche,
+            ha_stato: obj.state_tag.as_deref().is_some_and(|t| !t.is_empty()),
+            acceso: obj.state_on_color.clone(),
+            spento: obj.state_off_color.clone(),
+            colore_allarme: obj.state_alarm_color.clone().unwrap_or_else(|| "#ef4444".into()),
+            disegnato: None,
+        })
+    }
+
+    fn disegna(&mut self, colore_stato: Option<String>) {
+        if self.disegnato.as_ref() == Some(&colore_stato) {
+            return;
+        }
+        let frammento = sws_core::stili_tubo::svg(&sws_core::stili_tubo::Tubo {
+            id: "t",
+            punti: &self.punti,
+            stile: self.stile,
+            d: self.d,
+            colore_stato: colore_stato.as_deref(),
+            stroke: self.stroke.as_deref(),
+            materiali: &self.materiali,
+            volume: self.volume,
+            contorno: (&self.contorno.0, self.contorno.1),
+            estremita: [self.estremita[0].as_deref(), self.estremita[1].as_deref()],
+            bocche: self.bocche,
+        });
+        let (w, h) = (self.pixmap.width(), self.pixmap.height());
+        let svg = format!(
+            r#"<svg xmlns="http://www.w3.org/2000/svg" width="{w}" height="{h}" viewBox="{} {} {w} {h}">{frammento}</svg>"#,
+            self.origine.0, self.origine.1
+        );
+        self.pixmap.fill(resvg::tiny_skia::Color::TRANSPARENT);
+        if let Ok(tree) = resvg::usvg::Tree::from_data(svg.as_bytes(), &resvg::usvg::Options::default()) {
+            resvg::render(&tree, resvg::tiny_skia::Transform::identity(), &mut self.pixmap.as_mut());
+        }
+        pixmap_in_buffer_alfa(&self.pixmap, &mut self.buf);
+        unsafe { lvgl_sys::lv_obj_invalidate(self.canvas.as_ptr()) };
+        self.disegnato = Some(colore_stato);
+    }
+}
+
 impl PipeCorpo {
     /// Colora le linee: ombra e riflesso derivano dal colore del corpo come i
     /// gradienti del web (`darkenHex`/`lightenHex`), se il progetto non li fissa.
@@ -8415,6 +8570,19 @@ impl PipeCorpo {
     fn aggiorna(&mut self, tags: &TagSnapshot) {
         let c = self.colori.scegli(lookup(tags, &self.allarme_tag), lookup(tags, &self.stato_tag));
         self.colora(c);
+        if let Some(sv) = self.svg_corpo.as_mut() {
+            // Come il web: allarme → il suo colore; con uno stato → acceso o
+            // spento (se fissati); altrimenti il materiale dello stile.
+            let allarme = lookup(tags, &self.allarme_tag).is_some_and(|t| vero_js(&t.value));
+            let stato = if allarme {
+                Some(sv.colore_allarme.clone())
+            } else if sv.ha_stato {
+                if lookup(tags, &self.stato_tag).is_some_and(|t| vero_js(&t.value)) { sv.acceso.clone() } else { sv.spento.clone() }
+            } else {
+                None
+            };
+            sv.disegna(stato);
+        }
         if let Some(x) = self.extra.as_mut() {
             let f = x.flusso_ora(tags);
             x.disegna(c, f);
@@ -10361,7 +10529,7 @@ fn dispatch_render(
             own_page_id,
             live,
         ),
-        "pipe" => render_pipe(screen, obj, styles, tags).map(|b| live.push(b)),
+        "pipe" => render_pipe(screen, obj, styles, tags, base_url, rt_handle).map(|b| live.push(b)),
         "kpi_tile" => render_kpi_tile(
             screen,
             obj,
@@ -10881,6 +11049,10 @@ pub fn render_page_objects(
         // `render_pipe`, che vede solo il proprio oggetto — la lista completa
         // ce l'ha solo il ciclo.
         let manifesto = if obj_type == "pipe" { crate::simbolo_lib::manifesto(base_url, rt_handle) } else { None };
+        if obj_type == "pipe" {
+            let d = diametri_capi(obj, &page.objects, manifesto.as_deref());
+            BOCCHE_TUBO.with(|b| b.borrow_mut().insert(obj.id.clone().unwrap_or_default(), d));
+        }
         let ancorata = percorso_tubo(obj, &page.objects, manifesto.as_deref()).map(|punti| SynopticObject {
             points: Some(punti),
             // Il percorso è già calcolato: al disegno è una spezzata dritta.

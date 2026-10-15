@@ -77,7 +77,7 @@ Questo piano, una volta approvato, va in `docs/plans/2026-10-15-tubazioni-bocche
 5. **Validatore**: una bocca che non esiste sul simbolo agganciato produce un avviso, con l'elenco delle bocche
    valide nel suggerimento.
 
-## Ramo B — `feat/stili-tubo` (dopo)
+## Ramo B — `feat/stili-tubo` (dopo) — pronto, in attesa dell'ok (15-10-2026); punto 6 non fatto
 
 1. **Stili a strati in una tabella sola**: `public/tubi/stili.json`, più specchio e fixture, come i colori
    predefiniti.

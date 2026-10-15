@@ -44,7 +44,7 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 
 exec python3 - "$PWD" <<'PY'
-import glob, os, re, sys, yaml
+import glob, json, os, re, sys, yaml
 
 root = sys.argv[1]
 TPL = f"{root}/examples/templates"
@@ -74,6 +74,13 @@ def nota(msg):
 src = open(f"{root}/sws-runtime/crates/sws-lvgl-viewer/src/lvgl_render.rs").read()
 m = re.search(r"const SUPPORTED_TYPES: &\[&str\] = &\[(.*?)\];", src, re.S)
 LVGL = set(re.findall(r'"([a-z_]+)"', m.group(1)))
+_manifesto = json.load(open(f"{root}/sws-editor/public/symbols/lib/manifest.json", encoding="utf-8"))
+BOCCHE = {}
+for _v in _manifesto["symbols"]:
+    _ids = tuple(b["id"] for b in _v.get("ports", []))
+    BOCCHE[_v["id"]] = _ids
+    if _v.get("replaces"):
+        BOCCHE[_v["replaces"]] = _ids
 PALETTE = set(re.findall(r'type:\s*"([a-z_]+)"',
                          open(f"{root}/sws-editor/src/editor/LeftPanel.tsx").read()))
 
@@ -296,9 +303,13 @@ for nome in nomi:
                              f"`sub` né `bg_color` — resta vuota")
             # Una porta sconosciuta cade al centro dell'oggetto invece che sul
             # lato voluto: la pipe entra nel mezzo della macchina.
-            for campo in ("from_port", "to_port"):
+            # Dal 15-10-2026 una porta può essere anche una **bocca** del simbolo
+            # agganciato (`ports` nel manifesto della libreria).
+            for campo, rif in (("from_port", "from_obj_id"), ("to_port", "to_obj_id")):
                 porta = o.get(campo)
-                if porta and porta not in ("top", "bottom", "left", "right", "center"):
+                agganciato = next((x for x in (pag.get("objects") or []) if x.get("id") == o.get(rif)), None)
+                bocche = BOCCHE.get((agganciato or {}).get("symbol_id"), ())
+                if porta and porta not in ("top", "bottom", "left", "right", "center") and porta not in bocche:
                     problema(f"{nome}/{base}: `{campo}: {porta}` non è una porta — "
                              f"il capo cade al centro dell'oggetto")
             for campo in INTERI:

@@ -234,3 +234,15 @@ export function calamita(candidati: Bersaglio[], punto: Punto, raggio: number): 
   }
   return migliore;
 }
+
+/** Il diametro (sulla pagina) della bocca a cui è agganciato ciascun capo, se è
+ *  una bocca: serve alle estremità «auto» e allo spessore predefinito. */
+export function diametriCapi(pipe: SynopticObject, objects: SynopticObject[]): [number | undefined, number | undefined] {
+  const uno = (id: string | undefined, porta: string | undefined) => {
+    const o = id ? objects.find((x) => x.id === id) : undefined;
+    const b = o ? bocchePer(o) : undefined;
+    const p = b?.porte.find((x) => x.id === porta);
+    return o && b && p ? diametroBocca(b.viewBox, p, riquadroDi(o)) : undefined;
+  };
+  return [uno(pipe.from_obj_id, pipe.from_port), uno(pipe.to_obj_id, pipe.to_port)];
+}

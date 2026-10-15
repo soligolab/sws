@@ -10,6 +10,7 @@ pub mod segreti;
 pub mod simboli_lib;
 pub mod stato_sorgenti;
 pub mod stile_simboli;
+pub mod stili_tubo;
 pub mod tag;
 pub mod testi_sistema;
 pub mod tipo;

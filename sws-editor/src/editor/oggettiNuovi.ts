@@ -148,8 +148,9 @@ function forma(type: SynopticObject["type"], x: number, y: number): OggettoNuovo
           type, x, y,
           points: [{ x, y }, { x: x + 120, y }, { x: x + 120, y: y + 80 }],
           routing: "orthogonal",
-          pipe_style: "flat",
-          stroke_width: 8,
+          // 15-10-2026: il tubo 2.5D della libreria, con le estremità automatiche
+          // e lo spessore della bocca a cui si aggancia (8 se libero).
+          pipe_style: "metallo",
         };
       case "faceplate":
         return { type, x, y, width: 120, height: 80 };

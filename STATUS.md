@@ -12,7 +12,13 @@
 > resta in «Storico». Qui vive solo ciò che serve a riprendere il lavoro.
 
 
-## ▶ Riprendere da qui — tubazioni: ramo A su main, si apre il ramo B (2026-10-15)
+## ▶ Riprendere da qui — tubazioni: ramo A su main, ramo B pronto (2026-10-15)
+
+- **Ramo B `feat/stili-tubo`, in attesa dell'ok del maintainer**: otto stili 2.5D ed estremità selezionabili,
+  disegno condiviso web/pannello (stessa stringa SVG, fixture), anteprima nel pannello, template aggiornato.
+  Provato dal vivo (runtime di prova, web e istantanea LVGL coincidono). Non fatto: il punto 6 del piano (tubo che
+  segue gli oggetti mossi da una variabile), in attesa di conferma; collaudo sul TC620 non ancora fatto per B.
+
 
 Piano [`docs/plans/2026-10-15-tubazioni-bocche-e-stili.md`](docs/plans/2026-10-15-tubazioni-bocche-e-stili.md).
 Ramo A **su `main`** (`86cea9a4`, ok del maintainer); **non pushato**. Si apre `feat/stili-tubo` (ramo B), con le

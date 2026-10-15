@@ -22,6 +22,8 @@ const FunctionEditor = lazy(() =>
 import { TagInput } from "@/components/TagInput";
 import { EditorAssegnazioni } from "@/editor/EditorAssegnazioni";
 import { CapoTubo } from "@/editor/CapoTubo";
+import { AnteprimaTubo } from "@/editor/AnteprimaTubo";
+import { ESTREMITA_TUBO, STILI_TUBO, stileTubo } from "@/canvas/stiliTubo";
 import { BindableInput } from "@/components/BindableInput";
 import { ImageBrowser } from "@/components/ImageBrowser";
 import { ASPECT_RATIOS, editorFitSize, effectiveSizeMode, getDevicePresets, isOffPage, referenceResolutionFor, STANDARD_DEVICE_PRESETS, translateObject } from "@/pageLayout";
@@ -5116,13 +5118,19 @@ export function ObjectProps({
                   <div style={LABEL}>Stile</div>
                   <select style={{ ...INPUT, cursor: "pointer" }}
                     value={obj.pipe_style ?? "flat"}
-                    onChange={(e) => onChange({ pipe_style: e.target.value as "flat" | "tube" | "wire" })}>
-                    <option value="flat">{t("props.flat")}</option>
-                    <option value="tube">{t("props.pipe3d")}</option>
-                    <option value="wire">{t("props.wire")}</option>
+                    onChange={(e) => onChange({ pipe_style: e.target.value as SynopticObject["pipe_style"] })}>
+                    <optgroup label={t("props.stiliTubo25d")}>
+                      {STILI_TUBO.map((st) => <option key={st.id} value={st.id}>{t(`props.stileTubo.${st.id}`)}</option>)}
+                    </optgroup>
+                    <optgroup label={t("props.stiliTuboSemplici")}>
+                      <option value="flat">{t("props.flat")}</option>
+                      <option value="tube">{t("props.pipe3d")}</option>
+                      <option value="wire">{t("props.wire")}</option>
+                    </optgroup>
                   </select>
                 </div>
               </div>
+              <AnteprimaTubo obj={obj} />
 
               {/* Stroke */}
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
@@ -5188,23 +5196,25 @@ export function ObjectProps({
                   <div>
                     <div style={LABEL}>{t("props.markerStart")}</div>
                     <select style={{ ...INPUT, cursor: "pointer" }}
-                      value={obj.start_marker ?? "none"}
-                      onChange={(e) => onChange({ start_marker: e.target.value as "none" | "arrow" | "dot" | "flange" })}>
+                      value={obj.start_marker ?? (stileTubo(obj.pipe_style) ? "auto" : "none")}
+                      onChange={(e) => onChange({ start_marker: e.target.value === "auto" ? undefined : e.target.value as SynopticObject["start_marker"] })}>
+                      {stileTubo(obj.pipe_style) && <option value="auto">{t("props.estremita.auto")}</option>}
                       <option value="none">{t("props.noneM")}</option>
-                      <option value="arrow">{t("props.arrow")}</option>
-                      <option value="dot">{t("props.dot")}</option>
-                      <option value="flange">{t("props.flange")}</option>
+                      {(stileTubo(obj.pipe_style) ? ESTREMITA_TUBO : (["arrow", "dot", "flange"] as const)).map((e) => (
+                        <option key={e} value={e}>{t(`props.estremita.${e}`)}</option>
+                      ))}
                     </select>
                   </div>
                   <div>
                     <div style={LABEL}>{t("props.markerEnd")}</div>
                     <select style={{ ...INPUT, cursor: "pointer" }}
-                      value={obj.end_marker ?? "none"}
-                      onChange={(e) => onChange({ end_marker: e.target.value as "none" | "arrow" | "dot" | "flange" })}>
+                      value={obj.end_marker ?? (stileTubo(obj.pipe_style) ? "auto" : "none")}
+                      onChange={(e) => onChange({ end_marker: e.target.value === "auto" ? undefined : e.target.value as SynopticObject["end_marker"] })}>
+                      {stileTubo(obj.pipe_style) && <option value="auto">{t("props.estremita.auto")}</option>}
                       <option value="none">{t("props.noneM")}</option>
-                      <option value="arrow">{t("props.arrow")}</option>
-                      <option value="dot">{t("props.dot")}</option>
-                      <option value="flange">{t("props.flange")}</option>
+                      {(stileTubo(obj.pipe_style) ? ESTREMITA_TUBO : (["arrow", "dot", "flange"] as const)).map((e) => (
+                        <option key={e} value={e}>{t(`props.estremita.${e}`)}</option>
+                      ))}
                     </select>
                   </div>
                 </div>

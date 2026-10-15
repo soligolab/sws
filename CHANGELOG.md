@@ -82,6 +82,9 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 
 ### Fixed
 
+- **Pannello LVGL, tubo col flusso vicino al bordo**: il canvas del flusso aveva il margine delle frecce anche
+  senza frecce (circa 100 px per un tubo di 10) e usciva dalla pagina, rendendo lo schermo scorrevole.
+
 - **Tubi ortogonali e diagonali**: sul web si disegnavano come spezzata dritta fra i punti, e il pannello LVGL li
   **scartava** («routing non supportato»), quindi non comparivano affatto. Ora il percorso è calcolato e il
   pannello lo disegna.
@@ -141,6 +144,19 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 - **Dopo il primo invio di un progetto il pannello passa da solo alla pagina**, senza il pulsante «Continua».
 
 ### Added
+
+- **Stili 2.5D per i tubi ed estremità selezionabili** (piano `docs/plans/2026-10-15-tubazioni-bocche-e-stili.md`,
+  ramo B). Otto stili nuovi, con il materiale, la velatura e il contorno della libreria di simboli e dello stile di
+  progetto: metallo, inox, coibentato (fascette), PVC (colore del tubo), flessibile (corrugato), canale HVAC
+  (spigoli e giunti), cavo, linea di segnale. La velatura è perpendicolare a ogni tratto e gira nelle curve
+  raccordate. Estremità: automatica (dalla bocca: flangia, saldatura, bocchettone… secondo lo stile, oppure la
+  riduzione se tubo e bocca hanno misure diverse), flangia, saldato, bocchettone, attacco rapido, riduzione,
+  pressacavo, collare, freccia, pallino. Lo stesso disegno su web e pannello (`sws-core/src/stili_tubo.rs` ↔
+  `canvas/stiliTubo.ts`, stessa stringa SVG, fixture `tests/fixtures/stili-tubo.json`); sul pannello è rasterizzato
+  con resvg e ridisegnato solo al cambio del colore di stato. Nel pannello proprietà, l'anteprima dello stile. I
+  tubi nuovi nascono «metallo», con lo spessore della bocca. `flat`, `tube` e `wire` restano com'erano.
+- Template `comandi-pompa-pozzo`: la mandata della pompa è un tubo metallico agganciato alla bocca, col flusso
+  quando la pompa è in marcia.
 
 - **Tubazioni agganciate alle bocche vere dei simboli** (piano `docs/plans/2026-10-15-tubazioni-bocche-e-stili.md`,
   ramo A). Il generatore della libreria ricava dalle flange sul bordo dei disegni le **bocche** di ogni simbolo

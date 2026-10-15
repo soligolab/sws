@@ -1153,7 +1153,31 @@
     "bocca": "Nozzle {{lato}} ({{id}})",
     "latiRiquadro": "Bounding box",
     "capoInizio": "Start attached to",
-    "capoFine": "End attached to"
+    "capoFine": "End attached to",
+    "stiliTubo25d": "2.5D, like the symbols",
+    "stiliTuboSemplici": "Simple",
+    "stileTubo": {
+      "metallo": "Metal",
+      "inox": "Stainless",
+      "coibentato": "Insulated",
+      "pvc": "PVC (pipe colour)",
+      "flessibile": "Flexible",
+      "canale": "Air duct (HVAC)",
+      "cavo": "Cable",
+      "segnale": "Signal line"
+    },
+    "estremita": {
+      "auto": "Automatic (from the nozzle)",
+      "flange": "Flange",
+      "welded": "Welded",
+      "union": "Union",
+      "quick": "Quick coupling",
+      "reducer": "Reducer",
+      "gland": "Cable gland",
+      "collar": "Collar",
+      "arrow": "Arrow",
+      "dot": "Dot"
+    }
   },
   "shortcut": {
     "navCanvas": "Canvas navigation",

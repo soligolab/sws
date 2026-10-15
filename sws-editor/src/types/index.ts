@@ -647,8 +647,10 @@ export interface SynopticObject {
   points?: PipePoint[];
   /** How segments between waypoints are routed. Default "straight". */
   routing?: "straight" | "orthogonal" | "diagonal" | "bezier";
-  /** Visual style. Default "flat". */
-  pipe_style?: "flat" | "tube" | "wire";
+  /** Visual style. Default "flat". Dal 15-10-2026 anche gli stili 2.5D della
+   *  libreria (`metallo`, `inox`, `coibentato`, `pvc`, `flessibile`, `canale`,
+   *  `cavo`, `segnale`: vedi `canvas/stiliTubo.ts`), con le estremità `auto`. */
+  pipe_style?: "flat" | "tube" | "wire" | "metallo" | "inox" | "coibentato" | "pvc" | "flessibile" | "canale" | "cavo" | "segnale";
   /** Enable 3D-gradient fill (auto-enabled for "tube" style). */
   pipe_gradient?: boolean;
   /** Highlight colour for the tube gradient (default: lightened stroke). */
@@ -666,9 +668,9 @@ export interface SynopticObject {
   /** Which end the fluid rises from. Default "start-to-end". */
   fill_direction?: "start-to-end" | "end-to-start";
   /** Marker shape at the first waypoint. Default "none". */
-  start_marker?: "none" | "arrow" | "dot" | "flange";
+  start_marker?: "auto" | "none" | "arrow" | "dot" | "flange" | "welded" | "union" | "quick" | "reducer" | "gland" | "collar";
   /** Marker shape at the last waypoint. Default "none". */
-  end_marker?: "none" | "arrow" | "dot" | "flange";
+  end_marker?: "auto" | "none" | "arrow" | "dot" | "flange" | "welded" | "union" | "quick" | "reducer" | "gland" | "collar";
   /** Marker size multiplier. Default 1.0. */
   marker_size?: number;
   /** Static label shown at the midpoint of the pipe. */

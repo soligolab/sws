@@ -33,6 +33,10 @@ objects:
 - { id: sim_pompa, type: symbol, x: 975.0, y: 180.0, width: 150.0, height: 150.0, symbol_id: "lib:process/centrifugal-pump",
     state_tag: pompa.marcia, symbol_spin: on_state }
 - { id: lbl_pompa, type: text, x: 985.0, y: 352.0, width: 170.0, text: "{{t0014}}", font_size: 12.0, color: '#cbd5e1' }
+# La mandata della pompa (15-10-2026): tubo 2.5D agganciato alla bocca, col
+# flusso quando la pompa è in marcia.
+- { id: tubo_mandata, type: pipe, x: 0, y: 0, pipe_style: metallo, routing: orthogonal, from_obj_id: sim_pompa, from_port: n-top,
+    pipe_flow: true, pipe_flow_tag: pompa.marcia, fill_color: '#7dd3fc', points: [{ x: 0, y: 0 }, { x: 1240, y: 150 }] }
 
 # ── Modo impianto: assegnazioni, più variabili con un tocco ──
 - { id: lbl_modo, type: text, x: 360.0, y: 440.0, text: "{{t0015}}", font_size: 13.0, font_weight: 700, color: '#93c5fd' }
