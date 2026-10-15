@@ -12,10 +12,11 @@
 > resta in «Storico». Qui vive solo ciò che serve a riprendere il lavoro.
 
 
-## ▶ Riprendere da qui — tubazioni, ramo A pronto (2026-10-15)
+## ▶ Riprendere da qui — tubazioni: ramo A su main, si apre il ramo B (2026-10-15)
 
 Piano [`docs/plans/2026-10-15-tubazioni-bocche-e-stili.md`](docs/plans/2026-10-15-tubazioni-bocche-e-stili.md).
-Ramo **`feat/bocche-e-instradamento`** aperto, in attesa dell'ok del maintainer.
+Ramo A **su `main`** (`86cea9a4`, ok del maintainer); **non pushato**. Si apre `feat/stili-tubo` (ramo B), con le
+estremità selezionabili chieste dal maintainer.
 
 - Fatto: bocche nel manifesto (116 su 57 simboli, dalle flange del generatore); aggancio con meet, specchiatura e
   rotazione; `orthogonal`/`diagonal` calcolati (web e LVGL, fixture condivisa calcolata anche in Python); calamita

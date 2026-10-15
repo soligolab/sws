@@ -38,7 +38,7 @@ Questo piano, una volta approvato, va in `docs/plans/2026-10-15-tubazioni-bocche
   - la cache per colore `CacheCorpo`;
   - `svg_forma` + resvg (polilinee su LVGL).
 
-## Ramo A — `feat/bocche-e-instradamento` (prima)
+## Ramo A — `feat/bocche-e-instradamento` (prima) — ✅ su `main` (`86cea9a4`, 15-10-2026; collaudato sul TC620)
 
 1. **Bocche nel manifesto**.
    - Le `flangia_v`/`flangia_o` registrano una bocca sul `Simbolo` (`genera.py`), con:
@@ -106,7 +106,25 @@ Questo piano, una volta approvato, va in `docs/plans/2026-10-15-tubazioni-bocche
    e simboli cambiano insieme. Il colore di stato e d'allarme tinge il corpo come sul simbolo.
 4. **Diametro**: con entrambi i capi agganciati a bocche, lo spessore predefinito è quello della bocca, scalato col
    simbolo. `stroke_width` lo sovrascrive.
-5. **Editor e contenuti**:
+5. **Estremità selezionabili** (richiesta del maintainer, 15-10-2026). `start_marker`/`end_marker` accettano:
+   - `auto` (predefinito per i tubi nuovi): su una bocca, l'estremità consigliata dallo stile del tubo, nella misura
+     della bocca; su un capo libero o sul riquadro, nessuna;
+   - `flange` (due piastre bullonate 2.5D, sul diametro della bocca);
+   - `welded` (saldato, a filo);
+   - `union` (bocchettone/filettato);
+   - `quick` (attacco rapido);
+   - `reducer` (cono di riduzione; in `auto` si mette da solo quando tubo e bocca hanno diametri diversi);
+   - `gland` (pressacavo);
+   - `collar` (collare HVAC);
+   - restano `arrow` e `dot`.
+
+   Ogni stile ha la sua estremità consigliata: metallo e inox → flangia, PVC → bocchettone, flessibile → attacco
+   rapido, cavo → pressacavo, canale → collare. Le estremità stanno nella stessa tabella degli stili e la stessa
+   funzione pura le disegna. I progetti esistenti con `arrow`/`dot`/`flange` si disegnano come prima finché lo
+   stile del tubo è uno dei tre storici.
+6. **Seguire gli oggetti mossi da una variabile** (se il maintainer lo conferma): sul web il percorso usa le
+   posizioni risolte dai binding; su LVGL si ricalcola quando cambia la posizione di un oggetto agganciato.
+7. **Editor e contenuti**:
    - scelta dello stile con anteprima, come per le icone;
    - `pipe_style` esteso in tipi, `synoptic.rs`, `model.rs`, schema, validatore e `check_lvgl_parity`;
    - il template `comandi-pompa-pozzo` collega pompa e valvola con tubi `metallo`;
