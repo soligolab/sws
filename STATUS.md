@@ -12,6 +12,17 @@
 > resta in «Storico». Qui vive solo ciò che serve a riprendere il lavoro.
 
 
+## ▶ Riprendere da qui — git nel cloud in servizio, onda 1 avanti (2026-10-15, pomeriggio)
+
+- **Su `main`**: C3 default sicuri (`15aafc0e`), git nel cloud e sui pannelli (`9260a9b4`). **Non pushati.**
+- **VPS**: gateway su `ghcr.io/soligolab/sws-runtime:9260a9b4-amd64` (tag di commit, pubblicato a mano: `--push`
+  avrebbe spostato `2.13.0-rc.3-amd64` e `rc-amd64`); copia del quadlet salvata come `sws-gateway.container.prima-git-*`.
+  Il container di CasaMauro è stato tolto: rinasce con git alla prossima apertura.
+- **Da provare dal maintainer**: su CasaMauro, Git → «Genera la chiave del progetto», registrarla come deploy key
+  (con scrittura) su GitHub, «Usa questa chiave», push.
+- **Prossimo dell'onda 1**: P1 finestre popup generiche (modali e non modali).
+- Semi nuovi: [certificati in un posto solo](docs/plans/2026-10-15-certificati-in-un-posto-solo.md) (con l'onda 3).
+
 ## ▶ Riprendere da qui — onda 1: CRA P0 chiuso, avanti coi default sicuri (2026-10-15)
 
 Piano [`docs/plans/2026-10-15-piano-prima-fascia-e-cra.md`](docs/plans/2026-10-15-piano-prima-fascia-e-cra.md)
