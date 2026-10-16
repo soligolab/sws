@@ -69,11 +69,38 @@ pub fn separa_prefisso(percorso: &str) -> Option<(String, String, String)> {
     let mut pezzi = dopo.splitn(3, '/');
     let azienda = pezzi.next().filter(|s| !s.is_empty())?;
     let progetto = pezzi.next().filter(|s| !s.is_empty())?;
+    // **I due segmenti si decodificano, il resto no.**
+    //
+    // Qui arriva il percorso **grezzo** (`req.uri().path()`): il browser
+    // scrive lo spazio come `%20`, e un progetto che si chiama «CasaDomotica
+    // (WP630)» veniva cercato sul disco col nome `CasaDomotica%20(WP630)`.
+    // Non esisteva, 404, e l'IDE mostrava un elenco vuoto su un progetto che
+    // sul disco c'era tutto — successo il 16-10-2026, appena «Salva come» ha
+    // permesso di creare un nome con uno spazio dentro. Vale per gli accenti
+    // allo stesso modo: a rompersi non era il carattere, era la lettura.
+    //
+    // Il **resto** resta grezzo di proposito: va rigirato al container
+    // esattamente com'e' arrivato, perche' li' dentro ci sono percorsi e
+    // query che non riguardano noi — decodificarli vorrebbe dire riscrivere
+    // la richiesta di qualcun altro.
+    let azienda = &decodifica(azienda);
+    let progetto = &decodifica(progetto);
     let resto = match pezzi.next() {
         None | Some("") => "/".to_string(),
         Some(r) => format!("/{r}"),
     };
     Some((azienda.to_string(), progetto.to_string(), resto))
+}
+
+/// Un segmento di percorso, con le sequenze `%XX` riportate al carattere.
+///
+/// Se la sequenza non è valida si tiene il testo com'è: meglio cercare un
+/// progetto col nome strano che rifiutare un indirizzo che forse era buono.
+fn decodifica(s: &str) -> String {
+    percent_encoding::percent_decode_str(s)
+        .decode_utf8()
+        .map(|c| c.into_owned())
+        .unwrap_or_else(|_| s.to_string())
 }
 
 /// `true` se questa richiesta è un tentativo di passare a WebSocket.
@@ -309,6 +336,44 @@ mod tests {
         // Prefisso senza progetto: l'azienda da sola non apre niente.
         assert!(separa_prefisso("/p/acme").is_none());
         assert!(separa_prefisso("/p//impianto").is_none());
+    }
+
+    #[test]
+    fn i_nomi_che_un_cliente_scrive_davvero() {
+        // Lo spazio e' il caso che ha rotto tutto il 16-10-2026: il browser lo
+        // scrive `%20`, e il gateway cercava una cartella con dentro il
+        // `%20`. Le parentesi invece nessun browser le codifica — erano
+        // innocenti, e vietarle sarebbe stato vietare la cosa sbagliata.
+        let (az, pr, resto) = separa_prefisso("/p/-/CasaDomotica%20(WP630)/api/project").unwrap();
+        assert_eq!((az.as_str(), pr.as_str()), ("-", "CasaDomotica (WP630)"));
+        assert_eq!(resto, "/api/project");
+
+        let (_, pr, _) = separa_prefisso("/p/acme/Linea%201/").unwrap();
+        assert_eq!(pr, "Linea 1");
+
+        // Accenti: `%C3%A0` e' «à» in UTF-8.
+        let (_, pr, _) = separa_prefisso("/p/-/Citt%C3%A0/").unwrap();
+        assert_eq!(pr, "Città");
+
+        // Anche l'azienda: una cartella d'azienda puo' avere uno spazio.
+        let (az, _, _) = separa_prefisso("/p/Rossi%20spa/impianto/").unwrap();
+        assert_eq!(az, "Rossi spa");
+    }
+
+    #[test]
+    fn una_sequenza_rotta_non_fa_cadere_la_richiesta() {
+        // Meglio cercare un progetto dal nome strano che rifiutare un
+        // indirizzo che forse era buono.
+        let (_, pr, _) = separa_prefisso("/p/-/meta%zz/").unwrap();
+        assert_eq!(pr, "meta%zz");
+    }
+
+    #[test]
+    fn il_resto_resta_grezzo() {
+        // Il resto si rigira al container com'e' arrivato: decodificarlo
+        // vorrebbe dire riscrivere la richiesta di qualcun altro.
+        let (_, _, resto) = separa_prefisso("/p/-/p/api/synoptics/Pagina%20uno").unwrap();
+        assert_eq!(resto, "/api/synoptics/Pagina%20uno");
     }
 
     #[test]

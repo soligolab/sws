@@ -104,7 +104,15 @@ async fn assicura_aperto(s: &AppState, azienda: &str, progetto: &str) -> Result<
         Err(e @ Apertura::TettoPieno { .. }) => {
             Err((StatusCode::CONFLICT, e.to_string()).into_response())
         }
+        // Si registra anche questo, non solo i guasti di podman: il 16-10-2026
+        // un progetto che sul disco c'era tutto dava «elenco vuoto» nell'IDE e
+        // **niente** nei log, perche' qui si usciva in silenzio. Mezz'ora di
+        // diagnosi per un 404 che bastava scrivere.
         Err(Apertura::NonTrovato) => {
+            tracing::warn!(
+                azienda, progetto,
+                "apertura rifiutata: nessuna cartella con questo nome sotto la radice dei progetti"
+            );
             Err((StatusCode::NOT_FOUND, "progetto non trovato").into_response())
         }
         Err(Apertura::Podman(m)) => {
