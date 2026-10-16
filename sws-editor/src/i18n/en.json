@@ -1707,7 +1707,8 @@
     "eliminaSoloDispositivo": "Only the device",
     "eliminaConVariabili": "Device and variables",
     "deploySimboliMancanti": "The panel does not know {{n}} library symbols used by this project:\n{{elenco}}\n\nIt will show them as placeholders until you update SWS on the panel. Deploy anyway?",
-    "deploySimboliSenzaLibreria": "The panel runs a version of SWS without the symbol library: the project's {{n}} library symbols\n{{elenco}}\n\nwill be placeholders until you update it. Deploy anyway?"
+    "deploySimboliSenzaLibreria": "The panel runs a version of SWS without the symbol library: the project's {{n}} library symbols\n{{elenco}}\n\nwill be placeholders until you update it. Deploy anyway?",
+    "daRiautenticare": "Connected to {{host}}, but the credentials no longer work: the deployed project brought its own users. Sign in again with the project Admin's username and password."
   },
   "langtab": {
     "migrate": "Migrate texts…",

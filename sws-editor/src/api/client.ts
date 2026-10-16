@@ -2493,7 +2493,15 @@ export const api = {
     request<void>("/api/remote/connect", { method: "DELETE" }),
 
   remoteStatus: () =>
-    request<{ connected: boolean; url?: string; connected_at_ms?: number }>("/api/remote/status"),
+    request<{
+      connected: boolean;
+      url?: string;
+      connected_at_ms?: number;
+      /** `false` quando il collegamento c'e' ma le credenziali non valgono
+       *  piu' — tipicamente dopo un deploy che ha portato gli utenti del
+       *  progetto. Assente da un runtime piu' vecchio: vale `true`. */
+      autenticato?: boolean;
+    }>("/api/remote/status"),
 
   /** GET /api/project/findings — i rilievi semantici del progetto com'è su
    *  disco (tag non dichiarati, allarmi su tag inesistenti, comandi MQTT

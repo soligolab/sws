@@ -125,6 +125,11 @@ export function RuntimeConnectionTab() {
     }).catch(() => { /* not critical — start as idle */ });
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Vero quando il dispositivo e' raggiungibile ma le credenziali non valgono
+  // piu': il collegamento non e' «connesso» e non e' «caduto», e chiamarlo in
+  // un modo o nell'altro sarebbe mentire in una delle due direzioni.
+  const [daRiautenticare, setDaRiautenticare] = useState(false);
+
   // Risincronizza lo stato locale quando la connessione cambia da FUORI
   // questo componente — es. il pulsante Deploy nell'header (App.tsx) che
   // riconnette/disconnette all'ultimo dispositivo agendo solo sullo store.
@@ -207,12 +212,18 @@ export function RuntimeConnectionTab() {
 
   // Poll /api/remote/status every 5 s while connected. Clears state if the
   // local runtime loses the session (restart, token expiry).
+  //
+  // Guarda anche `autenticato`: un deploy che porta gli utenti del progetto
+  // cambia le credenziali del dispositivo, e da quel momento il collegamento
+  // c'e' ma non vale piu'. Prima restava verde e ogni azione rispondeva 401
+  // senza che niente lo dicesse (16-10-2026).
   useEffect(() => {
     if (status !== "connected") return;
     const id = setInterval(async () => {
       try {
         const s = await api.remoteStatus();
         if (!s.connected) handleDisconnect();
+        else setDaRiautenticare(s.autenticato === false);
       } catch { /* network error — keep current state, will retry */ }
     }, 5000);
     return () => clearInterval(id);
@@ -765,13 +776,19 @@ export function RuntimeConnectionTab() {
       {/* Status */}
       <section style={{
         padding: "10px 14px", borderRadius: 6,
-        background: connected ? "#052e16" : status === "error" ? "#1c0a0a" : "var(--brand-bg, #0f172a)",
-        border: `1px solid ${connected ? "#16a34a" : status === "error" ? "#dc2626" : "var(--brand-surface, #1e293b)"}`,
+        background: daRiautenticare ? "#2a1a02" : connected ? "#052e16" : status === "error" ? "#1c0a0a" : "var(--brand-bg, #0f172a)",
+        border: `1px solid ${daRiautenticare ? "var(--brand-warning, #f59e0b)" : connected ? "#16a34a" : status === "error" ? "#dc2626" : "var(--brand-surface, #1e293b)"}`,
       }}>
         {connected && (
-          <span style={{ color: "var(--brand-success-soft, #4ade80)", fontWeight: 600, fontSize: 13 }}>
-            ● Connesso a {hostLabel}
-          </span>
+          daRiautenticare ? (
+            <span style={{ color: "var(--brand-warning, #f59e0b)", fontWeight: 600, fontSize: 13 }}>
+              ▲ {t("cfg.daRiautenticare", { host: hostLabel })}
+            </span>
+          ) : (
+            <span style={{ color: "var(--brand-success-soft, #4ade80)", fontWeight: 600, fontSize: 13 }}>
+              ● Connesso a {hostLabel}
+            </span>
+          )
         )}
         {status === "idle" && (
           <span style={{ color: "var(--brand-text-subtle, #94a3b8)", fontSize: 13 }}>{t("cfg.notConnected")}</span>

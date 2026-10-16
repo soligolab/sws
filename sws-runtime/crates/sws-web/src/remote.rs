@@ -18,6 +18,23 @@ pub struct RemoteTarget {
     pub url: String,          // "http://192.168.1.10:8444" — no trailing slash
     pub token: String,        // UUID session token issued by the remote
     pub connected_at_ms: u64, // Unix epoch ms
+    /// Le credenziali con cui si è entrati, **solo in memoria**.
+    ///
+    /// Servono a rientrare dopo un deploy: distribuire un progetto con i suoi
+    /// utenti cambia le credenziali del dispositivo, e il token di prima
+    /// smette di valere. Senza queste, l'unico modo di continuare era
+    /// ridigitarle a mano — e intanto l'IDE diceva «connesso».
+    ///
+    /// Non finiscono su disco da nessuna parte: `RemoteTarget` è volatile e si
+    /// perde al riavvio, come dice il commento sopra, e la lista dei
+    /// dispositivi registrati la password non l'ha mai salvata.
+    pub credenziali: Option<(String, String)>,
+    /// Falso quando il token non vale più e non si è riusciti a rientrare.
+    ///
+    /// Esiste perché `remote_status` diceva «connesso» appena un bersaglio era
+    /// memorizzato: una risposta vera a una domanda diversa da quella che
+    /// faceva chi guardava il pulsante verde (16-10-2026).
+    pub autenticato: bool,
 }
 
 #[derive(Deserialize)]
@@ -56,6 +73,14 @@ pub struct RemoteStatus {
     pub url: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub connected_at_ms: Option<u64>,
+    /// `false` quando il collegamento c'è ma le credenziali non valgono più.
+    /// Assente da un runtime più vecchio: chi legge consideri `true`.
+    #[serde(default = "si", skip_serializing_if = "std::ops::Not::not")]
+    pub autenticato: bool,
+}
+
+fn si() -> bool {
+    true
 }
 
 /// `POST /api/remote/connect` — authenticate against a remote runtime and
@@ -366,6 +391,12 @@ pub async fn connect_remote(
         url: url.clone(),
         token,
         connected_at_ms,
+        // Si tengono solo se ci sono: verso un pannello senza utenti non si
+        // digita niente, e inventarle non si può — in `users.yaml` c'è un
+        // hash argon2, non una password.
+        credenziali: (!username.is_empty())
+            .then(|| (username.clone(), body.password.clone().unwrap_or_default())),
+        autenticato: true,
     });
     tracing::info!(remote = %url, "connected to remote runtime");
 
@@ -2378,9 +2409,23 @@ pub async fn remote_deploy(
                 // `swap_store`, che azzera le sessioni — quindi si usa la sonda
                 // senza token: `/api/system` risponde 200 con
                 // `auth_required:false` solo dove non c'è nessun utente.
-                send("ⓘ Le sessioni aperte sul dispositivo sono decadute: chi era collegato rifà il login.");
-                if opz.replace_users && !bundle_users.is_empty() {
-                    send("ⓘ Da adesso valgono le credenziali del progetto: se un'azione risponde 401, riconnettiti con quelle.");
+                // **Si rientra da soli, se si può.**
+                //
+                // Il deploy porta `users.yaml` del progetto, quindi da adesso
+                // il dispositivo pretende quelle credenziali e il token di
+                // prima non vale più. Finora l'IDE restava «connesso» col
+                // token morto e ogni azione dopo rispondeva 401 senza che
+                // niente lo dicesse (16-10-2026).
+                let utenti_sostituiti = opz.replace_users && !bundle_users.is_empty();
+                match rientra(&s, &client, &base, utenti_sostituiti).await {
+                    Esito::Rientrato => send("✓ Riconnesso con le credenziali di prima."),
+                    Esito::NienteDaFare => {}
+                    Esito::ServonoCredenziali => {
+                        send("⚠ Il dispositivo adesso ha i suoi utenti e le credenziali di prima non ci sono                               (ti eri collegato a un pannello senza account). Riconnettiti con l'utente e la                               password dell'Admin del progetto appena distribuito.");
+                    }
+                    Esito::Rifiutato => {
+                        send("⚠ Le credenziali di prima non valgono più sul dispositivo: riconnettiti con                               quelle dell'Admin del progetto appena distribuito.");
+                    }
                 }
                 if senza_utenti(&client, &base).await {
                     // Copre anche il caso del seed di recupero: se sul
@@ -2496,6 +2541,83 @@ pub async fn delete_remote_project(
 
 /// `GET /api/remote/status` — return connection state (polled by the IDE
 /// every 5 s to detect remote restart / session expiry).
+/// Com'è andato il tentativo di rientrare dopo un deploy.
+enum Esito {
+    /// Il token vale ancora: il dispositivo non ha cambiato regime.
+    NienteDaFare,
+    Rientrato,
+    /// Non c'erano credenziali da riusare — ci si era collegati a un pannello
+    /// senza utenti, e una password dal progetto non si ricava: in
+    /// `users.yaml` c'è un hash argon2.
+    ServonoCredenziali,
+    Rifiutato,
+}
+
+/// Dopo il deploy: se il token non vale più, si rientra con le credenziali del
+/// «Connetti». Aggiorna il bersaglio e la bandiera `autenticato`.
+async fn rientra(
+    s: &AppState,
+    client: &reqwest::Client,
+    base: &str,
+    utenti_sostituiti: bool,
+) -> Esito {
+    let Some(t) = s.remote_target.read().await.clone() else {
+        return Esito::NienteDaFare;
+    };
+    // **Non si sonda: si sa.**
+    //
+    // La prima stesura chiedeva `/api/auth/whoami` col token per vedere se
+    // valeva ancora, e la guardia `ogni_chiamata_dell_ide_ha_la_sua_rotta_sul_dispositivo`
+    // l'ha bocciata: quella rotta sulla porta di gestione di un pannello
+    // **non esiste** (`--no-admin`), quindi la sonda avrebbe risposto 404
+    // ovunque e il token sarebbe risultato morto a ogni deploy. Nemmeno
+    // `/api/projects` serviva: su quella porta è aperta, quindi avrebbe
+    // risposto 200 anche con un token scaduto.
+    //
+    // La domanda vera non ha bisogno di nessuna sonda: il token muore se e
+    // solo se **questo deploy ha sostituito gli utenti**, e questo lo sappiamo
+    // senza chiedere a nessuno.
+    if !utenti_sostituiti || senza_utenti(client, base).await {
+        return Esito::NienteDaFare;
+    }
+    let Some((utente, password)) = t.credenziali.clone() else {
+        segna_non_autenticato(s).await;
+        return Esito::ServonoCredenziali;
+    };
+    let res = client
+        .post(format!("{base}/api/auth/login"))
+        .json(&serde_json::json!({ "username": utente, "password": password }))
+        .send()
+        .await;
+    let token = match res {
+        Ok(o) if o.status().is_success() => o
+            .json::<serde_json::Value>()
+            .await
+            .ok()
+            .and_then(|v| v.get("token").and_then(|t| t.as_str()).map(str::to_string)),
+        _ => None,
+    };
+    match token {
+        Some(token) => {
+            if let Some(t) = s.remote_target.write().await.as_mut() {
+                t.token = token;
+                t.autenticato = true;
+            }
+            Esito::Rientrato
+        }
+        None => {
+            segna_non_autenticato(s).await;
+            Esito::Rifiutato
+        }
+    }
+}
+
+async fn segna_non_autenticato(s: &AppState) {
+    if let Some(t) = s.remote_target.write().await.as_mut() {
+        t.autenticato = false;
+    }
+}
+
 pub async fn remote_status(State(s): State<AppState>) -> Json<RemoteStatus> {
     let guard = s.remote_target.read().await;
     match guard.as_ref() {
@@ -2503,11 +2625,13 @@ pub async fn remote_status(State(s): State<AppState>) -> Json<RemoteStatus> {
             connected: true,
             url: Some(t.url.clone()),
             connected_at_ms: Some(t.connected_at_ms),
+            autenticato: t.autenticato,
         }),
         None => Json(RemoteStatus {
             connected: false,
             url: None,
             connected_at_ms: None,
+            autenticato: true,
         }),
     }
 }

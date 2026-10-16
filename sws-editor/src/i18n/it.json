@@ -1707,7 +1707,8 @@
     "eliminaSoloDispositivo": "Solo il dispositivo",
     "eliminaConVariabili": "Dispositivo e variabili",
     "deploySimboliMancanti": "Il pannello non conosce {{n}} simboli della libreria usati da questo progetto:\n{{elenco}}\n\nLi mostrerà come segnaposto finché non aggiorni SWS sul pannello. Procedere con il deploy?",
-    "deploySimboliSenzaLibreria": "Il pannello ha una versione di SWS senza la libreria di simboli: i {{n}} simboli di libreria del progetto\n{{elenco}}\n\nsaranno segnaposto finché non lo aggiorni. Procedere con il deploy?"
+    "deploySimboliSenzaLibreria": "Il pannello ha una versione di SWS senza la libreria di simboli: i {{n}} simboli di libreria del progetto\n{{elenco}}\n\nsaranno segnaposto finché non lo aggiorni. Procedere con il deploy?",
+    "daRiautenticare": "Collegato a {{host}}, ma le credenziali non valgono più: il progetto distribuito ha portato i suoi utenti. Rientra con l'utente e la password dell'Admin del progetto."
   },
   "langtab": {
     "migrate": "Migra i testi…",
