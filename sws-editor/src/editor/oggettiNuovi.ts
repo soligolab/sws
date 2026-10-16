@@ -113,6 +113,9 @@ function forma(type: SynopticObject["type"], x: number, y: number): OggettoNuovo
         return { type, x, y, width: 120, height: 30, tag: "",
           spark_window_s: 60, spark_color: predefinito("sparkline", "spark_color"),
           spark_fill: true, spark_fill_opacity: 0.2, spark_stroke_width: 1.5 };
+      case "clock":
+        return { type, x, y, width: 180, height: 36, clock_formato: "ora", font_size: 18,
+          text_anchor: "middle" };
       case "kpi_tile":
         return { type, x, y, width: 180, height: 100, tag: "", label: "KPI",
           spark_window_s: 3600 };

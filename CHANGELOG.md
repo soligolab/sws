@@ -163,6 +163,14 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 
 ### Added
 
+- **Oggetto «Data e ora» (`clock`)** (piano `docs/plans/2026-10-15-cornici-di-pagina.md`, ramo 1). Mostra l'orologio
+  del dispositivo che apre la pagina, rinfrescato ogni secondo: formati `ora`, `data`, `data_ora`, `giorno` e
+  `personalizzato` (`clock_modello`, segnaposti `%d %m %Y %y %H %M %S %A %a %B %b %%`), secondi a scelta, giorni e
+  mesi in italiano, inglese e spagnolo (le altre lingue in inglese). Il testo lo scrive una funzione pura gemella,
+  `sws-core/src/data_ora.rs` e `sws-editor/src/canvas/dataOra.ts`, provata sugli stessi undici casi di
+  `tests/fixtures/data-ora.json`; su LVGL l'ora locale viene da `chrono::Local` e l'etichetta si riscrive solo al
+  cambio del secondo o della lingua. Palette (Indicatori), icona, pannello proprietà, manuale, demo web e LVGL.
+
 - **Stili 2.5D per i tubi ed estremità selezionabili** (piano `docs/plans/2026-10-15-tubazioni-bocche-e-stili.md`,
   ramo B). Otto stili nuovi, con il materiale, la velatura e il contorno della libreria di simboli e dello stile di
   progetto: metallo, inox, coibentato (fascette), PVC (colore del tubo), flessibile (corrugato), canale HVAC

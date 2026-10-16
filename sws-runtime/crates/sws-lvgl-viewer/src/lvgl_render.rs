@@ -104,6 +104,8 @@ const SUPPORTED_TYPES: &[&str] = &[
     "lang_selector",
     "image",
     "kpi_tile",
+    // 15-10-2026: «Data e ora», etichetta rinfrescata da update_bindings.
+    "clock",
     "data_log",
     "alarm_history",
 ];
@@ -135,6 +137,15 @@ pub struct RenderSummary {
 /// stesso principio degli `Style` altrove in questo file.
 #[allow(dead_code)]
 pub enum LiveKind {
+    /// «Data e ora» (15-10-2026): il testo si riscrive quando cambia il secondo
+    /// dell'orologio locale (`ultimo`), non a ogni giro del ciclo.
+    Orologio {
+        ptr: core::ptr::NonNull<lvgl_sys::lv_obj_t>,
+        formato: Option<String>,
+        secondi: bool,
+        modello: Option<String>,
+        ultimo: Option<(i64, String)>,
+    },
     /// Il valore corrente del tag di un comando che lo legge (commuta,
     /// incrementa): il clic lo trova qui senza toccare la rete (14-10-2026).
     ValoreComando {
@@ -3220,6 +3231,90 @@ fn render_text(
             alarm_high: obj.alarm_high,
             static_color_hex,
             color_style,
+        },
+    })
+}
+
+/// Margine orizzontale del testo di «Data e ora» (`PAD_OROLOGIO` in `SvgCanvas.tsx`).
+const PAD_OROLOGIO: i16 = 6;
+
+/// Il testo di «Data e ora» per l'istante locale `ora` (piano cornici, 15-10-2026).
+fn testo_orologio_locale(
+    ora: &chrono::DateTime<chrono::Local>,
+    formato: Option<&str>,
+    secondi: bool,
+    modello: Option<&str>,
+    lingua: &str,
+) -> String {
+    use chrono::{Datelike, Timelike};
+    let c = sws_core::data_ora::Componenti {
+        anno: ora.year(),
+        mese: ora.month(),
+        giorno: ora.day(),
+        ore: ora.hour(),
+        minuti: ora.minute(),
+        secondi: ora.second(),
+        giorno_settimana: ora.weekday().num_days_from_sunday(),
+    };
+    sws_core::data_ora::testo_orologio(&c, formato, secondi, modello, lingua)
+}
+
+/// `clock` («Data e ora»): un riquadro `width`×`height` con lo sfondo dell'oggetto
+/// e un'etichetta centrata in verticale, allineata come `text_anchor` (default al
+/// centro, come sul web).
+fn render_clock(
+    screen: &mut lvgl::Obj,
+    obj: &SynopticObject,
+    lingua: &str,
+) -> anyhow::Result<LiveBinding> {
+    let mut riquadro = create_child_obj(screen)?;
+    let rp = riquadro.raw().map_err(|e| anyhow::anyhow!("raw: {e:?}"))?.as_ptr();
+    unsafe {
+        // Come il testo a capo: il contenitore non è un elemento d'interfaccia,
+        // via lo stile del tema prima di posizione e misura.
+        lvgl_sys::lv_obj_remove_style(
+            rp,
+            core::ptr::null_mut(),
+            (lvgl_sys::LV_PART_ANY | lvgl_sys::LV_STATE_ANY) as lvgl_sys::lv_style_selector_t,
+        );
+        lvgl_sys::lv_obj_clear_flag(rp, lvgl_sys::LV_OBJ_FLAG_CLICKABLE | lvgl_sys::LV_OBJ_FLAG_SCROLLABLE);
+    }
+    set_pos_size(&mut riquadro, obj, 180.0, 36.0)?;
+    if let Some(rgb) = obj.bg_color.as_deref().and_then(parse_hex_color) {
+        unsafe {
+            stile::sfondo(rp, rgb, stile::MAIN);
+            stile::raggio(rp, 3.0, stile::MAIN);
+        }
+    }
+    let label = Label::create(&mut riquadro).map_err(|e| anyhow::anyhow!("Label::create: {e:?}"))?;
+    apply_font_size(&label, obj)?;
+    let lp = label.raw().map_err(|e| anyhow::anyhow!("raw: {e:?}"))?.as_ptr();
+    let (allinea, dx) = match obj.text_anchor.as_deref() {
+        Some("start") => (lvgl_sys::LV_ALIGN_LEFT_MID, PAD_OROLOGIO),
+        Some("end") => (lvgl_sys::LV_ALIGN_RIGHT_MID, -PAD_OROLOGIO),
+        _ => (lvgl_sys::LV_ALIGN_CENTER, 0),
+    };
+    let testo = testo_orologio_locale(
+        &chrono::Local::now(),
+        obj.clock_formato.as_deref(),
+        obj.clock_secondi == Some(true),
+        obj.clock_modello.as_deref(),
+        lingua,
+    );
+    unsafe {
+        lvgl_sys::lv_label_set_text(lp, text_cstring(&testo).as_ptr());
+        lvgl_sys::lv_obj_align(lp, allinea as lvgl_sys::lv_align_t, dx, 0);
+        if let Some(rgb) = obj.color.as_deref().and_then(parse_hex_color) {
+            lvgl_sys::lv_obj_set_style_text_color(lp, Color::from_rgb(rgb).into(), 0);
+        }
+    }
+    Ok(LiveBinding {
+        kind: LiveKind::Orologio {
+            ptr: core::ptr::NonNull::new(lp).ok_or_else(|| anyhow::anyhow!("etichetta nulla"))?,
+            formato: obj.clock_formato.clone(),
+            secondi: obj.clock_secondi == Some(true),
+            modello: obj.clock_modello.clone(),
+            ultimo: None,
         },
     })
 }
@@ -10420,6 +10515,7 @@ fn dispatch_render(
         "text" => {
             render_text(screen, obj, styles, tags, &current_lang, lang_table).map(|b| live.push(b))
         }
+        "clock" => render_clock(screen, obj, &current_lang).map(|b| live.push(b)),
         "led" => render_led(screen, obj, tags).map(|b| live.push(b)),
         "slider" => render_slider(screen, obj, tags, tag_tx).map(|b| live.push(b)),
         "progress_bar" => render_progress_bar(screen, obj, tags).map(|b| live.push(b)),
@@ -11614,6 +11710,18 @@ pub fn update_bindings(
                 let tv = lookup(tags, tag);
                 for (ptr, value) in boxes {
                     apply_checked_state(*ptr, checkbox_is_checked(tv, value));
+                }
+            }
+            LiveKind::Orologio { ptr, formato, secondi, modello, ultimo } => {
+                let ora = chrono::Local::now();
+                let istante = ora.timestamp();
+                // Una lingua cambiata riscrive subito, senza aspettare il secondo dopo.
+                if ultimo.as_ref().map_or(true, |(t, l)| *t != istante || *l != lingua) {
+                    let testo = testo_orologio_locale(&ora, formato.as_deref(), *secondi, modello.as_deref(), &lingua);
+                    unsafe {
+                        lvgl_sys::lv_label_set_text(ptr.as_ptr(), text_cstring(&testo).as_ptr());
+                    }
+                    *ultimo = Some((istante, lingua.clone()));
                 }
             }
             LiveKind::Text {

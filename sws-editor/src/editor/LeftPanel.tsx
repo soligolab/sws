@@ -673,7 +673,7 @@ export const PALETTE_GROUPS: PaletteGroup[] = [
   { category: "comandi", color: "#34d399", colorLight: "#047857",
     items: [{ type: "button" }, { type: "checkbox" }, { type: "radio" }, { type: "slider" }, { type: "setpoint" }] },
   { category: "indicatori", color: "#fb923c", colorLight: "#c2410c",
-    items: [{ type: "led" }, { type: "state_lamp" }, { type: "gauge" }, { type: "progress_bar" }, { type: "kpi_tile" }] },
+    items: [{ type: "led" }, { type: "state_lamp" }, { type: "gauge" }, { type: "progress_bar" }, { type: "kpi_tile" }, { type: "clock" }] },
   { category: "grafici", color: "#fbbf24", colorLight: "#b45309",
     items: [{ type: "trend" }, { type: "sparkline" }, { type: "xy_plot" }, { type: "bar_chart" }, { type: "pie_chart" }] },
   { category: "tabelle", color: "#a3e635", colorLight: "#4d7c0f",
@@ -883,6 +883,8 @@ const LVGL_SUPPORTED_TYPES = new Set<SynopticObject["type"]>([
   // `alarm_history` sono tabelle riempite una volta al disegno, come sul web.
   "kpi_tile",
   "data_log",
+  // 15-10-2026: «Data e ora», un'etichetta rinfrescata ogni secondo.
+  "clock",
   "alarm_history",
   "rect",
   "text",

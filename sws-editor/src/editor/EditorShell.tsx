@@ -1246,7 +1246,7 @@ const GRUPPI_BOOT: readonly GruppoProprieta[] = ["tipo", "aspetto"];
 // perché lo legge anche `gruppoAffine`, non solo il pannello.
 export const TIPI_CON_PARAMETRI: readonly string[] = [
   "alarm_banner", "alarm_bell", "alarm_history", "alarm_viewer", "bar_chart", "button",
-  "checkbox", "data_log", "faceplate", "gauge", "grid", "image", "kpi_tile", "lang_button",
+  "checkbox", "clock", "data_log", "faceplate", "gauge", "grid", "image", "kpi_tile", "lang_button",
   "lang_selector", "led", "navbutton", "page_navigator", "pie_chart", "pipe", "progress_bar", "radio",
   "recipe_panel", "setpoint", "slider", "sparkline", "state_lamp", "symbol", "table",
   "text_list", "trend", "xy_plot",
@@ -3095,7 +3095,7 @@ export function ObjectProps({
     // 2026-08-23: W/H per tutti i box-like (prima si ridimensionavano solo con le maniglie)
     "image", "xy_plot", "kpi_tile", "data_log", "alarm_viewer", "alarm_bell", "alarm_banner",
     "recipe_panel", "faceplate", "setpoint", "text_list", "state_lamp", "lang_button", "alarm_history",
-    "lang_selector", "bar_chart", "pie_chart", "sparkline"];
+    "lang_selector", "bar_chart", "pie_chart", "sparkline", "clock"];
   // F7.4: il testo entra fra i box-like solo col wrap attivo — senza wrap la
   // larghezza è stimata dal contenuto e i campi W/H non farebbero niente.
   const isShape = BOX_TYPES.includes(obj.type) || (obj.type === "text" && !!obj.text_wrap);
@@ -3108,7 +3108,7 @@ export function ObjectProps({
     "ellipse", "navbutton", "lang_button", "lang_selector", "led", "state_lamp",
     "progress_bar", "slider", "setpoint", "checkbox", "radio", "table",
     "xy_plot", "text_list", "bar_chart", "pie_chart", "sparkline", "kpi_tile", "data_log",
-    "alarm_bell", "alarm_banner", "recipe_panel", "grid", "image", "faceplate", "alarm_history",
+    "alarm_bell", "alarm_banner", "recipe_panel", "grid", "image", "faceplate", "alarm_history", "clock",
   ];
 
   /** Cosa fa il clic: assegnazioni, oppure modalità e valori. Del bottone e,
@@ -3475,7 +3475,7 @@ export function ObjectProps({
           // "Tag di stato" (alimenta bordo-allarme/stale/Bad-gray/QDot).
           "kpi_tile","data_log","sparkline","bar_chart","pie_chart","table","symbol",
           "alarm_viewer","alarm_bell","alarm_banner","alarm_history","recipe_panel","grid","faceplate",
-          "image","lang_button","lang_selector"].includes(obj.type) && field(t("props.tag"), tagInput("es. pump1.speed"))}
+          "image","lang_button","lang_selector","clock"].includes(obj.type) && field(t("props.tag"), tagInput("es. pump1.speed"))}
 
         {/* Token picker (T-40): insert {{key}} into the primary text field so the
             viewer resolves it per the project language table. */}
@@ -4746,6 +4746,58 @@ export function ObjectProps({
                 <div><div style={LABEL}>Warn high</div><BindableInput obj={obj} propName="warn_high" onChange={onChange}>{numInput("warn_high", 0)}</BindableInput></div>
                 <div><div style={LABEL}>Alarm high</div><BindableInput obj={obj} propName="alarm_high" onChange={onChange}>{numInput("alarm_high", 0)}</BindableInput></div>
               </div>
+            </>
+          )}
+
+          {obj.type === "clock" && (
+            <>
+              {field(t("props.clockFormat"), (
+                <select style={{ ...INPUT, cursor: "pointer" }} value={obj.clock_formato ?? "ora"}
+                  onChange={(e) => onChange({ clock_formato: e.target.value as NonNullable<SynopticObject["clock_formato"]> })}>
+                  <option value="ora">{t("props.clockTime")}</option>
+                  <option value="data">{t("props.clockDate")}</option>
+                  <option value="data_ora">{t("props.clockDateTime")}</option>
+                  <option value="giorno">{t("props.clockDay")}</option>
+                  <option value="personalizzato">{t("props.clockCustom")}</option>
+                </select>
+              ))}
+              {(obj.clock_formato ?? "ora") === "personalizzato" ? (
+                <>
+                  {field(t("props.clockPattern"), textInput("clock_modello", "%A %d %B, %H:%M"))}
+                  <p style={{ fontSize: 10, color: "var(--brand-text-subtle, #94a3b8)", margin: "0 0 4px" }}>{t("props.clockPatternHint")}</p>
+                </>
+              ) : ["ora", "data_ora"].includes(obj.clock_formato ?? "ora") && (
+                <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: "var(--brand-text-2, #cbd5e1)", cursor: "pointer" }}>
+                  <input type="checkbox" checked={!!obj.clock_secondi}
+                    onChange={(e) => onChange({ clock_secondi: e.target.checked || undefined })}
+                    style={{ accentColor: "var(--brand-primary, #3b82f6)" }} />
+                  {t("props.clockSeconds")}
+                </label>
+              )}
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
+                <div><div style={LABEL}>{t("props.dimensionPx")}</div>{numInput("font_size", 16)}</div>
+                <div>
+                  <div style={LABEL}>{t("props.alignment")}</div>
+                  <select style={{ ...INPUT, cursor: "pointer" }} value={obj.text_anchor ?? "middle"}
+                    onChange={(e) => onChange({ text_anchor: e.target.value as "start" | "middle" | "end" })}>
+                    <option value="start">{t("props.left")}</option>
+                    <option value="middle">{t("props.center")}</option>
+                    <option value="end">{t("props.right")}</option>
+                  </select>
+                </div>
+              </div>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
+                <div>
+                  <div style={LABEL}>{t("props.weight")}</div>
+                  <select style={{ ...INPUT, cursor: "pointer" }} value={String(obj.font_weight ?? "normal")}
+                    onChange={(e) => onChange({ font_weight: e.target.value === "bold" ? "bold" : undefined })}>
+                    <option value="normal">{t("props.normal400")}</option>
+                    <option value="bold">{t("props.bold700")}</option>
+                  </select>
+                </div>
+                <div><div style={LABEL}>{t("props.colorText")}</div>{colorInput("color")}</div>
+              </div>
+              <p style={{ fontSize: 10, color: "var(--brand-text-subtle, #94a3b8)", margin: "4px 0 0" }}>{t("props.clockDeviceHint")}</p>
             </>
           )}
 

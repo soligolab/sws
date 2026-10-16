@@ -19,6 +19,8 @@
 versioni:
   - versione: "2.14.0"
     voci:
+      - it: "Nuovo oggetto Data e ora: mostra l'orologio del pannello o del browser, ogni secondo, in formati pronti o personalizzati, con giorni e mesi nella lingua dei contenuti."
+        en: "New Date and time object: shows the panel or browser clock, every second, in ready-made or custom formats, with days and months in the content language."
       - it: "Git funziona anche nel cloud e sui pannelli: ogni progetto può generare la sua chiave SSH da registrare come deploy key su GitHub o GitLab."
         en: "Git now works in the cloud and on panels too: each project can generate its own SSH key to register as a deploy key on GitHub or GitLab."
       - it: "Sicurezza: le sorgenti OPC UA si fidano del certificato del server al primo contatto e fermano la connessione se cambia; le metriche chiedono l'accesso."
@@ -29,12 +31,10 @@ versioni:
         en: "Pipes snap onto the nozzles of pumps, valves and tanks and follow them; at 90° and 45° they route themselves, and now also appear on the panel."
       - it: "Il viewer non perde più il login quando si ricarica la pagina: prima l'operatore tornava anonimo e i comandi venivano rifiutati."
         en: "The viewer no longer loses the login when the page is reloaded: before, the operator became anonymous and commands were refused."
-      - it: "Sul pannello le etichette dei bottoni sono centrate e il valore della barra di avanzamento sta dentro la barra, come nel browser."
-        en: "On the panel, button labels are centred and the progress bar value sits inside the bar, as in the browser."
       - it: "Un simbolo può comandare: al tocco scrive come un bottone (commuta, momentaneo, incrementa, assegnazioni), con la spunta «Il simbolo comanda» e una variabile tutta sua."
         en: "A symbol can send commands: when touched it writes like a button (toggle, momentary, increment, assignments), with the “The symbol sends a command” option and its own variable."
-      - it: "Sul pannello i bottoni seguono finalmente la loro modalità: commuta, momentaneo, set/reset, incremento e decremento; prima scrivevano sempre il valore fisso."
-        en: "On the panel, buttons finally follow their mode: toggle, momentary, set/reset, increment and decrement; before they always wrote the fixed value."
+      - it: "Sul pannello i bottoni seguono la loro modalità (commuta, momentaneo, set/reset, incremento) con l'etichetta centrata, e il valore della barra di avanzamento sta dentro la barra."
+        en: "On the panel buttons follow their mode (toggle, momentary, set/reset, increment) with a centred label, and the progress bar value sits inside the bar."
       - it: "Menù Strumenti riorganizzato: dieci gruppi, icone nuove di misura regolabile nelle Preferenze IDE, simboli per famiglia e tipologia con anteprima, e un filtro per trovare tutto."
         en: "Reorganised Tools menu: ten groups, new icons with a size you can set in IDE Preferences, symbols by family and type with previews, and a filter to find everything."
       - it: "Nuova libreria di simboli SCADA 2.5D: 138 disegni in quattro famiglie, compresi i 40 di sempre; il corpo prende il colore di stato, i serbatoi si riempiono dal tag, le giranti girano."

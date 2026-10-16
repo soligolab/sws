@@ -56,7 +56,9 @@ export type SynopticObjectType =
   | "faceplate"
   // Language switch controls (T-40): change the project content language
   | "lang_selector"
-  | "lang_button";
+  | "lang_button"
+  // Data e ora del dispositivo che mostra la pagina (piano cornici, 15-10-2026)
+  | "clock";
 
 /** Identifier of a SCADA symbol: `lib:<famiglia>/<slug>` dalla libreria
  *  (`public/symbols/lib/manifest.json`), un id builtin storico (`pump`…) che ne è
@@ -787,6 +789,13 @@ export interface SynopticObject {
   // ── Recipe Panel (type === "recipe_panel") ─────────────────────────────
   /** Only show recipes whose id starts with this prefix. Unset/empty = all. */
   recipe_panel_id_prefix?: string;
+  // ── Data e ora (type === "clock") ──────────────────────────────────────
+  /** Formato pronto, o «personalizzato» con `clock_modello`. Default «ora». */
+  clock_formato?: "ora" | "data" | "data_ora" | "giorno" | "personalizzato";
+  /** Mostra anche i secondi (formati «ora» e «data_ora»). */
+  clock_secondi?: boolean;
+  /** Modello del formato personalizzato: %d %m %Y %y %H %M %S %A %a %B %b %%. */
+  clock_modello?: string;
 }
 
 // ── Faceplate definitions ─────────────────────────────────────────────────────

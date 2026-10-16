@@ -1,0 +1,13 @@
+[
+  { "nome": "ora senza secondi", "anno": 2026, "componenti": [10, 15, 14, 5, 9, 4], "formato": "ora", "lingua": "it", "atteso": "14:05" },
+  { "nome": "ora con i secondi", "anno": 2026, "componenti": [10, 15, 14, 5, 9, 4], "formato": "ora", "secondi": true, "lingua": "it", "atteso": "14:05:09" },
+  { "nome": "data", "anno": 2026, "componenti": [1, 3, 7, 0, 0, 6], "formato": "data", "lingua": "en", "atteso": "03/01/2026" },
+  { "nome": "data e ora", "anno": 2026, "componenti": [10, 15, 9, 30, 0, 4], "formato": "data_ora", "lingua": "it", "atteso": "15/10/2026 09:30" },
+  { "nome": "giorno per esteso in italiano", "anno": 2026, "componenti": [10, 15, 9, 30, 0, 4], "formato": "giorno", "lingua": "it", "atteso": "giovedì 15 ottobre 2026" },
+  { "nome": "giorno per esteso in spagnolo", "anno": 2026, "componenti": [10, 15, 9, 30, 0, 4], "formato": "giorno", "lingua": "es", "atteso": "jueves 15 octubre 2026" },
+  { "nome": "lingua sconosciuta: inglese", "anno": 2026, "componenti": [12, 31, 23, 59, 59, 4], "formato": "giorno", "lingua": "de", "atteso": "Thursday 31 December 2026" },
+  { "nome": "personalizzato con abbreviazioni", "anno": 2026, "componenti": [10, 15, 9, 30, 0, 3], "formato": "personalizzato", "modello": "%a %d %b '%y — %H.%M 100%%", "lingua": "it", "atteso": "mer 15 ott '26 — 09.30 100%" },
+  { "nome": "personalizzato vuoto: ora", "anno": 2026, "componenti": [10, 15, 9, 30, 0, 3], "formato": "personalizzato", "modello": "", "lingua": "it", "atteso": "09:30" },
+  { "nome": "segnaposto sconosciuto resta com'è", "anno": 2026, "componenti": [10, 15, 9, 30, 0, 3], "formato": "personalizzato", "modello": "%Q %H", "lingua": "it", "atteso": "%Q 09" },
+  { "nome": "senza formato: ora", "anno": 2026, "componenti": [10, 15, 9, 30, 0, 3], "lingua": "it", "atteso": "09:30" }
+]

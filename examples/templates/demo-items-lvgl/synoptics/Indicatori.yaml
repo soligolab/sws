@@ -469,3 +469,35 @@ objects:
   to_port: left
   stroke: '#38bdf8'
   stroke_width: 6.0
+- id: c_clock
+  type: text
+  x: 650.0
+  y: 578.0
+  width: 600.0
+  height: 18.0
+  text: "{{t0099}}"
+  font_size: 12.0
+  color: '#94a3b8'
+- id: o_clock
+  type: clock
+  x: 650.0
+  y: 600.0
+  width: 290.0
+  height: 40.0
+  clock_formato: data_ora
+  clock_secondi: true
+  font_size: 18.0
+  color: '#e2e8f0'
+  bg_color: '#1e293b'
+  text_anchor: middle
+- id: o_clock_custom
+  type: clock
+  x: 960.0
+  y: 600.0
+  width: 290.0
+  height: 40.0
+  clock_formato: personalizzato
+  clock_modello: '%a %d %b %Y'
+  font_size: 16.0
+  color: '#93c5fd'
+  text_anchor: start

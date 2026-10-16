@@ -20,6 +20,7 @@ import { genId } from "@/id";
 import { useAppStore } from "@/store";
 import { effectiveProjectLang, localizeObject, resolveMsg } from "@/i18n/projectI18n";
 import { useLinguaContenuti } from "@/i18n/linguaContenuti";
+import { componentiDi, testoOrologio } from "./dataOra";
 // Le parole che il motore scrive da sé, nella lingua dei CONTENUTI: la stessa
 // tabella del pannello LVGL (tests/fixtures/testi-sistema.json).
 import { testoSistema } from "@/i18n/testiSistema";
@@ -2863,6 +2864,21 @@ function DataLogWidget({ tag, windowS, pageSize, width, height, decimals, unit }
 // ── KPI tile (F5.5): confronto vs periodo precedente ────────────────────────
 // Media della finestra corrente vs media della finestra precedente via
 // /api/history/:tag/stats (due chiamate), aggiornato ogni 30 s.
+/** Margine orizzontale del testo di «Data e ora» (lo stesso in `lvgl_render.rs`). */
+const PAD_OROLOGIO = 6;
+
+/** Il testo di «Data e ora», rinfrescato ogni secondo dall'orologio del browser. */
+function TestoOrologio({ formato, secondi, modello, lingua }: {
+  formato?: string; secondi: boolean; modello?: string; lingua: string;
+}) {
+  const [ora, setOra] = useState(() => new Date());
+  useEffect(() => {
+    const t = setInterval(() => setOra(new Date()), 1000);
+    return () => clearInterval(t);
+  }, []);
+  return <>{testoOrologio(componentiDi(ora), formato, secondi, modello, lingua)}</>;
+}
+
 function KpiDelta({ tag, windowS }: { tag: string; windowS: number }) {
   const [delta, setDelta] = useState<number | null>(null);
   useEffect(() => {
@@ -4116,6 +4132,31 @@ function SvgObjectCorpo(p: ObjProps) {
             uncertainColor={obj.quality_dot_uncertain_color} />
         )}
       </g>
+    );
+  }
+
+  // ── DATA E ORA (piano cornici, 15-10-2026) ──────────────────────────────────
+
+  if (obj.type === "clock") {
+    const w = obj.width ?? 180; const h = obj.height ?? 36;
+    const anchor = obj.text_anchor ?? "middle";
+    const tx = anchor === "start" ? obj.x + PAD_OROLOGIO : anchor === "end" ? obj.x + w - PAD_OROLOGIO : obj.x + w / 2;
+    return (
+      <>
+        {selRect(obj.x, obj.y, w, h)}
+        {applyTransform(obj, w, h, <>
+          {bgLayer(obj.x, obj.y, w, h, 3)}
+          <text x={tx} y={obj.y + h / 2} textAnchor={anchor} dominantBaseline="central"
+            fill={obj.color ?? coloreEffettivo(obj, "color")} fontSize={obj.font_size ?? 16}
+            fontFamily={obj.font_family ?? undefined}
+            fontWeight={(obj.font_weight ?? "normal") as React.SVGAttributes<SVGTextElement>["fontWeight"]}
+            style={{ pointerEvents: "none" }}>
+            <TestoOrologio formato={obj.clock_formato} secondi={!!obj.clock_secondi}
+              modello={obj.clock_modello} lingua={lingua.lang} />
+          </text>
+          {hitRect(obj.x, obj.y, w, h)}
+        </>)}
+      </>
     );
   }
 

@@ -301,6 +301,10 @@ FUORI_PERIMETRO = {
     # il testo di sistema del viewer (asse c): stessa tabella del pannello LVGL,
     # verificata da check_testi_sistema.sh contro tests/fixtures/testi-sistema.json
     "i18n/testiSistema.ts",
+    # i nomi di giorni e mesi di «Data e ora» in it/en/es (asse b, la lingua dei
+    # contenuti): stessa tabella di sws-core/src/data_ora.rs, verificata dai due
+    # test sulla fixture tests/fixtures/data-ora.json
+    "canvas/dataOra.ts",
 }
 
 def file_del_perimetro():

@@ -1574,5 +1574,44 @@
       "Y",
       "z-index"
     ]
+  },
+  "clock": {
+    "sezioni": [
+      "Active bindings(0)",
+      "Appearance",
+      "Data",
+      "Events",
+      "Identity & position",
+      "Layer & Visibility",
+      "MOTION PATH",
+      "Parameters",
+      "Quality indicator",
+      "SECURITY"
+    ],
+    "campi": [
+      "Alignment",
+      "Ask for confirmation",
+      "Background color",
+      "Background image (URL)",
+      "Blink",
+      "Brightness (−100…+100 %)",
+      "Critical command (password)",
+      "Format",
+      "H",
+      "Minimum role to operate",
+      "Name",
+      "On press",
+      "On release",
+      "Opacity (0–1)",
+      "Position tag",
+      "Size (px)",
+      "Text color",
+      "Visibility tag (override)",
+      "W",
+      "Weight",
+      "X",
+      "Y",
+      "z-index"
+    ]
   }
 }

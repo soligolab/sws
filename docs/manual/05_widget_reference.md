@@ -535,6 +535,31 @@ unit: bar
 ```
 
 ---
+### Data e ora (`clock`)
+
+La data e l'ora **del dispositivo che mostra la pagina**: l'orologio del browser sul viewer web, quello del pannello su LVGL. Si aggiorna ogni secondo e non legge nessuna variabile. I nomi di giorni e mesi seguono la lingua dei contenuti (italiano, inglese, spagnolo; le altre lingue usano l'inglese). È l'oggetto pensato per la testata comune delle pagine.
+
+| Proprietà | Descrizione |
+|-----------|-------------|
+| `clock_formato` | `ora` (default), `data`, `data_ora`, `giorno` (giovedì 15 ottobre 2026) o `personalizzato` |
+| `clock_secondi` | Mostra anche i secondi, nei formati `ora` e `data_ora` |
+| `clock_modello` | Il modello del formato personalizzato: `%d` giorno, `%m` mese, `%Y` anno, `%y` anno a due cifre, `%H` ore, `%M` minuti, `%S` secondi, `%A`/`%a` giorno della settimana per esteso/breve, `%B`/`%b` mese per esteso/breve, `%%` il simbolo |
+| `font_size`, `color`, `text_anchor`, `bg_color` | Corpo, colore, allineamento nel riquadro (default al centro), sfondo |
+
+```yaml
+id: o_clock
+type: clock
+x: 650.0
+y: 600.0
+width: 290.0
+height: 40.0
+clock_formato: data_ora
+clock_secondi: true
+font_size: 18.0
+```
+
+---
+
 ### Grafico X-Y (`xy_plot`)
 
 Traccia un tag **contro un altro**, non contro il tempo: portata su pressione, coppia su velocità. La scia mostra dov'è stato il punto di lavoro negli ultimi secondi.

@@ -28,9 +28,9 @@ const tipi = (gs: { items: { type: string }[] }[]) => gs.flatMap((g) => g.items.
 beforeAll(() => { act(() => impostaLibreriaPerTest(manifesto)); });
 
 describe("gerarchia", () => {
-  it("38 tipi, nessuno perso né doppio, ognuno con la sua icona", () => {
+  it("39 tipi, nessuno perso né doppio, ognuno con la sua icona", () => {
     const tutti = tipi(PALETTE_GROUPS);
-    expect(tutti).toHaveLength(38);
+    expect(tutti).toHaveLength(39);
     expect(new Set(tutti).size).toBe(tutti.length);
     expect(Object.keys(ICONE_STRUMENTI).sort()).toEqual([...tutti].sort());
   });

@@ -769,6 +769,11 @@ languages:
         it: "pipe agganciata: gauge → barra"
         en: "attached pipe: gauge → bar"
         es: "pipe enganchada: gauge → barra"
+    - key: t0099
+      values:
+        it: "clock — data e ora del dispositivo"
+        en: "clock — date and time of the device"
+        es: "clock — fecha y hora del dispositivo"
 
 # ── Pagina iniziale ──────────────────────────────────────────────────────────
 #

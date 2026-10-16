@@ -599,6 +599,13 @@ pub struct SynopticObject {
     // from day one, same reasoning as alarm_bell/alarm_banner above.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub recipe_panel_id_prefix: Option<String>,
+    // Data e ora (type === "clock"), piano cornici di pagina del 15-10-2026.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub clock_formato: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub clock_secondi: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub clock_modello: Option<String>,
     // Sparkline (type === "sparkline") — same pre-existing gap as alarm_viewer above.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub spark_window_s: Option<f64>,

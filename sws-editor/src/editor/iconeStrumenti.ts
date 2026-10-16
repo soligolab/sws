@@ -40,6 +40,7 @@ export const ICONE_STRUMENTI: Record<string, string> = {
   state_lamp: '<circle cx="12" cy="11" r="5"/><path d="M10 18.5h4M10.5 21h3M12 2.5v1.5M4.6 5.1l1.1 1.1M19.4 5.1l-1.1 1.1"/>',
   gauge: '<path d="M4 16.5a8 8 0 1 1 16 0"/><path d="M12 16.5l4.2-5"/><circle cx="12" cy="16.5" r="1.3" fill="currentColor" stroke="none"/>',
   progress_bar: '<rect x="3" y="9" width="18" height="6" rx="3"/><path d="M6 12h7"/>',
+  clock: '<circle cx="12" cy="12" r="8.5"/><path d="M12 7v5l3.5 2"/>',
   kpi_tile: '<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M7 8h5M7 16l3-3 3 2 4-5"/>',
   // ── grafici ──
   trend: '<path d="M3.5 3.5v17h17"/><path d="M7 15l4-5 3.5 3 5-7"/>',

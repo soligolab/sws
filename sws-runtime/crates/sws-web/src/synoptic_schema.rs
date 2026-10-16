@@ -234,6 +234,9 @@ pub const OBJECT_FIELDS: &[Field] = &[
     Field { name: "alarm_banner_id_prefix", ty: "string", required: false, group: "mirrored from day one, same reasoning as alarm_bell above.", doc: "" },
     Field { name: "alarm_banner_severities", ty: "any", required: false, group: "mirrored from day one, same reasoning as alarm_bell above.", doc: "" },
     Field { name: "recipe_panel_id_prefix", ty: "string", required: false, group: "from day one, same reasoning as alarm_bell/alarm_banner above.", doc: "" },
+    Field { name: "clock_formato", ty: "string", required: false, group: "Data e ora (type === \"clock\"), piano cornici di pagina del 15-10-2026.", doc: "" },
+    Field { name: "clock_secondi", ty: "bool", required: false, group: "Data e ora (type === \"clock\"), piano cornici di pagina del 15-10-2026.", doc: "" },
+    Field { name: "clock_modello", ty: "string", required: false, group: "Data e ora (type === \"clock\"), piano cornici di pagina del 15-10-2026.", doc: "" },
     Field { name: "spark_window_s", ty: "number", required: false, group: "Sparkline (type === \"sparkline\") — same pre-existing gap as alarm_viewer above.", doc: "" },
     Field { name: "spark_color", ty: "string", required: false, group: "Sparkline (type === \"sparkline\") — same pre-existing gap as alarm_viewer above.", doc: "" },
     Field { name: "spark_stroke_width", ty: "number", required: false, group: "Sparkline (type === \"sparkline\") — same pre-existing gap as alarm_viewer above.", doc: "" },
@@ -379,6 +382,7 @@ pub const OBJECT_TYPES: &[&str] = &[
     "faceplate",
     "lang_selector",
     "lang_button",
+    "clock",
 ];
 
 /// Campi il cui valore è scelto da un insieme chiuso: `(campo, valori)`.
@@ -399,6 +403,10 @@ pub const FIELD_ENUMS: &[(&str, &[&str])] = &[
             "increment",
             "decrement",
         ],
+    ),
+    (
+        "clock_formato",
+        &["ora", "data", "data_ora", "giorno", "personalizzato"],
     ),
     (
         "end_marker",
@@ -1328,6 +1336,24 @@ pub const TYPE_USAGE: &[(&str, &[&str])] = &[
         &["height", "id", "label", "tag", "type", "width", "x", "y"],
     ),
     (
+        "clock",
+        &[
+            "bg_color",
+            "clock_formato",
+            "clock_modello",
+            "clock_secondi",
+            "color",
+            "font_size",
+            "height",
+            "id",
+            "text_anchor",
+            "type",
+            "width",
+            "x",
+            "y",
+        ],
+    ),
+    (
         "data_log",
         &[
             "datalog_page_size",
@@ -1793,6 +1819,7 @@ pub const TYPE_EXAMPLES: &[(&str, &str)] = &[
     ("bar_chart", "id: o_bar\ntype: bar_chart\nx: 30.0\ny: 388.0\nwidth: 290.0\nheight: 220.0\nbar_series:\n- tag: demo.sim.bar_a\n  label: A\n  color: '#0ea5e9'\n  min: -50.0\n  max: 100.0\n- tag: demo.sim.bar_b\n  label: '{{t0054}}'\n  color: '#22c55e'\n  min: -50.0\n  max: 100.0\n- tag: demo.sim.bar_c\n  label: '{{t0055}}'\n  color: '#f59e0b'\n  min: -50.0\n  max: 100.0\nwarn_high: 70.0\nalarm_high: 90.0\nbar_show_thresholds: true"),
     ("button", "id: btn_piu\ntype: button\nx: 40.0\ny: 294.0\nwidth: 115.0\nheight: 56.0\nlabel: '{{t0006}}'\ntag: pompa.velocita\nbutton_mode: increment\nstep: 10.0\nmin: 0.0\nmax: 100.0"),
     ("checkbox", "id: o_checkbox\ntype: checkbox\nx: 340.0\ny: 258.0\nwidth: 250.0\nheight: 32.0\nlabel: '{{t0031}}'\ntag: demo.cmd.enable"),
+    ("clock", "id: o_clock\ntype: clock\nx: 650.0\ny: 600.0\nwidth: 290.0\nheight: 40.0\nclock_formato: data_ora\nclock_secondi: true\nfont_size: 18.0\ncolor: '#e2e8f0'\nbg_color: '#1e293b'\ntext_anchor: middle"),
     ("data_log", "id: o_datalog\ntype: data_log\nx: 30.0\ny: 442.0\nwidth: 600.0\nheight: 320.0\ntag: demo.sim.pressure\ndatalog_page_size: 12.0"),
     ("ellipse", "id: o_motion\ntype: ellipse\nx: 250.0\ny: 550.0\nwidth: 20.0\nheight: 20.0\nfill: '#f59e0b'\nstroke: '#fbbf24'\nstroke_width: 2.0\nmotion_tag: demo.sim.ramp\nmotion_min: 0.0\nmotion_max: 100.0\nmotion_path:\n- x: 260.0\n  y: 560.0\n- x: 430.0\n  y: 505.0\n- x: 600.0\n  y: 560.0"),
     ("faceplate", "id: o_faceplate\ntype: faceplate\nx: 30.0\ny: 474.0\nwidth: 290.0\nheight: 150.0\nfaceplate_id: motor_basic\nfaceplate_params:\n  tag_prefix: demo.sim.motor\n  label: '{{t0016}}'"),

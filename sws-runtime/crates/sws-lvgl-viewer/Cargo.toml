@@ -48,6 +48,9 @@ resvg = { version = "0.45", default-features = false }
 # #[serde(untagged)], TagQuality è una stringa) invece di riscriverli una terza
 # volta accanto al mirror TS e al mirror sws-web/src/synoptic.rs.
 sws-core = { path = "../sws-core" }
+# L'oggetto «Data e ora» (15-10-2026) mostra l'ora locale del pannello: come per la
+# finestra dell'aggiornamento in sws-web, `chrono::Local` legge /etc/localtime.
+chrono = { version = "0.4", default-features = false, features = ["clock", "std"] }
 
 tokio          = { version = "1.36", features = ["full"] }
 futures-util   = { version = "0.3",  default-features = false, features = ["std", "sink"] }

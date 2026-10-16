@@ -3779,6 +3779,7 @@ version = "2.13.0-rc.3"
 dependencies = [
  "anyhow",
  "bindgen",
+ "chrono",
  "clap",
  "cstr_core",
  "futures-util",

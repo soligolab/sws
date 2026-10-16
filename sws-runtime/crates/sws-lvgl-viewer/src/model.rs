@@ -307,6 +307,11 @@ pub struct SynopticObject {
     // ── recipe_panel ──
     pub recipe_panel_id_prefix: Option<String>,
 
+    // ── clock ── (Data e ora: testo da sws_core::data_ora, rinfrescato ogni secondo)
+    pub clock_formato: Option<String>,
+    pub clock_secondi: Option<bool>,
+    pub clock_modello: Option<String>,
+
     // ── setpoint ──
     pub step: Option<f64>,
     pub read_only: Option<bool>,
