@@ -110,6 +110,10 @@ fn da_saltare(nome: &str, andando: bool) -> bool {
 /// `indirizzo` è l'origine del figlio (`http://127.0.0.1:34567` oppure
 /// `http://sws-p-acme-impianto:8444`), `resto` il percorso già ripulito dal
 /// prefisso.
+/// Intestazione interna (mai inoltrata al browser come dato utile): la risposta
+/// 502 nasce dal gateway perché il container non si è raggiunto.
+pub const INTESTAZIONE_NON_RAGGIUNTO: &str = "x-sws-progetto-non-raggiunto";
+
 pub async fn inoltra_http(
     cliente: &reqwest::Client,
     indirizzo: &str,
@@ -151,7 +155,14 @@ pub async fn inoltra_http(
         Ok(r) => r,
         Err(e) => {
             tracing::warn!(%url, "inoltro fallito: {e}");
-            return (StatusCode::BAD_GATEWAY, format!("il progetto non risponde: {e}"))
+            // Il segno per chi ha chiamato: la connessione non è nemmeno
+            // partita (container sparito o fermo), non è il progetto che ha
+            // risposto 502. `rotte.rs` lo usa per verificare con podman.
+            return (
+                StatusCode::BAD_GATEWAY,
+                [(INTESTAZIONE_NON_RAGGIUNTO, "1")],
+                format!("il progetto non risponde: {e}"),
+            )
                 .into_response();
         }
     };

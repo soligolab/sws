@@ -467,6 +467,34 @@ impl Regia {
     }
 
     /// Chiude un progetto adesso, senza aspettare il timer.
+    /// Il container di un progetto che il gateway crede aperto esiste ancora
+    /// ed è acceso? Se no lo dimentica, e la prossima richiesta lo riaprirà
+    /// (15-10-2026). Senza, un container tolto o caduto mentre il gateway lo
+    /// credeva vivo restava nella mappa per sempre: ogni richiesta finiva
+    /// verso un indirizzo morto («No route to host») e l'unico rimedio era
+    /// riavviare il gateway. Si chiama solo quando un inoltro non è partito,
+    /// quindi podman non si interroga a ogni richiesta.
+    pub async fn verifica_vivo(&self, riferimento: &str) -> bool {
+        let Some(a) = self.aperti.read().await.get(riferimento).cloned() else {
+            return false;
+        };
+        let vivo = match self.podman.elenca_nostri().await {
+            Ok(tutti) => tutti.iter().any(|c| c.nome == a.contenitore && c.stato == "running"),
+            // Podman non risponde: non si decide niente, si lascia com'è.
+            Err(e) => {
+                tracing::warn!(%riferimento, "verifica del container non riuscita: {e}");
+                return true;
+            }
+        };
+        if !vivo {
+            tracing::warn!(%riferimento, contenitore = %a.contenitore,
+                "container del progetto sparito o fermo: lo dimentico, la prossima richiesta lo riapre");
+            self.aperti.write().await.remove(riferimento);
+            let _ = self.podman.rimuovi(&a.contenitore).await;
+        }
+        vivo
+    }
+
     pub async fn chiudi(&self, riferimento: &str) -> anyhow::Result<()> {
         let Some(a) = self.aperti.write().await.remove(riferimento) else {
             return Ok(());
@@ -629,6 +657,50 @@ mod tests {
 
         regia.chiudi(&aperto.riferimento).await.unwrap();
         assert_eq!(regia.aperti_di("acme").await, 0);
+        let _ = std::fs::remove_dir_all(&temp);
+    }
+
+    /// Un container tolto mentre il gateway lo crede aperto (15-10-2026, il
+    /// guasto visto su sws.soligo.net): `verifica_vivo` se ne accorge, lo
+    /// dimentica, e la riapertura ne crea uno nuovo. `#[ignore]` come quella
+    /// sopra: `cargo test -p sws-web --lib -- --ignored container_sparito --nocapture`.
+    #[tokio::test]
+    #[ignore]
+    async fn un_container_sparito_si_dimentica_e_si_riapre() {
+        let Some(podman) = Podman::predefinito() else { return };
+        if !podman.raggiungibile().await {
+            return;
+        }
+        let immagine = std::env::var("SWS_IMMAGINE_PROVA")
+            .unwrap_or_else(|_| "localhost/sws-runtime:2.13.0-rc.3-amd64".into());
+        let temp = std::env::temp_dir().join(format!("sws-regia-sparito-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&temp);
+        let dentro = temp.join("acme").join("impianto");
+        std::fs::create_dir_all(&dentro).unwrap();
+        std::fs::write(dentro.join("project.yaml"), "version: 1\nmeta:\n  name: impianto\n").unwrap();
+        let regia = Regia::nuova(podman, immagine, &temp, ComeRaggiungere::PortaPubblicata, "segretolungoabbastanza0123");
+
+        let primo = regia.apri("acme", "impianto", "acme", None).await.unwrap();
+        assert!(regia.verifica_vivo(&primo.riferimento).await, "appena aperto è vivo");
+
+        // Qualcuno lo toglie da fuori (Portainer, un `podman rm`, un OOM).
+        regia.podman.ferma(&primo.contenitore, 1).await.unwrap();
+        regia.podman.rimuovi(&primo.contenitore).await.unwrap();
+
+        assert!(!regia.verifica_vivo(&primo.riferimento).await, "sparito");
+        assert_eq!(regia.aperti_di("acme").await, 0, "dimenticato");
+
+        let secondo = regia.apri("acme", "impianto", "acme", None).await.unwrap();
+        let mut risponde = false;
+        for _ in 0..40 {
+            tokio::time::sleep(Duration::from_millis(500)).await;
+            if reqwest::get(format!("{}/health", secondo.indirizzo)).await.is_ok_and(|r| r.status().is_success()) {
+                risponde = true;
+                break;
+            }
+        }
+        assert!(risponde, "riaperto ma non risponde su {}", secondo.indirizzo);
+        regia.chiudi(&secondo.riferimento).await.unwrap();
         let _ = std::fs::remove_dir_all(&temp);
     }
 

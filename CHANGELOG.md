@@ -82,6 +82,12 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 
 ### Fixed
 
+- **Gateway, container di un progetto sparito**: se il container veniva tolto o cadeva mentre il gateway lo credeva
+  aperto, ogni richiesta finiva verso un indirizzo morto («No route to host», nell'IDE «runtime unavailable») e
+  l'unico rimedio era riavviare il gateway. Ora, quando un inoltro non parte, il gateway chiede a podman: se il
+  container non c'è più lo dimentica (`Regia::verifica_vivo`), risponde 503 «si sta riaprendo», e la richiesta
+  successiva lo ricrea. Visto su sws.soligo.net il 15-10-2026; provato con podman vero (test `#[ignore]`).
+
 - **Git nei progetti del cloud e dei pannelli in container** (`docs/plans/2026-10-15-git-nel-cloud.md`). Non
   funzionava per quattro motivi: l'immagine non aveva né `git` né `ssh`; le chiavi venivano solo da `~/.ssh` del
   processo, che nel container non esiste; non c'era modo di generarne una; e un host mai visto si fermava a

@@ -175,7 +175,17 @@ pub async fn inoltra_al_progetto(
         );
     }
 
-    inoltro::inoltra_http(cliente(), &aperto.indirizzo, &segreto, &utente, &resto, req).await
+    let risposta = inoltro::inoltra_http(cliente(), &aperto.indirizzo, &segreto, &utente, &resto, req).await;
+    if risposta.headers().contains_key(inoltro::INTESTAZIONE_NON_RAGGIUNTO)
+        && !regia.verifica_vivo(&aperto.riferimento).await
+    {
+        // Il corpo della richiesta è già consumato: non si può ripetere qui.
+        // L'IDE riprova da solo (l'impronta del progetto ogni pochi secondi), e
+        // quella richiesta trova il progetto chiuso e lo riapre.
+        return (StatusCode::SERVICE_UNAVAILABLE, "il progetto si sta riaprendo: riprova fra qualche secondo")
+            .into_response();
+    }
+    risposta
 }
 
 #[cfg(test)]
