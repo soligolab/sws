@@ -193,6 +193,8 @@ pub async fn validate_project(
     }
 
     findings.extend(semantic(&project, &pages));
+    let cornici = carica_cornici(&dir).await;
+    findings.extend(crate::validate::rilievi_cornici(&project, &pages, &cornici));
 
     // ── 5. Cosa c'era già ────────────────────────────────────────────────────
     // Stessa validazione sul progetto e sulle pagine **come stanno su disco**.
@@ -201,6 +203,9 @@ pub async fn validate_project(
     let mut prima: std::collections::HashSet<String> = Default::default();
     if let (Ok(p0), Ok(pg0)) = (Project::load(&dir), carica_pagine(&dir).await) {
         for f in semantic(&p0, &pg0) {
+            prima.insert(chiave(&f));
+        }
+        for f in crate::validate::rilievi_cornici(&p0, &pg0, &cornici) {
             prima.insert(chiave(&f));
         }
     }
@@ -240,7 +245,30 @@ pub async fn project_findings(State(s): State<AppState>) -> Json<Vec<Finding>> {
     let (Ok(project), Ok(pages)) = (Project::load(&dir), carica_pagine(&dir).await) else {
         return Json(Vec::new());
     };
-    Json(semantic(&project, &pages))
+    let mut out = semantic(&project, &pages);
+    out.extend(crate::validate::rilievi_cornici(&project, &pages, &carica_cornici(&dir).await));
+    Json(out)
+}
+
+/// Le cornici del progetto su disco; una illeggibile si salta.
+async fn carica_cornici(dir: &std::path::Path) -> Vec<crate::cornici::Cornice> {
+    let mut out = Vec::new();
+    let Ok(mut entries) = tokio::fs::read_dir(crate::router::cornici_dir_at(dir)).await else {
+        return out;
+    };
+    while let Ok(Some(e)) = entries.next_entry().await {
+        let path = e.path();
+        if path.extension().and_then(|x| x.to_str()) != Some("yaml") {
+            continue;
+        }
+        if let Ok(testo) = tokio::fs::read_to_string(&path).await {
+            if let Ok(c) = serde_yaml::from_str(&testo) {
+                out.push(c);
+            }
+        }
+    }
+    out.sort_by(|a: &crate::cornici::Cornice, b| a.id.cmp(&b.id));
+    out
 }
 
 async fn carica_pagine(dir: &std::path::Path) -> Result<Vec<SynopticPage>, String> {

@@ -19,9 +19,10 @@ export const BOOT_SFONDO = "#0f172a";
 
 export const eBoot = (p: { kind?: string } | undefined | null): boolean => p?.kind === "boot";
 
-/** Le pagine che un pannello mostra e fra cui si naviga: tutte tranne quelle di boot. */
+/** Le pagine che un pannello mostra e fra cui si naviga: tutte tranne quelle di
+ *  boot e le cornici (15-10-2026), che nell'IDE sono pagine ma non si navigano. */
 export function paginePerNavigazione<T extends { kind?: string }>(pages: readonly T[]): T[] {
-  return pages.filter((p) => !eBoot(p));
+  return pages.filter((p) => !eBoot(p) && p.kind !== "cornice");
 }
 
 export function pagineDiBoot<T extends { kind?: string }>(pages: readonly T[]): T[] {
@@ -32,13 +33,14 @@ export function pagineDiBoot<T extends { kind?: string }>(pages: readonly T[]): 
  *  usa gli indici della sola parte sinottica: tenere le pagine di boot in coda
  *  li lascia validi. */
 export function sinotticiPoiBoot<T extends { kind?: string }>(pages: readonly T[]): T[] {
-  return [...paginePerNavigazione(pages), ...pagineDiBoot(pages)];
+  return [...paginePerNavigazione(pages), ...pagineDiBoot(pages), ...pages.filter((p) => p.kind === "cornice")];
 }
 
 /** La chiave con cui il salvataggio ricorda una pagina già su disco: il nome
  *  da solo non basta, perché una sinottica e una di boot possono chiamarsi
  *  uguale (cartelle diverse). */
-export function chiavePagina(p: Pick<SynopticPage, "name" | "kind">): string {
+export function chiavePagina(p: Pick<SynopticPage, "id" | "name" | "kind">): string {
+  if (p.kind === "cornice") return `cornice/${p.id.replace(/^cornice:/, "")}`;
   return eBoot(p) ? `boot/${p.name}` : p.name;
 }
 

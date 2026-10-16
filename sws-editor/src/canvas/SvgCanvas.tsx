@@ -135,6 +135,12 @@ interface SvgCanvasProps {
    *  disponibile (RuntimeView), con cap a 1 — si rimpicciolisce, non si
    *  ingrandisce. Default 1 = comportamento 1:1 storico. */
   fitScale?: number;
+
+  /** Editor: gli oggetti della cornice della pagina (15-10-2026), già composti
+   *  (`cornici/modello.ts`). Si disegnano sotto, attenuati e non selezionabili. */
+  sottofondo?: SynopticObject[];
+  /** Editor, cornice aperta sul canvas: le altezze delle due fasce da segnare. */
+  fasceCornice?: { testata: number; piede: number; sfondoTestata?: string; sfondoPiede?: string };
 }
 
 interface DragState {
@@ -664,6 +670,8 @@ export function SvgCanvas({
   onZoomChange,
   fitPageSize = null,
   fitScale = 1,
+  sottofondo,
+  fasceCornice,
 }: SvgCanvasProps) {
   const { t } = useTranslation();
   // Il default storico del componente, ripristinato subito: tutto il resto del
@@ -1782,7 +1790,38 @@ export function SvgCanvas({
       {/* In cattura waypoint il layer oggetti è trasparente al mouse:
           il crosshair resta e ogni click cattura un punto, anche sopra
           gli oggetti (Esc per uscire). */}
+      {/* Le fasce della cornice aperta: la parte che le pagine vedranno sotto
+          di sé. Quello che sta fuori dalle fasce il validatore lo segnala. */}
+      {onMove && fasceCornice && pageWidth && pageHeight && (
+        <g style={{ pointerEvents: "none" }} data-testid="fasce-cornice">
+          {fasceCornice.testata > 0 && (
+            <>
+              {fasceCornice.sfondoTestata && <rect x={0} y={0} width={pageWidth} height={fasceCornice.testata} fill={fasceCornice.sfondoTestata} />}
+              <rect x={0} y={0} width={pageWidth} height={fasceCornice.testata} fill="#3b82f6" opacity={0.08} />
+              <line x1={0} x2={pageWidth} y1={fasceCornice.testata} y2={fasceCornice.testata} stroke="#3b82f6" strokeDasharray="8 4" />
+            </>
+          )}
+          {fasceCornice.piede > 0 && (
+            <>
+              {fasceCornice.sfondoPiede && <rect x={0} y={pageHeight - fasceCornice.piede} width={pageWidth} height={fasceCornice.piede} fill={fasceCornice.sfondoPiede} />}
+              <rect x={0} y={pageHeight - fasceCornice.piede} width={pageWidth} height={fasceCornice.piede} fill="#3b82f6" opacity={0.08} />
+              <line x1={0} x2={pageWidth} y1={pageHeight - fasceCornice.piede} y2={pageHeight - fasceCornice.piede} stroke="#3b82f6" strokeDasharray="8 4" />
+            </>
+          )}
+        </g>
+      )}
+
       <g style={captureTarget || inDisegno ? { pointerEvents: "none" } : undefined}>
+      {/* La cornice della pagina, sotto e attenuata: si vede ma non si tocca. */}
+      {sottofondo && sottofondo.length > 0 && (
+        <g opacity={0.45} style={{ pointerEvents: "none" }} data-testid="sottofondo-cornice">
+          {sottofondo.map((obj) => (
+            <SvgObject key={obj.id} obj={obj} objects={sottofondo} tagValues={tagValues}
+              selected={false} selectedCount={0} isEditMode={!!onMove}
+              customSymbols={customSymbols} faceplates={faceplates} />
+          ))}
+        </g>
+      )}
       {sortByZ(objects).map((obj) => {
         // Visibility: in view mode, skip non-visible objects entirely.
         // In edit mode, always render so the designer can still select them

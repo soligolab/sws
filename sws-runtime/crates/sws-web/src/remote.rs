@@ -1860,10 +1860,10 @@ pub struct DeployBody {
     pub confirm_missing_symbols: bool,
 }
 
-/// Gli id `lib:` usati dalle pagine e dai faceplate del progetto, in ordine.
+/// Gli id `lib:` usati dalle pagine, dai faceplate e dalle cornici del progetto, in ordine.
 async fn simboli_lib_usati(dir: &std::path::Path) -> Vec<String> {
     let mut usati = std::collections::BTreeSet::new();
-    for cartella in ["synoptics", "faceplates"] {
+    for cartella in ["synoptics", "faceplates", "cornici"] {
         let Ok(mut rd) = tokio::fs::read_dir(dir.join(cartella)).await else { continue };
         while let Ok(Some(e)) = rd.next_entry().await {
             if e.path().extension().is_some_and(|x| x == "yaml" || x == "yml") {

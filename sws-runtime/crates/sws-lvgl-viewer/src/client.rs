@@ -34,6 +34,9 @@ pub async fn fetch_page(base_url: &str, page_name: &str) -> anyhow::Result<Synop
         .push("api")
         .push("synoptics")
         .push(page_name);
+    // La pagina composta con la sua cornice (15-10-2026): la stessa che riceve
+    // il viewer web, composta dal runtime in un punto solo.
+    url.query_pairs_mut().append_pair("cornice", "1");
 
     let client = reqwest::Client::builder()
         .use_preconfigured_tls(pinned_client_config(base_url)?)

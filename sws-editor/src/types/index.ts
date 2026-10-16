@@ -886,7 +886,39 @@ export interface SynopticPage {
   locked?: boolean;
   /** Tipo di pagina (T-72). Assente = sinottica; `"boot"` = immagine di boot del
    *  pannello, salvata in `boot/` e mai vista dai viewer. */
-  kind?: "boot";
+  kind?: "boot" | "cornice";
+  /** Solo per `kind: "cornice"` (la cornice aperta sul canvas): le due fasce.
+   *  Non arrivano mai su `synoptics/`: una pagina-cornice si salva in `cornici/`. */
+  cornice_testata?: FasciaCornice;
+  cornice_piede?: FasciaCornice;
+  /** La cornice della pagina (15-10-2026, `sws-web/src/cornici.rs`): assente =
+   *  la predefinita del progetto, `null` = nessuna, un id = quella cornice. */
+  cornice?: string | null;
+}
+
+/** Una fascia della cornice: altezza in px (0 = assente) e fondo facoltativo. */
+export interface FasciaCornice {
+  altezza: number;
+  sfondo?: string;
+}
+
+/** Testata e piede comuni alle pagine che la usano (`cornici/<id>.yaml`). Gli
+ *  oggetti sono in coordinate di pagina e stanno dentro le fasce. */
+export interface Cornice {
+  id: string;
+  nome: string;
+  larghezza: number;
+  altezza: number;
+  testata: FasciaCornice;
+  piede: FasciaCornice;
+  oggetti: SynopticObject[];
+}
+
+export interface CorniceInElenco {
+  id: string;
+  nome: string;
+  larghezza: number;
+  altezza: number;
 }
 
 export interface Project {
@@ -1672,6 +1704,8 @@ export interface PageLayoutConfig {
   /** Gerarchia e ordine delle pagine. Assente = elenco piatto in ordine
    *  alfabetico (come prima): si legge sempre passando da `riconcilia`. */
   page_tree?: PageTreeNode[];
+  /** La cornice delle pagine che non ne dichiarano una (15-10-2026). */
+  cornice_predefinita?: string;
 }
 
 /** Motore di rendering a cui è destinato il progetto — vedi

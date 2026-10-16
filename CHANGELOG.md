@@ -163,6 +163,19 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 
 ### Added
 
+- **Cornici di pagina** (piano `docs/plans/2026-10-15-cornici-di-pagina.md`, ramo 2). Una testata e un piede comuni
+  alle pagine che li usano: `cornici/<id>.yaml` con le due fasce (altezza e fondo) e gli oggetti in coordinate di
+  pagina. Ogni pagina sceglie la predefinita del progetto (`page_layout.cornice_predefinita`), un'altra cornice o
+  nessuna (`cornice: null`). Il runtime compone la pagina in un punto solo (`GET /api/synoptics/:nome?cornice=1`,
+  `sws-web/src/cornici.rs`): fondi delle fasce, segnaposti `{{pagina.nome}}`, `{{pagina.id}}`, `{{progetto.nome}}`,
+  id con prefisso `cornice:`; la chiedono il viewer web e quello LVGL. Nell'IDE il ramo «Cornici» dell'albero ne
+  crea una da quattro modelli e la apre sul canvas come una pagina, con le fasce segnate; sotto ogni pagina la
+  cornice si vede attenuata e non selezionabile, con il rimando «Modifica la cornice». Le cornici viaggiano in
+  esportazione, importazione, deploy, istantanea e impronta; il validatore segnala cornici inesistenti, misure
+  diverse dalla pagina, oggetti della cornice fuori dalle fasce e oggetti della pagina dentro. Il salvataggio di una
+  pagina scarta gli oggetti composti, così la cornice non si raddoppia. Parità editor/runtime su
+  `tests/fixtures/cornici.json`.
+
 - **Oggetto «Data e ora» (`clock`)** (piano `docs/plans/2026-10-15-cornici-di-pagina.md`, ramo 1). Mostra l'orologio
   del dispositivo che apre la pagina, rinfrescato ogni secondo: formati `ora`, `data`, `data_ora`, `giorno` e
   `personalizzato` (`clock_modello`, segnaposti `%d %m %Y %y %H %M %S %A %a %B %b %%`), secondi a scelta, giorni e

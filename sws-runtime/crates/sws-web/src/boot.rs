@@ -227,6 +227,7 @@ pub fn pagina_di_boot_iniziale() -> SynopticPage {
         auto_rotate_skip: None,
         locked: None,
         kind: Some(BOOT_KIND.to_string()),
+        cornice: None,
     }
 }
 
@@ -246,6 +247,7 @@ pub fn pagina_uno_iniziale() -> SynopticPage {
         auto_rotate_skip: None,
         locked: None,
         kind: None,
+        cornice: None,
     }
 }
 

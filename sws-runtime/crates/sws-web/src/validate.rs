@@ -464,6 +464,79 @@ fn distanza(a: &str, b: &str) -> usize {
 // Metà 2 — le regole semantiche
 // ─────────────────────────────────────────────────────────────────────────────
 
+/// I rilievi delle cornici di pagina (15-10-2026, `cornici.rs`): cornici
+/// che una pagina chiede e non esistono, misure diverse dalla pagina, oggetti
+/// della cornice fuori dalle fasce e oggetti della pagina dentro le fasce.
+pub fn rilievi_cornici(
+    project: &Project,
+    pages: &[SynopticPage],
+    cornici: &[crate::cornici::Cornice],
+) -> Vec<Finding> {
+    let mut out = Vec::new();
+    let per_id: HashMap<&str, &crate::cornici::Cornice> =
+        cornici.iter().map(|c| (c.id.as_str(), c)).collect();
+    let predefinita = project
+        .page_layout
+        .as_ref()
+        .and_then(|l| l.cornice_predefinita.as_deref())
+        .filter(|s| !s.is_empty());
+    if let Some(id) = predefinita.filter(|id| !per_id.contains_key(id)) {
+        out.push(Finding::err(
+            "page_layout.cornice_predefinita",
+            format!("la cornice predefinita `{id}` non esiste"),
+            "scegline una che c'è nelle impostazioni del progetto, oppure nessuna",
+        ));
+    }
+    for c in cornici {
+        for o in crate::cornici::oggetti_fuori_dalle_fasce(c) {
+            out.push(Finding::warn(
+                format!("cornici[{}].oggetti[{o}]", c.id),
+                format!("l'oggetto `{o}` esce dalle fasce della cornice"),
+                "un oggetto della cornice deve stare tutto nella testata o tutto nel piede: \
+                 fuori finirebbe sopra il contenuto delle pagine",
+            ));
+        }
+    }
+    for p in pages {
+        let Some(id) = crate::cornici::cornice_della_pagina(p, predefinita) else { continue };
+        let Some(c) = per_id.get(id.as_str()) else {
+            // La predefinita mancante è già detta una volta sopra.
+            if p.cornice.is_some() {
+                out.push(Finding::err(
+                    format!("pages[{}].cornice", p.name),
+                    format!("la cornice `{id}` non esiste"),
+                    "scegline un'altra nelle proprietà della pagina, oppure nessuna",
+                ));
+            }
+            continue;
+        };
+        if p.width.is_some_and(|w| (w - c.larghezza).abs() > 0.5)
+            || p.height.is_some_and(|h| (h - c.altezza).abs() > 0.5)
+        {
+            out.push(Finding::warn(
+                format!("pages[{}].cornice", p.name),
+                format!(
+                    "la pagina è {}×{}, la cornice `{}` è {}×{}",
+                    p.width.unwrap_or(0.0),
+                    p.height.unwrap_or(0.0),
+                    c.id,
+                    c.larghezza,
+                    c.altezza
+                ),
+                "una cornice si applica a pagine delle sue stesse misure: il piede finirebbe nel posto sbagliato",
+            ));
+        }
+        for o in crate::cornici::oggetti_nelle_fasce(p, c) {
+            out.push(Finding::warn(
+                format!("pages[{}].objects[{o}]", p.name),
+                format!("l'oggetto `{o}` entra in una fascia della cornice `{}`", c.id),
+                "la cornice ci sta sotto: spostalo nella parte libera della pagina",
+            ));
+        }
+    }
+    out
+}
+
 pub fn semantic(project: &Project, pages: &[SynopticPage]) -> Vec<Finding> {
     let mut out = Vec::new();
     let tipi: HashSet<&str> = OBJECT_TYPES.iter().copied().collect();

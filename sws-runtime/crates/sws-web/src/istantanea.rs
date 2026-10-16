@@ -286,6 +286,7 @@ async fn copia_progetto(da: &Path, a: &Path) -> Result<(), String> {
         "project.yaml",
         "synoptics",
         "faceplates",
+        "cornici",
         "images",
         "recipes",
     ];

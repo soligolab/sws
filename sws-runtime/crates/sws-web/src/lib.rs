@@ -1,5 +1,6 @@
 pub mod abbinamento;
 pub mod ai;
+pub mod cornici;
 pub mod amministrazione;
 pub mod marchi;
 pub mod backups;

@@ -1,0 +1,23 @@
+{
+  "_perche": "La composizione di una cornice sotto una pagina (piano 2026-10-15-cornici-di-pagina): il runtime (sws-web/src/cornici.rs, componi) la fa per i viewer, l'editor (sws-editor/src/cornici/modello.ts, oggettiComposti) per il sottofondo attenuato. Stessi id, stesso ordine, stessi segnaposti.",
+  "progetto": "Casa",
+  "cornice": {
+    "id": "base", "nome": "Base", "larghezza": 1280, "altezza": 800,
+    "testata": { "altezza": 56, "sfondo": "#1e293b" },
+    "piede": { "altezza": 60 },
+    "oggetti": [
+      { "id": "titolo", "type": "text", "x": 20, "y": 36, "text": "{{pagina.nome}} · {{progetto.nome}} · {{t0001}}" },
+      { "id": "ora", "type": "clock", "x": 1060, "y": 10, "width": 200, "height": 36 },
+      { "id": "nav", "type": "page_navigator", "x": 10, "y": 748, "width": 1260, "height": 44, "label": "{{pagina.id}}" },
+      { "id": "tubo", "type": "pipe", "x": 0, "y": 0, "to_obj_id": "ora", "from_obj_id": "fuori" }
+    ]
+  },
+  "pagina": { "id": "pg1", "name": "Cucina", "objects": [ { "id": "a", "type": "rect", "x": 100, "y": 100 } ] },
+  "atteso": [
+    { "id": "cornice:base:_testata", "type": "rect", "y": 0, "height": 56, "fill": "#1e293b" },
+    { "id": "cornice:base:titolo", "text": "Cucina · Casa · {{t0001}}" },
+    { "id": "cornice:base:ora" },
+    { "id": "cornice:base:nav", "label": "pg1" },
+    { "id": "cornice:base:tubo", "to_obj_id": "cornice:base:ora", "from_obj_id": "fuori" }
+  ]
+}

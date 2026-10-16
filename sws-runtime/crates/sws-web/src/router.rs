@@ -839,6 +839,12 @@ pub fn build(
                 .put(save_faceplate)
                 .delete(delete_faceplate),
         )
+        // Cornici di pagina (15-10-2026, `cornici.rs`): come i faceplate.
+        .route("/api/cornici", get(list_cornici))
+        .route(
+            "/api/cornici/:id",
+            get(get_cornice).put(save_cornice).delete(delete_cornice),
+        )
         // Recipe REST (read)
         .route("/api/recipes", get(list_recipes))
         .route("/api/recipes/history", get(get_recipe_history))
@@ -1480,6 +1486,8 @@ fn build_runtime_inner(state: AppState, www_dir: Option<PathBuf>) -> Router {
         .route("/api/project/images/:name", get(get_project_image))
         .route("/api/faceplates", get(list_faceplates))
         .route("/api/faceplates/:id", get(get_faceplate))
+        .route("/api/cornici", get(list_cornici))
+        .route("/api/cornici/:id", get(get_cornice))
         .route("/api/recipes", get(list_recipes))
         .route("/api/recipes/history", get(get_recipe_history))
         .route("/api/recipes/:id", get(get_recipe))
@@ -5714,6 +5722,7 @@ pub(crate) async fn build_project_zip(
         .await
         .map_err(|e| anyhow::anyhow!("cannot read synoptics: {e}"))?;
     let faceplates = read_yaml_dir(&faceplates_dir_at(dir)).await;
+    let cornici = read_yaml_dir(&cornici_dir_at(dir)).await;
     let recipes = read_yaml_dir(&recipes_dir_at(dir)).await;
     let images = read_images_dir(&images_dir_at(dir)).await;
     let boot = crate::boot::leggi_per_bundle(dir).await;
@@ -5739,6 +5748,7 @@ pub(crate) async fn build_project_zip(
         &pages,
         users_yaml.as_deref(),
         &faceplates,
+        &cornici,
         &recipes,
         &images,
         &boot,
@@ -5783,6 +5793,7 @@ async fn export_project_zip(
         }
     };
     let faceplates = read_yaml_dir(&faceplates_dir_at(&dir)).await;
+    let cornici = read_yaml_dir(&cornici_dir_at(&dir)).await;
     let recipes = read_yaml_dir(&recipes_dir_at(&dir)).await;
     let images = read_images_dir(&images_dir_at(&dir)).await;
     let boot = crate::boot::leggi_per_bundle(&dir).await;
@@ -5809,6 +5820,7 @@ async fn export_project_zip(
         &pages,
         users_yaml.as_deref(),
         &faceplates,
+        &cornici,
         &recipes,
         &images,
         &boot,
@@ -5852,6 +5864,7 @@ fn build_export_zip(
     pages: &[SynopticPage],
     users_yaml: Option<&str>,
     faceplates: &[(String, String)],
+    cornici: &[(String, String)],
     recipes: &[(String, String)],
     images: &[(String, Vec<u8>)],
     boot: &[(String, Vec<u8>)],
@@ -5896,6 +5909,12 @@ fn build_export_zip(
         // sul device di destinazione dopo il deploy.
         for (fname, yaml) in faceplates {
             z.start_file(format!("faceplates/{fname}"), opts)?;
+            z.write_all(yaml.as_bytes())?;
+        }
+        // Cornici di pagina (15-10-2026): senza, il deploy porterebbe pagine che
+        // ne chiedono una che il dispositivo non ha.
+        for (fname, yaml) in cornici {
+            z.start_file(format!("cornici/{fname}"), opts)?;
             z.write_all(yaml.as_bytes())?;
         }
         for (fname, yaml) in recipes {
@@ -6231,6 +6250,12 @@ async fn import_project_zip(
     {
         warn!("import: sync faceplates: {e}");
         return (StatusCode::INTERNAL_SERVER_ERROR, "sync faceplates").into_response();
+    }
+    if let Err(e) =
+        sync_yaml_dir_from_zip(&mut archive, "cornici", &cornici_dir_at(project_dir)).await
+    {
+        warn!("import: sync cornici: {e}");
+        return (StatusCode::INTERNAL_SERVER_ERROR, "sync cornici").into_response();
     }
     if let Err(e) =
         sync_yaml_dir_from_zip(&mut archive, "recipes", &recipes_dir_at(project_dir)).await
@@ -6634,10 +6659,19 @@ async fn pages_nav(
     .into_response()
 }
 
+#[derive(serde::Deserialize, Default)]
+struct SynopticQuery {
+    /// `?cornice=1`: la pagina **composta** con la sua cornice (`cornici.rs`).
+    /// La chiedono i viewer; l'IDE legge la pagina com'è nel file.
+    #[serde(default)]
+    cornice: Option<String>,
+}
+
 async fn get_synoptic(
     State(s): State<AppState>,
     axum::extract::Extension(user): axum::extract::Extension<AuthUser>,
     Path(name): Path<String>,
+    Query(q): Query<SynopticQuery>,
 ) -> Response {
     let project_dir = match active_dir(&s).await {
         Ok(d) => d,
@@ -6646,9 +6680,24 @@ async fn get_synoptic(
     let path = synoptics_dir_at(&project_dir).join(format!("{}.yaml", safe_filename(&name)));
     match tokio::fs::read_to_string(&path).await {
         Ok(text) => match serde_yaml::from_str::<SynopticPage>(&text) {
-            Ok(page) => {
+            Ok(mut page) => {
                 if !zone_allowed(&user.allowed_zones, &page.zones) {
                     return StatusCode::FORBIDDEN.into_response();
+                }
+                if matches!(q.cornice.as_deref(), Some("1") | Some("true")) {
+                    let progetto = sws_core::Project::load(&project_dir).ok();
+                    let predefinita = progetto
+                        .as_ref()
+                        .and_then(|p| p.page_layout.as_ref())
+                        .and_then(|l| l.cornice_predefinita.clone());
+                    if let Some(id) = crate::cornici::cornice_della_pagina(&page, predefinita.as_deref()) {
+                        // Una cornice che non c'è non rompe la pagina: si mostra
+                        // senza, e il validatore lo dice.
+                        if let Some(c) = leggi_cornice(&project_dir, &id).await {
+                            let nome = progetto.as_ref().map(|p| p.meta.name.clone()).unwrap_or_default();
+                            crate::cornici::componi(&mut page, &c, &nome);
+                        }
+                    }
                 }
                 // Q30: la versione di **questa** pagina. Le pagine sono file
                 // distinti, quindi la corsa è fra due che salvano la stessa —
@@ -6798,8 +6847,12 @@ async fn save_synoptic(
     State(s): State<AppState>,
     Path(name): Path<String>,
     headers: axum::http::HeaderMap,
-    Json(page): Json<SynopticPage>,
+    Json(mut page): Json<SynopticPage>,
 ) -> Response {
+    // Gli oggetti di una cornice composta non sono della pagina: se una pagina
+    // letta con `?cornice=1` tornasse indietro, la cornice si raddoppierebbe a
+    // ogni salvataggio. Si tolgono qui, dove nessun client può dimenticarlo.
+    page.objects.retain(|o| !o.id.starts_with(crate::cornici::PREFISSO_ID));
     // Una pagina di boot vive in `boot/`, non qui: lasciarla passare la
     // farebbe vedere ai viewer, che leggono solo `synoptics/`.
     if crate::boot::e_pagina_di_boot(&page) {
@@ -7214,6 +7267,131 @@ async fn delete_faceplate(State(s): State<AppState>, Path(id): Path<String>) -> 
     let path = faceplates_dir_at(&project_dir).join(format!("{}.yaml", safe_filename(&id)));
     match tokio::fs::remove_file(&path).await {
         Ok(()) => StatusCode::NO_CONTENT,
+        Err(_) => StatusCode::NOT_FOUND,
+    }
+}
+
+// ── Cornici di pagina ─────────────────────────────────────────────────────────
+
+pub(crate) fn cornici_dir_at(project_dir: &std::path::Path) -> PathBuf {
+    project_dir.join("cornici")
+}
+
+/// Una cornice dal disco, se c'è e si legge.
+async fn leggi_cornice(project_dir: &std::path::Path, id: &str) -> Option<crate::cornici::Cornice> {
+    let path = cornici_dir_at(project_dir).join(format!("{}.yaml", safe_filename(id)));
+    let text = tokio::fs::read_to_string(&path).await.ok()?;
+    match serde_yaml::from_str(&text) {
+        Ok(c) => Some(c),
+        Err(e) => {
+            warn!("cornice {id} illeggibile: {e}");
+            None
+        }
+    }
+}
+
+/// `GET /api/cornici` — `[{id, nome, larghezza, altezza}]`, in ordine di id.
+async fn list_cornici(State(s): State<AppState>) -> Response {
+    let project_dir = match active_dir(&s).await {
+        Ok(d) => d,
+        Err(c) => return c.into_response(),
+    };
+    let mut out = Vec::new();
+    if let Ok(mut entries) = tokio::fs::read_dir(cornici_dir_at(&project_dir)).await {
+        while let Ok(Some(entry)) = entries.next_entry().await {
+            let path = entry.path();
+            if path.extension().and_then(|e| e.to_str()) != Some("yaml") {
+                continue;
+            }
+            let Ok(text) = tokio::fs::read_to_string(&path).await else { continue };
+            match serde_yaml::from_str::<crate::cornici::Cornice>(&text) {
+                Ok(c) => out.push(serde_json::json!({
+                    "id": c.id, "nome": c.nome, "larghezza": c.larghezza, "altezza": c.altezza,
+                })),
+                Err(e) => warn!("cornice {} illeggibile: {e}", path.display()),
+            }
+        }
+    }
+    out.sort_by(|a, b| a["id"].as_str().cmp(&b["id"].as_str()));
+    Json(out).into_response()
+}
+
+async fn get_cornice(State(s): State<AppState>, Path(id): Path<String>) -> Response {
+    let project_dir = match active_dir(&s).await {
+        Ok(d) => d,
+        Err(c) => return c.into_response(),
+    };
+    let path = cornici_dir_at(&project_dir).join(format!("{}.yaml", safe_filename(&id)));
+    let Ok(text) = tokio::fs::read_to_string(&path).await else {
+        return StatusCode::NOT_FOUND.into_response();
+    };
+    match serde_yaml::from_str::<crate::cornici::Cornice>(&text) {
+        Ok(c) => con_versione(Json(c).into_response(), &text),
+        Err(e) => {
+            warn!("cornice {id} illeggibile: {e}");
+            StatusCode::INTERNAL_SERVER_ERROR.into_response()
+        }
+    }
+}
+
+async fn save_cornice(
+    State(s): State<AppState>,
+    Path(id): Path<String>,
+    headers: axum::http::HeaderMap,
+    Json(mut c): Json<crate::cornici::Cornice>,
+) -> Response {
+    let project_dir = match active_dir(&s).await {
+        Ok(d) => d,
+        Err(c) => return c.into_response(),
+    };
+    let dir = cornici_dir_at(&project_dir);
+    if let Err(e) = tokio::fs::create_dir_all(&dir).await {
+        warn!("cannot create cornici dir: {e}");
+        return StatusCode::INTERNAL_SERVER_ERROR.into_response();
+    }
+    c.id = id.clone();
+    // Un oggetto con il prefisso è il riflesso di una composizione finito in un
+    // salvataggio: non appartiene alla cornice, toglierlo evita il raddoppio.
+    c.oggetti.retain(|o| !o.id.starts_with(crate::cornici::PREFISSO_ID));
+    let path = dir.join(format!("{}.yaml", safe_filename(&id)));
+    let su_disco = tokio::fs::read_to_string(&path).await.ok();
+    if let Some(r) = conflitto_di_versione(
+        versione_attesa(&headers).as_deref(),
+        su_disco.as_deref(),
+        "Questa cornice",
+    ) {
+        return r;
+    }
+    match serde_yaml::to_string(&c) {
+        Ok(yaml) => match scrivi_atomico(&path, yaml.as_bytes()).await {
+            Ok(()) => {
+                // Le pagine che la usano cambiano aspetto: i viewer ricaricano.
+                signal_project_changed(&s, "cornice");
+                con_versione(StatusCode::NO_CONTENT.into_response(), &yaml)
+            }
+            Err(e) => {
+                warn!("cannot write cornice {id}: {e}");
+                StatusCode::INTERNAL_SERVER_ERROR.into_response()
+            }
+        },
+        Err(e) => {
+            warn!("cannot serialize cornice {id}: {e}");
+            StatusCode::INTERNAL_SERVER_ERROR.into_response()
+        }
+    }
+}
+
+async fn delete_cornice(State(s): State<AppState>, Path(id): Path<String>) -> StatusCode {
+    let project_dir = match active_dir(&s).await {
+        Ok(d) => d,
+        Err(c) => return c,
+    };
+    let path = cornici_dir_at(&project_dir).join(format!("{}.yaml", safe_filename(&id)));
+    match tokio::fs::remove_file(&path).await {
+        Ok(()) => {
+            signal_project_changed(&s, "cornice");
+            StatusCode::NO_CONTENT
+        }
         Err(_) => StatusCode::NOT_FOUND,
     }
 }
@@ -8682,6 +8860,29 @@ pub(crate) fn calcola_impronta(dir: &std::path::Path) -> anyhow::Result<String> 
         }
     }
 
+    // Le cornici (15-10-2026): cambiarne una cambia l'aspetto delle pagine
+    // che la usano, quindi il deploy non è più aggiornato. Come `boot/`, entrano
+    // solo se la cartella c'è: l'impronta dei progetti senza cornici non cambia.
+    let cornici_dir = dir.join("cornici");
+    if cornici_dir.is_dir() {
+        let mut files: Vec<std::path::PathBuf> = std::fs::read_dir(&cornici_dir)
+            .map_err(|e| anyhow::anyhow!("cornici/: {e}"))?
+            .filter_map(|e| e.ok())
+            .map(|e| e.path())
+            .filter(|p| p.extension().and_then(|s| s.to_str()) == Some("yaml"))
+            .collect();
+        files.sort();
+        for path in &files {
+            if let Some(name) = path.file_name().and_then(|n| n.to_str()) {
+                hasher.update(b"cornici/");
+                hasher.update(name.as_bytes());
+            }
+            let content =
+                std::fs::read(path).map_err(|e| anyhow::anyhow!("{}: {e}", path.display()))?;
+            hasher.update(&content);
+        }
+    }
+
     // Le pagine di boot (T-72): una modifica allo splash marca il deploy come
     // non aggiornato. Entrano nell'hash solo se `boot/` c'è, così l'impronta di
     // un progetto senza pagine di boot resta quella di prima.
@@ -9580,6 +9781,8 @@ struct PageLayoutBody {
     default_background_dark: Option<String>,
     #[serde(default)]
     page_tree: Option<Vec<sws_core::PageTreeNode>>,
+    #[serde(default)]
+    cornice_predefinita: Option<String>,
 }
 
 impl From<PageLayoutBody> for PageLayoutConfig {
@@ -9595,6 +9798,7 @@ impl From<PageLayoutBody> for PageLayoutConfig {
             default_background: b.default_background,
             default_background_dark: b.default_background_dark,
             page_tree: b.page_tree,
+            cornice_predefinita: b.cornice_predefinita,
         }
     }
 }
@@ -10324,7 +10528,7 @@ notifications:
             exported_at_ms: 0,
             secrets_masked: true,
         };
-        let zip = build_export_zip(&manifest, &project, &[], None, &[], &[], &[], &[], None)
+        let zip = build_export_zip(&manifest, &project, &[], None, &[], &[], &[], &[], &[], None)
             .expect("build zip senza segreti");
 
         let mut a = zip::ZipArchive::new(Cursor::new(zip.clone())).unwrap();
@@ -10348,6 +10552,7 @@ notifications:
             &project,
             &[],
             None,
+            &[],
             &[],
             &[],
             &[],
@@ -10489,6 +10694,7 @@ mod write_safety_tests {
             default_background: None,
             default_background_dark: None,
             page_tree: None,
+            cornice_predefinita: None,
         };
         let y = serde_yaml::to_string(&solo).unwrap();
         assert!(

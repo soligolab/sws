@@ -16,6 +16,7 @@ import { canConfigureProject, canEditProject } from "@/auth/permissions";
 import { IntestazioneSezione, PREFISSO_MEMORIA, TitoloVista, useSezioneAperta, colonneGuide, guideAlbero } from "./stilePannelli";
 import type { ObjectGroup, SynopticObject, SynopticPage } from "@/types";
 import { BOOT_TYPES, eBoot, paginePerNavigazione, pagineDiBoot } from "@/boot/tipi";
+import { MODELLI_CORNICE, idCornice, pagineCornice, type ModelloCornice } from "@/cornici/modello";
 import { impostaBootAbilitata } from "@/boot/abilitata";
 import { discendentiDi, riconcilia, righe, spostaRispettoA, type ZonaRilascio } from "@/pageTree";
 
@@ -173,6 +174,9 @@ function PagesSection() {
   const pages         = paginePerNavigazione(tutte);
   const bootPages     = pagineDiBoot(tutte);
   const addBootPage   = useAppStore((s) => s.addBootPage);
+  const cornici       = pagineCornice(tutte);
+  const addCornice    = useAppStore((s) => s.addCornice);
+  const corniceDefault = useAppStore((s) => s.project?.page_layout?.cornice_predefinita);
   // F8 — serve alla miniatura: il colore della pagina dipende dal tema, e
   // qui era l'unico punto dell'IDE che non lo risolveva.
   const themeMode     = useAppStore((s) => s.themeMode);
@@ -540,6 +544,73 @@ function PagesSection() {
         </div>
     </>
   );
+  // Le cornici (15-10-2026): testata e piede comuni alle pagine che le usano.
+  // Si aprono sul canvas come una pagina; la stella segna la predefinita.
+  const corpoCornici = (
+    <>
+        {cornici.map((p) => (
+          <div
+            key={p.id}
+            data-testid={`cornice-${idCornice(p)}`}
+            style={{ ...S.row(p.id === currentPageId), justifyContent: "space-between", gap: 6 }}
+            onClick={() => setCurrentPage(p.id)}
+          >
+            {editingId === p.id ? (
+              <input
+                autoFocus
+                value={editingValue}
+                onChange={(e) => setEditingValue(e.target.value)}
+                onBlur={commitRename}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") commitRename();
+                  else if (e.key === "Escape") { setEditingId(null); setEditingValue(""); }
+                }}
+                onClick={(e) => e.stopPropagation()}
+                style={{
+                  flex: 1, background: "var(--brand-bg, #0f172a)", color: "var(--brand-text, #e2e8f0)",
+                  border: "1px solid var(--brand-border, #475569)", borderRadius: 3, padding: "1px 4px", fontSize: 12,
+                }}
+              />
+            ) : (
+              <>
+                <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1, minWidth: 0 }}>
+                  {p.name}
+                  {corniceDefault === idCornice(p) && (
+                    <span title={t("cornici.predefinitaTitolo")} style={{ marginLeft: 4 }}>⭐</span>
+                  )}
+                </span>
+                <span style={{ display: "flex", gap: 2, flexShrink: 0, alignItems: "center" }}>
+                  <button style={S.iconBtn} title={t("editor.rename")}
+                    onClick={(e) => { e.stopPropagation(); beginRename(p.id, p.name); }}>✎</button>
+                  <button style={S.iconBtn} title={t("cornici.elimina")}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      if (!window.confirm(t("cornici.eliminaConferma", { name: p.name }))) return;
+                      deletePage(p.id);
+                    }}>×</button>
+                </span>
+              </>
+            )}
+          </div>
+        ))}
+        {cornici.length === 0 && (
+          <div style={{ padding: "2px 8px", fontSize: 11, color: "var(--brand-text-subtle, #64748b)" }}>
+            {t("cornici.nessuna")}
+          </div>
+        )}
+        <div style={{ padding: "4px 8px" }}>
+          <select
+            data-testid="nuova-cornice"
+            value=""
+            onChange={(e) => { if (e.target.value) addCornice(e.target.value as ModelloCornice); }}
+            style={{ ...S.objBtn, width: "100%", borderStyle: "dashed", color: "var(--brand-text-subtle, #64748b)", cursor: "pointer" }}
+          >
+            <option value="">{t("cornici.nuova")}</option>
+            {MODELLI_CORNICE.map((m) => <option key={m} value={m}>{t(`cornici.modello.${m}`)}</option>)}
+          </select>
+        </div>
+    </>
+  );
   const modale = (
     <>
       {linkReportOpen && (
@@ -566,6 +637,9 @@ function PagesSection() {
           {corpoPagine}
         </RamoPagine>
       </div>
+      <RamoPagine titolo={t("cornici.titolo")} icona="▭" memoria="albero.cornici">
+        {corpoCornici}
+      </RamoPagine>
       <RamoPagine titolo={t("leftPanel.bootPagesHeading")} icona="🖼" memoria="albero.boot">
         {corpoBoot}
       </RamoPagine>

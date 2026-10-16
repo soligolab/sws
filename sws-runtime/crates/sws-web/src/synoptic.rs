@@ -50,6 +50,14 @@ pub struct SynopticPage {
     /// silenzio** al round-trip: per questo sta nel mirror.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub kind: Option<String>,
+    /// La cornice della pagina (15-10-2026, `cornici.rs`): assente = la
+    /// predefinita del progetto, `null` = nessuna, un id = quella cornice.
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        deserialize_with = "crate::cornici::tre_stati"
+    )]
+    pub cornice: Option<Option<String>>,
 }
 
 /// «variabile = valore» di un bottone che assegna (11-10-2026).

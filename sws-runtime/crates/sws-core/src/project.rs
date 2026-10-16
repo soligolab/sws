@@ -1853,6 +1853,10 @@ pub struct PageLayoutConfig {
     /// esistono (`page_tree::riconcilia`).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub page_tree: Option<Vec<PageTreeNode>>,
+    /// La cornice delle pagine che non ne dichiarano una (15-10-2026,
+    /// `sws-web/src/cornici.rs`). Assente = nessuna.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub cornice_predefinita: Option<String>,
 }
 
 /// Tabella lingue di progetto: messaggi nativi + traduzioni, indicizzati per

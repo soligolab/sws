@@ -1891,7 +1891,9 @@
     "resizeRow": "Ridimensiona riga {{n}}",
     "resizeSubCell": "Ridimensiona sub-cella",
     "newBootPage": "Nuova immagine di boot",
-    "bootPageBaseName": "Immagine di boot"
+    "bootPageBaseName": "Immagine di boot",
+    "newCornice": "Nuova cornice",
+    "corniceBaseName": "Cornice"
   },
   "storeErr": {
     "invalidRange": "Range non valido.",
@@ -3268,5 +3270,33 @@
     "materiali": "Materiali della libreria",
     "predefinito": "predefinito",
     "ripristina": "Torna al predefinito"
+  },
+  "cornici": {
+    "titolo": "Cornici",
+    "nuova": "+ Nuova cornice…",
+    "nessuna": "Nessuna cornice.",
+    "elimina": "Elimina la cornice",
+    "eliminaConferma": "Eliminare la cornice «{{name}}»? Le pagine che la usano resteranno senza.",
+    "predefinitaTitolo": "Cornice predefinita del progetto",
+    "modello": {
+      "testata_piede": "Testata con titolo, data e ora + navigazione in basso",
+      "solo_piede": "Solo navigazione in basso",
+      "solo_testata": "Solo testata",
+      "vuota": "Vuota"
+    },
+    "dellaPagina": "Cornice",
+    "predefinitaDelProgetto": "Predefinita del progetto ({{nome}})",
+    "nessunaMinuscolo": "nessuna",
+    "nessunaOpzione": "Nessuna cornice",
+    "modifica": "Modifica la cornice «{{nome}}»",
+    "altezza": "altezza (px)",
+    "fondo": "Fondo",
+    "fondoPieno": "pieno",
+    "testata": "Testata",
+    "piede": "Piede",
+    "spiegazione": "Testata e piede si vedono sotto ogni pagina che usa questa cornice. Metti gli oggetti dentro le due fasce.",
+    "predefinitaCheckbox": "Cornice predefinita del progetto",
+    "predefinitaFallita": "Impossibile impostare la cornice predefinita: {{err}}",
+    "segnaposti": "Nei testi: {{a}}, {{b}}, {{c}}."
   }
 }

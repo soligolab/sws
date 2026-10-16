@@ -10,6 +10,8 @@ import type {
   DatastoreConfig,
   DatastoreStats,
   FaceplateDef,
+  Cornice,
+  CorniceInElenco,
   FunctionDef,
   GlobalScriptDef,
   HaBrowsedEntity,
@@ -53,6 +55,7 @@ import type {
   TypeDef,
 } from "@/types";
 import { prefissoGateway } from "./prefisso";
+import { corniceAPagina } from "@/cornici/modello";
 import i18n from "i18next";
 
 // Runtime URL resolution order (ARCH-002):
@@ -170,7 +173,7 @@ function segnalaCambioProgettoNostro(): void {
  *  (`/api/project/…`), le pagine, le pagine di boot, i faceplate, le ricette.
  *  Non `/api/projects/…` (plurale): quelle cambiano progetto e hanno il loro
  *  segnale. */
-const SCRITTURE_SUL_PROGETTO = /^\/api\/(project\/|synoptics|boot-pages|faceplates|recipes)/;
+const SCRITTURE_SUL_PROGETTO = /^\/api\/(project\/|synoptics|boot-pages|faceplates|cornici|recipes)/;
 
 /** Ogni scrittura riuscita sul progetto fatta **da questo client** rifissa la
  *  baseline del sorvegliante, qui e non nei punti di chiamata.
@@ -651,13 +654,13 @@ function seVersionato(path: string): Record<string, string> {
 const VERSIONI_FILE = new Map<string, string>();
 
 /** I percorsi versionati per entità: `/api/synoptics/:nome`,
- *  `/api/faceplates/:id`, `/api/recipes/:id`.
+ *  `/api/faceplates/:id`, `/api/cornici/:id`, `/api/recipes/:id`.
  *
  *  Non le loro sottorotte (`/export`, `/apply`, `/import`) e non gli elenchi:
  *  un `ETag` preso da un endpoint che non è il file farebbe fallire il
  *  salvataggio successivo con un 409 inventato. */
 function chiaveFile(path: string): string | null {
-  return /^\/api\/(synoptics|boot-pages|faceplates|recipes)\/[^/]+$/.test(path) ? path : null;
+  return /^\/api\/(synoptics|boot-pages|faceplates|cornici|recipes)\/[^/]+$/.test(path) ? path : null;
 }
 
 /** La versione ricomincia da zero: si chiama quando si apre o si ricarica un
@@ -745,6 +748,18 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     let testo = "";
     try { testo = await res.text(); } catch { /* il messaggio è un extra */ }
     throw new ProjectChangedError(testo || undefined);
+  }
+  if (res.status === 502 && path.startsWith("/api/remote/") && !res.headers.get("x-sws-progetto-non-raggiunto")) {
+    // Da `/api/remote/…` un 502 lo scrive il **nostro** runtime e vuol dire «il
+    // dispositivo ha risposto così» (rifiuto, valore non valido, tunnel giù), con
+    // il motivo nel testo. Leggerlo come «runtime irraggiungibile» lo buttava via:
+    // il 15-10-2026 l'autopilota del tc620-garage diceva solo «runtime
+    // unavailable» mentre l'IDE era vivo e vegeto. Il 502 del gateway per un
+    // progetto non raggiunto porta la sua intestazione e resta quello di sotto.
+    let testo = "";
+    try { testo = await res.text(); } catch { /* il motivo è un extra */ }
+    if (testo.trim()) throw new Error(testo.trim());
+    throw new RuntimeUnavailableError();
   }
   if (res.status === 502 || res.status === 504) {
     // Vite proxy / reverse proxy couldn't reach the upstream runtime.
@@ -1281,6 +1296,11 @@ export const api = {
   getSynoptic: (name: string) =>
     request<SynopticPage>(`/api/synoptics/${encodeURIComponent(name)}`),
 
+  /** La pagina **composta** con la sua cornice (`sws-web/src/cornici.rs`): per
+   *  i viewer, mai per l'editor, che salva la pagina com'è nel file. */
+  getPaginaComposta: (name: string) =>
+    request<SynopticPage>(`/api/synoptics/${encodeURIComponent(name)}?cornice=1`),
+
   saveSynoptic: (page: SynopticPage) =>
     request<void>(`/api/synoptics/${encodeURIComponent(page.name)}`, {
       method: "PUT",
@@ -1346,7 +1366,15 @@ export const api = {
       const bootNames = await request<string[]>("/api/boot-pages");
       boot = await Promise.all(bootNames.map((n) => request<SynopticPage>(`/api/boot-pages/${encodeURIComponent(n)}`)));
     } catch { /* nessuna pagina di boot */ }
-    return [...sinottici, ...boot];
+    // Le cornici (15-10-2026) entrano come pagine `kind: "cornice"`; un runtime
+    // che non ha la rotta ne dà zero.
+    let cornici: SynopticPage[] = [];
+    try {
+      const elenco = await request<CorniceInElenco[]>("/api/cornici");
+      cornici = (await Promise.all(elenco.map((c) => request<Cornice>(`/api/cornici/${encodeURIComponent(c.id)}`))))
+        .map(corniceAPagina);
+    } catch { /* nessuna cornice */ }
+    return [...sinottici, ...boot, ...cornici];
   },
 
   deleteSynoptic: async (name: string) => {
@@ -1396,6 +1424,18 @@ export const api = {
     }),
   deleteFaceplate: (id: string) =>
     request<void>(`/api/faceplates/${encodeURIComponent(id)}`, { method: "DELETE" }),
+
+  // ── Cornici di pagina (15-10-2026) ────────────────────────────────────────
+  listCornici: () => request<CorniceInElenco[]>("/api/cornici"),
+  getCornice: (id: string) => request<Cornice>(`/api/cornici/${encodeURIComponent(id)}`),
+  saveCornice: (c: Cornice) =>
+    request<void>(`/api/cornici/${encodeURIComponent(c.id)}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json", ...seVersionato(`/api/cornici/${encodeURIComponent(c.id)}`) },
+      body: JSON.stringify(c),
+    }),
+  deleteCornice: (id: string) =>
+    request<void>(`/api/cornici/${encodeURIComponent(id)}`, { method: "DELETE" }),
 
   // ── Recipe API ───────────────────────────────────────────────────────────
   listRecipes: () => request<RecipeSummary[]>("/api/recipes"),

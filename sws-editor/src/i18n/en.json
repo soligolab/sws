@@ -1891,7 +1891,9 @@
     "resizeRow": "Resize row {{n}}",
     "resizeSubCell": "Resize sub-cell",
     "newBootPage": "New boot image",
-    "bootPageBaseName": "Boot image"
+    "bootPageBaseName": "Boot image",
+    "newCornice": "New frame",
+    "corniceBaseName": "Frame"
   },
   "storeErr": {
     "invalidRange": "Invalid range.",
@@ -3268,5 +3270,33 @@
     "materiali": "Library materials",
     "predefinito": "default",
     "ripristina": "Back to default"
+  },
+  "cornici": {
+    "titolo": "Frames",
+    "nuova": "+ New frame…",
+    "nessuna": "No frames.",
+    "elimina": "Delete the frame",
+    "eliminaConferma": "Delete the frame “{{name}}”? Pages using it will be left without one.",
+    "predefinitaTitolo": "Project default frame",
+    "modello": {
+      "testata_piede": "Header with title, date and time + navigation at the bottom",
+      "solo_piede": "Navigation at the bottom only",
+      "solo_testata": "Header only",
+      "vuota": "Empty"
+    },
+    "dellaPagina": "Frame",
+    "predefinitaDelProgetto": "Project default ({{nome}})",
+    "nessunaMinuscolo": "none",
+    "nessunaOpzione": "No frame",
+    "modifica": "Edit the frame “{{nome}}”",
+    "altezza": "height (px)",
+    "fondo": "Background",
+    "fondoPieno": "filled",
+    "testata": "Header",
+    "piede": "Footer",
+    "spiegazione": "Header and footer appear under every page using this frame. Keep the objects inside the two bands.",
+    "predefinitaCheckbox": "Project default frame",
+    "predefinitaFallita": "Could not set the default frame: {{err}}",
+    "segnaposti": "In texts: {{a}}, {{b}}, {{c}}."
   }
 }

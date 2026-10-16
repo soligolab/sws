@@ -21,6 +21,10 @@ import {
   BOOT_TYPES, chiavePagina, eBoot, nomeBootLibero,
   pagineDiBoot, paginePerNavigazione, sinotticiPoiBoot,
 } from "@/boot/tipi";
+import {
+  corniceAPagina, daModello, eCornice, idCornice, idLibero, nomeLibero, pagineCornice, paginaACornice,
+  type ModelloCornice,
+} from "@/cornici/modello";
 import type {
   AlarmDef,
   PipePoint,
@@ -499,6 +503,8 @@ interface AppState {
   addPage: (genitore?: string | null) => void;
   /** Una pagina di boot nuova (T-72): vuota, con la risoluzione di default. */
   addBootPage: () => void;
+  /** Una cornice nuova da un modello, aperta sul canvas (15-10-2026). */
+  addCornice: (modello: ModelloCornice) => void;
   deletePage: (id: string) => void;
   renamePage: (id: string, name: string) => void;
   /** Una posizione su/giù fra i fratelli, nell'albero delle pagine. */
@@ -512,7 +518,7 @@ interface AppState {
   duplicatePage: (id: string) => void;
   /** Più pagine in un colpo solo: un solo passo di cronologia. */
   updatePagesProps: (patches: { id: string; patch: Partial<SynopticPage> }[]) => void;
-  updatePageProps: (id: string, patch: Partial<Pick<SynopticPage, "name" | "background" | "background_dark" | "width" | "height" | "auto_rotate_skip" | "zones" | "locked">>) => void;
+  updatePageProps: (id: string, patch: Partial<Pick<SynopticPage, "name" | "background" | "background_dark" | "width" | "height" | "auto_rotate_skip" | "zones" | "locked" | "cornice" | "cornice_testata" | "cornice_piede">>) => void;
   updateGridCell: (pageId: string, objectId: string, cell: GridCell) => void;
   setSelectedCellRange: (range: { objectId: string; r1: number; c1: number; r2: number; c2: number } | null) => void;
   setSelectedSubCell: (sub: { objectId: string; row: number; col: number; path: ("a" | "b")[] } | null) => void;
@@ -873,7 +879,8 @@ export function alberoCambiato(s: AppState): boolean {
  *  pagine di boot in coda. Ritorna lo stesso array se l'ordine è già quello, per non
  *  far ridisegnare chi lo legge senza motivo. */
 function conOrdineAlbero<T extends SynopticPage>(pages: readonly T[], layout: PageLayoutConfig | null | undefined): T[] {
-  const ordinate = [...ordinaPagine(paginePerNavigazione(pages), layout?.page_tree), ...pagineDiBoot(pages)];
+  const ordinate = [...ordinaPagine(paginePerNavigazione(pages), layout?.page_tree), ...pagineDiBoot(pages),
+    ...pages.filter((p) => p.kind === "cornice")];
   const uguale = ordinate.length === pages.length && ordinate.every((p, i) => p === pages[i]);
   return uguale ? (pages as T[]) : ordinate;
 }
@@ -1341,6 +1348,28 @@ export const useAppStore = create<AppState>((set, get) => {
           selectedObjectIds: [],
         };
       });
+    },
+
+    addCornice: (modello) => {
+      pushHistory("history.newCornice");
+      const s0 = get();
+      const usati = new Set(pagineCornice(s0.pages).map(idCornice));
+      const nome = nomeLibero(pagineCornice(s0.pages).map((p) => p.name), i18n.t("history.corniceBaseName"));
+      // Le misure della pagina aperta, se è una sinottica: la cornice nasce per
+      // le pagine su cui si sta lavorando. Altrimenti il formato del progetto.
+      const nascita = valoriDiNascita(s0.project?.page_layout, "sinottica");
+      const corrente = s0.pages.find((p) => p.id === s0.currentPageId);
+      const sinottica = corrente && !corrente.kind ? corrente : undefined;
+      const w = sinottica?.width ?? nascita.width ?? 1280;
+      const h = sinottica?.height ?? nascita.height ?? 800;
+      const page = corniceAPagina(daModello(modello, idLibero(nome, usati), nome, w, h));
+      if (nascita.background) page.background = nascita.background;
+      set((s) => ({
+        pages: [...s.pages, page],
+        currentPageId: page.id,
+        selectedObjectId: null,
+        selectedObjectIds: [],
+      }));
     },
 
     addBootPage: () => {
@@ -2615,7 +2644,9 @@ export const useAppStore = create<AppState>((set, get) => {
         if (e.scriptCambiati) await api.saveGlobalScripts(e.globalScripts);
         for (const pg of e.pages) {
           if (!e.pagineCambiate.has(pg.id)) continue;
-          if (eBoot(pg)) await api.saveBootPage(pg); else await api.saveSynoptic(pg);
+          if (eBoot(pg)) await api.saveBootPage(pg);
+          else if (eCornice(pg)) await api.saveCornice(paginaACornice(pg));
+          else await api.saveSynoptic(pg);
         }
         for (const fp of e.faceplates) if (e.faceplateCambiati.has(fp.id)) await api.saveFaceplate(fp);
         for (const r of e.recipes) if (e.ricetteCambiate.has(r.id)) await api.saveRecipe(r);
@@ -2737,7 +2768,7 @@ export const useAppStore = create<AppState>((set, get) => {
       //    (FunctionEditor, symbol picker) e non hanno altro percorso di
       //    salvataggio.
       const tasks: Promise<unknown>[] = state.pages.map((p) =>
-        eBoot(p) ? api.saveBootPage(p) : api.saveSynoptic(p));
+        eBoot(p) ? api.saveBootPage(p) : eCornice(p) ? api.saveCornice(paginaACornice(p)) : api.saveSynoptic(p));
       if (isAdmin && state.project) {
         // Anche questi due passano da `patch_project` sullo stesso
         // `project.yaml`: incatenati, non affiancati, per la stessa ragione
@@ -2757,7 +2788,9 @@ export const useAppStore = create<AppState>((set, get) => {
       const currentNames = new Set(state.pages.map(chiavePagina));
       const namesToDelete = state.persistedPageNames.filter((n) => !currentNames.has(n));
       tasks.push(...namesToDelete.map((n) =>
-        n.startsWith("boot/") ? api.deleteBootPage(n.slice("boot/".length)) : api.deleteSynoptic(n)));
+        n.startsWith("boot/") ? api.deleteBootPage(n.slice("boot/".length))
+          : n.startsWith("cornice/") ? api.deleteCornice(n.slice("cornice/".length))
+          : api.deleteSynoptic(n)));
       const results = await Promise.allSettled(tasks);
       results.forEach((r) => {
         if (r.status === "rejected") {

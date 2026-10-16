@@ -275,6 +275,9 @@ DATI_DI_SVILUPPO = {
     # nomi dei casi di `CASI_FUORI_PAGINA`, tabella duplicata in Rust e letta da
     # check_off_page.sh: cambiarli romperebbe la parità col gemello
     "pageLayout.ts": {"un pixel oltre il bordo", "piu grande della pagina", "pagina fluida"},
+    # i nomi dei segnaposti delle cornici, gli stessi di sws-web/src/cornici.rs:
+    # tradurli li romperebbe (la fixture tests/fixtures/cornici.json li prova)
+    "modello.ts": {"{{pagina.nome}}", "{{pagina.id}}", "{{progetto.nome}}"},
 }
 
 def candidati(percorso):

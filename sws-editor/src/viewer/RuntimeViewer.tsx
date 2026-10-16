@@ -77,7 +77,7 @@ export function RuntimeViewer() {
 
     const names = await api.listSynoptics();
     if (names.length > 0) {
-      const pages = await Promise.all(names.map((n) => api.getSynoptic(n)));
+      const pages = await Promise.all(names.map((n) => api.getPaginaComposta(n)));
       const keep = keepPageId && pages.some((x) => x.id === keepPageId)
         ? keepPageId
         : pickInitialPageId(ordinaPagine(pages, p.page_layout?.page_tree), p.page_layout?.home_page_id);
@@ -133,7 +133,7 @@ export function RuntimeViewer() {
 
         const names = await api.listSynoptics();
         if (names.length > 0) {
-          const pages = await Promise.all(names.map((n) => api.getSynoptic(n)));
+          const pages = await Promise.all(names.map((n) => api.getPaginaComposta(n)));
           // Prima pagina = la home, o la prima **dell'albero** (non dell'alfabeto).
           setPages(pages, pickInitialPageId(ordinaPagine(pages, p.page_layout?.page_tree), p.page_layout?.home_page_id));
         }

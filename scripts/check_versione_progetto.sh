@@ -64,7 +64,7 @@ RIMEDI_RAW = {
         "ConfigView chiama dimenticaVersioneProgetto() e poi openProject()",
 }
 
-FAMIGLIE = ("/api/project", "/api/projects", "/api/synoptics", "/api/boot-pages", "/api/faceplates", "/api/recipes")
+FAMIGLIE = ("/api/project", "/api/projects", "/api/synoptics", "/api/boot-pages", "/api/faceplates", "/api/cornici", "/api/recipes")
 
 def testo(nome):
     with open(os.path.join(SRC, nome), encoding="utf-8") as f:

@@ -823,6 +823,55 @@ mod tests {
         assert_eq!(r.into_text().unwrap(), "eco: ciao");
     }
 
+    /// Un PUT con un corpo JSON arriva al pannello intero, com'è partito
+    /// (15-10-2026: l'autopilota salvato dal cloud non arrivava al tc620-garage).
+    #[tokio::test]
+    async fn un_put_con_corpo_attraversa_il_tunnel() {
+        use tokio_util::compat::TokioAsyncReadCompatExt as _;
+
+        let pannello = axum::Router::new().route(
+            "/api/update/schedule",
+            axum::routing::put(|axum::Json(v): axum::Json<serde_json::Value>| async move { axum::Json(v) }),
+        );
+        let l = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let porta_pannello = l.local_addr().unwrap().port();
+        tokio::spawn(async move { axum::serve(l, pannello).await.unwrap() });
+
+        let (a, b) = tokio::io::duplex(256 * 1024);
+        let (maniglia, _) = avvia(a.compat(), Verso::Chiama);
+        let (_tieni, mut in_arrivo) = avvia(b.compat(), Verso::Risponde);
+        tokio::spawn(async move {
+            while let Some(st) = in_arrivo.recv().await {
+                tokio::spawn(super::super::pannello::gira_alla_porta(st, porta_pannello));
+            }
+        });
+        let gw = axum::Router::new().fallback(move |req: Request<Body>| {
+            let m = maniglia.clone();
+            async move {
+                let p = req.uri().path().to_string();
+                match attraverso(&m, &p, "", req).await {
+                    Ok(r) => r,
+                    Err(e) => (StatusCode::BAD_GATEWAY, e.to_string()).into_response(),
+                }
+            }
+        });
+        let l = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let porta_gw = l.local_addr().unwrap().port();
+        tokio::spawn(async move { axum::serve(l, gw).await.unwrap() });
+
+        let corpo = serde_json::json!({ "approvazione": null, "pilota": { "giorni": [1, 2], "ora": "23:30" } });
+        let r = reqwest::Client::new()
+            .put(format!("http://127.0.0.1:{porta_gw}/api/update/schedule"))
+            .json(&corpo)
+            .send()
+            .await
+            .unwrap();
+        let codice = r.status();
+        let testo = r.text().await.unwrap();
+        assert_eq!(codice, StatusCode::OK, "{testo}");
+        assert_eq!(serde_json::from_str::<serde_json::Value>(&testo).unwrap(), corpo);
+    }
+
     fn intestazioni(nome: &str, token: &str) -> HeaderMap {
         let mut h = HeaderMap::new();
         h.insert("x-sws-pannello", nome.parse().unwrap());

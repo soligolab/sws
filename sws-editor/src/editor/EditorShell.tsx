@@ -1,4 +1,6 @@
 import { createContext, lazy, Suspense, useCallback, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { ProprietaFasce, SceltaCornice } from "@/cornici/ProprietaCornice";
+import { corniceDellaPagina, eCornice, idCornice, oggettiComposti, paginaACornice } from "@/cornici/modello";
 import { useTranslation } from "react-i18next";
 import { api } from "@/api/client";
 import { QDOT_BUILTIN_TYPES, SvgCanvas, normalizeFaceplateParams, type CanvasViewApi } from "@/canvas/SvgCanvas";
@@ -402,6 +404,24 @@ export function EditorShell() {
   const updateSubCellAt     = useAppStore((s) => s.updateSubCellAt);
 
   const currentPage = pages.find((p) => p.id === currentPageId);
+  // La cornice della pagina aperta, composta come la compone il runtime, da
+  // disegnare sotto attenuata (15-10-2026). Dalle pagine dello store: così una
+  // modifica alla cornice non ancora salvata si vede già sotto le pagine.
+  const sottofondo = useMemo(() => {
+    if (!currentPage) return undefined;
+    const id = corniceDellaPagina(currentPage, project?.page_layout?.cornice_predefinita);
+    const pc = id ? pages.find((p) => eCornice(p) && idCornice(p) === id) : undefined;
+    if (!pc) return undefined;
+    return oggettiComposti(paginaACornice(pc), {
+      paginaNome: currentPage.name, paginaId: currentPage.id, progettoNome: project?.meta?.name ?? "",
+    });
+  }, [currentPage, pages, project?.page_layout?.cornice_predefinita, project?.meta?.name]);
+  const fasceCornice = currentPage && eCornice(currentPage)
+    ? {
+        testata: currentPage.cornice_testata?.altezza ?? 0, piede: currentPage.cornice_piede?.altezza ?? 0,
+        sfondoTestata: currentPage.cornice_testata?.sfondo, sfondoPiede: currentPage.cornice_piede?.sfondo,
+      }
+    : undefined;
   const objects     = currentPage?.objects ?? [];
 
   // Canvas viewport: the transform itself lives inside SvgCanvas (pan writes
@@ -763,6 +783,8 @@ export function EditorShell() {
           viewApi={viewApi}
           onZoomChange={setZoom}
           fitPageSize={fitPageSize}
+          sottofondo={sottofondo}
+          fasceCornice={fasceCornice}
         />
         </LinguaContenutiProvider>
       </div>
@@ -1019,14 +1041,19 @@ export function EditorShell() {
               locked={currentPage?.locked}
               sizeMode={paginaBoot ? "fixed" : effectiveSizeMode(project?.page_layout)}
               boot={paginaBoot}
+              cornice={eCornice(currentPage)}
               pageId={currentPageId}
               offPageCount={(currentPage?.objects ?? []).filter(
                 (o) => isOffPage(o, currentPage?.width, currentPage?.height)).length}
-              onChange={(patch) => aggiornaPagina(currentPageId, patch)}
+              onChange={(patch) => eCornice(currentPage)
+                ? useAppStore.getState().updatePageProps(currentPageId, patch)
+                : aggiornaPagina(currentPageId, patch)}
               segueIlPredefinito={!!currentPage && seguePredefinito(currentPage, project?.page_layout)}
               formatoPredefinito={project?.page_layout?.default_width && project?.page_layout?.default_height
                 ? `${project.page_layout.default_width}×${project.page_layout.default_height}` : undefined}
             />
+            {currentPage && !currentPage.kind && <SceltaCornice pagina={currentPage} />}
+            {currentPage && eCornice(currentPage) && <ProprietaFasce pagina={currentPage} />}
             <span style={{ fontSize: 11, fontWeight: 700, color: "var(--brand-text-subtle, #64748b)", letterSpacing: 1, marginTop: 8, display: "block" }}>
               {t("shell.projectSettings")}
             </span>
@@ -1820,6 +1847,7 @@ function PageProps({
   locked,
   sizeMode,
   boot = false,
+  cornice = false,
   pageId,
   segueIlPredefinito = false,
   formatoPredefinito,
@@ -1829,6 +1857,9 @@ function PageProps({
   /** Pagina di boot (T-72): risoluzione sempre editabile, un solo sfondo, niente
    *  zone né rotazione, e l'interruttore «abilitata». */
   boot?: boolean;
+  /** Cornice aperta sul canvas (15-10-2026): solo nome e misure, il resto non
+   *  si salva in `cornici/` e non avrebbe effetto. */
+  cornice?: boolean;
   pageId?: string;
   /** Le misure della pagina coincidono con il predefinito di progetto. */
   segueIlPredefinito?: boolean;
@@ -1868,6 +1899,7 @@ function PageProps({
           onChange={(e) => onChange({ name: e.target.value })}
         />
       </div>
+      {!cornice && (
       <div>
         <div style={LABEL}>{t("props.backgroundLight")}</div>
         <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
@@ -1887,7 +1919,8 @@ function PageProps({
           />
         </div>
       </div>
-      {!boot && (
+      )}
+      {!boot && !cornice && (
       <div>
         <div style={LABEL}>{t("props.backgroundDark")}</div>
         <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
@@ -1909,7 +1942,7 @@ function PageProps({
         </div>
       </div>
       )}
-      {!boot && (
+      {!boot && !cornice && (
         <div>
           <div style={LABEL}>{t("props.backgroundTag")}</div>
           <TagInput style={INPUT} placeholder={t("props.backgroundTagPlaceholder")} value={background_tag ?? ""}
@@ -2008,7 +2041,7 @@ function PageProps({
           {t("shell.offPage", { count: offPageCount })}
         </p>
       )}
-      {!boot && (<>
+      {!boot && !cornice && (<>
       <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 8 }}>
         <input
           type="checkbox"
@@ -2197,6 +2230,8 @@ function ProjectPageLayoutSettings() {
       boot_page_id: useAppStore.getState().project?.page_layout?.boot_page_id,
       // Idem per l'albero delle pagine (20-09-2026): senza, salvare qui lo cancellerebbe.
       page_tree: useAppStore.getState().project?.page_layout?.page_tree,
+      // E la cornice predefinita (15-10-2026), che si sceglie dalla cornice stessa.
+      cornice_predefinita: useAppStore.getState().project?.page_layout?.cornice_predefinita,
       default_width: Number(defW) > 0 ? Number(defW) : undefined,
       default_height: Number(defH) > 0 ? Number(defH) : undefined,
       default_background: defBg.trim() || undefined,
