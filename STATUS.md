@@ -12,7 +12,30 @@
 > resta in «Storico». Qui vive solo ciò che serve a riprendere il lavoro.
 
 
-## ▶ Riprendere da qui — git nel cloud in servizio, onda 1 avanti (2026-10-15, pomeriggio)
+## ▶ Riprendere da qui — cornici, Data e ora, cambio di risoluzione in servizio (2026-10-16)
+
+- **Su `main`** (squash, rami eliminati): fix del gateway per il container sparito (`0c6ce178`), oggetto
+  «Data e ora» `clock` (`c741f6f3`), cornici di pagina (`49b3c6af`), cambio di risoluzione del progetto (`92f4ec68`).
+  Dentro gli squash anche:
+  - il motivo del dispositivo nei 502 di `/api/remote` (prima «runtime unavailable»);
+  - l'esempio di script globale con `print()`;
+  - LVGL che legge le serie di grafico senza colore (SystemInfo di CasaDomotica non si apriva dal navigatore);
+  - le pagine servite dal navigatore della cornice non più orfane.
+- **In servizio**: VPS gateway su `ghcr.io/soligolab/sws-runtime:df0e4092-amd64`; **tc620-garage** (TC620 di casa) su
+  `df0e4092-arm64`, ritaggata `rc-arm64`, con l'immagine di prima come `prima-della-prova`. **Attenzione**:
+  autopilota del pannello alle 22:00 ogni giorno (impostato su richiesta) + `AutoUpdate=registry` → stasera torna alla
+  rc.2 pubblicata.
+- **Da provare dal maintainer**: cornici e cambio di risoluzione su CasaDomotica (backup in
+  `~/sws-vps/backup-manuali/` sul VPS); deploy di CasaDomotica sul pannello per portargli lo script corretto
+  (nel cloud già `print`, sul pannello ancora `log`).
+- **Restano**:
+  - cornici ramo 3 (template, manuale, NOVITÀ fatta) e la proposta di una cornice alla prima pagina;
+  - il limite del cambio di risoluzione per gli oggetti senza `font_size` (vedi piano);
+  - Sandokan ha ancora lo script con `log`;
+  - onda 1 P1 popup generici.
+- Semi nuovi: [font e display a segmenti](docs/plans/2026-10-15-font-e-display-a-segmenti.md).
+
+## Sessione precedente — git nel cloud in servizio, onda 1 avanti (2026-10-15, pomeriggio)
 
 - **Su `main`**: C3 default sicuri (`15aafc0e`), git nel cloud e sui pannelli (`9260a9b4`). **Non pushati.**
 - **VPS**: gateway su `ghcr.io/soligolab/sws-runtime:9260a9b4-amd64` (tag di commit, pubblicato a mano: `--push`
