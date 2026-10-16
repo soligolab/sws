@@ -140,18 +140,58 @@ async fn un_giro(
     tracing::info!(%url, pannello = %segno, "tunnel aperto");
 
     let filo = Filo::nuovo(socket);
-    // `Risponde`: il pannello non apre stream, li accetta. Chi chiede è
-    // sempre il gateway, perché è lui che ha una richiesta da consegnare.
-    let (_maniglia, mut in_arrivo) = avvia(filo, Verso::Risponde);
+    // `Risponde`: le richieste le apre il gateway, perché è lui che ha
+    // qualcosa da consegnare. La maniglia serve solo al battito qui sotto.
+    let (maniglia, mut in_arrivo) = avvia(filo, Verso::Risponde);
 
     let fermo = Arc::new(tokio::sync::Notify::new());
     let ping = {
         let fermo = fermo.clone();
+        let maniglia = maniglia.clone();
         tokio::spawn(async move {
             loop {
                 tokio::select! {
                     _ = tokio::time::sleep(PASSO_DEL_PING) => {}
                     _ = fermo.notified() => return,
+                }
+                // **Un battito che batte davvero.**
+                //
+                // La prima stesura (09-10-2026) dormiva e basta: il corpo era
+                // vuoto, e il commento sopra spiegava diligentemente perché
+                // servisse un keepalive che non c'era. Misurato sul WP630 il
+                // 16-10: il tunnel si riapriva **ogni quindici minuti esatti**
+                // — un timeout da 900 secondi lungo la strada, che senza
+                // traffico scade.
+                //
+                // Si apre uno stream, ci si scrive **un byte** e lo si chiude.
+                // Non c'è un ping di WebSocket a disposizione: il socket l'ha
+                // preso `Filo` e `yamux` ci sta sopra, e `yamux` 0.14 un
+                // keepalive suo non ce l'ha. Uno stream invece attraversa
+                // tutti gli strati che il timeout guarda — TCP, TLS,
+                // WebSocket.
+                //
+                // **Il byte non è un dettaglio.** La prima stesura apriva lo
+                // stream e lo lasciava cadere: il test
+                // `il_battito_arriva_dall_altra_parte` l'ha bocciata, perché
+                // uno stream aperto e chiuso subito non arriva dall'altra
+                // parte — yamux non manda niente finché non c'è qualcosa da
+                // mandare. Sarebbe stato un keepalive che non tiene in vita
+                // niente, per la seconda volta di fila.
+                //
+                // Dall'altra parte il gateway lascia cadere gli stream in
+                // arrivo (non ne aspetta nessuno), quindi si chiude da sé.
+                match maniglia.apri().await {
+                    Ok(mut s) => {
+                        use futures_util::io::AsyncWriteExt as _;
+                        let _ = s.write_all(b"\0").await;
+                        let _ = s.close().await;
+                    }
+                    Err(e) => {
+                        // Il tunnel è caduto: non si insiste, ci pensa il giro
+                        // di riconnessione.
+                        tracing::debug!("battito del tunnel: {e}");
+                        return;
+                    }
                 }
             }
         })

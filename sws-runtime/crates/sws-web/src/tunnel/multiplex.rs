@@ -175,6 +175,41 @@ mod tests {
         scrivi.await.unwrap();
     }
 
+    /// Il battito del tunnel: uno stream aperto e lasciato cadere **arriva**
+    /// dall'altra parte, cioe' e' traffico vero.
+    ///
+    /// E' la prova che manca al difetto del 09-10, dove il compito del
+    /// keepalive dormiva e basta: il tunnel si riapriva ogni quindici minuti
+    /// (misurato sul WP630 il 16-10-2026). Un test che guardi «il compito
+    /// esiste» non l'avrebbe visto — quello esisteva.
+    #[tokio::test]
+    async fn il_battito_arriva_dall_altra_parte() {
+        use tokio_util::compat::TokioAsyncReadCompatExt as _;
+        let (a, b) = tokio::io::duplex(64 * 1024);
+        // Il pannello **risponde** agli stream, ma il battito lo apre lui: e'
+        // il verso che conta, perche' su `Mode::Server` aprire deve comunque
+        // funzionare.
+        let (pannello, _) = avvia(a.compat(), Verso::Risponde);
+        let (_gw, mut al_gateway) = avvia(b.compat(), Verso::Chiama);
+
+        let battito = tokio::spawn(async move {
+            use futures_util::io::AsyncWriteExt as _;
+            let mut s = pannello.apri().await.expect("il battito non si e' aperto");
+            // Il byte e' la parte che conta: senza, yamux non manda niente e
+            // lo stream non arriva mai.
+            s.write_all(b"\0").await.unwrap();
+            s.close().await.unwrap();
+        });
+        let arrivato = tokio::time::timeout(
+            std::time::Duration::from_secs(5),
+            al_gateway.recv(),
+        )
+        .await
+        .expect("il battito non e' arrivato entro 5 s");
+        assert!(arrivato.is_some(), "nessuno stream dall'altra parte");
+        battito.await.unwrap();
+    }
+
     #[tokio::test]
     async fn il_registro_dimentica_un_tunnel_morto() {
         let (a, _b) = tokio::io::duplex(1024);
