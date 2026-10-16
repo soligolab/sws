@@ -1,7 +1,7 @@
 import { useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { api, dimenticaVersioneProgetto } from "@/api/client";
-import { prefissoGateway } from "@/api/prefisso";
+import { prefissoGateway, progettoDalPercorso } from "@/api/prefisso";
 import { canConfigureProject } from "@/auth/permissions";
 import { DROP_ITEM, DROP_PANEL, DROP_SEP, HDR_BTN, useOutsideClose } from "@/components/headerStyles";
 import { pickInitialPageId } from "@/pageLayout";
@@ -98,6 +98,27 @@ export function MainMenu({
     finally { setIoBusy(null); setTimeout(() => setIoStat(null), 6000); }
   };
 
+  /** L'indirizzo del progetto aperto: `<azienda>/<nome>`.
+   *
+   *  **Nel cloud lo dice l'URL, non il server.** Il container di un progetto e'
+   *  avviato con `--project /progetto`, quindi il suo
+   *  `active_project_riferimento` vale `-/progetto` — il nome della cartella
+   *  montata, che al gateway non dice niente. Risultato: «Salva come» su
+   *  CasaDomotica chiedeva `/api/projects/-/progetto/duplicate` e prendeva 404,
+   *  qualunque nome si scrivesse (segnalato il 16-10-2026).
+   *
+   *  L'unico che conosce l'indirizzo vero e' il prefisso della pagina,
+   *  `/p/<azienda>/<progetto>/`: il container non ha modo di saperlo, e
+   *  chiederglielo era la domanda sbagliata.
+   *
+   *  Fuori dal cloud resta il server, che li' ha la radice dei progetti vera. */
+  const indirizzoDelProgettoAperto = async (nomeCorrente: string) => {
+    const nelCloud = progettoDalPercorso();
+    if (nelCloud) return `${nelCloud.azienda}/${nelCloud.progetto}`;
+    const stato = await api.getSystemStatus();
+    return stato.active_project_riferimento ?? `-/${nomeCorrente}`;
+  };
+
   /** «Salva come»: una copia con un nome nuovo, e ci si continua a lavorare.
    *
    *  Il duplicato esisteva gia' — nell'elenco dei progetti, col pulsante ⧉ —
@@ -116,11 +137,7 @@ export function MainMenu({
     if (!nuovo || nuovo === currentName) return;
     setSalvandoCome(true); setIoStat(null);
     try {
-      // Lo stesso motivo della rinomina: l'indirizzo del progetto aperto lo sa
-      // il server, non noi. Un nome nudo varrebbe «azienda implicita», e su un
-      // progetto in una cartella d'azienda sarebbe un 404.
-      const stato = await api.getSystemStatus();
-      const rif = stato.active_project_riferimento ?? `-/${currentName}`;
+      const rif = await indirizzoDelProgettoAperto(currentName);
       const azienda = rif.split("/")[0];
       await api.duplicateProject(rif, nuovo);
       // Si va sulla copia: «salva come» vuol dire che da adesso lavori li'.
@@ -151,8 +168,7 @@ export function MainMenu({
       // c'e solo `meta.name`, e un nome nudo vale «azienda implicita». Su un
       // progetto in una cartella d'azienda la rinomina rispondeva 404 —
       // segnalato dal maintainer il 07-10-2026, entrato come utente pixsys.
-      const stato = await api.getSystemStatus();
-      const rif = stato.active_project_riferimento ?? `-/${currentName}`;
+      const rif = await indirizzoDelProgettoAperto(currentName);
       await api.renameProject(rif, newName);
       // Q30 — si **rilegge** invece di correggere `meta.name` in memoria.
       //
