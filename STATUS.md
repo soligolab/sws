@@ -12,6 +12,68 @@
 > resta in «Storico». Qui vive solo ciò che serve a riprendere il lavoro.
 
 
+## ▶ Riprendere da qui — quattro difetti del cloud, e il keepalive che non batteva (2026-10-16, sera)
+
+Su `main`, squash e rami eliminati: `866ed2b9`, `38ddf462`, `22bca649`, `2d06f80f`, più la
+decisione su CasaDomotica (`7995fa7a`).
+
+Verde: `cargo check`, 562 test `sws-web`, 1523 del frontend, `pnpm build`, 44 guardie.
+
+### I quattro difetti, tutti trovati col WP630 in mano
+
+| | |
+|---|---|
+| `866ed2b9` | «Salva come» e «Rinomina» davano 404 nel cloud: chiedevano l'indirizzo al **container**, che risponde `-/progetto` — il nome della cartella montata, uguale per ogni progetto. Lo sa solo l'URL |
+| `38ddf462` | un progetto con uno **spazio** nel nome risultava vuoto: il gateway leggeva il percorso grezzo e cercava `CasaDomotica%20(WP630)`. Le parentesi erano innocenti. Il 404 adesso si registra: prima era muto, ed è il motivo per cui è costato mezz'ora |
+| `22bca649` | il deploy porta gli utenti del progetto e il token di prima muore, ma l'IDE restava verde. Ora riusa le credenziali del «Connetti»; se non ce n'erano lo dice, e `remote_status` riporta `autenticato` |
+| `2d06f80f` | il keepalive del tunnel **non mandava niente** (difetto mio del 09-10): il WP630 si riapriva ogni quindici minuti esatti |
+
+### Due volte una guardia o un test hanno fermato una correzione sbagliata
+
+- la sonda `/api/auth/whoami` per capire se il token valeva: quella rotta sulla porta di gestione
+  **non esiste** (`--no-admin`), avrebbe detto «token morto» a ogni deploy. Fermata da
+  `ogni_chiamata_dell_ide_ha_la_sua_rotta_sul_dispositivo`;
+- il primo keepalive apriva uno stream e lo lasciava cadere: **yamux non manda niente finché non
+  c'è qualcosa da mandare**, quindi non sarebbe arrivato. Fermato dal test nuovo
+  `il_battito_arriva_dall_altra_parte`. Adesso scrive un byte.
+
+### In servizio
+
+VPS gateway su `22bca649-amd64`. WP630 (**192.168.1.71** oggi, la tabella dice `.120`) su
+`f1a493f4-arm64` con CasaDomotica, tunnel come `wp630-ufficio`.
+
+**Pronta e non pubblicata**: l'immagine arm64 da `2d06f80f`, costruita a fine sessione. Un
+`podman push` e il WP630 può prendere il keepalive.
+
+### Il prossimo passo
+
+1. **Misurare il keepalive sul WP630**: pubblicare l'arm64, aggiornare il pannello e guardare se
+   il ciclo dei quindici minuti sparisce (`journalctl --user -u sws-runtime | grep "tunnel aperto"`).
+   È la verifica vera della correzione, e non è stata fatta.
+2. **P1 popup generici**, decisioni prese il 16-10: modali e non modali scelti dalla pagina, **uno
+   alla volta**, e **prima il web** — su LVGL il popup non esiste affatto (nemmeno quello dei
+   faceplate), quindi la finestra sul pannello è una fetta sua. Sul web metà c'è già:
+   `FaceplatePopup` (`SvgCanvas.tsx:3360`) è già un modale completo, va generalizzato perché il
+   contenuto sia una **pagina**.
+3. **Cornici, ramo 3**: il manuale le nomina **due volte in tutto**, dentro la sezione del cambio
+   di risoluzione — manca il capitolo. E nessun template le usa (`examples/templates/*/cornici`
+   non esiste).
+
+### Lasciato aperto di proposito
+
+- **Il limite del cambio di risoluzione** per gli oggetti senza `font_size`: la tabella dei
+  predefiniti condivisa ha `font_size` per **quattro tipi soli** (`text`, `text_list`,
+  `state_lamp`, `pipe`); il corpo del testo di un bottone vive dentro i due motori. Metterlo nella
+  tabella materializza un valore dove oggi non c'è, **su ogni progetto esistente**: se il numero
+  non coincide con quello che i motori usano, cambia la resa di tutti i testi. Il piano lo
+  segnava già «da decidere», ed è una decisione.
+- **Lo script di Sandokan con `log`**: è contenuto di un progetto del maintainer, non codice.
+  Sul WP630 fallisce a ogni avvio (`NameError: name 'log' is not defined`) e si risolve con un
+  deploy di CasaDomotica, che nel cloud ha già `print`.
+- I tre difetti del [piano del 14-10](docs/plans/2026-10-14-revisione-ide-collaudo-wp630.md) —
+  tendina dei tag, dispositivi registrati, «Invia ora» — sono ancora tutti aperti, verificati nel
+  codice di oggi.
+
 ## ▶ Riprendere da qui — cornici, Data e ora, cambio di risoluzione in servizio (2026-10-16)
 
 - **Su `main`** (squash, rami eliminati): fix del gateway per il container sparito (`0c6ce178`), oggetto

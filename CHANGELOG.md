@@ -82,6 +82,17 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 
 ### Fixed
 
+- **Un progetto con uno spazio nel nome non sparisce più.** Nel cloud l'indirizzo di un progetto arriva al gateway
+  con lo spazio scritto `%20`, e veniva cercata sul disco una cartella con dentro quel `%20`: il progetto risultava
+  vuoto pur essendo tutto al suo posto. Vale per gli accenti allo stesso modo. Il rifiuto adesso finisce anche nel
+  registro, invece di sparire in silenzio.
+- **«Salva come» e «Rinomina» funzionano nel cloud.** Chiedevano l'indirizzo del progetto al container, che conosce
+  solo il nome della cartella montata — uguale per ogni progetto — e rispondevano 404 qualunque nome si scrivesse.
+- **Dopo un deploy non si resta fuori senza saperlo.** Distribuire un progetto coi suoi utenti cambia le credenziali
+  del dispositivo: l'IDE ora rientra da solo con quelle del «Connetti», e quando non può lo dice invece di mostrare
+  il collegamento come attivo.
+- **Il tunnel dei pannelli non si riapre più ogni quindici minuti**: il battito che doveva tenerlo in vita non
+  mandava niente. Misurato su un WP630, sette riaperture in due ore.
 - **Pannello LVGL: una serie di grafico senza colore rendeva illeggibile l'intera pagina.** Nel modello LVGL
   `BarChartSeries.color` e `PieSlice.color` erano obbligatori, mentre nell'editor sono facoltativi (ripiego sulla
   tavolozza). SystemInfo di CasaDomotica non si apriva dal navigatore del pannello: la lettura falliva e il ripiego
