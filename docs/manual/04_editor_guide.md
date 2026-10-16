@@ -347,6 +347,24 @@ Un'**immagine di boot** è ciò che un pannello Pixsys mostra mentre parte. Nell
 
 ![Immagine di boot: sezione nell'elenco pagine, canvas e anteprima del PNG](screenshots/11_immagine_di_boot.png)
 
+## Cambiare risoluzione del progetto
+
+Per portare un progetto su uno schermo diverso (per esempio da Full HD a un pannello 1280×800) senza
+riposizionare tutto a mano: pannello proprietà, con nessun oggetto selezionato → **Impostazioni progetto** →
+**«Cambia risoluzione del progetto…»**.
+
+- **Da / A.** «Da» propone la misura più frequente fra le pagine; «A» si sceglie da un preset o scrivendo
+  larghezza e altezza.
+- **Cosa convertire.** L'elenco delle pagine, delle cornici e delle immagini di boot, con la loro misura: sono
+  già spuntate quelle che hanno la misura «Da».
+- **Come si trasforma.** Un fattore solo, il minore fra i due assi, così niente si deforma. Il disegno si centra e,
+  se le proporzioni cambiano, resta una fascia libera: il dialogo dice quanta. Testi e spessori seguono la scala
+  ma non scendono sotto 9 px e 1 px. Le cornici tengono testata e piede attaccati ai bordi.
+- **Annullare.** La conversione è un passo solo di cronologia: `Ctrl+Z` la toglie tutta. Diventa definitiva
+  quando salvi.
+- **Un limite.** Un oggetto che non dichiara una dimensione del testo usa quella predefinita del suo tipo, che
+  non cambia: dopo una riduzione forte può servire ritoccarla a mano.
+
 ## Salvataggio e versioning
 
 ### Salva manuale

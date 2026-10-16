@@ -6,6 +6,7 @@
 import { vociNavigatore } from "@/pageNavigator";
 import type { PageLayoutConfig, PageTreeNode, PageSizeMode, PipePoint, SynopticObject, SynopticPage } from "@/types";
 import { paginePerNavigazione } from "@/boot/tipi";
+import { corniceDellaPagina, eCornice, idCornice } from "@/cornici/modello";
 import { getBrand } from "@/branding";
 
 /** Aspect ratios offered in the "Solo proporzioni" mode picker, with their
@@ -417,14 +418,23 @@ export function findBrokenNavLinks(tutte: SynopticPage[]): BrokenNavLink[] {
 
 /** A page is "orphaned" when it isn't the home page and no `navbutton` on any
  *  page targets it. Independent of the kiosk auto-rotate flag (shown as its
- *  own checkbox already). */
+ *  own checkbox already).
+ *
+ *  Contano anche gli oggetti della **cornice** di ogni pagina (16-10-2026):
+ *  un navigatore messo nella cornice raggiunge le pagine come uno messo sulla
+ *  pagina, e senza contarlo ogni pagina servita solo dalla cornice risultava
+ *  orfana. Per questo `tutte` comprende le pagine-cornice dello store. */
 export function findOrphanPageIds(
   tutte: SynopticPage[], homePageId: string | undefined, albero?: readonly PageTreeNode[] | null,
+  cornicePredefinita?: string,
 ): Set<string> {
   const pages = paginePerNavigazione(tutte);
+  const cornici = tutte.filter(eCornice);
   const linked = new Set<string>();
   for (const page of pages) {
-    for (const obj of page.objects) {
+    const idC = corniceDellaPagina(page, cornicePredefinita);
+    const cornice = idC ? cornici.find((c) => idCornice(c) === idC) : undefined;
+    for (const obj of [...page.objects, ...(cornice?.objects ?? [])]) {
       if (obj.type === "navbutton" && obj.target_page) linked.add(obj.target_page);
       // Un navigatore di pagine raggiunge le pagine che mostra da questa pagina:
       // senza contarlo ogni pagina servita da un navigatore risulterebbe orfana.

@@ -1893,7 +1893,8 @@
     "newBootPage": "Nuova immagine di boot",
     "bootPageBaseName": "Immagine di boot",
     "newCornice": "Nuova cornice",
-    "corniceBaseName": "Cornice"
+    "corniceBaseName": "Cornice",
+    "scalaProgetto": "Cambia risoluzione del progetto"
   },
   "storeErr": {
     "invalidRange": "Range non valido.",
@@ -2319,7 +2320,7 @@
     "uploadRemote": "Carica (remoto)",
     "orphanTagsTheyHaveHistory": "Tag orfani — hanno storico ma non esistono più nel progetto:",
     "deleteHistory": "Elimina storico",
-    "scriptThatRunsWhenThe": "# Script avviato all'apertura del progetto\nlog('Hello from global script!')\n",
+    "scriptThatRunsWhenThe": "# Script avviato all'apertura del progetto\nprint('Hello from global script!')\n",
     "startup": "Avvio",
     "noFunctions": "Nessuna funzione.",
     "functionsAreEditedInThe": "Le funzioni si modificano nell'editor: clicca una voce per aprirla.",
@@ -3298,5 +3299,27 @@
     "predefinitaCheckbox": "Cornice predefinita del progetto",
     "predefinitaFallita": "Impossibile impostare la cornice predefinita: {{err}}",
     "segnaposti": "Nei testi: {{a}}, {{b}}, {{c}}."
+  },
+  "scala": {
+    "apri": "Cambia risoluzione del progetto…",
+    "aiuto": "Porta pagine e cornici a un'altra risoluzione, spostando e ridimensionando gli oggetti",
+    "titolo": "Cambia risoluzione del progetto",
+    "spiegazione": "Gli oggetti si spostano e si ridimensionano con un fattore solo, così niente si deforma: il disegno si centra e, se le proporzioni cambiano, resta una fascia libera. Testi e spessori seguono la scala ma non scendono sotto 9 px e 1 px.",
+    "da": "Da",
+    "a": "A",
+    "scegliPreset": "Preset…",
+    "anteprima": "Fattore {{f}} — {{fascia}}",
+    "fasciaSopraSotto": "fascia libera di {{px}} px sopra e sotto",
+    "fasciaLati": "fascia libera di {{px}} px a destra e a sinistra",
+    "fasciaNessuna": "nessuna fascia libera",
+    "cosaConvertire": "Cosa convertire",
+    "tipoPagina": "pagina",
+    "tipoCornice": "cornice",
+    "tipoBoot": "immagine di boot",
+    "fluida": "fluida",
+    "nota": "Si annulla in un passo solo (Ctrl+Z); la conversione diventa definitiva quando salvi. Le cornici tengono testata e piede attaccati ai bordi.",
+    "annulla": "Annulla",
+    "converti_one": "Converti {{count}} pagina",
+    "converti_other": "Converti {{count}} pagine"
   }
 }

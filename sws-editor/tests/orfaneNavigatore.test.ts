@@ -34,3 +34,16 @@ describe("pagine orfane e navigatore di pagine", () => {
     expect(findOrphanPageIds(conAltro, "home", albero).size).toBe(0);
   });
 });
+
+describe("orfane — il navigatore della cornice conta (16-10-2026)", () => {
+  it("una pagina servita solo dal navigatore della cornice predefinita non è orfana", () => {
+    const pg = (id: string): SynopticPage => ({ id, name: id, objects: [] });
+    const cornice: SynopticPage = {
+      id: "cornice:frame", name: "Frame", kind: "cornice", objects: [{ id: "nav", type: "page_navigator", x: 0, y: 0 }],
+    };
+    const tutte = [pg("home"), pg("a"), { ...pg("b"), cornice: null }, cornice];
+    expect([...findOrphanPageIds(tutte, "home", null, "frame")]).toEqual([]);
+    // senza cornice predefinita, «a» e «b» non le raggiunge nessuno
+    expect([...findOrphanPageIds(tutte, "home", null, undefined)].sort()).toEqual(["a", "b"]);
+  });
+});

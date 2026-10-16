@@ -1,4 +1,5 @@
 import { createContext, lazy, Suspense, useCallback, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { DialogoRisoluzione } from "@/scala/DialogoRisoluzione";
 import { ProprietaFasce, SceltaCornice } from "@/cornici/ProprietaCornice";
 import { corniceDellaPagina, eCornice, idCornice, oggettiComposti, paginaACornice } from "@/cornici/modello";
 import { useTranslation } from "react-i18next";
@@ -2215,6 +2216,7 @@ function ProjectPageLayoutSettings() {
   const [defBg, setDefBg] = useState<string>(project?.page_layout?.default_background ?? "");
   const [defBgDark, setDefBgDark] = useState<string>(project?.page_layout?.default_background_dark ?? "");
   const [applicate, setApplicate] = useState<number | null>(null);
+  const [scalaAperto, setScalaAperto] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -2362,6 +2364,18 @@ function ProjectPageLayoutSettings() {
             {t("shell.applyFormatResult", { count: applicate })}
           </span>
         )}
+        <div>
+          <button
+            type="button"
+            data-testid="apri-scala-risoluzione"
+            onClick={() => setScalaAperto(true)}
+            title={t("scala.aiuto")}
+            style={{ marginTop: 6, background: "var(--brand-surface-2, #334155)", color: "var(--brand-text-2, #cbd5e1)", border: "1px solid var(--brand-border, #475569)", borderRadius: 4, padding: "4px 10px", fontSize: 12, cursor: "pointer" }}
+          >
+            {t("scala.apri")}
+          </button>
+        </div>
+        {scalaAperto && <DialogoRisoluzione onClose={() => setScalaAperto(false)} />}
       </div>
 
       {error && <div style={{ color: "var(--brand-danger, #ef4444)", fontSize: 12 }}>Errore: {error}</div>}

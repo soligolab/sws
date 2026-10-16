@@ -82,6 +82,13 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 
 ### Fixed
 
+- **Pannello LVGL: una serie di grafico senza colore rendeva illeggibile l'intera pagina.** Nel modello LVGL
+  `BarChartSeries.color` e `PieSlice.color` erano obbligatori, mentre nell'editor sono facoltativi (ripiego sulla
+  tavolozza). SystemInfo di CasaDomotica non si apriva dal navigatore del pannello: la lettura falliva e il ripiego
+  per id finiva in un 404. Ora il colore è facoltativo anche lì e il disegno usa la tavolozza.
+- **IDE: le pagine servite dal navigatore della cornice non sono più segnate come orfane.** `findOrphanPageIds`
+  conta anche gli oggetti della cornice di ogni pagina.
+
 - **Gateway, container di un progetto sparito**: se il container veniva tolto o cadeva mentre il gateway lo credeva
   aperto, ogni richiesta finiva verso un indirizzo morto («No route to host», nell'IDE «runtime unavailable») e
   l'unico rimedio era riavviare il gateway. Ora, quando un inoltro non parte, il gateway chiede a podman: se il
@@ -162,6 +169,14 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 - **Dopo il primo invio di un progetto il pannello passa da solo alla pagina**, senza il pulsante «Continua».
 
 ### Added
+
+- **Cambia risoluzione del progetto** (piano `docs/plans/2026-10-15-scalare-tra-risoluzioni.md`). Dalle
+  Impostazioni progetto, un dialogo porta pagine, cornici e immagini di boot da una misura a un'altra: scala
+  uniforme (il fattore minore fra i due assi) e centrata, testi e spessori con un minimo di 9 px e 1 px, cornici con
+  testata e piede ancorati ai bordi; un passo solo di cronologia. Funzioni pure in `src/scala/scalaPagina.ts`, con un
+  test-guardia che pretende la classificazione di ogni campo numerico di `SynopticObject` (scala, posizione o fisso).
+- **L'esempio di uno script globale usa `print()`**: nasceva con `log(...)`, che negli script non esiste, e ogni
+  avvio del progetto finiva con `NameError`.
 
 - **Cornici di pagina** (piano `docs/plans/2026-10-15-cornici-di-pagina.md`, ramo 2). Una testata e un piede comuni
   alle pagine che li usano: `cornici/<id>.yaml` con le due fasce (altezza e fondo) e gli oggetti in coordinate di

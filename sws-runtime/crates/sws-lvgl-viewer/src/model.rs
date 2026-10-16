@@ -689,6 +689,8 @@ pub struct RecipeListEntry {
 pub struct PieSlice {
     pub tag: String,
     pub label: String,
+    /// Facoltativo come in `types/index.ts`: vuoto = la tavolozza per indice.
+    #[serde(default)]
     pub color: String,
 }
 
@@ -730,6 +732,11 @@ pub struct RadioOption {
 pub struct BarChartSeries {
     pub tag: String,
     pub label: String,
+    /// Facoltativo come in `types/index.ts` (16-10-2026): una serie senza
+    /// colore rendeva **illeggibile l'intera pagina** — SystemInfo di
+    /// CasaDomotica non si apriva dal navigatore del pannello (404 sul
+    /// ripiego per id). Vuoto = la tavolozza per indice (`barre.rs`).
+    #[serde(default)]
     pub color: String,
     pub min: Option<f64>,
     pub max: Option<f64>,
@@ -931,5 +938,25 @@ mod tests_fuori_pagina {
             !oggetto(r#"{"id":"a","type":"rect","x":9000,"y":9000,"width":10,"height":10}"#)
                 .is_off_page(&pg)
         );
+    }
+}
+
+#[cfg(test)]
+mod tests_serie_senza_colore {
+    use super::*;
+
+    /// Il colore di una serie è facoltativo come sul web: senza, la pagina
+    /// intera non si leggeva (SystemInfo di CasaDomotica, 16-10-2026).
+    #[test]
+    fn una_serie_o_una_fetta_senza_colore_non_rompe_la_pagina() {
+        let p: SynopticPage = serde_json::from_str(
+            r##"{"id":"p","name":"P","objects":[
+                {"id":"b","type":"bar_chart","x":0,"y":0,"bar_series":[
+                    {"tag":"a","label":"A","color":"#3b82f6"},{"tag":"c","label":"LOAD"}]},
+                {"id":"t","type":"pie_chart","x":0,"y":0,"pie_slices":[{"tag":"a","label":"A"}]}]}"##,
+        )
+        .expect("la pagina si legge anche con un colore mancante");
+        let serie = p.objects[0].bar_series.as_ref().unwrap();
+        assert_eq!(serie[1].color, "");
     }
 }

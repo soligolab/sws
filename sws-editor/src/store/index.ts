@@ -25,6 +25,7 @@ import {
   corniceAPagina, daModello, eCornice, idCornice, idLibero, nomeLibero, pagineCornice, paginaACornice,
   type ModelloCornice,
 } from "@/cornici/modello";
+import { scalaCornice, scalaPagina, type Misura } from "@/scala/scalaPagina";
 import type {
   AlarmDef,
   PipePoint,
@@ -503,6 +504,9 @@ interface AppState {
   addPage: (genitore?: string | null) => void;
   /** Una pagina di boot nuova (T-72): vuota, con la risoluzione di default. */
   addBootPage: () => void;
+  /** Porta le pagine `ids` (sinottiche, cornici, di boot) alla misura `a`, con
+   *  scala uniforme e centrata (`scala/scalaPagina.ts`): un passo di cronologia. */
+  scalaProgetto: (ids: string[], a: Misura) => void;
   /** Una cornice nuova da un modello, aperta sul canvas (15-10-2026). */
   addCornice: (modello: ModelloCornice) => void;
   deletePage: (id: string) => void;
@@ -1492,6 +1496,17 @@ export const useAppStore = create<AppState>((set, get) => {
         bootPng: { ...s.bootPng, [id]: { ...esito, quando: Date.now() } },
         bootPngFirme: firma === undefined ? s.bootPngFirme : { ...s.bootPngFirme, [id]: firma },
       })),
+
+    scalaProgetto: (ids, a) => {
+      if (ids.length === 0) return;
+      pushHistory("history.scalaProgetto");
+      const scelte = new Set(ids);
+      set((s) => ({
+        pages: s.pages.map((p) => (!scelte.has(p.id) ? p : eCornice(p) ? scalaCornice(p, a) : scalaPagina(p, a))),
+        selectedObjectId: null,
+        selectedObjectIds: [],
+      }));
+    },
 
     updatePagesProps: (patches) => {
       if (patches.length === 0) return;

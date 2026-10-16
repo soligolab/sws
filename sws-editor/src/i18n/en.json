@@ -1893,7 +1893,8 @@
     "newBootPage": "New boot image",
     "bootPageBaseName": "Boot image",
     "newCornice": "New frame",
-    "corniceBaseName": "Frame"
+    "corniceBaseName": "Frame",
+    "scalaProgetto": "Change project resolution"
   },
   "storeErr": {
     "invalidRange": "Invalid range.",
@@ -2319,7 +2320,7 @@
     "uploadRemote": "Upload (remote)",
     "orphanTagsTheyHaveHistory": "Orphan tags — they have history but no longer exist in the project:",
     "deleteHistory": "Delete history",
-    "scriptThatRunsWhenThe": "# Script that runs when the project opens\nlog('Hello from global script!')\n",
+    "scriptThatRunsWhenThe": "# Script that runs when the project opens\nprint('Hello from global script!')\n",
     "startup": "Startup",
     "noFunctions": "No functions.",
     "functionsAreEditedInThe": "Functions are edited in the editor: click an entry to open it.",
@@ -3298,5 +3299,27 @@
     "predefinitaCheckbox": "Project default frame",
     "predefinitaFallita": "Could not set the default frame: {{err}}",
     "segnaposti": "In texts: {{a}}, {{b}}, {{c}}."
+  },
+  "scala": {
+    "apri": "Change project resolution…",
+    "aiuto": "Bring pages and frames to another resolution, moving and resizing the objects",
+    "titolo": "Change project resolution",
+    "spiegazione": "Objects are moved and resized by a single factor, so nothing gets distorted: the drawing is centred and, if the proportions change, a free band remains. Texts and strokes follow the scale but never go below 9 px and 1 px.",
+    "da": "From",
+    "a": "To",
+    "scegliPreset": "Preset…",
+    "anteprima": "Factor {{f}} — {{fascia}}",
+    "fasciaSopraSotto": "free band of {{px}} px above and below",
+    "fasciaLati": "free band of {{px}} px left and right",
+    "fasciaNessuna": "no free band",
+    "cosaConvertire": "What to convert",
+    "tipoPagina": "page",
+    "tipoCornice": "frame",
+    "tipoBoot": "boot image",
+    "fluida": "fluid",
+    "nota": "It undoes in a single step (Ctrl+Z); the conversion becomes final when you save. Frames keep header and footer attached to the edges.",
+    "annulla": "Cancel",
+    "converti_one": "Convert {{count}} page",
+    "converti_other": "Convert {{count}} pages"
   }
 }

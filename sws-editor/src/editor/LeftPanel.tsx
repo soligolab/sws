@@ -220,7 +220,7 @@ function PagesSection() {
 
   const homePageId = project?.page_layout?.home_page_id;
   const bootPageId = project?.page_layout?.boot_page_id;
-  const orphanIds = findOrphanPageIds(pages, homePageId, project?.page_layout?.page_tree);
+  const orphanIds = findOrphanPageIds(tutte, homePageId, project?.page_layout?.page_tree, corniceDefault);
   const albero = riconcilia(project?.page_layout?.page_tree, pages.map((p) => p.id));
   const righeAlbero = righe(albero, chiusi);
   const perId = new Map(pages.map((p) => [p.id, p]));
