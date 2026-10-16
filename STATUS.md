@@ -45,6 +45,12 @@ VPS gateway su `22bca649-amd64`. WP630 (**192.168.1.71** oggi, la tabella dice `
 **Pronta e non pubblicata**: l'immagine arm64 da `2d06f80f`, costruita a fine sessione. Un
 `podman push` e il WP630 può prendere il keepalive.
 
+**TC620 di casa (`tc620-garage`)**, 16-10 alle 22:42: su `d3280088-arm64` (pubblicata, ritaggata `rc-arm64`);
+ripiego `df0e4092-arm64` e `prima-della-prova`. Prima dell'aggiornamento il tunnel si riapriva a intervalli irregolari
+(13:53, 15:36, 18:35 UTC), non ogni 15 minuti come il WP630: misura di partenza per il keepalive. L'autopilota delle
+22:00 non ha toccato il pannello (la rc.3 dichiarata è più nuova della rc.2 del canale). Lo script di CasaDomotica con
+`log` fallisce ancora all'avvio: serve il deploy dal cloud.
+
 ### Il prossimo passo
 
 1. **Misurare il keepalive sul WP630**: pubblicare l'arm64, aggiornare il pannello e guardare se
