@@ -82,6 +82,11 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 
 ### Fixed
 
+- **`/metrics`: la CPU aveva senso**. Ogni lettura creava un `System` nuovo aggiornato una volta sola, quindi
+  `sws_cpu_usage_pct` era privo di significato, e `new_all()` scandiva tutti i processi a ogni lettura. Ora un
+  `System` unico si aggiorna solo per CPU, memoria e il proprio processo, e ci sono `sws_process_cpu_pct` e
+  `sws_process_rss_bytes`.
+
 - **Deploy coerente** (i punti «da guardare anche» del piano `docs/plans/2026-10-14-revisione-ide-collaudo-wp630.md`):
   - una pagina che non si legge **ferma** il deploy e l'esportazione con il suo nome, invece di essere saltata con un
     `warn!` e sparire dal pannello;
@@ -208,6 +213,12 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 - **Dopo il primo invio di un progetto il pannello passa da solo alla pagina**, senza il pulsante «Continua».
 
 ### Added
+
+- **Prestazioni misurate** (P5 dell'onda 2, piano `docs/plans/2026-10-17-onda-2-prestazioni-e-protezioni.md`). Il
+  banco `sws-banco` (nuovo crate) e `scripts/banco_prestazioni.sh` misurano tag × client: aggiornamenti arrivati,
+  latenza da capo a capo, CPU e memoria del runtime. Prima misura su TC620 e x86 in
+  `docs/manual/16_prestazioni.md` e `docs/prestazioni/`: sul TC620 1.000 tag verso 20 browser costano un quarto di
+  core, 5.000 tag verso 20 browser un core, senza perdite.
 
 - **Cornici: template e manuale** (ramo 3 del piano `docs/plans/2026-10-15-cornici-di-pagina.md`).
   `homeassistant-pro` porta il navigatore delle sei pagine in `cornici/navigazione.yaml`, `tc620-sistema` la testata

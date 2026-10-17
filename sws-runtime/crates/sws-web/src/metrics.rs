@@ -23,6 +23,7 @@ use sysinfo::{Disks, System};
 use crate::router::AppState;
 
 static HANDLE: OnceLock<PrometheusHandle> = OnceLock::new();
+static SISTEMA: OnceLock<std::sync::Mutex<System>> = OnceLock::new();
 
 /// Install the Prometheus recorder as the global `metrics` recorder.
 /// Idempotent: subsequent calls return the previously-installed handle
@@ -38,12 +39,30 @@ pub fn install_recorder() -> &'static PrometheusHandle {
 
 /// `GET /metrics` — Prometheus text exposition format.
 pub async fn get_metrics(State(state): State<AppState>) -> impl IntoResponse {
-    // Sample fresh values per scrape. The cost (a sysinfo refresh plus two
-    // store snapshots) is well under the cost of a typical Prometheus
-    // scrape interval (15-60 s), and avoids running a background ticker
-    // that would emit metrics nobody scrapes.
-    let mut sys = System::new_all();
-    sys.refresh_all();
+    // Un `System` solo, tenuto fra una lettura e l'altra (17-10-2026). Prima se ne
+    // creava uno nuovo a ogni lettura con `new_all()` + `refresh_all()`: la CPU di
+    // `sysinfo` ha senso solo fra **due** aggiornamenti, quindi il valore era privo
+    // di significato, e `new_all()` scandiva tutti i processi — un costo che il
+    // banco di prova, leggendo una volta al secondo, avrebbe aggiunto al runtime
+    // che stava misurando. Ora si aggiornano solo CPU, memoria e il nostro processo.
+    let (cpu, mem_usata, mem_totale, proc_cpu, proc_rss) = {
+        let mut sys = SISTEMA.get_or_init(|| std::sync::Mutex::new(System::new())).lock()
+            .unwrap_or_else(|e| e.into_inner());
+        sys.refresh_cpu_usage();
+        sys.refresh_memory();
+        let pid = sysinfo::get_current_pid().ok();
+        if let Some(pid) = pid {
+            sys.refresh_process(pid);
+        }
+        let p = pid.and_then(|pid| sys.process(pid));
+        (
+            sys.global_cpu_info().cpu_usage() as f64,
+            sys.used_memory() as f64,
+            sys.total_memory() as f64,
+            p.map(|p| p.cpu_usage() as f64),
+            p.map(|p| p.memory() as f64),
+        )
+    };
     let disks = Disks::new_with_refreshed_list();
     let disk = disks.list().first();
 
@@ -58,9 +77,15 @@ pub async fn get_metrics(State(state): State<AppState>) -> impl IntoResponse {
     metrics::gauge!("sws_tag_count").set(tag_count);
     metrics::gauge!("sws_alarm_active_count").set(alarm_active);
     metrics::gauge!("sws_alarm_total").set(alarm_total);
-    metrics::gauge!("sws_cpu_usage_pct").set(sys.global_cpu_info().cpu_usage() as f64);
-    metrics::gauge!("sws_memory_used_bytes").set(sys.used_memory() as f64);
-    metrics::gauge!("sws_memory_total_bytes").set(sys.total_memory() as f64);
+    metrics::gauge!("sws_cpu_usage_pct").set(cpu);
+    metrics::gauge!("sws_memory_used_bytes").set(mem_usata);
+    metrics::gauge!("sws_memory_total_bytes").set(mem_totale);
+    // Il processo del runtime: CPU in % di **un** core (può superare 100 su più
+    // core) e memoria residente.
+    if let (Some(c), Some(m)) = (proc_cpu, proc_rss) {
+        metrics::gauge!("sws_process_cpu_pct").set(c);
+        metrics::gauge!("sws_process_rss_bytes").set(m);
+    }
     if let Some(d) = disk {
         metrics::gauge!("sws_disk_used_bytes").set((d.total_space() - d.available_space()) as f64);
         metrics::gauge!("sws_disk_total_bytes").set(d.total_space() as f64);

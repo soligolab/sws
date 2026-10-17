@@ -101,6 +101,8 @@ declare -A TETTO=(
     [sws-runtime/crates/sws-web/src/istantanea.rs]=2      # confronto fra istantanee (sola lettura)
     [sws-runtime/crates/sws-web/src/project_registry.rs]=1 # esiste? (sola lettura)
     [sws-runtime/crates/sws-runtime/src/main.rs]=1        # esiste? (sola lettura)
+    [sws-runtime/crates/sws-banco/src/main.rs]=1          # lo ZIP del banco di prestazioni (17-10-2026): un project.yaml di soli
+                                                         # tag generati, senza sorgenti né notifiche, quindi nessun segreto da portare.
 )
 sforati=""
 for f in $(grep -rl '"project\.yaml"' --include='*.rs' "$CRATES"/*/src); do

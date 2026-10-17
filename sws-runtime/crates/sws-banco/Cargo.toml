@@ -1,0 +1,20 @@
+[package]
+name = "sws-banco"
+description = "Banco di prova delle prestazioni del runtime SWS (P5, onda 2)"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish = false
+
+[dependencies]
+tokio.workspace = true
+tokio-tungstenite.workspace = true
+futures-util.workspace = true
+reqwest.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+clap.workspace = true
+anyhow.workspace = true
+zip = { version = "2", default-features = false }
+sws-auth = { path = "../sws-auth" }
