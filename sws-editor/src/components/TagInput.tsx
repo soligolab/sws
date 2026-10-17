@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { TendinaFluttuante } from "@/components/TendinaFluttuante";
 import { useTranslation } from "react-i18next";
 import { useAppStore } from "@/store";
 import { tagCatalog } from "@/tagCatalog";
@@ -68,33 +69,13 @@ export function statoTag(
  * Text input with a ▾ button that opens a filterable tag-picker dropdown.
  * Free-text entry is always allowed.
  */
-/** Quanto può allargarsi un elenco a tendina oltre il campo che lo apre.
- *
- * Il campo sta nel pannello delle proprietà, che è stretto: con la tendina
- * larga quanto il campo, un id come `host.TemperatureSensor.value` si legge a
- * metà e la scelta si fa a indovinare (segnalato dal maintainer il
- * 12-10-2026, con uno schermo pieno di `host.Temperature…` identici).
- *
- * Cresce **verso sinistra** (`right: 0`), non verso destra: il pannello delle
- * proprietà sta sul bordo destro della finestra, e allargarsi di là
- * porterebbe il testo fuori schermo — cioè illeggibile uguale, ma senza
- * nemmeno la barra di scorrimento a dirlo. */
-const LARGHEZZA_MAX_TENDINA = "min(520px, 80vw)";
-
-/** Lo stesso ancoraggio per le due tendine di questo componente: il
- * completamento da tastiera e il selettore col filtro. Scriverlo una volta
- * sola perché divergano è difficile: sono la stessa tendina vista in due
- * momenti. */
-const ANCORAGGIO_TENDINA = {
-  position: "absolute",
-  top: "100%",
-  right: 0,
-  left: "auto",
-  minWidth: "100%",
-  width: "max-content",
-  maxWidth: LARGHEZZA_MAX_TENDINA,
-  zIndex: 9999,
-} as const;
+/** Quanto può allargarsi un elenco a tendina oltre il campo che lo apre: un id
+ * come `host.TemperatureSensor.value` deve leggersi per intero (12-10-2026). Dal
+ * 17-10-2026 la tendina esce dal flusso (`TendinaFluttuante`): prima era
+ * `position: absolute` e il pannello proprietà la ritagliava, lasciando vedere
+ * solo il tipo `i32` e mai il nome. */
+const LARGHEZZA_MAX_TENDINA = 520;
+const ALTEZZA_MAX_TENDINA = 260;
 
 export function TagInput({ value, onChange, placeholder, style, tipoSuggerito }: TagInputProps) {
   const { t } = useTranslation();
@@ -117,6 +98,9 @@ export function TagInput({ value, onChange, placeholder, style, tipoSuggerito }:
   const containerRef = useRef<HTMLDivElement>(null);
   const inputRef     = useRef<HTMLInputElement>(null);
   const filterRef    = useRef<HTMLInputElement>(null);
+  // Le tendine stanno in un portal fuori dal campo: i clic dentro di loro non
+  // sono «fuori» anche se il contenitore non le contiene.
+  const tendinaRef   = useRef<HTMLDivElement>(null);
   const [open, setOpen]     = useState(false);
   const [filter, setFilter] = useState("");
   // Il completamento mentre si digita: vive solo fra un tasto e l'altro, e
@@ -129,7 +113,8 @@ export function TagInput({ value, onChange, placeholder, style, tipoSuggerito }:
   useEffect(() => {
     if (!open) return;
     const handler = (e: MouseEvent) => {
-      if (!containerRef.current?.contains(e.target as Node)) setOpen(false);
+      const dove = e.target as Node;
+      if (!containerRef.current?.contains(dove) && !tendinaRef.current?.contains(dove)) setOpen(false);
     };
     document.addEventListener("mousedown", handler);
     return () => document.removeEventListener("mousedown", handler);
@@ -231,14 +216,17 @@ export function TagInput({ value, onChange, placeholder, style, tipoSuggerito }:
       {/* Il completamento del percorso: stesso elenco del selettore, ma
           governato dalla tastiera e ancorato a ciò che si sta scrivendo. */}
       {suggerimenti.length > 0 && (
-        <div
+        <TendinaFluttuante
           role="listbox"
-          style={{
-            ...ANCORAGGIO_TENDINA,
+          ancora={containerRef}
+          rif={tendinaRef}
+          altezzaMax={ALTEZZA_MAX_TENDINA}
+          larghezzaMax={LARGHEZZA_MAX_TENDINA}
+          stile={{
             background: "var(--brand-bg, #0f172a)",
             border: "1px solid var(--brand-surface-2, #334155)",
-            borderRadius: 4, maxHeight: 200, overflowY: "auto",
-            boxShadow: "0 4px 16px rgba(0,0,0,0.5)", marginTop: 2,
+            borderRadius: 4,
+            boxShadow: "0 4px 16px rgba(0,0,0,0.5)",
           }}
         >
           {suggerimenti.map((sg, i) => (
@@ -264,7 +252,7 @@ export function TagInput({ value, onChange, placeholder, style, tipoSuggerito }:
               )}
             </div>
           ))}
-        </div>
+        </TendinaFluttuante>
       )}
       {definisci && (
         <QuickCreateTagModal
@@ -275,16 +263,17 @@ export function TagInput({ value, onChange, placeholder, style, tipoSuggerito }:
         />
       )}
       {open && (
-        <div
-          style={{
-            ...ANCORAGGIO_TENDINA,
+        <TendinaFluttuante
+          ancora={containerRef}
+          rif={tendinaRef}
+          altezzaMax={ALTEZZA_MAX_TENDINA}
+          larghezzaMax={LARGHEZZA_MAX_TENDINA}
+          data-testid="tendina-tag"
+          stile={{
             background: "var(--brand-bg, #0f172a)",
             border: "1px solid var(--brand-surface-2, #334155)",
             borderRadius: 4,
-            maxHeight: 200,
-            overflowY: "auto",
             boxShadow: "0 4px 16px rgba(0,0,0,0.5)",
-            marginTop: 2,
           }}
         >
           <input
@@ -347,7 +336,7 @@ export function TagInput({ value, onChange, placeholder, style, tipoSuggerito }:
               {tags.length === 0 ? t("tagInput.noTagsInProject") : t("tagInput.noTags")}
             </div>
           )}
-        </div>
+        </TendinaFluttuante>
       )}
     </div>
   );

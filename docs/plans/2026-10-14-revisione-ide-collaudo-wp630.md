@@ -126,6 +126,9 @@ la versione vecchia»):
 
 # Ramo 2 — `fix/tendina-dei-tag-fuori-dal-flusso`
 
+> **Fatto il 17-10-2026**: `components/TendinaFluttuante.tsx`, usata dalle due tendine di `TagInput`; provato a
+> schermo nel pannello proprietà (nome, descrizione e tipo leggibili, segue lo scorrimento, il clic sceglie).
+
 ## La mia correzione del 12-10 ha peggiorato le cose
 
 Il 12-10 avevo fatto crescere le tendine di `TagInput` **verso sinistra**, credendo che il limite

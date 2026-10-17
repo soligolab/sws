@@ -82,6 +82,13 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 
 ### Fixed
 
+- **IDE: le tendine dei tag si leggono per intero** (ramo 2 del piano `docs/plans/2026-10-14-revisione-ide-collaudo-wp630.md`).
+  Le due tendine di `TagInput` (completamento e selettore) erano `position: absolute` dentro il campo, e il pannello
+  proprietà le ritagliava: nel pannello stretto si vedeva solo la colonna del tipo (`i32`), mai il nome — anche fra i
+  parametri di una finestra. Ora escono dal flusso (`components/TendinaFluttuante.tsx`: portal su `body`,
+  `position: fixed`), seguono il campo quando il pannello scorre, si ribaltano sopra se sotto non c'è posto e restano
+  dentro la finestra. Vale per tutti i punti d'uso di `TagInput`.
+
 - **Un progetto con uno spazio nel nome non sparisce più.** Nel cloud l'indirizzo di un progetto arriva al gateway
   con lo spazio scritto `%20`, e veniva cercata sul disco una cartella con dentro quel `%20`: il progetto risultava
   vuoto pur essendo tutto al suo posto. Vale per gli accenti allo stesso modo. Il rifiuto adesso finisce anche nel
