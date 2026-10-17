@@ -160,19 +160,43 @@ pub fn componi(pagina: &mut SynopticPage, cornice: &Cornice, progetto_nome: &str
     pagina.objects = composti;
 }
 
-/// Gli oggetti di una pagina che entrano in una fascia della cornice: il
-/// validatore li segnala, perché la cornice ci sta sotto e li coprirebbe a
-/// metà. Gli oggetti senza misura (testo senza riquadro, linee) contano col
-/// loro punto di ancoraggio.
+/// Il riquadro approssimato di un oggetto, per capire se due si coprono. Un
+/// testo senza riquadro ha `y` sulla linea di base: il suo corpo sta sopra, e
+/// la larghezza si stima dal contenuto.
+fn riquadro(o: &SynopticObject) -> (f64, f64, f64, f64) {
+    let (x, y) = (o.x, o.y);
+    match (o.width, o.height) {
+        (Some(w), Some(h)) => (x, y, x + w, y + h),
+        _ if o.obj_type == "text" => {
+            let fs = o.font_size.unwrap_or(14.0);
+            let n = o.text.as_deref().map(|t| t.chars().count()).unwrap_or(4) as f64;
+            let w = o.width.unwrap_or(n * fs * 0.6);
+            (x, y - fs, x + w, y)
+        }
+        (w, h) => (x, y, x + w.unwrap_or(0.0), y + h.unwrap_or(0.0)),
+    }
+}
+
+fn si_coprono(a: (f64, f64, f64, f64), b: (f64, f64, f64, f64)) -> bool {
+    a.0 < b.2 && b.0 < a.2 && a.1 < b.3 && b.1 < a.3
+}
+
+/// Gli oggetti di una pagina che finiscono **sopra** un oggetto della cornice,
+/// dentro una fascia: la cornice ci sta sotto e resterebbe coperta a metà. Un
+/// oggetto della pagina nello spazio libero di una fascia (il titolo della
+/// pagina accanto all'orologio della testata) è legittimo e non si segnala
+/// (affinato il 17-10-2026: prima bastava entrare nella fascia).
 pub fn oggetti_nelle_fasce<'a>(pagina: &'a SynopticPage, cornice: &Cornice) -> Vec<&'a str> {
     let (t, p) = (cornice.testata.altezza.max(0.0), cornice.piede.altezza.max(0.0));
     let inizio_piede = cornice.altezza - p;
+    let suoi: Vec<_> = cornice.oggetti.iter().map(riquadro).collect();
     pagina
         .objects
         .iter()
         .filter(|o| {
-            let (y0, y1) = (o.y, o.y + o.height.unwrap_or(0.0));
-            (t > 0.0 && y0 < t) || (p > 0.0 && y1 > inizio_piede)
+            let r = riquadro(o);
+            let nella_fascia = (t > 0.0 && r.1 < t) || (p > 0.0 && r.3 > inizio_piede);
+            nella_fascia && suoi.iter().any(|c| si_coprono(r, *c))
         })
         .map(|o| o.id.as_str())
         .collect()
@@ -304,8 +328,10 @@ oggetti:
 
     #[test]
     fn oggetti_della_pagina_nelle_fasce_e_della_cornice_fuori() {
+        // «alto» copre il titolo della cornice, «basso» il navigatore; «libero»
+        // sta in testata ma lontano da tutto; «giusto» fra le due fasce.
         let p = pagina(
-            "id: p\nname: P\nobjects:\n- { id: alto, type: rect, x: 0, y: 30, height: 40 }\n- { id: giusto, type: rect, x: 0, y: 60, height: 600 }\n- { id: basso, type: rect, x: 0, y: 700, height: 60 }\n",
+            "id: p\nname: P\nobjects:\n- { id: alto, type: rect, x: 0, y: 10, width: 200, height: 40 }\n- { id: libero, type: rect, x: 600, y: 10, width: 100, height: 30 }\n- { id: giusto, type: rect, x: 0, y: 60, width: 100, height: 600 }\n- { id: basso, type: rect, x: 0, y: 700, width: 100, height: 60 }\n",
         );
         let c = cornice();
         assert_eq!(oggetti_nelle_fasce(&p, &c), ["alto", "basso"]);

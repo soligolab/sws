@@ -1,0 +1,95 @@
+# La testata comune alle sei pagine (17-10-2026): ora, data e identità del pannello. Il titolo
+# (`hdr_pagina`) resta su ogni pagina, perché è tradotto con un token suo.
+id: testata
+nome: Testata
+larghezza: 1280
+altezza: 800
+testata:
+  altezza: 92
+  sfondo: '#1e293b'
+piede:
+  altezza: 0
+oggetti:
+- id: hdr_ora
+  type: text
+  x: 20.0
+  y: 8.0
+  tag: orologio.ora
+  format: '{value}'
+  font_size: 34.0
+  color: '#e2e8f0'
+- id: hdr_data
+  type: text
+  x: 22.0
+  y: 56.0
+  tag: orologio.data
+  format: '{value}'
+  font_size: 14.0
+  color: '#94a3b8'
+- id: hdr_sep
+  type: rect
+  x: 196.0
+  y: 14.0
+  width: 1.0
+  height: 64.0
+  fill: '#334155'
+- id: hdr_l0
+  type: text
+  x: 220.0
+  y: 18.0
+  text: '{{t0009}}'
+  font_size: 12.0
+  color: '#94a3b8'
+- id: hdr_v0
+  type: text
+  x: 220.0
+  y: 40.0
+  tag: tc620.modello
+  format: '{value}'
+  font_size: 17.0
+  color: '#e2e8f0'
+- id: hdr_l1
+  type: text
+  x: 410.0
+  y: 18.0
+  text: '{{t0010}}'
+  font_size: 12.0
+  color: '#94a3b8'
+- id: hdr_v1
+  type: text
+  x: 410.0
+  y: 40.0
+  tag: tc620.numero_serie
+  format: '{value}'
+  font_size: 17.0
+  color: '#e2e8f0'
+- id: hdr_l2
+  type: text
+  x: 600.0
+  y: 18.0
+  text: '{{t0011}}'
+  font_size: 12.0
+  color: '#94a3b8'
+- id: hdr_v2
+  type: text
+  x: 600.0
+  y: 40.0
+  tag: tc620.hostname
+  format: '{value}'
+  font_size: 17.0
+  color: '#e2e8f0'
+- id: hdr_l3
+  type: text
+  x: 790.0
+  y: 18.0
+  text: '{{t0012}}'
+  font_size: 12.0
+  color: '#94a3b8'
+- id: hdr_v3
+  type: text
+  x: 790.0
+  y: 40.0
+  tag: tc620.uptime_s
+  format: '{value:dhms}'
+  font_size: 17.0
+  color: '#e2e8f0'

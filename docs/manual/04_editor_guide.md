@@ -347,6 +347,31 @@ Un'**immagine di boot** è ciò che un pannello Pixsys mostra mentre parte. Nell
 
 ![Immagine di boot: sezione nell'elenco pagine, canvas e anteprima del PNG](screenshots/11_immagine_di_boot.png)
 
+## Cornici (testata e piede comuni a più pagine)
+
+Una **cornice** è la parte che resta uguale su tutte le pagine che la usano, come intestazione e piè di pagina di un
+documento: una testata con titolo, data e ora, un piede con la barra di navigazione. Si modifica una volta e cambia
+ovunque.
+
+- **Dove.** Pannello sinistro → **CORNICI** (▭). «+ Nuova cornice…» propone quattro modelli: testata con titolo,
+  data e ora più navigazione in basso; solo navigazione in basso; solo testata; vuota. La cornice nasce con le
+  misure della pagina aperta e si apre sul canvas come una pagina.
+- **Le fasce.** Testata e piede hanno un'altezza e un fondo (Proprietà della cornice). Sul canvas sono segnate da
+  una riga tratteggiata: gli oggetti della cornice vanno dentro le due fasce, il validatore segnala quelli fuori.
+- **La cornice predefinita.** Nelle proprietà della cornice, «Cornice predefinita del progetto» (⭐ nell'albero):
+  la usano tutte le pagine che non ne scelgono un'altra.
+- **Pagina per pagina.** Nelle proprietà della pagina, «Cornice»: la predefinita del progetto, un'altra cornice, o
+  nessuna. Sotto la pagina la cornice si vede attenuata e non si seleziona; «Modifica la cornice» la apre.
+- **Sotto, non sopra.** La cornice si disegna sotto il contenuto della pagina. Un oggetto della pagina nello spazio
+  libero di una fascia va bene (il titolo della pagina accanto all'orologio); il validatore avvisa solo quando un
+  oggetto della pagina copre un oggetto della cornice.
+- **Segnaposti.** Nei testi della cornice: `{{pagina.nome}}`, `{{pagina.id}}`, `{{progetto.nome}}`. Il nome della
+  pagina non si traduce: un titolo tradotto resta sulla pagina, come nel template `tc620-sistema`.
+- **Dove arriva.** Le cornici viaggiano con il progetto (esportazione, deploy, istantanea) e si vedono uguali nel
+  viewer web e sul pannello LVGL. Le immagini di boot e le finestre non hanno cornice.
+- **Esempi.** `homeassistant-pro` (il navigatore in fondo alle sei pagine) e `tc620-sistema` (la testata con ora,
+  data e identità del pannello).
+
 ## Finestre (una pagina aperta sopra l'altra)
 
 Una **finestra** è una pagina che si apre sopra quella corrente, da un bottone: il dettaglio di una pompa, i

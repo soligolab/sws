@@ -297,6 +297,8 @@ alarms:
     message: '{{t0060}}'
 page_layout:
   size_mode: fixed
+  # La cornice delle pagine (17-10-2026): testata e piede comuni, in cornici/testata.yaml.
+  cornice_predefinita: testata
   home_page_id: tc620_panoramica
   page_tree:
   - id: tc620_panoramica

@@ -28,32 +28,7 @@ objects:
   color: "#475569"
   locked: true
 
-# ── NAVIGATION ───────────────────────────────────────────────────────────────
-- id: pro2_nav
-  type: page_navigator
-  x: 137
-  y: 738
-  width: 993
-  height: 44
-  nav_orientation: horizontal
-  nav_fill: true
-  nav_gap: 12
-  nav_active_fill: "#1e293b"
-  nav_items:
-  - page_id: pro_p1
-    label: "{{t0047}}"
-  - page_id: pro_p2
-    label: "{{t0004}}"
-  - page_id: pro_p3
-    label: "{{t0005}}"
-  - page_id: pro_p4
-    label: "{{t0006}}"
-  - page_id: pro_p5
-    label: "{{t0007}}"
-  - page_id: pro_p6
-    label: "{{t0008}}"
-  locked: true
-
+# La navigazione in fondo alla pagina sta nella cornice (cornici/navigazione.yaml).
 # ══════════════════════════════════════════════════════════════════════════════
 # POTENZA TOTALE FV (top bar)
 # ══════════════════════════════════════════════════════════════════════════════

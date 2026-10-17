@@ -181,6 +181,12 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 
 ### Added
 
+- **Cornici: template e manuale** (ramo 3 del piano `docs/plans/2026-10-15-cornici-di-pagina.md`).
+  `homeassistant-pro` porta il navigatore delle sei pagine in `cornici/navigazione.yaml`, `tc620-sistema` la testata
+  con ora, data e identità del pannello in `cornici/testata.yaml` (il titolo tradotto resta sulle pagine); il
+  capitolo «Cornici» in `docs/manual/04_editor_guide.md`. Il validatore avvisa solo quando un oggetto della pagina
+  **copre** un oggetto della cornice, non più per ogni oggetto dentro una fascia.
+
 - **Finestre popup generiche** (P1 dell'onda 1, piano `docs/plans/2026-10-17-finestre-popup.md`). Una pagina con
   `finestra: {modale, titolo?}` si apre sopra la corrente da un bottone `open_popup` (`close_popup` la chiude), con i
   parametri `finestra_parametri` sostituiti come nei faceplate (`{nome}`). Modale: sfondo, `Esc` e clic fuori

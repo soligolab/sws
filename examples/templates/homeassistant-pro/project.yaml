@@ -1727,6 +1727,8 @@ languages:
 # `--page` è diventato opzionale.
 page_layout:
   size_mode: fixed
+  # La cornice delle pagine (17-10-2026): testata e piede comuni, in cornici/navigazione.yaml.
+  cornice_predefinita: navigazione
   home_page_id: pro_p1   # Panoramica
   # L'albero delle pagine: Panoramica con le sue quattro sezioni sotto, e Sicurezza a parte. Il navigatore
   # di ogni pagina (`page_navigator`, `nav_source: all`) le mostra in questo ordine.
