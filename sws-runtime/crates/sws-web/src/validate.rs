@@ -537,6 +537,47 @@ pub fn rilievi_cornici(
     out
 }
 
+/// I rilievi delle finestre popup (P1, 17-10-2026): un `open_popup` verso una
+/// pagina che non c'è, o che non si apre come finestra; sul pannello LVGL la
+/// finestra si apre come pagina intera, e lo si dice.
+pub fn rilievi_finestre(project: &Project, pages: &[SynopticPage]) -> Vec<Finding> {
+    let mut out = Vec::new();
+    let per_id: HashMap<&str, &SynopticPage> = pages.iter().map(|p| (p.id.as_str(), p)).collect();
+    let lvgl = matches!(
+        project.target.as_ref().map(|t| t.kind),
+        Some(ProjectTargetKind::LvglFramebuffer | ProjectTargetKind::LvglWayland)
+    );
+    for p in pages {
+        for o in &p.objects {
+            let Some(a) = o.button_action.as_ref() else { continue };
+            if a.get("type").and_then(Value::as_str) != Some("open_popup") {
+                continue;
+            }
+            let dove = format!("pages[{}].objects[{}].button_action", p.name, o.id);
+            let bersaglio = a.get("page").and_then(Value::as_str).unwrap_or("");
+            match per_id.get(bersaglio) {
+                None => out.push(Finding::err(
+                    dove,
+                    format!("la finestra `{bersaglio}` non esiste"),
+                    "scegli una pagina-finestra nell'azione del bottone",
+                )),
+                Some(t) if t.finestra.is_none() => out.push(Finding::warn(
+                    dove,
+                    format!("la pagina «{}» non è una finestra", t.name),
+                    "nelle proprietà di quella pagina spunta «Si apre come finestra»",
+                )),
+                Some(t) if lvgl => out.push(Finding::warn(
+                    dove,
+                    format!("sul pannello la finestra «{}» si apre come pagina intera", t.name),
+                    "le finestre su LVGL non ci sono ancora: il tocco naviga alla pagina, senza parametri",
+                )),
+                Some(_) => {}
+            }
+        }
+    }
+    out
+}
+
 pub fn semantic(project: &Project, pages: &[SynopticPage]) -> Vec<Finding> {
     let mut out = Vec::new();
     let tipi: HashSet<&str> = OBJECT_TYPES.iter().copied().collect();

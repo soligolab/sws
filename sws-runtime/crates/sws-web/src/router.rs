@@ -6635,6 +6635,11 @@ async fn pages_nav(
             let Ok(page) = serde_yaml::from_str::<SynopticPage>(&text) else {
                 continue;
             };
+            // Una pagina-finestra (P1) si apre solo da un bottone: nei navigatori
+            // del pannello non deve comparire.
+            if page.finestra.is_some() {
+                continue;
+            }
             if zone_allowed(&user.allowed_zones, &page.zones) {
                 pages.push((
                     stem,

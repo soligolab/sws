@@ -25,6 +25,14 @@ export function paginePerNavigazione<T extends { kind?: string }>(pages: readonl
   return pages.filter((p) => !eBoot(p) && p.kind !== "cornice");
 }
 
+/** Le pagine fra cui si **naviga** a runtime (navigatori, tab del viewer,
+ *  rotazione kiosk): quelle di `paginePerNavigazione` meno le pagine-finestra
+ *  (P1, 17-10-2026), che si aprono solo da un bottone. L'editor continua a
+ *  mostrarle nell'albero e nelle tab, perché lì si modificano. */
+export function pagineNavigabili<T extends { kind?: string; finestra?: unknown }>(pages: readonly T[]): T[] {
+  return paginePerNavigazione(pages).filter((p) => !p.finestra);
+}
+
 export function pagineDiBoot<T extends { kind?: string }>(pages: readonly T[]): T[] {
   return pages.filter((p) => eBoot(p));
 }

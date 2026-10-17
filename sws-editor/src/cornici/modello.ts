@@ -60,7 +60,8 @@ export function paginaACornice(p: SynopticPage): Cornice {
 /** L'id della cornice che una pagina mostra, o `null` se nessuna: gemello di
  *  `cornice_della_pagina` in `cornici.rs`. */
 export function corniceDellaPagina(p: SynopticPage, predefinita: string | undefined): string | null {
-  if (p.kind === "boot" || p.kind === "cornice") return null;
+  // Una pagina-finestra (P1) non ha mai una cornice: è un riquadro sopra la pagina.
+  if (p.kind === "boot" || p.kind === "cornice" || p.finestra) return null;
   if (p.cornice === undefined) return predefinita || null;
   return p.cornice || null;
 }

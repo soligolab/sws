@@ -1,4 +1,5 @@
 import { createContext, lazy, Suspense, useCallback, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { ProprietaFinestra } from "@/finestre/ProprietaFinestra";
 import { DialogoRisoluzione } from "@/scala/DialogoRisoluzione";
 import { ProprietaFasce, SceltaCornice } from "@/cornici/ProprietaCornice";
 import { corniceDellaPagina, eCornice, idCornice, oggettiComposti, paginaACornice } from "@/cornici/modello";
@@ -1053,7 +1054,8 @@ export function EditorShell() {
               formatoPredefinito={project?.page_layout?.default_width && project?.page_layout?.default_height
                 ? `${project.page_layout.default_width}×${project.page_layout.default_height}` : undefined}
             />
-            {currentPage && !currentPage.kind && <SceltaCornice pagina={currentPage} />}
+            {currentPage && !currentPage.kind && <ProprietaFinestra pagina={currentPage} />}
+            {currentPage && !currentPage.kind && !currentPage.finestra && <SceltaCornice pagina={currentPage} />}
             {currentPage && eCornice(currentPage) && <ProprietaFasce pagina={currentPage} />}
             <span style={{ fontSize: 11, fontWeight: 700, color: "var(--brand-text-subtle, #64748b)", letterSpacing: 1, marginTop: 8, display: "block" }}>
               {t("shell.projectSettings")}
@@ -2878,6 +2880,8 @@ export function ObjectProps({
   const bgFileRef = useRef<HTMLInputElement | null>(null);
   const projLangs = useAppStore((s) => s.project?.languages?.langs) ?? [];
   const faceplates = useAppStore((s) => s.faceplates);
+  // P1: le pagine-finestra, per l'azione «Apri finestra».
+  const tutteLePagine = useAppStore((s) => s.pages);
   // NB: selezionare l'array `entries` (riferimento stabile nello store) e
   // derivare le chiavi in useMemo. Un selettore che fa `.map()` ritornerebbe
   // un nuovo array a ogni render → snapshot instabile → loop infinito e crash
@@ -3704,6 +3708,7 @@ export function ObjectProps({
                       if (!t) { onChange({ button_action: undefined }); return; }
                       if (t === "navigate") onChange({ button_action: { type: "navigate", url: "" } });
                       else if (t === "open_faceplate") onChange({ button_action: { type: "open_faceplate", faceplate_id: "", params: {} } });
+                      else if (t === "open_popup") onChange({ button_action: { type: "open_popup", page: "", params: {} } });
                       else onChange({ button_action: { type: t } as ButtonAction });
                     }}
                   >
@@ -3712,7 +3717,40 @@ export function ObjectProps({
                     <option value="logout">{t("props.logoutReadonly")}</option>
                     <option value="navigate">{t("props.navigateUrl")}</option>
                     <option value="open_faceplate">{t("props.openFaceplate")}</option>
+                    <option value="open_popup">{t("finestraPopup.apri")}</option>
+                    <option value="close_popup">{t("finestraPopup.chiudiAzione")}</option>
                   </select>
+                  {obj.button_action?.type === "open_popup" && (() => {
+                    const act = obj.button_action as { type: "open_popup"; page: string; params?: Record<string, string> };
+                    const finestre = tutteLePagine.filter((p) => p.finestra);
+                    const scelta = finestre.find((p) => p.id === act.page);
+                    return (
+                      <>
+                        <select style={{ ...INPUT, cursor: "pointer" }} value={act.page} data-testid="azione-finestra"
+                          onChange={(e) => onChange({ button_action: { ...act, page: e.target.value, params: {} } })}>
+                          <option value="">{t("finestraPopup.scegli")}</option>
+                          {finestre.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+                        </select>
+                        {finestre.length === 0 && (
+                          <span style={{ fontSize: 10, color: "var(--brand-text-subtle, #94a3b8)" }}>{t("finestraPopup.nessuna")}</span>
+                        )}
+                        {(scelta?.finestra_parametri ?? []).map((p) => (
+                          <div key={p.name} style={{ display: "flex", gap: 4, alignItems: "center" }}>
+                            <span style={{ fontSize: 10, color: "var(--brand-text-subtle, #64748b)", width: 80, flexShrink: 0 }}>{p.name}</span>
+                            {p.type === "tag" ? (
+                              <TagInput style={{ ...INPUT, flex: 1 }} placeholder={p.default ?? ""}
+                                value={act.params?.[p.name] ?? ""}
+                                onChange={(v) => onChange({ button_action: { ...act, params: { ...(act.params ?? {}), [p.name]: v } } })} />
+                            ) : (
+                              <input type="text" style={{ ...INPUT, flex: 1 }} placeholder={p.default ?? ""}
+                                value={act.params?.[p.name] ?? ""}
+                                onChange={(e) => onChange({ button_action: { ...act, params: { ...(act.params ?? {}), [p.name]: e.target.value } } })} />
+                            )}
+                          </div>
+                        ))}
+                      </>
+                    );
+                  })()}
                   {obj.button_action?.type === "navigate" && (() => {
                     const act = obj.button_action as { type: "navigate"; url: string; target?: "self" | "blank" };
                     return (

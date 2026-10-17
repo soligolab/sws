@@ -58,6 +58,13 @@ pub struct SynopticPage {
         deserialize_with = "crate::cornici::tre_stati"
     )]
     pub cornice: Option<Option<String>>,
+    /// P1 (17-10-2026): presente = la pagina si apre solo come finestra, da un
+    /// bottone `open_popup`; non entra nei navigatori. `{modale, titolo?}`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub finestra: Option<Value>,
+    /// I parametri della finestra (`[{name, default?}]`, come i faceplate).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub finestra_parametri: Option<Value>,
 }
 
 /// «variabile = valore» di un bottone che assegna (11-10-2026).

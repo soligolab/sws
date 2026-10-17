@@ -1,10 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { PaginaFinestra } from "@/runtime-view/PaginaFinestra";
+import { oggettiFinestra } from "@/finestre/finestra";
 import { useTranslation } from "react-i18next";
 import { api } from "@/api/client";
 import { getBrand } from "@/branding";
 import { SvgCanvas } from "@/canvas/SvgCanvas";
 import { collectTagIds } from "@/runtime-view/collectTagIds";
-import { paginePerNavigazione } from "@/boot/tipi";
+import { pagineNavigabili } from "@/boot/tipi";
 import { viewerFitScale, effectiveSizeMode } from "@/pageLayout";
 import { sfondoPagina } from "@/theme";
 import { LoginScreen } from "@/components/LoginScreen";
@@ -151,7 +153,8 @@ export function RuntimeView() {
   // Kiosk auto-rotate: advance to the next non-skipped page on a fixed interval.
   useEffect(() => {
     if (!autoRotate) return;
-    const rotatablePages = pages.filter((p) => !p.auto_rotate_skip);
+    // Le pagine-finestra (P1) si aprono solo da un bottone: non ruotano.
+    const rotatablePages = pagineNavigabili(pages).filter((p) => !p.auto_rotate_skip);
     if (rotatablePages.length < 2) return;
     const id = setInterval(() => {
       const idx = rotatablePages.findIndex((p) => p.id === currentPageId);
@@ -172,6 +175,15 @@ export function RuntimeView() {
   // so it sends delta frames only for those tags (bandwidth optimization).
   // When the page changes, re-subscribe to the new page's tags.
   const currentPage = pages.find((p) => p.id === currentPageId);
+  // P1 (17-10-2026): la finestra aperta, una alla volta. Una seconda apertura la
+  // sostituisce; navigare la chiude.
+  const [finestra, setFinestra] = useState<{ pageId: string; params: Record<string, string> } | null>(null);
+  const paginaFinestra = finestra ? pages.find((p) => p.id === finestra.pageId) : undefined;
+  useEffect(() => { setFinestra(null); }, [currentPageId]);
+  const oggettiDellaFinestra = useMemo(
+    () => (paginaFinestra && finestra ? oggettiFinestra(paginaFinestra, finestra.params) : []),
+    [paginaFinestra, finestra],
+  );
   const sizeMode = effectiveSizeMode(project?.page_layout);
   const hideChrome = project?.page_layout?.hide_viewer_chrome === true;
 
@@ -204,9 +216,12 @@ export function RuntimeView() {
   const pageTagIds = useMemo(
     // Lo sfondo da variabile (11-10-2026) è un uso della pagina, non di un oggetto.
     () => [...collectTagIds(currentPage?.objects ?? [], faceplates),
-      ...(currentPage?.background_tag ? [currentPage.background_tag] : [])],
+      ...(currentPage?.background_tag ? [currentPage.background_tag] : []),
+      // I tag della finestra aperta, con i parametri già sostituiti: senza,
+      // riceverebbero lo snapshot e poi si congelerebbero.
+      ...collectTagIds(oggettiDellaFinestra, faceplates)],
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [currentPageId, pages, faceplates],
+    [currentPageId, pages, faceplates, oggettiDellaFinestra],
   );
 
   useEffect(() => {
@@ -303,6 +318,11 @@ export function RuntimeView() {
   // facevano niente da sempre (funzionava solo open_faceplate, gestito dentro
   // il canvas). Questo handler è il pezzo che mancava.
   const handleButtonAction = (action: ButtonAction) => {
+    if (action.type === "open_popup") {
+      if (pages.some((p) => p.id === action.page)) setFinestra({ pageId: action.page, params: action.params ?? {} });
+      return;
+    }
+    if (action.type === "close_popup") { setFinestra(null); return; }
     if (action.type === "navigate") {
       const raw = action.url?.trim();
       if (!raw) return;
@@ -390,7 +410,7 @@ export function RuntimeView() {
               vanno. Qui si mappava `pages` intero, quindi nell'anteprima
               dell'IDE comparivano come voci cliccabili accanto alle
               sinottiche — B12 del piano di stabilizzazione. */}
-          {paginePerNavigazione(pages).map((p) => (
+          {pagineNavigabili(pages).map((p) => (
             <button
               key={p.id}
               onClick={() => { setAutoRotate(false); setCurrentPage(p.id); }}
@@ -492,6 +512,24 @@ export function RuntimeView() {
           onButtonAction={handleButtonAction}
         />
       </div>
+
+      {paginaFinestra && finestra && (
+        <PaginaFinestra
+          key={`${finestra.pageId}:${JSON.stringify(finestra.params)}`}
+          pagina={paginaFinestra}
+          oggetti={oggettiDellaFinestra}
+          parametri={finestra.params}
+          sfondo={sfondoPagina(paginaFinestra, themeMode, tagValues)}
+          tagValues={tagValues}
+          customSymbols={customSymbols}
+          faceplates={faceplates}
+          onWriteTag={handleWriteTag}
+          onScript={handleScript}
+          onNavigate={(id) => { setFinestra(null); setCurrentPage(id); }}
+          onButtonAction={handleButtonAction}
+          onClose={() => setFinestra(null)}
+        />
+      )}
 
       {/* Function test panel (bottom-left floating — operator picks a
           project function, edits parameter overrides, runs ad-hoc). */}

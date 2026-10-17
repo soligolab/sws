@@ -522,7 +522,7 @@ interface AppState {
   duplicatePage: (id: string) => void;
   /** Più pagine in un colpo solo: un solo passo di cronologia. */
   updatePagesProps: (patches: { id: string; patch: Partial<SynopticPage> }[]) => void;
-  updatePageProps: (id: string, patch: Partial<Pick<SynopticPage, "name" | "background" | "background_dark" | "width" | "height" | "auto_rotate_skip" | "zones" | "locked" | "cornice" | "cornice_testata" | "cornice_piede">>) => void;
+  updatePageProps: (id: string, patch: Partial<Pick<SynopticPage, "name" | "background" | "background_dark" | "width" | "height" | "auto_rotate_skip" | "zones" | "locked" | "cornice" | "cornice_testata" | "cornice_piede" | "finestra" | "finestra_parametri">>) => void;
   updateGridCell: (pageId: string, objectId: string, cell: GridCell) => void;
   setSelectedCellRange: (range: { objectId: string; r1: number; c1: number; r2: number; c2: number } | null) => void;
   setSelectedSubCell: (sub: { objectId: string; row: number; col: number; path: ("a" | "b")[] } | null) => void;

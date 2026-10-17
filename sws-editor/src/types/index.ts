@@ -239,7 +239,12 @@ export type ButtonAction =
   | { type: "navigate"; url: string; target?: "self" | "blank" }
   /** F6.3: apre un faceplate come popup, parametrizzato — il gesto SCADA
    *  "click sulla pompa → finestra della pompa". */
-  | { type: "open_faceplate"; faceplate_id: string; params?: Record<string, string> };
+  | { type: "open_faceplate"; faceplate_id: string; params?: Record<string, string> }
+  /** P1 (17-10-2026): apre una pagina-finestra (`SynopticPage.finestra`), con i
+   *  valori dei suoi parametri. `page` è l'id della pagina. */
+  | { type: "open_popup"; page: string; params?: Record<string, string> }
+  /** Chiude la finestra aperta (un bottone «Chiudi» dentro la finestra). */
+  | { type: "close_popup" };
 
 export interface SynopticObject {
   id: string;
@@ -891,6 +896,12 @@ export interface SynopticPage {
    *  Non arrivano mai su `synoptics/`: una pagina-cornice si salva in `cornici/`. */
   cornice_testata?: FasciaCornice;
   cornice_piede?: FasciaCornice;
+  /** P1 (17-10-2026): presente = la pagina si apre **solo** come finestra, da un
+   *  bottone «Apri finestra»; esce da navigatori, tab e rotazione kiosk. */
+  finestra?: { modale: boolean; titolo?: string };
+  /** I parametri della finestra, `{nome}` nei suoi campi: stessa forma di quelli
+   *  dei faceplate, con il default. */
+  finestra_parametri?: FaceplateParamDef[];
   /** La cornice della pagina (15-10-2026, `sws-web/src/cornici.rs`): assente =
    *  la predefinita del progetto, `null` = nessuna, un id = quella cornice. */
   cornice?: string | null;

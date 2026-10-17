@@ -90,7 +90,9 @@ describe("la barra di navigazione del viewer", () => {
     // `import.meta.url` sotto vitest non è un file:// utilizzabile: si parte
     // dalla radice del progetto, che è dove vitest gira.
     const src = readFileSync(resolve("src/runtime-view/RuntimeView.tsx"), "utf-8");
-    expect(src).toContain("paginePerNavigazione(pages).map(");
+    // Dal 17-10-2026 `pagineNavigabili`: esclude le pagine di boot **e** le
+    // pagine-finestra (P1), che si aprono solo da un bottone.
+    expect(src).toContain("pagineNavigabili(pages).map(");
     // E non la versione senza filtro, che è com'era prima.
     expect(src).not.toMatch(/\n\s*\{pages\.map\(\(p\) => \(/);
   });

@@ -3322,5 +3322,28 @@
     "annulla": "Cancel",
     "converti_one": "Convert {{count}} page",
     "converti_other": "Convert {{count}} pages"
+  },
+  "finestraPopup": {
+    "apri": "Open window",
+    "chiudiAzione": "Close window",
+    "chiudi": "Close",
+    "scegli": "— choose the window —",
+    "nessuna": "No page opens as a window: tick «Opens as a window» in a page's properties.",
+    "siApre": "Opens as a window",
+    "spiegazione": "A window page opens only from an «Open window» button, over the current page; it does not appear in navigators. On the LVGL panel, for now, it opens as a full page.",
+    "modale": "Modal",
+    "nonModale": "Non-modal",
+    "modaleSpiega": "It covers the page below until you close it (✕, Esc or click outside).",
+    "nonModaleSpiega": "The page below stays usable; drag the title to move the window.",
+    "titolo": "Title",
+    "parametri": "Parameters",
+    "nomeParametro": "name",
+    "predefinito": "default",
+    "tipoTag": "variable",
+    "tipoTesto": "text",
+    "togli": "Remove the parameter",
+    "aggiungiParametro": "+ Parameter",
+    "parametriSpiega": "In the page's fields write {name}: the button opening the window passes its value. The same window then serves pump 1 and pump 2.",
+    "segnoAlbero": "Opens as a window"
   }
 }

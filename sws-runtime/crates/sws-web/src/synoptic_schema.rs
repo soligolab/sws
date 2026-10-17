@@ -312,6 +312,8 @@ pub const PAGE_FIELDS: &[Field] = &[
     Field { name: "locked", ty: "bool", required: false, group: "", doc: "When true, the page is read-only in the editor (no object/property edits). Does not block duplicate/delete (already confirm-gated separately)." },
     Field { name: "kind", ty: "string", required: false, group: "", doc: "Tipo di pagina. Assente = pagina sinottica normale; `\"boot\"` = immagine di boot del pannello (T-72), che vive in `boot/` e non in `synoptics/`, quindi nessun viewer la vede mai. Un campo assente qui **si perde in silenzio** al round-trip: per questo sta nel mirror." },
     Field { name: "cornice", ty: "Option<String>", required: false, group: "", doc: "La cornice della pagina (15-10-2026, `cornici.rs`): assente = la predefinita del progetto, `null` = nessuna, un id = quella cornice." },
+    Field { name: "finestra", ty: "any", required: false, group: "", doc: "P1 (17-10-2026): presente = la pagina si apre solo come finestra, da un bottone `open_popup`; non entra nei navigatori. `{modale, titolo?}`." },
+    Field { name: "finestra_parametri", ty: "any", required: false, group: "", doc: "I parametri della finestra (`[{name, default?}]`, come i faceplate)." },
 ];
 
 /// I campi di una definizione di tag (da sws-core/src/project.rs).

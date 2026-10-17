@@ -3453,11 +3453,23 @@ fn area_comando(
     Ok(())
 }
 
+/// La pagina che un bottone «Apri finestra» apre (P1, 17-10-2026). Su questo
+/// motore le finestre non ci sono ancora: il tocco naviga alla pagina, a schermo
+/// pieno e senza parametri — il ripiego scelto dal maintainer.
+fn pagina_della_finestra(obj: &SynopticObject) -> Option<String> {
+    let a = obj.button_action.as_ref()?;
+    if a.get("type").and_then(|t| t.as_str()) != Some("open_popup") {
+        return None;
+    }
+    a.get("page").and_then(|p| p.as_str()).filter(|p| !p.is_empty()).map(str::to_owned)
+}
+
 fn render_button(
     screen: &mut lvgl::Obj,
     obj: &SynopticObject,
     styles: &mut Vec<Style>,
     tx: &mpsc::Sender<TagCommand>,
+    nav_tx: &mpsc::Sender<String>,
     live: &mut Vec<LiveBinding>,
 ) -> anyhow::Result<()> {
     let mut btn = Btn::create(screen).map_err(|e| anyhow::anyhow!("Btn::create: {e:?}"))?;
@@ -3494,6 +3506,18 @@ fn render_button(
     }
 
     let ptr = btn.raw().map_err(|e| anyhow::anyhow!("raw: {e:?}"))?;
+    if let Some(pagina) = pagina_della_finestra(obj) {
+        let ctx = leak_ctx(NavClickCtx { target_page: pagina, tx: nav_tx.clone() });
+        unsafe {
+            lvgl_sys::lv_obj_add_event_cb(
+                ptr.as_ptr(),
+                Some(sws_navbutton_clicked_cb),
+                lvgl_sys::lv_event_code_t_LV_EVENT_CLICKED,
+                ctx,
+            );
+        }
+        return Ok(());
+    }
     collega_comando(ptr, comando_del_bottone(obj), obj, tx, live);
     Ok(())
 }
@@ -10499,7 +10523,7 @@ fn dispatch_render(
             Some(f) => disegna_svg_byte(screen, f.x, f.y, f.w, f.h, f.svg.as_bytes(), false, false).map(|b| live.push(b)),
             None => Ok(()),
         },
-        "button" => render_button(screen, obj, styles, tag_tx, live),
+        "button" => render_button(screen, obj, styles, tag_tx, nav_tx, live),
         "navbutton" => render_navbutton(screen, obj, styles, nav_tx),
         "page_navigator" => render_page_navigator(
             screen,
@@ -12681,6 +12705,18 @@ fn update_alarm_banner(
 
 #[cfg(test)]
 mod binding_tests {
+    /// P1 (17-10-2026): «Apri finestra» sul pannello naviga alla pagina; le
+    /// altre azioni no.
+    #[test]
+    fn apri_finestra_naviga_alla_pagina() {
+        let b = |a: &str| -> SynopticObject {
+            serde_json::from_str(&format!(r#"{{"id":"b","type":"button","x":0,"y":0,"button_action":{a}}}"#)).unwrap()
+        };
+        assert_eq!(super::pagina_della_finestra(&b(r#"{"type":"open_popup","page":"pompa"}"#)).as_deref(), Some("pompa"));
+        assert_eq!(super::pagina_della_finestra(&b(r#"{"type":"open_popup","page":""}"#)), None);
+        assert_eq!(super::pagina_della_finestra(&b(r#"{"type":"login"}"#)), None);
+    }
+
     #[test]
     fn lo_sfondo_da_variabile_vuole_un_colore() {
         let v = |x: &str| TagValue::Str(x.into());

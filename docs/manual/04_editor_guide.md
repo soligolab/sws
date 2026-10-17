@@ -347,6 +347,24 @@ Un'**immagine di boot** è ciò che un pannello Pixsys mostra mentre parte. Nell
 
 ![Immagine di boot: sezione nell'elenco pagine, canvas e anteprima del PNG](screenshots/11_immagine_di_boot.png)
 
+## Finestre (una pagina aperta sopra l'altra)
+
+Una **finestra** è una pagina che si apre sopra quella corrente, da un bottone: il dettaglio di una pompa, i
+comandi di una valvola, una conferma.
+
+- **Fare di una pagina una finestra.** Proprietà della pagina → **«Si apre come finestra»**. La pagina esce da
+  navigatori, tab e rotazione kiosk, e nell'albero ha il segno 🪟.
+- **Modale o non modale.** La modale copre la pagina sotto finché non la chiudi (✕, `Esc` o clic fuori). La non
+  modale lascia usabile la pagina sotto e si sposta trascinando il titolo. Se ne apre una alla volta: aprirne
+  un'altra sostituisce la prima.
+- **Titolo e parametri.** Il titolo è libero (vuoto = il nome della pagina). I **parametri** si dichiarano con un
+  nome e un predefinito; nei campi della pagina si scrive `{nome}`, come nei faceplate. Così la stessa finestra
+  serve per la pompa 1 e la pompa 2.
+- **Aprirla.** Su un bottone, «Azione predefinita» → **«Apri finestra»**: si sceglie la pagina-finestra e si danno i
+  valori dei suoi parametri. **«Chiudi finestra»** è l'azione di un bottone «Chiudi» dentro la finestra.
+- **Sul pannello LVGL**, per ora, il bottone apre la pagina a schermo pieno, senza parametri; il validatore lo
+  ricorda.
+
 ## Cambiare risoluzione del progetto
 
 Per portare un progetto su uno schermo diverso (per esempio da Full HD a un pannello 1280×800) senza

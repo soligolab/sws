@@ -130,7 +130,7 @@ Elemento interattivo che scrive un valore al tag al click.
 | `tag` | Tag da scrivere |
 | `write_value` | Valore da scrivere (`true`, `false`, numero, stringa) |
 | `on_press_fn` | Funzione Python da chiamare al click |
-| `button_action` | Azione built-in: `login`, `logout`, `navigate` |
+| `button_action` | Azione built-in: `login`, `logout`, `navigate`, `open_faceplate`, `open_popup` (apre una pagina-finestra con i suoi parametri), `close_popup` |
 
 **Azioni built-in**:
 - `login` — apre il form di autenticazione sovrapposto al sinottico

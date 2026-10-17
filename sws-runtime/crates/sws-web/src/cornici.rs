@@ -57,7 +57,8 @@ pub fn tre_stati<'de, D: Deserializer<'de>>(d: D) -> Result<Option<Option<String
 /// Le pagine di boot (`kind: boot`) non ne hanno mai: sono un'immagine, non
 /// una pagina che si naviga.
 pub fn cornice_della_pagina(pagina: &SynopticPage, predefinita: Option<&str>) -> Option<String> {
-    if pagina.kind.as_deref() == Some("boot") {
+    // Una pagina-finestra (P1) non ha mai una cornice: è un riquadro sopra la pagina.
+    if pagina.kind.as_deref() == Some("boot") || pagina.finestra.is_some() {
         return None;
     }
     match &pagina.cornice {
@@ -254,6 +255,8 @@ oggetti:
         assert_eq!(cornice_della_pagina(&scelta, Some("base")).as_deref(), Some("altra"));
         let boot = pagina("id: p\nname: P\nkind: boot\ncornice: altra\n");
         assert_eq!(cornice_della_pagina(&boot, Some("base")), None);
+        let finestra = pagina("id: p\nname: P\nfinestra: { modale: true }\n");
+        assert_eq!(cornice_della_pagina(&finestra, Some("base")), None);
     }
 
     #[test]

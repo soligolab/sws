@@ -399,6 +399,7 @@ function PagesSection() {
                 <>
                   {p.id === homePageId && <span title={t("editor.homePageTitle")} style={{ flexShrink: 0 }}>🏠</span>}
                   {orphanIds.has(p.id) && <span title={t("editor.orphanPageTitle")} style={{ flexShrink: 0 }}>⚠️</span>}
+                  {p.finestra && <span title={t("finestraPopup.segnoAlbero")} style={{ flexShrink: 0 }}>🪟</span>}
                   {p.locked && !mostraAzioni && <span style={{ flexShrink: 0, fontSize: 10 }}>🔒</span>}
                   <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1, minWidth: 0 }}>
                     {p.name}

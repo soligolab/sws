@@ -228,6 +228,8 @@ pub fn pagina_di_boot_iniziale() -> SynopticPage {
         locked: None,
         kind: Some(BOOT_KIND.to_string()),
         cornice: None,
+        finestra: None,
+        finestra_parametri: None,
     }
 }
 
@@ -248,6 +250,8 @@ pub fn pagina_uno_iniziale() -> SynopticPage {
         locked: None,
         kind: None,
         cornice: None,
+        finestra: None,
+        finestra_parametri: None,
     }
 }
 

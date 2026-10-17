@@ -195,6 +195,7 @@ pub async fn validate_project(
     findings.extend(semantic(&project, &pages));
     let cornici = carica_cornici(&dir).await;
     findings.extend(crate::validate::rilievi_cornici(&project, &pages, &cornici));
+    findings.extend(crate::validate::rilievi_finestre(&project, &pages));
 
     // ── 5. Cosa c'era già ────────────────────────────────────────────────────
     // Stessa validazione sul progetto e sulle pagine **come stanno su disco**.
@@ -206,6 +207,9 @@ pub async fn validate_project(
             prima.insert(chiave(&f));
         }
         for f in crate::validate::rilievi_cornici(&p0, &pg0, &cornici) {
+            prima.insert(chiave(&f));
+        }
+        for f in crate::validate::rilievi_finestre(&p0, &pg0) {
             prima.insert(chiave(&f));
         }
     }
@@ -247,6 +251,7 @@ pub async fn project_findings(State(s): State<AppState>) -> Json<Vec<Finding>> {
     };
     let mut out = semantic(&project, &pages);
     out.extend(crate::validate::rilievi_cornici(&project, &pages, &carica_cornici(&dir).await));
+    out.extend(crate::validate::rilievi_finestre(&project, &pages));
     Json(out)
 }
 

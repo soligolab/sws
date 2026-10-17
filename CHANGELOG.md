@@ -181,6 +181,13 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 
 ### Added
 
+- **Finestre popup generiche** (P1 dell'onda 1, piano `docs/plans/2026-10-17-finestre-popup.md`). Una pagina con
+  `finestra: {modale, titolo?}` si apre sopra la corrente da un bottone `open_popup` (`close_popup` la chiude), con i
+  parametri `finestra_parametri` sostituiti come nei faceplate (`{nome}`). Modale: sfondo, `Esc` e clic fuori
+  chiudono; non modale: trascinabile dal titolo, la pagina sotto resta usabile; una alla volta. Le pagine-finestra
+  escono da navigatori, tab, rotazione kiosk e `/api/pages/nav`, non hanno cornice e non risultano orfane; il viewer
+  iscrive i tag della finestra. Su LVGL il bottone naviga alla pagina, e il validatore lo dice per i progetti LVGL.
+
 - **Cambia risoluzione del progetto** (piano `docs/plans/2026-10-15-scalare-tra-risoluzioni.md`). Dalle
   Impostazioni progetto, un dialogo porta pagine, cornici e immagini di boot da una misura a un'altra: scala
   uniforme (il fattore minore fra i due assi) e centrata, testi e spessori con un minimo di 9 px e 1 px, cornici con

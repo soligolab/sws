@@ -436,6 +436,8 @@ export function findOrphanPageIds(
     const cornice = idC ? cornici.find((c) => idCornice(c) === idC) : undefined;
     for (const obj of [...page.objects, ...(cornice?.objects ?? [])]) {
       if (obj.type === "navbutton" && obj.target_page) linked.add(obj.target_page);
+      // P1: un bottone «Apri finestra» collega la sua pagina-finestra.
+      if (obj.button_action?.type === "open_popup" && obj.button_action.page) linked.add(obj.button_action.page);
       // Un navigatore di pagine raggiunge le pagine che mostra da questa pagina:
       // senza contarlo ogni pagina servita da un navigatore risulterebbe orfana.
       if (obj.type === "page_navigator") {
@@ -445,7 +447,9 @@ export function findOrphanPageIds(
   }
   const orphans = new Set<string>();
   for (const page of pages) {
-    if (page.id !== homePageId && !linked.has(page.id)) orphans.add(page.id);
+    // Una pagina-finestra non sta nei navigatori per costruzione: non è orfana
+    // per questo (se nessun bottone la apre, lo dice il validatore).
+    if (page.id !== homePageId && !linked.has(page.id) && !page.finestra) orphans.add(page.id);
   }
   return orphans;
 }

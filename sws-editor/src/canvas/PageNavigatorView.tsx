@@ -14,7 +14,7 @@
 
 import { useMemo } from "react";
 import { useAppStore } from "@/store";
-import { paginePerNavigazione } from "@/boot/tipi";
+import { pagineNavigabili } from "@/boot/tipi";
 import { useLinguaContenuti } from "@/i18n/linguaContenuti";
 import { geometriaNavigatore, vociNavigatore } from "@/pageNavigator";
 import type { SynopticObject } from "@/types";
@@ -41,7 +41,8 @@ export function PageNavigatorView({
   const lingua = useLinguaContenuti();
 
   const voci = useMemo(
-    () => vociNavigatore(paginePerNavigazione(pages), albero, corrente, obj, lingua.lang, lingua.table),
+    // Le pagine-finestra (P1) si aprono da un bottone, non dal navigatore.
+    () => vociNavigatore(pagineNavigabili(pages), albero, corrente, obj, lingua.lang, lingua.table),
     [pages, albero, corrente, obj, lingua.lang, lingua.table],
   );
   const rect = geometriaNavigatore(w, h, voci.length, {

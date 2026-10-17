@@ -3322,5 +3322,28 @@
     "annulla": "Annulla",
     "converti_one": "Converti {{count}} pagina",
     "converti_other": "Converti {{count}} pagine"
+  },
+  "finestraPopup": {
+    "apri": "Apri finestra",
+    "chiudiAzione": "Chiudi finestra",
+    "chiudi": "Chiudi",
+    "scegli": "— scegli la finestra —",
+    "nessuna": "Nessuna pagina si apre come finestra: spunta «Si apre come finestra» nelle proprietà di una pagina.",
+    "siApre": "Si apre come finestra",
+    "spiegazione": "Una pagina-finestra si apre solo da un bottone «Apri finestra», sopra la pagina corrente; non compare nei navigatori. Sul pannello LVGL, per ora, si apre come pagina intera.",
+    "modale": "Modale",
+    "nonModale": "Non modale",
+    "modaleSpiega": "Copre la pagina sotto finché non la chiudi (✕, Esc o clic fuori).",
+    "nonModaleSpiega": "La pagina sotto resta usabile; la finestra si sposta trascinando il titolo.",
+    "titolo": "Titolo",
+    "parametri": "Parametri",
+    "nomeParametro": "nome",
+    "predefinito": "predefinito",
+    "tipoTag": "variabile",
+    "tipoTesto": "testo",
+    "togli": "Togli il parametro",
+    "aggiungiParametro": "+ Parametro",
+    "parametriSpiega": "Nei campi della pagina scrivi {nome}: il bottone che apre la finestra ne passa il valore. Così la stessa finestra serve per la pompa 1 e la pompa 2.",
+    "segnoAlbero": "Si apre come finestra"
   }
 }
