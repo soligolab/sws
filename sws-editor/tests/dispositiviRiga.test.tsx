@@ -37,10 +37,10 @@ beforeEach(() => {
 describe("connettersi da un dispositivo registrato senza utente", () => {
   it("utente e password scritti nella riga arrivano a Connect, senza uscire dal campo né Invio", async () => {
     render(<DevicesTab />);
-    const utente = await screen.findByTestId("dispositivo-utente-TC620");
+    const utente = await screen.findByTestId("device-user-TC620");
     fireEvent.change(utente, { target: { value: "admin" } });
-    fireEvent.change(screen.getByTestId("dispositivo-password-TC620"), { target: { value: "segreta" } });
-    fireEvent.click(screen.getByTestId("dispositivo-connetti-TC620"));
+    fireEvent.change(screen.getByTestId("device-password-TC620"), { target: { value: "segreta" } });
+    fireEvent.click(screen.getByTestId("device-connect-TC620"));
     await waitFor(() => expect(api.remoteConnect).toHaveBeenCalledWith("https://tc620.local:8444", "admin", "segreta"));
     expect(localStorage.getItem(RT_USER_KEY)).toBe("admin");
   });
@@ -48,7 +48,7 @@ describe("connettersi da un dispositivo registrato senza utente", () => {
   it("Connect non è disabilitato e un utente vuoto non sovrascrive quello della connessione remota", async () => {
     localStorage.setItem(RT_USER_KEY, "operatore");
     render(<DevicesTab />);
-    const connetti = await screen.findByTestId("dispositivo-connetti-TC620");
+    const connetti = await screen.findByTestId("device-connect-TC620");
     expect((connetti as HTMLButtonElement).disabled).toBe(false);
     fireEvent.click(connetti);
     await waitFor(() => expect(api.remoteConnect).toHaveBeenCalledWith("https://tc620.local:8444", undefined, undefined));

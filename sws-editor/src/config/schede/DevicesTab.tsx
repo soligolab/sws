@@ -376,7 +376,7 @@ export function DevicesTab() {
                         placeholder={t("cfg.swsUserPlaceholder")}
                         title={mancaUtente ? t("cfg.deviceUserMissing") : t("cfg.swsCredentialsHint")}
                         value={utenteRiga}
-                        data-testid={`dispositivo-utente-${d.label}`}
+                        data-testid={`device-user-${d.label}`}
                         onChange={(e) => setUtenti((u) => ({ ...u, [d.url]: e.target.value }))}
                         onBlur={(e) => {
                           const v = e.target.value.trim();
@@ -400,7 +400,7 @@ export function DevicesTab() {
                     <td style={{ padding: "8px", textAlign: "right" }}>
                       <div style={{ display: "flex", gap: 4, justifyContent: "flex-end", alignItems: "center" }}>
                         <input style={{ ...INPUT, width: 120 }} type="password" autoComplete="off"
-                          data-testid={`dispositivo-password-${d.label}`}
+                          data-testid={`device-password-${d.label}`}
                           placeholder={t("cfg.passwordSession")} title={t("cfg.passwordSessionTitle")}
                           value={passwords[d.url] ?? ""}
                           onChange={(e) => {
@@ -416,7 +416,7 @@ export function DevicesTab() {
                             title={t("cfg.disconnect")}>● {t("cfg.disconnect")}</button>
                         ) : (
                           <button style={BTN} disabled={connettendo === d.url}
-                            data-testid={`dispositivo-connetti-${d.label}`}
+                            data-testid={`device-connect-${d.label}`}
                             onClick={() => void handleConnect(d)}
                             title={t("cfg.setTargetConnect")}>
                             {connettendo === d.url ? t("cfg.connecting") : t("cfg.connect")}
