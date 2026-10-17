@@ -113,7 +113,7 @@ il progetto **sporco** se qualcosa è cambiato, invece di dichiararlo pulito d'u
 l'indicatore lo dice, e qualunque deploy salva prima. L'alternativa — riscrivere subito su disco
 al caricamento — tocca il progetto senza che nessuno l'abbia chiesto e fa scattare il watcher.
 
-**Da guardare anche** (lette nel codice, non misurate, e tutte già causa di «il pannello mostra
+**Da guardare anche** — **fatti il 17-10-2026** (pagina illeggibile che ferma il deploy, segnale dopo lo ZIP, `no-cache` sui file di progetto, impronta con faceplate/ricette/immagini) — (lette nel codice, non misurate, e tutte già causa di «il pannello mostra
 la versione vecchia»):
 
 - `load_all_synoptics` (`router.rs:5945-5950`) **salta in silenzio** una pagina malformata: finisce

@@ -71,6 +71,16 @@ pub fn politica(percorso: &str, tipo: Option<&str>, gia_dichiarata: bool) -> Opt
     if percorso.starts_with("/symbols/lib/") {
         return Some(RIVALIDA);
     }
+    // I file di progetto che i viewer rileggono dopo un deploy (17-10-2026,
+    // piano docs/plans/2026-10-14-revisione-ide-collaudo-wp630.md): senza una
+    // politica il browser può servirli dalla sua cache, e un viewer mostra la
+    // versione vecchia anche con i file giusti sul disco. `no-cache`, non
+    // `no-store`: si tengono, ma si rivalidano (le rotte hanno già l'ETag, Q30).
+    // Solo questi: le altre API restano come sono, non le si è misurate.
+    const DI_PROGETTO: &[&str] = &["/api/synoptics", "/api/cornici", "/api/faceplates", "/api/pages/nav"];
+    if percorso == "/api/project" || DI_PROGETTO.iter().any(|p| percorso == *p || percorso.starts_with(&format!("{p}/"))) {
+        return Some(RIVALIDA);
+    }
     None
 }
 
@@ -129,10 +139,19 @@ mod tests {
         );
     }
 
-    /// Le API non si toccano: questo strato esiste per la SPA.
+    /// Le API non si toccano: questo strato esiste per la SPA…
     #[test]
     fn le_api_restano_come_sono() {
         assert_eq!(politica("/api/system", Some("application/json"), false), None);
+        assert_eq!(politica("/api/synopticsx", Some("application/json"), false), None);
+    }
+
+    /// …tranne i file di progetto che i viewer rileggono dopo un deploy.
+    #[test]
+    fn i_file_di_progetto_si_rivalidano() {
+        for p in ["/api/synoptics/Home", "/api/synoptics", "/api/cornici/base", "/api/faceplates/x", "/api/project", "/api/pages/nav"] {
+            assert_eq!(politica(p, Some("application/json"), false), Some(RIVALIDA), "{p}");
+        }
     }
 
     /// E nemmeno i marchi, che hanno gia' le loro intestazioni di sicurezza.

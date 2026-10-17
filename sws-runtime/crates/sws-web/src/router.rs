@@ -5789,7 +5789,7 @@ async fn export_project_zip(
         Ok(v) => v,
         Err(e) => {
             warn!("export: cannot read synoptics: {e}");
-            return (StatusCode::INTERNAL_SERVER_ERROR, "cannot read synoptics").into_response();
+            return (StatusCode::INTERNAL_SERVER_ERROR, format!("cannot read synoptics: {e}")).into_response();
         }
     };
     let faceplates = read_yaml_dir(&faceplates_dir_at(&dir)).await;
@@ -5987,6 +5987,11 @@ async fn read_yaml_dir(dir: &std::path::Path) -> Vec<(String, String)> {
     out
 }
 
+/// Tutte le pagine di `synoptics/`. Una pagina che non si legge **ferma** chi la
+/// chiede, con il suo nome: fino al 17-10-2026 si saltava con un `warn!` del
+/// server, e siccome il dispositivo svuota `synoptics/` prima di scrivere quelle
+/// nuove, la pagina spariva dal pannello senza che il registro del deploy ne
+/// dicesse niente (piano docs/plans/2026-10-14-revisione-ide-collaudo-wp630.md).
 async fn load_all_synoptics(dir: &std::path::Path) -> std::io::Result<Vec<SynopticPage>> {
     let mut out = Vec::new();
     let mut entries = match tokio::fs::read_dir(dir).await {
@@ -6002,7 +6007,13 @@ async fn load_all_synoptics(dir: &std::path::Path) -> std::io::Result<Vec<Synopt
         let text = tokio::fs::read_to_string(&path).await?;
         match serde_yaml::from_str::<SynopticPage>(&text) {
             Ok(page) => out.push(page),
-            Err(e) => warn!("export: skipping malformed synoptic {:?}: {e}", path),
+            Err(e) => {
+                let nome = path.file_name().and_then(|n| n.to_str()).unwrap_or("?");
+                return Err(std::io::Error::new(
+                    std::io::ErrorKind::InvalidData,
+                    format!("la pagina «{nome}» non si legge ({e}): correggila o toglila prima del deploy"),
+                ));
+            }
         }
     }
     out.sort_by(|a, b| a.name.cmp(&b.name));
@@ -8865,21 +8876,38 @@ pub(crate) fn calcola_impronta(dir: &std::path::Path) -> anyhow::Result<String> 
         }
     }
 
-    // Le cornici (15-10-2026): cambiarne una cambia l'aspetto delle pagine
-    // che la usano, quindi il deploy non è più aggiornato. Come `boot/`, entrano
-    // solo se la cartella c'è: l'impronta dei progetti senza cornici non cambia.
-    let cornici_dir = dir.join("cornici");
-    if cornici_dir.is_dir() {
-        let mut files: Vec<std::path::PathBuf> = std::fs::read_dir(&cornici_dir)
-            .map_err(|e| anyhow::anyhow!("cornici/: {e}"))?
+    // Le altre cartelle che il deploy porta: cornici (15-10-2026), faceplate,
+    // ricette e immagini (17-10-2026). Cambiarne una cambia quello che il
+    // pannello mostra, quindi il deploy non è più aggiornato; prima faceplate,
+    // ricette e immagini non entravano, e un pannello con un faceplate vecchio
+    // risultava «in sync» (piano docs/plans/2026-10-14-revisione-ide-collaudo-wp630.md).
+    // Entrano solo le cartelle che ci sono: l'impronta di un progetto che non
+    // le ha resta quella di prima.
+    for (cartella, estensioni) in [
+        ("cornici", &["yaml"][..]),
+        ("faceplates", &["yaml"][..]),
+        ("recipes", &["yaml"][..]),
+        ("images", &["png", "jpg", "jpeg", "svg", "webp", "gif"][..]),
+    ] {
+        let d = dir.join(cartella);
+        if !d.is_dir() {
+            continue;
+        }
+        let mut files: Vec<std::path::PathBuf> = std::fs::read_dir(&d)
+            .map_err(|e| anyhow::anyhow!("{cartella}/: {e}"))?
             .filter_map(|e| e.ok())
             .map(|e| e.path())
-            .filter(|p| p.extension().and_then(|s| s.to_str()) == Some("yaml"))
+            .filter(|p| {
+                p.extension()
+                    .and_then(|s| s.to_str())
+                    .is_some_and(|x| estensioni.contains(&x.to_ascii_lowercase().as_str()))
+            })
             .collect();
         files.sort();
         for path in &files {
             if let Some(name) = path.file_name().and_then(|n| n.to_str()) {
-                hasher.update(b"cornici/");
+                hasher.update(cartella.as_bytes());
+                hasher.update(b"/");
                 hasher.update(name.as_bytes());
             }
             let content =
@@ -10453,6 +10481,27 @@ notifications:
         let mut s = String::new();
         std::io::Read::read_to_string(&mut f, &mut s).unwrap();
         s
+    }
+
+    /// L'impronta segue faceplate, ricette e immagini (17-10-2026): prima un
+    /// pannello con un faceplate vecchio risultava «in sync». E le cartelle che
+    /// mancano non la cambiano.
+    #[test]
+    fn l_impronta_segue_faceplate_ricette_e_immagini() {
+        let tmp = tempfile::tempdir().unwrap();
+        let d = tmp.path();
+        std::fs::write(d.join("project.yaml"), "meta: { name: p, version: '1' }\n").unwrap();
+        let base = calcola_impronta(d).unwrap();
+        std::fs::create_dir(d.join("faceplates")).unwrap();
+        assert_eq!(calcola_impronta(d).unwrap(), base, "una cartella vuota non cambia l'impronta");
+        std::fs::write(d.join("faceplates/motore.yaml"), "id: motore\n").unwrap();
+        let con_fp = calcola_impronta(d).unwrap();
+        assert_ne!(con_fp, base);
+        std::fs::write(d.join("faceplates/motore.yaml"), "id: motore\nlabel: M\n").unwrap();
+        assert_ne!(calcola_impronta(d).unwrap(), con_fp, "un faceplate cambiato cambia l'impronta");
+        std::fs::create_dir(d.join("images")).unwrap();
+        std::fs::write(d.join("images/logo.png"), [1u8, 2, 3]).unwrap();
+        assert_ne!(calcola_impronta(d).unwrap(), base);
     }
 
     /// I segreti sono dati di progetto e devono viaggiare: un backup che li

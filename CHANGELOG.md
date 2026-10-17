@@ -82,6 +82,15 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 
 ### Fixed
 
+- **Deploy coerente** (i punti «da guardare anche» del piano `docs/plans/2026-10-14-revisione-ide-collaudo-wp630.md`):
+  - una pagina che non si legge **ferma** il deploy e l'esportazione con il suo nome, invece di essere saltata con un
+    `warn!` e sparire dal pannello;
+  - uno ZIP caricato sul progetto **aperto** avvisa i viewer da sé, senza dipendere dall'«apri» che segue;
+  - pagine, cornici, faceplate, progetto e navigazione escono con `Cache-Control: no-cache`: il browser li rivalida
+    con l'ETag e un viewer non mostra più la versione vecchia dalla sua cache;
+  - l'impronta del progetto comprende faceplate, ricette e immagini: un pannello con un faceplate vecchio non risulta
+    più «in sync». Un pannello con la versione precedente del runtime risulterà diverso finché non si aggiorna.
+
 - **IDE: dai «dispositivi registrati» ci si connette** (ramo 1a del piano `docs/plans/2026-10-14-revisione-ide-collaudo-wp630.md`).
   Un dispositivo nato da «+ Dispositivi» ha l'utente vuoto: il campo password non compariva, l'utente si salvava solo
   uscendo dal campo (e uscendo cancellava la password), la password solo con Invio, e Connect mandava un utente vuoto.
