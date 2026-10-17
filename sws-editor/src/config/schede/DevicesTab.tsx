@@ -172,6 +172,10 @@ export function DevicesTab() {
   // richiedono, con il campo nella riga. Il controllo periodico le legge da una
   // ref perché la sua callback non deve rinascere a ogni tasto battuto.
   const [passwords, setPasswords] = useState<Record<string, string>>({});
+  // L'utente scritto nella riga, tasto per tasto (17-10-2026): prima il campo era
+  // non controllato e si salvava solo uscendo, quindi scrivere e premere Connect
+  // non mandava niente. Si salva nel dispositivo uscendo dal campo o connettendo.
+  const [utenti, setUtenti] = useState<Record<string, string>>({});
   const passwordsRef = useRef(passwords);
   passwordsRef.current = passwords;
   const [localFp, setLocalFp] = useState<string | null>(null);
@@ -260,15 +264,19 @@ export function DevicesTab() {
 
   const handleConnect = async (device: SavedDevice) => {
     const pass = passwords[device.url];
+    const user = (utenti[device.url] ?? device.user).trim();
+    if (user !== device.user) saveDevices(devices.map((x) => (x.url === device.url ? { ...x, user } : x)));
     localStorage.setItem(RT_URL_KEY, device.url);
-    localStorage.setItem(RT_USER_KEY, device.user);
+    // Un utente vuoto non sovrascrive quello della sezione «Connessione al
+    // runtime remoto»: lì serve, e al montaggio successivo spariva.
+    if (user) localStorage.setItem(RT_USER_KEY, user);
     // Prima non chiamava mai l'API di connessione — scriveva solo le
     // credenziali in localStorage e sparava l'evento, quindi "Connetti" non
     // connetteva davvero nulla (vedi anche RuntimeConnectionTab.handleConnect,
     // stesso schema).
     setConnettendo(device.url); setEsitoConnessione(null);
     try {
-      const result = await api.remoteConnect(device.url, device.user || undefined, pass || undefined);
+      const result = await api.remoteConnect(device.url, user || undefined, pass || undefined);
       if (!result.ok) throw new Error(result.error ?? t("cfgUi.connectionFailed"));
       setRemoteConnected(true, device.url);
       setEsitoConnessione({ url: device.url, testo: result.nota ?? null, errore: false });
@@ -293,7 +301,7 @@ export function DevicesTab() {
   const handleDeploy = async (device: SavedDevice) => {
     setDeployingUrl(device.url);
     setDeployLog([]);
-    await deployToTarget(device.url, device.user, passwords[device.url] ?? "", (msg) =>
+    await deployToTarget(device.url, (utenti[device.url] ?? device.user).trim(), passwords[device.url] ?? "", (msg) =>
       setDeployLog((l) => [...l, msg])
     );
     setDeployingUrl(null);
@@ -349,11 +357,12 @@ export function DevicesTab() {
                 const online = st?.online ?? null;
                 const fp = st?.fingerprint ?? null;
                 const match = localFp && fp ? (localFp === fp ? "sync" : "diff") : "unknown";
-                // La password serve solo se un utente c'è: senza utente il
-                // problema da risolvere è l'utente, e chiederla prima sarebbe
-                // chiedere la seconda metà di una cosa che non ha la prima.
-                const mancaPassword = !!d.user && passwords[d.url] === undefined;
-                const mancaUtente = !d.user;
+                // Utente e password si scrivono sempre nella riga, anche quando il
+                // dispositivo nasce senza utente da «+ Dispositivi» — il caso
+                // normale. Se mancano, lo dice il server alla connessione: un
+                // pannello senza utenti si connette anche senza.
+                const utenteRiga = utenti[d.url] ?? d.user;
+                const mancaUtente = !utenteRiga.trim();
                 // Verde solo per il dispositivo a cui si è davvero connessi,
                 // non per tutti quando una connessione è aperta da qualche parte.
                 const connessoQui = remoteConnected && chiaveUrl(remoteUrl ?? "") === chiaveUrl(d.url);
@@ -366,16 +375,12 @@ export function DevicesTab() {
                         style={{ ...INPUT, width: 100, borderColor: mancaUtente ? "var(--brand-warning, #f59e0b)" : undefined }}
                         placeholder={t("cfg.swsUserPlaceholder")}
                         title={mancaUtente ? t("cfg.deviceUserMissing") : t("cfg.swsCredentialsHint")}
-                        defaultValue={d.user}
+                        value={utenteRiga}
+                        data-testid={`dispositivo-utente-${d.label}`}
+                        onChange={(e) => setUtenti((u) => ({ ...u, [d.url]: e.target.value }))}
                         onBlur={(e) => {
                           const v = e.target.value.trim();
-                          if (v === d.user) return;
-                          // Cambiare utente invalida la password tenuta in
-                          // memoria: è la password *di quell'utente*, e
-                          // riusarla sarebbe un tentativo fallito in più su un
-                          // budget che dopo cinque si esaurisce.
-                          setPasswords((p) => { const n = { ...p }; delete n[d.url]; return n; });
-                          saveDevices(devices.map((x) => (x.url === d.url ? { ...x, user: v } : x)));
+                          if (v !== d.user) saveDevices(devices.map((x) => (x.url === d.url ? { ...x, user: v } : x)));
                         }}
                       />
                     </td>
@@ -394,33 +399,31 @@ export function DevicesTab() {
                     </td>
                     <td style={{ padding: "8px", textAlign: "right" }}>
                       <div style={{ display: "flex", gap: 4, justifyContent: "flex-end", alignItems: "center" }}>
-                        {mancaPassword && (
-                          <input style={{ ...INPUT, width: 120 }} type="password" autoComplete="off"
-                            placeholder={t("cfg.passwordSession")} title={t("cfg.passwordSessionTitle")}
-                            onKeyDown={(e) => {
-                              if (e.key !== "Enter") return;
-                              const v = (e.target as HTMLInputElement).value;
-                              if (!v) return;
-                              setPasswords((p) => ({ ...p, [d.url]: v }));
-                              // Con la password si può anche leggere la firma.
-                              setTimeout(() => void checkDevice(d), 0);
-                            }} />
-                        )}
+                        <input style={{ ...INPUT, width: 120 }} type="password" autoComplete="off"
+                          data-testid={`dispositivo-password-${d.label}`}
+                          placeholder={t("cfg.passwordSession")} title={t("cfg.passwordSessionTitle")}
+                          value={passwords[d.url] ?? ""}
+                          onChange={(e) => {
+                            const v = e.target.value;
+                            setPasswords((p) => { const n = { ...p }; if (v) n[d.url] = v; else delete n[d.url]; return n; });
+                          }}
+                          onBlur={() => { if (passwords[d.url]) void checkDevice(d); }}
+                          onKeyDown={(e) => { if (e.key === "Enter" && !connessoQui) void handleConnect(d); }} />
                         {connessoQui ? (
                           <button
                             style={{ ...BTN, background: "var(--brand-success-bg, #14532d)", borderColor: "var(--brand-success, #22c55e)", color: "var(--brand-success-soft, #86efac)" }}
                             onClick={() => void handleDisconnect()}
                             title={t("cfg.disconnect")}>● {t("cfg.disconnect")}</button>
                         ) : (
-                          <button style={BTN} disabled={mancaPassword || connettendo === d.url}
+                          <button style={BTN} disabled={connettendo === d.url}
+                            data-testid={`dispositivo-connetti-${d.label}`}
                             onClick={() => void handleConnect(d)}
-                            title={mancaPassword ? t("cfg.passwordSessionTitle") : t("cfg.setTargetConnect")}>
+                            title={t("cfg.setTargetConnect")}>
                             {connettendo === d.url ? t("cfg.connecting") : t("cfg.connect")}
                           </button>
                         )}
                         <button style={{ ...BTN, background: "#1e3a5f", borderColor: "var(--brand-primary-hover, #2563eb)", color: "#93c5fd" }}
-                          disabled={deployingUrl === d.url || mancaPassword}
-                          title={mancaPassword ? t("cfg.passwordSessionTitle") : undefined}
+                          disabled={deployingUrl === d.url}
                           onClick={() => void handleDeploy(d)}>
                           {deployingUrl === d.url ? t("cfg.deployRunning") : "Deploy"}
                         </button>

@@ -82,6 +82,18 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 
 ### Fixed
 
+- **IDE: dai «dispositivi registrati» ci si connette** (ramo 1a del piano `docs/plans/2026-10-14-revisione-ide-collaudo-wp630.md`).
+  Un dispositivo nato da «+ Dispositivi» ha l'utente vuoto: il campo password non compariva, l'utente si salvava solo
+  uscendo dal campo (e uscendo cancellava la password), la password solo con Invio, e Connect mandava un utente vuoto.
+  Ora utente e password sono campi controllati sempre visibili, Connect non si blocca per la password, Invio connette,
+  e un utente vuoto non sovrascrive più quello della «Connessione al runtime remoto». Anche il Deploy della riga usa
+  l'utente scritto.
+- **IDE: «Invia ora» non spedisce più la versione vecchia** (ramo 1b dello stesso piano). `setPages` normalizzava le
+  pagine caricate (trend nella forma vecchia, predefiniti dei colori) e le dichiarava comunque pulite: l'IDE mostrava
+  una cosa, il disco ne conteneva un'altra, e il deploy spediva il disco. Ora, se la normalizzazione cambia qualcosa,
+  il progetto risulta «non salvato» e ogni deploy salva prima. Effetto visibile, scelto dal maintainer: un progetto
+  appena creato da un template parte «non salvato» finché non lo si salva una volta.
+
 - **IDE: le tendine dei tag si leggono per intero** (ramo 2 del piano `docs/plans/2026-10-14-revisione-ide-collaudo-wp630.md`).
   Le due tendine di `TagInput` (completamento e selettore) erano `position: absolute` dentro il campo, e il pannello
   proprietà le ritagliava: nel pannello stretto si vedeva solo la colonna del tipo (`i32`), mai il nome — anche fra i

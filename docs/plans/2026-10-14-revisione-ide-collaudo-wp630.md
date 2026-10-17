@@ -14,6 +14,11 @@ un dubbio è detto.
 
 # Ramo 1 — `fix/dispositivi-e-deploy`
 
+> **Fatto il 17-10-2026**: 1a (campi controllati, password sempre visibile, Connect sempre abilitato, niente utente
+> vuoto in `RT_USER_KEY`) e 1b (`setPages` segna «non salvato» se la normalizzazione cambia qualcosa — scelta del
+> maintainer, anche per i progetti nuovi da template). I punti «da guardare anche» restano aperti. Da collaudare sul
+> TC620.
+
 ## 1a. Dai «dispositivi registrati» non ci si connette
 
 **Sintomo**: «Find runtime» → «+ Devices» aggiunge il dispositivo; premendo Connect arriva

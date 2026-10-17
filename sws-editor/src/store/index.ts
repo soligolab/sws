@@ -1279,12 +1279,11 @@ export const useAppStore = create<AppState>((set, get) => {
       // Sinottici prima, pagine di boot in coda: l'elenco pagine usa gli indici
       // della sola parte sinottica, che così restano validi.
       const pages = conOrdineAlbero(sinotticiPoiBoot(tutte), get().project?.page_layout);
-      set({
-        // Migrazione trend legacy → trend_tags al load (taglio netto,
-        // 2026-08-23), e xy_plot legacy → xy_series (stesso taglio,
-        // 2026-09-12, F5.3x/T-70): il primo salvataggio scrive solo il
-        // formato nuovo.
-        pages: pages.map((p) => {
+      // Migrazione trend legacy → trend_tags al load (taglio netto,
+      // 2026-08-23), e xy_plot legacy → xy_series (stesso taglio,
+      // 2026-09-12, F5.3x/T-70): il primo salvataggio scrive solo il
+      // formato nuovo.
+      const normalizzate = pages.map((p) => {
           // E i colori `var(…)` scritti dall'IDE fino al 21-09-2026 → hex o
           // automatico (D2 del piano colori): stesso taglio, stesso momento.
           // E i predefiniti fissi mancanti scritti nel file (30-09-2026): un
@@ -1296,7 +1295,15 @@ export const useAppStore = create<AppState>((set, get) => {
             togliColoriDiProgetto(normalizzaColoriOggetti(normalizeXyObjects(normalizeTrendObjects(p.objects)))),
           );
           return objs === p.objects ? p : { ...p, objects: objs };
-        }),
+      });
+      // Se la normalizzazione ha cambiato qualcosa, quello che l'IDE mostra non
+      // è più quello che c'è su disco: il progetto **non** è pulito. Prima lo si
+      // dichiarava pulito d'ufficio, e «Invia ora» spediva il disco — la versione
+      // vecchia (SystemInfo col trend legacy, collaudo WP630 del 14-10-2026).
+      // Ora l'indicatore lo dice e ogni deploy salva prima.
+      const cambiate = normalizzate.some((p, i) => p !== pages[i]);
+      set({
+        pages: normalizzate,
         currentPageId: currentPageId ?? paginePerNavigazione(pages)[0]?.id ?? pages[0]?.id ?? first.id,
         selectedObjectId: null,
         selectedObjectIds: [],
@@ -1308,8 +1315,9 @@ export const useAppStore = create<AppState>((set, get) => {
         selectedSubCell: null,
         past: [],
         future: [],
-        // Freshly loaded from disk: revision baseline resets to clean.
-        pagesRev: 0,
+        // Appena letto dal disco: pulito, a meno che la normalizzazione non
+        // abbia cambiato qualcosa (sopra).
+        pagesRev: cambiate ? 1 : 0,
         savedPagesRev: 0,
         // Snapshot of what's actually on disk right now, so saveAll() can
         // later tell a deleted/renamed page apart from one that was simply
