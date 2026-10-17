@@ -1135,6 +1135,20 @@ pub async fn remote_finestra_scrivi(
     inoltra_aggiornamento(&s, &user, reqwest::Method::PUT, Some(corpo), |base| format!("{base}/api/update/schedule")).await
 }
 
+/// `GET /api/remote/security/frame-origins` (C6, 17-10-2026)
+pub async fn remote_sicurezza_leggi(State(s): State<AppState>, Extension(user): Extension<AuthUser>) -> Response {
+    inoltra_aggiornamento(&s, &user, reqwest::Method::GET, None, |base| format!("{base}/api/security/frame-origins")).await
+}
+
+/// `PUT /api/remote/security/frame-origins`
+pub async fn remote_sicurezza_scrivi(
+    State(s): State<AppState>,
+    Extension(user): Extension<AuthUser>,
+    Json(corpo): Json<serde_json::Value>,
+) -> Response {
+    inoltra_aggiornamento(&s, &user, reqwest::Method::PUT, Some(corpo), |base| format!("{base}/api/security/frame-origins")).await
+}
+
 /// `GET /api/remote/update/status`
 pub async fn remote_update_status(State(s): State<AppState>, Extension(user): Extension<AuthUser>) -> Response {
     inoltra_aggiornamento(&s, &user, reqwest::Method::GET, None, |base| format!("{base}/api/update/status")).await

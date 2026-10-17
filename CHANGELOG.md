@@ -564,6 +564,25 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 
 ### Security
 
+- **Intestazioni di sicurezza su ogni risposta (CRA, C6 — onda 2, 17-10-2026)**: nuovo strato
+  `sws-web/src/sicurezza_http.rs`, montato sui due router (IDE/gateway/porta stretta e viewer).
+  - `Content-Security-Policy` con `script-src 'self'` (le pagine HTML non hanno più script in linea:
+    `public/avvio-tema.js`, `public/registra-sw.js`), `object-src 'none'`, `base-uri 'self'` e
+    `frame-ancestors` dalle origini dichiarate. Eccezioni scritte nel codice col loro perché:
+    `style-src 'unsafe-inline'` (stili React), `img-src`/`connect-src` aperti a `http:`/`https:`
+    (immagini esterne nelle pagine, l'IDE che interroga gli altri runtime). La CSP si mette solo se
+    manca: i file dei marchi tengono la loro `sandbox`, e nel cloud vale quella del container.
+  - `X-Content-Type-Options: nosniff`, `Referrer-Policy: same-origin`; `Strict-Transport-Security` solo
+    con `X-Forwarded-Proto: https`, così un pannello in HTTP resta raggiungibile.
+  - **Iframe da origini dichiarate**: `<config>/sicurezza.yaml` (`origini_iframe`), API Admin
+    `GET/PUT /api/security/frame-origins` (e `/api/remote/…` per il dispositivo collegato), sezione
+    «Incorporamento in iframe» sotto Configurazione → Istanza → Device. Un'origine malformata è un 400.
+  - Provato con Playwright su viewer, IDE, console, admin e log: nessun errore CSP; un iframe da
+    un'altra origine è bloccato senza dichiarazione e mostrato con.
+  - Guardia nuova `check_intestazioni.sh`.
+- **La porta del viewer serviva la SPA senza `no-cache`**: il `fallback_service` era aggiunto dopo
+  gli strati e non ne passava. Ora gli strati stanno sopra il fallback, come sul router di amministrazione.
+
 - **Sicuri per default (CRA, P1 — onda 1, C3)**:
   - **OPC UA**: `trust_all_certs` passa a `false` di default. Al primo contatto il certificato del server si
     memorizza da solo (`opcua-pki/<sorgente>/trusted`, come `known_hosts`); un certificato **cambiato** non è mai

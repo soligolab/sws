@@ -36,19 +36,7 @@
       }
       #root { height: 100%; }
     </style>
-    <script>
-      /* Pre-paint del tema, come in index-admin.html: senza, la finestra nasce
-         scura anche per chi lavora in tema chiaro. */
-      (function () {
-        try {
-          var m = localStorage.getItem("sws.theme") || "system";
-          var dark = m === "dark" || (m !== "light" &&
-            window.matchMedia("(prefers-color-scheme: dark)").matches);
-          document.documentElement.setAttribute("data-theme", dark ? "dark" : "light");
-          document.documentElement.style.setProperty("color-scheme", dark ? "dark" : "light");
-        } catch (e) {}
-      })();
-    </script>
+    <script src="/avvio-tema.js"></script>
   </head>
   <body>
     <div id="root"></div>

@@ -3345,5 +3345,11 @@
     "aggiungiParametro": "+ Parametro",
     "parametriSpiega": "Nei campi della pagina scrivi {nome}: il bottone che apre la finestra ne passa il valore. Così la stessa finestra serve per la pompa 1 e la pompa 2.",
     "segnoAlbero": "Si apre come finestra"
+  },
+  "originiIframe": {
+    "titolo": "Incorporamento in iframe",
+    "spiegazione": "Siti che possono mostrare questo dispositivo dentro un iframe, uno per riga (es. https://casa.example:8123). Vuoto: nessuno, solo SWS stesso.",
+    "salva": "Salva origini",
+    "salvate": "Origini salvate: valgono da subito."
   }
 }

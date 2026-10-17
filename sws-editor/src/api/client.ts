@@ -1961,6 +1961,14 @@ export const api = {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ scelta }),
     }),
+  /** Le origini ammesse a mostrare il dispositivo collegato in un iframe (C6). */
+  remoteOriginiIframe: () => request<{ origini_iframe: string[] }>("/api/remote/security/frame-origins"),
+  remoteScriviOriginiIframe: (origini_iframe: string[]) =>
+    request<{ origini_iframe: string[] }>("/api/remote/security/frame-origins", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ origini_iframe }),
+    }),
   remoteStatoAggiornamento: () => request<StatoAggiornamento>("/api/remote/update/status"),
   /** La finestra dell'aggiornamento e l'orologio del pannello collegato. */
   remoteFinestra: () => request<VistaFinestra>("/api/remote/update/schedule"),

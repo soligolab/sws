@@ -91,30 +91,11 @@
         cursor: pointer;
       }
     </style>
-    <script>
-      /* Pre-paint: set data-theme from the stored preference (default: follow
-         system) before React/branding boots, so there is no dark<->light flash.
-         Kept minimal and dependency-free. Mirrors src/theme.ts resolveMode(). */
-      (function () {
-        try {
-          var m = localStorage.getItem("sws.theme") || "system";
-          var dark = m === "dark" || (m !== "light" &&
-            window.matchMedia("(prefers-color-scheme: dark)").matches);
-          document.documentElement.setAttribute("data-theme", dark ? "dark" : "light");
-          document.documentElement.style.setProperty("color-scheme", dark ? "dark" : "light");
-        } catch (e) {}
-      })();
-    </script>
+    <script src="/avvio-tema.js"></script>
   </head>
   <body>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
-    <script>
-      if ("serviceWorker" in navigator) {
-        window.addEventListener("load", () => {
-          navigator.serviceWorker.register("/sw.js").catch(() => {});
-        });
-      }
-    </script>
+    <script src="/registra-sw.js"></script>
   </body>
 </html>

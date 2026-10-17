@@ -3345,5 +3345,11 @@
     "aggiungiParametro": "+ Parameter",
     "parametriSpiega": "In the page's fields write {name}: the button opening the window passes its value. The same window then serves pump 1 and pump 2.",
     "segnoAlbero": "Opens as a window"
+  },
+  "originiIframe": {
+    "titolo": "Embedding in an iframe",
+    "spiegazione": "Sites that may show this device inside an iframe, one per line (e.g. https://home.example:8123). Empty: none, only SWS itself.",
+    "salva": "Save origins",
+    "salvate": "Origins saved: they apply immediately."
   }
 }

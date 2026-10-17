@@ -638,6 +638,9 @@ pub fn build(
         .route("/api/aggiornamento/conferma", post(conferma_aggiornamento))
         .route("/api/aggiornamento/istantanea", post(istantanea_dati_prendi))
         .route("/api/update/schedule", get(finestra_leggi).put(finestra_scrivi))
+        // Le origini che possono mostrare SWS in un iframe (C6, 17-10-2026).
+        .route("/api/security/frame-origins", get(sicurezza_leggi).put(sicurezza_scrivi))
+        .route("/api/remote/security/frame-origins", get(crate::remote::remote_sicurezza_leggi).put(crate::remote::remote_sicurezza_scrivi))
         .route("/api/remote/update/schedule", get(crate::remote::remote_finestra_leggi).put(crate::remote::remote_finestra_scrivi))
         .route("/api/remote/update/status", get(crate::remote::remote_update_status))
         .route("/api/remote/update/apply", post(crate::remote::remote_update_apply))
@@ -1261,6 +1264,10 @@ pub fn build(
     // bundle con l'hash, quindi trattiene indietro tutto il resto. Vedi
     // `cache.rs`: è la causa di una classe intera di «serve un riavvio?».
     app = app.layer(middleware::from_fn(crate::cache::intestazioni_cache));
+    // Le intestazioni di sicurezza (C6, 17-10-2026): CSP, nosniff, referrer,
+    // HSTS solo in HTTPS. Vedi `sicurezza_http.rs`.
+    crate::sicurezza_http::carica(&state.config_dir);
+    app = app.layer(middleware::from_fn(crate::sicurezza_http::intestazioni));
 
     // Permissive CORS for the "editor on laptop → runtime on PX30" deployment
     // shape (ARCH-004). The editor sets the runtime URL via localStorage and
@@ -1401,6 +1408,7 @@ fn deploy_only_app(state: AppState) -> Router<AppState> {
         .route("/api/aggiornamento/conferma", post(conferma_aggiornamento))
         .route("/api/aggiornamento/istantanea", post(istantanea_dati_prendi))
         .route("/api/update/schedule", get(finestra_leggi).put(finestra_scrivi))
+        .route("/api/security/frame-origins", get(sicurezza_leggi).put(sicurezza_scrivi))
         // ── Override per-dispositivo del client id MQTT ────────────────────
         .route(
             "/api/mqtt/source/:id/client-id-override",
@@ -1544,11 +1552,6 @@ fn build_runtime_inner(state: AppState, www_dir: Option<PathBuf>) -> Router {
 
     let mut router = open.merge(metriche(&state))
         .merge(gated)
-        .layer(middleware::from_fn(crate::metrics::track_http_metrics))
-        // Stessa regola del router di amministrazione: anche il viewer serve
-        // una SPA, e la sua pagina d'ingresso nomina gli stessi bundle.
-        .layer(middleware::from_fn(crate::cache::intestazioni_cache))
-        .layer(cors)
         .with_state(state);
 
     if let Some(dir) = www_dir {
@@ -1557,7 +1560,17 @@ fn build_runtime_inner(state: AppState, www_dir: Option<PathBuf>) -> Router {
         router = router.fallback_service(fallback);
     }
 
+    // Gli strati **dopo** il fallback della SPA (17-10-2026): prima stavano sopra,
+    // e `fallback_service` aggiunto dopo un `.layer` non ne passa — la pagina del
+    // viewer usciva senza `no-cache` e senza CSP. Il router di amministrazione fa
+    // già così.
     router
+        .layer(middleware::from_fn(crate::metrics::track_http_metrics))
+        // Stessa regola del router di amministrazione: anche il viewer serve
+        // una SPA, e la sua pagina d'ingresso nomina gli stessi bundle.
+        .layer(middleware::from_fn(crate::cache::intestazioni_cache))
+        .layer(middleware::from_fn(crate::sicurezza_http::intestazioni))
+        .layer(cors)
 }
 
 // ── Auth middleware ──────────────────────────────────────────────────────────
@@ -3770,6 +3783,34 @@ async fn istantanea_dati_prendi(State(s): State<AppState>, Extension(user): Exte
 }
 
 /// `GET /api/update/schedule` — la finestra dell'aggiornamento e l'orologio del pannello.
+/// `GET /api/security/frame-origins` — le origini ammesse in `frame-ancestors`.
+async fn sicurezza_leggi() -> Response {
+    Json(crate::sicurezza_http::Impostazioni { origini_iframe: crate::sicurezza_http::origini() }).into_response()
+}
+
+/// `PUT /api/security/frame-origins` — le salva in `<config>/sicurezza.yaml` e le
+/// applica subito. Un'origine scritta male è un 400 col suo nome, non un silenzio.
+async fn sicurezza_scrivi(
+    State(s): State<AppState>,
+    Extension(user): Extension<AuthUser>,
+    Json(r): Json<crate::sicurezza_http::Impostazioni>,
+) -> Response {
+    use crate::sicurezza_http as sh;
+    let origini: Vec<String> = r.origini_iframe.iter()
+        .map(|o| o.trim().trim_end_matches('/').to_string()).filter(|o| !o.is_empty()).collect();
+    if let Some(cattiva) = origini.iter().find(|o| !sh::origine_valida(o)) {
+        return (StatusCode::BAD_REQUEST, format!("origine non valida: {cattiva} (es. https://casa.example:8123)")).into_response();
+    }
+    let imp = sh::Impostazioni { origini_iframe: origini };
+    let testo = serde_yaml::to_string(&imp).unwrap_or_default();
+    if let Err(e) = tokio::fs::write(s.config_dir.join(sh::FILE), testo).await {
+        return (StatusCode::INTERNAL_SERVER_ERROR, format!("non salvate: {e}")).into_response();
+    }
+    sh::imposta(&imp.origini_iframe);
+    s.audit.log("security.frame_origins", Some(user.username), serde_json::to_value(&imp).unwrap_or_default());
+    Json(imp).into_response()
+}
+
 async fn finestra_leggi(State(s): State<AppState>) -> Response {
     Json(crate::aggiornamento_finestra::vista(&s.config_dir).await).into_response()
 }
