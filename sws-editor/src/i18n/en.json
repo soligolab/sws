@@ -3367,5 +3367,17 @@
       "segmenti14": "14-segment display",
       "matrice": "Dot matrix"
     }
+  },
+  "storicoDispositivo": {
+    "titolo": "Device history (CSV)",
+    "nessunTrend": "No trend in the project pages.",
+    "scarica": "Download CSV",
+    "scaricato": "CSV downloaded.",
+    "intervallo": {
+      "1h": "Last hour",
+      "8h": "Last 8 hours",
+      "24h": "Last 24 hours",
+      "7g": "Last 7 days"
+    }
   }
 }

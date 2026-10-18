@@ -12,6 +12,7 @@ import { StatoDisplay } from "@/boot/StatoDisplay";
 import { AggiornamentoRuntime } from "@/boot/AggiornamentoRuntime";
 import { ConfigurazioneServizio } from "@/boot/ConfigurazioneServizio";
 import { OriginiIframe } from "@/boot/OriginiIframe";
+import { StoricoDispositivo } from "@/boot/StoricoDispositivo";
 import { ConfermaAggiornamento } from "@/boot/ConfermaAggiornamento";
 import { TRANS_COMP } from "@/config/comuni";
 import { registraDispositivo, flushBeforeDeploy } from "@/config/schede/DevicesTab";
@@ -1023,6 +1024,10 @@ export function RuntimeConnectionTab() {
 
       {/* Chi può mostrare il dispositivo in un iframe (C6, 17-10-2026). */}
       {connected && <OriginiIframe />}
+
+      {/* Lo storico del pannello in CSV (18-10-2026): il trend del pannello non
+          ha dove salvarlo. */}
+      {connected && <StoricoDispositivo />}
 
       {/* Fase 4: cosa c'è sullo schermo del pannello, e perché. */}
       {connected && <StatoDisplay />}

@@ -1135,6 +1135,44 @@ pub async fn remote_finestra_scrivi(
     inoltra_aggiornamento(&s, &user, reqwest::Method::PUT, Some(corpo), |base| format!("{base}/api/update/schedule")).await
 }
 
+/// `GET /api/remote/history/export?tags=&from_ms=&to_ms=` (18-10-2026): il CSV
+/// dello storico del dispositivo collegato. Il pannello non ha dove salvare un
+/// file; l'IDE sì. La query passa così com'è.
+pub async fn remote_history_export(
+    State(s): State<AppState>,
+    Extension(user): Extension<AuthUser>,
+    axum::extract::RawQuery(q): axum::extract::RawQuery,
+) -> Response {
+    let target = match s.remote_target.read().await.clone() {
+        Some(t) => t,
+        None => return (StatusCode::BAD_REQUEST, "No remote runtime connected").into_response(),
+    };
+    let q = q.unwrap_or_default();
+    s.audit.log("remote.history_export", Some(user.username), serde_json::json!({ "url": target.url, "query": q }));
+    let client = make_remote_client(&s, &target.url);
+    let base = target.url.trim_end_matches('/');
+    let mut req = client.get(format!("{base}/api/history/export?{q}"));
+    if !target.token.is_empty() {
+        req = req.header("Authorization", format!("Bearer {}", target.token));
+    }
+    match req.send().await {
+        Ok(r) if r.status().is_success() => match r.bytes().await {
+            Ok(b) => Response::builder()
+                .status(StatusCode::OK)
+                .header("Content-Type", "text/csv; charset=utf-8")
+                .header("Content-Disposition", "attachment; filename=\"storico.csv\"")
+                .body(axum::body::Body::from(b))
+                .unwrap_or_else(|_| StatusCode::INTERNAL_SERVER_ERROR.into_response()),
+            Err(e) => (StatusCode::BAD_GATEWAY, format!("Lettura della risposta dal dispositivo fallita: {e}")).into_response(),
+        },
+        Ok(r) => {
+            let st = r.status();
+            (StatusCode::BAD_GATEWAY, format!("il dispositivo ha risposto {st}")).into_response()
+        }
+        Err(e) => (StatusCode::BAD_GATEWAY, format!("dispositivo non raggiungibile: {e}")).into_response(),
+    }
+}
+
 /// `GET /api/remote/security/frame-origins` (C6, 17-10-2026)
 pub async fn remote_sicurezza_leggi(State(s): State<AppState>, Extension(user): Extension<AuthUser>) -> Response {
     inoltra_aggiornamento(&s, &user, reqwest::Method::GET, None, |base| format!("{base}/api/security/frame-origins")).await

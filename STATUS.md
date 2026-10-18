@@ -1143,7 +1143,7 @@ dispositivo.
 - **Da provare con la rc.23**: aggiornamento automatico dal canale di prova, poi «configurazione del servizio da
   aggiornare» 2 → 3; i pallini di stato presi dal pannello; rifare i tre MCM dal catalogo (annidati) e togliere i tipi
   piatti vecchi e i `_v2` rimasti senza istanze.
-- **Semi nuovi**: [trend LVGL come il web](docs/plans/2026-10-04-trend-lvgl-come-il-web.md),
+- **Semi nuovi**: [trend LVGL come il web](docs/archive/2026-10-04-trend-lvgl-come-il-web.md),
   [configuratore dei moduli all'avvio](docs/plans/2026-10-04-configuratore-moduli.md).
 - Nota: la rc.22 su `rc-arm64` ha il quadlet 2 che podman 5.0.2 rifiuta (servizio che sparisce): la rc.23 la
   sostituisce sullo stesso canale.

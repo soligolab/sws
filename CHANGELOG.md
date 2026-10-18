@@ -82,6 +82,11 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 
 ### Fixed
 
+- **Il trend «oscillava» nella parte recente** (web e pannello, seme `2026-10-04-trend-lvgl-come-il-web`). Con i
+  secchi (finestre oltre 15 min) le medie si calcolavano **dopo** la decimazione per indice di `Historian::query`, che
+  sfoltiva quasi solo la coda densa in RAM (un campione per aggiornamento) e lasciava intatta la parte rada da SQLite:
+  ogni secchio recente faceva la media di pochi campioni presi a passo fisso. Ora `get_history` con `bucket_ms` usa
+  `query_interi`, senza decimazione; test `i_secchi_si_calcolano_sui_campioni_interi`.
 - **Pannello LVGL: fasce e barra di scorrimento quando le pagine hanno misure diverse** (TC620, seme
   `2026-10-17-finestra-lvgl-misura-schermo`). Il display LVGL nasceva alla misura della prima pagina e non cambiava più:
   una prima pagina 1280×768 su uno schermo 1280×800 lasciava due fasce, e ogni pagina alta 800 scorreva. Ora il display
@@ -231,6 +236,12 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 
 ### Added
 
+- **Trend del pannello come quello del web** (gruppo 3 del programma delle funzioni utente): ⤢ porta il trend LVGL a
+  schermo intero (canvas ridimensionato, `ridimensiona_trend`) con i preset Diretta / 1 h / 8 h / 24 h / 7 giorni
+  (`trend::PRESET_S`, la finestra passa al poller in `TrendRichiesta::finestra_ms`); un secondo tocco lo rimette nel
+  riquadro. **CSV dello storico del pannello dall'IDE collegato**: sezione «Storico del dispositivo (CSV)» sotto
+  Istanza → Device, `/api/remote/history/export`, e `/api/history/export` aggiunto alla porta di gestione del
+  dispositivo. Provati con l'istantanea LVGL (`--tocca` su ⤢ e su «8h») e con un runtime collegato a sé stesso.
 - **Sei font uguali su web e pannello, anche a segmenti** (gruppo 2 del programma delle funzioni utente, seme
   `2026-10-15-font-e-display-a-segmenti`). `font_family` diventa un menu: Sans, Mono, Serif (DejaVu), display a 7 e 14
   segmenti (DSEG, OFL), matrice di punti (DotGothic16 ridotto ai caratteri latini, OFL). Tabella sola

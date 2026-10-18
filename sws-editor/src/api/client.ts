@@ -1535,6 +1535,20 @@ export const api = {
     ),
 
   /** Come `downloadBackup`, ma per uno snapshot sul dispositivo remoto connesso. */
+  /** Il CSV dello storico del dispositivo collegato (18-10-2026): i dati dei
+   *  trend del pannello, che sul pannello non ha dove salvarli. */
+  remoteExportHistoryCsv: async (tags: string[], fromMs: number, toMs: number): Promise<Blob> => {
+    const params = new URLSearchParams({ tags: tags.join(","), from_ms: String(fromMs), to_ms: String(toMs) });
+    const path = `/api/remote/history/export?${params}`;
+    const res = await fetch(`${getBaseUrl()}${path}`, { headers: authHeaders() });
+    if (res.status === 401) throw new AuthError();
+    if (!res.ok) {
+      let body = "";
+      try { body = await res.text(); } catch { /* ignore */ }
+      throw new Error(`${res.status}${body ? ` — ${body}` : ""}`);
+    }
+    return res.blob();
+  },
   remoteDownloadBackup: async (name: string): Promise<Response> => {
     const path = `/api/remote/backups/${encodeURIComponent(name)}/download`;
     const res = await fetch(`${getBaseUrl()}${path}`, { headers: authHeaders() });

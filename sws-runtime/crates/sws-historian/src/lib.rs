@@ -174,6 +174,24 @@ impl Historian {
     /// sample, the missing range is fetched from SQLite and prepended — so the
     /// trend widget can scroll back beyond the ring-buffer window.
     pub async fn query(&self, tag: &str, from_ms: Option<u64>, to_ms: Option<u64>) -> Vec<Sample> {
+        let samples = self.query_interi(tag, from_ms, to_ms).await;
+        if samples.len() > DECIMATION_THRESHOLD {
+            return decimate(samples, DECIMATION_THRESHOLD);
+        }
+        samples
+    }
+
+    /// Come `query`, **senza decimazione**: per chi aggrega da sé (i secchi dei
+    /// trend, `aggregate_samples`).
+    ///
+    /// Decimare prima di aggregare era il tratto «che oscilla» dei trend
+    /// (seme `2026-10-04-trend-lvgl-come-il-web`, misurato il 18-10-2026): la
+    /// risposta unisce la coda in RAM, un campione per aggiornamento (10 al
+    /// secondo con un generatore), e la parte vecchia da SQLite, filtrata dal
+    /// datastore e rada. La decimazione è **per indice**: sfoltisce quasi solo
+    /// la parte densa, e ogni secchio di quella parte faceva la media di pochi
+    /// campioni presi a passo fisso. Il confine si vedeva dove comincia l'anello.
+    pub async fn query_interi(&self, tag: &str, from_ms: Option<u64>, to_ms: Option<u64>) -> Vec<Sample> {
         let buf = self.buffers.read().await;
 
         // Collect in-memory samples and note the oldest timestamp in the ring.
@@ -196,7 +214,7 @@ impl Historian {
         // older than the ring's oldest sample, prepend the gap from disk. Skip
         // only when there's no store or no in-memory samples to anchor against.
         let store_snapshot = self.store.read().await.clone();
-        let mut samples = if let (Some(store), Some(oldest)) = (store_snapshot, oldest_mem_ts) {
+        let samples = if let (Some(store), Some(oldest)) = (store_snapshot, oldest_mem_ts) {
             let from = from_ms.unwrap_or(0);
             if from < oldest {
                 let sqlite_to = oldest.saturating_sub(1);
@@ -209,11 +227,6 @@ impl Historian {
         } else {
             mem_samples
         };
-
-        // Decimate when the result exceeds the threshold.
-        if samples.len() > DECIMATION_THRESHOLD {
-            samples = decimate(samples, DECIMATION_THRESHOLD);
-        }
 
         samples
     }
@@ -359,6 +372,23 @@ mod tests {
         let mid = h.query("t", Some(15), Some(25)).await;
         assert_eq!(mid.len(), 1);
         assert_eq!(mid[0].ts_ms, 20);
+    }
+
+    /// Il tratto «che oscilla» dei trend (18-10-2026): un segnale denso che alterna
+    /// 0 e 100 ha media 50 in ogni secchio. Aggregato dopo la decimazione per
+    /// indice, i secchi prendevano pochi campioni a passo fisso e la media saltava.
+    #[tokio::test]
+    async fn i_secchi_si_calcolano_sui_campioni_interi() {
+        let h = Historian::new(10_000);
+        for i in 0..3_000u64 {
+            h.record("t", &st(i * 100, if i % 2 == 0 { 0.0 } else { 100.0 })).await;
+        }
+        let interi = h.query_interi("t", None, None).await;
+        assert_eq!(interi.len(), 3_000);
+        let secchi = aggregate_samples(&interi, 10_000);
+        assert!(secchi.iter().all(|b| (b.avg - 50.0).abs() < 1e-9), "{:?}", secchi.iter().map(|b| b.avg).collect::<Vec<_>>());
+        // La query normale resta decimata, come prima.
+        assert_eq!(h.query("t", None, None).await.len(), DECIMATION_THRESHOLD);
     }
 
     #[tokio::test]

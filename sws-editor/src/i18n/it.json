@@ -3367,5 +3367,17 @@
       "segmenti14": "Display a 14 segmenti",
       "matrice": "Matrice di punti"
     }
+  },
+  "storicoDispositivo": {
+    "titolo": "Storico del dispositivo (CSV)",
+    "nessunTrend": "Nessun trend nelle pagine del progetto.",
+    "scarica": "Scarica CSV",
+    "scaricato": "CSV scaricato.",
+    "intervallo": {
+      "1h": "Ultima ora",
+      "8h": "Ultime 8 ore",
+      "24h": "Ultime 24 ore",
+      "7g": "Ultimi 7 giorni"
+    }
   }
 }

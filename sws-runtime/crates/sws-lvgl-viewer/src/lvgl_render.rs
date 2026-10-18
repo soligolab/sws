@@ -581,6 +581,8 @@ pub struct TrendVivo {
     etichette: Vec<core::ptr::NonNull<lvgl_sys::lv_obj_t>>,
     tocchi: CodaTocchi,
     sporco: bool,
+    /// Posizione e misura nella pagina, per tornarci dallo schermo intero.
+    riquadro: (i16, i16, u32, u32),
 }
 
 /// Una coppia X/Y del `xy_plot` (F5.3x/T-70): il puntatore della serie
@@ -5571,8 +5573,47 @@ fn render_trend(
             etichette: Vec::new(),
             tocchi,
             sporco: true,
+            riquadro: (obj.x.unwrap_or(0.0).round() as i16, obj.y.unwrap_or(0.0).round() as i16, w, h),
         })),
     })
+}
+
+/// Porta il trend a schermo intero o lo rimette nel suo riquadro (18-10-2026,
+/// come la vista espansa del web). Buffer e pixmap nuovi alla misura nuova; il
+/// vecchio buffer si lascia dopo `lv_canvas_set_buffer`, che non lo usa più.
+/// Le etichette sono figlie del canvas e lo seguono; si riscrivono al ridisegno.
+fn ridimensiona_trend(t: &mut TrendVivo) {
+    let (x, y, w, h) = if t.stato.espanso {
+        let (dw, dh) = crate::lvgl_display::dims();
+        (0, 0, dw.max(40), dh.max(40))
+    } else {
+        t.riquadro
+    };
+    let Some(pixmap) = resvg::tiny_skia::Pixmap::new(w, h) else { return };
+    let mut buf = vec![0u8; 2 * w as usize * h as usize];
+    unsafe {
+        lvgl_sys::lv_canvas_set_buffer(
+            t.canvas.as_ptr(),
+            buf.as_mut_ptr() as *mut std::ffi::c_void,
+            w as lvgl_sys::lv_coord_t,
+            h as lvgl_sys::lv_coord_t,
+            lvgl_sys::LV_IMG_CF_TRUE_COLOR as lvgl_sys::lv_img_cf_t,
+        );
+        lvgl_sys::lv_obj_set_pos(t.canvas.as_ptr(), x, y);
+        if t.stato.espanso {
+            // `lv_obj_move_foreground` è inline in LVGL 8: è questa, con -1.
+            lvgl_sys::lv_obj_move_to_index(t.canvas.as_ptr(), -1);
+        }
+    }
+    t.buf = buf;
+    t.pixmap = pixmap;
+    t.cfg.w = w;
+    t.cfg.h = h;
+    // Lo sfondo a immagine era alla misura del riquadro: a schermo intero no.
+    if t.stato.espanso {
+        t.sfondo = None;
+    }
+    t.sporco = true;
 }
 
 /// Mette in coda i tocchi sul trend, in coordinate del canvas.
@@ -5739,6 +5780,10 @@ fn aggiorna_trend(t: &mut TrendVivo, lingua: &str, table: &LanguageTable) {
                     t.sporco = true;
                     nuovo_intervallo = true;
                 }
+                Esito::Espandi => {
+                    ridimensiona_trend(t);
+                    nuovo_intervallo = true;
+                }
             },
             ToccoTrend::Perso => {
                 t.stato.pressione = None;
@@ -5758,6 +5803,8 @@ fn aggiorna_trend(t: &mut TrendVivo, lingua: &str, table: &LanguageTable) {
             r.diretta = t.stato.in_diretta();
             r.da = da;
             r.a = a;
+            r.finestra_ms = Some(t.stato.finestra_ms(&t.cfg));
+            r.larghezza_px = t.cfg.w;
             r.gen += 1;
         }
         t.feed.sveglia.notify_one();

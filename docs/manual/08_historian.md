@@ -123,6 +123,15 @@ La vista espansa offre:
 - Multi-serie (tag principale + tag extra in overlay)
 - Legenda interattiva (click per nascondere/mostrare serie)
 
+**Sul pannello LVGL** (dal 18-10-2026) il trend ha lo stesso ⤢ nell'angolo in alto a destra: il grafico copre tutto
+lo schermo e in basso compaiono i preset di tempo — Diretta (la finestra del progetto), 1 h, 8 h, 24 h, 7 giorni. Un
+secondo tocco su ⤢ lo rimette nel suo riquadro, con la finestra del progetto. «Tutto» e «personalizzato» restano del
+web, perché vogliono un calendario.
+
+**Le medie dei secchi** (finestre oltre 15 minuti) si calcolano su tutti i campioni dell'intervallo. Fino al 18-10-2026
+si calcolavano dopo averne scartata una parte a passo fisso, e la parte recente, densa, «oscillava» rispetto a quella
+più vecchia letta dal disco.
+
 ---
 
 ## Dati storici via API
@@ -191,6 +200,11 @@ timestamp_ms,timestamp_iso,valore,qualità
 1735600000000,2026-01-01T10:00:00Z,9.8,Good
 1735600001000,2026-01-01T10:00:01Z,9.9,Good
 ```
+
+**Lo storico di un pannello** (dal 18-10-2026): il pannello non ha dove salvare un file. Con l'IDE collegato al
+dispositivo, **Configurazione → Istanza → Device → Storico del dispositivo (CSV)**: scegli uno dei trend delle pagine e
+un intervallo (ultima ora, 8 ore, 24 ore, 7 giorni), e il CSV arriva dal pannello, con i suoi dati
+(`/api/remote/history/export`).
 
 ---
 

@@ -23,3 +23,9 @@
   col web (`TrendWidget`), che ha la stessa soglia (F5.2).
 - Il rendering è `render_trend` / `dati_trend` in `lvgl_render.rs`, la geometria in `crate::trend`.
 - Il CSV su un pannello senza browser: dove va il file (USB? download dall'IDE?) è da decidere.
+
+## 18-10-2026 — fatto (gruppo 3 del programma delle funzioni utente), da collaudare
+
+Decisioni: preset di tempo, schermo intero, CSV scaricato dall'IDE collegato. Il punto 4 era lato server, quindi anche
+del web: medie dei secchi calcolate dopo la decimazione per indice (`Historian::query_interi`, ora senza). Manuale,
+capitolo 08.

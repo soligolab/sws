@@ -233,7 +233,18 @@ pub struct Stato {
     pub nascoste: HashSet<usize>,
     pub vista: Vista,
     pub pressione: Option<Pressione>,
+    /// A schermo intero (18-10-2026): il trend copre tutto il display, e in
+    /// basso compaiono i preset di tempo, come nella vista espansa del web.
+    pub espanso: bool,
+    /// La finestra della diretta scelta con un preset; `None` = quella del
+    /// progetto (`window_s`).
+    pub preset_s: Option<f64>,
 }
+
+/// I preset della vista espansa: gli stessi del web (`TrendExpanded.tsx`),
+/// tranne «tutto» e «personalizzato», che vogliono un calendario. `0` = la
+/// finestra del progetto.
+pub const PRESET_S: [u32; 5] = [0, 3_600, 8 * 3_600, 24 * 3_600, 7 * 86_400];
 
 /// Soglia di trascinamento di `TrendCanvas.tsx` (`DRAG_THRESHOLD_PX`).
 const SOGLIA_PX: f32 = 8.0;
@@ -256,13 +267,20 @@ impl Stato {
                 .collect(),
             vista: Vista::Diretta,
             pressione: None,
+            espanso: false,
+            preset_s: None,
         }
+    }
+
+    /// La finestra della diretta, in ms: il preset scelto o quella del progetto.
+    pub fn finestra_ms(&self, cfg: &Config) -> u64 {
+        (self.preset_s.unwrap_or(cfg.finestra_s) * 1000.0) as u64
     }
 
     /// L'intervallo di tempo da mostrare e da chiedere allo storico.
     pub fn intervallo(&self, cfg: &Config, ora_ms: u64) -> (u64, u64) {
         match self.vista {
-            Vista::Diretta => (ora_ms.saturating_sub((cfg.finestra_s * 1000.0) as u64), ora_ms),
+            Vista::Diretta => (ora_ms.saturating_sub(self.finestra_ms(cfg)), ora_ms),
             Vista::Spostata { da, a, .. } | Vista::Zoom { da, a, .. } => (da, a),
         }
     }
@@ -342,9 +360,28 @@ impl Stato {
             if !r.contiene(x, y, MARGINE_DITO) {
                 continue;
             }
-            let passo = cfg.passo_pan_ms();
-            let finestra = (cfg.finestra_s * 1000.0) as u64;
+            let finestra = self.finestra_ms(cfg);
+            // Il passo dei ◀/▶ segue la finestra del preset (un quarto, come
+            // `passo_pan_ms`), a meno che il progetto non ne dichiari uno.
+            let passo = match (cfg.passo_pan_s, self.preset_s) {
+                (None, Some(s)) => ((s * 250.0).round() as u64).max(1000),
+                _ => cfg.passo_pan_ms(),
+            };
             let indietro = match (self.vista, p) {
+                (_, Pulsante::Espandi) => {
+                    self.espanso = !self.espanso;
+                    if !self.espanso && self.preset_s.is_some() {
+                        // Tornando al riquadro si torna alla finestra del progetto.
+                        self.preset_s = None;
+                        self.vista = Vista::Diretta;
+                    }
+                    return Esito::Espandi;
+                }
+                (_, Pulsante::Preset(s)) => {
+                    self.preset_s = (*s > 0).then_some(*s as f64);
+                    self.vista = Vista::Diretta;
+                    return Esito::NuovoIntervallo;
+                }
                 (_, Pulsante::Ripristina) => {
                     self.vista = Vista::Diretta;
                     return Esito::NuovoIntervallo;
@@ -372,6 +409,9 @@ pub enum Esito {
     Ridisegna,
     /// Cambia l'intervallo: i dati vanno richiesti di nuovo.
     NuovoIntervallo,
+    /// Entra o esce dallo schermo intero: cambia la misura del riquadro, e con
+    /// un preset anche l'intervallo.
+    Espandi,
 }
 
 // ── Scena: quello che il disegno lascia a chi scrive i testi e ai tocchi ────
@@ -398,6 +438,10 @@ pub enum Pulsante {
     Indietro,
     Avanti,
     Ripristina,
+    /// ⤢ / ⤡: schermo intero e ritorno.
+    Espandi,
+    /// Un preset di tempo della vista espansa (secondi, `0` = del progetto).
+    Preset(u32),
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -1093,6 +1137,61 @@ fn pulsanti(cfg: &Config, stato: &Stato, px: &mut Pixmap, sc: &mut Scena, w: f32
             px.fill_path(&p, &colore(c, a), FillRule::Winding, Transform::identity(), None);
         }
     };
+    // ⤢ in alto a destra, sempre: quattro angoli disegnati (il glifo non è in
+    // tutti i font). Da espanso gli angoli puntano verso il centro.
+    let espandi = Rett { x: w - 4.0 - bw, y: 4.0, w: bw, h: bh };
+    tasto(px, espandi, true);
+    {
+        let (x0, y0, x1, y1) = (espandi.x + 4.0, espandi.y + 3.5, espandi.x + espandi.w - 4.0, espandi.y + espandi.h - 3.5);
+        let l = 3.5;
+        let dentro = stato.espanso;
+        let mut pb = PathBuilder::new();
+        for (cx, cy, sx, sy) in [(x0, y0, 1.0, 1.0), (x1, y0, -1.0, 1.0), (x0, y1, 1.0, -1.0), (x1, y1, -1.0, -1.0)] {
+            let (cx, cy) = if dentro { (cx + sx * l, cy + sy * l) } else { (cx, cy) };
+            let (dx, dy) = if dentro { (-sx * l, -sy * l) } else { (sx * l, sy * l) };
+            pb.move_to(cx + dx, cy);
+            pb.line_to(cx, cy);
+            pb.line_to(cx, cy + dy);
+        }
+        if let Some(p) = pb.finish() {
+            px.stroke_path(&p, &colore(fg, 1.0), &tratto(1.4, None), Transform::identity(), None);
+        }
+    }
+    sc.pulsanti.push((espandi, Pulsante::Espandi));
+
+    // I preset, solo a schermo intero: in basso al centro, fra ◀ e ▶.
+    if stato.espanso {
+        let en = cfg.lingua.starts_with("en");
+        let nomi: [&str; 5] = if en { ["Live", "1h", "8h", "24h", "7d"] } else { ["Diretta", "1h", "8h", "24h", "7g"] };
+        let (pw, gap) = (44.0, 4.0);
+        let tot = PRESET_S.len() as f32 * pw + (PRESET_S.len() - 1) as f32 * gap;
+        let mut x = (w - tot) / 2.0;
+        for (i, s) in PRESET_S.iter().enumerate() {
+            let r = Rett { x, y: h - 4.0 - bh, w: pw, h: bh };
+            let scelto = match stato.preset_s {
+                None => *s == 0,
+                Some(p) => (p - *s as f64).abs() < 0.5,
+            } && stato.vista == Vista::Diretta;
+            if scelto {
+                rett_pieno(px, r, (0x1e, 0x3a, 0x5f), 1.0);
+                rett_bordo(px, Rett { x: r.x + 0.5, y: r.y + 0.5, w: r.w - 1.0, h: r.h - 1.0 }, (0x3b, 0x82, 0xf6), 1.0);
+            } else {
+                tasto(px, r, true);
+            }
+            sc.testi.push(Testo {
+                x: r.x + r.w / 2.0,
+                y: r.y + r.h / 2.0,
+                testo: nomi[i].to_string(),
+                colore: if scelto { (0xe2, 0xe8, 0xf0) } else { fg },
+                px: 10,
+                orizz: Orizz::Centro,
+                vert: Vert::Mezzo,
+            });
+            sc.pulsanti.push((r, Pulsante::Preset(*s)));
+            x += pw + gap;
+        }
+    }
+
     if pan {
         let indietro = Rett { x: 4.0, y: h - 4.0 - bh, w: bw, h: bh };
         tasto(px, indietro, true);
@@ -1106,7 +1205,7 @@ fn pulsanti(cfg: &Config, stato: &Stato, px: &mut Pixmap, sc: &mut Scena, w: f32
         tasto(px, avanti, spostato.is_some());
         freccia(px, avanti, -1.0, if spostato.is_some() { fg } else { CORNICE }, 1.0);
         sc.pulsanti.push((avanti, Pulsante::Avanti));
-        if let Some(ms) = spostato {
+        if let Some(ms) = spostato.filter(|_| !stato.espanso) {
             sc.testi.push(Testo {
                 x: w / 2.0,
                 y: h - 4.0 - bh / 2.0,
@@ -1119,7 +1218,8 @@ fn pulsanti(cfg: &Config, stato: &Stato, px: &mut Pixmap, sc: &mut Scena, w: f32
         }
     } else {
         // ⟲: un arco con la punta, disegnato — il glifo non è in tutti i font.
-        let r = Rett { x: w - 4.0 - bw, y: 4.0, w: bw, h: bh };
+        // A sinistra di ⤢, che sta sempre nell'angolo.
+        let r = Rett { x: w - 8.0 - 2.0 * bw, y: 4.0, w: bw, h: bh };
         tasto(px, r, true);
         let (cx, cy, rr) = (r.x + r.w / 2.0, r.y + r.h / 2.0, 4.5);
         let mut pb = PathBuilder::new();
@@ -1252,6 +1352,36 @@ mod tests {
         // «ymd» senza anno diventa «mdy», come sul web.
         let f3 = FormatoOra { ordine: OrdineData::Amg, sempre_data: true, due_righe: false, ..FormatoOra::default() };
         assert_eq!(fmt_data_ora(o, 60_000, &f3).0, "09/03 14:05");
+    }
+
+    /// Schermo intero e preset (18-10-2026): ⤢ c'è sempre, i preset solo da
+    /// espanso; un preset cambia la finestra della diretta; tornando al
+    /// riquadro si torna alla finestra del progetto.
+    #[test]
+    fn espandi_e_preset() {
+        let mut px = Pixmap::new(360, 180).unwrap();
+        let c = cfg(vec![traccia("a", BLU)]);
+        let mut st = Stato::nuovo(&c);
+        let tocca = |st: &mut Stato, sc: &Scena, p: Pulsante| {
+            let (r, _) = *sc.pulsanti.iter().find(|(_, q)| *q == p).expect("pulsante");
+            st.premi(r.x + r.w / 2.0, r.y + r.h / 2.0, ORA);
+            st.rilascia(&c, sc, ORA)
+        };
+        let sc = disegna(&c, &Dati::default(), &st, ORA, None, &mut px, &misura, &utc);
+        assert!(!sc.pulsanti.iter().any(|(_, p)| matches!(p, Pulsante::Preset(_))));
+        assert_eq!(tocca(&mut st, &sc, Pulsante::Espandi), Esito::Espandi);
+        assert!(st.espanso);
+
+        let sc = disegna(&c, &Dati::default(), &st, ORA, None, &mut px, &misura, &utc);
+        assert_eq!(sc.pulsanti.iter().filter(|(_, p)| matches!(p, Pulsante::Preset(_))).count(), PRESET_S.len());
+        assert_eq!(tocca(&mut st, &sc, Pulsante::Preset(8 * 3_600)), Esito::NuovoIntervallo);
+        assert_eq!(st.intervallo(&c, ORA), (ORA - 8 * 3_600_000, ORA));
+
+        let sc = disegna(&c, &Dati::default(), &st, ORA, None, &mut px, &misura, &utc);
+        assert_eq!(tocca(&mut st, &sc, Pulsante::Espandi), Esito::Espandi);
+        assert!(!st.espanso);
+        assert_eq!(st.preset_s, None);
+        assert_eq!(st.intervallo(&c, ORA), (ORA - (c.finestra_s * 1000.0) as u64, ORA));
     }
 
     #[test]

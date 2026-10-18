@@ -971,6 +971,11 @@ pub struct TrendRichiesta {
     pub da: u64,
     pub a: u64,
     pub gen: u64,
+    /// La finestra della diretta, se l'operatore ha scelto un preset (18-10-2026).
+    pub finestra_ms: Option<u64>,
+    /// La larghezza del grafico adesso (a schermo intero è più largo): decide
+    /// la larghezza dei secchi. `0` = quella di partenza.
+    pub larghezza_px: u32,
 }
 
 /// L'ultima risposta. `secchi[i]` è `Some` quando la traccia `i` è arrivata
@@ -1032,13 +1037,15 @@ pub fn spawn_trend_poller(
             if req.diretta || gen_servita != Some(req.gen) {
                 let (da, a) = if req.diretta {
                     let ora = now_unix_ms();
-                    (ora.saturating_sub((finestra_s * 1000.0) as u64), ora)
+                    let finestra = req.finestra_ms.unwrap_or((finestra_s * 1000.0) as u64);
+                    (ora.saturating_sub(finestra), ora)
                 } else {
                     (req.da, req.a)
                 };
                 let span = a.saturating_sub(da);
+                let larghezza = if req.larghezza_px > 0 { req.larghezza_px } else { larghezza_px };
                 let secchio = (span > SECCHI_OLTRE_MS).then(|| {
-                    let colonne = (larghezza_px as f64 - 60.0).max(200.0);
+                    let colonne = (larghezza as f64 - 60.0).max(200.0);
                     ((span as f64 / colonne).round() as u64).max(1000)
                 });
                 let bf = primo && backfill;

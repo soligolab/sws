@@ -645,6 +645,8 @@ pub fn build(
         .route("/api/security/frame-origins", get(sicurezza_leggi).put(sicurezza_scrivi))
         .route("/api/remote/security/frame-origins", get(crate::remote::remote_sicurezza_leggi).put(crate::remote::remote_sicurezza_scrivi))
         .route("/api/remote/update/schedule", get(crate::remote::remote_finestra_leggi).put(crate::remote::remote_finestra_scrivi))
+        // Lo storico del dispositivo collegato, in CSV (18-10-2026).
+        .route("/api/remote/history/export", get(crate::remote::remote_history_export))
         .route("/api/remote/update/status", get(crate::remote::remote_update_status))
         .route("/api/remote/update/apply", post(crate::remote::remote_update_apply))
         .route("/api/remote/quadlet/aggiorna", post(crate::remote::remote_quadlet_aggiorna))
@@ -1374,6 +1376,9 @@ fn deploy_only_app(state: AppState) -> Router<AppState> {
         // Lo stato delle sorgenti e dei dispositivi (04-10-2026): l'IDE connesso
         // colora i pallini dell'albero con quello del pannello, non del PC.
         .route("/api/sources/stato", get(stato_sorgenti_handler))
+        // Lo storico in CSV (18-10-2026): l'IDE collegato scarica i dati di un
+        // trend del pannello, che sul pannello non ha dove salvarli.
+        .route("/api/history/export", get(export_history_csv))
         // ── Utenti: azione deliberata, separata dal deploy ─────────────────
         //
         // I verbi sono quelli che `remote.rs` usa davvero (`PUT`, non `POST`):
@@ -3103,7 +3108,13 @@ async fn get_history(
     Path(tag): Path<String>,
     Query(q): Query<HistoryQuery>,
 ) -> Response {
-    let mut samples = s.historian.query(&tag, q.from, q.to).await;
+    // Con i secchi si aggrega sui campioni interi: decimare prima falsava le
+    // medie della parte recente (vedi `Historian::query_interi`).
+    let mut samples = if q.bucket_ms.is_some() {
+        s.historian.query_interi(&tag, q.from, q.to).await
+    } else {
+        s.historian.query(&tag, q.from, q.to).await
+    };
 
     if q.backfill {
         samples = opcua_backfill_history(&s, &tag, q.from, q.to, samples).await;
