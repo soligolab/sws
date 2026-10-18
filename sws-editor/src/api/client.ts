@@ -1772,6 +1772,13 @@ export const api = {
     segnalaCambioProgettoNostro();
   },
 
+  /** Archivia / ripristina (18-10-2026, solo Admin): il progetto resta al suo
+   *  posto con un segno, sparisce dall'elenco e non si apre. */
+  archiveProject: (riferimento: string) =>
+    request<unknown>(`/api/projects/${rotta(riferimento)}/archive`, { method: "POST" }),
+  unarchiveProject: (riferimento: string) =>
+    request<unknown>(`/api/projects/${rotta(riferimento)}/unarchive`, { method: "POST" }),
+
   deleteProject: (riferimento: string) =>
     request<void>(`/api/projects/${rotta(riferimento)}`, { method: "DELETE" }),
 

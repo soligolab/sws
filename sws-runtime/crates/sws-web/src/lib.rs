@@ -3,6 +3,7 @@ pub mod ai;
 pub mod cornici;
 pub mod sicurezza_http;
 pub mod limiti;
+pub mod archivio;
 pub mod amministrazione;
 pub mod marchi;
 pub mod backups;

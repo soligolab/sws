@@ -158,6 +158,9 @@ pub async fn start_project_services(
 #[derive(Serialize)]
 pub struct ProjectListEntry {
     pub name: String,
+    /// Archiviato (18-10-2026): l'elenco lo mostra a parte, e non si apre.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub archiviato: Option<crate::archivio::Archiviato>,
     /// `<azienda>/<nome>`, con `-` per l'azienda implicita: è **l'indirizzo**
     /// del progetto, quello che va nelle rotte. Il nome da solo non basta più
     /// da quando due aziende possono avere un «impianto» ciascuna.
@@ -459,6 +462,7 @@ pub async fn list_projects(
                         storico_byte: None,
                         motore: None,
                         risoluzione: None,
+                        archiviato: None,
                     },
                 );
             }
@@ -518,6 +522,7 @@ pub async fn list_projects(
                         storico_byte: None,
                         motore: None,
                         risoluzione: None,
+                        archiviato: None,
                     },
                 );
             }
@@ -569,6 +574,7 @@ pub async fn list_projects(
                 storico_byte: None,
                 motore: None,
                 risoluzione: None,
+                archiviato: None,
             },
         );
     }
@@ -582,6 +588,7 @@ pub async fn list_projects(
         // nascono: un posto solo da guardare quando una delle due etichette
         // non torna.
         let (motore, risoluzione) = scheda_tecnica(dir);
+        e.archiviato = crate::archivio::leggi(dir);
         e.motore = motore;
         e.risoluzione = risoluzione;
     }
@@ -1500,6 +1507,9 @@ pub async fn open_project(
     if !tokio::fs::try_exists(&project_dir).await.unwrap_or(false) {
         return (StatusCode::NOT_FOUND, "project not found").into_response();
     }
+    if crate::archivio::e_archiviato(&project_dir) {
+        return (StatusCode::CONFLICT, "il progetto è archiviato: ripristinalo per aprirlo").into_response();
+    }
     {
         // Q30: la migrazione riscrive project.yaml (il percorso SQLite di
         // default) con un leggi-modifica-scrivi. Tiene già
@@ -2367,7 +2377,8 @@ pub async fn duplicate_project(
     // duplicare mentre un salvataggio è a metà produrrebbe una copia con un
     // project.yaml troncato, e il difetto si scoprirebbe aprendo il duplicato.
     let _scrittura = s.project_write_lock.lock().await;
-    if let Err(e) = copy_dir_all(&src_dir, &dst_dir, &[]).await {
+    // Il segno dell'archivio non si copia: la copia nasce viva (18-10-2026).
+    if let Err(e) = copy_dir_all(&src_dir, &dst_dir, &[crate::archivio::SEGNO]).await {
         warn!("duplicate_project: copy {src_name} → {dst_name}: {e}");
         let _ = tokio::fs::remove_dir_all(&dst_dir).await;
         return (StatusCode::INTERNAL_SERVER_ERROR, "copy failed").into_response();

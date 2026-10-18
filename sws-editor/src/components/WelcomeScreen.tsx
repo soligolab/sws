@@ -1040,6 +1040,23 @@ export function WelcomeScreen({ onProjectOpened }: WelcomeScreenProps) {
     }
   };
 
+  // L'archivio (18-10-2026): il progetto resta al suo posto, nascosto e non
+  // apribile, e continua a contare nella quota di spazio.
+  const [archiviAperti, setArchiviAperti] = useState(false);
+  const archiviati = projects.filter((p) => p.archiviato);
+  const handleArchivia = async (p: ProjectListEntry, archivia: boolean) => {
+    if (archivia && !window.confirm(t("welcome.confermaArchivia", { name: p.name }))) return;
+    setActionBusy(p.riferimento); setError(null);
+    try {
+      await (archivia ? api.archiveProject(p.riferimento) : api.unarchiveProject(p.riferimento));
+      await loadProjects();
+    } catch (e: any) {
+      setError(t("welcome.errArchivia", { name: p.name, err: e?.message ?? e }));
+    } finally {
+      setActionBusy(null);
+    }
+  };
+
   const commitRename = async () => {
     if (!editing || editing.mode !== "rename") return;
     const { rif, name, value } = editing;
@@ -1188,7 +1205,7 @@ export function WelcomeScreen({ onProjectOpened }: WelcomeScreenProps) {
               SENZA titolo: chi ha un'installazione sola non deve incontrare un
               concetto che per lui non esiste. Il titolo compare solo dove c'e
               davvero un'azienda da nominare. */}
-          {!loading && raggruppa(projects).map((g, i, tutti) => (
+          {!loading && raggruppa(projects.filter((p) => !p.archiviato)).map((g, i, tutti) => (
             <div key={`${g.altra ? "1" : "0"}-${g.titolo ?? ""}`}>
               {/* Lo stacco prima della PRIMA azienda altrui: tutto quello che
                   sta sotto non e tuo, e va detto una volta sola invece che
@@ -1289,6 +1306,14 @@ export function WelcomeScreen({ onProjectOpened }: WelcomeScreenProps) {
                   style={{ ...ACT_BTN, color: isDuping ? "#a855f7" : "var(--brand-text-muted, #94a3b8)" }}
                   onClick={() => setEditing({ rif: p.riferimento, name: p.name, mode: "duplicate", value: p.name + " (copia)" })}
                 >⧉</button>
+                {!p.external && (
+                  <button
+                    title={t("welcome.archivia")}
+                    data-testid={`archive-${p.riferimento}`}
+                    style={{ ...ACT_BTN }}
+                    onClick={() => handleArchivia(p, true)}
+                  >🗄</button>
+                )}
                 <button
                   title={p.external ? t("welcome.removeFromList") : t("editor.delete")}
                   style={{ ...ACT_BTN }}
@@ -1449,6 +1474,33 @@ export function WelcomeScreen({ onProjectOpened }: WelcomeScreenProps) {
               </div>
             </div>
           ))}
+          {/* Gli archiviati: in fondo e chiusi, per riprenderli o cancellarli. */}
+          {!loading && archiviati.length > 0 && (
+            <div style={{ marginTop: 22, paddingTop: 12, borderTop: "1px solid var(--brand-surface-2, #334155)" }}>
+              <button type="button" data-testid="archiviati-toggle" onClick={() => setArchiviAperti((v) => !v)}
+                style={{ background: "none", border: "none", cursor: "pointer", fontSize: 12, padding: 0,
+                  color: "var(--brand-text-subtle, #64748b)", textTransform: "uppercase", letterSpacing: 0.6 }}>
+                {archiviAperti ? "▾" : "▸"} {t("welcome.archiviati", { n: archiviati.length })}
+              </button>
+              {archiviAperti && archiviati.map((p) => (
+                <div key={p.riferimento} data-testid={`archiviato-${p.riferimento}`} style={{
+                  display: "flex", alignItems: "center", gap: 10, padding: "8px 10px", marginTop: 6,
+                  border: "1px dashed var(--brand-surface-2, #334155)", borderRadius: 8, opacity: 0.85,
+                }}>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 14 }}>{p.name}{p.azienda ? ` · ${p.azienda}` : ""}</div>
+                    <div style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)" }}>
+                      {t("welcome.archiviatoIl", { date: formatDate(p.archiviato?.quando_ms ?? null), da: p.archiviato?.da || "?" })}
+                    </div>
+                  </div>
+                  <button type="button" data-testid={`unarchive-${p.riferimento}`} disabled={actionBusy === p.riferimento}
+                    onClick={() => handleArchivia(p, false)}>{t("welcome.ripristina")}</button>
+                  <button type="button" title={t("editor.delete")} disabled={actionBusy === p.riferimento}
+                    onClick={() => handleDelete(p)}>✕</button>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
 
         {error && (

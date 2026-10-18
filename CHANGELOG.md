@@ -236,6 +236,12 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 
 ### Added
 
+- **Archiviare un progetto** (gruppo 4 del programma delle funzioni utente, seme `2026-10-15-archivio-dei-progetti`):
+  il progetto resta al suo posto con un segno `.archiviato` (`archivio.rs`), sparisce dall'elenco, `open_project`
+  lo rifiuta (409), e nel cloud **conta nella quota di spazio** (decisione del maintainer) ma non nel tetto dei progetti
+  aperti. Rotte Admin `POST /api/projects/:azienda/:nome/archive` e `/unarchive`, campo `archiviato` nell'elenco,
+  sezione «Archiviati (N)» nella schermata dei progetti con Ripristina. Il progetto aperto non si archivia; la copia di
+  un archiviato nasce viva; audit `project.archive`/`project.unarchive`.
 - **Trend del pannello come quello del web** (gruppo 3 del programma delle funzioni utente): ⤢ porta il trend LVGL a
   schermo intero (canvas ridimensionato, `ridimensiona_trend`) con i preset Diretta / 1 h / 8 h / 24 h / 7 giorni
   (`trend::PRESET_S`, la finestra passa al poller in `TrendRichiesta::finestra_ms`); un secondo tocco lo rimette nel

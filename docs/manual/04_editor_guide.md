@@ -465,6 +465,16 @@ Vedi [12 — GitOps](12_gitops.md) per i dettagli.
 
 ---
 
+## Archiviare un progetto
+
+Dalla schermata dei progetti, sulla scheda di un progetto chiuso: **🗄 Archivia** (solo Admin). Il progetto **resta al
+suo posto**, con storico, backup e git intatti, ma sparisce dall'elenco e non si apre per sbaglio. Nel cloud non
+occupa il tetto dei progetti aperti, ma **conta nella quota di spazio**: i suoi file ci sono ancora.
+
+In fondo all'elenco, **Archiviati (N)** li mostra con la data e chi li ha archiviati: **Ripristina** lo rimette fra i
+progetti, **✕** lo cancella. Un progetto aperto non si archivia: va chiuso prima. Duplicando un archiviato, la copia
+nasce viva. Archiviare e ripristinare finiscono nell'audit (`project.archive`, `project.unarchive`).
+
 ## Undo / Redo
 
 - **Ctrl+Z** — undo (fino a 200 step)

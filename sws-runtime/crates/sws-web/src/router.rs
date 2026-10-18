@@ -559,6 +559,10 @@ pub fn build(
             "/api/deploy/device-container/manage",
             post(crate::packaging::manage_device_container),
         )
+        // Archiviare un progetto (18-10-2026): resta al suo posto, nascosto e
+        // non apribile, ma conta nella quota di spazio. Vedi `archivio.rs`.
+        .route("/api/projects/:azienda/:nome/archive", post(crate::archivio::archivia))
+        .route("/api/projects/:azienda/:nome/unarchive", post(crate::archivio::ripristina))
         // Audit log (OPEN_QUESTIONS Q8): who-did-what trail, tamper-evident.
         .route("/api/audit", get(get_audit_tail))
         .route("/api/audit/verify", get(get_audit_verify))

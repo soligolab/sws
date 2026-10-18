@@ -536,7 +536,13 @@
     "spazioEsaurito": "Lo spazio di {{azienda}} è esaurito: {{usato}} di {{massimo}}. Non si possono creare altri progetti finché non ne liberi — quelli aperti continuano a funzionare.",
     "barraBuildTitolo": "Versione, revisione e data di build di questa pagina",
     "barraPaginaVecchia": "Pagina vecchia: ricarica forzando",
-    "senzaFormato": "senza formato"
+    "senzaFormato": "senza formato",
+    "archivia": "Archivia: fuori dall'elenco, conservato",
+    "confermaArchivia": "Archiviare «{{name}}»? Sparisce dall'elenco e non si apre finché non lo ripristini; i dati restano e contano nello spazio.",
+    "errArchivia": "«{{name}}»: {{err}}",
+    "archiviati": "Archiviati ({{n}})",
+    "archiviatoIl": "archiviato il {{date}} da {{da}}",
+    "ripristina": "Ripristina"
   },
   "logs": {
     "history": "Storico…",

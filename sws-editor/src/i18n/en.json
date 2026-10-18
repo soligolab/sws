@@ -536,7 +536,13 @@
     "spazioEsaurito": "{{azienda}} is out of space: {{usato}} of {{massimo}}. No new projects can be created until you free some — the open ones keep working.",
     "barraBuildTitolo": "Version, revision and build date of this page",
     "barraPaginaVecchia": "Stale page: force a reload",
-    "senzaFormato": "no format"
+    "senzaFormato": "no format",
+    "archivia": "Archive: out of the list, kept",
+    "confermaArchivia": "Archive «{{name}}»? It leaves the list and cannot be opened until you restore it; its data stays and counts towards space.",
+    "errArchivia": "«{{name}}»: {{err}}",
+    "archiviati": "Archived ({{n}})",
+    "archiviatoIl": "archived on {{date}} by {{da}}",
+    "ripristina": "Restore"
   },
   "logs": {
     "history": "History…",
