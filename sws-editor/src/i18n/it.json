@@ -2118,7 +2118,7 @@
     "telegramStep4": "Premi <em>Invia test</em> per verificare, poi <em>Salva</em>.",
     "pullExists": "⚠ Esiste già un progetto locale <strong>{{name}}</strong>: verrà eliminato e sostituito da quello del dispositivo. Scrivi un altro nome per tenerli entrambi.",
     "pullBundleCreds": "⚠ Il bundle del dispositivo contiene anche <strong>utenti e credenziali</strong>: aprendolo sostituisci gli account e le password delle sorgenti con quelli del dispositivo.",
-    "remoteLogsHint": "I log del runtime connesso appaiono nel cassetto log dell'IDE (☰ Menu → Log) — filtrali scrivendo <code>remote:</code> nel campo di ricerca per tag.",
+    "remoteLogsHint": "I log del dispositivo collegato (da INFO in su) appaiono nel cassetto log dell'IDE (☰ Menu → Log), in ordine con quelli dell'IDE e col nome del dispositivo davanti: filtrali scrivendo quel nome nel campo di ricerca per tag. Finiscono anche nell'esportazione.",
     "backupsIntro": "Snapshot point-in-time del progetto (project.yaml + synoptics + users.yaml + recipes) salvati sotto <code>{{dir}}</code>. Il runtime ne crea uno automaticamente ogni N minuti — di default secondo il flag di avvio <code>--auto-backup-interval-minutes</code>, ma questo progetto può avere il proprio intervallo (sotto), a prescindere da come è stato avviato il runtime. Lo storico (<code>history/</code>) lo porta solo il backup creato a mano: in quelli automatici occuperebbe spazio a ogni giro, e ripristinarne uno lascia lo storico com'è.",
     "createVariable": "Crea variabile",
     "savedChangesAppliedImmediately": "✓ Salvato — modifiche applicate immediatamente.",

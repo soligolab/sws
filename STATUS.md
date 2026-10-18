@@ -1259,7 +1259,7 @@ ritorno), `59a8f9d5` (storico compatto + template TC620), tag **2.12.0-rc.20**. 
   restano gli archivi rc.17/rc.18 di prima della correzione: spariscono al riavvio. **Lo storico di `rc14_lvgl` sul
   pannello è stato perso** dal deploy di `tc620-sistema` (il deploy con un altro nome sostituisce il progetto): il
   progetto è intatto in `.run-editor/projects/rc14_lvgl`.
-- **Semi nuovi**: [log del device nell'IDE](docs/plans/2026-10-03-log-del-device-nell-ide.md). Da registrare come seme
+- **Semi nuovi**: [log del device nell'IDE](docs/archive/2026-10-03-log-del-device-nell-ide.md). Da registrare come seme
   (detto al maintainer, non ancora scritto): l'istanza di un tipo non si scopre dalla scheda Tipi, e i valori che arrivano
   da una sorgente non vengono convertiti al tipo della foglia (`i32` che tiene 29,8, `u64` che tiene 237593.0); e il deploy
   che cancella senza avvisare il progetto precedente sul pannello.

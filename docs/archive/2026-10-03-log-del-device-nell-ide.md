@@ -32,3 +32,8 @@ un deploy, un aggiornamento, un'istantanea — si legga in un posto solo e in or
 3. L'etichetta: nome dell'istanza, host, o il nome del dispositivo registrato nell'IDE?
 4. Le righe del pannello finiscono anche nell'esportazione del log dell'IDE?
 5. Con utenti sul pannello: con quale ruolo si leggono i suoi log?
+
+## 18-10-2026 — fatto (gruppo 4 del programma delle funzioni utente), da collaudare
+
+Decisioni: dal vivo, da INFO in su, etichetta = nome del dispositivo registrato, anche nell'esportazione, solo Admin.
+`/ws/logs` sulla porta di gestione del dispositivo (`ws_logs_dispositivo`); manuale, capitolo 14.

@@ -219,6 +219,14 @@ Forme d'onda disponibili: `sin`, `cos`, `tri`, `saw`, `square`, `random`, `step`
 
 ## Diagnostica comune
 
+### Il log del pannello, dall'IDE
+
+Con l'IDE collegato a un dispositivo (Configurazione → Istanza → Device → Connessione), le righe del runtime del
+pannello compaiono **dal vivo** nel cassetto log dell'IDE (☰ Menu → Log), in ordine con quelle dell'IDE, col nome
+del dispositivo registrato davanti al target (o l'host, se non è registrato): scrivi quel nome nel filtro per tag per
+vederle da sole. Arrivano **da INFO in su**, solo a un Admin, e finiscono anche nell'esportazione del log. Un pannello
+con una versione di prima del 18-10-2026 non le manda: va aggiornato.
+
 ### Il runtime non parte
 
 ```bash

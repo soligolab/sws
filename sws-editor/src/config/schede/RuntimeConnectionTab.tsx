@@ -999,7 +999,7 @@ export function RuntimeConnectionTab() {
 
       {/* Remote logs: non più un pannello a parte — confluiscono nello stesso
           log viewer dei log locali (cassetto in basso, ☰ Menu → Log), con
-          target prefissato "remote:" così il filtro esistente li isola. Vedi
+          target prefissato dal nome del dispositivo (18-10-2026) così il filtro esistente li isola. Vedi
           useRemoteLogStream (sws-editor/src/ws/remoteLogStream.ts). */}
       {connected && (
         <section>

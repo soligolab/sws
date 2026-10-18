@@ -14,16 +14,38 @@
 // immediately rather than whenever the local stream happens to drop.
 //
 // Events land in the same `logs` store (LogPanel.tsx) as local ones, with
-// `target` prefixed `remote:` so the existing target-filter box isolates
-// them — no new UI needed.
+// `target` prefixed by the **device label** (18-10-2026: «nel log devo poter
+// vedere anche il device con un tag apposito») — il nome con cui è registrato in
+// Dispositivi, altrimenti l'host. La casella del filtro per target le isola
+// scrivendo quel nome; finiscono anche nell'esportazione del log, che è lo
+// stesso elenco. Il dispositivo manda solo da INFO in su (`ws_logs_dispositivo`).
 
 import { useEffect } from "react";
-import { getAuthToken } from "@/api/client";
+import { api, getAuthToken } from "@/api/client";
 import { useAppStore } from "@/store";
 import type { LogEvent } from "@/types";
 import { ReconnectingWs } from "@/ws/reconnectingWs";
 
 let rws: ReconnectingWs | null = null;
+
+/** L'etichetta delle righe del dispositivo: il nome registrato in Dispositivi
+ *  per quell'indirizzo, altrimenti il pannello di un indirizzo del cloud
+ *  (`…/dev/<pannello>`), altrimenti l'host. */
+export function etichettaDispositivo(url: string | null, registrati: { label?: string; url: string }[]): string {
+  if (!url) return "remote";
+  const norm = (u: string) => u.trim().replace(/\/+$/, "").toLowerCase();
+  const reg = registrati.find((d) => norm(d.url) === norm(url) && d.label?.trim());
+  if (reg?.label) return reg.label.trim();
+  try {
+    const u = new URL(url);
+    const dev = u.pathname.split("/").filter(Boolean);
+    const i = dev.indexOf("dev");
+    if (i >= 0 && dev[i + 1]) return decodeURIComponent(dev[i + 1]);
+    return u.hostname || "remote";
+  } catch {
+    return "remote";
+  }
+}
 
 function buildRemoteLogsUrl(): string {
   const scheme = typeof window !== "undefined" && window.location.protocol === "https:" ? "wss" : "ws";
@@ -34,6 +56,7 @@ function buildRemoteLogsUrl(): string {
 
 export function useRemoteLogStream(): void {
   const remoteConnected = useAppStore((s) => s.remoteConnected);
+  const remoteUrl        = useAppStore((s) => s.remoteUrl);
   const appendLog        = useAppStore((s) => s.appendLog);
 
   useEffect(() => {
@@ -45,12 +68,18 @@ export function useRemoteLogStream(): void {
 
     rws = new ReconnectingWs(buildRemoteLogsUrl);
     const stream = rws;
+    let etichetta = etichettaDispositivo(remoteUrl, []);
+    api.listDevices()
+      .then((l) => { etichetta = etichettaDispositivo(remoteUrl, l as { label?: string; url: string }[]); })
+      .catch(() => { /* resta l'host */ });
 
     const onMessage = (ev: MessageEvent) => {
       try {
         const event = JSON.parse(ev.data as string) as LogEvent;
         if (event?.ts_ms === undefined || !event?.level) return;
-        appendLog({ ...event, target: `remote:${event.target}` });
+        // Il dispositivo filtra già; un pannello di prima manderebbe tutto.
+        if (/^(TRACE|DEBUG)$/i.test(event.level)) return;
+        appendLog({ ...event, target: `${etichetta}:${event.target}` });
       } catch {
         // ignore malformed frames
       }
@@ -62,5 +91,5 @@ export function useRemoteLogStream(): void {
       stream.destroy();
       if (rws === stream) rws = null;
     };
-  }, [remoteConnected, appendLog]);
+  }, [remoteConnected, remoteUrl, appendLog]);
 }

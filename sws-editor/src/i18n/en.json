@@ -2118,7 +2118,7 @@
     "telegramStep4": "Press <em>Send test</em> to verify, then <em>Save</em>.",
     "pullExists": "⚠ A local project <strong>{{name}}</strong> already exists: it will be deleted and replaced by the device's. Write another name to keep both.",
     "pullBundleCreds": "⚠ The device bundle also contains <strong>users and credentials</strong>: opening it replaces the accounts and the sources' passwords with the device's.",
-    "remoteLogsHint": "The connected runtime's logs appear in the IDE's log drawer (☰ Menu → Log) — filter them by typing <code>remote:</code> in the tag search field.",
+    "remoteLogsHint": "The connected device's logs (INFO and above) appear in the IDE's log drawer (☰ Menu → Log), in order with the IDE's own and prefixed with the device name: filter them by typing that name in the tag search field. They are included in the export too.",
     "backupsIntro": "Point-in-time snapshots of the project (project.yaml + synoptics + users.yaml + recipes) saved under <code>{{dir}}</code>. The runtime creates one automatically every N minutes — by default per the <code>--auto-backup-interval-minutes</code> startup flag, but this project can have its own interval (below), regardless of how the runtime was started. History (<code>history/</code>) is only included in manually created backups: in automatic ones it would take space on every run, and restoring one leaves history as it is.",
     "createVariable": "Create variable",
     "savedChangesAppliedImmediately": "✓ Saved — changes applied immediately.",

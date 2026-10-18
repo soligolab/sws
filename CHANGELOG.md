@@ -236,6 +236,12 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 
 ### Added
 
+- **Il log del pannello nel log dell'IDE collegato** (gruppo 4 del programma delle funzioni utente, seme
+  `2026-10-03-log-del-device-nell-ide`). Decisione del maintainer: dal vivo, da INFO in su, solo Admin. La porta di
+  gestione del dispositivo serve `/ws/logs` (`ws_logs_dispositivo`, gruppo Admin), che prima mancava di proposito per i
+  segreti nei log; l'inoltro `/ws/remote/logs` e `remoteLogStream.ts` c'erano già. Le righe portano il **nome del
+  dispositivo registrato** (o il pannello del cloud, o l'host) al posto di `remote:`, e finiscono nell'esportazione. Un
+  404 dal pannello ora dice «va aggiornato». Provato con un runtime `--no-admin` e un IDE collegato: solo INFO e WARN.
 - **Archiviare un progetto** (gruppo 4 del programma delle funzioni utente, seme `2026-10-15-archivio-dei-progetti`):
   il progetto resta al suo posto con un segno `.archiviato` (`archivio.rs`), sparisce dall'elenco, `open_project`
   lo rifiuta (409), e nel cloud **conta nella quota di spazio** (decisione del maintainer) ma non nel tetto dei progetti

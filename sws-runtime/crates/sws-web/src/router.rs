@@ -1336,9 +1336,9 @@ pub fn build(
 /// deploya. Nessuna build dei pacchetti. Nessun
 /// `/api/fs/*` — che sul router completo naviga il filesystem **senza
 /// autenticazione**, per una necessità (la WelcomeScreen al primo avvio) che su
-/// un dispositivo senza IDE non esiste. Nessun `/ws/ai`, e nessun `/ws/logs`:
-/// i log possono contenere segreti e non stanno su nessuna delle due porte del
-/// dispositivo. `/ws/tags` e `/ws/alarms` invece **ci sono** dal 2026-09-08 —
+/// un dispositivo senza IDE non esiste. Nessun `/ws/ai`. `/ws/logs` c'è dal
+/// 18-10-2026, solo Admin e da INFO in su (vedi `ws_logs_dispositivo`).
+/// `/ws/tags` e `/ws/alarms` invece **ci sono** dal 2026-09-08 —
 /// l'editor collegato li apre su questa porta, ed erano l'unica cosa mancante
 /// che nessuno aveva dichiarato.
 ///
@@ -1380,6 +1380,12 @@ fn deploy_only_app(state: AppState) -> Router<AppState> {
         // Lo stato delle sorgenti e dei dispositivi (04-10-2026): l'IDE connesso
         // colora i pallini dell'albero con quello del pannello, non del PC.
         .route("/api/sources/stato", get(stato_sorgenti_handler))
+        // Il log del dispositivo nell'IDE collegato (18-10-2026, decisione del
+        // maintainer: dal vivo, da INFO in su, solo Admin). Era fuori di
+        // proposito perché i log possono contenere segreti; la decisione è
+        // presa, e a valle restano le guardie di `check_segreti` (nessuna macro
+        // di log interpola token o password) e il livello minimo.
+        .route("/ws/logs", get(ws_logs_dispositivo))
         // Lo storico in CSV (18-10-2026): l'IDE collegato scarica i dati di un
         // trend del pannello, che sul pannello non ha dove salvarli.
         .route("/api/history/export", get(export_history_csv))
@@ -1447,10 +1453,8 @@ fn deploy_only_app(state: AppState) -> Router<AppState> {
     // esattamente nel loop che questo blocco chiude. `require_auth` accetta il
     // token anche in query (`?token=`), che è come un WebSocket lo manda.
     //
-    // `/ws/logs` resta **fuori**, deliberatamente: i log possono contenere
-    // segreti (URL con credenziali, corpi di richieste) e su un dispositivo non
-    // stanno su nessuna delle due porte. Se un giorno servisse, è una decisione
-    // da prendere, non da far scivolare dentro insieme ai tag.
+    // `/ws/logs` non sta qui, fra i flussi di chiunque sia autenticato: dal
+    // 18-10-2026 c'è, ma nel gruppo Admin della gestione (`ws_logs_dispositivo`).
     let flussi = Router::new()
         .route("/ws/tags", get(ws_tags_handler))
         .route("/ws/alarms", get(ws_alarms_handler))
@@ -8251,12 +8255,27 @@ async fn get_log_file(
 }
 
 async fn ws_logs_handler(ws: WebSocketUpgrade, State(s): State<AppState>) -> impl IntoResponse {
-    ws.on_upgrade(move |socket| handle_logs_ws(socket, s.logs))
+    ws.on_upgrade(move |socket| handle_logs_ws(socket, s.logs, false))
 }
 
-async fn handle_logs_ws(mut socket: WebSocket, logs: Arc<LogBus>) {
+/// `/ws/logs` sulla porta di gestione di un dispositivo (18-10-2026): lo stesso
+/// flusso, **da INFO in su**. Il DEBUG di un pannello è tanto e serve a chi
+/// lavora sul codice, non a chi guarda un deploy dall'IDE.
+async fn ws_logs_dispositivo(ws: WebSocketUpgrade, State(s): State<AppState>) -> impl IntoResponse {
+    ws.on_upgrade(move |socket| handle_logs_ws(socket, s.logs, true))
+}
+
+/// Da INFO in su: niente TRACE e DEBUG.
+fn da_info_in_su(level: &str) -> bool {
+    !matches!(level.to_ascii_uppercase().as_str(), "TRACE" | "DEBUG")
+}
+
+async fn handle_logs_ws(mut socket: WebSocket, logs: Arc<LogBus>, solo_info: bool) {
     // Snapshot first so a fresh client sees recent history before the live tail.
     for ev in logs.snapshot() {
+        if solo_info && !da_info_in_su(&ev.level) {
+            continue;
+        }
         if let Ok(text) = serde_json::to_string(&ev) {
             if socket.send(Message::Text(text)).await.is_err() {
                 return;
@@ -8267,6 +8286,9 @@ async fn handle_logs_ws(mut socket: WebSocket, logs: Arc<LogBus>) {
     loop {
         match rx.recv().await {
             Ok(ev) => {
+                if solo_info && !da_info_in_su(&ev.level) {
+                    continue;
+                }
                 if let Ok(text) = serde_json::to_string(&ev) {
                     if socket.send(Message::Text(text)).await.is_err() {
                         break;
@@ -11896,6 +11918,31 @@ mod rotte_del_dispositivo {
             "l'IDE chiama sul dispositivo rotte che la porta di gestione non ha \
              (404 su ogni container): {mancanti:?}"
         );
+    }
+}
+
+#[cfg(test)]
+mod tests_log_dispositivo {
+    /// Il log del dispositivo verso l'IDE (18-10-2026): da INFO in su.
+    #[test]
+    fn il_log_del_dispositivo_va_da_info_in_su() {
+        for l in ["INFO", "WARN", "ERROR", "info"] {
+            assert!(super::da_info_in_su(l), "{l}");
+        }
+        for l in ["DEBUG", "TRACE", "debug"] {
+            assert!(!super::da_info_in_su(l), "{l}");
+        }
+    }
+
+    /// E sta sulla porta di gestione del dispositivo, nel gruppo Admin.
+    #[test]
+    fn il_log_sta_nella_gestione_del_dispositivo() {
+        let src = include_str!("router.rs");
+        let inizio = src.find("fn deploy_only_app(").unwrap();
+        let fine = inizio + src[inizio..].find("\nfn ").unwrap();
+        let corpo = &src[inizio..fine];
+        let gestione = &corpo[..corpo.find("let flussi").unwrap()];
+        assert!(gestione.contains("\"/ws/logs\", get(ws_logs_dispositivo)"));
     }
 }
 

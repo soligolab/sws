@@ -128,12 +128,14 @@ const MAX_MOTIVO_BYTE: usize = 123;
 /// prendesse un 404, e il caso più frequente — `/ws/logs`, che su un dispositivo
 /// non c'è per scelta — si è visto raccontare una falsità al primo collaudo.
 fn motivo_rifiuto(sub: &str, stato: u16) -> (bool, String, String) {
+    // Dal 18-10-2026 il dispositivo espone `/ws/logs` (solo Admin): un 404 è un
+    // pannello con una versione di prima, e il rimedio è aggiornarlo.
     if stato == 404 && sub == "logs" {
         return (
             false,
-            "i log del pannello non si leggono da remoto: è deliberato".to_string(),
-            "il pannello non espone i log da remoto: è deliberato (i log possono \
-             contenere segreti). Il registro del dispositivo si legge sul dispositivo."
+            "il pannello non manda i suoi log: va aggiornato".to_string(),
+            "il pannello ha una versione che non espone i log da remoto (prima del \
+             18-10-2026): aggiornalo per vederli qui."
                 .to_string(),
         );
     }
@@ -355,10 +357,9 @@ mod tests {
     #[test]
     fn i_log_assenti_non_sono_un_guasto() {
         let (guasto, _breve, lungo) = motivo_rifiuto("logs", 404);
-        assert!(!guasto, "un comportamento voluto non deve essere un WARN");
-        assert!(lungo.contains("deliberato"), "{lungo}");
-        // Non deve accusare la versione: è la falsità della prima stesura.
-        assert!(!lungo.contains("versione"), "{lungo}");
+        assert!(!guasto, "un pannello vecchio non è un guasto: non deve essere un WARN");
+        // Dal 18-10-2026 il dispositivo i log li manda: un 404 è un pannello da aggiornare.
+        assert!(lungo.contains("aggiornalo"), "{lungo}");
     }
 
     #[test]
