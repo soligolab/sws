@@ -165,6 +165,14 @@ fn privato(ip: IpAddr) -> bool {
 
 /// L'indirizzo da contare, o `None` se la richiesta non si conta (loopback).
 /// `dietro_proxy`: solo sul gateway, vedi l'intestazione del modulo.
+///
+/// Sul gateway un indirizzo **privato** non si conta (18-10-2026). Visto sul VPS:
+/// podman rootless pubblica le porte di Traefik con rootlessport, che non conserva
+/// l'indirizzo del client, e Traefik vede ogni visitatore come `10.89.0.89` (1.238
+/// richieste su 1.238 in due minuti). Contato così, tutto il cloud dividerebbe un
+/// solo secchio. Finché la rete non porta l'indirizzo vero (seme
+/// `docs/plans/2026-10-18-indirizzo-vero-dietro-traefik.md`) il gateway resta aperto
+/// invece di rifiutare tutti insieme.
 pub fn indirizzo(peer: Option<SocketAddr>, h: &HeaderMap, dietro_proxy: bool) -> Option<IpAddr> {
     let peer = peer?.ip();
     let ip = if dietro_proxy && privato(peer) {
@@ -178,7 +186,10 @@ pub fn indirizzo(peer: Option<SocketAddr>, h: &HeaderMap, dietro_proxy: bool) ->
     } else {
         peer
     };
-    (!ip.is_loopback()).then_some(ip)
+    if ip.is_loopback() || (dietro_proxy && privato(ip)) {
+        return None;
+    }
+    Some(ip)
 }
 
 /// Le richieste che si contano: le API, non i WebSocket.
@@ -305,6 +316,17 @@ mod tests {
         // Né sul gateway, se la connessione non viene da un proxy privato.
         let fuori: SocketAddr = "198.51.100.4:1234".parse().unwrap();
         assert_eq!(indirizzo(Some(fuori), &h, true), Some("198.51.100.4".parse().unwrap()));
+    }
+
+    #[test]
+    fn sul_gateway_un_indirizzo_privato_non_si_conta() {
+        // Com'è oggi il VPS: Traefik vede tutti come l'indirizzo di rootlessport.
+        let traefik: SocketAddr = "10.89.0.3:5000".parse().unwrap();
+        assert_eq!(indirizzo(Some(traefik), &intestazioni(&["10.89.0.89"]), true), None);
+        assert_eq!(indirizzo(Some(traefik), &HeaderMap::new(), true), None);
+        // Sul pannello un vicino in LAN si conta, privato o no.
+        let vicino: SocketAddr = "10.89.0.3:5000".parse().unwrap();
+        assert_eq!(indirizzo(Some(vicino), &HeaderMap::new(), false), Some("10.89.0.3".parse().unwrap()));
     }
 
     #[test]

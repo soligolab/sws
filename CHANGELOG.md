@@ -587,6 +587,9 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
   loopback, container dietro il gateway e le chiamate dei figli con la chiave di ritorno. `X-Forwarded-For` (l'ultimo
   elemento) vale solo sul gateway e solo da un proxy privato. Configurabili con `SWS_LIMITE_LETTURE`/`SWS_LIMITE_SCRITTURE`.
   Nessun falso rifiuto col banco a 20 client né aprendo IDE e viewer.
+  **Nel cloud oggi non limita**: dietro Traefik rootless ogni visitatore arriva come `10.89.0.89`
+  (rootlessport), quindi sul gateway un indirizzo privato non si conta, invece di mettere tutti nello stesso secchio.
+  Seme `docs/plans/2026-10-18-indirizzo-vero-dietro-traefik.md`.
 - **La porta del viewer serviva la SPA senza `no-cache`**: il `fallback_service` era aggiunto dopo
   gli strati e non ne passava. Ora gli strati stanno sopra il fallback, come sul router di amministrazione.
 
