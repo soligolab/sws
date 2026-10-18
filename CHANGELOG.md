@@ -82,6 +82,12 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 
 ### Fixed
 
+- **Dopo un deploy che porta gli utenti, lo schermo del pannello restava sul progetto vecchio** (TC620,
+  18-10-2026). La sessione del kiosk moriva con un solo 401, il client proseguiva anonimo, e `useProjectWatcher`,
+  che su un errore di autenticazione azzerava il riferimento, prendeva l'impronta nuova per riferimento senza
+  ricaricare. Ora un errore di autenticazione non tocca il riferimento: prima del login resta «da fissare» (il
+  falso allarme del 20-09 non torna), dopo un deploy il cambio si vede. Visto dai contatori di `/metrics`:
+  impronta interrogata ogni 3 s, `/api/synoptics` mai richiamato dopo il deploy.
 - **`/metrics`: la CPU aveva senso**. Ogni lettura creava un `System` nuovo aggiornato una volta sola, quindi
   `sws_cpu_usage_pct` era privo di significato, e `new_all()` scandiva tutti i processi a ogni lettura. Ora un
   `System` unico si aggiorna solo per CPU, memoria e il proprio processo, e ci sono `sws_process_cpu_pct` e

@@ -64,10 +64,16 @@ export function useProjectWatcher(
         // un'impronta e la scambierebbe per un deploy esterno — l'avviso «il
         // progetto sul runtime è cambiato» compariva dopo **ogni** accesso a un
         // runtime con utenti (visto nelle schermate del manuale, 20-09-2026). Si
-        // rimette la baseline a «da fissare»: il primo tick autenticato la fissa
-        // in silenzio.
+        // lascia la baseline com'è: se non c'era ancora resta «da fissare», e il
+        // primo tick autenticato la fissa in silenzio.
+        //
+        // **Mai azzerarla quando c'è già** (18-10-2026, TC620). Un deploy che
+        // porta gli utenti del progetto fa morire la sessione del kiosk: un solo
+        // 401, poi il client prosegue anonimo. Azzerando qui, il tick anonimo
+        // successivo leggeva l'impronta **nuova** e la prendeva per baseline in
+        // silenzio: lo schermo restava sul progetto vecchio, con il deploy
+        // «completato» nell'IDE.
         if (e instanceof AuthError || e instanceof PasswordChangeRequiredError) {
-          if (gen === generazione.current) lastFp.current = undefined;
           return;
         }
         // Nessun progetto attivo (503), runtime in riavvio o rete giù: si

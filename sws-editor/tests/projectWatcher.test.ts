@@ -137,6 +137,33 @@ describe("sorvegliante del progetto", () => {
     expect(avvisato).toHaveBeenCalledWith("secondo");
   });
 
+  // Il kiosk del TC620 il 18-10-2026: il deploy sostituisce gli utenti, la sessione
+  // muore con un 401, il client prosegue anonimo e l'impronta è già quella nuova.
+  it("un deploy che fa morire la sessione avvisa lo stesso", async () => {
+    const spia = impronta("vecchia");
+    const avvisato = vi.fn();
+    renderHook(() => useProjectWatcher(avvisato, 3_000));
+    await tick(0);
+    spia.mockRejectedValueOnce(new AuthError());
+    await tick(3_000);
+    spia.mockResolvedValue({ sha256: "nuova", computed_at_ms: 0 } as never);
+    await tick(3_000);
+    expect(avvisato).toHaveBeenCalledWith("nuova");
+  });
+
+  it("uscire e rientrare senza cambi non avvisa", async () => {
+    const spia = impronta("stessa");
+    const avvisato = vi.fn();
+    renderHook(() => useProjectWatcher(avvisato, 3_000));
+    await tick(0);
+    spia.mockRejectedValue(new AuthError());
+    await tick(3_000);
+    await tick(3_000);
+    spia.mockResolvedValue({ sha256: "stessa", computed_at_ms: 0 } as never);
+    await tick(3_000);
+    expect(avvisato).not.toHaveBeenCalled();
+  });
+
   it("un tick partito prima di un nostro salvataggio e finito dopo non lo fa passare per esterno", async () => {
     const onChange = vi.fn();
     let sblocca!: (v: { sha256: string | null; computed_at_ms: number }) => void;
