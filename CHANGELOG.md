@@ -575,6 +575,9 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 
 ### Security
 
+- **Capitolo «Sicurezza» del manuale (CRA, C8)**: `docs/manual/17_sicurezza.md` — contatti e procedura art. 14,
+  protezioni attive per default (abbinamento, ruoli, OPC UA, sandbox, CSP e iframe, limiti per indirizzo,
+  aggiornamenti, CI), cosa manca ancora (C4, P6, C5, C7, limiti nel cloud) e cosa deve fare a mano chi installa.
 - **Intestazioni di sicurezza su ogni risposta (CRA, C6 — onda 2, 17-10-2026)**: nuovo strato
   `sws-web/src/sicurezza_http.rs`, montato sui due router (IDE/gateway/porta stretta e viewer).
   - `Content-Security-Policy` con `script-src 'self'` (le pagine HTML non hanno più script in linea:

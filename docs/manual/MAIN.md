@@ -27,6 +27,7 @@
 | [14](14_testing.md) | **Test e diagnostica** | Smoke test, Playwright E2E, log remoti |
 | [15](15_multilingua.md) | **Multilingua** | Lingua UI (IT/EN) + tabella lingue di progetto, token `{{chiave}}`, cambio lingua |
 | [16](16_prestazioni.md) | **Prestazioni misurate** | Tag, client, latenza, CPU e memoria su TC620 e x86; come rifare la misura |
+| [17](17_sicurezza.md) | **Sicurezza** | Contatti e segnalazioni, protezioni attive per default (accesso, CSP, limiti, aggiornamenti), cosa manca ancora, cosa fare a mano |
 
 ---
 
