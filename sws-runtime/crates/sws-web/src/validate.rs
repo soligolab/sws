@@ -1301,6 +1301,23 @@ fn cron_rilievi(base: &str, schedule: &str) -> Vec<Finding> {
 }
 
 #[allow(clippy::too_many_arguments)]
+/// `font_family` è un id dell'elenco dei font, un alias, o il primo nome di una
+/// pila CSS che lo è (`tests/fixtures/font.json`, la stessa tabella del browser e
+/// del pannello).
+fn font_conosciuto(ff: &str) -> bool {
+    static ELENCO: std::sync::OnceLock<(HashSet<String>, HashSet<String>)> = std::sync::OnceLock::new();
+    let (ids, alias) = ELENCO.get_or_init(|| {
+        let v: Value = serde_json::from_str(include_str!("../../../../tests/fixtures/font.json"))
+            .expect("tests/fixtures/font.json non si legge");
+        let ids = v["famiglie"].as_array().into_iter().flatten()
+            .filter_map(|f| f["id"].as_str().map(str::to_owned)).collect();
+        let alias = v["alias"].as_object().into_iter().flatten().map(|(k, _)| k.clone()).collect();
+        (ids, alias)
+    });
+    let primo = ff.split(',').next().unwrap_or("").trim().trim_matches(|c| c == '\'' || c == '"').to_lowercase();
+    ids.contains(&primo) || alias.contains(&primo)
+}
+
 fn controlla_oggetto(
     out: &mut Vec<Finding>,
     page: &SynopticPage,
@@ -1324,6 +1341,20 @@ fn controlla_oggetto(
             "l'editor non lo disegnerà affatto: i tipi validi sono quelli dello schema",
         ));
         return; // senza il tipo, le regole che dipendono dal tipo non dicono niente
+    }
+
+    // Un font che non è nell'elenco (18-10-2026): il browser lo cerca fra i
+    // suoi, il pannello LVGL disegna in Sans. Gli alias si riconducono da soli
+    // all'apertura nell'IDE, quindi qui arrivano solo i nomi sconosciuti.
+    if let Some(ff) = o.font_family.as_deref().filter(|s| !s.trim().is_empty()) {
+        if !font_conosciuto(ff) {
+            out.push(Finding::warn(
+                format!("{base}.font_family"),
+                format!("il font `{ff}` non è nell'elenco dei font di SWS"),
+                "vale solo nel browser, e solo se c'è: il pannello lo disegna in Sans. Scegline uno \
+                 dell'elenco (Sans, Mono, Serif, 7 e 14 segmenti, matrice di punti)",
+            ));
+        }
     }
 
     // Il JSON dell'oggetto: serve per le regole generiche sui campi.
@@ -2532,6 +2563,20 @@ alarms: []
         let unica: SynopticPage =
             serde_yaml::from_str("id: pg1\nname: Unica\nobjects: []").unwrap();
         assert!(!cita(&semantic(&p, &[unica]), "non si esce"));
+    }
+
+    #[test]
+    fn un_font_fuori_elenco_si_dice() {
+        let prog = "meta: { name: p, version: '1' }\ntags: []\nsources: []\nalarms: []\n";
+        let p: Project = serde_yaml::from_str(prog).unwrap();
+        let pagina: SynopticPage = serde_yaml::from_str(
+            "id: pg\nname: P\nobjects:\n- { id: a, type: text, x: 0, y: 0, font_family: segmenti7 }\n- { id: b, type: text, x: 0, y: 30, font_family: monospace }\n- { id: c, type: text, x: 0, y: 60, font_family: 'Comic Sans MS' }",
+        )
+        .unwrap();
+        let rs = semantic(&p, &[pagina]);
+        let font: Vec<_> = rs.iter().filter(|f| f.path.ends_with(".font_family")).collect();
+        assert_eq!(font.len(), 1, "{rs:?}");
+        assert!(font[0].path.contains("objects[c]"));
     }
 
     /// LVGL disegna 1:1: in `ratio` e `fluid` la pagina non riempie lo schermo

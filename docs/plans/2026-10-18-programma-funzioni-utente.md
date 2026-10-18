@@ -13,7 +13,7 @@
 | # | Gruppo | Semi e piani | Perché qui |
 |---|---|---|---|
 | 1 | **Lo schermo LVGL a misura** | [finestra a misura dello schermo](../archive/2026-10-17-finestra-lvgl-misura-schermo.md), [LVGL e `size_mode`](2026-09-24-lvgl-ignora-size-mode.md), proposta di una cornice alla prima pagina ([cornici](../archive/2026-10-15-cornici-di-pagina.md)) | il difetto visto sul TC620; tocca lo stesso punto (la risoluzione del display), poco codice |
-| 2 | **Font e display a segmenti** | [font](2026-10-15-font-e-display-a-segmenti.md) | si vede subito su web e pannello; LVGL oggi ha un font solo |
+| 2 | **Font e display a segmenti** | [font](../archive/2026-10-15-font-e-display-a-segmenti.md) | si vede subito su web e pannello; LVGL oggi ha un font solo |
 | 3 | **Trend sul pannello come sul web** | [trend LVGL](2026-10-04-trend-lvgl-come-il-web.md) | parità web/LVGL, più il tratto che oscilla da capire |
 | 4 | **IDE quotidiano** | [archivio dei progetti](2026-10-15-archivio-dei-progetti.md), [log del dispositivo](2026-10-03-log-del-device-nell-ide.md), [scorciatoie](2026-09-25-scorciatoie-da-tastiera.md) | tre cose piccole e indipendenti |
 | 5 | **Pezzi rimasti di piani avviati** | [strumenti, ramo 3](2026-10-14-strumenti-simboli-comandi.md), [tubazioni, punto 6 di B](2026-10-15-tubazioni-bocche-e-stili.md), [predefiniti, fasi 2-3](2026-09-30-predefiniti-espliciti.md), [tag, fasi dopo la 2](2026-09-21-gestione-tag-oggetto-unico.md) | ognuno ha già un piano: va riletto contro il codice di oggi |
@@ -44,3 +44,8 @@ su LVGL **un avviso nell'IDE adesso**, la scalatura vera dopo, come piano a part
 - `PropostaCornice` nel ramo Cornici.
 
 Resta da fare, sul pannello: un progetto LVGL con pagine di misure diverse, sul TC620.
+
+### Gruppo 2 — fatto il 18-10-2026, da collaudare
+
+Decisioni: base + segmenti + extra, grassetto vero, alias ricondotti e avviso per i nomi sconosciuti. Vedi
+[il seme archiviato](../archive/2026-10-15-font-e-display-a-segmenti.md).

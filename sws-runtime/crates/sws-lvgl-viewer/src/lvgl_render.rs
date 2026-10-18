@@ -3145,15 +3145,34 @@ fn create_anchored_label(
     Ok(label)
 }
 
+/// Il grassetto come lo intende il browser: `bold`, `bolder` o un peso ≥ 600
+/// (scritto come testo o come numero).
+fn e_grassetto(peso: Option<&serde_json::Value>) -> bool {
+    match peso {
+        Some(serde_json::Value::String(s)) => match s.trim() {
+            "bold" | "bolder" => true,
+            n => n.parse::<u32>().is_ok_and(|n| n >= 600),
+        },
+        Some(serde_json::Value::Number(n)) => n.as_f64().is_some_and(|n| n >= 600.0),
+        _ => false,
+    }
+}
+
+/// Corpo, famiglia e grassetto di un oggetto (18-10-2026: prima solo il corpo,
+/// e `font_family`/`font_weight` erano ignorati — vedi `lvgl_font::per`).
 fn apply_font_size(widget: &impl NativeObject, obj: &SynopticObject) -> anyhow::Result<()> {
-    let Some(px) = obj.font_size else {
-        return Ok(());
+    let grassetto = e_grassetto(obj.font_weight.as_ref());
+    let famiglia = obj.font_family.as_deref().filter(|s| !s.trim().is_empty());
+    let px = match obj.font_size {
+        Some(px) => px.round(),
+        // Senza corpo ma con una famiglia o il grassetto: il corpo predefinito.
+        None if famiglia.is_some() || grassetto => lvgl_font::CORPO_PX as f64,
+        None => return Ok(()),
     };
-    let px = px.round();
     if !(1.0..=1000.0).contains(&px) {
         return Ok(());
     }
-    let Some(font) = lvgl_font::at_size(px as u16) else {
+    let Some(font) = lvgl_font::per(famiglia, grassetto, px as u16) else {
         return Ok(());
     };
     let ptr = widget.raw().map_err(|e| anyhow::anyhow!("raw: {e:?}"))?;

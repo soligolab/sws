@@ -32,3 +32,10 @@ per valori, contatori e orologi che devono sembrare lo strumento da quadro.
 - LVGL: cache per (font, corpo) invece che per corpo; grassetto come file a parte.
 - I font a segmenti hanno cifre e pochi simboli: cosa succede a una lettera che il font non ha.
 - Una guardia di parità: ogni font dell'elenco esiste nei due motori.
+
+## 18-10-2026 — fatto (gruppo 2 del programma delle funzioni utente), da collaudare
+
+Decisioni del maintainer: **base + segmenti + extra** (Sans, Mono, Serif, 7 e 14 segmenti, matrice di punti);
+**grassetto con file a parte**; i nomi scritti a mano **si riconducono all'elenco, quelli sconosciuti sono un avviso**.
+Tabella `tests/fixtures/font.json`, `src/font/famiglie.ts`, `public/fonts/font.css`, `lvgl_font::per`, guardia
+`check_font.sh`; manuale, capitolo 05, «I font». Limite dichiarato: le immagini di accensione restano in Sans.

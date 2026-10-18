@@ -1,0 +1,42 @@
+{
+  "_perche": [
+    "I font di SWS, uguali nel browser e sul pannello LVGL (18-10-2026, gruppo 2 del programma",
+    "delle funzioni utente). Prima `font_family` era testo libero sul web e ignorato da LVGL, che",
+    "aveva un font solo e niente grassetto: un font diverso dal predefinito era solo web.",
+    "",
+    "`famiglie[].id` è il valore che finisce in `font_family`. `file.regolare`/`file.grassetto`",
+    "sono i nomi dei file senza estensione: `.ttf` sul pannello (`/etc/sws/fonts/`, oppure i",
+    "DejaVu di sistema di `fonts-dejavu-core`), `.woff2` nel browser (`sws-editor/public/fonts/`).",
+    "`grassetto: null` = la famiglia non ne ha uno: si usa il regolare.",
+    "`alias`: i nomi scritti a mano nei progetti di prima, ricondotti all'elenco all'apertura",
+    "(chiave minuscola). Un nome che non è né un id né un alias resta com'è e il validatore lo",
+    "dice: vale solo nel browser.",
+    "I caratteri che una famiglia non ha (le accentate nei DSEG) ricadono su Sans, poi su Emoji."
+  ],
+  "predefinita": "sans",
+  "famiglie": [
+    { "id": "sans", "css": "SWS Sans", "file": { "regolare": "DejaVuSans", "grassetto": "DejaVuSans-Bold" }, "sistema": true },
+    { "id": "mono", "css": "SWS Mono", "file": { "regolare": "DejaVuSansMono", "grassetto": "DejaVuSansMono-Bold" }, "sistema": true },
+    { "id": "serif", "css": "SWS Serif", "file": { "regolare": "DejaVuSerif", "grassetto": "DejaVuSerif-Bold" }, "sistema": true },
+    { "id": "segmenti7", "css": "SWS Segmenti 7", "file": { "regolare": "DSEG7Classic-Regular", "grassetto": "DSEG7Classic-Bold" }, "sistema": false },
+    { "id": "segmenti14", "css": "SWS Segmenti 14", "file": { "regolare": "DSEG14Classic-Regular", "grassetto": "DSEG14Classic-Bold" }, "sistema": false },
+    { "id": "matrice", "css": "SWS Matrice", "file": { "regolare": "DotGothic16-Regular", "grassetto": null }, "sistema": false }
+  ],
+  "alias": {
+    "system-ui": "sans",
+    "sans-serif": "sans",
+    "arial": "sans",
+    "helvetica": "sans",
+    "dejavu sans": "sans",
+    "monospace": "mono",
+    "courier": "mono",
+    "courier new": "mono",
+    "dejavu sans mono": "mono",
+    "consolas": "mono",
+    "serif": "serif",
+    "times": "serif",
+    "times new roman": "serif",
+    "georgia": "serif",
+    "dejavu serif": "serif"
+  }
+}

@@ -141,7 +141,7 @@ ripiego `df0e4092-arm64` e `prima-della-prova`. Prima dell'aggiornamento il tunn
   - il limite del cambio di risoluzione per gli oggetti senza `font_size` (vedi piano);
   - Sandokan ha ancora lo script con `log`;
   - onda 1 P1 popup generici.
-- Semi nuovi: [font e display a segmenti](docs/plans/2026-10-15-font-e-display-a-segmenti.md).
+- Semi nuovi: [font e display a segmenti](docs/archive/2026-10-15-font-e-display-a-segmenti.md).
 
 ## Sessione precedente — git nel cloud in servizio, onda 1 avanti (2026-10-15, pomeriggio)
 

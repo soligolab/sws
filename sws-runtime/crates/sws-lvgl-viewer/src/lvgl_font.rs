@@ -175,7 +175,10 @@ pub fn load(size_px: u16) -> Option<*const lvgl_sys::lv_font_t> {
     // dirlo. 32 KB di cache in proporzione. Da T-71 ogni corpo apre anche la
     // sua faccia emoji: se la cache dei corpi va sotto pressione con progetti
     // ricchi, è qui che si misura, non da ipotizzare in anticipo.
-    if !unsafe { lvgl_sys::lv_freetype_init(8, 8, 32 * 1024) } {
+    // Dal 18-10-2026 le facce sono una per (famiglia, peso), più le emoji: sei
+    // famiglie con i grassetti arrivano a 12, quindi il tetto sale a 24 facce
+    // e 16 corpi (`font.json`).
+    if !unsafe { lvgl_sys::lv_freetype_init(24, 16, 64 * 1024) } {
         eprintln!("[font] lv_freetype_init fallita: resto su Montserrat (solo ASCII)");
         return None;
     }
@@ -245,6 +248,121 @@ pub fn at_size(px: u16) -> Option<*const lvgl_sys::lv_font_t> {
     Some(font as *const lvgl_sys::lv_font_t)
 }
 
+// ── L'elenco dei font (18-10-2026) ─────────────────────────────────────────
+//
+// `tests/fixtures/font.json` è l'elenco, uguale nel browser: famiglie con il
+// file regolare e il grassetto, e gli alias dei nomi scritti a mano. Prima
+// `font_family` e `font_weight` erano letti dal modello e ignorati: sul pannello
+// c'era un font solo, e un testo in grassetto usciva normale.
+
+#[derive(serde::Deserialize)]
+struct FileFamiglia {
+    regolare: String,
+    grassetto: Option<String>,
+}
+
+#[derive(serde::Deserialize)]
+struct Famiglia {
+    id: String,
+    file: FileFamiglia,
+    /// DejaVu di sistema (`fonts-dejavu-core`) invece dei file di SWS.
+    sistema: bool,
+}
+
+#[derive(serde::Deserialize)]
+struct Elenco {
+    predefinita: String,
+    famiglie: Vec<Famiglia>,
+    alias: std::collections::HashMap<String, String>,
+}
+
+fn elenco() -> &'static Elenco {
+    static E: std::sync::OnceLock<Elenco> = std::sync::OnceLock::new();
+    E.get_or_init(|| {
+        serde_json::from_str(include_str!("../../../../tests/fixtures/font.json"))
+            .expect("tests/fixtures/font.json non si legge")
+    })
+}
+
+/// L'id della famiglia per un `font_family` scritto nel progetto: un id
+/// dell'elenco, un alias (`monospace`, `Arial`…) o il primo nome di una pila
+/// CSS (`"system-ui, sans-serif"`). `None` per un nome sconosciuto.
+pub fn famiglia_di(font_family: &str) -> Option<&'static str> {
+    let e = elenco();
+    let primo = font_family.split(',').next().unwrap_or("").trim().trim_matches(|c| c == '\'' || c == '"');
+    let chiave = primo.to_lowercase();
+    if let Some(f) = e.famiglie.iter().find(|f| f.id == chiave) {
+        return Some(f.id.as_str());
+    }
+    let id = e.alias.get(&chiave)?;
+    e.famiglie.iter().find(|f| &f.id == id).map(|f| f.id.as_str())
+}
+
+fn candidati_file(nome: &str, sistema: bool) -> Vec<String> {
+    let mut v = Vec::new();
+    if sistema {
+        for d in ["/usr/share/fonts/truetype/dejavu", "/usr/share/fonts/truetype", "/usr/share/fonts/TTF"] {
+            v.push(format!("{d}/{nome}.ttf"));
+        }
+    }
+    v.push(format!("{}/assets/fonts/{nome}.ttf", env!("CARGO_MANIFEST_DIR")));
+    v.push(format!("/etc/sws/fonts/{nome}.ttf"));
+    v.push(format!("/usr/share/fonts/truetype/sws/{nome}.ttf"));
+    v
+}
+
+/// Le facce già aperte, per (file, corpo).
+static PER_FILE: std::sync::Mutex<Option<std::collections::HashMap<(String, u16), usize>>> =
+    std::sync::Mutex::new(None);
+
+/// Il font di un oggetto: famiglia (`font_family`), grassetto e corpo.
+///
+/// Sans regolare è `at_size`, come prima (e `SWS_LVGL_FONT` vale ancora). Le
+/// altre famiglie aprono il loro file e prendono come `fallback` il Sans dello
+/// stesso corpo, che a sua volta ha le emoji: le accentate che un font a
+/// segmenti non ha si vedono in Sans invece di sparire. Una famiglia senza
+/// grassetto usa il regolare; un file che manca ripiega su Sans, e lo dice una
+/// volta.
+pub fn per(font_family: Option<&str>, grassetto: bool, px: u16) -> Option<*const lvgl_sys::lv_font_t> {
+    let e = elenco();
+    let id = font_family.and_then(famiglia_di).unwrap_or(e.predefinita.as_str());
+    let fam = e.famiglie.iter().find(|f| f.id == id)?;
+    let file = match (&fam.file.grassetto, grassetto) {
+        (Some(g), true) => g.as_str(),
+        _ => fam.file.regolare.as_str(),
+    };
+    if id == e.predefinita && file == fam.file.regolare {
+        return at_size(px);
+    }
+    if !(6..=200).contains(&px) {
+        return None;
+    }
+    // Sans prima: inizializza FreeType e fa da fallback.
+    let riserva = at_size(px);
+    let mut guard = PER_FILE.lock().unwrap_or_else(|e| e.into_inner());
+    let cache = guard.get_or_insert_with(Default::default);
+    if let Some(&addr) = cache.get(&(file.to_string(), px)) {
+        return Some(addr as *const lvgl_sys::lv_font_t);
+    }
+    let Some(path) = candidati_file(file, fam.sistema).into_iter().find(|p| std::path::Path::new(p).exists()) else {
+        eprintln!("[font] '{file}.ttf' non trovato: la famiglia '{id}' esce in Sans");
+        if let Some(r) = riserva {
+            cache.insert((file.to_string(), px), r as usize);
+        }
+        return riserva;
+    };
+    let Some(font) = apri_faccia(&path, px) else {
+        eprintln!("[font] '{path}' non caricabile: la famiglia '{id}' esce in Sans");
+        return riserva;
+    };
+    if let Some(r) = riserva {
+        unsafe { (*font).fallback = r };
+    }
+    cache.insert((file.to_string(), px), font as usize);
+    eprintln!("[font] '{file}' a {px}px aperto");
+    Some(font as *const lvgl_sys::lv_font_t)
+}
+
 /// Applica il font a uno schermo appena creato.
 ///
 /// Va fatto per **ogni** schermo, non una volta sola: `render_page_objects` ne
@@ -291,6 +409,29 @@ pub fn restore_symbols_on(obj: *mut lvgl_sys::lv_obj_t) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn i_nomi_dei_progetti_si_riconducono_all_elenco() {
+        assert_eq!(famiglia_di("segmenti7"), Some("segmenti7"));
+        assert_eq!(famiglia_di("monospace"), Some("mono"));
+        assert_eq!(famiglia_di("Courier New"), Some("mono"));
+        assert_eq!(famiglia_di("system-ui, sans-serif, 'SWS Emoji'"), Some("sans"));
+        assert_eq!(famiglia_di("'Times New Roman', serif"), Some("serif"));
+        assert_eq!(famiglia_di("Comic Sans MS"), None);
+    }
+
+    #[test]
+    fn ogni_font_non_di_sistema_e_negli_asset() {
+        for f in &elenco().famiglie {
+            if f.sistema {
+                continue;
+            }
+            for nome in std::iter::once(&f.file.regolare).chain(f.file.grassetto.iter()) {
+                let p = format!("{}/assets/fonts/{nome}.ttf", env!("CARGO_MANIFEST_DIR"));
+                assert!(std::path::Path::new(&p).exists(), "manca {p}");
+            }
+        }
+    }
 
     #[test]
     fn prende_il_primo_candidato_che_esiste() {

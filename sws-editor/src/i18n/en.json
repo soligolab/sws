@@ -3355,5 +3355,17 @@
     "spiegazione": "Sites that may show this device inside an iframe, one per line (e.g. https://home.example:8123). Empty: none, only SWS itself.",
     "salva": "Save origins",
     "salvate": "Origins saved: they apply immediately."
+  },
+  "font": {
+    "predefinito": "Default",
+    "soloWeb": "{{nome}} (browser only)",
+    "famiglia": {
+      "sans": "Sans",
+      "mono": "Mono (fixed width)",
+      "serif": "Serif",
+      "segmenti7": "7-segment display",
+      "segmenti14": "14-segment display",
+      "matrice": "Dot matrix"
+    }
   }
 }

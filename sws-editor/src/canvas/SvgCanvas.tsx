@@ -46,6 +46,7 @@ import { puntiSvg, verticiPoligono } from "./forme";
 import { aggancioSu, bersagli, calamita, diametriCapi, percorsoTubo, type Bersaglio } from "./tubazioni";
 import { larghezzaTubo, stileTubo, svgTubo } from "./stiliTubo";
 import { useManifestoLib } from "@/symbols/lib/libreria";
+import { cssFamiglia } from "@/font/famiglie";
 
 // ── Canvas props ──────────────────────────────────────────────────────────────
 
@@ -4193,7 +4194,7 @@ function SvgObjectCorpo(p: ObjProps) {
           {bgLayer(obj.x, obj.y, w, h, 3)}
           <text x={tx} y={obj.y + h / 2} textAnchor={anchor} dominantBaseline="central"
             fill={obj.color ?? coloreEffettivo(obj, "color")} fontSize={obj.font_size ?? 16}
-            fontFamily={obj.font_family ?? undefined}
+            fontFamily={cssFamiglia(obj.font_family)}
             fontWeight={(obj.font_weight ?? "normal") as React.SVGAttributes<SVGTextElement>["fontWeight"]}
             style={{ pointerEvents: "none" }}>
             <TestoOrologio formato={obj.clock_formato} secondi={!!obj.clock_secondi}
@@ -4220,7 +4221,7 @@ function SvgObjectCorpo(p: ObjProps) {
       ? resolveMsg(formatValue(tv.value, obj.format ?? "{value}"), lingua.lang, lingua.table)
       : (obj.text ?? obj.tag ?? "Testo");
     const size      = obj.font_size ?? 14;
-    const family    = obj.font_family ?? undefined;
+    const family    = cssFamiglia(obj.font_family);
     const weight    = obj.font_weight ?? "normal";
     const style     = obj.font_style ?? "normal";
     const anchor    = obj.text_anchor ?? "start";
@@ -5435,7 +5436,7 @@ function SvgObjectCorpo(p: ObjProps) {
         {bgLayer(obj.x, obj.y, obj.width ?? 120, obj.height ?? 32, 4)}
         <text x={tx} y={cy + size / 3}
           fill={textFill} fontSize={size}
-          fontFamily={obj.font_family} fontWeight={obj.font_weight as any ?? "normal"}
+          fontFamily={cssFamiglia(obj.font_family)} fontWeight={obj.font_weight as any ?? "normal"}
           fontStyle={obj.font_style ?? "normal"} textAnchor={anchor}
           style={{ pointerEvents: "none", ...transitionStyle(obj) }}>
           {label}

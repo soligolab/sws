@@ -231,6 +231,15 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 
 ### Added
 
+- **Sei font uguali su web e pannello, anche a segmenti** (gruppo 2 del programma delle funzioni utente, seme
+  `2026-10-15-font-e-display-a-segmenti`). `font_family` diventa un menu: Sans, Mono, Serif (DejaVu), display a 7 e 14
+  segmenti (DSEG, OFL), matrice di punti (DotGothic16 ridotto ai caratteri latini, OFL). Tabella sola
+  `tests/fixtures/font.json`: il browser la copia in `src/font/famiglie.ts` (test che le confronta) e serve i `.woff2` da
+  `public/fonts/font.css`, richiamato da viewer e IDE; il pannello la legge con `include_str!` e apre (famiglia,
+  grassetto, corpo) con riserva su Sans e poi sulle emoji (`lvgl_font::per`). **Il grassetto si vede anche su LVGL**,
+  che prima lo ignorava insieme a `font_family`. I nomi scritti a mano si riconducono all'elenco all'apertura; quelli
+  sconosciuti sono un avviso del validatore («solo browser»). FreeType sale a 24 facce e 16 corpi. Guardia nuova
+  `check_font.sh`. Provato con un'istantanea LVGL e con Playwright su viewer e IDE: stessi font, nessun errore CSP.
 - **L'editor propone una cornice alla prima pagina** (piano delle cornici): nel ramo Cornici, finché il progetto ha
   pagine e nessuna cornice, tre modelli (testata e navigazione, solo navigazione, solo testata) creano la cornice e
   la rendono la predefinita; «No, grazie» non la ripropone più per quel progetto.

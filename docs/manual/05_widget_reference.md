@@ -100,11 +100,33 @@ Etichetta statica o dinamica.
 | `tag` | Tag il cui valore sovrascrive il testo |
 | `format` | Formato Python (`{:.1f} bar`, `{value}`, ecc.) |
 | `font_size` | Dimensione font (px) |
-| `font_family` | Famiglia font |
-| `font_weight` | Peso: `normal`, `bold`, 100-900 |
+| `font_family` | Famiglia font, dall'elenco qui sotto |
+| `font_weight` | Peso: `normal`, `bold`, 100-900 (grassetto da 600) |
 | `font_style` | `normal`, `italic` |
 | `text_anchor` | Allineamento: `start`, `middle`, `end` |
 | `color` | Colore testo |
+
+#### I font (dal 18-10-2026)
+
+Sei famiglie, **uguali nel browser e sul pannello LVGL**, con grassetto vero:
+
+| `font_family` | Nel menu | File | Grassetto |
+|---|---|---|---|
+| `sans` | Sans | DejaVu Sans | sì |
+| `mono` | Mono (larghezza fissa) | DejaVu Sans Mono | sì |
+| `serif` | Serif | DejaVu Serif | sì |
+| `segmenti7` | Display a 7 segmenti | DSEG7 Classic | sì |
+| `segmenti14` | Display a 14 segmenti | DSEG14 Classic | sì |
+| `matrice` | Matrice di punti | DotGothic16 | no: resta normale in entrambi i motori |
+
+- I caratteri che un font non ha (le accentate e µ nei display a segmenti) si disegnano in Sans.
+- Vuoto (Predefinito) vuol dire il font dell'interfaccia nel browser e Sans sul pannello.
+- I nomi scritti a mano nei progetti di prima (`monospace`, `Arial`, `Times New Roman`…) all'apertura diventano la
+  famiglia corrispondente. Un nome che non corrisponde a niente resta, compare nel menu come «(solo browser)» e il
+  validatore lo segnala: sul pannello esce in Sans.
+- Le immagini di accensione restano in Sans: un SVG trasformato in immagine non carica font esterni.
+- L'elenco è `tests/fixtures/font.json`; `scripts/check_font.sh` controlla che browser, pannello e licenze non si
+  separino.
 
 ---
 

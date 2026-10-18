@@ -10,6 +10,7 @@ import { getStoredProjectLang, setStoredProjectLang, getStoredEditorPreviewLang,
 import { normalizeTrendObjects } from "@/canvas/trendModel";
 import { normalizeXyObjects } from "@/canvas/xyModel";
 import { normalizzaColoriOggetti, togliColoriDiProgetto } from "@/coloriPredefiniti";
+import { normalizzaFontOggetti } from "@/font/famiglie";
 import { riempiPredefinitiOggetti } from "@/predefinitiCampi";
 import { pianoCreazione } from "@/tag/riconciliaTag";
 import { motivoIdNonValido, rinomina, type EsitoRinomina } from "@/tag/rinominaTag";
@@ -1291,9 +1292,11 @@ export const useAppStore = create<AppState>((set, get) => {
           // a modo suo — il `data_log` scuro sul web e bianco sul pannello.
           // E i colori di stato dei simboli uguali al predefinito, che lo stesso
           // riempimento aveva scritto: tolti, seguono lo stile del progetto (M6).
-          const objs = riempiPredefinitiOggetti(
+          // E i `font_family` scritti a mano (`monospace`, `Arial`…) → l'id
+          // dell'elenco dei font (18-10-2026), che anche il pannello conosce.
+          const objs = normalizzaFontOggetti(riempiPredefinitiOggetti(
             togliColoriDiProgetto(normalizzaColoriOggetti(normalizeXyObjects(normalizeTrendObjects(p.objects)))),
-          );
+          ));
           return objs === p.objects ? p : { ...p, objects: objs };
       });
       // Se la normalizzazione ha cambiato qualcosa, quello che l'IDE mostra non

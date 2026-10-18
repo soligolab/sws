@@ -14,6 +14,7 @@
 // confrontando l'anteprima col canvas.
 
 import i18n from "i18next";
+import { cssFamiglia } from "@/font/famiglie";
 import { createElement } from "react";
 import { flushSync } from "react-dom";
 import { createRoot } from "react-dom/client";
@@ -123,7 +124,7 @@ export function spezzaTestiACapo(
   for (const o of page.objects) {
     if (o.type !== "text" || !o.text_wrap) { objects.push(o); continue; }
     const size = o.font_size ?? 14;
-    const font = `${o.font_style === "italic" ? "italic" : "normal"} ${o.font_weight ?? "normal"} ${size}px ${o.font_family ?? FONT_PREDEFINITO}`;
+    const font = `${o.font_style === "italic" ? "italic" : "normal"} ${o.font_weight ?? "normal"} ${size}px ${cssFamiglia(o.font_family) ?? FONT_PREDEFINITO}`;
     const bw = o.width ?? 160;
     const bh = o.height ?? 60;
     const passo = (o.line_height ?? 1.25) * size;

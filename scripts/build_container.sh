@@ -270,6 +270,12 @@ if [ "$WITH_LVGL" -eq 1 ]; then
     install -m 644 \
         "$REPO/sws-runtime/crates/sws-lvgl-viewer/assets/fonts/NotoEmoji-Regular.ttf" \
         "$CTX/fonts/NotoEmoji-Regular.ttf"
+    # I font dell'elenco che apt non porta (18-10-2026, tests/fixtures/font.json):
+    # segmenti e matrice di punti, con le loro licenze. I DejaVu arrivano da
+    # fonts-dejavu-core.
+    install -m 644 "$REPO"/sws-runtime/crates/sws-lvgl-viewer/assets/fonts/DSEG*.ttf \
+        "$REPO"/sws-runtime/crates/sws-lvgl-viewer/assets/fonts/DotGothic16-Regular.ttf \
+        "$REPO"/sws-runtime/crates/sws-lvgl-viewer/assets/fonts/*.txt "$CTX/fonts/"
 fi
 cp -r "$REPO/examples/templates/." "$CTX/templates/"
 cp -r "$REPO/catalogo/." "$CTX/catalogo/"

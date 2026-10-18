@@ -1,5 +1,6 @@
 import { createContext, lazy, Suspense, useCallback, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { ProprietaFinestra } from "@/finestre/ProprietaFinestra";
+import { FAMIGLIE, cssFamiglia, famigliaDi } from "@/font/famiglie";
 import { DialogoRisoluzione } from "@/scala/DialogoRisoluzione";
 import { ProprietaFasce, SceltaCornice } from "@/cornici/ProprietaCornice";
 import { corniceDellaPagina, eCornice, idCornice, oggettiComposti, paginaACornice } from "@/cornici/modello";
@@ -3614,13 +3615,23 @@ export function ObjectProps({
               )}
               {field(t("props.fontFamily"),
                 <BindableInput obj={obj} propName="font_family" onChange={onChange}>
-                  <input
-                    type="text" style={INPUT}
-                    placeholder="es. system-ui, sans-serif, 'SWS Emoji'"
+                  {/* L'elenco dei font (18-10-2026): uguale nel browser e sul
+                      pannello. Un nome scritto a mano che non è nell'elenco
+                      resta selezionabile com'è, ma vale solo nel browser. */}
+                  <select
+                    data-testid="prop-font-family"
+                    style={{ ...INPUT, cursor: "pointer", fontFamily: cssFamiglia(obj.font_family) }}
                     value={obj.font_family ?? ""}
                     onChange={(e) => onChange({ font_family: e.target.value || undefined })}
-                    spellCheck={false}
-                  />
+                  >
+                    <option value="">{t("font.predefinito")}</option>
+                    {FAMIGLIE.map((f) => (
+                      <option key={f.id} value={f.id} style={{ fontFamily: cssFamiglia(f.id) }}>{t(`font.famiglia.${f.id}`)}</option>
+                    ))}
+                    {obj.font_family && !famigliaDi(obj.font_family) && (
+                      <option value={obj.font_family}>{t("font.soloWeb", { nome: obj.font_family })}</option>
+                    )}
+                  </select>
                 </BindableInput>
               )}
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
