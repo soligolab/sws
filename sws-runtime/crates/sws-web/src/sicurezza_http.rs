@@ -1,5 +1,5 @@
 //! Le intestazioni di sicurezza di ogni risposta (C6 dell'onda 2, 17-10-2026, piano
-//! `docs/plans/2026-10-17-onda-2-prestazioni-e-protezioni.md`).
+//! `docs/archive/2026-10-17-onda-2-prestazioni-e-protezioni.md`).
 //!
 //! - `X-Content-Type-Options: nosniff`, `Referrer-Policy: same-origin`;
 //! - una `Content-Security-Policy` che dice da dove possono arrivare script, stili,

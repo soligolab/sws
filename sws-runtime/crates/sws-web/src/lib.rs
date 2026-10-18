@@ -2,6 +2,7 @@ pub mod abbinamento;
 pub mod ai;
 pub mod cornici;
 pub mod sicurezza_http;
+pub mod limiti;
 pub mod amministrazione;
 pub mod marchi;
 pub mod backups;

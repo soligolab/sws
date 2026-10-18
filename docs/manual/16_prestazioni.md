@@ -1,7 +1,7 @@
 # 16 — Prestazioni misurate
 
 Quanto regge il runtime, misurato e non stimato (P5 dell'onda 2, 17-10-2026; piano
-`docs/plans/2026-10-17-onda-2-prestazioni-e-protezioni.md`). I numeri grezzi sono in `docs/prestazioni/`.
+`docs/archive/2026-10-17-onda-2-prestazioni-e-protezioni.md`). I numeri grezzi sono in `docs/prestazioni/`.
 
 ## Cosa si misura
 
@@ -71,3 +71,22 @@ SWS_BANCO_UTENTE=admin SWS_BANCO_PASSWORD=… \
 Sul pannello il banco carica un progetto suo (`banco-prestazioni`, con un Admin uguale a quello con cui entra) e alla
 fine riapre il progetto indicato, anche se la misura fallisce; la cartella del progetto di prova resta sul pannello e
 va tolta a mano. `SWS_BANCO_TAG`, `SWS_BANCO_CLIENT` e `SWS_BANCO_DURATA` cambiano la griglia.
+
+## I limiti alle richieste, tarati su queste misure
+
+Dal 18-10-2026 il runtime limita le richieste alle API **per indirizzo**, con due secchi di gettoni distinti
+(`sws-web/src/limiti.rs`): oltre il tetto risponde `429 Too Many Requests` con `Retry-After` e un messaggio leggibile.
+
+| Secchio | Raffica | Al secondo | Da dove viene |
+|---|---|---|---|
+| letture (`GET`) | 500 | 75 | aprire l'IDE e girare tre pagine fa 151 richieste, con un picco di 23 al secondo; il viewer 32 (picco 17/s). ×3 |
+| scritture (il resto) | 100 | 25 | il banco ne fa una al secondo per client, un cursore scrive solo al rilascio, i clic di una persona sono sotto le 10 al secondo. Più di ×3 |
+
+- **Non si contano** i file dell'interfaccia, i WebSocket dei dati vivi (sono una connessione sola), `/health`, il
+  **loopback** (sul pannello: kiosk, viewer LVGL, tunnel SSH dell'IDE) e il traffico dei container di progetto dietro
+  il gateway, già contato dal gateway.
+- **Più persone dietro lo stesso indirizzo** (un ufficio dietro un NAT, verso il cloud) dividono lo stesso secchio. Per
+  quel caso: `SWS_LIMITE_LETTURE=<raffica>/<al secondo>` e `SWS_LIMITE_SCRITTURE=…`, oppure `0` per spegnere il limite.
+- **Verificato** il 18-10-2026 su x86, con le richieste dall'indirizzo di rete: il banco a 1.000 tag × 20 client e
+  l'apertura di IDE e viewer non hanno ricevuto nessun 429; con `SWS_LIMITE_LETTURE=20/1`, 60 richieste in raffica
+  hanno ricevuto 20 risposte e 40 rifiuti, mentre dal loopback sono passate tutte.

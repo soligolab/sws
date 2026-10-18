@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Banco di prova delle prestazioni del runtime (P5, onda 2, 17-10-2026; piano
-# docs/plans/2026-10-17-onda-2-prestazioni-e-protezioni.md). Percorre la griglia
+# docs/archive/2026-10-17-onda-2-prestazioni-e-protezioni.md). Percorre la griglia
 # tag × client con `sws-banco` e salva i risultati in docs/prestazioni/.
 #
 # Uso:

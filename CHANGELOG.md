@@ -214,7 +214,7 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 
 ### Added
 
-- **Prestazioni misurate** (P5 dell'onda 2, piano `docs/plans/2026-10-17-onda-2-prestazioni-e-protezioni.md`). Il
+- **Prestazioni misurate** (P5 dell'onda 2, piano `docs/archive/2026-10-17-onda-2-prestazioni-e-protezioni.md`). Il
   banco `sws-banco` (nuovo crate) e `scripts/banco_prestazioni.sh` misurano tag × client: aggiornamenti arrivati,
   latenza da capo a capo, CPU e memoria del runtime. Prima misura su TC620 e x86 in
   `docs/manual/16_prestazioni.md` e `docs/prestazioni/`: sul TC620 1.000 tag verso 20 browser costano un quarto di
@@ -580,6 +580,13 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
   - Provato con Playwright su viewer, IDE, console, admin e log: nessun errore CSP; un iframe da
     un'altra origine è bloccato senza dichiarazione e mostrato con.
   - Guardia nuova `check_intestazioni.sh`.
+- **Limiti alle richieste per indirizzo (CRA, C6 — onda 2, seconda metà, 18-10-2026)**: nuovo strato
+  `sws-web/src/limiti.rs` sugli stessi due router, con due secchi di gettoni distinti, letture 500 a raffica e
+  75/s, scritture 100 e 25/s, tarati sulle misure (cap. 16 del manuale) con margine ×3. Oltre il tetto: `429`
+  con `Retry-After`, il log ne registra solo un campione. Fuori dal conteggio: SPA, WebSocket, `/health`,
+  loopback, container dietro il gateway e le chiamate dei figli con la chiave di ritorno. `X-Forwarded-For` (l'ultimo
+  elemento) vale solo sul gateway e solo da un proxy privato. Configurabili con `SWS_LIMITE_LETTURE`/`SWS_LIMITE_SCRITTURE`.
+  Nessun falso rifiuto col banco a 20 client né aprendo IDE e viewer.
 - **La porta del viewer serviva la SPA senza `no-cache`**: il `fallback_service` era aggiunto dopo
   gli strati e non ne passava. Ora gli strati stanno sopra il fallback, come sul router di amministrazione.
 

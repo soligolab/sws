@@ -143,6 +143,8 @@ pub struct AppState {
     /// Come questo container di progetto si fa riconoscere dal gateway quando
     /// lo chiama (`gateway/ritorno.rs`). Vuoto fuori dal gateway.
     pub ritorno: Arc<crate::gateway::ritorno::Ritorno>,
+    /// I secchi di gettoni per indirizzo (C6, 17-10-2026). Vedi `limiti.rs`.
+    pub limiti: Arc<crate::limiti::Limiti>,
     /// I pannelli collegati col tunnel, quando questo processo è il gateway.
     pub tunnel: Option<Arc<crate::tunnel::multiplex::Registro>>,
     /// Chi può entrare nel tunnel. Vedi `tunnel::gateway::Ammessi`.
@@ -324,6 +326,7 @@ pub fn build(
         senza_auth_sviluppo,
         token_primo_accesso,
         ritorno: Arc::new(crate::gateway::ritorno::Ritorno::dall_ambiente(segreto_gateway.is_some())),
+        limiti: Arc::new(crate::limiti::Limiti::dall_ambiente()),
         // Un pannello è ciò che non è né IDE, né gateway, né container dietro
         // il gateway: solo lì esistono abbinamento e Admin del dispositivo.
         abbinamento: Arc::new(crate::abbinamento::Abbinamento::apri(
@@ -1266,6 +1269,9 @@ pub fn build(
     app = app.layer(middleware::from_fn(crate::cache::intestazioni_cache));
     // Le intestazioni di sicurezza (C6, 17-10-2026): CSP, nosniff, referrer,
     // HSTS solo in HTTPS. Vedi `sicurezza_http.rs`.
+    // I limiti per indirizzo (C6, seconda metà): dentro le intestazioni di
+    // sicurezza, così anche un 429 le porta. Vedi `limiti.rs`.
+    app = app.layer(middleware::from_fn_with_state(state.clone(), crate::limiti::limita));
     crate::sicurezza_http::carica(&state.config_dir);
     app = app.layer(middleware::from_fn(crate::sicurezza_http::intestazioni));
 
@@ -1550,6 +1556,7 @@ fn build_runtime_inner(state: AppState, www_dir: Option<PathBuf>) -> Router {
         .allow_methods(Any)
         .allow_headers(Any);
 
+    let limiti = middleware::from_fn_with_state(state.clone(), crate::limiti::limita);
     let mut router = open.merge(metriche(&state))
         .merge(gated)
         .with_state(state);
@@ -1569,6 +1576,7 @@ fn build_runtime_inner(state: AppState, www_dir: Option<PathBuf>) -> Router {
         // Stessa regola del router di amministrazione: anche il viewer serve
         // una SPA, e la sua pagina d'ingresso nomina gli stessi bundle.
         .layer(middleware::from_fn(crate::cache::intestazioni_cache))
+        .layer(limiti)
         .layer(middleware::from_fn(crate::sicurezza_http::intestazioni))
         .layer(cors)
 }

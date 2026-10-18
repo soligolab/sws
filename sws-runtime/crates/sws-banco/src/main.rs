@@ -1,5 +1,5 @@
 //! Banco di prova delle prestazioni del runtime (P5 dell'onda 2, 17-10-2026, piano
-//! `docs/plans/2026-10-17-onda-2-prestazioni-e-protezioni.md`).
+//! `docs/archive/2026-10-17-onda-2-prestazioni-e-protezioni.md`).
 //!
 //! Per ogni casella della griglia (N tag × K client):
 //! - prepara un progetto senza utenti con N tag e un tag d'eco, attraverso le API di

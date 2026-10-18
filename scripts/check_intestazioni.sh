@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# Le intestazioni di sicurezza (C6, 17-10-2026): CSP, nosniff, referrer, HSTS in HTTPS.
+# Le intestazioni di sicurezza (C6, 17-10-2026): CSP, nosniff, referrer, HSTS in HTTPS,
+# e i limiti alle richieste per indirizzo (limiti.rs), che stanno sugli stessi router.
 #
 # Uno strato che si toglie da un router non dà errori: le pagine continuano a
 # funzionare, solo senza protezione. Qui si controlla che ogni router lo monti,
@@ -18,6 +19,10 @@ R=sws-runtime/crates/sws-web/src/router.rs
 n="$(grep -c 'from_fn(crate::sicurezza_http::intestazioni)' "$R" || true)"
 if [ "$n" -ge 2 ]; then ok "lo strato è montato su build e build_runtime_inner ($n)"
 else no "lo strato è montato $n volte in router.rs, ne servono 2"; fi
+# I limiti per indirizzo (C6, seconda metà): stessi due router.
+n="$(grep -c 'crate::limiti::limita' "$R" || true)"
+if [ "$n" -ge 2 ]; then ok "i limiti per indirizzo sono montati su build e build_runtime_inner ($n)"
+else no "i limiti sono montati $n volte in router.rs, ne servono 2"; fi
 
 for f in sws-editor/index*.html; do
   if python3 - "$f" <<'PY'
@@ -31,11 +36,13 @@ PY
   else no "$f: script in linea, la CSP lo blocca (spostalo in public/)"; fi
 done
 
-if (cd sws-runtime && cargo test -q -p sws-web --lib sicurezza_http >/dev/null 2>&1); then
-  ok "test della politica e delle origini"
-else
-  no "cargo test -p sws-web sicurezza_http è rosso"
-fi
+for modulo in sicurezza_http limiti; do
+  if (cd sws-runtime && cargo test -q -p sws-web --lib "$modulo" >/dev/null 2>&1); then
+    ok "test di $modulo"
+  else
+    no "cargo test -p sws-web $modulo è rosso"
+  fi
+done
 
 echo
 [ "$rossi" -eq 0 ] && { printf '\033[32mIntestazioni: tutto verde (%d).\033[0m\n' "$verdi"; exit 0; }
