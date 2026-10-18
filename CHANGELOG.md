@@ -82,6 +82,11 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 
 ### Fixed
 
+- **Rilievi falsi con cornici e finestre** (CasaDomotica, 18-10-2026). «Non ha né navigatore né navbutton» non
+  guardava la cornice: un `page_navigator` nel piede della cornice ora è un'uscita (la regola, per le pagine con
+  cornice, sta in `rilievi_cornici`), e le finestre popup non si controllano più, perché si chiudono col loro bottone.
+  «Un `button` senza tag non comanda niente» tace per un bottone con un'azione predefinita (finestra, login,
+  navigazione, faceplate).
 - **Dopo un deploy che porta gli utenti, lo schermo del pannello restava sul progetto vecchio** (TC620,
   18-10-2026). La sessione del kiosk moriva con un solo 401, il client proseguiva anonimo, e `useProjectWatcher`,
   che su un errore di autenticazione azzerava il riferimento, prendeva l'impronta nuova per riferimento senza

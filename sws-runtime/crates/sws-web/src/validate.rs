@@ -467,6 +467,54 @@ fn distanza(a: &str, b: &str) -> usize {
 /// I rilievi delle cornici di pagina (15-10-2026, `cornici.rs`): cornici
 /// che una pagina chiede e non esistono, misure diverse dalla pagina, oggetti
 /// della cornice fuori dalle fasce e oggetti della pagina dentro le fasce.
+/// Perché un progetto non ha la barra del viewer, se non ce l'ha (B14).
+///
+/// Su LVGL la barra non esiste mai (il motore disegna la pagina e basta,
+/// verificato il 24-09-2026 sul WP630); sul web manca a schermo pieno. LVGL per
+/// primo: quando valgono tutti e due, la ragione vera è il motore.
+fn motivo_senza_barra(project: &Project) -> Option<(&'static str, &'static str)> {
+    let lvgl = matches!(
+        project.target.as_ref().map(|t| t.kind),
+        Some(ProjectTargetKind::LvglFramebuffer | ProjectTargetKind::LvglWayland)
+    );
+    let pieno = project.page_layout.as_ref().and_then(|l| l.hide_viewer_chrome) == Some(true);
+    if lvgl {
+        Some(("il progetto è per LVGL", "il viewer LVGL non ha una barra propria"))
+    } else if pieno {
+        Some(("il progetto è a schermo pieno", "a schermo pieno il viewer non mostra la sua barra"))
+    } else {
+        None
+    }
+}
+
+/// Una pagina fra cui si naviga: non l'immagine di accensione, non una finestra
+/// popup (P1), che si apre da un bottone e si chiude col suo.
+fn da_navigare(p: &SynopticPage) -> bool {
+    p.kind.as_deref() != Some("boot") && p.finestra.is_none()
+}
+
+fn pagine_da_navigare(pages: &[SynopticPage]) -> usize {
+    pages.iter().filter(|p| da_navigare(p)).count()
+}
+
+fn ha_uscita(objs: &[crate::synoptic::SynopticObject]) -> bool {
+    objs.iter().any(|o| matches!(o.obj_type.as_str(), "page_navigator" | "navbutton"))
+}
+
+// La rotazione automatica non salva il caso: porta via dalla pagina da sola, ma
+// chi guarda non può **scegliere** dove andare, e la rotazione si attiva solo se
+// qualcuno l'accende. Resta nel suggerimento come una delle tre vie d'uscita.
+fn senza_uscita(pg: &SynopticPage, perche: &str, spiegazione: &str) -> Finding {
+    Finding::warn(
+        format!("pages[{}].objects", pg.name),
+        format!("«{}» non ha né navigatore né navbutton, e {perche}", pg.name),
+        format!(
+            "{spiegazione}: da questa pagina non si esce. Mettici un `page_navigator`, un \
+             `navbutton` (anche nella cornice), oppure lasciala nella rotazione automatica"
+        ),
+    )
+}
+
 pub fn rilievi_cornici(
     project: &Project,
     pages: &[SynopticPage],
@@ -497,9 +545,17 @@ pub fn rilievi_cornici(
             ));
         }
     }
+    // B14 per le pagine con cornice: le uscite possono stare nella cornice. Le
+    // pagine senza cornice le guarda `semantic`.
+    let motivo = motivo_senza_barra(project).filter(|_| pagine_da_navigare(pages) > 1);
     for p in pages {
         let Some(id) = crate::cornici::cornice_della_pagina(p, predefinita) else { continue };
         let Some(c) = per_id.get(id.as_str()) else {
+            if let Some((perche, spiegazione)) = motivo {
+                if !ha_uscita(&p.objects) {
+                    out.push(senza_uscita(p, perche, spiegazione));
+                }
+            }
             // La predefinita mancante è già detta una volta sopra.
             if p.cornice.is_some() {
                 out.push(Finding::err(
@@ -510,6 +566,11 @@ pub fn rilievi_cornici(
             }
             continue;
         };
+        if let Some((perche, spiegazione)) = motivo {
+            if !ha_uscita(&p.objects) && !ha_uscita(&c.oggetti) {
+                out.push(senza_uscita(p, perche, spiegazione));
+            }
+        }
         if p.width.is_some_and(|w| (w - c.larghezza).abs() > 0.5)
             || p.height.is_some_and(|h| (h - c.altezza).abs() > 0.5)
         {
@@ -601,59 +662,22 @@ pub fn semantic(project: &Project, pages: &[SynopticPage]) -> Vec<Finding> {
     //   WP630, dove una pagina senza navigatore ha intrappolato il maintainer
     //   davanti allo schermo mentre la regola qui sotto taceva perché
     //   `hide_viewer_chrome` non era impostato.
-    let motivo_senza_barra = {
-        let lvgl = matches!(
-            project.target.as_ref().map(|t| t.kind),
-            Some(ProjectTargetKind::LvglFramebuffer | ProjectTargetKind::LvglWayland)
-        );
-        let pieno = project
-            .page_layout
-            .as_ref()
-            .and_then(|l| l.hide_viewer_chrome)
-            == Some(true);
-        // LVGL per primo: quando valgono tutti e due, la ragione vera è il
-        // motore — togliere lo schermo pieno non farebbe comparire niente.
-        if lvgl {
-            Some((
-                "il progetto è per LVGL",
-                "il viewer LVGL non ha una barra propria",
-            ))
-        } else if pieno {
-            Some((
-                "il progetto è a schermo pieno",
-                "a schermo pieno il viewer non mostra la sua barra",
-            ))
-        } else {
-            None
-        }
-    };
-    if let Some((perche, spiegazione)) = motivo_senza_barra {
-        if pages.len() > 1 {
-            for pg in pages {
-                if pg.kind.as_deref() == Some("boot") {
-                    continue; // l'immagine di accensione non naviga
+    // Le pagine con una cornice le guarda `rilievi_cornici`, che ne conosce gli
+    // oggetti: un navigatore nel piede della cornice è un'uscita (18-10-2026,
+    // CasaDomotica: cinque avvisi falsi su un progetto col navigatore nella cornice).
+    let predefinita = project
+        .page_layout
+        .as_ref()
+        .and_then(|l| l.cornice_predefinita.as_deref())
+        .filter(|s| !s.is_empty());
+    if let Some((perche, spiegazione)) = motivo_senza_barra(project) {
+        if pagine_da_navigare(pages) > 1 {
+            for pg in pages.iter().filter(|p| da_navigare(p)) {
+                if crate::cornici::cornice_della_pagina(pg, predefinita).is_some() {
+                    continue;
                 }
-                let ha_uscita = pg
-                    .objects
-                    .iter()
-                    .any(|o| matches!(o.obj_type.as_str(), "page_navigator" | "navbutton"));
-                // La rotazione automatica non salva il caso: porta via dalla
-                // pagina da sola, ma chi guarda non può **scegliere** dove
-                // andare, e la rotazione si attiva solo se qualcuno l'accende.
-                // Resta nel suggerimento come una delle tre vie d'uscita.
-                if !ha_uscita {
-                    out.push(Finding::warn(
-                        format!("pages[{}].objects", pg.name),
-                        format!(
-                            "«{}» non ha né navigatore né navbutton, e {perche}",
-                            pg.name
-                        ),
-                        format!(
-                            "{spiegazione}: da questa pagina non si esce. Mettici un \
-                             `page_navigator`, un `navbutton`, oppure lasciala nella rotazione \
-                             automatica"
-                        ),
-                    ));
+                if !ha_uscita(&pg.objects) {
+                    out.push(senza_uscita(pg, perche, spiegazione));
                 }
             }
         }
@@ -1504,7 +1528,11 @@ fn controlla_oggetto(
                 ),
                 "lega il comando al tag che il driver scrive davvero, non al calcolato",
             )),
-            None if tag_scritto.unwrap_or("").is_empty() && !ha_assegnazioni => out.push(Finding::warn(
+            // Un bottone con un'azione predefinita (finestra, login, navigazione,
+            // faceplate) fa già qualcosa: il tag non gli serve (18-10-2026).
+            None if tag_scritto.unwrap_or("").is_empty()
+                && !ha_assegnazioni
+                && !(t == "button" && o.button_action.is_some()) => out.push(Finding::warn(
                 format!("{base}.{campo_scritto}"),
                 format!("un `{t}` senza tag non comanda niente"),
                 "indica il tag su cui scrivere",
@@ -2482,6 +2510,40 @@ alarms: []
         let unica: SynopticPage =
             serde_yaml::from_str("id: pg1\nname: Unica\nobjects: []").unwrap();
         assert!(!cita(&semantic(&p, &[unica]), "non si esce"));
+    }
+
+    /// CasaDomotica, 18-10-2026: il navigatore sta nel piede della cornice, la
+    /// pagina «Info» è una finestra popup e i bottoni aprono e chiudono la
+    /// finestra. Erano sette avvisi falsi: cinque «non si esce» e due «senza tag».
+    #[test]
+    fn cornice_con_navigatore_e_finestre_non_danno_avvisi_falsi() {
+        let prog = "meta: { name: p, version: '1' }\npage_layout: { size_mode: fixed, hide_viewer_chrome: true, cornice_predefinita: frame }\ntags: []\nsources: []\nalarms: []\n";
+        let p: Project = serde_yaml::from_str(prog).unwrap();
+        let home: SynopticPage = serde_yaml::from_str(
+            "id: h\nname: Home\nwidth: 1280\nheight: 800\nobjects:\n- { id: b, type: button, x: 10, y: 300, width: 100, height: 40, button_action: { type: open_popup, page: i, params: {} } }",
+        )
+        .unwrap();
+        let altra: SynopticPage =
+            serde_yaml::from_str("id: a\nname: Altra\nwidth: 1280\nheight: 800\nobjects: []").unwrap();
+        let info: SynopticPage = serde_yaml::from_str(
+            "id: i\nname: Info\nfinestra: { modale: true }\nobjects:\n- { id: c, type: button, x: 10, y: 10, width: 100, height: 40, button_action: { type: close_popup } }",
+        )
+        .unwrap();
+        let cornice: crate::cornici::Cornice = serde_yaml::from_str(
+            "id: frame\nnome: Frame\nlarghezza: 1280\naltezza: 800\ntestata: { altezza: 56 }\npiede: { altezza: 60 }\noggetti:\n- { id: n, type: page_navigator, x: 0, y: 742, width: 1280, height: 58 }",
+        )
+        .unwrap();
+        let pagine = [home.clone(), altra.clone(), info];
+        let mut rs = semantic(&p, &pagine);
+        rs.extend(rilievi_cornici(&p, &pagine, std::slice::from_ref(&cornice)));
+        assert!(!cita(&rs, "non si esce"), "{rs:?}");
+        assert!(!cita(&rs, "senza tag"), "{rs:?}");
+
+        // Senza navigatore nella cornice, l'avviso torna, una volta per pagina.
+        let vuota = crate::cornici::Cornice { oggetti: vec![], ..cornice };
+        let rs2 = rilievi_cornici(&p, &pagine, &[vuota]);
+        assert_eq!(rs2.iter().filter(|f| f.hint.as_deref().unwrap_or("").contains("non si esce")).count(), 2, "{rs2:?}");
+        assert!(!cita(&rs2, "«Info»"), "{rs2:?}");
     }
 
     /// Su LVGL la barra del viewer **non esiste**, e non solo quando la si
