@@ -12,6 +12,46 @@
 > resta in «Storico». Qui vive solo ciò che serve a riprendere il lavoro.
 
 
+## ▶ Riprendere da qui — onda 2 chiusa: banco, intestazioni di sicurezza, limiti (2026-10-17/18)
+
+Su `main` (nessun push), squash e rami eliminati. Cloud e TC620 sull'immagine `efbc6e94`.
+Verdi: `cargo check`, 572 test `sws-web`, 1534 del frontend, `pnpm build`, 45 guardie.
+
+### Fatto, **tutto da collaudare** dal maintainer
+
+| | |
+|---|---|
+| `34ef954c` | finestre popup: una pagina con `finestra` si apre sopra la corrente (`open_popup`/`close_popup`, parametri) |
+| `3d7c33aa` | cornici ramo 3: testata/navigazione nei template, `oggetti_nelle_fasce` per sovrapposizione |
+| `bd202076` | tendina dei tag (`TendinaFluttuante`): non la taglia più il pannello proprietà |
+| `47608f4c` + `9d1affcf` | Dispositivi: utente e password per riga, «Connetti» sempre attivo; «Non salvato» corretto all'apertura |
+| `e0f2ce4a` | deploy coerente: pagina illeggibile = errore col nome, `no-cache` sulle API di progetto, impronta su cornici/faceplate/ricette/immagini |
+| `56cb0763` | **P5** banco `sws-banco` + `scripts/banco_prestazioni.sh`, misure TC620/x86 in `docs/manual/16_prestazioni.md` |
+| `d4eb1d1b` | **C6** CSP (`script-src 'self'`, script in linea tolti dagli HTML), nosniff, referrer, HSTS solo in HTTPS; iframe da origini dichiarate (Istanza → Device → «Incorporamento in iframe») |
+| `4b50cf5d` + `efbc6e94` | **C6** limiti per indirizzo (letture 500/75 s, scritture 100/25 s, 429 + `Retry-After`) |
+
+Piano dell'onda 2 archiviato (`docs/archive/2026-10-17-onda-2-prestazioni-e-protezioni.md`).
+
+### Da sapere
+
+- **Nel cloud i limiti oggi non agiscono**: Traefik rootless vede ogni visitatore come `10.89.0.89`
+  (rootlessport), quindi il gateway non conta gli indirizzi privati. Seme
+  `docs/plans/2026-10-18-indirizzo-vero-dietro-traefik.md`.
+- **TC620 giù per disco pieno il 18-10 alle 05:40** (colpa mia): tredici immagini da 554 MB in `/home`, il restart
+  falliva con `no space left on device`. Tolte le dieci più vecchie (restano `efbc6e94`/`rc-arm64`, `d4eb1d1b`,
+  `prima-della-prova`), ripartito da sé. D'ora in poi la pulizia fa parte dell'allineamento. Sul VPS ci sono 32
+  immagini amd64, con 31 GB liberi.
+- Il primo avvio di un'immagine nuova sul TC620 supera due volte su due il `TimeoutStartUSec` (1 min 30 s) e
+  riparte al secondo tentativo: da guardare.
+- CasaDomotica sul pannello dà `NameError: _print_` nello script globale: serve un deploy dal cloud (noto).
+- Semi nuovi: `2026-10-17-tag-uguali-ritrasmessi`, `2026-10-17-finestra-lvgl-misura-schermo`,
+  `2026-10-18-indirizzo-vero-dietro-traefik`.
+
+### Prossimo passo
+
+Collaudo del maintainer delle righe sopra (sul TC620 o sul WP630, sono uguali); poi l'onda 3 del
+[piano prima fascia e CRA](docs/plans/2026-10-15-piano-prima-fascia-e-cra.md).
+
 ## ▶ Riprendere da qui — quattro difetti del cloud, e il keepalive che non batteva (2026-10-16, sera)
 
 Su `main`, squash e rami eliminati: `866ed2b9`, `38ddf462`, `22bca649`, `2d06f80f`, più la
