@@ -17,13 +17,80 @@
 //! così la struttura corrisponde bit-per-bit a quello che LVGL C si aspetta,
 //! senza dover duplicare i layout a mano in un `.c` separato.
 
+use std::sync::atomic::{AtomicPtr, AtomicUsize, Ordering};
 use std::sync::{Mutex, OnceLock};
 
 /// Frame buffer condiviso RGB888 (3 byte/pixel), riempito dal flush
 /// callback (chiamato da LVGL, contesto FFI) e letto dal loop SDL2 (contesto
 /// Rust normale) — il `Mutex` è il confine di sincronizzazione tra i due.
 static FRAME: OnceLock<Mutex<Vec<u8>>> = OnceLock::new();
-static FRAME_DIMS: OnceLock<(u32, u32)> = OnceLock::new();
+/// La risoluzione **corrente** del display: segue la pagina aperta (18-10-2026,
+/// vedi `ridimensiona`). Prima era fissata dalla prima pagina per tutta la
+/// sessione, e una prima pagina 1280×768 su uno schermo 1280×800 lasciava due
+/// fasce e faceva scorrere ogni pagina alta 800.
+static FRAME_DIMS: Mutex<(u32, u32)> = Mutex::new((0, 0));
+static DRV: AtomicPtr<lvgl_sys::lv_disp_drv_t> = AtomicPtr::new(core::ptr::null_mut());
+static DISP: AtomicPtr<lvgl_sys::lv_disp_t> = AtomicPtr::new(core::ptr::null_mut());
+static DRAW_BUF: AtomicPtr<lvgl_sys::lv_disp_draw_buf_t> = AtomicPtr::new(core::ptr::null_mut());
+/// Quanti pixel tiene il buffer di disegno di LVGL: cresce, non cala.
+static CAPIENZA: AtomicUsize = AtomicUsize::new(0);
+
+/// La risoluzione corrente del display (`(0, 0)` prima di `init_display`).
+pub fn dims() -> (u32, u32) {
+    *FRAME_DIMS.lock().unwrap_or_else(|e| e.into_inner())
+}
+
+fn buffer_pixel(n_px: usize) -> &'static mut [lvgl_sys::lv_color_t] {
+    // 'static via Box::leak, non una variabile locale (vedi `init_display`).
+    Box::leak(vec![lvgl_sys::lv_color16_t { full: 0 }; n_px].into_boxed_slice())
+}
+
+/// Porta il display a `hor_res`×`ver_res`, se non lo è già. Va chiamata
+/// **prima** di creare lo schermo della pagina nuova: `lv_obj_create(NULL)`
+/// prende la misura del display di quel momento.
+///
+/// Il buffer di disegno cresce quando serve e non si libera: il vecchio può
+/// essere ancora in uso da LVGL fino al prossimo ridisegno, e i pannelli hanno
+/// poche misure di pagina (in pratica una o due). `false` se non è cambiato
+/// niente, o se il display non c'è ancora.
+pub fn ridimensiona(hor_res: u32, ver_res: u32) -> anyhow::Result<bool> {
+    let (drv, disp, draw_buf) = (
+        DRV.load(Ordering::Acquire),
+        DISP.load(Ordering::Acquire),
+        DRAW_BUF.load(Ordering::Acquire),
+    );
+    if drv.is_null() || disp.is_null() || draw_buf.is_null() || hor_res == 0 || ver_res == 0 {
+        return Ok(false);
+    }
+    if dims() == (hor_res, ver_res) {
+        return Ok(false);
+    }
+    let n_px = (hor_res * ver_res) as usize;
+    if n_px > CAPIENZA.load(Ordering::Acquire) {
+        let pixel_buf = buffer_pixel(n_px);
+        unsafe {
+            lvgl_sys::lv_disp_draw_buf_init(
+                draw_buf,
+                pixel_buf.as_mut_ptr() as *mut std::ffi::c_void,
+                core::ptr::null_mut(),
+                n_px as u32,
+            );
+        }
+        CAPIENZA.store(n_px, Ordering::Release);
+    }
+    if let Some(frame) = FRAME.get() {
+        let mut buf = frame.lock().unwrap_or_else(|e| e.into_inner());
+        *buf = vec![0u8; n_px * 3];
+    }
+    *FRAME_DIMS.lock().unwrap_or_else(|e| e.into_inner()) = (hor_res, ver_res);
+    // Safety: `drv` e `disp` sono quelli registrati da `init_display`, 'static.
+    unsafe {
+        (*drv).hor_res = hor_res as lvgl_sys::lv_coord_t;
+        (*drv).ver_res = ver_res as lvgl_sys::lv_coord_t;
+        lvgl_sys::lv_disp_drv_update(disp, drv);
+    }
+    Ok(true)
+}
 
 /// Copia l'ultimo frame flushato in un buffer RGB888 fornito dal chiamante
 /// (dimensione `hor_res*ver_res*3`, stesso ordine riga per riga di
@@ -47,7 +114,7 @@ unsafe extern "C" fn sws_flush_cb(
     // Safety: `area`/`color_p` sono validi per la durata della chiamata —
     // stessa garanzia che LVGL dà a qualunque flush_cb C.
     let area = unsafe { &*area };
-    let (hor_res, ver_res) = FRAME_DIMS.get().copied().unwrap_or((0, 0));
+    let (hor_res, ver_res) = dims();
     let x1 = area.x1.max(0) as usize;
     let y1 = area.y1.max(0) as usize;
     let w = (area.x2 - area.x1 + 1).max(0) as usize;
@@ -97,13 +164,13 @@ pub fn init_display(hor_res: u32, ver_res: u32) -> anyhow::Result<()> {
     FRAME
         .set(Mutex::new(vec![0u8; (hor_res * ver_res * 3) as usize]))
         .map_err(|_| anyhow::anyhow!("init_display chiamata più di una volta"))?;
-    FRAME_DIMS.set((hor_res, ver_res)).ok();
+    *FRAME_DIMS.lock().unwrap_or_else(|e| e.into_inner()) = (hor_res, ver_res);
 
     let n_px = (hor_res * ver_res) as usize;
     // Buffer pixel LVGL (formato nativo lv_color_t, non RGB888): storage
     // 'static via Box::leak, non una variabile locale — questo è il fix.
-    let pixel_buf: &'static mut [lvgl_sys::lv_color_t] =
-        Box::leak(vec![lvgl_sys::lv_color16_t { full: 0 }; n_px].into_boxed_slice());
+    let pixel_buf = buffer_pixel(n_px);
+    CAPIENZA.store(n_px, Ordering::Release);
 
     // Default per _lv_disp_draw_buf_t/_lv_disp_drv_t è generato da bindgen
     // come zero-init sicuro (vedi bindings.rs) — stesso pattern usato da
@@ -132,5 +199,8 @@ pub fn init_display(hor_res: u32, ver_res: u32) -> anyhow::Result<()> {
     if disp_ptr.is_null() {
         anyhow::bail!("lv_disp_drv_register ha restituito null");
     }
+    DRAW_BUF.store(draw_buf as *mut _, Ordering::Release);
+    DRV.store(disp_drv as *mut _, Ordering::Release);
+    DISP.store(disp_ptr, Ordering::Release);
     Ok(())
 }

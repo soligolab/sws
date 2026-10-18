@@ -210,6 +210,13 @@ struct Args {
     #[arg(long, value_name = "X,Y")]
     tocca: Option<String>,
 
+    /// Con `--istantanea`: dopo la pagina di partenza apre **questa** (per nome),
+    /// come farebbe una navigazione, e fotografa quella. Serve a vedere il
+    /// display che segue la misura della pagina (18-10-2026): l'istantanea esce
+    /// alla misura della pagina d'arrivo, non di quella di partenza.
+    #[arg(long, value_name = "PAGINA")]
+    poi: Option<String>,
+
     /// Quanti millisecondi lasciar lavorare LVGL prima dell'istantanea.
     ///
     /// Non è un'attesa di cortesia: LVGL disegna dentro `task_handler()`, e
@@ -588,6 +595,29 @@ fn main() -> anyhow::Result<()> {
     // Istantanea: disegna, salva, esce. Prima di registrare l'indev e prima
     // di qualunque backend — non serve né un puntatore né una finestra.
     if let Some(percorso) = args.istantanea.clone() {
+        // `--poi`: una navigazione vera, con lo stesso `render_page_objects` del
+        // ciclo normale. Gli stili della pagina nuova vivono fino all'uscita.
+        let mut _stili_poi = Vec::new();
+        if let Some(nome) = args.poi.as_deref() {
+            let arrivo = rt.block_on(client::fetch_page(&args.base_url, nome))?;
+            let tags = shared_tags.lock().unwrap_or_else(|e| e.into_inner()).clone();
+            let (s, st, live) = lvgl_render::render_page_objects(
+                &arrivo,
+                &tags,
+                &tag_tx,
+                &nav_tx,
+                &args.base_url,
+                rt.handle(),
+                &shared_alarms,
+                &ack_tx,
+                &lang_table,
+                &shared_lang,
+                &shared_session,
+            )?;
+            eprintln!("--poi: aperta '{}' ({} oggetti)", arrivo.name, s.rendered.len());
+            _stili_poi = st;
+            live_bindings = live;
+        }
         // Il puntatore serve a `--tocca`, ed è già registrato qui sopra:
         // `init_pointer_indev` va chiamata una volta sola (e lo dice).
         scrivi_istantanea(
@@ -806,6 +836,11 @@ fn scrivi_istantanea(
         eprintln!("  il tocco non ha prodotto nessun comando");
     }
 
+    // La misura del display adesso: segue la pagina aperta (18-10-2026).
+    let (hor_res, ver_res) = match lvgl_display::dims() {
+        (w, h) if w > 0 && h > 0 => (w, h),
+        _ => (hor_res, ver_res),
+    };
     let mut frame = vec![0u8; (hor_res * ver_res * 3) as usize];
     if !lvgl_display::copy_frame_rgb888(&mut frame) {
         anyhow::bail!("nessun frame: il display LVGL non è stato inizializzato");
@@ -920,7 +955,8 @@ fn run_drm(
     // `flush_rgb888` iterava sul **display**. Ora il frame si centra e si
     // ritaglia come già fa il backend SDL2, e l'avviso dice cosa succede invece
     // di dire che «potrebbe» succedere qualcosa.
-    let drm_off = page_offset(hor_res, ver_res, drm.width, drm.height);
+    let (mut hor_res, mut ver_res) = (hor_res, ver_res);
+    let mut drm_off = page_offset(hor_res, ver_res, drm.width, drm.height);
     if drm.width != hor_res || drm.height != ver_res {
         let (dw, dh) = (drm.width, drm.height);
         if hor_res > dw || ver_res > dh {
@@ -1042,6 +1078,17 @@ fn run_drm(
             }
         }
 
+        // Il display segue la pagina aperta (18-10-2026): misura e margine si
+        // rileggono, e il margine si ridipinge perché la pagina di prima
+        // poteva coprirne una parte.
+        let ora = lvgl_display::dims();
+        if ora != (hor_res, ver_res) && ora.0 > 0 && ora.1 > 0 {
+            (hor_res, ver_res) = ora;
+            frame_buf = vec![0u8; (hor_res * ver_res * 3) as usize];
+            drm_off = page_offset(hor_res, ver_res, drm.width, drm.height);
+            drm.riempi(0x0f, 0x17, 0x2a);
+            eprintln!("[drm] pagina {hor_res}x{ver_res}, margine {drm_off:?}");
+        }
         if lvgl_display::copy_frame_rgb888(&mut frame_buf) {
             drm.flush_rgb888(&frame_buf, hor_res, ver_res, drm_off);
         }
@@ -1159,7 +1206,10 @@ fn run_window(
     // Vive quanto il loop: dentro ci sono i contesti delle callback, che LVGL
     // tiene per puntatore.
     let mut overlay_avviso = lvgl_avviso::Overlay::new();
-    let pitch = (hor_res * 3) as usize;
+    // Mutabili: il display segue la pagina aperta (18-10-2026), quindi misura,
+    // passo di riga e margine si rileggono quando la pagina cambia misura.
+    let (mut hor_res, mut ver_res) = (hor_res, ver_res);
+    let mut pitch = (hor_res * 3) as usize;
     let mut mouse_pressed = false;
 
     // La dimensione ottenuta non è quella chiesta finché non la si guarda.
@@ -1187,9 +1237,9 @@ fn run_window(
     if (pos_x, pos_y) != (0, 0) {
         eprintln!("[sdl2] ATTENZIONE: la finestra non è all'angolo ma a ({pos_x},{pos_y}) — il window manager ha ignorato la richiesta");
     }
-    // Calcolato una volta: la finestra non cambia dimensione per tutta la
-    // sessione (è a schermo intero su un pannello).
-    let (off_x, off_y) = page_offset(hor_res, ver_res, win_w, win_h);
+    // La finestra non cambia dimensione per tutta la sessione (è a schermo
+    // intero su un pannello); il margine cambia quando cambia la pagina.
+    let (mut off_x, mut off_y) = page_offset(hor_res, ver_res, win_w, win_h);
     if (off_x, off_y) != (0, 0) {
         eprintln!(
             "[sdl2] pagina centrata con un margine di ({off_x},{off_y}) px — come fa il viewer web"
@@ -1430,6 +1480,17 @@ fn run_window(
                     "[reload] impossibile rileggere '{nome}': {e} — resto sulla pagina di prima"
                 ),
             }
+        }
+
+        // La pagina nuova può avere un'altra misura: il display l'ha già
+        // seguita (`render_page_objects`), qui la seguono buffer e margine.
+        let ora = lvgl_display::dims();
+        if ora != (hor_res, ver_res) && ora.0 > 0 && ora.1 > 0 {
+            (hor_res, ver_res) = ora;
+            frame_buf = vec![0u8; (hor_res * ver_res * 3) as usize];
+            pitch = (hor_res * 3) as usize;
+            (off_x, off_y) = page_offset(hor_res, ver_res, win_w, win_h);
+            eprintln!("[sdl2] pagina {hor_res}x{ver_res} nella finestra {win_w}x{win_h}, margine ({off_x},{off_y})");
         }
 
         if lvgl_display::copy_frame_rgb888(&mut frame_buf) {

@@ -1,4 +1,4 @@
-/** L'oggetto «Data e ora» (15-10-2026, piano docs/plans/2026-10-15-cornici-di-pagina.md, ramo 1):
+/** L'oggetto «Data e ora» (15-10-2026, piano docs/archive/2026-10-15-cornici-di-pagina.md, ramo 1):
  *  lo stesso testo del pannello (`sws-core/src/data_ora.rs`). */
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";

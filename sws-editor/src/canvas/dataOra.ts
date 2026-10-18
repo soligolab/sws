@@ -1,5 +1,5 @@
 /** La data e l'ora scritte dall'oggetto «Data e ora» (`clock`, 15-10-2026, piano
- *  docs/plans/2026-10-15-cornici-di-pagina.md, ramo 1). Gemello di
+ *  docs/archive/2026-10-15-cornici-di-pagina.md, ramo 1). Gemello di
  *  `sws-core/src/data_ora.rs`; casi in `tests/fixtures/data-ora.json`. */
 
 export interface Componenti {

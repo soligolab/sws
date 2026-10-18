@@ -3299,7 +3299,11 @@
     "spiegazione": "Header and footer appear under every page using this frame. Keep the objects inside the two bands.",
     "predefinitaCheckbox": "Project default frame",
     "predefinitaFallita": "Could not set the default frame: {{err}}",
-    "segnaposti": "In texts: {{a}}, {{b}}, {{c}}."
+    "segnaposti": "In texts: {{a}}, {{b}}, {{c}}.",
+    "proposta": {
+      "testo": "A frame shared by the pages? Header and footer are drawn once, for all of them.",
+      "no": "No, thanks"
+    }
   },
   "scala": {
     "apri": "Change project resolution…",

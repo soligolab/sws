@@ -1,5 +1,5 @@
 //! La data e l'ora scritte dall'oggetto «Data e ora» (`clock`, 15-10-2026, piano
-//! `docs/plans/2026-10-15-cornici-di-pagina.md`, ramo 1).
+//! `docs/archive/2026-10-15-cornici-di-pagina.md`, ramo 1).
 //!
 //! Funzione pura su componenti già scomposti (anno, mese, …): così web e pannello
 //! la provano sugli stessi casi senza dipendere dal fuso orario della macchina

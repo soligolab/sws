@@ -62,3 +62,10 @@ LVGL non ha uno zoom di display: non si moltiplica una matrice e si è finito.
   taglie di font; i venti modelli che le portano stanno nel
   [piano dei preset](../archive/2026-10-02-preset-pixsys-catalogo.md).
 - Quante taglie di font servirebbero in B e in A, e quanta memoria costano sul pannello più piccolo.
+
+## 18-10-2026 — fatta l'opzione B
+
+Scelta del maintainer: «avviso nell'IDE ora, scala dopo». Il validatore dice `page_layout.size_mode` quando il target è
+LVGL e la modalità non è `fixed`. Nello stesso ramo il display LVGL ha smesso di prendere la misura dalla prima pagina
+e segue la pagina aperta, centrata ([seme archiviato](../archive/2026-10-17-finestra-lvgl-misura-schermo.md)): è il
+punto unico in cui un giorno si innesterebbe la scalatura (A). Il resto del seme vale ancora.

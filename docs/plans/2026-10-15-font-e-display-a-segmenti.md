@@ -1,7 +1,7 @@
 # Seme — più font, e font che emulano i display a segmenti
 
 > **Seme — decisione.** Richiesta del maintainer, 15-10-2026, mentre nasceva l'oggetto «Data e ora»
-> ([piano cornici](2026-10-15-cornici-di-pagina.md)): «estendere il set di font disponibili, tra quelli da aggiungere
+> ([piano cornici](../archive/2026-10-15-cornici-di-pagina.md)): «estendere il set di font disponibili, tra quelli da aggiungere
 > ne servono alcuni che emulino il display a segmenti».
 >
 > **Quando questo lavoro inizia, il primo passo è una sessione di plan approfondita per definirne tutti i dettagli.**

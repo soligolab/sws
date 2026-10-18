@@ -128,8 +128,14 @@ pub fn spawn(device_path: &str, hor_res: u32, ver_res: u32) -> anyhow::Result<()
                 _ => continue, // EV_SYN e altri: aggiorniamo lo stato condiviso solo sui campi che contano
             }
 
-            let x = map_range(x_raw, x_info.minimum, x_info.maximum, hor_res as i32);
-            let y = map_range(y_raw, y_info.minimum, y_info.maximum, ver_res as i32);
+            // La misura del display si rilegge a ogni evento: segue la pagina
+            // aperta (18-10-2026, `lvgl_display::ridimensiona`).
+            let (w, h) = match crate::lvgl_display::dims() {
+                (w, h) if w > 0 && h > 0 => (w, h),
+                _ => (hor_res, ver_res),
+            };
+            let x = map_range(x_raw, x_info.minimum, x_info.maximum, w as i32);
+            let y = map_range(y_raw, y_info.minimum, y_info.maximum, h as i32);
             lvgl_indev::set_pointer_state(x, y, pressed);
         }
     });

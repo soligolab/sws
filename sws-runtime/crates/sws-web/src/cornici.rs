@@ -1,4 +1,4 @@
-//! Cornici di pagina (piano `docs/plans/2026-10-15-cornici-di-pagina.md`, ramo 2).
+//! Cornici di pagina (piano `docs/archive/2026-10-15-cornici-di-pagina.md`, ramo 2).
 //!
 //! Una cornice è una testata e un piede comuni alle pagine che la usano: due
 //! fasce riservate, ognuna con la sua altezza e un fondo facoltativo, e gli

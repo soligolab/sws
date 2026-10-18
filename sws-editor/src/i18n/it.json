@@ -3299,7 +3299,11 @@
     "spiegazione": "Testata e piede si vedono sotto ogni pagina che usa questa cornice. Metti gli oggetti dentro le due fasce.",
     "predefinitaCheckbox": "Cornice predefinita del progetto",
     "predefinitaFallita": "Impossibile impostare la cornice predefinita: {{err}}",
-    "segnaposti": "Nei testi: {{a}}, {{b}}, {{c}}."
+    "segnaposti": "Nei testi: {{a}}, {{b}}, {{c}}.",
+    "proposta": {
+      "testo": "Una cornice comune alle pagine? Testata e piede si disegnano una volta sola, per tutte.",
+      "no": "No, grazie"
+    }
   },
   "scala": {
     "apri": "Cambia risoluzione del progetto…",

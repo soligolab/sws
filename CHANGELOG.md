@@ -82,6 +82,12 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 
 ### Fixed
 
+- **Pannello LVGL: fasce e barra di scorrimento quando le pagine hanno misure diverse** (TC620, seme
+  `2026-10-17-finestra-lvgl-misura-schermo`). Il display LVGL nasceva alla misura della prima pagina e non cambiava più:
+  una prima pagina 1280×768 su uno schermo 1280×800 lasciava due fasce, e ogni pagina alta 800 scorreva. Ora il display
+  **segue la pagina aperta** (`lvgl_display::ridimensiona`, `lv_disp_drv_update`), e SDL, DRM, il touch e l'istantanea
+  rileggono la misura; una pagina più piccola dello schermo resta centrata col margine neutro, come sul web. Nuova
+  opzione `--poi <pagina>` per `--istantanea`, che naviga prima di fotografare: provato da 768 a 800 e da 800 a 768.
 - **Rilievi falsi con cornici e finestre** (CasaDomotica, 18-10-2026). «Non ha né navigatore né navbutton» non
   guardava la cornice: un `page_navigator` nel piede della cornice ora è un'uscita (la regola, per le pagine con
   cornice, sta in `rilievi_cornici`), e le finestre popup non si controllano più, perché si chiudono col loro bottone.
@@ -225,13 +231,18 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 
 ### Added
 
+- **L'editor propone una cornice alla prima pagina** (piano delle cornici): nel ramo Cornici, finché il progetto ha
+  pagine e nessuna cornice, tre modelli (testata e navigazione, solo navigazione, solo testata) creano la cornice e
+  la rendono la predefinita; «No, grazie» non la ripropone più per quel progetto.
+- **Avviso per LVGL con `size_mode` `ratio` o `fluid`**: il pannello disegna le pagine alla loro misura, centrate, e
+  non le allarga come il browser. La scalatura vera su LVGL resta nel seme `2026-09-24-lvgl-ignora-size-mode`.
 - **Prestazioni misurate** (P5 dell'onda 2, piano `docs/archive/2026-10-17-onda-2-prestazioni-e-protezioni.md`). Il
   banco `sws-banco` (nuovo crate) e `scripts/banco_prestazioni.sh` misurano tag × client: aggiornamenti arrivati,
   latenza da capo a capo, CPU e memoria del runtime. Prima misura su TC620 e x86 in
   `docs/manual/16_prestazioni.md` e `docs/prestazioni/`: sul TC620 1.000 tag verso 20 browser costano un quarto di
   core, 5.000 tag verso 20 browser un core, senza perdite.
 
-- **Cornici: template e manuale** (ramo 3 del piano `docs/plans/2026-10-15-cornici-di-pagina.md`).
+- **Cornici: template e manuale** (ramo 3 del piano `docs/archive/2026-10-15-cornici-di-pagina.md`).
   `homeassistant-pro` porta il navigatore delle sei pagine in `cornici/navigazione.yaml`, `tc620-sistema` la testata
   con ora, data e identità del pannello in `cornici/testata.yaml` (il titolo tradotto resta sulle pagine); il
   capitolo «Cornici» in `docs/manual/04_editor_guide.md`. Il validatore avvisa solo quando un oggetto della pagina
@@ -252,7 +263,7 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 - **L'esempio di uno script globale usa `print()`**: nasceva con `log(...)`, che negli script non esiste, e ogni
   avvio del progetto finiva con `NameError`.
 
-- **Cornici di pagina** (piano `docs/plans/2026-10-15-cornici-di-pagina.md`, ramo 2). Una testata e un piede comuni
+- **Cornici di pagina** (piano `docs/archive/2026-10-15-cornici-di-pagina.md`, ramo 2). Una testata e un piede comuni
   alle pagine che li usano: `cornici/<id>.yaml` con le due fasce (altezza e fondo) e gli oggetti in coordinate di
   pagina. Ogni pagina sceglie la predefinita del progetto (`page_layout.cornice_predefinita`), un'altra cornice o
   nessuna (`cornice: null`). Il runtime compone la pagina in un punto solo (`GET /api/synoptics/:nome?cornice=1`,
@@ -265,7 +276,7 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
   pagina scarta gli oggetti composti, così la cornice non si raddoppia. Parità editor/runtime su
   `tests/fixtures/cornici.json`.
 
-- **Oggetto «Data e ora» (`clock`)** (piano `docs/plans/2026-10-15-cornici-di-pagina.md`, ramo 1). Mostra l'orologio
+- **Oggetto «Data e ora» (`clock`)** (piano `docs/archive/2026-10-15-cornici-di-pagina.md`, ramo 1). Mostra l'orologio
   del dispositivo che apre la pagina, rinfrescato ogni secondo: formati `ora`, `data`, `data_ora`, `giorno` e
   `personalizzato` (`clock_modello`, segnaposti `%d %m %Y %y %H %M %S %A %a %B %b %%`), secondi a scelta, giorni e
   mesi in italiano, inglese e spagnolo (le altre lingue in inglese). Il testo lo scrive una funzione pura gemella,

@@ -53,14 +53,14 @@ use crate::session::{role_allowed, Role, SharedSession};
 pub const HOR_RES: u32 = 800;
 pub const VER_RES: u32 = 480;
 
-/// Risoluzione del display per l'intera sessione: quella della prima pagina
-/// caricata (fallback a `HOR_RES`/`VER_RES` se `width`/`height` non
-/// impostati). Chiamata solo per la prima pagina (`interpret_page`) — le
-/// pagine raggiunte per navigazione (`render_page_objects`) riusano il
-/// display già registrato, anche se il loro `width`/`height` fosse diverso:
-/// un pannello fisico reale non cambia risoluzione a ogni cambio pagina,
-/// quindi seguire quella della prima pagina è la scelta corretta, non solo
-/// la più semplice.
+/// Risoluzione del display per una pagina: la sua misura (fallback a
+/// `HOR_RES`/`VER_RES` se `width`/`height` non impostati).
+///
+/// Dal 18-10-2026 il display **segue la pagina aperta** (`render_page_objects`
+/// chiama `lvgl_display::ridimensiona`), e il backend la centra nello schermo
+/// col margine neutro. Prima la risoluzione era quella della prima pagina per
+/// tutta la sessione: sul TC620 (1280×800) una prima pagina 1280×768 lasciava
+/// due fasce, e ogni pagina alta 800 scorreva con la barra.
 fn resolve_resolution(page: &SynopticPage) -> (u32, u32) {
     let hor_res = page.width.unwrap_or(HOR_RES as f64).round() as u32;
     let ver_res = page.height.unwrap_or(VER_RES as f64).round() as u32;
@@ -10997,6 +10997,13 @@ pub fn render_page_objects(
     let mut summary = RenderSummary::default();
     let mut styles: Vec<Style> = Vec::new();
     let mut live: Vec<LiveBinding> = Vec::new();
+
+    // Il display alla misura di questa pagina, prima di creare lo schermo nuovo
+    // (che nasce alla misura del display). Alla prima pagina è già giusto.
+    let (w, h) = resolve_resolution(page);
+    if crate::lvgl_display::ridimensiona(w, h)? {
+        eprintln!("[display] pagina '{}' {w}x{h}: display ridimensionato", page.name);
+    }
 
     // Schermo precedente (se c'è già un display registrato — non c'è al
     // primissimo avvio, lv_disp_get_scr_act restituirebbe comunque lo

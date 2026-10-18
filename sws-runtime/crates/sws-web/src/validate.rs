@@ -683,6 +683,28 @@ pub fn semantic(project: &Project, pages: &[SynopticPage]) -> Vec<Finding> {
         }
     }
 
+    // ── LVGL e `size_mode` (18-10-2026) ─────────────────────────────────────
+    // Il viewer LVGL disegna le pagine 1:1 e le centra nello schermo: è
+    // `fixed`. In `ratio` e `fluid` il web scala la pagina a riempire, LVGL no,
+    // e la divergenza era silenziosa (seme `2026-09-24-lvgl-ignora-size-mode`).
+    // La scalatura vera su LVGL è un lavoro a parte; intanto lo si dice.
+    let lvgl = matches!(
+        project.target.as_ref().map(|t| t.kind),
+        Some(ProjectTargetKind::LvglFramebuffer | ProjectTargetKind::LvglWayland)
+    );
+    if let Some(modo) = project.page_layout.as_ref().map(|l| l.size_mode) {
+        if lvgl && modo != sws_core::project::PageSizeMode::Fixed {
+            let nome = if modo == sws_core::project::PageSizeMode::Ratio { "ratio" } else { "fluid" };
+            out.push(Finding::warn(
+                "page_layout.size_mode",
+                format!("il progetto è per LVGL e la dimensione delle pagine è `{nome}`"),
+                "sul pannello LVGL le pagine si disegnano alla loro misura, centrate: non si \
+                 allargano a riempire lo schermo come nel browser. Usa `fixed` con le misure del \
+                 pannello, oppure aspettati la pagina alla sua misura",
+            ));
+        }
+    }
+
     // ── Tipi struttura (Fase 1b) ────────────────────────────────────────────
     let mut visti_tipo: HashSet<&str> = HashSet::new();
     for td in &project.types {
@@ -2510,6 +2532,25 @@ alarms: []
         let unica: SynopticPage =
             serde_yaml::from_str("id: pg1\nname: Unica\nobjects: []").unwrap();
         assert!(!cita(&semantic(&p, &[unica]), "non si esce"));
+    }
+
+    /// LVGL disegna 1:1: in `ratio` e `fluid` la pagina non riempie lo schermo
+    /// come nel browser, e lo si dice (seme `2026-09-24-lvgl-ignora-size-mode`).
+    #[test]
+    fn su_lvgl_ratio_e_fluid_si_dicono() {
+        let fa = |modo: &str, kind: &str| {
+            let prog = format!(
+                "meta: {{ name: p, version: '1' }}\npage_layout: {{ size_mode: {modo} }}\ntarget: {{ kind: {kind} }}\ntags: []\nsources: []\nalarms: []\n"
+            );
+            let p: Project = serde_yaml::from_str(&prog).unwrap();
+            semantic(&p, &[])
+        };
+        for modo in ["ratio", "fluid"] {
+            let rs = fa(modo, "lvgl_wayland");
+            assert!(rs.iter().any(|f| f.path == "page_layout.size_mode" && f.message.contains(modo)), "{modo}: {rs:?}");
+        }
+        assert!(!fa("fixed", "lvgl_wayland").iter().any(|f| f.path == "page_layout.size_mode"));
+        assert!(!fa("ratio", "web").iter().any(|f| f.path == "page_layout.size_mode"));
     }
 
     /// CasaDomotica, 18-10-2026: il navigatore sta nel piede della cornice, la

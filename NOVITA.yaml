@@ -21,8 +21,8 @@ versioni:
     voci:
       - it: "Finestre: una pagina si apre sopra la corrente, modale o non modale e trascinabile, con parametri, così la stessa finestra serve per la pompa 1 e la pompa 2."
         en: "Windows: a page opens over the current one, modal or non-modal and draggable, with parameters, so the same window serves pump 1 and pump 2."
-      - it: "Cornici di pagina: testata e piede comuni a più pagine, modificati una volta sola, con data e ora, titolo e navigazione; ogni pagina usa la predefinita, un'altra o nessuna."
-        en: "Page frames: a header and footer shared by many pages, edited once, with date and time, title and navigation; each page uses the default, another one or none."
+      - it: "Cornici di pagina: testata e piede comuni a più pagine, modificati una volta sola, con data e ora, titolo e navigazione; ogni pagina usa la predefinita, un'altra o nessuna. L'editor ne propone una."
+        en: "Page frames: a header and footer shared by many pages, edited once, with date and time, title and navigation; each page uses the default, another one or none. The editor offers one."
       - it: "Cambia risoluzione del progetto: pagine, cornici e immagini di boot passano a un'altra misura spostando e ridimensionando gli oggetti, senza deformarli, con un annulla solo."
         en: "Change project resolution: pages, frames and boot images move to another size, repositioning and resizing objects without distorting them, with a single undo."
       - it: "Nuovo oggetto Data e ora: mostra l'orologio del pannello o del browser, ogni secondo, in formati pronti o personalizzati, con giorni e mesi nella lingua dei contenuti."

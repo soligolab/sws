@@ -1,4 +1,4 @@
-// Le cornici di pagina (15-10-2026, piano docs/plans/2026-10-15-cornici-di-pagina.md).
+// Le cornici di pagina (15-10-2026, piano docs/archive/2026-10-15-cornici-di-pagina.md).
 //
 // Nell'IDE una cornice si modifica sul canvas come una pagina: è una pagina dello
 // store con `kind: "cornice"`, come quelle di boot hanno `kind: "boot"`. Su disco
