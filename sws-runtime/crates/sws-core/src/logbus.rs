@@ -26,6 +26,52 @@ pub struct LogEvent {
     pub fields: serde_json::Map<String, serde_json::Value>,
 }
 
+// ── Il DEBUG a richiesta (18-10-2026) ────────────────────────────────────────
+//
+// Il bus dei log ha un livello suo, separato da quello dell'uscita standard e
+// del file: di base è quello del runtime (INFO, o `RUST_LOG`), e sale a DEBUG
+// per i moduli di SWS **solo finché qualcuno l'ha chiesto** — l'amministratore di
+// piattaforma che guarda il log di un pannello dall'IDE (`ws_logs_dispositivo`).
+// Il runtime registra qui come alzarlo e abbassarlo (`registra_alzatore`), perché
+// `sws-core` non dipende da `tracing-subscriber`.
+
+static ALZATORE: std::sync::OnceLock<Box<dyn Fn(bool) + Send + Sync>> = std::sync::OnceLock::new();
+static RICHIESTE: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+static DEBUG_DI_BASE: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
+/// Il runtime dice come cambiare il livello del bus, e se di base è già DEBUG.
+pub fn registra_alzatore(f: Box<dyn Fn(bool) + Send + Sync>, debug_di_base: bool) {
+    DEBUG_DI_BASE.store(debug_di_base, std::sync::atomic::Ordering::Relaxed);
+    let _ = ALZATORE.set(f);
+}
+
+/// Il livello di base è già DEBUG (`RUST_LOG`): il file li scrive.
+pub fn debug_di_base() -> bool {
+    DEBUG_DI_BASE.load(std::sync::atomic::Ordering::Relaxed)
+}
+
+/// Una richiesta di DEBUG: finché vive, il bus riceve il DEBUG di SWS.
+pub struct RichiestaDebug(());
+
+impl Drop for RichiestaDebug {
+    fn drop(&mut self) {
+        if RICHIESTE.fetch_sub(1, std::sync::atomic::Ordering::AcqRel) == 1 {
+            if let Some(f) = ALZATORE.get() {
+                f(false);
+            }
+        }
+    }
+}
+
+pub fn richiedi_debug() -> RichiestaDebug {
+    if RICHIESTE.fetch_add(1, std::sync::atomic::Ordering::AcqRel) == 0 {
+        if let Some(f) = ALZATORE.get() {
+            f(true);
+        }
+    }
+    RichiestaDebug(())
+}
+
 /// Default ring-buffer + broadcast capacity. Sized for ~30 s at 30 ev/s
 /// or a slow boot trace, whichever comes first.
 pub const DEFAULT_LOG_CAPACITY: usize = 1000;
@@ -74,6 +120,24 @@ impl LogBus {
 
 #[cfg(test)]
 mod tests {
+
+    /// Il DEBUG a richiesta (18-10-2026): si alza alla prima richiesta, si
+    /// abbassa quando cade l'ultima, non a ogni richiesta.
+    #[test]
+    fn il_debug_si_alza_alla_prima_richiesta_e_si_abbassa_all_ultima() {
+        use std::sync::{Arc, Mutex};
+        let visti: Arc<Mutex<Vec<bool>>> = Arc::default();
+        let v = visti.clone();
+        registra_alzatore(Box::new(move |a| v.lock().unwrap().push(a)), false);
+        let a = richiedi_debug();
+        let b = richiedi_debug();
+        drop(a);
+        assert_eq!(*visti.lock().unwrap(), vec![true]);
+        drop(b);
+        assert_eq!(*visti.lock().unwrap(), vec![true, false]);
+        assert!(!debug_di_base());
+    }
+
     use super::*;
 
     fn ev(msg: &str) -> LogEvent {

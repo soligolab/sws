@@ -2048,7 +2048,9 @@
   "logPanel": {
     "errorLoadingHistory": "Errore caricamento storico.",
     "download": "⬇ Scarica",
-    "insufficientPermissionTheLogPanel": "Permesso insufficiente: il pannello log è disponibile da Operator in su."
+    "insufficientPermissionTheLogPanel": "Permesso insufficiente: il pannello log è disponibile da Operator in su.",
+    "debugDispositivo": "DEBUG dispositivo",
+    "debugDispositivoTitolo": "Ricevi anche le righe DEBUG del dispositivo collegato (solo amministratore di piattaforma): sono molte, e nel cloud passano dal tunnel del pannello."
   },
   "viewerMsg": {
     "noActiveProject": "Nessun progetto attivo",

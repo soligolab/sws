@@ -584,6 +584,13 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 
 ### Changed
 
+- **Archiviare chiede gli stessi permessi di eliminare** (decisione del maintainer, 18-10-2026): prima era solo Admin,
+  più stretto della cancellazione, che è più distruttiva. Le rotte stanno accanto a `DELETE /api/projects/…`.
+- **Il DEBUG del pannello nell'IDE, per l'amministratore di piattaforma**: casella «DEBUG dispositivo» nel cassetto log.
+  Il relay passa `livello=debug` al dispositivo solo per lui; il dispositivo, finché una richiesta è viva
+  (`logbus::richiedi_debug`), alza a DEBUG il bus dei log per i moduli `sws*` con un filtro per livello ricaricabile
+  (`reload` + `Targets` in `main.rs`) — prima il filtro globale INFO scartava il DEBUG prima di qualunque destinazione,
+  quindi non esisteva proprio. Uscita standard e file restano al livello di base.
 - **Ritirati i simboli builtin disegnati a mano** (Fase 6b del
   [piano](docs/archive/2026-10-14-motore-simboli-lib.md)). Sono stati tolti:
   - `sws-editor/src/symbols/library.tsx`, cioè il JSX dei 40;

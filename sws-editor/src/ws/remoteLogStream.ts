@@ -47,16 +47,22 @@ export function etichettaDispositivo(url: string | null, registrati: { label?: s
   }
 }
 
-function buildRemoteLogsUrl(): string {
+function buildRemoteLogsUrl(debug: boolean): string {
   const scheme = typeof window !== "undefined" && window.location.protocol === "https:" ? "wss" : "ws";
   const host   = typeof window !== "undefined" ? window.location.host : "localhost";
   const token  = getAuthToken();
-  return `${scheme}://${host}/ws/remote/logs${token ? `?token=${encodeURIComponent(token)}` : ""}`;
+  const q = new URLSearchParams();
+  if (token) q.set("token", token);
+  // Il relay lo rispetta solo per un amministratore di piattaforma.
+  if (debug) q.set("livello", "debug");
+  const qs = q.toString();
+  return `${scheme}://${host}/ws/remote/logs${qs ? `?${qs}` : ""}`;
 }
 
 export function useRemoteLogStream(): void {
   const remoteConnected = useAppStore((s) => s.remoteConnected);
   const remoteUrl        = useAppStore((s) => s.remoteUrl);
+  const debug            = useAppStore((s) => s.logDispositivoDebug);
   const appendLog        = useAppStore((s) => s.appendLog);
 
   useEffect(() => {
@@ -66,7 +72,7 @@ export function useRemoteLogStream(): void {
       return;
     }
 
-    rws = new ReconnectingWs(buildRemoteLogsUrl);
+    rws = new ReconnectingWs(() => buildRemoteLogsUrl(debug));
     const stream = rws;
     let etichetta = etichettaDispositivo(remoteUrl, []);
     api.listDevices()
@@ -78,7 +84,7 @@ export function useRemoteLogStream(): void {
         const event = JSON.parse(ev.data as string) as LogEvent;
         if (event?.ts_ms === undefined || !event?.level) return;
         // Il dispositivo filtra già; un pannello di prima manderebbe tutto.
-        if (/^(TRACE|DEBUG)$/i.test(event.level)) return;
+        if (!debug && /^(TRACE|DEBUG)$/i.test(event.level)) return;
         appendLog({ ...event, target: `${etichetta}:${event.target}` });
       } catch {
         // ignore malformed frames
@@ -91,5 +97,5 @@ export function useRemoteLogStream(): void {
       stream.destroy();
       if (rws === stream) rws = null;
     };
-  }, [remoteConnected, remoteUrl, appendLog]);
+  }, [remoteConnected, remoteUrl, debug, appendLog]);
 }

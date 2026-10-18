@@ -422,11 +422,28 @@ async fn main() -> anyhow::Result<()> {
     // Fall back to INFO so the launcher scripts and the container both produce logs out
     // of the box; power users still override with RUST_LOG=debug etc.
     let env_filter = EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info"));
+    // Il bus dei log ha un filtro suo (18-10-2026): il livello di base, che sale a
+    // DEBUG per i soli moduli di SWS finché un amministratore di piattaforma lo
+    // chiede dall'IDE (`sws_core::logbus::richiedi_debug`). Le librerie (hyper,
+    // rustls…) restano al livello di base: il loro DEBUG nel tunnel è rumore.
+    // `reload` ricalcola da sé la cache dei punti di log a ogni cambio.
+    use tracing_subscriber::{filter::{LevelFilter, Targets}, reload, Layer};
+    let base = env_filter.max_level_hint().unwrap_or(LevelFilter::INFO);
+    let filtro_bus = move |alzato: bool| {
+        let t = Targets::new().with_default(base);
+        if alzato && base < LevelFilter::DEBUG { t.with_target("sws", LevelFilter::DEBUG) } else { t }
+    };
+    let (bus_livello, bus_handle) = reload::Layer::new(filtro_bus(false));
     tracing_subscriber::registry()
-        .with(env_filter)
-        .with(fmt::layer().json())
-        .with(LogBusLayer::new(log_bus.clone()))
+        .with(fmt::layer().json().with_filter(env_filter))
+        .with(LogBusLayer::new(log_bus.clone()).with_filter(bus_livello))
         .init();
+    sws_core::logbus::registra_alzatore(
+        Box::new(move |alza| {
+            let _ = bus_handle.reload(filtro_bus(alza));
+        }),
+        base >= LevelFilter::DEBUG,
+    );
 
     // Mirror every captured event onto disk as JSONL, rotated by date.
     // Independent of the stdout fmt layer so the file survives orchestrator

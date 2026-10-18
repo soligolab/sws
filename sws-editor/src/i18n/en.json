@@ -2048,7 +2048,9 @@
   "logPanel": {
     "errorLoadingHistory": "Error loading history.",
     "download": "⬇ Download",
-    "insufficientPermissionTheLogPanel": "Insufficient permission: the log panel is available from Operator upward."
+    "insufficientPermissionTheLogPanel": "Insufficient permission: the log panel is available from Operator upward.",
+    "debugDispositivo": "Device DEBUG",
+    "debugDispositivoTitolo": "Also receive DEBUG lines from the connected device (platform administrator only): there are many, and in the cloud they go through the panel tunnel."
   },
   "viewerMsg": {
     "noActiveProject": "No active project",

@@ -227,6 +227,10 @@ del dispositivo registrato davanti al target (o l'host, se non è registrato): s
 vederle da sole. Arrivano **da INFO in su**, solo a un Admin, e finiscono anche nell'esportazione del log. Un pannello
 con una versione di prima del 18-10-2026 non le manda: va aggiornato.
 
+**Il DEBUG del dispositivo**, solo per l'**amministratore di piattaforma**: la casella «DEBUG dispositivo» nel cassetto
+log. Finché è accesa, il pannello produce anche il DEBUG dei moduli di SWS (le librerie restano al livello di base) e
+lo manda all'IDE; spegnendola, o chiudendo l'IDE, torna a INFO. Il DEBUG non finisce nel file di log del pannello.
+
 ### Il runtime non parte
 
 ```bash

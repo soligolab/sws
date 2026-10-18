@@ -467,7 +467,8 @@ Vedi [12 — GitOps](12_gitops.md) per i dettagli.
 
 ## Archiviare un progetto
 
-Dalla schermata dei progetti, sulla scheda di un progetto chiuso: **🗄 Archivia** (solo Admin). Il progetto **resta al
+Dalla schermata dei progetti, sulla scheda di un progetto chiuso: **🗄 Archivia**, con gli stessi permessi di
+eliminare un progetto (è meno distruttivo, non chiede di più). Il progetto **resta al
 suo posto**, con storico, backup e git intatti, ma sparisce dall'elenco e non si apre per sbaglio. Nel cloud non
 occupa il tetto dei progetti aperti, ma **conta nella quota di spazio**: i suoi file ci sono ancora.
 

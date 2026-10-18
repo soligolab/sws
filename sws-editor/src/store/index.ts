@@ -704,6 +704,11 @@ interface AppState {
 
   // Remote runtime bridge (relay via /ws/remote/*)
   remoteConnected: boolean;
+  /** Il DEBUG del dispositivo collegato nel log (18-10-2026): solo per
+   *  l'amministratore di piattaforma, che lo accende dal cassetto log. Il relay
+   *  ricontrolla chi chiede. */
+  logDispositivoDebug: boolean;
+  setLogDispositivoDebug: (v: boolean) => void;
   remoteUrl: string | null;
   setRemoteConnected: (connected: boolean, url?: string | null) => void;
   remoteDeployStatus: "idle" | "syncing" | "ok" | "error";
@@ -2576,6 +2581,8 @@ export const useAppStore = create<AppState>((set, get) => {
 
     remoteConnected: false,
     remoteUrl: null,
+    logDispositivoDebug: false,
+    setLogDispositivoDebug: (logDispositivoDebug) => set({ logDispositivoDebug }),
     setRemoteConnected: (connected, url = null) =>
       set({ remoteConnected: connected, remoteUrl: connected ? (url ?? null) : null }),
     remoteDeployStatus: "idle",

@@ -6,7 +6,9 @@
 //! sbaglio (`open_project` rifiuta), non occupa il tetto dei progetti aperti
 //! perché non si apre; ma **conta nella quota di spazio**, che misura le cartelle
 //! (`spazio_di_azienda`). Storico, backup e git restano intatti, e si ripristina
-//! togliendo il segno. Archiviare e ripristinare è da Admin, e finisce nell'audit.
+//! togliendo il segno. Archiviare e ripristinare chiede **gli stessi permessi di
+//! eliminare** (decisione del maintainer, 18-10-2026: è meno distruttivo, non deve
+//! chiedere di più), e finisce nell'audit.
 
 use std::path::Path;
 
@@ -42,9 +44,10 @@ pub fn e_archiviato(dir: &Path) -> bool {
     dir.join(SEGNO).exists()
 }
 
-async fn archivia_o_ripristina(s: &AppState, user: &AuthUser, azienda: &str, nome: &str, archivia: bool) -> Response {
+async fn archivia_o_ripristina(s: &AppState, user: Option<&AuthUser>, azienda: &str, nome: &str, archivia: bool) -> Response {
     let _switch = s.project_switch_lock.lock().await;
-    let p = match crate::projects::risolvi_progetto(s, Some(user), azienda, nome).await {
+    let chi = user.map(|u| u.username.clone());
+    let p = match crate::projects::risolvi_progetto(s, user, azienda, nome).await {
         Ok(p) => p,
         Err(r) => return r,
     };
@@ -57,12 +60,12 @@ async fn archivia_o_ripristina(s: &AppState, user: &AuthUser, azienda: &str, nom
                 return (StatusCode::CONFLICT, "il progetto è aperto: chiudilo prima di archiviarlo").into_response();
             }
         }
-        let segno = Archiviato { quando_ms: sws_core::now_ms(), da: user.username.clone() };
+        let segno = Archiviato { quando_ms: sws_core::now_ms(), da: chi.clone().unwrap_or_default() };
         let testo = serde_json::to_string_pretty(&segno).unwrap_or_default();
         if let Err(e) = tokio::fs::write(p.dir.join(SEGNO), testo).await {
             return (StatusCode::INTERNAL_SERVER_ERROR, format!("non archiviato: {e}")).into_response();
         }
-        s.audit.log("project.archive", Some(user.username.clone()), serde_json::json!({ "progetto": p.chiave }));
+        s.audit.log("project.archive", chi, serde_json::json!({ "progetto": p.chiave }));
         Json(serde_json::json!({ "archiviato": segno })).into_response()
     } else {
         match tokio::fs::remove_file(p.dir.join(SEGNO)).await {
@@ -70,7 +73,7 @@ async fn archivia_o_ripristina(s: &AppState, user: &AuthUser, azienda: &str, nom
             Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
             Err(e) => return (StatusCode::INTERNAL_SERVER_ERROR, format!("non ripristinato: {e}")).into_response(),
         }
-        s.audit.log("project.unarchive", Some(user.username.clone()), serde_json::json!({ "progetto": p.chiave }));
+        s.audit.log("project.unarchive", chi, serde_json::json!({ "progetto": p.chiave }));
         Json(serde_json::json!({ "archiviato": null })).into_response()
     }
 }
@@ -78,19 +81,19 @@ async fn archivia_o_ripristina(s: &AppState, user: &AuthUser, azienda: &str, nom
 /// `POST /api/projects/:azienda/:nome/archive`
 pub async fn archivia(
     State(s): State<AppState>,
-    Extension(user): Extension<AuthUser>,
+    chi: Option<Extension<AuthUser>>,
     UrlPath((azienda, nome)): UrlPath<(String, String)>,
 ) -> Response {
-    archivia_o_ripristina(&s, &user, &azienda, &nome, true).await
+    archivia_o_ripristina(&s, chi.as_ref().map(|e| &e.0), &azienda, &nome, true).await
 }
 
 /// `POST /api/projects/:azienda/:nome/unarchive`
 pub async fn ripristina(
     State(s): State<AppState>,
-    Extension(user): Extension<AuthUser>,
+    chi: Option<Extension<AuthUser>>,
     UrlPath((azienda, nome)): UrlPath<(String, String)>,
 ) -> Response {
-    archivia_o_ripristina(&s, &user, &azienda, &nome, false).await
+    archivia_o_ripristina(&s, chi.as_ref().map(|e| &e.0), &azienda, &nome, false).await
 }
 
 #[cfg(test)]

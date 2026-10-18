@@ -36,7 +36,15 @@ pub async fn ws_relay_handler(
     ws: WebSocketUpgrade,
     State(s): State<AppState>,
     Path(sub): Path<String>,
+    axum::extract::Query(q): axum::extract::Query<std::collections::HashMap<String, String>>,
+    chi: Option<axum::Extension<crate::router::AuthUser>>,
 ) -> Response {
+    // Il DEBUG del dispositivo (18-10-2026, decisione del maintainer): solo per
+    // l'amministratore di piattaforma. Il controllo sta qui, nel relay, perché è
+    // qui che si sa chi chiede; il dispositivo vede solo l'IDE, che è suo Admin.
+    let debug = sub == "logs"
+        && q.get("livello").is_some_and(|l| l.eq_ignore_ascii_case("debug"))
+        && chi.as_ref().is_some_and(|c| c.0.amministratore_piattaforma);
     // Tre e solo tre: sono i canali che mostrano lo stato **del dispositivo**.
     //
     // `ai` non c'è, e **non va aggiunto** (Q31). La tentazione è forte, perché
@@ -63,7 +71,7 @@ pub async fn ws_relay_handler(
     };
     let certificati = s.certificati.clone();
     let chiave = s.ritorno.per(&target.url);
-    ws.on_upgrade(move |local| run_relay(local, target, sub, certificati, chiave))
+    ws.on_upgrade(move |local| run_relay(local, target, sub, certificati, chiave, debug))
 }
 
 /// Codice di chiusura per «il remoto ha risposto, ma quella rotta non c'è».
@@ -127,6 +135,23 @@ const MAX_MOTIVO_BYTE: usize = 123;
 /// prima stesura diceva «probabile versione più vecchia dell'editor» a chiunque
 /// prendesse un 404, e il caso più frequente — `/ws/logs`, che su un dispositivo
 /// non c'è per scelta — si è visto raccontare una falsità al primo collaudo.
+/// L'indirizzo del canale sul dispositivo. `debug` aggiunge `livello=debug`, che
+/// il dispositivo rispetta solo su `/ws/logs`.
+fn url_remoto(ws_scheme: &str, host_path: &str, sub: &str, token: &str, debug: bool) -> String {
+    let mut q: Vec<String> = Vec::new();
+    if !token.is_empty() {
+        q.push(format!("token={token}"));
+    }
+    if debug {
+        q.push("livello=debug".to_string());
+    }
+    if q.is_empty() {
+        format!("{ws_scheme}://{host_path}/ws/{sub}")
+    } else {
+        format!("{ws_scheme}://{host_path}/ws/{sub}?{}", q.join("&"))
+    }
+}
+
 fn motivo_rifiuto(sub: &str, stato: u16) -> (bool, String, String) {
     // Dal 18-10-2026 il dispositivo espone `/ws/logs` (solo Admin): un 404 è un
     // pannello con una versione di prima, e il rimedio è aggiornarlo.
@@ -220,6 +245,7 @@ async fn run_relay(
     sub: String,
     certificati: Arc<crate::certificati::ImprontaStore>,
     chiave_ritorno: Option<String>,
+    debug: bool,
 ) {
     // Build the remote WS URL. Tokens are UUID strings (hex + hyphens) — no
     // percent-encoding needed. If the token is empty the remote is in no-auth
@@ -233,11 +259,8 @@ async fn run_relay(
         .url
         .trim_start_matches("https://")
         .trim_start_matches("http://");
-    let remote_url = if target.token.is_empty() {
-        format!("{ws_scheme}://{host_path}/ws/{sub}")
-    } else {
-        format!("{ws_scheme}://{host_path}/ws/{sub}?token={}", target.token)
-    };
+    let remote_url = url_remoto(ws_scheme, host_path, &sub, &target.token, debug);
+
 
     // La chiave di ritorno, quando il remoto è un pannello dietro il gateway da
     // cui arriva il lavoro (`gateway/ritorno.rs`).
@@ -352,7 +375,14 @@ fn axum_to_tung(msg: Message) -> Option<TMsg> {
 
 #[cfg(test)]
 mod tests {
-    use super::{accorcia, motivo_rifiuto, MAX_MOTIVO_BYTE};
+    use super::{accorcia, motivo_rifiuto, url_remoto, MAX_MOTIVO_BYTE};
+
+    #[test]
+    fn l_indirizzo_porta_il_debug_solo_se_chiesto() {
+        assert_eq!(url_remoto("ws", "h:1", "logs", "", false), "ws://h:1/ws/logs");
+        assert_eq!(url_remoto("ws", "h:1", "logs", "t", true), "ws://h:1/ws/logs?token=t&livello=debug");
+        assert_eq!(url_remoto("wss", "h:1", "tags", "t", false), "wss://h:1/ws/tags?token=t");
+    }
 
     #[test]
     fn i_log_assenti_non_sono_un_guasto() {

@@ -35,6 +35,18 @@ interface LogPanelProps {
  * substring, free-text search with `<mark>` highlight in messages.
  */
 export function LogPanel({ open, onClose, variant = "drawer" }: LogPanelProps) {
+  // Il DEBUG del dispositivo collegato (18-10-2026): la casella c'è solo per
+  // l'amministratore di piattaforma; il relay ricontrolla comunque chi chiede.
+  const remoteConnected = useAppStore((s) => s.remoteConnected);
+  const debugDispositivo = useAppStore((s) => s.logDispositivoDebug);
+  const setDebugDispositivo = useAppStore((s) => s.setLogDispositivoDebug);
+  const [ammPiattaforma, setAmmPiattaforma] = useState(false);
+  useEffect(() => {
+    if (!remoteConnected) return;
+    let vivo = true;
+    api.whoami().then((me) => { if (vivo) setAmmPiattaforma(!!(me as { amministratore_piattaforma?: boolean }).amministratore_piattaforma); }).catch(() => {});
+    return () => { vivo = false; };
+  }, [remoteConnected]);
   const { t } = useTranslation();
   const authRole  = useAppStore((s) => s.authRole);
   const logs      = useAppStore((s) => s.logs);
@@ -235,6 +247,14 @@ export function LogPanel({ open, onClose, variant = "drawer" }: LogPanelProps) {
             );
           })}
         </div>
+
+        {remoteConnected && ammPiattaforma && (
+          <label title={t("logPanel.debugDispositivoTitolo")} style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 11, color: "var(--brand-text-muted, #94a3b8)", cursor: "pointer" }}>
+            <input type="checkbox" data-testid="log-debug-dispositivo" checked={debugDispositivo}
+              onChange={(e) => setDebugDispositivo(e.target.checked)} />
+            {t("logPanel.debugDispositivo")}
+          </label>
+        )}
 
         <button onClick={onClose} title={t("logs.closeTitle")} style={btn("var(--brand-surface-2, #334155)")}>
           ✕

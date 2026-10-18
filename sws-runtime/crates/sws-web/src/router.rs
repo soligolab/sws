@@ -559,10 +559,6 @@ pub fn build(
             "/api/deploy/device-container/manage",
             post(crate::packaging::manage_device_container),
         )
-        // Archiviare un progetto (18-10-2026): resta al suo posto, nascosto e
-        // non apribile, ma conta nella quota di spazio. Vedi `archivio.rs`.
-        .route("/api/projects/:azienda/:nome/archive", post(crate::archivio::archivia))
-        .route("/api/projects/:azienda/:nome/unarchive", post(crate::archivio::ripristina))
         // Audit log (OPEN_QUESTIONS Q8): who-did-what trail, tamper-evident.
         .route("/api/audit", get(get_audit_tail))
         .route("/api/audit/verify", get(get_audit_verify))
@@ -1020,6 +1016,12 @@ pub fn build(
             "/api/projects/:azienda/:nome",
             delete(crate::projects::delete_project),
         )
+        // Archiviare un progetto (18-10-2026): resta al suo posto, nascosto e
+        // non apribile, ma conta nella quota di spazio. **Gli stessi permessi di
+        // eliminare** (decisione del maintainer): è meno distruttivo, non deve
+        // chiedere di più. Vedi `archivio.rs`.
+        .route("/api/projects/:azienda/:nome/archive", post(crate::archivio::archivia))
+        .route("/api/projects/:azienda/:nome/unarchive", post(crate::archivio::ripristina))
         .route(
             "/api/projects/:nome",
             delete(crate::projects::delete_project_implicito),
@@ -8261,8 +8263,17 @@ async fn ws_logs_handler(ws: WebSocketUpgrade, State(s): State<AppState>) -> imp
 /// `/ws/logs` sulla porta di gestione di un dispositivo (18-10-2026): lo stesso
 /// flusso, **da INFO in su**. Il DEBUG di un pannello è tanto e serve a chi
 /// lavora sul codice, non a chi guarda un deploy dall'IDE.
-async fn ws_logs_dispositivo(ws: WebSocketUpgrade, State(s): State<AppState>) -> impl IntoResponse {
-    ws.on_upgrade(move |socket| handle_logs_ws(socket, s.logs, true))
+///
+/// `?livello=debug` toglie il filtro: lo chiede il relay dell'IDE solo per un
+/// amministratore di piattaforma (`remote_relay.rs`). Chi arriva qui è comunque
+/// Admin del dispositivo.
+async fn ws_logs_dispositivo(
+    ws: WebSocketUpgrade,
+    State(s): State<AppState>,
+    Query(q): Query<std::collections::HashMap<String, String>>,
+) -> impl IntoResponse {
+    let solo_info = !q.get("livello").is_some_and(|l| l.eq_ignore_ascii_case("debug"));
+    ws.on_upgrade(move |socket| handle_logs_ws(socket, s.logs, solo_info))
 }
 
 /// Da INFO in su: niente TRACE e DEBUG.
@@ -8271,6 +8282,9 @@ fn da_info_in_su(level: &str) -> bool {
 }
 
 async fn handle_logs_ws(mut socket: WebSocket, logs: Arc<LogBus>, solo_info: bool) {
+    // Chi chiede il DEBUG lo tiene acceso finché resta collegato: alla chiusura
+    // la richiesta cade e, se era l'ultima, il bus torna al livello di base.
+    let _debug = (!solo_info).then(sws_core::logbus::richiedi_debug);
     // Snapshot first so a fresh client sees recent history before the live tail.
     for ev in logs.snapshot() {
         if solo_info && !da_info_in_su(&ev.level) {

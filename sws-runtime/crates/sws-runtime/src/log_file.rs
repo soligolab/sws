@@ -52,6 +52,11 @@ pub fn spawn_file_writer(
                 Err(RecvError::Lagged(_)) => continue,
                 Err(RecvError::Closed) => break,
             };
+            // Il DEBUG chiesto dall'IDE (18-10-2026) passa dal bus ma non va su
+            // disco: il file resta al livello di base del runtime.
+            if !sws_core::logbus::debug_di_base() && matches!(ev.level.as_str(), "DEBUG" | "TRACE") {
+                continue;
+            }
             let date = date_from_ts_ms(ev.ts_ms);
 
             let needs_open = open.as_ref().map(|(d, _)| d != &date).unwrap_or(true);
