@@ -12,6 +12,28 @@
 > resta in «Storico». Qui vive solo ciò che serve a riprendere il lavoro.
 
 
+## ▶ Riprendere da qui — programma funzioni utente, gruppi 1 e 2; SystemInfo di CasaDomotica (2026-10-18)
+
+Su `main` (nessun push). Cloud e TC620 sull'immagine `0ee6de5d`.
+
+| | |
+|---|---|
+| `917fd706` | il kiosk non si ricaricava dopo un deploy che sostituisce gli utenti (401 → baseline azzerata) |
+| `48a94418` | rilievi falsi: navigatore nella cornice, finestre popup, bottoni con azione |
+| `4509a02a` | **C8** capitolo 17 del manuale, «Sicurezza» |
+| `980db664` | programma delle funzioni utente in nove gruppi (`docs/plans/2026-10-18-programma-funzioni-utente.md`) |
+| `6d2494e8` | **gruppo 1**: il display LVGL segue la pagina (centrata), avviso `size_mode` su LVGL, l'editor propone una cornice |
+| `0ee6de5d` | **gruppo 2**: sei font uguali su web e LVGL (anche a segmenti), grassetto vero sul pannello, guardia `check_font` |
+
+**CasaDomotica, SystemInfo completa** (fuori dal repo, scritta sul VPS il 18-10 alle 15:55): pagina con gauge,
+trend e riquadri, cinque finestre modali (CPU, temperature, memoria e disco, rete, dispositivo e lingua), 11 metriche
+host nuove e tre tag calcolati. Backup in `~/sws-vps/progetti/prima-systeminfo-20261018-155523`. Non committata nel git
+del progetto; da mandare al TC620 con «Invia ora».
+
+**Prossimo: gruppo 3, trend LVGL.** Decisioni prese: preset di tempo, schermo intero, CSV scaricato dall'IDE collegato.
+Causa del tratto che oscilla trovata, lato server: `Historian::query` decima per indice (anello RAM denso + SQLite
+rado) e i secchi si calcolano dopo la decimazione. Correzione: aggregare i campioni interi prima di decimare.
+
 ## ▶ Riprendere da qui — onda 2 chiusa: banco, intestazioni di sicurezza, limiti (2026-10-17/18)
 
 Su `main` (nessun push), squash e rami eliminati. Cloud e TC620 sull'immagine `efbc6e94`.
