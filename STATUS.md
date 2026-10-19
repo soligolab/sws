@@ -12,6 +12,39 @@
 > resta in «Storico». Qui vive solo ciò che serve a riprendere il lavoro.
 
 
+## ▶ Riprendere da qui — programma funzioni utente, gruppi 1–4 chiusi (2026-10-19)
+
+Su `main`, tutto squashato e pushato. Cloud e TC620 sull'immagine `0fcc95ac`; le immagini di `8785a4b2` (scorciatoie)
+erano in costruzione alla chiusura: **se non risultano pubblicate, rifare build + pubblicazione** (procedura in
+memoria «Fine task»).
+
+| | |
+|---|---|
+| `1726ce25` | **gruppo 3** trend del pannello come il web (⤢ a schermo intero, preset 1h/8h/24h/7g), CSV del pannello dall'IDE; il tratto che oscillava era la decimazione prima dei secchi (anche web) |
+| `acdb0b8e` + `0fcc95ac` | **gruppo 4** archivio dei progetti: segno `.archiviato`, non apribile, conta nella quota di spazio, **stessi permessi di eliminare** |
+| `9c8e3108` + `0fcc95ac` | **gruppo 4** log del pannello nel log dell'IDE collegato, da INFO; **DEBUG a richiesta solo per l'amministratore di piattaforma** (bus dei log con filtro ricaricabile, file e stdout restano a INFO) |
+| `8785a4b2` | **gruppo 4** scorciatoie da un registro unico, modificabili in Preferenze IDE; Ctrl+, editor ↔ Configurazione, Alt+PagSu/PagGiù |
+
+Tutto **da collaudare** dal maintainer, insieme ai gruppi 1–2 e al lavoro del 17-18 elencato sotto.
+
+### Da sapere
+
+- **Prossima release: 2.14.0, non rc** (decisione del 18-10): al prossimo set di modifiche, versione nei quattro file,
+  `[Unreleased]` → `[2.14.0]`, tag git e immagini con `latest-arm64`. Da chiedere: cosa fare delle voci `2.13.0` di
+  NOVITA mai rilasciate; e NOVITA 2.14.0 è già a 15 voci (trend a schermo intero, archivio, log, scorciatoie non ci
+  sono — vanno scelte).
+- **CasaDomotica**: alla riapertura nell'IDE di prova risultava «unsaved» subito: una normalizzazione all'apertura
+  cambia qualcosa (forse gli alias dei font). Da guardare. La nuova SystemInfo è sul VPS, non committata nel git del
+  progetto, da mandare al TC620 con «Invia ora».
+- **Lezione della sessione**: mentre gira una build delle immagini il checkout non si tocca (due volte fermata in tempo).
+- Il test `abbinaPannelloCloud` è caduto una volta sotto carico e passa da solo: sensibile ai tempi.
+
+### Prossimo
+
+**Gruppo 5** del programma (`docs/plans/2026-10-18-programma-funzioni-utente.md`): pezzi rimasti di piani avviati —
+strumenti ramo 3, tubo che segue l'oggetto mosso da una variabile, predefiniti fasi 2-3, tag fasi dopo la 2. Ognuno
+va riletto contro il codice e chiede decisioni al maintainer.
+
 ## ▶ Riprendere da qui — programma funzioni utente, gruppi 1 e 2; SystemInfo di CasaDomotica (2026-10-18)
 
 Su `main` (nessun push). Cloud e TC620 sull'immagine `0ee6de5d`.
