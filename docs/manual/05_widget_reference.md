@@ -4,6 +4,12 @@
 
 # 05 — Riferimento Widget
 
+> Ogni oggetto che si mette in una pagina, con le sue proprietà e come si comporta a runtime. Per chi disegna le
+> pagine e cerca il nome di un campo. Dove sono nell'albero degli strumenti lo dice il
+> [capitolo 04](04_editor_guide.md#i-gruppi); qui sono ordinati per famiglia.
+>
+> Misurato sul codice il 19-10-2026.
+
 Elenco completo di tutti i widget disponibili nella palette dell'editor, con descrizione,
 proprietà configurabili e comportamento in runtime.
 
@@ -98,7 +104,7 @@ Etichetta statica o dinamica.
 |-----------|-------------|
 | `text` | Testo statico |
 | `tag` | Tag il cui valore sovrascrive il testo |
-| `format` | Formato Python (`{:.1f} bar`, `{value}`, ecc.) |
+| `format` | Formato col segnaposto `{value}` (`{value:.1f} bar`, `{value:hms}`…) — vedi [04](04_editor_guide.md#binding-tag) |
 | `font_size` | Dimensione font (px) |
 | `font_family` | Famiglia font, dall'elenco qui sotto |
 | `font_weight` | Peso: `normal`, `bold`, 100-900 (grassetto da 600) |
@@ -144,20 +150,41 @@ Immagine statica (PNG, JPG, SVG) caricata come risorsa del progetto.
 
 ### Pulsante (`button`)
 
-Elemento interattivo che scrive un valore al tag al click.
+Elemento interattivo che scrive sui tag, o fa un'azione, al click (`sws-editor/src/types/index.ts`).
 
 | Proprietà | Descrizione |
 |-----------|-------------|
 | `label` | Testo del pulsante |
 | `tag` | Tag da scrivere |
+| `button_mode` | Cosa scrive — vedi sotto. Predefinito `write` |
 | `write_value` | Valore da scrivere (`true`, `false`, numero, stringa) |
-| `on_press_fn` | Funzione Python da chiamare al click |
-| `button_action` | Azione built-in: `login`, `logout`, `navigate`, `open_faceplate`, `open_popup` (apre una pagina-finestra con i suoi parametri), `close_popup` |
+| `release_value` | Valore scritto al rilascio, in modalità `momentary` (predefinito `false`) |
+| `step`, `min`, `max` | Passo e limiti di `increment`/`decrement` |
+| `assegnazioni` | Elenco di coppie tag → valore: se non è vuoto, il clic le scrive tutte, in ordine, **al posto di** `button_mode` e `write_value` |
+| `on_press_fn`, `on_release_fn` | Funzione Python da chiamare alla pressione e al rilascio |
+| `button_action` | Azione built-in, al posto della scrittura — vedi sotto |
+| `require_confirm`, `confirm_message` | Una conferma prima di scrivere (una sola per tutte le assegnazioni) |
+| `critical`, `require_reason` | Comando critico: chiede di nuovo la password e, se richiesto, un motivo che finisce nell'audit |
+| `min_role`, `min_role_effect` | Ruolo minimo per usarlo; sotto, il pulsante si disabilita (`disable`, predefinito) o sparisce (`hide`) |
 
-**Azioni built-in**:
+**`button_mode`**:
+
+| Valore | Cosa scrive |
+|---|---|
+| `write` | `write_value` |
+| `momentary` | `write_value` alla pressione, `release_value` al rilascio |
+| `toggle` | il contrario del valore attuale |
+| `set` / `reset` | `true` / `false` |
+| `increment` / `decrement` | il valore attuale ± `step`, entro `min` e `max` |
+
+**Azioni built-in** (`button_action`):
 - `login` — apre il form di autenticazione sovrapposto al sinottico
 - `logout` — disconnette l'utente
-- `navigate` — naviga a un URL (altra pagina o sinottico esterno)
+- `navigate` — apre un URL: in una scheda nuova (predefinito, il sinottico resta aperto sotto) o al suo posto
+- `open_faceplate` — apre un faceplate come finestra, con i suoi parametri
+- `open_popup` — apre una pagina-finestra con i suoi parametri; `close_popup` la chiude
+
+Modalità, assegnazioni e conferma valgono uguali sul pannello LVGL.
 
 ---
 
@@ -385,16 +412,10 @@ secondo e poi si trascina. Solo web: scarico CSV, vista espansa, cursori di misu
 
 ---
 
-### Valore / Value Display
+### Valore
 
-Visualizza il valore di un tag come testo formattato.
-
-| Proprietà | Descrizione |
-|-----------|-------------|
-| `tag` | Tag da mostrare |
-| `format` | Formato: `{:.2f}`, `{:.0f} rpm`, `{value}` |
-| `color` | Colore testo |
-| `font_size` | Dimensione font |
+Non è un tipo a parte: un valore si mostra con un [Testo](#testo-text) con `tag` e `format`, o con un
+[Riquadro KPI](#riquadro-kpi-kpi_tile) quando deve spiccare.
 
 ---
 
@@ -708,46 +729,52 @@ alarm_viewer_max_rows: 6.0
 
 ### Simbolo (`symbol`)
 
-Simbolo SVG industriale dalla libreria built-in o custom.
+Un simbolo SVG industriale dalla libreria, o uno dei simboli del progetto. La libreria ha **138 simboli** in
+quattro famiglie (`process` 68, `machines` 34, `electrical` 26, `building` 10), descritti da
+`sws-editor/public/symbols/lib/manifest.json` — lo stesso file che legge il pannello LVGL
+(`sws-core/src/simboli_lib.rs`). Gli id hanno la forma `lib:<famiglia>/<nome>`, per esempio
+`lib:process/ball-valve`.
 
 | Proprietà | Descrizione |
 |-----------|-------------|
-| `symbol_id` | ID simbolo dalla libreria |
-| `state_tag` | Tag che controlla lo stato (truthy = acceso/in marcia) |
-| `alarm_tag` | Tag che forza lo stato di allarme |
-| `state_off_color` | Colore stato spento/fermo |
-| `state_on_color` | Colore stato acceso/in marcia — **solo sui simboli disegnati**, vedi sotto |
-| `state_alarm_color` | Colore stato allarme |
+| `symbol_id` | Il simbolo |
+| `state_tag` | Tag dello stato: spento, acceso, o la voce di `symbol_states` che corrisponde |
+| `alarm_tag` | Tag che forza lo stato di allarme: vince su tutto |
+| `state_off_color`, `state_on_color`, `state_alarm_color` | I colori dei tre stati |
+| `symbol_states` | Mappa valore → stato (valore esatto o intervallo, come in `text_list`): ogni voce colora il simbolo, può lampeggiare e mostrare un'etichetta sotto |
+| `symbol_parts` | Le **parti vive** del disegno, ognuna col suo tag — vedi sotto |
+| `symbol_spin`, `symbol_spin_tag`, `symbol_spin_s` | Rotazione continua: sempre, quando lo stato è acceso, o quando un tag è vero; periodo in secondi (predefinito 2) |
+| `symbol_body_color`, `symbol_content_color`, `symbol_volume`, `symbol_outline_color`, `symbol_outline_width`, `symbol_blink_ms`, `symbol_level_transition_ms` | Sovrascrivono, per questo simbolo, lo **stile del progetto** (Configurazione → Progetto → Stile) |
+| `command_tag` | Se presente, anche vuoto, il simbolo **comanda** — vedi sotto |
 
-**Simboli built-in disponibili**:
+**Tutti i simboli cambiano colore.** Fino al 14-10-2026 la libreria aveva 40 simboli di due specie, e 11 tenevano i
+propri colori; quei 40 sono stati ridisegnati, e ognuno ha nella libreria nuova il suo sostituto (`replaces` nel
+manifesto). Un progetto vecchio che usa un id di allora apre il simbolo nuovo, sul web e su LVGL. Lo stato si
+calcola con una regola sola per tutti i simboli e per i due motori (`symbols/statoSimbolo.ts`, casi in
+`tests/fixtures/stato-simbolo.json`).
 
-| Categoria | Simboli |
-|-----------|---------|
-| Pompe | Centrifuga, Peristaltica, Vuoto |
-| Valvole | On/Off, Regolatrice, Solenoide |
-| Motori | Elettrico, Riduttore |
-| Serbatoi | Verticale, Orizzontale |
-| Ventilatori | Assiale, Centrifugo |
-| Scambiatori | Tubolare, A piastre |
+**Le parti vive.** Molti disegni hanno parti che si muovono con un tag, dichiarate nel manifesto:
 
----
+| Parte | Cosa fa | Simboli che ce l'hanno |
+|---|---|---|
+| `lamp` | si accende quando il tag è vero | 27 |
+| `rotor` | gira (ventole, giranti, agitatori) | 20 |
+| `level` | mostra il livello del contenuto (serbatoi, silos) | 12 |
+| `lever` | passa da aperto a chiuso (leve, valvole) | 5 |
+| `needle` | la lancetta di uno strumento, fra `min` e `max` (predefiniti 0 e 100) | 3 |
 
-> **Attenzione: non tutti i simboli cambiano colore.** La libreria ne contiene di due specie, e la
-> palette non le distingue.
->
-> I **simboli disegnati** — pompa, valvola, motore e gli altri: 29 dei 40 in libreria — sono
-> costruiti con primitive grafiche e vengono **ricolorati** secondo `state_tag`: sono quelli per cui
-> `state_on_color` e `state_off_color` funzionano.
->
-> Gli **11 simboli importati** (`heat_exchanger`, `separator`, `reactor`, `filter`, `solar_panel`,
-> `battery`, `transmission_tower`, `home_lightning`, `garage`, `window_open` e il rimanente)
-> arrivano da librerie esterne come immagini, e **conservano i colori con cui sono disegnati**:
-> impostare `state_on_color` su uno di questi non produce nessun effetto, né nel browser né sul
-> pannello. Almeno i due motori si comportano allo stesso modo — verificato a misura il 2026-09-06.
->
-> Se serve un simbolo che cambia colore con lo stato e nessuno di quelli disegnati va bene, la
-> strada è un **simbolo personalizzato** con gli `id` degli elementi da ricolorare dichiarati:
-> vedi [04 — Guida all'Editor](04_editor_guide.md).
+**Le bocche.** 59 simboli dichiarano le bocche dove si aggancia una tubazione: trascinando il capo di una pipe
+vicino a una bocca, ci si aggancia.
+
+**«Adatta le proporzioni al disegno»** riporta il riquadro dell'oggetto alle proporzioni del simbolo.
+
+**Il simbolo che comanda.** Con `command_tag` presente (anche vuoto) o con delle `assegnazioni`, un clic sul simbolo
+scrive come un [pulsante](#pulsante-button): stesso `button_mode`, stesso `write_value`, stesse assegnazioni e stessa
+conferma. `command_tag` è separato da `state_tag` apposta: un pulsante di marcia scrive START e mostra RUNNING.
+Funziona anche sul pannello LVGL.
+
+**Simboli del progetto**: SVG caricati da Configurazione → Istanza → Risorse, salvati in `custom_symbols` del
+progetto.
 
 ---
 
@@ -848,6 +875,8 @@ Un piccolo indicatore di qualità nell'angolo superiore destro di ogni widget ch
 | Rosso (●) | `Bad` — errore comunicazione, tag non disponibile |
 | Giallo (●) | `Uncertain` — dato di qualità incerta |
 
+I colori sono quelli predefiniti, e si cambiano oggetto per oggetto:
+
 | Proprietà | Descrizione |
 |-----------|-------------|
 | `quality_dot` | Abilita/disabilita il dot (default: `true`) |
@@ -863,16 +892,33 @@ Anima il cambio di `fill`, `stroke`, `opacity`, `transform`:
 |-----------|-------------|
 | `transition_duration_ms` | Durata animazione in ms (0 = nessuna) |
 
-### Bindings universali
+### Binding attivi
 
-Permette di legare qualsiasi proprietà numerica a un tag:
+Permette di legare una proprietà dell'oggetto a un tag (sezione **Binding attivi**). Il valore è il nome del tag,
+copiato così com'è, oppure una specifica con scala lineare o espressione (`BindingSpec`, `types/index.ts`):
 
 ```yaml
 bindings:
-  fill: "tag_colore"        # fill cambia col valore del tag
-  opacity: "tag_opacita"    # opacità dinamica
-  rotation: "tag_angolo"    # rotazione dinamica
+  fill: "tag_colore"          # il colore è il valore del tag
+  opacity:                    # 0..100 del tag → 0..1 dell'opacità
+    tag: livello
+    in_min: 0
+    in_max: 100
+    out_min: 0
+    out_max: 1                # clamp: true per default
+  rotation:
+    expr: "{motore.giri} > 0 ? 45 : 0"   # un'espressione al posto della scala
 ```
+
+Le espressioni (`sws-editor/src/expr/engine.ts`) citano i tag fra graffe (`{tag.id}`) e hanno aritmetica,
+confronti, ternario e funzioni. `tag` ed `expr` si escludono.
+
+### Bad e dato vecchio
+
+| Proprietà | Descrizione |
+|-----------|-------------|
+| `bad_value_style` | `gray`: con qualità Bad l'oggetto si attenua in grigio, invece di mostrare il valore come valido |
+| `stale_after_s` | Se l'ultimo aggiornamento del tag è più vecchio di N secondi, l'oggetto si attenua ed è marcato ⌛ |
 
 ---
 
