@@ -3387,5 +3387,28 @@
       "24h": "Last 24 hours",
       "7g": "Last 7 days"
     }
+  },
+  "scorciatoie": {
+    "titolo": "Keyboard shortcuts",
+    "spiegazione": "The IDE's key combinations: «Change» and press the new one (Esc cancels). They apply in this browser, like theme and language. Arrows, wheel and mouse cannot be changed.",
+    "cambia": "Change",
+    "premi": "press the combination…",
+    "predefinita": "Default",
+    "ripristinaTutte": "Restore all",
+    "alternativa": "alternative",
+    "riservata": "The browser keeps {{combo}}: choose another one.",
+    "conflitto": "{{combo}} already belongs to «{{azione}}»: change that first.",
+    "salva": "Save the project",
+    "editorConfigurazione": "Switch between editor and Configuration",
+    "paginaSuccessiva": "Next page",
+    "paginaPrecedente": "Previous page",
+    "gruppo": {
+      "file": "File",
+      "navigazione": "Navigation",
+      "modifica": "Edit",
+      "selezione": "Selection and groups",
+      "ordine": "Order (z-order)",
+      "aiuto": "Help"
+    }
   }
 }

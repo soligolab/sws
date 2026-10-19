@@ -12,6 +12,7 @@ venga riletto come vero.
 
 | Piano | Stato | Evidenza |
 |---|---|---|
+| [2026-09-25-scorciatoie-da-tastiera.md](2026-09-25-scorciatoie-da-tastiera.md) | **fatto** il 18-10-2026, da collaudare | Registro unico delle scorciatoie, modificabili in Preferenze IDE (conflitti e combinazioni riservate), guida `?` dal registro, editor ↔ Configurazione e pagina successiva/precedente; Playwright su guida, cambio e conflitto |
 | [2026-10-03-log-del-device-nell-ide.md](2026-10-03-log-del-device-nell-ide.md) | **fatto** il 18-10-2026, da collaudare | `/ws/logs` sulla gestione del dispositivo, solo Admin e da INFO in su; righe col nome del dispositivo registrato nel log e nell'esportazione dell'IDE. Runtime `--no-admin` + IDE collegato: solo INFO e WARN |
 | [2026-10-15-archivio-dei-progetti.md](2026-10-15-archivio-dei-progetti.md) | **fatto** il 18-10-2026, da collaudare | Segno `.archiviato` nella cartella: fuori dall'elenco, non apribile, contato nella quota di spazio e non nel tetto dei progetti aperti; rotte Admin archive/unarchive, sezione «Archiviati» con Ripristina; provato via API e con Playwright |
 | [2026-10-04-trend-lvgl-come-il-web.md](2026-10-04-trend-lvgl-come-il-web.md) | **fatto** il 18-10-2026, da collaudare | Trend LVGL a schermo intero (⤢) con preset Diretta/1h/8h/24h/7g; CSV dello storico del pannello dall'IDE collegato (`/api/remote/history/export`); il tratto che oscillava era la decimazione per indice prima dei secchi (`Historian::query_interi`), web compreso. Istantanee LVGL con `--tocca`, runtime collegato a sé stesso |

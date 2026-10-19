@@ -1,5 +1,6 @@
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { azioneDi } from "@/scorciatoie/registro";
 import { api, AuthError, NoProjectError, PasswordChangeRequiredError, RuntimeUnavailableError } from "@/api/client";
 import { prefissoGateway } from "@/api/prefisso";
 import { BarraAvviso } from "@/components/BarraAvviso";
@@ -674,10 +675,18 @@ export function App() {
   // EditorShell is unmounted). preventDefault unconditionally, otherwise the
   // browser's own "Save page" dialog leaks through when nothing is dirty.
   useEffect(() => {
+    // Dal registro delle scorciatoie (18-10-2026): «salva» e «editor ↔
+    // Configurazione» sono globali, valgono anche dove l'editor è smontato.
     const handler = (e: KeyboardEvent) => {
-      if (!(e.ctrlKey || e.metaKey) || e.key.toLowerCase() !== "s") return;
-      e.preventDefault();
-      void useAppStore.getState().saveAll();
+      const az = azioneDi(e, "globale");
+      if (az === "salva") {
+        e.preventDefault();
+        void useAppStore.getState().saveAll();
+      } else if (az === "editorConfigurazione") {
+        e.preventDefault();
+        const st = useAppStore.getState();
+        st.setAppMode(st.appMode === "config" ? "edit" : "config");
+      }
     };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);

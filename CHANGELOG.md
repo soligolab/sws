@@ -236,6 +236,12 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 
 ### Added
 
+- **Scorciatoie da tastiera modificabili** (gruppo 4 del programma delle funzioni utente, seme
+  `2026-09-25-scorciatoie-da-tastiera`): registro unico `src/scorciatoie/registro.ts` (id, gruppo, combinazione
+  predefinita, contesto), da cui leggono gli ascoltatori di `EditorShell` e `App`, la guida `?` (non più un secondo
+  elenco) e la scheda nuova in Preferenze IDE, dove si cambiano con avviso di conflitto e delle combinazioni riservate
+  dal browser. Salvate in questo browser. Azioni nuove: editor ↔ Configurazione (Ctrl+,), pagina successiva/precedente
+  (Alt+PagGiù/PagSu). Ctrl e ⌘ trattati allo stesso modo ovunque; le parentesi quadre lette dal tasto fisico.
 - **Il log del pannello nel log dell'IDE collegato** (gruppo 4 del programma delle funzioni utente, seme
   `2026-10-03-log-del-device-nell-ide`). Decisione del maintainer: dal vivo, da INFO in su, solo Admin. La porta di
   gestione del dispositivo serve `/ws/logs` (`ws_logs_dispositivo`, gruppo Admin), che prima mancava di proposito per i

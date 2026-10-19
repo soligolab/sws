@@ -3387,5 +3387,28 @@
       "24h": "Ultime 24 ore",
       "7g": "Ultimi 7 giorni"
     }
+  },
+  "scorciatoie": {
+    "titolo": "Scorciatoie da tastiera",
+    "spiegazione": "Le combinazioni dell'IDE: «Cambia» e premi quella nuova (Esc annulla). Valgono in questo browser, come tema e lingua. Le frecce, la rotellina e il mouse non si cambiano.",
+    "cambia": "Cambia",
+    "premi": "premi la combinazione…",
+    "predefinita": "Predefinita",
+    "ripristinaTutte": "Ripristina tutte",
+    "alternativa": "alternativa",
+    "riservata": "{{combo}} la tiene il browser: scegline un'altra.",
+    "conflitto": "{{combo}} è già di «{{azione}}»: cambia prima quella.",
+    "salva": "Salva il progetto",
+    "editorConfigurazione": "Passa fra editor e Configurazione",
+    "paginaSuccessiva": "Pagina successiva",
+    "paginaPrecedente": "Pagina precedente",
+    "gruppo": {
+      "file": "File",
+      "navigazione": "Navigazione",
+      "modifica": "Modifica",
+      "selezione": "Selezione e gruppi",
+      "ordine": "Ordine (z-order)",
+      "aiuto": "Aiuto"
+    }
   }
 }

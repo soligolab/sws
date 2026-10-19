@@ -48,3 +48,9 @@
 - **Mac**: oggi `ctrl` vale `ctrlKey || metaKey` in alcuni ascoltatori e non in altri — da misurare.
 - Se il **viewer** (operatori) debba avere scorciatoie proprie: oggi non ne ha, ed è un perimetro
   diverso (pannello touch, kiosk).
+
+## 18-10-2026 — fatto (gruppo 4 del programma delle funzioni utente), da collaudare
+
+Decisione: anche modificabili, salvate per IDE. Registro `src/scorciatoie/registro.ts`, scheda in Preferenze IDE, guida
+generata dal registro, azioni nuove editor ↔ Configurazione e pagina successiva/precedente; manuale, capitolo 04.
+Fuori, per scelta: frecce, rotellina, mouse, zoom (gesti fissi) e le scorciatoie del viewer (perimetro diverso).

@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { SezioneScorciatoie } from "@/scorciatoie/SezioneScorciatoie";
 import { api } from "@/api/client";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { UiLangSelect } from "@/components/UiLangSelect";
@@ -291,6 +292,7 @@ export function IdePreferencesTab() {
         <UiLangSelect />
       </div>
       <MisuraIconeSection />
+      <SezioneScorciatoie />
       <AssistenteSection />
       <div style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)", lineHeight: 1.5 }}>
         Nota: tema, lingua e dimensione delle icone vivono in questo browser; l'assistente vive

@@ -15,7 +15,7 @@
 | 1 | **Lo schermo LVGL a misura** | [finestra a misura dello schermo](../archive/2026-10-17-finestra-lvgl-misura-schermo.md), [LVGL e `size_mode`](2026-09-24-lvgl-ignora-size-mode.md), proposta di una cornice alla prima pagina ([cornici](../archive/2026-10-15-cornici-di-pagina.md)) | il difetto visto sul TC620; tocca lo stesso punto (la risoluzione del display), poco codice |
 | 2 | **Font e display a segmenti** | [font](../archive/2026-10-15-font-e-display-a-segmenti.md) | si vede subito su web e pannello; LVGL oggi ha un font solo |
 | 3 | **Trend sul pannello come sul web** | [trend LVGL](../archive/2026-10-04-trend-lvgl-come-il-web.md) | parità web/LVGL, più il tratto che oscilla da capire |
-| 4 | **IDE quotidiano** | [archivio dei progetti](../archive/2026-10-15-archivio-dei-progetti.md), [log del dispositivo](../archive/2026-10-03-log-del-device-nell-ide.md), [scorciatoie](2026-09-25-scorciatoie-da-tastiera.md) | tre cose piccole e indipendenti |
+| 4 | **IDE quotidiano** | [archivio dei progetti](../archive/2026-10-15-archivio-dei-progetti.md), [log del dispositivo](../archive/2026-10-03-log-del-device-nell-ide.md), [scorciatoie](../archive/2026-09-25-scorciatoie-da-tastiera.md) | tre cose piccole e indipendenti |
 | 5 | **Pezzi rimasti di piani avviati** | [strumenti, ramo 3](2026-10-14-strumenti-simboli-comandi.md), [tubazioni, punto 6 di B](2026-10-15-tubazioni-bocche-e-stili.md), [predefiniti, fasi 2-3](2026-09-30-predefiniti-espliciti.md), [tag, fasi dopo la 2](2026-09-21-gestione-tag-oggetto-unico.md) | ognuno ha già un piano: va riletto contro il codice di oggi |
 | 6 | **Dispositivi di campo** | [configuratore dei moduli](2026-10-04-configuratore-moduli.md), [Modbus TCP senza bus](2026-10-06-modbus-tcp-senza-bus-e-trasporto-nel-catalogo.md) | stessa area (catalogo, sorgenti), da collaudare con l'MCM sul TC620 |
 | 7 | **Immagine di accensione** | [widget congelati](2026-09-19-boot-image-widget-congelati.md) | dipende dal rasterizzatore, indipendente dal resto |
@@ -54,3 +54,8 @@ Decisioni: base + segmenti + extra, grassetto vero, alias ricondotti e avviso pe
 
 Decisioni: preset di tempo, schermo intero, CSV dall'IDE collegato. Il tratto che oscillava era lato server (anche
 web). Vedi [il seme archiviato](../archive/2026-10-04-trend-lvgl-come-il-web.md).
+
+### Gruppo 4 — fatto il 18-10-2026, da collaudare
+
+Archivio dei progetti (con i permessi di eliminare, contato nella quota di spazio), log del pannello nell'IDE (INFO;
+DEBUG a richiesta per l'amministratore di piattaforma), scorciatoie modificabili.

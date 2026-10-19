@@ -476,6 +476,27 @@ In fondo all'elenco, **Archiviati (N)** li mostra con la data e chi li ha archiv
 progetti, **✕** lo cancella. Un progetto aperto non si archivia: va chiuso prima. Duplicando un archiviato, la copia
 nasce viva. Archiviare e ripristinare finiscono nell'audit (`project.archive`, `project.unarchive`).
 
+## Scorciatoie da tastiera
+
+`?` sul canvas apre la guida, con le combinazioni in uso. Si cambiano in **Configurazione → IDE → Preferenze IDE →
+Scorciatoie da tastiera**: «Cambia», poi la combinazione nuova (Esc annulla); «Predefinita» o «Ripristina tutte» per
+tornare indietro. Valgono in questo browser, come tema e lingua. La scheda rifiuta le combinazioni che il browser si
+tiene (Ctrl+W, Ctrl+T, Ctrl+N, Ctrl+Q, Ctrl+PagSu/PagGiù) e quelle già usate da un'altra azione, dicendo quale.
+
+| Azione | Predefinita |
+|---|---|
+| Salva il progetto | Ctrl+S |
+| Passa fra editor e Configurazione | Ctrl+, |
+| Pagina successiva / precedente | Alt+PagGiù / Alt+PagSu |
+| Annulla / Ripristina | Ctrl+Z / Ctrl+Y (o Ctrl+Shift+Z) |
+| Copia, taglia, incolla, duplica | Ctrl+C, Ctrl+X, Ctrl+V, Ctrl+D |
+| Elimina selezione | Canc (o Backspace) |
+| Seleziona tutto, raggruppa | Ctrl+A, Ctrl+G |
+| Avanti, primo piano, indietro, in fondo | Ctrl+], Ctrl+Shift+], Ctrl+[, Ctrl+Shift+[ |
+
+Sul Mac Ctrl è ⌘. Frecce (1 px, con Shift un passo di griglia), rotellina, mouse e zoom (Ctrl+0, Ctrl+Shift+0) sono
+gesti fissi.
+
 ## Undo / Redo
 
 - **Ctrl+Z** — undo (fino a 200 step)

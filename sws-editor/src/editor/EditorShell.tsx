@@ -1,5 +1,6 @@
 import { createContext, lazy, Suspense, useCallback, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { ProprietaFinestra } from "@/finestre/ProprietaFinestra";
+import { azioneDi, righeDalRegistro } from "@/scorciatoie/registro";
 import { FAMIGLIE, cssFamiglia, famigliaDi } from "@/font/famiglie";
 import { DialogoRisoluzione } from "@/scala/DialogoRisoluzione";
 import { ProprietaFasce, SceltaCornice } from "@/cornici/ProprietaCornice";
@@ -544,18 +545,21 @@ export function EditorShell() {
       if (inField) return;
       const ctrl = e.ctrlKey || e.metaKey;
       const ids  = useAppStore.getState().selectedObjectIds;
-      if (e.key === "Delete" || e.key === "Backspace") {
+      // Le scorciatoie dal registro (18-10-2026): la combinazione si legge lì,
+      // e la può cambiare l'utente nelle Preferenze IDE. Restano scritte qui
+      // solo le frecce, che sono un gesto e non una combinazione.
+      const az = azioneDi(e, "editor");
+      if (az === "elimina" || az === "eliminaAlt") {
         if (cancellaWaypointScelto()) { e.preventDefault(); return; }
         if (ids.length === 0) return;
         e.preventDefault(); deleteSelection();
-      } else if (ctrl && (e.key === "z" || e.key === "Z") && !e.shiftKey) {
+      } else if (az === "annulla") {
         e.preventDefault(); undo();
-      } else if ((ctrl && (e.key === "y" || e.key === "Y")) ||
-                 (ctrl && e.shiftKey && (e.key === "z" || e.key === "Z"))) {
+      } else if (az === "ripeti" || az === "ripetiAlt") {
         e.preventDefault(); redo();
-      } else if (ctrl && (e.key === "c" || e.key === "C") && ids.length > 0) {
+      } else if (az === "copia" && ids.length > 0) {
         e.preventDefault(); copySelection();
-      } else if (ctrl && (e.key === "x" || e.key === "X")) {
+      } else if (az === "taglia") {
         e.preventDefault();
         const cell = useAppStore.getState().selectedCell;
         if (cell) {
@@ -594,7 +598,7 @@ export function EditorShell() {
         }
         // Fall back to cutting the page-level selection.
         if (ids.length > 0) { copySelection(); deleteSelection(); }
-      } else if (ctrl && (e.key === "v" || e.key === "V")) {
+      } else if (az === "incolla") {
         e.preventDefault();
         const cell = useAppStore.getState().selectedCell;
         if (cell) {
@@ -627,19 +631,30 @@ export function EditorShell() {
             pasteClipboard();
           }
         }
-      } else if (ctrl && (e.key === "d" || e.key === "D") && ids.length > 0) {
+      } else if (az === "duplica" && ids.length > 0) {
         e.preventDefault(); duplicateSelection();
-      } else if (ctrl && e.key === "a") {
+      } else if (az === "selezionaTutto") {
         e.preventDefault();
         const state = useAppStore.getState();
         const page = state.pages.find((p) => p.id === state.currentPageId);
         if (page && page.objects.length > 0) selectMany(page.objects.map((o) => o.id));
-      } else if (ctrl && (e.key === "g" || e.key === "G") && ids.length >= 2) {
+      } else if (az === "raggruppa" && ids.length >= 2) {
         e.preventDefault(); groupObjects(ids);
-      } else if (ctrl && e.key === "]" && ids.length === 1) {
-        e.preventDefault(); reorderObject(ids[0], e.shiftKey ? "front" : "forward");
-      } else if (ctrl && e.key === "[" && ids.length === 1) {
-        e.preventDefault(); reorderObject(ids[0], e.shiftKey ? "back" : "backward");
+      } else if ((az === "avanti" || az === "inPrimoPiano") && ids.length === 1) {
+        e.preventDefault(); reorderObject(ids[0], az === "inPrimoPiano" ? "front" : "forward");
+      } else if ((az === "indietro" || az === "inFondo") && ids.length === 1) {
+        e.preventDefault(); reorderObject(ids[0], az === "inFondo" ? "back" : "backward");
+      } else if (az === "paginaSuccessiva" || az === "paginaPrecedente") {
+        // Fra le pagine dell'albero (finestre comprese: nell'editor si
+        // modificano), nell'ordine in cui le mostra.
+        e.preventDefault();
+        const state = useAppStore.getState();
+        const elenco = paginePerNavigazione(state.pages);
+        const i = elenco.findIndex((p) => p.id === state.currentPageId);
+        if (elenco.length > 1 && i >= 0) {
+          const j = (i + (az === "paginaSuccessiva" ? 1 : elenco.length - 1)) % elenco.length;
+          state.setCurrentPage(elenco[j].id);
+        }
       } else if (!ctrl && ids.length > 0 &&
                  (e.key === "ArrowLeft" || e.key === "ArrowRight" ||
                   e.key === "ArrowUp"   || e.key === "ArrowDown")) {
@@ -660,7 +675,7 @@ export function EditorShell() {
             state.updateObject(id, translateObject(obj, dx, dy));
           });
         }
-      } else if (e.key === "?" || (e.shiftKey && e.key === "?")) {
+      } else if (az === "guida") {
         setHelpOpen((v) => !v);
       }
     };
@@ -1074,7 +1089,10 @@ export function EditorShell() {
 
 // ── Keyboard shortcut help overlay ───────────────────────────────────────────
 
-const SHORTCUTS = [
+// I gesti fissi, che non sono combinazioni e non si cambiano. Le combinazioni
+// vengono dal registro (`scorciatoie/registro.ts`, 18-10-2026), con quelle in
+// uso: la guida non può più dire una cosa e la tastiera farne un'altra.
+const GESTI_FISSI = [
   ["shortcut.navCanvas", ""],
   ["Ctrl + rotella",    "shortcut.zoomCursor"],
   ["Rotella",           "shortcut.panV"],
@@ -1086,28 +1104,11 @@ const SHORTCUTS = [
   ["Click",             "shortcut.selectObj"],
   ["Shift+click",       "shortcut.toggleSel"],
   ["Drag su sfondo",    "shortcut.rubberBand"],
-  ["Ctrl+A",            "shortcut.selectAll"],
-  ["shortcut.edit", ""],
-  ["Canc / Backspace",  "shortcut.deleteSel"],
-  ["Ctrl+C",            "shortcut.copy"],
-  ["Ctrl+X",            "shortcut.cut"],
-  ["Ctrl+V",            "shortcut.paste"],
-  ["Ctrl+D",            "shortcut.duplicate"],
-  ["Ctrl+Z",            "shortcut.undo"],
-  ["Ctrl+Y",            "shortcut.redo"],
   ["Frecce",            "shortcut.move1px"],
   ["Shift+Frecce",      "shortcut.moveGrid"],
   ["Shift + drag angolo", "shortcut.resizeAspect"],
-  ["Z-order", ""],
-  ["Ctrl+]",            "shortcut.bringForward"],
-  ["Ctrl+Shift+]",      "shortcut.bringFront"],
-  ["Ctrl+[",            "shortcut.sendBackward"],
-  ["Ctrl+Shift+[",      "shortcut.sendBack"],
-  ["shortcut.groups", ""],
-  ["Ctrl+G",            "shortcut.group"],
-  ["shortcut.other", ""],
-  ["?",                 "shortcut.toggleHelp"],
 ];
+
 
 function ShortcutHelp({ onClose }: { onClose: () => void }) {
   const { t } = useTranslation();
@@ -1137,7 +1138,7 @@ function ShortcutHelp({ onClose }: { onClose: () => void }) {
         </div>
         <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
           <tbody>
-            {SHORTCUTS.map(([key, desc]) =>
+            {[...GESTI_FISSI, ...righeDalRegistro()].map(([key, desc]) =>
               desc === "" ? (
                 <tr key={key}>
                   <td colSpan={2} style={{ color: "var(--brand-text-subtle, #94a3b8)", fontWeight: 700, fontSize: 10,
