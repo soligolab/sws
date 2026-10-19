@@ -12,6 +12,25 @@
 > resta in «Storico». Qui vive solo ciò che serve a riprendere il lavoro.
 
 
+## ▶ Riprendere da qui — il manuale rifatto: capitolo 18 fatto, poi revisione e tutorial (2026-10-19)
+
+Piano: **`docs/plans/2026-10-19-manuale-rifatto.md`** (decisioni del maintainer già scritte lì).
+
+- **Fatto**: capitolo 18 «Il container e la comunicazione» (`docs/manual/18_container_e_comunicazione.md`,
+  `71194e9b`) — immagine sws-runtime nei tre ruoli, porte, flussi, tunnel, identità, TLS, variabili, diagnosi. **Da
+  rileggere** dal maintainer.
+- **Note di rilascio**: `NOVITA.yaml` 2.14.0 riscritta come cumulativa (`9fe842b2`); `docs/RELEASE_NOTES.md` è un
+  rimando.
+- **Prossimo — ramo 2**: revisione dei capitoli 01–17 contro il codice, uno per ramo (`MAIN.md` dice ancora «versione
+  documentata 2026.7.0»; il 03 va legato al 18).
+- **Poi — ramo 3, Parte II tutorial**: un impianto unico che cresce da T01 a T14, laboratorio **OpenPLC Runtime v4**
+  (Modbus TCP, S7, OPC UA) + **Mosquitto** (MQTT), ogni passo eseguito davvero e fotografato. Primo passo: misurare
+  come si installa OpenPLC Runtime v4 in container e cosa espone. Il maintainer può scegliere di partire dal tutorial
+  invece che dalla revisione.
+- **Poi — ramo 4**: le schermate dei capitoli di riferimento (elenco delle inquadrature da approvare prima).
+
+Cloud e TC620 sull'immagine `8785a4b2`. Nessun ramo aperto.
+
 ## ▶ Riprendere da qui — programma funzioni utente, gruppi 1–4 chiusi (2026-10-19)
 
 Su `main`, tutto squashato e pushato. Cloud e TC620 sull'immagine `8785a4b2` (scorciatoie comprese), pubblicata dopo
