@@ -14,9 +14,8 @@
 
 ## ▶ Riprendere da qui — programma funzioni utente, gruppi 1–4 chiusi (2026-10-19)
 
-Su `main`, tutto squashato e pushato. Cloud e TC620 sull'immagine `0fcc95ac`; le immagini di `8785a4b2` (scorciatoie)
-erano in costruzione alla chiusura: **se non risultano pubblicate, rifare build + pubblicazione** (procedura in
-memoria «Fine task»).
+Su `main`, tutto squashato e pushato. Cloud e TC620 sull'immagine `8785a4b2` (scorciatoie comprese), pubblicata dopo
+la chiusura.
 
 | | |
 |---|---|
