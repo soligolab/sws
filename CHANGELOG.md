@@ -11,6 +11,8 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 
 ## [Unreleased]
 
+## [2.14.0] — 2026-10-19
+
 ### ⚠ Compatibilità
 
 - **I simboli dei sinottici esistenti cambiano aspetto.** Gli id builtin (`pump`, `valve`, `tank`…)
