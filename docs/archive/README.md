@@ -12,6 +12,7 @@ venga riletto come vero.
 
 | Piano | Stato | Evidenza |
 |---|---|---|
+| [2026-09-19-screenshot-del-manuale.md](2026-09-19-screenshot-del-manuale.md) | **superato** il 19-10-2026 | Seme del manuale da rifare: preso in mano dal piano [manuale rifatto](../plans/2026-10-19-manuale-rifatto.md) |
 | [2026-09-25-scorciatoie-da-tastiera.md](2026-09-25-scorciatoie-da-tastiera.md) | **fatto** il 18-10-2026, da collaudare | Registro unico delle scorciatoie, modificabili in Preferenze IDE (conflitti e combinazioni riservate), guida `?` dal registro, editor ↔ Configurazione e pagina successiva/precedente; Playwright su guida, cambio e conflitto |
 | [2026-10-03-log-del-device-nell-ide.md](2026-10-03-log-del-device-nell-ide.md) | **fatto** il 18-10-2026, da collaudare | `/ws/logs` sulla gestione del dispositivo, solo Admin e da INFO in su; righe col nome del dispositivo registrato nel log e nell'esportazione dell'IDE. Runtime `--no-admin` + IDE collegato: solo INFO e WARN |
 | [2026-10-15-archivio-dei-progetti.md](2026-10-15-archivio-dei-progetti.md) | **fatto** il 18-10-2026, da collaudare | Segno `.archiviato` nella cartella: fuori dall'elenco, non apribile, contato nella quota di spazio e non nel tetto dei progetti aperti; rotte Admin archive/unarchive, sezione «Archiviati» con Ripristina; provato via API e con Playwright |
