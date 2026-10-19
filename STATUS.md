@@ -21,15 +21,24 @@ Piano: **`docs/plans/2026-10-19-manuale-rifatto.md`** (decisioni del maintainer 
   rileggere** dal maintainer.
 - **Note di rilascio**: `NOVITA.yaml` 2.14.0 riscritta come cumulativa (`9fe842b2`); `docs/RELEASE_NOTES.md` è un
   rimando.
-- **Prossimo — ramo 2**: revisione dei capitoli 01–17 contro il codice, uno per ramo (`MAIN.md` dice ancora «versione
-  documentata 2026.7.0»; il 03 va legato al 18).
+- **Ramo 2 pianificato (19-10, pomeriggio)**: tutti i capitoli misurati contro il codice e il lavoro scritto per
+  ciascuno nel piano. Diciassette rami, uno per capitolo, nell'ordine indicato lì; riscrittura piena solo per 09, 12
+  e 13. Le tre bugie più gravi: il **09** dice che l'autenticazione è opzionale (dal 06-10 un runtime senza utenti è
+  **chiuso** e mostra il codice di abbinamento), tre rotte del **13** non esistono con quel nome, e i conteggi dei
+  simboli sono sbagliati in quattro punti (22 o 40 contro 138).
 - **Poi — ramo 3, Parte II tutorial**: un impianto unico che cresce da T01 a T14, laboratorio **OpenPLC Runtime v4**
   (Modbus TCP, S7, OPC UA) + **Mosquitto** (MQTT), ogni passo eseguito davvero e fotografato. Primo passo: misurare
   come si installa OpenPLC Runtime v4 in container e cosa espone. Il maintainer può scegliere di partire dal tutorial
   invece che dalla revisione.
 - **Poi — ramo 4**: le schermate dei capitoli di riferimento (elenco delle inquadrature da approvare prima).
 
-Cloud e TC620 sull'immagine `8785a4b2`. Nessun ramo aperto.
+Cloud e TC620 sull'immagine `8785a4b2`.
+
+**Un ramo aperto**: `fix/scala-da-proposto` (`b2fc2c2d`, 19-10 ore 09:15, non pushato) — il «Da» proposto dal dialogo
+«Cambia risoluzione» è lo schermo (cornici e boot, poi il predefinito del progetto) e non più la misura più
+frequente, che in un progetto con molte modali 800×600 faceva vincere le modali. Quattro file, test compreso; non
+tocca niente di quello che è arrivato su `main` nel frattempo. Manca solo la conferma a schermo del maintainer per
+chiuderlo.
 
 ## ▶ Riprendere da qui — programma funzioni utente, gruppi 1–4 chiusi (2026-10-19)
 
