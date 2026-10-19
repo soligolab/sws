@@ -2,8 +2,10 @@
 
 **Soligo Web SCADA** è una piattaforma SCADA open-source, web-based, progettata per hardware industriale embedded ARM64. Questo manuale copre installazione, configurazione, utilizzo operativo e deploy.
 
-> **Versione documentata**: 2026.7.0 (PoC)
 > **Licenza**: AGPL-3.0 — © Soligo Lab
+>
+> Ogni capitolo dice in testa per chi è e quando è stato misurato sul codice: è quel timbro, non un numero di
+> versione qui, a dire quanto è aggiornato.
 
 ---
 
@@ -13,7 +15,7 @@
 |---|----------|-------------|
 | [01](01_overview.md) | **Panoramica** | Cos'è SWS, funzionalità chiave, architettura ad alto livello |
 | [02](02_quickstart.md) | **Quick Start** | Installazione, primo avvio, accesso all'interfaccia |
-| [03](03_architecture.md) | **Architettura** | Crate Rust, dual-port 8443/8444, stack tecnico |
+| [03](03_architecture.md) | **Architettura** | I 18 crate Rust, le porte di un runtime, il flusso dei dati, la forma del progetto, la SPA |
 | [04](04_editor_guide.md) | **Guida all'editor** | Editor WYSIWYG: toolbar, pannelli, workflow di progetto |
 | [05](05_widget_reference.md) | **Riferimento widget** | Tutti gli oggetti canvas con proprietà e screenshot |
 | [06](06_protocols.md) | **Protocolli** | Modbus, OPC-UA, MQTT/Sparkplug B, S7, EtherNet/IP, HomeAssistant |
@@ -32,27 +34,16 @@
 
 ---
 
-## Prerequisiti rapidi
+## Prerequisiti e porte
 
 | Scenario | Requisiti |
 |----------|-----------|
-| **Sviluppo locale** | Rust ≥ 1.75, Node 20, pnpm 9, Python 3.10+ |
-| **Avvio rapido (container)** | Podman (rootless), vedi `deploy/container/install-container.sh` |
-| **Deploy su device** | Linux ARM64 (Yocto o generico) oppure x86_64, systemd |
+| **Sviluppo locale** | Rust ≥ 1.88, Node 22, pnpm 9, Python 3 con gli header (`python3-dev`, per PyO3) |
+| **Pannello o server** | Podman rootless e systemd, Linux ARM64 o x86_64 — vedi `deploy/container/install-container.sh` |
 
----
-
-## Porte di default
-
-Il runtime è **mono-progetto** (un solo processo `sws-runtime` serve viewer, IDE e plugin) e
-parte in **HTTP** finché non si abilita il TLS da *Configurazione → Stato → Certificato TLS*.
-
-| Porta | Ruolo | Avviata da |
-|-------|-------|------------|
-| `8443` | Viewer operatori (RuntimeViewer) | `start_runtime.sh` |
-| `8444` | Admin IDE + API admin completa | `start_runtime.sh` |
-| `8460` | IDE editor stand-alone (nessun viewer) | `start_editor.sh` su PC sviluppatore |
-| `8080` / `8090` | Companion HTTP (accettazione certificato) | solo quando il TLS è attivo |
+Le porte (8443 viewer, 8444 gestione, 8080 per il certificato, 8460/8090 per l'IDE su un PC, 443 nel cloud), cosa
+aprire sul firewall di un impianto e chi parla con chi sono nel
+[capitolo 18, §4](18_container_e_comunicazione.md#4-le-porte).
 
 > **Non esiste un'istanza aperta a tutti.** Un pannello senza utenti è **chiuso** e mostra un
 > codice di abbinamento; un'IDE appena installata stampa all'avvio un codice di primo accesso.
@@ -65,5 +56,6 @@ parte in **HTTP** finché non si abilita il TLS da *Configurazione → Stato →
 - [Repo GitHub](https://github.com/soligolab/sws)
 - [CHANGELOG](../../CHANGELOG.md) — cronologia delle modifiche
 - [Decisioni architetturali](../adr/) — ADR
-- [Domande aperte](../OPEN_QUESTIONS.md) — decisioni differite
+- [Piani](../plans/README.md) — il lavoro in corso e le decisioni ancora da prendere
+- [Domande aperte](../OPEN_QUESTIONS.md) — l'indice storico, congelato dal 18-09-2026
 - [Status sessione](../../STATUS.md) — stato corrente del PoC

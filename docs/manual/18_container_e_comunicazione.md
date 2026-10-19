@@ -532,7 +532,7 @@ richieste per indirizzo valgono su tutte le porte: [capitolo 17](17_sicurezza.md
 | Immagine e build | `deploy/container/Containerfile.*`, `scripts/build_container.sh`, `scripts/build_container_x86_64.sh` |
 | Pannello | `deploy/container/sws-runtime.container`, `sws-lvgl-viewer.container`, `install-container.sh`, `immagini.sh` |
 | Cloud | `deploy/vps/` (quadlet, `traefik/`, `sistema/`), `sws-web/src/gateway/` |
-| Avvio, porte, log | `sws-runtime/src/main.rs` (listener, mDNS, filtri del log), `sws-web/src/router.rs` (`build`, `build_runtime_inner`, `deploy_only_app`) |
+| Avvio, porte, log | `sws-runtime/crates/sws-runtime/src/main.rs` (listener, mDNS, filtri del log), `sws-web/src/router.rs` (`build`, `build_runtime_inner`, `deploy_only_app`) |
 | Tunnel | `sws-web/src/tunnel/` (`pannello.rs`, `gateway.rs`, `multiplex.rs`, `filo.rs`, `abbinati.rs`) |
 | IDE ↔ dispositivo | `sws-web/src/remote.rs`, `remote_relay.rs`, `certificati.rs`, `sws-core/src/pin_tls.rs` |
 | Aggiornamento | `sws-web/src/aggiornamento*.rs`, `conferma_aggiornamento.rs`, `quadlet.rs`, `istantanea_dati.rs` |
