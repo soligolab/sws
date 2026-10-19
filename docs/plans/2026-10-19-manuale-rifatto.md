@@ -38,3 +38,10 @@ Uno per ramo, contro il codice. Per ognuno: cosa è cambiato, cosa manca, cosa t
 Prima l'elenco delle inquadrature, capitolo per capitolo, da approvare; poi lo scatto con
 `sws-editor/e2e/screenshots.spec.ts` (`./scripts/check_e2e.sh --screenshots`). Oggi dieci schermate, quattro non
 citate da nessun capitolo.
+
+## Stato
+
+- **19-10-2026 — ramo 1 fatto**: `docs/manual/18_container_e_comunicazione.md` (540 righe), nell'indice di `MAIN.md`.
+  Verificato contro il codice punto per punto; corretti in rilettura il limite dei login (falliti, per nome utente),
+  i permessi di `/ws/logs` e il trust store di OPC UA. Da rileggere dal maintainer.
+- Prossimo: ramo 2, la revisione dei capitoli 01–17.

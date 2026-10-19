@@ -28,6 +28,7 @@
 | [15](15_multilingua.md) | **Multilingua** | Lingua UI (IT/EN) + tabella lingue di progetto, token `{{chiave}}`, cambio lingua |
 | [16](16_prestazioni.md) | **Prestazioni misurate** | Tag, client, latenza, CPU e memoria su TC620 e x86; come rifare la misura |
 | [17](17_sicurezza.md) | **Sicurezza** | Contatti e segnalazioni, protezioni attive per default (accesso, CSP, limiti, aggiornamenti), cosa manca ancora, cosa fare a mano |
+| [18](18_container_e_comunicazione.md) | **Container e comunicazione** | L'immagine sws-runtime nei suoi tre ruoli (pannello, gateway, container di progetto), porte, flussi, tunnel, identità e token, TLS, variabili, diagnosi |
 
 ---
 
