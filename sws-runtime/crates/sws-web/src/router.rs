@@ -6061,7 +6061,7 @@ async fn read_yaml_dir(dir: &std::path::Path) -> Vec<(String, String)> {
 /// chiede, con il suo nome: fino al 17-10-2026 si saltava con un `warn!` del
 /// server, e siccome il dispositivo svuota `synoptics/` prima di scrivere quelle
 /// nuove, la pagina spariva dal pannello senza che il registro del deploy ne
-/// dicesse niente (piano docs/plans/2026-10-14-revisione-ide-collaudo-wp630.md).
+/// dicesse niente (piano docs/archive/2026-10-14-revisione-ide-collaudo-wp630.md).
 async fn load_all_synoptics(dir: &std::path::Path) -> std::io::Result<Vec<SynopticPage>> {
     let mut out = Vec::new();
     let mut entries = match tokio::fs::read_dir(dir).await {
@@ -8980,7 +8980,7 @@ pub(crate) fn calcola_impronta(dir: &std::path::Path) -> anyhow::Result<String> 
     // ricette e immagini (17-10-2026). Cambiarne una cambia quello che il
     // pannello mostra, quindi il deploy non è più aggiornato; prima faceplate,
     // ricette e immagini non entravano, e un pannello con un faceplate vecchio
-    // risultava «in sync» (piano docs/plans/2026-10-14-revisione-ide-collaudo-wp630.md).
+    // risultava «in sync» (piano docs/archive/2026-10-14-revisione-ide-collaudo-wp630.md).
     // Entrano solo le cartelle che ci sono: l'impronta di un progetto che non
     // le ha resta quella di prima.
     for (cartella, estensioni) in [

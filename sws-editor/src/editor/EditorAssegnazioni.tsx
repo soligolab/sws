@@ -1,5 +1,5 @@
 // Le assegnazioni di un bottone (11-10-2026, piano
-// docs/plans/2026-10-11-colore-e-assegnazioni.md): «variabile = valore», una
+// docs/archive/2026-10-11-colore-e-assegnazioni.md): «variabile = valore», una
 // riga per variabile, eseguite in ordine al clic.
 //
 // Il campo del valore segue il **tipo** della variabile scelta: selettore di

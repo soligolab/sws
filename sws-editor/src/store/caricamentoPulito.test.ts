@@ -1,5 +1,5 @@
 /** «Invia ora» spediva la versione vecchia (ramo 1b del piano
- *  docs/plans/2026-10-14-revisione-ide-collaudo-wp630.md, 17-10-2026): `setPages`
+ *  docs/archive/2026-10-14-revisione-ide-collaudo-wp630.md, 17-10-2026): `setPages`
  *  normalizzava le pagine e le dichiarava comunque pulite. */
 import { describe, expect, it, vi } from "vitest";
 vi.mock("@/api/client", () => ({

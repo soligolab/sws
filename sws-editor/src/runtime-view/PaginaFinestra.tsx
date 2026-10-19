@@ -1,4 +1,4 @@
-// Una pagina aperta come finestra (P1, 17-10-2026, piano docs/plans/2026-10-17-finestre-popup.md).
+// Una pagina aperta come finestra (P1, 17-10-2026, piano docs/archive/2026-10-17-finestre-popup.md).
 //
 // Modale: sfondo scuro, Esc e clic fuori chiudono, come il popup dei faceplate.
 // Non modale: niente sfondo, la pagina sotto resta usabile; si apre centrata e si

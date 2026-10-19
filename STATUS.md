@@ -198,7 +198,7 @@ ripiego `df0e4092-arm64` e `prima-della-prova`. Prima dell'aggiornamento il tunn
 - **Lo script di Sandokan con `log`**: è contenuto di un progetto del maintainer, non codice.
   Sul WP630 fallisce a ogni avvio (`NameError: name 'log' is not defined`) e si risolve con un
   deploy di CasaDomotica, che nel cloud ha già `print`.
-- I tre difetti del [piano del 14-10](docs/plans/2026-10-14-revisione-ide-collaudo-wp630.md) —
+- I tre difetti del [piano del 14-10](docs/archive/2026-10-14-revisione-ide-collaudo-wp630.md) —
   tendina dei tag, dispositivi registrati, «Invia ora» — sono ancora tutti aperti, verificati nel
   codice di oggi.
 
@@ -523,7 +523,7 @@ ricreare alla prima richiesta.
   di plan), OPC-UA `trust_all_certs` → `false`, `/metrics`, reset di fabbrica, sandbox Python obbligatoria; **P2**
   firma immagini, SBOM, Trivy, valutazione del rischio. Proposta: P0 subito, poi plan del TLS di default.
 - Progetti locali copiati sul VPS e **verificati** (13 progetti, stessi file e byte) in `~/sws-vps/progetti/`.
-- Colore e assegnazioni (piano `docs/plans/2026-10-11-colore-e-assegnazioni.md`): tipo `color`,
+- Colore e assegnazioni (piano `docs/archive/2026-10-11-colore-e-assegnazioni.md`): tipo `color`,
   bottone con assegnazioni, sfondo pagina da variabile. Provato dal vivo (runtime di prova + browser senza schermo +
   `--istantanea` LVGL: primo disegno sì, il tocco produce le due scritture). **Non** visto: il ridisegno LVGL a un
   cambio della variabile su uno schermo vero (l'istantanea corre più veloce del tempo reale) — da vedere sul TC620.

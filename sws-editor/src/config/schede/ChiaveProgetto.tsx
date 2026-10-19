@@ -1,4 +1,4 @@
-// La chiave SSH del progetto (15-10-2026, piano docs/plans/2026-10-15-git-nel-cloud.md).
+// La chiave SSH del progetto (15-10-2026, piano docs/archive/2026-10-15-git-nel-cloud.md).
 //
 // Nel cloud il container del progetto non ha un `~/.ssh` suo, e si ricrea a ogni
 // apertura: la chiave vive in `.git/sws-ssh/` del progetto, la genera il runtime,

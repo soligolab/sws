@@ -2923,7 +2923,7 @@ pub async fn upload_project_zip(
     // Se lo ZIP ha sostituito il progetto **aperto**, i viewer lo devono sapere da
     // qui: prima il segnale arrivava solo dall'«apri» che il deploy remoto fa
     // subito dopo, e se quello falliva i file erano nuovi e nessuno ricaricava
-    // (piano docs/plans/2026-10-14-revisione-ide-collaudo-wp630.md).
+    // (piano docs/archive/2026-10-14-revisione-ide-collaudo-wp630.md).
     if s.project_dir.read().await.as_deref() == Some(target.as_path()) {
         crate::router::signal_project_changed(&s, "import");
     }

@@ -111,7 +111,7 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
   `System` unico si aggiorna solo per CPU, memoria e il proprio processo, e ci sono `sws_process_cpu_pct` e
   `sws_process_rss_bytes`.
 
-- **Deploy coerente** (i punti «da guardare anche» del piano `docs/plans/2026-10-14-revisione-ide-collaudo-wp630.md`):
+- **Deploy coerente** (i punti «da guardare anche» del piano `docs/archive/2026-10-14-revisione-ide-collaudo-wp630.md`):
   - una pagina che non si legge **ferma** il deploy e l'esportazione con il suo nome, invece di essere saltata con un
     `warn!` e sparire dal pannello;
   - uno ZIP caricato sul progetto **aperto** avvisa i viewer da sé, senza dipendere dall'«apri» che segue;
@@ -120,7 +120,7 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
   - l'impronta del progetto comprende faceplate, ricette e immagini: un pannello con un faceplate vecchio non risulta
     più «in sync». Un pannello con la versione precedente del runtime risulterà diverso finché non si aggiorna.
 
-- **IDE: dai «dispositivi registrati» ci si connette** (ramo 1a del piano `docs/plans/2026-10-14-revisione-ide-collaudo-wp630.md`).
+- **IDE: dai «dispositivi registrati» ci si connette** (ramo 1a del piano `docs/archive/2026-10-14-revisione-ide-collaudo-wp630.md`).
   Un dispositivo nato da «+ Dispositivi» ha l'utente vuoto: il campo password non compariva, l'utente si salvava solo
   uscendo dal campo (e uscendo cancellava la password), la password solo con Invio, e Connect mandava un utente vuoto.
   Ora utente e password sono campi controllati sempre visibili, Connect non si blocca per la password, Invio connette,
@@ -132,7 +132,7 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
   il progetto risulta «non salvato» e ogni deploy salva prima. Effetto visibile, scelto dal maintainer: un progetto
   appena creato da un template parte «non salvato» finché non lo si salva una volta.
 
-- **IDE: le tendine dei tag si leggono per intero** (ramo 2 del piano `docs/plans/2026-10-14-revisione-ide-collaudo-wp630.md`).
+- **IDE: le tendine dei tag si leggono per intero** (ramo 2 del piano `docs/archive/2026-10-14-revisione-ide-collaudo-wp630.md`).
   Le due tendine di `TagInput` (completamento e selettore) erano `position: absolute` dentro il campo, e il pannello
   proprietà le ritagliava: nel pannello stretto si vedeva solo la colonna del tipo (`i32`), mai il nome — anche fra i
   parametri di una finestra. Ora escono dal flusso (`components/TendinaFluttuante.tsx`: portal su `body`,
@@ -163,7 +163,7 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
   container non c'è più lo dimentica (`Regia::verifica_vivo`), risponde 503 «si sta riaprendo», e la richiesta
   successiva lo ricrea. Visto su sws.soligo.net il 15-10-2026; provato con podman vero (test `#[ignore]`).
 
-- **Git nei progetti del cloud e dei pannelli in container** (`docs/plans/2026-10-15-git-nel-cloud.md`). Non
+- **Git nei progetti del cloud e dei pannelli in container** (`docs/archive/2026-10-15-git-nel-cloud.md`). Non
   funzionava per quattro motivi: l'immagine non aveva né `git` né `ssh`; le chiavi venivano solo da `~/.ssh` del
   processo, che nel container non esiste; non c'era modo di generarne una; e un host mai visto si fermava a
   «Host key verification failed». Ora:
@@ -288,14 +288,14 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
   capitolo «Cornici» in `docs/manual/04_editor_guide.md`. Il validatore avvisa solo quando un oggetto della pagina
   **copre** un oggetto della cornice, non più per ogni oggetto dentro una fascia.
 
-- **Finestre popup generiche** (P1 dell'onda 1, piano `docs/plans/2026-10-17-finestre-popup.md`). Una pagina con
+- **Finestre popup generiche** (P1 dell'onda 1, piano `docs/archive/2026-10-17-finestre-popup.md`). Una pagina con
   `finestra: {modale, titolo?}` si apre sopra la corrente da un bottone `open_popup` (`close_popup` la chiude), con i
   parametri `finestra_parametri` sostituiti come nei faceplate (`{nome}`). Modale: sfondo, `Esc` e clic fuori
   chiudono; non modale: trascinabile dal titolo, la pagina sotto resta usabile; una alla volta. Le pagine-finestra
   escono da navigatori, tab, rotazione kiosk e `/api/pages/nav`, non hanno cornice e non risultano orfane; il viewer
   iscrive i tag della finestra. Su LVGL il bottone naviga alla pagina, e il validatore lo dice per i progetti LVGL.
 
-- **Cambia risoluzione del progetto** (piano `docs/plans/2026-10-15-scalare-tra-risoluzioni.md`). Dalle
+- **Cambia risoluzione del progetto** (piano `docs/archive/2026-10-15-scalare-tra-risoluzioni.md`). Dalle
   Impostazioni progetto, un dialogo porta pagine, cornici e immagini di boot da una misura a un'altra: scala
   uniforme (il fattore minore fra i due assi) e centrata, testi e spessori con un minimo di 9 px e 1 px, cornici con
   testata e piede ancorati ai bordi; un passo solo di cronologia. Funzioni pure in `src/scala/scalaPagina.ts`, con un
@@ -490,7 +490,7 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
   progetti di un'azienda a cui non appartieni restano separati come prima.
 - **«Salva come…»** nel menu dell'editor: una copia del progetto con un nome nuovo, e si continua a lavorare sulla
   copia. Con modifiche non salvate avvisa che la copia conterrà il progetto com'è sul disco.
-- **Variabili colore e bottoni che assegnano** (piano `docs/plans/2026-10-11-colore-e-assegnazioni.md`). Tipo
+- **Variabili colore e bottoni che assegnano** (piano `docs/archive/2026-10-11-colore-e-assegnazioni.md`). Tipo
   scalare `color`: `#rrggbb`/`#rrggbbaa` minuscolo (`#rgb` si espande), solo esadecimale, validato dal runtime in
   scrittura e in lettura; non si mappa su un protocollo di campo (MQTT sì, come testo). Un bottone può avere
   **assegnazioni** «variabile = valore» eseguite in ordine al clic al posto della sua modalità, con una conferma sola

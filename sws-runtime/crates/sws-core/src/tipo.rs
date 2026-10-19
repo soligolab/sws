@@ -56,7 +56,7 @@ pub enum TipoScalare {
     /// Millisecondi UTC dall'epoca, in un `TagValue::Int` (D7).
     DateTime,
     /// Un colore, `#rrggbb` o `#rrggbbaa` minuscolo, in un `TagValue::Str`
-    /// (11-10-2026, piano `docs/plans/2026-10-11-colore-e-assegnazioni.md`).
+    /// (11-10-2026, piano `docs/archive/2026-10-11-colore-e-assegnazioni.md`).
     /// Solo esadecimale: un nome come «rosso» che il web capisce e LVGL no
     /// sarebbe un colore diverso da uno schermo all'altro.
     Colore,

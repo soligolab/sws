@@ -72,7 +72,7 @@ pub fn politica(percorso: &str, tipo: Option<&str>, gia_dichiarata: bool) -> Opt
         return Some(RIVALIDA);
     }
     // I file di progetto che i viewer rileggono dopo un deploy (17-10-2026,
-    // piano docs/plans/2026-10-14-revisione-ide-collaudo-wp630.md): senza una
+    // piano docs/archive/2026-10-14-revisione-ide-collaudo-wp630.md): senza una
     // politica il browser può servirli dalla sua cache, e un viewer mostra la
     // versione vecchia anche con i file giusti sul disco. `no-cache`, non
     // `no-store`: si tengono, ma si rivalidano (le rotte hanno già l'ETag, Q30).

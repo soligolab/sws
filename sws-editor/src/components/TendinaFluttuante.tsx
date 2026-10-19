@@ -1,5 +1,5 @@
 // Una tendina che esce dal flusso (17-10-2026, ramo 2 del piano
-// docs/plans/2026-10-14-revisione-ide-collaudo-wp630.md).
+// docs/archive/2026-10-14-revisione-ide-collaudo-wp630.md).
 //
 // Le tendine di `TagInput` erano `position: absolute` dentro il campo, quindi le
 // ritagliava qualunque antenato con `overflow` diverso da `visible`: il pannello

@@ -3,7 +3,7 @@
 # Rigenera deploy/container/ssh_known_hosts: le chiavi pubbliche ufficiali di
 # GitHub, GitLab e Bitbucket, che l'immagine installa in /etc/ssh/ssh_known_hosts
 # perché il git dei progetti si fidi di loro senza «fiducia al primo contatto»
-# (piano docs/plans/2026-10-15-git-nel-cloud.md).
+# (piano docs/archive/2026-10-15-git-nel-cloud.md).
 #
 # Le fonti sono autenticate da HTTPS, non da un primo contatto:
 #   - GitHub:    https://api.github.com/meta (campo ssh_keys)

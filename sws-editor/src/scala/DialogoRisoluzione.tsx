@@ -1,5 +1,5 @@
 // «Cambia risoluzione del progetto…» (15-10-2026, piano
-// docs/plans/2026-10-15-scalare-tra-risoluzioni.md): sceglie Da/A e le pagine da
+// docs/archive/2026-10-15-scalare-tra-risoluzioni.md): sceglie Da/A e le pagine da
 // convertire, mostra il fattore e la fascia libera, converte con un annulla solo.
 
 import { useMemo, useState } from "react";

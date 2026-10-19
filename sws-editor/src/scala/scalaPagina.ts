@@ -1,5 +1,5 @@
 // Portare pagine e cornici da una risoluzione a un'altra (15-10-2026, piano
-// docs/plans/2026-10-15-scalare-tra-risoluzioni.md).
+// docs/archive/2026-10-15-scalare-tra-risoluzioni.md).
 //
 // Scala **uniforme**: un fattore solo, il minore fra i due assi, così niente si
 // deforma; il disegno si centra e lascia una fascia libera. Testi e spessori

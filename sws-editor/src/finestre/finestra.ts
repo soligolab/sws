@@ -1,4 +1,4 @@
-// Finestre popup generiche (P1, 17-10-2026, piano docs/plans/2026-10-17-finestre-popup.md):
+// Finestre popup generiche (P1, 17-10-2026, piano docs/archive/2026-10-17-finestre-popup.md):
 // una pagina che si apre come finestra, modale o non modale, con parametri `{nome}`
 // come i faceplate.
 
