@@ -298,6 +298,9 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
   uniforme (il fattore minore fra i due assi) e centrata, testi e spessori con un minimo di 9 px e 1 px, cornici con
   testata e piede ancorati ai bordi; un passo solo di cronologia. Funzioni pure in `src/scala/scalaPagina.ts`, con un
   test-guardia che pretende la classificazione di ogni campo numerico di `SynopticObject` (scala, posizione o fisso).
+  Il «Da» proposto è la misura dello **schermo** — cornici e immagini di boot, poi il predefinito del progetto se
+  qualche pagina lo ha ancora, e solo alla fine la più frequente: con «la più frequente» da sola un progetto con
+  molte finestre modali 800×600 proponeva quelle e lasciava fuori pagine principali, cornici e boot.
 - **L'esempio di uno script globale usa `print()`**: nasceva con `log(...)`, che negli script non esiste, e ogni
   avvio del progetto finiva con `NameError`.
 
