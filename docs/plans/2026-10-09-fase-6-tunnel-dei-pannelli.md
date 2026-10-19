@@ -113,6 +113,26 @@ proxy che intercettano, ispezione TLS. Si misura lasciando un pannello collegato
 contando le cadute. Non è un cancello — il tunnel si riconnette — ma la cadenza delle
 riconnessioni dice se il disegno va bene o va irrobustito.
 
+### Fetta 3 — lo stato al 19-10-2026 (ramo 7 del piano della chiusura dei residui)
+
+**Metà è già fatta.** Il 16-10, misurando sul WP630, il tunnel si riapriva ogni quindici minuti esatti (timeout NAT
+di 900 s senza traffico): il battito di `tunnel/pannello.rs` lo ha risolto (`2d06f80f`).
+
+**La misura c'è, dai log**: `scripts/misura_tunnel.sh` conta ogni «tunnel aperto» del pannello e gli cerca una
+causa nei 3 minuti prima — un avvio del runtime o un riavvio del gateway (journal del VPS) — e quello che resta è
+«non spiegato». Criterio di uscita (maintainer, 19-10-2026): **meno di una riapertura non spiegata al giorno, su
+sette giorni** di pannello acceso. Sul TC620, uguale al WP630:
+
+| giorno | avvio del pannello | riavvio del gateway | non spiegate |
+|---|---|---|---|
+| 16-10 | 3 | 5 | 1 (00:04 UTC, prima del battito) |
+| 17-10 | 9 | 6 | 1 (07:00 UTC, da guardare) |
+| 18-10 | 5 | 9 | 0 |
+| 19-10 | 3 | 2 | 0 |
+
+**Settimana di misura: dal 19-10 al 26-10-2026** sul TC620, ripetendo lo script alla fine. Il pannello non scrive
+niente quando il tunnel **cade** (si vede solo la riapertura): da aggiungere col battito lato gateway, a fine ramo.
+
 ## Quello che questa fase non fa
 
 Non tocca lo strato remoto (`remote.rs`): è provato che funziona così com'è. Cambia solo **dove

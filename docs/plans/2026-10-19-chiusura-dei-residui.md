@@ -293,6 +293,16 @@ non è ancora caduto», non «ho parlato con lui di recente».
 **Da fare**: un battito lato gateway, o un timeout di inattività sulla maniglia, così che
 «fermo» e «morto» si distinguano senza aspettare una richiesta vera.
 
+**E lo spegnimento annunciato** (idea del maintainer, 19-10-2026): «se il dispositivo ha l'UPS (come il TC620 e il
+WP630) allo shutdown potrebbe inviare un messaggio di disconnessione, così da segnalare al server un down causato da
+shutdown». Allo spegnimento ordinato (SIGTERM, che l'UPS rende possibile anche a corrente mancata) il pannello chiude
+il tunnel con un frame di chiusura WebSocket 1001 e motivo `spegnimento` prima di chiudere le sorgenti; il gateway lo
+registra, la console mostra il pannello **spento (annunciato)** invece che perso, e `misura_tunnel.sh` conta quella
+caduta come spiegata. Con il battito dà tre stati distinti: vivo, spento, perso.
+
+**La misura è partita il 19-10-2026** sul TC620 (`scripts/misura_tunnel.sh`, base nel piano del tunnel): 0,5
+riaperture non spiegate al giorno sui quattro giorni precedenti; si ripete il 26-10.
+
 **Quello che i test non coprono, e che va aggiunto**: il backoff di riconnessione (oggi
 `tieni_aperto`, `pannello.rs:44`, è uno `spawn` dentro una funzione che non restituisce niente —
 va estratto il calcolo dell'attesa per poterlo provare), la cadenza del battito, e il ritorno dopo
