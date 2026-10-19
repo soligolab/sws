@@ -4,7 +4,14 @@
 
 # 01 — Panoramica di SWS
 
-**Soligo Web SCADA (SWS)** è una piattaforma SCADA open-source, completamente web-based, progettata per hardware industriale embedded ARM64. Sostituisce gli SCADA tradizionali che richiedono workstation Windows con un approccio moderno: un singolo binario Rust, un browser come unico client, progetti in YAML versionati con Git.
+> Cos'è SWS e cosa sa fare, in una pagina, per chi lo incontra per la prima volta. I dettagli stanno nei capitoli
+> a cui rimanda ogni sezione.
+>
+> Misurato sul codice il 19-10-2026.
+
+---
+
+**Soligo Web SCADA (SWS)** è una piattaforma SCADA open-source, completamente web-based, progettata per hardware industriale embedded ARM64. Sostituisce gli SCADA tradizionali che richiedono workstation Windows con un approccio moderno: un singolo binario Rust in un container, un browser (o lo schermo LVGL del pannello) come client, progetti in YAML versionati con Git.
 
 ---
 
@@ -18,7 +25,7 @@ Un sistema SCADA (Supervisory Control and Data Acquisition) raccoglie dati da PL
 
 ### Protocolli di comunicazione
 
-SWS si connette nativamente ai principali PLC e sistemi di automazione industriale:
+SWS si connette nativamente ai principali PLC e sistemi di automazione industriale ([capitolo 06](06_protocols.md)):
 
 | Protocollo | Descrizione |
 |-----------|-------------|
@@ -28,6 +35,7 @@ SWS si connette nativamente ai principali PLC e sistemi di automazione industria
 | **OPC-UA server** | Espone i tag SWS come nodi OPC-UA (per integrazione con altri sistemi) |
 | **MQTT / Sparkplug B** | IoT broker; encode/decode Sparkplug B (NBIRTH, NDATA, NCMD write-back) |
 | **HomeAssistant** | WebSocket nativo HA (state_changed + call_service) |
+| **Host** | Le risorse della macchina (CPU, RAM, temperature, disco, rete) come tag in sola lettura |
 | **Siemens S7** | DB/M/I/Q areas, tipi BOOL/BYTE/INT/WORD/DINT/REAL |
 | **EtherNet/IP** | ControlLogix symbolic tag access (rseip) |
 
@@ -38,37 +46,40 @@ L'editor grafico permette di creare sinottici industriali senza scrivere codice:
 - Drag-and-drop di oggetti dal pannello laterale
 - Binding live tra oggetti e tag PLC
 - Undo/redo fino a 200 passi
-- Simboli SVG industriali integrati (22 built-in + upload custom)
-- Faceplate per motori, valvole, serbatoi
-- Widget avanzati: bar chart, pie chart, sparkline, text list, alarm viewer
-- Pipe/tubazioni multi-waypoint con animazione di flusso
+- 39 tipi di oggetto, dal rettangolo al trend, al registro dati e allo storico allarmi ([capitolo 05](05_widget_reference.md))
+- 138 simboli SVG industriali integrati, più quelli caricati dall'utente
+- Faceplate riusabili, cornici comuni alle pagine, pagine di boot
+- Tubazioni con più punti e animazione di flusso
+- Le stesse pagine sul web e sullo schermo LVGL del pannello
 
 ### Allarmi (ISA-18.2)
 
 Il sistema di allarmi segue lo standard ISA-18.2:
 
-- 4 stati: Normal → Unacknowledged → Acknowledged → Shelved
-- Condizioni multi-variabili con delay e inhibit
-- Shelving configurabile per zone operative
-- Notifiche SMTP con escalation
-- Webhook per integrazione con sistemi esterni
-- Alarm banner sempre visibile nell'interfaccia operatore
+- 4 stati ISA: normale, attivo non riconosciuto, attivo riconosciuto, rientrato non riconosciuto
+- Soglie a più livelli, banda morta, ritardo di attivazione e di rientro, tag di inibizione
+- Shelving a tempo dal visualizzatore allarmi
+- Notifiche email con escalation, e Telegram
+- Webhook: un POST HTTP verso `notify_url` all'attivazione
+- Banner, campanella e visualizzatore come oggetti da mettere nelle pagine che servono ([capitolo 07](07_alarms.md))
 
 ### Historian e Trend
 
-- Ring buffer in memoria + persistenza SQLite per ogni progetto
-- Campionamento su deadband, on-change o periodico
-- Visualizzatore trend interattivo con pan/zoom
-- Export CSV per analisi offline
-- API historian per integrazione con dashboard esterne (Grafana, ecc.)
+- Anello in memoria per tag + datastore su disco: SQLite per progetto, oppure PostgreSQL
+- Solo i tag con `history: true`, con banda morta e intervallo minimo
+- Trend interattivo con pan/zoom, sul web e su LVGL
+- Export CSV, anche dall'IDE
+- API dello storico per strumenti esterni ([capitolo 08](08_historian.md))
 
 ### Autenticazione e controllo accessi
 
-- **4 ruoli**: Admin, Supervisor, Operator, Viewer
-- **ABAC per zona**: ogni sinottico può avere requisiti di accesso differenti
+- **Abbinamento**: un pannello nuovo è chiuso e mostra un codice, finché un IDE non lo rivendica
+- **4 ruoli** degli utenti del progetto: Admin, Supervisor, Operator, Viewer
+- **Zone**: ogni sinottico può avere requisiti di accesso differenti
+- Utenti dell'installazione (chi apre l'IDE) separati da quelli del progetto
 - Password hash Argon2id (nessuna password in chiaro mai)
-- TTL sessione configurabile per utente
-- Audit log append-only con struttura a catena
+- Durata della sessione configurabile per utente
+- Audit log in sola aggiunta, a catena di hash ([capitolo 09](09_auth_rbac.md))
 
 ### GitOps integrato
 
@@ -77,7 +88,7 @@ Ogni progetto è una cartella di file YAML versionabile con Git:
 - Commit e push del progetto direttamente dall'IDE
 - Pull e rollback a versione precedente
 - Fingerprint SHA256 per verifica integrità tra dispositivi
-- Dashboard multi-device: stato, versione e fingerprint di ogni runtime
+- Dashboard multi-device: stato, versione e fingerprint di ogni runtime ([capitolo 12](12_gitops.md))
 
 ---
 
@@ -88,19 +99,19 @@ Ogni progetto è una cartella di file YAML versionabile con Git:
 │  Browser (qualsiasi dispositivo in rete)                │
 │                                                         │
 │  ┌──────────────────┐   ┌───────────────────────────┐  │
-│  │  Admin IDE       │   │  Viewer operatori         │  │
-│  │  porta 8444      │   │  porta 8443               │  │
-│  │  (ingegneria)    │   │  (sala controllo)         │  │
+│  │  IDE             │   │  Viewer operatori         │  │
+│  │  in LAN: 8444    │   │  porta 8443, o lo schermo │  │
+│  │  nel cloud: 443  │   │  del pannello (LVGL/web)  │  │
 │  └────────┬─────────┘   └──────────────┬────────────┘  │
-│           │ HTTPS REST / WSS           │               │
+│           │ HTTP(S) REST / WS(S)       │               │
 └───────────┼────────────────────────────┼───────────────┘
             │                            │
 ┌───────────┴────────────────────────────┴───────────────┐
-│              sws-runtime (binario Rust)                 │
+│              sws-runtime (binario Rust, container)      │
 │                                                         │
 │  ┌─────────────┐  ┌────────────┐  ┌─────────────────┐  │
 │  │  Tag Engine │  │  sws-auth  │  │  sws-historian  │  │
-│  │  (in-mem DB)│  │  RBAC+ABAC │  │  SQLite         │  │
+│  │  (in-mem DB)│  │  ruoli+zone│  │  SQLite / PG    │  │
 │  └──────┬──────┘  └────────────┘  └─────────────────┘  │
 │         │  plugin crates                                │
 │  ┌──────┴──────────────────────────────────────────┐   │
@@ -114,26 +125,19 @@ Ogni progetto è una cartella di file YAML versionabile con Git:
 └─────────────────────────────────────────────────────────┘
 ```
 
-### Dual-port by design
+Sul pannello lo stesso runtime apre **due porte**: la 8443 per gli operatori, la 8444 per l'IDE, che lì è solo
+un'API ristretta e autenticata. Nel cloud la stessa immagine fa da **gateway** davanti ai progetti, e il pannello
+si fa raggiungere con un **tunnel** uscente, senza porte aperte in entrata. Le porte e i flussi stanno nel
+[capitolo 18](18_container_e_comunicazione.md), i crate e il percorso dei dati nel [capitolo 03](03_architecture.md).
 
-SWS avvia **due server distinti** sullo stesso binario:
+**Peso al caricamento** (build del 19-10-2026, i file che la pagina carica subito): viewer circa 945 kB, 310 kB
+compressi; IDE circa 1,4 MB, 420 kB compressi. Il resto (Configurazione, editor Python con CodeMirror)
+si carica quando serve.
 
-| Porta | Ruolo | SPA servita |
-|-------|-------|-------------|
-| **8443** | Viewer operatori | RuntimeViewer — 597 kB, 187 kB compressi |
-| **8444** | Admin IDE | Editor completo — 874 kB, 249 kB compressi |
-
-*(Misure del 2026-09-06, contando quello che il browser scarica davvero all'apertura. L'editor
-carica a richiesta le parti che non servono subito: la Configurazione e l'editor Python con
-CodeMirror, che da soli sarebbero altri 639 kB.)*
-
-Questa separazione permette di esporre la porta 8443 agli operatori (pannelli HMI, browser kiosk) e di limitare la porta 8444 ai soli ingegneri autorizzati, anche con firewall differenti.
-
-**HTTP di default, HTTPS opzionale.** Entrambe le porte partono in HTTP plain finché non si
-carica o genera un certificato TLS (vedi [10 — Deployment](10_deployment.md)); la presenza del
-certificato all'avvio commuta automaticamente in HTTPS. **Autenticazione opzionale**: senza
-`users.yaml` il runtime è in *no-auth mode* (route aperte); creando utenti si attiva il login con
-RBAC/ABAC. Per un device in campo abilitare sia TLS sia l'autenticazione.
+**HTTP di default, HTTPS opzionale.** Le porte partono in HTTP finché non si carica o genera un certificato TLS
+(vedi [10 — Deployment](10_deployment.md)); nel cloud il TLS lo fa Traefik. **Nessuna istanza è aperta a tutti**:
+un pannello senza utenti è chiuso e mostra un codice di abbinamento, un IDE appena installato chiede un codice di
+primo accesso (vedi [09 — Autenticazione e ruoli](09_auth_rbac.md)).
 
 ---
 
@@ -143,11 +147,10 @@ RBAC/ABAC. Per un device in campo abilitare sia TLS sia l'autenticazione.
 
 | Hardware | Architettura | Deployment |
 |----------|-------------|-----------|
-| Rockchip PX30 | ARM64 | Binario nativo Yocto (percorso preferito) |
-| Rockchip RK3399 | ARM64 | Binario nativo Yocto |
-| Rockchip RK3588 | ARM64 | Binario nativo Yocto |
-| PC Linux generici | x86_64 | Tarball `.tar.gz` + systemd |
-| Container ARM64 | ARM64 | Docker/Podman Compose |
+| Pannelli Pixsys TC620, WP630 | ARM64 | Container Podman (quadlet `sws-runtime.container`), il percorso principale |
+| Rockchip PX30, RK3399, RK3588 | ARM64 | Binario nativo Yocto (`deploy/yocto/`) |
+| PC o server Linux | x86_64 | Container Podman, oppure tarball `.tar.gz` + systemd |
+| VPS cloud | x86_64 | Container Podman: gateway e container di progetto dietro Traefik |
 
 ### Browser supportati
 
@@ -155,7 +158,7 @@ Qualsiasi browser moderno con supporto SVG e WebSocket:
 - Chrome/Chromium 110+
 - Firefox 110+
 - Edge 110+
-- Safari 16+ (con limitazioni per Web Crypto API)
+- Safari 16+
 
 ---
 
@@ -171,10 +174,12 @@ Qualsiasi browser moderno con supporto SVG e WebSocket:
 | Password hashing | Argon2 (Argon2id) |
 | OPC-UA | async-opcua 0.18 |
 | Modbus | tokio-modbus 0.6 |
-| MQTT | rumqttc 0.24 |
+| MQTT | rumqttc 0.25 |
 | Sparkplug B | prost (Protobuf manuale) |
-| Scripting Python | PyO3 0.23 + RestrictedPython |
-| Historian | SQLite via rusqlite |
+| Scripting Python | PyO3 0.29 + RestrictedPython |
+| Historian | SQLite via rusqlite, PostgreSQL via tokio-postgres |
+| Tunnel | yamux su WebSocket |
+| Schermo del pannello | LVGL + SDL2 (`sws-lvgl-viewer`) |
 | Struttura log | tracing + JSON |
 | Metriche | Prometheus via metrics crate |
 
@@ -186,7 +191,8 @@ Qualsiasi browser moderno con supporto SVG e WebSocket:
 | Build | Vite 6 |
 | State management | Zustand |
 | Rendering grafico | SVG (sinottici interattivi) + Canvas 2D (trend) |
-| Test E2E | Playwright |
+| Editor Python | CodeMirror 6 |
+| Test | Vitest (unità), Playwright (E2E) |
 
 ---
 
@@ -196,7 +202,9 @@ SWS è rilasciato sotto **GNU Affero General Public License v3.0 (AGPL-3.0)**.
 
 - Tutti i contributi richiedono `Signed-off-by:` (DCO)
 - Repository pubblico: [github.com/soligolab/sws](https://github.com/soligolab/sws)
-- Stato attuale: **Proof of Concept** — non per uso in produzione senza valutazione
+- Stato attuale: **Proof of Concept**. Fabbricante, contatti di sicurezza, periodo di supporto e procedura di
+  segnalazione sono nel [capitolo 17](17_sicurezza.md): prima di metterlo su un impianto, leggere
+  [cosa manca ancora](17_sicurezza.md#cosa-manca-ancora)
 
 ---
 
