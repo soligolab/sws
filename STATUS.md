@@ -2509,7 +2509,7 @@ Playwright), più uno nuovo, `11_immagine_di_boot.png`, citato nel manuale 04. T
 (obsoleto, puntava a :5173).
 
 **Il manuale intero — testo e schermate — è rimandato a progetto stabilizzato** (decisione del maintainer): il seme
-resta in `docs/plans/2026-09-19-screenshot-del-manuale.md`, riscritto.
+resta in `docs/archive/2026-09-19-screenshot-del-manuale.md`, riscritto.
 
 **Aggiunta il 20-09, dalla prova del maintainer sull'immagine di boot**: un testo a capo dava «Tainted canvases may
 not be exported» (`<foreignObject>` macchia il canvas). Riprodotto in Chromium con il codice vecchio e corretto:
