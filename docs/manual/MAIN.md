@@ -19,7 +19,7 @@
 | [06](06_protocols.md) | **Protocolli** | Modbus, OPC-UA, MQTT/Sparkplug B, S7, EtherNet/IP, HomeAssistant |
 | [07](07_alarms.md) | **Sistema allarmi** | ISA-18.2, stati, ACK, shelving, notifiche SMTP |
 | [08](08_historian.md) | **Historian e Trend** | Ring buffer, SQLite, visualizzatore trend, export CSV |
-| [09](09_auth_rbac.md) | **Autenticazione e ruoli** | Argon2id, 4 ruoli, ABAC per zona, TTL sessione |
+| [09](09_auth_rbac.md) | **Autenticazione e ruoli** | Abbinamento del pannello, utenti del progetto e dell'installazione, Argon2id, 4 ruoli, zone, aziende e console |
 | [10](10_deployment.md) | **Deployment** | Linux generico, Yocto cross-compile, container ARM64 |
 | [11](11_packaging_deploy.md) | **Package builder** | Build tarball e deploy SSH dal IDE |
 | [12](12_gitops.md) | **GitOps** | Commit, push, pull, rollback, fingerprint progetto |
@@ -54,8 +54,8 @@ parte in **HTTP** finché non si abilita il TLS da *Configurazione → Stato →
 | `8460` | IDE editor stand-alone (nessun viewer) | `start_editor.sh` su PC sviluppatore |
 | `8080` / `8090` | Companion HTTP (accettazione certificato) | solo quando il TLS è attivo |
 
-> **Autenticazione opzionale (PoC).** Un progetto senza `users.yaml` gira in **no-auth mode**:
-> nessun login, tutte le route aperte. Si attivano utenti e ruoli creando account dal tab Utenti.
+> **Non esiste un'istanza aperta a tutti.** Un pannello senza utenti è **chiuso** e mostra un
+> codice di abbinamento; un'IDE appena installata stampa all'avvio un codice di primo accesso.
 > Vedi [09 — Autenticazione e ruoli](09_auth_rbac.md).
 
 ---

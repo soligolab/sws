@@ -4,35 +4,173 @@
 
 # 09 — Autenticazione e Controllo Accessi
 
-SWS implementa autenticazione multi-utente con 4 ruoli gerarchici (RBAC) e
-controllo di accesso per zona (ABAC). **L'autenticazione è opzionale.**
+> Per chi installa e per chi amministra: **chi può entrare in un'istanza SWS, con che credenziale e
+> con quali poteri**. Qui c'è il modello; le intestazioni, i token di servizio e i canali che li
+> usano stanno nel [capitolo 18](18_container_e_comunicazione.md).
+>
+> Misurato sul codice il 19-10-2026.
 
 ---
 
-## No-auth mode (default del PoC)
+## In breve
 
-Un progetto **senza utenti** (nessun `users.yaml`) gira in **no-auth mode**: tutte le route —
-incluso l'Admin IDE sulla 8444 — sono aperte senza login. Il backend risponde a
-`GET /api/auth/whoami` con un admin sintetico e il frontend non mostra alcuna schermata di login.
+**Non esiste un'istanza aperta a tutti.** Un pannello appena installato non ha utenti, e proprio
+per questo è **chiuso**: non entra nessuno, nemmeno in lettura, e mostra un **codice di
+abbinamento** che chi sta davanti usa per creare la prima credenziale. Lo stesso vale per un'IDE
+appena installata, che stampa all'avvio un **codice di primo accesso** da usare una volta sola.
 
-Si passa alla modalità autenticata semplicemente **creando il primo utente** da
-*Configurazione → Utenti*: appena esiste almeno un utente, il runtime richiede il login e applica
-RBAC/ABAC. Eliminando tutti gli utenti si torna in no-auth mode.
+> **Cambiato l'11-10-2026.** Fino al 10-10 un progetto senza utenti girava in «no-auth mode»:
+> tutte le rotte aperte e un Admin sintetico per chiunque passasse. Non esiste più. Un pannello
+> già in servizio senza utenti, dopo l'aggiornamento, si chiude finché non lo si abbina una volta.
+> La scorciatoia `--senza-autenticazione` esiste ancora per lo sviluppo locale, e il runtime
+> **rifiuta di partire** se la trova su una macchina con un indirizzo raggiungibile da Internet.
 
-> ⚠️ In no-auth mode chiunque raggiunga la porta 8444 ha pieno accesso amministrativo. Crea
-> utenti e attiva il TLS prima di esporre un runtime su una rete non fidata.
+Chi può entrare dipende da che cosa è questa istanza. Il runtime lo decide una volta sola, e la
+stessa decisione vale per tutte le rotte:
+
+| Istanza | Fonte dell'identità | Dove vivono le credenziali |
+|---|---|---|
+| Pannello **senza utenti** | nessuna: **in attesa di abbinamento** | — (c'è il codice) |
+| Pannello **con utenti** | utenti del progetto + Admin del dispositivo | `users.yaml` del progetto, `utenti_dispositivo.yaml` della config |
+| **IDE** (PC, server, cloud) | utenti dell'installazione | `identita.db` della config |
+| **Container di progetto** nel cloud | la dice il gateway, firmata | nessuna: `X-SWS-Gateway` + `X-SWS-Utente` |
+| `--senza-autenticazione` | nessuna: Admin sintetico | — (solo loopback) |
+
+Riferimento: `fonte_autenticazione` in `sws-runtime/crates/sws-web/src/router.rs:1644`, usata da
+`require_auth` (`:2166`) e `optional_auth` (`:2351`).
 
 ---
 
-## Autenticazione
+## 1. Un pannello nuovo è chiuso: l'abbinamento
 
-### Algoritmo: Argon2id
+Un pannello senza nessun utente risponde **401 `abbinamento_richiesto`** a ogni rotta di dati,
+viewer compreso. Restano aperte solo quelle che servono proprio ad abbinarlo o a sapere che è
+vivo: `GET /api/abbinamento`, `POST /api/abbinamento/rivendica`, `POST /api/abbinamento/nome`,
+`POST /api/auth/login`, `/health`, `/cert`, `/.well-known/security.txt` e — sulla sola 8443 —
+`GET /api/project`. I file statici dell'interfaccia si servono comunque: è così che il browser
+riesce a disegnare la schermata col codice invece di una pagina bianca.
 
-Le password sono conservate come hash **Argon2id** — l'algoritmo vincitore
-della Password Hashing Competition 2015, resistente ad attacchi GPU e ASIC.
-Le password in chiaro non vengono mai registrate nei log o nel database.
+### Il codice
 
-### Login (REST)
+```
+7KQ2-M9XD-3HWP-T4BZ
+```
+
+- **16 caratteri in quattro gruppi**, alfabeto Crockford base32 maiuscolo (niente `I L O U`):
+  80 bit. In ingresso si perdonano minuscole, spazi, trattini e le lettere che si scambiano per
+  cifre (`O` vale `0`, `I` e `L` valgono `1`).
+- **Casuale, generato al primo avvio** e salvato in `<config>/abbinamento.json` con permessi
+  `0600`: resta lo stesso fra reinstallazioni del container e aggiornamenti, e ne nasce uno nuovo
+  dopo un factory reset.
+- **Monouso**: appena viene usato se ne genera un altro, che si mostra solo se il pannello torna
+  senza utenti.
+- **Dieci tentativi sbagliati in cinque minuti** e il pannello smette di accettarne finché la
+  finestra non scade. Ogni tentativo sbagliato finisce nel log e nell'audit log.
+
+**Dove si legge**: nel log all'avvio, al posto di ogni pagina del pannello, sullo schermo del
+viewer LVGL, e in coda all'output di `install-container.sh`. Vederlo è la prova di «possesso
+fisico»: chi sta davanti allo schermo, o raggiunge la pagina in rete locale, può abbinare il
+pannello.
+
+### Abbinare in rete locale
+
+Dall'IDE, **Configurazione → Istanza → Device → Connessione → «Connetti»**: se il pannello è in
+attesa compare il campo del codice. Oppure direttamente dalla pagina del pannello. Si inseriscono
+codice, nome utente e una password di **almeno 8 caratteri**, e nasce l'**Admin del dispositivo**.
+
+### L'Admin del dispositivo
+
+Vive in `<config>/utenti_dispositivo.yaml`, **fuori dal progetto**: un deploy non se lo porta via
+e non lo sovrascrive. Vale accanto agli utenti del progetto — il login prova prima gli uni, poi
+gli altri — e ha ruolo `Admin` senza restrizioni di zona.
+
+È la differenza che conta quando un progetto viene sostituito: gli utenti del progetto arrivano e
+se ne vanno col deploy, l'Admin del dispositivo resta ed è la credenziale di servizio di quella
+scatola.
+
+### Abbinare dal cloud
+
+Un pannello che non è ancora abbinato chiama da solo il gateway (l'indirizzo sta nell'immagine) e
+si presenta **in attesa**, col suo codice e la sua identità hardware. Dall'IDE nel cloud,
+**«Abbina un pannello»** manda il codice al gateway, che gira la rivendica al pannello
+attraverso il tunnel insieme a nome e token.
+
+Due casi diversi, e la differenza è voluta:
+
+| Il pannello | Cosa serve per abbinarlo al cloud | Cosa succede |
+|---|---|---|
+| **non ha utenti** | il solo codice | prende nome e token, e **resta senza utenti**: chiuso in rete locale, raggiungibile solo dal gateway, in attesa del primo progetto |
+| **ha già utenti** | il codice **e** le credenziali di un suo Admin | prende nome e token; gli utenti restano quelli |
+
+Il secondo caso esiste perché chi legge il codice sullo schermo di un pannello già in servizio
+non deve poterselo portare nella propria azienda.
+
+Finché il pannello abbinato non ha utenti lo raggiunge solo il gateway, che firma le richieste nel
+tunnel con `X-SWS-Dal-Gateway`. Il **primo deploy si ferma** (428 `serve-admin`) se il progetto
+non porta almeno un Admin, e l'IDE offre di aprire la scheda Utenti.
+
+Il meccanismo del tunnel, l'identità hardware e i token sono descritti nel
+[capitolo 18](18_container_e_comunicazione.md#3-nel-cloud).
+
+---
+
+## 2. Il primo accesso di un'installazione IDE
+
+Un'IDE (`start_editor.sh`, il container sul VPS, il gateway) non usa gli utenti di un progetto:
+ha il suo archivio, `identita.db`, nella cartella di configurazione.
+
+Quando l'archivio è vuoto il runtime stampa all'avvio un **codice di primo accesso** monouso:
+
+```
+  ════════════════════════════════════════════════════════════
+  PRIMO ACCESSO — nessun utente in questa installazione.
+
+    codice: 3f9a1c7e5b2d4086a1f3c9d7e5b20486
+
+  Aprilo nell'IDE e crea l'amministratore. Il codice vale
+  finche non esiste un utente, poi smette da se.
+  ════════════════════════════════════════════════════════════
+```
+
+La schermata del primo amministratore chiede quel codice, un'email, un nome e una password. Due
+condizioni, e servono entrambe: **non deve esistere ancora nessun utente** (appena ne esiste uno
+la rotta smette di funzionare per sempre) e **il codice deve combaciare**, confrontato a tempo
+costante. Il codice vive solo in memoria: un riavvio ne genera un altro.
+
+Insieme al primo amministratore nasce l'**azienda implicita**, con lui dentro.
+
+---
+
+## 3. Gli utenti del progetto
+
+Sono gli utenti che stanno sul dispositivo e viaggiano col deploy: operatori, manutentori,
+ingegneri d'impianto.
+
+### Dove stanno
+
+In `users.yaml`, **accanto** a `project.yaml` nella cartella del progetto — non dentro di esso.
+
+```yaml
+# <progetto>/users.yaml
+users:
+  - username: operatore1
+    password_hash: "$argon2id$v=19$m=65536,t=3,p=4$..."
+    role: Operator
+    allowed_zones: ["sala_a", "sala_b"]
+    session_ttl_secs: 28800    # 8 ore (predefinito)
+    must_change_password: false
+```
+
+Si gestiscono da **Configurazione → Sicurezza → Utenti**.
+
+### Password
+
+Hash **Argon2id**, mai in chiaro né nei log né su disco. Un utente creato da un amministratore
+nasce con `must_change_password`: al primo accesso l'API lo obbliga a cambiarla prima di
+lasciargli fare altro. Ogni utente cambia la propria da **Utente → Cambia password**; un Admin
+può reimpostare quella di chiunque.
+
+### Login
 
 ```bash
 curl -k -X POST https://localhost:8444/api/auth/login \
@@ -40,36 +178,39 @@ curl -k -X POST https://localhost:8444/api/auth/login \
   -d '{"username":"admin","password":"mia_password"}'
 ```
 
-**Risposta**:
 ```json
 {
-  "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+  "token": "…",
   "expires_at_ms": 1735689600000,
   "role": "Admin"
 }
 ```
 
-Il token è un Bearer JWT. Includi in ogni richiesta protetta:
+Il token si manda come `Authorization: Bearer …`; i WebSocket, che dal browser non possono mandare
+intestazioni, lo passano come `?token=…`.
 
 ```bash
 curl -k -H "Authorization: Bearer $TOKEN" https://localhost:8444/api/project
 ```
 
-### Sessioni in-memory
+### Sessioni e limiti
 
-I token sono mantenuti in memoria dal runtime. Un restart del runtime
-invalida tutti i token — gli utenti devono autenticarsi nuovamente.
+| | |
+|---|---|
+| Durata | 8 ore (`SWS_SESSION_TTL_SECS`), sovrascrivibile per utente con `session_ttl_secs` |
+| Dove vivono | **in memoria**: un riavvio del runtime invalida tutti i token |
+| Login sbagliati | **5 in 60 secondi** sullo stesso nome utente e si resta fuori (`SWS_LOGIN_RATE_LIMIT`, `SWS_LOGIN_RATE_WINDOW_SECS`) |
 
-### TTL sessione
+Le sessioni degli **utenti dell'installazione** sono invece persistite in `identita.db` e durano
+8 ore scorrevoli, rinnovate a ogni uso: dietro un gateway che avvia e ferma container, una
+sessione che muore al riavvio del processo butterebbe fuori chi sta lavorando.
 
-Il TTL di ogni sessione è configurabile per utente (in **Configurazione → Utenti**).
-Default: 8 ore.
+Un deploy **non** butta fuori chi è collegato: riaprendo il progetto il runtime conserva le
+sessioni degli utenti che esistono ancora con la stessa password, ruolo e zone.
 
 ---
 
-## Ruoli RBAC
-
-SWS ha 4 ruoli gerarchici (da meno a più privilegiato):
+## 4. I quattro ruoli (RBAC)
 
 | Ruolo | Livello | Descrizione |
 |-------|---------|-------------|
@@ -77,8 +218,6 @@ SWS ha 4 ruoli gerarchici (da meno a più privilegiato):
 | **Operator** | 2 | Può interagire (pulsanti, ACK allarmi, slider) |
 | **Supervisor** | 3 | Può modificare configurazione, ricette, funzioni |
 | **Admin** | 4 | Accesso completo, gestione utenti, deploy |
-
-### Permessi per ruolo
 
 | Azione | Viewer | Operator | Supervisor | Admin |
 |--------|--------|---------|-----------|-------|
@@ -90,62 +229,31 @@ SWS ha 4 ruoli gerarchici (da meno a più privilegiato):
 | Shelving allarmi | ❌ | ❌ | ✅ | ✅ |
 | Applicare ricette | ❌ | ✅ | ✅ | ✅ |
 | Modificare configurazione | ❌ | ❌ | ✅ | ✅ |
-| Git commit / push | ❌ | ❌ | Commit | ✅ |
+| Git commit / tag | ❌ | ❌ | ✅ | ✅ |
+| Git push / init / fork | ❌ | ❌ | ❌ | ✅ |
 | Gestire utenti | ❌ | ❌ | ❌ | ✅ |
 | Deploy / packaging | ❌ | ❌ | ❌ | ✅ |
 | Eliminare progetto | ❌ | ❌ | ❌ | ✅ |
 
----
-
-## Gestione utenti
-
-**Configurazione → Utenti → + Aggiungi utente**
-
-```yaml
-# Struttura utente in project.yaml
-users:
-  - username: operatore1
-    password_hash: "$argon2id$v=19$m=65536,t=3,p=4$..."
-    role: Operator
-    allowed_zones: ["sala_a", "sala_b"]
-    session_ttl_secs: 28800    # 8 ore (default)
-```
-
-> **Importante**: le password non vengono mai salvate in chiaro.
-> Il form UI calcola l'hash Argon2id prima di salvare.
-
-### Cambio password
-
-Ogni utente può cambiare la propria password dalla UI:
-**User: [nome] → Cambia password**
-
-Gli Admin possono reimpostare la password di qualsiasi utente da
-**Configurazione → Utenti → [utente] → Reimposta password**.
+I ruoli sono gerarchici: un controllo scritto come «almeno Supervisor» lascia passare anche
+l'Admin.
 
 ---
 
-## ABAC — Controllo accessi per zona
+## 5. Le zone (ABAC)
 
-Il modello **ABAC (Attribute-Based Access Control)** permette di limitare
-l'accesso a pagine specifiche del sinottico.
-
-### Configurazione zone per pagina
-
-In **Configurazione → Editor → [pagina] → Zone** (o nel pannello proprietà della pagina):
+Le zone limitano **quali pagine** un utente vede, dentro il ruolo che ha. Sono un secondo asse,
+indipendente dal primo.
 
 ```yaml
-# In synoptics/sala_controllo.yaml
+# synoptics/sala_controllo.yaml
 zones:
   - "sala_a"
   - "supervisore"
 ```
 
-Solo gli utenti con almeno una di queste zone nel profilo possono visualizzare la pagina.
-Lascia vuoto (`zones: []`) per accesso libero a tutti gli utenti autenticati.
-
-### Configurazione zone per utente
-
 ```yaml
+# users.yaml
 users:
   - username: operatore_a
     role: Operator
@@ -155,71 +263,99 @@ users:
     allowed_zones: ["sala_a", "sala_b", "comune", "supervisore"]
 ```
 
-Un utente con `allowed_zones: []` ha accesso a tutte le pagine non ristrette.
+Vede la pagina chi ha **almeno una** zona in comune con quelle della pagina. Due liste vuote
+valgono entrambe «nessuna restrizione»: una pagina con `zones: []` la vedono tutti, e un utente
+con `allowed_zones: []` vede tutte le pagine.
+
+Le zone decidono anche da quale pagina si apre il viewer, quando la pagina iniziale del progetto
+non è fra quelle permesse.
 
 ---
 
-## Porta 8443 vs 8444
+## 6. Gli utenti dell'installazione, le aziende e la console
 
-Quando esistono utenti, le due porte hanno politiche di autenticazione diverse:
+Gli utenti di `identita.db` sono un modello diverso da quelli del progetto: non stanno su un
+impianto, stanno su un'installazione dell'IDE, e sono quelli che il cloud usa.
 
-| Porta | Autenticazione (con utenti) | Uso |
-|-------|------------------------------|-----|
-| **8443** | Opzionale — senza token = Viewer anonimo | Pannelli HMI, operatori |
-| **8444** | Obbligatoria — senza token = 401 | Ingegneri, Admin |
+### Due ruoli, più un asse a parte
 
-In **no-auth mode** (nessun utente) entrambe le porte sono completamente aperte.
+| Ruolo | Cosa può fare |
+|---|---|
+| **Sviluppatore** | lavora sui progetti dell'azienda |
+| **Amministratore** | più i membri e le impostazioni dell'azienda |
 
-**Viewer anonimo** (porta 8443 senza token):
-- Può visualizzare sinottici
-- Vede tag live (se non ci sono restrizioni di zona)
-- Non può scrivere tag, ACK allarmi, accedere alla configurazione
+Sono due e non quattro per scelta: sono i ruoli **dell'azienda**, non quelli dell'impianto.
 
-Per disabilitare l'accesso anonimo sulla porta 8443:
-imposta `optional_auth: false` nella configurazione del runtime.
+A parte, su un asse suo, c'è l'**amministratore di piattaforma**: una spunta su un utente, non un
+grado più alto. È chi approva le aziende. Un Admin di progetto non amministra la piattaforma, e
+un amministratore d'azienda non deve poter approvare sé stesso.
+
+### Le aziende
+
+| Stato | Cosa comporta |
+|---|---|
+| `in_prova` | chi si registra prova l'editor con quote piccole |
+| `approvata` | i pannelli si possono abbinare |
+| `sospesa` | — |
+
+Uno stato illeggibile vale `in_prova`: nel dubbio, il meno potente.
+
+Ogni azienda ha una cartella sotto la radice dei progetti, un marchio facoltativo e tre quote:
+`max_progetti_aperti` (quanti progetti può tenere **aperti insieme**, perché ogni progetto aperto
+è un container da avviare — non il numero totale), `max_pannelli` e `max_byte`.
+
+### La console
+
+Aziende, persone, pannelli, marchi, risorse, posta e impostazioni dell'installazione si governano
+dalla **console**. Ci entra chi è **amministratore di piattaforma** oppure amministratore di
+almeno un'azienda; su un dispositivo la console non esiste e nessuno ci entra.
 
 ---
 
-## Audit log
+## 7. Le due porte
 
-Ogni azione significativa viene registrata nell'audit log:
+| Porta | Senza utenti | Con utenti |
+|-------|---|---|
+| **8443** viewer | 401 `abbinamento_richiesto`, salvo le rotte pre-auth del §1 | autenticazione **facoltativa** — senza token si è Viewer anonimo |
+| **8444** gestione | 401 `abbinamento_richiesto`, salvo le rotte pre-auth del §1 | **obbligatoria** — senza token 401 |
+
+**Viewer anonimo** (8443 con utenti, senza token): vede i sinottici e i tag live nei limiti delle
+zone, non scrive tag, non riconosce allarmi e non entra in configurazione. Un token scaduto o
+sconosciuto vale come nessun token: si resta anonimi, e le rotte che scrivono continuano a
+chiedere il ruolo.
+
+Non esiste un'impostazione per spegnere l'accesso anonimo sulla 8443. Se la 8443 non deve essere
+raggiungibile, la si chiude a livello di rete; sul pannello la **8444 ascolta già solo su
+`127.0.0.1`** (`--no-admin`) e si raggiunge con un tunnel SSH o dal cloud. Vedi il
+[capitolo 17](17_sicurezza.md).
+
+---
+
+## 8. Audit log
 
 | Evento | Cosa viene registrato |
 |--------|----------------------|
 | Login / Logout | Username, IP, timestamp, esito |
+| Codice di abbinamento sbagliato | timestamp |
+| Abbinamento riuscito | utente creato, se locale o dal cloud |
+| Primo amministratore dell'installazione | email |
 | Scrittura tag | Username, tag ID, valore scritto, timestamp |
 | ACK allarme | Username, alarm ID, timestamp |
 | Modifica progetto | Username, tipo modifica, timestamp |
 | Deploy | Username, target, esito, timestamp |
 
-Il log è un file JSONL append-only: `/var/lib/sws/<progetto>/audit.jsonl`.
+Il log è un JSONL append-only in `<config>/audit.jsonl`, concatenato per hash — dove `<config>`
+è `--config`, cioè `/var/sws/config` di default, `/data/user/sws/config` sul pannello e `.run/config`
+nello stack di sviluppo. Con `SWS_AUDIT_KEY` è anche firmato; senza, resta *tamper-evident* ma non
+*tamper-resistant*, e il runtime lo dice all'avvio.
 
 ```bash
-# Lettura audit log
-tail -f /var/lib/sws/default/audit.jsonl | jq '.'
+tail -f /data/user/sws/config/audit.jsonl | jq '.'
 ```
 
 ---
 
-## Primo avvio e creazione del primo utente
-
-Di default un progetto nuovo **non ha credenziali** e gira in [no-auth mode](#no-auth-mode-default-del-poc):
-l'IDE si apre senza login. Per attivare l'autenticazione:
-
-1. Apri l'Admin IDE (porta 8444)
-2. Vai in *Configurazione → Utenti → + Aggiungi utente*
-3. Crea un utente **Admin** con una password forte
-4. Da quel momento il runtime richiede il login a ogni accesso
-
-La password viene salvata come hash Argon2id in `project.yaml`; il form UI calcola l'hash prima
-di inviarlo al server. Eliminando l'ultimo utente il progetto torna in no-auth mode.
-
-> **Container.** L'immagine non pretende credenziali: parte in no-auth mode come il binario
-> nativo. `SWS_ADMIN_PASSWORD`, se impostata, seeda l'utente admin al primo avvio — resta
-> facoltativa. (Il vecchio percorso `compose.yaml`, che la **richiedeva**, è stato rimosso il
-> 2026-09-02: precedeva il no-auth mode e non partiva.)
-
-## Le credenziali del progetto (`secrets.yaml`)
+## 9. Le credenziali del progetto (`secrets.yaml`)
 
 Le password e i token che il progetto usa per **collegarsi** (broker MQTT, HomeAssistant, OPC-UA, Postgres,
 ODBC, SMTP, bot Telegram) non stanno in `project.yaml`: vivono in `secrets.yaml`, nella stessa cartella, con
@@ -255,6 +391,21 @@ il rimedio è ruotare le credenziali.
 
 Da non confondere con le password **degli utenti** di questo capitolo, che sono hash Argon2id e non sono
 recuperabili: quelle dicono chi può entrare, queste dicono come il progetto parla con il mondo.
+
+---
+
+## Riferimenti nel codice
+
+| Cosa | Dove |
+|---|---|
+| La decisione sulla fonte | `sws-runtime/crates/sws-web/src/router.rs:1644` (`fonte_autenticazione`) |
+| I due middleware | `router.rs:2166` (`require_auth`), `router.rs:2351` (`optional_auth`) |
+| Abbinamento, codice, Admin del dispositivo | `sws-runtime/crates/sws-web/src/abbinamento.rs` |
+| Primo accesso dell'installazione | `router.rs:1811` (`identita_stato`), `router.rs:1851` |
+| Utenti del progetto, Argon2id, ruoli | `sws-runtime/crates/sws-auth/src/lib.rs` |
+| Utenti dell'installazione, aziende, quote | `sws-runtime/crates/sws-identita/src/lib.rs` |
+| Zone | `router.rs:6623` (`zone_allowed`) |
+| La scorciatoia di sviluppo e il suo rifiuto | `sws-runtime/crates/sws-runtime/src/main.rs:1139` |
 
 ---
 
