@@ -71,7 +71,9 @@ non sfugge in silenzio.
    campi). Il salvataggio resta quello normale, con il pallino «non salvato».
 3. **Dialogo `src/scala/DialogoRisoluzione.tsx`**: si apre da Impostazioni progetto → formato (vicino a
    «Applica a tutte le pagine», `EditorShell.tsx` ~2190) con il pulsante «Cambia risoluzione del progetto…».
-   - «Da»: la misura più frequente fra le pagine.
+   - «Da»: la misura dello schermo — quella di cornici e immagini di boot, poi il predefinito del progetto se
+     qualche pagina lo ha, e solo alla fine la più frequente. *(Corretto il 19-10-2026: con «la più frequente»
+     un progetto con tante modali 800×600 proponeva quelle e lasciava fuori le pagine principali.)*
    - «A»: lo stesso elenco di preset del pannello pagina (`getDevicePresets`, `STANDARD_DEVICE_PRESETS`) oppure
      larghezza e altezza.
    - L'elenco delle pagine, delle cornici e delle immagini di boot con la loro misura: spuntate quelle che hanno

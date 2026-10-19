@@ -4,7 +4,7 @@ import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import {
-  CAMPI_FISSI, CAMPI_POSIZIONE, CAMPI_SCALATI, fattore, misuraPiuFrequente, scalaCornice, scalaPagina,
+  CAMPI_FISSI, CAMPI_POSIZIONE, CAMPI_SCALATI, fattore, misuraDaProporre, misuraPiuFrequente, scalaCornice, scalaPagina,
 } from "../src/scala/scalaPagina";
 import type { SynopticObject, SynopticPage } from "../src/types";
 
@@ -82,6 +82,18 @@ describe("scala fra risoluzioni", () => {
 
   it("il «Da» proposto è la misura più frequente", () => {
     expect(misuraPiuFrequente([pagina([]), pagina([]), pagina([], 1280, 800)])).toEqual({ width: 1920, height: 1080 });
+  });
+
+  it("il «Da» proposto è lo schermo, anche se le modali sono di più", () => {
+    const modale = () => pagina([], 800, 600);
+    const pagine = [pagina([], 1280, 800), pagina([], 1280, 800), modale(), modale(), modale()];
+    const cornice = { ...pagina([], 1280, 800), kind: "cornice" as const };
+    // cornice o boot: occupano lo schermo
+    expect(misuraDaProporre([...pagine, cornice])).toEqual(A);
+    // senza cornici: il predefinito del progetto, se qualche pagina lo ha
+    expect(misuraDaProporre(pagine, { default_width: 1280, default_height: 800 })).toEqual(A);
+    // predefinito già cambiato e nessuna pagina lo ha: la più frequente
+    expect(misuraDaProporre(pagine, { default_width: 1920, default_height: 1080 })).toEqual({ width: 800, height: 600 });
   });
 
   it("guardia: ogni campo numerico di SynopticObject è classificato", () => {

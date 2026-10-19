@@ -9,7 +9,7 @@ import { getDevicePresets, STANDARD_DEVICE_PRESETS } from "@/pageLayout";
 import { eBoot } from "@/boot/tipi";
 import { eCornice } from "@/cornici/modello";
 import { salvaLayout } from "@/formatoProgettoAzioni";
-import { fattore, misuraPiuFrequente, type Misura } from "./scalaPagina";
+import { fattore, misuraDaProporre, type Misura } from "./scalaPagina";
 
 const INPUT: React.CSSProperties = {
   width: "100%", background: "var(--brand-bg, #0f172a)", color: "var(--brand-text, #e2e8f0)",
@@ -28,7 +28,8 @@ export function DialogoRisoluzione({ onClose }: { onClose: () => void }) {
   const { t } = useTranslation();
   const pages = useAppStore((s) => s.pages);
   const scalaProgetto = useAppStore((s) => s.scalaProgetto);
-  const proposta = useMemo(() => misuraPiuFrequente(pages), [pages]);
+  const predefinita = useAppStore((s) => s.project?.page_layout);
+  const proposta = useMemo(() => misuraDaProporre(pages, predefinita), [pages, predefinita]);
   const [da, setDa] = useState<Misura | null>(proposta);
   const [a, setA] = useState<Misura>({ width: 1280, height: 800 });
   const [scelte, setScelte] = useState<Set<string>>(

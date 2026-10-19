@@ -169,7 +169,25 @@ export function scalaCornice(page: SynopticPage, a: Misura): SynopticPage {
   };
 }
 
-/** La misura più frequente fra le pagine date: il «Da» proposto dal dialogo. */
+/** Il «Da» proposto dal dialogo: la misura dello **schermo** del progetto, non
+ *  quella più frequente. Le finestre aperte sopra la pagina (popup, modali)
+ *  sono più piccole dello schermo, e se sono tante vincono il conteggio: il
+ *  dialogo spuntava loro e lasciava fuori pagine principali, cornici e boot.
+ *  Lo schermo lo dicono, nell'ordine: cornici e immagini di boot (occupano lo
+ *  schermo per costruzione), il predefinito del progetto se qualche pagina lo
+ *  ha ancora, e solo alla fine la misura più frequente. */
+export function misuraDaProporre(
+  pages: readonly SynopticPage[],
+  predefinita?: { default_width?: number; default_height?: number } | null,
+): Misura | null {
+  const schermo = misuraPiuFrequente(pages.filter((p) => p.kind === "cornice" || p.kind === "boot"));
+  if (schermo) return schermo;
+  const w = predefinita?.default_width, h = predefinita?.default_height;
+  if (w && h && pages.some((p) => p.width === w && p.height === h)) return { width: w, height: h };
+  return misuraPiuFrequente(pages);
+}
+
+/** La misura più frequente fra le pagine date. */
 export function misuraPiuFrequente(pages: readonly SynopticPage[]): Misura | null {
   const conta = new Map<string, { m: Misura; n: number }>();
   for (const p of pages) {
