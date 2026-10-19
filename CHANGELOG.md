@@ -590,6 +590,11 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 
 ### Changed
 
+- **Note di rilascio della 2.14.0 riscritte come cumulative** (19-10-2026): la 2.13.0 non è mai uscita come release, e
+  un pannello che passa dalla 2.12.0 alla 2.14.0 legge solo le etichette di quest'ultima. `NOVITA.yaml` 2.14.0 ora
+  raccoglie per tema le voci di 2.13.0 e 2.14.0, comprese quelle degli ultimi giorni (trend, schermo LVGL, archivio,
+  log, scorciatoie), e tutti gli avvisi di compatibilità (i quattro della 2.13.0, i simboli, i testi del pannello con
+  font e grassetto). `docs/RELEASE_NOTES.md`, fermo alla 2.0.1, diventa un rimando; il testo va in `docs/history/`.
 - **Archiviare chiede gli stessi permessi di eliminare** (decisione del maintainer, 18-10-2026): prima era solo Admin,
   più stretto della cancellazione, che è più distruttiva. Le rotte stanno accanto a `DELETE /api/projects/…`.
 - **Il DEBUG del pannello nell'IDE, per l'amministratore di piattaforma**: casella «DEBUG dispositivo» nel cassetto log.

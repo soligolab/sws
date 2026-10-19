@@ -8,6 +8,7 @@ documento d'origine resta un indice o una riga di rimando.
 |---|---|---|
 | `OPEN_QUESTIONS-chiuse.md` | `docs/OPEN_QUESTIONS.md` — le schede decise, realizzate e **verificate sul codice** il giorno dell'archiviazione | 2026-09-06 |
 | `STATUS-2026-07_08.md` | `STATUS.md` — le sessioni di luglio e agosto 2026, mergiate e verificate | 2026-09-06 |
+| `RELEASE_NOTES-fino-2.0.1.md` | `docs/RELEASE_NOTES.md` — le note di rilascio fino alla 2.0.1, prima che le sostituissero `NOVITA.yaml` (per chi usa) e il CHANGELOG (per chi sviluppa) | 2026-10-19 |
 
 `check_documenti.sh` verifica che lo spostamento non abbia perso niente: numeri delle schede senza
 buchi né doppioni fra vivo e archivio, rimandi che risolvono, timbri di verifica presenti.
