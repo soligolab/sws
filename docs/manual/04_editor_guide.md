@@ -4,6 +4,12 @@
 
 # 04 — Guida all'Editor WYSIWYG
 
+> L'interfaccia dell'IDE: barra in alto, albero a sinistra, canvas, pannello proprietà, e le operazioni sulle
+> pagine e sul progetto. Per chi disegna le pagine. I singoli oggetti sono nel [capitolo 05](05_widget_reference.md),
+> le procedure passo per passo nel tutorial (Parte II).
+>
+> Misurato sul codice il 19-10-2026.
+
 L'editor SWS permette di creare sinottici industriali WYSIWYG direttamente nel browser,
 senza installare software. Questa guida descrive l'interfaccia e il workflow di lavoro.
 
@@ -26,21 +32,26 @@ L'interfaccia è divisa in quattro aree:
 
 ## Toolbar
 
-```
-SWS  Project: default  [Editor] [Configurazione]  User: admin  Admin  Griglia: 10px ▼  ● Start  Reboot  ● Deploy  Log  ≡ Menu
-```
+La barra in alto ha due parti: la **testata** dell'IDE, sempre presente, e la **barra dell'editor**, sopra il
+canvas.
+
+**Testata** (`App.tsx`, `components/RuntimeCtrl.tsx`, `MainMenu.tsx`):
 
 | Elemento | Funzione |
 |----------|---------|
-| **Editor / Configurazione** | Alterna tra la vista editor e la configurazione progetto |
-| **User: admin Admin** | Badge utente corrente + ruolo (cliccabile per cambio password) |
-| **Griglia: 10px** | Snap-to-grid — imposta il passo della griglia (10, 20, 5 px o libero) |
+| **🖥 Viewer ↗** | Apre il viewer degli operatori in una scheda nuova, dopo aver controllato che risponda; con il TLS non ancora accettato propone **Accetta cert ↗** |
 | **RUN / STOP** | Avvia o ferma l'acquisizione dal campo — vedi sotto |
-| **Reboot** | Riavvia il runtime (ricarica configurazione) |
-| **● Deploy** | Distribuisce la versione locale su un runtime remoto. Se sul pannello c'è un progetto con un **altro nome**, prima chiede conferma: il deploy lo cancella, storico compreso, e la domanda dice quale e quanto pesa |
 | **⚠ (contatore)** | Avvisi del runtime: compare solo se c'è qualcosa che non va |
-| **Log** | Apre il pannello log in tempo reale |
-| **≡ Menu** | Salva tutto, importa/esporta progetto, simboli personalizzati |
+| **⚠ Aggiorna progetto** | Compare se il progetto è stato salvato da una versione di SWS più vecchia — vedi [sotto](#-aggiorna-progetto) |
+| **Impianto in servizio** | Compare quando l'istanza ha un viewer operatori: si sta modificando il progetto che l'impianto usa |
+| **Deploy** | Collegamento al runtime remoto: **Invia ora**, **al salvataggio** (invia a ogni salvataggio riuscito), **Utenti e segreti** (invia anche quelli, con conferma). Se sul pannello c'è un progetto con un **altro nome**, prima chiede conferma: il deploy lo cancella, storico compreso, e la domanda dice quale e quanto pesa |
+| **Utente** | Il menu dell'utente: tema, lingua dell'interfaccia, preferenze, Esci |
+| **☰ Menu** | Salva tutto, Salva come…, Rinomina, Chiudi progetto, copia sul PC, log, assistente IA, Reboot, Esci. Il pulsante fa anche da esito dell'ultimo salvataggio (⟳ / ✓ / ⚠) |
+
+**Barra dell'editor** (`editor/EditorToolbar.tsx`): annulla e ripristina con la **cronologia** a tendina, zoom
+(100 % con `Ctrl+0`, **Adatta pagina** con `Ctrl+Shift+0`, adatta agli oggetti), **Griglia** (dimensione, colore,
+snap), **Copia stile** / **Applica stile**, **Effetti** (l'anteprima di lampeggi, rotazioni, flusso delle pipe e
+bordi d'allarme, spenta di default) e la lingua in cui il canvas mostra i testi tradotti.
 
 ### RUN e STOP: fermare l'acquisizione
 
@@ -90,8 +101,8 @@ plc1*. La scheda **Variabili** mostra anche il *valore live* di ogni tag in temp
 I link del tipo `#config/<scheda>` e `#config/<scheda>/<elemento>` (per esempio
 `#config/protocols/plc1`) aprono direttamente quella scheda, o quell'elemento.
 
-> **Anteprima live del sinottico**: apri il **Viewer operatori** sulla porta 8443. Mostra le
-> pagine in sola lettura con i valori aggiornati via WebSocket e l'alarm banner sempre visibile.
+> **Anteprima live del sinottico**: **🖥 Viewer ↗** in testata apre il viewer degli operatori. Mostra le
+> pagine con i valori aggiornati via WebSocket, come le vedrà l'operatore.
 
 ---
 
@@ -102,8 +113,8 @@ I link del tipo `#config/<scheda>` e `#config/<scheda>/<elemento>` (per esempio
 Il pannello sinistro è **un albero solo**, lo stesso in editor e in Configurazione. Ogni ramo si apre e si
 chiude col suo triangolo, e lo stato si ricorda; scorre l'albero intero. Dall'alto:
 
-- **📄 Pagine** e **🖼 Immagini di boot**
-- **🧰 Strumenti** — gli oggetti da mettere nella pagina, per categoria (Forme, Controlli, Display, SCADA, Layout)
+- **📄 Pagine**, **▭ Cornici** e **🖼 Immagini di boot**
+- **🧰 Strumenti** — gli oggetti da mettere nella pagina, in dieci gruppi (vedi sotto)
 - **🗂 Oggetti della pagina**, **ƒ Funzioni**, **🏷 Tag**
 - i rami di configurazione: **Progetto**, **Dati**, **Sicurezza**, **Istanza**, **IDE**
 
@@ -128,30 +139,23 @@ viewer, schede, rotazione automatica, pagina iniziale). Prima del 2026-09-20 l'o
 Un clic su un oggetto lo aggiunge alla pagina corrente; se sei in Configurazione, prima torna all'editor.
 La **L** in fondo alla riga indica gli oggetti che il motore LVGL sa disegnare.
 
-#### Le categorie
+#### I gruppi
 
-Widget divisi per categoria:
+Dal 14-10-2026 gli strumenti sono in **dieci gruppi** (`PALETTE_GROUPS`, `editor/LeftPanel.tsx`); prima erano
+cinque, e «Display» ne teneva diciotto. I tipi sono gli stessi, 39:
 
-**FORME** — elementi grafici base:
-- Rettangolo, Ellisse, Linea, Testo, Immagine
-
-**CONTROLLI** — interazione operatore:
-- Pulsante (scrive un valore al tag), NavButton (navigazione pagina)
-- Checkbox, Radio, Slider
-
-**DISPLAY** — visualizzazione valori:
-- Gauge (manometro analogico), LED (spia), Progress bar
-- Tabella dati, Trend (storico grafico)
-- Valore (visualizzatore numerico/testo), Text List (lookup table)
-- Bar Chart, Pie/Donut Chart, Sparkline, Alarm Viewer
-
-**SCADA** — simboli industriali:
-- Picker simboli (40 in libreria — 29 disegnati e ricolorabili, 11 importati che tengono i propri colori — più i simboli custom caricati)
-- Pipe/Tubazione (connettori multi-waypoint)
-- Faceplate (componente parametrizzabile)
-
-**LAYOUT** — struttura pagina:
-- Grid (griglia con celle configurabili)
+| Gruppo | Strumenti |
+|---|---|
+| **Forme** | Rettangolo, Ellisse, Linea, Polilinea, Poligono |
+| **Testo e immagini** | Testo, Immagine |
+| **Comandi** | Bottone, Checkbox, Radio, Slider, Setpoint |
+| **Indicatori** | LED, Lampada multi-stato, Gauge, Progress, Valore in evidenza, Data e ora |
+| **Grafici** | Trend, Sparkline, Grafico XY, Bar Chart, Pie Chart |
+| **Tabelle e registri** | Tabella, Storico valori, Lista testi, Ricette |
+| **Allarmi** | Allarmi, Barra allarmi, Campanella allarmi, Storico allarmi |
+| **Navigazione e lingua** | Nav pagina, Navigatore pagine, Lingua ▾, Lingua btn |
+| **Impianto** | Tubazione, Faceplate, Griglia |
+| **Simboli** | il riquadro di scelta, e sotto la libreria per famiglia — vedi [Simboli](#simboli-svg-industriali) |
 
 ### Il limite della pagina
 
@@ -209,12 +213,20 @@ selettori dei tag. Il template «TC620 — sistema» ne è un esempio completo.
 
 ### I rami di configurazione
 
-Tutte le schede di configurazione, divise in rami: **Progetto** (Variabili, Tipi, Protocolli, Allarmi, Python, Faceplate,
-Ricette, Notifiche, Lingue), **Dati** (Datastore), **Sicurezza** (Utenti), **Istanza** (Risorse, Backup, Stato, Device, Runtime) e **IDE**
-(Preferenze). Le schede da amministratore compaiono solo all'Admin.
+Tutte le schede di configurazione, divise in rami (`sws-editor/src/config/schede.ts`):
+
+| Ramo | Schede |
+|---|---|
+| **Progetto** | Variabili, Tipi, Protocolli, Allarmi, Python, Faceplates, Ricette, **Notifiche** (SMTP, Telegram, Cosa e dove), Stile, Lingue, Git |
+| **Dati** | Datastore |
+| **Sicurezza** | Utenti |
+| **Istanza** | Risorse, Backup, **Device** (Stato, Dispositivi, Connessione, Installazione, Container), **Sviluppatore** (Pacchetto runtime, solo da un checkout) |
+| **IDE** | Preferenze IDE |
+
+Le schede da amministratore compaiono solo all'Admin.
 
 - Un clic su una scheda la apre, anche partendo dall'editor.
-- Protocolli, Python, Faceplate, Ricette, Datastore e Utenti hanno accanto il numero di elementi e una freccia ▶ che li mostra: una foglia per
+- Protocolli, Python, Faceplates, Ricette, Datastore e Utenti hanno accanto il numero di elementi e una freccia ▶ che li mostra: una foglia per
   sorgente, script, faceplate, ricetta, datastore o utente. Un clic su un elemento apre la scheda **su quell'elemento solo** (per le sorgenti:
   solo la sua card); un clic sulla scheda torna all'elenco intero.
 - Gli elementi vengono dalla **bozza**: una sorgente aggiunta e non ancora salvata compare subito. Aggiungendone una mentre ne è scelta un'altra,
@@ -229,7 +241,7 @@ Fino al 2026-09-24 qui c'era la vista **Sorgenti**, un elenco con «Vai alla con
 
 ### Aggiungere un widget
 
-1. Nella palette (sezione **OGGETTI**), clicca il tipo di widget desiderato
+1. Nell'albero, ramo **🧰 Strumenti**, clicca il tipo di oggetto desiderato
 2. L'oggetto appare al centro del canvas con dimensioni di default
 3. Configuralo nel pannello proprietà a destra
 
@@ -280,7 +292,10 @@ Le proprietà comuni a tutti gli oggetti sono:
 | **Rotazione** | Gradi, applicata attorno al centro dell'oggetto |
 | **Flip H / V** | Specchio orizzontale/verticale |
 | **Opacità** | 0.0 (trasparente) → 1.0 (opaco) |
-| **Zona ABAC** | Restrizione accesso (lascia vuoto = nessuna restrizione) |
+| **Ruolo minimo per operare** | Sotto quel ruolo l'oggetto si nasconde o si disabilita (sezione Sicurezza) |
+| **Durata transizione (ms)** | Anima il cambio di colore, opacità e trasformazione |
+
+Le **zone** non sono una proprietà dell'oggetto ma della pagina: vedi [Zone di accesso](#zone-di-accesso-abac).
 
 ---
 
@@ -291,17 +306,28 @@ Quasi tutti i widget hanno un campo **Tag** nel pannello proprietà.
 
 Quando imposti un tag:
 1. Il widget mostra il valore live del tag nel Viewer operatori (porta 8443)
-2. Il quality dot (•) nell'angolo indica la qualità del dato: verde=Good, rosso=Bad, giallo=Uncertain
+2. Il quality dot (•), se acceso nella sezione **Indicatore di qualità**, dice la qualità del dato: Good, Bad,
+   Uncertain, ognuna col suo colore configurabile
 3. I widget di controllo (button, slider, checkbox) scrivono sul tag quando l'operatore interagisce
 
-**Formato visualizzazione**: usa il campo **Formato** per specificare la rappresentazione.
-Esempio: `{:.1f} bar` → `12.3 bar`, `{:.0%}` → `75%`.
+**Formato visualizzazione**: il campo **Formato** è un testo con il segnaposto `{value}`, uguale sul web e su
+LVGL (`formatValue`, `canvas/SvgCanvas.tsx`; casi in `tests/fixtures/formattazione-valori.json`):
 
-### Universal bindings
+| Formato | Valore | Risultato |
+|---|---|---|
+| `{value:.1f} bar` | 12.34 | `12.3 bar` |
+| `{value:+.1f}` | 2 | `+2.0` |
+| `{value:,.0f}` | 12345 | `12.345` (separatore delle migliaia della lingua del browser) |
+| `{value:.0%}` | 0.75 | `75%` |
+| `{value:hms}` | durata in secondi | ore, minuti, secondi (anche `hm`, `dhms`) |
+| `{value:datetime}` | istante in ms | data e ora UTC (anche `date`, `time`) |
 
-Qualsiasi proprietà numerica può essere legata a un tag tramite la sezione **Binding universale**
-nel pannello proprietà. Esempio: legare la proprietà `fill` (colore) a un tag booleano
-per cambiare colore dinamicamente.
+Un formato senza `{value}` resta testo fisso.
+
+### Binding attivi
+
+Oltre al tag principale, molte proprietà si legano a un tag nella sezione **🔗 Dati e collegamenti → Binding
+attivi**. Esempio: legare il colore di riempimento a un tag booleano per cambiarlo dinamicamente.
 
 ---
 
@@ -334,16 +360,16 @@ Un'**immagine di boot** è ciò che un pannello Pixsys mostra mentre parte. Nell
 
 - **Dove.** Pannello sinistro → **PAGINE**, sezione **Immagini di boot** (🖼) sotto le pagine. Ogni progetto
   nasce con una, vuota, 1280×800; «+ Nuova immagine di boot» ne aggiunge altre. Non compaiono fra le tab in alto.
-- **Cosa ci puoi mettere.** Solo oggetti vettoriali statici: rettangolo, ellisse, linea, tubo, testo, immagine,
-  simbolo. Il pannello proprietà mostra solo Oggetto, Testo e Resa — niente dati, eventi, comportamento.
+- **Cosa ci puoi mettere.** Solo oggetti statici: forme, linee, tubi, testo, immagini, simboli. L'immagine diventa
+  un PNG al salvataggio, quindi tag ed eventi non avrebbero effetto.
 - **Abilitarla.** Una sola per progetto, col radio ⭐ nell'elenco o con «Immagine di boot abilitata» nel pannello
   della pagina. È quella che il deploy installa; senza nessuna abilitata il deploy non tocca l'immagine.
 - **Il PNG.** Si genera nel browser al salvataggio. Nel pannello della pagina c'è l'anteprima del PNG che sta
   sul server, con «Rigenera PNG» e «Scarica PNG». I font sono quelli del browser con cui salvi.
 - **Formato del progetto.** La prima pagina a cui imposti misure o sfondo dà il formato alle altre (Impostazioni
   pagine → «Formato predefinito», con «Applica alle pagine senza formato proprio»).
-- **Sul pannello.** L'immagine compare al **prossimo avvio**. Lo stato si legge in Configurazione → Runtime,
-  riga «Immagine di boot». Vedi `HOWTO.md` §17.
+- **Sul pannello.** L'immagine compare al **prossimo avvio**. Lo stato si legge in Configurazione → Istanza →
+  Device → Connessione, riga «Immagine di boot». Vedi `HOWTO.md` §17.
 
 ![Immagine di boot: sezione nell'elenco pagine, canvas e anteprima del PNG](screenshots/11_immagine_di_boot.png)
 
@@ -353,6 +379,9 @@ Una **cornice** è la parte che resta uguale su tutte le pagine che la usano, co
 documento: una testata con titolo, data e ora, un piede con la barra di navigazione. Si modifica una volta e cambia
 ovunque.
 
+- **La proposta.** In un progetto che ha pagine ma nessuna cornice, il ramo Cornici propone un modello: sceglierlo
+  crea la cornice e la rende la predefinita; «No, grazie» non la ripropone più in quel progetto, in questo browser
+  (`cornici/PropostaCornice.tsx`).
 - **Dove.** Pannello sinistro → **CORNICI** (▭). «+ Nuova cornice…» propone quattro modelli: testata con titolo,
   data e ora più navigazione in basso; solo navigazione in basso; solo testata; vuota. La cornice nasce con le
   misure della pagina aperta e si apre sul canvas come una pagina.
@@ -412,7 +441,15 @@ riposizionare tutto a mano: pannello proprietà, con nessun oggetto selezionato 
 
 ### Salva manuale
 
-**≡ Menu → Salva tutto** (o `Ctrl+S`): salva il progetto corrente sul runtime.
+**☰ Menu → Salva tutto** (o `Ctrl+S`): salva il progetto corrente sul runtime.
+
+### Salva come, Rinomina, Chiudi
+
+Nel **☰ Menu** (`components/MainMenu.tsx`):
+
+- **Salva come…** crea una copia del progetto con un nome nuovo e continua a lavorare **sulla copia**. Con modifiche
+  non salvate avvisa: la copia parte dal progetto com'è sul disco.
+- **Rinomina progetto…** e **Chiudi progetto** (che torna alla schermata dei progetti).
 
 ### Quando il salvataggio viene rifiutato
 
@@ -452,14 +489,17 @@ progetto vecchio o aver aggiornato il runtime di un dispositivo.
 
 ### Export / Import
 
-- **≡ Menu → Esporta progetto** → scarica un `.zip` con tutti i YAML
-- **≡ Menu → Importa progetto** → carica un `.zip` (sovrascrive il progetto corrente)
+- **☰ Menu → 💾 Salva copia sul PC…** → scarica un `.zip` con tutti i YAML
+- **☰ Menu → 📂 Sostituisci da copia sul PC…** → carica un `.zip` e **sostituisce** il progetto corrente: le pagine
+  che lo `.zip` non porta vengono eliminate
+- **Includi le credenziali (password, token)**: con la spunta lo `.zip` porta anche `secrets.yaml`, e all'import
+  sostituisce quello del progetto
 
 ### GitOps (versioning avanzato)
 
-Se il progetto è sotto Git (percorso predefinito su device Yocto):
-- **Configurazione → Runtime → GitOps**: commit, push, pull, rollback
-- Ogni salvataggio non crea automaticamente un commit — devi farlo esplicitamente
+- **Configurazione → Progetto → Git**: aggancio a un repository, commit, push, pull, rollback, storia, prova di una
+  versione, fork, tag
+- Un salvataggio non crea un commit: va fatto esplicitamente
 
 Vedi [12 — GitOps](12_gitops.md) per i dettagli.
 
@@ -481,7 +521,8 @@ nasce viva. Archiviare e ripristinare finiscono nell'audit (`project.archive`, `
 `?` sul canvas apre la guida, con le combinazioni in uso. Si cambiano in **Configurazione → IDE → Preferenze IDE →
 Scorciatoie da tastiera**: «Cambia», poi la combinazione nuova (Esc annulla); «Predefinita» o «Ripristina tutte» per
 tornare indietro. Valgono in questo browser, come tema e lingua. La scheda rifiuta le combinazioni che il browser si
-tiene (Ctrl+W, Ctrl+T, Ctrl+N, Ctrl+Q, Ctrl+PagSu/PagGiù) e quelle già usate da un'altra azione, dicendo quale.
+tiene — dieci: Ctrl+W, Ctrl+T, Ctrl+N, Ctrl+Q, Ctrl+Shift+W, Ctrl+Shift+T, Ctrl+Shift+N, Ctrl+Tab, Ctrl+PagSu,
+Ctrl+PagGiù (`RISERVATE`, `scorciatoie/registro.ts`) — e quelle già usate da un'altra azione, dicendo quale.
 
 | Azione | Predefinita |
 |---|---|
@@ -501,25 +542,28 @@ gesti fissi.
 
 - **Ctrl+Z** — undo (fino a 200 step)
 - **Ctrl+Y** o **Ctrl+Shift+Z** — redo
-- Il pannello **CRONOLOGIA** in basso a sinistra mostra tutti gli step
-- Click su uno step nella cronologia → torna a quello stato
+- La **cronologia** a tendina nella barra dell'editor mostra gli step, con il segno «sei qui»
+- Click su uno step → torna a quello stato (o lo ripristina, se è dopo)
 
 ---
 
 ## Simboli SVG industriali
 
-Il **Symbol Picker** (nella sezione SCADA → Simbolo) offre:
+Il gruppo **Simboli** degli strumenti apre il riquadro di scelta; sotto, la libreria si sfoglia per famiglia.
+La libreria ha **138 simboli** (`sws-editor/public/symbols/lib/`):
 
-**22 simboli built-in** per le categorie principali:
-- Pompe (centrifuga, peristaltica, vuoto)
-- Valvole (on/off, regolatrice, solenoide)
-- Motori (elettrico, riduttore)
-- Serbatoi (verticale, orizzontale)
-- Ventilatori (assiale, centrifugo)
-- Scambiatori di calore
+| Famiglia | Simboli | Esempi |
+|---|---|---|
+| `process` | 68 | valvole (a sfera, a farfalla…), filtri, caldaie, agitatori, scambiatori |
+| `machines` | 34 | nastri trasportatori, ventilatori, soffianti, AGV, elevatori |
+| `electrical` | 26 | motori, interruttori, quadri, batterie |
+| `building` | 10 | UTA, pompe di calore, fan coil, radiatori, tapparelle |
 
-**Simboli custom**: carica file SVG da **≡ Menu → Simboli personalizzati**.
-I simboli custom vengono salvati nel progetto e condivisi tra tutti i sinottici.
+I colori dei simboli seguono lo **stile** del progetto (Configurazione → Progetto → Stile) e lo stato del tag
+collegato.
+
+**Simboli del progetto**: si caricano file SVG da **Configurazione → Istanza → Risorse**, con etichetta, licenza e
+autore. Restano nel progetto (`custom_symbols` in `project.yaml`) e si usano in tutte le pagine.
 
 ---
 
@@ -531,8 +575,8 @@ Un faceplate è un gruppo di widget riutilizzabile con parametri sostituibili.
 - Contiene un LED (tag: `{tag_prefix}.stato`), un gauge (tag: `{tag_prefix}.portata`), un label (`{label}`)
 - Ogni istanza sostituisce `{tag_prefix}` con il valore specifico
 
-Per creare un faceplate: **SCADA → Faceplate → Nuovo**.
-Per usarlo: trascina un'istanza dal picker e configura i parametri.
+Per creare un faceplate: **Configurazione → Progetto → Faceplates**.
+Per usarlo: strumenti, gruppo **Impianto → Faceplate**, poi si sceglie il faceplate e si danno i parametri.
 
 ---
 
@@ -540,15 +584,18 @@ Per usarlo: trascina un'istanza dal picker e configura i parametri.
 
 ### Script Python su oggetti
 
-Ogni widget può avere una funzione Python chiamata su `on_press` e `on_release`.
-Le funzioni sono definite nella sezione **FUNZIONI** del pannello sinistro.
+Un bottone può chiamare una funzione Python alla pressione e al rilascio (`on_press_fn`, `on_release_fn`).
+Le funzioni si definiscono nel ramo **ƒ Funzioni** del pannello sinistro: un nome, dei parametri con un valore
+predefinito, e il corpo, che vede i parametri come variabili e i tag attraverso `tags`:
 
 ```python
-# Esempio: scrivi un valore e logga
-def apri_valvola(tags, api):
-    api.write_tag("valvola_1", True)
-    api.log("Valvola 1 aperta")
+# fnc_Inc — parametri: tag (predefinito «counter»), step (predefinito 1)
+current = tags.read(tag) or 0
+tags.write(tag, current + step)
 ```
+
+L'esempio viene dal template `grid-playground`. Gli script globali, con i loro trigger, stanno in
+Configurazione → Progetto → Python.
 
 ### Timer e transizioni
 
