@@ -12,6 +12,55 @@
 > resta in «Storico». Qui vive solo ciò che serve a riprendere il lavoro.
 
 
+## ▶ Riprendere da qui — la 2.14.0 rilasciata, e il piano che chiude le code (2026-10-19, pomeriggio)
+
+### Fatto, tutto su `main`
+
+- **Rilasciata la 2.14.0** (`e14fbe15`, tag `2.14.0`, su origin). **Non era mai stata rilasciata**: esistevano solo
+  le sue note in `NOVITA.yaml`, scritte il 19-10 come cumulative perché «la 2.13.0 non è mai uscita come release»,
+  ma i quattro file dicevano ancora `2.13.0-rc.3`, il CHANGELOG non aveva la sezione e il tag non c'era.
+  `check_release_coerente.sh` taceva perché una `-rc` non pretende una sezione sua: la guardia copriva «release
+  senza tag», non «release mai iniziata».
+- **Immagini pubblicate e verificate nel registry**, dieci tag. `2.14.0-arm64`, `rc-arm64` e `latest-arm64` puntano
+  tutti e tre a `eb2f930c…`; i tre amd64 a `cabd8e69…`. **La verifica dei digest è il passo che era saltato
+  l'altra volta**: fino a stamattina `rc-arm64` era fermo al 16-10 e `2.13.0-rc.3-arm64` non è mai esistito (solo
+  il gemello amd64), mentre le immagini arm64 del 17, 18 e 19 erano state pubblicate **solo** come tag di commit.
+- **Capitoli 09 e 13 del manuale** riscritti contro il codice (`93014203`, `1798865f`) — ramo 2 del piano del
+  manuale, due su diciassette.
+- **Cinque piani archiviati** e il piano nuovo della chiusura dei residui (`c4e5e9c7`).
+- `fix/scala-da-proposto` chiuso (`ae69bd51`): il «Da» proposto dal dialogo «Cambia risoluzione» è la misura dello
+  schermo, non la più frequente.
+
+### Il prossimo passo
+
+**Il WP630 va aggiornato alla 2.14.0** e non è stato fatto: a fine sessione non rispondeva più né a
+`192.168.1.73` né in mDNS. Quando torna raggiungibile: Configurazione → Istanza → Device → Connessione, oppure
+`install-container.sh --pull`. Il pannello gira `2.13.0-rc.3` sul canale `rc-arm64`, e la 2.14.0 è una release,
+quindi vale sia per il canale stabile sia per quello di prova.
+
+Poi, a scelta: i diciassette rami del manuale (ne restano quindici, il prossimo è il **03**, da legare al 18), o i
+sette della [chiusura dei residui](docs/plans/2026-10-19-chiusura-dei-residui.md). **Il ramo 7 di quel piano
+conviene aprirlo presto**: la misura della tenuta del tunnel vuole sette giorni di calendario col WP630 acceso, e
+nel frattempo si lavora ad altro.
+
+### Tre cose misurate oggi che vale la pena non riscoprire
+
+- **L'avviso di aggiornamento sullo schermo del pannello non può più comparire dall'11-10.** Il componente web e il
+  gemello LVGL mostrano qualcosa solo se non esistono utenti; da quando un pannello senza utenti è «in attesa di
+  abbinamento», appena lo si abbina nasce l'Admin del dispositivo e quella condizione non si avvera più. Cadono con
+  lui anche l'esito dell'aggiornamento, l'avviso del quadlet e la domanda di conferma. **E il lavoro è lato
+  server**: togliere il cancello dal client non farebbe comparire niente, perché `/api/system` e
+  `/api/update/status` rispondono 403 a chi sta davanti al vetro. Decisione del maintainer: l'avviso si vede
+  comunque, le credenziali di Admin si chiedono **al momento di applicare**. È il ramo 6 del piano nuovo.
+- **Il rimedio previsto per il `font_size` non funzionerebbe**: scrivere quel campo su un bottone non fa niente,
+  perché nessuno dei due motori lo legge per quel tipo (`fontSize={14}` cablato; su LVGL `apply_font_size` la
+  chiamano tre renderer). Il lavoro vero è renderlo vivo. Ramo 5, su **tutti** i tipi.
+- **I due residui del gateway sono un lavoro solo, e piccolo**: `Regia::aperti_di`, `::elenco` e `::chiudi`
+  esistono già e non hanno un chiamante fuori dai test; la console intanto mostra `0 / N` a tutti perché legge
+  `project_dir`, che sul gateway è sempre vuoto. Ramo 1.
+
+---
+
 ## ▶ Riprendere da qui — il manuale rifatto: capitolo 18 fatto, poi revisione e tutorial (2026-10-19)
 
 Piano: **`docs/plans/2026-10-19-manuale-rifatto.md`** (decisioni del maintainer già scritte lì).
@@ -34,11 +83,7 @@ Piano: **`docs/plans/2026-10-19-manuale-rifatto.md`** (decisioni del maintainer 
 
 Cloud e TC620 sull'immagine `8785a4b2`.
 
-**Un ramo aperto**: `fix/scala-da-proposto` (`b2fc2c2d`, 19-10 ore 09:15, non pushato) — il «Da» proposto dal dialogo
-«Cambia risoluzione» è lo schermo (cornici e boot, poi il predefinito del progetto) e non più la misura più
-frequente, che in un progetto con molte modali 800×600 faceva vincere le modali. Quattro file, test compreso; non
-tocca niente di quello che è arrivato su `main` nel frattempo. Manca solo la conferma a schermo del maintainer per
-chiuderlo.
+*(Il ramo `fix/scala-da-proposto` è stato chiuso nel pomeriggio: squash `ae69bd51`, ramo cancellato.)*
 
 ## ▶ Riprendere da qui — programma funzioni utente, gruppi 1–4 chiusi (2026-10-19)
 
