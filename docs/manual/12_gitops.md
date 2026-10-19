@@ -4,195 +4,186 @@
 
 # 12 — GitOps
 
-SWS tratta i progetti come repository Git. L'IDE permette di fare commit, push,
-pull e rollback direttamente dal browser, senza usare la riga di comando.
-
-Disponibile in: **Configurazione → Runtime → GitOps** (connesso come Admin/Supervisor).
-
----
-
-## Concetti base
-
-Il formato progetto SWS (directory di file YAML) è naturalmente adatto a Git:
-- Ogni modifica al sinottico è una modifica a un file YAML
-- Il diff è human-readable
-- Il merge tra branch è possibile con strumenti Git standard
-- Il rollback è un `git checkout` su commit precedente
+> Il versionamento del **progetto** con git, dall'IDE: agganciarlo a un repository, commit, push, la storia, la
+> prova di una versione vecchia, il fork, i tag; e la firma che dice se un pannello ha la stessa versione dell'IDE.
+> Per chi progetta e consegna impianti. Non riguarda il codice di SWS, solo la cartella del progetto.
+>
+> Misurato sul codice il 19-10-2026.
 
 ---
 
-## Prerequisiti
+## In breve
 
-Il progetto aperto sul runtime deve essere in una directory Git:
+- **Dove**: **Configurazione → Progetto → Git** (`sws-editor/src/config/schede/GitTab.tsx`). La scheda c'è dove
+  gira l'IDE: sul PC (`start_editor.sh`) e nel cloud, nel container del progetto. Un pannello non ha IDE: il
+  progetto ci arriva col **deploy**, non con git.
+- **Cosa si versiona**: la cartella del progetto (`project.yaml`, `synoptics/`, `cornici/`, `faceplates/`, …).
+  Restano fuori, con un `.gitignore` che SWS scrive e completa da sé, `secrets.yaml`, lo storico (`*.db`) e
+  `backups/`.
+- **Come**: SWS lancia il binario `git` (`sws-web/src/git_deploy.rs`), nessuna libreria. Git e il client SSH sono
+  nell'immagine, con le chiavi di GitHub, GitLab e Bitbucket già fidate (`/etc/ssh/ssh_known_hosts`).
 
-```bash
-# Verifica
-git -C /var/lib/sws/default status
-```
+| Operazione | Ruolo minimo | Rotta |
+|---|---|---|
+| Stato, storia, file cambiati, diff, elenco tag, firma | qualunque utente autenticato | `GET /api/project/git-status`, `/git/log`, `/git/changes`, `/git/diff`, `/git/tags`, `/api/project/fingerprint` |
+| Pull (`↑ Deploy (git pull)`) | Operator | `POST /api/project/deploy` |
+| Commit, nuovo tag | Supervisor | `POST /api/project/git/commit`, `POST /api/project/git/tags` |
+| Aggancio, chiave SSH, autore, push, rollback, prova, fork, push ed eliminazione dei tag | Admin | `POST /api/project/git/init`, `/git/ssh-key*`, `/git/identity`, `/git/push`, `/api/project/rollback`, `/git/prova*`, `/git/fork`, `/git/tags/:name*` |
 
-In ambiente dev (`./scripts/start_runtime.sh`), i progetti sotto `.run/projects/` NON sono
-repository Git — il GitOps è disponibile solo su device con progetti versionati.
-
----
-
-## Stato Git (GitOps Panel)
-
-Il pannello **GitOps** in **Configurazione → Runtime** mostra:
-
-| Campo | Descrizione |
-|-------|-------------|
-| **Branch** | Branch corrente |
-| **Commit** | Hash SHA del commit HEAD |
-| **Autore** | Autore dell'ultimo commit |
-| **Messaggio** | Messaggio dell'ultimo commit |
-| **Data** | Timestamp commit |
-| **Remote** | URL remote (se configurato) |
-| **Stato** | `clean` o `modifiche non committate` |
-| **Commit non inviati** | Numero di commit davanti al remote |
+Le rotte stanno in `sws-web/src/router.rs` (righe 440-506, 804-806, 864-873); l'elenco completo nel
+[capitolo 13](13_api_reference.md).
 
 ---
 
-## Commit
+## 1. Agganciare il progetto a un repository
 
-### Dalla UI
+Un progetto non agganciato mostra «Questo progetto non è ancora agganciato a un repository» e il campo
+**URL del repository**:
 
-1. **Configurazione → Runtime → GitOps → Commit**
-2. Scrivi il messaggio di commit nel campo testo
-3. Click **💾 Commit**
+- **vuoto**: un repository solo locale, con storia e tag ma senza push;
+- **un URL SSH** (`git@github.com:utente/repository.git`): il push va lì. Con una chiave SSH serve la forma SSH,
+  non quella `https://` copiata dal browser — l'IDE la rifiuta e suggerisce quella giusta, perché git su HTTPS
+  chiederebbe una password che dall'IDE nessuno può digitare.
 
-Il sistema esegue `git add -A && git commit -m "<messaggio>"`.
+**Imposta URL** fa `git init` se serve e imposta (o sostituisce) `origin`.
 
-**Ruolo richiesto**: Supervisor o Admin.
+### La chiave SSH
 
-### Note sicurezza
+Due possibilità, nel riquadro **Chiave SSH**:
 
-Il messaggio di commit viene passato come argomento discreto all'eseguibile git
-(non interpolato nella shell) — nessun rischio di command injection.
+| Chiave | Dove vive | Quando |
+|---|---|---|
+| **Chiave del progetto** | `.git/sws-ssh/` dentro il progetto | la scelta normale, e l'unica nel cloud. La genera SWS (**Genera la chiave del progetto**), la privata non esce mai dal runtime, la pubblica si copia con **Copia la chiave pubblica** |
+| una chiave di `~/.ssh` | la home dell'utente che fa girare l'IDE | sul PC, per chi ha già una chiave registrata |
 
----
+La chiave del progetto sta sotto `.git/`, quindi non entra in nessun commit, esportazione o backup; e resta col
+progetto, che nel cloud è l'unica cosa che sopravvive al container. La pubblica va registrata sul repository come
+**deploy key con permesso di scrittura** (GitHub: *Settings → Deploy keys → Add deploy key*, «Allow write
+access»).
 
-## Push
+SSH parte sempre con `BatchMode=yes` (non si ferma mai a chiedere) e `StrictHostKeyChecking=accept-new`: un server
+git aziendale si memorizza al primo contatto, e se poi la sua chiave cambia ssh rifiuta.
 
-### Dalla UI
+### L'autore dei commit
 
-Click **↑ Push (N)** dove N è il numero di commit non ancora inviati al remote.
-
-Il sistema esegue `git push origin <branch>`.
-
-**Ruolo richiesto**: Admin.
-
-**Prerequisiti**:
-- Il repository deve avere un remote configurato (`git remote -v`)
-- Il runtime deve avere accesso SSH o HTTPS al remote (chiave SSH o token)
-
----
-
-## Pull (aggiornamento da remote)
-
-### Dalla UI
-
-Click **⬇ Pull** per scaricare gli aggiornamenti dal remote.
-
-Il sistema esegue `git pull --rebase origin <branch>`.
-
-**Attenzione**: se ci sono modifiche locali non committate, il pull può fallire.
-Fai sempre il commit prima del pull.
+**Autore dei commit**: nome ed email con cui si firmano i commit di questo progetto (`user.name`/`user.email`
+locali). Vuoti, vale l'identità globale di git della macchina.
 
 ---
 
-## Rollback
+## 2. Commit, push, pull, rollback
 
-### Dalla UI
+I quattro pulsanti della scheda. **Cosa fanno questi bottoni** ne ripete la spiegazione nell'IDE.
 
-**Configurazione → Runtime → GitOps → Rollback** mostra gli ultimi N commit.
-Click su un commit per tornare a quello stato.
+| Pulsante | Cosa fa |
+|---|---|
+| **💾 Commit** | `git add -A` + commit col messaggio dato. Prima completa il `.gitignore`; si ferma se un file supera i 50 MB, con il nome del file |
+| **↑ Push** (con il numero di commit da pubblicare) | `git push` verso `origin`. Il primo push crea il ramo anche lì. Si ferma prima di partire se i commit contengono file oltre i 100 MB, che GitHub rifiuterebbe |
+| **↑ Deploy (git pull)** | `git pull --ff-only` e ricarica del progetto. Si ferma se le due storie hanno preso strade diverse: non unisce niente da sé |
+| **↓ Rollback (HEAD~1)** | `git reset --hard HEAD~1` e ricarica: toglie l'ultimo commit **e** le modifiche non committate. Non si annulla |
 
-Il sistema esegue `git checkout <sha> -- .` per ripristinare i file
-senza cambiare il branch HEAD (permette di tornare avanti se necessario).
-
-Per rendere permanente il rollback:
-```bash
-git revert <sha>  # oppure git reset --hard <sha>
-```
-
----
-
-## Project Fingerprint
-
-Il **fingerprint** è un hash SHA256 deterministico del progetto corrente:
-calcolato su `project.yaml` + tutti i file `synoptics/*.yaml` ordinati per nome.
-
-Serve per verificare che il progetto su un device sia identico alla versione di riferimento.
-
-### Dalla UI
-
-**Configurazione → Device** — ogni card device mostra:
-- ✅ **Firma OK** — identica al progetto locale
-- ⚠️ **Firma diversa** — il device ha una versione diversa del progetto
-- ❌ **Non raggiungibile** — device offline
-
-### Via API
-
-```bash
-TOKEN=$(curl -sk -X POST https://localhost:8444/api/auth/login \
-  -H 'Content-Type: application/json' \
-  -d '{"username":"admin","password":"admin"}' | jq -r .token)
-
-curl -sk -H "Authorization: Bearer $TOKEN" \
-  https://localhost:8444/api/project/fingerprint
-```
-
-**Risposta**:
-```json
-{
-  "sha256": "a3f4c2d1e8b7...",
-  "computed_at_ms": 1735600000000
-}
-```
+**Il Rollback è per un commit appena fatto e non ancora pubblicato.** Se l'ultimo commit è già sul remoto,
+l'IDE avvisa: dopo il Rollback il Push verrebbe rifiutato. Per tornare a una versione pubblicata si usa la
+[prova](#3-la-storia-e-la-prova-di-una-versione) e **Riparti da qui**, che non riscrivono niente.
 
 ---
 
-## Device Dashboard
+## 3. La storia e la prova di una versione
 
-**Configurazione → Device** mostra tutti i runtime SWS salvati:
+Il riquadro **Storia** (`GitStoria.tsx`) elenca i commit (con **Commit più vecchi…** per andare indietro) e le
+**modifiche non committate**. Per ogni commit si vedono i file cambiati e il diff; **Confronta** mette a confronto
+due commit qualsiasi.
 
-![Device dashboard](screenshots/08_device_tab.png)
+### Prova la versione
 
-Per ogni device:
-- **Stato**: Online (verde) / Offline (rosso)
-- **Fingerprint**: identico / diverso / non disponibile
-- **URL**: link diretto all'admin IDE
-- **Versione**: versione del runtime
-- **Pulsanti**: Connetti, Aggiorna, Rimuovi
+Su un commit vecchio, **🧪 Prova la versione** riporta il progetto com'era a quel commit e ricarica l'IDE:
 
-### Aggiungere un device
+- serve un albero pulito: con modifiche non salvate o non committate l'IDE chiede prima di salvare e fare commit;
+- **finché la prova dura non si salva niente**. Le rotte che cambiano il progetto (`/api/project/`, pagine,
+  cornici, faceplate, ricette, utenti…) rispondono con un rifiuto; restano aperte quelle dell'impianto (scrivere un
+  tag, confermare un allarme, applicare una ricetta) e l'uscita dalla prova (`rotta_bloccata_in_prova`,
+  `git_deploy.rs`);
+- un banner dice quale versione si sta provando e su quale ramo è al sicuro l'ultima.
 
-1. Click **+ Aggiungi device**
-2. Inserisci label, URL (`https://<ip>:8444`), username, password
-3. Click **Salva** — il device viene aggiunto alla lista e pingato
+Da lì due uscite:
 
-I device sono salvati in localStorage del browser (non nel progetto).
+| Pulsante | Cosa succede |
+|---|---|
+| **Torna all'ultima** | si torna al ramo di partenza, all'ultimo commit |
+| **Riparti da qui** | sul ramo si scrive un commit **nuovo** con i file della versione provata. La storia resta intera — i commit successivi ci sono ancora — e si pubblica con il Push di sempre |
+
+### Fork
+
+**⑂ Fork** da un commit della storia crea un **progetto nuovo** com'era a quel commit, con la sua storia fino a lì
+(`fork_in`, `git_deploy.rs`):
+
+- il ramo è `main`, sul commit scelto;
+- **`origin` non c'è**: il nuovo progetto non può pubblicare sul repository dell'originale, e si aggancia al suo
+  dalla sua scheda Git;
+- l'autore dei commit è lo stesso, la chiave SSH no (una deploy key vale per un repository solo);
+- le **credenziali** (`secrets.yaml`, che git non porta) si scelgono: **nuove** (il fork parte senza, per un
+  impianto diverso) o **le stesse di questo progetto**;
+- storico e backup non si copiano mai.
 
 ---
 
-## Flusso GitOps tipico
+## 4. I tag
+
+Un tag è un nome fisso su un commit (`v1.2.0`), per ritrovare una versione consegnata.
+
+- **+ Nuovo tag** lo crea sul commit attuale: annotato se si scrive un messaggio, leggero altrimenti;
+- **↑ Push** accanto al tag lo pubblica;
+- **Elimina** lo toglie in locale e, se c'è un remoto, anche lì.
+
+---
+
+## 5. La firma: il pannello ha la stessa versione?
+
+La **firma** (`GET /api/project/fingerprint`) è uno SHA-256 calcolato sui file che il deploy porta
+(`calcola_impronta`, `router.rs`):
+
+- `project.yaml`;
+- i file `.yaml` di `synoptics/`, in ordine di nome, nome compreso;
+- dal 15 e 17-10-2026 anche `cornici/`, `faceplates/`, `recipes/` e le immagini di `images/`.
+
+Non dipende da git: la espongono anche i pannelli, sulla porta di gestione. Due runtime con la stessa firma
+mostrano lo stesso progetto.
+
+### Dispositivi registrati
+
+**Configurazione → Istanza → Device → Dispositivi** (`DevicesTab.tsx`) elenca i dispositivi salvati, con **Stato**
+(raggiungibile o no) e **Firma** (uguale a quella dell'IDE o diversa), e i pulsanti per connettersi e fare il
+deploy.
+
+- **Aggiungi dispositivo**: etichetta, URL della gestione (`http(s)://<ip>:8444`), utente SWS. L'utente è quello
+  del progetto o l'Admin del dispositivo, non l'utente SSH; vuoto per un pannello ancora da abbinare.
+- **Cerca dispositivi in rete** li trova via mDNS.
+- La lista sta sul server, in `<cartella progetti>/.ambiente/dispositivi.yaml`: etichetta, URL e utente, **mai la
+  password**, che resta in memoria finché la pagina è aperta.
+- Prima di un deploy l'IDE salva le modifiche pendenti; dopo, rilegge la firma.
+
+---
+
+## Un flusso tipico
 
 ```
-[Ingegnere - local dev]
-  ./scripts/start_editor.sh
-  → Modifica sinottici
-  → GitOps: Commit "feat: aggiunta pompa P3"
-  → GitOps: Push
+IDE sul PC o nel cloud
+  → modifica pagine e configurazione, Salva
+  → Git: 💾 Commit «aggiunta pompa P3»
+  → Git: ↑ Push                     (il repository è la storia condivisa)
+  → Device: deploy sul pannello     (il pannello riceve il progetto, non il repository)
+  → Device: la Firma del pannello è uguale a quella dell'IDE
 
-[Admin - device remoto]
-  Configurazione → Runtime → GitOps: Pull
-  → Il device scarica le modifiche
-  → Fingerprint si aggiorna automaticamente
+Un altro IDE, sullo stesso repository
+  → Git: ↑ Deploy (git pull)        (scarica i commit fatti altrove e ricarica)
 
-[Verifica multi-device]
-  Configurazione → Device
-  → Tutti i device mostrano ✅ Firma OK
+Una versione consegnata da ritrovare
+  → Git: + Nuovo tag v1.2.0, ↑ Push
+  → più avanti: Storia → 🧪 Prova la versione → Riparti da qui
 ```
+
+Il deploy verso i pannelli e i suoi controlli (utenti, abbinamento, conferma) sono nel
+[capitolo 10](10_deployment.md) e nel [capitolo 18, §5.2](18_container_e_comunicazione.md#52-lide-in-rete-locale-e-il-pannello).
 
 ---
 
