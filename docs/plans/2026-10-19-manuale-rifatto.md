@@ -216,6 +216,32 @@ Capitoli proposti (da confermare all'inizio del ramo):
 Da misurare all'inizio del ramo: come si installa OpenPLC Runtime v4 in container (immagine pronta o build), quali
 indirizzi espone per ogni protocollo, e se il programma si carica senza l'editor grafico.
 
+### La misura, fatta il 20-10-2026 (OpenPLC v4, scelta confermata dal maintainer)
+
+Il maintainer, davanti all'alternativa v3: «No, vorrei stare sul 4».
+
+- **Runtime**: immagine pronta `ghcr.io/autonomy-logic/openplc-runtime:latest` (v4.3.1, 1,0 GB, amd64/arm64/armv7,
+  licenza MIT). Provata qui come `oplc-prova`, poi tolta: parte, genera il suo certificato autofirmato e risponde
+  all'API REST su **8443** — la stessa porta del viewer di SWS, quindi nel laboratorio va rimappata (provato
+  `18443`). Il port forwarding di podman ha risposto **solo in IPv4**: `https://localhost:18443` cade
+  sull'handshake (`::1`), `https://127.0.0.1:18443` va.
+- **Nessuna interfaccia web**: la v4 è senza testa, la si comanda dall'Editor o dall'API. Provati: `POST
+  /api/create-user` (il primo utente, senza autenticazione, nasce admin), `POST /api/login` (JWT), `GET /api/status`
+  → `STATUS:EMPTY`.
+- **Il programma** non si carica come `.st`: arriva un `program.zip` con il C già generato dall'Editor (ST → C con
+  xml2st e iec2c), più una cartella `conf/` con le **configurazioni dei protocolli**; il runtime compila, accende i
+  plugin che `conf/` dichiara e parte (`docs/COMPILATION_FLOW.md` del runtime, `plcapp_management.py`).
+- **Ma l'Editor v4 ha una CLI senza testa**: `openplc-cli create`, `compile --target "OpenPLC Runtime v4"`,
+  `upload --host … --yes --create-user`, `debug read/force` (`docs/CLI.md` dell'editor, v4.3.2). Gira da AppImage
+  con `--no-sandbox --cli install-cli`, senza display, e gli autori la verificano in un container `debian:12`. Quindi
+  il laboratorio si prepara e si ricarica da script, e i passi del tutorial si possono eseguire davvero.
+- **Protocolli** (`plugins_default.conf`, tutti spenti finché il programma non li accende): `modbus_slave` (Python,
+  502), `s7comm` (nativo con Snap7, 102), `opcua` (Python, 4840), più `modbus_master` ed EtherCAT. **EtherNet/IP non
+  c'è** nella v4: il T14 facoltativo, se resta, va fatto in un altro modo.
+- **Da misurare al prossimo passo**: il formato del progetto dell'Editor (dove stanno POU in ST e le configurazioni
+  di Modbus, S7 e OPC UA), un `create` + `compile` + `upload` dal vivo, e la mappa degli indirizzi (`%IX/%QX/%IW/%QW`
+  → registri Modbus, DB S7, nodi OPC UA) che i capitoli T04-T06 useranno.
+
 ## Ramo 4 — le schermate
 
 Prima l'elenco delle inquadrature, capitolo per capitolo, da approvare; poi lo scatto con
