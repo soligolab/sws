@@ -12,6 +12,44 @@
 > resta in «Storico». Qui vive solo ciò che serve a riprendere il lavoro.
 
 
+## ▶ Riprendere da qui — laboratorio OpenPLC v4, S7 riparato su un ramo, e un seme (2026-10-20, mattina)
+
+### ⚠ Un ramo aperto: `feat/s7-porta` (pushato su origin, **non mergiato**)
+
+`git fetch && git checkout feat/s7-porta` per il collaudo. Un commit (`394be357`):
+- **la sorgente S7 non si è mai collegata a nessun PLC**: `s7::tcp::Options::new` lascia i timeout a zero e
+  `set_read_timeout(Some(0))` è `InvalidInput`. Ora 5 s;
+- **porta S7 configurabile** (`port`, assente = 102; campo nella card S7): crate `s7` 0.1.9 vendorizzato in
+  `sws-plugin-s7/vendor/` con `Options::with_port`, patch in `patches/s7/`, verificata da `check_vendor_patches.sh`
+  (che ora controlla anche che `s7` sia preso dal vendor nel `Cargo.lock`);
+- NOVITA sotto **2.15.0** (numero da confermare), CHANGELOG, capitolo 06;
+- definition of done verde; provato dal vivo contro il laboratorio (lettura DB1/DB2, scrittura di `soglia_alta`
+  riletta in Modbus). **Manca la conferma del maintainer**, poi squash ed eliminazione del ramo.
+
+### Il laboratorio del tutorial (ramo 3 del manuale), misurato
+
+- Il maintainer ha scelto **OpenPLC v4** (non la v3), con T14 EtherNet/IP **rimandato** e T01–T13 confermati.
+- Funziona tutto il giro senza interfaccia grafica: `openplc-cli create/compile` (AppImage dell'Editor 4.3.2, da
+  lanciare **senza `ELECTRON_RUN_AS_NODE`**, che l'estensione di VS Code mette nell'ambiente), poi `program.zip` dalla
+  cartella `build/…/src` caricato con l'API REST del runtime (`/api/upload-file`), perché la CLI carica solo sulla
+  porta 8443, quella del viewer SWS. Dettagli nel [piano del manuale](docs/plans/2026-10-19-manuale-rifatto.md),
+  §«La misura, fatta il 20-10-2026».
+- Il progetto di prova (pompa, serbatoio, allarme; server Modbus, S7, OPC UA) sta **solo in
+  `~/.cache/sws-laboratorio/`** su questa macchina: va portato nel repo (`examples/laboratorio/`) con lo script di
+  avvio, ed è il primo passo del T01. Due cose imparate: un valore iniziale su una `%QW` non vale, e nel
+  `nodeId` OPC UA non si scrive `ns=2;s=` (lo aggiunge il plugin).
+
+### Seme nuovo
+
+- [OpenPLC sul dispositivo](docs/plans/2026-10-20-openplc-sul-dispositivo.md): l'idea del maintainer di farne una
+  funzione di SWS anche in produzione, con le misure di oggi e tre strade. Va discusso in una sessione di plan.
+
+### Prossimo passo
+
+1. Collaudo di `feat/s7-porta` e merge.
+2. T01: il laboratorio nel repo, `scripts/laboratorio.sh` (avvia / carica / ferma), il capitolo.
+3. Il 26-10: `scripts/misura_tunnel.sh` (ramo 7 dei residui).
+
 ## ▶ Riprendere da qui — il manuale rimisurato sul codice (2026-10-20)
 
 ### Fatto, tutto su `main` (non pushato)
