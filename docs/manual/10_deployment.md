@@ -4,8 +4,14 @@
 
 # 10 — Deployment
 
-Questa guida descrive i tre percorsi di deployment supportati da SWS:
-generic Linux, Yocto cross-compile per device ARM64, e container Docker/Podman.
+> Come si installa e si aggiorna il runtime: container sui pannelli, tarball su Linux generico, binario Yocto, e il
+> cloud. Per chi installa e mantiene i dispositivi. Il deploy **del progetto** su un runtime già installato è nel
+> [capitolo 02](02_quickstart.md#3-abbina-il-pannello) e nel [capitolo 12](12_gitops.md#dispositivi-registrati).
+>
+> Misurato sul codice il 20-10-2026.
+
+Questa guida descrive i quattro percorsi di deployment di SWS: il **container podman**, che è quello dei pannelli
+(percorso C), Linux generico, Yocto per i device ARM64, e il **cloud** (percorso D).
 
 ---
 
@@ -21,10 +27,10 @@ Dal repository, esegui lo script di packaging:
 ./scripts/package.sh
 ```
 
-Questo produce:
+Questo produce `dist/sws-<versione>-linux-<arch>.tar.gz`: la versione la legge da `cargo metadata`
+(`scripts/package.sh`), l'architettura da `uname -m`. Con la 2.14.0 su x86_64:
 ```
-dist/sws-2026.7.0-linux-x86_64.tar.gz   (su x86_64)
-dist/sws-2026.7.0-linux-aarch64.tar.gz   (su ARM64)
+dist/sws-2.14.0-linux-x86_64.tar.gz
 ```
 
 Flags opzionali:
@@ -36,7 +42,7 @@ Flags opzionali:
 ### 2. Trasferimento al target
 
 ```bash
-scp dist/sws-2026.7.0-linux-x86_64.tar.gz utente@192.168.1.10:/tmp/
+scp dist/sws-2.14.0-linux-x86_64.tar.gz utente@192.168.1.10:/tmp/
 ```
 
 ### 3. Installazione
@@ -44,8 +50,8 @@ scp dist/sws-2026.7.0-linux-x86_64.tar.gz utente@192.168.1.10:/tmp/
 ```bash
 # Sul server target
 cd /tmp
-tar xzf sws-2026.7.0-linux-x86_64.tar.gz
-cd sws-2026.7.0-linux-x86_64
+tar xzf sws-2.14.0-linux-x86_64.tar.gz
+cd sws-2.14.0-linux-x86_64
 sudo ./install.sh
 ```
 
@@ -188,7 +194,7 @@ Lo script:
 ├── projects/                Progetti operativi
 ├── templates/               Template bundled
 ├── www/                     SPA dist (viewer + admin)
-└── historian.db             SQLite
+└── …                        lo storico sta in ogni progetto: projects/<progetto>/history/historian.db
 ```
 
 ### Porte su device Yocto
@@ -208,8 +214,9 @@ perché da lì passano deploy e gestione utenti.
 ## Percorso C — Container podman
 
 Un solo container — il runtime, che serve anche la SPA — installato come servizio systemd
-**senza `sudo`** (podman rootless + quadlet). Utile su un device che ha un runtime di container
-ma non un SDK per compilare.
+**senza `sudo`** (podman rootless + quadlet). È **il percorso dei pannelli** (TC620, WP630) e di qualunque device
+con podman: si aggiorna dall'IDE e non chiede un SDK. Il funzionamento interno — cartelle, aggiornamento, viewer
+LVGL — è nel [capitolo 18, §1-2](18_container_e_comunicazione.md#1-comè-fatta-limmagine).
 
 ### Installazione
 
@@ -220,7 +227,7 @@ ma non un SDK per compilare.
 
 Lo script riconosce l'architettura da `uname -m` e scarica l'immagine corrispondente. Per un
 device senza accesso al registry, la stessa installazione si spinge **dall'IDE via SSH**
-(*Configurazione → Runtime → Installa su dispositivo*), che copia un archivio invece di
+(*Configurazione → Istanza → Device → Installazione*), che copia un archivio invece di
 scaricarlo — oppure a mano con `--image <archivio.tar.gz>`.
 
 ### Immagini pubblicate
@@ -233,6 +240,12 @@ l'immagine sbagliata è un errore che si scopre solo all'avvio.
 | `ghcr.io/soligolab/sws-runtime:latest-arm64` | **qualunque** dispositivo aarch64: pannelli Pixsys (PX30, RK3399, RK3588) e board generiche (Raspberry Pi, Jetson, VM cloud) |
 | `ghcr.io/soligolab/sws-runtime:latest-arm64-generic` | alias del precedente, per i dispositivi installati con quel riferimento |
 | `ghcr.io/soligolab/sws-runtime:latest-amd64` | host x86_64 |
+| `rc-arm64`, `rc-amd64` | il canale di prova: lo spostano le `-rc` e le release |
+| `<versione>-arm64`, `<versione>-amd64` (es. `2.14.0-arm64`) | per inchiodare una versione |
+| `<commit>-arm64`, `<commit>-amd64` | l'immagine di un commit preciso |
+
+Una release sposta `latest-*` e `rc-*`; una `-rc` sposta solo `rc-*` (`scripts/build_container.sh`,
+`scripts/build_container_x86_64.sh`).
 
 Dal 2026-09-10 (Q53) **l'immagine aarch64 è una sola**: il binario si cross-compila da x86_64 in
 un container Ubuntu, ottimizzato, senza SDK Pixsys e senza QEMU. Prima erano due — una con l'SDK,
@@ -247,11 +260,12 @@ dalla macchina di sviluppo.
 ### Note container
 
 - Dati persistenti in `/data/user/sws/{projects,config,logs}`, montati nel container.
-- Porte: **8443** viewer operatori, **8444** admin IDE — come nel deploy nativo.
-- Nessuna credenziale obbligatoria: parte in no-auth mode. `SWS_ADMIN_PASSWORD`, se impostata,
-  seeda l'utente admin al primo avvio.
+- Porte: **8443** viewer operatori, **8444** gestione remota (`--no-admin`, nessun IDE) — come nel deploy nativo.
+- Un pannello senza utenti è **chiuso** e mostra un codice di abbinamento, che `install-container.sh` stampa
+  alla fine: vedi [capitolo 09](09_auth_rbac.md#1-un-pannello-nuovo-è-chiuso-labbinamento).
+  `SWS_ADMIN_PASSWORD`, se impostata, crea un Admin al primo avvio.
 - Il runtime parte in **HTTP**; il TLS si abilita generando o caricando un certificato dall'IDE
-  (*Configurazione → Stato → Certificato TLS*), salvato in `config/` e riusato ai riavvii.
+  (*Configurazione → Istanza → Device → Stato → Certificato TLS*), salvato in `config/` e riusato ai riavvii.
 - Procedura completa, aggiornamento e diagnosi: `docs/DEPLOY_CONTAINER_AARCH64.md` e
   `docs/DEPLOY_CONTAINER_X86_64.md`.
 
@@ -268,19 +282,31 @@ Per pannelli industriali che devono avviarsi automaticamente alla pagina del sin
 ./scripts/kiosk.sh --url https://localhost:8443 --fullscreen
 ```
 
-Richiede GTK4 + WebKitGTK sul sistema host.
+Richiede GTK4 + WebKitGTK sul sistema host. Sui pannelli Pixsys lo schermo è Chromium in kiosk o il viewer LVGL:
+vedi [capitolo 18, §2.2](18_container_e_comunicazione.md#22-lo-schermo-chromium-o-lvgl).
+
+---
+
+## Percorso D — Il cloud
+
+La stessa immagine, sul VPS, fa da **gateway** davanti ai progetti e apre un **container per ogni progetto**;
+Traefik fa il TLS con Let's Encrypt, e i pannelli si fanno raggiungere con un **tunnel** uscente. Non si installa
+niente su un pannello per questo: dall'11-10-2026 un pannello non abbinato chiama da solo il gateway dell'immagine e
+si abbina col codice dall'IDE nel cloud.
+
+Il VPS, i quadlet, il gateway, i container di progetto e il tunnel sono descritti nel
+[capitolo 18, §3](18_container_e_comunicazione.md#3-nel-cloud) e §5.3; i file stanno in `deploy/vps/`.
 
 ---
 
 ## Riepilogo percorsi
 
-| Criterio | Generic Linux | Yocto | Container |
-|----------|-------------|-------|-----------|
-| Setup | Tarball + install.sh | Cross-compile | install-container.sh --pull |
-| Aggiornamenti | Nuovo tarball | Script deploy.sh | Pull nuova immagine |
-| Dipendenze target | systemd, libssl | Yocto SDK | podman + systemd (rootless) |
-| Performance | Nativa | Nativa (ottimizzata) | Overhead minimo |
-| Raccomandato per | Server x86, ARM64 generico | PX30, RK3399, RK3588 | Dev, valutazione |
+| Criterio | Container | Generic Linux | Yocto | Cloud |
+|----------|-----------|-------------|-------|-------|
+| Setup | install-container.sh --pull | Tarball + install.sh | Cross-compile | quadlet in `deploy/vps/` |
+| Aggiornamenti | dall'IDE, o pull della nuova immagine | Nuovo tarball | Script deploy.sh | nuova immagine e riavvio del gateway |
+| Dipendenze target | podman + systemd (rootless) | systemd, libssl | Yocto SDK | podman, Traefik |
+| Raccomandato per | pannelli TC620/WP630, qualunque host con podman | server senza podman | PX30, RK3399, RK3588 | IDE condiviso e pannelli dietro NAT |
 
 ---
 
@@ -296,7 +322,7 @@ config. Le directory config per ambiente:
 > ⚠️ In modalità HTTP il login e il pannello admin viaggiano in chiaro. Per i device in campo /
 > reti non fidate si raccomanda di **attivare il TLS**.
 
-Attivazione dall'IDE — **Configurazione → Stato → Certificato TLS** (solo Admin):
+Attivazione dall'IDE — **Configurazione → Istanza → Device → Stato → Certificato TLS** (solo Admin):
 - **Genera self-signed** — crea `tls.crt`+`tls.key` (SAN: localhost, 127.0.0.1, IP LAN) e riavvia in HTTPS.
 - **Carica cert+key** — carica un certificato firmato da una CA (PEM, validato lato server) e riavvia in HTTPS.
 - **Disabilita TLS** — rimuove i file e torna in HTTP.
