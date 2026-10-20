@@ -137,6 +137,11 @@ export type SubPath = ("a" | "b")[];
 export interface PipePoint {
   x: number;
   y: number;
+  /** Il segmento che **arriva** in questo punto va dritto, invece di girare ad
+   *  angolo retto come vuole `routing: "orthogonal"` (20-10-2026). Lo si posa
+   *  tenendo Shift mentre si disegna il tubo a clic. Sul primo punto non ha
+   *  senso — lì non arriva niente — e viene ignorato. */
+  dritto?: boolean;
 }
 
 /** One option in a radio-group. */

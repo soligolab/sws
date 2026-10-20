@@ -73,8 +73,13 @@ export function aggancioRiquadro(lato: string, r: Riquadro, trasformato: boolean
 
 export const TRATTO_DI_USCITA = 16;
 
-/** Un capo del percorso: il punto, e la direzione d'uscita se c'è. */
-export interface Capo { punto: Punto; dir?: [number, number] }
+/** Una tappa del percorso: un punto, e se il tratto che ci **arriva** va dritto.
+ *  È la forma di `PipePoint` vista da qui, senza dipendere dai tipi dell'editor. */
+export interface Tappa extends Punto { dritto?: boolean }
+
+/** Un capo del percorso: il punto, e la direzione d'uscita se c'è.
+ *  `dritto` vale solo sul capo d'arrivo: l'ultimo tratto va dritto. */
+export interface Capo { punto: Punto; dir?: [number, number]; dritto?: boolean }
 
 export function capoDa(a: Aggancio): Capo {
   return { punto: { x: a.x, y: a.y }, dir: a.dx !== 0 || a.dy !== 0 ? [a.dx, a.dy] : undefined };
@@ -82,11 +87,16 @@ export function capoDa(a: Aggancio): Capo {
 
 /** Il percorso a 90° (o a 45° con `diagonale`) fra due capi, passando per i
  *  punti intermedi dell'utente. Stessa regola di `instrada` in Rust. */
-export function instrada(da: Capo, a: Capo, intermedi: Punto[], diagonale: boolean): Punto[] {
+export function instrada(da: Capo, a: Capo, intermedi: Tappa[], diagonale: boolean): Punto[] {
   const fuori = (c: Capo): Punto => c.dir
     ? { x: c.punto.x + c.dir[0] * TRATTO_DI_USCITA, y: c.punto.y + c.dir[1] * TRATTO_DI_USCITA }
     : c.punto;
-  const tappe = [fuori(da), ...intermedi, fuori(a)];
+  // Il flag sta sulla tappa d'**arrivo** di ogni tratto: «vieni qui dritto».
+  const tappe: Tappa[] = [
+    { ...fuori(da), dritto: false },
+    ...intermedi,
+    { ...fuori(a), dritto: !!a.dritto },
+  ];
   const out: Punto[] = [da.punto];
   if (da.dir) out.push(tappe[0]);
   let andatura: [boolean, number] | null = da.dir
@@ -95,6 +105,13 @@ export function instrada(da: Capo, a: Capo, intermedi: Punto[], diagonale: boole
   for (let i = 0; i + 1 < tappe.length; i++) {
     const p = tappe[i], q = tappe[i + 1];
     const ddx = q.x - p.x, ddy = q.y - p.y;
+    // Tratto dritto chiesto da chi ha disegnato: nessun gomito, e l'andatura
+    // riparte da zero — una diagonale non ha un verso d'asse da ereditare.
+    if (q.dritto && (ddx !== 0 || ddy !== 0)) {
+      out.push({ x: q.x, y: q.y });
+      andatura = null;
+      continue;
+    }
     if (ddx === 0 || ddy === 0) {
       out.push(q);
       andatura = ddx !== 0 ? [true, Math.sign(ddx)] : [false, Math.sign(ddy)];
@@ -184,9 +201,12 @@ export function percorsoTubo(pipe: SynopticObject, objects: SynopticObject[]): P
   const a = dst ? aggancioSu(dst, pipe.to_port) : undefined;
   const routing = pipe.routing ?? "straight";
   if (routing === "orthogonal" || routing === "diagonal") {
+    const ultimo = pts[pts.length - 1];
     return instrada(
       da ? capoDa(da) : { punto: pts[0] },
-      a ? capoDa(a) : { punto: pts[pts.length - 1] },
+      // Il `dritto` dell'ultimo punto vale anche quando il capo è agganciato a
+      // una bocca: dice come arrivarci, non dove.
+      { ...(a ? capoDa(a) : { punto: ultimo }), dritto: ultimo.dritto },
       pts.slice(1, -1),
       routing === "diagonal",
     );

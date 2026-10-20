@@ -555,10 +555,13 @@ interface AppState {
   selectMany: (ids: string[]) => void;
   clearSelection: () => void;
   addObject: (partial: Omit<SynopticObject, "id">) => void;
-  /** Polilinea in disegno a clic (26-09-2026): `"nuova"` prima del primo clic,
-   *  poi l'id dell'oggetto a cui i clic aggiungono punti; `null` = nessuna. */
+  /** Polilinea o tubo in disegno a clic (26-09-2026; il tubo dal 20-10-2026):
+   *  `"nuova"` prima del primo clic, poi l'id dell'oggetto a cui i clic
+   *  aggiungono punti; `null` = nessuno. */
   polilineaInDisegno: string | null;
-  setPolilineaInDisegno: (v: string | null) => void;
+  /** Che cosa sta nascendo: lo decide la palette, lo usa il primo clic. */
+  tipoInDisegno: "polyline" | "pipe";
+  setPolilineaInDisegno: (v: string | null, tipo?: "polyline" | "pipe") => void;
   updateObject: (id: string, patch: Partial<SynopticObject>) => void;
   /** Cattura waypoint dal canvas (MOVIMENTO SU PERCORSO): id dell'oggetto in
    *  cattura, o null. Effimero, non persistito. */
@@ -1849,7 +1852,9 @@ export const useAppStore = create<AppState>((set, get) => {
     },
 
     polilineaInDisegno: null,
-    setPolilineaInDisegno: (v) => set({ polilineaInDisegno: v }),
+    tipoInDisegno: "polyline",
+    setPolilineaInDisegno: (v, tipo) =>
+      set(tipo ? { polilineaInDisegno: v, tipoInDisegno: tipo } : { polilineaInDisegno: v }),
     capturePathTarget: null,
     setCapturePathTarget: (id) => set({ capturePathTarget: id }),
     previewEffects: false,

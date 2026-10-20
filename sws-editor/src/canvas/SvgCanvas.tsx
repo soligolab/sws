@@ -43,7 +43,7 @@ import {
 import type { AlarmSeverity, AlarmState, CustomSymbol, FaceplateDef, FaceplateParamDef, GridCell, PageSizeMode, PipePoint, Sample, SynopticObject, TableRow, TagDef, TagState } from "@/types";
 import { fattoreFondoRespiro, luminositaValida, parametriLuminosita } from "./luce";
 import { puntiSvg, verticiPoligono } from "./forme";
-import { aggancioSu, bersagli, calamita, diametriCapi, percorsoTubo, type Bersaglio } from "./tubazioni";
+import { aggancioSu, bersagli, calamita, diametriCapi, instrada, percorsoTubo, type Bersaglio } from "./tubazioni";
 import { larghezzaTubo, stileTubo, svgTubo } from "./stiliTubo";
 import { useManifestoLib } from "@/symbols/lib/libreria";
 import { cssFamiglia } from "@/font/famiglie";
@@ -692,7 +692,7 @@ export function SvgCanvas({
   // posano punti. Doppio clic o Invio finiscono, Esc annulla.
   const polilineaInDisegno = useAppStore((s) => s.polilineaInDisegno);
   const inDisegno = polilineaInDisegno !== null;
-  const [puntoMouse, setPuntoMouse] = useState<{ x: number; y: number } | null>(null);
+  const [puntoMouse, setPuntoMouse] = useState<{ x: number; y: number; dritto?: boolean } | null>(null);
   const finisciPolilinea = (annulla: boolean) => {
     const st = useAppStore.getState();
     const id = st.polilineaInDisegno;
@@ -704,6 +704,22 @@ export function SvgCanvas({
     if (annulla || puntiMovimento(o?.points).length < 2) {
       st.selectObject(id);
       st.deleteSelection();
+      return;
+    }
+    // Il capo d'arrivo si aggancia **solo se è vicino** a una bocca o al
+    // riquadro di un oggetto (scelta del maintainer, 20-10-2026): un tubo che
+    // finisce nel vuoto deve restare possibile. Stesso raggio e stessa calamita
+    // del trascinamento dei capi.
+    if (o?.type === "pipe") {
+      const punti = puntiMovimento(o.points);
+      const b = calamita(bersagli(objects, o.id), punti[punti.length - 1], 12 / viewT.zoom);
+      if (b) {
+        st.updateObject(o.id, {
+          points: punti.map((q, i) => (i === punti.length - 1 ? { ...q, x: b.x, y: b.y } : q)),
+          to_obj_id: b.objId,
+          to_port: b.porta,
+        });
+      }
     }
   };
   useEffect(() => {
@@ -993,12 +1009,25 @@ export function SvgCanvas({
       // punto, il secondo (`detail` 2) chiude invece di posarne un doppione.
       if (e.detail >= 2) { finisciPolilinea(false); return; }
       const st = useAppStore.getState();
+      // Shift mentre si posa il punto: il tratto che ci arriva va dritto invece
+      // che a gomito (20-10-2026). Sul primo punto non vuol dire niente.
+      const tappa = e.shiftKey ? { ...punto, dritto: true } : punto;
       if (st.polilineaInDisegno === "nuova") {
-        st.addObject({ type: "polyline", x: punto.x, y: punto.y, stroke_width: 2, points: [punto] });
+        // Anche il capo di partenza si aggancia solo se è vicino a qualcosa.
+        const b = st.tipoInDisegno === "pipe"
+          ? calamita(bersagli(objects, ""), punto, 12 / viewT.zoom)
+          : null;
+        const p0 = b ? { x: b.x, y: b.y } : punto;
+        const nuovo = st.tipoInDisegno === "pipe"
+          ? { type: "pipe" as const, x: p0.x, y: p0.y, points: [p0],
+              routing: "orthogonal" as const, pipe_style: "metallo" as const,
+              ...(b ? { from_obj_id: b.objId, from_port: b.porta } : {}) }
+          : { type: "polyline" as const, x: punto.x, y: punto.y, stroke_width: 2, points: [punto] };
+        st.addObject(nuovo);
         st.setPolilineaInDisegno(useAppStore.getState().selectedObjectId);
       } else {
         const o = objects.find((x) => x.id === st.polilineaInDisegno);
-        if (o) st.updateObject(o.id, { points: [...puntiMovimento(o.points), punto] });
+        if (o) st.updateObject(o.id, { points: [...puntiMovimento(o.points), tappa] });
       }
       return;
     }
@@ -1030,7 +1059,7 @@ export function SvgCanvas({
     const screenY = e.clientY - svgRect.top;
     if (inDisegno) {
       const p = toSvg(screenX, screenY);
-      setPuntoMouse({ x: snap(p.x), y: snap(p.y) });
+      setPuntoMouse({ x: snap(p.x), y: snap(p.y), dritto: e.shiftKey });
     }
     const pt = toSvg(screenX, screenY);
 
@@ -2049,10 +2078,20 @@ export function SvgCanvas({
         return (
           <g style={{ pointerEvents: "none" }}>
             {punti.map((p, i) => <circle key={i} cx={p.x} cy={p.y} r={3 / z} fill="#38bdf8" />)}
-            {ultimo && puntoMouse && (
-              <line x1={ultimo.x} y1={ultimo.y} x2={puntoMouse.x} y2={puntoMouse.y}
-                stroke="#38bdf8" strokeWidth={1.5 / z} strokeDasharray={`${6 / z} ${4 / z}`} />
-            )}
+            {ultimo && puntoMouse && (() => {
+              // Per un tubo l'anteprima segue l'instradamento vero: disegnare a
+              // 90° guardando una diagonale tratteggiata vuol dire indovinare
+              // dove finirà il gomito (20-10-2026).
+              const tubo = o?.type === "pipe" && (o.routing ?? "straight") !== "straight";
+              const tratto = tubo
+                ? instrada({ punto: ultimo }, { punto: puntoMouse, dritto: puntoMouse.dritto }, [],
+                    o!.routing === "diagonal")
+                : [ultimo, puntoMouse];
+              return (
+                <polyline points={tratto.map((q) => `${q.x},${q.y}`).join(" ")} fill="none"
+                  stroke="#38bdf8" strokeWidth={1.5 / z} strokeDasharray={`${6 / z} ${4 / z}`} />
+              );
+            })()}
           </g>
         );
       })()}
@@ -2071,7 +2110,9 @@ export function SvgCanvas({
         // Lo stesso editor di punti vale per la polilinea (26-09-2026): i suoi
         // `points` al posto del `motion_path`, con maniglie azzurre per non
         // confonderli con un percorso di movimento.
-        const polilinea = obj?.type === "polyline";
+        // Lo stesso editor di punti vale per il tubo (20-10-2026): anche i suoi
+        // `points` si spostano, si dividono e si cancellano con le maniglie.
+        const polilinea = obj?.type === "polyline" || obj?.type === "pipe";
         if (!polilinea && !tracciatoVisibile(obj, mostraTracciato)) return null;
         const punti = puntiMovimento(polilinea ? obj!.points : obj!.motion_path);
         const tinta = polilinea ? "#38bdf8" : "#f59e0b";

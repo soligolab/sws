@@ -12,7 +12,7 @@
 use crate::simboli_lib::PortaLib;
 
 /// Un punto della pagina.
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, Default)]
 pub struct Punto {
     pub x: f64,
     pub y: f64,
@@ -123,10 +123,32 @@ pub fn aggancio_riquadro(lato: &str, r: &Riquadro, trasformato: bool) -> Agganci
 pub const TRATTO_DI_USCITA: f64 = 16.0;
 
 /// Un capo del percorso: il punto, e la direzione d'uscita se è una bocca o un lato.
-#[derive(Debug, Clone, Copy, PartialEq)]
+///
+/// `dritto` vale solo sul capo d'**arrivo**: l'ultimo tratto ci va dritto
+/// invece che a gomito. Vedi [`Tappa`].
+#[derive(Debug, Clone, Copy, PartialEq, Default)]
 pub struct Capo {
     pub punto: Punto,
     pub dir: Option<(f64, f64)>,
+    pub dritto: bool,
+}
+
+/// Una tappa del percorso: un punto, e se il tratto che ci **arriva** va dritto.
+///
+/// Il flag sta sulla tappa d'arrivo e non sul tratto perché è così che lo posa
+/// chi disegna: tenendo Shift mentre mette il punto, cioè dicendo «il pezzo che
+/// ho appena tirato è dritto» (20-10-2026). Sul primo punto non ha senso — lì
+/// non arriva niente — e viene ignorato.
+#[derive(Debug, Clone, Copy, PartialEq, Default)]
+pub struct Tappa {
+    pub punto: Punto,
+    pub dritto: bool,
+}
+
+impl From<Punto> for Tappa {
+    fn from(punto: Punto) -> Self {
+        Tappa { punto, dritto: false }
+    }
 }
 
 impl From<Aggancio> for Capo {
@@ -134,6 +156,7 @@ impl From<Aggancio> for Capo {
         Capo {
             punto: Punto { x: a.x, y: a.y },
             dir: (a.dx != 0.0 || a.dy != 0.0).then_some((a.dx, a.dy)),
+            dritto: false,
         }
     }
 }
@@ -143,24 +166,31 @@ impl From<Aggancio> for Capo {
 /// tubo esce ed entra dritto per `TRATTO_DI_USCITA`. Fra un punto e il
 /// successivo: dritto se allineati, altrimenti un gomito — e il gomito
 /// prosegue nella direzione in cui si stava andando, se non torna indietro.
-pub fn instrada(da: Capo, a: Capo, intermedi: &[Punto], diagonale: bool) -> Vec<Punto> {
+pub fn instrada(da: Capo, a: Capo, intermedi: &[Tappa], diagonale: bool) -> Vec<Punto> {
     let fuori = |c: &Capo| match c.dir {
         Some((dx, dy)) => Punto { x: c.punto.x + dx * TRATTO_DI_USCITA, y: c.punto.y + dy * TRATTO_DI_USCITA },
         None => c.punto,
     };
-    let mut tappe = vec![fuori(&da)];
+    let mut tappe = vec![Tappa { punto: fuori(&da), dritto: false }];
     tappe.extend_from_slice(intermedi);
-    tappe.push(fuori(&a));
+    tappe.push(Tappa { punto: fuori(&a), dritto: a.dritto });
 
     let mut out = vec![da.punto];
     if da.dir.is_some() {
-        out.push(tappe[0]);
+        out.push(tappe[0].punto);
     }
     // La direzione in cui si sta andando: (asse orizzontale?, verso).
     let mut andatura: Option<(bool, f64)> = da.dir.map(|(dx, dy)| if dx != 0.0 { (true, dx.signum()) } else { (false, dy.signum()) });
     for (i, w) in tappe.windows(2).enumerate() {
-        let (p, q) = (w[0], w[1]);
+        let (p, q) = (w[0].punto, w[1].punto);
         let (ddx, ddy) = (q.x - p.x, q.y - p.y);
+        // Tratto dritto chiesto da chi ha disegnato: nessun gomito, e l'andatura
+        // riparte da zero — una diagonale non ha un verso d'asse da ereditare.
+        if w[1].dritto && (ddx != 0.0 || ddy != 0.0) {
+            out.push(q);
+            andatura = None;
+            continue;
+        }
         if ddx == 0.0 || ddy == 0.0 {
             out.push(q);
             andatura = Some(if ddx != 0.0 { (true, ddx.signum()) } else { (false, ddy.signum()) });
@@ -275,6 +305,25 @@ mod tests {
         y: f64,
         #[serde(default)]
         dir: Option<[f64; 2]>,
+        #[serde(default)]
+        dritto: bool,
+    }
+    /// Una tappa nella fixture: `[x, y]` come sempre, oppure `{x, y, dritto}`
+    /// per i casi nuovi. Le due forme convivono così i sette casi scritti prima
+    /// del 20-10-2026 restano scritti com'erano.
+    #[derive(Deserialize)]
+    #[serde(untagged)]
+    enum TappaFix {
+        Coppia([f64; 2]),
+        Con { x: f64, y: f64, #[serde(default)] dritto: bool },
+    }
+    impl From<&TappaFix> for Tappa {
+        fn from(t: &TappaFix) -> Self {
+            match *t {
+                TappaFix::Coppia([x, y]) => Tappa { punto: Punto { x, y }, dritto: false },
+                TappaFix::Con { x, y, dritto } => Tappa { punto: Punto { x, y }, dritto },
+            }
+        }
     }
     #[derive(Deserialize)]
     struct CasoPercorso {
@@ -282,13 +331,13 @@ mod tests {
         da: C,
         a: C,
         #[serde(default)]
-        intermedi: Vec<[f64; 2]>,
+        intermedi: Vec<TappaFix>,
         #[serde(default)]
         diagonale: bool,
         atteso: Vec<[f64; 2]>,
     }
     fn capo(c: &C) -> Capo {
-        Capo { punto: Punto { x: c.x, y: c.y }, dir: c.dir.map(|[a, b]| (a, b)) }
+        Capo { punto: Punto { x: c.x, y: c.y }, dir: c.dir.map(|[a, b]| (a, b)), dritto: c.dritto }
     }
 
     fn fixture() -> Fixture {
@@ -315,7 +364,7 @@ mod tests {
     #[test]
     fn i_percorsi_come_nella_fixture() {
         for c in fixture().percorsi {
-            let inter: Vec<Punto> = c.intermedi.iter().map(|[x, y]| Punto { x: *x, y: *y }).collect();
+            let inter: Vec<Tappa> = c.intermedi.iter().map(Tappa::from).collect();
             let p: Vec<[f64; 2]> = instrada(capo(&c.da), capo(&c.a), &inter, c.diagonale).iter().map(|p| [p.x, p.y]).collect();
             assert_eq!(p, c.atteso, "{}", c.nome);
         }
@@ -323,8 +372,8 @@ mod tests {
 
     #[test]
     fn un_percorso_ortogonale_ha_solo_tratti_a_90_gradi() {
-        let da = Capo { punto: Punto { x: 50.0, y: 100.0 }, dir: Some((0.0, -1.0)) };
-        let a = Capo { punto: Punto { x: 300.0, y: 40.0 }, dir: Some((-1.0, 0.0)) };
+        let da = Capo { punto: Punto { x: 50.0, y: 100.0 }, dir: Some((0.0, -1.0)), dritto: false };
+        let a = Capo { punto: Punto { x: 300.0, y: 40.0 }, dir: Some((-1.0, 0.0)), dritto: false };
         let p = instrada(da, a, &[], false);
         for w in p.windows(2) {
             assert!(w[0].x == w[1].x || w[0].y == w[1].y, "{p:?}");

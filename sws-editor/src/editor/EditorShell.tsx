@@ -697,7 +697,12 @@ export function EditorShell() {
     if (type === "symbol") { setSymbolPickPos({ x, y }); return; }
     // La polilinea si disegna a clic (26-09-2026, scelta del maintainer): la
     // palette accende la modalità, e il canvas crea l'oggetto al primo clic.
-    if (type === "polyline") { useAppStore.getState().setPolilineaInDisegno("nuova"); return; }
+    // Dal 20-10-2026 anche il tubo: nasceva con tre punti fissi a «L» che poi
+    // andavano riadattati a mano ogni volta.
+    if (type === "polyline" || type === "pipe") {
+      useAppStore.getState().setPolilineaInDisegno("nuova", type);
+      return;
+    }
     const o = oggettoNuovo(type, x, y);
     if (o) addObject(o);
   };

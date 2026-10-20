@@ -2346,7 +2346,7 @@ fn percorso_tubo(
     oggetti: &[SynopticObject],
     m: Option<&sws_core::simboli_lib::ManifestLib>,
 ) -> Option<Vec<PipePoint>> {
-    use sws_core::tubazioni::{instrada, Capo, Punto};
+    use sws_core::tubazioni::{instrada, Capo, Punto, Tappa};
     let routing = pipe.routing.as_deref().unwrap_or("straight");
     let instradato = routing == "orthogonal" || routing == "diagonal";
     if pipe.from_obj_id.is_none() && pipe.to_obj_id.is_none() && !instradato {
@@ -2360,7 +2360,7 @@ fn percorso_tubo(
         // Nessun punto esplicito: con entrambi i capi agganciati la pipe è
         // comunque disegnabile — due estremi bastano a fare un segmento.
         if pipe.from_obj_id.is_some() && pipe.to_obj_id.is_some() {
-            punti = vec![PipePoint { x: 0.0, y: 0.0 }, PipePoint { x: 0.0, y: 0.0 }];
+            punti = vec![PipePoint { x: 0.0, y: 0.0, dritto: false }, PipePoint { x: 0.0, y: 0.0, dritto: false }];
         } else {
             return None;
         }
@@ -2373,21 +2373,30 @@ fn percorso_tubo(
     if instradato {
         let punto = |p: &PipePoint| Punto { x: p.x, y: p.y };
         let ultimo = punti.len() - 1;
-        let inter: Vec<Punto> = punti[1..ultimo].iter().map(punto).collect();
+        let inter: Vec<Tappa> = punti[1..ultimo]
+            .iter()
+            .map(|p| Tappa { punto: punto(p), dritto: p.dritto })
+            .collect();
+        // Il `dritto` dell'ultimo punto dice come arrivarci, non dove: vale
+        // anche quando il capo è agganciato a una bocca.
+        let mut capo_a = a
+            .map(Capo::from)
+            .unwrap_or(Capo { punto: punto(&punti[ultimo]), dir: None, dritto: false });
+        capo_a.dritto = punti[ultimo].dritto;
         let p = instrada(
-            da.map(Capo::from).unwrap_or(Capo { punto: punto(&punti[0]), dir: None }),
-            a.map(Capo::from).unwrap_or(Capo { punto: punto(&punti[ultimo]), dir: None }),
+            da.map(Capo::from).unwrap_or(Capo { punto: punto(&punti[0]), dir: None, dritto: false }),
+            capo_a,
             &inter,
             routing == "diagonal",
         );
-        return Some(p.into_iter().map(|q| PipePoint { x: q.x, y: q.y }).collect());
+        return Some(p.into_iter().map(|q| PipePoint { x: q.x, y: q.y, dritto: false }).collect());
     }
     if let Some(d) = da {
-        punti[0] = PipePoint { x: d.x, y: d.y };
+        punti[0] = PipePoint { x: d.x, y: d.y, dritto: punti[0].dritto };
     }
     if let Some(d) = a {
         let ultimo = punti.len() - 1;
-        punti[ultimo] = PipePoint { x: d.x, y: d.y };
+        punti[ultimo] = PipePoint { x: d.x, y: d.y, dritto: punti[ultimo].dritto };
     }
     Some(punti)
 }
@@ -13851,7 +13860,7 @@ mod binding_tests {
             from_port: fp.map(String::from),
             to_obj_id: to.map(String::from),
             to_port: tp.map(String::from),
-            points: punti.map(|v| v.into_iter().map(|(x, y)| PipePoint { x, y }).collect()),
+            points: punti.map(|v| v.into_iter().map(|(x, y)| PipePoint { x, y, dritto: false }).collect()),
             ..Default::default()
         }
     }

@@ -522,6 +522,94 @@
           40.0
         ]
       ]
+    },
+    {
+      "nome": "due punti liberi in diagonale: senza flag è un gomito",
+      "da": {
+        "x": 0,
+        "y": 0
+      },
+      "a": {
+        "x": 100,
+        "y": 50
+      },
+      "intermedi": [],
+      "diagonale": false,
+      "atteso": [
+        [
+          0.0,
+          0.0
+        ],
+        [
+          100.0,
+          0.0
+        ],
+        [
+          100.0,
+          50.0
+        ]
+      ]
+    },
+    {
+      "nome": "gli stessi due punti, con «vieni qui dritto» sull'arrivo",
+      "da": {
+        "x": 0,
+        "y": 0
+      },
+      "a": {
+        "x": 100,
+        "y": 50,
+        "dritto": true
+      },
+      "intermedi": [],
+      "diagonale": false,
+      "atteso": [
+        [
+          0.0,
+          0.0
+        ],
+        [
+          100.0,
+          50.0
+        ]
+      ]
+    },
+    {
+      "nome": "un punto di mezzo raggiunto dritto, poi si torna a girare",
+      "da": {
+        "x": 0,
+        "y": 0
+      },
+      "a": {
+        "x": 200,
+        "y": 0
+      },
+      "intermedi": [
+        {
+          "x": 100,
+          "y": 60,
+          "dritto": true
+        }
+      ],
+      "diagonale": false,
+      "atteso": [
+        [
+          0.0,
+          0.0
+        ],
+        [
+          100.0,
+          60.0
+        ],
+        [
+          200.0,
+          60.0
+        ],
+        [
+          200.0,
+          0.0
+        ]
+      ]
     }
   ]
 }

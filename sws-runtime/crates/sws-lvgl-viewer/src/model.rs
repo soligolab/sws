@@ -671,6 +671,9 @@ pub struct SubCellEntry {
 pub struct PipePoint {
     pub x: f64,
     pub y: f64,
+    /// Il tratto che **arriva** qui va dritto invece che a gomito (20-10-2026).
+    #[serde(default)]
+    pub dritto: bool,
 }
 
 /// Voce di `GET /api/recipes` — non `RecipeDef` completo, l'endpoint non
