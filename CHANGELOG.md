@@ -11,7 +11,43 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 
 ## [Unreleased]
 
+## [2.15.0] — 2026-10-20
+
+### Aggiunto
+
+- **I tubi si disegnano a clic**, come la polilinea dal 26-09: ogni clic posa un punto, doppio
+  clic o Invio finiscono, Esc annulla, le maniglie dei punti valgono anche su di loro e
+  l'anteprima segue l'instradamento vero invece di una diagonale tratteggiata. **Shift** mentre
+  si posa il punto rende dritto il tratto che ci arriva — il flag vive nel dato
+  (`PipePoint.dritto`, `Tappa` in `sws-core`), così LVGL disegna quello che hai disegnato. Il
+  primo e l'ultimo clic si agganciano a una bocca **solo se le sono vicini**: un tubo che parte o
+  finisce nel vuoto resta possibile.
+
+### ⚠ Compatibilità
+
+- **`POST /api/project/deploy` (il «pull» di git) ora richiede un Admin**, non più un Operator:
+  tira dentro una versione nuova del progetto e cambia l'impianto quanto un rollback, che l'Admin
+  lo chiedeva già. Un'integrazione che chiamava quella rotta con un token Operator riceve 403.
+
 ### Fixed
+
+- **La sessione col pannello si rinnova da sola.** Dopo il primo deploy i successivi davano
+  «Sync err.» e l'unico rimedio era Disconnetti + Riconnetti: il token moriva e nessuno lo
+  rinnovava. Il rientro automatico esisteva ma girava *dopo* il caricamento e **solo** se quel
+  deploy aveva sostituito gli utenti — un «Invia ora», che è parziale, non lo attivava mai. Ora
+  `assicura_sessione` controlla il token **prima** di toccare qualunque cosa e rientra con le
+  credenziali del «Connetti»; se non si può, il deploy non parte e dice perché.
+- **Un 401 non viene più scambiato per un dispositivo che non sa rispondere.** Le sonde
+  appiattivano ogni errore in «non lo sa fare», e il deploy consigliava di aggiornare il runtime
+  del pannello a chi invece doveva solo riautenticarsi.
+- **Un deploy fallito si legge.** Il motivo stava solo nel `title` del pulsante, che tornava
+  «Deploy» dopo otto secondi; ora resta in testata finché non lo si chiude, e il server lo scrive
+  nel log. È il motivo per cui lo stesso difetto è stato corretto tre volte senza vederne la causa.
+- **Un oggetto aggiunto dalla palette nasce al centro dell'area visibile**, centrato sul punto,
+  invece che a cascata da (60, 60) in coordinate di pagina — con lo zoom dentro finiva fuori
+  schermo e bisognava rimpicciolire tutto per trovarlo.
+- **La card OPC UA non consiglia più di abilitare «Accetta qualsiasi»** per la prima connessione:
+  con la fiducia al primo contatto non serve, e spingeva ad abbassare una protezione per niente.
 
 - **La sorgente Siemens S7 non si collegava a nessun PLC.** `s7::tcp::Options::new` lascia i timeout a zero, e
   `TcpStream::set_read_timeout(Some(0))` è un errore (`InvalidInput`): la connessione falliva prima di aprirsi, da

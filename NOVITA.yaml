@@ -17,14 +17,18 @@
 # Le scrive chi fa il lavoro, insieme al lavoro; il maintainer le rivede al collaudo.
 
 versioni:
-  - versione: "Unreleased"
-    # Il numero si sceglie al rilascio, con sotto tutto quello che nel frattempo si è
-    # accumulato (scelta del maintainer, 20-10-2026): un numero deciso adesso sarebbe
-    # inventato. «Unreleased» non combacia con nessuna versione vera, quindi questo
-    # blocco non finisce in nessuna etichetta finché non gli si dà il suo numero.
+  - versione: "2.15.0"
     voci:
       - it: "Siemens S7: la sorgente ora si collega davvero (prima falliva sempre all'apertura), e accetta una porta diversa dalla 102 per i PLC dietro un port forwarding."
         en: "Siemens S7: the source now really connects (it used to fail on opening every time), and accepts a port other than 102 for PLCs behind a port forward."
+      - it: "I tubi si disegnano a clic, come la polilinea: ogni clic posa un punto, Shift fa un tratto dritto, e i capi si agganciano da soli alle bocche dei simboli vicini."
+        en: "Pipes are drawn by clicking, like polylines: each click drops a point, Shift makes a straight run, and the ends snap to nearby symbol nozzles."
+      - it: "Restare collegati a un pannello: dopo un deploy la sessione si rinnova da sola invece di scadere, e un invio fallito dice perché senza sparire dopo pochi secondi."
+        en: "Staying connected to a panel: after a deploy the session renews itself instead of expiring, and a failed send says why without vanishing after a few seconds."
+      - it: "Un oggetto aggiunto dalla palette nasce al centro di quello che stai guardando, non in cima alla pagina dove spesso era fuori schermo."
+        en: "An object added from the palette appears at the centre of what you are looking at, not at the top of the page where it was often off-screen."
+      - it: "Il «pull» di git ora richiede un amministratore, come il rollback: tira dentro una versione nuova del progetto e cambia l'impianto."
+        en: "The git pull now requires an administrator, like rollback: it brings in a new version of the project and changes the plant."
   - versione: "2.14.0"
     # Cumulativa (19-10-2026): la 2.13.0 non è mai uscita come release, e un pannello che passa dalla
     # 2.12.0 alla 2.14.0 vede solo le etichette di questa. Qui ci sono quindi anche le voci e gli
