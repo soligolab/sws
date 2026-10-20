@@ -48,6 +48,9 @@ pub async fn run(cfg: S7Config, db: Arc<TagDb>, bus: Arc<TagWriteBus>, cancel: C
     .await;
 }
 
+/// Quanto si aspetta una risposta del PLC prima di dare la sessione per caduta.
+const TIMEOUT_S7: std::time::Duration = std::time::Duration::from_secs(5);
+
 async fn session(
     cfg: &S7Config,
     db: &TagDb,
@@ -60,18 +63,25 @@ async fn session(
         .map_err(|e| anyhow::anyhow!("invalid IP '{}': {e}", cfg.ip))?;
     let rack = cfg.rack;
     let slot = cfg.slot;
+    let port = cfg.port.unwrap_or(102);
 
     // Connect (blocking — use spawn_blocking).
     let client = tokio::task::spawn_blocking(move || {
-        let opts = tcp::Options::new(ip, rack, slot, transport::Connection::PG);
+        // `with_port` è la patch del crate vendorizzato (patches/s7/): `new` fissa la 102.
+        let mut opts = tcp::Options::new(ip, rack, slot, transport::Connection::PG).with_port(port);
+        // `new` lascia i timeout a zero, e `TcpStream::set_read_timeout(Some(0))` è un
+        // errore (`InvalidInput`): con quei valori la sorgente non si è mai collegata a
+        // nessun PLC. Trovato il 20-10-2026 col laboratorio OpenPLC.
+        opts.read_timeout = TIMEOUT_S7;
+        opts.write_timeout = TIMEOUT_S7;
         let transport = tcp::Transport::connect(opts)
-            .map_err(|e| anyhow::anyhow!("S7 connect to {ip}: {e}"))?;
+            .map_err(|e| anyhow::anyhow!("S7 connect to {ip}:{port}: {e}"))?;
         client::Client::new(transport).map_err(|e| anyhow::anyhow!("S7 negotiate with {ip}: {e}"))
     })
     .await
     .map_err(|e| anyhow::anyhow!("spawn_blocking panic: {e}"))??;
 
-    info!(source = %cfg.id, ip = %cfg.ip, "S7 connected");
+    info!(source = %cfg.id, ip = %cfg.ip, port, "S7 connected");
 
     // The Client is not Send, so wrap it in a channel-based bridge.
     // Requests go in, responses come out.

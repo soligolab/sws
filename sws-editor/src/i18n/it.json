@@ -2096,6 +2096,7 @@
     "projectChangedWhileWorking": "il progetto è cambiato mentre lavoravi"
   },
   "cfgUi": {
+    "s7Porta": "Porta (vuota = 102)",
     "variablesNotice": "Le variabili definiscono i punti dati del progetto. Collega ogni variabile a un registro nella sezione <em>{{tab}}</em> per ricevere i valori in tempo reale. Valore attuale visibile solo se il runtime è in esecuzione.",
     "orphanTagsNotice": "Questi tag sono attivi nei protocolli ma non hanno una definizione variabile. \"Abilita storico\" li aggiunge alla lista con <em>history: true</em> — poi salva.",
     "entityBrowseError": "Errore: {{error}}. Verifica che l'URL e il token siano corretti e salva il progetto prima di sfogliare.",

@@ -45,7 +45,7 @@ export function S7SourceCard({
     >
       <span style={{ fontWeight: 700, fontSize: 13, color: "var(--brand-primary, #3b82f6)" }}>S7</span>
       <span style={{ fontSize: 13, color: "var(--brand-text, #e2e8f0)" }}>
-        {source.id} — {source.ip} R{source.rack}/S{source.slot}
+        {source.id} — {source.ip}{source.port ? `:${source.port}` : ""} R{source.rack}/S{source.slot}
         ({source.tags.length} tag)
       </span>
       <span style={{ marginLeft: "auto", color: "var(--brand-text-subtle, #64748b)", fontSize: 12 }}>{collapsed ? "▶" : "▼"}</span>
@@ -75,6 +75,7 @@ export function S7SourceCard({
       <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginTop: 12 }}>
         {inp(t("cfgUi.sourceId"), source.id, (v) => upd({ id: v }))}
         {inp("IP PLC", source.ip, (v) => upd({ ip: v }))}
+        {inp(t("cfgUi.s7Porta"), source.port ?? "", (v) => upd({ port: v === "" ? undefined : Number(v) }), "number")}
         {inp("Rack", source.rack, (v) => upd({ rack: Number(v) }), "number")}
         {inp("Slot", source.slot, (v) => upd({ slot: Number(v) }), "number")}
         {inp("Poll (ms)", source.poll_interval_ms, (v) => upd({ poll_interval_ms: Number(v) }), "number")}

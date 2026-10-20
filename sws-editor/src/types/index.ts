@@ -1469,6 +1469,8 @@ export interface S7Source {
   kind: 's7';
   id: string;
   ip: string;
+  /** Porta ISO-on-TCP; assente = 102 (20-10-2026, per i PLC dietro un port forwarding). */
+  port?: number;
   rack: number;
   slot: number;
   poll_interval_ms: number;

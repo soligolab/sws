@@ -11,6 +11,18 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 
 ## [Unreleased]
 
+### Fixed
+
+- **La sorgente Siemens S7 non si collegava a nessun PLC.** `s7::tcp::Options::new` lascia i timeout a zero, e
+  `TcpStream::set_read_timeout(Some(0))` è un errore (`InvalidInput`): la connessione falliva prima di aprirsi, da
+  sempre. Ora i timeout valgono 5 s (`sws-plugin-s7/src/lib.rs`). Trovato col laboratorio OpenPLC del tutorial.
+
+### Added
+
+- **Porta della sorgente S7** (`port`, assente = 102), per i PLC dietro un port forwarding. Il crate `s7` 0.1.9
+  (BSD-3) è vendorizzato in `sws-plugin-s7/vendor/` con `Options::with_port` (`patches/s7/`), verificata da
+  `check_vendor_patches.sh` come le patch di LVGL.
+
 ### Documentation
 
 - Manuale: capitoli 01–17 e indice rimisurati contro il codice, con timbro di verifica e barra di navigazione su

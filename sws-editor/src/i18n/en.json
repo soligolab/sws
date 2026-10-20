@@ -2096,6 +2096,7 @@
     "projectChangedWhileWorking": "the project changed while you were working"
   },
   "cfgUi": {
+    "s7Porta": "Port (empty = 102)",
     "variablesNotice": "Variables define the project's data points. Link each variable to a register in the <em>{{tab}}</em> section to receive values in real time. Current value is visible only if the runtime is running.",
     "orphanTagsNotice": "These tags are active in the protocols but have no variable definition. \"Enable history\" adds them to the list with <em>history: true</em> — then save.",
     "entityBrowseError": "Error: {{error}}. Check that the URL and the token are correct and save the project before browsing.",

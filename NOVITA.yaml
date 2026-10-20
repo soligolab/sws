@@ -17,6 +17,14 @@
 # Le scrive chi fa il lavoro, insieme al lavoro; il maintainer le rivede al collaudo.
 
 versioni:
+  - versione: "Unreleased"
+    # Il numero si sceglie al rilascio, con sotto tutto quello che nel frattempo si è
+    # accumulato (scelta del maintainer, 20-10-2026): un numero deciso adesso sarebbe
+    # inventato. «Unreleased» non combacia con nessuna versione vera, quindi questo
+    # blocco non finisce in nessuna etichetta finché non gli si dà il suo numero.
+    voci:
+      - it: "Siemens S7: la sorgente ora si collega davvero (prima falliva sempre all'apertura), e accetta una porta diversa dalla 102 per i PLC dietro un port forwarding."
+        en: "Siemens S7: the source now really connects (it used to fail on opening every time), and accepts a port other than 102 for PLCs behind a port forward."
   - versione: "2.14.0"
     # Cumulativa (19-10-2026): la 2.13.0 non è mai uscita come release, e un pannello che passa dalla
     # 2.12.0 alla 2.14.0 vede solo le etichette di questa. Qui ci sono quindi anche le voci e gli

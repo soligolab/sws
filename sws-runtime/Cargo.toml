@@ -177,3 +177,6 @@ strip         = "symbols"
 # compilato: sono due garanzie diverse, e servono entrambe.
 [patch.crates-io]
 lvgl-sys = { path = "crates/sws-lvgl-viewer/vendor/lvgl-sys-0.6.2" }
+# `s7` (BSD-3): la copia vendorizzata ha `Options::with_port` (patches/s7/), senza
+# cui la sorgente S7 raggiunge solo la porta 102 (20-10-2026, laboratorio OpenPLC).
+s7 = { path = "crates/sws-plugin-s7/vendor/s7-0.1.9" }

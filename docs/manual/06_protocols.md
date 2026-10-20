@@ -406,6 +406,7 @@ sources:
   - kind: s7
     id: siemens1
     ip: "192.168.1.101"
+    port: 102           # opzionale, predefinita 102; un'altra per un PLC dietro un port forwarding
     rack: 0
     slot: 1
     poll_interval_ms: 200

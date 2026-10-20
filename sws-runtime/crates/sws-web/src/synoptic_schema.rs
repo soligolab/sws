@@ -1058,48 +1058,13 @@ pub const SOURCE_HOMEASSISTANT_ENTITYMAPPING_FIELDS: &[Field] = &[
 
 /// Campi della sorgente `s7` (S7Config).
 pub const SOURCE_S7_FIELDS: &[Field] = &[
-    Field {
-        name: "id",
-        ty: "string",
-        required: true,
-        group: "",
-        doc: "",
-    },
-    Field {
-        name: "ip",
-        ty: "string",
-        required: true,
-        group: "",
-        doc: "PLC IP address.",
-    },
-    Field {
-        name: "rack",
-        ty: "number",
-        required: false,
-        group: "",
-        doc: "CPU rack number. Usually 0.",
-    },
-    Field {
-        name: "slot",
-        ty: "number",
-        required: false,
-        group: "",
-        doc: "CPU slot number. 1 for S7-300/400, 0 for S7-1200/1500.",
-    },
-    Field {
-        name: "poll_interval_ms",
-        ty: "number",
-        required: false,
-        group: "",
-        doc: "Poll interval in milliseconds.",
-    },
-    Field {
-        name: "tags",
-        ty: "S7TagMapping[]",
-        required: false,
-        group: "",
-        doc: "",
-    },
+    Field { name: "id", ty: "string", required: true, group: "", doc: "" },
+    Field { name: "ip", ty: "string", required: true, group: "", doc: "PLC IP address." },
+    Field { name: "port", ty: "number", required: false, group: "", doc: "Porta ISO-on-TCP. Assente = 102, quella di ogni PLC Siemens. Serve quando il PLC si raggiunge attraverso un port forwarding: il laboratorio OpenPLC in podman rootless, che non pubblica porte sotto la 1024, o un NAT (20-10-2026)." },
+    Field { name: "rack", ty: "number", required: false, group: "", doc: "CPU rack number. Usually 0." },
+    Field { name: "slot", ty: "number", required: false, group: "", doc: "CPU slot number. 1 for S7-300/400, 0 for S7-1200/1500." },
+    Field { name: "poll_interval_ms", ty: "number", required: false, group: "", doc: "Poll interval in milliseconds." },
+    Field { name: "tags", ty: "S7TagMapping[]", required: false, group: "", doc: "" },
 ];
 
 /// Campi di `S7TagMapping`, usato dentro la sorgente `s7`.

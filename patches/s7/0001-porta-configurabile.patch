@@ -1,0 +1,25 @@
+# Aggiunge Options::with_port: il crate fissa la 102 e tiene privato l'indirizzo.
+# Serve al laboratorio OpenPLC (podman rootless non pubblica porte sotto la 1024) e a ogni
+# PLC dietro un port forwarding. Applicare con: git apply patches/s7/0001-*.patch
+--- a/sws-runtime/crates/sws-plugin-s7/vendor/s7-0.1.9/src/tcp.rs
++++ b/sws-runtime/crates/sws-plugin-s7/vendor/s7-0.1.9/src/tcp.rs
+@@ -72,6 +72,19 @@
+             pdu_length: 0,
+         }
+     }
++
++    /// SWS (20-10-2026): una porta diversa dalla 102. `new` la fissa, e il campo
++    /// `address` è privato: senza questo un PLC raggiungibile solo attraverso un
++    /// port forwarding (il laboratorio OpenPLC in podman rootless, un NAT) non si
++    /// raggiunge. Patch: `patches/s7/0001-porta-configurabile.patch`.
++    pub fn with_port(mut self, port: u16) -> Options {
++        let host = match self.address.rsplit_once(':') {
++            Some((h, _)) => h.to_string(),
++            None => self.address.clone(),
++        };
++        self.address = format!("{}:{}", host, port);
++        self
++    }
+ }
+ 
+ impl Transport {

@@ -35,9 +35,12 @@ APPLY=0
 # una copia del sorgente originale.
 LVGL_CHART="sws-runtime/crates/sws-lvgl-viewer/vendor/lvgl-sys-0.6.2/vendor/lvgl/src/extra/widgets/chart/lv_chart.c"
 LVGL_BUILD_RS="sws-runtime/crates/sws-lvgl-viewer/vendor/lvgl-sys-0.6.2/build.rs"
+# Il crate `s7` (BSD-3), vendorizzato il 20-10-2026 per la porta configurabile.
+S7_TCP="sws-runtime/crates/sws-plugin-s7/vendor/s7-0.1.9/src/tcp.rs"
 PATCHES=(
   "patches/lvgl/0001-init-x_ext_buf_assigned.patch|$LVGL_CHART|ser->x_ext_buf_assigned = false;"
   "patches/lvgl/0002-extra-include-e-link.patch|$LVGL_BUILD_RS|LVGL_EXTRA_INCLUDE"
+  "patches/s7/0001-porta-configurabile.patch|$S7_TCP|pub fn with_port"
 )
 
 # Invalida la compilazione di lvgl-sys, che altrimenti riuserebbe gli oggetti C
@@ -133,16 +136,18 @@ if [ -f "$LOCK" ]; then
   # pipefail` il SIGPIPE del produttore (141) diventerebbe un fallimento della
   # pipeline. Vedi il commento in check_static.sh, dove costava 11 falsi
   # positivi su 40 giri.
-  if grep -q REGISTRY <<< "$(awk '/^name = "lvgl-sys"$/{f=1; next}
-          f&&/^\[\[package\]\]/{exit}
-          f&&/^source = "registry\+/{print "REGISTRY"; exit}' "$LOCK")"; then
-    printf '  \033[31m✗\033[0m lvgl-sys arriva da crates.io, NON dal vendor — le patch non hanno effetto\n'
-    printf '      `[patch.crates-io]` deve stare in sws-runtime/Cargo.toml (la radice del\n'
-    printf '      workspace): cargo ignora quelli dei crate membri.\n'
-    fail=1
-  else
-    printf '  \033[32m✓\033[0m lvgl-sys è risolto sul sorgente vendorizzato\n'
-  fi
+  for crate in lvgl-sys s7; do
+    if grep -q REGISTRY <<< "$(awk -v n="$crate" '$0 == "name = \"" n "\"" {f=1; next}
+            f&&/^\[\[package\]\]/{exit}
+            f&&/^source = "registry\+/{print "REGISTRY"; exit}' "$LOCK")"; then
+      printf '  \033[31m✗\033[0m %s arriva da crates.io, NON dal vendor — le patch non hanno effetto\n' "$crate"
+      printf '      `[patch.crates-io]` deve stare in sws-runtime/Cargo.toml (la radice del\n'
+      printf '      workspace): cargo ignora quelli dei crate membri.\n'
+      fail=1
+    else
+      printf '  \033[32m✓\033[0m %s è risolto sul sorgente vendorizzato\n' "$crate"
+    fi
+  done
 else
   printf '  \033[33m—\033[0m %s non trovato, controllo saltato\n' "$LOCK"
 fi

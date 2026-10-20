@@ -1130,6 +1130,11 @@ pub struct S7Config {
     pub id: String,
     /// PLC IP address.
     pub ip: String,
+    /// Porta ISO-on-TCP. Assente = 102, quella di ogni PLC Siemens. Serve quando il
+    /// PLC si raggiunge attraverso un port forwarding: il laboratorio OpenPLC in
+    /// podman rootless, che non pubblica porte sotto la 1024, o un NAT (20-10-2026).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub port: Option<u16>,
     /// CPU rack number. Usually 0.
     #[serde(default)]
     pub rack: u16,
