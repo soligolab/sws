@@ -1,4 +1,13 @@
+← [Indice](MAIN.md) | [← Multilingua](15_multilingua.md) | [Successivo → Sicurezza](17_sicurezza.md) →
+
+---
+
 # 16 — Prestazioni misurate
+
+> Quanto regge il runtime con tanti tag e tanti client, su un pannello e su un server, e su quali numeri sono tarati
+> i limiti alle richieste. Per chi dimensiona un impianto.
+>
+> Misurato sul codice il 20-10-2026; le misure sono del 17 e 18-10-2026.
 
 Quanto regge il runtime, misurato e non stimato (P5 dell'onda 2, 17-10-2026; piano
 `docs/archive/2026-10-17-onda-2-prestazioni-e-protezioni.md`). I numeri grezzi sono in `docs/prestazioni/`.
@@ -93,3 +102,7 @@ Dal 18-10-2026 il runtime limita le richieste alle API **per indirizzo**, con du
 - **Verificato** il 18-10-2026 su x86, con le richieste dall'indirizzo di rete: il banco a 1.000 tag × 20 client e
   l'apertura di IDE e viewer non hanno ricevuto nessun 429; con `SWS_LIMITE_LETTURE=20/1`, 60 richieste in raffica
   hanno ricevuto 20 risposte e 40 rifiuti, mentre dal loopback sono passate tutte.
+
+---
+
+← [Indice](MAIN.md) | [← Multilingua](15_multilingua.md) | [Successivo → Sicurezza](17_sicurezza.md) →
