@@ -11,6 +11,14 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 
 ## [Unreleased]
 
+### Documentation
+
+- Manuale: capitoli 01–17 e indice rimisurati contro il codice, con timbro di verifica e barra di navigazione su
+  tutti i capitoli (01→18). Riscritti 02 (installa, entra, abbina), 03 (crate e porte) e 12 (GitOps); corretti fra
+  gli altri la porta 8444 del pannello nel 17, il formato `{value:…}` e l'esempio Python nel 04, il pulsante e il
+  simbolo nel 05, OPC UA con fiducia al primo contatto nel 06, livelli e canali degli allarmi nel 07, i backend dello
+  storico nell'08.
+
 ## [2.14.0] — 2026-10-19
 
 ### ⚠ Compatibilità

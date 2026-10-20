@@ -12,6 +12,30 @@
 > resta in «Storico». Qui vive solo ciò che serve a riprendere il lavoro.
 
 
+## ▶ Riprendere da qui — il manuale rimisurato sul codice (2026-10-20)
+
+### Fatto, tutto su `main` (non pushato)
+
+- **Ramo 2 del [piano del manuale](docs/plans/2026-10-19-manuale-rifatto.md) chiuso**: capitoli 01–17 e l'indice
+  `MAIN.md` rimisurati contro il codice, un ramo e uno squash per capitolo, ognuno letto dal maintainer prima del
+  merge (sul cellulare, coi file mandati in visione). Riscritti 02 (ora «installa, entra, abbina»), 03 (18 crate, le
+  porte col rimando al 18) e 12 (la scheda Git di oggi: chiave del progetto, prova, fork, tag, firma); gli altri
+  passata di verità. Timbro di verifica e barra di navigazione su tutti, catena 01→18 completa.
+- **Errori seri trovati e corretti**: il 17 dava la 8444 del pannello su `127.0.0.1` (ascolta su `0.0.0.0`,
+  `main.rs:1432`); il 04 aveva un esempio Python con un'API inesistente e il formato `{:.1f}` (è `{value:.1f}`); il
+  05 un widget «Valore» che non è un tipo; l'08 un `/ws/history` che non esiste e PostgreSQL «previsto» (c'è); il 07
+  Telegram «feed globale» e `until_ms` (è `duration_ms`); il 15 le emoji «non disegnate» su LVGL (lo sono dal T-71).
+- **Seme nuovo** [residui dal manuale](docs/plans/2026-10-20-residui-dal-manuale.md): due decisioni (pull git da
+  Operator contro rollback da Admin; ritenzione dei datastore solo a mano) e quattro correzioni piccole
+  (`SWS_IP_ALLOWLIST` che ripiega su `X-Forwarded-For`, commenti e un testo dell'interfaccia fermi alla no-auth e a
+  prima della fiducia OPC UA al primo contatto).
+
+### Da fare
+
+- **Ramo 3 del manuale, il tutorial**: primo passo misurare OpenPLC Runtime v4 in container (piano, §Ramo 3).
+- **Ramo 7 dei residui**: rifare `scripts/misura_tunnel.sh` il **26-10** (settimana di misura dal 19-10).
+- Rilettura del capitolo 18 da parte del maintainer, ancora in sospeso.
+
 ## ▶ Riprendere da qui — la 2.14.0 rilasciata, e il piano che chiude le code (2026-10-19, pomeriggio)
 
 ### Fatto, tutto su `main`

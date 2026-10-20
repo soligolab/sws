@@ -230,5 +230,13 @@ citate da nessun capitolo.
 - **19-10-2026 — ramo 2 pianificato**: tutti i capitoli misurati contro il codice, stato e lavoro per ciascuno qui
   sopra; decise granularità (un ramo per capitolo), profondità (verità ovunque, riscrittura per 09, 12, 13) e il
   confine col tutorial.
-- Prossimo: i diciassette rami del ramo 2, nell'ordine indicato; poi il ramo 3 (tutorial) e il 4 (schermate dei
-  capitoli di riferimento, che potranno riusare quelle del tutorial).
+- **19/20-10-2026 — ramo 2 fatto**: tutti i capitoli 01–17 e l'indice rimisurati, un ramo e uno squash ciascuno,
+  ognuno letto dal maintainer prima del merge. Timbro di verifica e barra di navigazione ovunque, la catena 01→18
+  senza buchi. Oltre a quanto previsto qui sopra, trovati e corretti: la 8444 del pannello data su `127.0.0.1` nel 17
+  (ascolta su `0.0.0.0`), l'esempio Python e il formato `{:.1f}` del 04 (API inesistente; il vero è `{value:…}`),
+  il widget «Valore» del 05 (non è un tipo), `/ws/history` dell'08 (non esiste), PostgreSQL dato per mancante,
+  Telegram «feed globale» e `until_ms` del 07, le emoji «non disegnate» del 15 (lo sono dal T-71). Il rilievo di
+  `STATUS.md:3274` sul 15 non vale più: i 13 template sono completi in it/en/es. Le cose **di codice** emerse sono
+  nel seme [residui dal manuale](2026-10-20-residui-dal-manuale.md).
+- Prossimo: il ramo 3 (tutorial), il cui primo passo è misurare l'installazione di OpenPLC Runtime v4 in container;
+  poi il 4 (schermate dei capitoli di riferimento, che potranno riusare quelle del tutorial).
