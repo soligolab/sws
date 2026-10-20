@@ -1,8 +1,13 @@
-← [Indice](MAIN.md) | [← API](13_api_reference.md)
+← [Indice](MAIN.md) | [← API](13_api_reference.md) | [Successivo → Multilingua](15_multilingua.md) →
 
 ---
 
 # 14 — Test e Diagnostica
+
+> Come si verifica che SWS funzioni e come si cerca un guasto: smoke test, test E2E, simulatori di protocollo,
+> diagnosi. Per chi sviluppa SWS o lo mette in servizio. Gli esempi usano lo stack locale di `start_runtime.sh`.
+>
+> Misurato sul codice il 20-10-2026.
 
 Questa guida descrive come verificare il corretto funzionamento di SWS
 e diagnosticare i problemi più comuni.
@@ -14,21 +19,22 @@ e diagnosticare i problemi più comuni.
 Prima di qualsiasi test approfondito, verifica che il runtime risponda:
 
 ```bash
-# Avvia il runtime
-./scripts/start_runtime.sh
+# Avvia il runtime con un Admin (senza utenti il runtime è chiuso e chiede l'abbinamento)
+SWS_ADMIN_USER=admin SWS_ADMIN_PASSWORD='una-password-di-prova' ./scripts/start_runtime.sh
 
-# Health check (HTTP di default; con TLS attivo usa https:// + -k)
+# Health check (HTTP di default; con TLS attivo usa https:// + -k): è aperto a tutti
 curl http://localhost:8443/health
 # → ok
 
-# Metriche Prometheus
+# Metriche Prometheus: dal 15-10-2026 vogliono una sessione, o il token statico SWS_METRICS_TOKEN
 curl -k -H "Authorization: Bearer $SWS_METRICS_TOKEN" https://localhost:8443/metrics | head -5
 # → # HELP sws_uptime_seconds ...
 # → sws_uptime_seconds 42.1
 
-# Tag snapshot (senza auth — viewer anonimo)
+# Tag snapshot: senza token si è Viewer anonimo, se il progetto ha utenti
 curl -k https://localhost:8443/api/tags
 # → {"counter": {"value": 0, "quality": "Good", ...}, ...}
+# Un runtime senza utenti risponde invece 401 «abbinamento_richiesto» (capitolo 09)
 ```
 
 ---
@@ -39,11 +45,11 @@ curl -k https://localhost:8443/api/tags
 # Login come admin
 TOKEN=$(curl -sk -X POST https://localhost:8444/api/auth/login \
   -H 'Content-Type: application/json' \
-  -d '{"username":"admin","password":"admin"}' | jq -r .token)
+  -d "{\"username\":\"admin\",\"password\":\"$SWS_ADMIN_PASSWORD\"}" | jq -r .token)
 
 echo "Token: $TOKEN"
 
-# Verifica accesso progetto (Admin only)
+# Il progetto aperto (qualunque utente autenticato)
 curl -k -H "Authorization: Bearer $TOKEN" https://localhost:8444/api/project | jq '.meta'
 ```
 
@@ -125,9 +131,14 @@ pnpm test:e2e:ui
 
 | Spec | Cosa verifica |
 |------|--------------|
-| `e2e/editor.spec.ts` | Golden path: apertura progetto, aggiunta oggetto, salva + reload |
-| `e2e/import-tags.spec.ts` | Regressione issue #2: import progetto via menu → i tag compaiono |
+| `e2e/editor.spec.ts` | Golden path: login, apertura progetto, aggiunta oggetto, salva + reload |
+| `e2e/import-tags.spec.ts` | Regressione issue #2: export → progetto vuoto → import ZIP, i tag compaiono |
+| `e2e/lang-table.spec.ts` | T-40: tabella delle lingue e risoluzione dei token `{{chiave}}` nel viewer |
+| `e2e/bugcheck.spec.ts` | Regressioni: un clic su un oggetto non svuota la pagina, un progetto nuovo ha il canvas vuoto |
+| `e2e/chat-ai.spec.ts` | T-50: si chiede un bottone MQTT in chat, si applica la proposta, si annulla, si salva |
 | `e2e/screenshots.spec.ts` | Cattura gli screenshot del manuale |
+
+`editor.spec.ts` vuole un runtime avviato con `SWS_ADMIN_USER`/`SWS_ADMIN_PASSWORD` (vedi l'intestazione dello spec).
 
 ### Screenshot automatici (per la documentazione)
 
@@ -154,8 +165,8 @@ Disponibili in `sws-editor/test-results/` e `playwright-report/` (gitignored):
 Con un simulatore Modbus (es. `pymodbus`):
 
 ```bash
-# Installa pymodbus
-pip install pymodbus
+# Installa pymodbus (l'esempio usa l'API della serie 2.x: `pymodbus.server.sync`)
+pip install 'pymodbus<3'
 
 # Avvia server simulato su porta 502
 python3 -c "
@@ -168,7 +179,7 @@ StartTcpServer(context, address=('localhost', 502))
 "
 ```
 
-Configura una sorgente Modbus in **Configurazione → Protocolli → + Aggiungi Modbus TCP**:
+Configura una sorgente Modbus in **Configurazione → Progetto → Protocolli → + Aggiungi Modbus TCP**:
 - Host: `localhost`, Port: `502`, Unit ID: `1`
 - Register: `tag=test.valore, address=0, scale=0.1`
 
@@ -189,7 +200,7 @@ mosquitto -v &
 mosquitto_pub -t "impianto/pressione" -m "9.8"
 ```
 
-Configura la sorgente MQTT in **Configurazione → Protocolli → + Aggiungi MQTT**:
+Configura la sorgente MQTT in **Configurazione → Progetto → Protocolli → + Aggiungi MQTT**:
 - Host: `localhost`, Port: `1883`
 - Topic: `impianto/pressione`, Tag: `mqtt.pressione`
 
@@ -237,10 +248,12 @@ lo manda all'IDE; spegnendola, o chiudendo l'IDE, torna a INFO. Il DEBUG non fin
 # Controlla la porta occupata
 ss -tlnp | grep -E "8443|8444"
 
-# Log del runtime
-tail -f .run/logs/runtime.log
-# oppure per systemd:
+# Log del runtime: un file JSONL al giorno
+tail -f .run/logs/runtime-$(date +%F).jsonl
+# oppure per systemd (binario nativo):
 journalctl -u sws-runtime -f
+# oppure per il container sul pannello:
+podman logs -f sws-runtime
 ```
 
 ### Il frontend non carica
@@ -271,8 +284,8 @@ Soluzione:
 
 ### Tag non si aggiorna
 
-1. Verifica stato connessione: **Configurazione → Stato**
-2. Controlla il log: `tail -f .run/logs/runtime.log | grep ERROR`
+1. Verifica lo stato della sorgente: nell'albero di **Configurazione → Progetto → Protocolli** e nella sua card
+2. Controlla il log: `tail -f .run/logs/runtime-$(date +%F).jsonl | grep '"ERROR"'`
 3. Verifica connectivity alla sorgente:
    ```bash
    curl -k https://localhost:8443/api/tags/<id>  # quality deve essere "Good"
@@ -281,7 +294,7 @@ Soluzione:
 ### Allarme non scatta
 
 1. Verifica il valore del tag: `curl -k https://localhost:8443/api/tags/<tag>`
-2. Verifica la condizione definita: **Configurazione → Allarmi → [allarme]**
+2. Verifica la condizione definita: **Configurazione → Progetto → Allarmi → [allarme]**
 3. Controlla `on_delay_s` (potrebbe richiedere tempo prima dell'attivazione)
 
 ---
@@ -294,8 +307,9 @@ cargo test --workspace        # tutti i test
 cargo test --package sws-auth # solo un crate
 ```
 
-Copertura attuale: 53+ test unitari su sws-auth, sws-historian, sws-core.
+Nel workspace ci sono circa 1.800 test (`#[test]` e `#[tokio::test]`, contati il 20-10-2026), in tutti i crate.
+Il frontend ha i suoi con Vitest: `cd sws-editor && pnpm test`.
 
 ---
 
-← [Indice](MAIN.md) | [← API](13_api_reference.md)
+← [Indice](MAIN.md) | [← API](13_api_reference.md) | [Successivo → Multilingua](15_multilingua.md) →
