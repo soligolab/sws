@@ -1,3 +1,7 @@
+← [Indice](MAIN.md) | [← Prestazioni](16_prestazioni.md) | [Successivo → Container e comunicazione](18_container_e_comunicazione.md) →
+
+---
+
 # 17 — Sicurezza
 
 > Il capitolo «Sicurezza» chiesto dal Cyber Resilience Act (piano
@@ -5,7 +9,7 @@
 > **cosa protegge SWS oggi, come si configura e cosa manca ancora**. Si aggiorna a ogni onda del piano: una
 > protezione che non è scritta qui, per chi installa SWS, non esiste.
 >
-> Aggiornato al 18-10-2026 (onde 1 e 2).
+> Aggiornato al 18-10-2026 (onde 1 e 2). Misurato sul codice il 20-10-2026.
 
 ## Chi risponde, e come si segnala
 
@@ -32,8 +36,13 @@ Le impostazioni qui sotto sono attive **senza configurare niente**. Dove esiste 
   Vedi il capitolo [09](09_auth_rbac.md).
 - **Password con Argon2id**, mai in chiaro né nel database né nei log. Sessioni con scadenza.
 - **Quattro ruoli** (Viewer, Operator, Supervisor, Admin) e **zone** per pagina e per utente (ABAC).
-- **Due porte**: il viewer (`8443`) e la gestione (`8444`). Sul pannello la gestione ascolta solo su `127.0.0.1`
-  (`--no-admin`) e si raggiunge con un tunnel SSH o attraverso il cloud.
+- **Due porte**: il viewer (`8443`) e la gestione (`8444`). Sul pannello la gestione è **ristretta** (`--no-admin`):
+  nessuna interfaccia, solo le rotte che l'IDE chiama, tutte autenticate. Ascolta su **tutte le interfacce**
+  (`0.0.0.0`, `sws-runtime/crates/sws-runtime/src/main.rs`), perché l'IDE in rete locale la raggiunge con «Connetti»;
+  chi non la vuole raggiungibile la chiude col firewall. Con `--kiosk` è il **viewer** ad ascoltare solo su
+  `127.0.0.1`. Porte e flussi: [capitolo 18, §4](18_container_e_comunicazione.md#4-le-porte).
+- **`SWS_IP_ALLOWLIST`** (`192.168.1.0/24,10.0.0.0/8`) limita **il login** agli indirizzi elencati; vuota, nessun
+  limite.
 - **I segreti del progetto** (password delle sorgenti, token) stanno in `secrets.yaml`, permessi `0600`, mai in git e
   mai in un export condiviso.
 - **`/metrics` vuole l'accesso**: una sessione, oppure il token `SWS_METRICS_TOKEN` per Prometheus.
@@ -101,7 +110,12 @@ Scritto qui perché chi installa SWS sappia cosa deve coprire da sé, finché no
 1. **Attivare HTTPS** sul pannello se la rete non è fidata (Configurazione → Istanza → Device → Stato → Certificato
    TLS), e accettare il certificato da `http://<pannello>:8080`.
 2. **Abbinare il pannello** appena acceso: finché non ha utenti è chiuso, ma il codice è sullo schermo.
-3. **Non esporre la porta 8444** fuori dalla rete: sul pannello ascolta già solo su `127.0.0.1`; su un PC o un
-   server, metterla dietro un firewall.
+3. **Non esporre la porta 8444** fuori dalla rete dell'impianto: ascolta su tutte le interfacce, anche sul pannello,
+   quindi va chiusa col firewall verso chi non usa l'IDE. Per raggiungere un pannello da fuori c'è il tunnel del
+   cloud, che non apre porte in entrata.
 4. **Dichiarare le origini iframe** solo se servono, e solo quelle.
 5. **Tenere attivi gli aggiornamenti automatici**, o almeno leggere gli avvisi di sicurezza su GitHub.
+
+---
+
+← [Indice](MAIN.md) | [← Prestazioni](16_prestazioni.md) | [Successivo → Container e comunicazione](18_container_e_comunicazione.md) →

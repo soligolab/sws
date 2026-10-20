@@ -1,3 +1,7 @@
+← [Indice](MAIN.md) | [← Sicurezza](17_sicurezza.md)
+
+---
+
 # 18 — Il container e la comunicazione
 
 > Per chi installa SWS in un impianto o in un cloud aziendale: **cosa gira dove, quali porte aprire, cosa passa
@@ -538,3 +542,7 @@ richieste per indirizzo valgono su tutte le porte: [capitolo 17](17_sicurezza.md
 | Aggiornamento | `sws-web/src/aggiornamento*.rs`, `conferma_aggiornamento.rs`, `quadlet.rs`, `istantanea_dati.rs` |
 | Schermo | `sws-web/src/display_target.rs` |
 | Protezioni | `sws-web/src/sicurezza_http.rs`, `limiti.rs` |
+
+---
+
+← [Indice](MAIN.md) | [← Sicurezza](17_sicurezza.md)
