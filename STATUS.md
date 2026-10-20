@@ -34,9 +34,9 @@
   cartella `build/…/src` caricato con l'API REST del runtime (`/api/upload-file`), perché la CLI carica solo sulla
   porta 8443, quella del viewer SWS. Dettagli nel [piano del manuale](docs/plans/2026-10-19-manuale-rifatto.md),
   §«La misura, fatta il 20-10-2026».
-- Il progetto di prova (pompa, serbatoio, allarme; server Modbus, S7, OPC UA) sta **solo in
-  `~/.cache/sws-laboratorio/`** su questa macchina: va portato nel repo (`examples/laboratorio/`) con lo script di
-  avvio, ed è il primo passo del T01. Due cose imparate: un valore iniziale su una `%QW` non vale, e nel
+- Il progetto di prova (pompa, serbatoio, allarme; server Modbus, S7, OPC UA) è allegato al piano in
+  [`docs/plans/allegati/2026-10-20-laboratorio-openplc/`](docs/plans/allegati/2026-10-20-laboratorio-openplc/README.md),
+  col giro di comandi che ha funzionato. Il T01 lo porta in `examples/laboratorio/` con lo script di avvio. Due cose imparate: un valore iniziale su una `%QW` non vale, e nel
   `nodeId` OPC UA non si scrive `ns=2;s=` (lo aggiunge il plugin).
 
 ### Seme nuovo

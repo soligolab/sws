@@ -238,6 +238,7 @@ Il maintainer, davanti all'alternativa v3: «No, vorrei stare sul 4».
 - **Protocolli** (`plugins_default.conf`, tutti spenti finché il programma non li accende): `modbus_slave` (Python,
   502), `s7comm` (nativo con Snap7, 102), `opcua` (Python, 4840), più `modbus_master` ed EtherCAT. **EtherNet/IP non
   c'è** nella v4: il T14 facoltativo, se resta, va fatto in un altro modo.
+- **Il materiale della prova** (progetto dell'Editor, script) è in [`allegati/2026-10-20-laboratorio-openplc/`](allegati/2026-10-20-laboratorio-openplc/README.md).
 - **Da misurare al prossimo passo**: il formato del progetto dell'Editor (dove stanno POU in ST e le configurazioni
   di Modbus, S7 e OPC UA), un `create` + `compile` + `upload` dal vivo, e la mappa degli indirizzi (`%IX/%QX/%IW/%QW`
   → registri Modbus, DB S7, nodi OPC UA) che i capitoli T04-T06 useranno.

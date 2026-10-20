@@ -1,0 +1,137 @@
+{
+  "name": "opcua",
+  "protocol": "opcua",
+  "opcuaServerConfig": {
+    "server": {
+      "enabled": true,
+      "name": "OpenPLC OPC UA Server",
+      "applicationUri": "urn:openplc:opcua:server",
+      "productUri": "urn:openplc:runtime",
+      "bindAddress": "0.0.0.0",
+      "port": 4840,
+      "endpointPath": "/openplc/opcua"
+    },
+    "securityProfiles": [
+      {
+        "id": "default-insecure",
+        "name": "insecure",
+        "enabled": true,
+        "securityPolicy": "None",
+        "securityMode": "None",
+        "authMethods": [
+          "Anonymous"
+        ],
+        "anonymousRole": "operator"
+      }
+    ],
+    "security": {
+      "serverCertificateStrategy": "auto_self_signed",
+      "serverCertificateCustom": null,
+      "serverPrivateKeyCustom": null,
+      "trustedClientCertificates": []
+    },
+    "users": [],
+    "cycleTimeMs": 100,
+    "addressSpace": {
+      "namespaceUri": "urn:sws:laboratorio",
+      "nodes": [
+        {
+          "id": "n1",
+          "pouName": "main",
+          "variablePath": "comando_marcia",
+          "variableType": "BOOL",
+          "nodeId": "impianto.comando_marcia",
+          "browseName": "comando_marcia",
+          "displayName": "comando_marcia",
+          "description": "",
+          "permissions": {
+            "viewer": "r",
+            "operator": "rw",
+            "engineer": "rw"
+          },
+          "nodeType": "variable"
+        },
+        {
+          "id": "n2",
+          "pouName": "main",
+          "variablePath": "pompa_in_marcia",
+          "variableType": "BOOL",
+          "nodeId": "impianto.pompa_in_marcia",
+          "browseName": "pompa_in_marcia",
+          "displayName": "pompa_in_marcia",
+          "description": "",
+          "permissions": {
+            "viewer": "r",
+            "operator": "rw",
+            "engineer": "rw"
+          },
+          "nodeType": "variable"
+        },
+        {
+          "id": "n3",
+          "pouName": "main",
+          "variablePath": "allarme_livello",
+          "variableType": "BOOL",
+          "nodeId": "impianto.allarme_livello",
+          "browseName": "allarme_livello",
+          "displayName": "allarme_livello",
+          "description": "",
+          "permissions": {
+            "viewer": "r",
+            "operator": "rw",
+            "engineer": "rw"
+          },
+          "nodeType": "variable"
+        },
+        {
+          "id": "n4",
+          "pouName": "main",
+          "variablePath": "livello",
+          "variableType": "INT",
+          "nodeId": "impianto.livello",
+          "browseName": "livello",
+          "displayName": "livello",
+          "description": "",
+          "permissions": {
+            "viewer": "r",
+            "operator": "rw",
+            "engineer": "rw"
+          },
+          "nodeType": "variable"
+        },
+        {
+          "id": "n5",
+          "pouName": "main",
+          "variablePath": "soglia_alta",
+          "variableType": "INT",
+          "nodeId": "impianto.soglia_alta",
+          "browseName": "soglia_alta",
+          "displayName": "soglia_alta",
+          "description": "",
+          "permissions": {
+            "viewer": "r",
+            "operator": "rw",
+            "engineer": "rw"
+          },
+          "nodeType": "variable"
+        },
+        {
+          "id": "n6",
+          "pouName": "main",
+          "variablePath": "portata",
+          "variableType": "INT",
+          "nodeId": "impianto.portata",
+          "browseName": "portata",
+          "displayName": "portata",
+          "description": "",
+          "permissions": {
+            "viewer": "r",
+            "operator": "rw",
+            "engineer": "rw"
+          },
+          "nodeType": "variable"
+        }
+      ]
+    }
+  }
+}
