@@ -12,6 +12,64 @@
 > resta in «Storico». Qui vive solo ciò che serve a riprendere il lavoro.
 
 
+## ▶ Riprendere da qui — la 2.15.0, con S7, il tubo a clic e la sessione che resta (2026-10-20, pomeriggio)
+
+### Rilasciata la 2.15.0
+
+Tag `2.15.0` su origin, immagini pubblicate e **digest verificati** per tutte e due le
+architetture: `2.15.0-arm64`/`latest-arm64`/`rc-arm64` su `c485dc79…`, i tre amd64 su
+`aae6a1ec…`. Cloud sulla 2.15.0 (`5a3d2f29`, quadlet con **due** righe cambiate insieme:
+`Image=` e `--gateway-immagine`). **Il WP630 non è ancora stato aggiornato**: sta su `rc-arm64`,
+quindi basta `podman auto-update` o il pulsante nell'IDE.
+
+### Cosa c'è dentro
+
+- **S7: la sorgente non si era mai collegata a nessun PLC** — `Options::new` lascia i timeout a
+  zero e `set_read_timeout(Some(0))` è `InvalidInput`. Più la porta configurabile. Collaudato due
+  volte contro il laboratorio OpenPLC v4, la seconda rimontandolo da zero su `theobroma` dal
+  materiale allegato al piano del manuale (l'AppImage dell'Editor è in `/home/ut1/openplc-editor/`,
+  **non nel repo**; il laboratorio in `/home/ut1/openplc-lab/`, container `oplc-prova`).
+- **Il tubo si disegna a clic**, come la polilinea: Shift per il tratto dritto (il flag vive nel
+  dato, `PipePoint.dritto`, così LVGL disegna quello che hai disegnato), maniglie dei punti,
+  anteprima che segue l'instradamento vero, e i capi che si agganciano a una bocca **solo se le
+  sono vicini**. Il punto 6 del piano delle tubazioni è **fuori perimetro** per decisione del
+  maintainer.
+- **La sessione col pannello si rinnova da sola.** È il difetto tornato tre volte: dopo il primo
+  deploy serviva Disconnetti + Riconnetti. Il token moriva e nessuno lo rinnovava; il rientro
+  automatico esisteva ma girava *dopo* il caricamento e solo se quel deploy aveva sostituito gli
+  utenti, quindi un «Invia ora» (parziale) non lo attivava mai.
+- Oggetto nuovo **al centro di ciò che si vede**; pull git ad **Admin**; testo OPC UA corretto;
+  tre commenti fermi al no-auth.
+
+### Perché era sopravvissuto tre volte, e cosa l'ha chiuso
+
+Il fallimento era **invisibile da tutte e due le parti**: il server non logga niente quando il
+deploy fallisce, e il client buttava via il motivo dopo otto secondi, tenendolo solo nel `title`
+del pulsante. In più le sonde appiattivano il 401 in «il dispositivo non lo sa fare», e il deploy
+consigliava di **aggiornare il runtime del pannello** a chi doveva solo riautenticarsi. Ora c'è
+un `warn!` col motivo vero, l'errore resta in testata finché non lo si chiude, e un 401 non si
+confonde più con altro.
+
+### Attenzione, imparata oggi
+
+Una build di container **muove i tag di canale secondo la versione in `Cargo.toml`**: costruire
+un'immagine di lavoro mentre la versione dichiarata è quella di una release già fatta sposta
+`X.Y.Z-*` e `latest-*` su codice post-rilascio. È successo con la 2.14.0-amd64 e si è riparato
+ripubblicando il tag dall'immagine vera. Dopo un rilascio, **alzare subito la versione**.
+
+### Prossimo passo
+
+1. Aggiornare il WP630 alla 2.15.0 e provare il tubo a clic e il deploy ripetuto sul cloud.
+2. **Ritenzione automatica dei datastore**: decisa in ogni punto, non ancora scritta — vedi
+   [residui dal manuale](docs/plans/2026-10-20-residui-dal-manuale.md) §2. `purge` esiste già su
+   tutti i backend, manca chi la chiami; il modello è il task dei backup in `main.rs:741`.
+3. Il **26-10**: `scripts/misura_tunnel.sh`, ramo 7 dei residui (settimana di misura dal 19-10).
+4. Sul WP630 `utenti_dispositivo.yaml` è **vuoto**: nessun Admin del dispositivo, quindi la
+   sessione dell'IDE vive nell'archivio che un deploy completo sostituisce. Crearne uno lo
+   renderebbe immune.
+
+---
+
 ## ▶ Riprendere da qui — laboratorio OpenPLC v4, S7 riparato su un ramo, e un seme (2026-10-20, mattina)
 
 ### ⚠ Un ramo aperto: `feat/s7-porta` (pushato su origin, **non mergiato**)
