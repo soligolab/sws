@@ -16,7 +16,7 @@
    nel gruppo `require_operator` (`sws-web/src/router.rs:627`), mentre Rollback, prova e fork vogliono l'Admin
    (`router.rs:440-448`, gruppo `require_admin`). Il pull cambia il progetto quanto un rollback. Svista o scelta?
    Il capitolo 12 lo descrive com'è.
-2. **DECISA il 20-10-2026, da fare: la ritenzione dei datastore diventa automatica.** Quattro
+2. **FATTA il 20-10-2026, nella 2.16.0-rc.1** ([piano in archivio](../archive/2026-10-20-ritenzione-automatica.md)). **DECISA il 20-10-2026: la ritenzione dei datastore diventa automatica.** Quattro
    scelte del maintainer, prese con le misure in mano:
    - **quando**: ogni notte a un'ora fissa, configurabile. Un pannello spento di notte recupera
      il giro al primo avvio utile.
@@ -64,3 +64,6 @@
      "Accetta qualsiasi"» per la prima connessione: con la fiducia al primo contatto non serve, e il consiglio va
      nella direzione sbagliata;
    - `sws-editor/src/types/index.ts`, `critical`: «saltato in no-auth mode».
+5. **Nuovo, dalla ritenzione (20-10-2026): l'anteprima su PostgreSQL non è mai stata eseguita.** La query
+   (`postgres_backend.rs`, `anteprima`) compila; va provata contro un Postgres vero prima che un progetto la usi.
+

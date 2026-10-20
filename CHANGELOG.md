@@ -13,7 +13,7 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 
 ### Added
 
-- **Ritenzione automatica dei datastore** (piano `docs/plans/2026-10-20-ritenzione-automatica.md`). Un task di
+- **Ritenzione automatica dei datastore** (piano `docs/archive/2026-10-20-ritenzione-automatica.md`). Un task di
   `sws-runtime` applica ogni notte `retention_days` e `retention_rows`, all'ora del progetto (`ritenzione_ora`,
   predefinita 03:00 locale), con VACUUM quando il giro cancella almeno il 10 % delle righe. Il primo giro di ogni
   datastore aspetta la conferma dell'Admin, che vede prima righe e MB da cancellare (`GET /api/datastores/retention`,

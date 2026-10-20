@@ -1,5 +1,5 @@
 // La ritenzione automatica dei datastore, in testa alla scheda Datastore (20-10-2026,
-// piano docs/plans/2026-10-20-ritenzione-automatica.md).
+// piano docs/archive/2026-10-20-ritenzione-automatica.md).
 //
 // Tre cose sole: l'ora del giro notturno (nel progetto), lo stato di ogni datastore,
 // e la conferma del primo giro con i numeri sotto gli occhi. La conferma è per

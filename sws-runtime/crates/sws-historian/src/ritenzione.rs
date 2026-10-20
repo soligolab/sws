@@ -1,5 +1,5 @@
 //! La ritenzione automatica dei datastore (piano
-//! `docs/plans/2026-10-20-ritenzione-automatica.md`, 20-10-2026).
+//! `docs/archive/2026-10-20-ritenzione-automatica.md`, 20-10-2026).
 //!
 //! Fino a oggi `retention_rows` e `retention_days` si applicavano solo quando un
 //! Admin premeva «Pulisci»: un `retention_days: 365` scritto nel progetto, da solo,

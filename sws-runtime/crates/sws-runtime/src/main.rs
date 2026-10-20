@@ -1109,7 +1109,7 @@ async fn main() -> anyhow::Result<()> {
     ));
 
     // Ritenzione automatica dei datastore (20-10-2026, piano
-    // docs/plans/2026-10-20-ritenzione-automatica.md). Come i backup automatici:
+    // docs/archive/2026-10-20-ritenzione-automatica.md). Come i backup automatici:
     // batte ogni minuto e rilegge il progetto attivo a ogni giro, così un'ora
     // cambiata o un progetto riaperto valgono senza riavvio. Il giro vero è una
     // volta al giorno, all'ora del progetto, e solo sui datastore confermati.

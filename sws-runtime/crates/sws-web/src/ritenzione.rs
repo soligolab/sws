@@ -1,5 +1,5 @@
 //! La ritenzione automatica dei datastore: lo stato per progetto, il giro notturno e
-//! la conferma del primo giro (piano `docs/plans/2026-10-20-ritenzione-automatica.md`).
+//! la conferma del primo giro (piano `docs/archive/2026-10-20-ritenzione-automatica.md`).
 //!
 //! Le parti pure (il conto dell'anteprima, «è dovuto?», «la conferma vale ancora?»)
 //! stanno in `sws_historian::ritenzione` con i loro test; qui c'è quello che tocca il

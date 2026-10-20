@@ -92,6 +92,8 @@ primo per id (`router.rs:1794-1802`). Non si decide qui.
 
 ## Ramo 3 — `feat/tubo-a-clic`
 
+> **FATTO il 20-10-2026** (`8aa69ec6`, nella 2.15.0): tubo a clic, Shift per il tratto dritto, aggancio alle bocche solo se vicine.
+
 Oggi un tubo nasce con tre punti fissi a «L» (`sws-editor/src/editor/oggettiNuovi.ts:149`:
 `[{x,y},{x+120,y},{x+120,y+80}]`) e poi si riadatta a mano. La polilinea invece **si disegna già
 a clic** dal 26-09: modalità `polilineaInDisegno` nello store (`store/index.ts:560`), clic che
