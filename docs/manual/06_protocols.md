@@ -4,9 +4,15 @@
 
 # 06 — Protocolli di Comunicazione
 
+> Le sorgenti di dati del campo, protocollo per protocollo: la configurazione YAML, i parametri, la sicurezza. Per
+> chi collega SWS a PLC, broker e server. Dove passano le connessioni e cosa aprire sul firewall sta nel
+> [capitolo 18, §5.6](18_container_e_comunicazione.md#56-il-campo).
+>
+> Misurato sul codice il 20-10-2026.
+
 SWS si connette ai dispositivi industriali tramite plugin di protocollo configurabili.
 Ogni sorgente dati è definita nel `project.yaml` e configurabile dall'interfaccia
-**Configurazione → Protocolli**.
+**Configurazione → Progetto → Protocolli**.
 
 ---
 
@@ -21,7 +27,7 @@ Una sorgente Modbus è un **bus**: per TCP un indirizzo, per RTU una porta seria
 dietro, o una linea RS-485 con più slave, è **una** sorgente con più dispositivi: la connessione si apre una volta e i
 dispositivi si interrogano a turno, ognuno col suo intervallo, ordine di parole/byte e timeout.
 
-Nell'IDE: Configurazione → Protocolli → il bus → i suoi dispositivi, nell'albero a sinistra. La card del bus ha la
+Nell'IDE: Configurazione → Progetto → Protocolli → il bus → i suoi dispositivi, nell'albero a sinistra. La card del bus ha la
 connessione, l'intervallo predefinito e l'elenco dei dispositivi («+ Aggiungi dispositivo» prende il primo unit id
 libero); la card del dispositivo ha unit id, nome, ordine, intervallo (vuoto = quello del bus), timeout e mappature.
 
@@ -119,7 +125,7 @@ registri — ABCD parola alta e byte alto prima, CDAB parole scambiate, BADC byt
 
 **I registri vengono dal tipo** (dal 04-10-2026). Un tag dichiarato `i16` si legge con segno, un `u32`/`i32`/`f32`
 occupa 2 registri, un `u64`/`i64`/`f64` 4, un `string(10)` 5 (due caratteri per registro), un `bool` 1. Mappando la
-**radice** di un'istanza (un tipo struttura, Configurazione → Variabili → Tipi) si legge **un blocco**: i membri uno dopo
+**radice** di un'istanza (un tipo struttura, Configurazione → Progetto → Tipi) si legge **un blocco**: i membri uno dopo
 l'altro, nell'ordine dichiarato; sulle aree a bit ogni membro è un bit. Una scrittura su una foglia scrive solo i suoi
 registri. La colonna «Registri» della card dice quanti ne legge ogni riga.
 
@@ -319,6 +325,40 @@ in `<progetto>/opcua-pki/<source-id>/`. Il server mostrerà il cert nella lista
 "certificati non attendibili" al primo collegamento — approvarlo dall'interfaccia
 del server OPC-UA.
 
+### Il certificato del server: fiducia al primo contatto
+
+Anche SWS deve fidarsi del server. Dal **15-10-2026** (CRA, onda 1) `trust_all_certs` vale **`false`** per
+default (`sws-core/src/project.rs`, `OpcUaClientConfig`; `fiducia_al_primo_contatto` in
+`sws-plugin-opcua/src/lib.rs`), come per SSH e per il TLS di MQTT:
+
+| Situazione | Cosa fa SWS |
+|---|---|
+| **Primo contatto**: `trusted/` vuota, un solo certificato in `rejected/` | lo memorizza in `opcua-pki/<source-id>/trusted/` e si connette: da lì vale solo quello |
+| **Certificato cambiato**: `trusted/` ha già un certificato, il server ne presenta un altro | la connessione **si ferma** e il log lo dice: un rinnovo legittimo e un attacco non si distinguono, quindi decide una persona |
+| `trust_all_certs: true` | qualunque certificato è accettato — **sconsigliato**, solo per prove in laboratorio |
+
+```yaml
+sources:
+  - kind: opcua_client
+    id: macchina1
+    endpoint_url: "opc.tcp://192.168.1.100:4840"
+    security_policy: "Basic256Sha256"
+    trust_all_certs: false     # il default; si può omettere
+```
+
+**Il trust store** si vede nella card della sorgente (Configurazione → Progetto → Protocolli → la sorgente):
+l'elenco dei certificati fidati e rifiutati, con **Trust** per approvare quello nuovo dopo un rinnovo e l'eliminazione
+di quello vecchio.
+
+| Rotta | Ruolo minimo |
+|---|---|
+| `GET /api/sources/:id/opcua/certs` — l'elenco | Supervisor |
+| `POST /api/sources/:id/opcua/certs/:filename/trust` — approva | Admin |
+| `DELETE /api/sources/:id/opcua/certs/:filename` — elimina | Admin |
+
+Un progetto salvato prima del 15-10 senza il campo riparte con `false`: al primo collegamento dopo
+l'aggiornamento memorizza il certificato che trova.
+
 ### Formato NodeId
 
 | Forma | Descrizione |
@@ -329,7 +369,7 @@ del server OPC-UA.
 
 ### Browse automatico
 
-In **Configurazione → Protocolli → OPC-UA → Browse**, SWS può esplorare la struttura
+In **Configurazione → Progetto → Protocolli → OPC-UA → Browse**, SWS può esplorare la struttura
 ad albero del server OPC-UA e aggiungere nodi con un click.
 
 ### Euromap 77/83
@@ -524,12 +564,13 @@ monta `/sys/firmware/devicetree/base` in sola lettura su `/host/devicetree`. Su 
 
 Tutte le sorgenti possono essere configurate senza editare YAML:
 
-1. **Configurazione → Protocolli → + Aggiungi [tipo]**
+1. **Configurazione → Progetto → Protocolli → + Aggiungi [tipo]**
 2. Compila i campi del form
 3. **Salva** → il runtime ricarica la configurazione automaticamente
 
 Il runtime effettua un tentativo di connessione immediato dopo il salvataggio.
-Lo stato (connesso / errore) è visibile in **Configurazione → Stato**.
+Lo stato di ogni sorgente e dei suoi dispositivi (connesso / errore) è visibile nell'albero della configurazione e
+nella card della sorgente (`GET /api/sources/stato`).
 
 ---
 
