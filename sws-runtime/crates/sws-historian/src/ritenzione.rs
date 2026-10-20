@@ -77,22 +77,23 @@ pub fn serve_vacuum(cancellate: u64, prima: u64) -> bool {
 
 /// Il giro notturno è dovuto?
 ///
-/// - `minuto_del_giorno`: adesso, in minuti dalla mezzanotte **locale**;
-/// - `ora_giro`: l'ora del progetto, in minuti dalla mezzanotte;
-/// - `da_ultimo_ms`: quanto è passato dall'ultimo giro, `None` se non ce n'è mai stato.
+/// - `adesso_ms`: adesso;
+/// - `ora_di_oggi_ms`: l'istante di **oggi** all'ora del progetto, nell'ora locale del
+///   dispositivo (lo calcola chi chiama, che conosce il fuso);
+/// - `ultimo_ms`: l'ultimo giro.
 ///
-/// Dovuto se l'ora è passata e l'ultimo giro è di più di 20 ore fa: 20 e non 24,
-/// così un giro fatto alle 03:05 non rimanda quello del giorno dopo alle 03:05, e un
-/// pannello spento di notte recupera al primo minuto utile dopo l'ora. Senza un giro
-/// precedente basta l'ora passata: il primo giro, comunque, aspetta la conferma.
-pub fn dovuto(minuto_del_giorno: u32, ora_giro: u32, da_ultimo_ms: Option<u64>) -> bool {
-    if minuto_del_giorno < ora_giro {
-        return false;
-    }
-    match da_ultimo_ms {
-        Some(ms) => ms >= 20 * 3_600_000,
-        None => true,
-    }
+/// Dovuto quando l'ora di oggi è passata **e** l'ultimo giro è di prima di
+/// quell'istante. Così:
+/// - chi conferma alle 20 vede la pulizia stanotte all'ora del progetto, non un minuto
+///   dopo (20-10-2026: la prima versione, con una finestra di 20 ore e «senza giri
+///   precedenti basta l'ora passata», puliva subito dopo la conferma);
+/// - un pannello spento di notte recupera alla prima accensione del giorno dopo l'ora;
+/// - non si pulisce due volte nello stesso giorno.
+///
+/// Un progetto mai visto non ha un ultimo giro: chi chiama segna «adesso» e non pulisce
+/// (`primo_sguardo`), come i backup automatici non scattano all'apertura.
+pub fn dovuto(adesso_ms: u64, ora_di_oggi_ms: u64, ultimo_ms: u64) -> bool {
+    adesso_ms >= ora_di_oggi_ms && ultimo_ms < ora_di_oggi_ms
 }
 
 /// `"03:00"` → 180. `None` se non è un'ora valida.
@@ -161,25 +162,36 @@ mod tests {
     }
 
     #[test]
-    fn dovuto_solo_dopo_l_ora() {
-        let ora = 180; // 03:00
-        assert!(!dovuto(179, ora, None));
-        assert!(dovuto(180, ora, None));
-        assert!(dovuto(12 * 60, ora, None), "progetto aperto a mezzogiorno senza giri: pulisce");
+    fn dovuto_solo_dopo_l_ora_e_una_volta_al_giorno() {
+        let h = 3_600_000u64;
+        let oggi_0300 = 100 * 24 * h + 3 * h;
+        let ieri_0310 = oggi_0300 - 24 * h + 10 * 60_000;
+        // Prima dell'ora: no, anche se l'ultimo giro è di ieri.
+        assert!(!dovuto(oggi_0300 - 60_000, oggi_0300, ieri_0310));
+        // All'ora, con l'ultimo giro di ieri: sì.
+        assert!(dovuto(oggi_0300, oggi_0300, ieri_0310));
+        // Giro fatto stanotte alle 03:05: alle 20 non si ripete.
+        assert!(!dovuto(oggi_0300 + 17 * h, oggi_0300, oggi_0300 + 5 * 60_000));
     }
 
     #[test]
-    fn dovuto_una_volta_al_giorno_e_recupera_il_giorno_spento() {
-        let ora = 180;
-        let h = 3_600_000;
-        // Giro fatto alle 03:05 di oggi: alle 04:00 non è di nuovo dovuto.
-        assert!(!dovuto(240, ora, Some(55 * 60_000)));
-        // Il giorno dopo alle 03:00 (23 h 55' dopo): dovuto.
-        assert!(dovuto(180, ora, Some(23 * h + 55 * 60_000)));
-        // Pannello spento di notte, acceso alle 08:00 dopo 29 ore: recupera.
-        assert!(dovuto(8 * 60, ora, Some(29 * h)));
-        // Orologio tornato indietro (da_ultimo piccolo): non ripete.
-        assert!(!dovuto(200, ora, Some(0)));
+    fn la_conferma_della_sera_aspetta_la_notte() {
+        // Il caso trovato dal vivo il 20-10-2026: progetto visto per la prima volta
+        // alle 20 (ultimo giro = 20:00), confermato alle 20:05.
+        let h = 3_600_000u64;
+        let oggi_0330 = 100 * 24 * h + 3 * h + 30 * 60_000;
+        let oggi_2000 = 100 * 24 * h + 20 * h;
+        assert!(!dovuto(oggi_2000 + 5 * 60_000, oggi_0330, oggi_2000), "non subito dopo la conferma");
+        let domani_0330 = oggi_0330 + 24 * h;
+        assert!(dovuto(domani_0330, domani_0330, oggi_2000), "stanotte, all'ora del progetto");
+    }
+
+    #[test]
+    fn il_pannello_spento_di_notte_recupera_al_mattino() {
+        let h = 3_600_000u64;
+        let oggi_0300 = 100 * 24 * h + 3 * h;
+        let ieri_0302 = oggi_0300 - 24 * h + 2 * 60_000;
+        assert!(dovuto(oggi_0300 + 5 * h, oggi_0300, ieri_0302), "acceso alle 08: recupera");
     }
 
     #[test]

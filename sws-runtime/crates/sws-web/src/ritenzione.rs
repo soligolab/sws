@@ -82,13 +82,23 @@ fn adesso_ms() -> u64 {
         .unwrap_or(0)
 }
 
-/// Minuti dalla mezzanotte, nell'ora **locale** del dispositivo: il container vede
-/// il fuso dell'host (`Timezone=local` nel quadlet), come per la finestra degli
-/// aggiornamenti (`aggiornamento_finestra.rs`).
-fn minuto_locale() -> u32 {
-    use chrono::Timelike;
-    let t = chrono::Local::now();
-    t.hour() * 60 + t.minute()
+/// L'istante di **oggi** all'ora `minuti` (dalla mezzanotte), nell'ora locale del
+/// dispositivo: il container vede il fuso dell'host (`Timezone=local` nel quadlet),
+/// come per la finestra degli aggiornamenti (`aggiornamento_finestra.rs`). Un'ora
+/// saltata dal cambio d'ora vale l'ora dopo; una ripetuta, la prima delle due.
+fn istante_di_oggi_ms(minuti: u32) -> u64 {
+    use chrono::{Duration, NaiveTime, TimeZone};
+    let adesso = chrono::Local::now();
+    let ora = NaiveTime::from_hms_opt(minuti / 60, minuti % 60, 0).unwrap_or_default();
+    let locale = adesso.date_naive().and_time(ora);
+    let t = match chrono::Local.from_local_datetime(&locale) {
+        chrono::LocalResult::Single(t) | chrono::LocalResult::Ambiguous(t, _) => t,
+        chrono::LocalResult::None => match chrono::Local.from_local_datetime(&(locale + Duration::hours(1))) {
+            chrono::LocalResult::Single(t) | chrono::LocalResult::Ambiguous(t, _) => t,
+            chrono::LocalResult::None => adesso,
+        },
+    };
+    t.timestamp_millis().max(0) as u64
 }
 
 fn ora_del_progetto(p: &sws_core::Project) -> u32 {
@@ -117,8 +127,18 @@ pub async fn giro_se_dovuto(dir: &Path, registry: &RegistryCell, audit: &Arc<sws
     let ora = ora_del_progetto(&project);
     let adesso = adesso_ms();
     let st = leggi(dir);
-    let da_ultimo = st.ultimo_giro_ms.map(|u| adesso.saturating_sub(u));
-    if !ritenzione::dovuto(minuto_locale(), ora, da_ultimo) {
+    let Some(ultimo) = st.ultimo_giro_ms else {
+        // Primo sguardo a questo progetto: si segna «adesso» e non si pulisce, così il
+        // primo giro è all'ora del progetto e non un minuto dopo l'apertura o la conferma.
+        let _g = SCRITTURA.lock().await;
+        let mut st = leggi(dir);
+        st.ultimo_giro_ms.get_or_insert(adesso);
+        if let Err(e) = scrivi(dir, &st) {
+            warn!("ritenzione: stato non scritto: {e}");
+        }
+        return;
+    };
+    if !ritenzione::dovuto(adesso, istante_di_oggi_ms(ora), ultimo) {
         return;
     }
     let Some(reg) = registry.read().await.as_ref().map(Arc::clone) else { return };

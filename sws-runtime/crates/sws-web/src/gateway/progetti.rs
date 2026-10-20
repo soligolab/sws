@@ -365,6 +365,10 @@ impl Regia {
             "image": self.immagine,
             "name": contenitore,
             "labels": { ETICHETTA_RIFERIMENTO: riferimento },
+            // Il fuso dell'host, come `Timezone=local` nei quadlet (20-10-2026): senza,
+            // il container è in UTC, e la ritenzione «alle 03:00» girava alle 05:00 in
+            // Italia d'estate.
+            "timezone": "local",
             "env": {
                 "SWS_SEGRETO_GATEWAY": self.segreto.as_str(),
                 // La chiave con cui il container si farà riconoscere quando

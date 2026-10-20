@@ -13,7 +13,11 @@ import { api } from "@/api/client";
 import { useAppStore } from "@/store";
 import type { StatoRitenzione, StatoRitenzioneDatastore } from "@/types";
 
-const mb = (b: number) => (b / 1024 / 1024).toFixed(1);
+/** Byte leggibili: kB sotto il mega, MB sopra, nel formato della lingua. */
+const peso = (b: number, lingua: string) => {
+  const f = (n: number) => n.toLocaleString(lingua, { maximumFractionDigits: 1 });
+  return b < 1024 * 1024 ? `${f(b / 1024)} kB` : `${f(b / 1024 / 1024)} MB`;
+};
 
 function Riga({ ds, remoto, onConferma, busy }: {
   ds: StatoRitenzioneDatastore;
@@ -21,10 +25,11 @@ function Riga({ ds, remoto, onConferma, busy }: {
   onConferma: (id: string, remoto: boolean) => void;
   busy: boolean;
 }) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+  const lingua = i18n.language;
   const limiti = [
     ds.retention_days != null ? t("ritenzione.giorni", { n: ds.retention_days }) : null,
-    ds.retention_rows != null ? t("ritenzione.righe", { n: ds.retention_rows.toLocaleString() }) : null,
+    ds.retention_rows != null ? t("ritenzione.righe", { n: ds.retention_rows.toLocaleString(lingua) }) : null,
   ].filter(Boolean).join(" · ");
   return (
     <div data-testid={`retention-${remoto ? "remote" : "local"}-${ds.id}`}
@@ -37,9 +42,9 @@ function Riga({ ds, remoto, onConferma, busy }: {
           <span style={{ color: "var(--brand-warning, #eab308)" }}>
             ⚠ {ds.anteprima
               ? t("ritenzione.anteprima", {
-                  righe: ds.anteprima.righe_per_eta + ds.anteprima.righe_per_numero,
-                  totali: ds.anteprima.righe_totali,
-                  mb: ds.anteprima.byte_stimati != null ? mb(ds.anteprima.byte_stimati) : "?",
+                  righe: (ds.anteprima.righe_per_eta + ds.anteprima.righe_per_numero).toLocaleString(lingua),
+                  totali: ds.anteprima.righe_totali.toLocaleString(lingua),
+                  peso: ds.anteprima.byte_stimati != null ? peso(ds.anteprima.byte_stimati, lingua) : "?",
                 })
               : ds.errore ?? t("ritenzione.daConfermare")}
           </span>
@@ -55,7 +60,7 @@ function Riga({ ds, remoto, onConferma, busy }: {
 }
 
 export function RitenzioneAutomatica() {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const project = useAppStore((s) => s.project);
   const remoteConnected = useAppStore((s) => s.remoteConnected);
   const isAdmin = useAppStore((s) => s.authRole) === "Admin";
@@ -88,8 +93,8 @@ export function RitenzioneAutomatica() {
     const testo = t("ritenzione.confermaDomanda", {
       id,
       dove: suRemoto ? t("ritenzione.sulDispositivo") : t("ritenzione.qui"),
-      righe: a ? a.righe_per_eta + a.righe_per_numero : "?",
-      mb: a?.byte_stimati != null ? mb(a.byte_stimati) : "?",
+      righe: a ? (a.righe_per_eta + a.righe_per_numero).toLocaleString(i18n.language) : "?",
+      peso: a?.byte_stimati != null ? peso(a.byte_stimati, i18n.language) : "?",
     });
     if (!window.confirm(testo)) return;
     setBusy(true);
@@ -134,12 +139,15 @@ export function RitenzioneAutomatica() {
         <span style={{ color: "var(--brand-text-subtle, #64748b)" }}>{t("ritenzione.oraVuota")}</span>
       </label>
 
+      {remoteConnected && remoto && configurati(remoto).length > 0 && configurati(locale).length > 0 && (
+        <div style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)" }}>{t("ritenzione.questaIstanza", { ora: locale?.ora ?? "03:00" })}</div>
+      )}
       {configurati(locale).length === 0 && <div style={{ fontSize: 12, color: "var(--brand-text-subtle, #64748b)" }}>{t("ritenzione.nessunLimite")}</div>}
       {configurati(locale).map((d) => <Riga key={d.id} ds={d} remoto={false} onConferma={conferma} busy={busy} />)}
 
       {remoteConnected && remoto && configurati(remoto).length > 0 && (
         <div style={{ marginTop: 8 }}>
-          <div style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)" }}>{t("cfgUi.remoteDevice")} — {t("ritenzione.oraDispositivo", { ora: remoto.ora })}</div>
+          <div style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)" }}>{t("ritenzione.dispositivoCollegato", { ora: remoto.ora })}</div>
           {configurati(remoto).map((d) => <Riga key={d.id} ds={d} remoto onConferma={conferma} busy={busy} />)}
         </div>
       )}

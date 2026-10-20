@@ -118,8 +118,11 @@ nell'ora locale del dispositivo; assente = 03:00). Si imposta in **Configurazion
   richiede: è un altro primo giro.
 - **VACUUM** solo quando il giro ha cancellato almeno il **10 %** delle righe: su SQLite un `DELETE` non restituisce
   spazio su disco, e il VACUUM riscrive il file e blocca le scritture per il tempo che serve.
-- **Un pannello spento all'ora del giro** recupera al primo minuto utile dopo l'ora; il giro non si ripete prima di
-  20 ore.
+- **Il giro è dovuto** quando l'ora di oggi è passata e l'ultimo giro è di prima: una conferma data la sera pulisce
+  stanotte, non subito; un pannello spento all'ora del giro recupera alla prima accensione del giorno; non si pulisce
+  mai due volte nello stesso giorno. La prima volta che un runtime vede il progetto segna «adesso» e non pulisce.
+- **Quanto costa l'anteprima**: si conta quando l'Admin apre la scheda, sugli indici; su 6 milioni di righe (243 MB)
+  0,6 s su un PC x86, di più su un pannello. Finché conta, le scritture dello storico aspettano.
 - **Nel cloud** il container di progetto è spento quando nessuno lavora: il giro avviene alla prima apertura dopo
   l'ora, non all'ora esatta.
 - Lo stato (ultimo giro, conferme) sta in `history/ritenzione.json`, fuori da git e dal deploy: la conferma vale per

@@ -3417,17 +3417,18 @@
       "spiega": "Ogni notte, all'ora qui sotto, ogni datastore con un limite di giorni o di righe cancella lo storico oltre il limite; se ha cancellato almeno il 10% delle righe, compatta anche il file. Il primo giro aspetta la tua conferma.",
       "ora": "Ora del giro",
       "oraVuota": "vuota = 03:00, ora locale del dispositivo",
-      "oraDispositivo": "giro alle {{ora}}",
       "giorni": "{{n}} giorni",
       "righe": "{{n}} righe per tag",
       "senzaLimiti": "senza limiti",
       "attiva": "attiva",
       "daConfermare": "da confermare",
-      "anteprima": "il primo giro cancellerà {{righe}} righe su {{totali}}, circa {{mb}} MB",
+      "anteprima": "il primo giro, stanotte, cancellerà {{righe}} righe su {{totali}}, circa {{peso}}",
       "conferma": "Conferma",
-      "confermaDomanda": "Confermi la ritenzione automatica di «{{id}}» {{dove}}?\n\nIl primo giro cancellerà {{righe}} righe (circa {{mb}} MB). Non si annulla.",
+      "confermaDomanda": "Confermi la ritenzione automatica di «{{id}}» {{dove}}?\n\nIl primo giro, stanotte all'ora del progetto, cancellerà {{righe}} righe (circa {{peso}}). Non si annulla.",
       "sulDispositivo": "sul dispositivo collegato",
       "qui": "su questa istanza",
-      "nessunLimite": "Nessun datastore ha limiti di ritenzione: lo storico non si cancella mai da solo."
+      "nessunLimite": "Nessun datastore ha limiti di ritenzione: lo storico non si cancella mai da solo.",
+      "questaIstanza": "Questa istanza — giro alle {{ora}}",
+      "dispositivoCollegato": "Dispositivo collegato — giro alle {{ora}}"
   }
 }

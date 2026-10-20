@@ -21,6 +21,12 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
   decade se i limiti si stringono. Avviso in testata per l'Admin finché manca. Stato in `history/ritenzione.json`,
   fuori da git. Audit: `datastore.ritenzione_confermata`, `datastore.ritenzione_auto`, e ora anche `datastore.purge`
   per la pulizia a mano.
+- Ritenzione, rifiniture dopo la prova nel browser e col pannello collegato: il giro è dovuto quando l'ora di oggi
+  è passata e l'ultimo giro è di prima (la prima versione puliva un minuto dopo una conferma serale); al primo
+  sguardo un progetto segna «adesso» senza pulire; il conteggio dell'anteprima usa la chiave primaria (6 milioni di
+  righe: 0,57 s in release); titoli «Questa istanza» / «Dispositivo collegato» e numeri nel formato della lingua.
+- Nel cloud i container di progetto ricevono il fuso dell'host (`"timezone": "local"`, come `Timezone=local` nei
+  quadlet): erano in UTC, e la ritenzione delle 03:00 girava alle 05:00 in Italia d'estate.
 
 ### Documentation
 

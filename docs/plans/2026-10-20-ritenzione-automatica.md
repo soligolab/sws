@@ -72,3 +72,15 @@ prima apertura dopo l'ora — lo dicono il capitolo 08 e la card.
    tutti i pannelli di quel progetto puliscono alla stessa ora.
 2. **La conferma è per datastore**, con la sua anteprima, e decade quando i suoi valori diventano più stretti.
 3. **L'avviso lo vede solo l'Admin**, che è chi può confermare.
+
+## Stato
+
+- **20-10-2026 — fatto e mergiato** (`5fc20bfd`, 2.16.0-rc.1), poi rifinito dopo la prova nel browser e col pannello
+  collegato: la regola «è dovuto?» è diventata «l'ora di oggi è passata e l'ultimo giro è di prima», con il primo
+  sguardo che segna «adesso» senza pulire (la finestra di 20 ore del punto 1 puliva un minuto dopo una conferma
+  serale); conteggio sugli indici; fuso dei container di progetto nel cloud.
+- Provati dal vivo: anteprima = cancellazione, conferma che decade, VACUUM oltre il 10 %, IDE → pannello con
+  autenticazione vera, riquadro nel browser, conferma serale che aspetta la notte, recupero «al mattino».
+- **Non provati**: PostgreSQL (la query dell'anteprima compila ma non è mai stata eseguita), un pannello vero (TC620:
+  tempi dell'anteprima su eMMC), il cloud.
+
