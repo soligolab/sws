@@ -501,7 +501,10 @@ fn calcola_avvisi(
     out
 }
 
-pub async fn get_system_status(State(state): State<AppState>) -> Json<SystemStatus> {
+pub async fn get_system_status(
+    State(state): State<AppState>,
+    utente: Option<axum::Extension<crate::router::AuthUser>>,
+) -> Json<SystemStatus> {
     let dir_guard = state.project_dir.read().await;
     let registry = state.registry.read().await.clone();
     let boot_image = crate::boot_image::leggi_stato(&state.config_dir).await;
@@ -549,6 +552,26 @@ pub async fn get_system_status(State(state): State<AppState>) -> Json<SystemStat
             });
         }
         status.quadlet = Some(q);
+    }
+    // La ritenzione automatica che aspetta la conferma (20-10-2026): solo all'Admin,
+    // che è chi può confermarla (decisione del maintainer).
+    if utente.as_ref().is_some_and(|u| u.0.role == sws_auth::Role::Admin) {
+        // Il percorso dal guard già preso in testa: una seconda `read()` sullo stesso
+        // RwLock, con uno scrittore in coda, si bloccherebbe.
+        if let Some(dir) = (*dir_guard).clone() {
+            for ds in crate::ritenzione::da_confermare(&dir).await {
+                status.avvisi.push(Avviso {
+                    gravita: "avviso",
+                    dove: format!("datastore «{ds}»"),
+                    messaggio: "Ha limiti di ritenzione, ma il primo giro notturno aspetta una conferma: \
+                                finché non arriva, lo storico non si cancella."
+                        .into(),
+                    rimedio: "Configurazione → Dati → Datastore → «Ritenzione automatica»: guarda quante righe \
+                              cancellerà e conferma."
+                        .into(),
+                });
+            }
+        }
     }
     if crate::conferma_aggiornamento::disponibile() {
         status.conferma_aggiornamento = Some(crate::conferma_aggiornamento::stato(&state.config_dir).await);

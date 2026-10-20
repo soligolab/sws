@@ -1601,6 +1601,31 @@ export interface DatastoreConfig {
   retention_days?: number;
 }
 
+/** Ciò che il primo giro di ritenzione cancellerebbe (`sws_historian::ritenzione::Anteprima`). */
+export interface AnteprimaRitenzione {
+  righe_per_eta: number;
+  righe_per_numero: number;
+  righe_totali: number;
+  byte_stimati?: number | null;
+}
+
+/** Lo stato della ritenzione automatica di un datastore (`GET /api/datastores/retention`). */
+export interface StatoRitenzioneDatastore {
+  id: string;
+  label: string;
+  retention_rows?: number | null;
+  retention_days?: number | null;
+  stato: "non_configurata" | "da_confermare" | "attiva";
+  anteprima?: AnteprimaRitenzione;
+  errore?: string;
+}
+
+export interface StatoRitenzione {
+  ora: string;
+  ultimo_giro_ms?: number | null;
+  datastores: StatoRitenzioneDatastore[];
+}
+
 export interface DatastoreStats {
   kind: string;
   tag_count: number;
@@ -1762,6 +1787,8 @@ export interface ProjectInfo {
   /** Override per-progetto di quanti auto-backup tenere. `undefined` = eredita
    *  il default di processo (`--auto-backup-retention`). */
   auto_backup_retention?: number;
+  /** L'ora del giro notturno di ritenzione dei datastore, "HH:MM" locale; assente = 03:00 (20-10-2026). */
+  ritenzione_ora?: string;
   /** Q58 — le sorgenti non le ha ancora guardate nessuno: il progetto viene da
    *  un template e porta gli indirizzi dell'esempio. Finché è acceso il runtime
    *  **non le avvia**, e salvare dalla scheda Sorgenti lo spegne. */

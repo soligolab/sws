@@ -9,6 +9,7 @@ import type {
   CustomSymbol,
   DatastoreConfig,
   DatastoreStats,
+  StatoRitenzione,
   FaceplateDef,
   Cornice,
   CorniceInElenco,
@@ -627,7 +628,7 @@ const PATH_VERSIONATI = [
   "/api/project/alarms", "/api/project/functions", "/api/project/custom-symbols",
   "/api/project/datastores", "/api/project/global-scripts",
   "/api/project/notifications", "/api/project/page-layout", "/api/project/target", "/api/project/symbol-style",
-  "/api/project/backup-config", "/api/project/tags/import-csv",
+  "/api/project/backup-config", "/api/project/retention-time", "/api/project/tags/import-csv",
 ];
 
 /** L'header `If-Match` da mettere su un salvataggio di sezione, se sappiamo su
@@ -2033,6 +2034,25 @@ export const api = {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ anteprima }),
+    }),
+
+  /** Ritenzione automatica (20-10-2026): lo stato per datastore, con l'anteprima di
+   *  quelli da confermare. `remoto` = quello del dispositivo collegato, coi suoi numeri. */
+  statoRitenzione: (remoto = false) =>
+    request<StatoRitenzione>(remoto ? "/api/remote/datastores/retention" : "/api/datastores/retention"),
+
+  /** Conferma del primo giro di ritenzione di un datastore (Admin, nell'audit). */
+  confermaRitenzione: (id: string, remoto = false) =>
+    request<StatoRitenzione>(remoto
+      ? `/api/remote/datastores/${encodeURIComponent(id)}/retention/confirm`
+      : `/api/datastores/${encodeURIComponent(id)}/retention/confirm`, { method: "POST" }),
+
+  /** PUT /api/project/retention-time — `null` torna all'ora predefinita (03:00). */
+  updateRitenzioneOra: (ora: string | null) =>
+    request<void>("/api/project/retention-time", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json", ...seVersionato("/api/project/retention-time") },
+      body: JSON.stringify({ ora }),
     }),
 
   /** POST /api/datastores/:id/vacuum — recupera spazio su disco (SQLite).

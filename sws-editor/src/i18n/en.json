@@ -3411,5 +3411,23 @@
       "ordine": "Order (z-order)",
       "aiuto": "Help"
     }
+  },
+  "ritenzione": {
+      "titolo": "Automatic retention",
+      "spiega": "Every night, at the time below, each datastore with a limit in days or rows deletes the history beyond it; if it deleted at least 10% of the rows, it also compacts the file. The first run waits for your confirmation.",
+      "ora": "Run time",
+      "oraVuota": "empty = 03:00, the device's local time",
+      "oraDispositivo": "runs at {{ora}}",
+      "giorni": "{{n}} days",
+      "righe": "{{n}} rows per tag",
+      "senzaLimiti": "no limits",
+      "attiva": "active",
+      "daConfermare": "to be confirmed",
+      "anteprima": "the first run will delete {{righe}} of {{totali}} rows, about {{mb}} MB",
+      "conferma": "Confirm",
+      "confermaDomanda": "Confirm automatic retention for «{{id}}» {{dove}}?\n\nThe first run will delete {{righe}} rows (about {{mb}} MB). It cannot be undone.",
+      "sulDispositivo": "on the connected device",
+      "qui": "on this instance",
+      "nessunLimite": "No datastore has retention limits: history is never deleted automatically."
   }
 }

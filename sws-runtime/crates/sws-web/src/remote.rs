@@ -3068,3 +3068,75 @@ mod tests_serve_admin {
         assert!(!ha_admin(""));
     }
 }
+
+/// Inoltra al dispositivo collegato una richiesta della ritenzione e ne restituisce il
+/// corpo, con gli errori detti come per la pulizia dello storico. Un 404 vuol dire un
+/// runtime di prima del 20-10-2026, che la ritenzione automatica non ce l'ha.
+async fn inoltra_ritenzione(s: &AppState, metodo: reqwest::Method, percorso: &str) -> Response {
+    let target = match s.remote_target.read().await.clone() {
+        Some(t) => t,
+        None => return (StatusCode::BAD_REQUEST, "No remote runtime connected").into_response(),
+    };
+    let client = make_remote_client(s, &target.url);
+    let base = target.url.trim_end_matches('/');
+    let url = format!("{base}{percorso}");
+    let mut req = client.request(metodo, url);
+    if !target.token.is_empty() {
+        req = req.header("Authorization", format!("Bearer {}", target.token));
+    }
+    match req.send().await {
+        Ok(r) if r.status().is_success() => {
+            let corpo: serde_json::Value = r.json().await.unwrap_or_default();
+            (StatusCode::OK, Json(corpo)).into_response()
+        }
+        Ok(r) if r.status() == StatusCode::NOT_FOUND || r.status() == StatusCode::METHOD_NOT_ALLOWED => (
+            StatusCode::BAD_GATEWAY,
+            "Il dispositivo non conosce la ritenzione automatica: aggiorna il suo runtime.".to_string(),
+        )
+            .into_response(),
+        Ok(r) if r.status() == StatusCode::UNAUTHORIZED || r.status() == StatusCode::FORBIDDEN => (
+            StatusCode::BAD_GATEWAY,
+            "Il dispositivo ha rifiutato la richiesta (non autorizzato). Riconnettiti con \
+             credenziali admin e riprova."
+                .to_string(),
+        )
+            .into_response(),
+        Ok(r) => {
+            let code = r.status();
+            let testo = r.text().await.unwrap_or_default();
+            (StatusCode::BAD_GATEWAY, format!("Il dispositivo ha risposto {code}: {testo}")).into_response()
+        }
+        Err(e) => (StatusCode::BAD_GATEWAY, format!("Dispositivo non raggiungibile: {e}")).into_response(),
+    }
+}
+
+/// `GET /api/remote/datastores/retention` — lo stato della ritenzione **sul
+/// dispositivo**: i numeri dell'anteprima sono i suoi, non quelli del PC (20-10-2026).
+pub async fn remote_ritenzione(State(s): State<AppState>) -> Response {
+    // Scritto per esteso, fra virgolette, perché lo trovi il test
+    // `ogni_chiamata_dell_ide_ha_la_sua_rotta_sul_dispositivo`: "{base}/api/datastores/retention".
+    inoltra_ritenzione(&s, reqwest::Method::GET, "/api/datastores/retention").await
+}
+
+/// `POST /api/remote/datastores/:id/retention/confirm` — conferma il primo giro sul
+/// dispositivo collegato. Anche qui finisce nell'audit, oltre che su quello del pannello.
+pub async fn remote_conferma_ritenzione(
+    State(s): State<AppState>,
+    Extension(user): Extension<AuthUser>,
+    Path(id): Path<String>,
+) -> Response {
+    let url = s.remote_target.read().await.as_ref().map(|t| t.url.clone());
+    s.audit.log(
+        "remote.ritenzione_confermata",
+        Some(user.username),
+        serde_json::json!({ "url": url, "datastore": id }),
+    );
+    // Per il test delle rotte del dispositivo: "{base}/api/datastores/{}/retention/confirm".
+    inoltra_ritenzione(
+        &s,
+        reqwest::Method::POST,
+        &format!("/api/datastores/{}/retention/confirm", pct_encode(&id)),
+    )
+    .await
+}
+

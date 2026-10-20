@@ -11,6 +11,21 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 
 ## [Unreleased]
 
+### Added
+
+- **Ritenzione automatica dei datastore** (piano `docs/plans/2026-10-20-ritenzione-automatica.md`). Un task di
+  `sws-runtime` applica ogni notte `retention_days` e `retention_rows`, all'ora del progetto (`ritenzione_ora`,
+  predefinita 03:00 locale), con VACUUM quando il giro cancella almeno il 10 % delle righe. Il primo giro di ogni
+  datastore aspetta la conferma dell'Admin, che vede prima righe e MB da cancellare (`GET /api/datastores/retention`,
+  `POST /api/datastores/:id/retention/confirm`, anche verso il pannello collegato via `/api/remote/…`); la conferma
+  decade se i limiti si stringono. Avviso in testata per l'Admin finché manca. Stato in `history/ritenzione.json`,
+  fuori da git. Audit: `datastore.ritenzione_confermata`, `datastore.ritenzione_auto`, e ora anche `datastore.purge`
+  per la pulizia a mano.
+
+### Documentation
+
+- Capitolo 13: la 8444 del pannello ascolta su tutte le interfacce, non solo su `127.0.0.1`.
+
 ## [2.15.0] — 2026-10-20
 
 ### Aggiunto

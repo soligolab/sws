@@ -556,6 +556,24 @@ impl SqliteStore {
         Ok(n)
     }
 
+    /// Per ogni tag: `(righe, righe più vecchie di cutoff_ms)` — il materiale
+    /// dell'anteprima della ritenzione (`ritenzione::conta`).
+    pub async fn righe_per_tag(&self, cutoff_ms: u64) -> anyhow::Result<Vec<(u64, u64)>> {
+        let conn = self.conn.clone();
+        task::spawn_blocking(move || -> anyhow::Result<Vec<(u64, u64)>> {
+            let c = conn.blocking_lock();
+            let mut stmt = c.prepare(
+                "SELECT COUNT(*), COALESCE(SUM(CASE WHEN ts_ms < ?1 THEN 1 ELSE 0 END), 0)
+                 FROM campioni GROUP BY tag_id",
+            )?;
+            let rows = stmt.query_map(params![cutoff_ms as i64], |r| {
+                Ok((r.get::<_, i64>(0)? as u64, r.get::<_, i64>(1)? as u64))
+            })?;
+            Ok(rows.collect::<Result<Vec<_>, _>>()?)
+        })
+        .await?
+    }
+
     /// Sample count across all tags (mostly for /metrics later).
     pub async fn total_samples(&self) -> anyhow::Result<i64> {
         let conn = self.conn.clone();

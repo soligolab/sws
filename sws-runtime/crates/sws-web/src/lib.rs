@@ -15,6 +15,7 @@ pub mod gateway;
 pub mod catalogo;
 pub mod certificati;
 pub mod cron;
+pub mod ritenzione;
 pub mod discover;
 pub mod display_target;
 pub mod dispositivi;

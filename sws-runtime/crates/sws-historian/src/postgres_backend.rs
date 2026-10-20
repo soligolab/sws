@@ -281,6 +281,34 @@ impl PostgresBackend {
         Ok(deleted)
     }
 
+    /// Ciò che `purge` cancellerebbe con questi limiti (`ritenzione::conta`).
+    pub async fn anteprima(
+        &self,
+        retention_rows: Option<u64>,
+        retention_days: Option<u64>,
+    ) -> anyhow::Result<crate::ritenzione::Anteprima> {
+        let cutoff = crate::ritenzione::limite_eta_ms(now_ms(), retention_days) as i64;
+        let per_tag: Vec<(u64, u64)> = {
+            let g = self
+                .get_client()
+                .await
+                .ok_or_else(|| anyhow::anyhow!("postgres: disconnected"))?;
+            let client = g.client.as_ref().unwrap();
+            client
+                .query(
+                    "SELECT COUNT(*)::BIGINT, COALESCE(SUM(CASE WHEN ts_ms < $1 THEN 1 ELSE 0 END), 0)::BIGINT
+                     FROM sws_samples GROUP BY tag_id",
+                    &[&cutoff],
+                )
+                .await?
+                .iter()
+                .map(|r| (r.get::<_, i64>(0) as u64, r.get::<_, i64>(1) as u64))
+                .collect()
+        };
+        let size = self.stats().await.size_bytes;
+        Ok(crate::ritenzione::conta(&per_tag, retention_rows, size))
+    }
+
     pub async fn export(
         &self,
         tags: &[String],

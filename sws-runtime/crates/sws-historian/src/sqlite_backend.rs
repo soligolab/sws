@@ -83,6 +83,18 @@ impl SqliteBackend {
         Ok(deleted)
     }
 
+    /// Ciò che `purge` cancellerebbe con questi limiti (`ritenzione::conta`).
+    pub async fn anteprima(
+        &self,
+        retention_rows: Option<u64>,
+        retention_days: Option<u64>,
+    ) -> anyhow::Result<crate::ritenzione::Anteprima> {
+        let cutoff = crate::ritenzione::limite_eta_ms(now_ms(), retention_days);
+        let per_tag = self.store.righe_per_tag(cutoff).await?;
+        let size = self.stats().await.size_bytes;
+        Ok(crate::ritenzione::conta(&per_tag, retention_rows, size))
+    }
+
     /// Tag con campioni nel DB (vedi `SqliteStore::distinct_tags`).
     pub async fn tags(&self) -> anyhow::Result<Vec<String>> {
         self.store.distinct_tags().await
@@ -112,5 +124,40 @@ impl SqliteBackend {
             out.push((tag.clone(), samples));
         }
         out
+    }
+}
+
+#[cfg(test)]
+mod tests_ritenzione {
+    use super::*;
+    use crate::Sample;
+    use sws_core::{TagQuality, TagValue};
+
+    /// L'anteprima deve dire **esattamente** quante righe cancellerà `purge`: è il
+    /// numero che l'Admin conferma prima del primo giro (piano della ritenzione).
+    #[tokio::test]
+    async fn l_anteprima_conta_quello_che_purge_cancella() {
+        let dir = tempfile::tempdir().unwrap();
+        let b = SqliteBackend::open(dir.path().join("h.db")).await.unwrap();
+        let giorno = 86_400_000u64;
+        let adesso = now_ms();
+        // "a": 30 righe vecchie (40 giorni fa) e 70 recenti; "b": 40 recenti.
+        for i in 0..30 {
+            b.record("a", &Sample { ts_ms: adesso - 40 * giorno + i, value: TagValue::Int(i as i64), quality: TagQuality::Good }).await;
+        }
+        for i in 0..70 {
+            b.record("a", &Sample { ts_ms: adesso - giorno + i, value: TagValue::Int(i as i64), quality: TagQuality::Good }).await;
+        }
+        for i in 0..40 {
+            b.record("b", &Sample { ts_ms: adesso - giorno + i, value: TagValue::Float(i as f64), quality: TagQuality::Good }).await;
+        }
+
+        let a = b.anteprima(Some(50), Some(30)).await.unwrap();
+        assert_eq!((a.righe_per_eta, a.righe_per_numero, a.righe_totali), (30, 20, 140));
+        assert!(a.byte_stimati.is_some());
+
+        let cancellate = b.purge(Some(50), Some(30)).await.unwrap();
+        assert_eq!(cancellate, a.righe(), "l'anteprima e la pulizia devono coincidere");
+        assert_eq!(b.anteprima(Some(50), Some(30)).await.unwrap().righe(), 0, "dopo la pulizia non resta niente da togliere");
     }
 }

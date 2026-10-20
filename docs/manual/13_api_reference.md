@@ -158,6 +158,8 @@ Tutto quello che legge la 8443, più:
 | PUT / DELETE | `/api/faceplates/:id`, `/api/cornici/:id`, `/api/recipes/:id` | salva o elimina |
 | GET | `/api/datastores/:id/tags`, `/…/export`, `/…/download` | contenuto di un datastore |
 | POST | `/api/datastores/:id/test`, `/…/vacuum`, `/…/purge`, `/…/clean-history`, `/…/delete-tag`, `/…/upload` | manutenzione di un datastore |
+| GET | `/api/datastores/retention` | la ritenzione automatica di ogni datastore, con l'anteprima di quelli da confermare (Admin) |
+| POST | `/api/datastores/:id/retention/confirm` | conferma il primo giro di ritenzione di un datastore (Admin) |
 | GET | `/api/sources/:id/opcua/certs` | i certificati nel trust store di una sorgente OPC UA |
 | POST | `/api/sources/:id/opcua/certs/:filename/trust` | dichiara fidato un certificato |
 | DELETE | `/api/sources/:id/opcua/certs/:filename` | lo toglie |
@@ -191,7 +193,7 @@ Tutto quello che legge la 8443, più:
 
 | Metodo | Rotta |
 |---|---|
-| PUT | `/api/project/tags`, `/…/types`, `/…/sources`, `/…/alarms`, `/…/functions`, `/…/datastores`, `/…/global-scripts`, `/…/notifications`, `/…/languages`, `/…/custom-symbols`, `/…/page-layout`, `/…/symbol-style`, `/…/target`, `/…/backup-config` |
+| PUT | `/api/project/tags`, `/…/types`, `/…/sources`, `/…/alarms`, `/…/functions`, `/…/datastores`, `/…/global-scripts`, `/…/notifications`, `/…/languages`, `/…/custom-symbols`, `/…/page-layout`, `/…/symbol-style`, `/…/target`, `/…/backup-config`, `/…/retention-time` |
 | POST | `/api/project/tags/import-csv` — importa tag da CSV |
 | POST | `/api/project/languages/translate` — traduzione assistita |
 | POST | `/api/project/validate` — valida il progetto |
@@ -290,6 +292,7 @@ fanno qui. L'IDE le chiama su sé stesso e il runtime inoltra.
 | GET | `/api/remote/history/export` | lo storico del pannello |
 | GET / POST / DELETE | `/api/remote/backups`, `/…/:name`, `/…/:name/download`, `/…/:name/restore` | i backup del pannello |
 | GET / POST | `/api/remote/database/:id/download`, `/…/upload`, `/…/clean-history` | i datastore del pannello |
+| GET / POST | `/api/remote/datastores/retention`, `/api/remote/datastores/:id/retention/confirm` | la ritenzione automatica del pannello, coi suoi numeri |
 | GET / POST / PUT | `/api/remote/update/*`, `/api/remote/quadlet/aggiorna`, `/api/remote/aggiornamento/*` | l'aggiornamento del pannello |
 | GET / PUT | `/api/remote/security/frame-origins` | le origini iframe del pannello |
 | POST | `/api/remote/boot-image/reset`, `/api/remote/mqtt-client-id` | — |
@@ -331,9 +334,9 @@ Presenti solo in un'istanza avviata con `--gateway`. Il funzionamento è nel
 
 ## `--no-admin`: la porta di gestione ridotta
 
-Sul pannello la 8444 ascolta solo su `127.0.0.1` e porta **solo** quello che serve a gestirlo da
-remoto: apertura e chiusura di progetti, caricamento ed esportazione, utenti, backup, datastore,
-log, aggiornamenti, `/ws/tags` e `/ws/alarms`. Tutto il resto dell'IDE — editor dei sinottici,
+Sul pannello la 8444 ascolta su tutte le interfacce (`0.0.0.0`, perché l'IDE in rete locale la raggiunge) e porta
+**solo** quello che serve a gestirlo da remoto: apertura e chiusura di progetti, caricamento ed esportazione, utenti,
+backup, datastore e la loro ritenzione, log, aggiornamenti, `/ws/tags` e `/ws/alarms`. Tutto il resto dell'IDE — editor dei sinottici,
 configurazione, git, pacchetti — **non c'è**, e una chiamata risponde 404.
 
 Questo è il motivo per cui una rotta che esiste sul proprio PC può non esistere su un pannello.

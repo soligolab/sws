@@ -28,6 +28,7 @@ pub mod backend;
 pub mod odbc_backend;
 pub mod postgres_backend;
 pub mod registry;
+pub mod ritenzione;
 pub mod sqlite;
 pub mod sqlite_backend;
 

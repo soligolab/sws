@@ -427,6 +427,9 @@ pub fn build(
             "/api/project/backup-config",
             put(update_project_backup_config),
         )
+        // L'ora del giro notturno di ritenzione (20-10-2026), come le impostazioni
+        // dei backup automatici: nel progetto, Admin.
+        .route("/api/project/retention-time", put(update_ritenzione_ora))
         .route("/api/notifications/test-telegram", post(test_telegram))
         .route("/api/notifications/test-email", post(test_email))
         .route(
@@ -744,6 +747,11 @@ pub fn build(
             "/api/remote/database/:id/clean-history",
             post(crate::remote::remote_pulisci_storico),
         )
+        .route("/api/remote/datastores/retention", get(crate::remote::remote_ritenzione))
+        .route(
+            "/api/remote/datastores/:id/retention/confirm",
+            post(crate::remote::remote_conferma_ritenzione),
+        )
         // Backup del dispositivo connesso — non quelli del progetto locale.
         .route(
             "/api/remote/backups",
@@ -887,6 +895,16 @@ pub fn build(
     let require_admin_layer = middleware::from_fn(require_admin);
     let datastore_routes = Router::new()
         .route("/api/datastores", get(list_datastores))
+        // Ritenzione automatica (20-10-2026): stato e conferma del primo giro, solo
+        // Admin — è chi può confermare (decisione del maintainer).
+        .route(
+            "/api/datastores/retention",
+            get(crate::ritenzione::get_ritenzione).route_layer(require_admin_layer.clone()),
+        )
+        .route(
+            "/api/datastores/:id/retention/confirm",
+            post(crate::ritenzione::conferma_ritenzione).route_layer(require_admin_layer.clone()),
+        )
         .route("/api/datastores/:id/stats", get(datastore_stats))
         .route(
             "/api/datastores/:id/test",
@@ -1428,6 +1446,10 @@ fn deploy_only_app(state: AppState) -> Router<AppState> {
         // router completo, sul TC620 rispondeva 404 (27-09). Il test
         // `ogni_chiamata_dell_ide_ha_la_sua_rotta_sul_dispositivo` ora lo vede.
         .route("/api/datastores/:id/clean-history", post(datastore_pulisci_storico))
+        // La ritenzione del pannello la conferma l'IDE collegato, coi numeri del
+        // pannello e non con quelli del PC (20-10-2026).
+        .route("/api/datastores/retention", get(crate::ritenzione::get_ritenzione))
+        .route("/api/datastores/:id/retention/confirm", post(crate::ritenzione::conferma_ritenzione))
         .route("/api/boot-image/reset", post(boot_image_reset))
         // Aggiornamento del runtime (27-09-2026): chiamato dall'IDE collegato.
         .route("/api/update/status", get(aggiornamento_stato))
@@ -3562,9 +3584,16 @@ struct PurgeBody {
 
 async fn datastore_purge(
     State(s): State<AppState>,
+    Extension(user): Extension<AuthUser>,
     Path(id): Path<String>,
     Json(body): Json<PurgeBody>,
 ) -> Response {
+    // La pulizia a mano cancella dati: nell'audit, come quella notturna (20-10-2026).
+    s.audit.log(
+        "datastore.purge",
+        Some(user.username),
+        serde_json::json!({ "datastore": id, "retention_rows": body.retention_rows, "retention_days": body.retention_days }),
+    );
     let Some(reg) = s.registry.read().await.as_ref().map(Arc::clone) else {
         return (StatusCode::NOT_FOUND, "no datastores configured").into_response();
     };
@@ -4514,6 +4543,7 @@ where
             target: None,
             auto_backup_interval_minutes: None,
             auto_backup_retention: None,
+            ritenzione_ora: None,
         },
     };
     // Gli allarmi nel formato vecchio fermano il salvataggio (23-09-2026).
@@ -10180,6 +10210,47 @@ async fn update_project_backup_config(
                 "interval_minutes": body.interval_minutes,
                 "retention": body.retention,
             }),
+        );
+    }
+    res
+}
+
+#[derive(serde::Deserialize, Clone)]
+#[serde(deny_unknown_fields)] // Q9: payload solo-API, campi ignoti = 400
+struct RitenzioneOraBody {
+    /// `"HH:MM"`; `None` = l'ora predefinita (03:00).
+    ora: Option<String>,
+}
+
+/// `PUT /api/project/retention-time` — l'ora del giro notturno di ritenzione dei
+/// datastore (20-10-2026). Un'ora che non si legge è un 400: salvarla vorrebbe dire
+/// un giro che ripiega in silenzio sulle 03:00.
+async fn update_ritenzione_ora(
+    State(s): State<AppState>,
+    Extension(user): Extension<AuthUser>,
+    headers: axum::http::HeaderMap,
+    Json(body): Json<RitenzioneOraBody>,
+) -> Response {
+    let ora = body.ora.map(|o| o.trim().to_string()).filter(|o| !o.is_empty());
+    if let Some(o) = &ora {
+        if sws_historian::ritenzione::leggi_ora(o).is_none() {
+            return (StatusCode::BAD_REQUEST, format!("ora non valida: «{o}» (serve HH:MM)")).into_response();
+        }
+    }
+    let dir = match active_dir(&s).await {
+        Ok(d) => d,
+        Err(c) => return c.into_response(),
+    };
+    let nuova = ora.clone();
+    let res = patch_project_se(&s.project_write_lock, &dir, versione_attesa(&headers), move |p| {
+        p.ritenzione_ora = nuova.clone();
+    })
+    .await;
+    if res.status() == StatusCode::NO_CONTENT {
+        s.audit.log(
+            "project.change",
+            Some(user.username),
+            serde_json::json!({ "what": "ritenzione_ora", "ora": ora }),
         );
     }
     res

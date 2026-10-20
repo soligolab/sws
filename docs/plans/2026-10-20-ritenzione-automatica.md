@@ -41,9 +41,9 @@ stati confermati**. Se poi `retention_days` o `retention_rows` diventano più st
 richiede: un 365 portato a 30 è un altro primo giro.
 
 **4. La conferma, una volta** (decisione del maintainer):
-- `GET /api/datastores/ritenzione` — per datastore: stato (`non_configurata`, `da_confermare`, `attiva`), anteprima
+- `GET /api/datastores/retention` — per datastore: stato (`non_configurata`, `da_confermare`, `attiva`), anteprima
   (righe, byte), ultimo giro, ora del prossimo;
-- `POST /api/datastores/:id/ritenzione/conferma` — Admin, audit `datastore.ritenzione_confermata`;
+- `POST /api/datastores/:id/retention/confirm` — Admin, audit `datastore.ritenzione_confermata`;
 - le stesse due sotto `/api/remote/…` e nella porta di gestione ristretta, come `clean-history`, così l'IDE chiede
   conferma **al dispositivo che cancellerà**, con i suoi numeri e non con quelli del PC;
 - nell'IDE: un riquadro nella scheda Datastore e un avviso nella testata quando un datastore è `da_confermare`

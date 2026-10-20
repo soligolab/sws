@@ -270,6 +270,19 @@ impl DatastoreRegistry {
         }
     }
 
+    /// Ciò che `purge_backend` cancellerebbe, senza cancellare niente.
+    pub async fn anteprima_backend(
+        &self,
+        id: &str,
+        retention_rows: Option<u64>,
+        retention_days: Option<u64>,
+    ) -> anyhow::Result<crate::ritenzione::Anteprima> {
+        match self.backends.iter().find(|(bid, _)| bid == id) {
+            Some((_, b)) => b.anteprima(retention_rows, retention_days).await,
+            None => anyhow::bail!("datastore '{id}' not found"),
+        }
+    }
+
     /// Export raw samples from a specific backend.
     pub async fn export_backend(
         &self,

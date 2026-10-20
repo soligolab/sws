@@ -5,6 +5,7 @@ import type { DatastoreBackendConfig, DatastoreConfig, DatastoreStats } from "@/
 import { useAppStore } from "@/store";
 import { eModificato, useFocus, usePubblicaElenco } from "@/config/fogliaConfig";
 import { TRANS_COMP, SaveBar } from "@/config/comuni";
+import { RitenzioneAutomatica } from "./RitenzioneAutomatica";
 
 // ── DATASTORES tab ────────────────────────────────────────────────────────────
 
@@ -266,6 +267,7 @@ export function DatastoresTab() {
     <div style={{ padding: 16 }}>
       <SaveBar onSave={save} saving={saving} saved={saved} disabled={!dirty}
         section="datastores" dirty={dirty} />
+      <RitenzioneAutomatica />
       <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
         <span style={{ fontSize: 13, color: "var(--brand-text-muted, #94a3b8)", flex: 1 }}>
           Configura i backend di persistenza dati storici. Ogni variabile con &quot;history&quot; attivo

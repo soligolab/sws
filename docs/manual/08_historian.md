@@ -104,9 +104,34 @@ datastores:
 | `postgres` | completo (anche TimescaleDB): `host`, `port`, `database`, `username`, `password`, `ssl_mode` (`disable`/`prefer`/`require`), `schema` |
 | `odbc` | uno stub: risponde «non compilato» finché non c'è un caso concreto (`odbc_backend.rs`) |
 
-**La ritenzione non gira da sola.** `retention_rows` e `retention_days` si applicano quando un Admin lo chiede
-(`POST /api/datastores/:id/purge`, `sws-core/src/project.rs`, `DatastoreConfig`): non c'è una pulizia programmata.
-Il ring in memoria invece ha sempre un tetto per tag.
+### La ritenzione automatica (dal 20-10-2026)
+
+`retention_rows` e `retention_days` si applicano **ogni notte**, all'ora del progetto (`ritenzione_ora`, `"HH:MM"`
+nell'ora locale del dispositivo; assente = 03:00). Si imposta in **Configurazione → Dati → Datastore →
+«Ritenzione automatica»**.
+
+- **Prima i giorni, poi le righe**: si tolgono i campioni più vecchi di `retention_days`, poi per ogni tag quelli
+  oltre i `retention_rows` più recenti.
+- **Il primo giro aspetta una conferma**, datastore per datastore. Finché manca, la scheda dice all'Admin quante
+  righe e quanti MB cancellerà, e la testata lo segnala fra gli avvisi. Dopo la conferma il giro è automatico. Se un
+  limite diventa **più stretto** (365 giorni portati a 30, un limite che prima non c'era), la conferma decade e si
+  richiede: è un altro primo giro.
+- **VACUUM** solo quando il giro ha cancellato almeno il **10 %** delle righe: su SQLite un `DELETE` non restituisce
+  spazio su disco, e il VACUUM riscrive il file e blocca le scritture per il tempo che serve.
+- **Un pannello spento all'ora del giro** recupera al primo minuto utile dopo l'ora; il giro non si ripete prima di
+  20 ore.
+- **Nel cloud** il container di progetto è spento quando nessuno lavora: il giro avviene alla prima apertura dopo
+  l'ora, non all'ora esatta.
+- Lo stato (ultimo giro, conferme) sta in `history/ritenzione.json`, fuori da git e dal deploy: la conferma vale per
+  lo storico del dispositivo che lo cancellerà. Con un pannello collegato, la scheda ne mostra lo stato **coi suoi
+  numeri**.
+- Nell'audit: `datastore.ritenzione_confermata`, `datastore.ritenzione_auto` (righe cancellate, VACUUM),
+  `datastore.purge` per la pulizia a mano.
+
+Il ring in memoria ha sempre il suo tetto per tag, indipendente da questi limiti.
+
+Riferimenti: `sws-historian/src/ritenzione.rs` (anteprima, «è dovuto?», conferma), `sws-web/src/ritenzione.rs`
+(stato, giro, rotte), il task in `sws-runtime/src/main.rs`.
 
 ---
 

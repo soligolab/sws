@@ -1728,6 +1728,12 @@ pub struct Project {
     /// processo (`--auto-backup-retention`).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub auto_backup_retention: Option<u64>,
+    /// L'ora del giro notturno di ritenzione dei datastore, `"HH:MM"` nell'ora locale
+    /// del dispositivo. Assente = le 03:00. Sta nel progetto (decisione del
+    /// maintainer, 20-10-2026): viaggia col deploy, e tutti i pannelli di quel
+    /// progetto puliscono alla stessa ora.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub ritenzione_ora: Option<String>,
 }
 
 /// Motore di rendering a cui è destinato il progetto.

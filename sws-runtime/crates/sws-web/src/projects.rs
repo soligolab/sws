@@ -1082,6 +1082,7 @@ pub async fn create_project(
                 target: req.target.clone(),
                 auto_backup_interval_minutes: None,
                 auto_backup_retention: None,
+                ritenzione_ora: None,
             };
             let yaml = match project.stamp_and_serialize() {
                 Ok(y) => y,

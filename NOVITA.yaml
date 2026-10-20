@@ -17,6 +17,10 @@
 # Le scrive chi fa il lavoro, insieme al lavoro; il maintainer le rivede al collaudo.
 
 versioni:
+  - versione: "2.16.0"
+    voci:
+      - it: "Storico: i limiti di giorni e di righe dei datastore ora si applicano da soli ogni notte, all'ora del progetto; la prima volta l'IDE dice quanto cancellerà e chiede conferma."
+        en: "History: datastore limits in days and rows now apply by themselves every night, at the project's time; the first time the IDE says how much it will delete and asks to confirm."
   - versione: "2.15.0"
     voci:
       - it: "Siemens S7: la sorgente ora si collega davvero (prima falliva sempre all'apertura), e accetta una porta diversa dalla 102 per i PLC dietro un port forwarding."

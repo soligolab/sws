@@ -1108,6 +1108,26 @@ async fn main() -> anyhow::Result<()> {
         audit_key,
     ));
 
+    // Ritenzione automatica dei datastore (20-10-2026, piano
+    // docs/plans/2026-10-20-ritenzione-automatica.md). Come i backup automatici:
+    // batte ogni minuto e rilegge il progetto attivo a ogni giro, così un'ora
+    // cambiata o un progetto riaperto valgono senza riavvio. Il giro vero è una
+    // volta al giorno, all'ora del progetto, e solo sui datastore confermati.
+    {
+        let dir_handle = active_dir.clone();
+        let reg = registry.clone();
+        let audit = audit.clone();
+        tokio::spawn(async move {
+            let mut tick = tokio::time::interval(std::time::Duration::from_secs(60));
+            tick.tick().await; // non all'avvio: il progetto si sta ancora aprendo
+            loop {
+                tick.tick().await;
+                let Some(dir) = dir_handle.read().await.clone() else { continue };
+                sws_web::ritenzione::giro_se_dovuto(&dir, &reg, &audit).await;
+            }
+        });
+    }
+
     // Known-projects registry (recent projects list + custom-path projects
     // outside projects_root). Borrows config_dir; build() below takes it by
     // value afterward, so this must load first.

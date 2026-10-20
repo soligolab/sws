@@ -153,6 +153,19 @@ impl DatastoreBackend {
         }
     }
 
+    /// Ciò che `purge` cancellerebbe con questi limiti, senza cancellare niente.
+    pub async fn anteprima(
+        &self,
+        retention_rows: Option<u64>,
+        retention_days: Option<u64>,
+    ) -> anyhow::Result<crate::ritenzione::Anteprima> {
+        match self {
+            DatastoreBackend::Sqlite(b) => b.anteprima(retention_rows, retention_days).await,
+            DatastoreBackend::Postgres(b) => b.anteprima(retention_rows, retention_days).await,
+            DatastoreBackend::Odbc(_) => anyhow::bail!("ODBC backend not compiled in"),
+        }
+    }
+
     /// Tag con campioni nel database.
     ///
     /// Implementato per SQLite, che è il caso della gestione database sul
