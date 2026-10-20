@@ -4,6 +4,11 @@
 
 # 08 — Historian e Trend
 
+> Come SWS registra i valori dei tag nel tempo, dove li tiene, come si leggono nei trend, via API e in CSV. Per chi
+> configura lo storico di un impianto.
+>
+> Misurato sul codice il 20-10-2026.
+
 SWS include un sistema historian integrato che registra i valori dei tag nel tempo
 e li rende disponibili per analisi e visualizzazione.
 
@@ -15,22 +20,19 @@ e li rende disponibili per analisi e visualizzazione.
 Tag update (da plugin PLC)
         │
         ▼
-   Campionamento?
-   (deadband / on-change / periodico)
+        ├──► Ring buffer in-memory (ultimi N campioni per ogni tag)
+        │
+        ▼
+   history: true?  banda morta?  intervallo minimo?
         │ sì
         ▼
-  Ring buffer in-memory
-  (ultimi N campioni per tag)
-        │
-        ├─── WebSocket /ws/history/:tag  (streaming live)
-        │
-        ▼
-  Persistenza SQLite
-  (per-project historian.db)
+  Datastore su disco
+  (SQLite del progetto: history/historian.db, oppure PostgreSQL)
 ```
 
-Il ring buffer garantisce bassa latenza per il trend live.
-SQLite garantisce persistenza tra restart del runtime.
+Il ring buffer garantisce bassa latenza per il trend; una richiesta più vecchia del ring si legge dal disco. Su disco
+scrive solo il datastore, per i tag con `history: true` e con i loro filtri (`sws-historian/src/lib.rs`). I trend
+dal vivo si aggiornano dal WebSocket dei tag (`/ws/tags`), non da un canale dello storico.
 
 ### Il formato del file (dal 03-10-2026)
 
@@ -73,11 +75,11 @@ tags:
 | Modalità | Configurazione | Descrizione |
 |----------|---------------|-------------|
 | **Deadband** | `history_deadband > 0` | Campiona solo se il valore cambia di più di `deadband` |
-| **On-change** | `history_deadband: 0` | Campiona ad ogni cambiamento |
-| **Periodico** | `history_min_interval_ms` | Almeno un campione ogni N ms |
+| **On-change** | `history_deadband: 0` o assente | Campiona ad ogni cambiamento |
+| **Intervallo minimo** | `history_min_interval_ms` | **Al massimo** un campione ogni N ms |
 
-Combinando `deadband` e `min_interval_ms` si ottiene: campiona se il valore cambia molto,
-ma non più spesso di N ms.
+Combinando `deadband` e `min_interval_ms` si ottiene: campiona se il valore cambia abbastanza,
+ma non più spesso di N ms. Non c'è un campionamento periodico: un valore fermo non scrive righe nuove.
 
 ---
 
@@ -91,13 +93,20 @@ datastores:
     label: "Storico principale"
     backend:
       kind: sqlite
-      path: "historian.db"   # relativo alla directory del progetto
-    retention_rows: 1000000  # max righe per tag (rimozione FIFO)
-    retention_days: 365      # max giorni (rimozione FIFO)
+      path: "history/historian.db"   # il predefinito; relativo alla cartella del progetto
+    retention_rows: 1000000  # max righe per tag
+    retention_days: 365      # max giorni
 ```
 
-**Nota**: nel PoC, solo SQLite è completamente implementato.
-InfluxDB e PostgreSQL sono previsti per fasi successive.
+| Backend | Stato |
+|---|---|
+| `sqlite` | completo: il file del progetto, il predefinito |
+| `postgres` | completo (anche TimescaleDB): `host`, `port`, `database`, `username`, `password`, `ssl_mode` (`disable`/`prefer`/`require`), `schema` |
+| `odbc` | uno stub: risponde «non compilato» finché non c'è un caso concreto (`odbc_backend.rs`) |
+
+**La ritenzione non gira da sola.** `retention_rows` e `retention_days` si applicano quando un Admin lo chiede
+(`POST /api/datastores/:id/purge`, `sws-core/src/project.rs`, `DatastoreConfig`): non c'è una pulizia programmata.
+Il ring in memoria invece ha sempre un tetto per tag.
 
 ---
 
@@ -109,10 +118,10 @@ Il widget **Trend** visualizza la storia di uno o più tag in un grafico Canvas 
 
 | Azione | Risultato |
 |--------|-----------|
-| **Trascina** | Pan orizzontale nella finestra temporale |
-| **Rotella mouse** | Zoom in/out centrato sul cursore |
-| **Click su titolo** | Apre la vista espansa a schermo intero |
-| **Double click** | Reset alla finestra predefinita |
+| **Trascina sul grafico** | Seleziona un intervallo e lo ingrandisce |
+| **Reimposta zoom** | Il pulsante nell'angolo torna alla finestra di prima |
+| **⤢** | Apre la vista espansa |
+| **CSV** | Scarica i dati della finestra visibile |
 
 ### Vista espansa
 
@@ -122,6 +131,7 @@ La vista espansa offre:
 - Asse Y con range auto o configurato
 - Multi-serie (tag principale + tag extra in overlay)
 - Legenda interattiva (click per nascondere/mostrare serie)
+- Preset di tempo: Diretta, 1 h, 8 h, 24 h, 7 giorni, Tutto, e un intervallo «dal … al …» (`TrendExpanded.tsx`)
 
 **Sul pannello LVGL** (dal 18-10-2026) il trend ha lo stesso ⤢ nell'angolo in alto a destra: il grafico copre tutto
 lo schermo e in basso compaiono i preset di tempo — Diretta (la finestra del progetto), 1 h, 8 h, 24 h, 7 giorni. Un
@@ -141,7 +151,7 @@ più vecchia letta dal disco.
 ```bash
 TOKEN=$(curl -sk -X POST https://localhost:8443/api/auth/login \
   -H 'Content-Type: application/json' \
-  -d '{"username":"admin","password":"admin"}' | jq -r .token)
+  -d "{\"username\":\"admin\",\"password\":\"$SWS_ADMIN_PASSWORD\"}" | jq -r .token)
 
 # Ultimi 100 campioni
 curl -k -H "Authorization: Bearer $TOKEN" \
@@ -188,18 +198,20 @@ curl -k -H "Authorization: Bearer $TOKEN" \
 
 ## Export CSV
 
-**Configurazione → Datastore → Export CSV**:
+Dal pulsante **CSV** di un trend (anche nella vista espansa), oppure da **Configurazione → Dati → Datastore**:
 
 1. Scegli il tag (o più tag)
 2. Imposta il range temporale
 3. Scarica il file `.csv`
 
-Formato CSV:
+L'API è `GET /api/history/export?tags=a,b&from_ms=&to_ms=`. Formato CSV:
 ```
-timestamp_ms,timestamp_iso,valore,qualità
-1735600000000,2026-01-01T10:00:00Z,9.8,Good
-1735600001000,2026-01-01T10:00:01Z,9.9,Good
+ts_ms,ts_iso,tag_id,value,quality
+1735600000000,2026-01-01T10:00:00.000Z,pressione,9.8,Good
+1735600001000,2026-01-01T10:00:01.000Z,pressione,9.9,Good
 ```
+
+Un valore composto (array o struttura) esce come JSON fra virgolette.
 
 **Lo storico di un pannello** (dal 18-10-2026): il pannello non ha dove salvare un file. Con l'IDE collegato al
 dispositivo, **Configurazione → Istanza → Device → Storico del dispositivo (CSV)**: scegli uno dei trend delle pagine e
@@ -226,7 +238,7 @@ buffer locale.
 
 ## Monitoraggio datastore
 
-**Configurazione → Datastore → [nome]** mostra:
+**Configurazione → Dati → Datastore → [nome]** mostra:
 - Numero di tag con storia
 - Numero totale di campioni
 - Timestamp primo e ultimo campione
