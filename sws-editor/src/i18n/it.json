@@ -2153,7 +2153,7 @@
     "noEntitiesAddAMapping": "Nessuna entità — aggiungi una mappatura.",
     "addEntity": "+ Aggiungi entità",
     "clickRefreshToSeeThe": "Clicca \"Aggiorna\" per vedere i certificati nel trust store.",
-    "noCertificatesInTheTrust": "Nessun certificato nel trust store. Abilita temporaneamente \"Accetta qualsiasi\" per permettere la prima connessione, poi ricarica i certificati.",
+    "noCertificatesInTheTrust": "Nessun certificato nel trust store: è normale prima della prima connessione. Collegati alla sorgente — il certificato del server arriva al primo contatto e si presenta qui per essere accettato.",
     "noNodesClickNodeTo": "Nessun nodo. Clicca \"+ Nodo\" per aggiungerne uno.",
     "noNodesAddAMapping": "Nessun nodo — aggiungi una mappatura.",
     "addNode": "+ Aggiungi nodo",

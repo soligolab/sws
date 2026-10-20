@@ -21,6 +21,31 @@ let aggiungi: Aggiungi | null = null;
  *  aggiunge l'editor appena si monta. */
 let inAttesa: { type: SynopticObject["type"]; pre?: Preimpostato } | null = null;
 
+/** Dove sta il centro di ciò che si vede, in coordinate di pagina.
+ *
+ *  Un oggetto nuovo nasceva a cascata da (60, 60) in coordinate di **pagina**,
+ *  senza guardare dov'era la vista: con lo zoom dentro e il canvas spostato
+ *  altrove finiva fuori schermo, e per trovarlo bisognava rimpicciolire tutto
+ *  (segnalazione del maintainer, 20-10-2026).
+ *
+ *  La trasformazione della vista è stato locale di `SvgCanvas`, e `EditorShell`
+ *  non ce l'ha: da quando il pannello sinistro vive in `App.tsx` i tre non sono
+ *  più parenti. Sta qui per la stessa ragione di `registraAggiunta` — e come
+ *  registro invece che nello store perché il centro cambia a ogni scatto di
+ *  rotellina, e nello store farebbe ridisegnare la shell a ogni pan. */
+type CentroVista = () => { x: number; y: number } | null;
+let centro: CentroVista | null = null;
+
+/** Lo chiama `SvgCanvas` quando si monta, e con `null` quando si smonta. */
+export function registraCentroVista(f: CentroVista | null): void {
+  centro = f;
+}
+
+/** Il centro dell'area visibile, o `null` se non c'è un canvas montato. */
+export function centroVista(): { x: number; y: number } | null {
+  return centro?.() ?? null;
+}
+
 /** Lo chiama `EditorShell` a ogni disegno, e con `null` quando si smonta. */
 export function registraAggiunta(f: Aggiungi | null): void {
   aggiungi = f;

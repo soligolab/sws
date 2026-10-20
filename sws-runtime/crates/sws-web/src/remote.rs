@@ -699,19 +699,26 @@ fn read_bundle_meta(zip: &[u8]) -> (Option<String>, Vec<String>) {
 /// Va chiamata **prima** di toccare il progetto sul dispositivo: `open_project`
 /// passa da `auth.swap_store`, che azzera ogni sessione, e da lì in poi questa
 /// GET risponde 401 qualunque token si presenti.
-async fn leggi_utenti_dispositivo(
+/// Come sopra, ma **dice se il rifiuto è un 401**.
+///
+/// Serve perché le due cose hanno rimedi opposti: un dispositivo che non sa
+/// rispondere va aggiornato, un token morto va rinnovato. Fino al 20-10-2026
+/// questa differenza si perdeva in un `_ => None`, e il deploy consigliava di
+/// aggiornare il runtime a chi invece doveva solo riautenticarsi.
+async fn utenti_dispositivo_o_401(
     client: &reqwest::Client,
     base: &str,
     auth_hdr: &Option<String>,
-) -> Option<Vec<String>> {
+) -> Result<Option<Vec<String>>, ()> {
     let mut r = client.get(format!("{base}/api/auth/users"));
     if let Some(h) = auth_hdr {
         r = r.header("Authorization", h);
     }
     match r.send().await {
+        Ok(resp) if resp.status() == reqwest::StatusCode::UNAUTHORIZED => Err(()),
         Ok(resp) if resp.status().is_success() => {
             let v: serde_json::Value = resp.json().await.unwrap_or_default();
-            Some(
+            Ok(Some(
                 v.as_array()
                     .map(|a| {
                         a.iter()
@@ -719,9 +726,9 @@ async fn leggi_utenti_dispositivo(
                             .collect()
                     })
                     .unwrap_or_default(),
-            )
+            ))
         }
-        _ => None,
+        _ => Ok(None),
     }
 }
 
@@ -2127,7 +2134,7 @@ pub async fn remote_deploy(
     // account bisogna potersi fermare **prima** di aver cancellato qualcosa.
     let client = make_remote_client(&s, &target.url);
     let base = target.url.trim_end_matches('/').to_string();
-    let auth_hdr: Option<String> =
+    let mut auth_hdr: Option<String> =
         (!target.token.is_empty()).then(|| format!("Bearer {}", target.token));
 
     // Utenti del PROGETTO: si legge il file, perché è il file che viaggia nel
@@ -2137,7 +2144,27 @@ pub async fn remote_deploy(
             .await
             .unwrap_or_default(),
     );
-    let utenti_dispositivo = leggi_utenti_dispositivo(&client, &base, &auth_hdr).await;
+    // **Prima di tutto: la sessione è ancora buona?** Se non lo è si rientra da
+    // soli. Fino al 20-10-2026 il deploy tirava dritto con un token morto: le
+    // sonde qui sotto rispondevano 401, degradavano a un avviso che dava la
+    // colpa al dispositivo («non sa leggere secrets.yaml: aggiorna il
+    // runtime»), e il guasto vero compariva solo alla fine come «Upload
+    // fallito: 401».
+    let utenti_dispositivo = match assicura_sessione(&s, &client, &base, &mut auth_hdr).await {
+        Ok(u) => u,
+        Err(esito) => {
+            let motivo = match esito {
+                Esito::ServonoCredenziali =>
+                    "la sessione col dispositivo è scaduta e non ho le credenziali per rientrare \
+                     (si perdono al riavvio del servizio): rifai «Connetti» con utente e password.",
+                _ =>
+                    "la sessione col dispositivo è scaduta e le credenziali di prima non valgono \
+                     più: rifai «Connetti» con utente e password dell'Admin del progetto.",
+            };
+            tracing::warn!(remote = %base, "deploy non avviato: {motivo}");
+            return (StatusCode::UNAUTHORIZED, motivo).into_response();
+        }
+    };
     // Come il precedente, va letta ORA: dopo `open_project` sul target ogni
     // sessione è decaduta e la GET risponderebbe 401.
     let target_legge_i_segreti = dispositivo_legge_i_segreti(&client, &base, &auth_hdr).await;
@@ -2468,15 +2495,17 @@ pub async fn remote_deploy(
                 // prima non vale più. Finora l'IDE restava «connesso» col
                 // token morto e ogni azione dopo rispondeva 401 senza che
                 // niente lo dicesse (16-10-2026).
-                let utenti_sostituiti = opz.replace_users && !bundle_users.is_empty();
-                match rientra(&s, &client, &base, utenti_sostituiti).await {
-                    Esito::Rientrato => send("✓ Riconnesso con le credenziali di prima."),
-                    Esito::NienteDaFare => {}
-                    Esito::ServonoCredenziali => {
-                        send("⚠ Il dispositivo adesso ha i suoi utenti e le credenziali di prima non ci sono                               (ti eri collegato a un pannello senza account). Riconnettiti con l'utente e la                               password dell'Admin del progetto appena distribuito.");
+                let mut hdr = auth_hdr.clone();
+                match assicura_sessione(&s, &client, &base, &mut hdr).await {
+                    Ok(_) => {}
+                    Err(Esito::ServonoCredenziali) => {
+                        send("⚠ Il dispositivo adesso ha i suoi utenti e le credenziali di prima non ci sono \
+                              (ti eri collegato a un pannello senza account). Riconnettiti con l'utente e la \
+                              password dell'Admin del progetto appena distribuito.");
                     }
-                    Esito::Rifiutato => {
-                        send("⚠ Le credenziali di prima non valgono più sul dispositivo: riconnettiti con                               quelle dell'Admin del progetto appena distribuito.");
+                    Err(_) => {
+                        send("⚠ Le credenziali di prima non valgono più sul dispositivo: riconnettiti con \
+                              quelle dell'Admin del progetto appena distribuito.");
                     }
                 }
                 if senza_utenti(&client, &base).await {
@@ -2591,10 +2620,8 @@ pub async fn delete_remote_project(
     }
 }
 
-/// `GET /api/remote/status` — return connection state (polled by the IDE
-/// every 5 s to detect remote restart / session expiry).
 /// Com'è andato il tentativo di rientrare dopo un deploy.
-enum Esito {
+pub(crate) enum Esito {
     /// Il token vale ancora: il dispositivo non ha cambiato regime.
     NienteDaFare,
     Rientrato,
@@ -2605,13 +2632,58 @@ enum Esito {
     Rifiutato,
 }
 
+/// Il token vale ancora? Se no, rientra. Da chiamare **prima** di lavorare.
+///
+/// È la correzione del difetto tornato tre volte (20-10-2026): «una volta che
+/// sono connesso a un pannello devo rimanere connesso per tutta la fase di
+/// sviluppo». Il rientro automatico esisteva già, ma girava **dopo** il
+/// caricamento e **solo** se quel deploy aveva sostituito gli utenti: un «Invia
+/// ora», che è un deploy parziale, non lo attivava mai, e il primo 401 lo
+/// prendeva in faccia l'upload. Chi usava l'IDE doveva fare Disconnetti e
+/// Riconnetti a mano — cioè esattamente questo, a mano.
+///
+/// La sonda è `GET /api/auth/users`, che esiste anche sulla porta ridotta di un
+/// pannello (`--no-admin`) e vuole un Admin: un 401 lì dice davvero «questo
+/// token non vale più», non «questa rotta non c'è».
+///
+/// Ritorna l'elenco degli utenti del dispositivo quando la sessione è buona,
+/// così chi chiama non deve richiederlo una seconda volta.
+pub(crate) async fn assicura_sessione(
+    s: &AppState,
+    client: &reqwest::Client,
+    base: &str,
+    auth_hdr: &mut Option<String>,
+) -> Result<Option<Vec<String>>, Esito> {
+    match utenti_dispositivo_o_401(client, base, auth_hdr).await {
+        Ok(utenti) => Ok(utenti),
+        Err(()) => {
+            tracing::warn!(remote = %base, "sessione remota scaduta: provo a rientrare");
+            match rientra(s, client, base, true).await {
+                Esito::Rientrato => {
+                    // Il token è cambiato: l'intestazione di chi chiama no.
+                    let nuovo = s.remote_target.read().await.as_ref().map(|t| t.token.clone());
+                    *auth_hdr = nuovo
+                        .filter(|t| !t.is_empty())
+                        .map(|t| format!("Bearer {t}"));
+                    tracing::info!(remote = %base, "sessione remota rinnovata");
+                    Ok(utenti_dispositivo_o_401(client, base, auth_hdr).await.ok().flatten())
+                }
+                altro => Err(altro),
+            }
+        }
+    }
+}
+
 /// Dopo il deploy: se il token non vale più, si rientra con le credenziali del
 /// «Connetti». Aggiorna il bersaglio e la bandiera `autenticato`.
+///
+/// `forza` salta la deduzione «il token muore se e solo se gli utenti sono
+/// stati sostituiti»: chi ha già visto un 401 non ha bisogno di dedurre niente.
 async fn rientra(
     s: &AppState,
     client: &reqwest::Client,
     base: &str,
-    utenti_sostituiti: bool,
+    forza: bool,
 ) -> Esito {
     let Some(t) = s.remote_target.read().await.clone() else {
         return Esito::NienteDaFare;
@@ -2629,7 +2701,7 @@ async fn rientra(
     // La domanda vera non ha bisogno di nessuna sonda: il token muore se e
     // solo se **questo deploy ha sostituito gli utenti**, e questo lo sappiamo
     // senza chiedere a nessuno.
-    if !utenti_sostituiti || senza_utenti(client, base).await {
+    if !forza || senza_utenti(client, base).await {
         return Esito::NienteDaFare;
     }
     let Some((utente, password)) = t.credenziali.clone() else {
@@ -2670,6 +2742,11 @@ async fn segna_non_autenticato(s: &AppState) {
     }
 }
 
+/// `GET /api/remote/status` — lo stato della connessione, che l'IDE chiede
+/// ogni 5 s per accorgersi di un riavvio del remoto o di una sessione scaduta.
+///
+/// (Questo commento stava su `Esito`, due funzioni più su: ci era finito con
+/// una modifica e ci è rimasto. Rimesso al suo posto il 20-10-2026.)
 pub async fn remote_status(State(s): State<AppState>) -> Json<RemoteStatus> {
     let guard = s.remote_target.read().await;
     match guard.as_ref() {

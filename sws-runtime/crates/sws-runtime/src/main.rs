@@ -530,9 +530,11 @@ async fn main() -> anyhow::Result<()> {
     let generator_tags: GeneratorTagsRegistry = Arc::new(tokio::sync::RwLock::new(Vec::new()));
     let script_supervisor: ScriptSupervisorCell = Arc::new(tokio::sync::RwLock::new(None));
 
-    // Env-var credentials are optional. When SWS_ADMIN_PASSWORD is not set
-    // (and users.yaml is absent or empty), the runtime starts in no-auth mode:
-    // all routes are open without a token. Set SWS_ADMIN_PASSWORD to seed an
+    // Env-var credentials are optional. Dall'11-10-2026 un dispositivo senza
+    // utenti **non** è aperto: è «in attesa di abbinamento» e mostra un codice
+    // (vedi `abbinamento.rs`). Il vecchio «no-auth mode, all routes are open»
+    // resta solo con `--senza-autenticazione`, che `main.rs` accetta soltanto
+    // su loopback. Set SWS_ADMIN_PASSWORD to seed an
     // admin account and enable authentication.
     let admin_user = std::env::var("SWS_ADMIN_USER").unwrap_or_else(|_| "admin".into());
     let admin_pwd = std::env::var("SWS_ADMIN_PASSWORD").unwrap_or_default();

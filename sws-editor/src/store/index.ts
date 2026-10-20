@@ -854,9 +854,18 @@ async function eseguiDeploy(completo: boolean, confermato = false, sostituzioneC
     errore = errText(e);
   }
   useAppStore.setState({ remoteDeployStatus: errore ? "error" : "ok", remoteDeployErrore: errore });
-  setTimeout(() => {
-    if (useAppStore.getState().remoteDeployStatus !== "syncing") useAppStore.setState({ remoteDeployStatus: "idle" });
-  }, errore ? 8000 : 3000);
+  // **Un errore non si auto-cancella** (20-10-2026). Fino a oggi «Sync err.»
+  // tornava «Deploy» dopo otto secondi, e il motivo viveva solo nel `title` del
+  // pulsante: per leggerlo bisognava passarci sopra col mouse entro quegli otto
+  // secondi, sapendo già che c'era qualcosa da leggere. È il motivo per cui il
+  // deploy che fallisce dopo il primo è stato «curato» tre volte senza che
+  // nessuno vedesse mai la riga vera. L'esito buono invece sparisce da solo:
+  // una conferma che resta è rumore.
+  if (!errore) {
+    setTimeout(() => {
+      if (useAppStore.getState().remoteDeployStatus === "ok") useAppStore.setState({ remoteDeployStatus: "idle" });
+    }, 3000);
+  }
 }
 
 /**

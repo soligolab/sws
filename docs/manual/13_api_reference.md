@@ -166,7 +166,6 @@ Tutto quello che legge la 8443, più:
 
 | Metodo | Rotta | Cosa fa |
 |---|---|---|
-| POST | `/api/project/deploy` | GitOps: `git pull --ff-only` e ricarica il progetto |
 | POST | `/api/script/check` | controlla uno script senza eseguirlo |
 | GET | `/api/logs`, `/api/logs/files`, `/api/logs/file` | il log del runtime |
 | GET | `/api/sources/stato` | lo stato delle sorgenti |
@@ -196,6 +195,7 @@ Tutto quello che legge la 8443, più:
 | POST | `/api/project/tags/import-csv` — importa tag da CSV |
 | POST | `/api/project/languages/translate` — traduzione assistita |
 | POST | `/api/project/validate` — valida il progetto |
+| POST | `/api/project/deploy` — GitOps: `git pull --ff-only` e ricarica il progetto |
 | POST | `/api/project/migrate` — migra un progetto a un formato nuovo |
 | POST | `/api/project/rollback` — torna a uno stato precedente |
 | GET / PUT | `/api/project/export`, `/api/project/import` |

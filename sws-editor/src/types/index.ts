@@ -438,7 +438,9 @@ export interface SynopticObject {
    *  default) oppure "hide" (l'oggetto sparisce del tutto). */
   min_role_effect?: "hide" | "disable";
   /** Comando critico (F3.3): prima di scrivere richiede la password della
-   *  sessione (re-auth) — saltato in no-auth mode, dove non esistono password. */
+   *  sessione (re-auth) — saltato con `--senza-autenticazione`, dove non
+   *  esistono password. Un pannello senza utenti non è aperto: è in attesa
+   *  di abbinamento (11-10-2026). */
   critical?: boolean;
   /** Comando critico: motivo obbligatorio, registrato nell'audit log. */
   require_reason?: boolean;

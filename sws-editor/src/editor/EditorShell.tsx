@@ -11,7 +11,7 @@ import { QDOT_BUILTIN_TYPES, SvgCanvas, normalizeFaceplateParams, type CanvasVie
 import { PALETTE } from "@/canvas/TrendCanvas";
 import { resolvePageBackground, sfondoPagina } from "@/theme";
 import { EditorToolbar } from "@/editor/EditorToolbar";
-import { registraAggiunta, type Preimpostato } from "@/editor/azioniEditor";
+import { centroVista, registraAggiunta, type Preimpostato } from "@/editor/azioniEditor";
 import { PageTabs } from "@/editor/PageTabs";
 /** L'editor Python si carica **quando si apre una funzione**, non prima.
  *
@@ -683,9 +683,31 @@ export function EditorShell() {
     return () => document.removeEventListener("keydown", handler);
   }, [deleteSelection, undo, redo, copySelection, pasteClipboard, duplicateSelection, setClipboard, selectMany, reorderObject, groupObjects]);
 
+  /** L'oggetto appena creato, spostato così che il suo centro stia dove stava
+   *  il suo angolo. Senza larghezza o altezza non c'è niente da centrare. */
+  const centraSulPunto = (o: Omit<SynopticObject, "id">): Omit<SynopticObject, "id"> => {
+    const w = typeof o.width === "number" ? o.width : 0;
+    const h = typeof o.height === "number" ? o.height : 0;
+    if (w === 0 && h === 0) return o;
+    return { ...o, x: Math.round((o.x ?? 0) - w / 2), y: Math.round((o.y ?? 0) - h / 2) };
+  };
+
+  /** Dove nasce un oggetto aggiunto dalla palette.
+   *
+   *  Al **centro di ciò che si vede**, non in cima alla pagina: con lo zoom
+   *  dentro e la vista spostata, (60, 60) è quasi sempre fuori schermo, e
+   *  l'oggetto nuovo si trovava solo rimpicciolendo tutto (maintainer,
+   *  20-10-2026). Una cascatina resta, se no due oggetti aggiunti di fila
+   *  finiscono esattamente uno sopra l'altro; è piccola e gira su sei passi,
+   *  così non si allontana dal centro. Senza canvas montato (si aggiunge anche
+   *  dalla Configurazione) si torna alla cascata di prima. */
   const nextPos = () => {
     const n = objects.length;
-    return { x: 60 + (n % 6) * 25, y: 60 + Math.floor(n / 6) * 25 };
+    const scarto = (n % 6) * 12;
+    const c = centroVista();
+    return c
+      ? { x: Math.round(c.x) + scarto, y: Math.round(c.y) + scarto }
+      : { x: 60 + (n % 6) * 25, y: 60 + Math.floor(n / 6) * 25 };
   };
 
   const handleAddObject = (type: SynopticObject["type"], pre?: Preimpostato) => {
@@ -704,7 +726,10 @@ export function EditorShell() {
       return;
     }
     const o = oggettoNuovo(type, x, y);
-    if (o) addObject(o);
+    // Centrato sul punto, non con l'angolo lì: `oggettoNuovo` decide le misure,
+    // quindi lo si sposta dopo. Chi non ha misure (i tipi senza riquadro) resta
+    // dov'è.
+    if (o) addObject(centraSulPunto(o));
   };
 
   // La palette del pannello sinistro (che sta in App.tsx) aggiunge da qui.

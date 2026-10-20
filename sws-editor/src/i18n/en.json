@@ -2153,7 +2153,7 @@
     "noEntitiesAddAMapping": "No entities — add a mapping.",
     "addEntity": "+ Add entity",
     "clickRefreshToSeeThe": "Click \"Refresh\" to see the certificates in the trust store.",
-    "noCertificatesInTheTrust": "No certificates in the trust store. Temporarily enable \"Accept any\" to allow the first connection, then reload the certificates.",
+    "noCertificatesInTheTrust": "No certificates in the trust store — normal before the first connection. Connect to the source: the server certificate arrives on first contact and is offered here for you to accept.",
     "noNodesClickNodeTo": "No nodes. Click \"+ Node\" to add one.",
     "noNodesAddAMapping": "No nodes — add a mapping.",
     "addNode": "+ Add node",

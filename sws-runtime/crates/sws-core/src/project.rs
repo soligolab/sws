@@ -946,8 +946,13 @@ pub struct OpcUaClientConfig {
     pub id: String,
     /// e.g. `opc.tcp://192.168.1.100:4840`.
     pub endpoint_url: String,
-    /// PoC: only "None" is wired end-to-end; the field exists so the
-    /// project format doesn't need a migration when we wire the rest.
+    // Fino al 20-10-2026 il doc di questo campo diceva «PoC: only "None" is
+    // wired end-to-end». Era vero quando il campo è nato e non lo è più da un
+    // pezzo. Sta qui e non nel doc perché il doc finisce nello schema che
+    // legge l'assistente IA (`gen_synoptic_schema.py`): lì serve la regola di
+    // adesso, non la sua storia.
+    /// Tutte e sei le policy sono collegate da capo a fondo: `parse_security_policy`
+    /// le legge e `sws-plugin-opcua` le applica.
     #[serde(default = "default_opcua_security_policy")]
     pub security_policy: String,
     #[serde(default)]

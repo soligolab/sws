@@ -438,6 +438,12 @@ pub fn build(
             post(detect_telegram_chats),
         )
         .route("/api/project/rollback", post(trigger_rollback))
+        // GitOps: `git pull --ff-only` e ricarica del progetto. Stava fra le
+        // rotte da Operator fino al 20-10-2026, mentre Rollback, prova e fork
+        // volevano l'Admin — ma tirare dentro una versione nuova del progetto
+        // cambia l'impianto quanto tornare indietro. Svista, non scelta
+        // (decisione del maintainer).
+        .route("/api/project/deploy", post(trigger_deploy))
         // Prova di un commit vecchio (piano 2026-09-26-gestore-repository-
         // progetto, Fase 2): stessa classe di rischio del Rollback.
         .route("/api/project/git/prova", post(git_entra_in_prova))
@@ -624,7 +630,6 @@ pub fn build(
         // Stato delle sorgenti e dei loro dispositivi (04-10-2026).
         .route("/api/sources/stato", get(stato_sorgenti_handler))
         .route("/api/system", get(crate::system::get_system_status))
-        .route("/api/project/deploy", post(trigger_deploy))
         .route_layer(middleware::from_fn(require_operator));
 
     let system_ctrl_routes = Router::new()

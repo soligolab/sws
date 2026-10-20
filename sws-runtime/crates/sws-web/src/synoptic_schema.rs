@@ -1006,11 +1006,11 @@ pub const SOURCE_MQTT_TOPICMAPPING_FIELDS: &[Field] = &[
 pub const SOURCE_OPCUA_CLIENT_FIELDS: &[Field] = &[
     Field { name: "id", ty: "string", required: true, group: "", doc: "" },
     Field { name: "endpoint_url", ty: "string", required: true, group: "", doc: "e.g. `opc.tcp://192.168.1.100:4840`." },
-    Field { name: "security_policy", ty: "string", required: false, group: "", doc: "PoC: only \"None\" is wired end-to-end; the field exists so the project format doesn't need a migration when we wire the rest." },
-    Field { name: "auth", ty: "OpcUaAuth", required: false, group: "", doc: "" },
-    Field { name: "subscription_interval_ms", ty: "number", required: false, group: "", doc: "Server-side subscription publishing interval, in milliseconds." },
-    Field { name: "nodes", ty: "OpcUaNodeMapping[]", required: false, group: "", doc: "Nodes to subscribe to. NodeId format is the canonical OPC-UA one, e.g. `ns=2;s=Machine.CycleTime` or `ns=0;i=2253`." },
-    Field { name: "trust_all_certs", ty: "bool", required: false, group: "", doc: "`true` = qualunque certificato del server è accettato (sconsigliato). Dal 15-10-2026 (CRA, onda 1) il default è `false`: fiducia al primo contatto (il primo certificato visto si memorizza in `opcua-pki/<id>/trusted`), poi solo quello; un certificato cambiato si conferma a mano dal trust store." },
+    Field { name: "security_policy", ty: "string", required: false, group: "adesso, non la sua storia.", doc: "Tutte e sei le policy sono collegate da capo a fondo: `parse_security_policy` le legge e `sws-plugin-opcua` le applica." },
+    Field { name: "auth", ty: "OpcUaAuth", required: false, group: "adesso, non la sua storia.", doc: "" },
+    Field { name: "subscription_interval_ms", ty: "number", required: false, group: "adesso, non la sua storia.", doc: "Server-side subscription publishing interval, in milliseconds." },
+    Field { name: "nodes", ty: "OpcUaNodeMapping[]", required: false, group: "adesso, non la sua storia.", doc: "Nodes to subscribe to. NodeId format is the canonical OPC-UA one, e.g. `ns=2;s=Machine.CycleTime` or `ns=0;i=2253`." },
+    Field { name: "trust_all_certs", ty: "bool", required: false, group: "adesso, non la sua storia.", doc: "`true` = qualunque certificato del server è accettato (sconsigliato). Dal 15-10-2026 (CRA, onda 1) il default è `false`: fiducia al primo contatto (il primo certificato visto si memorizza in `opcua-pki/<id>/trusted`), poi solo quello; un certificato cambiato si conferma a mano dal trust store." },
 ];
 
 /// Campi di `OpcUaNodeMapping`, usato dentro la sorgente `opcua_client`.

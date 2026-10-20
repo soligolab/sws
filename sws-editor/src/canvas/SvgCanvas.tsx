@@ -44,6 +44,7 @@ import type { AlarmSeverity, AlarmState, CustomSymbol, FaceplateDef, FaceplatePa
 import { fattoreFondoRespiro, luminositaValida, parametriLuminosita } from "./luce";
 import { puntiSvg, verticiPoligono } from "./forme";
 import { aggancioSu, bersagli, calamita, diametriCapi, instrada, percorsoTubo, type Bersaglio } from "./tubazioni";
+import { registraCentroVista } from "@/editor/azioniEditor";
 import { larghezzaTubo, stileTubo, svgTubo } from "./stiliTubo";
 import { useManifestoLib } from "@/symbols/lib/libreria";
 import { cssFamiglia } from "@/font/famiglie";
@@ -983,6 +984,20 @@ export function SvgCanvas({
 
   const snap = (v: number) =>
     snapEnabled && gridSize > 0 ? Math.round(v / gridSize) * gridSize : v;
+
+  // Il centro di ciò che si vede, per chi aggiunge un oggetto dalla palette
+  // (20-10-2026). Si registra invece di passare per lo store: cambia a ogni
+  // scatto di rotellina, e nello store farebbe ridisegnare tutta la shell.
+  // L'effetto non ha dipendenze apposta — si riregistra a ogni disegno, così
+  // la chiusura legge sempre pan e zoom di adesso.
+  useEffect(() => {
+    registraCentroVista(() => {
+      const r = svgRef.current?.getBoundingClientRect();
+      if (!r || r.width === 0) return null;
+      return toSvg(r.width / 2, r.height / 2);
+    });
+  });
+  useEffect(() => () => registraCentroVista(null), []);
 
   // T-52 — `objBBox` era una closure qui e non catturava niente: ora vive in
   // `pageLayout.ts` accanto a `isOffPage`, che la usa. Le sei chiamate qui

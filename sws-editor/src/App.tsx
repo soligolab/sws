@@ -895,6 +895,24 @@ export function App() {
             automaticamente al salvataggio e forse preferisco fare il deploy
             solo su comando»). Due pulsanti distinti di proposito: il progetto,
             e utenti + segreti, che cambiano chi entra e a cosa si collega. */}
+        {/* Il motivo di un deploy fallito, **leggibile**: stava solo nel `title`
+            del pulsante, e il pulsante tornava «Deploy» dopo otto secondi. Per
+            sapere perché non era andato bisognava passarci sopra col mouse
+            entro quegli otto secondi, sapendo già che c'era qualcosa da
+            leggere (20-10-2026). Si chiude con un clic. */}
+        {remoteDeployErrore && (
+          <button
+            data-testid="deploy-errore"
+            onClick={() => useAppStore.setState({ remoteDeployStatus: "idle", remoteDeployErrore: null })}
+            title={`${remoteDeployErrore}\n\n(clic per chiudere)`}
+            style={{
+              maxWidth: 320, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+              background: "var(--brand-danger-bg, #450a0a)", color: "var(--brand-danger-soft, #fca5a5)",
+              border: "1px solid var(--brand-danger, #ef4444)", borderRadius: 4,
+              padding: "2px 8px", fontSize: 11, cursor: "pointer",
+            }}
+          >✗ {remoteDeployErrore}</button>
+        )}
         {remoteConnected && (
           <>
             <button

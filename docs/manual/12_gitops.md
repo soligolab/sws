@@ -26,7 +26,7 @@
 | Operazione | Ruolo minimo | Rotta |
 |---|---|---|
 | Stato, storia, file cambiati, diff, elenco tag, firma | qualunque utente autenticato | `GET /api/project/git-status`, `/git/log`, `/git/changes`, `/git/diff`, `/git/tags`, `/api/project/fingerprint` |
-| Pull (`↑ Deploy (git pull)`) | Operator | `POST /api/project/deploy` |
+| Pull (`↑ Deploy (git pull)`) | Admin | `POST /api/project/deploy` |
 | Commit, nuovo tag | Supervisor | `POST /api/project/git/commit`, `POST /api/project/git/tags` |
 | Aggancio, chiave SSH, autore, push, rollback, prova, fork, push ed eliminazione dei tag | Admin | `POST /api/project/git/init`, `/git/ssh-key*`, `/git/identity`, `/git/push`, `/api/project/rollback`, `/git/prova*`, `/git/fork`, `/git/tags/:name*` |
 
