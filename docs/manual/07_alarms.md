@@ -4,6 +4,12 @@
 
 # 07 — Sistema Allarmi
 
+> Come si definiscono gli allarmi, come cambiano di stato, come si confermano e sospendono, chi viene avvisato e
+> dove resta traccia. Per chi configura un impianto. I widget che li mostrano sono nel
+> [capitolo 05](05_widget_reference.md#allarmi).
+>
+> Misurato sul codice il 20-10-2026.
+
 SWS implementa il sistema di allarmi secondo lo standard **ISA-18.2**
 (Management of Alarm Systems for the Process Industries).
 
@@ -39,7 +45,7 @@ NORMAL ────────────────────────�
 
 ## Definizione allarmi
 
-Gli allarmi sono definiti in **Configurazione → Allarmi → + Aggiungi**.
+Gli allarmi sono definiti in **Configurazione → Progetto → Allarmi → + Aggiungi** (`sws-core/src/alarm.rs`, `AlarmDef`).
 
 ### Configurazione YAML
 
@@ -56,11 +62,36 @@ alarms:
     on_delay_s: 5
     off_delay_s: 2
     notify_url: "https://hooks.slack.com/..."
+    email_mode: propri
     notify_email:
       - "responsabile@impianto.it"
+      - { indirizzo: "manutenzione@impianto.it", lingua: en }
     escalate_after_s: 300
     escalate_to:
       - "direttore@impianto.it"
+    telegram_mode: global
+```
+
+### Più livelli sullo stesso tag
+
+Al posto di `condition`, `severity` e `message` si possono dare dei **livelli** (`levels`): ognuno ha la sua
+condizione, la sua severità, il suo messaggio e, se serve, la sua banda morta. Vince il livello più grave fra quelli
+veri, e a parità di severità l'ultimo dichiarato (`livello_vincente`): i livelli si scrivono in scala crescente, e il
+validatore avvisa se due hanno la stessa severità. Lo storico tiene il massimo raggiunto (vedi [Storico allarmi](#storico-allarmi)).
+
+```yaml
+alarms:
+  - id: batteria
+    tag: casa.batteria_pct
+    levels:
+      - condition: { kind: below, threshold: 15 }
+        severity: Warning
+        message: "Batteria sotto il 15%"
+        dead_band: 3
+      - condition: { kind: below, threshold: 5 }
+        severity: Critical
+        message: "Batteria sotto il 5%"
+        dead_band: 1
 ```
 
 ### Parametri
@@ -75,11 +106,19 @@ alarms:
 | `dead_band` | Isteresi: la condizione deve essere falsa di `dead_band` per disattivarsi |
 | `on_delay_s` | Secondi di condizione vera continua prima dell'attivazione |
 | `off_delay_s` | Secondi di condizione falsa continua prima della disattivazione |
+| `levels` | Più livelli sullo stesso tag, al posto di `condition`/`severity`/`message` (vedi sopra) |
 | `inhibit_tag` | Tag che inibisce l'allarme quando vero |
+| `inhibit_condition` | Condizione sull'`inhibit_tag`, se non basta «vero» |
 | `notify_url` | Webhook POST su attivazione |
-| `notify_email` | Email su attivazione |
-| `escalate_after_s` | Secondi dopo i quali si invia email di escalation |
-| `escalate_to` | Destinatari escalation |
+| `email_mode` | `progetto` (i destinatari di Configurazione → Progetto → Notifiche), `propri` (solo `notify_email`), `off` |
+| `notify_email` | Destinatari propri: un indirizzo, o `{ indirizzo, lingua }` per scrivere in un'altra lingua |
+| `escalate_after_s` | Secondi dopo i quali, se non confermato, si invia l'email di escalation |
+| `escalate_to` | Destinatari dell'escalation, nella stessa forma |
+| `telegram_mode` | `global` (le chat del progetto, il predefinito), `chats` (solo `telegram_chat_ids`), `off` |
+| `telegram_chat_ids` | Le chat per `telegram_mode: chats` |
+
+Un allarme scritto prima del 29-09-2026 senza `email_mode` manda ai suoi `notify_email` se li ha, altrimenti ai
+destinatari del progetto.
 
 ---
 
@@ -155,8 +194,10 @@ condition:
 
 ## Alarm Banner
 
-L'alarm banner è sempre visibile in cima all'interfaccia operatore.
-Mostra gli allarmi attivi con colore, messaggio e pulsante ACK.
+La barra allarmi (`alarm_banner`) è un oggetto da mettere nelle pagine, come la campanella (`alarm_bell`) e il
+visualizzatore (`alarm_viewer`): dal T-46 non c'è più una barra fissa sopra tutte le pagine, e una pagina senza
+nessuno di questi oggetti non mostra allarmi. Di solito la si mette in una [cornice](04_editor_guide.md#cornici-testata-e-piede-comuni-a-più-pagine),
+così compare su tutte le pagine che la usano. Mostra gli allarmi attivi con colore, messaggio e pulsante ACK.
 
 ```
 No active alarms                         ← nessun allarme attivo
@@ -165,7 +206,7 @@ No active alarms                         ← nessun allarme attivo
 🔴 Emergenza arresto macchina  [ACK]    ← Critical attivo
 ```
 
-Il banner ha priorità visiva assoluta — non può essere nascosto dagli operatori.
+Dove c'è, il banner non si chiude dall'operatore.
 
 ---
 
@@ -197,7 +238,9 @@ Lo shelving nasconde un allarme per un periodo definito, utile durante manutenzi
 
 ### Da UI
 
-**Configurazione → Allarmi → [allarme] → Shelving** oppure via pulsante nell'alarm viewer.
+Dal pulsante di sospensione dell'alarm viewer o della campanella (`alarm_viewer_show_shelve`,
+`alarm_bell_show_shelve`), per i minuti impostati nel widget (`alarm_shelve_minutes`). Gli allarmi sospesi si
+leggono con `GET /api/alarms/shelved`.
 
 ### YAML / API
 
@@ -207,11 +250,11 @@ curl -k -X POST https://localhost:8443/api/alarms/pressione_alta/shelve \
   -H "Content-Type: application/json" \
   -d '{
     "reason": "Manutenzione programmata pompa P1",
-    "until_ms": 1735689600000
+    "duration_ms": 3600000
   }'
 ```
 
-Un valore `until_ms: 0` shelving indefinito.
+`duration_ms` è la durata della sospensione in millisecondi; `0` (o assente) la sospende senza scadenza.
 
 ---
 
@@ -223,18 +266,22 @@ Su attivazione, SWS fa una POST al `notify_url` con payload JSON:
 
 ```json
 {
-  "alarm_id": "pressione_alta",
+  "id": "pressione_alta",
   "message": "Pressione alta (>10 bar)",
   "severity": "Warning",
-  "ts_activated_ms": 1735600000000,
   "tag": "sensore.pressione",
+  "ts_ms": 1735600000000,
   "value": 10.5
 }
 ```
 
+La chiamata è «best effort»: se il server non risponde, SWS lo scrive nel log e non riprova
+(`sws-runtime/crates/sws-runtime/src/main.rs`).
+
 ### SMTP (email)
 
-Configura il server SMTP in **Configurazione → Notifiche**:
+Configura il server SMTP in **Configurazione → Progetto → Notifiche → SMTP**, con i destinatari di progetto
+(`destinatari_email`):
 
 ```yaml
 notifications:
@@ -245,6 +292,8 @@ notifications:
     username: "scada"
     password: "..."
     starttls: true
+  destinatari_email:
+    - "reparto@impianto.it"
 ```
 
 Le email di notifica contengono: messaggio allarme, valore del tag, timestamp di attivazione.
@@ -253,7 +302,7 @@ Le email di escalation includono anche il tempo trascorso dall'attivazione.
 ### Telegram
 
 Un canale in uscita per ricevere i messaggi su Telegram (allarmi + escalation) e per inviare
-messaggi dagli script. Configura in **Configurazione → Notifiche → Notifiche Telegram**:
+messaggi dagli script. Configura in **Configurazione → Progetto → Notifiche → Telegram**:
 
 ```yaml
 notifications:
@@ -270,13 +319,16 @@ Passi guidati nel pannello:
    (i gruppi hanno ID negativo `-100…`). In alternativa inserisci le chat ID a mano.
 4. Premi **Invia test** per verificare, poi **Salva**.
 
-> **Nota**: *Invia test* e *Rileva chat* chiamano l'API di Telegram **direttamente dal browser**,
-> quindi funzionano anche dal solo editor (senza runtime). L'invio effettivo su allarme parte invece
-> dal **runtime**: assicurati che il dispositivo raggiunga `api.telegram.org`. Il `bot_token` è
-> mascherato (`********`) nelle risposte del server.
+> **Nota**: *Invia test* e *Rileva chat* passano dal runtime che serve l'IDE
+> (`POST /api/notifications/test-telegram`, `/telegram-chats`), quindi è quella macchina a dover raggiungere
+> `api.telegram.org`; l'invio effettivo su allarme parte dal **runtime del dispositivo**, che deve raggiungerlo
+> anche lui. Il `bot_token` è mascherato (`********`) nelle risposte del server.
 
-**Ogni allarme che si attiva** (e le escalation) viene inviato a tutte le `chat_ids` configurate.
-A differenza delle email (opt-in per-allarme via `notify_email`), Telegram è un feed globale.
+**Ogni allarme che si attiva** (e le escalation) va per default a tutte le `chat_ids` del progetto
+(`telegram_mode: global`); un allarme può mandare solo a chat sue (`chats`) o a nessuna (`off`). La scheda
+**Cosa e dove**, accanto, decide quali eventi vanno su email e quali su Telegram: scatto, escalation, rientro,
+esito di un aggiornamento, versione nuova (`eventi`, `TabellaEventi`). Una riga non impostata fa quello che si faceva
+prima: scatto ed escalation su tutti e due, rientro su nessuno.
 
 #### Invio da script
 
