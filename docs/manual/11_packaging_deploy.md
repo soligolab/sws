@@ -4,10 +4,22 @@
 
 # 11 — Package Builder e SSH Deploy
 
+> Le schede dell'IDE che costruiscono il runtime e lo installano su un dispositivo via SSH, come binario o come
+> container, e che poi gestiscono il container installato. Per chi mette in servizio i dispositivi. Qui si
+> installa **il runtime**; il progetto ci arriva poi col deploy ([capitolo 12](12_gitops.md#dispositivi-registrati)).
+>
+> Misurato sul codice il 20-10-2026.
+
 L'IDE include uno strumento integrato per costruire il pacchetto runtime e
 distribuirlo direttamente su device remoti via SSH — senza uscire dal browser.
 
-Disponibile in: **Configurazione → Runtime** (connesso come Admin).
+Disponibile in **Configurazione → Istanza** (solo Admin), in tre schede:
+
+| Scheda | Cosa fa | Componente |
+|---|---|---|
+| **Sviluppatore → Pacchetto runtime** | costruisce il tarball e lo elenca; c'è solo se il runtime gira da un checkout del repo | `DevPackageTab.tsx` |
+| **Device → Installazione** | installa su un dispositivo via SSH, come binario o come container | `InstallTab.tsx` |
+| **Device → Container** | gestisce un container già installato: stato, avvio, boot, riavvio, pulizia immagini, disinstallazione | `ContainerTab.tsx` |
 
 ---
 
@@ -15,8 +27,8 @@ Disponibile in: **Configurazione → Runtime** (connesso come Admin).
 
 ![Package builder](screenshots/10_package_builder.png)
 
-Questa sezione appare nella tab **Runtime** della Configurazione
-quando l'IDE è connesso a un runtime che ha `scripts/package.sh` disponibile.
+Questa scheda (**Istanza → Sviluppatore → Pacchetto runtime**) appare solo quando il runtime gira da un checkout
+del repo, con `scripts/package.sh` disponibile (`GET /api/build/stato`); altrimenti l'albero non la mostra.
 
 ### Prerequisiti
 
@@ -27,8 +39,8 @@ cd /path/to/sws
 ./scripts/start_runtime.sh
 ```
 
-Se il runtime è avviato da un device Yocto o da `/opt/sws/`, il package builder
-non è disponibile (il messaggio lo indica).
+Se il runtime è avviato da un device Yocto, da `/opt/sws/` o da un container, il package builder non è
+disponibile: il server risponde 503 (`packaging.rs`) e la scheda non compare.
 
 ---
 
@@ -36,8 +48,8 @@ non è disponibile (il messaggio lo indica).
 
 ### Dalla UI
 
-1. **Configurazione → Runtime** (assicurati di essere connesso)
-2. Nella sezione **Pacchetto Runtime**, scegli le opzioni:
+1. **Configurazione → Istanza → Sviluppatore → Pacchetto runtime**
+2. Scegli le opzioni:
    - ✅ **Salta compilazione Rust** (usa binario già compilato)
    - ✅ **Salta build SPA** (usa frontend già compilato)
 3. Click **🔨 Build pacchetto**
@@ -53,7 +65,8 @@ non è disponibile (il messaggio lo indica).
 ./scripts/package.sh --no-rust --no-spa # solo impacchetta
 ```
 
-Output: `dist/sws-2026.7.0-linux-x86_64.tar.gz`
+Output: `dist/sws-<versione>-linux-<arch>.tar.gz` — la versione da `cargo metadata`, l'architettura da
+`uname -m`; con la 2.14.0 su x86_64, `dist/sws-2.14.0-linux-x86_64.tar.gz`.
 
 ---
 
@@ -75,7 +88,7 @@ Click su un tarball per selezionarlo come target del deploy.
 
 ### Dalla UI
 
-Con un tarball selezionato, compila il form **Installa su dispositivo**:
+In **Istanza → Device → Installazione**, con un tarball selezionato, compila il form **Installa su dispositivo**:
 
 | Campo | Descrizione | Default |
 |-------|-------------|---------|
@@ -92,7 +105,7 @@ Click **📦 Deploy su device**.
 Il sistema esegue in sequenza, con log in streaming:
 
 ```
-==> SCP: dist/sws-2026.7.0-linux-x86_64.tar.gz → user@192.168.1.10:/tmp/sws-deploy/
+==> SCP: dist/sws-2.14.0-linux-x86_64.tar.gz → user@192.168.1.10:/tmp/sws-deploy/
 ==> SCP completato
 ==> Estrazione tarball...
 ==> Installazione (install.sh)...
@@ -158,8 +171,8 @@ reboot senza questi due elementi.
 
 ### Gestione container
 
-Sotto il pannello di installazione, la sezione **Gestione container** agisce
-su un container **già installato** (su questa stessa macchina o su un
+La scheda **Istanza → Device → Container** (dal 25-09-2026 una scheda sua, prima un riquadro dell'installazione)
+agisce su un container **già installato** (su questa stessa macchina o su un
 device remoto, indipendentemente da quando/come è stato installato):
 
 | Ambito | Come funziona |
@@ -181,6 +194,9 @@ Azioni disponibili:
 - **Policy di restart** — riscrive `Restart=` nella unit (Sempre / Solo su
   errore / Mai) e ricarica systemd. Cambia solo cosa succede al *prossimo*
   stop/crash, non riavvia il servizio.
+- **🧹 Pulisci immagini non usate** — rimuove ogni immagine podman che il container in esecuzione non usa (le
+  versioni accumulate dai deploy), compresa quella di prima che servirebbe a tornare indietro; l'immagine attiva
+  non si tocca.
 - **Disinstalla** (zona pericolosa) — rimuove servizio, unit quadlet e
   container. Con **"Cancella anche i dati"** (richiede conferma), cancella
   anche la directory dati — altrimenti resta sul disco.
@@ -232,13 +248,13 @@ Se preferisci non usare la UI, il deploy manuale è sempre disponibile:
 ./scripts/package.sh
 
 # 2. SCP
-scp dist/sws-2026.7.0-linux-x86_64.tar.gz utente@device:/tmp/
+scp dist/sws-2.14.0-linux-x86_64.tar.gz utente@device:/tmp/
 
 # 3. SSH + install
 ssh utente@device "
   cd /tmp
-  tar xzf sws-2026.7.0-linux-x86_64.tar.gz
-  cd sws-2026.7.0-linux-x86_64
+  tar xzf sws-2.14.0-linux-x86_64.tar.gz
+  cd sws-2.14.0-linux-x86_64
   sudo ./install.sh
 "
 
