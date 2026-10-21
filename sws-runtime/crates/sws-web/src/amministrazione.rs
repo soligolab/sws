@@ -76,6 +76,118 @@ async fn confine(s: &AppState, chi: &AuthUser) -> Option<Vec<i64>> {
     Some(crate::projects::appartenenze_di(s, Some(chi)).await.amministrate)
 }
 
+/// Il segmento dell'URL con cui il gateway nomina un'azienda: `-` per l'implicita,
+/// la cartella per le altre (vedi `gateway/rotte.rs`).
+fn segmento_di(a: &sws_identita::Azienda) -> String {
+    if a.implicita {
+        crate::project_registry::AZIENDA_IMPLICITA.to_string()
+    } else {
+        a.cartella.clone()
+    }
+}
+
+/// Le aziende che `chi` può vedere, come segmento → (id, nome).
+async fn aziende_visibili(
+    s: &AppState,
+    chi: &AuthUser,
+) -> Result<std::collections::HashMap<String, (i64, String)>, Response> {
+    let id = identita(s)?;
+    let mie = confine(s, chi).await;
+    Ok(id
+        .elenca_aziende()
+        .await
+        .unwrap_or_default()
+        .into_iter()
+        .filter(|a| mie.as_ref().is_none_or(|ids| ids.contains(&a.id)))
+        .map(|a| (segmento_di(&a), (a.id, a.nome.clone())))
+        .collect())
+}
+
+/// `GET /api/amministrazione/progetti-aperti` — i container di progetto accesi
+/// adesso, con quante finestre ci sono collegate. Confinato: un amministratore
+/// d'azienda vede solo i suoi.
+async fn progetti_aperti(State(s): State<AppState>, Extension(chi): Extension<AuthUser>) -> Response {
+    let Some(regia) = s.regia.clone() else {
+        return Json(serde_json::json!({ "si_applica": false, "progetti": [] })).into_response();
+    };
+    let visibili = match aziende_visibili(&s, &chi).await {
+        Ok(v) => v,
+        Err(r) => return r,
+    };
+    let mut progetti: Vec<serde_json::Value> = regia
+        .elenco()
+        .await
+        .into_iter()
+        .filter_map(|a| {
+            let (id, nome) = visibili.get(&a.azienda)?;
+            Some(serde_json::json!({
+                "riferimento": a.riferimento,
+                "azienda": a.azienda,
+                "azienda_id": id,
+                "azienda_nome": nome,
+                "progetto": a.nome_progetto,
+                "collegati": a.collegati,
+                "fermo_da_s": a.fermo_da.map(|t| t.elapsed().as_secs()),
+            }))
+        })
+        .collect();
+    progetti.sort_by(|x, y| x["riferimento"].as_str().cmp(&y["riferimento"].as_str()));
+    Json(serde_json::json!({ "si_applica": true, "progetti": progetti })).into_response()
+}
+
+#[derive(serde::Deserialize, Default)]
+struct ChiudiQuery {
+    /// Conferma che si chiude anche con qualcuno collegato: senza, e con
+    /// `collegati > 0`, la risposta è 409 con il numero (decisione del 19-10-2026:
+    /// avvisare, non vietare).
+    #[serde(default)]
+    anche_con_collegati: bool,
+}
+
+/// `DELETE /api/amministrazione/progetti-aperti/:azienda/:nome` — spegne il
+/// container di un progetto. Chi era dentro perde la sessione su quel progetto: per
+/// questo con qualcuno collegato serve `anche_con_collegati`.
+async fn chiudi_progetto_aperto(
+    State(s): State<AppState>,
+    Extension(chi): Extension<AuthUser>,
+    axum::extract::Path((azienda, nome)): axum::extract::Path<(String, String)>,
+    axum::extract::Query(q): axum::extract::Query<ChiudiQuery>,
+) -> Response {
+    let Some(regia) = s.regia.clone() else {
+        return (StatusCode::NOT_FOUND, "nessun gateway: qui non ci sono progetti aperti da chiudere").into_response();
+    };
+    let visibili = match aziende_visibili(&s, &chi).await {
+        Ok(v) => v,
+        Err(r) => return r,
+    };
+    if !visibili.contains_key(&azienda) {
+        // Non si dice se esiste: per chi non la vede, non c'è.
+        return (StatusCode::NOT_FOUND, "progetto non aperto").into_response();
+    }
+    let riferimento = format!("{azienda}/{nome}");
+    let Some(aperto) = regia.elenco().await.into_iter().find(|a| a.riferimento == riferimento) else {
+        return (StatusCode::NOT_FOUND, "progetto non aperto").into_response();
+    };
+    if aperto.collegati > 0 && !q.anche_con_collegati {
+        return (
+            StatusCode::CONFLICT,
+            Json(serde_json::json!({ "collegati": aperto.collegati })),
+        )
+            .into_response();
+    }
+    match regia.chiudi(&riferimento).await {
+        Ok(()) => {
+            s.audit.log(
+                "amministrazione.progetto_chiuso",
+                Some(chi.username.clone()),
+                serde_json::json!({ "progetto": riferimento, "collegati": aperto.collegati }),
+            );
+            StatusCode::NO_CONTENT.into_response()
+        }
+        Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, format!("{e:#}")).into_response(),
+    }
+}
+
 // ── Aziende ──────────────────────────────────────────────────────────────────
 
 async fn elenca_aziende(
@@ -612,6 +724,13 @@ async fn prova_posta(
 pub fn rotte_di_azienda() -> Router<AppState> {
     Router::new()
         .route("/api/amministrazione/risorse", get(risorse))
+        // I progetti aperti nel cloud, e la chiusura a mano (20-10-2026, ramo 1 della
+        // chiusura dei residui): solo dove c'è una regia, cioè sul gateway.
+        .route("/api/amministrazione/progetti-aperti", get(progetti_aperti))
+        .route(
+            "/api/amministrazione/progetti-aperti/:azienda/:nome",
+            axum::routing::delete(chiudi_progetto_aperto),
+        )
         .route("/api/amministrazione/aziende", get(elenca_aziende))
         .route("/api/amministrazione/aziende/:id", patch(modifica_azienda))
         .route(
@@ -710,6 +829,11 @@ async fn risorse(State(s): State<AppState>, Extension(chi): Extension<AuthUser>)
                     "id": a.id,
                     "nome": a.nome,
                     "implicita": a.implicita,
+                    // Come il gateway nomina l'azienda nei progetti aperti: il segmento
+                    // dell'URL, `-` per l'implicita (la cui cartella è vuota) e la
+                    // cartella per le altre (`gateway/rotte.rs`). Senza, la console non
+                    // saprebbe a chi attribuire un progetto aperto.
+                    "segmento": segmento_di(a),
                     "progetti_byte": progetti,
                     "storico_byte": storico,
                     "max_byte": a.max_byte,
@@ -747,11 +871,26 @@ async fn risorse(State(s): State<AppState>, Extension(chi): Extension<AuthUser>)
         aziende.retain(|a| a.get("id").and_then(|x| x.as_i64()).is_some_and(|x| ids.contains(&x)));
     }
 
-    // Quanti progetti sono aperti **adesso**: su un'istanza sola, al più uno.
-    // Il tetto si configura e si mostra, applicarlo tocca al gateway (Fase 4):
-    // lo dice la risposta, e la console lo scrive accanto al numero — un campo
-    // inerte va bene, un campo inerte che finge di funzionare no.
-    let aperto_qui = s.project_dir.read().await.is_some();
+    // Quanti progetti sono aperti **adesso**. Sul gateway li conta la regia, per
+    // azienda, ed è lì che il tetto si applica (`gateway/rotte.rs`); fino al
+    // 20-10-2026 qui si leggeva `project_dir`, che sul gateway è sempre vuoto, e la
+    // console mostrava 0 / N a ogni azienda. Fuori dalla cache dei 60 secondi: contare
+    // una mappa in memoria non costa niente.
+    let progetti_aperti_ora = match &s.regia {
+        Some(regia) => {
+            let mut totale = 0usize;
+            for a in aziende.iter_mut() {
+                let seg = a.get("segmento").and_then(|v| v.as_str()).unwrap_or("").to_string();
+                let n = regia.aperti_di(&seg).await;
+                totale += n;
+                if let Some(o) = a.as_object_mut() {
+                    o.insert("progetti_aperti".into(), serde_json::json!(n));
+                }
+            }
+            totale
+        }
+        None => usize::from(s.project_dir.read().await.is_some()),
+    };
 
     Json(serde_json::json!({
         "aziende": aziende,
@@ -760,8 +899,8 @@ async fn risorse(State(s): State<AppState>, Extension(chi): Extension<AuthUser>)
         "macchina": if mie.is_none() { dati.get("macchina").cloned() } else { None },
         "misurato_ms": quando,
         "validita_ms": VALIDITA_MISURA_MS,
-        "progetti_aperti_ora": if aperto_qui { 1 } else { 0 },
-        "progetti_aperti_si_applicano": false,
+        "progetti_aperti_ora": progetti_aperti_ora,
+        "progetti_aperti_si_applicano": s.regia.is_some(),
     }))
     .into_response()
 }

@@ -888,6 +888,10 @@ export type RisorseConsole = {
     storico_byte: number;
     max_byte: number | null;
     max_progetti_aperti: number | null;
+    /** Il segmento con cui il gateway la nomina (`-` per l'implicita). */
+    segmento?: string;
+    /** Quanti suoi progetti sono aperti adesso, sul gateway (20-10-2026). */
+    progetti_aperti?: number;
   }[];
   /** Solo per l'amministratore di piattaforma: non e di nessuna azienda. */
   macchina: {
@@ -903,9 +907,21 @@ export type RisorseConsole = {
   misurato_ms: number;
   validita_ms: number;
   progetti_aperti_ora: number;
-  /** Oggi falso: il tetto si configura e si mostra, applicarlo tocca al
-   *  gateway (Fase 4). La console lo scrive accanto al numero. */
+  /** Vero sul gateway, dove il tetto si applica davvero; falso su un'istanza sola. */
   progetti_aperti_si_applicano: boolean;
+};
+
+/** Un progetto aperto nel cloud (`GET /api/amministrazione/progetti-aperti`). */
+export type ProgettoAperto = {
+  riferimento: string;
+  azienda: string;
+  azienda_id: number;
+  azienda_nome: string;
+  progetto: string;
+  /** Quante finestre sono collegate adesso. */
+  collegati: number;
+  /** Da quanti secondi nessuno è collegato (se nessuno lo è). */
+  fermo_da_s: number | null;
 };
 
 export type UtenteInstallazione = {
@@ -945,6 +961,9 @@ export type MarchioCompleto = Marchio & {
 function rotta(riferimento: string): string {
   return riferimento.split("/").map(encodeURIComponent).join("/");
 }
+
+/** La rotta dei progetti aperti nel cloud (console). */
+const PROGETTI_APERTI = "/api/amministrazione/progetti-aperti";
 
 export const api = {
   // Auth
@@ -1022,6 +1041,18 @@ export const api = {
    *  nessuna azienda. */
   amministrazioneRisorse: () =>
     request<RisorseConsole>("/api/amministrazione/risorse"),
+
+  /** I progetti aperti nel cloud, confinati all'azienda di chi chiede. */
+  progettiAperti: () =>
+    request<{ si_applica: boolean; progetti: ProgettoAperto[] }>(PROGETTI_APERTI),
+
+  /** Chiude a mano un progetto aperto. Con qualcuno collegato serve `ancheConCollegati`:
+   *  senza, il server risponde 409 col numero dei collegati. */
+  chiudiProgettoAperto: (azienda: string, nome: string, ancheConCollegati = false) =>
+    request<void>(
+      `${PROGETTI_APERTI}/${encodeURIComponent(azienda)}/${encodeURIComponent(nome)}${ancheConCollegati ? "?anche_con_collegati=true" : ""}`,
+      { method: "DELETE" },
+    ),
 
   amministrazioneAziende: () =>
     request<Azienda[]>("/api/amministrazione/aziende"),

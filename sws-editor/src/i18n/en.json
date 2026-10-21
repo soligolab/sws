@@ -3053,6 +3053,11 @@
       "ovhAvviso": "On OVH VPS outbound port 25 is blocked: you need a relay on 587 (Infomaniak: mail.infomaniak.com). Without PTR, SPF and DKIM the mail lands in spam."
     },
     "risorse": {
+      "chiudi": "Close",
+      "collegati": "{{n}} connected",
+      "nessunoCollegato": "nobody connected for {{min}} min",
+      "chiudiDomanda": "Close the project «{{progetto}}»? Its container stops; it reopens on the next request.",
+      "chiudiConCollegati": "The project «{{progetto}}» has {{n}} people connected: closing it loses their unsaved work. Close anyway?",
       "attendi": "Measuring resources…",
       "spazio": "Space",
       "progetti": "projects",

@@ -33,6 +33,8 @@
 
 ## Ramo 1 — `feat/console-progetti-aperti`
 
+> **FATTO il 20-10-2026** (da collaudare sul VPS): conteggio dalla regia per azienda, elenco e chiusura a mano con conferma se c'è qualcuno collegato. Provato con un gateway locale: due progetti aperti contati, 409 con una finestra collegata, chiusura con conferma, audit; console nel browser.
+
 **I due residui del gateway sono lo stesso lavoro**, e la parte che sembrava il lavoro è già
 scritta: `Regia::aperti_di` (`sws-web/src/gateway/progetti.rs:264`), `Regia::elenco` (`:259`) e
 `Regia::chiudi` (`:498`) esistono, sono completi e **non hanno un solo chiamante fuori dai test**.

@@ -11,6 +11,19 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 
 ## [Unreleased]
 
+### Fixed
+
+- **Console: i progetti aperti si contavano a zero.** Si leggeva `project_dir`, che sul gateway è sempre vuoto, e
+  ogni azienda mostrava `0 / N` (o il totale della piattaforma); il tetto si applicava ma la console diceva di no.
+  Ora conta la regia del gateway, per azienda (`amministrazione.rs`, `risorse`).
+
+### Added
+
+- **Console: i progetti aperti, e la chiusura a mano** (ramo 1 della chiusura dei residui). Sotto ogni azienda
+  l'elenco dei suoi container di progetto accesi, con chi è collegato, e «Chiudi»
+  (`GET /api/amministrazione/progetti-aperti`, `DELETE …/:azienda/:nome`, confinati per azienda, nell'audit come
+  `amministrazione.progetto_chiuso`). Con qualcuno collegato chiude solo dopo una conferma che dice quanti sono.
+
 ### Added
 
 - **Ritenzione automatica dei datastore** (piano `docs/archive/2026-10-20-ritenzione-automatica.md`). Un task di

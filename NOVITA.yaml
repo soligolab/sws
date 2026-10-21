@@ -19,6 +19,8 @@
 versioni:
   - versione: "2.16.0"
     voci:
+      - it: "Console del cloud: ogni azienda vede quali suoi progetti sono aperti adesso e chi è collegato, e può chiuderli a mano; il conteggio dei progetti aperti ora è quello vero."
+        en: "Cloud console: each company sees which of its projects are open right now and who is connected, and can close them by hand; the open-project count is now the real one."
       - it: "Storico: i limiti di giorni e di righe dei datastore ora si applicano da soli ogni notte, all'ora del progetto; la prima volta l'IDE dice quanto cancellerà e chiede conferma."
         en: "History: datastore limits in days and rows now apply by themselves every night, at the project's time; the first time the IDE says how much it will delete and asks to confirm."
   - versione: "2.15.0"

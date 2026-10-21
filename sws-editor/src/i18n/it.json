@@ -3053,6 +3053,11 @@
       "ovhAvviso": "Sui VPS OVH la porta 25 in uscita è bloccata: serve un relay sulla 587 (Infomaniak: mail.infomaniak.com). Senza PTR, SPF e DKIM le email finiscono nella posta indesiderata."
     },
     "risorse": {
+      "chiudi": "Chiudi",
+      "collegati": "{{n}} collegati",
+      "nessunoCollegato": "nessuno collegato da {{min}} min",
+      "chiudiDomanda": "Chiudere il progetto «{{progetto}}»? Il suo container si spegne; si riapre alla prossima richiesta.",
+      "chiudiConCollegati": "Il progetto «{{progetto}}» ha {{n}} persone collegate: chiudendolo perdono il lavoro non salvato. Chiudere lo stesso?",
       "attendi": "Misuro le risorse…",
       "spazio": "Spazio",
       "progetti": "progetti",

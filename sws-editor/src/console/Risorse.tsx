@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { api, type RisorseConsole } from "@/api/client";
+import { api, type ProgettoAperto, type RisorseConsole } from "@/api/client";
 import { avviso, errore as stileErrore, scheda, titoletto } from "./stile";
 
 /**
@@ -48,6 +48,35 @@ export function Risorse() {
   const { t, i18n } = useTranslation();
   const [dati, setDati] = useState<RisorseConsole | null>(null);
   const [err, setErr] = useState<string | null>(null);
+  const [aperti, setAperti] = useState<ProgettoAperto[]>([]);
+  const [chiudendo, setChiudendo] = useState<string | null>(null);
+
+  // I progetti aperti cambiano in fretta e costano niente: si rileggono ogni 15 s,
+  // non col minuto della misura dello spazio.
+  const leggiAperti = () =>
+    api.progettiAperti().then((r) => setAperti(r.progetti)).catch(() => setAperti([]));
+  useEffect(() => {
+    void leggiAperti();
+    const h = setInterval(() => void leggiAperti(), 15_000);
+    return () => clearInterval(h);
+  }, []);
+
+  const chiudi = async (p: ProgettoAperto) => {
+    const domanda = p.collegati > 0
+      ? t("console.risorse.chiudiConCollegati", { progetto: p.progetto, n: p.collegati })
+      : t("console.risorse.chiudiDomanda", { progetto: p.progetto });
+    if (!window.confirm(domanda)) return;
+    setChiudendo(p.riferimento);
+    try {
+      await api.chiudiProgettoAperto(p.azienda, p.progetto, p.collegati > 0);
+      await leggiAperti();
+      setDati(await api.amministrazioneRisorse());
+    } catch (e: unknown) {
+      setErr(e instanceof Error ? e.message : String(e));
+    } finally {
+      setChiudendo(null);
+    }
+  };
 
   useEffect(() => {
     const leggi = () =>
@@ -114,8 +143,23 @@ export function Risorse() {
             <div style={{ marginTop: 12 }}>
               <label style={titoletto}>{t("console.risorse.progettiAperti")}</label>
               <div style={{ fontSize: 13 }}>
-                {dati.progetti_aperti_ora} / {a.max_progetti_aperti ?? "—"}
+                {(dati.progetti_aperti_si_applicano ? a.progetti_aperti ?? 0 : dati.progetti_aperti_ora)} / {a.max_progetti_aperti ?? "—"}
               </div>
+              {aperti.filter((p) => p.azienda_id === a.id).map((p) => (
+                <div key={p.riferimento} data-testid={`aperto-${p.riferimento}`}
+                  style={{ display: "flex", gap: 8, alignItems: "center", fontSize: 12, marginTop: 4 }}>
+                  <span>{p.progetto}</span>
+                  <span style={{ color: "var(--brand-text-subtle, #64748b)" }}>
+                    {p.collegati > 0
+                      ? t("console.risorse.collegati", { n: p.collegati })
+                      : t("console.risorse.nessunoCollegato", { min: Math.floor((p.fermo_da_s ?? 0) / 60) })}
+                  </span>
+                  <button onClick={() => void chiudi(p)} disabled={chiudendo === p.riferimento}
+                    style={{ background: "var(--brand-surface, #1e293b)", color: "var(--brand-text, #e2e8f0)", border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 4, padding: "1px 8px", cursor: "pointer", fontSize: 11 }}>
+                    {t("console.risorse.chiudi")}
+                  </button>
+                </div>
+              ))}
               {!dati.progetti_aperti_si_applicano && (
                 <div style={{ ...avviso, marginTop: 6 }}>{t("console.risorse.tettoNonApplicato")}</div>
               )}

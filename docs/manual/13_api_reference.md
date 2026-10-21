@@ -306,6 +306,8 @@ restituisce.
 | Metodo | Rotta | Chi |
 |---|---|---|
 | GET | `/api/amministrazione/risorse` | azienda |
+| GET | `/api/amministrazione/progetti-aperti` | azienda: i container di progetto accesi sul gateway, con quante finestre sono collegate |
+| DELETE | `/api/amministrazione/progetti-aperti/:azienda/:nome` | azienda: chiude a mano un progetto aperto; con qualcuno collegato risponde 409 `{collegati}` se manca `?anche_con_collegati=true` |
 | GET / PATCH | `/api/amministrazione/aziende`, `/…/:id` | azienda |
 | GET / POST / PATCH | `/api/amministrazione/utenti`, `/…/:id` | azienda |
 | GET | `/api/amministrazione/marchi` | azienda (legge) |
