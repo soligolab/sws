@@ -827,7 +827,84 @@ function DeploySection() {
  * l'operazione no — prima qui c'era `/api/deploy/remote`, che scaricava un
  * binario inesistente.
  */
-function InstallaRuntimeModal({ onClose }: { onClose: () => void }) {
+/** Un comando da copiare, con il suo pulsante. */
+function Comando({ testo }: { testo: string }) {
+  const { t } = useTranslation();
+  const [copiato, setCopiato] = useState(false);
+  return (
+    <div style={{ display: "flex", gap: 8, alignItems: "flex-start" }}>
+      {/* Aspetto da terminale (richiesta del maintainer, 21-10-2026): fondo
+          nero e testo verde, uguale in tema chiaro e scuro — un comando da
+          incollare in una shell somiglia alla shell, non alla pagina. Il «$»
+          è decorazione e non entra negli appunti: il pulsante copia la
+          stringa, non quel che si vede. */}
+      <pre style={{
+        flex: 1, minWidth: 0, margin: 0, padding: "10px 12px", borderRadius: 4,
+        background: "#000", border: "1px solid #2f3b2f",
+        color: "#3bd16f", fontFamily: "Arial, Helvetica, sans-serif",
+        fontSize: 12.5, lineHeight: 1.6,
+        whiteSpace: "pre-wrap", wordBreak: "break-all",
+      }}>
+        <span style={{ color: "#6b7280", userSelect: "none" }} aria-hidden="true">$ </span>{testo}
+      </pre>
+      <button
+        style={{ ...BTN_GHOST, flex: "0 0 auto" }}
+        onClick={() => {
+          // Se la scrittura negli appunti è negata (succede fuori da HTTPS e in
+          // certi contesti incorporati) si seleziona il testo: copiare a mano
+          // resta possibile, e un pulsante che non dice niente no.
+          navigator.clipboard?.writeText(testo).then(
+            () => { setCopiato(true); setTimeout(() => setCopiato(false), 1500); },
+            () => { /* niente appunti: resta la selezione a mano */ },
+          );
+        }}
+      >{copiato ? `✓ ${t("welcome.installCloudCopiato")}` : t("welcome.installCloudCopia")}</button>
+    </div>
+  );
+}
+
+/** La guida, quando l'IDE gira sul server.
+ *
+ *  Il modulo SSH qui non ha senso: il gateway dovrebbe entrare nel pannello del
+ *  cliente, che sta dietro NAT e non ha una rotta in ingresso — ed è esattamente
+ *  ciò che il tunnel esiste per evitare (richiesta del maintainer, 21-10-2026).
+ *  I comandi sono quelli del HOWTO §25, nella forma dell'abbinamento col codice:
+ *  niente `--tunnel-nome` né `--tunnel-token`, che servono alla strada del
+ *  pannello dichiarato a mano. L'indirizzo del gateway viaggia nell'immagine.
+ */
+function GuidaInstallazione() {
+  const { t } = useTranslation();
+  const IMG = "ghcr.io/soligolab/sws-runtime:rc-arm64";
+  const passi: [string, string][] = [
+    // Il segnaposto segue la lingua come tutto il resto: cablato in italiano
+    // stonava in mezzo a una guida in inglese (maintainer, 21-10-2026).
+    [t("welcome.installCloudPasso1"), `ssh user@<${t("welcome.installCloudIndirizzo")}>`],
+    [t("welcome.installCloudPasso2"), `podman pull ${IMG}`],
+    [t("welcome.installCloudPasso3"), "mkdir -p ~/sws-install && cd ~/sws-install"],
+    [t("welcome.installCloudPasso4"), `podman run --rm --entrypoint tar ${IMG} \\\n  -C /usr/share/sws/quadlet -cf - . | tar -xf -`],
+    [t("welcome.installCloudPasso5"), `./install-container.sh --pull ${IMG}`],
+  ];
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+      <p style={{ margin: 0, fontSize: 13, color: "var(--brand-text-muted, #94a3b8)", lineHeight: 1.6 }}>
+        {t("welcome.installCloudIntro")}
+      </p>
+      <ol style={{ margin: 0, paddingLeft: 20, display: "flex", flexDirection: "column", gap: 12 }}>
+        {passi.map(([titolo, cmd]) => (
+          <li key={titolo} style={{ fontSize: 13, color: "var(--brand-text, #e2e8f0)" }}>
+            <div style={{ marginBottom: 6 }}>{titolo}</div>
+            <Comando testo={cmd} />
+          </li>
+        ))}
+      </ol>
+      <p style={{ margin: 0, fontSize: 13, color: "var(--brand-text-muted, #94a3b8)", lineHeight: 1.6 }}>
+        {t("welcome.installCloudDopo")}
+      </p>
+    </div>
+  );
+}
+
+function InstallaRuntimeModal({ onClose, gateway }: { onClose: () => void; gateway: boolean }) {
   const { t } = useTranslation();
 
   return (
@@ -845,7 +922,7 @@ function InstallaRuntimeModal({ onClose }: { onClose: () => void }) {
           {t("welcome.installRuntimeTitle")}
         </div>
 
-        <DeploySection />
+        {gateway ? <GuidaInstallazione /> : <DeploySection />}
 
         <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 12 }}>
           <button style={BTN_GHOST} onClick={onClose}>{t("common.close")}</button>
@@ -1126,7 +1203,7 @@ export function WelcomeScreen({ onProjectOpened }: WelcomeScreenProps) {
           initialTab={newTab}
         />
       )}
-      {showInstalla && <InstallaRuntimeModal onClose={() => setShowInstalla(false)} />}
+      {showInstalla && <InstallaRuntimeModal gateway={gateway} onClose={() => setShowInstalla(false)} />}
 
       <BarraIdentita onCambiaPassword={() => setCambioPassword(true)} />
 
