@@ -62,6 +62,8 @@ enum Azione {
     ChiediRitorno(bool),
     Ignora(String),
     ChiudiEsito(i64),
+    /// Chiude il pannellino di accesso senza fare niente.
+    AnnullaAccesso,
 }
 
 struct CtxAvviso {
@@ -77,26 +79,37 @@ unsafe extern "C" fn sws_avviso_cb(e: *mut lvgl_sys::lv_event_t) {
         return;
     }
     let ctx = unsafe { &*(user_data as *const CtxAvviso) };
+    // Il token di adesso, se c'è. **Vedere l'avviso non richiede di essere
+    // entrati; applicarlo sì** (decisione del maintainer, 20-10-2026): chi
+    // preme senza sessione finisce nel pannellino di accesso, e il gesto
+    // riparte da solo appena il token arriva.
+    let token = || {
+        ctx.sessione
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .token
+            .clone()
+            .filter(|t| !t.is_empty())
+    };
     match &ctx.azione {
-        Azione::Aggiorna => {
-            let token = ctx
-                .sessione
-                .lock()
-                .unwrap_or_else(|e| e.into_inner())
-                .token
-                .clone();
-            aggiornamento::avvia(&ctx.stato, &ctx.base_url, token);
-        }
+        Azione::Aggiorna => match token() {
+            Some(t) => aggiornamento::avvia(&ctx.stato, &ctx.base_url, Some(t)),
+            None => aggiornamento::chiedi_accesso(&ctx.stato, aggiornamento::AzioneRichiesta::Aggiorna),
+        },
         Azione::PiuTardi => aggiornamento::rimanda(&ctx.stato),
-        Azione::AggiornaQuadlet => {
-            let token = ctx.sessione.lock().unwrap_or_else(|e| e.into_inner()).token.clone();
-            aggiornamento::aggiorna_quadlet(&ctx.stato, &ctx.base_url, token);
-        }
+        Azione::AggiornaQuadlet => match token() {
+            Some(t) => aggiornamento::aggiorna_quadlet(&ctx.stato, &ctx.base_url, Some(t)),
+            None => aggiornamento::chiedi_accesso(&ctx.stato, aggiornamento::AzioneRichiesta::Quadlet),
+        },
         Azione::PiuTardiQuadlet => aggiornamento::rimanda_quadlet(&ctx.stato),
-        Azione::Conferma(scelta) => {
-            let token = ctx.sessione.lock().unwrap_or_else(|e| e.into_inner()).token.clone();
-            aggiornamento::rispondi_conferma(&ctx.stato, &ctx.base_url, token, scelta);
-        }
+        Azione::Conferma(scelta) => match token() {
+            Some(t) => aggiornamento::rispondi_conferma(&ctx.stato, &ctx.base_url, Some(t), scelta),
+            None => aggiornamento::chiedi_accesso(
+                &ctx.stato,
+                aggiornamento::AzioneRichiesta::Conferma((*scelta).to_string()),
+            ),
+        },
+        Azione::AnnullaAccesso => aggiornamento::annulla_accesso(&ctx.stato),
         Azione::ChiediRitorno(si) => aggiornamento::chiedi_ritorno(&ctx.stato, *si),
         Azione::Ignora(v) => aggiornamento::ignora(&ctx.stato, v),
         Azione::ChiudiEsito(id) => aggiornamento::chiudi_esito(&ctx.stato, *id),
@@ -106,10 +119,28 @@ unsafe extern "C" fn sws_avviso_cb(e: *mut lvgl_sys::lv_event_t) {
     // vorrebbe dire cancellarlo da dentro la sua stessa callback.
 }
 
+/// A che punto è la raccolta delle credenziali.
+///
+/// Si riusa la tastiera a schermo intero di `lvgl_render` invece di costruirne
+/// una dentro l'avviso: è già sul layer superiore (quindi niente problemi di
+/// z-order), ha già il giro dei font che va rifatto a ogni creazione, ed è
+/// **non bloccante** — restituisce una cella che si guarda a ogni giro. Il
+/// login della pagina non si tocca: il suo callback fa un `block_on` che ha
+/// una ragione documentata e non va toccato.
+enum FaseAccesso {
+    Utente(crate::lvgl_render::EsitoTastiera),
+    Password {
+        utente: String,
+        esito: crate::lvgl_render::EsitoTastiera,
+    },
+}
+
 /// L'overlay, con quel che gli serve per non essere ricostruito a ogni frame.
 #[derive(Default)]
 pub struct Overlay {
     radice: Option<*mut lvgl_sys::lv_obj_t>,
+    /// La raccolta delle credenziali, quando è in corso.
+    accesso: Option<FaseAccesso>,
     /// La generazione di [`crate::aggiornamento::StatoAvviso`] già disegnata.
     disegnata: Option<u64>,
     /// Vivi quanto la radice: LVGL ne tiene i puntatori.
@@ -138,6 +169,9 @@ impl Overlay {
             let g = stato.lock().unwrap_or_else(|e| e.into_inner());
             (g.generazione, g.avviso(), g.avvio_chiesto)
         };
+        // **Prima del confronto di generazione**: la tastiera va guardata a
+        // ogni giro, e la generazione non cambia mentre si digita.
+        self.avanza_accesso(&avviso, stato, base_url, sessione);
         if self.disegnata == Some(generazione) {
             return;
         }
@@ -158,6 +192,64 @@ impl Overlay {
         ) {
             eprintln!("[aggiornamento] avviso non disegnato: {e}");
             self.distruggi();
+        }
+    }
+
+    /// Un giro della raccolta credenziali. Costa un `borrow` per frame.
+    fn avanza_accesso(
+        &mut self,
+        avviso: &Avviso,
+        stato: &SharedAvviso,
+        base_url: &str,
+        sessione: &SharedSession,
+    ) {
+        let in_accesso = matches!(avviso, Avviso::Accesso { in_corso: false, .. });
+        if !in_accesso {
+            // Annullato, riuscito, o un avviso diverso: la tastiera non serve
+            // più. Se è ancora aperta la chiude il suo stesso Annulla.
+            self.accesso = None;
+            return;
+        }
+        match self.accesso.take() {
+            // Appena chiesto: si parte dall'utente.
+            None => {
+                self.accesso = crate::lvgl_render::apri_tastiera(false, false, "")
+                    .map(FaseAccesso::Utente);
+                if self.accesso.is_none() {
+                    aggiornamento::accesso_fallito(stato, "tastiera non disponibile".into());
+                }
+            }
+            Some(FaseAccesso::Utente(esito)) => {
+                let letto = esito.borrow().clone();
+                match letto {
+                    None => self.accesso = Some(FaseAccesso::Utente(esito)),
+                    Some(None) => aggiornamento::annulla_accesso(stato),
+                    Some(Some(utente)) => {
+                        self.accesso = crate::lvgl_render::apri_tastiera(false, true, "")
+                            .map(|esito| FaseAccesso::Password { utente, esito });
+                        if self.accesso.is_none() {
+                            aggiornamento::accesso_fallito(stato, "tastiera non disponibile".into());
+                        }
+                    }
+                }
+            }
+            Some(FaseAccesso::Password { utente, esito }) => {
+                let letto = esito.borrow().clone();
+                match letto {
+                    None => self.accesso = Some(FaseAccesso::Password { utente, esito }),
+                    Some(None) => aggiornamento::annulla_accesso(stato),
+                    Some(Some(password)) => {
+                        aggiornamento::accesso_in_corso(stato);
+                        crate::net_worker::invia(crate::net_worker::Comando::Accedi {
+                            base_url: base_url.to_string(),
+                            utente,
+                            password,
+                            sessione: sessione.clone(),
+                            avviso: stato.clone(),
+                        });
+                    }
+                }
+            }
         }
     }
 
@@ -191,9 +283,23 @@ impl Overlay {
             anyhow::bail!("lv_obj_create della radice ha restituito null");
         }
         self.radice = Some(radice);
+        // **L'esito non copre l'impianto** (decisione del maintainer,
+        // 20-10-2026, come sul web): dice soltanto com'è andato l'ultimo
+        // aggiornamento, e se nessuno è davanti al pannello resterebbe lì per
+        // giorni davanti alla pagina. Versione nuova, configurazione del
+        // servizio, domanda di conferma e accesso restano a schermo intero:
+        // chiedono una decisione, e vanno viste.
+        let striscia = matches!(avviso, Avviso::Esito { .. });
+        let altezza = if striscia {
+            // Un terzo dello schermo, e non meno di 120 px: ci stanno titolo,
+            // versioni e il pulsante per chiudere.
+            (ver_res as i16 / 3).max(120).min(ver_res as i16)
+        } else {
+            ver_res as i16
+        };
         unsafe {
             lvgl_sys::lv_obj_set_pos(radice, 0, 0);
-            lvgl_sys::lv_obj_set_size(radice, hor_res as i16, ver_res as i16);
+            lvgl_sys::lv_obj_set_size(radice, hor_res as i16, altezza);
             lvgl_sys::lv_obj_set_style_bg_color(radice, colore(2, 6, 23), 0);
             // Non del tutto opaco: sotto si intravede la pagina, così è chiaro
             // che l'impianto sta ancora funzionando e questo è solo un avviso.
@@ -205,7 +311,9 @@ impl Overlay {
         }
 
         let card_w = (hor_res as i16 - 32).min(560).max(200);
-        let card_h = (ver_res as i16 - 24).min(340).max(150);
+        // La card sta dentro la radice, che per l'esito è alta un terzo: se
+        // si misurasse ancora su `ver_res` sborderebbe dalla striscia.
+        let card_h = (altezza - 24).min(340).max(100);
         let rosso = matches!(
             avviso,
             Avviso::Esito { evento, .. } if evento.esito == EsitoAggiornamento::NonRiuscito
@@ -216,7 +324,15 @@ impl Overlay {
         }
         unsafe {
             lvgl_sys::lv_obj_set_size(card, card_w, card_h);
-            lvgl_sys::lv_obj_align(card, lvgl_sys::LV_ALIGN_CENTER as lvgl_sys::lv_align_t, 0, 0);
+            // Durante la raccolta delle credenziali la tastiera occupa la metà
+            // bassa dello schermo: una card centrata le finisce sopra la prima
+            // fila di tasti (visto all'istantanea, 20-10-2026). Si sposta in
+            // alto, nello spazio fra il campo di testo della tastiera e i tasti.
+            if matches!(avviso, Avviso::Accesso { .. }) {
+                lvgl_sys::lv_obj_align(card, lvgl_sys::LV_ALIGN_TOP_MID as lvgl_sys::lv_align_t, 0, 96);
+            } else {
+                lvgl_sys::lv_obj_align(card, lvgl_sys::LV_ALIGN_CENTER as lvgl_sys::lv_align_t, 0, 0);
+            }
             lvgl_sys::lv_obj_set_style_bg_color(card, colore(30, 41, 59), 0);
             lvgl_sys::lv_obj_set_style_bg_opa(card, lvgl_sys::LV_OPA_COVER as u8, 0);
             lvgl_sys::lv_obj_set_style_radius(card, 8, 0);
@@ -311,7 +427,15 @@ impl Overlay {
         let card_h = (44 + alto_usato + 8 + 44 + 24).min(card_h);
         unsafe {
             lvgl_sys::lv_obj_set_height(card, card_h);
-            lvgl_sys::lv_obj_align(card, lvgl_sys::LV_ALIGN_CENTER as lvgl_sys::lv_align_t, 0, 0);
+            // Dopo che la finestra si è stretta va riallineata, e qui vale la
+            // stessa regola di sopra: con la tastiera aperta non si sta al
+            // centro. (È il secondo allineamento della stessa card: spostare
+            // solo il primo non produce nulla — provato.)
+            if matches!(avviso, Avviso::Accesso { .. }) {
+                lvgl_sys::lv_obj_align(card, lvgl_sys::LV_ALIGN_TOP_MID as lvgl_sys::lv_align_t, 0, 96);
+            } else {
+                lvgl_sys::lv_obj_align(card, lvgl_sys::LV_ALIGN_CENTER as lvgl_sys::lv_align_t, 0, 0);
+            }
         }
 
         // I pulsanti in fondo, a larghezza uguale: su un touch la fila è il
@@ -432,6 +556,15 @@ impl Overlay {
                     )],
                 }
             }
+            Avviso::Accesso { errore, in_corso, .. } => Contenuto {
+                titolo: format!("🔑 {}", testo(Testo::AggServeAdmin, lingua)),
+                sotto: String::new(),
+                // Un rifiuto si legge qui, in rosso, e il pannellino resta
+                // aperto: riprovare non deve voler dire ricominciare.
+                compatibilita: errore.clone().map(|e| format!("⚠ {e}")).unwrap_or_default(),
+                corpo: if *in_corso { testo(Testo::AggInCorso, lingua).to_string() } else { String::new() },
+                pulsanti: vec![(testo(Testo::ConfAnnulla, lingua).to_string(), Azione::AnnullaAccesso, false)],
+            },
             Avviso::Quadlet { da, a } => Contenuto {
                 titolo: format!("⚙ {}", testo(Testo::QuadletTitolo, lingua)),
                 sotto: String::new(),

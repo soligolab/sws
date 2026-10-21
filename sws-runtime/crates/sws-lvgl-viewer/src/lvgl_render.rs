@@ -5360,7 +5360,7 @@ fn aggiorna_tabella(t: &mut TabellaViva, tags: &TagSnapshot) {
                 Esito::Ridisegna => t.sporco = true,
                 Esito::Filtro(c) => {
                     let iniziale = t.stato.filtri.get(c).cloned().unwrap_or_default();
-                    if let Some(es) = apri_tastiera(false, &iniziale) {
+                    if let Some(es) = apri_tastiera(false, false, &iniziale) {
                         t.tastiera = Some((es, AzioneTastiera::Filtro(c)));
                     }
                 }
@@ -5373,7 +5373,7 @@ fn aggiorna_tabella(t: &mut TabellaViva, tags: &TagSnapshot) {
                             .and_then(|c| t.righe.get(i).map(|r| r.celle[c].testo.clone()))
                             .unwrap_or_default();
                         let iniziale = iniziale.split_whitespace().next().unwrap_or("").replace('—', "");
-                        if let Some(es) = apri_tastiera(true, &iniziale) {
+                        if let Some(es) = apri_tastiera(true, false, &iniziale) {
                             t.tastiera = Some((es, AzioneTastiera::Scrivi(tag)));
                         }
                     }
@@ -5425,7 +5425,7 @@ fn risoluzione() -> (i16, i16) {
 
 /// L'esito di un tastierino: `None` finché è aperto, poi `Some(Some(testo))`
 /// per OK o `Some(None)` per Annulla.
-type EsitoTastiera = std::rc::Rc<RefCell<Option<Option<String>>>>;
+pub(crate) type EsitoTastiera = std::rc::Rc<RefCell<Option<Option<String>>>>;
 
 struct TastieraCtx {
     overlay: core::ptr::NonNull<lvgl_sys::lv_obj_t>,
@@ -5436,7 +5436,7 @@ struct TastieraCtx {
 /// Un tastierino a schermo intero sul layer superiore, aperto su richiesta
 /// (celle scrivibili e filtri della tabella): numerico o alfabetico. Stesso
 /// aspetto di quello del setpoint; alla chiusura si cancella da sé.
-fn apri_tastiera(numerica: bool, iniziale: &str) -> Option<EsitoTastiera> {
+pub(crate) fn apri_tastiera(numerica: bool, password: bool, iniziale: &str) -> Option<EsitoTastiera> {
     unsafe {
         let top = lvgl_sys::lv_disp_get_layer_top(core::ptr::null_mut());
         let ov = core::ptr::NonNull::new(lvgl_sys::lv_obj_create(top))?;
@@ -5454,6 +5454,11 @@ fn apri_tastiera(numerica: bool, iniziale: &str) -> Option<EsitoTastiera> {
             lvgl_sys::lv_textarea_set_accepted_chars(ta.as_ptr(), c"0123456789.-".as_ptr());
         }
         lvgl_sys::lv_textarea_set_text(ta.as_ptr(), text_cstring(iniziale).as_ptr());
+        // Una password non si legge da sopra la spalla di chi sta davanti a un
+        // impianto (20-10-2026): il campo la nasconde, la tastiera no.
+        if password {
+            lvgl_sys::lv_textarea_set_password_mode(ta.as_ptr(), true);
+        }
         let kb = core::ptr::NonNull::new(lvgl_sys::lv_keyboard_create(ov.as_ptr()))?;
         lvgl_sys::lv_keyboard_set_textarea(kb.as_ptr(), ta.as_ptr());
         lvgl_sys::lv_keyboard_set_mode(

@@ -130,6 +130,22 @@ pub enum Avviso {
         istantanea: bool,
         ritorno_chiesto: bool,
     },
+    /// Serve un amministratore per applicare quello che si è appena chiesto
+    /// (20-10-2026). L'avviso **si vede sempre**, anche senza essere entrati:
+    /// le credenziali si chiedono qui, al momento di agire.
+    ///
+    /// Il pannellino vive dentro la radice dell'avviso, che sta già sul layer
+    /// superiore: il login della pagina (`render_auth_widget`) è figlio dello
+    /// schermo e finirebbe **sotto**, e il suo callback fa un `block_on` che
+    /// non si può toccare (vedi il commento a `lvgl_render.rs`).
+    Accesso {
+        /// Perché stiamo chiedendo: lo si scrive in cima al pannellino.
+        motivo: String,
+        /// L'ultimo tentativo è stato rifiutato.
+        errore: Option<String>,
+        /// Una richiesta è in volo: i pulsanti si spengono.
+        in_corso: bool,
+    },
     /// C'è una versione più nuova.
     VersioneNuova {
         /// Quella che gira adesso.
@@ -153,13 +169,9 @@ pub enum Avviso {
 /// rimandare (decisione 44).
 pub fn da_mostrare(
     stato: Option<&StatoAggiornamento>,
-    senza_utenti: bool,
     rimandato: bool,
     visto: &Visto,
 ) -> Avviso {
-    if !senza_utenti {
-        return Avviso::Niente;
-    }
     let Some(st) = stato else {
         return Avviso::Niente;
     };
@@ -190,7 +202,6 @@ pub fn da_mostrare(
 #[allow(clippy::too_many_arguments)]
 pub fn da_mostrare_tutto(
     stato: Option<&StatoAggiornamento>,
-    senza_utenti: bool,
     rimandato: bool,
     visto: &Visto,
     quadlet: Option<&QuadletSistema>,
@@ -198,8 +209,8 @@ pub fn da_mostrare_tutto(
     conferma: Option<&DomandaSistema>,
     ritorno_chiesto: bool,
 ) -> Avviso {
-    let base = da_mostrare(stato, senza_utenti, rimandato, visto);
-    if !senza_utenti || matches!(base, Avviso::Esito { .. }) {
+    let base = da_mostrare(stato, rimandato, visto);
+    if matches!(base, Avviso::Esito { .. }) {
         return base;
     }
     match quadlet {
@@ -236,12 +247,33 @@ pub fn novita_nella_lingua(n: &NovitaVersione, lingua: &str) -> (String, String)
     )
 }
 
+/// Che cosa fare appena l'accesso riesce.
+///
+/// Si tiene qui e non nel pulsante perché fra il clic e il token passa un giro
+/// di rete: il pulsante che l'ha chiesto, nel frattempo, è stato distrutto e
+/// ricostruito dal loop di disegno.
+#[derive(Debug, Clone, PartialEq)]
+pub enum AzioneRichiesta {
+    Aggiorna,
+    Quadlet,
+    Conferma(String),
+}
+
+/// L'accesso chiesto dall'avviso, in corso.
+#[derive(Debug, Clone, Default)]
+pub struct Accesso {
+    pub azione: Option<AzioneRichiesta>,
+    pub errore: Option<String>,
+    pub in_corso: bool,
+}
+
 /// Quel che il thread di controllo aggiorna e il disegno legge, con lo stesso
 /// `Arc<Mutex<_>>` di `SharedSession`/`SharedAlarms`.
 #[derive(Debug, Default)]
 pub struct StatoAvviso {
     pub stato: Option<StatoAggiornamento>,
-    pub senza_utenti: bool,
+    /// Il pannellino di accesso, quando serve un Admin per procedere.
+    pub accesso: Option<Accesso>,
     /// «Più tardi»: in memoria, muore col processo e col riavvio del runtime.
     pub rimandato: bool,
     pub visto: Visto,
@@ -271,9 +303,21 @@ impl StatoAvviso {
     }
 
     pub fn avviso(&self) -> Avviso {
+        // L'accesso vince su tutto: è stato chiesto da un gesto esplicito, e
+        // finché non si risolve non si può fare altro.
+        if let Some(a) = &self.accesso {
+            return Avviso::Accesso {
+                motivo: match &a.azione {
+                    Some(AzioneRichiesta::Quadlet) => "agg_accesso_quadlet".into(),
+                    Some(AzioneRichiesta::Conferma(_)) => "agg_accesso_conferma".into(),
+                    _ => "agg_accesso_aggiorna".into(),
+                },
+                errore: a.errore.clone(),
+                in_corso: a.in_corso,
+            };
+        }
         da_mostrare_tutto(
             self.stato.as_ref(),
-            self.senza_utenti,
             self.rimandato,
             &self.visto,
             self.quadlet.as_ref(),
@@ -282,6 +326,55 @@ impl StatoAvviso {
             self.ritorno_chiesto,
         )
     }
+}
+
+/// Serve un Admin: si apre il pannellino e si ricorda cosa fare dopo.
+pub fn chiedi_accesso(s: &SharedAvviso, azione: AzioneRichiesta) {
+    if let Ok(mut g) = s.lock() {
+        g.accesso = Some(Accesso { azione: Some(azione), ..Default::default() });
+        g.cambiato();
+    }
+}
+
+/// Annulla: si torna all'avviso di prima, senza fare niente.
+pub fn annulla_accesso(s: &SharedAvviso) {
+    if let Ok(mut g) = s.lock() {
+        g.accesso = None;
+        g.cambiato();
+    }
+}
+
+/// Le credenziali sono partite: i pulsanti si spengono finché non si sa.
+pub fn accesso_in_corso(s: &SharedAvviso) {
+    if let Ok(mut g) = s.lock() {
+        if let Some(a) = g.accesso.as_mut() {
+            a.in_corso = true;
+            a.errore = None;
+        }
+        g.cambiato();
+    }
+}
+
+/// Rifiutate: si resta nel pannellino, con il motivo scritto.
+pub fn accesso_fallito(s: &SharedAvviso, motivo: String) {
+    if let Ok(mut g) = s.lock() {
+        if let Some(a) = g.accesso.as_mut() {
+            a.in_corso = false;
+            a.errore = Some(motivo);
+        }
+        g.cambiato();
+    }
+}
+
+/// Entrati: il pannellino si chiude e si riprende quel che si stava facendo.
+/// Ritorna l'azione da eseguire, se ce n'era una.
+pub fn accesso_riuscito(s: &SharedAvviso) -> Option<AzioneRichiesta> {
+    let mut azione = None;
+    if let Ok(mut g) = s.lock() {
+        azione = g.accesso.take().and_then(|a| a.azione);
+        g.cambiato();
+    }
+    azione
 }
 
 /// «Più tardi».
@@ -427,12 +520,7 @@ async fn giro(
     };
     let riavvio = ripartito(*ultimo_uptime, sys.uptime_s);
     *ultimo_uptime = Some(sys.uptime_s);
-    let senza_utenti = !sys.auth_required;
     if let Ok(mut g) = stato.lock() {
-        if g.senza_utenti != senza_utenti {
-            g.senza_utenti = senza_utenti;
-            g.cambiato();
-        }
         // «Più tardi» vale fino al prossimo avvio del runtime (decisione 44).
         if riavvio && g.rimandato {
             g.rimandato = false;
@@ -464,9 +552,6 @@ async fn giro(
     }
     let da_chiedere = *prima_volta || riavvio;
     *prima_volta = false;
-    if !senza_utenti {
-        return CONTROLLO_RIAVVIO;
-    }
     let in_corso = stato
         .lock()
         .ok()
@@ -476,16 +561,13 @@ async fn giro(
         return CONTROLLO_RIAVVIO;
     }
     match client::stato_aggiornamento(base_url, token).await {
-        // 401/403: questo pannello ha utenti, l'avviso non è affar suo.
-        Ok(None) => {
-            if let Ok(mut g) = stato.lock() {
-                if g.senza_utenti {
-                    g.senza_utenti = false;
-                    g.cambiato();
-                }
-            }
-            CONTROLLO_RIAVVIO
-        }
+        // Niente stato: il runtime è vecchio e non ha la rotta, oppure la
+        // rotta è ancora protetta. Non si spegne più niente — fino al
+        // 20-10-2026 qui si azzerava `senza_utenti`, cioè ci si auto-zittiva
+        // per sempre al primo 401, ed è il motivo per cui l'avviso sul
+        // pannello non compariva mai. Dalla 2.16 `/api/update/status` è in
+        // lettura anche per chi non è entrato.
+        Ok(None) => CONTROLLO_RIAVVIO,
         Ok(Some(s)) => {
             let ancora = s.in_corso;
             if let Ok(mut g) = stato.lock() {
@@ -594,19 +676,24 @@ mod tests {
         assert!(ripartito(Some(3600), 12));
     }
 
+    /// Il test che fissava la regola vecchia, rovesciato (20-10-2026).
+    ///
+    /// Si chiamava `su_un_pannello_con_utenti_non_compare_niente` e asseriva
+    /// esattamente il difetto: dall'11-10 un pannello in servizio ha **sempre**
+    /// utenti, quindi quella regola voleva dire «non comparire mai».
     #[test]
-    fn su_un_pannello_con_utenti_non_compare_niente() {
+    fn su_un_pannello_con_utenti_l_avviso_compare_lo_stesso() {
         let st = con_nuova();
-        assert_eq!(
-            da_mostrare(Some(&st), false, false, &Visto::default()),
-            Avviso::Niente
-        );
+        assert!(matches!(
+            da_mostrare(Some(&st), false, &Visto::default()),
+            Avviso::VersioneNuova { .. }
+        ));
     }
 
     #[test]
-    fn senza_utenti_e_con_una_versione_nuova_compare() {
+    fn con_una_versione_nuova_compare() {
         let st = con_nuova();
-        match da_mostrare(Some(&st), true, false, &Visto::default()) {
+        match da_mostrare(Some(&st), false, &Visto::default()) {
             Avviso::VersioneNuova { da, a, novita } => {
                 assert_eq!((da.as_str(), a.as_str()), ("2.12.0-rc.9", "2.12.0-rc.10"));
                 assert_eq!(novita.len(), 1);
@@ -623,7 +710,7 @@ mod tests {
         let mut st = con_nuova();
         st.evento = Some(evento(7));
         assert!(matches!(
-            da_mostrare(Some(&st), true, false, &Visto::default()),
+            da_mostrare(Some(&st), false, &Visto::default()),
             Avviso::Esito { .. }
         ));
     }
@@ -637,13 +724,13 @@ mod tests {
             ..Default::default()
         };
         assert!(matches!(
-            da_mostrare(Some(&st), true, false, &visto),
+            da_mostrare(Some(&st), false, &visto),
             Avviso::VersioneNuova { .. }
         ));
         // Ma un esito *diverso*, più recente, sì.
         st.evento = Some(evento(8));
         assert!(matches!(
-            da_mostrare(Some(&st), true, false, &visto),
+            da_mostrare(Some(&st), false, &visto),
             Avviso::Esito { .. }
         ));
     }
@@ -652,7 +739,7 @@ mod tests {
     fn piu_tardi_nasconde_fino_al_riavvio_ignora_anche_dopo() {
         let st = con_nuova();
         assert_eq!(
-            da_mostrare(Some(&st), true, true, &Visto::default()),
+            da_mostrare(Some(&st), true, &Visto::default()),
             Avviso::Niente,
             "«Più tardi» deve nascondere l'avviso"
         );
@@ -661,7 +748,7 @@ mod tests {
             ..Default::default()
         };
         assert_eq!(
-            da_mostrare(Some(&st), true, false, &ignorata),
+            da_mostrare(Some(&st), false, &ignorata),
             Avviso::Niente
         );
     }
@@ -676,7 +763,7 @@ mod tests {
             ..Default::default()
         };
         assert!(matches!(
-            da_mostrare(Some(&st), true, false, &vecchia),
+            da_mostrare(Some(&st), false, &vecchia),
             Avviso::VersioneNuova { .. }
         ));
     }
@@ -691,15 +778,15 @@ mod tests {
         let quad = q(0, 1, true);
         // Prima della versione nuova.
         assert_eq!(
-            da_mostrare_tutto(Some(&con_nuova()), true, false, &v, Some(&quad), false, None, false),
+            da_mostrare_tutto(Some(&con_nuova()), false, &v, Some(&quad), false, None, false),
             Avviso::Quadlet { da: "0".into(), a: "1".into() }
         );
         // L'esito viene prima di tutto.
         let mut st = con_nuova();
         st.evento = Some(evento(7));
-        assert!(matches!(da_mostrare_tutto(Some(&st), true, false, &v, Some(&quad), false, None, false), Avviso::Esito { .. }));
+        assert!(matches!(da_mostrare_tutto(Some(&st), false, &v, Some(&quad), false, None, false), Avviso::Esito { .. }));
         // Anche senza stato dell'aggiornamento (registry irraggiungibile).
-        assert!(matches!(da_mostrare_tutto(None, true, false, &v, Some(&quad), false, None, false), Avviso::Quadlet { .. }));
+        assert!(matches!(da_mostrare_tutto(None, false, &v, Some(&quad), false, None, false), Avviso::Quadlet { .. }));
     }
 
     #[test]
@@ -707,28 +794,36 @@ mod tests {
         let v = Visto::default();
         let d = DomandaSistema { da: "2.12.0-rc.17".into(), a: "2.12.0-rc.18".into(), istantanea: true };
         let attesa = Avviso::Conferma { da: d.da.clone(), a: d.a.clone(), istantanea: true, ritorno_chiesto: false };
-        assert_eq!(da_mostrare_tutto(Some(&con_nuova()), true, false, &v, None, false, Some(&d), false), attesa);
+        assert_eq!(da_mostrare_tutto(Some(&con_nuova()), false, &v, None, false, Some(&d), false), attesa);
         // Il quadlet da aggiornare viene prima.
         assert!(matches!(
-            da_mostrare_tutto(None, true, false, &v, Some(&q(0, 1, true)), false, Some(&d), false),
+            da_mostrare_tutto(None, false, &v, Some(&q(0, 1, true)), false, Some(&d), false),
             Avviso::Quadlet { .. }
         ));
-        // Con utenti, niente.
-        assert_eq!(da_mostrare_tutto(None, false, false, &v, None, false, Some(&d), false), Avviso::Niente);
+        // Anche senza niente altro in campo, la domanda si fa: fino al
+        // 20-10-2026 qui c'era «con utenti, niente», cioè mai.
+        assert!(matches!(
+            da_mostrare_tutto(None, false, &v, None, false, Some(&d), false),
+            Avviso::Conferma { .. }
+        ));
         // Il secondo passo del ritorno.
         assert!(matches!(
-            da_mostrare_tutto(None, true, false, &v, None, false, Some(&d), true),
+            da_mostrare_tutto(None, false, &v, None, false, Some(&d), true),
             Avviso::Conferma { ritorno_chiesto: true, .. }
         ));
     }
 
     #[test]
-    fn la_configurazione_non_si_offre_con_utenti_rimandata_o_se_non_si_puo() {
+    fn la_configurazione_si_offre_salvo_rimandata_o_se_non_si_puo() {
         let v = Visto::default();
-        assert_eq!(da_mostrare_tutto(None, false, false, &v, Some(&q(0, 1, true)), false, None, false), Avviso::Niente);
-        assert_eq!(da_mostrare_tutto(None, true, false, &v, Some(&q(0, 1, true)), true, None, false), Avviso::Niente);
-        assert_eq!(da_mostrare_tutto(None, true, false, &v, Some(&q(0, 1, false)), false, None, false), Avviso::Niente);
-        assert_eq!(da_mostrare_tutto(None, true, false, &v, Some(&q(1, 1, true)), false, None, false), Avviso::Niente);
+        // Si offre: era la prima riga di questo test a dire «con utenti, no».
+        assert!(matches!(
+            da_mostrare_tutto(None, false, &v, Some(&q(0, 1, true)), false, None, false),
+            Avviso::Quadlet { .. }
+        ));
+        assert_eq!(da_mostrare_tutto(None, false, &v, Some(&q(0, 1, true)), true, None, false), Avviso::Niente);
+        assert_eq!(da_mostrare_tutto(None, false, &v, Some(&q(0, 1, false)), false, None, false), Avviso::Niente);
+        assert_eq!(da_mostrare_tutto(None, false, &v, Some(&q(1, 1, true)), false, None, false), Avviso::Niente);
     }
 
     #[test]
@@ -738,11 +833,11 @@ mod tests {
             ..Default::default()
         };
         assert_eq!(
-            da_mostrare(Some(&st), true, false, &Visto::default()),
+            da_mostrare(Some(&st), false, &Visto::default()),
             Avviso::Niente
         );
         assert_eq!(
-            da_mostrare(None, true, false, &Visto::default()),
+            da_mostrare(None, false, &Visto::default()),
             Avviso::Niente
         );
     }

@@ -63,6 +63,23 @@ pub enum Comando {
         base_url: String,
         token: Option<String>,
     },
+    /// L'accesso chiesto dall'avviso di aggiornamento (20-10-2026).
+    ///
+    /// Sta qui e non in un `block_on` dentro la callback LVGL per la ragione
+    /// scritta in `lvgl_render.rs`: una POST dentro il thread di disegno ha
+    /// bloccato il viewer il 13-09, e il login della pagina ci convive solo
+    /// perché nessuno l'ha ancora toccato.
+    ///
+    /// Porta con sé gli `Arc` dello stato perché la risposta va scritta da
+    /// qui: il pulsante che ha chiesto l'accesso, quando il token arriva, è
+    /// già stato distrutto e ricostruito dal loop di disegno.
+    Accedi {
+        base_url: String,
+        utente: String,
+        password: String,
+        sessione: crate::session::SharedSession,
+        avviso: crate::aggiornamento::SharedAvviso,
+    },
     /// La configurazione del servizio riscritta dal pannello (02-10-2026).
     AggiornaQuadlet {
         base_url: String,
@@ -85,6 +102,7 @@ impl Comando {
             Comando::AvviaAggiornamento { .. } => "avvio dell'aggiornamento".to_string(),
             Comando::AggiornaQuadlet { .. } => "aggiornamento della configurazione del servizio".to_string(),
             Comando::ConfermaAggiornamento { scelta, .. } => format!("risposta «{scelta}» alla conferma dell'aggiornamento"),
+            Comando::Accedi { utente, .. } => format!("accesso come '{utente}'"),
         }
     }
 }
@@ -115,6 +133,32 @@ async fn esegui(cmd: Comando) -> anyhow::Result<()> {
         }
         Comando::ConfermaAggiornamento { base_url, token, scelta } => {
             client::conferma_aggiornamento(&base_url, token.as_deref(), &scelta).await
+        }
+        Comando::Accedi { base_url, utente, password, sessione, avviso } => {
+            match client::login(&base_url, &utente, &password).await {
+                Ok(ok) => {
+                    let token = ok.token.clone();
+                    if let Ok(mut s) = sessione.lock() {
+                        s.set_logged_in(ok);
+                    }
+                    // Entrati: si riprende il gesto che aveva chiesto l'accesso.
+                    if let Some(a) = crate::aggiornamento::accesso_riuscito(&avviso) {
+                        use crate::aggiornamento::AzioneRichiesta as A;
+                        let token = Some(token);
+                        invia(match a {
+                            A::Aggiorna => Comando::AvviaAggiornamento { base_url, token },
+                            A::Quadlet => Comando::AggiornaQuadlet { base_url, token },
+                            A::Conferma(scelta) => Comando::ConfermaAggiornamento { base_url, token, scelta },
+                        });
+                    }
+                    Ok(())
+                }
+                Err(e) => {
+                    // Rifiutate o rete muta: si resta nel pannellino, col motivo.
+                    crate::aggiornamento::accesso_fallito(&avviso, e.to_string());
+                    Err(e)
+                }
+            }
         }
     }
 }

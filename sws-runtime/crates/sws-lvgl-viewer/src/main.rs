@@ -539,12 +539,13 @@ fn main() -> anyhow::Result<()> {
     lvgl_indev::init_pointer_indev()?;
 
     // L'avviso di aggiornamento a schermo (decisione 41: «in web **e** in
-    // LVGL»). `senza_utenti` parte da quel che `/api/system` ha già detto
-    // all'avvio; il thread lo riverifica ogni minuto, perché fra un avvio e
-    // l'altro di un pannello acceso da mesi il progetto può aver preso utenti.
+    // LVGL»). Fino al 20-10-2026 si mostrava **solo** su un pannello senza
+    // utenti, e dall'11-10 quel caso non esiste più: un pannello senza utenti
+    // è in attesa di abbinamento, e appena lo si abbina nasce l'Admin del
+    // dispositivo. Ora si mostra sempre, e le credenziali si chiedono al
+    // momento di applicare (decisione del maintainer, 20-10-2026).
     let avviso: aggiornamento::SharedAvviso =
         std::sync::Arc::new(std::sync::Mutex::new(aggiornamento::StatoAvviso {
-            senza_utenti: !auth_required,
             visto: aggiornamento::Visto::carica(),
             ..Default::default()
         }));
@@ -582,7 +583,6 @@ fn main() -> anyhow::Result<()> {
             // Niente thread di controllo: il primo giro sovrascriverebbe il
             // finto con quel che dice il runtime, che è appunto niente.
             let mut g = avviso.lock().unwrap_or_else(|e| e.into_inner());
-            g.senza_utenti = true;
             g.stato = finto;
             g.quadlet = quadlet;
             g.ritorno_chiesto = quale == "ritorno";
