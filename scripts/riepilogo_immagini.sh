@@ -156,9 +156,9 @@ fi
 cat <<'FINE'
 
   Tutte, uguali in questo:
-    porte      8443 viewer, 8444 gestione remota
+    porte      7443 viewer, 7444 gestione remota
     dati       montare /var/sws/{config,projects,logs}
-    IDE        NON c'è: il CMD porta --no-admin (dalla 2.4.0). Sulla 8444
+    IDE        NON c'è: il CMD porta --no-admin (dalla 2.4.0). Sulla 7444
                resta solo la gestione remota che l'editor chiama; aprirla
                col browser non dà l'IDE, e il progetto si modifica
                nell'editor e si deploya

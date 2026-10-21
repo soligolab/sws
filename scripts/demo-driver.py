@@ -192,7 +192,7 @@ async def main_async(args) -> int:
 
 def main() -> int:
     p = argparse.ArgumentParser(description=__doc__.split("\n", 1)[0])
-    p.add_argument("--base-url", default="https://localhost:8443")
+    p.add_argument("--base-url", default="https://localhost:7443")
     p.add_argument("--user",     default="admin")
     p.add_argument("--password", default="admin")
     p.add_argument("--gen", action="append", default=[],

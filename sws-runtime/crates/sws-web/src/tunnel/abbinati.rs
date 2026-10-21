@@ -175,7 +175,15 @@ impl Abbinati {
         if let Some(p) = &esistente {
             match p.stato {
                 StatoPannello::Bandito => return Err(ErroreAbbina::Bandito),
-                StatoPannello::Attivo if p.azienda != azienda => return Err(ErroreAbbina::DiUnAltraAzienda),
+                // Di un'altra azienda: non si prende rivendicandolo, **in
+                // qualunque stato sia**. Fino al 21-10-2026 questo controllo
+                // guardava solo `Attivo`, quindi un pannello **sospeso** lo
+                // abbinava chiunque avesse il codice e se lo portava via:
+                // sospendere un pannello per manutenzione voleva dire lasciarlo
+                // prendere. Lo spostamento ora è un atto esplicito della
+                // piattaforma (`Abbinati::sposta`), non l'effetto collaterale di
+                // uno stato.
+                _ if p.azienda != azienda => return Err(ErroreAbbina::DiUnAltraAzienda),
                 _ => {}
             }
         }
@@ -213,6 +221,29 @@ impl Abbinati {
         righe.push(p);
         righe.sort_by(|a, b| a.nome.cmp(&b.nome));
         self.scrivi(&righe)
+    }
+
+    /// Sposta una riga a un'altra azienda. `false` se `nome` non c'è.
+    ///
+    /// È l'unica strada perché un pannello cambi azienda, e la può percorrere
+    /// solo chi amministra la piattaforma: è la cosa che il messaggio d'errore
+    /// di `prepara` prometteva dall'11-10-2026 senza che esistesse.
+    pub fn sposta(&self, nome: &str, azienda: &str) -> anyhow::Result<bool> {
+        let mut righe = self.g();
+        let Some(p) = righe.iter_mut().find(|p| p.nome == nome) else { return Ok(false) };
+        p.azienda = azienda.to_string();
+        self.scrivi(&righe)?;
+        Ok(true)
+    }
+
+    /// Quanti pannelli ha un'azienda, e quanti di quelli sono collegati adesso.
+    /// Il segmento è quello dell'URL del gateway (`-` per l'implicita), lo
+    /// stesso che la riga tiene in `azienda`.
+    pub fn conta_di(&self, segmento: &str, collegati: &[String]) -> (usize, usize) {
+        let righe = self.g();
+        let suoi: Vec<&Pannello> = righe.iter().filter(|p| p.azienda == segmento).collect();
+        let accesi = suoi.iter().filter(|p| collegati.iter().any(|c| c == &p.nome)).count();
+        (suoi.len(), accesi)
     }
 
     pub fn imposta_stato(&self, nome: &str, stato: StatoPannello) -> anyhow::Result<bool> {
@@ -352,6 +383,49 @@ mod tests {
         assert_eq!(a.riconosci("s", "tc620-casa", &token).unwrap().hw, "seriale:X");
         assert!(!a.rinomina("non-c-e", "x").unwrap());
         assert_eq!(Abbinati::apri(d.path()).per_nome("tc620-casa").unwrap().hw, "seriale:X", "su disco");
+    }
+
+    #[test]
+    fn un_pannello_sospeso_non_se_lo_prende_un_altra_azienda() {
+        // Il buco trovato il 21-10-2026: `prepara` guardava solo lo stato
+        // `Attivo`, quindi bastava che un pannello fosse sospeso perché
+        // chiunque avesse il codice se lo portasse via.
+        let d = tempfile::tempdir().unwrap();
+        let a = Abbinati::apri(d.path());
+        let (p, _) = a.prepara("s", "seriale:P05", "acme", None, "tc620", &[]).unwrap();
+        a.salva(p).unwrap();
+        a.imposta_stato("tc620", StatoPannello::Sospeso).unwrap();
+        assert_eq!(
+            a.prepara("s", "seriale:P05", "rossi", None, "x", &[]).unwrap_err(),
+            ErroreAbbina::DiUnAltraAzienda,
+        );
+        // La **sua** azienda invece lo ritrova: un pannello sospeso che si
+        // riabbina torna attivo, ed è il modo di rimetterlo in servizio.
+        assert!(a.prepara("s", "seriale:P05", "acme", None, "x", &[]).is_ok());
+    }
+
+    #[test]
+    fn spostare_e_contare_per_azienda() {
+        let d = tempfile::tempdir().unwrap();
+        let a = Abbinati::apri(d.path());
+        for (hw, nome) in [("hw1", "uno"), ("hw2", "due")] {
+            let (p, _) = a.prepara("s", hw, "acme", Some(nome), "x", &[]).unwrap();
+            a.salva(p).unwrap();
+        }
+        assert_eq!(a.conta_di("acme", &["uno".into()]), (2, 1), "due abbinati, uno collegato");
+        assert_eq!(a.conta_di("rossi", &[]), (0, 0));
+
+        assert!(a.sposta("due", "rossi").unwrap());
+        assert_eq!(a.conta_di("acme", &[]), (1, 0));
+        assert_eq!(a.conta_di("rossi", &[]), (1, 0));
+        assert!(!a.sposta("non-c-e", "rossi").unwrap());
+        // E dopo lo spostamento se lo prende davvero la nuova azienda.
+        assert!(a.prepara("s", "hw2", "rossi", None, "x", &[]).is_ok());
+        assert_eq!(
+            a.prepara("s", "hw2", "acme", None, "x", &[]).unwrap_err(),
+            ErroreAbbina::DiUnAltraAzienda,
+        );
+        assert_eq!(Abbinati::apri(d.path()).per_nome("due").unwrap().azienda, "rossi", "su disco");
     }
 
     #[test]

@@ -100,7 +100,7 @@ fn is_loopback(addr: &str) -> bool {
 /// Non è teoria: mdns-sd consegna `ServiceResolved` man mano che impara gli
 /// indirizzi, e la **prima** risposta può portare solo `127.0.0.1`. Tenendo
 /// sempre la prima, un runtime su un'altra macchina finiva offerto come
-/// `http://127.0.0.1:8444` — misurato, capitava circa due volte su tre.
+/// `http://127.0.0.1:7444` — misurato, capitava circa due volte su tre.
 fn prefer_new_address(old: &str, new: &str) -> bool {
     is_loopback(old) && !is_loopback(new)
 }
@@ -194,7 +194,7 @@ fn browse_mdns_blocking(timeout_secs: u64) -> Vec<DiscoveredRuntime> {
                 let admin_port: u16 = info
                     .get_property_val_str("admin_port")
                     .and_then(|s| s.parse().ok())
-                    .unwrap_or(8444);
+                    .unwrap_or(7444);
                 let version = info.get_property_val_str("version").map(str::to_string);
                 // Default "https" per i runtime che non annunciano lo schema
                 // (versioni precedenti a questo campo).
@@ -495,13 +495,13 @@ fn browse_dispositivi_blocking(timeout_secs: u64) -> Vec<DispositivoLan> {
 }
 
 /// Le TXT di un runtime SWS, con le stesse regole di `browse_mdns_blocking`:
-/// porta admin 8444 e schema https se non dichiarati, `container` solo se non
+/// porta admin 7444 e schema https se non dichiarati, `container` solo se non
 /// vuoto.
 fn sws_da_txt(txt: &HashMap<String, String>, ip: &str) -> SwsPresente {
     let admin_port: u16 = txt
         .get("admin_port")
         .and_then(|s| s.parse().ok())
-        .unwrap_or(8444);
+        .unwrap_or(7444);
     let scheme = txt.get("scheme").map(String::as_str).unwrap_or("https");
     SwsPresente {
         presente: true,

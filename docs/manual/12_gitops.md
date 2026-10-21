@@ -155,7 +155,7 @@ mostrano lo stesso progetto.
 (raggiungibile o no) e **Firma** (uguale a quella dell'IDE o diversa), e i pulsanti per connettersi e fare il
 deploy.
 
-- **Aggiungi dispositivo**: etichetta, URL della gestione (`http(s)://<ip>:8444`), utente SWS. L'utente è quello
+- **Aggiungi dispositivo**: etichetta, URL della gestione (`http(s)://<ip>:7444`), utente SWS. L'utente è quello
   del progetto o l'Admin del dispositivo, non l'utente SSH; vuoto per un pannello ancora da abbinare.
 - **Cerca dispositivi in rete** li trova via mDNS.
 - La lista sta sul server, in `<cartella progetti>/.ambiente/dispositivi.yaml`: etichetta, URL e utente, **mai la

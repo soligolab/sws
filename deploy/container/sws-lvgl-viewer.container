@@ -18,7 +18,7 @@
 
 [Unit]
 # La versione del quadlet: vedi il commento gemello in sws-runtime.container.
-Description=SWS viewer LVGL (container podman) [quadlet 4]
+Description=SWS viewer LVGL (container podman) [quadlet 5]
 # Il runtime deve esserci: il viewer legge da lui pagine, tag e allarmi. Non
 # `Requires=`, perché un viewer che aspetta è meglio di un viewer che non parte:
 # il runtime può tardare qualche secondo dopo un riavvio.
@@ -42,7 +42,7 @@ Entrypoint=sws-lvgl-viewer
 # il nome sbagliato non comparirebbe da nessuna parte se non dentro questa
 # riga. È quello che è successo davvero sul WP630, con `--page "Grafici e
 # tabelle"` scritto a mano.
-Exec=--base-url http://127.0.0.1:8443
+Exec=--base-url http://127.0.0.1:7443
 
 # Rete host: il viewer parla col runtime su 127.0.0.1.
 Network=host

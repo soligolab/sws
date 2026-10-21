@@ -21,7 +21,7 @@ if [ -f "$SWS_HOME/lvgl-viewer.env" ]; then
     . "$SWS_HOME/lvgl-viewer.env"
 fi
 
-: "${SWS_LVGL_BASE_URL:=https://localhost:8443}"
+: "${SWS_LVGL_BASE_URL:=https://localhost:7443}"
 
 if [ -z "${SWS_LVGL_PAGE:-}" ]; then
     echo "sws-lvgl-viewer-launch.sh: SWS_LVGL_PAGE is not set." >&2

@@ -75,10 +75,10 @@ Il runtime avvia **due server HTTPS** su porte distinte:
 
 | Porta | Ruolo | SPA servita | Auth |
 |-------|-------|-------------|------|
-| **8443** | Viewer operatori | `dist/index.html` (RuntimeViewer, ~24 kB) | Optional (`optional_auth`): no token → Viewer anonimo |
-| **8444** | Admin IDE | `dist/index-admin.html` (App completa, ~310 kB) | Required: token valido oppure 401 |
+| **7443** | Viewer operatori | `dist/index.html` (RuntimeViewer, ~24 kB) | Optional (`optional_auth`): no token → Viewer anonimo |
+| **7444** | Admin IDE | `dist/index-admin.html` (App completa, ~310 kB) | Required: token valido oppure 401 |
 
-Il proxy Vite (`5173 → 8444`) permette lo sviluppo senza accettare il cert self-signed
+Il proxy Vite (`5173 → 7444`) permette lo sviluppo senza accettare il cert self-signed
 dell'admin IDE. Il cert TLS è **persistente tra i restart** del runtime (T-21 fix):
 basta accettarlo una volta per browser.
 
@@ -95,8 +95,8 @@ Cosa testare qui:
 - Browser di sistema (Firefox/Chrome) per accettare i cert self-signed.
 
 Dopo `./scripts/start_runtime.sh`:
-- `https://localhost:8443` → Viewer operatori (accettare cert self-signed una volta)
-- `https://localhost:8444` → IDE admin (accettare cert una volta)
+- `https://localhost:7443` → Viewer operatori (accettare cert self-signed una volta)
+- `https://localhost:7444` → IDE admin (accettare cert una volta)
 
 Il cert TLS (`tls.crt`/`tls.key` in `.run/config/`) è persistente tra restart.
 
@@ -122,14 +122,14 @@ problema da indagare e non si tocca.
 
 Flusso tipico:
 1. `./scripts/start_runtime.sh` su questa macchina avvia:
-   - runtime (8443 viewer + 8444 admin/IDE)
+   - runtime (7443 viewer + 7444 admin/IDE)
    - stampa la LAN IP del server
 2. Il maintainer apre il browser sul **proprio PC**:
 
 | URL | Cosa mostra | Cert |
 |-----|-------------|------|
-| `https://<server-ip>:8443` | Viewer operatori | self-signed, accettare una volta |
-| `https://<server-ip>:8444` | IDE admin diretto | self-signed, accettare una volta |
+| `https://<server-ip>:7443` | Viewer operatori | self-signed, accettare una volta |
+| `https://<server-ip>:7444` | IDE admin diretto | self-signed, accettare una volta |
 
 Cosa NON si può testare qui:
 - `sws-kiosk`: richiede un display GTK; questa macchina non ne ha. Per quello, vedi
@@ -153,14 +153,14 @@ Layout su device:
   config/                  cert TLS (generati al primo avvio, persistenti)
   projects/                progetti operativi
   templates/               template bundled
-  www/                     SPA dist (viewer 8443 + admin 8444)
+  www/                     SPA dist (viewer 7443 + admin 7444)
   historian.db             SQLite
 ```
 
 Porte su device:
 ```
-https://<device-ip>:8443   → viewer operatori
-https://<device-ip>:8444   → gestione remota: deploy, pull, backup, utenti,
+https://<device-ip>:7443   → viewer operatori
+https://<device-ip>:7444   → gestione remota: deploy, pull, backup, utenti,
                              datastore. **Nessun IDE**: dal 2026-09-02 i
                              dispositivi partono con `--no-admin`, quindi quella
                              porta non serve nessuna interfaccia e non permette
@@ -283,7 +283,7 @@ Il display del pannello è pilotato da **Chromium su Weston**, non dal runtime:
 ```bash
 # quale URL sta mostrando il pannello
 busctl --system call net.pixsys.Config1 /net/pixsys/Config1/WebBrowser/MainApp \
-    net.pixsys.Config1.WebBrowser GetUrl          # → s "http://127.0.0.1:8443"
+    net.pixsys.Config1.WebBrowser GetUrl          # → s "http://127.0.0.1:7443"
 # cambiarlo: stessa interfaccia, SetUrl
 # ricaricare la pagina sul pannello (funziona senza sudo dall'account `user`)
 systemctl restart chromium@main-app.service
@@ -351,7 +351,7 @@ Device → Connessione → Configurazione del servizio) o lo schermo propongono 
 ## CODESYS si prende il browser all'avvio (TC620, 27-09-2026)
 
 Sintomo: dopo un riavvio il browser del pannello apre **Cockpit** (`http://127.0.0.1:9443`) invece di SWS, anche
-se il runtime è su e la commutazione ha scritto `http://127.0.0.1:8443` pochi secondi prima.
+se il runtime è su e la commutazione ha scritto `http://127.0.0.1:7443` pochi secondi prima.
 
 Misurato: `/etc/pixsys/main-config.toml` riscritto alle 19:04:02, **11 s dopo** la commutazione (19:03:51), con
 `url = "http://127.0.0.1:9443"`; nella stessa sezione `[web_browser.main_app.codesys] allow_url_override = true`.

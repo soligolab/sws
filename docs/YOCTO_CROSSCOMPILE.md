@@ -271,13 +271,13 @@ The unit runs the launch wrapper, which sources `runtime.env` and execs
 Quick check from the dev box after a deploy:
 
 ```
-curl -k https://<host>:8443/health        # viewer operatori → "ok"
-curl -k https://<host>:8444/health        # admin IDE → "ok"
+curl -k https://<host>:7443/health        # viewer operatori → "ok"
+curl -k https://<host>:7444/health        # admin IDE → "ok"
 ```
 
 > **Nota porte (T-21)**: il runtime avvia due server HTTPS.
-> `8443` = viewer operatori (optional_auth, esposto agli operatori).
-> `8444` = admin IDE (required_auth, solo per deploy e amministrazione — non esporre agli operatori in produzione).
+> `7443` = viewer operatori (optional_auth, esposto agli operatori).
+> `7444` = admin IDE (required_auth, solo per deploy e amministrazione — non esporre agli operatori in produzione).
 
 If `/health` doesn't answer, on the device:
 
@@ -298,7 +298,7 @@ sudo journalctl -u sws-runtime.service -n 200 --no-pager
 | `failed to run the Python interpreter at /usr/bin/python: No such file or directory` | Debian box has only `python3`, no `python` alias | `apt install python3` + let `build.sh` auto-export `PYO3_PYTHON` (already does), or `sudo ln -s /usr/bin/python3 /usr/bin/python` |
 | `readelf -d` shows `libssl`/`libcrypto` | a crate pulled native OpenSSL | find it (`cargo tree -i openssl-sys`); switch to `rustls`-backed features |
 | `readelf -d` shows `libgtk-4`/`libwebkit2gtk` | accidentally built `sws-kiosk` for the target | only build `-p sws-runtime` (default in `build.sh`); kiosk is host-only |
-| Deploy succeeds but `/health` is silent | systemd unit not enabled, or port 8443 firewalled | `systemctl status sws-runtime`, then `journalctl -u sws-runtime -n 100` |
+| Deploy succeeds but `/health` is silent | systemd unit not enabled, or port 7443 firewalled | `systemctl status sws-runtime`, then `journalctl -u sws-runtime -n 100` |
 | `sws-runtime` exits with `permission denied` on `historian.db` | first start as a non-root user that can't write `/data/user/sws/` | unit currently runs `User=root` for the PoC — confirm `User=` line in `/etc/systemd/system/sws-runtime.service` |
 | Re-deploy wipes `runtime.env` | shouldn't happen — `deploy.sh` only seeds it when missing | check `deploy.sh` install block; if intentional during a major upgrade, back up the file first |
 

@@ -44,11 +44,11 @@ flowchart LR
   REG["ghcr.io<br/>(registry)"]
   BROW["Browser dell'ingegnere"]
 
-  OP -->|8443| R
-  K -->|127.0.0.1:8443| R
-  L -->|127.0.0.1:8443| R
+  OP -->|7443| R
+  K -->|127.0.0.1:7443| R
+  L -->|127.0.0.1:7443| R
   R <-->|protocolli di campo| CAMPO
-  IDEL -->|8444| R
+  IDEL -->|7444| R
   R -->|"tunnel WSS uscente<br/>tunnel.soligo.net:443"| T
   BROW -->|"HTTPS sws.soligo.net"| T
   T --> G
@@ -95,9 +95,9 @@ Sul pannello i volumi stanno in `/data/user/sws/{config,projects,logs}`; nel clo
 ### 1.3 Avvio, salute, etichette
 
 - **Entrypoint**: `sws-runtime`. Gli argomenti predefiniti dell'immagine sono quelli del **pannello**: viewer sulla
-  8443, gestione sulla 8444 in modalità ristretta (`--no-admin`). Gateway e container di progetto li sostituiscono
+  7443, gestione sulla 7444 in modalità ristretta (`--no-admin`). Gateway e container di progetto li sostituiscono
   (sezioni 3 e 4).
-- **Healthcheck**: ogni 30 s, `curl /health` sulla 8443 o sulla 8444. Con `Notify=healthy` nel quadlet, systemd
+- **Healthcheck**: ogni 30 s, `curl /health` sulla 7443 o sulla 7444. Con `Notify=healthy` nel quadlet, systemd
   considera il servizio avviato solo quando il container è *healthy*: è quello che permette a un aggiornamento
   difettoso di tornare indietro da solo.
 - **Etichette**: versione, licenza, e `net.soligo.sws.novita.{it,en}` / `compat.{it,en}` (le Novità e gli avvisi di
@@ -117,7 +117,7 @@ Il quadlet `~/.config/containers/systemd/sws-runtime.container` (lo scrive `inst
 
 | Riga | Perché |
 |---|---|
-| `Network=host` (predefinito) | il multicast **mDNS** deve raggiungere la LAN, perché l'IDE trovi il pannello con «Cerca». `--bridge` all'installazione usa invece `PublishPort=8443/8444` |
+| `Network=host` (predefinito) | il multicast **mDNS** deve raggiungere la LAN, perché l'IDE trovi il pannello con «Cerca». `--bridge` all'installazione usa invece `PublishPort=7443/7444` |
 | `Volume=/data/user/sws/{config,projects,logs}` | i dati sopravvivono a ogni aggiornamento dell'immagine |
 | `Volume=/run/dbus/system_bus_socket` e il bus utente `/run/user/1000/bus` | il runtime **commuta lo schermo** (Chromium o LVGL) e **avvia l'aggiornamento** parlando con systemd via D-Bus |
 | `AddDevice=-/dev/ttyCOM1…`, `ttyS*`, `ttymxc*`, `ttyUSB*`, `ttyACM*` | le porte seriali per Modbus RTU; il `-` vuol dire «se esiste» |
@@ -132,9 +132,9 @@ Il quadlet `~/.config/containers/systemd/sws-runtime.container` (lo scrive `inst
 Il progetto dichiara il motore (`target.kind`: `web`, `lvgl_framebuffer`, `lvgl_wayland`). All'apertura di un
 progetto il runtime **commuta da sé** via D-Bus:
 
-- **web**: Chromium in modalità kiosk (`chromium@main-app.service`, unità di sistema) su `http://127.0.0.1:8443`;
+- **web**: Chromium in modalità kiosk (`chromium@main-app.service`, unità di sistema) su `http://127.0.0.1:7443`;
 - **LVGL**: il container `sws-lvgl-viewer` (unità utente), stessa immagine, `Network=host`, che legge pagine e dati
-  da `http://127.0.0.1:8443` come farebbe un browser e disegna con SDL su X11/Wayland.
+  da `http://127.0.0.1:7443` come farebbe un browser e disegna con SDL su X11/Wayland.
 
 La modalità di configurazione del pannello (STOP tenuto premuto all'accensione) **non si tocca**: il runtime aspetta
 che il launcher si decida e, nel dubbio, non prende lo schermo.
@@ -271,15 +271,23 @@ archiviati); avvisa avvicinandosi al limite e rifiuta la creazione di progetti n
 
 | Porta | Chi ascolta | Dove | A chi serve | Note |
 |---|---|---|---|---|
-| **8443** | runtime del pannello | `0.0.0.0` (`127.0.0.1` con `--kiosk`) | operatori: pagine, dati vivi, comandi, login | HTTP, o HTTPS se il TLS è attivo |
-| **8444** | runtime del pannello (`--no-admin`) | `0.0.0.0` | l'IDE: deploy, utenti, backup, aggiornamento, storico, log | **API ristretta**, tutto autenticato, nessuna interfaccia |
+| **7443** | runtime del pannello | `0.0.0.0` (`127.0.0.1` con `--kiosk`) | operatori: pagine, dati vivi, comandi, login | HTTP, o HTTPS se il TLS è attivo |
+| **7444** | runtime del pannello (`--no-admin`) | `0.0.0.0` | l'IDE: deploy, utenti, backup, aggiornamento, storico, log | **API ristretta**, tutto autenticato, nessuna interfaccia |
 | **8444** | gateway e container di progetto | rete interna del VPS | Traefik e il gateway | non esposta |
 | **8080** | runtime con TLS attivo (`--http-port`) | `0.0.0.0` | browser al primo accesso | pagina per accettare il certificato autofirmato e scaricarlo (`/cert`) |
 | **80 / 443** | Traefik | VPS | Internet | `sws.soligo.net` (IDE e console), `tunnel.soligo.net` (pannelli) |
 | **5353/udp** | mDNS del runtime | LAN | l'IDE che «Cerca» | servizio `_sws._tcp.local.` |
 | 8460 / 8090 | IDE «da cliente» sul PC (`start_editor.sh`) | PC | chi progetta | solo per installazioni dell'IDE su un PC |
 
-**Da aprire su un firewall di impianto**: la **8443** verso chi deve vedere le pagine, la **8444** verso chi usa
+> **Erano 8443 e 8444 fino al 21-10-2026.** La coppia si è spostata per lasciare la 8443 all'API REST di OpenPLC,
+> che sul dispositivo deve poter girare accanto a SWS e restare usabile anche da sola, con i suoi strumenti. Le due
+> porte restano **adiacenti** perché l'IDE deduce la porta del viewer come «admin − 1»: lasciando l'IDE sulla 8444,
+> il bottone «Viewer ↗» avrebbe aperto OpenPLC. Il **gateway nel cloud resta sulla 8444**: è una porta interna alla
+> rete del VPS, non è esposta e non collide con niente. Un pannello già installato si sposta da sé
+> all'aggiornamento, perché il quadlet viaggia con l'immagine; un dispositivo registrato a mano con `:8444`
+> nell'URL va corretto una volta.
+
+**Da aprire su un firewall di impianto**: la **7443** verso chi deve vedere le pagine, la **7444** verso chi usa
 l'IDE in LAN, la **8080** solo se si usa il TLS del pannello. **In uscita**, se il pannello deve essere
 raggiungibile dal cloud: **443 verso `tunnel.soligo.net`** e verso `ghcr.io` per gli aggiornamenti. Nient'altro in
 entrata: il tunnel lo apre il pannello.
@@ -293,7 +301,7 @@ entrata: il tunnel lo apre il pannello.
 ```mermaid
 sequenceDiagram
   participant B as Browser / kiosk / LVGL
-  participant R as runtime :8443
+  participant R as runtime :7443
   B->>R: GET /  (l'interfaccia, no-cache)
   B->>R: GET /api/project, /api/synoptics/… (le pagine, con la cornice)
   B->>R: POST /api/auth/login (se il progetto ha utenti e serve un ruolo)
@@ -319,7 +327,7 @@ sequenceDiagram
 sequenceDiagram
   participant IDE as IDE (browser)
   participant RL as runtime dell'IDE
-  participant P as pannello :8444
+  participant P as pannello :7444
   IDE->>RL: POST /api/remote/connect {url, utente, password}
   RL->>P: TLS: verifica certificato (pubblico o impronta)
   RL->>P: POST /api/auth/login
@@ -338,7 +346,7 @@ sequenceDiagram
 - **Fiducia nel certificato**: un certificato pubblico valido passa con la verifica dei browser; un autofirmato si
   memorizza **al primo contatto** (`dispositivi_conosciuti.yaml`, come `known_hosts`) e un'impronta **cambiata** è
   rifiutata finché non la si dimentica a mano.
-- **Il deploy** è un pacchetto ZIP caricato sulla 8444 (`/api/projects/upload?deploy=true`), che sostituisce i file
+- **Il deploy** è un pacchetto ZIP caricato sulla 7444 (`/api/projects/upload?deploy=true`), che sostituisce i file
   di progettazione e conserva storico e backup; poi l'apertura del progetto.
 - **Il log del pannello** (`/ws/remote/logs`) arriva nel log dell'IDE da INFO in su; il DEBUG solo per
   l'amministratore di piattaforma, e solo finché lo chiede.
@@ -360,7 +368,7 @@ sequenceDiagram
   Note over P,G: il pannello riprova da 2 a 60 s se cade; ping ogni 30 s
   C->>G: /dev/<pannello>/api/… (X-SWS-Figlio: chiave di ritorno)
   G->>P: uno stream yamux nuovo
-  P->>P: TCP verso la propria :8444
+  P->>P: TCP verso la propria :7444
   P-->>G: risposta HTTP
   G-->>C: risposta
 ```
@@ -368,13 +376,22 @@ sequenceDiagram
 - **Perché un WebSocket**: nasce da una richiesta HTTPS sulla 443, quindi passa dove passa un browser (proxy,
   firewall che guardano i protocolli). Dentro, **yamux** multiplexa tanti stream su quella connessione sola.
 - **Il pannello non interpreta niente**: ogni stream diventa una connessione TCP verso la propria porta di gestione
-  (8444) e i byte si copiano nei due versi. Dall'altra parte c'è lo stesso server che risponderebbe a un IDE in LAN.
+  (7444) e i byte si copiano nei due versi. Dall'altra parte c'è lo stesso server che risponderebbe a un IDE in LAN.
 - **`/dev/<pannello>/…`** è l'indirizzo con cui il container di progetto chiama il pannello: lo strato remoto non sa
   che c'è un tunnel, compone `{base}/api/…` come sempre.
 - **Abbinamento**: un pannello nuovo si presenta senza nome; il gateway lo tiene in attesa e, quando qualcuno
   inserisce il suo **codice**, gli dà nome e token. Il token è `HMAC(segreto del gateway, identità hardware)`:
   ripetibile (una scatola riformattata rientra sulla stessa riga) e non indovinabile dal seriale. Un pannello
   **sospeso o bandito** è rifiutato prima ancora di guardare il token.
+- **Un pannello è di un'azienda sola, e non cambia azienda da sé.** Chi prova ad abbinare un pannello già di
+  un'altra azienda riceve 409, **in qualunque stato sia** — anche sospeso. Spostarlo è un atto esplicito di chi
+  amministra la piattaforma, dalla pagina *Pannelli* della console (`POST /api/amministrazione/pannelli/:nome/azienda`):
+  il tunnel si stacca, il pannello si ricollega da sé, e l'azienda di prima non lo raggiunge più. *(Fino al
+  21-10-2026 bastava che un pannello fosse sospeso perché chiunque avesse il codice se lo portasse via:
+  sospenderlo per manutenzione voleva dire lasciarlo prendere.)*
+- **Quanti ne ha ogni azienda** si legge nella prima pagina della console, accanto ai progetti aperti: quanti
+  abbinati e quanti accesi adesso. Se l'azienda ha un `max_pannelli` concordato, è scritto accanto al numero ma
+  **non ferma niente**: prima di rifiutare un abbinamento va deciso quando una licenza si libera.
 
 ### 5.4 Il browser, il gateway e il container di progetto
 
@@ -402,7 +419,7 @@ sequenceDiagram
 
 ### 5.5 Dentro il pannello
 
-- Chromium kiosk e viewer LVGL parlano col runtime su **`127.0.0.1:8443`**: non escono dal pannello.
+- Chromium kiosk e viewer LVGL parlano col runtime su **`127.0.0.1:7443`**: non escono dal pannello.
 - Il runtime parla con **systemd** (bus di sistema e bus utente montati nel container) per lo schermo e per gli
   aggiornamenti, e lancia sull'host i soli script previsti (`install-container.sh --solo-unita`, `immagini.sh`) come
   servizi transitori dell'utente.
@@ -457,9 +474,9 @@ Admin (tutto il resto). Dettagli nel [capitolo 09](09_auth_rbac.md).
 
 | Canale | Dove | Cosa porta | Chi |
 |---|---|---|---|
-| `/ws/tags` | 8443, 8444 | snapshot e variazioni dei tag sottoscritti; comandi | autenticato o anonimo (Viewer) |
-| `/ws/alarms` | 8443, 8444 | stato degli allarmi | idem |
-| `/ws/logs` | IDE; 8444 del pannello | il log del runtime (pannello: da INFO, DEBUG a richiesta) | Operator nell'IDE; Admin sul pannello |
+| `/ws/tags` | 7443, 7444 | snapshot e variazioni dei tag sottoscritti; comandi | autenticato o anonimo (Viewer) |
+| `/ws/alarms` | 7443, 7444 | stato degli allarmi | idem |
+| `/ws/logs` | IDE; 7444 del pannello | il log del runtime (pannello: da INFO, DEBUG a richiesta) | Operator nell'IDE; Admin sul pannello |
 | `/ws/ai` | IDE | la chat dell'assistente | Admin |
 | `/ws/remote/{tags,alarms,logs}` | IDE | relay verso il pannello collegato | Admin |
 | `/tunnel/v1` | gateway | il tunnel dei pannelli | token del pannello |
@@ -516,7 +533,7 @@ richieste per indirizzo valgono su tutte le porte: [capitolo 17](17_sicurezza.md
 
 | Sintomo | Dove guardare | Cosa fare |
 |---|---|---|
-| Il pannello non risponde | sul pannello: `systemctl --user status sws-runtime`, `podman ps`, `podman logs --since 10m sws-runtime` | `curl -fs http://127.0.0.1:8443/health`; se il servizio va in timeout al primo avvio di un'immagine nuova, aspettare il secondo tentativo |
+| Il pannello non risponde | sul pannello: `systemctl --user status sws-runtime`, `podman ps`, `podman logs --since 10m sws-runtime` | `curl -fs http://127.0.0.1:7443/health`; se il servizio va in timeout al primo avvio di un'immagine nuova, aspettare il secondo tentativo |
 | «Cerca» non trova il pannello | rete: mDNS su 5353/udp | il pannello deve avere `Network=host` e stare nella stessa LAN; altrimenti indirizzo a mano |
 | «Connetti» rifiuta il certificato | IDE: messaggio «impronta cambiata» | il pannello ha un certificato nuovo: dimenticare l'impronta (Dispositivi) solo se il cambio è voluto |
 | Il pannello non si vede dal cloud | IDE cloud: elenco Pannelli; sul pannello: log `tunnel` | uscita 443 verso `tunnel.soligo.net`; pannello abbinato; non installato con `--senza-cloud` |

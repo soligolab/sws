@@ -31,7 +31,7 @@ export function ViewerLink() {
   const [error, setError]     = useState<string | null>(null);
   // true quando il probe e' fallito su un URL https: oltre al messaggio si
   // offre l'azione "accetta il certificato" (il viewer e' un ORIGIN diverso
-  // dall'IDE: l'accettazione fatta per :8444 non copre :8443).
+  // dall'IDE: l'accettazione fatta per :7444 non copre :7443).
   const [offerCertAction, setOfferCertAction] = useState(false);
   // `remoteUrl` nello store lo scrive RuntimeConnectionTab, quindi resta vuoto
   // finché in questa sessione non si è aperta Configurazione → Istanza → Device → Connessione. Chi

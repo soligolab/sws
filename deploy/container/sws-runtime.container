@@ -24,7 +24,7 @@
 # più basso di quello dell'immagine che gira mostra «configurazione del servizio
 # da aggiornare», e la si aggiorna dall'IDE o dal pannello — vedi
 # docs/plans/2026-10-02-quadlet-che-viaggia.md.
-Description=SWS runtime (container podman) [quadlet 4]
+Description=SWS runtime (container podman) [quadlet 5]
 Documentation=file:///data/user/sws-container/README
 After=network-online.target
 Wants=network-online.target
@@ -39,7 +39,7 @@ ContainerName=sws-runtime
 
 # ── Riaccendere l'IDE su questo dispositivo ─────────────────────────────────
 #
-# Dalla 2.4.0 l'immagine parte con `--no-admin`: sulla 8444 c'è solo la gestione
+# Dalla 2.4.0 l'immagine parte con `--no-admin`: sulla 7444 c'è solo la gestione
 # remota che l'editor chiama (deploy, pull, backup, utenti, datastore), e
 # **nessuna interfaccia**. L'IDE sul dispositivo è un caso particolare — messa in
 # servizio, assistenza — non il default.
@@ -54,9 +54,9 @@ ContainerName=sws-runtime
 # un container che non parte — o che parte senza `--www` e serve una pagina bianca.
 # Ricomporla non è un lavoro da fare su un dispositivo in campo.
 #
-#Exec=--config /var/sws/config --projects-root /var/sws/projects --templates-root /var/sws/templates --www /var/sws/www --viewer-port 8443 --admin-port 8444
+#Exec=--config /var/sws/config --projects-root /var/sws/projects --templates-root /var/sws/templates --www /var/sws/www --viewer-port 7443 --admin-port 7444
 
-# 8443 viewer operatori, 8444 IDE/admin. Porte > 1024: rootless le binda
+# 7443 viewer operatori, 7444 IDE/admin. Porte > 1024: rootless le binda
 # senza privilegi.
 #
 # ATTENZIONE: queste due righe valgono solo in modalità bridge, che NON è più
@@ -65,8 +65,8 @@ ContainerName=sws-runtime
 # dal container e "Cerca runtime" nell'IDE non trova mai il dispositivo. Restano
 # qui, e non sostituite da Network=host, perché è l'installer a scegliere: con
 # `--bridge` il file viene copiato così com'è.
-PublishPort=8443:8443
-PublishPort=8444:8444
+PublishPort=7443:7443
+PublishPort=7444:7444
 
 # Bind mount su un percorso esplicito dell'host invece di volumi nominati:
 # i dati (progetti, config, historian) restano visibili e copiabili in

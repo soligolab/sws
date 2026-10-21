@@ -8,9 +8,9 @@
 #       compila in release, avvia un runtime di prova (porte 8696/8697, cartelle
 #       temporanee), misura e lo ferma sempre, anche se qualcosa va storto;
 #   ./scripts/banco_prestazioni.sh tc620 <host> [progetto da riaprire]
-#       la gestione del pannello è solo su 127.0.0.1:8444: la si raggiunge con un
+#       la gestione del pannello è solo su 127.0.0.1:7444: la si raggiunge con un
 #       tunnel SSH (utente `user`, a chiave), i client vanno diretti sul viewer
-#       <host>:8443 come un browser. Serve l'admin dell'istanza in
+#       <host>:7443 come un browser. Serve l'admin dell'istanza in
 #       SWS_BANCO_UTENTE / SWS_BANCO_PASSWORD. Alla fine riapre il progetto.
 #
 # Variabili: SWS_BANCO_TAG (default 100,1000,5000), SWS_BANCO_CLIENT (1,5,20),
@@ -45,11 +45,11 @@ case "$dove" in
     riapri="${3:-}"
     : "${SWS_BANCO_UTENTE:?serve SWS_BANCO_UTENTE, admin della istanza}" "${SWS_BANCO_PASSWORD:?serve SWS_BANCO_PASSWORD}"
     (cd sws-runtime && cargo build --release -p sws-banco)
-    ssh -o BatchMode=yes -o ExitOnForwardFailure=yes -N -L 18444:127.0.0.1:8444 "user@$host" &
+    ssh -o BatchMode=yes -o ExitOnForwardFailure=yes -N -L 18444:127.0.0.1:7444 "user@$host" &
     tunnel=$!
     trap 'kill $tunnel 2>/dev/null' EXIT
     for _ in $(seq 1 20); do curl -sf -o /dev/null http://localhost:18444/health && break; sleep 0.5; done
-    sws-runtime/target/release/sws-banco --gestione http://localhost:18444 --viewer "http://$host:8443" \
+    sws-runtime/target/release/sws-banco --gestione http://localhost:18444 --viewer "http://$host:7443" \
       --utente "$SWS_BANCO_UTENTE" --tag "$TAG" --client "$CLIENT" --durata "$DURATA" --macchina "TC620" \
       ${riapri:+--ripristina "$riapri"} --uscita "docs/prestazioni/$OGGI-tc620.json"
     ;;

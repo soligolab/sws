@@ -68,7 +68,7 @@ export function preferisciMdns(url: string, hostname: string | undefined | null)
  *  pannello. */
 export function dispositivoDaRete(d: DispositivoRete): SavedDevice {
   const label = d.hostname.replace(/\.local$/i, "") || d.indirizzo;
-  const url = preferisciMdns(d.sws.admin_url ?? `https://${d.indirizzo}:8444`, d.hostname);
+  const url = preferisciMdns(d.sws.admin_url ?? `https://${d.indirizzo}:7444`, d.hostname);
   return { label, url, user: "" };
 }
 

@@ -8,7 +8,7 @@ Type=simple
 User=pixsys
 Environment=WAYLAND_DISPLAY=wayland-0
 ExecStartPre=/bin/sleep 2
-ExecStart=/data/user/sws/sws-kiosk --url https://localhost:8443
+ExecStart=/data/user/sws/sws-kiosk --url https://localhost:7443
 Restart=on-failure
 
 [Install]

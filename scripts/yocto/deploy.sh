@@ -163,4 +163,4 @@ case "$TARGET_HOST" in
   *@*) HOST_PART="${TARGET_HOST#*@}" ;;
   *)   HOST_PART="$TARGET_HOST" ;;
 esac
-echo "  curl -k https://$HOST_PART:8443/health"
+echo "  curl -k https://$HOST_PART:7443/health"

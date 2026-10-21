@@ -600,7 +600,7 @@ export function RuntimeConnectionTab() {
           <label style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)" }}>{t("cfg.targetRuntimeUrl")}</label>
           <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
             <input style={{ ...INPUT, flex: 1, boxSizing: "border-box" }}
-              placeholder="https://192.168.1.10:8444"
+              placeholder="https://192.168.1.10:7444"
               value={targetUrl}
               onChange={(e) => { setTargetUrl(e.target.value); if (connected) handleDisconnect(); }}
             />
@@ -717,7 +717,7 @@ export function RuntimeConnectionTab() {
             </div>
           )}
           <span style={{ fontSize: 10, color: "var(--brand-text-subtle, #94a3b8)" }}>
-            Porta 8444 = accesso admin (deploy). Porta 8443 = viewer operatori.
+            Porta 7444 = accesso admin (deploy). Porta 7443 = viewer operatori.
           </span>
           {/* «SWS» nell'etichetta, e il perché sotto: questi sono gli utenti
               applicativi del progetto (users.yaml), non l'utente SSH del

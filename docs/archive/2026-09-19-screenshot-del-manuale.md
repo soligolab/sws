@@ -31,7 +31,7 @@ guadagna con T-72 la sezione «Immagini di boot», senza nessuna schermata.
 2. **Rileggere ogni capitolo contro il codice**, non contro la memoria: `docs/manual/` ha 15 capitoli + MAIN, e
    `docs/CONTEXT.md` §3 dice già che una descrizione scritta a giugno era invecchiata a settembre.
 3. **Decidere l'inquadratura di ogni schermata** prima di scattarla (oggi sono dieci, molte non citate dal testo:
-   `04_runtime_mode`, `05_config_view`, `06_alarms_tab` e `07_viewer_8443` non sono referenziate da nessun capitolo).
+   `04_runtime_mode`, `05_config_view`, `06_alarms_tab` e `07_viewer_8443` (rinominata `07_viewer_7443` il 21-10-2026 col cambio di porta) non sono referenziate da nessun capitolo).
 4. Rifare le schermate.
 
 ## Lo strumento, già provato

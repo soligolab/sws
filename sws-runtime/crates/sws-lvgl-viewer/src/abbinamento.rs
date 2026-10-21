@@ -129,7 +129,7 @@ pub fn pagina(codice: &str, nome: &str) -> anyhow::Result<SynopticPage> {
               "fill": "#1e293b", "stroke": "#334155" },
             testo("codice", 200, 70, 44, "#f8fafc", codice),
             testo("oppure", 320, 50, 15, "#94a3b8",
-                "Oppure apri la pagina di questo pannello dal browser (porta 8443 o 8444)\ne crea lì il suo amministratore."),
+                "Oppure apri la pagina di questo pannello dal browser (porta 7443 o 7444)\ne crea lì il suo amministratore."),
             testo("en", 400, 50, 13, "#64748b",
                 "Panel waiting to be paired: enter this code in the IDE («Connect») or in the cloud."),
         ],

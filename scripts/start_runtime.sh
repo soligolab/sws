@@ -2,18 +2,18 @@
 #
 # Avvia il runtime SWS sul dispositivo (panel, server, Raspberry Pi, ecc.).
 #
-#   8443 — viewer per operatori e kiosk (RuntimeViewer SPA)
-#   8444 — IDE/admin remoto (App SPA + API admin complete)
+#   7443 — viewer per operatori e kiosk (RuntimeViewer SPA)
+#   7444 — IDE/admin remoto (App SPA + API admin complete)
 #
-# Un ingegnere può collegarsi a https://<ip>:8444 dal proprio PC per gestire
+# Un ingegnere può collegarsi a https://<ip>:7444 dal proprio PC per gestire
 # il progetto da remoto, oppure usare start_editor.sh in locale e "Connetti
 # runtime" dalla ConfigView per deployare.
 #
 # Uso:
-#   ./scripts/start_runtime.sh                # instance 1: 8443/8444, dati .run/
-#   ./scripts/start_runtime.sh --instance 2   # instance 2: 8445/8446, dati .run-2/
+#   ./scripts/start_runtime.sh                # instance 1: 7443/7444, dati .run/
+#   ./scripts/start_runtime.sh --instance 2   # instance 2: 7445/7446, dati .run-2/
 #   ./scripts/start_runtime.sh --no-admin     # come i dispositivi: nessun IDE
-#                                             # sulla 8444, solo gestione remota
+#                                             # sulla 7444, solo gestione remota
 #
 # Variabili d'ambiente (opzionali):
 #   SWS_ADMIN_USER / SWS_ADMIN_PASSWORD   per creare un utente admin all'avvio
@@ -44,8 +44,8 @@ while [[ $# -gt 0 ]]; do
 done
 
 # ── Porte e directory per-istanza ─────────────────────────────────────────────
-VIEWER_PORT=$((8443 + (INSTANCE - 1) * 2))
-ADMIN_PORT=$((8444  + (INSTANCE - 1) * 2))
+VIEWER_PORT=$((7443 + (INSTANCE - 1) * 2))
+ADMIN_PORT=$((7444  + (INSTANCE - 1) * 2))
 HTTP_PORT=$((8080   + (INSTANCE - 1)))
 
 if [ "$INSTANCE" -eq 1 ]; then

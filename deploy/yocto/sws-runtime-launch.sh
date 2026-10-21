@@ -49,7 +49,7 @@ case "${SWS_ENABLE_IDE:-}" in
         echo "[sws] SWS_ENABLE_IDE: IDE COMPLETO abilitato su questo dispositivo" >&2 ;;
 esac
 
-# Runtime role: viewer operatori (8443) + porta di gestione remota (8444).
+# Runtime role: viewer operatori (7443) + porta di gestione remota (7444).
 # Without --viewer-port the viewer never binds and this would be IDE-only.
 exec "$SWS_HOME/sws-runtime" \
     --config         "$SWS_HOME/config" \
@@ -57,6 +57,6 @@ exec "$SWS_HOME/sws-runtime" \
     --templates-root "$SWS_HOME/templates" \
     --catalog-root "$SWS_HOME/catalogo/dispositivi" \
     --www            "$SWS_HOME/www" \
-    --viewer-port    8443 \
-    --admin-port     8444 \
+    --viewer-port    7443 \
+    --admin-port     7444 \
     "${NO_ADMIN_ARGS[@]}"

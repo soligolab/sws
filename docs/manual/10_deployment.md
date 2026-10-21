@@ -88,19 +88,19 @@ sudo systemctl start sws-runtime
 
 # Verifica
 sudo systemctl status sws-runtime
-curl -k https://localhost:8443/health
+curl -k https://localhost:7443/health
 ```
 
 ### 6. Accesso
 
 | URL | Ruolo |
 |-----|-------|
-| `https://<ip>:8443` | Viewer operatori |
-| `https://<ip>:8444` | Gestione remota (deploy, pull, backup, utenti) — **non l'IDE**, vedi sotto |
+| `https://<ip>:7443` | Viewer operatori |
+| `https://<ip>:7444` | Gestione remota (deploy, pull, backup, utenti) — **non l'IDE**, vedi sotto |
 
 ### L'IDE non c'è, sul dispositivo — e si può accendere
 
-Dalla versione 2.4.0 tutti i pacchetti di installazione partono con **`--no-admin`**. La porta 8444
+Dalla versione 2.4.0 tutti i pacchetti di installazione partono con **`--no-admin`**. La porta 7444
 resta aperta, ma serve solo la gestione remota che l'editor sul PC chiama: deploy, pull, backup,
 utenti, datastore — tutto autenticato. **Non c'è nessuna interfaccia da aprire nel browser, e il
 progetto del dispositivo non si può modificare da lì.**
@@ -116,7 +116,7 @@ sudo systemctl edit sws-runtime      # Environment=SWS_ENABLE_IDE=1
 sudo systemctl restart sws-runtime
 ```
 
-Da quel momento `https://<ip>:8444` serve l'IDE completo, e l'IDE mostra in testata il marcatore
+Da quel momento `https://<ip>:7444` serve l'IDE completo, e l'IDE mostra in testata il marcatore
 **«Impianto in servizio»**: quello che si modifica è il progetto vero, e il salvataggio ne ricarica
 sorgenti e allarmi senza riavvio. Finita l'assistenza, si toglie la variabile e si riavvia.
 
@@ -200,13 +200,13 @@ Lo script:
 ### Porte su device Yocto
 
 ```
-https://<device-ip>:8443   → Viewer operatori
-https://<device-ip>:8444   → Gestione remota (deploy/pull/backup/utenti)
+https://<device-ip>:7443   → Viewer operatori
+https://<device-ip>:7444   → Gestione remota (deploy/pull/backup/utenti)
                              L'IDE completo solo con SWS_ENABLE_IDE=1
 ```
 
-**Raccomandazione**: non esporre la porta 8444 agli operatori in produzione.
-Usa firewall o VPN per limitare l'accesso alla porta 8444 — vale anche senza IDE,
+**Raccomandazione**: non esporre la porta 7444 agli operatori in produzione.
+Usa firewall o VPN per limitare l'accesso alla porta 7444 — vale anche senza IDE,
 perché da lì passano deploy e gestione utenti.
 
 ---
@@ -260,7 +260,7 @@ dalla macchina di sviluppo.
 ### Note container
 
 - Dati persistenti in `/data/user/sws/{projects,config,logs}`, montati nel container.
-- Porte: **8443** viewer operatori, **8444** gestione remota (`--no-admin`, nessun IDE) — come nel deploy nativo.
+- Porte: **7443** viewer operatori, **7444** gestione remota (`--no-admin`, nessun IDE) — come nel deploy nativo.
 - Un pannello senza utenti è **chiuso** e mostra un codice di abbinamento, che `install-container.sh` stampa
   alla fine: vedi [capitolo 09](09_auth_rbac.md#1-un-pannello-nuovo-è-chiuso-labbinamento).
   `SWS_ADMIN_PASSWORD`, se impostata, crea un Admin al primo avvio.
@@ -279,7 +279,7 @@ dalla macchina di sviluppo.
 Per pannelli industriali che devono avviarsi automaticamente alla pagina del sinottico:
 
 ```bash
-./scripts/kiosk.sh --url https://localhost:8443 --fullscreen
+./scripts/kiosk.sh --url https://localhost:7443 --fullscreen
 ```
 
 Richiede GTK4 + WebKitGTK sul sistema host. Sui pannelli Pixsys lo schermo è Chromium in kiosk o il viewer LVGL:
@@ -313,7 +313,7 @@ Il VPS, i quadlet, il gateway, i container di progetto e il tunnel sono descritt
 ## Gestione certificati TLS (opzionale)
 
 SWS parte in **HTTP plain** di default — nessun certificato, primo accesso diretto su
-`http://<host>:8444`. Il TLS è **opt-in**: si attiva quando esiste `tls.crt` nella directory
+`http://<host>:7444`. Il TLS è **opt-in**: si attiva quando esiste `tls.crt` nella directory
 config. Le directory config per ambiente:
 - **Dev**: `.run/config/`
 - **Produzione (generic)**: `/var/lib/sws/config/`

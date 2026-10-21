@@ -177,17 +177,17 @@ più vecchia letta dal disco.
 ### GET /api/history/:tag
 
 ```bash
-TOKEN=$(curl -sk -X POST https://localhost:8443/api/auth/login \
+TOKEN=$(curl -sk -X POST https://localhost:7443/api/auth/login \
   -H 'Content-Type: application/json' \
   -d "{\"username\":\"admin\",\"password\":\"$SWS_ADMIN_PASSWORD\"}" | jq -r .token)
 
 # Ultimi 100 campioni
 curl -k -H "Authorization: Bearer $TOKEN" \
-  "https://localhost:8443/api/history/pressione?limit=100"
+  "https://localhost:7443/api/history/pressione?limit=100"
 
 # Finestra temporale specifica
 curl -k -H "Authorization: Bearer $TOKEN" \
-  "https://localhost:8443/api/history/pressione?from_ms=1735000000000&to_ms=1735600000000"
+  "https://localhost:7443/api/history/pressione?from_ms=1735000000000&to_ms=1735600000000"
 ```
 
 **Risposta**:
@@ -205,7 +205,7 @@ Statistiche aggregate (min, max, media, deviazione standard):
 
 ```bash
 curl -k -H "Authorization: Bearer $TOKEN" \
-  "https://localhost:8443/api/history/pressione/stats?from_ms=1735000000000"
+  "https://localhost:7443/api/history/pressione/stats?from_ms=1735000000000"
 ```
 
 **Risposta**:
@@ -276,7 +276,7 @@ buffer locale.
 ```bash
 # Via API
 curl -k -H "Authorization: Bearer $TOKEN" \
-  "https://localhost:8443/api/datastores/default/stats"
+  "https://localhost:7443/api/datastores/default/stats"
 ```
 
 ---

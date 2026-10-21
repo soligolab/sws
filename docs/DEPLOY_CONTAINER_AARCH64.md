@@ -75,7 +75,7 @@ Il Dockerfile legacy ha quattro difetti che questo percorso evita:
 |---|---|
 | compila Rust nell'immagine (ore in emulazione) | binario precompilato, copia |
 | builder senza `libpython3-dev` → link pyo3 fallisce | nessuna compilazione |
-| `CMD` senza `--viewer-port`/`--www` → viewer mai in ascolto, healthcheck su 8443 sempre rosso | flag completi nel `CMD`, healthcheck su **http** (il runtime parte in HTTP finché non c'è `config/tls.crt`) |
+| `CMD` senza `--viewer-port`/`--www` → viewer mai in ascolto, healthcheck su 7443 sempre rosso | flag completi nel `CMD`, healthcheck su **http** (il runtime parte in HTTP finché non c'è `config/tls.crt`) |
 | entrypoint che pretende `SWS_ADMIN_PASSWORD` (precede il no-auth mode) | nessun entrypoint script |
 | template non copiati → `GET /api/templates` sempre vuoto | `examples/templates` dentro l'immagine |
 
@@ -489,7 +489,7 @@ comportamento precedente, e l'installer in quel caso lo dice esplicitamente.
 
 Misurato sul dispositivo il 2026-07-30, dallo stesso editor e a pochi minuti di
 distanza: in bridge `GET /api/discover` risponde `[]`; in host network
-restituisce il runtime con `admin_url http://192.168.1.84:8444`. Un altro
+restituisce il runtime con `admin_url http://192.168.1.84:7444`. Un altro
 indizio che la rete host è effettiva: l'istanza annunciata passa dall'ID del
 container (`e6ddc6b11b87`) all'hostname del dispositivo.
 
@@ -523,7 +523,7 @@ podman run -d --name sws-lvgl-viewer \
   -e SDL_VIDEODRIVER=wayland \
   --entrypoint sws-lvgl-viewer \
   localhost/sws-runtime:<versione>-arm64 \
-  --base-url https://127.0.0.1:8443 --page "<pagina iniziale>"
+  --base-url https://127.0.0.1:7443 --page "<pagina iniziale>"
 ```
 
 **`--userns=keep-id` non è opzionale**: senza, il socket Wayland dell'host (proprietario
@@ -565,8 +565,8 @@ podman 5.0.2-dev rootless):
 |---|---|
 | `podman ps` → `healthy` | ok |
 | `podman stop` | **1,3 s**, exit code 0 — prima 10 s e SIGKILL |
-| deploy dall'IDE su `:8444` | ok — export, pulizia, upload, attivazione |
-| connect su `:8443` (viewer) | rifiutato con il messaggio che indica la porta admin |
+| deploy dall'IDE su `:7444` | ok — export, pulizia, upload, attivazione |
+| connect su `:7443` (viewer) | rifiutato con il messaggio che indica la porta admin |
 | progetto dopo reinstall dell'immagine | conservato (volumi nominati) |
 | log in `/var/sws/logs` nel volume | ok — `runtime-2026-07-28.jsonl` |
 | unit systemd utente | `active`, `NRestarts=0` |
@@ -579,7 +579,7 @@ Aggiunte il **2026-07-30**, sullo stesso dispositivo (WP620, `192.168.1.84`):
 | immagine sul dispositivo = immagine costruita | stesso ID, da `main` con albero pulito verificato prima e dopo |
 | deploy pulito (`--uninstall --purge` + install) | ok, ma **ripescava i dati dai volumi nominati** — corretto con `--migrate-volumes` |
 | `--bridge` → `GET /api/discover` dall'editor | `[]` (nessun rilevamento) |
-| default host network → `GET /api/discover` | trova il runtime, `admin_url http://192.168.1.84:8444` |
+| default host network → `GET /api/discover` | trova il runtime, `admin_url http://192.168.1.84:7444` |
 | `healthy` in rete host | ok, ~1 s dopo l'avvio |
 | avvio al boot dopo un riavvio reale | ok (2026-07-29, container già `healthy` a 1h07 di uptime) |
 
@@ -590,7 +590,7 @@ Procedura dal registry, provata la sera del **2026-07-30** sullo stesso device:
 | `--push` con albero sporco | **rifiutato**, nessuna pubblicazione |
 | pull con ogni immagine locale cancellata (`podman rmi -f` + `image prune -af`) | scarica davvero, 1 min 05 s per l'installazione completa |
 | **credenziali sul dispositivo** | nessuna: `podman login --get-login ghcr.io` → *not logged into*, e il pull riesce lo stesso |
-| SPA servita dall'immagine | mount solo `projects`/`logs`/`config`, bundle nuovo servito su `:8444` |
+| SPA servita dall'immagine | mount solo `projects`/`logs`/`config`, bundle nuovo servito su `:7444` |
 | progetto e storico dopo l'aggiornamento | `Test034` intatto, `historian: swapped to project SQLite samples=386` |
 | `healthy` dopo il pull | 13 s |
 | discovery dall'editor del dev server | trova il runtime (due voci: difetto cosmetico noto) |
@@ -611,14 +611,14 @@ azzerato davvero.
 podman ps                    # STATUS deve diventare "healthy" entro ~20 s
 podman logs sws-runtime      # nessun errore di init Python; controllare
                              # se compare il warning RestrictedPython
-curl -fs http://localhost:8443/health
-curl -fs http://localhost:8444/health
+curl -fs http://localhost:7443/health
+curl -fs http://localhost:7444/health
 ```
 
-Poi dal browser: `http://<device>:8443` (viewer) e `http://<device>:8444` (IDE).
+Poi dal browser: `http://<device>:7443` (viewer) e `http://<device>:7444` (IDE).
 Un runtime appena installato non ha progetti: si carica dall'editor con
-Configurazione → Istanza → Device → Connessione → Connetti su `http://<device>:8444` → Deploy. Nota la
-porta: le route di lifecycle progetto esistono **solo** sulla 8444, e `http`,
+Configurazione → Istanza → Device → Connessione → Connetti su `http://<device>:7444` → Deploy. Nota la
+porta: le route di lifecycle progetto esistono **solo** sulla 7444, e `http`,
 non `https`, finché non si genera un certificato.
 
 Per verificare la persistenza: `podman restart sws-runtime` e ricontrollare che
@@ -626,7 +626,7 @@ il progetto ci sia ancora.
 
 ## Nota: `/` sulla porta admin risponde 404 (ma funziona)
 
-`curl http://<device>:8444/` restituisce **404 con il corpo di
+`curl http://<device>:7444/` restituisce **404 con il corpo di
 `index-admin.html`**: è il comportamento di `ServeDir::not_found_service` di
 tower-http, che serve il file di fallback conservando lo status. Il browser
 rende il body e l'IDE si carica regolarmente — non è un problema del container,

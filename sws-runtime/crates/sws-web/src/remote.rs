@@ -15,7 +15,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 /// Volatile — cleared on local runtime restart.
 #[derive(Clone, Debug)]
 pub struct RemoteTarget {
-    pub url: String,          // "http://192.168.1.10:8444" — no trailing slash
+    pub url: String,          // "http://192.168.1.10:7444" — no trailing slash
     pub token: String,        // UUID session token issued by the remote
     pub connected_at_ms: u64, // Unix epoch ms
     /// Le credenziali con cui si è entrati, **solo in memoria**.
@@ -352,7 +352,7 @@ pub async fn connect_remote(
                     azione: None,
                     error: Some(format!(
                         "{url} answers but exposes no project API — this looks like the \
-                     viewer port. Use the IDE/admin port instead (8444 by default)."
+                     viewer port. Use the IDE/admin port instead (7444 by default)."
                     )),
                 }),
             );

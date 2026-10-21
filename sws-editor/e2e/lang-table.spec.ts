@@ -1,6 +1,6 @@
 /**
  * T-40 round-trip: language table + {{token}} resolution in the viewer.
- * Requires a running runtime (with the /api/project/languages route) on 8444/8443.
+ * Requires a running runtime (with the /api/project/languages route) on 7444/7443.
  *   npx playwright test e2e/lang-table.spec.ts --project=chromium
  */
 import { expect, request as pwRequest } from "@playwright/test";

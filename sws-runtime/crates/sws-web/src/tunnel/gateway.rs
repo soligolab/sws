@@ -657,6 +657,66 @@ pub async fn imposta_stato(
     }
 }
 
+#[derive(serde::Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct NuovaAzienda {
+    /// Il segmento del gateway: la cartella dell'azienda, `-` per la radice.
+    azienda: String,
+}
+
+/// `POST /api/amministrazione/pannelli/:nome/azienda` — sposta un pannello a
+/// un'altra azienda. Solo chi amministra la piattaforma.
+///
+/// È la strada che il messaggio d'errore di `prepara` prometteva dall'11-10-2026
+/// («lo può spostare solo chi amministra la piattaforma») senza che esistesse:
+/// l'unico modo di spostare un pannello era sospenderlo e lasciare che l'altra
+/// azienda lo rivendicasse, cosa che dal 21-10 non si può più fare.
+///
+/// **Il tunnel si stacca.** Il pannello si ricollega da sé in pochi secondi, ma
+/// gli stream aperti adesso sono stati autorizzati per l'azienda di prima: se
+/// restassero in piedi, chi non possiede più il pannello continuerebbe a
+/// parlarci finché non chiude la pagina.
+pub async fn sposta_azienda(
+    State(s): State<crate::router::AppState>,
+    Path(nome): Path<String>,
+    axum::Json(n): axum::Json<NuovaAzienda>,
+) -> Response {
+    let Some(a) = s.pannelli_abbinati.as_ref() else {
+        return StatusCode::NOT_FOUND.into_response();
+    };
+    // L'azienda deve esistere davvero: un segmento scritto a mano e sbagliato
+    // renderebbe il pannello irraggiungibile da chiunque, senza un errore.
+    let segmento = n.azienda.trim().to_string();
+    if segmento != crate::project_registry::AZIENDA_IMPLICITA {
+        let nota = match s.identita.as_ref() {
+            Some(id) => id.elenca_aziende().await.unwrap_or_default(),
+            None => vec![],
+        };
+        let esiste = nota.iter().any(|x| {
+            let seg = if x.implicita { crate::project_registry::AZIENDA_IMPLICITA } else { x.cartella.as_str() };
+            seg == segmento
+        });
+        if !esiste {
+            return (StatusCode::BAD_REQUEST, "nessuna azienda con questo segmento").into_response();
+        }
+    }
+    match a.sposta(&nome, &segmento) {
+        Ok(true) => {
+            if let Some(r) = s.tunnel.as_ref() {
+                r.esce(&nome).await;
+            }
+            s.audit.log(
+                "pannello.azienda",
+                None,
+                serde_json::json!({ "pannello": nome, "azienda": segmento }),
+            );
+            StatusCode::NO_CONTENT.into_response()
+        }
+        Ok(false) => StatusCode::NOT_FOUND.into_response(),
+        Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response(),
+    }
+}
+
 /// La firma del gateway per un pannello abbinato col codice: `None` per i
 /// dichiarati a mano, che non la conoscono.
 fn firma_per(s: &crate::router::AppState, pannello: &str) -> Option<String> {

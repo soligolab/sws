@@ -128,8 +128,8 @@ fi
 # had TLS enabled in a previous run (config/ persists across upgrades)
 # answers HTTPS. Try both instead of assuming one.
 sleep 2
-if curl -sk https://localhost:8443/health 2>/dev/null | grep -q '"status":"ok"' \
-    || curl -s http://localhost:8443/health 2>/dev/null | grep -q '"status":"ok"'; then
+if curl -sk https://localhost:7443/health 2>/dev/null | grep -q '"status":"ok"' \
+    || curl -s http://localhost:7443/health 2>/dev/null | grep -q '"status":"ok"'; then
     echo "==> Health check: OK"
 else
     echo "    Health check did not respond yet — the service may still be starting."
@@ -154,8 +154,8 @@ IPS="$(lan_ips)"; IPS="${IPS% }"; [ -n "$IPS" ] || IPS="localhost"
 SCHEME=http
 [ -f "$DATA_DIR/config/tls.crt" ] && SCHEME=https
 for a in $IPS; do
-    echo "    Viewer  (operators):  $SCHEME://$a:8443"
-    echo "    Admin   (IDE):        $SCHEME://$a:8444"
+    echo "    Viewer  (operators):  $SCHEME://$a:7443"
+    echo "    Admin   (IDE):        $SCHEME://$a:7444"
 done
 echo "    Logs:                 journalctl -u $SERVICE_NAME -f"
 echo "    Config:               $ENV_FILE"

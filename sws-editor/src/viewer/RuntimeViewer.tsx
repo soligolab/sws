@@ -48,9 +48,9 @@ function RuntimeIdleScreen() {
   );
 }
 
-// ── RuntimeViewer — top-level SPA for port 8443 ───────────────────────────────
+// ── RuntimeViewer — top-level SPA for port 7443 ───────────────────────────────
 //
-// Anonymous access via optional_auth on 8443 (Viewer role by default).
+// Anonymous access via optional_auth on 7443 (Viewer role by default).
 // No login prompt, no project management — just the live synoptic.
 
 export function RuntimeViewer() {

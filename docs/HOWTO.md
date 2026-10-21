@@ -153,7 +153,7 @@ volo. Se non sai il nome esatto (case-sensitive) della pagina da mostrare — ca
 progetto diverso che carichi durante i test — chiedilo direttamente a `sws-runtime`:
 
 ```bash
-curl -s http://127.0.0.1:8443/api/synoptics
+curl -s http://127.0.0.1:7443/api/synoptics
 ```
 
 Nota il protocollo: **`http`, non `https`** — questo `sws-runtime` non ha ancora un `tls.crt`
@@ -168,7 +168,7 @@ riga precedente). Non è un problema del comando, è la combo terminale/shell su
 ma la forma su una riga lo evita del tutto, quindi è quella da usare qui:
 
 ```bash
-podman run -d --name sws-lvgl-viewer --network host --userns=keep-id --ipc=host -v /tmp/.X11-unix:/tmp/.X11-unix -v /run/user/1000:/run/user/1000 -e XDG_RUNTIME_DIR=/run/user/1000 -e DISPLAY=:0 -e SDL_VIDEODRIVER=x11 --entrypoint sws-lvgl-viewer ghcr.io/soligolab/sws-runtime:latest-arm64 --base-url http://127.0.0.1:8443 --page "LVGL Demo"
+podman run -d --name sws-lvgl-viewer --network host --userns=keep-id --ipc=host -v /tmp/.X11-unix:/tmp/.X11-unix -v /run/user/1000:/run/user/1000 -e XDG_RUNTIME_DIR=/run/user/1000 -e DISPLAY=:0 -e SDL_VIDEODRIVER=x11 --entrypoint sws-lvgl-viewer ghcr.io/soligolab/sws-runtime:latest-arm64 --base-url http://127.0.0.1:7443 --page "LVGL Demo"
 ```
 
 **Questo comando è cambiato il 2026-08-24**: prima diceva `SDL_VIDEODRIVER=wayland` e non aveva
@@ -270,7 +270,7 @@ gira il browser.
 Due cause, entrambe lato browser, nessun guasto sul runtime:
 
 1. **Ogni porta è un origin TLS separato.** Accettare/importare il certificato per
-   `https://host:8444` (IDE) NON copre `https://host:8443` (viewer) — e nemmeno lo stesso
+   `https://host:7444` (IDE) NON copre `https://host:7443` (viewer) — e nemmeno lo stesso
    servizio raggiunto per IP invece che per hostname. Vanno accettati tutti gli origin che si
    usano davvero.
 2. **La pagina già aperta resta "avvelenata".** Dopo l'accettazione/import, le fetch della
@@ -412,11 +412,11 @@ questo la procedura sotto vale ancora.
 Serve un runtime in ascolto con un progetto aperto — quello locale va benissimo:
 
 ```bash
-./scripts/start_runtime.sh                      # viewer 8443, IDE 8444
+./scripts/start_runtime.sh                      # viewer 7443, IDE 7444
 cd sws-runtime && cargo build -p sws-lvgl-viewer
 
 ./target/debug/sws-lvgl-viewer \
-    --base-url http://localhost:8443 \
+    --base-url http://localhost:7443 \
     --page "Indicatori" \
     --istantanea /tmp/p.ppm
 
@@ -1464,7 +1464,7 @@ progetti che stanno nella radice e non in una cartella d'azienda.
 podman network create sws-prova
 RAD=/tmp/gw/progetti        # lo STESSO percorso dentro e fuori, vedi sotto
 podman run -d --name sws-gateway-prova --network sws-prova \
-  -p 127.0.0.1:8479:8444 \
+  -p 127.0.0.1:8479:7444 \
   -e XDG_RUNTIME_DIR=/run/sws \
   -v "$XDG_RUNTIME_DIR/podman/podman.sock:/run/sws/podman/podman.sock" \
   -v /tmp/gw/config:/var/sws/config \
@@ -1472,7 +1472,7 @@ podman run -d --name sws-gateway-prova --network sws-prova \
   localhost/sws-runtime:2.13.0-rc.1-amd64 \
   --config /var/sws/config --projects-root "$RAD" \
   --templates-root /var/sws/templates --catalog-root /var/sws/catalogo/dispositivi \
-  --www /var/sws/www --admin-port 8444 --senza-autenticazione \
+  --www /var/sws/www --admin-port 7444 --senza-autenticazione \
   --gateway --gateway-immagine localhost/sws-runtime:2.13.0-rc.1-amd64 \
   --gateway-rete sws-prova
 ```

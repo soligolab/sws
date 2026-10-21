@@ -100,7 +100,7 @@ Ogni progetto è una cartella di file YAML versionabile con Git:
 │                                                         │
 │  ┌──────────────────┐   ┌───────────────────────────┐  │
 │  │  IDE             │   │  Viewer operatori         │  │
-│  │  in LAN: 8444    │   │  porta 8443, o lo schermo │  │
+│  │  in LAN: 7444    │   │  porta 7443, o lo schermo │  │
 │  │  nel cloud: 443  │   │  del pannello (LVGL/web)  │  │
 │  └────────┬─────────┘   └──────────────┬────────────┘  │
 │           │ HTTP(S) REST / WS(S)       │               │
@@ -125,7 +125,7 @@ Ogni progetto è una cartella di file YAML versionabile con Git:
 └─────────────────────────────────────────────────────────┘
 ```
 
-Sul pannello lo stesso runtime apre **due porte**: la 8443 per gli operatori, la 8444 per l'IDE, che lì è solo
+Sul pannello lo stesso runtime apre **due porte**: la 7443 per gli operatori, la 7444 per l'IDE, che lì è solo
 un'API ristretta e autenticata. Nel cloud la stessa immagine fa da **gateway** davanti ai progetti, e il pannello
 si fa raggiungere con un **tunnel** uscente, senza porte aperte in entrata. Le porte e i flussi stanno nel
 [capitolo 18](18_container_e_comunicazione.md), i crate e il percorso dei dati nel [capitolo 03](03_architecture.md).

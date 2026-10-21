@@ -305,7 +305,7 @@ Il binding è il collegamento tra un widget e un tag PLC.
 Quasi tutti i widget hanno un campo **Tag** nel pannello proprietà.
 
 Quando imposti un tag:
-1. Il widget mostra il valore live del tag nel Viewer operatori (porta 8443)
+1. Il widget mostra il valore live del tag nel Viewer operatori (porta 7443)
 2. Il quality dot (•), se acceso nella sezione **Indicatore di qualità**, dice la qualità del dato: Good, Bad,
    Uncertain, ognuna col suo colore configurabile
 3. I widget di controllo (button, slider, checkbox) scrivono sul tag quando l'operatore interagisce

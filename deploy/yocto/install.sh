@@ -126,8 +126,8 @@ lan_ips() {
 }
 IPS="$(lan_ips)"; IPS="${IPS% }"; [ -n "$IPS" ] || IPS="localhost"
 for a in $IPS; do
-    echo "    Viewer  (operators):  https://$a:8443"
-    echo "    Admin   (IDE):        https://$a:8444"
+    echo "    Viewer  (operators):  https://$a:7443"
+    echo "    Admin   (IDE):        https://$a:7444"
 done
 echo "    Logs:                 journalctl -u $SERVICE_NAME -f"
 echo "    Config:               $SWS_HOME/runtime.env"

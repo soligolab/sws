@@ -2,12 +2,12 @@
   "_perche": "Hash dei quadlet per numero di versione: scripts/check_quadlet.sh. Si rigenera con --aggiorna DOPO aver alzato il numero.",
   "quadlet": {
     "deploy/container/sws-runtime.container": {
-      "versione": 4,
-      "sha256": "63484cde0b4dda25559552bff9fbd753089d5748942ae20962dfa246808f6ec9"
+      "versione": 5,
+      "sha256": "d11b5e1a38636355de849f616c178b461cb17f696d57d692a43d0fd1284feacf"
     },
     "deploy/container/sws-lvgl-viewer.container": {
-      "versione": 4,
-      "sha256": "09a37783d69666f862d53ccf8d8cbe6e9deab0e1374a3b7aee14f170b6458118"
+      "versione": 5,
+      "sha256": "5ba0d6798ea7cc61d2fa2ace36d4a1adb6080ef5552eeac9c820b23e4542b4e7"
     }
   }
 }

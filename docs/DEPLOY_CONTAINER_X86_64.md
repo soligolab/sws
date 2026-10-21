@@ -172,12 +172,12 @@ interferire con le istanze di sviluppo già attive sulla stessa macchina):
 | Verifica | Esito |
 |---|---|
 | `podman run` diretto → `podman ps` | `healthy` |
-| `curl http://localhost:8443/health` | `ok`, 200 |
-| `curl http://localhost:8444/api/templates` | non vuoto (`homeassistant-demo`, ...) |
+| `curl http://localhost:7443/health` | `ok`, 200 |
+| `curl http://localhost:7444/api/templates` | non vuoto (`homeassistant-demo`, ...) |
 | log all'avvio | `pyscript: RestrictedPython available — scripts will run sandboxed` (nessun warning "NOT available") |
 | avvio senza `SWS_ADMIN_PASSWORD` | ok (no-auth mode) |
 | `install-container.sh --bridge --no-autostart` (porte remappate) | `/health ok dopo 2s`, directory dati create correttamente, container `healthy` |
-| istanze di sviluppo già attive sulla stessa macchina (porte reali 8443/8444/8460) | non toccate, verificate intatte dopo il test |
+| istanze di sviluppo già attive sulla stessa macchina (porte reali 7443/7444/8460) | non toccate, verificate intatte dopo il test |
 
 Non ancora provato: avvio automatico al boot (quadlet + linger) su questa
 macchina — il percorso aarch64 lo ha già verificato su device reale

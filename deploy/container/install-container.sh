@@ -511,9 +511,9 @@ if [ "$AUTOSTART" -eq 1 ]; then
         echo "    Network=host (default — il multicast mDNS raggiunge la LAN)"
     else
         install -m 0644 "$UNIT_SRC" "$UNIT_DIR/$NAME.container"
-        echo "    rete bridge (--bridge): porte pubblicate 8443/8444, ma"
+        echo "    rete bridge (--bridge): porte pubblicate 7443/7444, ma"
         echo "    ATTENZIONE: \"Cerca runtime\" nell'IDE non troverà questo dispositivo." >&2
-        echo "               Collegarsi a mano con http://<ip>:8444." >&2
+        echo "               Collegarsi a mano con http://<ip>:7444." >&2
     fi
     sed -i "s|^Image=.*|Image=$TAG|" "$UNIT_DIR/$NAME.container"
     # Aggiornamento del runtime (27-09-2026): il runtime deve sapere che
@@ -671,7 +671,7 @@ if [ "$AUTOSTART" -eq 1 ]; then
 
 else
     echo "==> [5/6] avvio diretto (--no-autostart: non riparte dopo il reboot)"
-    PORTS=(-p 8443:8443 -p 8444:8444)
+    PORTS=(-p 7443:7443 -p 7444:7444)
     [ "$HOST_NETWORK" -eq 1 ] && PORTS=(--network host)
     podman run -d --name "$NAME" "${PORTS[@]}" "${MOUNTS[@]}" \
         --restart=unless-stopped "$TAG" >/dev/null
@@ -711,7 +711,7 @@ IPS="${IPS% }"
 # installato il container e ha trovato il pannello ancora su Cockpit: GetUrl
 # rispondeva 9443, cioè il valore di fabbrica — la chiamata non era mai andata
 # a buon fine, e nel log dell'installazione non c'era una riga a dirlo.
-URL_VIEWER="http://127.0.0.1:8443"
+URL_VIEWER="http://127.0.0.1:7443"
 if ! command -v busctl >/dev/null 2>&1; then
     echo "    browser del pannello: busctl assente, non è un dispositivo Pixsys — salto"
 elif ERR_URL="$(busctl --system call net.pixsys.Config1 /net/pixsys/Config1/WebBrowser/MainApp \
@@ -733,8 +733,8 @@ for i in $(seq 1 30); do
     # riparte in HTTPS — e un controllo solo-HTTP fallirebbe per trenta secondi
     # per poi dichiarare «il runtime non risponde» su un'installazione riuscita.
     # Stesso ragionamento (e stesso ordine) dell'health check in packaging.rs.
-    if curl -fs --max-time 2 http://localhost:8443/health >/dev/null 2>&1 \
-       || curl -sk --max-time 2 https://localhost:8443/health >/dev/null 2>&1; then
+    if curl -fs --max-time 2 http://localhost:7443/health >/dev/null 2>&1 \
+       || curl -sk --max-time 2 https://localhost:7443/health >/dev/null 2>&1; then
         echo "    /health ok dopo ${i}s"
 
         # Ricaricare il browser, altrimenti l'URL nuovo non lo vede nessuno.
@@ -771,7 +771,7 @@ for i in $(seq 1 30); do
             # DISABILITATO apposta — configurazione giusta, non un guasto. Un
             # messaggio che tira a indovinare manda a cercare dalla parte
             # sbagliata, e costa più del silenzio.
-            if curl -fs --max-time 2 http://localhost:8443/api/system 2>/dev/null | grep -q '"voluto":"lvgl"'; then
+            if curl -fs --max-time 2 http://localhost:7443/api/system 2>/dev/null | grep -q '"voluto":"lvgl"'; then
                 echo "    browser del pannello non attivo: giusto così, il progetto è LVGL"
                 echo "                (lo schermo lo prende sws-lvgl-viewer)"
             else
@@ -787,7 +787,7 @@ for i in $(seq 1 30); do
         # attende che il launcher si decida.
         ESITO=""
         for _ in $(seq 1 15); do
-            ESITO="$(curl -fs --max-time 2 http://localhost:8443/api/system 2>/dev/null \
+            ESITO="$(curl -fs --max-time 2 http://localhost:7443/api/system 2>/dev/null \
                 | python3 -c 'import json,sys; d=json.load(sys.stdin).get("display") or {}; m=d.get("messaggio"); print(d.get("esito","") + (" — " + m if m else ""))' 2>/dev/null || true)"
             case "$ESITO" in "") sleep 2 ;; *) break ;; esac
         done
@@ -798,13 +798,13 @@ for i in $(seq 1 30); do
         esac
         echo
         for a in $IPS; do
-            echo "    viewer : http://$a:8443     IDE : http://$a:8444"
+            echo "    viewer : http://$a:7443     IDE : http://$a:7444"
         done
         # Il codice di abbinamento (11-10-2026): un pannello senza utenti non
         # lascia entrare nessuno finché qualcuno non ne crea l'amministratore.
         # Si stampa qui perché è il primo posto in cui chi installa guarda.
-        CODICE="$( { curl -fs --max-time 2 http://localhost:8444/api/abbinamento \
-                     || curl -sk --max-time 2 https://localhost:8444/api/abbinamento; } 2>/dev/null \
+        CODICE="$( { curl -fs --max-time 2 http://localhost:7444/api/abbinamento \
+                     || curl -sk --max-time 2 https://localhost:7444/api/abbinamento; } 2>/dev/null \
             | python3 -c 'import json,sys; d=json.load(sys.stdin); print(d.get("codice") or "" if d.get("in_attesa") else "")' 2>/dev/null || true)"
         if [ -n "$CODICE" ]; then
             echo
@@ -825,7 +825,7 @@ for i in $(seq 1 30); do
     sleep 1
 done
 
-echo "ERRORE: il runtime non risponde su :8443 dopo 30s." >&2
+echo "ERRORE: il runtime non risponde su :7443 dopo 30s." >&2
 echo "        Log:  podman logs $NAME" >&2
 [ "$AUTOSTART" -eq 1 ] && echo "              journalctl --user -u $NAME -n 50" >&2
 exit 1

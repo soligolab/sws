@@ -117,12 +117,12 @@ test("06 — allarmi tab", async ({ page }) => {
   await page.screenshot({ path: path.join(SHOTS, "06_alarms_tab.png") });
 });
 
-test("07 — operator viewer (port 8443)", async ({ browser }) => {
+test("07 — operator viewer (port 7443)", async ({ browser }) => {
   const ctx = await browser.newContext({ ignoreHTTPSErrors: true, viewport: { width: 1440, height: 900 } });
   const vp = await ctx.newPage();
   await vp.goto(VIEWER_URL, { waitUntil: "networkidle", timeout: 15_000 }).catch(() => {});
   await vp.waitForTimeout(1500);
-  await vp.screenshot({ path: path.join(SHOTS, "07_viewer_8443.png") });
+  await vp.screenshot({ path: path.join(SHOTS, "07_viewer_7443.png") });
   await ctx.close();
 });
 

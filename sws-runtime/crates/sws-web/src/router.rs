@@ -380,7 +380,7 @@ pub fn build(
         deploy_lock: Arc::new(tokio::sync::Mutex::new(())),
         project_write_lock: Arc::new(tokio::sync::Mutex::new(())),
     };
-    // Build the runtime router (8443) before consuming state for admin.
+    // Build the runtime router (7443) before consuming state for admin.
     let runtime_app = build_runtime_inner(state.clone(), www_dir.clone());
 
     // Routes that need Admin privileges (PUT /api/project/* — schema edits,
@@ -1218,6 +1218,13 @@ pub fn build(
                             "/api/amministrazione/pannelli/:nome/stato",
                             post(crate::tunnel::gateway::imposta_stato),
                         )
+                        // Spostare un pannello a un'altra azienda (21-10-2026):
+                        // l'unica strada, da quando sospenderlo non lo lascia
+                        // più rivendicare a chiunque.
+                        .route(
+                            "/api/amministrazione/pannelli/:nome/azienda",
+                            post(crate::tunnel::gateway::sposta_azienda),
+                        )
                         .route_layer(middleware::from_fn(require_amministratore_piattaforma))
                         .route_layer(middleware::from_fn_with_state(state.clone(), require_auth)),
                 ),
@@ -1325,7 +1332,7 @@ pub fn build(
     (runtime_app, admin_app, state)
 }
 
-/// Build the runtime router served on port 8443 (synoptic view only).
+/// Build the runtime router served on port 7443 (synoptic view only).
 ///
 /// All routes are wrapped with `optional_auth` — unauthenticated requests get
 /// `Role::Viewer` (anonymous read-only). Write routes (`put`, `post` that mutate
@@ -1589,7 +1596,7 @@ fn build_runtime_inner(state: AppState, www_dir: Option<PathBuf>) -> Router {
         .route_layer(middleware::from_fn_with_state(state.clone(), optional_auth));
 
     // Open: no auth needed. Only /api/project (current active project status)
-    // is exposed on the runtime port — project management routes live on 8444 only.
+    // is exposed on the runtime port — project management routes live on 7444 only.
     let open = Router::new()
         .route("/health", get(|| async { "ok" }))
         .route("/.well-known/security.txt", get(crate::security_txt::get_security_txt))
@@ -2379,7 +2386,7 @@ async fn require_admin(req: Request, next: Next) -> Response {
 /// `AuthUser` in extensions. Routes that need more than read access still apply
 /// `require_operator` / `require_admin` on top of this.
 ///
-/// Used by the runtime router (port 8443) to allow anonymous read-only access
+/// Used by the runtime router (port 7443) to allow anonymous read-only access
 /// to the synoptic SPA without removing the role-check guards on write routes.
 async fn optional_auth(State(s): State<AppState>, mut req: Request, next: Next) -> Response {
     // La decisione è una sola per tutto il router: `fonte_auth_corrente`.
@@ -11986,7 +11993,7 @@ mod rotte_del_dispositivo {
             .collect()
     }
 
-    /// Le chiamate che il **viewer** (la porta 8443) fa per l'avviso di
+    /// Le chiamate che il **viewer** (la porta 7443) fa per l'avviso di
     /// versione nuova: la Fase 1b le aveva messe altrove, e l'avviso non
     /// poteva comparire (404 sul TC620, 28-09-2026).
     #[test]

@@ -41,7 +41,7 @@
 | **Sviluppo locale** | Rust ≥ 1.88, Node 22, pnpm 9, Python 3 con gli header (`python3-dev`, per PyO3) |
 | **Pannello o server** | Podman rootless e systemd, Linux ARM64 o x86_64 — vedi `deploy/container/install-container.sh` |
 
-Le porte (8443 viewer, 8444 gestione, 8080 per il certificato, 8460/8090 per l'IDE su un PC, 443 nel cloud), cosa
+Le porte (7443 viewer, 7444 gestione, 8080 per il certificato, 8460/8090 per l'IDE su un PC, 443 nel cloud), cosa
 aprire sul firewall di un impianto e chi parla con chi sono nel
 [capitolo 18, §4](18_container_e_comunicazione.md#4-le-porte).
 

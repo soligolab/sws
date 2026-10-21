@@ -36,7 +36,7 @@ Le impostazioni qui sotto sono attive **senza configurare niente**. Dove esiste 
   Vedi il capitolo [09](09_auth_rbac.md).
 - **Password con Argon2id**, mai in chiaro né nel database né nei log. Sessioni con scadenza.
 - **Quattro ruoli** (Viewer, Operator, Supervisor, Admin) e **zone** per pagina e per utente (ABAC).
-- **Due porte**: il viewer (`8443`) e la gestione (`8444`). Sul pannello la gestione è **ristretta** (`--no-admin`):
+- **Due porte**: il viewer (`7443`) e la gestione (`7444`). Sul pannello la gestione è **ristretta** (`--no-admin`):
   nessuna interfaccia, solo le rotte che l'IDE chiama, tutte autenticate. Ascolta su **tutte le interfacce**
   (`0.0.0.0`, `sws-runtime/crates/sws-runtime/src/main.rs`), perché l'IDE in rete locale la raggiunge con «Connetti»;
   chi non la vuole raggiungibile la chiude col firewall. Con `--kiosk` è il **viewer** ad ascoltare solo su
@@ -110,7 +110,7 @@ Scritto qui perché chi installa SWS sappia cosa deve coprire da sé, finché no
 1. **Attivare HTTPS** sul pannello se la rete non è fidata (Configurazione → Istanza → Device → Stato → Certificato
    TLS), e accettare il certificato da `http://<pannello>:8080`.
 2. **Abbinare il pannello** appena acceso: finché non ha utenti è chiuso, ma il codice è sullo schermo.
-3. **Non esporre la porta 8444** fuori dalla rete dell'impianto: ascolta su tutte le interfacce, anche sul pannello,
+3. **Non esporre la porta 7444** fuori dalla rete dell'impianto: ascolta su tutte le interfacce, anche sul pannello,
    quindi va chiusa col firewall verso chi non usa l'IDE. Per raggiungere un pannello da fuori c'è il tunnel del
    cloud, che non apre porte in entrata.
 4. **Dichiarare le origini iframe** solo se servono, e solo quelle.

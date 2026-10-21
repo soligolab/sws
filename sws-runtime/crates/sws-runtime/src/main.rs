@@ -94,8 +94,8 @@ struct Args {
     /// Used for kiosk-mode deployments on PX30 / RK3399: the runtime starts
     /// the browser itself, no operator login required.
     ///
-    /// Typical value: `chromium --kiosk --no-sandbox --app=https://localhost:8443`
-    /// or `epiphany-browser --application-mode https://localhost:8443`.
+    /// Typical value: `chromium --kiosk --no-sandbox --app=https://localhost:7443`
+    /// or `epiphany-browser --application-mode https://localhost:7443`.
     ///
     /// The child process is launched fire-and-forget: it is not monitored,
     /// restarted, or killed by the runtime. If the browser dies, the runtime
@@ -121,13 +121,16 @@ struct Args {
     /// HTTPS port for the operator viewer (RuntimeViewer SPA, optional_auth).
     /// When omitted, the viewer is not started — only the admin IDE port is
     /// active (IDE-only mode, used by start_editor.sh on the developer's PC).
-    /// Pass --viewer-port 8443 to enable the viewer (start_runtime.sh).
+    /// Pass --viewer-port 7443 to enable the viewer (start_runtime.sh).
     #[arg(long)]
     viewer_port: Option<u16>,
 
-    /// HTTPS port for the admin IDE (full App SPA, required_auth). Default: 8444.
+    /// HTTPS port for the admin IDE (full App SPA, required_auth). Default: 7444.
+    /// Era 8444 fino al 21-10-2026: la coppia si e spostata per lasciare la
+    /// 8443 all'API REST di OpenPLC, che sul dispositivo deve poter girare
+    /// accanto a SWS e restare usabile da sola.
     /// Override when running multiple runtime instances on the same host.
-    #[arg(long, default_value_t = 8444u16)]
+    #[arg(long, default_value_t = 7444u16)]
     admin_port: u16,
 
     /// Operator-only hardening (CRA attack-surface reduction, OPEN_QUESTIONS Q8):
@@ -260,7 +263,7 @@ struct Args {
 // Placeholders replaced at startup: __ADMIN_PORT__ with the actual admin port,
 // __VIEWER_PORT__ with the viewer port or the empty string when no viewer is
 // bound (start_editor.sh). Ogni PORTA e' un origin TLS separato per il
-// browser: accettare il certificato per :8444 non copre :8443 — visto dal
+// browser: accettare il certificato per :7444 non copre :7443 — visto dal
 // vivo (il pulsante Viewer restava "irraggiungibile" a IDE funzionante), la
 // pagina deve guidare all'accettazione di ENTRAMBI e reindirizzare solo
 // quando tutti gli origin rispondono.

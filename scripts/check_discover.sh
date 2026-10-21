@@ -16,7 +16,7 @@
 # prende il nome dall'hostname, quindi due runtime sulla stessa macchina si
 # annuncerebbero con lo stesso nome e non sarebbero distinguibili.
 #
-# Porte 8543-8546: fuori dalle 8443/8444/8460 delle istanze di sviluppo, che
+# Porte 8543-8546: fuori dalle 7443/7444/8460 delle istanze di sviluppo, che
 # questo script non deve toccare.
 #
 # Uso: ./scripts/check_discover.sh   (richiede il binario debug già compilato)

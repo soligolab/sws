@@ -57,7 +57,7 @@ def write_tag(base: str, tag: str, value: float, token: str) -> None:
 
 def main() -> int:
     p = argparse.ArgumentParser()
-    p.add_argument("--base-url",  default="https://localhost:8443")
+    p.add_argument("--base-url",  default="https://localhost:7443")
     p.add_argument("--user",      default="admin")
     p.add_argument("--password",  default="admin")
     p.add_argument("--tag",       default="sine",

@@ -477,7 +477,7 @@ export function DevicesTab() {
             </button>
           </div>
           <TabellaDispositivi dispositivi={rete} inCorso={cercandoRete} errore={erroreRete}
-            onScegli={(h) => setAddForm((f) => ({ ...f, url: f.url || `https://${h}:8444`, label: f.label || h.replace(/\.local$/i, "") }))}
+            onScegli={(h) => setAddForm((f) => ({ ...f, url: f.url || `https://${h}:7444`, label: f.label || h.replace(/\.local$/i, "") }))}
             onAggiungi={(d) => { const n = dispositivoDaRete(d); saveDevices(unisciDispositivo(devices, n)); void checkDevice(n); }}
             giaPresenti={(d) => eGiaInLista(devices, dispositivoDaRete(d).url)} />
         </div>
@@ -489,7 +489,7 @@ export function DevicesTab() {
           </div>
           <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
             <label style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)" }}>{t("cfg.adminUrl")}</label>
-            <input style={{ ...INPUT, width: 200 }} placeholder="https://192.168.1.10:8444"
+            <input style={{ ...INPUT, width: 200 }} placeholder="https://192.168.1.10:7444"
               value={addForm.url} onChange={(e) => setAddForm((f) => ({ ...f, url: e.target.value.trim() }))} />
           </div>
           {/* «Utente»/«password» non dicevano quali: sono le credenziali

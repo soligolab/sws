@@ -80,8 +80,8 @@ COPY quadlet/        /usr/share/sws/quadlet/
 # container. /var/sws/www NON è fra questi: è contenuto dell'immagine.
 RUN mkdir -p /var/sws/config /var/sws/projects
 
-# 8443 viewer operatori, 8444 IDE/admin.
-EXPOSE 8443 8444
+# 7443 viewer operatori, 7444 IDE/admin.
+EXPOSE 7443 7444
 
 # L'indirizzo del gateway nel cloud (decisione 13, 11-10-2026): un pannello
 # nuovo lo chiama da solo e aspetta lì, col codice di abbinamento, che qualcuno
@@ -96,13 +96,13 @@ ENV SWS_TUNNEL_URL=wss://tunnel.soligo.net/tunnel/v1
 # interrogava https e restava rosso per sempre.
 # NB: HEALTHCHECK non esiste nella spec OCI — va costruito con
 # `podman build --format docker`, altrimenti podman lo scarta con un warning.
-# Ripiego sulla 8444 (10-10-2026): un'istanza solo-IDE — il gateway nel cloud e
-# i container dei suoi progetti — non ha il viewer, la 8443 non ascolta e
+# Ripiego sulla 7444 (10-10-2026): un'istanza solo-IDE — il gateway nel cloud e
+# i container dei suoi progetti — non ha il viewer, la 7443 non ascolta e
 # risultava «unhealthy» per sempre; con `Notify=healthy` e l'aggiornamento
 # automatico sarebbe stato un ritorno indietro a ogni aggiornamento. Sui
-# pannelli la 8443 risponde e il ripiego non scatta mai.
+# pannelli la 7443 risponde e il ripiego non scatta mai.
 HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
-    CMD curl -fs http://localhost:8443/health || curl -fs http://localhost:8444/health || exit 1
+    CMD curl -fs http://localhost:7443/health || curl -fs http://localhost:7444/health || exit 1
 
 # Nessun entrypoint script: niente SWS_ADMIN_PASSWORD obbligatorio (il
 # no-auth mode è lo stato normale del PoC) e i flag stanno tutti nel CMD,
@@ -130,7 +130,7 @@ ARG SWS_QUADLET=""
 LABEL org.opencontainers.image.source="https://github.com/soligolab/sws" \
       org.opencontainers.image.version="$SWS_VERSION" \
       org.opencontainers.image.title="sws-runtime" \
-      org.opencontainers.image.description="SWS runtime (x86_64) — viewer 8443, IDE/admin 8444, SPA inclusa. Montare i dati su /var/sws/{config,projects,logs}." \
+      org.opencontainers.image.description="SWS runtime (x86_64) — viewer 7443, IDE/admin 7444, SPA inclusa. Montare i dati su /var/sws/{config,projects,logs}." \
       org.opencontainers.image.licenses="AGPL-3.0-only" \
       net.soligo.sws.novita.it="$SWS_NOVITA_IT" \
       net.soligo.sws.novita.en="$SWS_NOVITA_EN" \
@@ -144,7 +144,7 @@ ENTRYPOINT ["/usr/local/bin/sws-runtime"]
 # ── L'IDE sul dispositivo e' un caso particolare, non il default ────────────
 #
 # Decisione del maintainer (2026-09-02). `--no-admin` nel CMD qui sotto **non
-# toglie il Deploy**: la porta 8444 resta e serve solo la gestione remota che
+# toglie il Deploy**: la porta 7444 resta e serve solo la gestione remota che
 # l'editor chiama (deploy, pull, backup, utenti, datastore), tutto autenticato.
 # Cade l'IDE: nessuna interfaccia servita, nessuna modifica del progetto sul
 # dispositivo, nessun /api/script/exec, nessun /api/fs/*. Vedi `deploy_only_app`
@@ -158,6 +158,6 @@ CMD ["--config", "/var/sws/config", \
      "--templates-root", "/var/sws/templates", \
      "--catalog-root", "/var/sws/catalogo/dispositivi", \
      "--www", "/var/sws/www", \
-     "--viewer-port", "8443", \
-     "--admin-port", "8444", \
+     "--viewer-port", "7443", \
+     "--admin-port", "7444", \
      "--no-admin"]

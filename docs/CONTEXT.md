@@ -86,7 +86,7 @@ sws-runtime/crates/
   sws-historian            — in-memory ring buffer + SQLite persistence
   sws-pyscript             — PyO3 + RestrictedPython sandbox, global script supervisor
   sws-audit                — append-only audit log (auth events, tag writes, project changes)
-  sws-web                  — Axum router (dual-port 8443+8444), all HTTP/WS handlers
+  sws-web                  — Axum router (dual-port 7443+7444), all HTTP/WS handlers
   sws-plugin-modbus        — Modbus TCP + RTU (tokio-modbus)
   sws-plugin-opcua         — OPC-UA client + server (async-opcua)
   sws-plugin-mqtt          — MQTT client + Sparkplug B encode/decode (rumqttc + prost)
@@ -96,7 +96,7 @@ sws-runtime/crates/
   sws-lvgl-viewer          — viewer nativo LVGL per pannelli senza browser (DRM/fbdev,
                              35 tipi di oggetto, `--istantanea` per il rendering a file)
   sws-kiosk                — chiosco: browser a schermo intero sul dispositivo
-  sws-runtime              — binary entry point, dual-port TLS server (8443 + 8444)
+  sws-runtime              — binary entry point, dual-port TLS server (7443 + 7444)
 ```
 
 ### Editor (sws-editor)
@@ -112,10 +112,10 @@ React + TypeScript + Vite 6 SPA. Quattro entry point:
 
 | Porta | Ruolo | Auth | SPA |
 |------|------|------|-----|
-| **8443** | Viewer (operatori) | `optional_auth` — senza utenti definiti inietta un Admin sintetico | `dist/index.html` |
-| **8444** | Admin IDE (spegnibile con `--no-admin`, default nelle immagini 2.4.0+ per dispositivo) | `require_auth` (o no-auth) | `dist/index-admin.html` |
+| **7443** | Viewer (operatori) | `optional_auth` — senza utenti definiti inietta un Admin sintetico | `dist/index.html` |
+| **7444** | Admin IDE (spegnibile con `--no-admin`, default nelle immagini 2.4.0+ per dispositivo) | `require_auth` (o no-auth) | `dist/index-admin.html` |
 
-Le route di ciclo vita progetto (`upload`, `delete`, `open`) esistono **solo su 8444**.
+Le route di ciclo vita progetto (`upload`, `delete`, `open`) esistono **solo su 7444**.
 Le scritture tag sono l'unico confine di sicurezza vero: `TagDef.write_min_role`,
 verificato dal server; il `min_role` sugli oggetti sinottici è solo client-side (Q36).
 
@@ -123,7 +123,7 @@ verificato dal server; il `min_role` sugli oggetti sinottici è solo client-side
 
 ```bash
 # Sul dispositivo (viewer + IDE remoto):
-./scripts/start_runtime.sh   # viewer 8443 + IDE 8444 + companion HTTP 8080
+./scripts/start_runtime.sh   # viewer 7443 + IDE 7444 + companion HTTP 8080
 
 # Sul PC sviluppatore (IDE locale, no viewer):
 ./scripts/start_editor.sh    # IDE 8460 + companion HTTP 8090, dati in .run-editor/
@@ -190,7 +190,7 @@ The following were not in the original Phase 1-4 plan but were implemented durin
 | Global script scheduler (cron/interval/startup/tag-change) | T-09 (S-61) |
 | CSV tag import/export | T-05 (S-60) |
 | Per-device IP allowlist | S-49 |
-| Split webserver 8443/8444 + admin SPA | T-21 |
+| Split webserver 7443/7444 + admin SPA | T-21 |
 | Remote deploy from IDE | T-21 (S-70) |
 | Persistent TLS cert | T-21 fix |
 | Immagine di boot del pannello (pagina di boot → PNG → launcher Pixsys) | T-72 |

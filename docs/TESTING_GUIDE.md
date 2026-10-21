@@ -35,12 +35,12 @@ cd sws
 ./scripts/start_runtime.sh
 ```
 
-- [ ] **1.1** The script prints one banner with two URLs: operator viewer on port **8443** and IDE/admin on **8444**. On a fresh `.run/config` (no certificate) they are `http://`, not `https://` — the banner says which. There is no Vite dev server on 5173 any more: the runtime serves the built SPA from `sws-editor/dist`.
-- [ ] **1.2** Browser to the IDE URL (`http://localhost:8444`). Over HTTPS, accept the self-signed cert if prompted (Firefox: Advanced → Accept), or open the plain-HTTP companion page on port 8080 first, which walks through accepting it.
+- [ ] **1.1** The script prints one banner with two URLs: operator viewer on port **7443** and IDE/admin on **7444**. On a fresh `.run/config` (no certificate) they are `http://`, not `https://` — the banner says which. There is no Vite dev server on 5173 any more: the runtime serves the built SPA from `sws-editor/dist`.
+- [ ] **1.2** Browser to the IDE URL (`http://localhost:7444`). Over HTTPS, accept the self-signed cert if prompted (Firefox: Advanced → Accept), or open the plain-HTTP companion page on port 8080 first, which walks through accepting it.
 - [ ] **1.3** Login screen appears with autofocus on the password field. Empty submit is disabled.
 - [ ] **1.4** Type `admin` / `admin` (env-seeded). After submit you land on the editor with the demo project pre-opened (you see "Page 1" / "Demo …" in the page list).
-- [ ] **1.5** Hit `https://localhost:8443/health` with `curl -k` → returns `ok`.
-- [ ] **1.6** Hit `https://localhost:8443/metrics` with `curl -k` → Prometheus text exposition with `sws_uptime_seconds`, `sws_tag_count`, `sws_cpu_usage_pct`, etc.
+- [ ] **1.5** Hit `https://localhost:7443/health` with `curl -k` → returns `ok`.
+- [ ] **1.6** Hit `https://localhost:7443/metrics` with `curl -k` → Prometheus text exposition with `sws_uptime_seconds`, `sws_tag_count`, `sws_cpu_usage_pct`, etc.
 - [ ] **1.7** Wrong password (`admin` / `nope`) shows "Credenziali non valide".
 - [ ] **1.8** Ten wrong passwords in a row should hit the rate-limiter ("Troppi tentativi. Riprova fra un minuto.").
 
@@ -67,7 +67,7 @@ If `--project` auto-opens, click `☰ Menu` → **Chiudi progetto** to reach the
 ### Multi-runtime (ARCH-004)
 
 - [ ] **2.9** WelcomeScreen footer shows **📡 Connetti a runtime remoto…**.
-- [ ] **2.10** Click → modal opens, paste another runtime URL (or `https://localhost:8443` itself for a loopback test). Click **Test connessione** → "✓ OK" if reachable.
+- [ ] **2.10** Click → modal opens, paste another runtime URL (or `https://localhost:7443` itself for a loopback test). Click **Test connessione** → "✓ OK" if reachable.
 - [ ] **2.11** Click **Connetti** → page reloads. Header pill `📡 host:port` appears.
 - [ ] **2.12** Click the pill → confirm → reverts to local runtime.
 
@@ -293,7 +293,7 @@ Start a simulator first: `npx node-opcua-server-example` (endpoint `opc.tcp://lo
 - [ ] **5.10** Set a Tag for the imported NodeId (or click `＋` to quick-create).
 - [ ] **5.11** Save → in LeftPanel Sources you see the green `OPC-UA` pill. The Variabili tab shows the new tag with live updates.
 - [ ] **5.12** **Writes** (step 4): on a synoptic page, put a button writing to the imported tag. Switch to view mode, click → check simulator logs for the write call. The tag value in LeftPanel echoes the new value immediately.
-- [ ] **5.13** **Reverse browse** (advanced): from your browser DevTools console, `await fetch('https://localhost:8443/api/sources/opcua/browse', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + JSON.parse(localStorage.sws_auth).token }, body: JSON.stringify({ endpoint_url: 'opc.tcp://localhost:26543/UA/MyLittleServer', auth: { kind: 'anonymous' }, parent_node_id: 'ns=1;s=Temperature', direction: 'inverse' })}).then(r => r.json())` → returns the parent / inbound refs.
+- [ ] **5.13** **Reverse browse** (advanced): from your browser DevTools console, `await fetch('https://localhost:7443/api/sources/opcua/browse', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + JSON.parse(localStorage.sws_auth).token }, body: JSON.stringify({ endpoint_url: 'opc.tcp://localhost:26543/UA/MyLittleServer', auth: { kind: 'anonymous' }, parent_node_id: 'ns=1;s=Temperature', direction: 'inverse' })}).then(r => r.json())` → returns the parent / inbound refs.
 
 ##### Security policies (BL-005c)
 
@@ -348,7 +348,7 @@ Toggle to **Esegui** in the header.
 ### Live data
 
 - [ ] **6.1** Page nav bar across the top if 2+ pages. Click switches pages.
-- [ ] **6.2** Objects bound to tags update in real time (try writing to a tag from another terminal: `curl -k -X PUT https://localhost:8443/api/tags/smoke.test1 -H 'Authorization: Bearer ...' -H 'Content-Type: application/json' -d '{"value": 42}'`).
+- [ ] **6.2** Objects bound to tags update in real time (try writing to a tag from another terminal: `curl -k -X PUT https://localhost:7443/api/tags/smoke.test1 -H 'Authorization: Bearer ...' -H 'Content-Type: application/json' -d '{"value": 42}'`).
 - [ ] **6.3** Tag quality dot color changes (green / yellow / red).
 
 ### Operator widgets
@@ -417,13 +417,13 @@ Toggle in the header → drawer opens at the bottom (both edit + runtime mode).
 ## 9. Metrics + system endpoints
 
 ```sh
-TOKEN=$(curl -ks -X POST https://localhost:8443/api/auth/login \
+TOKEN=$(curl -ks -X POST https://localhost:7443/api/auth/login \
   -H 'Content-Type: application/json' \
   -d '{"username":"admin","password":"admin"}' | jq -r .token)
 ```
 
-- [ ] **9.1** `curl -k https://localhost:8443/health` → `ok` (no auth).
-- [ ] **9.2** `curl -k https://localhost:8443/metrics` → Prometheus text. Look for:
+- [ ] **9.1** `curl -k https://localhost:7443/health` → `ok` (no auth).
+- [ ] **9.2** `curl -k https://localhost:7443/metrics` → Prometheus text. Look for:
   - `sws_uptime_seconds`
   - `sws_tag_count`
   - `sws_alarm_active_count`
@@ -431,7 +431,7 @@ TOKEN=$(curl -ks -X POST https://localhost:8443/api/auth/login \
   - `sws_memory_used_bytes` / `_total_bytes`
   - `sws_disk_used_bytes` / `_total_bytes`
   - After clicking buttons / running scripts: `sws_script_exec_total{endpoint,status}`, `sws_http_requests_total{path,method,status}`, `sws_alarm_transitions_total{direction,severity}`.
-- [ ] **9.3** `curl -k -H "Authorization: Bearer $TOKEN" https://localhost:8443/api/system | jq` → JSON with `runtime_version`, `uptime_s`, `active_project`, `tag_count`, `source_count`, `alarm_active_count`, `cpu_usage_pct`, `mem_used_mb`, `mem_total_mb`, `disk_used_gb`, `disk_total_gb`.
+- [ ] **9.3** `curl -k -H "Authorization: Bearer $TOKEN" https://localhost:7443/api/system | jq` → JSON with `runtime_version`, `uptime_s`, `active_project`, `tag_count`, `source_count`, `alarm_active_count`, `cpu_usage_pct`, `mem_used_mb`, `mem_total_mb`, `disk_used_gb`, `disk_total_gb`.
 
 ---
 
@@ -441,11 +441,11 @@ TOKEN=$(curl -ks -X POST https://localhost:8443/api/auth/login \
 
 - [ ] **10.1** Build the editor: `cd sws-editor && corepack pnpm build` → `dist/` produced.
 - [ ] **10.2** Launch runtime alone: `./sws-runtime/target/debug/sws-runtime --www /path/to/sws-editor/dist --project .run/projects/<name>`.
-- [ ] **10.3** Browser to `https://localhost:8443/` (note: 8443, not 5173). SPA loads, `/api/*` + `/ws/*` work natively. No Nginx container needed.
+- [ ] **10.3** Browser to `https://localhost:7443/` (note: 7443, not 5173). SPA loads, `/api/*` + `/ws/*` work natively. No Nginx container needed.
 
 ### ARCH-002 — Remote runtime via VITE_RUNTIME_URL
 
-- [ ] **10.4** Two hosts (or two ports). On host A: `./scripts/start_runtime.sh`. On host B: `./scripts/start_editor.sh` (IDE only, port 8460), then point it at host A from the UI: ConfigView → Runtime → **Connetti** with `http://hostA:8444` (the **admin** port — the viewer port 8443 has no project-lifecycle routes, so a deploy would fail with 404/405). The URL is stored in `localStorage["sws.runtimeBaseUrl"]`, which takes priority over everything else in `api/client.ts`.
+- [ ] **10.4** Two hosts (or two ports). On host A: `./scripts/start_runtime.sh`. On host B: `./scripts/start_editor.sh` (IDE only, port 8460), then point it at host A from the UI: ConfigView → Runtime → **Connetti** with `http://hostA:7444` (the **admin** port — the viewer port 7443 has no project-lifecycle routes, so a deploy would fail with 404/405). The URL is stored in `localStorage["sws.runtimeBaseUrl"]`, which takes priority over everything else in `api/client.ts`.
 - [ ] **10.5** Browser to host B's editor → all API + WS go to host A.
 
 > `VITE_RUNTIME_URL` still works, but only for `pnpm dev` (the Vite proxy target): the launcher scripts serve the built SPA and never start Vite.
@@ -453,7 +453,7 @@ TOKEN=$(curl -ks -X POST https://localhost:8443/api/auth/login \
 ### ARCH-003 — Kiosk browser
 
 - [ ] **10.6** Install a browser on the box: `sudo apt install chromium`.
-- [ ] **10.7** Start runtime with `--kiosk-browser "chromium --kiosk --no-sandbox --app=https://localhost:8443"`. After `/health` is up the browser opens automatically in fullscreen kiosk mode. Killing the browser doesn't stop the runtime.
+- [ ] **10.7** Start runtime with `--kiosk-browser "chromium --kiosk --no-sandbox --app=https://localhost:7443"`. After `/health` is up the browser opens automatically in fullscreen kiosk mode. Killing the browser doesn't stop the runtime.
 
 ### ARCH-004 — Multi-runtime SPA
 

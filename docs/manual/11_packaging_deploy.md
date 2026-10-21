@@ -117,7 +117,7 @@ DONE
 1. **SCP upload** — copia il tarball nel `remote_dir` del device
 2. **Estrazione** — `mkdir -p <dir> && tar xzf <tarball> -C <dir>`
 3. **Install** — `chmod +x install.sh && sudo ./install.sh`
-4. **Health check** — `sleep 3 && curl -sk https://localhost:8443/health`
+4. **Health check** — `sleep 3 && curl -sk https://localhost:7443/health`
 
 ### Sicurezza
 
@@ -259,7 +259,7 @@ ssh utente@device "
 "
 
 # 4. Health check
-curl -k https://device:8443/health
+curl -k https://device:7443/health
 ```
 
 ---

@@ -20,12 +20,12 @@ Un processo `sws-runtime` apre fino a due porte, e ognuna ha il suo router:
 
 | Porta | Chi la usa | Autenticazione |
 |---|---|---|
-| **8443** | viewer operatori | facoltativa: senza token si è Viewer anonimo |
-| **8444** | IDE e amministrazione | obbligatoria |
+| **7443** | viewer operatori | facoltativa: senza token si è Viewer anonimo |
+| **7444** | IDE e amministrazione | obbligatoria |
 
 Su un pannello **senza utenti** entrambe rispondono `401 abbinamento_richiesto` a tutto quello
 che non è nell'elenco delle rotte aperte qui sotto. Un'istanza **IDE** (`start_editor.sh`, il
-cloud) apre solo la 8444, sulla porta 8460 o quella configurata. Di default il runtime è in HTTP;
+cloud) apre solo la 7444, sulla porta 8460 o quella configurata. Di default il runtime è in HTTP;
 con il TLS attivo, `https://`.
 
 **Il token** si manda come `Authorization: Bearer <token>`. I WebSocket, che dal browser non
@@ -40,17 +40,17 @@ Viewer, Operator, Supervisor, Admin, gerarchici — «Supervisor» vuol dire «S
 
 | Metodo | Rotta | Cosa fa | Porte |
 |---|---|---|---|
-| GET | `/health` | risponde `ok`: serve all'healthcheck del container | 8443, 8444 |
-| GET | `/cert` | scarica il certificato TLS dell'istanza | 8443, 8444 |
-| GET | `/.well-known/security.txt` | contatto per le segnalazioni di sicurezza | 8443, 8444 |
-| POST | `/api/auth/login` | autentica e restituisce il token | 8443, 8444 |
-| GET | `/api/abbinamento` | stato dell'abbinamento e, se il pannello è in attesa, il codice | 8443, 8444 |
-| POST | `/api/abbinamento/rivendica` | usa il codice: crea l'Admin del dispositivo o salva le credenziali del tunnel | 8443, 8444 |
-| POST | `/api/abbinamento/nome` | rinomina nel tunnel; la protegge la firma del gateway | 8444 |
-| GET | `/api/identita/stato` | dice se l'installazione ha già un amministratore | 8444 |
-| POST | `/api/identita/primo-amministratore` | crea il primo amministratore col codice di primo accesso | 8444 |
-| GET | `/branding/:marchio/:file` | logo, favicon e `brand.json` di un marchio | 8444 |
-| GET | `/api/project` | il progetto attivo, coi segreti mascherati | **solo 8443** |
+| GET | `/health` | risponde `ok`: serve all'healthcheck del container | 7443, 7444 |
+| GET | `/cert` | scarica il certificato TLS dell'istanza | 7443, 7444 |
+| GET | `/.well-known/security.txt` | contatto per le segnalazioni di sicurezza | 7443, 7444 |
+| POST | `/api/auth/login` | autentica e restituisce il token | 7443, 7444 |
+| GET | `/api/abbinamento` | stato dell'abbinamento e, se il pannello è in attesa, il codice | 7443, 7444 |
+| POST | `/api/abbinamento/rivendica` | usa il codice: crea l'Admin del dispositivo o salva le credenziali del tunnel | 7443, 7444 |
+| POST | `/api/abbinamento/nome` | rinomina nel tunnel; la protegge la firma del gateway | 7444 |
+| GET | `/api/identita/stato` | dice se l'installazione ha già un amministratore | 7444 |
+| POST | `/api/identita/primo-amministratore` | crea il primo amministratore col codice di primo accesso | 7444 |
+| GET | `/branding/:marchio/:file` | logo, favicon e `brand.json` di un marchio | 7444 |
+| GET | `/api/project` | il progetto attivo, coi segreti mascherati | **solo 7443** |
 
 > `GET /cert`, non `/api/cert`.
 
@@ -60,7 +60,7 @@ Metriche Prometheus in `text/plain`. **Non** è aperta: vuole una sessione oppur
 `SWS_METRICS_TOKEN`.
 
 ```bash
-curl -k -H "Authorization: Bearer $SWS_METRICS_TOKEN" https://localhost:8443/metrics
+curl -k -H "Authorization: Bearer $SWS_METRICS_TOKEN" https://localhost:7443/metrics
 ```
 
 ---
@@ -69,18 +69,18 @@ curl -k -H "Authorization: Bearer $SWS_METRICS_TOKEN" https://localhost:8443/met
 
 | Metodo | Rotta | Cosa fa | Porte |
 |---|---|---|---|
-| POST | `/api/auth/login` | apre una sessione | 8443, 8444 |
-| GET | `/api/auth/whoami` | chi sono, con ruolo e zone | 8443, 8444 |
-| POST | `/api/auth/logout` | chiude la sessione | 8443, 8444 |
-| POST | `/api/auth/change-password` | cambia la propria password | 8443, 8444 |
-| POST | `/api/auth/verify-password` | riconferma la password senza rifare il login | 8443, 8444 |
-| POST | `/api/auth/refresh` | rinnova la sessione | 8443, 8444 |
-| GET | `/api/identita/mie-aziende` | le aziende di chi è collegato | 8444 |
-| GET | `/api/identita/marchio` | il marchio da mostrare | 8444 |
-| GET | `/api/identita/spazio` | lo spazio usato, per le aziende che hanno un tetto | 8444 |
+| POST | `/api/auth/login` | apre una sessione | 7443, 7444 |
+| GET | `/api/auth/whoami` | chi sono, con ruolo e zone | 7443, 7444 |
+| POST | `/api/auth/logout` | chiude la sessione | 7443, 7444 |
+| POST | `/api/auth/change-password` | cambia la propria password | 7443, 7444 |
+| POST | `/api/auth/verify-password` | riconferma la password senza rifare il login | 7443, 7444 |
+| POST | `/api/auth/refresh` | rinnova la sessione | 7443, 7444 |
+| GET | `/api/identita/mie-aziende` | le aziende di chi è collegato | 7444 |
+| GET | `/api/identita/marchio` | il marchio da mostrare | 7444 |
+| GET | `/api/identita/spazio` | lo spazio usato, per le aziende che hanno un tetto | 7444 |
 
 ```bash
-curl -k -X POST https://localhost:8444/api/auth/login \
+curl -k -X POST https://localhost:7444/api/auth/login \
   -H 'Content-Type: application/json' \
   -d '{"username":"admin","password":"mia_password"}'
 ```
@@ -95,7 +95,7 @@ curl -k -X POST https://localhost:8444/api/auth/login \
 
 ---
 
-## Porta 8443 — il viewer
+## Porta 7443 — il viewer
 
 ### Lettura (anche anonima)
 
@@ -147,11 +147,11 @@ momento di applicare. Un test (`le_scritture_dell_aggiornamento_restano_admin_su
 
 ---
 
-## Porta 8444 — l'IDE
+## Porta 7444 — l'IDE
 
 ### Lettura, con una sessione
 
-Tutto quello che legge la 8443, più:
+Tutto quello che legge la 7443, più:
 
 | Metodo | Rotta | Cosa fa |
 |---|---|---|
@@ -319,6 +319,7 @@ restituisce.
 | GET / PUT / POST | `/api/amministrazione/smtp`, `/…/smtp/prova` | solo piattaforma |
 | PUT / DELETE | `/api/amministrazione/marchi/:id`, `/…/:id/file/:nome` | solo piattaforma |
 | GET / POST | `/api/amministrazione/pannelli`, `/…/:nome/stato` | solo piattaforma |
+| POST | `/api/amministrazione/pannelli/:nome/azienda` | solo piattaforma: sposta un pannello a un'altra azienda (il segmento del gateway, `-` per la radice). È **l'unica** strada: un pannello non cambia azienda facendosi rivendicare, nemmeno quando è sospeso. Il tunnel si stacca e il pannello si ricollega da sé |
 
 ---
 
@@ -340,7 +341,7 @@ Presenti solo in un'istanza avviata con `--gateway`. Il funzionamento è nel
 
 ## `--no-admin`: la porta di gestione ridotta
 
-Sul pannello la 8444 ascolta su tutte le interfacce (`0.0.0.0`, perché l'IDE in rete locale la raggiunge) e porta
+Sul pannello la 7444 ascolta su tutte le interfacce (`0.0.0.0`, perché l'IDE in rete locale la raggiunge) e porta
 **solo** quello che serve a gestirlo da remoto: apertura e chiusura di progetti, caricamento ed esportazione, utenti,
 backup, datastore e la loro ritenzione, log, aggiornamenti, `/ws/tags` e `/ws/alarms`. Tutto il resto dell'IDE — editor dei sinottici,
 configurazione, git, pacchetti — **non c'è**, e una chiamata risponde 404.
@@ -353,15 +354,15 @@ Questo è il motivo per cui una rotta che esiste sul proprio PC può non esister
 
 | Canale | Porte | Cosa porta | Chi |
 |---|---|---|---|
-| `/ws/tags` | 8443, 8444 | istantanea e variazioni dei tag sottoscritti; comandi | autenticato o anonimo |
-| `/ws/alarms` | 8443, 8444 | stato degli allarmi | idem |
-| `/ws/logs` | 8444 | il log del runtime | Operator nell'IDE, Admin sul pannello |
-| `/ws/ai` | 8444 (IDE) | la chat dell'assistente | Admin |
-| `/ws/remote/:sub` | 8444 (IDE) | relay verso il pannello collegato | Admin |
+| `/ws/tags` | 7443, 7444 | istantanea e variazioni dei tag sottoscritti; comandi | autenticato o anonimo |
+| `/ws/alarms` | 7443, 7444 | stato degli allarmi | idem |
+| `/ws/logs` | 7444 | il log del runtime | Operator nell'IDE, Admin sul pannello |
+| `/ws/ai` | 7444 (IDE) | la chat dell'assistente | Admin |
+| `/ws/remote/:sub` | 7444 (IDE) | relay verso il pannello collegato | Admin |
 | `/tunnel/v1` | gateway | il tunnel dei pannelli | token del pannello |
 
 ```javascript
-const ws = new WebSocket(`wss://localhost:8443/ws/tags?token=${token}`);
+const ws = new WebSocket(`wss://localhost:7443/ws/tags?token=${token}`);
 ws.onmessage = (e) => {
   const u = JSON.parse(e.data);
   // { "tag_id": "pressione", "value": 9.8, "quality": "Good", "ts": 1735600000000 }
@@ -375,7 +376,7 @@ ws.onmessage = (e) => {
 ### Leggere i tag
 
 ```bash
-curl -k https://localhost:8443/api/tags
+curl -k https://localhost:7443/api/tags
 ```
 
 ```json
@@ -388,7 +389,7 @@ curl -k https://localhost:8443/api/tags
 ### Scrivere un tag
 
 ```bash
-curl -k -X PUT https://localhost:8443/api/tags/valvola \
+curl -k -X PUT https://localhost:7443/api/tags/valvola \
   -H "Authorization: Bearer $TOKEN" \
   -H 'Content-Type: application/json' \
   -d '{"value": true}'
@@ -397,9 +398,9 @@ curl -k -X PUT https://localhost:8443/api/tags/valvola \
 ### Storico e statistiche
 
 ```bash
-curl -k "https://localhost:8443/api/history/pressione?limit=100"
-curl -k "https://localhost:8443/api/history/pressione?from_ms=1735000000000&to_ms=1735600000000"
-curl -k "https://localhost:8443/api/history/pressione/stats"
+curl -k "https://localhost:7443/api/history/pressione?limit=100"
+curl -k "https://localhost:7443/api/history/pressione?from_ms=1735000000000&to_ms=1735600000000"
+curl -k "https://localhost:7443/api/history/pressione/stats"
 ```
 
 ```json
@@ -423,16 +424,16 @@ degli allarmi). Dal 2026-09-25 la riga c'è **dallo scatto**: `ts_normalized_ms`
 sono `null` finché l'allarme non rientra o non viene confermato.
 
 ```bash
-curl -k "https://localhost:8443/api/alarms/history?limit=50" -H "Authorization: Bearer $TOKEN"
+curl -k "https://localhost:7443/api/alarms/history?limit=50" -H "Authorization: Bearer $TOKEN"
 ```
 
 ### Riconoscere e mettere sullo scaffale
 
 ```bash
-curl -k -X POST https://localhost:8443/api/alarms/pressione_alta/ack \
+curl -k -X POST https://localhost:7443/api/alarms/pressione_alta/ack \
   -H "Authorization: Bearer $TOKEN"
 
-curl -k -X POST https://localhost:8443/api/alarms/pressione_alta/shelve \
+curl -k -X POST https://localhost:7443/api/alarms/pressione_alta/shelve \
   -H "Authorization: Bearer $TOKEN" \
   -H 'Content-Type: application/json' \
   -d '{"reason": "Manutenzione P1", "until_ms": 0}'
@@ -441,7 +442,7 @@ curl -k -X POST https://localhost:8443/api/alarms/pressione_alta/shelve \
 ### Eseguire una funzione Python
 
 ```bash
-curl -k -X POST https://localhost:8443/api/script/run/apri_valvola \
+curl -k -X POST https://localhost:7443/api/script/run/apri_valvola \
   -H "Authorization: Bearer $TOKEN" \
   -H 'Content-Type: application/json' \
   -d '{"arg1": "valore"}'
@@ -450,14 +451,14 @@ curl -k -X POST https://localhost:8443/api/script/run/apri_valvola \
 ### Aprire un progetto
 
 ```bash
-curl -k -X POST https://localhost:8444/api/projects/acme/impianto1/open \
+curl -k -X POST https://localhost:7444/api/projects/acme/impianto1/open \
   -H "Authorization: Bearer $TOKEN"
 ```
 
 ### L'impronta del progetto
 
 ```bash
-curl -k https://localhost:8444/api/project/fingerprint -H "Authorization: Bearer $TOKEN"
+curl -k https://localhost:7444/api/project/fingerprint -H "Authorization: Bearer $TOKEN"
 ```
 
 ```json
@@ -469,12 +470,12 @@ curl -k https://localhost:8444/api/project/fingerprint -H "Authorization: Bearer
 Risposta: testo in streaming riga per riga, che finisce con `DONE` o `ERROR:`.
 
 ```bash
-curl -k -X POST https://localhost:8444/api/build/package \
+curl -k -X POST https://localhost:7444/api/build/package \
   -H "Authorization: Bearer $TOKEN" \
   -H 'Content-Type: application/json' \
   -d '{"no_rust": false, "no_spa": false}'
 
-curl -k https://localhost:8444/api/build/packages -H "Authorization: Bearer $TOKEN"
+curl -k https://localhost:7444/api/build/packages -H "Authorization: Bearer $TOKEN"
 ```
 
 ```json
@@ -486,7 +487,7 @@ curl -k https://localhost:8444/api/build/packages -H "Authorization: Bearer $TOK
 ### Deploy su un dispositivo
 
 ```bash
-curl -k -X POST https://localhost:8444/api/deploy/device \
+curl -k -X POST https://localhost:7444/api/deploy/device \
   -H "Authorization: Bearer $TOKEN" \
   -H 'Content-Type: application/json' \
   -d '{
@@ -505,8 +506,8 @@ curl -k -X POST https://localhost:8444/api/deploy/device \
 
 | Cosa | Dove |
 |---|---|
-| Il router della 8444 e di un'istanza IDE | `sws-runtime/crates/sws-web/src/router.rs:271` (`build`) |
-| Il router della 8443 | `router.rs:1482` (`build_runtime_inner`) |
+| Il router della 7444 e di un'istanza IDE | `sws-runtime/crates/sws-web/src/router.rs:271` (`build`) |
+| Il router della 7443 | `router.rs:1482` (`build_runtime_inner`) |
 | La porta di gestione ridotta di `--no-admin` | `router.rs:1353` (`deploy_only_app`) |
 | Chi può chiamare cosa | `router.rs:2166` (`require_auth`), `router.rs:2351` (`optional_auth`) |
 | Le rotte della console | `sws-runtime/crates/sws-web/src/amministrazione.rs:612` e `:633` |

@@ -150,8 +150,8 @@ use lvgl_render::TagCommand;
 #[derive(Parser, Debug)]
 #[command(version)]
 struct Args {
-    /// URL base del runtime sws-web (porta viewer, es. https://127.0.0.1:8443)
-    #[arg(long, default_value = "https://127.0.0.1:8443")]
+    /// URL base del runtime sws-web (porta viewer, es. https://127.0.0.1:7443)
+    #[arg(long, default_value = "https://127.0.0.1:7443")]
     base_url: String,
 
     /// Nome della pagina synottico da interpretare all'avvio (es. "Page 1") —

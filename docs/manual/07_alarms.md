@@ -226,7 +226,7 @@ Richiede ruolo **Operator** o superiore.
 ### Via API
 
 ```bash
-curl -k -X POST https://localhost:8443/api/alarms/pressione_alta/ack \
+curl -k -X POST https://localhost:7443/api/alarms/pressione_alta/ack \
   -H "Authorization: Bearer $TOKEN"
 ```
 
@@ -245,7 +245,7 @@ leggono con `GET /api/alarms/shelved`.
 ### YAML / API
 
 ```bash
-curl -k -X POST https://localhost:8443/api/alarms/pressione_alta/shelve \
+curl -k -X POST https://localhost:7443/api/alarms/pressione_alta/shelve \
   -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
@@ -374,7 +374,7 @@ scattava, notificava e rientrava senza che nessuno lo confermasse non compariva 
 ```bash
 # Via API
 curl -k -H "Authorization: Bearer $TOKEN" \
-  "https://localhost:8443/api/alarms/history?limit=50"
+  "https://localhost:7443/api/alarms/history?limit=50"
 ```
 
 ---

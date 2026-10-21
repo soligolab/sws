@@ -79,10 +79,10 @@ cleanup() {
 }
 trap cleanup EXIT INT TERM
 
-echo "[kiosk] waiting for https://localhost:8443/health…"
+echo "[kiosk] waiting for https://localhost:7443/health…"
 READY=0
 for _ in $(seq 1 60); do
-  if curl -sk --max-time 1 https://localhost:8443/health >/dev/null 2>&1; then
+  if curl -sk --max-time 1 https://localhost:7443/health >/dev/null 2>&1; then
     READY=1
     break
   fi
@@ -97,6 +97,6 @@ fi
 echo "[kiosk] runtime up (pid $RUNTIME_PID)"
 echo "[kiosk] launching sws-kiosk…"
 exec "$BINARY_DIR/sws-kiosk" \
-  "https://localhost:8443" \
+  "https://localhost:7443" \
   --allow-insecure-tls \
   "${KIOSK_EXTRA_ARGS[@]+"${KIOSK_EXTRA_ARGS[@]}"}"

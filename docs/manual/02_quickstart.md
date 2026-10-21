@@ -76,7 +76,7 @@ Il codice si legge anche nel log (`podman logs sws-runtime | grep -i abbinamento
 `install-container.sh`.
 
 **In rete locale**: dall'IDE, **Configurazione → Istanza → Device → Connessione → «Connetti»**, con l'indirizzo
-del pannello (`http://<ip-del-pannello>:8444`). Compare il campo del codice: si inseriscono codice, nome utente e
+del pannello (`http://<ip-del-pannello>:7444`). Compare il campo del codice: si inseriscono codice, nome utente e
 una password di almeno 8 caratteri, e nasce l'**Admin del dispositivo**. Da lì l'IDE fa deploy, backup,
 aggiornamenti e legge i log del pannello.
 
@@ -89,7 +89,7 @@ aggiornamenti e legge i log del pannello.
 ## 4. Verifica
 
 ```bash
-curl http://<ip-del-pannello>:8443/health
+curl http://<ip-del-pannello>:7443/health
 # → ok
 ```
 
@@ -97,14 +97,14 @@ Con il TLS attivo l'indirizzo diventa `https://` (aggiungere `-k` per il certifi
 dal browser conviene aprire `http://<ip-del-pannello>:8080`, che spiega come accettare il certificato
 ([capitolo 10](10_deployment.md)).
 
-Gli operatori vedono le pagine su `http://<ip-del-pannello>:8443`, o sullo schermo del pannello. Le porte e cosa
+Gli operatori vedono le pagine su `http://<ip-del-pannello>:7443`, o sullo schermo del pannello. Le porte e cosa
 aprire sul firewall: [capitolo 18, §4](18_container_e_comunicazione.md#4-le-porte).
 
 ---
 
 ## Per chi sviluppa SWS
 
-Dal checkout, il runtime completo sulla macchina locale (viewer 8443, IDE 8444, 8080 col TLS attivo):
+Dal checkout, il runtime completo sulla macchina locale (viewer 7443, IDE 7444, 8080 col TLS attivo):
 
 ```bash
 cd sws-editor && pnpm install && cd ..

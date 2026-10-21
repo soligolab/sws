@@ -29,10 +29,10 @@ Il runtime è **un binario solo**, `sws-runtime`, che sta in **un'immagine sola*
 
 | Ruolo | Argomenti tipici | Dove |
 |---|---|---|
-| **Runtime del pannello** | `--viewer-port 8443 --no-admin` | TC620, WP630, un PC in reparto |
+| **Runtime del pannello** | `--viewer-port 7443 --no-admin` | TC620, WP630, un PC in reparto |
 | **IDE su un PC** | solo `--admin-port` (niente viewer) | `start_editor.sh`, il PC di chi progetta |
 | **Gateway del cloud** | `--gateway` | il VPS |
-| **Container di progetto** | `--project … --admin-port 8444 --auth-delegata` | il VPS, uno per progetto aperto |
+| **Container di progetto** | `--project … --admin-port 7444 --auth-delegata` | il VPS, uno per progetto aperto |
 
 In ogni ruolo il runtime:
 - carica il progetto dal filesystem (YAML) e al boot riapre l'ultimo attivo;
@@ -110,12 +110,12 @@ Un processo `sws-runtime` apre **fino a due porte**, ognuna con il suo router (`
 ```
 processo sws-runtime
       │
-      ├── --viewer-port (8443) ── Viewer degli operatori
+      ├── --viewer-port (7443) ── Viewer degli operatori
       │       │                   SPA: index.html (RuntimeViewer)
       │       │                   API in lettura, comandi, login; /ws/tags, /ws/alarms
       │       │                   Accesso: autenticazione facoltativa, senza token si è Viewer anonimo
       │       │
-      └── --admin-port (8444) ─── Gestione
+      └── --admin-port (7444) ─── Gestione
               │                   con --no-admin (pannello): solo API ristretta per l'IDE remoto,
               │                     nessuna interfaccia servita, tutto autenticato
               │                   senza --no-admin (IDE su PC, container di progetto):
@@ -123,9 +123,9 @@ processo sws-runtime
 ```
 
 **Perché due porte.** Sul pannello la separazione permette politiche di rete diverse:
-- la **8443** può essere aperta a tutta la rete dell'impianto (operatori, schermi, kiosk);
-- la **8444** serve solo a chi usa l'IDE, e si può chiudere col firewall, con una VPN o con un elenco di indirizzi;
-- le rotte che cambiano il progetto (deploy, apertura, eliminazione) esistono **solo** sulla 8444.
+- la **7443** può essere aperta a tutta la rete dell'impianto (operatori, schermi, kiosk);
+- la **7444** serve solo a chi usa l'IDE, e si può chiudere col firewall, con una VPN o con un elenco di indirizzi;
+- le rotte che cambiano il progetto (deploy, apertura, eliminazione) esistono **solo** sulla 7444.
 
 **Le due porte non sono più tutto.** Dal 2026 SWS ha anche:
 - il **gateway del cloud**, una porta sola davanti a tutti i progetti, dietro Traefik;
@@ -214,8 +214,8 @@ Il frontend è una SPA React 19 + TypeScript, compilata con Vite 6. Ha **cinque 
 
 | Entry | Sorgente | Uso |
 |---|---|---|
-| `index.html` | `src/main.tsx` | viewer degli operatori (8443) |
-| `index-admin.html` | `src/admin-main.tsx` | IDE (8444, dove non c'è `--no-admin`) |
+| `index.html` | `src/main.tsx` | viewer degli operatori (7443) |
+| `index-admin.html` | `src/admin-main.tsx` | IDE (7444, dove non c'è `--no-admin`) |
 | `index-console.html` | `src/console-main.tsx` | console del cloud (aziende, progetti, pannelli) |
 | `index-chat.html` | `src/chat-main.tsx` | chat dell'assistente in finestra staccata |
 | `index-log.html` | `src/log-main.tsx` | log in finestra staccata |
@@ -254,7 +254,7 @@ Il quadro completo, con gli obblighi del CRA, è nel [capitolo 17](17_sicurezza.
 ## Dev workflow
 
 ```bash
-# Runtime del dispositivo: viewer 8443 + IDE 8444 + 8080, riapre il progetto `default`
+# Runtime del dispositivo: viewer 7443 + IDE 7444 + 8080, riapre il progetto `default`
 ./scripts/start_runtime.sh
 
 # IDE come lo usa un cliente: 8460 + 8090, progetti in ~/sws_projects

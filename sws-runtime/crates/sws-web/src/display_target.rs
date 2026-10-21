@@ -400,7 +400,7 @@ async fn commuta(voluto: &'static str, azione: Azione) -> Option<&'static str> {
     // Web.
     let mut note = Vec::new();
     let _ = bus::unit(&utente, "StopUnit", VIEWER).await; // se non gira, niente da fermare
-    let url = std::env::var("SWS_VIEWER_URL").unwrap_or_else(|_| "http://127.0.0.1:8443".into());
+    let url = std::env::var("SWS_VIEWER_URL").unwrap_or_else(|_| "http://127.0.0.1:7443".into());
     // Prima l'URL: il browser lo rilegge a ogni avvio.
     let url_prima = bus::browser_url_attuale(&sistema).await;
     if let Err(e) = bus::browser_url(&sistema, &url).await {

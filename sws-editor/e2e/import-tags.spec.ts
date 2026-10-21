@@ -15,7 +15,7 @@ import { join } from "node:path";
  * scattava mai → l'import non partiva. Questo test guida la UI reale (apri menu,
  * clicca "Importa progetto", scegli il file) e verifica che i tag compaiano.
  *
- * Gira contro il runtime admin su :8444 (no-auth dev). Self-contained: crea un
+ * Gira contro il runtime admin su :7444 (no-auth dev). Self-contained: crea un
  * progetto sorgente con un tag, ne esporta lo ZIP, poi importa in un progetto
  * vuoto attraverso il menu.
  */

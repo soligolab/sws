@@ -35,7 +35,7 @@ pub fn store_dispositivi(config_dir: &Path) -> ImprontaStore {
     ImprontaStore::in_config(config_dir, NOME_FILE)
 }
 
-/// `https://pannello.local:8444/qualcosa` → `pannello.local:8444`. La porta
+/// `https://pannello.local:7444/qualcosa` → `pannello.local:7444`. La porta
 /// c'è sempre nella chiave: due servizi sullo stesso host possono avere
 /// certificati diversi.
 pub fn host_port_da_url(url: &str) -> Option<String> {

@@ -1,6 +1,6 @@
 //! T-28 — IDE Package Builder + SSH Device Deployer
 //!
-//! Endpoints (Admin only, port 8444):
+//! Endpoints (Admin only, port 7444):
 //!   POST /api/build/package             — run scripts/package.sh, stream log
 //!   GET  /api/build/packages            — list built tarballs in dist/
 //!   POST /api/deploy/device             — SCP tarball + run install.sh via SSH
@@ -577,14 +577,14 @@ pub async fn deploy_device(
         // ── 5. Health check ───────────────────────────────────────────────
         // Il TLS è opt-in (main.rs: si attiva solo se config/tls.crt esiste,
         // mai seminato da un primo install) — un device appena installato
-        // parla HTTP semplice sulla stessa porta 8443, non HTTPS. Un device
+        // parla HTTP semplice sulla stessa porta 7443, non HTTPS. Un device
         // su cui il maintainer ha già attivato TLS in un giro precedente
         // (persiste tra un upgrade e l'altro, dato che config/ non viene
         // toccato) parla invece HTTPS. Prova prima HTTPS (il caso più comune
         // dopo il primo giorno), poi HTTP come fallback, invece di assumere
         // uno dei due e fallire sempre nell'altro caso.
         send("==> Health check...");
-        let hc_cmd = "sleep 3 && (curl -sk https://localhost:8443/health || curl -s http://localhost:8443/health)";
+        let hc_cmd = "sleep 3 && (curl -sk https://localhost:7443/health || curl -s http://localhost:7443/health)";
         let ok = run_ssh_cmd(
             use_sshpass,
             &req.password,
@@ -1365,7 +1365,7 @@ pub async fn deploy_device_container(
         // attivato (upgrade su un volume/bind-mount esistente), il container
         // riparte in HTTPS. Prova entrambi invece di assumere solo HTTP.
         send("==> Health check...");
-        let hc_cmd = "sleep 3 && (curl -sk https://localhost:8443/health || curl -fs http://localhost:8443/health)";
+        let hc_cmd = "sleep 3 && (curl -sk https://localhost:7443/health || curl -fs http://localhost:7443/health)";
         let ok = run_ssh_cmd(
             use_sshpass,
             &req.password,

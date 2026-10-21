@@ -23,16 +23,16 @@ Prima di qualsiasi test approfondito, verifica che il runtime risponda:
 SWS_ADMIN_USER=admin SWS_ADMIN_PASSWORD='una-password-di-prova' ./scripts/start_runtime.sh
 
 # Health check (HTTP di default; con TLS attivo usa https:// + -k): è aperto a tutti
-curl http://localhost:8443/health
+curl http://localhost:7443/health
 # → ok
 
 # Metriche Prometheus: dal 15-10-2026 vogliono una sessione, o il token statico SWS_METRICS_TOKEN
-curl -k -H "Authorization: Bearer $SWS_METRICS_TOKEN" https://localhost:8443/metrics | head -5
+curl -k -H "Authorization: Bearer $SWS_METRICS_TOKEN" https://localhost:7443/metrics | head -5
 # → # HELP sws_uptime_seconds ...
 # → sws_uptime_seconds 42.1
 
 # Tag snapshot: senza token si è Viewer anonimo, se il progetto ha utenti
-curl -k https://localhost:8443/api/tags
+curl -k https://localhost:7443/api/tags
 # → {"counter": {"value": 0, "quality": "Good", ...}, ...}
 # Un runtime senza utenti risponde invece 401 «abbinamento_richiesto» (capitolo 09)
 ```
@@ -43,14 +43,14 @@ curl -k https://localhost:8443/api/tags
 
 ```bash
 # Login come admin
-TOKEN=$(curl -sk -X POST https://localhost:8444/api/auth/login \
+TOKEN=$(curl -sk -X POST https://localhost:7444/api/auth/login \
   -H 'Content-Type: application/json' \
   -d "{\"username\":\"admin\",\"password\":\"$SWS_ADMIN_PASSWORD\"}" | jq -r .token)
 
 echo "Token: $TOKEN"
 
 # Il progetto aperto (qualunque utente autenticato)
-curl -k -H "Authorization: Bearer $TOKEN" https://localhost:8444/api/project | jq '.meta'
+curl -k -H "Authorization: Bearer $TOKEN" https://localhost:7444/api/project | jq '.meta'
 ```
 
 ---
@@ -59,21 +59,21 @@ curl -k -H "Authorization: Bearer $TOKEN" https://localhost:8444/api/project | j
 
 ```bash
 # Scrivi un valore (triggera l'allarme counter_high se > 50)
-curl -k -X PUT https://localhost:8443/api/tags/counter \
+curl -k -X PUT https://localhost:7443/api/tags/counter \
   -H "Authorization: Bearer $TOKEN" \
   -H 'Content-Type: application/json' \
   -d '{"value": 99}'
 
 # Leggi il valore scritto
-curl -k https://localhost:8443/api/tags/counter
+curl -k https://localhost:7443/api/tags/counter
 # → {"value": 99, "quality": "Good", ...}
 
 # Verifica allarme attivo
-curl -k https://localhost:8443/api/alarms | jq '.counter_high.isa_state'
+curl -k https://localhost:7443/api/alarms | jq '.counter_high.isa_state'
 # → "active_unacked"
 
 # ACK allarme
-curl -k -X POST https://localhost:8443/api/alarms/counter_high/ack \
+curl -k -X POST https://localhost:7443/api/alarms/counter_high/ack \
   -H "Authorization: Bearer $TOKEN"
 ```
 
@@ -84,7 +84,7 @@ curl -k -X POST https://localhost:8443/api/alarms/counter_high/ack \
 ```bash
 # Scrivi N valori per popolare lo storico
 for i in $(seq 1 10); do
-  curl -sk -X PUT https://localhost:8443/api/tags/counter \
+  curl -sk -X PUT https://localhost:7443/api/tags/counter \
     -H "Authorization: Bearer $TOKEN" \
     -H 'Content-Type: application/json' \
     -d "{\"value\": $i}" > /dev/null
@@ -92,11 +92,11 @@ for i in $(seq 1 10); do
 done
 
 # Leggi storico
-curl -k "https://localhost:8443/api/history/counter?limit=20" | jq '.[0]'
+curl -k "https://localhost:7443/api/history/counter?limit=20" | jq '.[0]'
 # → {"ts_ms": ..., "value": 1, "quality": "Good"}
 
 # Statistiche
-curl -k "https://localhost:8443/api/history/counter/stats" | jq .
+curl -k "https://localhost:7443/api/history/counter/stats" | jq .
 ```
 
 ---
@@ -108,7 +108,7 @@ La suite di test E2E automatizzata verifica il golden path del editor.
 ### Prerequisiti
 
 ```bash
-# Il runtime deve essere in esecuzione (serve la SPA su :8444)
+# Il runtime deve essere in esecuzione (serve la SPA su :7444)
 ./scripts/start_runtime.sh &
 
 # Prima esecuzione: installa Chromium (~150 MB)
@@ -148,7 +148,7 @@ npx playwright test e2e/screenshots.spec.ts --project=chromium
 ```
 
 Genera gli screenshot in `docs/manual/screenshots/`.
-Richiede un runtime in esecuzione che serva la SPA su `https://localhost:8444` (avvialo con
+Richiede un runtime in esecuzione che serva la SPA su `https://localhost:7444` (avvialo con
 `./scripts/start_runtime.sh`); apri un progetto con contenuti per immagini significative.
 
 ### Artefatti test
@@ -183,7 +183,7 @@ Configura una sorgente Modbus in **Configurazione → Progetto → Protocolli �
 - Host: `localhost`, Port: `502`, Unit ID: `1`
 - Register: `tag=test.valore, address=0, scale=0.1`
 
-Verifica: `curl -k https://localhost:8443/api/tags/test.valore`
+Verifica: `curl -k https://localhost:7443/api/tags/test.valore`
 Atteso: `{"value": 10.0, ...}` (100 × 0.1)
 
 ---
@@ -204,7 +204,7 @@ Configura la sorgente MQTT in **Configurazione → Progetto → Protocolli → +
 - Host: `localhost`, Port: `1883`
 - Topic: `impianto/pressione`, Tag: `mqtt.pressione`
 
-Verifica: `curl -k https://localhost:8443/api/tags/mqtt.pressione`
+Verifica: `curl -k https://localhost:7443/api/tags/mqtt.pressione`
 
 ---
 
@@ -246,7 +246,7 @@ lo manda all'IDE; spegnendola, o chiudendo l'IDE, torna a INFO. Il DEBUG non fin
 
 ```bash
 # Controlla la porta occupata
-ss -tlnp | grep -E "8443|8444"
+ss -tlnp | grep -E "7443|7444"
 
 # Log del runtime: un file JSONL al giorno
 tail -f .run/logs/runtime-$(date +%F).jsonl
@@ -260,10 +260,10 @@ podman logs -f sws-runtime
 
 ```bash
 # La SPA è servita dal runtime sulla porta admin
-curl -sk https://localhost:8444/ | head -5
+curl -sk https://localhost:7444/ | head -5
 
 # Health del runtime
-curl -sk https://localhost:8444/health
+curl -sk https://localhost:7444/health
 
 # In dev con hot-reload (pnpm dev), il dev server Vite è su :5173
 curl -s http://localhost:5173/ | head -5
@@ -277,7 +277,7 @@ Soluzione:
 2. Chrome: digita `thisisunsafe` sulla pagina di warning
 3. oppure: scarica il cert e aggiungilo alle CA fidate:
    ```bash
-   curl -k https://localhost:8443/cert -o sws.crt
+   curl -k https://localhost:7443/cert -o sws.crt
    # Firefox: Impostazioni → Certificati → Importa
    # Chrome: chrome://settings/certificates → Autorità
    ```
@@ -288,12 +288,12 @@ Soluzione:
 2. Controlla il log: `tail -f .run/logs/runtime-$(date +%F).jsonl | grep '"ERROR"'`
 3. Verifica connectivity alla sorgente:
    ```bash
-   curl -k https://localhost:8443/api/tags/<id>  # quality deve essere "Good"
+   curl -k https://localhost:7443/api/tags/<id>  # quality deve essere "Good"
    ```
 
 ### Allarme non scatta
 
-1. Verifica il valore del tag: `curl -k https://localhost:8443/api/tags/<tag>`
+1. Verifica il valore del tag: `curl -k https://localhost:7443/api/tags/<tag>`
 2. Verifica la condizione definita: **Configurazione → Progetto → Allarmi → [allarme]**
 3. Controlla `on_delay_s` (potrebbe richiedere tempo prima dell'attivazione)
 

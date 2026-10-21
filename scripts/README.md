@@ -8,8 +8,8 @@ Helper locali per il PoC SWS. Non necessari in produzione o CI.
 DISPOSITIVO (panel, server):         PC SVILUPPATORE:
   ./scripts/start_runtime.sh           ./scripts/start_editor.sh
   ├─ 8080  HTTP cert-acceptance         ├─ 8090  HTTP cert-acceptance
-  ├─ 8443  viewer operatori             └─ 8460  IDE locale
-  └─ 8444  IDE/admin remoto                  ↕ "Connetti runtime"
+  ├─ 7443  viewer operatori             └─ 8460  IDE locale
+  └─ 7444  IDE/admin remoto                  ↕ "Connetti runtime"
         (sui dispositivi spediti: solo
          gestione remota, nessun IDE —
          `--no-admin`, vedi sotto)
@@ -28,7 +28,7 @@ macchina** senza conflitti (es. dev locale con runtime + editor in parallelo).
 `docs/adr/0003-editor-runtime-same-binary.md`). Ne segue una cosa che vale la pena
 sapere prima di premere Salva:
 
-- **IDE sulla 8444 di un dispositivo** → si modifica il progetto **dell'impianto in
+- **IDE sulla 7444 di un dispositivo** → si modifica il progetto **dell'impianto in
   servizio**, sul filesystem del dispositivo, e il salvataggio ne ricarica sorgenti
   e allarmi *senza riavvio e senza conferma*. L'IDE lo segnala con un marcatore in
   testata.
@@ -54,12 +54,12 @@ I due script di sviluppo qui sotto passano `.run/projects` e `.run-editor/projec
 
 Avvia il binario Rust con **tutte e tre** le porte:
 - `8080` — HTTP (no TLS): pagina di aiuto per accettare il certificato self-signed
-- `8443` — viewer per operatori e kiosk (accesso anonimo)
-- `8444` — IDE/admin remoto (accesso autenticato, Supervisor/Admin)
+- `7443` — viewer per operatori e kiosk (accesso anonimo)
+- `7444` — IDE/admin remoto (accesso autenticato, Supervisor/Admin)
 
 **Attenzione a una differenza fra questo script e i dispositivi.** Dal 2026-09-02
 i deploy (yocto, generic-linux, container) partono con **`--no-admin`**: la porta
-8444 resta e serve solo la gestione remota che l'editor chiama — deploy, pull,
+7444 resta e serve solo la gestione remota che l'editor chiama — deploy, pull,
 backup, utenti, datastore, tutto autenticato — e **non serve nessun IDE**. Qui il
 default resta l'IDE completo, perché lo stack di sviluppo serve anche a lavorare
 su quello; per provare la postura vera:
@@ -75,8 +75,8 @@ ancora.
 Auto-apre il progetto `default` se esiste in `.run/projects/default/`.
 
 ```sh
-./scripts/start_runtime.sh                # instance 1: 8443/8444, dati .run/
-./scripts/start_runtime.sh --instance 2   # instance 2: 8445/8446, dati .run-2/
+./scripts/start_runtime.sh                # instance 1: 7443/7444, dati .run/
+./scripts/start_runtime.sh --instance 2   # instance 2: 7445/7446, dati .run-2/
 ```
 
 ### Dove vive lo stato
@@ -101,7 +101,7 @@ rm -rf .run && ./scripts/start_runtime.sh
 ### Certificato TLS (opzionale)
 
 Il runtime parte in **HTTP plain** di default: nessun certificato, nessuna pagina di
-accettazione, primo accesso diretto su `http://localhost:8444`. `localhost` è sempre un
+accettazione, primo accesso diretto su `http://localhost:7444`. `localhost` è sempre un
 "secure context" nei browser moderni, quindi l'IDE funziona senza TLS.
 
 Il TLS si attiva **su richiesta** dall'IDE: **Configurazione → Istanza → Device → Stato → Certificato TLS**:
@@ -113,16 +113,16 @@ La modalità è determinata dalla **presenza** di `config/tls.crt` all'avvio (gl
 `--http-port` solo quando il cert esiste). Quando il TLS è attivo, accetta il self-signed così:
 
 ```sh
-curl -k https://localhost:8443/cert -o sws.crt   # scarica il cert per i trusted del browser
-curl -k https://<ip>:8443/cert -o sws.crt         # da un altro PC sulla LAN
+curl -k https://localhost:7443/cert -o sws.crt   # scarica il cert per i trusted del browser
+curl -k https://<ip>:7443/cert -o sws.crt         # da un altro PC sulla LAN
 ```
 
 ### Verifica che sia vivo
 
 ```sh
-curl -k https://localhost:8443/health   # → "ok"
-curl -k https://localhost:8444/health   # → "ok"
-curl -k https://localhost:8443/api/tags
+curl -k https://localhost:7443/health   # → "ok"
+curl -k https://localhost:7444/health   # → "ok"
+curl -k https://localhost:7443/api/tags
 ```
 
 ### End-to-end tests (Playwright)
@@ -387,7 +387,7 @@ in un mese. Se `SWS_PROJECTS_ROOT` è già impostata vince quella — lo script 
 mancante, non ne scavalca una esplicita.
 
 Per connettere un runtime remoto: apri l'IDE → **Configurazione → Istanza → Device → Connessione →
-"Connetti"** → inserisci URL, utente e password del runtime (es. `https://192.168.1.50:8444`).
+"Connetti"** → inserisci URL, utente e password del runtime (es. `https://192.168.1.50:7444`).
 La connessione abilita sia il **deploy del progetto** sia la **visualizzazione live di tag e allarmi**
 in real-time tramite relay WebSocket (il token remoto rimane nel processo locale, mai nel browser).
 

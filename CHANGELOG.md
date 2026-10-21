@@ -11,6 +11,27 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 
 ## [Unreleased]
 
+## [2.16.0] — 2026-10-21
+
+### Changed
+
+- **Un pannello sospeso non se lo prende più un'altra azienda.** `prepara()` rifiutava la rivendicazione solo se
+  il pannello era **attivo** e di un'altra azienda; se era **sospeso** passava, e il primo che avesse il codice se
+  lo portava via insieme al suo hardware. Sospendere un pannello per manutenzione voleva dire, di fatto, metterlo
+  in vendita. Ora il controllo guarda l'azienda in qualunque stato (`tunnel/abbinati.rs`), con due test.
+
+- **Il pannello passa da 8443/8444 a 7443/7444.** La 8443 è l'API REST di OpenPLC Runtime v4, fissa anche nella
+  CLI del suo Editor: perché OpenPLC possa girare sul dispositivo accanto a SWS e restare usabile anche da solo,
+  come PLC indipendente, è SWS che si sposta. Le due porte restano **adiacenti** perché l'IDE deduce il viewer
+  come `admin − 1` (`runtimeUrl.ts`): lasciando l'IDE sulla 8444, «Viewer ↗» avrebbe aperto OpenPLC. Toccati i
+  quattro avviatori (Yocto, i due Containerfile, il quadlet, `start_runtime.sh`), l'unico default nel codice
+  (`--admin-port`), i `--base-url` di `sws-lvgl-viewer` e `sws-kiosk`, l'installer, il ripiego dell'mDNS, il
+  ripiego dei dispositivi registrati e venti file di documentazione. **Non toccato il gateway nel cloud**
+  (`PORTA_FIGLIO = 8444`): è una porta interna alla rete del VPS, non è esposta e muoverla vorrebbe dire
+  ricreare ogni container di progetto. I pannelli già installati si spostano all'aggiornamento, perché il
+  quadlet viaggia con l'immagine; un dispositivo registrato a mano con `:8444` nell'URL va corretto una volta.
+  Piano: `docs/plans/2026-10-21-porte-7443-7444.md`.
+
 ### Fixed
 
 - **Il «Formato predefinito» del progetto è dentro «Dimensioni pagina», e segue le riscalature.** Stava in
@@ -39,6 +60,20 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
   Ora conta la regia del gateway, per azienda (`amministrazione.rs`, `risorse`).
 
 ### Added
+
+- **Spostare un pannello a un'altra azienda**, dalla pagina *Pannelli* della console
+  (`POST /api/amministrazione/pannelli/:nome/azienda`, solo amministratore di piattaforma, con audit). È la strada
+  che il messaggio d'errore prometteva dall'11-10 — «lo può spostare solo chi amministra la piattaforma» — senza
+  che esistesse: l'unico modo era sospendere il pannello e lasciarlo rivendicare, cosa che ora non si può più
+  fare. Lo spostamento **stacca il tunnel**: il pannello si ricollega da sé, ma gli stream aperti erano stati
+  autorizzati per l'azienda di prima. L'azienda di destinazione deve esistere, o il pannello diventerebbe
+  irraggiungibile in silenzio.
+
+- **La console dice quanti pannelli ha ogni azienda**, nella prima pagina accanto ai progetti aperti: quanti
+  abbinati e quanti accesi adesso (`/api/amministrazione/risorse`, fuori dalla cache dei 60 s — sono due filtri su
+  una lista in memoria). Il `max_pannelli` concordato compare accanto al numero e **non ferma niente**: resta una
+  nota finché non è deciso quando una licenza si libera. Il numero era già nel file del gateway dall'11-10 e non
+  lo leggeva nessuno.
 
 - **Console: i progetti aperti, e la chiusura a mano** (ramo 1 della chiusura dei residui). Sotto ogni azienda
   l'elenco dei suoi container di progetto accesi, con chi è collegato, e «Chiudi»

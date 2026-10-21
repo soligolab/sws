@@ -7,9 +7,11 @@
 > andati in archivio quel giorno. Tutte e tre chiedono **che cos'è un pannello per il server**:
 > un oggetto che si conta, che si fattura, o che qualcuno possiede.
 >
-> **Quando questo lavoro comincia, il primo passo è una sessione di plan approfondita** per
-> decidere ogni dettaglio: qui ci sono le domande e le misure di quando sono nate, non un
-> progetto.
+> **La sessione di plan si è tenuta il 21-10-2026**, lo stesso giorno: due domande su tre hanno
+> avuto risposta e sono state attuate. La terza — quando si consuma e quando si libera una
+> licenza — è rimasta aperta per scelta, ed è nel seme
+> [quando si libera una licenza](../plans/2026-10-21-quando-si-libera-una-licenza.md). L'esito è
+> in fondo a questo file.
 
 ## Le tre domande
 
@@ -50,3 +52,38 @@
   una prova di possesso fisico (un codice letto sullo schermo del pannello, come già oggi)?
 - Va deciso prima o dopo la Fase 5 del tronco cloud (registrazione, email, 2FA), che è l'altro
   pezzo di «un cliente vero con un account vero»?
+
+## Esito della sessione di plan (21-10-2026)
+
+Tre decisioni del maintainer, e due cose misurate che il seme non sapeva.
+
+**Quello che il seme non sapeva.** `prepara()` rifiutava la rivendicazione di un pannello di
+un'altra azienda solo se il pannello era **attivo**: se era **sospeso**, passava. Il primo che
+avesse avuto il codice se lo sarebbe portato via, azienda compresa. Sospendere un pannello per
+manutenzione voleva dire, di fatto, metterlo in vendita — e quello era anche l'unico modo di
+spostarlo, perché la strada che il messaggio d'errore prometteva («lo può spostare solo chi
+amministra la piattaforma») **non esisteva**: la piattaforma poteva solo elencare, rinominare e
+cambiare stato.
+
+**1. Il numero di pannelli serve a vedere, non a fermare.** La console mostra, su ogni azienda,
+quanti pannelli ha abbinati e quanti sono accesi adesso, accanto ai progetti aperti. Il
+`max_pannelli` concordato compare accanto al numero ed è dichiarato come nota: non rifiuta
+nessun abbinamento. Il dato esisteva già nel file del gateway dall'11-10 e non lo leggeva
+nessuno.
+
+**2. Un pannello non cambia azienda facendosi rivendicare.** Il controllo guarda l'azienda in
+qualunque stato il pannello sia. Sospeso torna a voler dire «fermo» e non «disponibile».
+
+**3. Lo sposta la piattaforma, dalla console.** `POST /api/amministrazione/pannelli/:nome/azienda`,
+riservata all'amministratore di piattaforma, con l'audit, e un menù nella pagina *Pannelli*.
+L'azienda di destinazione deve esistere — un segmento sbagliato renderebbe il pannello
+irraggiungibile da chiunque, senza un errore. Lo spostamento **stacca il tunnel**: il pannello si
+ricollega da sé in pochi secondi, ma gli stream aperti in quel momento erano stati autorizzati
+per l'azienda di prima.
+
+**Quello che resta aperto, per scelta.** Quando una licenza si consuma e quando si libera: finché
+non è deciso, `max_pannelli` non può diventare una quota vera, perché un tetto che nessuno
+libera è un tetto che prima o poi blocca un cliente che non ha fatto niente di male. Seme:
+[quando si libera una licenza](../plans/2026-10-21-quando-si-libera-una-licenza.md).
+
+Attuato nel ramo `feat/pannelli-conteggio-e-spostamento`.

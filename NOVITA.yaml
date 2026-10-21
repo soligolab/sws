@@ -18,7 +18,12 @@
 
 versioni:
   - versione: "2.16.0"
+    compatibilita:
+      - it: "Il pannello cambia porte: il viewer passa da 8443 a 7443 e la gestione da 8444 a 7444. Segnalibri e dispositivi salvati a mano vanno corretti una volta; «Cerca» li ritrova da sé."
+        en: "The panel changes ports: the viewer moves from 8443 to 7443 and management from 8444 to 7444. Bookmarks and hand-saved devices need fixing once; «Search» finds them by itself."
     voci:
+      - it: "Un pannello sospeso non può più essere rivendicato da un'altra azienda: sospenderlo ora vuol dire solo fermarlo. Spostarlo a un'altra azienda lo fa chi amministra la piattaforma, dalla console."
+        en: "A suspended panel can no longer be claimed by another company: suspending it now only means stopping it. Moving it to another company is done by the platform administrator, from the console."
       - it: "Sullo schermo del pannello torna l'avviso di versione nuova anche con utenti: per aggiornare chiede l'accesso di un amministratore. L'esito dell'ultimo aggiornamento è una striscia che non copre la pagina."
         en: "The new-version notice is back on the panel screen even when the panel has users: updating asks for an administrator's login. The last update's outcome is a strip that doesn't cover the page."
       - it: "Console del cloud: ogni azienda vede quali suoi progetti sono aperti adesso e chi è collegato, e può chiuderli a mano; il conteggio dei progetti aperti ora è quello vero."

@@ -3,9 +3,9 @@
  *
  * La porta del viewer è **dedotta** come `admin − 1`, non letta dal runtime,
  * che non la pubblica da nessuna parte. Vale per ogni installazione esistente:
- * `start_runtime.sh` usa 8443/8444 e 8445/8446 con `--instance N`, e il `CMD`
- * dei due Containerfile usa 8443/8444 — l'installer stesso lo stampa a fine
- * installazione ("viewer : …:8443   IDE : …:8444").
+ * `start_runtime.sh` usa 7443/7444 e 7445/7446 con `--instance N`, e il `CMD`
+ * dei due Containerfile usa 7443/7444 — l'installer stesso lo stampa a fine
+ * installazione ("viewer : …:7443   IDE : …:7444").
  *
  * È una convenzione, non un dato: chi avvia il runtime con porte arbitrarie
  * ottiene un indirizzo sbagliato. Per questo l'URL dedotto va **mostrato**

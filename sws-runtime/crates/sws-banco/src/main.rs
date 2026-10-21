@@ -33,10 +33,10 @@ const ECO: &str = "banco.eco";
 #[derive(Parser, Debug)]
 #[command(about = "Banco di prova delle prestazioni del runtime SWS")]
 struct Args {
-    /// Le API di gestione (creano e aprono il progetto), es. http://127.0.0.1:8444
+    /// Le API di gestione (creano e aprono il progetto), es. http://127.0.0.1:7444
     #[arg(long)]
     gestione: String,
-    /// Dove si collegano i client, come un browser (es. http://192.168.1.204:8443).
+    /// Dove si collegano i client, come un browser (es. http://192.168.1.204:7443).
     /// Assente = la stessa di `--gestione`.
     #[arg(long)]
     viewer: Option<String>,

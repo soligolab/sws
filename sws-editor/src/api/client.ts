@@ -892,6 +892,15 @@ export type RisorseConsole = {
     segmento?: string;
     /** Quanti suoi progetti sono aperti adesso, sul gateway (20-10-2026). */
     progetti_aperti?: number;
+    /** Quanti pannelli ha abbinati, e quanti sono accesi adesso (21-10-2026).
+     *  Assenti dove non c'e un gateway: la console non deve dire «0 pannelli»
+     *  su un'installazione che non ne puo avere. */
+    pannelli?: number;
+    pannelli_collegati?: number;
+    /** Il tetto concordato. Si **mostra** e non si applica: prima di fermare
+     *  un abbinamento va deciso quando una licenza si libera, e non lo e
+     *  ancora (decisione del maintainer, 21-10-2026). */
+    max_pannelli?: number | null;
   }[];
   /** Solo per l'amministratore di piattaforma: non e di nessuna azienda. */
   macchina: {
@@ -909,6 +918,8 @@ export type RisorseConsole = {
   progetti_aperti_ora: number;
   /** Vero sul gateway, dove il tetto si applica davvero; falso su un'istanza sola. */
   progetti_aperti_si_applicano: boolean;
+  /** Vero dove esiste un archivio di pannelli abbinati, cioe sul gateway. */
+  pannelli_si_contano?: boolean;
 };
 
 /** Un progetto aperto nel cloud (`GET /api/amministrazione/progetti-aperti`). */
@@ -2507,6 +2518,15 @@ export const api = {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ stato }),
+    }),
+  /** Sposta un pannello a un'altra azienda: il segmento del gateway, `-` per
+   *  la radice. Solo chi amministra la piattaforma, ed e l'unica strada - un
+   *  pannello non cambia azienda facendosi rivendicare (21-10-2026). */
+  spostaPannelloAzienda: (nome: string, azienda: string) =>
+    request<void>(`/api/amministrazione/pannelli/${encodeURIComponent(nome)}/azienda`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ azienda }),
     }),
   /** Questo IDE gira nel cloud, dietro il gateway? (abbinamento, fetta D) */
   remoteCloud: () => request<{ cloud: boolean }>("/api/remote/cloud"),

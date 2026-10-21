@@ -120,7 +120,7 @@ pub async fn scatta(r: Richiesta) -> Result<Scatto, String> {
         .arg(&copia)
         .arg("--viewer-port")
         .arg(porta.to_string())
-        // Anche l'admin va spostato: il default è 8444, cioè la porta di chi ci
+        // Anche l'admin va spostato: il default è 7444, cioè la porta di chi ci
         // ha chiamato, e il banco di prova non deve rubargliela.
         .arg("--admin-port")
         .arg(porta_libera()?.to_string())

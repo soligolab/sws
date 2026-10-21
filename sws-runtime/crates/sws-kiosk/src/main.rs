@@ -10,7 +10,7 @@ use webkit6::{NetworkSession, TLSErrorsPolicy, WebView};
 #[command(name = "sws-kiosk", about = "SWS WebKit kiosk window")]
 struct Args {
     /// URL to load
-    #[arg(default_value = "https://127.0.0.1:8443")]
+    #[arg(default_value = "https://127.0.0.1:7443")]
     url: String,
 
     /// Skip TLS certificate verification (needed for self-signed certs)

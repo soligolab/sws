@@ -838,6 +838,13 @@ async fn risorse(State(s): State<AppState>, Extension(chi): Extension<AuthUser>)
                     "storico_byte": storico,
                     "max_byte": a.max_byte,
                     "max_progetti_aperti": a.max_progetti_aperti,
+                    // Il tetto dei pannelli è un **dato concordato che si
+                    // mostra**, non una quota applicata: la console lo scrive
+                    // accanto al numero vero e nessuno rifiuta niente
+                    // (decisione del maintainer, 21-10-2026 — prima di fermare
+                    // qualcosa va deciso quando una licenza si libera, e non lo
+                    // è ancora).
+                    "max_pannelli": a.max_pannelli,
                 }));
             }
             righe
@@ -892,6 +899,26 @@ async fn risorse(State(s): State<AppState>, Extension(chi): Extension<AuthUser>)
         None => usize::from(s.project_dir.read().await.is_some()),
     };
 
+    // Quanti pannelli ha ogni azienda, e quanti sono accesi adesso (21-10-2026).
+    // Fuori dalla cache dei 60 secondi come i progetti aperti: sono due `filter`
+    // su una lista in memoria. Il numero c'era già nel file del gateway e non lo
+    // leggeva nessuno — la console mostrava le aziende senza dire quanti
+    // dispositivi avessero in campo.
+    if let Some(abbinati) = s.pannelli_abbinati.as_ref() {
+        let collegati = match s.tunnel.as_ref() {
+            Some(r) => r.collegati().await,
+            None => vec![],
+        };
+        for a in aziende.iter_mut() {
+            let seg = a.get("segmento").and_then(|v| v.as_str()).unwrap_or("").to_string();
+            let (quanti, accesi) = abbinati.conta_di(&seg, &collegati);
+            if let Some(o) = a.as_object_mut() {
+                o.insert("pannelli".into(), serde_json::json!(quanti));
+                o.insert("pannelli_collegati".into(), serde_json::json!(accesi));
+            }
+        }
+    }
+
     Json(serde_json::json!({
         "aziende": aziende,
         // Lo stato della macchina non è di nessuna azienda: lo vede solo chi
@@ -901,6 +928,10 @@ async fn risorse(State(s): State<AppState>, Extension(chi): Extension<AuthUser>)
         "validita_ms": VALIDITA_MISURA_MS,
         "progetti_aperti_ora": progetti_aperti_ora,
         "progetti_aperti_si_applicano": s.regia.is_some(),
+        // Il conteggio dei pannelli esiste solo dove c'è il gateway: su un
+        // pannello o su un IDE locale la console non deve mostrare «0 pannelli»,
+        // che sarebbe falso, ma non mostrare niente.
+        "pannelli_si_contano": s.pannelli_abbinati.is_some(),
     }))
     .into_response()
 }

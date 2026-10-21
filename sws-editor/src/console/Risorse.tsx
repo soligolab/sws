@@ -164,6 +164,29 @@ export function Risorse() {
                 <div style={{ ...avviso, marginTop: 6 }}>{t("console.risorse.tettoNonApplicato")}</div>
               )}
             </div>
+
+            {/* I pannelli (21-10-2026). Il numero c'era già nel file del
+                gateway e non lo leggeva nessuno. Il tetto si **mostra** e non
+                si applica: prima di fermare un abbinamento va deciso quando una
+                licenza si libera, e non lo è ancora — per questo è scritto
+                accanto, non come una barra piena. */}
+            {dati.pannelli_si_contano && (
+              <div style={{ marginTop: 12 }}>
+                <label style={titoletto}>{t("console.risorse.pannelli")}</label>
+                <div style={{ fontSize: 13 }}>
+                  {a.pannelli ?? 0}
+                  {a.max_pannelli != null && (
+                    <span style={{ color: "var(--brand-text-subtle, #64748b)" }}> / {a.max_pannelli}</span>
+                  )}
+                  <span style={{ color: "var(--brand-text-muted, #94a3b8)", marginLeft: 8 }}>
+                    {t("console.risorse.pannelliAccesi", { n: a.pannelli_collegati ?? 0 })}
+                  </span>
+                </div>
+                {a.max_pannelli != null && (
+                  <div style={{ ...avviso, marginTop: 6 }}>{t("console.risorse.tettoPannelliNonApplicato")}</div>
+                )}
+              </div>
+            )}
           </div>
         );
       })}

@@ -10,6 +10,13 @@ import { scheda, titoletto } from "./stile";
  * **Il ban sta sull'hardware**: un pannello bandito è rifiutato prima ancora di
  * guardare il token, e resta bandito anche se lo si riformatta e lo si abbina di
  * nuovo. Sospeso è lo stesso, ma pensato per tornare.
+ *
+ * **L'azienda si cambia solo da qui** (21-10-2026). Fino a quel giorno un
+ * pannello sospeso lo poteva rivendicare chiunque avesse il codice, e quello era
+ * l'unico modo di spostarlo: un effetto collaterale, non una decisione. Ora
+ * sospeso vuol dire fermo, e lo spostamento è una scelta esplicita di chi
+ * amministra la piattaforma — col tunnel che si stacca, perché gli stream
+ * aperti erano stati autorizzati per l'azienda di prima.
  */
 type Riga = {
   nome: string;
@@ -29,6 +36,7 @@ type Elenco = {
 export function Pannelli() {
   const { t } = useTranslation();
   const [elenco, setElenco] = useState<Elenco | null>(null);
+  const [aziende, setAziende] = useState<{ segmento: string; nome: string }[]>([]);
   const [err, setErr] = useState<string | null>(null);
 
   const carica = useCallback(() => {
@@ -37,11 +45,34 @@ export function Pannelli() {
       .catch((e: unknown) => setErr(e instanceof Error ? e.message : String(e)));
   }, []);
   useEffect(() => { carica(); }, [carica]);
+  // Le aziende servono per il menù «sposta»: il segmento è come il gateway le
+  // nomina, ed è quello che la riga del pannello tiene in `azienda`. Lo porta
+  // già il sinottico delle risorse, quindi niente rotta nuova.
+  useEffect(() => {
+    api.amministrazioneRisorse()
+      .then((r) => setAziende(r.aziende.map((a) => ({
+        segmento: a.segmento ?? "-",
+        // L'azienda implicita ha un nome scritto nel database in italiano:
+        // nell'IDE in inglese si traduce, come fa il sinottico delle risorse.
+        nome: a.implicita ? t("console.persone.questaInstallazione") : a.nome,
+      }))))
+      .catch(() => setAziende([]));
+  }, [t]);
 
   const cambia = async (nome: string, stato: Riga["stato"]) => {
     if (stato === "bandito" && !window.confirm(t("console.pannelli.confermaBan", { nome }))) return;
     try {
       await api.statoPannello(nome, stato);
+      carica();
+    } catch (e: unknown) {
+      setErr(e instanceof Error ? e.message : String(e));
+    }
+  };
+
+  const sposta = async (nome: string, azienda: string) => {
+    if (!window.confirm(t("console.pannelli.confermaSposta", { nome, azienda }))) return;
+    try {
+      await api.spostaPannelloAzienda(nome, azienda);
       carica();
     } catch (e: unknown) {
       setErr(e instanceof Error ? e.message : String(e));
@@ -93,7 +124,23 @@ export function Pannelli() {
                     <button onClick={() => rinomina(r.nome)} title={t("console.pannelli.rinomina")}
                       style={{ marginLeft: 6, background: "transparent", border: "none", cursor: "pointer", color: "var(--brand-text-muted, #94a3b8)", fontSize: 12 }}>✎</button>
                   </td>
-                  <td>{r.azienda}</td>
+                  <td>
+                    {aziende.length > 0 ? (
+                      <select value={r.azienda} title={t("console.pannelli.spostaAiuto")}
+                        onChange={(e) => void sposta(r.nome, e.target.value)}
+                        style={{ background: "var(--brand-bg, #0f172a)", color: "var(--brand-text, #e2e8f0)", border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 4, fontSize: 12 }}>
+                        {/* Il segmento di oggi c'è sempre, anche se l'azienda
+                            non è più nell'elenco: altrimenti il menù mostrerebbe
+                            un'azienda diversa da quella vera. */}
+                        {!aziende.some((a) => a.segmento === r.azienda) && (
+                          <option value={r.azienda}>{r.azienda}</option>
+                        )}
+                        {aziende.map((a) => (
+                          <option key={a.segmento} value={a.segmento}>{a.nome}</option>
+                        ))}
+                      </select>
+                    ) : r.azienda}
+                  </td>
                   <td style={{ fontFamily: "ui-monospace, monospace", fontSize: 11 }}>{r.hw}</td>
                   <td style={{ fontSize: 11 }}>{quando(r.ultimo_ms)}</td>
                   <td>

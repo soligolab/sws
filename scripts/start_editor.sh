@@ -64,7 +64,7 @@ while [[ $# -gt 0 ]]; do
 done
 
 # ── Porta IDE per-istanza (solo admin — nessun viewer) ────────────────────────
-# Range separato dal runtime (8443-8449/8080-8089) per evitare conflitti
+# Range separato dal runtime (7443-7449/8080-8089) per evitare conflitti
 # quando entrambi girano sulla stessa macchina di sviluppo.
 ADMIN_PORT=$((8460 + (INSTANCE - 1) * 2))
 

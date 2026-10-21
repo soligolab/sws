@@ -46,7 +46,7 @@ Riferimento: `fonte_autenticazione` in `sws-runtime/crates/sws-web/src/router.rs
 Un pannello senza nessun utente risponde **401 `abbinamento_richiesto`** a ogni rotta di dati,
 viewer compreso. Restano aperte solo quelle che servono proprio ad abbinarlo o a sapere che è
 vivo: `GET /api/abbinamento`, `POST /api/abbinamento/rivendica`, `POST /api/abbinamento/nome`,
-`POST /api/auth/login`, `/health`, `/cert`, `/.well-known/security.txt` e — sulla sola 8443 —
+`POST /api/auth/login`, `/health`, `/cert`, `/.well-known/security.txt` e — sulla sola 7443 —
 `GET /api/project`. I file statici dell'interfaccia si servono comunque: è così che il browser
 riesce a disegnare la schermata col codice invece di una pagina bianca.
 
@@ -173,7 +173,7 @@ può reimpostare quella di chiunque.
 ### Login
 
 ```bash
-curl -k -X POST https://localhost:8444/api/auth/login \
+curl -k -X POST https://localhost:7444/api/auth/login \
   -H 'Content-Type: application/json' \
   -d '{"username":"admin","password":"mia_password"}'
 ```
@@ -190,7 +190,7 @@ Il token si manda come `Authorization: Bearer …`; i WebSocket, che dal browser
 intestazioni, lo passano come `?token=…`.
 
 ```bash
-curl -k -H "Authorization: Bearer $TOKEN" https://localhost:8444/api/project
+curl -k -H "Authorization: Bearer $TOKEN" https://localhost:7444/api/project
 ```
 
 ### Sessioni e limiti
@@ -316,16 +316,16 @@ almeno un'azienda; su un dispositivo la console non esiste e nessuno ci entra.
 
 | Porta | Senza utenti | Con utenti |
 |-------|---|---|
-| **8443** viewer | 401 `abbinamento_richiesto`, salvo le rotte pre-auth del §1 | autenticazione **facoltativa** — senza token si è Viewer anonimo |
-| **8444** gestione | 401 `abbinamento_richiesto`, salvo le rotte pre-auth del §1 | **obbligatoria** — senza token 401 |
+| **7443** viewer | 401 `abbinamento_richiesto`, salvo le rotte pre-auth del §1 | autenticazione **facoltativa** — senza token si è Viewer anonimo |
+| **7444** gestione | 401 `abbinamento_richiesto`, salvo le rotte pre-auth del §1 | **obbligatoria** — senza token 401 |
 
-**Viewer anonimo** (8443 con utenti, senza token): vede i sinottici e i tag live nei limiti delle
+**Viewer anonimo** (7443 con utenti, senza token): vede i sinottici e i tag live nei limiti delle
 zone, non scrive tag, non riconosce allarmi e non entra in configurazione. Un token scaduto o
 sconosciuto vale come nessun token: si resta anonimi, e le rotte che scrivono continuano a
 chiedere il ruolo.
 
-Non esiste un'impostazione per spegnere l'accesso anonimo sulla 8443. Se la 8443 non deve essere
-raggiungibile, la si chiude a livello di rete; sul pannello la **8444 ascolta già solo su
+Non esiste un'impostazione per spegnere l'accesso anonimo sulla 7443. Se la 7443 non deve essere
+raggiungibile, la si chiude a livello di rete; sul pannello la **7444 ascolta già solo su
 `127.0.0.1`** (`--no-admin`) e si raggiunge con un tunnel SSH o dal cloud. Vedi il
 [capitolo 17](17_sicurezza.md).
 

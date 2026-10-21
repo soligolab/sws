@@ -59,7 +59,7 @@ import { useCertWatcher } from "@/ws/certWatcher";
 import { canEditProject, canConfigureProject } from "@/auth/permissions";
 import { useMarchioDellAzienda } from "@/branding/perAzienda";
 
-// Port 8444 — full IDE (canvas editor + ConfigView + project management).
+// Port 7444 — full IDE (canvas editor + ConfigView + project management).
 // Served via admin-main.tsx which calls setForceLocalApi(true) before render.
 type Mode = "edit" | "config";
 
@@ -286,7 +286,7 @@ export function App() {
   const deployOra           = useAppStore((s) => s.deployOra);
 
   // Role-gated UI surfaces. Supervisor + Admin get editor and config;
-  // Viewer/Operator should use the runtime SPA (port 8443) instead.
+  // Viewer/Operator should use the runtime SPA (port 7443) instead.
   const canEdit = canEditProject(authRole);
 
   // True while the initial getProject()+whoami() bootstrap is in flight.
@@ -789,7 +789,7 @@ export function App() {
 
 
 
-  // Role gate: Operator/Viewer cannot use the IDE on port 8444.
+  // Role gate: Operator/Viewer cannot use the IDE on port 7444.
   if (!canConfigureProject(authRole)) {
     return <AccessDenied role={authRole ?? "Viewer"} onLogout={handleLogout} />;
   }
