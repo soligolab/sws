@@ -67,6 +67,15 @@ nella CLI dell'Editor (`RUNTIME_API_PORT`), misurato il 20-10-2026. La 8443 è i
 di Tomcat/`https-alt`, di Plesk e di mezzo mondo di apparati: su un pannello che fa anche
 qualcos'altro il conflitto è la regola, non l'eccezione.
 
+## Esito (21-10-2026)
+
+La sessione di plan si è tenuta lo stesso giorno. Scelta del maintainer: **toccare il meno
+possibile, ma liberare le porte che usa OpenPLC**, perché OpenPLC sul dispositivo deve restare
+usabile anche da solo, come PLC indipendente. È una variante della strada 3 limitata alla sola
+coppia che collide: SWS passa a **7443/7444**, i pannelli esistenti si spostano
+all'aggiornamento. Il piano d'esecuzione è [SWS lascia la 8443 a OpenPLC](2026-10-21-porte-7443-7444.md).
+Le strade 2 e 4 restano non scelte, e questo file le tiene.
+
 ## Le strade che si vedono già
 
 1. **Non toccare niente, spostare OpenPLC.** Il companion container di OpenPLC nasce su una
