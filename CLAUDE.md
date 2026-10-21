@@ -26,6 +26,25 @@
    `tag` generico compare solo sui tipi che lo usano come dato primario; per gli altri vive
    nella sezione qualità come "Tag di stato (allarme/stale/qualità)".
 
+## CasaDomotica, il progetto di riferimento (decisione del maintainer, 2026-10-16)
+
+**Quando una funzione visibile entra in `main`, va messa anche in CasaDomotica.** Non come
+verifica che funzioni — quella è la *definition of done* — ma perché il progetto di riferimento
+resti rappresentativo di cosa il prodotto sa fare. Se per una funzione non c'è un posto sensato
+in un impianto domestico, vale la pena annotarlo: è un indizio su chi sia davvero il destinatario
+di quella funzione.
+
+Non sostituisce i gemelli `demo-items-*`, che coprono i **tipi** (39 su 39, guardia
+`check_demo_templates.sh`): CasaDomotica copre le **combinazioni su dati veri** — sorgenti vere,
+allarmi veri, 540 MB di storico — ed è la cosa che i gemelli non possono dire, cioè se una
+funzione regge in un impianto che gira. Il 16-10-2026 usava 16 tipi su 39.
+
+Era un piano (`docs/plans/`), ma un piano che non finisce mai non è un piano: dal 21-10-2026 è
+una regola, e il piano è in
+[archivio](docs/archive/2026-10-16-casadomotica-progetto-di-riferimento.md). Le due domande che
+lasciava aperte — versionarla, e separarla dall'impianto di casa del maintainer — stanno nel
+seme [CasaDomotica versionata e separata](docs/plans/2026-10-21-casadomotica-versionata-e-separata.md).
+
 ## Session start
 
 **First, run `./scripts/session_start.sh`.** It compares this machine with

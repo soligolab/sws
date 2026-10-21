@@ -1516,7 +1516,7 @@ volta, e tiene aperta quella chiamata; tutto quello che l'IDE gli chiede passa d
 
 > **Prima fetta.** Oggi il pannello si dichiara a mano in un file sul gateway. L'abbinamento col
 > codice mostrato sullo schermo del pannello è il passo dopo — vedi
-> `docs/plans/2026-10-09-fase-6-tunnel-dei-pannelli.md`.
+> `docs/archive/2026-10-09-fase-6-tunnel-dei-pannelli.md`.
 
 ### 1. Dichiarare il pannello sul gateway
 

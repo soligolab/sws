@@ -327,7 +327,7 @@ dove chiudere un capo è sempre pulito: va provata a mano.
 | [2026-10-15-tubazioni-bocche-e-stili.md](../archive/2026-10-15-tubazioni-bocche-e-stili.md) | punto 6 dichiarato **fuori perimetro** (decisione del 19-10), più il ramo 3 che dà al tubo il tracciamento a clic |
 | [2026-10-14-strumenti-simboli-comandi.md](2026-10-14-strumenti-simboli-comandi.md) | ramo 4 |
 | scalare tra risoluzioni | **archiviato il 19-10-2026**: il lavoro era finito, e il suo limite noto è diventato il ramo 5 di questo piano |
-| [2026-10-09-fase-6-tunnel-dei-pannelli.md](2026-10-09-fase-6-tunnel-dei-pannelli.md) | ramo 7 |
+| [2026-10-09-fase-6-tunnel-dei-pannelli.md](../archive/2026-10-09-fase-6-tunnel-dei-pannelli.md) | ramo 7 |
 
 Cinque sono già stati archiviati il 19-10-2026, perché il loro lavoro era completo: colore e
 assegnazioni, revisione IDE del collaudo WP630, git nel cloud, finestre popup e la scala fra

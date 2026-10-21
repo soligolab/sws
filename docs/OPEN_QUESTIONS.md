@@ -21,13 +21,13 @@ Contenuto spostato in [`docs/archive/2026-09-18-immagine-di-boot.md`](archive/20
 
 ## Q16 — Widget `image` su LVGL: nessun decoder raster compilato, e il catalogo bundle è SVG
 
-Contenuto spostato in [`docs/plans/2026-09-12-q16-decoder-raster-image.md`](plans/2026-09-12-q16-decoder-raster-image.md) il 2026-09-12. **Decided:** parzialmente decisa (metà SVG fatta, metà raster no).
+Contenuto spostato in [`docs/archive/2026-09-12-q16-decoder-raster-image.md`](archive/2026-09-12-q16-decoder-raster-image.md) il 2026-09-12. **Decided:** parzialmente decisa (metà SVG fatta, metà raster no).
 
 ---
 
 ## Q23 — Collegare lo SCADA a un robot ROS 2
 
-Contenuto spostato in [`docs/plans/2026-09-18-ros2-robot-come-sorgente.md`](plans/2026-09-18-ros2-robot-come-sorgente.md) il 18-09-2026.
+Contenuto spostato in [`docs/archive/2026-09-18-ros2-robot-come-sorgente.md`](archive/2026-09-18-ros2-robot-come-sorgente.md) il 18-09-2026.
 **Decided:** not yet — la decisione si prende nel piano.
 
 ---

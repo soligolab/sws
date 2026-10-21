@@ -852,7 +852,7 @@ stessa, non serve il repo sul pannello).
 Prima di installare, **una misura che serve al seme dell'identità hardware** e che si fa solo con
 il pannello davanti: i candidati per identificare la scatola (machine-id, MAC, CID della eMMC,
 seriale della CPU, device-tree). Il comando è in fondo a
-[docs/plans/2026-10-10-identita-del-pannello-e-token-ripetibile.md](docs/plans/2026-10-10-identita-del-pannello-e-token-ripetibile.md).
+[docs/archive/2026-10-10-identita-del-pannello-e-token-ripetibile.md](docs/archive/2026-10-10-identita-del-pannello-e-token-ripetibile.md).
 Va fatta **prima** dell'installazione: un pannello appena resettato è il momento in cui si vede
 cosa sopravvive a un reset e cosa no, e quel momento non torna.
 

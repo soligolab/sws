@@ -16,7 +16,7 @@ Richiesta del maintainer del 31-08-2026, nessuna decisione presa. Questo file ti
 l'analisi; il lavoro non è aperto.
 
 È una **superficie di editing nuova**: l'assistente IA non suggerisce soltanto, scrive nel
-progetto. Tenuta separata da [ROS 2](2026-09-18-ros2-robot-come-sorgente.md), che è una superficie
+progetto. Tenuta separata da [ROS 2](../archive/2026-09-18-ros2-robot-come-sorgente.md), che è una superficie
 *dati*.
 
 ⚠️ Da riverificare quando si riprenderà: il repo ha già `sws-web/src/ai/` con l'astrazione dei
