@@ -1,5 +1,5 @@
 //! Gli stili 2.5D del tubo e le sue estremità (15-10-2026, piano
-//! `docs/plans/2026-10-15-tubazioni-bocche-e-stili.md`, ramo B).
+//! `docs/archive/2026-10-15-tubazioni-bocche-e-stili.md`, ramo B).
 //!
 //! Una funzione pura disegna il tubo come SVG, in coordinate di pagina: il web
 //! lo mette nella pagina, il pannello LVGL lo rasterizza con resvg. Il gemello è

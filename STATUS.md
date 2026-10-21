@@ -90,7 +90,7 @@ ripubblicando il tag dall'immagine vera. Dopo un rilascio, **alzare subito la ve
 
 1. Aggiornare il WP630 alla 2.15.0 e provare il tubo a clic e il deploy ripetuto sul cloud.
 2. **Ritenzione automatica dei datastore**: decisa in ogni punto, non ancora scritta — vedi
-   [residui dal manuale](docs/plans/2026-10-20-residui-dal-manuale.md) §2. `purge` esiste già su
+   [residui dal manuale](docs/archive/2026-10-20-residui-dal-manuale.md) §2. `purge` esiste già su
    tutti i backend, manca chi la chiami; il modello è il task dei backup in `main.rs:741`.
 3. Il **26-10**: `scripts/misura_tunnel.sh`, ramo 7 dei residui (settimana di misura dal 19-10).
 4. Sul WP630 `utenti_dispositivo.yaml` è **vuoto**: nessun Admin del dispositivo, quindi la
@@ -150,7 +150,7 @@ ripubblicando il tag dall'immagine vera. Dopo un rilascio, **alzare subito la ve
   `main.rs:1432`); il 04 aveva un esempio Python con un'API inesistente e il formato `{:.1f}` (è `{value:.1f}`); il
   05 un widget «Valore» che non è un tipo; l'08 un `/ws/history` che non esiste e PostgreSQL «previsto» (c'è); il 07
   Telegram «feed globale» e `until_ms` (è `duration_ms`); il 15 le emoji «non disegnate» su LVGL (lo sono dal T-71).
-- **Seme nuovo** [residui dal manuale](docs/plans/2026-10-20-residui-dal-manuale.md): due decisioni (pull git da
+- **Seme nuovo** [residui dal manuale](docs/archive/2026-10-20-residui-dal-manuale.md): due decisioni (pull git da
   Operator contro rollback da Admin; ritenzione dei datastore solo a mano) e quattro correzioni piccole
   (`SWS_IP_ALLOWLIST` che ripiega su `X-Forwarded-For`, commenti e un testo dell'interfaccia fermi alla no-auth e a
   prima della fiducia OPC UA al primo contatto).
@@ -450,7 +450,7 @@ Piano [`docs/plans/2026-10-15-piano-prima-fascia-e-cra.md`](docs/plans/2026-10-1
   giunzioni nei gomiti, visibili solo ingranditi; il ramo 3 di `strumenti-simboli-comandi` (famiglia «Comandi»).
 
 
-Piano [`docs/plans/2026-10-15-tubazioni-bocche-e-stili.md`](docs/plans/2026-10-15-tubazioni-bocche-e-stili.md).
+Piano [`docs/archive/2026-10-15-tubazioni-bocche-e-stili.md`](docs/archive/2026-10-15-tubazioni-bocche-e-stili.md).
 Ramo A **su `main`** (`86cea9a4`, ok del maintainer); **non pushato**. Si apre `feat/stili-tubo` (ramo B), con le
 estremità selezionabili chieste dal maintainer.
 
@@ -1640,7 +1640,7 @@ annidati più i due difetti trovati collaudando. Versione dichiarata **2.12.0-rc
 
 ### Cosa è entrato
 
-- **Predefiniti espliciti**, Fasi 1-4 ([piano](docs/plans/2026-09-30-predefiniti-espliciti.md)):
+- **Predefiniti espliciti**, Fasi 1-4 ([piano](docs/archive/2026-09-30-predefiniti-espliciti.md)):
   tabella unica anche per i campi non-colore, valori scritti nel file, e sul pannello i colori e
   gli sfondi che LVGL ignorava, il grafico a barre e la tabella/data_log rifatti su canvas.
 - **Il trend con un valore fermo si disegna** — il secondo difetto segnalato dall'ufficio.

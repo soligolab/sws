@@ -1,4 +1,4 @@
-/** Gli stili 2.5D del tubo (15-10-2026, piano docs/plans/2026-10-15-tubazioni-bocche-e-stili.md,
+/** Gli stili 2.5D del tubo (15-10-2026, piano docs/archive/2026-10-15-tubazioni-bocche-e-stili.md,
  *  ramo B): la stessa stringa SVG del pannello (`sws-core/src/stili_tubo.rs`). */
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";

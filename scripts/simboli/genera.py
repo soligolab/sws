@@ -164,7 +164,7 @@ class Simbolo:
         self.veli_usati: list[str] = []
         self.strati: list[tuple[str, dict, list[str]]] = []
         self.parti: list[dict] = []
-        # Bocche (15-10-2026, piano docs/plans/2026-10-15-tubazioni-bocche-e-stili.md):
+        # Bocche (15-10-2026, piano docs/archive/2026-10-15-tubazioni-bocche-e-stili.md):
         # tronchetti e flange disegnati, da cui `porte()` ricava dove si aggancia
         # una tubazione; più quelle dichiarate a mano dove l'inferenza non basta.
         self.tronchetti: list[tuple[float, float, float, float]] = []

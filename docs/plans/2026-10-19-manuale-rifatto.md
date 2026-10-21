@@ -264,6 +264,6 @@ citate da nessun capitolo.
   il widget «Valore» del 05 (non è un tipo), `/ws/history` dell'08 (non esiste), PostgreSQL dato per mancante,
   Telegram «feed globale» e `until_ms` del 07, le emoji «non disegnate» del 15 (lo sono dal T-71). Il rilievo di
   `STATUS.md:3274` sul 15 non vale più: i 13 template sono completi in it/en/es. Le cose **di codice** emerse sono
-  nel seme [residui dal manuale](2026-10-20-residui-dal-manuale.md).
+  nel seme [residui dal manuale](../archive/2026-10-20-residui-dal-manuale.md).
 - Prossimo: il ramo 3 (tutorial), il cui primo passo è misurare l'installazione di OpenPLC Runtime v4 in container;
   poi il 4 (schermate dei capitoli di riferimento, che potranno riusare quelle del tutorial).

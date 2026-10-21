@@ -30,3 +30,15 @@ interno di rootlessport. I limiti per indirizzo (`sws-web/src/limiti.rs`, onda 2
 
 Quando l'indirizzo arriva, si toglie la regola «privato = non si conta» dal gateway e si rimette la prova col banco
 dietro il cloud.
+
+## Entra qui anche la lista bianca del login (21-10-2026)
+
+Era il punto 3 del seme [residui dal manuale](../archive/2026-10-20-residui-dal-manuale.md), archiviato quel
+giorno: **`SWS_IP_ALLOWLIST` si fida di `X-Forwarded-For`**. L'allowlist vale solo per il login, e se manca
+l'indirizzo della connessione ripiega sull'intestazione (`router.rs:2475-2490`), che chiunque può scrivere — una
+lista bianca che si può aggirare dichiarando di essere dentro.
+
+È la stessa materia di questo seme, non una domanda a parte: tutt'e due chiedono *qual è l'indirizzo vero di chi
+chiama*, e la risposta la dà la stessa scelta di rete. Da misurare all'inizio del lavoro: se il caso «manca
+l'indirizzo della connessione» capiti davvero, e in quali condizioni — se non capita mai, il ripiego si toglie e
+basta.

@@ -1,5 +1,5 @@
 // L'anteprima dello stile del tubo nel pannello proprietà (15-10-2026, piano
-// docs/plans/2026-10-15-tubazioni-bocche-e-stili.md): un tratto a L disegnato
+// docs/archive/2026-10-15-tubazioni-bocche-e-stili.md): un tratto a L disegnato
 // dalla stessa funzione del canvas, con le estremità come sarebbero su due
 // bocche. Colore, estremità e stile di progetto quelli veri del tubo.
 

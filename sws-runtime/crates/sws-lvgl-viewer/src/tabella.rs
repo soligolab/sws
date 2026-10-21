@@ -1,5 +1,5 @@
 //! La tabella del pannello (`table` e `data_log`), disegnata come la disegna
-//! il web (1-10-2026, Fase 4 del piano `docs/plans/2026-09-30-predefiniti-espliciti.md`).
+//! il web (1-10-2026, Fase 4 del piano `docs/archive/2026-09-30-predefiniti-espliciti.md`).
 //!
 //! Il maintainer, al collaudo della Fase 1: «l'oggetto table in LVGL è
 //! totalmente diverso da quello che è il web». Era una `lv_table` col tema: tre

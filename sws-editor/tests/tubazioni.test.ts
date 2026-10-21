@@ -1,4 +1,4 @@
-/** Le tubazioni (15-10-2026, piano docs/plans/2026-10-15-tubazioni-bocche-e-stili.md):
+/** Le tubazioni (15-10-2026, piano docs/archive/2026-10-15-tubazioni-bocche-e-stili.md):
  *  aggancio alle bocche dei simboli e instradamento, con gli stessi casi del
  *  pannello (`sws-core/src/tubazioni.rs`). */
 import { describe, it, expect } from "vitest";

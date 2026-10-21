@@ -12,7 +12,7 @@ Scelte del maintainer (15-10-2026):
 - **stili**: tutti e quattro i gruppi proposti, cioè metallo 2.5D con flange; coibentato/PVC/inox; flessibile e
   canale HVAC; cavo e linea di segnale.
 
-Questo piano, una volta approvato, va in `docs/plans/2026-10-15-tubazioni-bocche-e-stili.md`, con una riga in
+Questo piano, una volta approvato, va in `docs/archive/2026-10-15-tubazioni-bocche-e-stili.md`, con una riga in
 `docs/plans/README.md`.
 
 ## Misurato oggi (main `a9ed87a9`)

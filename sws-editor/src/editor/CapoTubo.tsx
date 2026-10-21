@@ -1,5 +1,5 @@
 // Un capo della tubazione nel pannello proprietà (15-10-2026, piano
-// docs/plans/2026-10-15-tubazioni-bocche-e-stili.md): l'oggetto della pagina a
+// docs/archive/2026-10-15-tubazioni-bocche-e-stili.md): l'oggetto della pagina a
 // cui si aggancia e la sua bocca, scelti da un menu. Prima si scriveva l'id a
 // mano in un campo di testo, e le porte erano solo i cinque punti del riquadro.
 

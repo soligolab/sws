@@ -1,5 +1,5 @@
 //! Le tubazioni: dove si aggancia un capo, e che strada fa (15-10-2026, piano
-//! `docs/plans/2026-10-15-tubazioni-bocche-e-stili.md`, ramo A).
+//! `docs/archive/2026-10-15-tubazioni-bocche-e-stili.md`, ramo A).
 //!
 //! Gemello: `sws-editor/src/canvas/tubazioni.ts`. I casi stanno in
 //! `tests/fixtures/tubazioni.json` e li verificano tutti e due: è la prova che il

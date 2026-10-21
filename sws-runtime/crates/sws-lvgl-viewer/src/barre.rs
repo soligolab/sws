@@ -1,5 +1,5 @@
 //! Il grafico a barre del pannello, disegnato come lo disegna il web
-//! (30-09-2026, Fase 3 del piano `docs/plans/2026-09-30-predefiniti-espliciti.md`).
+//! (30-09-2026, Fase 3 del piano `docs/archive/2026-09-30-predefiniti-espliciti.md`).
 //!
 //! Fino a quel giorno era una `lv_bar` per serie: solo verticale (l'orizzontale
 //! non si disegnava affatto), niente impilato, niente tacche, soglie, legenda,

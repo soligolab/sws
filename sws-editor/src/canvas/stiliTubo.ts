@@ -1,5 +1,5 @@
 // Gli stili 2.5D del tubo e le sue estremità (15-10-2026, piano
-// docs/plans/2026-10-15-tubazioni-bocche-e-stili.md, ramo B).
+// docs/archive/2026-10-15-tubazioni-bocche-e-stili.md, ramo B).
 //
 // Gemello di `sws-core/src/stili_tubo.rs`: i due devono produrre **la stessa
 // stringa** SVG, e lo verificano sui casi di `tests/fixtures/stili-tubo.json`,

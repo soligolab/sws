@@ -27,7 +27,7 @@
 #
 # Il pannello LVGL: i suoi ripieghi sono sparsi in funzioni per tipo che un grep
 # non sa attribuire. Le divergenze note sono le fasi 2 e 3 del piano
-# `docs/plans/2026-09-30-predefiniti-espliciti.md`.
+# `docs/archive/2026-09-30-predefiniti-espliciti.md`.
 #
 # Uso: ./scripts/check_predefiniti.sh
 set -uo pipefail

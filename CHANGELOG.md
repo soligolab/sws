@@ -438,7 +438,7 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
   `tests/fixtures/data-ora.json`; su LVGL l'ora locale viene da `chrono::Local` e l'etichetta si riscrive solo al
   cambio del secondo o della lingua. Palette (Indicatori), icona, pannello proprietà, manuale, demo web e LVGL.
 
-- **Stili 2.5D per i tubi ed estremità selezionabili** (piano `docs/plans/2026-10-15-tubazioni-bocche-e-stili.md`,
+- **Stili 2.5D per i tubi ed estremità selezionabili** (piano `docs/archive/2026-10-15-tubazioni-bocche-e-stili.md`,
   ramo B). Otto stili nuovi, con il materiale, la velatura e il contorno della libreria di simboli e dello stile di
   progetto: metallo, inox, coibentato (fascette), PVC (colore del tubo), flessibile (corrugato), canale HVAC
   (spigoli e giunti), cavo, linea di segnale. La velatura è perpendicolare a ogni tratto e gira nelle curve
@@ -451,7 +451,7 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 - Template `comandi-pompa-pozzo`: la mandata della pompa è un tubo metallico agganciato alla bocca, col flusso
   quando la pompa è in marcia.
 
-- **Tubazioni agganciate alle bocche vere dei simboli** (piano `docs/plans/2026-10-15-tubazioni-bocche-e-stili.md`,
+- **Tubazioni agganciate alle bocche vere dei simboli** (piano `docs/archive/2026-10-15-tubazioni-bocche-e-stili.md`,
   ramo A). Il generatore della libreria ricava dalle flange sul bordo dei disegni le **bocche** di ogni simbolo
   (116 su 57 simboli: lato, punto, diametro) e le scrive nel manifesto (`ports`). Un tubo si aggancia a una bocca
   (`from_port`/`to_port` = id della bocca, oppure uno dei cinque punti del riquadro), che segue il simbolo anche
@@ -1046,7 +1046,7 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
   sfumatura dei rettangoli, contorno delle ellissi, bordo del navbutton, colori di barra, slider, checkbox e radio, niente più disco
   bianco dietro il gauge (e l'ago segue `stroke`), foro della torta, campanella, text_list col grigio del web. Ogni ripiego viene dalla
   tabella condivisa (20 coppie nuove), non da letterali sparsi.
-- **Predefiniti espliciti, Fase 1** (piano `docs/plans/2026-09-30-predefiniti-espliciti.md`; un `data_log` era scuro nell'editor e bianco sul
+- **Predefiniti espliciti, Fase 1** (piano `docs/archive/2026-09-30-predefiniti-espliciti.md`; un `data_log` era scuro nell'editor e bianco sul
   pannello, e il campo sfondo mostrava solo un segnaposto). Una tabella dei predefiniti anche per i campi non-colore
   (`tests/fixtures/predefiniti-campi.json`, `src/predefinitiCampi.ts`), e i valori fissi — colori compresi — si **scrivono nel file**
   alla creazione e **all'apertura di un progetto vecchio** (`riempiPredefiniti`, nella catena di `setPages`): i due motori leggono lo

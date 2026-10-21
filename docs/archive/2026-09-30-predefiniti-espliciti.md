@@ -30,7 +30,7 @@ test della tabella colori) non possono vederle.
 
 ## Primo passo all'approvazione
 
-Scrivere questo piano in `docs/plans/2026-09-30-predefiniti-espliciti.md` + riga in
+Scrivere questo piano in `docs/archive/2026-09-30-predefiniti-espliciti.md` + riga in
 `docs/plans/README.md` («piano a fasi, in corso»). Ramo: **annidato** su `fix/sfondi-predefiniti-colore`
 (ancora da collaudare, stessa area) → `feat/predefiniti-espliciti`; le fasi 2-3 annidate in coda,
 collaudo del maintainer a fine di ogni fase. Editor rilanciato da me dopo ogni cambio di codice.

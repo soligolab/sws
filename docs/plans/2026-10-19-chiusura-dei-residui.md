@@ -324,7 +324,7 @@ dove chiudere un capo è sempre pulito: va provata a mano.
 |---|---|
 | [2026-10-09-fase-4-gateway.md](../archive/2026-10-09-fase-4-gateway.md) | rami 1 e 2 |
 | [2026-10-08-marchi-visibili-prima-del-login.md](2026-10-08-marchi-visibili-prima-del-login.md) | ramo 2 |
-| [2026-10-15-tubazioni-bocche-e-stili.md](2026-10-15-tubazioni-bocche-e-stili.md) | punto 6 dichiarato **fuori perimetro** (decisione del 19-10), più il ramo 3 che dà al tubo il tracciamento a clic |
+| [2026-10-15-tubazioni-bocche-e-stili.md](../archive/2026-10-15-tubazioni-bocche-e-stili.md) | punto 6 dichiarato **fuori perimetro** (decisione del 19-10), più il ramo 3 che dà al tubo il tracciamento a clic |
 | [2026-10-14-strumenti-simboli-comandi.md](2026-10-14-strumenti-simboli-comandi.md) | ramo 4 |
 | scalare tra risoluzioni | **archiviato il 19-10-2026**: il lavoro era finito, e il suo limite noto è diventato il ramo 5 di questo piano |
 | [2026-10-09-fase-6-tunnel-dei-pannelli.md](2026-10-09-fase-6-tunnel-dei-pannelli.md) | ramo 7 |

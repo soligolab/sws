@@ -38,7 +38,7 @@ impl ParteLib {
 }
 
 /// Una bocca del disegno, dove si aggancia una tubazione (15-10-2026, piano
-/// `docs/plans/2026-10-15-tubazioni-bocche-e-stili.md`). In unità del viewBox:
+/// `docs/archive/2026-10-15-tubazioni-bocche-e-stili.md`). In unità del viewBox:
 /// `(x, y)` è la faccia esterna della flangia, `side` il lato da cui esce il
 /// tubo, `d` il diametro del tronchetto.
 #[derive(Debug, Clone, PartialEq, Deserialize)]

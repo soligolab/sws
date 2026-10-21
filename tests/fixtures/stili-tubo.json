@@ -1,5 +1,5 @@
 {
-  "_comment": "Stili 2.5D del tubo (piano docs/plans/2026-10-15-tubazioni-bocche-e-stili.md, ramo B): la tabella e i casi condivisi da sws-core/src/stili_tubo.rs e sws-editor/src/canvas/stiliTubo.ts, che devono produrre la stessa stringa. Rigenerare `atteso` con `cargo test -p sws-core stampa_fixture -- --ignored --nocapture`, dopo aver guardato il disegno.",
+  "_comment": "Stili 2.5D del tubo (piano docs/archive/2026-10-15-tubazioni-bocche-e-stili.md, ramo B): la tabella e i casi condivisi da sws-core/src/stili_tubo.rs e sws-editor/src/canvas/stiliTubo.ts, che devono produrre la stessa stringa. Rigenerare `atteso` con `cargo test -p sws-core stampa_fixture -- --ignored --nocapture`, dopo aver guardato il disegno.",
   "stili": [
     {
       "id": "metallo",

@@ -1,6 +1,6 @@
 //! Le parti del tubo che una `lv_line` non sa fare: le estremità (freccia,
 //! pallino, flangia) e il flusso animato. 1-10-2026, dopo la Fase 3 del piano
-//! `docs/plans/2026-09-30-predefiniti-espliciti.md`.
+//! `docs/archive/2026-09-30-predefiniti-espliciti.md`.
 //!
 //! Riferimento: `SvgCanvas.tsx`, ramo `pipe`.
 //! - **Estremità**: `<marker>` SVG con `markerUnits` di default

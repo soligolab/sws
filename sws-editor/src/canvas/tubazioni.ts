@@ -1,5 +1,5 @@
 // Le tubazioni: dove si aggancia un capo, e che strada fa (15-10-2026, piano
-// docs/plans/2026-10-15-tubazioni-bocche-e-stili.md, ramo A).
+// docs/archive/2026-10-15-tubazioni-bocche-e-stili.md, ramo A).
 //
 // Gemello di `sws-core/src/tubazioni.rs`; i casi condivisi sono in
 // `tests/fixtures/tubazioni.json`. Prima un capo agganciato andava al centro di
