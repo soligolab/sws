@@ -45,6 +45,15 @@ dal PC o dal cloud attraverso il tunnel.
 3. **Solo laboratorio**: OpenPLC resta il PLC del tutorial, e in produzione il PLC è quello del cliente (CODESYS sui
    Pixsys, un Siemens, un Modbus). È lo stato di oggi.
 
+## Un seme figlio, da decidere insieme
+
+L'API REST di OpenPLC ascolta sulla **8443**, che è la porta del viewer di SWS. Il conflitto non
+è un dettaglio di questo laboratorio: è la prima volta che sul pannello deve girare qualcosa
+accanto a `sws-runtime`. Le porte di SWS sono misurate nel seme
+[le porte di SWS](2026-10-21-porte-di-sws.md), del 21-10-2026, che va aperto **nella stessa
+sessione di plan**: la strada più piccola che risolve OpenPLC (dare al companion una porta
+interna nostra) è anche quella che lascia il problema intatto per il servizio successivo.
+
 ## Domande per la sessione di plan
 
 - Per chi è: un cliente senza PLC (il pannello fa tutto), o un'alternativa a CODESYS sui Pixsys?
