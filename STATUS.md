@@ -12,6 +12,35 @@
 > resta in «Storico». Qui vive solo ciò che serve a riprendere il lavoro.
 
 
+## ▶ Riprendere da qui — 2.16.0-rc.1 (ritenzione), console dei progetti aperti, avviso sul pannello (2026-10-21)
+
+### Fatto, tutto su `main`
+
+- **Ritenzione automatica dei datastore** (piano in [archivio](docs/archive/2026-10-20-ritenzione-automatica.md),
+  `5fc20bfd` + `dbffbfb0`, **2.16.0-rc.1** taggata e pushata). Giro notturno all'ora del progetto (03:00
+  predefinite), anteprima e conferma per datastore la prima volta, conferma che decade se i limiti si stringono,
+  VACUUM oltre il 10 %. Provata dal vivo su SQLite, IDE → pannello, riquadro nel browser; corretto il primo giro
+  che partiva un minuto dopo una conferma serale; anteprima sugli indici (6 M righe: 0,57 s release); fuso
+  `local` ai container di progetto del cloud (erano UTC). **Non provati: PostgreSQL, il TC620.**
+- **Immagini 2.16.0-rc.1 pubblicate**: arm64 `fa73d5b6…`, amd64 `35218…` (anche `rc-*` e `dbffbfb0-*`);
+  `latest-*`/`2.15.0-*` intatti. **TC620 e VPS sulla rc** (quadlet committato, `682c4412`); immagini vecchie tolte.
+- **Ramo 1 dei residui — console** (`ec6f9d2d`): i progetti aperti contati davvero per azienda (prima `0 / N`),
+  elenco con i collegati e «Chiudi» con conferma (409 `{collegati}`). Provato con un gateway locale. **Non è
+  nell'immagine**: va nella prossima rc.
+- **Ramo 6 dei residui — avviso d'aggiornamento, server e viewer web** (`e44bd309`): torna sullo schermo anche
+  con utenti; login al momento di applicare; `/api/system` ridotto e `/api/update/status` in lettura sulla 8443,
+  scritture Admin fissate da test; esito in una striscia. **Non è nell'immagine.**
+- Manuale rimisurato (ramo 2), laboratorio OpenPLC v4 misurato, seme «OpenPLC sul dispositivo».
+
+### Da fare
+
+1. **Ramo 6, viewer LVGL**: login dentro l'avviso via `net_worker` (il widget di login della pagina sta sotto il
+   layer top, e il login non va mai in `spawn`); poi togliere i due cancelli di `aggiornamento.rs`. Si prova con
+   `--avviso-di-prova` e sul pannello.
+2. Una **rc nuova** con console e avviso web, e il collaudo di ritenzione + console sul VPS e sul TC620.
+3. Gli altri rami dei residui (2 branding, 4 simboli Comandi, 5 `font_size`, 7 tunnel: misura il **26-10**).
+4. Seme OpenPLC: tre misure prima della sessione di plan (immagine arm64 sul TC620, porta REST, jitter).
+
 ## ▶ Riprendere da qui — la 2.15.0, con S7, il tubo a clic e la sessione che resta (2026-10-20, pomeriggio)
 
 ### Rilasciata la 2.15.0
