@@ -13,6 +13,19 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 
 ### Fixed
 
+- **Il «Formato predefinito» del progetto è dentro «Dimensioni pagina», e segue le riscalature.** Stava in
+  fondo a «Impostazioni pagine del progetto», lontano dall'unico punto in cui lo si confronta — la misura della
+  pagina aperta — e si salvava solo col bottone «Salva impostazioni progetto». Ora sta nella stessa sezione,
+  ha anche lui il menu «Preset dispositivo» e scrive subito. «Cambia risoluzione del progetto…» aggiorna
+  **sempre** il formato predefinito: prima lo faceva solo se coincideva già con la misura «Da», e su
+  CasaDomotica (predefinito 1280×800, pagine 1280×768) non si aggiornava mai, così ogni pagina nuova nasceva
+  nella misura di un pannello che nel progetto non c'era più.
+
+- **«Preset dispositivo» diceva sempre «Personalizzato…»**, anche su una pagina esattamente da 1280×800: il
+  menu non rileggeva mai la misura. Ora mostra il pannello che quella misura descrive, e «Larghezza»/«Altezza»
+  compaiono solo quando la misura non è di nessun preset o si sceglie «Personalizzato…» — due righe di pannello
+  in meno nel caso normale. La voce «Personalizzato…» era scritta in italiano anche nell'IDE in inglese.
+
 - **L'avviso d'aggiornamento sullo schermo del pannello (viewer web) non poteva più comparire**: dall'abbinamento
   dell'11-10 ogni pannello ha utenti, e l'avviso si mostrava solo senza. Ora compare sempre — versione nuova,
   esito, configurazione del servizio, domanda di conferma —, e «Aggiorna» (o rispondere) apre il login e aspetta

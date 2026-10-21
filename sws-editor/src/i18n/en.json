@@ -2023,6 +2023,8 @@
     "bootEnabled": "Boot image enabled",
     "bootEnabledHelp": "Only one per project: the one the deploy installs as the panel's startup image.",
     "followsProjectDefault": "{{size}} — project default",
+    "customSize": "Custom…",
+    "notSet": "not set",
     "projectFormat": "Default format",
     "projectFormatHelp": "Size and background new pages are born with. It fills itself the first time a page is set; you can change it here by hand. It does not touch existing pages.",
     "applyFormat": "Apply to pages without their own format",

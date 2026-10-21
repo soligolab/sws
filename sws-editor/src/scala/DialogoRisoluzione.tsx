@@ -57,14 +57,18 @@ export function DialogoRisoluzione({ onClose }: { onClose: () => void }) {
     // Solo le pagine della misura «Da»: una pagina d'altra misura scelta a mano
     // si converte dalla sua (la funzione legge la misura della pagina).
     scalaProgetto([...scelte], a);
+    // Il formato predefinito del progetto segue **sempre** la riscalatura
+    // (21-10-2026, richiesta del maintainer). Prima la seguiva solo se
+    // coincideva con la misura «Da»: su CasaDomotica il predefinito diceva
+    // 1280×800 mentre le pagine erano 1280×768, così non si aggiornava mai e
+    // ogni pagina nuova continuava a nascere nella misura di un pannello che
+    // nel progetto non c'era più.
     const layout = useAppStore.getState().project?.page_layout;
-    if (layout && uguale(da, layout.default_width, layout.default_height)) {
-      try {
-        await salvaLayout({ ...layout, default_width: a.width, default_height: a.height });
-      } catch (e) {
-        setErrore(e instanceof Error ? e.message : String(e));
-        return;
-      }
+    try {
+      await salvaLayout({ size_mode: "fixed", ...layout, default_width: a.width, default_height: a.height });
+    } catch (e) {
+      setErrore(e instanceof Error ? e.message : String(e));
+      return;
     }
     onClose();
   };

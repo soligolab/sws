@@ -2023,6 +2023,8 @@
     "bootEnabled": "Immagine di boot abilitata",
     "bootEnabledHelp": "Una sola per progetto: è quella che il deploy installa come immagine di avvio del pannello.",
     "followsProjectDefault": "{{size}} — predefinito di progetto",
+    "customSize": "Personalizzato…",
+    "notSet": "non impostato",
     "projectFormat": "Formato predefinito",
     "projectFormatHelp": "Misure e sfondo con cui nascono le pagine nuove. Si riempie da solo alla prima impostazione di una pagina; qui si può cambiare a mano. Non tocca le pagine esistenti.",
     "applyFormat": "Applica alle pagine senza formato proprio",

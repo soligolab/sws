@@ -353,6 +353,173 @@ function presetPerGruppo(): [string, DevicePreset[]][] {
   return gruppi;
 }
 
+/** Preset di dispositivo + misure: la coppia che ora si ripete in due punti
+ *  della stessa sezione — le dimensioni della pagina e il formato predefinito
+ *  del progetto (21-10-2026, richiesta del maintainer).
+ *
+ *  Larghezza e altezza **compaiono solo quando servono**: quando la misura non
+ *  e quella di nessun preset, o quando si sceglie «Personalizzato...». Il caso
+ *  normale e scegliere il proprio pannello dall'elenco, e li due campi numerici
+ *  sono due righe di pannello spese per non dire niente. Prima il menu mostrava
+ *  sempre «Personalizzato...» anche su una pagina da 1280x800: non diceva quale
+ *  pannello si stesse disegnando, perche il suo `value` era fisso a stringa
+ *  vuota. */
+function SceltaMisura({ width, height, disabled, chiave, segnaposto, onChange }: {
+  width?: number;
+  height?: number;
+  disabled?: boolean;
+  /** Cambia quando cambia l'oggetto misurato (la pagina aperta): riporta
+   *  «Personalizzato...» allo stato che descrive la misura nuova. */
+  chiave?: string;
+  segnaposto?: string;
+  onChange: (m: { width: number | undefined; height: number | undefined }) => void;
+}) {
+  const { t } = useTranslation();
+  const preset = getDevicePresets().find((d) => d.width === width && d.height === height);
+  // Scelta esplicita di «Personalizzato...»: tiene i campi aperti anche se la
+  // misura che si sta scrivendo passa per caso sopra un preset.
+  const [manuale, setManuale] = useState(false);
+  useEffect(() => { setManuale(false); }, [chiave]);
+  return (
+    <>
+      <div style={{ marginBottom: 6 }}>
+        <div style={LABEL}>{t("shell.devicePreset")}</div>
+        <select
+          disabled={disabled}
+          style={{ ...INPUT, cursor: disabled ? "default" : "pointer" }}
+          value={manuale ? "" : (preset?.label ?? "")}
+          onChange={(e) => {
+            const scelto = getDevicePresets().find((d) => d.label === e.target.value);
+            if (scelto) { setManuale(false); onChange({ width: scelto.width, height: scelto.height }); }
+            else setManuale(true);
+          }}
+        >
+          <option value="">{t("shell.customSize")}</option>
+          <optgroup label="Standard">
+            {STANDARD_DEVICE_PRESETS.map((d) => <option key={d.label} value={d.label}>{d.label}</option>)}
+          </optgroup>
+          {/* Un gruppo per linea di prodotto. Dal 02-10-2026 i modelli
+              Pixsys sono quaranta - WebPanel e TouchController, quattro
+              touch per cinque schermi - e in un elenco piatto non si
+              trovava piu il proprio pannello. Un brand che non dichiara
+              `group` continua ad avere un gruppo solo col suo nome. */}
+          {presetPerGruppo().map(([gruppo, voci]) => (
+            <optgroup key={gruppo} label={gruppo}>
+              {voci.map((d) => <option key={d.label} value={d.label}>{d.label}</option>)}
+            </optgroup>
+          ))}
+        </select>
+      </div>
+      {(manuale || !preset) && (
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0 6px" }}>
+          <div>
+            <div style={LABEL}>{t("props.widthPx")}</div>
+            <input
+              type="number"
+              style={INPUT}
+              disabled={disabled}
+              placeholder={segnaposto ?? t("props.fluid")}
+              value={width ?? ""}
+              onChange={(e) => onChange({ width: e.target.value ? Number(e.target.value) : undefined, height })}
+            />
+          </div>
+          <div>
+            <div style={LABEL}>{t("props.heightPx")}</div>
+            <input
+              type="number"
+              style={INPUT}
+              disabled={disabled}
+              placeholder={segnaposto ?? t("props.fluid")}
+              value={height ?? ""}
+              onChange={(e) => onChange({ width, height: e.target.value ? Number(e.target.value) : undefined })}
+            />
+          </div>
+        </div>
+      )}
+    </>
+  );
+}
+
+/** «Formato predefinito del progetto», dentro la sezione delle dimensioni
+ *  (21-10-2026, richiesta del maintainer). Stava in fondo a «Impostazioni
+ *  pagine del progetto», lontano dalla misura della pagina che e l'unico punto
+ *  in cui lo si confronta, e con un menu dei preset in meno. Qui ha lo stesso
+ *  controllo della pagina sopra, e scrive subito: `page_layout` passa da
+ *  `salvaLayout`, come gia faceva la prima impostazione automatica. */
+function FormatoPredefinitoProgetto() {
+  const { t } = useTranslation();
+  const layout = useAppStore((s) => s.project?.page_layout);
+  const [applicate, setApplicate] = useState<number | null>(null);
+  const [scalaAperto, setScalaAperto] = useState(false);
+  const [errore, setErrore] = useState<string | null>(null);
+
+  const scrivi = async (patch: Partial<PageLayoutConfig>): Promise<PageLayoutConfig | null> => {
+    setErrore(null); setApplicate(null);
+    const base = useAppStore.getState().project?.page_layout;
+    const cfg: PageLayoutConfig = { size_mode: "fixed", ...base, ...patch };
+    try { await salvaLayout(cfg); return cfg; }
+    catch (e) { setErrore(e instanceof Error ? e.message : String(e)); return null; }
+  };
+
+  return (
+    <div style={{ marginTop: 10, paddingTop: 8, borderTop: "1px solid var(--brand-surface-2, #334155)" }}>
+      <div style={{ fontSize: 11, color: "var(--brand-text-muted, #94a3b8)", marginBottom: 4, fontWeight: 700 }}>
+        {t("shell.projectFormat")}
+      </div>
+      <p style={{ fontSize: 10, color: "var(--brand-text-subtle, #94a3b8)", margin: "0 0 6px" }}>
+        {t("shell.projectFormatHelp")}
+      </p>
+      <SceltaMisura
+        width={layout?.default_width}
+        height={layout?.default_height}
+        segnaposto={t("shell.notSet")}
+        onChange={(m) => { void scrivi({ default_width: m.width, default_height: m.height }); }}
+      />
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6, marginTop: 6 }}>
+        <div style={{ minWidth: 0 }}>
+          <div style={LABEL}>{t("props.backgroundLight")}</div>
+          <CampoColore valore={layout?.default_background || undefined} regola={{ hex: "#0f172a" }} sfondo="#0f172a"
+            onChange={(v) => { void scrivi({ default_background: v || undefined }); }} />
+        </div>
+        <div style={{ minWidth: 0 }}>
+          <div style={LABEL}>{t("props.backgroundDark")}</div>
+          <CampoColore valore={layout?.default_background_dark || undefined}
+            regola={{ hex: layout?.default_background || "#0f172a" }} sfondo="#0f172a"
+            onChange={(v) => { void scrivi({ default_background_dark: v || undefined }); }} />
+        </div>
+      </div>
+      <button
+        type="button"
+        onClick={() => { void scrivi({}).then((cfg) => { if (cfg) setApplicate(applicaPredefinito(cfg)); }); }}
+        title={t("shell.applyFormatHelp")}
+        style={{ marginTop: 6, background: "var(--brand-surface-2, #334155)", color: "var(--brand-text-2, #cbd5e1)", border: "1px solid var(--brand-border, #475569)", borderRadius: 4, padding: "4px 10px", fontSize: 12, cursor: "pointer" }}
+      >
+        {t("shell.applyFormat")}
+      </button>
+      {applicate !== null && (
+        <span style={{ marginLeft: 8, fontSize: 11, color: "var(--brand-text-subtle, #94a3b8)" }}>
+          {t("shell.applyFormatResult", { count: applicate })}
+        </span>
+      )}
+      <div>
+        <button
+          type="button"
+          data-testid="apri-scala-risoluzione"
+          onClick={() => setScalaAperto(true)}
+          title={t("scala.aiuto")}
+          style={{ marginTop: 6, background: "var(--brand-surface-2, #334155)", color: "var(--brand-text-2, #cbd5e1)", border: "1px solid var(--brand-border, #475569)", borderRadius: 4, padding: "4px 10px", fontSize: 12, cursor: "pointer" }}
+        >
+          {t("scala.apri")}
+        </button>
+      </div>
+      {errore && (
+        <p style={{ fontSize: 10, color: "var(--brand-danger-soft, #f87171)", margin: "4px 0 0" }}>{errore}</p>
+      )}
+      {scalaAperto && <DialogoRisoluzione onClose={() => setScalaAperto(false)} />}
+    </div>
+  );
+}
+
 export function EditorShell() {
   const { t } = useTranslation();
   useMaterializzaRatio(); // Q38 — vedi il commento sulla funzione
@@ -1992,57 +2159,13 @@ function PageProps({
       <SottoTitolo chiave="pageSizeSection" />
       {sizeMode === "fixed" && (
         <>
-          <div style={{ marginBottom: 6 }}>
-            <div style={LABEL}>{t("shell.devicePreset")}</div>
-            <select
-              disabled={ro}
-              style={{ ...INPUT, cursor: ro ? "default" : "pointer" }}
-              value=""
-              onChange={(e) => {
-                const preset = getDevicePresets().find((d) => d.label === e.target.value);
-                if (preset) onChange({ width: preset.width, height: preset.height });
-              }}
-            >
-              <option value="">Personalizzato…</option>
-              <optgroup label="Standard">
-                {STANDARD_DEVICE_PRESETS.map((d) => <option key={d.label} value={d.label}>{d.label}</option>)}
-              </optgroup>
-              {/* Un gruppo per linea di prodotto. Dal 02-10-2026 i modelli
-                  Pixsys sono quaranta — WebPanel e TouchController, quattro
-                  touch per cinque schermi — e in un elenco piatto non si
-                  trovava più il proprio pannello. Un brand che non dichiara
-                  `group` continua ad avere un gruppo solo col suo nome. */}
-              {presetPerGruppo().map(([gruppo, voci]) => (
-                <optgroup key={gruppo} label={gruppo}>
-                  {voci.map((d) => <option key={d.label} value={d.label}>{d.label}</option>)}
-                </optgroup>
-              ))}
-            </select>
-          </div>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0 6px" }}>
-            <div>
-              <div style={LABEL}>{t("props.widthPx")}</div>
-              <input
-                type="number"
-                style={INPUT}
-                disabled={ro}
-                placeholder={t("props.fluid")}
-                value={width ?? ""}
-                onChange={(e) => onChange({ width: e.target.value ? Number(e.target.value) : undefined })}
-              />
-            </div>
-            <div>
-              <div style={LABEL}>{t("props.heightPx")}</div>
-              <input
-                type="number"
-                style={INPUT}
-                disabled={ro}
-                placeholder={t("props.fluid")}
-                value={height ?? ""}
-                onChange={(e) => onChange({ height: e.target.value ? Number(e.target.value) : undefined })}
-              />
-            </div>
-          </div>
+          <SceltaMisura
+            width={width}
+            height={height}
+            disabled={ro}
+            chiave={pageId}
+            onChange={(m) => onChange({ width: m.width, height: m.height })}
+          />
           <p style={{ fontSize: 10, color: "var(--brand-text-subtle, #94a3b8)", margin: "2px 0 0" }}>
             {t("shell.exactSize11No")}
           </p>
@@ -2076,6 +2199,7 @@ function PageProps({
           {t("shell.offPage", { count: offPageCount })}
         </p>
       )}
+      <FormatoPredefinitoProgetto />
       {!boot && !cornice && (<>
       <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 8 }}>
         <input
@@ -2244,13 +2368,6 @@ function ProjectPageLayoutSettings() {
   const [aspectRatio, setAspectRatio] = useState<string>(project?.page_layout?.aspect_ratio ?? ASPECT_RATIOS[0].ratio);
   const [homePageId, setHomePageId] = useState<string>(project?.page_layout?.home_page_id ?? "");
   const [hideChrome, setHideChrome] = useState<boolean>(project?.page_layout?.hide_viewer_chrome ?? false);
-  // Formato predefinito di progetto (T-72 F3): stringhe vuote = «non impostato».
-  const [defW, setDefW] = useState<string>(project?.page_layout?.default_width?.toString() ?? "");
-  const [defH, setDefH] = useState<string>(project?.page_layout?.default_height?.toString() ?? "");
-  const [defBg, setDefBg] = useState<string>(project?.page_layout?.default_background ?? "");
-  const [defBgDark, setDefBgDark] = useState<string>(project?.page_layout?.default_background_dark ?? "");
-  const [applicate, setApplicate] = useState<number | null>(null);
-  const [scalaAperto, setScalaAperto] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -2268,25 +2385,14 @@ function ProjectPageLayoutSettings() {
       page_tree: useAppStore.getState().project?.page_layout?.page_tree,
       // E la cornice predefinita (15-10-2026), che si sceglie dalla cornice stessa.
       cornice_predefinita: useAppStore.getState().project?.page_layout?.cornice_predefinita,
-      default_width: Number(defW) > 0 ? Number(defW) : undefined,
-      default_height: Number(defH) > 0 ? Number(defH) : undefined,
-      default_background: defBg.trim() || undefined,
-      default_background_dark: defBgDark.trim() || undefined,
+      // E il formato predefinito (21-10-2026), che dal 21-10 si modifica nella
+      // sezione «Dimensioni pagina» e scrive da solo: qui si conserva soltanto.
+      default_width: useAppStore.getState().project?.page_layout?.default_width,
+      default_height: useAppStore.getState().project?.page_layout?.default_height,
+      default_background: useAppStore.getState().project?.page_layout?.default_background,
+      default_background_dark: useAppStore.getState().project?.page_layout?.default_background_dark,
     };
     return cfg;
-  };
-
-  const handleApplica = async () => {
-    setSaving(true); setError(null);
-    try {
-      const cfg = costruisciCfg();
-      await salvaLayout(cfg);
-      setApplicate(applicaPredefinito(cfg));
-    } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
-    } finally {
-      setSaving(false);
-    }
   };
 
   const handleSave = async () => {
@@ -2359,57 +2465,6 @@ function ProjectPageLayoutSettings() {
             </div>
           </span>
         </label>
-      </div>
-
-      <div>
-        <div style={{ fontSize: 11, color: "var(--brand-text-muted, #94a3b8)", marginBottom: 4, fontWeight: 700 }}>
-          {t("shell.projectFormat")}
-        </div>
-        <p style={{ fontSize: 10, color: "var(--brand-text-subtle, #94a3b8)", margin: "0 0 6px" }}>
-          {t("shell.projectFormatHelp")}
-        </p>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
-          <input type="number" style={INPUT} placeholder={t("props.widthPx")} value={defW} onChange={(e) => setDefW(e.target.value)} />
-          <input type="number" style={INPUT} placeholder={t("props.heightPx")} value={defH} onChange={(e) => setDefH(e.target.value)} />
-          {/* Il controllo colore condiviso (30-09-2026: qui c'era solo il testo).
-              Testo vuoto = nessun predefinito di progetto. */}
-          <div style={{ minWidth: 0 }}>
-            <div style={LABEL}>{t("props.backgroundLight")}</div>
-            <CampoColore valore={defBg || undefined} regola={{ hex: "#0f172a" }} sfondo="#0f172a"
-              onChange={(v) => setDefBg(v ?? "")} />
-          </div>
-          <div style={{ minWidth: 0 }}>
-            <div style={LABEL}>{t("props.backgroundDark")}</div>
-            <CampoColore valore={defBgDark || undefined} regola={{ hex: defBg || "#0f172a" }} sfondo="#0f172a"
-              onChange={(v) => setDefBgDark(v ?? "")} />
-          </div>
-        </div>
-        <button
-          type="button"
-          disabled={saving}
-          onClick={handleApplica}
-          title={t("shell.applyFormatHelp")}
-          style={{ marginTop: 6, background: "var(--brand-surface-2, #334155)", color: "var(--brand-text-2, #cbd5e1)", border: "1px solid var(--brand-border, #475569)", borderRadius: 4, padding: "4px 10px", fontSize: 12, cursor: "pointer" }}
-        >
-          {t("shell.applyFormat")}
-        </button>
-        {applicate !== null && (
-          <span style={{ marginLeft: 8, fontSize: 11, color: "var(--brand-text-subtle, #94a3b8)" }}>
-            {t("shell.applyFormatResult", { count: applicate })}
-          </span>
-        )}
-        <div>
-          <button
-            type="button"
-            data-testid="apri-scala-risoluzione"
-            onClick={() => setScalaAperto(true)}
-            title={t("scala.aiuto")}
-            style={{ marginTop: 6, background: "var(--brand-surface-2, #334155)", color: "var(--brand-text-2, #cbd5e1)", border: "1px solid var(--brand-border, #475569)", borderRadius: 4, padding: "4px 10px", fontSize: 12, cursor: "pointer" }}
-          >
-            {t("scala.apri")}
-          </button>
-        </div>
-        {scalaAperto && <DialogoRisoluzione onClose={() => setScalaAperto(false)} />}
       </div>
 
       {error && <div style={{ color: "var(--brand-danger, #ef4444)", fontSize: 12 }}>Errore: {error}</div>}
