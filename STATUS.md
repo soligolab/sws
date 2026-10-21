@@ -966,7 +966,7 @@ Quattro moduli in `sws-runtime/crates/sws-web/src/gateway/`: `podman.rs` (il cli
 `progetti.rs` (chi è aperto, il tetto, i timer, la riadozione dopo un riavvio), `inoltro.rs` (il
 proxy HTTP e WebSocket), `rotte.rs` (`/p/<azienda>/<progetto>/…`).
 
-Le tre cose che non si indovinano stanno nel [piano](docs/plans/2026-10-09-fase-4-gateway.md), in
+Le tre cose che non si indovinano stanno nel [piano](docs/archive/2026-10-09-fase-4-gateway.md), in
 fondo: il guscio della SPA servito **senza token** (una navigazione non ne porta), l'identità che
 scrive solo il gateway, e la radice dei progetti montata **allo stesso percorso** dentro e fuori.
 
@@ -1040,7 +1040,7 @@ oggi.
 
 ### La Fase 4
 
-Le specifiche sono decise (vedi [il piano](docs/plans/2026-10-09-fase-4-gateway.md)). Le quote
+Le specifiche sono decise (vedi [il piano](docs/archive/2026-10-09-fase-4-gateway.md)). Le quote
 sono **due**: spazio e progetti aperti insieme. Questo supera la decisione 23, e i quattro punti
 dei piani che dicevano il contrario sono stati corretti.
 

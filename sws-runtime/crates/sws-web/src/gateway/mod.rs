@@ -1,7 +1,7 @@
 //! Il gateway: una porta sola davanti a tutti i progetti.
 //!
 //! Fase 4 del tronco cloud. Il piano sta in
-//! `docs/plans/2026-10-09-fase-4-gateway.md`, con le specifiche decise dal
+//! `docs/archive/2026-10-09-fase-4-gateway.md`, con le specifiche decise dal
 //! maintainer il 09-10-2026.
 
 pub mod inoltro;

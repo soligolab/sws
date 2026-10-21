@@ -31,14 +31,16 @@ esistono, la console è confinata, i progetti si indirizzano per azienda e le qu
 fermano davvero. Resta dichiaratamente al gateway il tetto sui **progetti aperti**: è un limite su
 ciò che gira, non un conteggio in un database.
 
-**Fase 4 — il gateway: fatta.** Il piano è [il gateway](2026-10-09-fase-4-gateway.md),
-scritto il 09-10-2026. Il gateway esiste, gira su `sws.soligo.net`, avvia un container per
-progetto e lo indirizza `/p/<azienda>/<progetto>/`; l'immagine amd64 che era il prerequisito non
-soddisfatto è pubblicata dal 09-10. Restano tre code — il tetto dei progetti aperti visibile in
-console, la chiusura a mano di un progetto e il branding prima del login — e sono i rami 1 e 2
-della [chiusura dei residui](2026-10-19-chiusura-dei-residui.md). *(Questo paragrafo ha detto
-«non è approvato, l'immagine amd64 non esiste» fino al 19-10-2026, dieci giorni dopo che tutt'e
-due le cose erano diventate false. È la prima cosa che legge chi riprende il lavoro.)*
+**Fase 4 — il gateway: fatta, e il piano è in archivio dal 21-10-2026**
+([il gateway](../archive/2026-10-09-fase-4-gateway.md)). Il gateway esiste, gira su
+`sws.soligo.net`, avvia un container per progetto e lo indirizza `/p/<azienda>/<progetto>/`.
+Delle tre code, due sono fatte (il tetto dei progetti aperti visibile in console e la chiusura a
+mano, ramo 1 della [chiusura dei residui](2026-10-19-chiusura-dei-residui.md), squash
+`ec6f9d2d`); resta il **branding prima del login**, che è il ramo 2 dello stesso piano. L'unica
+domanda senza risposta — cosa ci dice il numero di pannelli — è uscita in un seme suo, qui sotto.
+*(Questo paragrafo ha detto «non è approvato, l'immagine amd64 non esiste» fino al 19-10-2026,
+dieci giorni dopo che tutt'e due le cose erano diventate false. È la prima cosa che legge chi
+riprende il lavoro.)*
 
 (Questa riga diceva «nessun piano d'esecuzione in corso» dal 26-09.)
 
@@ -62,6 +64,7 @@ c'è già, manca solo la conferma a schermo prima di archiviare la scheda in
 | [2026-10-16-casadomotica-progetto-di-riferimento.md](2026-10-16-casadomotica-progetto-di-riferimento.md) | decisione del maintainer, 16-10-2026 | **pratica, parte subito** — CasaDomotica diventa il progetto vivo in cui entra man mano ogni funzione nuova. Non sostituisce i gemelli `demo-items-*`, che coprono i **tipi** (39 su 39, guardia `check_demo_templates.sh`): CasaDomotica copre le **combinazioni su dati veri**, e oggi usa **16 tipi su 39**. Due domande aperte: non è versionato (vive solo sul VPS, 540 MB di storico) ed è anche l'impianto di casa del maintainer |
 | [2026-10-20-openplc-sul-dispositivo.md](2026-10-20-openplc-sul-dispositivo.md) | il maintainer, preparando il laboratorio del tutorial, 20-10-2026 | **seme — decisione** — OpenPLC v4 accanto a `sws-runtime` sul pannello, come funzione di SWS anche in produzione: companion container (come LVGL), oppure la logica ST scritta e caricata dall'IDE; misurati immagine (1 GB), CLI dell'Editor senza testa, tre server provati, niente tempo reale in rootless, CODESYS già presente sui Pixsys |
 | [2026-10-21-installazione-con-un-comando.md](2026-10-21-installazione-con-un-comando.md) | «ancora meglio sarebbe il singolo comando come fa zerotier», 21-10-2026 | **seme — decisione** — la guida mostrata dall'IDE nel cloud è di cinque comandi perché l'installer vive dentro l'immagine; il repository è privato, quindi non c'è un raw da cui scaricarlo. Tre strade: una rotta pre-auth sul gateway (una voce in più nella lista corta che il CRA ci fa tenere corta), un entrypoint `installa` nell'immagine, o accorciare a tre comandi |
+| [2026-10-21-cosa-dice-il-numero-di-pannelli.md](2026-10-21-cosa-dice-il-numero-di-pannelli.md) | «Resta aperto» del piano della Fase 4, estratto quando è andato in archivio, 21-10-2026 | **seme — decisione** — `max_pannelli` esiste nel database e nella console e non ferma niente: prima di applicarlo va deciso se il numero serve a vedere, a fatturare o a fermare, e se conta la scatola o l'abbinamento. Da decidere con la parte licenze del seme [identità del pannello](2026-10-10-identita-del-pannello-e-token-ripetibile.md) |
 | [2026-10-21-porte-di-sws.md](2026-10-21-porte-di-sws.md) | il maintainer, vedendo che l'API REST di OpenPLC v4 ascolta sulla 8443, 21-10-2026 | **seme — decisione** — le porte 8443/8444 non sono una configurazione ma una convenzione scritta in venti file: solo `--admin-port` ha un default nel codice, le altre le mettono i quattro avviatori, l'IDE **deduce** il viewer come `admin − 1`, e 176 righe di documentazione le nominano. Quattro strade, dalla più piccola (spostare OpenPLC) alla più grande (una porta sola e il percorso al posto della porta) — da decidere insieme al [seme OpenPLC](2026-10-20-openplc-sul-dispositivo.md) |
 | [2026-10-20-residui-dal-manuale.md](2026-10-20-residui-dal-manuale.md) | trovati rifacendo il manuale, 20-10-2026 | **seme — quasi tutto fatto** — fatti il pull git ad Admin, i testi fermi al no-auth e la ritenzione automatica (2.16.0-rc.1, [archivio](../archive/2026-10-20-ritenzione-automatica.md)); restano `SWS_IP_ALLOWLIST` che ripiega su `X-Forwarded-For` e l'anteprima della ritenzione su PostgreSQL, mai eseguita |
 | [2026-10-18-indirizzo-vero-dietro-traefik.md](2026-10-18-indirizzo-vero-dietro-traefik.md) | limiti per indirizzo dell'onda 2, 18-10-2026 | **seme — decisione** — Traefik rootless vede ogni visitatore come `10.89.0.89` (rootlessport): il gateway non conta gli indirizzi privati e oggi il cloud non ha limiti. Strade: pasta, port handler, Traefik di sistema, PROXY protocol |

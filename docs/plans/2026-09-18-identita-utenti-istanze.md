@@ -172,7 +172,7 @@ le sue parole, e ciò che è stato **misurato**; le proposte restano proposte fi
     > restano un dato da vedere, non un limite. E «progetti aperti insieme» diventa proprio la
     > quota che qui si escludeva: ogni progetto aperto è un container, cioè memoria e CPU. Lo
     > spegnimento dei fermi resta, ma non è più l'unica difesa — si somma al tetto. Vedi
-    > [Fase 4 — il gateway](2026-10-09-fase-4-gateway.md).
+    > [Fase 4 — il gateway](../archive/2026-10-09-fase-4-gateway.md).
 24. **Al superamento si blocca solo ciò che crea** (nuovi progetti, pannelli, spazio): deploy e
     pannelli già in servizio non si fermano mai.
 
@@ -301,7 +301,7 @@ le sue parole, e ciò che è stato **misurato**; le proposte restano proposte fi
     dei processi inattivi (Fase 4 del piano d'esecuzione). Finché quello non c'è, dieci schede
     dimenticate sono dieci container vivi.
     > **Dal 09-10-2026 è una quota**, e la difesa è doppia: il tetto per azienda più lo
-    > spegnimento dei fermi. Vedi [Fase 4](2026-10-09-fase-4-gateway.md).
+    > spegnimento dei fermi. Vedi [Fase 4](../archive/2026-10-09-fase-4-gateway.md).
 
     Tre vincoli operativi: **non si compila sul VPS** (una `target/` di questo workspace si mangia i
     40 GB da sola — build altrove, immagini su ghcr, il VPS fa `pull`); **datacenter UE**, perché con

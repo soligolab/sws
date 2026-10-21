@@ -322,7 +322,7 @@ dove chiudere un capo è sempre pulito: va provata a mano.
 
 | Piano | Chiuso da |
 |---|---|
-| [2026-10-09-fase-4-gateway.md](2026-10-09-fase-4-gateway.md) | rami 1 e 2 |
+| [2026-10-09-fase-4-gateway.md](../archive/2026-10-09-fase-4-gateway.md) | rami 1 e 2 |
 | [2026-10-08-marchi-visibili-prima-del-login.md](2026-10-08-marchi-visibili-prima-del-login.md) | ramo 2 |
 | [2026-10-15-tubazioni-bocche-e-stili.md](2026-10-15-tubazioni-bocche-e-stili.md) | punto 6 dichiarato **fuori perimetro** (decisione del 19-10), più il ramo 3 che dà al tubo il tracciamento a clic |
 | [2026-10-14-strumenti-simboli-comandi.md](2026-10-14-strumenti-simboli-comandi.md) | ramo 4 |
