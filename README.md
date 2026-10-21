@@ -167,7 +167,7 @@ Recover it from git history if you ever want to look; the container path that wo
 
 From the standalone editor (or from any runtime's own admin IDE): **Configuration → Instance → Device → Connection →
 Connect**, enter the remote runtime's URL, username and password (e.g.
-`https://192.168.1.50:8444`). This does two things at once:
+`https://192.168.1.50:7444`). This does two things at once:
 
 - enables **Deploy** — pushing the open project to that runtime;
 - opens a **live relay** of that runtime's tags and alarms over WebSocket, so you can watch real
@@ -193,7 +193,7 @@ open the plain-HTTP companion port (`:8080` for the runtime, `:8090` for the sta
 — it serves a guided acceptance page. To trust the certificate elsewhere on the LAN:
 
 ```bash
-curl -k https://<device-ip>:8443/cert -o sws.crt
+curl -k https://<device-ip>:7443/cert -o sws.crt
 ```
 
 ### 5. Deploying a project
@@ -214,10 +214,10 @@ internally.
 
 ### 7. Viewing the web page
 
-- **Operator viewer**: `http://<device-ip>:8443` (or `https://` once TLS is enabled) — read-only,
+- **Operator viewer**: `http://<device-ip>:7443` (or `https://` once TLS is enabled) — read-only,
   optimized for touchscreens, always shows the alarm banner.
 - **Kiosk mode**, fullscreen auto-start on a panel: `./scripts/kiosk.sh --url
-  https://localhost:8443 --fullscreen` (`sws-kiosk`, a GTK4+WebKitGTK wrapper — requires those
+  https://localhost:7443 --fullscreen` (`sws-kiosk`, a GTK4+WebKitGTK wrapper — requires those
   libraries on the host; Pixsys devices instead run an external Chromium-on-Weston process).
 - **PWA**: install the viewer straight from the browser's install prompt for an app-like,
   offline-tolerant shell.
@@ -295,7 +295,7 @@ list live in [`STATUS.md`](STATUS.md); change history in [`CHANGELOG.md`](CHANGE
 │  │ Admin IDE / editor   │   │  Operator viewer             │ │
 │  │ WYSIWYG synoptics    │   │  live tag streaming (WS)     │ │
 │  └──────────┬───────────┘   └───────────────┬──────────────┘ │
-│       REST / WS :8444 (or :8460)      REST / WS :8443         │
+│       REST / WS :7444 (or :8460)      REST / WS :7443         │
 └─────────────┼─────────────────────────────┼──────────────────┘
               │                             │
 ┌─────────────┴─────────────────────────────┴──────────────────┐
@@ -319,8 +319,8 @@ viewer, the admin IDE, and all comm plugins, and auto-opens the last active proj
 
 | Port | Role | Notes |
 |------|------|-------|
-| `8443` | Operator viewer (RuntimeViewer SPA) | started by `start_runtime.sh` |
-| `8444` | Admin IDE + full admin API | started by `start_runtime.sh` |
+| `7443` | Operator viewer (RuntimeViewer SPA) | started by `start_runtime.sh` |
+| `7444` | Admin IDE + full admin API | started by `start_runtime.sh` |
 | `8460` | Standalone editor IDE (no viewer) | started by `start_editor.sh` on a dev PC |
 | `8080` / `8090` | HTTP companion (TLS-cert acceptance helper) | only when TLS is enabled |
 
@@ -347,7 +347,7 @@ unless a TLS certificate is present; HTTPS is enabled on demand from
 `sws-plugin-api` + plugins `modbus`, `opcua`, `mqtt`, `s7`, `enip`, `homeassistant`.
 
 **Protocol layer**: `sws-web` is the only crate that exposes anything externally — a dual-port
-Axum router (8443/8444). The core crates (`sws-core`, `sws-historian`, `sws-pyscript`,
+Axum router (7443/7444). The core crates (`sws-core`, `sws-historian`, `sws-pyscript`,
 `sws-auth`, `sws-audit`, and every `sws-plugin-*`) have no dependency on it; they publish to and
 read from a shared `TagDb` over `tokio::sync::broadcast` channels. The REST surface
 (`/api/project*`, `/api/synoptics/:name`, `/api/tags*`, `/api/alarms*`, `/api/history/:tag`,

@@ -76,7 +76,7 @@ Read these only when the trigger applies:
 - **Proof of concept, not a product.** Ship the smallest thing that works — see `docs/CONTEXT.md` §1.
 - **Solo maintainer, sparse sessions of 3-4h.** Lost context between sessions is risk #1, permission friction is #2. Plan work that fits one session and stop at clean points.
 - **Local stack:**
-  - `./scripts/start_runtime.sh` — device runtime: viewer 8443 + IDE/admin 8444 + HTTP companion 8080, auto-opens project `default`.
+  - `./scripts/start_runtime.sh` — device runtime: viewer 7443 + IDE/admin 7444 + HTTP companion 8080, auto-opens project `default`.
   - `./scripts/start_editor.sh` — IDE **as a customer would run it**: 8460 + HTTP companion 8090, no viewer, projects in `~/sws_projects` (or `SWS_PROJECTS_ROOT`). Deploy via Configurazione → Istanza → Device → Connessione → "Connetti" with the remote runtime URL.
   - `./scripts/start_editor_develop.sh` — the same IDE with projects inside the checkout (`.run-editor/projects`). Use this one while developing; the other is the production run.
   - First access: open `http://localhost:8080` (runtime) or `:8090` (editor) to accept the self-signed cert without leaving the app.

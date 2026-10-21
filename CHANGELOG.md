@@ -11,9 +11,46 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 
 ## [Unreleased]
 
+## [2.16.1] — 2026-10-21
+
+### Fixed
+
+- **Un pannello LVGL non resta cieco dopo l'aggiornamento alla 2.16.** È il difetto che avrebbe reso la 2.16.0
+  inadatta a essere pubblicata, trovato da uno sweep prima di costruire l'immagine. Le porte del runtime viaggiano
+  con l'immagine, perché stanno nel suo `CMD`; quella del viewer LVGL no: sta nell'`Exec=` del suo quadlet, e un
+  quadlet si riscrive **solo quando un operatore lo conferma** (`quadlet::aggiorna` ha un chiamante solo, la rotta
+  `POST /api/quadlet/aggiorna`). Su un pannello già installato l'aggiornamento avrebbe quindi spostato il runtime
+  sulla 7443 lasciando il viewer sulla 8443: `resolve_start_page` esce con `?`, il processo muore, `Restart=always`
+  lo rilancia ogni cinque secondi, **schermo nero**. E l'avviso che spiega come rimediare lo disegna proprio il
+  viewer che non si collega più. Il pannello **web** si riparava da sé perché `display_target::publish` riscrive
+  l'URL del browser a ogni avvio del runtime; la via LVGL non aveva l'equivalente. Ora ce l'ha: se l'indirizzo
+  configurato non risponde, il viewer prova l'altra porta nota prima di arrendersi, la usa, e scrive nel log che la
+  configurazione del servizio è rimasta indietro. Vale nei due sensi, anche tornando a un'immagine vecchia; una
+  porta scelta a mano non viene toccata. Tre test.
+
+- **Riscrivere i quadlet non spegne più un tunnel configurato, né riaccende un `--senza-cloud`.**
+  `install-container.sh --solo-unita` — che è quello che gira quando si preme «Aggiorna» nella configurazione del
+  servizio — recuperava dall'unità esistente solo immagine, cartella dati e rete, e ripartiva dal template per il
+  resto. Le tre righe `Environment=SWS_TUNNEL_*` si perdevano: un pannello con un tunnel scritto a mano smetteva di
+  chiamare il suo gateway e, soprattutto, un pannello installato con `--senza-cloud` — che dice di no proprio con
+  quella riga vuota — **ricominciava a chiamare il cloud**. Un «no» non si revoca riscrivendo un file di servizio.
+
+- **L'immagine usata come gateway non risulta più «unhealthy» per sempre.** L'`HEALTHCHECK` era passato a
+  7443/7444 con tutto il resto, ma il gateway nel cloud e i container dei suoi progetti restano di proposito sulla
+  8444 (`PORTA_FIGLIO`). Ora la catena prova anche quella.
+
+- **`README.md` e `CLAUDE.md` dicevano ancora 8443/8444.** Il `grep` di verifica del cambio di porte copriva
+  `docs/`, `scripts/`, `deploy/` e i sorgenti, e si era dimenticato i due file di primo livello — fra cui la porta
+  d'ingresso del repository, che contraddiceva il cambiamento principale della release.
+
 ## [2.16.0] — 2026-10-21
 
 ### Changed
+
+- **Nel cloud, «Installa il runtime su un dispositivo» non mostra più il modulo SSH** ma una guida da copiare
+  (`3f13d083`, allargata a 700px con `b585e354`). L'IDE sul server non può entrare nel pannello: è il pannello che
+  chiama fuori, ed è il motivo per cui tutto questo funziona dietro un firewall senza aprire porte. Cinque comandi
+  con stile da terminale e un pulsante «Copia» ciascuno; l'indirizzo d'esempio segue la lingua dell'interfaccia.
 
 - **Un pannello sospeso non se lo prende più un'altra azienda.** `prepara()` rifiutava la rivendicazione solo se
   il pannello era **attivo** e di un'altra azienda; se era **sospeso** passava, e il primo che avesse il codice se
@@ -53,7 +90,10 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
   un Admin; chi entra senza esserlo lo legge (`agg_serve_admin`). Sul server la porta del viewer apre in lettura
   `/api/update/status` e `/api/system` in forma ridotta per chi non è Operator (`SystemStatusViewer`: versione,
   uptime, `auth_required`, quadlet, domanda); le scritture restano Admin, e due test lo fissano. L'esito
-  dell'ultimo aggiornamento non copre più la pagina: è una striscia in basso. Il viewer LVGL viene dopo.
+  dell'ultimo aggiornamento non copre più la pagina: è una striscia in basso. **Anche sullo schermo LVGL**
+  (`c6d4dff9`): l'avviso compare con utenti, i pulsanti chiedono l'accesso di un Admin quando manca il
+  token, il login passa dal `net_worker` e l'esito è una striscia. *(Questa riga diceva «il viewer LVGL
+  viene dopo»: il dopo è stato lo stesso giorno.)*
 
 - **Console: i progetti aperti si contavano a zero.** Si leggeva `project_dir`, che sul gateway è sempre vuoto, e
   ogni azienda mostrava `0 / N` (o il totale della piattaforma); il tetto si applicava ma la console diceva di no.

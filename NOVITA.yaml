@@ -17,10 +17,18 @@
 # Le scrive chi fa il lavoro, insieme al lavoro; il maintainer le rivede al collaudo.
 
 versioni:
-  - versione: "2.16.0"
+  - versione: "2.16.1"
     compatibilita:
       - it: "Il pannello cambia porte: il viewer passa da 8443 a 7443 e la gestione da 8444 a 7444. Segnalibri e dispositivi salvati a mano vanno corretti una volta; «Cerca» li ritrova da sé."
         en: "The panel changes ports: the viewer moves from 8443 to 7443 and management from 8444 to 7444. Bookmarks and hand-saved devices need fixing once; «Search» finds them by itself."
+      - it: "Dopo l'aggiornamento, apri Configurazione → Istanza → Device → Connessione → Aggiorna per allineare la configurazione del servizio. Lo schermo funziona anche prima: il viewer trova da sé la porta nuova."
+        en: "After updating, open Configuration → Instance → Device → Connection → Update to align the service configuration. The screen works even before that: the viewer finds the new port by itself."
+    voci:
+      - it: "Lo schermo del pannello non resta nero se la configurazione del servizio è rimasta indietro: il viewer prova da sé l'altra porta del runtime e lo scrive nel log."
+        en: "The panel screen no longer stays black when the service configuration is out of date: the viewer tries the runtime's other port by itself and says so in the log."
+      - it: "Aggiornare la configurazione del servizio non spegne più un tunnel impostato a mano, e non rimette a chiamare il cloud un pannello installato senza."
+        en: "Updating the service configuration no longer switches off a hand-configured tunnel, nor makes a panel installed without cloud start calling it again."
+  - versione: "2.16.0"
     voci:
       - it: "Un pannello sospeso non può più essere rivendicato da un'altra azienda: sospenderlo ora vuol dire solo fermarlo. Spostarlo a un'altra azienda lo fa chi amministra la piattaforma, dalla console."
         en: "A suspended panel can no longer be claimed by another company: suspending it now only means stopping it. Moving it to another company is done by the platform administrator, from the console."

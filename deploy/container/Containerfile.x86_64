@@ -96,13 +96,19 @@ ENV SWS_TUNNEL_URL=wss://tunnel.soligo.net/tunnel/v1
 # interrogava https e restava rosso per sempre.
 # NB: HEALTHCHECK non esiste nella spec OCI — va costruito con
 # `podman build --format docker`, altrimenti podman lo scarta con un warning.
+# Terzo ripiego, la 8444 (21-10-2026): col passaggio a 7443/7444 il **gateway**
+# e i container dei suoi progetti sono rimasti sulla 8444, che è interna alla
+# rete del VPS (`PORTA_FIGLIO`, gateway/progetti.rs). Senza questa riga la
+# stessa immagine, usata come gateway, risulterebbe «unhealthy» per sempre.
+#
 # Ripiego sulla 7444 (10-10-2026): un'istanza solo-IDE — il gateway nel cloud e
 # i container dei suoi progetti — non ha il viewer, la 7443 non ascolta e
 # risultava «unhealthy» per sempre; con `Notify=healthy` e l'aggiornamento
 # automatico sarebbe stato un ritorno indietro a ogni aggiornamento. Sui
 # pannelli la 7443 risponde e il ripiego non scatta mai.
 HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
-    CMD curl -fs http://localhost:7443/health || curl -fs http://localhost:7444/health || exit 1
+    CMD curl -fs http://localhost:7443/health || curl -fs http://localhost:7444/health \
+     || curl -fs http://localhost:8444/health || exit 1
 
 # Nessun entrypoint script: niente SWS_ADMIN_PASSWORD obbligatorio (il
 # no-auth mode è lo stato normale del PoC) e i flag stanno tutti nel CMD,

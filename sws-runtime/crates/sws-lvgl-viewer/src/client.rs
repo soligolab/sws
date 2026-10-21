@@ -27,6 +27,22 @@ use crate::tls::{pinned_client_config, pinned_client_config_arc};
 /// mai avuto un concetto di sessione per-tab).
 pub type SharedLang = Arc<Mutex<String>>;
 
+/// `GET /health` — risponde `ok` e non vuole autenticazione: è la sonda più
+/// economica per sapere se un runtime è davvero in ascolto a quell'indirizzo.
+/// La usa [`crate::base_url_viva`] prima di decidere con chi parlare.
+pub async fn risponde(base_url: &str, timeout: std::time::Duration) -> bool {
+    let Ok(mut url) = reqwest::Url::parse(base_url) else { return false };
+    let Ok(mut seg) = url.path_segments_mut() else { return false };
+    seg.push("health");
+    drop(seg);
+    let Ok(tls) = pinned_client_config(base_url) else { return false };
+    let Ok(client) = reqwest::Client::builder().use_preconfigured_tls(tls).timeout(timeout).build()
+    else {
+        return false;
+    };
+    matches!(client.get(url).send().await, Ok(r) if r.status().is_success())
+}
+
 pub async fn fetch_page(base_url: &str, page_name: &str) -> anyhow::Result<SynopticPage> {
     let mut url = reqwest::Url::parse(base_url)?;
     url.path_segments_mut()

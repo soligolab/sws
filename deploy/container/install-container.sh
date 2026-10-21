@@ -247,6 +247,25 @@ if [ "$SOLO_UNITA" -eq 1 ]; then
     VECCHI_DATI="$(sed -n 's|^Volume=\(.*\)/config:/var/sws/config.*|\1|p' "$ESISTENTE" | head -1)"
     [ -n "$VECCHI_DATI" ] && DATA="$VECCHI_DATI"
     if grep -q '^Network=host' "$ESISTENTE"; then HOST_NETWORK=1; else HOST_NETWORK=0; fi
+    # Le tre righe del tunnel (21-10-2026). Nel template sono commentate e le
+    # scommenta l'installazione; una riscrittura delle sole unità ripartiva dal
+    # template e quindi le **perdeva**. Due danni, e il secondo è il grave:
+    # un pannello configurato a mano con `--tunnel` smetteva di chiamare il suo
+    # gateway, e — peggio — un pannello installato con `--senza-cloud`, che dice
+    # di no proprio con `Environment=SWS_TUNNEL_URL=` vuota, ricominciava a
+    # chiamare il cloud dell'immagine. Un «no» non si revoca riscrivendo un file
+    # di servizio.
+    if grep -q '^Environment=SWS_TUNNEL_URL=' "$ESISTENTE"; then
+        TUNNEL_URL="$(sed -n 's/^Environment=SWS_TUNNEL_URL=//p' "$ESISTENTE" | head -1)"
+        TUNNEL_NOME="$(sed -n 's/^Environment=SWS_TUNNEL_NOME=//p' "$ESISTENTE" | head -1)"
+        TUNNEL_TOKEN="$(sed -n 's/^Environment=SWS_TUNNEL_TOKEN=//p' "$ESISTENTE" | head -1)"
+        if [ -z "$TUNNEL_URL" ]; then
+            SENZA_CLOUD=1
+            echo "==> solo le unità: il pannello era installato con --senza-cloud, e lo resta"
+        else
+            echo "==> solo le unità: tunnel verso $TUNNEL_URL conservato"
+        fi
+    fi
     echo "==> solo le unità: immagine $TAG, dati $DATA, rete $([ "$HOST_NETWORK" -eq 1 ] && echo host || echo bridge)"
 fi
 

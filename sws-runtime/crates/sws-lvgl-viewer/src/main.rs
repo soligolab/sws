@@ -344,6 +344,62 @@ fn pointer_to_page(
     Some((px, py))
 }
 
+/// Le due porte che il runtime ha avuto: la 7443 di oggi e la 8443 di prima
+/// della 2.16. Ogni voce è il ripiego dell'altra, nei due sensi — vale anche a
+/// scendere, per un pannello che venisse riportato a un'immagine vecchia.
+const PORTE_NOTE: [(u16, u16); 2] = [(8443, 7443), (7443, 8443)];
+
+/// L'altro indirizzo da provare: lo stesso host con la porta dell'altra
+/// generazione. `None` se la porta non è una di quelle note o manca del tutto —
+/// chi ha scelto una porta sua non se la vede cambiare sotto.
+fn ripiego_di(configurata: &str) -> Option<String> {
+    let url = reqwest::Url::parse(configurata).ok()?;
+    let (_, ripiego) = PORTE_NOTE.iter().find(|(da, _)| Some(*da) == url.port())?;
+    let mut alt = url.clone();
+    alt.set_port(Some(*ripiego)).ok()?;
+    let alt = alt.to_string();
+    Some(alt.strip_suffix('/').unwrap_or(&alt).to_string())
+}
+
+/// L'indirizzo del runtime con cui parlare davvero, che può non essere quello
+/// scritto nel quadlet.
+///
+/// **Perché esiste.** Con la 2.16.0 il runtime è passato dalla 8443 alla 7443,
+/// per lasciare la 8443 all'API REST di OpenPLC. Le porte del runtime viaggiano
+/// con l'immagine, perché stanno nel suo `CMD`; questa no: sta nell'`Exec=` del
+/// quadlet del viewer, e **un quadlet si riscrive solo quando un operatore lo
+/// conferma** (`sws-web/src/quadlet.rs`: `aggiorna` ha un chiamante solo, la
+/// rotta `POST /api/quadlet/aggiorna`).
+///
+/// Senza questo ripiego, su un pannello LVGL già installato l'aggiornamento
+/// avrebbe spostato il runtime e non il viewer: `resolve_start_page` sarebbe
+/// uscita con `?`, il processo sarebbe morto, `Restart=always` lo avrebbe
+/// rilanciato ogni cinque secondi, e lo schermo sarebbe rimasto nero. Il
+/// pannello web si ripara da sé perché `display_target::publish` riscrive
+/// l'URL del browser a ogni avvio del runtime; la via LVGL non aveva
+/// l'equivalente, e l'avviso che spiega come rimediare lo disegna proprio il
+/// viewer che non si collega più.
+///
+/// Non sostituisce l'aggiornamento dei quadlet: lo rende non urgente. Il log
+/// dice a voce alta che la configurazione del servizio è rimasta indietro.
+async fn base_url_viva(configurata: &str) -> String {
+    const SONDA: std::time::Duration = std::time::Duration::from_secs(2);
+    if client::risponde(configurata, SONDA).await {
+        return configurata.to_string();
+    }
+    let Some(alt) = ripiego_di(configurata) else { return configurata.to_string() };
+    if client::risponde(&alt, SONDA).await {
+        eprintln!(
+            "[base-url] {configurata} non risponde, {alt} sì: uso quello.\n\
+             [base-url] La configurazione del servizio di questo pannello è rimasta indietro \
+             (quadlet di prima della 2.16).\n\
+             [base-url] Per allinearla: Configurazione → Istanza → Device → Connessione → Aggiorna."
+        );
+        return alt;
+    }
+    configurata.to_string()
+}
+
 fn main() -> anyhow::Result<()> {
     // Stesso belt-and-suspenders di sws-runtime/src/main.rs: rustls 0.23 va in
     // panic se più provider crypto finiscono nel grafo delle dipendenze
@@ -357,7 +413,7 @@ fn main() -> anyhow::Result<()> {
     // d'avvio del viewer).
     lvgl_log::install();
 
-    let args = Args::parse();
+    let mut args = Args::parse();
 
     // Q55: le scritture di rete girano su un thread loro, non sul runtime condiviso.
     net_worker::avvia();
@@ -366,6 +422,9 @@ fn main() -> anyhow::Result<()> {
     // WS in background (avviato dentro spawn_tag_subscription) deve restare
     // vivo per tutta la finestra, non solo per la fetch iniziale.
     let rt = tokio::runtime::Runtime::new()?;
+    // Prima di qualunque richiesta: l'indirizzo scritto nel quadlet può essere
+    // quello di prima della 2.16 (vedi `base_url_viva`).
+    args.base_url = rt.block_on(base_url_viva(&args.base_url));
     // Il pannello in attesa di abbinamento (11-10-2026): niente utenti, quindi
     // pagine, tag e allarmi rispondono 401. Si mostra il codice al loro posto
     // e si aspetta; ad abbinamento fatto il viewer riparte da sé.
@@ -1724,5 +1783,32 @@ mod tests {
     fn off_e_stringa_vuota_disattivano_il_touch() {
         assert_eq!(resolve_touch_device("off", |_| true), None);
         assert_eq!(resolve_touch_device("", |_| true), None);
+    }
+}
+
+#[cfg(test)]
+mod prove_base_url {
+    use super::ripiego_di;
+
+    #[test]
+    fn la_porta_vecchia_propone_quella_nuova_e_viceversa() {
+        assert_eq!(ripiego_di("http://127.0.0.1:8443").as_deref(), Some("http://127.0.0.1:7443"));
+        assert_eq!(ripiego_di("https://127.0.0.1:7443").as_deref(), Some("https://127.0.0.1:8443"));
+    }
+
+    #[test]
+    fn una_porta_scelta_da_chi_installa_non_si_tocca() {
+        // Chi ha messo una porta sua sa quello che fa: nessun ripiego.
+        assert_eq!(ripiego_di("http://127.0.0.1:9443"), None);
+        assert_eq!(ripiego_di("http://pannello.local"), None, "senza porta non c'è niente da indovinare");
+        assert_eq!(ripiego_di("non-un-url"), None);
+    }
+
+    #[test]
+    fn l_host_e_lo_schema_restano_quelli() {
+        assert_eq!(
+            ripiego_di("https://pannello.local:8443").as_deref(),
+            Some("https://pannello.local:7443"),
+        );
     }
 }
