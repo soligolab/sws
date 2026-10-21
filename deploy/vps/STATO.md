@@ -169,6 +169,12 @@ Verificato uguale su un runtime normale. Il browser disegna la pagina lo stesso.
 proposito: con un 200 un bundle davvero mancante tornerebbe HTML con stato 200, e il browser
 proverebbe a eseguirlo come JavaScript — un errore molto più difficile da leggere di un 404.
 
+**Versione in esecuzione: `2.16.2-amd64`**, dal 21-10-2026 (prima `2.16.0-rc.1-amd64`). Con lei il
+gateway ha preso il cambio di porte del pannello — che però **non lo tocca**: il gateway e i
+container dei suoi progetti restano sulla 8444, interna alla rete del VPS. L'`HEALTHCHECK`
+dell'immagine, che era passato a 7443/7444 con tutto il resto, da questa versione prova anche la
+8444: senza, l'immagine usata come gateway sarebbe risultata «unhealthy» per sempre.
+
 **Come si aggiorna.** L'immagine è inchiodata al commit, quindi `podman-auto-update` **non** la
 tocca: è voluto, perché il gateway e i container dei progetti devono essere la stessa versione e
 un tag mobile li farebbe divergere a metà aggiornamento. Si cambia `Image=` **e**
