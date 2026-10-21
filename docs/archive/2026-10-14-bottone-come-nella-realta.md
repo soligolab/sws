@@ -1,6 +1,6 @@
 # Il bottone: non più un rettangolo, ma la cosa vera
 
-> **Superato il 14-10-2026** dal piano [strumenti, simboli e comandi](../plans/2026-10-14-strumenti-simboli-comandi.md),
+> **Superato il 14-10-2026** dal piano [strumenti, simboli e comandi](2026-10-14-strumenti-simboli-comandi.md),
 > che unisce questo seme all'altro e porta le decisioni del maintainer. Qui resta la misura di quando è nato.
 
 > **Seme — decisione.** Quando questo lavoro comincerà, la prima cosa è una **sessione di plan

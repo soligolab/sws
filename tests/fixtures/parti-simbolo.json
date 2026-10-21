@@ -31,6 +31,19 @@
       "cx": 40,
       "cy": 50,
       "symmetry": 60
+    },
+    {
+      "id": "selettore",
+      "kind": "lever",
+      "cx": 30,
+      "cy": 24,
+      "open": 0,
+      "closed": 40,
+      "angoli": [
+        -40,
+        0,
+        40
+      ]
     }
   ],
   "casi": [
@@ -320,6 +333,80 @@
       "atteso": {
         "lever": {
           "aperta": null
+        }
+      }
+    },
+    {
+      "nome": "selettore a tre posizioni: il valore è l'indice",
+      "legami": {
+        "selettore": {
+          "tag": "sel"
+        }
+      },
+      "tag": {
+        "sel": 2
+      },
+      "atteso": {
+        "selettore": {
+          "posizione": 2
+        }
+      }
+    },
+    {
+      "nome": "selettore: un valore fuori dall'elenco si ferma all'ultimo",
+      "legami": {
+        "selettore": {
+          "tag": "sel"
+        }
+      },
+      "tag": {
+        "sel": 9
+      },
+      "atteso": {
+        "selettore": {
+          "posizione": 2
+        }
+      }
+    },
+    {
+      "nome": "selettore: un valore negativo si ferma al primo",
+      "legami": {
+        "selettore": {
+          "tag": "sel"
+        }
+      },
+      "tag": {
+        "sel": -3
+      },
+      "atteso": {
+        "selettore": {
+          "posizione": 0
+        }
+      }
+    },
+    {
+      "nome": "selettore: senza legame resta come disegnato",
+      "legami": {},
+      "tag": {},
+      "atteso": {
+        "selettore": {
+          "posizione": null
+        }
+      }
+    },
+    {
+      "nome": "selettore: un valore non numerico non muove niente",
+      "legami": {
+        "selettore": {
+          "tag": "sel"
+        }
+      },
+      "tag": {
+        "sel": "acceso"
+      },
+      "atteso": {
+        "selettore": {
+          "posizione": null
         }
       }
     }

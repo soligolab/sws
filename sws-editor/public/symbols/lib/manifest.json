@@ -1,6 +1,6 @@
 {
   "_comment": "Generato da scripts/simboli/genera.py — non modificare a mano.",
-  "version": "b48436dfa8b3",
+  "version": "b144f6acba18",
   "materials": {
     "steel": "#9aa5af",
     "steel-dark": "#4a545d",
@@ -46,6 +46,436 @@
     "cardboard": "#c49a63"
   },
   "symbols": [
+    {
+      "id": "lib:controls/emergency-stop-twist",
+      "file": "controls/emergency-stop-twist.svg",
+      "family": "controls",
+      "kind": "pulsanti",
+      "label": "symbols.lib.controls.emergency-stop-twist",
+      "viewBox": [
+        70,
+        70
+      ],
+      "body": "signal-red",
+      "materials": [
+        "safety-yellow",
+        "signal-red",
+        "steel-dark"
+      ],
+      "parts": []
+    },
+    {
+      "id": "lib:controls/foot-switch",
+      "file": "controls/foot-switch.svg",
+      "family": "controls",
+      "kind": "pulsanti",
+      "label": "symbols.lib.controls.foot-switch",
+      "viewBox": [
+        110,
+        80
+      ],
+      "body": "steel-dark",
+      "materials": [
+        "rubber",
+        "safety-yellow",
+        "steel",
+        "steel-dark"
+      ],
+      "parts": [
+        {
+          "id": "pedale",
+          "kind": "lever",
+          "cx": 88,
+          "cy": 50,
+          "open": -11,
+          "closed": 0
+        }
+      ]
+    },
+    {
+      "id": "lib:controls/hold-to-run",
+      "file": "controls/hold-to-run.svg",
+      "family": "controls",
+      "kind": "pulsanti",
+      "label": "symbols.lib.controls.hold-to-run",
+      "viewBox": [
+        60,
+        60
+      ],
+      "body": "steel-dark",
+      "materials": [
+        "gauge-green",
+        "lamp-green",
+        "steel-dark"
+      ],
+      "parts": [
+        {
+          "id": "premuto",
+          "kind": "lamp"
+        }
+      ]
+    },
+    {
+      "id": "lib:controls/joystick",
+      "file": "controls/joystick.svg",
+      "family": "controls",
+      "kind": "manopole",
+      "label": "symbols.lib.controls.joystick",
+      "viewBox": [
+        70,
+        80
+      ],
+      "body": "steel-dark",
+      "materials": [
+        "rubber",
+        "steel",
+        "steel-dark"
+      ],
+      "parts": [
+        {
+          "id": "leva",
+          "kind": "lever",
+          "cx": 35,
+          "cy": 54,
+          "open": -25,
+          "closed": 25,
+          "angoli": [
+            -25,
+            0,
+            25
+          ]
+        }
+      ]
+    },
+    {
+      "id": "lib:controls/key-switch",
+      "file": "controls/key-switch.svg",
+      "family": "controls",
+      "kind": "interruttori",
+      "label": "symbols.lib.controls.key-switch",
+      "viewBox": [
+        60,
+        60
+      ],
+      "body": "steel-dark",
+      "materials": [
+        "stainless",
+        "steel",
+        "steel-dark"
+      ],
+      "parts": [
+        {
+          "id": "lever",
+          "kind": "lever",
+          "cx": 30,
+          "cy": 30,
+          "open": 0,
+          "closed": 90
+        }
+      ]
+    },
+    {
+      "id": "lib:controls/knife-switch",
+      "file": "controls/knife-switch.svg",
+      "family": "controls",
+      "kind": "interruttori",
+      "label": "symbols.lib.controls.knife-switch",
+      "viewBox": [
+        110,
+        80
+      ],
+      "body": "rubber",
+      "materials": [
+        "copper",
+        "porcelain",
+        "porcelain-shed",
+        "rubber",
+        "steel-dark"
+      ],
+      "parts": [
+        {
+          "id": "lama",
+          "kind": "lever",
+          "cx": 20,
+          "cy": 36,
+          "open": 0,
+          "closed": 22
+        }
+      ]
+    },
+    {
+      "id": "lib:controls/knife-switch-3p",
+      "file": "controls/knife-switch-3p.svg",
+      "family": "controls",
+      "kind": "interruttori",
+      "label": "symbols.lib.controls.knife-switch-3p",
+      "viewBox": [
+        120,
+        100
+      ],
+      "body": "rubber",
+      "materials": [
+        "copper",
+        "porcelain",
+        "porcelain-shed",
+        "rubber",
+        "steel-dark"
+      ],
+      "parts": [
+        {
+          "id": "lame",
+          "kind": "lever",
+          "cx": 60,
+          "cy": 52,
+          "open": 0,
+          "closed": 26
+        }
+      ]
+    },
+    {
+      "id": "lib:controls/lit-push-button",
+      "file": "controls/lit-push-button.svg",
+      "family": "controls",
+      "kind": "pulsanti",
+      "label": "symbols.lib.controls.lit-push-button",
+      "viewBox": [
+        60,
+        60
+      ],
+      "body": "steel",
+      "materials": [
+        "lamp-amber",
+        "lamp-amber-off",
+        "steel",
+        "steel-dark"
+      ],
+      "parts": [
+        {
+          "id": "lamp",
+          "kind": "lamp"
+        }
+      ]
+    },
+    {
+      "id": "lib:controls/potentiometer",
+      "file": "controls/potentiometer.svg",
+      "family": "controls",
+      "kind": "manopole",
+      "label": "symbols.lib.controls.potentiometer",
+      "viewBox": [
+        70,
+        70
+      ],
+      "body": "steel-dark",
+      "materials": [
+        "dial",
+        "signal-red",
+        "steel",
+        "steel-dark"
+      ],
+      "parts": [
+        {
+          "id": "indice",
+          "kind": "needle",
+          "cx": 35,
+          "cy": 35,
+          "a0": -135,
+          "a1": 135
+        }
+      ]
+    },
+    {
+      "id": "lib:controls/pull-cord-stop",
+      "file": "controls/pull-cord-stop.svg",
+      "family": "controls",
+      "kind": "pulsanti",
+      "label": "symbols.lib.controls.pull-cord-stop",
+      "viewBox": [
+        60,
+        110
+      ],
+      "body": "safety-yellow",
+      "materials": [
+        "safety-yellow",
+        "signal-red",
+        "steel-dark"
+      ],
+      "parts": [
+        {
+          "id": "fune",
+          "kind": "lever",
+          "cx": 30,
+          "cy": 50,
+          "open": 0,
+          "closed": 18
+        }
+      ]
+    },
+    {
+      "id": "lib:controls/push-button",
+      "file": "controls/push-button.svg",
+      "family": "controls",
+      "kind": "pulsanti",
+      "label": "symbols.lib.controls.push-button",
+      "viewBox": [
+        60,
+        60
+      ],
+      "body": "signal-red",
+      "materials": [
+        "signal-red",
+        "steel",
+        "steel-dark"
+      ],
+      "parts": []
+    },
+    {
+      "id": "lib:controls/push-button-twin",
+      "file": "controls/push-button-twin.svg",
+      "family": "controls",
+      "kind": "pulsanti",
+      "label": "symbols.lib.controls.push-button-twin",
+      "viewBox": [
+        60,
+        100
+      ],
+      "body": "steel-dark",
+      "materials": [
+        "lamp-green",
+        "lamp-green-off",
+        "lamp-red",
+        "lamp-red-off",
+        "steel",
+        "steel-dark"
+      ],
+      "parts": [
+        {
+          "id": "marcia",
+          "kind": "lamp"
+        },
+        {
+          "id": "arresto",
+          "kind": "lamp"
+        }
+      ]
+    },
+    {
+      "id": "lib:controls/rocker-switch",
+      "file": "controls/rocker-switch.svg",
+      "family": "controls",
+      "kind": "interruttori",
+      "label": "symbols.lib.controls.rocker-switch",
+      "viewBox": [
+        70,
+        50
+      ],
+      "body": "steel-dark",
+      "materials": [
+        "label",
+        "rubber",
+        "steel-dark"
+      ],
+      "parts": [
+        {
+          "id": "bilanciere",
+          "kind": "lever",
+          "cx": 35,
+          "cy": 25,
+          "open": -9,
+          "closed": 9
+        }
+      ]
+    },
+    {
+      "id": "lib:controls/rotary-switch-5",
+      "file": "controls/rotary-switch-5.svg",
+      "family": "controls",
+      "kind": "interruttori",
+      "label": "symbols.lib.controls.rotary-switch-5",
+      "viewBox": [
+        70,
+        70
+      ],
+      "body": "steel-dark",
+      "materials": [
+        "steel",
+        "steel-dark"
+      ],
+      "parts": [
+        {
+          "id": "manopola",
+          "kind": "lever",
+          "cx": 35,
+          "cy": 35,
+          "open": -60,
+          "closed": 60,
+          "angoli": [
+            -60,
+            -30,
+            0,
+            30,
+            60
+          ]
+        }
+      ]
+    },
+    {
+      "id": "lib:controls/selector-3",
+      "file": "controls/selector-3.svg",
+      "family": "controls",
+      "kind": "interruttori",
+      "label": "symbols.lib.controls.selector-3",
+      "viewBox": [
+        60,
+        60
+      ],
+      "body": "steel-dark",
+      "materials": [
+        "steel",
+        "steel-dark"
+      ],
+      "parts": [
+        {
+          "id": "lever",
+          "kind": "lever",
+          "cx": 30,
+          "cy": 30,
+          "open": -40,
+          "closed": 40,
+          "angoli": [
+            -40,
+            0,
+            40
+          ]
+        }
+      ]
+    },
+    {
+      "id": "lib:controls/toggle-switch",
+      "file": "controls/toggle-switch.svg",
+      "family": "controls",
+      "kind": "interruttori",
+      "label": "symbols.lib.controls.toggle-switch",
+      "viewBox": [
+        60,
+        80
+      ],
+      "body": "steel-dark",
+      "materials": [
+        "steel",
+        "steel-dark"
+      ],
+      "parts": [
+        {
+          "id": "lever",
+          "kind": "lever",
+          "cx": 30,
+          "cy": 48,
+          "open": -26,
+          "closed": 26
+        }
+      ]
+    },
     {
       "id": "lib:process/agitator",
       "file": "process/agitator.svg",

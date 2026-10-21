@@ -1,0 +1,49 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="60" height="100" viewBox="0 0 60 100">
+  <defs>
+    <linearGradient id="push-button-twin-dark-v" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#fff" stop-opacity="0.1"/>
+      <stop offset="0.2" stop-color="#fff" stop-opacity="0.37"/>
+      <stop offset="0.6" stop-color="#000" stop-opacity="0.17"/>
+      <stop offset="1" stop-color="#000" stop-opacity="0.48"/>
+    </linearGradient>
+    <radialGradient id="push-button-twin-metal-r" cx="0.35" cy="0.3" r="0.8">
+      <stop offset="0" stop-color="#fff" stop-opacity="0.9"/>
+      <stop offset="0.5" stop-color="#fff" stop-opacity="0.13"/>
+      <stop offset="1" stop-color="#000" stop-opacity="0.46"/>
+    </radialGradient>
+    <radialGradient id="push-button-twin-glass-r" cx="0.35" cy="0.3" r="0.7">
+      <stop offset="0" stop-color="#fff" stop-opacity="0.9"/>
+      <stop offset="0.3" stop-color="#fff" stop-opacity="0.25"/>
+      <stop offset="1" stop-color="#fff" stop-opacity="0"/>
+    </radialGradient>
+    <rect id="push-button-twin-g1" x="6" y="6" width="48" height="88" rx="5"/>
+    <circle id="push-button-twin-g2" cx="30" cy="30" r="17"/>
+    <circle id="push-button-twin-g3" cx="30" cy="70" r="17"/>
+  </defs>
+  <g id="body" data-layer="part" data-mat="steel-dark" fill="#4a545d" stroke="#1c2329" stroke-width="1" stroke-linejoin="round">
+    <use href="#push-button-twin-g1"/>
+    <use href="#push-button-twin-g1" fill="url(#push-button-twin-dark-v)" stroke="none" opacity="1" data-shade="dark-v"/>
+  </g>
+  <g id="layer-1" data-layer="static" stroke="#1c2329" stroke-width="1" stroke-linejoin="round">
+    <circle cx="30" cy="30" r="19" fill="#4a545d" data-mat="steel-dark"/>
+    <use href="#push-button-twin-g2" fill="#9aa5af" data-mat="steel"/>
+    <use href="#push-button-twin-g2" fill="url(#push-button-twin-metal-r)" stroke="none" opacity="1" data-shade="metal-r"/>
+    <circle cx="30" cy="70" r="19" fill="#4a545d" data-mat="steel-dark"/>
+    <use href="#push-button-twin-g3" fill="#9aa5af" data-mat="steel"/>
+    <use href="#push-button-twin-g3" fill="url(#push-button-twin-metal-r)" stroke="none" opacity="1" data-shade="metal-r"/>
+    <circle cx="30" cy="30" r="12" fill="#2f5a39" data-mat="lamp-green-off"/>
+  </g>
+  <g id="marcia" data-layer="part" stroke="#1c2329" stroke-width="1" stroke-linejoin="round">
+    <circle cx="30" cy="30" r="12" fill="#3fb950" data-mat="lamp-green"/>
+  </g>
+  <g id="layer-2" data-layer="static" stroke="#1c2329" stroke-width="1" stroke-linejoin="round">
+    <circle cx="30" cy="70" r="12" fill="#6b3a37" data-mat="lamp-red-off"/>
+  </g>
+  <g id="arresto" data-layer="part" stroke="#1c2329" stroke-width="1" stroke-linejoin="round">
+    <circle cx="30" cy="70" r="12" fill="#d13c32" data-mat="lamp-red"/>
+  </g>
+  <g id="layer-3" data-layer="static" stroke="#1c2329" stroke-width="1" stroke-linejoin="round">
+    <ellipse cx="26" cy="26" rx="6" ry="4" fill="url(#push-button-twin-glass-r)" stroke="none" opacity="1" data-shade="glass-r"/>
+    <ellipse cx="26" cy="66" rx="6" ry="4" fill="url(#push-button-twin-glass-r)" stroke="none" opacity="1" data-shade="glass-r"/>
+  </g>
+</svg>

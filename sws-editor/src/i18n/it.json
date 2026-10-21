@@ -1156,6 +1156,7 @@
     "partiSimbolo": "Parti",
     "parteLancetta": "Lancetta (tag)",
     "parteLeva": "Leva aperta (tag)",
+    "parteLevaPosizioni": "Leva — posizione 0…{{ultima}} (tag)",
     "parteSpia": "Spia {{id}} accesa (tag)",
     "parteMin": "Inizio scala",
     "parteMax": "Fondo scala",
@@ -3113,6 +3114,24 @@
   },
   "symbols": {
     "lib": {
+      "controls": {
+        "emergency-stop-twist": "Fungo di emergenza",
+        "foot-switch": "Comando a pedale",
+        "hold-to-run": "Consenso ad azione mantenuta",
+        "joystick": "Manipolatore a leva",
+        "key-switch": "Interruttore a chiave",
+        "knife-switch": "Interruttore a coltello",
+        "knife-switch-3p": "Sezionatore a coltello tripolare",
+        "lit-push-button": "Pulsante luminoso",
+        "potentiometer": "Manopola graduata",
+        "pull-cord-stop": "Fune di emergenza",
+        "push-button": "Pulsante",
+        "push-button-twin": "Stazione marcia/arresto",
+        "rocker-switch": "Interruttore basculante",
+        "rotary-switch-5": "Selettore rotativo a cinque posizioni",
+        "selector-3": "Selettore a tre posizioni",
+        "toggle-switch": "Interruttore a levetta"
+      },
       "process": {
         "agitator": "Agitatore",
         "air-cooled-condenser": "Condensatore ad aria",
@@ -3248,12 +3267,16 @@
         "stack-light": "Colonna luminosa"
       },
       "famiglia": {
+        "controls": "Comandi da quadro",
         "process": "Processo e fluidi",
         "electrical": "Elettrico ed energia",
         "machines": "Macchine e movimentazione",
         "building": "Edificio e HVAC"
       },
       "tipo": {
+        "pulsanti": "Pulsanti",
+        "interruttori": "Interruttori",
+        "manopole": "Manopole e manipolatori",
         "pumps": "Pompe",
         "valves": "Valvole",
         "tanks": "Serbatoi e reattori",

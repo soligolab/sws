@@ -1,0 +1,56 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="70" height="80" viewBox="0 0 70 80">
+  <defs>
+    <linearGradient id="joystick-dark-v" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#fff" stop-opacity="0.1"/>
+      <stop offset="0.2" stop-color="#fff" stop-opacity="0.37"/>
+      <stop offset="0.6" stop-color="#000" stop-opacity="0.17"/>
+      <stop offset="1" stop-color="#000" stop-opacity="0.48"/>
+    </linearGradient>
+    <linearGradient id="joystick-metal-v" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#000" stop-opacity="0.42"/>
+      <stop offset="0.18" stop-color="#fff" stop-opacity="0.85"/>
+      <stop offset="0.45" stop-color="#fff" stop-opacity="0.25"/>
+      <stop offset="0.8" stop-color="#000" stop-opacity="0.19"/>
+      <stop offset="1" stop-color="#000" stop-opacity="0.49"/>
+    </linearGradient>
+    <linearGradient id="joystick-metal-h" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#000" stop-opacity="0.42"/>
+      <stop offset="0.18" stop-color="#fff" stop-opacity="0.85"/>
+      <stop offset="0.45" stop-color="#fff" stop-opacity="0.25"/>
+      <stop offset="0.8" stop-color="#000" stop-opacity="0.19"/>
+      <stop offset="1" stop-color="#000" stop-opacity="0.49"/>
+    </linearGradient>
+    <radialGradient id="joystick-rubber-r" cx="0.4" cy="0.35" r="0.7">
+      <stop offset="0" stop-color="#fff" stop-opacity="0.23"/>
+      <stop offset="0.7" stop-color="#fff" stop-opacity="0"/>
+      <stop offset="1" stop-color="#000" stop-opacity="0.52"/>
+    </radialGradient>
+    <radialGradient id="joystick-glass-r" cx="0.35" cy="0.3" r="0.7">
+      <stop offset="0" stop-color="#fff" stop-opacity="0.9"/>
+      <stop offset="0.3" stop-color="#fff" stop-opacity="0.25"/>
+      <stop offset="1" stop-color="#fff" stop-opacity="0"/>
+    </radialGradient>
+    <rect id="joystick-g1" x="8" y="52" width="54" height="22" rx="4"/>
+    <ellipse id="joystick-g2" cx="35" cy="54" rx="18" ry="7"/>
+    <rect id="joystick-g3" x="32" y="18" width="6" height="36" rx="3"/>
+    <ellipse id="joystick-g4" cx="35" cy="16" rx="11" ry="9"/>
+  </defs>
+  <g id="body" data-layer="part" data-mat="steel-dark" fill="#4a545d" stroke="#1c2329" stroke-width="1" stroke-linejoin="round">
+    <use href="#joystick-g1"/>
+    <use href="#joystick-g1" fill="url(#joystick-dark-v)" stroke="none" opacity="1" data-shade="dark-v"/>
+  </g>
+  <g id="layer-1" data-layer="static" stroke="#1c2329" stroke-width="1" stroke-linejoin="round">
+    <use href="#joystick-g2" fill="#9aa5af" data-mat="steel"/>
+    <use href="#joystick-g2" fill="url(#joystick-metal-v)" stroke="none" opacity="1" data-shade="metal-v"/>
+  </g>
+  <g id="leva" data-layer="part" stroke="#1c2329" stroke-width="1" stroke-linejoin="round">
+    <use href="#joystick-g3" fill="#9aa5af" data-mat="steel"/>
+    <use href="#joystick-g3" fill="url(#joystick-metal-h)" stroke="none" opacity="1" data-shade="metal-h"/>
+    <use href="#joystick-g4" fill="#2a2d31" data-mat="rubber"/>
+    <use href="#joystick-g4" fill="url(#joystick-rubber-r)" stroke="none" opacity="1" data-shade="rubber-r"/>
+    <ellipse cx="31" cy="13" rx="5" ry="3.5" fill="url(#joystick-glass-r)" stroke="none" opacity="1" data-shade="glass-r"/>
+  </g>
+  <g id="layer-2" data-layer="static" stroke="#1c2329" stroke-width="1" stroke-linejoin="round">
+    <circle cx="35" cy="54" r="4" fill="#4a545d" data-mat="steel-dark"/>
+  </g>
+</svg>

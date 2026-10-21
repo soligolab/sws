@@ -1,0 +1,33 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="60" height="60" viewBox="0 0 60 60">
+  <defs>
+    <radialGradient id="push-button-metal-r" cx="0.35" cy="0.3" r="0.8">
+      <stop offset="0" stop-color="#fff" stop-opacity="0.9"/>
+      <stop offset="0.5" stop-color="#fff" stop-opacity="0.13"/>
+      <stop offset="1" stop-color="#000" stop-opacity="0.46"/>
+    </radialGradient>
+    <radialGradient id="push-button-paint-r" cx="0.36" cy="0.3" r="0.75">
+      <stop offset="0" stop-color="#fff" stop-opacity="0.55"/>
+      <stop offset="0.5" stop-color="#fff" stop-opacity="0.05"/>
+      <stop offset="1" stop-color="#000" stop-opacity="0.45"/>
+    </radialGradient>
+    <radialGradient id="push-button-glass-r" cx="0.35" cy="0.3" r="0.7">
+      <stop offset="0" stop-color="#fff" stop-opacity="0.9"/>
+      <stop offset="0.3" stop-color="#fff" stop-opacity="0.25"/>
+      <stop offset="1" stop-color="#fff" stop-opacity="0"/>
+    </radialGradient>
+    <circle id="push-button-g1" cx="30" cy="30" r="24"/>
+    <circle id="push-button-g2" cx="30" cy="30" r="17"/>
+  </defs>
+  <g id="layer-0" data-layer="static" stroke="#1c2329" stroke-width="1" stroke-linejoin="round">
+    <circle cx="30" cy="30" r="26" fill="#4a545d" data-mat="steel-dark"/>
+    <use href="#push-button-g1" fill="#9aa5af" data-mat="steel"/>
+    <use href="#push-button-g1" fill="url(#push-button-metal-r)" stroke="none" opacity="1" data-shade="metal-r"/>
+  </g>
+  <g id="body" data-layer="part" data-mat="signal-red" fill="#c8352e" stroke="#1c2329" stroke-width="1" stroke-linejoin="round">
+    <use href="#push-button-g2"/>
+    <use href="#push-button-g2" fill="url(#push-button-paint-r)" stroke="none" opacity="1" data-shade="paint-r"/>
+  </g>
+  <g id="layer-1" data-layer="static" stroke="#1c2329" stroke-width="1" stroke-linejoin="round">
+    <ellipse cx="25" cy="24" rx="9" ry="6" fill="url(#push-button-glass-r)" stroke="none" opacity="1" data-shade="glass-r"/>
+  </g>
+</svg>

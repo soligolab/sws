@@ -36,7 +36,7 @@ import { ASPECT_RATIOS, editorFitSize, effectiveSizeMode, getDevicePresets, isOf
 import { getBrand, type DevicePreset } from "@/branding";
 import { genId } from "@/id";
 import type { SimboloLib } from "@/symbols/lib/manifest";
-import { trovaSimboloLib, useManifestoLib, useSimboloLib } from "@/symbols/lib/libreria";
+import { angoliLeva, trovaSimboloLib, useManifestoLib, useSimboloLib } from "@/symbols/lib/libreria";
 import { AnteprimaLib } from "@/symbols/lib/AnteprimaLib";
 import { CONTORNO_DISEGNO, useStileProgetto } from "@/symbols/stileProgetto";
 import { useAppStore } from "@/store";
@@ -130,16 +130,49 @@ const INPUT: React.CSSProperties = {
   boxSizing: "border-box",
 };
 
+/** Il comando con cui nasce un simbolo della famiglia «Comandi» (21-10-2026).
+ *
+ *  Un pulsante che al clic non fa niente è la cosa che quella famiglia esiste
+ *  per togliere di mezzo: una levetta deve commutare, un fungo deve scrivere,
+ *  un pulsante deve durare quanto la pressione. Il tag lo mette chi disegna —
+ *  qui si dà solo il **modo**, che è la parte che dipende dall'oggetto e non
+ *  dall'impianto.
+ *
+ *  Sta qui e non nel manifesto apposta: il manifesto descrive il **disegno**,
+ *  e un comando non è una cosa che si disegna. Gli altri 138 simboli non
+ *  compaiono in questa tabella e continuano a nascere muti.
+ *
+ *  Fuori: il selettore a tre posizioni, il rotativo a cinque e il manipolatore,
+ *  che si comandano con le **assegnazioni** (una variabile per posizione) e non
+ *  con un modo solo. Nascono senza, perché indovinare quali variabili non si
+ *  può.  */
+const COMANDO_DI_PARTENZA: Record<string, NonNullable<SynopticObject["button_mode"]>> = {
+  "lib:controls/push-button": "momentary",
+  "lib:controls/lit-push-button": "momentary",
+  "lib:controls/push-button-twin": "momentary",
+  "lib:controls/foot-switch": "momentary",
+  "lib:controls/hold-to-run": "momentary",
+  "lib:controls/emergency-stop-twist": "set",
+  "lib:controls/pull-cord-stop": "set",
+  "lib:controls/toggle-switch": "toggle",
+  "lib:controls/key-switch": "toggle",
+  "lib:controls/rocker-switch": "toggle",
+  "lib:controls/knife-switch": "toggle",
+  "lib:controls/knife-switch-3p": "toggle",
+};
+
 /** Un simbolo nuovo: uno di libreria nasce con le proporzioni del suo disegno.
  *  I colori di stato non si scrivono: seguono lo stile del progetto (M6). Lo
  *  usano il riquadro di scelta e il ramo «Simboli» di Strumenti. */
 export function oggettoSimbolo(symbolId: string, x: number, y: number): Omit<SynopticObject, "id"> {
   const lib = trovaSimboloLib(symbolId);
+  const modo = COMANDO_DI_PARTENZA[symbolId];
   return {
     type: "symbol", x, y,
     width: lib ? lib.viewBox[0] : 80,
     height: lib ? lib.viewBox[1] : 80,
     symbol_id: symbolId as SynopticObject["symbol_id"],
+    ...(modo ? { button_mode: modo } : {}),
   } as Omit<SynopticObject, "id">;
 }
 
@@ -2655,8 +2688,13 @@ function PartiSimboloLib({ obj, onChange }: { obj: SynopticObject; onChange: (pa
       <SottoTitolo chiave="partiSimbolo" />
       {parti.map((p) => {
         const l = legami[p.id] ?? {};
+        // Una leva a più di due posizioni non si apre e non si chiude: si
+        // mette su una posizione, e il tag è l'indice. L'etichetta lo dice,
+        // altrimenti «Leva aperta» manderebbe a legarci un booleano.
+        const posizioni = p.kind === "lever" ? angoliLeva(p).length : 0;
         const etichetta = p.kind === "needle" ? t("props.parteLancetta")
-          : p.kind === "lever" ? t("props.parteLeva")
+          : p.kind === "lever"
+            ? (posizioni >= 3 ? t("props.parteLevaPosizioni", { ultima: posizioni - 1 }) : t("props.parteLeva"))
           : t("props.parteSpia", { id: p.id });
         return (
           <div key={p.id}>

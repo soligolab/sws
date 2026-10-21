@@ -20,12 +20,38 @@ pub enum ParteLib {
     /// Disegnata a metà scala; ruota da `a0` (minimo) a `a1` (massimo), in gradi orari.
     Needle { id: String, cx: f64, cy: f64, a0: f64, a1: f64 },
     /// Disegnata in posizione `open`; `closed` è la rotazione della chiusa.
-    Lever { id: String, cx: f64, cy: f64, open: f64, closed: f64 },
+    ///
+    /// `angoli` (21-10-2026) la estende a **N posizioni**: l'elenco degli
+    /// angoli, il primo è quello in cui il disegno sta fermo. Vuoto o con meno
+    /// di tre voci = la leva booleana di sempre. È `#[serde(default)]` apposta:
+    /// un manifesto scritto da un generatore più vecchio non ha il campo, e
+    /// senza il default l'intero manifesto diventerebbe illeggibile.
+    Lever {
+        id: String,
+        cx: f64,
+        cy: f64,
+        open: f64,
+        closed: f64,
+        #[serde(default)]
+        angoli: Vec<f64>,
+    },
     /// Accesa = visibile.
     Lamp { id: String },
 }
 
 impl ParteLib {
+    /// Gli angoli di una leva, col ripiego sulla coppia `open`/`closed` quando
+    /// il manifesto non li dichiara. Gemella di `angoliLeva` in
+    /// `sws-editor/src/symbols/lib/libreria.ts`.
+    pub fn angoli_leva(&self) -> Vec<f64> {
+        match self {
+            ParteLib::Lever { open, closed, angoli, .. } => {
+                if angoli.len() >= 3 { angoli.clone() } else { vec![*open, *closed] }
+            }
+            _ => Vec::new(),
+        }
+    }
+
     pub fn id(&self) -> &str {
         match self {
             ParteLib::Level { id, .. }

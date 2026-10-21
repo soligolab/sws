@@ -8,7 +8,7 @@
 import { useMemo, type CSSProperties } from "react";
 import type React from "react";
 import type { SimboloLib } from "./manifest";
-import { preparaSimbolo, prefissoIstanza, stileDelDisegno, useSimboloLib, valoriParti, type SimboloPreparato, type ValoreParte } from "./libreria";
+import { angoliLeva, preparaSimbolo, prefissoIstanza, stileDelDisegno, useSimboloLib, valoriParti, type SimboloPreparato, type ValoreParte } from "./libreria";
 import type { ParteLegata } from "@/types";
 import { stileEffettivo, useStileProgetto, type SovrascrittureSimbolo, type StileSimboliProgetto } from "@/symbols/stileProgetto";
 import type { ManifestLib } from "./manifest";
@@ -78,6 +78,9 @@ export function SimboloLibSvg({ sim, svg, manifesto, prefisso, x, y, w, h, valor
           }
           if (parte.kind === "lever" && v && "aperta" in v && v.aperta !== null) {
             gradi = v.aperta ? parte.open : parte.closed;
+          }
+          if (parte.kind === "lever" && v && "posizione" in v && v.posizione !== null) {
+            gradi = angoliLeva(parte)[v.posizione] ?? 0;
           }
           style = { transformOrigin: `${parte.cx}px ${parte.cy}px`, transformBox: "view-box",
             transform: `rotate(${gradi}deg)`, transition: "transform 300ms ease-out" };

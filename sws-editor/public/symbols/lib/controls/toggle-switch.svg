@@ -1,0 +1,62 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="60" height="80" viewBox="0 0 60 80">
+  <defs>
+    <radialGradient id="toggle-switch-metal-r" cx="0.35" cy="0.3" r="0.8">
+      <stop offset="0" stop-color="#fff" stop-opacity="0.9"/>
+      <stop offset="0.5" stop-color="#fff" stop-opacity="0.13"/>
+      <stop offset="1" stop-color="#000" stop-opacity="0.46"/>
+    </radialGradient>
+    <linearGradient id="toggle-switch-dark-v" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#fff" stop-opacity="0.1"/>
+      <stop offset="0.2" stop-color="#fff" stop-opacity="0.37"/>
+      <stop offset="0.6" stop-color="#000" stop-opacity="0.17"/>
+      <stop offset="1" stop-color="#000" stop-opacity="0.48"/>
+    </linearGradient>
+    <linearGradient id="toggle-switch-metal-v" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#000" stop-opacity="0.42"/>
+      <stop offset="0.18" stop-color="#fff" stop-opacity="0.85"/>
+      <stop offset="0.45" stop-color="#fff" stop-opacity="0.25"/>
+      <stop offset="0.8" stop-color="#000" stop-opacity="0.19"/>
+      <stop offset="1" stop-color="#000" stop-opacity="0.49"/>
+    </linearGradient>
+    <linearGradient id="toggle-switch-metal-h" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#000" stop-opacity="0.42"/>
+      <stop offset="0.18" stop-color="#fff" stop-opacity="0.85"/>
+      <stop offset="0.45" stop-color="#fff" stop-opacity="0.25"/>
+      <stop offset="0.8" stop-color="#000" stop-opacity="0.19"/>
+      <stop offset="1" stop-color="#000" stop-opacity="0.49"/>
+    </linearGradient>
+    <radialGradient id="toggle-switch-glass-r" cx="0.35" cy="0.3" r="0.7">
+      <stop offset="0" stop-color="#fff" stop-opacity="0.9"/>
+      <stop offset="0.3" stop-color="#fff" stop-opacity="0.25"/>
+      <stop offset="1" stop-color="#fff" stop-opacity="0"/>
+    </radialGradient>
+    <circle id="toggle-switch-g1" cx="30" cy="50" r="24"/>
+    <circle id="toggle-switch-g2" cx="30" cy="50" r="15"/>
+    <ellipse id="toggle-switch-g3" cx="30" cy="48" rx="11" ry="5"/>
+    <rect id="toggle-switch-g4" x="27" y="16" width="6" height="32" rx="3"/>
+    <circle id="toggle-switch-g5" cx="30" cy="16" r="6"/>
+  </defs>
+  <g id="layer-0" data-layer="static" stroke="#1c2329" stroke-width="1" stroke-linejoin="round">
+    <circle cx="30" cy="50" r="26" fill="#4a545d" data-mat="steel-dark"/>
+    <use href="#toggle-switch-g1" fill="#9aa5af" data-mat="steel"/>
+    <use href="#toggle-switch-g1" fill="url(#toggle-switch-metal-r)" stroke="none" opacity="1" data-shade="metal-r"/>
+  </g>
+  <g id="body" data-layer="part" data-mat="steel-dark" fill="#4a545d" stroke="#1c2329" stroke-width="1" stroke-linejoin="round">
+    <use href="#toggle-switch-g2"/>
+    <use href="#toggle-switch-g2" fill="url(#toggle-switch-dark-v)" stroke="none" opacity="1" data-shade="dark-v"/>
+  </g>
+  <g id="layer-1" data-layer="static" stroke="#1c2329" stroke-width="1" stroke-linejoin="round">
+    <use href="#toggle-switch-g3" fill="#9aa5af" data-mat="steel"/>
+    <use href="#toggle-switch-g3" fill="url(#toggle-switch-metal-v)" stroke="none" opacity="1" data-shade="metal-v"/>
+  </g>
+  <g id="lever" data-layer="part" stroke="#1c2329" stroke-width="1" stroke-linejoin="round">
+    <use href="#toggle-switch-g4" fill="#9aa5af" data-mat="steel"/>
+    <use href="#toggle-switch-g4" fill="url(#toggle-switch-metal-h)" stroke="none" opacity="1" data-shade="metal-h"/>
+    <use href="#toggle-switch-g5" fill="#9aa5af" data-mat="steel"/>
+    <use href="#toggle-switch-g5" fill="url(#toggle-switch-metal-r)" stroke="none" opacity="1" data-shade="metal-r"/>
+    <ellipse cx="28" cy="14" rx="3" ry="2" fill="url(#toggle-switch-glass-r)" stroke="none" opacity="1" data-shade="glass-r"/>
+  </g>
+  <g id="layer-2" data-layer="static" stroke="#1c2329" stroke-width="1" stroke-linejoin="round">
+    <circle cx="30" cy="48" r="3" fill="#4a545d" data-mat="steel-dark"/>
+  </g>
+</svg>

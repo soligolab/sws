@@ -1,0 +1,78 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="110" height="80" viewBox="0 0 110 80">
+  <defs>
+    <linearGradient id="knife-switch-dark-v" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#fff" stop-opacity="0.1"/>
+      <stop offset="0.2" stop-color="#fff" stop-opacity="0.37"/>
+      <stop offset="0.6" stop-color="#000" stop-opacity="0.17"/>
+      <stop offset="1" stop-color="#000" stop-opacity="0.48"/>
+    </linearGradient>
+    <radialGradient id="knife-switch-paint-r" cx="0.36" cy="0.3" r="0.75">
+      <stop offset="0" stop-color="#fff" stop-opacity="0.55"/>
+      <stop offset="0.5" stop-color="#fff" stop-opacity="0.05"/>
+      <stop offset="1" stop-color="#000" stop-opacity="0.45"/>
+    </radialGradient>
+    <radialGradient id="knife-switch-metal-r" cx="0.35" cy="0.3" r="0.8">
+      <stop offset="0" stop-color="#fff" stop-opacity="0.9"/>
+      <stop offset="0.5" stop-color="#fff" stop-opacity="0.13"/>
+      <stop offset="1" stop-color="#000" stop-opacity="0.46"/>
+    </radialGradient>
+    <linearGradient id="knife-switch-metal-v" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#000" stop-opacity="0.42"/>
+      <stop offset="0.18" stop-color="#fff" stop-opacity="0.85"/>
+      <stop offset="0.45" stop-color="#fff" stop-opacity="0.25"/>
+      <stop offset="0.8" stop-color="#000" stop-opacity="0.19"/>
+      <stop offset="1" stop-color="#000" stop-opacity="0.49"/>
+    </linearGradient>
+    <linearGradient id="knife-switch-metal-h" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#000" stop-opacity="0.42"/>
+      <stop offset="0.18" stop-color="#fff" stop-opacity="0.85"/>
+      <stop offset="0.45" stop-color="#fff" stop-opacity="0.25"/>
+      <stop offset="0.8" stop-color="#000" stop-opacity="0.19"/>
+      <stop offset="1" stop-color="#000" stop-opacity="0.49"/>
+    </linearGradient>
+    <radialGradient id="knife-switch-rubber-r" cx="0.4" cy="0.35" r="0.7">
+      <stop offset="0" stop-color="#fff" stop-opacity="0.23"/>
+      <stop offset="0.7" stop-color="#fff" stop-opacity="0"/>
+      <stop offset="1" stop-color="#000" stop-opacity="0.52"/>
+    </radialGradient>
+    <radialGradient id="knife-switch-glass-r" cx="0.35" cy="0.3" r="0.7">
+      <stop offset="0" stop-color="#fff" stop-opacity="0.9"/>
+      <stop offset="0.3" stop-color="#fff" stop-opacity="0.25"/>
+      <stop offset="1" stop-color="#fff" stop-opacity="0"/>
+    </radialGradient>
+    <rect id="knife-switch-g1" x="6" y="58" width="98" height="16" rx="3"/>
+    <rect id="knife-switch-g2" x="13" y="40" width="14" height="20" rx="2"/>
+    <rect id="knife-switch-g3" x="75" y="40" width="14" height="20" rx="2"/>
+    <circle id="knife-switch-g4" cx="20" cy="36" r="5"/>
+    <path id="knife-switch-g5" d="M74 24 L74 40 L90 40 L90 24 L85 24 L85 35 L79 35 L79 24 Z"/>
+    <path id="knife-switch-g6" d="M20 32 L86 6 L90 15 L22 41 Z"/>
+    <rect id="knife-switch-g7" x="84" y="2" width="20" height="11" rx="3"/>
+  </defs>
+  <g id="body" data-layer="part" data-mat="rubber" fill="#2a2d31" stroke="#1c2329" stroke-width="1" stroke-linejoin="round">
+    <use href="#knife-switch-g1"/>
+    <use href="#knife-switch-g1" fill="url(#knife-switch-dark-v)" stroke="none" opacity="1" data-shade="dark-v"/>
+  </g>
+  <g id="layer-1" data-layer="static" stroke="#1c2329" stroke-width="1" stroke-linejoin="round">
+    <use href="#knife-switch-g2" fill="#8c4a2f" data-mat="porcelain"/>
+    <use href="#knife-switch-g2" fill="url(#knife-switch-paint-r)" stroke="none" opacity="1" data-shade="paint-r"/>
+    <ellipse cx="20" cy="40" rx="9" ry="3.5" fill="#a0583a" data-mat="porcelain-shed"/>
+    <use href="#knife-switch-g3" fill="#8c4a2f" data-mat="porcelain"/>
+    <use href="#knife-switch-g3" fill="url(#knife-switch-paint-r)" stroke="none" opacity="1" data-shade="paint-r"/>
+    <ellipse cx="82" cy="40" rx="9" ry="3.5" fill="#a0583a" data-mat="porcelain-shed"/>
+    <use href="#knife-switch-g4" fill="#b87333" data-mat="copper"/>
+    <use href="#knife-switch-g4" fill="url(#knife-switch-metal-r)" stroke="none" opacity="1" data-shade="metal-r"/>
+    <use href="#knife-switch-g5" fill="#b87333" data-mat="copper"/>
+    <use href="#knife-switch-g5" fill="url(#knife-switch-metal-v)" stroke="none" opacity="1" data-shade="metal-v"/>
+  </g>
+  <g id="lama" data-layer="part" stroke="#1c2329" stroke-width="1" stroke-linejoin="round">
+    <use href="#knife-switch-g6" fill="#b87333" data-mat="copper"/>
+    <use href="#knife-switch-g6" fill="url(#knife-switch-metal-h)" stroke="none" opacity="1" data-shade="metal-h"/>
+    <path d="M22 33 L85 8 L87 12 L23 37 Z" fill="#fff" fill-opacity="0.2" stroke="none" opacity="1" data-shade="highlight"/>
+    <use href="#knife-switch-g7" fill="#2a2d31" data-mat="rubber"/>
+    <use href="#knife-switch-g7" fill="url(#knife-switch-rubber-r)" stroke="none" opacity="1" data-shade="rubber-r"/>
+    <ellipse cx="92" cy="5" rx="7" ry="2.5" fill="url(#knife-switch-glass-r)" stroke="none" opacity="1" data-shade="glass-r"/>
+  </g>
+  <g id="layer-2" data-layer="static" stroke="#1c2329" stroke-width="1" stroke-linejoin="round">
+    <circle cx="20" cy="36" r="2.5" fill="#4a545d" data-mat="steel-dark"/>
+  </g>
+</svg>

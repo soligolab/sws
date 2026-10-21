@@ -83,7 +83,9 @@ Read these only when the trigger applies:
 
 ## Definition of done
 
-`cargo check` green **and** `pnpm build` green **and** `./scripts/check_static.sh` green **and** the maintainer has confirmed the feature works. All four, before anything reaches `main`.
+`cargo check` green **and** `pnpm build` green **and** `./scripts/check_static.sh` green **and** `cargo test` + `pnpm exec vitest run` green **and** the maintainer has confirmed the feature works. All five, before anything reaches `main`.
+
+**The test suites joined the list on 2026-10-21**, the day they cost a release. The port move to 7443/7444 left two `dispositiviRegistrati` tests red — they still expected 8444 — and nobody saw it, because the three checks above were all green and nothing in this list said to run the tests. Those two reds shipped in 2.16.0, 2.16.1 and 2.16.2. `vitest` takes 26 seconds and `cargo test` about 10: the cost of not running them is a release that nobody can tell is broken.
 
 `check_static.sh` joined the list on 2026-09-14. Two guards had gone red inside 48 hours, both from *good* work that never re-ran them: Q40 made 24 symbols builtin and deleted the SVGs a template still pointed at (`check_templates`), and the live web/LVGL parity fixes changed the `radio` example the generated AI schema is harvested from (`check_synoptic_schema`). Neither was caught at merge time. A guard nobody looks at stops being a signal — so it runs before the squash merge, not after someone notices.
 

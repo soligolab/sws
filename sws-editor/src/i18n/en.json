@@ -1156,6 +1156,7 @@
     "partiSimbolo": "Parts",
     "parteLancetta": "Needle (tag)",
     "parteLeva": "Lever open (tag)",
+    "parteLevaPosizioni": "Lever — position 0…{{ultima}} (tag)",
     "parteSpia": "Lamp {{id}} on (tag)",
     "parteMin": "Scale start",
     "parteMax": "Scale end",
@@ -3113,6 +3114,24 @@
   },
   "symbols": {
     "lib": {
+      "controls": {
+        "emergency-stop-twist": "Emergency stop (twist release)",
+        "foot-switch": "Foot switch",
+        "hold-to-run": "Hold-to-run enabling switch",
+        "joystick": "Joystick",
+        "key-switch": "Key switch",
+        "knife-switch": "Knife switch",
+        "knife-switch-3p": "Three-pole knife disconnector",
+        "lit-push-button": "Lit pushbutton",
+        "potentiometer": "Graduated knob",
+        "pull-cord-stop": "Pull-cord emergency stop",
+        "push-button": "Pushbutton",
+        "push-button-twin": "Start/stop station",
+        "rocker-switch": "Rocker switch",
+        "rotary-switch-5": "Five-position rotary switch",
+        "selector-3": "Three-position selector",
+        "toggle-switch": "Toggle switch"
+      },
       "process": {
         "agitator": "Agitator",
         "air-cooled-condenser": "Air-cooled condenser",
@@ -3248,12 +3267,16 @@
         "stack-light": "Stack light"
       },
       "famiglia": {
+        "controls": "Panel controls",
         "process": "Process and fluids",
         "electrical": "Electrical and power",
         "machines": "Machines and handling",
         "building": "Building and HVAC"
       },
       "tipo": {
+        "pulsanti": "Pushbuttons",
+        "interruttori": "Switches",
+        "manopole": "Knobs and joysticks",
         "pumps": "Pumps",
         "valves": "Valves",
         "tanks": "Tanks and reactors",

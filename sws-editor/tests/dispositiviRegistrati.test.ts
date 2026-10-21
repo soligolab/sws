@@ -29,15 +29,15 @@ describe("dal discovery a un dispositivo", () => {
     hostname: "wp630.local", indirizzo: "192.168.1.50", servizi: ["ssh"],
     sws: { presente: false, versione: null, container: null, admin_url: null }, ...p,
   });
-  it("con SWS presente prende l'URL annunciato, senza propone la 8444; in entrambi i casi col nome mDNS", () => {
+  it("con SWS presente prende l'URL annunciato, senza propone la 7444; in entrambi i casi col nome mDNS", () => {
     // L'indirizzo lo assegna il DHCP e cambia; il nome `.local` segue il
     // dispositivo. Una lista registrata per indirizzo invecchia da sola.
     expect(dispositivoDaRete(rete({ sws: { presente: true, versione: "2.7.1", container: "podman", admin_url: "http://192.168.1.50:8444" } })))
       .toEqual({ label: "wp630", url: "http://wp630.local:8444", user: "" });
-    expect(dispositivoDaRete(rete({}))).toEqual({ label: "wp630", url: "https://wp630.local:8444", user: "" });
+    expect(dispositivoDaRete(rete({}))).toEqual({ label: "wp630", url: "https://wp630.local:7444", user: "" });
   });
   it("senza nome mDNS resta l'indirizzo, che è meglio di niente", () => {
-    expect(dispositivoDaRete(rete({ hostname: "" }))).toEqual({ label: "192.168.1.50", url: "https://192.168.1.50:8444", user: "" });
+    expect(dispositivoDaRete(rete({ hostname: "" }))).toEqual({ label: "192.168.1.50", url: "https://192.168.1.50:7444", user: "" });
   });
   it("da un runtime trovato da «Cerca runtime»", () => {
     const r: DiscoveredRuntime = { name: "x", hostname: "tc620.local", admin_url: "https://192.168.0.20:8444", viewer_url: "", version: "2.7.1", container: null };

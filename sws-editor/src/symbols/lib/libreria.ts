@@ -153,7 +153,22 @@ export function svgLibCaricato(s: SimboloLib): string | undefined {
 /** Il valore di una parte: `null` = come nel disegno (nessun legame, o nessun
  *  valore leggibile). Stessa regola del pannello: i casi sono in
  *  `tests/fixtures/parti-simbolo.json`. */
-export type ValoreParte = { frazione: number | null } | { aperta: boolean | null } | { accesa: boolean | null };
+export type ValoreParte =
+  | { frazione: number | null }
+  | { aperta: boolean | null }
+  /** L'indice nella lista degli angoli, per una leva a più di due posizioni
+   *  (21-10-2026). Le leve booleane continuano a dare `aperta`: cambiare anche
+   *  loro vorrebbe dire cambiare che cosa significa un tag numerico su una
+   *  valvola già installata — oggi `1` la apre, con l'indice la chiuderebbe. */
+  | { posizione: number | null }
+  | { accesa: boolean | null };
+
+/** Gli angoli di una leva, col ripiego sulla coppia `open`/`closed` quando il
+ *  manifesto non li dichiara. Gemella di `ParteLib::angoli_leva` in
+ *  `sws-core/src/simboli_lib.rs`. */
+export function angoliLeva(p: { open: number; closed: number; angoli?: number[] }): number[] {
+  return p.angoli && p.angoli.length >= 3 ? p.angoli : [p.open, p.closed];
+}
 
 function numeroParte(v: unknown): number | null {
   if (typeof v === "boolean") return v ? 1 : 0;
@@ -180,7 +195,18 @@ export function valoriParti(
       const max = l?.max ?? 100;
       out[p.id] = { frazione: n === null || max === min ? null : Math.min(1, Math.max(0, (n - min) / (max - min))) };
     } else if (p.kind === "lever") {
-      out[p.id] = { aperta: v === undefined ? null : veroSimbolo(v) };
+      // Due posizioni: la regola booleana di sempre, intatta. Più di due: il
+      // valore **è** l'indice della posizione (un selettore a tre si lega a un
+      // tag 0/1/2), arrotondato e tenuto dentro l'elenco.
+      const angoli = angoliLeva(p);
+      if (angoli.length >= 3) {
+        const n = numeroParte(v);
+        out[p.id] = {
+          posizione: v === undefined || n === null ? null : Math.min(angoli.length - 1, Math.max(0, Math.round(n))),
+        };
+      } else {
+        out[p.id] = { aperta: v === undefined ? null : veroSimbolo(v) };
+      }
     } else if (p.kind === "lamp") {
       out[p.id] = { accesa: v === undefined ? null : veroSimbolo(v) };
     }

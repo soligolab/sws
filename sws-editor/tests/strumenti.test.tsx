@@ -1,5 +1,5 @@
 /** Il menù Strumenti riorganizzato (14-10-2026, piano
- *  docs/plans/2026-10-14-strumenti-simboli-comandi.md, ramo 1): gruppi nuovi
+ *  docs/archive/2026-10-14-strumenti-simboli-comandi.md, ramo 1): gruppi nuovi
  *  senza perdere tipi, icone SVG nostre, i simboli di libreria come rami, e un
  *  filtro che cerca nei nomi che si vedono. */
 import { render, screen, fireEvent, act } from "@testing-library/react";

@@ -1,5 +1,5 @@
 // Le icone degli strumenti (14-10-2026, piano
-// docs/plans/2026-10-14-strumenti-simboli-comandi.md, ramo 1).
+// docs/archive/2026-10-14-strumenti-simboli-comandi.md, ramo 1).
 //
 // Una famiglia sola, disegnata da noi: tratto su viewBox 24×24, estremi
 // arrotondati, colore dal tema (`currentColor`). Fino a oggi metà del pannello

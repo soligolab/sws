@@ -27,4 +27,4 @@ Il punto è **il comando**, non l'impianto: una pagina, poche variabili, ogni mo
 volta sola e con il suo nome sotto. Non va giudicato col metro dell'inventario né con quello di
 un'applicazione realistica.
 
-_Nato il 14-10-2026 col piano `docs/plans/2026-10-14-strumenti-simboli-comandi.md` (ramo 2)._
+_Nato il 14-10-2026 col piano `docs/archive/2026-10-14-strumenti-simboli-comandi.md` (ramo 2)._

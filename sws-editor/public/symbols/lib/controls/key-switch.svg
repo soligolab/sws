@@ -1,0 +1,59 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="60" height="60" viewBox="0 0 60 60">
+  <defs>
+    <radialGradient id="key-switch-metal-r" cx="0.35" cy="0.3" r="0.8">
+      <stop offset="0" stop-color="#fff" stop-opacity="0.9"/>
+      <stop offset="0.5" stop-color="#fff" stop-opacity="0.13"/>
+      <stop offset="1" stop-color="#000" stop-opacity="0.46"/>
+    </radialGradient>
+    <linearGradient id="key-switch-dark-v" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#fff" stop-opacity="0.1"/>
+      <stop offset="0.2" stop-color="#fff" stop-opacity="0.37"/>
+      <stop offset="0.6" stop-color="#000" stop-opacity="0.17"/>
+      <stop offset="1" stop-color="#000" stop-opacity="0.48"/>
+    </linearGradient>
+    <linearGradient id="key-switch-metal-h" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#000" stop-opacity="0.42"/>
+      <stop offset="0.18" stop-color="#fff" stop-opacity="0.85"/>
+      <stop offset="0.45" stop-color="#fff" stop-opacity="0.25"/>
+      <stop offset="0.8" stop-color="#000" stop-opacity="0.19"/>
+      <stop offset="1" stop-color="#000" stop-opacity="0.49"/>
+    </linearGradient>
+    <linearGradient id="key-switch-metal-v" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#000" stop-opacity="0.42"/>
+      <stop offset="0.18" stop-color="#fff" stop-opacity="0.85"/>
+      <stop offset="0.45" stop-color="#fff" stop-opacity="0.25"/>
+      <stop offset="0.8" stop-color="#000" stop-opacity="0.19"/>
+      <stop offset="1" stop-color="#000" stop-opacity="0.49"/>
+    </linearGradient>
+    <radialGradient id="key-switch-glass-r" cx="0.35" cy="0.3" r="0.7">
+      <stop offset="0" stop-color="#fff" stop-opacity="0.9"/>
+      <stop offset="0.3" stop-color="#fff" stop-opacity="0.25"/>
+      <stop offset="1" stop-color="#fff" stop-opacity="0"/>
+    </radialGradient>
+    <circle id="key-switch-g1" cx="30" cy="30" r="24"/>
+    <circle id="key-switch-g2" cx="30" cy="30" r="15"/>
+    <rect id="key-switch-g3" x="28.5" y="8" width="3" height="22" rx="1"/>
+    <rect id="key-switch-g4" x="24" y="4" width="12" height="8" rx="2"/>
+  </defs>
+  <g id="layer-0" data-layer="static" stroke="#1c2329" stroke-width="1" stroke-linejoin="round">
+    <circle cx="30" cy="30" r="26" fill="#4a545d" data-mat="steel-dark"/>
+    <use href="#key-switch-g1" fill="#9aa5af" data-mat="steel"/>
+    <use href="#key-switch-g1" fill="url(#key-switch-metal-r)" stroke="none" opacity="1" data-shade="metal-r"/>
+  </g>
+  <g id="body" data-layer="part" data-mat="steel-dark" fill="#4a545d" stroke="#1c2329" stroke-width="1" stroke-linejoin="round">
+    <use href="#key-switch-g2"/>
+    <use href="#key-switch-g2" fill="url(#key-switch-dark-v)" stroke="none" opacity="1" data-shade="dark-v"/>
+  </g>
+  <g id="lever" data-layer="part" stroke="#1c2329" stroke-width="1" stroke-linejoin="round">
+    <use href="#key-switch-g3" fill="#b4bec7" data-mat="stainless"/>
+    <use href="#key-switch-g3" fill="url(#key-switch-metal-h)" stroke="none" opacity="1" data-shade="metal-h"/>
+    <use href="#key-switch-g4" fill="#b4bec7" data-mat="stainless"/>
+    <use href="#key-switch-g4" fill="url(#key-switch-metal-v)" stroke="none" opacity="1" data-shade="metal-v"/>
+    <rect x="31" y="14" width="3" height="3" fill="#b4bec7" data-mat="stainless"/>
+    <rect x="31" y="20" width="3" height="3" fill="#b4bec7" data-mat="stainless"/>
+  </g>
+  <g id="layer-1" data-layer="static" stroke="#1c2329" stroke-width="1" stroke-linejoin="round">
+    <circle cx="30" cy="30" r="4" fill="#4a545d" data-mat="steel-dark"/>
+    <ellipse cx="27" cy="7" rx="4" ry="2" fill="url(#key-switch-glass-r)" stroke="none" opacity="1" data-shade="glass-r"/>
+  </g>
+</svg>

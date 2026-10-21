@@ -106,18 +106,29 @@ VELI = {
     "glass-r": ("radial", {"cx": .35, "cy": .3, "r": .7}, [(0, "#fff", .9), (.3, "#fff", .25), (1, "#fff", 0)]),
 }
 
-FAMIGLIE = ("process", "electrical", "machines", "building")
+# «controls» in testa (scelta del maintainer, 21-10-2026): i comandi sono quello
+# che si cerca più spesso nella palette, e l'ordine di questa tupla è l'ordine
+# del manifesto e quindi dell'albero in Strumenti ▸ Simboli.
+FAMIGLIE = ("controls", "process", "electrical", "machines", "building")
 
 # Etichette del picker: famiglia e tipologia (`kind` nel manifesto). Stanno in
 # it.json/en.json sotto `symbols.lib.famiglia` e `symbols.lib.tipo`; la guardia
 # verifica che ci siano, uguali a queste.
 ETICHETTE_FAMIGLIA = {
+    # «Comandi» da solo si scontrava col gruppo omonimo della palette
+    # (bottone, spunta, radio, cursore, setpoint): nell'albero comparivano
+    # due voci con lo stesso nome a due livelli diversi, e un test se n'è
+    # accorto trovandone due. Questi sono i comandi **fisici** di un quadro.
+    "controls": ("Comandi da quadro", "Panel controls"),
     "process": ("Processo e fluidi", "Process and fluids"),
     "electrical": ("Elettrico ed energia", "Electrical and power"),
     "machines": ("Macchine e movimentazione", "Machines and handling"),
     "building": ("Edificio e HVAC", "Building and HVAC"),
 }
 ETICHETTE_TIPO = {
+    "pulsanti": ("Pulsanti", "Pushbuttons"),
+    "interruttori": ("Interruttori", "Switches"),
+    "manopole": ("Manopole e manipolatori", "Knobs and joysticks"),
     "pumps": ("Pompe", "Pumps"),
     "valves": ("Valvole", "Valves"),
     "tanks": ("Serbatoi e reattori", "Tanks and reactors"),

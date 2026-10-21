@@ -740,7 +740,7 @@ interface PaletteGroup { category: string; color: string; colorLight: string; de
  *  d'inventario dei campi (T-56) e chiunque debba iterare sui tipi deve
  *  leggerlo da qui, non riscriverlo — un secondo elenco diverge in silenzio.
  *
- *  Gerarchia del 14-10-2026 (piano docs/plans/2026-10-14-strumenti-simboli-comandi.md):
+ *  Gerarchia del 14-10-2026 (piano docs/archive/2026-10-14-strumenti-simboli-comandi.md):
  *  prima c'erano cinque gruppi, e «Display» ne teneva 18 su 38 — non una
  *  categoria, il posto di tutto ciò che non era una forma né un controllo.
  *  Nessun tipo è cambiato: i gruppi sono nuovi, i tipi gli stessi. Le voci

@@ -1,5 +1,5 @@
 /** Il simbolo che comanda (14-10-2026, piano
- *  docs/plans/2026-10-14-strumenti-simboli-comandi.md, ramo 2): con
+ *  docs/archive/2026-10-14-strumenti-simboli-comandi.md, ramo 2): con
  *  `command_tag` (o assegnazioni) il clic scrive come un bottone, su
  *  `command_tag` e non su `tag` (che sul simbolo è la qualità). Senza, resta un
  *  disegno. */

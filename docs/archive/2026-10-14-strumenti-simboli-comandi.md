@@ -2,7 +2,8 @@
 
 > **Piano d'esecuzione, approvato il 14-10-2026**, nato dalla sessione di plan sui semi
 > [menù Strumenti e icone](../archive/2026-10-14-menu-strumenti-e-icone.md) e
-> [bottone come nella realtà](../archive/2026-10-14-bottone-come-nella-realta.md). Stato: tre rami, nessuno iniziato.
+> [bottone come nella realtà](../archive/2026-10-14-bottone-come-nella-realta.md).
+> **Stato: tutti e tre i rami su `main`** — 1 e 2 il 14 e 15-10, il 3 il 21-10-2026.
 
 ## Context
 
@@ -81,7 +82,24 @@ I due semi sono in archivio, con un rimando a questo piano.
 5. Test Rust (modalità LVGL, simbolo cliccabile solo con comando), vitest (clic su simbolo scrive), e dal vivo:
    runtime di prova + browser senza schermo + `--istantanea --tocca` LVGL (che stampa i comandi prodotti).
 
-## Ramo 3 — `feat/simboli-comandi` (libreria, a lotti)
+## Ramo 3 — `feat/simboli-comandi` (libreria, a lotti) — ✅ su `main` (21-10-2026)
+
+> **Fatto il 21-10-2026, e più largo di così.** Il primo lotto doveva essere di sei; il maintainer,
+> guardandoli: «sono solo una piccola parte, spazia un po' su vari generi, anche interruttori più
+> hold, stile selettori per l'alta tensione alla Frankenstein». Sono diventati **sedici**, in **tre**
+> tipologie invece di due: *Pulsanti*, *Interruttori* e *Manopole* — queste ultime per la manopola
+> graduata e il manipolatore, che non sono né l'una né l'altra cosa.
+>
+> **Il ripiego su `needle` per il selettore non è servito**: `Lever` è stato esteso a N posizioni
+> (scelta del maintainer), e il rotativo a cinque posizioni lo usa fino in fondo. Le leve a due
+> posizioni non cambiano di un grado.
+>
+> **La famiglia si chiama «Comandi da quadro»**, non «Comandi»: quel nome era già di un gruppo della
+> palette, e nell'albero comparivano due voci uguali a due livelli diversi.
+>
+> **Il comando di partenza si fa**, come il piano proponeva: una tabellina slug→comando dentro
+> `oggettoSimbolo`, non un campo nuovo nel manifesto. Dodici simboli su sedici; i quattro che si
+> comandano con le assegnazioni nascono senza, perché quali variabili non si indovina.
 
 Famiglia nuova **«controls» / Comandi** nel generatore della libreria (stesso formato, manifesto generato), con le
 parti vive esistenti: pulsante (normale, luminoso con `lamp`), pulsante a fungo / emergenza, interruttore a levetta

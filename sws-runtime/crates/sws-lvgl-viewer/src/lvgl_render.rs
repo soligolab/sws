@@ -686,7 +686,7 @@ pub struct TagCommand {
 /// Fino al 14-10-2026 qui c'era solo un elenco fisso di scritture, e
 /// `button_mode` sul pannello non esisteva: toggle, momentaneo, set/reset,
 /// incremento e decremento scrivevano tutti `write_value` (piano
-/// docs/plans/2026-10-14-strumenti-simboli-comandi.md, ramo 2).
+/// docs/archive/2026-10-14-strumenti-simboli-comandi.md, ramo 2).
 struct ButtonClickCtx {
     comando: Comando,
     /// L'ultimo valore del tag, aggiornato a ogni frame da `update_bindings`
@@ -10030,6 +10030,9 @@ fn aggiorna_simbolo_lib(v: &mut VivoLib, tags: &TagSnapshot) {
                 (Some(sws_core::simboli_lib::ParteLib::Needle { a0, a1, .. }), Some(ValoreParte::Frazione(Some(f)))) => a0 + (a1 - a0) * f,
                 (Some(sws_core::simboli_lib::ParteLib::Lever { open, closed, .. }), Some(ValoreParte::Aperta(Some(a)))) => {
                     if a { *open } else { *closed }
+                }
+                (Some(parte @ sws_core::simboli_lib::ParteLib::Lever { .. }), Some(ValoreParte::Posizione(Some(i)))) => {
+                    parte.angoli_leva().get(i).copied().unwrap_or(0.0)
                 }
                 _ => 0.0,
             };

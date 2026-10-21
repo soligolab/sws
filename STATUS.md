@@ -487,7 +487,7 @@ estremità selezionabili chieste dal maintainer.
 
 ## ▶ Riprendere da qui — Strumenti riorganizzato su `main`, si apre il ramo 2 (2026-10-14, sera)
 
-Piano [`docs/plans/2026-10-14-strumenti-simboli-comandi.md`](docs/plans/2026-10-14-strumenti-simboli-comandi.md).
+Piano [`docs/archive/2026-10-14-strumenti-simboli-comandi.md`](docs/archive/2026-10-14-strumenti-simboli-comandi.md).
 
 - **Ramo 1 chiuso** (squash `ff9d07c1`, ok del maintainer sugli screenshot): dieci gruppi, icone SVG
   (`editor/iconeStrumenti.ts`, misura 16/20/24/28 nelle Preferenze IDE), simboli famiglia ▸ tipologia ▸

@@ -19,6 +19,8 @@
 versioni:
   - versione: "2.16.2"
     voci:
+      - it: "Nella libreria dei simboli c'è una famiglia nuova, «Comandi da quadro»: pulsanti, funghi di emergenza, selettori, interruttori a coltello e manopole, sedici in tutto, che nascono già pronti a comandare."
+        en: "The symbol library has a new family, «Panel controls»: pushbuttons, emergency stops, selectors, knife switches and knobs — sixteen in all, born ready to command."
       - it: "Sul pannello, la lingua scelta dall'operatore non si perde più a ogni riavvio del viewer, e il certificato del runtime viene ricordato davvero invece di essere riaccettato ogni volta."
         en: "On the panel, the language the operator picked is no longer lost at every viewer restart, and the runtime's certificate is really remembered instead of being accepted anew each time."
   - versione: "2.16.1"

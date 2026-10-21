@@ -1,0 +1,50 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="110" height="80" viewBox="0 0 110 80">
+  <defs>
+    <linearGradient id="foot-switch-dark-v" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#fff" stop-opacity="0.1"/>
+      <stop offset="0.2" stop-color="#fff" stop-opacity="0.37"/>
+      <stop offset="0.6" stop-color="#000" stop-opacity="0.17"/>
+      <stop offset="1" stop-color="#000" stop-opacity="0.48"/>
+    </linearGradient>
+    <linearGradient id="foot-switch-paint-d" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#fff" stop-opacity="0.35"/>
+      <stop offset="0.5" stop-color="#fff" stop-opacity="0"/>
+      <stop offset="1" stop-color="#000" stop-opacity="0.3"/>
+    </linearGradient>
+    <radialGradient id="foot-switch-glass-r" cx="0.35" cy="0.3" r="0.7">
+      <stop offset="0" stop-color="#fff" stop-opacity="0.9"/>
+      <stop offset="0.3" stop-color="#fff" stop-opacity="0.25"/>
+      <stop offset="1" stop-color="#fff" stop-opacity="0"/>
+    </radialGradient>
+    <path id="foot-switch-g1" d="M14 70 L14 50 L96 44 L96 70 Z"/>
+    <path id="foot-switch-g2" d="M20 48 L88 34 L88 46 L20 60 Z"/>
+  </defs>
+  <g id="body" data-layer="part" data-mat="steel-dark" fill="#4a545d" stroke="#1c2329" stroke-width="1" stroke-linejoin="round">
+    <use href="#foot-switch-g1"/>
+    <use href="#foot-switch-g1" fill="url(#foot-switch-dark-v)" stroke="none" opacity="1" data-shade="dark-v"/>
+  </g>
+  <g id="layer-1" data-layer="static" stroke="#1c2329" stroke-width="1" stroke-linejoin="round">
+    <rect x="10" y="68" width="94" height="8" rx="2" fill="#2a2d31" data-mat="rubber"/>
+    <path d="M96 60 L106 60" fill="none" stroke="#2a2d31" data-mat-stroke="rubber" stroke-width="6" stroke-linecap="round"/>
+    <circle cx="88" cy="50" r="5" fill="#4a545d" data-mat="steel-dark"/>
+  </g>
+  <g id="pedale" data-layer="part" stroke="#1c2329" stroke-width="1" stroke-linejoin="round">
+    <use href="#foot-switch-g2" fill="#e3a51a" data-mat="safety-yellow"/>
+    <use href="#foot-switch-g2" fill="url(#foot-switch-paint-d)" stroke="none" opacity="1" data-shade="paint-d"/>
+  </g>
+  <g id="layer-2" data-layer="static" stroke="#1c2329" stroke-width="1" stroke-linejoin="round">
+    <path d="M26 45.8 L29 56.8" fill="none" stroke-opacity="0.35" stroke-width="1.8"/>
+    <path d="M34 44.1 L37 55.1" fill="none" stroke-opacity="0.35" stroke-width="1.8"/>
+    <path d="M42 42.5 L45 53.5" fill="none" stroke-opacity="0.35" stroke-width="1.8"/>
+    <path d="M50 40.8 L53 51.8" fill="none" stroke-opacity="0.35" stroke-width="1.8"/>
+    <path d="M58 39.2 L61 50.2" fill="none" stroke-opacity="0.35" stroke-width="1.8"/>
+    <path d="M66 37.5 L69 48.5" fill="none" stroke-opacity="0.35" stroke-width="1.8"/>
+    <path d="M74 35.9 L77 46.9" fill="none" stroke-opacity="0.35" stroke-width="1.8"/>
+    <path d="M82 34.2 L85 45.2" fill="none" stroke-opacity="0.35" stroke-width="1.8"/>
+    <path d="M21 47 L87 33 L87 37 L21 51 Z" fill="url(#foot-switch-glass-r)" stroke="none" opacity="1" data-shade="glass-r"/>
+  </g>
+  <g id="layer-3" data-layer="static" stroke="#1c2329" stroke-width="1" stroke-linejoin="round">
+    <path d="M92 46 L92 18 Q92 12 84 12 L34 12 L34 22" fill="none" stroke="#9aa5af" data-mat-stroke="steel" stroke-width="4" stroke-linejoin="round" stroke-linecap="round"/>
+    <circle cx="88" cy="50" r="2.5" fill="#9aa5af" data-mat="steel"/>
+  </g>
+</svg>

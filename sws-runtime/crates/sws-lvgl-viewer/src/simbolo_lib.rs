@@ -261,6 +261,10 @@ pub fn fotogramma(ms: u64, periodo_s: f64, symmetry: f64, n: usize) -> usize {
 pub enum ValoreParte {
     Frazione(Option<f64>),
     Aperta(Option<bool>),
+    /// L'indice nella lista degli angoli, per una leva a più di due posizioni
+    /// (21-10-2026). Le leve booleane continuano a dare `Aperta`: vedi il
+    /// commento gemello in `libreria.ts`.
+    Posizione(Option<usize>),
     Accesa(Option<bool>),
 }
 
@@ -303,7 +307,19 @@ pub fn valori_parti<'a>(
                 let f = v.and_then(numero).filter(|_| max != min).map(|n| ((n - min) / (max - min)).clamp(0.0, 1.0));
                 ValoreParte::Frazione(f)
             }
-            ParteLib::Lever { .. } => ValoreParte::Aperta(v.map(vero)),
+            ParteLib::Lever { .. } => {
+                // Due posizioni: la regola booleana di sempre. Più di due: il
+                // valore **è** l'indice, arrotondato e tenuto dentro l'elenco.
+                let angoli = p.angoli_leva();
+                if angoli.len() >= 3 {
+                    let i = v
+                        .and_then(numero)
+                        .map(|n| n.round().clamp(0.0, (angoli.len() - 1) as f64) as usize);
+                    ValoreParte::Posizione(i)
+                } else {
+                    ValoreParte::Aperta(v.map(vero))
+                }
+            }
             ParteLib::Lamp { .. } => ValoreParte::Accesa(v.map(vero)),
             _ => continue,
         };
@@ -557,6 +573,9 @@ mod tests {
                         }
                     }
                     (Some(ValoreParte::Aperta(x)), a) => a.get("aperta").map(|v| v.as_bool()) == Some(x),
+                    (Some(ValoreParte::Posizione(x)), a) => {
+                        a.get("posizione").map(|v| v.as_u64().map(|n| n as usize)) == Some(x)
+                    }
                     (Some(ValoreParte::Accesa(x)), a) => a.get("accesa").map(|v| v.as_bool()) == Some(x),
                     (None, _) => false,
                 };

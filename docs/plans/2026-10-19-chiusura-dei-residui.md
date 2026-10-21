@@ -158,7 +158,15 @@ e porta con sé una voce in `CAMPI_FISSI` di `scala/scalaPagina.ts`, che il test
 
 ## Ramo 4 — `feat/simboli-comandi`
 
-Ramo 3 del piano [strumenti, simboli e comandi](2026-10-14-strumenti-simboli-comandi.md):
+> **FATTO il 21-10-2026.** Sedici simboli invece dei sei previsti, in tre tipologie: il maintainer ha
+> chiesto di spaziare sui generi, e sono entrati anche il coltello monopolare, il sezionatore
+> tripolare, il pedale, la fune di emergenza, il consenso ad azione mantenuta, il basculante, il
+> rotativo a cinque posizioni, la manopola graduata e il manipolatore. Il selettore a tre posizioni
+> **non** ha usato il ripiego su `needle` proposto qui sotto: `Lever` è stato esteso a N posizioni.
+> La famiglia si chiama «Comandi **da quadro**» per non scontrarsi col gruppo omonimo della palette.
+
+
+Ramo 3 del piano [strumenti, simboli e comandi](../archive/2026-10-14-strumenti-simboli-comandi.md):
 famiglia **«Comandi»** nella libreria. **Primo lotto di sei, confermato dal maintainer il
 19-10-2026**, con il comando di partenza di ciascuno:
 
@@ -353,7 +361,7 @@ dove chiudere un capo è sempre pulito: va provata a mano.
 | [2026-10-09-fase-4-gateway.md](../archive/2026-10-09-fase-4-gateway.md) | rami 1 e 2 |
 | [2026-10-08-marchi-visibili-prima-del-login.md](2026-10-08-marchi-visibili-prima-del-login.md) | ramo 2 |
 | [2026-10-15-tubazioni-bocche-e-stili.md](../archive/2026-10-15-tubazioni-bocche-e-stili.md) | punto 6 dichiarato **fuori perimetro** (decisione del 19-10), più il ramo 3 che dà al tubo il tracciamento a clic |
-| [2026-10-14-strumenti-simboli-comandi.md](2026-10-14-strumenti-simboli-comandi.md) | ramo 4 |
+| [2026-10-14-strumenti-simboli-comandi.md](../archive/2026-10-14-strumenti-simboli-comandi.md) | ramo 4 — **archiviato il 21-10-2026** |
 | scalare tra risoluzioni | **archiviato il 19-10-2026**: il lavoro era finito, e il suo limite noto è diventato il ramo 5 di questo piano |
 | [2026-10-09-fase-6-tunnel-dei-pannelli.md](../archive/2026-10-09-fase-6-tunnel-dei-pannelli.md) | ramo 7 |
 

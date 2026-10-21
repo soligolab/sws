@@ -11,6 +11,32 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 
 ## [Unreleased]
 
+### Added
+
+- **«Comandi da quadro»: sedici simboli nuovi nella libreria**, che passa da 138 a 154. Tre tipologie —
+  *Pulsanti* (pulsante, luminoso, fungo di emergenza, stazione marcia/arresto, comando a pedale, fune di
+  emergenza, consenso ad azione mantenuta), *Interruttori* (levetta, selettore a tre posizioni, chiave,
+  coltello monopolare, sezionatore a coltello tripolare, basculante, rotativo a cinque posizioni) e
+  *Manopole* (manopola graduata, manipolatore a leva). **Dodici su sedici nascono già col loro comando**
+  (`momentary`, `toggle`, `set`) da una tabellina slug→comando in `oggettoSimbolo`: un pulsante che al clic
+  non fa niente è la cosa che questa famiglia esiste per togliere di mezzo. Gli altri quattro si comandano
+  con le assegnazioni, e quali variabili non si può indovinare. Un test legge il manifesto vero, così un
+  simbolo aggiunto domani senza comando diventa rosso. La famiglia si chiama «da quadro» e non «Comandi»
+  secco perché quel nome era già di un gruppo della palette, e nell'albero comparivano due voci uguali a
+  due livelli diversi — se n'è accorto un test, trovandone due.
+
+- **La parte viva `lever` impara N posizioni.** Il manifesto guadagna `angoli`, l'elenco delle rotazioni col
+  primo che è la posizione in cui il disegno sta fermo; il selettore a tre e il rotativo a cinque sono i
+  primi a usarla. Le leve a due posizioni **non cambiano**: continuano a dare un booleano, perché unificarle
+  avrebbe cambiato cosa significa un tag numerico su una valvola già installata — oggi `1` la apre, con
+  l'indice la chiuderebbe. `open`/`closed` restano emessi comunque: un pannello LVGL scarica il manifesto
+  dal runtime, e in Rust un campo mancante non toglie una leva, rende illeggibile il manifesto intero.
+
+### Fixed
+
+- **Due test di `dispositiviRegistrati` si aspettavano ancora la 8444** ed erano rossi dal cambio di porte,
+  perché la *definition of done* non elencava `vitest`. Ora la elenca (`CLAUDE.md`), e i test dicono 7444.
+
 ## [2.16.2] — 2026-10-21
 
 ### Fixed
@@ -575,14 +601,14 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 - **Template «Comandi — pompa del pozzo»** (`examples/templates/comandi-pompa-pozzo`): una pagina con le
   modalità del bottone, i simboli che comandano (interruttore, valvola, pulsantiera) e le assegnazioni,
   su variabili interne — si prova senza impianto.
-- **Il simbolo che comanda** (piano `docs/plans/2026-10-14-strumenti-simboli-comandi.md`, ramo 2). Un
+- **Il simbolo che comanda** (piano `docs/archive/2026-10-14-strumenti-simboli-comandi.md`, ramo 2). Un
   simbolo con `command_tag` (o con assegnazioni) al clic scrive come un bottone: le sette modalità,
   le assegnazioni, la conferma e il comando critico. Scrive `command_tag`, campo nuovo: non `state_tag`
   (un pulsante di marcia scrive START e mostra RUNNING) né `tag` (sul simbolo è la qualità). Senza
   comando resta un disegno, non cliccabile. Editor: spunta «Il simbolo comanda» nei parametri del
   simbolo, con la stessa sezione del bottone. LVGL: un riquadro trasparente cliccabile sopra il disegno.
 
-- **Menù Strumenti riorganizzato** (piano `docs/plans/2026-10-14-strumenti-simboli-comandi.md`, ramo 1):
+- **Menù Strumenti riorganizzato** (piano `docs/archive/2026-10-14-strumenti-simboli-comandi.md`, ramo 1):
   - dieci gruppi al posto di cinque (Forme · Testo e immagini · Comandi · Indicatori · Grafici ·
     Tabelle e registri · Allarmi · Navigazione e lingua · Impianto · Simboli); nessun tipo cambia;
   - icone SVG nostre per i 38 tipi (`editor/iconeStrumenti.ts`) al posto di emoji e glifi Unicode;

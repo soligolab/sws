@@ -8,7 +8,7 @@
 # scritti accanto a ogni voce: a 13 px su Linux metà erano quadratini, e due
 # tipi (`data_log`, `text_list`) avevano lo stesso `≣`. Ora sono SVG nostri in
 # `sws-editor/src/editor/iconeStrumenti.ts` (piano
-# docs/plans/2026-10-14-strumenti-simboli-comandi.md, ramo 1). Un tipo nuovo
+# docs/archive/2026-10-14-strumenti-simboli-comandi.md, ramo 1). Un tipo nuovo
 # aggiunto a `PALETTE_GROUPS` senza icona apparirebbe con un buco al posto
 # dell'icona, e nessun test di build se ne accorge: questa guardia sì.
 #
