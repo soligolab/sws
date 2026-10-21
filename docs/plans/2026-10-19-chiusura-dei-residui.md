@@ -90,6 +90,34 @@ Aggiornare la lista bianca `scripts/check_rotte_preauth.sh:90` e il commento in 
 **Resta aperta, e si dichiara**: chi sta in due aziende con marchi diversi ne vede uno solo, il
 primo per id (`router.rs:1794-1802`). Non si decide qui.
 
+> **Rimisurato il 21-10-2026: questo ramo non è piccolo, e fatto com'è scritto rompe l'IDE di
+> tutti i giorni.**
+>
+> 1. «Il gancio esiste già, `GET /api/identita/marchio`» — esiste, ma porta solo **l'id** del
+>    marchio (`router.rs:1822-1843`), non il suo contenuto: il frontend, ricevuto l'id, va
+>    comunque a prendere il file pubblico (`branding/index.ts:173`) e legge lì `device_presets`.
+>    Non c'è nessun posto dove appoggiare i campi privati: la rotta va cambiata di forma, e con
+>    lei il frontend.
+> 2. **Spegnerebbe i preset Pixsys su `start_editor.sh`.** L'aggancio post-login
+>    (`branding/perAzienda.ts`) si ferma due volte prima di arrivare: `authToken === "no-auth"`
+>    (riga 27), che dal 14-09 nell'IDE è **sempre** vero e vuol dire «istanza IDE»; e `marchio`
+>    nullo (riga 32), perché un IDE locale non ha aziende. Sparirebbero i 20 modelli di pannello
+>    e il percorso Yocto, **senza un errore**: `cargo check`, `pnpm build` e le guardie passano
+>    uguali.
+> 3. La lista bianca di `check_rotte_preauth.sh:90` **non** va aggiornata: la rotta resta
+>    pre-auth per logo e favicon, quindi `ATTESE` non cambia. Vuol dire che **nessuna guardia
+>    vede questo lavoro**.
+> 4. Numeri di riga da correggere: la rotta è a `router.rs:1153` (non 1130),
+>    `/api/identita/marchio` è registrata a `:981` e la funzione sta a `:1822` (non 1782), il
+>    `json` in `TIPI` è a `marchi.rs:65` (non 66).
+> 5. **Il buco è più largo di `brand.json`**: `TIPI` accetta l'estensione `.json`
+>    (`marchi.rs:65`, `carica_file` a `:259`), quindi dalla console si può caricare un
+>    `qualsiasi.json` nella cartella del marchio e quel file esce pre-auth. E la casella «avanzato»
+>    della console (`console/Marchi.tsx:59`) salva verbatim tutto ciò che non è
+>    `colors/name/shortName/logo/favicon/id`. Togliere due campi per nome non chiude niente: la
+>    domanda vera è **lista bianca invece che lista nera** — servire pre-auth solo i campi noti e
+>    pubblici, e tenere privato tutto il resto per costruzione.
+
 ---
 
 ## Ramo 3 — `feat/tubo-a-clic`

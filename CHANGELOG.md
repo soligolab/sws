@@ -11,6 +11,40 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 
 ## [Unreleased]
 
+## [2.16.2] — 2026-10-21
+
+### Fixed
+
+- **Sul pannello, il viewer LVGL si ricordava due cose e le perdeva a ogni riavvio.** Le impronte
+  TLS (`tls.rs`) e la lingua scelta dall'operatore (`client.rs`) componevano `$HOME/.config/sws` a
+  mano invece di passare da `cartella_stato()`. Fuori dal container i due percorsi coincidono —
+  per questo in sviluppo non si vedeva — ma **dentro** no: il quadlet monta
+  `/data/user/sws/viewer` e dichiara `SWS_VIEWER_DATA`, mentre `$HOME` non è montato. Due
+  conseguenze: la fiducia al primo contatto si rifaceva da capo a ogni avvio, cioè non proteggeva
+  da niente (un certificato cambiato non aveva nessuna impronta vecchia con cui stonare); e un
+  operatore si ritrovava la lingua cambiata ogni mattina, che è esattamente la cosa che il
+  commento sopra quella funzione dichiara di voler evitare. È la terza volta che questa classe di
+  difetto salta fuori — le prime due il 02-10 — e stavolta la chiude una guardia:
+  **`check_stato_viewer.sh`** pretende che nel crate del viewer `var_os("HOME")` compaia solo
+  dentro `cartella_stato()`. Le guardie statiche diventano 47.
+
+- **Due commenti che dicevano il falso in `install-container.sh`**: «vuoti = nessun tunnel, che
+  resta il default» non vale dall'11-10 — con le tre variabili vuote vale l'`ENV` dell'immagine e
+  il pannello chiama il cloud; per non chiamarlo serve `--senza-cloud`, che scrive la variabile
+  vuota e quindi vince.
+
+### Documentation
+
+- **Quattro piani rimisurati contro il codice di oggi**, e correggono affermazioni su cui
+  qualcuno avrebbe costruito: il ramo «branding spaccato» crede che `GET /api/identita/marchio`
+  porti il contenuto del marchio (porta solo l'id) e, fatto com'è scritto, **spegnerebbe i preset
+  Pixsys sull'IDE locale** senza che nessuna guardia se ne accorga; il seme sulle licenze dava
+  per misurabile il tempo di silenzio di un pannello, ma `ultimo_ms` non sopravvive a un riavvio
+  del gateway; il seme dei tag uguali è di sei righe nel punto giusto, ma lo scarto fermerebbe i
+  ritardi degli allarmi (`on_delay` non scatterebbe mai più) e capovolgerebbe il «dato vecchio»
+  sui due visori; il seme dei certificati elencava sei archivi e sono cinque — il trust store del
+  server OPC UA non esiste, perché quel server parla solo in chiaro.
+
 ## [2.16.1] — 2026-10-21
 
 ### Fixed

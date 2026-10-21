@@ -44,3 +44,30 @@ un cassetto, contati come se fossero in campo.
   posto scegliendo quale pannello dismettere?
 - Va deciso insieme alla Fase 5 del tronco cloud (registrazione, email, 2FA), che è l'altro pezzo
   di «un cliente vero con un contratto vero»?
+
+## Corretto il 21-10-2026 — `ultimo_ms` non sopravvive a un riavvio
+
+La frase «il tempo di silenzio è già misurabile, nessun dato nuovo serve per una regola a tempo»
+**è falsa**, e con essa cade il presupposto della variante a tempo.
+
+`Abbinati::visto` aggiorna `ultimo_ms` **solo in memoria** (`abbinati.rs:259-263`), e il commento
+lo dichiara: «finisce su disco alla prossima scrittura». Le uniche scritture sono `salva`,
+`rinomina`, `sposta` e `imposta_stato` — tutte azioni d'amministratore, nessuna nel funzionamento
+normale. Un gateway che gira per mesi e poi riparte rilegge l'`ultimo_ms` del giorno dell'ultima
+azione, non dell'ultima connessione.
+
+Quindi **una regola a tempo va pagata prima**: rendere `ultimo_ms` persistente senza riscrivere il
+file a ogni battito di ogni pannello (per esempio una scrittura ogni N minuti, o alla chiusura
+del tunnel).
+
+Altre due cose misurate che le domande non avevano:
+
+- `conta_di` (`abbinati.rs:242-247`) conta **tutte** le righe dell'azienda, banditi compresi. Se
+  la licenza contasse solo gli attivi, il numero della console e quello della licenza
+  divergerebbero: sarebbero due numeri, non uno.
+- Uno stato «dismesso» non basta da solo: un dismesso della **stessa** azienda ricadrebbe nel ramo
+  `_ => {}` di `prepara` e tornerebbe attivo da sé, mentre uno di un'**altra** azienda prenderebbe
+  ancora `DiUnAltraAzienda` (`abbinati.rs:176-188`). «Dismesso» libererebbe il posto senza
+  liberare la scatola.
+- I pannelli dichiarati a mano in `pannelli.yaml` (`Ammessi`) non passano da `Abbinati`: se non
+  contassero, il tetto si aggirerebbe scrivendo un file sul server.

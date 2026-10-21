@@ -17,6 +17,10 @@
 # Le scrive chi fa il lavoro, insieme al lavoro; il maintainer le rivede al collaudo.
 
 versioni:
+  - versione: "2.16.2"
+    voci:
+      - it: "Sul pannello, la lingua scelta dall'operatore non si perde più a ogni riavvio del viewer, e il certificato del runtime viene ricordato davvero invece di essere riaccettato ogni volta."
+        en: "On the panel, the language the operator picked is no longer lost at every viewer restart, and the runtime's certificate is really remembered instead of being accepted anew each time."
   - versione: "2.16.1"
     compatibilita:
       - it: "Il pannello cambia porte: il viewer passa da 8443 a 7443 e la gestione da 8444 a 7444. Segnalibri e dispositivi salvati a mano vanno corretti una volta; «Cerca» li ritrova da sé."

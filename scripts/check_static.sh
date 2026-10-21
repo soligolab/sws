@@ -67,6 +67,7 @@ STATICHE=(
     check_intestazioni      # CSP, nosniff, referrer e limiti per indirizzo su ogni router, e nessuno script in linea nelle pagine dell'IDE
     check_font              # l'elenco dei font: fixture, @font-face, woff2 del browser, ttf del pannello e licenze coincidono
     check_quadlet           # i quadlet portano la loro versione, cambiano solo alzandola, viaggiano nell'immagine e --solo-unita li sa riscrivere
+    check_stato_viewer      # quello che il viewer LVGL deve ricordare passa da cartella_stato(): dentro il container $HOME non è montato
     check_pota_incremental  # la potatura della cache incrementale toglie solo le cartelle vecchie: mai deps, mai aarch64, mai sotto una compilazione
     check_tipi_scalari      # i tipi delle variabili (D5) sono una tabella sola: fixture, tipo.rs, tipiScalari.ts, select e validatore d'accordo
     check_tag_refs          # i campi-tag scalari di un oggetto: la stessa lista in Rust e in TS

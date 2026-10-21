@@ -24,17 +24,25 @@ use sws_core::pin_tls::{e_certificato_cambiato, ImprontaStore};
 
 const NOME_FILE: &str = "lvgl_tls_conosciuti.yaml";
 
-/// `~/.config/sws/lvgl_tls_conosciuti.yaml` — stessa cartella di
-/// `~/.config/sws/lvgl_session.json` (vedi `session::session_path`), un file
-/// in più nella stessa convenzione.
+/// `lvgl_tls_conosciuti.yaml` nella cartella di stato del viewer — la stessa di
+/// `lvgl_session.json` (vedi `session::session_path`), un file in più nella
+/// stessa convenzione.
+///
+/// **Passa da [`crate::cartella_stato`] dal 21-10-2026.** Prima componeva da sé
+/// `$HOME/.config/sws`, che fuori dal container è lo stesso posto ma **dentro**
+/// no: il quadlet monta `/data/user/sws/viewer` e dichiara
+/// `SWS_VIEWER_DATA`, e `$HOME` del container non è montato. Le impronte non
+/// sopravvivevano quindi al riavvio del viewer, e la fiducia al primo contatto
+/// si rifaceva da capo ogni volta — cioè non proteggeva da niente, perché un
+/// certificato cambiato non aveva nessuna impronta vecchia con cui stonare.
 fn store_path() -> Option<PathBuf> {
-    let home = std::env::var_os("HOME")?;
-    Some(PathBuf::from(home).join(".config/sws").join(NOME_FILE))
+    Some(crate::cartella_stato()?.join(NOME_FILE))
 }
 
 fn store() -> anyhow::Result<ImprontaStore> {
-    let path = store_path()
-        .ok_or_else(|| anyhow::anyhow!("variabile HOME assente: impossibile aprire {NOME_FILE}"))?;
+    let path = store_path().ok_or_else(|| {
+        anyhow::anyhow!("nessuna cartella di stato (né SWS_VIEWER_DATA né HOME): impossibile aprire {NOME_FILE}")
+    })?;
     Ok(ImprontaStore::new(path))
 }
 

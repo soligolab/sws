@@ -53,3 +53,33 @@ Due modelli convivono: le **impronte** (`pin_tls`, stile `known_hosts`) e l'**ar
 - Chi può toccarla (solo Admin? doppia conferma per «fidati»?), e cosa finisce nell'audit.
 - Importazione di certificati firmati da una CA del cliente: formati, catena, chiave privata.
 - Avvisi di scadenza: dove si vedono (barra dell'IDE, allarme di sistema, email).
+
+## Rimisurato il 21-10-2026 — gli archivi sono cinque, e due cose nuove
+
+- **Il cambio di porte non tocca il certificato del server web**: il titolo «(8443/8444)» nella
+  tabella è solo testo. Il certificato ha come SAN `localhost`, gli IP di loopback e quello della
+  LAN, nessuna porta (`sws-runtime/src/main.rs:2144-2156`).
+- **Tocca invece il pinning**, e in un modo che va scritto: la chiave delle impronte è
+  **`host:porta`**, non `host` (`sws-web/src/certificati.rs:38-46`,
+  `sws-lvgl-viewer/src/tls.rs:42-53`). Passare da 8443 a 7443 è una chiave nuova, cioè una fiducia
+  al primo contatto da capo, e la riga vecchia resta lì. «Dimentica» è già a posto — toglie tutte
+  le porte di quell'host (`pin_tls.rs:120-137`) — ma nessuno fa pulizia da sé. Da decidere quando
+  si costruisce la vista: la riga morta si lascia, o la si toglie quando il ripiego di porta
+  scatta?
+- **La riga 5 si cancella: il trust store del server OPC UA non esiste.** `run_server` usa
+  `ServerBuilder::new_anonymous` (`sws-plugin-opcua/src/lib.rs:1029-1033`), che dichiara un solo
+  endpoint `none`; `create_sample_keypair` e `pki_dir` li chiama solo il **client**. Il
+  `.trust_client_certs(true)` è inerte. Il server OPC UA di SWS non ha identità né trust store
+  perché parla solo in chiaro: è una mancanza da gap analysis CRA, non una voce di questo menù.
+  **Gli archivi sono cinque, non sei.**
+- **Gli avvisi di scadenza non hanno niente da avvisare**, sul certificato del pannello: rcgen
+  0.13.2 ha `not_after` al 4096 e nessuno dei due generatori lo cambia (`main.rs:2144-2167`,
+  `system.rs:1013-1035`). Il self-signed non scade mai; l'avviso serve solo per un certificato di
+  CA caricato a mano.
+- **Non c'è un sottoinsieme veloce.** Nemmeno «una vista in sola lettura»: oggi nessuna rotta
+  elenca gli archivi a impronte (c'è solo il gesto di dimenticare, `remote.rs:3019`), e nessuno
+  dei campi che la vista vorrebbe mostrare — soggetto, emittente, validità — è disponibile senza
+  una dipendenza nuova che parsi i certificati.
+
+Reggono: `dispositivi_conosciuti.yaml`, `mqtt_broker_conosciuti.yaml`, `opcua-pki/<sorgente>/`,
+`tls.crt`/`tls.key`, e il doppio modello impronte-contro-PKI.

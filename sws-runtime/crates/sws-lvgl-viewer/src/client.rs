@@ -1679,9 +1679,13 @@ pub async fn ack_alarm(base_url: &str, alarm_id: &str, token: Option<&str>) -> a
 // Stesso file e stessa cartella della sessione utente (`session.rs`), che è già
 // la convenzione di questo motore: un file in più, non un percorso nuovo.
 
+// Dal 21-10-2026 passa da `cartella_stato()` e non più da `$HOME` composto a
+// mano: dentro il container il quadlet monta `/data/user/sws/viewer` e dichiara
+// `SWS_VIEWER_DATA`, mentre `$HOME` non è montato. Scrivendo lì la lingua
+// spariva a ogni riavvio del viewer — esattamente la cosa che il commento qui
+// sopra dice di non voler far succedere.
 fn percorso_lingua() -> Option<std::path::PathBuf> {
-    let home = std::env::var_os("HOME")?;
-    Some(std::path::PathBuf::from(home).join(".config/sws/lvgl_lang"))
+    Some(crate::cartella_stato()?.join("lvgl_lang"))
 }
 
 /// La lingua salvata, se c'è ed è ancora una di quelle del progetto.

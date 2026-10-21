@@ -75,8 +75,13 @@ TAG_EXPLICIT=0
 # 0 da `uname -m`. Era `latest-arm64` fisso, e su un dispositivo x86_64 scaricava
 # un'immagine che non parte — con l'installazione lanciata dall'IDE il dispositivo
 # non è quasi mai la macchina da cui si installa, quindi indovinare non va bene.
-# Il tunnel verso il cloud (10-10-2026). Vuoti = nessun tunnel, che resta il
-# default: un pannello che lavora da solo in impianto non deve chiamare niente.
+# Il tunnel verso il cloud (10-10-2026). **Vuoti non vuol più dire «nessun
+# tunnel» dall'11-10**: con le tre variabili vuote il quadlet non scrive nessun
+# `Environment=`, e vale `ENV SWS_TUNNEL_URL=wss://tunnel.soligo.net/tunnel/v1`
+# dell'immagine — il pannello chiama il cloud e aspetta l'abbinamento col
+# codice, che è quello che stampa la riga di riepilogo in fondo. Per non
+# chiamarlo serve `--senza-cloud`, che scrive la variabile **vuota** e quindi
+# vince sull'immagine. (Questo commento ha detto il contrario per dieci giorni.)
 TUNNEL_URL=""
 TUNNEL_NOME=""
 TUNNEL_TOKEN=""
