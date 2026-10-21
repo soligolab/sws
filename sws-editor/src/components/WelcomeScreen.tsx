@@ -916,7 +916,11 @@ function InstallaRuntimeModal({ onClose, gateway }: { onClose: () => void; gatew
       <div style={{
         background: "var(--brand-bg, #0f172a)", border: "1px solid var(--brand-surface-2, #334155)",
         borderRadius: 10, padding: 24,
-        width: 520, maxWidth: "92vw",
+        // 700 e non 520 (maintainer, 21-10-2026): il comando che estrae i
+        // quadlet andava a capo dentro il riquadro, e in un terminale sta su
+        // due righe sue. `maxWidth` tiene il dialogo dentro lo schermo di un
+        // telefono.
+        width: 700, maxWidth: "92vw",
       }} onClick={(e) => e.stopPropagation()}>
         <div style={{ fontSize: 18, fontWeight: 700, color: "var(--brand-text, #e2e8f0)", marginBottom: 12 }}>
           {t("welcome.installRuntimeTitle")}
