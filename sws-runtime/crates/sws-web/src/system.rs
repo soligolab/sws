@@ -579,6 +579,54 @@ pub async fn get_system_status(
     Json(status)
 }
 
+/// Quello che `/api/system` dice sulla porta del viewer a chi **non** è Operator: solo
+/// i campi dell'avviso d'aggiornamento sullo schermo del pannello (ramo 6 della
+/// chiusura dei residui, 20-10-2026; decisione del maintainer: «solo i campi che
+/// servono all'avviso»). CPU, memoria, tag, sorgenti, allarmi, TLS, avvisi del progetto
+/// restano a chi è Operator.
+///
+/// È una struttura a sé, campo per campo, e **non** un `SystemStatus` con dei campi
+/// tolti: un campo nuovo di `SystemStatus` non può finire qui per sbaglio. Il test
+/// `la_risposta_anonima_ha_solo_i_campi_dell_avviso` fissa l'elenco.
+#[derive(Serialize, Debug)]
+pub struct SystemStatusViewer {
+    pub runtime_version: String,
+    /// Serve all'avviso per riconoscere un riavvio del runtime.
+    pub uptime_s: u64,
+    /// Se il pannello ha utenti: l'avviso chiede le credenziali al momento di applicare.
+    pub auth_required: bool,
+    pub quadlet: Option<crate::quadlet::Stato>,
+    pub conferma_aggiornamento: Option<crate::conferma_aggiornamento::Stato>,
+}
+
+impl From<SystemStatus> for SystemStatusViewer {
+    fn from(s: SystemStatus) -> Self {
+        SystemStatusViewer {
+            runtime_version: s.runtime_version,
+            uptime_s: s.uptime_s,
+            auth_required: s.auth_required,
+            quadlet: s.quadlet,
+            conferma_aggiornamento: s.conferma_aggiornamento,
+        }
+    }
+}
+
+/// `GET /api/system` sulla porta del viewer: intero per un Operator o più, ridotto ai
+/// campi dell'avviso per un anonimo o un Viewer.
+pub async fn get_system_status_viewer(
+    State(state): State<AppState>,
+    utente: Option<axum::Extension<crate::router::AuthUser>>,
+) -> axum::response::Response {
+    use axum::response::IntoResponse;
+    let operatore = utente.as_ref().is_some_and(|u| u.0.role >= sws_auth::Role::Operator);
+    let Json(pieno) = get_system_status(State(state), utente).await;
+    if operatore {
+        Json(pieno).into_response()
+    } else {
+        Json(SystemStatusViewer::from(pieno)).into_response()
+    }
+}
+
 static QUADLET_CACHE: tokio::sync::Mutex<Option<(std::time::Instant, crate::quadlet::Stato)>> =
     tokio::sync::Mutex::const_new(None);
 
@@ -987,6 +1035,30 @@ fn generate_cert_files(config_dir: &std::path::Path) -> anyhow::Result<()> {
     .context("writing tls.key")?;
     tracing::info!(path = %config_dir.display(), "self-signed TLS certificate saved");
     Ok(())
+}
+
+#[cfg(test)]
+mod tests_viewer {
+    /// Il filtro della risposta anonima si scrive campo per campo e va mantenuto: se
+    /// qualcuno aggiunge un campo a `SystemStatusViewer`, questo test lo costringe a
+    /// chiedersi se un anonimo davanti al pannello deve vederlo.
+    #[test]
+    fn la_risposta_anonima_ha_solo_i_campi_dell_avviso() {
+        let v = super::SystemStatusViewer {
+            runtime_version: "x".into(),
+            uptime_s: 1,
+            auth_required: true,
+            quadlet: None,
+            conferma_aggiornamento: None,
+        };
+        let j = serde_json::to_value(&v).unwrap();
+        let mut chiavi: Vec<_> = j.as_object().unwrap().keys().cloned().collect();
+        chiavi.sort();
+        assert_eq!(
+            chiavi,
+            ["auth_required", "conferma_aggiornamento", "quadlet", "runtime_version", "uptime_s"]
+        );
+    }
 }
 
 #[cfg(test)]

@@ -19,10 +19,13 @@
  *  ne esce una più nuova ancora**, e quella scelta sopravvive al riavvio —
  *  altrimenti non sarebbe un ignorare, sarebbe un rimandare.
  */
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import type { ReactElement } from "react";
 import { api, novitaNellaLingua, type NovitaVersione, type SceltaConferma, type StatoAggiornamento, type StatoConferma, type StatoQuadlet } from "@/api/client";
 import { useLinguaContenuti } from "@/i18n/linguaContenuti";
 import { testoSistema, testoSistemaCon } from "@/i18n/testiSistema";
+import { useAppStore } from "@/store";
+import { LoginScreen } from "@/components/LoginScreen";
 
 const IGNORATA = "sws.aggiornamento.ignorata";
 /** L'esito chiuso: «chiuso una volta non ricompare per quell'aggiornamento»
@@ -71,7 +74,16 @@ export function AvvisoAggiornamento() {
   // dello store che imposta solo l'IDE: nel viewer del pannello restava
   // sconosciuto e l'avviso non compariva mai — e i test non se ne accorgevano,
   // perché quel valore lo impostavano loro a mano.
-  const [senzaUtenti, setSenzaUtenti] = useState(false);
+  // Dal 20-10-2026 (ramo 6 della chiusura dei residui) l'avviso compare **sempre**:
+  // prima solo su un pannello senza utenti, che dall'abbinamento dell'11-10 non esiste
+  // più, e l'avviso non poteva comparire mai. Le credenziali di Admin si chiedono al
+  // momento di applicare (decisione del maintainer), non per vedere.
+  const [authRequired, setAuthRequired] = useState(true);
+  const authRole = useAppStore((s) => s.authRole);
+  const authToken = useAppStore((s) => s.authToken);
+  // L'azione che aspetta un login da Admin, e il login aperto per lei.
+  const [inAttesa, setInAttesa] = useState<null | (() => Promise<void>)>(null);
+  const tokenAlLogin = useRef<string | null>(null);
   const [stato, setStato] = useState<StatoAggiornamento | null>(null);
   const [chiuso, setChiuso] = useState(false);
   const [esitoVisto, setEsitoVisto] = useState(false);
@@ -107,9 +119,7 @@ export function AvvisoAggiornamento() {
       setConferma(sys.conferma_aggiornamento ?? null);
       if (riavvio) { setQuadletRimandato(false); setConfermaChiusa(false); setRitornoChiesto(false); }
       if (!primaVolta && !riavvio) return;
-      const libero = sys.auth_required === false;
-      setSenzaUtenti(libero);
-      if (!libero) return;
+      setAuthRequired(sys.auth_required !== false);
       // «Più tardi» vale fino al prossimo avvio (decisione 44): è questo.
       if (riavvio) setChiuso(false);
       await leggiStato();
@@ -131,23 +141,54 @@ export function AvvisoAggiornamento() {
     return () => { vivo = false; window.clearInterval(id); window.clearTimeout(richiesta); };
   }, []);
 
+  // Un'azione che vuole un Admin: se chi sta davanti non lo è, si apre il login e
+  // l'azione aspetta. Quando arriva un token nuovo di un Admin riparte da sola (effetto
+  // qui sotto). Senza utenti (`auth_required: false`) il runtime la lascia passare.
+  const daAdmin = (azione: () => Promise<unknown>) =>
+    new Promise<void>((resolve, reject) => {
+      const esegui = async () => { try { await azione(); resolve(); } catch (e) { reject(e); } };
+      if (!authRequired || authRole === "Admin") { void esegui(); return; }
+      tokenAlLogin.current = authToken;
+      setInAttesa(() => esegui);
+    });
+  useEffect(() => {
+    if (!inAttesa || authToken === tokenAlLogin.current) return;
+    const azione = inAttesa;
+    setInAttesa(null);
+    if (authRole === "Admin") void azione();
+    else { setErrore(testoSistema("agg_serve_admin", lang)); setInCorso(false); }
+  }, [authToken, authRole, inAttesa, lang]);
+  const login = inAttesa ? (
+    <div style={{ position: "fixed", inset: 0, zIndex: 9600, background: "var(--brand-bg, #0f172a)" }}>
+      <LoginScreen motivo="runtimeView.loginPerAggiornare"
+        onCancel={() => { setInAttesa(null); setInCorso(false); }} />
+    </div>
+  ) : null;
+
+  const conLogin = (el: ReactElement) => <>{el}{login}</>;
+
   // Prima l'esito dell'ultimo aggiornamento (Fase 3, decisioni 52-54): con il
   // pilota automatico è l'unico modo, davanti al pannello, di sapere che è
   // cambiato qualcosa.
   const evento = stato?.evento ?? null;
-  if (senzaUtenti && evento && !esitoVisto && esitoChiuso() !== evento.id) {
+  if (evento && !esitoVisto && esitoChiuso() !== evento.id) {
     const ok = evento.esito === "riuscito";
     const inst = stato?.novita_installata ? nl(stato.novita_installata) : null;
-    return (
-      <div role="dialog" aria-modal="true" aria-label={testoSistema(ok ? "esito_titolo_ok" : "esito_titolo_ko", lang)}
-        style={{ position: "fixed", inset: 0, zIndex: 9000, background: "rgba(2, 6, 23, 0.72)", display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}>
+    return conLogin(
+      // L'esito è solo informazione (decisione del maintainer, 19-10-2026): una striscia in
+      // basso che non copre la pagina, perché è quella che rischia di restare davanti
+      // all'impianto per giorni. Versione nuova e domanda di conferma restano modali:
+      // chiedono una decisione.
+      <div role="status" aria-label={testoSistema(ok ? "esito_titolo_ok" : "esito_titolo_ko", lang)}
+        style={{ position: "fixed", left: 12, right: 12, bottom: 12, zIndex: 9000, display: "flex", justifyContent: "center", pointerEvents: "none" }}>
         <div style={{
+          pointerEvents: "auto",
           background: "var(--brand-surface, #1e293b)",
           border: `1px solid ${ok ? "var(--brand-surface-2, #334155)" : "var(--brand-danger, #ef4444)"}`,
-          borderRadius: 8, padding: 20, maxWidth: 520, width: "100%", maxHeight: "80vh", overflowY: "auto",
-          boxShadow: "0 10px 40px rgba(0,0,0,0.5)",
+          borderRadius: 8, padding: "10px 14px", maxWidth: 640, width: "100%", maxHeight: "40vh", overflowY: "auto",
+          boxShadow: "0 6px 24px rgba(0,0,0,0.45)",
         }}>
-          <div style={{ fontSize: 16, fontWeight: 700, color: ok ? "var(--brand-text, #e2e8f0)" : "var(--brand-danger-soft, #fca5a5)", marginBottom: 6 }}>
+          <div style={{ fontSize: 14, fontWeight: 700, color: ok ? "var(--brand-text, #e2e8f0)" : "var(--brand-danger-soft, #fca5a5)", marginBottom: 4 }}>
             {ok ? "✅ " : "⚠ "}{testoSistema(ok ? "esito_titolo_ok" : "esito_titolo_ko", lang)}
           </div>
           {/* Il titolo dice cosa è successo, questa riga con quali versioni:
@@ -174,7 +215,7 @@ export function AvvisoAggiornamento() {
               )}
             </div>
           )}
-          <div style={{ marginTop: 16, display: "flex", justifyContent: "flex-end" }}>
+          <div style={{ marginTop: 8, display: "flex", justifyContent: "flex-end" }}>
             <button type="button" onClick={() => { chiudiEsito(evento.id); setEsitoVisto(true); setNovitaAperte(false); }}>
               {testoSistema("esito_chiudi", lang)}
             </button>
@@ -186,20 +227,20 @@ export function AvvisoAggiornamento() {
 
   // Poi la configurazione del servizio da aggiornare: dopo un aggiornamento che
   // porta quadlet nuovi è il passo che resta, e davanti al pannello non c'è un IDE.
-  if (senzaUtenti && quadlet?.da_aggiornare && quadlet.si_puo_aggiornare && !quadletRimandato) {
+  if (quadlet?.da_aggiornare && quadlet.si_puo_aggiornare && !quadletRimandato) {
     const daA = { da: String(quadlet.installata ?? "?"), a: String(quadlet.attesa ?? "?") };
     const aggiornaQuadlet = async () => {
       setInCorso(true);
       setErrore(null);
       try {
-        await api.aggiornaQuadlet();
+        await daAdmin(() => api.aggiornaQuadlet());
         // Il pannello si riavvia e questa pagina cade: niente da mostrare dopo.
       } catch (e) {
         setErrore(e instanceof Error ? e.message : String(e));
         setInCorso(false);
       }
     };
-    return (
+    return conLogin(
       <div role="dialog" aria-modal="true" aria-label={testoSistema("quadlet_titolo", lang)}
         style={{ position: "fixed", inset: 0, zIndex: 9000, background: "rgba(2, 6, 23, 0.72)", display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}>
         <div style={{
@@ -230,13 +271,13 @@ export function AvvisoAggiornamento() {
   // Poi la domanda dopo un aggiornamento: finché non si conferma, la versione
   // di prima resta sul pannello (e i suoi dati nell'istantanea).
   const domanda = conferma?.domanda ?? null;
-  if (senzaUtenti && domanda && !confermaChiusa) {
+  if (domanda && !confermaChiusa) {
     const daA = { da: domanda.da, a: domanda.a };
     const rispondi = async (scelta: SceltaConferma) => {
       setInCorso(true);
       setErrore(null);
       try {
-        await api.confermaAggiornamento(scelta);
+        await daAdmin(() => api.confermaAggiornamento(scelta));
         // «Ritorna» riavvia il pannello e questa pagina cade; per le altre la
         // domanda è chiusa.
         if (scelta !== "ritorna") { setConfermaChiusa(true); setInCorso(false); }
@@ -245,7 +286,7 @@ export function AvvisoAggiornamento() {
         setInCorso(false);
       }
     };
-    return (
+    return conLogin(
       <div role="dialog" aria-modal="true" aria-label={testoSistema("conf_titolo", lang)}
         style={{ position: "fixed", inset: 0, zIndex: 9000, background: "rgba(2, 6, 23, 0.72)", display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}>
         <div style={{
@@ -304,7 +345,7 @@ export function AvvisoAggiornamento() {
   }
 
   const nuova = stato?.disponibile ?? null;
-  if (chiuso || !nuova || !senzaUtenti) return null;
+  if (chiuso || !nuova) return null;
   if (versioneIgnorata() === nuova) return null;
 
   const avvisi = (stato?.novita ?? []).filter((n) => nl(n).compatibilita);
@@ -313,7 +354,7 @@ export function AvvisoAggiornamento() {
     setInCorso(true);
     setErrore(null);
     try {
-      await api.avviaAggiornamento();
+      await daAdmin(() => api.avviaAggiornamento());
       // Da qui il runtime si riavvia e questa pagina cade: non c'è niente da
       // mostrare dopo, e un messaggio di successo mentirebbe sul fatto che
       // l'aggiornamento è finito.
@@ -323,7 +364,7 @@ export function AvvisoAggiornamento() {
     }
   };
 
-  return (
+  return conLogin(
     <div
       role="dialog"
       aria-modal="true"

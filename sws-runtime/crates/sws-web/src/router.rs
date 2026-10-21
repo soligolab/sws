@@ -1517,8 +1517,7 @@ fn build_runtime_inner(state: AppState, www_dir: Option<PathBuf>) -> Router {
         )
         .route("/api/alarms/shelved", get(list_shelved_alarms))
         .route("/api/recipes/:id/apply", post(apply_recipe))
-        .route("/api/script/run/:name", post(run_function))
-        .route("/api/system", get(crate::system::get_system_status));
+        .route("/api/script/run/:name", post(run_function));
     // Q47 (2026-09-09): `/api/script/exec` — esecuzione di Python arbitrario —
     // non c'è più, da nessuna parte: nessuna interfaccia lo chiamava e gli
     // script di progetto non passano da HTTP. Resta `/api/script/run/:name`,
@@ -1550,6 +1549,13 @@ fn build_runtime_inner(state: AppState, www_dir: Option<PathBuf>) -> Router {
         .route("/api/datastores", get(list_datastores))
         .route("/api/datastores/:id/stats", get(datastore_stats))
         .route("/api/project/fingerprint", get(get_project_fingerprint))
+        // L'avviso d'aggiornamento sullo schermo del pannello (20-10-2026, ramo 6 della
+        // chiusura dei residui): deve comparire anche su un pannello abbinato, dove chi
+        // sta davanti è anonimo. Le **letture** quindi si aprono — `/api/system` in forma
+        // ridotta per chi non è Operator, lo stato dell'aggiornamento intero —; le
+        // credenziali di Admin si chiedono al momento di applicare (le scritture qui sotto).
+        .route("/api/system", get(crate::system::get_system_status_viewer))
+        .route("/api/update/status", get(aggiornamento_stato))
         .route("/ws/tags", get(ws_tags_handler))
         .route("/ws/alarms", get(ws_alarms_handler));
 
@@ -1562,13 +1568,13 @@ fn build_runtime_inner(state: AppState, www_dir: Option<PathBuf>) -> Router {
         .route("/api/auth/refresh", post(refresh_session));
 
     // L'avviso di versione nuova sullo schermo del pannello (decisioni 41 e 44,
-    // 28-09-2026) chiama queste due rotte **da qui**, dalla porta del viewer.
+    // 28-09-2026) chiama queste rotte **da qui**, dalla porta del viewer.
     // Mancavano: la Fase 1b le aveva messe solo sulla porta admin e su quella
     // di gestione, e l'avviso non poteva comparire mai (404, trovato il 28-09
-    // sul TC620). Admin: senza utenti l'Admin sintetico passa — ed è il solo
-    // caso in cui l'avviso si mostra —; con utenti, un anonimo prende 403.
+    // sul TC620). Le **scritture** restano Admin: chi sta davanti al pannello le
+    // fa dopo aver dato le credenziali, che l'avviso chiede al momento (20-10-2026).
+    // Il test `le_scritture_dell_aggiornamento_restano_admin_sul_viewer` lo fissa.
     let aggiornamento_routes = Router::new()
-        .route("/api/update/status", get(aggiornamento_stato))
         .route("/api/update/apply", post(aggiornamento_avvia))
         .route("/api/quadlet/aggiorna", post(quadlet_aggiorna))
         .route("/api/aggiornamento/conferma", post(conferma_aggiornamento))
@@ -11995,6 +12001,37 @@ mod rotte_del_dispositivo {
         let avviso = include_str!("../../../../sws-editor/src/runtime-view/AvvisoAggiornamento.tsx");
         assert!(avviso.contains("statoAggiornamento") && avviso.contains("avviaAggiornamento"),
             "l'avviso non usa più queste chiamate: aggiornare il test");
+    }
+
+    fn blocco<'a>(src: &'a str, da: &str, a: &str) -> &'a str {
+        let i = src.find(da).unwrap_or_else(|| panic!("non trovo {da}"));
+        let j = i + src[i..].find(a).unwrap_or_else(|| panic!("non trovo {a} dopo {da}"));
+        &src[i..j]
+    }
+
+    /// Ramo 6 della chiusura dei residui (20-10-2026): le **letture** dell'avviso si
+    /// aprono sulla porta del viewer, le **scritture** no. Prima nessun test fissava
+    /// quelle guardie: spostare una riga nel gruppo sbagliato avrebbe dato a chiunque
+    /// in rete il pulsante «aggiorna e riavvia».
+    #[test]
+    fn le_scritture_dell_aggiornamento_restano_admin_sul_viewer() {
+        let src = include_str!("router.rs");
+        let viewer = blocco(src, "fn build_runtime_inner(", "\nfn ");
+        let scritture = blocco(viewer, "let aggiornamento_routes", "require_admin));");
+        for rotta in [
+            "\"/api/update/apply\"",
+            "\"/api/quadlet/aggiorna\"",
+            "\"/api/aggiornamento/conferma\"",
+            "\"/api/aggiornamento/istantanea\"",
+        ] {
+            assert!(scritture.contains(rotta), "{rotta} non sta più nel gruppo require_admin del viewer");
+            assert_eq!(viewer.matches(rotta).count(), 1, "{rotta} compare due volte sul viewer");
+        }
+        let letture = blocco(viewer, "let read_routes", ";\n");
+        for rotta in ["\"/api/system\"", "\"/api/update/status\""] {
+            assert!(letture.contains(rotta), "{rotta} deve stare fra le letture del viewer");
+        }
+        assert!(!scritture.contains("\"/api/update/status\""));
     }
 
     #[test]

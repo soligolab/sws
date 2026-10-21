@@ -13,6 +13,14 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 
 ### Fixed
 
+- **L'avviso d'aggiornamento sullo schermo del pannello (viewer web) non poteva più comparire**: dall'abbinamento
+  dell'11-10 ogni pannello ha utenti, e l'avviso si mostrava solo senza. Ora compare sempre — versione nuova,
+  esito, configurazione del servizio, domanda di conferma —, e «Aggiorna» (o rispondere) apre il login e aspetta
+  un Admin; chi entra senza esserlo lo legge (`agg_serve_admin`). Sul server la porta del viewer apre in lettura
+  `/api/update/status` e `/api/system` in forma ridotta per chi non è Operator (`SystemStatusViewer`: versione,
+  uptime, `auth_required`, quadlet, domanda); le scritture restano Admin, e due test lo fissano. L'esito
+  dell'ultimo aggiornamento non copre più la pagina: è una striscia in basso. Il viewer LVGL viene dopo.
+
 - **Console: i progetti aperti si contavano a zero.** Si leggeva `project_dir`, che sul gateway è sempre vuoto, e
   ogni azienda mostrava `0 / N` (o il totale della piattaforma); il tetto si applicava ma la console diceva di no.
   Ora conta la regia del gateway, per azienda (`amministrazione.rs`, `risorse`).

@@ -231,6 +231,13 @@
       "es": "Más tarde",
       "en": "Later"
     },
+    "agg_serve_admin": {
+      "it": "Per aggiornare serve un amministratore del pannello.",
+      "de": "Zum Aktualisieren wird ein Administrator des Panels benötigt.",
+      "fr": "La mise à jour nécessite un administrateur du panneau.",
+      "es": "Para actualizar se necesita un administrador del panel.",
+      "en": "Updating needs a panel administrator."
+    },
     "agg_ignora": {
       "it": "Ignora questa versione",
       "de": "Diese Version überspringen",

@@ -19,6 +19,8 @@
 versioni:
   - versione: "2.16.0"
     voci:
+      - it: "Sullo schermo del pannello torna l'avviso di versione nuova anche con utenti: per aggiornare chiede l'accesso di un amministratore. L'esito dell'ultimo aggiornamento è una striscia che non copre la pagina."
+        en: "The new-version notice is back on the panel screen even when the panel has users: updating asks for an administrator's login. The last update's outcome is a strip that doesn't cover the page."
       - it: "Console del cloud: ogni azienda vede quali suoi progetti sono aperti adesso e chi è collegato, e può chiuderli a mano; il conteggio dei progetti aperti ora è quello vero."
         en: "Cloud console: each company sees which of its projects are open right now and who is connected, and can close them by hand; the open-project count is now the real one."
       - it: "Storico: i limiti di giorni e di righe dei datastore ora si applicano da soli ogni notte, all'ora del progetto; la prima volta l'IDE dice quanto cancellerà e chiede conferma."

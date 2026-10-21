@@ -33,6 +33,7 @@ export type VoceSistema =
   | "agg_novita"
   | "agg_aggiorna"
   | "agg_piu_tardi"
+  | "agg_serve_admin"
   | "agg_ignora"
   | "agg_in_corso"
   | "esito_titolo_ok"
@@ -98,6 +99,7 @@ export const TESTI_SISTEMA: Record<VoceSistema, Record<LinguaSistema, string>> =
   agg_novita: { it: "Novità", de: "Neuerungen", fr: "Nouveautés", es: "Novedades", en: "What's new" },
   agg_aggiorna: { it: "Aggiorna ora", de: "Jetzt aktualisieren", fr: "Mettre à jour", es: "Actualizar ahora", en: "Update now" },
   agg_piu_tardi: { it: "Più tardi", de: "Später", fr: "Plus tard", es: "Más tarde", en: "Later" },
+  agg_serve_admin: { it: "Per aggiornare serve un amministratore del pannello.", de: "Zum Aktualisieren wird ein Administrator des Panels benötigt.", fr: "La mise à jour nécessite un administrateur du panneau.", es: "Para actualizar se necesita un administrador del panel.", en: "Updating needs a panel administrator." },
   agg_ignora: {
     it: "Ignora questa versione",
     de: "Diese Version überspringen",

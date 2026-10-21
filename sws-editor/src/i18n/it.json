@@ -2036,6 +2036,7 @@
     "noActiveAlarms": "Nessun allarme attivo."
   },
   "runtimeView": {
+    "loginPerAggiornare": "Per applicare l'aggiornamento serve un amministratore del pannello.",
     "close": "Chiudi",
     "noParametersDefined": "Nessun parametro definito.",
     "noDefault": "(nessun default)"

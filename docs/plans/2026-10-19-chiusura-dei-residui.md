@@ -208,6 +208,8 @@ grafici) **restando lo stesso ramo**, con un commit per giro.
 
 ## Ramo 6 — `feat/avviso-aggiornamento-sul-pannello`
 
+> **Server e viewer web FATTI il 21-10-2026** (punti 1, 2 web, 3, 5; 16 test web, due test Rust sulle rotte e sulla risposta ridotta). **Resta il viewer LVGL** (punti 2 LVGL e 4), in un ramo a sé: login dentro l'avviso via `net_worker`, per non toccare il blocco documentato.
+
 Dall'11-10 l'avviso di aggiornamento sullo schermo del pannello **non può più comparire**. Il
 componente (`sws-editor/src/runtime-view/AvvisoAggiornamento.tsx:112`) e il suo gemello LVGL
 (`sws-runtime/crates/sws-lvgl-viewer/src/aggiornamento.rs:160`) mostrano qualcosa solo se non

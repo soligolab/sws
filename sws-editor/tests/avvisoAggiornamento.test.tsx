@@ -26,6 +26,10 @@ import { testoSistema, testoSistemaCon } from "../src/i18n/testiSistema";
 /** La lingua dei contenuti che `useLinguaContenuti` dà a progetto assente. */
 const L = "en";
 import { AvvisoAggiornamento, CONTROLLO_RIAVVIO_MS, ripartito } from "../src/runtime-view/AvvisoAggiornamento";
+import { useAppStore } from "../src/store";
+
+/** Il login dell'avviso: il campo password di `LoginScreen`, montato sopra l'avviso. */
+const campoPassword = () => document.querySelector('input[type="password"]');
 
 /** L'avviso di versione nuova sullo schermo del pannello (decisioni 41 e 44).
  *  Le regole di comparsa sono la parte che si sbaglia in silenzio: un avviso
@@ -42,6 +46,9 @@ describe("avviso di aggiornamento sul pannello", () => {
     statoAggiornamento.mockReset().mockResolvedValue(NUOVA);
     avviaAggiornamento.mockClear();
     getSystemStatus.mockReset().mockResolvedValue({ auth_required: false, uptime_s: 100 });
+    aggiornaQuadlet.mockClear();
+    confermaAggiornamento.mockClear();
+    useAppStore.getState().clearAuth?.();
   });
 
   it("senza utenti e con una versione nuova, compare", async () => {
@@ -51,13 +58,30 @@ describe("avviso di aggiornamento sul pannello", () => {
     expect(screen.getByText(/progetti vanno riaperti/)).toBeTruthy();
   });
 
-  /** Con utenti definiti l'aggiornamento è dell'Admin, dall'IDE: sullo
-   *  schermo non compare niente — e non si chiede nemmeno al registry. */
-  it("con utenti definiti non compare, e non interroga il registry", async () => {
+  /** Dal 20-10-2026 (ramo 6 della chiusura dei residui): un pannello abbinato ha
+   *  sempre utenti, e la regola vecchia — «con utenti non compare» — voleva dire che
+   *  l'avviso non compariva **mai**. Ora compare, e le credenziali si chiedono al
+   *  momento di applicare: «Aggiorna» apre il login e aspetta un Admin. */
+  it("con utenti compare, e «Aggiorna» aspetta il login di un Admin", async () => {
     getSystemStatus.mockResolvedValue({ auth_required: true, uptime_s: 100 });
     render(<AvvisoAggiornamento />);
-    await waitFor(() => expect(statoAggiornamento).not.toHaveBeenCalled());
-    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(await screen.findByRole("dialog")).toBeTruthy();
+    fireEvent.click(screen.getByText(testoSistema("agg_aggiorna", L)));
+    await waitFor(() => expect(campoPassword()).not.toBeNull());
+    expect(avviaAggiornamento).not.toHaveBeenCalled();
+    useAppStore.getState().setAuth("token-admin", "admin", "Admin");
+    await waitFor(() => expect(avviaAggiornamento).toHaveBeenCalledTimes(1));
+    expect(campoPassword()).toBeNull();
+  });
+
+  it("con utenti, chi entra senza essere Admin non aggiorna, e l'avviso lo dice", async () => {
+    getSystemStatus.mockResolvedValue({ auth_required: true, uptime_s: 100 });
+    render(<AvvisoAggiornamento />);
+    fireEvent.click(await screen.findByText(testoSistema("agg_aggiorna", L)));
+    await waitFor(() => expect(campoPassword()).not.toBeNull());
+    useAppStore.getState().setAuth("token-operatore", "operatore", "Operator");
+    expect(await screen.findByText(testoSistema("agg_serve_admin", L))).toBeTruthy();
+    expect(avviaAggiornamento).not.toHaveBeenCalled();
   });
 
   it("senza una versione nuova non compare", async () => {
@@ -125,15 +149,15 @@ describe("avviso di aggiornamento sul pannello", () => {
       novita_installata: { versione: "2.12.0-rc.9", testo: "- breve", testo_en: "- short" },
     });
     const { unmount } = render(<AvvisoAggiornamento />);
-    const d = await screen.findByRole("dialog");
+    const d = await screen.findByRole("status");
     expect(d.textContent).toContain("2.12.0-rc.8");
     expect(d.textContent).toContain("2.12.0-rc.9");
     fireEvent.click(screen.getByText(testoSistema("esito_chiudi", L)));
-    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(screen.queryByRole("status")).toBeNull();
     unmount();
     render(<AvvisoAggiornamento />);
     await waitFor(() => expect(statoAggiornamento).toHaveBeenCalled());
-    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(screen.queryByRole("status")).toBeNull();
   });
 
   it("un aggiornamento non riuscito lo dice, anche se la versione è quella di prima", async () => {
@@ -142,7 +166,7 @@ describe("avviso di aggiornamento sul pannello", () => {
       evento: { id: 8, da: "2.12.0-rc.8", a: "2.12.0-rc.9", esito: "non_riuscito" },
     });
     render(<AvvisoAggiornamento />);
-    const riquadro = (await screen.findByRole("dialog")).textContent ?? "";
+    const riquadro = (await screen.findByRole("status")).textContent ?? "";
     // Il titolo dice cosa è successo, la riga sotto con quali versioni: prima
     // stavano insieme, e si leggevano come l'annuncio di un aggiornamento.
     expect(riquadro).toContain(testoSistema("esito_titolo_ko", L));
@@ -156,13 +180,13 @@ describe("avviso di aggiornamento sul pannello", () => {
       statoAggiornamento.mockResolvedValue({ ...NUOVA, disponibile: null, novita: [], in_corso: true });
       render(<AvvisoAggiornamento />);
       await vi.advanceTimersByTimeAsync(0);
-      expect(screen.queryByRole("dialog")).toBeNull();
+      expect(screen.queryByRole("status")).toBeNull();
       statoAggiornamento.mockResolvedValue({
         ...NUOVA, disponibile: null, novita: [],
         evento: { id: 9, da: "2.12.0-rc.8", a: "2.12.0-rc.9", esito: "riuscito" },
       });
       await vi.advanceTimersByTimeAsync(30_000);
-      expect(screen.getByRole("dialog")).toBeTruthy();
+      expect(screen.getByRole("status")).toBeTruthy();
     } finally {
       vi.useRealTimers();
     }
@@ -182,13 +206,18 @@ describe("avviso di aggiornamento sul pannello", () => {
     await waitFor(() => expect(aggiornaQuadlet).toHaveBeenCalledTimes(1));
   });
 
-  it("con utenti, o se il pannello non sa aggiornarla da sé, non la offre", async () => {
+  it("con utenti la offre, e aggiornarla chiede il login; se il pannello non sa aggiornarla non la offre", async () => {
     statoAggiornamento.mockResolvedValue({ ...NUOVA, disponibile: null, novita: [] });
     getSystemStatus.mockResolvedValue({ auth_required: true, uptime_s: 100, quadlet: QUADLET_VECCHIO });
     const { unmount } = render(<AvvisoAggiornamento />);
-    await waitFor(() => expect(getSystemStatus).toHaveBeenCalled());
-    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(await screen.findByText(new RegExp(testoSistema("quadlet_titolo", L)))).toBeTruthy();
+    fireEvent.click(screen.getByText(testoSistema("agg_aggiorna", L)));
+    await waitFor(() => expect(campoPassword()).not.toBeNull());
+    expect(aggiornaQuadlet).not.toHaveBeenCalled();
+    useAppStore.getState().setAuth("token-admin", "admin", "Admin");
+    await waitFor(() => expect(aggiornaQuadlet).toHaveBeenCalledTimes(1));
     unmount();
+    useAppStore.getState().clearAuth?.();
     getSystemStatus.mockResolvedValue({ auth_required: false, uptime_s: 100, quadlet: { ...QUADLET_VECCHIO, si_puo_aggiornare: false } });
     render(<AvvisoAggiornamento />);
     await waitFor(() => expect(statoAggiornamento).toHaveBeenCalled());
@@ -231,11 +260,15 @@ describe("avviso di aggiornamento sul pannello", () => {
     await waitFor(() => expect(confermaAggiornamento).toHaveBeenCalledWith("ritorna"));
   });
 
-  it("con utenti la domanda non compare sul pannello (si risponde dall'IDE)", async () => {
+  it("con utenti la domanda compare sul pannello, e rispondere chiede il login di un Admin", async () => {
     statoAggiornamento.mockResolvedValue({ ...NUOVA, disponibile: null, novita: [] });
     getSystemStatus.mockResolvedValue({ auth_required: true, uptime_s: 300, conferma_aggiornamento: CONFERMA });
     render(<AvvisoAggiornamento />);
-    await waitFor(() => expect(getSystemStatus).toHaveBeenCalled());
-    expect(screen.queryByText(testoSistema("conf_titolo", L))).toBeNull();
+    expect(await screen.findByText(testoSistema("conf_titolo", L))).toBeTruthy();
+    fireEvent.click(screen.getByText(testoSistema("conf_pulisci", L)));
+    await waitFor(() => expect(campoPassword()).not.toBeNull());
+    expect(confermaAggiornamento).not.toHaveBeenCalled();
+    useAppStore.getState().setAuth("token-admin", "admin", "Admin");
+    await waitFor(() => expect(confermaAggiornamento).toHaveBeenCalledWith("pulisci"));
   });
 });

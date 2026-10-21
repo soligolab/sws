@@ -118,6 +118,8 @@ curl -k -X POST https://localhost:8444/api/auth/login \
 | GET | `/api/project/images`, `/api/project/images/:name` | le immagini del progetto |
 | GET | `/api/datastores`, `/api/datastores/:id/stats` | i datastore e le loro statistiche |
 | GET | `/api/project/fingerprint` | l'impronta del progetto, per sapere se è cambiato |
+| GET | `/api/system` | **ridotto** per chi non è Operator: solo versione, `uptime_s`, `auth_required`, stato del quadlet e domanda di conferma — i campi dell'avviso d'aggiornamento sullo schermo del pannello (dal 20-10-2026). Intero da Operator in su |
+| GET | `/api/update/status` | se c'è una versione nuova (aperta dal 20-10-2026: l'avviso compare anche su un pannello abbinato) |
 
 ### Operator
 
@@ -129,13 +131,15 @@ curl -k -X POST https://localhost:8444/api/auth/login \
 | GET | `/api/alarms/shelved` | gli allarmi sullo scaffale |
 | POST | `/api/recipes/:id/apply` | applica una ricetta |
 | POST | `/api/script/run/:name` | esegue una funzione Python del progetto |
-| GET | `/api/system` | stato della macchina |
+| GET | `/api/system` | stato della macchina, intero |
 
 ### Admin
 
+Le **scritture** dell'aggiornamento restano Admin anche sul viewer: l'avviso a schermo chiede le credenziali al
+momento di applicare. Un test (`le_scritture_dell_aggiornamento_restano_admin_sul_viewer`) lo fissa.
+
 | Metodo | Rotta | Cosa fa |
 |---|---|---|
-| GET | `/api/update/status` | se c'è una versione nuova |
 | POST | `/api/update/apply` | aggiorna |
 | POST | `/api/quadlet/aggiorna` | aggiorna il quadlet dell'unità |
 | POST | `/api/aggiornamento/istantanea` | istantanea dei dati prima di aggiornare |

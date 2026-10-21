@@ -2036,6 +2036,7 @@
     "noActiveAlarms": "No active alarms."
   },
   "runtimeView": {
+    "loginPerAggiornare": "Applying the update needs a panel administrator.",
     "close": "Close",
     "noParametersDefined": "No parameters defined.",
     "noDefault": "(no default)"
