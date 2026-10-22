@@ -80,6 +80,12 @@ pub enum Testo {
     // sul web e sul pannello LVGL.
     TrendNessunTag,
     TrendInAttesa,
+    /// «Attuale:» nel setpoint (22-10-2026). Era in `viewer.currentValue` di
+    /// `it.json`/`en.json`: **due lingue, e la lingua dell'IDE** invece di
+    /// quella dei contenuti — un operatore tedesco leggeva «Current:». È lo
+    /// stesso difetto che questa tabella esiste per chiudere, e serviva
+    /// comunque per farla comparire sul pannello.
+    SpAttuale,
     // La configurazione del servizio da aggiornare (02-10-2026, il quadlet che
     // viaggia): l'avviso sullo schermo del pannello, con `{da}` e `{a}`.
     QuadletTitolo,
@@ -136,6 +142,7 @@ pub const TUTTI: &[Testo] = &[
     Testo::EsitoChiudi,
     Testo::TrendNessunTag,
     Testo::TrendInAttesa,
+    Testo::SpAttuale,
     Testo::QuadletTitolo,
     Testo::QuadletSpiega,
     Testo::ConfTitolo,
@@ -189,6 +196,7 @@ pub fn da_nome(nome: &str) -> Option<Testo> {
         "esito_chiudi" => Testo::EsitoChiudi,
         "trend_nessun_tag" => Testo::TrendNessunTag,
         "trend_in_attesa" => Testo::TrendInAttesa,
+        "sp_attuale" => Testo::SpAttuale,
         "quadlet_titolo" => Testo::QuadletTitolo,
         "quadlet_spiega" => Testo::QuadletSpiega,
         "conf_titolo" => Testo::ConfTitolo,
@@ -415,6 +423,12 @@ pub fn testo(t: Testo, lingua: &str) -> &'static str {
         (TrendNessunTag, "fr") => "Aucun tag configuré",
         (TrendNessunTag, "es") => "Tag no configurado",
         (TrendNessunTag, _) => "No tag configured",
+
+        (SpAttuale, "it") => "Attuale:",
+        (SpAttuale, "de") => "Aktuell:",
+        (SpAttuale, "fr") => "Actuel :",
+        (SpAttuale, "es") => "Actual:",
+        (SpAttuale, _) => "Current:",
 
         (TrendInAttesa, "it") => "In attesa di campioni…",
         (TrendInAttesa, "de") => "Warte auf Messwerte…",

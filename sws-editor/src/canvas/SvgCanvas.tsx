@@ -6,7 +6,7 @@ import { useTranslation } from "react-i18next";
 import { PALETTE, TrendCanvas } from "@/canvas/TrendCanvas";
 import { TrendExpandedModal } from "@/canvas/TrendExpanded";
 import { XyPlotCanvas, type XyPlotSeriesLive } from "@/canvas/XyPlotCanvas";
-import { altezzaEtichetta, altezzaValore, corpoSecondario, passoRiga } from "@/canvas/geometriaTesto";
+import { altezzaEtichetta, altezzaMinimaSetpoint, altezzaValore, corpoAnnotazione, corpoSecondario, passoRiga } from "@/canvas/geometriaTesto";
 import { dividiSegmento, aggiungiInCoda, percorsoDaSalvare, puntiMovimento, tracciatoVisibile } from "@/canvas/percorsoMovimento";
 import { api } from "@/api/client";
 import { useAlarmStream } from "@/ws/alarmStream";
@@ -5011,11 +5011,23 @@ function SvgObjectCorpo(p: ObjProps) {
   // alongside the input so the operator can see what they're changing from.
 
   if (obj.type === "setpoint") {
-    const w = obj.width ?? 140; const h = obj.height ?? 56;
+    const w = obj.width ?? 140;
     const tv = obj.tag ? tagValues[obj.tag] : undefined;
     const currentVal = tv ? Number(tv.value) : undefined;
     const unit = obj.unit ? ` ${obj.unit}` : "";
     const readOnly = !!obj.read_only;
+    // Tre corpi, non cinque (22-10-2026, scelta del maintainer): l'etichetta,
+    // il testo — la riga «Attuale:» e il campo — e i due pulsantini. La riga
+    // «Attuale:» sta due punti sotto il valore (`corpoAnnotazione`), che coi
+    // corpi di oggi da' i 10 di prima contro i 12 del campo.
+    const corpoEtichetta = obj.label_font_size ?? 11;
+    const corpoTesto = obj.font_size ?? 12;
+    const corpoPulsanti = obj.button_font_size ?? 12;
+    // L'altezza minima dai tre corpi, la stessa funzione che usa il pannello:
+    // in 56 px tre righe non ci stanno, e il riquadro si allarga invece di far
+    // cadere una riga o di stringere il testo.
+    const hMin = altezzaMinimaSetpoint(corpoEtichetta, corpoTesto, corpoPulsanti, !!obj.label);
+    const h = Math.max(obj.height ?? 56, hMin);
 
     // WYSIWYG (2026-08-23): stesso layout del runtime anche in editor
     // (input disabilitati, pulsante ⌨ visibile) — l'anteprima non mente più.
@@ -5036,10 +5048,10 @@ function SvgObjectCorpo(p: ObjProps) {
           style={isEditMode ? { pointerEvents: "none" } : undefined}>
           <div style={{ display: "flex", flexDirection: "column", gap: 3, padding: "4px 2px", boxSizing: "border-box", height: "100%" }}>
             {obj.label && (
-              <span style={{ color: "var(--brand-text-muted, #94a3b8)", fontSize: 11 }}>{obj.label}</span>
+              <span style={{ color: "var(--brand-text-muted, #94a3b8)", fontSize: corpoEtichetta }}>{obj.label}</span>
             )}
-            <span style={{ color: "var(--brand-text-subtle, #64748b)", fontSize: 10 }}>
-              {t("viewer.currentValue")} {currentVal !== undefined && Number.isFinite(currentVal) ? `${(currentVal as number).toFixed(obj.decimals ?? 1)}${unit}` : "—"}
+            <span style={{ color: "var(--brand-text-subtle, #64748b)", fontSize: corpoAnnotazione(corpoTesto) }}>
+              {testoSistema("sp_attuale", lingua.lang)} {currentVal !== undefined && Number.isFinite(currentVal) ? `${(currentVal as number).toFixed(obj.decimals ?? 1)}${unit}` : "—"}
             </span>
             <div style={{ display: "flex", gap: 4 }}>
               <input
@@ -5053,7 +5065,7 @@ function SvgObjectCorpo(p: ObjProps) {
                 style={{
                   flex: 1, minWidth: 0, boxSizing: "border-box",
                   background: "var(--brand-bg, #0f172a)", border: "1px solid var(--brand-surface-2, #334155)",
-                  borderRadius: 4, color: "var(--synoptic-text, var(--brand-text, #e2e8f0))", padding: "3px 6px", fontSize: 12,
+                  borderRadius: 4, color: "var(--synoptic-text, var(--brand-text, #e2e8f0))", padding: "3px 6px", fontSize: corpoTesto,
                 }}
               />
               <button
@@ -5062,7 +5074,7 @@ function SvgObjectCorpo(p: ObjProps) {
                 title={t("canvas.setpointWrite")}
                 style={{
                   background: "var(--brand-primary, #3b82f6)", border: "none", borderRadius: 4,
-                  color: "#fff", cursor: readOnly ? "default" : "pointer", padding: "0 10px", fontSize: 12,
+                  color: "#fff", cursor: readOnly ? "default" : "pointer", padding: "0 10px", fontSize: corpoPulsanti,
                   opacity: (readOnly || setpointDraft === null) ? 0.5 : 1, flexShrink: 0,
                 }}
               >
@@ -5077,7 +5089,7 @@ function SvgObjectCorpo(p: ObjProps) {
                   style={{
                     background: "var(--brand-surface-2, #334155)", border: "none", borderRadius: 4,
                     color: "var(--synoptic-text, var(--brand-text, #e2e8f0))", cursor: "pointer", padding: "0 8px",
-                    fontSize: 13, flexShrink: 0,
+                    fontSize: corpoPulsanti, flexShrink: 0,
                   }}
                 >
                   ⌨

@@ -241,9 +241,34 @@ pub struct AuthState {
     users: RwLock<HashMap<String, StoredUser>>,
     sessions: RwLock<HashMap<String, Session>>,
     failures: RwLock<HashMap<String, LoginFailures>>,
+    /// Utenti e sessioni **messi da parte** da `chiudi()`, con il percorso da
+    /// cui venivano (22-10-2026, piano
+    /// `docs/plans/2026-10-22-sessione-che-non-sopravvive-al-deploy.md`).
+    ///
+    /// Esiste perché ogni deploy **chiude** il progetto, e `close_project`
+    /// faceva `clear()`: buttava tutte le sessioni, e il filtro «tieni quelle
+    /// degli utenti invariati» di `swap_store` non entrava mai in funzione,
+    /// perché non c'era più niente da filtrare. Chi apriva l'IDE o il viewer
+    /// come Admin si ritrovava scollegato dopo ogni deploy — e l'interfaccia
+    /// non lo diceva.
+    ///
+    /// **Le mappe vive restano vuote** mentre è chiuso: nessun token vale e
+    /// nessun login riesce, esattamente come con `clear()`. Qui c'è solo la
+    /// memoria di cosa c'era, e serve a una cosa sola — riaprire lo **stesso**
+    /// progetto senza buttare fuori nessuno.
+    messe_da_parte: RwLock<Option<DaParte>>,
     ttl: Duration,
     rate_limit: u32,
     rate_window: Duration,
+}
+
+/// Quello che `chiudi()` mette da parte: a chi riaprisse lo stesso progetto
+/// serve sapere chi c'era e con che sessioni.
+#[derive(Debug, Default)]
+struct DaParte {
+    percorso: Option<PathBuf>,
+    users: HashMap<String, StoredUser>,
+    sessions: HashMap<String, Session>,
 }
 
 #[derive(Debug, Clone)]
@@ -378,6 +403,7 @@ impl AuthState {
             users: RwLock::new(users),
             sessions: RwLock::new(HashMap::new()),
             failures: RwLock::new(HashMap::new()),
+            messe_da_parte: RwLock::new(None),
             ttl,
             rate_limit,
             rate_window,
@@ -422,6 +448,7 @@ impl AuthState {
             users: RwLock::new(users),
             sessions: RwLock::new(HashMap::new()),
             failures: RwLock::new(HashMap::new()),
+            messe_da_parte: RwLock::new(None),
             ttl,
             rate_limit,
             rate_window,
@@ -436,6 +463,7 @@ impl AuthState {
             users: RwLock::new(HashMap::new()),
             sessions: RwLock::new(HashMap::new()),
             failures: RwLock::new(HashMap::new()),
+            messe_da_parte: RwLock::new(None),
             ttl,
             rate_limit,
             rate_window,
@@ -480,6 +508,21 @@ impl AuthState {
         }
 
         let mut users = self.users.write().await;
+        let mut sessioni_tenute = self.sessions.write().await;
+        // Riapertura dello STESSO progetto dopo un `chiudi()`: si riprendono
+        // gli utenti e le sessioni messi da parte, e il filtro qui sotto fa il
+        // resto. Il vincolo sul percorso è ciò che rende il rimedio preciso:
+        // un progetto **diverso** non eredita niente, come prima.
+        if users.is_empty() && sessioni_tenute.is_empty() {
+            let mut da_parte = self.messe_da_parte.write().await;
+            if let Some(p) = da_parte.take() {
+                if p.percorso.as_deref() == Some(new_path.as_ref()) {
+                    *users = p.users;
+                    *sessioni_tenute = p.sessions;
+                }
+            }
+        }
+        drop(sessioni_tenute);
         let invariato = |nome: &str| match (users.get(nome), new_users.get(nome)) {
             (Some(a), Some(b)) => {
                 a.password_hash == b.password_hash
@@ -517,6 +560,30 @@ impl AuthState {
         self.sessions.write().await.clear();
         self.failures.write().await.clear();
         *self.store_path.write().await = None;
+        *self.messe_da_parte.write().await = None;
+    }
+
+    /// Chiude il progetto **mettendo da parte** utenti e sessioni, invece di
+    /// buttarli (22-10-2026).
+    ///
+    /// Dal lato della sicurezza non cambia niente rispetto a `clear()`: le
+    /// mappe vive restano vuote, quindi a progetto chiuso nessun token vale e
+    /// nessun login riesce. Cambia solo cosa succede alla **ri**apertura:
+    /// `swap_store` può confrontare gli utenti di prima con quelli appena
+    /// arrivati e tenere le sessioni di chi non è cambiato.
+    ///
+    /// È lo stesso idioma che gli allarmi usano già due righe sopra nel
+    /// `close_project`: «messo da parte, non buttato».
+    pub async fn chiudi(&self) {
+        let mut users = self.users.write().await;
+        let mut sessions = self.sessions.write().await;
+        let mut percorso = self.store_path.write().await;
+        *self.messe_da_parte.write().await = Some(DaParte {
+            percorso: percorso.take(),
+            users: std::mem::take(&mut *users),
+            sessions: std::mem::take(&mut *sessions),
+        });
+        self.failures.write().await.clear();
     }
 
     /// Verify credentials and mint a session token on success.
@@ -983,6 +1050,80 @@ mod tests {
         let pc = users_yaml_con(&d.path().join("c"), "operatore");
         a.swap_store(pc, vec![]).await.unwrap();
         assert!(a.validate(&ok2.token).await.is_none(), "utente tolto: sessione caduta");
+    }
+
+    /// **Il caso del deploy**, che prima non aveva nessun test: ogni deploy
+    /// chiude il progetto e lo riapre. Con `clear()` la sessione moriva
+    /// sempre, qualunque cosa dicesse il filtro di `swap_store`: le sessioni
+    /// erano già state buttate. Con `chiudi()` sopravvive — se è lo stesso
+    /// progetto e l'utente non è cambiato.
+    #[tokio::test]
+    async fn chiudi_e_riapri_lo_stesso_progetto_non_butta_fuori_nessuno() {
+        let d = tempfile::tempdir().unwrap();
+        let p = users_yaml_con(d.path(), "admin");
+        let a = stato(p.clone(), vec![]);
+        let ok = a
+            .login(&Credentials { username: "admin".into(), password: "x".into() })
+            .await
+            .unwrap();
+
+        a.chiudi().await;
+        // A progetto chiuso **non vale niente**: è il punto su cui la
+        // sicurezza non doveva cambiare di un millimetro rispetto a `clear()`.
+        assert!(a.validate(&ok.token).await.is_none(), "a progetto chiuso nessun token vale");
+        assert!(
+            a.login(&Credentials { username: "admin".into(), password: "x".into() })
+                .await
+                .is_err(),
+            "a progetto chiuso nessun login riesce"
+        );
+
+        a.swap_store(p.clone(), vec![]).await.unwrap();
+        assert!(
+            a.validate(&ok.token).await.is_some(),
+            "riaperto lo stesso progetto, l'utente invariato ritrova la sua sessione"
+        );
+    }
+
+    /// Il vincolo sul percorso: riaprire un progetto **diverso** non eredita
+    /// niente, come prima.
+    #[tokio::test]
+    async fn chiudi_e_apri_un_altro_progetto_non_eredita_le_sessioni() {
+        let d = tempfile::tempdir().unwrap();
+        let p = users_yaml_con(d.path(), "admin");
+        let a = stato(p, vec![]);
+        let ok = a
+            .login(&Credentials { username: "admin".into(), password: "x".into() })
+            .await
+            .unwrap();
+        a.chiudi().await;
+        let altro = d.path().join("altro");
+        std::fs::create_dir_all(&altro).unwrap();
+        let pb = users_yaml_con(&altro, "admin");
+        a.swap_store(pb, vec![]).await.unwrap();
+        assert!(
+            a.validate(&ok.token).await.is_none(),
+            "progetto diverso: la sessione di prima non vale"
+        );
+    }
+
+    /// E la password cambiata resta il caso che fa cadere la sessione anche
+    /// riaprendo lo stesso percorso — se no `chiudi()` sarebbe un buco.
+    #[tokio::test]
+    async fn chiudi_e_riapri_con_la_password_cambiata_fa_cadere_la_sessione() {
+        let d = tempfile::tempdir().unwrap();
+        let p = users_yaml_con(d.path(), "admin");
+        let a = stato(p.clone(), vec![]);
+        let ok = a
+            .login(&Credentials { username: "admin".into(), password: "x".into() })
+            .await
+            .unwrap();
+        a.chiudi().await;
+        // Lo stesso percorso, ma il file è stato riscritto: l'hash è salato,
+        // quindi un `users.yaml` prodotto altrove differisce sempre.
+        let _ = users_yaml_con(d.path(), "admin");
+        a.swap_store(p, vec![]).await.unwrap();
+        assert!(a.validate(&ok.token).await.is_none(), "password cambiata: sessione caduta");
     }
 
     /// Senza il seed non c'è niente da scrivere, e il file non si tocca. Prima

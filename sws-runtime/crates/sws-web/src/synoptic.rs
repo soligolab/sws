@@ -486,6 +486,11 @@ pub struct SynopticObject {
     /// campo qui, la GET di un sinottico lo lascerebbe per strada.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub label_font_size: Option<f64>,
+    /// Corpo dei pulsantini di comando dentro un oggetto (22-10-2026): il ✓ e
+    /// il ⌨ di un `setpoint`. Qui per lo stesso motivo di `label_font_size`:
+    /// senza, la GET di un sinottico lo lascia per strada.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub button_font_size: Option<f64>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub font_family: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]

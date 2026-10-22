@@ -371,6 +371,12 @@ export interface SynopticObject {
    *  dimensione diversa sotto un campo solo non si possono regolare, e quasi
    *  tutti i tipi rimasti ne hanno piu' di uno. */
   label_font_size?: number;
+  /** Corpo dei **pulsantini di comando** dentro un oggetto: il ✓ e il ⌨ di un
+   *  `setpoint` (22-10-2026). Terzo campo e non quinto, scelta del maintainer:
+   *  cinque voci numeriche per un oggetto che è un numero e un'etichetta non
+   *  le userebbe nessuno; e due sole farebbero crescere i pulsanti insieme al
+   *  valore, con un ⌨ grande quanto il numero che si mangia il riquadro. */
+  button_font_size?: number;
   font_family?: string;
   /** "normal" | "bold" | number (100-900). */
   font_weight?: string | number;

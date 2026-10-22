@@ -62,6 +62,77 @@ pub async fn fetch_page(base_url: &str, page_name: &str) -> anyhow::Result<Synop
     Ok(page)
 }
 
+/// `GET /api/auth/whoami` — **questo token vale ancora?** (22-10-2026, piano
+/// `docs/plans/2026-10-22-sessione-che-non-sopravvive-al-deploy.md`).
+///
+/// Ritorna il nome utente: **vuoto vuol dire che il server non riconosce più
+/// questo token**. Sulla porta del viewer `whoami` sta sotto `optional_auth`,
+/// quindi un token morto non dà 401 — risponde 200 con `username: ""`. È lo
+/// stesso declassamento silenzioso che sul web lasciava l'interfaccia a dire
+/// che sei Admin.
+///
+/// **Non** si usa `/api/system` come sonda: sta dietro `require_operator`, e
+/// una sessione Viewer viva prenderebbe 403 facendosi buttare fuori per
+/// sbaglio.
+pub async fn whoami(base_url: &str, token: &str) -> anyhow::Result<String> {
+    let mut url = reqwest::Url::parse(base_url)?;
+    url.path_segments_mut()
+        .map_err(|_| anyhow::anyhow!("base URL non può avere path segments (cannot-be-a-base)"))?
+        .push("api")
+        .push("auth")
+        .push("whoami");
+    let client = reqwest::Client::builder()
+        .use_preconfigured_tls(pinned_client_config(base_url)?)
+        .build()?;
+    let resp = client
+        .get(url)
+        .header("Authorization", format!("Bearer {token}"))
+        .send()
+        .await?
+        .error_for_status()?;
+    let v = resp.json::<serde_json::Value>().await?;
+    Ok(v.get("username").and_then(|u| u.as_str()).unwrap_or("").to_string())
+}
+
+/// Come [`fetch_page`], ma restituisce il JSON **grezzo** (22-10-2026).
+///
+/// Serve alle finestre: i parametri `{nome}` si sostituiscono prima di
+/// deserializzare, perché un segnaposto dentro un campo numerico non deve
+/// diventare un errore di parsing — e perché `SynopticObject` è solo
+/// `Deserialize`, quindi un giro di andata e ritorno attraverso JSON non si
+/// può fare dalla struct.
+pub async fn fetch_page_raw(base_url: &str, page_name: &str) -> anyhow::Result<serde_json::Value> {
+    let mut url = reqwest::Url::parse(base_url)?;
+    url.path_segments_mut()
+        .map_err(|_| anyhow::anyhow!("base URL non può avere path segments (cannot-be-a-base)"))?
+        .push("api")
+        .push("synoptics")
+        .push(page_name);
+    url.query_pairs_mut().append_pair("cornice", "1");
+    let client = reqwest::Client::builder()
+        .use_preconfigured_tls(pinned_client_config(base_url)?)
+        .build()?;
+    let resp = client.get(url).send().await?.error_for_status()?;
+    Ok(resp.json::<serde_json::Value>().await?)
+}
+
+/// La pagina grezza che corrisponde a un **id** (non a un nome file): stessa
+/// risoluzione di [`resolve_page_by_id`], che cerca per id e ripiega sul nome.
+pub async fn resolve_page_raw_by_id(
+    base_url: &str,
+    target_page_id: &str,
+) -> anyhow::Result<serde_json::Value> {
+    let names = list_synoptics(base_url).await?;
+    for name in &names {
+        if let Ok(v) = fetch_page_raw(base_url, name).await {
+            if v.get("id").and_then(|i| i.as_str()) == Some(target_page_id) {
+                return Ok(v);
+            }
+        }
+    }
+    fetch_page_raw(base_url, target_page_id).await
+}
+
 /// `GET /api/faceplates/:id` — stesso endpoint anonymous-readable usato
 /// dall'editor, registrato anche nel gruppo di route del viewer (vedi
 /// `sws-web/src/router.rs`, righe 517-518), quindi nessun header

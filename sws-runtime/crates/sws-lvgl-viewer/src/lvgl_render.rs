@@ -494,8 +494,26 @@ pub enum LiveKind {
     /// `Text`).
     Setpoint {
         value_ptr: core::ptr::NonNull<lvgl_sys::lv_obj_t>,
+        /// La riga «Attuale: …» (22-10-2026): viva come il valore, o
+        /// mostrerebbe il numero del momento in cui la pagina è stata aperta.
+        attuale_ptr: core::ptr::NonNull<lvgl_sys::lv_obj_t>,
+        /// La parola «Attuale:» nella lingua dei contenuti, risolta alla
+        /// creazione dalla tabella dei testi di sistema.
+        attuale_testo: String,
         tag: Option<String>,
         unit: String,
+        decimali: usize,
+        /// Il contesto del setpoint, *leakato* e quindi `'static`, per leggere
+        /// la bozza (22-10-2026). Serve a NON sovrascrivere il campo mentre un
+        /// valore digitato aspetta il ✓: senza, il giro successivo di
+        /// `update_bindings` ci rimetterebbe sopra il valore del tag e la
+        /// bozza sparirebbe sotto le dita di chi l'ha scritta.
+        ///
+        /// Puntatore grezzo e non riferimento: questo tipo viaggia in un
+        /// `Vec` che attraversa funzioni del ciclo, e un `&'static` con dentro
+        /// un `RefCell` lo renderebbe non `Send`. Il puntatore è lo stesso
+        /// idioma dei `NonNull<lv_obj_t>` qui sopra.
+        ctx: *const core::ffi::c_void,
     },
     /// Badge con il conteggio degli allarmi attivi (filtrati come
     /// `alarm_viewer`) — il pannello a comparsa con l'elenco è gestito
@@ -766,11 +784,32 @@ struct RadioOptionCtx {
     tx: mpsc::Sender<TagCommand>,
 }
 
+/// Quello che un tocco chiede al ciclo di rendering di fare **dopo**
+/// (22-10-2026, piano delle finestre modali).
+///
+/// Era un `String` col solo id di pagina. Da quando esistono le finestre le
+/// cose che un tocco può chiedere sono tre, e **devono passare tutte di qui**:
+/// una callback LVGL non può fare I/O di rete né toccare lo stato del ciclo —
+/// è la regola per cui esistono `tag_tx`, `nav_tx` e `ack_tx`, e c'è un blocco
+/// permanente documentato in `render_auth_widget` sul non trasformare un
+/// `block_on` in `spawn` dentro una callback.
+#[derive(Debug, Clone, PartialEq)]
+pub enum Navigazione {
+    /// Vai a questa pagina, a schermo pieno, come sempre.
+    Pagina(String),
+    /// Apri una pagina come finestra modale, coi suoi parametri.
+    ApriFinestra { pagina: String, parametri: std::collections::HashMap<String, String> },
+    /// Apri un faceplate come finestra modale, coi suoi parametri.
+    ApriFaceplate { faceplate: String, parametri: std::collections::HashMap<String, String> },
+    /// Chiudi la finestra aperta, se c'è.
+    ChiudiFinestra,
+}
+
 /// Contesto per il click di un navbutton: il nome pagina è fisso quanto il
 /// `write_value` di un bottone — letto dal synottico, non dal vivo.
 struct NavClickCtx {
-    target_page: String,
-    tx: mpsc::Sender<String>,
+    target_page: Navigazione,
+    tx: mpsc::Sender<Navigazione>,
 }
 
 /// Alloca un contesto `'static` per una callback LVGL (`Box::leak`, stesso
@@ -3523,15 +3562,278 @@ fn area_comando(
     Ok(())
 }
 
-/// La pagina che un bottone «Apri finestra» apre (P1, 17-10-2026). Su questo
-/// motore le finestre non ci sono ancora: il tocco naviga alla pagina, a schermo
-/// pieno e senza parametri — il ripiego scelto dal maintainer.
-fn pagina_della_finestra(obj: &SynopticObject) -> Option<String> {
+/// Cosa chiede al ciclo il `button_action` di un bottone, quando chiede
+/// qualcosa che non è una scrittura (22-10-2026).
+///
+/// Fino a oggi era `pagina_della_finestra`, e si fermava a `open_popup`
+/// traducendolo in una navigazione a schermo pieno senza parametri — il
+/// ripiego scelto dal maintainer il 17-10-2026, quando su questo motore le
+/// finestre non c'erano. Adesso ci sono, e le azioni riconosciute sono tre:
+/// `close_popup` non lo ascoltava **nessuno**, ed è il difetto da cui è
+/// partito tutto questo lavoro.
+fn azione_del_bottone(obj: &SynopticObject) -> Option<Navigazione> {
     let a = obj.button_action.as_ref()?;
-    if a.get("type").and_then(|t| t.as_str()) != Some("open_popup") {
-        return None;
+    let parametri = |chiave: &str| -> std::collections::HashMap<String, String> {
+        a.get(chiave)
+            .and_then(|p| p.as_object())
+            .map(|m| {
+                m.iter()
+                    .filter_map(|(k, v)| v.as_str().map(|v| (k.clone(), v.to_string())))
+                    .collect()
+            })
+            .unwrap_or_default()
+    };
+    let testo = |chiave: &str| -> Option<String> {
+        a.get(chiave).and_then(|p| p.as_str()).filter(|p| !p.is_empty()).map(str::to_owned)
+    };
+    match a.get("type").and_then(|t| t.as_str())? {
+        "open_popup" => Some(Navigazione::ApriFinestra {
+            pagina: testo("page")?,
+            parametri: parametri("params"),
+        }),
+        "open_faceplate" => Some(Navigazione::ApriFaceplate {
+            faceplate: testo("faceplate_id")?,
+            parametri: parametri("params"),
+        }),
+        "close_popup" => Some(Navigazione::ChiudiFinestra),
+        _ => None,
     }
-    a.get("page").and_then(|p| p.as_str()).filter(|p| !p.is_empty()).map(str::to_owned)
+}
+
+/// Una finestra modale aperta: tutto quello che va distrutto quando si chiude
+/// (22-10-2026, piano `docs/plans/2026-10-22-finestre-modali-su-lvgl.md`).
+///
+/// `velo` è la radice: contiene il contenitore, che contiene la barra e gli
+/// oggetti. Distruggere il velo distrugge tutto l'albero — ed è per questo che
+/// sta qui da solo e non c'è una lista di puntatori da tenere allineata.
+pub struct FinestraViva {
+    velo: core::ptr::NonNull<lvgl_sys::lv_obj_t>,
+    /// I collegamenti ai tag degli oggetti della finestra: si aggiornano
+    /// mentre è aperta e muoiono con lei.
+    pub live: Vec<LiveBinding>,
+    /// Gli stili, tenuti in vita quanto i widget che li usano — stesso
+    /// principio del vettore `styles` di una pagina.
+    _styles: Vec<Style>,
+    /// I contesti leakati delle callback di QUESTA finestra, per liberarli
+    /// alla chiusura. **L'ordine non è negoziabile**: prima si distruggono i
+    /// widget, poi si liberano i contesti. Al contrario sarebbe una lettura di
+    /// memoria già liberata al primo evento rimasto in coda.
+    contesti: Vec<*mut core::ffi::c_void>,
+}
+
+impl FinestraViva {
+    /// Distrugge la finestra e libera quello che le apparteneva.
+    pub fn chiudi(self) {
+        unsafe {
+            lvgl_sys::lv_obj_del(self.velo.as_ptr());
+        }
+        // Dopo `lv_obj_del`: i widget non ci sono più, quindi nessun evento
+        // può più arrivare a questi contesti.
+        for c in self.contesti {
+            unsafe {
+                drop(Box::from_raw(c as *mut NavClickCtx));
+            }
+        }
+    }
+}
+
+/// L'altezza della barra del titolo di una finestra. Ci stanno un testo da 13
+/// e il ✕, con due pixel di respiro.
+const BARRA_FINESTRA: i16 = 26;
+
+/// Apre una pagina come **finestra modale** sul layer superiore.
+///
+/// `pagina` arriva coi parametri già sostituiti (`parametri::sostituisci`),
+/// perché la sostituzione si fa sul JSON grezzo prima di deserializzare: un
+/// `{nome}` dentro un campo numerico non deve diventare un errore di parsing.
+///
+/// Il velo c'è **sempre**, anche per una pagina dichiarata `modale: false`
+/// (decisione del maintainer): quella variante esiste per lavorare con la
+/// finestra aperta usando il mouse sulla pagina sotto, e su un vetro da 7" la
+/// pagina sotto non la raggiungi comunque.
+#[allow(clippy::too_many_arguments)]
+pub fn apri_finestra(
+    pagina: &SynopticPage,
+    titolo: &str,
+    tags: &TagSnapshot,
+    tag_tx: &mpsc::Sender<TagCommand>,
+    nav_tx: &mpsc::Sender<Navigazione>,
+    base_url: &str,
+    rt_handle: &tokio::runtime::Handle,
+    shared_alarms: &SharedAlarms,
+    ack_tx: &mpsc::Sender<String>,
+    lang_table: &LanguageTable,
+    shared_lang: &SharedLang,
+    shared_session: &SharedSession,
+) -> anyhow::Result<(FinestraViva, RenderSummary)> {
+    let (schermo_w, schermo_h) = risoluzione();
+    let top = unsafe { lvgl_sys::lv_disp_get_layer_top(core::ptr::null_mut()) };
+    if top.is_null() {
+        anyhow::bail!("il layer superiore non c'è");
+    }
+
+    let mut styles: Vec<Style> = Vec::new();
+    let mut contesti: Vec<*mut core::ffi::c_void> = Vec::new();
+
+    // ── il velo ──────────────────────────────────────────────────────────
+    let velo = core::ptr::NonNull::new(unsafe { lvgl_sys::lv_obj_create(top) })
+        .ok_or_else(|| anyhow::anyhow!("lv_obj_create del velo ha restituito null"))?;
+    unsafe {
+        let p = velo.as_ptr();
+        lvgl_sys::lv_obj_remove_style(
+            p,
+            core::ptr::null_mut(),
+            (lvgl_sys::LV_PART_ANY | lvgl_sys::LV_STATE_ANY) as lvgl_sys::lv_style_selector_t,
+        );
+        // Posizione e misura DOPO `remove_style`: in LVGL 8 sono stili locali,
+        // e `remove_style(NULL, ANY)` se le porterebbe via — la stessa
+        // trappola già pagata in `render_setpoint`, dove il contenitore
+        // collassava a zero e spariva con tutto il contenuto.
+        lvgl_sys::lv_obj_set_pos(p, 0, 0);
+        lvgl_sys::lv_obj_set_size(p, schermo_w, schermo_h);
+        stile::sfondo(p, (0, 0, 0), stile::MAIN);
+        lvgl_sys::lv_obj_set_style_bg_opa(p, (0.6 * 255.0) as u8, stile::MAIN);
+        lvgl_sys::lv_obj_clear_flag(p, lvgl_sys::LV_OBJ_FLAG_SCROLLABLE);
+        // Cliccabile e senza callback: assorbe i tocchi diretti alla pagina
+        // sotto — è ciò che «modale» vuol dire — e toccarlo NON chiude
+        // (decisione del maintainer: su un touch si chiuderebbe per sbaglio
+        // con un dito appoggiato male).
+        lvgl_sys::lv_obj_add_flag(p, lvgl_sys::LV_OBJ_FLAG_CLICKABLE);
+    }
+
+    // ── il contenitore ───────────────────────────────────────────────────
+    // Tagliato alla misura dello schermo quando la pagina è più grande
+    // (decisione del maintainer): LVGL ritaglia da sé i figli che escono dal
+    // genitore, quindi basta non dargli una misura più grande del vetro.
+    let (pag_w, pag_h) = resolve_resolution(pagina);
+    let w = (pag_w as i16).min(schermo_w);
+    let h = ((pag_h as i16).saturating_add(BARRA_FINESTRA)).min(schermo_h);
+    let contenitore = core::ptr::NonNull::new(unsafe { lvgl_sys::lv_obj_create(velo.as_ptr()) })
+        .ok_or_else(|| anyhow::anyhow!("lv_obj_create del contenitore ha restituito null"))?;
+    unsafe {
+        let p = contenitore.as_ptr();
+        lvgl_sys::lv_obj_remove_style(
+            p,
+            core::ptr::null_mut(),
+            (lvgl_sys::LV_PART_ANY | lvgl_sys::LV_STATE_ANY) as lvgl_sys::lv_style_selector_t,
+        );
+        lvgl_sys::lv_obj_set_size(p, w, h);
+        lvgl_sys::lv_obj_align(p, lvgl_sys::LV_ALIGN_CENTER as lvgl_sys::lv_align_t, 0, 0);
+        stile::sfondo(p, (0x0f, 0x17, 0x2a), stile::MAIN);
+        stile::bordo(p, Some((0x33, 0x41, 0x55)), 1.0, stile::MAIN);
+        stile::raggio(p, 6.0, stile::MAIN);
+        lvgl_sys::lv_obj_clear_flag(p, lvgl_sys::LV_OBJ_FLAG_SCROLLABLE);
+    }
+
+    // ── la barra del titolo, col ✕ ───────────────────────────────────────
+    unsafe {
+        let barra = lvgl_sys::lv_obj_create(contenitore.as_ptr());
+        if !barra.is_null() {
+            lvgl_sys::lv_obj_remove_style(
+                barra,
+                core::ptr::null_mut(),
+                (lvgl_sys::LV_PART_ANY | lvgl_sys::LV_STATE_ANY) as lvgl_sys::lv_style_selector_t,
+            );
+            lvgl_sys::lv_obj_set_pos(barra, 0, 0);
+            lvgl_sys::lv_obj_set_size(barra, w, BARRA_FINESTRA);
+            stile::sfondo(barra, (0x1e, 0x29, 0x3b), stile::MAIN);
+            lvgl_sys::lv_obj_clear_flag(barra, lvgl_sys::LV_OBJ_FLAG_SCROLLABLE);
+
+            let t = lvgl_sys::lv_label_create(barra);
+            if !t.is_null() {
+                let testo = text_cstring(titolo);
+                lvgl_sys::lv_label_set_text(t, testo.as_ptr());
+                stile::testo(t, (0xe2, 0xe8, 0xf0), stile::MAIN);
+                stile::font(t, 13, stile::MAIN);
+                lvgl_sys::lv_obj_set_pos(t, 8, 5);
+            }
+
+            // Il ✕ lo disegna il motore (decisione del maintainer): senza, una
+            // finestra di cui l'autore ha dimenticato il bottone «Chiudi»
+            // resterebbe prigioniera sullo schermo.
+            let x = lvgl_sys::lv_btn_create(barra);
+            if !x.is_null() {
+                lvgl_sys::lv_obj_set_size(x, 28, BARRA_FINESTRA - 4);
+                lvgl_sys::lv_obj_set_pos(x, w - 30, 2);
+                stile::trasparente(x, stile::MAIN);
+                stile::bordo(x, None, 0.0, stile::MAIN);
+                let l = lvgl_sys::lv_label_create(x);
+                if !l.is_null() {
+                    let cross = text_cstring("✕");
+                    lvgl_sys::lv_label_set_text(l, cross.as_ptr());
+                    stile::testo(l, (0x94, 0xa3, 0xb8), stile::MAIN);
+                    stile::font(l, 13, stile::MAIN);
+                    lvgl_sys::lv_obj_align(l, lvgl_sys::LV_ALIGN_CENTER as lvgl_sys::lv_align_t, 0, 0);
+                }
+                let ctx = leak_ctx(NavClickCtx {
+                    target_page: Navigazione::ChiudiFinestra,
+                    tx: nav_tx.clone(),
+                });
+                contesti.push(ctx);
+                lvgl_sys::lv_obj_add_event_cb(
+                    x,
+                    Some(sws_navbutton_clicked_cb),
+                    lvgl_sys::lv_event_code_t_LV_EVENT_CLICKED,
+                    ctx,
+                );
+            }
+        }
+    }
+
+    // ── gli oggetti della pagina-finestra ────────────────────────────────
+    // Sotto la barra, in un'area a sé: così le coordinate degli oggetti
+    // restano quelle della pagina, senza traslazioni.
+    let mut area = unsafe {
+        let p = lvgl_sys::lv_obj_create(contenitore.as_ptr());
+        let nn = core::ptr::NonNull::new(p)
+            .ok_or_else(|| anyhow::anyhow!("lv_obj_create dell'area ha restituito null"))?;
+        lvgl_sys::lv_obj_remove_style(
+            p,
+            core::ptr::null_mut(),
+            (lvgl_sys::LV_PART_ANY | lvgl_sys::LV_STATE_ANY) as lvgl_sys::lv_style_selector_t,
+        );
+        lvgl_sys::lv_obj_set_pos(p, 0, BARRA_FINESTRA);
+        lvgl_sys::lv_obj_set_size(p, w, h - BARRA_FINESTRA);
+        lvgl_sys::lv_obj_clear_flag(p, lvgl_sys::LV_OBJ_FLAG_SCROLLABLE);
+        if let Some(bg) = pagina.background.as_deref().and_then(parse_hex_color) {
+            stile::sfondo(p, bg, stile::MAIN);
+        } else {
+            stile::trasparente(p, stile::MAIN);
+        }
+        <lvgl::Obj as Widget>::from_raw(nn)
+    };
+    lvgl_font::apply_to(area.raw().map_err(|e| anyhow::anyhow!("raw: {e:?}"))?.as_ptr());
+    let area_ptr = area.raw().map_err(|e| anyhow::anyhow!("raw: {e:?}"))?.as_ptr();
+
+    let viewer_role: Option<Role> = shared_session
+        .lock()
+        .unwrap_or_else(|e| e.into_inner())
+        .role;
+    let own_page_id = pagina.id.clone().unwrap_or_default();
+    let mut summary = RenderSummary::default();
+    let mut live: Vec<LiveBinding> = Vec::new();
+    rendi_oggetti_in(
+        &mut area,
+        area_ptr,
+        pagina,
+        viewer_role,
+        &own_page_id,
+        tags,
+        tag_tx,
+        nav_tx,
+        base_url,
+        rt_handle,
+        shared_alarms,
+        ack_tx,
+        lang_table,
+        shared_lang,
+        shared_session,
+        &mut summary,
+        &mut styles,
+        &mut live,
+    );
+
+    Ok((FinestraViva { velo, live, _styles: styles, contesti }, summary))
 }
 
 fn render_button(
@@ -3539,7 +3841,7 @@ fn render_button(
     obj: &SynopticObject,
     styles: &mut Vec<Style>,
     tx: &mpsc::Sender<TagCommand>,
-    nav_tx: &mpsc::Sender<String>,
+    nav_tx: &mpsc::Sender<Navigazione>,
     live: &mut Vec<LiveBinding>,
 ) -> anyhow::Result<()> {
     let mut btn = Btn::create(screen).map_err(|e| anyhow::anyhow!("Btn::create: {e:?}"))?;
@@ -3581,8 +3883,8 @@ fn render_button(
     }
 
     let ptr = btn.raw().map_err(|e| anyhow::anyhow!("raw: {e:?}"))?;
-    if let Some(pagina) = pagina_della_finestra(obj) {
-        let ctx = leak_ctx(NavClickCtx { target_page: pagina, tx: nav_tx.clone() });
+    if let Some(azione) = azione_del_bottone(obj) {
+        let ctx = leak_ctx(NavClickCtx { target_page: azione, tx: nav_tx.clone() });
         unsafe {
             lvgl_sys::lv_obj_add_event_cb(
                 ptr.as_ptr(),
@@ -3608,7 +3910,7 @@ fn render_navbutton(
     screen: &mut lvgl::Obj,
     obj: &SynopticObject,
     styles: &mut Vec<Style>,
-    nav_tx: &mpsc::Sender<String>,
+    nav_tx: &mpsc::Sender<Navigazione>,
 ) -> anyhow::Result<()> {
     let mut btn = Btn::create(screen).map_err(|e| anyhow::anyhow!("Btn::create: {e:?}"))?;
     set_pos_size(&mut btn, obj, 140.0, 36.0)?;
@@ -3655,7 +3957,7 @@ fn render_navbutton(
     if let Some(target_page) = &obj.target_page {
         let ptr = btn.raw().map_err(|e| anyhow::anyhow!("raw: {e:?}"))?;
         let ctx = leak_ctx(NavClickCtx {
-            target_page: target_page.clone(),
+            target_page: Navigazione::Pagina(target_page.clone()),
             tx: nav_tx.clone(),
         });
         unsafe {
@@ -3719,7 +4021,7 @@ fn render_page_navigator(
     screen: &mut lvgl::Obj,
     obj: &SynopticObject,
     styles: &mut Vec<Style>,
-    nav_tx: &mpsc::Sender<String>,
+    nav_tx: &mpsc::Sender<Navigazione>,
     own_page_id: &str,
     base_url: &str,
     rt_handle: &tokio::runtime::Handle,
@@ -3829,7 +4131,7 @@ fn render_page_navigator(
         // Il bottone della pagina in cui siamo non naviga da nessuna parte.
         if !voce.attiva {
             let ctx = leak_ctx(NavClickCtx {
-                target_page: voce.id.clone(),
+                target_page: Navigazione::Pagina(voce.id.clone()),
                 tx: nav_tx.clone(),
             });
             unsafe {
@@ -6912,6 +7214,20 @@ struct SetpointCtx {
     textarea_ptr: core::ptr::NonNull<lvgl_sys::lv_obj_t>,
     overlay_ptr: core::ptr::NonNull<lvgl_sys::lv_obj_t>,
     value_ptr: core::ptr::NonNull<lvgl_sys::lv_obj_t>,
+    /// Il valore digitato e **non ancora scritto** (22-10-2026).
+    ///
+    /// Il tastierino non scrive più da sé: riempie il campo, e il ✓ scrive —
+    /// la semantica del web, dove il campo tiene una bozza e il pulsante la
+    /// conferma. Scelta del maintainer: due passi invece di uno, più sicuro
+    /// per un setpoint d'impianto.
+    ///
+    /// `RefCell` e non un lock: le callback LVGL sparano sincrone dentro
+    /// `task_handler()`, sullo stesso thread del ciclo di rendering, mai in
+    /// parallelo con `update_bindings` — lo stesso ragionamento di
+    /// `AlarmAckCtx`.
+    bozza: RefCell<Option<f64>>,
+    unita: String,
+    decimali: usize,
 }
 
 /// Click sul pulsante "✎": mostra l'overlay e pre-riempie la textarea con
@@ -6951,10 +7267,17 @@ unsafe extern "C" fn sws_setpoint_ready_cb(e: *mut lvgl_sys::lv_event_t) {
         if !c_text.is_null() {
             if let Ok(text) = std::ffi::CStr::from_ptr(c_text).to_str() {
                 if let Ok(n) = text.trim().parse::<f64>() {
-                    let _ = ctx.tx.send(TagCommand {
-                        tag: ctx.tag.clone(),
-                        value: TagValue::Float(n),
-                    });
+                    // Non scrive: mette la bozza nel campo, e il ✓ la scrive.
+                    *ctx.bozza.borrow_mut() = Some(n);
+                    let d = ctx.decimali;
+                    let u = &ctx.unita;
+                    lvgl_sys::lv_label_set_text(
+                        ctx.value_ptr.as_ptr(),
+                        text_cstring(&format!("{n:.d$}{u}")).as_ptr(),
+                    );
+                    // Il bordo diventa quello del comando: si vede a colpo
+                    // d'occhio che quel numero non è ancora andato.
+                    stile::bordo(ctx.value_ptr.as_ptr(), Some((0x3b, 0x82, 0xf6)), 1.0, stile::MAIN);
                     lvgl_sys::lv_obj_add_flag(
                         ctx.overlay_ptr.as_ptr(),
                         lvgl_sys::LV_OBJ_FLAG_HIDDEN as lvgl_sys::lv_obj_flag_t,
@@ -6962,6 +7285,31 @@ unsafe extern "C" fn sws_setpoint_ready_cb(e: *mut lvgl_sys::lv_event_t) {
                 }
             }
         }
+    }
+}
+
+/// Click sul ✓: scrive la bozza, se c'è (22-10-2026).
+///
+/// Senza bozza non fa niente, e non è pigrizia: premere ✓ senza aver digitato
+/// vorrebbe dire riscrivere il valore corrente sul tag, cioè un comando
+/// all'impianto che nessuno ha chiesto.
+unsafe extern "C" fn sws_setpoint_conferma_cb(e: *mut lvgl_sys::lv_event_t) {
+    let user_data = unsafe { lvgl_sys::lv_event_get_user_data(e) };
+    if user_data.is_null() {
+        return;
+    }
+    let ctx = unsafe { &*(user_data as *const SetpointCtx) };
+    let Some(n) = ctx.bozza.borrow_mut().take() else {
+        return;
+    };
+    let _ = ctx.tx.send(TagCommand {
+        tag: ctx.tag.clone(),
+        value: TagValue::Float(n),
+    });
+    // Il bordo torna normale: la bozza non c'è più, e il vivo riprende a
+    // scrivere nel campo da `update_bindings`.
+    unsafe {
+        stile::bordo(ctx.value_ptr.as_ptr(), Some((0x33, 0x41, 0x55)), 1.0, stile::MAIN);
     }
 }
 
@@ -6999,11 +7347,30 @@ fn render_setpoint(
     styles: &mut Vec<Style>,
     tags: &TagSnapshot,
     tag_tx: &mpsc::Sender<TagCommand>,
+    // La lingua dei CONTENUTI: la riga «Attuale:» la prende da lì, non dalla
+    // lingua dell'IDE (22-10-2026).
+    shared_lang: &SharedLang,
 ) -> anyhow::Result<LiveBinding> {
     let w = obj.width.unwrap_or(140.0);
     let h = obj.height.unwrap_or(56.0);
-    let unit = obj.unit.clone().unwrap_or_default();
+    // Lo spazio prima dell'unità c'è anche sul web (`const unit = obj.unit ?
+    // ` ${obj.unit}` : ""`) e qui mancava: il pannello scriveva «0.0bar»
+    // contro «0.0 bar» del browser. Divergenza vecchia, trovata guardando
+    // un'istantanea il 22-10-2026.
+    let unit = obj
+        .unit
+        .as_deref()
+        .map(str::trim)
+        .filter(|u| !u.is_empty())
+        .map(|u| format!(" {u}"))
+        .unwrap_or_default();
     let read_only = obj.read_only.unwrap_or(false);
+    // Tre corpi, non cinque (22-10-2026): etichetta, testo, pulsantini. Sono i
+    // letterali del web, perché è il web il riferimento — qui l'etichetta era
+    // già 11 e il valore ereditava i 14 dello schermo contro i 12 del browser.
+    let corpo_etichetta = obj.label_font_size.unwrap_or(11.0);
+    let corpo_testo = obj.font_size.unwrap_or(12.0);
+    let corpo_pulsanti = obj.button_font_size.unwrap_or(12.0);
 
     let mut container = create_child_obj(screen)?;
     let container_ptr = container.raw().map_err(|e| anyhow::anyhow!("raw: {e:?}"))?;
@@ -7050,6 +7417,22 @@ fn render_setpoint(
     if let Some(bg) = &obj.fill {
         apply_bg_color(&mut container, bg, styles)?;
     }
+    // L'altezza minima dai tre corpi, dalla stessa funzione che usa il web
+    // (22-10-2026): tre righe in 48 px non ci stanno, e il riquadro si allarga
+    // invece di far cadere una riga o di stringere il testo. I sette setpoint
+    // misurati fra template e progetti veri stanno tutti a 48 e crescono tutti
+    // di 13.
+    unsafe {
+        let minima = sws_core::geometria_testo::altezza_minima_setpoint(
+            corpo_etichetta,
+            corpo_testo,
+            corpo_pulsanti,
+            obj.label.is_some(),
+        );
+        if minima > h {
+            lvgl_sys::lv_obj_set_height(container_ptr.as_ptr(), minima.round() as i16);
+        }
+    }
 
     // Le due righe hanno le altezze del web (`fontSize: 11` per l'etichetta,
     // poi il valore): infilarne tre in 48 pixel non riesce a nessuno dei due
@@ -7068,7 +7451,7 @@ fn render_setpoint(
         lbl_style.set_text_color(Color::from_rgb((148, 163, 184)));
         lbl.add_style(Part::Main, &mut lbl_style)
             .map_err(|e| anyhow::anyhow!("add_style: {e:?}"))?;
-        if let Some(px) = lvgl_font::at_size(11) {
+        if let Some(px) = lvgl_font::at_size(corpo_etichetta.round().clamp(6.0, 200.0) as u16) {
             unsafe {
                 lvgl_sys::lv_obj_set_style_text_font(
                     lbl.raw()
@@ -7080,8 +7463,32 @@ fn render_setpoint(
             };
         }
         styles.push(lbl_style);
-        y_cursor += 15;
+        y_cursor += (corpo_etichetta * 1.2).round() as i16 + 3;
     }
+
+    // La riga «Attuale: …» (22-10-2026): sul web c'è da sempre, qui non c'era.
+    // È viva come il valore — senza, mostrerebbe il numero del momento in cui
+    // la pagina è stata aperta. Il testo viene dalla tabella dei testi di
+    // sistema, quindi segue la lingua dei CONTENUTI e non quella dell'IDE: era
+    // il difetto di `viewer.currentValue`, due lingue e la lingua sbagliata.
+    let mut attuale_lbl =
+        Label::create(&mut container).map_err(|e| anyhow::anyhow!("Label::create: {e:?}"))?;
+    attuale_lbl
+        .set_pos(2, y_cursor)
+        .map_err(|e| anyhow::anyhow!("set_pos: {e:?}"))?;
+    let corpo_attuale = sws_core::geometria_testo::corpo_annotazione(corpo_testo);
+    unsafe {
+        let p = attuale_lbl.raw().map_err(|e| anyhow::anyhow!("raw: {e:?}"))?.as_ptr();
+        stile::testo(p, (0x64, 0x74, 0x8b), stile::MAIN);
+        stile::font(p, corpo_attuale.round().clamp(6.0, 200.0) as u16, stile::MAIN);
+    }
+    let attuale_ptr = attuale_lbl.raw().map_err(|e| anyhow::anyhow!("raw: {e:?}"))?;
+    let attuale_testo = crate::testi_sistema::testo(
+        crate::testi_sistema::Testo::SpAttuale,
+        &shared_lang.lock().unwrap_or_else(|e: std::sync::PoisonError<_>| e.into_inner()).clone(),
+    )
+    .to_string();
+    y_cursor += (corpo_attuale * 1.2).round() as i16 + 3;
 
     let mut value_lbl =
         Label::create(&mut container).map_err(|e| anyhow::anyhow!("Label::create: {e:?}"))?;
@@ -7096,6 +7503,28 @@ fn render_setpoint(
         .set_text(&text_cstring(&format!("{initial:.decimali$}{unit}")))
         .map_err(|e| anyhow::anyhow!("set_text: {e:?}"))?;
     let value_ptr = value_lbl.raw().map_err(|e| anyhow::anyhow!("raw: {e:?}"))?;
+    // Il valore si disegna come il CAMPO del web — riquadro col numero dentro
+    // — e non come una scritta nuda (22-10-2026). È anche il bersaglio del
+    // dito: toccarlo apre il tastierino, che è la decisione del maintainer
+    // («chi arriva dal browser tocca il numero, e non succedere niente è
+    // esattamente il difetto che stiamo correggendo altrove»).
+    unsafe {
+        let p = value_ptr.as_ptr();
+        stile::font(p, corpo_testo.round().clamp(6.0, 200.0) as u16, stile::MAIN);
+        stile::sfondo(p, (0x0f, 0x17, 0x2a), stile::MAIN);
+        stile::bordo(p, Some((0x33, 0x41, 0x55)), 1.0, stile::MAIN);
+        stile::raggio(p, 4.0, stile::MAIN);
+        stile::margini(p, 3, 6, stile::MAIN);
+    }
+    // La riga «Attuale:» col valore di partenza: `update_bindings` la tiene
+    // aggiornata, ma senza questo resterebbe vuota fino al primo giro — e in
+    // un'istantanea di un progetto senza sorgenti resterebbe vuota e basta.
+    unsafe {
+        lvgl_sys::lv_label_set_text(
+            attuale_ptr.as_ptr(),
+            text_cstring(&format!("{attuale_testo} {initial:.decimali$}{unit}")).as_ptr(),
+        );
+    }
 
     // Overlay a schermo intero, figlio dello `screen` (non del container:
     // deve poter coprire l'intera pagina, non solo il box del setpoint) —
@@ -7157,6 +7586,9 @@ fn render_setpoint(
         textarea_ptr,
         overlay_ptr,
         value_ptr,
+        bozza: RefCell::new(None),
+        unita: unit.clone(),
+        decimali,
     }));
     unsafe {
         lvgl_sys::lv_obj_add_event_cb(
@@ -7174,6 +7606,16 @@ fn render_setpoint(
     }
 
     if !read_only {
+        // Il tocco sul campo apre il tastierino, esattamente come il ⌨.
+        unsafe {
+            lvgl_sys::lv_obj_add_flag(value_ptr.as_ptr(), lvgl_sys::LV_OBJ_FLAG_CLICKABLE);
+            lvgl_sys::lv_obj_add_event_cb(
+                value_ptr.as_ptr(),
+                Some(sws_setpoint_edit_clicked_cb),
+                lvgl_sys::lv_event_code_t_LV_EVENT_CLICKED,
+                ctx as *const SetpointCtx as *mut std::ffi::c_void,
+            );
+        }
         let mut edit_btn =
             Btn::create(&mut container).map_err(|e| anyhow::anyhow!("Btn::create: {e:?}"))?;
         edit_btn
@@ -7186,8 +7628,10 @@ fn render_setpoint(
             .map_err(|e| anyhow::anyhow!("set_size: {e:?}"))?;
         let mut edit_lbl =
             Label::create(&mut edit_btn).map_err(|e| anyhow::anyhow!("Label::create: {e:?}"))?;
+        // ⌨ come sul web, al posto della parola «Scrivi»: un glifo non va
+        // tradotto, e il bottone è lo stesso dei due motori (22-10-2026).
         edit_lbl
-            .set_text(&text_cstring("Scrivi"))
+            .set_text(&text_cstring("⌨"))
             .map_err(|e| anyhow::anyhow!("set_text: {e:?}"))?;
         unsafe {
             let l = edit_lbl
@@ -7195,7 +7639,7 @@ fn render_setpoint(
                 .map_err(|e| anyhow::anyhow!("raw: {e:?}"))?
                 .as_ptr();
             lvgl_sys::lv_obj_align(l, lvgl_sys::LV_ALIGN_CENTER as lvgl_sys::lv_align_t, 0, 0);
-            if let Some(f) = lvgl_font::at_size(11) {
+            if let Some(f) = lvgl_font::at_size(corpo_pulsanti.round().clamp(6.0, 200.0) as u16) {
                 lvgl_sys::lv_obj_set_style_text_font(l, f, 0);
             }
         }
@@ -7208,14 +7652,50 @@ fn render_setpoint(
                 ctx as *const SetpointCtx as *mut std::ffi::c_void,
             );
         }
+
+        // Il ✓, come sul web: scrive la bozza che il tastierino ha messo nel
+        // campo. Prima di oggi su questo motore non c'era, perché il
+        // tastierino scriveva da sé.
+        let mut ok_btn =
+            Btn::create(&mut container).map_err(|e| anyhow::anyhow!("Btn::create: {e:?}"))?;
+        ok_btn
+            .set_pos((w - 92.0).round() as i16, y_cursor.saturating_sub(2))
+            .map_err(|e| anyhow::anyhow!("set_pos: {e:?}"))?;
+        ok_btn
+            .set_size(40, 24)
+            .map_err(|e| anyhow::anyhow!("set_size: {e:?}"))?;
+        let mut ok_lbl =
+            Label::create(&mut ok_btn).map_err(|e| anyhow::anyhow!("Label::create: {e:?}"))?;
+        ok_lbl
+            .set_text(&text_cstring("✓"))
+            .map_err(|e| anyhow::anyhow!("set_text: {e:?}"))?;
+        unsafe {
+            let l = ok_lbl.raw().map_err(|e| anyhow::anyhow!("raw: {e:?}"))?.as_ptr();
+            lvgl_sys::lv_obj_align(l, lvgl_sys::LV_ALIGN_CENTER as lvgl_sys::lv_align_t, 0, 0);
+            if let Some(f) = lvgl_font::at_size(corpo_pulsanti.round().clamp(6.0, 200.0) as u16) {
+                lvgl_sys::lv_obj_set_style_text_font(l, f, 0);
+            }
+        }
+        unsafe {
+            lvgl_sys::lv_obj_add_event_cb(
+                ok_btn.raw().map_err(|e| anyhow::anyhow!("raw: {e:?}"))?.as_ptr(),
+                Some(sws_setpoint_conferma_cb),
+                lvgl_sys::lv_event_code_t_LV_EVENT_CLICKED,
+                ctx as *const SetpointCtx as *mut std::ffi::c_void,
+            );
+        }
     }
     let _ = container_ptr;
 
     Ok(LiveBinding {
         kind: LiveKind::Setpoint {
             value_ptr,
+            attuale_ptr,
+            attuale_testo,
             tag: obj.tag.clone(),
             unit,
+            decimali,
+            ctx: ctx as *const SetpointCtx as *const core::ffi::c_void,
         },
     })
 }
@@ -7241,7 +7721,7 @@ struct AuthToggleCtx {
     /// `min_role` della pagina corrente, non solo alla prossima navigazione:
     /// si rinaviga verso se stessi, stessa idea già usata da
     /// `lang_button`/`lang_selector` per il cambio lingua.
-    nav_tx: mpsc::Sender<String>,
+    nav_tx: mpsc::Sender<Navigazione>,
     own_page_id: String,
 }
 
@@ -7267,7 +7747,7 @@ unsafe extern "C" fn sws_auth_toggle_clicked_cb(e: *mut lvgl_sys::lv_event_t) {
         }
         // Il logout può far apparire "hide" o attenuare oggetti che erano
         // visibili/attivi un istante fa — non basta aggiornare l'etichetta.
-        let _ = ctx.nav_tx.send(ctx.own_page_id.clone());
+        let _ = ctx.nav_tx.send(Navigazione::Pagina(ctx.own_page_id.clone()));
     } else {
         unsafe {
             lvgl_sys::lv_obj_clear_flag(
@@ -7313,7 +7793,7 @@ struct AuthKeyboardCtx {
     /// Q36 parte 2 — stesso motivo di `AuthToggleCtx::nav_tx`: un login
     /// riuscito deve rivedersi subito sugli oggetti gated della pagina
     /// corrente.
-    nav_tx: mpsc::Sender<String>,
+    nav_tx: mpsc::Sender<Navigazione>,
     own_page_id: String,
 }
 
@@ -7412,7 +7892,7 @@ unsafe extern "C" fn sws_auth_keyboard_ready_cb(e: *mut lvgl_sys::lv_event_t) {
             }
             // Un login può sbloccare oggetti "hide"/"disable" già presenti
             // sulla pagina corrente — si vedono solo ridisegnandola.
-            let _ = ctx.nav_tx.send(ctx.own_page_id.clone());
+            let _ = ctx.nav_tx.send(Navigazione::Pagina(ctx.own_page_id.clone()));
         }
         Err(e) => unsafe {
             lvgl_sys::lv_label_set_text(
@@ -7456,7 +7936,7 @@ fn render_auth_widget(
     base_url: &str,
     rt_handle: &tokio::runtime::Handle,
     shared_session: &SharedSession,
-    nav_tx: &mpsc::Sender<String>,
+    nav_tx: &mpsc::Sender<Navigazione>,
     own_page_id: &str,
 ) -> anyhow::Result<()> {
     let (username, is_logged_in) = {
@@ -9006,7 +9486,7 @@ fn render_grid(
     styles: &mut Vec<Style>,
     tags: &TagSnapshot,
     tag_tx: &mpsc::Sender<TagCommand>,
-    nav_tx: &mpsc::Sender<String>,
+    nav_tx: &mpsc::Sender<Navigazione>,
     base_url: &str,
     rt_handle: &tokio::runtime::Handle,
     shared_alarms: &SharedAlarms,
@@ -9200,7 +9680,7 @@ fn render_grid_slot(
     styles: &mut Vec<Style>,
     tags: &TagSnapshot,
     tag_tx: &mpsc::Sender<TagCommand>,
-    nav_tx: &mpsc::Sender<String>,
+    nav_tx: &mpsc::Sender<Navigazione>,
     base_url: &str,
     rt_handle: &tokio::runtime::Handle,
     shared_alarms: &SharedAlarms,
@@ -10426,7 +10906,7 @@ struct LangButtonCtx {
     target_lang: String,
     shared_lang: SharedLang,
     own_page_id: String,
-    nav_tx: mpsc::Sender<String>,
+    nav_tx: mpsc::Sender<Navigazione>,
 }
 
 unsafe extern "C" fn sws_lang_button_clicked_cb(e: *mut lvgl_sys::lv_event_t) {
@@ -10439,7 +10919,7 @@ unsafe extern "C" fn sws_lang_button_clicked_cb(e: *mut lvgl_sys::lv_event_t) {
     // Registrata su disco: il pannello riparte a ogni riavvio del dispositivo,
     // e senza questo l'operatore ritrova la lingua del progettista.
     crate::client::salva_lingua(&ctx.target_lang);
-    let _ = ctx.nav_tx.send(ctx.own_page_id.clone());
+    let _ = ctx.nav_tx.send(Navigazione::Pagina(ctx.own_page_id.clone()));
 }
 
 /// `lang_button`: bottone "attivo" (evidenziato) se `target_lang` combacia
@@ -10453,7 +10933,7 @@ fn render_lang_button(
     screen: &mut lvgl::Obj,
     obj: &SynopticObject,
     styles: &mut Vec<Style>,
-    nav_tx: &mpsc::Sender<String>,
+    nav_tx: &mpsc::Sender<Navigazione>,
     shared_lang: &SharedLang,
     own_page_id: &str,
     base_url: &str,
@@ -10559,7 +11039,7 @@ struct LangSelectorCtx {
     langs: Vec<String>,
     shared_lang: SharedLang,
     own_page_id: String,
-    nav_tx: mpsc::Sender<String>,
+    nav_tx: mpsc::Sender<Navigazione>,
 }
 
 unsafe extern "C" fn sws_lang_selector_changed_cb(e: *mut lvgl_sys::lv_event_t) {
@@ -10579,7 +11059,7 @@ unsafe extern "C" fn sws_lang_selector_changed_cb(e: *mut lvgl_sys::lv_event_t) 
     };
     crate::client::salva_lingua(code);
     *ctx.shared_lang.lock().unwrap_or_else(|e| e.into_inner()) = code.clone();
-    let _ = ctx.nav_tx.send(ctx.own_page_id.clone());
+    let _ = ctx.nav_tx.send(Navigazione::Pagina(ctx.own_page_id.clone()));
 }
 
 /// `lang_selector`: `lv_dropdown` con `languages.langs` come opzioni
@@ -10593,7 +11073,7 @@ fn render_lang_selector(
     screen: &mut lvgl::Obj,
     obj: &SynopticObject,
     styles: &mut Vec<Style>,
-    nav_tx: &mpsc::Sender<String>,
+    nav_tx: &mpsc::Sender<Navigazione>,
     lang_table: &LanguageTable,
     shared_lang: &SharedLang,
     own_page_id: &str,
@@ -10658,7 +11138,7 @@ fn dispatch_render(
     styles: &mut Vec<Style>,
     tags: &TagSnapshot,
     tag_tx: &mpsc::Sender<TagCommand>,
-    nav_tx: &mpsc::Sender<String>,
+    nav_tx: &mpsc::Sender<Navigazione>,
     base_url: &str,
     rt_handle: &tokio::runtime::Handle,
     shared_alarms: &SharedAlarms,
@@ -10868,7 +11348,7 @@ fn dispatch_render(
         "recipe_panel" => {
             render_recipe_panel(screen, obj, styles, base_url, rt_handle, shared_session)
         }
-        "setpoint" => render_setpoint(screen, obj, styles, tags, tag_tx).map(|b| live.push(b)),
+        "setpoint" => render_setpoint(screen, obj, styles, tags, tag_tx, shared_lang).map(|b| live.push(b)),
         "xy_plot" => render_xy_plot(screen, obj, styles, base_url, rt_handle).map(|b| live.push(b)),
         "pie_chart" => render_pie_chart(screen, obj, tags).map(|b| live.push(b)),
         "lang_button" => render_lang_button(
@@ -11007,7 +11487,7 @@ fn render_faceplate(
     styles: &mut Vec<Style>,
     tags: &TagSnapshot,
     tag_tx: &mpsc::Sender<TagCommand>,
-    nav_tx: &mpsc::Sender<String>,
+    nav_tx: &mpsc::Sender<Navigazione>,
     base_url: &str,
     rt_handle: &tokio::runtime::Handle,
     shared_alarms: &SharedAlarms,
@@ -11114,7 +11594,7 @@ pub fn interpret_page(
     page: &SynopticPage,
     tags: &TagSnapshot,
     tag_tx: &mpsc::Sender<TagCommand>,
-    nav_tx: &mpsc::Sender<String>,
+    nav_tx: &mpsc::Sender<Navigazione>,
     base_url: &str,
     rt_handle: &tokio::runtime::Handle,
     shared_alarms: &SharedAlarms,
@@ -11178,12 +11658,209 @@ pub fn interpret_page(
 /// binding vivi da tenere in vita, e la risoluzione (hor, ver) del display.
 type PaginaResa = (RenderSummary, Vec<Style>, Vec<LiveBinding>, u32, u32);
 
+/// Il ciclo che crea i widget di una pagina **dentro un genitore qualunque**
+/// (22-10-2026, piano delle finestre modali).
+///
+/// Estratto da `render_page_objects`, che faceva tre cose insieme —
+/// ridimensionare il display, creare uno schermo nuovo, e questo. Per una
+/// finestra serve solo questo, con un contenitore al posto dello schermo: in
+/// LVGL le coordinate di un figlio sono relative al genitore, quindi gli
+/// oggetti di una pagina-finestra cadono al posto giusto senza traslazioni.
+///
+/// `page` resta quella a cui gli oggetti appartengono — per la finestra è la
+/// pagina-finestra, non quella sotto: è lei che decide `is_off_page` e la
+/// risoluzione di riferimento.
+#[allow(clippy::too_many_arguments)]
+fn rendi_oggetti_in(
+    genitore: &mut lvgl::Obj,
+    genitore_ptr: *mut lvgl_sys::lv_obj_t,
+    page: &SynopticPage,
+    viewer_role: Option<Role>,
+    own_page_id: &str,
+    tags: &TagSnapshot,
+    tag_tx: &mpsc::Sender<TagCommand>,
+    nav_tx: &mpsc::Sender<Navigazione>,
+    base_url: &str,
+    rt_handle: &tokio::runtime::Handle,
+    shared_alarms: &SharedAlarms,
+    ack_tx: &mpsc::Sender<String>,
+    lang_table: &LanguageTable,
+    shared_lang: &SharedLang,
+    shared_session: &SharedSession,
+    summary: &mut RenderSummary,
+    styles: &mut Vec<Style>,
+    live: &mut Vec<LiveBinding>,
+) {
+    for obj in sort_by_z(&page.objects) {
+        let (Some(id), Some(obj_type)) = (obj.id.as_deref(), obj.obj_type.as_deref()) else {
+            continue; // oggetto senza id/type: dato malformato, ignorato silenziosamente
+        };
+        // T-52 — il parcheggio: un oggetto portato interamente fuori dal foglio
+        // non si crea affatto.
+        //
+        // **L'ordine di queste righe è la semantica, e nessun compilatore lo
+        // direbbe.** Il controllo va qui, sulle coordinate *scritte*, e non più
+        // in basso: dopo `apply_bindings` e `punti_ancorati` la variabile `obj`
+        // è ombreggiata da una copia con la geometria risolta dai tag, e
+        // misurare quella significherebbe che un `x` legato a un tag disabilita
+        // l'oggetto sul pannello e non nel browser — dove il controllo sta
+        // prima della risoluzione. Parcheggiare è un gesto di progetto, non uno
+        // stato del vivo.
+        //
+        // Visivamente è **davvero** un no-op, e va detto con precisione perché
+        // il piano di T-52 diceva altro.
+        //
+        // Il piano sosteneva che senza questo gate un oggetto molto lontano
+        // sarebbe **rientrato per overflow**, perché `set_pos_size` castra a
+        // `i16` senza clamp: x = 66000 → 464, cioè dentro la pagina.
+        // **Misurato il 2026-09-06: non succede.** Il cast lì è da `f64`, e in
+        // Rust `f64 as i16` **satura** (dal 1.45): 66000.0 diventa 32767, non
+        // 464. L'avvolgimento vale per i cast fra interi — `66000_i32 as i16`
+        // fa davvero 464 — ma quella non è la strada che prende una coordinata.
+        // Disattivando questo `if` e ridisegnando la pagina, i pixel sono
+        // identici: gli oggetti fuori pagina non si vedono comunque, perché
+        // sono figli dello screen e LVGL li ritaglia da sé.
+        //
+        // Restano le altre due ragioni, che bastano: non si creano widget che
+        // non si vedranno — e i pannelli sono lenti — e il riepilogo lo dice,
+        // il che è l'unico modo di spiegare una pagina più vuota del previsto
+        // senza aprire l'editor. È anche l'unica cosa che
+        // `check_fuori_pagina_lvgl.sh` può misurare: l'immagine, da sola, non
+        // distingue il gate acceso da quello spento.
+        if obj.is_off_page(page) {
+            summary.skipped_off_page.push(id.to_string());
+            continue;
+        }
+        // Q36 parte 2 — gate `min_role`/`min_role_effect`, porto di F3.1 in
+        // `SvgCanvas.tsx`. Stesso punto del controllo fuori-pagina qui sopra
+        // e per lo stesso motivo: si misura su `min_role` così com'è scritto
+        // nel progetto, non su una copia risolta dai binding — non è un
+        // campo pensato per essere legato a un tag. "hide" è l'unico effetto
+        // che salta la creazione; qualunque altro valore (o l'assenza del
+        // campo) è "disable" e si decide più sotto, a widget già nati.
+        let role_ok = role_allowed(obj.min_role.as_deref(), viewer_role);
+        if !role_ok && obj.min_role_effect.as_deref() == Some("hide") {
+            summary.skipped_role.push(id.to_string());
+            continue;
+        }
+        // F2: i binding proprietà→tag vanno risolti PRIMA del render, come fa
+        // `resolveObject` sul web — altrimenti il widget nasce con la
+        // geometria statica e la posizione live non arriva mai.
+        // NOTA: questo dà lo stato iniziale corretto, non ancora il movimento
+        // continuo. Per quello serve il puntatore al widget dentro
+        // `update_bindings`, e le funzioni `render_*` oggi non lo restituiscono
+        // — vedi STATUS.md, va fatto col resto della parità F9c.
+        let bound = apply_bindings(obj, tags);
+        let obj = bound.as_ref().unwrap_or(obj);
+        // Pipe agganciate: i capi vanno risolti sugli oggetti veri della
+        // pagina, non sui punti scritti nel file. Va fatto qui e non dentro
+        // `render_pipe`, che vede solo il proprio oggetto — la lista completa
+        // ce l'ha solo il ciclo.
+        let manifesto = if obj_type == "pipe" { crate::simbolo_lib::manifesto(base_url, rt_handle) } else { None };
+        if obj_type == "pipe" {
+            let d = diametri_capi(obj, &page.objects, manifesto.as_deref());
+            BOCCHE_TUBO.with(|b| b.borrow_mut().insert(obj.id.clone().unwrap_or_default(), d));
+        }
+        let ancorata = percorso_tubo(obj, &page.objects, manifesto.as_deref()).map(|punti| SynopticObject {
+            points: Some(punti),
+            // Il percorso è già calcolato: al disegno è una spezzata dritta.
+            routing: match obj.routing.as_deref() {
+                Some("orthogonal") | Some("diagonal") => Some("straight".into()),
+                _ => obj.routing.clone(),
+            },
+            ..obj.clone()
+        });
+        let obj = ancorata.as_ref().unwrap_or(obj);
+        if !is_visible(obj, tags) {
+            continue;
+        }
+        if !SUPPORTED_TYPES.contains(&obj_type) {
+            summary
+                .skipped_unsupported
+                .push(format!("{id} ({obj_type})"));
+            continue;
+        }
+        // Quanti figli aveva lo schermo prima: quelli che compaiono dopo sono
+        // di questo oggetto, ed è così che `opacity` li raggiunge tutti senza
+        // che ogni `render_*` debba restituire i propri widget.
+        let figli_prima = unsafe { lvgl_sys::lv_obj_get_child_cnt(genitore_ptr) };
+        let result: anyhow::Result<()> = dispatch_render(
+            &mut *genitore,
+            obj_type,
+            obj,
+            styles,
+            tags,
+            tag_tx,
+            nav_tx,
+            base_url,
+            rt_handle,
+            shared_alarms,
+            ack_tx,
+            lang_table,
+            shared_lang,
+            shared_session,
+            own_page_id,
+            live,
+        );
+        // Q36 parte 2 — effetto "disable": ruolo insufficiente e non "hide"
+        // vuol dire 0.45 (combinato con l'`opacity` di progetto, se c'è —
+        // vedi `combined_opa`) e niente tocchi (`disable_clickable_from`,
+        // l'equivalente LVGL di `pointerEvents: "none"`).
+        let role_factor = if role_ok { 1.0 } else { 0.45 };
+        // Anche quando il render è fallito a metà: se qualche figlio è già
+        // nato, deve avere l'opacità che l'oggetto dichiara, non essere
+        // l'unico pezzo pienamente opaco della pagina.
+        if let Some(opa) = combined_opa(obj.opacity, role_factor) {
+            unsafe { apply_opacity_from(genitore_ptr, figli_prima, opa) };
+        }
+        if role_factor < 1.0 {
+            unsafe { disable_clickable_from(genitore_ptr, figli_prima) };
+        }
+        // Rotazione statica (26-09-2026): prima il campo c'era nel modello e
+        // nessuno lo leggeva, e un oggetto ruotato nell'editor stava dritto
+        // sul pannello.
+        if TIPI_RUOTABILI.contains(&obj_type) {
+            let angolo = angolo_statico(obj.rotation);
+            if angolo != 0 {
+                let cx = obj.x.unwrap_or(0.0) + obj.width.unwrap_or(100.0) / 2.0;
+                let cy = obj.y.unwrap_or(0.0) + obj.height.unwrap_or(50.0) / 2.0;
+                unsafe { apply_rotation_from(genitore_ptr, figli_prima, angolo, cx, cy) };
+            }
+        }
+        // Effetti di stato (lampeggio, dato vecchio, qualità, bordo d'allarme).
+        // Dopo l'opacità perché ne parte: `opa_base` è ciò che il progettista
+        // ha dichiarato (moltiplicato per `role_factor`), e lampeggio e
+        // attenuazione ci scrivono sopra a ogni frame.
+        if let Some(fx) = crea_effetti(
+            genitore_ptr,
+            obj,
+            figli_prima,
+            tags,
+            shared_alarms,
+            role_factor,
+        ) {
+            live.push(fx);
+        }
+        // Movimento su percorso: cattura gli stessi figli, con la posizione
+        // che hanno appena nati — è da quella che lo scostamento si misura.
+        if let Some(mv) = crea_movimento(genitore_ptr, obj, figli_prima) {
+            live.push(mv);
+        }
+        match result {
+            Ok(()) => summary.rendered.push(format!("{id} ({obj_type})")),
+            Err(e) => summary
+                .skipped_unsupported
+                .push(format!("{id} ({obj_type}) — errore: {e}")),
+        }
+    }
+}
+
 #[allow(clippy::too_many_arguments)]
 pub fn render_page_objects(
     page: &SynopticPage,
     tags: &TagSnapshot,
     tag_tx: &mpsc::Sender<TagCommand>,
-    nav_tx: &mpsc::Sender<String>,
+    nav_tx: &mpsc::Sender<Navigazione>,
     base_url: &str,
     rt_handle: &tokio::runtime::Handle,
     shared_alarms: &SharedAlarms,
@@ -11309,168 +11986,26 @@ pub fn render_page_objects(
     // Ordine di sovrapposizione: vedi `sort_by_z`. Va fatto qui e non dentro
     // `dispatch_render`, perché è una proprietà della pagina — l'ordine di
     // creazione dei figli — non del singolo oggetto.
-    for obj in sort_by_z(&page.objects) {
-        let (Some(id), Some(obj_type)) = (obj.id.as_deref(), obj.obj_type.as_deref()) else {
-            continue; // oggetto senza id/type: dato malformato, ignorato silenziosamente
-        };
-        // T-52 — il parcheggio: un oggetto portato interamente fuori dal foglio
-        // non si crea affatto.
-        //
-        // **L'ordine di queste righe è la semantica, e nessun compilatore lo
-        // direbbe.** Il controllo va qui, sulle coordinate *scritte*, e non più
-        // in basso: dopo `apply_bindings` e `punti_ancorati` la variabile `obj`
-        // è ombreggiata da una copia con la geometria risolta dai tag, e
-        // misurare quella significherebbe che un `x` legato a un tag disabilita
-        // l'oggetto sul pannello e non nel browser — dove il controllo sta
-        // prima della risoluzione. Parcheggiare è un gesto di progetto, non uno
-        // stato del vivo.
-        //
-        // Visivamente è **davvero** un no-op, e va detto con precisione perché
-        // il piano di T-52 diceva altro.
-        //
-        // Il piano sosteneva che senza questo gate un oggetto molto lontano
-        // sarebbe **rientrato per overflow**, perché `set_pos_size` castra a
-        // `i16` senza clamp: x = 66000 → 464, cioè dentro la pagina.
-        // **Misurato il 2026-09-06: non succede.** Il cast lì è da `f64`, e in
-        // Rust `f64 as i16` **satura** (dal 1.45): 66000.0 diventa 32767, non
-        // 464. L'avvolgimento vale per i cast fra interi — `66000_i32 as i16`
-        // fa davvero 464 — ma quella non è la strada che prende una coordinata.
-        // Disattivando questo `if` e ridisegnando la pagina, i pixel sono
-        // identici: gli oggetti fuori pagina non si vedono comunque, perché
-        // sono figli dello screen e LVGL li ritaglia da sé.
-        //
-        // Restano le altre due ragioni, che bastano: non si creano widget che
-        // non si vedranno — e i pannelli sono lenti — e il riepilogo lo dice,
-        // il che è l'unico modo di spiegare una pagina più vuota del previsto
-        // senza aprire l'editor. È anche l'unica cosa che
-        // `check_fuori_pagina_lvgl.sh` può misurare: l'immagine, da sola, non
-        // distingue il gate acceso da quello spento.
-        if obj.is_off_page(page) {
-            summary.skipped_off_page.push(id.to_string());
-            continue;
-        }
-        // Q36 parte 2 — gate `min_role`/`min_role_effect`, porto di F3.1 in
-        // `SvgCanvas.tsx`. Stesso punto del controllo fuori-pagina qui sopra
-        // e per lo stesso motivo: si misura su `min_role` così com'è scritto
-        // nel progetto, non su una copia risolta dai binding — non è un
-        // campo pensato per essere legato a un tag. "hide" è l'unico effetto
-        // che salta la creazione; qualunque altro valore (o l'assenza del
-        // campo) è "disable" e si decide più sotto, a widget già nati.
-        let role_ok = role_allowed(obj.min_role.as_deref(), viewer_role);
-        if !role_ok && obj.min_role_effect.as_deref() == Some("hide") {
-            summary.skipped_role.push(id.to_string());
-            continue;
-        }
-        // F2: i binding proprietà→tag vanno risolti PRIMA del render, come fa
-        // `resolveObject` sul web — altrimenti il widget nasce con la
-        // geometria statica e la posizione live non arriva mai.
-        // NOTA: questo dà lo stato iniziale corretto, non ancora il movimento
-        // continuo. Per quello serve il puntatore al widget dentro
-        // `update_bindings`, e le funzioni `render_*` oggi non lo restituiscono
-        // — vedi STATUS.md, va fatto col resto della parità F9c.
-        let bound = apply_bindings(obj, tags);
-        let obj = bound.as_ref().unwrap_or(obj);
-        // Pipe agganciate: i capi vanno risolti sugli oggetti veri della
-        // pagina, non sui punti scritti nel file. Va fatto qui e non dentro
-        // `render_pipe`, che vede solo il proprio oggetto — la lista completa
-        // ce l'ha solo il ciclo.
-        let manifesto = if obj_type == "pipe" { crate::simbolo_lib::manifesto(base_url, rt_handle) } else { None };
-        if obj_type == "pipe" {
-            let d = diametri_capi(obj, &page.objects, manifesto.as_deref());
-            BOCCHE_TUBO.with(|b| b.borrow_mut().insert(obj.id.clone().unwrap_or_default(), d));
-        }
-        let ancorata = percorso_tubo(obj, &page.objects, manifesto.as_deref()).map(|punti| SynopticObject {
-            points: Some(punti),
-            // Il percorso è già calcolato: al disegno è una spezzata dritta.
-            routing: match obj.routing.as_deref() {
-                Some("orthogonal") | Some("diagonal") => Some("straight".into()),
-                _ => obj.routing.clone(),
-            },
-            ..obj.clone()
-        });
-        let obj = ancorata.as_ref().unwrap_or(obj);
-        if !is_visible(obj, tags) {
-            continue;
-        }
-        if !SUPPORTED_TYPES.contains(&obj_type) {
-            summary
-                .skipped_unsupported
-                .push(format!("{id} ({obj_type})"));
-            continue;
-        }
-        // Quanti figli aveva lo schermo prima: quelli che compaiono dopo sono
-        // di questo oggetto, ed è così che `opacity` li raggiunge tutti senza
-        // che ogni `render_*` debba restituire i propri widget.
-        let figli_prima = unsafe { lvgl_sys::lv_obj_get_child_cnt(screen_ptr) };
-        let result: anyhow::Result<()> = dispatch_render(
-            &mut screen,
-            obj_type,
-            obj,
-            &mut styles,
-            tags,
-            tag_tx,
-            nav_tx,
-            base_url,
-            rt_handle,
-            shared_alarms,
-            ack_tx,
-            lang_table,
-            shared_lang,
-            shared_session,
-            &own_page_id,
-            &mut live,
-        );
-        // Q36 parte 2 — effetto "disable": ruolo insufficiente e non "hide"
-        // vuol dire 0.45 (combinato con l'`opacity` di progetto, se c'è —
-        // vedi `combined_opa`) e niente tocchi (`disable_clickable_from`,
-        // l'equivalente LVGL di `pointerEvents: "none"`).
-        let role_factor = if role_ok { 1.0 } else { 0.45 };
-        // Anche quando il render è fallito a metà: se qualche figlio è già
-        // nato, deve avere l'opacità che l'oggetto dichiara, non essere
-        // l'unico pezzo pienamente opaco della pagina.
-        if let Some(opa) = combined_opa(obj.opacity, role_factor) {
-            unsafe { apply_opacity_from(screen_ptr, figli_prima, opa) };
-        }
-        if role_factor < 1.0 {
-            unsafe { disable_clickable_from(screen_ptr, figli_prima) };
-        }
-        // Rotazione statica (26-09-2026): prima il campo c'era nel modello e
-        // nessuno lo leggeva, e un oggetto ruotato nell'editor stava dritto
-        // sul pannello.
-        if TIPI_RUOTABILI.contains(&obj_type) {
-            let angolo = angolo_statico(obj.rotation);
-            if angolo != 0 {
-                let cx = obj.x.unwrap_or(0.0) + obj.width.unwrap_or(100.0) / 2.0;
-                let cy = obj.y.unwrap_or(0.0) + obj.height.unwrap_or(50.0) / 2.0;
-                unsafe { apply_rotation_from(screen_ptr, figli_prima, angolo, cx, cy) };
-            }
-        }
-        // Effetti di stato (lampeggio, dato vecchio, qualità, bordo d'allarme).
-        // Dopo l'opacità perché ne parte: `opa_base` è ciò che il progettista
-        // ha dichiarato (moltiplicato per `role_factor`), e lampeggio e
-        // attenuazione ci scrivono sopra a ogni frame.
-        if let Some(fx) = crea_effetti(
-            screen_ptr,
-            obj,
-            figli_prima,
-            tags,
-            shared_alarms,
-            role_factor,
-        ) {
-            live.push(fx);
-        }
-        // Movimento su percorso: cattura gli stessi figli, con la posizione
-        // che hanno appena nati — è da quella che lo scostamento si misura.
-        if let Some(mv) = crea_movimento(screen_ptr, obj, figli_prima) {
-            live.push(mv);
-        }
-        match result {
-            Ok(()) => summary.rendered.push(format!("{id} ({obj_type})")),
-            Err(e) => summary
-                .skipped_unsupported
-                .push(format!("{id} ({obj_type}) — errore: {e}")),
-        }
-    }
+    rendi_oggetti_in(
+        &mut screen,
+        screen_ptr,
+        page,
+        viewer_role,
+        &own_page_id,
+        tags,
+        tag_tx,
+        nav_tx,
+        base_url,
+        rt_handle,
+        shared_alarms,
+        ack_tx,
+        lang_table,
+        shared_lang,
+        shared_session,
+        &mut summary,
+        &mut styles,
+        &mut live,
+    );
 
     // Q36 — non un oggetto del synottico, non passa da `dispatch_render`:
     // aggiunto per ultimo così resta sopra il resto della pagina. Nessun
@@ -12332,19 +12867,37 @@ pub fn update_bindings(
             }
             LiveKind::Setpoint {
                 value_ptr,
+                attuale_ptr,
+                attuale_testo,
                 tag,
                 unit,
+                decimali,
+                ctx,
             } => {
                 // Se l'overlay di modifica è visibile, non sovrascrivere:
                 // stesso principio della guardia "dragging" di `BarLike`,
                 // altrimenti il valore digitato verrebbe rimpiazzato dal
                 // vecchio valore del tag a metà digitazione.
+                // Una bozza in attesa del ✓ non si tocca: il campo mostra il
+                // numero digitato finché non viene scritto o annullato.
+                let in_bozza = !ctx.is_null()
+                    && unsafe { (*(*ctx as *const SetpointCtx)).bozza.borrow().is_some() };
                 let raw = lookup(tags, tag).map(|t| tag_value_as_f64(&t.value));
                 if let Some(v) = raw {
+                    let d = *decimali;
                     unsafe {
+                        if !in_bozza {
+                            lvgl_sys::lv_label_set_text(
+                                value_ptr.as_ptr(),
+                                text_cstring(&format!("{v:.d$}{unit}")).as_ptr(),
+                            );
+                        }
+                        // La riga «Attuale:» segue lo stesso valore: sul web
+                        // sono due testi dello stesso numero, e devono dire la
+                        // stessa cosa.
                         lvgl_sys::lv_label_set_text(
-                            value_ptr.as_ptr(),
-                            text_cstring(&format!("{v:.1}{unit}")).as_ptr(),
+                            attuale_ptr.as_ptr(),
+                            text_cstring(&format!("{attuale_testo} {v:.d$}{unit}")).as_ptr(),
                         );
                     }
                 }
@@ -12910,16 +13463,35 @@ fn update_alarm_banner(
 
 #[cfg(test)]
 mod binding_tests {
-    /// P1 (17-10-2026): «Apri finestra» sul pannello naviga alla pagina; le
-    /// altre azioni no.
+    /// Le tre azioni di finestra che un bottone puo' chiedere (22-10-2026).
+    /// Il caso che conta e' `close_popup`: fino a oggi non lo ascoltava
+    /// nessuno, e il bottone «Chiudi finestra» sul pannello non faceva niente
+    /// — il difetto trovato sul WP630 con `button-b_48`.
     #[test]
-    fn apri_finestra_naviga_alla_pagina() {
+    fn le_tre_azioni_di_finestra_di_un_bottone() {
+        use super::Navigazione;
         let b = |a: &str| -> SynopticObject {
             serde_json::from_str(&format!(r#"{{"id":"b","type":"button","x":0,"y":0,"button_action":{a}}}"#)).unwrap()
         };
-        assert_eq!(super::pagina_della_finestra(&b(r#"{"type":"open_popup","page":"pompa"}"#)).as_deref(), Some("pompa"));
-        assert_eq!(super::pagina_della_finestra(&b(r#"{"type":"open_popup","page":""}"#)), None);
-        assert_eq!(super::pagina_della_finestra(&b(r#"{"type":"login"}"#)), None);
+        assert_eq!(
+            super::azione_del_bottone(&b(r#"{"type":"open_popup","page":"pompa","params":{"p":"p1"}}"#)),
+            Some(Navigazione::ApriFinestra {
+                pagina: "pompa".into(),
+                parametri: [("p".to_string(), "p1".to_string())].into_iter().collect(),
+            })
+        );
+        assert_eq!(
+            super::azione_del_bottone(&b(r#"{"type":"open_faceplate","faceplate_id":"fp1"}"#)),
+            Some(Navigazione::ApriFaceplate { faceplate: "fp1".into(), parametri: Default::default() })
+        );
+        assert_eq!(
+            super::azione_del_bottone(&b(r#"{"type":"close_popup"}"#)),
+            Some(Navigazione::ChiudiFinestra),
+            "e' il difetto da cui e' partito tutto: prima non lo ascoltava nessuno"
+        );
+        // Senza pagina non si apre niente, e `login` non e' affar nostro.
+        assert_eq!(super::azione_del_bottone(&b(r#"{"type":"open_popup","page":""}"#)), None);
+        assert_eq!(super::azione_del_bottone(&b(r#"{"type":"login"}"#)), None);
     }
 
     #[test]

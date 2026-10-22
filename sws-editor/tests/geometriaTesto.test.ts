@@ -5,13 +5,14 @@
  *  impedire sui colori. */
 import { describe, expect, it } from "vitest";
 import fixture from "../../tests/fixtures/geometria-testo.json";
-import { altezzaEtichetta, altezzaValore, corpoSecondario, passoRiga } from "@/canvas/geometriaTesto";
+import { altezzaEtichetta, altezzaMinimaSetpoint, altezzaValore, corpoAnnotazione, corpoSecondario, passoRiga } from "@/canvas/geometriaTesto";
 
 const FUNZIONI: Record<string, (c: number) => number> = {
   passo_riga: passoRiga,
   altezza_etichetta: altezzaEtichetta,
   altezza_valore: altezzaValore,
   corpo_secondario: corpoSecondario,
+  corpo_annotazione: corpoAnnotazione,
 };
 
 describe("le misure derivate dal corpo", () => {
@@ -30,5 +31,11 @@ describe("le misure derivate dal corpo", () => {
     expect(altezzaEtichetta(11)).toBe(20);
     expect(altezzaValore(12)).toBe(18);
     expect(corpoSecondario(10)).toBe(9);
+    expect(corpoAnnotazione(12)).toBe(10);
+    // Il setpoint predefinito chiede 61 px contro i 56 di oggi: e'
+    // l'allargamento scelto dal maintainer, e i sette setpoint misurati nel
+    // repo e nei progetti veri stanno tutti a 48, quindi crescono tutti di 13.
+    expect(altezzaMinimaSetpoint(11, 12, 12, true)).toBe(61);
+    expect(altezzaMinimaSetpoint(11, 12, 12, false)).toBe(45);
   });
 });

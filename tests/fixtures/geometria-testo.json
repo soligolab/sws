@@ -38,6 +38,13 @@
     { "corpo": 7, "atteso": 6 },
     { "corpo": 24, "atteso": 23 }
   ],
+  "corpo_annotazione": [
+    { "corpo": 12, "atteso": 10, "nota": "il corpo di oggi del valore di un setpoint: la riga «Attuale:» e' 10" },
+    { "corpo": 11, "atteso": 9 },
+    { "corpo": 8, "atteso": 6 },
+    { "corpo": 7, "atteso": 6, "nota": "al minimo non si scende oltre" },
+    { "corpo": 24, "atteso": 22 }
+  ],
   "altezza_valore": [
     { "corpo": 12, "atteso": 18, "nota": "il corpo di oggi del valore di uno slider: il letterale di prima" },
     { "corpo": 11, "atteso": 18, "nota": "sotto il minimo: non si stringe" },

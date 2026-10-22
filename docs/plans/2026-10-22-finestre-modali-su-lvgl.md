@@ -56,6 +56,20 @@ da fare da quel lato.
    parametri: manca solo l'aprirlo come finestra. Farlo dopo vorrebbe dire rileggere lo stesso
    codice una seconda volta.
 
+5. **Una pagina dichiarata `modale: false` si apre modale lo stesso.** La variante non modale del
+   web esiste per lavorare *con* la finestra aperta, usando il mouse sulla pagina sotto; su un
+   vetro da 7" la finestra copre quasi tutto e la pagina sotto non la raggiungi comunque. Le due
+   alternative erano «niente velo ma pagina inerte» — che fa sembrare toccabile ciò che non lo è —
+   e «niente velo e pagina viva», che su un touch vuol dire far partire una pompa con un dito
+   appoggiato fuori dalla finestra. **Conseguenza da scrivere nel manuale**: `modale: false` è una
+   proprietà che il pannello ignora, ed è l'unica di questo giro.
+6. **Una finestra più grande dello schermo si taglia**, non si rimpicciolisce. Succede davvero —
+   una pagina disegnata 1280×800 su un vetro 800×480 — e rimpicciolire contraddirebbe il lavoro
+   appena finito, dove il corpo del testo è diventato una scelta esplicita: scalarla gliela
+   toglierebbe di mano. È anche l'unica delle tre che LVGL fa da sé, perché non sa scalare un
+   albero di widget. Il difetto resta visibile a chi disegna invece di nascondersi in una
+   riduzione.
+
 **La non modale trascinabile del web non si fa**: non è stata chiesta, e trascinare una finestra
 con un dito su un vetro da 7" non è il gesto per cui quella variante esiste. Se servirà, è un
 seme a parte.
@@ -103,9 +117,11 @@ pagina» (`lvgl_render.rs:811`).
 
 - **velo**: un oggetto a tutto schermo, nero a ~60 % di opacità, **cliccabile** — assorbe i tocchi
   diretti alla pagina sotto, che è ciò che «modale» vuol dire. Non ha callback: toccarlo non
-  chiude (decisione 2).
-- **contenitore**: centrato, largo e alto quanto la pagina-finestra **più la barra**, e limitato
-  alla misura del display se la pagina è più grande dello schermo.
+  chiude (decisione 2). C'è **sempre**, anche per una pagina `modale: false` (decisione 5).
+- **contenitore**: centrato, largo e alto quanto la pagina-finestra **più la barra**, e
+  **tagliato** alla misura del display quando la pagina è più grande (decisione 6): LVGL ritaglia
+  da sé i figli che escono dal genitore, quindi non serve altro che non dargli una misura più
+  grande dello schermo.
 - **barra**: titolo da `finestra.titolo` coi parametri sostituiti, altrimenti il nome della pagina
   (`titoloFinestra` del web); ✕ a destra, che manda la chiusura.
 
@@ -125,10 +141,14 @@ faceplate, più i parametri) e chiudi. Il ciclo principale lo legge come già le
 La finestra ha i suoi, e devono: aggiornarsi mentre è aperta, e **morire con lei**. Un secondo
 `Vec<LiveBinding>` accanto al primo, aggiornato quando c'è e svuotato alla chiusura.
 
-**La trappola**: i contesti delle callback sono *leakati* apposta (`leak_ctx`), perché LVGL li
-rilegge a ogni evento. Aprire e chiudere una finestra cento volte non deve lasciare cento contesti
-in memoria su un pannello che ne ha poca. Va deciso in corso d'opera se tenerli in una lista che
-si libera alla chiusura o se accettare la perdita — e **misurato**, non supposto.
+**La trappola, e la scelta fatta**: i contesti delle callback sono *leakati* apposta
+(`leak_ctx`), perché LVGL li rilegge a ogni evento. Aprire e chiudere una finestra cento volte non
+deve lasciare cento contesti in memoria su un pannello che ne ha poca, quindi **si liberano**, con
+un ordine che non è negoziabile: **prima si distruggono i widget, poi si liberano i contesti**.
+Al contrario sarebbe una lettura di memoria già liberata al primo evento in coda — un guasto che
+si manifesta a caso e altrove, esattamente come dice il commento di `lvgl_font::load` sul
+puntatore del font. E va **misurato**, non supposto: cento aperture e chiusure, e si guarda la
+memoria del processo.
 
 ### 7. Le tre azioni, finalmente collegate
 

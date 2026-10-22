@@ -56,6 +56,7 @@
     },
     "setpoint": {
       "label": { "vuoto": "nessuna" },
+      "font_size": { "valore": 12 }, "label_font_size": { "valore": 11 }, "button_font_size": { "valore": 12 },
       "decimals": { "valore": 1 }, "step": { "valore": 1 }
     },
     "kpi_tile": {

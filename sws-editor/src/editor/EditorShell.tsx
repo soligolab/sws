@@ -4152,6 +4152,11 @@ export function ObjectProps({
             <>
               {field(t("props.label"), <BindableInput obj={obj} propName="label" onChange={onChange}>{textInput("label")}</BindableInput>)}
               {field(t("props.tag"), tagInput("es. pump1.speed_sp"))}
+              <div style={GRIGLIA_NUMERICA}>
+                <div><div style={LABEL}>{t("props.fontSize")}</div><BindableInput obj={obj} propName="font_size" onChange={onChange}>{numInput("font_size", 12)}</BindableInput></div>
+                <div><div style={LABEL}>{t("props.labelFontSize")}</div><BindableInput obj={obj} propName="label_font_size" onChange={onChange}>{numInput("label_font_size", 11)}</BindableInput></div>
+                <div><div style={LABEL}>{t("props.buttonFontSize")}</div><BindableInput obj={obj} propName="button_font_size" onChange={onChange}>{numInput("button_font_size", 12)}</BindableInput></div>
+              </div>
               {field(t("props.unit"), <BindableInput obj={obj} propName="unit" onChange={onChange}>{textInput("unit", "")}</BindableInput>)}
               {field(t("props.decimals"), <BindableInput obj={obj} propName="decimals" onChange={onChange}>{numInput("decimals", 1)}</BindableInput>)}
               <div style={GRIGLIA_NUMERICA}>

@@ -181,6 +181,24 @@ fn esegui_bloccando(
     }
 }
 
+/// Il rifiuto dell'ultimo comando, se c'è: lo scrive questo thread, lo legge
+/// e lo svuota il ciclo di rendering per mostrarlo a schermo (22-10-2026,
+/// piano `docs/plans/2026-10-22-sessione-che-non-sopravvive-al-deploy.md`).
+///
+/// Prima un comando rifiutato finiva **solo** su `stderr`: l'operatore vedeva
+/// un pulsante che non faceva niente e non sapeva perché. «È la differenza fra
+/// un difetto che si vede e uno che costa un collaudo» — e finché restava lì,
+/// qualunque 403 futuro sarebbe stato di nuovo invisibile.
+pub static RIFIUTO: std::sync::Mutex<Option<String>> = std::sync::Mutex::new(None);
+
+/// Il messaggio d'errore dice che il server ha rifiutato per autorizzazione?
+///
+/// Si guarda il testo e non un codice perché `esegui` restituisce già una
+/// stringa: `error_for_status()` di reqwest ci mette dentro lo stato.
+fn e_un_rifiuto(msg: &str) -> bool {
+    msg.contains("401") || msg.contains("403")
+}
+
 fn lavora(rx: Receiver<Comando>, tetto: Duration) {
     let rt = match tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -197,6 +215,13 @@ fn lavora(rx: Receiver<Comando>, tetto: Duration) {
     while let Ok(cmd) = rx.recv() {
         if let Err(msg) = esegui_bloccando(&rt, cmd, tetto) {
             eprintln!("[net] {msg}");
+            if e_un_rifiuto(&msg) {
+                // Lo raccoglie il ciclo di rendering al prossimo giro: qui non
+                // si può toccare LVGL, questo è un altro thread.
+                if let Ok(mut r) = RIFIUTO.lock() {
+                    *r = Some(msg);
+                }
+            }
         }
     }
 }

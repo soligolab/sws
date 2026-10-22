@@ -42,6 +42,9 @@ export type VoceSistema =
   | "esito_spiega"
   | "esito_chiudi"
   // Il trend senza dati (30-09-2026): lo scrive il motore dentro il grafico.
+  // «Attuale:» nel setpoint (22-10-2026): era in `viewer.currentValue`, due
+  // lingue e la lingua dell'IDE.
+  | "sp_attuale"
   | "trend_nessun_tag"
   | "trend_in_attesa"
   // La configurazione del servizio da aggiornare (02-10-2026): `{da}`, `{a}`.
@@ -143,6 +146,7 @@ export const TESTI_SISTEMA: Record<VoceSistema, Record<LinguaSistema, string>> =
     en: "The panel tried to move to {a}: the new version did not start properly, and it went back to {da} by itself. Nothing to do here: whoever manages the panel will take care of it.",
   },
   esito_chiudi: { it: "Chiudi", de: "Schließen", fr: "Fermer", es: "Cerrar", en: "Close" },
+  sp_attuale: { it: "Attuale:", de: "Aktuell:", fr: "Actuel :", es: "Actual:", en: "Current:" },
   trend_nessun_tag: { it: "Tag non configurato", de: "Kein Tag konfiguriert", fr: "Aucun tag configuré", es: "Tag no configurado", en: "No tag configured" },
   trend_in_attesa: { it: "In attesa di campioni…", de: "Warte auf Messwerte…", fr: "En attente d'échantillons…", es: "Esperando muestras…", en: "Waiting for samples…" },
   quadlet_titolo: { it: "Configurazione del servizio da aggiornare", de: "Dienstkonfiguration aktualisieren", fr: "Configuration du service à mettre à jour", es: "Configuración del servicio por actualizar", en: "Service configuration needs updating" },

@@ -33,7 +33,7 @@ export const MINIMO_SPESSORE = 1;
  *  `motion_path`) non sono qui: si trasformano come punti, con lo spostamento. */
 export const CAMPI_SCALATI: Record<string, number> = {
   width: 0, height: 0,
-  font_size: MINIMO_TESTO, label_font_size: MINIMO_TESTO, table_font_size: MINIMO_TESTO,
+  font_size: MINIMO_TESTO, label_font_size: MINIMO_TESTO, button_font_size: MINIMO_TESTO, table_font_size: MINIMO_TESTO,
   stroke_width: MINIMO_SPESSORE, spark_stroke_width: MINIMO_SPESSORE, symbol_outline_width: MINIMO_SPESSORE,
   corner_radius: 0, grid_gap: 0, grid_padding: 0, nav_gap: 0, nav_btn_size: 0,
   pie_explode_px: 0, pipe_label_offset: 0,

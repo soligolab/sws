@@ -714,6 +714,7 @@
     "fontFamily": "Font family",
     "fontSize": "Font size",
     "labelFontSize": "Label font size",
+    "buttonFontSize": "Button font size",
     "format": "Format",
     "formatBound": "Format (if bound)",
     "formatHint": "The placeholder is {value} and the surrounding text stays. Numbers: {value:.2f}, {value:+.1f}, {value:,.2f}, {value:.2e}, {value:.1%}. Durations (seconds): {value:hms} → 5372:04:37, {value:hm}, {value:dhms} → 223d 20:04:37. Instants (milliseconds since the epoch, datetime type): {value:date}, {value:time}, {value:datetime} — in UTC.",

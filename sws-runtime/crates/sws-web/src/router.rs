@@ -7918,17 +7918,53 @@ async fn ws_tags_handler(
     ws: WebSocketUpgrade,
     State(s): State<AppState>,
     axum::Extension(user): axum::Extension<AuthUser>,
+    // Il token viaggia come `?token=…` nell'URL del socket, perché un browser
+    // non può mettere intestazioni su una WebSocket (`sws-editor/src/ws/wsUrl.ts`).
+    uri: axum::http::Uri,
 ) -> impl IntoResponse {
     let epoch_rx = s.project_epoch.subscribe();
-    ws.on_upgrade(move |socket| handle_ws(socket, s.db, s.bus, user.role, epoch_rx))
+    let token = url_form_decode(uri.query().unwrap_or(""))
+        .into_iter()
+        .find(|(k, _)| k == "token")
+        .map(|(_, v)| v);
+    let stato = s.clone();
+    ws.on_upgrade(move |socket| handle_ws(socket, s.db, s.bus, user.role, epoch_rx, stato, token))
 }
 
+/// Il ruolo **adesso**, non quello catturato all'handshake (22-10-2026, piano
+/// `docs/plans/2026-10-22-sessione-che-non-sopravvive-al-deploy.md`).
+///
+/// Il socket dei tag teneva il `Role` preso al momento della connessione e non
+/// lo rileggeva più. Un deploy non chiude il socket — manda
+/// `{"type":"project_changed"}`, che nel client non ha nessun gestore — quindi
+/// i comandi continuavano a passare con privilegi che il server non
+/// riconosceva più via HTTP. È l'unico difetto di questa serie che non è
+/// comodità.
+///
+/// Costa una lettura da una mappa in memoria per messaggio: niente, rispetto
+/// alla scrittura del tag che segue. Senza token si ripiega sul ruolo
+/// dell'handshake, che è il caso del runtime senza utenti.
+async fn ruolo_adesso(s: &AppState, token: Option<&String>, handshake: Role) -> Role {
+    let Some(tok) = token else {
+        return handshake;
+    };
+    match valida_utente_dispositivo(s, tok).await {
+        Some(u) => u.role,
+        // Token non più valido: anonimo, come fa `optional_auth` sulle rotte
+        // HTTP. Non è un errore di protocollo, è una sessione finita.
+        None => Role::Viewer,
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
 async fn handle_ws(
     socket: WebSocket,
     db: Arc<TagDb>,
     bus: Arc<TagWriteBus>,
     role: Role,
     mut epoch_rx: tokio::sync::watch::Receiver<u64>,
+    stato: AppState,
+    token: Option<String>,
 ) {
     use futures_util::{SinkExt, StreamExt};
     use std::collections::{HashMap, HashSet};
@@ -8120,6 +8156,10 @@ async fn handle_ws(
                 };
                 match msg {
                     InboundMsg::Write { tag, value, req_id } => {
+                        // Il ruolo si rilegge dal token a OGNI scrittura: fidarsi
+                        // di quello dell'handshake vuol dire che una sessione
+                        // finita continua a comandare finché il socket regge.
+                        let role = ruolo_adesso(&stato, token.as_ref(), role).await;
                         if role < Role::Operator {
                             let ack = WriteAck {
                                 ty: "ack",

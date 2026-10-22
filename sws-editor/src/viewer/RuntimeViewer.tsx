@@ -101,6 +101,28 @@ export function RuntimeViewer() {
     const current = useAppStore.getState().currentPageId;
     void loadProjectData(current)
       .then(() => {
+        // **Chi sono, adesso?** (22-10-2026, piano
+        // `docs/plans/2026-10-22-sessione-che-non-sopravvive-al-deploy.md`).
+        //
+        // Un deploy può aver cambiato gli utenti del progetto, e sulla porta
+        // del viewer un token morto NON dà 401: `optional_auth` lo declassa in
+        // silenzio ad anonimo. Le letture continuano a rispondere 200, quindi
+        // senza questa riga l'interfaccia resta a dire che sei Admin finché
+        // non provi a scrivere — e il 403 che arriva lì è muto.
+        //
+        // È l'unico punto in cui si richiede: il momento esatto in cui il
+        // progetto è cambiato. Niente controllo periodico, che su un kiosk
+        // acceso h24 sarebbe traffico, e nasconderebbe la prossima causa
+        // invece di mostrarla.
+        //
+        // `tokenDelViewer` fa il resto: con un token morto `whoami` risponde
+        // 200 con `username: ""`, quindi torna il sentinella `no-auth`, i
+        // cancelli lato client si richiudono — e `authToken` cambia, il che
+        // fa riaprire il flusso tag e butta via il ruolo stantio rimasto sul
+        // socket aperto.
+        void api.whoami()
+          .then((me) => setAuth(tokenDelViewer(useAppStore.getState().authToken, me.username), me.username, me.role))
+          .catch(() => { /* niente risposta: si resta com'era, ci riprova al prossimo deploy */ });
         // Avviso breve: l'operatore deve capire PERCHÉ la schermata è
         // cambiata sotto le sue mani, senza dovere premere nulla.
         setUpdatedNotice(true);

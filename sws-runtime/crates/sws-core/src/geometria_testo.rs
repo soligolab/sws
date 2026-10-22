@@ -47,6 +47,48 @@ pub fn corpo_secondario(corpo: f64) -> f64 {
     (corpo - 1.0).max(6.0)
 }
 
+/// Il corpo di un testo che **accompagna** un valore, due punti sotto: la riga
+/// «Attuale: 20.0» di un setpoint (22-10-2026).
+///
+/// Due e non uno — che è `corpo_secondario` — perché i due letterali del web
+/// sono 12 per il valore e **10** per questa riga: col corpo di oggi devono
+/// uscire tutti e due i numeri di oggi, e un punto solo ne darebbe 11.
+pub fn corpo_annotazione(corpo: f64) -> f64 {
+    (corpo - 2.0).max(6.0)
+}
+
+/// L'altezza di una riga di testo: il corpo per l'interlinea normale di un
+/// browser (1,2).
+fn riga(corpo: f64) -> f64 {
+    (corpo * 1.2).round()
+}
+
+/// L'altezza **minima** di un setpoint, dai suoi tre corpi (22-10-2026).
+///
+/// Il setpoint mostra tre righe — etichetta, «Attuale: …», e il campo col
+/// valore e i due pulsanti — e il predefinito di oggi è 56 px, in cui non ci
+/// stanno. Scelta del maintainer: **il riquadro si allarga**, invece di far
+/// cadere una riga o di stringere il testo (che contraddirebbe il lavoro
+/// appena fatto, dove il corpo è diventato una scelta esplicita).
+///
+/// Vale in **tutti e due i motori**, da qui: se valesse solo sul pannello,
+/// l'editor smetterebbe di dire la verità sull'ingombro e l'oggetto
+/// sposterebbe le cose intorno solo sul vetro, dove ci si accorge tardi.
+///
+/// Gli 8 sono il padding sopra e sotto, i 3 i due stacchi fra le righe, gli
+/// altri 8 il bordo e il padding del campo — i numeri del `<div>` del web.
+pub fn altezza_minima_setpoint(
+    corpo_etichetta: f64,
+    corpo: f64,
+    corpo_pulsanti: f64,
+    con_etichetta: bool,
+) -> f64 {
+    let testata = if con_etichetta { riga(corpo_etichetta) + 3.0 } else { 0.0 };
+    let attuale = riga(corpo_annotazione(corpo)) + 3.0;
+    let campo = riga(corpo.max(corpo_pulsanti)) + 8.0;
+    8.0 + testata + attuale + campo
+}
+
 #[cfg(test)]
 mod prove {
     use super::*;
@@ -63,6 +105,7 @@ mod prove {
         passo_riga: Vec<Caso>,
         altezza_etichetta: Vec<Caso>,
         corpo_secondario: Vec<Caso>,
+        corpo_annotazione: Vec<Caso>,
         altezza_valore: Vec<Caso>,
     }
 
@@ -86,6 +129,9 @@ mod prove {
         for c in &f.corpo_secondario {
             assert_eq!(corpo_secondario(c.corpo), c.atteso, "corpo_secondario({})", c.corpo);
         }
+        for c in &f.corpo_annotazione {
+            assert_eq!(corpo_annotazione(c.corpo), c.atteso, "corpo_annotazione({})", c.corpo);
+        }
     }
 
     /// Il vincolo dichiarato: col corpo di prima, i numeri di prima.
@@ -95,5 +141,13 @@ mod prove {
         assert_eq!(altezza_etichetta(11.0), 20.0, "lo spazio dell'etichetta");
         assert_eq!(altezza_valore(12.0), 18.0, "la riga del valore di uno slider");
         assert_eq!(corpo_secondario(10.0), 9.0, "le tacche di un grafico a barre");
+        assert_eq!(corpo_annotazione(12.0), 10.0, "la riga «Attuale:» di un setpoint");
+        // Il setpoint predefinito (etichetta 11, testo 12, pulsanti 12) chiede
+        // 61 px e oggi ne ha 56: e' l'allargamento che il maintainer ha scelto
+        // sapendo che succede. Misurati il 22-10-2026: i sette setpoint che
+        // esistono fra template e progetti veri stanno tutti a 48 e crescono
+        // tutti di 13.
+        assert_eq!(altezza_minima_setpoint(11.0, 12.0, 12.0, true), 61.0);
+        assert_eq!(altezza_minima_setpoint(11.0, 12.0, 12.0, false), 45.0, "senza etichetta");
     }
 }

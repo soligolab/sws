@@ -39,6 +39,28 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
   sono funzioni del corpo, scritte una volta per motore e tenute insieme da una fixture condivisa.
   Col corpo di prima escono i numeri di prima: **nessun progetto cambia aspetto**.
 
+- **«Chiudi finestra» non funzionava sul pannello**, e non era il bottone: su LVGL la finestra non
+  esisteva proprio. `open_popup` era tradotto in una navigazione a schermo pieno senza parametri, e
+  `close_popup` non lo ascoltava nessuno. Ora la finestra c'è davvero — velo, barra del titolo col
+  ✕, parametri sostituiti — e anche `open_faceplate`, che non era gestito affatto.
+
+- **Il setpoint mostrava due oggetti diversi nei due motori.** Il pannello si allinea al browser:
+  riga «Attuale:», campo col valore, ✓ e ⌨. Il tastierino non scrive più da sé — riempie il campo
+  e il ✓ conferma, come nel browser. Il riquadro ha un'altezza minima e si allarga quando serve,
+  dalla stessa funzione nei due motori.
+
+- **Dopo un deploy si restava collegati solo in apparenza.** Quattro difetti in fila: il progetto
+  chiuso buttava tutte le sessioni invece di metterle da parte (quindi il filtro «tieni quelle di
+  chi non è cambiato» non entrava mai in funzione); il viewer non richiedeva mai chi fosse dopo un
+  ricaricamento; il socket dei tag scriveva col ruolo catturato all'handshake, che il deploy non
+  invalidava; e sul pannello un comando rifiutato finiva solo nel log.
+
+- **Quattro divergenze web/LVGL trovate strada facendo**: la sostituzione dei parametri toccava tre
+  campi invece di ogni stringa (un faceplate con `state_tag: "{p}.running"` non funzionava sul
+  pannello); il valore del setpoint ereditava 14 contro i 12 del browser; mancava lo spazio prima
+  dell'unità; e «Attuale:» era in due lingue e seguiva la lingua dell'IDE invece di quella dei
+  contenuti.
+
 - **Una tabella col vecchio `table_font_size` non si rimpicciolisce più da sola.** I due motori
   leggono `font_size ?? table_font_size ?? 11`, quindi `font_size` vince; ma il riempimento dei
   predefiniti scriveva `font_size: 11` in ogni tabella che non ce l'aveva, e una tabella a 16

@@ -58,6 +58,10 @@ export const CAMPI: Record<string, Record<string, RegolaCampo>> = {
   },
   setpoint: {
     label: { vuoto: "nessuna" },
+    // I tre corpi (22-10-2026). `font_size` governa il campo del valore e, due
+    // punti sotto, la riga «Attuale:»; `button_font_size` i due pulsantini —
+    // il ⌨ era 13 e passa a 12, l'unico pixel che cambia in tutto il giro.
+    font_size: { valore: 12 }, label_font_size: { valore: 11 }, button_font_size: { valore: 12 },
     decimals: { valore: 1 }, step: { valore: 1 },
   },
   kpi_tile: {

@@ -132,11 +132,50 @@ corpo, ne' nei 14 template del repo ne' nelle 36 pagine dei progetti veri di `~/
 **CasaDomotica non sta su questa macchina** e non e' stata controllata: se dopo il merge un suo
 grafico cambia dimensione, e' questo.
 
+### ▶ FATTI IL 22-10-2026, ramo `fix/finestre-modali-lvgl` — da collaudare sul vetro
+
+Tre piani chiusi, tutte le decisioni prese col maintainer e scritte nei piani prima di scrivere
+codice. **Niente mergiato e niente pushato.**
+
+| piano | cosa |
+|---|---|
+| [finestre modali](docs/plans/2026-10-22-finestre-modali-su-lvgl.md) | `close_popup` non lo ascoltava nessuno: ora la finestra c'è davvero, col velo, la barra e il ✕ |
+| [setpoint](docs/plans/2026-10-22-setpoint-i-due-motori-non-combaciano.md) | il pannello si allinea al web: riga «Attuale:», campo, ✓ e ⌨ |
+| [sessione dopo il deploy](docs/plans/2026-10-22-sessione-che-non-sopravvive-al-deploy.md) | quattro rimedi, dalla causa a chi doveva accorgersene |
+
+**Le prove che costano niente e che si rifanno**: `tmp/prova-finestre/` ha un progetto scritto
+apposta e le istantanee. Chiudendo la finestra, in tutti e due i modi, la pagina sotto torna
+**identica a prima — zero pixel di differenza**. È la prova che il ripristino funziona, e nessun
+test unitario la poteva dare.
+
+**Quattro divergenze web/LVGL trovate strada facendo**, nessuna segnalata:
+
+1. la sostituzione dei parametri su LVGL toccava **tre campi** (`tag`, `label`, `text`) contro
+   *ogni stringa* del web: un faceplate con `state_tag: "{p}.running"` mostrava il segnaposto
+   grezzo sul pannello e il valore giusto nel browser;
+2. il valore del setpoint ereditava i 14 dello schermo contro i 12 del web;
+3. mancava lo spazio prima dell'unità: «0.0bar» contro «0.0 bar»;
+4. `open_faceplate` non era gestito affatto — quel bottone non faceva niente neanche lui.
+
+**Da guardare sul vetro**, perché un numero non lo può dire:
+
+- **il gesto del setpoint è cambiato**: il tastierino non scrive più da sé, riempie il campo e il
+  ✓ scrive. Due passi invece di uno, più sicuro per un setpoint d'impianto, ma è il gesto che
+  l'operatore conosce;
+- **i setpoint esistenti si allargano**: sono sette fra template e progetti veri, stanno tutti a
+  48 px e crescono tutti a 61. Su un sinottico denso può finire sopra quello sotto;
+- la finestra modale su un vetro da 7", col `button-b_48` vero di «CasaDomotica (WP630_LVGL)»;
+- dopo un deploy: la barra deve dire la verità, i comandi che non si possono più fare devono
+  sparire, e una scrittura rifiutata deve **vedersi**.
+
+**E la predizione da verificare**: ridistribuendo **due volte** lo stesso progetto, la seconda
+volta la sessione non deve cadere affatto.
+
 ### ▶ RACCOLTA DIFETTI DAL COLLAUDO DEL MAINTAINER (22-10-2026) — la lista e' aperta
 
-Il maintainer sta provando l'applicazione e segnala man mano. Qui sotto, uno per difetto, con la
-diagnosi dove c'e'. **Nessuno di questi e' corretto**: l'istruzione e' di sistemarli prima della
-build, e la lista non e' chiusa.
+Il maintainer sta provando l'applicazione e segnala man mano. **Le voci 1 e 2 sono state
+corrette** (vedi la sezione qui sopra); la **3 no**, per sua istruzione: «il journal lo sistemiamo
+solo a lavoro finito su questi task». La lista resta aperta.
 
 #### 1. «Chiudi finestra» non funziona su LVGL
 
@@ -176,6 +215,37 @@ cosa rotta e' persistita da qualche parte, non e' solo stato in memoria della pa
 Indagine lanciata su quattro tagli (dove vive la sessione e cosa la uccide; perche' il client
 continua a dirsi collegato; cosa riavvia davvero un deploy dal cloud; riproduzione). **Esito non
 ancora letto** quando questa riga e' stata scritta.
+
+#### 3. Il journal del pannello è saturato dalle etichette dell'immagine
+
+**Da sistemare DOPO** (istruzione del maintainer: «il journal lo sistemiamo solo a lavoro finito
+su questi task»). Trovato sul WP630 il 22-10-2026.
+
+Podman scrive un evento `container health_status` nel journal a **ogni** controllo di salute, e
+l'evento porta con sé **tutte le etichette del container** — che eredita da quelle dell'immagine.
+Fra quelle ci sono `net.soligo.sws.novita.it` e `.en`, cioè **il testo intero delle Novità**: è il
+nostro disegno, le note di rilascio viaggiano come etichette perché il pannello le mostri *prima*
+di aggiornare.
+
+Misurato: `HEALTHCHECK --interval=30s` (`deploy/container/Containerfile.aarch64:160`), **due**
+container — `sws-runtime` e `sws-lvgl-viewer`. Il blocco `Unreleased` di `NOVITA.yaml` è **1 967
+caratteri** fra le due lingue (2.16.2 ne aveva 365, 2.16.1 ne aveva 621). Due container ogni 30 s
+fanno dell'ordine di **10 MB al giorno** di note di rilascio scritte nel journal di un pannello.
+Nello screenshot del maintainer gli eventi cadono alle 10:06:39 / 10:07:11 / 10:07:42 per il
+runtime e alle 10:06:45 / 10:07:16 / 10:07:47 per il viewer: i 30 s si vedono.
+
+**Le strade, da valutare quando si arriva** (nessuna decisa):
+
+1. **Spegnere l'etichetta sul container senza toccare l'immagine.** Il controllo degli
+   aggiornamenti legge le etichette dal **registry**, non dal container che gira: il quadlet
+   potrebbe dichiarare `Label=net.soligo.sws.novita.it=` (vuota) e l'evento non porterebbe più
+   niente. Da **provare**, non da dare per buono: che una `--label` vuota sovrascriva quella
+   ereditata va verificato con podman in mano.
+2. Allungare l'intervallo del controllo di salute (30 s → qualche minuto). Dieci volte meno
+   rumore, ma il rumore resta. `Notify=healthy` guarda il **primo** controllo, non la cadenza,
+   quindi l'avvio non ne risente.
+3. Mandare gli eventi di podman su file invece che nel journal (`events_logger` in
+   `containers.conf`). Toglie il problema dal journal e lo sposta.
 
 ### Il WP630: installazione pulita, riuscita (collaudo del maintainer, 22-10-2026)
 

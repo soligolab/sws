@@ -1677,7 +1677,13 @@ pub async fn open_project(
 
 /// `POST /api/projects/close` — close the active project.
 /// Drops TagDb / AlarmDb / supervisor sources / functions / auth.
-/// All sessions become invalid.
+///
+/// **A progetto chiuso nessun token vale e nessun login riesce.** Ma dal
+/// 22-10-2026 utenti e sessioni sono *messi da parte*, non buttati: se si
+/// riapre lo **stesso** progetto — che è ciò che fa ogni deploy — chi non è
+/// cambiato ritrova la sua sessione. Prima no, e il filtro di `swap_store`
+/// non entrava mai in funzione perché non c'era più niente da filtrare: si
+/// restava scollegati dopo ogni deploy, con l'interfaccia che non lo diceva.
 pub async fn close_project(State(s): State<AppState>) -> Response {
     // **Dietro il gateway un progetto non si chiude.**
     //
@@ -1725,7 +1731,9 @@ pub async fn close_project(State(s): State<AppState>) -> Response {
         vecchio.chiudi();
     }
     *s.registry.write().await = None;
-    s.auth.clear().await;
+    // `chiudi()` e non `clear()`: stesso idioma di `s.alarms.chiudi()` qui
+    // sopra — «messo da parte, non buttato».
+    s.auth.chiudi().await;
     *s.project_dir.write().await = None;
     info!("project closed");
     StatusCode::NO_CONTENT.into_response()

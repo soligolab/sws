@@ -121,6 +121,7 @@ mod lvgl_log;
 mod lvgl_render;
 mod model;
 mod net_worker;
+mod parametri;
 mod session;
 mod simbolo_lib;
 mod svg_assets;
@@ -521,6 +522,11 @@ fn main() -> anyhow::Result<()> {
     loaded_session.auth_required = auth_required;
     let shared_session: session::SharedSession =
         std::sync::Arc::new(std::sync::Mutex::new(loaded_session));
+    // Il token letto da disco vale ancora? (22-10-2026). Copre il pannello
+    // riacceso dopo un deploy avvenuto mentre era spento: senza, il file
+    // tornerebbe buono per sempre, perché l'unica cosa che lo invalida è la
+    // data di scadenza.
+    verifica_sessione(&args.base_url, rt.handle(), &shared_session);
 
     let initial_tags = shared_tags
         .lock()
@@ -534,7 +540,7 @@ fn main() -> anyhow::Result<()> {
     );
 
     let (tag_tx, tag_rx) = mpsc::channel::<TagCommand>();
-    let (nav_tx, nav_rx) = mpsc::channel::<String>();
+    let (nav_tx, nav_rx) = mpsc::channel::<lvgl_render::Navigazione>();
     let (ack_tx, ack_rx) = mpsc::channel::<String>();
     let (summary, styles, mut live_bindings, hor_res, ver_res) = lvgl_render::interpret_page(
         &page,
@@ -694,6 +700,11 @@ fn main() -> anyhow::Result<()> {
             &avviso,
             &shared_session,
             &args.base_url,
+            rt.handle(),
+            &tag_tx,
+            &nav_tx,
+            &shared_alarms,
+            &ack_tx,
         )?;
         drop(rt);
         return Ok(());
@@ -796,6 +807,211 @@ fn punto_tocco(s: &str) -> Option<(i32, i32)> {
 ///
 /// `update_bindings` gira dentro il ciclo perché la pagina mostri i valori tag
 /// veri e non quelli con cui è nata — è il compito che nel loop normale svolge
+/// Mostra sul vetro il rifiuto di un comando, se ce n'è uno in attesa, e
+/// azzera la sessione (22-10-2026).
+///
+/// Il rifiuto lo registra il thread di rete, che LVGL non lo può toccare; qui
+/// si è dentro il ciclo di rendering, quindi si può. Un `lv_msgbox` sul layer
+/// superiore, come già fa la finestra di conferma di un comando critico.
+///
+/// La sessione si azzera perché un 401/403 su una scrittura vuol dire che il
+/// server non riconosce più chi siamo: il pannello deve tornare a mostrarsi
+/// scollegato invece di continuare a far credere che i comandi passino.
+fn mostra_rifiuto(shared_session: &session::SharedSession) {
+    let Some(msg) = net_worker::RIFIUTO.lock().ok().and_then(|mut r| r.take()) else {
+        return;
+    };
+    shared_session
+        .lock()
+        .unwrap_or_else(|e| e.into_inner())
+        .clear();
+    unsafe {
+        let titolo = lvgl_render::text_cstring("Comando rifiutato");
+        let testo = lvgl_render::text_cstring(&msg);
+        let mbox = lvgl_sys::lv_msgbox_create(
+            core::ptr::null_mut(), // layer superiore: si vede sopra la pagina
+            titolo.as_ptr(),
+            testo.as_ptr(),
+            core::ptr::null_mut(), // nessun pulsante: si chiude col ✕
+            true,
+        );
+        if !mbox.is_null() {
+            lvgl_sys::lv_obj_align(
+                mbox,
+                lvgl_sys::LV_ALIGN_CENTER as lvgl_sys::lv_align_t,
+                0,
+                0,
+            );
+        }
+    }
+}
+
+/// Controlla che il token del pannello valga ancora, e lo butta se non vale
+/// (22-10-2026, piano
+/// `docs/plans/2026-10-22-sessione-che-non-sopravvive-al-deploy.md`).
+///
+/// Si chiama in due momenti soli, gli unici in cui il token può essere morto
+/// senza che il pannello lo sappia: dopo un deploy, e all'avvio — che copre il
+/// pannello riacceso dopo un deploy avvenuto a pannello spento, il caso in cui
+/// oggi il file su disco torna buono per sempre.
+///
+/// Niente controllo periodico: una richiesta ogni tot su un pannello acceso
+/// h24 è traffico, e nasconderebbe la prossima causa invece di mostrarla.
+fn verifica_sessione(
+    base_url: &str,
+    rt_handle: &tokio::runtime::Handle,
+    shared_session: &session::SharedSession,
+) {
+    let token = {
+        let g = shared_session.lock().unwrap_or_else(|e| e.into_inner());
+        g.token.clone()
+    };
+    let Some(token) = token else {
+        return; // anonimo: non c'è niente da verificare
+    };
+    match rt_handle.block_on(client::whoami(base_url, &token)) {
+        Ok(nome) if nome.is_empty() => {
+            eprintln!("[sessione] il runtime non riconosce più questo token: si riparte anonimi");
+            shared_session
+                .lock()
+                .unwrap_or_else(|e| e.into_inner())
+                .clear();
+        }
+        Ok(_) => {}
+        // Rete giù o runtime che non risponde: NON si butta la sessione. Un
+        // pannello che si scollega da solo perché il cavo ha fatto i capricci
+        // sarebbe peggio del difetto.
+        Err(e) => eprintln!("[sessione] non verificata ({e}): si tiene quella che c'è"),
+    }
+}
+
+/// Serve una richiesta di finestra: apre, sostituisce, chiude (22-10-2026,
+/// piano `docs/plans/2026-10-22-finestre-modali-su-lvgl.md`).
+///
+/// Ritorna la finestra che resta aperta dopo l'azione. **Una alla volta**,
+/// come sul web: una seconda apertura chiude la prima — che è anche l'unico
+/// modo di non accumulare veli sul layer superiore.
+///
+/// Quello che non si vede qui ma conta: i parametri si sostituiscono sul JSON
+/// **grezzo**, prima di deserializzare. Un `{nome}` dentro un campo numerico
+/// non deve diventare un errore di parsing, e la pagina intera andrebbe persa
+/// per un segnaposto in un campo che nessuno guarda.
+#[allow(clippy::too_many_arguments)]
+fn servi_finestra(
+    azione: &lvgl_render::Navigazione,
+    aperta: Option<lvgl_render::FinestraViva>,
+    base_url: &str,
+    rt_handle: &tokio::runtime::Handle,
+    tags: &client::TagSnapshot,
+    tag_tx: &mpsc::Sender<lvgl_render::TagCommand>,
+    nav_tx: &mpsc::Sender<lvgl_render::Navigazione>,
+    shared_alarms: &client::SharedAlarms,
+    ack_tx: &mpsc::Sender<String>,
+    lang_table: &model::LanguageTable,
+    shared_lang: &client::SharedLang,
+    shared_session: &session::SharedSession,
+) -> Option<lvgl_render::FinestraViva> {
+    use lvgl_render::Navigazione;
+
+    // Qualunque azione chiude quella che c'è: aprire ne sostituisce una,
+    // chiudere la toglie e basta.
+    if let Some(f) = aperta {
+        f.chiudi();
+    }
+    if matches!(azione, Navigazione::ChiudiFinestra) {
+        eprintln!("finestra chiusa");
+        return None;
+    }
+
+    // Il JSON grezzo della pagina, e i parametri dichiarati da chi la ospita.
+    let (mut grezzo, passati, nome_di_ripiego) = match azione {
+        Navigazione::ApriFinestra { pagina, parametri } => {
+            match rt_handle.block_on(client::resolve_page_raw_by_id(base_url, pagina)) {
+                Ok(v) => (v, parametri.clone(), pagina.clone()),
+                Err(e) => {
+                    eprintln!("[finestra] pagina '{pagina}' non letta: {e}");
+                    return None;
+                }
+            }
+        }
+        Navigazione::ApriFaceplate { faceplate, parametri } => {
+            match rt_handle.block_on(client::fetch_faceplate(base_url, faceplate)) {
+                Ok(d) => {
+                    // Un faceplate non è una pagina: se ne costruisce una
+                    // attorno, con i suoi oggetti e i suoi parametri. La misura
+                    // la decide `resolve_resolution` dal riquadro degli
+                    // oggetti, come per una pagina senza width/height.
+                    let dich = parametri::dichiarati_da_faceplate(d.params.as_ref());
+                    let v = serde_json::json!({
+                        "id": faceplate,
+                        "name": d.label.clone().unwrap_or_else(|| faceplate.clone()),
+                        "objects": d.objects,
+                        "finestra_parametri": dich
+                            .iter()
+                            .map(|p| serde_json::json!({ "name": p.name, "default": p.default }))
+                            .collect::<Vec<_>>(),
+                    });
+                    (v, parametri.clone(), d.label.unwrap_or_else(|| faceplate.clone()))
+                }
+                Err(e) => {
+                    eprintln!("[finestra] faceplate '{faceplate}' non letto: {e}");
+                    return None;
+                }
+            }
+        }
+        Navigazione::Pagina(_) | Navigazione::ChiudiFinestra => return None,
+    };
+
+    // I valori effettivi: quelli passati da chi apre, poi i default dichiarati
+    // dalla pagina — stessa precedenza del web.
+    let dichiarati: Vec<model::ParametroFinestra> =
+        serde_json::from_value(grezzo.get("finestra_parametri").cloned().unwrap_or(serde_json::Value::Null))
+            .unwrap_or_default();
+    let effettivi = parametri::effettivi(&dichiarati, Some(&passati));
+    parametri::sostituisci(&mut grezzo, &effettivi);
+
+    let pagina: model::SynopticPage = match serde_json::from_value(grezzo) {
+        Ok(p) => p,
+        Err(e) => {
+            eprintln!("[finestra] '{nome_di_ripiego}' non si legge come pagina: {e}");
+            return None;
+        }
+    };
+    let titolo = parametri::titolo_finestra(
+        pagina.finestra.as_ref().and_then(|f| f.titolo.as_deref()),
+        if pagina.name.is_empty() { &nome_di_ripiego } else { &pagina.name },
+        &effettivi,
+    );
+
+    match lvgl_render::apri_finestra(
+        &pagina,
+        &titolo,
+        tags,
+        tag_tx,
+        nav_tx,
+        base_url,
+        rt_handle,
+        shared_alarms,
+        ack_tx,
+        lang_table,
+        shared_lang,
+        shared_session,
+    ) {
+        Ok((f, summary)) => {
+            eprintln!(
+                "finestra '{titolo}': {} oggetti creati, {} non supportati",
+                summary.rendered.len(),
+                summary.skipped_unsupported.len()
+            );
+            Some(f)
+        }
+        Err(e) => {
+            eprintln!("[finestra] '{titolo}' non aperta: {e}");
+            None
+        }
+    }
+}
+
 /// a ogni frame.
 #[allow(clippy::too_many_arguments)]
 fn scrivi_istantanea(
@@ -807,7 +1023,7 @@ fn scrivi_istantanea(
     shared_tags: &client::SharedTagSnapshot,
     live_bindings: &mut [lvgl_render::LiveBinding],
     tag_rx: &mpsc::Receiver<lvgl_render::TagCommand>,
-    nav_rx: &mpsc::Receiver<String>,
+    nav_rx: &mpsc::Receiver<lvgl_render::Navigazione>,
     // Anche l'istantanea deve vedere gli allarmi nella lingua giusta: è la
     // prova di regressione visiva, e una prova che guarda una lingua diversa
     // da quella del pannello non prova niente.
@@ -818,8 +1034,20 @@ fn scrivi_istantanea(
     avviso: &aggiornamento::SharedAvviso,
     shared_session: &session::SharedSession,
     base_url: &str,
+    // Le finestre modali si aprono anche qui (22-10-2026). Senza, un tocco su
+    // un bottone «Apri finestra» produrrebbe la richiesta e nessuno la
+    // servirebbe: l'istantanea mostrerebbe la pagina sotto e darebbe per
+    // buono un difetto. È la prova che il piano chiede, e doveva arrivare
+    // fino in fondo.
+    rt_handle: &tokio::runtime::Handle,
+    tag_tx: &mpsc::Sender<lvgl_render::TagCommand>,
+    nav_tx: &mpsc::Sender<lvgl_render::Navigazione>,
+    shared_alarms: &client::SharedAlarms,
+    ack_tx: &mpsc::Sender<String>,
 ) -> anyhow::Result<()> {
     const PASSO_MS: u64 = 16;
+    let mut finestra: Option<lvgl_render::FinestraViva> = None;
+    let mut comandi_nav = 0;
     let mut overlay_avviso = lvgl_avviso::Overlay::new();
     let giri = (per_ms / PASSO_MS).max(1);
     let punti: Vec<(i32, i32)> = match tocca {
@@ -859,6 +1087,48 @@ fn scrivi_istantanea(
                 .unwrap_or_else(|e| e.into_inner())
                 .clone();
             lvgl_render::update_bindings(live_bindings, &tags, lang_table, shared_lang);
+            if let Some(f) = finestra.as_mut() {
+                lvgl_render::update_bindings(&mut f.live, &tags, lang_table, shared_lang);
+            }
+            // Le finestre si servono DENTRO il ciclo, fra un tocco e l'altro:
+            // il secondo tocco di `--tocca "a;b"` deve poter cadere su un
+            // bottone che esiste solo perché il primo ha aperto la finestra.
+            // Servirle alla fine mostrerebbe la pagina sotto e darebbe per
+            // buono il difetto che si sta cercando.
+            while let Ok(n) = nav_rx.try_recv() {
+                match &n {
+                    lvgl_render::Navigazione::Pagina(p) => {
+                        eprintln!("  navigazione richiesta: pagina '{p}'");
+                        comandi_nav += 1;
+                    }
+                    a => {
+                        match a {
+                            lvgl_render::Navigazione::ApriFinestra { pagina, .. } => {
+                                eprintln!("  finestra richiesta: pagina '{pagina}'")
+                            }
+                            lvgl_render::Navigazione::ApriFaceplate { faceplate, .. } => {
+                                eprintln!("  finestra richiesta: faceplate '{faceplate}'")
+                            }
+                            _ => eprintln!("  chiusura della finestra richiesta"),
+                        }
+                        comandi_nav += 1;
+                        finestra = servi_finestra(
+                            a,
+                            finestra.take(),
+                            base_url,
+                            rt_handle,
+                            &tags,
+                            tag_tx,
+                            nav_tx,
+                            shared_alarms,
+                            ack_tx,
+                            lang_table,
+                            shared_lang,
+                            shared_session,
+                        );
+                    }
+                }
+            }
         }
         overlay_avviso.sincronizza(
             avviso,
@@ -887,10 +1157,7 @@ fn scrivi_istantanea(
         eprintln!("  comando prodotto: scrivere {:?} su '{}'", c.value, c.tag);
         comandi += 1;
     }
-    while let Ok(p) = nav_rx.try_recv() {
-        eprintln!("  navigazione richiesta: pagina '{p}'");
-        comandi += 1;
-    }
+    comandi += comandi_nav;
     if !punti.is_empty() && comandi == 0 {
         eprintln!("  il tocco non ha prodotto nessun comando");
     }
@@ -971,8 +1238,8 @@ fn run_drm(
     mut live_bindings: Vec<lvgl_render::LiveBinding>,
     tag_tx: mpsc::Sender<TagCommand>,
     tag_rx: mpsc::Receiver<TagCommand>,
-    nav_tx: mpsc::Sender<String>,
-    nav_rx: mpsc::Receiver<String>,
+    nav_tx: mpsc::Sender<lvgl_render::Navigazione>,
+    nav_rx: mpsc::Receiver<lvgl_render::Navigazione>,
     ack_tx: mpsc::Sender<String>,
     ack_rx: mpsc::Receiver<String>,
     rt_handle: tokio::runtime::Handle,
@@ -1044,6 +1311,9 @@ fn run_drm(
     // tiene per puntatore.
     let mut overlay_avviso = lvgl_avviso::Overlay::new();
 
+    // La finestra modale aperta, al più una (22-10-2026): vive quanto il
+    // ciclo, e la pagina sotto resta dov'è.
+    let mut finestra: Option<lvgl_render::FinestraViva> = None;
     loop {
         let frame_start = Instant::now();
 
@@ -1053,6 +1323,13 @@ fn run_drm(
                 .unwrap_or_else(|e| e.into_inner())
                 .clone();
             lvgl_render::update_bindings(&mut live_bindings, &tags, &lang_table, &shared_lang);
+            // I collegamenti della finestra aperta: si aggiornano mentre c'è
+            // e muoiono con lei. Senza questa riga una finestra mostrerebbe i
+            // valori del momento in cui è stata aperta, e basta.
+            if let Some(f) = finestra.as_mut() {
+                lvgl_render::update_bindings(&mut f.live, &tags, &lang_table, &shared_lang);
+            }
+            mostra_rifiuto(&shared_session);
             tags
         };
 
@@ -1104,7 +1381,31 @@ fn run_drm(
             });
         }
 
-        if let Ok(target_page) = nav_rx.try_recv() {
+        let richiesta = nav_rx.try_recv().ok();
+        // Le tre richieste di finestra si servono qui e non toccano la pagina
+        // sotto: resta viva, coi suoi widget e i suoi collegamenti, e ricompare
+        // da sé quando la finestra si chiude.
+        if let Some(a @ (lvgl_render::Navigazione::ApriFinestra { .. }
+        | lvgl_render::Navigazione::ApriFaceplate { .. }
+        | lvgl_render::Navigazione::ChiudiFinestra)) = richiesta.as_ref()
+        {
+            let tags_ora = shared_tags.lock().unwrap_or_else(|e| e.into_inner()).clone();
+            finestra = servi_finestra(
+                a,
+                finestra.take(),
+                &base_url,
+                &rt_handle,
+                &tags_ora,
+                &tag_tx,
+                &nav_tx,
+                &shared_alarms,
+                &ack_tx,
+                &lang_table,
+                &shared_lang,
+                &shared_session,
+            );
+        }
+        if let Some(lvgl_render::Navigazione::Pagina(target_page)) = richiesta {
             match rt_handle.block_on(client::resolve_page_by_id(&base_url, &target_page)) {
                 Ok(new_page) => match lvgl_render::render_page_objects(
                     &new_page,
@@ -1192,8 +1493,8 @@ fn run_window(
     // navigando.
     tag_tx: mpsc::Sender<TagCommand>,
     tag_rx: mpsc::Receiver<TagCommand>,
-    nav_tx: mpsc::Sender<String>,
-    nav_rx: mpsc::Receiver<String>,
+    nav_tx: mpsc::Sender<lvgl_render::Navigazione>,
+    nav_rx: mpsc::Receiver<lvgl_render::Navigazione>,
     // Manda id allarme da ackare — stesso principio di tag_tx/nav_tx: la
     // callback FFI del pulsante ACK (lvgl_render.rs) accoda qui, niente I/O
     // di rete dentro la callback sincrona.
@@ -1306,6 +1607,9 @@ fn run_window(
     }
     eprintln!("finestra SDL2 aperta — click/drag sui widget interattivi, chiudi la finestra o premi Esc per uscire");
 
+    // La finestra modale aperta, al più una (22-10-2026): vive quanto il
+    // ciclo, e la pagina sotto resta dov'è.
+    let mut finestra: Option<lvgl_render::FinestraViva> = None;
     'running: loop {
         let frame_start = Instant::now();
 
@@ -1366,6 +1670,13 @@ fn run_window(
                 .unwrap_or_else(|e| e.into_inner())
                 .clone();
             lvgl_render::update_bindings(&mut live_bindings, &tags, &lang_table, &shared_lang);
+            // I collegamenti della finestra aperta: si aggiornano mentre c'è
+            // e muoiono con lei. Senza questa riga una finestra mostrerebbe i
+            // valori del momento in cui è stata aperta, e basta.
+            if let Some(f) = finestra.as_mut() {
+                lvgl_render::update_bindings(&mut f.live, &tags, &lang_table, &shared_lang);
+            }
+            mostra_rifiuto(&shared_session);
             tags
         };
 
@@ -1434,7 +1745,31 @@ fn run_window(
         // davvero il loop di rendering per la durata della fetch: accettabile
         // per un runtime locale (tipicamente pochi millisecondi), non lo
         // sarebbe per una pagina servita da lontano.
-        if let Ok(target_page) = nav_rx.try_recv() {
+        let richiesta = nav_rx.try_recv().ok();
+        // Le tre richieste di finestra si servono qui e non toccano la pagina
+        // sotto: resta viva, coi suoi widget e i suoi collegamenti, e ricompare
+        // da sé quando la finestra si chiude.
+        if let Some(a @ (lvgl_render::Navigazione::ApriFinestra { .. }
+        | lvgl_render::Navigazione::ApriFaceplate { .. }
+        | lvgl_render::Navigazione::ChiudiFinestra)) = richiesta.as_ref()
+        {
+            let tags_ora = shared_tags.lock().unwrap_or_else(|e| e.into_inner()).clone();
+            finestra = servi_finestra(
+                a,
+                finestra.take(),
+                &base_url,
+                &rt_handle,
+                &tags_ora,
+                &tag_tx,
+                &nav_tx,
+                &shared_alarms,
+                &ack_tx,
+                &lang_table,
+                &shared_lang,
+                &shared_session,
+            );
+        }
+        if let Some(lvgl_render::Navigazione::Pagina(target_page)) = richiesta {
             match rt_handle.block_on(client::resolve_page_by_id(&base_url, &target_page)) {
                 Ok(new_page) => match lvgl_render::render_page_objects(
                     &new_page,
@@ -1492,6 +1827,17 @@ fn run_window(
             // nuova col disegno vecchio — cioè proprio l'inganno che il
             // ricaricamento automatico doveva togliere di mezzo.
             svg_assets::invalidate();
+            // **Questo token vale ancora?** (22-10-2026). Un deploy può aver
+            // cambiato gli utenti del progetto, e sul pannello la sessione è
+            // un file su disco riconvalidato solo contro l'orologio: finché la
+            // data non scade il token è «buono», e il pannello continua a
+            // mostrarsi collegato mentre i comandi vengono rifiutati.
+            //
+            // È il momento esatto: il pannello sa già che il progetto è
+            // cambiato, qui impara anche che non è più lui. Il ridisegno che
+            // segue mostra «Login» al posto del nome e rimette i `min_role` al
+            // loro posto da sé.
+            verifica_sessione(&base_url, &rt_handle, &shared_session);
             // Stessa ragione, per l'elenco del navigatore: un deploy può aver
             // aggiunto, tolto o riordinato pagine, e il menù resterebbe quello
             // di prima. È l'unico punto in cui si rilegge — a ogni render

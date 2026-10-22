@@ -46,3 +46,34 @@ export function altezzaValore(corpo: number): number {
 export function corpoSecondario(corpo: number): number {
   return Math.max(6, corpo - 1);
 }
+
+/** Il corpo di un testo che **accompagna** un valore, due punti sotto: la riga
+ *  «Attuale: 20.0» di un setpoint (22-10-2026). Due e non uno — che e'
+ *  `corpoSecondario` — perche' i due letterali del web sono 12 per il valore e
+ *  **10** per questa riga, e un punto solo ne darebbe 11. */
+export function corpoAnnotazione(corpo: number): number {
+  return Math.max(6, corpo - 2);
+}
+
+/** L'altezza di una riga di testo: il corpo per l'interlinea normale (1,2). */
+function riga(corpo: number): number {
+  return Math.round(corpo * 1.2);
+}
+
+/** L'altezza **minima** di un setpoint, dai suoi tre corpi.
+ *
+ *  Il setpoint mostra tre righe e il predefinito di oggi e' 56 px, in cui non
+ *  ci stanno. Scelta del maintainer: il riquadro si allarga. Vale in tutti e
+ *  due i motori, da questa funzione: se valesse solo sul pannello, l'editor
+ *  smetterebbe di dire la verita' sull'ingombro. */
+export function altezzaMinimaSetpoint(
+  corpoEtichetta: number,
+  corpo: number,
+  corpoPulsanti: number,
+  conEtichetta: boolean,
+): number {
+  const testata = conEtichetta ? riga(corpoEtichetta) + 3 : 0;
+  const attuale = riga(corpoAnnotazione(corpo)) + 3;
+  const campo = riga(Math.max(corpo, corpoPulsanti)) + 8;
+  return 8 + testata + attuale + campo;
+}

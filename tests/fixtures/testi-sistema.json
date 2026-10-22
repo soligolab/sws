@@ -301,6 +301,13 @@
       "es": "Esperando muestras…",
       "en": "Waiting for samples…"
     },
+    "sp_attuale": {
+      "it": "Attuale:",
+      "de": "Aktuell:",
+      "fr": "Actuel :",
+      "es": "Actual:",
+      "en": "Current:"
+    },
     "quadlet_titolo": {
       "it": "Configurazione del servizio da aggiornare",
       "de": "Dienstkonfiguration aktualisieren",

@@ -60,6 +60,43 @@ pub struct SynopticPage {
     pub height: Option<f64>,
     #[serde(default)]
     pub objects: Vec<SynopticObject>,
+    /// Presente = la pagina si apre **solo** come finestra, da un bottone
+    /// «Apri finestra» (P1, 17-10-2026; su questo motore dal 22-10-2026).
+    /// Il server la esclude già dai navigatori (`GET /api/pages/nav`), quindi
+    /// qui serve solo a sapere come disegnarla: modale o no, e con che titolo.
+    #[serde(default)]
+    pub finestra: Option<Finestra>,
+    /// I parametri della finestra, `{nome}` nei suoi campi: stessa forma di
+    /// quelli dei faceplate. I valori arrivano dal bottone; quelli che il
+    /// bottone non passa prendono il `default` dichiarato qui.
+    #[serde(default)]
+    pub finestra_parametri: Option<Vec<ParametroFinestra>>,
+}
+
+/// Come si apre una pagina-finestra. `modale` è l'unico campo che il web
+/// dichiara obbligatorio, ma qui ha un `default` come tutto il resto: un campo
+/// senza default rende illeggibile l'**intero** documento a un binario più
+/// vecchio, e il documento qui è la pagina — cioè uno schermo nero.
+#[derive(Debug, Deserialize, Clone, Default)]
+pub struct Finestra {
+    /// Il web tratta l'assenza come `true` (`pagina.finestra?.modale !== false`).
+    #[serde(default = "vero")]
+    pub modale: bool,
+    #[serde(default)]
+    pub titolo: Option<String>,
+}
+
+fn vero() -> bool {
+    true
+}
+
+/// Un parametro dichiarato da una pagina-finestra o da un faceplate.
+#[derive(Debug, Deserialize, Clone)]
+pub struct ParametroFinestra {
+    #[serde(default)]
+    pub name: String,
+    #[serde(default)]
+    pub default: Option<String>,
 }
 
 /// «variabile = valore» di un bottone che assegna.
@@ -122,6 +159,9 @@ pub struct SynopticObject {
     /// il corpo del testo primario (le opzioni, il valore). Scelta del
     /// maintainer del 21-10-2026: «un campo per testo».
     pub label_font_size: Option<f64>,
+    /// Corpo dei pulsantini di comando dentro un oggetto — il ✓ e il ⌨ di un
+    /// `setpoint` (22-10-2026).
+    pub button_font_size: Option<f64>,
     pub text_color_by_threshold: Option<bool>,
     pub alarm_low: Option<f64>,
     pub warn_low: Option<f64>,
@@ -710,6 +750,16 @@ pub struct PieSlice {
 pub struct FaceplateDef {
     #[serde(default)]
     pub objects: Vec<serde_json::Value>,
+    /// Il nome leggibile, per la barra del titolo quando un faceplate si apre
+    /// come finestra (22-10-2026). Come ogni campo di questo modello ha il suo
+    /// `default`: senza, un faceplate che non lo dichiara renderebbe
+    /// illeggibile l'intera definizione.
+    #[serde(default)]
+    pub label: Option<String>,
+    /// I parametri dichiarati, nella forma ricca o come stringa nuda — il web
+    /// normalizza le due con `normalizeFaceplateParams`.
+    #[serde(default)]
+    pub params: Option<serde_json::Value>,
 }
 
 /// Porta `GaugeZone` di `types/index.ts`. Fino al 2026-09-12 `gauge_zones`
