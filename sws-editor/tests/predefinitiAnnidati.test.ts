@@ -45,7 +45,9 @@ describe("riempiPredefiniti scende nei contenitori", () => {
     // È così che il sorvegliante «progetto cambiato» non scatta a vuoto.
     const pieno = {
       ...nudo("g", "grid"),
-      grid_cells: [{ row: 0, col: 0, child: { ...nudo("g_led", "led"), on_color: "#22c55e", off_color: "#374151" } }],
+      // `font_size` dal 21-10-2026: un led ha un predefinito fisso, quindi
+      // senza di esso ci sarebbe pur sempre qualcosa da riempire.
+      grid_cells: [{ row: 0, col: 0, child: { ...nudo("g_led", "led"), on_color: "#22c55e", off_color: "#374151", font_size: 11 } }],
       grid_border_color: "#334155",
     } as SynopticObject;
     const objs = [pieno];

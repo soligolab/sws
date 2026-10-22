@@ -3832,6 +3832,7 @@ export function ObjectProps({
             <>
               {field(t("props.label"), <BindableInput obj={obj} propName="label" onChange={onChange}>{textInput("label")}</BindableInput>)}
               {field(t("props.labelColor"), <BindableInput obj={obj} propName="color" onChange={onChange}>{colorInput("color")}</BindableInput>)}
+              {field(t("props.fontSize"), <BindableInput obj={obj} propName="font_size" onChange={onChange}>{numInput("font_size", 14)}</BindableInput>)}
               {sezioneComando}
               {field(t("props.builtinAction"),
                 <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
@@ -3983,6 +3984,7 @@ export function ObjectProps({
                   </div>
                 )}
                 {field(t("props.labelColor"), <BindableInput obj={obj} propName="color" onChange={onChange}>{colorInput("color")}</BindableInput>)}
+                {field(t("props.fontSize"), <BindableInput obj={obj} propName="font_size" onChange={onChange}>{numInput("font_size", 13)}</BindableInput>)}
               </>
             );
           })()}
@@ -3991,6 +3993,7 @@ export function ObjectProps({
           {obj.type === "lang_button" && (
             <>
               {field(t("props.label"), <BindableInput obj={obj} propName="label" onChange={onChange}>{textInput("label")}</BindableInput>)}
+              {field(t("props.fontSize"), <BindableInput obj={obj} propName="font_size" onChange={onChange}>{numInput("font_size", 13)}</BindableInput>)}
               {field(t("props.targetLang"),
                 <select style={{ ...INPUT, cursor: "pointer" }} value={obj.target_lang ?? ""}
                   onChange={(e) => onChange({ target_lang: e.target.value || undefined })}>
@@ -4163,6 +4166,7 @@ export function ObjectProps({
           {obj.type === "checkbox" && (
             <>
               {field(t("props.label"), <BindableInput obj={obj} propName="label" onChange={onChange}>{textInput("label")}</BindableInput>)}
+              {field(t("props.fontSize"), <BindableInput obj={obj} propName="font_size" onChange={onChange}>{numInput("font_size", 13)}</BindableInput>)}
               {field(t("props.tag"), tagInput("es. pump1.run"))}
               {field(t("props.color"), <BindableInput obj={obj} propName="fill" onChange={onChange}>{colorInput("fill")}</BindableInput>)}
               {field(t("props.valueOn"),
@@ -4227,6 +4231,7 @@ export function ObjectProps({
           {obj.type === "led" && (
             <>
               {field(t("props.label"), <BindableInput obj={obj} propName="label" onChange={onChange}>{textInput("label")}</BindableInput>)}
+              {field(t("props.fontSize"), <BindableInput obj={obj} propName="font_size" onChange={onChange}>{numInput("font_size", 11)}</BindableInput>)}
               {field(t("props.tag"), tagInput("es. pump1.run"))}
               {field(t("props.valueOn"),
                 <BindableInput obj={obj} propName="on_value" onChange={onChange}>

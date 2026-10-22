@@ -13,6 +13,18 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 
 ### Fixed
 
+- **Il corpo del testo si può finalmente scegliere su pulsanti, navigatori, spie e caselle di
+  spunta** (primo giro del ramo 5 della chiusura dei residui). Fino a oggi scrivere `font_size` su un
+  bottone non produceva niente: il corpo era un letterale nel renderer, 14 sul web e un'eredità su
+  LVGL. Ora `button`, `navbutton`, `lang_button`, `led` e `checkbox` leggono il campo sui due motori,
+  col valore di prima come ripiego — **nessun progetto cambia aspetto**. È il rimedio che il piano
+  della scala proponeva per il testo che esce dal riquadro dopo un cambio di risoluzione, e che non
+  avrebbe funzionato.
+
+- **Due divergenze web/LVGL che c'erano da prima**, trovate misurando: una `checkbox` disegnava il
+  testo a 13 sul web e lo ereditava a 14 sul pannello; un `navbutton` cablava 13 in tutti e due i
+  posti senza che niente lo tenesse insieme. Ora il numero è uno solo, nella tabella dei predefiniti.
+
 - **La seconda conferma dell'aggiornamento non elencava gli avvisi di compatibilità**, e chiedeva conferma
   mostrando scritto `aggiornamento.confermaCompat`. La stringa c'era ed era giusta, ma stava sotto `rinomina`
   invece che sotto `aggiornamento` (dal `ff9ea6d9`, 2.12.0-rc.9): i18next, senza `parseMissingKeyHandler`,

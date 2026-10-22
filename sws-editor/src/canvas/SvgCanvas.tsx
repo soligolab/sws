@@ -4390,7 +4390,7 @@ function SvgObjectCorpo(p: ObjProps) {
               preserveAspectRatio="xMidYMid slice" style={{ pointerEvents: "none" }} />
           )}
           <text x={obj.x + w / 2} y={obj.y + h / 2 + 5}
-            textAnchor="middle" fill={coloreEffettivo(obj, "color")} fontSize={14} fontWeight={600}
+            textAnchor="middle" fill={coloreEffettivo(obj, "color")} fontSize={obj.font_size ?? 14} fontWeight={600}
             style={{ pointerEvents: "none" }}>
             {obj.label ?? "Button"}
           </text>
@@ -4428,7 +4428,7 @@ function SvgObjectCorpo(p: ObjProps) {
             fill={obj.color ?? "var(--brand-primary, #3b82f6)"} fontSize={14}
             style={{ pointerEvents: "none" }}>▶</text>
           <text x={obj.x + 28} y={obj.y + h / 2 + 5}
-            fill={coloreEffettivo(obj, "color")} fontSize={13}
+            fill={coloreEffettivo(obj, "color")} fontSize={obj.font_size ?? 13}
             style={{ pointerEvents: "none" }}>
             {obj.label ?? "Go to page"}
           </text>
@@ -4478,7 +4478,7 @@ function SvgObjectCorpo(p: ObjProps) {
               preserveAspectRatio="xMidYMid slice" style={{ pointerEvents: "none" }} />
           )}
           <text x={obj.x + w / 2} y={obj.y + h / 2 + 5} textAnchor="middle"
-            fill={active ? "#fff" : "var(--synoptic-text, #e2e8f0)"} fontSize={13} fontWeight={active ? 700 : 400}
+            fill={active ? "#fff" : "var(--synoptic-text, #e2e8f0)"} fontSize={obj.font_size ?? 13} fontWeight={active ? 700 : 400}
             style={{ pointerEvents: "none" }}>
             {obj.label ?? (code ? code.toUpperCase() : "LANG")}
           </text>
@@ -4579,7 +4579,7 @@ function SvgObjectCorpo(p: ObjProps) {
           })()}
           {/* Label */}
           {obj.label && (
-            <text x={cx} y={obj.y + r * 2 + 14} textAnchor="middle" fill="#94a3b8" fontSize={11}
+            <text x={cx} y={obj.y + r * 2 + 14} textAnchor="middle" fill="#94a3b8" fontSize={obj.font_size ?? 11}
               style={{ pointerEvents: "none" }}>
               {obj.label}
             </text>
@@ -5130,7 +5130,7 @@ function SvgObjectCorpo(p: ObjProps) {
               </svg>
             )}
           </div>
-          <span style={{ color: "var(--synoptic-text, var(--brand-text, #e2e8f0))", fontSize: 13, userSelect: "none" }}>
+          <span style={{ color: "var(--synoptic-text, var(--brand-text, #e2e8f0))", fontSize: obj.font_size ?? 13, userSelect: "none" }}>
             {obj.label ?? ""}
           </span>
           {tv && tv.quality !== "Good" && (

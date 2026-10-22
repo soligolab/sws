@@ -15,7 +15,7 @@ import en from "@/i18n/en.json";
 describe("la conferma degli avvisi di compatibilità", () => {
   it("ha la sua chiave sotto «aggiornamento», nelle due lingue", () => {
     for (const [lingua, d] of [["it", it_], ["en", en]] as const) {
-      const t = (d as Record<string, Record<string, string>>).aggiornamento?.confermaCompat;
+      const t = (d as unknown as Record<string, Record<string, string>>).aggiornamento?.confermaCompat;
       expect(t, `${lingua}: manca aggiornamento.confermaCompat`).toBeTruthy();
       expect(t, `${lingua}: deve interpolare gli avvisi`).toContain("{{avvisi}}");
     }
@@ -23,7 +23,7 @@ describe("la conferma degli avvisi di compatibilità", () => {
 
   it("non è rimasta anche dove stava per sbaglio", () => {
     for (const d of [it_, en]) {
-      expect((d as Record<string, Record<string, string>>).rinomina?.confermaCompat).toBeUndefined();
+      expect((d as unknown as Record<string, Record<string, string>>).rinomina?.confermaCompat).toBeUndefined();
     }
   });
 });

@@ -209,6 +209,32 @@ di un campo nuovo nel manifesto.
 
 ## Ramo 5 — `feat/font-size-ovunque`
 
+> **Primo giro fatto il 21-10-2026**: cinque tipi a un testo solo — `button` (14),
+> `navbutton` (13), `lang_button` (13), `led` (11), `checkbox` (13). Per ognuno la voce nella
+> tabella col letterale di oggi, il ripiego nel web, il campo nel pannello e la chiamata su LVGL.
+> Nessun progetto cambia aspetto, e la guardia `check_predefiniti` confronta 35 ripieghi invece di 30.
+>
+> **Due cose misurate che il piano non sapeva**, e che valgono per il secondo giro:
+>
+> 1. **Non è solo il limite della scala: ci sono divergenze web/LVGL già oggi.** `checkbox`
+>    disegnava 13 sul web e ereditava i 14 dello schermo su LVGL; `radio` ha l'etichetta a 11 sul
+>    web contro 14, e le opzioni a 13 contro 14; `slider` ha il valore a 12 contro 14. Rendere vivo
+>    `font_size` le chiude per costruzione, perché i due motori leggono lo stesso numero.
+> 2. **Quasi tutti i tipi che restano hanno più corpi diversi**, e un campo solo non basta:
+>    `navbutton` ne aveva due (14 il glifo ▶, 13 l'etichetta — risolto dando all'etichetta il campo
+>    e lasciando il glifo fisso, perché non è testo dell'utente); `radio` due (11 e 13); `slider`
+>    due, scritti **quattro** volte perché i rami verticale e orizzontale sono duplicati; `gauge`
+>    cinque; e **`setpoint` cinque, con il mapping web/LVGL che non è uno a uno** — una riga del web
+>    su LVGL non esiste e i due bottoni diventano uno. Per questi la domanda «quale testo governa
+>    `font_size`» è una scelta, non un dettaglio.
+>
+> **Terza cosa, e la più scomoda: le geometrie sono fisse.** Alzando il corpo, le opzioni di un
+> `radio` si sovrappongono (passo 28 px cablato sui due motori), la spunta di un `checkbox` resta
+> 18×18 mentre il testo cresce, e il valore di uno `slider` esce dalla traccia. Rendere vivo il
+> campo senza toccare le spaziature dà un oggetto che si può rompere da solo: va deciso se le
+> misure derivano dal corpo o se il corpo si limita.
+
+
 Il limite noto del piano della scala: dopo un cambio di risoluzione il testo di un bottone esce
 dal riquadro. **Il rimedio scritto in quel piano non funzionerebbe**: scrivere `font_size` su un
 bottone oggi non produce nulla, perché nessuno dei due motori lo legge per quel tipo. Il corpo è

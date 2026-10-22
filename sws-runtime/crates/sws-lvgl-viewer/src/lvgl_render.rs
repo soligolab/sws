@@ -1455,11 +1455,28 @@ fn etichetta_piccola(
     larghezza: Option<f64>,
     colore: (u8, u8, u8),
 ) -> anyhow::Result<()> {
+    etichetta_piccola_corpo(screen, testo, x, y_base, larghezza, colore, 11)
+}
+
+/// Come [`etichetta_piccola`], ma col corpo scelto da chi chiama (21-10-2026,
+/// ramo 5 della chiusura dei residui). Sei renderer condividono questa
+/// funzione e il corpo era 11 per tutti: chi ha un `font_size` nella tabella
+/// dei predefiniti passa il suo, gli altri continuano a passare 11 e non
+/// cambiano di un pixel.
+fn etichetta_piccola_corpo(
+    screen: &mut lvgl::Obj,
+    testo: &str,
+    x: f64,
+    y_base: f64,
+    larghezza: Option<f64>,
+    colore: (u8, u8, u8),
+    corpo: u16,
+) -> anyhow::Result<()> {
     let mut l = Label::create(screen).map_err(|e| anyhow::anyhow!("Label::create: {e:?}"))?;
     l.set_text(&text_cstring(testo)).map_err(|e| anyhow::anyhow!("set_text: {e:?}"))?;
     let p = l.raw().map_err(|e| anyhow::anyhow!("raw: {e:?}"))?.as_ptr();
     unsafe {
-        stile::font(p, 11, stile::MAIN);
+        stile::font(p, corpo, stile::MAIN);
         stile::testo(p, colore, stile::MAIN);
         // Centrata sulla larghezza VERA del testo, non dentro un riquadro
         // fisso: un riquadro largo che esce dallo schermo lo fa scorrere.
@@ -3514,6 +3531,11 @@ fn render_button(
     let mut lbl = Label::create(&mut btn).map_err(|e| anyhow::anyhow!("Label::create: {e:?}"))?;
     lbl.set_text(&text_cstring(obj.label.as_deref().unwrap_or("Button")))
         .map_err(|e| anyhow::anyhow!("set_text: {e:?}"))?;
+    // Il corpo del testo (21-10-2026, ramo 5 della chiusura dei residui): fino a
+    // oggi era cablato a 14 sul web e ignorato qui, quindi scriverlo nel file non
+    // produceva niente — ed era il rimedio che il piano della scala proponeva per
+    // il testo che esce dal riquadro dopo un cambio di risoluzione.
+    apply_font_size(&lbl, obj)?;
     // Centrata come sul web (`textAnchor="middle"`). Senza, LVGL la lascia in
     // alto a sinistra dentro il bottone: visto sul TC620 il 15-10-2026.
     unsafe {
@@ -3600,7 +3622,11 @@ fn render_navbutton(
             stile::testo(l, c, stile::MAIN);
         }
         stile::font(f, 14, stile::MAIN);
-        stile::font(l, 13, stile::MAIN);
+        // Il corpo dell'etichetta dall'oggetto (21-10-2026), col 13 di sempre
+        // come ripiego: un progetto deployato prima di oggi non ha il campo, e
+        // deve continuare a disegnarsi identico. La freccia resta 14: non è
+        // testo dell'utente, è il segno che dice «porta altrove».
+        stile::font(l, obj.font_size.map(|v| v.round().clamp(1.0, 1000.0) as u16).unwrap_or(13), stile::MAIN);
     }
 
     if let Some(target_page) = &obj.target_page {
@@ -3835,7 +3861,10 @@ fn render_led(
         // Sotto il LED, centrata: `y + 2r + 14` come sul web. Una larghezza
         // abbondante perché un'etichetta più larga del LED resti centrata.
         let (x, y) = (obj.x.unwrap_or(0.0), obj.y.unwrap_or(0.0));
-        etichetta_piccola(screen, l, x + d / 2.0 - 100.0, y + d + 14.0, Some(200.0), GRIGIO_ETICHETTA)?;
+        // Il corpo dall'oggetto (21-10-2026): prima era 11 fisso qui e 11
+        // cablato sul web, e scrivere `font_size` su un led non produceva nulla.
+        let corpo = obj.font_size.map(|v| v.round().clamp(1.0, 1000.0) as u16).unwrap_or(11);
+        etichetta_piccola_corpo(screen, l, x + d / 2.0 - 100.0, y + d + 14.0, Some(200.0), GRIGIO_ETICHETTA, corpo)?;
     }
 
     let on_value = obj.on_value.clone().unwrap_or(OnValue::Bool(true));
@@ -4249,6 +4278,10 @@ fn render_checkbox(
     // compariva «Checkbox»).
     cb.set_text(&text_cstring(obj.label.as_deref().unwrap_or("")))
         .map_err(|e| anyhow::anyhow!("set_text: {e:?}"))?;
+    // Il corpo del testo (21-10-2026). Qui non chiude solo il limite della
+    // scala: chiude una divergenza che c'era già. Il web disegnava 13, LVGL
+    // ereditava i 14 dello schermo, e nessuno dei due lo diceva.
+    apply_font_size(&cb, obj)?;
     let ptr = cb.raw().map_err(|e| anyhow::anyhow!("raw: {e:?}"))?;
     colora_spunta(ptr.as_ptr(), colore_campo(obj.fill.as_deref(), "checkbox", "fill"));
 
@@ -10416,6 +10449,7 @@ fn render_lang_button(
     let mut lbl = Label::create(&mut btn).map_err(|e| anyhow::anyhow!("Label::create: {e:?}"))?;
     lbl.set_text(&text_cstring(&label_text))
         .map_err(|e| anyhow::anyhow!("set_text: {e:?}"))?;
+    apply_font_size(&lbl, obj)?;
     let btn_ptr = btn.raw().map_err(|e| anyhow::anyhow!("raw: {e:?}"))?;
 
     let ctx: &'static LangButtonCtx = Box::leak(Box::new(LangButtonCtx {
