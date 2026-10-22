@@ -66,7 +66,7 @@ round-trip — e lo schema dell'assistente IA va **rigenerato** con
   e due pulsanti sul web (cinque corpi: 11, 10, 12, 12, 13), due righe e un overlay a schermo
   intero su LVGL. «Prima si allinea» è lavoro suo, e *chi* si allinea a chi è una scelta del
   maintainer: il valore grande e il tastierino a pieno schermo sono fatti per un dito su un vetro
-  da 7". **Seme**: `docs/plans/2026-10-22-setpoint-i-due-motori-non-combaciano.md`.
+  da 7". **Seme**: `docs/archive/2026-10-22-setpoint-i-due-motori-non-combaciano.md`.
 - **`gauge`, `kpi_tile`, `data_log`**: non erano in questo giro. Il gauge ha lo stesso guasto del
   setpoint in piccolo — valore e unità sono due testi sul web e **una** etichetta sola su LVGL,
   quindi dargli un corpo oggi ingrandirebbe anche l'unità. kpi_tile e data_log hanno tre corpi
@@ -140,7 +140,7 @@ codice. **Niente mergiato e niente pushato.**
 | piano | cosa |
 |---|---|
 | [finestre modali](docs/plans/2026-10-22-finestre-modali-su-lvgl.md) | `close_popup` non lo ascoltava nessuno: ora la finestra c'è davvero, col velo, la barra e il ✕ |
-| [setpoint](docs/plans/2026-10-22-setpoint-i-due-motori-non-combaciano.md) | il pannello si allinea al web: riga «Attuale:», campo, ✓ e ⌨ |
+| [setpoint](docs/archive/2026-10-22-setpoint-i-due-motori-non-combaciano.md) | il pannello si allinea al web: riga «Attuale:», campo, ✓ e ⌨ |
 | [sessione dopo il deploy](docs/plans/2026-10-22-sessione-che-non-sopravvive-al-deploy.md) | quattro rimedi, dalla causa a chi doveva accorgersene |
 
 **Le prove che costano niente e che si rifanno**: `tmp/prova-finestre/` ha un progetto scritto
@@ -2587,7 +2587,7 @@ pannello, puoi usarlo per i test». Stato attuale, da sapere prima di toccarlo:
    800×480 su 1920×1080, e il web fa identico (cap a 1 voluto, `viewerFitScale`). Ma sotto c'è un
    buco vero: **il viewer LVGL non legge `size_mode` affatto**, quindi in `ratio` il web scala a
    riempire e LVGL resta 1:1 → seme
-   [2026-09-24-lvgl-ignora-size-mode.md](docs/plans/2026-09-24-lvgl-ignora-size-mode.md).
+   [2026-09-24-lvgl-ignora-size-mode.md](docs/archive/2026-09-24-lvgl-ignora-size-mode.md).
 2. «L'ultima pagina non ha la barra e non torno alla Home» — era `zona2` del progetto di collaudo,
    scritta apposta senza navigatore; le ho aggiunto la barra e rideployato. **Il caso generale
    resta**: su LVGL non c'è nessuna chrome, mai, e la regola B14 del 23-09 scatta **solo** con
@@ -2628,7 +2628,7 @@ su un tag interno, trascinato **col dito** sul touch: il tag è passato da `0`/`
 poi `69`, qualità **Good**, più scritture in fila tutte arrivate, e il viewer è rimasto vivo con lo
 stesso pid. La combinazione che Q55 dice bloccarsi — una PUT che riceve **200** dentro il binario
 del viewer — **completa**, col thread di rete del 20-09. Restano due cose, scritte nel piano
-[Q55](docs/plans/2026-09-18-post-bloccata-viewer-lvgl.md): la scrittura **con token** non è stata
+[Q55](docs/archive/2026-09-18-post-bloccata-viewer-lvgl.md): la scrittura **con token** non è stata
 esercitata (il progetto di prova non ha utenti), e la causa del difetto originale **resta
 inspiegata**.
 
@@ -3008,7 +3008,7 @@ test` 607, `check_static.sh` 22/22.
 
 ## ▶ Riprendere da qui — Q55: thread di rete per le scritture, su main (2026-09-20)
 
-Seme `docs/plans/2026-09-18-post-bloccata-viewer-lvgl.md`. **Su `main` e pushato (`ced35dc9`).**
+Seme `docs/archive/2026-09-18-post-bloccata-viewer-lvgl.md`. **Su `main` e pushato (`ced35dc9`).**
 Sessione di plan: il difetto **non si riproduce** fuori dal viewer (nove combinazioni + un login vero in HTTP e
 HTTPS, con `lvgl-sys` linkato: tutte completano). Scelta: opzione **B** — `net_worker.rs`, un thread di rete
 dedicato per `put_tag`/`ack_alarm`/`apply_recipe`, in ordine, con tetto di 15 s. Gate verde: `cargo check/clippy/

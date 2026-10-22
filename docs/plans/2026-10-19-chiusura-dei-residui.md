@@ -257,7 +257,7 @@ di un campo nuovo nel manifesto.
 > **Restano fuori, e si sa perché**: il **setpoint** — il suo lato LVGL non è uno a uno col web
 > (tre righe e due pulsanti contro due righe e un overlay), quindi «prima si allinea» è lavoro
 > suo, con una sessione di plan dedicata: seme in
-> `docs/plans/2026-10-22-setpoint-i-due-motori-non-combaciano.md`. E **`gauge`, `kpi_tile` e
+> `docs/archive/2026-10-22-setpoint-i-due-motori-non-combaciano.md`. E **`gauge`, `kpi_tile` e
 > `data_log`**, che non erano in questo giro: il gauge ha lo stesso guasto del setpoint in
 > piccolo (valore e unità sono due testi sul web e **una** etichetta sola su LVGL), kpi_tile e
 > data_log hanno tre corpi ciascuno (etichetta 11, valore 26, unità 12) e nessuna divergenza

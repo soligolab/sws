@@ -196,7 +196,7 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
   (`PORTA_FIGLIO = 8444`): è una porta interna alla rete del VPS, non è esposta e muoverla vorrebbe dire
   ricreare ogni container di progetto. I pannelli già installati si spostano all'aggiornamento, perché il
   quadlet viaggia con l'immagine; un dispositivo registrato a mano con `:8444` nell'URL va corretto una volta.
-  Piano: `docs/plans/2026-10-21-porte-7443-7444.md`.
+  Piano: `docs/archive/2026-10-21-porte-7443-7444.md`.
 
 ### Fixed
 

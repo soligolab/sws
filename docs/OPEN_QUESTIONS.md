@@ -68,7 +68,7 @@ Contenuto spostato in [`docs/plans/2026-09-18-identita-utenti-istanze.md`](plans
 
 ## Q55 — `reqwest` via `rt_handle.spawn()` si blocca per sempre nel viewer LVGL, solo per una POST che riceve 200
 
-Contenuto spostato in [`docs/plans/2026-09-18-post-bloccata-viewer-lvgl.md`](plans/2026-09-18-post-bloccata-viewer-lvgl.md) il 18-09-2026.
+Contenuto spostato in [`docs/archive/2026-09-18-post-bloccata-viewer-lvgl.md`](archive/2026-09-18-post-bloccata-viewer-lvgl.md) il 18-09-2026.
 **Decided:** not yet — la decisione si prende nel piano.
 
 ---
