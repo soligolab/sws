@@ -33,6 +33,11 @@
 # successivo.
 
 versioni:
+  - versione: "Unreleased"
+    voci:
+      - it: "L'IDE torna ad avvisare quando il collegamento al dispositivo c'è ma le credenziali non valgono più: l'avviso c'era dal 16-10 e non era mai comparso, perché il runtime non mandava il dato."
+        en: "The IDE warns again when the device connection is up but the credentials no longer work: the warning existed since 16-10 and never appeared, because the runtime did not send the flag."
+
   - versione: "2.17.0"
     # Numero scelto al rilascio del 22-10-2026, e taggato COSTRUENDO l'immagine
     # (regola di CLAUDE.md): un tag senza immagine perde le sue note per sempre.

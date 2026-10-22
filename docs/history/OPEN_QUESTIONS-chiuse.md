@@ -4364,7 +4364,7 @@ qui e non solo in `STATUS.md`.
 > solo se `SWS_PROJECTS_ROOT` c'è, altrimenti decide il binario con `~/sws_projects`, e il banner
 > stampa la radice e da dove viene; `start_editor_develop.sh` fa quella di sviluppo. La seconda
 > metà — il concetto di workspace — è confluita in **Q60** e da lì nel piano
-> `docs/plans/2026-09-18-workspace-dei-progetti.md`. Verificato sul codice il 18-09
+> `docs/archive/2026-09-18-workspace-dei-progetti.md`. Verificato sul codice il 18-09
 > (`start_editor.sh:82-86`, `main.rs:54`).
 
 *Aperta il 17-09-2026, notata dal maintainer creando un progetto: «mi presenta

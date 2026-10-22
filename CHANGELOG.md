@@ -11,6 +11,40 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 
 ## [Unreleased]
 
+### Fixed
+
+- **Un progetto non può più nascere nella cartella di un'altra azienda.** `POST /api/projects`
+  prendeva per buono l'`azienda_id` del corpo e scriveva il progetto dove diceva `parent_path`:
+  le due cose potevano non combaciare, e allora il progetto finiva fisicamente in uno spazio,
+  risultava registrato in un altro, e la quota la pagava chi non c'entrava. Ora il segmento lo
+  decide il **percorso** e la richiesta viene rifiutata se contraddice l'azienda scelta. Lo stesso
+  buco c'era nel controllo di quota di `upload_project_zip`, che chiedeva lo spazio all'azienda
+  dichiarata invece che a quella di destinazione (`sws-web/src/projects.rs`, nuovo test
+  `il_segmento_lo_decide_il_percorso`).
+
+- **L'avviso «le credenziali del dispositivo non valgono più» non poteva comparire.** Introdotto il
+  16-10-2026 per il caso in cui un deploy cambia gli utenti del progetto sotto un collegamento già
+  aperto, non si è mai visto: `RemoteStatus` dichiarava
+  `skip_serializing_if = "std::ops::Not::not"` sul campo `autenticato`, che lo toglieva dal JSON
+  **esattamente quando valeva `false`**. L'IDE lo legge con `s.autenticato === false`, e un campo
+  assente è `undefined`. Ora il campo si serializza sempre; via anche un `default = "si"` inerte
+  (la struct è solo `Serialize`), che è ciò che ha reso visibile il difetto come avviso del
+  compilatore (`sws-web/src/remote.rs`, nuovo test `il_collegamento_scaduto_si_vede_nel_json`).
+
+### Documentation
+
+- **Chiusi i piani di settembre.** `2026-09-18-identita-utenti-istanze.md` (852 righe, misurato
+  contro il codice: OpenVPN mai esistito, porte 8444 → 7443/7444, `senza_autenticazione()`
+  cancellata, `ide_only` diventato `FonteAutenticazione`), `2026-09-18-workspace-dei-progetti.md`
+  e `2026-09-19-traduzioni-inglesi-revisione.md` sono in `docs/archive/`. Di Q54 — se un domani il
+  pannello creasse account da solo, al deploy successivo chi vince — resta il seme
+  `docs/plans/2026-10-22-utenti-nati-sul-dispositivo.md`; i dettagli residui sono in
+  `docs/plans/Appunti.txt`.
+
+- I due campi `finestra_parametri` e `modale` del modello LVGL dicono ora **perché** nessuno li
+  legge (la sostituzione avviene sul JSON grezzo; il velo c'è sempre per decisione del
+  maintainer), invece di lasciare due avvisi del compilatore senza risposta.
+
 ## [2.17.0] — 2026-10-22
 
 ### Fixed

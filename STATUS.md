@@ -12,9 +12,70 @@
 > resta in «Storico». Qui vive solo ciò che serve a riprendere il lavoro.
 
 
-## ▶ Riprendere da qui — il corpo del testo, secondo giro: cursori, scelte, barre, tabelle e grafici (2026-10-22)
+## ▶ Riprendere da qui — 2.17.0 in produzione, i piani di settembre chiusi (2026-10-22, pomeriggio)
 
-### Dove sta il lavoro: quattro rami annidati, **niente mergiato e niente pushato**
+### Lo stato in tre righe
+
+- **2.17.0 è costruita, pubblicata e collaudata**: `ghcr.io/soligolab/sws-runtime:2.17.0-arm64`
+  (config `sha256:58170a4e689d`) e `:2.17.0-amd64` (`sha256:9a433d1d1ca3`), con `latest-*` sugli
+  stessi digest. Il maintainer ha aggiornato il WP630 dall'IDE e ha confermato i quattro controlli
+  a vetro. Il tag è stato creato **costruendo l'immagine**, come vuole la regola.
+- **I piani vivi sono 19**, erano 32 stamattina. Di settembre ne restano due, e sono lavoro vero:
+  [riorganizzare i file dell'editor](docs/plans/2026-09-22-riorganizzare-i-file-dell-editor.md)
+  (16 385 righe da dividere) e
+  [tag come oggetto unico](docs/plans/2026-09-21-gestione-tag-oggetto-unico.md) (Fase 4 OPC-UA a
+  zero righe, più il collaudo a schermo della Fase 2, 2 timbri su 6).
+- **Niente rami aperti, albero pulito.**
+
+### Fatto nel pomeriggio
+
+**Tre piani di settembre archiviati**, dopo averli misurati contro il codice di oggi invece che
+riletti:
+
+- `2026-09-18-identita-utenti-istanze.md` (852 righe) — era in gran parte **falso**: OpenVPN non
+  è mai esistito (al suo posto il tunnel WebSocket+yamux), la porta 8444 è 7443/7444 dal 21-10,
+  `senza_autenticazione()` è stata cancellata, `ide_only` è diventato `FonteAutenticazione` con
+  cinque varianti. Delle sue tre domande: **Q56 è costruita** (`sws-identita`), **Q44** vive nel
+  piano cloud e in quattro piani archiviati, **Q54** è l'unica rimasta aperta ed è diventata il
+  seme [utenti nati sul dispositivo](docs/plans/2026-10-22-utenti-nati-sul-dispositivo.md).
+- `2026-09-18-workspace-dei-progetti.md` — chiuso dalla decisione «una radice alla volta».
+- `2026-09-19-traduzioni-inglesi-revisione.md` — le voci inglesi dell'IDE, verificate.
+
+**Un difetto trovato chiudendo il piano identità** e corretto: `POST /api/projects` prendeva per
+buono l'`azienda_id` del corpo mentre scriveva il progetto dove diceva `parent_path`. Le due cose
+potevano divergere, e allora il progetto stava fisicamente in uno spazio, risultava registrato in
+un altro, e la quota la pagava chi non c'entrava. Ora **il segmento lo decide il percorso**, e la
+richiesta viene rifiutata se contraddice l'azienda scelta; lo stesso buco c'era nel controllo di
+quota di `upload_project_zip`. Test nuovo: `il_segmento_lo_decide_il_percorso`.
+
+**Un secondo difetto, trovato da un avviso del compilatore** (`fn si() is never used`): l'avviso
+dell'IDE «il collegamento c'è ma le credenziali non valgono più», introdotto il 16-10, non poteva
+comparire **mai**. `RemoteStatus` aveva `skip_serializing_if = "std::ops::Not::not"` sul campo
+`autenticato`, che lo toglieva dal JSON esattamente quando valeva `false` — e l'IDE lo legge con
+`s.autenticato === false`. Ora il campo si serializza sempre. Test nuovo:
+`il_collegamento_scaduto_si_vede_nel_json`. Voce in `NOVITA.yaml` sotto `Unreleased`.
+
+**Due avvisi del compilatore spiegati invece che spenti**: `finestra_parametri` e `modale` nel
+modello LVGL dicono ora perché nessuno li legge — la sostituzione dei `{nome}` si fa sul JSON
+grezzo prima di deserializzare, e il velo della finestra c'è sempre per decisione del maintainer.
+Ora `cargo check` non ha più avvisi.
+
+### Il prossimo passo
+
+**Il journal del pannello**, esplicitamente rimandato a dopo questi task. Misurato:
+`HEALTHCHECK --interval=30s` su due container e un blocco `NOVITA` da circa 2 000 caratteri
+fanno **~10 MB al giorno** di journal. La premessa è confermata — il controllo aggiornamenti
+legge le etichette dal **registry** (`aggiornamento.rs:340`), non dal container in esecuzione,
+quindi azzerare le etichette del container dal quadlet non lo romperebbe. **Resta da provare con
+podman** che `--label chiave=` sovrascriva davvero un'etichetta ereditata dall'immagine.
+
+## Il corpo del testo, secondo giro: cursori, scelte, barre, tabelle e grafici (2026-10-22, mattina)
+
+> **Superata nello stesso giorno**: i quattro rami sono stati squash-mergiati e sono dentro la
+> **2.17.0**, costruita e pubblicata. Questa sezione resta come racconto del lavoro, non come
+> stato: per lo stato leggi la sezione qui sopra.
+
+### Dove stava il lavoro: quattro rami annidati, poi tutti mergiati
 
 ```
 main  836ef61c
@@ -1616,7 +1677,7 @@ porta dietro gli obblighi da fabbricante.
 
 ### Prossimo passo
 
-**Sessione di plan approfondita sul [piano identità, utenti e istanze](docs/plans/2026-09-18-identita-utenti-istanze.md)**,
+**Sessione di plan approfondita sul [piano identità, utenti e istanze](docs/archive/2026-09-18-identita-utenti-istanze.md)**,
 in Plan mode e senza codice: 29 decisioni del 27-09, più le due nuove (primo accesso, priorità), più la
 contraddizione sulla 27. Il primo pezzo non è più il pannello ma il tronco cloud — registrazione, aziende, spazi di
 lavoro, 2FA — con dentro il primo accesso e la lista bianca delle rotte pre-auth, che sono lo stesso lavoro visto
@@ -1635,7 +1696,7 @@ dispositivo.
   «sicuro per default» (pannello aperto senza utenti, HTTP in chiaro, TLS di campo non verificato), aggiornamenti non
   firmati, procedura **art. 14 già in vigore dall'11-09-2026**. Roadmap P0/P1/P2 e **5 decisioni del maintainer**
   (fabbricante, periodo di supporto, auto-update di default, primo avvio, priorità).
-- Il punto 1 (utenti) è **integrato** nel [piano identità, utenti e istanze](docs/plans/2026-09-18-identita-utenti-istanze.md),
+- Il punto 1 (utenti) è **integrato** nel [piano identità, utenti e istanze](docs/archive/2026-09-18-identita-utenti-istanze.md),
   sezione «Vincoli dal CRA»: misure, incastro con le decisioni del 27-09, cinque vincoli, primo pezzo proposto (primo
   accesso del pannello + lista bianca delle rotte pre-auth) — **da decidere**.
 - **Ancora da fare sul TC620**, dalla sezione sotto: installare la rc.23, quadlet 2 → 3, rifare i tre MCM dal catalogo
@@ -1987,7 +2048,7 @@ e `origin/feat/notifiche-email-progetto` è da cancellare al prossimo push.
 
 Una **rc.14** con il fix dell'esito superato e la scheda divisa, da installare **dal pannello**:
 così il maintainer vede in un colpo solo l'avviso di versione nuova, «Aggiorna ora» e l'esito col
-testo nuovo. Poi il piano grosso, [utenti e aziende](docs/plans/2026-09-18-identita-utenti-istanze.md),
+testo nuovo. Poi il piano grosso, [utenti e aziende](docs/archive/2026-09-18-identita-utenti-istanze.md),
 che chiede **due volte** di aprirsi con una sessione di plan approfondita.
 
 ### Le macchine
@@ -2004,7 +2065,7 @@ che chiede **due volte** di aprirsi con una sessione di plan approfondita.
 [aggiornamento runtime e bus utente](docs/archive/2026-09-27-aggiornamento-runtime-e-bus-utente.md) sono fatte le Fasi 1, 1b, 2, 3,
 4 e le Novità brevi it/en; restano un destinatario email di progetto e l'avviso a schermo su LVGL. Nuovo seme:
 [il quadlet che non viaggia con l'aggiornamento](docs/archive/2026-09-29-quadlet-che-non-viaggia.md). **Prossimo lavoro in fila**:
-il [piano utenti e aziende](docs/plans/2026-09-18-identita-utenti-istanze.md) (29 decisioni), di cui l'aggiornamento era il
+il [piano utenti e aziende](docs/archive/2026-09-18-identita-utenti-istanze.md) (29 decisioni), di cui l'aggiornamento era il
 prerequisito.
 
 ### La Fase 4, com'era a fine notte (prima dello squash)
@@ -2172,7 +2233,7 @@ col push quando il maintainer lo chiede.
 tutto») e squashato; piano e due semi in archivio. Il TC620 gira la **2.12.0-dev.5**; CODESYS con
 `allow_url_override = false` (lo ha messo il maintainer: vedi `docs/TEST_SETUPS.md`). **Tag mancanti**:
 `2.12.0-dev.3`, `dev.4`, `dev.5` — da creare col push, quando lo chiede. Prossimo lavoro scelto: utenti e aziende
-([piano](docs/plans/2026-09-18-identita-utenti-istanze.md), 29 decisioni), **preceduto** dal suo prerequisito
+([piano](docs/archive/2026-09-18-identita-utenti-istanze.md), 29 decisioni), **preceduto** dal suo prerequisito
 [aggiornamento del runtime e bus utente](docs/archive/2026-09-27-aggiornamento-runtime-e-bus-utente.md) (assorbe la
 commutazione del display via D-Bus). Prima prova: il bus utente dal container sul TC620.
 
@@ -2197,7 +2258,7 @@ esiste ancora**: va creato su `c631cd19` e pushato insieme a `main`, quando il m
 (`check_release_coerente.sh` rifiuta un tag solo locale).
 
 **Prossimo, scelto dal maintainer il 27-09** prima del lavoro grosso su utenti e aziende
-([piano](docs/plans/2026-09-18-identita-utenti-istanze.md), prima sessione di plan fatta, 29 decisioni):
+([piano](docs/archive/2026-09-18-identita-utenti-istanze.md), prima sessione di plan fatta, 29 decisioni):
 immagine di boot dal container via D-Bus provata sul TC620 + pulsante «ripristino di fabbrica»
 ([collaudo](docs/archive/2026-09-19-boot-image-collaudo-container.md),
 [ripristino](docs/archive/2026-09-19-boot-image-ripristino-di-fabbrica.md)). Archiviati

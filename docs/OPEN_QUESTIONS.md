@@ -48,7 +48,7 @@ Contenuto nel seme [`docs/archive/2026-09-18-multilingua-residuo.md`](archive/20
 
 ## Q44 — Ospitare l'editor come servizio, con aziende, utenti e quote
 
-Contenuto spostato in [`docs/plans/2026-09-18-identita-utenti-istanze.md`](plans/2026-09-18-identita-utenti-istanze.md) il 18-09-2026 — insieme a Q54 e Q56, che sono la stessa domanda vista da tre punti.
+Contenuto spostato in [`docs/archive/2026-09-18-identita-utenti-istanze.md`](archive/2026-09-18-identita-utenti-istanze.md) il 18-09-2026 — insieme a Q54 e Q56, che sono la stessa domanda vista da tre punti.
 **Decided:** not yet — la decisione si prende nel piano.
 
 ---
@@ -61,7 +61,7 @@ Contenuto spostato in [`docs/archive/2026-09-12-q53-misura-rimozione-sdk-qemu.md
 
 ## Q54 — Un dispositivo che crea utenti propri: cosa succede al deploy successivo?
 
-Contenuto spostato in [`docs/plans/2026-09-18-identita-utenti-istanze.md`](plans/2026-09-18-identita-utenti-istanze.md) il 18-09-2026 — insieme a Q44 e Q56, che sono la stessa domanda vista da tre punti.
+Contenuto spostato in [`docs/archive/2026-09-18-identita-utenti-istanze.md`](archive/2026-09-18-identita-utenti-istanze.md) il 18-09-2026 — insieme a Q44 e Q56, che sono la stessa domanda vista da tre punti.
 **Decided:** not yet — la decisione si prende nel piano.
 
 ---
@@ -75,7 +75,7 @@ Contenuto spostato in [`docs/archive/2026-09-18-post-bloccata-viewer-lvgl.md`](a
 
 ## Q56 — Un IDE non si autentica più: `users.yaml` governa il dispositivo, non l'editor
 
-Contenuto spostato in [`docs/plans/2026-09-18-identita-utenti-istanze.md`](plans/2026-09-18-identita-utenti-istanze.md) il 18-09-2026 — insieme a Q44 e Q54, che sono la stessa domanda vista da tre punti.
+Contenuto spostato in [`docs/archive/2026-09-18-identita-utenti-istanze.md`](archive/2026-09-18-identita-utenti-istanze.md) il 18-09-2026 — insieme a Q44 e Q54, che sono la stessa domanda vista da tre punti.
 **Decided:** not yet — la decisione si prende nel piano.
 
 ---
@@ -89,7 +89,7 @@ Contenuto nel seme [`docs/archive/2026-09-18-multilingua-residuo.md`](archive/20
 
 ## Q60 — La gestione dei workspace
 
-Contenuto spostato in [`docs/plans/2026-09-18-workspace-dei-progetti.md`](plans/2026-09-18-workspace-dei-progetti.md) il 18-09-2026.
+Contenuto spostato in [`docs/archive/2026-09-18-workspace-dei-progetti.md`](archive/2026-09-18-workspace-dei-progetti.md) il 18-09-2026.
 **Decided:** not yet — la decisione si prende nel piano.
 
 ---

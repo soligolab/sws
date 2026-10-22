@@ -13,3 +13,34 @@ Annoto di seguito, uno per punto, le cose che devono essere verificate e trasfor
   e' quello il lavoro, non il test. Nato chiudendo il piano della sessione che non sopravvive
   a un deploy (22-10-2026), dove la riconvalida per scrittura e' l'unico rimedio dei quattro
   che tocca la sicurezza e non la comodita'.
+
+- Traduzioni inglesi dell'IDE: nessuno ha mai letto le voci in inglese, e nessuno ha mai girato
+  l'IDE in inglese a schermo. Non e' lavoro di codice, e' verifica, ed e' per questo che sta qui
+  (piano 2026-09-19 archiviato il 22-10-2026). Le misure di oggi: en.json ha 3187 chiavi foglia
+  (erano ~1900 quando il piano e' nato, quindi il catalogo e' cresciuto del 67% e le ~400 voci
+  mai riviste sono ormai una frazione di un file che nessuno ha letto per intero); 352 chiavi
+  `cfgUi.*`, che nel NOME portano l'inglese invece della funzione; 25 paragrafi <Trans>, quasi
+  tutti in config/schede/. Quello che le guardie automatiche gia' coprono: la parita' delle
+  CHIAVI it/en (tests/i18nParita.test.ts) e la copertura, cioe' nessun italiano cablato fuori da
+  t() (check_i18n_ui.sh, tetti vuoti e verde). Nessuna delle due guarda la QUALITA' dell'inglese:
+  una voce puo' contenere italiano copiato e i test restano verdi. Il collaudo che manca e' un
+  giro dell'IDE in inglese piu' le lingue dei contenuti (viewer in `de`, traduzione automatica,
+  email, Telegram in `es`, e la chiave Google che deve sopravvivere a un ricaricamento).
+
+- Progetti, create_project: l'`azienda_id` arriva a fiducia. La rotta e' dietro require_auth, ma
+  non controlla che l'utente APPARTENGA all'azienda che nomina, mentre risolvi_progetto quel
+  controllo lo fa (appartenenze_di + visibilita, projects.rs). Trovato il 22-10-2026 chiudendo il
+  difetto del parent_path: quello e' chiuso (destinazione e azienda scelta devono coincidere),
+  questo no. Serve l'estrattore AuthUser su create_project e la stessa coppia di funzioni.
+
+- Commenti nel codice che dicono il falso, trovati misurando i piani di settembre (22-10-2026):
+  projects.rs sopra browse_dirs e create_dir li dichiara «pre-auth», ma sono dietro require_auth
+  dal 06-10 e check_rotte_preauth.sh verifica attivamente il contrario; project_registry.rs
+  promette ancora progetti «in una cartella scelta dal maintainer (Documenti, una condivisione di
+  backup)», impossibili da Q46; WelcomeScreen.tsx dice «no whitelist», idem.
+
+- WelcomeScreen: il campo «Cartella di destinazione» non dice dove finira' il progetto. Lasciandolo
+  vuoto l'anteprima legge «Verra' creato in: Predefinita (la cartella dei progetti)/impianto» —
+  concatena la STRINGA TRADOTTA come se fosse un percorso. Nessuna rotta restituisce la radice
+  all'editor. Era una decisione del 18-09 («una banda dice dove sei e come cambiarlo») mai
+  realizzata, e il seme che la conteneva e' stato archiviato il 22-10-2026.

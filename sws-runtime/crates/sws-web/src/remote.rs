@@ -75,12 +75,14 @@ pub struct RemoteStatus {
     pub connected_at_ms: Option<u64>,
     /// `false` quando il collegamento c'è ma le credenziali non valgono più.
     /// Assente da un runtime più vecchio: chi legge consideri `true`.
-    #[serde(default = "si", skip_serializing_if = "std::ops::Not::not")]
+    ///
+    /// Si serializza **sempre**, anche quando è `false`. Fino al 22-10-2026
+    /// c'era `skip_serializing_if = "std::ops::Not::not"`, che lo toglieva dal
+    /// JSON esattamente nel caso in cui serve: l'IDE lo legge con
+    /// `s.autenticato === false` e un campo assente è `undefined`, quindi
+    /// l'avviso non poteva comparire mai. C'era anche un `default = "si"`
+    /// inerte — questa struct è solo `Serialize`, nessuno la deserializza.
     pub autenticato: bool,
-}
-
-fn si() -> bool {
-    true
 }
 
 /// `POST /api/remote/connect` — authenticate against a remote runtime and
@@ -2769,6 +2771,25 @@ pub async fn remote_status(State(s): State<AppState>) -> Json<RemoteStatus> {
 mod tests {
     use super::*;
     use std::io::Write;
+
+    /// `autenticato: false` deve **arrivare** all'IDE.
+    ///
+    /// L'avviso «il collegamento c'è ma le credenziali non valgono più»
+    /// (16-10-2026) lo decide `RuntimeConnectionTab.tsx` con
+    /// `s.autenticato === false`: un campo assente è `undefined`, e `undefined
+    /// === false` è falso. Finché questa struct saltava il campo proprio
+    /// quando valeva `false`, quell'avviso non poteva comparire mai.
+    #[test]
+    fn il_collegamento_scaduto_si_vede_nel_json() {
+        let j = serde_json::to_string(&RemoteStatus {
+            connected: true,
+            url: Some("https://x".into()),
+            connected_at_ms: Some(1),
+            autenticato: false,
+        })
+        .unwrap();
+        assert!(j.contains("\"autenticato\":false"), "il campo non c'e': {j}");
+    }
 
     /// Un dispositivo che non conosce la domanda non sa la risposta.
     ///

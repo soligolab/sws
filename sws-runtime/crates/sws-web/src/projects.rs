@@ -965,13 +965,38 @@ pub async fn create_project(
         },
     };
 
-    // Il riferimento del progetto nuovo. Un `parent_path` scelto a mano
-    // rende il progetto «esterno», e un esterno non sta in nessuna azienda:
-    // segmento implicito.
-    let segmento = match req.parent_path.as_deref().filter(|p| !p.trim().is_empty()) {
-        Some(_) => crate::project_registry::AZIENDA_IMPLICITA.to_string(),
-        None => segmento_dell_azienda(&s, req.azienda_id).await,
-    };
+    // Il riferimento del progetto nuovo, **dal percorso vero** e non
+    // dall'azienda che il richiedente ha nominato (22-10-2026).
+    //
+    // Prima un `parent_path` scritto a mano forzava il segmento a implicito
+    // (`-`), e le tre conseguenze erano tutte sbagliate insieme:
+    //
+    // 1. il progetto nasceva **fisicamente nella cartella di un'altra
+    //    azienda** — il controllo guardava solo la radice;
+    // 2. il registro lo chiamava `-/<nome>` mentre `segmento_da_percorso`,
+    //    guardando lo stesso percorso, avrebbe detto l'altra azienda: è
+    //    esattamente il disallineamento chiave/percorso che `migra_chiavi`
+    //    esiste per evitare, «un doppione nell'elenco e un indirizzo che non
+    //    apre niente»;
+    // 3. la quota veniva addebitata all'azienda **scelta** mentre lo spazio,
+    //    che `spazio_di_azienda` conta per percorso, pesava su quella
+    //    **proprietaria della cartella** — che non aveva chiesto niente.
+    //
+    // Il rimedio è un vincolo solo, e le chiude tutte e tre: la destinazione
+    // deve stare dentro la cartella dell'azienda scelta. Allora segmento del
+    // percorso e segmento dell'azienda coincidono **per costruzione**, e non
+    // c'è più niente da tenere d'accordo.
+    let segmento_azienda = segmento_dell_azienda(&s, req.azienda_id).await;
+    let segmento = segmento_da_percorso(s.projects_root.as_ref(), &parent_dir.join(&safe_name));
+    if segmento != segmento_azienda {
+        return (
+            StatusCode::BAD_REQUEST,
+            format!(
+                "parent_path: la destinazione sta in «{segmento}», l'azienda scelta è «{segmento_azienda}» —                  un progetto non può nascere nella cartella di un'altra azienda"
+            ),
+        )
+            .into_response();
+    }
     let chiave = crate::project_registry::riferimento(&segmento, &safe_name);
 
     // **La quota, prima di scrivere.** Si rifiuta al limite, dopo aver
@@ -2013,6 +2038,28 @@ async fn segmento_dell_azienda(s: &AppState, azienda_id: Option<i64>) -> String 
     }
 }
 
+/// L'azienda **proprietaria** di una cartella di destinazione, dal percorso
+/// (22-10-2026).
+///
+/// Gemello rovesciato di [`cartella_dell_azienda`]: quella va dall'azienda al
+/// percorso, questa dal percorso all'azienda. Serve dove il percorso lo sceglie
+/// chi chiama e la quota va addebitata a chi quello spazio lo possiede davvero
+/// — `spazio_di_azienda` lo conta per percorso, quindi addebitarlo a un'altra
+/// manderebbe il conto a chi non ha chiesto niente.
+async fn azienda_di_destinazione(s: &AppState, parent: Option<&str>) -> Option<i64> {
+    let parent = parent.map(str::trim).filter(|p| !p.is_empty())?;
+    let radice = s.projects_root.as_ref();
+    // `join("_")`: `segmento_da_percorso` vuole la cartella del PROGETTO e
+    // guarda il suo genitore, qui invece il genitore ce l'abbiamo già.
+    let segmento = segmento_da_percorso(radice, &PathBuf::from(parent).join("_"));
+    if segmento == crate::project_registry::AZIENDA_IMPLICITA {
+        return None;
+    }
+    let identita = s.identita.as_ref()?;
+    let aziende = identita.elenca_aziende().await.ok()?;
+    aziende.iter().find(|a| a.cartella == segmento).map(|a| a.id)
+}
+
 async fn cartella_dell_azienda(
     s: &AppState,
     azienda_id: Option<i64>,
@@ -2657,10 +2704,16 @@ pub async fn upload_project_zip(
     //
     // In **deploy** non si ferma: li il progetto sta sostituendo se stesso su
     // un dispositivo, non sta aggiungendo niente, e rifiutarlo lascerebbe un
-    // impianto a meta. L'upload arriva nella radice, cioe nell'azienda
-    // implicita.
+    // impianto a meta.
+    //
+    // L'azienda a cui addebitare viene dal **percorso di destinazione**, non
+    // dall'azienda implicita (22-10-2026): `parent_path` può nominare la
+    // cartella di un'azienda, e `spazio_di_azienda` lo spazio lo conta per
+    // percorso. Addebitare sempre all'implicita voleva dire che un upload
+    // dentro una cartella d'azienda non toccava mai la sua quota.
     if !q.deploy {
-        if let Some(rifiuto) = rifiuta_se_piena(&s, None).await {
+        let addebito = azienda_di_destinazione(&s, q.parent_path.as_deref()).await;
+        if let Some(rifiuto) = rifiuta_se_piena(&s, addebito).await {
             return rifiuto;
         }
     }
@@ -3867,6 +3920,43 @@ datastores:
         assert!(
             testo.contains("valore"),
             "contenuto della chiave sconosciuta perso:\n{testo}"
+        );
+    }
+
+    /// **Il segmento viene dal percorso, non da chi chiama** (22-10-2026).
+    ///
+    /// È il vincolo che chiude il difetto trovato misurando il piano
+    /// workspace: con un `parent_path` scritto a mano il progetto nasceva
+    /// nella cartella di un'altra azienda, il registro lo chiamava `-/nome`
+    /// mentre il percorso diceva l'altra, e la quota veniva addebitata
+    /// all'azienda **scelta** mentre lo spazio pesava su quella
+    /// **proprietaria della cartella**.
+    ///
+    /// `segmento_da_percorso` è la funzione che rende i tre d'accordo: se il
+    /// segmento del percorso e quello dell'azienda scelta coincidono, non
+    /// c'è più niente da tenere allineato.
+    #[test]
+    fn il_segmento_lo_decide_il_percorso() {
+        let radice = std::path::Path::new("/p");
+        let implicita = crate::project_registry::AZIENDA_IMPLICITA;
+
+        // Nella radice: azienda implicita.
+        assert_eq!(segmento_da_percorso(radice, std::path::Path::new("/p/impianto")), implicita);
+        // Dentro la cartella di un'azienda: quella.
+        assert_eq!(segmento_da_percorso(radice, std::path::Path::new("/p/acme/impianto")), "acme");
+        // **Il caso del difetto**: un `parent_path` che punta a un'altra
+        // azienda non può più passare per implicito. Prima il codice forzava
+        // `-` qui, e nasceva il disallineamento.
+        assert_ne!(
+            segmento_da_percorso(radice, std::path::Path::new("/p/altra/impianto")),
+            implicita,
+            "il percorso dice «altra»: chiamarlo implicito e' il difetto"
+        );
+        assert_eq!(segmento_da_percorso(radice, std::path::Path::new("/p/altra/impianto")), "altra");
+        // Più di un livello non è una cartella d'azienda.
+        assert_eq!(
+            segmento_da_percorso(radice, std::path::Path::new("/p/acme/sotto/impianto")),
+            implicita
         );
     }
 

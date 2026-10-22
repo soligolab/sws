@@ -69,6 +69,13 @@ pub struct SynopticPage {
     /// I parametri della finestra, `{nome}` nei suoi campi: stessa forma di
     /// quelli dei faceplate. I valori arrivano dal bottone; quelli che il
     /// bottone non passa prendono il `default` dichiarato qui.
+    ///
+    /// Nessuno lo legge **da qui**, ed è voluto: la sostituzione si fa sul JSON
+    /// grezzo prima di deserializzare (`main.rs`, `finestra_parametri`), perché
+    /// un `{nome}` dentro un campo numerico non deve diventare un errore di
+    /// parsing. Il campo resta nel modello perché il modello descrive il
+    /// documento, non ciò che questo binario ne usa.
+    #[allow(dead_code)]
     #[serde(default)]
     pub finestra_parametri: Option<Vec<ParametroFinestra>>,
 }
@@ -80,6 +87,13 @@ pub struct SynopticPage {
 #[derive(Debug, Deserialize, Clone, Default)]
 pub struct Finestra {
     /// Il web tratta l'assenza come `true` (`pagina.finestra?.modale !== false`).
+    ///
+    /// Su questo motore non lo legge nessuno, per decisione del maintainer: il
+    /// velo c'è **sempre** (vedi `apri_finestra`), perché `modale: false` serve
+    /// a lavorare col mouse sulla pagina sotto e su un vetro da 7" quella
+    /// pagina non la raggiungi comunque. Il campo resta per leggere senza
+    /// errori un documento che lo dichiara.
+    #[allow(dead_code)]
     #[serde(default = "vero")]
     pub modale: bool,
     #[serde(default)]

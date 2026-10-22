@@ -31,7 +31,7 @@ dispositivo.
 LXC: podman annidato funziona senza i contorsionismi di un container non privilegiato, ed era la
 ragione principale di quella scelta. Piano **VPS-1** (2 vCore, 4 GB, 40 GB NVMe), espandibile fino
 al VPS-4; il dimensionamento e il perché stanno nella **decisione 39** del
-[piano identità, utenti e istanze](plans/2026-09-18-identita-utenti-istanze.md).
+[piano identità, utenti e istanze](archive/2026-09-18-identita-utenti-istanze.md).
 
 **Vale la regola 5 di `CLAUDE.md`: non ci si entra in SSH senza chiedere.** Non è un dispositivo di
 prova ma una macchina che un giorno sarà in servizio, quindi se mai la regola valeva, vale qui.

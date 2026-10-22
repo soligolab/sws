@@ -1,3 +1,33 @@
+> **⛔ ESITO — 22-10-2026.** Chiuso. **Decisione del maintainer: una radice alla volta, e basta.**
+>
+> Nel cloud la domanda era già stata risolta dal modello di prodotto senza che nessuno la
+> scegliesse: la radice è la cartella dell'azienda, assegnata dalla piattaforma, e la chiave del
+> registro è `<azienda>/<nome>` dal 07-10 — col nome nudo due aziende con un progetto «impianto»
+> si sovrascrivevano. Resta il self-host e l'IDE locale, e lì una radice alla volta è già come
+> funziona.
+>
+> **Misurando per chiudere è uscito un difetto vero, ed è stato corretto nello stesso giorno.**
+> Con un `parent_path` scritto a mano: il progetto nasceva **fisicamente nella cartella di
+> un'altra azienda** (il controllo guardava solo la radice), il registro lo chiamava `-/nome`
+> mentre il percorso diceva l'altra — lo stesso disallineamento chiave/percorso che `migra_chiavi`
+> esiste per evitare — e la **quota era addebitata all'azienda scelta** mentre lo spazio, contato
+> per percorso, pesava su quella proprietaria della cartella. Lo stesso buco era sull'upload ZIP,
+> che addebitava sempre all'azienda implicita.
+>
+> Il rimedio è un vincolo solo e le chiude tutte: **la destinazione deve stare dentro la cartella
+> dell'azienda scelta**, e allora segmento del percorso e segmento dell'azienda coincidono *per
+> costruzione*. Un test lo inchioda.
+>
+> **In `docs/plans/Appunti.txt`** sono finiti i due residui che non erano questo difetto:
+> `create_project` che prende `azienda_id` a fiducia senza controllare l'appartenenza, e la
+> WelcomeScreen che non dice dove finirà il progetto (mostra la stringa tradotta al posto del
+> percorso).
+>
+> **Misure di questo file che oggi sono false**: `dentro_radice` non è a `projects.rs:213` ma a
+> 341; `.active-project` si rilegge a `main.rs:615` e non a 487; il registro non è
+> `nome → {path}`; e il «rischio dei quattro canali» per la radice non si è materializzato — sono
+> ancora tre, e nessun file la persiste.
+
 # I workspace: dove vivono i progetti, e chi lo decide
 
 > **Come si legge questo piano.** Nasce da una o più schede di

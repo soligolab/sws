@@ -4,7 +4,7 @@
 > Si aggiorna a ogni modifica: se leggi questo file e non corrisponde alla realtà, il file ha torto
 > ed è un difetto da correggere subito.
 > Le decisioni numerate citate qui stanno nel repo SWS, in
-> `docs/plans/2026-09-18-identita-utenti-istanze.md`.
+> `docs/archive/2026-09-18-identita-utenti-istanze.md`.
 
 ## Cos'è questa macchina
 

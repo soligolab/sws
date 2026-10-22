@@ -11,6 +11,61 @@
 > data che hanno, il codice si è mosso, e alcune opzioni potrebbero non avere più senso.
 
 
+## ⛔ ESITO — 22-10-2026: questo piano è un referto, non una cosa da fare
+
+**Delle tre domande, due sono costruite e una è uscita in un seme suo.** Il file resta per intero
+perché è la misura di come ci si è arrivati, ma **non va letto come un piano**: la sezione
+«Ancora aperto» e quella «Misurato il 05-10-2026» descrivono un mondo che non esiste più, e
+qualcuno che le rileggesse ripartirebbe da OpenVPN e dalla porta 8444.
+
+| | dove è finita |
+|---|---|
+| **Q56** — un IDE che non si autentica più | **Costruita.** È il crate `sws-identita`, che nel suo commento di modulo cita la decisione 22 di questo piano: «due archivi, due scopi». Utenti dell'installazione in `identita.db`, separati dal `users.yaml` che viaggia col deploy. Era l'opzione 2 della scheda |
+| **Q44** — ospitare l'editor come servizio | **In gran parte costruita**, e il resto vive altrove: [cloud, utenti, aziende e spazi](../plans/2026-10-05-cloud-utenti-aziende-spazi.md) (vivo) più quattro piani archiviati — [gateway](2026-10-09-fase-4-gateway.md), [tunnel dei pannelli](2026-10-09-fase-6-tunnel-dei-pannelli.md), [abbinamento e primo accesso](2026-10-11-abbinamento-e-primo-accesso.md), [aggiornamento runtime](2026-09-27-aggiornamento-runtime-e-bus-utente.md) |
+| **Q54** — utenti nati sul dispositivo | **Ancora aperta**, ed è l'unica: [utenti nati sul dispositivo](../plans/2026-10-22-utenti-nati-sul-dispositivo.md) |
+
+### Cosa in questo file è FALSO, e va saputo prima di leggerlo
+
+**La sezione «Ancora aperto» (del 27-09) è il testo più stantio del file.** Le decisioni 7-11 che
+la sostengono sono state **annullate dalla decisione 38**, scritta venti righe sopra nello stesso
+file, e nessuno ha riallineato il blocco:
+
+- **OpenVPN in TCP/443** non esiste e non è mai stato scritto — zero occorrenze in tutto il
+  codice. Al suo posto c'è il **tunnel**: WebSocket + `yamux`, in `sws-web/src/tunnel/`. Niente
+  `/dev/net/tun`, niente root, niente riavvio.
+- Il **«profilo ritirato in HTTPS»** non esiste: il pannello si presenta col codice di
+  abbinamento e il token arriva sulla connessione che ha già aperto — token
+  `HMAC(segreto, "pannello:"+hw)`, **mai memorizzato**.
+- **«La 8444»**: dal 21-10 la coppia del pannello è **7443/7444**. La 8444 sopravvive solo come
+  porta interna dei container di progetto nel VPS, non esposta.
+- **«Va provato a mano prima di scrivere il gateway»**: l'ordine è stato l'opposto. Gateway e
+  tunnel il 09-10, abbinamento l'11-10, e il ciclo completo provato su hardware vero il 10-10
+  (deploy da `sws.soligo.net` al TC620 attraverso il tunnel).
+- **«`ide_only` oggi vuol dire nessuna autenticazione»**: falso dal 06-10. Il booleano è diventato
+  `FonteAutenticazione` con cinque fonti, e dietro il gateway vale `Delegata` — con
+  `--auth-delegata` che pretende un segreto di almeno 16 caratteri o **il processo non parte**.
+
+**La sezione «Misurato il 05-10-2026» (vincoli CRA) è misurata su un codice cancellato.** La
+funzione `senza_autenticazione(ide_only, ha_utenti)` non esiste più; il TC620 non risponde più
+`200` senza login (è 401, e la porta è la 7444); l'elenco delle rotte «pre-auth sempre» è stato
+spostato dietro autenticazione il 06-10, con `scripts/check_rotte_preauth.sh` a tenerlo vero; e
+l'Admin sintetico di un pannello senza utenti è sparito l'11-10.
+
+**Dei cinque vincoli CRA, tre sono chiusi** (nessun accesso anonimo al pannello, nessun IDE senza
+autenticazione, lista bianca pre-auth con la sua guardia) e il primo accesso è il codice di
+abbinamento, cioè nessuna password di fabbrica. Restano il **recupero documentato**
+(`applica_seed_di_recupero` non è stato riletto col vincolo nuovo) e il **ripristino di fabbrica**
+dichiarato come requisito: tutti e due vivono nel piano prima fascia e CRA.
+
+### Quello che resta, e dove
+
+- **Q54**: il seme sopra.
+- **La tenuta del tunnel**: misura in corso fino al 26-10, nel piano del tunnel.
+- **Fase 5 del cloud** (registrazione, email, 2FA): le colonne `totp_*` esistono nello schema di
+  `sws-identita`, ma di TOTP non c'è una riga. Vive nel piano cloud.
+
+---
+
 ## Perché queste tre stanno insieme
 
 Non le ho raggruppate io: **Q56 dichiara da sé** di essere imparentata con Q44 e Q54. Sono la

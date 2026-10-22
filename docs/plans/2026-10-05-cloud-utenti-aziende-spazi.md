@@ -1,10 +1,10 @@
 # Il tronco cloud: utenti, aziende, spazi di lavoro — e la catena fino al pannello
 
 > **Piano d'esecuzione**, scritto il 05-10-2026 nella sessione di plan approfondita che il seme
-> [identità, utenti e istanze](2026-09-18-identita-utenti-istanze.md) chiedeva prima di scrivere una
+> [identità, utenti e istanze](../archive/2026-09-18-identita-utenti-istanze.md) chiedeva prima di scrivere una
 > riga. Quel file resta e non si archivia: tiene le decisioni numerate del 27-09 e del 05-10 e il
 > testo integrale di Q44, Q54 e Q56. **Chiude anche Q60**
-> ([workspace dei progetti](2026-09-18-workspace-dei-progetti.md)) — vedi Fase 3.
+> ([workspace dei progetti](../archive/2026-09-18-workspace-dei-progetti.md)) — vedi Fase 3.
 
 ## Contesto
 

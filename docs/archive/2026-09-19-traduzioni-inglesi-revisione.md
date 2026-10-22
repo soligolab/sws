@@ -1,3 +1,14 @@
+> **⛔ ESITO — 22-10-2026.** Archiviato per decisione del maintainer: **zero righe di codice da
+> scrivere**, restano due verifiche che solo lui può timbrare. Sono in `docs/plans/Appunti.txt`,
+> con le misure di oggi — 3 187 chiavi (erano ~1 900 quando questo piano è nato: il catalogo è
+> cresciuto del 67 %), 352 chiavi `cfgUi.*`, 25 paragrafi `<Trans>`.
+>
+> **Quello che le guardie coprono già**, e che questo piano dava per scoperto: la parità delle
+> *chiavi* it/en è automatica (`tests/i18nParita.test.ts`), e la copertura — nessun italiano
+> cablato fuori da `t()` — è verde con i tetti **vuoti** dal 19-09. Nessuna delle due guarda la
+> **qualità** dell'inglese: una voce può contenere italiano copiato e i test restano verdi. È
+> esattamente il limite che questo piano denunciava, ed è l'unica cosa che resta.
+
 # Multilingua: rivedere le traduzioni inglesi e collaudare l'IDE in inglese
 
 > **Come si legge questo file.** Seme di piano, nato il 19-09-2026 chiudendo T-72 (l'immagine di boot del
