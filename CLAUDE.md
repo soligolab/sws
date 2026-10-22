@@ -186,23 +186,29 @@ e **non si tocca**.
 
 **Plans go in `docs/plans/<date>-<slug>.md`, committed — never left in `~/.claude/plans/`.** That directory is per-machine and doesn't travel with git, and the maintainer works from two machines (office server, home PC): on 2026-07-30 an analysis written at home never made it to the office while the code did. Instruction of 2026-09-11: «i plan, non tenerli in ~/.claude/plans/ perché altrimenti li perdo tra casa e lavoro». Write the plan there as soon as it's approved — earlier if it's long — and commit it with the work. When a plan is finished or overtaken, move it to `docs/archive/` and add a row to that folder's README — `docs/plans/` should list only what's still in play. Keep the finished plan: it is the record of why things are the way they are.
 
-**Un dettaglio residuo va in `docs/plans/Appunti.txt`, e il piano si chiude (regola del
-2026-10-22).** Quando un piano è **enorme** e quello che resta dentro sono **dettagli da vedere
-in futuro** — non lavoro vero — quei punti si spostano in `docs/plans/Appunti.txt`, uno per riga,
-e il piano si archivia. Vale anche per i singoli punti sparsi che impediscono a un piano di
-chiudersi. `Appunti.txt` è l'elenco delle piccole idee del maintainer, «le cose che devono essere
-verificate e trasformate in plan da eseguire»: **quando i piani vivi arrivano a zero, si
-analizzano gli appunti**.
+**Un piano quasi finito si chiude, in uno dei due modi (regola del 2026-10-22).** Quando di un
+piano restano **uno o due punti brevi**, ci sono due strade e nessuna terza: **concluderli
+subito** e archiviare, oppure **spostarli in `docs/plans/Appunti.txt`** e archiviare lo stesso.
+Quello che non si fa è lasciare il piano vivo per quei due punti.
 
-Le sue parole: «se ci sono singoli punti che sarebbe bene spostare per chiudere un plan spostali
-in Appunti.txt… se sono plan enormi e c'è qualche dettaglio che va visto in futuro, lo sposti in
-Appunti.txt e chiudi+archivi il plan». Il motivo è dichiarato: «ho l'esigenza estrema di fare
-ordine e archiviare un po' di plan» — un piano enorme tenuto vivo per tre dettagli nasconde
-quello che è davvero in gioco, e l'elenco smette di servire a decidere cosa fare.
+Parole del maintainer: «se uno dei file in plan è quasi completo ma rimangono 1-2 punti brevi
+possiamo o concluderli subito e archiviarlo o spostarli in Appunti.txt e archiviare il piano». E
+per i piani grossi vale lo stesso dal lato opposto: «se sono plan enormi e c'è qualche dettaglio
+che va visto in futuro, lo sposti in Appunti.txt e chiudi+archivi il plan».
 
-**Non** vale quando il residuo è lavoro vero: quello resta vivo, e spostarlo sarebbe perderlo.
-Una riga in `Appunti.txt` deve bastare a sé stessa fra mesi: il contesto si scrive, non si
-presuppone.
+`Appunti.txt` è l'elenco delle sue piccole idee, «le cose che devono essere verificate e
+trasformate in plan da eseguire». **Quando i piani vivi arrivano a zero, si analizzano gli
+appunti.**
+
+Il motivo è dichiarato: «ho l'esigenza estrema di fare ordine e archiviare un po' di plan». Un
+piano tenuto vivo per due dettagli nasconde quello che è davvero in gioco, e l'elenco smette di
+servire a decidere cosa fare.
+
+**Il limite, che resta**: non vale quando il residuo è **lavoro vero** — un ramo da aprire,
+quattordici capitoli da scrivere, una fase di protocollo. Quello resta vivo, e spostarlo in
+Appunti sarebbe perderlo. La domanda da farsi è «questo è un punto breve o è lavoro?», non
+«quanto è lungo il file». Una riga in `Appunti.txt` deve bastare a sé stessa fra mesi: il
+contesto si scrive, non si presuppone.
 
 **An open question is a plan file too (rule of 2026-09-18).** When something architectural comes up that the maintainer has to decide — the kind of thing that used to become a card in `docs/OPEN_QUESTIONS.md` — write a **short** plan file instead: the idea, what was measured in the code at the time, the options if they're already visible, and **this sentence, stated plainly: when this work starts, the first step is a dedicated, in-depth plan session to work out every detail.** Do not attempt the detailed design when the question is born: too much changes between the question and the work, and a design written months early is a design that lies. The maintainer's words: «genera un file sintetico di plan con l'idea e l'indicazione precisa che quando iniziamo quel lavoro dovrà essere avviata una sessione plan approfondita per sviscerarne tutti i dettagli». Add a row to `docs/plans/README.md` with «**seme — decisione**» as its state. `docs/OPEN_QUESTIONS.md` is frozen: it keeps the numbers already assigned and a one-line reference per card, and `check_documenti.sh` keeps verifying those; new questions don't get a Q-number.
 

@@ -139,9 +139,9 @@ codice. **Niente mergiato e niente pushato.**
 
 | piano | cosa |
 |---|---|
-| [finestre modali](docs/plans/2026-10-22-finestre-modali-su-lvgl.md) | `close_popup` non lo ascoltava nessuno: ora la finestra c'è davvero, col velo, la barra e il ✕ |
+| [finestre modali](docs/archive/2026-10-22-finestre-modali-su-lvgl.md) | `close_popup` non lo ascoltava nessuno: ora la finestra c'è davvero, col velo, la barra e il ✕ |
 | [setpoint](docs/archive/2026-10-22-setpoint-i-due-motori-non-combaciano.md) | il pannello si allinea al web: riga «Attuale:», campo, ✓ e ⌨ |
-| [sessione dopo il deploy](docs/plans/2026-10-22-sessione-che-non-sopravvive-al-deploy.md) | quattro rimedi, dalla causa a chi doveva accorgersene |
+| [sessione dopo il deploy](docs/archive/2026-10-22-sessione-che-non-sopravvive-al-deploy.md) | quattro rimedi, dalla causa a chi doveva accorgersene |
 
 **Le prove che costano niente e che si rifanno**: `tmp/prova-finestre/` ha un progetto scritto
 apposta e le istantanee. Chiudendo la finestra, in tutti e due i modi, la pagina sotto torna

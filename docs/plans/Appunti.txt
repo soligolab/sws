@@ -4,3 +4,12 @@ Annoto di seguito, uno per punto, le cose che devono essere verificate e trasfor
 - LVGL Per il login ho usato il bottone con proprietà "Builr-in action" -> "Login modal" ma non fa nulla e compare un oggetto in alto a sinistra non previsto nel progetto. Anche in LVGL, come nel WEB, il login e logout devono essere gestiti tramite la proprietà di un bottone.
 
 - LVGL & WEB : L'oggetto slider va impreziosito, servono più stili e modi di funzionamento, è un oggetto 
+
+- sws-web, socket dei tag: manca il test «un socket aperto con un token che poi viene
+  invalidato deve ricevere forbidden alla scrittura successiva». La riconvalida c'e' e funziona
+  (ruolo_adesso in router.rs, chiamata a ogni InboundMsg::Write prima dei due controlli), ma
+  nessun test la tocca, quindi qualcuno potrebbe rimetterci il `role` dell'handshake senza
+  accorgersene. Serve un AppState costruito a mano nei test di sws-web, che oggi non esiste:
+  e' quello il lavoro, non il test. Nato chiudendo il piano della sessione che non sopravvive
+  a un deploy (22-10-2026), dove la riconvalida per scrittura e' l'unico rimedio dei quattro
+  che tocca la sicurezza e non la comodita'.

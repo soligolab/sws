@@ -869,20 +869,36 @@ fn verifica_sessione(
     let Some(token) = token else {
         return; // anonimo: non c'è niente da verificare
     };
-    match rt_handle.block_on(client::whoami(base_url, &token)) {
+    let esito = rt_handle.block_on(client::whoami(base_url, &token));
+    match &esito {
         Ok(nome) if nome.is_empty() => {
-            eprintln!("[sessione] il runtime non riconosce più questo token: si riparte anonimi");
-            shared_session
-                .lock()
-                .unwrap_or_else(|e| e.into_inner())
-                .clear();
+            eprintln!("[sessione] il runtime non riconosce più questo token: si riparte anonimi")
         }
         Ok(_) => {}
-        // Rete giù o runtime che non risponde: NON si butta la sessione. Un
-        // pannello che si scollega da solo perché il cavo ha fatto i capricci
-        // sarebbe peggio del difetto.
         Err(e) => eprintln!("[sessione] non verificata ({e}): si tiene quella che c'è"),
     }
+    if da_buttare(&esito) {
+        shared_session
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .clear();
+    }
+}
+
+/// La sessione va buttata? La decisione di `verifica_sessione`, staccata dalla
+/// rete per poterla provare (22-10-2026).
+///
+/// Un **nome vuoto** è l'unico caso: sulla porta del viewer `whoami` sta sotto
+/// `optional_auth`, quindi un token morto non dà 401 — risponde 200 con
+/// `username: ""`. È lo stesso declassamento silenzioso che lasciava
+/// l'interfaccia web a dire di essere Admin.
+///
+/// Un **errore no**, ed è la parte che conta: rete giù o runtime che non
+/// risponde non vogliono dire «non sei più tu». Un pannello che si scollega da
+/// solo perché il cavo ha fatto i capricci sarebbe peggio del difetto che
+/// stiamo chiudendo.
+fn da_buttare(esito: &anyhow::Result<String>) -> bool {
+    matches!(esito, Ok(nome) if nome.is_empty())
 }
 
 /// Serve una richiesta di finestra: apre, sostituisce, chiude (22-10-2026,
@@ -2129,6 +2145,32 @@ mod tests {
     fn off_e_stringa_vuota_disattivano_il_touch() {
         assert_eq!(resolve_touch_device("off", |_| true), None);
         assert_eq!(resolve_touch_device("", |_| true), None);
+    }
+}
+
+#[cfg(test)]
+mod prove_sessione {
+    /// Quando il pannello butta la sessione, e quando no (22-10-2026, piano
+    /// `docs/archive/2026-10-22-sessione-che-non-sopravvive-al-deploy.md`).
+    ///
+    /// Il caso che vale il test non è il primo ma il terzo: un errore di rete
+    /// **non** deve scollegare il pannello. Senza questa riga, un cavo che fa i
+    /// capricci durante un deploy butterebbe fuori l'operatore — e sarebbe un
+    /// difetto peggiore di quello che stiamo chiudendo.
+    #[test]
+    fn solo_un_nome_vuoto_butta_la_sessione() {
+        assert!(
+            super::da_buttare(&Ok(String::new())),
+            "nome vuoto = il runtime non riconosce piu' il token: si riparte anonimi"
+        );
+        assert!(
+            !super::da_buttare(&Ok("admin".into())),
+            "nome pieno: la sessione vale, non si tocca"
+        );
+        assert!(
+            !super::da_buttare(&Err(anyhow::anyhow!("connection refused"))),
+            "rete giu' NON vuol dire «non sei piu' tu»"
+        );
     }
 }
 
