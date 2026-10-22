@@ -15,12 +15,46 @@
 #     tutto ciò che arriverà, non la differenza fra una rc e l'altra (decisione 56).
 #
 # Le scrive chi fa il lavoro, insieme al lavoro; il maintainer le rivede al collaudo.
+#
+# ⚠ UNA VOCE VIVE SOLO SE LA SUA VERSIONE VIENE COSTRUITA. Queste righe non si
+# leggono da questo file: viaggiano come **etichette dentro l'immagine**, e il
+# pannello le raccoglie dalle immagini delle versioni che sta per attraversare
+# (`versioni_dopo` in `sws-web/src/aggiornamento.rs`, che legge i tag del
+# registry). Un blocco di una versione **taggata in git ma mai costruita** non è
+# dentro nessuna immagine, e quindi non lo leggerà mai nessuno.
+#
+# È successo il 21-10-2026: 2.16.0 e 2.16.1 sono state taggate e non costruite,
+# e l'avviso sul cambio di porte - il più importante della giornata - stava nel
+# blocco 2.16.1. Nessun pannello lo ha visto. Le voci sono state riportate qui
+# sotto, sotto «Unreleased», per la prossima immagine vera.
+#
+# Regola: **si tagga quando si costruisce**. Se una versione resta senza
+# immagine, le sue voci vanno riportate in avanti, qui, prima del rilascio
+# successivo.
 
 versioni:
-  - versione: "2.16.2"
+  - versione: "Unreleased"
+    # Il numero si sceglie al rilascio (scelta del maintainer, 20-10-2026).
+    # Qui dentro, oltre al lavoro nuovo, ci sono le voci **riportate in avanti**
+    # dalle versioni 2.16.0 e 2.16.1, taggate e mai costruite: senza, nessun
+    # pannello le leggerebbe mai.
+    compatibilita:
+      - it: "Il pannello cambia porte: il viewer passa da 8443 a 7443 e la gestione da 8444 a 7444. Segnalibri e dispositivi salvati a mano vanno corretti una volta; «Cerca» li ritrova da sé."
+        en: "The panel changes ports: the viewer moves from 8443 to 7443 and management from 8444 to 7444. Bookmarks and hand-saved devices need fixing once; «Search» finds them by itself."
     voci:
+      - it: "Un pannello sospeso non può più essere rivendicato da un'altra azienda: sospenderlo ora vuol dire solo fermarlo. Spostarlo a un'altra azienda lo fa chi amministra la piattaforma, dalla console."
+        en: "A suspended panel can no longer be claimed by another company: suspending it now only means stopping it. Moving it to another company is done by the platform administrator, from the console."
+      - it: "Lo schermo del pannello non resta nero se la configurazione del servizio è rimasta indietro: il viewer prova da sé l'altra porta del runtime."
+        en: "The panel screen no longer stays black when the service configuration is out of date: the viewer tries the runtime's other port by itself."
       - it: "Nella libreria dei simboli c'è una famiglia nuova, «Comandi da quadro»: pulsanti, funghi di emergenza, selettori, interruttori a coltello e manopole, sedici in tutto, che nascono già pronti a comandare."
         en: "The symbol library has a new family, «Panel controls»: pushbuttons, emergency stops, selectors, knife switches and knobs — sixteen in all, born ready to command."
+      - it: "Il corpo del testo si può scegliere anche su pulsanti, navigatori, spie e caselle di spunta: prima il campo c'era e non faceva niente."
+        en: "Text size can now be set on buttons, navigation buttons, lamps and checkboxes too: the field was there and did nothing."
+  - versione: "2.16.2"
+    # La riga dei simboli stava qui ed è stata spostata sotto «Unreleased»: è
+    # stata scritta dopo che l'immagine 2.16.2 era già costruita, quindi nella
+    # sua etichetta non c'è. Un blocco deve dire quello che l'immagine porta.
+    voci:
       - it: "Sul pannello, la lingua scelta dall'operatore non si perde più a ogni riavvio del viewer, e il certificato del runtime viene ricordato davvero invece di essere riaccettato ogni volta."
         en: "On the panel, the language the operator picked is no longer lost at every viewer restart, and the runtime's certificate is really remembered instead of being accepted anew each time."
   - versione: "2.16.1"

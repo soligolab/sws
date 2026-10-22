@@ -89,6 +89,23 @@ Read these only when the trigger applies:
 
 `check_static.sh` joined the list on 2026-09-14. Two guards had gone red inside 48 hours, both from *good* work that never re-ran them: Q40 made 24 symbols builtin and deleted the SVGs a template still pointed at (`check_templates`), and the live web/LVGL parity fixes changed the `radio` example the generated AI schema is harvested from (`check_synoptic_schema`). Neither was caught at merge time. A guard nobody looks at stops being a signal — so it runs before the squash merge, not after someone notices.
 
+## Si tagga quando si costruisce (2026-10-21)
+
+Un tag di versione senza immagine **perde le sue note di rilascio, per sempre**. Le voci di
+`NOVITA.yaml` non si leggono dal file: viaggiano come etichette dentro l'immagine, e il pannello le
+raccoglie dalle immagini delle versioni che sta per attraversare (`versioni_dopo` in
+`sws-web/src/aggiornamento.rs`, che legge i tag del **registry**). Una versione taggata in git e mai
+costruita non è dentro nessuna immagine: le sue voci non le vedrà nessuno.
+
+Successo il 21-10-2026 con 2.16.0 e 2.16.1, taggate e mai costruite. L'avviso sul cambio di porte
+8443→7443 — il più importante della giornata — stava nel blocco 2.16.1, ed è rimasto irraggiungibile
+finché non è stato riportato in avanti a mano.
+
+Quindi: **il tag si crea quando si costruisce l'immagine, non quando si decide il numero.** E se una
+versione resta senza immagine, le sue voci di `NOVITA.yaml` vanno riportate nel blocco successivo
+prima del rilascio. Vale anche al contrario: una voce aggiunta a un blocco **dopo** che quella
+immagine è stata costruita non è nella sua etichetta, quindi non è vera — va spostata avanti.
+
 ## Git workflow per task
 
 Every roadmap task (T-01…T-20 and beyond):
