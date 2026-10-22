@@ -2548,7 +2548,6 @@
     "punti": "It will be changed in {{n}} places:",
     "nonRinominabili": "To do by hand (the walker cannot change them):",
     "conferma": "Rename",
-    "confermaCompat": "This version comes with compatibility warnings:\n\n{{avvisi}}\n\nUpdate anyway?",
     "inCorso": "Renaming…",
     "fatto": "Renamed in {{n}} places.",
     "errore": "Rename failed: {{message}}",
@@ -2715,6 +2714,7 @@
     "pulsante": "Update now to {{a}}",
     "inCorso": "Starting…",
     "conferma": "The panel runtime goes from {{da}} to {{a}}.\n\nIt restarts: for a few seconds alarms, history and screen stop and the connection drops. If the new version does not start properly, the panel goes back to the previous one by itself.\n\nProceed?",
+    "confermaCompat": "This version comes with compatibility warnings:\n\n{{avvisi}}\n\nUpdate anyway?",
     "avviato": "Update to {{a}} started: the runtime is restarting. Reconnect in a minute to see the new version.",
     "tornatoAlla": "the panel went back to {{da}}",
     "inCorsoSulPannello": "An update is in progress on the panel: the outcome shows here in a couple of minutes."

@@ -2548,7 +2548,6 @@
     "punti": "Verrà cambiata in {{n}} punti:",
     "nonRinominabili": "Da fare a mano (il walker non può cambiarli):",
     "conferma": "Rinomina",
-    "confermaCompat": "Questa versione porta avvisi di compatibilità:\n\n{{avvisi}}\n\nVuoi aggiornare lo stesso?",
     "inCorso": "Rinomino…",
     "fatto": "Rinominata in {{n}} punti.",
     "errore": "Rinomina fallita: {{message}}",
@@ -2715,6 +2714,7 @@
     "pulsante": "Aggiorna ora alla {{a}}",
     "inCorso": "Avvio…",
     "conferma": "Il runtime del pannello passa dalla {{da}} alla {{a}}.\n\nSi riavvia: per qualche secondo allarmi, storico e schermo si fermano e la connessione cade. Se la versione nuova non parte bene, il pannello torna da solo alla precedente.\n\nProcedo?",
+    "confermaCompat": "Questa versione porta avvisi di compatibilità:\n\n{{avvisi}}\n\nVuoi aggiornare lo stesso?",
     "avviato": "Aggiornamento alla {{a}} avviato: il runtime si sta riavviando. Riconnettiti fra un minuto per vedere la versione nuova.",
     "tornatoAlla": "il pannello è tornato alla {{da}}",
     "inCorsoSulPannello": "Un aggiornamento è in corso sul pannello: l'esito compare qui fra un paio di minuti."

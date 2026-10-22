@@ -11,6 +11,14 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 
 ## [Unreleased]
 
+### Fixed
+
+- **La seconda conferma dell'aggiornamento non elencava gli avvisi di compatibilità**, e chiedeva conferma
+  mostrando scritto `aggiornamento.confermaCompat`. La stringa c'era ed era giusta, ma stava sotto `rinomina`
+  invece che sotto `aggiornamento` (dal `ff9ea6d9`, 2.12.0-rc.9): i18next, senza `parseMissingKeyHandler`,
+  restituisce la chiave stessa. Per nove versioni quella finestra ha chiesto di confermare **senza dire cosa**
+  — cioè senza la sola cosa per cui esiste. Un test la inchioda nelle due lingue.
+
 ### Added
 
 - **«Comandi da quadro»: sedici simboli nuovi nella libreria**, che passa da 138 a 154. Tre tipologie —
