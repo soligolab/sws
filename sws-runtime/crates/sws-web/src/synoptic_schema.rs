@@ -186,6 +186,7 @@ pub const OBJECT_FIELDS: &[Field] = &[
     Field { name: "on_release_args", ty: "any", required: false, group: "(The legacy raw-code form is intentionally not honoured anymore.)", doc: "" },
     Field { name: "text", ty: "string", required: false, group: "Text object styling", doc: "" },
     Field { name: "font_size", ty: "number", required: false, group: "Text object styling", doc: "" },
+    Field { name: "label_font_size", ty: "number", required: false, group: "Text object styling", doc: "Corpo dell'etichetta di un oggetto a due testi (21-10-2026): `radio`, `slider`. `font_size` resta il corpo del testo primario. Senza questo campo qui, la GET di un sinottico lo lascerebbe per strada." },
     Field { name: "font_family", ty: "string", required: false, group: "Text object styling", doc: "" },
     Field { name: "font_weight", ty: "Option<Value>, // string (\"bold\") or number (700)", required: false, group: "Text object styling", doc: "" },
     Field { name: "font_style", ty: "string", required: false, group: "Text object styling", doc: "" },

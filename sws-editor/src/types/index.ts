@@ -363,6 +363,14 @@ export interface SynopticObject {
   /** Static text content. If `tag` is also set, `format` wins. */
   text?: string;
   font_size?: number;
+  /** Corpo dell'**etichetta** di un oggetto che ha due testi — l'intestazione
+   *  di un `radio`, il nome sopra la traccia di uno `slider`. `font_size` resta
+   *  il corpo del testo primario (le opzioni, il valore).
+   *
+   *  Dal 21-10-2026, scelta del maintainer: «un campo per testo». Due testi di
+   *  dimensione diversa sotto un campo solo non si possono regolare, e quasi
+   *  tutti i tipi rimasti ne hanno piu' di uno. */
+  label_font_size?: number;
   font_family?: string;
   /** "normal" | "bold" | number (100-900). */
   font_weight?: string | number;
@@ -477,7 +485,11 @@ export interface SynopticObject {
    *  filtri sotto l'intestazione (default false: occupa spazio). */
   table_sortable?: boolean;
   table_filterable?: boolean;
-  /** F7.1 — corpo del testo della tabella. Default 11. */
+  /** F7.1 — corpo del testo della tabella. Default 11.
+   *  @deprecated dal 21-10-2026 vale `font_size`, come per ogni altro tipo
+   *  (scelta del maintainer: un campo solo). Questo resta **letto** come
+   *  ripiego, così i progetti che ce l'hanno si disegnano identici, ma il
+   *  pannello non lo scrive più e nessun oggetto nuovo nasce con esso. */
   table_font_size?: number;
   /** F7.1 — etichetta della colonna dei nomi (default "DATI"). */
   table_label_header?: string;

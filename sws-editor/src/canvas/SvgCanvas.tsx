@@ -6,6 +6,7 @@ import { useTranslation } from "react-i18next";
 import { PALETTE, TrendCanvas } from "@/canvas/TrendCanvas";
 import { TrendExpandedModal } from "@/canvas/TrendExpanded";
 import { XyPlotCanvas, type XyPlotSeriesLive } from "@/canvas/XyPlotCanvas";
+import { altezzaEtichetta, altezzaValore, corpoSecondario, passoRiga } from "@/canvas/geometriaTesto";
 import { dividiSegmento, aggiungiInCoda, percorsoDaSalvare, puntiMovimento, tracciatoVisibile } from "@/canvas/percorsoMovimento";
 import { api } from "@/api/client";
 import { useAlarmStream } from "@/ws/alarmStream";
@@ -1686,6 +1687,7 @@ export function SvgCanvas({
         tags={trendTraces(expandedTrendObj).filter((tr) => tr.tag).map((tr) => tr.tag)}
         seriesLabels={trendTraces(expandedTrendObj).filter((tr) => tr.tag).map((tr) => tr.label ?? tr.tag)}
         windowS={expandedTrendObj.window_s ?? 60}
+        corpo={expandedTrendObj.font_size ?? 10}
         lineColor={expandedTrendObj.line_color}
         yMin={expandedTrendObj.y_min}
         yMax={expandedTrendObj.y_max}
@@ -4672,7 +4674,7 @@ function SvgObjectCorpo(p: ObjProps) {
           {/* Value text */}
           {obj.show_value !== false && (
             <text x={obj.x + w / 2} y={obj.y + h / 2 + 4}
-              textAnchor="middle" fill="#e2e8f0" fontSize={11} fontWeight={600}
+              textAnchor="middle" fill="#e2e8f0" fontSize={obj.font_size ?? 11} fontWeight={600}
               style={{ pointerEvents: "none" }}>
               {rawVal.toFixed(obj.decimals ?? 1)}{obj.unit ? ` ${obj.unit}` : ""}
             </text>
@@ -4690,7 +4692,7 @@ function SvgObjectCorpo(p: ObjProps) {
           )}
           {/* Label */}
           {obj.label && (
-            <text x={obj.x} y={obj.y - 4} fill="#94a3b8" fontSize={11}
+            <text x={obj.x} y={obj.y - 4} fill="#94a3b8" fontSize={obj.label_font_size ?? 11}
               style={{ pointerEvents: "none" }}>
               {obj.label}
             </text>
@@ -4857,6 +4859,12 @@ function SvgObjectCorpo(p: ObjProps) {
     const accent = coloreEffettivo(obj, "fill");
     const shownVal = sliderDraft ?? rawVal;
     const valueText = `${shownVal.toFixed(obj.decimals ?? (obj.step && obj.step < 1 ? 2 : 0))}${obj.unit ? ` ${obj.unit}` : ""}`;
+    // Due testi, due campi (21-10-2026): `font_size` e' il valore,
+    // `label_font_size` il nome sopra la traccia. I due rami — verticale e
+    // orizzontale — scrivevano i due corpi quattro volte in tutto; adesso i
+    // numeri stanno qui, una volta sola, e i rami li leggono.
+    const corpoValore = obj.font_size ?? 12;
+    const corpoEtichetta = obj.label_font_size ?? 11;
 
     // WYSIWYG (2026-08-23): un solo rendering per edit e runtime — l'anteprima
     // statica disegnava label ed etichette min/max FUORI dal box dichiarato e
@@ -4913,8 +4921,8 @@ function SvgObjectCorpo(p: ObjProps) {
       //
       // -90° e non +90°: porta l'estremo `min` (a sinistra) in basso, che è
       // dove ci si aspetta il minimo di uno slider verticale.
-      const labelH = obj.label ? 18 : 0;
-      const valueH = obj.show_value !== false ? 18 : 0;
+      const labelH = obj.label ? altezzaValore(corpoEtichetta) : 0;
+      const valueH = obj.show_value !== false ? altezzaValore(corpoValore) : 0;
       // La lunghezza del controllo ruotato va data in pixel: dopo la rotazione
       // il riquadro di layout resta quello di prima, quindi non può ricavarla
       // da un `height: 100%` del contenitore.
@@ -4930,7 +4938,7 @@ function SvgObjectCorpo(p: ObjProps) {
             justifyContent: "center", gap: 2, height: "100%", boxSizing: "border-box",
           }}>
             {obj.label && (
-              <span style={{ color: "var(--brand-text-muted, #94a3b8)", fontSize: 11, textAlign: "center" }}>
+              <span style={{ color: "var(--brand-text-muted, #94a3b8)", fontSize: corpoEtichetta, textAlign: "center" }}>
                 {obj.label}
               </span>
             )}
@@ -4948,7 +4956,7 @@ function SvgObjectCorpo(p: ObjProps) {
               />
             </div>
             {obj.show_value !== false && (
-              <span style={{ color: "var(--synoptic-text, var(--brand-text, #e2e8f0))", fontSize: 12, textAlign: "center" }}>
+              <span style={{ color: "var(--synoptic-text, var(--brand-text, #e2e8f0))", fontSize: corpoValore, textAlign: "center" }}>
                 {valueText}
               </span>
             )}
@@ -4977,7 +4985,7 @@ function SvgObjectCorpo(p: ObjProps) {
           }}
         >
           {obj.label && (
-            <span style={{ color: "var(--brand-text-muted, #94a3b8)", fontSize: 11, textAlign: "center", lineHeight: 1.2 }}>
+            <span style={{ color: "var(--brand-text-muted, #94a3b8)", fontSize: corpoEtichetta, textAlign: "center", lineHeight: 1.2 }}>
               {obj.label}
             </span>
           )}
@@ -4986,7 +4994,7 @@ function SvgObjectCorpo(p: ObjProps) {
             style={{ width: "100%", margin: 0, accentColor: accent, cursor: readOnly ? "default" : "pointer" }}
           />
           {obj.show_value !== false && (
-            <span style={{ color: "var(--synoptic-text, var(--brand-text, #e2e8f0))", fontSize: 12, textAlign: "center", lineHeight: 1.2 }}>
+            <span style={{ color: "var(--synoptic-text, var(--brand-text, #e2e8f0))", fontSize: corpoValore, textAlign: "center", lineHeight: 1.2 }}>
               {valueText}
             </span>
           )}
@@ -5150,8 +5158,15 @@ function SvgObjectCorpo(p: ObjProps) {
     const opts = obj.options ?? [];
     const w = obj.width ?? 180;
     const isH = obj.orientation === "horizontal";
-    const itemH = 28;
-    const totalH = obj.height ?? (isH ? itemH + (obj.label ? 20 : 0) : opts.length * itemH + (obj.label ? 20 : 0));
+    // Due testi, due campi (21-10-2026): `font_size` governa le opzioni,
+    // `label_font_size` l'intestazione. Le due altezze non sono piu' letterali:
+    // vengono dal corpo (`geometriaTesto`), cosi' alzandolo le opzioni non si
+    // sovrappongono — ed e' la stessa funzione che usa il pannello LVGL.
+    const corpoOpzioni = obj.font_size ?? 13;
+    const corpoEtichetta = obj.label_font_size ?? 11;
+    const itemH = passoRiga(corpoOpzioni);
+    const hEtichetta = obj.label ? altezzaEtichetta(corpoEtichetta) : 0;
+    const totalH = obj.height ?? (isH ? itemH + hEtichetta : opts.length * itemH + hEtichetta);
     const tv = obj.tag ? tagValues[obj.tag] : undefined;
     const currentVal = tv ? tv.value : null;
 
@@ -5167,7 +5182,7 @@ function SvgObjectCorpo(p: ObjProps) {
           style={{ display: "flex", flexDirection: "column", gap: 2 }}
         >
           {obj.label && (
-            <span style={{ color: "var(--brand-text-muted, #94a3b8)", fontSize: 11, marginBottom: 4 }}>{obj.label}</span>
+            <span style={{ color: "var(--brand-text-muted, #94a3b8)", fontSize: corpoEtichetta, marginBottom: 4 }}>{obj.label}</span>
           )}
           <div style={{ display: "flex", flexDirection: isH ? "row" : "column", gap: isH ? 12 : 4 }}>
             {opts.map((opt, i) => (
@@ -5180,7 +5195,7 @@ function SvgObjectCorpo(p: ObjProps) {
                   onChange={() => guardedWrite(obj.tag!, opt.value as string | number | boolean)}
                   style={{ accentColor: coloreEffettivo(obj, "fill"), cursor: obj.read_only ? "default" : "pointer" }}
                 />
-                <span style={{ color: "var(--synoptic-text, var(--brand-text, #e2e8f0))", fontSize: 13, userSelect: "none" }}>
+                <span style={{ color: "var(--synoptic-text, var(--brand-text, #e2e8f0))", fontSize: corpoOpzioni, userSelect: "none" }}>
                   {opt.label}
                 </span>
               </label>
@@ -5208,7 +5223,9 @@ function SvgObjectCorpo(p: ObjProps) {
     const headerH = 26;
     const totalH = obj.height ?? (headerH + rows.length * rowH + 2);
     const cols = obj.table_columns ?? ["label", "value", "quality"];
-    const fontSize = obj.table_font_size ?? 11;
+    // `font_size` per tutti dal 21-10-2026; `table_font_size` resta letto
+    // perché i progetti che ce l'hanno si disegnino identici.
+    const fontSize = obj.font_size ?? obj.table_font_size ?? 11;
 
     /** Valore numerico della riga, quando è un numero. */
     const rowNum = (r: TableRow): number | undefined => {
@@ -5363,6 +5380,7 @@ function SvgObjectCorpo(p: ObjProps) {
                 yMax={trendZoom?.yHi !== undefined ? trendZoom.yHi : obj.y_max}
                 opcuaBackfill={obj.opcua_backfill}
                 seriesStyles={trendTraces(obj).filter((tr) => tr.tag)}
+                corpo={obj.font_size ?? 10}
                 dtDateOrder={obj.trend_dt_date_order}
                 dtSeparator={obj.trend_dt_separator}
                 dtTimeFormat={obj.trend_dt_time_format}
@@ -5466,6 +5484,7 @@ function SvgObjectCorpo(p: ObjProps) {
             yMax={obj.xy_y_max}
             bgColor={obj.bg_color}
             bgImage={obj.bg_image}
+            corpo={obj.font_size ?? 10}
           />
         </foreignObject>
         {hitRect(obj.x, obj.y, w, h)}
@@ -5510,6 +5529,12 @@ function SvgObjectCorpo(p: ObjProps) {
     const orient = obj.bar_orientation ?? "vertical";
     const stacked = obj.bar_mode === "stacked";
     const gap = clamp(obj.bar_gap ?? 0.2, 0, 0.9);
+    // Un campo solo per tutto il testo del grafico (21-10-2026, scelta del
+    // maintainer «si unifica tutto su font_size»): valori, etichette e titolo
+    // dell'asse lo usano tale e quale, tacche e legenda passano da
+    // `corpoSecondario`. Col 10 di prima escono i 10 e i 9 di prima.
+    const corpo = obj.font_size ?? 10;
+    const corpoMinore = corpoSecondario(corpo);
     const showValues = obj.bar_show_values !== false;
     const showLabels = obj.bar_show_labels !== false;
     const showThresh = obj.bar_show_thresholds !== false;
@@ -5613,7 +5638,7 @@ function SvgObjectCorpo(p: ObjProps) {
               <g key={`bt${i}`} style={{ pointerEvents: "none" }}>
                 <line x1={baseX - 3} y1={ty} x2={baseX + plotW} y2={ty}
                   stroke="#1e293b" strokeWidth={1} />
-                <text x={baseX - 5} y={ty + 3} textAnchor="end" fill="#64748b" fontSize={9}>
+                <text x={baseX - 5} y={ty + 3} textAnchor="end" fill="#64748b" fontSize={corpoMinore}>
                   {v.toFixed(Math.abs(v) < 10 ? dec : 0)}
                 </text>
               </g>
@@ -5623,7 +5648,7 @@ function SvgObjectCorpo(p: ObjProps) {
           return (
             <g key={`bt${i}`} style={{ pointerEvents: "none" }}>
               <line x1={tx} y1={baseY} x2={tx} y2={axisY + 3} stroke="#1e293b" strokeWidth={1} />
-              <text x={tx} y={axisY + 12} textAnchor="middle" fill="#64748b" fontSize={9}>
+              <text x={tx} y={axisY + 12} textAnchor="middle" fill="#64748b" fontSize={corpoMinore}>
                 {v.toFixed(Math.abs(v) < 10 ? dec : 0)}
               </text>
             </g>
@@ -5631,7 +5656,7 @@ function SvgObjectCorpo(p: ObjProps) {
         })}
         {/* F0.2: bar_y_label esisteva nello schema ma non era mai disegnato. */}
         {obj.bar_y_label && (
-          <text x={obj.x + 10} y={baseY + plotH / 2} textAnchor="middle" fill="#94a3b8" fontSize={10}
+          <text x={obj.x + 10} y={baseY + plotH / 2} textAnchor="middle" fill="#94a3b8" fontSize={corpo}
             transform={`rotate(-90 ${obj.x + 10} ${baseY + plotH / 2})`}
             style={{ pointerEvents: "none" }}>
             {obj.bar_y_label}
@@ -5656,7 +5681,7 @@ function SvgObjectCorpo(p: ObjProps) {
                 <g key={i}>
                   <rect x={bx} y={y0} width={barW} height={segH} fill={color} style={transitionStyle(obj)} />
                   {showValues && segH > 12 && (
-                    <text x={bx + barW / 2} y={y0 + segH / 2 + 4} textAnchor="middle" fill="#0f172a" fontSize={10}
+                    <text x={bx + barW / 2} y={y0 + segH / 2 + 4} textAnchor="middle" fill="#0f172a" fontSize={corpo}
                       fontWeight={600} style={{ pointerEvents: "none" }}>{valText}</text>
                   )}
                 </g>
@@ -5669,7 +5694,7 @@ function SvgObjectCorpo(p: ObjProps) {
               <g key={i}>
                 <rect x={x0} y={byS} width={segW} height={barW} fill={color} style={transitionStyle(obj)} />
                 {showValues && segW > 26 && (
-                  <text x={x0 + segW / 2} y={byS + barW / 2 + 4} textAnchor="middle" fill="#0f172a" fontSize={10}
+                  <text x={x0 + segW / 2} y={byS + barW / 2 + 4} textAnchor="middle" fill="#0f172a" fontSize={corpo}
                     fontWeight={600} style={{ pointerEvents: "none" }}>{valText}</text>
                 )}
               </g>
@@ -5691,8 +5716,8 @@ function SvgObjectCorpo(p: ObjProps) {
             return (
               <g key={i}>
                 <rect x={bx} y={by} width={barW} height={bh} fill={color} rx={2} style={transitionStyle(obj)} />
-                {showValues && <text x={bx + barW / 2} y={labelY} textAnchor="middle" fill="#e2e8f0" fontSize={10} style={{ pointerEvents: "none" }}>{valText}</text>}
-                {showLabels && <text x={bx + barW / 2} y={axisY + 14} textAnchor="middle" fill="#94a3b8" fontSize={10} style={{ pointerEvents: "none" }}>{s.label}</text>}
+                {showValues && <text x={bx + barW / 2} y={labelY} textAnchor="middle" fill="#e2e8f0" fontSize={corpo} style={{ pointerEvents: "none" }}>{valText}</text>}
+                {showLabels && <text x={bx + barW / 2} y={axisY + 14} textAnchor="middle" fill="#94a3b8" fontSize={corpo} style={{ pointerEvents: "none" }}>{s.label}</text>}
               </g>
             );
           }
@@ -5706,10 +5731,10 @@ function SvgObjectCorpo(p: ObjProps) {
               <rect x={bx2} y={by2} width={bw2} height={barW} fill={color} rx={2} style={transitionStyle(obj)} />
               {showValues && (
                 <text x={val < 0 ? bx2 - 3 : bx2 + bw2 + 3} y={by2 + barW / 2 + 4}
-                  textAnchor={val < 0 ? "end" : "start"} fill="#e2e8f0" fontSize={10}
+                  textAnchor={val < 0 ? "end" : "start"} fill="#e2e8f0" fontSize={corpo}
                   style={{ pointerEvents: "none" }}>{valText}</text>
               )}
-              {showLabels && <text x={obj.x + 4} y={by2 + barW / 2 + 4} fill="#94a3b8" fontSize={10} style={{ pointerEvents: "none" }}>{s.label}</text>}
+              {showLabels && <text x={obj.x + 4} y={by2 + barW / 2 + 4} fill="#94a3b8" fontSize={corpo} style={{ pointerEvents: "none" }}>{s.label}</text>}
             </g>
           );
         })}
@@ -5740,7 +5765,7 @@ function SvgObjectCorpo(p: ObjProps) {
           return (
             <g key={`bl${i}`} style={{ pointerEvents: "none" }}>
               <rect x={lx} y={ly} width={8} height={8} rx={1} fill={s.color ?? PALETTE[i % PALETTE.length]} />
-              <text x={lx + 12} y={ly + 7} fill="#94a3b8" fontSize={9}>{s.label}</text>
+              <text x={lx + 12} y={ly + 7} fill="#94a3b8" fontSize={corpoMinore}>{s.label}</text>
             </g>
           );
         })}
@@ -5751,6 +5776,14 @@ function SvgObjectCorpo(p: ObjProps) {
   // ── PIE / DONUT CHART ────────────────────────────────────────────────────────
 
   if (obj.type === "pie_chart") {
+    // Un campo solo per tutto il testo del grafico (21-10-2026): gli spicchi
+    // lo usano tale e quale, la legenda passa da `corpoSecondario`, il testo
+    // nel foro sta tre punti sopra. Col 10 di prima escono i 10, i 9 e i 13 di
+    // prima — e su LVGL si chiudono due divergenze: gli spicchi erano 11 e il
+    // centro 16.
+    const corpo = obj.font_size ?? 10;
+    const corpoMinore = corpoSecondario(corpo);
+    const corpoCentro = corpo + 3;
     const w = obj.width ?? 200; const h = obj.height ?? 200;
     const rawSlices = obj.pie_slices ?? [];
     const mode = obj.pie_mode ?? "pie";
@@ -5868,7 +5901,7 @@ function SvgObjectCorpo(p: ObjProps) {
             <circle cx={cx2} cy={cy2} r={r} fill={singleVisible[0].color} />
             {mode === "donut" && <circle cx={cx2} cy={cy2} r={r * innerR - 1} fill={holeColor} />}
             {showLabels && (
-              <text x={cx2} y={cy2 + 4} textAnchor="middle" fill="#fff" fontSize={10} fontWeight="bold" style={{ pointerEvents: "none" }}>
+              <text x={cx2} y={cy2 + 4} textAnchor="middle" fill="#fff" fontSize={corpo} fontWeight="bold" style={{ pointerEvents: "none" }}>
                 {sliceLabel(1, singleVisible[0].value, singleVisible[0].label)}
               </text>
             )}
@@ -5880,7 +5913,7 @@ function SvgObjectCorpo(p: ObjProps) {
               <text
                 x={ox + labelR * Math.cos(midAngle)}
                 y={oy + labelR * Math.sin(midAngle) + 4}
-                textAnchor="middle" fill="#fff" fontSize={10} fontWeight="bold"
+                textAnchor="middle" fill="#fff" fontSize={corpo} fontWeight="bold"
                 style={{ pointerEvents: "none" }}>
                 {sliceLabel(pct, value, label)}
               </text>
@@ -5889,12 +5922,12 @@ function SvgObjectCorpo(p: ObjProps) {
         ))}
         {!isFullCircle && mode === "donut" && <circle cx={cx2} cy={cy2} r={r * innerR - 1} fill={holeColor} />}
         {!isFullCircle && mode === "donut" && centerText && (
-          <text x={cx2} y={cy2 + 5} textAnchor="middle" fill="#e2e8f0" fontSize={13} fontWeight="bold" style={{ pointerEvents: "none" }}>{centerText}</text>
+          <text x={cx2} y={cy2 + 5} textAnchor="middle" fill="#e2e8f0" fontSize={corpoCentro} fontWeight="bold" style={{ pointerEvents: "none" }}>{centerText}</text>
         )}
         {showLegend && entries.map((e, i) => (
           <g key={i}>
             <rect x={obj.x + 6 + (i % 2) * (w / 2)} y={obj.y + chartH + 4 + Math.floor(i / 2) * 14} width={8} height={8} fill={e.color} rx={1} />
-            <text x={obj.x + 18 + (i % 2) * (w / 2)} y={obj.y + chartH + 11 + Math.floor(i / 2) * 14} fill="#94a3b8" fontSize={9} style={{ pointerEvents: "none" }}>{e.label}</text>
+            <text x={obj.x + 18 + (i % 2) * (w / 2)} y={obj.y + chartH + 11 + Math.floor(i / 2) * 14} fill="#94a3b8" fontSize={corpoMinore} style={{ pointerEvents: "none" }}>{e.label}</text>
           </g>
         ))}
       </g>

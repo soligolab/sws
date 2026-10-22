@@ -20,10 +20,16 @@ describe("pianoEliminazione", () => {
       { id: "a", type_ref: "T" }, { id: "b", type_ref: "T" }, { id: "condivisa", type_ref: "U" }, { id: "altro", data_type: "u16" },
     ],
     types: [{ id: "T", members: [] }, { id: "U", members: [] }],
-  } as never;
+  };
+  // Il cast sta sulle CHIAMATE, non sulla costante: `as never` qui sopra
+  // rendeva `project` di tipo `never`, e lo spread di riga 34 non compilava
+  // («Spread types may only be created from object types»). Non si vedeva
+  // perche' vite non controlla i tipi dei test e vitest nemmeno: lo diceva
+  // solo `tsc --noEmit`.
+  const come_progetto = project as never;
 
   it("toglie le variabili del dispositivo, non quelle che altri mappano, e tiene un tipo ancora usato", () => {
-    const p = pianoEliminazione(project, b, 1);
+    const p = pianoEliminazione(come_progetto, b, 1);
     expect(p.variabili).toEqual(["a"]);
     expect(p.tipi).toEqual([]); // T lo usa ancora «b»
     expect(p.tags.map((t) => t.id)).toEqual(["b", "condivisa", "altro"]);

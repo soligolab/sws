@@ -82,6 +82,23 @@ describe("riempiPredefiniti — i valori fissi finiscono nel file", () => {
     expect(r.fill).toBeUndefined();
   });
 
+  // 21-10-2026, la tabella passa a `font_size`. I due motori leggono
+  // `font_size ?? table_font_size ?? 11`, quindi `font_size` VINCE: scrivere il
+  // predefinito 11 dentro una tabella che ha ancora il campo vecchio a 16 la
+  // rimpicciolirebbe da sola al primo salvataggio, senza che nessuno abbia
+  // toccato quel campo. Stessa trappola, e stesso rimedio, del fill/bg_color
+  // qui sopra.
+  it("una tabella col vecchio table_font_size non riceve un font_size che lo coprirebbe", () => {
+    const t = riempiPredefiniti(obj({ type: "table", table_font_size: 16 }));
+    expect(t.font_size).toBeUndefined();
+    expect(t.table_font_size).toBe(16);
+  });
+
+  it("una tabella senza nessuno dei due riceve il predefinito", () => {
+    const t = riempiPredefiniti(obj({ type: "table" }));
+    expect(t.font_size).toBe(11);
+  });
+
   it("ogni tipo della palette nasce con tutti i suoi predefiniti fissi", () => {
     for (const tipo of TIPI) {
       const o = oggettoNuovo(tipo, 10, 10) as unknown as Record<string, unknown> | null;

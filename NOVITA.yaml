@@ -50,6 +50,10 @@ versioni:
         en: "The symbol library has a new family, «Panel controls»: pushbuttons, emergency stops, selectors, knife switches and knobs — sixteen in all, born ready to command."
       - it: "Il corpo del testo si può scegliere anche su pulsanti, navigatori, spie e caselle di spunta: prima il campo c'era e non faceva niente."
         en: "Text size can now be set on buttons, navigation buttons, lamps and checkboxes too: the field was there and did nothing."
+      - it: "Il corpo del testo si sceglie anche su cursori, scelte multiple, barre, tabelle e grafici. Dove un oggetto ha due testi, etichetta e valore hanno un campo ciascuno; un grafico ne ha uno per tutto."
+        en: "Text size can also be set on sliders, radio groups, bars, tables and charts. Where an object has two texts, label and value get a field each; a chart has one for all of it."
+      - it: "Le spaziature seguono il corpo del testo: ingrandendolo, le opzioni di una scelta multipla non si sovrappongono più e il valore di un cursore non finisce sulla traccia."
+        en: "Spacing now follows the text size: enlarge it and a radio group's options no longer overlap, and a slider's value no longer lands on the track."
   - versione: "2.16.2"
     # La riga dei simboli stava qui ed è stata spostata sotto «Unreleased»: è
     # stata scritta dopo che l'immagine 2.16.2 era già costruita, quindi nella

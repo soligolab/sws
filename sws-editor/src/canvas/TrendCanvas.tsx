@@ -115,6 +115,12 @@ interface TrendCanvasProps {
   onLegendToggle?: (idx: number) => void;
   /** Per-trace style (width/dash/fill/smooth), parallel to tags. */
   seriesStyles?: TrendSeriesStyle[];
+  /** Il corpo del testo del grafico (21-10-2026, scelta del maintainer «si
+   *  unifica tutto su font_size»): numeri degli assi, etichette del tempo,
+   *  legenda e riquadri di lettura. Il predefinito e' il letterale di prima.
+   *  La cornice — messaggio «nessun dato», filigrana d'anteprima, lettere dei
+   *  cursori — non lo segue: non e' testo dell'utente. */
+  corpo?: number;
   /** Drag-select a region on the plot to zoom into that time range. Fires on
    *  mouse-up when the drag exceeds a small pixel threshold (below it, it's
    *  treated as a plain hover click, preserving today's behaviour).
@@ -301,6 +307,7 @@ export function TrendCanvas({
   hiddenIndices,
   onLegendToggle,
   seriesStyles,
+  corpo = 10,
   onRangeSelect,
   zoomed = false,
   onResetZoom,
@@ -632,6 +639,12 @@ export function TrendCanvas({
     ctx.lineWidth = 1;
     ctx.strokeRect(0.5, 0.5, width - 1, height - 1);
 
+    // I tre font del grafico, dal corpo. Col 10 di prima escono le tre
+    // stringhe di prima, carattere per carattere.
+    const fontAsse = `${corpo}px ui-monospace, monospace`;
+    const fontLegenda = `${corpo}px system-ui, sans-serif, 'SWS Emoji'`;
+    const fontLettura = `${corpo + 1}px ui-monospace, monospace`;
+
     const hasAnyData = series.some((s) => s.length >= 2);
     if (!hasAnyData) {
       ctx.fillStyle = "#475569";
@@ -755,7 +768,7 @@ export function TrendCanvas({
     // would just be a confusing, meaningless 0-1 range.
     if (hasSharedSeries) {
       ctx.fillStyle = axisColor ?? DEF_TREND("axis_color");
-      ctx.font = "10px ui-monospace, monospace";
+      ctx.font = fontAsse;
       ctx.textAlign = "left";
       ctx.textBaseline = "middle";
       for (let i = 0; i <= 4; i++) {
@@ -773,7 +786,7 @@ export function TrendCanvas({
     // plot height) so all axes line up visually — only the values differ,
     // each mapped through that trace's own domain. Colored to match the
     // trace's line so it's clear which axis belongs to which.
-    ctx.font = "10px ui-monospace, monospace";
+    ctx.font = fontAsse;
     ctx.textAlign = "right";
     ctx.textBaseline = "middle";
     ownScaleIndices.forEach((idx, col) => {
@@ -931,7 +944,7 @@ export function TrendCanvas({
     // (canvas text isn't clickable DOM — hit-testing is manual).
     legendBoxesRef.current = [];
     if (tags.length > 1) {
-      ctx.font = "10px system-ui, sans-serif, 'SWS Emoji'";
+      ctx.font = fontLegenda;
       ctx.textBaseline = "middle";
       ctx.textAlign = "left";
       let cx = PAD_LEFT + 2;
@@ -1022,7 +1035,7 @@ export function TrendCanvas({
       ctx.fillRect(bx, by, boxW, boxH);
       ctx.strokeStyle = "#334155";
       ctx.strokeRect(bx, by, boxW, boxH);
-      ctx.font = "10px ui-monospace, monospace";
+      ctx.font = fontAsse;
       ctx.textAlign = "left";
       ctx.textBaseline = "top";
       lines.forEach((l, li) => {
@@ -1090,7 +1103,7 @@ export function TrendCanvas({
 
       // Tooltip box
       if (hits.length > 0) {
-        ctx.font = "11px ui-monospace, monospace";
+        ctx.font = fontLettura;
         const tsParts = fmtDateTimeParts(tsAtHover, tSpan, dtConfig);
         const tsLines = tsParts.line2 ? [tsParts.line1, tsParts.line2] : [tsParts.line1];
         const sevColor: Record<string, string> = { Info: "#3b82f6", Warning: "#f59e0b", Critical: "#ef4444" };
@@ -1130,7 +1143,7 @@ export function TrendCanvas({
       const lastN = last.length === 1 ? sampleToNumber(last[0].value) : null;
       if (lastN !== null && tags.length === 1) {
         ctx.fillStyle = "#94a3b8";
-        ctx.font = "11px ui-monospace, monospace";
+        ctx.font = fontLettura;
         ctx.textAlign = "right";
         ctx.textBaseline = "top";
         ctx.fillText(fmtValue(lastN), PAD_LEFT + plotW - 4, PAD_TOP + 4);

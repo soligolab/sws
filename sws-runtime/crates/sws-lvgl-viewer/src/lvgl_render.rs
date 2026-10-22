@@ -32,6 +32,7 @@ use cstr_core::CString;
 use lvgl::style::Style;
 use lvgl::widgets::{Bar, Btn, Chart, Checkbox, Label, Led, Line, Meter, Slider, Table};
 use lvgl::{Color, LvError, NativeObject, Part, Widget};
+use sws_core::geometria_testo::{altezza_etichetta, passo_riga};
 use sws_core::tag::{TagQuality, TagValue};
 
 use crate::client::{
@@ -1210,6 +1211,8 @@ pub fn config_trend(obj: &SynopticObject, w: u32, h: u32) -> crate::trend::Confi
             .unwrap_or_else(|| parse_hex_color(predefinito_lvgl("trend", "grid_color")).unwrap_or((0x1e, 0x29, 0x3b))),
         passo_pan_s: obj.pan_step_s,
         lingua: "it".into(),
+        // Un campo solo per tutto il testo del grafico (21-10-2026).
+        corpo: obj.font_size.unwrap_or(10.0).round().clamp(6.0, 200.0) as u16,
     }
 }
 
@@ -1484,8 +1487,10 @@ fn etichetta_piccola_corpo(
             Some(w) => x + w / 2.0 - larghezza_testo(p) / 2.0,
             None => x,
         };
-        // La base del testo SVG sta ~11 px sotto il bordo alto di una riga da 11.
-        lvgl_sys::lv_obj_set_pos(p, x.round() as lvgl_sys::lv_coord_t, (y_base - 11.0).round() as lvgl_sys::lv_coord_t);
+        // La base del testo SVG sta un corpo sotto il bordo alto della riga.
+        // Era `- 11.0` fisso: col corpo a 11 e' lo stesso numero, ma un'etichetta
+        // piu' grande finiva addosso a cio' che ha sopra (21-10-2026).
+        lvgl_sys::lv_obj_set_pos(p, x.round() as lvgl_sys::lv_coord_t, (y_base - corpo as f64).round() as lvgl_sys::lv_coord_t);
     }
     Ok(())
 }
@@ -3189,9 +3194,27 @@ fn e_grassetto(peso: Option<&serde_json::Value>) -> bool {
 /// Corpo, famiglia e grassetto di un oggetto (18-10-2026: prima solo il corpo,
 /// e `font_family`/`font_weight` erano ignorati — vedi `lvgl_font::per`).
 fn apply_font_size(widget: &impl NativeObject, obj: &SynopticObject) -> anyhow::Result<()> {
+    apply_font_size_con_ripiego(widget, obj, None)
+}
+
+/// Come [`apply_font_size`], ma con il corpo che il **web** disegna quando
+/// l'oggetto non dichiara niente (22-10-2026).
+///
+/// Serve perche' il ripiego «non toccare il widget» non chiude una divergenza:
+/// la lascia aperta su ogni progetto che il campo non ce l'ha ancora scritto
+/// dentro. Un `checkbox` senza `font_size` il web lo disegna a 13 e LVGL,
+/// uscendo subito, lo lasciava ai 14 dello schermo — cioe' esattamente la
+/// divergenza che il primo giro dichiarava chiusa. Chi ha una voce nella
+/// tabella dei predefiniti passa quel numero; chi non ce l'ha passa `None` e
+/// si comporta come prima.
+fn apply_font_size_con_ripiego(
+    widget: &impl NativeObject,
+    obj: &SynopticObject,
+    ripiego: Option<f64>,
+) -> anyhow::Result<()> {
     let grassetto = e_grassetto(obj.font_weight.as_ref());
     let famiglia = obj.font_family.as_deref().filter(|s| !s.trim().is_empty());
-    let px = match obj.font_size {
+    let px = match obj.font_size.or(ripiego) {
         Some(px) => px.round(),
         // Senza corpo ma con una famiglia o il grassetto: il corpo predefinito.
         None if famiglia.is_some() || grassetto => lvgl_font::CORPO_PX as f64,
@@ -3952,8 +3975,11 @@ fn render_slider(
     // bar (confermato dai bindgen bindings reali, non da supposizione) — vedi
     // init_bar_like, condivisa con progress_bar per lo stesso motivo.
     if let Some(l) = obj.label.as_deref().filter(|l| !l.is_empty()) {
-        etichetta_piccola(
-            screen, l, obj.x.unwrap_or(0.0), obj.y.unwrap_or(0.0) + 11.0, Some(obj.width.unwrap_or(200.0)), GRIGIO_ETICHETTA,
+        // L'etichetta ha il suo campo dal 21-10-2026 (`label_font_size`):
+        // `font_size` governa il valore, qui sotto in `init_bar_like`.
+        let corpo = obj.label_font_size.unwrap_or(11.0).round().clamp(6.0, 200.0) as u16;
+        etichetta_piccola_corpo(
+            screen, l, obj.x.unwrap_or(0.0), obj.y.unwrap_or(0.0) + corpo as f64, Some(obj.width.unwrap_or(200.0)), GRIGIO_ETICHETTA, corpo,
         )?;
     }
     // Fase 2 (30-09-2026): il web colora indicatore e manopola col
@@ -3994,7 +4020,10 @@ fn render_progress_bar(
     set_pos_size(&mut bar, obj, 200.0, 24.0)?;
     let ptr = bar.raw().map_err(|e| anyhow::anyhow!("raw: {e:?}"))?;
     if let Some(l) = obj.label.as_deref().filter(|l| !l.is_empty()) {
-        etichetta_piccola(screen, l, obj.x.unwrap_or(0.0), obj.y.unwrap_or(0.0) - 4.0, None, GRIGIO_ETICHETTA)?;
+        etichetta_piccola_corpo(
+            screen, l, obj.x.unwrap_or(0.0), obj.y.unwrap_or(0.0) - 4.0, None, GRIGIO_ETICHETTA,
+            obj.label_font_size.unwrap_or(11.0).round().clamp(6.0, 200.0) as u16,
+        )?;
     }
     // Fase 2 (30-09-2026): traccia e riempimento del web, non quelli del tema.
     unsafe {
@@ -4060,6 +4089,15 @@ fn init_bar_like(
     let value_ptr = if obj.show_value != Some(false) {
         let d = decimals as usize;
         let testo = text_cstring(&format!("{raw:.d$}{unit}"));
+        // Il corpo del valore (21-10-2026). I due ripieghi sono i due letterali
+        // del web: 11 dentro la barra, 12 sopra la traccia del cursore. Sul
+        // cursore chiude anche una divergenza che c'era gia': questa etichetta
+        // non aveva font e ereditava i 14 dello schermo.
+        let corpo_valore = obj
+            .font_size
+            .unwrap_or(if dentro { 11.0 } else { 12.0 })
+            .round()
+            .clamp(6.0, 200.0);
         if dentro {
             let l = core::ptr::NonNull::new(unsafe { lvgl_sys::lv_label_create(ptr.as_ptr()) })
                 .ok_or_else(|| anyhow::anyhow!("lv_label_create: memoria esaurita"))?;
@@ -4067,18 +4105,22 @@ fn init_bar_like(
                 lvgl_sys::lv_label_set_text(l.as_ptr(), testo.as_ptr());
                 lvgl_sys::lv_obj_align(l.as_ptr(), lvgl_sys::LV_ALIGN_CENTER as lvgl_sys::lv_align_t, 0, 0);
                 stile::testo(l.as_ptr(), (0xe2, 0xe8, 0xf0), stile::MAIN);
-                stile::font(l.as_ptr(), 11, stile::MAIN);
+                stile::font(l.as_ptr(), corpo_valore as u16, stile::MAIN);
             }
             Some(l)
         } else {
             let mut lbl = Label::create(screen).map_err(|e| anyhow::anyhow!("Label::create: {e:?}"))?;
+            // Lo scostamento sopra la traccia era `- 16.0` fisso: col corpo a 12
+            // e' lo stesso numero, ma a corpo 24 il valore finiva sulla traccia.
             lbl.set_pos(
                 obj.x.unwrap_or(0.0).round() as i16,
-                (obj.y.unwrap_or(0.0) - 16.0).round() as i16,
+                (obj.y.unwrap_or(0.0) - (corpo_valore + 4.0)).round() as i16,
             )
             .map_err(|e| anyhow::anyhow!("set_pos: {e:?}"))?;
             lbl.set_text(&testo).map_err(|e| anyhow::anyhow!("set_text: {e:?}"))?;
-            Some(lbl.raw().map_err(|e| anyhow::anyhow!("raw: {e:?}"))?)
+            let p = lbl.raw().map_err(|e| anyhow::anyhow!("raw: {e:?}"))?;
+            unsafe { stile::font(p.as_ptr(), corpo_valore as u16, stile::MAIN) };
+            Some(p)
         }
     } else {
         None
@@ -4150,6 +4192,8 @@ fn render_bar_chart(
         alarm_high: obj.alarm_high,
         sfondo: colore_campo(obj.bg_color.as_deref(), "bar_chart", "bg_color"),
         titolo_y: obj.bar_y_label.clone(),
+        // Un campo solo per tutto il testo del grafico (21-10-2026).
+        corpo: obj.font_size.unwrap_or(10.0).round().clamp(6.0, 200.0) as u16,
     };
     let (canvas, buf) = canvas_alfa(screen, obj, w, h)?;
     // Il titolo dell'asse Y ruotato di −90° come sul web (1-10-2026; prima
@@ -4160,7 +4204,7 @@ fn render_bar_chart(
         l.set_text(&text_cstring(t)).map_err(|e| anyhow::anyhow!("set_text: {e:?}"))?;
         let p = l.raw().map_err(|e| anyhow::anyhow!("raw: {e:?}"))?.as_ptr();
         unsafe {
-            stile::font(p, 10, stile::MAIN);
+            stile::font(p, cfg.corpo, stile::MAIN);
             stile::testo(p, GRIGIO_ETICHETTA, stile::MAIN);
             let lw = larghezza_testo(p);
             let lh = lvgl_sys::lv_obj_get_height(p) as f64;
@@ -4281,7 +4325,12 @@ fn render_checkbox(
     // Il corpo del testo (21-10-2026). Qui non chiude solo il limite della
     // scala: chiude una divergenza che c'era già. Il web disegnava 13, LVGL
     // ereditava i 14 dello schermo, e nessuno dei due lo diceva.
-    apply_font_size(&cb, obj)?;
+    //
+    // Il 13 va passato (22-10-2026): senza, `apply_font_size` esce subito su un
+    // progetto che `font_size` non ce l'ha ancora scritto dentro, e la
+    // divergenza resta aperta proprio sui progetti vecchi — gli unici per cui
+    // esiste.
+    apply_font_size_con_ripiego(&cb, obj, Some(13.0))?;
     let ptr = cb.raw().map_err(|e| anyhow::anyhow!("raw: {e:?}"))?;
     colora_spunta(ptr.as_ptr(), colore_campo(obj.fill.as_deref(), "checkbox", "fill"));
 
@@ -4357,19 +4406,35 @@ fn render_radio(
     let horizontal = obj.orientation.as_deref() == Some("horizontal");
     let base_x = obj.x.unwrap_or(0.0);
     let mut base_y = obj.y.unwrap_or(0.0);
+    // Due testi, due campi (21-10-2026): `font_size` governa le opzioni,
+    // `label_font_size` l'intestazione. Finora LVGL non ne metteva nessuno dei
+    // due e li ereditava entrambi a 14, mentre il web disegnava 11 e 13: la
+    // divergenza si chiude leggendo lo stesso numero.
+    let corpo = obj.font_size.unwrap_or(13.0);
+    let corpo_etichetta = obj.label_font_size.unwrap_or(11.0);
     if let Some(label) = &obj.label {
         let mut hdr = Label::create(screen).map_err(|e| anyhow::anyhow!("Label::create: {e:?}"))?;
         hdr.set_pos(base_x.round() as i16, base_y.round() as i16)
             .map_err(|e| anyhow::anyhow!("set_pos: {e:?}"))?;
         hdr.set_text(&text_cstring(label))
             .map_err(|e| anyhow::anyhow!("set_text: {e:?}"))?;
-        base_y += 20.0;
+        unsafe {
+            stile::font(
+                hdr.raw().map_err(|e| anyhow::anyhow!("raw: {e:?}"))?.as_ptr(),
+                corpo_etichetta.round().clamp(6.0, 200.0) as u16,
+                stile::MAIN,
+            );
+        }
+        base_y += altezza_etichetta(corpo_etichetta);
     }
 
     // Passo fra un'opzione e la successiva — stessa idea del web
     // (`SvgCanvas.tsx`, `itemH`/gap), non pixel-identica: qui basta non
     // sovrapporle, il testo di ogni checkbox ne decide la vera larghezza.
-    const ITEM_STEP: f64 = 28.0;
+    // Dal 21-10-2026 viene dal corpo (`sws_core::geometria_testo`, la stessa
+    // funzione del web): col 13 di prima restituisce i 28 di prima, ma a corpo
+    // 20 le opzioni non si sovrappongono piu'.
+    let item_step = passo_riga(corpo);
     const ITEM_STEP_H: f64 = 160.0;
 
     let mut ptrs = Vec::with_capacity(opts.len());
@@ -4379,12 +4444,17 @@ fn render_radio(
         let (x, y) = if horizontal {
             (base_x + i as f64 * ITEM_STEP_H, base_y)
         } else {
-            (base_x, base_y + i as f64 * ITEM_STEP)
+            (base_x, base_y + i as f64 * item_step)
         };
         cb.set_pos(x.round() as i16, y.round() as i16)
             .map_err(|e| anyhow::anyhow!("set_pos: {e:?}"))?;
         cb.set_text(&text_cstring(&opt.label))
             .map_err(|e| anyhow::anyhow!("set_text: {e:?}"))?;
+        // Lo stesso `corpo` che calcola il passo qui sopra: passarlo e' ciò che
+        // rende vera la divergenza chiusa anche sul progetto che il campo non
+        // ce l'ha (22-10-2026). Prima le opzioni restavano ai 14 ereditati
+        // mentre il passo era già quello del 13, e l'intestazione lo prendeva.
+        apply_font_size_con_ripiego(&cb, obj, Some(corpo))?;
         let ptr = cb.raw().map_err(|e| anyhow::anyhow!("raw: {e:?}"))?;
         colora_spunta(ptr.as_ptr(), colore_campo(obj.fill.as_deref(), "radio", "fill"));
         apply_checked_state(ptr, checkbox_is_checked(lookup(tags, &obj.tag), &opt.value));
@@ -5304,7 +5374,9 @@ fn render_table(
                 crate::tabella::Colonna { intestazione, larghezza, allinea, ordinabile, filtrabile }
             })
             .collect(),
-        corpo_px: obj.table_font_size.unwrap_or(11.0).round().clamp(6.0, 40.0) as u16,
+        // `font_size` per tutti dal 21-10-2026; `table_font_size` resta il
+        // ripiego per i progetti che ce l'hanno già scritto dentro.
+        corpo_px: obj.font_size.or(obj.table_font_size).unwrap_or(11.0).round().clamp(6.0, 40.0) as u16,
         sfondo: colore_campo(obj.bg_color.as_deref(), "table", "bg_color"),
         filtri: obj.table_filterable == Some(true),
         vuoto: "—".into(),
@@ -6638,6 +6710,12 @@ fn render_pie_chart(
     // Un'etichetta per spicchio dichiarato, più una di scorta per l'eventuale
     // voce "altro": si creano tutte adesso e si nascondono quelle che non
     // servono, invece di crearle e distruggerle a ogni cambio di valore.
+    // Un campo solo per tutto il testo del grafico (21-10-2026): gli spicchi
+    // lo usano tale e quale, il testo nel foro sta tre punti sopra. I due
+    // ripieghi sono i letterali del WEB, non quelli di qui: gli spicchi erano
+    // 11 contro i 10 del web e il centro 16 contro 13, e la divergenza si
+    // chiude leggendo lo stesso numero.
+    let corpo = obj.font_size.unwrap_or(10.0).round().clamp(6.0, 200.0) as u16;
     let mostra_etichette = obj.pie_show_labels != Some(false) && !slices.is_empty();
     let mut etichette = Vec::new();
     if mostra_etichette {
@@ -6654,7 +6732,7 @@ fn render_pie_chart(
                     Color::from_rgb((255, 255, 255)).into(),
                     0,
                 );
-                if let Some(f) = lvgl_font::at_size(11) {
+                if let Some(f) = lvgl_font::at_size(corpo) {
                     lvgl_sys::lv_obj_set_style_text_font(lp.as_ptr(), f, 0);
                 }
             }
@@ -6676,7 +6754,7 @@ fn render_pie_chart(
                 0,
                 0,
             );
-            if let Some(f) = lvgl_font::at_size(16) {
+            if let Some(f) = lvgl_font::at_size(corpo + 3) {
                 lvgl_sys::lv_obj_set_style_text_font(lp.as_ptr(), f, 0);
             }
         }
@@ -10449,7 +10527,10 @@ fn render_lang_button(
     let mut lbl = Label::create(&mut btn).map_err(|e| anyhow::anyhow!("Label::create: {e:?}"))?;
     lbl.set_text(&text_cstring(&label_text))
         .map_err(|e| anyhow::anyhow!("set_text: {e:?}"))?;
-    apply_font_size(&lbl, obj)?;
+    // Il 13 della tabella dei predefiniti, passato e non lasciato implicito
+    // (22-10-2026): senza, su un progetto che il campo non ce l'ha il web
+    // disegna 13 e qui restavano i 14 ereditati dallo schermo.
+    apply_font_size_con_ripiego(&lbl, obj, Some(13.0))?;
     let btn_ptr = btn.raw().map_err(|e| anyhow::anyhow!("raw: {e:?}"))?;
 
     let ctx: &'static LangButtonCtx = Box::leak(Box::new(LangButtonCtx {

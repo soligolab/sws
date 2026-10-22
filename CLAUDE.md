@@ -45,6 +45,26 @@ una regola, e il piano è in
 lasciava aperte — versionarla, e separarla dall'impianto di casa del maintainer — stanno nel
 seme [CasaDomotica versionata e separata](docs/plans/2026-10-21-casadomotica-versionata-e-separata.md).
 
+## I file di lavoro stanno in `sws/tmp/` (regola del maintainer, 2026-10-22)
+
+**Qualunque file che il maintainer debba guardare va in `sws/tmp/`, mai in `/tmp`.** Istantanee
+del pannello, confronti prima/dopo, misure, log di una prova, pagine HTML di anteprima: dentro il
+checkout, non nella cartella temporanea della macchina.
+
+Il motivo e' banale e non si risolve da solo: **il maintainer lavora in remoto sulle macchine di
+sviluppo**, e `/tmp` di quelle macchine non lo raggiunge. Una cartella dentro il progetto si',
+perche' e' la stessa che ha gia' aperta. Il 22-10-2026 una sessione ha prodotto undici immagini
+di confronto in `/tmp` e nessuna era apribile: «al posto di usare /tmp (a cui non riesco ad
+accedere da qua) usa una cartella tmp all'interno del progetto».
+
+La cartella e' in `.gitignore` (`/tmp/`) e porta un `LEGGIMI.md` che spiega cos'e'. Si puo'
+svuotare in qualunque momento: e' materiale di una sessione, non del progetto. Quello che merita
+di sopravvivere alla sessione va in `docs/` e si committa.
+
+Vale su **tutte** le macchine di sviluppo, ed e' per questo che sta qui e non in una memoria
+locale: `CLAUDE.md` viaggia con git, `~/.claude/` no — stesso motivo per cui i piani stanno in
+`docs/plans/`.
+
 ## Session start
 
 **First, run `./scripts/session_start.sh`.** It compares this machine with

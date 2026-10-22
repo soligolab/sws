@@ -44,6 +44,11 @@ pub struct Config {
     pub alarm_high: Option<f64>,
     pub sfondo: Rgb,
     pub titolo_y: Option<String>,
+    /// Il corpo del testo del grafico (21-10-2026). Un campo solo, scelta del
+    /// maintainer: valori, etichette e titolo dell'asse lo usano tale e quale,
+    /// tacche e legenda passano da `corpo_secondario` (un punto meno). Col 10
+    /// di prima escono i 10 e i 9 di prima.
+    pub corpo: u16,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -138,6 +143,10 @@ pub fn disegna(cfg: &Config, valori: &[f64], px: &mut Pixmap) -> Vec<Testo> {
     rett(px, 0.0, 0.0, w, h, BORDO, 4.0);
     rett(px, 1.0, 1.0, w - 2.0, h - 2.0, cfg.sfondo, 3.0);
 
+    // Tacche e legenda stanno un punto sotto il corpo del grafico — col 10 di
+    // prima sono i 9 di prima (`sws_core::geometria_testo`, la stessa funzione
+    // che usa il web).
+    let minore = sws_core::geometria_testo::corpo_secondario(cfg.corpo as f64) as u16;
     let n_serie = cfg.serie.len();
     let val = |i: usize| valori.get(i).copied().filter(|v| v.is_finite()).unwrap_or(0.0);
     let totale: f64 = (0..n_serie).map(val).sum();
@@ -155,12 +164,17 @@ pub fn disegna(cfg: &Config, valori: &[f64], px: &mut Pixmap) -> Vec<Testo> {
         cfg.serie.iter().all(|s| scala_serie(s) == prima).then_some(prima)
     };
 
+    // Le bande che contengono il testo seguono il corpo (22-10-2026): erano
+    // letterali, e alzando `font_size` le etichette dell'asse e la legenda
+    // uscivano dalla loro fascia. Col corpo di prima — 10, e 9 per tacche e
+    // legenda — escono i letterali di prima: 13, 28, 34.
     let righe_legenda = if cfg.legenda { n_serie.div_ceil(2) } else { 0 };
-    let legenda_h = righe_legenda as f64 * 13.0 + if cfg.legenda { 4.0 } else { 0.0 };
+    let riga_legenda = minore as f64 + 4.0;
+    let legenda_h = righe_legenda as f64 * riga_legenda + if cfg.legenda { 4.0 } else { 0.0 };
     let tacche_visibili = cfg.tacche > 1 && comune.is_some();
     let pad_t = 20.0;
-    let pad_b = (if !cfg.orizzontale && cfg.etichette { 28.0 } else { 8.0 }) + legenda_h;
-    let pad_l = (if !cfg.orizzontale && tacche_visibili { 34.0 } else { 8.0 })
+    let pad_b = (if !cfg.orizzontale && cfg.etichette { 18.0 + cfg.corpo as f64 } else { 8.0 }) + legenda_h;
+    let pad_l = (if !cfg.orizzontale && tacche_visibili { 25.0 + minore as f64 } else { 8.0 })
         + if cfg.orizzontale && cfg.etichette { 42.0 } else { 0.0 };
     let plot_w = (w - pad_l - 8.0).max(10.0);
     let plot_h = (h - pad_t - pad_b).max(10.0);
@@ -192,11 +206,11 @@ pub fn disegna(cfg: &Config, valori: &[f64], px: &mut Pixmap) -> Vec<Testo> {
             if cfg.orizzontale {
                 let tx = bx0 + plot_w * f;
                 linea(px, tx, by0, tx, asse_y + 3.0, GRIGLIA, None);
-                testo(&mut out, tx, asse_y + 12.0, t, TACCA, 9, Orizz::Centro);
+                testo(&mut out, tx, asse_y + minore as f64 + 3.0, t, TACCA, minore, Orizz::Centro);
             } else {
                 let ty = asse_y - plot_h * f;
                 linea(px, bx0 - 3.0, ty, bx0 + plot_w, ty, GRIGLIA, None);
-                testo(&mut out, bx0 - 5.0, ty + 3.0, t, TACCA, 9, Orizz::Dx);
+                testo(&mut out, bx0 - 5.0, ty + 3.0, t, TACCA, minore, Orizz::Dx);
             }
         }
     }
@@ -214,7 +228,7 @@ pub fn disegna(cfg: &Config, valori: &[f64], px: &mut Pixmap) -> Vec<Testo> {
                 let by = by0 + (plot_h - barra) / 2.0;
                 rett(px, x0, by, sw, barra, colore, 0.0);
                 if cfg.valori && sw > 26.0 {
-                    testo(&mut out, x0 + sw / 2.0, by + barra / 2.0 + 4.0, vt, SU_BARRA, 10, Orizz::Centro);
+                    testo(&mut out, x0 + sw / 2.0, by + barra / 2.0 + 4.0, vt, SU_BARRA, cfg.corpo, Orizz::Centro);
                 }
             } else {
                 let y0 = asse_y - plot_h * f0.max(f1);
@@ -222,7 +236,7 @@ pub fn disegna(cfg: &Config, valori: &[f64], px: &mut Pixmap) -> Vec<Testo> {
                 let bx = bx0 + (plot_w - barra) / 2.0;
                 rett(px, bx, y0, barra, sh, colore, 0.0);
                 if cfg.valori && sh > 12.0 {
-                    testo(&mut out, bx + barra / 2.0, y0 + sh / 2.0 + 4.0, vt, SU_BARRA, 10, Orizz::Centro);
+                    testo(&mut out, bx + barra / 2.0, y0 + sh / 2.0 + 4.0, vt, SU_BARRA, cfg.corpo, Orizz::Centro);
                 }
             }
             continue;
@@ -236,10 +250,10 @@ pub fn disegna(cfg: &Config, valori: &[f64], px: &mut Pixmap) -> Vec<Testo> {
             rett(px, bx, by, bw, barra, colore, 2.0);
             if cfg.valori {
                 let (x, o) = if v < 0.0 { (bx - 3.0, Orizz::Dx) } else { (bx + bw + 3.0, Orizz::Sx) };
-                testo(&mut out, x, by + barra / 2.0 + 4.0, vt, VALORE, 10, o);
+                testo(&mut out, x, by + barra / 2.0 + 4.0, vt, VALORE, cfg.corpo, o);
             }
             if cfg.etichette {
-                testo(&mut out, 4.0, by + barra / 2.0 + 4.0, s.etichetta.clone(), ETICHETTA, 10, Orizz::Sx);
+                testo(&mut out, 4.0, by + barra / 2.0 + 4.0, s.etichetta.clone(), ETICHETTA, cfg.corpo, Orizz::Sx);
             }
         } else {
             let bx = bx0 + i as f64 * slot + (slot - barra) / 2.0;
@@ -248,10 +262,10 @@ pub fn disegna(cfg: &Config, valori: &[f64], px: &mut Pixmap) -> Vec<Testo> {
             rett(px, bx, by, barra, bh, colore, 2.0);
             if cfg.valori {
                 let y = if v < 0.0 { by + bh + 11.0 } else { (by - 3.0).max(by0 + 10.0) };
-                testo(&mut out, bx + barra / 2.0, y, vt, VALORE, 10, Orizz::Centro);
+                testo(&mut out, bx + barra / 2.0, y, vt, VALORE, cfg.corpo, Orizz::Centro);
             }
             if cfg.etichette {
-                testo(&mut out, bx + barra / 2.0, asse_y + 14.0, s.etichetta.clone(), ETICHETTA, 10, Orizz::Centro);
+                testo(&mut out, bx + barra / 2.0, asse_y + cfg.corpo as f64 + 4.0, s.etichetta.clone(), ETICHETTA, cfg.corpo, Orizz::Centro);
             }
         }
     }
@@ -283,7 +297,7 @@ pub fn disegna(cfg: &Config, valori: &[f64], px: &mut Pixmap) -> Vec<Testo> {
             let lx = 6.0 + (i % 2) as f64 * (w / 2.0);
             let ly = h - legenda_h + 2.0 + (i / 2) as f64 * 13.0;
             rett(px, lx, ly, 8.0, 8.0, s.colore.unwrap_or(TAVOLOZZA[i % TAVOLOZZA.len()]), 1.0);
-            testo(&mut out, lx + 12.0, ly + 7.0, s.etichetta.clone(), ETICHETTA, 9, Orizz::Sx);
+            testo(&mut out, lx + 12.0, ly + 7.0, s.etichetta.clone(), ETICHETTA, minore, Orizz::Sx);
         }
     }
 
@@ -333,6 +347,7 @@ mod tests {
             alarm_high: None,
             sfondo: (0x0f, 0x17, 0x2a),
             titolo_y: None,
+            corpo: 10,
         }
     }
 

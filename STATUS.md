@@ -12,6 +12,199 @@
 > resta in «Storico». Qui vive solo ciò che serve a riprendere il lavoro.
 
 
+## ▶ Riprendere da qui — il corpo del testo, secondo giro: cursori, scelte, barre, tabelle e grafici (2026-10-22)
+
+### Dove sta il lavoro: quattro rami annidati, **niente mergiato e niente pushato**
+
+```
+main  836ef61c
+ └─ fix/conferma-avvisi-compatibilita   ab5c455e
+     └─ feat/font-size-ovunque          7253cdd7
+         └─ fix/novita-che-non-si-perdono  004ffd1b
+             └─ feat/font-size-secondo-giro  2822cd20   ← qui
+```
+
+La catena è annidata di proposito (regola «un ramo alla volta», opzione 2): ogni ramo parte dal
+precedente, quindi rientra passando da lì. **Servono la conferma del maintainer e poi quattro
+squash merge in ordine**, dal più interno al più esterno — o, se si preferisce, un solo squash
+merge del ramo più esterno, che contiene tutto.
+
+### Fatto in questa sessione — il secondo giro di `font_size`, quattro commit
+
+Quattro risposte del maintainer hanno sbloccato il giro: **«un campo per testo»**, **«le misure
+derivano dal corpo»**, **«prima si allinea, poi il corpo»** (setpoint), **«si unifica tutto su
+`font_size`»** (tabelle e grafici). Un commit per strato:
+
+1. **`30eb2856` — la tabella usa `font_size`** come ogni altro tipo. `table_font_size` resta nel
+   tipo, marcato deprecato, e resta **letto**: un progetto già installato non si riapre
+   nell'editor prima di rivederlo sul pannello, e finché il campo vecchio si legge si disegna
+   identico.
+2. **`0273027e` — le misure derivano dal corpo**, nei due motori: `passo_riga`,
+   `altezza_etichetta`, `altezza_valore` (poi `corpo_secondario`), in
+   `sws-core/src/geometria_testo.rs` e `sws-editor/src/canvas/geometriaTesto.ts`, con la fixture
+   condivisa `tests/fixtures/geometria-testo.json`. Il vincolo è un test a sé: col corpo di oggi
+   escono i numeri di oggi — `passo_riga(13) == 28`, `altezza_etichetta(11) == 20`.
+3. **`c812fc03` — `radio`, `slider`, `progress_bar`**, due testi ciascuno: `font_size` il testo
+   primario e il campo nuovo **`label_font_size`** l'etichetta.
+4. **`2822cd20` — i grafici**, un campo solo: `trend`, `bar_chart`, `pie_chart`, `xy_plot`.
+
+**Otto divergenze web/LVGL chiuse per costruzione** (le prime due dal primo giro): checkbox e
+navbutton; poi le opzioni di un `radio` e la sua intestazione, che ereditavano i 14 dello schermo
+contro 13 e 11; il valore di uno `slider`, contro 12; gli spicchi di una torta, 11 contro 10; il
+testo nel foro, 16 contro 13.
+
+**Un campo nuovo tocca quattro posti, e due si dimenticano**: oltre al tipo TS e al modello del
+viewer, va in `sws-web/src/synoptic.rs` — senza, la GET di un sinottico lo perde al primo
+round-trip — e lo schema dell'assistente IA va **rigenerato** con
+`./scripts/gen_synoptic_schema.py`. E in `CAMPI_SCALATI`: `label_font_size` è pixel come
+`font_size`, altrimenti un cambio di risoluzione lo lascia indietro. Il test che se ne accorge è
+`scalaPagina.test.ts`, e lo ha fatto.
+
+### Cosa resta fuori, e perché
+
+- **Il setpoint.** Non è un problema di corpi: i due motori mostrano oggetti diversi — tre righe
+  e due pulsanti sul web (cinque corpi: 11, 10, 12, 12, 13), due righe e un overlay a schermo
+  intero su LVGL. «Prima si allinea» è lavoro suo, e *chi* si allinea a chi è una scelta del
+  maintainer: il valore grande e il tastierino a pieno schermo sono fatti per un dito su un vetro
+  da 7". **Seme**: `docs/plans/2026-10-22-setpoint-i-due-motori-non-combaciano.md`.
+- **`gauge`, `kpi_tile`, `data_log`**: non erano in questo giro. Il gauge ha lo stesso guasto del
+  setpoint in piccolo — valore e unità sono due testi sul web e **una** etichetta sola su LVGL,
+  quindi dargli un corpo oggi ingrandirebbe anche l'unità. kpi_tile e data_log hanno tre corpi
+  ciascuno (etichetta 11, valore 26, unità 12) e nessuna divergenza nota.
+- **Un difetto di tipo preesistente in un test**, non mio e non di questo giro:
+  `sws-editor/tests/variabiliDispositivo.test.ts:34` — `Spread types may only be created from
+  object types`. Non ferma `pnpm build` (vite non controlla i tipi dei test) né `vitest`, ma
+  `tsc --noEmit` lo riporta. Viene da uno dei rami annidati precedenti.
+
+### Verificato
+
+`cargo check` verde, `pnpm build` verde, `./scripts/check_static.sh` **47/47 verdi**,
+`pnpm exec vitest run` **1591/1591**, `cargo test` di `sws-core` (163), `sws-web` (586) e
+`sws-lvgl-viewer` (302). `check_predefiniti` confronta **45** ripieghi col valore della tabella,
+contro i 30 di due giorni fa.
+
+**Manca la quinta voce della definition of done: la conferma del maintainer a schermo.** Da
+guardare: un `radio` e uno `slider` col corpo alzato (le spaziature devono seguire), una tabella
+e un grafico, e il confronto fra browser e pannello sui tipi che avevano una divergenza.
+
+### Il pannello si guarda senza build, e stavolta si e' fatto
+
+`sws-lvgl-viewer --istantanea` disegna una pagina e salva un PNG **senza dispositivo e senza
+immagine**: il rendering LVGL e' interamente software, SDL2 e DRM servono solo a mostrarlo. Le
+istantanee prima/dopo stanno in `tmp/font-size-istantanee/` (col loro `LEGGIMI.md`), prese dallo
+stesso runtime con due binari — uno compilato da `main` in un worktree isolato, uno dal ramo.
+
+Quanto cambia davvero sul pannello, contato in pixel su `demo-items-lvgl`:
+
+| caso | pagina | pixel diversi da `main` |
+|---|---|---|
+| progetto deployato, **mai riaperto nell'editor** | Base e comandi | 161 — solo il valore dello slider (14 → 12) |
+| | Grafici e tabelle | 83 — solo il testo nel foro della torta (16 → 13) |
+| | Indicatori | 276, ma sono **solo l'orologio**: niente e' cambiato |
+| dopo che l'editor ha scritto i predefiniti | Base e comandi | 1709 — le opzioni del radio, 14 → 13, cioe' il numero del web |
+
+**Una cosa che le istantanee dicono gratis**: LVGL apre al massimo 16 corpi distinti e poi smette
+**senza dirlo** (`lvgl_font.rs`, `lv_freetype_init(24, 16, …)`). Queste pagine ne aprono 7.
+Nessuna pressione, e adesso si sa come misurarlo: la riga `[font] corpo Npx aperto (N in tutto)`
+che il viewer stampa da se'.
+
+### Una regressione vera, trovata dalle istantanee e non da un test (`bdd00eec`)
+
+I due motori leggono `font_size ?? table_font_size ?? 11`, quindi **`font_size` vince**. Ma
+`riempiPredefinitiOggetti` scrive nel file il predefinito di ogni campo che manca, e una tabella
+con `table_font_size: 16` `font_size` non ce l'ha: all'apertura del progetto le veniva scritto
+dentro `font_size: 11`, e da quel momento si disegnava a 11 su tutti e due i motori, senza che
+nessuno avesse toccato quel campo. Il rimedio esisteva gia' due righe sopra, per una coppia di
+campi della stessa forma (`fill`/`bg_color`). Due test lo inchiodano.
+
+**Nel repo nessun esempio dichiara `table_font_size`**, quindi niente qui cambia — ma era un
+campo offerto dal pannello proprieta', quindi un progetto di un cliente ce l'ha. Vale come
+promemoria generale: **ogni volta che un campo nuovo ne affianca uno vecchio che il renderer
+legge come ripiego, `riempiPredefiniti` va guardato**, perche' scrivere il predefinito nuovo
+spegne il campo vecchio.
+
+**L'altra faccia, cercata e non trovata**: rendere vivo `font_size` su tipi che prima lo
+ignoravano vuol dire anche che un valore **gia' scritto e finora inerte** si sveglia. Dal
+pannello proprieta' non ci poteva arrivare (su `main` il campo lo offrivano solo `text`,
+`text_list`, `clock`, `pipe`), ma lo schema dato all'assistente IA lo elenca per tutti i tipi, e
+un YAML si modifica a mano. Contato: **zero** oggetti dei tipi di questo giro portano gia' un
+corpo, ne' nei 14 template del repo ne' nelle 36 pagine dei progetti veri di `~/sws_projects`.
+**CasaDomotica non sta su questa macchina** e non e' stata controllata: se dopo il merge un suo
+grafico cambia dimensione, e' questo.
+
+### ▶ RACCOLTA DIFETTI DAL COLLAUDO DEL MAINTAINER (22-10-2026) — la lista e' aperta
+
+Il maintainer sta provando l'applicazione e segnala man mano. Qui sotto, uno per difetto, con la
+diagnosi dove c'e'. **Nessuno di questi e' corretto**: l'istruzione e' di sistemarli prima della
+build, e la lista non e' chiusa.
+
+#### 1. «Chiudi finestra» non funziona su LVGL
+
+Trovato dal maintainer sul WP630 il 22-10-2026, provando «CasaDomotica (WP630_LVGL)»; caso
+`button-b_48`. **Diagnosi fatta, correzione no** (istruzione: «il bottone sistemalo poi prima
+della build»).
+
+**Non e' un difetto di un bottone: l'azione non esiste su quel motore.** `close_popup` non
+compare **da nessuna parte** nel crate `sws-lvgl-viewer` — l'unica occorrenza in Rust e' una
+fixture di `sws-web/src/validate.rs:2615`. Il bottone viene disegnato, cliccato, e non succede
+niente perche' nessuno lo ascolta.
+
+Il perche' sta nel ripiego dell'altra meta': su LVGL le finestre non ci sono, e `open_popup` e'
+gia' tradotto in **naviga alla pagina a schermo pieno**, senza parametri — ripiego scelto dal
+maintainer il 17-10-2026, `pagina_della_finestra` a `lvgl_render.rs:3529`. Ma se aprire una
+finestra e' una navigazione, **chiuderla deve essere un ritorno**, e il ritorno non c'e': la
+navigazione del viewer e' un `nav_tx: Sender<String>` che porta un id di pagina e basta
+(`main.rs:1437`), senza nessuna storia.
+
+**Forma del rimedio, da confermare**: un `Option<String>` accanto al ciclo di navigazione, scritto
+quando la navigazione nasce da `pagina_della_finestra`, consumato da `close_popup`. La domanda
+aperta e' cosa deve fare il bottone **quando non c'e' niente da cui tornare** (l'operatore e'
+arrivato li' con un navigatore di pagine): niente, o la pagina iniziale. Propongo **niente**, che
+non puo' sorprendere.
+
+#### 2. Dopo un deploy dal cloud si sembra collegati ma non lo si e'
+
+Parole sue: «se su un progetto ho fatto il login per esempio come admin, e faccio un deploy da
+sws.soligo.net, a video sembra di essere loggati ma non lo si e' davvero, devo fare logout e poi
+rifare il login».
+
+Due sintomi, e vanno spiegati tutti e due: **(a)** la sessione smette di valere dopo il deploy, e
+**(b)** l'interfaccia non se ne accorge e continua a mostrare l'utente. Il dettaglio che
+restringe il campo e' il rimedio: **logout + login sblocca, un ricaricamento no** — quindi la
+cosa rotta e' persistita da qualche parte, non e' solo stato in memoria della pagina.
+
+Indagine lanciata su quattro tagli (dove vive la sessione e cosa la uccide; perche' il client
+continua a dirsi collegato; cosa riavvia davvero un deploy dal cloud; riproduzione). **Esito non
+ancora letto** quando questa riga e' stata scritta.
+
+### Il WP630: installazione pulita, riuscita (collaudo del maintainer, 22-10-2026)
+
+Installazione da zero col percorso copia-incolla — `podman pull`, estrazione dei quadlet
+dall'immagine, `install-container.sh --pull` — su `rc-arm64`. **Tutti e sei i passi verdi**:
+`/health` dopo 1 secondo, browser del pannello puntato su `127.0.0.1:7443`, viewer LVGL
+installato, mount del device-tree, linger gia' attivo, codice di abbinamento mostrato. Le porte
+nuove **7443/7444 reggono anche su un'installazione pulita**, non solo in aggiornamento.
+
+Due cose da notare, nessuna delle due un difetto:
+
+- *«commutazione web/LVGL: il runtime non ha ancora detto niente»* — giusto cosi': lo dice il
+  progetto quando ne viene aperto uno, non l'installatore.
+- L'immagine `rc-arm64` **non contiene il lavoro di questo ramo**, che non e' ne' mergiato ne'
+  pushato: il WP630 collauda l'installazione, non il corpo del testo.
+
+Resta aperto il seme `docs/plans/2026-10-21-installazione-con-un-comando.md`: cinque comandi
+funzionano, ma l'idea era uno solo.
+
+**Riabbinato e deployato**: col codice mostrato dall'installatore il pannello e' stato riaggiunto
+da dentro un progetto e **il cloud lo ha riconosciuto come `wp630-ufficio`, il nome di prima**,
+pur essendo una installazione da zero con cartelle dati nuove. Non e' un caso: l'identita' viene
+dalla scheda, e l'installatore monta il device-tree apposta (riga «mount del device-tree
+(seriale/modello della scheda) aggiunto»). Poi deploy di **«CasaDomotica (WP630_LVGL)»**, cioe'
+il progetto di riferimento sul motore LVGL — ed e' provandolo che e' saltato fuori il bottone
+«Chiudi finestra» qui sopra.
+
+---
+
 ## ▶ Riprendere da qui — 2.16.0-rc.1 (ritenzione), console dei progetti aperti, avviso sul pannello (2026-10-21)
 
 ### Fatto, tutto su `main`

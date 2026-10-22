@@ -47,6 +47,9 @@ interface XyPlotCanvasProps {
   sampleMs?: number;
   xLabel?: string;
   yLabel?: string;
+  /** Il corpo del testo del grafico (21-10-2026, «un campo solo»): le due
+   *  etichette d'asse. Il predefinito e' il letterale di prima. */
+  corpo?: number;
   /** Universal background layer (color + image URL), same semantics as the
    *  other widgets' bg_color/bg_image. */
   bgColor?: string;
@@ -70,7 +73,7 @@ const DEFAULT_COLORS = ["#3b82f6", "#22c55e", "#f59e0b", "#a855f7", "#ec4899"];
 export function XyPlotCanvas({
   series, trailS = 30, width, height,
   xMin, xMax, yMin, yMax, sampleMs = 200,
-  xLabel, yLabel, bgColor, bgImage,
+  xLabel, yLabel, bgColor, bgImage, corpo,
 }: XyPlotCanvasProps) {
   const { t } = useTranslation();
   const latest = useRef<{ x?: number; y?: number }[]>([]);
@@ -186,12 +189,12 @@ export function XyPlotCanvas({
         </text>
       )}
       {xLabel && (
-        <text x={PAD + plotW / 2} y={height - 6} textAnchor="middle" fill="#64748b" fontSize={10}>
+        <text x={PAD + plotW / 2} y={height - 6} textAnchor="middle" fill="#64748b" fontSize={corpo ?? 10}>
           {xLabel}
         </text>
       )}
       {yLabel && (
-        <text x={11} y={PAD + plotH / 2} textAnchor="middle" fill="#64748b" fontSize={10}
+        <text x={11} y={PAD + plotH / 2} textAnchor="middle" fill="#64748b" fontSize={corpo ?? 10}
           transform={`rotate(-90 11 ${PAD + plotH / 2})`}>
           {yLabel}
         </text>

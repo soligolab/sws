@@ -13,6 +13,10 @@ interface TrendExpandedProps {
   pollMs?: number;
   opcuaBackfill?: boolean;
   seriesStyles?: TrendSeriesStyle[];
+  /** Il corpo del testo del grafico (21-10-2026): la finestra a tutto schermo
+   *  disegna lo stesso grafico, quindi lo stesso corpo. Senza, alzandolo sul
+   *  riquadro il testo tornava a 10 appena lo si espandeva. */
+  corpo?: number;
   dtDateOrder?: TrendDateTimeConfig["dateOrder"];
   dtSeparator?: TrendDateTimeConfig["separator"];
   dtTimeFormat?: TrendDateTimeConfig["timeFormat"];
@@ -59,6 +63,7 @@ export function TrendExpandedModal({
   pollMs,
   opcuaBackfill,
   seriesStyles,
+  corpo,
   dtDateOrder,
   dtSeparator,
   dtTimeFormat,
@@ -399,6 +404,7 @@ export function TrendExpandedModal({
             hiddenIndices={hiddenIndices}
             onLegendToggle={toggleSeries}
             seriesStyles={seriesStyles}
+            corpo={corpo}
             dtDateOrder={dtDateOrder}
             dtSeparator={dtSeparator}
             dtTimeFormat={dtTimeFormat}

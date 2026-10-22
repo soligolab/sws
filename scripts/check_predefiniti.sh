@@ -66,7 +66,13 @@ for n, riga in enumerate(svg, 1):
     m = re.search(r'obj\.type === "([a-z_]+)"', riga)
     if m:
         tipo = m.group(1)
-    for m in re.finditer(r'obj\.([a-z_]+) \?\? (-?[0-9.]+|"[^"]*")', riga):
+    # Due forme: il ripiego diretto `obj.campo ?? 11` e quello a CATENA
+    # `obj.font_size ?? obj.table_font_size ?? 11`, che nasce quando un campo
+    # nuovo ne affianca uno vecchio ancora letto (la tabella, 21-10-2026).
+    # Senza la seconda, il campo nuovo non veniva confrontato con niente e la
+    # guardia contava 45 su 46 restando verde — cioe' smetteva di guardare
+    # proprio il campo appena aggiunto.
+    for m in re.finditer(r'obj\.([a-z_]+) \?\? (?:obj\.[a-z_]+ \?\? )*(-?[0-9.]+|"[^"]*")', riga):
         campo, lett = m.group(1), m.group(2)
         r = tab.get(tipo or "", {}).get(campo)
         if not r or "valore" not in r:

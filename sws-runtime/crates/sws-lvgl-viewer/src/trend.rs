@@ -149,6 +149,11 @@ pub struct Config {
     pub griglia: Rgb,
     pub passo_pan_s: Option<f64>,
     pub lingua: String,
+    /// Il corpo del testo del grafico (21-10-2026): numeri degli assi,
+    /// etichette del tempo, legenda; il riquadro di lettura e il tooltip
+    /// stanno un punto sopra. La cornice — messaggio «nessun dato», lettere
+    /// dei cursori, pulsanti — non lo segue: non e' testo dell'utente.
+    pub corpo: u16,
 }
 
 impl Config {
@@ -833,7 +838,10 @@ pub fn disegna(
     let scala_di = |i: usize| scale_proprie.iter().find(|(j, _)| *j == i).map(|(_, s)| *s).unwrap_or(condivisa);
 
     let mostra_data = cfg.formato.sempre_data || t_span > 86_400_000;
-    let riga_h = 11.0;
+    // La seconda riga dell'etichetta del tempo: un corpo piu' uno di respiro.
+    // Col 10 di prima fa gli 11 di prima (22-10-2026) — ma a corpo 20 la data
+    // non finisce piu' sopra l'ora.
+    let riga_h = cfg.corpo as f32 + 1.0;
     let basso = basso_base + if mostra_data && cfg.formato.due_righe { riga_h } else { 0.0 };
     let plot_h = h - alto - basso;
     let x_at = |ts: u64| sx + ((ts as f64 - t_min as f64) / t_span as f64) as f32 * plot_w;
@@ -870,7 +878,7 @@ pub fn disegna(
                     t = format!("{t} {u}");
                 }
             }
-            testo(&mut sc, sx + plot_w + 4.0, y, t, col_assi, 10, Orizz::Sx, Vert::Mezzo);
+            testo(&mut sc, sx + plot_w + 4.0, y, t, col_assi, cfg.corpo, Orizz::Sx, Vert::Mezzo);
         }
     }
     // Una colonna a sinistra per ogni traccia con scala propria, nel suo colore.
@@ -878,7 +886,7 @@ pub fn disegna(
         let x_dx = 6.0 + (col as f32 + 1.0) * COL_W - 4.0;
         for k in 0..=4 {
             let y = alto + plot_h * k as f32 / 4.0;
-            testo(&mut sc, x_dx, y, fmt_valore(s.tacca(k)), cfg.tracce[*i].colore, 10, Orizz::Dx, Vert::Mezzo);
+            testo(&mut sc, x_dx, y, fmt_valore(s.tacca(k)), cfg.tracce[*i].colore, cfg.corpo, Orizz::Dx, Vert::Mezzo);
         }
     }
     // Asse dei tempi.
@@ -891,9 +899,9 @@ pub fn disegna(
             _ => Orizz::Centro,
         };
         let (r1, r2) = fmt_data_ora(fuso(ts), t_span, &cfg.formato);
-        testo(&mut sc, x, alto + plot_h + 3.0, r1, col_assi, 10, o, Vert::Alto);
+        testo(&mut sc, x, alto + plot_h + 3.0, r1, col_assi, cfg.corpo, o, Vert::Alto);
         if let Some(r2) = r2 {
-            testo(&mut sc, x, alto + plot_h + 3.0 + riga_h, r2, col_assi, 10, o, Vert::Alto);
+            testo(&mut sc, x, alto + plot_h + 3.0 + riga_h, r2, col_assi, cfg.corpo, o, Vert::Alto);
         }
     }
 
@@ -1004,9 +1012,15 @@ pub fn disegna(
             let nascosta = stato.nascoste.contains(&i);
             rett_pieno(px, Rett { x: cx, y: cy - 4.0, w: 8.0, h: 8.0 }, if nascosta { CORNICE } else { tr.colore }, 1.0);
             let c = if nascosta { (0x47, 0x55, 0x69) } else { (0xcb, 0xd5, 0xe1) };
-            testo(&mut sc, cx + 12.0, cy, tr.nome.clone(), c, 10, Orizz::Sx, Vert::Mezzo);
-            let lw = misura(&tr.nome, 10);
-            sc.legenda.push((Rett { x: cx, y: cy - 7.0, w: 12.0 + lw, h: 14.0 }, i));
+            testo(&mut sc, cx + 12.0, cy, tr.nome.clone(), c, cfg.corpo, Orizz::Sx, Vert::Mezzo);
+            // Misurato col corpo con cui e' stato DISEGNATO (22-10-2026): da
+            // questa larghezza dipendono sia l'avanzamento fra una voce e
+            // l'altra sia il rettangolo che riceve il dito. Era rimasta a 10
+            // fisso: col corpo di oggi coincide, ma alzandolo le voci si
+            // sovrapponevano e il tocco finiva sulla traccia sbagliata.
+            let lw = misura(&tr.nome, cfg.corpo);
+            let riga = 14.0_f32.max(cfg.corpo as f32 + 3.0);
+            sc.legenda.push((Rett { x: cx, y: cy - riga / 2.0, w: 12.0 + lw, h: riga }, i));
             cx += 12.0 + lw + 12.0;
         }
     }
@@ -1031,7 +1045,7 @@ pub fn disegna(
     } else if stato.pressione.is_none() && n == 1 {
         // Il valore corrente in alto a destra, con una traccia sola.
         if let Some(v) = dati.serie.first().and_then(|s| s.last()).and_then(|c| c.v) {
-            testo(&mut sc, sx + plot_w - 4.0, alto + 4.0, fmt_valore(v), (0x94, 0xa3, 0xb8), 11, Orizz::Dx, Vert::Alto);
+            testo(&mut sc, sx + plot_w - 4.0, alto + 4.0, fmt_valore(v), (0x94, 0xa3, 0xb8), cfg.corpo + 1, Orizz::Dx, Vert::Alto);
         }
     }
     sc
@@ -1094,7 +1108,8 @@ fn leggi<Y: Fn(f64) -> f32>(
         return;
     }
     let riga = 14.0;
-    let bw = righe.iter().map(|(t, _)| misura(t, 11)).fold(0.0, f32::max) + 16.0;
+    let corpo = cfg.corpo + 1;
+    let bw = righe.iter().map(|(t, _)| misura(t, corpo)).fold(0.0, f32::max) + 16.0;
     let bh = righe.len() as f32 * riga + 8.0;
     let mut bx = x + 8.0;
     if bx + bw > d.sx + d.plot_w {
@@ -1109,7 +1124,7 @@ fn leggi<Y: Fn(f64) -> f32>(
             y: by + 4.0 + k as f32 * riga,
             testo: t,
             colore: c,
-            px: 11,
+            px: corpo,
             orizz: Orizz::Sx,
             vert: Vert::Alto,
         });
@@ -1292,6 +1307,7 @@ mod tests {
             griglia: (0x1e, 0x29, 0x3b),
             passo_pan_s: None,
             lingua: "it".into(),
+            corpo: 10,
         }
     }
 

@@ -8,6 +8,7 @@ pub mod pin_tls;
 pub mod project;
 pub mod riconnessione;
 pub mod segreti;
+pub mod geometria_testo;
 pub mod simboli_lib;
 pub mod stato_sorgenti;
 pub mod stile_simboli;

@@ -481,6 +481,11 @@ pub struct SynopticObject {
     pub text: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub font_size: Option<f64>,
+    /// Corpo dell'etichetta di un oggetto a due testi (21-10-2026): `radio`,
+    /// `slider`. `font_size` resta il corpo del testo primario. Senza questo
+    /// campo qui, la GET di un sinottico lo lascerebbe per strada.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub label_font_size: Option<f64>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub font_family: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]

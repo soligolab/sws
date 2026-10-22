@@ -1,0 +1,47 @@
+{
+  "_comment": [
+    "Le misure che dipendono dal corpo del testo (21-10-2026, ramo 5 della chiusura dei residui).",
+    "",
+    "Scelta del maintainer: «le misure derivano dal corpo». Fino a oggi erano letterali — il passo",
+    "fra le opzioni di un radio era 28 px cablato in SvgCanvas.tsx e 28.0 in lvgl_render.rs, e",
+    "alzando il corpo le opzioni si sovrapponevano su tutti e due i motori senza che niente lo",
+    "dicesse. Ora sono funzioni del corpo, e stanno qui perché i due motori ne usino una sola.",
+    "",
+    "**I casi col corpo di oggi devono dare i numeri di oggi.** È la condizione che rende questo",
+    "cambiamento invisibile sui progetti esistenti: `passo(13) == 28` e `altezza_etichetta(11) == 20`",
+    "sono i due letterali che c'erano, non due numeri scelti adesso.",
+    "",
+    "Li leggono `sws-editor/tests/geometriaTesto.test.ts` e il test di",
+    "`sws-core/src/geometria_testo.rs`: se le due implementazioni divergono, i due motori",
+    "disegnerebbero lo stesso oggetto con altezze diverse, ed è esattamente il guasto che la",
+    "tabella dei predefiniti esiste per impedire sui colori."
+  ],
+  "passo_riga": [
+    { "corpo": 13, "atteso": 28, "nota": "il corpo di oggi di un radio: il letterale di prima" },
+    { "corpo": 11, "atteso": 28, "nota": "sotto il minimo: il passo non si stringe" },
+    { "corpo": 6, "atteso": 28 },
+    { "corpo": 14, "atteso": 30 },
+    { "corpo": 18, "atteso": 39 },
+    { "corpo": 24, "atteso": 52 },
+    { "corpo": 40, "atteso": 86 }
+  ],
+  "altezza_etichetta": [
+    { "corpo": 11, "atteso": 20, "nota": "il corpo di oggi di un'etichetta: il letterale di prima" },
+    { "corpo": 13, "atteso": 22 },
+    { "corpo": 18, "atteso": 27 },
+    { "corpo": 24, "atteso": 33 }
+  ],
+  "corpo_secondario": [
+    { "corpo": 10, "atteso": 9, "nota": "il corpo di oggi di un grafico a barre: tacche e legenda a 9, il resto a 10" },
+    { "corpo": 11, "atteso": 10 },
+    { "corpo": 6, "atteso": 6, "nota": "al minimo non si scende oltre: sotto i 6 il font non esiste" },
+    { "corpo": 7, "atteso": 6 },
+    { "corpo": 24, "atteso": 23 }
+  ],
+  "altezza_valore": [
+    { "corpo": 12, "atteso": 18, "nota": "il corpo di oggi del valore di uno slider: il letterale di prima" },
+    { "corpo": 11, "atteso": 18, "nota": "sotto il minimo: non si stringe" },
+    { "corpo": 16, "atteso": 24 },
+    { "corpo": 24, "atteso": 36 }
+  ]
+}

@@ -4111,6 +4111,10 @@ export function ObjectProps({
               {/* 30-09-2026: il web disegna `label` dello slider da sempre, ma il
                   pannello non aveva il campo — si poteva solo ereditare da un file. */}
               {field(t("props.label"), <BindableInput obj={obj} propName="label" onChange={onChange}>{textInput("label")}</BindableInput>)}
+              <div style={GRIGLIA_NUMERICA}>
+                <div><div style={LABEL}>{t("props.fontSize")}</div><BindableInput obj={obj} propName="font_size" onChange={onChange}>{numInput("font_size", 12)}</BindableInput></div>
+                <div><div style={LABEL}>{t("props.labelFontSize")}</div><BindableInput obj={obj} propName="label_font_size" onChange={onChange}>{numInput("label_font_size", 11)}</BindableInput></div>
+              </div>
               {field(t("props.color"), <BindableInput obj={obj} propName="fill" onChange={onChange}>{colorInput("fill")}</BindableInput>)}
               <div style={GRIGLIA_NUMERICA}>
                 <div><div style={LABEL}>Min</div><BindableInput obj={obj} propName="min" onChange={onChange}>{numInput("min", 0)}</BindableInput></div>
@@ -4204,6 +4208,10 @@ export function ObjectProps({
           {obj.type === "radio" && (
             <>
               {field(t("props.label"), <BindableInput obj={obj} propName="label" onChange={onChange}>{textInput("label")}</BindableInput>)}
+              <div style={GRIGLIA_NUMERICA}>
+                <div><div style={LABEL}>{t("props.fontSize")}</div><BindableInput obj={obj} propName="font_size" onChange={onChange}>{numInput("font_size", 13)}</BindableInput></div>
+                <div><div style={LABEL}>{t("props.labelFontSize")}</div><BindableInput obj={obj} propName="label_font_size" onChange={onChange}>{numInput("label_font_size", 11)}</BindableInput></div>
+              </div>
               {field(t("props.tag"), tagInput("es. pump1.mode"))}
               {field(t("props.color"), <BindableInput obj={obj} propName="fill" onChange={onChange}>{colorInput("fill")}</BindableInput>)}
               {field(t("props.orientation"),
@@ -4262,6 +4270,10 @@ export function ObjectProps({
               {field(t("props.unit"), <BindableInput obj={obj} propName="unit" onChange={onChange}>{textInput("unit", "")}</BindableInput>)}
               {field(t("props.decimals"), <BindableInput obj={obj} propName="decimals" onChange={onChange}>{numInput("decimals", 1)}</BindableInput>)}
               {field(t("props.colorBar"), <BindableInput obj={obj} propName="fill" onChange={onChange}>{colorInput("fill")}</BindableInput>)}
+              <div style={GRIGLIA_NUMERICA}>
+                <div><div style={LABEL}>{t("props.fontSize")}</div><BindableInput obj={obj} propName="font_size" onChange={onChange}>{numInput("font_size", 11)}</BindableInput></div>
+                <div><div style={LABEL}>{t("props.labelFontSize")}</div><BindableInput obj={obj} propName="label_font_size" onChange={onChange}>{numInput("label_font_size", 11)}</BindableInput></div>
+              </div>
               <div style={{ fontSize: 10, color: "var(--brand-text-subtle, #94a3b8)", marginTop: 4, marginBottom: 2, fontWeight: 700 }}>SOGLIE</div>
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
                 <div><div style={LABEL}>{t("props.warnLow")}</div><BindableInput obj={obj} propName="warn_low" onChange={onChange}>{numInput("warn_low", 0)}</BindableInput></div>
@@ -4301,7 +4313,12 @@ export function ObjectProps({
                 </div>
                 {field(t("props.labelHeader"), textInput("table_label_header", t("shell.data")))}
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
-                  <div><div style={LABEL}>{t("props.dimensionPx")}</div>{numInput("table_font_size", 11)}</div>
+                  {/* Il ripiego e' a catena come nei due motori (22-10-2026): una
+                      tabella che ha ancora `table_font_size` non riceve `font_size`
+                      — gliel'ha impedito `riempiPredefiniti`, o si rimpicciolirebbe
+                      da sola — quindi senza questo il campo mostrava 11 mentre i
+                      due canvas disegnavano il 16 del campo vecchio. */}
+                  <div><div style={LABEL}>{t("props.dimensionPx")}</div>{numInput("font_size", (obj.table_font_size ?? 11))}</div>
                 </div>
                 <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 4 }}>
                   <label style={{ fontSize: 11, color: "var(--brand-text-muted, #94a3b8)", display: "flex", gap: 3, alignItems: "center" }}>
@@ -4426,6 +4443,7 @@ export function ObjectProps({
               </button>
 
               {field(t("props.windowS"), <BindableInput obj={obj} propName="window_s" onChange={onChange}>{numInput("window_s", 60)}</BindableInput>)}
+              {field(t("props.fontSize"), <BindableInput obj={obj} propName="font_size" onChange={onChange}>{numInput("font_size", 10)}</BindableInput>)}
               {field(t("props.panStepS"), numInput("pan_step_s", Math.round((obj.window_s ?? 60) * 0.25)))}
               <p style={{ fontSize: 10, color: "var(--brand-text-subtle, #94a3b8)", margin: "-4px 0 0" }}>
                 {t("props.panStepSHint")}
@@ -4640,6 +4658,7 @@ export function ObjectProps({
               </button>
               {field(t("props.trailS"), <BindableInput obj={obj} propName="xy_trail_s" onChange={onChange}>{numInput("xy_trail_s", 30)}</BindableInput>)}
               {field(t("props.xySampleMs"), <BindableInput obj={obj} propName="xy_sample_ms" onChange={onChange}>{numInput("xy_sample_ms", 200)}</BindableInput>)}
+              {field(t("props.fontSize"), <BindableInput obj={obj} propName="font_size" onChange={onChange}>{numInput("font_size", 10)}</BindableInput>)}
               <div style={GRIGLIA_NUMERICA}>
                 <div><div style={LABEL}>X min</div><BindableInput obj={obj} propName="xy_x_min" onChange={onChange}>{numInput("xy_x_min", 0)}</BindableInput></div>
                 <div><div style={LABEL}>X max</div><BindableInput obj={obj} propName="xy_x_max" onChange={onChange}>{numInput("xy_x_max", 100)}</BindableInput></div>
@@ -4794,6 +4813,7 @@ export function ObjectProps({
           {/* Bar Chart */}
           {obj.type === "bar_chart" && (
             <>
+              {field(t("props.fontSize"), <BindableInput obj={obj} propName="font_size" onChange={onChange}>{numInput("font_size", 10)}</BindableInput>)}
               {field(t("props.orientation"), (
                 <select style={INPUT} value={obj.bar_orientation ?? "vertical"} onChange={(e) => onChange({ bar_orientation: e.target.value as any })}>
                   <option value="vertical">{t("props.vertical")}</option>
@@ -4878,6 +4898,7 @@ export function ObjectProps({
           {/* Pie / Donut Chart */}
           {obj.type === "pie_chart" && (
             <>
+              {field(t("props.fontSize"), <BindableInput obj={obj} propName="font_size" onChange={onChange}>{numInput("font_size", 10)}</BindableInput>)}
               {field(t("props.mode"), (
                 <select style={INPUT} value={obj.pie_mode ?? "pie"} onChange={(e) => onChange({ pie_mode: e.target.value as any })}>
                   <option value="pie">{t("props.pieFull")}</option>

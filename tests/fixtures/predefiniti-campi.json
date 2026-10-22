@@ -30,11 +30,12 @@
     "text_list":  { "font_size": { "valore": 16 } },
     "state_lamp": { "font_size": { "valore": 13 } },
     "pipe":       { "font_size": { "valore": 12 } },
+    "table":      { "font_size": { "valore": 11 } },
     "button":     { "label": { "valore": "Button" }, "font_size": { "valore": 14 } },
     "navbutton":  { "label": { "valore": "Go to page" }, "font_size": { "valore": 13 } },
     "lang_button": { "label": { "vuoto": "codice_lingua" }, "font_size": { "valore": 13 } },
     "checkbox":   { "label": { "vuoto": "nessuna" }, "font_size": { "valore": 13 } },
-    "radio":      { "label": { "vuoto": "nessuna" } },
+    "radio":      { "label": { "vuoto": "nessuna" }, "font_size": { "valore": 13 }, "label_font_size": { "valore": 11 } },
     "led":        { "label": { "vuoto": "nessuna" }, "font_size": { "valore": 11 } },
     "gauge": {
       "label": { "vuoto": "nessuna" },
@@ -44,10 +45,12 @@
     },
     "progress_bar": {
       "label": { "vuoto": "nessuna" },
+      "font_size": { "valore": 11 }, "label_font_size": { "valore": 11 },
       "min": { "valore": 0 }, "max": { "valore": 100 }, "decimals": { "valore": 1 }
     },
     "slider": {
       "label": { "vuoto": "nessuna" },
+      "font_size": { "valore": 12 }, "label_font_size": { "valore": 11 },
       "min": { "valore": 0 }, "max": { "valore": 100 }, "step": { "valore": 1 },
       "decimals": { "vuoto": "dal_passo" }
     },
@@ -64,6 +67,7 @@
       "window_s": { "valore": 3600 }, "datalog_page_size": { "valore": 25 }, "decimals": { "valore": 1 }
     },
     "trend": {
+      "font_size": { "valore": 10 },
       "window_s": { "valore": 60 },
       "y_min": { "vuoto": "adatta" }, "y_max": { "vuoto": "adatta" }
     },
@@ -72,15 +76,17 @@
       "y_min": { "vuoto": "adatta" }, "y_max": { "vuoto": "adatta" }
     },
     "xy_plot": {
+      "font_size": { "valore": 10 },
       "xy_trail_s": { "valore": 30 }, "xy_sample_ms": { "valore": 200 },
       "xy_x_min": { "vuoto": "adatta" }, "xy_x_max": { "vuoto": "adatta" },
       "xy_y_min": { "vuoto": "adatta" }, "xy_y_max": { "vuoto": "adatta" }
     },
     "bar_chart": {
+      "font_size": { "valore": 10 },
       "bar_gap": { "valore": 0.2 }, "decimals": { "valore": 1 },
       "min": { "vuoto": "adatta" }, "max": { "vuoto": "adatta" }
     },
-    "pie_chart":    { "pie_inner_ratio": { "valore": 0.5 }, "decimals": { "valore": 1 } },
+    "pie_chart":    { "font_size": { "valore": 10 }, "pie_inner_ratio": { "valore": 0.5 }, "decimals": { "valore": 1 } },
     "alarm_viewer": { "alarm_viewer_max_rows": { "valore": 5 } },
     "symbol":       { "symbol_spin_s": { "valore": 2 } }
   }

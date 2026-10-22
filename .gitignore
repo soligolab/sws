@@ -70,3 +70,10 @@ sws-logs-*.jsonl
 
 # Python compilato (script in scripts/)
 __pycache__/
+
+# La cartella di lavoro della sessione (regola del maintainer, 22-10-2026): le
+# istantanee, i confronti e qualunque file da guardare stanno QUI e non in
+# /tmp, perche' il maintainer lavora in remoto e /tmp della macchina di
+# sviluppo non lo vede. Ignorata: e' materiale di una sessione, non del
+# progetto — quello che merita di restare va in docs/.
+/tmp/

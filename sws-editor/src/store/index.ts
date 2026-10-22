@@ -231,7 +231,10 @@ const HISTORY_LIMIT = 200;
 const STYLE_KEYS = [
   "fill", "stroke", "stroke_width", "stroke_dasharray", "color", "bg_color", "bg_image",
   "corner_radius", "fill_gradient", "gradient_light_color", "gradient_dark_color",
-  "font_size", "font_weight", "font_family", "text_anchor", "opacity",
+  // `label_font_size` accanto a `font_size` dal 22-10-2026: dove un oggetto ha
+  // due testi — un `radio`, uno `slider`, una barra — il pennello ne copiava
+  // uno solo e lasciava l'altro com'era.
+  "font_size", "label_font_size", "font_weight", "font_family", "text_anchor", "opacity",
   "quality_dot", "quality_dot_good_color", "quality_dot_bad_color", "quality_dot_uncertain_color",
   "transition_duration_ms", "blink_mode", "blink_rate_ms",
 ] as const satisfies readonly (keyof SynopticObject)[];

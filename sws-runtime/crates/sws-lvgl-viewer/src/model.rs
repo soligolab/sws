@@ -117,6 +117,11 @@ pub struct SynopticObject {
     pub text: Option<String>,
     pub format: Option<String>,
     pub font_size: Option<f64>,
+    /// Corpo dell'**etichetta** di un oggetto a due testi — l'intestazione di
+    /// un `radio`, il nome sopra la traccia di uno `slider`. `font_size` resta
+    /// il corpo del testo primario (le opzioni, il valore). Scelta del
+    /// maintainer del 21-10-2026: «un campo per testo».
+    pub label_font_size: Option<f64>,
     pub text_color_by_threshold: Option<bool>,
     pub alarm_low: Option<f64>,
     pub warn_low: Option<f64>,

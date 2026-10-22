@@ -228,6 +228,41 @@ di un campo nuovo nel manifesto.
 >    su LVGL non esiste e i due bottoni diventano uno. Per questi la domanda «quale testo governa
 >    `font_size`» è una scelta, non un dettaglio.
 >
+> **Secondo giro fatto il 22-10-2026**, dopo quattro risposte del maintainer: **«un campo per
+> testo»**, **«le misure derivano dal corpo»**, **«prima si allinea, poi il corpo»** (setpoint),
+> **«si unifica tutto su `font_size`»** (tabelle e grafici). Quattro commit, uno per strato:
+>
+> 1. **la tabella** lascia `table_font_size` e usa `font_size` come tutti; il campo vecchio resta
+>    *letto* come ripiego, perché un progetto già deployato non si riapre nell'editor prima di
+>    rivederlo sul pannello;
+> 2. **le misure derivate dal corpo**, gemelle nei due motori con la fixture condivisa
+>    `tests/fixtures/geometria-testo.json`: `passo_riga`, `altezza_etichetta`, `altezza_valore`,
+>    `corpo_secondario`. Il vincolo è un test a sé: col corpo di oggi escono i numeri di oggi
+>    (`passo_riga(13) == 28`, `altezza_etichetta(11) == 20`);
+> 3. **`radio`, `slider` e `progress_bar`**, due testi ciascuno: `font_size` il testo primario
+>    (opzioni, valore) e il campo nuovo **`label_font_size`** l'etichetta. Su LVGL chiude tre
+>    divergenze: le opzioni di un radio e la sua intestazione ereditavano i 14 dello schermo
+>    contro 13 e 11 del web, e il valore di uno slider lo stesso contro 12;
+> 4. **i grafici** — `bar_chart`, `pie_chart`, `trend`, `xy_plot` — con **un campo solo**: dentro,
+>    tacche e legenda stanno a `corpo_secondario(corpo)`, il testo nel foro di una torta a
+>    `corpo + 3`, letture e tooltip del trend a `corpo + 1`. Chiude altre due divergenze: gli
+>    spicchi erano 11 contro 10 e il centro 16 contro 13.
+>
+> **Un campo nuovo tocca quattro posti**, e due si dimenticano: il tipo TS e il modello del
+> viewer sono ovvi, `sws-web/src/synoptic.rs` no — senza, la GET di un sinottico lo lascia per
+> strada al primo round-trip — e lo schema dato all'assistente IA va **rigenerato**, non scritto
+> a mano (`./scripts/gen_synoptic_schema.py`). E `CAMPI_SCALATI`: `label_font_size` è pixel, come
+> `font_size`, o un cambio di risoluzione lo lascia indietro.
+>
+> **Restano fuori, e si sa perché**: il **setpoint** — il suo lato LVGL non è uno a uno col web
+> (tre righe e due pulsanti contro due righe e un overlay), quindi «prima si allinea» è lavoro
+> suo, con una sessione di plan dedicata: seme in
+> `docs/plans/2026-10-22-setpoint-i-due-motori-non-combaciano.md`. E **`gauge`, `kpi_tile` e
+> `data_log`**, che non erano in questo giro: il gauge ha lo stesso guasto del setpoint in
+> piccolo (valore e unità sono due testi sul web e **una** etichetta sola su LVGL), kpi_tile e
+> data_log hanno tre corpi ciascuno (etichetta 11, valore 26, unità 12) e nessuna divergenza
+> nota.
+
 > **Terza cosa, e la più scomoda: le geometrie sono fisse.** Alzando il corpo, le opzioni di un
 > `radio` si sovrappongono (passo 28 px cablato sui due motori), la spunta di un `checkbox` resta
 > 18×18 mentre il testo cresce, e il valore di uno `slider` esce dalla traccia. Rendere vivo il

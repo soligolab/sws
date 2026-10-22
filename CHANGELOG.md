@@ -25,6 +25,31 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
   testo a 13 sul web e lo ereditava a 14 sul pannello; un `navbutton` cablava 13 in tutti e due i
   posti senza che niente lo tenesse insieme. Ora il numero è uno solo, nella tabella dei predefiniti.
 
+- **Il corpo del testo anche su cursori, scelte multiple, barre, tabelle e grafici** (secondo giro
+  del ramo 5). `radio`, `slider` e `progress_bar` hanno **due** campi, uno per testo — `font_size`
+  governa il testo principale (le opzioni, il valore) e il campo nuovo `label_font_size`
+  l'etichetta. I grafici — `trend`, `bar_chart`, `pie_chart`, `xy_plot` — ne hanno **uno solo**
+  che governa tutto il loro testo, con tacche e legenda un punto sotto. La tabella lascia il suo
+  `table_font_size` e usa `font_size` come ogni altro tipo; il campo vecchio resta **letto**, così
+  un progetto già installato si disegna identico.
+
+- **Le spaziature seguono il corpo invece di essere numeri fissi.** Il passo fra le opzioni di un
+  `radio` era 28 px cablato nei due motori: alzando il corpo le opzioni si sovrapponevano, sul web
+  e sul pannello, senza che niente lo dicesse. Ora passo, altezza dell'etichetta e riga del valore
+  sono funzioni del corpo, scritte una volta per motore e tenute insieme da una fixture condivisa.
+  Col corpo di prima escono i numeri di prima: **nessun progetto cambia aspetto**.
+
+- **Una tabella col vecchio `table_font_size` non si rimpicciolisce più da sola.** I due motori
+  leggono `font_size ?? table_font_size ?? 11`, quindi `font_size` vince; ma il riempimento dei
+  predefiniti scriveva `font_size: 11` in ogni tabella che non ce l'aveva, e una tabella a 16
+  passava a 11 al primo salvataggio senza che nessuno avesse toccato quel campo. Stesso rimedio
+  che c'era già per `fill`/`bg_color`.
+
+- **Cinque divergenze web/LVGL in più, chiuse per costruzione**: le opzioni di un `radio` e la sua
+  intestazione ereditavano i 14 dello schermo contro i 13 e gli 11 del web; il valore di uno
+  `slider` lo stesso contro 12; gli spicchi di una torta erano 11 contro 10 e il testo nel suo foro
+  16 contro 13. Adesso i due motori leggono lo stesso campo.
+
 - **La seconda conferma dell'aggiornamento non elencava gli avvisi di compatibilità**, e chiedeva conferma
   mostrando scritto `aggiornamento.confermaCompat`. La stringa c'era ed era giusta, ma stava sotto `rinomina`
   invece che sotto `aggiornamento` (dal `ff9ea6d9`, 2.12.0-rc.9): i18next, senza `parseMissingKeyHandler`,

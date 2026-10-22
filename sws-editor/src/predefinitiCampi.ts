@@ -30,11 +30,14 @@ export const CAMPI: Record<string, Record<string, RegolaCampo>> = {
   text_list:  { font_size: { valore: 16 } },
   state_lamp: { font_size: { valore: 13 } },
   pipe:       { font_size: { valore: 12 } },
+  // Dal 21-10-2026 la tabella usa `font_size` come tutti: `table_font_size`
+  // resta letto come ripiego, ma non si scrive più.
+  table:      { font_size: { valore: 11 } },
   button:     { label: { valore: "Button" }, font_size: { valore: 14 } },
   navbutton:  { label: { valore: "Go to page" }, font_size: { valore: 13 } },
   lang_button: { label: { vuoto: "codice_lingua" }, font_size: { valore: 13 } },
   checkbox:   { label: { vuoto: "nessuna" }, font_size: { valore: 13 } },
-  radio:      { label: { vuoto: "nessuna" } },
+  radio:      { label: { vuoto: "nessuna" }, font_size: { valore: 13 }, label_font_size: { valore: 11 } },
   led:        { label: { vuoto: "nessuna" }, font_size: { valore: 11 } },
   gauge: {
     label: { vuoto: "nessuna" },
@@ -44,10 +47,12 @@ export const CAMPI: Record<string, Record<string, RegolaCampo>> = {
   },
   progress_bar: {
     label: { vuoto: "nessuna" },
+    font_size: { valore: 11 }, label_font_size: { valore: 11 },
     min: { valore: 0 }, max: { valore: 100 }, decimals: { valore: 1 },
   },
   slider: {
     label: { vuoto: "nessuna" },
+    font_size: { valore: 12 }, label_font_size: { valore: 11 },
     min: { valore: 0 }, max: { valore: 100 }, step: { valore: 1 },
     decimals: { vuoto: "dal_passo" },
   },
@@ -64,6 +69,7 @@ export const CAMPI: Record<string, Record<string, RegolaCampo>> = {
     window_s: { valore: 3600 }, datalog_page_size: { valore: 25 }, decimals: { valore: 1 },
   },
   trend: {
+    font_size: { valore: 10 },
     window_s: { valore: 60 },
     y_min: { vuoto: "adatta" }, y_max: { vuoto: "adatta" },
   },
@@ -72,15 +78,17 @@ export const CAMPI: Record<string, Record<string, RegolaCampo>> = {
     y_min: { vuoto: "adatta" }, y_max: { vuoto: "adatta" },
   },
   xy_plot: {
+    font_size: { valore: 10 },
     xy_trail_s: { valore: 30 }, xy_sample_ms: { valore: 200 },
     xy_x_min: { vuoto: "adatta" }, xy_x_max: { vuoto: "adatta" },
     xy_y_min: { vuoto: "adatta" }, xy_y_max: { vuoto: "adatta" },
   },
   bar_chart: {
+    font_size: { valore: 10 },
     bar_gap: { valore: 0.2 }, decimals: { valore: 1 },
     min: { vuoto: "adatta" }, max: { vuoto: "adatta" },
   },
-  pie_chart:    { pie_inner_ratio: { valore: 0.5 }, decimals: { valore: 1 } },
+  pie_chart:    { font_size: { valore: 10 }, pie_inner_ratio: { valore: 0.5 }, decimals: { valore: 1 } },
   alarm_viewer: { alarm_viewer_max_rows: { valore: 5 } },
   symbol:       { symbol_spin_s: { valore: 2 } },
 };
@@ -123,6 +131,14 @@ export function riempiPredefiniti(obj: SynopticObject): SynopticObject {
     // Rettangoli e bottoni vecchi col colore in `bg_color`: il web disegna
     // `fill ?? bg_color`, e riempire `fill` cambierebbe il loro colore.
     if (campo === "fill" && rec.bg_color !== undefined && rec.bg_color !== null) continue;
+    // Stessa ragione, e stesso meccanismo, per la tabella (21-10-2026). Una
+    // tabella che ha ancora `table_font_size` si disegna con quello —
+    // `font_size ?? table_font_size ?? 11` nei due motori — ma scriverle
+    // dentro il predefinito `font_size: 11` glielo farebbe **perdere**, perche'
+    // `font_size` vince: una tabella a 16 si rimpicciolirebbe a 11 da sola, al
+    // primo salvataggio, senza che nessuno abbia toccato quel campo.
+    if (campo === "font_size" && rec.type === "table"
+        && rec.table_font_size !== undefined && rec.table_font_size !== null) continue;
     if (rec[campo] === undefined || rec[campo] === null) {
       out ??= { ...rec };
       out[campo] = v;
