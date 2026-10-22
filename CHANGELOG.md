@@ -11,6 +11,8 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 
 ## [Unreleased]
 
+## [2.17.0] — 2026-10-22
+
 ### Fixed
 
 - **Il corpo del testo si può finalmente scegliere su pulsanti, navigatori, spie e caselle di

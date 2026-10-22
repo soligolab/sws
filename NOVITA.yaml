@@ -33,8 +33,9 @@
 # successivo.
 
 versioni:
-  - versione: "Unreleased"
-    # Il numero si sceglie al rilascio (scelta del maintainer, 20-10-2026).
+  - versione: "2.17.0"
+    # Numero scelto al rilascio del 22-10-2026, e taggato COSTRUENDO l'immagine
+    # (regola di CLAUDE.md): un tag senza immagine perde le sue note per sempre.
     # Qui dentro, oltre al lavoro nuovo, ci sono le voci **riportate in avanti**
     # dalle versioni 2.16.0 e 2.16.1, taggate e mai costruite: senza, nessun
     # pannello le leggerebbe mai.
