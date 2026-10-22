@@ -884,11 +884,46 @@ function GuidaInstallazione() {
     [t("welcome.installCloudPasso4"), `podman run --rm --entrypoint tar ${IMG} \\\n  -C /usr/share/sws/quadlet -cf - . | tar -xf -`],
     [t("welcome.installCloudPasso5"), `./install-container.sh --pull ${IMG}`],
   ];
+  // I quattro passi dopo l'SSH, uniti in una riga sola (22-10-2026). Il
+  // maintainer ha chiesto di **aggiungere** questa forma, non di sostituire
+  // quella a passi: chi vuole vedere cosa sta facendo tiene i cinque riquadri,
+  // chi ha gia' capito incolla una volta sola.
+  //
+  // `&&` e non `;`: se un passo fallisce i successivi non partono. Con `;` un
+  // `podman pull` andato male lascerebbe proseguire l'estrazione dei quadlet,
+  // che fallirebbe in un modo che non somiglia alla causa.
+  const aggregato = passi.slice(1).map(([, cmd]) => cmd).join(" && \\\n  ");
+  const [unaRiga, setUnaRiga] = useState(false);
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
       <p style={{ margin: 0, fontSize: 13, color: "var(--brand-text-muted, #94a3b8)", lineHeight: 1.6 }}>
         {t("welcome.installCloudIntro")}
       </p>
+      <div style={{ display: "flex", gap: 6 }}>
+        {([[false, t("welcome.installCloudAPassi")], [true, t("welcome.installCloudAggregato")]] as const).map(([v, etichetta]) => (
+          <button key={String(v)} type="button" onClick={() => setUnaRiga(v)}
+            style={{
+              padding: "4px 10px", borderRadius: 4, fontSize: 12, cursor: "pointer",
+              border: "1px solid var(--brand-surface-2, #334155)",
+              background: unaRiga === v ? "var(--brand-primary, #3b82f6)" : "transparent",
+              color: unaRiga === v ? "#fff" : "var(--brand-text-muted, #94a3b8)",
+            }}>
+            {etichetta}
+          </button>
+        ))}
+      </div>
+      {unaRiga ? (
+        <ol style={{ margin: 0, paddingLeft: 20, display: "flex", flexDirection: "column", gap: 12 }}>
+          <li style={{ fontSize: 13, color: "var(--brand-text, #e2e8f0)" }}>
+            <div style={{ marginBottom: 6 }}>{passi[0][0]}</div>
+            <Comando testo={passi[0][1]} />
+          </li>
+          <li style={{ fontSize: 13, color: "var(--brand-text, #e2e8f0)" }}>
+            <div style={{ marginBottom: 6 }}>{t("welcome.installCloudAggregatoPasso")}</div>
+            <Comando testo={aggregato} />
+          </li>
+        </ol>
+      ) : (
       <ol style={{ margin: 0, paddingLeft: 20, display: "flex", flexDirection: "column", gap: 12 }}>
         {passi.map(([titolo, cmd]) => (
           <li key={titolo} style={{ fontSize: 13, color: "var(--brand-text, #e2e8f0)" }}>
@@ -897,6 +932,7 @@ function GuidaInstallazione() {
           </li>
         ))}
       </ol>
+      )}
       <p style={{ margin: 0, fontSize: 13, color: "var(--brand-text-muted, #94a3b8)", lineHeight: 1.6 }}>
         {t("welcome.installCloudDopo")}
       </p>

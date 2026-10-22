@@ -57,3 +57,28 @@ capo.
 - Il comando deve funzionare anche **senza cloud** (pannello e IDE sulla stessa LAN), dove non
   c'è un `sws.soligo.net` da interrogare?
 - La guida di oggi resta come strada alternativa, o sparisce quando c'è il comando unico?
+
+
+---
+
+## Esito (22-10-2026)
+
+**Deciso dal maintainer**: non `curl … | sh`, e nemmeno sostituire i cinque passi. Si
+**aggiunge** una forma, e si lascia l'altra: *«lascia il default dei comandi singoli e aggiungi
+una opzione "Comando aggregato"»*.
+
+Fatto in `WelcomeScreen.tsx`: due pulsanti, «A passi» (predefinito) e «Comando aggregato». Il
+secondo mostra l'SSH e poi i quattro passi uniti in una riga sola.
+
+Perché `&&` e non `;`, che è l'unico dettaglio tecnico della cosa: con `;` un `podman pull`
+andato male lascerebbe proseguire l'estrazione dei quadlet, che fallirebbe in un modo che non
+somiglia alla causa. Con `&&` si ferma dove si è rotto. La riga è stata data in pasto a `bash -n`
+per essere sicuri che si incolli davvero, invece di guardarla e convincersi.
+
+**Le due strade non scelte restano qui**, perché sono l'unica cosa viva del file:
+
+1. `curl https://sws.soligo.net/installa | sh`: vuole una rotta pre-auth sul gateway — una voce
+   in più nella lista corta che il CRA ci fa tenere corta — e una risposta alla domanda «come si
+   verifica lo script che si scarica».
+2. Un entrypoint `installa` dentro l'immagine, che toglierebbe il passo dei quadlet ma non quello
+   del `podman pull`, quindi da cinque si andrebbe a tre e non a uno.

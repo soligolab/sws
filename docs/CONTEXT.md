@@ -285,7 +285,7 @@ When in doubt: **CRA-friendly architecture yes, CRA-compliant process no.**
 
 > **Corrected on 2026-10-05.** Three ✅ in the list above were false, and had been for a while: a
 > `CONTEXT.md` that beats the specification is worse than none when it is wrong. They were found by
-> measuring the code for the [CRA gap analysis](plans/2026-10-05-cra-gap-analysis.md), which is now
+> measuring the code for the [CRA gap analysis](archive/2026-10-05-cra-gap-analysis.md), which is now
 > the reference for where SWS actually stands. The five **[D]** decisions in its §7 were taken the
 > same day: Soligonet is the sole manufacturer, 5 years of support, security updates on by default,
 > the pairing code doubles as the panel's first access, and the CRA stays «a guideline in the

@@ -262,7 +262,7 @@ Due cose da notare, nessuna delle due un difetto:
 - L'immagine `rc-arm64` **non contiene il lavoro di questo ramo**, che non e' ne' mergiato ne'
   pushato: il WP630 collauda l'installazione, non il corpo del testo.
 
-Resta aperto il seme `docs/plans/2026-10-21-installazione-con-un-comando.md`: cinque comandi
+Resta aperto il seme `docs/archive/2026-10-21-installazione-con-un-comando.md`: cinque comandi
 funzionano, ma l'idea era uno solo.
 
 **Riabbinato e deployato**: col codice mostrato dall'installatore il pannello e' stato riaggiunto
@@ -696,7 +696,7 @@ ripiego `df0e4092-arm64` e `prima-della-prova`. Prima dell'aggiornamento il tunn
 ## ▶ Riprendere da qui — onda 1: CRA P0 chiuso, avanti coi default sicuri (2026-10-15)
 
 Piano [`docs/plans/2026-10-15-piano-prima-fascia-e-cra.md`](docs/plans/2026-10-15-piano-prima-fascia-e-cra.md)
-(nasce dalla [gap analysis SCADA](docs/plans/2026-10-15-gap-analysis-scada-professionali.md)).
+(nasce dalla [gap analysis SCADA](docs/archive/2026-10-15-gap-analysis-scada-professionali.md)).
 
 - **Fatto e pushato**: C1 + C2 (`ec630d24`) — `SECURITY.md`, `/.well-known/security.txt`, procedura art. 14;
   alias `security@soligo.net` verificato e segnalazione privata GitHub attivata dal maintainer; ENISA rimandata.
@@ -974,7 +974,7 @@ ricreare alla prima richiesta.
   progetto del maintainer e l'utente `admin` (password di prova: da cambiare).
 - **Prossimo passo**: immagine arm64 da `main` e collaudo sul TC620 di colore e assegnazioni (in particolare il
   ridisegno LVGL dello sfondo a un cambio della variabile, non visibile con `--istantanea`); poi archiviare il piano.
-- **CRA rimisurato il 12-10** (`docs/plans/2026-10-05-cra-gap-analysis.md` § 8): chiusi primo accesso, IDE
+- **CRA rimisurato il 12-10** (`docs/archive/2026-10-05-cra-gap-analysis.md` § 8): chiusi primo accesso, IDE
   autenticato, lista bianca pre-auth, MQTT verificato, auto-update di default. Restano: **P0** contatti veri in
   `SECURITY.md` + `security.txt` + procedura art. 14 (già in vigore); **P1** TLS di default sul pannello (sessione
   di plan), OPC-UA `trust_all_certs` → `false`, `/metrics`, reset di fabbrica, sandbox Python obbligatoria; **P2**
@@ -1631,7 +1631,7 @@ dispositivo.
 ## ▶ Riprendere da qui — gap analysis CRA, integrata nel piano utenti (2026-10-05)
 
 **Nessun ramo aperto**, tutto su origin. Lavoro di analisi, nessun codice.
-- [Gap analysis CRA](docs/plans/2026-10-05-cra-gap-analysis.md) (Reg. UE 2024/2847): buona base di processo, lacune su
+- [Gap analysis CRA](docs/archive/2026-10-05-cra-gap-analysis.md) (Reg. UE 2024/2847): buona base di processo, lacune su
   «sicuro per default» (pannello aperto senza utenti, HTTP in chiaro, TLS di campo non verificato), aggiornamenti non
   firmati, procedura **art. 14 già in vigore dall'11-09-2026**. Roadmap P0/P1/P2 e **5 decisioni del maintainer**
   (fabbricante, periodo di supporto, auto-update di default, primo avvio, priorità).

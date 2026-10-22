@@ -2,8 +2,8 @@
 
 > 15-10-2026, chiesto dal maintainer: «per la prima fascia prova a generare un piano di azione che la inglobi assieme
 > ai punti principali ancora scoperti della CRA, così da portare avanti le due cose in parallelo».
-> Fonti: [gap analysis SCADA](2026-10-15-gap-analysis-scada-professionali.md) (prima fascia) e
-> [gap analysis CRA](2026-10-05-cra-gap-analysis.md) §8 (stato al 12-10-2026).
+> Fonti: [gap analysis SCADA](../archive/2026-10-15-gap-analysis-scada-professionali.md) (prima fascia) e
+> [gap analysis CRA](../archive/2026-10-05-cra-gap-analysis.md) §8 (stato al 12-10-2026).
 
 ## Come si lavora «in parallelo» senza rompere le regole
 

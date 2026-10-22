@@ -8,6 +8,30 @@
 > Non è un parere legale: classificazione del prodotto e ruolo di «fabbricante» vanno confermati con chi segue la
 > conformità (Pixsys / consulente).
 
+## Dove sta questo documento, e cosa è cambiato (22-10-2026)
+
+**Non è un piano, ed è per questo che sta in `docs/archive/`**: è il metro permanente delle
+scelte — lo dice la decisione 5 del maintainer, «la CRA deve rimanere un po' sul fondo come linea
+guida» — e il posto dei referti è qui. Il lavoro che ne discende è il binario C del
+[piano prima fascia e CRA](../plans/2026-10-15-piano-prima-fascia-e-cra.md), che resta vivo.
+
+**Le cinque decisioni del §7 sono prese** e non vanno più prese: fabbricante, cinque anni di
+supporto, aggiornamento automatico, primo accesso, priorità.
+
+Cosa è stato chiuso dopo la stesura del 05-10-2026, e senza cui l'analisi direbbe il falso:
+
+- **«Senza utenti il pannello è aperto»**: chiuso il 06-10 e l'11-10. Un runtime senza utenti è
+  **chiuso** e mostra un codice di abbinamento; `--senza-autenticazione` si rifiuta di partire se
+  non è su loopback.
+- **P0 e C3**: chiusi il 15-10.
+- **OPC-UA `trust_all_certs`**: passato a `false`, con fiducia al primo contatto e trust store.
+- **La sessione che non sopravvive a un deploy** (22-10): quattro difetti, fra cui il socket dei
+  tag che scriveva col ruolo catturato all'handshake — autorizzazione decisa una volta e mai
+  riconvalidata, che è precisamente il genere di cosa che questo documento esiste per trovare.
+
+Quello che resta sono **C4-C8** del piano prima fascia, più le onde 3, 4 e 5. Chi riapre
+l'analisi rimisuri prima: è stata scritta su `main` 2.12.0-rc.23 e oggi siamo alla 2.17.0.
+
 ## 1. In sintesi
 
 SWS parte **meglio della media** su processo e tracciabilità — politica di divulgazione (`SECURITY.md`),

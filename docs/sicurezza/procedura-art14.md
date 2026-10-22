@@ -10,7 +10,7 @@
 
 | Ruolo | Chi |
 |---|---|
-| Fabbricante | **Soligonet** (decisione del 05-10-2026, [gap analysis CRA](../plans/2026-10-05-cra-gap-analysis.md) §7) |
+| Fabbricante | **Soligonet** (decisione del 05-10-2026, [gap analysis CRA](../archive/2026-10-05-cra-gap-analysis.md) §7) |
 | Referente per le segnalazioni | **il maintainer**, per Soligonet |
 | Contatto pubblico | `security@soligo.net`, segnalazione privata GitHub, `/.well-known/security.txt` |
 | Destinatari | il **CSIRT coordinatore** dello Stato del fabbricante (per l'Italia **CSIRT Italia**, ACN) ed **ENISA**, attraverso la **piattaforma unica di segnalazione** |

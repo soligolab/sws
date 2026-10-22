@@ -5,7 +5,7 @@
 È l'onda 2 del [piano prima fascia e CRA](docs/plans/2026-10-15-piano-prima-fascia-e-cra.md); l'onda 1 è chiusa.
 
 - **P5.** Le prestazioni dichiarate sono la prima domanda di un integratore, e SWS non ha nessun numero misurato
-  ([gap analysis](docs/plans/2026-10-15-gap-analysis-scada-professionali.md), riga 105: ❌).
+  ([gap analysis](docs/archive/2026-10-15-gap-analysis-scada-professionali.md), riga 105: ❌).
 - **C6.** Il CRA chiede impostazioni sicure per default. Oggi:
   - le intestazioni di sicurezza le hanno solo i file dei marchi (`marchi.rs`);
   - di limiti alle richieste ci sono solo quello sui login e il limite di dimensione degli upload

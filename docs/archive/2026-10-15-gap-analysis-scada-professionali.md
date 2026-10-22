@@ -4,6 +4,28 @@
 > equiparabile agli SCADA professionali». **Non è un piano d'esecuzione**: è una mappa per scegliere. Ogni voce che
 > diventerà lavoro parte, come da regola, da una sessione di plan dedicata.
 
+## Dove sta questo documento, e cosa è cambiato (22-10-2026)
+
+**Non è un piano, ed è per questo che sta in `docs/archive/`**: è la mappa da cui si sceglie su
+cosa investire, e il posto dei referti è qui. Il lavoro che ne discende vive altrove e resta
+vivo — [piano prima fascia e CRA](../plans/2026-10-15-piano-prima-fascia-e-cra.md), dove le
+voci sono diventate P1-P6 con le loro onde.
+
+Dalla stesura del 15-10-2026 **tre voci di prima fascia sono state fatte**, e la mappa senza
+questa nota direbbe il falso:
+
+- **Finestre popup** (§5): fatte sul web il 17-10 e sul pannello LVGL il 22-10 — modali, con
+  parametri, e `open_faceplate`. Vedi [finestre modali su LVGL](2026-10-22-finestre-modali-su-lvgl.md).
+- **Prestazioni** (§7): la ritenzione automatica dei datastore è uscita in 2.16.0-rc.1, provata
+  su 6 milioni di righe.
+- **Licenze** (§ relativo): metà fatta — `max_pannelli` si mostra. Quando si **consuma** e
+  soprattutto quando si **libera** una licenza resta aperto, ed è un seme suo:
+  [quando si libera una licenza](../plans/2026-10-21-quando-si-libera-una-licenza.md).
+
+Il resto della mappa vale ancora. Chi la rilegge per decidere la seconda o la terza fascia
+riparta da qui, non dalle righe singole: una mappa misurata su `main 0637bf82` ha ormai qualche
+mese di scarto, e le misure vanno rifatte prima di fidarsene.
+
 ## Il metro
 
 Confronto con quello che un integratore si aspetta da uno SCADA commerciale di fascia media e alta: Inductive
