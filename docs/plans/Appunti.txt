@@ -1,0 +1,6 @@
+Annoto di seguito, uno per punto, le cose che devono essere verificate e trasformate in plan da eseguire:
+
+- LVGL sembra non rispondere alla proprietà "SECURITY" -> "Minimum role to operate" degli oggetti e serve l'autenticazione anche per operare su oggetti senza richiesta di autenticazione.
+- LVGL Per il login ho usato il bottone con proprietà "Builr-in action" -> "Login modal" ma non fa nulla e compare un oggetto in alto a sinistra non previsto nel progetto. Anche in LVGL, come nel WEB, il login e logout devono essere gestiti tramite la proprietà di un bottone.
+
+- LVGL & WEB : L'oggetto slider va impreziosito, servono più stili e modi di funzionamento, è un oggetto 

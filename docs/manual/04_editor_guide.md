@@ -416,8 +416,13 @@ comandi di una valvola, una conferma.
   serve per la pompa 1 e la pompa 2.
 - **Aprirla.** Su un bottone, «Azione predefinita» → **«Apri finestra»**: si sceglie la pagina-finestra e si danno i
   valori dei suoi parametri. **«Chiudi finestra»** è l'azione di un bottone «Chiudi» dentro la finestra.
-- **Sul pannello LVGL**, per ora, il bottone apre la pagina a schermo pieno, senza parametri; il validatore lo
-  ricorda.
+- **Sul pannello LVGL** la finestra si apre davvero come finestra (dalla 2.17.0): velo scuro dietro, barra del
+  titolo col ✕, parametri sostituiti, e la pagina sotto che resta viva e ricompare chiudendo. Si chiude col ✕ o
+  con un bottone «Chiudi finestra». **Due differenze dal browser, e sono volute**: una pagina dichiarata *non
+  modale* sul pannello si apre modale lo stesso — il velo c'è sempre, e il validatore lo ricorda — e il tocco
+  **fuori** dalla finestra non chiude, perché su un vetro si chiuderebbe per sbaglio con un dito appoggiato male.
+  `Esc` non c'è, perché non c'è una tastiera. Una finestra più grande dello schermo viene tagliata, non
+  rimpicciolita.
 
 ## Cambiare risoluzione del progetto
 

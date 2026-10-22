@@ -1,0 +1,63 @@
+# La pagina-finestra dei gemelli (22-10-2026, piano delle finestre modali su
+# LVGL). Sta qui per una ragione sola: i due template hanno le STESSE pagine,
+# gli stessi id e le stesse coordinate apposta, quindi aprire questa finestra
+# nel browser e sul pannello e confrontarle a colpo d'occhio è la prova di
+# parità che nessun test unitario può dare.
+#
+# `finestra:` la toglie da navigatori, tab e rotazione kiosk: si apre solo dal
+# bottone «Apri finestra» di «Base e comandi».
+id: demo_fin
+name: "{{t0106}}"
+width: 420.0
+height: 260.0
+background: '#0f172a'
+finestra:
+  modale: true
+  titolo: "{{t0105}}"
+finestra_parametri:
+  - name: nome
+    default: 'senza nome'
+objects:
+- id: fp_titolo
+  type: text
+  x: 20.0
+  y: 26.0
+  text: "{{t0101}}"
+  font_size: 16.0
+  color: '#e2e8f0'
+- id: fp_stato
+  type: led
+  x: 20.0
+  y: 70.0
+  width: 28.0
+  height: 28.0
+  tag: demo.sim.running
+  on_color: '#22c55e'
+  off_color: '#334155'
+  on_value: 'true'
+- id: fp_stato_txt
+  type: text
+  x: 58.0
+  y: 80.0
+  text: "{{t0102}}"
+  font_size: 13.0
+  color: '#94a3b8'
+- id: fp_giri
+  type: setpoint
+  x: 20.0
+  y: 120.0
+  width: 220.0
+  height: 61.0
+  label: "{{t0103}}"
+  tag: demo.cmd.setpoint
+  unit: bar
+  decimals: 1
+- id: fp_chiudi
+  type: button
+  x: 270.0
+  y: 196.0
+  width: 130.0
+  height: 44.0
+  label: "{{t0104}}"
+  button_action:
+    type: close_popup

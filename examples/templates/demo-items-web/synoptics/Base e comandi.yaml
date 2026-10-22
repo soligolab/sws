@@ -451,3 +451,18 @@ objects:
   nav_fill: true
   nav_gap: 6
   locked: true
+- id: o_apri_finestra
+  type: button
+  x: 960.0
+  y: 330.0
+  width: 240.0
+  height: 44.0
+  label: "{{t0100}}"
+  # L'azione nuova del 22-10-2026: sul web apre una finestra, e dalla 2.17.0
+  # anche sul pannello. I parametri viaggiano: la finestra si intitola
+  # «Pompa P-101» e il suo testo lo ripete.
+  button_action:
+    type: open_popup
+    page: demo_fin
+    params:
+      nome: P-101

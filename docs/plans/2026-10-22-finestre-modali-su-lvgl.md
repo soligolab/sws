@@ -173,6 +173,32 @@ navigare da dentro la finestra la chiude.
 - **Conferma del maintainer sul WP630**, col caso vero: `button-b_48` di «CasaDomotica
   (WP630_LVGL)».
 
+## La misura della memoria, fatta (22-10-2026)
+
+Il piano imponeva di **misurare, non supporre**. Misurato su `theobroma` con
+`tmp/misura-memoria.sh` — picco `VmHWM` da `/proc/<pid>/status`, campionato ogni 200 ms:
+
+| cicli apri+chiudi | picco |
+|---|---|
+| 10 | 30 304 kB |
+| 25 | 31 336 kB |
+| 50 | 31 400 kB |
+
+**Nessuna perdita lineare**: fra 25 e 50 cicli il picco cresce di **64 kB**, cioè 2,6 kB per
+ciclo — rumore dell'allocatore. Il megabyte fra 10 e 25 cicli è una tantum: sono le facce
+FreeType che ogni corpo nuovo apre al primo uso e che restano per sempre **di proposito** (il
+puntatore del font vive quanto il processo, vedi il commento di `lvgl_font::load`).
+
+**Quello che la misura non prova, e va detto.** Un `NavClickCtx` pesa un centinaio di byte:
+cinquanta cicli ne farebbero cinque kB, *sotto il rumore dello strumento*. Quindi dimostra che
+non c'è una perdita grossa, non che la `drop(Box::from_raw(…))` di `FinestraViva::chiudi`
+funziona. Quella resta garantita dal codice e dal suo ordine.
+
+**Una trappola del metodo, per chi rifà la misura**: ogni tocco vuole pressione e rilascio a due
+fotogrammi di distanza, e `--tocca` li distribuisce nei due terzi finali. Per 2N tocchi servono
+almeno 9N giri da 16 ms — col primo tentativo da 8 secondi, su cento cicli ne partiva **uno**, e
+la misura sembrava perfetta proprio perché non stava misurando niente.
+
 ## Fuori da questo giro
 
 - La finestra **non modale** trascinabile del web.

@@ -67,6 +67,22 @@ pub struct SynopticPage {
     pub finestra_parametri: Option<Value>,
 }
 
+impl SynopticPage {
+    /// La pagina è una finestra dichiarata **non modale**?
+    ///
+    /// `finestra` è un `Value` grezzo qui dentro (questo è lo specchio del
+    /// tipo TS, non il modello del motore), quindi si legge il campo invece di
+    /// deserializzare. Il web tratta l'assenza di `modale` come `true`, e si
+    /// fa lo stesso: solo un `modale: false` scritto è non modale.
+    pub fn finestra_non_modale(&self) -> bool {
+        self.finestra
+            .as_ref()
+            .and_then(|f| f.get("modale"))
+            .and_then(Value::as_bool)
+            == Some(false)
+    }
+}
+
 /// «variabile = valore» di un bottone che assegna (11-10-2026).
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Assegnazione {

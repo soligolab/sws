@@ -780,6 +780,41 @@ languages:
         it: "clock — data e ora del dispositivo"
         en: "clock — date and time of the device"
         es: "clock — fecha y hora del dispositivo"
+    - key: t0100
+      values:
+        it: "Apri la finestra della pompa"
+        en: "Open the pump window"
+        es: "Abrir la ventana de la bomba"
+    - key: t0101
+      values:
+        it: "Dettaglio di {nome}"
+        en: "Details of {nome}"
+        es: "Detalle de {nome}"
+    - key: t0102
+      values:
+        it: "in marcia"
+        en: "running"
+        es: "en marcha"
+    - key: t0103
+      values:
+        it: "Consegna"
+        en: "Setpoint"
+        es: "Consigna"
+    - key: t0104
+      values:
+        it: "Chiudi"
+        en: "Close"
+        es: "Cerrar"
+    - key: t0105
+      values:
+        it: "Pompa {nome}"
+        en: "Pump {nome}"
+        es: "Bomba {nome}"
+    - key: t0106
+      values:
+        it: "Finestra pompa"
+        en: "Pump window"
+        es: "Ventana de la bomba"
 
 # ── Pagina iniziale ──────────────────────────────────────────────────────────
 #

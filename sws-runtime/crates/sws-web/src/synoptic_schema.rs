@@ -1310,6 +1310,7 @@ pub const TYPE_USAGE: &[(&str, &[&str])] = &[
         "button",
         &[
             "assegnazioni",
+            "button_action",
             "button_mode",
             "confirm_message",
             "fill",
@@ -1638,7 +1639,8 @@ pub const TYPE_USAGE: &[(&str, &[&str])] = &[
     (
         "setpoint",
         &[
-            "height", "id", "label", "max", "min", "step", "tag", "type", "width", "x", "y",
+            "decimals", "height", "id", "label", "max", "min", "step", "tag", "type", "unit",
+            "width", "x", "y",
         ],
     ),
     (
@@ -1829,7 +1831,7 @@ pub const TYPE_EXAMPLES: &[(&str, &str)] = &[
     ("kpi_tile", "id: o_kpi\ntype: kpi_tile\nx: 30.0\ny: 542.0\nwidth: 290.0\nheight: 110.0\nlabel: '{{t0045}}'\ntag: demo.sim.pressure\nunit: bar"),
     ("lang_button", "id: o_langbtn_it\ntype: lang_button\nx: 960.0\ny: 202.0\nwidth: 90.0\nheight: 36.0\nlabel: '{{t0084}}'\ntarget_lang: it"),
     ("lang_selector", "id: o_langsel\ntype: lang_selector\nx: 960.0\ny: 250.0\nwidth: 190.0\nheight: 36.0"),
-    ("led", "id: o_led\ntype: led\nx: 30.0\ny: 96.0\nwidth: 56.0\nheight: 56.0\ntag: demo.sim.running\non_color: '#22c55e'\noff_color: '#334155'\non_value: 'true'"),
+    ("led", "id: fp_stato\ntype: led\nx: 20.0\ny: 70.0\nwidth: 28.0\nheight: 28.0\ntag: demo.sim.running\non_color: '#22c55e'\noff_color: '#334155'\non_value: 'true'"),
     ("line", "id: o_line\ntype: line\nx: 650.0\ny: 96.0\nx2: 940.0\ny2: 206.0\nstroke: '#22c55e'\nstroke_width: 4.0"),
     ("navbutton", "id: nav1\ntype: navbutton\nx: 900.0\ny: 12.0\nwidth: 170.0\nheight: 32.0\nlabel: 1. Generatore\ntarget_page: t69_gen\nfill: '#2563eb'\ngroup_id: nav\nlocked: true"),
     ("page_navigator", "id: o_page_navigator\ntype: page_navigator\nx: 24.0\ny: 752.0\nwidth: 1232.0\nheight: 40.0\nnav_orientation: horizontal\nnav_fill: true\nnav_gap: 6\nlocked: true"),

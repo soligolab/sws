@@ -119,8 +119,12 @@ R3_DEBITO = {
     # nome: (pagine, oggetti nella pagina più piena, perché)
     "homeassistant-pro":  (6, 107, "vetrina del «cosa si può fare», non punto di partenza — "
                                    "la parola «pro» nel nome è l'avviso (decisione del maintainer, 17-09-2026)"),
-    "demo-items-lvgl":    (4, 0,   "inventario: 4 pagine per coprire 35 tipi di widget; nessuna pagina supera il tetto di oggetti"),
-    "demo-items-web":     (4, 0,   "inventario: 4 pagine per coprire 35 tipi di widget; nessuna pagina supera il tetto di oggetti"),
+    "demo-items-lvgl":    (5, 0,   "inventario: 4 pagine per coprire 35 tipi di widget, più la pagina-finestra "
+                                   "aggiunta il 22-10-2026 — si apre solo da un bottone e non compare nei navigatori; "
+                                   "nessuna pagina supera il tetto di oggetti"),
+    "demo-items-web":     (5, 0,   "inventario: 4 pagine per coprire 35 tipi di widget, più la pagina-finestra "
+                                   "aggiunta il 22-10-2026 — si apre solo da un bottone e non compare nei navigatori; "
+                                   "nessuna pagina supera il tetto di oggetti"),
     "homeassistant-demo": (3, 62,  "due oggetti sopra il tetto nella pagina di panoramica"),
     "tc620-sistema":      (6, 0,   "richiesta del maintainer (03-10-2026): una pagina di grafici per tipologia di "
                                    "informazione di sistema; nessuna pagina supera il tetto di oggetti"),
@@ -231,7 +235,15 @@ for nome in nomi:
             ids.add(pag["id"])
         # R1/R3/R2: formato della pagina, quanti oggetti porta, e quanto
         # testo visibile non passa dalla tabella lingue.
-        formati.append((base, pag.get("width"), pag.get("height")))
+        #
+        # Una **pagina-finestra** (`finestra:`, P1 del 17-10-2026) non entra in
+        # R1 ed è giusto così: non è una pagina intera, è il contenuto di una
+        # finestra che si apre sopra un'altra. Pretendere che sia 1280×800
+        # vorrebbe dire una finestra grande quanto lo schermo, cioè il
+        # contrario di quello che serve. Non è un debito da dichiarare: è una
+        # regola che non la riguarda (22-10-2026).
+        if not pag.get("finestra"):
+            formati.append((base, pag.get("width"), pag.get("height")))
         n_ogg = len(pag.get("objects") or [])
         if n_ogg > R3_OGGETTI_MAX:
             troppo_piene.append((base, n_ogg))

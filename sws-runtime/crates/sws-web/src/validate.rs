@@ -599,8 +599,20 @@ pub fn rilievi_cornici(
 }
 
 /// I rilievi delle finestre popup (P1, 17-10-2026): un `open_popup` verso una
-/// pagina che non c'è, o che non si apre come finestra; sul pannello LVGL la
-/// finestra si apre come pagina intera, e lo si dice.
+/// pagina che non c'è, o che non si apre come finestra.
+///
+/// **Dal 22-10-2026 il rilievo su LVGL dice il contrario di prima.** Fino a
+/// ieri avvisava che «le finestre su LVGL non ci sono ancora: il tocco naviga
+/// alla pagina, senza parametri» — ed era vero. Adesso la finestra c'è, col
+/// velo, la barra e i parametri sostituiti, e quell'avviso diceva a chi
+/// disegna di non usare una funzione che funziona.
+///
+/// Resta **una** differenza, ed è l'unica che vale la pena dire: una pagina
+/// dichiarata `modale: false` sul pannello si apre modale lo stesso. È una
+/// decisione del maintainer, non una mancanza — la variante non modale del
+/// web esiste per lavorare *con* la finestra aperta usando il mouse sulla
+/// pagina sotto, e su un vetro da 7" la pagina sotto non la raggiungi
+/// comunque.
 pub fn rilievi_finestre(project: &Project, pages: &[SynopticPage]) -> Vec<Finding> {
     let mut out = Vec::new();
     let per_id: HashMap<&str, &SynopticPage> = pages.iter().map(|p| (p.id.as_str(), p)).collect();
@@ -627,10 +639,13 @@ pub fn rilievi_finestre(project: &Project, pages: &[SynopticPage]) -> Vec<Findin
                     format!("la pagina «{}» non è una finestra", t.name),
                     "nelle proprietà di quella pagina spunta «Si apre come finestra»",
                 )),
-                Some(t) if lvgl => out.push(Finding::warn(
+                // Solo per le NON modali: una finestra modale sul pannello si
+                // comporta come nel browser, e un avviso che non dice niente è
+                // rumore che insegna a ignorare gli avvisi.
+                Some(t) if lvgl && t.finestra_non_modale() => out.push(Finding::warn(
                     dove,
-                    format!("sul pannello la finestra «{}» si apre come pagina intera", t.name),
-                    "le finestre su LVGL non ci sono ancora: il tocco naviga alla pagina, senza parametri",
+                    format!("sul pannello la finestra «{}» si apre comunque modale", t.name),
+                    "su LVGL il velo c'è sempre e la pagina sotto non si tocca: «non modale» vale solo nel browser",
                 )),
                 Some(_) => {}
             }
@@ -2630,6 +2645,48 @@ alarms: []
         let rs2 = rilievi_cornici(&p, &pagine, &[vuota]);
         assert_eq!(rs2.iter().filter(|f| f.hint.as_deref().unwrap_or("").contains("non si esce")).count(), 2, "{rs2:?}");
         assert!(!cita(&rs2, "«Info»"), "{rs2:?}");
+    }
+
+    /// Il rilievo sulle finestre di LVGL **dice il contrario di ieri**
+    /// (22-10-2026), e senza un test una riga di testo come questa torna a
+    /// mentire senza che nessuno se ne accorga: fino a ieri avvisava che «le
+    /// finestre su LVGL non ci sono ancora», il che diceva a chi disegna di
+    /// non usare una funzione che da oggi funziona.
+    ///
+    /// Adesso resta **una** differenza vera, e solo quella va detta: una
+    /// pagina `modale: false` sul pannello si apre modale lo stesso.
+    #[test]
+    fn su_lvgl_si_avvisa_solo_per_la_finestra_non_modale() {
+        let lvgl: Project = serde_yaml::from_str(
+            "meta: { name: p, version: '1' }\ntarget: { kind: lvgl_framebuffer }\ntags: []\nsources: []\nalarms: []\n",
+        )
+        .unwrap();
+        let web: Project = serde_yaml::from_str(
+            "meta: { name: p, version: '1' }\ntags: []\nsources: []\nalarms: []\n",
+        )
+        .unwrap();
+        let home: SynopticPage = serde_yaml::from_str(
+            "id: h\nname: Home\nobjects:\n- { id: b, type: button, x: 10, y: 10, width: 100, height: 40, button_action: { type: open_popup, page: i, params: {} } }",
+        )
+        .unwrap();
+        let fin = |modale: &str| -> SynopticPage {
+            serde_yaml::from_str(&format!("id: i\nname: Info\nfinestra: {{ modale: {modale} }}\nobjects: []"))
+                .unwrap()
+        };
+
+        // Modale su LVGL: niente da dire, si comporta come nel browser.
+        let rs = rilievi_finestre(&lvgl, &[home.clone(), fin("true")]);
+        assert!(rs.is_empty(), "una finestra modale su LVGL non ha niente di diverso: {rs:?}");
+
+        // La vecchia bugia non deve poter tornare.
+        let rs = rilievi_finestre(&lvgl, &[home.clone(), fin("false")]);
+        assert!(!cita(&rs, "non ci sono ancora"), "l'avviso vecchio e' falso dal 22-10-2026: {rs:?}");
+        assert!(!cita(&rs, "pagina intera"), "{rs:?}");
+        assert!(cita(&rs, "modale"), "la differenza che resta va detta: {rs:?}");
+
+        // Nel browser «non modale» vuol dire davvero non modale: nessun avviso.
+        let rs = rilievi_finestre(&web, &[home, fin("false")]);
+        assert!(rs.is_empty(), "sul web non c'e' nessuna differenza da segnalare: {rs:?}");
     }
 
     /// Su LVGL la barra del viewer **non esiste**, e non solo quando la si
