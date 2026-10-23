@@ -35,6 +35,8 @@
 versioni:
   - versione: "Unreleased"
     voci:
+      - it: "Sparkplug B adesso funziona davvero: i numeri di campo del protobuf erano sbagliati e un impianto vero non si leggeva. Gestiti anche gli alias, che sono il modo normale in cui Sparkplug manda i dati."
+        en: "Sparkplug B now actually works: the protobuf field numbers were wrong and a real plant could not be read. Aliases are handled too, which is how Sparkplug normally sends data."
       - it: "Il certificato TLS generato dal pannello adesso porta il suo nome, e copre anche <nome> e <nome>.local: prima diceva «rcgen self signed cert» su ogni pannello e nominava solo localhost. Vale dalla prossima generazione."
         en: "The TLS certificate the panel generates now carries its own name and also covers <name> and <name>.local: it used to say «rcgen self signed cert» on every panel and only named localhost. Applies from the next generation."
       - it: "Collegandosi a un pannello, l'IDE mostra l'impronta del suo certificato e dice se l'ha memorizzata adesso: al primo collegamento si puo confrontare con quella che il pannello mostra sul suo schermo."

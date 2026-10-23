@@ -198,7 +198,17 @@ Browse che ritorna DataType, ValueRank, ArrayDimensions (oggi non li legge, `bro
 S7 (blocchi DB con layout dichiarato, lettura a blocco), EtherNet/IP (array `Vec<T>`, UDT con template/`list_tag`, il più costoso), MQTT (indici di array nel `json_path`, `flattenJsonLeaves` con array; Sparkplug dataset/template), HomeAssistant (attributi lista/dict oggi scartati in silenzio), Host (mappatura «collezione»: un core/mount/interfaccia per membro).
 
 ## Difetti trovati, da trattare a parte
-Modbus (segno, doppia scala) e OPC-UA (scala non applicata alle sottoscrizioni, `Float(0.0)` inventato) confluiscono nelle Fasi 3-4; HA scarta senza avviso attributi lista/dict; **Sparkplug B: i numeri di campo del protobuf sembrano diversi dalla specifica** (oneof usa 7-12; da verificare sul `.proto` ufficiale prima di costruirci sopra). Per ciascuno un seme o un commit `fix` separato, non dentro le fasi.
+Modbus (segno, doppia scala) e OPC-UA (scala non applicata alle sottoscrizioni, `Float(0.0)` inventato) confluiscono nelle Fasi 3-4; HA scarta senza avviso attributi lista/dict. Per ciascuno un seme o un commit `fix` separato, non dentro le fasi.
+
+**Sparkplug B — il sospetto era fondato, ed è chiuso** (ramo `fix/sparkplug-campi-protobuf`,
+23-10-2026). Verificato su `sparkplug_b.proto` di Eclipse Tahu: il `oneof value` usa **10-15**, non
+7-12. Con i numeri sbagliati un impianto vero non si leggeva affatto — una metrica intera faceva
+rifiutare l'intero payload (tipo di wire diverso), un long diventava un `true` (tipo di wire
+uguale, quindi in silenzio), e `is_null` arrivava come il valore 1. Nello stesso ramo: gli
+**alias** (il modo normale in cui Sparkplug manda i dati, e che scartavamo in silenzio), i tipi con
+segno riletti col tipo dichiarato, e la metrica nulla che non diventa più uno zero. Dodici prove
+che **si costruiscono i byte a mano** dai numeri della specifica: con le nostre struct avrebbero
+fatto round-trip su sé stesse e sarebbero state verdi anche prima.
 
 ## Rischi
 - `TagValue` esteso rompe in compilazione ~28 file: è voluto (il compilatore è la lista), ma la Fase 1 è la più larga; non mescolarla con altro.

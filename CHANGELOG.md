@@ -11,6 +11,39 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 
 ## [Unreleased]
 
+### Fixed
+
+- **Sparkplug B non ha mai potuto leggere un impianto vero: i numeri di campo del protobuf erano
+  sbagliati.** Il `oneof value` usava 7…12 invece di 10…15, e il piano dei tag lo portava scritto
+  come sospetto da settembre («i numeri sembrano diversi dalla specifica, da verificare sul
+  `.proto` ufficiale»). Verificato il 23-10-2026 su `sparkplug_b.proto` di Eclipse Tahu: lo erano.
+
+  Cosa succedeva, contro un nodo vero: una metrica **intera** (campo 10, varint) finiva sul nostro
+  `double` (fixed64) e il tipo di wire diverso faceva **rifiutare l'intero payload** — un messaggio
+  con dieci metriche si perdeva tutto per una; un **long** (campo 11) cadeva sul nostro `bool`, che
+  ha lo **stesso** tipo di wire, quindi nessun errore e un numero che diventava `true`; una metrica
+  dichiarata **nulla** (`is_null`, campo 7) arrivava come il valore `1`; e ogni nascita con
+  `metadata` o `properties` veniva rifiutata intera.
+
+  Nessun test lo vedeva, e non è un caso: i test sarebbero passati dalle nostre stesse struct e
+  avrebbero fatto round-trip su sé stessi. Le dodici prove nuove **si costruiscono i byte a mano**
+  dai numeri della specifica, ed è l'unico modo in cui questo difetto si vede.
+
+- **E con lui l'alias, che è il modo normale di lavorare di Sparkplug.** Un NBIRTH battezza ogni
+  metrica con un numero, e tutti i dati successivi la nominano **solo** con quel numero. Noi
+  leggevamo solo il nome e scartavamo il resto in silenzio: di un impianto che usa gli alias — il
+  default di Ignition — non arrivava **niente**. Adesso le nascite popolano una mappa per ambito
+  (due nodi possono usare il 7 per metriche diverse), e una nascita nuova cancella gli alias di
+  prima, perché tenerli vorrebbe dire scrivere il valore di una metrica sul tag di un'altra.
+
+- **Un intero con segno non arriva più come un numero enorme.** I tipi con segno viaggiano dentro
+  campi **senza** segno, e il complemento a due va riletto col tipo dichiarato: un `−1` arrivava
+  come 4 294 967 295. È lo stesso difetto che la Fase 3 aveva tolto a Modbus sugli `i16`.
+
+- **Una metrica nulla non diventa più uno zero**: si tiene l'ultimo valore e si marca Uncertain,
+  come la Fase 4a ha stabilito per OPC-UA. E il comando che spediamo (NCMD) adesso porta il **tipo
+  dichiarato**, che molti host pretendono.
+
 ### Added
 
 - **Il certificato del pannello ha un nome vero, e si genera in un posto solo.** Era
