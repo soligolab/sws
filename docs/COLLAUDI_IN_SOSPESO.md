@@ -139,6 +139,18 @@ login».
 
 ---
 
+## F-bis. Il tubo che segue un oggetto mosso da una variabile
+
+Uscito nella 2.19.0, mai visto su uno schermo vero.
+
+37. [ ] Su un pannello **LVGL**, un tubo agganciato alla bocca di un simbolo che una variabile
+        sposta: il tubo deve seguirlo **dal vivo**, non restare dov'era. Sul web funzionava già
+        perché le posizioni risolte dai binding ci sono; su LVGL andava ricalcolato al cambio.
+38. [ ] E non deve staccarsi al **primo fotogramma** (la Fase 1 del piano): all'apertura della
+        pagina il tubo deve essere già attaccato, non attaccarsi dopo il primo aggiornamento.
+
+---
+
 ## G. OPC-UA — strutture, dai due lati
 
 Si può fare sul PC, senza pannello.

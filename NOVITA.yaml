@@ -35,6 +35,8 @@
 versioni:
   - versione: "Unreleased"
     voci:
+      - it: "Un tag strutturato adesso si vede sul server OPC-UA come una struttura vera, col nome del tipo del progetto: prima era una cartella con dentro le singole foglie. Le foglie restano, ed e li che si scrive."
+        en: "A structured tag now appears on the OPC-UA server as a real structure, carrying the project type name: it used to be a folder with the individual leaves inside. The leaves remain, and that is where writes go."
       - it: "Sparkplug B adesso funziona davvero: i numeri di campo del protobuf erano sbagliati e un impianto vero non si leggeva. Gestiti anche gli alias, che sono il modo normale in cui Sparkplug manda i dati."
         en: "Sparkplug B now actually works: the protobuf field numbers were wrong and a real plant could not be read. Aliases are handled too, which is how Sparkplug normally sends data."
       - it: "Il certificato TLS generato dal pannello adesso porta il suo nome, e copre anche <nome> e <nome>.local: prima diceva «rcgen self signed cert» su ogni pannello e nominava solo localhost. Vale dalla prossima generazione."

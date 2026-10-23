@@ -11,7 +11,42 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 
 ## [Unreleased]
 
+### Added
+
+- **Il server OPC-UA espone i tag strutturati come strutture vere.** Un tag composito non è più
+  una cartella con dentro le foglie: è una `Variable` con un `DataType` pubblicato — nome del tipo
+  del progetto, campi nell'ordine dichiarato — e il valore viaggia come `ExtensionObject`. Le
+  **foglie restano** come nodi figli, perché la scrittura passa da lì (`NumericRange` indirizza
+  solo gli array, non il campo di una struttura), ma sotto una struttura ci stanno per
+  `HasComponent` invece che per `Organizes`.
+
+  Provato **dai due lati dentro `cargo test`**: il nostro server pubblica **due** tipi, il nostro
+  client si collega su una porta effimera, costruisce l'albero dei tipi dal browse e decodifica
+  tutti e due. Due tipi e non uno di proposito — con uno solo il collaudo passerebbe anche
+  sbagliando il nodo di encoding, perché il client rimappa un id nullo sull'unico tipo che conosce.
+
+- **E tre cose che il compilatore non vedeva.** Il nodo di codifica `Default Binary` non è
+  opzionale: con due tipi, due id nulli finirebbero nella stessa chiave della mappa encoding→tipo
+  del client e il secondo si decodificherebbe col tipo del primo, **senza nessun errore**.
+  L'ordine dei campi è quello **dichiarato**, non quello della `BTreeMap` del valore, perché
+  `DynamicStructure` riempie per posizione. E un fallimento nel costruire la struttura adesso si
+  legge nel log, una volta per tag, invece di congelare il nodo in silenzio.
+
 ### Fixed
+
+- **Le foglie di `motore10` non cadono più dentro `motore1`.** La parentela dei nodi figli era
+  indovinata con `id.starts_with(radice)`, e sbagliava in due modi: oltre al prefisso, una
+  mappatura con un `node_id` diverso dal tag **non ritrovava le proprie foglie affatto** — sono
+  nominate col percorso del tag mentre il filtro cercava il `node_id` — e quel tag finiva esposto
+  come un solo scalare `Double`. Ora la parentela è un dato, non un indovinello.
+
+- **`color` dichiarava un tipo e ne mandava un altro** sul server OPC-UA: `Double` nella
+  dichiarazione, una stringa nel valore. Fuori da una struttura nessuno validava; dentro, il campo
+  viene rifiutato e l'intera struttura smette di aggiornarsi.
+
+- **Il lock dell'indirizzario non si tiene più attraverso un `await`.** Il task poteva essere
+  messo in pausa mentre lo possedeva. Funzionava per coincidenza — il `TagDb` ha un lock suo — e
+  l'ha trovato il collaudo nuovo, non una rilettura.
 
 - **Sparkplug B non ha mai potuto leggere un impianto vero: i numeri di campo del protobuf erano
   sbagliati.** Il `oneof value` usava 7…12 invece di 10…15, e il piano dei tag lo portava scritto

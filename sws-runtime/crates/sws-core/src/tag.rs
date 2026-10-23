@@ -110,6 +110,16 @@ pub struct TagDb {
     /// progetto non dichiara `types:`/`array`: senza radici la risoluzione è
     /// quella di sempre, una ricerca esatta nella mappa.
     forme: Arc<RwLock<HashMap<TagId, Forma>>>,
+    /// Il **nome del tipo** di ogni radice composita (`motore1` → `Motore`),
+    /// cioè il `type_ref` dichiarato nel progetto (Fase 4d).
+    ///
+    /// `Forma` non lo porta — `Struttura(Vec<(String, Forma)>)` ha i nomi dei
+    /// **membri**, non quello del tipo — e serve a chi deve pubblicare la
+    /// struttura verso l'esterno: il server OPC-UA la espone come `DataType`, e
+    /// due istanze dello stesso tipo devono dichiarare **lo stesso** tipo. Col
+    /// solo id del tag ogni istanza ne genererebbe uno suo, che è il contrario
+    /// del motivo per cui si pubblica una struttura.
+    tipi_struttura: Arc<RwLock<HashMap<TagId, String>>>,
     /// Qualità e timestamp **per foglia** (D6): radice → percorso relativo →
     /// (qualità, ts). La qualità della radice è la peggiore delle foglie, il
     /// suo timestamp il più recente. Serve perché una mappatura a foglia può
@@ -139,6 +149,7 @@ impl TagDb {
             computed_tags: Arc::new(RwLock::new(std::collections::HashSet::new())),
             conversione_segnalata: Arc::new(std::sync::Mutex::new(std::collections::HashSet::new())),
             forme: Arc::new(RwLock::new(HashMap::new())),
+            tipi_struttura: Arc::new(RwLock::new(HashMap::new())),
             qualita_foglie: Arc::new(RwLock::new(HashMap::new())),
         }
     }
@@ -173,6 +184,13 @@ impl TagDb {
     /// dichiarato, sono il layout di un blocco di registri).
     pub async fn forma(&self, id: &str) -> Option<Forma> {
         self.forme.read().await.get(id).cloned()
+    }
+
+    /// Il nome del tipo di una radice composita (`motore1` → `Motore`), se ne
+    /// ha uno. `None` per un tag scalare, e anche per una radice che è un
+    /// **array di scalari**: quella una struttura non è.
+    pub async fn tipo_struttura(&self, id: &str) -> Option<String> {
+        self.tipi_struttura.read().await.get(id).cloned()
     }
 
     /// Sostituisce la mappa dei `data_type` dichiarati (Q27). Stessi punti
@@ -218,6 +236,14 @@ impl TagDb {
             .await
             .retain(|id, _| radici.contains(id));
         *self.forme.write().await = forme;
+    }
+
+    /// Installa i nomi dei tipi delle radici composite (Fase 4d). Stesso punto
+    /// di refresh di `set_forme`, e per la stessa ragione: due mappe che
+    /// descrivono le stesse radici e si aggiornano in posti diversi sono due
+    /// mappe che un giorno divergono.
+    pub async fn set_tipi_struttura(&self, tipi: HashMap<TagId, String>) {
+        *self.tipi_struttura.write().await = tipi;
     }
 
     /// La forma di una radice, se `id` è una radice composita.

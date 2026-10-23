@@ -21,7 +21,7 @@
 //! server — e si ripiega sul comportamento di prima quando non c'è.
 
 use opcua::types::{DataValue, StatusCode, Variant};
-use sws_core::{TagQuality, TagValue, TipoScalare};
+use sws_core::{Forma, TagQuality, TagValue, TipoScalare};
 
 /// Il valore e la qualità di un `DataValue`.
 ///
@@ -218,10 +218,75 @@ pub fn tipo_opcua(tipo: Option<&str>) -> opcua::types::DataTypeId {
         // `datetime` è un intero di millisecondi da noi (D7), non un
         // `DateTime` di OPC-UA: dichiararlo `DateTime` direbbe il falso.
         Some(TipoScalare::DateTime) => D::Int64,
+        // **`color` viaggia come stringa**, e fino al 23-10-2026 questo ramo
+        // diceva il contrario: finiva nel `_ => Double` qui sotto mentre
+        // `variant_per_tipo` ne faceva una `Variant::String` (il ramo
+        // `TagValue::Str` prende prima di guardare il tipo dichiarato). Dichiarare
+        // un tipo e mandarne un altro oggi è innocuo perché nessuno valida; dentro
+        // una struttura `ParsedStructureField::validate` rifiuta il campo, e per
+        // com'è scritto l'updater quel rifiuto **non si vede**: la struttura
+        // smette di aggiornarsi e basta.
+        Some(TipoScalare::Colore) => D::String,
         // `f64`, i nomi storici, e tutto ciò che non si legge: `Double`, che è
         // quello che il server ha sempre dichiarato.
         _ => D::Double,
     }
+}
+
+/// La `StructureDefinition` che descrive una radice composita, oppure `None`
+/// se quella forma non si può pubblicare come struttura OPC-UA.
+///
+/// **Si scorre il `Vec` di `Forma::Struttura`, non la `BTreeMap` del valore.**
+/// La mappa è alfabetica, il `Vec` ha l'ordine dichiarato, e i campi di una
+/// struttura OPC-UA si riempiono **per posizione**: prendere l'ordine dalla
+/// parte sbagliata manderebbe `marcia` nella casella di `velocita`, e con due
+/// campi dello stesso tipo nessuno se ne accorgerebbe.
+///
+/// **Cosa resta fuori, e perché.** Un membro che è a sua volta una struttura, e
+/// un membro che è un array **annidato**: in tutti e due i casi si torna `None`
+/// e quel tag tiene il comportamento di oggi, cioè cartella con le foglie
+/// dentro. Per l'array annidato non è una scelta di comodo — `variant_per_tipo`
+/// torna `None` sull'intera conversione, quindi un campo dichiarato così non lo
+/// saprebbe riempire nessuno, e il fallimento sarebbe silenzioso.
+///
+/// Un array a **un** livello invece si dichiara: `validate` confronta solo il
+/// `value_rank` (`type_tree.rs:62-69`) e un valore costruito da `Array::new` ha
+/// `dimensions: None`, cioè rank 1 — che è quello che produciamo davvero.
+pub fn definizione_struttura(
+    forma: &Forma,
+    enc_id: &opcua::types::NodeId,
+) -> Option<opcua::types::DataTypeDefinition> {
+    use opcua::types::{
+        DataTypeDefinition, DataTypeId, StructureDefinition, StructureField, StructureType,
+    };
+    let Forma::Struttura(membri) = forma else { return None };
+    if membri.is_empty() {
+        return None;
+    }
+    let mut campi = Vec::with_capacity(membri.len());
+    for (nome, f) in membri {
+        let (tipo, rank, dimensioni) = match f {
+            Forma::Scalare(t) => (t, -1i32, None),
+            Forma::Array(n, interno) => match interno.as_ref() {
+                Forma::Scalare(t) => (t, 1, Some(vec![*n as u32])),
+                _ => return None,
+            },
+            Forma::Struttura(_) => return None,
+        };
+        campi.push(StructureField {
+            name: nome.as_str().into(),
+            data_type: tipo_opcua(Some(&tipo.nome())).into(),
+            value_rank: rank,
+            array_dimensions: dimensioni,
+            ..Default::default()
+        });
+    }
+    Some(DataTypeDefinition::Structure(StructureDefinition {
+        default_encoding_id: enc_id.clone(),
+        base_data_type: DataTypeId::Structure.into(),
+        structure_type: StructureType::Structure,
+        fields: Some(campi),
+    }))
 }
 
 /// Il nome del tipo SWS che corrisponde al `DataType` di un nodo.
@@ -435,5 +500,116 @@ mod prove {
         // E chi non ha mai scelto resta `Double`, com'è sempre stato.
         assert_eq!(tipo_opcua(None), D::Double);
         assert_eq!(tipo_opcua(Some("float")), D::Double);
+    }
+}
+
+#[cfg(test)]
+mod prove_definizione_struttura {
+    use super::*;
+    use opcua::types::{DataTypeDefinition, DataTypeId, NodeId};
+
+    fn enc() -> NodeId {
+        NodeId::new(2, "type:Motore:binary")
+    }
+
+    fn campi(def: &DataTypeDefinition) -> Vec<(String, NodeId, i32)> {
+        let DataTypeDefinition::Structure(sd) = def else { panic!("non è una struttura") };
+        sd.fields
+            .as_ref()
+            .expect("campi")
+            .iter()
+            .map(|f| (f.name.to_string(), f.data_type.clone(), f.value_rank))
+            .collect()
+    }
+
+    fn scal(t: &str) -> Forma {
+        Forma::Scalare(TipoScalare::parse(t).expect("tipo noto"))
+    }
+
+    /// **L'ordine è quello dichiarato, non quello alfabetico.** I campi di una
+    /// struttura OPC-UA si riempiono per posizione: se l'ordine venisse dalla
+    /// `BTreeMap` del valore, `zeta` finirebbe dopo `alfa` e i due valori si
+    /// scambierebbero senza che niente protesti.
+    #[test]
+    fn i_campi_tengono_l_ordine_dichiarato() {
+        let forma = Forma::Struttura(vec![
+            ("zeta".into(), scal("f32")),
+            ("alfa".into(), scal("bool")),
+        ]);
+        let def = definizione_struttura(&forma, &enc()).expect("si pubblica");
+        let c = campi(&def);
+        assert_eq!(c[0].0, "zeta", "l'ordine dichiarato viene prima dell'alfabetico");
+        assert_eq!(c[1].0, "alfa");
+        assert_eq!(c[0].1, NodeId::from(DataTypeId::Float));
+        assert_eq!(c[1].1, NodeId::from(DataTypeId::Boolean));
+        assert!(c.iter().all(|f| f.2 == -1), "gli scalari hanno rank -1");
+    }
+
+    /// Il nodo di encoding **deve** finire nella definizione. Con `NodeId::null()`
+    /// due tipi diversi finirebbero nella stessa chiave della mappa
+    /// encoding→tipo del client, e il secondo si decodificherebbe col tipo del
+    /// primo senza nessun errore.
+    #[test]
+    fn l_id_di_encoding_e_quello_passato_non_nullo() {
+        let forma = Forma::Struttura(vec![("x".into(), scal("f32"))]);
+        let def = definizione_struttura(&forma, &enc()).expect("si pubblica");
+        let DataTypeDefinition::Structure(sd) = &def else { panic!() };
+        assert_eq!(sd.default_encoding_id, enc());
+        assert!(!sd.default_encoding_id.is_null(), "un id nullo confonde due tipi");
+    }
+
+    /// Il difetto che `tipo_opcua` aveva: `color` dichiarava `Double` e sul filo
+    /// viaggiava una stringa. Fuori da una struttura nessuno validava; dentro,
+    /// il campo viene rifiutato e l'intera struttura smette di aggiornarsi.
+    #[test]
+    fn un_membro_color_dichiara_una_stringa() {
+        let forma = Forma::Struttura(vec![("tinta".into(), scal("color"))]);
+        let def = definizione_struttura(&forma, &enc()).expect("si pubblica");
+        assert_eq!(campi(&def)[0].1, NodeId::from(DataTypeId::String));
+    }
+
+    /// Un array a **un** livello si dichiara con rank 1, che è quello che
+    /// `Array::new` produce davvero (`dimensions: None` → rank 1), ed è l'unica
+    /// cosa che `validate` confronta.
+    #[test]
+    fn un_array_a_un_livello_si_dichiara_rank_uno() {
+        let forma = Forma::Struttura(vec![(
+            "allarmi".into(),
+            Forma::Array(8, Box::new(scal("bool"))),
+        )]);
+        let def = definizione_struttura(&forma, &enc()).expect("si pubblica");
+        let c = campi(&def);
+        assert_eq!(c[0].2, 1, "rank 1, come il valore che sappiamo costruire");
+        assert_eq!(c[0].1, NodeId::from(DataTypeId::Boolean));
+    }
+
+    /// Quello che **non** si pubblica, e per cui il tag tiene il comportamento
+    /// di oggi — cartella con le foglie dentro. L'array annidato non è una
+    /// rinuncia di comodo: `variant_per_tipo` torna `None` sull'intera
+    /// conversione, quindi un campo dichiarato così non lo riempirebbe nessuno
+    /// e il fallimento sarebbe silenzioso.
+    #[test]
+    fn quello_che_non_si_puo_pubblicare_torna_none() {
+        let annidata = Forma::Struttura(vec![(
+            "pid".into(),
+            Forma::Struttura(vec![("kp".into(), scal("f32"))]),
+        )]);
+        assert!(definizione_struttura(&annidata, &enc()).is_none(), "struttura annidata");
+
+        let array_annidato = Forma::Struttura(vec![(
+            "matrice".into(),
+            Forma::Array(2, Box::new(Forma::Array(3, Box::new(scal("u16"))))),
+        )]);
+        assert!(definizione_struttura(&array_annidato, &enc()).is_none(), "array annidato");
+
+        assert!(definizione_struttura(&scal("f32"), &enc()).is_none(), "uno scalare non è una struttura");
+        assert!(
+            definizione_struttura(&Forma::Array(4, Box::new(scal("u16"))), &enc()).is_none(),
+            "un array di scalari è una radice, ma non una struttura"
+        );
+        assert!(
+            definizione_struttura(&Forma::Struttura(vec![]), &enc()).is_none(),
+            "una struttura senza membri non si pubblica"
+        );
     }
 }

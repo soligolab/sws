@@ -27,7 +27,7 @@ use opcua::types::{
 };
 use serde::{Deserialize, Serialize};
 use sws_core::{
-    OpcUaAuth, OpcUaClientConfig, TagDb, TagQuality, TagWriteBus, WriteRequest,
+    Forma, OpcUaAuth, OpcUaClientConfig, TagDb, TagQuality, TagWriteBus, WriteRequest,
 };
 use tokio::sync::mpsc;
 use tracing::{info, warn};
@@ -1233,12 +1233,32 @@ fn node_class_label(c: NodeClass) -> &'static str {
 /// d'accordo — chi crea i nodi, chi registra le callback di scrittura e chi ci
 /// specchia dentro i valori — e tre scansioni che si credono uguali sono tre
 /// scansioni che un giorno divergono.
+/// Un nodo che il server espone.
+#[derive(Debug, Clone, PartialEq)]
+pub(crate) struct NodoEsposto {
+    /// L'identificatore OPC-UA del nodo.
+    pub id_nodo: String,
+    /// Il tag o il percorso del `TagDb` da cui prende il valore.
+    pub tag: String,
+    /// Il tipo dichiarato nel progetto.
+    pub tipo: Option<String>,
+    /// L'identificatore della **radice**, se questo nodo è una sua foglia.
+    ///
+    /// Esiste per non dover indovinare la parentela da un prefisso. Prima la si
+    /// ricavava con `id.starts_with(radice)`, e sbagliava in due modi: le foglie
+    /// di `motore10` cadevano dentro `motore1`, e una mappatura con un `node_id`
+    /// diverso dal tag non ritrovava più le sue foglie — perché le foglie sono
+    /// nominate col percorso del **tag** mentre il filtro cercava il `node_id`.
+    pub radice: Option<String>,
+}
+
 pub(crate) async fn nodi_esposti(
     db: &TagDb,
     nodes: &[sws_core::OpcUaServerNodeMapping],
-) -> Vec<(String, String, Option<String>)> {
+) -> Vec<NodoEsposto> {
     let mut out = Vec::new();
     for mapping in nodes {
+        let esterno = mapping.effective_node_id();
         let foglie: Vec<(String, String)> = match db.forma(&mapping.tag).await {
             Some(f) => f
                 .foglie(&mapping.tag, &[])
@@ -1248,15 +1268,142 @@ pub(crate) async fn nodi_esposti(
             None => Vec::new(),
         };
         if foglie.is_empty() {
-            let tipo = db.tipo_dichiarato(&mapping.tag).await;
-            out.push((mapping.effective_node_id().to_string(), mapping.tag.clone(), tipo));
+            out.push(NodoEsposto {
+                id_nodo: esterno.to_string(),
+                tag: mapping.tag.clone(),
+                tipo: db.tipo_dichiarato(&mapping.tag).await,
+                radice: None,
+            });
         } else {
             for (percorso, tipo) in foglie {
-                out.push((percorso.clone(), percorso, Some(tipo)));
+                // Il **percorso** nomina il nodo, tranne quando la mappatura ha
+                // un `node_id` suo: allora il prefisso del tag si sostituisce
+                // con quello, e dentro il `TagDb` si continua a usare il
+                // percorso vero.
+                let id_nodo = match percorso.strip_prefix(&mapping.tag) {
+                    Some(resto) if esterno != mapping.tag => format!("{esterno}{resto}"),
+                    _ => percorso.clone(),
+                };
+                out.push(NodoEsposto {
+                    id_nodo,
+                    tag: percorso,
+                    tipo: Some(tipo),
+                    radice: Some(esterno.to_string()),
+                });
             }
         }
     }
     out
+}
+
+/// Un tipo struttura che il server pubblica come `DataType`.
+pub(crate) struct TipoPubblicato {
+    /// L'id del `TypeDef` nel progetto (`Motore`).
+    pub nome: String,
+    /// Il nodo `DataType`. **Id a stringa, mai numerico**: un contatore cambia
+    /// appena si aggiunge un tipo, e un client che aveva memorizzato
+    /// `ns=2;i=5` non lo ritroverebbe più.
+    pub tipo_id: NodeId,
+    /// Il nodo di codifica `Default Binary`.
+    pub enc_id: NodeId,
+    pub definizione: opcua::types::DataTypeDefinition,
+    /// I campi **nell'ordine dichiarato**, con il tipo di ciascuno. È lo stesso
+    /// ordine con cui `definizione_struttura` ha costruito la
+    /// `StructureDefinition`, ed è quello che conta: `DynamicStructure` riempie
+    /// per **posizione**, non per nome.
+    pub campi: Vec<(String, String)>,
+}
+
+/// I tipi struttura da pubblicare, e quale radice usa quale.
+///
+/// Gemella di [`nodi_esposti`], accanto a quella e per lo stesso motivo: chi
+/// crea i nodi, chi costruisce l'albero dei tipi e chi specchia i valori devono
+/// essere d'accordo, e tre scansioni che si credono uguali un giorno divergono.
+///
+/// **Deduplicata per nome del `TypeDef`, non per tag.** Due istanze di `Motore`
+/// devono condividere **un** `DataType`: altrimenti il secondo `insert`
+/// nell'indirizzario torna `false` con un `error!` che non legge nessuno, e si
+/// pubblicano due tipi identici — il contrario del motivo per cui si pubblica
+/// una struttura.
+pub(crate) async fn tipi_pubblicati(
+    db: &TagDb,
+    nodes: &[sws_core::OpcUaServerNodeMapping],
+    ns: u16,
+) -> (Vec<TipoPubblicato>, HashMap<String, String>) {
+    let mut tipi: Vec<TipoPubblicato> = Vec::new();
+    let mut per_radice: HashMap<String, String> = HashMap::new();
+    for mapping in nodes {
+        let (Some(nome), Some(forma)) = (
+            db.tipo_struttura(&mapping.tag).await,
+            db.forma(&mapping.tag).await,
+        ) else {
+            continue;
+        };
+        let tipo_id = NodeId::new(ns, format!("type:{nome}"));
+        let enc_id = NodeId::new(ns, format!("type:{nome}:binary"));
+        let Some(definizione) = valore::definizione_struttura(&forma, &enc_id) else {
+            // Forma che non si pubblica (membro struttura, array annidato):
+            // quel tag tiene il comportamento di oggi, cartella con le foglie.
+            continue;
+        };
+        per_radice.insert(mapping.effective_node_id().to_string(), nome.clone());
+        if tipi.iter().any(|t| t.nome == nome) {
+            continue;
+        }
+        let Forma::Struttura(membri) = &forma else { continue };
+        let campi = membri
+            .iter()
+            .filter_map(|(n, f)| match f {
+                Forma::Scalare(t) => Some((n.clone(), t.nome())),
+                Forma::Array(_, interno) => match interno.as_ref() {
+                    Forma::Scalare(t) => Some((n.clone(), t.nome())),
+                    _ => None,
+                },
+                Forma::Struttura(_) => None,
+            })
+            .collect();
+        tipi.push(TipoPubblicato { nome, tipo_id, enc_id, definizione, campi });
+    }
+    (tipi, per_radice)
+}
+
+/// Il `Variant` di una struttura, costruito **nell'ordine dichiarato**.
+///
+/// `TagValue::Struct` è una `BTreeMap`, quindi alfabetica; i campi di una
+/// struttura OPC-UA si riempiono per **posizione**. Si scorre l'ordine
+/// dichiarato e si cerca per nome nella mappa — **mai il contrario**: con due
+/// campi dello stesso tipo i valori si scambierebbero e la qualità resterebbe
+/// `Good`.
+///
+/// Torna `Err` e non `None` di proposito: un fallimento qui congela il nodo
+/// sull'ultimo valore buono, e chi lo subisce deve poterlo leggere nel log.
+pub(crate) fn variant_struttura(
+    t: &TipoPubblicato,
+    albero: &Arc<opcua::types::custom::DataTypeTree>,
+    valore: &sws_core::TagValue,
+) -> Result<Variant, String> {
+    use opcua::types::custom::DynamicStructure;
+    use opcua::types::IntoVariant;
+    let sws_core::TagValue::Struct(mappa) = valore else {
+        return Err(format!("il valore di «{}» non è una struttura", t.nome));
+    };
+    let st = albero
+        .get_struct_type(&t.tipo_id)
+        .ok_or_else(|| format!("il tipo «{}» non è nell'albero", t.nome))?
+        .clone();
+    let mut valori = Vec::with_capacity(t.campi.len());
+    for (nome, tipo) in &t.campi {
+        let v = mappa
+            .get(nome)
+            .ok_or_else(|| format!("manca il campo «{nome}» di «{}»", t.nome))?;
+        valori.push(
+            valore::variant_per_tipo(Some(tipo), v)
+                .ok_or_else(|| format!("il campo «{nome}» di «{}» non si converte", t.nome))?,
+        );
+    }
+    DynamicStructure::new_struct(st, albero.clone(), valori)
+        .map(|d| d.into_variant())
+        .map_err(|e| format!("«{}»: {e}", t.nome))
 }
 
 pub async fn run_server(
@@ -1265,6 +1412,32 @@ pub async fn run_server(
     bus: Arc<sws_core::TagWriteBus>,
     cancel: tokio_util::sync::CancellationToken,
 ) {
+    run_server_con(cfg, db, bus, cancel, None, None).await
+}
+
+/// Il corpo di [`run_server`], con due appigli che servono **solo ai test**.
+///
+/// `ascoltatore`: una porta già aperta. `run_server` ne lega una fissa su
+/// `0.0.0.0`, e due test in parallelo si pesterebbero i piedi; col socket già
+/// aperto su `127.0.0.1:0` ognuno ha la sua, e la sa. Attenzione: il
+/// `ServerBuilder` continua comunque a **dichiarare** `host`/`port` negli
+/// endpoint, quindi vanno impostati lo stesso — passarli sbagliati vuol dire
+/// endpoint che mentono e un client che non trova dove collegarsi.
+///
+/// `pki`: dove tenere i certificati. Il default di async-opcua è `<cwd>/pki` e
+/// le cartelle nascono dentro `build()`, **sempre**, anche con policy `None`:
+/// in un `cargo test` il cwd è la cartella del crate, e comparirebbe un
+/// `pki/` dentro il checkout. In **produzione non si tocca**: spostarla
+/// sposterebbe il certificato del server, e ogni client che l'aveva
+/// memorizzato smetterebbe di fidarsi.
+pub(crate) async fn run_server_con(
+    cfg: sws_core::OpcUaServerConfig,
+    db: Arc<sws_core::TagDb>,
+    bus: Arc<sws_core::TagWriteBus>,
+    cancel: tokio_util::sync::CancellationToken,
+    ascoltatore: Option<tokio::net::TcpListener>,
+    pki: Option<PathBuf>,
+) {
     use opcua::nodes::{AccessLevel, VariableBuilder};
     use opcua::server::{
         diagnostics::NamespaceMetadata, node_manager::memory::simple_node_manager, ServerBuilder,
@@ -1272,20 +1445,45 @@ pub async fn run_server(
     use opcua::types::{DataValue, NodeId, ObjectId};
     use sws_core::{TagQuality, TagValue};
 
-    let (server, handle) = match ServerBuilder::new_anonymous("SWS OPC-UA Server")
-        .application_uri(format!("urn:soligolab:sws:{}", cfg.id))
-        .host("0.0.0.0")
-        .port(cfg.port)
-        .trust_client_certs(true)
-        .with_node_manager(simple_node_manager(
-            NamespaceMetadata {
-                namespace_uri: cfg.namespace_uri.clone(),
-                ..Default::default()
-            },
-            "sws",
-        ))
-        .build()
-    {
+    // Host e porta **si dichiarano comunque**, anche con un ascoltatore già
+    // aperto: il `ServerBuilder` li usa per gli `EndpointDescription`, e un
+    // endpoint che annuncia una porta diversa da quella su cui si ascolta è un
+    // endpoint che mente.
+    let (host, porta) = match &ascoltatore {
+        Some(l) => match l.local_addr() {
+            Ok(a) => (a.ip().to_string(), a.port()),
+            Err(e) => {
+                warn!(source = %cfg.id, "OPC-UA server: ascoltatore senza indirizzo: {e}");
+                return;
+            }
+        },
+        None => ("0.0.0.0".to_string(), cfg.port),
+    };
+    // Il `ServerBuilder` vive dentro un blocco suo, e non e un vezzo: **non e
+    // `Send`**, e una variabile che lo tiene resta nello stato della future
+    // anche dopo essere stata consumata. Con un `await` piu in la — ce ne sono
+    // — `run_server_con` smette di essere spawnabile, e il messaggio del
+    // compilatore punta all'await e non al builder.
+    let costruito = {
+        let mut builder = ServerBuilder::new_anonymous("SWS OPC-UA Server")
+            .application_uri(format!("urn:soligolab:sws:{}", cfg.id))
+            .host(host)
+            .port(porta)
+            .trust_client_certs(true);
+        if let Some(dir) = pki {
+            builder = builder.pki_dir(dir);
+        }
+        builder
+            .with_node_manager(simple_node_manager(
+                NamespaceMetadata {
+                    namespace_uri: cfg.namespace_uri.clone(),
+                    ..Default::default()
+                },
+                "sws",
+            ))
+            .build()
+    };
+    let (server, handle) = match costruito {
         Ok(x) => x,
         Err(e) => {
             warn!(source = %cfg.id, "OPC-UA server build failed: {e}");
@@ -1316,12 +1514,118 @@ pub async fn run_server(
     // scrive sulla foglia giusta senza nessuna tabella di conversione.
     let esposti = nodi_esposti(&db, &cfg.nodes).await;
 
+    // **I tipi struttura** (Fase 4d). Un tag composito non è più una cartella
+    // con dentro le foglie: è una `Variable` con un `DataType` vero, e le
+    // foglie restano come nodi figli perché la scrittura ci passa (decisione 2).
+    let (tipi, tipo_di_radice) = tipi_pubblicati(&db, &cfg.nodes, ns).await;
+
+    // L'albero dei tipi del server, costruito a mano: senza, non si saprebbe
+    // codificare il proprio `ExtensionObject`.
+    //
+    // L'ordine è obbligato: **prima** tutti i `ParentIds`, poi i `TypeInfo`.
+    // `from_type_definition` risolve ogni tipo di campo attraverso i
+    // `ParentIds`, e riempirli man mano darebbe un esito che dipende
+    // dall'ordine di iterazione di una `HashMap` — un errore che compare su
+    // alcune esecuzioni e non su altre. Oggi coi soli tipi predefiniti non
+    // morde; morderebbe il giorno dei tipi annidati, cioè quando nessuno si
+    // ricorda più di questa riga.
+    let albero = {
+        use opcua::types::custom::{DataTypeTree, EncodingIds, ParentIds, TypeInfo};
+        use opcua::types::DataTypeId;
+        let mut pids = ParentIds::new();
+        for t in &tipi {
+            pids.add_type(t.tipo_id.clone(), DataTypeId::Structure.into());
+        }
+        let mut infos = Vec::new();
+        for t in &tipi {
+            // Gli `EncodingIds` non devono **mai** essere `None`:
+            // `from_type_definition` risponderebbe «Missing encoding IDs».
+            match TypeInfo::from_type_definition(
+                t.definizione.clone(),
+                t.nome.clone(),
+                Some(EncodingIds { binary_id: t.enc_id.clone(), ..Default::default() }),
+                false,
+                &t.tipo_id,
+                &pids,
+            ) {
+                Ok(info) => infos.push((t.tipo_id.clone(), info)),
+                Err(e) => warn!(source = %cfg.id, tipo = %t.nome, "OPC-UA: tipo non pubblicabile: {e}"),
+            }
+        }
+        let mut albero = DataTypeTree::new(pids);
+        for (id, info) in infos {
+            albero.add_type(id, info);
+        }
+        Arc::new(albero)
+    };
+    if !tipi.is_empty() {
+        handle.info().add_type_loader(Arc::new(
+            opcua::types::custom::DynamicTypeLoader::new(albero.clone()),
+        ) as Arc<dyn opcua::types::TypeLoader>);
+    }
+
+    // **Tutto quello che serve chiedere al `TagDb` si chiede PRIMA del lock.**
+    //
+    // L'indirizzario sta dietro un lock sincrono: tenerlo attraverso un `await`
+    // vuol dire che il task può essere messo in pausa mentre lo possiede, e chi
+    // altro lo vuole aspetta. Qui dentro c'erano due `await` — uno è arrivato
+    // con le strutture, l'altro c'era già — e la cosa funzionava per
+    // coincidenza, perché il `TagDb` ha un lock suo.
+    let mut iniziali: HashMap<String, Variant> = HashMap::new();
+    let mut tipi_scalari: HashMap<String, Option<String>> = HashMap::new();
+    for mapping in &cfg.nodes {
+        let esterno = mapping.effective_node_id();
+        match tipo_di_radice.get(esterno).and_then(|n| tipi.iter().find(|t| &t.nome == n)) {
+            Some(t) => {
+                if let Some(st) = db.get(&mapping.tag).await {
+                    match variant_struttura(t, &albero, &st.value) {
+                        Ok(v) => {
+                            iniziali.insert(esterno.to_string(), v);
+                        }
+                        // Si parte vuoti e l'updater riempie al primo
+                        // aggiornamento, ma lo si dice: un nodo che resta
+                        // vuoto per sempre è il difetto che si sta chiudendo.
+                        Err(e) => warn!(source = %cfg.id, tag = %mapping.tag,
+                                        "OPC-UA: valore iniziale non costruito: {e}"),
+                    }
+                }
+            }
+            None => {
+                tipi_scalari.insert(mapping.tag.clone(), db.tipo_dichiarato(&mapping.tag).await);
+            }
+        }
+    }
+
     // Populate address space: folder + one Variable per tag mapping.
     {
         let mut address_space = node_mgr.address_space().write();
         let folder_id = NodeId::new(ns, "SWS");
         let objects_folder: NodeId = ObjectId::ObjectsFolder.into();
         address_space.add_folder(&folder_id, "SWS", "SWS", &objects_folder);
+
+        // Il nodo `DataType` di ogni tipo, e **il suo nodo di codifica**.
+        //
+        // Il nodo di codifica non è opzionale, ed è il punto più facile da
+        // saltare: l'esempio del crate lo salta e funziona lo stesso, ma lì
+        // client e server condividono **lo stesso** albero. Qui l'id viaggia
+        // sul filo, e con due tipi due id nulli finirebbero nella stessa chiave
+        // della mappa encoding→tipo del client: il secondo si decodificherebbe
+        // col tipo del primo, **senza nessun errore**. Si deve chiamare
+        // esattamente «Default Binary»: è la stringa su cui il client fa match.
+        for t in &tipi {
+            opcua::nodes::DataTypeBuilder::new(&t.tipo_id, &t.nome, &t.nome)
+                .data_type_definition(t.definizione.clone())
+                .subtype_of(opcua::types::DataTypeId::Structure)
+                .insert(&mut *address_space);
+            opcua::nodes::ObjectBuilder::new(&t.enc_id, "Default Binary", "Default Binary")
+                .has_type_definition(opcua::types::ObjectTypeId::DataTypeEncodingType)
+                .reference(
+                    t.tipo_id.clone(),
+                    ReferenceTypeId::HasEncoding,
+                    opcua::nodes::ReferenceDirection::Inverse,
+                )
+                .insert(&mut *address_space);
+        }
 
         for mapping in &cfg.nodes {
             // Un tag **composito** non diventa un nodo solo: diventa una
@@ -1336,12 +1640,14 @@ pub async fn run_server(
             // scrivere dentro una struttura si fa **sul nodo figlio**
             // (decisione 2 del 23-10-2026), e per scriverci sopra bisogna che
             // quel nodo esista.
-            let foglie: Vec<&(String, String, Option<String>)> = esposti
+            // La parentela la porta `NodoEsposto::radice`, non un prefisso: con
+            // `starts_with` le foglie di `motore10` cadevano dentro `motore1`,
+            // e una mappatura con un `node_id` diverso dal tag non ritrovava
+            // le proprie foglie affatto.
+            let esterno = mapping.effective_node_id();
+            let foglie: Vec<&NodoEsposto> = esposti
                 .iter()
-                .filter(|(id, _, _)| {
-                    id.starts_with(mapping.effective_node_id())
-                        && id.as_str() != mapping.effective_node_id()
-                })
+                .filter(|n| n.radice.as_deref() == Some(esterno))
                 .collect();
 
             if foglie.is_empty() {
@@ -1350,7 +1656,7 @@ pub async fn run_server(
                 // esponeva come `Double` e poi ci si spingeva dentro un
                 // `Variant::Boolean`, e il valore contraddiceva il tipo.
                 let nid = NodeId::new(ns, mapping.effective_node_id());
-                let tipo = db.tipo_dichiarato(&mapping.tag).await;
+                let tipo = tipi_scalari.get(&mapping.tag).cloned().flatten();
                 VariableBuilder::new(
                     &nid,
                     mapping.effective_node_id(),
@@ -1366,30 +1672,74 @@ pub async fn run_server(
                 continue;
             }
 
-            // Composito: una cartella col nome della radice, e dentro le
-            // foglie. L'identificatore di ogni figlio è il **percorso**
-            // (`motore1.velocita`), lo stesso che il `TagDb` usa: così chi
-            // scrive su quel nodo scrive sulla foglia giusta senza nessuna
-            // tabella di conversione.
-            let radice_id = NodeId::new(ns, mapping.effective_node_id());
-            address_space.add_folder(
-                &radice_id,
-                mapping.effective_node_id(),
-                mapping.effective_node_id(),
-                &folder_id,
-            );
-            for (percorso, _, tipo) in &foglie {
-                let nid = NodeId::new(ns, percorso.as_str());
-                VariableBuilder::new(&nid, percorso.as_str(), percorso.as_str())
-                    .data_type(valore::tipo_opcua(tipo.as_deref()))
+            // Composito. La radice è una **struttura vera** quando il suo tipo
+            // è stato pubblicato (Fase 4d), altrimenti resta la cartella di
+            // prima — che è il caso di una forma che non si può descrivere
+            // (membro struttura, array annidato).
+            //
+            // In tutti e due i casi **le foglie restano**: la decisione 2 vuole
+            // che la scrittura passi dal nodo figlio, e per scriverci sopra
+            // bisogna che quel nodo esista. L'identificatore di ogni figlio è
+            // il percorso, lo stesso che il `TagDb` usa.
+            let radice_id = NodeId::new(ns, esterno);
+            let tipo_radice = tipo_di_radice
+                .get(esterno)
+                .and_then(|nome| tipi.iter().find(|t| &t.nome == nome));
+
+            match tipo_radice {
+                Some(t) => {
+                    // Il valore iniziale è stato costruito prima del lock.
+                    let iniziale = iniziali.get(esterno).cloned().unwrap_or(Variant::Empty);
+                    VariableBuilder::new(&radice_id, esterno, esterno)
+                        .data_type(t.tipo_id.clone())
+                        .value(iniziale)
+                        // Sola lettura: si scrive sul **nodo figlio**
+                        // (decisione 2), perché `NumericRange` indirizza solo
+                        // gli array e non il campo di una struttura.
+                        .access_level(AccessLevel::CURRENT_READ)
+                        .user_access_level(AccessLevel::CURRENT_READ)
+                        .organized_by(folder_id.clone())
+                        .reference(
+                            opcua::types::VariableTypeId::BaseDataVariableType,
+                            ReferenceTypeId::HasTypeDefinition,
+                            opcua::nodes::ReferenceDirection::Forward,
+                        )
+                        .insert(&mut *address_space);
+                }
+                None => {
+                    address_space.add_folder(&radice_id, esterno, esterno, &folder_id);
+                }
+            }
+
+            for n in &foglie {
+                let nid = NodeId::new(ns, n.id_nodo.as_str());
+                let b = VariableBuilder::new(&nid, n.id_nodo.as_str(), n.id_nodo.as_str())
+                    .data_type(valore::tipo_opcua(n.tipo.as_deref()))
                     .value(0.0_f64)
                     .access_level(AccessLevel::CURRENT_READ | AccessLevel::CURRENT_WRITE)
                     .user_access_level(AccessLevel::CURRENT_READ | AccessLevel::CURRENT_WRITE)
-                    .writable()
-                    .organized_by(radice_id.clone())
-                    .insert(&mut *address_space);
+                    .writable();
+                // Una `Variable` appesa a una `Variable` per `Organizes` è
+                // ammessa ma qualche client non la mostra: sotto una struttura
+                // i campi stanno per `HasComponent`.
+                let b = if tipo_radice.is_some() {
+                    b.component_of(radice_id.clone())
+                } else {
+                    b.organized_by(radice_id.clone())
+                };
+                b.insert(&mut *address_space);
             }
         }
+    }
+
+    // E l'albero dei tipi *del server* deve sapere che i nostri tipi sono
+    // sottotipi di `Structure`: senza, la codifica non li riconosce.
+    for t in &tipi {
+        handle.type_tree().write().add_type_node(
+            &t.tipo_id,
+            &opcua::types::DataTypeId::Structure.into(),
+            NodeClass::DataType,
+        );
     }
 
     // Le scritture che arrivano da fuori passano **dal bus** (decisione del
@@ -1412,9 +1762,9 @@ pub async fn run_server(
     let (write_tx, mut write_rx) = tokio::sync::mpsc::unbounded_channel::<(String, TagValue)>();
     {
         let impl_ = node_mgr.inner();
-        for (id_nodo, tag_o_percorso, _) in &esposti {
-            let nid = NodeId::new(ns, id_nodo.as_str());
-            let tag = tag_o_percorso.clone();
+        for n in &esposti {
+            let nid = NodeId::new(ns, n.id_nodo.as_str());
+            let tag = n.tag.clone();
             let tx = write_tx.clone();
             impl_.add_write_callback(nid, move |dv, _range| {
                 if let Some(v) = &dv.value {
@@ -1470,13 +1820,62 @@ pub async fn run_server(
     // Gli **esposti**, non le mappature: l'aggiornamento di una foglia arriva
     // col suo percorso, che una mappatura non nomina.
     let esposti_per_update: Vec<(String, String)> =
-        esposti.iter().map(|(n, t, _)| (n.clone(), t.clone())).collect();
+        esposti.iter().map(|n| (n.id_nodo.clone(), n.tag.clone())).collect();
     let ns_for_update = ns;
+    // Le radici che sono una **struttura pubblicata**: tag del `TagDb`,
+    // identificatore del nodo, e il tipo. L'aggiornamento arriva col tag, il
+    // nodo si chiama col `node_id`: quando la mappatura ne ha uno suo i due
+    // non coincidono, e cercare col nome sbagliato vuol dire non aggiornare
+    // mai niente.
+    let radici_struttura: Vec<(String, String, usize)> = cfg
+        .nodes
+        .iter()
+        .filter_map(|m| {
+            let nome = tipo_di_radice.get(m.effective_node_id())?;
+            let i = tipi.iter().position(|t| &t.nome == nome)?;
+            Some((m.tag.clone(), m.effective_node_id().to_string(), i))
+        })
+        .collect();
+    let tipi_per_update = Arc::new(tipi);
+    let albero_per_update = albero.clone();
+    let id_per_update = cfg.id.clone();
 
     let updater = tokio::spawn(async move {
+        // Un fallimento nel costruire la struttura congela il nodo sull'ultimo
+        // valore buono. Lo si dice **una volta per tag**: a ogni giro sarebbe
+        // un log che si auto-cancella, e in silenzio è il difetto che questa
+        // fase esiste per togliere.
+        let mut gia_detto: std::collections::HashSet<String> = std::collections::HashSet::new();
         loop {
             match db_rx.recv().await {
                 Ok(update) => {
+                    // **La radice, come struttura intera.** `espandi_foglie`
+                    // dà solo le foglie: senza questo pezzo il nodo struttura
+                    // non si aggiornerebbe mai — lo stesso difetto che la 4c
+                    // ha trovato al contrario sui nodi figli.
+                    if let Some((_, id_nodo, i)) =
+                        radici_struttura.iter().find(|(tag, _, _)| *tag == update.id)
+                    {
+                        let t = &tipi_per_update[*i];
+                        match variant_struttura(t, &albero_per_update, &update.state.value) {
+                            Ok(v) => {
+                                let nid = NodeId::new(ns_for_update, id_nodo.as_str());
+                                let _ = node_mgr_for_update.set_value(
+                                    handle_for_update.subscriptions(),
+                                    &nid,
+                                    None,
+                                    DataValue::new_now(v),
+                                );
+                                gia_detto.remove(&update.id);
+                            }
+                            Err(e) => {
+                                if gia_detto.insert(update.id.clone()) {
+                                    warn!(source = %id_per_update, tag = %update.id,
+                                          "OPC-UA: la struttura non si aggiorna più: {e}");
+                                }
+                            }
+                        }
+                    }
                     // **Il `TagDb` trasmette la radice, non le foglie.**
                     //
                     // Per un tag composito arriva un aggiornamento solo, con
@@ -1527,8 +1926,14 @@ pub async fn run_server(
     });
 
     // Run the server until either it exits on its own or cancel fires.
+    let in_corsa = async move {
+        match ascoltatore {
+            Some(l) => server.run_with(l).await,
+            None => server.run().await,
+        }
+    };
     tokio::select! {
-        res = server.run() => {
+        res = in_corsa => {
             if let Err(e) = res {
                 warn!(source = %cfg.id, "OPC-UA server exited with error: {e}");
             }
@@ -1601,9 +2006,20 @@ mod tests {
                 }
             }
         }
+        let forme_di_prova = forme.clone();
         db.set_forme(forme).await;
         db.set_data_types(tipi).await;
         db.set_scales(scale).await;
+        // Come `apply_tags`: senza questa riga ogni prova del server vedrebbe
+        // zero tipi struttura e passerebbe tenendo il ramo di prima — cioè non
+        // proverebbe niente.
+        db.set_tipi_struttura(
+            tags.iter()
+                .filter(|t| matches!(forme_di_prova.get(&t.id), Some(Forma::Struttura(_))))
+                .filter_map(|t| t.type_ref.clone().map(|r| (t.id.clone(), r)))
+                .collect(),
+        )
+        .await;
         db
     }
 
@@ -1675,14 +2091,347 @@ mod tests {
             serde_yaml::from_str("- tag: motore1\n").unwrap();
 
         let esposti = nodi_esposti(&db, &m).await;
-        let nomi: Vec<&str> = esposti.iter().map(|(n, _, _)| n.as_str()).collect();
+        let nomi: Vec<&str> = esposti.iter().map(|n| n.id_nodo.as_str()).collect();
         assert_eq!(nomi, vec!["motore1.velocita", "motore1.marcia"]);
         // L'identificatore del nodo **è** il percorso del TagDb: chi scrive su
         // quel nodo scrive sulla foglia giusta, senza tabelle di conversione.
-        assert_eq!(esposti[0].1, "motore1.velocita");
+        assert_eq!(esposti[0].tag, "motore1.velocita");
         // E ogni figlio porta il tipo del suo membro, non quello della radice.
-        assert_eq!(esposti[0].2.as_deref(), Some("f32"));
-        assert_eq!(esposti[1].2.as_deref(), Some("bool"));
+        assert_eq!(esposti[0].tipo.as_deref(), Some("f32"));
+        assert_eq!(esposti[1].tipo.as_deref(), Some("bool"));
+        // E ogni foglia sa di chi è figlia, senza indovinarlo da un prefisso.
+        assert_eq!(esposti[0].radice.as_deref(), Some("motore1"));
+    }
+
+    /// **Il collaudo che dice se i passi 2-7 sono veri**: il nostro server
+    /// pubblica due tipi struttura, il nostro client si collega, costruisce
+    /// l'albero dei tipi dal browse e decodifica i due `ExtensionObject`.
+    ///
+    /// **Due tipi, non uno.** Con uno solo il test passerebbe anche sbagliando
+    /// il nodo di encoding: il client rimappa un id nullo sull'unico tipo che
+    /// conosce, e il giro torna lo stesso. È con il secondo che due chiavi
+    /// nulle si pestano e si decodifica col tipo sbagliato — in silenzio.
+    ///
+    /// Niente rete, niente da installare: porta 0 su loopback, anonimo, senza
+    /// certificati (`create_sample_keypair(false)` — generarne uno costa nove
+    /// secondi e con policy `None` non serve a niente), e due cartelle
+    /// temporanee per le pki, che altrimenti nascerebbero nel checkout.
+    #[tokio::test]
+    async fn il_client_legge_le_strutture_del_nostro_server() {
+        use opcua::client::custom_types::DataTypeTreeBuilder;
+        use opcua::client::ClientBuilder;
+        use opcua::types::custom::{DynamicStructure, DynamicTypeLoader};
+        use opcua::types::{ReadValueId, TimestampsToReturn, TypeLoader};
+
+        let tipi_def: Vec<TypeDef> = serde_yaml::from_str(concat!(
+            "- id: Motore\n  members:\n    - { name: velocita, data_type: f32 }\n    - { name: marcia, data_type: bool }\n",
+            "- id: Serbatoio\n  members:\n    - { name: livello, data_type: f32 }\n",
+        ))
+        .unwrap();
+        let tags = [
+            tag_yaml("id: motore1\ntype_ref: Motore\n"),
+            tag_yaml("id: serbatoio1\ntype_ref: Serbatoio\n"),
+        ];
+        let db = Arc::new(db_con(&tags, &tipi_def).await);
+        // Valori veri, così si vede se i campi finiscono nella casella giusta.
+        let mut m = std::collections::BTreeMap::new();
+        m.insert("velocita".to_string(), sws_core::TagValue::Float(12.5));
+        m.insert("marcia".to_string(), sws_core::TagValue::Bool(true));
+        db.set("motore1".into(), sws_core::TagValue::Struct(m), TagQuality::Good).await;
+        let mut m2 = std::collections::BTreeMap::new();
+        m2.insert("livello".to_string(), sws_core::TagValue::Float(73.25));
+        db.set("serbatoio1".into(), sws_core::TagValue::Struct(m2), TagQuality::Good).await;
+
+        let ascoltatore = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let porta = ascoltatore.local_addr().unwrap().port();
+        let pki_server = tempfile::tempdir().unwrap();
+        let pki_client = tempfile::tempdir().unwrap();
+
+        let cfg: sws_core::OpcUaServerConfig = serde_yaml::from_str(&format!(
+            "id: prova\nport: {porta}\nnamespace_uri: urn:sws:prova\nnodes:\n  - tag: motore1\n  - tag: serbatoio1\n"
+        ))
+        .unwrap();
+        let cancel = tokio_util::sync::CancellationToken::new();
+        let bus = Arc::new(sws_core::TagWriteBus::default());
+        let server = tokio::spawn(run_server_con(
+            cfg,
+            db.clone(),
+            bus,
+            cancel.clone(),
+            Some(ascoltatore),
+            Some(pki_server.path().to_path_buf()),
+        ));
+
+        let mut client = ClientBuilder::new()
+            .application_name("prova")
+            .application_uri("urn:sws:prova:client")
+            .create_sample_keypair(false)
+            .trust_server_certs(true)
+            .pki_dir(pki_client.path().to_path_buf())
+            .session_retry_limit(0)
+            .client()
+            .unwrap();
+        let endpoint: opcua::types::EndpointDescription = (
+            format!("opc.tcp://127.0.0.1:{porta}/").as_str(),
+            SecurityPolicy::None.to_uri(),
+            MessageSecurityMode::None,
+            UserTokenPolicy::anonymous(),
+        )
+            .into();
+        let (session, loop_) = client
+            .connect_to_endpoint_directly(endpoint, IdentityToken::Anonymous)
+            .unwrap();
+        loop_.spawn();
+        session.wait_for_connection().await;
+
+        let albero = Arc::new(
+            DataTypeTreeBuilder::new(|_: &NodeId| true)
+                .build(&session)
+                .await
+                .expect("l'albero dei tipi si costruisce dal browse"),
+        );
+        session.add_type_loader(Arc::new(DynamicTypeLoader::new(albero.clone())) as Arc<dyn TypeLoader>);
+
+        let ns = 2;
+        let letti = session
+            .read(
+                &[
+                    ReadValueId::new_value(NodeId::new(ns, "motore1")),
+                    ReadValueId::new_value(NodeId::new(ns, "serbatoio1")),
+                ],
+                TimestampsToReturn::Both,
+                0.0,
+            )
+            .await
+            .expect("read");
+
+        let campo = |dv: &DataValue, nome: &str| -> Option<Variant> {
+            let Some(Variant::ExtensionObject(eo)) = dv.value.clone() else { return None };
+            eo.into_inner_as::<DynamicStructure>()?.get_field_by_name(nome).cloned()
+        };
+
+        assert_eq!(
+            campo(&letti[0], "velocita"),
+            Some(Variant::Float(12.5)),
+            "il primo tipo si decodifica"
+        );
+        assert_eq!(campo(&letti[0], "marcia"), Some(Variant::Boolean(true)));
+        // **Il secondo è quello che conta**: con un nodo di encoding nullo si
+        // decodificherebbe col tipo del primo, e `livello` non esisterebbe.
+        assert_eq!(
+            campo(&letti[1], "livello"),
+            Some(Variant::Float(73.25)),
+            "il secondo tipo NON si decodifica col tipo del primo"
+        );
+
+        // E l'aggiornamento arriva: il `TagDb` trasmette la radice, e senza il
+        // ramo apposta nell'updater il nodo struttura resterebbe fermo.
+        let mut m3 = std::collections::BTreeMap::new();
+        m3.insert("velocita".to_string(), sws_core::TagValue::Float(99.0));
+        m3.insert("marcia".to_string(), sws_core::TagValue::Bool(false));
+        db.set("motore1".into(), sws_core::TagValue::Struct(m3), TagQuality::Good).await;
+        let mut visto = None;
+        for _ in 0..50 {
+            tokio::time::sleep(Duration::from_millis(20)).await;
+            let r = session
+                .read(&[ReadValueId::new_value(NodeId::new(ns, "motore1"))], TimestampsToReturn::Both, 0.0)
+                .await
+                .expect("read");
+            if let Some(v) = campo(&r[0], "velocita") {
+                visto = Some(v.clone());
+                if v == Variant::Float(99.0) {
+                    break;
+                }
+            }
+        }
+        assert_eq!(visto, Some(Variant::Float(99.0)), "il nodo struttura si aggiorna");
+
+        cancel.cancel();
+        let _ = tokio::time::timeout(Duration::from_secs(5), server).await;
+    }
+
+    fn tipi_motore() -> Vec<TypeDef> {
+        serde_yaml::from_str(
+            "- id: Motore\n  members:\n    - { name: velocita, data_type: f32 }\n    - { name: marcia, data_type: bool }\n",
+        )
+        .unwrap()
+    }
+
+    /// **Due istanze dello stesso tipo condividono un `DataType` solo.** Se la
+    /// deduplica fosse per tag, il secondo `insert` nell'indirizzario
+    /// tornerebbe `false` con un `error!` che non legge nessuno, e si
+    /// pubblicherebbero due tipi identici — il contrario del motivo per cui si
+    /// pubblica una struttura.
+    #[tokio::test]
+    async fn due_istanze_dello_stesso_tipo_danno_un_datatype_solo() {
+        let tipi_def = tipi_motore();
+        let db = db_con(
+            &[
+                tag_yaml("id: motore1\ntype_ref: Motore\n"),
+                tag_yaml("id: motore2\ntype_ref: Motore\n"),
+            ],
+            &tipi_def,
+        )
+        .await;
+        let m: Vec<sws_core::OpcUaServerNodeMapping> =
+            serde_yaml::from_str("- tag: motore1\n- tag: motore2\n").unwrap();
+
+        let (tipi, per_radice) = tipi_pubblicati(&db, &m, 2).await;
+        assert_eq!(tipi.len(), 1, "un tipo solo, non uno per istanza");
+        assert_eq!(tipi[0].nome, "Motore");
+        assert_eq!(per_radice.get("motore1").map(String::as_str), Some("Motore"));
+        assert_eq!(per_radice.get("motore2").map(String::as_str), Some("Motore"));
+        // Gli id a stringa, nel nostro namespace: stabili fra due avvii per
+        // costruzione, mentre un contatore cambierebbe appena si aggiunge un
+        // tipo. E un namespace sbagliato non è un errore ma un panic.
+        assert_eq!(tipi[0].tipo_id, NodeId::new(2, "type:Motore"));
+        assert_eq!(tipi[0].enc_id, NodeId::new(2, "type:Motore:binary"));
+        // I campi, nell'ordine dichiarato: è l'ordine con cui si riempiono.
+        assert_eq!(
+            tipi[0].campi,
+            vec![("velocita".to_string(), "f32".to_string()), ("marcia".to_string(), "bool".to_string())]
+        );
+    }
+
+    /// Una forma che non si sa descrivere non si pubblica, e quel tag tiene il
+    /// comportamento di prima: cartella con le foglie dentro.
+    #[tokio::test]
+    async fn una_forma_che_non_si_descrive_non_si_pubblica() {
+        let tipi_def: Vec<TypeDef> = serde_yaml::from_str(
+            "- id: Pid\n  members:\n    - { name: kp, data_type: f32 }\n- id: Gruppo\n  members:\n    - { name: pid, type_ref: Pid }\n",
+        )
+        .unwrap();
+        let db = db_con(&[tag_yaml("id: g1\ntype_ref: Gruppo\n")], &tipi_def).await;
+        let m: Vec<sws_core::OpcUaServerNodeMapping> = serde_yaml::from_str("- tag: g1\n").unwrap();
+
+        let (tipi, per_radice) = tipi_pubblicati(&db, &m, 2).await;
+        assert!(tipi.is_empty(), "una struttura annidata non si pubblica in questo giro");
+        assert!(per_radice.is_empty(), "e la radice non deve credersi una struttura");
+        // Ma le foglie ci sono lo stesso: il tag resta usabile.
+        assert!(!nodi_esposti(&db, &m).await.is_empty());
+    }
+
+    /// Il difetto del prefisso nudo: le foglie di `motore10` non devono cadere
+    /// dentro `motore1`.
+    #[tokio::test]
+    async fn due_radici_con_un_prefisso_in_comune_non_si_mescolano() {
+        let tipi_def = tipi_motore();
+        let db = db_con(
+            &[
+                tag_yaml("id: motore1\ntype_ref: Motore\n"),
+                tag_yaml("id: motore10\ntype_ref: Motore\n"),
+            ],
+            &tipi_def,
+        )
+        .await;
+        let m: Vec<sws_core::OpcUaServerNodeMapping> =
+            serde_yaml::from_str("- tag: motore1\n- tag: motore10\n").unwrap();
+        let esposti = nodi_esposti(&db, &m).await;
+
+        let di_uno: Vec<&str> = esposti
+            .iter()
+            .filter(|n| n.radice.as_deref() == Some("motore1"))
+            .map(|n| n.id_nodo.as_str())
+            .collect();
+        assert_eq!(di_uno, vec!["motore1.velocita", "motore1.marcia"]);
+        assert_eq!(
+            esposti.iter().filter(|n| n.radice.as_deref() == Some("motore10")).count(),
+            2
+        );
+    }
+
+    /// Una mappatura con un `node_id` suo: il nodo si chiama col `node_id`, ma
+    /// dentro il `TagDb` si continua a leggere il percorso vero. Prima le
+    /// foglie restavano orfane — nominate col tag, cercate col `node_id` — e il
+    /// tag finiva esposto come uno scalare `Double`.
+    #[tokio::test]
+    async fn un_node_id_suo_rinomina_i_nodi_ma_non_i_tag() {
+        let tipi_def = tipi_motore();
+        let db = db_con(&[tag_yaml("id: motore1\ntype_ref: Motore\n")], &tipi_def).await;
+        let m: Vec<sws_core::OpcUaServerNodeMapping> =
+            serde_yaml::from_str("- tag: motore1\n  node_id: M1\n").unwrap();
+        let esposti = nodi_esposti(&db, &m).await;
+
+        assert_eq!(
+            esposti.iter().map(|n| n.id_nodo.as_str()).collect::<Vec<_>>(),
+            vec!["M1.velocita", "M1.marcia"]
+        );
+        assert_eq!(
+            esposti.iter().map(|n| n.tag.as_str()).collect::<Vec<_>>(),
+            vec!["motore1.velocita", "motore1.marcia"],
+            "il TagDb non sa niente di M1"
+        );
+        assert!(esposti.iter().all(|n| n.radice.as_deref() == Some("M1")));
+    }
+
+    /// **L'ordine dei campi è quello dichiarato, non quello della mappa.**
+    /// `TagValue::Struct` è una `BTreeMap`, quindi alfabetica, e
+    /// `DynamicStructure` riempie per posizione: i due campi qui hanno nomi il
+    /// cui ordine alfabetico è l'inverso di quello dichiarato, e sono dello
+    /// stesso tipo — così uno scambio non lo prenderebbe nessuna validazione.
+    #[tokio::test]
+    async fn i_campi_si_riempiono_nell_ordine_dichiarato() {
+        use opcua::types::custom::{DataTypeTree, EncodingIds, ParentIds, TypeInfo};
+        use opcua::types::DataTypeId;
+
+        let tipi_def: Vec<TypeDef> = serde_yaml::from_str(
+            "- id: Coppia\n  members:\n    - { name: zeta, data_type: f32 }\n    - { name: alfa, data_type: f32 }\n",
+        )
+        .unwrap();
+        let db = db_con(&[tag_yaml("id: c1\ntype_ref: Coppia\n")], &tipi_def).await;
+        let m: Vec<sws_core::OpcUaServerNodeMapping> = serde_yaml::from_str("- tag: c1\n").unwrap();
+        let (tipi, _) = tipi_pubblicati(&db, &m, 2).await;
+        let t = &tipi[0];
+
+        let mut pids = ParentIds::new();
+        pids.add_type(t.tipo_id.clone(), DataTypeId::Structure.into());
+        let info = TypeInfo::from_type_definition(
+            t.definizione.clone(),
+            t.nome.clone(),
+            Some(EncodingIds { binary_id: t.enc_id.clone(), ..Default::default() }),
+            false,
+            &t.tipo_id,
+            &pids,
+        )
+        .expect("from_type_definition");
+        let mut albero = DataTypeTree::new(pids);
+        albero.add_type(t.tipo_id.clone(), info);
+        let albero = Arc::new(albero);
+
+        let mut mappa = std::collections::BTreeMap::new();
+        mappa.insert("alfa".to_string(), sws_core::TagValue::Float(1.0));
+        mappa.insert("zeta".to_string(), sws_core::TagValue::Float(2.0));
+        assert_eq!(
+            mappa.keys().next().map(String::as_str),
+            Some("alfa"),
+            "la mappa è alfabetica: è il punto del test"
+        );
+
+        let v = variant_struttura(t, &albero, &sws_core::TagValue::Struct(mappa))
+            .expect("la struttura si costruisce");
+        let opcua::types::Variant::ExtensionObject(eo) = v else { panic!("non è un ExtensionObject") };
+        let ds = eo
+            .inner_as::<opcua::types::custom::DynamicStructure>()
+            .expect("DynamicStructure");
+        assert_eq!(ds.get_field_by_name("zeta"), Some(&opcua::types::Variant::Float(2.0)));
+        assert_eq!(ds.get_field_by_name("alfa"), Some(&opcua::types::Variant::Float(1.0)));
+    }
+
+    /// Un campo che manca non produce una struttura mezza vuota: produce un
+    /// errore che si può leggere. Prima un fallimento qui congelava il nodo in
+    /// silenzio.
+    #[tokio::test]
+    async fn una_struttura_incompleta_dice_perche() {
+        let tipi_def = tipi_motore();
+        let db = db_con(&[tag_yaml("id: motore1\ntype_ref: Motore\n")], &tipi_def).await;
+        let m: Vec<sws_core::OpcUaServerNodeMapping> = serde_yaml::from_str("- tag: motore1\n").unwrap();
+        let (tipi, _) = tipi_pubblicati(&db, &m, 2).await;
+        let albero = Arc::new(opcua::types::custom::DataTypeTree::new(
+            opcua::types::custom::ParentIds::new(),
+        ));
+        let e = variant_struttura(&tipi[0], &albero, &sws_core::TagValue::Float(1.0))
+            .expect_err("un numero non è una struttura");
+        assert!(e.contains("Motore"), "l'errore nomina il tipo: {e}");
     }
 
     /// Uno scalare resta un nodo solo: il caso normale non cambia.
@@ -1693,8 +2442,9 @@ mod tests {
             serde_yaml::from_str("- tag: pressione\n").unwrap();
         let esposti = nodi_esposti(&db, &m).await;
         assert_eq!(esposti.len(), 1);
-        assert_eq!(esposti[0].1, "pressione");
-        assert_eq!(esposti[0].2.as_deref(), Some("u16"));
+        assert_eq!(esposti[0].tag, "pressione");
+        assert_eq!(esposti[0].tipo.as_deref(), Some("u16"));
+        assert_eq!(esposti[0].radice, None, "uno scalare non è figlio di niente");
     }
 
     /// Un array dà un nodo per elemento, con lo stesso criterio.
@@ -1705,8 +2455,8 @@ mod tests {
             serde_yaml::from_str("- tag: livelli\n").unwrap();
         let esposti = nodi_esposti(&db, &m).await;
         assert_eq!(esposti.len(), 3);
-        assert_eq!(esposti[0].0, "livelli[0]");
-        assert_eq!(esposti[2].0, "livelli[2]");
+        assert_eq!(esposti[0].id_nodo, "livelli[0]");
+        assert_eq!(esposti[2].id_nodo, "livelli[2]");
     }
 
     /// Un array arriva come **un** valore e deve finire nel TagDb **una foglia

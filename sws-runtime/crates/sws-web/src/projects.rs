@@ -1280,6 +1280,24 @@ pub(crate) fn build_forme(
     out
 }
 
+/// Il nome del tipo di ogni radice **struttura** (Fase 4d): `motore1` →
+/// `Motore`. Stessi punti di refresh di `build_forme`, con cui va a braccetto.
+///
+/// Solo le strutture: un `array:` di scalari è una radice composita ma non ha
+/// un tipo da pubblicare, e un `type_ref` che `build_forme` ha scartato
+/// (ciclo, tipo inesistente) non deve comparire qui — altrimenti il server
+/// proverebbe a pubblicare il `DataType` di una forma che non esiste.
+pub(crate) fn build_tipi_struttura(
+    tags: &[sws_core::TagDef],
+    types: &[sws_core::TypeDef],
+) -> std::collections::HashMap<String, String> {
+    let forme = build_forme(tags, types);
+    tags.iter()
+        .filter(|t| matches!(forme.get(&t.id), Some(sws_core::Forma::Struttura(_))))
+        .filter_map(|t| t.type_ref.clone().map(|r| (t.id.clone(), r)))
+        .collect()
+}
+
 /// Insieme dei tag calcolati (`TagDef::is_computed`, T-69), stessi punti di
 /// refresh di `build_tag_scales`. `write_tag` li rifiuta in scrittura.
 pub(crate) fn build_computed_tags(tags: &[sws_core::TagDef]) -> std::collections::HashSet<String> {
@@ -1334,6 +1352,7 @@ pub async fn apply_tags(
     // composito, e `set` deve già sapere che `motore1` è una radice.
     let forme = build_forme(tags, types);
     db.set_forme(forme.clone()).await;
+    db.set_tipi_struttura(build_tipi_struttura(tags, types)).await;
     let mut seminati = 0;
     for t in tags.iter().filter(|t| !attuali.contains(&t.id)) {
         let iniziale = match forme.get(&t.id) {
@@ -3512,6 +3531,52 @@ fn migrate_legacy_sqlite_path(project_dir: &StdPath) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Fase 4d: il **nome del tipo** di ogni istanza arriva fino al `TagDb`.
+    ///
+    /// Serve al server OPC-UA, che pubblica una struttura come `DataType`: due
+    /// istanze dello stesso tipo devono dichiarare lo **stesso** tipo, e col
+    /// solo id del tag ognuna ne genererebbe uno suo — il contrario del motivo
+    /// per cui si pubblica una struttura.
+    #[tokio::test]
+    async fn il_nome_del_tipo_arriva_al_tagdb() {
+        let db = TagDb::new(8);
+        let derived: DerivedTagsRegistry = Default::default();
+        let generators: GeneratorTagsRegistry = Default::default();
+        let tag =
+            |yaml: &str| -> sws_core::TagDef { serde_yaml::from_str(yaml).expect("tag di prova") };
+        let tipi: Vec<sws_core::TypeDef> = serde_yaml::from_str(
+            "- id: Motore\n  members:\n    - { name: velocita, data_type: f32 }\n    - { name: marcia, data_type: bool }\n",
+        )
+        .expect("tipi di prova");
+        let tags = vec![
+            tag("{ id: motore1, type_ref: Motore }"),
+            tag("{ id: motore2, type_ref: Motore }"),
+            tag("{ id: soglie, array: [4], data_type: u16 }"),
+            tag("{ id: temperatura, data_type: f32 }"),
+            tag("{ id: rotto, type_ref: TipoCheNonEsiste }"),
+        ];
+        apply_tags(&db, &derived, &generators, &tags, &tipi).await;
+
+        assert_eq!(db.tipo_struttura("motore1").await.as_deref(), Some("Motore"));
+        assert_eq!(
+            db.tipo_struttura("motore2").await.as_deref(),
+            Some("Motore"),
+            "due istanze dello stesso tipo devono dire lo STESSO nome"
+        );
+        assert_eq!(
+            db.tipo_struttura("soglie").await,
+            None,
+            "un array di scalari è una radice, ma non è una struttura da pubblicare"
+        );
+        assert_eq!(db.tipo_struttura("temperatura").await, None, "uno scalare non ha un tipo struttura");
+        assert_eq!(
+            db.tipo_struttura("rotto").await,
+            None,
+            "un type_ref che build_forme ha scartato non deve comparire qui: il server proverebbe a \
+             pubblicare il DataType di una forma che non esiste"
+        );
+    }
 
     /// Fase 0d: un posto solo installa i tag nel runtime, e fa sempre tutto.
     /// Prima la ricarica da git non aggiornava scale, tipi e ruoli e non
