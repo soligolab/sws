@@ -249,6 +249,9 @@ pub enum LiveKind {
         last_level: f64,
         /// Il corpo, per i colori di stato e l'etichetta dal vivo (Fase 3).
         corpo: Box<PipeCorpo>,
+        /// Presente solo se il tubo è agganciato a qualcosa: è ciò che gli fa
+        /// seguire un oggetto mosso da una variabile (22-10-2026).
+        ancore: Option<Box<AncoreTubo>>,
     },
     /// SVG rasterizzato (simbolo vendored/custom, widget `image`).
     ///
@@ -2395,7 +2398,32 @@ fn ancora_di(obj: &SynopticObject, porta: Option<&str>, m: Option<&sws_core::sim
 /// riferimento rotto deve dare una pipe storta, non una pagina in meno.
 #[cfg(test)]
 fn punti_ancorati(pipe: &SynopticObject, oggetti: &[SynopticObject]) -> Option<Vec<PipePoint>> {
-    percorso_tubo(pipe, oggetti, None)
+    percorso_tubo(pipe, oggetti, None, &TagSnapshot::default())
+}
+
+/// L'oggetto a cui un capo è agganciato, **coi binding risolti**.
+///
+/// Senza questo, il percorso di un tubo si calcola sulla geometria scritta nel
+/// file mentre l'oggetto a cui è agganciato viene disegnato dove dicono i suoi
+/// binding (`apply_bindings`, nel ciclo di `interpret_page`): il tubo nasce
+/// staccato dalla pompa **già al primo fotogramma**, prima che un tag cambi
+/// anche una sola volta (misurato il 22-10-2026).
+///
+/// `Cow` e non un `clone()` secco: la stragrande maggioranza degli oggetti non
+/// ha binding, e per quelli `apply_bindings` torna `None` — non c'è ragione di
+/// copiare un `SynopticObject` per ognuno. Conta poco al caricamento della
+/// pagina; conterà quando questa funzione girerà a ogni ricalcolo (Fase 2).
+fn ancora_risolta<'a>(
+    oggetti: &'a [SynopticObject],
+    id: Option<&str>,
+    tags: &TagSnapshot,
+) -> Option<std::borrow::Cow<'a, SynopticObject>> {
+    let id = id?;
+    let o = oggetti.iter().find(|o| o.id.as_deref() == Some(id))?;
+    Some(match apply_bindings(o, tags) {
+        Some(r) => std::borrow::Cow::Owned(r),
+        None => std::borrow::Cow::Borrowed(o),
+    })
 }
 
 /// Come `percorsoTubo` sul web (15-10-2026): i capi sulle bocche vere e, con
@@ -2406,6 +2434,7 @@ fn percorso_tubo(
     pipe: &SynopticObject,
     oggetti: &[SynopticObject],
     m: Option<&sws_core::simboli_lib::ManifestLib>,
+    tags: &TagSnapshot,
 ) -> Option<Vec<PipePoint>> {
     use sws_core::tubazioni::{instrada, Capo, Punto, Tappa};
     let routing = pipe.routing.as_deref().unwrap_or("straight");
@@ -2414,9 +2443,8 @@ fn percorso_tubo(
         return None;
     }
     let mut punti = pipe.points.clone().unwrap_or_default();
-    let trova = |id: &str| oggetti.iter().find(|o| o.id.as_deref() == Some(id));
-    let src = pipe.from_obj_id.as_deref().and_then(trova);
-    let dst = pipe.to_obj_id.as_deref().and_then(trova);
+    let src = ancora_risolta(oggetti, pipe.from_obj_id.as_deref(), tags);
+    let dst = ancora_risolta(oggetti, pipe.to_obj_id.as_deref(), tags);
     if punti.is_empty() {
         // Nessun punto esplicito: con entrambi i capi agganciati la pipe è
         // comunque disegnabile — due estremi bastano a fare un segmento.
@@ -2429,8 +2457,8 @@ fn percorso_tubo(
     if instradato && punti.len() < 2 {
         return None;
     }
-    let da = src.map(|o| ancora_di(o, pipe.from_port.as_deref(), m));
-    let a = dst.map(|o| ancora_di(o, pipe.to_port.as_deref(), m));
+    let da = src.as_deref().map(|o| ancora_di(o, pipe.from_port.as_deref(), m));
+    let a = dst.as_deref().map(|o| ancora_di(o, pipe.to_port.as_deref(), m));
     if instradato {
         let punto = |p: &PipePoint| Punto { x: p.x, y: p.y };
         let ultimo = punti.len() - 1;
@@ -8893,14 +8921,23 @@ fn render_pipe(
     // superava l'1%, e il tubo appariva pieno in modo uniforme a qualunque
     // livello — segnalato sul WP630 il 2026-08-26. Il livello non si vedeva
     // affatto: si vedeva solo "c'è del liquido / non ce n'è".
-    let body_pts: Vec<lvgl_sys::lv_point_t> = assoluti
+    // 22-10-2026: il `Vec` è **posseduto** dal binding, non più `Box::leak`-ato.
+    // Il leak si giustificava con «il corpo non cambia mai»; da quando un capo
+    // agganciato segue l'oggetto, cambia — e leakarne uno per spostamento
+    // vorrebbe dire perdere memoria a ogni fotogramma. È la stessa ragione per
+    // cui il riempimento ha sempre tenuto i suoi punti in un `Vec`.
+    //
+    // Spostare un `Vec` non sposta il suo buffer sull'heap, quindi il puntatore
+    // che LVGL si tiene resta valido quando questo finisce dentro `PipeCorpo`.
+    // Dopo ogni modifica del `Vec` si **ri-chiama** `lv_line_set_points`, perché
+    // `clear()` + `extend()` possono riallocare.
+    let punti_corpo: Vec<lvgl_sys::lv_point_t> = assoluti
         .iter()
         .map(|(x, y)| lvgl_sys::lv_point_t {
             x: (x - ox).round() as i16,
             y: (y - oy).round() as i16,
         })
         .collect();
-    let body_leaked: &'static [lvgl_sys::lv_point_t] = Box::leak(body_pts.into_boxed_slice());
 
     // Fase 3 (30-09-2026): gli stili del web. «tube» = ombra scura sotto,
     // corpo, riflesso chiaro sopra (LVGL non sfuma una linea nello spessore:
@@ -8936,7 +8973,7 @@ fn render_pipe(
         let p = l.raw().map_err(|e| anyhow::anyhow!("raw: {e:?}"))?;
         unsafe {
             lvgl_sys::lv_obj_set_pos(p.as_ptr(), ox.round() as i16, oy.round() as i16);
-            lvgl_sys::lv_line_set_points(p.as_ptr(), body_leaked.as_ptr(), body_leaked.len() as u16);
+            lvgl_sys::lv_line_set_points(p.as_ptr(), punti_corpo.as_ptr(), punti_corpo.len() as u16);
             lvgl_sys::lv_obj_set_style_line_width(p.as_ptr(), larghezza.round().max(1.0) as i16, 0);
             lvgl_sys::lv_obj_set_style_line_rounded(p.as_ptr(), true, 0);
             if ruolo == RuoloLinea::Corpo {
@@ -9058,13 +9095,9 @@ fn render_pipe(
         // rendeva scorrevole lo schermo (visto il 15-10-2026).
         let lato = if ex.inizio.is_some() || ex.fine.is_some() { ex.lato() as f64 } else { 0.0 };
         let margine = lato.max(sw_f) + 4.0;
-        let (minx, maxx) = pts.iter().fold((f64::MAX, f64::MIN), |(a, b), p| (a.min(p.0), b.max(p.0)));
-        let (miny, maxy) = pts.iter().fold((f64::MAX, f64::MIN), |(a, b), p| (a.min(p.1), b.max(p.1)));
-        let (bx, by) = (minx - margine, miny - margine);
-        let (bw, bh) = (maxx - minx + 2.0 * margine, maxy - miny + 2.0 * margine);
+        let (bx, by, w, h) = riquadro_extra(&pts, margine);
         ex.punti = pts.iter().map(|p| ((p.0 - bx) as f32, (p.1 - by) as f32)).collect();
         let riquadro_obj = SynopticObject { x: Some(bx), y: Some(by), ..Default::default() };
-        let (w, h) = (bw.round().clamp(1.0, 2048.0) as u32, bh.round().clamp(1.0, 2048.0) as u32);
         let (canvas, buf) = canvas_alfa(screen, &riquadro_obj, w, h)?;
         Some(ExtraTubo {
             canvas,
@@ -9073,6 +9106,7 @@ fn render_pipe(
             extra: ex,
             flusso,
             disegnato: None,
+            margine,
         })
     } else {
         None
@@ -9080,6 +9114,9 @@ fn render_pipe(
 
     let mut corpo = Box::new(PipeCorpo {
         linee,
+        punti_corpo,
+        etichetta_offset: obj.pipe_label_offset.unwrap_or(10.0),
+        etichetta_corpo: obj.font_size.unwrap_or(12.0).round().clamp(6.0, 200.0),
         stato_tag: obj.state_tag.clone(),
         allarme_tag: obj.alarm_tag.clone(),
         colori,
@@ -9102,6 +9139,9 @@ fn render_pipe(
             buf,
             last_level: level,
             corpo,
+            ancore: ANCORE_TUBO
+                .with(|a| a.borrow_mut().remove(obj.id.as_deref().unwrap_or("")))
+                .map(Box::new),
         },
     })
 }
@@ -9155,6 +9195,14 @@ impl ColoriTubo {
 /// Il corpo del tubo dal vivo: le sue linee, i tag di stato, l'etichetta.
 pub struct PipeCorpo {
     linee: Vec<(core::ptr::NonNull<lvgl_sys::lv_obj_t>, RuoloLinea)>,
+    /// I punti della polilinea, relativi all'origine. LVGL ne tiene il
+    /// puntatore, non una copia: vive qui, e dopo ogni modifica si ri-chiama
+    /// `lv_line_set_points` su tutte le linee.
+    punti_corpo: Vec<lvgl_sys::lv_point_t>,
+    /// Quanto sta sopra il punto di mezzo l'etichetta, e il suo corpo: servono
+    /// a rimetterla al posto giusto quando il percorso cambia.
+    etichetta_offset: f64,
+    etichetta_corpo: f64,
     stato_tag: Option<String>,
     allarme_tag: Option<String>,
     colori: ColoriTubo,
@@ -9179,9 +9227,34 @@ pub struct ExtraTubo {
     /// `pipe_flow` acceso: `Some(pipe_flow_tag)` (vuoto = sempre).
     flusso: Option<Option<String>>,
     disegnato: Option<((u8, u8, u8), Option<f32>)>,
+    /// Il margine attorno alla polilinea, per rifare il riquadro quando un capo
+    /// si sposta: lo stesso numero che l'ha deciso alla creazione.
+    margine: f64,
 }
 
 impl ExtraTubo {
+    /// Come `CorpoSvg::riposiziona`, sul canvas delle estremità e del flusso.
+    fn riposiziona(&mut self, assoluti: &[(f64, f64)]) {
+        let (bx, by, w, h) = riquadro_extra(assoluti, self.margine);
+        if (w, h) != (self.pixmap.width(), self.pixmap.height()) {
+            let Some(px) = resvg::tiny_skia::Pixmap::new(w, h) else { return };
+            self.pixmap = px;
+            self.buf = vec![0u8; 3 * w as usize * h as usize];
+            unsafe {
+                lvgl_sys::lv_canvas_set_buffer(
+                    self.canvas.as_ptr(),
+                    self.buf.as_mut_ptr() as *mut std::ffi::c_void,
+                    w as lvgl_sys::lv_coord_t,
+                    h as lvgl_sys::lv_coord_t,
+                    lvgl_sys::LV_IMG_CF_TRUE_COLOR_ALPHA as lvgl_sys::lv_img_cf_t,
+                );
+            }
+        }
+        self.extra.punti = assoluti.iter().map(|p| ((p.0 - bx) as f32, (p.1 - by) as f32)).collect();
+        unsafe { lvgl_sys::lv_obj_set_pos(self.canvas.as_ptr(), bx.round() as i16, by.round() as i16) };
+        self.disegnato = None;
+    }
+
     fn disegna(&mut self, colore: (u8, u8, u8), flusso: Option<f32>) {
         if self.disegnato == Some((colore, flusso)) {
             return;
@@ -9214,12 +9287,66 @@ thread_local! {
     /// disegno, per id: li calcola il ciclo, che vede tutti gli oggetti, e li
     /// legge `render_pipe`, che vede solo il suo (15-10-2026).
     static BOCCHE_TUBO: RefCell<std::collections::HashMap<String, [Option<f64>; 2]>> = RefCell::new(std::collections::HashMap::new());
+
+    /// Da cosa dipende la geometria di ogni tubo agganciato della pagina in
+    /// corso di disegno. Stesso giro di `BOCCHE_TUBO`, e per la stessa ragione:
+    /// la lista degli oggetti ce l'ha solo il ciclo, e `render_pipe` vede solo
+    /// il proprio. `render_pipe` lo **prende** (`remove`), così finisce dentro
+    /// il suo `LiveBinding` e non resta una copia appesa qui.
+    static ANCORE_TUBO: RefCell<std::collections::HashMap<String, AncoreTubo>> = RefCell::new(std::collections::HashMap::new());
+}
+
+/// Quel che serve a ricalcolare il percorso di un tubo a ogni fotogramma.
+///
+/// Tiene il **pipe originale**, non quello che `interpret_page` ha già
+/// ancorato: su un `routing: orthogonal` il ciclo sostituisce `points` con la
+/// polilinea completa e riscrive `routing` a `straight`, e ricalcolare su
+/// quello tratterebbe ogni gomito come un punto voluto dall'utente.
+pub struct AncoreTubo {
+    pipe: SynopticObject,
+    /// I soli oggetti a cui il tubo è agganciato — uno o due, non la pagina.
+    oggetti: Vec<SynopticObject>,
+    manifesto: Option<std::sync::Arc<sws_core::simboli_lib::ManifestLib>>,
+    /// L'ultimo percorso applicato, per non ridisegnare da fermo.
+    ultimo: Vec<(f64, f64)>,
+}
+
+impl AncoreTubo {
+    /// Il percorso di adesso, se si è spostato abbastanza da vedersi.
+    ///
+    /// Mezzo pixel è la soglia: sotto, `round()` darebbe le stesse coordinate
+    /// intere e si ridisegnerebbe per niente. È lo stesso criterio che
+    /// `Geometry` e `PipeFill` usano già («fermo: non toccare nulla»).
+    fn mosso(&mut self, tags: &TagSnapshot) -> Option<Vec<(f64, f64)>> {
+        let punti = percorso_tubo(&self.pipe, &self.oggetti, self.manifesto.as_deref(), tags)?;
+        if punti.len() < 2 {
+            return None;
+        }
+        let nuovo: Vec<(f64, f64)> = punti.iter().map(|p| (p.x, p.y)).collect();
+        let fermo = nuovo.len() == self.ultimo.len()
+            && nuovo
+                .iter()
+                .zip(&self.ultimo)
+                .all(|(a, b)| (a.0 - b.0).abs() < 0.5 && (a.1 - b.1).abs() < 0.5);
+        if fermo {
+            return None;
+        }
+        self.ultimo = nuovo.clone();
+        Some(nuovo)
+    }
 }
 
 /// Il diametro della bocca a cui è agganciato ciascun capo, se è una bocca.
-fn diametri_capi(pipe: &SynopticObject, oggetti: &[SynopticObject], m: Option<&sws_core::simboli_lib::ManifestLib>) -> [Option<f64>; 2] {
+fn diametri_capi(
+    pipe: &SynopticObject,
+    oggetti: &[SynopticObject],
+    m: Option<&sws_core::simboli_lib::ManifestLib>,
+    tags: &TagSnapshot,
+) -> [Option<f64>; 2] {
     let uno = |id: Option<&str>, porta: Option<&str>| -> Option<f64> {
-        let o = oggetti.iter().find(|o| o.id.as_deref() == id && id.is_some())?;
+        // Come in `percorso_tubo`: il diametro si legge sul riquadro **vivo**,
+        // perché una `width` legata a un tag cambia la bocca come la cambia una `x`.
+        let o = ancora_risolta(oggetti, id, tags)?;
         if o.obj_type.as_deref() != Some("symbol") {
             return None;
         }
@@ -9260,6 +9387,39 @@ pub struct CorpoSvg {
     disegnato: Option<Option<String>>,
 }
 
+/// Il riquadro del canvas del corpo 2.5D attorno alla polilinea.
+///
+/// Esiste perché creazione e riposizionamento lo calcolino **con la stessa
+/// riga**: due copie di questo conto divergono in silenzio, e il sintomo
+/// sarebbe un tubo disegnato bene appena nato e tagliato dopo il primo
+/// spostamento.
+fn riquadro_corpo(assoluti: &[(f64, f64)], margine: f64) -> (f64, f64, u32, u32) {
+    let (minx, maxx) = assoluti.iter().fold((f64::MAX, f64::MIN), |(a, b), p| (a.min(p.0), b.max(p.0)));
+    let (miny, maxy) = assoluti.iter().fold((f64::MAX, f64::MIN), |(a, b), p| (a.min(p.1), b.max(p.1)));
+    let (bx, by) = ((minx - margine).floor(), (miny - margine).floor());
+    (
+        bx,
+        by,
+        (maxx - bx + margine).ceil().clamp(1.0, 2048.0) as u32,
+        (maxy - by + margine).ceil().clamp(1.0, 2048.0) as u32,
+    )
+}
+
+/// Il riquadro del canvas delle estremità e del flusso. **Non** è lo stesso
+/// conto del corpo: qui il margine non si arrotonda e la misura si prende
+/// sull'estensione, non sul riquadro già spostato. Due funzioni e non una, per
+/// non far finta che siano la stessa cosa.
+fn riquadro_extra(assoluti: &[(f64, f64)], margine: f64) -> (f64, f64, u32, u32) {
+    let (minx, maxx) = assoluti.iter().fold((f64::MAX, f64::MIN), |(a, b), p| (a.min(p.0), b.max(p.0)));
+    let (miny, maxy) = assoluti.iter().fold((f64::MAX, f64::MIN), |(a, b), p| (a.min(p.1), b.max(p.1)));
+    (
+        minx - margine,
+        miny - margine,
+        (maxx - minx + 2.0 * margine).round().clamp(1.0, 2048.0) as u32,
+        (maxy - miny + 2.0 * margine).round().clamp(1.0, 2048.0) as u32,
+    )
+}
+
 impl CorpoSvg {
     #[allow(clippy::too_many_arguments)]
     fn nuovo(
@@ -9272,14 +9432,7 @@ impl CorpoSvg {
         base_url: &str,
         rt_handle: &tokio::runtime::Handle,
     ) -> anyhow::Result<CorpoSvg> {
-        let margine = sws_core::stili_tubo::margine(stile, d);
-        let (minx, maxx) = assoluti.iter().fold((f64::MAX, f64::MIN), |(a, b), p| (a.min(p.0), b.max(p.0)));
-        let (miny, maxy) = assoluti.iter().fold((f64::MAX, f64::MIN), |(a, b), p| (a.min(p.1), b.max(p.1)));
-        let (bx, by) = ((minx - margine).floor(), (miny - margine).floor());
-        let (w, h) = (
-            (maxx - bx + margine).ceil().clamp(1.0, 2048.0) as u32,
-            (maxy - by + margine).ceil().clamp(1.0, 2048.0) as u32,
-        );
+        let (bx, by, w, h) = riquadro_corpo(assoluti, sws_core::stili_tubo::margine(stile, d));
         let riquadro = SynopticObject { x: Some(bx), y: Some(by), ..Default::default() };
         let (canvas, buf) = canvas_alfa(screen, &riquadro, w, h)?;
         let prog = crate::simbolo_lib::stile_progetto(base_url, rt_handle);
@@ -9306,6 +9459,41 @@ impl CorpoSvg {
             colore_allarme: obj.state_alarm_color.clone().unwrap_or_else(|| "#ef4444".into()),
             disegnato: None,
         })
+    }
+
+    /// Il percorso è cambiato: rifà il riquadro, rialloca il pixmap se la
+    /// misura non basta più, e scorda l'ultimo disegno così che il prossimo
+    /// `disegna` ridisegni davvero.
+    ///
+    /// L'ostacolo di questo canvas non è che ridisegnare costi — con
+    /// `pipe_flow` si ridisegna già 25 volte al secondo, perché la chiave della
+    /// cache include lo scostamento del flusso. L'ostacolo è che **pixmap e
+    /// buffer hanno la misura della creazione**: se un capo esce dal riquadro,
+    /// il disegno viene tagliato. Per questo qui si rialloca.
+    fn riposiziona(&mut self, assoluti: &[(f64, f64)]) {
+        let (bx, by, w, h) = riquadro_corpo(assoluti, sws_core::stili_tubo::margine(self.stile, self.d));
+        if (w, h) != (self.pixmap.width(), self.pixmap.height()) {
+            let Some(px) = resvg::tiny_skia::Pixmap::new(w, h) else {
+                // Misura impossibile: meglio un tubo che resta dov'era di un
+                // canvas con un buffer che non corrisponde a ciò che LVGL crede.
+                return;
+            };
+            self.pixmap = px;
+            self.buf = vec![0u8; 3 * w as usize * h as usize];
+            unsafe {
+                lvgl_sys::lv_canvas_set_buffer(
+                    self.canvas.as_ptr(),
+                    self.buf.as_mut_ptr() as *mut std::ffi::c_void,
+                    w as lvgl_sys::lv_coord_t,
+                    h as lvgl_sys::lv_coord_t,
+                    lvgl_sys::LV_IMG_CF_TRUE_COLOR_ALPHA as lvgl_sys::lv_img_cf_t,
+                );
+            }
+        }
+        self.origine = (bx, by);
+        self.punti = assoluti.iter().map(|(x, y)| sws_core::tubazioni::Punto { x: *x, y: *y }).collect();
+        unsafe { lvgl_sys::lv_obj_set_pos(self.canvas.as_ptr(), bx.round() as i16, by.round() as i16) };
+        self.disegnato = None;
     }
 
     fn disegna(&mut self, colore_stato: Option<String>) {
@@ -9355,6 +9543,50 @@ impl PipeCorpo {
                 RuoloLinea::Riflesso => self.chiaro_fisso.unwrap_or_else(|| schiarisci(c, true)),
             };
             unsafe { lvgl_sys::lv_obj_set_style_line_color(p.as_ptr(), Color::from_rgb(rgb).into(), 0) };
+        }
+    }
+
+    /// Il percorso è cambiato: rimette al posto giusto tutto ciò che dipende
+    /// dalla geometria — le linee del corpo, il canvas 2.5D, quello delle
+    /// estremità, l'etichetta. Il riempimento no: ce l'ha il chiamante, che
+    /// tiene la sua `spec`.
+    fn riposiziona(&mut self, assoluti: &[(f64, f64)]) {
+        let (ox, oy) = origine_polilinea(assoluti);
+        self.punti_corpo.clear();
+        self.punti_corpo.extend(assoluti.iter().map(|(x, y)| lvgl_sys::lv_point_t {
+            x: (x - ox).round() as i16,
+            y: (y - oy).round() as i16,
+        }));
+        // `clear()` + `extend()` possono riallocare: il puntatore che LVGL si
+        // teneva può non valere più, quindi si ri-chiama `set_points` sempre,
+        // non solo quando cambia il numero di punti.
+        for (ptr, _) in &self.linee {
+            unsafe {
+                lvgl_sys::lv_obj_set_pos(ptr.as_ptr(), ox.round() as i16, oy.round() as i16);
+                lvgl_sys::lv_line_set_points(
+                    ptr.as_ptr(),
+                    self.punti_corpo.as_ptr(),
+                    self.punti_corpo.len() as u16,
+                );
+                lvgl_sys::lv_obj_invalidate(ptr.as_ptr());
+            }
+        }
+        if let Some(sv) = self.svg_corpo.as_mut() {
+            sv.riposiziona(assoluti);
+        }
+        if let Some(ex) = self.extra.as_mut() {
+            ex.riposiziona(assoluti);
+        }
+        if let Some(l) = self.etichetta {
+            let meta = assoluti[(assoluti.len() - 1) / 2];
+            unsafe {
+                let lw = larghezza_testo(l.as_ptr());
+                lvgl_sys::lv_obj_set_pos(
+                    l.as_ptr(),
+                    (meta.0 - lw / 2.0).round() as i16,
+                    (meta.1 - self.etichetta_offset - self.etichetta_corpo).round() as i16,
+                );
+            }
         }
     }
 
@@ -11758,10 +11990,52 @@ fn rendi_oggetti_in(
         // ce l'ha solo il ciclo.
         let manifesto = if obj_type == "pipe" { crate::simbolo_lib::manifesto(base_url, rt_handle) } else { None };
         if obj_type == "pipe" {
-            let d = diametri_capi(obj, &page.objects, manifesto.as_deref());
+            let d = diametri_capi(obj, &page.objects, manifesto.as_deref(), tags);
             BOCCHE_TUBO.with(|b| b.borrow_mut().insert(obj.id.clone().unwrap_or_default(), d));
         }
-        let ancorata = percorso_tubo(obj, &page.objects, manifesto.as_deref()).map(|punti| SynopticObject {
+        let punti_ancorati = percorso_tubo(obj, &page.objects, manifesto.as_deref(), tags);
+        // Un tubo agganciato a un oggetto che una variabile può spostare si
+        // iscrive per seguirlo (22-10-2026). Gli altri no, e l'esclusione è il
+        // punto: senza, `update_bindings` ricalcolerebbe a ogni fotogramma il
+        // percorso di ogni tubo della pagina per non muovere mai niente.
+        //
+        // «Che una variabile può spostare» vuol dire oggi **un binding**:
+        // `motion_tag` muove il widget per conto suo, dentro `LiveKind::Motion`,
+        // e non passa di qui — è la Fase 3 del piano.
+        if obj_type == "pipe" {
+            let ancore: Vec<&str> = [obj.from_obj_id.as_deref(), obj.to_obj_id.as_deref()]
+                .into_iter()
+                .flatten()
+                .collect();
+            let oggetti: Vec<SynopticObject> = page
+                .objects
+                .iter()
+                .filter(|o| o.id.as_deref().is_some_and(|i| ancore.contains(&i)))
+                .cloned()
+                .collect();
+            let si_muove = oggetti
+                .iter()
+                .any(|o| o.bindings.as_ref().is_some_and(|m| m.keys().any(|k| GEOM_KEYS.contains(&k.as_str()))));
+            if si_muove {
+                ANCORE_TUBO.with(|a| {
+                    a.borrow_mut().insert(
+                        obj.id.clone().unwrap_or_default(),
+                        AncoreTubo {
+                            pipe: obj.clone(),
+                            oggetti,
+                            manifesto: manifesto.clone(),
+                            // Il percorso di adesso: così il primo fotogramma
+                            // non conta come uno spostamento.
+                            ultimo: punti_ancorati
+                                .as_ref()
+                                .map(|v| v.iter().map(|p| (p.x, p.y)).collect())
+                                .unwrap_or_default(),
+                        },
+                    )
+                });
+            }
+        }
+        let ancorata = punti_ancorati.map(|punti| SynopticObject {
             points: Some(punti),
             // Il percorso è già calcolato: al disegno è una spezzata dritta.
             routing: match obj.routing.as_deref() {
@@ -12381,13 +12655,32 @@ pub fn update_bindings(
                 buf,
                 last_level,
                 corpo,
+                ancore,
             } => {
+                // Il tubo segue i suoi capi (22-10-2026). `mosso` ricalcola il
+                // percorso — matematica pura, costo trascurabile — e risponde
+                // solo quando si è spostato di almeno mezzo pixel.
+                let seguito = ancore.as_mut().and_then(|a| a.mosso(tags));
+                if let Some(punti) = seguito {
+                    corpo.riposiziona(&punti);
+                    let (ox, oy) = origine_polilinea(&punti);
+                    spec.origin = (ox, oy);
+                    spec.waypoints = punti;
+                    unsafe {
+                        lvgl_sys::lv_obj_set_pos(fill_ptr.as_ptr(), ox.round() as i16, oy.round() as i16)
+                    };
+                    // Il riempimento va rifatto anche se il livello non è
+                    // cambiato: i suoi punti si misurano sul percorso nuovo.
+                    *last_level = f64::NAN;
+                }
                 corpo.aggiorna(tags);
                 let level = spec.level(tags);
                 // Si ridisegna solo a variazione percettibile: ricostruire la
                 // polilinea a ogni frame costerebbe senza cambiare un pixel.
                 // Mezzo punto percentuale su un tubo di 350 px è mezzo pixel.
-                if (level - *last_level).abs() > 0.005 {
+                // `is_nan` non è ridondante: ogni confronto con NaN è falso,
+                // ed è proprio il segnale che il percorso è cambiato.
+                if last_level.is_nan() || (level - *last_level).abs() > 0.005 {
                     apply_pipe_fill(*fill_ptr, spec, buf, level);
                     *last_level = level;
                 }
@@ -14531,14 +14824,146 @@ mod binding_tests {
         ];
         let t = o(serde_json::json!({ "id": "t", "type": "pipe", "routing": "orthogonal",
             "from_obj_id": "p", "from_port": "n-top", "to_obj_id": "v", "to_port": "n-left", "points": [] }));
-        let p = percorso_tubo(&t, &oggetti, Some(&m)).expect("agganciato");
+        let p = percorso_tubo(&t, &oggetti, Some(&m), &TagSnapshot::default()).expect("agganciato");
         let xy: Vec<(f64, f64)> = p.iter().map(|q| (q.x, q.y)).collect();
         // Mandata della pompa (150, 200), su fino all'altezza dell'ingresso
         // della valvola (300, 150), poi a destra fino alla bocca.
         assert_eq!(xy, vec![(150.0, 200.0), (150.0, 150.0), (300.0, 150.0)]);
         // Senza manifesto la bocca è sconosciuta: si torna al centro del riquadro.
-        let senza = percorso_tubo(&t, &oggetti, None).unwrap();
+        let senza = percorso_tubo(&t, &oggetti, None, &TagSnapshot::default()).unwrap();
         assert_eq!((senza[0].x, senza[0].y), (140.0, 240.0));
+    }
+
+    /// Il capo agganciato segue i **binding** dell'oggetto, non la sua
+    /// geometria scritta nel file.
+    ///
+    /// Il difetto che questo test blocca non era «il tubo non segue quando
+    /// l'oggetto si muove»: era che il tubo nasceva staccato **già al primo
+    /// fotogramma**. `interpret_page` disegna ogni oggetto dopo
+    /// `apply_bindings` (:11754) ma calcolava il percorso del tubo su
+    /// `&page.objects` grezzo (:11764). Con un `bindings.x` su una pompa, il
+    /// tubo partiva dalla mandata di dove la pompa *non* era.
+    #[test]
+    fn il_capo_agganciato_segue_i_binding_delloggetto() {
+        let m: sws_core::simboli_lib::ManifestLib = serde_json::from_str(include_str!(
+            "../../../../sws-editor/public/symbols/lib/manifest.json"
+        ))
+        .unwrap();
+        let o = |v: serde_json::Value| -> SynopticObject { serde_json::from_value(v).unwrap() };
+        let oggetti = vec![o(serde_json::json!({
+            "id": "p", "type": "symbol", "symbol_id": "lib:process/centrifugal-pump",
+            "x": 100, "y": 200, "width": 80, "height": 80,
+            "bindings": { "x": "carrello.x" }
+        }))];
+        let t = o(serde_json::json!({ "id": "t", "type": "pipe", "from_obj_id": "p",
+            "from_port": "n-top", "points": [{ "x": 0, "y": 0 }, { "x": 900, "y": 600 }] }));
+
+        // Tag assente: resta la geometria del file — la mandata è a (150, 200).
+        let ferma = percorso_tubo(&t, &oggetti, Some(&m), &TagSnapshot::default()).unwrap();
+        assert_eq!((ferma[0].x, ferma[0].y), (150.0, 200.0));
+
+        // Tag vivo: la pompa è a x=500, e il capo è sulla sua mandata, non su
+        // quella di prima. 500 + 50 di scostamento della bocca = 550.
+        let mossa = percorso_tubo(
+            &t,
+            &oggetti,
+            Some(&m),
+            &snapshot(&[("carrello.x", TagValue::Int(500))]),
+        )
+        .unwrap();
+        assert_eq!(
+            (mossa[0].x, mossa[0].y),
+            (550.0, 200.0),
+            "il capo è rimasto dov'era: il percorso si sta calcolando sulla lista grezza"
+        );
+
+        // E il diametro della bocca si legge sullo stesso riquadro vivo.
+        let d = diametri_capi(&t, &oggetti, Some(&m), &snapshot(&[("carrello.x", TagValue::Int(500))]));
+        assert!(d[0].is_some(), "la bocca non è stata trovata sull'oggetto risolto");
+    }
+
+    fn ancore_di_prova(pipe: SynopticObject, ancora: SynopticObject) -> AncoreTubo {
+        AncoreTubo { pipe, oggetti: vec![ancora], manifesto: None, ultimo: Vec::new() }
+    }
+
+    /// `mosso` risponde solo quando il percorso si è spostato davvero.
+    ///
+    /// È il cancello della Fase 2: `update_bindings` lo chiama a ogni
+    /// fotogramma, e se dicesse sempre «sì» ogni tubo agganciato della pagina
+    /// si ridisegnerebbe 60 volte al secondo da fermo — compreso il canvas
+    /// 2.5D, che è una rasterizzazione resvg.
+    #[test]
+    fn un_tubo_fermo_non_si_ridisegna() {
+        let o = |v: serde_json::Value| -> SynopticObject { serde_json::from_value(v).unwrap() };
+        let mut a = ancore_di_prova(
+            o(serde_json::json!({ "id": "t", "type": "pipe", "from_obj_id": "b",
+                "from_port": "left", "points": [{ "x": 0, "y": 0 }, { "x": 900, "y": 230 }] })),
+            o(serde_json::json!({ "id": "b", "type": "rect", "x": 100, "y": 200,
+                "width": 60, "height": 60, "bindings": { "x": "mov" } })),
+        );
+        let a_100 = snapshot(&[("mov", TagValue::Int(100))]);
+
+        // Primo giro: `ultimo` è vuoto, quindi si muove per forza.
+        let primo = a.mosso(&a_100).expect("il primo giro deve dare il percorso");
+        assert_eq!(primo[0], (100.0, 230.0), "il capo è sul lato sinistro del blocco");
+
+        // Stesso valore: fermo.
+        assert!(a.mosso(&a_100).is_none(), "fermo e si è ridisegnato lo stesso");
+
+        // Mezzo pixel non si vede: `round()` darebbe la stessa coordinata.
+        assert!(
+            a.mosso(&snapshot(&[("mov", TagValue::Float(100.3))])).is_none(),
+            "tre decimi di pixel non valgono un ridisegno"
+        );
+
+        // Uno spostamento vero sì.
+        let dopo = a.mosso(&snapshot(&[("mov", TagValue::Int(600))])).expect("spostato");
+        assert_eq!(dopo[0], (600.0, 230.0));
+    }
+
+    /// Un tubo `orthogonal` si ricalcola dal **pipe originale**, non da quello
+    /// che `interpret_page` ha già ancorato.
+    ///
+    /// Il ciclo sostituisce `points` con la polilinea completa e riscrive
+    /// `routing` a `straight`: ricalcolare su quello tratterebbe ogni gomito
+    /// come un punto voluto dall'utente, e il tubo si accartoccerebbe un po'
+    /// di più a ogni fotogramma invece di seguire.
+    #[test]
+    fn un_tubo_instradato_si_ricalcola_dall_originale() {
+        let o = |v: serde_json::Value| -> SynopticObject { serde_json::from_value(v).unwrap() };
+        let mut a = ancore_di_prova(
+            o(serde_json::json!({ "id": "t", "type": "pipe", "routing": "orthogonal",
+                "from_obj_id": "b", "from_port": "left",
+                "points": [{ "x": 0, "y": 0 }, { "x": 20, "y": 400 }] })),
+            o(serde_json::json!({ "id": "b", "type": "rect", "x": 100, "y": 200,
+                "width": 60, "height": 60, "bindings": { "x": "mov" } })),
+        );
+        let primo = a.mosso(&snapshot(&[("mov", TagValue::Int(100))])).expect("primo");
+        let dopo = a.mosso(&snapshot(&[("mov", TagValue::Int(600))])).expect("spostato");
+        assert_eq!(primo[0], (100.0, 230.0));
+        assert_eq!(dopo[0], (600.0, 230.0));
+        assert_eq!(*dopo.last().unwrap(), (20.0, 400.0), "l'arrivo libero non si muove");
+        assert_eq!(primo.len(), dopo.len(), "stesso instradamento, non uno in più a ogni giro");
+    }
+
+    /// Il riquadro del canvas 2.5D cresce col percorso.
+    ///
+    /// È la condizione che fa riallocare pixmap e buffer: senza, il tubo
+    /// verrebbe disegnato dentro un canvas largo quanto era alla creazione e
+    /// si vedrebbe **tagliato** appena un capo esce.
+    #[test]
+    fn il_riquadro_del_canvas_segue_il_percorso() {
+        let corto = [(60.0, 230.0), (100.0, 230.0)];
+        let lungo = [(60.0, 230.0), (600.0, 230.0)];
+        let (bx0, _, w0, h0) = riquadro_corpo(&corto, 12.0);
+        let (bx1, _, w1, h1) = riquadro_corpo(&lungo, 12.0);
+        assert_eq!(bx0, bx1, "il capo fermo non sposta l'origine");
+        assert!(w1 > w0 + 400, "il riquadro non è cresciuto: {w0} -> {w1}");
+        assert_eq!(h0, h1, "l'altezza non c'entra");
+        // Lo stesso per il canvas delle estremità, che ha un conto suo.
+        let (_, _, we0, _) = riquadro_extra(&corto, 12.0);
+        let (_, _, we1, _) = riquadro_extra(&lungo, 12.0);
+        assert!(we1 > we0 + 400, "riquadro extra non cresciuto: {we0} -> {we1}");
     }
 
     fn tubo(

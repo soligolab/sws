@@ -4039,7 +4039,15 @@ function SvgObjectCorpo(p: ObjProps) {
 
   if (obj.type === "pipe") {
     // 15-10-2026: capi sulle bocche vere e percorso calcolato (`tubazioni.ts`).
-    const pts = percorsoTubo(obj, objects);
+    //
+    // 22-10-2026: i capi si risolvono sui **binding** degli oggetti agganciati,
+    // non sulla loro geometria scritta nel file. `objects` qui è la lista
+    // grezza della pagina (`SvgCanvas.tsx` la passa così perché serve solo a
+    // trovare le ancore), mentre ogni oggetto viene disegnato da `resolveObject`
+    // alla posizione che dicono i suoi binding. Senza questa riga il tubo nasce
+    // staccato dalla pompa già al primo fotogramma, prima che un tag cambi.
+    const risolviAncora = (o: SynopticObject) => resolveObject(o, tagValues);
+    const pts = percorsoTubo(obj, objects, risolviAncora);
     if (pts.length < 2) return null;
     const pipeStyle = obj.pipe_style ?? "flat";
     const sw = obj.stroke_width ?? 8;
@@ -4049,7 +4057,7 @@ function SvgObjectCorpo(p: ObjProps) {
     // Gli stili 2.5D (15-10-2026): corpo ed estremità dal disegno condiviso col
     // pannello (`stiliTubo.ts`); riempimento, flusso ed etichetta restano sotto.
     const stileNuovo = stileTubo(obj.pipe_style);
-    const bocche = stileNuovo ? diametriCapi(obj, objects) : [undefined, undefined] as const;
+    const bocche = stileNuovo ? diametriCapi(obj, objects, risolviAncora) : [undefined, undefined] as const;
     const dTubo = obj.stroke_width ?? bocche[0] ?? bocche[1] ?? 8;
     const larghezzaNuova = stileNuovo ? larghezzaTubo(stileNuovo, dTubo) : 0;
 

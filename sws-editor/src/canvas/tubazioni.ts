@@ -186,14 +186,31 @@ export function aggancioSu(o: SynopticObject, porta: string | undefined): Agganc
   return aggancioRiquadro(porta ?? "center", riquadroDi(o), o.type === "symbol");
 }
 
+/** Come il chiamante risolve un oggetto agganciato prima di leggerne il riquadro.
+ *
+ *  Esiste perché questo file è il gemello puro di `sws-core/src/tubazioni.rs` e
+ *  non sa niente di tag: la risoluzione dei binding sta nel chiamante, che i tag
+ *  ce li ha. Senza, il tubo si calcola sulla geometria **scritta nel file**
+ *  mentre l'oggetto a cui è agganciato viene disegnato dove dicono i suoi
+ *  binding — e il tubo nasce staccato già al primo fotogramma (22-10-2026). */
+export type RisolviAncora = (o: SynopticObject) => SynopticObject;
+
 /** I punti da disegnare per un tubo: i capi agganciati risolti sugli oggetti
  *  della pagina e, con `orthogonal`/`diagonal`, il percorso calcolato attraverso
  *  i punti intermedi dell'utente. Con `straight`/`bezier` i punti restano quelli
  *  scritti, coi capi agganciati sostituiti — come prima. */
-export function percorsoTubo(pipe: SynopticObject, objects: SynopticObject[]): PipePoint[] {
+export function percorsoTubo(
+  pipe: SynopticObject,
+  objects: SynopticObject[],
+  risolvi?: RisolviAncora,
+): PipePoint[] {
   const pts = [...(pipe.points ?? [])];
-  const src = pipe.from_obj_id ? objects.find((o) => o.id === pipe.from_obj_id) : undefined;
-  const dst = pipe.to_obj_id ? objects.find((o) => o.id === pipe.to_obj_id) : undefined;
+  const trova = (id: string | undefined) => {
+    const o = id ? objects.find((x) => x.id === id) : undefined;
+    return o && risolvi ? risolvi(o) : o;
+  };
+  const src = trova(pipe.from_obj_id);
+  const dst = trova(pipe.to_obj_id);
   // Due capi agganciati bastano a fare un tubo anche senza punti scritti.
   if (pts.length < 2 && src && dst) pts.splice(0, pts.length, { x: 0, y: 0 }, { x: 0, y: 0 });
   if (pts.length < 2) return pts;
@@ -257,9 +274,14 @@ export function calamita(candidati: Bersaglio[], punto: Punto, raggio: number): 
 
 /** Il diametro (sulla pagina) della bocca a cui è agganciato ciascun capo, se è
  *  una bocca: serve alle estremità «auto» e allo spessore predefinito. */
-export function diametriCapi(pipe: SynopticObject, objects: SynopticObject[]): [number | undefined, number | undefined] {
+export function diametriCapi(
+  pipe: SynopticObject,
+  objects: SynopticObject[],
+  risolvi?: RisolviAncora,
+): [number | undefined, number | undefined] {
   const uno = (id: string | undefined, porta: string | undefined) => {
-    const o = id ? objects.find((x) => x.id === id) : undefined;
+    const grezzo = id ? objects.find((x) => x.id === id) : undefined;
+    const o = grezzo && risolvi ? risolvi(grezzo) : grezzo;
     const b = o ? bocchePer(o) : undefined;
     const p = b?.porte.find((x) => x.id === porta);
     return o && b && p ? diametroBocca(b.viewBox, p, riquadroDi(o)) : undefined;

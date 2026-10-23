@@ -218,6 +218,23 @@ struct Args {
     #[arg(long, value_name = "PAGINA")]
     poi: Option<String>,
 
+    /// Con `--istantanea`: a metà del tempo cambia questi tag, e continua a
+    /// disegnare. `nome=valore`, separati da `;`.
+    ///
+    /// Perché esiste. Il tempo di `--istantanea` è **simulato**
+    /// (`lvgl::tick_inc`): 60 secondi di LVGL costano 0,15 secondi di orologio,
+    /// quindi scrivere un tag «mentre il viewer lavora» da uno script non si
+    /// può — il viewer ha già finito. Senza questa opzione tutto ciò che vive
+    /// in `update_bindings` è fuori dalla portata di qualunque guardia: si
+    /// potrebbe misurare solo com'è fatta una pagina appena aperta, mai cosa
+    /// succede quando un valore cambia. È la stessa famiglia di `--tocca`:
+    /// non passa dal runtime, mette il valore dove il WS lo metterebbe.
+    ///
+    /// Esempio: `--cambia-tag "carrello.x=600"` (misurato il 22-10-2026 per il
+    /// tubo che segue l'oggetto a cui è agganciato).
+    #[arg(long, value_name = "NOME=VALORE")]
+    cambia_tag: Option<String>,
+
     /// Quanti millisecondi lasciar lavorare LVGL prima dell'istantanea.
     ///
     /// Non è un'attesa di cortesia: LVGL disegna dentro `task_handler()`, e
@@ -691,6 +708,7 @@ fn main() -> anyhow::Result<()> {
             ver_res,
             args.istantanea_ms,
             args.tocca.as_deref(),
+            args.cambia_tag.as_deref(),
             &shared_tags,
             &mut live_bindings,
             &tag_rx,
@@ -1030,12 +1048,29 @@ fn servi_finestra(
 
 /// a ogni frame.
 #[allow(clippy::too_many_arguments)]
+/// `--cambia-tag`: il testo dopo l'uguale diventa un valore. Numero se si
+/// legge come numero, booleano per `true`/`false`, stringa altrimenti — le
+/// stesse tre forme che un tag può avere.
+fn valore_di_prova(s: &str) -> sws_core::tag::TagValue {
+    if let Ok(b) = s.parse::<bool>() {
+        return sws_core::tag::TagValue::Bool(b);
+    }
+    if let Ok(i) = s.parse::<i64>() {
+        return sws_core::tag::TagValue::Int(i);
+    }
+    if let Ok(f) = s.parse::<f64>() {
+        return sws_core::tag::TagValue::Float(f);
+    }
+    sws_core::tag::TagValue::Str(s.to_string())
+}
+
 fn scrivi_istantanea(
     percorso: &str,
     hor_res: u32,
     ver_res: u32,
     per_ms: u64,
     tocca: Option<&str>,
+    cambia_tag: Option<&str>,
     shared_tags: &client::SharedTagSnapshot,
     live_bindings: &mut [lvgl_render::LiveBinding],
     tag_rx: &mpsc::Receiver<lvgl_render::TagCommand>,
@@ -1079,6 +1114,20 @@ fn scrivi_istantanea(
             })
             .collect::<anyhow::Result<_>>()?,
     };
+    let cambi: Vec<(String, sws_core::tag::TagValue)> = match cambia_tag {
+        None => Vec::new(),
+        Some(s) => s
+            .split(';')
+            .filter(|p| !p.trim().is_empty())
+            .map(|p| {
+                let (nome, valore) = p.split_once('=').ok_or_else(|| {
+                    anyhow::anyhow!("--cambia-tag vuole coppie `nome=valore` separate da `;`, non '{p}'")
+                })?;
+                Ok((nome.trim().to_string(), valore_di_prova(valore.trim())))
+            })
+            .collect::<anyhow::Result<_>>()?,
+    };
+
     // I tocchi si distribuiscono nella seconda metà del tempo: la prima metà
     // serve a far disegnare la pagina (LVGL costruisce a pezzi), e dopo l'ultimo
     // tocco restano giri perché ciò che fa apparire faccia in tempo a comparire.
@@ -1089,6 +1138,22 @@ fn scrivi_istantanea(
     let inizio = giri / 3;
     let passo = ((giri.saturating_sub(inizio + 3)) / punti.len().max(1) as u64).max(3);
     for giro in 0..giri {
+        // A metà: come se il WS avesse consegnato un valore nuovo a pagina già
+        // aperta. Prima metà per disegnare, seconda per far vedere l'effetto.
+        if !cambi.is_empty() && giro == giri / 2 {
+            let mut g = shared_tags.lock().unwrap_or_else(|e| e.into_inner());
+            for (nome, valore) in &cambi {
+                eprintln!("  cambio tag: '{nome}' = {valore:?}");
+                g.insert(
+                    nome.clone(),
+                    client::TagSnapshotValue {
+                        value: valore.clone(),
+                        quality: sws_core::tag::TagQuality::Good,
+                        ts: 0,
+                    },
+                );
+            }
+        }
         for (i, (x, y)) in punti.iter().enumerate() {
             let giu = inizio + passo * i as u64;
             if giro == giu {

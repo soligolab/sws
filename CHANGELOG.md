@@ -11,6 +11,28 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 
 ## [Unreleased]
 
+### Added
+
+- **Un tubo agganciato a un oggetto segue l'oggetto anche quando a spostarlo è una variabile.**
+  Prima no, e in due modi diversi: il percorso si calcolava sulla lista di oggetti **grezza**
+  mentre ogni oggetto veniva disegnato alla posizione risolta dai suoi binding (quindi il tubo
+  nasceva staccato **già al primo fotogramma**, senza che un tag dovesse cambiare), e su LVGL si
+  calcolava **una volta sola** al caricamento della pagina. Ora i capi si risolvono sui binding su
+  tutti e due i motori, e su LVGL il `LiveBinding` del tubo ricalcola il percorso quando le
+  posizioni dei suoi capi cambiano, oltre la soglia di mezzo pixel. Sotto: i punti del corpo da
+  `Box::leak` a un `Vec` posseduto, i **due** canvas 2.5D (corpo ed estremità) riallocati quando
+  il riquadro cresce, e il conto del riquadro in un posto solo (`riquadro_corpo`,
+  `riquadro_extra`) perché creazione e riposizionamento non divergano. Resta fuori il `motion`,
+  che è una decisione di prodotto: piano
+  `docs/plans/2026-10-21-tubo-che-segue-gli-oggetti.md`, Fase 3.
+
+- **`sws-lvgl-viewer --cambia-tag "nome=valore"`**: con `--istantanea`, cambia i tag a metà
+  fotografia e continua a disegnare. Serve perché il tempo di `--istantanea` è **simulato** —
+  `--istantanea-ms 60000` dura 0,15 secondi di orologio — quindi scrivere un tag da uno script
+  «mentre il viewer lavora» non si può: arriva sempre tardi. Senza, tutto ciò che vive in
+  `update_bindings` era fuori dalla portata di qualunque guardia. Nuova guardia
+  `check_tubo_segue_lvgl.sh` (con stack), la 34ª.
+
 ### Fixed
 
 - **Un progetto non può più nascere nella cartella di un'altra azienda.** `POST /api/projects`

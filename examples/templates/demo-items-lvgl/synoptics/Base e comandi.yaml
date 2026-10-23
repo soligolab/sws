@@ -84,6 +84,18 @@ objects:
   stroke: '#38bdf8'
   stroke_width: 3.0
   corner_radius: 8.0
+- id: o_tubo_segue
+  type: pipe
+  x: 320.0
+  y: 96.0
+  width: 20.0
+  height: 110.0
+  from_obj_id: o_rect
+  from_port: right
+  to_obj_id: o_ellipse
+  to_port: left
+  pipe_style: metallo
+  stroke_width: 14.0
 - id: c_ellipse
   type: text
   x: 340.0
