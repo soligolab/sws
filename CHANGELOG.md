@@ -48,6 +48,21 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 
 ### Fixed
 
+- **Il trust store OPC-UA non funzionava, e adesso sì.** Le tre rotte leggevano `trusted/certs` e
+  `rejected/certs`; la libreria — e il nostro stesso plugin — usano `trusted/` e `rejected/`, senza
+  quel livello. L'elenco era **sempre vuoto**, «Fidati» rispondeva 204 senza fare niente,
+  «Elimina» 404. E il messaggio della fiducia al primo contatto dice «fidati del nuovo dal trust
+  store della sorgente»: mandava in una tabella che non poteva funzionare. I nomi delle due
+  cartelle ora stanno **in un posto solo**, nel plugin che possiede la disposizione della PKI.
+
+- **E correggere il percorso non bastava.** Con `security_policy: None` il client salta **del
+  tutto** la validazione del certificato del server: quella tabella non si riempirebbe comunque.
+  Ora una sorgente **nuova** creata dall'IDE parte con `Basic256Sha256`, la scheda **dice** perché
+  l'elenco è vuoto quando la policy è `None`, e il runtime lo scrive una volta all'avvio.
+  **I progetti esistenti non cambiano**: il default di lettura resta `None`, perché chi non ha mai
+  scelto non deve ritrovarsi le sorgenti staccate dopo un aggiornamento — la stessa regola di
+  compatibilità che la Fase 3 ha scritto per Modbus.
+
 - **Dal pannello si può di nuovo fare l'accesso, e «Aggiorna ora» non lascia più il pannello
   inservibile.** Erano **tre** difetti sommati, e nessuno dei tre si vedeva leggendo il codice:
 

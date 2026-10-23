@@ -35,6 +35,8 @@
 versioni:
   - versione: "Unreleased"
     voci:
+      - it: "Il trust store delle sorgenti OPC-UA ora funziona: l'elenco dei certificati era sempre vuoto e «Fidati» non faceva niente. Una sorgente nuova parte con una policy che valida il certificato del server."
+        en: "The OPC-UA trust store now works: the certificate list was always empty and «Trust» did nothing. A new source now starts with a policy that validates the server certificate."
       - it: "Il pannello può fare anche da PLC: OpenPLC si installa a richiesta e la logica vive dentro il progetto, quindi viaggia col deploy e col backup. Non si installa da solo e non parte da solo."
         en: "The panel can act as a PLC too: OpenPLC installs on request and its logic lives inside the project, so it travels with the deploy and the backup. It neither installs nor starts by itself."
       - it: "Dal pannello si può di nuovo accedere come amministratore: la tastiera a schermo non si vedeva, non scriveva, e restava aperta bloccando ogni tocco. Premere «Aggiorna ora» lasciava il pannello inservibile."

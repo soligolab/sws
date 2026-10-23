@@ -2173,6 +2173,7 @@
     "addEntity": "+ Add entity",
     "clickRefreshToSeeThe": "Click \"Refresh\" to see the certificates in the trust store.",
     "noCertificatesInTheTrust": "No certificates in the trust store — normal before the first connection. Connect to the source: the server certificate arrives on first contact and is offered here for you to accept.",
+    "trustStoreSenzaPolicy": "With policy «None» the server certificate is not validated: this list stays empty. Pick a policy (e.g. Basic256Sha256) for trust to mean anything.",
     "noNodesClickNodeTo": "No nodes. Click \"+ Node\" to add one.",
     "noNodesAddAMapping": "No nodes — add a mapping.",
     "addNode": "+ Add node",

@@ -247,7 +247,14 @@ export function OpcUaSourceCard({
                 </div>
               ) : certs.length === 0 ? (
                 <div style={{ fontSize: 12, color: "var(--brand-text-subtle, #64748b)", fontStyle: "italic" }}>
-                  {t("cfgUi.noCertificatesInTheTrust")}
+                  {/* Con policy «None» il client salta del tutto la validazione
+                      del certificato del server: questa tabella non si riempirà
+                      MAI, e dirlo è l'unica cosa onesta. Prima restava vuota e
+                      sembrava un guasto — e il messaggio della fiducia al primo
+                      contatto ci mandava dentro. */}
+                  {source.security_policy === "None"
+                    ? t("cfgUi.trustStoreSenzaPolicy")
+                    : t("cfgUi.noCertificatesInTheTrust")}
                 </div>
               ) : (
                 <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 11 }}>

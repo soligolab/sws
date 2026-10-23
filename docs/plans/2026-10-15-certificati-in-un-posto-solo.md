@@ -102,7 +102,16 @@ cambiano un certificato, oggi cinque non lasciano traccia.
 
 ## Le decisioni, una per una
 
-### 1. Il trust store OPC-UA rotto — **DECISA: percorso e policy, tutti e due adesso**
+### 1. Il trust store OPC-UA rotto — **DECISA e FATTA il 23-10-2026**
+
+> Ramo `fix/certificati-1-trust-opcua`. Il percorso corretto, e i nomi delle due cartelle portati
+> **in un posto solo** — nel plugin, che possiede la disposizione della PKI: era proprio la
+> riscrittura a mano in quattro punti ad aver prodotto `trusted/certs`.
+>
+> Sulla policy, «tutti e due adesso» è stato realizzato **rispettando la compatibilità**: una
+> sorgente **nuova** parte con `Basic256Sha256`, il default di **lettura** resta `None` perché chi
+> non ha mai scelto non deve ritrovarsi le sorgenti staccate dopo un aggiornamento. E dove prima
+> c'era una tabella vuota e muta, adesso c'è scritto **perché**.
 
 Non è il refuso che sembrava. Le opzioni:
 

@@ -82,7 +82,20 @@ export function emptyOpcUa(): OpcUaSource {
     kind: "opcua_client",
     id: `opcua-${genId()}`,
     endpoint_url: "opc.tcp://localhost:4840",
-    security_policy: "None",
+    // Sicura per default (23-10-2026): una sorgente NUOVA parte con una
+    // policy che valida il certificato del server. Con `None` il client
+    // `async-opcua` salta del tutto la validazione — il trust store della
+    // sorgente resta vuoto per sempre, e l'avviso «fidati del nuovo dal trust
+    // store» manda in una tabella che non può riempirsi.
+    //
+    // I progetti ESISTENTI non cambiano: il default di lettura in `sws-core`
+    // resta `None`, perché chi non ha mai scelto non deve ritrovarsi le
+    // sorgenti staccate dopo un aggiornamento. È la stessa regola di
+    // compatibilità che la Fase 3 ha scritto per Modbus.
+    //
+    // Se il server parla solo `None`, lo si rimette a mano: un fallimento
+    // visibile è meglio di una validazione che non c'è e che nessuno vede.
+    security_policy: "Basic256Sha256",
     auth: { kind: "anonymous" },
     subscription_interval_ms: 500,
     nodes: [],

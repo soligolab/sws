@@ -103,6 +103,17 @@ pub async fn run(
     // Una sessione finita «pulita» dal server si riapre lo stesso
     // (04-10-2026: prima il task terminava, col log «stopped (save config to
     // retry)», e aspettava il watchdog del supervisore).
+    // Con policy `None` il client salta del tutto la validazione del
+    // certificato del server: la fiducia al primo contatto non ha niente da
+    // memorizzare, e il trust store della sorgente resta vuoto per sempre.
+    // Dirlo una volta all'avvio e' meglio che lasciare qualcuno a guardare una
+    // tabella vuota chiedendosi cosa non funziona (23-10-2026).
+    if cfg.security_policy == "None" && !cfg.trust_all_certs {
+        info!(
+            source = %cfg.id,
+            "opcua: policy «None», il certificato del server non si valida — il trust store di questa sorgente resta vuoto"
+        );
+    }
     sws_core::riconnessione::con_attesa(
         &cfg.id,
         cancel,
@@ -141,6 +152,21 @@ pub async fn run(
     .await;
 }
 
+/// Le due cartelle del trust store di una sorgente, come le scrive
+/// `async-opcua-crypto` (`certificate_store.rs`: `TRUSTED_CERTS_DIR = "trusted"`).
+///
+/// Stanno qui, nel crate che possiede la disposizione della PKI, e **non** sono
+/// ripetute altrove: `sws-web` le importa da qui. Fino al 23-10-2026 il router
+/// le scriveva a mano come `trusted/certs` e `rejected/certs` — un livello di
+/// troppo — e leggeva cartelle che nessuno crea mai: l'elenco era sempre
+/// vuoto, «Fidati» rispondeva 204 senza fare niente, «Elimina» 404.
+///
+/// Due letture della stessa cartella che non si parlavano. Una costante sola
+/// non impedisce di sbagliare il nome: impedisce di sbagliarlo **in un punto
+/// solo su quattro**, che è come si resta rotti a metà senza accorgersene.
+pub const DIR_FIDATI: &str = "trusted";
+pub const DIR_RIFIUTATI: &str = "rejected";
+
 /// Esito della fiducia al primo contatto.
 #[derive(Debug, PartialEq)]
 pub enum Fiducia {
@@ -167,12 +193,12 @@ fn certificati_in(dir: &Path) -> Vec<PathBuf> {
 /// attacco da fuori sono indistinguibili. Più rifiutati con `trusted/` vuota:
 /// ambiguo, non si sceglie.
 pub fn fiducia_al_primo_contatto(pki: &Path) -> Fiducia {
-    let fidati = certificati_in(&pki.join("trusted"));
-    let rifiutati = certificati_in(&pki.join("rejected"));
+    let fidati = certificati_in(&pki.join(DIR_FIDATI));
+    let rifiutati = certificati_in(&pki.join(DIR_RIFIUTATI));
     let nome = |p: &Path| p.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
     match (fidati.is_empty(), rifiutati.as_slice()) {
         (true, [unico]) => {
-            let dest = pki.join("trusted").join(unico.file_name().unwrap_or_default());
+            let dest = pki.join(DIR_FIDATI).join(unico.file_name().unwrap_or_default());
             match std::fs::rename(unico, &dest) {
                 Ok(()) => Fiducia::Memorizzato(nome(unico)),
                 Err(e) => {

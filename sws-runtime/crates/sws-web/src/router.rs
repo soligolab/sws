@@ -8748,11 +8748,28 @@ async fn mqtt_browse_handler(
 
 // ── OPC-UA certificate trust management ──────────────────────────────────────
 //
-// async-opcua writes server certs to:
-//   {pki_root}/{source_id}/trusted/certs/*.der   — explicitly trusted
-//   {pki_root}/{source_id}/rejected/certs/*.der  — rejected / pending review
+// async-opcua scrive i certificati del server in:
+//   {pki_root}/{source_id}/trusted/*.der    — fidati
+//   {pki_root}/{source_id}/rejected/*.der   — rifiutati, in attesa
 //
-// The pki_root lives at {project_dir}/opcua-pki/ (set by source_supervisor).
+// Il pki_root sta in {project_dir}/opcua-pki/ (lo decide `source_supervisor`).
+//
+// **Il livello `certs/` non c'è, e fino al 23-10-2026 queste tre rotte lo
+// cercavano.** Leggevano una cartella che nessuno crea mai: l'elenco era
+// **sempre vuoto**, «Fidati» rispondeva 204 senza fare niente ed «Elimina»
+// 404. Il peggio è che il messaggio della fiducia al primo contatto dice
+// «fidati del nuovo dal trust store della sorgente» — e mandava in una
+// tabella che non poteva funzionare.
+//
+// La verità è nella libreria (`async-opcua-crypto`, `certificate_store.rs`:
+// `TRUSTED_CERTS_DIR = "trusted"`) e nel nostro stesso plugin, che usa
+// `pki.join("trusted")` per la fiducia al primo contatto. Erano due letture
+// della stessa cartella che non si parlavano.
+
+// I nomi delle due cartelle vengono dal plugin, che possiede la disposizione
+// della PKI: non si riscrivono qui. È proprio la riscrittura a mano che aveva
+// prodotto `trusted/certs`.
+use sws_plugin_opcua::{DIR_FIDATI, DIR_RIFIUTATI};
 
 #[derive(serde::Serialize)]
 struct OpcUaCertEntry {
@@ -8762,14 +8779,14 @@ struct OpcUaCertEntry {
 }
 
 /// List certs in the per-source trust store.
-/// Returns all .der files from trusted/certs and rejected/certs directories.
+/// I `.der` di `trusted/` e `rejected/`.
 async fn opcua_list_certs(State(s): State<AppState>, Path(source_id): Path<String>) -> Response {
     let Ok(dir) = active_dir(&s).await else {
         return (StatusCode::SERVICE_UNAVAILABLE, "no active project").into_response();
     };
     let pki_root = dir.join("opcua-pki").join(&source_id);
     let mut entries: Vec<OpcUaCertEntry> = vec![];
-    for (subdir, status) in [("trusted/certs", "trusted"), ("rejected/certs", "rejected")] {
+    for (subdir, status) in [(DIR_FIDATI, "trusted"), (DIR_RIFIUTATI, "rejected")] {
         let cert_dir = pki_root.join(subdir);
         let Ok(mut rd) = tokio::fs::read_dir(&cert_dir).await else {
             continue;
@@ -8802,8 +8819,8 @@ async fn opcua_trust_cert(
         return (StatusCode::SERVICE_UNAVAILABLE, "no active project").into_response();
     };
     let pki_root = dir.join("opcua-pki").join(&source_id);
-    let rejected = pki_root.join("rejected/certs").join(&filename);
-    let trusted = pki_root.join("trusted/certs");
+    let rejected = pki_root.join(DIR_RIFIUTATI).join(&filename);
+    let trusted = pki_root.join(DIR_FIDATI);
     if rejected.exists() {
         if let Err(e) = tokio::fs::create_dir_all(&trusted).await {
             return (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response();
@@ -8829,7 +8846,7 @@ async fn opcua_delete_cert(
     };
     let pki_root = dir.join("opcua-pki").join(&source_id);
     let mut deleted = false;
-    for subdir in ["trusted/certs", "rejected/certs"] {
+    for subdir in [DIR_FIDATI, DIR_RIFIUTATI] {
         let path = pki_root.join(subdir).join(&filename);
         if path.exists() {
             if let Err(e) = tokio::fs::remove_file(&path).await {

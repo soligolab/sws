@@ -26,6 +26,10 @@ tags:
 
 # ── Sources ───────────────────────────────────────────────────────────────────
 # OPC-UA client. security_policy: None per la PoC; per Basic256Sha256 vedere
+# SETUP.md. ATTENZIONE (23-10-2026): con `None` il certificato del server NON
+# viene validato e il trust store della sorgente resta vuoto per sempre. Qui va
+# bene perche' e' un demo contro un simulatore locale; su un impianto no, e una
+# sorgente nuova creata dall'IDE parte infatti con Basic256Sha256.
 # docs/OPCUA_SETUP.md (richiede trust del cert SWS sul server al primo handshake).
 sources:
   - kind: opcua_client

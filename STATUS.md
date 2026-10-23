@@ -12,7 +12,51 @@
 > resta in «Storico». Qui vive solo ciò che serve a riprendere il lavoro.
 
 
-## ▶ Riprendere da qui — tutte le decisioni prese, e un difetto nuovo sul WP630 (2026-10-23)
+## ▶ Riprendere da qui — nove commit annidati, da confermare (2026-10-23, sera)
+
+```
+main (solo documenti)
+ └─ fix/accesso-tastiera
+     └─ feat/openplc-1-unita-scelte
+         └─ feat/openplc-2-quadlet
+             └─ feat/openplc-3-logica-nel-progetto
+                 └─ feat/openplc-4-rotte-logica
+                     └─ feat/openplc-5-documentazione
+                         └─ feat/tag-4b-opcua-tipi
+                             └─ fix/certificati-1-trust-opcua   ← qui
+```
+
+### Cosa è fatto
+
+| | |
+|---|---|
+| **L'accesso dal pannello** | Tre difetti sommati, nessuno visibile leggendo il codice: il velo dell'avviso riduceva i tasti a uno stacco di **17** su 765, la radice dell'avviso si mangiava i tocchi, e la tastiera non veniva mai distrutta — restava a schermo intero e cliccabile, ed è **questo** che bloccava il pannello. Ora lo stacco è 491 |
+| **OpenPLC, tutti e cinque i rami** | Segno delle unità scelte, quadlet opzionale senza `AutoUpdate`, la logica in `<progetto>/openplc/` che viaggia con backup/export/deploy/impronta, due rotte per l'IDE nel cloud, HOWTO capitolo 28 |
+| **OPC-UA, quattro decisioni su sei** | Scritture dal server **sul bus** (prima un SCADA che scriveva su un tag Modbus non arrivava mai al dispositivo), tipo non gestito = `Bad`, ogni nodo dichiarato col tipo del progetto, il server sa esporre gli **array**. Più il browse tipizzato: il «＋» propone il tipo letto dal server |
+| **Certificati, decisione 1** | Il trust store OPC-UA funziona (leggeva `trusted/certs`, la libreria usa `trusted/`), i nomi in un posto solo, e dove prima c'era una tabella vuota e muta adesso c'è scritto **perché** |
+
+### Cosa resta, e quanto
+
+**OPC-UA — le strutture** (decisioni 1 intera e 2). Una sessione. Il crate ha un esempio completo
+e funzionante, `tests/integration/custom_types.rs` (156 righe): l'opzione scelta regge. Ma quello
+usa le API **interne** del node manager, e il nostro `run_server` costruisce l'indirizzario in un
+altro modo — **il primo passo è verificare che gli appigli ci siano**.
+
+**Certificati — le decisioni 2-8**, cioè la vista. ~1 500-2 000 righe su 12-18 file, due o tre
+sessioni. **E qui c'è una domanda di sequenza**: il seme proponeva di progettarla nella sessione
+dell'**onda 3** insieme a C4 (TLS di default), perché C4 cambia proprio il primo archivio e il
+modo in cui l'IDE si fida del pannello. Costruirla prima vuol dire costruirla due volte.
+
+### Da provare, quando si confermano
+
+1. **La tastiera** — sul WP630: «Aggiorna ora» senza essere admin, la tastiera si vede e scrive, e
+   «Annulla» la fa sparire.
+2. **OpenPLC** — `install-container.sh --con-openplc`, poi `HOWTO` capitolo 28.
+3. **OPC-UA** — serve un server. Il browse ora mostra il tipo di ogni nodo.
+4. **Il trust store** — una sorgente con una policy vera, e il certificato del server compare
+   nell'elenco invece di non comparire mai.
+
+## Tutte le decisioni prese, e un difetto nuovo sul WP630 (2026-10-23)
 
 ### Il difetto, da prendere alla prima occasione utile
 
