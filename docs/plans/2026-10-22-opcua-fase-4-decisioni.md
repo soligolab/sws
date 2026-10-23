@@ -1,4 +1,41 @@
-# OPC-UA, Fase 4 — le sei decisioni che restano
+# OPC-UA, Fase 4 — le decisioni, prese il 23-10-2026
+
+> **Tutte e sei decise.** Il riassunto è qui in testa; sotto, ogni voce porta il perché e le
+> opzioni scartate. Da qui si apre un ramo, non un'altra sessione di plan.
+
+| | Decisione |
+|---|---|
+| **1. Collaudo** | **Il nostro server impara** a esporre una struttura e un array dietro un flag di prova. Il collaudo è client nostro contro server nostro, dentro `cargo test` |
+| **2. Scrittura in una struttura** | **Il nodo figlio** (`HasComponent`). Il browse tipizzato diventa la premessa: 4b e 4c vanno nello **stesso ramo** |
+| **3. Il `DataType`** | **Dal tipo dichiarato del tag**, anche in lettura. La Fase 4a l'aveva già scelto per la scrittura |
+| **4. Il `DataTypeTree`** | **Sempre**, su tutti i namespace |
+| **5. Scritture dal server** | **Passano dal bus**, con ripiego sul `TagDb` quando nessuno possiede il tag |
+| **6. Bad o Uncertain** | **Tipo non gestito = Bad**; valore assente con stato Good resta Uncertain |
+
+### Quello che le decisioni cambiano, messo insieme
+
+**4b e 4c diventano un ramo solo.** La decisione 2 lo impone: se un campo di struttura si scrive
+sul nodo figlio, bisogna prima **sapere che quel figlio esiste** — e lo dice il browse tipizzato,
+che è la 4b. Non si possono più fare in due sessioni separate.
+
+**Il server cresce in due direzioni nello stesso giro**: deve imparare a esporre array e strutture
+(decisione 1) e a far passare le scritture entranti dal bus (decisione 5). Le due cose si toccano
+nello stesso file e conviene farle insieme.
+
+**Il `DataTypeTree` sempre, e il costo si paga anche dove non serve.** Era la scelta che avevo
+sconsigliato: un progetto di soli scalari sfoglia la gerarchia dei tipi del server a **ogni
+riconnessione**. Il maintainer l'ha scelta lo stesso, e la scelta è difendibile — è semplice, è
+**misurabile** sul primo server vero, e tornare a «solo se serve» è una riga. Va misurata, non
+dimenticata: se su un server grosso la riconnessione diventa lenta, è il primo posto da guardare.
+
+**Il tipo dichiarato come fonte del `DataType` ha una conseguenza da dire nel manuale**: se il tag
+dichiara `u16` e il nodo è un `Float`, vince quello che dice il progetto. È il contrario di oggi
+per la lettura, dove vince il `Variant` che arriva. Un errore di dichiarazione diventa un errore
+visibile invece che un valore storto in silenzio — ma va scritto.
+
+---
+
+# Il materiale che ha istruito le decisioni
 
 > **Da decidere, non da leggere.** La Fase 4a (i difetti) è fatta: ramo `feat/tag-4a-opcua-difetti`.
 > Qui c'è solo quello che non si può fare senza di te. Ogni voce ha le opzioni e cosa cambia nel
@@ -20,7 +57,7 @@ fallisce, e il template `opcua-demo` ha cinque tag tutti scalari.
 
 ---
 
-## 1. Come si collauda una struttura, se un server con strutture non ce l'abbiamo?
+## 1. Come si collauda una struttura? — **DECISA: il nostro server impara**
 
 | | Cosa vuol dire | Costo |
 |---|---|---|
@@ -30,7 +67,7 @@ fallisce, e il template `opcua-demo` ha cinque tag tutti scalari.
 
 **Cosa cambia:** con (c) la sessione C non esiste in questo giro.
 
-## 2. Scrivere dentro una struttura: come?
+## 2. Scrivere dentro una struttura: come? — **DECISA: il nodo figlio**
 
 `NumericRange` indirizza **solo gli array**. Non esiste una forma che indirizzi il campo di una
 struttura (`None | Index | Range | MultipleRanges`, e basta).
@@ -41,7 +78,7 @@ struttura (`None | Index | Range | MultipleRanges`, e basta).
 | **b** | Rifiutarla, come oggi, e dire che una radice-struttura OPC-UA è in sola lettura. Gli array restano scrivibili. | Metà del lavoro |
 | **c** | Scrivere il **nodo figlio**: molti server espongono i campi anche come nodi `HasComponent`. | Il browse tipizzato diventa la premessa, e i due vanno nello stesso ramo |
 
-## 3. Il `DataType` del nodo, da dove arriva?
+## 3. Il `DataType` del nodo, da dove arriva? — **DECISA: dal tipo dichiarato del tag**
 
 Serve a leggere gli array, a scrivere, e a scegliere il `Variant`.
 
@@ -59,7 +96,7 @@ creati da lì il tipo sta già nel progetto.
 
 **La domanda che resta**: (c) basta anche per la **lettura** degli array, o serve (a)/(b)?
 
-## 4. Quanto largo si costruisce il `DataTypeTree`?
+## 4. Quanto largo si costruisce il `DataTypeTree`? — **DECISA: sempre**
 
 Senza, un `ExtensionObject` non si decodifica. L'esempio del crate usa il filtro «namespace ≤ 2».
 
@@ -69,10 +106,11 @@ Senza, un `ExtensionObject` non si decodifica. L'esempio del crate usa il filtro
 | **b** | Solo se almeno un nodo mappato è una radice composita. Un progetto di soli scalari non paga niente |
 | **c** | Sempre, ma filtrato ai namespace che i `node_id` del progetto nominano davvero |
 
-**Proposta mia: (b).** Con (b) i progetti di oggi non cambiano di un millisecondo, e il costo si
-paga solo dove serve. Ma è una scelta tua.
+**Proposta mia era (b)**; il maintainer ha scelto **(a), sempre**. Il costo è reale e va
+**misurato sul primo server vero**: un progetto di soli scalari paga una browse della gerarchia dei
+tipi a ogni riconnessione. Se diventa lento, tornare a (b) è una riga.
 
-## 5. Il server OPC-UA: le scritture da un SCADA passano dal bus?
+## 5. Il server OPC-UA: le scritture da un SCADA passano dal bus? — **DECISA (a), 23-10-2026**
 
 Oggi vanno **dritte nel `TagDb`**, e il parametro si chiama `_bus`: è dichiarato inutilizzato.
 
@@ -88,7 +126,13 @@ mai.** Nessun errore, nessun avviso.
 **Cosa cambia:** (a) è un cambio di comportamento visibile e va in `NOVITA.yaml`. Serve lo
 `scale_to_raw` prima del bus e un test che una scrittura arrivi fino a un dispositivo finto.
 
-## 6. Un valore che non si sa leggere: Bad o Uncertain?
+> **Decisa il 23-10-2026: (a), si passa dal bus.** Il maintainer l'ha presa parlando d'altro — di
+> OpenPLC, e di chi fra i due sia il master — ed è il contesto che la rende ovvia: un SWS esposto a
+> un altro sistema che scrive su un tag di campo e non lo manda al campo è un difetto che nessuno
+> vede finché non guarda il dispositivo. La stessa regola varrà per il **server Modbus**, quando
+> si farà: vedi il seme [server Modbus](2026-10-23-server-modbus.md).
+
+## 6. Un valore che non si sa leggere: Bad o Uncertain? — **DECISA: non gestito = Bad**
 
 Oggi tutti e due i casi — tipo non gestito, e valore assente — danno **Uncertain**. La Fase 4a non
 l'ha cambiato: ha solo smesso di inventare uno zero.
@@ -101,6 +145,15 @@ l'ha cambiato: ha solo smesso di inventare uno zero.
 
 **Cosa cambia:** sul pannello è la differenza fra un bordo di allarme e un dato ingrigito. Due
 righe di codice, ma è UX e il manuale la dichiara.
+
+> **Decisa il 23-10-2026: tipo non gestito = `Bad`**, valore assente con stato Good resta
+> `Uncertain`. Scartata la variante con l'avviso una volta sola.
+>
+> **Dove si tocca**: `valore.rs`, `da_data_value`, il ramo in cui `da_variant` torna `None`. Oggi
+> dà `Uncertain` per tutti e due i casi, perché la Fase 4a ha cambiato **solo** lo zero inventato
+> e non la qualità. Sono due righe, e vanno nel ramo 4b/4c — non da sole: la 2.19.0 è già
+> pubblicata, e un cambio di qualità a schermo merita di viaggiare con il resto e la sua voce
+> nelle Novità.
 
 ---
 

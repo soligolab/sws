@@ -54,9 +54,55 @@ elencare — manca il metodo, sono quattro righe.
 
 ---
 
-## Le decisioni
+## Le decisioni — tutte e otto prese il 23-10-2026
 
-### 1. Il trust store OPC-UA rotto: quando si ripara?
+| | Scelta |
+|---|---|
+| **1. Il trust store OPC-UA rotto** | **Tutti e due adesso**: il percorso `trusted/certs` → `trusted` **e** il default della policy di sicurezza |
+| **2. La card TLS a dispositivo remoto** | **Si aggiungono le rotte remote** (`/api/remote/system/tls`), perché è il presupposto di C4 |
+| **3. Il perimetro della vista** | **Una scheda, due colonne**: «questa istanza» e «dispositivo connesso» |
+| **4. L'archivio del viewer LVGL** | **Si monta in sola lettura** nel runtime: quadlet 6 → 7 |
+| **5-6. Il certificato del pannello** | **Nome vero e scadenza breve**, con avviso e rinnovo |
+| **7. Ruoli e audit** | **Tutto Admin**, e i cinque eventi di audit mancanti si aggiungono qui |
+| **8. Le righe morte del pinning** | **Si mostrano**, col loro «dimentica» |
+
+### Cosa discende dalle tre
+
+**«Tutti e due adesso» è la scelta coraggiosa, e va fatta sapendo cosa tocca.** Il default
+`security_policy: None` sta in **tre posti indipendenti**: il `serde(default)` di `sws-core`, la
+sorgente vuota che crea l'IDE, e il template `opcua-demo`. Cambiarlo non rompe una sorgente che
+dichiara `None` di proposito — quella continua a dichiararlo — ma cambia il comportamento di ogni
+sorgente che **non lo dichiara**, e quelle sono le più vecchie. Serve la stessa regola di
+compatibilità che la Fase 3 ha scritto per Modbus: **un progetto che non ha mai scelto si comporta
+come prima**, e solo una scelta esplicita attiva il nuovo. Altrimenti il primo aggiornamento
+stacca le sorgenti OPC-UA di chi non ha fatto niente di male.
+
+**Le rotte remote e le due colonne sono la stessa cosa vista due volte.** La decisione 2 chiede
+`/api/remote/system/tls`; la decisione 3 chiede `/api/remote/certificati/*`. Conviene disegnarle
+insieme: la prima è un caso particolare della seconda, e farle in due giri vuol dire scrivere due
+volte lo stesso proxy.
+
+**Il buco della colonna «dispositivo connesso» si chiude con una riga**: l'archivio del viewer
+LVGL si monta in sola lettura nel runtime, quadlet 6 → 7, e l'aggiornamento se lo porta dietro da
+solo — lo stesso meccanismo appena usato per il journal.
+
+**La scadenza breve è la decisione che fa più lavoro, e non è lavoro della vista.** Oggi il
+certificato non scade (1975 → 4096) e nessuno legge una validità, nemmeno al caricamento di un
+certificato esterno. Portarlo a uno o due anni vuol dire costruire **avviso e rinnovo**, e decidere
+**dove si vede** l'avviso: barra dell'IDE, allarme di sistema, email. È materia di C4, e va
+disegnata nella stessa sessione.
+
+**E c'è una domanda che il nome vero si porta dietro**: i certificati già generati non cambiano
+finché non li si rigenera, e rigenerare **rompe la fiducia di chi si era già fidato
+dell'impronta**. Va deciso se la vista offre «rigenera» e cosa dice a chi lo preme.
+
+**«Tutto Admin» è un cambio di comportamento**: l'elenco dei certificati OPC-UA oggi è Supervisor.
+Va in `NOVITA.yaml`. Con lui si chiudono i cinque eventi di audit mancanti — su sei operazioni che
+cambiano un certificato, oggi cinque non lasciano traccia.
+
+## Le decisioni, una per una
+
+### 1. Il trust store OPC-UA rotto — **DECISA: percorso e policy, tutti e due adesso**
 
 Non è il refuso che sembrava. Le opzioni:
 
@@ -66,7 +112,7 @@ Non è il refuso che sembrava. Le opzioni:
   dell'onda 3 partirebbe da un'interfaccia che non ha mai funzionato.
 - **c** — insieme alla card TLS remota (decisione 2): sono due difetti della stessa famiglia.
 
-### 2. La card «Certificato TLS» con un dispositivo remoto connesso
+### 2. La card «Certificato TLS» a dispositivo remoto — **DECISA: si aggiungono le rotte remote**
 
 Oggi mostra e modifica **l'istanza locale**, anche con un pannello connesso. Il resto della scheda
 usa la variante remota; per il TLS quella rotta non esiste.
@@ -76,7 +122,7 @@ usa la variante remota; per il TLS quella rotta non esiste.
 - **b** — nascondere la card quando c'è un remoto, e dire «si gestisce dalla vista Certificati».
 - **c** — lasciarla e scriverlo nell'etichetta.
 
-### 3. La vista mostra l'istanza, o anche il dispositivo connesso?
+### 3. Il perimetro della vista — **DECISA: una scheda, due colonne**
 
 Il problema è reale e misurato: `tls.crt` e `dispositivi_conosciuti.yaml` stanno nella cartella di
 configurazione **di chi gira**. Lo stesso schermo mostra archivi diversi a seconda dell'istanza.
@@ -86,7 +132,7 @@ configurazione **di chi gira**. Lo stesso schermo mostra archivi diversi a secon
 - **b** — solo l'istanza locale; per il pannello ci si collega al pannello.
 - **c** — due foglie sotto Sicurezza: Certificati (IDE) e Certificati (Dispositivo).
 
-### 4. L'archivio del viewer LVGL entra nella vista?
+### 4. L'archivio del viewer LVGL — **DECISA: si monta in sola lettura**
 
 Il runtime **non lo vede**: è montato solo nel container del viewer.
 
@@ -97,7 +143,7 @@ Il runtime **non lo vede**: è montato solo nel container del viewer.
 - **c** — lo espone il viewer con un endpoint: un protocollo nuovo fra due container, per un file
   di poche righe.
 
-### 5. Il certificato del pannello deve avere un nome vero?
+### 5. Il nome del certificato del pannello — **DECISA: nome vero**
 
 Oggi è **«CN=rcgen self signed cert»**, uguale su ogni pannello: nessuno imposta il
 `distinguished_name`. Una colonna «soggetto» mostrerebbe quella stringa a tutti.
@@ -107,7 +153,7 @@ Oggi è **«CN=rcgen self signed cert»**, uguale su ogni pannello: nessuno impo
   generati non cambiano finché non li si rigenera, e allora va deciso **cosa succede a chi si era
   già fidato dell'impronta vecchia**.
 
-### 6. `not_after` al 4096: gli avvisi di scadenza esistono o no?
+### 6. La scadenza — **DECISA: si accorcia, e gli avvisi si costruiscono (lavoro di C4)**
 
 Il self-signed **non scade mai** (rcgen: 1975 → 4096, e nessuno lo cambia). Nemmeno
 `upload_tls_cert` legge la validità di quello che gli si carica.
@@ -116,7 +162,7 @@ Il self-signed **non scade mai** (rcgen: 1975 → 4096, e nessuno lo cambia). Ne
 - **b** — uno o due anni, con avviso e rinnovo. È lavoro di C4, non della vista, e va deciso anche
   **dove si vede** l'avviso: barra dell'IDE, allarme di sistema, email.
 
-### 7. Chi tocca la vista, e cosa finisce nell'audit?
+### 7. Ruoli e audit — **DECISA: tutto Admin, e l'audit si chiude qui**
 
 - Ruoli: tutta Admin (coerente con le rotte di oggi), oppure due livelli come adesso — l'elenco dei
   certificati OPC-UA è Supervisor, le scritture Admin. **Portare quella rotta a Admin è un cambio
@@ -125,7 +171,7 @@ Il self-signed **non scade mai** (rcgen: 1975 → 4096, e nessuno lo cambia). Ne
   `opcua.cert_trust`, `opcua.cert_delete`) sono **~15 righe**, e chiudono il requisito CRA di
   tracciabilità insieme alla vista invece di lasciarlo aperto nel fascicolo.
 
-### 8. Le righe morte lasciate dal cambio 8443 → 7443
+### 8. Le righe morte del pinning — **DECISA: si mostrano, col loro «dimentica»**
 
 La chiave del pinning è `host:porta`, quindi per lo stesso pannello ci sono due righe. Il gesto che
 le toglie tutte esiste già (`dimentica_host`): manca solo chi lo chiama.

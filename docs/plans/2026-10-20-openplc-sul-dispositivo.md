@@ -1,12 +1,70 @@
 # OpenPLC sul dispositivo — le decisioni, dopo la sessione di plan
 
-> **Era un seme, dal 22-10-2026 porta le decisioni.** La sessione di plan che il seme chiedeva è
+> **DECISO dal maintainer il 23-10-2026.** Le otto scelte sono in testa, qui sotto; il materiale
+> che le ha istruite resta in coda. Da qui si apre un ramo, non un'altra sessione di plan.
+>
+> **Era un seme, dal 22-10-2026 portava le decisioni.** La sessione di plan che il seme chiedeva è
 > stata fatta quella notte, misurando il codice e i documenti. Le misure del laboratorio del
 > 20-10 reggono quasi tutte; quello che è cambiato è scritto qui sotto.
 >
 > Richiesta del maintainer, 20-10-2026: «valuta se può avere più senso far girare OpenPLC
 > direttamente sul device e poterlo usare anche in produzione», e poi «quindi non solo un
 > laboratorio ma una funzione di SWS».
+
+
+## Le decisioni (23-10-2026)
+
+| | Scelta |
+|---|---|
+| **Governo** | **Ibrido**: quadlet nostro per farlo partire e farlo ripartire dopo un riavvio, aggiornamento suo. È il modello di `portainer` sul VPS — quadlet nostro, nessun `AutoUpdate` |
+| **Destinatario** | **Tutti e due**: si parte dalle board generiche, i Pixsys arrivano dopo, quando la convivenza con CODESYS si decide a parte |
+| **Opzionale** | **Sì, e questo è un vincolo, non una preferenza**: «non è detto che a tutti i clienti serva». Niente si installa senza che qualcuno lo chieda |
+| **Spazio** | **Anche sui pannelli piccoli**, accettando il conto stretto. Va rivista la soglia |
+| **La logica ST** | In **`<progetto>/openplc/`**, e deve viaggiare: git **e** deploy |
+| **IDE nel cloud** | **Scarica e ricarica la cartella**: due rotte che esportano e reimportano la sola `openplc/` |
+| **Quadlet** | Entra nel minimo **solo se installata** |
+| **La 4840** | **Si documenta**: entrambe le porte sono configurabili |
+
+### Cosa discende da ciascuna, misurato
+
+**La cartella `openplc/` è in git gratis.** Il git di progetto fa `git add -A`, non una lista: prende
+tutto quello che c'è nella cartella del progetto tranne ciò che il `.gitignore` esclude. Zero righe.
+
+**E l'Editor di OpenPLC la apre da sé**, perché è una cartella normale in `~/sws_projects/<nome>/`.
+La difficoltà che il maintainer vedeva si scioglie da sola — **finché l'IDE gira sul suo PC**.
+
+**Il deploy invece costa cinque righe in cinque posti**, ed è l'opposto del git: `BACKED_UP`
+(`backups.rs`), `SERVE` (`istantanea.rs`), `build_project_zip`, l'impronta del deploy e
+`sync_yaml_dir_from_zip` (tutte e tre in `router.rs`) sono elenchi **scritti a mano**. E già
+divergono: `backups.rs` non ha `faceplates` né `cornici`, che gli altri hanno. Aggiungere `openplc/`
+è il momento buono per chiedersi se quelle cinque liste vadano unificate in una sola — **è una
+domanda aperta, non una decisione presa**.
+
+**«Entra nel minimo solo se installata» chiede una cosa che oggi non c'è.** `installata()`
+(`quadlet.rs`) fa `vr.min(vv)`, e un'unità non caricata vale 0 perché si **presume** sia
+un'installazione precedente al suo quadlet. Un'unità che non si vuole vale 0 per sempre, e il
+pannello chiederebbe un aggiornamento dei quadlet a ogni giro. Serve **un segno sul disco** che dica
+quali unità questo pannello ha scelto: è il pezzo di lavoro che questa decisione fa nascere.
+
+**Il rootless morde due volte.** In podman rootless non si pubblicano porte sotto la **1024**, e il
+sysctl che abbassa la soglia esiste **solo sul VPS**: il laboratorio del 20-10 girava tutto
+rimappato (`-p 1502:502`), quindi la coabitazione sulle porte vere non è mai stata provata. E il
+**tempo reale** resta fuori: `sched_setscheduler` fallisce in rootless, nessun quadlet del repo
+aggiunge capacità, e il rootless è una scelta di disegno.
+
+### L'ordine dei rami
+
+1. **Il segno delle unità scelte** e il minimo che lo rispetta. Piccolo, e sblocca tutto il resto.
+2. **Il quadlet di OpenPLC**, opzionale, senza `AutoUpdate`. Più l'installer che lo propone invece
+   di metterlo.
+3. **`openplc/` nelle cinque liste** — e la domanda se unificarle.
+4. **Le due rotte** scarica/ricarica della cartella.
+5. **Documentazione**: la 4840, il rootless sotto la 1024, il tempo reale, e come si punta una
+   sorgente Modbus a `127.0.0.1`.
+
+Il punto 1 è il solo che tocca codice già in produzione. Dal 2 in poi si aggiunge.
+
+---
 
 ## Tre cose che la misura ha cambiato
 

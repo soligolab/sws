@@ -12,7 +12,63 @@
 > resta in «Storico». Qui vive solo ciò che serve a riprendere il lavoro.
 
 
-## ▶ Riprendere da qui — 2.19.0 pubblicata, e tre decisioni che aspettano te (2026-10-23)
+## ▶ Riprendere da qui — tutte le decisioni prese, e un difetto nuovo sul WP630 (2026-10-23)
+
+### Il difetto, da prendere alla prima occasione utile
+
+**Sul WP630, «Aggiorna ora» porta a un vicolo cieco.** Compare l'avviso di aggiornamento
+disponibile; premendo «Aggiorna ora» si apre il pannellino 🔑 «Per aggiornare serve un
+amministratore del pannello» **con il solo bottone Annulla, e nessun modo di fare il login**.
+
+**Misurato subito, quel tanto che basta a non ripartire da zero.** La login **c'è ed è disegnata**:
+`Avviso::Accesso` in `sws-lvgl-viewer/src/lvgl_avviso.rs:559`. Il solo «Annulla» nella card è
+**voluto** — si scrive in una **tastiera a schermo** che occupa la metà bassa, ed è per questo che
+la card si sposta in alto (`LV_ALIGN_TOP_MID`, `:331` e `:434`, con il commento che cita
+l'istantanea del 20-10). Quindi quello che è mancato è **la tastiera**, non il pulsante.
+
+La tubatura sembra a posto: `avanza_accesso` (`:199`) è chiamata da `sincronizza` (`:174`), e i
+**tre** siti di chiamata in `main.rs` (1214, 1423, 1774) passano tutti `shared_session`. Il difetto
+sta più in basso.
+
+**E si riproduce qui, senza pannello**, perché il viewer ha l'opzione fatta apposta:
+
+```
+sws-lvgl-viewer --base-url ... --avviso-di-prova nuova \
+  --istantanea tmp/agg.ppm --istantanea-ms 4000 --tocca "<x,y di Aggiorna ora>"
+```
+
+Si guarda la fotografia: se la tastiera non c'è, il difetto è lì davanti senza toccare il WP630.
+
+### Le decisioni: tutte prese
+
+Diciannove scelte in tre documenti, più due nate strada facendo. I tre piani non aspettano più
+niente: da qui si aprono rami.
+
+| Documento | Stato |
+|---|---|
+| [OpenPLC sul dispositivo](docs/plans/2026-10-20-openplc-sul-dispositivo.md) | **otto su otto** — governo ibrido, per board generiche **e** Pixsys, **opzionale**, logica in `<progetto>/openplc/` con git **e** deploy |
+| [I certificati in un posto solo](docs/plans/2026-10-15-certificati-in-un-posto-solo.md) | **otto su otto** — vista a due colonne, rotte remote, trust store riparato col default della policy, certificato con nome e scadenza |
+| [OPC-UA, Fase 4](docs/plans/2026-10-22-opcua-fase-4-decisioni.md) | **sei su sei** — la 4a è già nella 2.19.0; 4b e 4c diventano **un ramo solo** |
+| [Server Modbus](docs/plans/2026-10-23-server-modbus.md) | **seme nuovo**: SWS parla Modbus solo da client |
+
+### Le tre cose che le decisioni fanno nascere, e che prima non c'erano
+
+1. **Un segno sul disco delle unità scelte.** «OpenPLC opzionale» più «entra nel minimo solo se
+   installata» chiedono una cosa che oggi non esiste: oggi un'unità non caricata vale 0, perché si
+   **presume** sia un'installazione vecchia. Un'unità che non si vuole varrebbe 0 per sempre.
+2. **La regola di compatibilità sul default della policy OPC-UA.** Cambiarlo tocca ogni sorgente
+   che non lo dichiara, cioè le più vecchie: serve lo stesso «chi non ha mai scelto si comporta
+   come prima» che la Fase 3 ha scritto per Modbus.
+3. **Il server Modbus**, che è una funzione di SWS e non di OpenPLC: delle quattro combinazioni
+   «chi legge chi» due funzionano e due no, e di quelle due **una sola è nostra**.
+
+### E una domanda aperta che vale la pena non perdere
+
+Mettere `openplc/` nel deploy vuol dire aggiungerla a **cinque elenchi scritti a mano** — e quegli
+elenchi **già divergono**: `backups.rs` non ha `faceplates` né `cornici`, che gli altri due hanno.
+È il momento buono per chiedersi se vadano unificati in uno solo. **Non è una decisione presa.**
+
+## 2.19.0 pubblicata (2026-10-23)
 
 ### La release
 
