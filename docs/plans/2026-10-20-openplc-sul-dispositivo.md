@@ -52,7 +52,7 @@ rimappato (`-p 1502:502`), quindi la coabitazione sulle porte vere non è mai st
 **tempo reale** resta fuori: `sched_setscheduler` fallisce in rootless, nessun quadlet del repo
 aggiunge capacità, e il rootless è una scelta di disegno.
 
-### L'ordine dei rami
+### L'ordine dei rami — **tutti e cinque fatti il 23-10-2026**
 
 1. ~~**Il segno delle unità scelte** e il minimo che lo rispetta.~~ **FATTO il 23-10-2026**, ramo
    `feat/openplc-1-unita-scelte`. L'installer scrive `unita-scelte.json` — è l'unico che sa cosa
@@ -62,14 +62,25 @@ aggiunge capacità, e il rootless è una scelta di disegno.
    apposta — una regola che si può provare solo con un systemd davanti non si prova mai. Guardia
    `check_unita_scelte.sh`, provata rossa aggiungendo una terza unità al solo lato Rust: è
    esattamente l'errore che il ramo 2 potrebbe fare.
-2. **Il quadlet di OpenPLC**, opzionale, senza `AutoUpdate`. Più l'installer che lo propone invece
-   di metterlo.
-3. **`openplc/` nelle cinque liste** — e la domanda se unificarle.
-4. **Le due rotte** scarica/ricarica della cartella.
-5. **Documentazione**: la 4840, il rootless sotto la 1024, il tempo reale, e come si punta una
-   sorgente Modbus a `127.0.0.1`.
+2. ~~**Il quadlet di OpenPLC**, opzionale, senza `AutoUpdate`.~~ **FATTO**, ramo
+   `feat/openplc-2-quadlet`. Due decisioni prese senza il maintainer, dopo il suo «procedi»: lo
+   installa una bandiera (`--con-openplc`), e le porte di Modbus e S7 sono **alte**, perché in
+   rootless sotto la 1024 non si pubblica e il sysctl che abbassa la soglia sul pannello non c'è.
+3. ~~**`openplc/` nelle cinque liste**~~ **FATTO**, ramo `feat/openplc-3-logica-nel-progetto`. In
+   **quattro**, non cinque: l'istantanea no, perché disegna una pagina e la logica non c'entra.
+   Modulo `logica_plc.rs` invece di quattro copie della stessa logica. **La domanda se unificare
+   le liste resta aperta**, e non è una decisione presa.
+4. ~~**Le due rotte** scarica/ricarica della cartella.~~ **FATTO**, ramo
+   `feat/openplc-4-rotte-logica`. Lo zip va e torna **senza** il prefisso `openplc/`: chi scarica
+   vuole il progetto OpenPLC, non una cartella dentro un'altra.
+5. ~~**Documentazione**~~ **FATTO**, ramo `feat/openplc-5-documentazione`: `docs/HOWTO.md`
+   capitolo 28, con le porte vere, il tempo reale che non c'è, i due server OPC-UA e CODESYS.
 
-Il punto 1 è il solo che tocca codice già in produzione. Dal 2 in poi si aggiunge.
+Il punto 1 era il solo che toccasse codice già in produzione. Dal 2 in poi si è aggiunto.
+
+**Quello che resta, e non è di questo piano**: il server Modbus di SWS — vedi il seme
+[server Modbus](2026-10-23-server-modbus.md) — e il tempo reale, che in rootless non si ha e che
+qui non si è toccato.
 
 ---
 

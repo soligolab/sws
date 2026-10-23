@@ -45,6 +45,7 @@
 25. [Prima installazione su un pannello di un cliente, collegato al cloud](#25-prima-installazione-su-un-pannello-di-un-cliente-collegato-al-cloud)
 26. [Far leggere il progetto a un assistente esterno (MCP)](#26-far-leggere-il-progetto-a-un-assistente-esterno-mcp)
 27. [Comandare i servizi del pannello da SSH](#27-comandare-i-servizi-del-pannello-da-ssh)
+28. [Far girare OpenPLC sul pannello](#28-far-girare-openplc-sul-pannello)
 
 ---
 
@@ -1836,3 +1837,84 @@ ripartono da sole col linger, che l'installer abilita e senza il quale si ferma.
 
 Un riavvio del solo viewer è innocuo: non ha `WantedBy=`, lo avvia il runtime quando il progetto
 lo chiede, e il runtime continua a girare per conto suo.
+
+---
+
+## 28. Far girare OpenPLC sul pannello
+
+**La domanda**: «posso usare il pannello anche come PLC?».
+
+Sì, e **si installa solo se lo chiedi**: «non è detto che a tutti i clienti serva». Un pannello
+che non lo chiede non lo ha nemmeno sul disco.
+
+### Installarlo
+
+```bash
+./install-container.sh --pull ghcr.io/soligolab/sws-runtime:latest-arm64 --con-openplc
+```
+
+L'immagine di OpenPLC pesa **circa 1 GB**, e va contata due volte perché la precedente si tiene
+per il ritorno. Su un TC620 con 3,1 GB liberi il conto è stretto: guarda lo spazio prima.
+
+**Non parte da solo**, e non è una dimenticanza: un PLC che si avvia su un pannello che nessuno ha
+configurato manderebbe uscite a un impianto senza che nessuno l'abbia chiesto. Lo avvii tu:
+
+```bash
+XDG_RUNTIME_DIR=/run/user/$(id -u) systemctl --user enable --now openplc-runtime
+```
+
+### Le porte, e perché non sono quelle standard
+
+| Cosa | Standard | Sul pannello |
+|---|---|---|
+| API REST (caricare il programma) | 8443 | **8443** |
+| Modbus TCP server | 502 | **1502** |
+| S7 | 102 | **10102** |
+| OPC-UA server | 4840 | **14840** |
+
+Modbus e S7 sono rimappati perché **in podman rootless le porte sotto la 1024 non si pubblicano**,
+e il sysctl che abbassa la soglia sul pannello non c'è: esiste solo sul VPS, per Traefik.
+Abbassarlo vorrebbe dire cambiare la postura di sicurezza del dispositivo per un companion
+opzionale.
+
+La 8443 invece è libera davvero: dal 21-10-2026 SWS è sulla 7443 e 7444.
+
+**Tutte e quattro ascoltano solo su `127.0.0.1`.** Un PLC raggiungibile dalla rete è una decisione
+di chi installa l'impianto, non un default: per aprirlo si toglie il `127.0.0.1:` dal quadlet,
+sapendo cosa si sta facendo.
+
+### Leggere i tag del PLC da SWS
+
+Nessun codice, solo configurazione: una sorgente **Modbus TCP** con host `127.0.0.1` e porta
+`1502`. È il protocollo che SWS parla meglio — quattro aree, il numero di registri dedotto dal
+tipo del tag, la scrittura sulla singola foglia.
+
+### Dove sta la logica, e come si versiona
+
+In **`<progetto>/openplc/`**, cioè dentro il progetto SWS. Da lì:
+
+- **il git di progetto la prende da sé** (fa `git add -A`): zero configurazione;
+- **viaggia col deploy**, col backup e con l'export, come i sinottici;
+- e **l'Editor di OpenPLC la apre direttamente**, perché è una cartella normale:
+  `~/sws_projects/<nome>/openplc/`.
+
+Con l'IDE **nel cloud** l'Editor non raggiunge quei file, che stanno sul VPS. Per quel caso ci sono
+due rotte: `GET /api/project/logica-plc` scarica la cartella come zip, `PUT` la rimette
+sostituendola.
+
+### Quello che non c'è, e conviene sapere prima
+
+| | |
+|---|---|
+| **Tempo reale** | In rootless `sched_setscheduler` fallisce: il ciclo gira senza priorità realtime. Il rootless è una scelta di disegno del pannello, non un caso |
+| **L'aggiornamento** | È di chi usa OpenPLC: il quadlet non ha `AutoUpdate=`. Il ciclo di conferma e ritorno di SWS è costruito sulle nostre immagini e su una di un altro registry non saprebbe cosa vuol dire «tornare indietro» |
+| **Due server OPC-UA** | Se accendi anche quello di SWS, uno dei due va spostato: sono tutti e due configurabili |
+| **CODESYS** | Sui Pixsys c'è già, e già litiga con SWS per il browser. Due PLC sullo stesso dispositivo è una scelta di prodotto, non tecnica |
+
+### Se qualcosa non va
+
+| Sintomo | Cosa guardare |
+|---|---|
+| `--con-openplc` dice che il quadlet non c'è | serve un'immagine di SWS che lo porti (2.19.1 o successiva) |
+| Il container non parte | `XDG_RUNTIME_DIR=/run/user/$(id -u) journalctl --user -u openplc-runtime -n 50`; spesso è lo spazio |
+| SWS non legge i tag | la sorgente Modbus punta a 1502, non a 502 |

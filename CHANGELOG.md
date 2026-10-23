@@ -13,6 +13,24 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 
 ### Added
 
+- **OpenPLC Runtime sul pannello, opzionale** — il piano
+  `docs/plans/2026-10-20-openplc-sul-dispositivo.md`, cinque rami, tutti fatti. Governo **ibrido**:
+  il quadlet è nostro e riparte col linger, ma `AutoUpdate=` non c'è — il ciclo di conferma e
+  ritorno di SWS è costruito sulle nostre immagini, e su una di un altro registry «tornare
+  indietro» non è nemmeno definito. È il modello di `portainer` sul VPS. Si installa con
+  `install-container.sh --con-openplc` e **non parte da solo**: un PLC che si avvia su un pannello
+  che nessuno ha configurato manderebbe uscite a un impianto senza che nessuno l'abbia chiesto.
+  Modbus e S7 sono rimappati in alto (1502 e 10102) perché **in rootless sotto la 1024 non si
+  pubblica**, e tutte le porte ascoltano solo su `127.0.0.1`. `docs/HOWTO.md` capitolo 28.
+
+- **La logica PLC viaggia col progetto**, in `<progetto>/openplc/`: backup, export, deploy e
+  impronta. Il git la prende da sé (`git add -A`), e l'Editor di OpenPLC la apre come cartella
+  normale — era la difficoltà che la decisione lasciava aperta, e si scioglie da sola finché l'IDE
+  gira sul PC di chi lavora. Per l'IDE nel cloud ci sono `GET`/`PUT /api/project/logica-plc`, che
+  scaricano e rimettono la sola cartella. **Non** entra nell'istantanea: quella disegna una pagina
+  e la logica del PLC non c'entra. Modulo nuovo `logica_plc.rs`, con il tetto a 32 MiB e il rifiuto
+  dei percorsi che escono dalla cartella — un bundle arriva da fuori.
+
 - **Il pannello registra quali unità ha scelto di avere** (`unita-scelte.json` nella cartella di
   configurazione, scritto dall'installer). Serve perché la versione dei quadlet installati è il
   **minimo** fra le unità, e fino a oggi un'unità non caricata valeva 0 con la motivazione «è
