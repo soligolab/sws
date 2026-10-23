@@ -320,6 +320,56 @@ async fn run_once(
     }
     let foglie_per_tag = Arc::new(foglie_per_tag);
 
+    // **I nodi figli dei tag compositi** (decisione 2 del 23-10-2026).
+    //
+    // `NumericRange` indirizza **solo gli array**: non esiste una forma che
+    // indirizzi il campo di una struttura. Delle tre strade il maintainer ha
+    // scelto il **nodo figlio** — molti server espongono i campi anche come
+    // nodi `HasComponent`, e scrivere quello evita il leggi-modifica-riscrivi,
+    // dove due operatori che toccano due campi diversi nello stesso istante si
+    // cancellano a vicenda.
+    //
+    // La mappa si costruisce **una volta per sessione**: un browse per ogni
+    // radice composita, e si tiene `percorso -> NodeId`. Un server che non
+    // espone i figli semplicemente non ne dà, e la scrittura su quella foglia
+    // resta rifiutata — con un messaggio che adesso dice **perché**.
+    let mut figli: HashMap<String, NodeId> = HashMap::new();
+    for mapping in &cfg.nodes {
+        let Some(foglie) = foglie_per_tag.get(&mapping.tag) else { continue };
+        let Some(radice) = tag_to_node.get(&mapping.tag).cloned() else { continue };
+        let req = BrowseDescription {
+            node_id: radice,
+            browse_direction: BrowseDirection::Forward,
+            reference_type_id: ReferenceTypeId::HierarchicalReferences.into(),
+            include_subtypes: true,
+            node_class_mask: 0,
+            result_mask: 0x3f,
+        };
+        let Ok(risultati) = session.browse(&[req], 200, None).await else { continue };
+        for r in risultati {
+            let Some(refs) = r.references else { continue };
+            for rd in refs {
+                let nome = rd.browse_name.name.as_ref().to_string();
+                // Il figlio si riconosce dal **nome**: il percorso di una
+                // foglia finisce col nome del membro (`motore1.velocita`).
+                for (percorso, _) in foglie {
+                    if percorso
+                        .rsplit(['.', '['])
+                        .next()
+                        .map(|u| u.trim_end_matches(']') == nome)
+                        .unwrap_or(false)
+                    {
+                        figli.insert(percorso.clone(), rd.node_id.node_id.clone());
+                    }
+                }
+            }
+        }
+    }
+    if !figli.is_empty() {
+        info!(source = %cfg.id, figli = figli.len(), "opcua: nodi figli trovati per le foglie");
+    }
+    let figli = Arc::new(figli);
+
     // Register every owned tag with the write bus. The mpsc receiver is
     // drained by the writer task below; on session exit we unregister
     // explicitly so the bus doesn't keep forwarding to a closed channel.
@@ -386,15 +436,28 @@ async fn run_once(
     let tag_to_node = Arc::new(tag_to_node);
     let writer_source_id = cfg.id.clone();
     let writer_db = db.clone();
+    let figli_per_scrittura = figli.clone();
     let writer = tokio::spawn(async move {
         while let Some((tag, percorso, value)) = write_rx.recv().await {
-            // Fase 1d: scrivere dentro un blocco arriva con la Fase 4, che
-            // legge il DataType del nodo e sa usare `index_range`.
-            if let Some(p) = &percorso {
-                warn!(source = %writer_source_id, tag = %tag, percorso = %p, "scrittura su una foglia: non ancora supportata");
-                continue;
-            }
-            let Some(nid) = tag_to_node.get(&tag).cloned() else {
+            // Scrivere su una **foglia** vuol dire scrivere sul suo nodo
+            // figlio, se il server ce l'ha (decisione 2 del 23-10-2026).
+            // `NumericRange` indirizza solo gli array, quindi per il campo di
+            // una struttura il figlio è l'unica strada che non passi da un
+            // leggi-modifica-riscrivi.
+            let nid = match &percorso {
+                Some(p) => match figli_per_scrittura.get(p.as_str()) {
+                    Some(n) => Some(n.clone()),
+                    None => {
+                        warn!(
+                            source = %writer_source_id, tag = %tag, percorso = %p,
+                            "opcua: questo server non espone un nodo figlio per questa foglia, la scrittura non si può fare"
+                        );
+                        continue;
+                    }
+                },
+                None => tag_to_node.get(&tag).cloned(),
+            };
+            let Some(nid) = nid else {
                 warn!(source = %writer_source_id, tag = %tag, "opcua: write for unknown tag");
                 continue;
             };
@@ -1156,6 +1219,46 @@ fn node_class_label(c: NodeClass) -> &'static str {
 ///
 /// The server runs until `cancel` fires (called by SourceSupervisor on
 /// project-close or reconfigure), which signals the opcua runtime to stop.
+/// I nodi che il server espone, da un elenco di mappature.
+///
+/// Ogni voce è `(identificatore del nodo, tag o percorso, tipo dichiarato)`.
+///
+/// Un tag **scalare** dà un nodo, col suo `node_id` di configurazione. Un tag
+/// **composito** dà **un nodo per foglia**, e l'identificatore di ciascuno è il
+/// **percorso** del `TagDb` (`motore1.velocita`): chi scrive su quel nodo
+/// scrive sulla foglia giusta senza nessuna tabella di conversione.
+///
+/// Estratta da `run_server` perché si possa provare con un `TagDb` vero e
+/// **senza avviare un server**: è l'elenco su cui tre pezzi devono essere
+/// d'accordo — chi crea i nodi, chi registra le callback di scrittura e chi ci
+/// specchia dentro i valori — e tre scansioni che si credono uguali sono tre
+/// scansioni che un giorno divergono.
+pub(crate) async fn nodi_esposti(
+    db: &TagDb,
+    nodes: &[sws_core::OpcUaServerNodeMapping],
+) -> Vec<(String, String, Option<String>)> {
+    let mut out = Vec::new();
+    for mapping in nodes {
+        let foglie: Vec<(String, String)> = match db.forma(&mapping.tag).await {
+            Some(f) => f
+                .foglie(&mapping.tag, &[])
+                .into_iter()
+                .map(|fo| (fo.percorso, fo.tipo.nome()))
+                .collect(),
+            None => Vec::new(),
+        };
+        if foglie.is_empty() {
+            let tipo = db.tipo_dichiarato(&mapping.tag).await;
+            out.push((mapping.effective_node_id().to_string(), mapping.tag.clone(), tipo));
+        } else {
+            for (percorso, tipo) in foglie {
+                out.push((percorso.clone(), percorso, Some(tipo)));
+            }
+        }
+    }
+    out
+}
+
 pub async fn run_server(
     cfg: sws_core::OpcUaServerConfig,
     db: Arc<sws_core::TagDb>,
@@ -1200,6 +1303,19 @@ pub async fn run_server(
         return;
     };
 
+    // **L'elenco dei nodi esposti, in un posto solo.**
+    //
+    // Tre pezzi devono essere d'accordo su quali nodi esistono: chi li crea,
+    // chi registra la callback di scrittura, e chi ci specchia dentro i valori.
+    // Finché il nodo era uno per mappatura bastava scorrere `cfg.nodes` tre
+    // volte; con le foglie non basta più, e tre scansioni che si credono uguali
+    // sono tre scansioni che un giorno divergono.
+    //
+    // Ogni voce è `(identificatore del nodo, tag o percorso, tipo dichiarato)`.
+    // L'identificatore **è** il percorso del `TagDb`: chi scrive su quel nodo
+    // scrive sulla foglia giusta senza nessuna tabella di conversione.
+    let esposti = nodi_esposti(&db, &cfg.nodes).await;
+
     // Populate address space: folder + one Variable per tag mapping.
     {
         let mut address_space = node_mgr.address_space().write();
@@ -1208,24 +1324,71 @@ pub async fn run_server(
         address_space.add_folder(&folder_id, "SWS", "SWS", &objects_folder);
 
         for mapping in &cfg.nodes {
-            let nid = NodeId::new(ns, mapping.effective_node_id());
-            // Il tipo dichiarato nel progetto, non `Double` per tutti: fino al
-            // 23-10-2026 un `bool` si esponeva come `Double` e poi ci si
-            // spingeva dentro un `Variant::Boolean` — il valore contraddiceva
-            // il tipo, e un client severo ha il diritto di rifiutarlo.
-            let tipo = db.tipo_dichiarato(&mapping.tag).await;
-            VariableBuilder::new(
-                &nid,
+            // Un tag **composito** non diventa un nodo solo: diventa una
+            // cartella con **un nodo figlio per foglia** (`motore1` →
+            // `motore1.velocita`, `motore1.marcia`, …).
+            //
+            // È quello che la Fase 4 del piano dei tag diceva fin dall'inizio —
+            // «esporre foglie come nodi figli, strutture vere dopo» — e serve a
+            // due cose. La prima: fino al 23-10-2026 un tag composito **non
+            // compariva affatto** nell'indirizzario, perché la conversione
+            // tornava `None` e l'updater lo saltava in silenzio. La seconda:
+            // scrivere dentro una struttura si fa **sul nodo figlio**
+            // (decisione 2 del 23-10-2026), e per scriverci sopra bisogna che
+            // quel nodo esista.
+            let foglie: Vec<&(String, String, Option<String>)> = esposti
+                .iter()
+                .filter(|(id, _, _)| {
+                    id.starts_with(mapping.effective_node_id())
+                        && id.as_str() != mapping.effective_node_id()
+                })
+                .collect();
+
+            if foglie.is_empty() {
+                // Scalare: un nodo, come sempre. Il tipo dichiarato nel
+                // progetto e non `Double` per tutti — prima un `bool` si
+                // esponeva come `Double` e poi ci si spingeva dentro un
+                // `Variant::Boolean`, e il valore contraddiceva il tipo.
+                let nid = NodeId::new(ns, mapping.effective_node_id());
+                let tipo = db.tipo_dichiarato(&mapping.tag).await;
+                VariableBuilder::new(
+                    &nid,
+                    mapping.effective_node_id(),
+                    mapping.effective_node_id(),
+                )
+                .data_type(valore::tipo_opcua(tipo.as_deref()))
+                .value(0.0_f64)
+                .access_level(AccessLevel::CURRENT_READ | AccessLevel::CURRENT_WRITE)
+                .user_access_level(AccessLevel::CURRENT_READ | AccessLevel::CURRENT_WRITE)
+                .writable()
+                .organized_by(folder_id.clone())
+                .insert(&mut *address_space);
+                continue;
+            }
+
+            // Composito: una cartella col nome della radice, e dentro le
+            // foglie. L'identificatore di ogni figlio è il **percorso**
+            // (`motore1.velocita`), lo stesso che il `TagDb` usa: così chi
+            // scrive su quel nodo scrive sulla foglia giusta senza nessuna
+            // tabella di conversione.
+            let radice_id = NodeId::new(ns, mapping.effective_node_id());
+            address_space.add_folder(
+                &radice_id,
                 mapping.effective_node_id(),
                 mapping.effective_node_id(),
-            )
-            .data_type(valore::tipo_opcua(tipo.as_deref()))
-            .value(0.0_f64)
-            .access_level(AccessLevel::CURRENT_READ | AccessLevel::CURRENT_WRITE)
-            .user_access_level(AccessLevel::CURRENT_READ | AccessLevel::CURRENT_WRITE)
-            .writable()
-            .organized_by(folder_id.clone())
-            .insert(&mut *address_space);
+                &folder_id,
+            );
+            for (percorso, _, tipo) in &foglie {
+                let nid = NodeId::new(ns, percorso.as_str());
+                VariableBuilder::new(&nid, percorso.as_str(), percorso.as_str())
+                    .data_type(valore::tipo_opcua(tipo.as_deref()))
+                    .value(0.0_f64)
+                    .access_level(AccessLevel::CURRENT_READ | AccessLevel::CURRENT_WRITE)
+                    .user_access_level(AccessLevel::CURRENT_READ | AccessLevel::CURRENT_WRITE)
+                    .writable()
+                    .organized_by(radice_id.clone())
+                    .insert(&mut *address_space);
+            }
         }
     }
 
@@ -1249,9 +1412,9 @@ pub async fn run_server(
     let (write_tx, mut write_rx) = tokio::sync::mpsc::unbounded_channel::<(String, TagValue)>();
     {
         let impl_ = node_mgr.inner();
-        for mapping in &cfg.nodes {
-            let nid = NodeId::new(ns, mapping.effective_node_id());
-            let tag = mapping.tag.clone();
+        for (id_nodo, tag_o_percorso, _) in &esposti {
+            let nid = NodeId::new(ns, id_nodo.as_str());
+            let tag = tag_o_percorso.clone();
             let tx = write_tx.clone();
             impl_.add_write_callback(nid, move |dv, _range| {
                 if let Some(v) = &dv.value {
@@ -1304,30 +1467,55 @@ pub async fn run_server(
     let db_tipi = db.clone();
     let handle_for_update = handle.clone();
     let node_mgr_for_update = node_mgr.clone();
-    let nodes_for_update: Vec<_> = cfg.nodes.clone();
+    // Gli **esposti**, non le mappature: l'aggiornamento di una foglia arriva
+    // col suo percorso, che una mappatura non nomina.
+    let esposti_per_update: Vec<(String, String)> =
+        esposti.iter().map(|(n, t, _)| (n.clone(), t.clone())).collect();
     let ns_for_update = ns;
 
     let updater = tokio::spawn(async move {
         loop {
             match db_rx.recv().await {
                 Ok(update) => {
-                    // Find the mapping for this tag (linear scan — small list).
-                    let Some(mapping) = nodes_for_update.iter().find(|m| m.tag == update.id) else {
-                        continue;
-                    };
-                    let nid = NodeId::new(ns_for_update, mapping.effective_node_id());
-                    // Lo stesso tipo con cui il nodo è stato dichiarato, così
-                    // valore e dichiarazione combaciano.
-                    let tipo = db_tipi.tipo_dichiarato(&update.id).await;
-                    let variant = valore::variant_per_tipo(tipo.as_deref(), &update.state.value);
-                    if let Some(v) = variant {
-                        let dv = DataValue::new_now(v);
-                        let _ = node_mgr_for_update.set_value(
-                            handle_for_update.subscriptions(),
-                            &nid,
-                            None,
-                            dv,
-                        );
+                    // **Il `TagDb` trasmette la radice, non le foglie.**
+                    //
+                    // Per un tag composito arriva un aggiornamento solo, con
+                    // l'id della radice: cercandolo fra i nodi esposti — che
+                    // per un composito sono i figli — non si troverebbe
+                    // niente, e i nodi figli non si aggiornerebbero **mai**.
+                    // `espandi_foglie` è la funzione che il `TagDb` ha
+                    // esattamente per questo, e la usano già il WebSocket, lo
+                    // storico e gli allarmi.
+                    //
+                    // Per uno scalare torna il tag stesso, quindi il caso
+                    // normale non cambia.
+                    let mut da_specchiare: Vec<(String, sws_core::TagValue)> =
+                        db_tipi.espandi_foglie(&update).await
+                            .into_iter()
+                            .map(|(id, st)| (id, st.value))
+                            .collect();
+                    if da_specchiare.is_empty() {
+                        da_specchiare.push((update.id.clone(), update.state.value.clone()));
+                    }
+                    for (id, valore_tag) in da_specchiare {
+                        let Some((id_nodo, _)) =
+                            esposti_per_update.iter().find(|(_, t)| *t == id)
+                        else {
+                            continue;
+                        };
+                        let nid = NodeId::new(ns_for_update, id_nodo.as_str());
+                        // Lo stesso tipo con cui il nodo è stato dichiarato,
+                        // così valore e dichiarazione combaciano.
+                        let tipo = db_tipi.tipo_dichiarato(&id).await;
+                        if let Some(v) = valore::variant_per_tipo(tipo.as_deref(), &valore_tag) {
+                            let dv = DataValue::new_now(v);
+                            let _ = node_mgr_for_update.set_value(
+                                handle_for_update.subscriptions(),
+                                &nid,
+                                None,
+                                dv,
+                            );
+                        }
                     }
                 }
                 Err(tokio::sync::broadcast::error::RecvError::Lagged(n)) => {
@@ -1467,6 +1655,58 @@ mod tests {
         // Dal 23-10-2026 `Bad` e non `Uncertain`: il dato c'è e non lo
         // sappiamo leggere, quindi va visto invece che ingrigito.
         assert_eq!(st.quality, TagQuality::Bad);
+    }
+
+    /// Un tag composito diventa **un nodo per foglia**, e l'identificatore di
+    /// ciascuno è il percorso del `TagDb`.
+    ///
+    /// Fino al 23-10-2026 un composito non compariva **affatto**
+    /// nell'indirizzario: la conversione tornava `None` e l'updater lo saltava
+    /// in silenzio.
+    #[tokio::test]
+    async fn un_tag_composito_diventa_un_nodo_per_foglia() {
+        let tipi: Vec<TypeDef> = serde_yaml::from_str(
+            "- id: Motore\n  members:\n    - { name: velocita, data_type: f32 }\n    - { name: marcia, data_type: bool }\n",
+        )
+        .unwrap();
+        let istanza = tag_yaml("id: motore1\ntype_ref: Motore\n");
+        let db = db_con(&[istanza], &tipi).await;
+        let m: Vec<sws_core::OpcUaServerNodeMapping> =
+            serde_yaml::from_str("- tag: motore1\n").unwrap();
+
+        let esposti = nodi_esposti(&db, &m).await;
+        let nomi: Vec<&str> = esposti.iter().map(|(n, _, _)| n.as_str()).collect();
+        assert_eq!(nomi, vec!["motore1.velocita", "motore1.marcia"]);
+        // L'identificatore del nodo **è** il percorso del TagDb: chi scrive su
+        // quel nodo scrive sulla foglia giusta, senza tabelle di conversione.
+        assert_eq!(esposti[0].1, "motore1.velocita");
+        // E ogni figlio porta il tipo del suo membro, non quello della radice.
+        assert_eq!(esposti[0].2.as_deref(), Some("f32"));
+        assert_eq!(esposti[1].2.as_deref(), Some("bool"));
+    }
+
+    /// Uno scalare resta un nodo solo: il caso normale non cambia.
+    #[tokio::test]
+    async fn uno_scalare_resta_un_nodo_solo() {
+        let db = db_con(&[tag_yaml("id: pressione\ndata_type: u16\n")], &[]).await;
+        let m: Vec<sws_core::OpcUaServerNodeMapping> =
+            serde_yaml::from_str("- tag: pressione\n").unwrap();
+        let esposti = nodi_esposti(&db, &m).await;
+        assert_eq!(esposti.len(), 1);
+        assert_eq!(esposti[0].1, "pressione");
+        assert_eq!(esposti[0].2.as_deref(), Some("u16"));
+    }
+
+    /// Un array dà un nodo per elemento, con lo stesso criterio.
+    #[tokio::test]
+    async fn un_array_da_un_nodo_per_elemento() {
+        let db = db_con(&[tag_yaml("id: livelli\ndata_type: i32\narray: [3]\n")], &[]).await;
+        let m: Vec<sws_core::OpcUaServerNodeMapping> =
+            serde_yaml::from_str("- tag: livelli\n").unwrap();
+        let esposti = nodi_esposti(&db, &m).await;
+        assert_eq!(esposti.len(), 3);
+        assert_eq!(esposti[0].0, "livelli[0]");
+        assert_eq!(esposti[2].0, "livelli[2]");
     }
 
     /// Un array arriva come **un** valore e deve finire nel TagDb **una foglia

@@ -21,8 +21,30 @@ saltava in silenzio), e il **browse tipizzato** — che non era una decisione ma
 2, e serve già da solo: il «＋» di ogni riga propone il tipo letto dal server invece di farlo
 scegliere a mano.
 
-**Resta**: le **strutture**. Server che le espone, `DataTypeTree` sul client, scrittura sul nodo
-figlio.
+**Fatto**, ramo `feat/tag-4c-opcua-strutture`: le **foglie come nodi figli**, dai due lati.
+
+- **Sul nostro server**: un tag composito non è più un nodo solo che l'updater saltava in
+  silenzio — è una cartella con **un nodo figlio per foglia**, e l'identificatore di ciascuno è il
+  **percorso del `TagDb`** (`motore1.velocita`). Così chi scrive su quel nodo scrive sulla foglia
+  giusta senza nessuna tabella di conversione. Era quello che la Fase 4 del piano dei tag diceva
+  fin dall'inizio: «esporre foglie come nodi figli, strutture vere dopo».
+- **Sul client**: la **decisione 2** è dentro. Un browse per radice composita a inizio sessione
+  costruisce `percorso → NodeId` del figlio, e la scrittura su una foglia ci va sopra. Un server
+  che i figli non li espone riceve un rifiuto che adesso dice **perché**, invece di «non ancora
+  supportata».
+- Un difetto che il compilatore non vedeva: il `TagDb` trasmette la **radice**, non le foglie, e
+  i nodi figli non si sarebbero aggiornati mai. `espandi_foglie` è la funzione che esiste per
+  questo, e la usano già il WebSocket, lo storico e gli allarmi.
+
+**Resta solo la struttura OPC-UA vera**: un `DataType` pubblicato dal nostro server con
+`DataTypeBuilder::data_type_definition`, e il `DataTypeTree` + `DynamicTypeLoader` sul client per
+leggere un `ExtensionObject` da un server di terzi.
+
+**Gli appigli ci sono, verificati il 23-10-2026**: `node_mgr.address_space()` ce l'abbiamo già,
+`DataTypeBuilder::data_type_definition` esiste (`async-opcua-nodes/src/data_type.rs:35`) e
+`.insert(address_space)` è il solito (`lib.rs:200`). L'esempio del crate usa `add_node` su un
+node manager di prova, che `SimpleNodeManager` non espone — ma la strada dell'address space
+funziona lo stesso. **L'avvertimento che avevo scritto è risolto.**
 
 **Una misura utile per quando si farà.** Il crate ha un esempio completo e funzionante:
 `async-opcua-0.18.0/tests/integration/custom_types.rs`, 156 righe. Pubblica un tipo struttura con

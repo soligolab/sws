@@ -13,6 +13,18 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 
 ### Added
 
+- **Un tag composito si vede sul server OPC-UA, una foglia per nodo.** Fino al 23-10-2026 non
+  compariva **affatto** nell'indirizzario: la conversione tornava `None` e l'updater lo saltava in
+  silenzio. Ora `motore1` è una cartella con `motore1.velocita`, `motore1.marcia`, … e
+  l'identificatore di ogni figlio **è il percorso del `TagDb`**, così chi scrive su quel nodo
+  scrive sulla foglia giusta senza tabelle di conversione. Era quello che la Fase 4 del piano dei
+  tag diceva dall'inizio: «esporre foglie come nodi figli, strutture vere dopo».
+
+- **E dall'altra parte, SWS sa scrivere dentro una struttura di un server altrui.** `NumericRange`
+  indirizza **solo** gli array, quindi il campo di una struttura si scrive sul suo **nodo figlio**:
+  un browse per radice composita a inizio sessione costruisce `percorso → NodeId`. Un server che i
+  figli non li espone riceve un rifiuto che dice **perché**, invece di «non ancora supportata».
+
 - **OpenPLC Runtime sul pannello, opzionale** — il piano
   `docs/plans/2026-10-20-openplc-sul-dispositivo.md`, cinque rami, tutti fatti. Governo **ibrido**:
   il quadlet è nostro e riparte col linger, ma `AutoUpdate=` non c'è — il ciclo di conferma e
