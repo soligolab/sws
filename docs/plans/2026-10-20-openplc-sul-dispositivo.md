@@ -1,62 +1,126 @@
-# OpenPLC sul dispositivo, come funzione di SWS — seme
+# OpenPLC sul dispositivo — le decisioni, dopo la sessione di plan
 
-> Nato il 20-10-2026. Il maintainer, preparando il laboratorio del tutorial: «valuta se può avere più senso far girare
-> OpenPLC direttamente sul device e poterlo usare anche in produzione», e poi «quindi non solo un laboratorio ma una
-> funzione di SWS».
+> **Era un seme, dal 22-10-2026 porta le decisioni.** La sessione di plan che il seme chiedeva è
+> stata fatta quella notte, misurando il codice e i documenti. Le misure del laboratorio del
+> 20-10 reggono quasi tutte; quello che è cambiato è scritto qui sotto.
 >
-> **Quando questo lavoro comincia, il primo passo è una sessione di plan approfondita** per decidere ogni dettaglio:
-> qui ci sono l'idea, le misure di oggi e le strade che si vedono già, non un progetto.
+> Richiesta del maintainer, 20-10-2026: «valuta se può avere più senso far girare OpenPLC
+> direttamente sul device e poterlo usare anche in produzione», e poi «quindi non solo un
+> laboratorio ma una funzione di SWS».
 
-## L'idea
+## Tre cose che la misura ha cambiato
 
-Un pannello SWS che è anche il **PLC**: OpenPLC Runtime v4 accanto a `sws-runtime` sullo stesso dispositivo, la logica
-in IEC 61131-3 scritta e caricata dall'IDE di SWS, i tag letti in locale. Un solo strumento per sinottico e logica,
-dal PC o dal cloud attraverso il tunnel.
+**1. Il conflitto sulla 8443 non esiste più.** Era il motivo per cui il seme diceva di aprire
+insieme il seme figlio sulle porte. Quel seme è nato, è stato deciso e archiviato **lo stesso
+giorno**, e il 21-10 SWS si è spostato su 7443/7444 lasciando la 8443 libera. Le immagini sono
+state costruite e il WP630 collaudato. **Il seme figlio non c'è più da aprire.**
 
-## Cosa è stato misurato il 20-10-2026
+Resta un residuo da guardare: il viewer LVGL ha un ripiego che, se il runtime non risponde sulla
+7443, **prova la 8443**. Su un pannello con OpenPLC lì sopra, ogni avvio in cui il runtime non è
+ancora su manda una sonda TLS al server Flask di OpenPLC. Oggi è innocuo; va deciso se lo resta.
 
-- **Il runtime** è un'immagine pronta, `ghcr.io/autonomy-logic/openplc-runtime` (v4.3.1, MIT, amd64/arm64/armv7,
-  **1,0 GB**). Senza interfaccia: si comanda con un'API REST su **8443** (la porta del viewer di SWS) con JWT; il primo
-  utente si crea senza autenticazione.
-- **Il programma** arriva come `program.zip` (C già generato + `conf/` con i server dei protocolli) e il runtime lo
-  compila con gcc al caricamento: il dispositivo deve avere toolchain e spazio per compilare (l'immagine li porta).
-- **La compilazione da ST** la fa l'Editor v4, che ha una **CLI senza testa** (`openplc-cli compile`), un AppImage
-  Electron da 153 MB. Provata qui: `create` → `compile` → caricamento con l'API, ciclo completo in pochi secondi. La
-  CLI ha la porta 8443 fissa per caricare (`RUNTIME_API_PORT`), quindi il caricamento va fatto con l'API, non con la
-  CLI. Va lanciata senza `ELECTRON_RUN_AS_NODE` nell'ambiente.
-- **I protocolli** del runtime: Modbus TCP server, S7 (Snap7), OPC UA server, Modbus master, EtherCAT. **Niente
-  EtherNet/IP.** Provati tutti e tre i server con un programma di prova: valori coerenti fra i tre protocolli, e una
-  scrittura da SWS in S7 riletta in Modbus.
-- **Tempo reale**: nel container rootless `sched_setscheduler failed: Operation not permitted` — il ciclo gira senza
-  priorità realtime. In produzione servono capacità in più (`SYS_NICE`) o un container non rootless.
-- **Maturità**: il server REST è Flask con il server di sviluppo («do not use in production» nel log); il port
-  forwarding di podman ha risposto solo in IPv4. Nessuna certificazione di sicurezza funzionale.
-- **Sui pannelli Pixsys c'è già CODESYS** come PLC (`docs/TEST_SETUPS.md`, «CODESYS si prende il browser»): due PLC
-  sullo stesso dispositivo, o uno al posto dell'altro, è una scelta di prodotto, non tecnica.
+**2. L'ingombro è il doppio, non quindici volte.** L'immagine di SWS è **556 MB su arm64** (273 su
+amd64): i «63-65 MB» dei documenti sono l'archivio compresso sul registry, non quello che occupa
+sul pannello. Quindi il confronto con il GB di OpenPLC è 556 contro ~1000.
 
-## Le strade che si vedono già
+Ma **lo spazio sui pannelli non basta con comodità**: il TC620 ha 3,1 GB liberi su una partizione
+da 10 GB, il WP630 ha 1979 MB di RAM e disco 4/10. E ogni immagine va contata **due volte**, perché
+la precedente si tiene per il ritorno.
 
-1. **Companion container**, come il viewer LVGL ([[feedback-lvgl-deploy-unified]]: companion opzionale di
-   `sws-runtime`, mai un fork): un quadlet `openplc-runtime.container` che l'installer e l'aggiornamento di SWS
-   gestiscono, porta REST interna (non la 8443), SWS che legge i tag in locale via Modbus o OPC UA. È la più piccola.
-2. **Il PLC nell'IDE**: una scheda «Logica» con l'ST del progetto, compilata dall'IDE con la CLI dell'Editor e caricata
-   sul dispositivo attraverso le rotte di gestione di SWS (e il tunnel, dal cloud). I tag di SWS nascono dalle
-   variabili del programma. Pesa: Electron nell'immagine dell'IDE, o un compilatore ST in casa.
-3. **Solo laboratorio**: OpenPLC resta il PLC del tutorial, e in produzione il PLC è quello del cliente (CODESYS sui
-   Pixsys, un Siemens, un Modbus). È lo stato di oggi.
+**3. Il precedente di un container di terzi esiste già**, e la misura diceva il contrario: sul VPS
+girano `traefik:v3` (con `AutoUpdate=registry` su un tag mobile) e `portainer-ce:latest`, accanto
+al quadlet che gira l'immagine di SWS. Cioè l'opzione «immagine estranea che si aggiorna sul
+calendario di un altro» è **già accettata e in produzione**. Sul pannello è più delicata, ma non è
+la prima volta.
 
-## Un seme figlio, da decidere insieme
+## Quello che è stato misurato
 
-L'API REST di OpenPLC ascolta sulla **8443**, che è la porta del viewer di SWS. Il conflitto non
-è un dettaglio di questo laboratorio: è la prima volta che sul pannello deve girare qualcosa
-accanto a `sws-runtime`. Le porte di SWS sono misurate nel seme
-[le porte di SWS](2026-10-21-porte-di-sws.md), del 21-10-2026, che va aperto **nella stessa
-sessione di plan**: la strada più piccola che risolve OpenPLC (dare al companion una porta
-interna nostra) è anche quella che lascia il problema intatto per il servizio successivo.
+**Puntare SWS a OpenPLC in locale costa zero righe di codice**: `ModbusTcpConfig` ha `host` e
+`port`, basta una sorgente su `127.0.0.1`. Di tutti e tre i protocolli che OpenPLC espone — Modbus
+TCP, S7, OPC-UA — **Modbus è di gran lunga il più maturo da noi** (1 516 righe, quattro aree,
+decodifica dal tipo, scrittura sulla singola foglia).
 
-## Domande per la sessione di plan
+*Ma c'è un però, e lo ha trovato lo scettico*: in podman **rootless** non si pubblicano porte sotto
+la 1024, e il sysctl che abbassa la soglia esiste **solo sul VPS**. Il laboratorio del 20-10 girava
+tutto rimappato (`-p 1502:502`): la coabitazione sulle porte vere non è mai stata provata.
 
-- Per chi è: un cliente senza PLC (il pannello fa tutto), o un'alternativa a CODESYS sui Pixsys?
-- Chi risponde del ciclo PLC in produzione (tempo reale, watchdog, cosa succede se `sws-runtime` si aggiorna)?
-- Spazio e memoria sui TC620/WP630 (l'immagine è 1 GB, e il disco del TC620 si è già riempito una volta).
-- Come si versiona la logica: dentro il progetto SWS (git, deploy, istantanea) o a parte.
+**Un posto dove vive del codice sorgente dentro il progetto esiste già**, e sta **dentro
+`project.yaml`**: il Python delle funzioni e degli script globali è in linea nello YAML, con un
+tetto di 64 KiB, e l'IDE lo edita con CodeMirror. Conta per la decisione 4.
+
+**Aggiungere un terzo quadlet tocca ~10 file.** Il meccanismo che fa viaggiare i quadlet conosce
+esattamente **due** unità, cablate, e la versione installata è il **minimo** fra le due.
+
+**Il tempo reale resta il punto non risolto**: in rootless `sched_setscheduler` fallisce, nessun
+quadlet del repo aggiunge capacità, e il rootless è una scelta di disegno — l'installer si ferma
+se non riesce ad abilitare il linger.
+
+**E in produzione il pannello non ha l'IDE**: dal 02-09-2026 parte con `--no-admin`. Chi
+comanderebbe il PLC non sta sul pannello.
+
+---
+
+## Le decisioni
+
+### 1. Per chi è?
+
+- **a — un cliente senza PLC**, su board generiche. Lì non c'è CODESYS, nessuno litiga per lo
+  schermo, e di solito c'è più disco. Il lavoro è solo tecnico.
+- **b — un'alternativa a CODESYS sui Pixsys.** Sul TC620 girano già `codesyscontrol` e
+  `codesysedge`, e **CODESYS riscrive `/etc/pixsys/main-config.toml` undici secondi dopo** che SWS
+  ha puntato il browser alla 7443: chi vince il browser è chi scrive per ultimo. Serve prima una
+  storia di convivenza — la leva D-Bus esiste già.
+- **c — solo laboratorio**, lo stato di oggi.
+
+### 2. Chi risponde del ciclo PLC, e chi lo aggiorna?
+
+- **a — SWS lo governa**: quadlet nostro, e il ciclo conferma/ritorno di SWS esteso a un'immagine
+  di un altro registry. È il lavoro vero: due unità cablate diventano tre, la versione è il minimo
+  su tre, due guardie hanno elenchi espliciti — **più la parte che non esiste affatto**, cioè cosa
+  vuol dire «tornare indietro» su un'immagine che non è nostra.
+- **b — OpenPLC è indipendente**: si installa e si aggiorna per conto suo, SWS lo legge su
+  `127.0.0.1` come qualunque PLC in rete. **È la direzione che hai già indicato il 21-10**: «voglio
+  che possa essere usato come software PLC autonomo e indipendente».
+- **c — ibrido**: quadlet nostro per farlo partire, aggiornamento suo.
+
+### 3. Si installa anche sui TC620/WP630?
+
+I numeri: TC620 **3,1 GB liberi**; WP630 **1979 MB di RAM**, disco 4/10 GB; SWS 556 MB più la
+precedente; OpenPLC ~1000 MB più la sua.
+
+- **a — anche lì**, accettando il conto stretto. Va rivista la soglia dello spazio.
+- **b — solo dove c'è spazio.** *Attenzione*: la sonda del dispositivo **non blocca niente** — è un
+  rapporto JSON e nessuno si ferma sul suo errore. Il cancello vero è in shell, nell'installer, e
+  **non sa niente di una seconda immagine**.
+- **c — mai sui pannelli piccoli.**
+
+### 4. Come si versiona la logica ST?
+
+- **a — in linea in `project.yaml`**, come già fa il Python. **Costa zero nel viaggio**: entra da
+  sé nel backup, nell'istantanea, nel deploy, nell'export, nell'impronta di sincronizzazione e nel
+  git di progetto.
+- **b — una cartella nuova** (`logica/*.st`). Va aggiunta a **cinque elenchi scritti a mano**, e
+  quegli elenchi **già divergono fra loro**: `backups.rs` non ha `faceplates` né `cornici`, che gli
+  altri due hanno. È la prova misurata che aggiungerne una costa, e che il costo si ripete.
+- **c — fuori da SWS**: il progetto OpenPLC resta un albero suo, come nel laboratorio.
+
+### 5. La 4840: due server OPC-UA sullo stesso pannello
+
+- **a — si documenta**: entrambe le porte sono configurabili, e chi accende tutti e due ne cambia
+  una. È la classificazione che il piano delle porte aveva già dato.
+- **b — SWS sposta il suo predefinito**, come ha già fatto con la 8443.
+- **c — si lascia**, e il secondo server non parte.
+
+---
+
+## Quanto costa, per strada
+
+| Strada | Costo |
+|---|---|
+| **1 — companion container** | 300-500 righe su ~12 file, un ramo, 1-2 sessioni — *se* ci si ferma a farlo partire. L'aggiornamento di un'immagine di terzi dentro il nostro ciclo di conferma e ritorno è **una sessione di plan a sé** |
+| **2 — il PLC nell'IDE** | Non misurabile da qui: vuole Electron nell'immagine dell'IDE, o un compilatore ST in casa |
+| **3 — solo laboratorio** | Zero. È lo stato di oggi |
+
+**La domanda che decide tutto è la 2**, e il 21-10 l'avevi già quasi risposta. Se vale ancora
+«autonomo e indipendente», la strada è la **b**, il lavoro è **configurazione più documentazione**,
+e le decisioni 1 e 3 diventano domande di prodotto senza codice dietro.

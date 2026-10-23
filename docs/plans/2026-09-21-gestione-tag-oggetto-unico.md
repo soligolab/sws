@@ -149,6 +149,31 @@ blocchi, compatibilità dei nomi storici), HOWTO se utile («mappare una struttu
   di una struttura a blocco.
 
 ### Fase 4 — OPC-UA (priorità del maintainer)
+
+> **Rimisurata il 22-10-2026**, con tre esplorazioni e uno scettico. Dei dieci punti elencati qui
+> sotto **uno era già chiuso** (il 7, dalla Fase 3), e **tutti i numeri di riga erano sbagliati**:
+> il file si è mosso. La fase si è spezzata in tre, e la prima è fatta.
+>
+> **4a — i difetti, senza decisioni. FATTA** (ramo `feat/tag-4a-opcua-difetti`). Punti 5, 6, 8, 10
+> e la lettura degli array. Tutto provato con test puri e con un `TagDb` vero, **senza un server
+> OPC-UA davanti**: le conversioni sono uscite in `valore.rs` e la consegna al `TagDb` in
+> `consegna()`, apposta per poterle provare. Da 11 test a 21.
+>
+> Il punto 6 era più grosso di come il piano lo raccontava: il dispatcher usava `set`, e `ingest`
+> è l'**unico** punto del `TagDb` che applica `to_eng` — `grep -rn to_eng` in tutto il workspace
+> dà `tag.rs:295-296` e nient'altro. Quindi non è «la scala non arriva alle sottoscrizioni»: su
+> OPC-UA la scala non è **mai** stata applicata, e nemmeno la conversione al tipo dichiarato.
+>
+> Il punto 10 costava tre righe, non un rifacimento: `con_attesa` ha già il `select!` attorno alla
+> sessione (`riconnessione.rs:54-58`), bastava portargli il token del supervisore.
+>
+> **4b e 4c — browse tipizzato, strutture, scrittura dentro un blocco, server tipizzato.** Ferme
+> su **sei decisioni del maintainer**, scritte in `docs/plans/2026-10-22-opcua-fase-4-decisioni.md`.
+> La più pesante l'ha trovata lo scettico: il nostro server OPC-UA **non sa esporre né array né
+> strutture** (`tag_value_to_variant` tornava `None` e l'updater li saltava in silenzio), quindi
+> «client nostro contro server nostro» come base di collaudo costa prima insegnare a parlare al
+> server.
+
 Browse che ritorna DataType, ValueRank, ArrayDimensions (oggi non li legge, `browse_one_level`); lettura di `Variant::Array` (con `NumericRange`) e di strutture via `DataTypeTreeBuilder`/`DynamicStructure` di async-opcua 0.18; scrittura con `index_range`; il wizard crea **tipo + istanza** da un nodo struttura. Correzioni: fine del `Float(0.0)` inventato per i valori non gestiti (si mantiene l'ultimo valore con qualità Bad/Uncertain), scala applicata anche ai valori sottoscritti, tipo dell'Variant scritto in base al DataType del nodo. OPC-UA **server** (oggi tutto `Double`): esporre foglie come nodi figli, strutture vere dopo.
 
 ### Dopo (in coda, non pianificate qui)

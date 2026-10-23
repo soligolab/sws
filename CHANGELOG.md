@@ -49,6 +49,40 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 
 ### Fixed
 
+- **I valori che arrivano da OPC-UA ora sono scalati e convertiti al tipo dichiarato.** Il
+  dispatcher usava `set` invece di `ingest`, e `ingest` è l'unico punto del `TagDb` che applica
+  `to_eng` e la conversione al tipo: un tag OPC-UA con `raw_min`/`eng_min` **non è mai stato
+  scalato**, e uno dichiarato `u16` teneva 29.8. Modbus usa `ingest` dal 04-10-2026.
+  **Cambia i numeri a schermo** su un progetto che ha una scala su un tag OPC-UA: prima mostrava
+  il grezzo.
+
+- **Un valore OPC-UA che il motore non sa leggere non diventa più zero.** Un array o una struttura
+  cadevano in un ramo che restituiva `Float(0.0)` con qualità Uncertain: un nodo array su un tag
+  `f64` mostrava **0.0 come se fosse un dato letto**. Ora cambia solo la qualità e l'ultima lettura
+  vera resta dov'è (`TagDb::marca_qualita`).
+
+- **Scrivere su un nodo OPC-UA manda il tipo giusto.** Ogni intero partiva come `Int64` e ogni
+  reale come `Double`, qualunque fosse il nodo: su un `UInt16` molti server rispondono
+  `BadTypeMismatch`. Ora il `Variant` si sceglie dal **tipo dichiarato del tag** — quello che il
+  progetto sa già, senza chiedere niente al server — e si ripiega sul comportamento di prima
+  quando il tipo non c'è o è uno dei nomi storici (`int`, `float`).
+
+- **Fermare una sorgente OPC-UA non costa più due secondi.** Il plugin si creava un
+  `CancellationToken` nuovo che non scattava mai, e il supervisore buttava via il suo
+  (`let _ = cancel_for_task`): ogni stop o riavvio aspettava il timeout di `stop_one` e la sessione
+  moriva senza chiudersi. Ora il token è quello vero, e `con_attesa` aveva già il `select!`.
+
+### Added
+
+- **Gli array di OPC-UA arrivano nel `TagDb`.** `Variant::Array` diventa `TagValue::Array`, e un
+  array a più dimensioni si **ri-annida**: OPC-UA lo tiene piatto con le dimensioni di rango alto
+  per prime, `Forma::Array` è annidata, e senza ricostruire l'annidamento `matrice[1][2]` non si
+  potrebbe leggere. Un composito si consegna **una foglia per volta** col suo percorso, come fa
+  Modbus, perché scale e tipi sono installati per percorso. Le strutture (`ExtensionObject`) no:
+  vogliono il `DataTypeTree` del server, e quella parte della Fase 4 aspetta una decisione.
+
+### Fixed
+
 - **Il journal del pannello non viene più saturato dagli eventi di podman.** Ogni evento che
   podman manda al journal porta dentro **tutte le etichette del container**, e il controllo di
   salute ne produce due ogni 30 secondi — contro i **5 872 byte** di etichette dell'immagine, dove

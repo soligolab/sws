@@ -12,7 +12,54 @@
 > resta in «Storico». Qui vive solo ciò che serve a riprendere il lavoro.
 
 
-## ▶ Riprendere da qui — tre lavori su tre rami annidati, **da confermare** (2026-10-22, sera)
+## ▶ Riprendere da qui — quattro lavori, e tre decisioni che aspettano te (2026-10-22, notte)
+
+### Dove sta il lavoro: niente mergiato e niente pushato
+
+```
+main  26897523
+ └─ feat/tubo-che-segue-gli-oggetti   (2 commit)
+     └─ feat/mcp-sola-lettura         (2 commit)
+         └─ fix/journal-del-pannello  (2 commit)
+             └─ feat/tag-4a-opcua-difetti   ← qui
+```
+
+**Quattro squash merge in ordine**, dal più interno al più esterno — o uno solo del più esterno.
+
+### 4. OPC-UA, Fase 4a — i difetti che non chiedevano una decisione
+
+Dei dieci punti della Fase 4, **uno era già chiuso** e **tutti i numeri di riga erano vecchi**. La
+fase si è spezzata in tre e la prima è fatta:
+
+- il dispatcher usava `set` invece di `ingest`, e `ingest` è **l'unico** punto del `TagDb` che
+  applica `to_eng` — `grep -rn to_eng` in tutto il workspace dà due righe e basta. Quindi su
+  OPC-UA la scala **non è mai stata applicata**, e un tag dichiarato `u16` teneva 29.8;
+- un `Variant` che il motore non sa leggere diventava `Float(0.0)`: un nodo array su un tag `f64`
+  mostrava **zero come se fosse un dato**;
+- in scrittura ogni intero partiva come `Int64`: su un nodo `UInt16` molti server rispondono
+  `BadTypeMismatch`;
+- fermare una sorgente OPC-UA costava **due secondi** pieni, perché il plugin si creava un token
+  che non scattava mai e il supervisore buttava via il suo.
+
+Più la lettura degli array, con il ri-annidamento (OPC-UA li tiene piatti, `Forma::Array` è
+annidata). Le conversioni sono uscite in `valore.rs` e la consegna in `consegna()`, apposta per
+poterle provare **senza un server davanti**: da 11 test a 21.
+
+### Le tre decisioni che aspettano te
+
+Sono tre documenti fatti per decidere, non per leggere. Ognuno ha le opzioni e cosa cambia.
+
+| Documento | Cosa decide |
+|---|---|
+| [OPC-UA, le sei decisioni](docs/plans/2026-10-22-opcua-fase-4-decisioni.md) | come si collauda una struttura se un server con strutture non ce l'abbiamo; come si scrive dentro una struttura (`NumericRange` indirizza **solo** gli array); da dove arriva il `DataType`; se le scritture dal server passano dal bus |
+| [I certificati in un posto solo](docs/plans/2026-10-15-certificati-in-un-posto-solo.md) | otto scelte. «Serve una dipendenza nuova» era **falso**: `x509-cert` è già dentro il binario. Il trust store OPC-UA **non funziona**, e correggerlo non basta |
+| [OpenPLC sul dispositivo](docs/plans/2026-10-20-openplc-sul-dispositivo.md) | cinque scelte, e la seconda decide tutto. Il conflitto sulla 8443 **non esiste più** |
+
+### Quello che resta della Fase 2 dei tag
+
+Il **collaudo a schermo**, mai fatto: 2 timbri su 6. È tuo, non si automatizza.
+
+## Tre lavori su tre rami annidati (2026-10-22, sera)
 
 ### Dove sta il lavoro: niente mergiato e niente pushato
 

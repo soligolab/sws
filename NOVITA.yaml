@@ -35,6 +35,8 @@
 versioni:
   - versione: "Unreleased"
     voci:
+      - it: "I valori letti da OPC-UA ora seguono la scala e il tipo dichiarati nel progetto: prima la scala non veniva applicata. Se un tuo tag OPC-UA ha una scala, i numeri a schermo cambiano."
+        en: "Values read from OPC-UA now follow the scale and type declared in the project: the scale was not applied before. If one of your OPC-UA tags has a scale, the numbers on screen will change."
       - it: "Il registro di sistema del pannello non si riempie più di messaggi di podman: circa il 70% in meno. Prima la storia utile veniva sfrattata in poche ore."
         en: "The panel system log no longer fills up with podman messages: about 70% less. Before, useful history was evicted within hours."
       - it: "Un tubo agganciato a un oggetto lo segue anche quando a spostarlo è una variabile: prima restava disegnato dov'era e si staccava da ciò che collega."

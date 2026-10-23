@@ -9,6 +9,8 @@
 //! companion-spec discovery (BL-005b), historical reads. Each is a
 //! separate follow-up.
 
+pub mod valore;
+
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
@@ -25,7 +27,7 @@ use opcua::types::{
 };
 use serde::{Deserialize, Serialize};
 use sws_core::{
-    OpcUaAuth, OpcUaClientConfig, TagDb, TagQuality, TagValue, TagWriteBus, WriteRequest,
+    OpcUaAuth, OpcUaClientConfig, TagDb, TagQuality, TagWriteBus, WriteRequest,
 };
 use tokio::sync::mpsc;
 use tracing::{info, warn};
@@ -84,16 +86,26 @@ fn build_client_builder(pki_dir: &Path, trust_all: bool) -> ClientBuilder {
 /// `pki_dir` is where async-opcua persists the runtime's self-signed cert
 /// and private key for secure-channel security policies. Each source gets
 /// its own subdirectory so multiple servers don't share the same identity.
-pub async fn run(cfg: OpcUaClientConfig, db: Arc<TagDb>, bus: Arc<TagWriteBus>, pki_dir: PathBuf) {
+pub async fn run(
+    cfg: OpcUaClientConfig,
+    db: Arc<TagDb>,
+    bus: Arc<TagWriteBus>,
+    pki_dir: PathBuf,
+    cancel: tokio_util::sync::CancellationToken,
+) {
     let source_pki = pki_dir.join(&cfg.id);
-    // Il supervisore ferma questa sorgente interrompendo il task: il token non
-    // scatta mai, serve solo alla firma di `con_attesa`. Una sessione finita
-    // «pulita» dal server si riapre lo stesso (04-10-2026: prima il task
-    // terminava, col log «stopped (save config to retry)», e aspettava il
-    // watchdog del supervisore).
+    // Il token del supervisore, dal 22-10-2026. Prima qui ne nasceva uno nuovo
+    // che non scattava mai: fermare o riavviare una sorgente OPC-UA costava i
+    // **due secondi** pieni del timeout di `stop_one`, e la sessione moriva
+    // senza chiudersi. `con_attesa` ha già il `select!` attorno alla sessione,
+    // quindi basta portargli il token giusto.
+    //
+    // Una sessione finita «pulita» dal server si riapre lo stesso
+    // (04-10-2026: prima il task terminava, col log «stopped (save config to
+    // retry)», e aspettava il watchdog del supervisore).
     sws_core::riconnessione::con_attesa(
         &cfg.id,
-        tokio_util::sync::CancellationToken::new(),
+        cancel,
         || async {
             if let Err(e) = run_once(&cfg, &db, &bus, &source_pki).await {
                 // Fiducia al primo contatto (15-10-2026): solo se il progetto
@@ -258,6 +270,30 @@ async fn run_once(
     }
     let routing = Arc::new(routing);
 
+    // Le foglie di ogni tag composito, una volta per sessione (Fase 4).
+    //
+    // Un nodo che porta un array o una struttura arriva come **un** valore, e
+    // il `TagDb` vuole un `ingest` per **foglia**: scale, tipi e qualità sono
+    // installati per percorso (`apply_tags`), non per radice. È la stessa
+    // strada di Modbus (`prepara`), e il motivo per cui qui non serve sapere
+    // niente dei tipi: basta il percorso.
+    let mut foglie_per_tag: HashMap<String, Vec<(String, Vec<sws_core::Segmento>)>> = HashMap::new();
+    for mapping in &cfg.nodes {
+        let Some(forma) = db.forma(&mapping.tag).await else { continue };
+        let foglie: Vec<(String, Vec<sws_core::Segmento>)> = forma
+            .foglie(&mapping.tag, &[])
+            .into_iter()
+            .filter_map(|f| {
+                let resto = f.percorso.strip_prefix(mapping.tag.as_str())?;
+                Some((f.percorso.clone(), sws_core::percorso::parse_segmenti(resto)?))
+            })
+            .collect();
+        if !foglie.is_empty() {
+            foglie_per_tag.insert(mapping.tag.clone(), foglie);
+        }
+    }
+    let foglie_per_tag = Arc::new(foglie_per_tag);
+
     // Register every owned tag with the write bus. The mpsc receiver is
     // drained by the writer task below; on session exit we unregister
     // explicitly so the bus doesn't keep forwarding to a closed channel.
@@ -304,14 +340,14 @@ async fn run_once(
     // We exit when the session event loop ends or the channel closes.
     let db_clone = db.clone();
     let routing_clone = routing.clone();
+    let foglie_clone = foglie_per_tag.clone();
     let source_id = cfg.id.clone();
     let dispatcher = tokio::spawn(async move {
         while let Some((node_id, dv)) = rx.recv().await {
             let Some(tag_id) = routing_clone.get(&node_id) else {
                 continue;
             };
-            let (value, quality) = data_value_to_tag(&dv);
-            db_clone.set(tag_id.clone(), value, quality).await;
+            consegna(&db_clone, tag_id, foglie_clone.get(tag_id.as_str()), &dv).await;
             tracing::trace!(source = %source_id, tag = %tag_id, "opcua: tag update");
         }
     });
@@ -336,7 +372,11 @@ async fn run_once(
                 warn!(source = %writer_source_id, tag = %tag, "opcua: write for unknown tag");
                 continue;
             };
-            let variant = match tag_value_to_variant(&value) {
+            // Il `Variant` segue il **tipo dichiarato del tag**, non la forma
+            // del valore: prima ogni intero partiva come `Int64`, e un nodo
+            // `UInt16` rispondeva `BadTypeMismatch`.
+            let tipo = writer_db.tipo_dichiarato(&tag).await;
+            let variant = match valore::variant_per_tipo(tipo.as_deref(), &value) {
                 Some(v) => v,
                 None => {
                     warn!(source = %writer_source_id, tag = %tag,
@@ -397,53 +437,45 @@ async fn run_once(
 }
 
 /// Map a `TagValue` to the OPC-UA `Variant` the server expects on write.
-/// Returns `None` for value shapes we can't cleanly translate (none today —
-/// every TagValue maps somewhere — but kept so the callsite has a clean
-/// failure path for future additions).
-fn tag_value_to_variant(v: &TagValue) -> Option<Variant> {
-    match v {
-        TagValue::Bool(b) => Some(Variant::Boolean(*b)),
-        TagValue::Int(n) => Some(Variant::Int64(*n)),
-        TagValue::Float(f) => Some(Variant::Double(*f)),
-        TagValue::Str(s) => Some(Variant::String(s.as_str().into())),
-        // Fase 1b: `Variant::Array` e le strutture (ExtensionObject) arrivano
-        // con la Fase 4, che legge il DataType del nodo. `None` = il
-        // chiamante segnala e non scrive.
-        TagValue::Array(_) | TagValue::Struct(_) => None,
-    }
-}
-
-/// Map an OPC-UA DataValue into the (value, quality) pair the TagDb expects.
-/// Falls back to Float(0.0)/Uncertain when the variant carries a type we
-/// don't have a clean home for (arrays, ExtensionObjects, etc. — PoC scope).
-fn data_value_to_tag(dv: &DataValue) -> (TagValue, TagQuality) {
-    let quality = match dv.status {
-        Some(s) if s == StatusCode::Good => TagQuality::Good,
-        Some(_) => TagQuality::Bad,
-        None => TagQuality::Uncertain,
+/// Consegna al `TagDb` quello che è arrivato da un nodo.
+///
+/// Estratta dal ciclo del dispatcher perché si possa provare con un `TagDb`
+/// vero e **senza una sessione OPC-UA**: è qui che stanno le tre scelte che la
+/// Fase 4 cambia, e provarle voleva dire o un server o niente.
+///
+/// - **`ingest` e non `set`.** È `ingest` che applica la scala (`to_eng`) e la
+///   conversione al tipo dichiarato. Con `set` un tag OPC-UA con
+///   `raw_min`/`eng_min` non è mai stato scalato, e uno dichiarato `u16`
+///   teneva 29.8. Modbus usa `ingest` dal 04-10-2026.
+/// - **Niente valore, niente numero inventato.** Prima un `Variant` che il
+///   motore non sapeva leggere diventava `Float(0.0)`: un nodo array su un tag
+///   `f64` mostrava zero come se fosse un dato. Ora cambia solo la qualità, e
+///   l'ultima lettura vera resta dov'è.
+/// - **Un composito si consegna foglia per foglia**, col percorso di ciascuna:
+///   scale, tipi e qualità sono installati per percorso, non per radice.
+pub(crate) async fn consegna(
+    db: &TagDb,
+    tag: &str,
+    foglie: Option<&Vec<(String, Vec<sws_core::Segmento>)>>,
+    dv: &DataValue,
+) {
+    let (value, quality) = valore::da_data_value(dv);
+    let Some(value) = value else {
+        db.marca_qualita(tag, quality).await;
+        return;
     };
-    let value = match &dv.value {
-        Some(Variant::Boolean(b)) => TagValue::Bool(*b),
-        Some(Variant::Byte(n)) => TagValue::Int(*n as i64),
-        Some(Variant::SByte(n)) => TagValue::Int(*n as i64),
-        Some(Variant::Int16(n)) => TagValue::Int(*n as i64),
-        Some(Variant::UInt16(n)) => TagValue::Int(*n as i64),
-        Some(Variant::Int32(n)) => TagValue::Int(*n as i64),
-        Some(Variant::UInt32(n)) => TagValue::Int(*n as i64),
-        Some(Variant::Int64(n)) => TagValue::Int(*n),
-        Some(Variant::UInt64(n)) => TagValue::Int(*n as i64),
-        Some(Variant::Float(f)) => TagValue::Float(*f as f64),
-        Some(Variant::Double(d)) => TagValue::Float(*d),
-        Some(Variant::String(s)) => TagValue::Str(s.as_ref().to_string()),
-        Some(Variant::LocalizedText(t)) => TagValue::Str(t.text.as_ref().to_string()),
-        Some(_other) => {
-            // Unsupported variant — emit Uncertain so the UI flags it but
-            // we don't crash the dispatcher on rare value types.
-            return (TagValue::Float(0.0), TagQuality::Uncertain);
+    let Some(foglie) = foglie else {
+        db.ingest(tag.to_string(), value, quality).await;
+        return;
+    };
+    for (percorso, segmenti) in foglie {
+        match sws_core::percorso::leggi(&value, segmenti) {
+            Some(v) => db.ingest(percorso.clone(), v.clone(), quality.clone()).await,
+            // Una foglia che il valore non contiene — un array più corto di
+            // quello dichiarato — non si inventa: si marca Bad.
+            None => db.marca_qualita(percorso, TagQuality::Bad).await,
         }
-        None => return (TagValue::Float(0.0), TagQuality::Uncertain),
-    };
-    (value, quality)
+    }
 }
 
 // ── Historical reads (BL-005c) ───────────────────────────────────────────────
@@ -1141,7 +1173,12 @@ pub async fn run_server(
                         continue;
                     };
                     let nid = NodeId::new(ns_for_update, mapping.effective_node_id());
-                    let variant = tag_value_to_variant(&update.state.value);
+                    // `None` come tipo = il comportamento di sempre
+                    // (`Int64`/`Double`). Il server dichiara ogni nodo
+                    // `Double` (:1074) e dargli un `UInt16` lo renderebbe più
+                    // incoerente, non meno: tipizzare il server è una scelta a
+                    // sé, e sta nel materiale per il maintainer.
+                    let variant = valore::variant_per_tipo(None, &update.state.value);
                     if let Some(v) = variant {
                         let dv = DataValue::new_now(v);
                         let _ = node_mgr_for_update.set_value(
@@ -1197,25 +1234,147 @@ mod tests {
         }
     }
 
-    #[test]
-    fn data_value_to_tag_handles_common_variants() {
-        let (v, q) = data_value_to_tag(&dv(Some(Variant::Boolean(true)), Some(StatusCode::Good)));
-        assert!(matches!(v, TagValue::Bool(true)));
-        assert!(matches!(q, TagQuality::Good));
+    // ── `consegna`: ciò che arriva da un nodo, dentro il TagDb ───────────
+    //
+    // Con un `TagDb` vero e nessuna sessione OPC-UA. Prima di questi test la
+    // parte che cambia davvero — la scala, il tipo, le foglie — si poteva
+    // provare solo con un server davanti, cioè mai.
 
-        let (v, _) = data_value_to_tag(&dv(Some(Variant::Float(2.75_f32)), Some(StatusCode::Good)));
-        match v {
-            TagValue::Float(f) => assert!((f - 2.75).abs() < 0.001),
-            other => panic!("expected Float, got {other:?}"),
+    use sws_core::{Forma, TagValue, TypeDef};
+    use std::collections::HashMap as Mappa;
+
+    /// Un `TagDb` coi metadati installati come fa `apply_tags`. Gemello di
+    /// `db_con` nei test di Modbus.
+    async fn db_con(tags: &[sws_core::TagDef], types: &[TypeDef]) -> TagDb {
+        let db = TagDb::new(64);
+        let (mut tipi, mut forme, mut scale) = (Mappa::new(), Mappa::new(), Mappa::new());
+        for t in tags {
+            // Come `build_tag_scales`: la scala c'è solo se ci sono tutti e
+            // quattro gli estremi e i due raw non coincidono.
+            if let (Some(rm), Some(rx), Some(em), Some(ex)) = (t.raw_min, t.raw_max, t.eng_min, t.eng_max) {
+                if rx != rm {
+                    scale.insert(
+                        t.id.clone(),
+                        sws_core::LinearScale { raw_min: rm, raw_max: rx, eng_min: em, eng_max: ex },
+                    );
+                }
+            }
+            match Forma::da_tag(t, types).unwrap() {
+                Some(f) => {
+                    for fo in f.foglie(&t.id, types) {
+                        tipi.insert(fo.percorso.clone(), fo.tipo.nome());
+                    }
+                    db.set(t.id.clone(), f.valore_iniziale(), TagQuality::Uncertain).await;
+                    forme.insert(t.id.clone(), f);
+                }
+                None => {
+                    tipi.insert(t.id.clone(), t.data_type.clone());
+                }
+            }
         }
-
-        let (v, _) = data_value_to_tag(&dv(Some(Variant::Int32(42)), Some(StatusCode::Good)));
-        assert!(matches!(v, TagValue::Int(42)));
+        db.set_forme(forme).await;
+        db.set_data_types(tipi).await;
+        db.set_scales(scale).await;
+        db
     }
 
+    fn tag_yaml(y: &str) -> sws_core::TagDef {
+        serde_yaml::from_str(y).unwrap()
+    }
+
+    fn foglie_di(forma: &Forma, radice: &str, types: &[TypeDef]) -> Vec<(String, Vec<sws_core::Segmento>)> {
+        forma
+            .foglie(radice, types)
+            .into_iter()
+            .filter_map(|f| {
+                let resto = f.percorso.strip_prefix(radice)?;
+                Some((f.percorso.clone(), sws_core::percorso::parse_segmenti(resto)?))
+            })
+            .collect()
+    }
+
+    /// Il difetto più grosso della Fase 4: il dispatcher usava `set`, che salta
+    /// la scala **e** la conversione al tipo dichiarato.
+    #[tokio::test]
+    async fn il_valore_letto_viene_scalato_e_convertito() {
+        let t = tag_yaml("id: pressione\ndata_type: f64\nraw_min: 0\nraw_max: 1000\neng_min: 0\neng_max: 10\n");
+        let db = db_con(&[t], &[]).await;
+        consegna(&db, "pressione", None, &dv(Some(Variant::Int32(500)), Some(StatusCode::Good))).await;
+        let st = db.get("pressione").await.expect("il tag c'è");
+        assert_eq!(st.value, TagValue::Float(5.0), "500 su 0-1000 scalato a 0-10 fa 5");
+    }
+
+    /// E la conversione al tipo dichiarato: un `u16` non tiene un decimale.
+    #[tokio::test]
+    async fn il_valore_letto_segue_il_tipo_dichiarato() {
+        let db = db_con(&[tag_yaml("id: giri\ndata_type: u16\n")], &[]).await;
+        consegna(&db, "giri", None, &dv(Some(Variant::Double(29.8)), Some(StatusCode::Good))).await;
+        assert_eq!(db.get("giri").await.unwrap().value, TagValue::Int(30));
+    }
+
+    /// L'altro difetto: un valore che non si sa leggere non cancella quello
+    /// buono di prima con uno zero inventato.
+    #[tokio::test]
+    async fn un_valore_illeggibile_non_cancella_lultima_lettura() {
+        let db = db_con(&[tag_yaml("id: t\ndata_type: f64\n")], &[]).await;
+        consegna(&db, "t", None, &dv(Some(Variant::Double(42.0)), Some(StatusCode::Good))).await;
+        assert_eq!(db.get("t").await.unwrap().value, TagValue::Float(42.0));
+
+        consegna(&db, "t", None, &dv(Some(Variant::Guid(Default::default())), Some(StatusCode::Good))).await;
+        let st = db.get("t").await.unwrap();
+        assert_eq!(st.value, TagValue::Float(42.0), "ha scritto uno zero inventato al posto del dato");
+        assert_eq!(st.quality, TagQuality::Uncertain);
+    }
+
+    /// Un array arriva come **un** valore e deve finire nel TagDb **una foglia
+    /// per volta**, col percorso di ciascuna.
+    #[tokio::test]
+    async fn un_array_si_consegna_foglia_per_foglia() {
+        let t = tag_yaml("id: livelli\ndata_type: i32\narray: [3]\n");
+        let forma = Forma::da_tag(&t, &[]).unwrap().unwrap();
+        let foglie = foglie_di(&forma, "livelli", &[]);
+        assert_eq!(foglie.len(), 3, "tre foglie: {foglie:?}");
+        let db = db_con(&[t], &[]).await;
+
+        let a = opcua::types::Array::new_multi(
+            opcua::types::VariantScalarTypeId::Int32,
+            vec![Variant::Int32(10), Variant::Int32(20), Variant::Int32(30)],
+            vec![3],
+        )
+        .unwrap();
+        consegna(&db, "livelli", Some(&foglie), &dv(Some(Variant::Array(Box::new(a))), Some(StatusCode::Good))).await;
+
+        assert_eq!(db.get("livelli[0]").await.unwrap().value, TagValue::Int(10));
+        assert_eq!(db.get("livelli[2]").await.unwrap().value, TagValue::Int(30));
+    }
+
+    /// Un array più corto di quello dichiarato: le foglie che mancano si
+    /// marcano Bad, non si inventano.
+    #[tokio::test]
+    async fn una_foglia_che_non_arriva_diventa_bad() {
+        let t = tag_yaml("id: livelli\ndata_type: i32\narray: [3]\n");
+        let forma = Forma::da_tag(&t, &[]).unwrap().unwrap();
+        let foglie = foglie_di(&forma, "livelli", &[]);
+        let db = db_con(&[t], &[]).await;
+
+        let a = opcua::types::Array::new_multi(
+            opcua::types::VariantScalarTypeId::Int32,
+            vec![Variant::Int32(10)],
+            vec![1],
+        )
+        .unwrap();
+        consegna(&db, "livelli", Some(&foglie), &dv(Some(Variant::Array(Box::new(a))), Some(StatusCode::Good))).await;
+
+        assert_eq!(db.get("livelli[0]").await.unwrap().value, TagValue::Int(10));
+        assert_eq!(db.get("livelli[2]").await.unwrap().quality, TagQuality::Bad);
+    }
+
+    // Le due conversioni vivono in `valore.rs` dal 22-10-2026, con le loro
+    // prove; queste due restano qui perché dicono come la sessione legge la
+    // qualità, che è il motivo per cui erano state scritte.
     #[test]
     fn data_value_quality_propagates_status() {
-        let (_, q) = data_value_to_tag(&dv(
+        let (_, q) = crate::valore::da_data_value(&dv(
             Some(Variant::Int32(0)),
             Some(StatusCode::BadDeviceFailure),
         ));
@@ -1224,16 +1383,8 @@ mod tests {
 
     #[test]
     fn data_value_none_value_is_uncertain() {
-        let (_, q) = data_value_to_tag(&dv(None, Some(StatusCode::Good)));
+        let (_, q) = crate::valore::da_data_value(&dv(None, Some(StatusCode::Good)));
         assert!(matches!(q, TagQuality::Uncertain));
-    }
-
-    #[test]
-    fn tag_value_to_variant_roundtrip_bool() {
-        match tag_value_to_variant(&TagValue::Bool(true)) {
-            Some(Variant::Boolean(b)) => assert!(b),
-            other => panic!("expected Boolean(true), got {other:?}"),
-        }
     }
 
     #[test]
@@ -1286,21 +1437,6 @@ mod tests {
         }
     }
 
-    #[test]
-    fn tag_value_to_variant_roundtrip_int_float_str() {
-        // Int → Int64 (widest signed); Float → Double (widest unsigned-ish);
-        // Str → UAString. Callers can rely on these mappings being stable.
-        assert!(matches!(
-            tag_value_to_variant(&TagValue::Int(42)),
-            Some(Variant::Int64(42))
-        ));
-        assert!(matches!(tag_value_to_variant(&TagValue::Float(3.5)),
-            Some(Variant::Double(d)) if (d - 3.5).abs() < 1e-9));
-        match tag_value_to_variant(&TagValue::Str("hi".into())) {
-            Some(Variant::String(s)) => assert_eq!(s.as_ref(), "hi"),
-            other => panic!("expected String, got {other:?}"),
-        }
-    }
 }
 
 #[cfg(test)]

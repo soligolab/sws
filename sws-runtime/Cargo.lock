@@ -3885,6 +3885,7 @@ dependencies = [
  "anyhow",
  "async-opcua",
  "serde",
+ "serde_yaml",
  "sws-core",
  "tempfile",
  "tokio",

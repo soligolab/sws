@@ -1,85 +1,161 @@
-# Seme — i certificati in un posto solo («Security Agent» di SWS)
+# I certificati in un posto solo — le decisioni, dopo la sessione di plan
 
-> **Seme — decisione.** Domanda del maintainer, 15-10-2026: «la gestione dei certificati ha senso gestirla in un menù
-> dedicato dove gestire tutti i certificati di tutti i protocolli e modi di accesso? qualcosa ispirato a CODESYS
-> Security Agent?». Annotata mentre si chiudeva il C3 dell'onda 1
-> ([piano](2026-10-15-piano-prima-fascia-e-cra.md)), che ha appena aggiunto la fiducia al primo contatto per OPC UA.
+> **Era un seme, dal 22-10-2026 porta le decisioni.** La sessione di plan che il seme chiedeva è
+> stata fatta quella notte, misurando il codice. Qui c'è quello che serve a decidere; le misure
+> vecchie del seme (15-10 e 21-10) sono in coda, con le correzioni.
 >
-> **Quando questo lavoro inizia, il primo passo è una sessione di plan approfondita per definirne tutti i dettagli.**
-> Qui ci sono l'idea e le misure di oggi, non il progetto.
+> Domanda d'origine del maintainer, 15-10-2026: «la gestione dei certificati ha senso gestirla in
+> un menù dedicato… qualcosa ispirato a CODESYS Security Agent?».
 
-## L'idea
+## Tre cose che la misura ha cambiato
 
-Una vista sola, **Configurazione → Sicurezza → Certificati**, come il Security Agent di CODESYS: tutti i certificati
-del dispositivo e dell'IDE, divisi per **uso** (server web, OPC UA client e server, MQTT, dispositivi raggiunti
-dall'IDE, viewer LVGL), con due elenchi per ciascuno:
+**1. «Serve una dipendenza nuova che parsi i certificati» — falso.** Un parser X.509 completo,
+`x509-cert 0.2.5`, è **già compilato dentro il binario**: ci arriva da `async-opcua-crypto`, con le
+feature `pem` e `std` attive. Metterlo fra le dipendenze dirette di `sws-web` è **una riga** di
+Cargo.toml e **zero crate nuovi da compilare**. E `sws-web` ha già `rustls-pemfile` per passare da
+PEM a DER, e `sws_core::pin_tls::impronta_sha256` per l'impronta. Era la frase che faceva sembrare
+questo lavoro grande il doppio.
 
-- **i propri certificati**: soggetto, emittente, validità, impronta; generare, rinnovare, importarne uno firmato da
-  una CA, esportare quello pubblico;
-- **i certificati di cui ci si fida** (e quelli rifiutati): fidati, rifiuta, dimentica, con il motivo e la data.
+**2. Il trust store OPC-UA non funziona.** Le tre rotte leggono `trusted/certs` e `rejected/certs`;
+la libreria — e il nostro stesso plugin — usano `trusted/` e `rejected/`, senza quel livello.
+L'elenco è **sempre vuoto**, «Fidati» risponde 204 senza fare niente, «Elimina» risponde 404. E il
+messaggio di errore della fiducia al primo contatto dice «fidati del nuovo dal trust store della
+sorgente», cioè manda l'utente in una tabella che non può funzionare.
 
-Più quello che oggi non fa nessuno: **avvisi di scadenza**, e un posto unico dove si conferma un certificato cambiato
-qualunque sia il protocollo.
+**Ma correggere il percorso non basta**, e questa è la parte che lo scettico ha trovato: il client
+`async-opcua` valida e archivia il certificato del server **solo** se la policy non è `None` — e
+`None` è il default in **tre posti indipendenti** (il serde di `sws-core`, la sorgente vuota che
+crea l'IDE, il template `opcua-demo`). Quindi il ramo corto non è un refuso di quattro righe: è
+una domanda sul default della policy.
 
-## Misurato oggi (main `be8ae1c6` + ramo `fix/cra-default-sicuri`)
+**3. C'è un sesto archivio che nessuno ha dichiarato.** Il server OPC-UA non ha identità (vero),
+ma un trust store ce l'ha: `ServerBuilder::new()` mette `pki_dir = <cwd>/pki` e lo **crea**. In un
+container senza `WORKDIR` quella è la radice. Un reset di fabbrica non saprebbe cancellarlo.
 
-Sei archivi, ognuno con regole, formato e interfaccia propri:
+## Gli archivi, misurati il 22-10-2026
 
-| Uso | Archivio | Formato | Interfaccia oggi |
-|---|---|---|---|
-| Certificato del server web (8443/8444) | `<config>/tls.crt` + chiave | PEM | Configurazione → Istanza → Device → Stato → Certificato TLS (opt-in: senza, HTTP in chiaro) |
-| IDE → dispositivi remoti (TOFU) | `<config>/dispositivi_conosciuti.yaml` | impronte SHA-256 (`sws_core::pin_tls`) | «dimentica» nella connessione al dispositivo |
-| Broker MQTT (TOFU, Q49) | `<config>/mqtt_broker_conosciuti.yaml` | impronte SHA-256 | nessuna: si cancella a mano la riga |
-| OPC UA client, per sorgente | `<progetto>/opcua-pki/<sorgente>/{own,private,trusted,rejected}` | DER/PEM di async-opcua | trust store nella scheda della sorgente (elenco, fidati, elimina) |
-| OPC UA server | identità del server OPC UA del runtime (`run_server`) | da misurare | nessuna |
-| Viewer LVGL → proprio runtime (TOFU) | `~/.config/sws/<file>` (`sws-lvgl-viewer/src/tls.rs`) | impronte SHA-256 | nessuna: si cancella a mano |
-| Gateway cloud e tunnel | CA pubblica (Let's Encrypt) | — | nessuna serve: verifica come i browser |
+| Uso | Dove | Interfaccia oggi |
+|---|---|---|
+| Certificato del server web | `<config>/tls.crt` + chiave | Istanza → Device → Stato → Certificato TLS |
+| IDE → dispositivi (TOFU) | `<config>/dispositivi_conosciuti.yaml` | solo «dimentica», dentro un messaggio d'errore |
+| Broker MQTT (TOFU) | `<config>/mqtt_broker_conosciuti.yaml` | nessuna |
+| OPC-UA client, per sorgente | `<progetto>/opcua-pki/<sorgente>/` | **rotta rotta** (vedi sopra) |
+| Viewer LVGL (TOFU) | `/var/sws/viewer/lvgl_tls_conosciuti.yaml` | nessuna, **e il runtime non la vede**: è in un altro container |
+| *(sesto, non dichiarato)* | `<cwd>/pki` del server OPC-UA | nessuna |
 
-Due modelli convivono: le **impronte** (`pin_tls`, stile `known_hosts`) e l'**archivio PKI** di OPC UA (cartelle
-`trusted/rejected`). La vista unica dovrebbe mostrarli allo stesso modo senza fonderli per forza.
+Più **due archivi di chiavi SSH** che il seme non nominava: `~/.ssh/known_hosts` (col «dimentica»
+già fatto) e le chiavi di progetto in `<progetto>/.git/sws-ssh/`.
 
-## Perché ha senso, e quando
+**Nove rotte** toccano certificati o impronte. `GET /api/system/tls` restituisce **un booleano**:
+nessuna rotta, da nessuna parte, dà soggetto, emittente o validità. `ImprontaStore` non sa nemmeno
+elencare — manca il metodo, sono quattro righe.
 
-- Il **CRA** chiede impostazioni sicure e un modo per tornarci (requisiti b, d, m): un posto solo dove vedere e
-  revocare la fiducia lo rende verificabile, e lo stesso posto serve al **reset di fabbrica** (C5) per sapere cosa
-  cancellare.
-- Il **TLS di default sul pannello** (C4, onda 3) cambia proprio il primo archivio e il modo in cui l'IDE si fida del
-  pannello: è il momento naturale. Proposta: **progettarlo nella stessa sessione di plan dell'onda 3** (P6 + C4),
-  e farlo come ramo di quell'onda o subito dopo.
+**Su sei operazioni che cambiano un certificato, cinque non finiscono nell'audit.**
 
-## Domande aperte per la sessione di plan
+---
 
-- Dove vive la vista per un pannello senza IDE (pagina di servizio del runtime?) e per l'IDE nel cloud.
-- Chi può toccarla (solo Admin? doppia conferma per «fidati»?), e cosa finisce nell'audit.
-- Importazione di certificati firmati da una CA del cliente: formati, catena, chiave privata.
-- Avvisi di scadenza: dove si vedono (barra dell'IDE, allarme di sistema, email).
+## Le decisioni
 
-## Rimisurato il 21-10-2026 — gli archivi sono cinque, e due cose nuove
+### 1. Il trust store OPC-UA rotto: quando si ripara?
 
-- **Il cambio di porte non tocca il certificato del server web**: il titolo «(8443/8444)» nella
-  tabella è solo testo. Il certificato ha come SAN `localhost`, gli IP di loopback e quello della
-  LAN, nessuna porta (`sws-runtime/src/main.rs:2144-2156`).
-- **Tocca invece il pinning**, e in un modo che va scritto: la chiave delle impronte è
-  **`host:porta`**, non `host` (`sws-web/src/certificati.rs:38-46`,
-  `sws-lvgl-viewer/src/tls.rs:42-53`). Passare da 8443 a 7443 è una chiave nuova, cioè una fiducia
-  al primo contatto da capo, e la riga vecchia resta lì. «Dimentica» è già a posto — toglie tutte
-  le porte di quell'host (`pin_tls.rs:120-137`) — ma nessuno fa pulizia da sé. Da decidere quando
-  si costruisce la vista: la riga morta si lascia, o la si toglie quando il ripiego di porta
-  scatta?
-- **La riga 5 si cancella: il trust store del server OPC UA non esiste.** `run_server` usa
-  `ServerBuilder::new_anonymous` (`sws-plugin-opcua/src/lib.rs:1029-1033`), che dichiara un solo
-  endpoint `none`; `create_sample_keypair` e `pki_dir` li chiama solo il **client**. Il
-  `.trust_client_certs(true)` è inerte. Il server OPC UA di SWS non ha identità né trust store
-  perché parla solo in chiaro: è una mancanza da gap analysis CRA, non una voce di questo menù.
-  **Gli archivi sono cinque, non sei.**
-- **Gli avvisi di scadenza non hanno niente da avvisare**, sul certificato del pannello: rcgen
-  0.13.2 ha `not_after` al 4096 e nessuno dei due generatori lo cambia (`main.rs:2144-2167`,
-  `system.rs:1013-1035`). Il self-signed non scade mai; l'avviso serve solo per un certificato di
-  CA caricato a mano.
-- **Non c'è un sottoinsieme veloce.** Nemmeno «una vista in sola lettura»: oggi nessuna rotta
-  elenca gli archivi a impronte (c'è solo il gesto di dimenticare, `remote.rs:3019`), e nessuno
-  dei campi che la vista vorrebbe mostrare — soggetto, emittente, validità — è disponibile senza
-  una dipendenza nuova che parsi i certificati.
+Non è il refuso che sembrava. Le opzioni:
 
-Reggono: `dispositivi_conosciuti.yaml`, `mqtt_broker_conosciuti.yaml`, `opcua-pki/<sorgente>/`,
-`tls.crt`/`tls.key`, e il doppio modello impronte-contro-PKI.
+- **a** — ramo corto ora, **e** la domanda sul default della policy. Senza quella, correggere il
+  percorso non riempie nessuna tabella.
+- **b** — dentro il ramo della vista unica, all'onda 3. Resta rotto per settimane, e la sessione
+  dell'onda 3 partirebbe da un'interfaccia che non ha mai funzionato.
+- **c** — insieme alla card TLS remota (decisione 2): sono due difetti della stessa famiglia.
+
+### 2. La card «Certificato TLS» con un dispositivo remoto connesso
+
+Oggi mostra e modifica **l'istanza locale**, anche con un pannello connesso. Il resto della scheda
+usa la variante remota; per il TLS quella rotta non esiste.
+
+- **a** — aggiungere `/api/remote/system/tls` (~80 righe), come già esiste per system, backup,
+  database e ritenzione. **È il presupposto di C4**: TLS acceso di default con installer e «Connetti».
+- **b** — nascondere la card quando c'è un remoto, e dire «si gestisce dalla vista Certificati».
+- **c** — lasciarla e scriverlo nell'etichetta.
+
+### 3. La vista mostra l'istanza, o anche il dispositivo connesso?
+
+Il problema è reale e misurato: `tls.crt` e `dispositivi_conosciuti.yaml` stanno nella cartella di
+configurazione **di chi gira**. Lo stesso schermo mostra archivi diversi a seconda dell'istanza.
+
+- **a** — una scheda, due colonne: «questa istanza» e «dispositivo connesso». Serve una famiglia
+  `/api/remote/certificati/*`.
+- **b** — solo l'istanza locale; per il pannello ci si collega al pannello.
+- **c** — due foglie sotto Sicurezza: Certificati (IDE) e Certificati (Dispositivo).
+
+### 4. L'archivio del viewer LVGL entra nella vista?
+
+Il runtime **non lo vede**: è montato solo nel container del viewer.
+
+- **a** — una riga nel quadlet del runtime (`Volume=…/viewer:…:ro`), quadlet 6 → 7, e
+  l'aggiornamento se la porta dietro da solo. Tutti gli archivi nella vista, e il reset di fabbrica
+  sa cosa cancellare.
+- **b** — resta fuori, e la vista nasce incompleta proprio sull'archivio che protegge il pannello.
+- **c** — lo espone il viewer con un endpoint: un protocollo nuovo fra due container, per un file
+  di poche righe.
+
+### 5. Il certificato del pannello deve avere un nome vero?
+
+Oggi è **«CN=rcgen self signed cert»**, uguale su ogni pannello: nessuno imposta il
+`distinguished_name`. Una colonna «soggetto» mostrerebbe quella stringa a tutti.
+
+- **a** — si lascia.
+- **b** — il nome del pannello o l'`instance_id` quando si genera: due righe. Ma i certificati già
+  generati non cambiano finché non li si rigenera, e allora va deciso **cosa succede a chi si era
+  già fidato dell'impronta vecchia**.
+
+### 6. `not_after` al 4096: gli avvisi di scadenza esistono o no?
+
+Il self-signed **non scade mai** (rcgen: 1975 → 4096, e nessuno lo cambia). Nemmeno
+`upload_tls_cert` legge la validità di quello che gli si carica.
+
+- **a** — si lascia: «avvisi di scadenza» resta una riga di documentazione, non una funzione.
+- **b** — uno o due anni, con avviso e rinnovo. È lavoro di C4, non della vista, e va deciso anche
+  **dove si vede** l'avviso: barra dell'IDE, allarme di sistema, email.
+
+### 7. Chi tocca la vista, e cosa finisce nell'audit?
+
+- Ruoli: tutta Admin (coerente con le rotte di oggi), oppure due livelli come adesso — l'elenco dei
+  certificati OPC-UA è Supervisor, le scritture Admin. **Portare quella rotta a Admin è un cambio
+  di comportamento e va in `NOVITA.yaml`.**
+- Audit: i cinque eventi mancanti (`tls.generate`, `tls.upload`, `tls.remove`,
+  `opcua.cert_trust`, `opcua.cert_delete`) sono **~15 righe**, e chiudono il requisito CRA di
+  tracciabilità insieme alla vista invece di lasciarlo aperto nel fascicolo.
+
+### 8. Le righe morte lasciate dal cambio 8443 → 7443
+
+La chiave del pinning è `host:porta`, quindi per lo stesso pannello ci sono due righe. Il gesto che
+le toglie tutte esiste già (`dimentica_host`): manca solo chi lo chiama.
+
+- **a** — si lasciano e si mostrano, col loro «dimentica». Zero codice fuori dalla vista.
+- **b** — si puliscono quando scatta il ripiego di porta.
+- **c** — un «pulisci le porte non più in uso» dentro la vista.
+
+---
+
+## Quanto costa, quando si parte
+
+- **Il difetto OPC-UA da solo**: mezza sessione — *se* la decisione 1 non apre la domanda sulla
+  policy.
+- **La vista intera**: ~1 500-2 000 righe su 12-18 file. Due o tre rami annidati, due o tre
+  sessioni. Il ramo Sicurezza nell'albero di Configurazione **esiste già**, con una foglia sola
+  (`users`): aggiungerne una è una riga più il componente.
+
+**Quando.** Il seme proponeva di progettarlo nella sessione dell'onda 3 (TLS di default + 2FA/LDAP),
+e quella proposta regge: C4 cambia proprio il primo archivio e il modo in cui l'IDE si fida del
+pannello. Le onde 1 e 2 sono chiuse; C4 e C5 non sono iniziati.
+
+---
+
+## Le misure vecchie del seme (15-10 e 21-10), con le correzioni
+
+Il seme diceva «gli archivi sono cinque, non sei», togliendo il server OPC-UA perché non ha
+identità. Sull'identità aveva ragione; sul trust store no — ce l'ha, in `<cwd>/pki`, e nessuno lo
+ha mai dichiarato. **Sono sei, ma non quelli che pensava il testo del 15-10.**
+
+Reggono: il doppio modello impronte-contro-PKI; il fatto che il cambio di porte non tocchi il
+certificato ma tocchi il pinning; e che non ci fosse un sottoinsieme veloce — quello cade con
+`x509-cert`.

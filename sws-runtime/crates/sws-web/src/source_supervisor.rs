@@ -353,15 +353,10 @@ impl SourceSupervisor {
                 })
             }
             SourceDef::OpcUaClient(cfg) => {
-                // The opcua plugin has no cancel hook yet (the reconnect
-                // loop is self-driven); the cancel token is unused for now
-                // but kept in the supervisor's API so future graceful-shutdown
-                // work can wire it in one place.
                 info!(source = %id_for_log, "starting OPC-UA client task");
-                let _ = cancel_for_task;
                 let pki = self.opcua_pki_root.read().await.clone();
                 tokio::spawn(async move {
-                    sws_plugin_opcua::run(cfg, db, bus, pki).await;
+                    sws_plugin_opcua::run(cfg, db, bus, pki, cancel_for_task).await;
                 })
             }
             SourceDef::HomeAssistant(cfg) => {
