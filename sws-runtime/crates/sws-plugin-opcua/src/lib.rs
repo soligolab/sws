@@ -675,6 +675,26 @@ pub struct BrowsedNode {
     /// `Object`, `Variable`, `Method`, … — used by the UI to draw folder
     /// vs leaf icons and decide whether the row is selectable as a tag.
     pub node_class: String,
+    /// Il tipo SWS che corrisponde al `DataType` del nodo (`u16`, `f32`, …),
+    /// letto dal server con una `Read` degli attributi (23-10-2026).
+    ///
+    /// Fino a oggi il browse tornava quattro campi e basta, e chi creava un tag
+    /// da un nodo il tipo **lo sceglieva a mano**: scegliere male non si vede,
+    /// e si paga quando il valore arriva storto.
+    ///
+    /// `None` quando il tipo non si indovina — una struttura, un'enumerazione,
+    /// un tipo del costruttore.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub tipo: Option<String>,
+    /// `-1` scalare, `1` array a una dimensione, `n` a n dimensioni.
+    /// `None` se il nodo non è una `Variable`.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub rango: Option<i32>,
+    /// La lunghezza di ogni dimensione, quando il server la dichiara. Un `0`
+    /// vuol dire «variabile», ed è ciò che distingue un array a lunghezza
+    /// fissa — mappabile su un tag `array: [n]` — da uno che cambia.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub dimensioni: Option<Vec<u32>>,
 }
 
 /// Open a temporary session, browse one level under `parent_node_id`
@@ -769,6 +789,9 @@ pub async fn browse_one_level(
         .map_err(|e| anyhow::anyhow!("browse: {e}"))?;
 
     let mut out: Vec<BrowsedNode> = Vec::new();
+    // (posizione in `out`, NodeId) delle sole `Variable`: gli attributi li
+    // hanno solo loro.
+    let mut nodi_variabile: Vec<(usize, opcua::types::NodeId)> = Vec::new();
     for r in results {
         let Some(refs) = r.references else { continue };
         for rd in refs {
@@ -777,7 +800,69 @@ pub async fn browse_one_level(
                 browse_name: rd.browse_name.name.as_ref().to_string(),
                 display_name: rd.display_name.text.as_ref().to_string(),
                 node_class: node_class_label(rd.node_class).to_string(),
+                tipo: None,
+                rango: None,
+                dimensioni: None,
             });
+            // Solo le `Variable`: una cartella o un metodo quegli attributi
+            // non li ha, e chiederglieli vuol dire tre risposte d'errore per
+            // nodo in ogni browse.
+            if rd.node_class == opcua::types::NodeClass::Variable {
+                nodi_variabile.push((out.len() - 1, rd.node_id.node_id.clone()));
+            }
+        }
+    }
+
+    // Gli attributi delle sole `Variable`, in **una** richiesta sola: tre
+    // attributi per nodo, non tre richieste per nodo.
+    //
+    // DataType(14), ValueRank(15) e ArrayDimensions(16) non stanno in una
+    // `ReferenceDescription` — quella porta nome, etichetta e classe — e
+    // vanno letti come attributi del nodo. È il motivo per cui fino al
+    // 23-10-2026 il browse non li aveva.
+    if !nodi_variabile.is_empty() {
+        use opcua::types::{AttributeId, ReadValueId, TimestampsToReturn};
+        let mut da_leggere = Vec::with_capacity(nodi_variabile.len() * 3);
+        for (_, nid) in &nodi_variabile {
+            for a in [AttributeId::DataType, AttributeId::ValueRank, AttributeId::ArrayDimensions] {
+                da_leggere.push(ReadValueId {
+                    node_id: nid.clone(),
+                    attribute_id: a as u32,
+                    ..Default::default()
+                });
+            }
+        }
+        match session.read(&da_leggere, TimestampsToReturn::Neither, 0.0).await {
+            Ok(letti) if letti.len() == da_leggere.len() => {
+                for (i, (pos, _)) in nodi_variabile.iter().enumerate() {
+                    let n = &out[*pos];
+                    let _ = n;
+                    if let Some(opcua::types::Variant::NodeId(dt)) = &letti[i * 3].value {
+                        out[*pos].tipo = crate::valore::tipo_sws(dt).map(str::to_string);
+                    }
+                    if let Some(opcua::types::Variant::Int32(r)) = &letti[i * 3 + 1].value {
+                        out[*pos].rango = Some(*r);
+                    }
+                    if let Some(opcua::types::Variant::Array(a)) = &letti[i * 3 + 2].value {
+                        let d: Vec<u32> = a
+                            .values
+                            .iter()
+                            .filter_map(|v| match v {
+                                opcua::types::Variant::UInt32(n) => Some(*n),
+                                _ => None,
+                            })
+                            .collect();
+                        if !d.is_empty() {
+                            out[*pos].dimensioni = Some(d);
+                        }
+                    }
+                }
+            }
+            // Un server che non risponde agli attributi non è un motivo per
+            // perdere il browse: si torna l'elenco senza i tipi, che è quello
+            // che si aveva prima.
+            Ok(_) => warn!("opcua browse: la lettura degli attributi ha risposto con un numero diverso di valori"),
+            Err(e) => warn!("opcua browse: attributi non letti ({e}); l'elenco esce senza i tipi"),
         }
     }
 
@@ -1048,14 +1133,14 @@ fn node_class_label(c: NodeClass) -> &'static str {
 pub async fn run_server(
     cfg: sws_core::OpcUaServerConfig,
     db: Arc<sws_core::TagDb>,
-    _bus: Arc<sws_core::TagWriteBus>,
+    bus: Arc<sws_core::TagWriteBus>,
     cancel: tokio_util::sync::CancellationToken,
 ) {
     use opcua::nodes::{AccessLevel, VariableBuilder};
     use opcua::server::{
         diagnostics::NamespaceMetadata, node_manager::memory::simple_node_manager, ServerBuilder,
     };
-    use opcua::types::{DataTypeId, DataValue, NodeId, ObjectId};
+    use opcua::types::{DataValue, NodeId, ObjectId};
     use sws_core::{TagQuality, TagValue};
 
     let (server, handle) = match ServerBuilder::new_anonymous("SWS OPC-UA Server")
@@ -1098,12 +1183,17 @@ pub async fn run_server(
 
         for mapping in &cfg.nodes {
             let nid = NodeId::new(ns, mapping.effective_node_id());
+            // Il tipo dichiarato nel progetto, non `Double` per tutti: fino al
+            // 23-10-2026 un `bool` si esponeva come `Double` e poi ci si
+            // spingeva dentro un `Variant::Boolean` — il valore contraddiceva
+            // il tipo, e un client severo ha il diritto di rifiutarlo.
+            let tipo = db.tipo_dichiarato(&mapping.tag).await;
             VariableBuilder::new(
                 &nid,
                 mapping.effective_node_id(),
                 mapping.effective_node_id(),
             )
-            .data_type(DataTypeId::Double)
+            .data_type(valore::tipo_opcua(tipo.as_deref()))
             .value(0.0_f64)
             .access_level(AccessLevel::CURRENT_READ | AccessLevel::CURRENT_WRITE)
             .user_access_level(AccessLevel::CURRENT_READ | AccessLevel::CURRENT_WRITE)
@@ -1113,10 +1203,23 @@ pub async fn run_server(
         }
     }
 
-    // Wire OPC-UA write → TagDb. Sync callbacks cannot be async, so we use
-    // an unbounded mpsc channel: callback posts to channel; a spawned task
-    // drains it and calls db.ingest() (bypassing the write bus — the OPC-UA
-    // server is the authoritative source for these tags while running).
+    // Le scritture che arrivano da fuori passano **dal bus** (decisione del
+    // maintainer, 23-10-2026).
+    //
+    // Fino a oggi andavano dritte nel `TagDb`, con questa motivazione: «il
+    // server OPC-UA è la fonte autorevole per questi tag mentre gira». Non
+    // regge quando il tag è di **campo**: uno SCADA che scriveva su un tag
+    // posseduto da una sorgente Modbus metteva il valore nel `TagDb`, e al
+    // giro di lettura dopo il campo lo cancellava. **Al dispositivo non
+    // arrivava mai**, e nessun errore lo diceva.
+    //
+    // Ora è la stessa regola di `PUT /api/tags/:id`: si prova il bus, e se
+    // nessuno possiede il tag si ripiega sul `TagDb` — che è il caso dei tag
+    // virtuali, per i quali la motivazione di prima era giusta.
+    //
+    // Il valore verso il dispositivo viaggia **grezzo**: `scale_to_raw` prima
+    // del bus, il ripiego resta in unità ingegneristiche. Anche questo come la
+    // rotta HTTP, e per lo stesso motivo.
     let (write_tx, mut write_rx) = tokio::sync::mpsc::unbounded_channel::<(String, TagValue)>();
     {
         let impl_ = node_mgr.inner();
@@ -1148,9 +1251,22 @@ pub async fn run_server(
     drop(write_tx); // callbacks hold clones; drop our copy so the channel closes when they all drop
                     // Write-drain task: receives (tag, value) pairs from OPC-UA write callbacks.
     let db_for_writes = db.clone();
+    let bus_for_writes = bus.clone();
+    let id_for_writes = cfg.id.clone();
     let write_drainer = tokio::spawn(async move {
         while let Some((tag, value)) = write_rx.recv().await {
-            db_for_writes.set(tag, value, TagQuality::Good).await;
+            let raw = db_for_writes.scale_to_raw(&tag, value.clone()).await;
+            match bus_for_writes.write(&tag, raw).await {
+                Ok(()) => {}
+                // Nessuno possiede questo tag: è virtuale, e il `TagDb` è
+                // davvero il posto giusto.
+                Err(sws_core::WriteError::NoWriter(_)) => {
+                    db_for_writes.set(tag, value, TagQuality::Good).await;
+                }
+                Err(e) => {
+                    warn!(source = %id_for_writes, tag = %tag, "opcua server: scrittura non consegnata: {e}")
+                }
+            }
         }
     });
 
@@ -1159,6 +1275,7 @@ pub async fn run_server(
 
     // Mirror TagDb broadcasts into the OPC-UA address space.
     let mut db_rx = db.subscribe();
+    let db_tipi = db.clone();
     let handle_for_update = handle.clone();
     let node_mgr_for_update = node_mgr.clone();
     let nodes_for_update: Vec<_> = cfg.nodes.clone();
@@ -1173,12 +1290,10 @@ pub async fn run_server(
                         continue;
                     };
                     let nid = NodeId::new(ns_for_update, mapping.effective_node_id());
-                    // `None` come tipo = il comportamento di sempre
-                    // (`Int64`/`Double`). Il server dichiara ogni nodo
-                    // `Double` (:1074) e dargli un `UInt16` lo renderebbe più
-                    // incoerente, non meno: tipizzare il server è una scelta a
-                    // sé, e sta nel materiale per il maintainer.
-                    let variant = valore::variant_per_tipo(None, &update.state.value);
+                    // Lo stesso tipo con cui il nodo è stato dichiarato, così
+                    // valore e dichiarazione combaciano.
+                    let tipo = db_tipi.tipo_dichiarato(&update.id).await;
+                    let variant = valore::variant_per_tipo(tipo.as_deref(), &update.state.value);
                     if let Some(v) = variant {
                         let dv = DataValue::new_now(v);
                         let _ = node_mgr_for_update.set_value(
@@ -1323,7 +1438,9 @@ mod tests {
         consegna(&db, "t", None, &dv(Some(Variant::Guid(Default::default())), Some(StatusCode::Good))).await;
         let st = db.get("t").await.unwrap();
         assert_eq!(st.value, TagValue::Float(42.0), "ha scritto uno zero inventato al posto del dato");
-        assert_eq!(st.quality, TagQuality::Uncertain);
+        // Dal 23-10-2026 `Bad` e non `Uncertain`: il dato c'è e non lo
+        // sappiamo leggere, quindi va visto invece che ingrigito.
+        assert_eq!(st.quality, TagQuality::Bad);
     }
 
     /// Un array arriva come **un** valore e deve finire nel TagDb **una foglia

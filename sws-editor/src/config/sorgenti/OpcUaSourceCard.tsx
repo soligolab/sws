@@ -3,7 +3,7 @@ import { useTranslation } from "react-i18next";
 import { api } from "@/api/client";
 import { QuickCreateTagModal } from "@/components/QuickCreateTagModal";
 import { TagInput } from "@/components/TagInput";
-import type { OpcUaAuth, OpcUaCertEntry, OpcUaNodeMapping, OpcUaSource, TagDef } from "@/types";
+import type { OpcUaAuth, OpcUaCertEntry, OpcUaNodeMapping, OpcUaSource, TagDataType, TagDef } from "@/types";
 import { S } from "@/config/comuni";
 import { emptyOpcUaNode } from "@/config/sorgenti/vuote";
 import { OpcUaBrowseModal } from "@/config/sorgenti/OpcUaBrowseModal";
@@ -27,6 +27,12 @@ export function OpcUaSourceCard({
   const { t } = useTranslation();
   const [open, setOpen] = useState(true);
   const [quickCreate, setQuickCreate] = useState<{ rowIdx: number; prefill: string } | null>(null);
+  // Il tipo che il browse ha letto dal server, per node_id (23-10-2026).
+  // Serve al «＋» di ogni riga: prima il tipo di un tag nuovo lo si sceglieva
+  // a mano, e sceglierlo male non si vedeva finché il valore non arrivava
+  // storto. Vive solo finché la scheda è aperta — non è roba da salvare nel
+  // progetto, è quello che il server ha detto adesso.
+  const [tipiDalServer, setTipiDalServer] = useState<Record<string, string>>({});
   const [browseOpen, setBrowseOpen] = useState(false);
   const [euromapOpen, setEuromapOpen] = useState(false);
   const [certs, setCerts] = useState<OpcUaCertEntry[] | null>(null);
@@ -337,6 +343,7 @@ export function OpcUaSourceCard({
                           title={t("cfg.createNewTag")}
                           style={{ ...S.btn("ghost"), padding: "2px 6px" }}
                           onClick={() => setQuickCreate({ rowIdx: i, prefill: n.tag })}
+                          // Il tipo letto dal server, se il browse l'ha visto.
                         >＋</button>
                       </div>
                     </td>
@@ -371,6 +378,9 @@ export function OpcUaSourceCard({
       {quickCreate !== null && (
         <QuickCreateTagModal
           initialId={quickCreate.prefill}
+          tipoSuggerito={
+            (tipiDalServer[source.nodes[quickCreate.rowIdx]?.node_id ?? ""] as TagDataType | undefined)
+          }
           onConfirm={(tag) => {
             onCreateTag(tag);
             setNode(quickCreate.rowIdx, { tag: tag.id });
@@ -396,6 +406,11 @@ export function OpcUaSourceCard({
             if (fresh.length > 0) {
               onChange({ ...source, nodes: [...source.nodes, ...fresh] });
             }
+            setTipiDalServer((p) => {
+              const n = { ...p };
+              for (const x of picked) if (x.tipo) n[x.node_id] = x.tipo;
+              return n;
+            });
             setBrowseOpen(false);
           }}
         />

@@ -140,6 +140,29 @@ export function OpcUaBrowseModal({
             <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
               {n.display_name || n.browse_name || n.node_id}
             </span>
+            {/* Il tipo e la forma, letti dal server (23-10-2026): prima il tipo
+                lo si sceglieva a mano, e sceglierlo male non si vedeva. Un
+                nodo di cui non si indovina il tipo lo dice con un trattino,
+                invece di lasciare la colonna vuota come se non si fosse
+                guardato. */}
+            {isVariable && (
+              <span
+                title={
+                  n.rango !== undefined && n.rango >= 1
+                    ? `array, rango ${n.rango}${n.dimensioni ? ` [${n.dimensioni.join("][")}]` : ""}`
+                    : undefined
+                }
+                style={{
+                  fontSize: 10, fontFamily: "monospace", minWidth: 58, textAlign: "right",
+                  color: n.tipo ? "var(--brand-text-2, #cbd5e1)" : "var(--brand-text-subtle, #64748b)",
+                }}
+              >
+                {n.tipo ?? "—"}
+                {n.rango !== undefined && n.rango >= 1
+                  ? (n.dimensioni?.length ? `[${n.dimensioni.join("][")}]` : "[]")
+                  : ""}
+              </span>
+            )}
             <span style={{ fontSize: 10, fontFamily: "monospace", color: "var(--brand-text-subtle, #94a3b8)" }}>
               {n.node_id}
             </span>

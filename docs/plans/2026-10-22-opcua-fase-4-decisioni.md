@@ -12,6 +12,30 @@
 | **5. Scritture dal server** | **Passano dal bus**, con ripiego sul `TagDb` quando nessuno possiede il tag |
 | **6. Bad o Uncertain** | **Tipo non gestito = Bad**; valore assente con stato Good resta Uncertain |
 
+### Stato al 23-10-2026 sera
+
+**Fatto**, ramo `feat/tag-4b-opcua-tipi`: le decisioni **5** (scritture dal server sul bus), **6**
+(tipo non gestito = `Bad`), **3 estesa al server** (ogni nodo si dichiara col tipo del progetto,
+non `Double` per tutti), la **metà array** della 1 (il server sa esporre gli array: prima li
+saltava in silenzio), e il **browse tipizzato** — che non era una decisione ma è la premessa della
+2, e serve già da solo: il «＋» di ogni riga propone il tipo letto dal server invece di farlo
+scegliere a mano.
+
+**Resta**: le **strutture**. Server che le espone, `DataTypeTree` sul client, scrittura sul nodo
+figlio.
+
+**Una misura utile per quando si farà.** Il crate ha un esempio completo e funzionante:
+`async-opcua-0.18.0/tests/integration/custom_types.rs`, 156 righe. Pubblica un tipo struttura con
+`DataTypeBuilder::new(...).data_type_definition(DataTypeDefinition::Structure(...))` e `add_node`,
+costruisce il valore con `DynamicStructure::new_struct`, e dall'altra parte usa
+`DataTypeTreeBuilder` + `DynamicTypeLoader`. **L'opzione (a) regge**, e costa meno di quanto
+sembrava.
+
+Un avvertimento, però: quell'esempio usa le API **interne** del node manager
+(`nm.inner().add_node(...)`, `nm.address_space()`, `handle.type_tree()`), e il nostro `run_server`
+costruisce l'indirizzario in un altro modo. **Il primo passo di quel lavoro è verificare che il
+nostro node manager esponga gli stessi appigli**: se non li espone, la stima cambia di nuovo.
+
 ### Quello che le decisioni cambiano, messo insieme
 
 **4b e 4c diventano un ramo solo.** La decisione 2 lo impone: se un campo di struttura si scrive

@@ -1420,6 +1420,15 @@ export interface OpcUaBrowsedNode {
   display_name: string;
   /** "Object" | "Variable" | "Method" | ... — only Variable can become a tag. */
   node_class: string;
+  /** Il tipo SWS dedotto dal DataType del nodo (`u16`, `f32`, …), letto dal
+   *  server (23-10-2026). Assente quando non si indovina: una struttura,
+   *  un'enumerazione, un tipo del costruttore. */
+  tipo?: string;
+  /** -1 scalare, 1 array a una dimensione, n a n dimensioni. */
+  rango?: number;
+  /** La lunghezza di ogni dimensione, quando il server la dichiara. Uno `0`
+   *  vuol dire «variabile»: un array così non si mappa su `array: [n]`. */
+  dimensioni?: number[];
 }
 
 export interface OpcUaBrowseRequest {
