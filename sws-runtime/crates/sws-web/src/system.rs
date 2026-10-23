@@ -6,7 +6,7 @@ use axum::{
     extract::State,
     http::StatusCode,
     response::{IntoResponse, Response},
-    Json,
+    Extension, Json,
 };
 use rcgen::{CertificateParams, KeyPair, SanType};
 use serde::{Deserialize, Serialize};
@@ -14,7 +14,7 @@ use sws_core::{AlarmDb, TagDb};
 use sws_historian::DatastoreRegistry;
 use sysinfo::{Disks, System};
 
-use crate::router::{active_dir, AppState};
+use crate::router::{active_dir, AppState, AuthUser};
 use crate::source_supervisor::SourceSupervisor;
 
 /// Un avviso sullo stato del runtime: **il runtime non sta facendo quello che
@@ -896,7 +896,16 @@ pub async fn get_tls_status(State(s): State<AppState>) -> Json<TlsStatus> {
 
 /// `POST /api/system/tls/generate` — generate a self-signed cert, write to config dir,
 /// then reboot so the new TLS config takes effect.
-pub async fn generate_tls_cert(State(s): State<AppState>) -> StatusCode {
+///
+/// **Nell'audit, e con un nome** (decisione 7 del piano dei certificati,
+/// 23-10-2026). Su sei operazioni che cambiano un certificato, cinque non
+/// lasciavano traccia: c'era solo un `tracing::info!`, che non è il registro
+/// che si va a rileggere. È il requisito CRA di tracciabilità, e si chiude qui
+/// invece di restare aperto nel fascicolo. La voce si scrive **prima** della
+/// scrittura, perché il riavvio porta via il processo subito dopo e un log
+/// scritto «dopo» sarebbe quello che non c'è proprio quando serve.
+pub async fn generate_tls_cert(State(s): State<AppState>, Extension(user): Extension<AuthUser>) -> StatusCode {
+    s.audit.log("tls.generate", Some(user.username), serde_json::json!({}));
     let config_dir = (*s.config_dir).clone();
     match tokio::task::spawn_blocking(move || generate_cert_files(&config_dir)).await {
         Ok(Ok(())) => {}
@@ -914,7 +923,9 @@ pub async fn generate_tls_cert(State(s): State<AppState>) -> StatusCode {
 }
 
 /// `DELETE /api/system/tls` — remove the TLS cert files and reboot into plain HTTP.
-pub async fn remove_tls_cert(State(s): State<AppState>) -> StatusCode {
+/// Nell'audit: vedi `generate_tls_cert`.
+pub async fn remove_tls_cert(State(s): State<AppState>, Extension(user): Extension<AuthUser>) -> StatusCode {
+    s.audit.log("tls.remove", Some(user.username), serde_json::json!({}));
     let cert_path = s.config_dir.join("tls.crt");
     let key_path = s.config_dir.join("tls.key");
     for path in [&cert_path, &key_path] {
@@ -940,7 +951,13 @@ pub struct TlsUpload {
 /// validate that they parse and match, write them to the config dir, then reboot
 /// so the new cert takes effect (HTTPS). Rejects invalid input before writing so
 /// the user gets immediate feedback instead of a silent self-signed regeneration.
-pub async fn upload_tls_cert(State(s): State<AppState>, Json(body): Json<TlsUpload>) -> Response {
+pub async fn upload_tls_cert(
+    State(s): State<AppState>,
+    Extension(user): Extension<AuthUser>,
+    Json(body): Json<TlsUpload>,
+) -> Response {
+    // Dopo la validazione: un PEM rifiutato non ha cambiato niente, e una voce
+    // di audit per ogni incollata sbagliata sommerge quelle che contano.
     if let Err(e) = validate_cert_key(&body.cert_pem, &body.key_pem) {
         tracing::warn!("upload_tls_cert: invalid cert/key: {e:#}");
         return (
@@ -950,6 +967,7 @@ pub async fn upload_tls_cert(State(s): State<AppState>, Json(body): Json<TlsUplo
             .into_response();
     }
 
+    s.audit.log("tls.upload", Some(user.username), serde_json::json!({}));
     let config_dir = (*s.config_dir).clone();
     let cert = body.cert_pem;
     let key = body.key_pem;

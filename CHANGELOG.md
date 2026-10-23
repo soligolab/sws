@@ -11,7 +11,21 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 
 ## [Unreleased]
 
+### Changed
+
+- **Il trust store OPC-UA è tutto Admin**, non più «elenco a Supervisor, scritture a Admin».
+  La mezza misura non reggeva: chi vede l'elenco vede le impronte dei server a cui il progetto
+  si collega, cioè la mappa di chi parla con chi. Un Supervisor adesso legge una riga che lo
+  spiega, invece di un 403. Decisione 7 del piano dei certificati.
+
 ### Fixed
+
+- **Le sei operazioni che cambiano un certificato lasciano traccia, con un nome.** Cinque su sei
+  non la lasciavano: c'era un `tracing::info!` e basta, che non è il registro che si va a
+  rileggere. Adesso ci sono `tls.generate`, `tls.upload`, `tls.remove`, `opcua.cert_trust`,
+  `opcua.cert_delete` (la sesta, `device.cert_forget`, c'era già) più le tre remote. Chiude il
+  requisito CRA di tracciabilità sui certificati **insieme al lavoro**, invece di lasciarlo
+  aperto nel fascicolo. `check_audit_attore.sh` adesso le verifica tutte e nove, provata rossa.
 
 - **La card «Certificato TLS» governava la macchina sbagliata.** Con un pannello connesso,
   «Genera», «Carica» e «Disabilita» agivano sul **PC su cui gira l'IDE**, mentre lo schermo

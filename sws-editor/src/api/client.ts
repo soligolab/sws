@@ -1895,7 +1895,9 @@ export const api = {
       body: JSON.stringify(req),
     }),
 
-  // OPC-UA certificate trust management (Supervisor+ list, Admin trust/delete)
+  // OPC-UA certificate trust management — **tutto Admin** dal 23-10-2026
+  // (decisione 7 del piano dei certificati): l'elenco era Supervisor, ma chi lo
+  // vede vede le impronte dei server a cui il progetto si collega.
   listOpcUaCerts: (sourceId: string) =>
     request<OpcUaCertEntry[]>(`/api/sources/${encodeURIComponent(sourceId)}/opcua/certs`),
 

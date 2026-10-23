@@ -955,12 +955,16 @@ pub fn build(
 
     // OPC-UA cert trust management — separate router to avoid matchit
     // conflicts with /api/sources/opcua/browse (literal) vs :id (param).
-    // GET list is Supervisor+; POST trust and DELETE are Admin-only.
-    let require_supervisor_layer = middleware::from_fn(require_supervisor);
+    //
+    // **Tutte e tre Admin** dal 23-10-2026 (decisione 7 del piano dei
+    // certificati). L'elenco era Supervisor mentre le due scritture erano
+    // Admin, e quella mezza misura non reggeva: chi vede l'elenco vede le
+    // impronte dei server a cui il progetto si collega, cioè la mappa di chi
+    // parla con chi. È un cambio di comportamento, e sta in `NOVITA.yaml`.
     let opcua_cert_routes = Router::new()
         .route(
             "/api/sources/:id/opcua/certs",
-            get(opcua_list_certs).route_layer(require_supervisor_layer),
+            get(opcua_list_certs).route_layer(require_admin_layer.clone()),
         )
         .route(
             "/api/sources/:id/opcua/certs/:filename/trust",
@@ -8831,6 +8835,7 @@ async fn opcua_list_certs(State(s): State<AppState>, Path(source_id): Path<Strin
 /// Move a cert from rejected/certs to trusted/certs (or no-op if already there).
 async fn opcua_trust_cert(
     State(s): State<AppState>,
+    Extension(user): Extension<AuthUser>,
     Path((source_id, filename)): Path<(String, String)>,
 ) -> Response {
     if !is_safe_cert_filename(&filename) {
@@ -8850,6 +8855,14 @@ async fn opcua_trust_cert(
             warn!(source = %source_id, file = %filename, "opcua trust: rename failed: {e}");
             return (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response();
         }
+        // Dopo lo spostamento, e solo se è successo davvero: fidarsi di un
+        // certificato è la decisione che si va a rileggere, e una voce scritta
+        // anche quando il file non c'era racconterebbe una fiducia mai data.
+        s.audit.log(
+            "opcua.cert_trust",
+            Some(user.username),
+            serde_json::json!({ "sorgente": source_id, "file": filename }),
+        );
     }
     StatusCode::NO_CONTENT.into_response()
 }
@@ -8857,6 +8870,7 @@ async fn opcua_trust_cert(
 /// Remove a cert from either trusted or rejected store.
 async fn opcua_delete_cert(
     State(s): State<AppState>,
+    Extension(user): Extension<AuthUser>,
     Path((source_id, filename)): Path<(String, String)>,
 ) -> Response {
     if !is_safe_cert_filename(&filename) {
@@ -8878,6 +8892,11 @@ async fn opcua_delete_cert(
         }
     }
     if deleted {
+        s.audit.log(
+            "opcua.cert_delete",
+            Some(user.username),
+            serde_json::json!({ "sorgente": source_id, "file": filename }),
+        );
         StatusCode::NO_CONTENT.into_response()
     } else {
         (StatusCode::NOT_FOUND, "cert not found").into_response()

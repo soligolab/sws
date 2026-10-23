@@ -5,6 +5,7 @@ import { QuickCreateTagModal } from "@/components/QuickCreateTagModal";
 import { TagInput } from "@/components/TagInput";
 import type { OpcUaAuth, OpcUaCertEntry, OpcUaNodeMapping, OpcUaSource, TagDataType, TagDef } from "@/types";
 import { S } from "@/config/comuni";
+import { useAppStore } from "@/store";
 import { emptyOpcUaNode } from "@/config/sorgenti/vuote";
 import { OpcUaBrowseModal } from "@/config/sorgenti/OpcUaBrowseModal";
 import { OpcUaEuromapModal } from "@/config/sorgenti/OpcUaEuromapModal";
@@ -35,6 +36,12 @@ export function OpcUaSourceCard({
   const [tipiDalServer, setTipiDalServer] = useState<Record<string, string>>({});
   const [browseOpen, setBrowseOpen] = useState(false);
   const [euromapOpen, setEuromapOpen] = useState(false);
+  // Dal 23-10-2026 il trust store è **tutto Admin** (decisione 7 del piano dei
+  // certificati): l'elenco era Supervisor mentre «Fidati» ed «Elimina» erano
+  // Admin, e la mezza misura non reggeva — chi vede l'elenco vede le impronte
+  // dei server a cui il progetto si collega. Il gate vero è sulle rotte; questo
+  // serve perché un Supervisor veda una riga che spiega, invece di un 403.
+  const authRole = useAppStore((s) => s.authRole);
   const [certs, setCerts] = useState<OpcUaCertEntry[] | null>(null);
   const [certsLoading, setCertsLoading] = useState(false);
   const [certsError, setCertsError] = useState<string | null>(null);
@@ -229,8 +236,11 @@ export function OpcUaSourceCard({
           <div style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)", marginBottom: 8, lineHeight: 1.4 }}>
             {t("cfgUi.opcuaPrimoContatto")}
           </div>
-          {(
-
+          {authRole !== "Admin" ? (
+            <div style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)", marginBottom: 8, lineHeight: 1.4 }}>
+              {t("cfgUi.opcuaTrustStoreSoloAdmin")}
+            </div>
+          ) : (
             <div style={{ background: "var(--brand-surface, #1e293b)", borderRadius: 6, padding: 10, marginBottom: 8 }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
                 <span style={{ fontSize: 12, color: "var(--brand-text-muted, #94a3b8)", fontWeight: 600 }}>TRUST STORE</span>

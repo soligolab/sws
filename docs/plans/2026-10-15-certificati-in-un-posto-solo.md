@@ -188,7 +188,21 @@ Il self-signed **non scade mai** (rcgen: 1975 → 4096, e nessuno lo cambia). Ne
 - **b** — uno o due anni, con avviso e rinnovo. È lavoro di C4, non della vista, e va deciso anche
   **dove si vede** l'avviso: barra dell'IDE, allarme di sistema, email.
 
-### 7. Ruoli e audit — **DECISA: tutto Admin, e l'audit si chiude qui**
+### 7. Ruoli e audit — **DECISA e FATTA il 23-10-2026**
+
+> Ramo `fix/certificati-7-ruoli-e-audit`. L'elenco dei certificati OPC-UA è passato da Supervisor
+> a **Admin**: la mezza misura non reggeva, perché chi vede l'elenco vede le impronte dei server
+> a cui il progetto si collega. È un cambio di comportamento ed è in `NOVITA.yaml`; un Supervisor
+> legge una riga che lo spiega invece di prendere un 403.
+>
+> I cinque eventi mancanti ci sono (`tls.generate`, `tls.upload`, `tls.remove`,
+> `opcua.cert_trust`, `opcua.cert_delete`), più le tre remote nate con la decisione 2. Il
+> `tls.upload` si scrive **dopo** la validazione — un PEM rifiutato non ha cambiato niente, e una
+> voce per ogni incollata sbagliata sommerge quelle che contano — e `opcua.cert_trust` **solo se
+> lo spostamento è avvenuto davvero**, altrimenti racconterebbe una fiducia mai data.
+>
+> `check_audit_attore.sh` è stata estesa: verifica tutte e nove, provata rossa.
+
 
 - Ruoli: tutta Admin (coerente con le rotte di oggi), oppure due livelli come adesso — l'elenco dei
   certificati OPC-UA è Supervisor, le scritture Admin. **Portare quella rotta a Admin è un cambio

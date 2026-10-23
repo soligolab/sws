@@ -2472,7 +2472,8 @@
     "tlsSulDispositivo": "Dispositivo connesso — {{host}}",
     "tlsImprontaCambia": "Cambiare il certificato cambia l'impronta del dispositivo. Al prossimo collegamento l'IDE la rifiuta, perché quella memorizzata è la vecchia: ti comparirà «Dimentica certificato» in Connessione, ed è lì che si conferma quella nuova.",
     "tlsRiavvioDispositivo": "Il dispositivo riparte per applicare il cambio, e il collegamento cade per qualche secondo.",
-    "tlsSchemaCambia": "Attenzione: accendendo o spegnendo il TLS cambia anche lo schema dell'indirizzo (http ↔ https). L'indirizzo salvato in Connessione va aggiornato a mano."
+    "tlsSchemaCambia": "Attenzione: accendendo o spegnendo il TLS cambia anche lo schema dell'indirizzo (http ↔ https). L'indirizzo salvato in Connessione va aggiornato a mano.",
+    "opcuaTrustStoreSoloAdmin": "Il trust store è riservato all'Amministratore: è lì che si vede di quali server il progetto si fida."
   },
   "boot": {
     "pngTooLarge": "PNG troppo grande ({{kb}} KB, max 5120 KB): non è stato caricato",

@@ -35,6 +35,8 @@
 versioni:
   - versione: "Unreleased"
     voci:
+      - it: "Il trust store OPC-UA ora e riservato all'Amministratore: prima l'elenco lo vedeva anche il Supervisore. E ogni operazione sui certificati finisce nel registro di audit, con il nome di chi l'ha fatta."
+        en: "The OPC-UA trust store is now Administrator-only: the list was visible to Supervisors too. And every certificate operation is now recorded in the audit log, with the name of who did it."
       - it: "Il certificato TLS si gestisce sul dispositivo connesso, non piu sul PC dell'IDE: la card diceva «dispositivo» e agiva in locale. Avvisa anche che l'impronta cambia e che poi va riconfermata."
         en: "The TLS certificate is now managed on the connected device, not on the IDE's own PC: the card said «device» and acted locally. It also warns that the fingerprint changes and must be re-confirmed."
       - it: "Corretto: un pannello su cui era stato acceso HTTPS non ripartiva piu dopo un riavvio, perche il controllo di salute lo cercava solo in chiaro. Schermo, indirizzi e sonde ora seguono il certificato."

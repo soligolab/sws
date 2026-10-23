@@ -12,19 +12,46 @@
 > resta in «Storico». Qui vive solo ciò che serve a riprendere il lavoro.
 
 
-## ▶ Riprendere da qui — nove commit annidati, da confermare (2026-10-23, sera)
+## ▶ Riprendere da qui — quattordici commit annidati, e cinque domande su C4 (2026-10-23)
 
 ```
 main (solo documenti)
  └─ fix/accesso-tastiera
-     └─ feat/openplc-1-unita-scelte
-         └─ feat/openplc-2-quadlet
-             └─ feat/openplc-3-logica-nel-progetto
-                 └─ feat/openplc-4-rotte-logica
-                     └─ feat/openplc-5-documentazione
-                         └─ feat/tag-4b-opcua-tipi
-                             └─ fix/certificati-1-trust-opcua   ← qui
+     └─ feat/openplc-1-unita-scelte … feat/openplc-5-documentazione  (cinque rami)
+         └─ feat/tag-4b-opcua-tipi
+             └─ fix/certificati-1-trust-opcua
+                 └─ feat/tag-4c-opcua-strutture
+                     └─ fix/c4-schema-non-cablato
+                         └─ fix/certificati-2-tls-remoto
+                             └─ fix/certificati-7-ruoli-e-audit   ← qui
 ```
+
+**Niente è stato pushato, e niente è stato mergiato in `main`.** Tutti e quattordici i commit
+aspettano la conferma sul vetro.
+
+### Dove si riprende: le cinque domande di C4
+
+La misura di C4 (TLS acceso di default sul pannello, voce del piano CRA) è stata fatta il
+23-10-2026 e sta in [`docs/plans/2026-10-23-c4-tls-di-default.md`](docs/plans/2026-10-23-c4-tls-di-default.md).
+Il **pezzo 1 è fatto** (lo schema non è più cablato, e il controllo di salute non manda più il
+pannello in ciclo di riavvio). I pezzi 2 e 3 aspettano cinque risposte:
+
+1. **Chi accende il TLS di default** — ogni istanza, o solo il ruolo «pannello»? Accenderlo per
+   tutti **spegne il cloud**: il gateway raggiunge i container dei progetti in chiaro su `:8444`.
+2. **Il browser del pannello** davanti al proprio certificato autofirmato, su uno schermo senza
+   tastiera. È l'unica incognita che il codice non risponde: va **provata sul TC620**.
+3. **Come arriva la fiducia** (la domanda di riga 64 del piano CRA): oggi l'impronta si memorizza
+   **prima** che il codice di abbinamento venga chiesto.
+4. **I pannelli già installati**: l'aggiornamento accende il TLS su di loro, solo sui nuovi, o su
+   tutti con un marcatore che distingue «non ha mai scelto» da «ha scelto no»?
+5. **La scadenza**: ogni rinnovo rompe il pinning di chiunque si fosse già fidato.
+
+### Le due cose decise che restano, del piano dei certificati
+
+- **Decisione 4** — l'archivio del viewer LVGL montato in sola lettura nel runtime (quadlet 6 → 7).
+  Lasciata indietro di proposito: da sola non si vede, e ha senso insieme alla vista.
+- **Decisione 3 + 8** — la vista a due colonne, ~1 500-2 000 righe. Il piano stesso dice **C4
+  prima, vista dopo**, per non costruirla due volte.
 
 ### Cosa è fatto
 
