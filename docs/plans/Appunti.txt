@@ -54,3 +54,17 @@ Annoto di seguito, uno per punto, le cose che devono essere verificate e trasfor
   riaprire solo se emerge un bisogno vero: il piano archiviato del 31-08 lo diceva gia' («fuori
   scope finche' non emerge un bisogno reale») e in otto settimane non e' emerso.
 
+- Le etichette duplicate dentro l'immagine: net.soligo.sws.changelog e' byte per byte uguale a
+  net.soligo.sws.novita.it (1 587 byte), e compat a compat.it (180). 1 767 byte su 5 710 sono la
+  stessa cosa scritta due volte. Esistono come ripiego per i runtime da rc.3 a rc.8, che leggono
+  solo le vecchie (aggiornamento.rs, intorno a riga 221). Toglierle alleggerisce immagine e
+  registry; si puo' fare quando quelle versioni non esistono piu' da nessuna parte. Dal 22-10-2026
+  non pesano piu' nel journal dei pannelli, perche' nei container non entrano affatto.
+
+- Il viewer LVGL interroga lo storico ogni 2 secondi e, se la lettura fallisce, scrive una riga a
+  ogni giro SENZA attenuazione: sws-lvgl-viewer/src/client.rs, intorno a riga 1034, dentro il ramo
+  Err di fetch_history_con. Un solo widget trend guasto fa 43 200 righe di journal al giorno. I
+  WebSocket li' accanto l'attenuazione ce l'hanno gia' (riconnessione.rs, da 1 a 30 secondi che
+  raddoppiano). Trovato cercando il rumore nel journal del WP630 il 22-10-2026: non era quello il
+  difetto segnalato, ma e' lo stesso genere.
+

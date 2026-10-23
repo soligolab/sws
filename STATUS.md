@@ -12,20 +12,44 @@
 > resta in «Storico». Qui vive solo ciò che serve a riprendere il lavoro.
 
 
-## ▶ Riprendere da qui — il tubo che segue e il server MCP, **da confermare** (2026-10-22, sera)
+## ▶ Riprendere da qui — tre lavori su tre rami annidati, **da confermare** (2026-10-22, sera)
 
-### Dove sta il lavoro: due rami annidati, niente mergiato e niente pushato
+### Dove sta il lavoro: niente mergiato e niente pushato
 
 ```
 main  26897523
- └─ feat/tubo-che-segue-gli-oggetti   3f4730cc   (2 commit)
-     └─ feat/mcp-sola-lettura         83ba76fd   (1 commit)
+ └─ feat/tubo-che-segue-gli-oggetti   (2 commit)
+     └─ feat/mcp-sola-lettura         (2 commit)
+         └─ fix/journal-del-pannello  (1 commit)   ← qui
 ```
 
-Annidati di proposito (regola «un ramo alla volta», opzione 2): il secondo parte dal primo, così
-rientra passando da lì. **Servono due squash merge in ordine**, dal più interno al più esterno —
+Annidati di proposito (regola «un ramo alla volta», opzione 2): ognuno parte dal precedente, così
+rientra passando da lì. **Servono tre squash merge in ordine**, dal più interno al più esterno —
 o uno solo del più esterno, che contiene tutto. Prima però serve la conferma a vetro: la
 *definition of done* chiede cinque cose e la quinta è la tua.
+
+### 3. Il journal del pannello — il punto che avevi rimandato
+
+Referto: [`docs/archive/2026-10-22-journal-del-pannello.md`](docs/archive/2026-10-22-journal-del-pannello.md).
+
+Non erano righe del runtime: era **podman**. Ogni suo evento porta dentro **tutte** le etichette
+del container, e il controllo di salute ne produce due ogni 30 secondi contro i **5 872 byte** di
+etichette dell'immagine — dove viaggiano le Novità. Misurato su una finestra vera, non calcolato:
+**71 % di journal in meno** azzerandole.
+
+Due rimedi: le etichette di contenuto non entrano più nei container (tre quadlet più lo spec Rust
+dei container di progetto sul VPS, dove sono uno **per progetto aperto**), e il viewer perde un
+controllo di salute che **misurava il runtime** — `Network=host`, quindi il suo curl alla 7443
+finiva lì — e che non leggeva nessuno.
+
+**Non** ho allungato l'intervallo da 30 a 120 secondi, che la prima analisi dava come la mossa più
+sicura: è il contrario, avrebbe fatto tornare indietro ogni aggiornamento.
+
+*Da confermare sul pannello*: che la chiave di quadlet `Label=nome=` diventi `--label nome=`. Qui
+non c'è il generatore quadlet (nasce con podman 4.4, questa macchina ha la 4.3.1), quindi ho
+provato i flag a mano al livello di `podman run`, che è dove arrivano. Se non funzionasse, il
+journal resta com'è e nessun servizio si ferma. **Quadlet 5 → 6**: l'aggiornamento se li porta
+dietro da solo.
 
 ### Cosa è stato fatto, e cosa manca
 

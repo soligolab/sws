@@ -18,7 +18,7 @@
 
 [Unit]
 # La versione del quadlet: vedi il commento gemello in sws-runtime.container.
-Description=SWS viewer LVGL (container podman) [quadlet 5]
+Description=SWS viewer LVGL (container podman) [quadlet 6]
 # Il runtime deve esserci: il viewer legge da lui pagine, tag e allarmi. Non
 # `Requires=`, perché un viewer che aspetta è meglio di un viewer che non parte:
 # il runtime può tardare qualche secondo dopo un riavvio.
@@ -33,6 +33,53 @@ ContainerName=sws-lvgl-viewer
 # perché il tag è lo stesso. L'installer la commenta per un'immagine da archivio.
 AutoUpdate=registry
 Entrypoint=sws-lvgl-viewer
+
+# ── Niente controllo di salute su questo container (22-10-2026) ──────────────
+#
+# Quello ereditato dall'immagine misurava la cosa sbagliata. Con `Network=host`
+# il suo `curl http://localhost:7443/health` finisce sul **runtime**: diceva
+# come sta il runtime sotto il nome del viewer, e del viewer non diceva niente.
+#
+# E nessuno lo leggeva: questa unit non ha `Notify=` (quello ce l'ha il
+# runtime, dove serve davvero all'aggiornamento) né `HealthOnFailure=`, e
+# riparte comunque con `Restart=always`. In cambio costava **metà** del rumore
+# nel journal del pannello: due eventi ogni 30 secondi, ognuno con tutte le
+# etichette del container dentro.
+#
+# Provato il 22-10-2026 su podman 4.3.1: `--health-cmd=none` disattiva quello
+# dell'immagine (`Healthcheck.Test` diventa `["NONE"]`).
+#
+# Per riaccenderlo basta togliere questa riga.
+HealthCmd=none
+
+# ── Le etichette delle Novità non entrano nel container (22-10-2026) ─────────
+#
+# L'immagine porta 5 872 byte di etichette, e le tre grosse sono testo:
+# `novita.it`, `novita.en` e `changelog` da sole fanno 4 717 byte. Podman
+# scrive **tutte** le etichette del container dentro ogni evento che manda al
+# journal, e il controllo di salute ne produce due ogni 30 secondi
+# (`health_status` e `exec_died`). Misurato su una finestra vera: 29 664 byte
+# di journal per ciclo con le etichette, 8 652 senza — il **71 % in meno**.
+# Sul pannello del maintainer il journal era saturato dai messaggi di
+# aggiornamento al punto da non poterci più leggere altro.
+#
+# Svuotarle qui non toglie niente a nessuno: il controllo degli aggiornamenti
+# legge le etichette dal **registry**, dal config blob del manifest, non dal
+# container che gira (`aggiornamento.rs`, fn `etichette`) — e in tutto il
+# codice Rust non c'è una sola lettura di `podman inspect`.
+#
+# Si svuotano **per nome**, mai con un carattere jolly: `net.soligo.sws.progetto`
+# è l'etichetta con cui il gateway ritrova i container dei suoi progetti, e
+# quella va letta davvero (`gateway/podman.rs`).
+#
+# Provato il 22-10-2026 su podman 4.3.1: `--label chiave=` lascia la chiave e
+# svuota il valore, e non tocca le etichette vicine.
+Label=net.soligo.sws.novita.it=
+Label=net.soligo.sws.novita.en=
+Label=net.soligo.sws.compat.it=
+Label=net.soligo.sws.compat.en=
+Label=net.soligo.sws.changelog=
+Label=net.soligo.sws.compat=
 
 # Nessun `--page`: si parte dalla home page dichiarata dal progetto, e in
 # mancanza dalla prima pagina in elenco.

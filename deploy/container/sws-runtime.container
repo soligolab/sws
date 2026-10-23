@@ -24,7 +24,7 @@
 # più basso di quello dell'immagine che gira mostra «configurazione del servizio
 # da aggiornare», e la si aggiorna dall'IDE o dal pannello — vedi
 # docs/plans/2026-10-02-quadlet-che-viaggia.md.
-Description=SWS runtime (container podman) [quadlet 5]
+Description=SWS runtime (container podman) [quadlet 6]
 Documentation=file:///data/user/sws-container/README
 After=network-online.target
 Wants=network-online.target
@@ -198,6 +198,35 @@ PodmanArgs=--group-add keep-groups
 # L'installer la commenta per un'immagine da archivio (`localhost/…`), che
 # non ha un registry da seguire.
 AutoUpdate=registry
+
+# ── Le etichette delle Novità non entrano nel container (22-10-2026) ─────────
+#
+# L'immagine porta 5 872 byte di etichette, e le tre grosse sono testo:
+# `novita.it`, `novita.en` e `changelog` da sole fanno 4 717 byte. Podman
+# scrive **tutte** le etichette del container dentro ogni evento che manda al
+# journal, e il controllo di salute ne produce due ogni 30 secondi
+# (`health_status` e `exec_died`). Misurato su una finestra vera: 29 664 byte
+# di journal per ciclo con le etichette, 8 652 senza — il **71 % in meno**.
+# Sul pannello del maintainer il journal era saturato dai messaggi di
+# aggiornamento al punto da non poterci più leggere altro.
+#
+# Svuotarle qui non toglie niente a nessuno: il controllo degli aggiornamenti
+# legge le etichette dal **registry**, dal config blob del manifest, non dal
+# container che gira (`aggiornamento.rs`, fn `etichette`) — e in tutto il
+# codice Rust non c'è una sola lettura di `podman inspect`.
+#
+# Si svuotano **per nome**, mai con un carattere jolly: `net.soligo.sws.progetto`
+# è l'etichetta con cui il gateway ritrova i container dei suoi progetti, e
+# quella va letta davvero (`gateway/podman.rs`).
+#
+# Provato il 22-10-2026 su podman 4.3.1: `--label chiave=` lascia la chiave e
+# svuota il valore, e non tocca le etichette vicine.
+Label=net.soligo.sws.novita.it=
+Label=net.soligo.sws.novita.en=
+Label=net.soligo.sws.compat.it=
+Label=net.soligo.sws.compat.en=
+Label=net.soligo.sws.changelog=
+Label=net.soligo.sws.compat=
 
 # `Notify=healthy`: il servizio risulta avviato solo quando l'HEALTHCHECK
 # passa. È ciò che rende sicuro l'aggiornamento: se la versione nuova non

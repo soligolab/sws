@@ -49,6 +49,27 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 
 ### Fixed
 
+- **Il journal del pannello non viene più saturato dagli eventi di podman.** Ogni evento che
+  podman manda al journal porta dentro **tutte le etichette del container**, e il controllo di
+  salute ne produce due ogni 30 secondi — contro i **5 872 byte** di etichette dell'immagine, dove
+  viaggiano le Novità di ogni versione. Misurato su una finestra vera, non calcolato: **71 % di
+  journal in meno** azzerandole (29 664 byte per ciclo contro 8 652). Ora i tre quadlet e lo spec
+  dei container di progetto le svuotano **per nome** — mai con un carattere jolly, perché
+  `net.soligo.sws.progetto` è l'unica che si legge davvero da un container, ed è così che il
+  gateway ritrova i progetti dopo un riavvio. Le Novità restano dove sono sempre state: il
+  controllo degli aggiornamenti le legge **dal registry**, non dal container che gira.
+  Quadlet 5 → 6, nuova guardia `check_etichette_container.sh`.
+
+- **Il viewer LVGL non ha più un controllo di salute, e misurava la cosa sbagliata.** Con
+  `Network=host` il suo `curl http://localhost:7443/health` finiva sul **runtime**: diceva come sta
+  il runtime sotto il nome del viewer, e del viewer non diceva niente. Non lo leggeva nessuno —
+  quella unit non ha `Notify=` né `HealthOnFailure=` e riparte comunque con `Restart=always` — e
+  costava metà del rumore nel journal. Quello del runtime resta, perché sopra ci sta
+  `Notify=healthy`, cioè il ritorno automatico a una versione che non diventa sana.
+  **Non** è stato allungato l'intervallo da 30 a 120 secondi: sarebbe la mossa che rompe gli
+  aggiornamenti — il primo controllo fallisce sempre (il runtime risponde dopo ~1 s), il secondo
+  arriva un intervallo dopo, e a 120 s contro i 90 di `TimeoutStartSec` l'avvio va in timeout.
+
 - **Il banner del primo accesso non stampa più su `stdout` quando il runtime parla MCP.** Su
   stdio il protocollo **è** stdout: quelle sei righe davanti alla prima risposta staccano un
   client vero, e il difetto non lascia traccia nei log perché è il client a chiudere. Trovato al

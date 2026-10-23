@@ -73,6 +73,44 @@ pub fn e_nostro(nome: &str) -> bool {
 /// dopo un riavvio, sa a quale progetto corrisponde ciascuno.
 pub const ETICHETTA_RIFERIMENTO: &str = "net.soligo.sws.progetto";
 
+/// Le etichette di **contenuto** dell'immagine, che nei container non devono
+/// entrare (22-10-2026). Gemelle delle righe `Label=…=` dei quadlet, e
+/// `check_etichette_container.sh` tiene i due elenchi uguali.
+///
+/// Perché. L'immagine porta 5 872 byte di etichette e le tre grosse sono testo
+/// — `novita.it`, `novita.en`, `changelog` fanno 4 717 byte da sole. Podman
+/// scrive **tutte** le etichette di un container dentro ogni evento che manda
+/// al journal, e il controllo di salute ne produce due ogni 30 secondi.
+/// Misurato: 29 664 byte di journal per ciclo con le etichette, 8 652 senza.
+/// Sul VPS non sono due container ma **uno più uno per progetto aperto**, tutti
+/// dalla stessa immagine, quindi qui il conto si moltiplica.
+///
+/// Non toglie niente a nessuno: il controllo degli aggiornamenti legge le
+/// etichette dal **registry** (`crate::aggiornamento`, fn `etichette`), non dal
+/// container che gira.
+///
+/// Per nome e mai con un carattere jolly: [`ETICHETTA_RIFERIMENTO`] vive nello
+/// stesso spazio di nomi ed è quella con cui si ritrovano i container.
+pub const ETICHETTE_DA_SVUOTARE: [&str; 6] = [
+    "net.soligo.sws.novita.it",
+    "net.soligo.sws.novita.en",
+    "net.soligo.sws.compat.it",
+    "net.soligo.sws.compat.en",
+    "net.soligo.sws.changelog",
+    "net.soligo.sws.compat",
+];
+
+/// Le etichette da mettere in uno spec di creazione: il riferimento del
+/// progetto, e le pesanti dell'immagine azzerate.
+pub fn etichette_container(riferimento: &str) -> serde_json::Map<String, serde_json::Value> {
+    let mut m = serde_json::Map::new();
+    m.insert(ETICHETTA_RIFERIMENTO.into(), serde_json::Value::String(riferimento.into()));
+    for e in ETICHETTE_DA_SVUOTARE {
+        m.insert(e.into(), serde_json::Value::String(String::new()));
+    }
+    m
+}
+
 #[derive(Debug, Clone)]
 pub struct Contenitore {
     pub id: String,

@@ -364,7 +364,10 @@ impl Regia {
         let mut spec = serde_json::json!({
             "image": self.immagine,
             "name": contenitore,
-            "labels": { ETICHETTA_RIFERIMENTO: riferimento },
+            // Il riferimento del progetto, e le etichette pesanti dell'immagine
+            // azzerate: qui i container sono uno per progetto aperto, quindi il
+            // peso nel journal si moltiplica (vedi `ETICHETTE_DA_SVUOTARE`).
+            "labels": super::podman::etichette_container(&riferimento),
             // Il fuso dell'host, come `Timezone=local` nei quadlet (20-10-2026): senza,
             // il container è in UTC, e la ritenzione «alle 03:00» girava alle 05:00 in
             // Italia d'estate.
