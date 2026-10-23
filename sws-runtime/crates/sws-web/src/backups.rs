@@ -39,6 +39,9 @@ const BACKED_UP: &[&str] = &[
     "recipes", // recipe files (skipped silently if absent)
     "images",  // user-uploaded images referenced by synoptics (bg_image & co.)
     "boot",    // pagine di boot e i loro PNG (T-72)
+    // La logica PLC (23-10-2026): un backup senza di lei non ripristina un
+    // impianto che funziona, esattamente come uno senza i segreti.
+    "openplc",
 ];
 
 #[derive(Serialize, Debug, Clone)]

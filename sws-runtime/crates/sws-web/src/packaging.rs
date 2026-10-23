@@ -846,6 +846,14 @@ const CONTAINER_DEPLOY_EMBEDDED: &[(&str, &str)] = &[
         "sws-lvgl-viewer.container",
         include_str!("../../../../deploy/container/sws-lvgl-viewer.container"),
     ),
+    // OpenPLC Runtime (23-10-2026): **opzionale** sul pannello — l'installer lo
+    // mette solo con `--con-openplc` — ma il file va spedito lo stesso, o quel
+    // flag non avrebbe niente da installare e l'installer lo direbbe soltanto
+    // in una NOTA.
+    (
+        "openplc-runtime.container",
+        include_str!("../../../../deploy/container/openplc-runtime.container"),
+    ),
     // Nemmeno la commutazione web/LVGL, dal 29-09-2026: la fa il runtime via
     // D-Bus (`display_target.rs`). `sws-display.path`, il suo `.service` e
     // `sws-display-apply.sh` non si spediscono più; l'installer li toglie dai
@@ -877,6 +885,8 @@ const CONTAINER_DEPLOY_FILES: &[&str] = &[
     // Il viewer LVGL (Q25): lo avvia il runtime quando il progetto lo chiede.
     // La commutazione non spedisce più niente sull'host (29-09-2026).
     "sws-lvgl-viewer.container",
+    // OpenPLC: opzionale da installare, ma spedito sempre (vedi sopra).
+    "openplc-runtime.container",
     // L'immagine di boot non manda più niente sul dispositivo: la chiede il
     // runtime al launcher via D-Bus dal container (24-09-2026).
 ];

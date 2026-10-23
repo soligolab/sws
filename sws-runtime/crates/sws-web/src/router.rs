@@ -5844,6 +5844,8 @@ pub(crate) async fn build_project_zip(
     let recipes = read_yaml_dir(&recipes_dir_at(dir)).await;
     let images = read_images_dir(&images_dir_at(dir)).await;
     let boot = crate::boot::leggi_per_bundle(dir).await;
+    // La logica PLC (23-10-2026): viaggia col progetto, come i sinottici.
+    let logica = crate::logica_plc::leggi_per_bundle(dir).await;
     let project_name = project.meta.name.clone();
     let exported_at_ms = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
@@ -5870,6 +5872,7 @@ pub(crate) async fn build_project_zip(
         &recipes,
         &images,
         &boot,
+        &logica,
         con_segreti.then_some(&segreti),
     )
 }
@@ -5942,6 +5945,7 @@ async fn export_project_zip(
         &recipes,
         &images,
         &boot,
+        &crate::logica_plc::leggi_per_bundle(&dir).await,
         vuoi_segreti.then_some(&segreti),
     ) {
         Ok(b) => b,
@@ -5986,6 +5990,9 @@ fn build_export_zip(
     recipes: &[(String, String)],
     images: &[(String, Vec<u8>)],
     boot: &[(String, Vec<u8>)],
+    // La logica PLC, coi percorsi relativi dentro `openplc/`: a differenza di
+    // tutte le altre è un **albero**, non una cartella piatta.
+    logica: &[(String, Vec<u8>)],
     // `None` = niente `secrets.yaml` nel bundle (export senza `?segreti=1`).
     // `Some(map)` = lo include, a meno che `map` sia vuota (progetto senza
     // segreti: niente da scrivere, stessa regola di `segreti::scrivi_segreti`).
@@ -6051,6 +6058,7 @@ fn build_export_zip(
             z.start_file(format!("boot/{fname}"), opts)?;
             z.write_all(bytes)?;
         }
+        crate::logica_plc::nel_bundle(&mut z, opts, logica)?;
         if let Some(users) = users_yaml {
             z.start_file("users.yaml", opts)?;
             z.write_all(users.as_bytes())?;
@@ -6391,6 +6399,16 @@ async fn import_project_zip(
     {
         warn!("import: sync recipes: {e}");
         return (StatusCode::INTERNAL_SERVER_ERROR, "sync recipes").into_response();
+    }
+    if let Err(e) =
+        crate::logica_plc::sincronizza_da_zip(
+            &mut archive,
+            &crate::logica_plc::dir_at(project_dir),
+        )
+        .await
+    {
+        warn!("import: sync logica PLC: {e}");
+        return (StatusCode::INTERNAL_SERVER_ERROR, "sync logica PLC").into_response();
     }
     if let Err(e) =
         crate::boot::sincronizza_da_zip(&mut archive, &crate::boot::boot_dir_at(project_dir)).await
@@ -9132,6 +9150,10 @@ pub(crate) fn calcola_impronta(dir: &std::path::Path) -> anyhow::Result<String> 
         }
     }
 
+    // La logica PLC (23-10-2026): una modifica al programma del PLC marca il
+    // deploy come non aggiornato. Entra solo se la cartella c'è, come `boot/`.
+    crate::logica_plc::aggiungi_all_impronta(&mut hasher, dir);
+
     let digest = hasher.finalize();
     Ok(digest.iter().fold(String::new(), |mut s, b| {
         s.push_str(&format!("{:02x}", b));
@@ -10811,7 +10833,7 @@ notifications:
             exported_at_ms: 0,
             secrets_masked: true,
         };
-        let zip = build_export_zip(&manifest, &project, &[], None, &[], &[], &[], &[], &[], None)
+        let zip = build_export_zip(&manifest, &project, &[], None, &[], &[], &[], &[], &[], &[], None)
             .expect("build zip senza segreti");
 
         let mut a = zip::ZipArchive::new(Cursor::new(zip.clone())).unwrap();
@@ -10840,6 +10862,7 @@ notifications:
             &[],
             &[],
             &[],
+            &[], // niente logica PLC in questa prova
             Some(&segreti),
         )
         .expect("build zip con segreti");
