@@ -1932,6 +1932,20 @@ export const api = {
     }),
   removeTlsCert:     () => request<void>("/api/system/tls",          { method: "DELETE" }),
 
+  // Le stesse quattro **sul dispositivo connesso** (decisione 2 del piano dei
+  // certificati, 23-10-2026). Prima non esistevano, e con un pannello collegato
+  // la card «Certificato TLS» governava il PC su cui gira l'IDE mentre tutto il
+  // resto della scheda Device parlava col pannello.
+  remoteGetTlsStatus:    () => request<{ enabled: boolean }>("/api/remote/system/tls"),
+  remoteGenerateTlsCert: () => request<void>("/api/remote/system/tls/generate", { method: "POST" }),
+  remoteUploadTlsCert:   (cert_pem: string, key_pem: string) =>
+    request<void>("/api/remote/system/tls", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ cert_pem, key_pem }),
+    }),
+  remoteRemoveTlsCert:   () => request<void>("/api/remote/system/tls",         { method: "DELETE" }),
+
   // ── Assistente IA (T-50) ──────────────────────────────────────────────────
   // Esistono **solo** sull'istanza IDE (avviata senza viewer): su un runtime
   // che serve un impianto rispondono 404, e il pannello lo tratta come «qui non

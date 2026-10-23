@@ -121,7 +121,24 @@ Non è il refuso che sembrava. Le opzioni:
   dell'onda 3 partirebbe da un'interfaccia che non ha mai funzionato.
 - **c** — insieme alla card TLS remota (decisione 2): sono due difetti della stessa famiglia.
 
-### 2. La card «Certificato TLS» a dispositivo remoto — **DECISA: si aggiungono le rotte remote**
+### 2. La card «Certificato TLS» a dispositivo remoto — **DECISA e FATTA il 23-10-2026**
+
+> Ramo `fix/certificati-2-tls-remoto`. Le quattro rotte `/api/remote/system/tls*` ci sono, e con
+> loro le quattro locali **sulla porta di gestione del dispositivo**, che il TLS non lo nominava
+> affatto: senza quelle il proxy avrebbe preso 404 su ogni pannello in container.
+>
+> La card dice **di chi** è il certificato che mostra, e sul dispositivo dice anche le tre cose
+> che succedono premendo: il pannello riparte, l'**impronta cambia** (e quella memorizzata resta
+> la vecchia, quindi al prossimo collegamento il pinning rifiuta e compare «Dimentica
+> certificato» in Connessione), e cambia lo **schema** dell'indirizzo salvato.
+>
+> **Il «dimentica» non si fa da qui**, ed è una scelta: non è mai automatico — è la regola già
+> scritta sul gemello `/api/device/hostkey/forget` — e la domanda che il piano lascia aperta
+> sotto la decisione 5 («cosa succede a chi si era già fidato dell'impronta vecchia») resta
+> aperta. Qui si dice soltanto che succederà, prima di premere.
+>
+> Guardia: `la_card_tls_segue_il_dispositivo_connesso` in `router.rs`, provata rossa.
+
 
 Oggi mostra e modifica **l'istanza locale**, anche con un pannello connesso. Il resto della scheda
 usa la variante remota; per il TLS quella rotta non esiste.

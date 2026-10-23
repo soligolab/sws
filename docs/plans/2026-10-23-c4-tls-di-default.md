@@ -65,6 +65,10 @@ deciso nome vero e scadenza breve (decisioni 5-6) e dichiara che avviso e rinnov
 C4. Mancano anche i tre eventi di audit (`tls.generate`, `tls.upload`, `tls.remove`) e le rotte
 `/api/remote/system/tls`, che quel piano chiama «il presupposto di C4».
 
+**Già fatto di questo pezzo**: le rotte `/api/remote/system/tls` (decisione 2, ramo
+`fix/certificati-2-tls-remoto`), senza le quali il TLS del pannello non si poteva governare
+dall'IDE collegato. Restano il generatore unico, il nome vero, la scadenza, i tre eventi di audit.
+
 Stima: 200-300 righe per il generatore unico, più 300-400 per rinnovo e avviso.
 
 ## Pezzo 3 — il default acceso, e la fiducia — **servono le risposte qui sotto**

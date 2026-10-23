@@ -35,6 +35,8 @@
 versioni:
   - versione: "Unreleased"
     voci:
+      - it: "Il certificato TLS si gestisce sul dispositivo connesso, non piu sul PC dell'IDE: la card diceva «dispositivo» e agiva in locale. Avvisa anche che l'impronta cambia e che poi va riconfermata."
+        en: "The TLS certificate is now managed on the connected device, not on the IDE's own PC: the card said «device» and acted locally. It also warns that the fingerprint changes and must be re-confirmed."
       - it: "Corretto: un pannello su cui era stato acceso HTTPS non ripartiva piu dopo un riavvio, perche il controllo di salute lo cercava solo in chiaro. Schermo, indirizzi e sonde ora seguono il certificato."
         en: "Fixed: a panel with HTTPS enabled would not restart, because its health check only probed plain HTTP. Screen, addresses and probes now follow the certificate."
       - it: "Il trust store delle sorgenti OPC-UA ora funziona: l'elenco dei certificati era sempre vuoto e «Fidati» non faceva niente. Una sorgente nuova parte con una policy che valida il certificato del server."

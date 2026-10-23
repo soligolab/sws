@@ -239,6 +239,13 @@ function AuditSection() {
 export function TlsSection() {
   const { t } = useTranslation();
   const authRole = useAppStore((s) => s.authRole);
+  // Con un pannello collegato, «il runtime» è il pannello — come per il resto
+  // della scheda Device. Fino al 23-10-2026 questa card era l'unica a non
+  // saperlo: leggeva e scriveva il certificato del PC su cui gira l'IDE mentre
+  // lo schermo accanto diceva «dispositivo connesso». Decisione 2 del piano
+  // `docs/plans/2026-10-15-certificati-in-un-posto-solo.md`.
+  const remoteConnected = useAppStore((s) => s.remoteConnected);
+  const remoteUrl = useAppStore((s) => s.remoteUrl);
   const [tlsEnabled, setTlsEnabled] = useState<boolean | null>(null);
   const [msg, setMsg] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -246,9 +253,18 @@ export function TlsSection() {
   const [certPem, setCertPem] = useState("");
   const [keyPem, setKeyPem] = useState("");
 
+  const host = (() => { try { return remoteUrl ? new URL(remoteUrl).host : ""; } catch { return remoteUrl ?? ""; } })();
+
   useEffect(() => {
-    api.getTlsStatus().then(s => setTlsEnabled(s.enabled)).catch(() => setTlsEnabled(false));
-  }, []);
+    // Azzerare al cambio di sorgente, così non si vede per un istante lo stato
+    // della macchina sbagliata (stesso motivo di `SystemTab`).
+    setTlsEnabled(null);
+    setMsg(null);
+    setBusy(false);
+    setShowUpload(false);
+    const leggi = remoteConnected ? api.remoteGetTlsStatus() : api.getTlsStatus();
+    leggi.then(s => setTlsEnabled(s.enabled)).catch(() => setTlsEnabled(false));
+  }, [remoteConnected]);
 
   if (authRole !== "Admin") return null;
   if (tlsEnabled === null) return null;
@@ -258,7 +274,7 @@ export function TlsSection() {
     setBusy(true);
     setMsg(null);
     try {
-      await api.generateTlsCert();
+      await (remoteConnected ? api.remoteGenerateTlsCert() : api.generateTlsCert());
       setMsg(t("cfgUi.certificateGeneratedTheRuntimeIs"));
     } catch (e: any) {
       setMsg(t("cfgUi.errorMsg", { message: String(e?.message ?? e) }));
@@ -281,7 +297,7 @@ export function TlsSection() {
     setBusy(true);
     setMsg(null);
     try {
-      await api.uploadTlsCert(certPem, keyPem);
+      await (remoteConnected ? api.remoteUploadTlsCert(certPem, keyPem) : api.uploadTlsCert(certPem, keyPem));
       setMsg(t("cfgUi.certificateUploadedTheRuntimeIs"));
     } catch (e: any) {
       setMsg(t("cfgUi.errorMsg", { message: String(e?.message ?? e) }));
@@ -294,7 +310,7 @@ export function TlsSection() {
     setBusy(true);
     setMsg(null);
     try {
-      await api.removeTlsCert();
+      await (remoteConnected ? api.remoteRemoveTlsCert() : api.removeTlsCert());
       setMsg(t("cfgUi.tlsDisabledTheRuntimeIs"));
     } catch (e: any) {
       setMsg(t("cfgUi.errorMsg", { message: String(e?.message ?? e) }));
@@ -308,6 +324,20 @@ export function TlsSection() {
         CERTIFICATO TLS
       </div>
       <div style={{ background: "var(--brand-bg, #0f172a)", border: "1px solid var(--brand-surface, #1e293b)", borderRadius: 6, padding: "12px 16px" }}>
+        <div style={{ fontSize: 12, color: "var(--brand-text-2, #cbd5e1)", marginBottom: 10 }}>
+          {remoteConnected ? t("cfgUi.tlsSulDispositivo", { host }) : t("cfgUi.tlsSuQuestaIstanza")}
+        </div>
+        {remoteConnected && (
+          // Non si dimentica l'impronta da qui: il «dimentica» non è mai
+          // automatico (gemello di /api/device/hostkey/forget), e il pulsante
+          // giusto compare da solo in Connessione quando il pinning rifiuta.
+          // Qui si dice soltanto che succederà, prima di premere.
+          <div style={{ fontSize: 12, color: "var(--brand-warning-soft, #fcd34d)", marginBottom: 10, lineHeight: 1.5 }}>
+            <div>{t("cfgUi.tlsRiavvioDispositivo")}</div>
+            <div>{t("cfgUi.tlsImprontaCambia")}</div>
+            <div>{t("cfgUi.tlsSchemaCambia")}</div>
+          </div>
+        )}
         <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
           <span style={{
             display: "inline-block", width: 8, height: 8, borderRadius: "50%",

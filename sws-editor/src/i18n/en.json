@@ -2467,7 +2467,12 @@
     "chiaveProgettoCopia": "Copy the public key",
     "chiaveProgettoCopiata": "Copied",
     "chiaveProgettoUsa": "Use this key",
-    "chiaveProgettoInUso": "in use for this repository"
+    "chiaveProgettoInUso": "in use for this repository",
+    "tlsSuQuestaIstanza": "This instance (the IDE you are working on)",
+    "tlsSulDispositivo": "Connected device — {{host}}",
+    "tlsImprontaCambia": "Changing the certificate changes the device fingerprint. On the next connection the IDE rejects it, because the stored one is the old fingerprint: a «Forget certificate» button appears under Connection, and that is where the new one is confirmed.",
+    "tlsRiavvioDispositivo": "The device restarts to apply the change, and the connection drops for a few seconds.",
+    "tlsSchemaCambia": "Note: turning TLS on or off also changes the address scheme (http ↔ https). The address saved under Connection must be updated by hand."
   },
   "boot": {
     "pngTooLarge": "PNG too large ({{kb}} KB, max 5120 KB): it was not uploaded",

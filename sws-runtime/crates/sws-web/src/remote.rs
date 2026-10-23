@@ -1629,6 +1629,132 @@ pub async fn remote_stato_sorgenti(State(s): State<AppState>) -> Response {
     proxy_get_json(&s, "/api/sources/stato").await
 }
 
+/// `GET /api/remote/system/tls` — se il **dispositivo connesso** ha un
+/// certificato, non questa istanza.
+///
+/// Decisione 2 del piano dei certificati (23-10-2026). La card «Certificato
+/// TLS» della scheda Device leggeva e scriveva **la macchina sbagliata**: tutto
+/// il resto della scheda usa la variante remota, per il TLS quella rotta non
+/// esisteva, e con un pannello connesso i tre pulsanti agivano sul PC
+/// dell'editor. Il piano la chiama «il presupposto di C4», perché accendere il
+/// TLS di default sul pannello vuol dire poterlo governare da qui.
+pub async fn remote_tls_stato(State(s): State<AppState>) -> Response {
+    // Per `ogni_chiamata_dell_ide_ha_la_sua_rotta_sul_dispositivo`: "{base}/api/system/tls".
+    proxy_get_json(&s, "/api/system/tls").await
+}
+
+/// Inoltra al dispositivo connesso una richiesta che **cambia il suo
+/// certificato**, e la scrive nell'audit di qui oltre che nel suo.
+///
+/// Tre cose la distinguono dagli altri inoltri.
+///
+/// **Il dispositivo riparte.** Tutte e tre le operazioni finiscono in
+/// `system_reboot`, che risponde 204 e poi fa `exec()` dopo 400 ms: la risposta
+/// arriva, ma un errore di trasporto non vuol dire «non è successo niente», e
+/// il messaggio lo dice invece di far credere a un fallimento pulito.
+///
+/// **Un runtime vecchio non ha queste rotte** sulla porta di gestione: prima del
+/// 23-10-2026 `deploy_only_app` il TLS non lo nominava affatto. Un 404 va
+/// tradotto, come per la ritenzione.
+///
+/// **Cambiare il certificato cambia l'impronta**, e quella memorizzata dall'IDE
+/// resta la vecchia: al prossimo collegamento il pinning rifiuta. Dimenticarla
+/// **non** è affare di questa funzione — il «dimentica» non è mai automatico
+/// (è la regola scritta sul gemello `/api/device/hostkey/forget`) — e la card
+/// lo dice prima, con il suo pulsante lì accanto.
+async fn inoltra_tls(
+    s: &AppState,
+    user: &AuthUser,
+    evento: &'static str,
+    metodo: reqwest::Method,
+    percorso: &str,
+    corpo: Option<serde_json::Value>,
+) -> Response {
+    let target = match s.remote_target.read().await.clone() {
+        Some(t) => t,
+        None => return (StatusCode::BAD_REQUEST, "No remote runtime connected").into_response(),
+    };
+    s.audit.log(
+        evento,
+        Some(user.username.clone()),
+        serde_json::json!({ "url": target.url }),
+    );
+    let client = make_remote_client(s, &target.url);
+    let base = target.url.trim_end_matches('/');
+    let mut req = client.request(metodo, format!("{base}{percorso}"));
+    if let Some(c) = corpo {
+        req = req.json(&c);
+    }
+    if !target.token.is_empty() {
+        req = req.header("Authorization", format!("Bearer {}", target.token));
+    }
+    match req.send().await {
+        Ok(r) if r.status().is_success() => StatusCode::NO_CONTENT.into_response(),
+        Ok(r) if r.status() == StatusCode::NOT_FOUND || r.status() == StatusCode::METHOD_NOT_ALLOWED => (
+            StatusCode::BAD_GATEWAY,
+            "Il dispositivo non sa gestire il proprio certificato TLS da remoto: è precedente \
+             alla 2.20.0, va aggiornato una volta dall'Installazione."
+                .to_string(),
+        )
+            .into_response(),
+        Ok(r) if r.status() == StatusCode::UNAUTHORIZED || r.status() == StatusCode::FORBIDDEN => (
+            StatusCode::BAD_GATEWAY,
+            "Il dispositivo ha rifiutato la richiesta (non autorizzato). Riconnettiti con \
+             credenziali admin e riprova."
+                .to_string(),
+        )
+            .into_response(),
+        Ok(r) => {
+            let code = r.status();
+            let testo = r.text().await.unwrap_or_default();
+            (StatusCode::BAD_GATEWAY, format!("Il dispositivo ha risposto {code}: {testo}")).into_response()
+        }
+        Err(e) => (
+            StatusCode::BAD_GATEWAY,
+            format!(
+                "Il dispositivo non ha risposto: {e}\nCambiare il certificato lo fa ripartire, \
+                 quindi può essere riuscito lo stesso: ricollegati e guarda lo stato."
+            ),
+        )
+            .into_response(),
+    }
+}
+
+/// `POST /api/remote/system/tls/generate` — genera un autofirmato **sul
+/// dispositivo** e lo fa ripartire in HTTPS.
+pub async fn remote_tls_genera(State(s): State<AppState>, Extension(user): Extension<AuthUser>) -> Response {
+    // Per il test delle rotte del dispositivo: "{base}/api/system/tls/generate".
+    inoltra_tls(&s, &user, "remote.tls_generate", reqwest::Method::POST, "/api/system/tls/generate", None).await
+}
+
+/// `PUT /api/remote/system/tls` — carica sul dispositivo un certificato e una
+/// chiave propri. La validazione (che la chiave corrisponda) la fa il
+/// dispositivo, con lo stesso `rustls` che poi li userà: rifarla qui vorrebbe
+/// dire avere due giudici che un giorno non saranno d'accordo.
+pub async fn remote_tls_carica(
+    State(s): State<AppState>,
+    Extension(user): Extension<AuthUser>,
+    Json(corpo): Json<crate::system::TlsUpload>,
+) -> Response {
+    // "{base}/api/system/tls".
+    inoltra_tls(
+        &s,
+        &user,
+        "remote.tls_upload",
+        reqwest::Method::PUT,
+        "/api/system/tls",
+        Some(serde_json::json!({ "cert_pem": corpo.cert_pem, "key_pem": corpo.key_pem })),
+    )
+    .await
+}
+
+/// `DELETE /api/remote/system/tls` — toglie il certificato del dispositivo e lo
+/// fa ripartire in chiaro.
+pub async fn remote_tls_rimuovi(State(s): State<AppState>, Extension(user): Extension<AuthUser>) -> Response {
+    // "{base}/api/system/tls".
+    inoltra_tls(&s, &user, "remote.tls_remove", reqwest::Method::DELETE, "/api/system/tls", None).await
+}
+
 /// Una GET al dispositivo connesso, con la sua sessione, e il JSON com'è.
 /// 400 senza dispositivo; 502 con il codice e il testo del dispositivo se
 /// risponde male, così l'errore che arriva all'editor dice da che parte è.

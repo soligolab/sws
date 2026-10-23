@@ -2467,7 +2467,12 @@
     "chiaveProgettoCopia": "Copia la chiave pubblica",
     "chiaveProgettoCopiata": "Copiata",
     "chiaveProgettoUsa": "Usa questa chiave",
-    "chiaveProgettoInUso": "in uso per questo repository"
+    "chiaveProgettoInUso": "in uso per questo repository",
+    "tlsSuQuestaIstanza": "Questa istanza (l'IDE su cui stai lavorando)",
+    "tlsSulDispositivo": "Dispositivo connesso — {{host}}",
+    "tlsImprontaCambia": "Cambiare il certificato cambia l'impronta del dispositivo. Al prossimo collegamento l'IDE la rifiuta, perché quella memorizzata è la vecchia: ti comparirà «Dimentica certificato» in Connessione, ed è lì che si conferma quella nuova.",
+    "tlsRiavvioDispositivo": "Il dispositivo riparte per applicare il cambio, e il collegamento cade per qualche secondo.",
+    "tlsSchemaCambia": "Attenzione: accendendo o spegnendo il TLS cambia anche lo schema dell'indirizzo (http ↔ https). L'indirizzo salvato in Connessione va aggiornato a mano."
   },
   "boot": {
     "pngTooLarge": "PNG troppo grande ({{kb}} KB, max 5120 KB): non è stato caricato",

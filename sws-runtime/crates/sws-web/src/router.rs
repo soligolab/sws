@@ -692,6 +692,16 @@ pub fn build(
         )
         .route("/api/system/tls", put(crate::system::upload_tls_cert))
         .route("/api/system/tls", delete(crate::system::remove_tls_cert))
+        // Le stesse quattro **sul dispositivo connesso** (decisione 2 del piano
+        // dei certificati, 23-10-2026). Senza di loro la card «Certificato TLS»
+        // della scheda Device leggeva e scriveva il PC dell'editor mentre tutto
+        // il resto della scheda parlava col pannello. Il piano le chiama «il
+        // presupposto di C4»: accendere il TLS di default sul pannello vuol
+        // dire poterlo governare da qui.
+        .route("/api/remote/system/tls", get(crate::remote::remote_tls_stato))
+        .route("/api/remote/system/tls/generate", post(crate::remote::remote_tls_genera))
+        .route("/api/remote/system/tls", put(crate::remote::remote_tls_carica))
+        .route("/api/remote/system/tls", delete(crate::remote::remote_tls_rimuovi))
         // Remote runtime bridge: connect/disconnect/status + WS relay
         .route(
             "/api/remote/connect",
@@ -1473,6 +1483,17 @@ fn deploy_only_app(state: AppState) -> Router<AppState> {
         .route("/api/aggiornamento/istantanea", post(istantanea_dati_prendi))
         .route("/api/update/schedule", get(finestra_leggi).put(finestra_scrivi))
         .route("/api/security/frame-origins", get(sicurezza_leggi).put(sicurezza_scrivi))
+        // ── Il certificato TLS del dispositivo ─────────────────────────────
+        //
+        // Non c'erano (23-10-2026): la porta di gestione il TLS non lo nominava
+        // affatto, quindi la card dell'IDE poteva solo governare la macchina su
+        // cui l'IDE gira. Admin come il resto di questo gruppo, e con la stessa
+        // postura di `/api/boot-image/reset` e `/api/update/apply`, che sono
+        // operazioni più grosse di questa.
+        .route("/api/system/tls", get(crate::system::get_tls_status))
+        .route("/api/system/tls/generate", post(crate::system::generate_tls_cert))
+        .route("/api/system/tls", put(crate::system::upload_tls_cert))
+        .route("/api/system/tls", delete(crate::system::remove_tls_cert))
         // ── Override per-dispositivo del client id MQTT ────────────────────
         .route(
             "/api/mqtt/source/:id/client-id-override",
@@ -12126,6 +12147,41 @@ mod rotte_del_dispositivo {
             assert!(letture.contains(rotta), "{rotta} deve stare fra le letture del viewer");
         }
         assert!(!scritture.contains("\"/api/update/status\""));
+    }
+
+    /// La card «Certificato TLS» deve parlare col **dispositivo** quando ce n'è
+    /// uno connesso, come tutto il resto della scheda Device.
+    ///
+    /// Fino al 23-10-2026 era l'unica a non farlo: con un pannello collegato,
+    /// «Genera», «Carica» e «Disabilita» agivano sul PC su cui gira l'IDE,
+    /// mentre lo schermo accanto diceva «dispositivo connesso». Nessuna rotta
+    /// remota esisteva, quindi non era nemmeno un errore di chiamata: era una
+    /// funzione mancante. Il test tiene fermo che le quattro chiamate locali
+    /// restino dietro il ramo `remoteConnected`.
+    #[test]
+    fn la_card_tls_segue_il_dispositivo_connesso() {
+        let card = include_str!("../../../../sws-editor/src/config/schede/SystemTab.tsx");
+        for (locale, remota) in [
+            ("api.getTlsStatus()", "api.remoteGetTlsStatus()"),
+            ("api.generateTlsCert()", "api.remoteGenerateTlsCert()"),
+            ("api.uploadTlsCert(", "api.remoteUploadTlsCert("),
+            ("api.removeTlsCert()", "api.remoteRemoveTlsCert()"),
+        ] {
+            assert!(card.contains(remota), "la card non chiama più {remota}: con un pannello connesso governa il PC dell'editor");
+            let i = card.find(locale).unwrap_or_else(|| panic!("{locale} sparita: aggiornare il test"));
+            let riga_prima = &card[i.saturating_sub(200)..i];
+            assert!(
+                riga_prima.contains("remoteConnected"),
+                "{locale} non è dietro il ramo remoteConnected"
+            );
+        }
+        // E le quattro rotte remote devono esistere davvero su questo router,
+        // altrimenti la card chiama 404 e l'errore sembra del dispositivo.
+        let src = include_str!("router.rs");
+        for r in ["/api/remote/system/tls\", get(", "/api/remote/system/tls/generate\", post(",
+                  "/api/remote/system/tls\", put(", "/api/remote/system/tls\", delete("] {
+            assert!(src.contains(r), "manca la rotta: {r}");
+        }
     }
 
     #[test]

@@ -13,6 +13,20 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 
 ### Fixed
 
+- **La card «Certificato TLS» governava la macchina sbagliata.** Con un pannello connesso,
+  «Genera», «Carica» e «Disabilita» agivano sul **PC su cui gira l'IDE**, mentre lo schermo
+  accanto diceva «dispositivo connesso» e tutto il resto della scheda Device parlava col
+  pannello. Non era un errore di chiamata: la famiglia `/api/remote/system/tls` non esisteva, e
+  nemmeno la porta di gestione del dispositivo nominava il TLS. Ora ci sono tutte e quattro le
+  rotte, da tutte e due i lati, e la card dice **di chi** è il certificato che sta mostrando.
+  Decisione 2 del piano dei certificati, che la chiama «il presupposto di C4».
+
+  Sul dispositivo, prima di premere, la card dice anche le tre cose che succedono: il pannello
+  **riparta**, l'**impronta cambia** — e quella memorizzata dall'IDE resta la vecchia, quindi al
+  prossimo collegamento il pinning rifiuta e compare «Dimentica certificato» in Connessione — e
+  cambia lo **schema** dell'indirizzo. Il «dimentica» **non** si fa da qui: non è mai automatico,
+  è la regola scritta sul gemello `/api/device/hostkey/forget`.
+
 - **Un pannello su cui si accende il TLS non riparte più.** Era un difetto vivo, non un rischio
   futuro, ed è emerso misurando la voce **C4** del piano CRA. Il controllo di salute delle due
   immagini chiedeva `/health` **solo in chiaro**, e il quadlet del runtime ha `Notify=healthy`:
