@@ -11,6 +11,18 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 
 ## [Unreleased]
 
+### Added
+
+- **L'IDE mostra l'impronta del certificato del dispositivo**, e dice se l'ha memorizzata
+  **adesso**. È la risposta alla domanda di riga 64 del piano CRA, decisa il 23-10-2026: la
+  fiducia al primo contatto era **muta**. L'impronta entrava in `dispositivi_conosciuti.yaml`
+  prima ancora che il codice di abbinamento venisse chiesto, e al primissimo «Connetti» ci si
+  fidava di chiunque rispondesse — l'unico momento in cui un attacco in mezzo funziona davvero.
+  Adesso la scheda Connessione la stampa: in giallo quando è nuova, con l'invito a confrontarla
+  con quella che il pannello mostra sul suo schermo; in grigio quando era già conosciuta. È il
+  modello di SSH — nessun accoppiamento fra archivi, niente da digitare, nessuna cerimonia nuova.
+  Su `http://` non compare niente, perché non c'è nessuna identità da verificare.
+
 ### Changed
 
 - **Il trust store OPC-UA è tutto Admin**, non più «elenco a Supervisor, scritture a Admin».

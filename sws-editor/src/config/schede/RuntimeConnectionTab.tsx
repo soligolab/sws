@@ -87,6 +87,14 @@ export function RuntimeConnectionTab() {
   // quello memorizzato. Il pulsante che segue è l'unico modo di andare avanti,
   // ed è un gesto umano: la fiducia non si rinnova da sola.
   const [certificatoCambiato, setCertificatoCambiato] = useState(false);
+  // L'impronta del certificato del dispositivo, e se è stata memorizzata
+  // adesso. **Si mostra** (decisione del maintainer, 23-10-2026, domanda di
+  // riga 64 del piano CRA): la fiducia al primo contatto era muta — l'impronta
+  // entrava in `dispositivi_conosciuti.yaml` prima ancora che il codice di
+  // abbinamento venisse chiesto, e al primissimo «Connetti» ci si fidava di
+  // chiunque rispondesse. È il modello di SSH: il pannello la dice sul suo
+  // schermo, chi vuole confronta. Niente da digitare, nessuna cerimonia nuova.
+  const [impronta, setImpronta] = useState<{ valore: string; nuova: boolean } | null>(null);
   const [dimenticandoCert, setDimenticandoCert] = useState(false);
   const [deployLog, setDeployLog]   = useState<string[]>([]);
   // Gli utenti appartengono al progetto: il deploy li porta sul dispositivo come
@@ -164,6 +172,7 @@ export function RuntimeConnectionTab() {
   const handleDisconnect = useCallback(() => {
     void api.remoteDisconnect().catch(() => {});
     setStatus("idle"); setStatusMsg(null); setDeployLog([]); setDeployDone(false);
+    setImpronta(null);
     setRemoteConnected(false);
     window.dispatchEvent(new CustomEvent("sws:runtime-disconnected"));
   }, [setRemoteConnected]);
@@ -195,6 +204,9 @@ export function RuntimeConnectionTab() {
       const pass = targetPass || undefined;
       const result = await api.remoteConnect(target, user, pass, codiceAbbinamento.trim() || undefined);
       setCertificatoCambiato(result.azione === "certificato-cambiato");
+      // Assente su `http://`: non c'è nessuna identità da verificare, e una
+      // riga vuota direbbe il contrario.
+      setImpronta(result.impronta ? { valore: result.impronta, nuova: result.impronta_nuova === true } : null);
       if (result.azione === "abbinamento-richiesto") setChiedeCodice(true);
       if (result.ok) { setChiedeCodice(false); setCodiceAbbinamento(""); }
       if (!result.ok) throw new Error(result.error ?? t("cfgUi.connectionFailed"));
@@ -813,6 +825,17 @@ export function RuntimeConnectionTab() {
           )}
         {status !== "error" && statusMsg && (
           <span style={{ color: "var(--brand-danger-soft, #fca5a5)", fontSize: 12, display: "block", marginTop: 4, whiteSpace: "pre-wrap" }}>{statusMsg}</span>
+        )}
+        {status === "connected" && impronta && (
+          <div style={{ marginTop: 10, fontSize: 12, lineHeight: 1.5 }}>
+            <div style={{ color: "var(--brand-text-muted, #94a3b8)" }}>{t("cfgUi.improntaTitolo")}</div>
+            <code style={{ display: "block", fontFamily: "monospace", fontSize: 11, wordBreak: "break-all", color: "var(--brand-text, #e2e8f0)", margin: "2px 0 4px" }}>
+              {impronta.valore}
+            </code>
+            <div style={{ color: impronta.nuova ? "var(--brand-warning-soft, #fcd34d)" : "var(--brand-text-subtle, #64748b)" }}>
+              {impronta.nuova ? t("cfgUi.improntaNuova") : t("cfgUi.improntaNota")}
+            </div>
+          </div>
         )}
       </section>
 

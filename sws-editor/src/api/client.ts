@@ -2576,7 +2576,17 @@ export const api = {
   /** `codice`: il codice di abbinamento, per un pannello in attesa (11-10-2026):
    *  con utente e password crea il suo amministratore e si collega. */
   remoteConnect: (url: string, username?: string, password?: string, codice?: string) =>
-    request<{ ok: boolean; error?: string; nota?: string; azione?: string }>("/api/remote/connect", {
+    request<{
+      ok: boolean; error?: string; nota?: string; azione?: string;
+      /** L'impronta SHA-256 del certificato del dispositivo, solo su https.
+       *  Si mostra perché la fiducia al primo contatto era muta: l'impronta
+       *  entrava nell'archivio prima ancora che il codice di abbinamento
+       *  venisse chiesto (decisione del 23-10-2026). */
+      impronta?: string;
+      /** `true` se è stata memorizzata adesso: l'unico momento in cui vale la
+       *  pena guardare lo schermo del pannello. */
+      impronta_nuova?: boolean;
+    }>("/api/remote/connect", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({

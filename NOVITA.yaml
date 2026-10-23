@@ -35,6 +35,8 @@
 versioni:
   - versione: "Unreleased"
     voci:
+      - it: "Collegandosi a un pannello, l'IDE mostra l'impronta del suo certificato e dice se l'ha memorizzata adesso: al primo collegamento si puo confrontare con quella che il pannello mostra sul suo schermo."
+        en: "When connecting to a panel, the IDE now shows its certificate fingerprint and says whether it stored it just now: on first connection you can compare it with the one shown on the panel's own screen."
       - it: "Il trust store OPC-UA ora e riservato all'Amministratore: prima l'elenco lo vedeva anche il Supervisore. E ogni operazione sui certificati finisce nel registro di audit, con il nome di chi l'ha fatta."
         en: "The OPC-UA trust store is now Administrator-only: the list was visible to Supervisors too. And every certificate operation is now recorded in the audit log, with the name of who did it."
       - it: "Il certificato TLS si gestisce sul dispositivo connesso, non piu sul PC dell'IDE: la card diceva «dispositivo» e agiva in locale. Avvisa anche che l'impronta cambia e che poi va riconfermata."

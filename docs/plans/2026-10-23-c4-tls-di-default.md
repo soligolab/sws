@@ -77,6 +77,32 @@ Stima 400-700 righe più la sessione di plan vera. **Quando questo lavoro cominc
 è una sessione di plan dedicata e approfondita** per sviscerarne i dettagli: fra la domanda e il
 lavoro passa troppo tempo perché un disegno scritto oggi resti vero.
 
+### Le risposte del maintainer, 23-10-2026
+
+| | Domanda | Scelta |
+|---|---|---|
+| **1** | Chi accende il TLS di default | **Solo il ruolo «pannello»** — l'istanza che non ha né `--gateway` né `--auth-delegata`. Il ruolo si legge già dalla riga di comando, e accenderlo per tutti spegnerebbe il cloud |
+| **2** | Il browser del pannello davanti all'autofirmato | **Si prova sul TC620 prima di decidere.** È l'unica incognita che il codice non risponde |
+| **3** | Come arriva la fiducia (riga 64) | **TOFU, ma l'IDE mostra l'impronta** appena memorizzata, perché chi vuole la confronti con quella sullo schermo. Il modello di SSH: nessun accoppiamento fra archivi, niente da digitare |
+| **4** | I pannelli già installati | **Si accende su tutti, con un marcatore** in `config/` che distingue «non ha mai scelto» da «ha scelto no». Stessa regola di compatibilità appena applicata alla policy OPC-UA |
+
+**La 3 è fatta** (ramo `feat/c4-impronta-mostrata`): `POST /api/remote/connect` restituisce
+l'impronta del certificato del dispositivo e dice se è stata memorizzata **adesso**, e la scheda
+Connessione la mostra — in giallo al primo contatto, in grigio quando era già conosciuta. Su
+`http://` non compare niente, perché non c'è nessuna identità da verificare.
+
+**La 2 blocca il resto, e questa macchina non la può sciogliere.** La sessione gira su
+`theobroma`, che il TC620 non lo raggiunge: va provata da una macchina che lo vede, e **prima di
+qualunque SSH va chiesto al maintainer**. Finché non è provata, le risposte 1 e 4 non si possono
+mettere in codice: seminare un certificato al primo avvio su un pannello il cui browser poi non
+lo accetta vuol dire uno schermo con un interstiziale al posto del sinottico.
+
+**Cosa provare sul TC620, esattamente**: accendere il TLS dalla card, riavviare il pannello, e
+guardare cosa fa `chromium@main-app.service` davanti a `https://127.0.0.1:7443` con un
+autofirmato. Il launcher è di PixsysOS e riceve **solo un URL via D-Bus**: nel repo non c'è un
+solo flag di chromium, quindi la via «gli passiamo un argomento» va verificata prima di
+prometterla.
+
 ### Le domande per il maintainer
 
 **1. Chi accende il TLS di default?** Ogni istanza dell'immagine, o solo il ruolo «pannello»?

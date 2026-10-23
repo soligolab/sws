@@ -64,6 +64,24 @@ pub struct ConnectResult {
     /// certificato e riprova», gemello di quello per la chiave host SSH.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub azione: Option<&'static str>,
+    /// L'impronta SHA-256 del certificato del dispositivo, quando il
+    /// collegamento è in HTTPS (in chiaro non c'è niente da verificare).
+    ///
+    /// **Perché si mostra** (23-10-2026, decisione del maintainer sulla domanda
+    /// di riga 64 del piano CRA). La fiducia al primo contatto era **muta**:
+    /// l'impronta entrava in `dispositivi_conosciuti.yaml` prima ancora che il
+    /// codice di abbinamento venisse chiesto, e chi si collegava non aveva modo
+    /// di accorgersene — al primissimo «Connetti» ci si fidava di chiunque
+    /// rispondesse. Mostrarla è il modello di SSH: il pannello la dice sul suo
+    /// schermo e nell'installer, chi vuole confronta. Niente cerimonia nuova,
+    /// niente da digitare, nessun accoppiamento fra archivi.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub impronta: Option<String>,
+    /// `true` quando l'impronta è stata memorizzata **adesso**, al primo
+    /// contatto — cioè l'unico momento in cui un attacco in mezzo funziona, e
+    /// l'unico in cui vale la pena guardare lo schermo del pannello.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub impronta_nuova: Option<bool>,
 }
 
 #[derive(Serialize)]
@@ -88,6 +106,24 @@ pub struct RemoteStatus {
 /// `POST /api/remote/connect` — authenticate against a remote runtime and
 /// store the session token. Used by RuntimeConnectionTab instead of the old
 /// browser-side fetch to `{target}/api/auth/login`.
+/// Cosa dire dell'impronta, dato cosa c'era nell'archivio **prima** della
+/// richiesta e cosa c'è adesso.
+///
+/// È pura perché è la riga che si sbaglia: «nuova» non vuol dire «c'è», vuol
+/// dire «prima non c'era» — ed è quella differenza che decide se chi si collega
+/// deve andare a guardare lo schermo del pannello. Su `http://` non c'è
+/// impronta e non c'è niente da dire: il campo resta assente, invece di
+/// mostrare una riga vuota che farebbe credere a un'identità verificata.
+fn impronta_da_mostrare(prima: Option<&str>, adesso: Option<String>) -> (Option<String>, Option<bool>) {
+    match adesso {
+        None => (None, None),
+        Some(i) => {
+            let nuova = prima.is_none();
+            (Some(i), Some(nuova))
+        }
+    }
+}
+
 pub async fn connect_remote(
     State(s): State<AppState>,
     Json(body): Json<ConnectBody>,
@@ -99,6 +135,8 @@ pub async fn connect_remote(
             StatusCode::OK,
             Json(ConnectResult {
                 ok: false,
+                impronta: None,
+                impronta_nuova: None,
                 nota: None,
                 azione: None,
                 error: Some("URL must start with http:// or https://".into()),
@@ -109,6 +147,14 @@ pub async fn connect_remote(
     // Q49: fiducia al primo contatto. Il certificato del pannello è self-signed,
     // quindi non si verifica una catena: si memorizza l'impronta la prima volta
     // e si pretende la stessa le volte dopo. Se cambia, si rifiuta e si dice.
+    //
+    // Si guarda **prima** cosa c'era nell'archivio, perché è l'unico modo di
+    // sapere dopo se l'impronta è stata memorizzata adesso: lo store non lo
+    // dice, e «adesso» è esattamente il momento che vale la pena mostrare.
+    let chiave_impronta = crate::certificati::host_port_da_url(&url);
+    let impronta_prima = chiave_impronta
+        .as_deref()
+        .and_then(|k| s.certificati.impronta_di(k));
     let client = match costruisci_client(&s, &url, 8) {
         Ok(c) => c,
         Err(e) => {
@@ -116,6 +162,8 @@ pub async fn connect_remote(
                 StatusCode::OK,
                 Json(ConnectResult {
                     ok: false,
+                    impronta: None,
+                    impronta_nuova: None,
                     nota: None,
                     azione: None,
                     error: Some(format!("HTTP client error: {e}")),
@@ -158,6 +206,8 @@ pub async fn connect_remote(
                 StatusCode::OK,
                 Json(ConnectResult {
                     ok: false,
+                    impronta: None,
+                    impronta_nuova: None,
                     nota: None,
                     azione: Some(AZIONE_ABBINAMENTO),
                     error: Some(format!(
@@ -180,6 +230,8 @@ pub async fn connect_remote(
                     StatusCode::OK,
                     Json(ConnectResult {
                         ok: false,
+                        impronta: None,
+                        impronta_nuova: None,
                         nota: None,
                         azione: Some(AZIONE_ABBINAMENTO),
                         error: Some(motivo),
@@ -202,6 +254,8 @@ pub async fn connect_remote(
             StatusCode::OK,
             Json(ConnectResult {
                 ok: false,
+                impronta: None,
+                impronta_nuova: None,
                 nota: None,
                 azione: None,
                 error: Some(format!(
@@ -230,6 +284,7 @@ pub async fn connect_remote(
                 if crate::certificati::e_certificato_cambiato(&testo) {
                     return (StatusCode::OK, Json(ConnectResult {
                         ok: false, nota: None,
+                        impronta: None, impronta_nuova: None,
                         azione: Some(crate::certificati::AZIONE_CERTIFICATO_CAMBIATO),
                         error: Some(format!(
                             "Il certificato TLS di {url} non è quello memorizzato su questo PC. \
@@ -243,6 +298,8 @@ pub async fn connect_remote(
                     StatusCode::OK,
                     Json(ConnectResult {
                         ok: false,
+                        impronta: None,
+                        impronta_nuova: None,
                         nota: None,
                         azione: None,
                         error: Some(format!("Cannot reach {url}: {e}")),
@@ -272,6 +329,8 @@ pub async fn connect_remote(
                     StatusCode::OK,
                     Json(ConnectResult {
                         ok: false,
+                        impronta: None,
+                        impronta_nuova: None,
                         nota: None,
                         azione: None,
                         error: Some(format!(
@@ -288,6 +347,8 @@ pub async fn connect_remote(
                     StatusCode::OK,
                     Json(ConnectResult {
                         ok: false,
+                        impronta: None,
+                        impronta_nuova: None,
                         nota: None,
                         azione: None,
                         error: Some(format!("Remote login returned {code}")),
@@ -302,6 +363,8 @@ pub async fn connect_remote(
                         StatusCode::OK,
                         Json(ConnectResult {
                             ok: false,
+                            impronta: None,
+                            impronta_nuova: None,
                             nota: None,
                             azione: None,
                             error: Some(format!("Bad JSON from remote login: {e}")),
@@ -317,6 +380,8 @@ pub async fn connect_remote(
                         StatusCode::OK,
                         Json(ConnectResult {
                             ok: false,
+                            impronta: None,
+                            impronta_nuova: None,
                             nota: None,
                             azione: None,
                             error: Some("Remote login response has no 'token' field".into()),
@@ -350,6 +415,8 @@ pub async fn connect_remote(
                 StatusCode::OK,
                 Json(ConnectResult {
                     ok: false,
+                    impronta: None,
+                    impronta_nuova: None,
                     nota: None,
                     azione: None,
                     error: Some(format!(
@@ -365,6 +432,8 @@ pub async fn connect_remote(
                 StatusCode::OK,
                 Json(ConnectResult {
                     ok: false,
+                    impronta: None,
+                    impronta_nuova: None,
                     nota: None,
                     azione: None,
                     error: Some(format!("Target returned {code} on /api/projects")),
@@ -376,6 +445,8 @@ pub async fn connect_remote(
                 StatusCode::OK,
                 Json(ConnectResult {
                     ok: false,
+                    impronta: None,
+                    impronta_nuova: None,
                     nota: None,
                     azione: None,
                     error: Some(format!("Cannot reach {url}: {e}")),
@@ -402,6 +473,14 @@ pub async fn connect_remote(
     });
     tracing::info!(remote = %url, "connected to remote runtime");
 
+    // Su `http://` non c'è nessuna impronta, e non è un errore: non c'è
+    // nessuna identità da verificare. Il campo resta assente e l'IDE non
+    // mostra niente.
+    let (impronta, impronta_nuova) = impronta_da_mostrare(
+        impronta_prima.as_deref(),
+        chiave_impronta.as_deref().and_then(|k| s.certificati.impronta_di(k)),
+    );
+
     (
         StatusCode::OK,
         Json(ConnectResult {
@@ -409,6 +488,8 @@ pub async fn connect_remote(
             error: None,
             nota,
             azione: None,
+            impronta,
+            impronta_nuova,
         }),
     )
 }
@@ -3194,6 +3275,39 @@ pub async fn dimentica_certificato(
             format!("dimenticato il certificato di {host}: al prossimo collegamento si memorizza quello nuovo")
         },
     })).into_response()
+}
+
+#[cfg(test)]
+mod prove_impronta_mostrata {
+    use super::impronta_da_mostrare;
+
+    /// `http://`: nessuna identità da verificare, niente da dire. Una riga
+    /// vuota farebbe credere il contrario.
+    #[test]
+    fn in_chiaro_non_si_dice_niente() {
+        assert_eq!(impronta_da_mostrare(None, None), (None, None));
+        assert_eq!(impronta_da_mostrare(Some("ab:cd"), None), (None, None));
+    }
+
+    /// Primo contatto: è l'unico momento in cui un attacco in mezzo funziona,
+    /// ed è l'unico in cui vale la pena guardare lo schermo del pannello.
+    #[test]
+    fn al_primo_contatto_e_nuova() {
+        assert_eq!(
+            impronta_da_mostrare(None, Some("ab:cd".into())),
+            (Some("ab:cd".into()), Some(true))
+        );
+    }
+
+    /// Già memorizzata: si mostra lo stesso — serve a confrontare quando si
+    /// vuole — ma non si allarma nessuno.
+    #[test]
+    fn gia_conosciuta_non_e_nuova() {
+        assert_eq!(
+            impronta_da_mostrare(Some("ab:cd"), Some("ab:cd".into())),
+            (Some("ab:cd".into()), Some(false))
+        );
+    }
 }
 
 #[cfg(test)]
