@@ -75,7 +75,7 @@ STATICHE=(
     check_libreria_simboli  # la libreria di simboli SCADA è quella del generatore: formato, materiali, parti, etichette
     check_icone_strumenti   # le icone di Strumenti: una per tipo della palette, nessun doppione, niente emoji né colori cablati
     check_catalogo          # il catalogo dei dispositivi: JSON validi, include risolti, formati e bit sensati, due lingue, immagini leggere
-    check_etichette_container
+    check_etichette_container check_unita_scelte
 )
 
 # Vogliono uno stack in ascolto, podman o un dispositivo: a mano, non qui.

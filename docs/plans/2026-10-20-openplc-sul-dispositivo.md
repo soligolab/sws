@@ -54,7 +54,14 @@ aggiunge capacità, e il rootless è una scelta di disegno.
 
 ### L'ordine dei rami
 
-1. **Il segno delle unità scelte** e il minimo che lo rispetta. Piccolo, e sblocca tutto il resto.
+1. ~~**Il segno delle unità scelte** e il minimo che lo rispetta.~~ **FATTO il 23-10-2026**, ramo
+   `feat/openplc-1-unita-scelte`. L'installer scrive `unita-scelte.json` — è l'unico che sa cosa
+   ha messo — e `minimo_installato` conta solo le unità scelte. **Senza il file si fa come
+   prima**: un pannello installato prima che esistesse è davvero un pannello che precede il suo
+   quadlet, e lì la presunzione vecchia è giusta. Cinque prove sulla regola, separata dal bus
+   apposta — una regola che si può provare solo con un systemd davanti non si prova mai. Guardia
+   `check_unita_scelte.sh`, provata rossa aggiungendo una terza unità al solo lato Rust: è
+   esattamente l'errore che il ramo 2 potrebbe fare.
 2. **Il quadlet di OpenPLC**, opzionale, senza `AutoUpdate`. Più l'installer che lo propone invece
    di metterlo.
 3. **`openplc/` nelle cinque liste** — e la domanda se unificarle.

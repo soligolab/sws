@@ -650,6 +650,35 @@ if [ "$AUTOSTART" -eq 1 ]; then
         INSTALL_DISPLAY=0
     fi
 
+    # ── Il segno delle unità scelte (23-10-2026) ────────────────────────────
+    #
+    # Dice al runtime QUALI unità questa installazione ha deciso di avere, e
+    # solo l'installer lo sa: il runtime vede che una unit non è caricata, ma
+    # non sa dire se è perché nessuno l'ha voluta o perché l'installazione è
+    # vecchia.
+    #
+    # Fino a oggi la differenza non serviva, perché le unità erano due e tutte
+    # e due obbligatorie: un viewer assente voleva dire «installazione
+    # precedente al suo quadlet», e valeva 0. Con un'unità OPZIONALE — OpenPLC,
+    # deciso oggi: «non è detto che a tutti i clienti serva» — quella
+    # presunzione si rovescia, e un'unità che non si vuole varrebbe 0 per
+    # sempre: il pannello chiederebbe un aggiornamento dei quadlet a ogni giro.
+    #
+    # Il runtime legge questo file in `quadlet.rs` (`UnitaScelte`). Se manca,
+    # fa come prima — ed è giusto: un pannello installato prima che questo file
+    # esistesse è davvero un pannello che precede il suo quadlet.
+    UNITA_SCELTE='"sws-runtime.service"'
+    [ "$INSTALL_DISPLAY" -eq 1 ] && UNITA_SCELTE="$UNITA_SCELTE, \"sws-lvgl-viewer.service\""
+    mkdir -p "$DATA/config"
+    if printf '{"unita": [%s]}\n' "$UNITA_SCELTE" > "$DATA/config/unita-scelte.json"; then
+        echo "    unità scelte registrate ($DATA/config/unita-scelte.json)"
+    else
+        # Non è un motivo per far fallire l'installazione: senza il file il
+        # runtime fa come prima, che è il comportamento di sempre.
+        echo "    ATTENZIONE: non sono riuscito a scrivere unita-scelte.json;" >&2
+        echo "                la versione dei quadlet si conta come prima." >&2
+    fi
+
     # La commutazione vecchia sull'host (fino al 29-09-2026): via, se c'è.
     # Finché restava, era inerte (il runtime non scrive più `display-target`),
     # ma un pezzo che non fa niente sull'host è un pezzo che un giorno confonde.

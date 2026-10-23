@@ -28,7 +28,14 @@ use std::path::{Path, PathBuf};
 pub const DIR_IMMAGINE: &str = "/usr/share/sws/quadlet";
 const RUNTIME: &str = "sws-runtime.service";
 const VIEWER: &str = "sws-lvgl-viewer.service";
+/// Le unità **oltre** al runtime che entrano nel conto della versione. Un terzo
+/// quadlet opzionale (OpenPLC) si aggiunge qui, e il segno delle unità scelte
+/// decide se contarlo.
+const ALTRE_UNITA: [&str; 1] = [VIEWER];
 const FILE_ESITO: &str = "quadlet-esito.json";
+/// Le unità che **questa installazione ha scelto di avere** (23-10-2026).
+/// Lo scrive l'installer, che è l'unico a sapere cosa ha messo.
+const FILE_UNITA: &str = "unita-scelte.json";
 const DIR_COPIA: &str = "quadlet-nuovo";
 /// Oltre questo tempo un «in corso» che non ha portato le versioni attese è un
 /// aggiornamento non riuscito.
@@ -121,6 +128,56 @@ async fn scrivi_esito(config_dir: &Path, e: &Esito) {
     }
 }
 
+/// Le unità che questa installazione ha scelto di avere.
+///
+/// # Perché esiste
+///
+/// La versione dei quadlet installati è il **minimo** fra le unità, e fino al
+/// 23-10-2026 un'unità non caricata valeva 0, con questa motivazione: «è
+/// un'installazione precedente al suo quadlet». Era vera finché le unità erano
+/// due e **tutte e due obbligatorie**.
+///
+/// Dal momento in cui un'unità è **opzionale** — OpenPLC, deciso il 23-10-2026:
+/// «non è detto che a tutti i clienti serva» — quella presunzione si rovescia:
+/// un'unità che non si vuole varrebbe 0 **per sempre**, e il pannello
+/// chiederebbe un aggiornamento dei quadlet a ogni giro, senza che aggiornarli
+/// cambi niente.
+///
+/// Il segno dice quali unità contare. **Senza il file si fa come prima**, ed è
+/// voluto: un pannello installato prima che questo file esistesse è davvero un
+/// pannello che precede il suo quadlet, e la presunzione vecchia lì è giusta.
+/// Il file compare al primo passaggio dell'installer.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct UnitaScelte {
+    pub unita: Vec<String>,
+}
+
+async fn leggi_unita(config_dir: &Path) -> Option<UnitaScelte> {
+    let t = tokio::fs::read_to_string(config_dir.join(FILE_UNITA)).await.ok()?;
+    serde_json::from_str(&t).ok()
+}
+
+/// Il minimo fra le versioni delle unità **che contano**.
+///
+/// Separata dal bus apposta: è qui che sta la regola, e una regola che si può
+/// provare solo con un systemd davanti non si prova mai.
+///
+/// `altre` sono le unità diverse dal runtime, con la versione letta dal bus:
+/// `None` = non caricata.
+fn minimo_installato(scelte: Option<&[String]>, runtime: u32, altre: &[(&str, Option<u32>)]) -> u32 {
+    let conta = |u: &str| match scelte {
+        // Nessun segno: si contano tutte, come si è sempre fatto.
+        None => true,
+        Some(s) => s.iter().any(|x| x == u),
+    };
+    altre
+        .iter()
+        .filter(|(u, _)| conta(u))
+        // Un'unità **scelta** che non è caricata vale 0: quella sì che è
+        // un'installazione da aggiornare.
+        .fold(runtime, |min, (_, v)| min.min(v.unwrap_or(0)))
+}
+
 /// La versione attesa: quella dei template dell'immagine.
 pub async fn versione_attesa() -> Option<u32> {
     attesa().await
@@ -131,18 +188,30 @@ async fn attesa() -> Option<u32> {
     versione_template(&t)
 }
 
-/// La versione installata, dalle `Description` delle due unità sul bus utente.
-/// Un viewer mai installato (`LoadState=not-found`) vale 0: è un'installazione
-/// precedente al suo quadlet.
-async fn installata(c: &zbus::Connection) -> Option<u32> {
+/// La versione installata, dalle `Description` delle unità sul bus utente.
+///
+/// Il runtime c'è sempre: se non si legge la sua `Description` non si sa
+/// niente, e si risponde `None` come prima. Le altre contano secondo
+/// [`UnitaScelte`].
+async fn installata(c: &zbus::Connection, config_dir: &Path) -> Option<u32> {
     use crate::display_target::bus::proprieta_unita;
     let r = proprieta_unita(c, RUNTIME, "Description").await?;
     let vr = versione_da_descrizione(&r).unwrap_or(0);
-    let vv = match proprieta_unita(c, VIEWER, "LoadState").await.as_deref() {
-        Some("loaded") => proprieta_unita(c, VIEWER, "Description").await.and_then(|d| versione_da_descrizione(&d)).unwrap_or(0),
-        _ => 0,
-    };
-    Some(vr.min(vv))
+    let mut altre: Vec<(&str, Option<u32>)> = Vec::new();
+    for u in ALTRE_UNITA {
+        let v = match proprieta_unita(c, u, "LoadState").await.as_deref() {
+            Some("loaded") => Some(
+                proprieta_unita(c, u, "Description")
+                    .await
+                    .and_then(|d| versione_da_descrizione(&d))
+                    .unwrap_or(0),
+            ),
+            _ => None,
+        };
+        altre.push((u, v));
+    }
+    let scelte = leggi_unita(config_dir).await;
+    Some(minimo_installato(scelte.as_ref().map(|s| s.unita.as_slice()), vr, &altre))
 }
 
 /// La cartella config **vista dall'host** (il servizio transitorio gira lì).
@@ -154,7 +223,7 @@ pub async fn stato(config_dir: &Path) -> Stato {
     let attesa = attesa().await;
     let utente = if attesa.is_some() { zbus::Connection::session().await.ok() } else { None };
     let installata = match &utente {
-        Some(c) => installata(c).await,
+        Some(c) => installata(c, config_dir).await,
         None => None,
     };
     let (da_aggiornare, si_puo_aggiornare, motivo) =
@@ -241,6 +310,61 @@ pub fn decidi_esito(installata: Option<u32>, voluta: u32, trascorsi_ms: i64) -> 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn scelte(v: &[&str]) -> Vec<String> {
+        v.iter().map(|s| s.to_string()).collect()
+    }
+
+    /// Senza il segno si fa **esattamente come prima**: un'unità non caricata
+    /// vale 0 e trascina giù il minimo.
+    ///
+    /// È la compatibilità che tiene in piedi ogni pannello già installato: lì
+    /// il file non c'è, e la presunzione vecchia — «se manca è
+    /// un'installazione precedente al suo quadlet» — è quella giusta.
+    #[test]
+    fn senza_il_segno_un_unita_assente_vale_zero() {
+        assert_eq!(minimo_installato(None, 6, &[(VIEWER, None)]), 0);
+        assert_eq!(minimo_installato(None, 6, &[(VIEWER, Some(6))]), 6);
+        assert_eq!(minimo_installato(None, 6, &[(VIEWER, Some(5))]), 5, "vince la più bassa");
+    }
+
+    /// Col segno, un'unità **non scelta** non si conta: è il caso che il
+    /// 23-10-2026 ha reso necessario, quando il maintainer ha chiesto che
+    /// OpenPLC fosse un'opzione. Senza questo, un pannello che non la vuole
+    /// chiederebbe un aggiornamento dei quadlet a ogni giro, per sempre.
+    #[test]
+    fn un_unita_non_scelta_non_trascina_giu_il_minimo() {
+        let solo_runtime = scelte(&[RUNTIME]);
+        assert_eq!(minimo_installato(Some(&solo_runtime), 6, &[(VIEWER, None)]), 6);
+        // E se per qualche motivo c'è lo stesso, continua a non contare:
+        // quello che decide è la scelta, non la presenza.
+        assert_eq!(minimo_installato(Some(&solo_runtime), 6, &[(VIEWER, Some(3))]), 6);
+    }
+
+    /// Un'unità **scelta** che non è caricata vale 0, e deve: quella sì che è
+    /// un'installazione da sistemare.
+    #[test]
+    fn un_unita_scelta_ma_assente_vale_zero() {
+        let tutte = scelte(&[RUNTIME, VIEWER]);
+        assert_eq!(minimo_installato(Some(&tutte), 6, &[(VIEWER, None)]), 0);
+        assert_eq!(minimo_installato(Some(&tutte), 6, &[(VIEWER, Some(6))]), 6);
+    }
+
+    /// Un'unità futura che il segno nomina ma che questo motore non conosce
+    /// ancora non rompe niente: si conta solo quello che si legge.
+    #[test]
+    fn un_unita_che_il_motore_non_conosce_non_rompe() {
+        let con_openplc = scelte(&[RUNTIME, VIEWER, "openplc-runtime.service"]);
+        assert_eq!(minimo_installato(Some(&con_openplc), 6, &[(VIEWER, Some(6))]), 6);
+    }
+
+    /// Il segno si legge come lo scrive l'installer.
+    #[test]
+    fn il_segno_si_legge_come_lo_scrive_linstaller() {
+        let u: UnitaScelte =
+            serde_json::from_str(r#"{"unita": ["sws-runtime.service", "sws-lvgl-viewer.service"]}"#).unwrap();
+        assert_eq!(u.unita, vec![RUNTIME.to_string(), VIEWER.to_string()]);
+    }
 
     #[test]
     fn la_versione_si_legge_dalla_description() {

@@ -44,6 +44,7 @@
 24. [Collegare un pannello al cloud col tunnel](#24-collegare-un-pannello-al-cloud-col-tunnel)
 25. [Prima installazione su un pannello di un cliente, collegato al cloud](#25-prima-installazione-su-un-pannello-di-un-cliente-collegato-al-cloud)
 26. [Far leggere il progetto a un assistente esterno (MCP)](#26-far-leggere-il-progetto-a-un-assistente-esterno-mcp)
+27. [Comandare i servizi del pannello da SSH](#27-comandare-i-servizi-del-pannello-da-ssh)
 
 ---
 
@@ -1785,3 +1786,53 @@ fuori da quella finestra una proposta non ha nessuno che la guardi prima che arr
 | il client si stacca subito | qualcosa ha stampato su stdout, che è il canale del protocollo. I log del runtime vanno su stderr da soli con `--mcp`; se hai aggiunto un `println!`, quello no |
 | «strumento sconosciuto» su `proponi_modifica` | corretto: non è esposto, e la risposta lo dice |
 | l'assistente non vede le password | corretto: `leggi_progetto` le maschera |
+
+---
+
+## 27. Comandare i servizi del pannello da SSH
+
+**La domanda**: «ho fatto `systemctl --user restart sws-lvgl-viewer` sul pannello e mi risponde
+`Failed to connect to bus: No medium found`».
+
+**Perché succede.** I servizi di SWS sul pannello sono **unità utente**, non di sistema: girano
+nell'utente `user` con il linger abilitato. `systemctl --user` parla al bus di quell'utente, che
+vive in `/run/user/<uid>/bus` — e per trovarlo gli serve `XDG_RUNTIME_DIR`. Una sessione SSH quella
+variabile **non la imposta**, quindi `systemctl` non sa dove bussare.
+
+E passare da root non aiuta: `--user` da root punta al bus di **root**, che su un pannello non
+c'è. È il caso in cui il comando sembra più potente e invece guarda nel posto sbagliato.
+
+**La ricetta.** Sul pannello, come `user`:
+
+```bash
+XDG_RUNTIME_DIR=/run/user/$(id -u) systemctl --user restart sws-lvgl-viewer
+```
+
+Vale per qualunque comando: `status`, `stop`, `start`, `daemon-reload`. Da root, per agire
+sull'utente giusto:
+
+```bash
+sudo -u user XDG_RUNTIME_DIR=/run/user/$(id -u user) systemctl --user status sws-runtime
+```
+
+E per i log, stessa storia:
+
+```bash
+XDG_RUNTIME_DIR=/run/user/$(id -u) journalctl --user -u sws-runtime -n 50
+```
+
+### Quando serve davvero
+
+| Caso | Comando |
+|---|---|
+| Il viewer mostra un fotogramma congelato, o è rimasto qualcosa a schermo | `restart sws-lvgl-viewer` |
+| Il runtime non risponde sulla 7443 | `status sws-runtime`, poi i log |
+| Hai cambiato un quadlet a mano | `daemon-reload`, poi `restart` |
+
+Se anche con la variabile non va, **un riavvio del pannello risolve sempre**: le unità utente
+ripartono da sole col linger, che l'installer abilita e senza il quale si ferma.
+
+### Nota
+
+Un riavvio del solo viewer è innocuo: non ha `WantedBy=`, lo avvia il runtime quando il progetto
+lo chiede, e il runtime continua a girare per conto suo.

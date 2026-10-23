@@ -11,6 +11,23 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 
 ## [Unreleased]
 
+### Added
+
+- **Il pannello registra quali unità ha scelto di avere** (`unita-scelte.json` nella cartella di
+  configurazione, scritto dall'installer). Serve perché la versione dei quadlet installati è il
+  **minimo** fra le unità, e fino a oggi un'unità non caricata valeva 0 con la motivazione «è
+  un'installazione precedente al suo quadlet». Vero finché le unità erano due e obbligatorie; con
+  un'unità **opzionale** si rovescia, e un'unità che non si vuole varrebbe 0 **per sempre** — il
+  pannello chiederebbe un aggiornamento dei quadlet a ogni giro, senza che aggiornarli cambi
+  niente. **Senza il file si fa come prima**, ed è voluto: un pannello installato prima che
+  esistesse è davvero un pannello che precede il suo quadlet. Primo ramo del piano
+  `docs/plans/2026-10-20-openplc-sul-dispositivo.md`, e il solo che tocca codice in produzione.
+  Nuova guardia `check_unita_scelte.sh`.
+
+- **`docs/HOWTO.md` capitolo 27**: comandare i servizi del pannello da SSH. `systemctl --user`
+  risponde `Failed to connect to bus: No medium found` perché una sessione SSH non imposta
+  `XDG_RUNTIME_DIR`, e da root `--user` punta al bus di root, che sul pannello non c'è.
+
 ### Fixed
 
 - **Dal pannello si può di nuovo fare l'accesso, e «Aggiorna ora» non lascia più il pannello
