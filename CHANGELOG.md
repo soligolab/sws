@@ -11,6 +11,8 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 
 ## [Unreleased]
 
+## [2.20.0] — 2026-10-23
+
 ### Added
 
 - **Il server OPC-UA espone i tag strutturati come strutture vere.** Un tag composito non è più

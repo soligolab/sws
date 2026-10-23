@@ -33,7 +33,10 @@
 # successivo.
 
 versioni:
-  - versione: "Unreleased"
+  - versione: "2.20.0"
+    # Numero scelto il 23-10-2026, e taggato COSTRUENDO l'immagine: un tag senza
+    # immagine perde le sue note di rilascio per sempre, perché queste righe non
+    # si leggono da qui — viaggiano come etichette dentro l'immagine.
     voci:
       - it: "Un tag strutturato adesso si vede sul server OPC-UA come una struttura vera, col nome del tipo del progetto: prima era una cartella con dentro le singole foglie. Le foglie restano, ed e li che si scrive."
         en: "A structured tag now appears on the OPC-UA server as a real structure, carrying the project type name: it used to be a folder with the individual leaves inside. The leaves remain, and that is where writes go."
