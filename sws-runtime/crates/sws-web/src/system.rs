@@ -907,7 +907,7 @@ pub async fn get_tls_status(State(s): State<AppState>) -> Json<TlsStatus> {
 pub async fn generate_tls_cert(State(s): State<AppState>, Extension(user): Extension<AuthUser>) -> StatusCode {
     s.audit.log("tls.generate", Some(user.username), serde_json::json!({}));
     let config_dir = (*s.config_dir).clone();
-    match tokio::task::spawn_blocking(move || generate_cert_files(&config_dir)).await {
+    match tokio::task::spawn_blocking(move || genera_certificato(&config_dir)).await {
         Ok(Ok(())) => {}
         Ok(Err(e)) => {
             tracing::error!("generate_tls_cert: {e:#}");
@@ -1016,7 +1016,49 @@ fn validate_cert_key(cert_pem: &str, key_pem: &str) -> anyhow::Result<()> {
     Ok(())
 }
 
-fn generate_cert_files(config_dir: &std::path::Path) -> anyhow::Result<()> {
+/// I nomi DNS che il certificato deve coprire, dato l'hostname del pannello.
+///
+/// **Pura perché è la lista che si sbaglia.** Fino al 23-10-2026 c'era solo
+/// `localhost`: un pannello raggiunto al suo nome — che è come lo trova la
+/// scoperta mDNS, e come lo scrive chi usa l'IDE — presentava un certificato
+/// che quel nome non lo nominava. `<host>.local` c'è perché è la forma che
+/// l'annuncio mDNS pubblica, e `localhost` resta perché il browser del
+/// pannello chiede sé stesso.
+///
+/// Senza doppioni e senza nomi vuoti: un SAN ripetuto non è un errore, ma è
+/// rumore in una cosa che qualcuno leggerà a mano.
+pub(crate) fn nomi_del_certificato(host: &str) -> Vec<String> {
+    let host = host.trim();
+    let mut nomi = vec!["localhost".to_string()];
+    if host.is_empty() || host == "localhost" {
+        return nomi;
+    }
+    nomi.push(host.to_string());
+    // `.local` si aggiunge **solo a un nome corto**: un hostname che un punto
+    // ce l'ha già è o `pannello.local` — e diventerebbe `pannello.local.local`
+    // — o un nome di dominio vero, a cui `.local` non si attacca.
+    if !host.contains('.') {
+        nomi.push(format!("{host}.local"));
+    }
+    nomi
+}
+
+/// Genera il certificato autofirmato del runtime e lo scrive in `config_dir`.
+///
+/// **Un posto solo** (23-10-2026). Erano due funzioni gemelle, una qui e una in
+/// `sws-runtime/src/main.rs`, con lo stesso rcgen e gli stessi SAN: il nome e
+/// la scadenza che le decisioni 5-6 del piano dei certificati vogliono cambiare
+/// si sarebbero dovuti cambiare in due posti, e un giorno in uno solo.
+///
+/// Il soggetto è il **nome del pannello**, lo stesso che mostrano la schermata
+/// di abbinamento e l'annuncio mDNS. Prima era `CN=rcgen self signed cert` —
+/// il default della libreria — su ogni pannello del mondo.
+///
+/// **Quello che questa funzione non fa ancora**: la scadenza. Il certificato
+/// non scade (rcgen: 1975 → 4096). La decisione 6 dice di accorciarla, ma ogni
+/// rinnovo rompe il pinning di chiunque si fosse già fidato, e quella parte
+/// aspetta una risposta — vedi `docs/plans/2026-10-23-c4-tls-di-default.md`.
+pub fn genera_certificato(config_dir: &std::path::Path) -> anyhow::Result<()> {
     use anyhow::Context;
 
     std::fs::create_dir_all(config_dir).context("creating config directory")?;
@@ -1028,8 +1070,13 @@ fn generate_cert_files(config_dir: &std::path::Path) -> anyhow::Result<()> {
         sock.local_addr().ok().map(|a| a.ip())
     })();
 
-    let mut params = CertificateParams::new(vec!["localhost".to_string()])
+    let nome = crate::abbinamento::nome_proposto();
+    let mut params = CertificateParams::new(nomi_del_certificato(&nome))
         .context("rcgen: CertificateParams::new")?;
+    let mut soggetto = rcgen::DistinguishedName::new();
+    soggetto.push(rcgen::DnType::CommonName, nome.clone());
+    soggetto.push(rcgen::DnType::OrganizationName, "SWS");
+    params.distinguished_name = soggetto;
     params
         .subject_alt_names
         .push(SanType::IpAddress(std::net::IpAddr::V4(
@@ -1051,8 +1098,93 @@ fn generate_cert_files(config_dir: &std::path::Path) -> anyhow::Result<()> {
         key_pair.serialize_pem().as_bytes(),
     )
     .context("writing tls.key")?;
-    tracing::info!(path = %config_dir.display(), "self-signed TLS certificate saved");
+    tracing::info!(path = %config_dir.display(), soggetto = %nome, "self-signed TLS certificate saved");
     Ok(())
+}
+
+#[cfg(test)]
+mod prove_nomi_certificato {
+    use super::nomi_del_certificato;
+
+    /// **Un generatore solo.** Fino al 23-10-2026 ce n'erano due gemelli — uno
+    /// qui, uno in `sws-runtime/src/main.rs` — con lo stesso rcgen e gli stessi
+    /// SAN. Il nome e la scadenza che le decisioni 5-6 del piano dei
+    /// certificati vogliono cambiare si sarebbero dovuti cambiare in due posti,
+    /// e un giorno in uno solo. Il test tiene fermo che il secondo non rinasca.
+    #[test]
+    fn il_certificato_si_genera_in_un_posto_solo() {
+        let runtime = include_str!("../../sws-runtime/src/main.rs");
+        assert!(
+            !runtime.contains("self_signed(&key_pair)"),
+            "in sws-runtime è ricomparso un generatore di certificati: deve passare da genera_certificato()"
+        );
+        assert!(
+            runtime.contains("sws_web::system::genera_certificato("),
+            "sws-runtime non chiama più genera_certificato(): o l'ha riscritta, o non genera più niente"
+        );
+        // Il conteggio si fa **fuori dai test**: questo file contiene la
+        // stringa anche qui dentro, e contarla tutta direbbe sempre «tre».
+        let qui = include_str!("system.rs");
+        let codice = &qui[..qui.find("#[cfg(test)]").expect("nessun blocco di test")];
+        assert_eq!(
+            codice.matches("self_signed(&key_pair)").count(),
+            1,
+            "più di un generatore in system.rs"
+        );
+    }
+
+    /// E il soggetto è il **nome del pannello**, non il default della libreria:
+    /// `CN=rcgen self signed cert` era uguale su ogni pannello del mondo, ed è
+    /// proprio la stringa che una colonna «soggetto» mostrerebbe a tutti.
+    #[test]
+    fn il_soggetto_e_il_nome_del_pannello() {
+        let qui = include_str!("system.rs");
+        let gen = &qui[qui.find("pub fn genera_certificato").expect("genera_certificato")..];
+        let gen = &gen[..gen.find("\n}\n").expect("fine di genera_certificato")];
+        assert!(gen.contains("crate::abbinamento::nome_proposto()"),
+            "il soggetto non viene più dal nome del pannello: tornerebbe il default di rcgen");
+        assert!(gen.contains("DnType::CommonName"),
+            "nessun CommonName impostato: rcgen rimetterebbe il suo");
+    }
+
+    /// Il caso vero di un pannello: `localhost` perché il suo browser chiede
+    /// sé stesso, il nome perché è come lo scrive chi usa l'IDE, `.local`
+    /// perché è la forma che l'annuncio mDNS pubblica. Prima c'era solo il
+    /// primo, e un pannello raggiunto al suo nome presentava un certificato
+    /// che quel nome non lo nominava.
+    #[test]
+    fn il_pannello_si_chiama_in_tre_modi() {
+        assert_eq!(
+            nomi_del_certificato("tc620-a-p3-c6-07aff9"),
+            vec!["localhost", "tc620-a-p3-c6-07aff9", "tc620-a-p3-c6-07aff9.local"]
+        );
+    }
+
+    /// Un hostname mancante o già `localhost` non produce doppioni né nomi
+    /// vuoti: il certificato lo legge qualcuno a mano, e `.local` da solo non
+    /// vuol dire niente.
+    #[test]
+    fn niente_doppioni_e_niente_nomi_vuoti() {
+        assert_eq!(nomi_del_certificato("localhost"), vec!["localhost"]);
+        assert_eq!(nomi_del_certificato(""), vec!["localhost"]);
+        assert_eq!(nomi_del_certificato("  "), vec!["localhost"]);
+    }
+
+    /// Un hostname che un punto ce l'ha già non prende il `.local`: o lo ha
+    /// già (e diventerebbe `pannello.local.local`), o è un nome di dominio
+    /// vero, a cui `.local` non si attacca. Il primo giro di questa funzione
+    /// lo sbagliava, e l'ha detto questo test.
+    #[test]
+    fn un_nome_col_punto_non_prende_local() {
+        assert_eq!(
+            nomi_del_certificato("pannello.local"),
+            vec!["localhost", "pannello.local"]
+        );
+        assert_eq!(
+            nomi_del_certificato("pannello.officina.example.com"),
+            vec!["localhost", "pannello.officina.example.com"]
+        );
+    }
 }
 
 #[cfg(test)]

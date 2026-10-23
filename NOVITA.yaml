@@ -35,6 +35,8 @@
 versioni:
   - versione: "Unreleased"
     voci:
+      - it: "Il certificato TLS generato dal pannello adesso porta il suo nome, e copre anche <nome> e <nome>.local: prima diceva «rcgen self signed cert» su ogni pannello e nominava solo localhost. Vale dalla prossima generazione."
+        en: "The TLS certificate the panel generates now carries its own name and also covers <name> and <name>.local: it used to say «rcgen self signed cert» on every panel and only named localhost. Applies from the next generation."
       - it: "Collegandosi a un pannello, l'IDE mostra l'impronta del suo certificato e dice se l'ha memorizzata adesso: al primo collegamento si puo confrontare con quella che il pannello mostra sul suo schermo."
         en: "When connecting to a panel, the IDE now shows its certificate fingerprint and says whether it stored it just now: on first connection you can compare it with the one shown on the panel's own screen."
       - it: "Il trust store OPC-UA ora e riservato all'Amministratore: prima l'elenco lo vedeva anche il Supervisore. E ogni operazione sui certificati finisce nel registro di audit, con il nome di chi l'ha fatta."

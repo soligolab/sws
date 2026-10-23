@@ -12,7 +12,7 @@
 > resta in «Storico». Qui vive solo ciò che serve a riprendere il lavoro.
 
 
-## ▶ Riprendere da qui — quattordici commit annidati, e cinque domande su C4 (2026-10-23)
+## ▶ Riprendere da qui — diciassette commit annidati, e due cose da decidere (2026-10-23)
 
 ```
 main (solo documenti)
@@ -23,35 +23,44 @@ main (solo documenti)
                  └─ feat/tag-4c-opcua-strutture
                      └─ fix/c4-schema-non-cablato
                          └─ fix/certificati-2-tls-remoto
-                             └─ fix/certificati-7-ruoli-e-audit   ← qui
+                             └─ fix/certificati-7-ruoli-e-audit
+                                 └─ feat/c4-impronta-mostrata
+                                     └─ feat/c4-certificato-con-un-nome   ← qui
 ```
 
-**Niente è stato pushato, e niente è stato mergiato in `main`.** Tutti e quattordici i commit
+**Niente è stato pushato, e niente è stato mergiato in `main`.** Tutti e diciassette i commit
 aspettano la conferma sul vetro.
 
-### Dove si riprende: le cinque domande di C4
+### Cosa blocca, e perché
 
-La misura di C4 (TLS acceso di default sul pannello, voce del piano CRA) è stata fatta il
-23-10-2026 e sta in [`docs/plans/2026-10-23-c4-tls-di-default.md`](docs/plans/2026-10-23-c4-tls-di-default.md).
-Il **pezzo 1 è fatto** (lo schema non è più cablato, e il controllo di salute non manda più il
-pannello in ciclo di riavvio). I pezzi 2 e 3 aspettano cinque risposte:
+**1. Il TC620, e questa macchina non lo raggiunge.** La sessione gira su `theobroma`. Il pezzo 3
+di C4 — accendere il TLS di default — non si può scrivere finché non si sa **cosa fa il chromium
+del pannello davanti a un certificato autofirmato**: seminare un certificato su un pannello il cui
+browser poi non lo accetta vuol dire un interstiziale al posto del sinottico. Il launcher è di
+PixsysOS e riceve solo un URL via D-Bus; nel repo non c'è un solo flag di chromium. Le risposte 1
+(solo il ruolo «pannello») e 4 (marcatore in `config/`) sono già date e aspettano solo questa.
 
-1. **Chi accende il TLS di default** — ogni istanza, o solo il ruolo «pannello»? Accenderlo per
-   tutti **spegne il cloud**: il gateway raggiunge i container dei progetti in chiaro su `:8444`.
-2. **Il browser del pannello** davanti al proprio certificato autofirmato, su uno schermo senza
-   tastiera. È l'unica incognita che il codice non risponde: va **provata sul TC620**.
-3. **Come arriva la fiducia** (la domanda di riga 64 del piano CRA): oggi l'impronta si memorizza
-   **prima** che il codice di abbinamento venga chiesto.
-4. **I pannelli già installati**: l'aggiornamento accende il TLS su di loro, solo sui nuovi, o su
-   tutti con un marcatore che distingue «non ha mai scelto» da «ha scelto no»?
-5. **La scadenza**: ogni rinnovo rompe il pinning di chiunque si fosse già fidato.
+**2. La scadenza del certificato** (decisione 6 del piano dei certificati). Il piano ha scelto
+«uno o due anni con avviso e rinnovo», ma la misura di C4 ha aggiunto un dettaglio che lì non
+c'era: **ogni rinnovo rompe il pinning di chiunque si fosse già fidato**, perché il verificatore
+confronta l'impronta della foglia e basta. Così com'è, ogni due anni ogni IDE e ogni viewer LVGL
+del campo mostra «certificato cambiato» e qualcuno deve premere «dimentica». Da decidere insieme
+a **dove si vede** l'avviso.
 
-### Le due cose decise che restano, del piano dei certificati
+### Cosa resta, già deciso
 
-- **Decisione 4** — l'archivio del viewer LVGL montato in sola lettura nel runtime (quadlet 6 → 7).
-  Lasciata indietro di proposito: da sola non si vede, e ha senso insieme alla vista.
-- **Decisione 3 + 8** — la vista a due colonne, ~1 500-2 000 righe. Il piano stesso dice **C4
+- **Decisione 4** del piano dei certificati — l'archivio del viewer LVGL montato in sola lettura
+  nel runtime (quadlet 6 → 7). Lasciata indietro di proposito: da sola non si vede, e ha senso
+  insieme alla vista.
+- **Decisioni 3 + 8** — la vista a due colonne, ~1 500-2 000 righe. Il piano stesso dice **C4
   prima, vista dopo**, per non costruirla due volte.
+
+### Le due misure di oggi
+
+- [`docs/plans/2026-10-23-c4-tls-di-default.md`](docs/plans/2026-10-23-c4-tls-di-default.md) —
+  C4 misurata sul codice, con le quattro risposte del maintainer e cosa provare sul TC620.
+- [`docs/plans/2026-10-15-certificati-in-un-posto-solo.md`](docs/plans/2026-10-15-certificati-in-un-posto-solo.md)
+  — quattro decisioni su otto sono **fatte** (1, 2, 5, 7).
 
 ### Cosa è fatto
 

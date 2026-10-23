@@ -66,8 +66,20 @@ C4. Mancano anche i tre eventi di audit (`tls.generate`, `tls.upload`, `tls.remo
 `/api/remote/system/tls`, che quel piano chiama «il presupposto di C4».
 
 **Già fatto di questo pezzo**: le rotte `/api/remote/system/tls` (decisione 2, ramo
-`fix/certificati-2-tls-remoto`), senza le quali il TLS del pannello non si poteva governare
-dall'IDE collegato. Restano il generatore unico, il nome vero, la scadenza, i tre eventi di audit.
+`fix/certificati-2-tls-remoto`); i tre eventi di audit più i due OPC-UA (decisione 7, ramo
+`fix/certificati-7-ruoli-e-audit`); il **generatore unico con il nome vero** (decisione 5, ramo
+`feat/c4-certificato-con-un-nome`).
+
+**Resta solo la scadenza**, e il maintainer l'ha sciolta il 23-10-2026 scegliendo **due anni con
+rinnovo automatico**: il pannello annuncia l'impronta nuova firmandola con la vecchia, così il
+giro del «dimentica» a ogni rinnovo non esiste. Avviso in tre posti: barra dell'IDE, allarme di
+sistema, email.
+
+**Non è una variante, è un protocollo**, e ha un seme suo:
+[`2026-10-23-rinnovo-del-certificato-firmato.md`](2026-10-23-rinnovo-del-certificato-firmato.md).
+Il punto duro misurato: l'archivio tiene solo `sha256:<hex>`, e **da un'impronta non si verifica
+una firma**. **La scadenza si mette dopo che il rinnovo esiste**, e il rinnovo viene dopo la
+prova sul TC620.
 
 Stima: 200-300 righe per il generatore unico, più 300-400 per rinnovo e avviso.
 

@@ -169,7 +169,21 @@ Il runtime **non lo vede**: è montato solo nel container del viewer.
 - **c** — lo espone il viewer con un endpoint: un protocollo nuovo fra due container, per un file
   di poche righe.
 
-### 5. Il nome del certificato del pannello — **DECISA: nome vero**
+### 5. Il nome del certificato del pannello — **DECISA e FATTA il 23-10-2026**
+
+> Ramo `feat/c4-certificato-con-un-nome`. Il soggetto è il **nome del pannello**, lo stesso che
+> mostrano la schermata di abbinamento e l'annuncio mDNS (`abbinamento::nome_proposto`). E i nomi
+> coperti sono tre invece di uno: `localhost`, il nome, `<nome>.local` — prima un pannello
+> raggiunto al suo nome presentava un certificato che quel nome non lo nominava.
+>
+> **I due generatori gemelli sono diventati uno.** Erano identici, uno nel runtime e uno in
+> `sws-web`: la scadenza della decisione 6 si cambierà in un posto, non in due. Guardia:
+> `il_certificato_si_genera_in_un_posto_solo`.
+>
+> **La domanda che restava — «cosa succede a chi si era già fidato dell'impronta vecchia» — non
+> si è posta**: i certificati già generati non cambiano finché non li si rigenera. Si porrà con
+> la decisione 6, perché una scadenza breve costringe a rigenerare, ed è lì che va risolta.
+
 
 Oggi è **«CN=rcgen self signed cert»**, uguale su ogni pannello: nessuno imposta il
 `distinguished_name`. Una colonna «soggetto» mostrerebbe quella stringa a tutti.
@@ -179,7 +193,19 @@ Oggi è **«CN=rcgen self signed cert»**, uguale su ogni pannello: nessuno impo
   generati non cambiano finché non li si rigenera, e allora va deciso **cosa succede a chi si era
   già fidato dell'impronta vecchia**.
 
-### 6. La scadenza — **DECISA: si accorcia, e gli avvisi si costruiscono (lavoro di C4)**
+### 6. La scadenza — **SCIOLTA il 23-10-2026: due anni con rinnovo automatico**
+
+> Il maintainer ha scelto l'opzione che **evita** il giro del «dimentica» a ogni rinnovo: il
+> pannello annuncia l'impronta nuova **firmandola con la vecchia**, e chi si era fidato la
+> accetta da solo. Avviso in tre posti: barra dell'IDE, allarme di sistema, email.
+>
+> **Non si scrive qui**: è un protocollo di fiducia, e il punto duro è che l'archivio tiene solo
+> `sha256:<hex>` — da un'impronta non si verifica una firma. Seme dedicato:
+> [`2026-10-23-rinnovo-del-certificato-firmato.md`](2026-10-23-rinnovo-del-certificato-firmato.md),
+> con le misure e i quattro punti duri. **La scadenza si mette dopo che il rinnovo esiste**:
+> metterla prima vuol dire un parco di pannelli che fra due anni scade senza che niente li
+> rinnovi.
+
 
 Il self-signed **non scade mai** (rcgen: 1975 → 4096, e nessuno lo cambia). Nemmeno
 `upload_tls_cert` legge la validità di quello che gli si carica.

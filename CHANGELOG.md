@@ -13,6 +13,20 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 
 ### Added
 
+- **Il certificato del pannello ha un nome vero, e si genera in un posto solo.** Era
+  `CN=rcgen self signed cert` — il default della libreria — **uguale su ogni pannello del
+  mondo**: la stringa che una colonna «soggetto» avrebbe mostrato a tutti. Adesso il soggetto è
+  il **nome del pannello**, lo stesso che mostrano la schermata di abbinamento e l'annuncio
+  mDNS. E i nomi coperti sono tre invece di uno: `localhost` perché il browser del pannello
+  chiede sé stesso, il nome perché è come lo scrive chi usa l'IDE, `<nome>.local` perché è la
+  forma che l'mDNS pubblica — prima un pannello raggiunto al suo nome presentava un certificato
+  che quel nome non lo nominava.
+
+  I due generatori gemelli (uno nel runtime, uno in `sws-web`, stesso rcgen e stessi SAN) sono
+  diventati uno: la scadenza che la decisione 6 vuole accorciare si cambierà in un posto, non in
+  due. Decisione 5 del piano dei certificati. I certificati già generati **non cambiano** finché
+  non li si rigenera, quindi nessuna fiducia già data si rompe.
+
 - **L'IDE mostra l'impronta del certificato del dispositivo**, e dice se l'ha memorizzata
   **adesso**. È la risposta alla domanda di riga 64 del piano CRA, decisa il 23-10-2026: la
   fiducia al primo contatto era **muta**. L'impronta entrava in `dispositivi_conosciuti.yaml`

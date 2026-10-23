@@ -328,7 +328,15 @@ fn ora_ms() -> u64 {
         .unwrap_or(0)
 }
 
-fn nome_proposto() -> String {
+/// Il nome con cui questo pannello si presenta: l'hostname.
+///
+/// Lo usano tre cose che devono dire la **stessa** cosa — la schermata di
+/// abbinamento, l'annuncio mDNS e, dal 23-10-2026, il soggetto del certificato
+/// TLS (`sws_web::system::genera_certificato`). Un certificato che dice
+/// `CN=rcgen self signed cert` su ogni pannello del mondo non identifica
+/// niente, ed è proprio la stringa che una colonna «soggetto» mostrerebbe a
+/// tutti.
+pub(crate) fn nome_proposto() -> String {
     std::fs::read_to_string("/etc/hostname")
         .ok()
         .map(|h| h.trim().to_string())

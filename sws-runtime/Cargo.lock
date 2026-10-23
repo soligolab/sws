@@ -3930,7 +3930,6 @@ dependencies = [
  "hyper-util",
  "mdns-sd",
  "metrics",
- "rcgen",
  "reqwest",
  "rustls",
  "rustls-pemfile",

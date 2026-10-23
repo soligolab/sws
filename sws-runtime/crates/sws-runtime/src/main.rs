@@ -6,7 +6,6 @@ use clap::Parser;
 use hyper::body::Incoming;
 use hyper_util::rt::{TokioExecutor, TokioIo};
 use hyper_util::server::conn::auto::Builder as ConnBuilder;
-use rcgen::{CertificateParams, KeyPair, SanType};
 use std::{
     net::{IpAddr, SocketAddr},
     path::PathBuf,
@@ -2180,31 +2179,13 @@ fn build_tls_acceptor(config_dir: &PathBuf) -> anyhow::Result<TlsAcceptor> {
         }
     }
 
-    // Build SAN list: localhost + loopback IP + LAN IP
-    let lan_ip = detect_lan_ip();
-    let mut params = CertificateParams::new(vec!["localhost".to_string()])
-        .context("rcgen: CertificateParams::new")?;
-    params
-        .subject_alt_names
-        .push(SanType::IpAddress(std::net::IpAddr::V4(
-            std::net::Ipv4Addr::LOCALHOST,
-        )));
-    if let Some(ip) = lan_ip {
-        params.subject_alt_names.push(SanType::IpAddress(ip));
-        info!(%ip, "TLS cert will include LAN IP SAN");
-    }
-
-    let key_pair = KeyPair::generate().context("rcgen: KeyPair::generate")?;
-    let cert = params
-        .self_signed(&key_pair)
-        .context("rcgen: self_signed")?;
-
-    std::fs::write(&cert_path, cert.pem()).context("writing tls.crt")?;
-    // La chiave privata a 0600, impostati alla creazione (2f): prima finiva a
-    // 0644 come qualunque altro file, leggibile da ogni utente della macchina.
-    sws_core::segreti::scrivi_atomico_0600(&key_path, key_pair.serialize_pem().as_bytes())
-        .context("writing tls.key")?;
-    info!(path = %cert_path.display(), "self-signed TLS certificate saved (import to trust)");
-
+    // **Un generatore solo** (23-10-2026). Qui c'era la copia gemella di
+    // `sws_web::system::genera_certificato`: stesso rcgen, stessi SAN, stessa
+    // chiave a 0600. Il nome e la scadenza che le decisioni 5-6 del piano dei
+    // certificati vogliono cambiare si sarebbero dovuti cambiare in due posti,
+    // e un giorno in uno solo. Questo ramo si raggiunge solo quando un
+    // certificato c'è ma è illeggibile: il primo seme lo fa
+    // `POST /api/system/tls/generate`.
+    sws_web::system::genera_certificato(config_dir)?;
     try_load_existing_tls(&cert_path, &key_path)
 }
