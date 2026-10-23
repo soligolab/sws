@@ -544,7 +544,7 @@ if [ "$AUTOSTART" -eq 1 ]; then
         install -m 0644 "$UNIT_SRC" "$UNIT_DIR/$NAME.container"
         echo "    rete bridge (--bridge): porte pubblicate 7443/7444, ma"
         echo "    ATTENZIONE: \"Cerca runtime\" nell'IDE non troverà questo dispositivo." >&2
-        echo "               Collegarsi a mano con http://<ip>:7444." >&2
+        echo "               Collegarsi a mano con http(s)://<ip>:7444." >&2
     fi
     sed -i "s|^Image=.*|Image=$TAG|" "$UNIT_DIR/$NAME.container"
     # Aggiornamento del runtime (27-09-2026): il runtime deve sapere che
@@ -802,7 +802,29 @@ IPS="${IPS% }"
 # installato il container e ha trovato il pannello ancora su Cockpit: GetUrl
 # rispondeva 9443, cioè il valore di fabbrica — la chiamata non era mai andata
 # a buon fine, e nel log dell'installazione non c'era una riga a dirlo.
-URL_VIEWER="http://127.0.0.1:7443"
+# ── Lo schema non si scrive piu' a mano (23-10-2026) ────────────────────────
+#
+# Il runtime parla in chiaro finche' non esiste `config/tls.crt` e in TLS appena
+# c'e' (`sws-runtime/src/main.rs`, avvio del listener). Quel file sta sul disco
+# del pannello e sopravvive a un aggiornamento, quindi l'installazione lo sa
+# gia' prima di far partire il container: non serve indovinare.
+#
+# Finche' `http://` era scritto a mano, un pannello su cui qualcuno aveva acceso
+# il TLS — col pulsante che la card «Certificato TLS» dell'IDE mette li' apposta
+# — si prendeva il browser puntato su una porta che parla TLS, gli indirizzi
+# stampati sbagliati, e due sonde su tre mute.
+if [ -f "$DATA/config/tls.crt" ]; then SCHEMA=https; ALTRO=http; else SCHEMA=http; ALTRO=https; fi
+
+# Una GET al runtime locale senza dover sapere con che schema risponde: prima
+# quello che il certificato sul disco suggerisce, poi l'altro. `-k` perche' il
+# certificato e' autofirmato per costruzione e qui si sta chiedendo a se stessi
+# se si e' vivi, non si sta verificando l'identita' di nessuno.
+sonda() { # sonda <:porta/percorso>
+    curl -fsk --max-time 2 "$SCHEMA://localhost$1" 2>/dev/null && return 0
+    curl -fsk --max-time 2 "$ALTRO://localhost$1" 2>/dev/null
+}
+
+URL_VIEWER="$SCHEMA://127.0.0.1:7443"
 if ! command -v busctl >/dev/null 2>&1; then
     echo "    browser del pannello: busctl assente, non è un dispositivo Pixsys — salto"
 elif ERR_URL="$(busctl --system call net.pixsys.Config1 /net/pixsys/Config1/WebBrowser/MainApp \
@@ -824,8 +846,7 @@ for i in $(seq 1 30); do
     # riparte in HTTPS — e un controllo solo-HTTP fallirebbe per trenta secondi
     # per poi dichiarare «il runtime non risponde» su un'installazione riuscita.
     # Stesso ragionamento (e stesso ordine) dell'health check in packaging.rs.
-    if curl -fs --max-time 2 http://localhost:7443/health >/dev/null 2>&1 \
-       || curl -sk --max-time 2 https://localhost:7443/health >/dev/null 2>&1; then
+    if sonda ":7443/health" >/dev/null 2>&1; then
         echo "    /health ok dopo ${i}s"
 
         # Ricaricare il browser, altrimenti l'URL nuovo non lo vede nessuno.
@@ -862,7 +883,7 @@ for i in $(seq 1 30); do
             # DISABILITATO apposta — configurazione giusta, non un guasto. Un
             # messaggio che tira a indovinare manda a cercare dalla parte
             # sbagliata, e costa più del silenzio.
-            if curl -fs --max-time 2 http://localhost:7443/api/system 2>/dev/null | grep -q '"voluto":"lvgl"'; then
+            if sonda ":7443/api/system" | grep -q '"voluto":"lvgl"'; then
                 echo "    browser del pannello non attivo: giusto così, il progetto è LVGL"
                 echo "                (lo schermo lo prende sws-lvgl-viewer)"
             else
@@ -878,7 +899,7 @@ for i in $(seq 1 30); do
         # attende che il launcher si decida.
         ESITO=""
         for _ in $(seq 1 15); do
-            ESITO="$(curl -fs --max-time 2 http://localhost:7443/api/system 2>/dev/null \
+            ESITO="$(sonda ":7443/api/system" \
                 | python3 -c 'import json,sys; d=json.load(sys.stdin).get("display") or {}; m=d.get("messaggio"); print(d.get("esito","") + (" — " + m if m else ""))' 2>/dev/null || true)"
             case "$ESITO" in "") sleep 2 ;; *) break ;; esac
         done
@@ -889,13 +910,12 @@ for i in $(seq 1 30); do
         esac
         echo
         for a in $IPS; do
-            echo "    viewer : http://$a:7443     IDE : http://$a:7444"
+            echo "    viewer : $SCHEMA://$a:7443     IDE : $SCHEMA://$a:7444"
         done
         # Il codice di abbinamento (11-10-2026): un pannello senza utenti non
         # lascia entrare nessuno finché qualcuno non ne crea l'amministratore.
         # Si stampa qui perché è il primo posto in cui chi installa guarda.
-        CODICE="$( { curl -fs --max-time 2 http://localhost:7444/api/abbinamento \
-                     || curl -sk --max-time 2 https://localhost:7444/api/abbinamento; } 2>/dev/null \
+        CODICE="$(sonda ":7444/api/abbinamento" \
             | python3 -c 'import json,sys; d=json.load(sys.stdin); print(d.get("codice") or "" if d.get("in_attesa") else "")' 2>/dev/null || true)"
         if [ -n "$CODICE" ]; then
             echo

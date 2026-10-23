@@ -189,7 +189,7 @@ pub fn sorveglia_viewer() {
     });
 }
 
-pub async fn publish(_config_dir: &Path, project_dir: &Path, motivo: Motivo) {
+pub async fn publish(config_dir: &Path, project_dir: &Path, motivo: Motivo) {
     if motivo == Motivo::Avvio {
         sorveglia_viewer();
     }
@@ -201,12 +201,21 @@ pub async fn publish(_config_dir: &Path, project_dir: &Path, motivo: Motivo) {
         }
     };
     let voluto = wanted_engine(&project);
+    // Con che schema il browser del pannello chiede il viewer a sé stesso.
+    // **Lo decide il certificato, non una costante**: è la stessa condizione che
+    // accende il TLS nel runtime (`sws-runtime/src/main.rs`, «se esiste
+    // config/tls.crt»). Finché era scritto `http://` a mano, un pannello su cui
+    // qualcuno accendeva il TLS — col pulsante che la card «Certificato TLS»
+    // dell'IDE mette lì apposta — mandava il browser contro una porta che parla
+    // TLS, e lo schermo restava su una pagina di errore senza che niente lo
+    // collegasse al pulsante premuto.
+    let schema = if config_dir.join("tls.crt").exists() { "https" } else { "http" };
     tokio::spawn(async move {
         let mut applicato = APPLICATO.lock().await;
         match decidi(*applicato, voluto, motivo) {
             Azione::Niente => {}
             azione => {
-                if let Some(fatto) = commuta(voluto, azione).await {
+                if let Some(fatto) = commuta(voluto, azione, schema).await {
                     *applicato = Some(fatto);
                 }
             }
@@ -319,7 +328,7 @@ pub(crate) mod bus {
 
 /// La commutazione. Restituisce il motore applicato, o `None` se non ha
 /// toccato lo schermo (configurazione, launcher indeciso, non supportato).
-async fn commuta(voluto: &'static str, azione: Azione) -> Option<&'static str> {
+async fn commuta(voluto: &'static str, azione: Azione, schema: &str) -> Option<&'static str> {
     let Ok(sistema) = zbus::Connection::system().await else {
         registra(voluto, "non_supportato", Some("bus di sistema non raggiungibile".into()), None);
         return None;
@@ -400,7 +409,7 @@ async fn commuta(voluto: &'static str, azione: Azione) -> Option<&'static str> {
     // Web.
     let mut note = Vec::new();
     let _ = bus::unit(&utente, "StopUnit", VIEWER).await; // se non gira, niente da fermare
-    let url = std::env::var("SWS_VIEWER_URL").unwrap_or_else(|_| "http://127.0.0.1:7443".into());
+    let url = std::env::var("SWS_VIEWER_URL").unwrap_or_else(|_| format!("{schema}://127.0.0.1:7443"));
     // Prima l'URL: il browser lo rilegge a ogni avvio.
     let url_prima = bus::browser_url_attuale(&sistema).await;
     if let Err(e) = bus::browser_url(&sistema, &url).await {

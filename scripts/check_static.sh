@@ -76,6 +76,7 @@ STATICHE=(
     check_icone_strumenti   # le icone di Strumenti: una per tipo della palette, nessun doppione, niente emoji né colori cablati
     check_catalogo          # il catalogo dei dispositivi: JSON validi, include risolti, formati e bit sensati, due lingue, immagini leggere
     check_etichette_container check_unita_scelte
+    check_schema_tls        # http/https non si scrive a mano: controllo di salute, browser del pannello, installer e ripiego del viewer sanno stare in tutti e due
 )
 
 # Vogliono uno stack in ascolto, podman o un dispositivo: a mano, non qui.

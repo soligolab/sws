@@ -11,6 +11,37 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 
 ## [Unreleased]
 
+### Fixed
+
+- **Un pannello su cui si accende il TLS non riparte più.** Era un difetto vivo, non un rischio
+  futuro, ed è emerso misurando la voce **C4** del piano CRA. Il controllo di salute delle due
+  immagini chiedeva `/health` **solo in chiaro**, e il quadlet del runtime ha `Notify=healthy`:
+  il servizio risulta avviato solo quando quel comando passa. Accendere il TLS dall'IDE non si
+  vedeva subito, perché `system_reboot` è un `exec()` in posto e systemd non vede nessun riavvio
+  — ma al **primo riavvio vero**, un reboot del pannello o un aggiornamento, l'unità non sarebbe
+  mai diventata sana, e con `Restart=always`/`RestartSec=5` il pannello sarebbe ripartito ogni
+  cinque secondi. Un aggiornamento, per di più, sarebbe tornato indietro da solo. Adesso il
+  controllo prova `https` e `http` su tutte e tre le porte, con `-k` perché il certificato è
+  autofirmato per costruzione e sta chiedendo a sé stesso se è vivo.
+
+- **E con lui gli altri tre punti in cui lo schema era scritto a mano.** Nessuno dei quattro
+  rileggeva il certificato, ed è la stessa cosa detta in quattro posti che non si parlano:
+  (1) il **browser del pannello** veniva puntato su `http://127.0.0.1:7443`, cioè contro una
+  porta che parla TLS — schermo su una pagina di errore; ora lo schema lo decide
+  `config/tls.crt`, la stessa condizione che accende il TLS nel runtime;
+  (2) l'**installer del container** stampava indirizzi in chiaro e due sonde su tre erano mute —
+  ora lo schema si legge una volta sola dal disco e tutte le sonde passano da una funzione che
+  prova prima quello giusto e poi l'altro (è il modello che `deploy/generic-linux/install.sh`
+  usava già);
+  (3) il **viewer LVGL** sapeva ripiegare sulla porta dell'altra generazione ma non sull'altro
+  schema — e il suo quadlet, che dice `http://`, si riscrive solo quando un operatore lo
+  conferma, quindi su un pannello già installato lo schermo restava nero. Ora prova **prima** lo
+  schema e poi la porta: accendere il TLS è una cosa che si fa oggi, il salto di porta è successo
+  una volta sola.
+
+  Nessuno di questi cambia il comportamento di un pannello in chiaro. Guardia nuova:
+  `scripts/check_schema_tls.sh` (la cinquantesima), provata rossa su tutti e quattro i punti.
+
 ### Added
 
 - **Un tag composito si vede sul server OPC-UA, una foglia per nodo.** Fino al 23-10-2026 non

@@ -367,16 +367,46 @@ fn pointer_to_page(
 /// scendere, per un pannello che venisse riportato a un'immagine vecchia.
 const PORTE_NOTE: [(u16, u16); 2] = [(8443, 7443), (7443, 8443)];
 
-/// L'altro indirizzo da provare: lo stesso host con la porta dell'altra
-/// generazione. `None` se la porta non è una di quelle note o manca del tutto —
-/// chi ha scelto una porta sua non se la vede cambiare sotto.
-fn ripiego_di(configurata: &str) -> Option<String> {
-    let url = reqwest::Url::parse(configurata).ok()?;
-    let (_, ripiego) = PORTE_NOTE.iter().find(|(da, _)| Some(*da) == url.port())?;
-    let mut alt = url.clone();
-    alt.set_port(Some(*ripiego)).ok()?;
-    let alt = alt.to_string();
-    Some(alt.strip_suffix('/').unwrap_or(&alt).to_string())
+/// Gli indirizzi da provare quando quello configurato non risponde, in ordine.
+///
+/// **Due cose possono essere rimaste indietro** nell'`Exec=` del quadlet, e sono
+/// indipendenti fra loro: la **porta** — il runtime è passato dalla 8443 alla
+/// 7443 con la 2.16.0 — e lo **schema**, perché un pannello su cui si accende il
+/// TLS comincia a parlare HTTPS sulla stessa porta. Il quadlet si riscrive solo
+/// quando un operatore lo conferma, quindi restano tutti e due come erano.
+///
+/// Prima lo schema, poi la porta: accendere il TLS è una cosa che si fa **oggi**,
+/// dalla card dell'IDE, mentre il salto di porta è successo una volta sola.
+///
+/// La porta **non** si cambia se non è una delle due note: chi ne ha scelta una
+/// sua non se la vede spostare sotto. Lo schema invece si prova sempre, perché è
+/// una sonda e non una riconfigurazione — una richiesta allo schema sbagliato
+/// fallisce subito, e il costo è quello.
+fn ripieghi_di(configurata: &str) -> Vec<String> {
+    let Ok(url) = reqwest::Url::parse(configurata) else { return Vec::new() };
+    let altro_schema = match url.scheme() {
+        "http" => "https",
+        "https" => "http",
+        _ => return Vec::new(),
+    };
+    let porta_alt = PORTE_NOTE.iter().find(|(da, _)| Some(*da) == url.port()).map(|(_, a)| *a);
+    let scrivi = |schema: &str, porta: Option<u16>| -> Option<String> {
+        let mut u = url.clone();
+        u.set_scheme(schema).ok()?;
+        if let Some(p) = porta {
+            u.set_port(Some(p)).ok()?;
+        }
+        let s = u.to_string();
+        Some(s.strip_suffix('/').unwrap_or(&s).to_string())
+    };
+    [
+        scrivi(altro_schema, None),
+        porta_alt.and_then(|p| scrivi(url.scheme(), Some(p))),
+        porta_alt.and_then(|p| scrivi(altro_schema, Some(p))),
+    ]
+    .into_iter()
+    .flatten()
+    .collect()
 }
 
 /// L'indirizzo del runtime con cui parlare davvero, che può non essere quello
@@ -405,15 +435,16 @@ async fn base_url_viva(configurata: &str) -> String {
     if client::risponde(configurata, SONDA).await {
         return configurata.to_string();
     }
-    let Some(alt) = ripiego_di(configurata) else { return configurata.to_string() };
-    if client::risponde(&alt, SONDA).await {
-        eprintln!(
-            "[base-url] {configurata} non risponde, {alt} sì: uso quello.\n\
-             [base-url] La configurazione del servizio di questo pannello è rimasta indietro \
-             (quadlet di prima della 2.16).\n\
-             [base-url] Per allinearla: Configurazione → Istanza → Device → Connessione → Aggiorna."
-        );
-        return alt;
+    for alt in ripieghi_di(configurata) {
+        if client::risponde(&alt, SONDA).await {
+            eprintln!(
+                "[base-url] {configurata} non risponde, {alt} sì: uso quello.\n\
+                 [base-url] La configurazione del servizio di questo pannello è rimasta indietro: \
+                 porta di prima della 2.16, oppure TLS acceso dopo l'installazione.\n\
+                 [base-url] Per allinearla: Configurazione → Istanza → Device → Connessione → Aggiorna."
+            );
+            return alt;
+        }
     }
     configurata.to_string()
 }
@@ -2241,27 +2272,43 @@ mod prove_sessione {
 
 #[cfg(test)]
 mod prove_base_url {
-    use super::ripiego_di;
+    use super::ripieghi_di;
 
     #[test]
     fn la_porta_vecchia_propone_quella_nuova_e_viceversa() {
-        assert_eq!(ripiego_di("http://127.0.0.1:8443").as_deref(), Some("http://127.0.0.1:7443"));
-        assert_eq!(ripiego_di("https://127.0.0.1:7443").as_deref(), Some("https://127.0.0.1:8443"));
+        assert!(ripieghi_di("http://127.0.0.1:8443").contains(&"http://127.0.0.1:7443".to_string()));
+        assert!(ripieghi_di("https://127.0.0.1:7443").contains(&"https://127.0.0.1:8443".to_string()));
+    }
+
+    /// Il ripiego che ripara un pannello su cui qualcuno ha acceso il TLS dalla
+    /// card dell'IDE: il quadlet dice ancora `http://`, il runtime risponde solo
+    /// in HTTPS, e lo schermo resterebbe nero finché un operatore non conferma
+    /// l'aggiornamento dei quadlet. È il **primo** da provare.
+    #[test]
+    fn lo_schema_si_prova_per_primo() {
+        assert_eq!(ripieghi_di("http://127.0.0.1:7443")[0], "https://127.0.0.1:7443");
+        assert_eq!(ripieghi_di("https://127.0.0.1:7443")[0], "http://127.0.0.1:7443");
     }
 
     #[test]
     fn una_porta_scelta_da_chi_installa_non_si_tocca() {
-        // Chi ha messo una porta sua sa quello che fa: nessun ripiego.
-        assert_eq!(ripiego_di("http://127.0.0.1:9443"), None);
-        assert_eq!(ripiego_di("http://pannello.local"), None, "senza porta non c'è niente da indovinare");
-        assert_eq!(ripiego_di("non-un-url"), None);
+        // Chi ha messo una porta sua sa quello che fa: la porta non si sposta.
+        // Lo schema sì — è una sonda, e non riconfigura niente.
+        assert_eq!(ripieghi_di("http://127.0.0.1:9443"), vec!["https://127.0.0.1:9443"]);
+        assert_eq!(ripieghi_di("http://pannello.local"), vec!["https://pannello.local"]);
+        assert!(ripieghi_di("non-un-url").is_empty());
+        assert!(ripieghi_di("ftp://127.0.0.1:7443").is_empty(), "schema che non conosciamo");
     }
 
     #[test]
-    fn l_host_e_lo_schema_restano_quelli() {
+    fn l_host_resta_quello_e_le_combinazioni_sono_tre() {
         assert_eq!(
-            ripiego_di("https://pannello.local:8443").as_deref(),
-            Some("https://pannello.local:7443"),
+            ripieghi_di("https://pannello.local:8443"),
+            vec![
+                "http://pannello.local:8443",
+                "https://pannello.local:7443",
+                "http://pannello.local:7443",
+            ],
         );
     }
 }

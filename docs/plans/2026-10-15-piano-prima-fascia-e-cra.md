@@ -35,7 +35,7 @@ perché, non il come.
 | C1 | Contatti di sicurezza veri (`SECURITY.md`, `security.txt`), periodo di supporto, pagina avvisi | P0 | S | Servono dati che ha solo il maintainer |
 | C2 | Procedura art. 14 (24 h / 72 h / 14 gg): referente, registro, piattaforma ENISA | P0 | S | Documento + registrazione, non codice |
 | C3 | Sicuri per default, i piccoli: OPC UA `trust_all_certs` → `false` con fiducia esplicita; `/metrics` solo autenticato o su loopback; sandbox Python **obbligatoria** (senza RestrictedPython gli script non partono) | P1 | S | Tre correzioni circoscritte, un ramo |
-| C4 | TLS acceso di default sul pannello, con installer, «Connetti» e pinning **[plan]** | P1 | M–L | La lacuna tecnica più grande |
+| C4 | TLS acceso di default sul pannello, con installer, «Connetti» e pinning **[plan]** | P1 | M–L | Misurato il 23-10-2026 → [`2026-10-23-c4-tls-di-default.md`](2026-10-23-c4-tls-di-default.md). **Pezzo 1 fatto** (lo schema non è più cablato, e il controllo di salute non manda più il pannello in ciclo di riavvio); pezzi 2 e 3 aspettano cinque risposte |
 | C5 | Reset di fabbrica dei dati (progetti, storico, utenti, segreti, certificati) | P1 | M | |
 | C6 | Header HTTP di sicurezza (CSP, frame-ancestors, HSTS), limiti di richieste e di dimensione sulle scritture | P2 | S–M | I limiti si tarano sui numeri di P5 |
 | C7 | Firma delle immagini (cosign) e verifica sul pannello; SBOM per release; scansione dell'immagine in CI con gate (Trivy) **[plan]** | P2 | M | |
