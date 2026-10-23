@@ -12,7 +12,64 @@
 > resta in «Storico». Qui vive solo ciò che serve a riprendere il lavoro.
 
 
-## ▶ Riprendere da qui — quattro lavori, e tre decisioni che aspettano te (2026-10-22, notte)
+## ▶ Riprendere da qui — 2.19.0 pubblicata, e tre decisioni che aspettano te (2026-10-23)
+
+### La release
+
+**2.19.0 costruita, pubblicata e taggata.** Non c'è nessuna 2.18: il salto è voluto.
+
+| Tag | Config |
+|---|---|
+| `2.19.0-arm64` e `latest-arm64` e `latest-arm64-generic` | `sha256:e78c57ab7c99` |
+| `2.19.0-amd64` e `latest-amd64` | `sha256:1b1137b327d3` |
+
+Verificati **dal registry** con `podman manifest inspect`, non dal log della build — il 21-10 il
+log diceva ok e il push era fallito. Dentro l'immagine: `org.opencontainers.image.version=2.19.0`,
+le Novità in italiano (680 byte) e in inglese (654), e `net.soligo.sws.quadlet=6`, quindi
+**l'aggiornamento si porta dietro i quadlet nuovi** — quelli che tolgono le etichette dal journal e
+spengono il controllo di salute del viewer.
+
+I quattro rami annidati sono stati squash-mergiati in ordine (albero di `main` identico a quello
+del ramo più esterno) e cancellati. `main` e il tag sono su origin, 48 guardie su 48 verdi.
+
+### Cosa c'è dentro
+
+- **Il tubo segue l'oggetto mosso da una variabile**, su tutti e due i motori. Il difetto non era
+  «non segue»: nasceva staccato già al primo fotogramma.
+- **`sws-runtime --mcp`**: il progetto come server MCP in sola lettura, undici strumenti.
+- **Il journal del pannello**: 71 % in meno. Non erano i messaggi di aggiornamento, era podman che
+  scrive tutte le etichette del container dentro ogni evento.
+- **OPC-UA, Fase 4a**: la scala **non era mai stata applicata**, e un valore illeggibile diventava
+  zero.
+
+### Da provare sul pannello, in ordine di quanto è veloce
+
+1. **Il tubo** — gemelli `demo-items-*`, pagina «Base e comandi»: trascina il cursore e guarda il
+   tubo fra il rettangolo e l'ellisse. Web e pannello.
+2. **L'MCP** — `claude mcp add sws -- sws-runtime --mcp --project ~/sws_projects/<nome>`.
+3. **Il journal e i quadlet** — aggiorna un pannello alla 2.19.0 e guarda se il `journalctl` resta
+   leggibile. **Qui c'è l'unica cosa non provata**: che la chiave di quadlet `Label=nome=` diventi
+   `--label nome=`. I flag li ho provati a mano con podman, ma qui non c'è il generatore quadlet
+   (nasce con la 4.4, questa macchina ha la 4.3.1). Se non funzionasse, il journal resta com'è e
+   nessun servizio si ferma.
+4. **OPC-UA** — serve un server. **Attenzione**: se un tuo tag OPC-UA ha una scala, i numeri a
+   schermo cambiano, perché prima non veniva applicata.
+
+### Le tre decisioni che aspettano te
+
+Tre documenti fatti per decidere, non per leggere. Ognuno ha le opzioni e cosa cambia.
+
+| Documento | Cosa decide |
+|---|---|
+| [OPC-UA, le sei decisioni](docs/plans/2026-10-22-opcua-fase-4-decisioni.md) | come si collauda una struttura senza un server che le esponga; `NumericRange` indirizza **solo** gli array; da dove arriva il `DataType`; se le scritture dal server passano dal bus |
+| [I certificati in un posto solo](docs/plans/2026-10-15-certificati-in-un-posto-solo.md) | otto scelte. «Serve una dipendenza nuova» era **falso**: `x509-cert` è già dentro il binario. Il trust store OPC-UA **non funziona**, e correggere il percorso non basta |
+| [OpenPLC sul dispositivo](docs/plans/2026-10-20-openplc-sul-dispositivo.md) | cinque scelte, e la seconda decide tutto. Il conflitto sulla 8443 **non esiste più** |
+
+### E il collaudo a schermo della Fase 2 dei tag
+
+Mai fatto: 2 timbri su 6. È tuo, non si automatizza.
+
+## Quattro lavori su rami annidati (2026-10-22, notte)
 
 ### Dove sta il lavoro: niente mergiato e niente pushato
 
