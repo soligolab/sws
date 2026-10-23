@@ -128,11 +128,20 @@ unsafe extern "C" fn sws_avviso_cb(e: *mut lvgl_sys::lv_event_t) {
 /// login della pagina non si tocca: il suo callback fa un `block_on` che ha
 /// una ragione documentata e non va toccato.
 enum FaseAccesso {
-    Utente(crate::lvgl_render::EsitoTastiera),
+    Utente(crate::lvgl_render::Tastiera),
     Password {
         utente: String,
-        esito: crate::lvgl_render::EsitoTastiera,
+        tastiera: crate::lvgl_render::Tastiera,
     },
+}
+
+impl FaseAccesso {
+    fn tastiera(&self) -> &crate::lvgl_render::Tastiera {
+        match self {
+            FaseAccesso::Utente(k) => k,
+            FaseAccesso::Password { tastiera, .. } => tastiera,
+        }
+    }
 }
 
 /// L'overlay, con quel che gli serve per non essere ricostruito a ogni frame.
@@ -206,8 +215,18 @@ impl Overlay {
         let in_accesso = matches!(avviso, Avviso::Accesso { in_corso: false, .. });
         if !in_accesso {
             // Annullato, riuscito, o un avviso diverso: la tastiera non serve
-            // più. Se è ancora aperta la chiude il suo stesso Annulla.
-            self.accesso = None;
+            // più, e **va chiusa qui**.
+            //
+            // Fino al 23-10-2026 qui c'era solo `self.accesso = None`, con il
+            // commento «se è ancora aperta la chiude il suo stesso Annulla».
+            // Non succede: quel tasto lo preme solo chi lo vede, e a cambiare
+            // idea è spesso il programma — l'«Annulla» della card, un errore
+            // di rete. La tastiera restava sullo schermo, a schermo intero e
+            // cliccabile, e si mangiava ogni tocco. Sul WP630 il pannello
+            // risultava bloccato.
+            if let Some(fase) = self.accesso.take() {
+                fase.tastiera().chiudi();
+            }
             return;
         }
         match self.accesso.take() {
@@ -219,24 +238,24 @@ impl Overlay {
                     aggiornamento::accesso_fallito(stato, "tastiera non disponibile".into());
                 }
             }
-            Some(FaseAccesso::Utente(esito)) => {
-                let letto = esito.borrow().clone();
+            Some(FaseAccesso::Utente(k)) => {
+                let letto = k.esito.borrow().clone();
                 match letto {
-                    None => self.accesso = Some(FaseAccesso::Utente(esito)),
+                    None => self.accesso = Some(FaseAccesso::Utente(k)),
                     Some(None) => aggiornamento::annulla_accesso(stato),
                     Some(Some(utente)) => {
                         self.accesso = crate::lvgl_render::apri_tastiera(false, true, "")
-                            .map(|esito| FaseAccesso::Password { utente, esito });
+                            .map(|tastiera| FaseAccesso::Password { utente, tastiera });
                         if self.accesso.is_none() {
                             aggiornamento::accesso_fallito(stato, "tastiera non disponibile".into());
                         }
                     }
                 }
             }
-            Some(FaseAccesso::Password { utente, esito }) => {
-                let letto = esito.borrow().clone();
+            Some(FaseAccesso::Password { utente, tastiera }) => {
+                let letto = tastiera.esito.borrow().clone();
                 match letto {
-                    None => self.accesso = Some(FaseAccesso::Password { utente, esito }),
+                    None => self.accesso = Some(FaseAccesso::Password { utente, tastiera }),
                     Some(None) => aggiornamento::annulla_accesso(stato),
                     Some(Some(password)) => {
                         aggiornamento::accesso_in_corso(stato);
@@ -283,6 +302,22 @@ impl Overlay {
             anyhow::bail!("lv_obj_create della radice ha restituito null");
         }
         self.radice = Some(radice);
+        // Durante la raccolta delle credenziali questa radice copre tutto lo
+        // schermo **sopra** la tastiera, e un oggetto LVGL nasce cliccabile:
+        // si mangiava ogni tocco diretto ai tasti, che quindi non scrivevano
+        // niente (WP630, 23-10-2026 — provato con `--tocca` su un tasto: il
+        // campo restava vuoto). Qui lo sfondo smette di essere cliccabile e i
+        // tocchi scendono alla tastiera; la card e i suoi pulsanti sono oggetti
+        // a parte e restano cliccabili.
+        //
+        // Niente paura per gli altri avvisi: lì la radice resta cliccabile, ed
+        // è quello che impedisce di toccare l'impianto sotto. Qui a fare da
+        // schermo c'è la tastiera, che è anch'essa a schermo intero.
+        if matches!(avviso, Avviso::Accesso { .. }) {
+            unsafe {
+                lvgl_sys::lv_obj_clear_flag(radice, lvgl_sys::LV_OBJ_FLAG_CLICKABLE as lvgl_sys::lv_obj_flag_t)
+            };
+        }
         // **L'esito non copre l'impianto** (decisione del maintainer,
         // 20-10-2026, come sul web): dice soltanto com'è andato l'ultimo
         // aggiornamento, e se nessuno è davanti al pannello resterebbe lì per
@@ -303,7 +338,16 @@ impl Overlay {
             lvgl_sys::lv_obj_set_style_bg_color(radice, colore(2, 6, 23), 0);
             // Non del tutto opaco: sotto si intravede la pagina, così è chiaro
             // che l'impianto sta ancora funzionando e questo è solo un avviso.
-            lvgl_sys::lv_obj_set_style_bg_opa(radice, 220, 0);
+            //
+            // Tranne durante l'accesso, dove sotto non c'è la pagina ma **la
+            // tastiera**: un velo all'86 % la dimezzava, e i tasti finivano a
+            // (24, 28, 41) su un fondo di (0, 8, 16) — un contrasto che su un
+            // monitor si intravede e sul vetro di un pannello no. È questo il
+            // motivo vero per cui il 23-10-2026 sembrava che la tastiera non
+            // ci fosse: c'era, sotto una tenda. La tastiera ha un fondo suo a
+            // schermo intero, quindi togliere il velo non scopre niente.
+            let velo = if matches!(avviso, Avviso::Accesso { .. }) { 0 } else { 220 };
+            lvgl_sys::lv_obj_set_style_bg_opa(radice, velo, 0);
             lvgl_sys::lv_obj_set_style_border_width(radice, 0, 0);
             lvgl_sys::lv_obj_set_style_radius(radice, 0, 0);
             pad(radice, 0);

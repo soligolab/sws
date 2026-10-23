@@ -5554,7 +5554,7 @@ pub struct TabellaViva {
     sorgente: SorgenteTabella,
     righe: Vec<crate::tabella::Riga>,
     sporco: bool,
-    tastiera: Option<(EsitoTastiera, AzioneTastiera)>,
+    tastiera: Option<(Tastiera, AzioneTastiera)>,
     tx: Option<mpsc::Sender<TagCommand>>,
 }
 
@@ -5816,7 +5816,7 @@ fn aggiorna_tabella(t: &mut TabellaViva, tags: &TagSnapshot) {
             },
         }
     }
-    let chiuso = t.tastiera.as_ref().and_then(|(es, _)| es.borrow_mut().take());
+    let chiuso = t.tastiera.as_ref().and_then(|(k, _)| k.esito.borrow_mut().take());
     if let Some(risultato) = chiuso {
         if let Some((_, azione)) = t.tastiera.take() {
             match (azione, risultato) {
@@ -5862,6 +5862,38 @@ fn risoluzione() -> (i16, i16) {
 /// per OK o `Some(None)` per Annulla.
 pub(crate) type EsitoTastiera = std::rc::Rc<RefCell<Option<Option<String>>>>;
 
+/// Una tastiera a schermo aperta, **e il modo di chiuderla**.
+///
+/// Prima `apri_tastiera` restituiva solo la cella del risultato: chi la apriva
+/// non aveva nessun modo di chiuderla, e si contava sul fatto che la chiudesse
+/// l'utente col tasto OK o Esc della tastiera stessa. Non regge in due casi, e
+/// tutti e due sono successi sul WP630 il 23-10-2026:
+///
+/// - a cambiare idea è il **programma** — un accesso annullato dalla card, un
+///   errore di rete — e allora nessuno preme quei tasti;
+/// - l'utente quei tasti **non li vede**, perché la tastiera era disegnata col
+///   tema predefinito, quasi invisibile su fondo scuro.
+///
+/// In tutti e due i casi la tastiera restava sullo schermo. È a schermo intero
+/// e cliccabile: si mangiava ogni tocco, e il pannello risultava bloccato.
+pub(crate) struct Tastiera {
+    overlay: core::ptr::NonNull<lvgl_sys::lv_obj_t>,
+    pub esito: EsitoTastiera,
+}
+
+impl Tastiera {
+    /// Chiude la tastiera **se è ancora aperta**.
+    ///
+    /// La cella del risultato è anche il segno che si è già chiusa da sé:
+    /// `sws_tastiera_cb` la riempie e **poi** cancella l'overlay. Senza questo
+    /// controllo si cancellerebbe due volte lo stesso oggetto.
+    pub fn chiudi(&self) {
+        if self.esito.borrow().is_none() {
+            unsafe { lvgl_sys::lv_obj_del_async(self.overlay.as_ptr()) };
+        }
+    }
+}
+
 struct TastieraCtx {
     overlay: core::ptr::NonNull<lvgl_sys::lv_obj_t>,
     textarea: core::ptr::NonNull<lvgl_sys::lv_obj_t>,
@@ -5871,7 +5903,7 @@ struct TastieraCtx {
 /// Un tastierino a schermo intero sul layer superiore, aperto su richiesta
 /// (celle scrivibili e filtri della tabella): numerico o alfabetico. Stesso
 /// aspetto di quello del setpoint; alla chiusura si cancella da sé.
-pub(crate) fn apri_tastiera(numerica: bool, password: bool, iniziale: &str) -> Option<EsitoTastiera> {
+pub(crate) fn apri_tastiera(numerica: bool, password: bool, iniziale: &str) -> Option<Tastiera> {
     unsafe {
         let top = lvgl_sys::lv_disp_get_layer_top(core::ptr::null_mut());
         let ov = core::ptr::NonNull::new(lvgl_sys::lv_obj_create(top))?;
@@ -5901,12 +5933,27 @@ pub(crate) fn apri_tastiera(numerica: bool, password: bool, iniziale: &str) -> O
             if numerica { lvgl_sys::LV_KEYBOARD_MODE_NUMBER } else { lvgl_sys::LV_KEYBOARD_MODE_TEXT_LOWER } as lvgl_sys::lv_keyboard_mode_t,
         );
         crate::lvgl_font::restore_symbols_on(kb.as_ptr());
+        // Senza stile la tastiera eredita il tema, che su questo fondo scuro
+        // disegna tasti quasi invisibili: su un monitor si intravedono, sul
+        // vetro di un pannello alla luce no (WP630, 23-10-2026 — il maintainer
+        // vedeva solo il pulsante «Annulla» della card e credeva che la
+        // tastiera non ci fosse). Tasti con un fondo proprio e testo chiaro.
+        stile::sfondo(kb.as_ptr(), (30, 41, 59), stile::MAIN);
+        stile::sfondo(kb.as_ptr(), (51, 65, 85), stile::CELLE);
+        stile::testo(kb.as_ptr(), (226, 232, 240), stile::CELLE);
+        stile::bordo(kb.as_ptr(), Some((100, 116, 139)), 1.0, stile::CELLE);
+        stile::raggio(kb.as_ptr(), 4.0, stile::CELLE);
+        // E il campo in cui si digita, per lo stesso motivo: senza, non si
+        // vede nemmeno se si sta scrivendo.
+        stile::sfondo(ta.as_ptr(), (15, 23, 42), stile::MAIN);
+        stile::testo(ta.as_ptr(), (226, 232, 240), stile::MAIN);
+        stile::bordo(ta.as_ptr(), Some((100, 116, 139)), 1.0, stile::MAIN);
         let esito: EsitoTastiera = Default::default();
         let ctx: &'static TastieraCtx = Box::leak(Box::new(TastieraCtx { overlay: ov, textarea: ta, esito: esito.clone() }));
         for code in [lvgl_sys::lv_event_code_t_LV_EVENT_READY, lvgl_sys::lv_event_code_t_LV_EVENT_CANCEL] {
             lvgl_sys::lv_obj_add_event_cb(kb.as_ptr(), Some(sws_tastiera_cb), code, ctx as *const TastieraCtx as *mut std::ffi::c_void);
         }
-        Some(esito)
+        Some(Tastiera { overlay: ov, esito })
     }
 }
 

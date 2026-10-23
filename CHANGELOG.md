@@ -11,6 +11,29 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 
 ## [Unreleased]
 
+### Fixed
+
+- **Dal pannello si può di nuovo fare l'accesso, e «Aggiorna ora» non lascia più il pannello
+  inservibile.** Erano **tre** difetti sommati, e nessuno dei tre si vedeva leggendo il codice:
+
+  1. L'avviso stende un velo all'86 % su tutto lo schermo, e durante l'accesso sotto quel velo
+     c'è **la tastiera**: i tasti finivano a `(24,28,41)` su un fondo `(0,8,16)`, uno stacco di
+     17 su 765. Su un monitor si intravedono, sul vetro di un pannello no — sembrava che la
+     tastiera non ci fosse. Durante l'accesso il velo non si mette: la tastiera ha un fondo suo a
+     schermo intero, quindi non scopre niente.
+  2. La radice dell'avviso è a schermo intero e un oggetto LVGL **nasce cliccabile**: si mangiava
+     ogni tocco diretto ai tasti. Anche vedendola, la tastiera non scriveva. Durante l'accesso lo
+     sfondo smette di essere cliccabile e i tocchi scendono ai tasti.
+  3. Chiudendo l'accesso **la tastiera non veniva distrutta**: si buttava via solo la maniglia in
+     Rust, con il commento «se è ancora aperta la chiude il suo stesso Annulla» — che non succede,
+     perché quel tasto lo preme solo chi lo vede, e a cambiare idea è spesso il programma. La
+     tastiera restava sullo schermo, a schermo intero e cliccabile, e **da lì in poi il pannello
+     non rispondeva più a niente**. Ora `apri_tastiera` restituisce una maniglia che sa chiudersi.
+
+  Più i tasti e il campo di testo, che non avevano nessuno stile e prendevano quello del tema.
+  Nuova guardia `check_accesso_lvgl.sh` (con stack), che rifà i tre gesti con `--avviso-di-prova`
+  e `--tocca` e misura lo stacco di contrasto: da 17 a 491.
+
 ## [2.19.0] — 2026-10-23
 
 ### Added

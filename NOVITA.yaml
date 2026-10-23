@@ -33,6 +33,11 @@
 # successivo.
 
 versioni:
+  - versione: "Unreleased"
+    voci:
+      - it: "Dal pannello si può di nuovo accedere come amministratore: la tastiera a schermo non si vedeva, non scriveva, e restava aperta bloccando ogni tocco. Premere «Aggiorna ora» lasciava il pannello inservibile."
+        en: "You can log in as an administrator from the panel again: the on-screen keyboard was invisible, did not type, and stayed open blocking every touch. Pressing «Update now» left the panel unusable."
+
   - versione: "2.19.0"
     # Numero scelto dal maintainer il 23-10-2026, e taggato COSTRUENDO
     # l'immagine (regola di CLAUDE.md): un tag senza immagine perde le sue note
