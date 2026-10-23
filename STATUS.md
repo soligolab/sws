@@ -12,55 +12,58 @@
 > resta in «Storico». Qui vive solo ciò che serve a riprendere il lavoro.
 
 
-## ▶ Riprendere da qui — diciassette commit annidati, e due cose da decidere (2026-10-23)
+## ▶ Riprendere da qui — quattordici rami su `main`, e i collaudi in un documento (2026-10-23)
+
+**Squash merge fatto**: i quattordici rami annidati sono su `main`, uno squash commit ciascuno,
+albero verificato identico alla punta dello stack, rami eliminati. `main` è **15 commit avanti a
+origin** e **non è stato pushato** (serve un'istruzione esplicita).
 
 ```
-main (solo documenti)
- └─ fix/accesso-tastiera
-     └─ feat/openplc-1-unita-scelte … feat/openplc-5-documentazione  (cinque rami)
-         └─ feat/tag-4b-opcua-tipi
-             └─ fix/certificati-1-trust-opcua
-                 └─ feat/tag-4c-opcua-strutture
-                     └─ fix/c4-schema-non-cablato
-                         └─ fix/certificati-2-tls-remoto
-                             └─ fix/certificati-7-ruoli-e-audit
-                                 └─ feat/c4-impronta-mostrata
-                                     └─ feat/c4-certificato-con-un-nome   ← qui
+57cb2625 feat(c4): il certificato porta il nome del pannello, e si genera una volta sola
+0173c103 feat(c4): l'IDE mostra l'impronta del certificato, e se e nuova
+2cc238a0 feat(certificati): i certificati lasciano traccia, e il trust store e Admin
+b00fe344 fix(certificati): il TLS si governa sul dispositivo, non sul PC dell'IDE
+99b547a9 fix(c4): lo schema non si scrive piu a mano, e il pannello riparte
+f5aae301 feat(opcua): le foglie come nodi figli, dai due lati
+7f1702c2 fix(certificati): il trust store OPC-UA funziona, e dice perche quando non puo
+56658045 feat(opcua): il server dice il vero, e il browse legge i tipi
+3b5fa10f docs(openplc): il capitolo 28, e il piano si chiude
+6a568ea3 feat(openplc): scarica e ricarica la cartella della logica
+280fb203 feat(openplc): la logica PLC viaggia col progetto
+6eeb4c46 feat(openplc): il quadlet opzionale, governo ibrido
+9636e11f feat(openplc): il segno delle unita scelte, primo ramo
+bbb9949b fix(accesso): la tastiera del pannello si vede, scrive, e se ne va
 ```
 
-**Niente è stato pushato, e niente è stato mergiato in `main`.** Tutti e diciassette i commit
-aspettano la conferma sul vetro.
+Definition of done verde su `main`: `cargo check`, `cargo test` (0 rossi), `pnpm build`,
+`vitest` 1603, **50 guardie statiche**.
 
-### Cosa blocca, e perché
+### I collaudi non si fanno da qui
 
-**1. Il TC620, e questa macchina non lo raggiunge.** La sessione gira su `theobroma`. Il pezzo 3
-di C4 — accendere il TLS di default — non si può scrivere finché non si sa **cosa fa il chromium
-del pannello davanti a un certificato autofirmato**: seminare un certificato su un pannello il cui
-browser poi non lo accetta vuol dire un interstiziale al posto del sinottico. Il launcher è di
-PixsysOS e riceve solo un URL via D-Bus; nel repo non c'è un solo flag di chromium. Le risposte 1
-(solo il ruolo «pannello») e 4 (marcatore in `config/`) sono già date e aspettano solo questa.
+Stanno in **[`docs/COLLAUDI_IN_SOSPESO.md`](docs/COLLAUDI_IN_SOSPESO.md)**, 31 voci, da fare da
+casa sul TC620 — decisione del maintainer del 23-10-2026: «le verifiche sul tc620 registrale su un
+documento che poi le facciamo da casa appena completiamo tutte le fasi concordate e ti dirò che è
+ora di rilasciare la nuova immagine».
 
-**2. La scadenza del certificato** (decisione 6 del piano dei certificati). Il piano ha scelto
-«uno o due anni con avviso e rinnovo», ma la misura di C4 ha aggiunto un dettaglio che lì non
-c'era: **ogni rinnovo rompe il pinning di chiunque si fosse già fidato**, perché il verificatore
-confronta l'impronta della foglia e basta. Così com'è, ogni due anni ogni IDE e ogni viewer LVGL
-del campo mostra «certificato cambiato» e qualcuno deve premere «dimentica». Da decidere insieme
-a **dove si vede** l'avviso.
+La voce **A** è quella che blocca C4: cosa fa il chromium del pannello davanti al proprio
+certificato autofirmato. È una misura, non un sì/no, e da lei dipende se il TLS si può accendere
+di default.
 
-### Cosa resta, già deciso
+### Cosa si sta facendo adesso
 
-- **Decisione 4** del piano dei certificati — l'archivio del viewer LVGL montato in sola lettura
-  nel runtime (quadlet 6 → 7). Lasciata indietro di proposito: da sola non si vede, e ha senso
-  insieme alla vista.
-- **Decisioni 3 + 8** — la vista a due colonne, ~1 500-2 000 righe. Il piano stesso dice **C4
-  prima, vista dopo**, per non costruirla due volte.
+**Il piano dei tag**, [`docs/plans/2026-09-21-gestione-tag-oggetto-unico.md`](docs/plans/2026-09-21-gestione-tag-oggetto-unico.md).
+Fasi 0, 1, 2, 3 fatte; Fase 4 (OPC-UA) con 4a, 4b e 4c fatte. Resta **la struttura OPC-UA vera**:
+un `DataType` pubblicato dal nostro server, e `DataTypeTree` + `DynamicTypeLoader` sul client per
+leggere un `ExtensionObject` da un server di terzi.
 
-### Le due misure di oggi
+### Deciso e non ancora fatto, dei certificati
 
-- [`docs/plans/2026-10-23-c4-tls-di-default.md`](docs/plans/2026-10-23-c4-tls-di-default.md) —
-  C4 misurata sul codice, con le quattro risposte del maintainer e cosa provare sul TC620.
-- [`docs/plans/2026-10-15-certificati-in-un-posto-solo.md`](docs/plans/2026-10-15-certificati-in-un-posto-solo.md)
-  — quattro decisioni su otto sono **fatte** (1, 2, 5, 7).
+- **Decisione 4** — archivio del viewer LVGL montato in sola lettura nel runtime (quadlet 6 → 7).
+  Da sola non si vede: ha senso con la vista.
+- **Decisioni 3 + 8** — la vista a due colonne, ~1 500-2 000 righe. Il piano dice **C4 prima**.
+- **Decisione 6** — due anni con rinnovo automatico: è un protocollo, ha il suo seme in
+  [`docs/plans/2026-10-23-rinnovo-del-certificato-firmato.md`](docs/plans/2026-10-23-rinnovo-del-certificato-firmato.md).
+  Il punto duro: l'archivio tiene solo `sha256:<hex>`, e da un'impronta non si verifica una firma.
 
 ### Cosa è fatto
 

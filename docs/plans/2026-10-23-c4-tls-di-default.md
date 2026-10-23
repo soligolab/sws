@@ -109,7 +109,7 @@ qualunque SSH va chiesto al maintainer**. Finché non è provata, le risposte 1 
 mettere in codice: seminare un certificato al primo avvio su un pannello il cui browser poi non
 lo accetta vuol dire uno schermo con un interstiziale al posto del sinottico.
 
-**Cosa provare sul TC620, esattamente**: accendere il TLS dalla card, riavviare il pannello, e
+**Cosa provare sul TC620, esattamente** — scritto per esteso, con gli altri collaudi in sospeso, in [`docs/COLLAUDI_IN_SOSPESO.md`](../COLLAUDI_IN_SOSPESO.md) §A: accendere il TLS dalla card, riavviare il pannello, e
 guardare cosa fa `chromium@main-app.service` davanti a `https://127.0.0.1:7443` con un
 autofirmato. Il launcher è di PixsysOS e riceve **solo un URL via D-Bus**: nel repo non c'è un
 solo flag di chromium, quindi la via «gli passiamo un argomento» va verificata prima di
