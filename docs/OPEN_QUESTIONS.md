@@ -34,7 +34,7 @@ Contenuto spostato in [`docs/archive/2026-09-18-ros2-robot-come-sorgente.md`](ar
 
 ## Q26 — Un server MCP per far editare il progetto all'IA
 
-Contenuto spostato in [`docs/plans/2026-09-18-mcp-editing-con-ia.md`](plans/2026-09-18-mcp-editing-con-ia.md) il 18-09-2026.
+Contenuto spostato in [`docs/archive/2026-09-18-mcp-editing-con-ia.md`](archive/2026-09-18-mcp-editing-con-ia.md) il 18-09-2026.
 **Decided:** not yet — la decisione si prende nel piano.
 
 ---

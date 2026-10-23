@@ -44,3 +44,13 @@ Annoto di seguito, uno per punto, le cose che devono essere verificate e trasfor
   concatena la STRINGA TRADOTTA come se fosse un percorso. Nessuna rotta restituisce la radice
   all'editor. Era una decisione del 18-09 («una banda dice dove sei e come cambiarlo») mai
   realizzata, e il seme che la conteneva e' stato archiviato il 22-10-2026.
+
+- MCP: se un giorno debba anche SCRIVERE, e non solo leggere. Dal 22-10-2026 `sws-runtime --mcp`
+  espone undici strumenti di lettura e nessuno che scrive (piano archiviato
+  2026-09-18-mcp-editing-con-ia.md). Il no di oggi non e' un ostacolo tecnico: scrivere vorrebbe
+  dire riprodurre fuori dall'editor l'approvazione umana che li' c'e' gia' — il confronto, i due
+  bottoni, il controllo dell'impronta del progetto su disco, l'annullamento in un passo. Fuori da
+  quella finestra una proposta non ha nessuno che la guardi prima che arrivi sul disco. Da
+  riaprire solo se emerge un bisogno vero: il piano archiviato del 31-08 lo diceva gia' («fuori
+  scope finche' non emerge un bisogno reale») e in otto settimane non e' emerso.
+

@@ -12,7 +12,82 @@
 > resta in «Storico». Qui vive solo ciò che serve a riprendere il lavoro.
 
 
-## ▶ Riprendere da qui — 2.17.0 in produzione, i piani di settembre chiusi (2026-10-22, pomeriggio)
+## ▶ Riprendere da qui — il tubo che segue e il server MCP, **da confermare** (2026-10-22, sera)
+
+### Dove sta il lavoro: due rami annidati, niente mergiato e niente pushato
+
+```
+main  26897523
+ └─ feat/tubo-che-segue-gli-oggetti   3f4730cc   (2 commit)
+     └─ feat/mcp-sola-lettura         83ba76fd   (1 commit)
+```
+
+Annidati di proposito (regola «un ramo alla volta», opzione 2): il secondo parte dal primo, così
+rientra passando da lì. **Servono due squash merge in ordine**, dal più interno al più esterno —
+o uno solo del più esterno, che contiene tutto. Prima però serve la conferma a vetro: la
+*definition of done* chiede cinque cose e la quinta è la tua.
+
+### Cosa è stato fatto, e cosa manca
+
+**1. Il tubo segue l'oggetto mosso da una variabile** — piano
+[`docs/plans/2026-10-21-tubo-che-segue-gli-oggetti.md`](docs/plans/2026-10-21-tubo-che-segue-gli-oggetti.md),
+da seme a piano d'esecuzione con le misure dentro. **Fase 1 e 2 fatte, Fase 3 (il `motion`)
+aperta** perché è una decisione di prodotto.
+
+Il seme sbagliava su tre cose, e tutte e tre spostano il lavoro: sul web le posizioni risolte dai
+binding **non** arrivavano al tubo (`resolveObject` gira per-oggetto dentro il disegno di quel
+solo oggetto); il difetto non era «non segue» ma **nasce staccato già al primo fotogramma**; e le
+proprietà che muovono una bocca sono sette, non due.
+
+*Da provare a vetro*: gemelli `demo-items-*`, pagina «Base e comandi» — trascina il cursore e
+guarda il tubo fra il rettangolo e l'ellisse. Sul web e sul pannello.
+
+**2. `sws-runtime --mcp`: il progetto come server MCP in sola lettura** — il piano di Q26 è in
+[archivio](docs/archive/2026-09-18-mcp-editing-con-ia.md): cinque delle sue sei domande erano già
+decise dal codice, mancava solo l'involucro. Undici strumenti, nessuno che scrive.
+
+*Da provare*: `claude mcp add sws -- sws-runtime --mcp --project ~/sws_projects/<nome>` e poi
+chiedere qualcosa sul progetto. Istruzioni in `docs/HOWTO.md` capitolo 26.
+
+### Due decisioni prese senza di te, da ribaltare se sbagliate
+
+Le ho prese per poter procedere; sono scritte anche nel piano, nella sezione che le nomina.
+
+1. **Il tubo resta attaccato alla bocca** e il ricalcolo scatta **al cambio di posizione**, non
+   per fotogramma. La prima non era nemmeno una scelta: il codice l'aveva già decisa, l'aggancio
+   è sempre stato un riferimento e non una coordinata congelata.
+2. **I punti intermedi disegnati a mano restano dove sono**; si muovono solo i capi agganciati.
+   La scelta opposta costa poco: `instrada` accetta già una lista di `Tappa` qualsiasi. È una
+   domanda di prodotto — «un gomito disegnato a mano trasla con l'oggetto o no?».
+
+### Due strumenti nuovi che restano, oltre alle funzioni
+
+- **`sws-lvgl-viewer --cambia-tag "nome=valore"`**: con `--istantanea`, cambia i tag a metà
+  fotografia e continua a disegnare. Prima **tutto ciò che vive in `update_bindings` era fuori
+  dalla portata di qualunque guardia**: il tempo di `--istantanea` è simulato, 60 secondi di LVGL
+  costano 0,15 secondi di orologio, e un `curl` da uno script arriva sempre a viewer già finito.
+  Ora si misura, e non solo per i tubi.
+- **Due guardie nuove**: `check_tubo_segue_lvgl.sh` e `check_mcp.sh`, entrambe provate rosse
+  togliendo la correzione. Quelle con stack sono 35.
+
+### Il difetto che solo la prova ha trovato
+
+Il banner del primo accesso stampava su `stdout`, che con `--mcp` è il canale del protocollo: sei
+righe davanti alla prima risposta. Un client vero si stacca, e nei log non resta niente — è il
+client a chiudere. Nessuna lettura del codice lo avrebbe prodotto.
+
+### Il prossimo passo
+
+Confermare i due lavori, mergiare, e poi **il journal del pannello**, che resta il punto aperto
+di stamattina. Una misura in più da quella sessione: lo scettico ha smontato due dei tre conti
+(journald deduplica i valori di campo, quindi le etichette **non** si pagano due volte per
+evento; e la mossa «intervallo 30 s → 120 s», data come la più sicura, è quella che può far
+tornare indietro un aggiornamento, perché con `Notify=healthy` il primo controllo fallisce sempre
+e lo stato arriva a ≈ un intervallo, contro i 90 s di `TimeoutStartSec` predefinito). L'opzione
+che nessuno aveva visto: il controllo di salute del **viewer** non lo legge nessuno, e spegnerlo
+dimezza il carico senza rischi.
+
+## 2.17.0 in produzione, i piani di settembre chiusi (2026-10-22, pomeriggio)
 
 ### Lo stato in tre righe
 

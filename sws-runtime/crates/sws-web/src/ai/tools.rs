@@ -21,9 +21,22 @@
 //!
 //! Niente esecuzione di Python (l'endpoint che la offriva è stato tolto — Q47; e comunque gira senza sandbox quando
 //! RestrictedPython manca, che sul PC di sviluppo è la norma), niente export
-//! del progetto (lo ZIP porta i segreti in chiaro, decisione del 2026-07-29),
-//! nessun `PUT`, nessun deploy, nessun accesso al filesystem. L'unico strumento
-//! che cambia qualcosa è `proponi_modifica`, e non cambia niente: propone.
+//! del progetto, nessun `PUT`, nessun deploy, nessun accesso al filesystem.
+//! L'unico strumento che cambia qualcosa è `proponi_modifica`, e non cambia
+//! niente: propone.
+//!
+//! > La ragione dell'export è cambiata e la riga lo diceva ancora (corretta il
+//! > 22-10-2026): «lo ZIP porta i segreti in chiaro, decisione del
+//! > 2026-07-29» non è più vero — `export_project_zip` li toglie e li rimette
+//! > solo con `?segreti=1`, e la casella dell'IDE è spenta. L'export resta
+//! > fuori perché è un file da scaricare, non un contesto da leggere.
+//!
+//! # Chi li consuma
+//!
+//! Due posti, e sono diversi: il ciclo della chat dell'IDE (`super::mod`), che
+//! li dà al modello insieme a `proponi_modifica`; e il server MCP
+//! (`crate::mcp`), che espone a un assistente esterno **i soli undici** che
+//! `esegui` smista — vedi `SOLA_LETTURA` qui sotto.
 
 use serde_json::{json, Value};
 use sws_core::Project;
@@ -193,6 +206,51 @@ pub fn definizioni() -> Vec<Value> {
 
 fn strumento(nome: &str, descrizione: &str, schema: Value) -> Value {
     json!({ "name": nome, "description": descrizione, "input_schema": schema })
+}
+
+/// Gli strumenti che **leggono e basta**, cioè esattamente quelli che `esegui`
+/// smista qui sotto.
+///
+/// Esiste perché il server MCP (`crate::mcp`) esponga quelli e nessun altro, e
+/// perché la scelta sia una riga che si legge invece di una deduzione da un
+/// `match`. Il test `nessuno_strumento_sfugge_alla_classificazione` tiene i due
+/// elenchi uguali all'insieme di `definizioni()`: aggiungere uno strumento
+/// senza decidere da che parte sta fa diventare rosso quel test, che è il punto.
+pub const SOLA_LETTURA: [&str; 11] = [
+    "elenca_pagine",
+    "leggi_pagina",
+    "leggi_progetto",
+    "elenca_tag",
+    "schema_oggetto",
+    "schema_sorgente",
+    "schema_tag",
+    "valida",
+    "leggi_script",
+    "schema_python",
+    "controlla_python",
+];
+
+/// I due che **non** passano da `esegui`, e perché.
+///
+/// `proponi_modifica` non produce un risultato da rimandare al modello: chiude
+/// il turno verso il browser, dove vivono il confronto, i due bottoni e il
+/// passo unico di annullamento. Fuori da quella finestra non ha destinazione.
+///
+/// `istantanea_pagina` copia il progetto in una cartella temporanea e avvia un
+/// secondo runtime per fotografarlo col motore LVGL vero: il ciclo la intercetta
+/// perché il suo risultato è un blocco immagine, non un testo.
+pub const FUORI_DA_ESEGUI: [&str; 2] = ["proponi_modifica", "istantanea_pagina"];
+
+/// Le definizioni dei soli strumenti di sola lettura.
+pub fn definizioni_sola_lettura() -> Vec<Value> {
+    definizioni()
+        .into_iter()
+        .filter(|d| {
+            d.get("name")
+                .and_then(Value::as_str)
+                .is_some_and(|n| SOLA_LETTURA.contains(&n))
+        })
+        .collect()
 }
 
 /// Il risultato di uno strumento, o il motivo per cui non si è potuto fare.
@@ -742,6 +800,30 @@ async fn controlla_python(s: &AppState, codice: &str) -> Esito {
 
 #[cfg(test)]
 mod tests {
+    /// Nessuno strumento sfugge alla classificazione.
+    ///
+    /// `SOLA_LETTURA` decide cosa esce dal server MCP. Un dodicesimo strumento
+    /// aggiunto a `definizioni()` senza decidere da che parte sta non deve
+    /// trovarsi esposto per inerzia, né sparire in silenzio: deve far diventare
+    /// rosso questo test e costringere a scegliere.
+    #[test]
+    fn nessuno_strumento_sfugge_alla_classificazione() {
+        let tutti: std::collections::BTreeSet<String> = definizioni()
+            .iter()
+            .map(|d| d["name"].as_str().unwrap().to_string())
+            .collect();
+        let classificati: std::collections::BTreeSet<String> = SOLA_LETTURA
+            .iter()
+            .chain(FUORI_DA_ESEGUI.iter())
+            .map(|s| s.to_string())
+            .collect();
+        assert_eq!(tutti, classificati, "elenchi disallineati: chi manca va deciso, non dimenticato");
+        assert_eq!(definizioni_sola_lettura().len(), SOLA_LETTURA.len());
+        for d in definizioni_sola_lettura() {
+            assert!(!FUORI_DA_ESEGUI.contains(&d["name"].as_str().unwrap()));
+        }
+    }
+
     use super::*;
 
     /// Il difetto che ha fatto proporre un checkbox invece di un bottone.

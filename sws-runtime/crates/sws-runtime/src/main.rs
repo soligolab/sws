@@ -140,6 +140,25 @@ struct Args {
     #[arg(long)]
     no_admin: bool,
 
+    /// Parla **MCP in sola lettura su stdio** invece di aprire i listener HTTP.
+    ///
+    /// Avvia tutto come sempre — il progetto si apre, il motore Python c'è, i
+    /// supervisori partono — e al posto dei server mette un ciclo JSON-RPC su
+    /// stdin/stdout che espone gli undici strumenti di lettura dell'assistente
+    /// (`sws_web::mcp`). Nessuno di quegli strumenti scrive.
+    ///
+    /// Il progetto è quello di `--project`, o quello attivo in
+    /// `--projects-root` come in qualunque altro avvio.
+    ///
+    /// Su stdio il protocollo **è** stdout, quindi questa opzione sposta anche
+    /// i log di `tracing` su stderr: due JSON sulla stessa riga non si
+    /// distinguono, e il client si stacca.
+    ///
+    /// Esempio:
+    ///   claude mcp add sws -- sws-runtime --mcp --project /percorso/al/progetto
+    #[arg(long)]
+    mcp: bool,
+
     /// Scorciatoia per lo sviluppo locale: nessuna autenticazione, Admin
     /// sintetico come prima del 06-10-2026.
     ///
@@ -437,8 +456,15 @@ async fn main() -> anyhow::Result<()> {
         if alzato && base < LevelFilter::DEBUG { t.with_target("sws", LevelFilter::DEBUG) } else { t }
     };
     let (bus_livello, bus_handle) = reload::Layer::new(filtro_bus(false));
+    // Con `--mcp` stdout porta il protocollo: i log vanno su stderr, o il
+    // JSON di `tracing` finisce in mezzo a quello di JSON-RPC.
+    let strato_fmt = if args.mcp {
+        fmt::layer().json().with_writer(std::io::stderr).with_filter(env_filter).boxed()
+    } else {
+        fmt::layer().json().with_filter(env_filter).boxed()
+    };
     tracing_subscriber::registry()
-        .with(fmt::layer().json().with_filter(env_filter))
+        .with(strato_fmt)
         .with(LogBusLayer::new(log_bus.clone()).with_filter(bus_livello))
         .init();
     sws_core::logbus::registra_alzatore(
@@ -1209,16 +1235,21 @@ async fn main() -> anyhow::Result<()> {
     let token_primo_accesso = match identita.as_ref() {
         Some(id) if !id.ha_utenti().await.unwrap_or(true) => {
             let t = uuid::Uuid::new_v4().simple().to_string();
-            println!();
-            println!("  ════════════════════════════════════════════════════════════");
-            println!("  PRIMO ACCESSO — nessun utente in questa installazione.");
-            println!();
-            println!("    codice: {t}");
-            println!();
-            println!("  Aprilo nell'IDE e crea l'amministratore. Il codice vale");
-            println!("  finche non esiste un utente, poi smette da se.");
-            println!("  ════════════════════════════════════════════════════════════");
-            println!();
+            let riga = "  ════════════════════════════════════════════════════════════";
+            let avviso = format!(
+                "\n{riga}\n  PRIMO ACCESSO — nessun utente in questa installazione.\n\n    codice: {t}\n\n  \
+                 Aprilo nell'IDE e crea l'amministratore. Il codice vale\n  finche non esiste un utente, \
+                 poi smette da se.\n{riga}\n\n"
+            );
+            // Con `--mcp` stdout porta il protocollo JSON-RPC: un banner lì in
+            // mezzo stacca il client, e il difetto non si vede nei log perché
+            // è il client a chiudere. Misurato il 22-10-2026, provandolo: sei
+            // righe di banner prima della prima risposta.
+            if args.mcp {
+                eprint!("{avviso}");
+            } else {
+                print!("{avviso}");
+            }
             Some(std::sync::Arc::new(t))
         }
         _ => None,
@@ -1419,6 +1450,14 @@ async fn main() -> anyhow::Result<()> {
         // T-72 F5: e l'immagine di boot abilitata, per lo stesso motivo — ma
         // come «avvio»: un ripristino di fabbrica resta fino al prossimo deploy.
         sws_web::boot_image::publish(&app_state.config_dir, &dir, sws_web::boot_image::Occasione::Avvio).await;
+    }
+
+    // `--mcp`: da qui in poi non si apre nessuna porta. Il bivio sta **dopo**
+    // tutto l'avvio — progetto aperto, servizi su — perché gli strumenti di
+    // lettura vogliono esattamente quello stato: `valida` carica dal disco,
+    // `controlla_python` vuole un motore vivo, `elenca_tag` vuole il TagDb.
+    if args.mcp {
+        return sws_web::mcp::servi_stdio(app_state).await;
     }
 
     // Runtime listener (synoptic, optional-auth): only started when --viewer-port is given.

@@ -6,6 +6,7 @@ pub mod limiti;
 pub mod archivio;
 pub mod amministrazione;
 pub mod marchi;
+pub mod mcp;
 pub mod backups;
 pub mod security_txt;
 pub mod boot;

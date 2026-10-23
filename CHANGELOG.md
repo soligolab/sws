@@ -13,6 +13,20 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 
 ### Added
 
+- **`sws-runtime --mcp`: il progetto come server MCP, in sola lettura.** Al posto dei listener
+  HTTP il runtime parla MCP su stdio ed espone gli **undici** strumenti di lettura che la chat
+  dell'IDE usa già — pagine, progetto, tag, schemi, validatore, script Python. Così un assistente
+  esterno (`claude mcp add sws -- sws-runtime --mcp --project …`) può rispondere a domande che
+  l'IDE non sa fare, senza poter cambiare niente. I due strumenti esclusi lo sono **per scelta
+  scritta**: `proponi_modifica` chiude il turno verso il browser, dove vivono il confronto,
+  Applica/Scarta e l'annullamento in un passo — fuori da quella finestra una proposta non ha
+  nessuno che la guardi; `istantanea_pagina` avvia un secondo runtime e torna un blocco immagine
+  in un formato che MCP non accetta. `tools::SOLA_LETTURA` e `tools::FUORI_DA_ESEGUI` sono due
+  elenchi, non una deduzione da un `match`, e un test tiene la loro unione uguale a
+  `definizioni()`: un dodicesimo strumento aggiunto domani non si troverà esposto per inerzia.
+  Nuova guardia `check_mcp.sh` (la 35ª con stack), `docs/HOWTO.md` capitolo 26, e il piano Q26 in
+  archivio. **Non è una novità da pannello**: non si vede dall'impianto, si usa da terminale.
+
 - **Un tubo agganciato a un oggetto segue l'oggetto anche quando a spostarlo è una variabile.**
   Prima no, e in due modi diversi: il percorso si calcolava sulla lista di oggetti **grezza**
   mentre ogni oggetto veniva disegnato alla posizione risolta dai suoi binding (quindi il tubo
@@ -34,6 +48,13 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
   `check_tubo_segue_lvgl.sh` (con stack), la 34ª.
 
 ### Fixed
+
+- **Il banner del primo accesso non stampa più su `stdout` quando il runtime parla MCP.** Su
+  stdio il protocollo **è** stdout: quelle sei righe davanti alla prima risposta staccano un
+  client vero, e il difetto non lascia traccia nei log perché è il client a chiudere. Trovato al
+  primo avvio vero, non leggendo il codice — ed è il motivo per cui `check_mcp.sh` controlla per
+  prima cosa che su stdout ci sia solo il protocollo. Con `--mcp` ci va anche lo strato `json` di
+  `tracing`, che per default scrive lì.
 
 - **Un progetto non può più nascere nella cartella di un'altra azienda.** `POST /api/projects`
   prendeva per buono l'`azienda_id` del corpo e scriveva il progetto dove diceva `parent_path`:

@@ -40,6 +40,10 @@
 20. [Aggiornare la configurazione del servizio (i quadlet) di un pannello](#20-aggiornare-la-configurazione-del-servizio-i-quadlet-di-un-pannello)
 21. [Dopo un aggiornamento: confermare, rimandare, tornare alla versione precedente](#21-dopo-un-aggiornamento-confermare-rimandare-tornare-alla-versione-precedente)
 22. [Aggiungere o correggere un dispositivo nel catalogo](#22-aggiungere-o-correggere-un-dispositivo-nel-catalogo)
+23. [Provare il gateway in locale, senza VPS](#23-provare-il-gateway-in-locale-senza-vps)
+24. [Collegare un pannello al cloud col tunnel](#24-collegare-un-pannello-al-cloud-col-tunnel)
+25. [Prima installazione su un pannello di un cliente, collegato al cloud](#25-prima-installazione-su-un-pannello-di-un-cliente-collegato-al-cloud)
+26. [Far leggere il progetto a un assistente esterno (MCP)](#26-far-leggere-il-progetto-a-un-assistente-esterno-mcp)
 
 ---
 
@@ -1721,3 +1725,63 @@ installazione di un cliente:
 | «tunnel non aperto» con attesa che cresce | il gateway non risponde: l'attesa raddoppia da 2 a 60 secondi e il pannello continua a provare, non serve fare niente quando torna su |
 | il pannello non compare fra i collegati | sei di un'azienda diversa da quella dichiarata per quel pannello: l'elenco mostra solo i propri |
 | 503 su `/dev/<nome>/…` | il pannello è dichiarato ma adesso non è collegato |
+
+
+---
+
+## 26. Far leggere il progetto a un assistente esterno (MCP)
+
+**La domanda**: «posso far guardare il mio progetto a Claude da terminale, invece che dalla chat
+dell'IDE?»
+
+Sì, **in sola lettura**. Dal 22-10-2026 il runtime ha una modalità in cui, al posto dei server
+HTTP, parla il protocollo MCP su stdio:
+
+```bash
+sws-runtime --mcp --project ~/sws_projects/mio-impianto
+```
+
+Da solo non fa niente di visibile: aspetta un client sullo standard input. Per collegarlo a
+`claude`:
+
+```bash
+claude mcp add sws -- sws-runtime --mcp --project ~/sws_projects/mio-impianto
+```
+
+Da quel momento l'assistente può chiedere com'è fatto il progetto e rispondere a domande che
+l'IDE non sa fare — «quali tag non sono usati da nessuna pagina?», «questa funzione Python passa
+il controllo?», «quali oggetti usano un simbolo che non esiste più?».
+
+### Cosa può fare, e cosa no
+
+Gli strumenti sono **undici, e leggono tutti**:
+
+| Strumento | Cosa dà |
+|---|---|
+| `elenca_pagine` | le pagine sinottiche: id, nome, misure, quanti oggetti |
+| `leggi_pagina` | tutti gli oggetti di una pagina, come stanno su disco |
+| `leggi_progetto` | tag, sorgenti, allarmi, funzioni, lingue — **password mascherate** |
+| `elenca_tag` | i tag, con un filtro |
+| `schema_oggetto`, `schema_sorgente`, `schema_tag` | com'è fatto ogni tipo: i campi che esistono davvero |
+| `valida` | il validatore del progetto, lo stesso che gira al salvataggio |
+| `leggi_script`, `schema_python` | gli script e cosa il motore Python mette a disposizione |
+| `controlla_python` | compila un pezzo di codice senza eseguirlo |
+
+**Nessuno scrive.** Per cambiare il progetto si passa dalla chat dell'IDE, dove ci sono il
+confronto, Applica/Scarta e l'annullamento in un passo. Non è una limitazione tecnica: è che
+fuori da quella finestra una proposta non ha nessuno che la guardi prima che arrivi sul disco.
+
+### Due cose da sapere
+
+- **Niente porte.** `--mcp` non apre nessun listener: si parla solo con chi lo ha avviato.
+  Quindi non è un modo per esporre il progetto in rete, ed è voluto.
+- **Un progetto alla volta**, quello di `--project` o quello attivo in `--projects-root` — lo
+  stesso di qualunque altro avvio.
+
+### Se il client non si collega
+
+| Sintomo | Cosa guardare |
+|---|---|
+| il client si stacca subito | qualcosa ha stampato su stdout, che è il canale del protocollo. I log del runtime vanno su stderr da soli con `--mcp`; se hai aggiunto un `println!`, quello no |
+| «strumento sconosciuto» su `proponi_modifica` | corretto: non è esposto, e la risposta lo dice |
+| l'assistente non vede le password | corretto: `leggi_progetto` le maschera |
