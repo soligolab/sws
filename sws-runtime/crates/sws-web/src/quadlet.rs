@@ -28,10 +28,13 @@ use std::path::{Path, PathBuf};
 pub const DIR_IMMAGINE: &str = "/usr/share/sws/quadlet";
 const RUNTIME: &str = "sws-runtime.service";
 const VIEWER: &str = "sws-lvgl-viewer.service";
-/// Le unità **oltre** al runtime che entrano nel conto della versione. Un terzo
-/// quadlet opzionale (OpenPLC) si aggiunge qui, e il segno delle unità scelte
-/// decide se contarlo.
-const ALTRE_UNITA: [&str; 1] = [VIEWER];
+/// OpenPLC Runtime, **opzionale**: l'installer la mette solo con
+/// `--con-openplc`. È la prima unità che un pannello può legittimamente non
+/// avere, ed è il motivo per cui esiste [`UnitaScelte`].
+const OPENPLC: &str = "openplc-runtime.service";
+/// Le unità **oltre** al runtime che entrano nel conto della versione. Il segno
+/// delle unità scelte decide quali contare davvero.
+const ALTRE_UNITA: [&str; 2] = [VIEWER, OPENPLC];
 const FILE_ESITO: &str = "quadlet-esito.json";
 /// Le unità che **questa installazione ha scelto di avere** (23-10-2026).
 /// Lo scrive l'installer, che è l'unico a sapere cosa ha messo.
@@ -245,7 +248,15 @@ pub async fn aggiorna(config_dir: &Path) -> Result<(), String> {
     // I file nella cartella config: il container la scrive, l'host la vede.
     let copia = config_dir.join(DIR_COPIA);
     tokio::fs::create_dir_all(&copia).await.map_err(|e| format!("{}: {e}", copia.display()))?;
-    for f in ["install-container.sh", "sws-runtime.container", "sws-lvgl-viewer.container"] {
+    // Il quadlet di OpenPLC viaggia come gli altri **anche su un pannello che
+    // non lo usa**: costa qualche kB, e il giorno in cui qualcuno lo chiede
+    // l'installer lo trova già lì invece di pretendere un'immagine nuova.
+    for f in [
+        "install-container.sh",
+        "sws-runtime.container",
+        "sws-lvgl-viewer.container",
+        "openplc-runtime.container",
+    ] {
         tokio::fs::copy(Path::new(DIR_IMMAGINE).join(f), copia.join(f))
             .await
             .map_err(|e| format!("copia di {f}: {e}"))?;
@@ -379,8 +390,13 @@ mod tests {
     fn i_template_del_repo_hanno_la_versione() {
         let r = include_str!("../../../../deploy/container/sws-runtime.container");
         let v = include_str!("../../../../deploy/container/sws-lvgl-viewer.container");
+        // Anche quello opzionale: è **nostro**, quindi quando cambia i pannelli
+        // che l'hanno devono riceverlo, e l'unico modo è che porti lo stesso
+        // numero degli altri.
+        let o = include_str!("../../../../deploy/container/openplc-runtime.container");
         assert!(versione_template(r).is_some());
         assert_eq!(versione_template(r), versione_template(v));
+        assert_eq!(versione_template(r), versione_template(o), "openplc-runtime.container");
     }
 
     #[test]

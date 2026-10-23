@@ -33,7 +33,13 @@ cd "$(dirname "$0")/.."
 exec python3 - "${1:-}" <<'PY'
 import hashlib, json, re, subprocess, sys
 
-FILE = ["deploy/container/sws-runtime.container", "deploy/container/sws-lvgl-viewer.container"]
+FILE = [
+    "deploy/container/sws-runtime.container",
+    "deploy/container/sws-lvgl-viewer.container",
+    # Opzionale sul pannello, ma e' un quadlet NOSTRO: quando cambia, chi ce
+    # l'ha deve riceverlo, e l'unico modo e' che porti lo stesso numero.
+    "deploy/container/openplc-runtime.container",
+]
 FIXTURE = "tests/fixtures/quadlet-versioni.json"
 aggiorna = sys.argv[1] == "--aggiorna"
 ESITO = 0
@@ -56,7 +62,7 @@ for f in FILE:
 if len(set(versioni.values())) > 1:
     ko(f"i due quadlet hanno numeri diversi: {versioni}")
 elif versioni:
-    ok(f"stesso numero sui due quadlet: {next(iter(versioni.values()))}")
+    ok(f"stesso numero su tutti e {len(FILE)} i quadlet: {next(iter(versioni.values()))}")
 
 if aggiorna and ESITO == 0:
     # Non si registra un file cambiato con lo stesso numero: sarebbe proprio

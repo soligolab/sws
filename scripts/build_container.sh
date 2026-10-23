@@ -286,6 +286,10 @@ cp -r "$SPA_DIST/." "$CTX/www/"
 # quadlet giusto per la versione che gira, e lo sa riscrivere dal pannello.
 mkdir -p "$CTX/quadlet"
 install -m 644 "$REPO/deploy/container/sws-runtime.container" "$REPO/deploy/container/sws-lvgl-viewer.container" "$CTX/quadlet/"
+# Opzionale sul pannello, ma dentro l'immagine c'e sempre: l'installer lo mette
+# solo con --con-openplc, e se non fosse qui quel flag non avrebbe niente da
+# installare (23-10-2026).
+install -m 644 "$REPO/deploy/container/openplc-runtime.container" "$CTX/quadlet/"
 # E dal 03-10-2026 lo script delle immagini: stato, pulizia e ritorno alla
 # versione precedente dopo un aggiornamento (conferma_aggiornamento.rs).
 install -m 755 "$REPO/deploy/container/install-container.sh" "$REPO/deploy/container/immagini.sh" "$CTX/quadlet/"

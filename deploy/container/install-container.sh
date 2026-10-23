@@ -44,6 +44,8 @@
 #                                              # delle installazioni pre-2026-07-28
 #   ./install-container.sh --no-autostart      # solo podman run, nessuna unit
 #   ./install-container.sh --solo-unita        # riscrive SOLO i quadlet da questi
+#   ./install-container.sh --con-openplc       # installa anche OpenPLC Runtime,
+#                                              fermo: lo avvii tu quando serve
 #                                              # template, con l'immagine, i dati e la
 #                                              # rete di quelli già installati, e
 #                                              # riavvia: nessun pull, nessun container
@@ -105,6 +107,7 @@ UNIT_SRC="$SRC_DIR/sws-runtime.container"
 USER_UNIT_DIR="$HOME/.config/systemd/user"
 DISPLAY_UNITS_VECCHIE=(sws-display.path sws-display.service)
 VIEWER_UNIT_SRC="$SRC_DIR/sws-lvgl-viewer.container"
+OPENPLC_UNIT_SRC="$SRC_DIR/openplc-runtime.container"
 # L'immagine di boot non installa più niente sull'host (24-09-2026): la chiede
 # il runtime al launcher via D-Bus, da dentro il container. Il quadlet monta
 # `/run/dbus/system_bus_socket` e dichiara `SWS_HOST_CONFIG_DIR`; le tre cose
@@ -140,6 +143,9 @@ AUTOSTART=1
 # transitoria sul bus utente. Riscrive solo il passo 5 — piano
 # docs/archive/2026-10-02-quadlet-che-viaggia.md.
 SOLO_UNITA=0
+# OpenPLC e OPZIONALE: «non e detto che a tutti i clienti serva» (decisione del
+# maintainer, 23-10-2026). Niente si installa senza che qualcuno lo chieda.
+CON_OPENPLC=0
 UNINSTALL=0
 PURGE=0
 
@@ -189,6 +195,7 @@ while [ $# -gt 0 ]; do
         --host-network)  HOST_NETWORK=1; shift ;;
         --no-autostart)  AUTOSTART=0; shift ;;
         --solo-unita)    SOLO_UNITA=1; shift ;;
+        --con-openplc)   CON_OPENPLC=1; shift ;;
         --uninstall)     UNINSTALL=1; shift ;;
         --purge)         PURGE=1; shift ;;
         *) echo "Flag non riconosciuta: $1" >&2; exit 1 ;;
@@ -650,6 +657,32 @@ if [ "$AUTOSTART" -eq 1 ]; then
         INSTALL_DISPLAY=0
     fi
 
+    # ── OpenPLC Runtime, solo se chiesto (23-10-2026) ───────────────────────
+    #
+    # A differenza del viewer, che si installa sempre perche costa niente ed e
+    # inerte, questo si mette solo con `--con-openplc`: e un container da ~1 GB
+    # di un altro registry, e su un TC620 con 3,1 GB liberi non e una cosa che
+    # si aggiunge per scrupolo.
+    #
+    # E NON si avvia: il quadlet non ha `WantedBy=` e qui non si fa `start`.
+    # Un PLC che parte da solo su un pannello che nessuno ha configurato
+    # manderebbe uscite a un impianto senza che nessuno l'abbia chiesto.
+    INSTALL_OPENPLC=0
+    if [ "$CON_OPENPLC" -eq 1 ]; then
+        if [ -f "$OPENPLC_UNIT_SRC" ]; then
+            install -m 0644 "$OPENPLC_UNIT_SRC" "$UNIT_DIR/openplc-runtime.container"
+            mkdir -p "$DATA/../openplc" 2>/dev/null || true
+            INSTALL_OPENPLC=1
+            echo "    OpenPLC Runtime installato, FERMO. Per avviarlo:"
+            echo "      XDG_RUNTIME_DIR=/run/user/\$(id -u) systemctl --user enable --now openplc-runtime"
+            echo "    Poi punta una sorgente Modbus TCP a 127.0.0.1:1502 (in rootless la 502"
+            echo "    non si pubblica: vedi il commento in openplc-runtime.container)."
+        else
+            echo "    ATTENZIONE: --con-openplc chiesto ma il quadlet non c'è in $SRC_DIR." >&2
+            echo "                Serve un'immagine di SWS che lo porti (2.19.1 o successiva)." >&2
+        fi
+    fi
+
     # ── Il segno delle unità scelte (23-10-2026) ────────────────────────────
     #
     # Dice al runtime QUALI unità questa installazione ha deciso di avere, e
@@ -669,6 +702,7 @@ if [ "$AUTOSTART" -eq 1 ]; then
     # esistesse è davvero un pannello che precede il suo quadlet.
     UNITA_SCELTE='"sws-runtime.service"'
     [ "$INSTALL_DISPLAY" -eq 1 ] && UNITA_SCELTE="$UNITA_SCELTE, \"sws-lvgl-viewer.service\""
+    [ "$INSTALL_OPENPLC" -eq 1 ] && UNITA_SCELTE="$UNITA_SCELTE, \"openplc-runtime.service\""
     mkdir -p "$DATA/config"
     if printf '{"unita": [%s]}\n' "$UNITA_SCELTE" > "$DATA/config/unita-scelte.json"; then
         echo "    unità scelte registrate ($DATA/config/unita-scelte.json)"

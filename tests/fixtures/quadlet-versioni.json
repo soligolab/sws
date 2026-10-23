@@ -8,6 +8,10 @@
     "deploy/container/sws-lvgl-viewer.container": {
       "versione": 6,
       "sha256": "fb583ef4dc82da88f1d66bec556e3c378a761eeff5bde6122828f4b74902725a"
+    },
+    "deploy/container/openplc-runtime.container": {
+      "versione": 6,
+      "sha256": "33b4e44848e86e32d67ee5ba709b2e3f611d5fd4cea1e800784a3270787ff47e"
     }
   }
 }
