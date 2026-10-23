@@ -49,6 +49,15 @@ La voce **A** è quella che blocca C4: cosa fa il chromium del pannello davanti 
 certificato autofirmato. È una misura, non un sì/no, e da lei dipende se il TLS si può accendere
 di default.
 
+### Fatto dopo il merge
+
+**Sparkplug B** (`42c610e6` su `main`): il sospetto che il piano dei tag portava scritto da
+settembre era fondato. I numeri di campo del protobuf erano sbagliati — il `oneof` usava 7…12
+invece di 10…15 — e con quelli un impianto vero **non si leggeva affatto**. Nello stesso ramo gli
+alias (il modo normale in cui Sparkplug manda i dati), i tipi con segno, e la metrica nulla che non
+diventa più uno zero. Dodici prove che si costruiscono i byte a mano dalla specifica: con le nostre
+struct avrebbero fatto round-trip su sé stesse ed erano verdi anche prima.
+
 ### Cosa si sta facendo adesso
 
 **Il piano dei tag**, [`docs/plans/2026-09-21-gestione-tag-oggetto-unico.md`](docs/plans/2026-09-21-gestione-tag-oggetto-unico.md).

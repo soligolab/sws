@@ -163,6 +163,25 @@ Si può fare sul PC, senza pannello.
 
 ---
 
+## G-bis. Sparkplug B — serve un nodo vero (o un simulatore)
+
+Il difetto corretto il 23-10-2026 è provato da dodici test che si costruiscono i byte a mano dai
+numeri della specifica, quindi la decodifica è verificata. **Quello che i test non possono dire è
+se un impianto vero parla come la specifica dice.**
+
+32. [ ] Puntare una sorgente Sparkplug B a un nodo vero, o a un simulatore (Ignition, o
+        `tahu`/`pysparkplug`). I valori devono arrivare — prima **non arrivavano affatto**: una
+        metrica intera faceva rifiutare l'intero payload.
+33. [ ] Verificare che arrivino anche i dati che usano **solo l'alias**: NBIRTH col nome, poi
+        NDATA col solo numero. È il modo normale di Sparkplug e prima lo scartavamo in silenzio.
+34. [ ] Un intero **negativo** (Int16 o Int32) deve arrivare negativo, non come un numero enorme.
+35. [ ] Una metrica dichiarata **nulla** deve lasciare il valore precedente e marcare il tag
+        Uncertain, non scrivere uno zero.
+36. [ ] Se la sorgente ha una metrica scrivibile: un comando (NCMD) deve essere **accettato** dal
+        nodo. Prima il payload che spedivamo non era leggibile, e non portava il tipo dichiarato.
+
+---
+
 ## H. Ruoli e registro
 
 30. [ ] Entrare come **Supervisore** e aprire una sorgente OPC-UA: al posto del trust store deve
