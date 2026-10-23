@@ -41,7 +41,7 @@ Esito voluto: un solo oggetto «riferimento a tag», creato dove serve e riconci
 **Disegno approfondito nella sezione «Fase 1 — disegno approfondito» in coda al piano (sessione di plan del 22-09-2026, tre esplorazioni del codice).** Riassunto originale:
 Il catalogo dei **tipi scalari ricchi** (D5: enum `TipoScalare` in sws-core, alias dei quattro nomi vecchi, coercizione e limiti per tipo, la larghezza in registri/byte derivata dal tipo per i plugin); `TagValue` composito; `TypeDef`/`type_ref`/`array` in `project.rs` + validazione (`validate.rs`) + `synoptic_schema.rs`; grammatica dei percorsi e risoluzione in `TagDb` (radice, foglia, read-modify-write, scala/coercizione per foglia, `coerce_value` e `descrivi`); `WriteRequest` con percorso; i `match` esaustivi (~28 file: alarm, historian `registry.rs`/`lib.rs`/`postgres_backend.rs`, pyscript `tag_value_to_py`/`py_to_tagvalue`/`eval_expression`, `global_scripts.rs`, `notifications.rs`, `lvgl_render.rs`, `effects.rs`, `router.rs` `json_to_tag_value`/history stats) — il compilatore li elenca; WS/REST con espansione in foglie di default + flag composito. Test rossi prima per ogni consumatore; guardia che i template esistenti si carichino invariati (`template_tests`, `project.rs:1580`).
 
-### Fase 2 — Editor: tipi, istanze, percorsi  *(sul ramo `feat/tag-2-editor-tipi` dal 22-09-2026, **scritta per intero, da collaudare**. Fatti: scheda «Tipi», istanza dalla scheda Variabili, foglie nel selettore, forma condivisa con fixture, usi di una foglia come usi della radice, rinomina che segue la radice, completamento del percorso mentre si digita, parametro di faceplate `istanza(Tipo)`, `elenca_tag`/`schema_tag`/prompt con i percorsi, CSV con `type_ref`/`array` e import che non azzera, `check_templates.sh` che conosce le foglie, **Variabili e Tipi in una scheda sola** con export/import CSV globale (`kind` = type/member/tag), e la riconciliazione della forma sulle istanze già in memoria.
+### Fase 2 — Editor: tipi, istanze, percorsi  *(**su `main`** dal 22-09-2026, `a76e6889`, insieme alle fasi 1d e 1e. Fatti: scheda «Tipi», istanza dalla scheda Variabili, foglie nel selettore, forma condivisa con fixture, usi di una foglia come usi della radice, rinomina che segue la radice, completamento del percorso mentre si digita, parametro di faceplate `istanza(Tipo)`, `elenca_tag`/`schema_tag`/prompt con i percorsi, CSV con `type_ref`/`array` e import che non azzera, `check_templates.sh` che conosce le foglie, **Variabili e Tipi in una scheda sola** con export/import CSV globale (`kind` = type/member/tag), e la riconciliazione della forma sulle istanze già in memoria.
 **Non fatto, e deciso di non farlo qui**: la tabella delle variabili ad albero espandibile — le foglie si vedono nel selettore e nell'anteprima della scheda «Tipi», e la scheda Variabili resta piatta finché non c'è un progetto vero con abbastanza istanze da dire come vada organizzata. `BindableInput` non ha completamento: il suo campo tag è un `TagInput`, quindi l'ha già; il ramo espressione no.)*
 Scheda «Tipi» (definizione strutture e array), tabella variabili ad albero espandibile, `TagInput`/`BindableInput` con completamento di percorso, istanza che alimenta `{tag_prefix}` dei faceplate, IA (`elenca_tag`/`schema_tag` conoscono percorsi e tipi; rigenerare lo schema, `check_synoptic_schema.sh`), esportazione/import CSV, aggiornamento delle guardie (`check_templates.sh`, `check_tipo_scrittura.sh`).
 
@@ -167,12 +167,30 @@ blocchi, compatibilità dei nomi storici), HOWTO se utile («mappare una struttu
 > Il punto 10 costava tre righe, non un rifacimento: `con_attesa` ha già il `select!` attorno alla
 > sessione (`riconnessione.rs:54-58`), bastava portargli il token del supervisore.
 >
-> **4b e 4c — browse tipizzato, strutture, scrittura dentro un blocco, server tipizzato.** Ferme
-> su **sei decisioni del maintainer**, scritte in `docs/plans/2026-10-22-opcua-fase-4-decisioni.md`.
-> La più pesante l'ha trovata lo scettico: il nostro server OPC-UA **non sa esporre né array né
-> strutture** (`tag_value_to_variant` tornava `None` e l'updater li saltava in silenzio), quindi
-> «client nostro contro server nostro» come base di collaudo costa prima insegnare a parlare al
-> server.
+> **4b — browse tipizzato e server che dice il vero. FATTA** il 23-10-2026 (`56658045` su `main`).
+> Le sei decisioni sono state prese quel giorno e stanno in
+> `docs/plans/2026-10-22-opcua-fase-4-decisioni.md`. Il punto più pesante l'aveva trovato lo
+> scettico: il nostro server **non sapeva esporre né array né strutture**
+> (`tag_value_to_variant` tornava `None` e l'updater li saltava in silenzio), quindi «client
+> nostro contro server nostro» costava prima insegnare a parlare al server. Adesso la conversione
+> è guidata dal **tipo dichiarato** e non dal valore, gli array passano, il browse legge gli
+> attributi 14/15/16 in una Read sola, e le scritture del server passano dal **bus** con
+> `scale_to_raw` invece di scavalcarlo.
+>
+> **4c — le foglie come nodi figli, dai due lati. FATTA** il 23-10-2026 (`f5aae301` su `main`).
+> Sul server un tag composito è una **cartella** con un nodo figlio per foglia, e l'identificatore
+> del figlio è il **percorso del `TagDb`** (`motore1.velocita`): chi scrive su quel nodo scrive
+> sulla foglia giusta senza nessuna tabella di conversione. Sul client, la scrittura su una foglia
+> usa il nodo figlio (decisione 2), con una mappa `percorso → NodeId` costruita a inizio sessione;
+> un server che i figli non li espone riceve un rifiuto che dice **perché**. Un difetto che il
+> compilatore non vedeva: il `TagDb` trasmette la **radice**, quindi senza `espandi_foglie` i nodi
+> figli non si sarebbero aggiornati mai.
+>
+> **4d — la struttura OPC-UA vera. DA FARE, ed è quello che resta della Fase 4.** Un `DataType`
+> pubblicato dal nostro server con `DataTypeBuilder::data_type_definition`, e `DataTypeTree` +
+> `DynamicTypeLoader` sul client per leggere un `ExtensionObject` da un server di terzi. Gli
+> appigli sono stati verificati il 23-10-2026 e l'esempio del crate
+> (`async-opcua-0.18.0/tests/integration/custom_types.rs`, 156 righe) fa esattamente questo.
 
 Browse che ritorna DataType, ValueRank, ArrayDimensions (oggi non li legge, `browse_one_level`); lettura di `Variant::Array` (con `NumericRange`) e di strutture via `DataTypeTreeBuilder`/`DynamicStructure` di async-opcua 0.18; scrittura con `index_range`; il wizard crea **tipo + istanza** da un nodo struttura. Correzioni: fine del `Float(0.0)` inventato per i valori non gestiti (si mantiene l'ultimo valore con qualità Bad/Uncertain), scala applicata anche ai valori sottoscritti, tipo dell'Variant scritto in base al DataType del nodo. OPC-UA **server** (oggi tutto `Double`): esporre foglie come nodi figli, strutture vere dopo.
 
@@ -279,7 +297,7 @@ Il campo `format` è documentato nel modello (`synoptic.rs`), quindi l'elenco ar
 allineato alla fixture: ogni formato offerto dev'essere uno che i due motori sanno fare — è così che `{value:,.2f}` ne è uscito (il separatore delle migliaia ha bisogno di
 una lingua, il pannello non ne ha una: divergenza dichiarata, resta scrivibile a mano). **Nota di semantica**: l'uptime è una *durata*, non un *istante* — il tipo giusto è `u64` con unità `s`, non `datetime`.
 
-### 1d — Scrittura e filo  `feat/tag-1d-scrittura-e-filo`  *(sul ramo dal 22-09-2026, da collaudare)*
+### 1d — Scrittura e filo  `feat/tag-1d-scrittura-e-filo`  *(**su `main`** dal 22-09-2026, `a76e6889`)*
 - `WriteRequest = (TagId radice, Option<Percorso>, TagValue)`; `TagWriteBus::write(id_o_percorso, v)`: percorso intero → prefissi decrescenti → radice;
   senza writer → `db.set` sul percorso. `coerce_for_write` e `scale_to_raw` sul tipo **della foglia**. I tre ingressi (REST 1734, ricette 5366 con
   `json_to_tag_value` che accetta array/oggetto, WS 5739) passano di lì. `PUT /api/tags/:id` accetta un percorso (parentesi quadre codificate: **test**
