@@ -33,7 +33,10 @@
 # successivo.
 
 versioni:
-  - versione: "Unreleased"
+  - versione: "2.19.0"
+    # Numero scelto dal maintainer il 23-10-2026, e taggato COSTRUENDO
+    # l'immagine (regola di CLAUDE.md): un tag senza immagine perde le sue note
+    # per sempre. Non c'e nessuna 2.18: il salto e voluto.
     voci:
       - it: "I valori letti da OPC-UA ora seguono la scala e il tipo dichiarati nel progetto: prima la scala non veniva applicata. Se un tuo tag OPC-UA ha una scala, i numeri a schermo cambiano."
         en: "Values read from OPC-UA now follow the scale and type declared in the project: the scale was not applied before. If one of your OPC-UA tags has a scale, the numbers on screen will change."

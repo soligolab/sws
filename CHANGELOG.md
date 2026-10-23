@@ -11,6 +11,8 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 
 ## [Unreleased]
 
+## [2.19.0] — 2026-10-23
+
 ### Added
 
 - **`sws-runtime --mcp`: il progetto come server MCP, in sola lettura.** Al posto dei listener
