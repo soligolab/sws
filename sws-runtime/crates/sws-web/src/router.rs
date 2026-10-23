@@ -786,6 +786,13 @@ pub fn build(
             put(save_synoptic).delete(delete_synoptic),
         )
         .route("/api/synoptics/import", post(import_synoptic_yaml))
+        // La logica PLC (23-10-2026): si scarica e si rimanda su come cartella
+        // a sé. Serve quando l'IDE è nel cloud e l'Editor di OpenPLC — che è
+        // un'applicazione desktop — non raggiunge i file sul VPS.
+        .route(
+            "/api/project/logica-plc",
+            get(crate::logica_plc::scarica).put(crate::logica_plc::carica),
+        )
         // Pagine di boot (T-72): documenti a sé in `boot/`, mai visti dai viewer.
         .route(
             "/api/boot-pages/:name",

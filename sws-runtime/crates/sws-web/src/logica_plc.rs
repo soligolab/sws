@@ -32,6 +32,12 @@
 //! disegno, e copiare megabyte a ogni fotografia sarebbe un costo senza
 //! contropartita.
 
+use axum::{
+    extract::State,
+    http::{header, StatusCode},
+    response::{IntoResponse, Response},
+};
+use std::io::Cursor;
 use std::path::{Path as FsPath, PathBuf};
 
 /// Il nome della cartella, dentro il progetto. Anche il prefisso nel bundle.
@@ -241,6 +247,125 @@ pub fn aggiungi_all_impronta(hasher: &mut sha2::Sha256, project_dir: &FsPath) {
     }
 }
 
+/// `GET /api/project/logica-plc` — scarica la sola cartella `openplc/`.
+///
+/// # Perché esiste
+///
+/// L'IDE di OpenPLC è un'applicazione desktop e apre una cartella sul disco.
+/// Quando l'IDE di SWS gira **sul PC di chi lavora**, quella cartella è lì e
+/// non serve niente: `~/sws_projects/<nome>/openplc/` si apre e basta.
+///
+/// Quando invece l'IDE è **nel cloud**, i file stanno sul VPS e l'Editor non li
+/// raggiunge. Queste due rotte sono il ponte che il maintainer ha scelto il
+/// 23-10-2026: si scarica la cartella, la si apre con l'Editor sul proprio PC,
+/// e la si rimanda su.
+///
+/// È l'export/import di progetto ristretto a una cartella, e riusa le stesse
+/// due funzioni del bundle — quindi le stesse regole, compreso il rifiuto dei
+/// percorsi che escono dalla cartella.
+pub async fn scarica(State(s): State<crate::router::AppState>) -> Response {
+    let dir = match crate::router::active_dir(&s).await {
+        Ok(d) => d,
+        Err(c) => return c.into_response(),
+    };
+    let file = leggi_per_bundle(&dir).await;
+    if file.is_empty() {
+        return (StatusCode::NOT_FOUND, "questo progetto non ha una logica PLC").into_response();
+    }
+    let mut cursore = Cursor::new(Vec::<u8>::new());
+    {
+        let mut z = zip::ZipWriter::new(&mut cursore);
+        let opts = zip::write::SimpleFileOptions::default()
+            .compression_method(zip::CompressionMethod::Stored);
+        // Qui **senza** il prefisso `openplc/`: chi scarica vuole il progetto
+        // OpenPLC, non una cartella dentro un'altra. Il prefisso serve dentro
+        // un bundle di progetto, dove convive con synoptics/ e images/.
+        for (rel, bytes) in &file {
+            use std::io::Write;
+            if z.start_file(rel.clone(), opts).and_then(|_| z.write_all(bytes).map_err(Into::into)).is_err() {
+                return (StatusCode::INTERNAL_SERVER_ERROR, "non riesco a comporre lo zip").into_response();
+            }
+        }
+        if z.finish().is_err() {
+            return (StatusCode::INTERNAL_SERVER_ERROR, "non riesco a chiudere lo zip").into_response();
+        }
+    }
+    let buf = cursore.into_inner();
+    tracing::info!(file = file.len(), byte = buf.len(), "logica PLC scaricata");
+    (
+        StatusCode::OK,
+        [
+            (header::CONTENT_TYPE, "application/zip".to_string()),
+            (
+                header::CONTENT_DISPOSITION,
+                "attachment; filename=\"openplc.zip\"".to_string(),
+            ),
+        ],
+        buf,
+    )
+        .into_response()
+}
+
+/// `PUT /api/project/logica-plc` — rimette la cartella da uno zip.
+///
+/// **Sostituisce**: quello che lo zip non porta viene tolto, come già fanno
+/// `faceplates/`, `recipes/` e `boot/` quando arrivano da un bundle. Uno zip
+/// vuoto quindi svuota la cartella, ed è il modo di cancellare la logica.
+pub async fn carica(State(s): State<crate::router::AppState>, body: axum::body::Bytes) -> Response {
+    let dir = match crate::router::active_dir(&s).await {
+        Ok(d) => d,
+        Err(c) => return c.into_response(),
+    };
+    if body.len() as u64 > TETTO_BYTE {
+        return (
+            StatusCode::PAYLOAD_TOO_LARGE,
+            format!("la logica PLC supera {} MiB", TETTO_BYTE / 1024 / 1024),
+        )
+            .into_response();
+    }
+    let mut archivio = match zip::ZipArchive::new(Cursor::new(body.as_ref())) {
+        Ok(a) => a,
+        Err(e) => return (StatusCode::BAD_REQUEST, format!("non è uno zip leggibile: {e}")).into_response(),
+    };
+    // `sincronizza_da_zip` vuole il prefisso `openplc/`, perché nasce per i
+    // bundle di progetto; qui lo zip è la cartella nuda. Si riusa lo stesso
+    // codice passando la radice come destinazione e aggiungendo il prefisso ai
+    // nomi — così la regola dei percorsi sicuri resta una sola.
+    let nomi: Vec<String> = archivio.file_names().map(|s| s.to_string()).collect();
+    let mut tenuti = std::collections::HashSet::<PathBuf>::new();
+    let destinazione = dir_at(&dir);
+    for nome in &nomi {
+        if nome.ends_with('/') {
+            continue; // una voce di cartella non è un file
+        }
+        let Some(sicuro) = percorso_sicuro(nome) else {
+            return (StatusCode::BAD_REQUEST, format!("percorso non ammesso: {nome}")).into_response();
+        };
+        let mut buf = Vec::new();
+        let letto = archivio
+            .by_name(nome)
+            .map_err(|e| e.to_string())
+            .and_then(|mut f| std::io::copy(&mut f, &mut buf).map(|_| ()).map_err(|e| e.to_string()));
+        if let Err(e) = letto {
+            return (StatusCode::BAD_REQUEST, format!("{nome}: {e}")).into_response();
+        }
+        let dest = destinazione.join(&sicuro);
+        if let Some(p) = dest.parent() {
+            if tokio::fs::create_dir_all(p).await.is_err() {
+                return (StatusCode::INTERNAL_SERVER_ERROR, "non riesco a creare la cartella").into_response();
+            }
+        }
+        if tokio::fs::write(&dest, &buf).await.is_err() {
+            return (StatusCode::INTERNAL_SERVER_ERROR, format!("non riesco a scrivere {nome}")).into_response();
+        }
+        tenuti.insert(sicuro);
+    }
+    pota(&destinazione, &destinazione, &tenuti).await;
+    crate::router::signal_project_changed(&s, "logica-plc");
+    tracing::info!(file = tenuti.len(), "logica PLC caricata");
+    StatusCode::NO_CONTENT.into_response()
+}
+
 #[cfg(test)]
 mod prove {
     use super::*;
@@ -303,6 +428,77 @@ mod prove {
         let mut h2 = sha2::Sha256::new();
         aggiungi_all_impronta(&mut h2, t.path());
         assert_ne!(h1.finalize(), h2.finalize());
+    }
+
+    /// Il giro completo che le due rotte fanno: si legge la cartella, si
+    /// compone uno zip **senza** il prefisso, e lo si rimette.
+    ///
+    /// Qui si prova la parte che conta — la forma dello zip e la potatura —
+    /// senza montare un router: quello che resta fuori è il codice di axum.
+    #[tokio::test]
+    async fn il_giro_scarica_e_ricarica_sostituisce_la_cartella() {
+        use std::io::Write;
+        let t = tempfile::tempdir().unwrap();
+        let d = dir_at(t.path());
+        tokio::fs::create_dir_all(d.join("pous")).await.unwrap();
+        tokio::fs::write(d.join("project.json"), b"{\"v\":1}").await.unwrap();
+        tokio::fs::write(d.join("pous/main.st"), b"PROGRAM main").await.unwrap();
+        tokio::fs::write(d.join("vecchio.st"), b"da togliere").await.unwrap();
+
+        // Lo zip come lo compone `scarica`: percorsi nudi, niente prefisso.
+        let letti = leggi_per_bundle(t.path()).await;
+        assert_eq!(letti.len(), 3);
+        let mut cur = Cursor::new(Vec::<u8>::new());
+        {
+            let mut z = zip::ZipWriter::new(&mut cur);
+            let opts = zip::write::SimpleFileOptions::default()
+                .compression_method(zip::CompressionMethod::Stored);
+            // Si rimanda su solo quello che l'Editor ha tenuto: `vecchio.st` no.
+            for (rel, b) in letti.iter().filter(|(r, _)| r != "vecchio.st") {
+                z.start_file(rel.clone(), opts).unwrap();
+                z.write_all(b).unwrap();
+            }
+            z.finish().unwrap();
+        }
+        let zip_bytes = cur.into_inner();
+
+        // E la parte di `carica`: scrive quello che c'è e pota il resto.
+        let mut a = zip::ZipArchive::new(Cursor::new(zip_bytes.as_slice())).unwrap();
+        let nomi: Vec<String> = a.file_names().map(|s| s.to_string()).collect();
+        let mut tenuti = std::collections::HashSet::<PathBuf>::new();
+        for nome in &nomi {
+            let sicuro = percorso_sicuro(nome).unwrap();
+            let mut buf = Vec::new();
+            {
+                let mut f = a.by_name(nome).unwrap();
+                std::io::copy(&mut f, &mut buf).unwrap();
+            }
+            let dest = d.join(&sicuro);
+            tokio::fs::create_dir_all(dest.parent().unwrap()).await.unwrap();
+            tokio::fs::write(&dest, &buf).await.unwrap();
+            tenuti.insert(sicuro);
+        }
+        pota(&d, &d, &tenuti).await;
+
+        assert!(d.join("project.json").exists());
+        assert!(d.join("pous/main.st").exists());
+        assert!(!d.join("vecchio.st").exists(), "la sostituzione non ha tolto il file di prima");
+    }
+
+    /// La potatura toglie anche le cartelle rimaste vuote: un `pous/` vuoto
+    /// dopo che l'ultimo programma è sparito confonde chi apre con l'Editor.
+    #[tokio::test]
+    async fn la_potatura_porta_via_anche_le_cartelle_vuote() {
+        let t = tempfile::tempdir().unwrap();
+        let d = dir_at(t.path());
+        tokio::fs::create_dir_all(d.join("pous/programs")).await.unwrap();
+        tokio::fs::write(d.join("pous/programs/main.st"), b"x").await.unwrap();
+        tokio::fs::write(d.join("project.json"), b"{}").await.unwrap();
+        let mut tenuti = std::collections::HashSet::<PathBuf>::new();
+        tenuti.insert(PathBuf::from("project.json"));
+        pota(&d, &d, &tenuti).await;
+        assert!(d.join("project.json").exists());
+        assert!(!d.join("pous").exists(), "la cartella vuota è rimasta");
     }
 
     #[tokio::test]
