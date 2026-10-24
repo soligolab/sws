@@ -115,6 +115,54 @@ autofirmato. Il launcher è di PixsysOS e riceve **solo un URL via D-Bus**: nel 
 solo flag di chromium, quindi la via «gli passiamo un argomento» va verificata prima di
 prometterla.
 
+### La misura sul TC620 (24-10-2026) — la domanda 2 ha la sua risposta, e una strada nuova
+
+Fatta da casa, sul TC620 con la **2.20.0** (`ceb2ac46…`), seguendo i collaudi in sospeso §A.
+
+- **Accensione**: `POST /api/system/tls/generate` sulla porta di gestione (7444) → 204. Il runtime è passato
+  a HTTPS **senza ricreare il container** (riavvio interno), `healthy`; la 7443 risponde solo in HTTPS, e
+  **chromium è già puntato su `https://127.0.0.1:7443`**: lo schema non si scrive più a mano (pezzo 1) regge.
+- **Lo schermo** (osservato dal maintainer): l'interstiziale **«La connessione non è privata»**; toccando
+  **Procedi** si arriva al sinottico. Quindi l'autofirmato **non** passa da solo, ma non è un vicolo cieco.
+  Chromium però gira con `--incognito`: la scelta «Procedi» con ogni probabilità **non si ricorda**, e
+  l'interstiziale tornerebbe a ogni avvio del browser (il riavvio di verifica non è stato fatto).
+- **Fotografare lo schermo da remoto non si può**: `weston-screenshooter` risponde `unauthorized`.
+- **Dove il browser potrebbe fidarsi**: `/` è squashfs in sola lettura, ma `/home` è un overlay
+  **persistente** e scrivibile da `user`; chromium ha già il suo archivio NSS in
+  `/home/user/.pki/nssdb`, e sul pannello c'è `certutil`.
+
+**La scoperta: PixsysOS ha già un certificato del dispositivo di cui il browser si fida** (indicazione
+del maintainer). In `/mnt/protected/ssl/`:
+
+| | |
+|---|---|
+| Certificato | `<seriale>.server.crt` (`CN=p052600c00292600014`, fino al 2076, `TLS Web Server Authentication`) |
+| Nomi | `localhost`, `tc620-a-p3-c6-07aff9.local`, `127.0.0.1` — copre l'URL del kiosk |
+| Catena | `Pixsys Issuing CA 2026` → `Pixsys Root Certification Authority 2026`; file pronto `<seriale>-chain.server.crt` |
+| Fiducia | la root è **già** nell'NSS di `user` (`PixsysRootCA`, `C,,`) e nello store di sistema |
+| Chiave | `<seriale>.server.key`, **`root:root 0600`**: `user`, e quindi il runtime rootless, non la legge |
+
+**Come la usa PixsysPortal**: `pixsys-portal.service` è un'unità di **sistema** che gira come root; il suo
+`ExecStartPre` (`install-pixsys-portal-certs.sh`) crea due link simbolici, `server.pem` → la catena e
+`server.key` → la chiave, col seriale letto da `/proc/device-tree/serial-number`. **Non c'è un meccanismo
+per le applicazioni utente**: il Portal la legge perché è root.
+
+**Le strade, per la decisione del maintainer** (non prese):
+
+1. **Un'unità di sistema nostra**, sul modello del Portal, installata una volta con `sudo`, che a ogni
+   avvio rende certificato e chiave leggibili al runtime (es. in `/data/user/sws/config/`, `0640`, gruppo di
+   `user`). SWS servirebbe la 7443 con la catena del dispositivo: **niente interstiziale e niente NSS
+   da toccare**. Contro: la chiave privata del dispositivo esce dalla partizione protetta, ed è la stessa del
+   Portal; e l'installer di SWS oggi non chiede mai `sudo`, di proposito.
+2. **Il ripiego senza root**: certificato nostro, aggiunto come fidato nell'NSS di `user` con `certutil`.
+   Funziona su ogni pannello Linux con chromium; è un certificato nostro, non del dispositivo; il TOFU
+   dell'IDE (risposta 3) resta com'è.
+3. **Chiedere a chi fa PixsysOS** un modo previsto: un gruppo con lettura della chiave, o un servizio che
+   firmi con la CA del dispositivo un certificato per le applicazioni utente. La strada migliore, ma non
+   dipende da noi.
+
+Sui pannelli che non sono Pixsys la strada 1 non esiste: lì vale la 2, o il loopback in chiaro.
+
 ### Le domande per il maintainer
 
 **1. Chi accende il TLS di default?** Ogni istanza dell'immagine, o solo il ruolo «pannello»?

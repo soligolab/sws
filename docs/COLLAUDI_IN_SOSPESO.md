@@ -36,10 +36,14 @@ interstiziale al posto del sinottico**.
 Il launcher è di PixsysOS e riceve **solo un URL via D-Bus**: in tutto il repo non c'è un flag di
 chromium. Quindi la via «gli passiamo un argomento» va verificata prima di prometterla.
 
-1. [ ] Sul TC620, con un progetto **web** attivo, accendere il TLS: IDE → Configurazione →
+> **24-10-2026**: punti 1, 2 e 4 fatti — interstiziale, «Procedi» funziona, NSS scrivibile, e il certificato
+> del dispositivo Pixsys in `/mnt/protected/ssl/`. Risultati e strade nel [piano C4](plans/2026-10-23-c4-tls-di-default.md).
+> Resta il punto 3 (riavvio col TLS acceso).
+
+1. [x] Sul TC620, con un progetto **web** attivo, accendere il TLS: IDE → Configurazione →
        Istanza → Device → Stato → **Certificato TLS** → «Genera certificato self-signed».
        Il pannello riparte da solo.
-2. [ ] **Guardare lo schermo del pannello.** Cosa compare?
+2. [x] **Guardare lo schermo del pannello.** Cosa compare?
        - il sinottico, come prima → il browser accetta l'autofirmato su loopback: C4 è fattibile
          come sperato, e la risposta alla domanda 2 è «niente da fare»;
        - l'interstiziale «La connessione non è privata» → si può passare oltre **toccando**
@@ -53,7 +57,7 @@ chromium. Quindi la via «gli passiamo un argomento» va verificata prima di pro
        sarebbe mai diventata sana — riavvio ogni cinque secondi. Verifica:
        `podman healthcheck run sws-runtime` e `systemctl --user status sws-runtime`.
        (Se il bus non si trova: `XDG_RUNTIME_DIR=/run/user/$(id -u)` davanti, HOWTO §27.)
-4. [ ] Annotare se chromium ha un archivio di fiducia scrivibile sul pannello
+4. [x] Annotare se chromium ha un archivio di fiducia scrivibile sul pannello
        (`/` è in sola lettura fuori da `/data`): serve solo se il punto 2 è andato male.
 
 **Dove finisce il risultato**: `docs/plans/2026-10-23-c4-tls-di-default.md`, domanda 2.
