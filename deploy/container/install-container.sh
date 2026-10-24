@@ -927,6 +927,12 @@ for i in $(seq 1 30); do
             echo "    del suo amministratore) oppure apri la pagina del pannello qui sopra."
             echo "    Lo mostrano anche lo schermo e il log: podman logs $NAME | grep -i abbinamento"
         fi
+        # Sui pannelli Pixsys (24-10-2026): il certificato del dispositivo dà l'HTTPS senza
+        # l'avviso del browser, ma serve sudo, quindi lo si suggerisce e basta.
+        if [ -d /mnt/protected/ssl ]; then
+            echo "    HTTPS senza avvisi sullo schermo: entrare come pixsys e lanciare"
+            echo "    /usr/share/sws/quadlet/certificato-dispositivo.sh (HOWTO §29)"
+        fi
         echo "    dati     : $DATA"
         echo "    immagine : $TAG"
         [ "$AUTOSTART" -eq 1 ] && echo "    stato    : systemctl --user status $NAME"

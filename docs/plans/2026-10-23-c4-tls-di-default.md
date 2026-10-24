@@ -163,6 +163,12 @@ per le applicazioni utente**: il Portal la legge perché è root.
 
 Sui pannelli che non sono Pixsys la strada 1 non esiste: lì vale la 2, o il loopback in chiaro.
 
+**Decisione del maintainer (24-10-2026), e prova**: in via eccezionale, un passaggio di installazione
+**opzionale** che copia certificato e chiave del dispositivo con `sudo`, entrando come `pixsys`
+(`deploy/container/certificato-dispositivo.sh`, HOWTO §29). La domanda a chi sviluppa PixsysOS (strada 3)
+resta aperta, e il maintainer l'ha annotata. Provato sul TC620: catena convalidata contro la sola root
+Pixsys, `healthy` dopo un riavvio a freddo con `NRestarts=0`, e **sinottico senza avvisi** sullo schermo.
+
 ### Le domande per il maintainer
 
 **1. Chi accende il TLS di default?** Ogni istanza dell'immagine, o solo il ruolo «pannello»?

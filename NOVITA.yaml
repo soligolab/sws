@@ -33,6 +33,10 @@
 # successivo.
 
 versioni:
+  - versione: "2.21.0"
+    voci:
+      - it: "Pannelli Pixsys: un passaggio di installazione opzionale usa il certificato del dispositivo, e lo schermo del pannello in HTTPS non mostra più «La connessione non è privata»."
+        en: "Pixsys panels: an optional installation step uses the device certificate, and the panel screen over HTTPS no longer shows «Your connection is not private»."
   - versione: "2.20.0"
     # Numero scelto il 23-10-2026, e taggato COSTRUENDO l'immagine: un tag senza
     # immagine perde le sue note di rilascio per sempre, perché queste righe non

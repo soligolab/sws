@@ -125,6 +125,12 @@ for b in ["scripts/build_container.sh", "scripts/build_container_x86_64.sh"]:
         ok(f"{b}: l'immagine porta immagini.sh")
     else:
         ko(f"{b}: non mette immagini.sh in /usr/share/sws/quadlet")
+    # Il certificato del dispositivo Pixsys (24-10-2026, piano C4): passaggio opzionale
+    # che si lancia come `pixsys` sul pannello, quindi deve viaggiare con l'immagine.
+    if "deploy/container/certificato-dispositivo.sh" in open(b, encoding="utf-8").read():
+        ok(f"{b}: l'immagine porta certificato-dispositivo.sh")
+    else:
+        ko(f"{b}: non mette certificato-dispositivo.sh in /usr/share/sws/quadlet")
 r = subprocess.run(["bash", "tests/shell/immagini.sh"], capture_output=True, text=True)
 for riga in r.stdout.strip().splitlines():
     print(riga if riga.startswith("  ") else "  " + riga.strip())

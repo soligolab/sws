@@ -11,6 +11,15 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 
 ## [Unreleased]
 
+### Added
+
+- **Il certificato del dispositivo sui pannelli Pixsys** (`deploy/container/certificato-dispositivo.sh`,
+  HOWTO §29): passaggio di installazione opzionale, lanciato come `pixsys`, che copia con `sudo` catena e
+  chiave da `/mnt/protected/ssl/` nella configurazione del runtime. Il browser del pannello si fida già della
+  CA Pixsys, quindi l'HTTPS non mostra più «La connessione non è privata». Viaggia nell'immagine accanto
+  all'installer (guardia in `check_quadlet.sh`), e l'installer lo suggerisce sui Pixsys. Provato sul TC620
+  con un riavvio a freddo.
+
 ## [2.20.0] — 2026-10-23
 
 ### Added

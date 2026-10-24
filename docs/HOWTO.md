@@ -46,6 +46,7 @@
 26. [Far leggere il progetto a un assistente esterno (MCP)](#26-far-leggere-il-progetto-a-un-assistente-esterno-mcp)
 27. [Comandare i servizi del pannello da SSH](#27-comandare-i-servizi-del-pannello-da-ssh)
 28. [Far girare OpenPLC sul pannello](#28-far-girare-openplc-sul-pannello)
+29. [Il certificato del dispositivo su un pannello Pixsys (HTTPS senza avvisi)](#29-il-certificato-del-dispositivo-su-un-pannello-pixsys-https-senza-avvisi)
 
 ---
 
@@ -1918,3 +1919,40 @@ sostituendola.
 | `--con-openplc` dice che il quadlet non c'è | serve un'immagine di SWS che lo porti (2.19.1 o successiva) |
 | Il container non parte | `XDG_RUNTIME_DIR=/run/user/$(id -u) journalctl --user -u openplc-runtime -n 50`; spesso è lo spazio |
 | SWS non legge i tag | la sorgente Modbus punta a 1502, non a 502 |
+
+---
+
+## 29. Il certificato del dispositivo su un pannello Pixsys (HTTPS senza avvisi)
+
+**Quando**: si vuole il pannello in HTTPS e lo schermo del pannello non deve mostrare «La connessione non è
+privata». Con il certificato **autofirmato** che l'IDE genera, il kiosk mostra quell'avviso; si supera con
+«Procedi», ma Chromium gira in incognito e lo ripropone a ogni avvio.
+
+**Perché funziona**: PixsysOS ha in `/mnt/protected/ssl/` un certificato del dispositivo, firmato dalla CA
+Pixsys di cui il browser del pannello si fida già, con `127.0.0.1` e `localhost` fra i nomi. La chiave però è
+leggibile solo da root, e il runtime gira come `user`: lo script la copia **una volta**, con `sudo`. È
+un'eccezione decisa il 24-10-2026, in attesa che PixsysOS preveda un modo per le applicazioni utente.
+
+**Come**, sul pannello, entrando come `pixsys` (l'utente con `sudo`):
+
+```sh
+/usr/share/sws/quadlet/certificato-dispositivo.sh --verifica   # dice cosa farà
+/usr/share/sws/quadlet/certificato-dispositivo.sh              # lo fa
+```
+
+Lo script sta dentro l'immagine (se il percorso non c'è sul pannello, lo si copia da
+`deploy/container/certificato-dispositivo.sh`). Copia catena e chiave in `/data/user/sws/config/tls.crt` e
+`tls.key`, salva quelli di prima con il suffisso `.prima-<data>`, riavvia `sws-runtime` e controlla che la 7443
+risponda con il certificato del dispositivo. Alla fine stampa l'impronta: l'IDE la mostrerà come **nuova** al
+prossimo «Connetti».
+
+**Provato sul TC620 il 24-10-2026**: la catena si convalida contro la sola root Pixsys, il servizio riparte
+`healthy` dopo un riavvio a freddo senza riavvii a ripetizione, e lo schermo mostra il sinottico **senza
+avvisi**.
+
+| Da sapere | |
+|---|---|
+| La chiave | è la stessa di PixsysPortal: dopo la copia sta anche fuori dalla partizione protetta |
+| «Genera self-signed» o «Rimuovi» nell'IDE | sostituiscono o tolgono questo certificato; per tornarci si rilancia lo script |
+| Altri pannelli (non Pixsys) | lo script si ferma: non c'è `/mnt/protected/ssl` |
+

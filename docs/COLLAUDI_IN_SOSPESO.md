@@ -38,7 +38,8 @@ chromium. Quindi la via «gli passiamo un argomento» va verificata prima di pro
 
 > **24-10-2026**: punti 1, 2 e 4 fatti — interstiziale, «Procedi» funziona, NSS scrivibile, e il certificato
 > del dispositivo Pixsys in `/mnt/protected/ssl/`. Risultati e strade nel [piano C4](plans/2026-10-23-c4-tls-di-default.md).
-> Resta il punto 3 (riavvio col TLS acceso).
+> Punto 3 fatto: riavvio a freddo col TLS acceso, `active` con `NRestarts=0`. E con il certificato del
+> dispositivo (HOWTO §29) lo schermo mostra il sinottico **senza avvisi**.
 
 1. [x] Sul TC620, con un progetto **web** attivo, accendere il TLS: IDE → Configurazione →
        Istanza → Device → Stato → **Certificato TLS** → «Genera certificato self-signed».
@@ -51,7 +52,7 @@ chromium. Quindi la via «gli passiamo un argomento» va verificata prima di pro
          una volta; se no, serve la via «il pannello si fida del proprio certificato»;
        - pagina bianca o errore di rete → vuol dire che l'URL è ancora `http://` da qualche parte:
          annotare **esattamente** cosa dice la pagina.
-3. [ ] **Riavviare il pannello** (`reboot`) con il TLS ancora acceso. Il container deve tornare
+3. [x] **Riavviare il pannello** (`reboot`) con il TLS ancora acceso. Il container deve tornare
        `healthy` e il servizio avviarsi. **Questo è il difetto corretto il 23-10-2026**: prima il
        controllo di salute chiedeva `/health` solo in chiaro e, con `Notify=healthy`, l'unità non
        sarebbe mai diventata sana — riavvio ogni cinque secondi. Verifica:
