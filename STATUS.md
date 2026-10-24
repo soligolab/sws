@@ -12,97 +12,68 @@
 > resta in «Storico». Qui vive solo ciò che serve a riprendere il lavoro.
 
 
-## ▶ Riprendere da qui — quattordici rami su `main`, e i collaudi in un documento (2026-10-23)
+## ▶ Riprendere da qui — 2.20.0 rilasciata, VPS aggiornato (2026-10-23)
 
-**Squash merge fatto**: i quattordici rami annidati sono su `main`, uno squash commit ciascuno,
-albero verificato identico alla punta dello stack, rami eliminati. `main` è **15 commit avanti a
-origin** e **non è stato pushato** (serve un'istruzione esplicita).
+**Tutto su `main` e su origin.** Niente rami aperti, albero pulito, definition of done verde al
+completo: `cargo check`, `cargo test` (0 rossi), `pnpm build`, `vitest` 1603, **50 guardie**.
 
-```
-57cb2625 feat(c4): il certificato porta il nome del pannello, e si genera una volta sola
-0173c103 feat(c4): l'IDE mostra l'impronta del certificato, e se e nuova
-2cc238a0 feat(certificati): i certificati lasciano traccia, e il trust store e Admin
-b00fe344 fix(certificati): il TLS si governa sul dispositivo, non sul PC dell'IDE
-99b547a9 fix(c4): lo schema non si scrive piu a mano, e il pannello riparte
-f5aae301 feat(opcua): le foglie come nodi figli, dai due lati
-7f1702c2 fix(certificati): il trust store OPC-UA funziona, e dice perche quando non puo
-56658045 feat(opcua): il server dice il vero, e il browse legge i tipi
-3b5fa10f docs(openplc): il capitolo 28, e il piano si chiude
-6a568ea3 feat(openplc): scarica e ricarica la cartella della logica
-280fb203 feat(openplc): la logica PLC viaggia col progetto
-6eeb4c46 feat(openplc): il quadlet opzionale, governo ibrido
-9636e11f feat(openplc): il segno delle unita scelte, primo ramo
-bbb9949b fix(accesso): la tastiera del pannello si vede, scrive, e se ne va
-```
+### La release
 
-Definition of done verde su `main`: `cargo check`, `cargo test` (0 rossi), `pnpm build`,
-`vitest` 1603, **50 guardie statiche**.
+**2.20.0**, costruita e pubblicata, `main` e il tag su origin.
+
+- arm64 `sha256:e394d94af36c71e5195`, amd64 `sha256:23e7024786d94ed95ff`, etichette delle Novità
+  dentro (2 029 byte), verificate **dal registry** prima di taggare.
+- **Il VPS è su `2.20.0-amd64`**, sano. Con lei si è portata anche una correzione che la macchina
+  aveva saltato: il quadlet sul server era fermo a prima del 22-10 e gli mancavano le sei righe
+  `Label=…=` che tolgono le etichette pesanti dal journal. Controllato **prima** di scrivere, con
+  un `diff` fra la copia maestra e la macchina — è il motivo per cui si guarda invece di
+  sovrascrivere.
+
+Dentro la 2.20.0: OpenPLC opzionale sul pannello, le strutture OPC-UA vere (Fase 4d), Sparkplug B
+che prima non poteva leggere un impianto vero, il pannello che riparte col TLS acceso, la tastiera
+dell'accesso su LVGL, il certificato col nome vero e governato sul dispositivo, nove operazioni sui
+certificati che lasciano traccia.
 
 ### I collaudi non si fanno da qui
 
-Stanno in **[`docs/COLLAUDI_IN_SOSPESO.md`](docs/COLLAUDI_IN_SOSPESO.md)**, 31 voci, da fare da
-casa sul TC620 — decisione del maintainer del 23-10-2026: «le verifiche sul tc620 registrale su un
-documento che poi le facciamo da casa appena completiamo tutte le fasi concordate e ti dirò che è
-ora di rilasciare la nuova immagine».
+**[`docs/COLLAUDI_IN_SOSPESO.md`](docs/COLLAUDI_IN_SOSPESO.md)**, 38 voci, da fare da casa sul
+TC620 — istruzione del maintainer del 23-10-2026. La voce **A** è quella che blocca C4: cosa fa il
+chromium del pannello davanti al proprio certificato autofirmato. È una misura, non un sì/no.
 
-La voce **A** è quella che blocca C4: cosa fa il chromium del pannello davanti al proprio
-certificato autofirmato. È una misura, non un sì/no, e da lei dipende se il TLS si può accendere
-di default.
+### Il piano dei tag — dov'è arrivato
 
-### Fatto dopo il merge
+[`2026-09-21-gestione-tag-oggetto-unico.md`](docs/plans/2026-09-21-gestione-tag-oggetto-unico.md):
+fasi 0, 1, 2, 3 chiuse; Fase 4 con 4a, 4b, 4c **e 4d** su `main`. Della 4d sono fatti i passi 1-9
+— il lato **server**, col collaudo client-contro-server dentro `cargo test` (due tipi, 0,23 s).
 
-**Sparkplug B** (`42c610e6` su `main`): il sospetto che il piano dei tag portava scritto da
-settembre era fondato. I numeri di campo del protobuf erano sbagliati — il `oneof` usava 7…12
-invece di 10…15 — e con quelli un impianto vero **non si leggeva affatto**. Nello stesso ramo gli
-alias (il modo normale in cui Sparkplug manda i dati), i tipi con segno, e la metrica nulla che non
-diventa più uno zero. Dodici prove che si costruiscono i byte a mano dalla specifica: con le nostre
-struct avrebbero fatto round-trip su sé stesse ed erano verdi anche prima.
+**Restano i passi 10-12**, il lato **client**: `DataTypeTree` + `DynamicTypeLoader` sulla sessione
+e `da_variant` che impara a leggere un `ExtensionObject` da un server di **terzi**. Finché non ci
+sono, un `ExtensionObject` in arrivo resta `Bad` — comportamento di oggi, non una regressione. Il
+piano, con sedici insidie misurate e le tre correzioni degli scettici, è in
+[`2026-10-23-opcua-4d-strutture-vere.md`](docs/plans/2026-10-23-opcua-4d-strutture-vere.md).
 
-### Cosa si sta facendo adesso
+### La misura del tunnel (23-10-2026)
 
-**Il piano dei tag**, [`docs/plans/2026-09-21-gestione-tag-oggetto-unico.md`](docs/plans/2026-09-21-gestione-tag-oggetto-unico.md).
-Fasi 0, 1, 2, 3 fatte; Fase 4 (OPC-UA) con 4a, 4b e 4c fatte. Resta **la struttura OPC-UA vera**:
-un `DataType` pubblicato dal nostro server, e `DataTypeTree` + `DynamicTypeLoader` sul client per
-leggere un `ExtensionObject` da un server di terzi.
+Chiusa per il **TC620**: 3 g 6h09m aperto su quattro giorni, sette interruzioni tutte sotto i 5
+minuti (mediana 50 s), 18h32m ininterrotti chiusi **solo** dall'aggiornamento del gateway, e
+riconnessione in 2 secondi. **Non chiusa per il WP630**, e non per colpa sua: il gateway non
+registra i tentativi falliti, quindi «pannello spento» e «pannello che non rientra» sono lo stesso
+silenzio. Numeri in [`deploy/vps/STATO.md`](deploy/vps/STATO.md), difetto nel seme
+[il gateway non dice chi bussa](docs/plans/2026-10-24-il-gateway-non-dice-chi-bussa.md).
 
-### Deciso e non ancora fatto, dei certificati
+**Una domanda al maintainer resta in sospeso**: nelle quattro finestre lunghe il WP630 era
+alimentato? Se sì il test si chiude anche per lui, se no serve un log dal lato pannello.
 
-- **Decisione 4** — archivio del viewer LVGL montato in sola lettura nel runtime (quadlet 6 → 7).
-  Da sola non si vede: ha senso con la vista.
-- **Decisioni 3 + 8** — la vista a due colonne, ~1 500-2 000 righe. Il piano dice **C4 prima**.
-- **Decisione 6** — due anni con rinnovo automatico: è un protocollo, ha il suo seme in
-  [`docs/plans/2026-10-23-rinnovo-del-certificato-firmato.md`](docs/plans/2026-10-23-rinnovo-del-certificato-firmato.md).
-  Il punto duro: l'archivio tiene solo `sha256:<hex>`, e da un'impronta non si verifica una firma.
+### Deciso e non ancora fatto
 
-### Cosa è fatto
+- **C4**, pezzi 2 e 3: fermi sulla prova del browser sul TC620 (voce A dei collaudi). Le altre
+  quattro risposte ci sono già.
+- **Certificati**, decisioni 3, 4 e 8: la vista a due colonne (~1 500-2 000 righe) e l'archivio del
+  viewer montato in sola lettura. Il piano dice **C4 prima, vista dopo**.
+- **Decisione 6** dei certificati: due anni con rinnovo automatico. È un protocollo e ha il suo
+  seme — il punto duro è che l'archivio tiene solo `sha256:<hex>`, e da un'impronta non si verifica
+  una firma.
 
-| | |
-|---|---|
-| **L'accesso dal pannello** | Tre difetti sommati, nessuno visibile leggendo il codice: il velo dell'avviso riduceva i tasti a uno stacco di **17** su 765, la radice dell'avviso si mangiava i tocchi, e la tastiera non veniva mai distrutta — restava a schermo intero e cliccabile, ed è **questo** che bloccava il pannello. Ora lo stacco è 491 |
-| **OpenPLC, tutti e cinque i rami** | Segno delle unità scelte, quadlet opzionale senza `AutoUpdate`, la logica in `<progetto>/openplc/` che viaggia con backup/export/deploy/impronta, due rotte per l'IDE nel cloud, HOWTO capitolo 28 |
-| **OPC-UA, quattro decisioni su sei** | Scritture dal server **sul bus** (prima un SCADA che scriveva su un tag Modbus non arrivava mai al dispositivo), tipo non gestito = `Bad`, ogni nodo dichiarato col tipo del progetto, il server sa esporre gli **array**. Più il browse tipizzato: il «＋» propone il tipo letto dal server |
-| **Certificati, decisione 1** | Il trust store OPC-UA funziona (leggeva `trusted/certs`, la libreria usa `trusted/`), i nomi in un posto solo, e dove prima c'era una tabella vuota e muta adesso c'è scritto **perché** |
-
-### Cosa resta, e quanto
-
-**OPC-UA — le strutture** (decisioni 1 intera e 2). Una sessione. Il crate ha un esempio completo
-e funzionante, `tests/integration/custom_types.rs` (156 righe): l'opzione scelta regge. Ma quello
-usa le API **interne** del node manager, e il nostro `run_server` costruisce l'indirizzario in un
-altro modo — **il primo passo è verificare che gli appigli ci siano**.
-
-**Certificati — le decisioni 2-8**, cioè la vista. ~1 500-2 000 righe su 12-18 file, due o tre
-sessioni. **E qui c'è una domanda di sequenza**: il seme proponeva di progettarla nella sessione
-dell'**onda 3** insieme a C4 (TLS di default), perché C4 cambia proprio il primo archivio e il
-modo in cui l'IDE si fida del pannello. Costruirla prima vuol dire costruirla due volte.
-
-### Da provare, quando si confermano
-
-1. **La tastiera** — sul WP630: «Aggiorna ora» senza essere admin, la tastiera si vede e scrive, e
-   «Annulla» la fa sparire.
-2. **OpenPLC** — `install-container.sh --con-openplc`, poi `HOWTO` capitolo 28.
-3. **OPC-UA** — serve un server. Il browse ora mostra il tipo di ogni nodo.
-4. **Il trust store** — una sorgente con una policy vera, e il certificato del server compare
-   nell'elenco invece di non comparire mai.
 
 ## Tutte le decisioni prese, e un difetto nuovo sul WP630 (2026-10-23)
 

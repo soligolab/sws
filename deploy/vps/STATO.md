@@ -169,17 +169,56 @@ Verificato uguale su un runtime normale. Il browser disegna la pagina lo stesso.
 proposito: con un 200 un bundle davvero mancante tornerebbe HTML con stato 200, e il browser
 proverebbe a eseguirlo come JavaScript — un errore molto più difficile da leggere di un 404.
 
-**Versione in esecuzione: `2.16.2-amd64`**, dal 21-10-2026 (prima `2.16.0-rc.1-amd64`). Con lei il
-gateway ha preso il cambio di porte del pannello — che però **non lo tocca**: il gateway e i
-container dei suoi progetti restano sulla 8444, interna alla rete del VPS. L'`HEALTHCHECK`
-dell'immagine, che era passato a 7443/7444 con tutto il resto, da questa versione prova anche la
-8444: senza, l'immagine usata come gateway sarebbe risultata «unhealthy» per sempre.
+**Versione in esecuzione: `2.20.0-amd64`**, dal 23-10-2026 (prima `2.16.2-amd64`, e prima ancora
+`2.16.0-rc.1-amd64`).
+
+Con la 2.16.2 il gateway aveva preso il cambio di porte del pannello — che però **non lo tocca**:
+il gateway e i container dei suoi progetti restano sulla 8444, interna alla rete del VPS.
+L'`HEALTHCHECK` dell'immagine, passato a 7443/7444 con tutto il resto, da quella versione prova
+anche la 8444: senza, l'immagine usata come gateway sarebbe risultata «unhealthy» per sempre. Dalla
+2.20.0 quel controllo prova **anche HTTPS** su tutte e tre le porte, il che qui non cambia niente
+(il gateway parla in chiaro dietro Traefik) ma non fa danno.
+
+**Col salto alla 2.20.0 la macchina ha preso anche una correzione che aveva saltato.** Il 23-10 si
+è scoperto che il quadlet sul server era rimasto indietro rispetto alla copia maestra: gli
+mancavano le sei righe `Label=net.soligo.sws.…=` aggiunte il 22-10, quelle che tolgono dal
+container le etichette delle Novità. Sono 4 717 byte di testo che podman riscrive dentro **ogni**
+evento mandato al journal, e il controllo di salute ne produce due ogni 30 secondi: misurato,
+il 71 % di journal in meno per ciclo. Da questo giro il file sulla macchina è di nuovo una copia
+esatta di quello nel repo, ed è il modo in cui va tenuto.
 
 **Come si aggiorna.** L'immagine è inchiodata al commit, quindi `podman-auto-update` **non** la
 tocca: è voluto, perché il gateway e i container dei progetti devono essere la stessa versione e
 un tag mobile li farebbe divergere a metà aggiornamento. Si cambia `Image=` **e**
 `--gateway-immagine` insieme nel quadlet, poi `systemctl --user daemon-reload` e
 `restart sws-gateway`.
+
+## La stabilità del tunnel, misurata (23-10-2026)
+
+Quattro giorni di journal del gateway, due pannelli collegati. **La misura va fatta per pannello**:
+letti insieme, gli eventi dei due si mescolano in una storia che non è di nessuno dei due — ci sono
+cascato la prima volta, e il risultato sembrava l'opposto di quello che è.
+
+| | `tc620-garage` | `wp630-ufficio` |
+|---|---|---|
+| finestra | 19-10 17:58 → 23-10 18:46 | 19-10 13:26 → 23-10 11:02 |
+| tempo aperto | **3 g 6h09m** | 23h44m |
+| tratta più lunga | 22h45m | 8h55m |
+| interruzioni | **7, tutte < 5 min** | 9: cinque brevi, **quattro lunghe** |
+| mediana delle brevi | 50 s | 29 s |
+| la peggiore breve | 2m13s | 46 s |
+
+**Il TC620 è stabile, e il test si chiude lì.** Sette interruzioni in quattro giorni, tutte
+richiuse da sole, nessuna oltre 2m13s, nessun intervento. Era aperto **ininterrottamente da 18h32m**
+quando l'aggiornamento alla 2.20.0 ha riavviato il gateway — e si è ricollegato in **2 secondi**.
+L'unica chiusura non spontanea di tutta la finestra è stata quella.
+
+**Il WP630 ha quattro interruzioni lunghe** (23h06m, 16h16m, 15h21m, 15h05m) e tutte e quattro
+vanno da metà pomeriggio al mattino dopo. La lettura semplice è che il pannello fosse spento; le
+sue cinque interruzioni *brevi* hanno la stessa mediana di quelle del TC620, quindi il meccanismo
+di riconnessione si comporta uguale. **Ma dal lato del gateway le due cose non si distinguono**, e
+questo è un difetto: vedi il seme
+[il gateway non dice chi bussa](../../docs/plans/2026-10-24-il-gateway-non-dice-chi-bussa.md).
 
 ## Il tunnel dei pannelli (10-10-2026)
 
