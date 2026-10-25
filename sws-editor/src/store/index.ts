@@ -2,6 +2,7 @@ import { create } from "zustand";
 import { impostaStileProgetto } from "@/symbols/stileProgetto";
 import i18n from "i18next";
 import { api, setAuthToken, ProjectChangedError, type RilievoProgetto } from "@/api/client";
+import { segnaPannelloCollegato } from "@/api/pannello";
 import { aggiungi, ordinaPagine, posizioneDi, riconcilia, rimuovi, sposta } from "@/pageTree";
 import { applyAppearance, getStoredMode, type ThemeMode } from "@/theme";
 import type { AppConfigTab } from "@/config/schede";
@@ -3044,5 +3045,10 @@ export const useAppStore = create<AppState>((set, get) => {
     },
   };
 });
+
+// Le chiamate sull'impianto (`suImpianto` in api/client) devono sapere se c'è un
+// pannello collegato; si abbonano qui anche ai `setState` diretti dei test.
+segnaPannelloCollegato(useAppStore.getState().remoteConnected);
+useAppStore.subscribe((st) => segnaPannelloCollegato(st.remoteConnected));
 
 export type { AppState, SynopticObject, ObjectGroup };

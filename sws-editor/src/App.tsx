@@ -325,6 +325,27 @@ export function App() {
   const remoteConnected    = useAppStore((s) => s.remoteConnected);
   const setRemoteConnected = useAppStore((s) => s.setRemoteConnected);
 
+  // Nel cloud il pannello del progetto si ricollega da solo (25-10-2026, piano
+  // 2026-10-25-impianto-dal-dispositivo): all'apertura del progetto si chiede
+  // lo stato, e il server — che ricorda il pannello in `config/dispositivo.yaml`
+  // — lo ricollega prima di rispondere. In locale no: lì vale ancora «nessun
+  // tentativo automatico all'avvio» (il pulsante Deploy qui sotto).
+  //
+  // E finché non c'è, si richiede ogni 30 s: al primo collaudo il pannello era
+  // irraggiungibile proprio all'apertura (il gateway appena ripartito, il tunnel
+  // non ancora riaperto: 503) e nessuno ha più riprovato.
+  useEffect(() => {
+    if (!project || !authToken || !prefissoGateway() || remoteConnected) return;
+    let vivo = true;
+    const chiedi = () => api.remoteStatus()
+      .then((st) => { if (vivo && st.connected) setRemoteConnected(true, st.url ?? null); })
+      .catch(() => { /* nessun pannello: l'IDE lo dice dove serve */ });
+    void chiedi();
+    const id = window.setInterval(() => void chiedi(), 30_000);
+    return () => { vivo = false; window.clearInterval(id); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [project?.meta?.name, authToken, remoteConnected]);
+
   // Dev-mode TTL banner: shown to Admin/Supervisor when their session has an expiry.
   // Lets them quickly disable it for convenience during development.
   const [devTtlBanner, setDevTtlBanner] = useState<{ ttlSecs: number } | null>(null);

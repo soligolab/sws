@@ -59,6 +59,20 @@ import { prefissoGateway } from "./prefisso";
 import { corniceAPagina } from "@/cornici/modello";
 import i18n from "i18next";
 
+import { pannelloCollegato } from "./pannello";
+
+/** Le chiamate che toccano l'**impianto** — scoperte dei protocolli, prove di
+ *  collegamento, certificati OPC-UA — le fa il pannello collegato, che lo vede
+ *  (25-10-2026, piano 2026-10-25-impianto-dal-dispositivo). Con un pannello
+ *  collegato `/api/X` diventa `/api/remote/X`; nel cloud senza pannello si dice
+ *  cosa fare invece di cercare dal VPS, che l'impianto non lo vede; in locale
+ *  senza pannello resta com'era, sulla macchina dell'IDE. */
+export function suImpianto<T>(path: string, init?: RequestInit): Promise<T> {
+  if (pannelloCollegato()) return request<T>(path.replace(/^\/api\//, "/api/remote/"), init);
+  if (prefissoGateway()) return Promise.reject(new Error(i18n.t("impianto.nessunPannello")));
+  return request<T>(path, init);
+}
+
 // Runtime URL resolution order (ARCH-002):
 //
 //   1. localStorage `sws.runtimeBaseUrl` — nessuna UI la scrive più (vedi sotto
@@ -1874,28 +1888,28 @@ export const api = {
 
   // MQTT broker browse: connect ephemerally, subscribe #, return discovered topics.
   browseMqttTopics: (req: MqttBrowseRequest): Promise<MqttBrowseResponse> =>
-    request<MqttBrowseResponse>("/api/sources/mqtt/browse", {
+    suImpianto<MqttBrowseResponse>("/api/sources/mqtt/browse", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(req),
     }),
 
   browseOpcUa: (req: OpcUaBrowseRequest): Promise<OpcUaBrowseResponse> =>
-    request<OpcUaBrowseResponse>("/api/sources/opcua/browse", {
+    suImpianto<OpcUaBrowseResponse>("/api/sources/opcua/browse", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(req),
     }),
 
   browseHaEntities: (sourceId: string, domainFilter?: string): Promise<HaBrowsedEntity[]> =>
-    request<HaBrowsedEntity[]>("/api/sources/ha/browse", {
+    suImpianto<HaBrowsedEntity[]>("/api/sources/ha/browse", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ source_id: sourceId, domain_filter: domainFilter ?? null }),
     }),
 
   detectOpcUaEuromap: (req: OpcUaDetectEuromapRequest): Promise<OpcUaEuromapDetection> =>
-    request<OpcUaEuromapDetection>("/api/sources/opcua/detect-euromap", {
+    suImpianto<OpcUaEuromapDetection>("/api/sources/opcua/detect-euromap", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(req),
@@ -1913,16 +1927,16 @@ export const api = {
   // (decisione 7 del piano dei certificati): l'elenco era Supervisor, ma chi lo
   // vede vede le impronte dei server a cui il progetto si collega.
   listOpcUaCerts: (sourceId: string) =>
-    request<OpcUaCertEntry[]>(`/api/sources/${encodeURIComponent(sourceId)}/opcua/certs`),
+    suImpianto<OpcUaCertEntry[]>(`/api/sources/${encodeURIComponent(sourceId)}/opcua/certs`),
 
   trustOpcUaCert: (sourceId: string, filename: string) =>
-    request<void>(
+    suImpianto<void>(
       `/api/sources/${encodeURIComponent(sourceId)}/opcua/certs/${encodeURIComponent(filename)}/trust`,
       { method: "POST" },
     ),
 
   deleteOpcUaCert: (sourceId: string, filename: string) =>
-    request<void>(
+    suImpianto<void>(
       `/api/sources/${encodeURIComponent(sourceId)}/opcua/certs/${encodeURIComponent(filename)}`,
       { method: "DELETE" },
     ),
@@ -2010,7 +2024,7 @@ export const api = {
     request<DatastoreStats>(`/api/datastores/${encodeURIComponent(id)}/stats`),
 
   testDatastore: (id: string) =>
-    request<string>(`/api/datastores/${encodeURIComponent(id)}/test`, { method: "POST" }),
+    suImpianto<string>(`/api/datastores/${encodeURIComponent(id)}/test`, { method: "POST" }),
 
   purgeDatastore: (id: string, body: { retention_rows?: number; retention_days?: number }) =>
     request<{ deleted: number }>(`/api/datastores/${encodeURIComponent(id)}/purge`, {

@@ -3494,5 +3494,10 @@
     "nessunLimite": "No datastore has retention limits: history is never deleted automatically.",
     "questaIstanza": "This instance — runs at {{ora}}",
     "dispositivoCollegato": "Connected device — runs at {{ora}}"
+  },
+  "impianto": {
+    "nessunPannello": "No panel connected: discovery and connection tests run on the plant's panel, which can see the plant. Connect it in Configuration → Instance → Device.",
+    "sorgentiSulPannello": "In the cloud the sources run on the connected panel: live values, discovery and commands go through it.",
+    "sorgentiSenzaPannello": "In the cloud the sources do not start: connect the plant's panel (Configuration → Instance → Device) for live values and discovery."
   }
 }

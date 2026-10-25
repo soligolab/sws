@@ -595,6 +595,60 @@ pub(crate) fn cartella_config(radice: &std::path::Path, cartella_azienda: &str, 
     radice.join(".sws-config").join(azienda).join(nome)
 }
 
+/// La cartella di configurazione persistente di un progetto, dalla sua cartella
+/// sotto la radice (`<radice>/<azienda>/<nome>` o `<radice>/<nome>`). `None` se la
+/// cartella non sta sotto la radice.
+pub(crate) fn config_di_progetto(radice: &std::path::Path, dir: &std::path::Path) -> Option<std::path::PathBuf> {
+    let rel = dir.strip_prefix(radice).ok()?;
+    let parti: Vec<_> = rel.components().map(|c| c.as_os_str().to_string_lossy().to_string()).collect();
+    match parti.as_slice() {
+        [nome] => Some(cartella_config(radice, "", nome)),
+        [azienda, nome] => Some(cartella_config(radice, azienda, nome)),
+        _ => None,
+    }
+}
+
+/// Il progetto ha cambiato nome (25-10-2026): la sua configurazione persistente
+/// lo segue — la chiave dell'IA e il pannello ricordato restavano col nome
+/// vecchio, e il progetto rinominato ripartiva senza. Niente da fare se non
+/// c'era (un progetto mai aperto nel cloud).
+pub(crate) async fn segui_rinomina(radice: &std::path::Path, vecchia: &std::path::Path, nuova: &std::path::Path) {
+    let (Some(da), Some(a)) = (config_di_progetto(radice, vecchia), config_di_progetto(radice, nuova)) else { return };
+    if !tokio::fs::try_exists(&da).await.unwrap_or(false) {
+        return;
+    }
+    if let Some(su) = a.parent() {
+        let _ = tokio::fs::create_dir_all(su).await;
+    }
+    if let Err(e) = tokio::fs::rename(&da, &a).await {
+        tracing::warn!(da = %da.display(), a = %a.display(), "configurazione del progetto non spostata: {e}");
+    }
+}
+
+/// Il progetto è stato duplicato: la copia eredita le **chiavi** (`*.key`, la
+/// chiave dell'IA), non il pannello ricordato. Una copia di prova non deve
+/// collegarsi da sola all'impianto vero.
+pub(crate) async fn segui_duplicazione(radice: &std::path::Path, origine: &std::path::Path, copia: &std::path::Path) {
+    let (Some(da), Some(a)) = (config_di_progetto(radice, origine), config_di_progetto(radice, copia)) else { return };
+    let Ok(mut voci) = tokio::fs::read_dir(&da).await else { return };
+    while let Ok(Some(v)) = voci.next_entry().await {
+        let nome = v.file_name().to_string_lossy().to_string();
+        if !nome.ends_with(".key") {
+            continue;
+        }
+        if tokio::fs::create_dir_all(&a).await.is_ok() {
+            #[cfg(unix)]
+            {
+                use std::os::unix::fs::PermissionsExt as _;
+                let _ = std::fs::set_permissions(&a, std::fs::Permissions::from_mode(0o700));
+            }
+            if let Err(e) = tokio::fs::copy(v.path(), a.join(&nome)).await {
+                tracing::warn!(file = %nome, "chiave del progetto non copiata nel duplicato: {e}");
+            }
+        }
+    }
+}
+
 /// Il nome con cui il gateway raggiunge un container di progetto sulla rete
 /// podman, che il DNS della rete risolve all'IP di adesso. Il nome del
 /// container può avere `.` e `_` (`nome_container`), che in un nome DNS non
@@ -607,6 +661,34 @@ fn alias_dns(contenitore: &str) -> Option<String> {
 
 #[cfg(test)]
 mod tests {
+    /// La configurazione segue il progetto rinominato; nel duplicato vanno le
+    /// chiavi, non il pannello ricordato (25-10-2026).
+    #[tokio::test]
+    async fn la_configurazione_segue_rinomina_e_duplicazione() {
+        let r = tempfile::tempdir().unwrap();
+        let radice = r.path();
+        let vecchio = radice.join("acme").join("impianto");
+        let cfg = cartella_config(radice, "acme", "impianto");
+        std::fs::create_dir_all(&cfg).unwrap();
+        std::fs::write(cfg.join("anthropic.key"), "k").unwrap();
+        std::fs::write(cfg.join("dispositivo.yaml"), "url: x").unwrap();
+
+        let nuovo = radice.join("acme").join("impianto2");
+        segui_rinomina(radice, &vecchio, &nuovo).await;
+        let cfg2 = cartella_config(radice, "acme", "impianto2");
+        assert!(cfg2.join("anthropic.key").exists(), "la chiave segue il nome nuovo");
+        assert!(!cfg.exists());
+
+        let copia = radice.join("acme").join("prova");
+        segui_duplicazione(radice, &nuovo, &copia).await;
+        let cfg3 = cartella_config(radice, "acme", "prova");
+        assert!(cfg3.join("anthropic.key").exists(), "la copia ha la chiave dell'IA");
+        assert!(!cfg3.join("dispositivo.yaml").exists(), "ma non si collega da sola all'impianto");
+
+        // L'azienda implicita: `<radice>/<nome>` → `.sws-config/_/<nome>`.
+        assert_eq!(config_di_progetto(radice, &radice.join("casa")), Some(cartella_config(radice, "", "casa")));
+    }
+
     /// Un riavvio del container cambia l'IP, non il nome (25-10-2026).
     #[test]
     fn in_rete_il_progetto_si_raggiunge_per_nome() {

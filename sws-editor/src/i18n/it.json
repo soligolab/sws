@@ -3494,5 +3494,10 @@
     "nessunLimite": "Nessun datastore ha limiti di ritenzione: lo storico non si cancella mai da solo.",
     "questaIstanza": "Questa istanza — giro alle {{ora}}",
     "dispositivoCollegato": "Dispositivo collegato — giro alle {{ora}}"
+  },
+  "impianto": {
+    "nessunPannello": "Nessun pannello collegato: le scoperte e le prove le fa il pannello dell'impianto, che lo vede. Collegalo in Configurazione → Istanza → Device.",
+    "sorgentiSulPannello": "Nel cloud le sorgenti girano sul pannello collegato: valori vivi, scoperte e comandi passano da lì.",
+    "sorgentiSenzaPannello": "Nel cloud le sorgenti non partono: collega il pannello dell'impianto (Configurazione → Istanza → Device) per i valori vivi e le scoperte."
   }
 }

@@ -719,6 +719,16 @@ pub fn build(
             get(crate::remote::remote_host_catalog),
         )
         .route("/api/remote/host/seriali", get(crate::remote::remote_porte_seriali))
+        // L'impianto lo tocca il dispositivo (25-10-2026): le scoperte e le
+        // prove di collegamento sul pannello collegato.
+        .route("/api/remote/sources/mqtt/browse", post(crate::remote::remote_mqtt_browse))
+        .route("/api/remote/sources/opcua/browse", post(crate::remote::remote_opcua_browse))
+        .route("/api/remote/sources/opcua/detect-euromap", post(crate::remote::remote_opcua_euromap))
+        .route("/api/remote/sources/ha/browse", post(crate::remote::remote_ha_browse))
+        .route("/api/remote/sources/:id/opcua/certs", get(crate::remote::remote_opcua_certs))
+        .route("/api/remote/sources/:id/opcua/certs/:filename/trust", post(crate::remote::remote_opcua_trust))
+        .route("/api/remote/sources/:id/opcua/certs/:filename", delete(crate::remote::remote_opcua_delete_cert))
+        .route("/api/remote/datastores/:id/test", post(crate::remote::remote_datastore_test))
         .route("/api/remote/sources/stato", get(crate::remote::remote_stato_sorgenti))
         .route("/api/remote/deploy", post(crate::remote::remote_deploy))
         .route(
@@ -1436,6 +1446,23 @@ fn deploy_only_app(state: AppState) -> Router<AppState> {
         // Lo stato delle sorgenti e dei dispositivi (04-10-2026): l'IDE connesso
         // colora i pallini dell'albero con quello del pannello, non del PC.
         .route("/api/sources/stato", get(stato_sorgenti_handler))
+        // ── L'impianto lo tocca il dispositivo (25-10-2026) ────────────────
+        // Le scoperte dei protocolli e le prove di collegamento girano QUI,
+        // sul pannello che vede l'impianto, non sulla macchina dell'IDE: dal
+        // cloud lo sfoglia del broker di casa trovava 0 topic. L'IDE le chiama
+        // attraverso `/api/remote/…` (remote.rs) già con i segreti risolti dal
+        // progetto che fa fede, il suo. Piano
+        // `docs/plans/2026-10-25-impianto-dal-dispositivo.md`.
+        .route("/api/sources/mqtt/browse", post(mqtt_browse_handler))
+        .route("/api/sources/opcua/browse", post(opcua_browse_handler))
+        .route("/api/sources/opcua/detect-euromap", post(opcua_detect_euromap_handler))
+        .route("/api/sources/ha/browse", post(ha_browse_handler))
+        // I certificati OPC-UA del pannello: è lui che li rifiuta e li usa.
+        .route("/api/sources/:id/opcua/certs", get(opcua_list_certs))
+        .route("/api/sources/:id/opcua/certs/:filename/trust", post(opcua_trust_cert))
+        .route("/api/sources/:id/opcua/certs/:filename", delete(opcua_delete_cert))
+        // La prova del datastore distribuito: quello che lavora davvero.
+        .route("/api/datastores/:id/test", post(datastore_test))
         // Il log del dispositivo nell'IDE collegato (18-10-2026, decisione del
         // maintainer: dal vivo, da INFO in su, solo Admin). Era fuori di
         // proposito perché i log possono contenere segreti; la decisione è
@@ -8945,6 +8972,14 @@ fn is_safe_cert_filename(name: &str) -> bool {
 struct HaBrowseRequest {
     /// Source id from the project's sources list — used to look up url+token.
     source_id: String,
+    /// URL e token espliciti (25-10-2026): li manda l'IDE quando lo sfoglia
+    /// gira sul pannello collegato, risolti dal progetto dell'IDE — sul pannello
+    /// la sorgente può non esserci ancora, o avere un altro token. Se ci sono
+    /// tutti e due vincono sulla ricerca nel progetto.
+    #[serde(default)]
+    url: Option<String>,
+    #[serde(default)]
+    token: Option<String>,
     /// Optional filter: only return entities whose id starts with this prefix
     /// (e.g. "sensor.", "light.", "binary_sensor.").
     #[serde(default)]
@@ -8971,25 +9006,40 @@ async fn ha_browse_handler(
     State(s): State<AppState>,
     Json(req): Json<HaBrowseRequest>,
 ) -> Response {
-    // Resolve url + token from the saved project.
-    let dir = match active_dir(&s).await {
+    let espliciti = match (req.url.as_deref(), req.token.as_deref()) {
+        (Some(u), Some(t)) if !u.trim().is_empty() && !t.is_empty() => Some((u.to_string(), t.to_string())),
+        _ => None,
+    };
+    let (url, token) = match espliciti {
+        Some(ut) => ut,
+        None => match ha_url_token_dal_progetto(&s, &req.source_id).await {
+            Ok(ut) => ut,
+            Err(r) => return r,
+        },
+    };
+    ha_browse_su(&url, &token, req.domain_filter.as_deref()).await
+}
+
+/// URL e token della sorgente HA `source_id` dal progetto aperto.
+async fn ha_url_token_dal_progetto(s: &AppState, source_id: &str) -> Result<(String, String), Response> {
+    let dir = match active_dir(s).await {
         Ok(d) => d,
-        Err(_) => return (StatusCode::BAD_REQUEST, "no project open").into_response(),
+        Err(_) => return Err((StatusCode::BAD_REQUEST, "no project open").into_response()),
     };
     let project = match Project::load(&dir) {
         Ok(p) => p,
         Err(e) => {
-            return (
+            return Err((
                 StatusCode::INTERNAL_SERVER_ERROR,
                 format!("project load: {e}"),
             )
-                .into_response()
+                .into_response())
         }
     };
 
     let (url, token) = match project.sources.iter().find_map(|src| {
         if let SourceDef::HomeAssistant(c) = src {
-            if c.id == req.source_id {
+            if c.id == source_id {
                 return Some((c.url.clone(), c.token.clone(), c.token_env.clone()));
             }
         }
@@ -9003,17 +9053,21 @@ async fn ha_browse_handler(
             };
             (url, tok)
         }
-        None => return (StatusCode::NOT_FOUND, "HomeAssistant source not found").into_response(),
+        None => return Err((StatusCode::NOT_FOUND, "HomeAssistant source not found").into_response()),
     };
 
     if token.is_empty() {
-        return (
+        return Err((
             StatusCode::BAD_REQUEST,
             "HomeAssistant token not configured",
         )
-            .into_response();
+            .into_response());
     }
+    Ok((url, token))
+}
 
+/// `GET {url}/api/states` su Home Assistant e le entità filtrate.
+async fn ha_browse_su(url: &str, token: &str, domain_filter: Option<&str>) -> Response {
     let states_url = format!("{}/api/states", url.trim_end_matches('/'));
     let client = reqwest::Client::new();
     let resp = match client
@@ -9040,7 +9094,7 @@ async fn ha_browse_handler(
         Err(e) => return (StatusCode::BAD_GATEWAY, format!("HA parse error: {e}")).into_response(),
     };
 
-    let domain_filter = req.domain_filter.as_deref().unwrap_or("");
+    let domain_filter = domain_filter.unwrap_or("");
     let mut entities: Vec<HaBrowsedEntity> = raw
         .into_iter()
         .filter_map(|v| {

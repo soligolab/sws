@@ -62,6 +62,13 @@ pub struct SourceSupervisor {
     /// nessuno l'avesse chiesto e senza che niente lo dicesse. Che non
     /// succedesse era merito del broker irraggiungibile, non del codice.
     sola_lettura: std::sync::atomic::AtomicBool,
+    /// Il container di un progetto **nel cloud** (`--auth-delegata`, 25-10-2026,
+    /// piano `docs/plans/2026-10-25-impianto-dal-dispositivo.md`): lì le
+    /// sorgenti non partono. L'impianto lo tocca il pannello collegato, e dal
+    /// VPS un broker di casa non si vede — CasaDomotica andava in timeout ogni
+    /// 5 s su tutte e quattro le sorgenti MQTT. Vale per ogni tipo, `host`
+    /// compreso: nel cloud misurerebbe il VPS.
+    nel_cloud: std::sync::atomic::AtomicBool,
     /// Q33: l'acquisizione è **armata**? Falso solo dopo uno Stop esplicito
     /// dell'operatore, e fino al successivo Avvia.
     ///
@@ -101,6 +108,7 @@ impl SourceSupervisor {
             stato: Arc::new(sws_core::stato_sorgenti::StatoSorgenti::new()),
             armed: std::sync::atomic::AtomicBool::new(true),
             sola_lettura: std::sync::atomic::AtomicBool::new(false),
+            nel_cloud: std::sync::atomic::AtomicBool::new(false),
         });
         let watchdog = this.clone();
         tokio::spawn(async move { watchdog.watchdog_loop().await });
@@ -200,6 +208,17 @@ impl SourceSupervisor {
             .store(v, std::sync::atomic::Ordering::Relaxed);
     }
 
+    /// Dichiara che questa istanza è il container di un progetto nel cloud:
+    /// le sorgenti non partono (vedi il campo `nel_cloud`). Si chiama una volta
+    /// all'avvio da `main.rs`.
+    pub fn imposta_nel_cloud(&self, v: bool) {
+        self.nel_cloud.store(v, std::sync::atomic::Ordering::Relaxed);
+    }
+
+    pub fn e_nel_cloud(&self) -> bool {
+        self.nel_cloud.load(std::sync::atomic::Ordering::Relaxed)
+    }
+
     pub fn e_sola_lettura(&self) -> bool {
         self.sola_lettura.load(std::sync::atomic::Ordering::Relaxed)
     }
@@ -227,6 +246,17 @@ impl SourceSupervisor {
                 sorgenti_ignorate = desired.len(),
                 "acquisizione ferma dall'operatore: le sorgenti sono state salvate ma NON avviate \
                  (premi Avvia per farle partire)"
+            );
+            Vec::new()
+        } else {
+            desired
+        };
+        // Nel cloud non parte niente: l'impianto lo tocca il pannello collegato.
+        let desired = if self.e_nel_cloud() && !desired.is_empty() {
+            tracing::info!(
+                sorgenti = desired.len(),
+                "progetto nel cloud: le sorgenti NON partono qui — le scoperte, i valori vivi e i \
+                 comandi passano dal pannello collegato (Configurazione → Istanza → Device)"
             );
             Vec::new()
         } else {
@@ -618,6 +648,31 @@ mod tests_q33 {
         assert_eq!(started, 1, "riarmato, la sorgente deve partire");
         assert_eq!(s.running_count().await, 1);
         s.reload(vec![]).await;
+    }
+
+    /// Nel cloud (25-10-2026) nessuna sorgente parte, ma quelle già vive si
+    /// fermano: un `reload` vuoto deve poter spegnere.
+    #[tokio::test]
+    async fn nel_cloud_le_sorgenti_non_partono() {
+        let s = supervisore();
+        s.reload(vec![sorgente("a")]).await;
+        assert_eq!(s.running_count().await, 1);
+        s.imposta_nel_cloud(true);
+        let (started, stopped, _) = s.reload(vec![sorgente("a"), sorgente("b")]).await;
+        assert_eq!(started, 0, "nel cloud non parte niente");
+        assert_eq!(stopped, 1, "e quella che c'era si ferma");
+        assert_eq!(s.running_count().await, 0);
+    }
+
+    /// E l'ordine in `main.rs`: il flag va impostato **prima** che il progetto
+    /// si apra al boot. Il primo collaudo nel cloud (25-10-2026) l'aveva dopo:
+    /// il test qui sopra passava e le sorgenti partivano lo stesso.
+    #[test]
+    fn nel_cloud_il_flag_precede_l_apertura_del_progetto() {
+        let main = include_str!("../../sws-runtime/src/main.rs");
+        let flag = main.find("supervisor.imposta_nel_cloud(").expect("imposta_nel_cloud sparita da main.rs");
+        let apertura = main.find("Project::load(&project_path)").expect("apertura al boot sparita: aggiornare il test");
+        assert!(flag < apertura, "in main.rs il progetto si apre prima di dire al supervisore che è nel cloud");
     }
 
     /// Fermare resta possibile da fermi: `reload(vec![])` a impianto disarmato

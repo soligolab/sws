@@ -47,6 +47,7 @@
 27. [Comandare i servizi del pannello da SSH](#27-comandare-i-servizi-del-pannello-da-ssh)
 28. [Far girare OpenPLC sul pannello](#28-far-girare-openplc-sul-pannello)
 29. [Il certificato del dispositivo su un pannello Pixsys (HTTPS senza avvisi)](#29-il-certificato-del-dispositivo-su-un-pannello-pixsys-https-senza-avvisi)
+30. [Lavorare dal cloud su un impianto](#30-lavorare-dal-cloud-su-un-impianto)
 
 ---
 
@@ -1955,4 +1956,33 @@ avvisi**.
 | La chiave | è la stessa di PixsysPortal: dopo la copia sta anche fuori dalla partizione protetta |
 | «Genera self-signed» o «Rimuovi» nell'IDE | sostituiscono o tolgono questo certificato; per tornarci si rilancia lo script |
 | Altri pannelli (non Pixsys) | lo script si ferma: non c'è `/mnt/protected/ssl` |
+
+---
+
+## 30. Lavorare dal cloud su un impianto
+
+*Dal 25-10-2026 (piano `docs/plans/2026-10-25-impianto-dal-dispositivo.md`).*
+
+Dal cloud (sws.soligo.net) il progetto si modifica nel container sul VPS, ma **l'impianto lo tocca il
+pannello**: il VPS non vede la rete di casa o di fabbrica.
+
+1. Apri il progetto dal cloud.
+2. Configurazione → Istanza → Device → «Cerca»: compaiono i pannelli abbinati e collegati della tua azienda.
+   Scegli quello dell'impianto e premi «Connetti» con utente e password **del pannello** (quelli del progetto
+   distribuito).
+3. Da qui in poi:
+   - **valori vivi e comandi** arrivano dal pannello;
+   - **scoperte** (Sfoglia broker MQTT, sfoglia OPC-UA, Euromap, Home Assistant), certificati OPC-UA e prova del
+     datastore **girano sul pannello**, con i segreti del progetto del cloud;
+   - le **sorgenti** non partono nel container del cloud (nei suoi log non ci sono più timeout).
+4. **Il pannello si ricorda**: URL, utente e password stanno nella cartella di configurazione persistente del
+   progetto sul VPS (`<radice>/.sws-config/<azienda>/<progetto>/dispositivo.yaml`, 0600, fuori dal progetto:
+   non finisce in git, nei backup né in un deploy). Riaprendo il progetto l'IDE si ricollega da solo.
+5. «Disconnetti» lo **dimentica**: alla riapertura non si ricollega.
+
+| Messaggio | Cosa vuol dire |
+|---|---|
+| «Nessun pannello collegato: le scoperte e le prove le fa il pannello…» | sei nel cloud senza pannello: passo 2 |
+| «Il pannello ha una versione di SWS senza questa funzione: aggiornalo» | il pannello è precedente alla 2.21.0 |
+| «Il pannello ha rifiutato le credenziali» | riconnettiti con un Admin del pannello |
 

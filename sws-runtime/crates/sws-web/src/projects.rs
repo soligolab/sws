@@ -2353,6 +2353,7 @@ pub async fn rename_project(
         )
             .into_response();
     }
+    crate::gateway::progetti::segui_rinomina(&s.projects_root, &old_dir, &new_dir).await;
     // Keep meta.name in sync with the folder/registry name — otherwise a
     // project renamed while open would keep showing its old name in the UI
     // (GET /api/project serves project.yaml as-is, never reconciled against
@@ -2459,6 +2460,7 @@ pub async fn duplicate_project(
         return (StatusCode::INTERNAL_SERVER_ERROR, "copy failed").into_response();
     }
     s.known_projects.touch(&chiave_dst, &dst_dir).await;
+    crate::gateway::progetti::segui_duplicazione(&s.projects_root, &src_dir, &dst_dir).await;
     info!(src = %src_name, dst = %dst_name, "project duplicated");
     (
         StatusCode::CREATED,

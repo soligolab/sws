@@ -551,6 +551,11 @@ async fn main() -> anyhow::Result<()> {
         "mqtt_broker_conosciuti.yaml",
     ));
     let supervisor = SourceSupervisor::new(tag_db.clone(), bus.clone(), mqtt_certificati);
+    // Il container di un progetto nel cloud non avvia sorgenti (25-10-2026):
+    // l'impianto lo tocca il pannello collegato. Vedi `imposta_nel_cloud`.
+    // **Qui, subito**: il progetto si apre al boot poche righe sotto, e il
+    // primo collaudo l'aveva trovato impostato dopo — le sorgenti partivano.
+    supervisor.imposta_nel_cloud(args.auth_delegata);
     // Empty registries — populated below from project.yaml (if present).
     let functions: sws_web::router::FunctionsRegistry =
         Arc::new(tokio::sync::RwLock::new(std::collections::HashMap::new()));

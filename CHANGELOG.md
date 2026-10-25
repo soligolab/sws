@@ -13,6 +13,21 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 
 ### Added
 
+- **L'impianto lo tocca il pannello, anche dal cloud** (piano `docs/plans/2026-10-25-impianto-dal-dispositivo.md`,
+  strada 3 decisa dal maintainer). Dal cloud lo «Sfoglia broker» trovava 0 topic: le scoperte giravano sul VPS,
+  che l'impianto non lo vede.
+  - Le scoperte (sfoglia MQTT, OPC-UA, Euromap, Home Assistant), i certificati OPC-UA e la prova del datastore
+    esistono ora anche sulla porta di gestione del pannello; con un pannello collegato l'IDE le chiama lì
+    (`/api/remote/…`), con i segreti risolti dal **proprio** progetto — la sorgente può non esserci ancora sul
+    pannello. Nel cloud senza pannello lo dice invece di cercare dal VPS (`suImpianto` in `api/client.ts`).
+  - Nel cloud il pannello del progetto si **ricorda** (`config/dispositivo.yaml`, 0600, nella cartella
+    persistente del progetto) e l'IDE si **ricollega da solo** alla riapertura; «Disconnetti» lo dimentica.
+  - Nel cloud le **sorgenti non partono** nel container del progetto (`SourceSupervisor::imposta_nel_cloud`):
+    niente più timeout ogni 5 s verso un broker irraggiungibile. Valori vivi e comandi vengono dal pannello. Il flag
+    si imposta appena nasce il supervisore: il primo collaudo l'aveva dopo l'apertura al boot, e le sorgenti partivano
+    lo stesso (guardia `nel_cloud_il_flag_precede_l_apertura_del_progetto`).
+  - HOWTO §30, manuale (protocolli).
+
 - **Il certificato del dispositivo sui pannelli Pixsys** (`deploy/container/certificato-dispositivo.sh`,
   HOWTO §29): passaggio di installazione opzionale, lanciato come `pixsys`, che copia con `sudo` catena e
   chiave da `/mnt/protected/ssl/` nella configurazione del runtime. Il browser del pannello si fida già della
@@ -41,8 +56,8 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
   container del progetto teneva `/var/sws/config` nel proprio filesystem, che si ricrea a ogni apertura e a ogni
   riavvio del gateway. Ora il gateway monta una cartella persistente per progetto,
   `<radice>/.sws-config/<azienda>/<progetto>` (0700), **fuori** dal progetto — scelta del maintainer: la chiave non
-  può finire in un commit, in un backup o in un deploy. Limite: rinominare o duplicare un progetto non porta con sé
-  quella cartella, e la chiave va reinserita.
+  può finire in un commit, in un backup o in un deploy. Rinominando il progetto la cartella lo segue; duplicandolo la
+  copia eredita le chiavi (`*.key`) ma non il pannello ricordato.
 - **«Sessione scaduta» nel cloud di nuovo usabile** (`api/client.ts`, `sulGateway`): la finestra mandava la password
   a `/p/<azienda>/<progetto>/api/auth/login`, cioè al container del progetto, che con `--auth-delegata` non ha utenti
   — «password errata» a qualunque password, e per rientrare bisognava tornare alla pagina iniziale. Nel cloud il

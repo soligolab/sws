@@ -16,6 +16,22 @@ Ogni sorgente dati è definita nel `project.yaml` e configurabile dall'interfacc
 
 ---
 
+## Dove girano le sorgenti e le scoperte
+
+Le sorgenti, le scoperte (sfoglia del broker MQTT, sfoglia OPC-UA, rilevamento Euromap, sfoglia di Home
+Assistant), i certificati OPC-UA e la prova di un datastore **le fa chi vede l'impianto**:
+
+- **IDE in locale, senza pannello collegato**: la macchina dell'IDE, come sempre.
+- **Con un pannello collegato** (Configurazione → Istanza → Device): il pannello. L'IDE gli manda la richiesta
+  con i segreti presi dal **proprio** progetto, quindi funziona anche se il progetto non è ancora stato
+  distribuito.
+- **Nel cloud**: le sorgenti **non partono** nel container del progetto, perché il VPS l'impianto non lo vede.
+  Valori vivi, scoperte e comandi passano dal pannello collegato. Il pannello del progetto si ricorda: alla
+  riapertura l'IDE si ricollega da solo, e «Disconnetti» lo fa dimenticare. Senza pannello, una scoperta lo
+  dice invece di cercare a vuoto.
+
+Un pannello con una versione precedente risponde «senza questa funzione: aggiornalo».
+
 ## Modbus TCP
 
 Connessione a PLC con interfaccia Ethernet tramite protocollo Modbus TCP (porta 502 default).

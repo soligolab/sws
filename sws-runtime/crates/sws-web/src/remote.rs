@@ -472,6 +472,18 @@ pub async fn connect_remote(
         autenticato: true,
     });
     tracing::info!(remote = %url, "connected to remote runtime");
+    // Nel cloud il pannello del progetto si ricorda (25-10-2026): riaprendo il
+    // progetto l'IDE si ricollega da solo. Vedi `ripristina_se_serve`.
+    if s.supervisor.e_nel_cloud() {
+        let d = DispositivoRicordato {
+            url: url.clone(),
+            username: username.clone(),
+            password: body.password.clone().unwrap_or_default(),
+        };
+        if let Err(e) = ricorda_dispositivo(&s.config_dir, &d) {
+            tracing::warn!("pannello del progetto non ricordato: {e}");
+        }
+    }
 
     // Su `http://` non c'è nessuna impronta, e non è un errore: non c'è
     // nessuna identità da verificare. Il campo resta assente e l'IDE non
@@ -709,11 +721,280 @@ async fn senza_utenti(client: &reqwest::Client, url: &str) -> bool {
     niente_autenticazione(passata, auth_required)
 }
 
+/// Il pannello del progetto, ricordato **nel cloud** (25-10-2026, piano
+/// `docs/plans/2026-10-25-impianto-dal-dispositivo.md`, scelta del maintainer:
+/// credenziali salvate per progetto). Sta in `config/dispositivo.yaml`, 0600:
+/// nel cloud `config/` è la cartella persistente **del progetto**, fuori dal
+/// progetto — non finisce in git, nei backup né in un deploy. In locale non si
+/// scrive: lì `config/` è dell'istanza, e l'IDE non si ricollega da solo.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub(crate) struct DispositivoRicordato {
+    pub url: String,
+    #[serde(default)]
+    pub username: String,
+    #[serde(default)]
+    pub password: String,
+}
+
+const FILE_DISPOSITIVO: &str = "dispositivo.yaml";
+
+pub(crate) fn ricorda_dispositivo(config_dir: &std::path::Path, d: &DispositivoRicordato) -> std::io::Result<()> {
+    let testo = serde_yaml::to_string(d).map_err(std::io::Error::other)?;
+    crate::segreti::scrivi_chiave(config_dir, FILE_DISPOSITIVO, &testo).map(|_| ())
+}
+
+pub(crate) fn dispositivo_ricordato(config_dir: &std::path::Path) -> Option<DispositivoRicordato> {
+    let testo = crate::segreti::leggi_chiave(&config_dir.join(FILE_DISPOSITIVO))?;
+    serde_yaml::from_str(&testo).ok()
+}
+
+pub(crate) fn dimentica_dispositivo(config_dir: &std::path::Path) {
+    if let Err(e) = crate::segreti::cancella_chiave(config_dir, FILE_DISPOSITIVO) {
+        tracing::warn!("pannello del progetto non dimenticato: {e}");
+    }
+}
+
+/// Ricollega il pannello ricordato, se serve: nel cloud, senza un collegamento
+/// in corso, con un ricordo su disco. **Pigro** di proposito: all'avvio il
+/// container non conosce ancora l'origine del gateway (la impara dalla prima
+/// richiesta del browser, `ricorda_origine`), e senza quella la chiave di
+/// ritorno non parte e il gateway rifiuta. Lo chiamano `remote_status` — che
+/// l'IDE nel cloud chiede all'apertura del progetto — e gli inoltri.
+///
+/// Un tentativo ogni 30 s al massimo: un pannello spento non deve trasformare
+/// ogni richiesta in un login da 8 s.
+pub(crate) async fn ripristina_se_serve(s: &AppState) {
+    use std::sync::atomic::{AtomicU64, Ordering};
+    static ULTIMO_TENTATIVO_MS: AtomicU64 = AtomicU64::new(0);
+    if !s.supervisor.e_nel_cloud() || s.remote_target.read().await.is_some() {
+        return;
+    }
+    let Some(d) = dispositivo_ricordato(&s.config_dir) else { return };
+    let ora = SystemTime::now().duration_since(UNIX_EPOCH).unwrap_or_default().as_millis() as u64;
+    let prima = ULTIMO_TENTATIVO_MS.load(Ordering::Relaxed);
+    if ora.saturating_sub(prima) < 30_000
+        || ULTIMO_TENTATIVO_MS.compare_exchange(prima, ora, Ordering::Relaxed, Ordering::Relaxed).is_err()
+    {
+        return;
+    }
+    let corpo = ConnectBody {
+        url: d.url.clone(),
+        username: (!d.username.is_empty()).then(|| d.username.clone()),
+        password: (!d.password.is_empty()).then(|| d.password.clone()),
+        codice: None,
+    };
+    let (_, Json(esito)) = connect_remote(State(s.clone()), Json(corpo)).await;
+    if esito.ok {
+        tracing::info!(url = %d.url, "pannello del progetto ricollegato da solo");
+    } else {
+        tracing::warn!(url = %d.url, errore = ?esito.error, "pannello del progetto non ricollegato");
+    }
+}
+
+// ── L'impianto lo tocca il dispositivo (25-10-2026) ─────────────────────────
+//
+// Le scoperte dei protocolli e le prove di collegamento girano sul pannello
+// collegato, che vede l'impianto; questi inoltri le chiamano sulla sua porta di
+// gestione. Prima di inoltrare si risolve dal progetto **dell'IDE** — quello che
+// fa fede, nel cloud — ciò che il pannello non può sapere: la password che
+// l'editor manda mascherata, URL e token di Home Assistant. Sul pannello la
+// sorgente può non esserci ancora (progetto non distribuito) o avere altri
+// segreti. Piano `docs/plans/2026-10-25-impianto-dal-dispositivo.md`.
+
+/// Il progetto aperto in questa istanza, con i segreti (`secrets.yaml`).
+async fn progetto_ide(s: &AppState) -> Option<sws_core::project::Project> {
+    let dir = crate::router::active_dir(s).await.ok()?;
+    sws_core::project::Project::load(&dir).ok()
+}
+
+fn mascherata(v: &serde_json::Value) -> bool {
+    v.as_str() == Some(crate::router::MASKED_PASSWORD)
+}
+
+/// Sfoglia MQTT: la password mascherata diventa quella della sorgente
+/// `source_id` del progetto dell'IDE. Pura, per il test.
+pub(crate) fn risolvi_mqtt(mut b: serde_json::Value, p: Option<&sws_core::project::Project>) -> serde_json::Value {
+    if b.get("password").is_some_and(mascherata) {
+        let sid = b.get("source_id").and_then(|v| v.as_str()).unwrap_or("");
+        let vera = p.and_then(|p| {
+            p.sources.iter().find_map(|src| match src {
+                sws_core::project::SourceDef::Mqtt(c) if c.id == sid => c.password.clone(),
+                _ => None,
+            })
+        });
+        b["password"] = vera.map(serde_json::Value::String).unwrap_or(serde_json::Value::Null);
+    }
+    b
+}
+
+/// Sfoglia OPC-UA ed Euromap: come MQTT, dentro `auth.password`.
+pub(crate) fn risolvi_opcua(mut b: serde_json::Value, p: Option<&sws_core::project::Project>) -> serde_json::Value {
+    if b.pointer("/auth/password").is_some_and(mascherata) {
+        let sid = b.get("source_id").and_then(|v| v.as_str()).unwrap_or("").to_string();
+        let vera = p.and_then(|p| {
+            p.sources.iter().find_map(|src| match src {
+                sws_core::project::SourceDef::OpcUaClient(c) if c.id == sid => match &c.auth {
+                    sws_core::OpcUaAuth::UsernamePassword { password, .. } => password.clone(),
+                    _ => None,
+                },
+                _ => None,
+            })
+        });
+        b["auth"]["password"] = vera.map(serde_json::Value::String).unwrap_or(serde_json::Value::Null);
+    }
+    b
+}
+
+/// Sfoglia HA: URL e token della sorgente `source_id`, dal progetto dell'IDE.
+/// `token_env` si lascia al pannello: nel cloud l'ambiente del container non è
+/// quello dell'impianto, e se il token vive in una variabile d'ambiente vive là.
+pub(crate) fn risolvi_ha(mut b: serde_json::Value, p: Option<&sws_core::project::Project>) -> serde_json::Value {
+    let sid = b.get("source_id").and_then(|v| v.as_str()).unwrap_or("").to_string();
+    let trovata = p.and_then(|p| {
+        p.sources.iter().find_map(|src| match src {
+            sws_core::project::SourceDef::HomeAssistant(c) if c.id == sid && c.token_env.is_none() => {
+                Some((c.url.clone(), c.token.clone().unwrap_or_default()))
+            }
+            _ => None,
+        })
+    });
+    if let Some((url, token)) = trovata.filter(|(_, t)| !t.is_empty()) {
+        b["url"] = serde_json::Value::String(url);
+        b["token"] = serde_json::Value::String(token);
+    }
+    b
+}
+
+/// Un segmento di percorso codificato (id di sorgente, nome di file).
+fn segmento(v: &str) -> String {
+    percent_encoding::utf8_percent_encode(v, percent_encoding::NON_ALPHANUMERIC).to_string()
+}
+
+/// L'inoltro di una scoperta al pannello collegato. Le risposte passano così
+/// come sono (anche i 502 dello sfoglia, che portano il motivo nel testo); un
+/// pannello senza la rotta lo si dice in chiaro, invece di un 404 muto.
+async fn inoltra_al_pannello(
+    s: &AppState,
+    user: Option<&AuthUser>,
+    metodo: reqwest::Method,
+    percorso: &str,
+    corpo: Option<serde_json::Value>,
+    timeout_s: u64,
+) -> Response {
+    ripristina_se_serve(s).await;
+    let Some(target) = s.remote_target.read().await.clone() else {
+        return (
+            StatusCode::BAD_GATEWAY,
+            "Nessun pannello collegato: collegalo in Configurazione → Istanza → Device. Le scoperte le fa lui, che vede l'impianto.",
+        )
+            .into_response();
+    };
+    if let (Some(u), true) = (user, metodo != reqwest::Method::GET) {
+        s.audit.log("remote.impianto", Some(u.username.clone()), serde_json::json!({ "url": target.url, "percorso": percorso, "metodo": metodo.as_str() }));
+    }
+    let client = match costruisci_client(s, &target.url, timeout_s) {
+        Ok(c) => c,
+        Err(e) => return (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response(),
+    };
+    let mut req = client.request(metodo, format!("{}{percorso}", target.url.trim_end_matches('/')));
+    if let Some(c) = corpo {
+        req = req.json(&c);
+    }
+    if !target.token.is_empty() {
+        req = req.bearer_auth(&target.token);
+    }
+    match req.send().await {
+        Ok(r) if r.status() == StatusCode::NOT_FOUND || r.status() == StatusCode::METHOD_NOT_ALLOWED => (
+            StatusCode::BAD_GATEWAY,
+            "Il pannello ha una versione di SWS senza questa funzione: aggiornalo per fare le scoperte da lì.",
+        )
+            .into_response(),
+        Ok(r) if r.status() == StatusCode::UNAUTHORIZED || r.status() == StatusCode::FORBIDDEN => (
+            StatusCode::BAD_GATEWAY,
+            "Il pannello ha rifiutato le credenziali: riconnettiti con un utente Admin del pannello.",
+        )
+            .into_response(),
+        Ok(r) => {
+            let codice = StatusCode::from_u16(r.status().as_u16()).unwrap_or(StatusCode::BAD_GATEWAY);
+            let tipo = r.headers().get(reqwest::header::CONTENT_TYPE).cloned();
+            let byte = r.bytes().await.unwrap_or_default();
+            let mut risposta = (codice, byte).into_response();
+            if let Some(t) = tipo.and_then(|t| axum::http::HeaderValue::from_bytes(t.as_bytes()).ok()) {
+                risposta.headers_mut().insert(axum::http::header::CONTENT_TYPE, t);
+            }
+            risposta
+        }
+        Err(e) => (StatusCode::BAD_GATEWAY, format!("Il pannello non risponde: {e}")).into_response(),
+    }
+}
+
+/// `POST /api/remote/sources/mqtt/browse` → `"{base}/api/sources/mqtt/browse"`.
+pub async fn remote_mqtt_browse(State(s): State<AppState>, Json(b): Json<serde_json::Value>) -> Response {
+    let durata = b.get("duration_secs").and_then(|v| v.as_u64()).unwrap_or(30).min(120);
+    let b = risolvi_mqtt(b, progetto_ide(&s).await.as_ref());
+    inoltra_al_pannello(&s, None, reqwest::Method::POST, "/api/sources/mqtt/browse", Some(b), durata + 30).await
+}
+
+/// `POST /api/remote/sources/opcua/browse` → `"{base}/api/sources/opcua/browse"`.
+pub async fn remote_opcua_browse(State(s): State<AppState>, Json(b): Json<serde_json::Value>) -> Response {
+    let b = risolvi_opcua(b, progetto_ide(&s).await.as_ref());
+    inoltra_al_pannello(&s, None, reqwest::Method::POST, "/api/sources/opcua/browse", Some(b), 60).await
+}
+
+/// `POST /api/remote/sources/opcua/detect-euromap` → `"{base}/api/sources/opcua/detect-euromap"`.
+pub async fn remote_opcua_euromap(State(s): State<AppState>, Json(b): Json<serde_json::Value>) -> Response {
+    let b = risolvi_opcua(b, progetto_ide(&s).await.as_ref());
+    inoltra_al_pannello(&s, None, reqwest::Method::POST, "/api/sources/opcua/detect-euromap", Some(b), 60).await
+}
+
+/// `POST /api/remote/sources/ha/browse` → `"{base}/api/sources/ha/browse"`.
+pub async fn remote_ha_browse(State(s): State<AppState>, Json(b): Json<serde_json::Value>) -> Response {
+    let b = risolvi_ha(b, progetto_ide(&s).await.as_ref());
+    inoltra_al_pannello(&s, None, reqwest::Method::POST, "/api/sources/ha/browse", Some(b), 30).await
+}
+
+/// `GET /api/remote/sources/:id/opcua/certs` → `"{base}/api/sources/{}/opcua/certs"`.
+pub async fn remote_opcua_certs(State(s): State<AppState>, Path(id): Path<String>) -> Response {
+    let p = format!("/api/sources/{}/opcua/certs", segmento(&id));
+    inoltra_al_pannello(&s, None, reqwest::Method::GET, &p, None, 30).await
+}
+
+/// `POST /api/remote/sources/:id/opcua/certs/:filename/trust` →
+/// `"{base}/api/sources/{}/opcua/certs/{}/trust"`.
+pub async fn remote_opcua_trust(
+    State(s): State<AppState>,
+    Extension(user): Extension<AuthUser>,
+    Path((id, file)): Path<(String, String)>,
+) -> Response {
+    let p = format!("/api/sources/{}/opcua/certs/{}/trust", segmento(&id), segmento(&file));
+    inoltra_al_pannello(&s, Some(&user), reqwest::Method::POST, &p, None, 30).await
+}
+
+/// `DELETE /api/remote/sources/:id/opcua/certs/:filename` →
+/// `"{base}/api/sources/{}/opcua/certs/{}"`.
+pub async fn remote_opcua_delete_cert(
+    State(s): State<AppState>,
+    Extension(user): Extension<AuthUser>,
+    Path((id, file)): Path<(String, String)>,
+) -> Response {
+    let p = format!("/api/sources/{}/opcua/certs/{}", segmento(&id), segmento(&file));
+    inoltra_al_pannello(&s, Some(&user), reqwest::Method::DELETE, &p, None, 30).await
+}
+
+/// `POST /api/remote/datastores/:id/test` → `"{base}/api/datastores/{}/test"`.
+/// Prova il datastore **distribuito** sul pannello: quello che lavora davvero.
+pub async fn remote_datastore_test(State(s): State<AppState>, Path(id): Path<String>) -> Response {
+    let p = format!("/api/datastores/{}/test", segmento(&id));
+    inoltra_al_pannello(&s, None, reqwest::Method::POST, &p, None, 60).await
+}
+
 /// `DELETE /api/remote/connect` — clear the remote target state.
 pub async fn disconnect_remote(State(s): State<AppState>) -> StatusCode {
     if s.remote_target.write().await.take().is_some() {
         tracing::info!("disconnected from remote runtime");
     }
+    // «Disconnetti» è anche «dimentica»: riaprendo, il progetto non si ricollega.
+    dimentica_dispositivo(&s.config_dir);
     StatusCode::NO_CONTENT
 }
 
@@ -1166,6 +1447,7 @@ async fn inoltra_aggiornamento(
     corpo: Option<serde_json::Value>,
     url: impl Fn(&str) -> String,
 ) -> Response {
+    ripristina_se_serve(s).await;
     let target = match s.remote_target.read().await.clone() {
         Some(t) => t,
         None => return (StatusCode::BAD_REQUEST, "No remote runtime connected").into_response(),
@@ -1840,6 +2122,7 @@ pub async fn remote_tls_rimuovi(State(s): State<AppState>, Extension(user): Exte
 /// 400 senza dispositivo; 502 con il codice e il testo del dispositivo se
 /// risponde male, così l'errore che arriva all'editor dice da che parte è.
 async fn proxy_get_json(s: &AppState, percorso: &str) -> Response {
+    ripristina_se_serve(s).await;
     let target = match s.remote_target.read().await.clone() {
         Some(t) => t,
         None => return (StatusCode::BAD_REQUEST, "No remote runtime connected").into_response(),
@@ -2477,6 +2760,7 @@ pub async fn remote_deploy(
     let primo_deploy_cloud = pannello_in_attesa && target.token.is_empty();
     let bersaglio = s.remote_target.clone();
     let url_bersaglio = target.url.clone();
+    let config_ricordo = s.config_dir.clone();
 
     tokio::spawn(async move {
         let _deploy_guard = deploy_guard;
@@ -2739,6 +3023,8 @@ pub async fn remote_deploy(
                     if g.as_ref().is_some_and(|t| t.url == url_bersaglio) {
                         *g = None;
                     }
+                    // Il ricordo era senza credenziali: non varrebbe più.
+                    dimentica_dispositivo(&config_ricordo);
                     send(
                         "ⓘ Il pannello ora ha i suoi utenti, arrivati con questo progetto: la connessione \
                          senza credenziali è chiusa. Per i prossimi deploy riconnettiti con utente e \
@@ -2957,6 +3243,7 @@ async fn segna_non_autenticato(s: &AppState) {
 /// (Questo commento stava su `Esito`, due funzioni più su: ci era finito con
 /// una modifica e ci è rimasto. Rimesso al suo posto il 20-10-2026.)
 pub async fn remote_status(State(s): State<AppState>) -> Json<RemoteStatus> {
+    ripristina_se_serve(&s).await;
     let guard = s.remote_target.read().await;
     match guard.as_ref() {
         Some(t) => Json(RemoteStatus {
@@ -2978,6 +3265,84 @@ pub async fn remote_status(State(s): State<AppState>) -> Json<RemoteStatus> {
 mod tests {
     use super::*;
     use std::io::Write;
+
+    fn progetto_con_segreti() -> sws_core::project::Project {
+        serde_yaml::from_str(
+            r#"
+meta: { name: prova, version: 0.1.0 }
+sources:
+- kind: mqtt
+  id: casa
+  host: 192.168.1.6
+  port: 1883
+  client_id: x
+  password: vera-mqtt
+  topics: []
+- kind: opcua_client
+  id: pressa
+  endpoint_url: opc.tcp://10.0.0.5:4840
+  auth: { kind: username_password, username: op, password: vera-opcua }
+  nodes: []
+- kind: homeassistant
+  id: ha
+  url: http://ha.local:8123
+  token: vero-token
+  entities: []
+"#,
+        )
+        .unwrap()
+    }
+
+    /// L'impianto lo tocca il pannello (25-10-2026): prima di inoltrare, i
+    /// segreti mascherati diventano quelli del progetto dell'IDE — quello che
+    /// fa fede — e una password vera digitata adesso resta com'è.
+    #[test]
+    fn i_segreti_si_risolvono_dal_progetto_dell_ide() {
+        let p = progetto_con_segreti();
+        let m = crate::router::MASKED_PASSWORD;
+        let b = risolvi_mqtt(serde_json::json!({"source_id": "casa", "password": m}), Some(&p));
+        assert_eq!(b["password"], "vera-mqtt");
+        let b = risolvi_mqtt(serde_json::json!({"source_id": "casa", "password": "digitata"}), Some(&p));
+        assert_eq!(b["password"], "digitata", "una password scritta adesso non si tocca");
+        let b = risolvi_mqtt(serde_json::json!({"source_id": "altra", "password": m}), Some(&p));
+        assert!(b["password"].is_null(), "il segnaposto non deve mai arrivare al broker");
+
+        let b = risolvi_opcua(
+            serde_json::json!({"source_id": "pressa", "auth": {"kind": "username_password", "username": "op", "password": m}}),
+            Some(&p),
+        );
+        assert_eq!(b["auth"]["password"], "vera-opcua");
+
+        let b = risolvi_ha(serde_json::json!({"source_id": "ha"}), Some(&p));
+        assert_eq!(b["url"], "http://ha.local:8123");
+        assert_eq!(b["token"], "vero-token");
+        let b = risolvi_ha(serde_json::json!({"source_id": "nessuna"}), Some(&p));
+        assert!(b.get("token").is_none(), "senza sorgente decide il pannello");
+    }
+
+    /// Il pannello del progetto (25-10-2026): si scrive in 0600, si rilegge
+    /// uguale, si dimentica — e dimenticare due volte non è un errore.
+    #[test]
+    fn il_pannello_del_progetto_si_ricorda_e_si_dimentica() {
+        let d = tempfile::tempdir().unwrap();
+        assert_eq!(dispositivo_ricordato(d.path()), None);
+        let p = DispositivoRicordato {
+            url: "https://sws.example/dev/tc620-garage".into(),
+            username: "admin".into(),
+            password: "segreta: con due punti".into(),
+        };
+        ricorda_dispositivo(d.path(), &p).unwrap();
+        assert_eq!(dispositivo_ricordato(d.path()), Some(p));
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            let m = std::fs::metadata(d.path().join(FILE_DISPOSITIVO)).unwrap().permissions().mode();
+            assert_eq!(m & 0o777, 0o600, "le credenziali del pannello non devono essere leggibili da altri");
+        }
+        dimentica_dispositivo(d.path());
+        assert_eq!(dispositivo_ricordato(d.path()), None);
+        dimentica_dispositivo(d.path());
+    }
 
     /// `autenticato: false` deve **arrivare** all'IDE.
     ///

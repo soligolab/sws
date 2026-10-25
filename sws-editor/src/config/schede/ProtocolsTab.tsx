@@ -4,6 +4,7 @@ import { api } from "@/api/client";
 import { emptyHost } from "@/config/sorgenteHost";
 import type { SourceDef } from "@/types";
 import { useAppStore } from "@/store";
+import { prefissoGateway } from "@/api/prefisso";
 import { eModificato, useFocus, usePubblicaElenco } from "@/config/fogliaConfig";
 import { useSezioneSincronizzata } from "@/config/useSezioneSincronizzata";
 import { TRANS_COMP, BarraConflittoSezione, S, SaveBar } from "@/config/comuni";
@@ -88,6 +89,7 @@ export function ProtocolsTab() {
   // Il bus scelto, anche quando è scelto un suo dispositivo.
   const focus = scelto?.bus ?? null;
   const setConfigFocus = useAppStore((s) => s.setConfigFocus);
+  const remoteConnected = useAppStore((s) => s.remoteConnected);
 
   // Con una sorgente scelta, quella nuova prende il suo posto: resterebbe
   // altrimenti invisibile, aggiunta in fondo a un elenco che non si vede.
@@ -158,6 +160,13 @@ export function ProtocolsTab() {
         dirty={sources !== storeProject?.sources}
       />
       <BarraConflittoSezione sync={sync} t={t} />
+      {/* Nel cloud le sorgenti non partono (25-10-2026): l'impianto lo tocca
+          il pannello collegato. Lo si dice qui, dove si configurano. */}
+      {prefissoGateway() && (
+        <div style={{ fontSize: 12, color: "var(--brand-text-muted, #94a3b8)", margin: "4px 0 10px" }}>
+          {t(remoteConnected ? "impianto.sorgentiSulPannello" : "impianto.sorgentiSenzaPannello")}
+        </div>
+      )}
       {storeProject?.sorgenti_da_rivedere && (
         // Q58 — il progetto viene da un template: gli indirizzi sono quelli
         // dell'esempio, e il runtime non li usa finché una persona non li ha

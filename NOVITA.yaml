@@ -35,6 +35,8 @@
 versioni:
   - versione: "2.21.0"
     voci:
+      - it: "Dal cloud le scoperte (sfoglia del broker MQTT, OPC-UA, Home Assistant) e i valori vivi passano dal pannello collegato, che vede l'impianto; riaprendo il progetto l'IDE si ricollega da solo al suo pannello."
+        en: "From the cloud, discovery (MQTT broker, OPC-UA, Home Assistant browsing) and live values go through the connected panel, which can see the plant; reopening the project, the IDE reconnects to its panel by itself."
       - it: "Pannelli Pixsys: un passaggio di installazione opzionale usa il certificato del dispositivo, e lo schermo del pannello in HTTPS non mostra più «La connessione non è privata»."
         en: "Pixsys panels: an optional installation step uses the device certificate, and the panel screen over HTTPS no longer shows «Your connection is not private»."
       - it: "Un tag può essere comandato da chiunque, anche senza login (Configurazione → Tag): la luce della stanza si accende senza credenziali, e un pulsante può comunque chiederle."
