@@ -1211,7 +1211,9 @@
       "collar": "Collar",
       "arrow": "Arrow",
       "dot": "Dot"
-    }
+    },
+    "permessoTag": "Operating it also needs the permission of tag «{{tag}}»: {{ruolo}} (Configuration → Tags).",
+    "permessoTagAperto": "The tag is open to anyone: this restriction applies to this object, not to the tag."
   },
   "shortcut": {
     "navCanvas": "Canvas navigation",
@@ -1730,7 +1732,8 @@
     "eliminaConVariabili": "Device and variables",
     "deploySimboliMancanti": "The panel does not know {{n}} library symbols used by this project:\n{{elenco}}\n\nIt will show them as placeholders until you update SWS on the panel. Deploy anyway?",
     "deploySimboliSenzaLibreria": "The panel runs a version of SWS without the symbol library: the project's {{n}} library symbols\n{{elenco}}\n\nwill be placeholders until you update it. Deploy anyway?",
-    "daRiautenticare": "Connected to {{host}}, but the credentials no longer work: the deployed project brought its own users. Sign in again with the project Admin's username and password."
+    "daRiautenticare": "Connected to {{host}}, but the credentials no longer work: the deployed project brought its own users. Sign in again with the project Admin's username and password.",
+    "tagWriteAnyone": "Anyone, even without login"
   },
   "langtab": {
     "migrate": "Migrate texts…",

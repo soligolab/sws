@@ -246,8 +246,19 @@ impl Regia {
     async fn indirizzo_di(&self, contenitore: &str) -> Option<String> {
         match &self.come {
             ComeRaggiungere::Rete(rete) => {
+                // Per **nome**, non per IP (25-10-2026, idea del maintainer): un
+                // `podman restart` del container gli dà un IP nuovo, e il gateway
+                // restava sul vecchio — «runtime unavailable» finché non si
+                // ricreava il container e si riavviava il gateway. Il DNS della
+                // rete podman risolve il nome (l'alias lo mette `apri`) a ogni
+                // connessione. L'IP si chiede ancora, ma solo per sapere che il
+                // container sta davvero su quella rete.
                 let ip = self.podman.ip_sulla_rete(contenitore, rete).await.ok()??;
-                Some(format!("http://{ip}:{PORTA_FIGLIO}"))
+                Some(match alias_dns(contenitore) {
+                    Some(alias) => format!("http://{alias}:{PORTA_FIGLIO}"),
+                    // Un nome troppo lungo per un'etichetta DNS: l'IP, come prima.
+                    None => format!("http://{ip}:{PORTA_FIGLIO}"),
+                })
             }
             ComeRaggiungere::PortaPubblicata => {
                 let porta = self.podman.porta_pubblicata(contenitore, PORTA_FIGLIO).await.ok()??;
@@ -357,6 +368,29 @@ impl Regia {
             return Err(Apertura::NonTrovato);
         }
 
+        // La configurazione del figlio, persistente (25-10-2026): `/var/sws/config`
+        // stava nel filesystem del container, che si ricrea a ogni apertura — la
+        // chiave dell'IA inserita in un progetto spariva alla riapertura, o al primo
+        // riavvio del gateway. Una cartella per progetto, **fuori** dal progetto
+        // (scelta del maintainer): così una chiave non può finire in un commit git,
+        // in un backup o in un deploy. Se non si riesce a crearla si apre lo stesso,
+        // con la configurazione di prima, che dura quanto il container.
+        let config = cartella_config(&self.radice, cartella_azienda, nome);
+        let config_ok = match std::fs::create_dir_all(&config) {
+            Ok(()) => {
+                #[cfg(unix)]
+                {
+                    use std::os::unix::fs::PermissionsExt as _;
+                    let _ = std::fs::set_permissions(&config, std::fs::Permissions::from_mode(0o700));
+                }
+                true
+            }
+            Err(e) => {
+                tracing::warn!(cartella = %config.display(), "configurazione del progetto non persistente: {e}");
+                false
+            }
+        };
+
         let contenitore = nome_container(azienda, nome);
         // Un avanzo di un giro precedente occuperebbe il nome.
         let _ = self.podman.rimuovi(&contenitore).await;
@@ -398,6 +432,14 @@ impl Regia {
                 "--auth-delegata",
             ],
         });
+        if config_ok {
+            spec["mounts"].as_array_mut().expect("mounts è un elenco").push(serde_json::json!({
+                "type": "bind",
+                "source": config.to_string_lossy(),
+                "destination": "/var/sws/config",
+                "options": ["rw"],
+            }));
+        }
 
         match &self.come {
             ComeRaggiungere::Rete(rete) => {
@@ -408,13 +450,17 @@ impl Regia {
                 // visto il 09-10-2026 alla prima prova del gateway dentro un
                 // container, dove ogni apertura finiva in HTTP 500.
                 spec["netns"] = serde_json::json!({ "nsmode": "bridge" });
-                // L'alias col nome del container non serve a noi — lo
-                // raggiungiamo per IP — ma e' quello che permette a un umano
-                // di fare `podman exec … curl http://sws-p-…:8444` quando
-                // qualcosa non torna. Podman lo aggiunge da se' solo quando il
-                // container nasce dalla riga di comando, non via API.
+                // Gli alias: il nome del container (per un umano che fa
+                // `podman exec … curl http://sws-p-…:8444`) e, dal 25-10-2026,
+                // quello pulito per il DNS con cui il gateway stesso lo
+                // raggiunge (`alias_dns`). Podman non ne aggiunge nessuno da sé
+                // quando il container nasce via API.
+                let mut alias = vec![contenitore.clone()];
+                if let Some(a) = alias_dns(&contenitore).filter(|a| a != &contenitore) {
+                    alias.push(a);
+                }
                 spec["Networks"] = serde_json::json!({
-                    rete.as_str(): { "aliases": [contenitore.as_str()] }
+                    rete.as_str(): { "aliases": alias }
                 });
             }
             ComeRaggiungere::PortaPubblicata => {
@@ -540,8 +586,46 @@ impl std::fmt::Display for Apertura {
     }
 }
 
+/// Dove vive la configurazione persistente del container di un progetto:
+/// `<radice>/.sws-config/<azienda>/<progetto>`. Il punto la tiene fuori
+/// dall'elenco dei progetti (`list_projects` salta le cartelle nascoste); l'azienda
+/// implicita, che ha la cartella vuota, va sotto `_`.
+pub(crate) fn cartella_config(radice: &std::path::Path, cartella_azienda: &str, nome: &str) -> std::path::PathBuf {
+    let azienda = if cartella_azienda.is_empty() { "_" } else { cartella_azienda };
+    radice.join(".sws-config").join(azienda).join(nome)
+}
+
+/// Il nome con cui il gateway raggiunge un container di progetto sulla rete
+/// podman, che il DNS della rete risolve all'IP di adesso. Il nome del
+/// container può avere `.` e `_` (`nome_container`), che in un nome DNS non
+/// vanno: il punto lo spezzerebbe in due etichette. Diventano `-`. `None` se non
+/// sta in un'etichetta sola (63 caratteri): allora si usa l'IP.
+fn alias_dns(contenitore: &str) -> Option<String> {
+    let a: String = contenitore.chars().map(|c| if c == '.' || c == '_' { '-' } else { c }).collect();
+    (a.len() <= 63).then_some(a)
+}
+
 #[cfg(test)]
 mod tests {
+    /// Un riavvio del container cambia l'IP, non il nome (25-10-2026).
+    #[test]
+    fn in_rete_il_progetto_si_raggiunge_per_nome() {
+        assert_eq!(alias_dns("sws-p---CasaDomotica").as_deref(), Some("sws-p---CasaDomotica"));
+        assert_eq!(alias_dns("sws-p-acme-impianto.v2_b").as_deref(), Some("sws-p-acme-impianto-v2-b"));
+        assert_eq!(alias_dns(&format!("sws-p-{}", "x".repeat(60))), None, "oltre un'etichetta DNS: IP");
+    }
+
+    /// La chiave dell'IA di un progetto del cloud sopravvive alla riapertura
+    /// (25-10-2026) solo se la configurazione sta fuori dal container — e fuori
+    /// dal progetto, e fuori dall'elenco dei progetti.
+    #[test]
+    fn la_configurazione_del_progetto_sta_fuori_dal_progetto_e_nascosta() {
+        let r = std::path::Path::new("/srv/progetti");
+        assert_eq!(cartella_config(r, "acme", "impianto"), r.join(".sws-config/acme/impianto"));
+        assert_eq!(cartella_config(r, "", "casa"), r.join(".sws-config/_/casa"));
+        assert!(!cartella_config(r, "acme", "impianto").starts_with(r.join("acme/impianto")));
+    }
+
     use super::*;
 
     fn aperto(collegati: u32, fermo_da_s: Option<u64>) -> Aperto {

@@ -18,6 +18,13 @@
  *  nuova e lo si rivedrà. «Ignora questa versione» lo nasconde **finché non
  *  ne esce una più nuova ancora**, e quella scelta sopravvive al riavvio —
  *  altrimenti non sarebbe un ignorare, sarebbe un rimandare.
+ *
+ *  ## Chi ricorda le scelte (24-10-2026)
+ *
+ *  L'esito chiuso e la versione ignorata li ricorda il **runtime**: il kiosk dei
+ *  pannelli gira in incognito, e il `localStorage` sparisce a ogni avvio — sul
+ *  TC620 «aggiornato alla 2.20» ricompariva a ogni accensione. Il `localStorage`
+ *  resta come complemento, per un browser che il runtime non ha ancora sentito.
  */
 import { useEffect, useRef, useState } from "react";
 import type { ReactElement } from "react";
@@ -171,6 +178,8 @@ export function AvvisoAggiornamento() {
   // pilota automatico è l'unico modo, davanti al pannello, di sapere che è
   // cambiato qualcosa.
   const evento = stato?.evento ?? null;
+  // Il runtime toglie da solo l'esito già chiuso (`esito_visto`); il controllo
+  // locale copre il tempo fra il clic e la risposta.
   if (evento && !esitoVisto && esitoChiuso() !== evento.id) {
     const ok = evento.esito === "riuscito";
     const inst = stato?.novita_installata ? nl(stato.novita_installata) : null;
@@ -216,7 +225,11 @@ export function AvvisoAggiornamento() {
             </div>
           )}
           <div style={{ marginTop: 8, display: "flex", justifyContent: "flex-end" }}>
-            <button type="button" onClick={() => { chiudiEsito(evento.id); setEsitoVisto(true); setNovitaAperte(false); }}>
+            <button type="button" onClick={() => {
+              chiudiEsito(evento.id); setEsitoVisto(true); setNovitaAperte(false);
+              // Aperta anche all'anonimo: chiudere un messaggio non è un potere.
+              void api.esitoVisto(evento.id).catch(() => { /* resta il localStorage */ });
+            }}>
               {testoSistema("esito_chiudi", lang)}
             </button>
           </div>
@@ -346,9 +359,25 @@ export function AvvisoAggiornamento() {
 
   const nuova = stato?.disponibile ?? null;
   if (chiuso || !nuova) return null;
-  if (versioneIgnorata() === nuova) return null;
+  if (versioneIgnorata() === nuova || stato?.versione_ignorata === nuova) return null;
 
   const avvisi = (stato?.novita ?? []).filter((n) => nl(n).compatibilita);
+
+  // Ignorare è una scelta che vale per tutti quelli che passano davanti al
+  // pannello: la ricorda il runtime, e la chiede a un Admin.
+  const ignoraVersione = async () => {
+    setInCorso(true);
+    setErrore(null);
+    try {
+      await daAdmin(() => api.ignoraVersione(nuova));
+      ignora(nuova);
+      setChiuso(true);
+    } catch (e) {
+      setErrore(e instanceof Error ? e.message : String(e));
+    } finally {
+      setInCorso(false);
+    }
+  };
 
   const aggiorna = async () => {
     setInCorso(true);
@@ -432,7 +461,7 @@ export function AvvisoAggiornamento() {
         )}
 
         <div style={{ marginTop: 16, display: "flex", gap: 8, flexWrap: "wrap", justifyContent: "flex-end" }}>
-          <button type="button" onClick={() => { ignora(nuova); setChiuso(true); }} disabled={inCorso}>
+          <button type="button" onClick={() => void ignoraVersione()} disabled={inCorso}>
             {testoSistema("agg_ignora", lang)}
           </button>
           <button type="button" onClick={() => setChiuso(true)} disabled={inCorso}>

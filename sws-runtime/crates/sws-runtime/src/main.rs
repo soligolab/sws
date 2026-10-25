@@ -1546,6 +1546,7 @@ async fn main() -> anyhow::Result<()> {
                     app_state.abbinamento.clone(),
                     nome_proposto,
                     args.admin_port,
+                    acceptor.is_some(),
                 );
             }
         }
@@ -1558,6 +1559,7 @@ async fn main() -> anyhow::Result<()> {
                 nome.clone(),
                 token.clone(),
                 args.admin_port,
+                acceptor.is_some(),
             );
         }
         (Some(_), Some(_), Some(_)) => {

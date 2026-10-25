@@ -1211,7 +1211,9 @@
       "collar": "Collare",
       "arrow": "Freccia",
       "dot": "Pallino"
-    }
+    },
+    "permessoTag": "Per comandare serve anche il permesso del tag «{{tag}}»: {{ruolo}} (Configurazione → Tag).",
+    "permessoTagAperto": "Il tag è aperto a chiunque: questa restrizione vale per questo oggetto, non per il tag."
   },
   "shortcut": {
     "navCanvas": "Navigazione canvas",
@@ -1730,7 +1732,8 @@
     "eliminaConVariabili": "Dispositivo e variabili",
     "deploySimboliMancanti": "Il pannello non conosce {{n}} simboli della libreria usati da questo progetto:\n{{elenco}}\n\nLi mostrerà come segnaposto finché non aggiorni SWS sul pannello. Procedere con il deploy?",
     "deploySimboliSenzaLibreria": "Il pannello ha una versione di SWS senza la libreria di simboli: i {{n}} simboli di libreria del progetto\n{{elenco}}\n\nsaranno segnaposto finché non lo aggiorni. Procedere con il deploy?",
-    "daRiautenticare": "Collegato a {{host}}, ma le credenziali non valgono più: il progetto distribuito ha portato i suoi utenti. Rientra con l'utente e la password dell'Admin del progetto."
+    "daRiautenticare": "Collegato a {{host}}, ma le credenziali non valgono più: il progetto distribuito ha portato i suoi utenti. Rientra con l'utente e la password dell'Admin del progetto.",
+    "tagWriteAnyone": "Chiunque, anche senza login"
   },
   "langtab": {
     "migrate": "Migra i testi…",

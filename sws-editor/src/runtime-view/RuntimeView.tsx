@@ -19,6 +19,7 @@ import { localizePageName, effectiveProjectLang, resolveMsg } from "@/i18n/proje
 import { LinguaContenutiProvider, useLinguaContenuti } from "@/i18n/linguaContenuti";
 import { useTagStream, tryTagWriteWs, sendSubscribe } from "@/ws/tagStream";
 import type { ButtonAction, FunctionDef } from "@/types";
+import { puoScrivere, sogliaScritturaTag } from "@/auth/permessoScrittura";
 
 // ── Script output toast ───────────────────────────────────────────────────────
 
@@ -247,7 +248,17 @@ export function RuntimeView() {
   );
   const objects = currentPage?.objects ?? [];
 
+  const authRole = useAppStore((s) => s.authRole);
   const handleWriteTag = (tagId: string, value: string | number | boolean) => {
+    // La soglia del tag (25-10-2026): se il ruolo non basta si apre il login
+    // invece di mandare una scrittura che il server rifiuterebbe. Un tag aperto
+    // a «Chiunque» passa anche da anonimo — la luce della stanza. La restrizione
+    // dell'oggetto, se c'è, ha già agito prima di arrivare qui.
+    if (!puoScrivere(sogliaScritturaTag(project?.tags, tagId), authRole)) {
+      loginTokenAtOpen.current = authToken;
+      setLoginOpen(true);
+      return;
+    }
     // Prefer the bidirectional WS path (zero HTTP round-trip + token reuse).
     // The HTTP PUT remains as the fallback when the socket isn't open
     // yet — first paint can race the upgrade handshake.

@@ -53,6 +53,15 @@ pub struct Programma {
     /// la cancella.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub versione_scartata: Option<String>,
+    /// L'esito chiuso sullo schermo del pannello (24-10-2026). Stava nel `localStorage`
+    /// del browser, e il kiosk gira in incognito: a ogni avvio l'esito ricompariva,
+    /// «aggiornato alla 2.20» per giorni. Ora lo ricorda il runtime.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub esito_visto: Option<i64>,
+    /// «Ignora questa versione» dato dallo schermo del pannello (24-10-2026): stessa
+    /// ragione. Diverso da `versione_scartata`, che nasce da un ritorno indietro.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub versione_ignorata: Option<String>,
 }
 
 /// Ricorda (o dimentica) la versione scartata con un ritorno.

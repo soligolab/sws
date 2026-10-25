@@ -668,7 +668,7 @@ export function TagsTab({ scheda }: { scheda: IdScheda }) {
                                 value={tag.write_min_role ?? ""}
                                 onChange={(e) => updateTag(i, { write_min_role: (e.target.value || undefined) as TagDef["write_min_role"] })}>
                                 <option value="">Operator (default)</option>
-                                <option value="Viewer">Viewer</option>
+                                <option value="Viewer">{t("cfg.tagWriteAnyone")}</option>
                                 <option value="Supervisor">Supervisor</option>
                                 <option value="Admin">Admin</option>
                               </select>

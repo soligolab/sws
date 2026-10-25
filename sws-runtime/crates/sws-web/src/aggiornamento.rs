@@ -189,6 +189,10 @@ pub struct StatoAggiornamento {
     /// mostra l'esito deve sapere che vale la pena richiedere.
     #[serde(skip_serializing_if = "std::ops::Not::not")]
     pub in_corso: bool,
+    /// La versione che chi sta davanti al pannello ha scelto di ignorare
+    /// (`POST /api/update/ignora`): l'avviso di quella versione non si ripropone.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub versione_ignorata: Option<String>,
 }
 
 /// Le novità di una versione, come viaggiano dentro la sua immagine.
@@ -383,6 +387,7 @@ pub async fn stato() -> StatoAggiornamento {
         evento: None,
         novita_installata: None,
         in_corso: false,
+        versione_ignorata: None,
     };
     let (Some(arch), Some(r)) = (arch, immagine.as_deref().and_then(scomponi)) else {
         return st;
@@ -408,12 +413,42 @@ pub async fn stato() -> StatoAggiornamento {
 pub async fn stato_con_esito(config_dir: &std::path::Path) -> StatoAggiornamento {
     let mut st = stato().await;
     let p = crate::aggiornamento_finestra::carica(config_dir).await;
-    st.evento = p.evento.filter(|e| riguarda_questa_versione(e, VERSIONE));
+    st.evento = p
+        .evento
+        .filter(|e| riguarda_questa_versione(e, VERSIONE))
+        .filter(|e| !esito_gia_visto(e, p.esito_visto));
     st.in_corso = p.in_corso.is_some();
+    st.versione_ignorata = p.versione_ignorata.clone();
     if st.evento.is_some() {
         st.novita_installata = novita_di_questa().await;
     }
     st
+}
+
+/// L'esito è già stato chiuso sullo schermo del pannello? Pura. Un esito nuovo ha un
+/// `id` nuovo, quindi si mostra di nuovo anche dopo aver chiuso il precedente.
+pub(crate) fn esito_gia_visto(e: &crate::aggiornamento_esito::Evento, visto: Option<i64>) -> bool {
+    visto == Some(e.id)
+}
+
+/// Segna l'esito `id` come visto (rotta `POST /api/update/esito/:id/visto`).
+pub async fn segna_esito_visto(config_dir: &std::path::Path, id: i64) -> std::io::Result<()> {
+    let mut p = crate::aggiornamento_finestra::carica(config_dir).await;
+    if p.esito_visto != Some(id) {
+        p.esito_visto = Some(id);
+        crate::aggiornamento_finestra::salva(config_dir, &p).await?;
+    }
+    Ok(())
+}
+
+/// Ricorda la versione ignorata dallo schermo (rotta `POST /api/update/ignora`).
+pub async fn ignora_versione(config_dir: &std::path::Path, versione: Option<String>) -> std::io::Result<()> {
+    let mut p = crate::aggiornamento_finestra::carica(config_dir).await;
+    if p.versione_ignorata != versione {
+        p.versione_ignorata = versione;
+        crate::aggiornamento_finestra::salva(config_dir, &p).await?;
+    }
+    Ok(())
 }
 
 /// Un esito parla della versione che gira **adesso**: se ne gira un'altra, è
@@ -699,6 +734,15 @@ mod tests {
     /// Il 30-09-2026: aggiornato il pannello dalla rc.12 alla rc.13, sullo
     /// schermo restava «aggiornato dalla rc.11 alla rc.12» — l'esito del
     /// giorno prima, mai chiuso.
+    #[test]
+    fn un_esito_chiuso_non_si_ripropone_ma_uno_nuovo_si() {
+        use crate::aggiornamento_esito::{Esito, Evento};
+        let e = Evento { id: 7, da: "2.19.0".into(), a: Some("2.20.0".into()), esito: Esito::Riuscito };
+        assert!(!esito_gia_visto(&e, None), "mai chiuso: si mostra");
+        assert!(esito_gia_visto(&e, Some(7)), "chiuso: non si ripropone a ogni avvio del kiosk");
+        assert!(!esito_gia_visto(&e, Some(6)), "chiuso quello di prima: questo è nuovo");
+    }
+
     #[test]
     fn un_esito_di_due_versioni_fa_non_si_mostra_piu() {
         use crate::aggiornamento_esito::{Esito, Evento};

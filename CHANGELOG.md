@@ -20,6 +20,45 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
   all'installer (guardia in `check_quadlet.sh`), e l'installer lo suggerisce sui Pixsys. Provato sul TC620
   con un riavvio a freddo.
 
+### Fixed
+
+- **Il gateway raggiunge i progetti per nome, non per IP** (`gateway/progetti.rs`, idea del maintainer): un
+  `podman restart` del container di un progetto gli dava un IP nuovo, e il gateway continuava a inoltrare al
+  vecchio — «runtime unavailable» finché non si ricreava il container e si riavviava il gateway (visto il 25-10 su
+  CasaDomotica). Ora l'indirizzo è il nome del container, che il DNS della rete podman risolve a ogni connessione;
+  `.` e `_` diventano `-` in un alias apposta, e un nome oltre i 63 caratteri ripiega sull'IP.
+- **«Chiunque, anche senza login»: un comando che non chiede il login** (`router.rs`, `permessoScrittura.ts`,
+  piano `docs/plans/2026-10-25-scrittura-senza-login.md`). Il ruolo minimo di scrittura «Viewer» di un tag non
+  aveva effetto: la `PUT /api/tags/:id` stava sotto `require_operator` (viewer e IDE) e il WebSocket aveva un suo
+  `role < Operator` prima della soglia del tag, quindi nessun anonimo scriveva mai, e «Nessun vincolo» su un
+  pulsante chiedeva il login lo stesso. Ora decide solo `tag_write_allowed` (default invariato: Operator). Regola
+  del maintainer: **valgono tag e oggetto, vince il più severo** — il tag è il vincolo che il server fa rispettare,
+  l'oggetto può solo restringere. Nel viewer web, un comando su un tag che il ruolo non può scrivere apre il login
+  invece di mandare una scrittura destinata al rifiuto; la scheda Tag chiama «Viewer» *Chiunque, anche senza
+  login*, e la sezione Sicurezza dell'oggetto dice cosa chiede il tag che scrive. Sul pannello LVGL vale la regola
+  del server; aprire il login da lì resta nei residui.
+- **La chiave dell'IA di un progetto del cloud non si perde più alla riapertura** (`gateway/progetti.rs`): il
+  container del progetto teneva `/var/sws/config` nel proprio filesystem, che si ricrea a ogni apertura e a ogni
+  riavvio del gateway. Ora il gateway monta una cartella persistente per progetto,
+  `<radice>/.sws-config/<azienda>/<progetto>` (0700), **fuori** dal progetto — scelta del maintainer: la chiave non
+  può finire in un commit, in un backup o in un deploy. Limite: rinominare o duplicare un progetto non porta con sé
+  quella cartella, e la chiave va reinserita.
+- **«Sessione scaduta» nel cloud di nuovo usabile** (`api/client.ts`, `sulGateway`): la finestra mandava la password
+  a `/p/<azienda>/<progetto>/api/auth/login`, cioè al container del progetto, che con `--auth-delegata` non ha utenti
+  — «password errata» a qualunque password, e per rientrare bisognava tornare alla pagina iniziale. Nel cloud il
+  login va al gateway, alla radice del sito, come già il logout. Visto il 25-10 dopo un riavvio del gateway.
+- **Il pannello di nuovo raggiungibile dal cloud con il TLS acceso** (`tunnel/pannello.rs`): dalla 2.20.0 (C4) un
+  pannello serve in TLS anche la porta di gestione, e il tunnel ci girava l'HTTP del gateway in chiaro — handshake
+  rifiutato, `502 Bad Gateway` su login remoto e su tutto il resto, aggiornamento remoto compreso. Ora, con il TLS
+  acceso, il tunnel raggiunge la porta locale in TLS (verso sé stesso su loopback: firme verificate, identità no).
+  Test `una_get_arriva_al_pannello_in_tls`, che senza la correzione fallisce. Visto sul `tc620-garage` il 24-10.
+- **L'esito dell'aggiornamento non ricompare più a ogni accensione del pannello**: «Chiudi» sull'esito e «Ignora
+  questa versione» stavano nel `localStorage` del viewer web, e il kiosk dei pannelli gira in incognito — sul TC620
+  «aggiornato alla 2.20» tornava a ogni avvio. Ora li ricorda il runtime in `config/aggiornamento.yaml`
+  (`esito_visto`, `versione_ignorata`): `POST /api/update/esito/:id/visto` aperta anche all'anonimo (chiude un
+  messaggio), `POST /api/update/ignora` da Admin, con il login nell'avviso. `GET /api/update/status` toglie
+  l'esito già visto e riporta la versione ignorata. Il viewer LVGL li salvava già su disco.
+
 ## [2.20.0] — 2026-10-23
 
 ### Added

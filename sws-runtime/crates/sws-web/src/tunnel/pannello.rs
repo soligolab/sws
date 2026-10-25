@@ -42,7 +42,8 @@ const PASSO_DEL_PING: Duration = Duration::from_secs(30);
 /// `url` e' l'indirizzo del gateway (`wss://tunnel.soligo.net/tunnel/v1`),
 /// `segno` il nome con cui questo pannello si presenta, `token` quello che lo
 /// autorizza, e `porta_gestione` la propria porta su cui girare gli stream.
-pub fn tieni_aperto(url: String, segno: String, token: String, porta_gestione: u16) {
+/// `tls` dice se quella porta parla TLS (vedi [`gira_alla_porta`]).
+pub fn tieni_aperto(url: String, segno: String, token: String, porta_gestione: u16, tls: bool) {
     tokio::spawn(async move {
         let mut attesa = ATTESA_MINIMA;
         loop {
@@ -50,7 +51,7 @@ pub fn tieni_aperto(url: String, segno: String, token: String, porta_gestione: u
                 ("authorization", format!("Bearer {token}")),
                 ("x-sws-pannello", segno.clone()),
             ];
-            match un_giro(&url, &intestazioni, porta_gestione, None).await {
+            match un_giro(&url, &intestazioni, porta_gestione, tls, None).await {
                 Ok(()) => {
                     tracing::info!(%url, "tunnel chiuso dall'altro capo, richiamo");
                     attesa = ATTESA_MINIMA;
@@ -81,6 +82,7 @@ pub fn tieni_aperto_abbinabile(
     abbinamento: Arc<crate::abbinamento::Abbinamento>,
     nome_proposto: String,
     porta_gestione: u16,
+    tls: bool,
 ) {
     tokio::spawn(async move {
         let mut attesa = ATTESA_MINIMA;
@@ -102,7 +104,7 @@ pub fn tieni_aperto_abbinabile(
                     }
                 },
             };
-            match un_giro(&url, &intestazioni, porta_gestione, Some(abbinamento.cambiato())).await {
+            match un_giro(&url, &intestazioni, porta_gestione, tls, Some(abbinamento.cambiato())).await {
                 Ok(()) => attesa = ATTESA_MINIMA,
                 Err(e) => {
                     tracing::warn!(%url, "tunnel non aperto: {e} — riprovo fra {}s", attesa.as_secs());
@@ -120,6 +122,7 @@ async fn un_giro(
     url: &str,
     intestazioni: &[(&'static str, String)],
     porta: u16,
+    tls: bool,
     // Suona quando quello che il pannello presenta è cambiato: si chiude il
     // giro e se ne apre uno nuovo.
     interrompi: Option<Arc<tokio::sync::Notify>>,
@@ -203,7 +206,7 @@ async fn un_giro(
             arrivato = in_arrivo.recv() => {
                 let Some(stream) = arrivato else { break };
                 tokio::spawn(async move {
-                    if let Err(e) = gira_alla_porta(stream, porta).await {
+                    if let Err(e) = gira_alla_porta(stream, porta, tls).await {
                         tracing::debug!("stream del tunnel finito: {e}");
                     }
                 });
@@ -224,13 +227,83 @@ async fn un_giro(
 }
 
 /// Copia i byte fra uno stream del tunnel e la porta di gestione locale.
-pub(crate) async fn gira_alla_porta(stream: yamux::Stream, porta: u16) -> std::io::Result<()> {
-    let mut locale = tokio::net::TcpStream::connect(("127.0.0.1", porta)).await?;
+///
+/// **Con `tls` la porta locale si raggiunge in TLS** (24-10-2026). Dalla 2.20.0 (C4)
+/// un pannello accende il TLS di default, anche sulla porta di gestione, e il
+/// tunnel ci copiava l'HTTP del gateway in chiaro: il runtime rifiutava
+/// l'handshake, il gateway riceveva spazzatura e rispondeva 502 — ogni pannello
+/// abbinato perdeva l'accesso dal cloud, aggiornamento remoto compreso.
+pub(crate) async fn gira_alla_porta(stream: yamux::Stream, porta: u16, tls: bool) -> std::io::Result<()> {
+    let tcp = tokio::net::TcpStream::connect(("127.0.0.1", porta)).await?;
     // Lo stream di yamux parla i tratti di `futures`, la socket TCP quelli di
     // tokio: si traduce il primo invece del secondo, perché `copy_bidirectional`
     // sta in tokio e la socket è già nella forma che vuole.
     let mut stream = stream.compat();
-    tokio::io::copy_bidirectional(&mut stream, &mut locale)
-        .await
-        .map(|_| ())
+    if tls {
+        let nome = rustls::pki_types::ServerName::IpAddress(std::net::Ipv4Addr::LOCALHOST.into());
+        let mut locale = tokio_rustls::TlsConnector::from(config_loopback()).connect(nome, tcp).await?;
+        tokio::io::copy_bidirectional(&mut stream, &mut locale).await.map(|_| ())
+    } else {
+        let mut locale = tcp;
+        tokio::io::copy_bidirectional(&mut stream, &mut locale).await.map(|_| ())
+    }
+}
+
+/// Il client TLS verso **sé stessi** su loopback: il certificato è quello che il
+/// processo stesso serve (autofirmato, del dispositivo o caricato a mano), quindi
+/// non c'è un'identità da verificare — chi risponde su `127.0.0.1:<porta di
+/// gestione>` è questo runtime. Le firme dell'handshake restano verificate.
+fn config_loopback() -> Arc<rustls::ClientConfig> {
+    static CFG: std::sync::OnceLock<Arc<rustls::ClientConfig>> = std::sync::OnceLock::new();
+    CFG.get_or_init(|| {
+        let provider = Arc::new(rustls::crypto::ring::default_provider());
+        let cfg = rustls::ClientConfig::builder_with_provider(provider.clone())
+            .with_safe_default_protocol_versions()
+            .expect("versioni TLS di default")
+            .dangerous()
+            .with_custom_certificate_verifier(Arc::new(SeStesso { provider }))
+            .with_no_client_auth();
+        Arc::new(cfg)
+    })
+    .clone()
+}
+
+#[derive(Debug)]
+struct SeStesso {
+    provider: Arc<rustls::crypto::CryptoProvider>,
+}
+
+impl rustls::client::danger::ServerCertVerifier for SeStesso {
+    fn verify_server_cert(
+        &self,
+        _end_entity: &rustls::pki_types::CertificateDer<'_>,
+        _intermediates: &[rustls::pki_types::CertificateDer<'_>],
+        _server_name: &rustls::pki_types::ServerName<'_>,
+        _ocsp_response: &[u8],
+        _now: rustls::pki_types::UnixTime,
+    ) -> Result<rustls::client::danger::ServerCertVerified, rustls::Error> {
+        Ok(rustls::client::danger::ServerCertVerified::assertion())
+    }
+
+    fn verify_tls12_signature(
+        &self,
+        message: &[u8],
+        cert: &rustls::pki_types::CertificateDer<'_>,
+        dss: &rustls::DigitallySignedStruct,
+    ) -> Result<rustls::client::danger::HandshakeSignatureValid, rustls::Error> {
+        rustls::crypto::verify_tls12_signature(message, cert, dss, &self.provider.signature_verification_algorithms)
+    }
+
+    fn verify_tls13_signature(
+        &self,
+        message: &[u8],
+        cert: &rustls::pki_types::CertificateDer<'_>,
+        dss: &rustls::DigitallySignedStruct,
+    ) -> Result<rustls::client::danger::HandshakeSignatureValid, rustls::Error> {
+        rustls::crypto::verify_tls13_signature(message, cert, dss, &self.provider.signature_verification_algorithms)
+    }
+
+    fn supported_verify_schemes(&self) -> Vec<rustls::SignatureScheme> {
+        self.provider.signature_verification_algorithms.supported_schemes()
+    }
 }

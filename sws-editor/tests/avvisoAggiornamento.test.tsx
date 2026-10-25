@@ -3,7 +3,9 @@ import { describe, expect, it, beforeEach, vi } from "vitest";
 
 // `vi.mock` è sollevato in cima al file, quindi non può leggere variabili
 // dichiarate qui sopra: `vi.hoisted` è il modo di crearle prima di lui.
-const { statoAggiornamento, avviaAggiornamento, getSystemStatus, aggiornaQuadlet, confermaAggiornamento } = vi.hoisted(() => ({
+const { statoAggiornamento, avviaAggiornamento, getSystemStatus, aggiornaQuadlet, confermaAggiornamento, esitoVisto, ignoraVersione } = vi.hoisted(() => ({
+  esitoVisto: vi.fn().mockResolvedValue(undefined),
+  ignoraVersione: vi.fn().mockResolvedValue(undefined),
   statoAggiornamento: vi.fn(),
   avviaAggiornamento: vi.fn().mockResolvedValue({}),
   aggiornaQuadlet: vi.fn().mockResolvedValue({}),
@@ -15,7 +17,7 @@ const { statoAggiornamento, avviaAggiornamento, getSystemStatus, aggiornaQuadlet
 }));
 vi.mock("@/api/client", async () => {
   const actual = await vi.importActual<typeof import("@/api/client")>("@/api/client");
-  return { ...actual, api: { ...actual.api, statoAggiornamento, avviaAggiornamento, getSystemStatus, aggiornaQuadlet, confermaAggiornamento } };
+  return { ...actual, api: { ...actual.api, statoAggiornamento, avviaAggiornamento, getSystemStatus, aggiornaQuadlet, confermaAggiornamento, esitoVisto, ignoraVersione } };
 });
 
 // Le parole non vengono più da i18next: dal 29-09-2026 stanno nella tabella
@@ -48,6 +50,8 @@ describe("avviso di aggiornamento sul pannello", () => {
     getSystemStatus.mockReset().mockResolvedValue({ auth_required: false, uptime_s: 100 });
     aggiornaQuadlet.mockClear();
     confermaAggiornamento.mockClear();
+    esitoVisto.mockClear();
+    ignoraVersione.mockClear();
     useAppStore.getState().clearAuth?.();
   });
 
@@ -114,6 +118,32 @@ describe("avviso di aggiornamento sul pannello", () => {
     expect(await screen.findByRole("dialog")).toBeTruthy();
   });
 
+  /** Il TC620 del 24-10-2026: il kiosk gira in incognito e a ogni avvio il
+   *  `localStorage` è vuoto. Quello che conta è che la scelta arrivi al runtime,
+   *  e che l'avviso obbedisca a quello che il runtime ricorda. */
+  it("«Ignora» lo dice al runtime, e la versione ignorata dal runtime basta a nasconderlo", async () => {
+    const { unmount } = render(<AvvisoAggiornamento />);
+    fireEvent.click(await screen.findByText(testoSistema("agg_ignora", L)));
+    await waitFor(() => expect(ignoraVersione).toHaveBeenCalledWith("2.12.0-rc.3"));
+    unmount();
+    localStorage.clear(); // il riavvio del kiosk in incognito
+    statoAggiornamento.mockResolvedValue({ ...NUOVA, versione_ignorata: "2.12.0-rc.3" });
+    render(<AvvisoAggiornamento />);
+    await waitFor(() => expect(statoAggiornamento).toHaveBeenCalled());
+    expect(screen.queryByRole("dialog")).toBeNull();
+  });
+
+  it("con utenti, «Ignora» aspetta il login di un Admin", async () => {
+    getSystemStatus.mockResolvedValue({ auth_required: true, uptime_s: 100 });
+    render(<AvvisoAggiornamento />);
+    fireEvent.click(await screen.findByText(testoSistema("agg_ignora", L)));
+    await waitFor(() => expect(campoPassword()).not.toBeNull());
+    expect(ignoraVersione).not.toHaveBeenCalled();
+    useAppStore.getState().setAuth("token-admin", "admin", "Admin");
+    await waitFor(() => expect(ignoraVersione).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+  });
+
   it("un riavvio si riconosce dall'uptime che torna indietro", () => {
     expect(ripartito(null, 5)).toBe(false);
     expect(ripartito(100, 160)).toBe(false);
@@ -154,6 +184,8 @@ describe("avviso di aggiornamento sul pannello", () => {
     expect(d.textContent).toContain("2.12.0-rc.9");
     fireEvent.click(screen.getByText(testoSistema("esito_chiudi", L)));
     expect(screen.queryByRole("status")).toBeNull();
+    // Lo sa anche il runtime: il kiosk in incognito dimentica il localStorage.
+    expect(esitoVisto).toHaveBeenCalledWith(7);
     unmount();
     render(<AvvisoAggiornamento />);
     await waitFor(() => expect(statoAggiornamento).toHaveBeenCalled());

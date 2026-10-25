@@ -59,6 +59,7 @@ png               = "0.17"
 base64            = "0.22"
 rcgen.workspace              = true
 rustls.workspace             = true
+tokio-rustls.workspace       = true
 rustls-pemfile.workspace     = true
 tokio-tungstenite.workspace  = true
 # Prometheus exposition for /metrics. The recorder is installed once at

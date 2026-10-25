@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { sullInsiemeDeiProgetti } from "@/api/client";
+import { sulGateway, sullInsiemeDeiProgetti } from "@/api/client";
 
 describe("quali rotte vanno al gateway invece che al container del progetto", () => {
   it("l'insieme dei progetti lo sa il gateway", () => {
@@ -26,5 +26,14 @@ describe("quali rotte vanno al gateway invece che al container del progetto", ()
       "/api/synoptics/pagina1",
       "/api/auth/whoami",
     ]) expect(sullInsiemeDeiProgetti(p)).toBe(false);
+  });
+
+  /** 25-10-2026: dopo un riavvio del gateway la finestra «Sessione scaduta»
+   *  mandava la password al container, che nel cloud non ha utenti. */
+  it("il login va al gateway, il resto dell'autenticazione no", () => {
+    expect(sulGateway("/api/auth/login")).toBe(true);
+    expect(sulGateway("/api/projects/acme/impianto/rename")).toBe(true);
+    expect(sulGateway("/api/auth/whoami")).toBe(false);
+    expect(sulGateway("/api/project")).toBe(false);
   });
 });

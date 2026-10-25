@@ -599,7 +599,6 @@ pub fn build(
     // can't change state. Synoptic writes moved to supervisor_routes
     // below — Operators are runtime users, not project editors.
     let operator_routes = Router::new()
-        .route("/api/tags/:id", put(write_tag))
         .route("/api/alarms/:id/ack", post(ack_alarm))
         .route(
             "/api/alarms/:id/shelve",
@@ -846,7 +845,11 @@ pub fn build(
         )
         // Tag REST (reads)
         .route("/api/tags", get(get_all_tags))
-        .route("/api/tags/:id", get(get_tag))
+        // La scrittura di un tag sta con le letture (25-10-2026): il ruolo lo decide
+        // `write_tag` con la soglia del tag (`tag_write_allowed`, default Operator).
+        // Sotto `require_operator` un tag aperto a «Chiunque» (Viewer) non era
+        // scrivibile da nessun anonimo — la luce della stanza chiedeva il login.
+        .route("/api/tags/:id", get(get_tag).put(write_tag))
         // Alarm REST (reads)
         .route("/api/alarms", get(get_alarms))
         .route("/api/alarms/history", get(get_alarm_history))
@@ -1546,9 +1549,8 @@ fn deploy_only_app(state: AppState) -> Router<AppState> {
 }
 
 fn build_runtime_inner(state: AppState, www_dir: Option<PathBuf>) -> Router {
-    // Operator-required routes: tag writes, alarm ops, recipe apply, scripts.
+    // Operator-required routes: alarm ops, recipe apply, scripts (tag writes: read_routes, 25-10-2026).
     let operator_routes = Router::new()
-        .route("/api/tags/:id", put(write_tag))
         .route("/api/alarms/:id/ack", post(ack_alarm))
         .route(
             "/api/alarms/:id/shelve",
@@ -1566,7 +1568,11 @@ fn build_runtime_inner(state: AppState, www_dir: Option<PathBuf>) -> Router {
     // Anonymous-readable routes: synoptic, tags, alarms, history, WS streams.
     let read_routes = Router::new()
         .route("/api/tags", get(get_all_tags))
-        .route("/api/tags/:id", get(get_tag))
+        // La scrittura di un tag sta con le letture (25-10-2026): il ruolo lo decide
+        // `write_tag` con la soglia del tag (`tag_write_allowed`, default Operator).
+        // Sotto `require_operator` un tag aperto a «Chiunque» (Viewer) non era
+        // scrivibile da nessun anonimo — la luce della stanza chiedeva il login.
+        .route("/api/tags/:id", get(get_tag).put(write_tag))
         .route("/api/alarms", get(get_alarms))
         .route("/api/alarms/history", get(get_alarm_history))
         .route("/api/history/export", get(export_history_csv))
@@ -1595,6 +1601,10 @@ fn build_runtime_inner(state: AppState, www_dir: Option<PathBuf>) -> Router {
         // credenziali di Admin si chiedono al momento di applicare (le scritture qui sotto).
         .route("/api/system", get(crate::system::get_system_status_viewer))
         .route("/api/update/status", get(aggiornamento_stato))
+        // «Chiudi» sull'esito dell'ultimo aggiornamento (24-10-2026): lo ricorda il
+        // runtime, perché il kiosk in incognito dimentica il `localStorage` a ogni
+        // avvio. Aperta come le letture: chiude un messaggio, non cambia l'impianto.
+        .route("/api/update/esito/:id/visto", post(aggiornamento_esito_visto))
         .route("/ws/tags", get(ws_tags_handler))
         .route("/ws/alarms", get(ws_alarms_handler));
 
@@ -1615,6 +1625,8 @@ fn build_runtime_inner(state: AppState, www_dir: Option<PathBuf>) -> Router {
     // Il test `le_scritture_dell_aggiornamento_restano_admin_sul_viewer` lo fissa.
     let aggiornamento_routes = Router::new()
         .route("/api/update/apply", post(aggiornamento_avvia))
+        // «Ignora questa versione» dallo schermo (24-10-2026): è una scelta, quindi Admin.
+        .route("/api/update/ignora", post(aggiornamento_ignora))
         .route("/api/quadlet/aggiorna", post(quadlet_aggiorna))
         .route("/api/aggiornamento/conferma", post(conferma_aggiornamento))
         .route("/api/aggiornamento/istantanea", post(istantanea_dati_prendi))
@@ -3026,9 +3038,10 @@ async fn write_tag(
     Path(id): Path<String>,
     Json(body): Json<WriteTagBody>,
 ) -> axum::response::Response {
-    // F3.1: ruolo minimo di scrittura per-tag (default storico: Operator+,
-    // già garantito dal layer di route — qui si applica l'eventuale soglia
-    // più alta dichiarata sul TagDef).
+    // F3.1: ruolo minimo di scrittura per-tag. Dal 25-10-2026 è **l'unico**
+    // controllo: la rotta non sta più sotto `require_operator`, e un tag senza
+    // soglia resta Operator+ qui dentro. Una soglia «Viewer» apre il tag anche
+    // all'anonimo (che è Viewer).
     if !tag_write_allowed(&s.db, &id, user.role).await {
         s.audit.log(
             "tag.write_denied",
@@ -3750,6 +3763,35 @@ struct PuliziaBody {
 /// `GET /api/update/status` — versione, canale e versione disponibile.
 async fn aggiornamento_stato(State(s): State<AppState>) -> Response {
     Json(crate::aggiornamento::stato_con_esito(&s.config_dir).await).into_response()
+}
+
+/// `POST /api/update/esito/:id/visto` — l'esito dell'ultimo aggiornamento è stato chiuso
+/// sullo schermo del pannello: non si ripropone, nemmeno dopo un riavvio del kiosk.
+async fn aggiornamento_esito_visto(State(s): State<AppState>, Path(id): Path<i64>) -> Response {
+    match crate::aggiornamento::segna_esito_visto(&s.config_dir, id).await {
+        Ok(()) => StatusCode::NO_CONTENT.into_response(),
+        Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response(),
+    }
+}
+
+#[derive(serde::Deserialize)]
+#[serde(deny_unknown_fields)]
+struct IgnoraBody {
+    /// `None` = non ignorare più niente.
+    versione: Option<String>,
+}
+
+/// `POST /api/update/ignora` — «Ignora questa versione» dallo schermo del pannello.
+async fn aggiornamento_ignora(
+    State(s): State<AppState>,
+    Extension(user): Extension<AuthUser>,
+    Json(b): Json<IgnoraBody>,
+) -> Response {
+    s.audit.log("update.ignora", Some(user.username), serde_json::json!({ "versione": b.versione }));
+    match crate::aggiornamento::ignora_versione(&s.config_dir, b.versione).await {
+        Ok(()) => StatusCode::NO_CONTENT.into_response(),
+        Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response(),
+    }
 }
 
 /// `POST /api/update/apply` — avvia l'aggiornamento del runtime. Risponde
@@ -8210,22 +8252,10 @@ async fn handle_ws(
                         // di quello dell'handshake vuol dire che una sessione
                         // finita continua a comandare finché il socket regge.
                         let role = ruolo_adesso(&stato, token.as_ref(), role).await;
-                        if role < Role::Operator {
-                            let ack = WriteAck {
-                                ty: "ack",
-                                req_id,
-                                tag,
-                                ok: false,
-                                error: Some("forbidden: Operator+ required".into()),
-                            };
-                            let _ = out_tx
-                                .send(Message::Text(
-                                    serde_json::to_string(&ack).unwrap_or_default(),
-                                ))
-                                .await;
-                            continue;
-                        }
-                        // F3.1: soglia per-tag (TagDef.write_min_role) sopra la regola storica.
+                        // F3.1: soglia per-tag (TagDef.write_min_role), default Operator+.
+                        // Dal 25-10-2026 è l'unico controllo, come sulla PUT: prima un
+                        // `role < Operator` lo precedeva, e un tag aperto a «Chiunque»
+                        // restava chiuso all'anonimo.
                         if !tag_write_allowed(&db, &tag, role).await {
                             let ack = WriteAck {
                                 ty: "ack",
@@ -12147,6 +12177,44 @@ mod rotte_del_dispositivo {
     /// aprono sulla porta del viewer, le **scritture** no. Prima nessun test fissava
     /// quelle guardie: spostare una riga nel gruppo sbagliato avrebbe dato a chiunque
     /// in rete il pulsante «aggiorna e riavvia».
+    /// «Chiunque, anche senza login» (25-10-2026): la luce della stanza si
+    /// comanda dal viewer anonimo se il **tag** lo permette. La rotta di
+    /// scrittura non sta più sotto `require_operator` — né sul viewer né
+    /// sull'IDE — e il WebSocket non ha più il suo `role < Operator`: decide
+    /// solo `tag_write_allowed`.
+    #[test]
+    fn la_scrittura_di_un_tag_la_decide_il_tag() {
+        let src = include_str!("router.rs");
+        let viewer = blocco(src, "fn build_runtime_inner(", "\nfn ");
+        let operatore = blocco(viewer, "let operator_routes", ";\n");
+        assert!(!operatore.contains("put(write_tag)"), "la PUT del tag è tornata sotto require_operator sul viewer");
+        let letture = blocco(viewer, "let read_routes", ";\n");
+        assert!(letture.contains("get(get_tag).put(write_tag)"), "la PUT del tag non sta con le letture del viewer");
+        let ide = blocco(src, "pub fn build(", "\nfn ");
+        let operatore = blocco(ide, "let operator_routes", ";\n");
+        assert!(!operatore.contains("put(write_tag)"), "la PUT del tag è tornata sotto require_operator sull'IDE");
+        let ws = blocco(src, "InboundMsg::Write { tag, value, req_id } => {", "coerce_for_write");
+        assert!(!ws.contains("Role::Operator"), "il WebSocket ha di nuovo un blocco Operator prima della soglia del tag");
+        assert!(ws.contains("tag_write_allowed"));
+    }
+
+    /// La tabella del piano 2026-10-25: l'anonimo (che è Viewer) scrive solo un
+    /// tag aperto a «Chiunque»; un tag senza soglia resta Operator.
+    #[tokio::test]
+    async fn la_soglia_del_tag_vale_anche_per_l_anonimo() {
+        let db = sws_core::TagDb::new(16);
+        db.set_write_roles(std::collections::HashMap::from([
+            ("luce_stanza".to_string(), "Viewer".to_string()),
+            ("forno".to_string(), "Supervisor".to_string()),
+        ]))
+        .await;
+        assert!(super::tag_write_allowed(&db, "luce_stanza", sws_auth::Role::Viewer).await, "Chiunque: anche l'anonimo");
+        assert!(!super::tag_write_allowed(&db, "pompa", sws_auth::Role::Viewer).await, "senza soglia: Operator, l'anonimo no");
+        assert!(super::tag_write_allowed(&db, "pompa", sws_auth::Role::Operator).await);
+        assert!(!super::tag_write_allowed(&db, "forno", sws_auth::Role::Operator).await);
+        assert!(super::tag_write_allowed(&db, "forno", sws_auth::Role::Supervisor).await);
+    }
+
     #[test]
     fn le_scritture_dell_aggiornamento_restano_admin_sul_viewer() {
         let src = include_str!("router.rs");
@@ -12157,12 +12225,13 @@ mod rotte_del_dispositivo {
             "\"/api/quadlet/aggiorna\"",
             "\"/api/aggiornamento/conferma\"",
             "\"/api/aggiornamento/istantanea\"",
+            "\"/api/update/ignora\"",
         ] {
             assert!(scritture.contains(rotta), "{rotta} non sta più nel gruppo require_admin del viewer");
             assert_eq!(viewer.matches(rotta).count(), 1, "{rotta} compare due volte sul viewer");
         }
         let letture = blocco(viewer, "let read_routes", ";\n");
-        for rotta in ["\"/api/system\"", "\"/api/update/status\""] {
+        for rotta in ["\"/api/system\"", "\"/api/update/status\"", "\"/api/update/esito/:id/visto\""] {
             assert!(letture.contains(rotta), "{rotta} deve stare fra le letture del viewer");
         }
         assert!(!scritture.contains("\"/api/update/status\""));

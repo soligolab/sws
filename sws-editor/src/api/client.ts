@@ -361,6 +361,9 @@ export interface StatoAggiornamento {
   novita_installata?: NovitaVersione;
   /** Un aggiornamento chiesto e non ancora concluso: l'esito arriva fra poco. */
   in_corso?: boolean;
+  /** «Ignora questa versione» dato dallo schermo del pannello, ricordato dal
+   *  runtime (24-10-2026: il kiosk in incognito perde il `localStorage`). */
+  versione_ignorata?: string;
 }
 
 /** Gemello di `aggiornamento::NovitaVersione`. */
@@ -699,10 +702,21 @@ export const sullInsiemeDeiProgetti = (path: string) => {
   return !/\/(open|close)$/.test(path);
 };
 
+/** Le rotte che nel cloud vanno al **gateway**, alla radice del sito: l'insieme
+ *  dei progetti e il **login**.
+ *
+ *  Il login perché nel cloud chi sei lo sa solo il gateway: il container del
+ *  progetto gira con `--auth-delegata` e non ha né utenti né password. Il
+ *  25-10-2026 la finestra «Sessione scaduta» mandava la password al container
+ *  e rispondeva «password errata» a qualunque password: dopo un riavvio del
+ *  gateway non si rientrava più senza tornare alla pagina iniziale. */
+export const sulGateway = (path: string) =>
+  sullInsiemeDeiProgetti(path) || path === "/api/auth/login";
+
 /** La base a cui mandare una richiesta: il prefisso del progetto, o la radice
- *  per le rotte dell'insieme quando siamo nel cloud. */
+ *  per le rotte del gateway quando siamo nel cloud. */
 function baseDi(path: string): string {
-  if (prefissoGateway() && sullInsiemeDeiProgetti(path)) return "";
+  if (prefissoGateway() && sulGateway(path)) return "";
   return getBaseUrl();
 }
 
@@ -2032,6 +2046,11 @@ export const api = {
    *  chiede il viewer sul pannello, che parla col runtime su cui gira. */
   statoAggiornamento: () => request<StatoAggiornamento>("/api/update/status"),
   avviaAggiornamento: () => request<StatoAggiornamento>("/api/update/apply", { method: "POST" }),
+  /** L'esito `id` è stato chiuso sullo schermo: il runtime non lo ripropone. */
+  esitoVisto: (id: number) => request<void>(`/api/update/esito/${id}/visto`, { method: "POST" }),
+  /** «Ignora questa versione» (Admin); `null` smette di ignorare. */
+  ignoraVersione: (versione: string | null) =>
+    request<void>("/api/update/ignora", { method: "POST", body: JSON.stringify({ versione }) }),
   /** Il pannello riscrive i suoi quadlet e si riavvia (02-10-2026). */
   aggiornaQuadlet: () => request<StatoQuadlet>("/api/quadlet/aggiorna", { method: "POST" }),
   /** La risposta alla domanda dopo un aggiornamento, sul pannello stesso. */

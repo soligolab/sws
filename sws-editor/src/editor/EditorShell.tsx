@@ -59,6 +59,7 @@ import { aggiornaPagina, applicaPredefinito, salvaLayout } from "@/formatoProget
 import { seguePredefinito } from "@/formatoProgetto";
 import { impostaBootAbilitata } from "@/boot/abilitata";
 import { AnteprimaPng } from "@/boot/AnteprimaPng";
+import { PermessoTagNota } from "@/editor/PermessoTagNota";
 
 // ── Shared styles ─────────────────────────────────────────────────────────────
 
@@ -5925,6 +5926,7 @@ export function ObjectProps({
             l'IDE non si autentica comunque, quindi il token direbbe «no-auth»
             anche su un progetto che gli utenti ce li ha. Vedi
             `avvisoRuoloMinimo`. */}
+        <PermessoTagNota obj={obj} progettoHaUtenti={progettoHaUtenti} />
         {avvisoRuoloMinimo(progettoHaUtenti, obj.min_role) && (
           <p style={{ fontSize: 10, color: "var(--brand-warning-soft, #fbbf24)", margin: "2px 0 6px", lineHeight: 1.4 }}>
             {t("props.minRoleNoAuthWarning")}

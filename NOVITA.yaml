@@ -37,6 +37,16 @@ versioni:
     voci:
       - it: "Pannelli Pixsys: un passaggio di installazione opzionale usa il certificato del dispositivo, e lo schermo del pannello in HTTPS non mostra più «La connessione non è privata»."
         en: "Pixsys panels: an optional installation step uses the device certificate, and the panel screen over HTTPS no longer shows «Your connection is not private»."
+      - it: "Un tag può essere comandato da chiunque, anche senza login (Configurazione → Tag): la luce della stanza si accende senza credenziali, e un pulsante può comunque chiederle."
+        en: "A tag can be operated by anyone, even without login (Configuration → Tags): the room light turns on without credentials, and a button can still require them."
+      - it: "Nel cloud la chiave dell'assistente IA inserita in un progetto resta salvata anche dopo averlo chiuso e riaperto."
+        en: "In the cloud, the AI assistant key entered in a project stays saved even after closing and reopening it."
+      - it: "Nel cloud, dopo «Sessione scaduta», la password torna a funzionare: prima veniva rifiutata sempre e bisognava ripartire dalla pagina iniziale."
+        en: "In the cloud, after «Session expired», the password works again: it used to be always rejected and you had to start over from the home page."
+      - it: "Un pannello col TLS acceso torna raggiungibile dal cloud: con la 2.20.0 il login remoto rispondeva «502 Bad Gateway»."
+        en: "A panel with TLS on is reachable from the cloud again: with 2.20.0 the remote login answered «502 Bad Gateway»."
+      - it: "Lo schermo del pannello non ripropone più a ogni accensione l'esito dell'aggiornamento già chiuso, né la versione scelta da ignorare."
+        en: "The panel screen no longer shows an already-closed update outcome, or a version chosen to be ignored, at every power-on."
   - versione: "2.20.0"
     # Numero scelto il 23-10-2026, e taggato COSTRUENDO l'immagine: un tag senza
     # immagine perde le sue note di rilascio per sempre, perché queste righe non

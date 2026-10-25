@@ -295,6 +295,14 @@ Le proprietà comuni a tutti gli oggetti sono:
 | **Ruolo minimo per operare** | Sotto quel ruolo l'oggetto si nasconde o si disabilita (sezione Sicurezza) |
 | **Durata transizione (ms)** | Anima il cambio di colore, opacità e trasformazione |
 
+**Chi può comandare: il tag e l'oggetto, e vince il più severo.** Per scrivere un tag serve il suo *Ruolo min.
+scrittura* (Configurazione → Tag; vuoto = Operator). È l'unico vincolo che il runtime fa rispettare, per
+qualunque pulsante, script o chiamata API. Con **«Chiunque, anche senza login»** il tag si comanda anche dal
+viewer senza aver fatto login: la luce della stanza. Il *Ruolo minimo per operare* dell'oggetto può solo
+restringere: due pulsanti sullo stesso tag aperto possono essere uno libero e uno da Operator. Ricorda però che
+la restrizione del secondo vale per quel pulsante: il tag resta comandabile da chiunque attraverso il primo. La
+sezione Sicurezza del pannello proprietà mostra cosa chiede il tag che l'oggetto scrive.
+
 Le **zone** non sono una proprietà dell'oggetto ma della pagina: vedi [Zone di accesso](#zone-di-accesso-abac).
 
 ---

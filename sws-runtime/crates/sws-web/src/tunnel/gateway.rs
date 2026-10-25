@@ -853,7 +853,7 @@ mod tests {
         let (_tieni, mut in_arrivo) = avvia(b.compat(), Verso::Risponde);
         tokio::spawn(async move {
             while let Some(st) = in_arrivo.recv().await {
-                tokio::spawn(super::super::pannello::gira_alla_porta(st, porta_pannello));
+                tokio::spawn(super::super::pannello::gira_alla_porta(st, porta_pannello, false));
             }
         });
 
@@ -902,7 +902,7 @@ mod tests {
         let (_tieni, mut in_arrivo) = avvia(b.compat(), Verso::Risponde);
         tokio::spawn(async move {
             while let Some(st) = in_arrivo.recv().await {
-                tokio::spawn(super::super::pannello::gira_alla_porta(st, porta_pannello));
+                tokio::spawn(super::super::pannello::gira_alla_porta(st, porta_pannello, false));
             }
         });
         let gw = axum::Router::new().fallback(move |req: Request<Body>| {
@@ -930,6 +930,75 @@ mod tests {
         let testo = r.text().await.unwrap();
         assert_eq!(codice, StatusCode::OK, "{testo}");
         assert_eq!(serde_json::from_str::<serde_json::Value>(&testo).unwrap(), corpo);
+    }
+
+    /// Il pannello in TLS (24-10-2026): dalla 2.20.0 la porta di gestione di un
+    /// pannello parla TLS, e il tunnel che ci girava HTTP in chiaro dava 502 su
+    /// tutto. Qui la porta del «pannello» è TLS con un autofirmato, e una GET
+    /// deve attraversare il tunnel lo stesso.
+    #[tokio::test]
+    async fn una_get_arriva_al_pannello_in_tls() {
+        use tokio::io::{AsyncReadExt as _, AsyncWriteExt as _};
+        use tokio_util::compat::TokioAsyncReadCompatExt as _;
+
+        let cert = rcgen::generate_simple_self_signed(vec!["localhost".into()]).unwrap();
+        let chiave = rustls::pki_types::PrivateKeyDer::Pkcs8(cert.key_pair.serialize_der().into());
+        let cfg = rustls::ServerConfig::builder_with_provider(Arc::new(rustls::crypto::ring::default_provider()))
+            .with_safe_default_protocol_versions()
+            .unwrap()
+            .with_no_client_auth()
+            .with_single_cert(vec![cert.cert.der().clone()], chiave)
+            .unwrap();
+        let accettore = tokio_rustls::TlsAcceptor::from(Arc::new(cfg));
+        let l = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let porta_pannello = l.local_addr().unwrap().port();
+        tokio::spawn(async move {
+            while let Ok((tcp, _)) = l.accept().await {
+                let accettore = accettore.clone();
+                tokio::spawn(async move {
+                    // Se l'handshake fallisce (HTTP in chiaro), il pannello chiude:
+                    // è quello che faceva il runtime vero.
+                    let Ok(mut s) = accettore.accept(tcp).await else { return };
+                    let mut buf = Vec::new();
+                    let mut pezzo = [0u8; 1024];
+                    while !buf.windows(4).any(|w| w == b"\r\n\r\n") {
+                        let n = s.read(&mut pezzo).await.unwrap();
+                        if n == 0 { return; }
+                        buf.extend_from_slice(&pezzo[..n]);
+                    }
+                    let _ = s.write_all(b"HTTP/1.1 200 OK\r\ncontent-length: 2\r\nconnection: close\r\n\r\nok").await;
+                    let _ = s.shutdown().await;
+                });
+            }
+        });
+
+        let (a, b) = tokio::io::duplex(256 * 1024);
+        let (maniglia, _) = avvia(a.compat(), Verso::Chiama);
+        let (_tieni, mut in_arrivo) = avvia(b.compat(), Verso::Risponde);
+        tokio::spawn(async move {
+            while let Some(st) = in_arrivo.recv().await {
+                tokio::spawn(super::super::pannello::gira_alla_porta(st, porta_pannello, true));
+            }
+        });
+        let gw = axum::Router::new().fallback(move |req: Request<Body>| {
+            let m = maniglia.clone();
+            async move {
+                let p = req.uri().path().to_string();
+                match attraverso(&m, &p, "", req).await {
+                    Ok(r) => r,
+                    Err(e) => (StatusCode::BAD_GATEWAY, e.to_string()).into_response(),
+                }
+            }
+        });
+        let l = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let porta_gw = l.local_addr().unwrap().port();
+        tokio::spawn(async move { axum::serve(l, gw).await.unwrap() });
+
+        let r = reqwest::get(format!("http://127.0.0.1:{porta_gw}/health")).await.unwrap();
+        let codice = r.status();
+        let testo = r.text().await.unwrap();
+        assert_eq!(codice, StatusCode::OK, "{testo}");
+        assert_eq!(testo, "ok");
     }
 
     fn intestazioni(nome: &str, token: &str) -> HeaderMap {
