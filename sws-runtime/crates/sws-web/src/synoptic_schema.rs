@@ -188,6 +188,7 @@ pub const OBJECT_FIELDS: &[Field] = &[
     Field { name: "font_size", ty: "number", required: false, group: "Text object styling", doc: "" },
     Field { name: "label_font_size", ty: "number", required: false, group: "Text object styling", doc: "Corpo dell'etichetta di un oggetto a due testi (21-10-2026): `radio`, `slider`. `font_size` resta il corpo del testo primario. Senza questo campo qui, la GET di un sinottico lo lascerebbe per strada." },
     Field { name: "button_font_size", ty: "number", required: false, group: "Text object styling", doc: "Corpo dei pulsantini di comando dentro un oggetto (22-10-2026): il ✓ e il ⌨ di un `setpoint`. Qui per lo stesso motivo di `label_font_size`: senza, la GET di un sinottico lo lascia per strada." },
+    Field { name: "unit_font_size", ty: "number", required: false, group: "Text object styling", doc: "Corpo dell'unità di misura (25-10-2026): `gauge` e `kpi_tile`, dove valore e unità hanno corpi diversi. Stesso motivo di `label_font_size`." },
     Field { name: "font_family", ty: "string", required: false, group: "Text object styling", doc: "" },
     Field { name: "font_weight", ty: "Option<Value>, // string (\"bold\") or number (700)", required: false, group: "Text object styling", doc: "" },
     Field { name: "font_style", ty: "string", required: false, group: "Text object styling", doc: "" },

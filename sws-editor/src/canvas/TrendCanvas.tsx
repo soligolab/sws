@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { scaricaImmagine, serveScaricare } from "@/canvas/ImmagineSvg";
 import { useTranslation } from "react-i18next";
 import { api } from "@/api/client";
 import { predefinito } from "@/coloriPredefiniti";
@@ -630,7 +631,10 @@ export function TrendCanvas({
         img.onload = () => { bgImgRef.current = { url: bgImage, img }; setBgImgTick((t) => t + 1); };
         img.onerror = () => { bgImgRef.current = { url: bgImage, img: null }; };
         bgImgRef.current = { url: bgImage, img: null };
-        img.src = bgImage;
+        // Nel cloud un'immagine del progetto si scarica con la sessione
+        // (`ImmagineSvg.tsx`): un `Image()` non manda l'Authorization.
+        if (serveScaricare(bgImage)) void scaricaImmagine(bgImage).then((u) => { if (u) img.src = u; });
+        else img.src = bgImage;
       } else if (bgImgRef.current.img) {
         ctx.drawImage(bgImgRef.current.img, 0, 0, width, height);
       }

@@ -39,7 +39,7 @@ export const CAMPI: Record<string, Record<string, RegolaCampo>> = {
   checkbox:   { label: { vuoto: "nessuna" }, font_size: { valore: 13 } },
   radio:      { label: { vuoto: "nessuna" }, font_size: { valore: 13 }, label_font_size: { valore: 11 } },
   led:        { label: { vuoto: "nessuna" }, font_size: { valore: 11 } },
-  gauge: {
+  gauge: { font_size: { valore: 20 }, label_font_size: { valore: 11 }, unit_font_size: { valore: 11 },
     label: { vuoto: "nessuna" },
     min: { valore: 0 }, max: { valore: 100 }, decimals: { valore: 1 },
     gauge_start_angle: { valore: -135 }, gauge_end_angle: { valore: 135 },
@@ -64,11 +64,11 @@ export const CAMPI: Record<string, Record<string, RegolaCampo>> = {
     font_size: { valore: 12 }, label_font_size: { valore: 11 }, button_font_size: { valore: 12 },
     decimals: { valore: 1 }, step: { valore: 1 },
   },
-  kpi_tile: {
+  kpi_tile: { font_size: { valore: 26 }, label_font_size: { valore: 11 }, unit_font_size: { valore: 12 },
     label: { vuoto: "nome_tag" },
     spark_window_s: { valore: 3600 }, decimals: { valore: 1 },
   },
-  data_log: {
+  data_log: { font_size: { valore: 11 }, label_font_size: { valore: 11 },
     label: { vuoto: "nessuna" },
     window_s: { valore: 3600 }, datalog_page_size: { valore: 25 }, decimals: { valore: 1 },
   },
@@ -77,7 +77,7 @@ export const CAMPI: Record<string, Record<string, RegolaCampo>> = {
     window_s: { valore: 60 },
     y_min: { vuoto: "adatta" }, y_max: { vuoto: "adatta" },
   },
-  sparkline: {
+  sparkline: { font_size: { valore: 9 },
     spark_window_s: { valore: 60 },
     y_min: { vuoto: "adatta" }, y_max: { vuoto: "adatta" },
   },
@@ -93,8 +93,15 @@ export const CAMPI: Record<string, Record<string, RegolaCampo>> = {
     min: { vuoto: "adatta" }, max: { vuoto: "adatta" },
   },
   pie_chart:    { font_size: { valore: 10 }, pie_inner_ratio: { valore: 0.5 }, decimals: { valore: 1 } },
-  alarm_viewer: { alarm_viewer_max_rows: { valore: 5 } },
-  symbol:       { symbol_spin_s: { valore: 2 } },
+  alarm_viewer: { font_size: { valore: 11 }, alarm_viewer_max_rows: { valore: 5 } },
+  symbol:       { label_font_size: { valore: 11 }, symbol_spin_s: { valore: 2 } },
+  page_navigator: { font_size: { valore: 13 } },
+  clock: { font_size: { valore: 16 } },
+  recipe_panel: { font_size: { valore: 11 } },
+  alarm_history: { font_size: { valore: 11 } },
+  alarm_bell: { font_size: { valore: 12 } },
+  alarm_banner: { font_size: { valore: 13 } },
+  lang_selector: { font_size: { valore: 13 } },
 };
 
 /** La regola di `campo` per un oggetto di `tipo`, o `undefined`. */

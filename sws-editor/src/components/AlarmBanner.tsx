@@ -1,4 +1,5 @@
 import { useMemo } from "react";
+import { corpoAnnotazione, corpoSecondario } from "@/canvas/geometriaTesto";
 import { useTranslation } from "react-i18next";
 import { api } from "@/api/client";
 import { useAppStore } from "@/store";
@@ -8,14 +9,14 @@ import { effectiveProjectLang, resolveMsg } from "@/i18n/projectI18n";
 import type { AlarmSeverity, AlarmState, IsaState } from "@/types";
 
 // Blinking animation only for active-unacked (the most urgent state).
-function isaStyle(state: IsaState, color: string): React.CSSProperties {
+function isaStyle(state: IsaState, color: string, corpo = 13): React.CSSProperties {
   const base: React.CSSProperties = {
     background: color,
     color: "var(--brand-bg, #0f172a)",
     padding: "1px 8px",
     borderRadius: 10,
     fontWeight: 700,
-    fontSize: 11,
+    fontSize: corpoAnnotazione(corpo),
     flexShrink: 0,
   };
   if (state === "active_unacked") {
@@ -47,13 +48,16 @@ export function nellaBarra(isaState: IsaState): boolean {
 export interface AlarmBannerProps {
   idPrefix?: string;
   allowedSev?: AlarmSeverity[];
+  /** Il corpo del testo (25-10-2026): la riga; pillola e ACK lo seguono
+   *  (`corpoAnnotazione`, `corpoSecondario`). 13 = i numeri di prima. */
+  corpo?: number;
 }
 
 /** Oggetto SCADA piazzabile `alarm_banner`: lista scrollabile di tutti gli
  *  allarmi non confermati (active_unacked/normal_unacked). Gli allarmi già
  *  confermati (ACK dato) o tornati normali non compaiono — l'altezza data
  *  all'oggetto determina quante righe entrano prima dello scroll. */
-export function AlarmBanner({ idPrefix = "", allowedSev }: AlarmBannerProps = {}) {
+export function AlarmBanner({ idPrefix = "", allowedSev, corpo = 13 }: AlarmBannerProps = {}) {
   const { t } = useTranslation();
   useAlarmStream();
 
@@ -99,7 +103,7 @@ export function AlarmBanner({ idPrefix = "", allowedSev }: AlarmBannerProps = {}
         width: "100%", height: "100%", boxSizing: "border-box",
         background: "var(--brand-surface, #1e293b)", color: "var(--brand-text-muted, #94a3b8)",
         display: "flex", alignItems: "center", padding: "0 16px",
-        fontSize: 13,
+        fontSize: corpo,
         border: "1px solid var(--brand-surface-2, #334155)",
         borderRadius: 4,
       }}>
@@ -129,9 +133,9 @@ export function AlarmBanner({ idPrefix = "", allowedSev }: AlarmBannerProps = {}
               borderBottom: `1px solid ${color}`,
               color: "var(--brand-text, #e2e8f0)",
               display: "flex", alignItems: "center", padding: "4px 16px",
-              fontSize: 13, gap: 12,
+              fontSize: corpo, gap: 12,
             }}>
-              <span style={isaStyle(a.isa_state, color)}>
+              <span style={isaStyle(a.isa_state, color, corpo)}>
                 {t(`alarm.isa.${a.isa_state}`)}
               </span>
               <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
@@ -144,7 +148,7 @@ export function AlarmBanner({ idPrefix = "", allowedSev }: AlarmBannerProps = {}
                 style={{
                   background: color, color: "var(--brand-bg, #0f172a)", border: "none",
                   borderRadius: 4, padding: "2px 12px", cursor: "pointer",
-                  fontWeight: 600, fontSize: 12, flexShrink: 0,
+                  fontWeight: 600, fontSize: corpoSecondario(corpo), flexShrink: 0,
                 }}
               >
                 ACK

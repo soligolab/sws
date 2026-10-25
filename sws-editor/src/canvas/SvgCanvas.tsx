@@ -1,4 +1,5 @@
 import { PageNavigatorView } from "./PageNavigatorView";
+import { ImmagineSvg } from "@/canvas/ImmagineSvg";
 import { defaultObjectSubtleColor, defaultObjectTextColor } from "@/theme";
 import { coloreEffettivo, predefinito } from "@/coloriPredefiniti";
 import { useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from "react";
@@ -2899,9 +2900,11 @@ export interface ObjProps {
 // ── Data log (F5.4): tabella storica paginata ───────────────────────────────
 // Scarica la finestra (fino a 5000 campioni) e pagina lato client — il
 // server non ha ancora un offset di paginazione; è annotato nel piano.
-function DataLogWidget({ tag, windowS, pageSize, width, height, decimals, unit }: {
+function DataLogWidget({ tag, windowS, pageSize, width, height, decimals, unit, corpo = 11 }: {
   tag: string; windowS: number; pageSize: number; width: number; height: number;
   decimals: number; unit?: string;
+  /** Il corpo della tabella e della barra delle pagine (25-10-2026). */
+  corpo?: number;
 }) {
   const { t } = useTranslation();
   const [rows, setRows] = useState<Sample[]>([]);
@@ -2928,7 +2931,7 @@ function DataLogWidget({ tag, windowS, pageSize, width, height, decimals, unit }
     : q === "Bad" ? "var(--brand-danger, #ef4444)" : "var(--brand-warning, #eab308)";
 
   return (
-    <div style={{ width, height, display: "flex", flexDirection: "column", fontSize: 11,
+    <div style={{ width, height, display: "flex", flexDirection: "column", fontSize: corpo,
                   color: "var(--synoptic-text, #e2e8f0)", boxSizing: "border-box" }}>
       <div style={{ display: "flex", alignItems: "center", gap: 6, padding: "2px 4px", flexShrink: 0 }}>
         <button onClick={() => setPage((p) => Math.max(0, p - 1))} disabled={page === 0}
@@ -2995,7 +2998,7 @@ function TestoOrologio({ formato, secondi, modello, lingua }: {
   return <>{testoOrologio(componentiDi(ora), formato, secondi, modello, lingua)}</>;
 }
 
-function KpiDelta({ tag, windowS }: { tag: string; windowS: number }) {
+function KpiDelta({ tag, windowS, corpo = 11 }: { tag: string; windowS: number; corpo?: number }) {
   const [delta, setDelta] = useState<number | null>(null);
   useEffect(() => {
     if (!tag) return;
@@ -3024,16 +3027,18 @@ function KpiDelta({ tag, windowS }: { tag: string; windowS: number }) {
   if (delta === null) return null;
   const up = delta >= 0;
   return (
-    <span style={{ fontSize: 11, fontWeight: 700, color: up ? "var(--brand-success, #22c55e)" : "var(--brand-danger, #ef4444)" }}>
+    <span style={{ fontSize: corpo, fontWeight: 700, color: up ? "var(--brand-success, #22c55e)" : "var(--brand-danger, #ef4444)" }}>
       {up ? "▲" : "▼"} {Math.abs(delta).toFixed(1)}%
     </span>
   );
 }
 
-function SparklineWidget({ tag, windowS, width, height, color, strokeWidth, fill, fillOpacity, showLast, yMin, yMax, tagValues }: {
+function SparklineWidget({ tag, windowS, width, height, color, strokeWidth, fill, fillOpacity, showLast, yMin, yMax, tagValues, corpo = 9 }: {
   tag: string; windowS: number; width: number; height: number;
   color: string; strokeWidth: number; fill: boolean; fillOpacity: number;
   showLast: boolean; yMin?: number; yMax?: number;
+  /** Il corpo dell'ultimo valore (25-10-2026). */
+  corpo?: number;
   tagValues: Record<string, TagState>;
 }) {
   const [samples, setSamples] = useState<{ ts: number; v: number }[]>([]);
@@ -3081,7 +3086,7 @@ function SparklineWidget({ tag, windowS, width, height, color, strokeWidth, fill
         <svg width={width} height={height}>
           <line x1={pad} y1={ph / 2 + pad} x2={pw + pad} y2={ph / 2 + pad} stroke={color} strokeWidth={strokeWidth} opacity={0.3} />
           {showLast && last !== undefined && (
-            <text x={width - pad} y={pad + 10} textAnchor="end" fill={color} fontSize={9}>{last.toFixed(1)}</text>
+            <text x={width - pad} y={pad + corpo + 1} textAnchor="end" fill={color} fontSize={corpo}>{last.toFixed(1)}</text>
           )}
         </svg>
       </div>
@@ -3105,7 +3110,7 @@ function SparklineWidget({ tag, windowS, width, height, color, strokeWidth, fill
         {fill && <path d={`M ${toX(samples[0].ts)} ${ph + pad} L ${pts} L ${toX(last.ts)} ${ph + pad} Z`} fill={color} fillOpacity={fillOpacity} />}
         <polyline points={pts} fill="none" stroke={color} strokeWidth={strokeWidth} strokeLinejoin="round" />
         {showLast && (
-          <text x={width - pad} y={pad + 10} textAnchor="end" fill={color} fontSize={9}>{last.v.toFixed(1)}</text>
+          <text x={width - pad} y={pad + corpo + 1} textAnchor="end" fill={color} fontSize={corpo}>{last.v.toFixed(1)}</text>
         )}
       </svg>
     </div>
@@ -3114,8 +3119,11 @@ function SparklineWidget({ tag, windowS, width, height, color, strokeWidth, fill
 
 // ── AlarmViewerWidget ─────────────────────────────────────────────────────────
 
-function AlarmViewerWidget({ width, height, mode, maxRows, prefix, allowedSev, showAck, showTs, showEmpty, bgColor, showAckAll, showShelve, shelveMinutes, askReason }: {
+function AlarmViewerWidget({ width, height, mode, maxRows, prefix, allowedSev, showAck, showTs, showEmpty, bgColor, showAckAll, showShelve, shelveMinutes, askReason, corpo = 11 }: {
   width: number; height: number; mode: "list" | "banner" | "table";
+  /** Il corpo del testo (25-10-2026); accantona e «ACK tutti» lo seguono
+   *  (`corpoSecondario`), gli ACK di riga (`corpoAnnotazione`). */
+  corpo?: number;
   maxRows: number; prefix: string;
   allowedSev?: AlarmSeverity[];
   showAck: boolean; showTs: boolean; showEmpty: boolean;
@@ -3210,7 +3218,7 @@ function AlarmViewerWidget({ width, height, mode, maxRows, prefix, allowedSev, s
     background: bgColor ?? "rgba(15,23,42,0.92)",
     overflow: "hidden",
     fontFamily: "monospace",
-    fontSize: 11,
+    fontSize: corpo,
     color: "var(--synoptic-text, #e2e8f0)",
     borderRadius: 4,
     border: "1px solid #334155",
@@ -3273,7 +3281,7 @@ function AlarmViewerWidget({ width, height, mode, maxRows, prefix, allowedSev, s
           <button
             onClick={(e) => { e.stopPropagation(); void handleShelve(a.def.id); }}
             title={t("alarm.shelveTitle")}
-            style={{ fontSize: 10, padding: "1px 4px", background: "transparent", border: "none",
+            style={{ fontSize: corpoSecondario(corpo), padding: "1px 4px", background: "transparent", border: "none",
                      color: "#94a3b8", cursor: "pointer" }}
           >🔇</button>
         ),
@@ -3284,7 +3292,7 @@ function AlarmViewerWidget({ width, height, mode, maxRows, prefix, allowedSev, s
         render: (a: AlarmState) => canAck && !a.acknowledged ? (
           <button
             onClick={(e) => { e.stopPropagation(); void ackWithReason(a.def.id); }}
-            style={{ fontSize: 9, padding: "1px 6px", background: "#1e293b", border: "1px solid #334155", borderRadius: 2, color: "#94a3b8", cursor: "pointer" }}
+            style={{ fontSize: corpoAnnotazione(corpo), padding: "1px 6px", background: "#1e293b", border: "1px solid #334155", borderRadius: 2, color: "#94a3b8", cursor: "pointer" }}
           >
             ACK
           </button>
@@ -3300,7 +3308,7 @@ function AlarmViewerWidget({ width, height, mode, maxRows, prefix, allowedSev, s
               onClick={() => void handleAckAll(filtered.filter((a) => !a.acknowledged).map((a) => a.def.id))}
               disabled={filtered.every((a) => a.acknowledged)}
               title={t("alarm.ackAllTitle")}
-              style={{ fontSize: 10, padding: "1px 8px", background: "#1e293b",
+              style={{ fontSize: corpoSecondario(corpo), padding: "1px 8px", background: "#1e293b",
                        border: "1px solid #334155", borderRadius: 3,
                        color: "#94a3b8", cursor: "pointer" }}
             >✓ ACK tutti ({filtered.filter((a) => !a.acknowledged).length})</button>
@@ -3340,7 +3348,7 @@ function AlarmViewerWidget({ width, height, mode, maxRows, prefix, allowedSev, s
           {showAck && canAck && !a.acknowledged && (
             <button
               onClick={(e) => { e.stopPropagation(); void ackWithReason(a.def.id); }}
-              style={{ fontSize: 9, padding: "1px 4px", background: "#1e293b", border: "1px solid #334155", borderRadius: 2, color: "#94a3b8", cursor: "pointer", flexShrink: 0 }}>
+              style={{ fontSize: corpoAnnotazione(corpo), padding: "1px 4px", background: "#1e293b", border: "1px solid #334155", borderRadius: 2, color: "#94a3b8", cursor: "pointer", flexShrink: 0 }}>
               ACK
             </button>
           )}
@@ -3789,7 +3797,7 @@ function SvgObjectCorpo(p: ObjProps) {
                 onClick={(e) => e.stopPropagation()}
               />
               {entry?.bg_image && (
-                <image href={entry.bg_image}
+                <ImmagineSvg href={entry.bg_image}
                   x={sx} y={sy} width={sw} height={sh}
                   preserveAspectRatio="xMidYMid slice"
                   style={{ pointerEvents: "none" }} />
@@ -3902,7 +3910,7 @@ function SvgObjectCorpo(p: ObjProps) {
           <rect x={x} y={y} width={w} height={h} rx={rx} fill={obj.bg_color} style={{ pointerEvents: "none" }} />
         )}
         {obj.bg_image && (
-          <image href={obj.bg_image} x={x} y={y} width={w} height={h}
+          <ImmagineSvg href={obj.bg_image} x={x} y={y} width={w} height={h}
             preserveAspectRatio="xMidYMid slice" style={{ pointerEvents: "none" }} />
         )}
       </>
@@ -3951,7 +3959,7 @@ function SvgObjectCorpo(p: ObjProps) {
             style={{ cursor: editCursor, ...transitionStyle(obj) }}
             onMouseDown={handleMouseDown} onClick={(e) => e.stopPropagation()} />
           {obj.bg_image && (
-            <image href={obj.bg_image} x={obj.x} y={obj.y} width={w} height={h}
+            <ImmagineSvg href={obj.bg_image} x={obj.x} y={obj.y} width={w} height={h}
               preserveAspectRatio="xMidYMid slice" style={{ pointerEvents: "none" }} />
           )}
         </>)}
@@ -4408,7 +4416,7 @@ function SvgObjectCorpo(p: ObjProps) {
             stroke={selected ? "#facc15" : "var(--brand-primary-hover, #2563eb)"} strokeWidth={selected ? 2 : 1}
             style={transitionStyle(obj)} />
           {obj.bg_image && (
-            <image href={obj.bg_image} x={obj.x} y={obj.y} width={w} height={h}
+            <ImmagineSvg href={obj.bg_image} x={obj.x} y={obj.y} width={w} height={h}
               preserveAspectRatio="xMidYMid slice" style={{ pointerEvents: "none" }} />
           )}
           <text x={obj.x + w / 2} y={obj.y + h / 2 + 5}
@@ -4442,7 +4450,7 @@ function SvgObjectCorpo(p: ObjProps) {
             strokeWidth={selected ? 2 : (obj.stroke_width ?? 1.5)}
             style={transitionStyle(obj)} />
           {obj.bg_image && (
-            <image href={obj.bg_image} x={obj.x} y={obj.y} width={w} height={h}
+            <ImmagineSvg href={obj.bg_image} x={obj.x} y={obj.y} width={w} height={h}
               preserveAspectRatio="xMidYMid slice" style={{ pointerEvents: "none" }} />
           )}
           {/* F0.2: glifo e label seguono `color` (prima erano hardcoded). */}
@@ -4496,7 +4504,7 @@ function SvgObjectCorpo(p: ObjProps) {
             stroke={selected ? "#facc15" : "#475569"} strokeWidth={selected ? 2 : 1}
             style={transitionStyle(obj)} />
           {obj.bg_image && (
-            <image href={obj.bg_image} x={obj.x} y={obj.y} width={w} height={h}
+            <ImmagineSvg href={obj.bg_image} x={obj.x} y={obj.y} width={w} height={h}
               preserveAspectRatio="xMidYMid slice" style={{ pointerEvents: "none" }} />
           )}
           <text x={obj.x + w / 2} y={obj.y + h / 2 + 5} textAnchor="middle"
@@ -4531,7 +4539,7 @@ function SvgObjectCorpo(p: ObjProps) {
               style={{ width: "100%", height: "100%", boxSizing: "border-box",
                 background: obj.fill ?? "#334155", color: "var(--synoptic-text, #e2e8f0)",
                 border: "1px solid #475569",
-                borderRadius: 4, fontSize: 13, padding: "0 6px",
+                borderRadius: 4, fontSize: obj.font_size ?? 13, padding: "0 6px",
                 ...(obj.bg_image ? { backgroundImage: `url(${obj.bg_image})`, backgroundSize: "cover", backgroundPosition: "center" } : {}) }}>
               {langs.length === 0 && <option value="">—</option>}
               {langs.map((l) => <option key={l} value={l}>{l.toUpperCase()}</option>)}
@@ -4677,7 +4685,7 @@ function SvgObjectCorpo(p: ObjProps) {
           {/* Track */}
           <rect x={obj.x} y={obj.y} width={w} height={h} rx={4} fill={obj.bg_color ?? "#1e293b"} />
           {obj.bg_image && (
-            <image href={obj.bg_image} x={obj.x} y={obj.y} width={w} height={h}
+            <ImmagineSvg href={obj.bg_image} x={obj.x} y={obj.y} width={w} height={h}
               preserveAspectRatio="xMidYMid slice" style={{ pointerEvents: "none" }} />
           )}
           {/* Fill */}
@@ -4728,6 +4736,11 @@ function SvgObjectCorpo(p: ObjProps) {
 
   if (obj.type === "gauge") {
     const w = obj.width ?? 160; const h = obj.height ?? 140;
+    // I corpi del testo (25-10-2026): valore, unità ed etichetta hanno un campo
+    // ciascuno («un campo per testo»), tacche e min/max seguono l'etichetta.
+    const corpoValore = obj.font_size ?? 20;
+    const corpoUnita = obj.unit_font_size ?? 11;
+    const corpoEtichetta = obj.label_font_size ?? 11;
     const cx = obj.x + w / 2;
     const cy = obj.y + h * 0.62;
     const R = Math.min(w * 0.38, h * 0.52);
@@ -4791,7 +4804,7 @@ function SvgObjectCorpo(p: ObjProps) {
             return (
               <g key={`gt${i}`} style={{ pointerEvents: "none" }}>
                 <line x1={p1.x} y1={p1.y} x2={p2.x} y2={p2.y} stroke="#64748b" strokeWidth={1} />
-                <text x={pl.x} y={pl.y + 3} textAnchor="middle" fill={obj.color ?? "#64748b"} fontSize={9}>
+                <text x={pl.x} y={pl.y + 3} textAnchor="middle" fill={obj.color ?? "#64748b"} fontSize={corpoAnnotazione(corpoEtichetta)}>
                   {Number.isInteger(v) ? v : v.toFixed(1)}
                 </text>
               </g>
@@ -4834,27 +4847,27 @@ function SvgObjectCorpo(p: ObjProps) {
             const minP = polar(cx, cy, R + 14, START);
             const maxP = polar(cx, cy, R + 14, END);
             return <>
-              <text x={minP.x} y={minP.y + 4} textAnchor="middle" fill={obj.color ?? "#64748b"} fontSize={10}
+              <text x={minP.x} y={minP.y + 4} textAnchor="middle" fill={obj.color ?? "#64748b"} fontSize={corpoSecondario(corpoEtichetta)}
                 style={{ pointerEvents: "none" }}>{min}</text>
-              <text x={maxP.x} y={maxP.y + 4} textAnchor="middle" fill={obj.color ?? "#64748b"} fontSize={10}
+              <text x={maxP.x} y={maxP.y + 4} textAnchor="middle" fill={obj.color ?? "#64748b"} fontSize={corpoSecondario(corpoEtichetta)}
                 style={{ pointerEvents: "none" }}>{max}</text>
             </>;
           })()}
           {/* Value display — F0.2: show_value era offerto nel pannello ma ignorato. */}
           {obj.show_value !== false && (
             <text x={cx} y={cy + R * 0.35} textAnchor="middle"
-              fill={coloreEffettivo(obj, "color")} fontSize={20} fontWeight={700}
+              fill={coloreEffettivo(obj, "color")} fontSize={corpoValore} fontWeight={700}
               style={{ pointerEvents: "none" }}>
               {typeof rawVal === "number" ? rawVal.toFixed(obj.decimals ?? 1) : rawVal}
             </text>
           )}
           {obj.show_value !== false && obj.unit && (
-            <text x={cx} y={cy + R * 0.35 + 16} textAnchor="middle" fill={obj.color ?? "#94a3b8"} fontSize={11}
+            <text x={cx} y={cy + R * 0.35 + Math.round(corpoUnita * 1.45)} textAnchor="middle" fill={obj.color ?? "#94a3b8"} fontSize={corpoUnita}
               style={{ pointerEvents: "none" }}>{obj.unit}</text>
           )}
           {/* Label */}
           {obj.label && (
-            <text x={cx} y={obj.y + 14} textAnchor="middle" fill={obj.color ?? "#94a3b8"} fontSize={11}
+            <text x={cx} y={obj.y + corpoEtichetta + 3} textAnchor="middle" fill={obj.color ?? "#94a3b8"} fontSize={corpoEtichetta}
               style={{ pointerEvents: "none" }}>{obj.label}</text>
           )}
         </>)}
@@ -5651,7 +5664,7 @@ function SvgObjectCorpo(p: ObjProps) {
         {selRect(obj.x, obj.y, w, h)}
         <rect x={obj.x} y={obj.y} width={w} height={h} rx={4} fill={obj.bg_color ?? "#0f172a"} stroke={selected ? "#facc15" : "#334155"} strokeWidth={selected ? 2 : 1} />
         {obj.bg_image && (
-          <image href={obj.bg_image} x={obj.x} y={obj.y} width={w} height={h}
+          <ImmagineSvg href={obj.bg_image} x={obj.x} y={obj.y} width={w} height={h}
             preserveAspectRatio="xMidYMid slice" style={{ pointerEvents: "none" }} />
         )}
         {/* Assi: quello dei valori sempre, quello delle categorie sulla linea
@@ -5840,7 +5853,7 @@ function SvgObjectCorpo(p: ObjProps) {
           {selRect(obj.x, obj.y, w, h)}
           <rect x={obj.x} y={obj.y} width={w} height={h} rx={4} fill={obj.bg_color ?? "#0f172a"} stroke="#1e293b" />
           {obj.bg_image && (
-            <image href={obj.bg_image} x={obj.x} y={obj.y} width={w} height={h}
+            <ImmagineSvg href={obj.bg_image} x={obj.x} y={obj.y} width={w} height={h}
               preserveAspectRatio="xMidYMid slice" style={{ pointerEvents: "none" }} />
           )}
           <text x={cx0} y={cy0 + 4} textAnchor="middle" fill="#475569" fontSize={11} style={{ pointerEvents: "none" }}>{t("canvas.noData")}</text>
@@ -5970,6 +5983,10 @@ function SvgObjectCorpo(p: ObjProps) {
 
   if (obj.type === "data_log") {
     const w = obj.width ?? 380; const h = obj.height ?? 240;
+    const corpo = obj.font_size ?? 11;
+    const corpoEtichetta = obj.label_font_size ?? 11;
+    // Lo spazio dell'etichetta dal suo corpo: con 11 i 18 e 22 px di prima.
+    const sopra = obj.label ? corpoEtichetta + 7 : 4;
     return (
       <g onMouseDown={handleMouseDown} onClick={(e) => e.stopPropagation()} style={{ cursor: editCursor }}>
         {selRect(obj.x, obj.y, w, h)}
@@ -5978,21 +5995,21 @@ function SvgObjectCorpo(p: ObjProps) {
           stroke={selected ? "#facc15" : "#334155"} strokeWidth={selected ? 2 : 1}
           style={{ pointerEvents: isEditMode ? undefined : "none" }} />
         {obj.label && (
-          <text x={obj.x + 6} y={obj.y + 14} fill="#94a3b8" fontSize={11}
+          <text x={obj.x + 6} y={obj.y + corpoEtichetta + 3} fill="#94a3b8" fontSize={corpoEtichetta}
             style={{ pointerEvents: "none" }}>{obj.label}</text>
         )}
         {isEditMode ? (
-          <text x={obj.x + w / 2} y={obj.y + h / 2} textAnchor="middle" fill="#64748b" fontSize={12}
+          <text x={obj.x + w / 2} y={obj.y + h / 2} textAnchor="middle" fill="#64748b" fontSize={corpo + 1}
             style={{ pointerEvents: "none" }}>
             Data log — {obj.tag || t("canvas.noTag")}
           </text>
         ) : (
-          <foreignObject x={obj.x + 4} y={obj.y + (obj.label ? 18 : 4)} width={w - 8} height={h - (obj.label ? 22 : 8)}>
+          <foreignObject x={obj.x + 4} y={obj.y + sopra} width={w - 8} height={h - sopra - 4}>
             <DataLogWidget
               tag={obj.tag ?? ""} windowS={obj.window_s ?? 3600}
               pageSize={obj.datalog_page_size ?? 25}
-              width={w - 8} height={h - (obj.label ? 22 : 8)}
-              decimals={obj.decimals ?? 1} unit={obj.unit} />
+              width={w - 8} height={h - sopra - 4}
+              decimals={obj.decimals ?? 1} unit={obj.unit} corpo={corpo} />
           </foreignObject>
         )}
       </g>
@@ -6008,6 +6025,13 @@ function SvgObjectCorpo(p: ObjProps) {
         ? thresholdColor(rawVal, obj.alarm_low, obj.warn_low, obj.warn_high, obj.alarm_high)
         : undefined) ?? obj.color ?? "var(--synoptic-text, #e2e8f0)";
     const windowS = obj.spark_window_s ?? 3600;
+    // I tre corpi (25-10-2026): etichetta (e delta), valore, unità.
+    const corpoEtichetta = obj.label_font_size ?? 11;
+    const corpoValore = obj.font_size ?? 26;
+    const corpoUnita = obj.unit_font_size ?? 12;
+    // Le righe dai corpi: con 11 e 26 i 16 e 44 px di prima.
+    const yEtichetta = obj.y + corpoEtichetta + 5;
+    const yValore = yEtichetta + Math.round(corpoValore * 1.08);
     const valueText = Number.isFinite(rawVal)
       ? `${rawVal.toFixed(obj.decimals ?? 1)}`
       : "—";
@@ -6019,21 +6043,21 @@ function SvgObjectCorpo(p: ObjProps) {
           fill={obj.bg_color ?? "#1e293b"}
           stroke={selected ? "#facc15" : "#334155"} strokeWidth={selected ? 2 : 1} />
         {obj.bg_image && (
-          <image href={obj.bg_image} x={obj.x} y={obj.y} width={w} height={h}
+          <ImmagineSvg href={obj.bg_image} x={obj.x} y={obj.y} width={w} height={h}
             preserveAspectRatio="xMidYMid slice" style={{ pointerEvents: "none" }} />
         )}
-        <text x={obj.x + 10} y={obj.y + 16} fill="#94a3b8" fontSize={11}
+        <text x={obj.x + 10} y={yEtichetta} fill="#94a3b8" fontSize={corpoEtichetta}
           style={{ pointerEvents: "none" }}>{obj.label ?? obj.tag ?? "KPI"}</text>
-        <text x={obj.x + 10} y={obj.y + 44} fill={valColor} fontSize={26} fontWeight={700}
+        <text x={obj.x + 10} y={yValore} fill={valColor} fontSize={corpoValore} fontWeight={700}
           style={{ pointerEvents: "none" }}>
           {valueText}
-          {obj.unit && <tspan fontSize={12} fill="#64748b"> {obj.unit}</tspan>}
+          {obj.unit && <tspan fontSize={corpoUnita} fill="#64748b"> {obj.unit}</tspan>}
         </text>
         {!isEditMode && obj.tag && (
           <>
             <foreignObject x={obj.x + w - 74} y={obj.y + 6} width={68} height={18} style={{ pointerEvents: "none" }}>
               <div style={{ textAlign: "right" }}>
-                <KpiDelta tag={obj.tag} windowS={windowS} />
+                <KpiDelta tag={obj.tag} windowS={windowS} corpo={corpoEtichetta} />
               </div>
             </foreignObject>
             <foreignObject x={obj.x + 6} y={obj.y + h - 34} width={w - 12} height={30} style={{ pointerEvents: "none" }}>
@@ -6078,6 +6102,7 @@ function SvgObjectCorpo(p: ObjProps) {
             yMin={obj.y_min}
             yMax={obj.y_max}
             tagValues={tagValues}
+            corpo={obj.font_size ?? 9}
           />
         </foreignObject>
         {hitRect(obj.x, obj.y, w, h)}
@@ -6114,6 +6139,7 @@ function SvgObjectCorpo(p: ObjProps) {
             showShelve={obj.alarm_viewer_show_shelve}
             shelveMinutes={obj.alarm_shelve_minutes}
             askReason={obj.require_reason}
+            corpo={obj.font_size ?? 11}
           />
         </foreignObject>
         {hitRect(obj.x, obj.y, w, h)}
@@ -6139,6 +6165,7 @@ function SvgObjectCorpo(p: ObjProps) {
             showHistory={obj.alarm_bell_show_history ?? true}
             showShelve={obj.alarm_bell_show_shelve ?? true}
             badgeFill={obj.fill}
+            corpo={obj.font_size ?? 12}
             sound={obj.alarm_bell_sound}
             soundSeverities={obj.alarm_bell_sound_severities}
             soundRepeatS={obj.alarm_bell_sound_repeat_s}
@@ -6167,6 +6194,7 @@ function SvgObjectCorpo(p: ObjProps) {
           <AlarmBanner
             idPrefix={obj.alarm_banner_id_prefix}
             allowedSev={obj.alarm_banner_severities}
+            corpo={obj.font_size ?? 13}
           />
         </foreignObject>
         {hitRect(obj.x, obj.y, w, h)}
@@ -6191,7 +6219,7 @@ function SvgObjectCorpo(p: ObjProps) {
             background: obj.bg_color ?? "#1e293b",
             border: "1px solid #334155", borderRadius: 4,
           }}>
-            <AlarmHistory alarmId={obj.alarm_history_id} />
+            <AlarmHistory alarmId={obj.alarm_history_id} corpo={obj.font_size ?? 11} />
           </div>
         </foreignObject>
         {hitRect(obj.x, obj.y, w, h)}
@@ -6213,7 +6241,7 @@ function SvgObjectCorpo(p: ObjProps) {
           style={isEditMode ? { pointerEvents: "none" } : undefined}>
           <div style={{ width: w, height: h, overflowY: "auto", boxSizing: "border-box", padding: 6, background: obj.bg_color ?? "#1e293b", border: "1px solid #334155", borderRadius: 4,
             ...(obj.bg_image ? { backgroundImage: `url(${obj.bg_image})`, backgroundSize: "cover", backgroundPosition: "center" } : {}) }}>
-            <RecipePanel idPrefix={obj.recipe_panel_id_prefix} compact dark />
+            <RecipePanel idPrefix={obj.recipe_panel_id_prefix} compact dark corpo={obj.font_size ?? 11} />
           </div>
         </foreignObject>
         {hitRect(obj.x, obj.y, w, h)}
@@ -6361,7 +6389,7 @@ function SvgObjectCorpo(p: ObjProps) {
               );
             })()
           ) : customEntry ? (
-            <image href={customEntry.url} x={obj.x} y={obj.y} width={w} height={h}
+            <ImmagineSvg href={customEntry.url} x={obj.x} y={obj.y} width={w} height={h}
               preserveAspectRatio="xMidYMid meet" style={{ pointerEvents: "none" }} />
           ) : libId ? disegnoLib(libId) : null}
         </>)}
@@ -6378,8 +6406,8 @@ function SvgObjectCorpo(p: ObjProps) {
         )}
         {/* F6.6: label dello stato attivo sotto il simbolo */}
         {stateEntry?.label && (
-          <text x={obj.x + w / 2} y={obj.y + h + 12} textAnchor="middle"
-            fill={stateEntry.color ?? badgeColor} fontSize={11} fontWeight={600}
+          <text x={obj.x + w / 2} y={obj.y + h + (obj.label_font_size ?? 11) + 1} textAnchor="middle"
+            fill={stateEntry.color ?? badgeColor} fontSize={obj.label_font_size ?? 11} fontWeight={600}
             style={{ pointerEvents: "none" }}>
             {stateEntry.label}
           </text>
@@ -6546,7 +6574,7 @@ function SvgObjectCorpo(p: ObjProps) {
                   />
                 )}
                 {!cellDef?.sub && cellDef?.bg_image && (
-                  <image
+                  <ImmagineSvg
                     href={cellDef.bg_image}
                     x={cellX} y={cellY} width={cellW} height={cellH}
                     preserveAspectRatio="xMidYMid slice"
@@ -6676,7 +6704,7 @@ function SvgObjectCorpo(p: ObjProps) {
         {selRect(obj.x, obj.y, w, h)}
         {applyTransform(obj, w, h, <>
           {bgLayer(obj.x, obj.y, w, h, 4)}
-          <image href={obj.src} x={obj.x} y={obj.y} width={w} height={h}
+          <ImmagineSvg href={obj.src} x={obj.x} y={obj.y} width={w} height={h}
             preserveAspectRatio={fitAttr}
             style={{ cursor: editCursor }}
             onMouseDown={handleMouseDown} onClick={(e) => e.stopPropagation()} />

@@ -53,6 +53,9 @@ pub enum Comando {
         base_url: String,
         id: String,
         token: Option<String>,
+        /// Dove scrivere com'è andata, per la riga d'esito del pannello ricette
+        /// (25-10-2026): il thread di rete non tocca LVGL, il disegno la legge.
+        esito: Option<EsitoRicetta>,
     },
     /// «Aggiorna ora» dell'avviso di aggiornamento (29-09-2026). Sta qui con le
     /// scritture per la stessa ragione delle altre — è una POST, la forma che
@@ -124,7 +127,19 @@ async fn esegui(cmd: Comando) -> anyhow::Result<()> {
             base_url,
             id,
             token,
-        } => client::apply_recipe(base_url, id, token).await,
+            esito,
+        } => {
+            let r = client::apply_recipe(base_url, id, token).await;
+            if let Some(c) = esito {
+                if let Ok(mut g) = c.lock() {
+                    *g = Some(match &r {
+                        Ok(_) => (true, "✓ ricetta applicata".into()),
+                        Err(_) => (false, "✗ ricetta non applicata".into()),
+                    });
+                }
+            }
+            r
+        }
         Comando::AvviaAggiornamento { base_url, token } => {
             client::avvia_aggiornamento(&base_url, token.as_deref()).await
         }
@@ -230,6 +245,10 @@ fn lavora(rx: Receiver<Comando>, tetto: Duration) {
         }
     }
 }
+
+/// L'esito dell'applicazione di una ricetta: `(riuscita, testo)`, `None`
+/// finché non si sa. Lo scrive il thread di rete, lo legge il disegno.
+pub type EsitoRicetta = std::sync::Arc<std::sync::Mutex<Option<(bool, String)>>>;
 
 static CODA: OnceLock<Sender<Comando>> = OnceLock::new();
 
@@ -347,6 +366,7 @@ mod tests {
                 base_url: base,
                 id: "r1".into(),
                 token: Some("tok".into()),
+                esito: None,
             },
             Duration::from_secs(5),
         );
@@ -411,6 +431,7 @@ mod tests {
                 base_url: base,
                 id: "r1".into(),
                 token: None,
+                esito: None,
             },
             Duration::from_millis(300),
         );

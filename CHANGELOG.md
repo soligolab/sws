@@ -13,6 +13,16 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 
 ### Added
 
+- **Il corpo del testo su tutti i tipi, e i testi che il pannello LVGL non disegnava** (terzo giro del ramo 5 dei
+  residui, piano `docs/plans/2026-10-25-corpi-e-parita-lvgl.md`). `font_size`, `label_font_size` e il campo nuovo
+  **`unit_font_size`** valgono ora anche su gauge, kpi_tile, data_log, sparkline, symbol, lang_selector, i quattro
+  oggetti degli allarmi, recipe_panel, clock e page_navigator, nei due motori, coi predefiniti uguali ai numeri di
+  prima del web. Sul pannello LVGL: valore e unità separati su gauge e kpi; pillola ISA e ACK sul banner allarmi;
+  i modi banner e tabella del visore allarmi (prima un errore); titolo e scorrimento su tutte le righe dello
+  storico allarmi; tutti i campioni della finestra nel registro dati; l'icona della campana; stato vuoto ed esito
+  delle ricette; l'etichetta di stato dei simboli; l'ultimo valore della sparkline; i codici lingua in maiuscolo.
+  I ripieghi del pannello stanno in una tabella confrontata con quella condivisa da un test.
+
 - **Immagine di sfondo dell'area attiva della pagina** (`sfondo_immagine`, richiesta del maintainer del 25-10-2026):
   nelle proprietà della pagina si carica o si sceglie un'immagine che riempie la parte fra testata e piede della
   cornice — tutta la pagina senza cornice — sotto gli oggetti e senza coprire le fasce. Il server la compone come un
@@ -43,6 +53,12 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 
 ### Fixed
 
+- **Le immagini del progetto nell'editor del cloud** (`canvas/ImmagineSvg.tsx`): un `<image href>` di SVG non manda
+  la sessione, e l'URL `/api/project/images/…` andava alla radice del gateway — 401, e il rettangolo con
+  l'immagine di sfondo mostrava altro («solo un pezzo piccolo molto ingrandito», 25-10). Nel cloud l'immagine ora
+  si scarica con la sessione sotto il prefisso del progetto e si disegna da un `blob:` in memoria, come già
+  l'immagine di boot; in locale e sul pannello l'URL resta com'era. Vale per i 14 `<image>` del canvas, lo sfondo
+  del trend, le anteprime del selettore immagini e le icone dei simboli personalizzati.
 - **Il `brand.json` dei marchi pre-auth esce filtrato a una lista bianca** (ramo 2 dei residui, `marchi.rs`): lo
   scrive il cliente dalla console, e prima dell'accesso usciva per intero — preset dei pannelli, percorsi Yocto e
   qualunque campo «avanzato». Ora pre-auth escono solo id, nome, logo, favicon, colori e neutri (`CAMPI_PUBBLICI`),

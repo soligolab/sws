@@ -1216,7 +1216,9 @@
     "permessoTagAperto": "Il tag è aperto a chiunque: questa restrizione vale per questo oggetto, non per il tag.",
     "sfondoArea": "Immagine di sfondo dell'area attiva",
     "sfondoAreaHint": "Riempie la parte fra testata e piede della cornice (tutta la pagina se non ha cornice), sotto gli oggetti. Sul pannello LVGL si vedono solo immagini SVG.",
-    "sfondoAreaTogli": "Togli l'immagine"
+    "sfondoAreaTogli": "Togli l'immagine",
+    "valueFontSize": "Corpo del valore",
+    "unitFontSize": "Corpo dell'unità"
   },
   "shortcut": {
     "navCanvas": "Navigazione canvas",

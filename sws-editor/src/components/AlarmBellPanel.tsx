@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { corpoAnnotazione, corpoSecondario } from "@/canvas/geometriaTesto";
 import { createPortal } from "react-dom";
 import { useTranslation } from "react-i18next";
 import { api } from "@/api/client";
@@ -24,6 +25,10 @@ export interface AlarmBellPanelProps {
   showHistory?: boolean;
   showShelve?: boolean;
   badgeFill?: string;
+  /** Il corpo del testo (25-10-2026): pulsante, intestazioni e nomi; badge,
+   *  messaggi e ACK lo seguono (`corpoSecondario`), le note piccole
+   *  (`corpoAnnotazione`), la campana due punti sopra. 12 = i numeri di prima. */
+  corpo?: number;
   // ── F7.5 — segnalazione acustica ────────────────────────────────────────
   /** Attiva il suono alla comparsa di allarmi non confermati. */
   sound?: boolean;
@@ -36,7 +41,7 @@ export interface AlarmBellPanelProps {
 }
 
 export function AlarmBellPanel({ idPrefix = "", allowedSev, showHistory = true, showShelve = true, badgeFill,
-  sound = false, soundSeverities, soundRepeatS = 20, muted: mutedProp }: AlarmBellPanelProps) {
+  sound = false, soundSeverities, soundRepeatS = 20, muted: mutedProp, corpo = 12 }: AlarmBellPanelProps) {
   const { t } = useTranslation();
   useAlarmStream();
 
@@ -182,7 +187,7 @@ export function AlarmBellPanel({ idPrefix = "", allowedSev, showHistory = true, 
           color: "#e2e8f0",
           borderRadius: 999,
           cursor: "pointer",
-          fontSize: 12,
+          fontSize: corpo,
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
@@ -190,7 +195,7 @@ export function AlarmBellPanel({ idPrefix = "", allowedSev, showHistory = true, 
           boxShadow: "0 2px 8px rgba(0,0,0,0.4)",
         }}
       >
-        <span style={{ color: badgeColor, fontSize: 14 }}>🔔</span>
+        <span style={{ color: badgeColor, fontSize: corpo + 2 }}>🔔</span>
         <span>{t("viewer.alarms")}</span>
         {/* F7.5 — "tacita": compare solo quando c'è davvero qualcosa che sta
             suonando, così non è un comando inerte sempre presente. Vive dentro
@@ -201,7 +206,7 @@ export function AlarmBellPanel({ idPrefix = "", allowedSev, showHistory = true, 
             title={muted ? t("viewer.silenced") : t("viewer.silence")}
             onClick={(e) => { e.stopPropagation(); silenceNow(); }}
             style={{
-              fontSize: 12, padding: "0 4px", borderRadius: 4, cursor: "pointer",
+              fontSize: corpo, padding: "0 4px", borderRadius: 4, cursor: "pointer",
               background: muted ? "#334155" : "transparent",
               color: muted ? "#64748b" : "#e2e8f0",
             }}
@@ -210,12 +215,12 @@ export function AlarmBellPanel({ idPrefix = "", allowedSev, showHistory = true, 
           </span>
         )}
         {visibleActive.length > 0 && (
-          <span style={{ background: badgeColor, color: "#0f172a", padding: "1px 7px", borderRadius: 10, fontWeight: 700, fontSize: 11 }}>
+          <span style={{ background: badgeColor, color: "#0f172a", padding: "1px 7px", borderRadius: 10, fontWeight: 700, fontSize: corpoSecondario(corpo) }}>
             {visibleActive.length}
           </span>
         )}
         {showShelve && shelved.length > 0 && (
-          <span style={{ background: "#475569", color: "#e2e8f0", padding: "1px 6px", borderRadius: 10, fontSize: 11 }} title={t("viewer.suppressed")}>
+          <span style={{ background: "#475569", color: "#e2e8f0", padding: "1px 6px", borderRadius: 10, fontSize: corpoSecondario(corpo) }} title={t("viewer.suppressed")}>
             ⏸{shelved.length}
           </span>
         )}
@@ -232,7 +237,7 @@ export function AlarmBellPanel({ idPrefix = "", allowedSev, showHistory = true, 
           <div style={{
             display: "flex", alignItems: "center", justifyContent: "space-between",
             padding: "6px 12px", borderBottom: "1px solid #334155",
-            background: "#1e293b", fontSize: 12, color: "#94a3b8",
+            background: "#1e293b", fontSize: corpo, color: "#94a3b8",
           }}>
             <div style={{ display: "flex", gap: 2 }}>
               {tabs.map((pt) => (
@@ -240,7 +245,7 @@ export function AlarmBellPanel({ idPrefix = "", allowedSev, showHistory = true, 
                   key={pt}
                   onClick={() => setPanelTab(pt)}
                   style={{
-                    padding: "2px 10px", fontSize: 11, borderRadius: 4, cursor: "pointer",
+                    padding: "2px 10px", fontSize: corpoSecondario(corpo), borderRadius: 4, cursor: "pointer",
                     background: panelTab === pt ? "#334155" : "transparent",
                     border: "none",
                     color: panelTab === pt ? "#e2e8f0" : "#64748b",
@@ -252,7 +257,7 @@ export function AlarmBellPanel({ idPrefix = "", allowedSev, showHistory = true, 
               ))}
             </div>
             {panelTab === "attivi" && unack.filter(a => !shelvedIds.has(a.def.id)).length > 1 && (
-              <button onClick={handleAckAll} style={{ background: "#334155", border: "none", color: "#e2e8f0", padding: "2px 10px", borderRadius: 4, cursor: "pointer", fontSize: 11 }}>
+              <button onClick={handleAckAll} style={{ background: "#334155", border: "none", color: "#e2e8f0", padding: "2px 10px", borderRadius: 4, cursor: "pointer", fontSize: corpoSecondario(corpo) }}>
                 {t("alarmBell.ackAll")}
               </button>
             )}
@@ -268,7 +273,7 @@ export function AlarmBellPanel({ idPrefix = "", allowedSev, showHistory = true, 
           {/* Active alarms */}
           {panelTab === "attivi" && <div style={{ overflowY: "auto", flex: 1 }}>
             {visibleActive.length === 0 && shelved.length === 0 ? (
-              <div style={{ padding: 16, color: "#64748b", fontSize: 12, textAlign: "center" }}>{t("alarmBell.noActiveAlarms")}</div>
+              <div style={{ padding: 16, color: "#64748b", fontSize: corpo, textAlign: "center" }}>{t("alarmBell.noActiveAlarms")}</div>
             ) : visibleActive.map((a) => {
               const color = SEV_COLOR[a.def.severity ?? "Warning"];
               const isShelving = shelveOpen === a.def.id;
@@ -277,24 +282,24 @@ export function AlarmBellPanel({ idPrefix = "", allowedSev, showHistory = true, 
                   <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 12px", opacity: a.acknowledged ? 0.55 : 1 }}>
                     <span style={{ width: 10, height: 10, borderRadius: "50%", background: color, flexShrink: 0 }} />
                     <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ color: "#e2e8f0", fontSize: 12, fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{a.def.id}</div>
-                      <div style={{ color: "#94a3b8", fontSize: 11, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{resolveMsg(a.def.message ?? "", msgLang, langTable)}</div>
+                      <div style={{ color: "#e2e8f0", fontSize: corpo, fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{a.def.id}</div>
+                      <div style={{ color: "#94a3b8", fontSize: corpoSecondario(corpo), overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{resolveMsg(a.def.message ?? "", msgLang, langTable)}</div>
                     </div>
                     {/* Shelve button */}
                     {showShelve && (
                       <button
                         onClick={() => { setShelveOpen(isShelving ? null : a.def.id); setShelveReason(""); setShelveHours(8); }}
                         title={t("viewer.suppressForMaintenance")}
-                        style={{ background: isShelving ? "#78350f" : "transparent", border: `1px solid ${isShelving ? "#d97706" : "#334155"}`, color: "#d97706", padding: "2px 6px", borderRadius: 4, cursor: "pointer", fontSize: 11 }}
+                        style={{ background: isShelving ? "#78350f" : "transparent", border: `1px solid ${isShelving ? "#d97706" : "#334155"}`, color: "#d97706", padding: "2px 6px", borderRadius: 4, cursor: "pointer", fontSize: corpoSecondario(corpo) }}
                       >
                         🔧
                       </button>
                     )}
                     {/* ACK button */}
                     {a.acknowledged ? (
-                      <span style={{ color: "#64748b", fontSize: 10, fontStyle: "italic" }}>ACK</span>
+                      <span style={{ color: "#64748b", fontSize: corpoAnnotazione(corpo), fontStyle: "italic" }}>ACK</span>
                     ) : (
-                      <button onClick={() => handleAck(a)} style={{ background: color, color: "#0f172a", border: "none", borderRadius: 4, padding: "2px 10px", cursor: "pointer", fontWeight: 600, fontSize: 11 }}>ACK</button>
+                      <button onClick={() => handleAck(a)} style={{ background: color, color: "#0f172a", border: "none", borderRadius: 4, padding: "2px 10px", cursor: "pointer", fontWeight: 600, fontSize: corpoSecondario(corpo) }}>ACK</button>
                     )}
                   </div>
                   {/* Inline shelve form */}
@@ -305,20 +310,20 @@ export function AlarmBellPanel({ idPrefix = "", allowedSev, showHistory = true, 
                         placeholder={t("viewer.reasonPlaceholder")}
                         value={shelveReason}
                         onChange={(e) => setShelveReason(e.target.value)}
-                        style={{ background: "#0f172a", border: "1px solid #334155", borderRadius: 4, color: "#e2e8f0", fontSize: 12, padding: "4px 8px" }}
+                        style={{ background: "#0f172a", border: "1px solid #334155", borderRadius: 4, color: "#e2e8f0", fontSize: corpo, padding: "4px 8px" }}
                       />
                       <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                        <label style={{ fontSize: 11, color: "#94a3b8" }}>Durata (h):</label>
+                        <label style={{ fontSize: corpoSecondario(corpo), color: "#94a3b8" }}>Durata (h):</label>
                         <input
                           type="number" min={0} max={720} step={1}
                           value={shelveHours}
                           onChange={(e) => setShelveHours(parseInt(e.target.value) || 0)}
-                          style={{ width: 55, background: "#0f172a", border: "1px solid #334155", borderRadius: 4, color: "#e2e8f0", fontSize: 12, padding: "3px 6px", textAlign: "center" }}
+                          style={{ width: 55, background: "#0f172a", border: "1px solid #334155", borderRadius: 4, color: "#e2e8f0", fontSize: corpo, padding: "3px 6px", textAlign: "center" }}
                         />
-                        <span style={{ fontSize: 11, color: "#64748b" }}>(0 = indefinito)</span>
+                        <span style={{ fontSize: corpoSecondario(corpo), color: "#64748b" }}>(0 = indefinito)</span>
                         <button
                           onClick={() => handleShelve(a.def.id)}
-                          style={{ marginLeft: "auto", background: "#92400e", border: "none", color: "#fef3c7", padding: "3px 12px", borderRadius: 4, cursor: "pointer", fontSize: 11, fontWeight: 600 }}
+                          style={{ marginLeft: "auto", background: "#92400e", border: "none", color: "#fef3c7", padding: "3px 12px", borderRadius: 4, cursor: "pointer", fontSize: corpoSecondario(corpo), fontWeight: 600 }}
                         >
                           Sopprimi
                         </button>
@@ -332,15 +337,15 @@ export function AlarmBellPanel({ idPrefix = "", allowedSev, showHistory = true, 
             {/* Shelved section */}
             {showShelve && shelved.length > 0 && (
               <>
-                <div style={{ padding: "4px 12px", background: "#1e293b", fontSize: 10, color: "#64748b", fontWeight: 700, letterSpacing: 0.5, borderBottom: "1px solid #334155" }}>
+                <div style={{ padding: "4px 12px", background: "#1e293b", fontSize: corpoAnnotazione(corpo), color: "#64748b", fontWeight: 700, letterSpacing: 0.5, borderBottom: "1px solid #334155" }}>
                   SOPPRESSI ({shelved.length})
                 </div>
                 {shelved.map((sh) => (
                   <div key={sh.alarm_id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 12px", borderBottom: "1px solid #1e293b", opacity: 0.7 }}>
-                    <span style={{ fontSize: 12 }}>⏸</span>
+                    <span style={{ fontSize: corpo }}>⏸</span>
                     <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ color: "#94a3b8", fontSize: 12, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{sh.alarm_id}</div>
-                      <div style={{ color: "#64748b", fontSize: 11 }}>
+                      <div style={{ color: "#94a3b8", fontSize: corpo, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{sh.alarm_id}</div>
+                      <div style={{ color: "#64748b", fontSize: corpoSecondario(corpo) }}>
                         {sh.reason}
                         {sh.until_ms > 0 && ` · fino ${new Date(sh.until_ms).toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" })}`}
                         {sh.until_ms === 0 && " · indefinito"}
@@ -349,7 +354,7 @@ export function AlarmBellPanel({ idPrefix = "", allowedSev, showHistory = true, 
                     <button
                       onClick={() => handleUnshelve(sh.alarm_id)}
                       title={t("viewer.reactivateAlarm")}
-                      style={{ background: "transparent", border: "1px solid #334155", color: "#94a3b8", padding: "2px 8px", borderRadius: 4, cursor: "pointer", fontSize: 11 }}
+                      style={{ background: "transparent", border: "1px solid #334155", color: "#94a3b8", padding: "2px 8px", borderRadius: 4, cursor: "pointer", fontSize: corpoSecondario(corpo) }}
                     >
                       Riattiva
                     </button>

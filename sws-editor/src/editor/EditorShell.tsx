@@ -1,4 +1,6 @@
 import { createContext, lazy, Suspense, useCallback, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { ImgProgetto } from "@/canvas/ImmagineSvg";
+import { dimenticaImmagine } from "@/canvas/ImmagineSvg";
 import { ProprietaFinestra } from "@/finestre/ProprietaFinestra";
 import { azioneDi, righeDalRegistro } from "@/scorciatoie/registro";
 import { FAMIGLIE, cssFamiglia, famigliaDi } from "@/font/famiglie";
@@ -44,7 +46,7 @@ import { useAppStore } from "@/store";
 import { coloreAuto, estraiHex, predefinito, regola, coloreDaProgetto, daProgetto } from "@/coloriPredefiniti";
 import { oggettoNuovo } from "./oggettiNuovi";
 import { CampoColore } from "./CampoColore";
-import { regolaCampo, type MotivoVuoto } from "@/predefinitiCampi";
+import { regolaCampo, valorePredefinito, type MotivoVuoto } from "@/predefinitiCampi";
 import { IntestazioneSezione, PREFISSO_MEMORIA, RigaProprieta, SPAZIO, TESTO, TitoloVista, migraMemorieVecchie, useSezioneAperta } from "./stilePannelli";
 import { cosaCancella, eliminaWaypoint, percorsoDaSalvare, puntiMovimento } from "@/canvas/percorsoMovimento";
 import { targetDaSalvare, versoRischioso } from "./targetProgetto";
@@ -166,6 +168,22 @@ const COMANDO_DI_PARTENZA: Record<string, NonNullable<SynopticObject["button_mod
 /** Un simbolo nuovo: uno di libreria nasce con le proporzioni del suo disegno.
  *  I colori di stato non si scrivono: seguono lo stile del progetto (M6). Lo
  *  usano il riquadro di scelta e il ramo «Simboli» di Strumenti. */
+/** I campi del corpo del testo dei tipi del terzo giro (25-10-2026): quale
+ *  campo, con quale etichetta. Gli altri tipi li offrono nel loro ramo. */
+const CORPI_DEL_TIPO: Record<string, [keyof SynopticObject, string][]> = {
+  gauge: [["font_size", "props.valueFontSize"], ["unit_font_size", "props.unitFontSize"], ["label_font_size", "props.labelFontSize"]],
+  kpi_tile: [["font_size", "props.valueFontSize"], ["unit_font_size", "props.unitFontSize"], ["label_font_size", "props.labelFontSize"]],
+  data_log: [["font_size", "props.fontSize"], ["label_font_size", "props.labelFontSize"]],
+  sparkline: [["font_size", "props.fontSize"]],
+  symbol: [["label_font_size", "props.labelFontSize"]],
+  lang_selector: [["font_size", "props.fontSize"]],
+  alarm_viewer: [["font_size", "props.fontSize"]],
+  alarm_banner: [["font_size", "props.fontSize"]],
+  alarm_bell: [["font_size", "props.fontSize"]],
+  alarm_history: [["font_size", "props.fontSize"]],
+  recipe_panel: [["font_size", "props.fontSize"]],
+};
+
 export function oggettoSimbolo(symbolId: string, x: number, y: number): Omit<SynopticObject, "id"> {
   const lib = trovaSimboloLib(symbolId);
   const modo = COMANDO_DI_PARTENZA[symbolId];
@@ -263,7 +281,7 @@ function TesseraSimbolo({ tile, sel, onChange }: { tile: GalleryTile; sel: boole
         {tile.kind === "lib" ? (
           <AnteprimaLib sim={tile.sim} />
         ) : (
-          <img src={tile.url} style={{ width: 36, height: 34, objectFit: "contain" }} draggable={false} />
+          <ImgProgetto src={tile.url} style={{ width: 36, height: 34, objectFit: "contain" }} draggable={false} />
         )}
       </div>
       <span style={{
@@ -3468,6 +3486,15 @@ export function ObjectProps({
       )}
 
       <CollapsibleSection title={t("props.sectionAppearance")} storageKey="aspetto" gruppo="aspetto">
+        {/* I corpi del testo dei tipi del terzo giro (25-10-2026, piano
+            2026-10-25-corpi-e-parita-lvgl): un campo per testo, il predefinito
+            dalla tabella condivisa. Una tabella sola invece di sette blocchi. */}
+        {(CORPI_DEL_TIPO[obj.type] ?? []).map(([campo, etichetta]) => (
+          <div key={campo}>{field(t(etichetta),
+            <BindableInput obj={obj} propName={campo} onChange={onChange}>
+              {numInput(campo, Number(valorePredefinito(obj.type, campo) ?? 12))}
+            </BindableInput>)}</div>
+        ))}
         {/* Opacità e luminosità per **ogni** tipo (26-09-2026, piano pannello-luce-
             forme): prima l'opacità stava in «Trasformazione», che esiste solo per
             14 tipi. Tutte e due si legano a un tag col 🔗 — una waveform fa il fade. */}
@@ -3625,6 +3652,7 @@ export function ObjectProps({
                     setBgUploading(true);
                     try {
                       const res = await api.uploadProjectImage(safe, f);
+                      dimenticaImmagine(res.url);
                       onChange({ bg_image: res.url });
                       setProjectImages(null); // ricarica la lista al prossimo focus
                     } catch (err: any) {
@@ -4734,7 +4762,7 @@ export function ObjectProps({
               )}
               {obj.src && (
                 <div style={{ marginTop: 4, textAlign: "center" }}>
-                  <img
+                  <ImgProgetto
                     src={obj.src}
                     alt=""
                     style={{

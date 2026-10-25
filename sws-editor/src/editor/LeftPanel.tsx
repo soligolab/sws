@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useEffect, useRef, useState } from "react";
+import { ImgProgetto } from "@/canvas/ImmagineSvg";
 import { useTranslation } from "react-i18next";
 import { api } from "@/api/client";
 import { useAppStore } from "@/store";
@@ -918,7 +919,7 @@ function FamigliaSimboli({ famiglia, tipologie, titolo, ultima, ultimoGruppo }: 
         guide={guideAlbero(esterne, { x: 27, finoA: 34, ultimo: ultima && !aperta })} />
       {aperta && famiglia === "__progetto" && custom.map((c, i) => (
         <RigaStrumento key={c.id} testid={`simbolo-custom:${c.id}`} rientro={52} titolo={t("leftPanel.strumentoAggiungi")}
-          icona={<img src={c.url} alt="" draggable={false} style={{ width: px, height: px, objectFit: "contain", flexShrink: 0 }} />}
+          icona={<ImgProgetto src={c.url} alt="" draggable={false} style={{ width: px, height: px, objectFit: "contain", flexShrink: 0 }} />}
           nome={c.label} onClick={() => aggiungiOggetto("symbol", { symbol_id: `custom:${c.id}` })}
           guide={guideAlbero(ultima ? esterne : [...esterne, 27], { x: 43, finoA: 50, ultimo: i === custom.length - 1 })} />
       ))}

@@ -3,6 +3,7 @@
  *  «impostare una immagine di sfondo nella parte attiva della finestra, senza
  *  coprire la cornice». Caricare e scegliere funzionano come per lo sfondo di un
  *  oggetto: l'immagine va in `images/` del progetto e viaggia con lui. */
+import { dimenticaImmagine } from "@/canvas/ImmagineSvg";
 import { useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { api } from "@/api/client";
@@ -46,6 +47,7 @@ export function CampoSfondoArea({ value, disabled, onChange }: {
           setCarica(true);
           try {
             const res = await api.uploadProjectImage(sicuro, f);
+            dimenticaImmagine(res.url);
             onChange(res.url);
             setImmagini(null);
           } catch (err: unknown) {

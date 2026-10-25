@@ -513,6 +513,10 @@ pub struct SynopticObject {
     /// senza, la GET di un sinottico lo lascia per strada.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub button_font_size: Option<f64>,
+    /// Corpo dell'unità di misura (25-10-2026): `gauge` e `kpi_tile`, dove
+    /// valore e unità hanno corpi diversi. Stesso motivo di `label_font_size`.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub unit_font_size: Option<f64>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub font_family: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]

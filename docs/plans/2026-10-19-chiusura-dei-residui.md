@@ -220,6 +220,10 @@ di un campo nuovo nel manifesto.
 
 ## Ramo 5 — `feat/font-size-ovunque`
 
+> **CHIUSO il 25-10-2026 col terzo giro**: i 14 tipi rimasti (gauge, kpi_tile, data_log, sparkline, symbol,
+> lang_selector, i quattro degli allarmi, recipe_panel, clock, page_navigator), il campo nuovo `unit_font_size`
+> e i testi che LVGL non disegnava. Piano: [`2026-10-25-corpi-e-parita-lvgl.md`](2026-10-25-corpi-e-parita-lvgl.md).
+
 > **Primo giro fatto il 21-10-2026**: cinque tipi a un testo solo — `button` (14),
 > `navbutton` (13), `lang_button` (13), `led` (11), `checkbox` (13). Per ognuno la voce nella
 > tabella col letterale di oggi, il ripiego nel web, il campo nel pannello e la chiamata su LVGL.

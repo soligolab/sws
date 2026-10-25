@@ -377,6 +377,9 @@ export interface SynopticObject {
    *  le userebbe nessuno; e due sole farebbero crescere i pulsanti insieme al
    *  valore, con un ⌨ grande quanto il numero che si mangia il riquadro. */
   button_font_size?: number;
+  /** Corpo dell'unità di misura (25-10-2026): `gauge` (11) e `kpi_tile` (12),
+   *  dove valore e unità hanno corpi diversi — «un campo per testo». */
+  unit_font_size?: number;
   font_family?: string;
   /** "normal" | "bold" | number (100-900). */
   font_weight?: string | number;

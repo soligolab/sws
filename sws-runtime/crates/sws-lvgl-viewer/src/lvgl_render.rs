@@ -30,7 +30,7 @@ use crate::effects;
 use crate::lvgl_font;
 use cstr_core::CString;
 use lvgl::style::Style;
-use lvgl::widgets::{Bar, Btn, Chart, Checkbox, Label, Led, Line, Meter, Slider, Table};
+use lvgl::widgets::{Bar, Btn, Chart, Checkbox, Label, Led, Line, Meter, Slider};
 use lvgl::{Color, LvError, NativeObject, Part, Widget};
 use sws_core::geometria_testo::{altezza_etichetta, passo_riga};
 use sws_core::tag::{TagQuality, TagValue};
@@ -410,6 +410,12 @@ pub enum LiveKind {
     /// Il grafico a barre disegnato come sul web (`barre.rs`), su un canvas.
     Barre(Box<BarreVive>),
     /// La variazione percentuale in alto a destra del `kpi_tile`.
+    /// La riga d'esito del pannello ricette (25-10-2026, come il web).
+    EsitoRicetta {
+        label: core::ptr::NonNull<lvgl_sys::lv_obj_t>,
+        shared: crate::net_worker::EsitoRicetta,
+        mostrato: Option<(bool, String)>,
+    },
     KpiDelta {
         label: core::ptr::NonNull<lvgl_sys::lv_obj_t>,
         shared: client::SharedDelta,
@@ -428,6 +434,9 @@ pub enum LiveKind {
         last_seen_version: u64,
         last_samples: Vec<HistorySample>,
         window_s: u64,
+        /// L'ultimo valore in alto a destra (`spark_show_last`, 25-10-2026):
+        /// il campo arrivava al pannello e nessuno lo disegnava.
+        ultimo: Option<core::ptr::NonNull<lvgl_sys::lv_obj_t>>,
     },
     /// Riquadro compatto che mostra l'allarme attivo più recente (non una
     /// lista come `alarm_viewer`): stesso `SharedAlarms`, stesso filtro
@@ -440,6 +449,10 @@ pub enum LiveKind {
         empty_ptr: core::ptr::NonNull<lvgl_sys::lv_obj_t>,
         prefix: String,
         allowed_sev: Option<Vec<String>>,
+        /// La pillola di stato ISA e l'ACK della riga (25-10-2026, come il web).
+        pill_ptr: core::ptr::NonNull<lvgl_sys::lv_obj_t>,
+        ack_ptr: core::ptr::NonNull<lvgl_sys::lv_obj_t>,
+        ack_ctx: &'static AlarmAckCtx,
     },
     /// Punto+scia live contro coppie di tag (traiettoria/posizione, non
     /// tempo — a differenza di `trend`/`sparkline`, l'asse X è il valore di
@@ -643,7 +656,7 @@ pub struct AlarmRowBinding {
 /// single-thread (le callback LVGL sparano sincrone dentro `task_handler()`,
 /// sullo stesso thread del loop di rendering, mai in parallelo con
 /// `update_bindings`).
-struct AlarmAckCtx {
+pub(crate) struct AlarmAckCtx {
     current_id: RefCell<String>,
     tx: mpsc::Sender<String>,
 }
@@ -1421,6 +1434,13 @@ mod stile {
             lvgl_sys::lv_obj_set_style_text_font(p, f, sel);
         }
     }
+    /// Come [`font`], in grassetto (il valore di un gauge o di un kpi: sul web
+    /// è `fontWeight={700}`).
+    pub unsafe fn font_grassetto(p: P, px: u16, sel: u32) {
+        if let Some(f) = crate::lvgl_font::per(None, true, px) {
+            lvgl_sys::lv_obj_set_style_text_font(p, f, sel);
+        }
+    }
     pub unsafe fn margini(p: P, verticale: i16, orizzontale: i16, sel: u32) {
         lvgl_sys::lv_obj_set_style_pad_top(p, verticale, sel);
         lvgl_sys::lv_obj_set_style_pad_bottom(p, verticale, sel);
@@ -1472,42 +1492,9 @@ fn riquadro(
     Ok(())
 }
 
-/// La tabella scura del web (`DataTable` con `dark`): sfondo del tipo, bordo
-/// #334155, celle trasparenti col testo chiaro. Prima il tema di LVGL la
-/// disegnava bianca (Fase 2, 30-09-2026).
-unsafe fn tabella_scura(p: stile::P, obj: &SynopticObject, tipo: &str) {
-    stile::sfondo(p, colore_campo(obj.bg_color.as_deref(), tipo, "bg_color"), stile::MAIN);
-    stile::bordo(p, Some((0x33, 0x41, 0x55)), 1.0, stile::MAIN);
-    stile::raggio(p, 4.0, stile::MAIN);
-    stile::margini(p, 4, 4, stile::MAIN);
-    stile::trasparente(p, stile::CELLE);
-    stile::testo(p, (0xe2, 0xe8, 0xf0), stile::CELLE);
-    stile::font(p, 11, stile::CELLE);
-    stile::bordo(p, Some((0x1e, 0x29, 0x3b)), 1.0, stile::CELLE);
-    stile::margini(p, 2, 6, stile::CELLE);
-}
-
-/// Un'etichetta piccola come quelle del web (corpo 11, grigio #94a3b8 di
-/// default): `y_base` è la linea di base del `<text>` SVG, `larghezza` = Some
-/// per centrarla in quella larghezza a partire da `x`, None per allinearla a
-/// sinistra in `x`. Fase 3 (30-09-2026): gauge, led, barra, slider e
-/// data_log avevano `label` nel file e sul pannello non la mostravano.
-fn etichetta_piccola(
-    screen: &mut lvgl::Obj,
-    testo: &str,
-    x: f64,
-    y_base: f64,
-    larghezza: Option<f64>,
-    colore: (u8, u8, u8),
-) -> anyhow::Result<()> {
-    etichetta_piccola_corpo(screen, testo, x, y_base, larghezza, colore, 11)
-}
-
-/// Come [`etichetta_piccola`], ma col corpo scelto da chi chiama (21-10-2026,
-/// ramo 5 della chiusura dei residui). Sei renderer condividono questa
-/// funzione e il corpo era 11 per tutti: chi ha un `font_size` nella tabella
-/// dei predefiniti passa il suo, gli altri continuano a passare 11 e non
-/// cambiano di un pixel.
+/// Un'etichetta piccola col corpo scelto da chi chiama (21-10-2026, ramo 5
+/// della chiusura dei residui). Fino al 25-10 c'era anche `etichetta_piccola`,
+/// fissa a 11: col terzo giro del corpo del testo ogni renderer passa il suo.
 fn etichetta_piccola_corpo(
     screen: &mut lvgl::Obj,
     testo: &str,
@@ -1732,7 +1719,7 @@ fn formatta_durata(secondi: f64, spec: &str) -> String {
 }
 
 /// Un istante in **millisecondi dall'epoca** (il tipo `datetime`) come data,
-/// ora o entrambe, **in UTC** — stesso fuso e stesso motivo di `ora_utc`: il
+/// ora o entrambe, **in UTC** — stesso fuso e stesso motivo dello storico allarmi di prima: il
 /// pannello non linka una libreria di fusi orari, e un'ora locale nel browser
 /// contro una UTC sul vetro sarebbe la divergenza che la fixture condivisa
 /// esiste per impedire.
@@ -3264,6 +3251,31 @@ fn apply_font_size(widget: &impl NativeObject, obj: &SynopticObject) -> anyhow::
     apply_font_size_con_ripiego(widget, obj, None)
 }
 
+/// I corpi predefiniti del terzo giro (25-10-2026, piano corpi-e-parita-lvgl):
+/// gli stessi numeri di `tests/fixtures/predefiniti-campi.json`, che il web
+/// legge come ripiego. Il test `i_corpi_del_pannello_sono_quelli_della_tabella`
+/// li confronta con la fixture: un numero cambiato da una parte sola è il
+/// guasto che la tabella condivisa esiste per impedire.
+const CORPI_PREDEFINITI: &[(&str, &str, f64)] = &[
+    ("gauge", "font_size", 20.0), ("gauge", "unit_font_size", 11.0), ("gauge", "label_font_size", 11.0),
+    ("kpi_tile", "font_size", 26.0), ("kpi_tile", "unit_font_size", 12.0), ("kpi_tile", "label_font_size", 11.0),
+    ("data_log", "font_size", 11.0), ("data_log", "label_font_size", 11.0),
+    ("sparkline", "font_size", 9.0), ("symbol", "label_font_size", 11.0), ("lang_selector", "font_size", 13.0),
+    ("alarm_viewer", "font_size", 11.0), ("alarm_banner", "font_size", 13.0), ("alarm_bell", "font_size", 12.0),
+    ("alarm_history", "font_size", 11.0), ("recipe_panel", "font_size", 11.0),
+    ("clock", "font_size", 16.0), ("page_navigator", "font_size", 13.0),
+];
+
+/// Il corpo predefinito di `campo` per `tipo`, dalla tabella qui sopra; 14,
+/// il corpo dello schermo, se il tipo non c'è.
+fn corpo_predefinito(tipo: &str, campo: &str) -> f64 {
+    CORPI_PREDEFINITI
+        .iter()
+        .find(|(t, c, _)| *t == tipo && *c == campo)
+        .map(|(_, _, v)| *v)
+        .unwrap_or(crate::lvgl_font::CORPO_PX as f64)
+}
+
 /// Come [`apply_font_size`], ma con il corpo che il **web** disegna quando
 /// l'oggetto non dichiara niente (22-10-2026).
 ///
@@ -3424,7 +3436,7 @@ fn render_clock(
         }
     }
     let label = Label::create(&mut riquadro).map_err(|e| anyhow::anyhow!("Label::create: {e:?}"))?;
-    apply_font_size(&label, obj)?;
+    apply_font_size_con_ripiego(&label, obj, Some(corpo_predefinito("clock", "font_size")))?; // il ripiego del web (25-10-2026)
     let lp = label.raw().map_err(|e| anyhow::anyhow!("raw: {e:?}"))?.as_ptr();
     let (allinea, dx) = match obj.text_anchor.as_deref() {
         Some("start") => (lvgl_sys::LV_ALIGN_LEFT_MID, PAD_OROLOGIO),
@@ -4131,7 +4143,7 @@ fn render_page_navigator(
                 .map_err(|e| anyhow::anyhow!("add_style: {e:?}"))?;
             styles.push(style);
         }
-        apply_font_size(&lbl, obj)?;
+        apply_font_size_con_ripiego(&lbl, obj, Some(corpo_predefinito("page_navigator", "font_size")))?; // il ripiego del web (25-10-2026)
         let lbl_ptr = lbl.raw().map_err(|e| anyhow::anyhow!("raw: {e:?}"))?;
         let btn_ptr = btn.raw().map_err(|e| anyhow::anyhow!("raw: {e:?}"))?;
         unsafe {
@@ -5066,10 +5078,18 @@ fn render_gauge(
     obj: &SynopticObject,
     tags: &TagSnapshot,
 ) -> anyhow::Result<LiveBinding> {
+    // I corpi del testo come sul web (25-10-2026, piano corpi-e-parita-lvgl):
+    // valore, unità ed etichetta hanno un campo ciascuno; tacche e min/max
+    // seguono l'etichetta. Prima qui erano 11 per l'etichetta e 14 ereditati
+    // per tutto il resto, contro 20/11/9/10 del web.
+    let corpo_valore = obj.font_size.unwrap_or(corpo_predefinito("gauge", "font_size")).round().clamp(6.0, 200.0);
+    let corpo_unita = obj.unit_font_size.unwrap_or(corpo_predefinito("gauge", "unit_font_size")).round().clamp(6.0, 200.0);
+    let corpo_etichetta = obj.label_font_size.unwrap_or(corpo_predefinito("gauge", "label_font_size")).round().clamp(6.0, 200.0);
     if let Some(l) = obj.label.as_deref().filter(|l| !l.is_empty()) {
-        etichetta_piccola(
-            screen, l, obj.x.unwrap_or(0.0), obj.y.unwrap_or(0.0) + 14.0, Some(obj.width.unwrap_or(180.0)),
+        etichetta_piccola_corpo(
+            screen, l, obj.x.unwrap_or(0.0), obj.y.unwrap_or(0.0) + corpo_etichetta + 3.0, Some(obj.width.unwrap_or(180.0)),
             obj.color.as_deref().and_then(parse_hex_color).unwrap_or(GRIGIO_ETICHETTA),
+            corpo_etichetta as u16,
         )?;
     }
     let mut meter = Meter::create(screen).map_err(|e| anyhow::anyhow!("Meter::create: {e:?}"))?;
@@ -5081,6 +5101,13 @@ fn render_gauge(
         stile::bordo(p, None, 0.0, stile::MAIN);
         stile::testo(p, (0x94, 0xa3, 0xb8), stile::MAIN);
         stile::testo(p, (0x94, 0xa3, 0xb8), lvgl_sys::LV_PART_TICKS);
+        // I numeri del quadrante: 9 con le tacche, 10 per il solo min/max.
+        let corpo_tacche = if obj.gauge_ticks.map(|t| t.round() > 1.0).unwrap_or(false) {
+            sws_core::geometria_testo::corpo_annotazione(corpo_etichetta)
+        } else {
+            sws_core::geometria_testo::corpo_secondario(corpo_etichetta)
+        };
+        stile::font(p, corpo_tacche as u16, lvgl_sys::LV_PART_TICKS);
     }
     // `lv_meter` non forza mai una forma circolare da solo: segue fedelmente
     // il box assegnato, quindi width != height produce uno sfondo ovale (non
@@ -5255,17 +5282,31 @@ fn render_gauge(
             (side as f64 * 0.72) as lvgl_sys::lv_coord_t,
         );
     }
-    let unit_suffix = obj
-        .unit
-        .as_deref()
-        .map(|u| format!(" {u}"))
-        .unwrap_or_default();
+    // Valore e unità in due etichette, come il web (25-10-2026): erano una
+    // sola, `"{valore} {unità}"`, e l'unità non poteva avere il suo corpo.
     value_label
-        .set_text(&text_cstring(&format!("{raw:.decimali$}{unit_suffix}")))
+        .set_text(&text_cstring(&format!("{raw:.decimali$}")))
         .map_err(|e| anyhow::anyhow!("set_text: {e:?}"))?;
     let value_ptr = value_label
         .raw()
         .map_err(|e| anyhow::anyhow!("raw: {e:?}"))?;
+    unsafe { stile::font_grassetto(value_ptr.as_ptr(), corpo_valore as u16, stile::MAIN) };
+    if let Some(u) = obj.unit.as_deref().filter(|u| !u.is_empty()) {
+        let mut unit_label =
+            Label::create(&mut meter).map_err(|e| anyhow::anyhow!("Label::create: {e:?}"))?;
+        unit_label.set_text(&text_cstring(u)).map_err(|e| anyhow::anyhow!("set_text: {e:?}"))?;
+        let up = unit_label.raw().map_err(|e| anyhow::anyhow!("raw: {e:?}"))?.as_ptr();
+        unsafe {
+            stile::font(up, corpo_unita as u16, stile::MAIN);
+            // Sotto il valore: la sua altezza di riga più un respiro.
+            lvgl_sys::lv_obj_align(
+                up,
+                lvgl_sys::LV_ALIGN_TOP_MID as lvgl_sys::lv_align_t,
+                0,
+                (side as f64 * 0.72 + corpo_valore * 1.25) as lvgl_sys::lv_coord_t,
+            );
+        }
+    }
 
     Ok(LiveBinding {
         kind: LiveKind::Gauge {
@@ -5276,7 +5317,8 @@ fn render_gauge(
             tag: obj.tag.clone(),
             min,
             max,
-            unit: obj.unit.clone(),
+            // L'unità ha la sua etichetta: il valore si aggiorna da solo.
+            unit: None,
             soglie: (obj.alarm_low, obj.warn_low, obj.warn_high, obj.alarm_high),
             rgb_base: obj
                 .fill
@@ -6412,6 +6454,21 @@ fn render_sparkline(
     let shared =
         client::spawn_history_poller(rt_handle, base_url.to_string(), tag, window_s, false);
 
+    // L'ultimo valore (25-10-2026), corpo `font_size` (9 sul web), del colore
+    // della linea, in alto a destra.
+    let ultimo = if obj.spark_show_last == Some(true) {
+        let corpo = obj.font_size.unwrap_or(corpo_predefinito("sparkline", "font_size")).round().clamp(6.0, 200.0);
+        unsafe {
+            let l = lvgl_sys::lv_label_create(ptr.as_ptr());
+            lvgl_sys::lv_label_set_text(l, text_cstring("").as_ptr());
+            stile::font(l, corpo as u16, stile::MAIN);
+            stile::testo(l, rgb, stile::MAIN);
+            lvgl_sys::lv_obj_align(l, lvgl_sys::LV_ALIGN_TOP_RIGHT as lvgl_sys::lv_align_t, -2, 0);
+            core::ptr::NonNull::new(l)
+        }
+    } else {
+        None
+    };
     Ok(LiveBinding {
         kind: LiveKind::Sparkline {
             ptr,
@@ -6420,6 +6477,7 @@ fn render_sparkline(
             last_seen_version: 0,
             last_samples: Vec::new(),
             window_s,
+            ultimo,
         },
     })
 }
@@ -6445,9 +6503,23 @@ fn render_alarm_viewer(
     ack_tx: &mpsc::Sender<String>,
 ) -> anyhow::Result<LiveBinding> {
     let mode = obj.alarm_viewer_mode.as_deref().unwrap_or("list");
-    if mode != "list" {
-        anyhow::bail!("alarm_viewer_mode '{mode}' non supportato da LVGL (solo 'list')");
+    // I modi del web (25-10-2026): qui c'era un errore e l'oggetto spariva.
+    // Il banner riusa il disegno di `alarm_banner` (pillola, messaggio, ACK);
+    // la tabella usa l'elenco qui sotto, che mostra gli stessi allarmi con gli
+    // stessi ACK — le colonne ordinabili del web restano del web.
+    if mode == "banner" {
+        let mut come_banner = obj.clone();
+        come_banner.alarm_banner_id_prefix = obj.alarm_viewer_id_prefix.clone();
+        come_banner.alarm_banner_severities = obj.alarm_viewer_severities.clone();
+        come_banner.bg_color = obj.alarm_viewer_bg_color.clone().or_else(|| obj.bg_color.clone());
+        if come_banner.font_size.is_none() {
+            come_banner.font_size = Some(11.0);
+        }
+        return render_alarm_banner(screen, &come_banner, styles, shared_alarms, ack_tx);
     }
+    // Il corpo del web (25-10-2026): 11, e 9 l'ACK (`corpo_annotazione`).
+    let corpo = obj.font_size.unwrap_or(corpo_predefinito("alarm_viewer", "font_size")).round().clamp(6.0, 200.0);
+    let corpo_ack = sws_core::geometria_testo::corpo_annotazione(corpo);
 
     let width = obj.width.unwrap_or(360.0);
     let height = obj.height.unwrap_or(160.0);
@@ -6519,6 +6591,7 @@ fn render_alarm_viewer(
     let empty_ptr = empty_label
         .raw()
         .map_err(|e| anyhow::anyhow!("raw: {e:?}"))?;
+    unsafe { stile::font(empty_ptr.as_ptr(), corpo as u16, stile::MAIN) };
     // Stato iniziale nascosto: il primo update_bindings (che gira prima del
     // primo frame visibile — vedi main.rs) decide la visibilità corretta
     // rispettando show_empty, niente da anticipare qui.
@@ -6568,6 +6641,7 @@ fn render_alarm_viewer(
                 .map_err(|e| anyhow::anyhow!("add_style: {e:?}"))?;
             styles.push(ts_style);
             let p = ts_lbl.raw().map_err(|e| anyhow::anyhow!("raw: {e:?}"))?;
+            unsafe { stile::font(p.as_ptr(), corpo as u16, stile::MAIN) };
             x_cursor += 46;
             Some(p)
         } else {
@@ -6595,6 +6669,7 @@ fn render_alarm_viewer(
             .set_text(&text_cstring(""))
             .map_err(|e| anyhow::anyhow!("set_text: {e:?}"))?;
         let msg_ptr = msg_lbl.raw().map_err(|e| anyhow::anyhow!("raw: {e:?}"))?;
+        unsafe { stile::font(msg_ptr.as_ptr(), corpo as u16, stile::MAIN) };
         unsafe {
             lvgl_sys::lv_label_set_long_mode(
                 msg_ptr.as_ptr(),
@@ -6613,6 +6688,10 @@ fn render_alarm_viewer(
                 Label::create(&mut btn).map_err(|e| anyhow::anyhow!("Label::create: {e:?}"))?;
             lbl.set_text(&text_cstring("ACK"))
                 .map_err(|e| anyhow::anyhow!("set_text: {e:?}"))?;
+            unsafe {
+                let lp = lbl.raw().map_err(|e| anyhow::anyhow!("raw: {e:?}"))?.as_ptr();
+                stile::font(lp, corpo_ack as u16, stile::MAIN);
+            }
             let ptr = btn.raw().map_err(|e| anyhow::anyhow!("raw: {e:?}"))?;
             let ctx: &'static AlarmAckCtx = Box::leak(Box::new(AlarmAckCtx {
                 current_id: RefCell::new(String::new()),
@@ -6674,11 +6753,16 @@ fn render_alarm_banner(
     obj: &SynopticObject,
     styles: &mut Vec<Style>,
     shared_alarms: &SharedAlarms,
+    ack_tx: &mpsc::Sender<String>,
 ) -> anyhow::Result<LiveBinding> {
     let width = obj.width.unwrap_or(600.0);
     let height = obj.height.unwrap_or(32.0);
     let prefix = obj.alarm_banner_id_prefix.clone().unwrap_or_default();
     let allowed_sev = obj.alarm_banner_severities.clone();
+    // Il corpo del web (25-10-2026): 13 la riga, 11 la pillola, 12 l'ACK.
+    let corpo = obj.font_size.unwrap_or(corpo_predefinito("alarm_banner", "font_size")).round().clamp(6.0, 200.0);
+    let corpo_pillola = sws_core::geometria_testo::corpo_annotazione(corpo);
+    let corpo_ack = sws_core::geometria_testo::corpo_secondario(corpo);
 
     let mut container = create_child_obj(screen)?;
     set_pos_size(&mut container, obj, width, height)?;
@@ -6718,18 +6802,61 @@ fn render_alarm_banner(
         .map_err(|e| anyhow::anyhow!("add_style: {e:?}"))?;
     let dot_ptr = dot.raw().map_err(|e| anyhow::anyhow!("raw: {e:?}"))?;
 
+    // La pillola dello stato ISA, come il web (25-10-2026): il pallino resta
+    // nascosto, la pillola ne prende il posto e il colore della severità.
+    let mut pill = Label::create(&mut container).map_err(|e| anyhow::anyhow!("Label::create: {e:?}"))?;
+    pill.set_text(&text_cstring("")).map_err(|e| anyhow::anyhow!("set_text: {e:?}"))?;
+    let pill_ptr = pill.raw().map_err(|e| anyhow::anyhow!("raw: {e:?}"))?;
+    unsafe {
+        let pp = pill_ptr.as_ptr();
+        stile::font(pp, corpo_pillola as u16, stile::MAIN);
+        stile::raggio(pp, 10.0, stile::MAIN);
+        stile::margini(pp, 1, 8, stile::MAIN);
+        lvgl_sys::lv_obj_align(pp, lvgl_sys::LV_ALIGN_LEFT_MID as lvgl_sys::lv_align_t, 0, 0);
+        lvgl_sys::lv_obj_add_flag(pp, lvgl_sys::LV_OBJ_FLAG_HIDDEN as lvgl_sys::lv_obj_flag_t);
+    }
+    // L'ACK della riga, a destra.
+    let ack_w = (corpo_ack * 4.0).round().max(40.0);
+    let mut ack = Btn::create(&mut container).map_err(|e| anyhow::anyhow!("Btn::create: {e:?}"))?;
+    ack.set_size(ack_w as i16, (height - 6.0).clamp(16.0, corpo * 2.0).round() as i16)
+        .map_err(|e| anyhow::anyhow!("set_size: {e:?}"))?;
+    let mut ack_lbl = Label::create(&mut ack).map_err(|e| anyhow::anyhow!("Label::create: {e:?}"))?;
+    ack_lbl.set_text(&text_cstring("ACK")).map_err(|e| anyhow::anyhow!("set_text: {e:?}"))?;
+    let ack_ptr = ack.raw().map_err(|e| anyhow::anyhow!("raw: {e:?}"))?;
+    let ack_ctx: &'static AlarmAckCtx = Box::leak(Box::new(AlarmAckCtx {
+        current_id: RefCell::new(String::new()),
+        tx: ack_tx.clone(),
+    }));
+    unsafe {
+        let ap = ack_ptr.as_ptr();
+        lvgl_sys::lv_obj_align(ap, lvgl_sys::LV_ALIGN_RIGHT_MID as lvgl_sys::lv_align_t, 0, 0);
+        let lp = ack_lbl.raw().map_err(|e| anyhow::anyhow!("raw: {e:?}"))?.as_ptr();
+        stile::font(lp, corpo_ack as u16, stile::MAIN);
+        lvgl_sys::lv_obj_align(lp, lvgl_sys::LV_ALIGN_CENTER as lvgl_sys::lv_align_t, 0, 0);
+        lvgl_sys::lv_obj_add_event_cb(
+            ap,
+            Some(sws_alarm_ack_clicked_cb),
+            lvgl_sys::lv_event_code_t_LV_EVENT_CLICKED,
+            ack_ctx as *const AlarmAckCtx as *mut std::ffi::c_void,
+        );
+        lvgl_sys::lv_obj_add_flag(ap, lvgl_sys::LV_OBJ_FLAG_HIDDEN as lvgl_sys::lv_obj_flag_t);
+    }
+
+    // Il messaggio sta fra la pillola (larga quanto il suo testo: la x la
+    // decide l'aggiornamento) e l'ACK.
     let mut msg_lbl =
         Label::create(&mut container).map_err(|e| anyhow::anyhow!("Label::create: {e:?}"))?;
     msg_lbl
-        .set_pos(18, ((height - 16.0) / 2.0).round() as i16)
+        .set_pos(18, ((height - corpo * 1.25) / 2.0).round() as i16)
         .map_err(|e| anyhow::anyhow!("set_pos: {e:?}"))?;
     msg_lbl
-        .set_size((width as i16 - 26).max(20), 16)
+        .set_size((width - 26.0 - ack_w - 8.0).max(20.0) as i16, (corpo * 1.25).round() as i16)
         .map_err(|e| anyhow::anyhow!("set_size: {e:?}"))?;
     msg_lbl
         .set_text(&text_cstring(""))
         .map_err(|e| anyhow::anyhow!("set_text: {e:?}"))?;
     let msg_ptr = msg_lbl.raw().map_err(|e| anyhow::anyhow!("raw: {e:?}"))?;
+    unsafe { stile::font(msg_ptr.as_ptr(), corpo as u16, stile::MAIN) };
     unsafe {
         lvgl_sys::lv_label_set_long_mode(
             msg_ptr.as_ptr(),
@@ -6762,6 +6889,7 @@ fn render_alarm_banner(
     let empty_ptr = empty_label
         .raw()
         .map_err(|e| anyhow::anyhow!("raw: {e:?}"))?;
+    unsafe { stile::font(empty_ptr.as_ptr(), corpo as u16, stile::MAIN) };
 
     Ok(LiveBinding {
         kind: LiveKind::AlarmBanner {
@@ -6772,6 +6900,9 @@ fn render_alarm_banner(
             empty_ptr,
             prefix,
             allowed_sev,
+            pill_ptr,
+            ack_ptr,
+            ack_ctx,
         },
     })
 }
@@ -8282,6 +8413,26 @@ fn render_alarm_bell(
     bell_lbl
         .set_text(&text_cstring("Allarmi"))
         .map_err(|e| anyhow::anyhow!("set_text: {e:?}"))?;
+    // Il corpo del web (25-10-2026): 12 il pulsante e le righe, 11 badge e
+    // messaggi (`corpo_secondario`).
+    let corpo = obj.font_size.unwrap_or(corpo_predefinito("alarm_bell", "font_size")).round().clamp(6.0, 200.0);
+    let corpo_minore = sws_core::geometria_testo::corpo_secondario(corpo);
+    unsafe {
+        let bp = bell_lbl.raw().map_err(|e| anyhow::anyhow!("raw: {e:?}"))?.as_ptr();
+        stile::font(bp, corpo as u16, stile::MAIN);
+    }
+    // La campana del web (🔔): DejaVu non ha né l'emoji né i simboli di LVGL,
+    // quindi l'icona sta in un'etichetta sua col Montserrat compilato, quello
+    // che disegna `LV_SYMBOL_BELL` (stessa ragione di `restore_symbols_on`).
+    {
+        let mut icona = Label::create(&mut btn).map_err(|e| anyhow::anyhow!("Label::create: {e:?}"))?;
+        icona.set_text(&text_cstring("\u{F0F3}")).map_err(|e| anyhow::anyhow!("set_text: {e:?}"))?;
+        let ip = icona.raw().map_err(|e| anyhow::anyhow!("raw: {e:?}"))?.as_ptr();
+        crate::lvgl_font::restore_symbols_on(ip);
+        unsafe {
+            lvgl_sys::lv_obj_align(ip, lvgl_sys::LV_ALIGN_LEFT_MID as lvgl_sys::lv_align_t, 2, 0);
+        }
+    }
     let btn_ptr = btn.raw().map_err(|e| anyhow::anyhow!("raw: {e:?}"))?;
     // Fase 2 (30-09-2026): `fill` o #1e293b come il web, non il blu del tema.
     unsafe {
@@ -8307,6 +8458,10 @@ fn render_alarm_bell(
     count_lbl
         .set_text(&text_cstring("0"))
         .map_err(|e| anyhow::anyhow!("set_text: {e:?}"))?;
+    unsafe {
+        let cp = count_lbl.raw().map_err(|e| anyhow::anyhow!("raw: {e:?}"))?.as_ptr();
+        stile::font(cp, corpo_minore as u16, stile::MAIN);
+    }
     let badge_ptr = badge.raw().map_err(|e| anyhow::anyhow!("raw: {e:?}"))?;
     unsafe {
         lvgl_sys::lv_obj_add_flag(
@@ -8361,6 +8516,7 @@ fn render_alarm_bell(
             .set_text(&text_cstring(""))
             .map_err(|e| anyhow::anyhow!("set_text: {e:?}"))?;
         let ptr = msg_lbl.raw().map_err(|e| anyhow::anyhow!("raw: {e:?}"))?;
+        unsafe { stile::font(ptr.as_ptr(), corpo_minore as u16, stile::MAIN) };
         unsafe {
             lvgl_sys::lv_label_set_long_mode(
                 ptr.as_ptr(),
@@ -8476,79 +8632,80 @@ fn render_alarm_history(
     rt_handle: &tokio::runtime::Handle,
     lingua: &str,
     lang_table: &LanguageTable,
-) -> anyhow::Result<()> {
-    let larghezza = obj.width.unwrap_or(420.0).round() as i16;
-    let altezza = obj.height.unwrap_or(220.0).round() as i16;
-    // Quante righe ci stanno davvero: una tabella più alta del suo riquadro
-    // sborderebbe sugli oggetti sotto, che sul web non succede perché lì c'è
-    // una barra di scorrimento.
-    let righe_max = ((altezza as f64 - 20.0) / 22.0).floor().clamp(1.0, 100.0) as usize;
+) -> anyhow::Result<LiveBinding> {
+    use crate::tabella::{Cella, Chiave, Colonna, Riga};
+    use crate::testi_sistema::{testo as sistema, Testo};
+    use crate::trend::Orizz;
+    // Il corpo del web (25-10-2026): titolo, tabella e righe a 11.
+    let corpo = obj.font_size.unwrap_or(corpo_predefinito("alarm_history", "font_size")).round().clamp(6.0, 200.0);
+    let (ox, oy) = (obj.x.unwrap_or(0.0), obj.y.unwrap_or(0.0));
+    let (ow, oh) = (obj.width.unwrap_or(420.0), obj.height.unwrap_or(220.0));
 
+    // Il titolo del web, «STORICO ALLARMI — id», che qui mancava (25-10-2026).
+    let titolo = match obj.alarm_history_id.as_deref().filter(|s| !s.is_empty()) {
+        Some(id) => format!("STORICO ALLARMI — {id}"),
+        None => "STORICO ALLARMI".to_string(),
+    };
+    let mut t = Label::create(screen).map_err(|e| anyhow::anyhow!("Label::create: {e:?}"))?;
+    t.set_pos(ox.round() as i16, oy.round() as i16).map_err(|e| anyhow::anyhow!("set_pos: {e:?}"))?;
+    t.set_text(&text_cstring(&titolo)).map_err(|e| anyhow::anyhow!("set_text: {e:?}"))?;
+    unsafe {
+        let tp = t.raw().map_err(|e| anyhow::anyhow!("raw: {e:?}"))?.as_ptr();
+        stile::font_grassetto(tp, corpo as u16, stile::MAIN);
+        stile::testo(tp, (0x64, 0x74, 0x8b), stile::MAIN);
+    }
+    let sopra = corpo + 8.0;
+
+    // Le righe tutte, non solo quelle che entrano (25-10-2026): la tabella
+    // scorre col dito, ed è il modo di arrivare agli eventi che sul web stanno
+    // nelle pagine successive. Prima era una `lv_table` tagliata alle righe
+    // visibili, senza modo di vedere le altre.
     let eventi = rt_handle
-        .block_on(client::fetch_alarm_history(
-            base_url,
-            obj.alarm_history_id.as_deref(),
-            righe_max,
-        ))
+        .block_on(client::fetch_alarm_history(base_url, obj.alarm_history_id.as_deref(), 200))
         .unwrap_or_else(|e| {
             eprintln!("[alarm_history] storico non disponibile ({e})");
             Vec::new()
         });
-
-    let mut table = Table::create(screen).map_err(|e| anyhow::anyhow!("Table::create: {e:?}"))?;
-    table
-        .set_pos(
-            obj.x.unwrap_or(0.0).round() as i16,
-            obj.y.unwrap_or(0.0).round() as i16,
-        )
-        .map_err(|e| anyhow::anyhow!("set_pos: {e:?}"))?;
-    let ptr = table.raw().map_err(|e| anyhow::anyhow!("raw: {e:?}"))?;
-    // Fase 2 (30-09-2026): la tabella scura del web, non quella bianca del tema.
-    unsafe {
-        lvgl_sys::lv_obj_set_size(
-            ptr.as_ptr(),
-            obj.width.unwrap_or(420.0).round() as lvgl_sys::lv_coord_t,
-            obj.height.unwrap_or(220.0).round() as lvgl_sys::lv_coord_t,
-        );
-        tabella_scura(ptr.as_ptr(), obj, "alarm_history");
-    }
-
-    let n = eventi.len().min(righe_max);
-    unsafe {
-        lvgl_sys::lv_table_set_col_cnt(ptr.as_ptr(), 3);
-        lvgl_sys::lv_table_set_row_cnt(ptr.as_ptr(), (n + 1) as u16);
-        lvgl_sys::lv_table_set_col_width(ptr.as_ptr(), 0, (larghezza / 5) as lvgl_sys::lv_coord_t);
-        lvgl_sys::lv_table_set_col_width(
-            ptr.as_ptr(),
-            1,
-            (larghezza * 3 / 5) as lvgl_sys::lv_coord_t,
-        );
-        lvgl_sys::lv_table_set_col_width(ptr.as_ptr(), 2, (larghezza / 5) as lvgl_sys::lv_coord_t);
-        use crate::testi_sistema::{testo as sistema, Testo};
-        set_cell(ptr, 0, 0, sistema(Testo::Ora, lingua));
-        set_cell(ptr, 0, 1, sistema(Testo::Allarme, lingua));
-        set_cell(ptr, 0, 2, sistema(Testo::Stato, lingua));
-        for (i, e) in eventi.iter().take(n).enumerate() {
-            let r = (i + 1) as u16;
-            set_cell(ptr, r, 0, &ora_utc(e.ts_activated_ms));
-            // Il messaggio se c'è, altrimenti l'id: un evento senza messaggio
-            // è comunque un evento, e una riga vuota non direbbe quale.
+    let testo2 = (0xcb, 0xd5, 0xe1);
+    let righe: Vec<Riga> = eventi
+        .iter()
+        .map(|e| {
             // Il messaggio congelato nell'evento può contenere un token: lo
-            // storico si legge nella lingua di **adesso**, non in quella in cui
-            // l'allarme era scattato. Se la chiave non esiste più resta
-            // visibile come `{{chiave}}`, che è un'informazione onesta.
-            let testo = if e.alarm_message.trim().is_empty() {
+            // storico si legge nella lingua di **adesso**.
+            let messaggio = if e.alarm_message.trim().is_empty() {
                 e.alarm_id.clone()
             } else {
                 resolve_msg(&e.alarm_message, lingua, lang_table)
             };
-            set_cell(ptr, r, 1, &testo);
-            // Da quando la riga nasce allo scatto (25-09-2026) può essere
-            // ancora aperta: «Sì/No» sulla conferma non lo diceva.
-            set_cell(ptr, r, 2, sistema(e.stato(), lingua));
-        }
-    }
-    Ok(())
+            let o = crate::trend::ora_locale(e.ts_activated_ms);
+            let quando = format!("{:02}/{:02}, {:02}:{:02}:{:02}", o.giorno, o.mese, o.ora, o.minuto, o.secondo);
+            Riga {
+                celle: vec![
+                    Cella { testo: quando, colore: testo2, punto: None, chiave: Chiave::Numero(e.ts_activated_ms as f64) },
+                    Cella { testo: messaggio, colore: testo2, punto: None, chiave: Chiave::Testo(String::new()) },
+                    Cella { testo: sistema(e.stato(), lingua).to_string(), colore: testo2, punto: None, chiave: Chiave::Testo(String::new()) },
+                ],
+                scrivibile: None,
+            }
+        })
+        .collect();
+    let dentro = SynopticObject { x: Some(ox), y: Some(oy + sopra), width: Some(ow), height: Some((oh - sopra).max(30.0)), ..obj.clone() };
+    let col = |i: String, l: Option<f32>, a: Orizz| Colonna { intestazione: i, larghezza: l, allinea: a, ordinabile: false, filtrabile: false };
+    let cfg = crate::tabella::Config {
+        w: ow.round().clamp(40.0, 2048.0) as u32,
+        h: (oh - sopra).round().clamp(30.0, 2048.0) as u32,
+        colonne: vec![
+            col(sistema(Testo::Ora, lingua).to_string(), Some((ow / 4.0) as f32), Orizz::Sx),
+            col(sistema(Testo::Allarme, lingua).to_string(), None, Orizz::Sx),
+            col(sistema(Testo::Stato, lingua).to_string(), Some((ow / 5.0) as f32), Orizz::Sx),
+        ],
+        corpo_px: corpo as u16,
+        sfondo: colore_campo(obj.bg_color.as_deref(), "alarm_history", "bg_color"),
+        filtri: false,
+        vuoto: "—".into(),
+    };
+    let viva = crea_tabella_viva(screen, &dentro, cfg, righe, SorgenteTabella::Fisse, None)?;
+    Ok(LiveBinding { kind: LiveKind::Tabella(viva) })
 }
 
 /// `data_log`: tabella dei campioni storici di un tag, i più recenti in alto.
@@ -8576,11 +8733,14 @@ fn render_data_log(
     let Some(tag) = obj.tag.clone() else {
         anyhow::bail!("data_log senza tag");
     };
-    let righe_max = obj
-        .datalog_page_size
-        .unwrap_or(25.0)
-        .round()
-        .clamp(1.0, 200.0) as usize;
+    // Tutti i campioni della finestra (25-10-2026), fino a un tetto: la
+    // tabella scorre col dito, ed è così che si arriva a quelli che sul web
+    // stanno nelle pagine dopo la prima. Prima qui si vedevano solo i primi
+    // `datalog_page_size`, e gli altri non si potevano raggiungere.
+    let righe_max = 2000usize;
+    // I corpi del web: la tabella e l'etichetta (11 e 11).
+    let corpo = obj.font_size.unwrap_or(corpo_predefinito("data_log", "font_size")).round().clamp(6.0, 200.0);
+    let corpo_etichetta = obj.label_font_size.unwrap_or(corpo_predefinito("data_log", "label_font_size")).round().clamp(6.0, 200.0);
     let finestra_s = obj.window_s.unwrap_or(3600.0).max(1.0);
     let decimali = obj.decimals.unwrap_or(1) as usize;
     let unita = obj
@@ -8607,10 +8767,11 @@ fn render_data_log(
     let etichetta = obj.label.as_deref().filter(|l| !l.is_empty());
     if let Some(l) = etichetta {
         riquadro(screen, obj, "data_log", (380.0, 240.0), Some((0x33, 0x41, 0x55)), 4.0)?;
-        etichetta_piccola(screen, l, ox + 6.0, oy + 14.0, None, GRIGIO_ETICHETTA)?;
+        etichetta_piccola_corpo(screen, l, ox + 6.0, oy + corpo_etichetta + 3.0, None, GRIGIO_ETICHETTA, corpo_etichetta as u16)?;
     }
+    let sopra = corpo_etichetta + 7.0;
     let dentro = if etichetta.is_some() {
-        SynopticObject { x: Some(ox + 4.0), y: Some(oy + 18.0), width: Some(ow - 8.0), height: Some(oh - 22.0), ..obj.clone() }
+        SynopticObject { x: Some(ox + 4.0), y: Some(oy + sopra), width: Some(ow - 8.0), height: Some(oh - sopra - 4.0), ..obj.clone() }
     } else {
         obj.clone()
     };
@@ -8652,7 +8813,7 @@ fn render_data_log(
             col(testo(Testo::Valore, lingua).to_string(), None, Orizz::Dx),
             col("Q".into(), Some(28.0), Orizz::Centro),
         ],
-        corpo_px: 11,
+        corpo_px: corpo as u16,
         sfondo: colore_campo(obj.bg_color.as_deref(), "data_log", "bg_color"),
         filtri: false,
         vuoto: "—".into(),
@@ -8661,22 +8822,7 @@ fn render_data_log(
     Ok(LiveBinding { kind: LiveKind::Tabella(viva) })
 }
 
-/// Scrive una cella della tabella.
-unsafe fn set_cell(ptr: core::ptr::NonNull<lvgl_sys::lv_obj_t>, row: u16, col: u16, testo: &str) {
-    let c = text_cstring(testo);
-    lvgl_sys::lv_table_set_cell_value(ptr.as_ptr(), row, col, c.as_ptr());
-}
 
-/// Un timestamp in millisecondi come `hh:mm:ss`, in UTC.
-///
-/// Il nome dice UTC perché è UTC: il viewer non linka una libreria di fusi
-/// orari, e fingere di conoscerli darebbe orari sbagliati di un'ora per metà
-/// anno. È anche il fuso con cui lo storico è registrato.
-fn ora_utc(ts_ms: u64) -> String {
-    let s = ts_ms / 1000;
-    let (h, m, sec) = ((s / 3600) % 24, (s / 60) % 60, s % 60);
-    format!("{h:02}:{m:02}:{sec:02}")
-}
 
 /// `kpi_tile`: pannello con etichetta, valore grande, unità e sparkline.
 ///
@@ -8726,6 +8872,12 @@ fn render_kpi_tile(
         stile::raggio(p, 6.0, stile::MAIN);
     }
     let _ = &styles;
+    // I tre corpi del web (25-10-2026, piano corpi-e-parita-lvgl): etichetta
+    // (e delta), valore, unità. Prima: 11 / 26 cablati, e l'unità a 26 dentro
+    // l'etichetta del valore.
+    let corpo_etichetta = obj.label_font_size.unwrap_or(corpo_predefinito("kpi_tile", "label_font_size")).round().clamp(6.0, 200.0);
+    let corpo_valore = obj.font_size.unwrap_or(corpo_predefinito("kpi_tile", "font_size")).round().clamp(6.0, 200.0);
+    let corpo_unita = obj.unit_font_size.unwrap_or(corpo_predefinito("kpi_tile", "unit_font_size")).round().clamp(6.0, 200.0);
 
     // Etichetta: il nome del KPI, non un valore. `text` statico, nessun tag —
     // altrimenti `render_text` mostrerebbe il valore anche qui.
@@ -8734,7 +8886,7 @@ fn render_kpi_tile(
         x: Some(x + 10.0),
         // Fase 3 (30-09-2026): corpo 11 come sul web (linea di base a y+16).
         y: Some(y + 5.0),
-        font_size: Some(11.0),
+        font_size: Some(corpo_etichetta),
         text: Some(
             obj.label
                 .clone()
@@ -8751,26 +8903,19 @@ fn render_kpi_tile(
 
     // Valore: eredita soglie e formato dall'oggetto vero, così la colorazione
     // per soglia è la stessa di un `text` qualunque.
-    let unita = obj
-        .unit
-        .as_deref()
-        .map(|u| format!(" {u}"))
-        .unwrap_or_default();
     // Fase 3 (30-09-2026), come il web: corpo 26 (linea di base a y+44), i
     // decimali del progetto, «—» finché non c'è un valore (qui compariva il
     // nome del tag), e il colore per soglia sempre acceso.
     let decimali = obj.decimals.unwrap_or(1);
     let valore = SynopticObject {
         obj_type: Some("text".into()),
-        x: Some(x + 10.0),
-        y: Some(y + 22.0),
-        font_size: Some(26.0),
+        x: Some(0.0),
+        y: Some(0.0),
+        font_size: Some(corpo_valore),
+        font_weight: Some(serde_json::json!(700)),
         tag: obj.tag.clone(),
         text: Some("—".into()),
-        format: Some(format!(
-            "{}{unita}",
-            obj.format.clone().unwrap_or_else(|| format!("{{value:.{decimali}f}}"))
-        )),
+        format: Some(obj.format.clone().unwrap_or_else(|| format!("{{value:.{decimali}f}}"))),
         text_color_by_threshold: Some(true),
         alarm_low: obj.alarm_low,
         warn_low: obj.warn_low,
@@ -8779,9 +8924,42 @@ fn render_kpi_tile(
         color: obj.color.clone(),
         ..Default::default()
     };
+    // Valore e unità in una riga flessibile (25-10-2026): l'unità segue il
+    // valore qualunque sia la sua larghezza, come il `<tspan>` del web, e ha
+    // il suo corpo. La riga sta dove stava il valore: con 11 e 26, y+22.
+    let mut riga = create_child_obj(screen)?;
+    let top_valore = corpo_etichetta + 5.0 + (corpo_valore * 1.08).round() - (corpo_valore * 0.85).round();
+    riga.set_pos((x + 10.0).round() as i16, (y + top_valore).round() as i16)
+        .map_err(|e| anyhow::anyhow!("set_pos: {e:?}"))?;
+    riga.set_size((w - 20.0).max(10.0).round() as i16, (corpo_valore * 1.4).round() as i16)
+        .map_err(|e| anyhow::anyhow!("set_size: {e:?}"))?;
+    unsafe {
+        let rp = riga.raw().map_err(|e| anyhow::anyhow!("raw: {e:?}"))?.as_ptr();
+        stile::trasparente(rp, stile::MAIN);
+        stile::bordo(rp, None, 0.0, stile::MAIN);
+        stile::margini(rp, 0, 0, stile::MAIN);
+        lvgl_sys::lv_obj_clear_flag(rp, (lvgl_sys::LV_OBJ_FLAG_SCROLLABLE | lvgl_sys::LV_OBJ_FLAG_CLICKABLE) as lvgl_sys::lv_obj_flag_t);
+        lvgl_sys::lv_obj_set_flex_flow(rp, lvgl_sys::lv_flex_flow_t_LV_FLEX_FLOW_ROW);
+        lvgl_sys::lv_obj_set_flex_align(
+            rp,
+            lvgl_sys::lv_flex_align_t_LV_FLEX_ALIGN_START,
+            lvgl_sys::lv_flex_align_t_LV_FLEX_ALIGN_END,
+            lvgl_sys::lv_flex_align_t_LV_FLEX_ALIGN_START,
+        );
+        lvgl_sys::lv_obj_set_style_pad_column(rp, 4, stile::MAIN);
+    }
     live.push(render_text(
-        screen, &valore, styles, tags, lingua, lang_table,
+        &mut riga, &valore, styles, tags, lingua, lang_table,
     )?);
+    if let Some(u) = obj.unit.as_deref().filter(|u| !u.is_empty()) {
+        let mut ul = Label::create(&mut riga).map_err(|e| anyhow::anyhow!("Label::create: {e:?}"))?;
+        ul.set_text(&text_cstring(u)).map_err(|e| anyhow::anyhow!("set_text: {e:?}"))?;
+        let up = ul.raw().map_err(|e| anyhow::anyhow!("raw: {e:?}"))?.as_ptr();
+        unsafe {
+            stile::font(up, corpo_unita as u16, stile::MAIN);
+            stile::testo(up, (0x64, 0x74, 0x8b), stile::MAIN);
+        }
+    }
 
     // La variazione sulla finestra in alto a destra (`KpiDelta` del web,
     // 1-10-2026): ▲ verde o ▼ rosso, media contro la finestra precedente.
@@ -8789,7 +8967,7 @@ fn render_kpi_tile(
         let mut l = Label::create(screen).map_err(|e| anyhow::anyhow!("Label::create: {e:?}"))?;
         l.set_text(&text_cstring("")).map_err(|e| anyhow::anyhow!("set_text: {e:?}"))?;
         let lp = l.raw().map_err(|e| anyhow::anyhow!("raw: {e:?}"))?;
-        unsafe { stile::font(lp.as_ptr(), 11, stile::MAIN) };
+        unsafe { stile::font(lp.as_ptr(), corpo_etichetta as u16, stile::MAIN) };
         let shared = client::spawn_kpi_delta(rt_handle, base_url.to_string(), t, obj.spark_window_s.unwrap_or(3600.0));
         live.push(LiveBinding {
             kind: LiveKind::KpiDelta { label: lp, shared, mostrato: None, destra: x + w - 6.0, y: y + 6.0 },
@@ -10075,6 +10253,7 @@ struct RecipeApplyCtx {
     base_url: String,
     id: String,
     shared_session: SharedSession,
+    esito: crate::net_worker::EsitoRicetta,
 }
 
 unsafe extern "C" fn sws_recipe_apply_clicked_cb(e: *mut lvgl_sys::lv_event_t) {
@@ -10090,10 +10269,14 @@ unsafe extern "C" fn sws_recipe_apply_clicked_cb(e: *mut lvgl_sys::lv_event_t) {
         .token
         .clone();
     // Q55: thread di rete dedicato invece di `rt_handle.spawn` — vedi `net_worker`.
+    if let Ok(mut g) = ctx.esito.lock() {
+        *g = Some((true, "…".into()));
+    }
     crate::net_worker::invia(crate::net_worker::Comando::ApplyRecipe {
         base_url: ctx.base_url.clone(),
         id: ctx.id.clone(),
         token,
+        esito: Some(ctx.esito.clone()),
     });
 }
 
@@ -10111,6 +10294,7 @@ fn render_recipe_panel(
     base_url: &str,
     rt_handle: &tokio::runtime::Handle,
     shared_session: &SharedSession,
+    live: &mut Vec<LiveBinding>,
 ) -> anyhow::Result<()> {
     let w = obj.width.unwrap_or(260.0);
     let h = obj.height.unwrap_or(160.0);
@@ -10141,7 +10325,32 @@ fn render_recipe_panel(
         );
     }
 
-    let max_rows = ((h / 28.0).floor().max(1.0)) as usize;
+    // Il corpo del web (25-10-2026): 11 i nomi, 10 pulsante ed esito.
+    let corpo = obj.font_size.unwrap_or(corpo_predefinito("recipe_panel", "font_size")).round().clamp(6.0, 200.0);
+    let corpo_minore = sws_core::geometria_testo::corpo_secondario(corpo);
+    // Lo stato vuoto e la riga d'esito, che qui mancavano (25-10-2026).
+    if filtered.is_empty() {
+        let mut vuoto = Label::create(&mut container).map_err(|e| anyhow::anyhow!("Label::create: {e:?}"))?;
+        vuoto.set_pos(4, 4).map_err(|e| anyhow::anyhow!("set_pos: {e:?}"))?;
+        vuoto.set_text(&text_cstring("Nessuna ricetta disponibile")).map_err(|e| anyhow::anyhow!("set_text: {e:?}"))?;
+        let vp = vuoto.raw().map_err(|e| anyhow::anyhow!("raw: {e:?}"))?.as_ptr();
+        unsafe {
+            stile::font(vp, corpo as u16, stile::MAIN);
+            stile::testo(vp, (0x64, 0x74, 0x8b), stile::MAIN);
+        }
+    }
+    let esito: crate::net_worker::EsitoRicetta = Default::default();
+    let mut riga_esito = Label::create(&mut container).map_err(|e| anyhow::anyhow!("Label::create: {e:?}"))?;
+    riga_esito.set_pos(4, (h - corpo_minore - 10.0).max(0.0).round() as i16).map_err(|e| anyhow::anyhow!("set_pos: {e:?}"))?;
+    riga_esito.set_text(&text_cstring("")).map_err(|e| anyhow::anyhow!("set_text: {e:?}"))?;
+    let esito_ptr = riga_esito.raw().map_err(|e| anyhow::anyhow!("raw: {e:?}"))?;
+    unsafe { stile::font(esito_ptr.as_ptr(), corpo_minore as u16, stile::MAIN) };
+    live.push(LiveBinding {
+        kind: LiveKind::EsitoRicetta { label: esito_ptr, shared: esito.clone(), mostrato: None },
+    });
+
+    // Una riga in meno per l'esito, che sta in fondo.
+    let max_rows = (((h - corpo_minore - 8.0) / 28.0).floor().max(1.0)) as usize;
     for (i, recipe) in filtered.iter().take(max_rows).enumerate() {
         let row_y = (i as f64 * 28.0 + 4.0).round() as i16;
         let mut name_lbl =
@@ -10156,6 +10365,7 @@ fn render_recipe_panel(
             .set_text(&text_cstring(&recipe.name))
             .map_err(|e| anyhow::anyhow!("set_text: {e:?}"))?;
         let name_ptr = name_lbl.raw().map_err(|e| anyhow::anyhow!("raw: {e:?}"))?;
+        unsafe { stile::font(name_ptr.as_ptr(), corpo as u16, stile::MAIN) };
         unsafe {
             lvgl_sys::lv_label_set_long_mode(
                 name_ptr.as_ptr(),
@@ -10176,12 +10386,17 @@ fn render_recipe_panel(
         apply_lbl
             .set_text(&text_cstring("Applica"))
             .map_err(|e| anyhow::anyhow!("set_text: {e:?}"))?;
+        unsafe {
+            let ap = apply_lbl.raw().map_err(|e| anyhow::anyhow!("raw: {e:?}"))?.as_ptr();
+            stile::font(ap, corpo_minore as u16, stile::MAIN);
+        }
         let apply_ptr = apply_btn.raw().map_err(|e| anyhow::anyhow!("raw: {e:?}"))?;
 
         let ctx: &'static RecipeApplyCtx = Box::leak(Box::new(RecipeApplyCtx {
             base_url: base_url.to_string(),
             id: recipe.id.clone(),
             shared_session: shared_session.clone(),
+            esito: esito.clone(),
         }));
         unsafe {
             lvgl_sys::lv_obj_add_event_cb(
@@ -10578,6 +10793,12 @@ pub struct VivoLib {
     spin: Option<String>,
     spin_tag: Option<String>,
     spin_s: f64,
+    /// L'etichetta dello stato attivo sotto il simbolo (25-10-2026, come il
+    /// web F6.6): qui mancava. Il testo è quello della voce di `symbol_states`.
+    etichetta: core::ptr::NonNull<lvgl_sys::lv_obj_t>,
+    etichetta_mostrata: Option<(String, (u8, u8, u8))>,
+    /// Centro orizzontale e cima dell'etichetta, nel genitore dell'oggetto.
+    etichetta_dove: (f64, f64),
 }
 
 impl VivoLib {
@@ -10719,7 +10940,23 @@ fn render_simbolo_lib(
     let scatola = unsafe {
         contenitore_lib(genitore, obj.x.unwrap_or(0.0).round() as i16, obj.y.unwrap_or(0.0).round() as i16, w, h)?
     };
+    // L'etichetta dello stato, sotto il simbolo: nascosta finché uno stato con
+    // un'etichetta non è attivo. Corpo `label_font_size` (11 sul web).
+    let etichetta = unsafe {
+        let l = lvgl_sys::lv_label_create(genitore);
+        let nn = core::ptr::NonNull::new(l).ok_or_else(|| anyhow::anyhow!("lv_label_create ha restituito null"))?;
+        stile::font_grassetto(l, obj.label_font_size.unwrap_or(corpo_predefinito("symbol", "label_font_size")).round().clamp(6.0, 200.0) as u16, stile::MAIN);
+        lvgl_sys::lv_obj_add_flag(l, lvgl_sys::LV_OBJ_FLAG_HIDDEN as lvgl_sys::lv_obj_flag_t);
+        nn
+    };
+    let etichetta_dove = (
+        obj.x.unwrap_or(0.0) + w as f64 / 2.0,
+        obj.y.unwrap_or(0.0) + h as f64 + 1.0,
+    );
     let mut vivo = VivoLib {
+        etichetta,
+        etichetta_mostrata: None,
+        etichetta_dove,
         scatola,
         corpo: None,
         perni: Vec::new(),
@@ -10824,6 +11061,34 @@ fn render_simbolo_lib(
 
 fn aggiorna_simbolo_lib(v: &mut VivoLib, tags: &TagSnapshot) {
     let (stato, voce) = stato_simbolo(tags, &v.state_tag, &v.alarm_tag, &v.stati);
+    // L'etichetta dello stato attivo (25-10-2026): il colore della voce, o
+    // quello di stato del simbolo come il `badgeColor` del web.
+    let voluta = voce.and_then(|i| v.stati.get(i)).filter(|e| !e.label.is_empty()).map(|e| {
+        let rgb = e.color.as_deref().and_then(parse_hex_color).unwrap_or_else(|| {
+            colore_simbolo(stato, &v.stati, tags, &v.state_tag, &v.off_color, &v.on_color, &v.alarm_color)
+        });
+        (e.label.clone(), rgb)
+    });
+    if voluta != v.etichetta_mostrata {
+        let l = v.etichetta.as_ptr();
+        unsafe {
+            match &voluta {
+                Some((testo, rgb)) => {
+                    lvgl_sys::lv_label_set_text(l, text_cstring(testo).as_ptr());
+                    stile::testo(l, *rgb, stile::MAIN);
+                    let lw = larghezza_testo(l);
+                    lvgl_sys::lv_obj_set_pos(
+                        l,
+                        (v.etichetta_dove.0 - lw / 2.0).round() as lvgl_sys::lv_coord_t,
+                        v.etichetta_dove.1.round() as lvgl_sys::lv_coord_t,
+                    );
+                    lvgl_sys::lv_obj_clear_flag(l, lvgl_sys::LV_OBJ_FLAG_HIDDEN as lvgl_sys::lv_obj_flag_t);
+                }
+                None => lvgl_sys::lv_obj_add_flag(l, lvgl_sys::LV_OBJ_FLAG_HIDDEN as lvgl_sys::lv_obj_flag_t),
+            }
+        }
+        v.etichetta_mostrata = voluta;
+    }
     // Corpo: colore di stato solo se lo stato è legato.
     let colore = v.legato.then(|| {
         colore_simbolo(stato, &v.stati, tags, &v.state_tag, &v.off_color, &v.on_color, &v.alarm_color)
@@ -11374,7 +11639,10 @@ fn render_lang_selector(
     };
     set_pos_size(&mut dd, obj, w, h)?;
     let dd_ptr = dd.raw().map_err(|e| anyhow::anyhow!("raw: {e:?}"))?;
-    let options = std::ffi::CString::new(langs.join("\n")).unwrap_or_default();
+    // In maiuscolo come il web (25-10-2026): la scelta va per indice, quindi
+    // il testo mostrato non cambia il codice scelto.
+    let mostrati: Vec<String> = langs.iter().map(|l| l.to_uppercase()).collect();
+    let options = std::ffi::CString::new(mostrati.join("\n")).unwrap_or_default();
     let current = shared_lang
         .lock()
         .unwrap_or_else(|e| e.into_inner())
@@ -11383,6 +11651,10 @@ fn render_lang_selector(
     unsafe {
         lvgl_sys::lv_dropdown_set_options(dd_ptr.as_ptr(), options.as_ptr());
         lvgl_sys::lv_dropdown_set_selected(dd_ptr.as_ptr(), selected as u16);
+        // Il corpo del web (25-10-2026): 13 senza `font_size`.
+        if let Some(f) = crate::lvgl_font::at_size(obj.font_size.unwrap_or(corpo_predefinito("lang_selector", "font_size")).round().clamp(6.0, 200.0) as u16) {
+            lvgl_sys::lv_obj_set_style_text_font(dd_ptr.as_ptr(), f, 0);
+        }
     }
     let _ = styles; // nessuno Style dedicato in questo giro, coerente col tema di default
 
@@ -11515,7 +11787,7 @@ fn dispatch_render(
             render_sparkline(screen, obj, styles, base_url, rt_handle).map(|b| live.push(b))
         }
         "alarm_banner" => {
-            render_alarm_banner(screen, obj, styles, shared_alarms).map(|b| live.push(b))
+            render_alarm_banner(screen, obj, styles, shared_alarms, ack_tx).map(|b| live.push(b))
         }
         "faceplate" => render_faceplate(
             screen,
@@ -11621,11 +11893,11 @@ fn dispatch_render(
         ),
         "data_log" => render_data_log(screen, obj, base_url, rt_handle, &current_lang).map(|b| live.push(b)),
         "alarm_history" => {
-            render_alarm_history(screen, obj, base_url, rt_handle, &current_lang, lang_table)
+            render_alarm_history(screen, obj, base_url, rt_handle, &current_lang, lang_table).map(|b| live.push(b))
         }
         "alarm_bell" => render_alarm_bell(screen, obj, styles, shared_alarms).map(|b| live.push(b)),
         "recipe_panel" => {
-            render_recipe_panel(screen, obj, styles, base_url, rt_handle, shared_session)
+            render_recipe_panel(screen, obj, styles, base_url, rt_handle, shared_session, live)
         }
         "setpoint" => render_setpoint(screen, obj, styles, tags, tag_tx, shared_lang).map(|b| live.push(b)),
         "xy_plot" => render_xy_plot(screen, obj, styles, base_url, rt_handle).map(|b| live.push(b)),
@@ -13037,6 +13309,18 @@ pub fn update_bindings(
                 }
             }
             LiveKind::Barre(b) => aggiorna_barre(b, tags),
+            LiveKind::EsitoRicetta { label, shared, mostrato } => {
+                let ora = shared.lock().unwrap_or_else(|e| e.into_inner()).clone();
+                if ora.is_some() && *mostrato != ora {
+                    *mostrato = ora.clone();
+                    if let Some((ok, testo)) = ora {
+                        unsafe {
+                            lvgl_sys::lv_label_set_text(label.as_ptr(), text_cstring(&testo).as_ptr());
+                            stile::testo(label.as_ptr(), if ok { (0x22, 0xc5, 0x5e) } else { (0xef, 0x44, 0x44) }, stile::MAIN);
+                        }
+                    }
+                }
+            }
             LiveKind::KpiDelta { label, shared, mostrato, destra, y } => {
                 let d = *shared.lock().unwrap_or_else(|e| e.into_inner());
                 if *mostrato != Some(d) {
@@ -13061,7 +13345,9 @@ pub fn update_bindings(
                 last_seen_version,
                 last_samples,
                 window_s,
+                ultimo,
             } => {
+                let prima = *last_seen_version;
                 update_sparkline(
                     *ptr,
                     *ser,
@@ -13070,6 +13356,14 @@ pub fn update_bindings(
                     last_samples,
                     *window_s,
                 );
+                if let (Some(l), true) = (ultimo, *last_seen_version != prima) {
+                    if let Some(c) = last_samples.last() {
+                        let v = tag_value_as_f64(&c.value);
+                        unsafe {
+                            lvgl_sys::lv_label_set_text(l.as_ptr(), text_cstring(&crate::trend::to_fixed(v, 1)).as_ptr());
+                        }
+                    }
+                }
             }
             LiveKind::AlarmBanner {
                 shared,
@@ -13079,6 +13373,9 @@ pub fn update_bindings(
                 empty_ptr,
                 prefix,
                 allowed_sev,
+                pill_ptr,
+                ack_ptr,
+                ack_ctx,
             } => {
                 update_alarm_banner(
                     shared,
@@ -13090,6 +13387,7 @@ pub fn update_bindings(
                     allowed_sev.as_deref(),
                     &lingua,
                     lang_table,
+                    (*pill_ptr, *ack_ptr, ack_ctx),
                 );
             }
             LiveKind::XyPlot {
@@ -13753,6 +14051,19 @@ pub(crate) fn nella_barra(isa_state: &str, active: bool) -> bool {
 // e qui è la scelta giusta perché la lingua **cambia a runtime** e una copia
 // dentro la `LiveBinding` mostrerebbe quella di prima.
 #[allow(clippy::too_many_arguments)]
+/// Il testo della pillola di stato ISA, come `alarm.isa.*` del web.
+fn testo_isa(stato: &str, lingua: &str) -> &'static str {
+    let en = lingua.starts_with("en");
+    match (stato, en) {
+        ("active_unacked", false) => "Attivo · Non confermato",
+        ("active_unacked", true) => "Active · Unacknowledged",
+        ("normal_unacked", false) => "Rientrato · Non confermato",
+        ("normal_unacked", true) => "Returned · Unacknowledged",
+        (_, false) => "Attivo",
+        (_, true) => "Active",
+    }
+}
+
 fn update_alarm_banner(
     shared: &SharedAlarms,
     dot_ptr: core::ptr::NonNull<lvgl_sys::lv_obj_t>,
@@ -13763,6 +14074,7 @@ fn update_alarm_banner(
     allowed_sev: Option<&[String]>,
     lingua: &str,
     lang_table: &LanguageTable,
+    (pill_ptr, ack_ptr, ack_ctx): (core::ptr::NonNull<lvgl_sys::lv_obj_t>, core::ptr::NonNull<lvgl_sys::lv_obj_t>, &AlarmAckCtx),
 ) {
     let top: Option<AlarmStateLite> = {
         let map = shared.lock().unwrap_or_else(|e| e.into_inner());
@@ -13779,22 +14091,41 @@ fn update_alarm_banner(
             Some(a) => {
                 let rgb = severity_color(&a.severita());
                 dot_style.set_bg_color(Color::from_rgb(rgb));
-                lvgl_sys::lv_obj_refresh_style(
-                    dot_ptr.as_ptr(),
-                    Part::Main.into(),
-                    lvgl_sys::lv_style_prop_t_LV_STYLE_BG_COLOR,
-                );
-                lvgl_sys::lv_obj_clear_flag(dot_ptr.as_ptr(), hidden);
+                let _ = dot_ptr;
+                // La pillola: piena e lampeggiante per l'attivo non confermato,
+                // vuota col bordo per il rientrato (come `isaStyle` del web).
+                let pp = pill_ptr.as_ptr();
+                let attivo = a.isa_state == "active_unacked";
+                lvgl_sys::lv_label_set_text(pp, text_cstring(testo_isa(&a.isa_state, lingua)).as_ptr());
+                if attivo {
+                    stile::sfondo(pp, rgb, stile::MAIN);
+                    stile::testo(pp, (0x0f, 0x17, 0x2a), stile::MAIN);
+                    stile::bordo(pp, None, 0.0, stile::MAIN);
+                } else {
+                    stile::trasparente(pp, stile::MAIN);
+                    stile::testo(pp, rgb, stile::MAIN);
+                    stile::bordo(pp, Some(rgb), 1.0, stile::MAIN);
+                }
+                lvgl_sys::lv_obj_clear_flag(pp, hidden);
+                lvgl_sys::lv_obj_update_layout(pp);
+                let px = lvgl_sys::lv_obj_get_width(pp) + 8;
+                lvgl_sys::lv_obj_set_x(msg_ptr.as_ptr(), px);
                 lvgl_sys::lv_label_set_text(
                     msg_ptr.as_ptr(),
-                    text_cstring(&resolve_msg(&a.messaggio(), lingua, lang_table)).as_ptr(),
+                    text_cstring(&format!("{} — {}", a.def.id, resolve_msg(&a.messaggio(), lingua, lang_table))).as_ptr(),
                 );
                 lvgl_sys::lv_obj_clear_flag(msg_ptr.as_ptr(), hidden);
                 lvgl_sys::lv_obj_add_flag(empty_ptr.as_ptr(), hidden);
+                *ack_ctx.current_id.borrow_mut() = a.def.id.clone();
+                stile::sfondo(ack_ptr.as_ptr(), rgb, stile::MAIN);
+                lvgl_sys::lv_obj_clear_flag(ack_ptr.as_ptr(), hidden);
             }
             None => {
                 lvgl_sys::lv_obj_add_flag(dot_ptr.as_ptr(), hidden);
                 lvgl_sys::lv_obj_add_flag(msg_ptr.as_ptr(), hidden);
+                lvgl_sys::lv_obj_add_flag(pill_ptr.as_ptr(), hidden);
+                lvgl_sys::lv_obj_add_flag(ack_ptr.as_ptr(), hidden);
+                ack_ctx.current_id.borrow_mut().clear();
                 lvgl_sys::lv_obj_clear_flag(empty_ptr.as_ptr(), hidden);
             }
         }
@@ -13803,6 +14134,23 @@ fn update_alarm_banner(
 
 #[cfg(test)]
 mod binding_tests {
+    /// I corpi del pannello sono quelli della tabella condivisa (25-10-2026).
+    #[test]
+    fn i_corpi_del_pannello_sono_quelli_della_tabella() {
+        let v: serde_json::Value =
+            serde_json::from_str(include_str!("../../../../tests/fixtures/predefiniti-campi.json")).unwrap();
+        for (tipo, campo, valore) in super::CORPI_PREDEFINITI {
+            let atteso = v["campi"][tipo][campo]["valore"].as_f64();
+            assert_eq!(atteso, Some(*valore), "{tipo}.{campo}: pannello {valore}, tabella {atteso:?}");
+        }
+    }
+
+    #[test]
+    fn la_pillola_del_banner_dice_lo_stato_isa() {
+        assert_eq!(super::testo_isa("active_unacked", "it"), "Attivo · Non confermato");
+        assert_eq!(super::testo_isa("normal_unacked", "en"), "Returned · Unacknowledged");
+    }
+
     /// Le tre azioni di finestra che un bottone puo' chiedere (22-10-2026).
     /// Il caso che conta e' `close_popup`: fino a oggi non lo ascoltava
     /// nessuno, e il bottone «Chiudi finestra» sul pannello non faceva niente

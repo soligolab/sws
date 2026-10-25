@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import { corpoSecondario } from "@/canvas/geometriaTesto";
 import { useTranslation } from "react-i18next";
 import { api } from "@/api/client";
 import { useAppStore } from "@/store";
@@ -14,6 +15,9 @@ export interface RecipePanelProps {
   /** Only show recipes whose id starts with this prefix. Unset/empty = all. */
   idPrefix?: string;
   compact?: boolean;
+  /** Il corpo del testo (25-10-2026); pulsante ed esito lo seguono
+   *  (`corpoSecondario`). Senza: 11 compatto, 13 nel modale, come prima. */
+  corpo?: number;
   /** Vedi il commento gemello su `DataTable.tsx` (stesso difetto, stessa
    *  data di scoperta, 13-09-2026): i neutri `--brand-*` seguono il tema
    *  dell'app, non lo sfondo della pagina sinottica. `dark: true` (passato da
@@ -24,7 +28,8 @@ export interface RecipePanelProps {
   dark?: boolean;
 }
 
-export function RecipePanel({ idPrefix, compact = false, dark = false }: RecipePanelProps) {
+export function RecipePanel({ idPrefix, compact = false, dark = false, corpo: corpoDato }: RecipePanelProps) {
+  const corpo = corpoDato ?? (compact ? 11 : 13);
   const tok = (varName: string, literal: string) => (dark ? literal : `var(${varName}, ${literal})`);
   const nText = tok("--brand-text", "#e2e8f0");
   const nTextSubtle = tok("--brand-text-subtle", "#64748b");
@@ -58,9 +63,9 @@ export function RecipePanel({ idPrefix, compact = false, dark = false }: RecipeP
   }, [username, t]);
 
   return (
-    <div style={{ fontSize: compact ? 11 : 13, color: nText }}>
+    <div style={{ fontSize: corpo, color: nText }}>
       {filtered.length === 0 ? (
-        <div style={{ color: nTextSubtle, fontSize: compact ? 11 : 13 }}>
+        <div style={{ color: nTextSubtle, fontSize: corpo }}>
           {t("recipePanel.noRecipeAvailable")}
         </div>
       ) : (
@@ -70,7 +75,7 @@ export function RecipePanel({ idPrefix, compact = false, dark = false }: RecipeP
             padding: compact ? "4px 0" : "8px 0", borderBottom: `1px solid ${nSurface}`,
           }}>
             <div>
-              <div style={{ fontSize: compact ? 11 : 13, fontWeight: 600 }}>{r.name}</div>
+              <div style={{ fontSize: corpo, fontWeight: 600 }}>{r.name}</div>
               {!compact && (
                 <div style={{ fontSize: 11, color: nTextSubtle }}>{r.id} · {r.setpoints_count} setpoint</div>
               )}
@@ -80,7 +85,7 @@ export function RecipePanel({ idPrefix, compact = false, dark = false }: RecipeP
               disabled={applying === r.id}
               style={{
                 padding: compact ? "2px 8px" : "4px 12px", borderRadius: 4, border: "none",
-                background: "#1d4ed8", color: "#fff", cursor: "pointer", fontSize: compact ? 10 : 12,
+                background: "#1d4ed8", color: "#fff", cursor: "pointer", fontSize: corpoSecondario(corpo),
                 opacity: applying === r.id ? 0.6 : 1, flexShrink: 0,
               }}
             >
@@ -90,7 +95,7 @@ export function RecipePanel({ idPrefix, compact = false, dark = false }: RecipeP
         ))
       )}
       {result && (
-        <div style={{ marginTop: 8, fontSize: compact ? 10 : 12, color: result.startsWith("✓") ? nSuccess : nDanger }}>
+        <div style={{ marginTop: 8, fontSize: corpoSecondario(corpo), color: result.startsWith("✓") ? nSuccess : nDanger }}>
           {result}
         </div>
       )}

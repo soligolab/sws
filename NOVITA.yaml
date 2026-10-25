@@ -35,6 +35,10 @@
 versioni:
   - versione: "2.21.0"
     voci:
+      - it: "Corpo del testo regolabile anche su indicatori, KPI, registri, allarmi e ricette; sul pannello LVGL compaiono testi che prima mancavano (pillola e ACK del banner, storico completo, etichetta dei simboli)."
+        en: "Adjustable font size also on gauges, KPIs, data logs, alarms and recipes; on the LVGL panel texts that were missing now appear (banner pill and ACK, full history, symbol labels)."
+      - it: "Nell'editor del cloud le immagini del progetto (sfondi, immagini, simboli personalizzati) si vedono come sul pannello."
+        en: "In the cloud editor, project images (backgrounds, images, custom symbols) show as they do on the panel."
       - it: "Una pagina può avere un'immagine di sfondo nell'area fra testata e piede della cornice, senza coprirla: si carica dalle proprietà della pagina."
         en: "A page can have a background image in the area between the frame's header and footer, without covering it: upload it from the page properties."
       - it: "Dal cloud le scoperte (sfoglia del broker MQTT, OPC-UA, Home Assistant) e i valori vivi passano dal pannello collegato, che vede l'impianto; riaprendo il progetto l'IDE si ricollega da solo al suo pannello."

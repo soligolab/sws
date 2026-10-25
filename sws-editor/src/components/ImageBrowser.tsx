@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { ImgProgetto } from "@/canvas/ImmagineSvg";
 import { useTranslation } from "react-i18next";
 import { createPortal } from "react-dom";
 
@@ -149,7 +150,7 @@ export function ImageBrowser({ onSelect, onClose }: Props) {
                 (e.currentTarget as HTMLElement).style.background = "none";
               }}
             >
-              <img
+              <ImgProgetto
                 src={item.path}
                 alt={item.label}
                 loading="lazy"
