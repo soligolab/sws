@@ -89,6 +89,13 @@ impl ImprontaStore {
         std::fs::write(&self.path, testo)
     }
 
+    /// Tutte le voci, per la vista dei certificati (25-10-2026). Anche le
+    /// «righe morte» — porte non più in uso — perché la vista le mostra col
+    /// loro «dimentica» (decisione 8 del piano dei certificati).
+    pub fn elenco(&self) -> BTreeMap<String, Voce> {
+        self.carica()
+    }
+
     pub fn impronta_di(&self, host_port: &str) -> Option<String> {
         self.carica().get(host_port).map(|v| v.impronta.clone())
     }

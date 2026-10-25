@@ -92,6 +92,32 @@ per un ufficio con molte persone dietro lo stesso indirizzo.
 - **Registro delle azioni**: autenticazioni, scritture di tag e modifiche del progetto finiscono in un audit log
   JSONL in sola aggiunta.
 
+## I certificati, in un posto solo (dal 25-10-2026)
+
+**Configurazione → Sicurezza → Certificati** (solo Admin) mostra tutto ciò di cui un'istanza si fida, archivio per
+archivio. Con un pannello collegato le colonne sono due: **questa istanza** a sinistra, **il dispositivo connesso** a
+destra. Servono tutte e due perché gli archivi stanno nella cartella di chi gira: l'IDE nel cloud e il pannello hanno
+certificati e impronte diversi, e lo stesso elenco visto da due posti direbbe due cose diverse.
+
+| Archivio | Cosa contiene | Cosa si fa |
+|---|---|---|
+| **Certificato TLS** | il certificato del server web: soggetto, nomi, validità, impronta | genera, carica, rimuovi |
+| **Dispositivi fidati** | le impronte dei pannelli a cui l'IDE si è collegato (fiducia al primo contatto) | **Dimentica** |
+| **Broker MQTT** | le impronte dei broker MQTT in TLS | **Dimentica** |
+| **Viewer LVGL** | le impronte di cui si fida lo schermo LVGL | sola lettura |
+| **Client OPC-UA** | per ogni sorgente, i certificati fidati e rifiutati | **Fidati**, elimina |
+| **Server OPC-UA** | il certificato del server OPC-UA e i suoi client | sola lettura |
+| **SSH** | `known_hosts` e la chiave di progetto | sola lettura |
+
+**Le righe di porte non più in uso restano visibili.** La chiave del pinning è `host:porta`: dopo il cambio di porte
+del 21-10 (8444 → 7444) lo stesso pannello ha due righe, e quella vecchia si toglie con «Dimentica». «Dimentica» vuol
+dire che al prossimo collegamento ci si fiderà del certificato che il pannello presenterà, quindi va usato solo quando
+il cambio di certificato è atteso. Ogni «Dimentica» finisce nel registro di audit (`cert.forget`).
+
+**L'archivio del viewer LVGL** si vede dal quadlet 7 in poi, che lo monta in sola lettura nel runtime. Con la
+configurazione di servizio precedente la riga lo dice; l'aggiornamento della configurazione del servizio, proposto dal
+pannello, la porta.
+
 ## Cosa manca ancora
 
 Scritto qui perché chi installa SWS sappia cosa deve coprire da sé, finché non arriva.
@@ -107,8 +133,7 @@ Scritto qui perché chi installa SWS sappia cosa deve coprire da sé, finché no
 
 ## Per chi installa: le cose da fare a mano
 
-1. **Attivare HTTPS** sul pannello se la rete non è fidata (Configurazione → Istanza → Device → Stato → Certificato
-   TLS), e accettare il certificato da `http://<pannello>:8080`.
+1. **Attivare HTTPS** sul pannello se la rete non è fidata (Configurazione → Sicurezza → Certificati), e accettare il certificato da `http://<pannello>:8080`.
 2. **Abbinare il pannello** appena acceso: finché non ha utenti è chiuso, ma il codice è sullo schermo.
 3. **Non esporre la porta 7444** fuori dalla rete dell'impianto: ascolta su tutte le interfacce, anche sul pannello,
    quindi va chiusa col firewall verso chi non usa l'IDE. Per raggiungere un pannello da fuori c'è il tunnel del

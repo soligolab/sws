@@ -1,5 +1,10 @@
 # I certificati in un posto solo — le decisioni, dopo la sessione di plan
 
+> **FATTO il 25-10-2026, archiviato.** Le otto decisioni sono tutte costruite tranne la 6, che è un
+> protocollo a sé e vive nel seme [`2026-10-23-rinnovo-del-certificato-firmato.md`](../plans/2026-10-23-rinnovo-del-certificato-firmato.md).
+> L'ultimo pezzo è la vista (decisioni 3, 4 e 8): Sicurezza → Certificati, ramo `feat/vista-certificati`.
+> Da collaudare sul pannello col quadlet 7.
+
 > **Era un seme, dal 22-10-2026 porta le decisioni.** La sessione di plan che il seme chiedeva è
 > stata fatta quella notte, misurando il codice. Qui c'è quello che serve a decidere; le misure
 > vecchie del seme (15-10 e 21-10) sono in coda, con le correzioni.
@@ -53,6 +58,153 @@ elencare — manca il metodo, sono quattro righe.
 **Su sei operazioni che cambiano un certificato, cinque non finiscono nell'audit.**
 
 ---
+
+## Il disegno della vista — sessione di plan del 25-10-2026
+
+> Le decisioni 3, 4 e 8 si scrivono sul ramo `feat/vista-certificati`. Questo è il disegno
+> approvato dal maintainer.
+
+### Context
+
+Piano di riferimento: questo file.
+
+- **Già fatte**: le decisioni 1, 2, 5 e 7.
+- **La 6** (rinnovo firmato) è un seme a parte.
+- **Restano, decise dal maintainer il 23-10 e non scritte**:
+  - **3**: una scheda, due colonne, «questa istanza» e «dispositivo connesso»;
+  - **4**: l'archivio del viewer LVGL montato in sola lettura nel runtime, quadlet 6 → 7;
+  - **8**: le righe morte del pinning si mostrano, col loro «dimentica».
+
+Il maintainer (25-10-2026) ha scelto di farla adesso, prima della build del lavoro di oggi.
+
+### Cosa c'è (esplorazione del 25-10)
+
+### Gli archivi
+
+| Archivio | Dove | API oggi |
+|---|---|---|
+| TLS del server web | `<config>/tls.crt` | `GET /api/system/tls` → solo `{enabled}`; genera, carica e rimuovi, locali e remote |
+| IDE → dispositivi (TOFU) | `<config>/dispositivi_conosciuti.yaml` | solo `POST /api/device/cert/forget {host}` (`remote.rs:3599`) |
+| Broker MQTT (TOFU) | `<config>/mqtt_broker_conosciuti.yaml` | nessuna; lo store vive nel supervisore (`source_supervisor.rs:47`) |
+| Client OPC-UA, per sorgente | `<progetto>/opcua-pki/<id>/{trusted,rejected}/*.der` | list, trust e delete (`router.rs:8885-8990`), con remote e porta di gestione; solo nome file e dimensione |
+| Viewer LVGL (TOFU) | `/data/user/sws/viewer/lvgl_tls_conosciuti.yaml` | nessuna; il runtime non lo vede |
+| Server OPC-UA | `<cwd>/pki` (`run_server` senza `pki_dir`) | nessuna |
+| SSH | `~/.ssh/known_hosts`, `<progetto>/.git/sws-ssh/` | solo «dimentica» della chiave host |
+
+### Gli strumenti
+
+- **`ImprontaStore`** (`sws-core/src/pin_tls.rs`): YAML `host:porta → {impronta, visto_il_ms}`. Non sa elencare:
+  `carica()` è privato.
+- **`x509-cert` 0.2.5** è già nel lock (lo porta `async-opcua-crypto`): si aggiunge come dipendenza diretta di
+  `sws-web`, senza compilare niente di nuovo. Oggi nessun codice legge soggetto o validità di un certificato.
+- **Il quadlet**: la versione sta in `Description=… [quadlet N]`, oggi 6 su tutti e tre. Cambiarlo vuol dire:
+  - alzare N sui tre file;
+  - `scripts/check_quadlet.sh --aggiorna`;
+  - aggiornare l'etichetta `net.soligo.sws.quadlet` dell'immagine.
+
+  L'aggiornamento porta il quadlet nuovo da solo (`quadlet.rs`, `aggiorna`).
+- **Inoltri**:
+  - `inoltra_al_pannello` (`remote.rs:876`), con audit `remote.impianto`;
+  - `proxy_get_json`;
+  - la guardia di parità vuole il letterale `"{base}/api/…"` in remote.rs e la rotta in `deploy_only_app`.
+- **Interfaccia**:
+  - una foglia è una riga in `config/schede.ts` (`SCHEDE`, ramo `sicurezza`, `soloAdmin`) più il componente in
+    `ConfigView.tsx` (`COMPONENTI`);
+  - le due colonne esistono già in `SystemTab.tsx:84-88` (`gridTemplateColumns: "1fr 1fr"`);
+  - le tabelle si fanno con `S.table/S.th/S.td`;
+  - la card TLS è `TlsSection` (`SystemTab.tsx:239`); la lista dei certificati OPC-UA sta in
+    `OpcUaSourceCard.tsx:270-312`.
+
+### Il ramo
+
+`feat/vista-certificati`, annidato su `feat/corpi-e-parita-lvgl` (un ramo alla volta, opzione 2).
+
+### Il lavoro
+
+### 1. Server — l'inventario
+
+- `ImprontaStore::elenco() -> BTreeMap<String, Voce>` in `pin_tls.rs`, con test.
+- **`certificati::inventario(s)`** in `sws-web/src/certificati.rs` restituisce un `Inventario` con:
+  - **`tls`**: presente, soggetto, emittente, nomi (SAN), validità dal/al, impronta. Si legge `tls.crt` con
+    `x509-cert` (PEM → DER con `rustls-pemfile`).
+  - **`dispositivi`** e **`mqtt`**: righe `{chiave, impronta, visto_il_ms}`. Lo store MQTT si apre con
+    `ImprontaStore::in_config(config, "mqtt_broker_conosciuti.yaml")`, lo stesso file del supervisore.
+  - **`viewer_lvgl`**: `{disponibile, righe}` da `$SWS_VIEWER_DATA` o `/var/sws/viewer`. Sola lettura (decisione
+    4).
+  - **`opcua_client`**: per ogni sorgente OPC-UA del progetto aperto, i `.der` di `trusted` e `rejected` con
+    soggetto, scadenza e impronta.
+  - **`opcua_server`**: il certificato proprio e i fidati e rifiutati di `<cwd>/pki`, se esiste. Sola lettura,
+    con la nota che vive nel container (fino a una scelta che il piano lascia aperta).
+  - **`ssh`**: le righe di `known_hosts` (host, o «nascosto» se l'host è sotto hash) e la chiave di progetto
+    (presente e impronta della pubblica). Sola lettura.
+- **Una funzione pura `leggi_certificato(der) -> Dettagli`**, con un test su un certificato generato da
+  `rcgen`: soggetto, nomi, validità.
+- **Rotte**:
+  - `GET /api/certificati` (Admin) sul router `build` e in `deploy_only_app`.
+  - `POST /api/certificati/dimentica {archivio: "dispositivi"|"mqtt", chiave}` (Admin), audit
+    `cert.forget`. La riga morta della decisione 8 si toglie da lì.
+  - **Remote**: `GET /api/remote/certificati` e `POST /api/remote/certificati/dimentica`, con i commenti
+    `"{base}/api/certificati…"` per la guardia di parità.
+  - `check_audit_attore.sh` impara l'evento nuovo.
+
+### 2. Il quadlet 6 → 7 (decisione 4)
+
+- `deploy/container/sws-runtime.container`: `Volume=/data/user/sws/viewer:/var/sws/viewer:ro` ed
+  `Environment=SWS_VIEWER_DATA=/var/sws/viewer`.
+- `[quadlet 7]` sui tre file, `check_quadlet.sh --aggiorna`, etichetta dell'immagine.
+- **Rischio da chiudere prima**: un `Volume=` su una cartella che non c'è ferma l'avvio del runtime. Va
+  verificato, ed eventualmente aggiunto, che `install-container.sh` crei sempre `<dati>/viewer`, anche senza LVGL.
+  Va controllato anche che l'aggiornamento del quadlet la crei sui pannelli già installati.
+
+### 3. L'interfaccia — Sicurezza → Certificati
+
+- La foglia `certificati` (🔏, `soloAdmin`) in `schede.ts`, il componente in `ConfigView.tsx`, l'etichetta
+  i18n it/en.
+- **`CertificatiTab.tsx`**: due colonne con lo stesso componente `ColonnaCertificati remoto={false|true}`. La
+  seconda c'è solo con un pannello collegato. Per archivio, una sezione:
+  - **TLS**: la card che c'è (`TlsSection`), con una prop `remoto`, più soggetto, nomi e scadenza
+    dall'inventario.
+  - **Dispositivi fidati** e **broker MQTT**: tabella chiave, impronta abbreviata, «visto il» e **Dimentica**
+    (decisione 8: le righe di porte vecchie si vedono e si tolgono).
+  - **Viewer LVGL**: in sola lettura; «non disponibile» se il runtime non vede la cartella (quadlet 6).
+  - **Client OPC-UA**, per sorgente: file, stato, soggetto, scadenza, Fidati ed Elimina. Le funzioni sono
+    esplicite, locale `/api/sources/…` e remota `/api/remote/sources/…`, non `suImpianto`, perché ogni colonna
+    parla col suo lato.
+  - **Server OPC-UA** e **SSH**: in sola lettura.
+- **«Una sezione per dato»**:
+  - la card TLS **esce** da Istanza → Stato (`SystemTab`), e al suo posto resta una riga col collegamento a
+    Certificati;
+  - la lista dei certificati OPC-UA esce dalla card della sorgente, che porta una riga col collegamento;
+  - la guardia `la_card_tls_segue_il_dispositivo_connesso` (`router.rs`) si sposta sul file nuovo;
+  - il «Dimentica certificato» nel messaggio d'errore di Connessione resta: è il gesto contestuale, non una
+    seconda vista.
+
+### 4. Documenti e test
+
+- **Rust**:
+  - `elenco`;
+  - `leggi_certificato`;
+  - l'inventario su una cartella temporanea con tls, due store, una pki OPC-UA finta;
+  - la guardia delle rotte (Admin, parità).
+- **Vitest**:
+  - `CertificatiTab` con una colonna e con due;
+  - «Dimentica» chiama la funzione locale o remota secondo la colonna;
+  - la foglia invisibile al non-Admin (`pannelloSinistro.test.tsx`);
+  - l'inventario del pannello proprietà se cambia.
+- **Testi**:
+  - nel piano dei certificati, 3, 4 e 8 → FATTE, e il piano in archivio se resta solo il seme 6;
+  - il capitolo 17 del manuale (Sicurezza): la vista;
+  - CHANGELOG, NOVITA (it/en), compreso il cambio di quadlet.
+
+### Verifica
+
+- `cargo test`, `pnpm exec vitest run`, `pnpm build`, `check_static.sh` (compresi `check_quadlet` e
+  `check_audit_attore`).
+- **Dal vivo**, con la build unica che il maintainer ha chiesto alla fine:
+  - **sul TC620**: quadlet 7 applicato dall'avviso, colonna «dispositivo connesso» con il certificato del
+    dispositivo (soggetto e scadenza veri), l'archivio LVGL visibile;
+  - **in locale**: dimenticare una riga morta di `dispositivi_conosciuti.yaml` e vederla sparire.
+
 
 ## Le decisioni — tutte e otto prese il 23-10-2026
 
@@ -148,7 +300,7 @@ usa la variante remota; per il TLS quella rotta non esiste.
 - **b** — nascondere la card quando c'è un remoto, e dire «si gestisce dalla vista Certificati».
 - **c** — lasciarla e scriverlo nell'etichetta.
 
-### 3. Il perimetro della vista — **DECISA: una scheda, due colonne**
+### 3. Il perimetro della vista — **DECISA: una scheda, due colonne — FATTA il 25-10-2026**
 
 Il problema è reale e misurato: `tls.crt` e `dispositivi_conosciuti.yaml` stanno nella cartella di
 configurazione **di chi gira**. Lo stesso schermo mostra archivi diversi a seconda dell'istanza.
@@ -158,7 +310,7 @@ configurazione **di chi gira**. Lo stesso schermo mostra archivi diversi a secon
 - **b** — solo l'istanza locale; per il pannello ci si collega al pannello.
 - **c** — due foglie sotto Sicurezza: Certificati (IDE) e Certificati (Dispositivo).
 
-### 4. L'archivio del viewer LVGL — **DECISA: si monta in sola lettura**
+### 4. L'archivio del viewer LVGL — **DECISA: si monta in sola lettura — FATTA il 25-10-2026 (quadlet 7)**
 
 Il runtime **non lo vede**: è montato solo nel container del viewer.
 
@@ -201,7 +353,7 @@ Oggi è **«CN=rcgen self signed cert»**, uguale su ogni pannello: nessuno impo
 >
 > **Non si scrive qui**: è un protocollo di fiducia, e il punto duro è che l'archivio tiene solo
 > `sha256:<hex>` — da un'impronta non si verifica una firma. Seme dedicato:
-> [`2026-10-23-rinnovo-del-certificato-firmato.md`](2026-10-23-rinnovo-del-certificato-firmato.md),
+> [`2026-10-23-rinnovo-del-certificato-firmato.md`](../plans/2026-10-23-rinnovo-del-certificato-firmato.md),
 > con le misure e i quattro punti duri. **La scadenza si mette dopo che il rinnovo esiste**:
 > metterla prima vuol dire un parco di pannelli che fra due anni scade senza che niente li
 > rinnovi.
@@ -237,7 +389,7 @@ Il self-signed **non scade mai** (rcgen: 1975 → 4096, e nessuno lo cambia). Ne
   `opcua.cert_trust`, `opcua.cert_delete`) sono **~15 righe**, e chiudono il requisito CRA di
   tracciabilità insieme alla vista invece di lasciarlo aperto nel fascicolo.
 
-### 8. Le righe morte del pinning — **DECISA: si mostrano, col loro «dimentica»**
+### 8. Le righe morte del pinning — **DECISA: si mostrano, col loro «dimentica» — FATTA il 25-10-2026**
 
 La chiave del pinning è `host:porta`, quindi per lo stesso pannello ci sono due righe. Il gesto che
 le toglie tutte esiste già (`dimentica_host`): manca solo chi lo chiama.

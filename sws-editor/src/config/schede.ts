@@ -86,6 +86,8 @@ export const SCHEDE = [
   { id: "git",           ramo: "progetto",  icona: "🔀", soloAdmin: false, portaBozza: false, richiedeProgetto: false },
   { id: "datastores",    ramo: "dati",      icona: "🗄", soloAdmin: true,  portaBozza: true,  richiedeProgetto: false, elementi: true, sezione: "datastores" },
   { id: "users",         ramo: "sicurezza", icona: "👤", soloAdmin: true,  portaBozza: false, richiedeProgetto: false, elementi: true },
+  // La vista dei certificati (25-10-2026, decisione 3 del piano dei certificati).
+  { id: "certificati",   ramo: "sicurezza", icona: "🔏", soloAdmin: true,  portaBozza: false, richiedeProgetto: false },
   { id: "resources",     ramo: "istanza",   icona: "📦", soloAdmin: false, portaBozza: false, richiedeProgetto: false },
   { id: "backups",       ramo: "istanza",   icona: "💾", soloAdmin: true,  portaBozza: false, richiedeProgetto: false },
   { id: "system",        ramo: "istanza",   icona: "📊", soloAdmin: false, portaBozza: false, richiedeProgetto: false, sottoRamo: "device" },

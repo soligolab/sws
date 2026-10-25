@@ -4002,6 +4002,7 @@ dependencies = [
  "tokio-util",
  "tower-http 0.5.2",
  "tracing",
+ "x509-cert",
  "yamux",
  "zbus",
  "zip",

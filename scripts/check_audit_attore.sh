@@ -28,7 +28,7 @@
 #   E dal 23-10-2026, **le sei operazioni che cambiano un certificato lasciano
 #   traccia, con un nome**. Cinque su sei non la lasciavano: c'era solo un
 #   `tracing::info!`, che non è il registro che si va a rileggere. È la
-#   decisione 7 del piano `docs/plans/2026-10-15-certificati-in-un-posto-solo.md`,
+#   decisione 7 del piano `docs/archive/2026-10-15-certificati-in-un-posto-solo.md`,
 #   e chiude il requisito CRA di tracciabilità sui certificati.
 #
 # Uso: ./scripts/check_audit_attore.sh
@@ -81,6 +81,9 @@ cert_ok opcua.cert_trust   "$R"
 cert_ok opcua.cert_delete  "$R"
 # La sesta c'era già dal 2026: il «dimentica» dell'impronta di un dispositivo.
 cert_ok device.cert_forget "$M"
+# La settima (25-10-2026): il «dimentica» della vista dei certificati, che
+# toglie una riga dagli archivi delle impronte (dispositivi e broker MQTT).
+cert_ok cert.forget        "$R"
 # E le tre remote, nate insieme alle rotte `/api/remote/system/tls`: cambiano un
 # certificato anche loro, su un'altra macchina. Passano tutte da `inoltra_tls`,
 # che l'attore lo scrive in un posto solo: qui si controlla che il nome

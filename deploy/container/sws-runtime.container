@@ -24,7 +24,7 @@
 # più basso di quello dell'immagine che gira mostra «configurazione del servizio
 # da aggiornare», e la si aggiorna dall'IDE o dal pannello — vedi
 # docs/plans/2026-10-02-quadlet-che-viaggia.md.
-Description=SWS runtime (container podman) [quadlet 6]
+Description=SWS runtime (container podman) [quadlet 7]
 Documentation=file:///data/user/sws-container/README
 After=network-online.target
 Wants=network-online.target
@@ -85,6 +85,13 @@ PublishPort=7444:7444
 Volume=/data/user/sws/config:/var/sws/config
 Volume=/data/user/sws/projects:/var/sws/projects
 Volume=/data/user/sws/logs:/var/sws/logs
+# L'archivio delle impronte del viewer LVGL, in SOLA LETTURA (quadlet 7,
+# 25-10-2026, decisione 4 del piano dei certificati): la vista Sicurezza →
+# Certificati lo mostra insieme agli altri, e un reset di fabbrica sa che c'è.
+# Lo scrive solo il viewer; la cartella la crea sempre l'installer, anche
+# senza LVGL — un Volume= su una cartella assente fermerebbe il runtime.
+Volume=/data/user/sws/viewer:/var/sws/viewer:ro
+Environment=SWS_VIEWER_DATA=/var/sws/viewer
 
 # Il bus di sistema, in sola lettura sul socket: serve al runtime per dire al
 # launcher Pixsys quale immagine di accensione usare

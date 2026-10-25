@@ -35,6 +35,8 @@
 versioni:
   - versione: "2.21.0"
     voci:
+      - it: "Nuova scheda Sicurezza → Certificati: certificati e impronte fidate dell'IDE e del pannello collegato, con «Dimentica» per le porte vecchie. Il pannello offre l'aggiornamento della configurazione del servizio."
+        en: "New Security → Certificates tab: every certificate and trusted fingerprint, of the IDE and of the connected panel, with «Forget» for old ports. The panel offers to update the service configuration."
       - it: "Corpo del testo regolabile anche su indicatori, KPI, registri, allarmi e ricette; sul pannello LVGL compaiono testi che prima mancavano (pillola e ACK del banner, storico completo, etichetta dei simboli)."
         en: "Adjustable font size also on gauges, KPIs, data logs, alarms and recipes; on the LVGL panel texts that were missing now appear (banner pill and ACK, full history, symbol labels)."
       - it: "Nell'editor del cloud le immagini del progetto (sfondi, immagini, simboli personalizzati) si vedono come sul pannello."

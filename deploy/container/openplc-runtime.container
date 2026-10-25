@@ -45,7 +45,7 @@
 [Unit]
 # La versione del quadlet: vedi il commento gemello in sws-runtime.container.
 # Deve essere la stessa degli altri — `check_quadlet.sh` lo verifica.
-Description=OpenPLC Runtime (container podman) [quadlet 6]
+Description=OpenPLC Runtime (container podman) [quadlet 7]
 # Non ha bisogno del runtime di SWS: è un PLC, gira per conto suo. Ma se
 # partono insieme conviene che il PLC ci sia prima, così la prima lettura di
 # SWS non trova la porta chiusa.

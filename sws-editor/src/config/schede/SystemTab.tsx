@@ -139,7 +139,9 @@ export function SystemTab() {
           </div>
         </div>
       </div>
-      <TlsSection />
+      {/* Il certificato TLS si governa da Sicurezza → Certificati (25-10-2026,
+          «una sezione per dato»): qui solo la strada per arrivarci. */}
+      <VaiACertificati />
       <AuditSection />
     </div>
   );
@@ -235,16 +237,38 @@ function AuditSection() {
   );
 }
 
+/** Il rimando alla vista dei certificati, dove ora sta la card TLS. */
+function VaiACertificati() {
+  const { t } = useTranslation();
+  const authRole = useAppStore((s) => s.authRole);
+  const navigateToConfig = useAppStore((s) => s.navigateToConfig);
+  if (authRole !== "Admin") return null;
+  return (
+    <div style={{ fontSize: 12, color: "var(--brand-text-muted, #94a3b8)" }}>
+      🔏 {t("certificati.daStato")}{" "}
+      <button type="button" onClick={() => navigateToConfig("certificati")}
+        style={{ background: "none", border: "none", padding: 0, color: "var(--brand-primary, #3b82f6)", cursor: "pointer", fontSize: 12 }}>
+        {t("certificati.apri")}
+      </button>
+    </div>
+  );
+}
+
 // ── TLS management section (inside SystemTab, Admin-only) ─────────────────────
-export function TlsSection() {
+export function TlsSection({ remoto }: {
+  /** Quale lato mostrare (25-10-2026): la vista dei certificati ne mette due
+   *  affiancate. Senza, segue il pannello collegato come prima. */
+  remoto?: boolean;
+} = {}) {
   const { t } = useTranslation();
   const authRole = useAppStore((s) => s.authRole);
   // Con un pannello collegato, «il runtime» è il pannello — come per il resto
   // della scheda Device. Fino al 23-10-2026 questa card era l'unica a non
   // saperlo: leggeva e scriveva il certificato del PC su cui gira l'IDE mentre
   // lo schermo accanto diceva «dispositivo connesso». Decisione 2 del piano
-  // `docs/plans/2026-10-15-certificati-in-un-posto-solo.md`.
-  const remoteConnected = useAppStore((s) => s.remoteConnected);
+  // `docs/archive/2026-10-15-certificati-in-un-posto-solo.md`.
+  const pannelloCollegato = useAppStore((s) => s.remoteConnected);
+  const remoteConnected = remoto ?? pannelloCollegato;
   const remoteUrl = useAppStore((s) => s.remoteUrl);
   const [tlsEnabled, setTlsEnabled] = useState<boolean | null>(null);
   const [msg, setMsg] = useState<string | null>(null);

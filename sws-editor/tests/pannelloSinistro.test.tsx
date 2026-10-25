@@ -141,6 +141,7 @@ describe("pannello sinistro — un albero solo", () => {
     expect(screen.getByTestId("foglia-config-tags")).toBeTruthy();
     expect(screen.queryByTestId("foglia-config-users")).toBeNull();
     expect(screen.queryByTestId("foglia-config-runtime")).toBeNull();
+    expect(screen.queryByTestId("foglia-config-certificati")).toBeNull();
   });
 
   /** Dal 25-09-2026 le variabili live stanno **sotto** la foglia

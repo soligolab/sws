@@ -691,6 +691,13 @@ pub fn build(
         )
         .route("/api/system/tls", put(crate::system::upload_tls_cert))
         .route("/api/system/tls", delete(crate::system::remove_tls_cert))
+        // La vista dei certificati (25-10-2026, decisioni 3 e 8 del piano dei
+        // certificati): tutti gli archivi di questa istanza, e il «dimentica»
+        // delle impronte — anche delle righe morte delle porte vecchie.
+        .route("/api/certificati", get(certificati_elenco))
+        .route("/api/certificati/dimentica", post(certificati_dimentica))
+        .route("/api/remote/certificati", get(crate::remote::remote_certificati))
+        .route("/api/remote/certificati/dimentica", post(crate::remote::remote_certificati_dimentica))
         // Le stesse quattro **sul dispositivo connesso** (decisione 2 del piano
         // dei certificati, 23-10-2026). Senza di loro la card «Certificato TLS»
         // della scheda Device leggeva e scriveva il PC dell'editor mentre tutto
@@ -1529,6 +1536,9 @@ fn deploy_only_app(state: AppState) -> Router<AppState> {
         .route("/api/system/tls/generate", post(crate::system::generate_tls_cert))
         .route("/api/system/tls", put(crate::system::upload_tls_cert))
         .route("/api/system/tls", delete(crate::system::remove_tls_cert))
+        // La vista dei certificati del pannello, letta dall'IDE collegato (25-10-2026).
+        .route("/api/certificati", get(certificati_elenco))
+        .route("/api/certificati/dimentica", post(certificati_dimentica))
         // ── Override per-dispositivo del client id MQTT ────────────────────
         .route(
             "/api/mqtt/source/:id/client-id-override",
@@ -8886,6 +8896,84 @@ struct OpcUaCertEntry {
     filename: String,
     status: &'static str, // "trusted" | "rejected"
     size_bytes: u64,
+}
+
+/// `GET /api/certificati` — la vista dei certificati (25-10-2026, decisioni 3,
+/// 4 e 8 del piano dei certificati): tutti gli archivi di questa istanza.
+async fn certificati_elenco(State(s): State<AppState>) -> Response {
+    let progetto = active_dir(&s).await.ok();
+    let sorgenti: Vec<String> = progetto
+        .as_ref()
+        .and_then(|d| Project::load(d).ok())
+        .map(|p| {
+            p.sources
+                .iter()
+                .filter_map(|src| match src {
+                    SourceDef::OpcUaClient(c) => Some(c.id.clone()),
+                    _ => None,
+                })
+                .collect()
+        })
+        .unwrap_or_default();
+    // L'archivio del viewer LVGL: nel runtime in container lo monta il quadlet 7
+    // in sola lettura (decisione 4); fuori, dove lo dice `SWS_VIEWER_DATA`.
+    let viewer = std::env::var("SWS_VIEWER_DATA")
+        .map(std::path::PathBuf::from)
+        .unwrap_or_else(|_| std::path::PathBuf::from("/var/sws/viewer"));
+    let pki_server = std::env::current_dir().unwrap_or_default().join("pki");
+    let home = std::env::var("HOME").ok().map(std::path::PathBuf::from);
+    let config = s.config_dir.clone();
+    let inv = tokio::task::spawn_blocking(move || {
+        crate::certificati::inventario(&crate::certificati::Cartelle {
+            config: &config,
+            progetto: progetto.as_deref(),
+            sorgenti_opcua: &sorgenti,
+            viewer: &viewer,
+            pki_server: &pki_server,
+            home: home.as_deref(),
+        })
+    })
+    .await;
+    match inv {
+        Ok(i) => Json(i).into_response(),
+        Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response(),
+    }
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct DimenticaImpronta {
+    /// `dispositivi` o `mqtt`. Il viewer LVGL è in sola lettura (decisione 4).
+    archivio: String,
+    /// `host:porta`, esattamente come compare nell'elenco.
+    chiave: String,
+}
+
+/// `POST /api/certificati/dimentica` — toglie una riga da un archivio di
+/// impronte (decisione 8: anche le righe morte delle porte non più in uso).
+async fn certificati_dimentica(
+    State(s): State<AppState>,
+    Extension(user): Extension<AuthUser>,
+    Json(b): Json<DimenticaImpronta>,
+) -> Response {
+    let esito = match b.archivio.as_str() {
+        "dispositivi" => crate::certificati::store_dispositivi(&s.config_dir).dimentica(&b.chiave),
+        "mqtt" => s.supervisor.mqtt_certificati.dimentica(&b.chiave),
+        altro => {
+            return (StatusCode::BAD_REQUEST, format!("archivio «{altro}» sconosciuto o in sola lettura")).into_response()
+        }
+    };
+    match esito {
+        Ok(tolta) => {
+            s.audit.log(
+                "cert.forget",
+                Some(user.username.clone()),
+                serde_json::json!({ "archivio": b.archivio, "chiave": b.chiave, "tolta": tolta }),
+            );
+            Json(serde_json::json!({ "tolta": tolta })).into_response()
+        }
+        Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response(),
+    }
 }
 
 /// List certs in the per-source trust store.

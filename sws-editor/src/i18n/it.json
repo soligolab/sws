@@ -196,7 +196,8 @@
       "ide": "Preferenze IDE",
       "telegram": "Telegram",
       "eventi": "Cosa e dove",
-      "stile": "Stile"
+      "stile": "Stile",
+      "certificati": "Certificati"
     },
     "sottorami": {
       "device": "Device",
@@ -3504,5 +3505,43 @@
     "nessunPannello": "Nessun pannello collegato: le scoperte e le prove le fa il pannello dell'impianto, che lo vede. Collegalo in Configurazione → Istanza → Device.",
     "sorgentiSulPannello": "Nel cloud le sorgenti girano sul pannello collegato: valori vivi, scoperte e comandi passano da lì.",
     "sorgentiSenzaPannello": "Nel cloud le sorgenti non partono: collega il pannello dell'impianto (Configurazione → Istanza → Device) per i valori vivi e le scoperte."
+  },
+  "certificati": {
+    "intro": "Tutti i certificati e le impronte di cui l'istanza si fida, in un posto solo. Con un pannello collegato, accanto ci sono i suoi.",
+    "questaIstanza": "QUESTA ISTANZA",
+    "dispositivo": "DISPOSITIVO CONNESSO — {{host}}",
+    "aggiorna": "Aggiorna",
+    "dispositivi": "DISPOSITIVI FIDATI",
+    "dispositiviSpiega": "Le impronte dei pannelli a cui questa istanza si è collegata (fiducia al primo contatto). Una porta non più in uso resta qui finché non la dimentichi.",
+    "mqtt": "BROKER MQTT",
+    "mqttSpiega": "Le impronte dei broker MQTT in TLS, memorizzate al primo collegamento.",
+    "viewer": "VIEWER LVGL",
+    "viewerSpiega": "Le impronte di cui si fida lo schermo LVGL del pannello. In sola lettura: le scrive il viewer.",
+    "viewerAssente": "Non visibile da qui: il servizio ha la configurazione di prima (quadlet 6). L'aggiornamento della configurazione del servizio la porta.",
+    "opcuaClient": "CLIENT OPC-UA — TRUST STORE",
+    "opcuaNessuna": "Nessuna sorgente OPC-UA nel progetto aperto.",
+    "opcuaServer": "SERVER OPC-UA",
+    "opcuaServerAssente": "Il server OPC-UA non ha ancora creato la sua PKI.",
+    "ssh": "SSH",
+    "sshChiave": "Chiave di progetto",
+    "vuoto": "Vuoto.",
+    "chiave": "Host:porta",
+    "impronta": "Impronta",
+    "vistoIl": "Visto il",
+    "dimentica": "Dimentica",
+    "dimenticaConferma": "Dimenticare l'impronta di {{chiave}}? Al prossimo collegamento ci si fiderà del certificato che presenterà.",
+    "eliminaConferma": "Eliminare {{file}} dal trust store?",
+    "fidati": "Fidati",
+    "file": "File",
+    "stato": "Stato",
+    "soggetto": "Soggetto",
+    "emittente": "Emittente",
+    "nomi": "Nomi",
+    "scade": "Scade",
+    "valido": "Valido dal {{dal}} al {{al}}",
+    "proprio": "PROPRIO",
+    "daStato": "Il certificato TLS si gestisce in Sicurezza → Certificati.",
+    "daSorgente": "Il trust store di questa sorgente: Sicurezza → Certificati.",
+    "apri": "Apri"
   }
 }

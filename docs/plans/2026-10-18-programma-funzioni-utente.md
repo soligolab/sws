@@ -19,7 +19,7 @@
 | 5 | **Pezzi rimasti di piani avviati** | [strumenti, ramo 3](../archive/2026-10-14-strumenti-simboli-comandi.md), [tubazioni, punto 6 di B](2026-10-21-tubo-che-segue-gli-oggetti.md), [predefiniti, fasi 2-3](../archive/2026-09-30-predefiniti-espliciti.md), [tag, fasi dopo la 2](2026-09-21-gestione-tag-oggetto-unico.md) | ognuno ha già un piano: va riletto contro il codice di oggi |
 | 6 | **Dispositivi di campo** | [configuratore dei moduli](2026-10-04-configuratore-moduli.md), [Modbus TCP senza bus](2026-10-06-modbus-tcp-senza-bus-e-trasporto-nel-catalogo.md) | stessa area (catalogo, sorgenti), da collaudare con l'MCM sul TC620 |
 | 7 | **Immagine di accensione** | [widget congelati](2026-09-19-boot-image-widget-congelati.md) | dipende dal rasterizzatore, indipendente dal resto |
-| 8 | **Certificati in un posto solo** | [certificati](2026-10-15-certificati-in-un-posto-solo.md) | si sovrappone a C4 (TLS di default): va con l'onda 3 |
+| 8 | **Certificati in un posto solo** | [certificati](../archive/2026-10-15-certificati-in-un-posto-solo.md) | si sovrappone a C4 (TLS di default): va con l'onda 3 |
 | 9 | **Le funzioni grandi** | P3 report programmati, P4 notifiche SMS e voce, P2 template d'oggetto ([piano prima fascia](2026-10-15-piano-prima-fascia-e-cra.md)) | ognuna vuole il suo plan e decisioni di prodotto |
 
 ## Gruppo 1 — misurato il 18-10-2026

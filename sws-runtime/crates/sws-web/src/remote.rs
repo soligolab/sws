@@ -988,6 +988,21 @@ pub async fn remote_datastore_test(State(s): State<AppState>, Path(id): Path<Str
     inoltra_al_pannello(&s, None, reqwest::Method::POST, &p, None, 60).await
 }
 
+/// `GET /api/remote/certificati` → `"{base}/api/certificati"`: la vista dei
+/// certificati del dispositivo collegato (25-10-2026, decisione 3).
+pub async fn remote_certificati(State(s): State<AppState>) -> Response {
+    proxy_get_json(&s, "/api/certificati").await
+}
+
+/// `POST /api/remote/certificati/dimentica` → `"{base}/api/certificati/dimentica"`.
+pub async fn remote_certificati_dimentica(
+    State(s): State<AppState>,
+    Extension(user): Extension<AuthUser>,
+    Json(b): Json<serde_json::Value>,
+) -> Response {
+    inoltra_al_pannello(&s, Some(&user), reqwest::Method::POST, "/api/certificati/dimentica", Some(b), 30).await
+}
+
 /// `DELETE /api/remote/connect` — clear the remote target state.
 pub async fn disconnect_remote(State(s): State<AppState>) -> StatusCode {
     if s.remote_target.write().await.take().is_some() {

@@ -60,7 +60,7 @@ non un dettaglio.
 I due generatori gemelli diventano uno, perché nome e scadenza vanno cambiati una volta sola.
 Oggi il certificato è **`CN=rcgen self signed cert` su ogni pannello del mondo** e **non scade
 mai** (rcgen: 1975 → 4096). Il piano
-[`2026-10-15-certificati-in-un-posto-solo.md`](2026-10-15-certificati-in-un-posto-solo.md) ha già
+[`2026-10-15-certificati-in-un-posto-solo.md`](../archive/2026-10-15-certificati-in-un-posto-solo.md) ha già
 deciso nome vero e scadenza breve (decisioni 5-6) e dichiara che avviso e rinnovo sono lavoro di
 C4. Mancano anche i tre eventi di audit (`tls.generate`, `tls.upload`, `tls.remove`) e le rotte
 `/api/remote/system/tls`, che quel piano chiama «il presupposto di C4».

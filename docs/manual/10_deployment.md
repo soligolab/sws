@@ -265,7 +265,7 @@ dalla macchina di sviluppo.
   alla fine: vedi [capitolo 09](09_auth_rbac.md#1-un-pannello-nuovo-è-chiuso-labbinamento).
   `SWS_ADMIN_PASSWORD`, se impostata, crea un Admin al primo avvio.
 - Il runtime parte in **HTTP**; il TLS si abilita generando o caricando un certificato dall'IDE
-  (*Configurazione → Istanza → Device → Stato → Certificato TLS*), salvato in `config/` e riusato ai riavvii.
+  (*Configurazione → Sicurezza → Certificati*), salvato in `config/` e riusato ai riavvii.
 - Procedura completa, aggiornamento e diagnosi: `docs/DEPLOY_CONTAINER_AARCH64.md` e
   `docs/DEPLOY_CONTAINER_X86_64.md`.
 
@@ -322,7 +322,7 @@ config. Le directory config per ambiente:
 > ⚠️ In modalità HTTP il login e il pannello admin viaggiano in chiaro. Per i device in campo /
 > reti non fidate si raccomanda di **attivare il TLS**.
 
-Attivazione dall'IDE — **Configurazione → Istanza → Device → Stato → Certificato TLS** (solo Admin):
+Attivazione dall'IDE — **Configurazione → Sicurezza → Certificati** (solo Admin):
 - **Genera self-signed** — crea `tls.crt`+`tls.key` (SAN: localhost, 127.0.0.1, IP LAN) e riavvia in HTTPS.
 - **Carica cert+key** — carica un certificato firmato da una CA (PEM, validato lato server) e riavvia in HTTPS.
 - **Disabilita TLS** — rimuove i file e torna in HTTP.

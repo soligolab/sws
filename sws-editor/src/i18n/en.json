@@ -196,7 +196,8 @@
       "ide": "IDE Preferences",
       "telegram": "Telegram",
       "eventi": "What and where",
-      "stile": "Style"
+      "stile": "Style",
+      "certificati": "Certificates"
     },
     "sottorami": {
       "device": "Device",
@@ -3504,5 +3505,43 @@
     "nessunPannello": "No panel connected: discovery and connection tests run on the plant's panel, which can see the plant. Connect it in Configuration → Instance → Device.",
     "sorgentiSulPannello": "In the cloud the sources run on the connected panel: live values, discovery and commands go through it.",
     "sorgentiSenzaPannello": "In the cloud the sources do not start: connect the plant's panel (Configuration → Instance → Device) for live values and discovery."
+  },
+  "certificati": {
+    "intro": "Every certificate and fingerprint this instance trusts, in one place. With a panel connected, its own sit alongside.",
+    "questaIstanza": "THIS INSTANCE",
+    "dispositivo": "CONNECTED DEVICE — {{host}}",
+    "aggiorna": "Refresh",
+    "dispositivi": "TRUSTED DEVICES",
+    "dispositiviSpiega": "Fingerprints of the panels this instance connected to (trust on first use). A port no longer in use stays here until you forget it.",
+    "mqtt": "MQTT BROKERS",
+    "mqttSpiega": "Fingerprints of TLS MQTT brokers, stored on first connection.",
+    "viewer": "LVGL VIEWER",
+    "viewerSpiega": "Fingerprints trusted by the panel's LVGL screen. Read only: the viewer writes them.",
+    "viewerAssente": "Not visible from here: the service has the previous configuration (quadlet 6). The service configuration update brings it.",
+    "opcuaClient": "OPC-UA CLIENT — TRUST STORE",
+    "opcuaNessuna": "No OPC-UA source in the open project.",
+    "opcuaServer": "OPC-UA SERVER",
+    "opcuaServerAssente": "The OPC-UA server has not created its PKI yet.",
+    "ssh": "SSH",
+    "sshChiave": "Project key",
+    "vuoto": "Empty.",
+    "chiave": "Host:port",
+    "impronta": "Fingerprint",
+    "vistoIl": "Seen on",
+    "dimentica": "Forget",
+    "dimenticaConferma": "Forget the fingerprint of {{chiave}}? On the next connection the certificate it presents will be trusted.",
+    "eliminaConferma": "Delete {{file}} from the trust store?",
+    "fidati": "Trust",
+    "file": "File",
+    "stato": "State",
+    "soggetto": "Subject",
+    "emittente": "Issuer",
+    "nomi": "Names",
+    "scade": "Expires",
+    "valido": "Valid from {{dal}} to {{al}}",
+    "proprio": "OWN",
+    "daStato": "The TLS certificate is managed in Security → Certificates.",
+    "daSorgente": "This source's trust store: Security → Certificates.",
+    "apri": "Open"
   }
 }

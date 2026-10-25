@@ -358,6 +358,28 @@ export interface EventoAggiornamento {
   esito: "riuscito" | "non_riuscito";
 }
 
+/** Gemelli di `certificati::Inventario` in `sws-web` (25-10-2026). */
+export interface DettagliCertificato {
+  soggetto: string;
+  emittente: string;
+  nomi: string[];
+  valido_dal_ms: number;
+  valido_al_ms: number;
+  impronta: string;
+}
+export interface RigaImpronta { chiave: string; impronta: string; visto_il_ms: number }
+export interface ArchivioImpronte { disponibile: boolean; righe: RigaImpronta[] }
+export interface CertificatoFile { file: string; stato: "trusted" | "rejected" | "own"; dettagli: DettagliCertificato | null }
+export interface InventarioCertificati {
+  tls: DettagliCertificato | null;
+  dispositivi: ArchivioImpronte;
+  mqtt: ArchivioImpronte;
+  viewer_lvgl: ArchivioImpronte;
+  opcua_client: { sorgente: string; certificati: CertificatoFile[] }[];
+  opcua_server: CertificatoFile[] | null;
+  ssh: { known_hosts: string[]; chiave_progetto: string | null };
+}
+
 /** Gemello di `aggiornamento::StatoAggiornamento` in `sws-web`. */
 export interface StatoAggiornamento {
   versione: string;
@@ -1936,6 +1958,26 @@ export const api = {
   // OPC-UA certificate trust management — **tutto Admin** dal 23-10-2026
   // (decisione 7 del piano dei certificati): l'elenco era Supervisor, ma chi lo
   // vede vede le impronte dei server a cui il progetto si collega.
+  // ── La vista dei certificati (25-10-2026, decisioni 3, 4 e 8) ──────────────
+  // Funzioni esplicite per lato, **non** `suImpianto`: le due colonne della
+  // vista parlano ciascuna col suo, anche con un pannello collegato.
+  certificati: (remoto: boolean) =>
+    request<InventarioCertificati>(remoto ? "/api/remote/certificati" : "/api/certificati"),
+  dimenticaImpronta: (remoto: boolean, archivio: "dispositivi" | "mqtt", chiave: string) =>
+    request<{ tolta: boolean }>(remoto ? "/api/remote/certificati/dimentica" : "/api/certificati/dimentica", {
+      method: "POST", body: JSON.stringify({ archivio, chiave }),
+    }),
+  fidatiCertificatoOpcUa: (remoto: boolean, sourceId: string, filename: string) =>
+    request<void>(
+      `${remoto ? "/api/remote" : "/api"}/sources/${encodeURIComponent(sourceId)}/opcua/certs/${encodeURIComponent(filename)}/trust`,
+      { method: "POST" },
+    ),
+  eliminaCertificatoOpcUa: (remoto: boolean, sourceId: string, filename: string) =>
+    request<void>(
+      `${remoto ? "/api/remote" : "/api"}/sources/${encodeURIComponent(sourceId)}/opcua/certs/${encodeURIComponent(filename)}`,
+      { method: "DELETE" },
+    ),
+
   listOpcUaCerts: (sourceId: string) =>
     suImpianto<OpcUaCertEntry[]>(`/api/sources/${encodeURIComponent(sourceId)}/opcua/certs`),
 

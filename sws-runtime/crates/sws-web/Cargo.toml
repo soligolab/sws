@@ -57,6 +57,9 @@ png               = "0.17"
 # L'immagine va al modello come blocco base64. La 0.22 e' gia' nell'albero
 # (tirata da altre dipendenze), quindi dichiararla non aggiunge una copia.
 base64            = "0.22"
+# La vista dei certificati (25-10-2026): soggetto, nomi e validità. È già nel
+# lock (lo porta async-opcua-crypto): nessun crate nuovo da compilare.
+x509-cert         = "0.2"
 rcgen.workspace              = true
 rustls.workspace             = true
 tokio-rustls.workspace       = true

@@ -110,7 +110,7 @@ niente: da qui si aprono rami.
 | Documento | Stato |
 |---|---|
 | [OpenPLC sul dispositivo](docs/plans/2026-10-20-openplc-sul-dispositivo.md) | **otto su otto** — governo ibrido, per board generiche **e** Pixsys, **opzionale**, logica in `<progetto>/openplc/` con git **e** deploy |
-| [I certificati in un posto solo](docs/plans/2026-10-15-certificati-in-un-posto-solo.md) | **otto su otto** — vista a due colonne, rotte remote, trust store riparato col default della policy, certificato con nome e scadenza |
+| [I certificati in un posto solo](docs/archive/2026-10-15-certificati-in-un-posto-solo.md) | **otto su otto** — vista a due colonne, rotte remote, trust store riparato col default della policy, certificato con nome e scadenza |
 | [OPC-UA, Fase 4](docs/plans/2026-10-22-opcua-fase-4-decisioni.md) | **sei su sei** — la 4a è già nella 2.19.0; 4b e 4c diventano **un ramo solo** |
 | [Server Modbus](docs/plans/2026-10-23-server-modbus.md) | **seme nuovo**: SWS parla Modbus solo da client |
 
@@ -181,7 +181,7 @@ Tre documenti fatti per decidere, non per leggere. Ognuno ha le opzioni e cosa c
 | Documento | Cosa decide |
 |---|---|
 | [OPC-UA, le sei decisioni](docs/plans/2026-10-22-opcua-fase-4-decisioni.md) | come si collauda una struttura senza un server che le esponga; `NumericRange` indirizza **solo** gli array; da dove arriva il `DataType`; se le scritture dal server passano dal bus |
-| [I certificati in un posto solo](docs/plans/2026-10-15-certificati-in-un-posto-solo.md) | otto scelte. «Serve una dipendenza nuova» era **falso**: `x509-cert` è già dentro il binario. Il trust store OPC-UA **non funziona**, e correggere il percorso non basta |
+| [I certificati in un posto solo](docs/archive/2026-10-15-certificati-in-un-posto-solo.md) | otto scelte. «Serve una dipendenza nuova» era **falso**: `x509-cert` è già dentro il binario. Il trust store OPC-UA **non funziona**, e correggere il percorso non basta |
 | [OpenPLC sul dispositivo](docs/plans/2026-10-20-openplc-sul-dispositivo.md) | cinque scelte, e la seconda decide tutto. Il conflitto sulla 8443 **non esiste più** |
 
 ### E il collaudo a schermo della Fase 2 dei tag
@@ -228,7 +228,7 @@ Sono tre documenti fatti per decidere, non per leggere. Ognuno ha le opzioni e c
 | Documento | Cosa decide |
 |---|---|
 | [OPC-UA, le sei decisioni](docs/plans/2026-10-22-opcua-fase-4-decisioni.md) | come si collauda una struttura se un server con strutture non ce l'abbiamo; come si scrive dentro una struttura (`NumericRange` indirizza **solo** gli array); da dove arriva il `DataType`; se le scritture dal server passano dal bus |
-| [I certificati in un posto solo](docs/plans/2026-10-15-certificati-in-un-posto-solo.md) | otto scelte. «Serve una dipendenza nuova» era **falso**: `x509-cert` è già dentro il binario. Il trust store OPC-UA **non funziona**, e correggerlo non basta |
+| [I certificati in un posto solo](docs/archive/2026-10-15-certificati-in-un-posto-solo.md) | otto scelte. «Serve una dipendenza nuova» era **falso**: `x509-cert` è già dentro il binario. Il trust store OPC-UA **non funziona**, e correggerlo non basta |
 | [OpenPLC sul dispositivo](docs/plans/2026-10-20-openplc-sul-dispositivo.md) | cinque scelte, e la seconda decide tutto. Il conflitto sulla 8443 **non esiste più** |
 
 ### Quello che resta della Fase 2 dei tag
@@ -1074,7 +1074,7 @@ ripiego `df0e4092-arm64` e `prima-della-prova`. Prima dell'aggiornamento il tunn
 - **Da provare dal maintainer**: su CasaMauro, Git → «Genera la chiave del progetto», registrarla come deploy key
   (con scrittura) su GitHub, «Usa questa chiave», push.
 - **Prossimo dell'onda 1**: P1 finestre popup generiche (modali e non modali).
-- Semi nuovi: [certificati in un posto solo](docs/plans/2026-10-15-certificati-in-un-posto-solo.md) (con l'onda 3).
+- Semi nuovi: [certificati in un posto solo](docs/archive/2026-10-15-certificati-in-un-posto-solo.md) (con l'onda 3).
 
 ## ▶ Riprendere da qui — onda 1: CRA P0 chiuso, avanti coi default sicuri (2026-10-15)
 

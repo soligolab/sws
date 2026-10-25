@@ -1,9 +1,8 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
-import { api } from "@/api/client";
 import { QuickCreateTagModal } from "@/components/QuickCreateTagModal";
 import { TagInput } from "@/components/TagInput";
-import type { OpcUaAuth, OpcUaCertEntry, OpcUaNodeMapping, OpcUaSource, TagDataType, TagDef } from "@/types";
+import type { OpcUaAuth, OpcUaNodeMapping, OpcUaSource, TagDataType, TagDef } from "@/types";
 import { S } from "@/config/comuni";
 import { useAppStore } from "@/store";
 import { emptyOpcUaNode } from "@/config/sorgenti/vuote";
@@ -41,40 +40,7 @@ export function OpcUaSourceCard({
   // Admin, e la mezza misura non reggeva — chi vede l'elenco vede le impronte
   // dei server a cui il progetto si collega. Il gate vero è sulle rotte; questo
   // serve perché un Supervisor veda una riga che spiega, invece di un 403.
-  const authRole = useAppStore((s) => s.authRole);
-  const [certs, setCerts] = useState<OpcUaCertEntry[] | null>(null);
-  const [certsLoading, setCertsLoading] = useState(false);
-  const [certsError, setCertsError] = useState<string | null>(null);
-
-  const loadCerts = async () => {
-    setCertsLoading(true);
-    setCertsError(null);
-    try {
-      setCerts(await api.listOpcUaCerts(source.id));
-    } catch (e) {
-      setCertsError(String(e));
-    } finally {
-      setCertsLoading(false);
-    }
-  };
-
-  const handleTrustCert = async (filename: string) => {
-    try {
-      await api.trustOpcUaCert(source.id, filename);
-      await loadCerts();
-    } catch (e) {
-      setCertsError(String(e));
-    }
-  };
-
-  const handleDeleteCert = async (filename: string) => {
-    try {
-      await api.deleteOpcUaCert(source.id, filename);
-      await loadCerts();
-    } catch (e) {
-      setCertsError(String(e));
-    }
-  };
+  const navigateToConfig = useAppStore((s) => s.navigateToConfig);
 
   const setField = <K extends keyof OpcUaSource>(k: K, v: OpcUaSource[K]) =>
     onChange({ ...source, [k]: v });
@@ -236,83 +202,19 @@ export function OpcUaSourceCard({
           <div style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)", marginBottom: 8, lineHeight: 1.4 }}>
             {t("cfgUi.opcuaPrimoContatto")}
           </div>
-          {authRole !== "Admin" ? (
-            <div style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)", marginBottom: 8, lineHeight: 1.4 }}>
-              {t("cfgUi.opcuaTrustStoreSoloAdmin")}
-            </div>
-          ) : (
-            <div style={{ background: "var(--brand-surface, #1e293b)", borderRadius: 6, padding: 10, marginBottom: 8 }}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
-                <span style={{ fontSize: 12, color: "var(--brand-text-muted, #94a3b8)", fontWeight: 600 }}>TRUST STORE</span>
-                <button style={S.btn("ghost")} onClick={loadCerts} disabled={certsLoading}>
-                  {certsLoading ? "..." : "Aggiorna"}
-                </button>
-              </div>
-              {certsError && (
-                <div style={{ color: "var(--brand-danger-soft, #f87171)", fontSize: 11, marginBottom: 6 }}>{certsError}</div>
-              )}
-              {certs === null ? (
-                <div style={{ fontSize: 12, color: "var(--brand-text-subtle, #64748b)", fontStyle: "italic" }}>
-                  {t("cfgUi.clickRefreshToSeeThe")}
-                </div>
-              ) : certs.length === 0 ? (
-                <div style={{ fontSize: 12, color: "var(--brand-text-subtle, #64748b)", fontStyle: "italic" }}>
-                  {/* Con policy «None» il client salta del tutto la validazione
-                      del certificato del server: questa tabella non si riempirà
-                      MAI, e dirlo è l'unica cosa onesta. Prima restava vuota e
-                      sembrava un guasto — e il messaggio della fiducia al primo
-                      contatto ci mandava dentro. */}
-                  {source.security_policy === "None"
-                    ? t("cfgUi.trustStoreSenzaPolicy")
-                    : t("cfgUi.noCertificatesInTheTrust")}
-                </div>
-              ) : (
-                <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 11 }}>
-                  <thead>
-                    <tr style={{ borderBottom: "1px solid var(--brand-surface-2, #334155)" }}>
-                      <th style={{ textAlign: "left", padding: "3px 6px", color: "var(--brand-text-muted, #94a3b8)" }}>{t("cfg.file")}</th>
-                      <th style={{ textAlign: "left", padding: "3px 6px", color: "var(--brand-text-muted, #94a3b8)" }}>{t("cfg.state")}</th>
-                      <th style={{ textAlign: "right", padding: "3px 6px", color: "var(--brand-text-muted, #94a3b8)" }}>Byte</th>
-                      <th style={{ width: 80 }}></th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {certs.map((c) => (
-                      <tr key={c.filename} style={{ borderBottom: "1px solid var(--brand-surface, #1e293b)" }}>
-                        <td style={{ padding: "3px 6px", fontFamily: "monospace", wordBreak: "break-all" }}>
-                          {c.filename}
-                        </td>
-                        <td style={{ padding: "3px 6px" }}>
-                          <span style={{
-                            fontSize: 10, fontWeight: 600, padding: "1px 5px", borderRadius: 4,
-                            background: c.status === "trusted" ? "#14532d" : "var(--brand-danger-bg, #7f1d1d)",
-                            color: c.status === "trusted" ? "var(--brand-success-soft, #86efac)" : "var(--brand-danger-soft, #fca5a5)",
-                          }}>
-                            {c.status === "trusted" ? "TRUSTED" : "REJECTED"}
-                          </span>
-                        </td>
-                        <td style={{ padding: "3px 6px", textAlign: "right", color: "var(--brand-text-muted, #94a3b8)" }}>
-                          {c.size_bytes}
-                        </td>
-                        <td style={{ padding: "3px 6px", display: "flex", gap: 4, justifyContent: "flex-end" }}>
-                          {c.status === "rejected" && (
-                            <button
-                              style={{ ...S.btn("ghost"), padding: "1px 6px", fontSize: 10 }}
-                              onClick={() => handleTrustCert(c.filename)}
-                            >{t("cfg.trust")}</button>
-                          )}
-                          <button
-                            style={{ ...S.btn("danger"), padding: "1px 6px", fontSize: 10 }}
-                            onClick={() => handleDeleteCert(c.filename)}
-                          >×</button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              )}
-            </div>
-          )}
+          {/* Il trust store di questa sorgente si vede e si governa in
+              Sicurezza → Certificati (25-10-2026, «una sezione per dato»),
+              con soggetto e scadenza di ogni certificato e i due lati
+              affiancati quando c'è un pannello collegato. Qui resta il perché
+              di una tabella vuota e la strada per arrivarci. */}
+          <div style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)", marginBottom: 8, lineHeight: 1.4 }}>
+            {source.security_policy === "None" ? `${t("cfgUi.trustStoreSenzaPolicy")} ` : ""}
+            {t("certificati.daSorgente")}{" "}
+            <button type="button" onClick={() => navigateToConfig("certificati")}
+              style={{ background: "none", border: "none", padding: 0, color: "var(--brand-primary, #3b82f6)", cursor: "pointer", fontSize: 11 }}>
+              {t("certificati.apri")}
+            </button>
+          </div>
 
           {/* Nodes ------------------------------------------------------ */}
           <div style={{ marginTop: 12, display: "flex", justifyContent: "space-between", alignItems: "center" }}>

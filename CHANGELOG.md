@@ -13,6 +13,13 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 
 ### Added
 
+- **Sicurezza → Certificati: tutti gli archivi in un posto solo** (decisioni 3, 4 e 8 del piano
+  `docs/archive/2026-10-15-certificati-in-un-posto-solo.md`, che con questo si chiude). `GET /api/certificati` legge
+  sette archivi (TLS, dispositivi, broker MQTT, viewer LVGL, client e server OPC-UA, SSH) con `x509-cert`, già nel
+  binario; `POST /api/certificati/dimentica` toglie un'impronta (audit `cert.forget`). Le due hanno il gemello
+  `/api/remote/…` e stanno sulla porta di gestione. La scheda ha due colonne con un pannello collegato, ognuna col suo
+  lato. La card TLS esce da Istanza → Stato e il trust store dalla card della sorgente OPC-UA (al loro posto un
+  collegamento). **Quadlet 6 → 7**: il runtime monta `/data/user/sws/viewer` in sola lettura (`SWS_VIEWER_DATA`).
 - **Il corpo del testo su tutti i tipi, e i testi che il pannello LVGL non disegnava** (terzo giro del ramo 5 dei
   residui, piano `docs/plans/2026-10-25-corpi-e-parita-lvgl.md`). `font_size`, `label_font_size` e il campo nuovo
   **`unit_font_size`** valgono ora anche su gauge, kpi_tile, data_log, sparkline, symbol, lang_selector, i quattro

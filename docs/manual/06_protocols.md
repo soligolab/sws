@@ -362,7 +362,7 @@ sources:
     trust_all_certs: false     # il default; si può omettere
 ```
 
-**Il trust store** si vede nella card della sorgente (Configurazione → Progetto → Protocolli → la sorgente):
+**Il trust store** si vede in Configurazione → Sicurezza → Certificati, una tabella per sorgente (dal 25-10-2026; prima stava nella card della sorgente):
 l'elenco dei certificati fidati e rifiutati, con **Trust** per approvare quello nuovo dopo un rinnovo e l'eliminazione
 di quello vecchio.
 
