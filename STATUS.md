@@ -12,7 +12,36 @@
 > resta in «Storico». Qui vive solo ciò che serve a riprendere il lavoro.
 
 
-## ▶ Riprendere da qui — 2.20.0 rilasciata, VPS aggiornato (2026-10-23)
+## ▶ Riprendere da qui — 2.21.0 rilasciata, VPS aggiornato (2026-10-25)
+
+**Release ufficiale 2.21.0** (`b090f6d4`, tag `2.21.0`), costruita e pubblicata: `2.21.0-arm64` (sposta
+`latest-arm64` e `rc-arm64`) e `2.21.0-amd64`. Etichette controllate sull'immagine: versione 2.21.0, **quadlet 7**,
+Novità it/en dentro, nessun avviso di compatibilità. **Il VPS è su `2.21.0-amd64`**, sano; container di progetto
+tolti (ripartono all'apertura). Copia maestra del quadlet del gateway allineata.
+
+Su `main` cinque squash, uno per ramo della catena annidata del 24-25-10, ognuno con l'albero identico al suo ramo
+(i rami sono eliminati; `fix/esito-ricordato-dal-runtime` esiste ancora **su origin**, pushato prima):
+1. `1cf63e2c` esito ricordato dal runtime, tunnel in TLS (502), riautenticazione e chiave IA nel cloud, scrittura
+   senza login decisa dal tag, gateway che raggiunge i progetti per nome;
+2. `aee9f80c` l'impianto lo tocca il pannello collegato (strada 3): sorgenti ferme nel cloud, scoperte dal pannello,
+   ricollegamento da solo;
+3. `09fc438a` sfondo dell'area attiva, login LVGL su comando rifiutato, marchi pre-auth a lista bianca;
+4. `c921ebd0` corpo del testo su tutti i tipi e i testi che LVGL non disegnava;
+5. `9d58dbf3` Sicurezza → Certificati a due colonne, quadlet 7 — piano dei certificati **archiviato**.
+
+### Da fare
+
+- **Collaudi sul TC620**: aggiornarlo alla 2.21.0 con **«Aggiorna ora»** (è anche il collaudo dell'esito ricordato:
+  dopo, spegni e riaccendi, la notifica non deve tornare), poi applicare la configurazione del servizio (quadlet 7)
+  dall'avviso e guardare Sicurezza → Certificati con le due colonne e l'archivio LVGL. Poi: valori vivi e scoperte
+  dal cloud, sfondo dell'area attiva, scrittura senza login, riautenticazione, chiave IA, parità LVGL dei testi.
+- Piani rimandati: OPC-UA 4d client (passi 10-12), ramo 7 del tunnel (misura del 26-10), tutorial del manuale,
+  programma funzioni gruppo 5+.
+- Decide il maintainer: togliere i tag `garage.switch.*` importati dalla scoperta (leggono i topic di config di HA).
+- Nota: la radice del gateway risponde 404 col corpo dell'`index.html` (ripiego `not_found_service` della SPA, così
+  da giugno): il browser apre la pagina, un controllo che guarda il codice no.
+
+## ▶ Prima — 2.20.0 rilasciata, VPS aggiornato (2026-10-23)
 
 **Tutto su `main` e su origin.** Niente rami aperti, albero pulito, definition of done verde al
 completo: `cargo check`, `cargo test` (0 rossi), `pnpm build`, `vitest` 1603, **50 guardie**.
