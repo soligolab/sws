@@ -144,6 +144,10 @@ interface SvgCanvasProps {
   sottofondo?: SynopticObject[];
   /** Editor, cornice aperta sul canvas: le altezze delle due fasce da segnare. */
   fasceCornice?: { testata: number; piede: number; sfondoTestata?: string; sfondoPiede?: string };
+  /** Editor: l'immagine di sfondo dell'area attiva (25-10-2026), già composta
+   *  (`oggettoSfondoArea`). Piena, non attenuata come la cornice: è quella che
+   *  si vedrà dal vivo. */
+  sfondoArea?: SynopticObject;
 }
 
 interface DragState {
@@ -675,6 +679,7 @@ export function SvgCanvas({
   fitScale = 1,
   sottofondo,
   fasceCornice,
+  sfondoArea,
 }: SvgCanvasProps) {
   const { t } = useTranslation();
   // Il default storico del componente, ripristinato subito: tutto il resto del
@@ -1822,6 +1827,13 @@ export function SvgCanvas({
       {pageFillOn && (
         <rect x={0} y={0} width={pageWidth} height={pageHeight}
               fill={background} pointerEvents="none" />
+      )}
+      {sfondoArea && (
+        <g style={{ pointerEvents: "none" }} data-testid="sfondo-area">
+          <SvgObject obj={sfondoArea} objects={[sfondoArea]} tagValues={tagValues}
+            selected={false} selectedCount={0} isEditMode={!!onMove}
+            customSymbols={customSymbols} faceplates={faceplates} />
+        </g>
       )}
       {onMove && snapEnabled && gridSize > 0 && <rect x={-50000} y={-50000} width={100000} height={100000} fill="url(#sws-grid)" />}
 

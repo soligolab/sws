@@ -34,6 +34,7 @@ export type VoceSistema =
   | "agg_aggiorna"
   | "agg_piu_tardi"
   | "agg_serve_admin"
+  | "cmd_serve_accesso"
   | "agg_ignora"
   | "agg_in_corso"
   | "esito_titolo_ok"
@@ -103,6 +104,7 @@ export const TESTI_SISTEMA: Record<VoceSistema, Record<LinguaSistema, string>> =
   agg_aggiorna: { it: "Aggiorna ora", de: "Jetzt aktualisieren", fr: "Mettre à jour", es: "Actualizar ahora", en: "Update now" },
   agg_piu_tardi: { it: "Più tardi", de: "Später", fr: "Plus tard", es: "Más tarde", en: "Later" },
   agg_serve_admin: { it: "Per aggiornare serve un amministratore del pannello.", de: "Zum Aktualisieren wird ein Administrator des Panels benötigt.", fr: "La mise à jour nécessite un administrateur du panneau.", es: "Para actualizar se necesita un administrador del panel.", en: "Updating needs a panel administrator." },
+  cmd_serve_accesso: { it: "Per questo comando serve accedere con un utente autorizzato.", de: "Für diesen Befehl ist eine Anmeldung mit einem berechtigten Benutzer erforderlich.", fr: "Cette commande nécessite une connexion avec un utilisateur autorisé.", es: "Para este comando hay que acceder con un usuario autorizado.", en: "This command needs a login with an authorized user." },
   agg_ignora: {
     it: "Ignora questa versione",
     de: "Diese Version überspringen",

@@ -902,6 +902,10 @@ export interface SynopticPage {
   /** Sfondo da una variabile `color` (11-10-2026): vince su `background` e
    *  `background_dark` finché il valore è un colore valido. */
   background_tag?: string;
+  /** Immagine di sfondo dell'**area attiva** (25-10-2026): fra testata e piede
+   *  della cornice, o tutta la pagina. La compone il server
+   *  (`cornici::sfondo_area`); l'editor ha il gemello `oggettoSfondoArea`. */
+  sfondo_immagine?: string;
   /** Canvas design width in px. Undefined = fluid (fills the container). */
   width?: number;
   /** Canvas design height in px. Undefined = fluid (fills the container). */

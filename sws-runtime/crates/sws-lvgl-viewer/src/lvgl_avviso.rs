@@ -600,8 +600,13 @@ impl Overlay {
                     )],
                 }
             }
-            Avviso::Accesso { errore, in_corso, .. } => Contenuto {
-                titolo: format!("🔑 {}", testo(Testo::AggServeAdmin, lingua)),
+            Avviso::Accesso { motivo, errore, in_corso } => Contenuto {
+                // Da un comando rifiutato il titolo è suo: «per aggiornare serve
+                // un amministratore» lì sarebbe falso (25-10-2026).
+                titolo: format!(
+                    "🔑 {}",
+                    testo(if motivo == "cmd_serve_accesso" { Testo::CmdServeAccesso } else { Testo::AggServeAdmin }, lingua)
+                ),
                 sotto: String::new(),
                 // Un rifiuto si legge qui, in rosso, e il pannellino resta
                 // aperto: riprovare non deve voler dire ricominciare.

@@ -124,6 +124,44 @@ fn fondo(cornice: &Cornice, quale: &str, f: &Fascia, y: f64) -> Option<SynopticO
     .ok()
 }
 
+/// L'id del rettangolo che porta l'immagine di sfondo dell'area attiva.
+pub const ID_SFONDO_AREA: &str = "sfondo:area";
+
+/// L'immagine di sfondo dell'**area attiva** (25-10-2026): un rettangolo senza
+/// riempimento né bordo, con l'immagine come `bg_image`, messo **sotto tutto** —
+/// anche sotto i fondi delle fasce — fra testata e piede della cornice, o su
+/// tutta la pagina se la pagina non ne ha. Si compone qui, una volta, e il
+/// viewer web lo riceve come un oggetto qualunque. Va chiamata **dopo**
+/// `componi`, così finisce in fondo all'elenco anche rispetto alla cornice.
+pub fn sfondo_area(pagina: &mut SynopticPage, cornice: Option<&Cornice>) {
+    let Some(src) = pagina.sfondo_immagine.as_deref().map(str::trim).filter(|s| !s.is_empty()) else {
+        return;
+    };
+    let (w, h) = match cornice {
+        Some(c) => (c.larghezza, c.altezza),
+        None => (pagina.width.unwrap_or(1280.0), pagina.height.unwrap_or(800.0)),
+    };
+    let (alto, basso) = cornice
+        .map(|c| (c.testata.altezza.max(0.0), c.piede.altezza.max(0.0)))
+        .unwrap_or((0.0, 0.0));
+    let altezza = h - alto - basso;
+    if altezza <= 0.0 || w <= 0.0 {
+        return;
+    }
+    let Ok(o) = serde_json::from_value::<SynopticObject>(serde_json::json!({
+        "id": ID_SFONDO_AREA,
+        "type": "rect",
+        "x": 0.0, "y": alto,
+        "width": w, "height": altezza,
+        "fill": "none",
+        "stroke": "none",
+        "bg_image": src,
+    })) else {
+        return;
+    };
+    pagina.objects.insert(0, o);
+}
+
 /// La pagina con la cornice dentro: fondi delle fasce, poi gli oggetti della
 /// cornice (segnaposti risolti, id con prefisso), poi quelli della pagina —
 /// nell'ordine in cui si disegnano, quindi la cornice sta **sotto**.
@@ -221,6 +259,40 @@ pub fn oggetti_fuori_dalle_fasce(cornice: &Cornice) -> Vec<&str> {
 
 #[cfg(test)]
 mod tests {
+    /// L'immagine dell'area attiva sta fra le fasce e sotto tutto; senza
+    /// cornice copre la pagina; senza immagine non c'è niente (25-10-2026).
+    #[test]
+    fn lo_sfondo_dell_area_sta_fra_le_fasce_e_sotto_tutto() {
+        let c: Cornice = serde_json::from_value(serde_json::json!({
+            "id": "frame", "nome": "Frame", "larghezza": 1280.0, "altezza": 800.0,
+            "testata": { "altezza": 56.0, "sfondo": "#111111" }, "piede": { "altezza": 60.0 },
+            "oggetti": [{ "id": "ora", "type": "clock", "x": 10.0, "y": 10.0 }],
+        }))
+        .unwrap();
+        let mut p: SynopticPage = serde_json::from_value(serde_json::json!({
+            "id": "garage", "name": "Garage", "sfondo_immagine": "images/garage.jpg",
+            "objects": [{ "id": "luce", "type": "button", "x": 80.0, "y": 150.0 }],
+        }))
+        .unwrap();
+        componi(&mut p, &c, "Casa");
+        sfondo_area(&mut p, Some(&c));
+        let s = &p.objects[0];
+        assert_eq!(s.id, ID_SFONDO_AREA, "sotto tutto, anche sotto i fondi delle fasce");
+        assert_eq!((s.x, s.y, s.width, s.height), (0.0, 56.0, Some(1280.0), Some(684.0)));
+        assert_eq!(s.bg_image.as_deref(), Some("images/garage.jpg"));
+
+        let mut senza: SynopticPage = serde_json::from_value(serde_json::json!({
+            "id": "p", "name": "P", "width": 1024.0, "height": 600.0, "sfondo_immagine": "images/x.png", "objects": [],
+        }))
+        .unwrap();
+        sfondo_area(&mut senza, None);
+        assert_eq!((senza.objects[0].y, senza.objects[0].height), (0.0, Some(600.0)));
+
+        let mut niente: SynopticPage = serde_json::from_value(serde_json::json!({ "id": "n", "name": "N", "objects": [] })).unwrap();
+        sfondo_area(&mut niente, None);
+        assert!(niente.objects.is_empty());
+    }
+
     use super::*;
 
     fn pagina(yaml: &str) -> SynopticPage {

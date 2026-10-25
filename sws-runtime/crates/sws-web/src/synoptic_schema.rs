@@ -306,6 +306,7 @@ pub const PAGE_FIELDS: &[Field] = &[
     Field { name: "background", ty: "string", required: false, group: "", doc: "" },
     Field { name: "background_dark", ty: "string", required: false, group: "", doc: "Dark-theme override of `background`. Same drop-on-round-trip gap as `auto_rotate_skip` below — found during a systematic TS↔Rust field audit, not from a specific bug report." },
     Field { name: "background_tag", ty: "string", required: false, group: "", doc: "Sfondo da una variabile `color` (11-10-2026, piano colore-e-assegnazioni): vince su `background`/`background_dark` finché il valore è un colore valido." },
+    Field { name: "sfondo_immagine", ty: "string", required: false, group: "", doc: "Immagine di sfondo dell'**area attiva** (25-10-2026): fra testata e piede della cornice, o su tutta la pagina se non ne ha. Un URL, di solito `/api/project/images/…` caricata nel progetto. La compone il server in `cornici::sfondo_area`; l'editor ha il gemello per il WYSIWYG." },
     Field { name: "width", ty: "number", required: false, group: "", doc: "" },
     Field { name: "height", ty: "number", required: false, group: "", doc: "" },
     Field { name: "groups", ty: "any", required: false, group: "", doc: "" },

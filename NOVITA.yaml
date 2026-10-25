@@ -35,10 +35,14 @@
 versioni:
   - versione: "2.21.0"
     voci:
+      - it: "Una pagina può avere un'immagine di sfondo nell'area fra testata e piede della cornice, senza coprirla: si carica dalle proprietà della pagina."
+        en: "A page can have a background image in the area between the frame's header and footer, without covering it: upload it from the page properties."
       - it: "Dal cloud le scoperte (sfoglia del broker MQTT, OPC-UA, Home Assistant) e i valori vivi passano dal pannello collegato, che vede l'impianto; riaprendo il progetto l'IDE si ricollega da solo al suo pannello."
         en: "From the cloud, discovery (MQTT broker, OPC-UA, Home Assistant browsing) and live values go through the connected panel, which can see the plant; reopening the project, the IDE reconnects to its panel by itself."
       - it: "Pannelli Pixsys: un passaggio di installazione opzionale usa il certificato del dispositivo, e lo schermo del pannello in HTTPS non mostra più «La connessione non è privata»."
         en: "Pixsys panels: an optional installation step uses the device certificate, and the panel screen over HTTPS no longer shows «Your connection is not private»."
+      - it: "Sul pannello LVGL un comando che richiede un utente apre l'accesso con la tastiera, invece di dire soltanto «rifiutato»."
+        en: "On the LVGL panel a command that needs a user opens the login with the on-screen keyboard, instead of just saying «refused»."
       - it: "Un tag può essere comandato da chiunque, anche senza login (Configurazione → Tag): la luce della stanza si accende senza credenziali, e un pulsante può comunque chiederle."
         en: "A tag can be operated by anyone, even without login (Configuration → Tags): the room light turns on without credentials, and a button can still require them."
       - it: "Nel cloud la chiave dell'assistente IA inserita in un progetto resta salvata anche dopo averlo chiuso e riaperto."

@@ -13,6 +13,12 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 
 ### Added
 
+- **Immagine di sfondo dell'area attiva della pagina** (`sfondo_immagine`, richiesta del maintainer del 25-10-2026):
+  nelle proprietà della pagina si carica o si sceglie un'immagine che riempie la parte fra testata e piede della
+  cornice — tutta la pagina senza cornice — sotto gli oggetti e senza coprire le fasce. Il server la compone come un
+  rettangolo `sfondo:area` sotto tutto (`cornici::sfondo_area`), l'editor ha il gemello per il WYSIWYG
+  (`oggettoSfondoArea`); test con gli stessi numeri nei due lati. Su LVGL solo SVG (Q16).
+
 - **L'impianto lo tocca il pannello, anche dal cloud** (piano `docs/plans/2026-10-25-impianto-dal-dispositivo.md`,
   strada 3 decisa dal maintainer). Dal cloud lo «Sfoglia broker» trovava 0 topic: le scoperte giravano sul VPS,
   che l'impianto non lo vede.
@@ -37,6 +43,12 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 
 ### Fixed
 
+- **Il `brand.json` dei marchi pre-auth esce filtrato a una lista bianca** (ramo 2 dei residui, `marchi.rs`): lo
+  scrive il cliente dalla console, e prima dell'accesso usciva per intero — preset dei pannelli, percorsi Yocto e
+  qualunque campo «avanzato». Ora pre-auth escono solo id, nome, logo, favicon, colori e neutri (`CAMPI_PUBBLICI`),
+  nessun altro `.json` del marchio esce, e il resto arriva dopo l'accesso da `GET /api/identita/marchio/privato`
+  (anche nell'IDE locale, dal marchio dell'installazione). Nel cloud il marchio dell'azienda ora lo chiede al
+  gateway: prima andava al container del progetto, che non ha identità, e i preset dell'azienda non arrivavano.
 - **Il gateway raggiunge i progetti per nome, non per IP** (`gateway/progetti.rs`, idea del maintainer): un
   `podman restart` del container di un progetto gli dava un IP nuovo, e il gateway continuava a inoltrare al
   vecchio — «runtime unavailable» finché non si ricreava il container e si riavviava il gateway (visto il 25-10 su
@@ -51,7 +63,10 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
   l'oggetto può solo restringere. Nel viewer web, un comando su un tag che il ruolo non può scrivere apre il login
   invece di mandare una scrittura destinata al rifiuto; la scheda Tag chiama «Viewer» *Chiunque, anche senza
   login*, e la sezione Sicurezza dell'oggetto dice cosa chiede il tag che scrive. Sul pannello LVGL vale la regola
-  del server; aprire il login da lì resta nei residui.
+  del server, e un comando rifiutato apre il pannellino d'accesso dell'avviso (layer superiore, tastiera a schermo):
+  prima diceva soltanto «Comando rifiutato», e senza un widget di login nella pagina non c'era modo di entrare. Dopo
+  l'accesso il comando non si ripete da solo: lo ripete chi guarda l'impianto. Testo di sistema nuovo
+  `cmd_serve_accesso`, cinque lingue.
 - **La chiave dell'IA di un progetto del cloud non si perde più alla riapertura** (`gateway/progetti.rs`): il
   container del progetto teneva `/var/sws/config` nel proprio filesystem, che si ricrea a ogni apertura e a ogni
   riavvio del gateway. Ora il gateway monta una cartella persistente per progetto,

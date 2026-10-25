@@ -68,6 +68,17 @@ non vietata: la console mostra quanti sono collegati e chiede conferma.
 
 ## Ramo 2 — `feat/branding-spaccato`
 
+> **FATTO il 25-10-2026, con la lista bianca** che la rimisura chiedeva. Pre-auth il `brand.json` esce filtrato a
+> `marchi::CAMPI_PUBBLICI` (id, nome, logo, favicon, colori, neutri) e nessun altro `.json` della cartella esce;
+> il resto — preset dei pannelli, percorsi dei dati, qualunque cosa la casella «avanzato» abbia salvato — lo dà
+> `GET /api/identita/marchio/privato`, autenticata, per il marchio dell'azienda di chi è entrato o, senza
+> aziende, per quello dell'installazione (`active.json`). I tre rischi della rimisura sono coperti: la rotta ha
+> cambiato forma (punto 1); l'IDE locale con `"no-auth"` chiede i campi privati lo stesso, test
+> `marchioPrivato.test.tsx` (punto 2); `check_rotte_preauth.sh` non cambia, perché la rotta dei file resta
+> pre-auth e quella nuova è autenticata (punto 3). **Trovato strada facendo**: nel cloud il marchio dell'azienda
+> non arrivava mai — `/api/identita/marchio` andava al container del progetto, che non ha identità; ora va al
+> gateway (`sulGateway`). La console non è toccata: legge i marchi interi da `/api/amministrazione/marchi`.
+
 La rotta `/branding/:marchio/:file` (`router.rs:1130`) è nel gruppo aperto e serve anche i
 `.json` (`marchi.rs:66`). Gli unici controlli sono antipath-traversal (`nome_sicuro`,
 `marchi.rs:70`) ed estensione: **nessun riferimento a chi chiede**. L'elenco dei marchi è già
@@ -305,7 +316,7 @@ grafici) **restando lo stesso ramo**, con un commit per giro.
 
 ## Ramo 6 — `feat/avviso-aggiornamento-sul-pannello`
 
-> **Server e viewer web FATTI il 21-10-2026** (punti 1, 2 web, 3, 5; 16 test web, due test Rust sulle rotte e sulla risposta ridotta). **Resta il viewer LVGL** (punti 2 LVGL e 4), in un ramo a sé: login dentro l'avviso via `net_worker`, per non toccare il blocco documentato.
+> **Server e viewer web FATTI il 21-10-2026** (punti 1, 2 web, 3, 5; 16 test web, due test Rust sulle rotte e sulla risposta ridotta). **Viewer LVGL FATTO** (punti 2 LVGL e 4): login dentro l'avviso via `net_worker` il 21-10 (`c6d4dff9`), tastiera che si vede e scrive il 23-10 (`bbb9949b`, il difetto del WP630). Il 25-10 lo stesso pannellino si apre anche da un comando rifiutato (piano `2026-10-25-scrittura-senza-login.md`). **Ramo 6 chiuso.**
 
 Dall'11-10 l'avviso di aggiornamento sullo schermo del pannello **non può più comparire**. Il
 componente (`sws-editor/src/runtime-view/AvvisoAggiornamento.tsx:112`) e il suo gemello LVGL

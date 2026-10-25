@@ -33,6 +33,19 @@
 //! quindi nella lista bianca di `check_rotte_preauth.sh`, ed è l'unica rotta
 //! aperta che serve file scrivibili da fuori: è su questa che l'elenco delle
 //! estensioni ammesse e il limite di dimensione contano davvero.
+//!
+//! # Del `brand.json`, pre-auth esce solo una lista bianca (25-10-2026)
+//!
+//! Il file lo scrive il cliente dalla console, e la casella «avanzato» salva
+//! tal quale tutto ciò che non conosce: oggi i preset dei pannelli Pixsys e un
+//! percorso Yocto, domani qualunque cosa. Togliere due campi per nome non
+//! chiudeva niente (piano dei residui, ramo 2, rimisurato il 21-10). Quindi:
+//!
+//! - **pre-auth** il `brand.json` esce **filtrato** ai campi che servono alla
+//!   schermata d'accesso — [`CAMPI_PUBBLICI`] — e nessun altro `.json` della
+//!   cartella esce;
+//! - **il resto** lo dà `GET /api/identita/marchio/privato`, autenticata, per
+//!   il marchio di chi è entrato (o dell'installazione, nell'IDE locale).
 
 use axum::{
     body::Bytes,
@@ -75,6 +88,72 @@ fn nome_sicuro(s: &str) -> bool {
         && !s.contains(['/', '\\', '\0'])
 }
 
+/// I campi di `brand.json` che si servono **prima** dell'accesso: quelli che
+/// disegnano la schermata d'accesso. Lista bianca: un campo nuovo resta
+/// privato finché qualcuno non decide di aggiungerlo qui.
+pub const CAMPI_PUBBLICI: &[&str] = &[
+    "id", "name", "shortName", "logo", "favicon", "colors", "neutrals_dark", "neutrals_light",
+];
+
+/// Solo i campi pubblici di un `brand.json`.
+pub fn solo_pubblici(v: &serde_json::Value) -> serde_json::Value {
+    let mut o = serde_json::Map::new();
+    if let Some(m) = v.as_object() {
+        for (k, val) in m {
+            if CAMPI_PUBBLICI.contains(&k.as_str()) {
+                o.insert(k.clone(), val.clone());
+            }
+        }
+    }
+    serde_json::Value::Object(o)
+}
+
+/// Tutto il resto: quel che si dà solo a chi è entrato.
+pub fn solo_privati(v: &serde_json::Value) -> serde_json::Value {
+    let mut o = serde_json::Map::new();
+    if let Some(m) = v.as_object() {
+        for (k, val) in m {
+            if !CAMPI_PUBBLICI.contains(&k.as_str()) {
+                o.insert(k.clone(), val.clone());
+            }
+        }
+    }
+    serde_json::Value::Object(o)
+}
+
+/// Il `brand.json` di un marchio, dalla radice dell'utente o da quella del
+/// prodotto.
+pub async fn leggi_brand(s: &AppState, marchio: &str) -> Option<serde_json::Value> {
+    if !nome_sicuro(marchio) {
+        return None;
+    }
+    let (utente, prodotto) = radici(s);
+    for radice in std::iter::once(utente).chain(prodotto) {
+        if let Ok(t) = tokio::fs::read_to_string(radice.join(marchio).join("brand.json")).await {
+            return serde_json::from_str(&t).ok();
+        }
+    }
+    None
+}
+
+/// Il marchio dell'**installazione** (`branding/active.json`), come lo legge
+/// il frontend prima dell'accesso. `sws` se manca.
+pub async fn marchio_installazione(s: &AppState) -> String {
+    let (utente, prodotto) = radici(s);
+    for radice in std::iter::once(utente).chain(prodotto) {
+        if let Ok(t) = tokio::fs::read_to_string(radice.join("active.json")).await {
+            if let Some(b) = serde_json::from_str::<serde_json::Value>(&t)
+                .ok()
+                .and_then(|v| v.get("brand").and_then(|b| b.as_str()).map(str::to_string))
+                .filter(|b| nome_sicuro(b))
+            {
+                return b;
+            }
+        }
+    }
+    "sws".into()
+}
+
 fn tipo_di(nome: &str) -> Option<&'static str> {
     let ext = nome.rsplit('.').next()?.to_ascii_lowercase();
     TIPI.iter().find(|(e, _)| *e == ext).map(|(_, t)| *t)
@@ -114,9 +193,20 @@ pub async fn file_marchio(
             _ => return StatusCode::NOT_FOUND.into_response(),
         }
     }
-    let Ok(dati) = tokio::fs::read(&percorso).await else {
+    let Ok(mut dati) = tokio::fs::read(&percorso).await else {
         return StatusCode::NOT_FOUND.into_response();
     };
+    // Dei `.json` esce solo `brand.json`, e solo nei suoi campi pubblici: vedi
+    // la nota in testa al modulo.
+    if tipo == "application/json" {
+        if file != "brand.json" {
+            return StatusCode::NOT_FOUND.into_response();
+        }
+        let Ok(v) = serde_json::from_slice::<serde_json::Value>(&dati) else {
+            return StatusCode::NOT_FOUND.into_response();
+        };
+        dati = serde_json::to_vec(&solo_pubblici(&v)).unwrap_or_default();
+    }
     (
         [
             (header::CONTENT_TYPE, tipo),
@@ -338,5 +428,27 @@ mod test {
         assert_eq!(tipo_di("script.js"), None);
         assert_eq!(tipo_di("pagina.html"), None);
         assert_eq!(tipo_di("senza-estensione"), None);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    /// La lista bianca (25-10-2026): pre-auth solo quel che disegna la
+    /// schermata d'accesso; i preset dei pannelli, il percorso Yocto e
+    /// qualunque cosa la casella «avanzato» abbia salvato restano privati.
+    #[test]
+    fn del_brand_json_pre_auth_esce_solo_la_lista_bianca() {
+        let v = serde_json::json!({
+            "name": "Pixsys", "logo": "logo.svg", "colors": {"primary": "#f00"},
+            "device_presets": [{"id": "wp630"}], "data_path_presets": ["/data/user"],
+            "qualsiasi": "segreto",
+        });
+        let p = super::solo_pubblici(&v);
+        assert_eq!(p["name"], "Pixsys");
+        assert!(p.get("device_presets").is_none());
+        assert!(p.get("qualsiasi").is_none(), "un campo nuovo resta privato per costruzione");
+        let q = super::solo_privati(&v);
+        assert!(q.get("device_presets").is_some() && q.get("qualsiasi").is_some());
+        assert!(q.get("logo").is_none());
     }
 }

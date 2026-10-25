@@ -23,6 +23,12 @@ pub struct SynopticPage {
     /// il valore è un colore valido.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub background_tag: Option<String>,
+    /// Immagine di sfondo dell'**area attiva** (25-10-2026): fra testata e
+    /// piede della cornice, o su tutta la pagina se non ne ha. Un URL, di
+    /// solito `/api/project/images/…` caricata nel progetto. La compone il server in
+    /// `cornici::sfondo_area`; l'editor ha il gemello per il WYSIWYG.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub sfondo_immagine: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub width: Option<f64>,
     #[serde(skip_serializing_if = "Option::is_none")]

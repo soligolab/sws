@@ -866,14 +866,25 @@ fn punto_tocco(s: &str) -> Option<(i32, i32)> {
 /// La sessione si azzera perché un 401/403 su una scrittura vuol dire che il
 /// server non riconosce più chi siamo: il pannello deve tornare a mostrarsi
 /// scollegato invece di continuare a far credere che i comandi passino.
-fn mostra_rifiuto(shared_session: &session::SharedSession) {
+fn mostra_rifiuto(shared_session: &session::SharedSession, avviso: &aggiornamento::SharedAvviso) {
     let Some(msg) = net_worker::RIFIUTO.lock().ok().and_then(|mut r| r.take()) else {
         return;
     };
-    shared_session
-        .lock()
-        .unwrap_or_else(|e| e.into_inner())
-        .clear();
+    let era_dentro = {
+        let mut s = shared_session.lock().unwrap_or_else(|e| e.into_inner());
+        let dentro = s.is_logged_in();
+        s.clear();
+        dentro
+    };
+    // Dal 25-10-2026 un comando rifiutato apre il pannellino d'accesso
+    // dell'avviso — sul layer superiore, con la tastiera — invece di dire
+    // soltanto «rifiutato»: su un pannello senza widget di login nella pagina
+    // non c'era modo di entrare. Il motivo si scrive solo se si era già
+    // dentro con un utente che non basta; anonimi, il titolo dice tutto.
+    if avviso.lock().is_ok() {
+        aggiornamento::chiedi_accesso_per_comando(avviso, era_dentro.then_some(msg));
+        return;
+    }
     unsafe {
         let titolo = lvgl_render::text_cstring("Comando rifiutato");
         let testo = lvgl_render::text_cstring(&msg);
@@ -1441,7 +1452,7 @@ fn run_drm(
             if let Some(f) = finestra.as_mut() {
                 lvgl_render::update_bindings(&mut f.live, &tags, &lang_table, &shared_lang);
             }
-            mostra_rifiuto(&shared_session);
+            mostra_rifiuto(&shared_session, &avviso);
             tags
         };
 
@@ -1788,7 +1799,7 @@ fn run_window(
             if let Some(f) = finestra.as_mut() {
                 lvgl_render::update_bindings(&mut f.live, &tags, &lang_table, &shared_lang);
             }
-            mostra_rifiuto(&shared_session);
+            mostra_rifiuto(&shared_session, &avviso);
             tags
         };
 

@@ -399,6 +399,11 @@ ovunque.
   la usano tutte le pagine che non ne scelgono un'altra.
 - **Pagina per pagina.** Nelle proprietà della pagina, «Cornice»: la predefinita del progetto, un'altra cornice, o
   nessuna. Sotto la pagina la cornice si vede attenuata e non si seleziona; «Modifica la cornice» la apre.
+- **Immagine di sfondo dell'area attiva.** Nelle proprietà della pagina, «Immagine di sfondo dell'area attiva»:
+  «⬆ Carica…» o una delle immagini del progetto. Riempie la parte **fra testata e piede** (tutta la pagina se non
+  ha cornice), sotto gli oggetti e senza coprire le fasce; l'immagine si adatta senza deformarsi e ritaglia i bordi
+  in eccesso. La compone il server (`cornici::sfondo_area`), quindi il viewer web la vede uguale all'editor. Sul
+  pannello LVGL si vedono solo immagini SVG (Q16: nessun decoder raster).
 - **Sotto, non sopra.** La cornice si disegna sotto il contenuto della pagina. Un oggetto della pagina nello spazio
   libero di una fascia va bene (il titolo della pagina accanto all'orologio); il validatore avvisa solo quando un
   oggetto della pagina copre un oggetto della cornice.

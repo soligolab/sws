@@ -1013,6 +1013,7 @@ pub fn build(
         // sta col gruppo self-service e non con la console.
         .route("/api/identita/mie-aziende", get(mie_aziende))
         .route("/api/identita/marchio", get(marchio_mio))
+        .route("/api/identita/marchio/privato", get(marchio_privato))
         .route("/api/identita/spazio", get(spazio_mio));
 
     let protected = blocking
@@ -1892,15 +1893,18 @@ async fn spazio_mio(State(s): State<AppState>, req: Request) -> Response {
 /// IDE mostra un marchio solo — ma sceglierne uno in modo stabile è meglio
 /// che mostrarne uno a caso a ogni accesso.
 async fn marchio_mio(State(s): State<AppState>, req: Request) -> Response {
-    let vuoto = || Json(serde_json::json!({"marchio": serde_json::Value::Null})).into_response();
-    let Some(id) = s.identita.as_ref() else { return vuoto() };
     let Some(utente) = req.extensions().get::<AuthUser>().cloned() else {
         return StatusCode::UNAUTHORIZED.into_response();
     };
-    let Ok(utenti) = id.elenca().await else { return vuoto() };
-    let Some(io) = utenti.iter().find(|u| u.email == utente.username) else {
-        return vuoto();
-    };
+    let marchio = marchio_dell_utente(&s, &utente).await;
+    Json(serde_json::json!({ "marchio": marchio })).into_response()
+}
+
+/// Il marchio della prima azienda (per id) di chi è entrato, se ne ha uno.
+async fn marchio_dell_utente(s: &AppState, utente: &AuthUser) -> Option<String> {
+    let id = s.identita.as_ref()?;
+    let utenti = id.elenca().await.ok()?;
+    let io = utenti.iter().find(|u| u.email == utente.username)?;
     let tutte = id.elenca_aziende().await.unwrap_or_default();
     let mut mie: Vec<_> = id
         .aziende_di(io.id)
@@ -1910,8 +1914,28 @@ async fn marchio_mio(State(s): State<AppState>, req: Request) -> Response {
         .filter_map(|(aid, _)| tutte.iter().find(|a| a.id == aid))
         .collect();
     mie.sort_by_key(|a| a.id);
-    let marchio = mie.iter().find_map(|a| a.marchio.clone());
-    Json(serde_json::json!({ "marchio": marchio })).into_response()
+    mie.iter().find_map(|a| a.marchio.clone())
+}
+
+/// `GET /api/identita/marchio/privato` — i campi del `brand.json` che non si
+/// servono prima dell'accesso (25-10-2026, ramo 2 dei residui): i preset dei
+/// pannelli, il percorso dei dati, e tutto ciò che la console ha salvato oltre
+/// alla lista bianca di `marchi::CAMPI_PUBBLICI`. Del marchio dell'azienda di
+/// chi è entrato, o dell'installazione (`active.json`) — l'IDE locale non ha
+/// aziende, e i preset Pixsys di `start_editor.sh` vengono da lì.
+async fn marchio_privato(State(s): State<AppState>, req: Request) -> Response {
+    let Some(utente) = req.extensions().get::<AuthUser>().cloned() else {
+        return StatusCode::UNAUTHORIZED.into_response();
+    };
+    let marchio = match marchio_dell_utente(&s, &utente).await {
+        Some(m) => m,
+        None => crate::marchi::marchio_installazione(&s).await,
+    };
+    let campi = crate::marchi::leggi_brand(&s, &marchio)
+        .await
+        .map(|v| crate::marchi::solo_privati(&v))
+        .unwrap_or_else(|| serde_json::json!({}));
+    Json(serde_json::json!({ "marchio": marchio, "campi": campi })).into_response()
 }
 
 /// Stato del primo accesso di un'installazione, per la schermata iniziale.
@@ -6943,14 +6967,18 @@ async fn get_synoptic(
                         .as_ref()
                         .and_then(|p| p.page_layout.as_ref())
                         .and_then(|l| l.cornice_predefinita.clone());
+                    let mut cornice = None;
                     if let Some(id) = crate::cornici::cornice_della_pagina(&page, predefinita.as_deref()) {
                         // Una cornice che non c'è non rompe la pagina: si mostra
                         // senza, e il validatore lo dice.
                         if let Some(c) = leggi_cornice(&project_dir, &id).await {
                             let nome = progetto.as_ref().map(|p| p.meta.name.clone()).unwrap_or_default();
                             crate::cornici::componi(&mut page, &c, &nome);
+                            cornice = Some(c);
                         }
                     }
+                    // L'immagine dell'area attiva, sotto tutto (25-10-2026).
+                    crate::cornici::sfondo_area(&mut page, cornice.as_ref());
                 }
                 // Q30: la versione di **questa** pagina. Le pagine sono file
                 // distinti, quindi la corsa è fra due che salvano la stessa —

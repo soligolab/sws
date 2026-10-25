@@ -257,6 +257,10 @@ pub enum AzioneRichiesta {
     Aggiorna,
     Quadlet,
     Conferma(String),
+    /// Un comando della pagina rifiutato dal server (401/403, 25-10-2026): si
+    /// chiede di entrare, e **non** lo si ripete da soli — lo ripete chi sta
+    /// davanti al pannello, guardando l'impianto.
+    Comando,
 }
 
 /// L'accesso chiesto dall'avviso, in corso.
@@ -310,6 +314,7 @@ impl StatoAvviso {
                 motivo: match &a.azione {
                     Some(AzioneRichiesta::Quadlet) => "agg_accesso_quadlet".into(),
                     Some(AzioneRichiesta::Conferma(_)) => "agg_accesso_conferma".into(),
+                    Some(AzioneRichiesta::Comando) => "cmd_serve_accesso".into(),
                     _ => "agg_accesso_aggiorna".into(),
                 },
                 errore: a.errore.clone(),
@@ -332,6 +337,16 @@ impl StatoAvviso {
 pub fn chiedi_accesso(s: &SharedAvviso, azione: AzioneRichiesta) {
     if let Ok(mut g) = s.lock() {
         g.accesso = Some(Accesso { azione: Some(azione), ..Default::default() });
+        g.cambiato();
+    }
+}
+
+/// Un comando della pagina è stato rifiutato (25-10-2026): si apre il
+/// pannellino d'accesso. `motivo` c'è quando si era già entrati con un utente
+/// che non basta, e allora lo si dice — entrando con un altro si riprova.
+pub fn chiedi_accesso_per_comando(s: &SharedAvviso, motivo: Option<String>) {
+    if let Ok(mut g) = s.lock() {
+        g.accesso = Some(Accesso { azione: Some(AzioneRichiesta::Comando), errore: motivo, in_corso: false });
         g.cambiato();
     }
 }
@@ -637,6 +652,26 @@ pub fn stato_di_prova(quale: &str) -> Option<StatoAggiornamento> {
 
 #[cfg(test)]
 mod tests {
+    /// Un comando rifiutato apre l'accesso col suo titolo, il motivo solo se
+    /// si era già dentro, e dopo l'accesso non si ripete niente da soli
+    /// (25-10-2026).
+    #[test]
+    fn un_comando_rifiutato_chiede_di_entrare_e_non_si_ripete() {
+        let s: SharedAvviso = Default::default();
+        chiedi_accesso_per_comando(&s, None);
+        match s.lock().unwrap().avviso() {
+            Avviso::Accesso { motivo, errore, in_corso } => {
+                assert_eq!(motivo, "cmd_serve_accesso");
+                assert_eq!(errore, None, "anonimi: il titolo basta");
+                assert!(!in_corso);
+            }
+            altro => panic!("atteso l'accesso, arrivato {altro:?}"),
+        }
+        assert_eq!(accesso_riuscito(&s), Some(AzioneRichiesta::Comando));
+        chiedi_accesso_per_comando(&s, Some("403".into()));
+        assert!(matches!(s.lock().unwrap().avviso(), Avviso::Accesso { errore: Some(_), .. }));
+    }
+
     use super::*;
     use crate::client::EsitoAggiornamento;
 

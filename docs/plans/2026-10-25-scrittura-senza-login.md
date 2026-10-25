@@ -81,8 +81,9 @@ Nel working tree c'è `sws-web/src/gateway/progetti.rs`, già verificato: `cargo
    - **Quando**: solo se il progetto ha utenti (`progettoHaUtenti`), altrimenti è già tutto Admin.
    - **Avviso**: con il tag a «Chiunque» e un ruolo sull'oggetto, una riga dice che la restrizione
      vale per questo pulsante, non per il tag.
-8. **LVGL**: scrive con `put_tag` (HTTP PUT), quindi la correzione server basta. Il gating client è
-   al punto 6.
+8. **LVGL**: scrive con `put_tag` (HTTP PUT), quindi la correzione server basta. **Fatto il 25-10**:
+   un comando rifiutato (401/403) apre il pannellino d'accesso dell'avviso (`chiedi_accesso_per_comando`,
+   `AzioneRichiesta::Comando`), che non ripete il comando dopo l'accesso.
 
 ### Documenti
 9. **Manuale e note**:

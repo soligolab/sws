@@ -1213,7 +1213,10 @@
       "dot": "Dot"
     },
     "permessoTag": "Operating it also needs the permission of tag «{{tag}}»: {{ruolo}} (Configuration → Tags).",
-    "permessoTagAperto": "The tag is open to anyone: this restriction applies to this object, not to the tag."
+    "permessoTagAperto": "The tag is open to anyone: this restriction applies to this object, not to the tag.",
+    "sfondoArea": "Active area background image",
+    "sfondoAreaHint": "Fills the part between the frame's header and footer (the whole page without a frame), below the objects. The LVGL panel only shows SVG images.",
+    "sfondoAreaTogli": "Remove the image"
   },
   "shortcut": {
     "navCanvas": "Canvas navigation",

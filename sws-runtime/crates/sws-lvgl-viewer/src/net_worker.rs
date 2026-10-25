@@ -145,11 +145,16 @@ async fn esegui(cmd: Comando) -> anyhow::Result<()> {
                     if let Some(a) = crate::aggiornamento::accesso_riuscito(&avviso) {
                         use crate::aggiornamento::AzioneRichiesta as A;
                         let token = Some(token);
-                        invia(match a {
-                            A::Aggiorna => Comando::AvviaAggiornamento { base_url, token },
-                            A::Quadlet => Comando::AggiornaQuadlet { base_url, token },
-                            A::Conferma(scelta) => Comando::ConfermaAggiornamento { base_url, token, scelta },
-                        });
+                        let dopo = match a {
+                            A::Aggiorna => Some(Comando::AvviaAggiornamento { base_url, token }),
+                            A::Quadlet => Some(Comando::AggiornaQuadlet { base_url, token }),
+                            A::Conferma(scelta) => Some(Comando::ConfermaAggiornamento { base_url, token, scelta }),
+                            // Il comando della pagina lo ripete chi sta davanti.
+                            A::Comando => None,
+                        };
+                        if let Some(c) = dopo {
+                            invia(c);
+                        }
                     }
                     Ok(())
                 }

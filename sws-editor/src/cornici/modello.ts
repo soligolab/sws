@@ -45,6 +45,25 @@ export function corniceAPagina(c: Cornice): SynopticPage {
   };
 }
 
+/** L'id del rettangolo che porta l'immagine dell'area attiva: gemello di
+ *  `ID_SFONDO_AREA` in `cornici.rs`. */
+export const ID_SFONDO_AREA = "sfondo:area";
+
+/** L'immagine di sfondo dell'area attiva come la compone il server
+ *  (`cornici::sfondo_area`, 25-10-2026): un rettangolo senza riempimento né
+ *  bordo fra testata e piede, o su tutta la pagina senza cornice. */
+export function oggettoSfondoArea(p: SynopticPage, c: Cornice | undefined): SynopticObject | undefined {
+  const src = p.sfondo_immagine?.trim();
+  if (!src) return undefined;
+  const w = c ? c.larghezza : (p.width ?? 1280);
+  const h = c ? c.altezza : (p.height ?? 800);
+  const alto = Math.max(0, c?.testata?.altezza ?? 0);
+  const basso = Math.max(0, c?.piede?.altezza ?? 0);
+  const altezza = h - alto - basso;
+  if (altezza <= 0 || w <= 0) return undefined;
+  return { id: ID_SFONDO_AREA, type: "rect", x: 0, y: alto, width: w, height: altezza, fill: "none", stroke: "none", bg_image: src } as SynopticObject;
+}
+
 export function paginaACornice(p: SynopticPage): Cornice {
   return {
     id: idCornice(p),

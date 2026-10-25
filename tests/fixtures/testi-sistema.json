@@ -238,6 +238,13 @@
       "es": "Para actualizar se necesita un administrador del panel.",
       "en": "Updating needs a panel administrator."
     },
+    "cmd_serve_accesso": {
+      "it": "Per questo comando serve accedere con un utente autorizzato.",
+      "de": "Für diesen Befehl ist eine Anmeldung mit einem berechtigten Benutzer erforderlich.",
+      "fr": "Cette commande nécessite une connexion avec un utilisateur autorisé.",
+      "es": "Para este comando hay que acceder con un usuario autorizado.",
+      "en": "This command needs a login with an authorized user."
+    },
     "agg_ignora": {
       "it": "Ignora questa versione",
       "de": "Diese Version überspringen",

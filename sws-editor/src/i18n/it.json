@@ -1213,7 +1213,10 @@
       "dot": "Pallino"
     },
     "permessoTag": "Per comandare serve anche il permesso del tag «{{tag}}»: {{ruolo}} (Configurazione → Tag).",
-    "permessoTagAperto": "Il tag è aperto a chiunque: questa restrizione vale per questo oggetto, non per il tag."
+    "permessoTagAperto": "Il tag è aperto a chiunque: questa restrizione vale per questo oggetto, non per il tag.",
+    "sfondoArea": "Immagine di sfondo dell'area attiva",
+    "sfondoAreaHint": "Riempie la parte fra testata e piede della cornice (tutta la pagina se non ha cornice), sotto gli oggetti. Sul pannello LVGL si vedono solo immagini SVG.",
+    "sfondoAreaTogli": "Togli l'immagine"
   },
   "shortcut": {
     "navCanvas": "Navigazione canvas",

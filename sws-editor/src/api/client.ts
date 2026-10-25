@@ -725,7 +725,11 @@ export const sullInsiemeDeiProgetti = (path: string) => {
  *  e rispondeva «password errata» a qualunque password: dopo un riavvio del
  *  gateway non si rientrava più senza tornare alla pagina iniziale. */
 export const sulGateway = (path: string) =>
-  sullInsiemeDeiProgetti(path) || path === "/api/auth/login";
+  sullInsiemeDeiProgetti(path) || path === "/api/auth/login"
+  // Il marchio dell'azienda lo sa il gateway, che ha le identità: il
+  // container del progetto non le ha, e rispondeva «nessun marchio» — nel
+  // cloud un utente Pixsys non vedeva i preset dei pannelli (25-10-2026).
+  || path === "/api/identita/marchio" || path === "/api/identita/marchio/privato";
 
 /** La base a cui mandare una richiesta: il prefisso del progetto, o la radice
  *  per le rotte del gateway quando siamo nel cloud. */
@@ -1056,6 +1060,12 @@ export const api = {
    *  sessione, e `active.json` e uno per installazione. */
   marchioMio: () =>
     request<{ marchio: string | null }>("/api/identita/marchio"),
+
+  /** I campi del marchio che non si servono prima dell'accesso (25-10-2026):
+   *  preset dei pannelli, percorsi dei dati, e il resto oltre la lista bianca
+   *  pubblica. Del marchio di chi è entrato, o dell'installazione. */
+  marchioPrivato: () =>
+    request<{ marchio: string; campi: Record<string, unknown> }>("/api/identita/marchio/privato"),
 
   /** Lo spazio delle MIE aziende, solo quelle con un tetto. Distinta da
    *  `/api/amministrazione/risorse`, che e della console: questa la chiama

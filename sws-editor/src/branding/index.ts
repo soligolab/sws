@@ -194,6 +194,18 @@ export async function loadBranding(forzato?: string | null): Promise<Brand> {
   return current;
 }
 
+/** I campi privati del marchio (`GET /api/identita/marchio/privato`,
+ *  25-10-2026): dal `brand.json` pubblico, pre-auth, non escono più. Si
+ *  innestano solo se riguardano il marchio caricato adesso. */
+export function applicaCampiPrivati(marchio: string, campi: Record<string, unknown>): void {
+  if (marchio !== current.id) return;
+  current = {
+    ...current,
+    devicePresets: (campi.device_presets as DevicePreset[] | undefined) ?? [],
+    dataPathPresets: (campi.data_path_presets as DataPathPreset[] | undefined) ?? [],
+  };
+}
+
 /**
  * Push the brand into the live document: CSS custom properties on :root,
  * the page title, and the favicon. Safe to call with any Brand.

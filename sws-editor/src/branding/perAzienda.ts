@@ -1,6 +1,6 @@
 import { useEffect } from "react";
 import { api } from "@/api/client";
-import { applyBranding, getBrand, loadBranding } from "@/branding";
+import { applicaCampiPrivati, applyBranding, getBrand, loadBranding } from "@/branding";
 
 /**
  * Dopo l'accesso, il marchio diventa quello dell'**azienda** di chi è entrato.
@@ -22,21 +22,30 @@ import { applyBranding, getBrand, loadBranding } from "@/branding";
  */
 export function useMarchioDellAzienda(authToken: string | null): void {
   useEffect(() => {
-    // Il sentinella `"no-auth"` non è una sessione: non c'è nessuna azienda
-    // di cui chiedere il marchio.
-    if (!authToken || authToken === "no-auth") return;
+    if (!authToken) return;
     let vivo = true;
-    api
-      .marchioMio()
-      .then(async ({ marchio }) => {
-        if (!vivo || !marchio || marchio === getBrand().id) return;
-        applyBranding(await loadBranding(marchio));
-      })
-      .catch(() => {
-        // Un'installazione senza aziende, o un runtime che non espone la
-        // rotta: si resta sul marchio dell'installazione, che è il
-        // comportamento di sempre.
-      });
+    void (async () => {
+      // Il sentinella `"no-auth"` non è una sessione: non c'è nessuna azienda
+      // di cui chiedere il marchio.
+      if (authToken !== "no-auth") {
+        try {
+          const { marchio } = await api.marchioMio();
+          if (vivo && marchio && marchio !== getBrand().id) applyBranding(await loadBranding(marchio));
+        } catch {
+          // Un'installazione senza aziende, o un runtime che non espone la
+          // rotta: si resta sul marchio dell'installazione.
+        }
+      }
+      // I campi privati (25-10-2026): **anche** con `"no-auth"`, cioè
+      // nell'IDE locale — è lì che i preset Pixsys di `start_editor.sh`
+      // devono continuare ad arrivare, dal marchio dell'installazione.
+      try {
+        const { marchio, campi } = await api.marchioPrivato();
+        if (vivo) applicaCampiPrivati(marchio, campi);
+      } catch {
+        // Un runtime precedente: i preset restano vuoti, come prima di entrare.
+      }
+    })();
     return () => {
       vivo = false;
     };

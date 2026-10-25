@@ -4,7 +4,8 @@ import { azioneDi, righeDalRegistro } from "@/scorciatoie/registro";
 import { FAMIGLIE, cssFamiglia, famigliaDi } from "@/font/famiglie";
 import { DialogoRisoluzione } from "@/scala/DialogoRisoluzione";
 import { ProprietaFasce, SceltaCornice } from "@/cornici/ProprietaCornice";
-import { corniceDellaPagina, eCornice, idCornice, oggettiComposti, paginaACornice } from "@/cornici/modello";
+import { corniceDellaPagina, eCornice, idCornice, oggettiComposti, oggettoSfondoArea, paginaACornice } from "@/cornici/modello";
+import { CampoSfondoArea } from "@/editor/CampoSfondoArea";
 import { useTranslation } from "react-i18next";
 import { api } from "@/api/client";
 import { QDOT_BUILTIN_TYPES, SvgCanvas, normalizeFaceplateParams, type CanvasViewApi } from "@/canvas/SvgCanvas";
@@ -621,6 +622,13 @@ export function EditorShell() {
       paginaNome: currentPage.name, paginaId: currentPage.id, progettoNome: project?.meta?.name ?? "",
     });
   }, [currentPage, pages, project?.page_layout?.cornice_predefinita, project?.meta?.name]);
+  // L'immagine dell'area attiva, come la compone il server (25-10-2026).
+  const sfondoArea = useMemo(() => {
+    if (!currentPage || eCornice(currentPage)) return undefined;
+    const id = corniceDellaPagina(currentPage, project?.page_layout?.cornice_predefinita);
+    const pc = id ? pages.find((p) => eCornice(p) && idCornice(p) === id) : undefined;
+    return oggettoSfondoArea(currentPage, pc ? paginaACornice(pc) : undefined);
+  }, [currentPage, pages, project?.page_layout?.cornice_predefinita]);
   const fasceCornice = currentPage && eCornice(currentPage)
     ? {
         testata: currentPage.cornice_testata?.altezza ?? 0, piede: currentPage.cornice_piede?.altezza ?? 0,
@@ -1034,6 +1042,7 @@ export function EditorShell() {
           fitPageSize={fitPageSize}
           sottofondo={sottofondo}
           fasceCornice={fasceCornice}
+          sfondoArea={sfondoArea}
         />
         </LinguaContenutiProvider>
       </div>
@@ -1283,6 +1292,7 @@ export function EditorShell() {
               background={currentPage?.background ?? "#1a1a2e"}
               background_dark={currentPage?.background_dark}
               background_tag={currentPage?.background_tag}
+              sfondo_immagine={currentPage?.sfondo_immagine}
               width={currentPage?.width}
               height={currentPage?.height}
               auto_rotate_skip={currentPage?.auto_rotate_skip}
@@ -2076,6 +2086,7 @@ function PageProps({
   background,
   background_dark,
   background_tag,
+  sfondo_immagine,
   width,
   height,
   auto_rotate_skip,
@@ -2104,6 +2115,7 @@ function PageProps({
   background: string;
   background_dark?: string;
   background_tag?: string;
+  sfondo_immagine?: string;
   width?: number;
   height?: number;
   auto_rotate_skip?: boolean;
@@ -2113,7 +2125,7 @@ function PageProps({
   /** T-52 — quanti oggetti di questa pagina stanno interamente fuori dal
    *  foglio, e quindi non verranno disegnati a runtime. */
   offPageCount: number;
-  onChange: (patch: Partial<{ name: string; background: string; background_dark: string | undefined; background_tag: string | undefined; width: number | undefined; height: number | undefined; auto_rotate_skip: boolean | undefined; zones: string[] | undefined }>) => void;
+  onChange: (patch: Partial<{ name: string; background: string; background_dark: string | undefined; background_tag: string | undefined; sfondo_immagine: string | undefined; width: number | undefined; height: number | undefined; auto_rotate_skip: boolean | undefined; zones: string[] | undefined }>) => void;
 }) {
   const { t } = useTranslation();
   const ro = !!locked; // read-only when the page is locked
@@ -2187,6 +2199,9 @@ function PageProps({
             {t("props.backgroundTagHint")}
           </div>
         </div>
+      )}
+      {!boot && !cornice && (
+        <CampoSfondoArea value={sfondo_immagine} disabled={ro} onChange={(v) => onChange({ sfondo_immagine: v })} />
       )}
       {boot && pageId && <BootEnabledToggle pageId={pageId} />}
       {boot && pageId && <AnteprimaPng pageId={pageId} />}
