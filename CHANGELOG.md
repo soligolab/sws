@@ -11,6 +11,8 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 
 ## [Unreleased]
 
+## [2.21.0] — 2026-10-25
+
 ### Added
 
 - **Sicurezza → Certificati: tutti gli archivi in un posto solo** (decisioni 3, 4 e 8 del piano
