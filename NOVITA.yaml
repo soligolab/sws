@@ -33,7 +33,7 @@
 # successivo.
 
 versioni:
-  - versione: "Unreleased"
+  - versione: "2.22.0"
     voci:
       - it: "Dal pannello si entra da una schermata sola: utente e password insieme, con i pulsanti «Accedi» e «Annulla»."
         en: "Logging in from the panel takes one screen: user and password together, with «Log in» and «Cancel» buttons."

@@ -11,6 +11,8 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 
 ## [Unreleased]
 
+## [2.22.0] — 2026-10-26
+
 ### Changed
 
 - **Pannello LVGL, schermata di accesso: utente e password insieme, e un pulsante «Accedi».**
