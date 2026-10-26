@@ -1243,7 +1243,9 @@
     "sfondoAreaTogli": "Togli l'immagine",
     "valueFontSize": "Corpo del valore",
     "unitFontSize": "Corpo dell'unità",
-    "vari": "(vari)"
+    "vari": "(vari)",
+    "sfondoBoot": "Immagine di sfondo",
+    "sfondoBootHint": "Copre tutta l'immagine di boot, sotto gli oggetti, e finisce nel PNG."
   },
   "shortcut": {
     "navCanvas": "Navigazione canvas",

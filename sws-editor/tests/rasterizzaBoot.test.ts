@@ -1,7 +1,7 @@
 // La rasterizzazione delle pagine di boot (T-72 F4): le due trasformazioni pure
 // che rendono un SVG caricabile in un `<img>`. La resa vera si guarda a occhio.
-import { describe, expect, it } from "vitest";
-import { incorporaImmagini, neutralizzaNonStatico, righeDiTesto, sostituisciVarBrand, spezzaTestiACapo } from "@/boot/rasterizza";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { immagineComeDataUri, incorporaImmagini, neutralizzaNonStatico, righeDiTesto, sostituisciVarBrand, spezzaTestiACapo } from "@/boot/rasterizza";
 import type { SynopticPage } from "@/types";
 
 describe("var(--brand-*) diventa un valore concreto", () => {
@@ -123,3 +123,61 @@ describe("un testo a capo non deve arrivare al PNG come foreignObject", () => {
   });
 });
 
+/** **Nel PNG finisce ogni immagine che il browser ha potuto disegnare**
+ *  (26-10-2026).
+ *
+ *  Il difetto: dal 25-10 nel cloud `ImmagineSvg` scarica con la sessione e
+ *  disegna un `blob:`. `immagineComeDataUri` accettava solo `/api/`, quindi
+ *  nessuna immagine del progetto arrivava nel PNG di boot e
+ *  `neutralizzaNonStatico` la toglieva chiamandola «esterna». Le icone del
+ *  catalogo (`/images/…`) mancavano anche in locale, per lo stesso motivo. */
+describe("quali immagini si incorporano nel PNG", () => {
+  const chiamate: { url: string; auth: string | null }[] = [];
+  beforeEach(() => {
+    chiamate.length = 0;
+    // Un blob finto: `FileReader.readAsDataURL` in jsdom legge un vero Blob.
+    vi.stubGlobal("fetch", vi.fn(async (url: string, init?: RequestInit) => {
+      const h = new Headers(init?.headers);
+      chiamate.push({ url: String(url), auth: h.get("Authorization") });
+      return { ok: true, blob: async () => new Blob(["ciao"], { type: "image/png" }) } as unknown as Response;
+    }));
+  });
+  afterEach(() => { vi.unstubAllGlobals(); });
+
+  it("un `blob:` si rilegge **senza credenziali**: e' gia' roba del browser", async () => {
+    const r = await immagineComeDataUri("blob:http://localhost/abc");
+    expect(r).toMatch(/^data:/);
+    expect(chiamate).toHaveLength(1);
+    expect(chiamate[0].url).toBe("blob:http://localhost/abc");
+    expect(chiamate[0].auth).toBeNull();
+  });
+
+  it("un'immagine del catalogo (`/images/…`) si legge, e prima non si leggeva", async () => {
+    expect(await immagineComeDataUri("/images/mdi/lightbulb.svg")).toMatch(/^data:/);
+    expect(chiamate[0].auth).toBeNull();
+  });
+
+  it("un'immagine del progetto (`/api/…`) passa dalla sessione dell'IDE", async () => {
+    expect(await immagineComeDataUri("/api/project/images/logo.png")).toMatch(/^data:/);
+    expect(chiamate[0].url).toContain("/api/project/images/logo.png");
+  });
+
+  it("**un altro sito resta fuori**, ed e' una scelta", async () => {
+    // Non e' una dimenticanza: dall'SVG sarebbe comunque bloccata, e portare
+    // dentro la roba di qualcun altro non e' compito del PNG di boot.
+    expect(await immagineComeDataUri("https://esempio.invalid/x.png")).toBeNull();
+    expect(await immagineComeDataUri("http://esempio.invalid/x.png")).toBeNull();
+    expect(chiamate).toHaveLength(0);
+  });
+
+  it("un data URI e' gia' dentro: si restituisce com'e', senza rete", async () => {
+    const d = "data:image/png;base64,AAA";
+    expect(await immagineComeDataUri(d)).toBe(d);
+    expect(chiamate).toHaveLength(0);
+  });
+
+  it("se la fetch fallisce non si inventa niente", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => { throw new Error("rete"); }));
+    expect(await immagineComeDataUri("blob:x")).toBeNull();
+  });
+});

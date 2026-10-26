@@ -1243,7 +1243,9 @@
     "sfondoAreaTogli": "Remove the image",
     "valueFontSize": "Value font size",
     "unitFontSize": "Unit font size",
-    "vari": "(mixed)"
+    "vari": "(mixed)",
+    "sfondoBoot": "Background image",
+    "sfondoBootHint": "Covers the whole boot image, under the objects, and ends up in the PNG."
   },
   "shortcut": {
     "navCanvas": "Canvas navigation",

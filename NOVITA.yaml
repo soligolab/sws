@@ -35,6 +35,10 @@
 versioni:
   - versione: "Unreleased"
     voci:
+      - it: "La pagina di boot accetta un'immagine di sfondo, come le altre pagine, e finisce nel PNG."
+        en: "The boot page accepts a background image, like any other page, and it ends up in the PNG."
+      - it: "Il PNG di boot non perde più le immagini del progetto quando si lavora dal cloud."
+        en: "The boot PNG no longer loses the project's images when working from the cloud."
       - it: "Sul pannello l'HTTPS si accende da solo e lo schermo non mostra più «La connessione non è privata»: il browser del pannello si fida del certificato."
         en: "On the panel HTTPS turns on by itself and the screen no longer shows «Your connection is not private»: the panel's browser trusts the certificate."
   - versione: "2.22.0"

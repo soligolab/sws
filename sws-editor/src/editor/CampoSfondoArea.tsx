@@ -13,10 +13,15 @@ const INPUT: React.CSSProperties = {
   borderRadius: 4, color: "var(--brand-text, #e2e8f0)", padding: "4px 6px", fontSize: 12, boxSizing: "border-box",
 };
 
-export function CampoSfondoArea({ value, disabled, onChange }: {
+export function CampoSfondoArea({ value, disabled, onChange, boot }: {
   value?: string;
   disabled?: boolean;
   onChange: (v: string | undefined) => void;
+  /** Sulla pagina di boot (26-10-2026) l'etichetta e il suggerimento di
+   *  default non valgono: non c'e' una cornice, quindi non c'e' un'«area
+   *  attiva», e non c'e' nessun pannello LVGL che la disegna — il boot e'
+   *  un PNG. Due parole diverse, non un componente diverso. */
+  boot?: boolean;
 }) {
   const { t } = useTranslation();
   const file = useRef<HTMLInputElement>(null);
@@ -24,7 +29,7 @@ export function CampoSfondoArea({ value, disabled, onChange }: {
   const [immagini, setImmagini] = useState<{ name: string; size_bytes: number }[] | null>(null);
   return (
     <div>
-      <div style={{ fontSize: 11, color: "var(--brand-text-muted, #94a3b8)", marginBottom: 3 }}>{t("props.sfondoArea")}</div>
+      <div style={{ fontSize: 11, color: "var(--brand-text-muted, #94a3b8)", marginBottom: 3 }}>{t(boot ? "props.sfondoBoot" : "props.sfondoArea")}</div>
       <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
         <input type="text" style={INPUT} disabled={disabled} placeholder="/api/project/images/…"
           value={value ?? ""} onChange={(e) => onChange(e.target.value.trim() || undefined)} />
@@ -65,7 +70,7 @@ export function CampoSfondoArea({ value, disabled, onChange }: {
         ))}
       </select>
       <div style={{ fontSize: 10, color: "var(--brand-text-subtle, #94a3b8)", marginTop: 2, lineHeight: 1.4 }}>
-        {t("props.sfondoAreaHint")}
+        {t(boot ? "props.sfondoBootHint" : "props.sfondoAreaHint")}
       </div>
     </div>
   );

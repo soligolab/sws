@@ -1139,6 +1139,10 @@ il deploy la installa sul pannello. Non è una pagina che il pannello mostra: **
    statici — rettangolo, ellisse, linea, tubo, testo, immagine, simbolo: gli altri (trend, tabelle, pulsanti)
    non finirebbero nel PNG. La risoluzione (nel pannello a destra) è quella del PNG: quella del tuo pannello,
    per esempio 1280×800.
+
+   **Lo sfondo** (26-10-2026): nel pannello a destra, «Immagine di sfondo» carica un PNG che copre tutta
+   l'immagine di boot, sotto gli oggetti, e finisce nel PNG insieme a loro. È lo stesso campo delle pagine
+   normali — lì si chiama «dell'area attiva», perché lì c'è una cornice e qui no.
 2. **Abilitala.** Una sola per progetto: il radio ⭐ nell'elenco, oppure «Immagine di boot abilitata» nel
    pannello della pagina. Senza nessuna abilitata il deploy **non tocca** l'immagine del dispositivo.
 3. **Salva.** Il PNG nasce nel browser al salvataggio (Ctrl+S) e finisce in `boot/<nome>.png`. Nel pannello

@@ -11,6 +11,27 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 
 ## [Unreleased]
 
+### Added
+
+- **L'immagine di sfondo anche sulla pagina di boot.** Il campo c'era gia' nel modello
+  (`synoptic.rs`) e il canvas lo disegnava gia' — `corniceDellaPagina` da' `null` sul boot, quindi
+  copre tutta la pagina — ma era nascosto con `{!boot && !cornice && …}`. Ora si vede, con
+  etichetta e suggerimento propri: sul boot non esiste un'«area attiva» fra testata e piede.
+  Il rasterizzatore gli passa lo **stesso** oggetto dell'editor (`oggettoSfondoArea`), quindi il
+  PNG e il canvas disegnano la stessa cosa. Su una cornice il campo resta nascosto.
+
+### Fixed
+
+- **Il PNG di boot perdeva le immagini del progetto nel cloud.** Dal 25-10-2026 `ImmagineSvg`
+  scarica con la sessione e disegna un `blob:`; `immagineComeDataUri` accettava solo href che
+  cominciano con `/api/`, quindi il blob non passava e `neutralizzaNonStatico` lo toglieva
+  chiamandolo «esterno». Ora i rami sono tre — `/api/` con la sessione, `blob:` e i percorsi
+  della stessa origine con una fetch semplice, `data:` cosi' com'e' — e `http(s)://` di un altro
+  sito continua a dire no, che e' una scelta. Stessa correzione per le icone del catalogo
+  (`/images/mdi/…`), che mancavano dal PNG **anche in locale**.
+- E la variante senza avviso: se il `blob:` non era pronto entro i 60 ms d'attesa, l'immagine
+  spariva e basta. Adesso le immagini della pagina si scaricano **prima** di montare il canvas.
+
 ### Changed
 
 - **L'HTTPS sul pannello si accende da se', e il browser non protesta.** Il certificato del

@@ -23,6 +23,8 @@ import { getAuthToken, getBaseUrl } from "@/api/client";
 import { LinguaContenutiProvider } from "@/i18n/linguaContenuti";
 import { resolveMsg } from "@/i18n/projectI18n";
 import { useAppStore } from "@/store";
+import { oggettoSfondoArea } from "@/cornici/modello";
+import { scaricaImmagine, serveScaricare } from "@/canvas/ImmagineSvg";
 import type { CustomSymbol, SynopticObject, SynopticPage } from "@/types";
 
 /** Tetto del PNG: gemello di `MAX_BOOT_PNG_BYTES` in `sws-web/src/boot.rs`. */
@@ -214,6 +216,18 @@ async function svgDellaPagina(page: SynopticPage, customSymbols: CustomSymbol[])
   const lingua = { lang: tabella?.default ?? "", table: tabella };
   const w = page.width ?? 1280;
   const h = page.height ?? 800;
+  // **Le immagini pronte prima di montare** (26-10-2026). Nel cloud
+  // `ImmagineSvg` non disegna l'href: scarica con la sessione e disegna un
+  // `blob:`. Se quel giro non e' finito entro i 60 ms di attesa qui sotto, il
+  // canvas non disegna niente e l'immagine manca dal PNG **senza avviso** —
+  // la variante peggiore del difetto, perche' non lascia traccia. Scaricarle
+  // prima costa un'attesa sola e toglie la corsa: `scaricaImmagine` tiene una
+  // cache per URL, quindi il montaggio trova il blob gia' pronto.
+  await Promise.all(
+    [...page.objects.map((o) => o.bg_image ?? o.src), page.sfondo_immagine]
+      .filter(serveScaricare)
+      .map((href) => scaricaImmagine(href)),
+  );
   const host = document.createElement("div");
   host.style.cssText = `position:fixed;left:-100000px;top:0;width:${w}px;height:${h}px;overflow:hidden;pointer-events:none`;
   document.body.appendChild(host);
@@ -229,6 +243,12 @@ async function svgDellaPagina(page: SynopticPage, customSymbols: CustomSymbol[])
         pageHeight: h,
         sizeMode: "fixed",
         pageId: page.id,
+        // Lo sfondo della pagina, con **lo stesso oggetto** che usa l'editor
+        // (26-10-2026): nessuna cornice sul boot, quindi copre tutta la
+        // pagina. Il PNG nasceva senza, perche' questa prop non si passava —
+        // il campo c'era gia' nel modello e il canvas lo sapeva gia'
+        // disegnare.
+        sfondoArea: oggettoSfondoArea(page, undefined),
       }))));
     // Un giro perché gli effetti di montaggio (font, immagini) si assestino.
     await attendi(60);

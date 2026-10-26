@@ -2126,7 +2126,7 @@ function CellStructureActions({ isMerged, isSplit, onUnmerge, onSplitRows, onSpl
 
 // ── Page properties (shown when nothing selected) ─────────────────────────────
 
-function PageProps({
+export function PageProps({
   name,
   background,
   background_dark,
@@ -2245,8 +2245,14 @@ function PageProps({
           </div>
         </div>
       )}
-      {!boot && !cornice && (
-        <CampoSfondoArea value={sfondo_immagine} disabled={ro} onChange={(v) => onChange({ sfondo_immagine: v })} />
+      {/* Anche sulla pagina di boot (26-10-2026): il campo Rust esiste gia'
+          (`synoptic.rs`), il canvas lo disegna gia' — `corniceDellaPagina` da'
+          `null` sul boot, quindi lo sfondo copre tutta la pagina — e mancava
+          solo il modo di impostarlo. Resta fuori la cornice, che uno sfondo
+          suo non ce l'ha. L'etichetta cambia: sul boot non esiste un'«area
+          attiva» fra testata e piede. */}
+      {!cornice && (
+        <CampoSfondoArea boot={boot} value={sfondo_immagine} disabled={ro} onChange={(v) => onChange({ sfondo_immagine: v })} />
       )}
       {boot && pageId && <BootEnabledToggle pageId={pageId} />}
       {boot && pageId && <AnteprimaPng pageId={pageId} />}
