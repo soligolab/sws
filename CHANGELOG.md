@@ -11,6 +11,21 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 
 ## [Unreleased]
 
+### Fixed
+
+- **`check_pannello_confinato` era rossa su un codice sano.** Il suo `sed` cercava
+  `pub async fn inoltra` come **prefisso**, e il 26-10 è nata `inoltra_telefono` qualche riga più
+  su: da allora la guardia leggeva quella, non ci trovava `puo_parlargli` e diceva che un pannello
+  di un altro cliente era raggiungibile. Non lo era — `inoltra` il controllo ce l'ha sempre avuto.
+  Adesso il nome si cerca esatto, con la parentesi.
+
+  Nello stesso giro la guardia ha imparato **la porta del telefono**, che prima non vedeva.
+  `inoltra_telefono` è l'altra strada che arriva a un pannello per nome, e lì il confine non è
+  l'azienda ma la **firma di Twilio** — che il gateway non può verificare, perché il token è del
+  cliente e sta sul pannello. Quindi si tiene fermo quello che rende possibile la verifica a valle:
+  l'URL firmato deve arrivare al pannello, e l'intestazione del gateway non deve poter entrare da
+  fuori. Tutti e tre i controlli provati rossi.
+
 ### Added
 
 - **Tunnel: vivo, spento o perso** (ramo 7 dei residui): il gateway ascolta i battiti del pannello e chiude un tunnel

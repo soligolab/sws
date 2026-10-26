@@ -24,7 +24,13 @@ F=sws-runtime/crates/sws-web/src/tunnel/gateway.rs
 esito=0
 [ -f "$F" ] || { echo "✗ manca $F"; exit 1; }
 
-corpo_di() { sed -n "/pub async fn $1/,/^}/p" "$F"; }
+# **Il nome esatto, non il prefisso.** `sed -n "/pub async fn inoltra/..."`
+# prende la PRIMA funzione che comincia così, e il 26-10-2026 è nata
+# `inoltra_telefono` qualche riga più su: la guardia ha passato a controllare
+# quella, non ha trovato `puo_parlargli`, ed è diventata rossa su un codice
+# sano. Un falso positivo su una guardia di sicurezza è peggio di nessuna
+# guardia: la seconda volta la si guarda meno.
+corpo_di() { sed -n "/pub async fn $1(/,/^}/p" "$F"; }
 
 if ! corpo_di inoltra | grep -q "puo_parlargli("; then
     echo "✗ inoltra non verifica l'azienda: un pannello di un altro cliente sarebbe raggiungibile"
@@ -47,6 +53,31 @@ fi
 if ! grep -q "projects::visibilita(" <<<"$corpo_permesso"; then
     echo "✗ puo_parlargli non usa projects::visibilita: l'azienda implicita verrebbe trattata a parte"
     esito=1
+fi
+
+# ── La porta del telefono (26-10-2026) ───────────────────────────────────────
+#
+# `inoltra_telefono` è l'altra strada che arriva a un pannello per nome, e il
+# confine lì **non** è l'azienda: è la firma di Twilio. Il gateway non può
+# verificarla — il token è del cliente e sta sul pannello — quindi si limita a
+# passare al pannello l'URL che Twilio ha firmato, e a verificare è il pannello.
+#
+# Due cose vanno tenute ferme, perché toglierle aprirebbe la porta in silenzio:
+# l'URL firmato deve arrivare, e l'intestazione del gateway non deve poter
+# entrare da fuori.
+corpo_telefono=$(corpo_di inoltra_telefono)
+if [ -z "$corpo_telefono" ]; then
+    echo "✗ inoltra_telefono non c'e' piu': se la porta del telefono e' cambiata, aggiornare questa guardia"
+    esito=1
+else
+    if ! grep -q "telefono::INTESTAZIONE_URL" <<<"$corpo_telefono"; then
+        echo "✗ inoltra_telefono non passa l'URL firmato: il pannello non potrebbe piu' verificare la firma di Twilio, e accetterebbe chiunque"
+        esito=1
+    fi
+    if ! grep -q "abbinamento::INTESTAZIONE_GATEWAY" <<<"$corpo_telefono"; then
+        echo "✗ inoltra_telefono non toglie l'intestazione del gateway: chi chiama potrebbe portarsela da fuori"
+        esito=1
+    fi
 fi
 
 # Un pannello senza azienda non deve diventare «di tutti».
