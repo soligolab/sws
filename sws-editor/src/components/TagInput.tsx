@@ -87,6 +87,7 @@ export function TagInput({ value, onChange, placeholder, style, tipoSuggerito }:
   const tags    = useMemo(() => tagCatalog(project), [project]);
   const inAttesa = useAppStore((s) => s.tagInAttesa);
   const aggiungiTagInAttesa = useAppStore((s) => s.aggiungiTagInAttesa);
+  const navigateToConfig = useAppStore((s) => s.navigateToConfig);
   const dichiarati = useMemo(() => new Set((project?.tags ?? []).map((x) => x.id)), [project]);
   const idsInAttesa = useMemo(() => new Set(inAttesa.map((x) => x.id)), [inAttesa]);
   const radiciComposite = useMemo(
@@ -212,6 +213,30 @@ export function TagInput({ value, onChange, placeholder, style, tipoSuggerito }:
       {stato === "in-attesa" && (
         <span style={{ flexShrink: 0, alignSelf: "center", fontSize: 11, color: "var(--brand-text-muted, #94a3b8)" }}
               title={t("tagInput.inAttesaHint")} aria-label={t("tagInput.inAttesaHint")}>⏳</span>
+      )}
+      {/* **La freccia che porta alla riga della variabile** (richiesta del
+          maintainer, 26-10-2026). Sotto non c'è niente di nuovo: la scheda
+          Variabili legge già `configFocus`, risolve una foglia sulla sua
+          radice e porta la riga al centro dello schermo. Mancava solo il modo
+          di arrivarci da dove la variabile si nomina, che sono diciotto punti
+          diversi — e passano tutti di qui.
+
+          Solo per un id **dichiarato**: per uno nuovo la riga non esiste
+          ancora, e c'è già il ＋ che lo definisce. */}
+      {stato === "dichiarato" && (
+        <button
+          type="button"
+          style={{ flexShrink: 0, background: "var(--brand-surface, #1e293b)", border: "1px solid var(--brand-border, #475569)",
+                   borderRadius: 4, color: "var(--brand-text-muted, #94a3b8)", cursor: "pointer", padding: "0 5px", fontSize: 11, lineHeight: 1 }}
+          onMouseDown={(e) => e.preventDefault()}
+          onClick={() => navigateToConfig("tags", value.trim())}
+          tabIndex={-1}
+          title={t("tagInput.vaiAllaVariabile")}
+          aria-label={t("tagInput.vaiAllaVariabile")}
+          data-testid="vai-alla-variabile"
+        >
+          →
+        </button>
       )}
       {/* Il completamento del percorso: stesso elenco del selettore, ma
           governato dalla tastiera e ancorato a ciò che si sta scrivendo. */}

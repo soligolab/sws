@@ -631,7 +631,8 @@
     },
     "noTagsInProject": "Nessuna variabile disponibile. Dichiarale in Configurazione → Progetto → Variabili, oppure aggiungi una sorgente: le variabili mappate dai protocolli compaiono qui automaticamente.",
     "nuovoHint": "Variabile non dichiarata: al salvataggio del progetto verrà creata con il tipo dedotto. Clicca per definirla ora (tipo, unità, storico).",
-    "inAttesaHint": "Definizione in attesa: verrà creata al salvataggio del progetto."
+    "inAttesaHint": "Definizione in attesa: verrà creata al salvataggio del progetto.",
+    "vaiAllaVariabile": "Vai a questa variabile nella tabella"
   },
   "admin": {
     "disconnectConfirm": "Disconnettere il runtime remoto?",

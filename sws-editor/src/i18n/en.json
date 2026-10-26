@@ -631,7 +631,8 @@
     "bindPlaceholder": "e.g. demo.rotation",
     "noTagsInProject": "No variables available. Declare them in Configuration → Project → Tags, or add a source: variables mapped from protocols show up here automatically.",
     "nuovoHint": "Undeclared variable: it will be created when the project is saved, with the inferred type. Click to define it now (type, unit, history).",
-    "inAttesaHint": "Definition pending: it will be created when the project is saved."
+    "inAttesaHint": "Definition pending: it will be created when the project is saved.",
+    "vaiAllaVariabile": "Go to this tag in the table"
   },
   "admin": {
     "disconnectConfirm": "Disconnect from the remote runtime?",
