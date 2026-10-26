@@ -125,12 +125,17 @@ for b in ["scripts/build_container.sh", "scripts/build_container_x86_64.sh"]:
         ok(f"{b}: l'immagine porta immagini.sh")
     else:
         ko(f"{b}: non mette immagini.sh in /usr/share/sws/quadlet")
-    # Il certificato del dispositivo Pixsys (24-10-2026, piano C4): passaggio opzionale
-    # che si lancia come `pixsys` sul pannello, quindi deve viaggiare con l'immagine.
-    if "deploy/container/certificato-dispositivo.sh" in open(b, encoding="utf-8").read():
-        ok(f"{b}: l'immagine porta certificato-dispositivo.sh")
-    else:
-        ko(f"{b}: non mette certificato-dispositivo.sh in /usr/share/sws/quadlet")
+    # La fiducia del browser del pannello (26-10-2026): lo script e le due
+    # unita' girano sull'HOST come `user`, quindi devono viaggiare con
+    # l'immagine — da dentro il container non si puo' scrivere nell'archivio
+    # NSS, perche' `/home/user` non e' montata. Ha sostituito
+    # `certificato-dispositivo.sh`, ritirato con la strada che lo voleva.
+    testo_b = open(b, encoding="utf-8").read()
+    for f in ("fiducia-browser.sh", "sws-fiducia.path", "sws-fiducia.service"):
+        if f"deploy/container/{f}" in testo_b:
+            ok(f"{b}: l'immagine porta {f}")
+        else:
+            ko(f"{b}: non mette {f} in /usr/share/sws/quadlet")
 r = subprocess.run(["bash", "tests/shell/immagini.sh"], capture_output=True, text=True)
 for riga in r.stdout.strip().splitlines():
     print(riga if riga.startswith("  ") else "  " + riga.strip())

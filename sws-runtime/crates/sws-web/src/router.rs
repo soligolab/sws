@@ -698,7 +698,6 @@ pub fn build(
         )
         .route("/api/system/tls", put(crate::system::upload_tls_cert))
         .route("/api/system/tls", delete(crate::system::remove_tls_cert))
-        .route("/api/system/tls/scelta", post(crate::system::set_tls_scelta))
         // La vista dei certificati (25-10-2026, decisioni 3 e 8 del piano dei
         // certificati): tutti gli archivi di questa istanza, e il «dimentica»
         // delle impronte — anche delle righe morte delle porte vecchie.
@@ -716,7 +715,6 @@ pub fn build(
         .route("/api/remote/system/tls/generate", post(crate::remote::remote_tls_genera))
         .route("/api/remote/system/tls", put(crate::remote::remote_tls_carica))
         .route("/api/remote/system/tls", delete(crate::remote::remote_tls_rimuovi))
-        .route("/api/remote/system/tls/scelta", post(crate::remote::remote_tls_scelta))
         // Remote runtime bridge: connect/disconnect/status + WS relay
         .route(
             "/api/remote/connect",
@@ -1561,7 +1559,6 @@ fn deploy_only_app(state: AppState) -> Router<AppState> {
         .route("/api/system/tls/generate", post(crate::system::generate_tls_cert))
         .route("/api/system/tls", put(crate::system::upload_tls_cert))
         .route("/api/system/tls", delete(crate::system::remove_tls_cert))
-        .route("/api/system/tls/scelta", post(crate::system::set_tls_scelta))
         // La vista dei certificati del pannello, letta dall'IDE collegato (25-10-2026).
         .route("/api/certificati", get(certificati_elenco))
         .route("/api/certificati/dimentica", post(certificati_dimentica))

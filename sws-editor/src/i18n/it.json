@@ -2739,10 +2739,9 @@
     "azione": "Azione",
     "dettaglio": "Dettaglio",
     "disco": "Disco",
-    "tlsPropostaTitolo": "HTTPS senza avvisi, col certificato del dispositivo",
-    "tlsPropostaTesto": "Questo pannello ha un certificato del dispositivo di cui il suo browser si fida già. Per usarlo serve un passaggio con sudo, una volta sola: entra nel pannello come «pixsys» e lancia questo comando. Il pannello riparte in HTTPS e lo schermo non mostra avvisi.",
-    "tlsPropostaNo": "No, resta in chiaro",
-    "copia": "Copia"
+    "copia": "Copia",
+    "tlsFiduciaSi": "Il browser del pannello si fida del certificato: lo schermo apre il sinottico senza avvisi.",
+    "tlsFiduciaNo": "Su questo dispositivo la fiducia del browser non si installa (manca certutil): con un certificato autofirmato lo schermo mostrerà «La connessione non è privata»."
   },
   "boot": {
     "pngTooLarge": "PNG troppo grande ({{kb}} KB, max 5120 KB): non è stato caricato",

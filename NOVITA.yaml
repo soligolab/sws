@@ -33,6 +33,10 @@
 # successivo.
 
 versioni:
+  - versione: "Unreleased"
+    voci:
+      - it: "Sul pannello l'HTTPS si accende da solo e lo schermo non mostra più «La connessione non è privata»: il browser del pannello si fida del certificato."
+        en: "On the panel HTTPS turns on by itself and the screen no longer shows «Your connection is not private»: the panel's browser trusts the certificate."
   - versione: "2.22.0"
     voci:
       - it: "Dal pannello si entra da una schermata sola: utente e password insieme, con i pulsanti «Accedi» e «Annulla»."

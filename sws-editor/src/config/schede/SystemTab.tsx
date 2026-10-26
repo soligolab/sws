@@ -278,9 +278,12 @@ export function TlsSection({ remoto }: {
   const [showUpload, setShowUpload] = useState(false);
   const [certPem, setCertPem] = useState("");
   const [keyPem, setKeyPem] = useState("");
-  // La proposta dell'HTTPS col certificato del dispositivo (C4, pezzo 3,
-  // 25-10-2026): la manda il pannello, solo quando ha senso.
-  const [proposta, setProposta] = useState<{ comando: string } | null>(null);
+  // Il browser del pannello si fida del nostro certificato? (26-10-2026.)
+  // Non e' una proposta da accettare: e' un fatto. Dove vale, l'HTTPS si
+  // accende da se' al primo avvio e qui non c'e' niente da fare; dove non
+  // vale, un autofirmato porta l'interstiziale al posto del sinottico, e
+  // conviene saperlo prima di premere «Genera».
+  const [fiduciaBrowser, setFiduciaBrowser] = useState(false);
 
   // Nel cloud l'indirizzo è quello del gateway (`…/dev/<pannello>`): il nome
   // da mostrare è il pannello, non `sws.soligo.net` (collaudo del 25-10-2026).
@@ -296,9 +299,9 @@ export function TlsSection({ remoto }: {
     setMsg(null);
     setBusy(false);
     setShowUpload(false);
-    setProposta(null);
+    setFiduciaBrowser(false);
     const leggi = remoteConnected ? api.remoteGetTlsStatus() : api.getTlsStatus();
-    leggi.then(s => { setTlsEnabled(s.enabled); setProposta(s.proposta ?? null); }).catch(() => setTlsEnabled(false));
+    leggi.then(s => { setTlsEnabled(s.enabled); setFiduciaBrowser(!!s.fiducia_browser); }).catch(() => setTlsEnabled(false));
   }, [remoteConnected]);
 
   if (authRole !== "Admin") return null;
@@ -387,36 +390,14 @@ export function TlsSection({ remoto }: {
             {tlsEnabled ? t("cfgUi.tlsHttpsAttivo") : t("cfgUi.plainHttpNoCertificate")}
           </span>
         </div>
-        {!tlsEnabled && proposta && (
-          <div data-testid="proposta-tls" style={{ marginBottom: 12, padding: "10px 12px", borderRadius: 6, border: "1px solid var(--brand-primary, #3b82f6)", background: "var(--brand-surface, #1e293b)" }}>
-            <div style={{ fontSize: 12, fontWeight: 600, color: "var(--brand-text, #e2e8f0)", marginBottom: 6 }}>
-              {t("cfgUi.tlsPropostaTitolo")}
-            </div>
-            <div style={{ fontSize: 12, color: "var(--brand-text-muted, #94a3b8)", lineHeight: 1.5, marginBottom: 8 }}>
-              {t("cfgUi.tlsPropostaTesto")}
-            </div>
-            <div style={{ display: "flex", gap: 6, alignItems: "center", marginBottom: 8 }}>
-              <code style={{ flex: 1, fontSize: 11, padding: "4px 8px", borderRadius: 4, background: "var(--brand-bg, #020617)", color: "var(--brand-text, #e2e8f0)", overflowX: "auto", whiteSpace: "nowrap" }}>
-                {proposta.comando}
-              </code>
-              <button style={{ ...S.btn("ghost"), padding: "3px 8px", fontSize: 11 }}
-                onClick={() => { void navigator.clipboard?.writeText(proposta.comando); }}>
-                {t("cfgUi.copia")}
-              </button>
-            </div>
-            <button data-testid="proposta-tls-no" style={{ ...S.btn("ghost"), fontSize: 12 }} disabled={busy}
-              onClick={async () => {
-                try {
-                  await (remoteConnected ? api.sceltaTls(true, "no") : api.sceltaTls(false, "no"));
-                  setProposta(null);
-                } catch (e: unknown) {
-                  setMsg(t("cfgUi.errorMsg", { message: e instanceof Error ? e.message : String(e) }));
-                }
-              }}>
-              {t("cfgUi.tlsPropostaNo")}
-            </button>
-          </div>
-        )}
+        {/* La fiducia del browser (26-10-2026). Una riga, non un pannello:
+            non c'e' niente da decidere ne' da lanciare a mano. */}
+        <div data-testid="fiducia-browser" style={{
+          marginBottom: 12, fontSize: 12, lineHeight: 1.5,
+          color: fiduciaBrowser ? "var(--brand-success-soft, #4ade80)" : "var(--brand-text-muted, #94a3b8)",
+        }}>
+          {fiduciaBrowser ? t("cfgUi.tlsFiduciaSi") : t("cfgUi.tlsFiduciaNo")}
+        </div>
         {!tlsEnabled && (
           <div>
             <p style={{ margin: "0 0 10px", fontSize: 12, color: "var(--brand-text-muted, #94a3b8)" }}>

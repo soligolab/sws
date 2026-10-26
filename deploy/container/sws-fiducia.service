@@ -1,0 +1,20 @@
+# Importa (o toglie) il certificato del runtime nell'archivio del browser del
+# pannello. Lo lancia `sws-fiducia.path` a ogni cambio di `config/tls.crt`, e
+# l'installatore una volta all'installazione.
+#
+# Gira come l'utente del kiosk, senza privilegi: l'archivio NSS e' suo. Vedi
+# `fiducia-browser.sh` per il perche' di `-t "P,,"` invece di una CA.
+#
+# `Type=oneshot`: fa il suo lavoro ed esce. Un fallimento non ferma niente
+# d'altro - al massimo il pannello mostra l'avviso, che e' come stava prima.
+
+[Unit]
+Description=SWS - rende fidato il certificato nel browser del pannello
+After=sws-runtime.service
+
+[Service]
+Type=oneshot
+ExecStart=/data/user/sws/config/fiducia-browser.sh /data/user/sws/config
+
+[Install]
+WantedBy=default.target

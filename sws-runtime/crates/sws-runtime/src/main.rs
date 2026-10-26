@@ -513,6 +513,23 @@ async fn main() -> anyhow::Result<()> {
     // default è fuori dal repo (Q46) e su una macchina nuova non c'è ancora.
     std::fs::create_dir_all(&args.projects_root)
         .with_context(|| format!("creating projects root {}", args.projects_root.display()))?;
+    // **HTTPS acceso da sé dove il browser del pannello si fida** (26-10-2026).
+    // Il marcatore lo scrive l'installatore quando sull'host c'è `certutil` e
+    // l'archivio NSS di `user` è scrivibile; da lì in poi un certificato nostro
+    // viene importato come peer fidato e il kiosk non mostra avvisi. Senza
+    // quella condizione il TLS resta una scelta, perché accenderlo
+    // regalerebbe l'interstiziale al posto del sinottico — che è esattamente
+    // ciò che la regola del 25-10 evitava pretendendo il certificato del
+    // dispositivo. Quella strada è stata ritirata: la chiave che le serviva è
+    // dichiarata un errore da chi fa PixsysOS.
+    if !args.config.join("tls.crt").exists()
+        && args.config.join(sws_web::system::FILE_FIDUCIA_BROWSER).exists()
+    {
+        match sws_web::system::genera_certificato(&args.config) {
+            Ok(()) => info!("primo avvio con la fiducia del browser: certificato generato, HTTPS acceso"),
+            Err(e) => warn!("non sono riuscito a generare il certificato ({e}): resto in chiaro"),
+        }
+    }
     let acceptor: Option<TlsAcceptor> = if args.config.join("tls.crt").exists() {
         Some(build_tls_acceptor(&args.config)?)
     } else {

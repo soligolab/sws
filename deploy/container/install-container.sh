@@ -376,20 +376,40 @@ for d in projects config logs viewer; do
     fi
 done
 
-# Il certificato del dispositivo (C4, pezzo 3, 25-10-2026). Su un pannello Pixsys
-# il runtime propone l'HTTPS con quello — il browser del pannello se ne fida già —
-# ma dal container `/mnt/protected/ssl` non si vede: lo dice l'installatore, con un
-# file nella cartella config. Gira anche con --solo-unita, quindi l'aggiornamento
-# della configurazione del servizio lo porta ai pannelli già installati. Solo il
-# percorso della catena (pubblica): la chiave resta dov'è, la copia
-# certificato-dispositivo.sh con sudo se chi installa lo sceglie.
-SERIALE_DISP="$(tr -d '\0' < /proc/device-tree/serial-number 2>/dev/null | tr '[:upper:]' '[:lower:]' || true)"
-CATENA_DISP="/mnt/protected/ssl/${SERIALE_DISP}-chain.server.crt"
-if [ -n "$SERIALE_DISP" ] && [ -r "$CATENA_DISP" ]; then
-    echo "$CATENA_DISP" > "$DATA/config/certificato-dispositivo"
-    echo "    certificato del dispositivo: presente ($CATENA_DISP)"
+# La fiducia del browser del pannello (26-10-2026). Sostituisce il percorso del
+# certificato del dispositivo, ritirato: chi sviluppa PixsysOS ha detto che la
+# chiave in /mnt/protected/ssl e' gia' un errore e potrebbe sparire, e ha
+# indicato come strada prevista l'archivio NSS dell'utente.
+#
+# Si guarda **la capacita', non la marca**: se c'e' certutil e l'archivio di
+# questo utente si puo' scrivere, allora il certificato del runtime si puo'
+# rendere fidato e il kiosk aprira' il sinottico senza avvisi. Vale sui Pixsys
+# e su qualunque altro pannello con lo stesso Chromium, e non va corretto
+# quando cambia il parco macchine.
+#
+# Il marcatore lo legge il runtime: con quello presente genera il certificato
+# al primo avvio e parte gia' in HTTPS. Senza, resta in chiaro - accendere il
+# TLS dove il browser non si fida vorrebbe dire l'interstiziale al posto del
+# sinottico.
+#
+# Gira anche con --solo-unita, quindi l'aggiornamento della configurazione del
+# servizio lo porta ai pannelli gia' installati.
+rm -f "$DATA/config/certificato-dispositivo" "$DATA/config/tls-scelta"
+install -m 0755 "$SRC_DIR/fiducia-browser.sh" "$DATA/config/fiducia-browser.sh" 2>/dev/null || true
+if command -v certutil >/dev/null 2>&1 && [ -x "$DATA/config/fiducia-browser.sh" ]; then
+    echo "fiducia-browser" > "$DATA/config/fiducia-browser"
+    echo "    fiducia del browser: certutil c'e', il TLS si accendera' da se'"
+    for U in sws-fiducia.path sws-fiducia.service; do
+        sed "s|/data/user/sws/config|$DATA/config|g" "$SRC_DIR/$U" > "$USER_UNIT_DIR/$U"
+    done
+    systemctl --user daemon-reload 2>/dev/null || true
+    systemctl --user enable --now sws-fiducia.path 2>/dev/null || true
+    # Una volta subito: se il certificato c'e' gia', va reso fidato adesso e
+    # non al prossimo cambio, che potrebbe non arrivare mai.
+    "$DATA/config/fiducia-browser.sh" "$DATA/config" 2>/dev/null || true
 else
-    rm -f "$DATA/config/certificato-dispositivo"
+    rm -f "$DATA/config/fiducia-browser"
+    echo "    fiducia del browser: certutil non c'e' - il pannello resta in chiaro"
 fi
 
 # La www di un'installazione precedente non serve più (la SPA è nell'immagine).
@@ -943,13 +963,13 @@ for i in $(seq 1 30); do
             echo "    del suo amministratore) oppure apri la pagina del pannello qui sopra."
             echo "    Lo mostrano anche lo schermo e il log: podman logs $NAME | grep -i abbinamento"
         fi
-        # Sui pannelli Pixsys (24-10-2026): il certificato del dispositivo dà l'HTTPS senza
-        # l'avviso del browser, ma serve sudo, quindi lo si propone e basta. Lo script sta
-        # anche accanto a questo installatore, ed è quello il percorso da mostrare.
-        if [ -f "$DATA/config/certificato-dispositivo" ] && [ ! -e "$DATA/config/tls.crt" ]; then
-            echo "    HTTPS senza avvisi sullo schermo (consigliato): entrare come pixsys e lanciare"
-            echo "    $SRC_DIR/certificato-dispositivo.sh"
-            echo "    (HOWTO §29; lo propone anche l'IDE, in Sicurezza → Certificati)"
+        # La fiducia del browser (26-10-2026): niente da proporre e niente da
+        # lanciare a mano. O il dispositivo ce la fa, e allora l'HTTPS si accende
+        # da se' al primo avvio, o non ce la fa e lo si dice.
+        if [ -f "$DATA/config/fiducia-browser" ]; then
+            echo "    HTTPS: acceso da se' al primo avvio, e il browser del pannello se ne fida"
+        else
+            echo "    HTTPS: non automatico su questo dispositivo (manca certutil) - resta in chiaro"
         fi
         echo "    dati     : $DATA"
         echo "    immagine : $TAG"

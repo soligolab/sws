@@ -11,6 +11,34 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 
 ## [Unreleased]
 
+### Changed
+
+- **L'HTTPS sul pannello si accende da se', e il browser non protesta.** Il certificato del
+  runtime viene importato nell'archivio NSS dell'utente del kiosk come *peer fidato*
+  (`certutil -t "P,,"`, non una CA: un peer vale per se', una CA firmerebbe qualunque nome).
+  Lo fa `deploy/container/fiducia-browser.sh`, che l'installatore lancia una volta e che
+  `sws-fiducia.path` rilancia a **ogni** cambio di `config/tls.crt` — «Genera self-signed», un
+  certificato caricato a mano, «Rimuovi», e domani il rinnovo automatico. L'installatore misura
+  la **capacita'** e non la marca (`certutil` presente) e scrive `config/fiducia-browser`; il
+  runtime, trovandolo al primo avvio senza `tls.crt`, genera il certificato e parte in HTTPS
+  (`main.rs`). HOWTO §29 riscritto.
+
+### Removed
+
+- **Il percorso del certificato del dispositivo Pixsys, ritirato.** Si reggeva sulla chiave
+  `/mnt/protected/ssl/<seriale>.server.key`, copiata con `sudo`. Il 26-10-2026 chi sviluppa
+  PixsysOS ha risposto che quella chiave sul filesystem e' **gia' un errore e potrebbe essere
+  rimossa**, e ha indicato l'archivio del browser come la strada prevista — provata sul WP630 lo
+  stesso giorno. Spariscono: `deploy/container/certificato-dispositivo.sh`, il marcatore
+  `config/certificato-dispositivo` scritto dall'installatore, `proposta_tls` e il campo
+  `proposta` di `GET /api/system/tls`, le rotte `POST /api/system/tls/scelta` e il suo gemello
+  remoto, il marcatore `config/tls-scelta`, le voci di audit `tls.choice` e `remote.tls_choice`,
+  il riquadro della proposta nella card TLS. Al posto della proposta la card dice un fatto: se il
+  browser del pannello si fida o no.
+- Con il ritiro se ne va anche un difetto latente: lo script controllava solo la catena, e se la
+  chiave fosse sparita avrebbe copiato `tls.crt` senza `tls.key` — al riavvio il runtime ne
+  generava un altro, e un pannello che girava in chiaro si riaccendeva con l'avviso.
+
 ## [2.22.0] — 2026-10-26
 
 ### Changed

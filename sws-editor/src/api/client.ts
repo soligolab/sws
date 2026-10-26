@@ -361,9 +361,10 @@ export interface EventoAggiornamento {
   esito: "riuscito" | "non_riuscito";
 }
 
-/** Gemello di `system::TlsStatus`: lo stato del TLS e, quando c'è, la proposta
- *  di accenderlo col certificato del dispositivo (C4, pezzo 3, 25-10-2026). */
-export interface StatoTls { enabled: boolean; proposta?: { comando: string } }
+/** Gemello di `system::TlsStatus`: se il TLS è acceso, e se il browser del
+ *  pannello si fida del nostro certificato (26-10-2026). La proposta col
+ *  certificato del dispositivo è stata ritirata insieme a quella strada. */
+export interface StatoTls { enabled: boolean; fiducia_browser: boolean }
 
 /** Gemelli di `certificati::Inventario` in `sws-web` (25-10-2026). */
 export interface DettagliCertificato {
@@ -2026,12 +2027,6 @@ export const api = {
   // la card «Certificato TLS» governava il PC su cui gira l'IDE mentre tutto il
   // resto della scheda Device parlava col pannello.
   remoteGetTlsStatus:    () => request<StatoTls>("/api/remote/system/tls"),
-  /** La risposta alla proposta dell'HTTPS col certificato del dispositivo
-   *  (C4, pezzo 3): `no` = resta in chiaro, `proponi` = torna a proporlo. */
-  sceltaTls: (remoto: boolean, scelta: "no" | "proponi") =>
-    request<void>(remoto ? "/api/remote/system/tls/scelta" : "/api/system/tls/scelta", {
-      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ scelta }),
-    }),
   remoteGenerateTlsCert: () => request<void>("/api/remote/system/tls/generate", { method: "POST" }),
   remoteUploadTlsCert:   (cert_pem: string, key_pem: string) =>
     request<void>("/api/remote/system/tls", {

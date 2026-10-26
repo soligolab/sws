@@ -854,11 +854,22 @@ const CONTAINER_DEPLOY_EMBEDDED: &[(&str, &str)] = &[
         "openplc-runtime.container",
         include_str!("../../../../deploy/container/openplc-runtime.container"),
     ),
-    // Il passaggio del certificato del dispositivo (C4, 25-10-2026): opzionale
-    // e con sudo, ma l'installer lo nomina accanto a sé quando lo propone.
+    // La fiducia del browser del pannello (26-10-2026): lo script che importa
+    // il certificato nell'archivio NSS, e il guardiano che lo rifà a ogni
+    // cambio. Hanno sostituito il passaggio del certificato del dispositivo,
+    // ritirato perché la chiave su cui si reggeva è dichiarata un errore da
+    // chi fa PixsysOS. Girano sull'host come `user`, senza privilegi.
     (
-        "certificato-dispositivo.sh",
-        include_str!("../../../../deploy/container/certificato-dispositivo.sh"),
+        "fiducia-browser.sh",
+        include_str!("../../../../deploy/container/fiducia-browser.sh"),
+    ),
+    (
+        "sws-fiducia.path",
+        include_str!("../../../../deploy/container/sws-fiducia.path"),
+    ),
+    (
+        "sws-fiducia.service",
+        include_str!("../../../../deploy/container/sws-fiducia.service"),
     ),
     // Nemmeno la commutazione web/LVGL, dal 29-09-2026: la fa il runtime via
     // D-Bus (`display_target.rs`). `sws-display.path`, il suo `.service` e
@@ -893,8 +904,11 @@ const CONTAINER_DEPLOY_FILES: &[&str] = &[
     "sws-lvgl-viewer.container",
     // OpenPLC: opzionale da installare, ma spedito sempre (vedi sopra).
     "openplc-runtime.container",
-    // Il certificato del dispositivo Pixsys: l'installer lo propone (C4).
-    "certificato-dispositivo.sh",
+    // La fiducia del browser: lo script e il guardiano che tengono allineato
+    // l'archivio NSS col certificato del runtime (26-10-2026).
+    "fiducia-browser.sh",
+    "sws-fiducia.path",
+    "sws-fiducia.service",
     // L'immagine di boot non manda più niente sul dispositivo: la chiede il
     // runtime al launcher via D-Bus dal container (24-09-2026).
 ];

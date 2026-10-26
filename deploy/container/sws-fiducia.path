@@ -1,0 +1,26 @@
+# Sorveglia il certificato del runtime e tiene allineato l'archivio del
+# browser del pannello (26-10-2026).
+#
+# Installato da `install-container.sh` in
+#   ~/.config/systemd/user/sws-fiducia.path
+#
+# PERCHE' UN GUARDIANO E NON SOLO L'INSTALLATORE. Il certificato non nasce una
+# volta sola: «Genera self-signed» sta in un bottone dell'interfaccia, se ne
+# puo' caricare uno a mano, «Rimuovi» lo toglie, e un domani il rinnovo
+# automatico lo cambiera' da se'. Importarlo solo all'installazione vorrebbe
+# dire che dal primo di quei gesti in poi il pannello torna a mostrare
+# l'avviso, senza dire perche' - il tipo di mezzo guasto silenzioso che in
+# questo progetto e' gia' costato caro piu' volte.
+#
+# `PathChanged` scatta anche quando il file viene creato o cancellato, quindi
+# copre tutti e tre i casi con una riga sola.
+
+[Unit]
+Description=SWS - sorveglia il certificato per la fiducia del browser
+
+[Path]
+PathChanged=/data/user/sws/config/tls.crt
+Unit=sws-fiducia.service
+
+[Install]
+WantedBy=default.target

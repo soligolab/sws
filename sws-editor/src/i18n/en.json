@@ -2739,10 +2739,9 @@
     "azione": "Action",
     "dettaglio": "Detail",
     "disco": "Disk",
-    "tlsPropostaTitolo": "HTTPS without warnings, with the device certificate",
-    "tlsPropostaTesto": "This panel has a device certificate its browser already trusts. Using it needs one sudo step, once: log in to the panel as «pixsys» and run this command. The panel restarts in HTTPS and the screen shows no warning.",
-    "tlsPropostaNo": "No, stay on plain HTTP",
-    "copia": "Copy"
+    "copia": "Copy",
+    "tlsFiduciaSi": "The panel's browser trusts the certificate: the screen opens the synoptic without warnings.",
+    "tlsFiduciaNo": "Browser trust cannot be installed on this device (certutil is missing): with a self-signed certificate the screen will show «Your connection is not private»."
   },
   "boot": {
     "pngTooLarge": "PNG too large ({{kb}} KB, max 5120 KB): it was not uploaded",

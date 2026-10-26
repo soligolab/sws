@@ -2133,25 +2133,6 @@ pub async fn remote_tls_rimuovi(State(s): State<AppState>, Extension(user): Exte
     inoltra_tls(&s, &user, "remote.tls_remove", reqwest::Method::DELETE, "/api/system/tls", None).await
 }
 
-/// `POST /api/remote/system/tls/scelta` — la risposta alla proposta dell'HTTPS
-/// col certificato del dispositivo, sul **dispositivo connesso** (C4, pezzo 3).
-pub async fn remote_tls_scelta(
-    State(s): State<AppState>,
-    Extension(user): Extension<AuthUser>,
-    Json(corpo): Json<crate::system::SceltaTls>,
-) -> Response {
-    // "{base}/api/system/tls/scelta".
-    inoltra_tls(
-        &s,
-        &user,
-        "remote.tls_choice",
-        reqwest::Method::POST,
-        "/api/system/tls/scelta",
-        Some(serde_json::json!({ "scelta": corpo.scelta })),
-    )
-    .await
-}
-
 /// Una GET al dispositivo connesso, con la sua sessione, e il JSON com'è.
 /// 400 senza dispositivo; 502 con il codice e il testo del dispositivo se
 /// risponde male, così l'errore che arriva all'editor dice da che parte è.

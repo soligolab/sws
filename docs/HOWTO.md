@@ -1930,40 +1930,52 @@ sostituendola.
 
 ---
 
-## 29. Il certificato del dispositivo su un pannello Pixsys (HTTPS senza avvisi)
+## 29. L'HTTPS sul pannello senza l'avviso del browser
 
-**Quando**: si vuole il pannello in HTTPS e lo schermo del pannello non deve mostrare «La connessione non è
-privata». Con il certificato **autofirmato** che l'IDE genera, il kiosk mostra quell'avviso; si supera con
-«Procedi», ma Chromium gira in incognito e lo ripropone a ogni avvio.
+*Riscritto il 26-10-2026. Fino a quel giorno questo capitolo spiegava come copiare la chiave del
+certificato del dispositivo Pixsys con `sudo`. **Quella strada è stata ritirata**: chi sviluppa
+PixsysOS ha detto che la chiave in `/mnt/protected/ssl` è già un errore e potrebbe sparire, e ha
+indicato l'archivio del browser come la strada prevista.*
 
-**Perché funziona**: PixsysOS ha in `/mnt/protected/ssl/` un certificato del dispositivo, firmato dalla CA
-Pixsys di cui il browser del pannello si fida già, con `127.0.0.1` e `localhost` fra i nomi. La chiave però è
-leggibile solo da root, e il runtime gira come `user`: lo script la copia **una volta**, con `sudo`. È
-un'eccezione decisa il 24-10-2026, in attesa che PixsysOS preveda un modo per le applicazioni utente.
+**Quando**: mai. Non c'è niente da fare a mano — il capitolo esiste per dire **come funziona** e
+cosa guardare quando non funziona.
 
-**Come**, sul pannello, entrando come `pixsys` (l'utente con `sudo`):
+**Come funziona.** Il kiosk del pannello apre `https://127.0.0.1:7443`. Perché Chromium non
+mostri «La connessione non è privata», il certificato del runtime viene importato nell'archivio
+NSS dell'utente `user` come **peer fidato**:
 
-```sh
-/usr/share/sws/quadlet/certificato-dispositivo.sh --verifica   # dice cosa farà
-/usr/share/sws/quadlet/certificato-dispositivo.sh              # lo fa
+```
+certutil -A -d sql:$HOME/.pki/nssdb -n "SWS pannello" -t "P,," -i /data/user/sws/config/tls.crt
 ```
 
-Lo script sta dentro l'immagine (se il percorso non c'è sul pannello, lo si copia da
-`deploy/container/certificato-dispositivo.sh`). Copia catena e chiave in `/data/user/sws/config/tls.crt` e
-`tls.key`, salva quelli di prima con il suffisso `.prima-<data>`, riavvia `sws-runtime` e controlla che la 7443
-risponda con il certificato del dispositivo. Alla fine stampa l'impronta: l'IDE la mostrerà come **nuova** al
-prossimo «Connetti».
+È `-t "P,,"` e non una CA di proposito: un peer fidato vale per sé stesso, una CA potrebbe firmare
+qualunque nome. Sul disco non finisce niente capace di impersonare altri siti.
 
-**Provato sul TC620 il 24-10-2026**: la catena si convalida contro la sola root Pixsys, il servizio riparte
-`healthy` dopo un riavvio a freddo senza riavvii a ripetizione, e lo schermo mostra il sinottico **senza
-avvisi**.
+**Chi lo fa, e quando.** L'installatore la prima volta, e poi `sws-fiducia.path` — un'unità
+`systemd --user` che sorveglia `config/tls.crt` e rilancia `fiducia-browser.sh` a **ogni** cambio:
+«Genera self-signed», un certificato caricato a mano, «Rimuovi», e domani il rinnovo automatico.
+Senza quel guardiano il pannello tornerebbe a mostrare l'avviso al primo certificato nuovo, senza
+dire perché.
 
-| Da sapere | |
+**Di conseguenza l'HTTPS è acceso di default** su ogni dispositivo che ce la fa: l'installatore
+scrive `config/fiducia-browser` quando trova `certutil`, e il runtime al primo avvio genera il
+certificato e parte già in HTTPS. Si guarda la **capacità**, non la marca: vale sui Pixsys e su
+qualunque altro pannello con lo stesso Chromium.
+
+**Quando non funziona**, in ordine di probabilità:
+
+| Sintomo | Da guardare |
 |---|---|
-| La chiave | è la stessa di PixsysPortal: dopo la copia sta anche fuori dalla partizione protetta |
-| «Genera self-signed» o «Rimuovi» nell'IDE | sostituiscono o tolgono questo certificato; per tornarci si rilancia lo script |
-| Altri pannelli (non Pixsys) | lo script si ferma: non c'è `/mnt/protected/ssl` |
-| La proposta nell'IDE (dal 25-10-2026) | un pannello col certificato del dispositivo e in chiaro la mostra nella card TLS (Sicurezza → Certificati), col percorso dello script sul pannello; «No, resta in chiaro» la toglie e la scelta resta (`config/tls-scelta`). «Rimuovi» il certificato vale come «no». Per riaverla: `POST /api/system/tls/scelta` con `{"scelta":"proponi"}`, o togliere il file |
+| Il pannello resta in chiaro | `cat /data/user/sws/config/fiducia-browser` — se non c'è, `certutil` manca sul dispositivo |
+| HTTPS acceso ma lo schermo mostra l'avviso | `/data/user/sws/config/fiducia-browser.sh /data/user/sws/config --verifica`, che stampa l'archivio e cosa c'è dentro |
+| L'avviso compare dopo aver cambiato certificato | `systemctl --user status sws-fiducia.path` — il guardiano non sta girando |
+| Dopo l'importazione l'avviso resta | riavviare il kiosk. Se basta riavviare il solo kiosk o serva tutto il pannello **non è ancora misurato** |
+
+**Cosa sopravvive a cosa**: `/home/user/.pki/nssdb` resta dopo un aggiornamento di PixsysOS. Si
+perde solo col factory reset, e in quel caso si reinstalla tutto, SWS compreso.
+
+**Chi si collega dalla rete** (IDE, viewer LVGL, un browser in LAN) non c'entra: per loro vale la
+fiducia al primo contatto con l'impronta mostrata, come sempre.
 
 ---
 

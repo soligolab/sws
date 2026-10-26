@@ -65,19 +65,34 @@ chromium. Quindi la via «gli passiamo un argomento» va verificata prima di pro
 
 ---
 
-## A-bis. La proposta dell'HTTPS col certificato del dispositivo (C4, pezzo 3, 25-10-2026)
+## A-bis. La fiducia del browser del pannello (26-10-2026)
 
-Sul TC620, che il certificato del dispositivo **ce l'ha già acceso** dal 24-10: per vedere la proposta bisogna
-prima tornare in chiaro.
+**Ha sostituito la proposta col certificato del dispositivo**, che era qui e non si collauda più:
+quella strada è stata ritirata il 26-10, perché chi sviluppa PixsysOS ha detto che la chiave su
+cui si reggeva è già un errore e potrebbe sparire. Il punto 4 di allora — «nel cloud la proposta
+non compare mai» — è passato: oggi non compare da nessuna parte, perché non esiste più.
 
-1. [ ] Dopo l'aggiornamento della configurazione del servizio, sul pannello: `cat /data/user/sws/config/certificato-dispositivo`
-       deve stampare il percorso della catena in `/mnt/protected/ssl/`.
-2. [ ] Sicurezza → Certificati, colonna del pannello: **Rimuovi** il certificato. Dopo il riavvio la proposta
-       **non** deve comparire (rimuovere è un «no»).
-3. [ ] Sul pannello: `rm /data/user/sws/config/tls-scelta`, poi ricaricare la vista: la proposta compare, col
-       percorso dello script in `/data/user/sws/config/`. Lanciarlo come `pixsys`: il pannello torna in HTTPS col
-       certificato del dispositivo, la proposta sparisce, lo schermo non mostra avvisi.
-4. [ ] Nel cloud la colonna di «questa istanza» non deve mai mostrare la proposta.
+Serve un pannello Pixsys, **aggiornato all'immagine nuova** (l'installatore è cambiato, quindi
+va rifatta anche la configurazione del servizio).
+
+1. [ ] Dopo l'aggiornamento, sul pannello: `cat /data/user/sws/config/fiducia-browser` deve
+       esistere, e `systemctl --user status sws-fiducia.path` deve essere attivo.
+2. [ ] **Su un pannello che era in chiaro**: dopo il riavvio deve trovarsi in **HTTPS da solo**,
+       e lo schermo deve mostrare il sinottico **senza** «La connessione non è privata».
+3. [ ] Sicurezza → Certificati, colonna del pannello: la card dice che il browser si fida. Non
+       deve esserci nessuna proposta da accettare né nessun comando da copiare.
+4. [ ] **Il guardiano segue il cambio**: premere «Genera certificato self-signed». Dopo il
+       riavvio lo schermo deve essere ancora senza avvisi — è il punto che l'installatore da solo
+       non coprirebbe, ed è il motivo per cui esiste `sws-fiducia.path`.
+5. [ ] **Rimuovi** il certificato: il pannello torna in chiaro, e
+       `fiducia-browser.sh <config> --verifica` non deve più elencare «SWS pannello».
+6. [ ] **Non misurato, da misurare qui**: dopo un cambio di certificato basta riavviare il solo
+       kiosk, o serve tutto il pannello? Nella prova del 26-10 si era riavviato tutto.
+7. [ ] Su un dispositivo **senza `certutil`** (o fingendolo): l'installatore deve dirlo, il
+       pannello resta in chiaro, e la card deve spiegare perché invece di tacere.
+
+**Da ripulire sui pannelli di prova**: il TC620 ha ancora la copia della chiave del dispositivo
+fatta il 24-10. Va tolta — era un'eccezione a una strada che non esiste più.
 
 ## A-ter. Il configuratore dei moduli (25-10-2026) — l'MCM260X-5AD sul TC620
 

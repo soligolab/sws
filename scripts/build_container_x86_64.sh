@@ -221,7 +221,8 @@ install -m 644 "$REPO/deploy/container/sws-runtime.container" "$REPO/deploy/cont
 install -m 644 "$REPO/deploy/container/openplc-runtime.container" "$CTX/quadlet/"
 # E dal 03-10-2026 lo script delle immagini: stato, pulizia e ritorno alla
 # versione precedente dopo un aggiornamento (conferma_aggiornamento.rs).
-install -m 755 "$REPO/deploy/container/install-container.sh" "$REPO/deploy/container/immagini.sh" "$REPO/deploy/container/certificato-dispositivo.sh" "$CTX/quadlet/"
+install -m 755 "$REPO/deploy/container/install-container.sh" "$REPO/deploy/container/immagini.sh" "$REPO/deploy/container/fiducia-browser.sh" "$CTX/quadlet/"
+install -m 644 "$REPO/deploy/container/sws-fiducia.path" "$REPO/deploy/container/sws-fiducia.service" "$CTX/quadlet/"
 QUADLET="$(sed -n 's/^Description=.*\[quadlet \([0-9]*\)\].*/\1/p' "$REPO/deploy/container/sws-runtime.container")"
 
 # ── 3. Build the image ────────────────────────────────────────────────────────

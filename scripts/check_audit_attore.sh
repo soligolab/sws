@@ -84,14 +84,17 @@ cert_ok device.cert_forget "$M"
 # La settima (25-10-2026): il «dimentica» della vista dei certificati, che
 # toglie una riga dagli archivi delle impronte (dispositivi e broker MQTT).
 cert_ok cert.forget        "$R"
-# L'ottava (25-10-2026): la risposta alla proposta dell'HTTPS col certificato
-# del dispositivo (C4, pezzo 3) — decide se un pannello resta in chiaro.
-cert_ok tls.choice         "$S"
-# E le tre remote, nate insieme alle rotte `/api/remote/system/tls`: cambiano un
+# L'ottava era `tls.choice`, la risposta alla proposta dell'HTTPS col
+# certificato del dispositivo. **Ritirata il 26-10-2026** insieme a quella
+# strada: non c'e' piu' una scelta da registrare, perche' non c'e' piu' una
+# proposta. Dove il browser del pannello si fida l'HTTPS si accende da se'
+# (`fiducia-browser`), e quel che resta da tracciare — generare, caricare,
+# togliere un certificato — e' gia' nelle sette righe qui sopra.
+# E le remote, nate insieme alle rotte `/api/remote/system/tls`: cambiano un
 # certificato anche loro, su un'altra macchina. Passano tutte da `inoltra_tls`,
 # che l'attore lo scrive in un posto solo: qui si controlla che il nome
 # dell'evento arrivi fin lì e che quel posto solo dica ancora chi.
-for e in remote.tls_generate remote.tls_upload remote.tls_remove remote.tls_choice; do
+for e in remote.tls_generate remote.tls_upload remote.tls_remove; do
     grep -q "\"$e\"" "$M" \
       && echo -e "  \033[32m✓\033[0m $e arriva a inoltra_tls" \
       || { echo -e "  \033[31m✗\033[0m $e: nessun chiamante lo dichiara — $M"; male=1; }
