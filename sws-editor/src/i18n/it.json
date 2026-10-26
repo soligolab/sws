@@ -767,6 +767,8 @@
     "security": "SICUREZZA",
     "minRole": "Ruolo minimo per operare",
     "minRoleNone": "Nessun vincolo",
+    "minRoleDallaVariabile": "Nessun vincolo qui — la variabile chiede {{ruolo}}",
+    "minRoleSottoVariabile": "La variabile che questo oggetto scrive chiede {{ruolo}}, e quella soglia la fa rispettare il server. Abbassare il ruolo qui non apre il comando a nessuno: cambia solo cosa mostra l'interfaccia. Per aprirlo davvero si cambia la soglia della variabile, in Configurazione → Variabili. Procedere lo stesso?",
     "minRoleEffect": "Sotto soglia",
     "effectDisable": "Visibile ma non operabile",
     "effectHide": "Nascosto",

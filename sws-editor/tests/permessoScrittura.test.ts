@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { puoScrivere, sogliaScritturaTag } from "@/auth/permessoScrittura";
+import { puoScrivere, rangoRuolo, sogliaEreditata, sogliaScritturaTag } from "@/auth/permessoScrittura";
 import { isRoleAllowed } from "@/canvas/SvgCanvas";
 import type { TagDef } from "@/types";
 
@@ -37,5 +37,43 @@ describe("chi comanda un tag dal viewer", () => {
   it("un tag senza soglia resta Operator anche con l'oggetto senza vincolo — com'era", () => {
     expect(comanda(undefined, "pompa", "Viewer")).toBe(false);
     expect(comanda(undefined, "pompa", "Operator")).toBe(true);
+  });
+});
+
+/** La soglia che il pannello proprietà mostra nel campo «ruolo minimo»
+ *  dell'oggetto (26-10-2026): quella che l'oggetto eredita dai tag che
+ *  scrive. Nasce da uno slider che chiedeva il login senza che niente
+ *  nell'oggetto lo facesse prevedere — il tag non aveva soglia, e un tag
+ *  senza soglia vale Operator. */
+describe("la soglia che l'oggetto eredita dalle sue variabili", () => {
+  it("uno slider eredita la soglia del suo tag", () => {
+    expect(sogliaEreditata(TAG, { type: "slider", tag: "luce_stanza" })).toBe("Viewer");
+    expect(sogliaEreditata(TAG, { type: "slider", tag: "motore1" })).toBe("Supervisor");
+  });
+
+  it("**un tag senza soglia eredita Operator**, ed è il caso che ha ingannato", () => {
+    expect(sogliaEreditata(TAG, { type: "slider", tag: "pompa" })).toBe("Operator");
+  });
+
+  it("chi non scrive niente non eredita niente", () => {
+    expect(sogliaEreditata(TAG, { type: "gauge", tag: "luce_stanza" })).toBeUndefined();
+    expect(sogliaEreditata(TAG, { type: "slider" })).toBeUndefined();
+  });
+
+  it("con più assegnazioni vince la più severa: servono tutte per usarlo", () => {
+    const obj = { type: "button", assegnazioni: [{ tag: "luce_stanza" }, { tag: "motore1" }] };
+    expect(sogliaEreditata(TAG, obj)).toBe("Supervisor");
+  });
+
+  it("il simbolo guarda il suo command_tag, non il tag che mostra", () => {
+    const obj = { type: "symbol", tag: "motore1", command_tag: "luce_stanza" };
+    expect(sogliaEreditata(TAG, obj)).toBe("Viewer");
+  });
+
+  it("i ranghi si ordinano, e un nome sconosciuto vale Viewer come sul pannello", () => {
+    expect(rangoRuolo("Admin")).toBeGreaterThan(rangoRuolo("Supervisor"));
+    expect(rangoRuolo("Supervisor")).toBeGreaterThan(rangoRuolo("Operator"));
+    expect(rangoRuolo("Operator")).toBeGreaterThan(rangoRuolo("Viewer"));
+    expect(rangoRuolo("boh")).toBe(rangoRuolo("Viewer"));
   });
 });

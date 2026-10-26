@@ -33,6 +33,36 @@ export function puoScrivere(soglia: string, ruolo: string | null | undefined): b
   return ho >= (RANGO[soglia] ?? RANGO.Operator);
 }
 
+/** Il rango di un ruolo, per confrontarne due. Un nome sconosciuto vale
+ *  `Viewer`, come fa `role_allowed` sul pannello: una stringa scritta male
+ *  non deve bloccare tutto. `undefined` (nessuna soglia sull'oggetto) non ha
+ *  rango e si tratta a parte da chi chiama. */
+export function rangoRuolo(ruolo: string): number {
+  return RANGO[ruolo] ?? 0;
+}
+
+/** **La soglia che l'oggetto eredita dalle variabili che scrive**
+ *  (26-10-2026). È la più severa fra le soglie dei suoi tag, perché per
+ *  usarlo servono tutte.
+ *
+ *  Serve al pannello proprietà: fino a oggi il campo «ruolo minimo»
+ *  dell'oggetto nasceva vuoto e sembrava dire «aperto a chiunque», mentre il
+ *  tag sotto chiedeva Operator — che è il default di un tag senza soglia. Il
+ *  maintainer ci è inciampato il 26-10 con uno slider che chiedeva il login
+ *  senza che niente nell'oggetto lo facesse prevedere.
+ *
+ *  `undefined` = l'oggetto non scrive niente, quindi non eredita niente. */
+export function sogliaEreditata(
+  tags: TagDef[] | undefined,
+  obj: Parameters<typeof tagScrittiDa>[0],
+): string | undefined {
+  const scritti = tagScrittiDa(obj);
+  if (!scritti.length) return undefined;
+  return scritti
+    .map((id) => sogliaScritturaTag(tags, id))
+    .reduce((a, b) => (rangoRuolo(b) > rangoRuolo(a) ? b : a));
+}
+
 /** I tipi che scrivono il proprio `tag` quando li si usa (le chiamate a
  *  `guardedWrite` in `SvgCanvas`). Il simbolo scrive `command_tag`. */
 const SCRIVONO_IL_TAG = new Set(["button", "checkbox", "radio", "setpoint", "slider"]);

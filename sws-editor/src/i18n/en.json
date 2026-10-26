@@ -767,6 +767,8 @@
     "security": "SECURITY",
     "minRole": "Minimum role to operate",
     "minRoleNone": "No restriction",
+    "minRoleDallaVariabile": "No restriction here — the tag requires {{ruolo}}",
+    "minRoleSottoVariabile": "The tag this object writes requires {{ruolo}}, and the server is what enforces that threshold. Lowering the role here opens the command to nobody: it only changes what the interface shows. To really open it, change the tag's threshold in Configuration → Tags. Proceed anyway?",
     "minRoleEffect": "Below threshold",
     "effectDisable": "Visible but not operable",
     "effectHide": "Hidden",

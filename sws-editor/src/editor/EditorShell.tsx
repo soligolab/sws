@@ -64,6 +64,7 @@ import { seguePredefinito } from "@/formatoProgetto";
 import { impostaBootAbilitata } from "@/boot/abilitata";
 import { AnteprimaPng } from "@/boot/AnteprimaPng";
 import { PermessoTagNota } from "@/editor/PermessoTagNota";
+import { rangoRuolo, sogliaEreditata } from "@/auth/permessoScrittura";
 
 // ── Shared styles ─────────────────────────────────────────────────────────────
 
@@ -3058,6 +3059,7 @@ export function ObjectProps({
   // Il fatto «il progetto ha utenti», non la modalità dell'istanza: vedi
   // `avvisoRuoloMinimo`.
   const progettoHaUtenti = useAppStore((st) => st.progettoHaUtenti);
+  const tagsDelProgetto = useAppStore((st) => st.project?.tags);
   // D (2026-08-23): cattura waypoint dal canvas — stato condiviso nello store.
   const capturePathTarget = useAppStore((st) => st.capturePathTarget);
   const mostraTracciato    = useAppStore((st) => st.mostraTracciato);
@@ -5981,16 +5983,39 @@ export function ObjectProps({
             : undefined
         }
       >
-        {field(t("props.minRole"), (
-          <select style={{ ...INPUT, cursor: "pointer" }} value={obj.min_role ?? ""}
-            onChange={(e) => onChange({ min_role: (e.target.value || undefined) as SynopticObject["min_role"] })}>
-            <option value="">{t("props.minRoleNone")}</option>
-            <option value="Viewer">Viewer</option>
-            <option value="Operator">Operator</option>
-            <option value="Supervisor">Supervisor</option>
-            <option value="Admin">Admin</option>
-          </select>
-        ))}
+        {/* **Il minimo che l'oggetto eredita dalla variabile** (26-10-2026).
+            Il campo nasceva vuoto e sembrava dire «aperto a chiunque», mentre
+            il tag sotto chiedeva Operator — che è il default di un tag senza
+            soglia. Il maintainer ci è inciampato con uno slider che chiedeva
+            il login senza che niente nell'oggetto lo facesse prevedere.
+
+            Salire è libero: l'oggetto può restringere. **Scendere sotto la
+            variabile non apre niente**, perché la soglia che il server fa
+            rispettare è quella del tag e l'oggetto vive solo
+            nell'interfaccia. Per questo si può fare, ma lo si conferma: la
+            conferma non protegge da un danno, dice una verità che altrimenti
+            si scopre davanti al pannello. */}
+        {(() => {
+          const ereditata = sogliaEreditata(tagsDelProgetto, obj);
+          const scende = (v: string) =>
+            ereditata !== undefined && (v === "" || rangoRuolo(v) < rangoRuolo(ereditata));
+          return field(t("props.minRole"), (
+            <select style={{ ...INPUT, cursor: "pointer" }} value={obj.min_role ?? ""}
+              onChange={(e) => {
+                const v = e.target.value;
+                if (scende(v) && !window.confirm(t("props.minRoleSottoVariabile", { ruolo: ereditata }))) return;
+                onChange({ min_role: (v || undefined) as SynopticObject["min_role"] });
+              }}>
+              <option value="">
+                {ereditata ? t("props.minRoleDallaVariabile", { ruolo: ereditata }) : t("props.minRoleNone")}
+              </option>
+              <option value="Viewer">Viewer</option>
+              <option value="Operator">Operator</option>
+              <option value="Supervisor">Supervisor</option>
+              <option value="Admin">Admin</option>
+            </select>
+          ));
+        })()}
         {/* Senza utenti nel progetto l'autenticazione inietta un Admin
             sintetico (`router.rs`), quindi **chiunque** è Admin e il ruolo
             minimo non nega niente a nessuno. Il gating è corretto e resta
