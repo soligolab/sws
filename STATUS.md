@@ -12,7 +12,80 @@
 > resta in «Storico». Qui vive solo ciò che serve a riprendere il lavoro.
 
 
-## ▶ Riprendere da qui — «Concludi tutti i piani iniziati»: P2, P3, P4, gruppo 6, C4, tunnel (2026-10-26)
+## ▶ Riprendere da qui — 2.23.0 costruita, e un tubo che resta indietro (2026-10-26, sera)
+
+**La 2.23.0 è su ghcr e `sws.soligo.net` ci gira sopra.** Due immagini verificate dal registry
+(arm64 e amd64), quadlet 7 invariato, sette voci di `NOVITA.yaml` in due lingue dentro
+l'etichetta. Gateway attivo, `/health` 200, zero errori.
+
+### La cosa da riprendere per prima
+
+**Il tubo resta indietro dalla pompa mentre si muove**, visto dal maintainer sul TC620. Non è una
+regressione: prima il tubo non seguiva affatto. Diagnosi chiusa, rimedio da decidere.
+
+- Lo scarto è **nella direzione del moto** (pompa in verticale → scarto verticale): è un ritardo
+  nel tempo, non un errore di geometria. Si riduce rallentando, e forse sparisce — con lo slider
+  non si riesce a muovere abbastanza piano per dirlo.
+- Causa nel codice: corpo e bocchettoni del tubo sono **canvas**; `riposiziona` azzera la cache
+  (`self.disegnato = None`) a ogni cambio di percorso, e `disegna` **ricostruisce una stringa
+  SVG, la fa analizzare da `usvg` e la rasterizza con `resvg`** — una volta per il corpo
+  (`CorpoSvg`) e una per i bocchettoni (`ExtraTubo`). La pompa è un `lv_obj_set_pos`: gratis.
+- **Non si riproduce qui**: il tempo di `--istantanea` è simulato e un ridisegno non costa
+  niente. Misurato a 1, 2, 3, 5 e 10 fotogrammi dal cambio: **zero pixel di spazio** ogni volta.
+- Due strade, da scegliere: **(1)** non rifare ciò che non cambia — i bocchettoni, quando il tubo
+  scorre senza cambiare angolo, disegnano la stessa identica immagine, e oggi la cache viene
+  buttata comunque; **(2)** disegnare il corpo con le primitive di LVGL invece che con un SVG.
+  Prima di scegliere servirebbe **quanto costa su quella CPU**, e quel numero oggi non si può
+  avere → vedi il seme [dove se ne va il tempo](docs/plans/2026-10-26-dove-se-ne-va-il-tempo.md),
+  che il maintainer chiede di valutare se fare **subito**.
+- Il maintainer riprende **da casa, con accesso SSH al TC620**.
+
+### Fatto oggi (tutto in `main`, rami chiusi ed eliminati)
+
+Pila di sei rami annidati, mergiati dal basso e cancellati; il controllo prima di cancellare è
+stato fatto sulla punta, che non aveva nessuna differenza di codice da `main`.
+
+- **Freccia alla variabile** — un pulsante in `TagInput`, e tutti e diciotto i punti dell'IDE che
+  chiedono una variabile lo ereditano. `navigateToConfig` esisteva già.
+- **Ruolo dell'oggetto dalla variabile** — il campo mostra il minimo ereditato; scendere si può,
+  con una conferma che dice la verità: **non apre niente**, la soglia la fa rispettare il server
+  sul tag.
+- **Tubo, Fase 3** — segue anche il moto su percorso. Sul web si legge la posizione vera dal
+  browser solo mentre si muove: misurato in un Chromium vero che `getCTM()` include
+  `offset-path`, ma anche zoom e panoramica, quindi si prende la matrice relativa al padre.
+- **Ricerca globale** — campo verde fuori dal contenitore che scorre, cinque mondi, `Mod+K` dal
+  registro delle scorciatoie. Il filtro degli Strumenti è stato assorbito, e il suo test
+  riscritto sul posto nuovo.
+- **Fiducia del browser del pannello** — il certificato del runtime si importa nell'archivio NSS
+  come peer fidato; l'installatore una volta e `sws-fiducia.path` a ogni cambio. L'HTTPS si
+  accende da sé dove `certutil` c'è. **Ritirato** tutto il percorso del certificato del
+  dispositivo (script con `sudo`, proposta nella card, marcatori, due voci di audit, HOWTO §29
+  riscritto).
+- **Sfondo dell'immagine di boot** — il campo c'è anche sul boot, e il PNG non perde più le
+  immagini del progetto nel cloud (`blob:` e `/images/…` adesso si incorporano).
+- **`--istantanea-dopo-cambio`** — fotografa N fotogrammi dopo il cambio di un tag, per vedere i
+  transitori. Serve anche a dire di no, come ha fatto oggi.
+
+### Collaudi
+
+§E (accesso dal pannello LVGL) **chiusa**, confermata sul WP630. G-ter 31 e 32 passano, **33 no**
+— rinominando la radice di un tag composito la variabile si sdoppia, e il difetto è
+nell'interfaccia: le due funzioni giuste esistono, non vengono eseguite perché scrivere nel campo
+del nome rinomina solo quella riga. §A-bis riscritta per la fiducia del browser. Restano 57 voci.
+
+### Aperto
+
+- **Push**: fatto stasera con questa chiusura.
+- **CasaDomotica** vuole lo sfondo del boot (regola del 16-10) e ha ancora dentro i residui del
+  collaudo G-ter: tipo `motore`, tag `Pompa2`, l'orfano `'motore1.velocita '`, l'oggetto a
+  `Home.yaml:79`.
+- **Il TC620** ha ancora la copia della chiave del dispositivo fatta il 24-10: va tolta, era
+  un'eccezione a una strada che non esiste più.
+- **Disco al 98 %** su 1,5 T anche dopo i 40 GB liberati oggi da `pota_incremental.sh`.
+
+---
+
+## Sessione precedente — «Concludi tutti i piani iniziati»: P2, P3, P4, gruppo 6, C4, tunnel (2026-10-26)
 
 Su `main` con **un solo squash** (pushato) della catena di otto rami annidati del 25-26/10. **Niente immagini
 costruite**: la 2.21.1 è in `NOVITA.yaml` ma non ha tag — si tagga quando si costruisce (chiedere prima).
