@@ -148,23 +148,55 @@ export function spezzaTestiACapo(
   return { ...page, objects };
 }
 
-/** Legge un'immagine di progetto (`/api/project/images/…`) come data URI, con le
- *  credenziali dell'IDE. Gli URL esterni non si scaricano: dall'SVG del PNG
- *  sarebbero comunque bloccati, e non è compito nostro portarli dentro. */
-async function immagineComeDataUri(href: string): Promise<string | null> {
-  if (!href.startsWith("/api/")) return null;
-  const headers = new Headers();
-  const tok = getAuthToken();
-  if (tok) headers.set("Authorization", `Bearer ${tok}`);
-  const res = await fetch(`${getBaseUrl()}${href}`, { headers });
-  if (!res.ok) return null;
-  const blob = await res.blob();
-  return await new Promise<string>((ok, ko) => {
+/** Un blob come data URI. Lo stesso pezzo per tutti i rami di
+ *  `immagineComeDataUri`: prima stava dentro il solo ramo `/api/`. */
+function blobComeDataUri(blob: Blob): Promise<string> {
+  return new Promise<string>((ok, ko) => {
     const r = new FileReader();
     r.onload = () => ok(String(r.result));
     r.onerror = () => ko(r.error);
     r.readAsDataURL(blob);
   });
+}
+
+/** **Ogni immagine che il browser ha potuto disegnare finisce nel PNG**
+ *  (26-10-2026). Tre rami, e il quarto dice di no:
+ *
+ *  - `/api/…` — immagine del progetto: serve la sessione dell'IDE;
+ *  - `blob:…` — l'ha già scaricata `ImmagineSvg` nel cloud. È lo stesso URL
+ *    che il browser sta disegnando in quel momento: rileggerlo non costa rete;
+ *  - `/images/…` e ogni altro percorso della stessa origine — il catalogo
+ *    delle icone. Mancavano dal PNG **anche in locale**, perché non iniziano
+ *    con `/api/`;
+ *  - `http(s)://` di un altro sito → `null`, come prima. È una scelta, non una
+ *    dimenticanza: portare dentro la roba di un altro sito non è compito
+ *    nostro, e dall'SVG sarebbe comunque bloccata.
+ *
+ *  Il difetto che chiude: dal 25-10-2026 nel cloud `ImmagineSvg` disegna
+ *  `blob:`, e un `blob:` non iniziava con `/api/` — quindi **nessuna**
+ *  immagine del progetto arrivava nel PNG di boot, e `neutralizzaNonStatico`
+ *  la toglieva chiamandola «esterna». */
+export async function immagineComeDataUri(href: string): Promise<string | null> {
+  if (/^https?:\/\//i.test(href)) return null;
+  if (href.startsWith("data:")) return href;
+  if (href.startsWith("/api/")) {
+    const headers = new Headers();
+    const tok = getAuthToken();
+    if (tok) headers.set("Authorization", `Bearer ${tok}`);
+    const res = await fetch(`${getBaseUrl()}${href}`, { headers });
+    if (!res.ok) return null;
+    return await blobComeDataUri(await res.blob());
+  }
+  // `blob:` e percorsi della stessa origine: nessuna credenziale, è l'URL che
+  // il browser ha già usato lui.
+  if (!href.startsWith("blob:") && !href.startsWith("/")) return null;
+  try {
+    const res = await fetch(href);
+    if (!res.ok) return null;
+    return await blobComeDataUri(await res.blob());
+  } catch {
+    return null;
+  }
 }
 
 /** Il font del testo che non ne dichiara uno. È lo stesso stack del resto dell'IDE;
