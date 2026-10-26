@@ -178,11 +178,19 @@ Il difetto segnalato il 23-10-2026: «se premo *Aggiorna ora* mi compare diretta
 aggiornare serve un amministratore del pannello* col solo bottone annulla, non c'è modo di fare il
 login».
 
-16. [ ] Su un pannello **LVGL** con un aggiornamento disponibile, premere «Aggiorna ora».
-        Deve comparire il **form di accesso**, non il rifiuto secco.
-17. [ ] La **tastiera a schermo** deve vedersi (contrasto vero, non testo su fondo dello stesso
+16. [x] Su un pannello **LVGL** con un aggiornamento disponibile, premere «Aggiorna ora».
+        Deve comparire il **form di accesso**, non il rifiuto secco. **Passa** (26-10-2026, WP630
+        sulla 2.22.0).
+17. [x] La **tastiera a schermo** deve vedersi (contrasto vero, non testo su fondo dello stesso
         colore), deve **scrivere** nei campi, e il tasto di chiusura deve farla sparire.
-18. [ ] «Annulla» deve riportare al sinottico, non lasciare il pannello bloccato.
+        **Passa** (26-10-2026).
+18. [x] «Annulla» deve riportare al sinottico, non lasciare il pannello bloccato. **Passa**
+        (26-10-2026).
+
+    > **Chiusa il 26-10-2026**, con la 2.22.0 sul WP630. Parole del maintainer: «il menù di login
+    > per diventare admin ora funziona come mi aspettavo». La schermata e cambiata nel frattempo:
+    > i due campi stanno insieme in una colonna centrata, e ci sono «Annulla» e «Accedi» — prima
+    > si confermava solo col ✓ della tastiera. Guardia `check_accesso_lvgl.sh`.
 
 ---
 
