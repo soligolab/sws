@@ -11,6 +11,26 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 
 ## [Unreleased]
 
+### Changed
+
+- **Pannello LVGL, schermata di accesso: utente e password insieme, e un pulsante «Accedi».**
+  Prima i due campi arrivavano in due pannelli in fila, si confermava solo col ✓ della tastiera e
+  l'unico pulsante visibile era «Annulla» — cioe quello che ti butta fuori. Ora i due campi stanno
+  in una colonna centrata di 560 px (larghi tutto il vetro non si leggevano come campi), il blocco
+  e centrato nella meta libera (fra password e pulsanti restava una banda vuota di un centinaio di
+  pixel) e ai capi della colonna ci sono «Annulla» e «Accedi», quest'ultimo con il blu di
+  «Aggiorna ora». Il tocco su un campo ci porta la tastiera; il ✓ sull'utente salta alla password;
+  «Accedi» conferma sempre, perche un pulsante che lo dice deve farlo. Con una sessione scaduta il
+  nome resta scritto e si parte dalla password (`session.rs`, `ultimo_utente`). La parola nuova
+  passa dalla tabella condivisa col web, quindi «Accedi» e «Log in» non possono divergere fra
+  pannello e browser (`testi_sistema.rs`, `tests/fixtures/testi-sistema.json`,
+  `sws-editor/src/i18n/testiSistema.ts`). Guardia `check_accesso_lvgl.sh`: cerca i due pulsanti per
+  colore su tutta la larghezza, pretende che «Accedi» esista e stia a destra di «Annulla», e
+  rifiuta di girare su binari piu vecchi dei sorgenti.
+- Gateway del VPS all'immagine `2.21.1-amd64`, e la regola di tenerlo all'ultima costruita: il
+  maintainer lavora sempre da `sws.soligo.net`, e un gateway indietro inventa difetti che non
+  esistono (`deploy/vps/`).
+
 ## [2.21.1] — 2026-10-26
 
 ### Fixed

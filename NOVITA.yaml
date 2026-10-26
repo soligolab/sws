@@ -33,6 +33,10 @@
 # successivo.
 
 versioni:
+  - versione: "Unreleased"
+    voci:
+      - it: "Dal pannello si entra da una schermata sola: utente e password insieme, con i pulsanti «Accedi» e «Annulla»."
+        en: "Logging in from the panel takes one screen: user and password together, with «Log in» and «Cancel» buttons."
   - versione: "2.21.1"
     voci:
       - it: "Notifiche al telefono: SMS e chiamate con voce via Twilio ai reperibili di turno, con escalation al successivo. Col pannello nel cloud si riconosce l'allarme premendo 1 o rispondendo OK."

@@ -119,37 +119,24 @@ unsafe extern "C" fn sws_avviso_cb(e: *mut lvgl_sys::lv_event_t) {
     // vorrebbe dire cancellarlo da dentro la sua stessa callback.
 }
 
-/// A che punto è la raccolta delle credenziali.
-///
-/// Si riusa la tastiera a schermo intero di `lvgl_render` invece di costruirne
-/// una dentro l'avviso: è già sul layer superiore (quindi niente problemi di
-/// z-order), ha già il giro dei font che va rifatto a ogni creazione, ed è
-/// **non bloccante** — restituisce una cella che si guarda a ogni giro. Il
-/// login della pagina non si tocca: il suo callback fa un `block_on` che ha
-/// una ragione documentata e non va toccato.
-enum FaseAccesso {
-    Utente(crate::lvgl_render::Tastiera),
-    Password {
-        utente: String,
-        tastiera: crate::lvgl_render::Tastiera,
-    },
-}
-
-impl FaseAccesso {
-    fn tastiera(&self) -> &crate::lvgl_render::Tastiera {
-        match self {
-            FaseAccesso::Utente(k) => k,
-            FaseAccesso::Password { tastiera, .. } => tastiera,
-        }
-    }
-}
+// La raccolta delle credenziali usa la schermata a due campi di `lvgl_render`
+// (`apri_credenziali`) invece di costruirne una qui: è già sul layer superiore
+// — quindi niente problemi di z-order — ha già il giro dei font che va rifatto
+// a ogni creazione, ed è **non bloccante**, cioè restituisce una cella che si
+// guarda a ogni giro. Il login della pagina non si tocca: il suo callback fa
+// un `block_on` che ha una ragione documentata.
+//
+// **Fino al 26-10-2026 erano due schermate in fila**, perché si riusava la
+// tastiera generica a un campo solo: prima l'utente, poi — a conferma data —
+// la password. Il maintainer l'ha trovata sbagliata, e aveva ragione: chi sta
+// davanti a un pannello vuole vedere cosa gli si sta chiedendo, tutto insieme.
 
 /// L'overlay, con quel che gli serve per non essere ricostruito a ogni frame.
 #[derive(Default)]
 pub struct Overlay {
     radice: Option<*mut lvgl_sys::lv_obj_t>,
     /// La raccolta delle credenziali, quando è in corso.
-    accesso: Option<FaseAccesso>,
+    accesso: Option<crate::lvgl_render::Credenziali>,
     /// La generazione di [`crate::aggiornamento::StatoAvviso`] già disegnata.
     disegnata: Option<u64>,
     /// Vivi quanto la radice: LVGL ne tiene i puntatori.
@@ -180,13 +167,27 @@ impl Overlay {
         };
         // **Prima del confronto di generazione**: la tastiera va guardata a
         // ogni giro, e la generazione non cambia mentre si digita.
-        self.avanza_accesso(&avviso, stato, base_url, sessione);
+        self.avanza_accesso(&avviso, stato, lingua, base_url, sessione);
         if self.disegnata == Some(generazione) {
             return;
         }
         self.disegnata = Some(generazione);
         self.distruggi();
         if avviso == Avviso::Niente {
+            return;
+        }
+        // **Mentre si digitano le credenziali la card non si disegna.**
+        //
+        // Quello che aveva da dire — perché ti si chiede di entrare, l'errore
+        // dell'ultimo tentativo, il pulsante per rinunciare — sta dentro la
+        // schermata di accesso, che è a schermo intero. Disegnarla comunque la
+        // metteva **sopra i due campi**: misurato il 26-10-2026 su
+        // un'istantanea a 1280×800, la card andava da y=72 a y=218 e i campi
+        // stavano a 75-110 e 190-226.
+        //
+        // Con `in_corso: true` invece la card serve ancora: la schermata si è
+        // chiusa e quella riga è l'unica cosa che dice che si sta aspettando.
+        if matches!(avviso, Avviso::Accesso { in_corso: false, .. }) {
             return;
         }
         if let Err(e) = self.costruisci(
@@ -209,6 +210,7 @@ impl Overlay {
         &mut self,
         avviso: &Avviso,
         stato: &SharedAvviso,
+        lingua: &str,
         base_url: &str,
         sessione: &SharedSession,
     ) {
@@ -224,40 +226,52 @@ impl Overlay {
             // di rete. La tastiera restava sullo schermo, a schermo intero e
             // cliccabile, e si mangiava ogni tocco. Sul WP630 il pannello
             // risultava bloccato.
-            if let Some(fase) = self.accesso.take() {
-                fase.tastiera().chiudi();
+            if let Some(schermata) = self.accesso.take() {
+                schermata.chiudi();
             }
             return;
         }
         match self.accesso.take() {
-            // Appena chiesto: si parte dall'utente.
+            // Appena chiesto: si apre la schermata, col nome già scritto se lo
+            // si sa. Il lock sulla sessione si prende e si molla subito: resta
+            // una `String`, perché `apri_credenziali` tocca LVGL e tenere un
+            // lock attraverso quella chiamata non serve a niente.
             None => {
-                self.accesso = crate::lvgl_render::apri_tastiera(false, false, "")
-                    .map(FaseAccesso::Utente);
+                let ultimo = sessione
+                    .lock()
+                    .ok()
+                    .and_then(|s| s.ultimo_utente().map(str::to_owned))
+                    .unwrap_or_default();
+                // I testi che prima stavano sulla card: adesso vivono qui,
+                // perché la card durante l'accesso non si disegna più.
+                let (motivo, errore) = match avviso {
+                    Avviso::Accesso { motivo, errore, .. } => (motivo.as_str(), errore.clone()),
+                    _ => ("", None),
+                };
+                let titolo = format!(
+                    "🔑 {}",
+                    testo(
+                        if motivo == "cmd_serve_accesso" { Testo::CmdServeAccesso } else { Testo::AggServeAdmin },
+                        lingua,
+                    )
+                );
+                self.accesso = crate::lvgl_render::apri_credenziali(crate::lvgl_render::TestiAccesso {
+                    titolo: &titolo,
+                    errore: errore.as_deref(),
+                    utente: &ultimo,
+                    annulla: testo(Testo::ConfAnnulla, lingua),
+                    accedi: testo(Testo::ConfAccedi, lingua),
+                });
                 if self.accesso.is_none() {
                     aggiornamento::accesso_fallito(stato, "tastiera non disponibile".into());
                 }
             }
-            Some(FaseAccesso::Utente(k)) => {
-                let letto = k.esito.borrow().clone();
+            Some(schermata) => {
+                let letto = schermata.esito.borrow().clone();
                 match letto {
-                    None => self.accesso = Some(FaseAccesso::Utente(k)),
+                    None => self.accesso = Some(schermata),
                     Some(None) => aggiornamento::annulla_accesso(stato),
-                    Some(Some(utente)) => {
-                        self.accesso = crate::lvgl_render::apri_tastiera(false, true, "")
-                            .map(|tastiera| FaseAccesso::Password { utente, tastiera });
-                        if self.accesso.is_none() {
-                            aggiornamento::accesso_fallito(stato, "tastiera non disponibile".into());
-                        }
-                    }
-                }
-            }
-            Some(FaseAccesso::Password { utente, tastiera }) => {
-                let letto = tastiera.esito.borrow().clone();
-                match letto {
-                    None => self.accesso = Some(FaseAccesso::Password { utente, tastiera }),
-                    Some(None) => aggiornamento::annulla_accesso(stato),
-                    Some(Some(password)) => {
+                    Some(Some((utente, password))) => {
                         aggiornamento::accesso_in_corso(stato);
                         crate::net_worker::invia(crate::net_worker::Comando::Accedi {
                             base_url: base_url.to_string(),

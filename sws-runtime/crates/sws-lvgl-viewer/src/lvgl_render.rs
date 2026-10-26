@@ -5919,21 +5919,7 @@ pub(crate) type EsitoTastiera = std::rc::Rc<RefCell<Option<Option<String>>>>;
 /// In tutti e due i casi la tastiera restava sullo schermo. È a schermo intero
 /// e cliccabile: si mangiava ogni tocco, e il pannello risultava bloccato.
 pub(crate) struct Tastiera {
-    overlay: core::ptr::NonNull<lvgl_sys::lv_obj_t>,
     pub esito: EsitoTastiera,
-}
-
-impl Tastiera {
-    /// Chiude la tastiera **se è ancora aperta**.
-    ///
-    /// La cella del risultato è anche il segno che si è già chiusa da sé:
-    /// `sws_tastiera_cb` la riempie e **poi** cancella l'overlay. Senza questo
-    /// controllo si cancellerebbe due volte lo stesso oggetto.
-    pub fn chiudi(&self) {
-        if self.esito.borrow().is_none() {
-            unsafe { lvgl_sys::lv_obj_del_async(self.overlay.as_ptr()) };
-        }
-    }
 }
 
 struct TastieraCtx {
@@ -5995,8 +5981,351 @@ pub(crate) fn apri_tastiera(numerica: bool, password: bool, iniziale: &str) -> O
         for code in [lvgl_sys::lv_event_code_t_LV_EVENT_READY, lvgl_sys::lv_event_code_t_LV_EVENT_CANCEL] {
             lvgl_sys::lv_obj_add_event_cb(kb.as_ptr(), Some(sws_tastiera_cb), code, ctx as *const TastieraCtx as *mut std::ffi::c_void);
         }
-        Some(Tastiera { overlay: ov, esito })
+        Some(Tastiera { esito })
     }
+}
+
+pub(crate) type EsitoCredenziali = std::rc::Rc<RefCell<Option<Option<(String, String)>>>>;
+
+/// La schermata di accesso del pannello: **utente e password insieme**.
+pub(crate) struct Credenziali {
+    overlay: core::ptr::NonNull<lvgl_sys::lv_obj_t>,
+    pub esito: EsitoCredenziali,
+}
+
+impl Credenziali {
+    /// Chiude la schermata **se è ancora aperta**. Stesso motivo del gemello
+    /// in [`Tastiera`]: la cella del risultato è anche il segno che si è già
+    /// chiusa da sé, e senza il controllo si cancellerebbe due volte lo stesso
+    /// oggetto — che sul WP630 vuol dire pannello che non risponde più.
+    pub fn chiudi(&self) {
+        if self.esito.borrow().is_none() {
+            unsafe { lvgl_sys::lv_obj_del_async(self.overlay.as_ptr()) };
+        }
+    }
+}
+
+struct CredenzialiCtx {
+    overlay: core::ptr::NonNull<lvgl_sys::lv_obj_t>,
+    utente: core::ptr::NonNull<lvgl_sys::lv_obj_t>,
+    password: core::ptr::NonNull<lvgl_sys::lv_obj_t>,
+    tastiera: core::ptr::NonNull<lvgl_sys::lv_obj_t>,
+    esito: EsitoCredenziali,
+}
+
+/// Il bordo del campo attivo si accende, quello dell'altro si spegne.
+///
+/// Senza, su un vetro non si capisce dove si sta scrivendo: la tastiera è una
+/// sola e i campi sono due, e il cursore di LVGL da mezzo metro non si vede.
+unsafe fn evidenzia_campo(attivo: *mut lvgl_sys::lv_obj_t, spento: *mut lvgl_sys::lv_obj_t) {
+    stile::bordo(attivo, Some((56, 189, 248)), 2.0, stile::MAIN);
+    stile::bordo(spento, Some((100, 116, 139)), 1.0, stile::MAIN);
+}
+
+/// Quello che la schermata di accesso deve dire. Erano i campi della card
+/// dell'avviso: dal 26-10-2026 la card durante l'accesso non si disegna più —
+/// finiva **sopra** i due campi — e il suo contenuto vive qui.
+pub(crate) struct TestiAccesso<'a> {
+    /// Perché si sta chiedendo di entrare.
+    pub titolo: &'a str,
+    /// Il rifiuto dell'ultimo tentativo, se c'è stato.
+    pub errore: Option<&'a str>,
+    /// L'ultimo utente conosciuto: se c'è, il campo nasce compilato.
+    pub utente: &'a str,
+    /// L'etichetta del pulsante che rinuncia, nella lingua del pannello.
+    pub annulla: &'a str,
+    /// L'etichetta del pulsante che conferma, nella lingua del pannello.
+    pub accedi: &'a str,
+}
+
+/// La schermata di accesso a **due campi**, su tutto lo schermo.
+///
+/// Prima erano due schermate in fila — la generica [`apri_tastiera`] chiamata
+/// una volta per l'utente e una per la password. Non era una scelta di
+/// disegno: era il riuso di un pezzo che sa fare un campo solo, e il maintainer
+/// l'ha giustamente trovata sbagliata (26-10-2026). Chi sta davanti a un
+/// pannello vuole vedere cosa gli si sta chiedendo, tutto insieme.
+///
+/// I gesti ammessi sono due, e sono tutti e due necessari:
+/// - **si tocca un campo** e la tastiera scrive lì — è il gesto naturale su un
+///   vetro, e senza di lui il secondo campo sarebbe irraggiungibile se il
+///   primo è già a posto;
+/// - **✓ sull'utente salta alla password**, ✓ sulla password conferma. Così
+///   si fa tutto dalla tastiera, senza staccare la mano.
+///
+/// `utente_iniziale` arriva da `SessionState::ultimo_utente`: se c'è, il campo
+/// è già compilato e **si parte dalla password**, perché è l'unica cosa che
+/// quella persona deve ancora digitare.
+pub(crate) fn apri_credenziali(testi: TestiAccesso<'_>) -> Option<Credenziali> {
+    let utente_iniziale = testi.utente;
+    unsafe {
+        let top = lvgl_sys::lv_disp_get_layer_top(core::ptr::null_mut());
+        let ov = core::ptr::NonNull::new(lvgl_sys::lv_obj_create(top))?;
+        lvgl_sys::lv_obj_set_pos(ov.as_ptr(), 0, 0);
+        let (lw, lh) = risoluzione();
+        lvgl_sys::lv_obj_set_size(ov.as_ptr(), lw, lh);
+        stile::sfondo(ov.as_ptr(), (15, 23, 42), stile::MAIN);
+        stile::bordo(ov.as_ptr(), None, 0.0, stile::MAIN);
+        lvgl_sys::lv_obj_clear_flag(ov.as_ptr(), lvgl_sys::LV_OBJ_FLAG_SCROLLABLE);
+        // Senza, il padding di default di `lv_obj_create` si somma alle
+        // coordinate dei figli: i 20 px di margine diventano 40 a sinistra e
+        // zero a destra, e campi e pulsante finiscono a filo del vetro.
+        for pad in [
+            lvgl_sys::lv_obj_set_style_pad_left as unsafe extern "C" fn(_, _, _),
+            lvgl_sys::lv_obj_set_style_pad_right,
+            lvgl_sys::lv_obj_set_style_pad_top,
+            lvgl_sys::lv_obj_set_style_pad_bottom,
+        ] {
+            pad(ov.as_ptr(), 0, 0);
+        }
+
+        // La tastiera di LVGL si prende metà schermo in basso: i due campi
+        // stanno nell'altra metà, e le misure si derivano dall'altezza invece
+        // di essere cablate — un WP630 e un TC620 non hanno lo stesso vetro.
+        let meta = lh / 2;
+        let alto = (meta / 8).clamp(8, 24);
+        let h_campo = ((meta - alto * 2) / 4).clamp(36, 64);
+        // **Una colonna, non tutto il vetro.** Larghi quanto lo schermo, i due
+        // campi non sembravano campi: su 1280 px una casella da 1240 si legge
+        // come una banda. 560 px è la misura in cui una riga di testo resta
+        // una riga di testo; sotto i 600 px di vetro vince il margine.
+        let w_col = (lw - 40).min(560);
+        let x0 = (lw - w_col) / 2;
+        let h_btn = h_campo.min(48);
+        let etichetta = |testo: &str, y: i16| {
+            let l = lvgl_sys::lv_label_create(ov.as_ptr());
+            if !l.is_null() {
+                lvgl_sys::lv_obj_set_pos(l, x0, y);
+                lvgl_sys::lv_label_set_text(l, text_cstring(testo).as_ptr());
+                lvgl_sys::lv_obj_set_style_text_color(
+                    l,
+                    lvgl_sys::lv_color_t { full: 0 },
+                    0,
+                );
+                stile::testo(l, (148, 163, 184), stile::MAIN);
+                if let Some(f) = crate::lvgl_font::at_size(16) {
+                    lvgl_sys::lv_obj_set_style_text_font(l, f, 0);
+                }
+            }
+        };
+        let campo = |y: i16, password: bool, iniziale: &str| -> Option<core::ptr::NonNull<lvgl_sys::lv_obj_t>> {
+            let ta = core::ptr::NonNull::new(lvgl_sys::lv_textarea_create(ov.as_ptr()))?;
+            lvgl_sys::lv_obj_set_pos(ta.as_ptr(), x0, y);
+            lvgl_sys::lv_obj_set_size(ta.as_ptr(), w_col, h_campo);
+            lvgl_sys::lv_textarea_set_one_line(ta.as_ptr(), true);
+            if password {
+                // Una password non si legge da sopra la spalla di chi sta
+                // davanti a un impianto (20-10-2026).
+                lvgl_sys::lv_textarea_set_password_mode(ta.as_ptr(), true);
+            }
+            lvgl_sys::lv_textarea_set_text(ta.as_ptr(), text_cstring(iniziale).as_ptr());
+            // Stesso motivo della tastiera: senza stile proprio, sul vetro di
+            // un pannello non si vede nemmeno che si sta scrivendo.
+            stile::sfondo(ta.as_ptr(), (15, 23, 42), stile::MAIN);
+            stile::testo(ta.as_ptr(), (226, 232, 240), stile::MAIN);
+            stile::bordo(ta.as_ptr(), Some((100, 116, 139)), 1.0, stile::MAIN);
+            Some(ta)
+        };
+
+        // In cima: perché ti si sta chiedendo di entrare, e l'eventuale
+        // rifiuto dell'ultimo tentativo. Senza, la schermata chiederebbe una
+        // password senza dire per cosa.
+        //
+        // **Il blocco sta al centro della metà libera.** Prima il testo
+        // partiva in alto e i pulsanti erano inchiodati in fondo: fra la
+        // password e «Annulla» restava una banda vuota di un centinaio di
+        // pixel, che sul vetro sembrava un pezzo mancante. Qui si misura
+        // prima quanto è alto tutto, e lo si centra.
+        let h_blocco = (alto + 8)
+            + if testi.errore.is_some() { alto + 4 } else { 0 }
+            + (alto + 4) + h_campo + alto
+            + (alto + 4) + h_campo
+            + alto + h_btn;
+        let mut y = ((meta - h_blocco) / 2).max(alto);
+        {
+            let l = lvgl_sys::lv_label_create(ov.as_ptr());
+            if !l.is_null() {
+                lvgl_sys::lv_obj_set_pos(l, x0, y);
+                lvgl_sys::lv_obj_set_width(l, w_col);
+                lvgl_sys::lv_label_set_long_mode(l, lvgl_sys::LV_LABEL_LONG_WRAP as u8);
+                lvgl_sys::lv_label_set_text(l, text_cstring(testi.titolo).as_ptr());
+                stile::testo(l, (226, 232, 240), stile::MAIN);
+                if let Some(f) = crate::lvgl_font::at_size(18) {
+                    lvgl_sys::lv_obj_set_style_text_font(l, f, 0);
+                }
+            }
+        }
+        y += alto + 8;
+        if let Some(e) = testi.errore {
+            let l = lvgl_sys::lv_label_create(ov.as_ptr());
+            if !l.is_null() {
+                lvgl_sys::lv_obj_set_pos(l, x0, y);
+                lvgl_sys::lv_obj_set_width(l, w_col);
+                lvgl_sys::lv_label_set_long_mode(l, lvgl_sys::LV_LABEL_LONG_WRAP as u8);
+                lvgl_sys::lv_label_set_text(l, text_cstring(&format!("⚠ {e}")).as_ptr());
+                stile::testo(l, (252, 165, 165), stile::MAIN);
+                if let Some(f) = crate::lvgl_font::at_size(16) {
+                    lvgl_sys::lv_obj_set_style_text_font(l, f, 0);
+                }
+            }
+            y += alto + 4;
+        }
+        etichetta("Utente:", y);
+        y += alto + 4;
+        let ta_utente = campo(y, false, utente_iniziale)?;
+        y += h_campo + alto;
+        etichetta("Password:", y);
+        y += alto + 4;
+        let ta_password = campo(y, true, "")?;
+
+        let kb = core::ptr::NonNull::new(lvgl_sys::lv_keyboard_create(ov.as_ptr()))?;
+        lvgl_sys::lv_keyboard_set_mode(
+            kb.as_ptr(),
+            lvgl_sys::LV_KEYBOARD_MODE_TEXT_LOWER as lvgl_sys::lv_keyboard_mode_t,
+        );
+        crate::lvgl_font::restore_symbols_on(kb.as_ptr());
+        stile::sfondo(kb.as_ptr(), (30, 41, 59), stile::MAIN);
+        stile::sfondo(kb.as_ptr(), (51, 65, 85), stile::CELLE);
+        stile::testo(kb.as_ptr(), (226, 232, 240), stile::CELLE);
+        stile::bordo(kb.as_ptr(), Some((100, 116, 139)), 1.0, stile::CELLE);
+        stile::raggio(kb.as_ptr(), 4.0, stile::CELLE);
+
+        // **Da dove si parte.** Col nome già noto, la password: è l'unica cosa
+        // che quella persona deve ancora digitare. Altrimenti l'utente.
+        let parti_da = if utente_iniziale.trim().is_empty() { ta_utente } else { ta_password };
+        lvgl_sys::lv_keyboard_set_textarea(kb.as_ptr(), parti_da.as_ptr());
+        let spento = if parti_da == ta_utente { ta_password } else { ta_utente };
+        evidenzia_campo(parti_da.as_ptr(), spento.as_ptr());
+
+        // **I due pulsanti, ai due capi della colonna.** «Annulla» c'era già:
+        // senza di lui da questa schermata non si uscirebbe più, perché la
+        // tastiera di LVGL in modo testo non ha un tasto ✗. «Accedi» è nuovo,
+        // e serviva: fino al 26-10-2026 si confermava **solo** col ✓ della
+        // tastiera, e chi sta davanti al vetro non ha nessun motivo di
+        // saperlo — l'unico pulsante visibile era quello che ti butta fuori.
+        y += h_campo + alto;
+        let w_btn = ((w_col - 16) / 2).clamp(110, 240);
+        let pulsante = |x: i16, testo: &str, primario: bool| -> Option<core::ptr::NonNull<lvgl_sys::lv_obj_t>> {
+            let b = core::ptr::NonNull::new(lvgl_sys::lv_btn_create(ov.as_ptr()))?;
+            lvgl_sys::lv_obj_set_size(b.as_ptr(), w_btn, h_btn);
+            lvgl_sys::lv_obj_set_pos(b.as_ptr(), x, y);
+            // Il blu è quello di «Aggiorna ora» (`lvgl_avviso.rs`), non un
+            // secondo blu: due accenti diversi nella stessa schermata si
+            // leggono come due cose diverse.
+            stile::sfondo(b.as_ptr(), if primario { (29, 78, 216) } else { (51, 65, 85) }, stile::MAIN);
+            stile::bordo(b.as_ptr(), Some(if primario { (29, 78, 216) } else { (100, 116, 139) }), 1.0, stile::MAIN);
+            stile::raggio(b.as_ptr(), 6.0, stile::MAIN);
+            let l = lvgl_sys::lv_label_create(b.as_ptr());
+            if !l.is_null() {
+                lvgl_sys::lv_label_set_text(l, text_cstring(testo).as_ptr());
+                stile::testo(l, (226, 232, 240), stile::MAIN);
+                if let Some(f) = crate::lvgl_font::at_size(16) {
+                    lvgl_sys::lv_obj_set_style_text_font(l, f, 0);
+                }
+                lvgl_sys::lv_obj_align(l, lvgl_sys::LV_ALIGN_CENTER as lvgl_sys::lv_align_t, 0, 0);
+            }
+            Some(b)
+        };
+        let annulla = pulsante(x0, testi.annulla, false)?;
+        let accedi = pulsante(x0 + w_col - w_btn, testi.accedi, true)?;
+
+        let esito: EsitoCredenziali = Default::default();
+        let ctx: &'static CredenzialiCtx = Box::leak(Box::new(CredenzialiCtx {
+            overlay: ov,
+            utente: ta_utente,
+            password: ta_password,
+            tastiera: kb,
+            esito: esito.clone(),
+        }));
+        let dato = ctx as *const CredenzialiCtx as *mut std::ffi::c_void;
+        for code in [lvgl_sys::lv_event_code_t_LV_EVENT_READY, lvgl_sys::lv_event_code_t_LV_EVENT_CANCEL] {
+            lvgl_sys::lv_obj_add_event_cb(kb.as_ptr(), Some(sws_credenziali_kb_cb), code, dato);
+        }
+        lvgl_sys::lv_obj_add_event_cb(
+            annulla.as_ptr(),
+            Some(sws_credenziali_annulla_cb),
+            lvgl_sys::lv_event_code_t_LV_EVENT_CLICKED,
+            dato,
+        );
+        lvgl_sys::lv_obj_add_event_cb(
+            accedi.as_ptr(),
+            Some(sws_credenziali_accedi_cb),
+            lvgl_sys::lv_event_code_t_LV_EVENT_CLICKED,
+            dato,
+        );
+        // Il tocco su un campo ci porta la tastiera.
+        for ta in [ta_utente, ta_password] {
+            lvgl_sys::lv_obj_add_event_cb(
+                ta.as_ptr(),
+                Some(sws_credenziali_campo_cb),
+                lvgl_sys::lv_event_code_t_LV_EVENT_CLICKED,
+                dato,
+            );
+        }
+        Some(Credenziali { overlay: ov, esito })
+    }
+}
+
+unsafe extern "C" fn sws_credenziali_annulla_cb(e: *mut lvgl_sys::lv_event_t) {
+    let ctx = &*(lvgl_sys::lv_event_get_user_data(e) as *const CredenzialiCtx);
+    *ctx.esito.borrow_mut() = Some(None);
+    lvgl_sys::lv_obj_del_async(ctx.overlay.as_ptr());
+}
+
+unsafe extern "C" fn sws_credenziali_campo_cb(e: *mut lvgl_sys::lv_event_t) {
+    let ctx = &*(lvgl_sys::lv_event_get_user_data(e) as *const CredenzialiCtx);
+    let toccato = lvgl_sys::lv_event_get_target(e);
+    if toccato.is_null() {
+        return;
+    }
+    lvgl_sys::lv_keyboard_set_textarea(ctx.tastiera.as_ptr(), toccato);
+    let altro = if toccato == ctx.utente.as_ptr() { ctx.password } else { ctx.utente };
+    evidenzia_campo(toccato, altro.as_ptr());
+}
+
+unsafe fn testo_di(ta: *mut lvgl_sys::lv_obj_t) -> String {
+    let c = lvgl_sys::lv_textarea_get_text(ta);
+    if c.is_null() {
+        String::new()
+    } else {
+        std::ffi::CStr::from_ptr(c).to_string_lossy().into_owned()
+    }
+}
+
+unsafe extern "C" fn sws_credenziali_kb_cb(e: *mut lvgl_sys::lv_event_t) {
+    let ctx = &*(lvgl_sys::lv_event_get_user_data(e) as *const CredenzialiCtx);
+    if lvgl_sys::lv_event_get_code(e) == lvgl_sys::lv_event_code_t_LV_EVENT_CANCEL {
+        *ctx.esito.borrow_mut() = Some(None);
+        lvgl_sys::lv_obj_del_async(ctx.overlay.as_ptr());
+        return;
+    }
+    // ✓ sull'utente: non conferma, **sposta sulla password**. Confermare qui
+    // manderebbe una password vuota, che è il modo più silenzioso di far
+    // fallire un accesso.
+    if lvgl_sys::lv_keyboard_get_textarea(ctx.tastiera.as_ptr()) == ctx.utente.as_ptr() {
+        lvgl_sys::lv_keyboard_set_textarea(ctx.tastiera.as_ptr(), ctx.password.as_ptr());
+        evidenzia_campo(ctx.password.as_ptr(), ctx.utente.as_ptr());
+        return;
+    }
+    conferma_credenziali(ctx);
+}
+
+/// Manda quello che c'è nei due campi e chiude. Condivisa fra il ✓ della
+/// tastiera e il pulsante «Accedi».
+unsafe fn conferma_credenziali(ctx: &CredenzialiCtx) {
+    let utente = testo_di(ctx.utente.as_ptr());
+    let password = testo_di(ctx.password.as_ptr());
+    *ctx.esito.borrow_mut() = Some(Some((utente, password)));
+    lvgl_sys::lv_obj_del_async(ctx.overlay.as_ptr());
+}
+
+/// «Accedi» **conferma sempre**, anche col fuoco sul campo utente — a
+/// differenza del ✓, che da lì salta alla password. Non è un'incoerenza: il ✓
+/// è «ho finito questo campo», un pulsante che dice «Accedi» deve accedere. Se
+/// la password è vuota l'accesso fallisce e il rifiuto si legge in cima alla
+/// schermata, che è più onesto di un pulsante che non fa quel che dice.
+unsafe extern "C" fn sws_credenziali_accedi_cb(e: *mut lvgl_sys::lv_event_t) {
+    conferma_credenziali(&*(lvgl_sys::lv_event_get_user_data(e) as *const CredenzialiCtx));
 }
 
 unsafe extern "C" fn sws_tastiera_cb(e: *mut lvgl_sys::lv_event_t) {

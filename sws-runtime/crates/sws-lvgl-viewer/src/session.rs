@@ -139,10 +139,26 @@ impl SessionState {
             return SessionState::default();
         };
         if s.is_expired() {
-            SessionState::default()
+            // **Scaduta vuol dire «non sei piu dentro», non «non so chi eri».**
+            // Il nome resta, il token no: serve alla schermata di accesso del
+            // pannello, che col nome gia scritto parte dalla password invece
+            // di farla ridigitare a chi sta davanti a un impianto. Un nome
+            // utente non apre niente — e' quello che fa anche un browser.
+            SessionState { username: s.username, ..SessionState::default() }
         } else {
             s
         }
+    }
+
+    /// L'ultimo utente che e' entrato da questo pannello, se lo si sa.
+    ///
+    /// Sopravvive alla **scadenza** della sessione (vedi `load`) e ne e l'unica
+    /// cosa che sopravvive. **Non** sopravvive a un logout esplicito, e non e
+    /// una dimenticanza: chi preme «esci» puo star passando il pannello a
+    /// qualcun altro, e ritrovarsi il nome di prima gia scritto sarebbe
+    /// sbagliato. `clear()` lo toglie apposta.
+    pub fn ultimo_utente(&self) -> Option<&str> {
+        self.username.as_deref().filter(|u| !u.trim().is_empty())
     }
 
     /// Scrittura su disco best-effort: un fallimento (permessi, disco pieno,

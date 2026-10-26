@@ -384,6 +384,13 @@
       "fr": "Annuler",
       "es": "Cancelar",
       "en": "Cancel"
+    },
+    "conf_accedi": {
+      "it": "Accedi",
+      "de": "Anmelden",
+      "fr": "Se connecter",
+      "es": "Acceder",
+      "en": "Log in"
     }
   }
 }
