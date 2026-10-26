@@ -48,7 +48,22 @@
         --brand-warning-bg: #78350f;
         --brand-on-warning: #0f172a;
       }
+      /* La ricerca globale (26-10-2026): il verde che la stacca dal resto
+         della colonna, che e' tutta grigia e bianca. Non sta fra i token del
+         brand perche' non e' un colore del marchio: e' il colpo d'occhio di
+         un comando, e resta verde anche su un marchio verde. In scuro la
+         coppia si rovescia, perche' il verde chiaro su fondo scuro acceca. */
+      :root {
+        --sws-cerca-bg: #052e16;
+        --sws-cerca-bordo: #166534;
+        --sws-cerca-testo: #86efac;
+        --sws-cerca-campo: #0b2a17;
+      }
       :root[data-theme="light"] {
+        --sws-cerca-bg: #dcfce7;
+        --sws-cerca-bordo: #86efac;
+        --sws-cerca-testo: #166534;
+        --sws-cerca-campo: #ffffff;
         --brand-bg: #f8fafc;
         --brand-surface: #ffffff;
         --brand-surface-2: #f1f5f9;

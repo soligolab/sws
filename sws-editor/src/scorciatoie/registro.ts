@@ -26,6 +26,7 @@ export interface AzioneScorciatoia {
 export const AZIONI: readonly AzioneScorciatoia[] = [
   { id: "salva", gruppo: "file", predefinita: "Mod+S", contesto: "globale", testo: "scorciatoie.salva" },
   { id: "editorConfigurazione", gruppo: "navigazione", predefinita: "Mod+,", contesto: "globale", testo: "scorciatoie.editorConfigurazione" },
+  { id: "cercaOvunque", gruppo: "navigazione", predefinita: "Mod+K", contesto: "globale", testo: "scorciatoie.cercaOvunque" },
   { id: "paginaSuccessiva", gruppo: "navigazione", predefinita: "Alt+PageDown", contesto: "editor", testo: "scorciatoie.paginaSuccessiva" },
   { id: "paginaPrecedente", gruppo: "navigazione", predefinita: "Alt+PageUp", contesto: "editor", testo: "scorciatoie.paginaPrecedente" },
   { id: "annulla", gruppo: "modifica", predefinita: "Mod+Z", contesto: "editor", testo: "shortcut.undo" },

@@ -3782,7 +3782,8 @@
       "selezione": "Selection and groups",
       "ordine": "Order (z-order)",
       "aiuto": "Help"
-    }
+    },
+    "cercaOvunque": "Search everywhere"
   },
   "ritenzione": {
     "titolo": "Automatic retention",
@@ -3928,5 +3929,19 @@
     "file": "Generated files",
     "nessunFile": "None yet.",
     "scarica": "Download"
+  },
+  "ricerca": {
+    "placeholder": "Search everywhere…",
+    "nessuno": "Nothing like «{{q}}».",
+    "diPiu": "{{n}} of {{tot}}",
+    "gruppoVariabili": "Tags",
+    "gruppoPagine": "Pages",
+    "gruppoOggetti": "Objects",
+    "gruppoStrumenti": "Tools",
+    "gruppoImpostazioni": "Settings",
+    "dovePagina": "{{n}} objects",
+    "dovePagina2": "page {{pagina}}",
+    "doveImpostazione": "configuration tab",
+    "istanzaDi": "instance of «{{tipo}}»"
   }
 }

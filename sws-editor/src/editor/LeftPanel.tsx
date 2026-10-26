@@ -9,6 +9,7 @@ import { findBrokenNavLinks, findOrphanPageIds } from "@/pageLayout";
 import { resolvePageBackground } from "@/theme";
 import { AlberoConfigurazione } from "./AlberoConfigurazione";
 import { aggiungiOggetto, persistiFunzioni } from "./azioniEditor";
+import { CampoRicerca, RisultatiRicerca } from "./RicercaGlobale";
 import { IconaStrumento } from "./IconaStrumento";
 import { AnteprimaLib } from "@/symbols/lib/AnteprimaLib";
 import { useManifestoLib } from "@/symbols/lib/libreria";
@@ -735,7 +736,7 @@ interface PaletteItem { type: SynopticObject["type"] }
  *  contrasto — le intestazioni erano quasi invisibili col tema chiaro,
  *  segnalate dal maintainer il 2026-09-06. Le tinte `colorLight` sono gli
  *  stessi colori due gradini più scuri, e stanno sopra 4,5:1 su `#f8fafc`. */
-interface PaletteGroup { category: string; color: string; colorLight: string; defaultOpen?: boolean; items: PaletteItem[] }
+export interface PaletteGroup { category: string; color: string; colorLight: string; defaultOpen?: boolean; items: PaletteItem[] }
 
 /** Esportata perché è **l'elenco autorevole dei tipi piazzabili**: il test
  *  d'inventario dei campi (T-56) e chiunque debba iterare sui tipi deve
@@ -1067,52 +1068,20 @@ function RamoStrumenti() {
   const targetKind = useAppStore((s) => s.project?.target?.kind);
   const isLvgl = targetKind === "lvgl_framebuffer" || targetKind === "lvgl_wayland";
   const paginaBoot = useAppStore((s) => eBoot(s.pages.find((p) => p.id === s.currentPageId)));
-  const themeMode = useAppStore((s) => s.themeMode);
-  const px = useAppStore((s) => s.misuraIcone);
-  const manifesto = useManifestoLib();
+  // Il manifesto resta sottoscritto anche senza il filtro: i gruppi della
+  // palette mostrano i simboli, e senza l'iscrizione non si ridisegnano
+  // quando arriva.
+  useManifestoLib();
   const groups = paletteForTarget(isLvgl, paginaBoot);
   const [aperto, commuta] = useSezioneAperta("config.strumenti", true);
-  const [filtro, setFiltro] = useState("");
-  const risultati = filtraStrumenti(filtro, groups, manifesto?.symbols ?? [], t);
   const nota = { fontSize: 11, color: "var(--brand-text-subtle, #64748b)", padding: "0 8px 6px 20px" };
-  const coloreDi = (category: string) => {
-    const g = groups.find((x) => x.category === category);
-    return g ? coloreGruppo(g, themeMode) : undefined;
-  };
   return (
     <div style={{ padding: "0 8px" }}>
       <IntestazioneSezione titolo={t("leftPanel.strumenti")} icona="🧰" aperta={aperto} onToggle={commuta} />
       {aperto && (<>
-        <div style={{ padding: "0 8px 6px 20px" }}>
-          <input type="search" data-testid="filtro-strumenti" value={filtro} placeholder={t("leftPanel.filtroStrumenti")}
-            aria-label={t("leftPanel.filtroStrumenti")}
-            onChange={(e) => setFiltro(e.target.value)}
-            onKeyDown={(e) => { if (e.key === "Escape") setFiltro(""); }}
-            style={{
-              width: "100%", boxSizing: "border-box", fontSize: 12, padding: "4px 8px", borderRadius: 4,
-              background: "var(--brand-bg, #0f172a)", border: "1px solid var(--brand-surface-2, #334155)",
-              color: "var(--brand-text, #e2e8f0)",
-            }} />
-        </div>
         {paginaBoot && <div style={nota}>{t("leftPanel.paletteBootHint")}</div>}
         {!paginaBoot && isLvgl && <div style={nota}>{t("editor.paletteLvglHint")}</div>}
-        {filtro.trim() ? (
-          risultati.length === 0
-            ? <div style={nota}>{t("leftPanel.filtroNessuno", { q: filtro })}</div>
-            : risultati.map((r) => r.kind === "tipo" ? (
-              <RigaStrumento key={`t-${r.type}`} testid={`strumento-${r.type}`} rientro={20}
-                icona={<IconaStrumento tipo={r.type} px={px} colore={coloreDi(r.category)} />}
-                nome={r.nome} titolo={t("leftPanel.strumentoAggiungi")} guide={{}}
-                sotto={r.gruppo}
-                onClick={() => aggiungiOggetto(r.type)} />
-            ) : (
-              <RigaStrumento key={`s-${r.sim.id}`} testid={`simbolo-${r.sim.id}`} rientro={20}
-                icona={<AnteprimaLib sim={r.sim} w={Math.round(px * 1.15)} h={px} />}
-                nome={r.nome} titolo={t("leftPanel.strumentoAggiungi")} guide={{}}
-                sotto={r.gruppo}
-                onClick={() => aggiungiOggetto("symbol", { symbol_id: r.sim.id })} />
-            ))
-        ) : groups.map((group) => (
+        {groups.map((group) => (
           <GruppoStrumenti key={group.category} group={group} showLvglBadge={!isLvgl}
             ultimo={group === groups[groups.length - 1]} />
         ))}
@@ -2062,6 +2031,7 @@ export function LeftPanel() {
   const puoModificare  = canEditProject(authRole);
 
   const conPagine = puoModificare;
+  const [ricerca, setRicerca] = useState("");
 
   const [panelWidth, setPanelWidth] = useState<number>(() => {
     const stored = Number(localStorage.getItem(LEFT_PANEL_WIDTH_KEY));
@@ -2101,7 +2071,13 @@ export function LeftPanel() {
     <div style={{ display: "flex", flexShrink: 0, position: "relative" }}>
       <div style={{ ...S.panel, width: panelWidth }}>
         <InAlbero.Provider value={true}>
+          {/* La ricerca sta **fuori** dal contenitore che scorre: non e'
+              appiccicata in alto, e' proprio in un posto che non scorre.
+              Con del testo dentro prende il posto dell'albero, perche' due
+              elenchi insieme nella stessa colonna non si leggono. */}
+          <CampoRicerca testo={ricerca} onTesto={setRicerca} />
           <div data-testid="albero-pannello" style={{ flex: 1, minHeight: 0, overflowY: "auto", padding: "4px 0" }}>
+            {ricerca.trim() ? <RisultatiRicerca testo={ricerca} onChiudi={() => setRicerca("")} /> : <>
             {conPagine && <PagesSection />}
             {conPagine && <RamoStrumenti />}
             {conPagine && <ObjectsSection />}
@@ -2110,6 +2086,7 @@ export function LeftPanel() {
                 «Progetto › Variabili», dove si modificano (25-09-2026). Chi
                 non può configurare vede quella foglia e basta. */}
             <AlberoConfigurazione soloVariabili={!puoConfigurare} />
+            </>}
           </div>
         </InAlbero.Provider>
       </div>

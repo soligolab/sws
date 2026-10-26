@@ -113,16 +113,30 @@ describe("ramo Strumenti", () => {
     expect(aggiunte).toEqual([["symbol", { symbol_id: sim.id }]]);
   });
 
-  it("il filtro mostra un elenco piatto; Esc lo svuota", () => {
+  /** Il filtro dentro «Strumenti» non c'è più: dal 26-10-2026 lo assorbe la
+   *  ricerca globale in cima alla colonna (scelta del maintainer — due campi
+   *  che cercano negli strumenti sono due punti che fanno la stessa cosa).
+   *  Il comportamento non è sparito, si è spostato, e il test con lui. */
+  it("la ricerca globale prende il posto dell'albero, e Esc lo rimette", () => {
     render(<LeftPanel />);
-    const filtro = screen.getByTestId("filtro-strumenti");
-    fireEvent.change(filtro, { target: { value: "trend" } });
-    fireEvent.click(screen.getByTestId("strumento-trend"));
-    expect(aggiunte).toEqual([["trend", undefined]]);
+    expect(screen.queryByTestId("filtro-strumenti")).toBeNull();
+    const cerca = screen.getByTestId("ricerca-globale");
+    fireEvent.change(cerca, { target: { value: "trend" } });
+    // L'albero ha lasciato il posto ai risultati.
     expect(screen.queryByTestId("strumento-rect")).toBeNull();
-    fireEvent.keyDown(filtro, { key: "Escape" });
-    expect((filtro as HTMLInputElement).value).toBe("");
+    expect(screen.getByTestId("ricerca-risultati")).toBeTruthy();
+    fireEvent.keyDown(cerca, { key: "Escape" });
+    expect((cerca as HTMLInputElement).value).toBe("");
     expect(screen.getByTestId("strumento-rect")).toBeTruthy();
+  });
+
+  it("un risultato «strumento» aggiunge l'oggetto, come faceva il filtro", () => {
+    render(<LeftPanel />);
+    fireEvent.change(screen.getByTestId("ricerca-globale"), { target: { value: "trend" } });
+    fireEvent.mouseDown(screen.getByTestId("ricerca-voce-tipo:trend"));
+    expect(aggiunte).toEqual([["trend", undefined]]);
+    // E la ricerca si chiude da sé: aperto il risultato, si torna a lavorare.
+    expect((screen.getByTestId("ricerca-globale") as HTMLInputElement).value).toBe("");
   });
 
   it("le icone seguono la misura scelta nelle preferenze", () => {
