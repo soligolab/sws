@@ -11,6 +11,8 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 
 ## [Unreleased]
 
+## [2.21.1] — 2026-10-26
+
 ### Fixed
 
 - **`check_pannello_confinato` era rossa su un codice sano.** Il suo `sed` cercava
