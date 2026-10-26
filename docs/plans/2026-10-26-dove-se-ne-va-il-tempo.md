@@ -1,5 +1,86 @@
 # Dove se ne va il tempo: misurare l'occupazione dei singoli lavori
 
+> **Era un seme, dal 26-10-2026 (sera) è un piano d'esecuzione.** La sessione di plan l'ha fatta una sessione su
+> `ufficio`, misurando il codice; le tre decisioni sono del maintainer. Il testo del seme resta in coda, perché è il
+> motivo per cui il lavoro è nato.
+
+## Decisioni del maintainer (26-10-2026)
+
+1. **Il viewer misura sempre e manda al runtime solo a richiesta.** Prendere l'ora a inizio e fine di ogni fase
+   costa decine di nanosecondi: si accumula sempre, in memoria. I numeri escono solo quando qualcuno li guarda.
+2. **Si guardano in una pagina dell'IDE**, Configurazione → Istanza → **Prestazioni**, per il pannello collegato
+   (viewer + runtime); e in `/metrics` per chi ha Prometheus.
+3. **Si fa subito**, prima di scegliere il rimedio del tubo: la scelta fra «non rifare ciò che non cambia» e
+   «corpo con le primitive di LVGL» si fa col numero del TC620.
+
+## Quello che la misura del codice ha trovato (ipotesi da verificare coi numeri)
+
+Ciclo DRM del viewer, `sws-lvgl-viewer/src/main.rs:1476-1620`:
+
+- **Lo schermo intero si copia e si converte a ogni giro, anche fermo.** `lvgl_display::copy_frame_rgb888` restituisce
+  sempre `true`: 3 MB copiati (1280×800×3) e poi `DrmDisplay::flush_rgb888` riscrive il buffer DRM **un byte alla
+  volta**, ~1 milione di pixel × 4 scritture, sessanta volte al secondo. Candidato numero uno a mangiarsi il giro.
+- **Il tempo di LVGL avanza di 16 ms fissi** (`tick_inc(16ms)`) anche quando il giro ne dura 40: con giri lunghi,
+  tutto ciò che va a tempo in LVGL rallenta (`LV_DISP_DEF_REFR_PERIOD` è 30 ms).
+- **La mappa dei tag si clona intera a ogni giro** (`shared_tags.lock().clone()`), e `update_bindings` ripassa tutti
+  i collegamenti.
+- **Il tubo**: pompa (`LiveKind::Motion`) e tubo (`LiveKind::PipeFill` → `corpo.riposiziona` → `aggiorna` →
+  `disegna`) si aggiornano **nello stesso passaggio, dagli stessi tag**, e il canvas si rasterizza subito. Sulla
+  carta lo scarto non c'è; sul TC620 si vede. È esattamente il caso in cui ragionare non basta più.
+
+## Il lavoro
+
+### 1. Viewer — le fasi del giro (`sws-lvgl-viewer/src/tempi.rs`, nuovo)
+
+- Un accumulatore per fase: conteggio, somma, massimo, e un istogramma a secchi fissi (≤1, 2, 4, 8, 16, 33, 66,
+  >66 ms). Niente allocazioni nel giro.
+- **Fasi del giro**: `tag` (clone + `update_bindings`), dentro di essa `canvas` (le rasterizzazioni: corpo del tubo,
+  bocchettoni, simboli, barre, trend, tabelle — una voce per tipo), `lvgl` (`task_handler`), `avviso`, `display`
+  (copia + `flush_rgb888`), `giro` intero, `attesa` (il sonno), più i **fotogrammi al secondo veri**.
+- Gli stessi punti nel ciclo SDL (`run_window`), così da poterlo provare sul PC.
+- **Uscita a richiesta**: il thread di rete (`net_worker`) chiede ogni 10 s `GET /api/prestazioni/richiesta`
+  (`{attiva}`, loopback, pochi byte); se è attiva, ogni 2 s manda il riassunto con
+  `POST /api/prestazioni/viewer` e azzera i contatori. Il giro di disegno non tocca mai la rete.
+
+### 2. Runtime — i lavori (`histogram!` già disponibile, mai usato)
+
+- `sws_lavoro_secondi{lavoro=…}` attorno alle unità che esistono già: il giro di ogni sorgente (per protocollo e
+  id), la scrittura dello storico, l'esecuzione di uno script e di una funzione, il ricalcolo dei tag derivati, la
+  diffusione su `/ws/tags`. Gli stessi numeri anche in un riassunto JSON (stessi secchi del viewer).
+- `GET /api/prestazioni` (Supervisor): runtime + ultimo riassunto del viewer, e accende la richiesta per 60 s (chi
+  guarda la pagina la tiene accesa da sé). Gemello remoto `/api/remote/prestazioni`, rotta in `deploy_only_app`.
+- `GET /api/prestazioni/richiesta` e `POST /api/prestazioni/viewer`: **solo da loopback** (il viewer sta sulla stessa
+  macchina), come le altre rotte del viewer; voce in `check_rotte_preauth.sh` col motivo.
+
+### 3. IDE — Configurazione → Istanza → Prestazioni
+
+- Due colonne come Certificati: «questa istanza» e «pannello collegato».
+- Viewer: fotogrammi al secondo, e una barra per fase con media, 95° percentile e massimo, nel giro da 16 ms.
+- Runtime: una riga per lavoro, ordinata per tempo totale.
+- Aggiorna ogni 2 s finché la pagina è aperta.
+
+### 4. Usarla, e decidere il tubo
+
+- Build (chiedere prima) e TC620: pagina Prestazioni con la pompa che scorre. Si legge quanto pesano `display`,
+  `canvas/tubo` e `lvgl`.
+- Con quel numero il maintainer sceglie il rimedio del tubo; se la voce grossa è `display`, il primo rimedio è
+  copiare e convertire solo le aree che LVGL ha davvero ridisegnato — e quello va in un piano a parte, non qui.
+
+### 5. Documenti e test
+
+- Rust: accumulatore e secchi (puri), riassunto JSON, rotte loopback rifiutate da fuori, la richiesta che scade.
+- Vitest: la pagina con una e due colonne.
+- Manuale (capitolo della diagnostica), CHANGELOG, NOVITA, collaudi.
+
+## Fuori, dichiarato
+
+Profilazione campionaria (perf, flamegraph), misure dentro LVGL in C, storico delle prestazioni nel tempo: qui si
+risponde a «dove va il tempo adesso», non a «com'era ieri».
+
+---
+
+## Il seme (26-10-2026)
+
 > **Seme — decisione.** Nato il 26-10-2026, da una domanda a cui non si è potuto rispondere.
 >
 > **Quando questo lavoro comincia, il primo passo è una sessione di plan dedicata e approfondita
