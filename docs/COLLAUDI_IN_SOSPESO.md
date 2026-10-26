@@ -248,11 +248,41 @@ Si può fare sul PC, senza pannello.
 
 Si fa sul PC, nell'IDE.
 
-31. [ ] Configurazione → Variabili → **Tipi**: creare un tipo `Motore` con due membri, poi un tag
+31. [x] Configurazione → Variabili → **Tipi**: creare un tipo `Motore` con due membri, poi un tag
         istanza di `Motore`. Nell'albero il tag deve mostrare le foglie (`motore1.velocita`…).
-32. [ ] Un oggetto del sinottico legato a una **foglia** (`motore1.velocita`): il completamento del
-        percorso deve proporla, e il valore deve arrivare.
+        **Passa** (26-10-2026).
+32. [x] Un oggetto del sinottico legato a una **foglia** (`motore1.velocita`): il completamento del
+        percorso deve proporla, e il valore deve arrivare. **Passa** (26-10-2026).
 33. [ ] **Rinominare** il tag radice: i riferimenti alle foglie nei sinottici devono seguire.
+
+    > **NON PASSA — 26-10-2026.** Rinominando `motore1` in `Pompa2` la variabile si è sdoppiata:
+    > nell'elenco è comparso un tag piatto `motore1.velocita` di tipo `f64`, accanto a `Pompa2`.
+    >
+    > Misurato in `CasaDomotica` sul VPS, non dedotto. In `project.yaml` ci sono **tutti e due**:
+    > `- id: Pompa2 … type_ref: motore` e `- id: 'motore1.velocita '`. In `synoptics/Home.yaml`
+    > l'oggetto punta **ancora** a `'motore1.velocita '`, cioè **al nome vecchio**.
+    >
+    > I due meccanismi che servirebbero **esistono già** e funzionano: `rinomina()`
+    > (`tag/rinominaTag.ts:205`) segue anche i percorsi delle foglie quando la radice è
+    > composita, e `ePercorsoDiUnaRadice` (`tag/riconciliaTag.ts:148`) impedisce di creare un
+    > tag piatto dentro una radice. Non sono stati eseguiti perché la rinomina non è passata di
+    > lì: `TagsTab.tsx:142` offre la rinomina-ovunque (l'icona ✎, riga 607) **solo per gli id già
+    > salvati su disco**, e scrivere direttamente nel campo del nome rinomina solo quella riga.
+    > Poi, al salvataggio, la riconciliazione ha visto il sinottico citare `motore1.velocita `
+    > senza più una radice `motore1`, e l'ha creato — facendo esattamente il suo mestiere.
+    >
+    > Quindi il difetto è nell'interfaccia, non nelle due funzioni: **il campo del nome è
+    > modificabile e la modifica non trascina niente**, mentre la rinomina sicura sta dietro
+    > un'icona. Da decidere come chiuderlo — vietare la scrittura diretta, o farla passare
+    > sempre da `rinomina()`.
+    >
+    > **Secondo rilievo, minore ma suo**: il membro del tipo è stato accettato come `velocita `
+    > **con uno spazio in coda**, e lo spazio è finito nel percorso della foglia. Un id così non
+    > lo ridigita giusto nessuno. I nomi dei membri vanno ripuliti in ingresso.
+    >
+    > **Da ripulire**: la prova è stata fatta dentro `CasaDomotica`, il progetto di riferimento.
+    > Vanno tolti il tipo `motore`, il tag `Pompa2`, il tag orfano `'motore1.velocita '` e
+    > l'oggetto in `Home.yaml:79`.
 34. [ ] Un faceplate con parametro `istanza(Motore)`: scegliendo l'istanza, i campi si legano da soli.
 
 ---

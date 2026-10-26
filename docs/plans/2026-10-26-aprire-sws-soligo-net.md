@@ -126,6 +126,38 @@ personale: **3**. Mostrata nella console come le altre quote.
 dell'azienda di destinazione e non è amministratore di piattaforma. Stessa coppia già usata
 altrove: `appartenenze_di` (`projects.rs:698`) + `visibilita`.
 
+**4-bis. Cancellare un progetto deve spegnere il suo container.** Difetto vero, costato un'ora
+il 26-10-2026 e **verificato sul VPS**, non dedotto.
+
+Il maintainer ha cancellato `CasaDomotica_WP630` e poi ci ha salvato sopra un altro progetto con
+lo stesso nome. Da quel momento l'IDE rispondeva `500 — project parse error: reading
+/progetto/project.yaml`. Sul disco `project.yaml` c'era, 18 KB, leggibile da tutti; **dentro il
+container `ls /progetto` dava `total 0`**. Il mount di podman è legato all'**inode**: cancellata
+la cartella, il container è rimasto attaccato a quella vecchia, e la nuova non la vede. Il
+container era nato alle 11:12:40, la cartella ricreata alle 11:14.
+
+La causa nel codice: `regia.chiudi()` è chiamata da **un solo punto in tutto il repo**, la
+chiusura a mano della console (`amministrazione.rs:178`). `delete_project` (`projects.rs:935`)
+non le parla. Vale anche per rinomina e «Salva come» sopra un nome esistente.
+
+**E l'autospegnimento dei 20 minuti non ripara.** La condizione è `collegati == 0 && fermo da ≥
+limite` (`gateway/progetti.rs:54`): ogni ricarica della pagina riapre un WebSocket, `collegati`
+torna a 1 e il cronometro riparte. Più si riprova, meno si ripara — il container è rimasto in
+piedi due ore.
+
+Due correzioni:
+
+- in `delete_project`, e sugli altri percorsi che tolgono o rimpiazzano una cartella, chiamare
+  `regia.chiudi(&riferimento)` — la stessa che usa già la console;
+- `format!("project parse error: {e}")` → `{e:#}` nei tre punti che lo scrivono
+  (`projects.rs:1593`, `projects.rs:3209`, `router.rs:4568`). La catena persa nascondeva un «No
+  such file or directory» che avrebbe chiuso la diagnosi in cinque secondi.
+
+Sta nel ramo A e non in un `fix/` a parte perché è **esattamente** il gesto di un utente esterno:
+cancellare il primo progetto di prova è fra le prime cose che si fanno. Oggi lascia il nome
+inservibile, e l'unico rimedio passa dalla console di amministrazione, che a un utente esterno
+non è data.
+
 **5. Tetti sui container.** Nella spec podman di `gateway/progetti.rs:390-456` aggiungere
 **memoria** e **pids**. Misura disponibile: 23-41 MB per container sul VPS, 86 MB RSS in debug;
 256 MB è largo. Più un **tetto globale** di container accesi insieme
@@ -305,6 +337,10 @@ Per ogni ramo, le cinque voci di `CLAUDE.md`. In più, per questo lavoro:
 - **Ramo A**: creare due utenti dalla console, verificare che ognuno veda solo i suoi progetti e
   che il quarto progetto venga rifiutato; provare a creare un progetto in un'azienda non propria
   (deve dare 404); `podman stats` su un container avviato dal gateway, per vedere il tetto.
+  E il difetto 4-bis, rifacendo il gesto che l'ha scoperto: **aprire un progetto, cancellarlo
+  dall'IDE, salvarne subito un altro con lo stesso nome e riaprirlo**. Deve aprirsi, senza
+  passare dalla console. Controprova dal VPS: `podman exec sws-p---<nome> ls /progetto` non deve
+  mai dire `total 0` mentre sul disco la cartella è piena.
 - **Ramo B**: le due schermate a 400 px e a 1920 px senza barra orizzontale; nei due temi;
   `check_i18n_ui.sh`, `check_i18n_parita.sh`, `check_icone_strumenti.sh`, i test vitest.
 - **Ramo C**: registrazione vera con un indirizzo del maintainer, su `sws.soligo.net`;
