@@ -289,6 +289,41 @@ mai dai file.
   giorno che cercherai chi si è collegato davvero non lo troverai — e a coprire i servizi futuri che
   avranno una loro pagina di accesso. Nei primi otto secondi aveva già bloccato un indirizzo.
 
+## La posta in uscita (26-10-2026)
+
+Configurata dal maintainer dalla console, **Posta**. Vive in
+`~/sws-vps/gateway-config/smtp.yaml`, `0600 debian`, e **non sta in git**: contiene una password.
+
+| campo | valore |
+|---|---|
+| host | `mail.infomaniak.com` |
+| porta | `587`, STARTTLS |
+| mittente | `login@soligo.net` |
+| utente | `mauro@soligo.net` |
+
+È l'SMTP **dell'installazione**, cioè quello che manderà il PIN monouso e la verifica della
+registrazione quando ci saranno — vedi
+[aprire sws.soligo.net a utenti esterni](../../docs/plans/2026-10-26-aprire-sws-soligo-net.md).
+Mittente e utente differiscono, e va bene: sono lo stesso dominio, quindi l'allineamento DMARC
+regge.
+
+**Il DNS di `soligo.net` è a posto** (misurato il 26-10-2026, non dedotto):
+
+- SPF `v=spf1 a mx ptr include:spf.infomaniak.ch -all` — Infomaniak autorizzato, e `-all` rifiuta
+  tutto il resto;
+- DKIM pubblicato, selettore `dkim`;
+- DMARC `p=none` con i rapporti a Cloudflare: **solo osservazione**, nessuna imposizione. È una
+  scelta, non una dimenticanza — alzarla è una decisione del maintainer, non una pulizia.
+
+**Quello che non è ancora provato**: il maintainer ha verificato che le e-mail arrivano. Resta da
+vedere dove arrivano **fuori dal dominio** — una prova verso una casella Gmail o Outlook, per
+sapere se finiscono in Posta in arrivo o nello spam. È lì che vivono gli utenti esterni, ed è il
+solo posto dove la risposta conta.
+
+**Il piano cloud (decisione 39) dava la porta 25 in uscita bloccata sui VPS OVH.** Misurato il
+26-10-2026: 25, 587 e 465 sono tutte aperte su questa macchina. Con il 587 di Infomaniak non
+cambia niente, ma la decisione 39 va corretta dove sta scritta.
+
 ## Da fare
 
 - [ ] **Aggiornamenti automatici**: `unattended-upgrades` per il sistema e

@@ -286,12 +286,22 @@ d'azienda**. È l'unica cosa che sposta quel confine, quindi va spostata di prop
 `scripts/check_amministrazione.sh` e il test del confine vanno aggiornati con una motivazione
 scritta. La password si rilegge **mascherata**, come già fa `leggi_smtp`.
 
-**5. Infomaniak sul VPS.** `<config_dir>/smtp.yaml` con `mail.infomaniak.com:587`, STARTTLS, una
-casella dedicata. **Non va in git** — si registra in `deploy/vps/STATO.md` senza la password.
+**5. Infomaniak sul VPS — ~~da fare~~ FATTO il 26-10-2026.** Il maintainer ha configurato la
+posta dalla console lo stesso giorno in cui questo piano è stato scritto, e le e-mail partono.
+`~/sws-vps/gateway-config/smtp.yaml`: `mail.infomaniak.com:587`, STARTTLS, mittente
+`login@soligo.net`, utente `mauro@soligo.net`. Non in git, c'è dentro una password; registrato in
+`deploy/vps/STATO.md`.
 
-**Prerequisito fuori dal codice**: per spedire come `@soligo.net` attraverso Infomaniak servono
-SPF (e meglio DKIM) nel DNS di `soligo.net`, o le e-mail di verifica finiscono nello spam. È una
-riga di DNS, ma senza di quella la registrazione non funziona per metà delle persone.
+**Il prerequisito di DNS è soddisfatto**, misurato il 26-10: SPF `include:spf.infomaniak.ch -all`,
+DKIM pubblicato (selettore `dkim`), DMARC `p=none` con rapporti a Cloudflare. Quindi quando si
+scriverà il codice del PIN, il trasporto **esiste già e funziona**: non resta niente da costruire
+sotto.
+
+**Quello che resta da sapere, e non è codice**: che le e-mail arrivino è provato; **dove**
+arrivano fuori dal dominio no. Una prova verso Gmail o Outlook dice se finiscono in Posta in
+arrivo o nello spam, ed è lì che vivono gli utenti esterni. Da fare prima di aprire, non dopo:
+una registrazione il cui codice finisce nello spam è una registrazione che non funziona, e chi
+la subisce non lo segnala — se ne va.
 
 **6. Termini e informativa privacy.** La registrazione libera raccoglie indirizzi di sconosciuti:
 la decisione 17 del piano cloud li vuole già. Serve il testo — anche breve — prima di aprire.
