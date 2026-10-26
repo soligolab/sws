@@ -186,16 +186,42 @@ Due modi di guardare la UI:
 Prima di lanciare un test SSH, **chiedere sempre al maintainer** quale device usare e
 a quale indirizzo.
 
-### Accesso al WP630 di prova (misurato il 2026-08-31, volatile)
+### La LAN dell'ufficio è una `/23` — `192.168.0.x` e `192.168.1.x` sono la **stessa** rete
+
+Netmask `255.255.254.0`: `theobroma` è `192.168.0.201/23` e il WP630 è `192.168.1.106`, e si
+parlano senza passare da nessun router. Detto dal maintainer il 26-10-2026, e verificato.
+
+Vale la pena saperlo perché due indirizzi che cominciano diversi **sembrano** due reti: quel
+giorno avevo segnalato come rischio che il pannello non raggiungesse il broker di prova, e il
+rischio non c'era.
+
+### Accesso al WP630 di prova (riconfermato il 2026-10-26)
 
 | | |
 |---|---|
-| Host | `wp630-a-p3-07a077.local` → **192.168.1.120** (risponde da frodo) |
-| Utenti | `user@` (non sudoer) e `pixsys@` (sudoer) — entrambi rispondono |
-| Chiave da frodo | `~/.ssh/id_ed25519_soligo`, autorizzata per **`pixsys@`** il 2026-08-31 |
-| Immagine in esecuzione | quella del 2026-08-28, cioè la **2.3.2**: `latest-arm64` sul registry è ora la 2.3.4, basta un `podman pull` |
+| Host | `wp630-a-p3-07a077.local` → **192.168.1.106** (ping da `theobroma`: 0,5 ms) |
+| Utente | **`user@`** — è quello indicato dal maintainer il 26-10. `pixsys@` è sudoer ma è di prova (vedi la memoria «credenziali e privilegi») |
+| Immagine in esecuzione | **2.21.1**, aggiornata il 26-10 da `sws.soligo.net` perché la 2.17 aveva il difetto della tastiera LVGL e dalla UI non si poteva |
 
-L'indirizzo va **riconfermato ogni sessione**: vedi «Convenzioni» in fondo.
+L'indirizzo va **riconfermato ogni sessione**: vedi «Convenzioni» in fondo. Il 26-10 era cambiato
+da `.120` a `.106` rispetto alla misura di agosto, e la riga vecchia diceva «risponde da frodo» —
+una macchina che non c'è più da settembre.
+
+### Il broker MQTT di prova (dal 2026-10-26)
+
+| | |
+|---|---|
+| Dove | il **portatile del maintainer**, `ut1@192.168.0.203` (HP EliteBook, Ubuntu 26.04, wifi con IP statico) |
+| Cosa | `mosquitto 2.0.22` da apt, non un container |
+| Come | `/etc/mosquitto/conf.d/sws-prova.conf`: `listener 1883 0.0.0.0` + `allow_anonymous true` |
+| Verificato | da `theobroma`: porta aperta **e** `CONNACK: accettato` — la porta aperta da sola non basta |
+
+**È un banco di prova, non una configurazione da impianto**: anonimo e senza TLS, in LAN. Si toglie
+con `rm` di quel file e `systemctl restart mosquitto`.
+
+Il portatile lo accende il maintainer per il tempo che serve, quindi non contarci come servizio
+permanente. L'immagine `eclipse-mosquitto:2` **non va usata**: la 2.1.2 che quel tag serve oggi non
+apre nessun file di configurazione, nemmeno quello che si porta dentro (misurato il 26-10).
 
 ### Pannelli della serie WP/TC — le particolarità che costano tempo
 
