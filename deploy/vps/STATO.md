@@ -169,15 +169,15 @@ Verificato uguale su un runtime normale. Il browser disegna la pagina lo stesso.
 proposito: con un 200 un bundle davvero mancante tornerebbe HTML con stato 200, e il browser
 proverebbe a eseguirlo come JavaScript — un errore molto più difficile da leggere di un 404.
 
-**Versione in esecuzione: `2.21.1-amd64`**, dal 26-10-2026.
+**Versione in esecuzione: `2.22.0-amd64`**, dal 26-10-2026.
 
 > **Il gateway si tiene sempre all'ultima immagine costruita**, senza aspettare che qualcuno lo
 > chieda: il maintainer lavora sempre da `sws.soligo.net`, e un IDE indietro mostra difetti che
 > non esistono. Il 26-10 ha segnalato frasi italiane in un'interfaccia inglese: era la 2.21.0 sul
 > VPS contro la correzione uscita nella 2.21.1.
 
-**Prima**, dal 23-10-2026 (prima `2.16.2-amd64`, e prima ancora
-`2.16.0-rc.1-amd64`).
+**Prima**, `2.21.1-amd64` per poche ore lo stesso 26-10-2026; prima ancora dal 23-10-2026
+(`2.16.2-amd64`, e prima `2.16.0-rc.1-amd64`).
 
 Con la 2.16.2 il gateway aveva preso il cambio di porte del pannello — che però **non lo tocca**:
 il gateway e i container dei suoi progetti restano sulla 8444, interna alla rete del VPS.
