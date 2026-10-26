@@ -190,10 +190,10 @@ export function LogPanel({ open, onClose, variant = "drawer" }: LogPanelProps) {
         {!isHistMode && (
           <>
             <button onClick={() => setPaused((p) => !p)} style={btn(paused ? "#7e22ce" : "var(--brand-surface-2, #334155)")}>
-              {paused ? "▶ Riprendi" : "⏸ Pausa"}
+              {paused ? t("logPanel.riprendi") : t("logPanel.pausa")}
             </button>
             <button onClick={clearLogs} style={btn("var(--brand-surface-2, #334155)")}>
-              Cancella
+              {t("logPanel.cancella")}
             </button>
           </>
         )}

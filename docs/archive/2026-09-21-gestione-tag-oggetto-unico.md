@@ -1,6 +1,12 @@
 # Tag come oggetto unico, con strutture e array — piano approfondito
 
-> Sostituisce il seme `docs/plans/2026-09-21-gestione-tag-oggetto-unico.md` (da riscrivere con questo testo dopo l'approvazione).
+> **CHIUSO e archiviato il 25-10-2026.** Fasi 0, 1 e 2 su `main` dal 22-09-2026; Fase 3 (Modbus) il 04-10-2026;
+> Fase 4 (OPC-UA) completa il 25-10-2026 con la 4d. Quello che il piano teneva «in coda, non pianificato qui» —
+> strutture e array su S7, EtherNet/IP, MQTT, Home Assistant e Host — è lavoro vero e sta nel seme
+> [`2026-10-25-strutture-sugli-altri-protocolli.md`](../plans/2026-10-25-strutture-sugli-altri-protocolli.md).
+> Il collaudo a schermo della Fase 2, mai fatto, è in [`COLLAUDI_IN_SOSPESO.md`](../COLLAUDI_IN_SOSPESO.md) §G-ter.
+
+> Sostituisce il seme `docs/archive/2026-09-21-gestione-tag-oggetto-unico.md` (da riscrivere con questo testo dopo l'approvazione).
 > Decisioni del maintainer (22-09-2026): **valori composti nativi**; strutture come **tipi riusabili + istanze**; **prima l'oggetto unico, poi strutture/array**; protocolli prioritari **Modbus e OPC-UA**.
 >
 > Seconda tornata (22-09-2026, revisione del piano in ufficio):
@@ -169,7 +175,7 @@ blocchi, compatibilità dei nomi storici), HOWTO se utile («mappare una struttu
 >
 > **4b — browse tipizzato e server che dice il vero. FATTA** il 23-10-2026 (`56658045` su `main`).
 > Le sei decisioni sono state prese quel giorno e stanno in
-> `docs/plans/2026-10-22-opcua-fase-4-decisioni.md`. Il punto più pesante l'aveva trovato lo
+> `docs/archive/2026-10-22-opcua-fase-4-decisioni.md`. Il punto più pesante l'aveva trovato lo
 > scettico: il nostro server **non sapeva esporre né array né strutture**
 > (`tag_value_to_variant` tornava `None` e l'updater li saltava in silenzio), quindi «client
 > nostro contro server nostro» costava prima insegnare a parlare al server. Adesso la conversione

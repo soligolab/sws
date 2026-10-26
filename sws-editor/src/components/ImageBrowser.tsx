@@ -65,7 +65,7 @@ export function ImageBrowser({ onSelect, onClose }: Props) {
           display: "flex", alignItems: "center", gap: 8,
         }}>
           <span style={{ flex: 1, fontWeight: 700, color: "var(--brand-text, #e2e8f0)", fontSize: 14 }}>
-            Libreria immagini
+            {t("imageBrowser.libreria")}
           </span>
           <input
             ref={filterRef}

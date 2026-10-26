@@ -5459,7 +5459,7 @@ function SvgObjectCorpo(p: ObjProps) {
                 style={{ cursor: "pointer" }}
                 onClick={(e) => { e.stopPropagation(); onExpandTrend(obj); }}
               >
-                <title>Espandi trend</title>
+                <title>{t("canvas.espandiTrend")}</title>
                 <rect
                   x={obj.x + w - 20} y={obj.y + 2}
                   width={17} height={14} rx={3}
@@ -6276,7 +6276,7 @@ function SvgObjectCorpo(p: ObjProps) {
         <text x={obj.x + w / 2} y={obj.y + h / 2 + 4}
           textAnchor="middle" fill="#fca5a5" fontSize={11}
           style={{ pointerEvents: "none" }}>
-          simbolo?
+          {t("canvas.simboloMancante")}
         </text>
       </>
     );

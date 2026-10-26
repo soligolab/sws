@@ -38,6 +38,7 @@ import { ImageBrowser } from "@/components/ImageBrowser";
 import { ASPECT_RATIOS, editorFitSize, effectiveSizeMode, getDevicePresets, isOffPage, referenceResolutionFor, STANDARD_DEVICE_PRESETS, translateObject } from "@/pageLayout";
 import { getBrand, type DevicePreset } from "@/branding";
 import { genId } from "@/id";
+import { faceplateDallaSelezione } from "@/editor/faceplateDaSelezione";
 import type { SimboloLib } from "@/symbols/lib/manifest";
 import { angoliLeva, trovaSimboloLib, useManifestoLib, useSimboloLib } from "@/symbols/lib/libreria";
 import { AnteprimaLib } from "@/symbols/lib/AnteprimaLib";
@@ -603,6 +604,7 @@ export function EditorShell() {
   const selectObject    = useAppStore((s) => s.selectObject);
   const toggleSelection = useAppStore((s) => s.toggleSelection);
   const duplicateSelection = useAppStore((s) => s.duplicateSelection);
+  const sostituisciSelezione = useAppStore((s) => s.sostituisciSelezione);
   const selectMany      = useAppStore((s) => s.selectMany);
   const copySelection   = useAppStore((s) => s.copySelection);
   const pasteClipboard  = useAppStore((s) => s.pasteClipboard);
@@ -682,6 +684,29 @@ export function EditorShell() {
   );
   const selected    = objects.find((o) => o.id === selectedId) ?? null;
   const multi       = selectedIds.length > 1;
+
+  // «Crea faceplate dalla selezione» (P2, 25-10-2026): il faceplate si salva
+  // subito, come nella sua scheda, e la selezione diventa la sua prima istanza.
+  const creaFaceplate = async () => {
+    const st = useAppStore.getState();
+    const scelti = (st.pages.find((p) => p.id === st.currentPageId)?.objects ?? []).filter((o) => selectedIds.includes(o.id));
+    if (scelti.length === 0) return;
+    const nome = window.prompt(t("shell.creaFaceplatePrompt"), t("shell.creaFaceplateNome"))?.trim();
+    if (!nome) return;
+    const esistenti = new Set(st.faceplates.map((f) => f.id));
+    const base = nome.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "") || "faceplate";
+    let id = base;
+    for (let n = 2; esistenti.has(id); n++) id = `${base}_${n}`;
+    const { def, istanza } = faceplateDallaSelezione(scelti, id, nome, genId());
+    try {
+      await api.saveFaceplate(def);
+    } catch (e) {
+      window.alert(t("shell.creaFaceplateErrore", { errore: e instanceof Error ? e.message : String(e) }));
+      return;
+    }
+    st.setFaceplates([...st.faceplates, def]);
+    sostituisciSelezione(istanza);
+  };
 
   // Il tipo che conta è quello del FIGLIO quando se ne sta editando uno
   // dentro una griglia (una cella o una sotto-cella) — non quello della
@@ -1096,6 +1121,7 @@ export function EditorShell() {
               onDuplicate={duplicateSelection}
               onDelete={deleteSelection}
               onBatchChange={batchChange}
+              onCreaFaceplate={creaFaceplate}
             />
           </>
         ) : selected ? (() => {
@@ -1115,7 +1141,7 @@ export function EditorShell() {
             const entry = resolveSubCellEntry(cellDef, path);
             const parentSub = resolveParentSubGrid(cellDef, path);
             if (cellDef && entry !== null && parentSub) {
-              const gridLabel = selected.name?.trim() || `griglia·${selected.id.slice(-4)}`;
+              const gridLabel = selected.name?.trim() || `${t("shell.griglia")}·${selected.id.slice(-4)}`;
               const isSplit = !!entry.sub;
               const pathLabel = path.map((s) => s.toUpperCase()).join("→");
               const updateSub = (patch: Partial<typeof entry>) =>
@@ -1146,7 +1172,7 @@ export function EditorShell() {
                       selectedSubCell.row, selectedSubCell.col, path)}
                   />
                   <label style={{ fontSize: 11, color: "var(--brand-text-muted, #94a3b8)", display: "flex", alignItems: "center", gap: 6, marginBottom: 8 }}>
-                    Colore sfondo:
+                    {t("shell.coloreSfondo")}
                     <input type="color" value={estraiHex(entry.bg_color) ?? "#1e293b"}
                       onChange={(e) => updateSub({ bg_color: e.target.value })}
                       style={{ width: 28, height: 22, border: "1px solid var(--brand-surface-2, #334155)", background: "transparent", cursor: "pointer" }} />
@@ -1158,7 +1184,7 @@ export function EditorShell() {
                     )}
                   </label>
                   <label style={{ fontSize: 11, color: "var(--brand-text-muted, #94a3b8)", display: "flex", alignItems: "center", gap: 6, marginBottom: 8 }}>
-                    Colore bordo:
+                    {t("shell.coloreBordo")}
                     <input type="color" value={estraiHex(entry.border_color) ?? "#64748b"}
                       onChange={(e) => updateSub({ border_color: e.target.value })}
                       style={{ width: 28, height: 22, border: "1px solid var(--brand-surface-2, #334155)", background: "transparent", cursor: "pointer" }} />
@@ -1199,7 +1225,7 @@ export function EditorShell() {
             );
             const child = cellDef?.child;
             if (child) {
-              const gridLabel = selected.name?.trim() || `griglia·${selected.id.slice(-4)}`;
+              const gridLabel = selected.name?.trim() || `${t("shell.griglia")}·${selected.id.slice(-4)}`;
               const childLabel = child.name?.trim() || child.type;
               return (
                 <>
@@ -1234,13 +1260,13 @@ export function EditorShell() {
             const { r1, c1, r2, c2 } = selectedCellRange;
             const rows = r2 - r1 + 1;
             const cols = c2 - c1 + 1;
-            const gridLabel = selected.name?.trim() || `griglia·${selected.id.slice(-4)}`;
+            const gridLabel = selected.name?.trim() || `${t("shell.griglia")}·${selected.id.slice(-4)}`;
             return (
               <>
                 <PanelBreadcrumb
                   parts={[
                     { label: gridLabel, onClick: () => setSelectedCellRange(null) },
-                    `${rows}×${cols} celle (R${r1 + 1}-${r2 + 1}, C${c1 + 1}-${c2 + 1})`,
+                    t("shell.celleSelezionate", { rows, cols, r1: r1 + 1, r2: r2 + 1, c1: c1 + 1, c2: c2 + 1 }),
                   ]}
                 />
                 <CellRangeMergeActions
@@ -1260,7 +1286,7 @@ export function EditorShell() {
             const cellDef = cells.find(
               (c) => c.row === selectedCell.row && c.col === selectedCell.col,
             ) ?? { row: selectedCell.row, col: selectedCell.col };
-            const gridLabel = selected.name?.trim() || `griglia·${selected.id.slice(-4)}`;
+            const gridLabel = selected.name?.trim() || `${t("shell.griglia")}·${selected.id.slice(-4)}`;
             const isMerged = (cellDef.rowspan ?? 1) > 1 || (cellDef.colspan ?? 1) > 1;
             const isSplit = !!cellDef.sub;
             return (
@@ -1353,19 +1379,19 @@ export function EditorShell() {
 // uso: la guida non può più dire una cosa e la tastiera farne un'altra.
 const GESTI_FISSI = [
   ["shortcut.navCanvas", ""],
-  ["Ctrl + rotella",    "shortcut.zoomCursor"],
-  ["Rotella",           "shortcut.panV"],
-  ["Shift + rotella",   "shortcut.panH"],
-  ["Click medio + drag","shortcut.panFree"],
+  ["shortcut.gesto.ctrlRotella", "shortcut.zoomCursor"],
+  ["shortcut.gesto.rotella", "shortcut.panV"],
+  ["shortcut.gesto.shiftRotella", "shortcut.panH"],
+  ["shortcut.gesto.clickMedio", "shortcut.panFree"],
   ["Ctrl+0",            "shortcut.zoomReset"],
   ["Ctrl+Shift+0",      "shortcut.zoomFit"],
   ["shortcut.selection", ""],
   ["Click",             "shortcut.selectObj"],
   ["Shift+click",       "shortcut.toggleSel"],
-  ["Drag su sfondo",    "shortcut.rubberBand"],
-  ["Frecce",            "shortcut.move1px"],
-  ["Shift+Frecce",      "shortcut.moveGrid"],
-  ["Shift + drag angolo", "shortcut.resizeAspect"],
+  ["shortcut.gesto.dragSfondo", "shortcut.rubberBand"],
+  ["shortcut.gesto.frecce", "shortcut.move1px"],
+  ["shortcut.gesto.shiftFrecce", "shortcut.moveGrid"],
+  ["shortcut.gesto.shiftAngolo", "shortcut.resizeAspect"],
 ];
 
 
@@ -1409,7 +1435,7 @@ function ShortcutHelp({ onClose }: { onClose: () => void }) {
                 <tr key={key} style={{ borderBottom: "1px solid var(--brand-surface, #1e293b)" }}>
                   <td style={{ padding: "5px 12px 5px 0", color: "var(--brand-text-muted, #94a3b8)", fontFamily: "monospace",
                     whiteSpace: "nowrap", minWidth: 160 }}>
-                    {key}
+                    {key.startsWith("shortcut.gesto.") ? t(key) : key}
                   </td>
                   <td style={{ padding: "5px 0", color: "var(--brand-text-2, #cbd5e1)" }}>{t(desc)}</td>
                 </tr>
@@ -2023,7 +2049,7 @@ function CellRangeMergeActions({ onMerge, onCancel }: {
   return (
     <div style={{ display: "flex", gap: 6, marginBottom: 12 }}>
       <button onClick={onMerge} style={{ ...ACT_BTN, background: "#0f766e", borderColor: "#14b8a6" }}>
-        🔗 Unisci celle
+        {t("shell.unisciCelle")}
       </button>
       <button onClick={onCancel} style={ACT_BTN}>
         {t("shell.clearSelection")}
@@ -2081,10 +2107,10 @@ function CellStructureActions({ isMerged, isSplit, onUnmerge, onSplitRows, onSpl
       {!isMerged && !isSplit && (
         <>
           <button onClick={onSplitRows} style={ACT_BTN} title={t("props.splitV")}>
-            ⬓ Dividi orizzontalmente
+            {t("shell.dividiOrizz")}
           </button>
           <button onClick={onSplitCols} style={ACT_BTN} title={t("props.splitH")}>
-            ⬔ Dividi verticalmente
+            {t("shell.dividiVert")}
           </button>
         </>
       )}
@@ -2156,7 +2182,7 @@ function PageProps({
         </div>
       )}
       <div>
-        <div style={LABEL}>Nome</div>
+        <div style={LABEL}>{t("shell.nome")}</div>
         <input
           type="text"
           style={INPUT}
@@ -2245,8 +2271,7 @@ function PageProps({
       )}
       {sizeMode === "ratio" && (
         <p style={{ fontSize: 11, color: "var(--brand-text-muted, #94a3b8)", margin: "0 0 4px" }}>
-          Dimensione fissata dalle <em>{t("shell.projectPageSettings")}</em> (rapporto comune a
-          tutte le pagine): {width ?? "—"}×{height ?? "—"}. Scala mantenendo le proporzioni a runtime.
+          {t("shell.dimensioneFissataDalle")} <em>{t("shell.projectPageSettings")}</em> {t("shell.dimensioneFissataResto", { w: width ?? "—", h: height ?? "—" })}
         </p>
       )}
       {sizeMode === "fluid" && (
@@ -2278,7 +2303,7 @@ function PageProps({
           style={{ cursor: "pointer" }}
         />
         <label htmlFor="auto-rotate-skip" style={{ fontSize: 11, color: "var(--brand-text-muted, #94a3b8)", cursor: "pointer" }}>
-          Escludi dal ciclo automatico (kiosk)
+          {t("shell.escludiCiclo")}
         </label>
       </div>
       <div style={{ marginTop: 8 }}>
@@ -2501,13 +2526,13 @@ function ProjectPageLayoutSettings() {
 
       {sizeMode === "ratio" && (
         <div>
-          <div style={{ fontSize: 11, color: "var(--brand-text-muted, #94a3b8)", marginBottom: 4 }}>Rapporto</div>
+          <div style={{ fontSize: 11, color: "var(--brand-text-muted, #94a3b8)", marginBottom: 4 }}>{t("shell.rapporto")}</div>
           <select value={aspectRatio} onChange={(e) => setAspectRatio(e.target.value)}
             style={{ background: "var(--brand-bg, #0f172a)", color: "var(--brand-text, #e2e8f0)", border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 4, padding: "4px 8px", fontSize: 12, width: "100%" }}>
             {ASPECT_RATIOS.map((a) => <option key={a.ratio} value={a.ratio}>{a.label}</option>)}
           </select>
           <div style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)", marginTop: 4 }}>
-            Risoluzione di riferimento: {ref.width}×{ref.height}
+            {t("shell.risoluzioneRiferimento", { w: ref.width, h: ref.height })}
           </div>
         </div>
       )}
@@ -2557,6 +2582,7 @@ function MultiSelectionProps({
   onDuplicate,
   onDelete,
   onBatchChange,
+  onCreaFaceplate,
 }: {
   count: number;
   selectedObjects: SynopticObject[];
@@ -2569,6 +2595,7 @@ function MultiSelectionProps({
   onDuplicate: () => void;
   onDelete: () => void;
   onBatchChange: (patch: Partial<SynopticObject>) => void;
+  onCreaFaceplate: () => void;
 }) {
   const { t } = useTranslation();
   const btn: React.CSSProperties = {
@@ -2584,10 +2611,10 @@ function MultiSelectionProps({
   return (
     <>
       <div style={{ fontSize: 11, color: "var(--brand-text-subtle, #94a3b8)", marginBottom: 4 }}>
-        Selezione multipla
+        {t("shell.selezioneMultipla")}
       </div>
       <div style={{ fontSize: 13, color: "var(--brand-text, #e2e8f0)", marginBottom: 4 }}>
-        {count} oggetti selezionati
+        {t("shell.oggettiSelezionati", { n: count })}
       </div>
 
       <SottoTitolo chiave="alignHorizontal" />
@@ -2621,20 +2648,27 @@ function MultiSelectionProps({
 
       <div style={{ display: "flex", gap: 4 }}>
         <button style={{ ...btn, background: "#1e3a8a", color: "#bfdbfe" }} onClick={onDuplicate}>
-          Duplica
+          {t("leftPanel.duplica")}
         </button>
         <button style={{ ...btn, background: "var(--brand-danger-bg, #7f1d1d)", color: "var(--brand-danger-soft, #fca5a5)", borderColor: "#991b1b" }} onClick={onDelete}>
           {t("shell.delete")}
         </button>
       </div>
+      {/* P2 (25-10-2026): i faceplate sono i template d'oggetto; da qui se ne
+          fa uno dagli oggetti già disegnati, e la selezione ne diventa la
+          prima istanza. */}
+      <button style={{ ...btn, marginTop: 4, width: "100%" }} title={t("shell.creaFaceplateHint")}
+        data-testid="crea-faceplate" onClick={onCreaFaceplate}>
+        {t("shell.creaFaceplate")}
+      </button>
 
       <div style={{ height: 1, background: "var(--brand-surface-2, #334155)", margin: "8px 0" }} />
 
       <SottoTitolo chiave="panelCommon" />
       <p style={{ fontSize: 10, color: "var(--brand-text-subtle, #94a3b8)", margin: "2px 0 6px" }}>
         {allSameType
-          ? `Tipo "${selectedObjects[0].type}" — campi vuoti = valori diversi (vari).`
-          : "Tipi diversi — solo sezioni universali."}
+          ? t("shell.multiStessoTipo", { tipo: selectedObjects[0].type })
+          : t("shell.multiTipiDiversi")}
       </p>
 
       {allSameType ? (
@@ -2656,8 +2690,7 @@ function MultiSelectionProps({
       )}
 
       <p style={{ fontSize: 10, color: "var(--brand-text-subtle, #94a3b8)", marginTop: 8 }}>
-        Shift+click per aggiungere/togliere dalla selezione. Ctrl-C/V, Ctrl-D,
-        Ctrl-Z/Y, Canc come scorciatoie.
+        {t("shell.multiAiuto")}
       </p>
     </>
   );
@@ -2733,7 +2766,7 @@ function PartiSimboloLib({ obj, onChange }: { obj: SynopticObject; onChange: (pa
         return (
           <div key={p.id}>
             <div style={LABEL}>{etichetta}</div>
-            <TagInput style={INPUT} placeholder="es. linea1.pressione" value={l.tag ?? ""}
+            <TagInput style={INPUT} placeholder={t("shell.esLineaPressione")} value={l.tag ?? ""}
               onChange={(v) => metti(p.id, { tag: v || undefined })} />
             {p.kind === "needle" && (
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 4, marginTop: 4 }}>
@@ -2825,7 +2858,7 @@ function CrossTypeProps({
       type="number"
       style={INPUT}
       value={isMixed(k) ? "" : (mergedProps[k] !== undefined ? (mergedProps[k] as number) : fallback)}
-      placeholder={isMixed(k) ? "(vari)" : undefined}
+      placeholder={isMixed(k) ? t("props.vari") : undefined}
       onChange={(e) => onChange({ [k]: e.target.value === "" ? undefined : Number(e.target.value) } as Partial<SynopticObject>)}
     />
   );
@@ -2837,7 +2870,7 @@ function CrossTypeProps({
   const formatInput = (placeholder?: string) => (
     <CampoFormato
       style={INPUT}
-      placeholder={isMixed("format") ? "(vari)" : placeholder}
+      placeholder={isMixed("format") ? t("props.vari") : placeholder}
       value={isMixed("format") ? "" : ((mergedProps.format as string) ?? "")}
       statoTag={mergedProps.tag ? valoriTag[mergedProps.tag as string] : undefined}
       onChange={(v) => onChange({ format: v || undefined })}
@@ -2847,7 +2880,7 @@ function CrossTypeProps({
   const tagInput = (k: keyof SynopticObject, placeholder?: string) => (
     <TagInput
       style={INPUT}
-      placeholder={isMixed(k) ? "(vari)" : placeholder}
+      placeholder={isMixed(k) ? t("props.vari") : placeholder}
       value={isMixed(k) ? "" : ((mergedProps[k] as string) ?? "")}
       onChange={(v) => onChange({ [k]: v } as Partial<SynopticObject>)}
     />
@@ -2921,7 +2954,7 @@ function CrossTypeProps({
           checked={!isMixed("visible") && mergedProps.visible !== false}
           onChange={(e) => onChange({ visible: e.target.checked })}
           style={{ accentColor: "var(--brand-primary, #3b82f6)" }}
-        /> Visibile
+        /> {t("shell.visibile")}
       </label>
       {field(t("props.tagVisibility"), tagInput("visible_tag", "tag.bool…"))}
 
@@ -2947,14 +2980,14 @@ function CrossTypeProps({
 
       <SottoTitolo chiave="events" />
       <EventFunctionPicker
-        label="Al click (on_press)"
+        label={t("shell.alClick")}
         fnName={(mergedProps.on_press_fn as string | undefined)}
         args={mergedProps.on_press_args}
         functions={functions}
         onChange={(fn, args) => onChange({ on_press_fn: fn, on_press_args: args })}
       />
       <EventFunctionPicker
-        label="Al rilascio (on_release)"
+        label={t("shell.alRilascio")}
         fnName={(mergedProps.on_release_fn as string | undefined)}
         args={mergedProps.on_release_args}
         functions={functions}
@@ -3092,7 +3125,7 @@ export function ObjectProps({
         // Qualunque cosa succeda al chip accanto, il campo resta digitabile.
         style={{ ...INPUT, ...(assente && !motivo ? { fontStyle: "italic", color: "var(--brand-text-muted, #94a3b8)" } : {}), ...(motivo ? { flex: "1 1 auto", minWidth: LARGHEZZA_MIN_NUMERO } : {}) }}
         value={mixedKeys.has(key) || motivo ? "" : (obj[key] !== undefined ? (obj[key] as number) : fallback)}
-        placeholder={mixedKeys.has(key) ? "(vari)" : undefined}
+        placeholder={mixedKeys.has(key) ? t("props.vari") : undefined}
         title={assente && !motivo ? t("props.valoreNonSalvato") : undefined}
         onChange={(e) => onChange({ [key]: e.target.value === "" ? undefined : Number(e.target.value) } as Partial<SynopticObject>)}
       />
@@ -3137,7 +3170,7 @@ export function ObjectProps({
       <input
         type="text"
         style={INPUT}
-        placeholder={mixedKeys.has(key) ? "(vari)" : segnaposto}
+        placeholder={mixedKeys.has(key) ? t("props.vari") : segnaposto}
         title={title}
         value={mixedKeys.has(key) ? "" : ((obj[key] as string) ?? "")}
         onChange={(e) => onChange({ [key]: e.target.value } as Partial<SynopticObject>)}
@@ -3152,7 +3185,7 @@ export function ObjectProps({
   const formatInput = (placeholder?: string) => (
     <CampoFormato
       style={INPUT}
-      placeholder={mixedKeys.has("format") ? "(vari)" : placeholder}
+      placeholder={mixedKeys.has("format") ? t("props.vari") : placeholder}
       value={mixedKeys.has("format") ? "" : (obj.format ?? "")}
       statoTag={obj.tag ? valoriTag[obj.tag] : undefined}
       onChange={(v) => onChange({ format: v || undefined })}
@@ -3162,7 +3195,7 @@ export function ObjectProps({
   const tagInput = (placeholder?: string) => (
     <TagInput
       style={INPUT}
-      placeholder={mixedKeys.has("tag") ? "(vari)" : placeholder}
+      placeholder={mixedKeys.has("tag") ? t("props.vari") : placeholder}
       value={mixedKeys.has("tag") ? "" : (obj.tag ?? "")}
       onChange={(v) => onChange({ tag: v })}
     />
@@ -3240,7 +3273,7 @@ export function ObjectProps({
 
   const textListEntriesField = () => (
     <>
-      <div style={{ fontSize: 10, color: "var(--brand-text-subtle, #94a3b8)", marginTop: 4, marginBottom: 2, fontWeight: 700 }}>VOCI</div>
+      <div style={{ fontSize: 10, color: "var(--brand-text-subtle, #94a3b8)", marginTop: 4, marginBottom: 2, fontWeight: 700 }}>{t("shell.voci")}</div>
       {(obj.text_list_entries ?? []).map((e, i) => {
         const warning = rangeWarning(obj.text_list_entries, i);
         return (
@@ -3730,11 +3763,11 @@ export function ObjectProps({
                 ? field(t("props.textStatic"),
                     <textarea
                       style={{ ...INPUT, minHeight: 56, fontFamily: "inherit", resize: "vertical" }}
-                      placeholder="Es. Temperatura caldaia"
+                      placeholder={t("shell.esTemperatura")}
                       value={obj.text ?? ""}
                       onChange={(e) => onChange({ text: e.target.value || undefined })}
                     />)
-                : field(t("props.textStatic"), <BindableInput obj={obj} propName="text" onChange={onChange}>{textInput("text", "Es. Temperatura caldaia")}</BindableInput>)}
+                : field(t("props.textStatic"), <BindableInput obj={obj} propName="text" onChange={onChange}>{textInput("text", t("shell.esTemperatura"))}</BindableInput>)}
               {field(t("props.formatBound"), <BindableInput obj={obj} propName="format" onChange={onChange}>{formatInput("{value:.1f} °C")}</BindableInput>)}
               <p style={{ fontSize: 10, color: "var(--brand-text-subtle, #94a3b8)", margin: "0 0 4px" }}>
                 {t("shell.formatWinsPre")} <code>{"{value}"}</code>{t("shell.formatWinsPost")}
@@ -3804,7 +3837,7 @@ export function ObjectProps({
               )}
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
                 <div>
-                  <div style={LABEL}>Peso</div>
+                  <div style={LABEL}>{t("shell.peso")}</div>
                   <select
                     style={{ ...INPUT, cursor: "pointer" }}
                     value={String(obj.font_weight ?? "normal")}
@@ -3823,7 +3856,7 @@ export function ObjectProps({
                   </select>
                 </div>
                 <div>
-                  <div style={LABEL}>Stile</div>
+                  <div style={LABEL}>{t("shell.stile")}</div>
                   <select
                     style={{ ...INPUT, cursor: "pointer" }}
                     value={obj.font_style ?? "normal"}
@@ -4017,7 +4050,7 @@ export function ObjectProps({
                     ))}
                     {targetMissing && (
                       <option value={obj.target_page} disabled>
-                        ⚠ pagina inesistente: {obj.target_page}
+                        ⚠ {t("shell.paginaInesistente")}: {obj.target_page}
                       </option>
                     )}
                   </select>
@@ -4066,7 +4099,7 @@ export function ObjectProps({
               </div>
               {field(t("props.unit"), <BindableInput obj={obj} propName="unit" onChange={onChange}>{textInput("unit", "")}</BindableInput>)}
               {field(t("props.decimals"), <BindableInput obj={obj} propName="decimals" onChange={onChange}>{numInput("decimals", 1)}</BindableInput>)}
-              <div style={{ fontSize: 10, color: "var(--brand-text-subtle, #94a3b8)", marginTop: 4, marginBottom: 2, fontWeight: 700 }}>SOGLIE</div>
+              <div style={{ fontSize: 10, color: "var(--brand-text-subtle, #94a3b8)", marginTop: 4, marginBottom: 2, fontWeight: 700 }}>{t("shell.soglie")}</div>
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
                 <div><div style={LABEL}>{t("props.warnLow")}</div><BindableInput obj={obj} propName="warn_low" onChange={onChange}>{numInput("warn_low", 0)}</BindableInput></div>
                 <div><div style={LABEL}>{t("props.warnHigh")}</div><BindableInput obj={obj} propName="warn_high" onChange={onChange}>{numInput("warn_high", 0)}</BindableInput></div>
@@ -4323,7 +4356,7 @@ export function ObjectProps({
                 <div><div style={LABEL}>{t("props.fontSize")}</div><BindableInput obj={obj} propName="font_size" onChange={onChange}>{numInput("font_size", 11)}</BindableInput></div>
                 <div><div style={LABEL}>{t("props.labelFontSize")}</div><BindableInput obj={obj} propName="label_font_size" onChange={onChange}>{numInput("label_font_size", 11)}</BindableInput></div>
               </div>
-              <div style={{ fontSize: 10, color: "var(--brand-text-subtle, #94a3b8)", marginTop: 4, marginBottom: 2, fontWeight: 700 }}>SOGLIE</div>
+              <div style={{ fontSize: 10, color: "var(--brand-text-subtle, #94a3b8)", marginTop: 4, marginBottom: 2, fontWeight: 700 }}>{t("shell.soglie")}</div>
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
                 <div><div style={LABEL}>{t("props.warnLow")}</div><BindableInput obj={obj} propName="warn_low" onChange={onChange}>{numInput("warn_low", 0)}</BindableInput></div>
                 <div><div style={LABEL}>{t("props.warnHigh")}</div><BindableInput obj={obj} propName="warn_high" onChange={onChange}>{numInput("warn_high", 0)}</BindableInput></div>
@@ -4502,31 +4535,31 @@ export function ObjectProps({
               <SottoTitolo chiave="dateTimeFormat" />
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
                 <div>
-                  <div style={LABEL}>Ordine data</div>
+                  <div style={LABEL}>{t("shell.ordineData")}</div>
                   <select
                     style={INPUT}
                     value={obj.trend_dt_date_order ?? "dmy"}
                     onChange={(e) => onChange({ trend_dt_date_order: e.target.value as SynopticObject["trend_dt_date_order"] })}
                   >
-                    <option value="dmy">GG/MM (europeo)</option>
-                    <option value="mdy">MM/GG (americano)</option>
-                    <option value="ymd">AAAA/MM/GG</option>
+                    <option value="dmy">{t("shell.dmy")}</option>
+                    <option value="mdy">{t("shell.mdy")}</option>
+                    <option value="ymd">{t("shell.ymd")}</option>
                   </select>
                 </div>
                 <div>
-                  <div style={LABEL}>Separatore</div>
+                  <div style={LABEL}>{t("shell.separatore")}</div>
                   <select
                     style={INPUT}
                     value={obj.trend_dt_separator ?? "/"}
                     onChange={(e) => onChange({ trend_dt_separator: e.target.value as SynopticObject["trend_dt_separator"] })}
                   >
-                    <option value="/">/ (GG/MM)</option>
-                    <option value="-">- (GG-MM)</option>
-                    <option value=".">. (GG.MM)</option>
+                    <option value="/">{t("shell.sepBarra")}</option>
+                    <option value="-">{t("shell.sepTrattino")}</option>
+                    <option value=".">{t("shell.sepPunto")}</option>
                   </select>
                 </div>
                 <div>
-                  <div style={LABEL}>Formato ora</div>
+                  <div style={LABEL}>{t("shell.formatoOra")}</div>
                   <select
                     style={INPUT}
                     value={obj.trend_dt_time_format ?? "24h"}
@@ -4541,22 +4574,22 @@ export function ObjectProps({
                 <label style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 11, color: "var(--brand-text-muted, #94a3b8)", cursor: "pointer" }}>
                   <input type="checkbox" checked={obj.trend_dt_show_year ?? false}
                     onChange={(e) => onChange({ trend_dt_show_year: e.target.checked || undefined })} />
-                  Mostra anno
+                  {t("shell.mostraAnno")}
                 </label>
                 <label style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 11, color: "var(--brand-text-muted, #94a3b8)", cursor: "pointer" }}>
                   <input type="checkbox" checked={obj.trend_dt_show_seconds ?? false}
                     onChange={(e) => onChange({ trend_dt_show_seconds: e.target.checked || undefined })} />
-                  Mostra secondi
+                  {t("shell.mostraSecondi")}
                 </label>
                 <label style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 11, color: "var(--brand-text-muted, #94a3b8)", cursor: "pointer" }}>
                   <input type="checkbox" checked={obj.trend_dt_two_lines ?? true}
                     onChange={(e) => onChange({ trend_dt_two_lines: e.target.checked })} />
-                  Data e ora su due righe
+                  {t("shell.dataOraDueRighe")}
                 </label>
                 <label style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 11, color: "var(--brand-text-muted, #94a3b8)", cursor: "pointer" }}>
                   <input type="checkbox" checked={obj.trend_dt_always_show_date ?? false}
                     onChange={(e) => onChange({ trend_dt_always_show_date: e.target.checked || undefined })} />
-                  Mostra sempre la data
+                  {t("shell.mostraSempreData")}
                 </label>
               </div>
               <p style={{ fontSize: 10, color: "var(--brand-text-subtle, #94a3b8)", margin: "2px 0 0" }}>
@@ -4585,7 +4618,7 @@ export function ObjectProps({
                   checked={obj.trend_log_scale ?? false}
                   onChange={(e) => onChange({ trend_log_scale: e.target.checked || undefined })}
                 />
-                Scala Y logaritmica
+                {t("shell.scalaLog")}
               </label>
               {/* Soglie warn/alarm come linee tratteggiate orizzontali (stesso
                   pattern del bar chart). Valori sulla scala condivisa. */}
@@ -4595,7 +4628,7 @@ export function ObjectProps({
                   checked={obj.trend_show_thresholds ?? false}
                   onChange={(e) => onChange({ trend_show_thresholds: e.target.checked || undefined })}
                 />
-                Mostra soglie (linee tratteggiate)
+                {t("shell.mostraSoglie")}
               </label>
               {obj.trend_show_thresholds && (
                 <>
@@ -4788,7 +4821,7 @@ export function ObjectProps({
               <SottoTitolo chiave="gridSection" />
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0 6px" }}>
                 <div>
-                  <div style={LABEL}>Righe</div>
+                  <div style={LABEL}>{t("shell.righe")}</div>
                   <input
                     type="number" min={1} max={20} style={INPUT}
                     value={obj.grid_rows ?? 2}
@@ -4816,7 +4849,7 @@ export function ObjectProps({
                   onChange={(e) => onChange({ grid_show_borders: e.target.checked })}
                   style={{ accentColor: "var(--brand-primary, #3b82f6)" }}
                 />
-                Mostra bordi
+                {t("shell.mostraBordi")}
               </label>
               {obj.grid_show_borders !== false && (
                 <div style={{ marginTop: 4 }}>
@@ -4833,7 +4866,7 @@ export function ObjectProps({
           {/* Text List */}
           {obj.type === "text_list" && (
             <>
-              {field(t("props.tag"), tagInput("es. valvola.stato"))}
+              {field(t("props.tag"), tagInput(t("shell.esValvola")))}
               {textListEntriesField()}
               {field(t("props.textDefault"), <input style={INPUT} value={obj.text_list_default ?? ""} onChange={(e) => onChange({ text_list_default: e.target.value })} />)}
               {field(t("props.colorDefault"), colorInput("text_list_default_color"))}
@@ -4851,7 +4884,7 @@ export function ObjectProps({
           {/* State Lamp — same data model as text_list (value→label→color), shape instead of text */}
           {obj.type === "state_lamp" && (
             <>
-              {field(t("props.tag"), tagInput("es. valvola.stato"))}
+              {field(t("props.tag"), tagInput(t("shell.esValvola")))}
               {textListEntriesField()}
               <p style={{ fontSize: 10, color: "var(--brand-text-subtle, #94a3b8)", margin: "-2px 0 4px" }}>
                 {t("props.stateLampHint")}
@@ -4906,7 +4939,7 @@ export function ObjectProps({
                   </label>
                 ))}
               </div>
-              <div style={{ fontSize: 10, color: "var(--brand-text-subtle, #94a3b8)", marginTop: 6, marginBottom: 2, fontWeight: 700 }}>SERIE</div>
+              <div style={{ fontSize: 10, color: "var(--brand-text-subtle, #94a3b8)", marginTop: 6, marginBottom: 2, fontWeight: 700 }}>{t("shell.serie")}</div>
               {obj.bar_mode !== "stacked" && (
                 <p style={{ fontSize: 10, color: "var(--brand-text-subtle, #94a3b8)", margin: "0 0 4px" }}>
                   {t("props.barSeriesScaleHint")}
@@ -4936,7 +4969,7 @@ export function ObjectProps({
                 onClick={() => onChange({ bar_series: [...(obj.bar_series ?? []), { tag: "", label: `Serie ${(obj.bar_series?.length ?? 0) + 1}` }] })}>
                 {t("shell.addSeries")}
               </button>
-              <div style={{ fontSize: 10, color: "var(--brand-text-subtle, #94a3b8)", marginTop: 2, marginBottom: 2, fontWeight: 700 }}>SOGLIE</div>
+              <div style={{ fontSize: 10, color: "var(--brand-text-subtle, #94a3b8)", marginTop: 2, marginBottom: 2, fontWeight: 700 }}>{t("shell.soglie")}</div>
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
                 <div><div style={LABEL}>{t("props.warnHigh")}</div><BindableInput obj={obj} propName="warn_high" onChange={onChange}>{numInput("warn_high", 0)}</BindableInput></div>
                 <div><div style={LABEL}>{t("props.alarmHigh")}</div><BindableInput obj={obj} propName="alarm_high" onChange={onChange}>{numInput("alarm_high", 0)}</BindableInput></div>
@@ -5005,7 +5038,7 @@ export function ObjectProps({
               {(obj.pie_mode ?? "pie") === "donut" && field(t("props.textCenter"), <BindableInput obj={obj} propName="pie_center_text" onChange={onChange}>{textInput("pie_center_text", "")}</BindableInput>)}
               {(obj.pie_mode ?? "pie") === "donut" && field(t("props.tagCenter"),
                 <TagInput
-                  style={INPUT} placeholder="es. totale.kw"
+                  style={INPUT} placeholder={t("shell.esTotaleKw")}
                   value={obj.pie_center_tag ?? ""}
                   onChange={(v) => onChange({ pie_center_tag: v || undefined })}
                 />
@@ -5119,7 +5152,7 @@ export function ObjectProps({
                 <div><div style={LABEL}>Y max</div><BindableInput obj={obj} propName="y_max" onChange={onChange}>{numInput("y_max", 0)}</BindableInput></div>
               </div>
               <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                {[["spark_fill","Fill area"], ["spark_show_last","Mostra ultimo"]].map(([k,l]) => (
+                {[["spark_fill",t("shell.riempiArea")], ["spark_show_last",t("shell.mostraUltimo")]].map(([k,l]) => (
                   <label key={k} style={{ fontSize: 11, color: "var(--brand-text-muted, #94a3b8)", display: "flex", gap: 3, alignItems: "center" }}>
                     <input type="checkbox" checked={!!(obj as any)[k]} onChange={(e) => onChange({ [k]: e.target.checked })} />{l}
                   </label>
@@ -5143,7 +5176,7 @@ export function ObjectProps({
               {field(t("props.alarmIdPrefix"), <input style={INPUT} placeholder={t("props.exZone")} value={obj.alarm_viewer_id_prefix ?? ""} onChange={(e) => onChange({ alarm_viewer_id_prefix: e.target.value })} />)}
               {field(t("props.severity"), severityFilterField("alarm_viewer_severities"))}
               <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                {[["alarm_viewer_show_ack","Mostra ACK"], ["alarm_viewer_show_ts","Timestamp"], ["alarm_viewer_show_empty",t("shell.showEmpty")]].map(([k,l]) => (
+                {[["alarm_viewer_show_ack",t("shell.mostraAck")], ["alarm_viewer_show_ts",t("shell.timestamp")], ["alarm_viewer_show_empty",t("shell.showEmpty")]].map(([k,l]) => (
                   <label key={k} style={{ fontSize: 11, color: "var(--brand-text-muted, #94a3b8)", display: "flex", gap: 3, alignItems: "center" }}>
                     <input type="checkbox" checked={!!(obj as any)[k] || (obj as any)[k] === undefined} onChange={(e) => onChange({ [k]: e.target.checked })} />{l}
                   </label>
@@ -5248,7 +5281,7 @@ export function ObjectProps({
               <div style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)", marginBottom: 4 }}>
                 {t("props.recipePanelHint")}
               </div>
-              {field(t("props.recipeIdPrefix"), <input style={INPUT} placeholder="es. linea1-" value={obj.recipe_panel_id_prefix ?? ""} onChange={(e) => onChange({ recipe_panel_id_prefix: e.target.value })} />)}
+              {field(t("props.recipeIdPrefix"), <input style={INPUT} placeholder={t("shell.esLineaPrefisso")} value={obj.recipe_panel_id_prefix ?? ""} onChange={(e) => onChange({ recipe_panel_id_prefix: e.target.value })} />)}
             </>
           )}
 
@@ -5464,7 +5497,7 @@ export function ObjectProps({
                   </select>
                 </div>
                 <div>
-                  <div style={LABEL}>Stile</div>
+                  <div style={LABEL}>{t("shell.stile")}</div>
                   <select style={{ ...INPUT, cursor: "pointer" }}
                     value={obj.pipe_style ?? "flat"}
                     onChange={(e) => onChange({ pipe_style: e.target.value as SynopticObject["pipe_style"] })}>
@@ -5608,7 +5641,7 @@ export function ObjectProps({
                     onChange={(e) => onChange({ pipe_flow: e.target.checked || undefined })} />
                 )}
                 {obj.pipe_flow && field(t("props.pipeFlowTag"),
-                  <TagInput style={INPUT} placeholder="es. pump1.flow (segno = direzione)" value={obj.pipe_flow_tag ?? ""}
+                  <TagInput style={INPUT} placeholder={t("shell.esPompaFlusso")} value={obj.pipe_flow_tag ?? ""}
                     onChange={(v) => onChange({ pipe_flow_tag: v || undefined })} />
                 )}
               </>
@@ -5691,7 +5724,7 @@ export function ObjectProps({
           </span>
         </label>
         {field(t("props.motionTag"),
-          <TagInput style={INPUT} placeholder="es. carrello.posizione" value={obj.motion_tag ?? ""}
+          <TagInput style={INPUT} placeholder={t("shell.esCarrello")} value={obj.motion_tag ?? ""}
             onChange={(v) => onChange({ motion_tag: v || undefined })} />
         )}
         {obj.motion_tag && (
@@ -5822,7 +5855,7 @@ export function ObjectProps({
                 onChange={(e) => onChange({ flip_h: e.target.checked || undefined })}
                 style={{ accentColor: "var(--brand-primary, #3b82f6)" }}
               />
-              Flip orizzontale
+              {t("shell.flipOrizz")}
             </label>
             <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: "var(--brand-text-2, #cbd5e1)", cursor: "pointer" }}>
               <input
@@ -5831,7 +5864,7 @@ export function ObjectProps({
                 onChange={(e) => onChange({ flip_v: e.target.checked || undefined })}
                 style={{ accentColor: "var(--brand-primary, #3b82f6)" }}
               />
-              Flip verticale
+              {t("shell.flipVert")}
             </label>
           </div>
           {field(t("props.transitionMs"),
@@ -5878,7 +5911,7 @@ export function ObjectProps({
             onChange={(e) => onChange({ visible: e.target.checked })}
             style={{ accentColor: "var(--brand-primary, #3b82f6)" }}
           />
-          Visibile (statico)
+          {t("shell.visibileStatico")}
         </label>
         <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: "var(--brand-text-2, #cbd5e1)", marginTop: 4, cursor: "pointer" }}>
           <input
@@ -5887,7 +5920,7 @@ export function ObjectProps({
             onChange={(e) => onChange({ locked: e.target.checked ? true : undefined })}
             style={{ accentColor: "var(--brand-warning, #f59e0b)" }}
           />
-          Bloccato (non selezionabile nell'editor)
+          {t("shell.bloccato")}
         </label>
         <div>
           <div style={LABEL}>{t("props.tagVisOverride")}</div>
@@ -5933,8 +5966,7 @@ export function ObjectProps({
             onChange={(fn, args) => onChange({ on_release_fn: fn, on_release_args: args })}
           />
           <p style={{ fontSize: 10, color: "var(--brand-text-subtle, #94a3b8)", margin: "0 0 4px" }}>
-            Definisci le funzioni nel pannello laterale (sezione FUNZIONI). I valori
-            dei parametri sono sostituiti per binding; lascia vuoto per usare il default.
+            {t("shell.definisciFunzioni")}
           </p>
         </CollapsibleSection>
       )}
@@ -6172,7 +6204,7 @@ function RadioOptionsEditor({
   return (
     <div>
       <div style={{ fontSize: 10, color: "var(--brand-text-subtle, #94a3b8)", marginTop: 4, marginBottom: 4, fontWeight: 700 }}>
-        OPZIONI RADIO
+        {t("shell.opzioniRadio")}
       </div>
       {options.map((opt, i) => (
         <div key={i} style={{ display: "flex", gap: 4, marginBottom: 4, alignItems: "center" }}>
@@ -6224,7 +6256,7 @@ function TableRowsEditor({
   return (
     <div>
       <div style={{ fontSize: 10, color: "var(--brand-text-subtle, #94a3b8)", marginTop: 4, marginBottom: 4, fontWeight: 700 }}>
-        RIGHE TABELLA
+        {t("shell.righeTabella")}
       </div>
       {rows.map((row, i) => (
         <div key={i} style={{ background: "var(--brand-bg, #0f172a)", borderRadius: 4, padding: "6px 8px", marginBottom: 6 }}>
@@ -6495,7 +6527,7 @@ function GridCellEditor({
           onChange={(e) => onChange({ visible: e.target.checked || undefined })}
           style={{ accentColor: "var(--brand-primary, #3b82f6)" }}
         />
-        Visibile (statico)
+        {t("shell.visibileStatico")}
       </label>
 
       <div style={{ marginBottom: 6 }}>
@@ -6556,7 +6588,7 @@ function GridCellEditor({
               }}
               style={{ background: "var(--brand-bg, #0f172a)", border: "1px solid var(--brand-surface-2, #334155)", color: "var(--brand-text-muted, #94a3b8)", borderRadius: 4, cursor: "pointer", fontSize: 11, padding: "2px 8px" }}
             >
-              ✂ Taglia
+              {t("shell.taglia")}
             </button>
             <button
               title={t("props.removeChild")}

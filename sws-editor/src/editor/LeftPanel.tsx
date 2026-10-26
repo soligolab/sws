@@ -1504,7 +1504,7 @@ function ObjectsSection() {
                   x: (indent > 0 ? 25 : 13) + 12, finoA: indent + 24, ultimo: false,
                 }),
               }}
-              title={`Cella R${c.row + 1}, C${c.col + 1}`}
+              title={t("leftPanel.cella", { r: c.row + 1, c: c.col + 1 })}
             >
               <span style={{ fontSize: 10, flexShrink: 0, color: "var(--brand-text-subtle, #94a3b8)" }}>↳</span>
               <span style={{ fontSize: 9, color: "var(--brand-text-subtle, #94a3b8)", width: 34, flexShrink: 0, textTransform: "uppercase", letterSpacing: 0.5 }}>
@@ -1651,7 +1651,7 @@ function ObjectsSection() {
               fontStyle: "italic" as const,
             }}
           >
-            ⤓ Trascina qui per rimuovere dal gruppo
+            {t("leftPanel.trascinaFuoriGruppo")}
           </div>
         )}
         {tree.map((node, iNodo) => {
@@ -1832,14 +1832,14 @@ function ObjectsContextMenu({
       {state.kind === "object" ? (
         <>
           <div style={item} onClick={() => { actions.renameObject(state.id); close(); }}>
-            <span style={{ width: 16 }}>✎</span> Rinomina
+            <span style={{ width: 16 }}>✎</span> {t("leftPanel.rinomina")}
           </div>
           <div style={item} onClick={() => { actions.duplicateObject(state.id); close(); }}>
-            <span style={{ width: 16 }}>⧉</span> Duplica
+            <span style={{ width: 16 }}>⧉</span> {t("leftPanel.duplica")}
           </div>
           {currentSelection.length >= 2 && currentSelection.includes(state.id) && (
             <div style={item} onClick={() => { actions.groupSelection(); close(); }}>
-              <span style={{ width: 16 }}>📁</span> Raggruppa selezione ({currentSelection.length})
+              <span style={{ width: 16 }}>📁</span> {t("leftPanel.raggruppaSelezione", { n: currentSelection.length })}
             </div>
           )}
           <div style={sep} />
@@ -1853,7 +1853,7 @@ function ObjectsContextMenu({
             </div>
           ))}
           <div style={sub} onClick={() => { actions.moveToGroup(state.id, null); close(); }}>
-            ⤓ Senza gruppo
+            {t("leftPanel.senzaGruppo")}
           </div>
           <div style={sep} />
           <div style={danger} onClick={() => { actions.deleteObject(state.id); close(); }}>
@@ -1863,11 +1863,11 @@ function ObjectsContextMenu({
       ) : (
         <>
           <div style={item} onClick={() => { actions.renameGroup(state.id); close(); }}>
-            <span style={{ width: 16 }}>✎</span> Rinomina gruppo
+            <span style={{ width: 16 }}>✎</span> {t("leftPanel.rinominaGruppo")}
           </div>
           <div style={sep} />
           <div style={danger} onClick={() => { actions.ungroup(state.id); close(); }}>
-            <span style={{ width: 16 }}>⊔</span> Separa gruppo
+            <span style={{ width: 16 }}>⊔</span> {t("leftPanel.separaGruppo")}
           </div>
         </>
       )}
@@ -1938,7 +1938,7 @@ function FunctionsSection({ onFunctionsChanged }: { onFunctionsChanged: () => vo
             Python del progetto" le cerca insieme — e prima nessuno dei due
             punti diceva che l'altro esistesse. */}
         <p style={{ padding: "4px 12px 8px", fontSize: 11, color: "var(--brand-text-subtle, #64748b)", margin: 0 }}>
-          {t("leftPanel.forScriptsThatStartOn")} <strong>Configurazione → Python</strong>.
+          {t("leftPanel.forScriptsThatStartOn")} <strong>{t("leftPanel.configurazionePython")}</strong>.
         </p>
         {functions.map((f) => {
           const isSel = f.id === selectedFnId;

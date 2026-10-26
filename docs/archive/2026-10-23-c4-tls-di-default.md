@@ -1,7 +1,12 @@
 # C4 — TLS acceso di default sul pannello
 
+> **FATTO il 25-10-2026, archiviato.** Pezzo 1 (lo schema non scritto a mano) il 23-10; pezzo 2 (generatore unico
+> col nome vero, rotte remote, audit) col piano dei certificati; pezzo 3 il 25-10: il pannello Pixsys che ha il
+> certificato del dispositivo e gira in chiaro **propone** l'HTTPS con quello, col comando da lanciare, e ricorda un
+> «no». La scadenza col rinnovo firmato vive nel suo seme. Collaudo in `COLLAUDI_IN_SOSPESO.md` §A-bis.
+
 > **Misurato sul codice il 23-10-2026.** La voce C4 di
-> [`2026-10-15-piano-prima-fascia-e-cra.md`](2026-10-15-piano-prima-fascia-e-cra.md) è marcata
+> [`2026-10-15-piano-prima-fascia-e-cra.md`](../plans/2026-10-15-piano-prima-fascia-e-cra.md) è marcata
 > `[plan]` e la sua domanda aperta sta alla riga 64 di quel file: «come arriva la fiducia nel
 > certificato del pannello (pinning all'abbinamento?)». Questo file porta la misura, il pezzo
 > già fatto, e le domande che restano al maintainer.
@@ -76,14 +81,14 @@ giro del «dimentica» a ogni rinnovo non esiste. Avviso in tre posti: barra del
 sistema, email.
 
 **Non è una variante, è un protocollo**, e ha un seme suo:
-[`2026-10-23-rinnovo-del-certificato-firmato.md`](2026-10-23-rinnovo-del-certificato-firmato.md).
+[`2026-10-23-rinnovo-del-certificato-firmato.md`](../plans/2026-10-23-rinnovo-del-certificato-firmato.md).
 Il punto duro misurato: l'archivio tiene solo `sha256:<hex>`, e **da un'impronta non si verifica
 una firma**. **La scadenza si mette dopo che il rinnovo esiste**, e il rinnovo viene dopo la
 prova sul TC620.
 
 Stima: 200-300 righe per il generatore unico, più 300-400 per rinnovo e avviso.
 
-## Pezzo 3 — il default acceso, e la fiducia — **servono le risposte qui sotto**
+## Pezzo 3 — il default acceso, e la fiducia — **FATTO il 25-10-2026** (disegno qui sotto)
 
 Stima 400-700 righe più la sessione di plan vera. **Quando questo lavoro comincia, il primo passo
 è una sessione di plan dedicata e approfondita** per sviscerarne i dettagli: fra la domanda e il
@@ -203,6 +208,34 @@ con avviso e rinnovo». La misura aggiunge un dettaglio che lì non c'era: **ogn
 pinning di chiunque si fosse già fidato**, perché il verificatore confronta l'impronta della
 foglia e basta. Così com'è, ogni due anni ogni IDE e ogni viewer LVGL del campo mostra
 «certificato cambiato» e qualcuno deve premere «dimentica».
+
+### La scelta sul browser (25-10-2026)
+
+Davanti alle tre strade (cert del dispositivo, nostro autofirmato nell'NSS di Chromium, kiosk in chiaro sul
+loopback) il maintainer ha scelto: **il TLS di default si accende solo dove c'è il certificato del dispositivo**,
+di cui il browser del pannello si fida già. Dove non c'è (pannelli non Pixsys, o Pixsys senza il passaggio
+opzionale) resta com'è oggi: si accende a mano dalla vista dei certificati. Così nessun pannello si accende con un
+interstiziale al posto del sinottico. Con questa scelta tutte le domande del pezzo 3 hanno risposta.
+
+### Il disegno del pezzo 3 (sessione di plan del 25-10-2026)
+
+**Il limite, prima di tutto**: il runtime **non può** accendere da solo il certificato del dispositivo. La chiave è
+`root:root 0600` e il container gira rootless come `user`; solo il passaggio con `sudo`
+(`certificato-dispositivo.sh`, HOWTO §29) la può copiare. «Acceso di default» diventa quindi **proposto di
+default, a un comando di distanza, con la scelta ricordata**:
+
+| Pezzo | Cosa |
+|---|---|
+| **L'installatore** | su un Pixsys con `/mnt/protected/ssl/<seriale>-chain.server.crt` scrive `config/certificato-dispositivo` (il percorso della catena); altrove lo toglie. Gira anche nell'aggiornamento dei quadlet (`--solo-unita`), quindi raggiunge i pannelli già installati |
+| **Il marcatore** (risposta 4) | `config/tls-scelta`: assente = «non ha mai scelto», `no` = «ha scelto no». Lo scrive il «No, resta in chiaro» della proposta e lo scrive **«Rimuovi»** del certificato: togliere l'HTTPS è una scelta esplicita |
+| **Chi propone** (risposta 1) | solo il ruolo pannello: né IDE (`ide_only`), né gateway (`regia`), né container di progetto (`segreto_gateway`) |
+| **Quando propone** | ruolo pannello, TLS spento, certificato del dispositivo segnalato, marcatore diverso da `no` — funzione pura `proposta_tls`, con test |
+| **Il comando** | il runtime copia lo script dall'immagine in `config/` (la cartella che l'host vede, come fa l'aggiornamento dei quadlet), e la proposta mostra quel percorso sull'host, da lanciare come `pixsys` |
+| **Dove si vede** | nella card TLS (Sicurezza → Certificati, colonna del pannello): spiegazione, comando da copiare, «No, resta in chiaro» |
+| **Rotte** | `GET /api/system/tls` porta la `proposta`; `POST /api/system/tls/scelta` (Admin, audit `tls.choice`), col gemello remoto |
+
+Fuori: la fiducia nell'NSS di Chromium e il loopback in chiaro (strade non scelte), e i pannelli non Pixsys, che
+restano a mano.
 
 ## Ordine
 

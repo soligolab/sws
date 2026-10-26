@@ -91,6 +91,20 @@ for idf, m in file.items():
             problema(f"{dove}: tipo «{r['tipo']}» non è un tipo scalare")
         if "descrizione" in r:
             due_lingue(r["descrizione"], dove)
+        # Il configuratore dei moduli (25-10-2026): `valori` è l'enumerazione che
+        # l'IDE mostra come tendina, `setup: false` toglie un parametro dal setup
+        # (cambiare indirizzo o baud dal progetto spezzerebbe la comunicazione).
+        if "valori" in r:
+            v = r["valori"]
+            if not isinstance(v, dict) or not v:
+                problema(f"{dove}: «valori» vuole un oggetto non vuoto")
+            else:
+                for k, testo in v.items():
+                    if not re.fullmatch(r"-?\d+", k) or not -32768 <= int(k) <= 65535:
+                        problema(f"{dove}: valore «{k}» non è un intero a 16 bit")
+                    due_lingue(testo, f"{dove} valore {k}")
+        if "setup" in r and not isinstance(r["setup"], bool):
+            problema(f"{dove}: «setup» vuole true o false")
         bits = r.get("bit")
         if bits is not None:
             if r.get("formato", "u16") not in ("u16", "i16"):
@@ -127,6 +141,22 @@ for idf in modelli:
     doppi = sorted({x for x in membri if membri.count(x) > 1})
     if doppi:
         problema(f"{idf}: membri ripetuti dopo gli include: {doppi}")
+    # Il trasporto (25-10-2026, seme «Modbus TCP senza bus»): prima lo si
+    # deduceva dall'assenza di `seriale`, e «Dal catalogo» lasciava mettere un
+    # MCM280X (solo TCP) su un bus RTU. Dichiarato, e coerente col blocco.
+    mb = m.get("modbus") or {}
+    tr = mb.get("trasporto")
+    if tr not in ("tcp", "rtu", "entrambi"):
+        problema(f"{idf}: modbus.trasporto vuole «tcp», «rtu» o «entrambi» (trovato {tr!r})")
+    elif tr == "tcp" and "seriale" in mb:
+        problema(f"{idf}: trasporto «tcp» ma c'è il blocco «seriale»")
+    elif tr in ("rtu", "entrambi") and "seriale" not in mb:
+        problema(f"{idf}: trasporto «{tr}» senza il blocco «seriale» (baud, parità…)")
+    sr = mb.get("setup_ritardato")
+    if sr is not None:
+        if not all(isinstance(sr.get(k), int) for k in ("da", "a", "scostamento")) or not 0 <= sr["da"] <= sr["a"] <= 65535 \
+                or not 0 <= sr["a"] + sr["scostamento"] <= 65535:
+            problema(f"{idf}: modbus.setup_ritardato vuole da ≤ a e uno scostamento che resti in 0-65535")
     img = m.get("immagine")
     if img:
         p = os.path.join(CAT, idf.split("/")[0], img)

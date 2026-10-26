@@ -64,7 +64,7 @@ function BackupSection({
             fontSize: 13, fontWeight: 600,
           }}
         >
-          + Backup adesso
+          {t("cfgUi.backupAdesso")}
         </button>
         <button
           onClick={onRefresh}
@@ -75,7 +75,7 @@ function BackupSection({
             cursor: busy ? "wait" : "pointer", fontSize: 13,
           }}
         >
-          ↻ Aggiorna
+          {t("common.aggiornaFreccia")}
         </button>
       </div>
       {err && (
@@ -115,7 +115,7 @@ function BackupSection({
                       border: "none", borderRadius: 3, cursor: busy ? "wait" : "pointer",
                       fontSize: 12,
                     }}
-                  >Ripristina</button>
+                  >{t("cfgUi.ripristina")}</button>
                   <button
                     onClick={() => onDownload(b.name)}
                     disabled={busy}
@@ -335,17 +335,17 @@ export function BackupsTab() {
 
       <div style={{ display: "flex", gap: 8, alignItems: "flex-end", flexWrap: "wrap", border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 5, padding: 8 }}>
         <div>
-          <span style={labelStyleBak}>Intervallo auto-backup (minuti)</span>
+          <span style={labelStyleBak}>{t("cfgUi.intervalloAutoBackup")}</span>
           <input type="number" min={0} value={intervalMin}
             onChange={(e) => setIntervalMin(e.target.value)}
-            placeholder="eredita dal runtime"
+            placeholder={t("cfgUi.ereditaDalRuntime")}
             style={{ ...inputStyleBak, width: 160 }} />
         </div>
         <div>
-          <span style={labelStyleBak}>Backup da tenere</span>
+          <span style={labelStyleBak}>{t("cfgUi.backupDaTenere")}</span>
           <input type="number" min={0} value={retention}
             onChange={(e) => setRetention(e.target.value)}
-            placeholder="eredita dal runtime"
+            placeholder={t("cfgUi.ereditaDalRuntime")}
             style={{ ...inputStyleBak, width: 140 }} />
         </div>
         <button onClick={saveBackupConfig} disabled={cfgSaving}

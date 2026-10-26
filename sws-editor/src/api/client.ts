@@ -11,6 +11,9 @@ import type {
   DatastoreStats,
   StatoRitenzione,
   FaceplateDef,
+  FileReport,
+  ReportDef,
+  ReportElenco,
   Cornice,
   CorniceInElenco,
   FunctionDef,
@@ -358,6 +361,10 @@ export interface EventoAggiornamento {
   esito: "riuscito" | "non_riuscito";
 }
 
+/** Gemello di `system::TlsStatus`: lo stato del TLS e, quando c'è, la proposta
+ *  di accenderlo col certificato del dispositivo (C4, pezzo 3, 25-10-2026). */
+export interface StatoTls { enabled: boolean; proposta?: { comando: string } }
+
 /** Gemelli di `certificati::Inventario` in `sws-web` (25-10-2026). */
 export interface DettagliCertificato {
   soggetto: string;
@@ -665,7 +672,7 @@ const PATH_RIPORTANO_VERSIONE = [
 const PATH_VERSIONATI = [
   "/api/project/tags", "/api/project/types", "/api/project/languages", "/api/project/sources",
   "/api/project/alarms", "/api/project/functions", "/api/project/custom-symbols",
-  "/api/project/datastores", "/api/project/global-scripts",
+  "/api/project/datastores", "/api/project/global-scripts", "/api/project/reports",
   "/api/project/notifications", "/api/project/page-layout", "/api/project/target", "/api/project/symbol-style",
   "/api/project/backup-config", "/api/project/retention-time", "/api/project/tags/import-csv",
 ];
@@ -2004,7 +2011,7 @@ export const api = {
   systemStop:   () => request<void>("/api/system/stop",   { method: "POST" }),
   systemStart:  () => request<void>("/api/system/start",  { method: "POST" }),
   systemReboot: () => request<void>("/api/system/reboot", { method: "POST" }),
-  getTlsStatus:      () => request<{ enabled: boolean }>("/api/system/tls"),
+  getTlsStatus:      () => request<StatoTls>("/api/system/tls"),
   generateTlsCert:   () => request<void>("/api/system/tls/generate", { method: "POST" }),
   uploadTlsCert:     (cert_pem: string, key_pem: string) =>
     request<void>("/api/system/tls", {
@@ -2018,7 +2025,13 @@ export const api = {
   // certificati, 23-10-2026). Prima non esistevano, e con un pannello collegato
   // la card «Certificato TLS» governava il PC su cui gira l'IDE mentre tutto il
   // resto della scheda Device parlava col pannello.
-  remoteGetTlsStatus:    () => request<{ enabled: boolean }>("/api/remote/system/tls"),
+  remoteGetTlsStatus:    () => request<StatoTls>("/api/remote/system/tls"),
+  /** La risposta alla proposta dell'HTTPS col certificato del dispositivo
+   *  (C4, pezzo 3): `no` = resta in chiaro, `proponi` = torna a proporlo. */
+  sceltaTls: (remoto: boolean, scelta: "no" | "proponi") =>
+    request<void>(remoto ? "/api/remote/system/tls/scelta" : "/api/system/tls/scelta", {
+      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ scelta }),
+    }),
   remoteGenerateTlsCert: () => request<void>("/api/remote/system/tls/generate", { method: "POST" }),
   remoteUploadTlsCert:   (cert_pem: string, key_pem: string) =>
     request<void>("/api/remote/system/tls", {
@@ -2301,6 +2314,26 @@ export const api = {
       headers: { "Content-Type": "application/json", ...seVersionato("/api/project/global-scripts") },
       body: JSON.stringify(scripts),
     }),
+
+  saveReports: (reports: ReportDef[]) =>
+    request<void>("/api/project/reports", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json", ...seVersionato("/api/project/reports") },
+      body: JSON.stringify(reports),
+    }),
+  /** I report coi loro file, di questa istanza o del pannello collegato. */
+  reports: (remoto: boolean) => request<ReportElenco[]>(remoto ? "/api/remote/reports" : "/api/reports"),
+  generaReport: (remoto: boolean, id: string) =>
+    request<FileReport[]>(`${remoto ? "/api/remote/reports" : "/api/reports"}/${encodeURIComponent(id)}/genera`, { method: "POST" }),
+  scaricaReport: async (remoto: boolean, id: string, file: string): Promise<Blob> => {
+    const res = await fetch(`${getBaseUrl()}${remoto ? "/api/remote/reports" : "/api/reports"}/${encodeURIComponent(id)}/${encodeURIComponent(file)}`, { headers: authHeaders() });
+    if (!res.ok) throw new Error(`${res.status} ${await res.text()}`);
+    return res.blob();
+  },
+
+  /** Un SMS di prova col Twilio del progetto (P4). */
+  provaSms: (numero: string) =>
+    request<void>("/api/telefono/prova", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ numero }) }),
 
   saveNotifications: (config: NotificationConfig | null) =>
     request<void>("/api/project/notifications", {

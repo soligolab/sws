@@ -190,7 +190,7 @@ export function EditorToolbar({
           style={{ ...BTN, cursor: "pointer", paddingRight: 4 }}>
           {project!.languages!.langs.map((l) => (
             <option key={l} value={l}>
-              {l === project!.languages!.default ? `🌐 ${l} (originale)` : `🌐 ${l}`}
+              {l === project!.languages!.default ? `🌐 ${l} ${t("toolbar.originale")}` : `🌐 ${l}`}
             </option>
           ))}
         </select>

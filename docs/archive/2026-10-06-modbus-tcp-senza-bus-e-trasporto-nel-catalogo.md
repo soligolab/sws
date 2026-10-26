@@ -1,5 +1,8 @@
 # Modbus TCP: il bus che non serve, e il trasporto che il catalogo non dichiara
 
+> **FATTO il 25-10-2026, archiviato.** Il trasporto nel catalogo (campo, guardia, filtro, validazione) e il bus
+> implicito nell'IDE per Modbus TCP, come deciso dal maintainer quel giorno. Da collaudare nell'IDE.
+
 > **Seme — decisione.** Nato il 06-10-2026 da un'osservazione del maintainer mentre configurava
 > Modbus: «per la configurazione Modbus TCP il concetto di bus non ha senso, ogni dispositivo che
 > configuro è un dispositivo TCP con un IP univoco… poi bisognerebbe distinguere MCM280 (che ha solo
@@ -10,6 +13,12 @@
 > non un piano d'esecuzione: la riorganizzazione a bus e dispositivi è del 04-10-2026 e può muoversi
 > ancora. **Non è urgente** — decisione del maintainer, 06-10-2026: «per il Modbus per ora lasciamo
 > così com'è».
+
+## Decisione del maintainer (25-10-2026)
+
+1. **Bus implicito nell'IDE** (opzione 1): il modello non cambia; un dispositivo TCP si aggiunge col suo IP e il
+   bus nasce dietro le quinte; il livello bus compare solo quando dietro lo stesso indirizzo ci sono più unit id.
+2. **Il trasporto nel catalogo**, come proposto: si fa.
 
 ## Sono due questioni, non una
 

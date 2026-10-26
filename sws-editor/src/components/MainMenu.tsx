@@ -133,7 +133,7 @@ export function MainMenu({
   const handleSalvaCome = async () => {
     const currentName = project?.meta.name ?? "";
     if (dirty && !window.confirm(t("menu.salvaComeNonSalvato"))) return;
-    const nuovo = window.prompt(t("menu.salvaComePrompt"), `${currentName} (copia)`)?.trim();
+    const nuovo = window.prompt(t("menu.salvaComePrompt"), `${currentName} ${t("common.copiaSuffisso")}`)?.trim();
     if (!nuovo || nuovo === currentName) return;
     setSalvandoCome(true); setIoStat(null);
     try {

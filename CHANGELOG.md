@@ -11,6 +11,98 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 
 ## [Unreleased]
 
+### Added
+
+- **Tunnel: vivo, spento o perso** (ramo 7 dei residui): il gateway ascolta i battiti del pannello e chiude un tunnel
+  muto da oltre 95 s (solo per chi ha già battuto); allo SIGTERM il pannello annuncia lo spegnimento (byte `S`) prima
+  di chiudere le sorgenti, e la console *Pannelli* lo mostra con un pallino giallo e l'ora (`spento_ms`). Test per il
+  backoff (`prossima_attesa`), `Maniglia::chiudi`, l'annuncio e il registro.
+
+- **SMS, voce e reperibilità** (P4, piano `docs/plans/2026-10-26-sms-voce-reperibilita.md`): `notifications.twilio`
+  (token in `secrets.yaml`), `reperibili` a turni settimanali con fascia oraria (anche a cavallo della mezzanotte),
+  `telefono_attesa_min`; `CanaliEvento.sms/voce` per scatto ed escalation. `sws-web/src/telefono.rs`: catena di
+  escalation per allarme (un reperibile alla volta, ferma al riconoscimento), chiamata con TwiML e `<Gather>`, SMS.
+  Conferma dal telefono solo via cloud: rotta pre-auth del gateway `/telefono/<pannello>/{voce,sms}` che inoltra a
+  `/api/telefono/…` col suo URL pubblico; il pannello verifica `X-Twilio-Signature` (HMAC-SHA1, confronto a tempo
+  costante) e un gettone monouso per la chiamata. `POST /api/telefono/prova` (Admin, audit). Il token mascherato
+  rimandato dall'IDE tiene quello salvato. Foglia Notifiche → Telefono nell'editor. Nessun crate nuovo (`hmac`,
+  `sha1` erano nel lock).
+
+- **Report programmati** (P3, piano `docs/plans/2026-10-26-report-programmati.md`): `reports:` nel progetto
+  (periodo, cron, tag, passo, allarmi, formati, email, conserva). Il pannello li genera da solo a ogni minuto
+  utile (compito unico che rilegge il progetto), salva in `reports/<id>/`, pota, manda per email con gli allegati.
+  PDF e `.xlsx` **scritti a mano**, senza dipendenze nuove (verificati con `qpdf --check`, `pdftotext`, openpyxl,
+  LibreOffice). Rotte `/api/reports` (elenco, scarica, genera; audit `report.generate`) coi gemelli remoti e
+  `PUT /api/project/reports`; validazione (id, cron, tag, formati). Scheda Configurazione → Progetto → Report.
+
+- **«Crea faceplate dalla selezione»** (P2 del piano prima fascia, decisione del maintainer del 25-10-2026: i
+  faceplate sono i template d'oggetto, manca il modo di farne uno da oggetti già disegnati). Coordinate relative al
+  riquadro, tag → parametri (radice comune → un parametro istanza `p`, altrimenti uno per tag), tubi agganciati fuori
+  che perdono l'aggancio; il faceplate si salva subito e la selezione diventa la sua prima istanza, in un passo
+  annullabile (`sostituisciSelezione`). Test della funzione pura e dell'azione.
+
+- **Il configuratore dei moduli** (seme archiviato `docs/archive/2026-10-04-configuratore-moduli.md`, decisione del
+  maintainer del 25-10-2026: a ogni collegamento, solo le differenze, vince il progetto). `devices[].setup:
+  [{nome, indirizzo, valore, indirizzo_scrittura}]`; `sws-plugin-modbus` alla prima risposta di ogni sessione legge,
+  confronta e scrive solo i parametri diversi, e lo dice nel log (test sul dispositivo finto: il caso del 5AD). Il
+  catalogo porta le enumerazioni (`valori`, ricavate dalle descrizioni), `setup: false` su indirizzo/baud/parità e
+  l'area ritardata degli MCM260X (`modbus.setup_ritardato`); `check_catalogo` li controlla. Nell'IDE la sezione
+  «Configurazione del modulo» della card del dispositivo. Validazione: valore fuori dai 16 bit, parametro ripetuto.
+
+- **Modbus TCP: il bus implicito** (seme archiviato `docs/archive/2026-10-06-modbus-tcp-senza-bus-e-trasporto-nel-catalogo.md`,
+  opzione 1 scelta il 25-10-2026). Un indirizzo TCP con un dispositivo solo è il dispositivo: niente figli
+  nell'albero, una card sola con connessione e dispositivo; «+ Un altro dispositivo dietro questo indirizzo
+  (gateway)» rimette il livello bus. Il modello non cambia; una sorgente TCP nuova nasce senza dispositivi.
+- **Il trasporto Modbus nel catalogo** (`modbus.trasporto`): «Dal catalogo» offre solo i modelli che il bus
+  raggiunge, e un modello sul bus sbagliato è un errore di validazione.
+
+- **C4, pezzo 3 — l'HTTPS col certificato del dispositivo, proposto** (piano archiviato
+  `docs/archive/2026-10-23-c4-tls-di-default.md`; scelta del maintainer del 25-10-2026: acceso solo dove c'è il
+  certificato del dispositivo). L'installatore, anche nell'aggiornamento dei quadlet, scrive
+  `config/certificato-dispositivo` sui Pixsys che lo hanno; il runtime **del pannello** (non IDE, gateway o
+  container di progetto) col TLS spento lo propone in `GET /api/system/tls`, copia lo script in `config/` e ne
+  mostra il percorso sull'host. «No, resta in chiaro» (`POST /api/system/tls/scelta`, Admin, audit `tls.choice`,
+  gemello remoto) e «Rimuovi» scrivono il marcatore `config/tls-scelta`. Il runtime non accende da solo: la chiave
+  del dispositivo è leggibile solo da root.
+
+- **OPC-UA: il client legge le strutture** (Fase 4d, passi 10-12; piano archiviato
+  `docs/archive/2026-10-23-opcua-4d-strutture-vere.md`). Una sorgente con tag compositi costruisce a ogni sessione
+  l'albero dei `DataType` del server e registra il type loader prima della sottoscrizione; un `ExtensionObject`
+  diventa `TagValue::Struct` campo per campo nell'ordine del tipo, e arriva al `TagDb` foglia per foglia. Union,
+  strutture annidate e un albero che non si costruisce restano `Bad` senza spegnere la sorgente. Collaudo con la
+  `run` vera contro il server SWS, due tipi e un aggiornamento. Con questo si chiudono e vanno in archivio anche il
+  piano delle decisioni della Fase 4 e il **piano dei tag come oggetto unico**; le sue code (S7, EtherNet/IP, MQTT,
+  HA, Host) sono un seme nuovo.
+
+- **Lo stato iniziale dei tag MQTT** (piano `docs/plans/2026-10-25-stato-iniziale-mqtt.md`): dopo un riavvio i tag
+  MQTT restavano senza valore finché lo stato non cambiava, perché SWS si iscrive e aspetta e Zigbee2MQTT non pubblica
+  con `retain` (i tre led dello switch del garage, bianchi all'accensione). Una riga della mappatura ora può avere una
+  `richiesta_stato: {topic, payload}`, pubblicata a ogni collegamento dopo le sottoscrizioni; nell'editor il ⟳ di riga
+  la compila alla Zigbee2MQTT (`<topic>/get`, `{"state_l1":""}`) e un pulsante la mette su tutte le righe
+  `zigbee2mqtt/…`. Un topic con `+`/`#` è un errore di validazione. Manuale 06, con i limiti di Zigbee2MQTT.
+
+### Fixed
+
+- **Tunnel: la connessione vecchia si portava via la nuova.** `Registro::esce` toglieva il pannello per nome: un
+  pannello che aveva già richiamato perdeva la connessione nuova quando finiva la vecchia. Ora toglie solo la propria
+  maniglia. E «sospendi» e «sposta azienda» toglievano il pannello dal registro **senza chiudere il socket**: il
+  pannello non richiamava e restava irraggiungibile (il manuale prometteva «si ricollega da sé»). Ora `stacca` chiude.
+
+- `DestinatariEmail`: in un progetto senza lingue il selettore restituiva un array nuovo a ogni lettura e il
+  componente andava in un ciclo di aggiornamenti infinito.
+
+- **L'IDE in inglese mescolava l'italiano**, segnalato al collaudo della vista dei certificati: ~300 testi scritti fissi (298 chiavi nuove)
+  in una sessantina di file (schede di configurazione, sorgenti, pannello proprietà, editor, viewer) passano ora da
+  `t()`, con le chiavi in it/en. **La guardia `check_i18n_ui.sh` era verde con tutto questo dentro**: riconosceva
+  l'italiano da una lista fissa di ~80 parole, un apostrofo nel testo JSX («l'assistente») inghiottiva il resto della
+  riga, un `;` o un'entità `&apos;` faceva scartare la frase come codice, e il testo prima di un `{…}` non veniva mai
+  letto. Ora il lessico è quello del catalogo (parole di `it.json` che non sono in `en.json`, cresce da solo), e i tre
+  buchi sono chiusi; l'autotest ha i casi nuovi. L'inventario completo è stato fatto una volta col dizionario italiano
+  di sistema, che la guardia non usa per restare uguale su ogni macchina.
+- **Sicurezza → Certificati nel cloud**: la colonna del dispositivo portava il nome del gateway (`sws.soligo.net`)
+  invece di quello del pannello; la card TLS di «questa istanza» offriva un certificato self-signed al container del
+  progetto, dove l'HTTPS lo fa il proxy; l'archivio LVGL nella colonna locale parlava di «quadlet 6».
+
 ## [2.21.0] — 2026-10-25
 
 ### Added
@@ -1622,7 +1714,7 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
   Validatore: unit id doppio, formati mescolati, porta seriale di due sorgenti. Predisposto per il catalogo dei
   dispositivi noti (seme `docs/archive/2026-10-04-catalogo-dispositivi.md`): `modello` e `nuovoDispositivo(bus, base?)`.
   Provato dal vivo con un simulatore a due slave più uno assente.
-- **Modbus con i tipi, a blocchi, che non si ferma** (Fase 3 del piano tag, `docs/plans/2026-09-21-gestione-tag-oggetto-unico.md`).
+- **Modbus con i tipi, a blocchi, che non si ferma** (Fase 3 del piano tag, `docs/archive/2026-09-21-gestione-tag-oggetto-unico.md`).
   Quattro aree per mappatura (`area`: holding, input, coil, discrete), ordine di parole/byte per sorgente (`ordine`:
   abcd/cdab/badc/dcba). Numero di registri e decodifica dal tipo dichiarato (`codec.rs`: `i16` con segno, 32 e 64 bit,
   testo); la radice di un'istanza si legge come un blocco, una foglia per pezzo, e una scrittura su una foglia scrive
@@ -2175,7 +2267,7 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
   il tipo può escluderne una con `history: false` sul membro, e vale per tutte le istanze. Banda morta e intervallo minimo vengono dal membro, se li dichiara, altrimenti dal
   tag. Lo snapshot che alimenta le espressioni dei tag calcolati porta ora **foglie e radici insieme**: uno script può scrivere `tags["motore1.velocita"]` oppure
   `tags["motore1"]["velocita"]`, perché in Python il dizionario è piatto e non interpreta percorsi — servono tutte e due le chiavi.
-- **Scrittura per percorso e filo espanso in foglie** (Fase 1d del piano `docs/plans/2026-09-21-gestione-tag-oggetto-unico.md`, 22-09-2026). Con questo passo **un progetto con
+- **Scrittura per percorso e filo espanso in foglie** (Fase 1d del piano `docs/archive/2026-09-21-gestione-tag-oggetto-unico.md`, 22-09-2026). Con questo passo **un progetto con
   `types:` si può mandare a un pannello**: prima la radice composita viaggiava intera, e un frame WebSocket tipizzato con dentro un array avrebbe fatto perdere al viewer LVGL
   l'**intero** pacchetto, non quella voce. Ora `/ws/tags` e `GET /api/tags` mandano le **foglie** di default (`motore1.velocita`, `matrice[1][0]`, ognuna con la sua qualità);
   chi sa leggere una radice la chiede con `?composito=1` o con `{"type":"subscribe","composito":true}` — i due client di oggi non lo chiedono e non cambiano di una riga.
@@ -2211,7 +2303,7 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
   l'elenco allineato alla fixture condivisa: **ogni formato offerto dev'essere uno che i due motori sanno fare**, ed è così che `{value:,.2f}` è uscito dall'elenco — il
   separatore delle migliaia ha bisogno di una lingua, il pannello non ne ha una, e offrirlo prometteva qualcosa che sul vetro non succede (resta scrivibile a mano).
   L'elenco è largo quanto il campo e va a capo quando il pannello è stretto: ancorato a destra con una larghezza minima debordava a sinistra e si vedeva mozzato.
-- **Modello composito nel core: strutture e array come cittadini di prima classe** (Fase 1b del piano `docs/plans/2026-09-21-gestione-tag-oggetto-unico.md`, 22-09-2026).
+- **Modello composito nel core: strutture e array come cittadini di prima classe** (Fase 1b del piano `docs/archive/2026-09-21-gestione-tag-oggetto-unico.md`, 22-09-2026).
   `TagValue` guadagna `Array` e `Struct` (serde untagged: JSON nativo, nessun cambio di rotta); il progetto guadagna una sezione **`types:`** con i tipi struttura riusabili
   (membri con tipo scalare o `type_ref`, array anche **a più dimensioni** (D8), unità, scala, limiti, ruolo di scrittura, storico per membro) e `TagDef` guadagna `type_ref` e
   `array`: `motore1` è un'istanza di `Motore`, `valvole` un array di istanze, `matrice` un `u16[2][3]`. Le foglie si raggiungono per **percorso** — `motore1.velocita`,
@@ -2224,7 +2316,7 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
   JSON; in Python diventa `list`/`dict`. Nuovi moduli `sws-core/src/percorso.rs` (grammatica, forma, foglie) e i suoi test; `apply_tags` installa le forme prima della semina.
   **Limite dichiarato di questo passo**: sul filo (WebSocket e `GET /api/tags`) una radice viaggia ancora com'è — l'espansione in foglie di default arriva con la Fase 1c, e
   fino ad allora un progetto con `types:` non va mandato a un pannello LVGL. Nessun progetto esistente cambia: `types:` è assente e `skip_serializing_if` non lo scrive.
-- **Tipi scalari ricchi per le variabili** (D5 del piano `docs/plans/2026-09-21-gestione-tag-oggetto-unico.md`, Fase 1a, 22-09-2026). `data_type` accetta ora `bool`,
+- **Tipi scalari ricchi per le variabili** (D5 del piano `docs/archive/2026-09-21-gestione-tag-oggetto-unico.md`, Fase 1a, 22-09-2026). `data_type` accetta ora `bool`,
   `i8`…`i64`, `u8`…`u64`, `f32`, `f64`, `string` o `string(N)`, `datetime` (millisecondi UTC dall'epoca, D7); `int` e `float` restano **alias** di `i64` e `f64` e
   sopravvivono al round-trip — nessun progetto va migrato, nessun template cambia. La variabile è del runtime e il suo tipo dice tutto ciò che serve a qualunque
   protocollo: la larghezza in registri Modbus si deriva dal tipo (`TipoScalare::registri`), l'ordine di byte e parole resterà un'impostazione della sorgente. La
@@ -2235,7 +2327,7 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
   salvataggio deducono il tipo **esatto**: S7 `word` → `u16`, `dint` → `i32`, `real` → `f32`; EtherNet/IP `sint/int/dint/lint/real` → `i8/i16/i32/i64/f32`.
   Il validatore e lo schema per l'assistente IA conoscono i nomi nuovi; `check_tipo_scrittura.sh` ha tre casi `u16` in più. Il parsing di una data ISO in un
   `datetime` arriva con la Fase 2.
-- **Tag: il server è coerente e il validatore parla dopo il salvataggio** (Fase 0d del piano `docs/plans/2026-09-21-gestione-tag-oggetto-unico.md`, 22-09-2026).
+- **Tag: il server è coerente e il validatore parla dopo il salvataggio** (Fase 0d del piano `docs/archive/2026-09-21-gestione-tag-oggetto-unico.md`, 22-09-2026).
   Sei siti installavano i tag nel `TagDb` a mano — apertura del progetto, `PUT /api/project/tags`, import CSV, import zip, ricarica da git, chiusura — e divergevano: la
   **ricarica da git non aggiornava scale, tipi e ruoli di scrittura e non toglieva i tag spariti** (un deploy con una scala nuova mostrava il valore grezzo fino al riavvio),
   l'import CSV saltava scale, tipi e ruoli. Ora c'è una funzione sola, `projects::apply_tags` (semina i nuovi, toglie gli orfani, poi calcolati, generatori, scale, ruoli,
@@ -2243,7 +2335,7 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
   test, ora avvisa anche per una **mappatura non MQTT verso un tag non dichiarato** (Modbus, OPC-UA, S7, EtherNet/IP, Home Assistant, Host — avviso, non errore: il runtime
   crea la voce al primo dato) ed è esposto in `GET /api/project/findings` sul progetto com'è su disco. L'editor lo chiama all'apertura e dopo ogni salvataggio riuscito e
   mostra in testata «N avvisi» con l'elenco al clic (`RilieviProgetto`): niente si blocca.
-- **Tag: rinomina ovunque e cancellazione protetta** (Fase 0c del piano `docs/plans/2026-09-21-gestione-tag-oggetto-unico.md`; decisioni del maintainer, 22-09-2026:
+- **Tag: rinomina ovunque e cancellazione protetta** (Fase 0c del piano `docs/archive/2026-09-21-gestione-tag-oggetto-unico.md`; decisioni del maintainer, 22-09-2026:
   rinomina **subito, dopo anteprima e conferma, a progetto salvato**; il ✕ **rifiuta** una variabile usata). Nella scheda Variabili ogni id già salvato ha una matita ✎ che apre
   la finestra di rinomina: il nuovo id (vuoto, con segnaposto, uguale o già preso non passa), l'**anteprima** dei punti che cambieranno — pagine (campi tag, binding stringa/`{tag}`/
   `{expr}`, `extra_tags`, tracce, serie, fette, righe, coppie xy, celle e sotto-celle di griglia), definizioni dei faceplate, mappature di ogni sorgente, allarmi (`tag` e
@@ -2264,7 +2356,7 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
   **Le bozze sopravvivono alla navigazione**: le nove schede restano montate (nascoste) una volta viste, e così la Configurazione intera quando si passa
   all'editor (`Tenuta`). Prima una sorgente aggiunta e non salvata **spariva cambiando scheda**, insieme alla sua registrazione fra le sezioni pendenti
   (segnalato dal maintainer al primo collaudo).
-- **Tag: creazione al salvataggio** (Fase 0b del piano `docs/plans/2026-09-21-gestione-tag-oggetto-unico.md`). Al salvataggio del progetto **ogni id referenziato e non
+- **Tag: creazione al salvataggio** (Fase 0b del piano `docs/archive/2026-09-21-gestione-tag-oggetto-unico.md`). Al salvataggio del progetto **ogni id referenziato e non
   dichiarato viene creato**: da pagine (compresi i figli dei faceplate), sorgenti, allarmi, espressioni e script globali. La definizione è quella messa in attesa da «+var»,
   dal modale rapido o dai wizard, se c'è e se l'id è ancora referenziato; altrimenti il tipo si deduce dalla mappatura (S7, EtherNet/IP, Host) o dal primo oggetto che lo usa
   (led/checkbox/radio → bool, text_list/state_lamp → int, altrimenti float), con storico spento. Un PUT solo, dopo il flush delle bozze e prima delle pagine; nessun
@@ -2274,7 +2366,7 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
   scrivere sempre `float`. Regola pura in `sws-editor/src/tag/riconciliaTag.ts`, test in `tests/riconciliaTag.test.ts` e `tests/saveAllRiconcilia.test.ts`.
 
 ### Fixed
-- **Tag: registro unico dei riferimenti scalari, validazione estesa alle collezioni** (Fase 0a del piano `docs/plans/2026-09-21-gestione-tag-oggetto-unico.md`, 22-09-2026). `CAMPI_TAG` (validato lato server) e `TAG_FIELDS` (sottoscritto lato client) erano due elenchi a mano divergenti da tempo: `motion_tag`, `pipe_flow_tag`, `symbol_spin_tag` e `gauge_sp_tag` erano validati e mai sottoscritti — l'oggetto riceveva lo snapshot iniziale del tag e poi si congelava, senza errore. Ora sono allineati, e una guardia nuova (`check_tag_refs.sh`, 25ª) li tiene tali. La validazione server-side guardava solo i campi stringa di primo livello: un tag inesistente in `trend_tags`/`xy_series`/`table_rows`/`bar_series`/`pie_slices`, in un `bindings`, nel `visible_tag` di una cella o dentro una sotto-cella di griglia (`sub.a`/`sub.b`, ricorsiva) non produceva nessun rilievo — ora sì (verificato senza falsi positivi sugli 11 template reali). La ricerca «dove è usato questo tag» (`tagUsage.ts`) catturava solo `tags["..."]` con apici doppi: gli script reali (`demo-items-web/lvgl`) scrivono `tags.write("id", v)`/`tags.read("id")` e alcune espressioni (`homeassistant-demo`, `enip-demo`) usano apici singoli — nessuno dei due risultava usare alcun tag.
+- **Tag: registro unico dei riferimenti scalari, validazione estesa alle collezioni** (Fase 0a del piano `docs/archive/2026-09-21-gestione-tag-oggetto-unico.md`, 22-09-2026). `CAMPI_TAG` (validato lato server) e `TAG_FIELDS` (sottoscritto lato client) erano due elenchi a mano divergenti da tempo: `motion_tag`, `pipe_flow_tag`, `symbol_spin_tag` e `gauge_sp_tag` erano validati e mai sottoscritti — l'oggetto riceveva lo snapshot iniziale del tag e poi si congelava, senza errore. Ora sono allineati, e una guardia nuova (`check_tag_refs.sh`, 25ª) li tiene tali. La validazione server-side guardava solo i campi stringa di primo livello: un tag inesistente in `trend_tags`/`xy_series`/`table_rows`/`bar_series`/`pie_slices`, in un `bindings`, nel `visible_tag` di una cella o dentro una sotto-cella di griglia (`sub.a`/`sub.b`, ricorsiva) non produceva nessun rilievo — ora sì (verificato senza falsi positivi sugli 11 template reali). La ricerca «dove è usato questo tag» (`tagUsage.ts`) catturava solo `tags["..."]` con apici doppi: gli script reali (`demo-items-web/lvgl`) scrivono `tags.write("id", v)`/`tags.read("id")` e alcune espressioni (`homeassistant-demo`, `enip-demo`) usano apici singoli — nessuno dei due risultava usare alcun tag.
 
 ## [2.11.1] — 2026-09-21
 

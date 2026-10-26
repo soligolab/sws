@@ -376,6 +376,22 @@ for d in projects config logs viewer; do
     fi
 done
 
+# Il certificato del dispositivo (C4, pezzo 3, 25-10-2026). Su un pannello Pixsys
+# il runtime propone l'HTTPS con quello — il browser del pannello se ne fida già —
+# ma dal container `/mnt/protected/ssl` non si vede: lo dice l'installatore, con un
+# file nella cartella config. Gira anche con --solo-unita, quindi l'aggiornamento
+# della configurazione del servizio lo porta ai pannelli già installati. Solo il
+# percorso della catena (pubblica): la chiave resta dov'è, la copia
+# certificato-dispositivo.sh con sudo se chi installa lo sceglie.
+SERIALE_DISP="$(tr -d '\0' < /proc/device-tree/serial-number 2>/dev/null | tr '[:upper:]' '[:lower:]' || true)"
+CATENA_DISP="/mnt/protected/ssl/${SERIALE_DISP}-chain.server.crt"
+if [ -n "$SERIALE_DISP" ] && [ -r "$CATENA_DISP" ]; then
+    echo "$CATENA_DISP" > "$DATA/config/certificato-dispositivo"
+    echo "    certificato del dispositivo: presente ($CATENA_DISP)"
+else
+    rm -f "$DATA/config/certificato-dispositivo"
+fi
+
 # La www di un'installazione precedente non serve più (la SPA è nell'immagine).
 # Segnalata e non cancellata: è roba dell'utente sul suo disco, e cancellare a
 # sorpresa non è mai il comportamento giusto di un installer.
@@ -928,10 +944,12 @@ for i in $(seq 1 30); do
             echo "    Lo mostrano anche lo schermo e il log: podman logs $NAME | grep -i abbinamento"
         fi
         # Sui pannelli Pixsys (24-10-2026): il certificato del dispositivo dà l'HTTPS senza
-        # l'avviso del browser, ma serve sudo, quindi lo si suggerisce e basta.
-        if [ -d /mnt/protected/ssl ]; then
-            echo "    HTTPS senza avvisi sullo schermo: entrare come pixsys e lanciare"
-            echo "    /usr/share/sws/quadlet/certificato-dispositivo.sh (HOWTO §29)"
+        # l'avviso del browser, ma serve sudo, quindi lo si propone e basta. Lo script sta
+        # anche accanto a questo installatore, ed è quello il percorso da mostrare.
+        if [ -f "$DATA/config/certificato-dispositivo" ] && [ ! -e "$DATA/config/tls.crt" ]; then
+            echo "    HTTPS senza avvisi sullo schermo (consigliato): entrare come pixsys e lanciare"
+            echo "    $SRC_DIR/certificato-dispositivo.sh"
+            echo "    (HOWTO §29; lo propone anche l'IDE, in Sicurezza → Certificati)"
         fi
         echo "    dati     : $DATA"
         echo "    immagine : $TAG"

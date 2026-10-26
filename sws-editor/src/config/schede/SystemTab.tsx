@@ -4,6 +4,8 @@ import { api, type SystemStatus } from "@/api/client";
 import type { AuditEntry, AuditVerifyReport } from "@/types";
 import { useAppStore } from "@/store";
 import { S } from "@/config/comuni";
+import { prefissoGateway } from "@/api/prefisso";
+import { etichettaDispositivo } from "@/ws/remoteLogStream";
 
 // ── SYSTEM tab ───────────────────────────────────────────────────────────────
 
@@ -69,7 +71,7 @@ export function SystemTab() {
   if (error) {
     return (
       <div style={{ color: "var(--brand-danger-soft, #fca5a5)", background: "#450a0a", border: "1px solid #991b1b", borderRadius: 6, padding: "12px 16px", fontSize: 13 }}>
-        Errore caricamento stato sistema: {error}
+        {t("cfgUi.erroreStatoSistema", { errore: error })}
       </div>
     );
   }
@@ -86,7 +88,7 @@ export function SystemTab() {
           {remoteConnected && <span style={{ fontWeight: 400, textTransform: "none", letterSpacing: 0, color: "var(--brand-primary, #3b82f6)" }}> {t("cfgUi.connectedRemoteDevice")}</span>}
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
-          <MetricCard icon="🖥" label="Versione" value={status.runtime_version} />
+          <MetricCard icon="🖥" label={t("cfgUi.versione")} value={status.runtime_version} />
           {/* Quale ruolo serve l'istanza interrogata — e con un dispositivo
               connesso questa scheda interroga *lui*, quindi la card dice la
               modalità del device. È il modo per accorgersi di aver collegato
@@ -95,9 +97,9 @@ export function SystemTab() {
           <MetricCard
             icon={status.mode === "runtime" ? "🏭" : "✏️"}
             label={t("cfgUi.mode")}
-            value={status.mode === "runtime" ? "Runtime (serve un impianto)"
-                 : status.mode === "ide"     ? "IDE (sola progettazione)"
-                 :                             "non dichiarata"}
+            value={status.mode === "runtime" ? t("cfgUi.modoRuntime")
+                 : status.mode === "ide"     ? t("cfgUi.modoIde")
+                 :                             t("cfgUi.modoNonDichiarata")}
           />
           <MetricCard icon="📦" label={t("cfgUi.project")} value={status.active_project ?? "—"} />
           <MetricCard icon="⏱" label="Uptime" value={fmtUptime(status.uptime_s)} />
@@ -132,7 +134,7 @@ export function SystemTab() {
           </div>
           <div style={{ background: "var(--brand-bg, #0f172a)", border: "1px solid var(--brand-surface, #1e293b)", borderRadius: 6, padding: "10px 14px" }}>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
-              <span style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)" }}>💿 Disco</span>
+              <span style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)" }}>💿 {t("cfgUi.disco")}</span>
               <span style={{ fontSize: 13, fontWeight: 700, color: "var(--brand-text, #e2e8f0)" }}>{status.disk_used_gb} GB / {status.disk_total_gb} GB</span>
             </div>
             <ProgressBar value={status.disk_used_gb} max={status.disk_total_gb} color="#fb923c" />
@@ -184,8 +186,8 @@ function AuditSection() {
         <span style={{ fontSize: 12, fontWeight: 700, color: "var(--brand-text-subtle, #64748b)", letterSpacing: 1, flex: 1 }}>
           AUDIT LOG
         </span>
-        <button style={S.btn("ghost")} onClick={load} disabled={loading}>{loading ? "Aggiorno…" : "Aggiorna"}</button>
-        <button style={S.btn("ghost")} onClick={runVerify} disabled={verifying}>{verifying ? "Verifico…" : t("cfgUi.verifyIntegrity")}</button>
+        <button style={S.btn("ghost")} onClick={load} disabled={loading}>{loading ? t("common.aggiorno") : t("common.aggiorna")}</button>
+        <button style={S.btn("ghost")} onClick={runVerify} disabled={verifying}>{verifying ? t("cfgUi.verifico") : t("cfgUi.verifyIntegrity")}</button>
       </div>
 
       {verify && (
@@ -196,23 +198,23 @@ function AuditSection() {
           color: verify.ok ? "var(--brand-success-soft, #4ade80)" : "var(--brand-danger-soft, #fca5a5)",
         }}>
           {verify.ok
-            ? `✓ Catena integra — ${verify.entries} entry verificate.`
-            : `✗ Catena compromessa alla entry #${verify.broken_at ?? "?"} — ${verify.reason ?? "motivo sconosciuto"}`}
+            ? t("cfgUi.catenaIntegra", { n: verify.entries })
+            : t("cfgUi.catenaCompromessa", { n: verify.broken_at ?? "?", motivo: verify.reason ?? t("cfgUi.motivoSconosciuto") })}
         </div>
       )}
 
       {error && (
-        <div style={{ color: "var(--brand-danger-soft, #fca5a5)", fontSize: 12, marginBottom: 8 }}>Errore: {error}</div>
+        <div style={{ color: "var(--brand-danger-soft, #fca5a5)", fontSize: 12, marginBottom: 8 }}>{t("common.errore")}: {error}</div>
       )}
 
       <div style={{ maxHeight: 320, overflow: "auto", border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 6 }}>
         <table style={{ ...S.table, tableLayout: "fixed" }}>
           <thead>
             <tr>
-              <th style={{ ...S.th, width: 150 }}>Quando</th>
-              <th style={{ ...S.th, width: 110 }}>Chi</th>
-              <th style={{ ...S.th, width: 140 }}>Azione</th>
-              <th style={S.th}>Dettaglio</th>
+              <th style={{ ...S.th, width: 150 }}>{t("cfgUi.quando")}</th>
+              <th style={{ ...S.th, width: 110 }}>{t("cfgUi.chi")}</th>
+              <th style={{ ...S.th, width: 140 }}>{t("cfgUi.azione")}</th>
+              <th style={S.th}>{t("cfgUi.dettaglio")}</th>
             </tr>
           </thead>
           <tbody>
@@ -276,8 +278,16 @@ export function TlsSection({ remoto }: {
   const [showUpload, setShowUpload] = useState(false);
   const [certPem, setCertPem] = useState("");
   const [keyPem, setKeyPem] = useState("");
+  // La proposta dell'HTTPS col certificato del dispositivo (C4, pezzo 3,
+  // 25-10-2026): la manda il pannello, solo quando ha senso.
+  const [proposta, setProposta] = useState<{ comando: string } | null>(null);
 
-  const host = (() => { try { return remoteUrl ? new URL(remoteUrl).host : ""; } catch { return remoteUrl ?? ""; } })();
+  // Nel cloud l'indirizzo è quello del gateway (`…/dev/<pannello>`): il nome
+  // da mostrare è il pannello, non `sws.soligo.net` (collaudo del 25-10-2026).
+  const host = etichettaDispositivo(remoteUrl, []);
+  // Nel cloud l'HTTPS lo termina il proxy davanti al gateway: il container del
+  // progetto non ha un certificato suo, e generarne uno non servirebbe a nessuno.
+  const nelCloud = !remoteConnected && !!prefissoGateway();
 
   useEffect(() => {
     // Azzerare al cambio di sorgente, così non si vede per un istante lo stato
@@ -286,8 +296,9 @@ export function TlsSection({ remoto }: {
     setMsg(null);
     setBusy(false);
     setShowUpload(false);
+    setProposta(null);
     const leggi = remoteConnected ? api.remoteGetTlsStatus() : api.getTlsStatus();
-    leggi.then(s => setTlsEnabled(s.enabled)).catch(() => setTlsEnabled(false));
+    leggi.then(s => { setTlsEnabled(s.enabled); setProposta(s.proposta ?? null); }).catch(() => setTlsEnabled(false));
   }, [remoteConnected]);
 
   if (authRole !== "Admin") return null;
@@ -345,8 +356,13 @@ export function TlsSection({ remoto }: {
   return (
     <div>
       <div style={{ fontSize: 12, fontWeight: 700, color: "var(--brand-text-subtle, #64748b)", letterSpacing: 1, marginBottom: 10 }}>
-        CERTIFICATO TLS
+        {t("cfgUi.tlsTitolo")}
       </div>
+      {nelCloud ? (
+        <div style={{ background: "var(--brand-bg, #0f172a)", border: "1px solid var(--brand-surface, #1e293b)", borderRadius: 6, padding: "12px 16px", fontSize: 12, color: "var(--brand-text-muted, #94a3b8)", lineHeight: 1.5 }}>
+          {t("cfgUi.tlsNelCloud")}
+        </div>
+      ) : (
       <div style={{ background: "var(--brand-bg, #0f172a)", border: "1px solid var(--brand-surface, #1e293b)", borderRadius: 6, padding: "12px 16px" }}>
         <div style={{ fontSize: 12, color: "var(--brand-text-2, #cbd5e1)", marginBottom: 10 }}>
           {remoteConnected ? t("cfgUi.tlsSulDispositivo", { host }) : t("cfgUi.tlsSuQuestaIstanza")}
@@ -368,9 +384,39 @@ export function TlsSection({ remoto }: {
             background: tlsEnabled ? "#34d399" : "var(--brand-text-subtle, #64748b)",
           }} />
           <span style={{ fontSize: 13, color: "var(--brand-text, #e2e8f0)" }}>
-            {tlsEnabled ? "HTTPS attivo" : t("cfgUi.plainHttpNoCertificate")}
+            {tlsEnabled ? t("cfgUi.tlsHttpsAttivo") : t("cfgUi.plainHttpNoCertificate")}
           </span>
         </div>
+        {!tlsEnabled && proposta && (
+          <div data-testid="proposta-tls" style={{ marginBottom: 12, padding: "10px 12px", borderRadius: 6, border: "1px solid var(--brand-primary, #3b82f6)", background: "var(--brand-surface, #1e293b)" }}>
+            <div style={{ fontSize: 12, fontWeight: 600, color: "var(--brand-text, #e2e8f0)", marginBottom: 6 }}>
+              {t("cfgUi.tlsPropostaTitolo")}
+            </div>
+            <div style={{ fontSize: 12, color: "var(--brand-text-muted, #94a3b8)", lineHeight: 1.5, marginBottom: 8 }}>
+              {t("cfgUi.tlsPropostaTesto")}
+            </div>
+            <div style={{ display: "flex", gap: 6, alignItems: "center", marginBottom: 8 }}>
+              <code style={{ flex: 1, fontSize: 11, padding: "4px 8px", borderRadius: 4, background: "var(--brand-bg, #020617)", color: "var(--brand-text, #e2e8f0)", overflowX: "auto", whiteSpace: "nowrap" }}>
+                {proposta.comando}
+              </code>
+              <button style={{ ...S.btn("ghost"), padding: "3px 8px", fontSize: 11 }}
+                onClick={() => { void navigator.clipboard?.writeText(proposta.comando); }}>
+                {t("cfgUi.copia")}
+              </button>
+            </div>
+            <button data-testid="proposta-tls-no" style={{ ...S.btn("ghost"), fontSize: 12 }} disabled={busy}
+              onClick={async () => {
+                try {
+                  await (remoteConnected ? api.sceltaTls(true, "no") : api.sceltaTls(false, "no"));
+                  setProposta(null);
+                } catch (e: unknown) {
+                  setMsg(t("cfgUi.errorMsg", { message: e instanceof Error ? e.message : String(e) }));
+                }
+              }}>
+              {t("cfgUi.tlsPropostaNo")}
+            </button>
+          </div>
+        )}
         {!tlsEnabled && (
           <div>
             <p style={{ margin: "0 0 10px", fontSize: 12, color: "var(--brand-text-muted, #94a3b8)" }}>
@@ -382,7 +428,7 @@ export function TlsSection({ remoto }: {
                 disabled={busy}
                 style={{ padding: "6px 14px", background: "var(--brand-primary-hover, #2563eb)", color: "var(--brand-on-primary, #fff)", border: "none", borderRadius: 6, cursor: busy ? "default" : "pointer", fontSize: 13 }}
               >
-                Genera certificato self-signed
+                {t("cfgUi.tlsGenera")}
               </button>
               <button
                 onClick={() => setShowUpload(v => !v)}
@@ -399,7 +445,7 @@ export function TlsSection({ remoto }: {
                 </p>
                 <div>
                   <label style={{ display: "block", fontSize: 12, color: "var(--brand-text-2, #cbd5e1)", marginBottom: 4 }}>
-                    Certificato (tls.crt, PEM)
+                    {t("cfgUi.tlsCertificatoPem")}
                   </label>
                   <input type="file" accept=".crt,.pem,.cer" onChange={readFileInto(setCertPem)}
                     style={{ fontSize: 12, color: "var(--brand-text-muted, #94a3b8)", marginBottom: 6 }} />
@@ -440,7 +486,7 @@ export function TlsSection({ remoto }: {
               disabled={busy}
               style={{ padding: "6px 14px", background: "var(--brand-surface-2, #334155)", color: "var(--brand-text, #e2e8f0)", border: "1px solid var(--brand-border, #475569)", borderRadius: 6, cursor: busy ? "default" : "pointer", fontSize: 13 }}
             >
-              Disabilita TLS
+              {t("cfgUi.tlsDisabilita")}
             </button>
           </div>
         )}
@@ -450,6 +496,7 @@ export function TlsSection({ remoto }: {
           </div>
         )}
       </div>
+      )}
     </div>
   );
 }

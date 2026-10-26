@@ -409,6 +409,7 @@ pub fn build(
             "/api/project/global-scripts",
             put(update_project_global_scripts),
         )
+        .route("/api/project/reports", put(update_project_reports))
         .route(
             "/api/project/notifications",
             put(update_project_notifications),
@@ -432,6 +433,7 @@ pub fn build(
         .route("/api/project/retention-time", put(update_ritenzione_ora))
         .route("/api/notifications/test-telegram", post(test_telegram))
         .route("/api/notifications/test-email", post(test_email))
+        .route("/api/telefono/prova", post(crate::telefono::prova))
         .route(
             "/api/notifications/telegram-bot",
             post(telegram_bot_identity),
@@ -479,6 +481,11 @@ pub fn build(
             "/api/backups/:name/download",
             get(crate::backups::download_backup_handler),
         )
+        // I report programmati (P3, 26-10-2026): l'elenco coi file, lo
+        // scaricamento, «Genera ora».
+        .route("/api/reports", get(crate::report::elenco_handler))
+        .route("/api/reports/:id/:file", get(crate::report::scarica_handler))
+        .route("/api/reports/:id/genera", post(crate::report::genera_handler))
         .route("/api/auth/users", get(list_users).post(create_user))
         // Lato ricevente di "Aggiorna utenti sul dispositivo".
         .route(
@@ -691,6 +698,7 @@ pub fn build(
         )
         .route("/api/system/tls", put(crate::system::upload_tls_cert))
         .route("/api/system/tls", delete(crate::system::remove_tls_cert))
+        .route("/api/system/tls/scelta", post(crate::system::set_tls_scelta))
         // La vista dei certificati (25-10-2026, decisioni 3 e 8 del piano dei
         // certificati): tutti gli archivi di questa istanza, e il «dimentica»
         // delle impronte — anche delle righe morte delle porte vecchie.
@@ -708,6 +716,7 @@ pub fn build(
         .route("/api/remote/system/tls/generate", post(crate::remote::remote_tls_genera))
         .route("/api/remote/system/tls", put(crate::remote::remote_tls_carica))
         .route("/api/remote/system/tls", delete(crate::remote::remote_tls_rimuovi))
+        .route("/api/remote/system/tls/scelta", post(crate::remote::remote_tls_scelta))
         // Remote runtime bridge: connect/disconnect/status + WS relay
         .route(
             "/api/remote/connect",
@@ -787,6 +796,9 @@ pub fn build(
             "/api/remote/backups/:name/download",
             get(crate::remote::remote_download_backup),
         )
+        .route("/api/remote/reports", get(crate::remote::remote_reports))
+        .route("/api/remote/reports/:id/:file", get(crate::remote::remote_scarica_report))
+        .route("/api/remote/reports/:id/genera", post(crate::remote::remote_genera_report))
         .route(
             "/api/remote/backups/:name/restore",
             post(crate::remote::remote_restore_backup),
@@ -1174,6 +1186,11 @@ pub fn build(
         .route("/.well-known/security.txt", get(crate::security_txt::get_security_txt))
         .route("/cert", get(get_cert))
         .route("/sw.js", sw_unregister)
+        // La conferma dal telefono (P4, 26-10-2026): la chiama Twilio, che non
+        // ha una sessione — la protegge la sua firma (`X-Twilio-Signature`), che
+        // l'handler verifica col token del progetto, e un gettone monouso.
+        .route("/api/telefono/voce", post(crate::telefono::voce))
+        .route("/api/telefono/sms", post(crate::telefono::sms))
         .route("/api/auth/login", post(login))
         // Il codice di abbinamento (11-10-2026): pre-auth per costruzione — un
         // pannello in attesa non ha nessuna credenziale da chiedere.
@@ -1240,7 +1257,11 @@ pub fn build(
     // c'è un'azienda a cui chiederlo.
     let (tunnel_aperto, tunnel_protetto) = if state.tunnel.is_some() {
         (
-            Router::new().route("/tunnel/v1", get(crate::tunnel::gateway::accetta)),
+            Router::new()
+                .route("/tunnel/v1", get(crate::tunnel::gateway::accetta))
+                // Twilio che richiama un pannello (P4, 26-10-2026): pre-auth, e
+                // solo verso `/api/telefono/…`; la firma la verifica il pannello.
+                .route("/telefono/:pannello/:tipo", post(crate::tunnel::gateway::inoltra_telefono)),
             Router::new()
                 .route("/dev/:pannello/*resto", any(crate::tunnel::gateway::inoltra))
                 .route("/api/pannelli", get(crate::tunnel::gateway::collegati))
@@ -1496,6 +1517,10 @@ fn deploy_only_app(state: AppState) -> Router<AppState> {
             "/api/backups/:name/download",
             get(crate::backups::download_backup_handler),
         )
+        // I report del pannello, letti e generati dall'IDE collegato (26-10-2026).
+        .route("/api/reports", get(crate::report::elenco_handler))
+        .route("/api/reports/:id/:file", get(crate::report::scarica_handler))
+        .route("/api/reports/:id/genera", post(crate::report::genera_handler))
         .route(
             "/api/backups/:name/restore",
             post(crate::backups::restore_backup_handler),
@@ -1536,6 +1561,7 @@ fn deploy_only_app(state: AppState) -> Router<AppState> {
         .route("/api/system/tls/generate", post(crate::system::generate_tls_cert))
         .route("/api/system/tls", put(crate::system::upload_tls_cert))
         .route("/api/system/tls", delete(crate::system::remove_tls_cert))
+        .route("/api/system/tls/scelta", post(crate::system::set_tls_scelta))
         // La vista dei certificati del pannello, letta dall'IDE collegato (25-10-2026).
         .route("/api/certificati", get(certificati_elenco))
         .route("/api/certificati/dimentica", post(certificati_dimentica))
@@ -1578,7 +1604,12 @@ fn deploy_only_app(state: AppState) -> Router<AppState> {
         .route("/api/abbinamento/rivendica", post(crate::abbinamento::rivendica))
         // La Rinomina dal cloud arriva qui sui pannelli con `--no-admin`: il
         // tunnel gira gli stream sulla porta di gestione (fetta E).
-        .route("/api/abbinamento/nome", post(crate::abbinamento::rinomina));
+        .route("/api/abbinamento/nome", post(crate::abbinamento::rinomina))
+        // La conferma dal telefono (P4, 26-10-2026): la chiama Twilio, che non
+        // ha una sessione — la protegge la sua firma (`X-Twilio-Signature`), che
+        // l'handler verifica col token del progetto, e un gettone monouso.
+        .route("/api/telefono/voce", post(crate::telefono::voce))
+        .route("/api/telefono/sms", post(crate::telefono::sms));
 
     // Lo stato **non** si applica qui: lo fa il chiamante alla fine, insieme al
     // CORS e al contatore HTTP. Applicarlo due volte non compila, e applicarlo
@@ -4684,6 +4715,7 @@ where
             datastores: vec![],
             global_scripts: vec![],
             notifications: None,
+            reports: Vec::new(),
             saved_by: None,
             languages: Default::default(),
             page_layout: None,
@@ -9307,6 +9339,22 @@ async fn update_project_global_scripts(
     res
 }
 
+/// `PUT /api/project/reports` — i report programmati (P3, 26-10-2026). Non c'è
+/// niente da riavviare: il compito dei report rilegge il progetto a ogni minuto.
+async fn update_project_reports(
+    State(s): State<AppState>,
+    Extension(user): Extension<AuthUser>,
+    headers: axum::http::HeaderMap,
+    Json(reports): Json<Vec<sws_core::ReportDef>>,
+) -> Response {
+    s.audit.log("project.change", Some(user.username), serde_json::json!({"what": "reports", "count": reports.len()}));
+    let dir = match active_dir(&s).await {
+        Ok(d) => d,
+        Err(c) => return c.into_response(),
+    };
+    patch_project_se(&s.project_write_lock, &dir, versione_attesa(&headers), |p| p.reports = reports.clone()).await
+}
+
 // ── T-24 Project fingerprint ─────────────────────────────────────────────────
 
 /// SHA-256 di `project.yaml` più tutti i sinottici, in ordine di nome.
@@ -10095,6 +10143,43 @@ async fn soft_reload_project(s: &AppState, dir: &std::path::Path) {
     info!(dir = %dir.display(), "git deploy: project soft-reloaded");
 }
 
+/// Il token di Twilio che torna dall'IDE mascherato o vuoto vuol dire «tieni
+/// quello salvato» (P4, 26-10-2026). Uno nuovo, scritto a mano, vince.
+fn ripristina_token_twilio(cfg: &mut sws_core::NotificationConfig, salvata: Option<&sws_core::NotificationConfig>) {
+    if let Some(tw) = cfg.twilio.as_mut() {
+        if tw.auth_token == MASKED_PASSWORD || tw.auth_token.is_empty() {
+            tw.auth_token = salvata.and_then(|n| n.twilio.as_ref()).map(|t| t.auth_token.clone()).unwrap_or_default();
+        }
+    }
+}
+
+#[cfg(test)]
+mod prove_token_twilio {
+    use super::*;
+
+    #[test]
+    fn il_token_mascherato_o_vuoto_resta_quello_salvato() {
+        let salvata = sws_core::NotificationConfig {
+            twilio: Some(sws_core::TwilioConfig { account_sid: "AC".into(), auth_token: "vero".into(), numero: "+39".into() }),
+            ..Default::default()
+        };
+        for arriva in [MASKED_PASSWORD, ""] {
+            let mut c = sws_core::NotificationConfig {
+                twilio: Some(sws_core::TwilioConfig { account_sid: "AC".into(), auth_token: arriva.into(), numero: "+39".into() }),
+                ..Default::default()
+            };
+            ripristina_token_twilio(&mut c, Some(&salvata));
+            assert_eq!(c.twilio.unwrap().auth_token, "vero", "«{arriva}» non deve cancellare il token");
+        }
+        let mut nuovo = sws_core::NotificationConfig {
+            twilio: Some(sws_core::TwilioConfig { account_sid: "AC".into(), auth_token: "nuovo".into(), numero: "+39".into() }),
+            ..Default::default()
+        };
+        ripristina_token_twilio(&mut nuovo, Some(&salvata));
+        assert_eq!(nuovo.twilio.unwrap().auth_token, "nuovo");
+    }
+}
+
 /// `PUT /api/project/notifications` — save SMTP / notification config and hot-swap supervisor.
 /// Preserves the existing SMTP password if the caller sends the masked placeholder.
 async fn update_project_notifications(
@@ -10150,7 +10235,14 @@ async fn update_project_notifications(
             .as_ref()
             .map(|t| t.bot_token == MASKED_PASSWORD)
             .unwrap_or(false);
-        if needs_smtp || needs_tg {
+        // Il token di Twilio (P4, 26-10-2026): mascherato come gli altri, e
+        // vuoto vuol dire «tieni quello salvato» (il campo lo dice).
+        let needs_tw = cfg
+            .twilio
+            .as_ref()
+            .map(|t| t.auth_token == MASKED_PASSWORD || t.auth_token.is_empty())
+            .unwrap_or(false);
+        if needs_smtp || needs_tg || needs_tw {
             if let Ok(existing) = Project::load(&dir) {
                 let existing_notif = existing.notifications;
                 if needs_smtp {
@@ -10160,6 +10252,9 @@ async fn update_project_notifications(
                             .and_then(|n| n.smtp.as_ref())
                             .and_then(|s| s.password.clone());
                     }
+                }
+                if needs_tw {
+                    ripristina_token_twilio(&mut cfg, existing_notif.as_ref());
                 }
                 if needs_tg {
                     if let (Some(tg), Some(tok)) = (

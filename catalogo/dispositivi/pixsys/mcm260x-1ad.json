@@ -10,6 +10,7 @@
   },
   "immagine": "mcm260x-1ad.jpg",
   "modbus": {
+    "trasporto": "rtu",
     "ordine": "abcd",
     "timeout_ms": 1000,
     "seriale": {
@@ -17,6 +18,11 @@
       "parity": "N",
       "data_bits": 8,
       "stop_bits": 1
+    },
+    "setup_ritardato": {
+      "da": 2001,
+      "a": 2100,
+      "scostamento": 2000
     }
   },
   "includi": [
@@ -31,6 +37,16 @@
       "descrizione": {
         "it": "Modalità compatibilità con la vecchia serie MCM260: 1 attiva, 0 no",
         "en": "Compatibility mode with the old MCM260 series: 1 on, 0 off"
+      },
+      "valori": {
+        "1": {
+          "it": "attiva",
+          "en": "on"
+        },
+        "0": {
+          "it": "no",
+          "en": "off"
+        }
       }
     },
     {

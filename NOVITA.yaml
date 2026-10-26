@@ -33,6 +33,28 @@
 # successivo.
 
 versioni:
+  - versione: "2.21.1"
+    voci:
+      - it: "Notifiche al telefono: SMS e chiamate con voce via Twilio ai reperibili di turno, con escalation al successivo. Col pannello nel cloud si riconosce l'allarme premendo 1 o rispondendo OK."
+        en: "Phone notifications: SMS and voice calls via Twilio to the on-call staff, escalating to the next one. With the panel in the cloud, press 1 or reply OK to acknowledge."
+      - it: "Report programmati: PDF ed Excel di turno, giorno, settimana o mese con lo storico dei tag e gli allarmi, salvati sul pannello e mandati per email."
+        en: "Scheduled reports: shift, day, week or month PDF and Excel with tag history and alarms, saved on the panel and emailed."
+      - it: "Editor: selezionati più oggetti, «Crea faceplate dalla selezione» ne fa un componente riusabile con i tag come parametri; la selezione diventa la sua prima istanza."
+        en: "Editor: with several objects selected, «Create faceplate from selection» turns them into a reusable component with tags as parameters; the selection becomes its first instance."
+      - it: "Modbus: il progetto dice com'è configurato ogni modulo (sonde, uscite, encoder) e il pannello lo applica a ogni collegamento, scrivendo solo ciò che è diverso."
+        en: "Modbus: the project states how each module is configured (probes, outputs, encoders) and the panel applies it on every connection, writing only what differs."
+      - it: "Modbus TCP: un modulo con il suo indirizzo è una voce sola, senza il livello «bus»; e «Dal catalogo» propone solo i dispositivi che quel collegamento raggiunge."
+        en: "Modbus TCP: a module with its own address is a single entry, without the «bus» level; and «From catalog» only offers devices that connection can reach."
+      - it: "Pannelli Pixsys: se il pannello è in chiaro ma ha il certificato del dispositivo, Sicurezza → Certificati propone l'HTTPS senza avvisi, col comando da lanciare."
+        en: "Pixsys panels: if the panel runs plain HTTP but has the device certificate, Security → Certificates offers warning-free HTTPS, with the command to run."
+      - it: "OPC-UA: una variabile composita legge un nodo struttura di un altro server, campo per campo, con la scala e il tipo di ogni campo."
+        en: "OPC-UA: a composite variable reads a structure node from another server, field by field, with each field's scale and type."
+      - it: "MQTT: una riga può chiedere lo stato al collegamento, così dopo un riavvio i tag non restano vuoti finché qualcosa cambia. Per Zigbee2MQTT si compila con un clic (⟳)."
+        en: "MQTT: a row can request the state on connect, so after a restart tags no longer stay empty until something changes. For Zigbee2MQTT it fills in with one click (⟳)."
+      - it: "L'IDE in inglese non mescola più frasi in italiano: circa 300 testi rimasti scritti fissi (schede, sorgenti, pannello proprietà) passano dal catalogo delle lingue."
+        en: "The English IDE no longer mixes in Italian sentences: about 300 hard-coded texts (tabs, sources, properties panel) now go through the language catalog."
+      - it: "Sicurezza → Certificati nel cloud: la colonna del pannello porta il suo nome, e il progetto nel cloud non propone più un certificato che non gli serve."
+        en: "Security → Certificates in the cloud: the panel column shows its name, and the cloud project no longer offers a certificate it does not need."
   - versione: "2.21.0"
     voci:
       - it: "Nuova scheda Sicurezza → Certificati: certificati e impronte fidate dell'IDE e del pannello collegato, con «Dimentica» per le porte vecchie. Il pannello offre l'aggiornamento della configurazione del servizio."

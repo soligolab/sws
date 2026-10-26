@@ -55,6 +55,11 @@ pub async fn start_project_services(
     // come `notifications`, perché il supervisore vive quanto il progetto.
     languages: sws_core::LanguageTable,
 ) {
+    // I report programmati (P3, 26-10-2026): un compito solo per tutta la vita
+    // del processo, che rilegge il progetto aperto a ogni minuto.
+    crate::report::avvia_una_volta(s);
+    // SMS e chiamate ai reperibili (P4, 26-10-2026): stesso schema.
+    crate::telefono::avvia_una_volta(s);
     // Ferma quello che sta già girando, PRIMA di sostituirlo.
     //
     // Più sotto il supervisore nuovo viene assegnato con `= Some(sc)`, che
@@ -1100,6 +1105,7 @@ pub async fn create_project(
                 datastores: vec![default_datastore()],
                 global_scripts: vec![],
                 notifications: None,
+                reports: Vec::new(),
                 saved_by: None,
                 languages: lingua_iniziale(req.lang.as_deref()),
                 page_layout: None,

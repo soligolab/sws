@@ -3,6 +3,7 @@
  *  corpo del colore di stato solo se lo stato è legato, livello ritagliato dal
  *  tag, rotore che gira sul centro del manifesto, clic che seleziona anche sopra
  *  le forme dei builtin. */
+import i18n from "../src/i18n";
 import { render, fireEvent, act } from "@testing-library/react";
 import { describe, it, expect, beforeAll, vi } from "vitest";
 import { readFileSync } from "node:fs";
@@ -96,7 +97,7 @@ describe("sul canvas", () => {
 
   it("un id lib: che il manifesto non conosce mostra il segnaposto", () => {
     const { container } = disegna(simbolo("lib:process/non-esiste"));
-    expect(container.textContent).toContain("simbolo?");
+    expect(container.textContent).toContain(i18n.t("canvas.simboloMancante"));
   });
 });
 

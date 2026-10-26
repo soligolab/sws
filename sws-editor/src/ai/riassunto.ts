@@ -72,13 +72,13 @@ export function riassumi(
       for (const [nome, f] of dopo) {
         const vecchia = prima.get(nome);
         if (!vecchia) {
-          out.push({ verso: "+", testo: `funzione \`${nome}\` (${righe(f.code)} righe)` });
+          out.push({ verso: "+", testo: i18n.t("riassunto.funzioneRighe", { nome, n: righe(f.code) }) });
         } else if (!stessa(vecchia, f)) {
-          out.push(voceCodice(`funzione \`${nome}\``, vecchia.code, f.code));
+          out.push(voceCodice(i18n.t("riassunto.funzione", { nome }), vecchia.code, f.code));
         }
       }
       for (const nome of prima.keys()) {
-        if (!dopo.has(nome)) out.push({ verso: "-", testo: `funzione \`${nome}\`` });
+        if (!dopo.has(nome)) out.push({ verso: "-", testo: i18n.t("riassunto.funzione", { nome }) });
       }
     }
 
@@ -88,13 +88,13 @@ export function riassumi(
       for (const [id, g] of dopo) {
         const vecchio = prima.get(id);
         if (!vecchio) {
-          out.push({ verso: "+", testo: `script globale \`${id}\` (${righe(g.code)} righe)` });
+          out.push({ verso: "+", testo: i18n.t("riassunto.scriptRighe", { id, n: righe(g.code) }) });
         } else if (!stessa(vecchio, g)) {
-          out.push(voceCodice(`script globale \`${id}\``, vecchio.code, g.code));
+          out.push(voceCodice(i18n.t("riassunto.script", { id }), vecchio.code, g.code));
         }
       }
       for (const id of prima.keys()) {
-        if (!dopo.has(id)) out.push({ verso: "-", testo: `script globale \`${id}\`` });
+        if (!dopo.has(id)) out.push({ verso: "-", testo: i18n.t("riassunto.script", { id }) });
       }
     }
   }

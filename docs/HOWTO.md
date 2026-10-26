@@ -1413,6 +1413,13 @@ riavviare.
 - `gruppo` raccoglie i registri nelle spunte del catalogo; `"predefinito": false` lascia il gruppo non spuntato
   (serve per i registri di configurazione).
 - Un registro con lo stesso `nome` di uno incluso lo **sostituisce**: un modello corregge un frammento della famiglia.
+- `modbus.trasporto` (dal 25-10-2026, **obbligatorio**): `"tcp"`, `"rtu"` o `"entrambi"`; con `rtu`/`entrambi` serve il
+  blocco `seriale`, con `tcp` no. «Dal catalogo» offre il modello solo ai bus che lo raggiungono.
+- **Il configuratore** (dal 25-10-2026): i registri del gruppo `"configurazione"` scrivibili diventano i parametri della
+  sezione «Configurazione del modulo» del dispositivo. `"valori": {"0": {"it": "…", "en": "…"}, …}` ne fa una tendina;
+  `"setup": false` lo toglie (indirizzo, baud, parità: cambiarli dal progetto spezzerebbe la comunicazione). Se il
+  modulo ha un'area di scrittura «ritardata», `modbus.setup_ritardato: {"da": 2001, "a": 2100, "scostamento": 2000}`
+  fa scrivere i parametri letti in `da..a` a `scostamento` più in là (gli MCM260X: 4001-4100 salva dopo 10 s).
 
 **Prima di committare un file del prodotto**: `./scripts/check_catalogo.sh` (è anche in `check_static.sh`) controlla
 JSON, include, formati, bit, nomi ripetuti, le due lingue e l'immagine. Un file tuo sbagliato non rompe niente: il
@@ -1956,6 +1963,7 @@ avvisi**.
 | La chiave | è la stessa di PixsysPortal: dopo la copia sta anche fuori dalla partizione protetta |
 | «Genera self-signed» o «Rimuovi» nell'IDE | sostituiscono o tolgono questo certificato; per tornarci si rilancia lo script |
 | Altri pannelli (non Pixsys) | lo script si ferma: non c'è `/mnt/protected/ssl` |
+| La proposta nell'IDE (dal 25-10-2026) | un pannello col certificato del dispositivo e in chiaro la mostra nella card TLS (Sicurezza → Certificati), col percorso dello script sul pannello; «No, resta in chiaro» la toglie e la scelta resta (`config/tls-scelta`). «Rimuovi» il certificato vale come «no». Per riaverla: `POST /api/system/tls/scelta` con `{"scelta":"proponi"}`, o togliere il file |
 
 ---
 

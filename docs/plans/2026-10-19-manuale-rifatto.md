@@ -243,6 +243,9 @@ Il maintainer, davanti all'alternativa v3: «No, vorrei stare sul 4».
   di Modbus, S7 e OPC UA), un `create` + `compile` + `upload` dal vivo, e la mappa degli indirizzi (`%IX/%QX/%IW/%QW`
   → registri Modbus, DB S7, nodi OPC UA) che i capitoli T04-T06 useranno.
 
+> **25-10-2026**: il maintainer ha chiesto di fare **tutti e quattordici** i capitoli, ciascuno eseguito davvero
+> contro il laboratorio e fotografato.
+
 ## Ramo 4 — le schermate
 
 Prima l'elenco delle inquadrature, capitolo per capitolo, da approvare; poi lo scatto con

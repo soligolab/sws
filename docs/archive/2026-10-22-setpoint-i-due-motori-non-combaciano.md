@@ -1,7 +1,7 @@
 # Il setpoint: far combaciare i due motori, e poi il corpo del testo
 
 **Stato: piano d'esecuzione, decisioni prese.** Nato come seme il 22-10-2026 dentro il secondo
-giro di `font_size` (`docs/plans/2026-10-19-chiusura-dei-residui.md`, ramo 5); diventato piano lo
+giro di `font_size` (`docs/archive/2026-10-19-chiusura-dei-residui.md`, ramo 5); diventato piano lo
 stesso giorno, dopo la sessione di decisioni col maintainer.
 
 Il setpoint è l'unico tipo rimasto fuori dal secondo giro di `font_size`, e non per dimenticanza.

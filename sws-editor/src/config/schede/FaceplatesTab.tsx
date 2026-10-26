@@ -288,7 +288,7 @@ export function FaceplatesTab() {
                 nessuno stato nuovo, si aggiorna da sé prima ancora di Salva. */}
             <div style={{ width: 320, flexShrink: 0, borderLeft: "1px solid var(--brand-surface, #1e293b)", padding: "16px", overflow: "auto" }}>
               <label style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)", display: "block", marginBottom: 6 }}>
-                Anteprima
+                {t("common.anteprima")}
               </label>
               <FaceplatePreview objects={current.objects} params={current.params} faceplates={faceplates} />
             </div>

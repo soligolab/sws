@@ -111,7 +111,7 @@ function RecipeModal({ onClose }: { onClose: () => void }) {
         padding: 24, minWidth: 380, maxWidth: 520, maxHeight: "80vh",
         overflowY: "auto", color: "var(--brand-text, #e2e8f0)",
       }} onClick={(e) => e.stopPropagation()}>
-        <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 16 }}>Applica Ricetta</div>
+        <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 16 }}>{t("runtimeView.applicaRicetta")}</div>
         <RecipePanel />
         <button onClick={onClose} style={{
           marginTop: 16, padding: "6px 16px", borderRadius: 4, border: "1px solid var(--brand-surface-2, #334155)",
@@ -458,7 +458,7 @@ export function RuntimeView() {
                 whiteSpace: "nowrap",
               }}
             >
-              {autoRotate ? "⏹ Stop" : "▶ Ciclo"}
+              {autoRotate ? t("runtimeView.stop") : t("runtimeView.ciclo")}
             </button>
             <input
               type="number"
@@ -497,7 +497,7 @@ export function RuntimeView() {
               flexShrink: 0,
             }}
           >
-            ⚗ Ricette
+            {t("runtimeView.ricette")}
           </button>
           <span style={{ marginLeft: 8, flexShrink: 0 }}><UiLangSelect compact /></span>
           <span style={{ marginLeft: 6, flexShrink: 0 }}><ThemeToggle compact /></span>
@@ -626,7 +626,7 @@ function FunctionTestPanel({
     return (
       <button
         onClick={() => setOpen(true)}
-        title={`Test funzioni (${functions.length} disponibili)`}
+        title={t("runtimeView.testFunzioniN", { n: functions.length })}
         style={{
           position: "fixed", bottom: 16, left: 16, zIndex: 8000,
           width: 40, height: 40, borderRadius: "50%",
@@ -650,14 +650,14 @@ function FunctionTestPanel({
       }}
     >
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
-        <span style={{ fontSize: 13, fontWeight: 600, color: "var(--brand-text, #e2e8f0)" }}>🧪 Test funzioni</span>
+        <span style={{ fontSize: 13, fontWeight: 600, color: "var(--brand-text, #e2e8f0)" }}>{t("runtimeView.testFunzioni")}</span>
         <button
           onClick={() => setOpen(false)}
           style={{ background: "none", border: "none", color: "var(--brand-text-subtle, #64748b)", cursor: "pointer", fontSize: 14 }}
         >×</button>
       </div>
       <label style={{ fontSize: 11, color: "var(--brand-text-muted, #94a3b8)", display: "block", marginBottom: 4 }}>
-        Funzione
+        {t("runtimeView.funzione")}
       </label>
       <select
         value={selected.id}
@@ -716,7 +716,7 @@ function FunctionTestPanel({
           cursor: "pointer", fontSize: 12, fontWeight: 600,
         }}
       >
-        ▶ Esegui {selected.name}
+        {t("runtimeView.esegui", { nome: selected.name })}
       </button>
     </div>
   );

@@ -26,10 +26,12 @@ type Riga = {
   abbinato_ms: number;
   ultimo_ms: number;
   collegato: boolean;
+  /** Si è annunciato spento (ms), se dopo non è più tornato. */
+  spento_ms?: number;
 };
 type Elenco = {
   abbinati: Riga[];
-  dichiarati: { nome: string; azienda: string; collegato: boolean }[];
+  dichiarati: { nome: string; azienda: string; collegato: boolean; spento_ms?: number }[];
   in_attesa: number;
 };
 
@@ -93,9 +95,11 @@ export function Pannelli() {
   if (err) return <div style={scheda}>{err}</div>;
   if (!elenco) return <div style={scheda}>{t("console.verifica")}</div>;
   const quando = (ms: number) => (ms > 0 ? new Date(ms).toLocaleString() : "—");
-  const pallino = (c: boolean) => (
-    <span title={c ? t("console.pannelli.collegato") : t("console.pannelli.scollegato")}
-      style={{ display: "inline-block", width: 8, height: 8, borderRadius: 4, background: c ? "#22c55e" : "#64748b", marginRight: 6 }} />
+  // Tre stati (ramo 7 dei residui): vivo, spento annunciato, perso.
+  const pallino = (c: boolean, spento?: number) => (
+    <span data-testid="pallino"
+      title={c ? t("console.pannelli.collegato") : spento ? t("console.pannelli.spento", { quando: quando(spento) }) : t("console.pannelli.scollegato")}
+      style={{ display: "inline-block", width: 8, height: 8, borderRadius: 4, background: c ? "#22c55e" : spento ? "#eab308" : "#64748b", marginRight: 6 }} />
   );
 
   return (
@@ -120,7 +124,7 @@ export function Pannelli() {
               {elenco.abbinati.map((r) => (
                 <tr key={r.hw} style={{ borderTop: "1px solid var(--brand-surface-2, #334155)" }}>
                   <td style={{ padding: "6px 4px" }}>
-                    {pallino(r.collegato)}{r.nome}
+                    {pallino(r.collegato, r.spento_ms)}{r.nome}
                     <button onClick={() => rinomina(r.nome)} title={t("console.pannelli.rinomina")}
                       style={{ marginLeft: 6, background: "transparent", border: "none", cursor: "pointer", color: "var(--brand-text-muted, #94a3b8)", fontSize: 12 }}>✎</button>
                   </td>
@@ -161,7 +165,7 @@ export function Pannelli() {
         <div style={scheda}>
           <span style={titoletto}>{t("console.pannelli.dichiarati")}</span>
           {elenco.dichiarati.map((d) => (
-            <div key={d.nome} style={{ fontSize: 13, padding: "3px 0" }}>{pallino(d.collegato)}{d.nome} · {d.azienda}</div>
+            <div key={d.nome} style={{ fontSize: 13, padding: "3px 0" }}>{pallino(d.collegato, d.spento_ms)}{d.nome} · {d.azienda}</div>
           ))}
         </div>
       )}

@@ -320,6 +320,38 @@ async fn run_once(
     }
     let foglie_per_tag = Arc::new(foglie_per_tag);
 
+    // **L'albero dei tipi del server** (Fase 4d, passi 10-12, 25-10-2026). Un
+    // nodo struttura arriva come `ExtensionObject`, e per decodificarlo la
+    // sessione vuole un type loader costruito sui `DataType` del server. Si fa
+    // solo se la sorgente ha tag compositi — su un PLC con migliaia di tipi è un
+    // browse che altrimenti non serve — e **a ogni sessione**: gli id di encoding
+    // portano l'indice di namespace di quella sessione (insidia 11).
+    //
+    // Un errore **non** spegne la sorgente (insidia 9): `DataTypeTreeBuilder`
+    // non guarda gli `OperationLimits`, e un server con `MaxNodesPerRead` basso
+    // farebbe fallire la costruzione intera. Si legge a pacchi di 100 e, se va
+    // male lo stesso, le strutture restano `Bad` come prima e gli scalari vanno.
+    let albero: Option<Arc<opcua::types::custom::DataTypeTree>> = if foglie_per_tag.is_empty() {
+        None
+    } else {
+        match opcua::client::custom_types::DataTypeTreeBuilder::new(|_: &NodeId| true)
+            .values_per_read(100)
+            .build(&session)
+            .await
+        {
+            Ok(t) => {
+                let t = Arc::new(t);
+                session.add_type_loader(Arc::new(opcua::types::custom::DynamicTypeLoader::new(t.clone()))
+                    as Arc<dyn opcua::types::TypeLoader>);
+                Some(t)
+            }
+            Err(e) => {
+                warn!(source = %cfg.id, "opcua: albero dei tipi non costruito ({e}): le strutture restano Bad");
+                None
+            }
+        }
+    };
+
     // **I nodi figli dei tag compositi** (decisione 2 del 23-10-2026).
     //
     // `NumericRange` indirizza **solo gli array**: non esiste una forma che
@@ -417,13 +449,14 @@ async fn run_once(
     let db_clone = db.clone();
     let routing_clone = routing.clone();
     let foglie_clone = foglie_per_tag.clone();
+    let albero_clone = albero.clone();
     let source_id = cfg.id.clone();
     let dispatcher = tokio::spawn(async move {
         while let Some((node_id, dv)) = rx.recv().await {
             let Some(tag_id) = routing_clone.get(&node_id) else {
                 continue;
             };
-            consegna(&db_clone, tag_id, foglie_clone.get(tag_id.as_str()), &dv).await;
+            consegna(&db_clone, tag_id, foglie_clone.get(tag_id.as_str()), &dv, albero_clone.as_deref()).await;
             tracing::trace!(source = %source_id, tag = %tag_id, "opcua: tag update");
         }
     });
@@ -547,8 +580,9 @@ pub(crate) async fn consegna(
     tag: &str,
     foglie: Option<&Vec<(String, Vec<sws_core::Segmento>)>>,
     dv: &DataValue,
+    albero: Option<&opcua::types::custom::DataTypeTree>,
 ) {
-    let (value, quality) = valore::da_data_value(dv);
+    let (value, quality) = valore::da_data_value_con(dv, albero);
     let Some(value) = value else {
         db.marca_qualita(tag, quality).await;
         return;
@@ -2044,7 +2078,7 @@ mod tests {
     async fn il_valore_letto_viene_scalato_e_convertito() {
         let t = tag_yaml("id: pressione\ndata_type: f64\nraw_min: 0\nraw_max: 1000\neng_min: 0\neng_max: 10\n");
         let db = db_con(&[t], &[]).await;
-        consegna(&db, "pressione", None, &dv(Some(Variant::Int32(500)), Some(StatusCode::Good))).await;
+        consegna(&db, "pressione", None, &dv(Some(Variant::Int32(500)), Some(StatusCode::Good)), None).await;
         let st = db.get("pressione").await.expect("il tag c'è");
         assert_eq!(st.value, TagValue::Float(5.0), "500 su 0-1000 scalato a 0-10 fa 5");
     }
@@ -2053,7 +2087,7 @@ mod tests {
     #[tokio::test]
     async fn il_valore_letto_segue_il_tipo_dichiarato() {
         let db = db_con(&[tag_yaml("id: giri\ndata_type: u16\n")], &[]).await;
-        consegna(&db, "giri", None, &dv(Some(Variant::Double(29.8)), Some(StatusCode::Good))).await;
+        consegna(&db, "giri", None, &dv(Some(Variant::Double(29.8)), Some(StatusCode::Good)), None).await;
         assert_eq!(db.get("giri").await.unwrap().value, TagValue::Int(30));
     }
 
@@ -2062,10 +2096,10 @@ mod tests {
     #[tokio::test]
     async fn un_valore_illeggibile_non_cancella_lultima_lettura() {
         let db = db_con(&[tag_yaml("id: t\ndata_type: f64\n")], &[]).await;
-        consegna(&db, "t", None, &dv(Some(Variant::Double(42.0)), Some(StatusCode::Good))).await;
+        consegna(&db, "t", None, &dv(Some(Variant::Double(42.0)), Some(StatusCode::Good)), None).await;
         assert_eq!(db.get("t").await.unwrap().value, TagValue::Float(42.0));
 
-        consegna(&db, "t", None, &dv(Some(Variant::Guid(Default::default())), Some(StatusCode::Good))).await;
+        consegna(&db, "t", None, &dv(Some(Variant::Guid(Default::default())), Some(StatusCode::Good)), None).await;
         let st = db.get("t").await.unwrap();
         assert_eq!(st.value, TagValue::Float(42.0), "ha scritto uno zero inventato al posto del dato");
         // Dal 23-10-2026 `Bad` e non `Uncertain`: il dato c'è e non lo
@@ -2247,6 +2281,105 @@ mod tests {
         assert_eq!(visto, Some(Variant::Float(99.0)), "il nodo struttura si aggiorna");
 
         cancel.cancel();
+        let _ = tokio::time::timeout(Duration::from_secs(5), server).await;
+    }
+
+    /// **Il collaudo dei passi 10-12** (25-10-2026): un client SWS vero — la
+    /// stessa `run` che il supervisore lancia — iscritto ai nodi struttura del
+    /// server SWS. Prima del passo 10 l'`ExtensionObject` restava `Bad` e le
+    /// foglie del tag del client non ricevevano niente. Due tipi, per la stessa
+    /// ragione del collaudo del server: con uno solo passa anche sbagliando
+    /// l'encoding. E un aggiornamento, perché la sottoscrizione segua.
+    #[tokio::test]
+    async fn il_client_sws_riceve_le_strutture_foglia_per_foglia() {
+        let tipi_def: Vec<TypeDef> = serde_yaml::from_str(concat!(
+            "- id: Motore\n  members:\n    - { name: velocita, data_type: f32 }\n    - { name: marcia, data_type: bool }\n",
+            "- id: Serbatoio\n  members:\n    - { name: livello, data_type: f32 }\n",
+        ))
+        .unwrap();
+        let db_s = Arc::new(
+            db_con(&[tag_yaml("id: motore1\ntype_ref: Motore\n"), tag_yaml("id: serbatoio1\ntype_ref: Serbatoio\n")], &tipi_def)
+                .await,
+        );
+        let struttura = |coppie: &[(&str, sws_core::TagValue)]| {
+            sws_core::TagValue::Struct(coppie.iter().map(|(k, v)| (k.to_string(), v.clone())).collect())
+        };
+        db_s.set(
+            "motore1".into(),
+            struttura(&[("velocita", sws_core::TagValue::Float(12.5)), ("marcia", sws_core::TagValue::Bool(true))]),
+            TagQuality::Good,
+        )
+        .await;
+        db_s.set("serbatoio1".into(), struttura(&[("livello", sws_core::TagValue::Float(73.25))]), TagQuality::Good).await;
+
+        let ascoltatore = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let porta = ascoltatore.local_addr().unwrap().port();
+        let pki_server = tempfile::tempdir().unwrap();
+        let pki_client = tempfile::tempdir().unwrap();
+        let cfg_s: sws_core::OpcUaServerConfig = serde_yaml::from_str(&format!(
+            "id: prova\nport: {porta}\nnamespace_uri: urn:sws:prova\nnodes:\n  - tag: motore1\n  - tag: serbatoio1\n"
+        ))
+        .unwrap();
+        let cancel = tokio_util::sync::CancellationToken::new();
+        let server = tokio::spawn(run_server_con(
+            cfg_s,
+            db_s.clone(),
+            Arc::new(sws_core::TagWriteBus::default()),
+            cancel.clone(),
+            Some(ascoltatore),
+            Some(pki_server.path().to_path_buf()),
+        ));
+
+        // Il client: tag dello stesso tipo, nomi diversi, così si vede che
+        // arriva dal filo e non dal db del server.
+        let db_c = Arc::new(
+            db_con(&[tag_yaml("id: m\ntype_ref: Motore\n"), tag_yaml("id: s\ntype_ref: Serbatoio\n")], &tipi_def).await,
+        );
+        let cfg_c: OpcUaClientConfig = serde_yaml::from_str(&format!(
+            "id: c\nendpoint_url: opc.tcp://127.0.0.1:{porta}/\nsecurity_policy: None\ntrust_all_certs: true\n\
+             subscription_interval_ms: 50\nnodes:\n  - {{ tag: m, node_id: \"ns=2;s=motore1\" }}\n  - {{ tag: s, node_id: \"ns=2;s=serbatoio1\" }}\n"
+        ))
+        .unwrap();
+        let client = tokio::spawn(run(
+            cfg_c,
+            db_c.clone(),
+            Arc::new(sws_core::TagWriteBus::default()),
+            pki_client.path().to_path_buf(),
+            cancel.clone(),
+        ));
+
+        let attendi = |id: &'static str, atteso: sws_core::TagValue| {
+            let db_c = db_c.clone();
+            async move {
+                for _ in 0..300 {
+                    if let Some(st) = db_c.get(id).await {
+                        if st.value == atteso && st.quality == TagQuality::Good {
+                            return true;
+                        }
+                    }
+                    tokio::time::sleep(Duration::from_millis(50)).await;
+                }
+                false
+            }
+        };
+        assert!(attendi("m.velocita", sws_core::TagValue::Float(12.5)).await, "la prima struttura arriva foglia per foglia");
+        assert!(attendi("m.marcia", sws_core::TagValue::Bool(true)).await);
+        assert!(
+            attendi("s.livello", sws_core::TagValue::Float(73.25)).await,
+            "il secondo tipo NON si decodifica col tipo del primo"
+        );
+
+        db_s.set(
+            "motore1".into(),
+            struttura(&[("velocita", sws_core::TagValue::Float(99.0)), ("marcia", sws_core::TagValue::Bool(false))]),
+            TagQuality::Good,
+        )
+        .await;
+        assert!(attendi("m.velocita", sws_core::TagValue::Float(99.0)).await, "la sottoscrizione segue la struttura");
+        assert!(attendi("m.marcia", sws_core::TagValue::Bool(false)).await);
+
+        cancel.cancel();
+        let _ = tokio::time::timeout(Duration::from_secs(5), client).await;
         let _ = tokio::time::timeout(Duration::from_secs(5), server).await;
     }
 
@@ -2475,7 +2608,7 @@ mod tests {
             vec![3],
         )
         .unwrap();
-        consegna(&db, "livelli", Some(&foglie), &dv(Some(Variant::Array(Box::new(a))), Some(StatusCode::Good))).await;
+        consegna(&db, "livelli", Some(&foglie), &dv(Some(Variant::Array(Box::new(a))), Some(StatusCode::Good)), None).await;
 
         assert_eq!(db.get("livelli[0]").await.unwrap().value, TagValue::Int(10));
         assert_eq!(db.get("livelli[2]").await.unwrap().value, TagValue::Int(30));
@@ -2496,7 +2629,7 @@ mod tests {
             vec![1],
         )
         .unwrap();
-        consegna(&db, "livelli", Some(&foglie), &dv(Some(Variant::Array(Box::new(a))), Some(StatusCode::Good))).await;
+        consegna(&db, "livelli", Some(&foglie), &dv(Some(Variant::Array(Box::new(a))), Some(StatusCode::Good)), None).await;
 
         assert_eq!(db.get("livelli[0]").await.unwrap().value, TagValue::Int(10));
         assert_eq!(db.get("livelli[2]").await.unwrap().quality, TagQuality::Bad);

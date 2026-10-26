@@ -18,7 +18,7 @@ use std::time::Duration;
 use tokio_util::compat::FuturesAsyncReadCompatExt as _;
 
 use super::filo::Filo;
-use super::multiplex::{avvia, Verso};
+use super::multiplex::{avvia, Maniglia, Verso};
 
 /// Quanto si aspetta prima di richiamare, dopo una caduta.
 ///
@@ -28,6 +28,33 @@ use super::multiplex::{avvia, Verso};
 /// e' un pannello che resta irraggiungibile dopo un riavvio del gateway.
 const ATTESA_MINIMA: Duration = Duration::from_secs(2);
 const ATTESA_MASSIMA: Duration = Duration::from_secs(60);
+
+/// L'attesa dopo `attesa`: raddoppia fino al tetto.
+fn prossima_attesa(attesa: Duration) -> Duration {
+    (attesa * 2).min(ATTESA_MASSIMA)
+}
+
+/// La maniglia del tunnel aperto adesso, per annunciare lo spegnimento.
+static APERTO: std::sync::Mutex<Option<Maniglia>> = std::sync::Mutex::new(None);
+
+/// Dice al gateway «mi spengo», se il tunnel è aperto (ramo 7 dei residui,
+/// idea del maintainer del 19-10-2026). Si chiama allo spegnimento ordinato —
+/// SIGTERM, che l'UPS del TC620 e del WP630 rende possibile anche a corrente
+/// mancata — **prima** di chiudere le sorgenti: la console mostra il pannello
+/// spento invece che perso. Un byte `S` su uno stream, come il battito; al
+/// più due secondi, perché lo spegnimento non deve aspettare il cloud.
+pub async fn annuncia_spegnimento() {
+    let Some(m) = APERTO.lock().unwrap_or_else(|e| e.into_inner()).clone() else { return };
+    let annuncio = async {
+        use futures_util::io::AsyncWriteExt as _;
+        let mut s = m.apri().await.ok()?;
+        s.write_all(b"S").await.ok()?;
+        s.close().await.ok()
+    };
+    if tokio::time::timeout(Duration::from_secs(2), annuncio).await.is_ok() {
+        tracing::info!("tunnel: spegnimento annunciato al gateway");
+    }
+}
 
 /// Ogni quanto si manda un ping dentro il tunnel.
 ///
@@ -51,6 +78,8 @@ pub fn tieni_aperto(url: String, segno: String, token: String, porta_gestione: u
                 ("authorization", format!("Bearer {token}")),
                 ("x-sws-pannello", segno.clone()),
             ];
+            // Dove Twilio può richiamare questo pannello (P4, 26-10-2026).
+            crate::telefono::registra_pubblico(&url, &segno);
             match un_giro(&url, &intestazioni, porta_gestione, tls, None).await {
                 Ok(()) => {
                     tracing::info!(%url, "tunnel chiuso dall'altro capo, richiamo");
@@ -61,7 +90,7 @@ pub fn tieni_aperto(url: String, segno: String, token: String, porta_gestione: u
                 }
             }
             tokio::time::sleep(attesa).await;
-            attesa = (attesa * 2).min(ATTESA_MASSIMA);
+            attesa = prossima_attesa(attesa);
         }
     });
 }
@@ -88,10 +117,10 @@ pub fn tieni_aperto_abbinabile(
         let mut attesa = ATTESA_MINIMA;
         loop {
             let intestazioni = match abbinamento.tunnel() {
-                Some((nome, token)) => vec![
-                    ("authorization", format!("Bearer {token}")),
-                    ("x-sws-pannello", nome),
-                ],
+                Some((nome, token)) => {
+                    crate::telefono::registra_pubblico(&url, &nome);
+                    vec![("authorization", format!("Bearer {token}")), ("x-sws-pannello", nome)]
+                }
                 None => match (abbinamento.codice(), abbinamento.hw()) {
                     (Some(codice), Some(hw)) => vec![
                         ("x-sws-attesa", codice),
@@ -109,7 +138,7 @@ pub fn tieni_aperto_abbinabile(
                 Err(e) => {
                     tracing::warn!(%url, "tunnel non aperto: {e} — riprovo fra {}s", attesa.as_secs());
                     tokio::time::sleep(attesa).await;
-                    attesa = (attesa * 2).min(ATTESA_MASSIMA);
+                    attesa = prossima_attesa(attesa);
                     continue;
                 }
             }
@@ -146,6 +175,7 @@ async fn un_giro(
     // `Risponde`: le richieste le apre il gateway, perché è lui che ha
     // qualcosa da consegnare. La maniglia serve solo al battito qui sotto.
     let (maniglia, mut in_arrivo) = avvia(filo, Verso::Risponde);
+    *APERTO.lock().unwrap_or_else(|e| e.into_inner()) = Some(maniglia.clone());
 
     let fermo = Arc::new(tokio::sync::Notify::new());
     let ping = {
@@ -223,6 +253,7 @@ async fn un_giro(
     }
     fermo.notify_waiters();
     let _ = ping.await;
+    APERTO.lock().unwrap_or_else(|e| e.into_inner()).take();
     Ok(())
 }
 
@@ -305,5 +336,43 @@ impl rustls::client::danger::ServerCertVerifier for SeStesso {
 
     fn supported_verify_schemes(&self) -> Vec<rustls::SignatureScheme> {
         self.provider.signature_verification_algorithms.supported_schemes()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn l_attesa_raddoppia_fino_al_tetto() {
+        let mut a = ATTESA_MINIMA;
+        let mut viste = vec![a];
+        for _ in 0..8 {
+            a = prossima_attesa(a);
+            viste.push(a);
+        }
+        assert_eq!(viste[1], ATTESA_MINIMA * 2);
+        assert!(viste.windows(2).all(|w| w[1] >= w[0]));
+        assert_eq!(*viste.last().unwrap(), ATTESA_MASSIMA);
+    }
+
+    /// L'annuncio arriva dall'altra parte come uno stream con dentro `S`.
+    #[tokio::test]
+    async fn lo_spegnimento_arriva_al_gateway() {
+        use futures_util::io::AsyncReadExt as _;
+        use tokio_util::compat::TokioAsyncReadCompatExt as _;
+        let (a, b) = tokio::io::duplex(64 * 1024);
+        let (_gateway, mut in_arrivo) = avvia(a.compat(), Verso::Chiama);
+        let (pannello, _) = avvia(b.compat(), Verso::Risponde);
+        *APERTO.lock().unwrap() = Some(pannello);
+        annuncia_spegnimento().await;
+        let mut s = tokio::time::timeout(Duration::from_secs(5), in_arrivo.recv())
+            .await
+            .expect("l'annuncio non è arrivato")
+            .unwrap();
+        let mut byte = [0u8; 1];
+        s.read_exact(&mut byte).await.unwrap();
+        assert_eq!(&byte, b"S");
+        APERTO.lock().unwrap().take();
     }
 }

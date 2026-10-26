@@ -1,7 +1,7 @@
 # Il corpo del testo su tutti i tipi, e i testi che LVGL non disegna
 
 **Stato: FATTO il 25-10-2026** (da collaudare sul pannello) sul ramo `feat/corpi-e-parita-lvgl` (annidato sui rami del
-25-10). Chiude il **ramo 5** del [piano dei residui](2026-10-19-chiusura-dei-residui.md) (decisione
+25-10). Chiude il **ramo 5** del [piano dei residui](../archive/2026-10-19-chiusura-dei-residui.md) (decisione
 del maintainer: «tutti» i tipi) e le divergenze fra i due motori trovate misurando.
 
 Decisioni del maintainer (25-10-2026):

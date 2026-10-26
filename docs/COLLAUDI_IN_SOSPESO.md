@@ -61,9 +61,66 @@ chromium. Quindi la via «gli passiamo un argomento» va verificata prima di pro
 4. [x] Annotare se chromium ha un archivio di fiducia scrivibile sul pannello
        (`/` è in sola lettura fuori da `/data`): serve solo se il punto 2 è andato male.
 
-**Dove finisce il risultato**: `docs/plans/2026-10-23-c4-tls-di-default.md`, domanda 2.
+**Dove finisce il risultato**: `docs/archive/2026-10-23-c4-tls-di-default.md`, domanda 2.
 
 ---
+
+## A-bis. La proposta dell'HTTPS col certificato del dispositivo (C4, pezzo 3, 25-10-2026)
+
+Sul TC620, che il certificato del dispositivo **ce l'ha già acceso** dal 24-10: per vedere la proposta bisogna
+prima tornare in chiaro.
+
+1. [ ] Dopo l'aggiornamento della configurazione del servizio, sul pannello: `cat /data/user/sws/config/certificato-dispositivo`
+       deve stampare il percorso della catena in `/mnt/protected/ssl/`.
+2. [ ] Sicurezza → Certificati, colonna del pannello: **Rimuovi** il certificato. Dopo il riavvio la proposta
+       **non** deve comparire (rimuovere è un «no»).
+3. [ ] Sul pannello: `rm /data/user/sws/config/tls-scelta`, poi ricaricare la vista: la proposta compare, col
+       percorso dello script in `/data/user/sws/config/`. Lanciarlo come `pixsys`: il pannello torna in HTTPS col
+       certificato del dispositivo, la proposta sparisce, lo schermo non mostra avvisi.
+4. [ ] Nel cloud la colonna di «questa istanza» non deve mai mostrare la proposta.
+
+## A-ter. Il configuratore dei moduli (25-10-2026) — l'MCM260X-5AD sul TC620
+
+1. [ ] Il dispositivo 5AD del progetto di prova, card del dispositivo: la sezione «Configurazione del modulo» mostra i
+       quattro tipi di sonda, l'unità, le due uscite e la compatibilità — **non** indirizzo, baud, parità.
+2. [ ] Fissare AI1 = 12 (PTC1K), AI2-AI4 = 11 (NTC10K) come al collaudo del 04-10; salvare. Nel log del pannello:
+       «setup del modulo — … da X a Y» solo per quelli diversi, poi «setup del modulo applicato».
+3. [ ] Spegnere e riaccendere il pannello: al ricollegamento il log **non** riscrive niente (tutti uguali).
+4. [ ] Cambiare a mano un parametro sul modulo (script Modbus o software Pixsys), riavviare il runtime: torna al
+       valore del progetto. Gli AI leggono i valori giusti.
+
+## A-quater. I report programmati (26-10-2026)
+
+1. [ ] Dal cloud, con il TC620 collegato: Configurazione → Progetto → Report → «+ Nuovo report», periodo «turno», due o
+       tre tag con lo storico acceso, salvare.
+2. [ ] «▶ Genera ora»: compaiono un PDF e un Excel; scaricarli. Il PDF ha riepilogo, andamento e allarmi con i valori
+       veri; l'Excel si apre e i numeri si sommano.
+3. [ ] Con un destinatario email e l'SMTP delle Notifiche configurato: la mail arriva con i due allegati.
+4. [ ] Lasciare il pannello acceso oltre l'ora del cron (es. `*/15 * * * *` per provare): i file nascono da soli; con
+       «File da tenere» = 2 restano solo le ultime due generazioni.
+
+## A-quinquies. SMS, voce e reperibilità (26-10-2026)
+
+Serve un account Twilio (anche di prova: chiama e scrive solo ai numeri verificati) e il TC620 collegato al cloud.
+
+1. [ ] Configurazione → Progetto → Notifiche → Telefono: Account SID, token, numero Twilio; salvare; «Invia SMS di
+       prova» al proprio cellulare → arriva.
+2. [ ] Due reperibili di turno adesso (il proprio numero e un secondo), attesa 2 minuti; in **Cosa e dove** spuntare
+       Voce sullo scatto. Far scattare un allarme: squilla il primo, si sente il messaggio.
+3. [ ] Non rispondere: dopo 2 minuti tocca al secondo. Premere 1: l'allarme risulta riconosciuto da «telefono: …»
+       nel registro e la catena si ferma.
+4. [ ] SMS: impostare nella console di Twilio il webhook `https://<gateway>/telefono/<pannello>/sms`, spuntare SMS
+       sullo scatto, far scattare un allarme e rispondere «OK» → riconosciuto.
+5. [ ] Togliere i reperibili di turno (fascia diversa da adesso): l'allarme non chiama nessuno e il log lo dice.
+
+## A-sexies. Il tunnel: vivo, spento o perso (26-10-2026)
+
+1. [ ] Console → Pannelli con il TC620 collegato: pallino verde. `sudo systemctl --user stop sws-runtime` sul
+       pannello (o spegnerlo dal pulsante): il pallino diventa **giallo** con l'ora, e il log del gateway dice
+       «spegnimento annunciato».
+2. [ ] Staccare il cavo di rete del pannello (half-open): entro circa un minuto e mezzo il log del gateway dice
+       «tunnel muto» e il pallino diventa grigio.
+3. [ ] «Sposta azienda» su un pannello collegato: si ricollega da sé in pochi secondi.
 
 ## B. Lo schema `http`/`https` non è più scritto a mano
 
@@ -161,9 +218,10 @@ Uscito nella 2.19.0, mai visto su uno schermo vero.
 Si può fare sul PC, senza pannello.
 
 24. [ ] **Il nostro server**: un progetto con un tag **composito** (istanza di un tipo). Nel
-        browse di un client terzo (UaExpert, o il nostro) la radice deve essere una **cartella**
-        con un nodo figlio per foglia, e il nodo figlio deve avere l'identificatore del percorso
-        (`motore1.velocita`). **Prima non compariva affatto.**
+        browse di un client terzo (UaExpert, o il nostro) la radice deve essere una **variabile**
+        con un `DataType` struttura (dalla 4d, 23-10-2026: prima era una cartella), con un nodo
+        figlio per foglia che ha l'identificatore del percorso (`motore1.velocita`). UaExpert deve
+        mostrare il valore della radice coi suoi campi, non un `ExtensionObject` illeggibile.
 25. [ ] I valori dei nodi figli devono **aggiornarsi** (il `TagDb` trasmette la radice: senza
         l'espansione in foglie resterebbero fermi per sempre).
 26. [ ] Scrivere su un nodo figlio da un client terzo: deve arrivare sulla foglia giusta, con la
@@ -177,6 +235,25 @@ Si può fare sul PC, senza pannello.
 29. [ ] Una sorgente OPC-UA **vecchia** (che non dichiara la policy) deve continuare a collegarsi
         **come prima**. Se si stacca, la regola di compatibilità non ha funzionato ed è un difetto
         grave: sarebbe un aggiornamento che stacca impianti funzionanti.
+30. [ ] **Il nostro client contro un server di terzi con strutture** (4d, passi 10-12, 25-10-2026):
+        una sorgente OPC-UA con un tag composito mappato su un nodo struttura di un altro server
+        (`node-opcua-server-example` ne ha). Le foglie del tag devono avere i valori del server,
+        con qualità buona, e seguirne i cambi. Se restano `Bad`, nel log della sorgente c'è
+        «albero dei tipi non costruito» col motivo — oppure il tipo è una union (non si legge, ed
+        è dichiarato) o è annidato (fuori portata, dichiarato).
+
+---
+
+## G-ter. I tag compositi nell'editor (Fase 2 del piano dei tag, mai collaudata a schermo)
+
+Si fa sul PC, nell'IDE.
+
+31. [ ] Configurazione → Variabili → **Tipi**: creare un tipo `Motore` con due membri, poi un tag
+        istanza di `Motore`. Nell'albero il tag deve mostrare le foglie (`motore1.velocita`…).
+32. [ ] Un oggetto del sinottico legato a una **foglia** (`motore1.velocita`): il completamento del
+        percorso deve proporla, e il valore deve arrivare.
+33. [ ] **Rinominare** il tag radice: i riferimenti alle foglie nei sinottici devono seguire.
+34. [ ] Un faceplate con parametro `istanza(Motore)`: scegliendo l'istanza, i campi si legano da soli.
 
 ---
 

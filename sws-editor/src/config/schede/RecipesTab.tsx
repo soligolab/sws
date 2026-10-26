@@ -104,7 +104,7 @@ export function RecipesTab() {
   return (
     <div style={S.section}>
       <SaveBar onSave={saveSelected} saving={loading} saved={saved} section="recipes" dirty={touched && !!selected} />
-      <div style={S.sectionTitle}>RICETTE (ISA-88)</div>
+      <div style={S.sectionTitle}>{t("cfgUi.ricetteTitolo")}</div>
       <div style={S.notice}>
         {t("cfgUi.recipeIntro")}
       </div>
@@ -196,7 +196,7 @@ export function RecipesTab() {
                             const n = Number(v);
                             updateSetpoint(i, { value: v === "true" ? true : v === "false" ? false : isNaN(n) ? v : n });
                           }}
-                          placeholder="0 / true / false / testo"
+                          placeholder={t("cfgUi.setpointValorePh")}
                           spellCheck={false}
                         />
                       </td>

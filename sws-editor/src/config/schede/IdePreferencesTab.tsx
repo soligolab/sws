@@ -66,16 +66,14 @@ export function AssistenteSection() {
   // marcatore in testata: qui si dice solo ciò che il 404 dimostra.
   if (assente) {
     return (
-      <Box titolo="Assistente IA">
+      <Box titolo={t("cfgUi.assistenteIa")}>
         <div style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)" }}>
-          Questa istanza non espone la configurazione dell&apos;assistente: si configura
-          sull&apos;IDE di sviluppo, non da qui. Vedi Stato → «Modalità» per sapere quale
-          ruolo sta servendo.
+          {t("cfgUi.assistenteNonQui")}
         </div>
       </Box>
     );
   }
-  if (!cfg) return <Box titolo="Assistente IA"><div style={{ fontSize: 12 }}>…</div></Box>;
+  if (!cfg) return <Box titolo={t("cfgUi.assistenteIa")}><div style={{ fontSize: 12 }}>…</div></Box>;
 
   const salva = async () => {
     setBusy(true); setEsito(null); setErrore(null);
@@ -121,7 +119,7 @@ export function AssistenteSection() {
   const haChiave = cfg.chiavi[fornitore] === true;
 
   return (
-    <Box titolo="Assistente IA">
+    <Box titolo={t("cfgUi.assistenteIa")}>
       <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
         <span style={{
           width: 8, height: 8, borderRadius: 4,
@@ -129,7 +127,7 @@ export function AssistenteSection() {
         }} />
         <span style={{ fontSize: 12, color: "var(--brand-text, #e2e8f0)" }}>
           {cfg.configurato
-            ? `Attivo — ${cfg.fornitore} / ${cfg.modello}`
+            ? t("cfgUi.assistenteAttivo", { fornitore: cfg.fornitore, modello: cfg.modello })
             : t("cfgUi.notConfiguredTheChatStays")}
         </span>
       </div>
@@ -139,9 +137,7 @@ export function AssistenteSection() {
           fontSize: 11, color: "var(--brand-warning, #f59e0b)", marginBottom: 10,
           lineHeight: 1.5,
         }}>
-          ⚠ Queste variabili d&apos;ambiente <b>scavalcano</b> quanto imposti qui:{" "}
-          {cfg.da_ambiente.join(", ")}. Per configurare dall&apos;IDE, avvia il runtime senza
-          di esse.
+          {t("cfgUi.varAmbienteScavalcano", { elenco: cfg.da_ambiente.join(", ") })}
         </div>
       )}
 
@@ -162,7 +158,7 @@ export function AssistenteSection() {
         </label>
 
         <label style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)" }}>
-          Modello
+          {t("cfgUi.modello")}
           <input
             value={modello}
             placeholder={cfg.modelli_default[fornitore] ?? ""}
@@ -170,8 +166,7 @@ export function AssistenteSection() {
             style={{ ...campoIA, marginTop: 4 }}
           />
           <span style={{ display: "block", marginTop: 2 }}>
-            Campo libero di proposito: i fornitori aggiungono modelli più spesso di quanto
-            rilasciamo noi. Vuoto = {cfg.modelli_default[fornitore]}.
+            {t("cfgUi.modelloLibero", { predefinito: cfg.modelli_default[fornitore] })}
           </span>
         </label>
 
@@ -279,14 +274,14 @@ export function IdePreferencesTab() {
       </div>
       <div style={{ background: "var(--brand-bg, #0f172a)", border: "1px solid var(--brand-surface, #1e293b)", borderRadius: 6, padding: "10px 14px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
         <div>
-          <div style={{ fontSize: 13, fontWeight: 600, color: "var(--brand-text, #e2e8f0)" }}>Tema chiaro/scuro</div>
+          <div style={{ fontSize: 13, fontWeight: 600, color: "var(--brand-text, #e2e8f0)" }}>{t("cfgUi.temaChiaroScuro")}</div>
           <div style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)", marginTop: 2 }}>{t("cfgUi.systemFollowsTheBrowserPreferences")}</div>
         </div>
         <ThemeToggle />
       </div>
       <div style={{ background: "var(--brand-bg, #0f172a)", border: "1px solid var(--brand-surface, #1e293b)", borderRadius: 6, padding: "10px 14px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
         <div>
-          <div style={{ fontSize: 13, fontWeight: 600, color: "var(--brand-text, #e2e8f0)" }}>Lingua interfaccia</div>
+          <div style={{ fontSize: 13, fontWeight: 600, color: "var(--brand-text, #e2e8f0)" }}>{t("cfgUi.linguaInterfaccia")}</div>
           <div style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)", marginTop: 2 }}>{t("cfgUi.languageOfTheEditorS")}</div>
         </div>
         <UiLangSelect />
@@ -295,8 +290,7 @@ export function IdePreferencesTab() {
       <SezioneScorciatoie />
       <AssistenteSection />
       <div style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)", lineHeight: 1.5 }}>
-        Nota: tema, lingua e dimensione delle icone vivono in questo browser; l'assistente vive
-        nel runtime locale, quindi vale per chiunque apra questo IDE.
+        {t("cfgUi.notaPreferenze")}
       </div>
     </div>
   );

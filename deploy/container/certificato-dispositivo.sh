@@ -2,7 +2,7 @@
 #
 # Dà al runtime SWS il certificato del dispositivo Pixsys, al posto di un autofirmato.
 #
-# PERCHÉ (24-10-2026, misura sul TC620, piano docs/plans/2026-10-23-c4-tls-di-default.md)
+# PERCHÉ (24-10-2026, misura sul TC620, piano docs/archive/2026-10-23-c4-tls-di-default.md)
 #
 # Con un certificato autofirmato il kiosk del pannello mostra «La connessione non è privata»,
 # e con `--incognito` lo rifarebbe a ogni avvio. PixsysOS però ha già un certificato del

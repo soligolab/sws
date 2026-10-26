@@ -352,7 +352,7 @@ export function TagsTab({ scheda }: { scheda: IdScheda }) {
               }}
             />
             <button onClick={() => fileRef.current?.click()} style={{ ...S.btn("ghost"), alignSelf: "flex-start" }}>
-              📂 Scegli file CSV…
+              {t("cfgUi.scegliCsv")}
             </button>
             <textarea
               value={importText}
@@ -711,7 +711,7 @@ export function TagsTab({ scheda }: { scheda: IdScheda }) {
                   <td colSpan={8} style={{ ...S.td, paddingTop: 4, paddingBottom: 6 }}>
                     <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                       <span style={{ fontSize: 11, color: "#818cf8", minWidth: 70, fontFamily: "monospace" }}>
-                        λ espressione
+                        {t("cfgUi.lambdaEspressione")}
                       </span>
                       <input
                         style={{ ...S.input, flex: 1, fontFamily: "monospace", fontSize: 12, color: "#c4b5fd" }}

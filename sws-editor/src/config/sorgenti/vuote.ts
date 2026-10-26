@@ -10,7 +10,10 @@ export function emptyModbus(): ModbusTcpSource {
     host: "192.168.1.10",
     port: 502,
     poll_interval_ms: 1000,
-    devices: [{ unit_id: 1, registers: [] }],
+    // Senza dispositivi (25-10-2026): il primo arriva da «+ Aggiungi» o «Dal
+    // catalogo», e da lì il bus è implicito. Con uno vuoto già dentro, «Dal
+    // catalogo» ne avrebbe aggiunto un secondo e il bus sarebbe tornato visibile.
+    devices: [],
   };
 }
 

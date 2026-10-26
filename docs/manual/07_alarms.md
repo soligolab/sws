@@ -341,6 +341,44 @@ if tags["serbatoio.livello"] > 95:
 
 Se Telegram non è configurato, la chiamata solleva un errore leggibile ("Telegram non configurato").
 
+### SMS, voce e reperibilità
+
+SWS manda SMS e fa telefonate con sintesi vocale attraverso **Twilio** (un servizio esterno: niente modem sul
+pannello). Si configura in **Configurazione → Progetto → Notifiche → Telefono**:
+
+```yaml
+notifications:
+  twilio:
+    account_sid: "AC…"          # dalla console Twilio
+    auth_token: "…"             # sta in secrets.yaml, mascherato nelle risposte
+    numero: "+39…"              # il numero Twilio che manda e chiama
+  reperibili:                   # l'ordine è l'ordine di escalation
+    - { nome: "Anna", telefono: "+39333…", giorni: [1,2,3,4,5], dalle: "08:00", alle: "18:00" }
+    - { nome: "Bruno", telefono: "+39347…", dalle: "18:00", alle: "08:00" }   # a cavallo della mezzanotte
+  telefono_attesa_min: 10       # dopo quanto si passa al reperibile successivo
+```
+
+- **Chi viene avvisato**: i reperibili **di turno adesso** (giorni 1 = lunedì … 7 = domenica, vuoto = tutti; fascia
+  `dalle`–`alle`, vuota = tutto il giorno), nell'ordine dell'elenco. Nessuno di turno = nessuna chiamata, e il log
+  lo dice.
+- **Quando**: la scheda **Cosa e dove** ha le colonne **SMS** e **Voce**, solo per lo scatto e l'escalation. Si
+  avvisa il primo reperibile di turno; se dopo `telefono_attesa_min` l'allarme non è riconosciuto, il secondo, e
+  così via. Un riconoscimento — dal pannello, dall'IDE o dal telefono — ferma la catena.
+- **Invia SMS di prova**, nella scheda, verifica account e numero (salvare prima).
+
+**Riconoscere dal telefono** funziona solo se il pannello è **collegato al cloud**: Twilio deve poter richiamare un
+indirizzo pubblico, e quell'indirizzo è il gateway. Nella chiamata si sente «premi 1 per riconoscere»; il
+riconoscimento finisce nel registro come `telefono: <nome>`. Per gli SMS, una risposta **OK** (oppure 1, SI, YES)
+riconosce l'ultimo allarme mandato a quel numero, ma serve un passo a mano: nella console di Twilio, sul numero, alla
+voce *A message comes in*, impostare il webhook
+
+```
+https://<gateway>/telefono/<nome-del-pannello>/sms        (HTTP POST)
+```
+
+Il pannello verifica la firma di Twilio (`X-Twilio-Signature`) con il proprio token: una richiesta che non viene da
+Twilio è rifiutata. Le chiamate portano anche un gettone monouso che scade dopo un'ora.
+
 ---
 
 ## Storico allarmi

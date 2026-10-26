@@ -1857,6 +1857,9 @@ async fn main() -> anyhow::Result<()> {
     // pubblica il Last Will come se fossimo morti; Modbus/S7/OPC UA chiudono la
     // sessione). `stop_all` esisteva da tempo e nessuno la chiamava: il processo
     // usciva lasciando ai peer il compito di accorgersene.
+    // Prima delle sorgenti, il cloud: un pannello che si spegne in ordine lo
+    // dice, e la console lo mostra spento invece che perso (ramo 7 dei residui).
+    sws_web::tunnel::pannello::annuncia_spegnimento().await;
     supervisor.stop_all().await;
     info!("sorgenti chiuse, esco");
 

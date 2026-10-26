@@ -78,8 +78,8 @@ export function ModbusRtuSourceCard({
               <select style={S.input} value={source.parity}
                 onChange={(e) => setField("parity", e.target.value)}>
                 <option value="N">{t("cfgUi.noneN")}</option>
-                <option value="E">Pari (E)</option>
-                <option value="O">Dispari (O)</option>
+                <option value="E">{t("sorgenti.pari")}</option>
+                <option value="O">{t("sorgenti.dispari")}</option>
               </select>
             </div>
             <div>

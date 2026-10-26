@@ -925,7 +925,7 @@ export function App() {
           <button
             data-testid="deploy-errore"
             onClick={() => useAppStore.setState({ remoteDeployStatus: "idle", remoteDeployErrore: null })}
-            title={`${remoteDeployErrore}\n\n(clic per chiudere)`}
+            title={`${remoteDeployErrore}\n\n${t("app.clicPerChiudere")}`}
             style={{
               maxWidth: 320, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
               background: "var(--brand-danger-bg, #450a0a)", color: "var(--brand-danger-soft, #fca5a5)",

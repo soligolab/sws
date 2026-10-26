@@ -313,19 +313,19 @@ export function AlarmBellPanel({ idPrefix = "", allowedSev, showHistory = true, 
                         style={{ background: "#0f172a", border: "1px solid #334155", borderRadius: 4, color: "#e2e8f0", fontSize: corpo, padding: "4px 8px" }}
                       />
                       <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                        <label style={{ fontSize: corpoSecondario(corpo), color: "#94a3b8" }}>Durata (h):</label>
+                        <label style={{ fontSize: corpoSecondario(corpo), color: "#94a3b8" }}>{t("alarmBell.durataOre")}</label>
                         <input
                           type="number" min={0} max={720} step={1}
                           value={shelveHours}
                           onChange={(e) => setShelveHours(parseInt(e.target.value) || 0)}
                           style={{ width: 55, background: "#0f172a", border: "1px solid #334155", borderRadius: 4, color: "#e2e8f0", fontSize: corpo, padding: "3px 6px", textAlign: "center" }}
                         />
-                        <span style={{ fontSize: corpoSecondario(corpo), color: "#64748b" }}>(0 = indefinito)</span>
+                        <span style={{ fontSize: corpoSecondario(corpo), color: "#64748b" }}>{t("alarmBell.zeroIndefinito")}</span>
                         <button
                           onClick={() => handleShelve(a.def.id)}
                           style={{ marginLeft: "auto", background: "#92400e", border: "none", color: "#fef3c7", padding: "3px 12px", borderRadius: 4, cursor: "pointer", fontSize: corpoSecondario(corpo), fontWeight: 600 }}
                         >
-                          Sopprimi
+                          {t("alarmBell.sopprimi")}
                         </button>
                       </div>
                     </div>
@@ -338,7 +338,7 @@ export function AlarmBellPanel({ idPrefix = "", allowedSev, showHistory = true, 
             {showShelve && shelved.length > 0 && (
               <>
                 <div style={{ padding: "4px 12px", background: "#1e293b", fontSize: corpoAnnotazione(corpo), color: "#64748b", fontWeight: 700, letterSpacing: 0.5, borderBottom: "1px solid #334155" }}>
-                  SOPPRESSI ({shelved.length})
+                  {t("alarmBell.soppressi", { n: shelved.length })}
                 </div>
                 {shelved.map((sh) => (
                   <div key={sh.alarm_id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 12px", borderBottom: "1px solid #1e293b", opacity: 0.7 }}>
@@ -347,8 +347,8 @@ export function AlarmBellPanel({ idPrefix = "", allowedSev, showHistory = true, 
                       <div style={{ color: "#94a3b8", fontSize: corpo, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{sh.alarm_id}</div>
                       <div style={{ color: "#64748b", fontSize: corpoSecondario(corpo) }}>
                         {sh.reason}
-                        {sh.until_ms > 0 && ` · fino ${new Date(sh.until_ms).toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" })}`}
-                        {sh.until_ms === 0 && " · indefinito"}
+                        {sh.until_ms > 0 && ` · ${t("alarmBell.fino")} ${new Date(sh.until_ms).toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" })}`}
+                        {sh.until_ms === 0 && ` · ${t("alarmBell.indefinito")}`}
                       </div>
                     </div>
                     <button
@@ -356,7 +356,7 @@ export function AlarmBellPanel({ idPrefix = "", allowedSev, showHistory = true, 
                       title={t("viewer.reactivateAlarm")}
                       style={{ background: "transparent", border: "1px solid #334155", color: "#94a3b8", padding: "2px 8px", borderRadius: 4, cursor: "pointer", fontSize: corpoSecondario(corpo) }}
                     >
-                      Riattiva
+                      {t("alarmBell.riattiva")}
                     </button>
                   </div>
                 ))}

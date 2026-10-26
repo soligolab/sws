@@ -1,10 +1,10 @@
 /** Bus e dispositivi Modbus nell'IDE (04-10-2026): l'elenco dei dispositivi
  *  dentro la card del bus, e la card di un dispositivo (unit id, ordine,
  *  polling, timeout, mappature). La logica pura sta in `modbusDispositivi.ts`. */
-import { createContext, useContext, useState } from "react";
+import { createContext, useContext, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { QuickCreateTagModal } from "@/components/QuickCreateTagModal";
-import type { DispositivoModbus, RegisterMapping, TagDef } from "@/types";
+import type { DispositivoModbus, ParametroSetup, RegisterMapping, TagDef, VoceCatalogo } from "@/types";
 import { S } from "@/config/comuni";
 import { useAppStore } from "@/store";
 import { emptyRegister } from "@/config/sorgenti/vuote";
@@ -21,6 +21,7 @@ import { api } from "@/api/client";
 import { CatalogoDispositiviModal, IconaCatalogo, useElencoCatalogo, voceDelModello } from "@/config/sorgenti/CatalogoDispositiviModal";
 import type { DaCatalogo } from "@/config/sorgenti/daCatalogo";
 import { pianoEliminazione } from "@/config/sorgenti/variabiliDispositivo";
+import { conParametro, parametriSetup } from "@/config/sorgenti/setupModulo";
 
 /** «Salva subito questo bus» (04-10-2026), dato dalla scheda Protocolli: salva
  *  la bozza delle sorgenti con il bus cambiato. Serve quando una modifica del
@@ -332,6 +333,8 @@ export function DispositivoModbusCard<B extends BusModbus>({ bus, unit, onChange
           </div>
         )}
 
+        {d.modello && <SetupModulo modello={d.modello} setup={d.setup} onChange={(setup) => cambia({ setup: setup.length ? setup : undefined })} />}
+
         <TabellaRegistriModbus registri={d.registers} setRegister={setRegister} removeRegister={removeRegister}
           onQuickCreate={(rowIdx, prefill) => setQuickCreate({ rowIdx, prefill })} />
 
@@ -350,6 +353,57 @@ export function DispositivoModbusCard<B extends BusModbus>({ bus, unit, onChange
           onClose={() => setQuickCreate(null)}
         />
       )}
+    </div>
+  );
+}
+
+/** «Configurazione del modulo» (configuratore, 25-10-2026): per i parametri di
+ *  configurazione del modello nel catalogo, il valore che il progetto vuole.
+ *  Il runtime, a ogni sessione, legge e scrive solo le differenze. «Non
+ *  gestito» lascia il modulo com'è. Si vede solo per un dispositivo nato dal
+ *  catalogo, ed esce se il modello non ha parametri da fissare. */
+function SetupModulo({ modello, setup, onChange }: {
+  modello: string;
+  setup: ParametroSetup[] | undefined;
+  onChange: (s: ParametroSetup[]) => void;
+}) {
+  const { t, i18n } = useTranslation();
+  const lingua: "it" | "en" = i18n.language?.startsWith("en") ? "en" : "it";
+  const [voce, setVoce] = useState<VoceCatalogo | null>(null);
+  useEffect(() => {
+    let vivo = true;
+    api.voceCatalogo(modello.split("@")[0]).then((v) => { if (vivo) setVoce(v); }).catch(() => { /* fuori catalogo: niente setup */ });
+    return () => { vivo = false; };
+  }, [modello]);
+  if (!voce) return null;
+  const parametri = parametriSetup(voce);
+  if (parametri.length === 0) return null;
+  const valoreDi = (nome: string) => setup?.find((p) => p.nome === nome)?.valore;
+  return (
+    <div style={{ marginBottom: 16 }} data-testid="setup-modulo">
+      <div style={{ fontSize: 12, fontWeight: 600, color: "var(--brand-text-muted, #94a3b8)", marginBottom: 4 }}>{t("cfg.modbusSetupTitolo")}</div>
+      <div style={{ fontSize: 11, color: "var(--brand-text-subtle, #94a3b8)", marginBottom: 8, lineHeight: 1.5 }}>{t("cfg.modbusSetupSpiega")}</div>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))", gap: 8 }}>
+        {parametri.map((r) => {
+          const v = valoreDi(r.nome);
+          return (
+            <label key={r.nome} style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)" }} title={r.descrizione?.[lingua]}>
+              {r.nome}
+              {r.valori ? (
+                <select style={{ ...S.input, marginTop: 3 }} value={v === undefined ? "" : String(v)} data-testid={`setup-${r.nome}`}
+                  onChange={(e) => onChange(conParametro(setup, voce, r, e.target.value === "" ? undefined : Number(e.target.value)))}>
+                  <option value="">{t("cfg.modbusSetupNonGestito")}</option>
+                  {Object.entries(r.valori).map(([k, testo]) => <option key={k} value={k}>{k} — {testo[lingua]}</option>)}
+                </select>
+              ) : (
+                <input style={{ ...S.input, marginTop: 3 }} type="number" value={v ?? ""} placeholder={t("cfg.modbusSetupNonGestito")}
+                  data-testid={`setup-${r.nome}`}
+                  onChange={(e) => onChange(conParametro(setup, voce, r, e.target.value.trim() === "" ? undefined : Number(e.target.value)))} />
+              )}
+            </label>
+          );
+        })}
+      </div>
     </div>
   );
 }

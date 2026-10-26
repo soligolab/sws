@@ -100,8 +100,8 @@ export function OpcUaEuromapModal({
             <div style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)", marginTop: 2 }}>
               {source.endpoint_url}
               {result && (
-                <> · {result.nodes_scanned} nodi scansionati
-                  {result.truncated && " (limite raggiunto)"}</>
+                <> · {t("sorgenti.nodiScansionati", { n: result.nodes_scanned })}
+                  {result.truncated && ` ${t("sorgenti.limiteRaggiunto")}`}</>
               )}
             </div>
           </div>
@@ -115,7 +115,7 @@ export function OpcUaEuromapModal({
         <div style={{ flex: 1, overflowY: "auto", background: "#0a111e" }}>
           {busy && (
             <div style={{ padding: "24px 18px", color: "var(--brand-text-muted, #94a3b8)", fontSize: 13 }}>
-              Scansione address space in corso (max ~500 nodi)…
+              {t("sorgenti.scansioneInCorso")}
             </div>
           )}
           {!busy && result && result.variables.length === 0 && (
@@ -189,11 +189,11 @@ export function OpcUaEuromapModal({
               checked={autoCreateTags}
               onChange={(e) => setAutoCreateTags(e.target.checked)}
             />
-            Crea automaticamente i tag SWS suggeriti
+            {t("sorgenti.creaTagSuggeriti")}
           </label>
           <div style={{ display: "flex", gap: 8 }}>
             <button style={S.btn("ghost")} onClick={runScan} disabled={busy}>
-              {busy ? "Scansione…" : "↻ Riprova"}
+              {busy ? t("sorgenti.scansione") : t("sorgenti.riprovaFreccia")}
             </button>
             <button style={S.btn("ghost")} onClick={onClose}>{t("common.cancel")}</button>
             <button

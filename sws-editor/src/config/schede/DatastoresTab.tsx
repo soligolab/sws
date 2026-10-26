@@ -132,7 +132,7 @@ export function DatastoresTab() {
       setMgmtMsg((m) => ({ ...m, [ds.id]: t("cfgUi.noRetentionConfiguredSetRows") }));
       return;
     }
-    const desc = [rows ? `${rows} righe per tag` : null, days ? `${days} giorni` : null].filter(Boolean).join(" · ");
+    const desc = [rows ? t("cfgUi.righePerTag", { n: rows }) : null, days ? t("cfgUi.giorniN", { n: days }) : null].filter(Boolean).join(" · ");
     if (!window.confirm(t("cfg.purgeHistoryConfirm", { id: ds.id, desc }))) return;
     void withBusy(ds.id, async () => {
       const r = await api.purgeDatastore(ds.id, { retention_rows: rows, retention_days: days });
@@ -169,7 +169,7 @@ export function DatastoresTab() {
       setTagsMap((m) => ({ ...m, [ds.id]: r }));
       return r.orphan_tags.length === 0
         ? t("cfgUi.noOrphanTags", { count: r.db_tags.length })
-        : `${r.orphan_tags.length} tag orfani su ${r.db_tags.length} nel database.`;
+        : t("cfgUi.tagOrfaniSu", { n: r.orphan_tags.length, tot: r.db_tags.length });
     });
 
   const doDeleteTag = (ds: DatastoreConfig, tag: string) => {
@@ -210,7 +210,7 @@ export function DatastoresTab() {
       await loadStats(ds.id);
       const mb = (n: number) => (n / 1024 / 1024).toFixed(2);
       return r.bytes_freed > 0
-        ? `✓ Liberati ${mb(r.bytes_freed)} MB (da ${mb(r.bytes_before)} a ${mb(r.bytes_after)} MB).`
+        ? t("cfgUi.liberatiMb", { mb: mb(r.bytes_freed), da: mb(r.bytes_before), a: mb(r.bytes_after) })
         : t("cfgUi.noSpaceToReclaim", { mb: mb(r.bytes_after) });
     });
 
@@ -231,7 +231,7 @@ export function DatastoresTab() {
       a.download = `${ds.id}${remote ? "-remoto" : ""}.db`;
       a.click();
       URL.revokeObjectURL(a.href);
-      return `✓ Database scaricato (${(blob.size / 1024 / 1024).toFixed(2)} MB)${remote ? " dal dispositivo remoto" : ""}.`;
+      return t(remote ? "cfgUi.dbScaricatoRemoto" : "cfgUi.dbScaricato", { mb: (blob.size / 1024 / 1024).toFixed(2) });
     });
 
   const [uploadTarget, setUploadTarget] = useState<{ id: string; remote: boolean } | null>(null);
@@ -254,7 +254,7 @@ export function DatastoresTab() {
         ? await api.remoteUploadDatastoreDb(target.id, file)
         : await api.uploadDatastoreDb(target.id, file);
       const mb = (n: number) => (n / 1024 / 1024).toFixed(2);
-      return `✓ Caricati ${mb(r.bytes_written)} MB${target.remote ? " sul dispositivo remoto" : ""}. ` +
+      return t(target.remote ? "cfgUi.caricatiMbRemoto" : "cfgUi.caricatiMb", { mb: mb(r.bytes_written) }) + " " +
         t("cfgUi.previousBackup", { path: r.backup_path });
     });
   };
@@ -270,8 +270,7 @@ export function DatastoresTab() {
       <RitenzioneAutomatica />
       <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
         <span style={{ fontSize: 13, color: "var(--brand-text-muted, #94a3b8)", flex: 1 }}>
-          Configura i backend di persistenza dati storici. Ogni variabile con &quot;history&quot; attivo
-          viene scritta nel datastore assegnato.
+          {t("cfgUi.datastoresIntro")}
         </span>
         <button onClick={addDatastore} style={{ background: "#0ea5e9", color: "#0f172a", border: "none", borderRadius: 4, padding: "4px 10px", cursor: "pointer", fontSize: 12 }}>
           {t("cfgUi.add")}
@@ -315,7 +314,7 @@ export function DatastoresTab() {
                     risponde "not compiled in". Resta selezionabile (l'architettura a
                     backend lo prevede e serve da segnaposto) ma deve dirlo PRIMA,
                     non alla prima scrittura andata a vuoto. */}
-                <option value="odbc">ODBC — non implementato</option>
+                <option value="odbc">{t("cfgUi.odbcNonImplementato")}</option>
               </select>
               <button onClick={() => testDs(ds.id)} style={{ background: "#0ea5e9", color: "#0f172a", border: "none", borderRadius: 4, padding: "3px 8px", cursor: "pointer", fontSize: 11 }}>{t("common.test")}</button>
               <button onClick={() => loadStats(ds.id)} style={{ background: "var(--brand-border, #475569)", color: "var(--brand-text, #e2e8f0)", border: "none", borderRadius: 4, padding: "3px 8px", cursor: "pointer", fontSize: 11 }}>{t("common.stats")}</button>
@@ -332,10 +331,10 @@ export function DatastoresTab() {
               <div style={{ fontSize: 11, color: "var(--brand-text-muted, #94a3b8)", marginBottom: 8, display: "flex", gap: 16 }}>
                 {stats === null ? t("cfgUi.loadingStats") : (
                   <>
-                    <span>Campioni: {stats.sample_count.toLocaleString()}</span>
+                    <span>{t("cfgUi.campioni")}: {stats.sample_count.toLocaleString()}</span>
                     <span>Tag: {stats.tag_count}</span>
-                    {stats.size_bytes != null && <span>Dim: {(stats.size_bytes / 1024 / 1024).toFixed(1)} MB</span>}
-                    <span style={{ color: stats.connected ? "var(--brand-success-soft, #4ade80)" : "var(--brand-danger-soft, #f87171)" }}>{stats.connected ? "Connesso" : stats.error ?? "Disconnesso"}</span>
+                    {stats.size_bytes != null && <span>{t("cfgUi.dim")}: {(stats.size_bytes / 1024 / 1024).toFixed(1)} MB</span>}
+                    <span style={{ color: stats.connected ? "var(--brand-success-soft, #4ade80)" : "var(--brand-danger-soft, #f87171)" }}>{stats.connected ? t("cfgUi.connesso") : stats.error ?? t("cfgUi.disconnesso")}</span>
                   </>
                 )}
               </div>
@@ -348,13 +347,13 @@ export function DatastoresTab() {
                 già `history/`. */}
             <div style={{ border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 5, padding: 8, marginBottom: 8 }}>
               <div style={{ fontSize: 11, fontWeight: 600, color: "var(--brand-text-muted, #94a3b8)", marginBottom: 6 }}>
-                GESTIONE DATABASE
+                {t("cfgUi.gestioneDatabase")}
               </div>
               <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
                 <button onClick={() => doPurge(ds)} disabled={busyMgmt[ds.id]}
                   title={t("cfg.purgeNowTitle")}
                   style={{ background: "var(--brand-surface, #1e293b)", color: "var(--brand-text, #e2e8f0)", border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 4, padding: "3px 8px", cursor: "pointer", fontSize: 11 }}>
-                  Pulisci ora
+                  {t("cfgUi.pulisciOra")}
                 </button>
                 <button onClick={() => doExport(ds)} disabled={busyMgmt[ds.id]}
                   title={t("cfg.exportHistoryCsvTitle")}
@@ -374,7 +373,7 @@ export function DatastoresTab() {
                 <button onClick={() => doVacuum(ds)} disabled={busyMgmt[ds.id]}
                   title={t("cfg.vacuumTitle")}
                   style={{ background: "var(--brand-surface, #1e293b)", color: "var(--brand-text, #e2e8f0)", border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 4, padding: "3px 8px", cursor: "pointer", fontSize: 11 }}>
-                  Recupera spazio
+                  {t("cfgUi.recuperaSpazio")}
                 </button>
                 <button onClick={() => doDownloadDb(ds, false)} disabled={busyMgmt[ds.id]}
                   title={t("cfg.downloadDbTitle")}
@@ -406,7 +405,7 @@ export function DatastoresTab() {
                     </button>
                   </>
                 )}
-                {busyMgmt[ds.id] && <span style={{ fontSize: 11, color: "var(--brand-text-muted, #94a3b8)" }}>in corso…</span>}
+                {busyMgmt[ds.id] && <span style={{ fontSize: 11, color: "var(--brand-text-muted, #94a3b8)" }}>{t("common.inCorso")}</span>}
               </div>
 
               {mgmtMsg[ds.id] && (

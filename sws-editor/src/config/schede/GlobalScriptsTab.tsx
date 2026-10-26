@@ -23,7 +23,7 @@ function newScript(): GlobalScriptDef {
 function triggerLabel(t: ScriptTriggerKind): string {
   switch (t.kind) {
     case "startup":    return i18n.t("cfgUi.startup");
-    case "interval":   return t.interval_ms ? `Ogni ${t.interval_ms}ms` : `Ogni ${t.interval_s}s`;
+    case "interval":   return t.interval_ms ? i18n.t("cfgUi.ogniMs", { n: t.interval_ms }) : i18n.t("cfgUi.ogniS", { n: t.interval_s });
     case "cron":       return `Cron: ${t.schedule}`;
     case "tag_change": return `Tag: ${t.tag}`;
   }
@@ -51,7 +51,7 @@ function FunctionsInventory() {
   return (
     <>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-        <span style={{ fontWeight: 700, fontSize: 13, color: "var(--brand-text-muted, #94a3b8)" }}>FUNZIONI</span>
+        <span style={{ fontWeight: 700, fontSize: 13, color: "var(--brand-text-muted, #94a3b8)" }}>{t("cfgUi.funzioniTitolo")}</span>
         <span style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)" }}>{functions.length}</span>
       </div>
       <div style={{ display: "flex", flexDirection: "column", gap: 4, maxHeight: 180, overflow: "auto" }}>
@@ -71,9 +71,9 @@ function FunctionsInventory() {
               border: "1px solid var(--brand-surface-2, #334155)",
             }}
           >
-            <div style={{ fontSize: 13, color: "var(--brand-text, #e2e8f0)" }}>{f.name || "(senza nome)"}</div>
+            <div style={{ fontSize: 13, color: "var(--brand-text, #e2e8f0)" }}>{f.name || t("cfgUi.senzaNome")}</div>
             <div style={{ fontSize: 11, color: "var(--brand-text-muted, #94a3b8)" }}>
-              chiamata da un oggetto{f.params.length > 0 ? ` · ${f.params.length} parametri` : ""}
+              {t("cfgUi.chiamataDaOggetto")}{f.params.length > 0 ? ` · ${t("cfgUi.parametriN", { n: f.params.length })}` : ""}
             </div>
           </div>
         ))}
@@ -204,7 +204,7 @@ export function GlobalScriptsTab() {
                 >✕</button>
               </div>
               <span style={{ fontSize: 11, color: "var(--brand-text-muted, #94a3b8)" }}>{triggerLabel(s.trigger)}</span>
-              <span style={{ fontSize: 11, color: s.enabled ? "var(--brand-success, #22c55e)" : "var(--brand-text-subtle, #64748b)" }}>{s.enabled ? "Abilitato" : "Disabilitato"}</span>
+              <span style={{ fontSize: 11, color: s.enabled ? "var(--brand-success, #22c55e)" : "var(--brand-text-subtle, #64748b)" }}>{s.enabled ? t("cfgUi.abilitato") : t("cfgUi.disabilitato")}</span>
             </div>
           ))}
         </div>
@@ -227,7 +227,7 @@ export function GlobalScriptsTab() {
                 checked={cur.enabled}
                 onChange={(e) => update(selected, { enabled: e.target.checked })}
               />
-              Abilitato
+              {t("cfgUi.abilitato")}
             </label>
           </div>
 
@@ -248,8 +248,8 @@ export function GlobalScriptsTab() {
               style={{ background: "var(--brand-surface, #1e293b)", border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 4, color: "var(--brand-text, #e2e8f0)", padding: "4px 8px", fontSize: 13 }}
             >
               <option value="startup">{t("cfg.projectStart")}</option>
-              <option value="interval">Intervallo (secondi)</option>
-              <option value="cron">Cron (5 campi)</option>
+              <option value="interval">{t("cfgUi.intervalloSecondi")}</option>
+              <option value="cron">{t("cfgUi.cronCinqueCampi")}</option>
               <option value="tag_change">{t("cfg.tagChange")}</option>
             </select>
 
@@ -290,13 +290,9 @@ export function GlobalScriptsTab() {
                    né qui né nel manuale, e chi scriveva un passo (asterisco,
                    barra, 5) si ritrovava uno script che non partiva mai senza
                    dirlo. Ora i passi funzionano, e il campo lo dice. */
-                title={"minuto ora giorno mese giorno-settimana\n\n"
+                title={t("cfgUi.cronCampi") + "\n\n"
                   + t("cfgUi.everyValue")
-                  + "*/5      ogni 5 (passo)\n"
-                  + "9-17     da 9 a 17 (intervallo)\n"
-                  + "9-17/2   da 9 a 17, ogni 2\n"
-                  + "0,30     elenco\n\n"
-                  + "Esempi: */5 * * * * = ogni 5 minuti; 30 4 * * * = ogni giorno alle 4:30"}
+                  + t("cfgUi.cronAiuto")}
                 style={{ background: "var(--brand-surface, #1e293b)", border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 4, color: "var(--brand-text, #e2e8f0)", padding: "4px 8px", fontSize: 13, width: 160 }}
               />
             )}

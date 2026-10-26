@@ -854,6 +854,12 @@ const CONTAINER_DEPLOY_EMBEDDED: &[(&str, &str)] = &[
         "openplc-runtime.container",
         include_str!("../../../../deploy/container/openplc-runtime.container"),
     ),
+    // Il passaggio del certificato del dispositivo (C4, 25-10-2026): opzionale
+    // e con sudo, ma l'installer lo nomina accanto a sé quando lo propone.
+    (
+        "certificato-dispositivo.sh",
+        include_str!("../../../../deploy/container/certificato-dispositivo.sh"),
+    ),
     // Nemmeno la commutazione web/LVGL, dal 29-09-2026: la fa il runtime via
     // D-Bus (`display_target.rs`). `sws-display.path`, il suo `.service` e
     // `sws-display-apply.sh` non si spediscono più; l'installer li toglie dai
@@ -887,6 +893,8 @@ const CONTAINER_DEPLOY_FILES: &[&str] = &[
     "sws-lvgl-viewer.container",
     // OpenPLC: opzionale da installare, ma spedito sempre (vedi sopra).
     "openplc-runtime.container",
+    // Il certificato del dispositivo Pixsys: l'installer lo propone (C4).
+    "certificato-dispositivo.sh",
     // L'immagine di boot non manda più niente sul dispositivo: la chiede il
     // runtime al launcher via D-Bus dal container (24-09-2026).
 ];

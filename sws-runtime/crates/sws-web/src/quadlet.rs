@@ -218,7 +218,7 @@ async fn installata(c: &zbus::Connection, config_dir: &Path) -> Option<u32> {
 }
 
 /// La cartella config **vista dall'host** (il servizio transitorio gira lì).
-fn host_config() -> Option<String> {
+pub(crate) fn host_config() -> Option<String> {
     std::env::var("SWS_HOST_CONFIG_DIR").ok().filter(|s| !s.trim().is_empty())
 }
 

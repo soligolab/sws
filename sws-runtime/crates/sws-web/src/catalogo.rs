@@ -92,6 +92,10 @@ pub struct VoceElenco {
     pub descrizione: Option<Value>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub immagine: Option<String>,
+    /// `tcp`, `rtu` o `entrambi` (`modbus.trasporto`, 25-10-2026): «Dal
+    /// catalogo» mostra solo i modelli che il bus sa raggiungere.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub trasporto: Option<String>,
     pub origine: Origine,
 }
 
@@ -153,6 +157,7 @@ pub fn elenco(r: &Radici) -> Elenco {
                         famiglia: testo(&m, "famiglia"),
                         descrizione: m.get("descrizione").cloned(),
                         immagine: testo(&m, "immagine"),
+                        trasporto: m.get("modbus").and_then(|x| x.get("trasporto")).and_then(Value::as_str).map(str::to_string),
                         id,
                         origine,
                     }),

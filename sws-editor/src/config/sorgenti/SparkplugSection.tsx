@@ -96,7 +96,7 @@ export function SparkplugSection({
               <button style={S.btnXs} onClick={() => removeMetric(idx)}>✕</button>
             </div>
           ))}
-          <button style={S.btn("ghost")} onClick={addMetric}>+ Metrica</button>
+          <button style={S.btn("ghost")} onClick={addMetric}>{t("sorgenti.piuMetrica")}</button>
         </>
       )}
     </>

@@ -1,10 +1,22 @@
 # Un configuratore che manda il setup ai moduli all'avvio
 
+> **FATTO il 25-10-2026, archiviato.** Le cinque domande: (1) il setup sta sul **dispositivo**, completo di indirizzi;
+> (2) a ogni sessione, alla prima risposta, solo le differenze, vince il progetto; (3) enumerazioni `valori` nel
+> catalogo; (4) un parametro rifiutato si dice nel log e non si ritenta a ogni giro; (5) altri costruttori: c'è
+> l'area ritardata, non le sequenze con password o il riavvio del modulo — fuori finché un modello non li chiede.
+> Collaudo col 5AD sul TC620 in `COLLAUDI_IN_SOSPESO.md` §A-ter.
+
 > **Seme — decisione** (04-10-2026). Idea del maintainer durante il collaudo dei due MCM260X sul TC620: «sarebbe
 > interessante un configuratore da usare per inviare il setup ai moduli allo start del runtime».
 >
 > **Quando questo lavoro comincia, il primo passo è una sessione di plan approfondita, dedicata, per sviscerarne
 > tutti i dettagli.** Quello che segue è l'idea e le misure di oggi, non un progetto.
+
+## Decisione del maintainer (25-10-2026)
+
+**A ogni collegamento, solo le differenze**: quando il modulo risponde, il runtime legge i parametri di setup,
+li confronta col progetto e scrive solo quelli diversi — sugli MCM260X nell'area a salvataggio ritardato
+(4001-4100), per non consumare la memoria. **Vince il progetto**, e il registro dice cosa è stato cambiato.
 
 ## L'idea
 

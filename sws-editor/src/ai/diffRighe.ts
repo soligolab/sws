@@ -92,6 +92,6 @@ export function diffRighe(prima: string, dopo: string): {
   return {
     righe,
     parziale: salti > 0,
-    nota: salti > 0 ? `${salti} righe invariate non mostrate` : undefined,
+    nota: salti > 0 ? i18n.t("diffRighe.invariate", { n: salti }) : undefined,
   };
 }

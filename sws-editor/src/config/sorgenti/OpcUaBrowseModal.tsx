@@ -149,7 +149,7 @@ export function OpcUaBrowseModal({
               <span
                 title={
                   n.rango !== undefined && n.rango >= 1
-                    ? `array, rango ${n.rango}${n.dimensioni ? ` [${n.dimensioni.join("][")}]` : ""}`
+                    ? `array, ${t("sorgenti.rango")} ${n.rango}${n.dimensioni ? ` [${n.dimensioni.join("][")}]` : ""}`
                     : undefined
                 }
                 style={{
@@ -195,7 +195,7 @@ export function OpcUaBrowseModal({
         <div style={{ padding: "14px 18px", borderBottom: "1px solid var(--brand-surface, #1e293b)",
           display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           <div>
-            <div style={{ fontSize: 14, fontWeight: 600 }}>Sfoglia server OPC-UA</div>
+            <div style={{ fontSize: 14, fontWeight: 600 }}>{t("sorgenti.sfogliaOpcua")}</div>
             <div style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)", marginTop: 2 }}>{source.endpoint_url}</div>
           </div>
           <button onClick={onClose} style={{ background: "none", border: "none", color: "var(--brand-text-muted, #94a3b8)", cursor: "pointer", fontSize: 16 }}>×</button>

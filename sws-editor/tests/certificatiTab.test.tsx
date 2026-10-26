@@ -47,8 +47,10 @@ describe("Sicurezza → Certificati", () => {
     expect(screen.getByTestId("colonna-istanza")).toBeTruthy();
     expect(screen.queryByTestId("colonna-dispositivo")).toBeNull();
     expect(certificati).toHaveBeenCalledWith(false);
-    // Quadlet 6: l'archivio del viewer non si vede, e la riga lo dice.
-    expect(screen.getByText(i18n.t("certificati.viewerAssente"))).toBeTruthy();
+    // Questa istanza non è mai un pannello (l'IDE non gira sul pannello):
+    // niente «quadlet 6», che vale solo per la colonna del dispositivo.
+    expect(screen.getByText(i18n.t("certificati.viewerNonQui"))).toBeTruthy();
+    expect(screen.queryByText(i18n.t("certificati.viewerAssente"))).toBeNull();
   });
 
   it("col pannello collegato le colonne sono due, e «Dimentica» va al suo lato", async () => {
@@ -61,6 +63,15 @@ describe("Sicurezza → Certificati", () => {
     await waitFor(() => expect(dimenticaImpronta).toHaveBeenCalledWith(true, "dispositivi", "remoto:7444"));
     fireEvent.click(locale);
     await waitFor(() => expect(dimenticaImpronta).toHaveBeenCalledWith(false, "dispositivi", "locale:8444"));
+  });
+
+  it("nel cloud la colonna del pannello porta il suo nome, non quello del gateway", async () => {
+    useAppStore.setState({ remoteConnected: true, remoteUrl: "https://sws.soligo.net/dev/tc620-casa" });
+    render(<CertificatiTab />);
+    await screen.findByText("remoto:7444");
+    expect(screen.getByText(i18n.t("certificati.dispositivo", { host: "tc620-casa" }))).toBeTruthy();
+    // La colonna di questa istanza non è un pannello: niente «quadlet 6».
+    expect(screen.getByText(i18n.t("certificati.viewerNonQui"))).toBeTruthy();
   });
 
   it("l'impronta si abbrevia a quattro gruppi", () => {

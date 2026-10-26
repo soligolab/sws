@@ -782,6 +782,54 @@ pub async fn system_reboot(State(s): State<AppState>) -> StatusCode {
 #[derive(Serialize)]
 pub struct TlsStatus {
     pub enabled: bool,
+    /// La proposta di accendere l'HTTPS col certificato del dispositivo (C4,
+    /// pezzo 3, 25-10-2026). Assente quando non c'è niente da proporre.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub proposta: Option<PropostaTls>,
+}
+
+/// Vedi `TlsStatus::proposta`.
+#[derive(Serialize, Debug, PartialEq)]
+pub struct PropostaTls {
+    /// Il comando da lanciare sul pannello come `pixsys`, col percorso che
+    /// l'host vede.
+    pub comando: String,
+}
+
+/// Il marcatore della scelta (risposta 4 del piano C4): assente = «non ha mai
+/// scelto», `no` = «ha scelto di restare in chiaro».
+pub const FILE_SCELTA_TLS: &str = "tls-scelta";
+/// Scritto dall'installatore su un pannello Pixsys che ha il certificato del
+/// dispositivo (il percorso della catena); il container `/mnt/protected/ssl`
+/// non lo vede, quindi lo deve dire chi sta sull'host.
+pub const FILE_CERT_DISPOSITIVO: &str = "certificato-dispositivo";
+const SCRIPT_CERT_DISPOSITIVO: &str = "certificato-dispositivo.sh";
+
+/// Si propone l'HTTPS? (C4, pezzo 3.) Solo al **pannello** (risposta 1: né IDE,
+/// né gateway, né container di progetto, dove il TLS lo fa altro), col TLS
+/// spento, se il certificato del dispositivo c'è (scelta del maintainer del
+/// 25-10-2026: niente autofirmato che lo schermo non accetta) e se nessuno ha
+/// già detto di no.
+pub fn proposta_tls(pannello: bool, tls_acceso: bool, cert_dispositivo: bool, scelto_no: bool) -> bool {
+    pannello && !tls_acceso && cert_dispositivo && !scelto_no
+}
+
+
+fn scelto_no(config_dir: &std::path::Path) -> bool {
+    std::fs::read_to_string(config_dir.join(FILE_SCELTA_TLS)).map(|s| s.trim() == "no").unwrap_or(false)
+}
+
+/// Il comando della proposta. Lo script sta nell'immagine, che l'host non vede:
+/// si copia nella cartella config (montata, visibile dall'host), come fa
+/// l'aggiornamento dei quadlet, e si mostra il percorso **dell'host**. Se la
+/// copia non riesce si mostra quello dell'immagine, che è quello del HOWTO §29.
+fn comando_cert_dispositivo(config_dir: &std::path::Path) -> String {
+    let sorgente = std::path::Path::new(crate::quadlet::DIR_IMMAGINE).join(SCRIPT_CERT_DISPOSITIVO);
+    let copiato = std::fs::copy(&sorgente, config_dir.join(SCRIPT_CERT_DISPOSITIVO)).is_ok();
+    match (copiato, crate::quadlet::host_config()) {
+        (true, Some(host)) => format!("{}/{SCRIPT_CERT_DISPOSITIVO}", host.trim_end_matches('/')),
+        _ => sorgente.to_string_lossy().to_string(),
+    }
 }
 
 #[derive(serde::Serialize)]
@@ -891,7 +939,48 @@ pub async fn get_porte_seriali() -> Json<PorteSeriali> {
 /// `GET /api/system/tls` — returns whether TLS is currently active.
 pub async fn get_tls_status(State(s): State<AppState>) -> Json<TlsStatus> {
     let enabled = s.config_dir.join("tls.crt").exists();
-    Json(TlsStatus { enabled })
+    let pannello = !s.ide_only && s.segreto_gateway.is_none() && s.regia.is_none();
+    let dir = (*s.config_dir).clone();
+    let proposta = tokio::task::spawn_blocking(move || {
+        proposta_tls(pannello, enabled, dir.join(FILE_CERT_DISPOSITIVO).exists(), scelto_no(&dir))
+            .then(|| PropostaTls { comando: comando_cert_dispositivo(&dir) })
+    })
+    .await
+    .unwrap_or(None);
+    Json(TlsStatus { enabled, proposta })
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct SceltaTls {
+    /// `no` = resta in chiaro e non proporlo più; `proponi` = torna a proporlo.
+    pub scelta: String,
+}
+
+/// `POST /api/system/tls/scelta` — la risposta alla proposta (C4, pezzo 3).
+/// Nell'audit come ogni operazione sui certificati (decisione 7).
+pub async fn set_tls_scelta(
+    State(s): State<AppState>,
+    Extension(user): Extension<AuthUser>,
+    Json(corpo): Json<SceltaTls>,
+) -> StatusCode {
+    let percorso = s.config_dir.join(FILE_SCELTA_TLS);
+    let esito = match corpo.scelta.as_str() {
+        "no" => tokio::fs::write(&percorso, "no\n").await,
+        "proponi" => match tokio::fs::remove_file(&percorso).await {
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(()),
+            r => r,
+        },
+        _ => return StatusCode::BAD_REQUEST,
+    };
+    s.audit.log("tls.choice", Some(user.username), serde_json::json!({ "scelta": corpo.scelta }));
+    match esito {
+        Ok(()) => StatusCode::NO_CONTENT,
+        Err(e) => {
+            tracing::error!("set_tls_scelta: {e}");
+            StatusCode::INTERNAL_SERVER_ERROR
+        }
+    }
 }
 
 /// `POST /api/system/tls/generate` — generate a self-signed cert, write to config dir,
@@ -935,6 +1024,11 @@ pub async fn remove_tls_cert(State(s): State<AppState>, Extension(user): Extensi
                 return StatusCode::INTERNAL_SERVER_ERROR;
             }
         }
+    }
+    // Togliere l'HTTPS è una scelta esplicita (C4, pezzo 3): la proposta del
+    // certificato del dispositivo non deve ricomparire al riavvio.
+    if let Err(e) = tokio::fs::write(s.config_dir.join(FILE_SCELTA_TLS), "no\n").await {
+        tracing::warn!("remove_tls_cert: marcatore della scelta non scritto: {e}");
     }
     tracing::info!("TLS certificate removed — rebooting to plain HTTP");
     system_reboot(State(s)).await
@@ -1057,7 +1151,7 @@ pub(crate) fn nomi_del_certificato(host: &str) -> Vec<String> {
 /// **Quello che questa funzione non fa ancora**: la scadenza. Il certificato
 /// non scade (rcgen: 1975 → 4096). La decisione 6 dice di accorciarla, ma ogni
 /// rinnovo rompe il pinning di chiunque si fosse già fidato, e quella parte
-/// aspetta una risposta — vedi `docs/plans/2026-10-23-c4-tls-di-default.md`.
+/// aspetta una risposta — vedi `docs/archive/2026-10-23-c4-tls-di-default.md`.
 pub fn genera_certificato(config_dir: &std::path::Path) -> anyhow::Result<()> {
     use anyhow::Context;
 
@@ -1634,3 +1728,19 @@ mod porte_seriali_tests {
     }
 }
 
+#[cfg(test)]
+mod tests_proposta_tls {
+    use super::proposta_tls;
+
+    /// Le quattro condizioni, una per volta: basta che una manchi e non si
+    /// propone niente. Il caso del TC620 di casa prima del 24-10: pannello,
+    /// in chiaro, certificato del dispositivo presente, mai scelto → si propone.
+    #[test]
+    fn si_propone_solo_al_pannello_in_chiaro_col_certificato_e_senza_un_no() {
+        assert!(proposta_tls(true, false, true, false));
+        assert!(!proposta_tls(false, false, true, false), "IDE, gateway, container di progetto: mai");
+        assert!(!proposta_tls(true, true, true, false), "già in HTTPS");
+        assert!(!proposta_tls(true, false, false, false), "senza certificato del dispositivo: l'autofirmato no");
+        assert!(!proposta_tls(true, false, true, true), "ha già detto di no");
+    }
+}

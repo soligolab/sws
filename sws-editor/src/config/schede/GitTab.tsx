@@ -235,7 +235,7 @@ export function GitTab() {
               onClick={attachRepo}
               style={{ padding: "5px 12px", background: "var(--brand-primary, #3b82f6)", border: "none", borderRadius: 4, color: "var(--brand-on-primary, #fff)", fontSize: 12, cursor: attaching ? "wait" : "pointer" }}
             >
-              Aggancia a un repository
+              {t("gitStoria.agganciaRepository")}
             </button>
           </div>
           {selettoreChiave(attachKey, setAttachKey, attaching)}
@@ -436,13 +436,13 @@ export function GitTab() {
             <input
               value={newTagName}
               onChange={(e) => setNewTagName(e.target.value)}
-              placeholder="nome (es. v1.2.0)"
+              placeholder={t("gitStoria.tagNomePh")}
               style={{ flex: 1, minWidth: 120, background: "var(--brand-bg, #020617)", color: "var(--brand-text, #e2e8f0)", border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 4, padding: "5px 8px", fontSize: 12 }}
             />
             <input
               value={newTagMsg}
               onChange={(e) => setNewTagMsg(e.target.value)}
-              placeholder="messaggio (opzionale)"
+              placeholder={t("gitStoria.tagMessaggioPh")}
               style={{ flex: 2, minWidth: 160, background: "var(--brand-bg, #020617)", color: "var(--brand-text, #e2e8f0)", border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 4, padding: "5px 8px", fontSize: 12 }}
             />
             <button

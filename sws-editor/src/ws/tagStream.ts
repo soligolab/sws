@@ -1,4 +1,5 @@
 import { useEffect } from "react";
+import i18n from "i18next";
 import { useAppStore } from "@/store";
 import type { TagQuality } from "@/types";
 import { buildWsUrl } from "@/ws/wsUrl";
@@ -98,7 +99,7 @@ export function useTagStream(): void {
             // F3.7: la scrittura fallita non resta muta — RuntimeView ascolta
             // e mostra un toast (prima l'unico segnale era la console).
             window.dispatchEvent(new CustomEvent("sws:write-failed", {
-              detail: { tag: ack.tag, error: ack.error ?? "scrittura rifiutata" },
+              detail: { tag: ack.tag, error: ack.error ?? i18n.t("ws.scritturaRifiutata") },
             }));
           }
           return;

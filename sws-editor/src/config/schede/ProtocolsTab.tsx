@@ -20,7 +20,7 @@ import { ModbusRtuSourceCard } from "@/config/sorgenti/ModbusRtuSourceCard";
 import { MqttSourceCard } from "@/config/sorgenti/MqttSourceCard";
 import { DispositivoModbusCard, SalvaBusContext } from "@/config/sorgenti/DispositiviModbus";
 import {
-  dispositiviDi, eBusModbus, etichettaDispositivo, focusDispositivo, idElementiProtocolli, leggiFocus,
+  busImplicito, dispositiviDi, eBusModbus, etichettaDispositivo, focusDispositivo, idElementiProtocolli, leggiFocus,
 } from "@/config/sorgenti/modbusDispositivi";
 import type { VoceElencoConfig } from "@/store";
 import { segnalaSalvataggioFallito } from "@/config/salvataggioFallito";
@@ -77,7 +77,7 @@ export function ProtocolsTab() {
   // Un bus Modbus ha un terzo livello, i suoi dispositivi (04-10-2026).
   usePubblicaElenco("protocols", sources.map((x): VoceElencoConfig => {
     const voce: VoceElencoConfig = { id: x.id, etichetta: x.id, modificato: eModificato(storeProject?.sources, x) };
-    if (eBusModbus(x)) {
+    if (eBusModbus(x) && !busImplicito(x)) {
       voce.figli = dispositiviDi(x).map((d) => ({
         id: focusDispositivo(x.id, d.unit_id), etichetta: etichettaDispositivo(d), ...(d.modello ? { modello: d.modello } : {}),
       }));
@@ -199,7 +199,9 @@ export function ProtocolsTab() {
 
       {sources.map((src, i) => {
         if (focus !== null && src.id !== focus) return null;
-        if (eBusModbus(src) && scelto?.unit != null) {
+        // Un bus implicito si mostra intero anche col focus sul suo dispositivo
+        // (ci si arriva dopo «Dal catalogo»): la card è una sola.
+        if (eBusModbus(src) && scelto?.unit != null && !busImplicito(src)) {
           return (
             <DispositivoModbusCard
               key={i}
@@ -217,6 +219,7 @@ export function ProtocolsTab() {
               source={src}
               onChange={(updated) => updateSource(i, updated)}
               onDelete={() => removeSource(i)}
+              onCreateTag={handleCreateTag}
             />
           );
         }

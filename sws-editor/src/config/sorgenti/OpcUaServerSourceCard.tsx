@@ -80,7 +80,7 @@ export function OpcUaServerSourceCard({
           </div>
 
           <div style={{ marginBottom: 6, fontSize: 12, color: "var(--brand-text-subtle, #64748b)", fontWeight: 600, letterSpacing: 0.5 }}>
-            NODI ESPOSTI
+            {t("sorgenti.nodiEsposti")}
           </div>
           <table style={{ ...S.table, marginBottom: 8 }}>
             <thead>
@@ -112,7 +112,7 @@ export function OpcUaServerSourceCard({
                     </div>
                   </td>
                   <td style={S.td}>
-                    <input style={S.inputSm} placeholder={n.tag || "uguale al tag"}
+                    <input style={S.inputSm} placeholder={n.tag || t("sorgenti.ugualeAlTag")}
                       value={n.node_id ?? ""}
                       onChange={(e) => setNode(i, { node_id: e.target.value || undefined })}
                       spellCheck={false} />

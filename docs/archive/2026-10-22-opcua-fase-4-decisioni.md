@@ -1,5 +1,8 @@
 # OPC-UA, Fase 4 — le decisioni, prese il 23-10-2026
 
+> **FATTO e archiviato il 25-10-2026**: tutte e sei le decisioni sono costruite — 4a e 4b su `main` dalla 2.19.0,
+> 4c nella 2.20.0, 4d (strutture vere, server e client) chiusa il 25-10-2026.
+
 > **Tutte e sei decise.** Il riassunto è qui in testa; sotto, ogni voce porta il perché e le
 > opzioni scartate. Da qui si apre un ramo, non un'altra sessione di plan.
 
@@ -176,7 +179,7 @@ mai.** Nessun errore, nessun avviso.
 > OpenPLC, e di chi fra i due sia il master — ed è il contesto che la rende ovvia: un SWS esposto a
 > un altro sistema che scrive su un tag di campo e non lo manda al campo è un difetto che nessuno
 > vede finché non guarda il dispositivo. La stessa regola varrà per il **server Modbus**, quando
-> si farà: vedi il seme [server Modbus](2026-10-23-server-modbus.md).
+> si farà: vedi il seme [server Modbus](../plans/2026-10-23-server-modbus.md).
 
 ## 6. Un valore che non si sa leggere: Bad o Uncertain? — **DECISA: non gestito = Bad**
 

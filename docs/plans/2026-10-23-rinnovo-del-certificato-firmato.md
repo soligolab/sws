@@ -59,5 +59,5 @@ che è esattamente il caso di un certificato con due anni di vita.
 ## Ordine
 
 Questo lavoro viene **dopo** la prova sul TC620 (domanda 2 di
-[`2026-10-23-c4-tls-di-default.md`](2026-10-23-c4-tls-di-default.md)): se il browser del pannello
+[`2026-10-23-c4-tls-di-default.md`](../archive/2026-10-23-c4-tls-di-default.md)): se il browser del pannello
 non sa accettare un autofirmato, cambia il disegno di tutto il resto, scadenza compresa.

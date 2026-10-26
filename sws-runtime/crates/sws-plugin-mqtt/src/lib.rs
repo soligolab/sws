@@ -36,6 +36,27 @@ fn sottoscrivibile(topic: &str) -> bool {
 /// Una riga senza tag riceve e non ha dove mettere: ingerirla creerebbe un tag
 /// con **id vuoto** nel TagDb — succedeva davvero a ogni ciclo di retry, che
 /// marca Bad tutte le righe della sorgente.
+/// Le richieste di stato da pubblicare al collegamento (25-10-2026): una per
+/// coppia topic/payload, nell'ordine delle righe. Si scartano quelle con un
+/// topic vuoto o con caratteri jolly: un PUBLISH su `+`/`#` è un errore di
+/// protocollo, e il broker chiuderebbe la connessione dell'intera sorgente —
+/// lo stesso guasto della riga senza topic qui sopra.
+fn richieste_di_stato(topics: &[sws_core::TopicMapping]) -> Vec<sws_core::RichiestaStato> {
+    let mut viste = std::collections::HashSet::new();
+    topics
+        .iter()
+        .filter_map(|t| t.richiesta_stato.as_ref())
+        .filter(|r| pubblicabile(&r.topic))
+        .filter(|r| viste.insert((*r).clone()))
+        .cloned()
+        .collect()
+}
+
+/// Un topic su cui si può pubblicare: non vuoto e senza caratteri jolly.
+pub fn pubblicabile(topic: &str) -> bool {
+    !topic.trim().is_empty() && !topic.contains(['+', '#'])
+}
+
 fn mappata(tag: &str) -> bool {
     !tag.trim().is_empty()
 }
@@ -363,6 +384,18 @@ async fn run_session(
             .map_err(|e| anyhow::anyhow!("subscribe '{}': {e}", topic.topic))?;
     }
 
+    // Lo stato iniziale (25-10-2026): un broker senza `retain` non ha niente da
+    // consegnare alla sottoscrizione, e il tag resterebbe senza valore finché lo
+    // stato non cambia. Le richieste partono dopo le SUBSCRIBE, nella stessa coda
+    // del client: il broker le tratta in ordine, quindi la risposta trova la
+    // sottoscrizione già attiva. A ogni sessione, cioè anche dopo un ricollegamento.
+    for r in richieste_di_stato(&cfg.topics) {
+        client
+            .publish(&r.topic, source_qos, false, r.payload.clone().into_bytes())
+            .await
+            .map_err(|e| anyhow::anyhow!("richiesta di stato su '{}': {e}", r.topic))?;
+    }
+
     // Per-tag publish_qos lookup so we don't iterate cfg.topics on every write.
     let pub_qos: std::collections::HashMap<String, QoS> = cfg
         .topics
@@ -685,7 +718,8 @@ pub async fn browse(params: BrowseParams) -> Vec<BrowsedTopic> {
 
 #[cfg(test)]
 mod tests_righe {
-    use super::{mappata, sottoscrivibile};
+    use super::{mappata, pubblicabile, richieste_di_stato, sottoscrivibile};
+    use sws_core::{RichiestaStato, TopicMapping};
 
     /// Il caso vero, dal progetto Sandokan del 2026-09-07: la prima riga della
     /// sorgente `mqtt-casa` aveva `topic: ''` (28 righe in tutto). Sottoscriverla
@@ -716,5 +750,40 @@ mod tests_righe {
         assert!(!mappata(""));
         assert!(!mappata("  "));
         assert!(mappata("sandokan.power"));
+    }
+
+    fn riga(topic: &str, richiesta: Option<(&str, &str)>) -> TopicMapping {
+        TopicMapping {
+            tag: "t".into(),
+            topic: topic.into(),
+            json_path: None,
+            publish_topic: None,
+            qos: None,
+            richiesta_stato: richiesta.map(|(t, p)| RichiestaStato { topic: t.into(), payload: p.into() }),
+        }
+    }
+
+    /// Lo switch a tre vie del garage (25-10-2026): tre righe sullo stesso
+    /// topic di stato, tre richieste diverse sullo stesso `…/get`. Partono tutte
+    /// e tre; una riga copiata due volte ne manda una sola; una senza
+    /// richiesta non ne manda; un topic con caratteri jolly non parte, perché
+    /// il broker chiuderebbe la connessione.
+    #[test]
+    fn le_richieste_di_stato_del_garage() {
+        let righe = vec![
+            riga("zigbee2mqtt/garage", Some(("zigbee2mqtt/garage/get", r#"{"state_l1":""}"#))),
+            riga("zigbee2mqtt/garage", Some(("zigbee2mqtt/garage/get", r#"{"state_l2":""}"#))),
+            riga("zigbee2mqtt/garage", Some(("zigbee2mqtt/garage/get", r#"{"state_l3":""}"#))),
+            riga("zigbee2mqtt/garage", Some(("zigbee2mqtt/garage/get", r#"{"state_l3":""}"#))),
+            riga("casa/luce", None),
+            riga("casa/x", Some(("casa/+/get", ""))),
+            riga("casa/y", Some(("  ", "{}"))),
+        ];
+        let r = richieste_di_stato(&righe);
+        assert_eq!(r.len(), 3, "{r:?}");
+        assert_eq!(r[0].payload, r#"{"state_l1":""}"#);
+        assert_eq!(r[2].payload, r#"{"state_l3":""}"#);
+        assert!(!pubblicabile("casa/#"));
+        assert!(pubblicabile("zigbee2mqtt/garage/get"));
     }
 }

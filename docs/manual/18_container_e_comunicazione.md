@@ -389,6 +389,13 @@ sequenceDiagram
   il tunnel si stacca, il pannello si ricollega da sé, e l'azienda di prima non lo raggiunge più. *(Fino al
   21-10-2026 bastava che un pannello fosse sospeso perché chiunque avesse il codice se lo portasse via:
   sospenderlo per manutenzione voleva dire lasciarlo prendere.)*
+- **Vivo, spento o perso.** Il pannello batte ogni 30 s (un byte su uno stream, che attraversa TCP, TLS e
+  WebSocket e tiene aperti i NAT). Il gateway **ascolta quei battiti**: se un pannello che ha già battuto tace per
+  oltre 95 s, il tunnel si dà per morto e si chiude anche se il socket non è caduto (la *half-open* di un NAT che
+  dimentica la connessione senza dirlo). Allo spegnimento ordinato — SIGTERM, che l'UPS del TC620 e del WP630 rende
+  possibile anche a corrente mancata — il pannello annuncia «mi spengo» prima di chiudere le sorgenti: nella pagina
+  *Pannelli* della console il pallino è **verde** (collegato), **giallo** (spento, annunciato, con l'ora) o
+  **grigio** (perso). *(Dal 26-10-2026; prima il verde voleva dire solo «il socket non è ancora caduto».)*
 - **Quanti ne ha ogni azienda** si legge nella prima pagina della console, accanto ai progetti aperti: quanti
   abbinati e quanti accesi adesso. Se l'azienda ha un `max_pannelli` concordato, è scritto accanto al numero ma
   **non ferma niente**: prima di rifiutare un abbinamento va deciso quando una licenza si libera.

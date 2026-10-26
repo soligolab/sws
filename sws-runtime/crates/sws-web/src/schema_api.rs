@@ -196,6 +196,8 @@ pub async fn validate_project(
     let cornici = carica_cornici(&dir).await;
     findings.extend(crate::validate::rilievi_cornici(&project, &pages, &cornici));
     findings.extend(crate::validate::rilievi_finestre(&project, &pages));
+    let trasporti = trasporti_catalogo(&s).await;
+    findings.extend(crate::validate::rilievi_trasporto(&project, &trasporti));
 
     // ── 5. Cosa c'era già ────────────────────────────────────────────────────
     // Stessa validazione sul progetto e sulle pagine **come stanno su disco**.
@@ -210,6 +212,9 @@ pub async fn validate_project(
             prima.insert(chiave(&f));
         }
         for f in crate::validate::rilievi_finestre(&p0, &pg0) {
+            prima.insert(chiave(&f));
+        }
+        for f in crate::validate::rilievi_trasporto(&p0, &trasporti) {
             prima.insert(chiave(&f));
         }
     }
@@ -252,7 +257,18 @@ pub async fn project_findings(State(s): State<AppState>) -> Json<Vec<Finding>> {
     let mut out = semantic(&project, &pages);
     out.extend(crate::validate::rilievi_cornici(&project, &pages, &carica_cornici(&dir).await));
     out.extend(crate::validate::rilievi_finestre(&project, &pages));
+    out.extend(crate::validate::rilievi_trasporto(&project, &trasporti_catalogo(&s).await));
     Json(out)
+}
+
+/// `id del catalogo → trasporto`, per `rilievi_trasporto`.
+async fn trasporti_catalogo(s: &AppState) -> std::collections::HashMap<String, String> {
+    let r = crate::catalogo::Radici::da(s);
+    tokio::task::spawn_blocking(move || {
+        crate::catalogo::elenco(&r).voci.into_iter().filter_map(|v| Some((v.id, v.trasporto?))).collect()
+    })
+    .await
+    .unwrap_or_default()
 }
 
 /// Le cornici del progetto su disco; una illeggibile si salta.

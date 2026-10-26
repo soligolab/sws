@@ -21,6 +21,7 @@ import { api, type ArchivioImpronte, type CertificatoFile, type DettagliCertific
 import { S } from "@/config/comuni";
 import { useAppStore } from "@/store";
 import { TlsSection } from "@/config/schede/SystemTab";
+import { etichettaDispositivo } from "@/ws/remoteLogStream";
 
 const SCATOLA: CSSProperties = {
   background: "var(--brand-bg, #0f172a)", border: "1px solid var(--brand-surface, #1e293b)",
@@ -44,7 +45,8 @@ export function CertificatiTab() {
   const { t } = useTranslation();
   const remoteConnected = useAppStore((s) => s.remoteConnected);
   const remoteUrl = useAppStore((s) => s.remoteUrl);
-  const host = (() => { try { return remoteUrl ? new URL(remoteUrl).host : ""; } catch { return remoteUrl ?? ""; } })();
+  // Nel cloud il nome del pannello, non quello del gateway (`…/dev/<pannello>`).
+  const host = etichettaDispositivo(remoteUrl, []);
   return (
     <div style={S.page}>
       <div style={S.body}>
@@ -90,7 +92,7 @@ function ColonnaCertificati({ remoto, titolo }: { remoto: boolean; titolo: strin
             dimentica={(k) => fai(() => api.dimenticaImpronta(remoto, "dispositivi", k), t("certificati.dimenticaConferma", { chiave: k }))} />
           <Impronte titolo={t("certificati.mqtt")} spiega={t("certificati.mqttSpiega")} a={inv.mqtt}
             dimentica={(k) => fai(() => api.dimenticaImpronta(remoto, "mqtt", k), t("certificati.dimenticaConferma", { chiave: k }))} />
-          <Impronte titolo={t("certificati.viewer")} spiega={inv.viewer_lvgl.disponibile ? t("certificati.viewerSpiega") : t("certificati.viewerAssente")}
+          <Impronte titolo={t("certificati.viewer")} spiega={inv.viewer_lvgl.disponibile ? t("certificati.viewerSpiega") : remoto ? t("certificati.viewerAssente") : t("certificati.viewerNonQui")}
             a={inv.viewer_lvgl} />
 
           <Sezione titolo={t("certificati.opcuaClient")}>

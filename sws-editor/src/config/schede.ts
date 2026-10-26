@@ -77,9 +77,13 @@ export const SCHEDE = [
   { id: "alarms",        ramo: "progetto",  icona: "🔔", soloAdmin: false, portaBozza: true,  richiedeProgetto: true, sezione: "alarms"  },
   { id: "scripts",       ramo: "progetto",  icona: "🐍", soloAdmin: false, portaBozza: true,  richiedeProgetto: false, elementi: true, sezione: "global_scripts" },
   { id: "faceplates",    ramo: "progetto",  icona: "🧩", soloAdmin: false, portaBozza: true,  richiedeProgetto: false, elementi: true, sezione: "faceplates" },
+  // I report programmati (P3, 26-10-2026).
+  { id: "reports",       ramo: "progetto",  icona: "📑", soloAdmin: false, portaBozza: true,  richiedeProgetto: true, sezione: "reports" },
   { id: "recipes",       ramo: "progetto",  icona: "📋", soloAdmin: false, portaBozza: true,  richiedeProgetto: false, elementi: true, sezione: "recipes" },
   { id: "notifications", ramo: "progetto",  icona: "✉", soloAdmin: false, portaBozza: true,  richiedeProgetto: false, sezione: "notifications", sottoRamo: "notifiche" },
   { id: "telegram",      ramo: "progetto",  icona: "💬", soloAdmin: false, portaBozza: true,  richiedeProgetto: false, sezione: "notifications", sottoRamo: "notifiche", ospite: "notifications" },
+  // SMS, chiamate e reperibilità (P4, 26-10-2026).
+  { id: "telefono",      ramo: "progetto",  icona: "📞", soloAdmin: false, portaBozza: true,  richiedeProgetto: false, sezione: "notifications", sottoRamo: "notifiche", ospite: "notifications" },
   { id: "eventi",        ramo: "progetto",  icona: "🔀", soloAdmin: false, portaBozza: true,  richiedeProgetto: false, sezione: "notifications", sottoRamo: "notifiche", ospite: "notifications" },
   { id: "stile",         ramo: "progetto",  icona: "🎨", soloAdmin: false, portaBozza: true,  richiedeProgetto: true, sezione: "symbol_style" },
   { id: "languages",     ramo: "progetto",  icona: "🌐", soloAdmin: false, portaBozza: true,  richiedeProgetto: true, sezione: "languages"  },

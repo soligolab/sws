@@ -445,7 +445,7 @@ export function RuntimeConnectionTab() {
       const res = await api.pullRemoteProject();
       const suggested = res.headers.get("X-Project-Name") || t("cfgUi.project2");
       const blob = await res.blob();
-      log(`✓ Scaricato "${suggested}" (${(blob.size / 1024).toFixed(1)} KB)`);
+      log(t("cfgUi.scaricatoKb", { nome: suggested, kb: (blob.size / 1024).toFixed(1) }));
 
       // ARCHIVIO, subito: il .zip esce dal browser prima che qualsiasi cosa
       // tocchi il disco. Se il resto del flusso va storto — o se l'aggiornamento
@@ -453,7 +453,7 @@ export function RuntimeConnectionTab() {
       // progetto com'era sul dispositivo esiste già.
       const stamp = new Date().toISOString().slice(0, 10);
       downloadBlob(blob, `${suggested}-dal-runtime-${stamp}.zip`);
-      log(`✓ Copia di sicurezza scaricata: ${suggested}-dal-runtime-${stamp}.zip`);
+      log(t("cfgUi.copiaSicurezzaScaricata", { file: `${suggested}-dal-runtime-${stamp}.zip` }));
 
       const locals = await api.listProjects().catch(() => []);
       setPullAsk({
@@ -489,7 +489,7 @@ export function RuntimeConnectionTab() {
       if (ask.dirty && ask.saveFirst) {
         if (!await flushBeforeDeploy(log)) { setPulling(false); return; }
       } else if (ask.dirty) {
-        log("⚠ Modifiche locali non salvate: scartate su richiesta");
+        log(t("cfgUi.modificheScartate"));
       }
 
       log(t("cfgUi.closingTheOpenProject"));
@@ -507,7 +507,7 @@ export function RuntimeConnectionTab() {
 
       log(`Import come "${name}"…`);
       const created = await api.uploadProjectZip(ask.blob, name);
-      log(`Apertura di "${created.name}"…`);
+      log(t("cfgUi.aperturaDi", { nome: created.name }));
       await api.openProject(created.riferimento);
       // Q30: la versione vista è quella del progetto di **prima**. Tenerla
       // farebbe rifiutare il primo salvataggio su quello nuovo con un 409 che
@@ -520,7 +520,7 @@ export function RuntimeConnectionTab() {
       // pulsante "⚠ Aggiorna progetto" offrirà se le versioni divergono.
       try {
         const b = await api.createBackup();
-        log(`✓ Backup nel runtime IDE: ${b.name}`);
+        log(t("cfgUi.backupNelRuntimeIde", { nome: b.name }));
       } catch (e: any) {
         log(t("cfgUi.backupFailedOpen", { message: e?.message ?? String(e) }));
       }
@@ -621,13 +621,13 @@ export function RuntimeConnectionTab() {
               title={t("cfg.openHealthTls")}
               disabled={!target}
               onClick={() => { if (target) window.open(`${target}/health`, "_blank"); }}
-            >Accetta cert TLS ↗</button>
+            >{t("cfgUi.accettaCertTls")}</button>
             <button
               style={{ ...BTN, whiteSpace: "nowrap", flexShrink: 0 }}
               title={t("cfg.discoverMdns")}
               disabled={discovering}
               onClick={handleDiscover}
-            >{discovering ? "Cerco…" : t("cfgUi.findRuntime")}</button>
+            >{discovering ? t("cfgUi.cerco") : t("cfgUi.findRuntime")}</button>
           </div>
           {discoverError && (
             <div style={{ background: "var(--brand-bg, #0f172a)", border: "1px solid var(--brand-warning, #f59e0b)", borderRadius: 4, padding: "8px 10px", display: "flex", flexDirection: "column", gap: 6 }}>
@@ -729,7 +729,7 @@ export function RuntimeConnectionTab() {
             </div>
           )}
           <span style={{ fontSize: 10, color: "var(--brand-text-subtle, #94a3b8)" }}>
-            Porta 7444 = accesso admin (deploy). Porta 7443 = viewer operatori.
+            {t("cfgUi.porteSpiega")}
           </span>
           {/* «SWS» nell'etichetta, e il perché sotto: questi sono gli utenti
               applicativi del progetto (users.yaml), non l'utente SSH del
@@ -774,7 +774,7 @@ export function RuntimeConnectionTab() {
           <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
             {!connected && (
               <button style={BTN_PRIMARY} onClick={handleConnect} disabled={status === "connecting"}>
-                {status === "connecting" ? t("cfgUi.connecting") : "Connetti"}
+                {status === "connecting" ? t("cfgUi.connecting") : t("cfgUi.connetti")}
               </button>
             )}
             {connected && (
@@ -800,7 +800,7 @@ export function RuntimeConnectionTab() {
             </span>
           ) : (
             <span style={{ color: "var(--brand-success-soft, #4ade80)", fontWeight: 600, fontSize: 13 }}>
-              ● Connesso a {hostLabel}
+              {t("cfgUi.connessoA", { host: hostLabel })}
             </span>
           )
         )}
@@ -861,7 +861,7 @@ export function RuntimeConnectionTab() {
           {!deployDone && (
             <button style={{ ...BTN_PRIMARY, opacity: deploying ? 0.6 : 1 }}
               onClick={handleDeploy} disabled={deploying}>
-              {deploying ? "Deploy in corso…" : t("cfgUi.deployActiveProject")}
+              {deploying ? t("cfgUi.deployInCorso") : t("cfgUi.deployActiveProject")}
             </button>
           )}
           {deployLog.length > 0 && (
@@ -889,11 +889,11 @@ export function RuntimeConnectionTab() {
             <button style={{ ...BTN, opacity: pushingUsers ? 0.6 : 1 }}
               title={t("cfg.pushUsersOnlyTitle")}
               onClick={handlePushUsers} disabled={pushingUsers}>
-              {pushingUsers ? "Invio…" : t("cfgUi.updateUsersOnTheDevice")}
+              {pushingUsers ? t("common.invio") : t("cfgUi.updateUsersOnTheDevice")}
             </button>
             <button style={{ ...BTN_RED, opacity: deletingRemote ? 0.6 : 1 }}
               onClick={handleDeleteRemoteProject} disabled={deletingRemote}>
-              {deletingRemote ? "Eliminazione…" : t("cfgUi.deleteProjectOnTheRuntime")}
+              {deletingRemote ? t("cfgUi.eliminazione") : t("cfgUi.deleteProjectOnTheRuntime")}
             </button>
             {remoteMsg && (
               <div style={{ marginTop: 8, fontSize: 12, color: remoteMsg.startsWith("✗") ? "var(--brand-danger-soft, #f87171)" : "var(--brand-success-soft, #4ade80)" }}>
@@ -918,7 +918,7 @@ export function RuntimeConnectionTab() {
           {!pullDone && (
             <button style={{ ...BTN, opacity: pulling ? 0.6 : 1 }}
               onClick={handlePullProject} disabled={pulling || deploying}>
-              {pulling ? "Lettura in corso…" : t("cfgUi.reopenTheDeviceSProject2")}
+              {pulling ? t("cfgUi.letturaInCorso") : t("cfgUi.reopenTheDeviceSProject2")}
             </button>
           )}
           {pullLog.length > 0 && (
@@ -961,7 +961,7 @@ export function RuntimeConnectionTab() {
             {pullAsk.savedBy && pullAsk.localVersion && pullAsk.savedBy !== pullAsk.localVersion && (
               <div style={{ fontSize: 12, color: "var(--brand-warning-soft, #fbbf24)", background: "var(--brand-warning-bg, #78350f)", border: "1px solid var(--brand-warning, #f59e0b)", borderRadius: 4, padding: "6px 8px" }}>
                 {t("header.migrateConfirm", { savedBy: pullAsk.savedBy, runtime: pullAsk.localVersion })}
-                {" "}L'aggiornamento non avviene ora: dopo l'apertura comparirà il pulsante «⚠ Aggiorna progetto».
+                {" "}{t("cfgUi.aggiornamentoDopoApertura")}
               </div>
             )}
 
@@ -1027,7 +1027,7 @@ export function RuntimeConnectionTab() {
       {connected && (
         <section>
           <div style={{ fontSize: 13, fontWeight: 600, color: "var(--brand-text-muted, #94a3b8)", marginBottom: 8, textTransform: "uppercase", letterSpacing: 1 }}>
-            Log remoti
+            {t("cfgUi.logRemoti")}
           </div>
           <span style={{ fontSize: 12, color: "var(--brand-text-subtle, #64748b)" }}>
             <Trans i18nKey="cfgUi.remoteLogsHint" components={TRANS_COMP} />

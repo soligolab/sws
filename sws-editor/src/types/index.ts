@@ -1160,6 +1160,18 @@ export interface DispositivoModbus {
   /** Assente = 3000. */
   timeout_ms?: number;
   registers: RegisterMapping[];
+  /** La configurazione del modulo (configuratore, 25-10-2026): il runtime la
+   *  legge a ogni sessione e scrive solo le differenze. Gemello di
+   *  `sws_core::ParametroSetup`. */
+  setup?: ParametroSetup[];
+}
+
+export interface ParametroSetup {
+  nome: string;
+  indirizzo: number;
+  valore: number;
+  /** Dove si scrive, se diverso (area a salvataggio ritardato degli MCM260X). */
+  indirizzo_scrittura?: number;
 }
 
 /** Una porta seriale vista da un runtime (`GET /api/host/seriali`). */
@@ -1196,6 +1208,10 @@ export interface RegistroCatalogo {
   predefinito?: boolean;
   descrizione?: TestoIt;
   bit?: BitCatalogo[];
+  /** L'enumerazione per la tendina del configuratore (25-10-2026). */
+  valori?: Record<string, TestoIt>;
+  /** `false` = non si configura dal progetto (indirizzo, baud…). */
+  setup?: boolean;
 }
 
 /** Una voce dell'elenco del catalogo. */
@@ -1206,6 +1222,9 @@ export interface VoceCatalogoElenco {
   famiglia?: string;
   descrizione?: TestoIt;
   immagine?: string;
+  /** `modbus.trasporto` del file (25-10-2026). Assente su un file utente
+   *  vecchio: allora non si filtra. */
+  trasporto?: "tcp" | "rtu" | "entrambi";
   origine: "prodotto" | "utente";
 }
 
@@ -1222,6 +1241,9 @@ export interface VoceCatalogo extends VoceCatalogoElenco {
     ordine?: OrdineModbus;
     timeout_ms?: number;
     seriale?: { baud_rate: number; parity: string; data_bits: number; stop_bits: number };
+    trasporto?: "tcp" | "rtu" | "entrambi";
+    /** Gli indirizzi letti in `da..a` si scrivono `scostamento` più in là. */
+    setup_ritardato?: { da: number; a: number; scostamento: number };
   };
   registri: RegistroCatalogo[];
 }
@@ -1287,6 +1309,15 @@ export interface TopicMapping {
   publish_topic?: string;
   /** Per-mapping QoS override (0 / 1 / 2). Falls back to MqttSource.qos. */
   qos?: number;
+  /** Richiesta dello stato al collegamento (25-10-2026): il runtime pubblica
+   *  `payload` su `topic` dopo le sottoscrizioni. Gemello di
+   *  `sws_core::RichiestaStato`. */
+  richiesta_stato?: RichiestaStato;
+}
+
+export interface RichiestaStato {
+  topic: string;
+  payload: string;
 }
 
 export interface MqttTlsConfig {
@@ -1689,6 +1720,30 @@ export interface TelegramConfig {
 }
 
 /** Un destinatario email, con la lingua in cui scrivergli (29-09-2026). */
+/** Un report programmato (P3, 26-10-2026). Gemello di `sws_core::ReportDef`. */
+export interface ReportDef {
+  id: string;
+  titolo?: string;
+  periodo?: "turno" | "giorno" | "settimana" | "mese";
+  /** Cron a cinque campi; assente = quello del periodo. */
+  quando?: string;
+  tags: string[];
+  intervallo_min?: number;
+  /** Assente = sì. */
+  allarmi?: boolean;
+  formati?: ("pdf" | "xlsx")[];
+  email?: Destinatario[];
+  conserva?: number;
+}
+
+export interface FileReport { nome: string; dimensione: number; quando_ms: number }
+
+export interface ReportElenco extends ReportDef {
+  file: FileReport[];
+  /** Questo processo li genera da solo (il pannello sì, IDE e cloud no). */
+  programmati: boolean;
+}
+
 export interface Destinatario {
   indirizzo: string;
   /** Assente = la lingua del canale email. */
@@ -1698,7 +1753,19 @@ export interface Destinatario {
 /** Dove va l'email di un allarme, come `telegram_mode` per Telegram. */
 export type AlarmEmailMode = "progetto" | "propri" | "off";
 
-export interface CanaliEvento { email: boolean; telegram: boolean }
+export interface CanaliEvento {
+  email: boolean;
+  telegram: boolean;
+  /** SMS e chiamata ai reperibili (P4, 26-10-2026): solo scatto ed escalation. */
+  sms?: boolean;
+  voce?: boolean;
+}
+
+/** L'account Twilio (P4). Il token arriva mascherato dalle GET. */
+export interface TwilioConfig { account_sid: string; auth_token: string; numero: string }
+
+/** Una persona reperibile: giorni 1 (lun) - 7 (dom), fascia `HH:MM`. */
+export interface Reperibile { nome: string; telefono: string; giorni?: number[]; dalle?: string; alle?: string }
 
 /** La tabella eventi × canali della scheda Notifiche. Assente = i default, che
  *  riproducono il comportamento di prima (vedi `TABELLA_PREDEFINITA`). */
@@ -1734,6 +1801,12 @@ export interface NotificationConfig {
   notify_lang_email?: string;
   /** Lingua dei soli messaggi Telegram, se diversa dalla predefinita. */
   notify_lang_telegram?: string;
+  /** SMS e chiamate (P4, 26-10-2026). */
+  twilio?: TwilioConfig;
+  /** L'ordine è l'ordine di escalation. */
+  reperibili?: Reperibile[];
+  /** Minuti prima di avvisare il reperibile successivo. Assente = 10. */
+  telefono_attesa_min?: number;
 }
 
 /** How synoptic pages are sized/scaled at runtime — project-wide setting. */
@@ -1809,6 +1882,8 @@ export interface ProjectInfo {
   custom_symbols?: CustomSymbol[];
   datastores?: DatastoreConfig[];
   global_scripts?: GlobalScriptDef[];
+  /** I report programmati (P3, 26-10-2026). */
+  reports?: ReportDef[];
   notifications?: NotificationConfig;
   languages?: LanguageTable;
   page_layout?: PageLayoutConfig;

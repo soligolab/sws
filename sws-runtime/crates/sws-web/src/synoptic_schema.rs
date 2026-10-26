@@ -945,6 +945,7 @@ pub const SOURCE_MODBUS_TCP_DISPOSITIVOMODBUS_FIELDS: &[Field] = &[
     Field { name: "poll_interval_ms", ty: "number", required: false, group: "", doc: "Vuoto = quello del bus." },
     Field { name: "timeout_ms", ty: "number", required: false, group: "", doc: "Attesa massima di una risposta, in ms." },
     Field { name: "registers", ty: "RegisterMapping[]", required: false, group: "", doc: "" },
+    Field { name: "setup", ty: "ParametroSetup[]", required: false, group: "", doc: "La configurazione del modulo (configuratore, 25-10-2026): parametri che il progetto vuole così — tipo di sonda di un ingresso, tipo di un'uscita… A ogni sessione, alla prima risposta del dispositivo, il runtime li legge e **scrive solo quelli diversi**: vince il progetto, e un modulo sostituito o resettato torna configurato da solo. Ogni voce è completa — indirizzo compreso — perché il runtime non legge il catalogo: l'IDE la compila da lì." },
 ];
 
 /// Campi di `RegisterMapping`, usato dentro la sorgente `modbus_tcp`.
@@ -982,6 +983,7 @@ pub const SOURCE_MODBUS_RTU_DISPOSITIVOMODBUS_FIELDS: &[Field] = &[
     Field { name: "poll_interval_ms", ty: "number", required: false, group: "", doc: "Vuoto = quello del bus." },
     Field { name: "timeout_ms", ty: "number", required: false, group: "", doc: "Attesa massima di una risposta, in ms." },
     Field { name: "registers", ty: "RegisterMapping[]", required: false, group: "", doc: "" },
+    Field { name: "setup", ty: "ParametroSetup[]", required: false, group: "", doc: "La configurazione del modulo (configuratore, 25-10-2026): parametri che il progetto vuole così — tipo di sonda di un ingresso, tipo di un'uscita… A ogni sessione, alla prima risposta del dispositivo, il runtime li legge e **scrive solo quelli diversi**: vince il progetto, e un modulo sostituito o resettato torna configurato da solo. Ogni voce è completa — indirizzo compreso — perché il runtime non legge il catalogo: l'IDE la compila da lì." },
 ];
 
 /// Campi di `RegisterMapping`, usato dentro la sorgente `modbus_rtu`.
@@ -1036,6 +1038,7 @@ pub const SOURCE_MQTT_TOPICMAPPING_FIELDS: &[Field] = &[
     Field { name: "json_path", ty: "string", required: false, group: "", doc: "Optional dot-separated JSON path. If set, the payload is parsed as JSON and the field at `json_path` is extracted (e.g. \"temperature\" → root.temperature)." },
     Field { name: "publish_topic", ty: "string", required: false, group: "", doc: "Optional outbound topic. When set, a `PUT /api/tags/:id` for `tag` is forwarded to this topic as a raw string payload (`true` / `42.5` / `…`). If equal to `topic`, the same channel is used for read and write." },
     Field { name: "qos", ty: "number", required: false, group: "", doc: "Per-mapping QoS override (0 / 1 / 2). When absent, the source-level `MqttConfig::qos` is used, then 0 as the final fallback." },
+    Field { name: "richiesta_stato", ty: "RichiestaStato", required: false, group: "", doc: "Richiesta dello stato al collegamento: dopo le sottoscrizioni il runtime pubblica `payload` su `topic`, e il dispositivo risponde sul `topic` della riga. Serve quando il broker non conserva l'ultimo valore (`retain` spento, come Zigbee2MQTT di default): senza, dopo un riavvio il tag resta senza valore finché lo stato non cambia. Per Zigbee2MQTT: topic `<topic>/get`, payload `{\"<json_path>\":\"\"}`." },
 ];
 
 /// Campi della sorgente `opcua_client` (OpcUaClientConfig).

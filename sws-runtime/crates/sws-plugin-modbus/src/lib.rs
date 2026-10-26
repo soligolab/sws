@@ -413,6 +413,11 @@ pub struct Unita {
     pub timeout: Duration,
     pub intervallo: Duration,
     pub registri: Vec<RegisterMapping>,
+    pub setup: Vec<sws_core::ParametroSetup>,
+    /// Il setup è stato applicato **in questa sessione**: si rifà a ogni
+    /// ricollegamento, perché è il momento in cui un modulo può essere stato
+    /// sostituito o spento.
+    setup_fatto: bool,
     in_errore: HashSet<String>,
     giri_muti: u32,
     prossimo: Instant,
@@ -426,6 +431,8 @@ impl Unita {
             timeout: Duration::from_millis(d.timeout_ms.max(10)),
             intervallo: Duration::from_millis(d.poll_interval_ms.unwrap_or(poll_bus_ms).max(10)),
             registri: d.registers.clone(),
+            setup: d.setup.clone(),
+            setup_fatto: false,
             in_errore: HashSet::new(),
             giri_muti: 0,
             prossimo: Instant::now(),
@@ -454,6 +461,12 @@ pub async fn giro_unita<D: Dispositivo>(
     dev.imposta_unita(u.unit_id);
     let m = prepara(db, &u.registri).await;
     let esito = leggi_giro(dev, db, &m, u.ordine, u.timeout, &mut u.in_errore, sorgente).await?;
+    // Il setup alla prima risposta della sessione. Un dispositivo senza
+    // mappature ma con un setup lo riceve lo stesso: lì la lettura dei
+    // parametri fa da prova di vita.
+    if !u.setup_fatto && !u.setup.is_empty() && (esito.risposte > 0 || m.is_empty()) {
+        u.setup_fatto = applica_setup(dev, u, sorgente).await?;
+    }
     if m.is_empty() {
         return Ok(());
     }
@@ -471,6 +484,58 @@ pub async fn giro_unita<D: Dispositivo>(
     Ok(())
 }
 
+/// Il configuratore dei moduli (25-10-2026): legge ogni parametro del setup,
+/// lo confronta col progetto e **scrive solo quelli diversi** (decisione del
+/// maintainer: vince il progetto, e non si consuma la memoria del modulo
+/// riscrivendo valori uguali). Il log dice cosa è cambiato.
+///
+/// `Ok(true)` = fatto (anche con parametri rifiutati, che si dicono e non si
+/// ritentano a ogni giro); `Ok(false)` = il dispositivo non ha risposto, si
+/// riprova al prossimo giro; `Err` = la connessione è caduta.
+pub async fn applica_setup<D: Dispositivo>(dev: &mut D, u: &Unita, sorgente: &str) -> anyhow::Result<bool> {
+    let mut cambiati = 0;
+    let mut rifiutati = 0;
+    for p in &u.setup {
+        let voluto = p.valore as u16;
+        let letto = match tokio::time::timeout(u.timeout, dev.leggi(AreaModbus::Holding, p.indirizzo, 1)).await {
+            Err(_) => return Ok(false),
+            Ok(Err(e)) if e_trasporto(&e) => return Err(e.into()),
+            Ok(Err(e)) => {
+                warn!(source = %sorgente, unit_id = u.unit_id, parametro = %p.nome, indirizzo = p.indirizzo,
+                    "Modbus: setup del modulo — il parametro non si legge ({e}), non lo scrivo");
+                rifiutati += 1;
+                continue;
+            }
+            Ok(Ok(Letti::Registri(v))) => v.first().copied(),
+            Ok(Ok(Letti::Bit(_))) => None,
+        };
+        if letto == Some(voluto) {
+            continue;
+        }
+        let dove = p.indirizzo_scrittura.unwrap_or(p.indirizzo);
+        match tokio::time::timeout(u.timeout, dev.scrivi_registri(dove, &[voluto])).await {
+            Err(_) => return Ok(false),
+            Ok(Err(e)) if e_trasporto(&e) => return Err(e.into()),
+            Ok(Err(e)) => {
+                warn!(source = %sorgente, unit_id = u.unit_id, parametro = %p.nome, indirizzo = dove, valore = p.valore,
+                    "Modbus: setup del modulo — il modulo rifiuta il valore ({e})");
+                rifiutati += 1;
+            }
+            Ok(Ok(())) => {
+                info!(source = %sorgente, unit_id = u.unit_id, parametro = %p.nome,
+                    "Modbus: setup del modulo — {} da {} a {}", p.nome,
+                    letto.map(|x| x.to_string()).unwrap_or_else(|| "?".into()), p.valore);
+                cambiati += 1;
+            }
+        }
+    }
+    if cambiati > 0 || rifiutati > 0 {
+        info!(source = %sorgente, unit_id = u.unit_id, cambiati, rifiutati, uguali = u.setup.len() - cambiati - rifiutati,
+            "Modbus: setup del modulo applicato");
+    }
+    Ok(true)
+}
+
 /// Una sessione sul bus: i dispositivi a turno, ognuno col suo intervallo, e le
 /// scritture, finché la connessione regge.
 pub async fn sessione<D: Dispositivo>(
@@ -486,6 +551,7 @@ pub async fn sessione<D: Dispositivo>(
     for u in unita.iter_mut() {
         u.prossimo = Instant::now();
         u.giri_muti = 0;
+        u.setup_fatto = false;
     }
     loop {
         let prossimo = unita.iter().map(|u| u.prossimo).min().unwrap_or_else(|| Instant::now() + Duration::from_secs(3600));

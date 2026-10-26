@@ -639,6 +639,30 @@ pub struct DispositivoModbus {
     pub timeout_ms: u64,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub registers: Vec<RegisterMapping>,
+    /// La configurazione del modulo (configuratore, 25-10-2026): parametri che il
+    /// progetto vuole così — tipo di sonda di un ingresso, tipo di un'uscita… A
+    /// ogni sessione, alla prima risposta del dispositivo, il runtime li legge e
+    /// **scrive solo quelli diversi**: vince il progetto, e un modulo sostituito o
+    /// resettato torna configurato da solo. Ogni voce è completa — indirizzo
+    /// compreso — perché il runtime non legge il catalogo: l'IDE la compila da lì.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub setup: Vec<ParametroSetup>,
+}
+
+/// Vedi `DispositivoModbus::setup`. Un registro holding a 16 bit.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct ParametroSetup {
+    /// Il nome del parametro nel catalogo (`tipo_sensore_ai1`): per il log.
+    pub nome: String,
+    /// Dove si legge.
+    pub indirizzo: u16,
+    /// Il valore che il progetto vuole.
+    pub valore: i64,
+    /// Dove si scrive, se diverso da dove si legge: sugli MCM260X i parametri
+    /// letti in 2001-2100 si scrivono in 4001-4100, che salva in memoria dopo 10 s
+    /// dall'ultima scrittura invece che a ogni scrittura (manuale §9.2).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub indirizzo_scrittura: Option<u16>,
 }
 
 pub const TIMEOUT_MODBUS_MS: u64 = 3000;
@@ -674,6 +698,7 @@ fn dispositivi_modbus(devices: &[DispositivoModbus], unit_id: u8, ordine: Ordine
         poll_interval_ms: None,
         timeout_ms: TIMEOUT_MODBUS_MS,
         registers: registers.to_vec(),
+        setup: Vec::new(),
     }]
 }
 
@@ -932,6 +957,24 @@ pub struct TopicMapping {
     /// `MqttConfig::qos` is used, then 0 as the final fallback.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub qos: Option<u8>,
+    /// Richiesta dello stato al collegamento: dopo le sottoscrizioni il runtime
+    /// pubblica `payload` su `topic`, e il dispositivo risponde sul `topic` della
+    /// riga. Serve quando il broker non conserva l'ultimo valore (`retain`
+    /// spento, come Zigbee2MQTT di default): senza, dopo un riavvio il tag resta
+    /// senza valore finché lo stato non cambia. Per Zigbee2MQTT: topic
+    /// `<topic>/get`, payload `{"<json_path>":""}`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub richiesta_stato: Option<RichiestaStato>,
+}
+
+/// Vedi `TopicMapping::richiesta_stato`.
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub struct RichiestaStato {
+    /// Topic su cui pubblicare la richiesta. Senza caratteri jolly (`+`, `#`).
+    pub topic: String,
+    /// Payload della richiesta, così com'è (testo o JSON).
+    #[serde(default)]
+    pub payload: String,
 }
 
 /// OPC-UA client source. Connects to an `opc.tcp://…` endpoint, creates a
@@ -1529,6 +1572,47 @@ pub struct NotificationConfig {
     /// Lingua dei messaggi Telegram, se diversa dalla predefinita.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub notify_lang_telegram: Option<String>,
+    /// SMS e chiamate vocali con Twilio (P4, 26-10-2026; piano
+    /// `docs/plans/2026-10-26-sms-voce-reperibilita.md`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub twilio: Option<TwilioConfig>,
+    /// Chi è reperibile e quando. **L'ordine è l'ordine di escalation**: si
+    /// avvisa il primo di turno, poi il secondo se nessuno riconosce.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub reperibili: Vec<Reperibile>,
+    /// Quanti minuti aspettare un riconoscimento prima di avvisare il
+    /// reperibile successivo. Assente = 10.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub telefono_attesa_min: Option<u32>,
+}
+
+/// L'account Twilio da cui partono SMS e chiamate.
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+pub struct TwilioConfig {
+    pub account_sid: String,
+    /// Il token dell'account: sta in `secrets.yaml`, come gli altri segreti.
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub auth_token: String,
+    /// Il numero Twilio mittente, in formato internazionale (`+39…`).
+    pub numero: String,
+}
+
+/// Una persona reperibile e il suo turno settimanale.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct Reperibile {
+    pub nome: String,
+    /// In formato internazionale (`+39…`).
+    pub telefono: String,
+    /// I giorni del turno, da 1 (lunedì) a 7 (domenica). Vuoto = tutti.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub giorni: Vec<u8>,
+    /// Inizio e fine della fascia, `HH:MM` nell'ora del pannello. Una fascia che
+    /// finisce prima di cominciare passa la mezzanotte (`22:00`-`06:00`).
+    /// Vuote = tutto il giorno.
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub dalle: String,
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub alle: String,
 }
 
 /// Su quali canali esce un evento.
@@ -1538,17 +1622,29 @@ pub struct CanaliEvento {
     pub email: bool,
     #[serde(default)]
     pub telegram: bool,
+    /// SMS e chiamata ai reperibili (P4, 26-10-2026). Spenti per default: un
+    /// telefono che squilla di notte lo si sceglie, non lo si eredita.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub sms: bool,
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub voce: bool,
 }
 
 impl CanaliEvento {
     pub const fn di(email: bool, telegram: bool) -> Self {
-        Self { email, telegram }
+        Self { email, telegram, sms: false, voce: false }
     }
     pub fn per(&self, canale: CanaleNotifica) -> bool {
         match canale {
             CanaleNotifica::Email => self.email,
             CanaleNotifica::Telegram => self.telegram,
+            CanaleNotifica::Sms => self.sms,
+            CanaleNotifica::Voce => self.voce,
         }
+    }
+    /// Questo evento avvisa i reperibili al telefono?
+    pub fn telefono(&self) -> bool {
+        self.sms || self.voce
     }
 }
 
@@ -1599,6 +1695,8 @@ impl Default for TabellaEventi {
 pub enum CanaleNotifica {
     Email,
     Telegram,
+    Sms,
+    Voce,
 }
 
 impl NotificationConfig {
@@ -1620,6 +1718,8 @@ impl NotificationConfig {
         let del_canale = match canale {
             CanaleNotifica::Email => self.notify_lang_email.as_deref(),
             CanaleNotifica::Telegram => self.notify_lang_telegram.as_deref(),
+            // SMS e chiamate parlano la predefinita delle notifiche.
+            CanaleNotifica::Sms | CanaleNotifica::Voce => None,
         };
         // Una stringa vuota è «non dichiarata» a OGNI livello: un `select`
         // dell'IDE che torna a «come la predefinita» scrive "" e deve cadere
@@ -1631,6 +1731,83 @@ impl NotificationConfig {
             .or_else(|| piena(self.notify_lang.as_deref()))
             .unwrap_or(ripiego)
             .to_string()
+    }
+}
+
+/// Un report programmato (P3, 26-10-2026). La finestra **finisce** quando il
+/// report parte: un report del giorno alle 6 copre le 24 ore prima delle 6.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct ReportDef {
+    pub id: String,
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub titolo: String,
+    #[serde(default)]
+    pub periodo: PeriodoReport,
+    /// Quando parte, cron a cinque campi. Vuoto = `PeriodoReport::cron_predefinito`.
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub quando: String,
+    #[serde(default)]
+    pub tags: Vec<String>,
+    /// L'intervallo delle righe dell'andamento, in minuti. Vuoto = quello del periodo.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub intervallo_min: Option<u32>,
+    #[serde(default = "vero", skip_serializing_if = "Clone::clone")]
+    pub allarmi: bool,
+    /// `pdf`, `xlsx`. Vuoto = tutti e due.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub formati: Vec<String>,
+    /// A chi mandarlo. Vuoto = solo salvato nel progetto.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub email: Vec<crate::alarm::Destinatario>,
+    /// Quanti file per report tenere. Vuoto = 30.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub conserva: Option<u32>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum PeriodoReport {
+    Turno,
+    #[default]
+    Giorno,
+    Settimana,
+    Mese,
+}
+
+impl PeriodoReport {
+    /// Quando parte se `quando` è vuoto: alla fine del periodo, alle 6.
+    pub fn cron_predefinito(self) -> &'static str {
+        match self {
+            Self::Turno => "0 6,14,22 * * *",
+            Self::Giorno => "0 6 * * *",
+            Self::Settimana => "0 6 * * 1",
+            Self::Mese => "0 6 1 * *",
+        }
+    }
+    /// L'intervallo delle righe se `intervallo_min` è vuoto, in minuti.
+    pub fn passo_predefinito_min(self) -> u32 {
+        match self {
+            Self::Turno => 15,
+            Self::Giorno => 60,
+            Self::Settimana | Self::Mese => 24 * 60,
+        }
+    }
+}
+
+impl ReportDef {
+    pub fn formati_effettivi(&self) -> Vec<&str> {
+        if self.formati.is_empty() {
+            vec!["pdf", "xlsx"]
+        } else {
+            self.formati.iter().map(String::as_str).collect()
+        }
+    }
+    pub fn cron(&self) -> &str {
+        if self.quando.trim().is_empty() {
+            self.periodo.cron_predefinito()
+        } else {
+            &self.quando
+        }
     }
 }
 
@@ -1663,6 +1840,11 @@ pub struct Project {
     pub global_scripts: Vec<GlobalScriptDef>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub notifications: Option<NotificationConfig>,
+    /// I report programmati (P3, 26-10-2026): PDF ed Excel con le tabelle dello
+    /// storico e gli allarmi del periodo, salvati nel progetto e mandati per
+    /// email. Piano `docs/plans/2026-10-26-report-programmati.md`.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub reports: Vec<ReportDef>,
     /// Le sorgenti di questo progetto non le ha ancora guardate nessuno.
     ///
     /// Lo mette a `true` la creazione **da template**, e lo toglie l'utente

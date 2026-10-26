@@ -60,7 +60,7 @@ export function UsersTab() {
   const onCreate = async () => {
     setError(null);
     if (!newUser.username.trim() || !newUser.password) {
-      setError("Username e password sono obbligatori.");
+      setError(t("cfgUi.userPassObbligatori"));
       return;
     }
     setBusy(true);
@@ -105,9 +105,9 @@ export function UsersTab() {
     } catch (e: any) {
       const msg = String(e?.message ?? "");
       if (msg.includes("409") || msg.includes("last_admin")) {
-        setError("Non puoi rimuovere l'ultimo amministratore.");
+        setError(t("cfgUi.ultimoAmministratore"));
       } else if (msg.includes("400") || msg.includes("invalid_password")) {
-        setError("Password non valida.");
+        setError(t("cfgUi.passwordNonValida"));
       } else {
         setError(t("cfgUi.updateError", { message: msg }));
       }
@@ -151,7 +151,7 @@ export function UsersTab() {
   return (
     <div>
       <div style={S.section}>
-        <div style={S.sectionTitle}>UTENTI</div>
+        <div style={S.sectionTitle}>{t("cfgUi.utentiTitolo")}</div>
         <p style={{ color: "var(--brand-text-muted, #94a3b8)", fontSize: 12, marginTop: 0 }}>
           <Trans i18nKey="cfgUi.usersSavedIn" components={TRANS_COMP} />
         </p>
@@ -208,7 +208,7 @@ export function UsersTab() {
                           disabled={busy}
                           onChange={(e) => onPatch(u.username, { must_change_password: e.target.checked })}
                         />
-                        forza
+                        {t("cfgUi.forza")}
                       </label>
                     </td>
                     <td style={S.td}>
@@ -228,11 +228,11 @@ export function UsersTab() {
                         <option value="default">{t("cfg.default")}</option>
                         <option value="never">{t("cfg.never")}</option>
                         <option value="1800">30 min</option>
-                        <option value="3600">1 ora</option>
-                        <option value="7200">2 ore</option>
-                        <option value="28800">8 ore</option>
-                        <option value="86400">24 ore</option>
-                        <option value="604800">7 giorni</option>
+                        <option value="3600">{t("cfgUi.oreN", { count: 1 })}</option>
+                        <option value="7200">{t("cfgUi.oreN", { count: 2 })}</option>
+                        <option value="28800">{t("cfgUi.oreN", { count: 8 })}</option>
+                        <option value="86400">{t("cfgUi.oreN", { count: 24 })}</option>
+                        <option value="604800">{t("cfgUi.giorniN", { n: 7 })}</option>
                         {/* Preserve custom values not in the list */}
                         {u.session_ttl_secs !== null && u.session_ttl_secs !== 0 &&
                          ![1800, 3600, 7200, 28800, 86400, 604800].includes(u.session_ttl_secs) && (
@@ -311,7 +311,7 @@ export function UsersTab() {
               value={newUser.username}
               onChange={(e) => setNewUser((s) => ({ ...s, username: e.target.value }))}
               style={S.input}
-              placeholder="es. operatore2"
+              placeholder={t("cfgUi.esOperatore")}
             />
           </div>
           <div>
@@ -339,7 +339,7 @@ export function UsersTab() {
             disabled={busy || !newUser.username.trim() || !newUser.password}
             style={S.btn("success")}
           >
-            + Crea
+            {t("cfgUi.creaPiu")}
           </button>
         </div>
         <label style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 12, color: "var(--brand-text-muted, #94a3b8)", marginTop: 8 }}>
@@ -348,7 +348,7 @@ export function UsersTab() {
             checked={newUser.must_change_password ?? true}
             onChange={(e) => setNewUser((s) => ({ ...s, must_change_password: e.target.checked }))}
           />
-          Forza cambio password al primo accesso (consigliato)
+          {t("cfgUi.forzaCambioPassword")}
         </label>
       </div>
     </div>

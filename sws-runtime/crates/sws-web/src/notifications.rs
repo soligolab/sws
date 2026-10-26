@@ -31,7 +31,7 @@ use tokio_util::sync::CancellationToken;
 use tracing::{info, warn};
 
 /// Build a lettre `SmtpTransport` from the project's `SmtpConfig`.
-fn build_transport(cfg: &SmtpConfig) -> anyhow::Result<SmtpTransport> {
+pub(crate) fn build_transport(cfg: &SmtpConfig) -> anyhow::Result<SmtpTransport> {
     let port = cfg.port.unwrap_or(587);
     let use_starttls = cfg.starttls.unwrap_or(true);
 
@@ -721,6 +721,9 @@ mod corpo_notifica_tests {
             notify_lang: Some("it".into()),
             notify_lang_email: Some("de".into()),
             notify_lang_telegram: Some("es".into()),
+            twilio: None,
+            reperibili: Vec::new(),
+            telefono_attesa_min: None,
         };
         assert_eq!(cfg.lingua_per(CanaleNotifica::Email, "en"), "de");
         assert_eq!(cfg.lingua_per(CanaleNotifica::Telegram, "en"), "es");
@@ -737,6 +740,9 @@ mod corpo_notifica_tests {
             notify_lang: Some("de".into()),
             notify_lang_email: None,
             notify_lang_telegram: Some("  ".into()), // vuota = non dichiarata
+            twilio: None,
+            reperibili: Vec::new(),
+            telefono_attesa_min: None,
         };
         assert_eq!(
             solo_predefinita.lingua_per(CanaleNotifica::Email, "it"),
@@ -754,6 +760,9 @@ mod corpo_notifica_tests {
             notify_lang: None,
             notify_lang_email: None,
             notify_lang_telegram: None,
+            twilio: None,
+            reperibili: Vec::new(),
+            telefono_attesa_min: None,
         };
         // È il comportamento di ogni progetto scritto prima di oggi.
         assert_eq!(niente.lingua_per(CanaleNotifica::Email, "it"), "it");

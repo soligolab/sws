@@ -10,6 +10,7 @@
   },
   "immagine": "atr144.jpg",
   "modbus": {
+    "trasporto": "rtu",
     "ordine": "cdab",
     "timeout_ms": 1000,
     "seriale": {

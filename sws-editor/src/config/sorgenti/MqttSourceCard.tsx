@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { Fragment, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { QuickCreateTagModal } from "@/components/QuickCreateTagModal";
 import { TagInput } from "@/components/TagInput";
@@ -9,6 +9,7 @@ import { MqttBrowseModal } from "@/config/sorgenti/MqttBrowseModal";
 import { MqttJsonExtractModal } from "@/config/sorgenti/MqttJsonExtractModal";
 import { MqttAuthSection, MqttConnectionSection, MqttTlsSection, MqttRandomClientIdSection, MqttLastWillSection } from "@/config/sorgenti/MqttSezioni";
 import { SparkplugSection } from "@/config/sorgenti/SparkplugSection";
+import { compilaRichiesteZigbee2mqtt, pubblicabile, richiestaZigbee2mqtt } from "@/config/sorgenti/richiestaStato";
 
 // ── MQTT card ─────────────────────────────────────────────────────────────────
 
@@ -41,6 +42,10 @@ export function MqttSourceCard({
   const addTopic = () =>
     onChange({ ...source, topics: [...source.topics, emptyTopic()] });
 
+  // Quante righe di Zigbee2MQTT sono ancora senza richiesta di stato: il
+  // pulsante che le compila compare solo se ce n'è almeno una.
+  const daCompilare = compilaRichiesteZigbee2mqtt(source.topics).toccate;
+
   const removeTopic = (idx: number) =>
     onChange({ ...source, topics: source.topics.filter((_, i) => i !== idx) });
 
@@ -61,7 +66,7 @@ export function MqttSourceCard({
             style={S.btn("ghost")}
             onClick={(e) => { e.stopPropagation(); setBrowseOpen(true); }}
           >
-            Sfoglia broker
+            {t("sorgenti.sfogliaBroker")}
           </button>
           {!source.sparkplug && (
             <button
@@ -69,7 +74,7 @@ export function MqttSourceCard({
               onClick={(e) => { e.stopPropagation(); setJsonExtractOpen(true); }}
               title={t("cfgUi.pasteAJsonPayloadAnd")}
             >
-              Estrai da JSON
+              {t("sorgenti.estraiJson")}
             </button>
           )}
           <button
@@ -159,7 +164,7 @@ export function MqttSourceCard({
 
           {!source.sparkplug && (
           <><div style={{ marginBottom: 6, fontSize: 12, color: "var(--brand-text-subtle, #64748b)", fontWeight: 600, letterSpacing: 0.5 }}>
-            MAPPATURA TOPIC
+            {t("sorgenti.mappaturaTopic")}
           </div>
           <table style={{ ...S.table, marginBottom: 8 }}>
             <thead>
@@ -181,7 +186,8 @@ export function MqttSourceCard({
                 </tr>
               )}
               {source.topics.map((tp, i) => (
-                <tr key={i} style={{ background: i % 2 === 0 ? "transparent" : "var(--brand-bg, #0f172a)33" }}>
+                <Fragment key={i}>
+                <tr style={{ background: i % 2 === 0 ? "transparent" : "var(--brand-bg, #0f172a)33" }}>
                   <td style={S.td}>
                     <div style={{ display: "flex", gap: 4 }}>
                       <TagInput
@@ -236,10 +242,43 @@ export function MqttSourceCard({
                       <option value="2">2</option>
                     </select>
                   </td>
-                  <td style={{ ...S.td, textAlign: "right" }}>
+                  <td style={{ ...S.td, textAlign: "right", whiteSpace: "nowrap" }}>
+                    <button
+                      style={{ ...S.btn(tp.richiesta_stato ? "primary" : "ghost"), marginRight: 4 }}
+                      title={t("sorgenti.richiestaStatoTitolo")}
+                      data-testid={`richiesta-stato-${i}`}
+                      onClick={() => setTopic(i, { richiesta_stato: tp.richiesta_stato ? undefined : richiestaZigbee2mqtt(tp) })}
+                    >⟳</button>
                     <button style={S.btn("danger")} onClick={() => removeTopic(i)}>✕</button>
                   </td>
                 </tr>
+                {tp.richiesta_stato && (
+                  <tr style={{ background: i % 2 === 0 ? "transparent" : "var(--brand-bg, #0f172a)33" }}>
+                    <td style={{ ...S.td, fontSize: 11, color: "var(--brand-text-subtle, #94a3b8)", textAlign: "right" }}>
+                      ⟳ {t("sorgenti.richiestaStato")}
+                    </td>
+                    <td style={S.td}>
+                      <input
+                        style={{ ...S.inputSm, borderColor: pubblicabile(tp.richiesta_stato.topic) ? undefined : "var(--brand-danger, #ef4444)" }}
+                        value={tp.richiesta_stato.topic}
+                        title={t("sorgenti.richiestaStatoTopic")}
+                        onChange={(e) => setTopic(i, { richiesta_stato: { ...tp.richiesta_stato!, topic: e.target.value } })}
+                        spellCheck={false}
+                      />
+                    </td>
+                    <td colSpan={3} style={S.td}>
+                      <input
+                        style={S.inputSm}
+                        value={tp.richiesta_stato.payload}
+                        title={t("sorgenti.richiestaStatoPayload")}
+                        onChange={(e) => setTopic(i, { richiesta_stato: { ...tp.richiesta_stato!, payload: e.target.value } })}
+                        spellCheck={false}
+                      />
+                    </td>
+                    <td style={S.td} />
+                  </tr>
+                )}
+                </Fragment>
               ))}
             </tbody>
           </table>
@@ -247,6 +286,16 @@ export function MqttSourceCard({
           <button style={S.btn("ghost")} onClick={addTopic}>
             {t("cfgUi.addTopic")}
           </button>
+          {daCompilare > 0 && (
+            <button
+              style={{ ...S.btn("ghost"), marginLeft: 8 }}
+              title={t("sorgenti.compilaRichiesteTitolo")}
+              data-testid="compila-richieste-z2m"
+              onClick={() => onChange({ ...source, topics: compilaRichiesteZigbee2mqtt(source.topics).righe })}
+            >
+              {t("sorgenti.compilaRichieste", { count: daCompilare })}
+            </button>
+          )}
           </>)}
         </div>
       )}

@@ -672,7 +672,7 @@ function DeploySection() {
         return;
       }
       const reader = res.body?.getReader();
-      if (!reader) { setLogs((l) => [...l, "ERROR: streaming non supportato"]); return; }
+      if (!reader) { setLogs((l) => [...l, t("welcome.streamingNonSupportato")]); return; }
       const dec = new TextDecoder();
       for (;;) {
         const { value, done } = await reader.read();
@@ -1421,7 +1421,7 @@ export function WelcomeScreen({ onProjectOpened }: WelcomeScreenProps) {
                 <button
                   title={t("editor.duplicate")}
                   style={{ ...ACT_BTN, color: isDuping ? "#a855f7" : "var(--brand-text-muted, #94a3b8)" }}
-                  onClick={() => setEditing({ rif: p.riferimento, name: p.name, mode: "duplicate", value: p.name + " (copia)" })}
+                  onClick={() => setEditing({ rif: p.riferimento, name: p.name, mode: "duplicate", value: `${p.name} ${t("common.copiaSuffisso")}` })}
                 >⧉</button>
                 {!p.external && (
                   <button

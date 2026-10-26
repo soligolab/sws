@@ -3,6 +3,12 @@ import type { Destinatario } from "@/types";
 import { useAppStore } from "@/store";
 import { S } from "@/config/comuni";
 
+/** Costante, non `[]` nel selettore: un array nuovo a ogni lettura fa credere
+ *  allo store che il valore sia cambiato, e un progetto senza lingue mandava il
+ *  componente in un ciclo di aggiornamenti infinito (trovato il 26-10-2026 dal
+ *  test della scheda Report). */
+const NESSUNA_LINGUA: string[] = [];
+
 /** Un elenco di destinatari email, ognuno con la sua lingua (29-09-2026). Lo
  *  usano la scheda Notifiche (destinatari di progetto) e la scheda Allarmi
  *  (destinatari propri e dell'escalation): una forma sola, invece di due campi
@@ -13,7 +19,7 @@ export function DestinatariEmail({ value, onChange, compatto = false }: {
   compatto?: boolean;
 }) {
   const { t } = useTranslation();
-  const lingue = useAppStore((s) => s.project?.languages?.langs ?? []);
+  const lingue = useAppStore((s) => s.project?.languages?.langs ?? NESSUNA_LINGUA);
   // Un progetto letto prima della migrazione può ancora avere stringhe.
   const righe: Destinatario[] = (value ?? []).map((d) => (typeof d === "string" ? { indirizzo: d } : d));
   const scrivi = (nuove: Destinatario[]) => onChange(nuove.length ? nuove : undefined);
@@ -26,7 +32,7 @@ export function DestinatariEmail({ value, onChange, compatto = false }: {
           <input
             style={{ ...S.inputSm, flex: 1, fontSize: fs }}
             type="email"
-            placeholder="nome@esempio.it"
+            placeholder={t("destinatari.esempioEmail")}
             value={d.indirizzo}
             onChange={(e) => scrivi(righe.map((r, j) => (j === i ? { ...r, indirizzo: e.target.value } : r)))}
           />

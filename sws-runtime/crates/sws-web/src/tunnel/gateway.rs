@@ -144,19 +144,81 @@ pub async fn accetta(
         tracing::info!(pannello = %nome, "tunnel aperto");
         let filo = Filo::nuovo(socket);
         // `Chiama`: è il gateway ad aprire gli stream, perché è lui ad avere
-        // qualcosa da consegnare. Gli stream in arrivo non li aspetta nessuno
-        // e il ricevitore si lascia cadere apposta.
-        let (maniglia, in_arrivo) = avvia(filo, Verso::Chiama);
-        drop(in_arrivo);
+        // qualcosa da consegnare. Gli stream che arrivano dal pannello sono i
+        // suoi battiti (un byte `\0`) e l'annuncio dello spegnimento (`S`).
+        let (maniglia, mut in_arrivo) = avvia(filo, Verso::Chiama);
         registro.entra(&nome, maniglia.clone()).await;
-        // Si resta qui finché il compito che guida yamux non finisce: è
-        // quello il momento in cui il pannello è davvero scollegato.
-        while maniglia.vivo() {
-            tokio::time::sleep(std::time::Duration::from_secs(2)).await;
+        let annunciato = Arc::new(std::sync::atomic::AtomicBool::new(false));
+        let mut sentito: Option<std::time::Instant> = None;
+        let mut passo = tokio::time::interval(std::time::Duration::from_secs(2));
+        // Si resta qui finché il compito che guida yamux non finisce, o finché
+        // il pannello non tace troppo a lungo (ramo 7 dei residui, 26-10-2026).
+        loop {
+            tokio::select! {
+                arrivato = in_arrivo.recv() => {
+                    let Some(stream) = arrivato else { break };
+                    sentito = Some(std::time::Instant::now());
+                    let annunciato = annunciato.clone();
+                    tokio::spawn(async move {
+                        use futures_util::io::AsyncReadExt as _;
+                        let mut s = stream;
+                        let mut byte = [0u8; 1];
+                        let letto = tokio::time::timeout(std::time::Duration::from_secs(5), s.read_exact(&mut byte)).await;
+                        if matches!(letto, Ok(Ok(()))) && byte[0] == b'S' {
+                            annunciato.store(true, std::sync::atomic::Ordering::Relaxed);
+                        }
+                    });
+                }
+                _ = passo.tick() => {
+                    if !maniglia.vivo() {
+                        break;
+                    }
+                    if muto(sentito, std::time::Instant::now()) {
+                        tracing::warn!(pannello = %nome, "tunnel muto da oltre {}s, lo chiudo", SILENZIO_MASSIMO.as_secs());
+                        maniglia.chiudi();
+                        break;
+                    }
+                }
+            }
         }
-        registro.esce(&nome).await;
-        tracing::info!(pannello = %nome, "tunnel chiuso");
+        registro.esce(&nome, &maniglia).await;
+        if annunciato.load(std::sync::atomic::Ordering::Relaxed) {
+            registro.spento(&nome, crate::tunnel::abbinati::ora_ms());
+            tracing::info!(pannello = %nome, "tunnel chiuso: spegnimento annunciato");
+        } else {
+            tracing::info!(pannello = %nome, "tunnel chiuso");
+        }
     })
+}
+
+/// Dopo quanto silenzio un tunnel si dà per morto: tre battiti del pannello
+/// (uno ogni 30 s) più margine. È il buco che il ramo 7 dei residui chiudeva:
+/// su una half-open — il NAT che dimentica la connessione senza dire niente —
+/// yamux non si accorge di nulla, e il pallino della console restava verde
+/// finché qualcuno non provava a inoltrare una richiesta.
+const SILENZIO_MASSIMO: std::time::Duration = std::time::Duration::from_secs(95);
+
+/// Il pannello tace da troppo. **Solo se ha battuto almeno una volta**: un
+/// pannello di prima del 16-10-2026 non batte, e chiudergli il tunnel ogni
+/// minuto e mezzo sarebbe peggio della malattia — per lui vale ancora la sola
+/// caduta della connessione.
+fn muto(sentito: Option<std::time::Instant>, adesso: std::time::Instant) -> bool {
+    sentito.is_some_and(|t| adesso.duration_since(t) > SILENZIO_MASSIMO)
+}
+
+#[cfg(test)]
+mod prove_silenzio {
+    use super::*;
+    use std::time::{Duration, Instant};
+
+    #[test]
+    fn muto_solo_dopo_il_silenzio_e_solo_chi_ha_battuto() {
+        let t = Instant::now();
+        assert!(!muto(None, t + Duration::from_secs(3600)), "chi non ha mai battuto non è muto");
+        assert!(!muto(Some(t), t + Duration::from_secs(60)), "un battito saltato non basta");
+        assert!(muto(Some(t), t + SILENZIO_MASSIMO + Duration::from_secs(1)));
+        assert!(SILENZIO_MASSIMO > 3 * Duration::from_secs(30), "almeno tre battiti del pannello");
+    }
 }
 
 /// Un pannello abbinato col codice: nome e token nelle stesse intestazioni dei
@@ -289,6 +351,41 @@ pub async fn collegati(State(s): State<crate::router::AppState>, req: Request<Bo
         }
     }
     axum::Json(miei).into_response()
+}
+
+/// `POST /telefono/:pannello/:tipo` — Twilio che richiama un pannello (P4,
+/// 26-10-2026): il tasto premuto in una chiamata (`voce`) o la risposta a un
+/// SMS (`sms`). **Senza sessione**, perché Twilio non ne ha una: il gateway
+/// inoltra solo quei due percorsi e aggiunge l'URL pubblico chiamato, che il
+/// pannello usa per verificare la firma di Twilio. La firma del gateway non
+/// passa: questa strada non porta nessuna fiducia del gateway.
+pub async fn inoltra_telefono(
+    State(s): State<crate::router::AppState>,
+    Path((pannello, tipo)): Path<(String, String)>,
+    mut req: Request<Body>,
+) -> Response {
+    req.headers_mut().remove(crate::abbinamento::INTESTAZIONE_GATEWAY);
+    if tipo != "voce" && tipo != "sms" {
+        return StatusCode::NOT_FOUND.into_response();
+    }
+    let Some(registro) = s.tunnel.as_ref() else {
+        return StatusCode::NOT_FOUND.into_response();
+    };
+    let Some(maniglia) = registro.di(&pannello).await else {
+        return (StatusCode::SERVICE_UNAVAILABLE, "pannello non collegato").into_response();
+    };
+    let h = req.headers();
+    let host = h.get("x-forwarded-host").or_else(|| h.get("host")).and_then(|v| v.to_str().ok()).unwrap_or("").to_string();
+    let proto = h.get("x-forwarded-proto").and_then(|v| v.to_str().ok()).filter(|p| *p == "http" || *p == "https").unwrap_or("https").to_string();
+    let query = req.uri().query().map(|q| format!("?{q}")).unwrap_or_default();
+    let pubblico = format!("{proto}://{host}{}{query}", req.uri().path());
+    if let Ok(v) = pubblico.parse() {
+        req.headers_mut().insert(crate::telefono::INTESTAZIONE_URL, v);
+    }
+    match attraverso(&maniglia, &format!("/api/telefono/{tipo}"), &query, req).await {
+        Ok(r) => r,
+        Err(e) => (StatusCode::BAD_GATEWAY, format!("il pannello non risponde: {e}")).into_response(),
+    }
 }
 
 /// `/dev/:pannello/*resto` — una richiesta dell'IDE, dentro il tunnel.
@@ -592,6 +689,8 @@ pub async fn elenco_amministrazione(State(s): State<crate::router::AppState>) ->
         Some(r) => r.collegati().await,
         None => vec![],
     };
+    // Spento annunciato: il pannello ha detto «mi spengo» prima di chiudere.
+    let spento_il = |n: &str| s.tunnel.as_ref().and_then(|r| r.spento_il(n));
     let abbinati: Vec<_> = s
         .pannelli_abbinati
         .as_ref()
@@ -602,6 +701,9 @@ pub async fn elenco_amministrazione(State(s): State<crate::router::AppState>) ->
             let c = collegati.contains(&p.nome);
             let mut v = serde_json::to_value(&p).unwrap_or_default();
             v["collegato"] = serde_json::Value::Bool(c);
+            if let Some(ms) = spento_il(&p.nome).filter(|_| !c) {
+                v["spento_ms"] = ms.into();
+            }
             v
         })
         .collect();
@@ -612,7 +714,14 @@ pub async fn elenco_amministrazione(State(s): State<crate::router::AppState>) ->
             let mut v: Vec<_> = a
                 .0
                 .iter()
-                .map(|(n, d)| serde_json::json!({ "nome": n, "azienda": d.azienda, "collegato": collegati.contains(n) }))
+                .map(|(n, d)| {
+                    let c = collegati.contains(n);
+                    let mut v = serde_json::json!({ "nome": n, "azienda": d.azienda, "collegato": c });
+                    if let Some(ms) = spento_il(n).filter(|_| !c) {
+                        v["spento_ms"] = ms.into();
+                    }
+                    v
+                })
                 .collect();
             v.sort_by(|x, y| x["nome"].as_str().cmp(&y["nome"].as_str()));
             v
@@ -646,7 +755,7 @@ pub async fn imposta_stato(
         Ok(true) => {
             if n.stato != crate::tunnel::abbinati::StatoPannello::Attivo {
                 if let Some(r) = s.tunnel.as_ref() {
-                    r.esce(&nome).await;
+                    r.stacca(&nome).await;
                 }
             }
             s.audit.log("pannello.stato", None, serde_json::json!({ "pannello": nome, "stato": n.stato }));
@@ -703,7 +812,7 @@ pub async fn sposta_azienda(
     match a.sposta(&nome, &segmento) {
         Ok(true) => {
             if let Some(r) = s.tunnel.as_ref() {
-                r.esce(&nome).await;
+                r.stacca(&nome).await;
             }
             s.audit.log(
                 "pannello.azienda",

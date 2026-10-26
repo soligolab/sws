@@ -104,9 +104,9 @@ export function OpcUaSourceCard({
                 onChange={(e) => setField("security_policy", e.target.value)}
               >
                 <option value="None">None (no crypto)</option>
-                <option value="Basic128Rsa15">Basic128Rsa15 (deprecato)</option>
+                <option value="Basic128Rsa15">Basic128Rsa15 ({t("sorgenti.deprecato")})</option>
                 <option value="Basic256">Basic256</option>
-                <option value="Basic256Sha256">Basic256Sha256 (raccomandato)</option>
+                <option value="Basic256Sha256">Basic256Sha256 ({t("sorgenti.raccomandato")})</option>
                 <option value="Aes128Sha256RsaOaep">Aes128-SHA256-RsaOaep</option>
                 <option value="Aes256Sha256RsaPss">Aes256-SHA256-RsaPss</option>
               </select>
@@ -123,7 +123,7 @@ export function OpcUaSourceCard({
 
           {/* Auth ------------------------------------------------------- */}
           <div style={{ marginTop: 12, marginBottom: 6, color: "var(--brand-text-muted, #94a3b8)", fontSize: 12, fontWeight: 600 }}>
-            AUTENTICAZIONE
+            {t("sorgenti.autenticazione")}
           </div>
           <div style={{ display: "flex", gap: 14, alignItems: "center", marginBottom: 8 }}>
             <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 13 }}>
@@ -132,7 +132,7 @@ export function OpcUaSourceCard({
                 checked={source.auth.kind === "anonymous"}
                 onChange={() => setAuth({ kind: "anonymous" })}
               />
-              Anonima
+              {t("sorgenti.anonima")}
             </label>
             <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 13 }}>
               <input
@@ -140,7 +140,7 @@ export function OpcUaSourceCard({
                 checked={source.auth.kind === "username_password"}
                 onChange={() => setAuth({ kind: "username_password", username: "" })}
               />
-              Utente + Password
+              {t("sorgenti.utentePassword")}
             </label>
           </div>
           {source.auth.kind === "username_password" && (
@@ -186,7 +186,7 @@ export function OpcUaSourceCard({
 
           {/* Sicurezza -------------------------------------------------- */}
           <div style={{ marginTop: 12, marginBottom: 6, color: "var(--brand-text-muted, #94a3b8)", fontSize: 12, fontWeight: 600 }}>
-            SICUREZZA CERTIFICATI
+            {t("sorgenti.sicurezzaCertificati")}
           </div>
           <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, marginBottom: 8 }}>
             <input
@@ -226,12 +226,12 @@ export function OpcUaSourceCard({
                 style={S.btn("ghost")}
                 onClick={() => setBrowseOpen(true)}
                 title={t("cfg.browseAddressSpace")}
-              >🔍 Sfoglia server</button>
+              >{t("sorgenti.sfogliaServer")}</button>
               <button
                 style={S.btn("ghost")}
                 onClick={() => setEuromapOpen(true)}
                 title={t("cfg.detectEuromap")}
-              >🤖 Rileva Euromap</button>
+              >{t("sorgenti.rilevaEuromap")}</button>
             </div>
           </div>
           {source.nodes.length === 0 ? (
@@ -290,7 +290,7 @@ export function OpcUaSourceCard({
             </table>
           )}
           <div style={{ marginTop: 8 }}>
-            <button style={S.btn("ghost")} onClick={addNode}>+ Nodo</button>
+            <button style={S.btn("ghost")} onClick={addNode}>{t("sorgenti.piuNodo")}</button>
           </div>
         </>
       )}

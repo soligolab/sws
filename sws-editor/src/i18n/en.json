@@ -12,7 +12,8 @@
     "newBuildAvailable": "An updated version of the interface is available. Reload to apply it.",
     "runtimeReachableReload": "The runtime is reachable again (certificate accepted or host back up). Reload the page to reconnect.",
     "connectionFailed": "Connection failed",
-    "loadingConfiguration": "Loading configuration…"
+    "loadingConfiguration": "Loading configuration…",
+    "clicPerChiudere": "(click to close)"
   },
   "common": {
     "save": "Save",
@@ -31,7 +32,18 @@
     "export": "Export",
     "import": "Import",
     "test": "Test",
-    "stats": "Stats"
+    "stats": "Stats",
+    "copiaSuffisso": "(copy)",
+    "riprova": "Retry",
+    "incollaSuffisso": "(paste)",
+    "gruppo": "Group",
+    "aggiornaFreccia": "↻ Refresh",
+    "inCorso": "in progress…",
+    "anteprima": "Preview",
+    "invio": "Sending…",
+    "aggiorno": "Refreshing…",
+    "aggiorna": "Refresh",
+    "errore": "Error"
   },
   "header": {
     "start": "Start",
@@ -123,7 +135,8 @@
     "copyStyle": "Copy style",
     "copyStyleTitle": "Copy the selected object's appearance (colours, border, font, corners, gradient). Tag and geometry are not copied.",
     "applyStyle": "Apply style",
-    "applyStyleTitle": "Apply the copied style to every selected object."
+    "applyStyleTitle": "Apply the copied style to every selected object.",
+    "originale": "(original)"
   },
   "unsaved": {
     "title": "Unsaved changes",
@@ -197,7 +210,9 @@
       "telegram": "Telegram",
       "eventi": "What and where",
       "stile": "Style",
-      "certificati": "Certificates"
+      "certificati": "Certificates",
+      "reports": "Reports",
+      "telefono": "Phone (SMS and voice)"
     },
     "sottorami": {
       "device": "Device",
@@ -364,7 +379,9 @@
     "noRowsConfigureInThe": "No rows — configure in the properties",
     "noData": "No data",
     "noTag": "no tag",
-    "noImageEmptySrc": "no image (empty src)"
+    "noImageEmptySrc": "no image (empty src)",
+    "espandiTrend": "Expand trend",
+    "simboloMancante": "symbol?"
   },
   "chat": {
     "title": "Assistant",
@@ -556,7 +573,8 @@
     "errArchivia": "«{{name}}»: {{err}}",
     "archiviati": "Archived ({{n}})",
     "archiviatoIl": "archived on {{date}} by {{da}}",
-    "ripristina": "Restore"
+    "ripristina": "Restore",
+    "streamingNonSupportato": "ERROR: streaming not supported"
   },
   "logs": {
     "history": "History…",
@@ -595,7 +613,9 @@
     "reasonLabel": "Reason",
     "interrupted": "Interrupted",
     "interruptedHint": "Closed before completing: runtime stopped or crashed, or alarms reloaded",
-    "inProgress": "in progress"
+    "inProgress": "in progress",
+    "aggiorna": "↺ Refresh",
+    "titolo": "ALARM HISTORY"
   },
   "tagInput": {
     "select": "Select tag",
@@ -1219,7 +1239,8 @@
     "sfondoAreaHint": "Fills the part between the frame's header and footer (the whole page without a frame), below the objects. The LVGL panel only shows SVG images.",
     "sfondoAreaTogli": "Remove the image",
     "valueFontSize": "Value font size",
-    "unitFontSize": "Unit font size"
+    "unitFontSize": "Unit font size",
+    "vari": "(mixed)"
   },
   "shortcut": {
     "navCanvas": "Canvas navigation",
@@ -1253,7 +1274,17 @@
     "group": "Group selection (≥2 objects)",
     "other": "Other",
     "toggleHelp": "Show/hide this guide",
-    "title": "Keyboard shortcuts"
+    "title": "Keyboard shortcuts",
+    "gesto": {
+      "ctrlRotella": "Ctrl + wheel",
+      "rotella": "Wheel",
+      "shiftRotella": "Shift + wheel",
+      "clickMedio": "Middle click + drag",
+      "dragSfondo": "Drag on background",
+      "frecce": "Arrows",
+      "shiftFrecce": "Shift+Arrows",
+      "shiftAngolo": "Shift + drag corner"
+    }
   },
   "symbol": {
     "choose": "Choose symbol",
@@ -1739,7 +1770,12 @@
     "deploySimboliMancanti": "The panel does not know {{n}} library symbols used by this project:\n{{elenco}}\n\nIt will show them as placeholders until you update SWS on the panel. Deploy anyway?",
     "deploySimboliSenzaLibreria": "The panel runs a version of SWS without the symbol library: the project's {{n}} library symbols\n{{elenco}}\n\nwill be placeholders until you update it. Deploy anyway?",
     "daRiautenticare": "Connected to {{host}}, but the credentials no longer work: the deployed project brought its own users. Sign in again with the project Admin's username and password.",
-    "tagWriteAnyone": "Anyone, even without login"
+    "tagWriteAnyone": "Anyone, even without login",
+    "modbusGateway": "+ Another device behind this address (gateway)",
+    "modbusGatewayHint": "For a Modbus TCP→RTU gateway: several unit ids behind the same address. With two or more devices the bus shows as a level of its own.",
+    "modbusSetupTitolo": "Module configuration",
+    "modbusSetupSpiega": "How the project wants the module configured. On every connection the runtime reads these parameters and writes only the ones that differ: a replaced or reset module configures itself again. «Not managed» leaves the module as it is.",
+    "modbusSetupNonGestito": "— not managed —"
   },
   "langtab": {
     "migrate": "Migrate texts…",
@@ -1926,7 +1962,8 @@
     "bootPageBaseName": "Boot image",
     "newCornice": "New frame",
     "corniceBaseName": "Frame",
-    "scalaProgetto": "Change project resolution"
+    "scalaProgetto": "Change project resolution",
+    "faceplateDaSelezione": "Create faceplate from selection"
   },
   "storeErr": {
     "invalidRange": "Invalid range.",
@@ -1973,7 +2010,16 @@
     "strumenti": "Tools",
     "strumentoAggiungi": "Click to add it to the current page",
     "filtroStrumenti": "Filter tools and symbols",
-    "filtroNessuno": "No tool matches “{{q}}”"
+    "filtroNessuno": "No tool matches “{{q}}”",
+    "cella": "Cell R{{r}}, C{{c}}",
+    "trascinaFuoriGruppo": "⤓ Drag here to remove from the group",
+    "rinomina": "Rename",
+    "duplica": "Duplicate",
+    "raggruppaSelezione": "Group selection ({{n}})",
+    "senzaGruppo": "⤓ No group",
+    "rinominaGruppo": "Rename group",
+    "separaGruppo": "Ungroup",
+    "configurazionePython": "Configuration → Python"
   },
   "shell": {
     "offPage_one": "⚠ {{count}} object is off the sheet and will not be drawn at runtime. Drag it inside the dashed border to re-enable it, or enlarge the page.",
@@ -2044,7 +2090,75 @@
     "projectFormatHelp": "Size and background new pages are born with. It fills itself the first time a page is set; you can change it here by hand. It does not touch existing pages.",
     "applyFormat": "Apply to pages without their own format",
     "applyFormatHelp": "Writes the default format onto pages that have no size or background of their own.",
-    "applyFormatResult": "{{count}} pages updated"
+    "applyFormatResult": "{{count}} pages updated",
+    "griglia": "grid",
+    "coloreSfondo": "Background color:",
+    "coloreBordo": "Border color:",
+    "celleSelezionate": "{{rows}}×{{cols}} cells (R{{r1}}-{{r2}}, C{{c1}}-{{c2}})",
+    "unisciCelle": "🔗 Merge cells",
+    "dividiOrizz": "⬓ Split horizontally",
+    "dividiVert": "⬔ Split vertically",
+    "dimensioneFissataDalle": "Size set by the",
+    "dimensioneFissataResto": "(ratio shared by all pages): {{w}}×{{h}}. Scales keeping proportions at runtime.",
+    "escludiCiclo": "Exclude from the automatic cycle (kiosk)",
+    "rapporto": "Ratio",
+    "risoluzioneRiferimento": "Reference resolution: {{w}}×{{h}}",
+    "selezioneMultipla": "Multiple selection",
+    "oggettiSelezionati": "{{n}} objects selected",
+    "multiStessoTipo": "Type \"{{tipo}}\" — empty fields = differing values (mixed).",
+    "multiTipiDiversi": "Different types — universal sections only.",
+    "multiAiuto": "Shift+click to add to/remove from the selection. Ctrl-C/V, Ctrl-D, Ctrl-Z/Y, Del as shortcuts.",
+    "esLineaPressione": "e.g. line1.pressure",
+    "visibile": "Visible",
+    "alClick": "On click (on_press)",
+    "alRilascio": "On release (on_release)",
+    "voci": "ENTRIES",
+    "esTemperatura": "E.g. Boiler temperature",
+    "paginaInesistente": "missing page",
+    "soglie": "THRESHOLDS",
+    "ordineData": "Date order",
+    "dmy": "DD/MM (European)",
+    "mdy": "MM/DD (American)",
+    "ymd": "YYYY/MM/DD",
+    "sepBarra": "/ (DD/MM)",
+    "sepTrattino": "- (DD-MM)",
+    "sepPunto": ". (DD.MM)",
+    "separatore": "Separator",
+    "formatoOra": "Time format",
+    "mostraAnno": "Show year",
+    "mostraSecondi": "Show seconds",
+    "dataOraDueRighe": "Date and time on two lines",
+    "mostraSempreData": "Always show the date",
+    "mostraSoglie": "Show thresholds (dashed lines)",
+    "righe": "Rows",
+    "mostraBordi": "Show borders",
+    "esValvola": "e.g. valve.state",
+    "esTotaleKw": "e.g. total.kw",
+    "riempiArea": "Fill area",
+    "mostraUltimo": "Show last",
+    "mostraAck": "Show ACK",
+    "timestamp": "Timestamp",
+    "esLineaPrefisso": "e.g. line1-",
+    "esPompaFlusso": "e.g. pump1.flow (sign = direction)",
+    "esCarrello": "e.g. cart.position",
+    "flipOrizz": "Flip horizontally",
+    "flipVert": "Flip vertically",
+    "visibileStatico": "Visible (static)",
+    "bloccato": "Locked (not selectable in the editor)",
+    "definisciFunzioni": "Define functions in the side panel (FUNCTIONS section). Parameter values are substituted by binding; leave empty to use the default.",
+    "opzioniRadio": "RADIO OPTIONS",
+    "righeTabella": "TABLE ROWS",
+    "taglia": "✂ Cut",
+    "serie": "SERIES",
+    "nome": "Name",
+    "peso": "Weight",
+    "stile": "Style",
+    "scalaLog": "Logarithmic Y scale",
+    "creaFaceplate": "⧉ Create faceplate from selection",
+    "creaFaceplateHint": "The selected objects become a reusable faceplate: tags become parameters, and its first instance stays here.",
+    "creaFaceplatePrompt": "Faceplate name",
+    "creaFaceplateNome": "New faceplate",
+    "creaFaceplateErrore": "The faceplate was not saved: {{errore}}"
   },
   "credenziali": {
     "waitWithoutRetryingEveryNew": "Wait **without** retrying: every new attempt lengthens the lockout. ",
@@ -2060,25 +2174,47 @@
   },
   "alarmBell": {
     "ackAll": "ACK all",
-    "noActiveAlarms": "No active alarms."
+    "noActiveAlarms": "No active alarms.",
+    "durataOre": "Duration (h):",
+    "zeroIndefinito": "(0 = indefinite)",
+    "sopprimi": "Shelve",
+    "soppressi": "SHELVED ({{n}})",
+    "fino": "until",
+    "indefinito": "indefinite",
+    "riattiva": "Unshelve"
   },
   "runtimeView": {
     "loginPerAggiornare": "Applying the update needs a panel administrator.",
     "close": "Close",
     "noParametersDefined": "No parameters defined.",
-    "noDefault": "(no default)"
+    "noDefault": "(no default)",
+    "applicaRicetta": "Apply recipe",
+    "stop": "⏹ Stop",
+    "ciclo": "▶ Cycle",
+    "ricette": "⚗ Recipes",
+    "testFunzioniN": "Test functions ({{n}} available)",
+    "testFunzioni": "🧪 Test functions",
+    "funzione": "Function",
+    "esegui": "▶ Run {{nome}}"
   },
   "reauth": {
     "noActiveProject": "No active project",
     "theRuntimeRestartedWithoutAn": "The runtime restarted without an open project. Go back to the welcome screen to select a project.",
-    "enterPasswordAs": "Enter your password to continue as"
+    "enterPasswordAs": "Enter your password to continue as",
+    "troppiTentativi": "Too many attempts. Try again in {{s}}s.",
+    "vaiAlBenvenuto": "Go to the welcome screen",
+    "sessioneScaduta": "Session expired",
+    "esciAlLogin": "Log out and back to login"
   },
   "logPanel": {
     "errorLoadingHistory": "Error loading history.",
     "download": "⬇ Download",
     "insufficientPermissionTheLogPanel": "Insufficient permission: the log panel is available from Operator upward.",
     "debugDispositivo": "Device DEBUG",
-    "debugDispositivoTitolo": "Also receive DEBUG lines from the connected device (platform administrator only): there are many, and in the cloud they go through the panel tunnel."
+    "debugDispositivoTitolo": "Also receive DEBUG lines from the connected device (platform administrator only): there are many, and in the cloud they go through the panel tunnel.",
+    "riprendi": "▶ Resume",
+    "pausa": "⏸ Pause",
+    "cancella": "Clear"
   },
   "viewerMsg": {
     "noActiveProject": "No active project",
@@ -2087,17 +2223,22 @@
   },
   "login": {
     "backToTheProjectList": "← Back to the project list",
-    "inMemorySessionsARuntime": "In-memory sessions: a runtime restart signs you out automatically."
+    "inMemorySessionsARuntime": "In-memory sessions: a runtime restart signs you out automatically.",
+    "troppiTentativi": "Too many failed attempts. Try again in {{s}}s.",
+    "accountBloccato": "Account locked. Try again in {{s}}s."
   },
   "imageBrowser": {
     "loadingCatalog": "Loading catalog…",
-    "noResults": "No results for \"{{filter}}\""
+    "noResults": "No results for \"{{filter}}\"",
+    "libreria": "Image library"
   },
   "tagInputMsg": {
     "variableInferredFromThisSource": "Variable inferred from this source's mappings, not declared in Configuration → Project → Tags"
   },
   "recipePanel": {
-    "noRecipeAvailable": "No recipe available."
+    "noRecipeAvailable": "No recipe available.",
+    "scritti": "✓ {{n}}/{{tot}} setpoints written",
+    "errori": "Errors:"
   },
   "tagUsage": {
     "page": "page \"{{name}}\"",
@@ -2112,13 +2253,19 @@
   },
   "ws": {
     "refused": "connection refused (code {{code}})",
-    "unstable": "no stable connection after {{max}} attempts"
+    "unstable": "no stable connection after {{max}} attempts",
+    "scritturaRifiutata": "write refused"
   },
   "diffRighe": {
-    "tooLarge": "{{before}} lines before, {{after}} after: too many for a line-by-line diff"
+    "tooLarge": "{{before}} lines before, {{after}} after: too many for a line-by-line diff",
+    "invariate": "{{n}} unchanged lines not shown"
   },
   "riassunto": {
-    "page": "page «{{name}}» ({{count}} objects)"
+    "page": "page «{{name}}» ({{count}} objects)",
+    "funzioneRighe": "function `{{nome}}` ({{n}} lines)",
+    "funzione": "function `{{nome}}`",
+    "scriptRighe": "global script `{{id}}` ({{n}} lines)",
+    "script": "global script `{{id}}`"
   },
   "errors": {
     "projectChangedWhileWorking": "the project changed while you were working"
@@ -2485,7 +2632,114 @@
     "opcuaTrustStoreSoloAdmin": "The trust store is Administrator-only: it shows which servers the project trusts.",
     "improntaTitolo": "Certificate fingerprint",
     "improntaNuova": "Stored just now, on first contact. Compare it with the one the panel shows on its screen or in the installation log: this is the only moment when someone could have stepped in between.",
-    "improntaNota": "Already stored from an earlier connection: the panel presented the same one as before."
+    "improntaNota": "Already stored from an earlier connection: the panel presented the same one as before.",
+    "tlsTitolo": "TLS CERTIFICATE",
+    "tlsHttpsAttivo": "HTTPS active",
+    "tlsGenera": "Generate self-signed certificate",
+    "tlsCertificatoPem": "Certificate (tls.crt, PEM)",
+    "tlsDisabilita": "Disable TLS",
+    "tlsNelCloud": "In the cloud HTTPS is handled by the server in front of every project: this project has no certificate of its own, and there is no need to generate one. The panel's certificate is in the next column.",
+    "backupAdesso": "+ Back up now",
+    "ripristina": "Restore",
+    "intervalloAutoBackup": "Auto-backup interval (minutes)",
+    "righePerTag": "{{n}} rows per tag",
+    "giorniN": "{{n}} days",
+    "tagOrfaniSu": "{{n}} orphan tags out of {{tot}} in the database.",
+    "liberatiMb": "✓ Freed {{mb}} MB (from {{da}} to {{a}} MB).",
+    "dbScaricato": "✓ Database downloaded ({{mb}} MB).",
+    "dbScaricatoRemoto": "✓ Database downloaded ({{mb}} MB) from the remote device.",
+    "odbcNonImplementato": "ODBC — not implemented",
+    "campioni": "Samples",
+    "dim": "Size",
+    "connesso": "Connected",
+    "disconnesso": "Disconnected",
+    "gestioneDatabase": "DATABASE MANAGEMENT",
+    "pulisciOra": "Purge now",
+    "recuperaSpazio": "Reclaim space",
+    "inSync": "✓ in sync",
+    "diffVersione": "✗ version differs",
+    "firmaLocale": "Local fingerprint:",
+    "ogniMs": "Every {{n}}ms",
+    "ogniS": "Every {{n}}s",
+    "funzioniTitolo": "FUNCTIONS",
+    "senzaNome": "(unnamed)",
+    "chiamataDaOggetto": "called by an object",
+    "parametriN": "{{n}} parameters",
+    "abilitato": "Enabled",
+    "disabilitato": "Disabled",
+    "intervalloSecondi": "Interval (seconds)",
+    "cronCinqueCampi": "Cron (5 fields)",
+    "cronCampi": "minute hour day month day-of-week",
+    "cronAiuto": "*/5      every 5 (step)\n9-17     from 9 to 17 (range)\n9-17/2   from 9 to 17, every 2\n0,30     list\n\nExamples: */5 * * * * = every 5 minutes; 30 4 * * * = every day at 4:30",
+    "ereditaDalRuntime": "inherit from runtime",
+    "backupDaTenere": "Backups to keep",
+    "caricatiMb": "✓ Uploaded {{mb}} MB.",
+    "caricatiMbRemoto": "✓ Uploaded {{mb}} MB to the remote device.",
+    "datastoresIntro": "Configure the backends that store historical data. Every variable with \"history\" on is written to its assigned datastore.",
+    "setpointValorePh": "0 / true / false / text",
+    "ricetteTitolo": "RECIPES (ISA-88)",
+    "scegliCsv": "📂 Choose CSV file…",
+    "lambdaEspressione": "λ expression",
+    "assistenteIa": "AI assistant",
+    "assistenteNonQui": "This instance does not expose the assistant configuration: it is set on the development IDE, not here. See Status → «Mode» to know which role it is serving.",
+    "assistenteAttivo": "Active — {{fornitore}} / {{modello}}",
+    "varAmbienteScavalcano": "⚠ These environment variables override what you set here: {{elenco}}. To configure from the IDE, start the runtime without them.",
+    "modello": "Model",
+    "modelloLibero": "Free text on purpose: providers add models more often than we release. Empty = {{predefinito}}.",
+    "temaChiaroScuro": "Light/dark theme",
+    "linguaInterfaccia": "Interface language",
+    "notaPreferenze": "Note: theme, language and icon size live in this browser; the assistant lives in the local runtime, so it applies to anyone opening this IDE.",
+    "etichetta": "Label",
+    "licenza": "License",
+    "autoreFonte": "Author / source",
+    "multiStato": "MULTI-STATE",
+    "esPompa": "e.g. Centrifugal pump",
+    "urlSvg": "SVG URL * (https://… or /symbols/…)",
+    "esAutore": "e.g. Wikimedia Commons / John Smith",
+    "urlFonte": "Source URL (for CC-BY attribution)",
+    "userPassObbligatori": "Username and password are required.",
+    "ultimoAmministratore": "You cannot remove the last administrator.",
+    "passwordNonValida": "Invalid password.",
+    "utentiTitolo": "USERS",
+    "forza": "force",
+    "oreN_one": "{{count}} hour",
+    "oreN_other": "{{count}} hours",
+    "esOperatore": "e.g. operator2",
+    "creaPiu": "+ Create",
+    "forzaCambioPassword": "Force password change at first login (recommended)",
+    "scaricatoKb": "✓ Downloaded \"{{nome}}\" ({{kb}} KB)",
+    "copiaSicurezzaScaricata": "✓ Safety copy downloaded: {{file}}",
+    "modificheScartate": "⚠ Unsaved local changes: discarded on request",
+    "aperturaDi": "Opening \"{{nome}}\"…",
+    "backupNelRuntimeIde": "✓ Backup in the IDE runtime: {{nome}}",
+    "accettaCertTls": "Accept TLS cert ↗",
+    "cerco": "Searching…",
+    "porteSpiega": "Port 7444 = admin access (deploy). Port 7443 = operator viewer.",
+    "connetti": "Connect",
+    "connessoA": "● Connected to {{host}}",
+    "deployInCorso": "Deploying…",
+    "eliminazione": "Deleting…",
+    "letturaInCorso": "Reading…",
+    "aggiornamentoDopoApertura": "The upgrade does not happen now: after opening, the «⚠ Upgrade project» button will appear.",
+    "logRemoti": "Remote logs",
+    "erroreStatoSistema": "Error loading system status: {{errore}}",
+    "versione": "Version",
+    "modoRuntime": "Runtime (serves a plant)",
+    "modoIde": "IDE (design only)",
+    "modoNonDichiarata": "not declared",
+    "verifico": "Verifying…",
+    "catenaIntegra": "✓ Chain intact — {{n}} entries verified.",
+    "catenaCompromessa": "✗ Chain broken at entry #{{n}} — {{motivo}}",
+    "motivoSconosciuto": "unknown reason",
+    "quando": "When",
+    "chi": "Who",
+    "azione": "Action",
+    "dettaglio": "Detail",
+    "disco": "Disk",
+    "tlsPropostaTitolo": "HTTPS without warnings, with the device certificate",
+    "tlsPropostaTesto": "This panel has a device certificate its browser already trusts. Using it needs one sudo step, once: log in to the panel as «pixsys» and run this command. The panel restarts in HTTPS and the screen shows no warning.",
+    "tlsPropostaNo": "No, stay on plain HTTP",
+    "copia": "Copy"
   },
   "boot": {
     "pngTooLarge": "PNG too large ({{kb}} KB, max 5120 KB): it was not uploaded",
@@ -2648,7 +2902,10 @@
       "D": "removed",
       "nuovo": "new, not yet in the repository",
       "altro": "changed"
-    }
+    },
+    "agganciaRepository": "Attach to a repository",
+    "tagNomePh": "name (e.g. v1.2.0)",
+    "tagMessaggioPh": "message (optional)"
   },
   "rilievi": {
     "conteggio": "{{n}} findings",
@@ -2848,7 +3105,8 @@
     "linguaTitolo": "The language to write to this recipient in",
     "linguaCanale": "as the channel",
     "togli": "Remove",
-    "aggiungi": "recipient"
+    "aggiungi": "recipient",
+    "esempioEmail": "name@example.com"
   },
   "notifiche": {
     "destinatariTitolo": "PROJECT EMAIL RECIPIENTS",
@@ -2862,7 +3120,47 @@
       "escalation": "Escalation (alarm not acknowledged)",
       "esito_aggiornamento": "Outcome of a runtime update",
       "versione_nuova": "New version available"
-    }
+    },
+    "inviatoDalRuntime": "✓ Message sent by the runtime.",
+    "titoloEmail": "EMAIL NOTIFICATIONS",
+    "abilitaSmtp": "Enable SMTP notifications",
+    "hostSmtp": "SMTP host *",
+    "indirizzoFrom": "From address *",
+    "usernameSmtp": "SMTP username",
+    "passwordSmtp": "SMTP password",
+    "starttls": "STARTTLS (recommended on port 587)",
+    "titoloTelegram": "TELEGRAM NOTIFICATIONS",
+    "abilitaTelegram": "Enable Telegram notifications",
+    "rilevamento": "Detecting…",
+    "rilevaChat": "Detect chat",
+    "aggiunta": "✓ added",
+    "inviaTest": "Send test",
+    "comeConfigurare": "How to set it up",
+    "voce": "Voice",
+    "telefonoTitolo": "SMS AND CALLS (TWILIO)",
+    "telefonoNota": "The panel phones the on-call people for the events ticked in the SMS and Voice columns of the Events table. If nobody acknowledges the alarm, after the wait it alerts the next on-call person. With the panel connected to the cloud you can acknowledge from the phone: key 1 during the call, or replying «OK» to the SMS (the SMS webhook must be set on the number in the Twilio console: see the manual).",
+    "twilioAttivo": "Use Twilio for SMS and calls",
+    "numeroTwilio": "Sender number",
+    "provaSms": "Send test SMS",
+    "smsInviato": "✓ SMS sent",
+    "salvaPrima": "Save the changes first",
+    "reperibiliTitolo": "ON-CALL",
+    "reperibiliNota": "Who to alert and when. The order is the escalation order: first the first on duty, then the second. A shift that ends before it starts crosses midnight (22:00-06:00); empty = all day.",
+    "nome": "Name",
+    "telefono": "Phone",
+    "giorni": "Days",
+    "dalle": "From",
+    "alle": "To",
+    "sopra": "Move up",
+    "g1": "M",
+    "g2": "T",
+    "g3": "W",
+    "g4": "T",
+    "g5": "F",
+    "g6": "S",
+    "g7": "S",
+    "aggiungiReperibile": "+ On-call person",
+    "attesaMin": "Minutes before the next one"
   },
   "catalogo": {
     "titolo": "Device catalog — bus {{bus}}",
@@ -3127,6 +3425,7 @@
       "sospeso": "suspended",
       "bandito": "banned",
       "collegato": "connected",
+      "spento": "shut down (announced) on {{quando}}",
       "scollegato": "not connected",
       "dichiarati": "Declared by hand (pannelli.yaml)",
       "confermaSposta": "Move «{{nome}}» to company «{{azienda}}»? The panel disconnects and reconnects by itself; whoever had access before loses it.",
@@ -3542,6 +3841,89 @@
     "proprio": "OWN",
     "daStato": "The TLS certificate is managed in Security → Certificates.",
     "daSorgente": "This source's trust store: Security → Certificates.",
-    "apri": "Open"
+    "apri": "Open",
+    "viewerNonQui": "This instance has no LVGL screen: the viewer's store lives on the panel."
+  },
+  "sorgenti": {
+    "tokenAccesso": "Access token",
+    "oppureTokenEnv": "(or use token_env)",
+    "statoPh": "(state)",
+    "pari": "Even (E)",
+    "dispari": "Odd (O)",
+    "sfogliaBroker": "Browse broker",
+    "rilevamentoS": "Detecting… ({{s}} s)",
+    "topicRilevati": "{{n}} topics found — {{sel}} selected",
+    "jsonNonValido": "Invalid JSON.",
+    "analizza": "Analyze",
+    "variabiliSel": "{{n}} variables — {{sel}} selected",
+    "tipo": "Type",
+    "autenticazione": "AUTHENTICATION",
+    "nascondi": "Hide",
+    "mostra": "Show",
+    "passwordEnv": "Password from env (opt.) — alternative to the password field, read at runtime",
+    "passwordEnvPh": "e.g. MQTT_PUMP1_PWD",
+    "abilitaTls": "Enable TLS",
+    "caCertPh": "ca_cert_path (PEM, required if enabled)",
+    "clientIdSuffisso": "client_id as suffix",
+    "clientIdPrefisso": "client_id as prefix",
+    "clientIdUnivoco": "Each instance (IDE and every device) adds a persistent unique id — client_id stays just the label.",
+    "estraiJson": "Extract from JSON",
+    "mappaturaTopic": "TOPIC MAPPING",
+    "rango": "rank",
+    "sfogliaOpcua": "Browse OPC-UA server",
+    "nodiScansionati": "{{n}} nodes scanned",
+    "limiteRaggiunto": "(limit reached)",
+    "scansioneInCorso": "Scanning the address space (max ~500 nodes)…",
+    "scansione": "Scanning…",
+    "riprovaFreccia": "↻ Retry",
+    "ugualeAlTag": "same as tag",
+    "nodiEsposti": "EXPOSED NODES",
+    "deprecato": "deprecated",
+    "raccomandato": "recommended",
+    "anonima": "Anonymous",
+    "utentePassword": "User + Password",
+    "sicurezzaCertificati": "CERTIFICATE SECURITY",
+    "sfogliaServer": "🔍 Browse server",
+    "rilevaEuromap": "🤖 Detect Euromap",
+    "piuNodo": "+ Node",
+    "piuMetrica": "+ Metric",
+    "creaTagSuggeriti": "Automatically create the suggested SWS tags",
+    "richiestaStato": "State request",
+    "richiestaStatoTitolo": "Request the state on connect: after subscribing the runtime publishes a request, and the device answers on the state topic. Needed when the broker does not keep the last value (Zigbee2MQTT by default).",
+    "richiestaStatoTopic": "Topic to publish the request on (no + or #)",
+    "richiestaStatoPayload": "Request payload, as is",
+    "compilaRichieste_one": "⟳ Request state on start: {{count}} Zigbee2MQTT row",
+    "compilaRichieste_other": "⟳ Request state on start: {{count}} Zigbee2MQTT rows",
+    "compilaRichiesteTitolo": "Fill in the state request (`<topic>/get` with the JSON path field) on the `zigbee2mqtt/…` rows that lack one."
+  },
+  "reportTab": {
+    "titolo": "SCHEDULED REPORTS",
+    "intro": "PDF and Excel with history tables (min, max, average and trend of the chosen tags) and the period's alarms. The panel generates them by itself at the end of each period, saves them in the project and emails them with the Notifications SMTP.",
+    "nonQui": "This instance does not run the plant: the panel generates the reports. Connect it (Connection) to see its files and generate one.",
+    "nuovo": "+ New report",
+    "id": "Id",
+    "titoloCampo": "Title",
+    "periodo": "Period",
+    "periodi": {
+      "turno": "Shift (8 hours)",
+      "giorno": "Day",
+      "settimana": "Week",
+      "mese": "Month"
+    },
+    "quando": "When (cron)",
+    "quandoHint": "Five fields: minute hour day month weekday. Empty = at the end of the period, at 6. The report covers the period ending at that moment.",
+    "tags": "Report tags",
+    "aggiungiTag": "add a tag",
+    "passo": "Rows every (minutes)",
+    "allarmi": "Alarms in the period",
+    "conserva": "Files to keep",
+    "email": "Email to",
+    "generaOra": "▶ Generate now",
+    "generando": "Generating…",
+    "salvaPrima": "Save the changes first",
+    "generati": "✓ {{n}} files generated",
+    "file": "Generated files",
+    "nessunFile": "None yet.",
+    "scarica": "Download"
   }
 }

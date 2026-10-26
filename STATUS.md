@@ -12,7 +12,33 @@
 > resta in «Storico». Qui vive solo ciò che serve a riprendere il lavoro.
 
 
-## ▶ Riprendere da qui — 2.21.0 rilasciata, VPS aggiornato (2026-10-25)
+## ▶ Riprendere da qui — «Concludi tutti i piani iniziati»: P2, P3, P4, gruppo 6, C4, tunnel (2026-10-26)
+
+Su `main` con **un solo squash** (pushato) della catena di otto rami annidati del 25-26/10. **Niente immagini
+costruite**: la 2.21.1 è in `NOVITA.yaml` ma non ha tag — si tagga quando si costruisce (chiedere prima).
+
+Fatto (i commit dei rami sono nello squash):
+- **Certificati nel cloud** (colonna col nome del pannello, card TLS) e **i18n**: ~300 testi fissi nel catalogo.
+- **MQTT, stato all'avvio**: una riga chiede lo stato al collegamento; ⟳ per Zigbee2MQTT (i led bianchi dopo un riavvio).
+- **OPC-UA 4d**: il client legge le strutture; piani 4d, decisioni della Fase 4 e gestione tag archiviati.
+- **C4**: l'HTTPS col certificato del dispositivo, proposto dal pannello; piano archiviato.
+- **Gruppo 6**: trasporto Modbus nel catalogo, bus TCP implicito, configuratore dei moduli (solo le differenze).
+- **P2** «Crea faceplate dalla selezione», **P3** report programmati PDF/Excel, **P4** SMS e voce via Twilio con
+  reperibili a turni e riconoscimento dal telefono attraverso il cloud.
+- **Programma funzioni utente** concluso e archiviato (gruppi 1-9).
+- **Tunnel, ramo 7**: il gateway ascolta i battiti e chiude un tunnel muto (>95 s), spegnimento annunciato e pallino
+  giallo nella console; corretti `Registro::esce` (la connessione vecchia toglieva la nuova) e «sospendi/sposta
+  azienda» che non chiudevano il socket. **Misura dei sette giorni: 0,29 riaperture non spiegate al giorno** (soglia
+  1), dopo aver corretto `misura_tunnel.sh`. **Piano dei residui archiviato.**
+
+Da fare:
+- **Collaudi** in `docs/COLLAUDI_IN_SOSPESO.md`: §A-bis…A-sexies (MQTT, OPC-UA strutture, report, Twilio, tunnel),
+  G-ter, e quelli di C4/gruppo 6 sul TC620 con l'MCM. Prima serve la build (2.21.1): chiedere.
+- **Manuale, ramo 3**: i 14 tutorial col laboratorio OpenPLC v4 + Mosquitto, eseguiti e fotografati; poi ramo 4.
+- **Decide il maintainer**: se P5, P6 e C5-C8 del piano prima fascia/CRA rientrano in «piani iniziati».
+- In coda (osservazioni): seme planimetrie 3D (`docs/plans/2026-10-25-planimetrie-3d.md`).
+
+## ▶ Prima — 2.21.0 rilasciata, VPS aggiornato (2026-10-25)
 
 **Release ufficiale 2.21.0** (`b090f6d4`, tag `2.21.0`), costruita e pubblicata: `2.21.0-arm64` (sposta
 `latest-arm64` e `rc-arm64`) e `2.21.0-amd64`. Etichette controllate sull'immagine: versione 2.21.0, **quadlet 7**,
@@ -71,7 +97,7 @@ chromium del pannello davanti al proprio certificato autofirmato. È una misura,
 
 ### Il piano dei tag — dov'è arrivato
 
-[`2026-09-21-gestione-tag-oggetto-unico.md`](docs/plans/2026-09-21-gestione-tag-oggetto-unico.md):
+[`2026-09-21-gestione-tag-oggetto-unico.md`](docs/archive/2026-09-21-gestione-tag-oggetto-unico.md):
 fasi 0, 1, 2, 3 chiuse; Fase 4 con 4a, 4b, 4c **e 4d** su `main`. Della 4d sono fatti i passi 1-9
 — il lato **server**, col collaudo client-contro-server dentro `cargo test` (due tipi, 0,23 s).
 
@@ -79,7 +105,7 @@ fasi 0, 1, 2, 3 chiuse; Fase 4 con 4a, 4b, 4c **e 4d** su `main`. Della 4d sono 
 e `da_variant` che impara a leggere un `ExtensionObject` da un server di **terzi**. Finché non ci
 sono, un `ExtensionObject` in arrivo resta `Bad` — comportamento di oggi, non una regressione. Il
 piano, con sedici insidie misurate e le tre correzioni degli scettici, è in
-[`2026-10-23-opcua-4d-strutture-vere.md`](docs/plans/2026-10-23-opcua-4d-strutture-vere.md).
+[`2026-10-23-opcua-4d-strutture-vere.md`](docs/archive/2026-10-23-opcua-4d-strutture-vere.md).
 
 ### La misura del tunnel (23-10-2026)
 
@@ -140,7 +166,7 @@ niente: da qui si aprono rami.
 |---|---|
 | [OpenPLC sul dispositivo](docs/plans/2026-10-20-openplc-sul-dispositivo.md) | **otto su otto** — governo ibrido, per board generiche **e** Pixsys, **opzionale**, logica in `<progetto>/openplc/` con git **e** deploy |
 | [I certificati in un posto solo](docs/archive/2026-10-15-certificati-in-un-posto-solo.md) | **otto su otto** — vista a due colonne, rotte remote, trust store riparato col default della policy, certificato con nome e scadenza |
-| [OPC-UA, Fase 4](docs/plans/2026-10-22-opcua-fase-4-decisioni.md) | **sei su sei** — la 4a è già nella 2.19.0; 4b e 4c diventano **un ramo solo** |
+| [OPC-UA, Fase 4](docs/archive/2026-10-22-opcua-fase-4-decisioni.md) | **sei su sei** — la 4a è già nella 2.19.0; 4b e 4c diventano **un ramo solo** |
 | [Server Modbus](docs/plans/2026-10-23-server-modbus.md) | **seme nuovo**: SWS parla Modbus solo da client |
 
 ### Le tre cose che le decisioni fanno nascere, e che prima non c'erano
@@ -209,7 +235,7 @@ Tre documenti fatti per decidere, non per leggere. Ognuno ha le opzioni e cosa c
 
 | Documento | Cosa decide |
 |---|---|
-| [OPC-UA, le sei decisioni](docs/plans/2026-10-22-opcua-fase-4-decisioni.md) | come si collauda una struttura senza un server che le esponga; `NumericRange` indirizza **solo** gli array; da dove arriva il `DataType`; se le scritture dal server passano dal bus |
+| [OPC-UA, le sei decisioni](docs/archive/2026-10-22-opcua-fase-4-decisioni.md) | come si collauda una struttura senza un server che le esponga; `NumericRange` indirizza **solo** gli array; da dove arriva il `DataType`; se le scritture dal server passano dal bus |
 | [I certificati in un posto solo](docs/archive/2026-10-15-certificati-in-un-posto-solo.md) | otto scelte. «Serve una dipendenza nuova» era **falso**: `x509-cert` è già dentro il binario. Il trust store OPC-UA **non funziona**, e correggere il percorso non basta |
 | [OpenPLC sul dispositivo](docs/plans/2026-10-20-openplc-sul-dispositivo.md) | cinque scelte, e la seconda decide tutto. Il conflitto sulla 8443 **non esiste più** |
 
@@ -256,7 +282,7 @@ Sono tre documenti fatti per decidere, non per leggere. Ognuno ha le opzioni e c
 
 | Documento | Cosa decide |
 |---|---|
-| [OPC-UA, le sei decisioni](docs/plans/2026-10-22-opcua-fase-4-decisioni.md) | come si collauda una struttura se un server con strutture non ce l'abbiamo; come si scrive dentro una struttura (`NumericRange` indirizza **solo** gli array); da dove arriva il `DataType`; se le scritture dal server passano dal bus |
+| [OPC-UA, le sei decisioni](docs/archive/2026-10-22-opcua-fase-4-decisioni.md) | come si collauda una struttura se un server con strutture non ce l'abbiamo; come si scrive dentro una struttura (`NumericRange` indirizza **solo** gli array); da dove arriva il `DataType`; se le scritture dal server passano dal bus |
 | [I certificati in un posto solo](docs/archive/2026-10-15-certificati-in-un-posto-solo.md) | otto scelte. «Serve una dipendenza nuova» era **falso**: `x509-cert` è già dentro il binario. Il trust store OPC-UA **non funziona**, e correggerlo non basta |
 | [OpenPLC sul dispositivo](docs/plans/2026-10-20-openplc-sul-dispositivo.md) | cinque scelte, e la seconda decide tutto. Il conflitto sulla 8443 **non esiste più** |
 
@@ -374,7 +400,7 @@ dimezza il carico senza rischi.
 - **I piani vivi sono 19**, erano 32 stamattina. Di settembre ne restano due, e sono lavoro vero:
   [riorganizzare i file dell'editor](docs/plans/2026-09-22-riorganizzare-i-file-dell-editor.md)
   (16 385 righe da dividere) e
-  [tag come oggetto unico](docs/plans/2026-09-21-gestione-tag-oggetto-unico.md) (Fase 4 OPC-UA a
+  [tag come oggetto unico](docs/archive/2026-09-21-gestione-tag-oggetto-unico.md) (Fase 4 OPC-UA a
   zero righe, più il collaudo a schermo della Fase 2, 2 timbri su 6).
 - **Niente rami aperti, albero pulito.**
 
@@ -863,7 +889,7 @@ ripubblicando il tag dall'immagine vera. Dopo un rilascio, **alzare subito la ve
 quindi vale sia per il canale stabile sia per quello di prova.
 
 Poi, a scelta: i diciassette rami del manuale (ne restano quindici, il prossimo è il **03**, da legare al 18), o i
-sette della [chiusura dei residui](docs/plans/2026-10-19-chiusura-dei-residui.md). **Il ramo 7 di quel piano
+sette della [chiusura dei residui](docs/archive/2026-10-19-chiusura-dei-residui.md). **Il ramo 7 di quel piano
 conviene aprirlo presto**: la misura della tenuta del tunnel vuole sette giorni di calendario col WP630 acceso, e
 nel frattempo si lavora ad altro.
 
@@ -937,7 +963,7 @@ Tutto **da collaudare** dal maintainer, insieme ai gruppi 1–2 e al lavoro del 
 
 ### Prossimo
 
-**Gruppo 5** del programma (`docs/plans/2026-10-18-programma-funzioni-utente.md`): pezzi rimasti di piani avviati —
+**Gruppo 5** del programma (`docs/archive/2026-10-18-programma-funzioni-utente.md`): pezzi rimasti di piani avviati —
 strumenti ramo 3, tubo che segue l'oggetto mosso da una variabile, predefiniti fasi 2-3, tag fasi dopo la 2. Ognuno
 va riletto contro il codice e chiede decisioni al maintainer.
 
@@ -950,7 +976,7 @@ Su `main` (nessun push). Cloud e TC620 sull'immagine `0ee6de5d`.
 | `917fd706` | il kiosk non si ricaricava dopo un deploy che sostituisce gli utenti (401 → baseline azzerata) |
 | `48a94418` | rilievi falsi: navigatore nella cornice, finestre popup, bottoni con azione |
 | `4509a02a` | **C8** capitolo 17 del manuale, «Sicurezza» |
-| `980db664` | programma delle funzioni utente in nove gruppi (`docs/plans/2026-10-18-programma-funzioni-utente.md`) |
+| `980db664` | programma delle funzioni utente in nove gruppi (`docs/archive/2026-10-18-programma-funzioni-utente.md`) |
 | `6d2494e8` | **gruppo 1**: il display LVGL segue la pagina (centrata), avviso `size_mode` su LVGL, l'editor propone una cornice |
 | `0ee6de5d` | **gruppo 2**: sei font uguali su web e LVGL (anche a segmenti), grassetto vero sul pannello, guardia `check_font` |
 
@@ -1754,7 +1780,7 @@ Nessun codice, solo diagnosi (sessione da casa, TC620 raggiungibile). Il TC620 g
   «ingressi»**, quindi `configurazione.tipo_sensore_aiN` non è nel progetto. Rimedio subito: «Dal catalogo» →
   «Riprendi `mcm260x_5ad_1`» con **Configurazione** spuntata (tipo allargato, percorsi `ingressi.*` invariati).
 - **Proposto al maintainer, non deciso**: aprire la sessione di plan sul seme
-  [configuratore dei moduli](docs/plans/2026-10-04-configuratore-moduli.md), così il tipo di sonda sta nel progetto e
+  [configuratore dei moduli](docs/archive/2026-10-04-configuratore-moduli.md), così il tipo di sonda sta nel progetto e
   il runtime lo applica al modulo.
 - Da pulire nel progetto: i tipi `pixsys_mcm260x_5ad_v2` e `…_9ad_v2`, piatti e senza istanze.
 
@@ -2073,7 +2099,7 @@ dispositivo.
   aggiornare» 2 → 3; i pallini di stato presi dal pannello; rifare i tre MCM dal catalogo (annidati) e togliere i tipi
   piatti vecchi e i `_v2` rimasti senza istanze.
 - **Semi nuovi**: [trend LVGL come il web](docs/archive/2026-10-04-trend-lvgl-come-il-web.md),
-  [configuratore dei moduli all'avvio](docs/plans/2026-10-04-configuratore-moduli.md).
+  [configuratore dei moduli all'avvio](docs/archive/2026-10-04-configuratore-moduli.md).
 - Nota: la rc.22 su `rc-arm64` ha il quadlet 2 che podman 5.0.2 rifiuta (servizio che sparisce): la rc.23 la
   sostituisce sullo stesso canale.
 
@@ -3233,7 +3259,7 @@ Dopo il merge del Passo 2, il piano prosegue col **Passo 3** (il viewer LVGL seg
 
 ## Riprendere da qui (precedente) — Fasi 1d, 1e e 2 dei tag su `main` (2026-09-22, ufficio, notte)
 
-**Tutto su `main` e pushato**, in un unico squash: **`a76e6889`**, su istruzione del maintainer («fai il merge e push che poi riprendo da casa»). Con la Fase 2 **la Fase 1 è chiusa per intero**: 1d e 1e erano rimaste sul ramo annidato `feat/tag-1d-scrittura-e-filo` e sono entrate con lo stesso squash — undici commit in uno. I due rami (`feat/tag-1d-scrittura-e-filo`, `feat/tag-2-editor-tipi`) sono stati cancellati dopo il confronto degli alberi, e **non sono mai stati pushati**: gli hash dei loro commit non esistono su origin, quindi qui sotto c'è solo `a76e6889`. Piano: `docs/plans/2026-09-21-gestione-tag-oggetto-unico.md`.
+**Tutto su `main` e pushato**, in un unico squash: **`a76e6889`**, su istruzione del maintainer («fai il merge e push che poi riprendo da casa»). Con la Fase 2 **la Fase 1 è chiusa per intero**: 1d e 1e erano rimaste sul ramo annidato `feat/tag-1d-scrittura-e-filo` e sono entrate con lo stesso squash — undici commit in uno. I due rami (`feat/tag-1d-scrittura-e-filo`, `feat/tag-2-editor-tipi`) sono stati cancellati dopo il confronto degli alberi, e **non sono mai stati pushati**: gli hash dei loro commit non esistono su origin, quindi qui sotto c'è solo `a76e6889`. Piano: `docs/archive/2026-09-21-gestione-tag-oggetto-unico.md`.
 
 **Il collaudo a schermo della Fase 2 non c'è ancora**: il maintainer ha provato e confermato la scheda «Tipi» e il ✕ che non cancella più un'istanza in uso, non il resto. Le prove da fare sono qui sotto, ed è la prima cosa da riprendere.
 
@@ -3265,7 +3291,7 @@ Dopo il merge del Passo 2, il piano prosegue col **Passo 3** (il viewer LVGL seg
 
 ## Riprendere da qui (precedente) — Fase 0 chiusa e Fase 1 a metà: prossima la 1d (2026-09-22, ufficio, sera)
 
-**Tutto su `main` e pushato.** Piano: `docs/plans/2026-09-21-gestione-tag-oggetto-unico.md`.
+**Tutto su `main` e pushato.** Piano: `docs/archive/2026-09-21-gestione-tag-oggetto-unico.md`.
 
 **Fase 0 chiusa** (0a registro riferimenti, 0b creazione al salvataggio + **un solo «Salva» di progetto**, 0c rinomina ovunque con anteprima + ✕ che rifiuta una variabile usata, 0d `apply_tags` unica + validatore che parla dopo il salvataggio).
 
@@ -3296,7 +3322,7 @@ Dopo il merge del Passo 2, il piano prosegue col **Passo 3** (il viewer LVGL seg
 
 ## Riprendere da qui (precedente) — piano approfondito sui tag, Fase 0a chiusa (2026-09-22)
 
-**Sessione di plan approfondita sui tag** (chiede il seme del 21-09): tre esplorazioni (editor, runtime core, plugin) e quattro decisioni del maintainer — valori composti **nativi**, strutture come **tipi riusabili + istanze**, **prima l'oggetto unico poi strutture/array**, priorità **Modbus e OPC-UA**. Il piano sostituisce il seme: `docs/plans/2026-09-21-gestione-tag-oggetto-unico.md`, otto fasi (0a-0d, 1-4), un ramo alla volta. S7/EtherNet-IP/MQTT/HA/Host restano in coda, non pianificati nel dettaglio. Difetti trovati durante l'esplorazione, da trattare a parte: Modbus (segno, doppia scala), OPC-UA (scala non applicata alle sottoscrizioni, `Float(0.0)` inventato per array/strutture), HomeAssistant (attributi lista/dict scartati in silenzio), **Sparkplug B con i numeri di campo del protobuf probabilmente sbagliati** (da verificare sul `.proto` ufficiale prima di costruirci sopra).
+**Sessione di plan approfondita sui tag** (chiede il seme del 21-09): tre esplorazioni (editor, runtime core, plugin) e quattro decisioni del maintainer — valori composti **nativi**, strutture come **tipi riusabili + istanze**, **prima l'oggetto unico poi strutture/array**, priorità **Modbus e OPC-UA**. Il piano sostituisce il seme: `docs/archive/2026-09-21-gestione-tag-oggetto-unico.md`, otto fasi (0a-0d, 1-4), un ramo alla volta. S7/EtherNet-IP/MQTT/HA/Host restano in coda, non pianificati nel dettaglio. Difetti trovati durante l'esplorazione, da trattare a parte: Modbus (segno, doppia scala), OPC-UA (scala non applicata alle sottoscrizioni, `Float(0.0)` inventato per array/strutture), HomeAssistant (attributi lista/dict scartati in silenzio), **Sparkplug B con i numeri di campo del protobuf probabilmente sbagliati** (da verificare sul `.proto` ufficiale prima di costruirci sopra).
 
 **Fase 0a chiusa e mergiata** (`b2d01098`): registro unico dei riferimenti scalari ai tag. `CAMPI_TAG` (validate.rs) e `TAG_FIELDS` (collectTagIds.ts) divergevano da tempo — `motion_tag`/`pipe_flow_tag`/`symbol_spin_tag`/`gauge_sp_tag` erano validati lato server e mai sottoscritti lato client, l'oggetto si congelava senza errore. Allineati, guardia nuova `check_tag_refs.sh` (25ª). Validazione server estesa alle collezioni mai coperte prima (trend_tags/xy_series/table_rows/bar_series/pie_slices, bindings, celle e sotto-celle di griglia) — verificato senza falsi positivi sui template reali. `tagUsage.ts` («dove è usato»): la regex vedeva solo apici doppi su `tags["..."]`; gli script veri usano `tags.read()`/`tags.write()` e alcuni template apici singoli — corretto. Dettaglio: `CHANGELOG.md`.
 

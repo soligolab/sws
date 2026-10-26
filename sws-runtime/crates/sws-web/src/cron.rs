@@ -298,7 +298,7 @@ fn numero(s: &str, nome: &'static str, pezzo: &str) -> Result<u8, Problema> {
 
 impl Cron {
     /// L'istante `unix_s` (UTC) combacia con l'espressione?
-    fn combacia(&self, unix_s: u64) -> bool {
+    pub(crate) fn combacia(&self, unix_s: u64) -> bool {
         const GIORNO: u64 = 86_400;
         const ORA: u64 = 3_600;
         const MINUTO: u64 = 60;

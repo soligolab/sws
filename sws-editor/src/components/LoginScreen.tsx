@@ -93,7 +93,7 @@ export function LoginScreen({
       if (e instanceof RateLimitedError) {
         setLockedUntilMs(Date.now() + e.retryAfterSecs * 1000);
         setCountdown(e.retryAfterSecs);
-        setError(`Troppi tentativi falliti. Riprova tra ${e.retryAfterSecs}s.`);
+        setError(t("login.troppiTentativi", { s: e.retryAfterSecs }));
       } else if (e instanceof RuntimeUnavailableError) {
         setError(t("auth.runtimeUnreachable"));
       } else {
@@ -144,7 +144,7 @@ export function LoginScreen({
         </div>
         {error && (
           <div style={{ color: "var(--brand-danger-soft, #fca5a5)", fontSize: 12, background: "#7f1d1d33", padding: "6px 10px", borderRadius: 4 }}>
-            {isLocked ? `Account bloccato. Riprova tra ${countdown}s.` : error}
+            {isLocked ? t("login.accountBloccato", { s: countdown }) : error}
           </div>
         )}
         <button

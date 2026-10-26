@@ -42,7 +42,7 @@ function RuntimeIdleScreen() {
           color: "var(--brand-text, #e2e8f0)", border: "1px solid var(--brand-surface-2, #334155)", cursor: "pointer", fontSize: 14,
         }}
       >
-        Riprova
+        {t("common.riprova")}
       </button>
     </div>
   );

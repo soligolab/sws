@@ -12,7 +12,8 @@
     "newBuildAvailable": "È disponibile una versione aggiornata dell'interfaccia. Ricarica per applicarla.",
     "runtimeReachableReload": "Il runtime è di nuovo raggiungibile (certificato accettato o host tornato attivo). Ricarica la pagina per riconnetterti.",
     "connectionFailed": "Connessione fallita",
-    "loadingConfiguration": "Caricamento configurazione…"
+    "loadingConfiguration": "Caricamento configurazione…",
+    "clicPerChiudere": "(clic per chiudere)"
   },
   "common": {
     "save": "Salva",
@@ -31,7 +32,18 @@
     "export": "Esporta",
     "import": "Importa",
     "test": "Test",
-    "stats": "Stats"
+    "stats": "Stats",
+    "copiaSuffisso": "(copia)",
+    "riprova": "Riprova",
+    "incollaSuffisso": "(incolla)",
+    "gruppo": "Gruppo",
+    "aggiornaFreccia": "↻ Aggiorna",
+    "inCorso": "in corso…",
+    "anteprima": "Anteprima",
+    "invio": "Invio…",
+    "aggiorno": "Aggiorno…",
+    "aggiorna": "Aggiorna",
+    "errore": "Errore"
   },
   "header": {
     "start": "Start",
@@ -123,7 +135,8 @@
     "copyStyle": "Copia stile",
     "copyStyleTitle": "Copia i campi di aspetto dell'oggetto selezionato (colori, bordo, font, angoli, sfumatura). Non copia il tag né la geometria.",
     "applyStyle": "Applica stile",
-    "applyStyleTitle": "Applica lo stile copiato a tutti gli oggetti selezionati."
+    "applyStyleTitle": "Applica lo stile copiato a tutti gli oggetti selezionati.",
+    "originale": "(originale)"
   },
   "unsaved": {
     "title": "Modifiche non salvate",
@@ -197,7 +210,9 @@
       "telegram": "Telegram",
       "eventi": "Cosa e dove",
       "stile": "Stile",
-      "certificati": "Certificati"
+      "certificati": "Certificati",
+      "reports": "Report",
+      "telefono": "Telefono (SMS e voce)"
     },
     "sottorami": {
       "device": "Device",
@@ -364,7 +379,9 @@
     "noRowsConfigureInThe": "Nessuna riga — configura nelle proprietà",
     "noData": "Nessun dato",
     "noTag": "nessun tag",
-    "noImageEmptySrc": "nessuna immagine (src vuoto)"
+    "noImageEmptySrc": "nessuna immagine (src vuoto)",
+    "espandiTrend": "Espandi trend",
+    "simboloMancante": "simbolo?"
   },
   "chat": {
     "title": "Assistente",
@@ -556,7 +573,8 @@
     "errArchivia": "«{{name}}»: {{err}}",
     "archiviati": "Archiviati ({{n}})",
     "archiviatoIl": "archiviato il {{date}} da {{da}}",
-    "ripristina": "Ripristina"
+    "ripristina": "Ripristina",
+    "streamingNonSupportato": "ERRORE: streaming non supportato"
   },
   "logs": {
     "history": "Storico…",
@@ -595,7 +613,9 @@
     "reasonLabel": "Motivo",
     "interrupted": "Interrotto",
     "interruptedHint": "Chiuso senza finire il suo giro: runtime spento o caduto, o allarmi ricaricati",
-    "inProgress": "in corso"
+    "inProgress": "in corso",
+    "aggiorna": "↺ Aggiorna",
+    "titolo": "STORICO ALLARMI"
   },
   "tagInput": {
     "select": "Seleziona tag",
@@ -1219,7 +1239,8 @@
     "sfondoAreaHint": "Riempie la parte fra testata e piede della cornice (tutta la pagina se non ha cornice), sotto gli oggetti. Sul pannello LVGL si vedono solo immagini SVG.",
     "sfondoAreaTogli": "Togli l'immagine",
     "valueFontSize": "Corpo del valore",
-    "unitFontSize": "Corpo dell'unità"
+    "unitFontSize": "Corpo dell'unità",
+    "vari": "(vari)"
   },
   "shortcut": {
     "navCanvas": "Navigazione canvas",
@@ -1253,7 +1274,17 @@
     "group": "Raggruppa selezione (≥2 oggetti)",
     "other": "Altro",
     "toggleHelp": "Mostra/nasconde questa guida",
-    "title": "Scorciatoie da tastiera"
+    "title": "Scorciatoie da tastiera",
+    "gesto": {
+      "ctrlRotella": "Ctrl + rotella",
+      "rotella": "Rotella",
+      "shiftRotella": "Shift + rotella",
+      "clickMedio": "Click medio + trascina",
+      "dragSfondo": "Trascina sullo sfondo",
+      "frecce": "Frecce",
+      "shiftFrecce": "Shift+Frecce",
+      "shiftAngolo": "Shift + trascina angolo"
+    }
   },
   "symbol": {
     "choose": "Scegli simbolo",
@@ -1739,7 +1770,12 @@
     "deploySimboliMancanti": "Il pannello non conosce {{n}} simboli della libreria usati da questo progetto:\n{{elenco}}\n\nLi mostrerà come segnaposto finché non aggiorni SWS sul pannello. Procedere con il deploy?",
     "deploySimboliSenzaLibreria": "Il pannello ha una versione di SWS senza la libreria di simboli: i {{n}} simboli di libreria del progetto\n{{elenco}}\n\nsaranno segnaposto finché non lo aggiorni. Procedere con il deploy?",
     "daRiautenticare": "Collegato a {{host}}, ma le credenziali non valgono più: il progetto distribuito ha portato i suoi utenti. Rientra con l'utente e la password dell'Admin del progetto.",
-    "tagWriteAnyone": "Chiunque, anche senza login"
+    "tagWriteAnyone": "Chiunque, anche senza login",
+    "modbusGateway": "+ Un altro dispositivo dietro questo indirizzo (gateway)",
+    "modbusGatewayHint": "Per un gateway Modbus TCP→RTU: più unit id dietro lo stesso indirizzo. Con due o più dispositivi il bus compare come livello a sé.",
+    "modbusSetupTitolo": "Configurazione del modulo",
+    "modbusSetupSpiega": "Come il progetto vuole configurato il modulo. A ogni collegamento il runtime legge questi parametri e scrive solo quelli diversi: un modulo sostituito o resettato torna configurato da solo. «Non gestito» lascia il modulo com'è.",
+    "modbusSetupNonGestito": "— non gestito —"
   },
   "langtab": {
     "migrate": "Migra i testi…",
@@ -1926,7 +1962,8 @@
     "bootPageBaseName": "Immagine di boot",
     "newCornice": "Nuova cornice",
     "corniceBaseName": "Cornice",
-    "scalaProgetto": "Cambia risoluzione del progetto"
+    "scalaProgetto": "Cambia risoluzione del progetto",
+    "faceplateDaSelezione": "Crea faceplate dalla selezione"
   },
   "storeErr": {
     "invalidRange": "Range non valido.",
@@ -1973,7 +2010,16 @@
     "strumenti": "Strumenti",
     "strumentoAggiungi": "Clic per aggiungerlo alla pagina corrente",
     "filtroStrumenti": "Filtra strumenti e simboli",
-    "filtroNessuno": "Nessuno strumento per «{{q}}»"
+    "filtroNessuno": "Nessuno strumento per «{{q}}»",
+    "cella": "Cella R{{r}}, C{{c}}",
+    "trascinaFuoriGruppo": "⤓ Trascina qui per rimuovere dal gruppo",
+    "rinomina": "Rinomina",
+    "duplica": "Duplica",
+    "raggruppaSelezione": "Raggruppa selezione ({{n}})",
+    "senzaGruppo": "⤓ Senza gruppo",
+    "rinominaGruppo": "Rinomina gruppo",
+    "separaGruppo": "Separa gruppo",
+    "configurazionePython": "Configurazione → Python"
   },
   "shell": {
     "offPage_one": "⚠ {{count}} oggetto è fuori dal foglio e non verrà disegnato a runtime. Trascinalo dentro il bordo tratteggiato per riattivarlo, oppure allarga la pagina.",
@@ -2044,7 +2090,75 @@
     "projectFormatHelp": "Misure e sfondo con cui nascono le pagine nuove. Si riempie da solo alla prima impostazione di una pagina; qui si può cambiare a mano. Non tocca le pagine esistenti.",
     "applyFormat": "Applica alle pagine senza formato proprio",
     "applyFormatHelp": "Scrive il formato predefinito sulle pagine che non hanno misure o sfondo propri.",
-    "applyFormatResult": "{{count}} pagine aggiornate"
+    "applyFormatResult": "{{count}} pagine aggiornate",
+    "griglia": "griglia",
+    "coloreSfondo": "Colore sfondo:",
+    "coloreBordo": "Colore bordo:",
+    "celleSelezionate": "{{rows}}×{{cols}} celle (R{{r1}}-{{r2}}, C{{c1}}-{{c2}})",
+    "unisciCelle": "🔗 Unisci celle",
+    "dividiOrizz": "⬓ Dividi orizzontalmente",
+    "dividiVert": "⬔ Dividi verticalmente",
+    "dimensioneFissataDalle": "Dimensione fissata dalle",
+    "dimensioneFissataResto": "(rapporto comune a tutte le pagine): {{w}}×{{h}}. Scala mantenendo le proporzioni a runtime.",
+    "escludiCiclo": "Escludi dal ciclo automatico (kiosk)",
+    "rapporto": "Rapporto",
+    "risoluzioneRiferimento": "Risoluzione di riferimento: {{w}}×{{h}}",
+    "selezioneMultipla": "Selezione multipla",
+    "oggettiSelezionati": "{{n}} oggetti selezionati",
+    "multiStessoTipo": "Tipo \"{{tipo}}\" — campi vuoti = valori diversi (vari).",
+    "multiTipiDiversi": "Tipi diversi — solo sezioni universali.",
+    "multiAiuto": "Shift+click per aggiungere/togliere dalla selezione. Ctrl-C/V, Ctrl-D, Ctrl-Z/Y, Canc come scorciatoie.",
+    "esLineaPressione": "es. linea1.pressione",
+    "visibile": "Visibile",
+    "alClick": "Al click (on_press)",
+    "alRilascio": "Al rilascio (on_release)",
+    "voci": "VOCI",
+    "esTemperatura": "Es. Temperatura caldaia",
+    "paginaInesistente": "pagina inesistente",
+    "soglie": "SOGLIE",
+    "ordineData": "Ordine data",
+    "dmy": "GG/MM (europeo)",
+    "mdy": "MM/GG (americano)",
+    "ymd": "AAAA/MM/GG",
+    "sepBarra": "/ (GG/MM)",
+    "sepTrattino": "- (GG-MM)",
+    "sepPunto": ". (GG.MM)",
+    "separatore": "Separatore",
+    "formatoOra": "Formato ora",
+    "mostraAnno": "Mostra anno",
+    "mostraSecondi": "Mostra secondi",
+    "dataOraDueRighe": "Data e ora su due righe",
+    "mostraSempreData": "Mostra sempre la data",
+    "mostraSoglie": "Mostra soglie (linee tratteggiate)",
+    "righe": "Righe",
+    "mostraBordi": "Mostra bordi",
+    "esValvola": "es. valvola.stato",
+    "esTotaleKw": "es. totale.kw",
+    "riempiArea": "Riempi area",
+    "mostraUltimo": "Mostra ultimo",
+    "mostraAck": "Mostra ACK",
+    "timestamp": "Ora",
+    "esLineaPrefisso": "es. linea1-",
+    "esPompaFlusso": "es. pump1.flow (segno = direzione)",
+    "esCarrello": "es. carrello.posizione",
+    "flipOrizz": "Rifletti in orizzontale",
+    "flipVert": "Rifletti in verticale",
+    "visibileStatico": "Visibile (statico)",
+    "bloccato": "Bloccato (non selezionabile nell'editor)",
+    "definisciFunzioni": "Definisci le funzioni nel pannello laterale (sezione FUNZIONI). I valori dei parametri sono sostituiti per binding; lascia vuoto per usare il default.",
+    "opzioniRadio": "OPZIONI RADIO",
+    "righeTabella": "RIGHE TABELLA",
+    "taglia": "✂ Taglia",
+    "serie": "SERIE",
+    "nome": "Nome",
+    "peso": "Peso",
+    "stile": "Stile",
+    "scalaLog": "Scala Y logaritmica",
+    "creaFaceplate": "⧉ Crea faceplate dalla selezione",
+    "creaFaceplateHint": "Gli oggetti selezionati diventano un faceplate riusabile: i tag diventano parametri, e qui resta la sua prima istanza.",
+    "creaFaceplatePrompt": "Nome del faceplate",
+    "creaFaceplateNome": "Nuovo faceplate",
+    "creaFaceplateErrore": "Il faceplate non si è salvato: {{errore}}"
   },
   "credenziali": {
     "waitWithoutRetryingEveryNew": "Aspetta **senza** riprovare: ogni nuovo tentativo allunga il blocco. ",
@@ -2060,25 +2174,47 @@
   },
   "alarmBell": {
     "ackAll": "ACK tutti",
-    "noActiveAlarms": "Nessun allarme attivo."
+    "noActiveAlarms": "Nessun allarme attivo.",
+    "durataOre": "Durata (h):",
+    "zeroIndefinito": "(0 = indefinito)",
+    "sopprimi": "Sopprimi",
+    "soppressi": "SOPPRESSI ({{n}})",
+    "fino": "fino",
+    "indefinito": "indefinito",
+    "riattiva": "Riattiva"
   },
   "runtimeView": {
     "loginPerAggiornare": "Per applicare l'aggiornamento serve un amministratore del pannello.",
     "close": "Chiudi",
     "noParametersDefined": "Nessun parametro definito.",
-    "noDefault": "(nessun default)"
+    "noDefault": "(nessun default)",
+    "applicaRicetta": "Applica ricetta",
+    "stop": "⏹ Stop",
+    "ciclo": "▶ Ciclo",
+    "ricette": "⚗ Ricette",
+    "testFunzioniN": "Test funzioni ({{n}} disponibili)",
+    "testFunzioni": "🧪 Test funzioni",
+    "funzione": "Funzione",
+    "esegui": "▶ Esegui {{nome}}"
   },
   "reauth": {
     "noActiveProject": "Nessun progetto attivo",
     "theRuntimeRestartedWithoutAn": "Il runtime si è riavviato senza un progetto aperto. Torna alla schermata di benvenuto per selezionare un progetto.",
-    "enterPasswordAs": "Inserisci la password per continuare come"
+    "enterPasswordAs": "Inserisci la password per continuare come",
+    "troppiTentativi": "Troppi tentativi. Riprova tra {{s}}s.",
+    "vaiAlBenvenuto": "Vai alla schermata di benvenuto",
+    "sessioneScaduta": "Sessione scaduta",
+    "esciAlLogin": "Esci e torna al login"
   },
   "logPanel": {
     "errorLoadingHistory": "Errore caricamento storico.",
     "download": "⬇ Scarica",
     "insufficientPermissionTheLogPanel": "Permesso insufficiente: il pannello log è disponibile da Operator in su.",
     "debugDispositivo": "DEBUG dispositivo",
-    "debugDispositivoTitolo": "Ricevi anche le righe DEBUG del dispositivo collegato (solo amministratore di piattaforma): sono molte, e nel cloud passano dal tunnel del pannello."
+    "debugDispositivoTitolo": "Ricevi anche le righe DEBUG del dispositivo collegato (solo amministratore di piattaforma): sono molte, e nel cloud passano dal tunnel del pannello.",
+    "riprendi": "▶ Riprendi",
+    "pausa": "⏸ Pausa",
+    "cancella": "Cancella"
   },
   "viewerMsg": {
     "noActiveProject": "Nessun progetto attivo",
@@ -2087,17 +2223,22 @@
   },
   "login": {
     "backToTheProjectList": "← Torna all'elenco progetti",
-    "inMemorySessionsARuntime": "Sessioni in-memory: un riavvio del runtime ti disconnette automaticamente."
+    "inMemorySessionsARuntime": "Sessioni in-memory: un riavvio del runtime ti disconnette automaticamente.",
+    "troppiTentativi": "Troppi tentativi falliti. Riprova tra {{s}}s.",
+    "accountBloccato": "Account bloccato. Riprova tra {{s}}s."
   },
   "imageBrowser": {
     "loadingCatalog": "Caricamento catalogo…",
-    "noResults": "Nessun risultato per \"{{filter}}\""
+    "noResults": "Nessun risultato per \"{{filter}}\"",
+    "libreria": "Libreria immagini"
   },
   "tagInputMsg": {
     "variableInferredFromThisSource": "Variabile dedotta dalle mappature di questa sorgente, non dichiarata in Configurazione → Progetto → Variabili"
   },
   "recipePanel": {
-    "noRecipeAvailable": "Nessuna ricetta disponibile."
+    "noRecipeAvailable": "Nessuna ricetta disponibile.",
+    "scritti": "✓ {{n}}/{{tot}} setpoint scritti",
+    "errori": "Errori:"
   },
   "tagUsage": {
     "page": "pagina \"{{name}}\"",
@@ -2112,13 +2253,19 @@
   },
   "ws": {
     "refused": "collegamento rifiutato (codice {{code}})",
-    "unstable": "nessun collegamento stabile dopo {{max}} tentativi"
+    "unstable": "nessun collegamento stabile dopo {{max}} tentativi",
+    "scritturaRifiutata": "scrittura rifiutata"
   },
   "diffRighe": {
-    "tooLarge": "{{before}} righe prima, {{after}} dopo: troppo per un diff riga per riga"
+    "tooLarge": "{{before}} righe prima, {{after}} dopo: troppo per un diff riga per riga",
+    "invariate": "{{n}} righe invariate non mostrate"
   },
   "riassunto": {
-    "page": "pagina «{{name}}» ({{count}} oggetti)"
+    "page": "pagina «{{name}}» ({{count}} oggetti)",
+    "funzioneRighe": "funzione `{{nome}}` ({{n}} righe)",
+    "funzione": "funzione `{{nome}}`",
+    "scriptRighe": "script globale `{{id}}` ({{n}} righe)",
+    "script": "script globale `{{id}}`"
   },
   "errors": {
     "projectChangedWhileWorking": "il progetto è cambiato mentre lavoravi"
@@ -2485,7 +2632,114 @@
     "opcuaTrustStoreSoloAdmin": "Il trust store è riservato all'Amministratore: è lì che si vede di quali server il progetto si fida.",
     "improntaTitolo": "Impronta del certificato",
     "improntaNuova": "Memorizzata adesso, al primo contatto. Confrontala con quella che il pannello mostra sul suo schermo o nel log dell'installazione: è l'unico momento in cui qualcuno potrebbe essersi messo in mezzo.",
-    "improntaNota": "Già memorizzata da un collegamento precedente: il pannello ha presentato la stessa di allora."
+    "improntaNota": "Già memorizzata da un collegamento precedente: il pannello ha presentato la stessa di allora.",
+    "tlsTitolo": "CERTIFICATO TLS",
+    "tlsHttpsAttivo": "HTTPS attivo",
+    "tlsGenera": "Genera certificato self-signed",
+    "tlsCertificatoPem": "Certificato (tls.crt, PEM)",
+    "tlsDisabilita": "Disabilita TLS",
+    "tlsNelCloud": "Nel cloud l'HTTPS lo gestisce il server davanti a tutti i progetti: questo progetto non ha un certificato suo, e non serve generarne uno. Il certificato del pannello è nella colonna accanto.",
+    "backupAdesso": "+ Backup adesso",
+    "ripristina": "Ripristina",
+    "intervalloAutoBackup": "Intervallo auto-backup (minuti)",
+    "righePerTag": "{{n}} righe per tag",
+    "giorniN": "{{n}} giorni",
+    "tagOrfaniSu": "{{n}} tag orfani su {{tot}} nel database.",
+    "liberatiMb": "✓ Liberati {{mb}} MB (da {{da}} a {{a}} MB).",
+    "dbScaricato": "✓ Database scaricato ({{mb}} MB).",
+    "dbScaricatoRemoto": "✓ Database scaricato ({{mb}} MB) dal dispositivo remoto.",
+    "odbcNonImplementato": "ODBC — non implementato",
+    "campioni": "Campioni",
+    "dim": "Dim",
+    "connesso": "Connesso",
+    "disconnesso": "Disconnesso",
+    "gestioneDatabase": "GESTIONE DATABASE",
+    "pulisciOra": "Pulisci ora",
+    "recuperaSpazio": "Recupera spazio",
+    "inSync": "✓ allineato",
+    "diffVersione": "✗ versione diversa",
+    "firmaLocale": "Firma locale:",
+    "ogniMs": "Ogni {{n}}ms",
+    "ogniS": "Ogni {{n}}s",
+    "funzioniTitolo": "FUNZIONI",
+    "senzaNome": "(senza nome)",
+    "chiamataDaOggetto": "chiamata da un oggetto",
+    "parametriN": "{{n}} parametri",
+    "abilitato": "Abilitato",
+    "disabilitato": "Disabilitato",
+    "intervalloSecondi": "Intervallo (secondi)",
+    "cronCinqueCampi": "Cron (5 campi)",
+    "cronCampi": "minuto ora giorno mese giorno-settimana",
+    "cronAiuto": "*/5      ogni 5 (passo)\n9-17     da 9 a 17 (intervallo)\n9-17/2   da 9 a 17, ogni 2\n0,30     elenco\n\nEsempi: */5 * * * * = ogni 5 minuti; 30 4 * * * = ogni giorno alle 4:30",
+    "ereditaDalRuntime": "eredita dal runtime",
+    "backupDaTenere": "Backup da tenere",
+    "caricatiMb": "✓ Caricati {{mb}} MB.",
+    "caricatiMbRemoto": "✓ Caricati {{mb}} MB sul dispositivo remoto.",
+    "datastoresIntro": "Configura i backend di persistenza dati storici. Ogni variabile con \"history\" attivo viene scritta nel datastore assegnato.",
+    "setpointValorePh": "0 / true / false / testo",
+    "ricetteTitolo": "RICETTE (ISA-88)",
+    "scegliCsv": "📂 Scegli file CSV…",
+    "lambdaEspressione": "λ espressione",
+    "assistenteIa": "Assistente IA",
+    "assistenteNonQui": "Questa istanza non espone la configurazione dell'assistente: si configura sull'IDE di sviluppo, non da qui. Vedi Stato → «Modalità» per sapere quale ruolo sta servendo.",
+    "assistenteAttivo": "Attivo — {{fornitore}} / {{modello}}",
+    "varAmbienteScavalcano": "⚠ Queste variabili d'ambiente scavalcano quanto imposti qui: {{elenco}}. Per configurare dall'IDE, avvia il runtime senza di esse.",
+    "modello": "Modello",
+    "modelloLibero": "Campo libero di proposito: i fornitori aggiungono modelli più spesso di quanto rilasciamo noi. Vuoto = {{predefinito}}.",
+    "temaChiaroScuro": "Tema chiaro/scuro",
+    "linguaInterfaccia": "Lingua interfaccia",
+    "notaPreferenze": "Nota: tema, lingua e dimensione delle icone vivono in questo browser; l'assistente vive nel runtime locale, quindi vale per chiunque apra questo IDE.",
+    "etichetta": "Etichetta",
+    "licenza": "Licenza",
+    "autoreFonte": "Autore / fonte",
+    "multiStato": "MULTI-STATO",
+    "esPompa": "es. Pompa centrifuga",
+    "urlSvg": "URL SVG * (https://… oppure /symbols/…)",
+    "esAutore": "es. Wikimedia Commons / Mario Rossi",
+    "urlFonte": "URL fonte (per attribuzione CC-BY)",
+    "userPassObbligatori": "Username e password sono obbligatori.",
+    "ultimoAmministratore": "Non puoi rimuovere l'ultimo amministratore.",
+    "passwordNonValida": "Password non valida.",
+    "utentiTitolo": "UTENTI",
+    "forza": "forza",
+    "oreN_one": "{{count}} ora",
+    "oreN_other": "{{count}} ore",
+    "esOperatore": "es. operatore2",
+    "creaPiu": "+ Crea",
+    "forzaCambioPassword": "Forza cambio password al primo accesso (consigliato)",
+    "scaricatoKb": "✓ Scaricato \"{{nome}}\" ({{kb}} KB)",
+    "copiaSicurezzaScaricata": "✓ Copia di sicurezza scaricata: {{file}}",
+    "modificheScartate": "⚠ Modifiche locali non salvate: scartate su richiesta",
+    "aperturaDi": "Apertura di \"{{nome}}\"…",
+    "backupNelRuntimeIde": "✓ Backup nel runtime IDE: {{nome}}",
+    "accettaCertTls": "Accetta cert TLS ↗",
+    "cerco": "Cerco…",
+    "porteSpiega": "Porta 7444 = accesso admin (deploy). Porta 7443 = viewer operatori.",
+    "connetti": "Connetti",
+    "connessoA": "● Connesso a {{host}}",
+    "deployInCorso": "Deploy in corso…",
+    "eliminazione": "Eliminazione…",
+    "letturaInCorso": "Lettura in corso…",
+    "aggiornamentoDopoApertura": "L'aggiornamento non avviene ora: dopo l'apertura comparirà il pulsante «⚠ Aggiorna progetto».",
+    "logRemoti": "Log remoti",
+    "erroreStatoSistema": "Errore caricamento stato sistema: {{errore}}",
+    "versione": "Versione",
+    "modoRuntime": "Runtime (serve un impianto)",
+    "modoIde": "IDE (sola progettazione)",
+    "modoNonDichiarata": "non dichiarata",
+    "verifico": "Verifico…",
+    "catenaIntegra": "✓ Catena integra — {{n}} voci verificate.",
+    "catenaCompromessa": "✗ Catena compromessa alla voce #{{n}} — {{motivo}}",
+    "motivoSconosciuto": "motivo sconosciuto",
+    "quando": "Quando",
+    "chi": "Chi",
+    "azione": "Azione",
+    "dettaglio": "Dettaglio",
+    "disco": "Disco",
+    "tlsPropostaTitolo": "HTTPS senza avvisi, col certificato del dispositivo",
+    "tlsPropostaTesto": "Questo pannello ha un certificato del dispositivo di cui il suo browser si fida già. Per usarlo serve un passaggio con sudo, una volta sola: entra nel pannello come «pixsys» e lancia questo comando. Il pannello riparte in HTTPS e lo schermo non mostra avvisi.",
+    "tlsPropostaNo": "No, resta in chiaro",
+    "copia": "Copia"
   },
   "boot": {
     "pngTooLarge": "PNG troppo grande ({{kb}} KB, max 5120 KB): non è stato caricato",
@@ -2648,7 +2902,10 @@
       "D": "tolto",
       "nuovo": "nuovo, non ancora nel repository",
       "altro": "cambiato"
-    }
+    },
+    "agganciaRepository": "Aggancia a un repository",
+    "tagNomePh": "nome (es. v1.2.0)",
+    "tagMessaggioPh": "messaggio (opzionale)"
   },
   "rilievi": {
     "conteggio": "{{n}} avvisi",
@@ -2848,7 +3105,8 @@
     "linguaTitolo": "La lingua in cui scrivere a questo destinatario",
     "linguaCanale": "come il canale",
     "togli": "Togli",
-    "aggiungi": "destinatario"
+    "aggiungi": "destinatario",
+    "esempioEmail": "nome@esempio.it"
   },
   "notifiche": {
     "destinatariTitolo": "DESTINATARI EMAIL DI PROGETTO",
@@ -2862,7 +3120,47 @@
       "escalation": "Escalation (allarme non riconosciuto)",
       "esito_aggiornamento": "Esito di un aggiornamento del runtime",
       "versione_nuova": "Versione nuova disponibile"
-    }
+    },
+    "inviatoDalRuntime": "✓ Messaggio inviato dal runtime.",
+    "titoloEmail": "NOTIFICHE EMAIL",
+    "abilitaSmtp": "Abilita notifiche SMTP",
+    "hostSmtp": "Host SMTP *",
+    "indirizzoFrom": "Indirizzo From *",
+    "usernameSmtp": "Username SMTP",
+    "passwordSmtp": "Password SMTP",
+    "starttls": "STARTTLS (raccomandato su porta 587)",
+    "titoloTelegram": "NOTIFICHE TELEGRAM",
+    "abilitaTelegram": "Abilita notifiche Telegram",
+    "rilevamento": "Rilevamento…",
+    "rilevaChat": "Rileva chat",
+    "aggiunta": "✓ aggiunta",
+    "inviaTest": "Invia test",
+    "comeConfigurare": "Come configurare",
+    "voce": "Voce",
+    "telefonoTitolo": "SMS E CHIAMATE (TWILIO)",
+    "telefonoNota": "Il pannello avvisa al telefono i reperibili di turno, per gli eventi spuntati nelle colonne SMS e Voce della tabella Eventi. Se nessuno riconosce l'allarme, dopo l'attesa avvisa il reperibile successivo. Con il pannello collegato al cloud si può riconoscere dal telefono: tasto 1 durante la chiamata, o risposta «OK» all'SMS (il webhook degli SMS va impostato sul numero nella console di Twilio: vedi il manuale).",
+    "twilioAttivo": "Usa Twilio per SMS e chiamate",
+    "numeroTwilio": "Numero mittente",
+    "provaSms": "Invia SMS di prova",
+    "smsInviato": "✓ SMS inviato",
+    "salvaPrima": "Salva prima le modifiche",
+    "reperibiliTitolo": "REPERIBILITÀ",
+    "reperibiliNota": "Chi avvisare e quando. L'ordine è l'ordine di escalation: prima il primo di turno, poi il secondo. Una fascia che finisce prima di cominciare passa la mezzanotte (22:00-06:00); vuota = tutto il giorno.",
+    "nome": "Nome",
+    "telefono": "Telefono",
+    "giorni": "Giorni",
+    "dalle": "Dalle",
+    "alle": "Alle",
+    "sopra": "Sposta su",
+    "g1": "L",
+    "g2": "M",
+    "g3": "M",
+    "g4": "G",
+    "g5": "V",
+    "g6": "S",
+    "g7": "D",
+    "aggiungiReperibile": "+ Reperibile",
+    "attesaMin": "Minuti prima del successivo"
   },
   "catalogo": {
     "titolo": "Catalogo dei dispositivi — bus {{bus}}",
@@ -3127,6 +3425,7 @@
       "sospeso": "sospeso",
       "bandito": "bandito",
       "collegato": "collegato",
+      "spento": "spento (annunciato) il {{quando}}",
       "scollegato": "non collegato",
       "dichiarati": "Dichiarati a mano (pannelli.yaml)",
       "confermaSposta": "Spostare «{{nome}}» all'azienda «{{azienda}}»? Il pannello si scollega e si ricollega da sé; chi aveva accesso prima lo perde.",
@@ -3542,6 +3841,89 @@
     "proprio": "PROPRIO",
     "daStato": "Il certificato TLS si gestisce in Sicurezza → Certificati.",
     "daSorgente": "Il trust store di questa sorgente: Sicurezza → Certificati.",
-    "apri": "Apri"
+    "apri": "Apri",
+    "viewerNonQui": "Questa istanza non ha uno schermo LVGL: l'archivio del viewer sta sul pannello."
+  },
+  "sorgenti": {
+    "tokenAccesso": "Token accesso",
+    "oppureTokenEnv": "(oppure usa token_env)",
+    "statoPh": "(stato)",
+    "pari": "Pari (E)",
+    "dispari": "Dispari (O)",
+    "sfogliaBroker": "Sfoglia broker",
+    "rilevamentoS": "Rilevamento… ({{s}} s)",
+    "topicRilevati": "{{n}} topic rilevati — {{sel}} selezionati",
+    "jsonNonValido": "JSON non valido.",
+    "analizza": "Analizza",
+    "variabiliSel": "{{n}} variabili — {{sel}} selezionate",
+    "tipo": "Tipo",
+    "autenticazione": "AUTENTICAZIONE",
+    "nascondi": "Nascondi",
+    "mostra": "Mostra",
+    "passwordEnv": "Password da env (opz.) — alternativa al campo password, letta a runtime",
+    "passwordEnvPh": "es. MQTT_PUMP1_PWD",
+    "abilitaTls": "Abilita TLS",
+    "caCertPh": "ca_cert_path (PEM, richiesto se abilitato)",
+    "clientIdSuffisso": "client_id come suffisso",
+    "clientIdPrefisso": "client_id come prefisso",
+    "clientIdUnivoco": "Ogni istanza (IDE e ogni device) aggiunge un id univoco persistente — client_id resta solo l'etichetta.",
+    "estraiJson": "Estrai da JSON",
+    "mappaturaTopic": "MAPPATURA TOPIC",
+    "rango": "rango",
+    "sfogliaOpcua": "Sfoglia server OPC-UA",
+    "nodiScansionati": "{{n}} nodi scansionati",
+    "limiteRaggiunto": "(limite raggiunto)",
+    "scansioneInCorso": "Scansione address space in corso (max ~500 nodi)…",
+    "scansione": "Scansione…",
+    "riprovaFreccia": "↻ Riprova",
+    "ugualeAlTag": "uguale al tag",
+    "nodiEsposti": "NODI ESPOSTI",
+    "deprecato": "deprecato",
+    "raccomandato": "raccomandato",
+    "anonima": "Anonima",
+    "utentePassword": "Utente + Password",
+    "sicurezzaCertificati": "SICUREZZA CERTIFICATI",
+    "sfogliaServer": "🔍 Sfoglia server",
+    "rilevaEuromap": "🤖 Rileva Euromap",
+    "piuNodo": "+ Nodo",
+    "piuMetrica": "+ Metrica",
+    "creaTagSuggeriti": "Crea automaticamente i tag SWS suggeriti",
+    "richiestaStato": "Richiesta di stato",
+    "richiestaStatoTitolo": "Richiedi lo stato al collegamento: dopo le sottoscrizioni il runtime pubblica una richiesta, e il dispositivo risponde sul topic di stato. Serve quando il broker non conserva l'ultimo valore (Zigbee2MQTT di default).",
+    "richiestaStatoTopic": "Topic su cui pubblicare la richiesta (senza + né #)",
+    "richiestaStatoPayload": "Payload della richiesta, così com'è",
+    "compilaRichieste_one": "⟳ Richiedi lo stato all'avvio: {{count}} riga Zigbee2MQTT",
+    "compilaRichieste_other": "⟳ Richiedi lo stato all'avvio: {{count}} righe Zigbee2MQTT",
+    "compilaRichiesteTitolo": "Compila la richiesta di stato (`<topic>/get` con il campo del JSON path) sulle righe `zigbee2mqtt/…` che non ce l'hanno."
+  },
+  "reportTab": {
+    "titolo": "REPORT PROGRAMMATI",
+    "intro": "PDF ed Excel con le tabelle dello storico (min, max, media e andamento dei tag scelti) e gli allarmi del periodo. Il pannello li genera da solo alla fine di ogni periodo, li salva nel progetto e li manda per email con l'SMTP delle Notifiche.",
+    "nonQui": "Questa istanza non fa girare l'impianto: i report li genera il pannello. Collegalo (Connessione) per vedere i suoi file e generarne uno.",
+    "nuovo": "+ Nuovo report",
+    "id": "Id",
+    "titoloCampo": "Titolo",
+    "periodo": "Periodo",
+    "periodi": {
+      "turno": "Turno (8 ore)",
+      "giorno": "Giorno",
+      "settimana": "Settimana",
+      "mese": "Mese"
+    },
+    "quando": "Quando (cron)",
+    "quandoHint": "Cinque campi: minuto ora giorno mese giorno-settimana. Vuoto = alla fine del periodo, alle 6. Il report copre il periodo che finisce in quel momento.",
+    "tags": "Tag del report",
+    "aggiungiTag": "aggiungi un tag",
+    "passo": "Righe ogni (minuti)",
+    "allarmi": "Allarmi del periodo",
+    "conserva": "File da tenere",
+    "email": "Manda per email a",
+    "generaOra": "▶ Genera ora",
+    "generando": "Genero…",
+    "salvaPrima": "Salva prima le modifiche",
+    "generati": "✓ {{n}} file generati",
+    "file": "File generati",
+    "nessunFile": "Nessuno ancora.",
+    "scarica": "Scarica"
   }
 }

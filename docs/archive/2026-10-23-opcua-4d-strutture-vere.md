@@ -1,5 +1,12 @@
 # Fase 4d — strutture OPC-UA vere, dai due lati
 
+> **FATTO il 25-10-2026, archiviato.** Passi 1-9 il 23-10 (il server), passi 10-12 il 25-10 (il client): una
+> sorgente OPC-UA con tag compositi costruisce a ogni sessione l'albero dei tipi del server e registra il type
+> loader prima della sottoscrizione; `da_variant_con` traduce l'`ExtensionObject` in `TagValue::Struct` campo per
+> campo nell'ordine del tipo; il collaudo `il_client_sws_riceve_le_strutture_foglia_per_foglia` fa girare la `run`
+> vera contro il nostro server, con due tipi e un aggiornamento. Resta la prova contro un server di **terzi**, in
+> [`COLLAUDI_IN_SOSPESO.md`](../COLLAUDI_IN_SOSPESO.md) §G.
+
 > **Misurato il 23-10-2026** con quattro letture indipendenti e due scettici, e con una **sonda
 > eseguita**: `tmp/misura-opcua-collaudo/` fa la catena intera — il nostro server pubblica un
 > `DataType` con `DataTypeDefinition::Structure`, il nostro client ne decodifica
@@ -64,6 +71,11 @@ Col flag caduto, **nessun passo dipende più da una risposta**. I passi 1 e 2 so
 | 8 | `run_server` collaudabile: listener e pki dai test | no |
 | 9 | Il collaudo client-contro-server, con **due** tipi |no (flag caduto) |
 | 10-12 | Il lato client: albero, `da_variant`, prove e documenti | no |
+
+**Passi 10-12 fatti il 25-10-2026**: l'albero si costruisce solo se la sorgente ha tag compositi, a pacchi di
+100 letture, e un errore lascia le strutture `Bad` senza spegnere la sorgente (insidie 9 e 11); i nomi dei campi
+vengono dall'albero, perché `DynamicStructure` tiene il suo tipo in un campo privato; un campo opzionale assente
+si salta, una union resta `Bad` (insidia 10), un campo illeggibile fa fallire l'intera struttura.
 
 **Passi 1-9 fatti il 23-10-2026.** Il collaudo client-contro-server passa in 0,23 s con due tipi.
 Restano i passi 10-12, il lato client: `DataTypeTree` + `DynamicTypeLoader` sulla sessione, e

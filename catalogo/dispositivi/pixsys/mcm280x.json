@@ -10,6 +10,7 @@
   },
   "immagine": "mcm280x.jpg",
   "modbus": {
+    "trasporto": "tcp",
     "ordine": "cdab",
     "timeout_ms": 1000
   },

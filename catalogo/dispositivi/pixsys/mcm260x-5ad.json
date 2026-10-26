@@ -10,6 +10,7 @@
   },
   "immagine": "mcm260x-3ad.jpg",
   "modbus": {
+    "trasporto": "rtu",
     "ordine": "abcd",
     "timeout_ms": 1000,
     "seriale": {
@@ -17,6 +18,11 @@
       "parity": "N",
       "data_bits": 8,
       "stop_bits": 1
+    },
+    "setup_ritardato": {
+      "da": 2001,
+      "a": 2100,
+      "scostamento": 2000
     }
   },
   "includi": [
@@ -163,6 +169,16 @@
       "descrizione": {
         "it": "Modalità compatibilità con la vecchia serie MCM260: 1 attiva, 0 no",
         "en": "Compatibility mode with the old MCM260 series: 1 on, 0 off"
+      },
+      "valori": {
+        "1": {
+          "it": "attiva",
+          "en": "on"
+        },
+        "0": {
+          "it": "no",
+          "en": "off"
+        }
       }
     },
     {
@@ -273,6 +289,96 @@
       "descrizione": {
         "it": "Tipo di sensore di AI1: 0 disabilitato (default), 1 Tc-K, 2 Tc-S, 3 Tc-R, 4 Tc-J, 5 Tc-T, 6 Tc-E, 7 Tc-N, 8 Tc-B, 9 Pt100, 10 Ni100, 11 NTC10K, 12 PTC1K, 13 Pt500, 14 Pt1000, 15 0-1 V, 16 0-5 V, 17 0-10 V, 18 0-20 mA, 19 4-20 mA, 20 0-60 mV, 21 potenziometro",
         "en": "AI1 sensor type: 0 disabled (default), 1 Tc-K, 2 Tc-S, 3 Tc-R, 4 Tc-J, 5 Tc-T, 6 Tc-E, 7 Tc-N, 8 Tc-B, 9 Pt100, 10 Ni100, 11 NTC10K, 12 PTC1K, 13 Pt500, 14 Pt1000, 15 0-1 V, 16 0-5 V, 17 0-10 V, 18 0-20 mA, 19 4-20 mA, 20 0-60 mV, 21 potentiometer"
+      },
+      "valori": {
+        "0": {
+          "it": "disabilitato (default)",
+          "en": "disabled (default)"
+        },
+        "1": {
+          "it": "Tc-K",
+          "en": "Tc-K"
+        },
+        "2": {
+          "it": "Tc-S",
+          "en": "Tc-S"
+        },
+        "3": {
+          "it": "Tc-R",
+          "en": "Tc-R"
+        },
+        "4": {
+          "it": "Tc-J",
+          "en": "Tc-J"
+        },
+        "5": {
+          "it": "Tc-T",
+          "en": "Tc-T"
+        },
+        "6": {
+          "it": "Tc-E",
+          "en": "Tc-E"
+        },
+        "7": {
+          "it": "Tc-N",
+          "en": "Tc-N"
+        },
+        "8": {
+          "it": "Tc-B",
+          "en": "Tc-B"
+        },
+        "9": {
+          "it": "Pt100",
+          "en": "Pt100"
+        },
+        "10": {
+          "it": "Ni100",
+          "en": "Ni100"
+        },
+        "11": {
+          "it": "NTC10K",
+          "en": "NTC10K"
+        },
+        "12": {
+          "it": "PTC1K",
+          "en": "PTC1K"
+        },
+        "13": {
+          "it": "Pt500",
+          "en": "Pt500"
+        },
+        "14": {
+          "it": "Pt1000",
+          "en": "Pt1000"
+        },
+        "15": {
+          "it": "0-1 V",
+          "en": "0-1 V"
+        },
+        "16": {
+          "it": "0-5 V",
+          "en": "0-5 V"
+        },
+        "17": {
+          "it": "0-10 V",
+          "en": "0-10 V"
+        },
+        "18": {
+          "it": "0-20 mA",
+          "en": "0-20 mA"
+        },
+        "19": {
+          "it": "4-20 mA",
+          "en": "4-20 mA"
+        },
+        "20": {
+          "it": "0-60 mV",
+          "en": "0-60 mV"
+        },
+        "21": {
+          "it": "potenziometro",
+          "en": "potentiometer"
+        }
       }
     },
     {
@@ -283,6 +389,96 @@
       "descrizione": {
         "it": "Tipo di sensore di AI2: 0 disabilitato (default), 1 Tc-K, 2 Tc-S, 3 Tc-R, 4 Tc-J, 5 Tc-T, 6 Tc-E, 7 Tc-N, 8 Tc-B, 9 Pt100, 10 Ni100, 11 NTC10K, 12 PTC1K, 13 Pt500, 14 Pt1000, 15 0-1 V, 16 0-5 V, 17 0-10 V, 18 0-20 mA, 19 4-20 mA, 20 0-60 mV, 21 potenziometro",
         "en": "AI2 sensor type: 0 disabled (default), 1 Tc-K, 2 Tc-S, 3 Tc-R, 4 Tc-J, 5 Tc-T, 6 Tc-E, 7 Tc-N, 8 Tc-B, 9 Pt100, 10 Ni100, 11 NTC10K, 12 PTC1K, 13 Pt500, 14 Pt1000, 15 0-1 V, 16 0-5 V, 17 0-10 V, 18 0-20 mA, 19 4-20 mA, 20 0-60 mV, 21 potentiometer"
+      },
+      "valori": {
+        "0": {
+          "it": "disabilitato (default)",
+          "en": "disabled (default)"
+        },
+        "1": {
+          "it": "Tc-K",
+          "en": "Tc-K"
+        },
+        "2": {
+          "it": "Tc-S",
+          "en": "Tc-S"
+        },
+        "3": {
+          "it": "Tc-R",
+          "en": "Tc-R"
+        },
+        "4": {
+          "it": "Tc-J",
+          "en": "Tc-J"
+        },
+        "5": {
+          "it": "Tc-T",
+          "en": "Tc-T"
+        },
+        "6": {
+          "it": "Tc-E",
+          "en": "Tc-E"
+        },
+        "7": {
+          "it": "Tc-N",
+          "en": "Tc-N"
+        },
+        "8": {
+          "it": "Tc-B",
+          "en": "Tc-B"
+        },
+        "9": {
+          "it": "Pt100",
+          "en": "Pt100"
+        },
+        "10": {
+          "it": "Ni100",
+          "en": "Ni100"
+        },
+        "11": {
+          "it": "NTC10K",
+          "en": "NTC10K"
+        },
+        "12": {
+          "it": "PTC1K",
+          "en": "PTC1K"
+        },
+        "13": {
+          "it": "Pt500",
+          "en": "Pt500"
+        },
+        "14": {
+          "it": "Pt1000",
+          "en": "Pt1000"
+        },
+        "15": {
+          "it": "0-1 V",
+          "en": "0-1 V"
+        },
+        "16": {
+          "it": "0-5 V",
+          "en": "0-5 V"
+        },
+        "17": {
+          "it": "0-10 V",
+          "en": "0-10 V"
+        },
+        "18": {
+          "it": "0-20 mA",
+          "en": "0-20 mA"
+        },
+        "19": {
+          "it": "4-20 mA",
+          "en": "4-20 mA"
+        },
+        "20": {
+          "it": "0-60 mV",
+          "en": "0-60 mV"
+        },
+        "21": {
+          "it": "potenziometro",
+          "en": "potentiometer"
+        }
       }
     },
     {
@@ -293,6 +489,96 @@
       "descrizione": {
         "it": "Tipo di sensore di AI3: 0 disabilitato (default), 1 Tc-K, 2 Tc-S, 3 Tc-R, 4 Tc-J, 5 Tc-T, 6 Tc-E, 7 Tc-N, 8 Tc-B, 9 Pt100, 10 Ni100, 11 NTC10K, 12 PTC1K, 13 Pt500, 14 Pt1000, 15 0-1 V, 16 0-5 V, 17 0-10 V, 18 0-20 mA, 19 4-20 mA, 20 0-60 mV, 21 potenziometro",
         "en": "AI3 sensor type: 0 disabled (default), 1 Tc-K, 2 Tc-S, 3 Tc-R, 4 Tc-J, 5 Tc-T, 6 Tc-E, 7 Tc-N, 8 Tc-B, 9 Pt100, 10 Ni100, 11 NTC10K, 12 PTC1K, 13 Pt500, 14 Pt1000, 15 0-1 V, 16 0-5 V, 17 0-10 V, 18 0-20 mA, 19 4-20 mA, 20 0-60 mV, 21 potentiometer"
+      },
+      "valori": {
+        "0": {
+          "it": "disabilitato (default)",
+          "en": "disabled (default)"
+        },
+        "1": {
+          "it": "Tc-K",
+          "en": "Tc-K"
+        },
+        "2": {
+          "it": "Tc-S",
+          "en": "Tc-S"
+        },
+        "3": {
+          "it": "Tc-R",
+          "en": "Tc-R"
+        },
+        "4": {
+          "it": "Tc-J",
+          "en": "Tc-J"
+        },
+        "5": {
+          "it": "Tc-T",
+          "en": "Tc-T"
+        },
+        "6": {
+          "it": "Tc-E",
+          "en": "Tc-E"
+        },
+        "7": {
+          "it": "Tc-N",
+          "en": "Tc-N"
+        },
+        "8": {
+          "it": "Tc-B",
+          "en": "Tc-B"
+        },
+        "9": {
+          "it": "Pt100",
+          "en": "Pt100"
+        },
+        "10": {
+          "it": "Ni100",
+          "en": "Ni100"
+        },
+        "11": {
+          "it": "NTC10K",
+          "en": "NTC10K"
+        },
+        "12": {
+          "it": "PTC1K",
+          "en": "PTC1K"
+        },
+        "13": {
+          "it": "Pt500",
+          "en": "Pt500"
+        },
+        "14": {
+          "it": "Pt1000",
+          "en": "Pt1000"
+        },
+        "15": {
+          "it": "0-1 V",
+          "en": "0-1 V"
+        },
+        "16": {
+          "it": "0-5 V",
+          "en": "0-5 V"
+        },
+        "17": {
+          "it": "0-10 V",
+          "en": "0-10 V"
+        },
+        "18": {
+          "it": "0-20 mA",
+          "en": "0-20 mA"
+        },
+        "19": {
+          "it": "4-20 mA",
+          "en": "4-20 mA"
+        },
+        "20": {
+          "it": "0-60 mV",
+          "en": "0-60 mV"
+        },
+        "21": {
+          "it": "potenziometro",
+          "en": "potentiometer"
+        }
       }
     },
     {
@@ -303,6 +589,96 @@
       "descrizione": {
         "it": "Tipo di sensore di AI4: 0 disabilitato (default), 1 Tc-K, 2 Tc-S, 3 Tc-R, 4 Tc-J, 5 Tc-T, 6 Tc-E, 7 Tc-N, 8 Tc-B, 9 Pt100, 10 Ni100, 11 NTC10K, 12 PTC1K, 13 Pt500, 14 Pt1000, 15 0-1 V, 16 0-5 V, 17 0-10 V, 18 0-20 mA, 19 4-20 mA, 20 0-60 mV, 21 potenziometro",
         "en": "AI4 sensor type: 0 disabled (default), 1 Tc-K, 2 Tc-S, 3 Tc-R, 4 Tc-J, 5 Tc-T, 6 Tc-E, 7 Tc-N, 8 Tc-B, 9 Pt100, 10 Ni100, 11 NTC10K, 12 PTC1K, 13 Pt500, 14 Pt1000, 15 0-1 V, 16 0-5 V, 17 0-10 V, 18 0-20 mA, 19 4-20 mA, 20 0-60 mV, 21 potentiometer"
+      },
+      "valori": {
+        "0": {
+          "it": "disabilitato (default)",
+          "en": "disabled (default)"
+        },
+        "1": {
+          "it": "Tc-K",
+          "en": "Tc-K"
+        },
+        "2": {
+          "it": "Tc-S",
+          "en": "Tc-S"
+        },
+        "3": {
+          "it": "Tc-R",
+          "en": "Tc-R"
+        },
+        "4": {
+          "it": "Tc-J",
+          "en": "Tc-J"
+        },
+        "5": {
+          "it": "Tc-T",
+          "en": "Tc-T"
+        },
+        "6": {
+          "it": "Tc-E",
+          "en": "Tc-E"
+        },
+        "7": {
+          "it": "Tc-N",
+          "en": "Tc-N"
+        },
+        "8": {
+          "it": "Tc-B",
+          "en": "Tc-B"
+        },
+        "9": {
+          "it": "Pt100",
+          "en": "Pt100"
+        },
+        "10": {
+          "it": "Ni100",
+          "en": "Ni100"
+        },
+        "11": {
+          "it": "NTC10K",
+          "en": "NTC10K"
+        },
+        "12": {
+          "it": "PTC1K",
+          "en": "PTC1K"
+        },
+        "13": {
+          "it": "Pt500",
+          "en": "Pt500"
+        },
+        "14": {
+          "it": "Pt1000",
+          "en": "Pt1000"
+        },
+        "15": {
+          "it": "0-1 V",
+          "en": "0-1 V"
+        },
+        "16": {
+          "it": "0-5 V",
+          "en": "0-5 V"
+        },
+        "17": {
+          "it": "0-10 V",
+          "en": "0-10 V"
+        },
+        "18": {
+          "it": "0-20 mA",
+          "en": "0-20 mA"
+        },
+        "19": {
+          "it": "4-20 mA",
+          "en": "4-20 mA"
+        },
+        "20": {
+          "it": "0-60 mV",
+          "en": "0-60 mV"
+        },
+        "21": {
+          "it": "potenziometro",
+          "en": "potentiometer"
+        }
       }
     },
     {
@@ -313,6 +689,20 @@
       "descrizione": {
         "it": "Unità delle temperature: 0 °C (default), 1 °F, 2 K",
         "en": "Temperature unit: 0 °C (default), 1 °F, 2 K"
+      },
+      "valori": {
+        "0": {
+          "it": "°C (default)",
+          "en": "°C (default)"
+        },
+        "1": {
+          "it": "°F",
+          "en": "°F"
+        },
+        "2": {
+          "it": "K",
+          "en": "K"
+        }
       }
     },
     {
@@ -323,6 +713,16 @@
       "descrizione": {
         "it": "Tipo dell'uscita AO1: 0 0-10 V (default), 1 4-20 mA",
         "en": "AO1 output type: 0 0-10 V (default), 1 4-20 mA"
+      },
+      "valori": {
+        "0": {
+          "it": "0-10 V (default)",
+          "en": "0-10 V (default)"
+        },
+        "1": {
+          "it": "4-20 mA",
+          "en": "4-20 mA"
+        }
       }
     },
     {
@@ -333,6 +733,16 @@
       "descrizione": {
         "it": "Tipo dell'uscita AO2: 0 0-10 V (default), 1 4-20 mA",
         "en": "AO2 output type: 0 0-10 V (default), 1 4-20 mA"
+      },
+      "valori": {
+        "0": {
+          "it": "0-10 V (default)",
+          "en": "0-10 V (default)"
+        },
+        "1": {
+          "it": "4-20 mA",
+          "en": "4-20 mA"
+        }
       }
     }
   ]

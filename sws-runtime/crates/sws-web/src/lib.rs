@@ -1,6 +1,8 @@
 pub mod abbinamento;
 pub mod ai;
 pub mod cornici;
+pub mod report;
+pub mod telefono;
 pub mod sicurezza_http;
 pub mod limiti;
 pub mod archivio;

@@ -1,5 +1,5 @@
 // Rinominare una variabile in tutto il progetto (Fase 0c del piano
-// `docs/plans/2026-09-21-gestione-tag-oggetto-unico.md`).
+// `docs/archive/2026-09-21-gestione-tag-oggetto-unico.md`).
 //
 // Un tag è citato in una ventina di posti diversi — campi degli oggetti,
 // binding, celle di griglia, figli dei faceplate, mappature di ogni

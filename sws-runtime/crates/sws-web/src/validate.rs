@@ -613,6 +613,40 @@ pub fn rilievi_cornici(
 /// web esiste per lavorare *con* la finestra aperta usando il mouse sulla
 /// pagina sotto, e su un vetro da 7" la pagina sotto non la raggiungi
 /// comunque.
+/// Un dispositivo del catalogo sul trasporto sbagliato (25-10-2026, seme «Modbus
+/// TCP senza bus»): un MCM280X (solo TCP) su un bus RTU, o un ATR121 (solo RTU)
+/// su un bus TCP, nasce, non comunica, e per capire perché bisogna già sapere
+/// che quel modello la seriale non ce l'ha. `trasporti` è `id del catalogo →
+/// tcp|rtu|entrambi`; un modello che il catalogo non conosce non si giudica.
+pub fn rilievi_trasporto(project: &Project, trasporti: &HashMap<String, String>) -> Vec<Finding> {
+    let mut out = Vec::new();
+    for src in &project.sources {
+        let (id, bus, devices) = match src {
+            SourceDef::ModbusTcp(c) => (c.id.as_str(), "tcp", &c.devices),
+            SourceDef::ModbusRtu(c) => (c.id.as_str(), "rtu", &c.devices),
+            _ => continue,
+        };
+        for (i, d) in devices.iter().enumerate() {
+            let Some(modello) = d.modello.as_deref() else { continue };
+            let voce = modello.split('@').next().unwrap_or(modello);
+            let Some(t) = trasporti.get(voce) else { continue };
+            if t != "entrambi" && t != bus {
+                out.push(Finding::err(
+                    format!("project.sources[{id}].devices[{i}].modello"),
+                    format!(
+                        "`{voce}` parla Modbus {}, ma sta su un bus {}",
+                        t.to_uppercase(),
+                        bus.to_uppercase()
+                    ),
+                    "spostalo su un bus del trasporto giusto: così com'è non comunica, e il motivo \
+                     non si vede da nessun'altra parte",
+                ));
+            }
+        }
+    }
+    out
+}
+
 pub fn rilievi_finestre(project: &Project, pages: &[SynopticPage]) -> Vec<Finding> {
     let mut out = Vec::new();
     let per_id: HashMap<&str, &SynopticPage> = pages.iter().map(|p| (p.id.as_str(), p)).collect();
@@ -655,7 +689,7 @@ pub fn rilievi_finestre(project: &Project, pages: &[SynopticPage]) -> Vec<Findin
 }
 
 pub fn semantic(project: &Project, pages: &[SynopticPage]) -> Vec<Finding> {
-    let mut out = Vec::new();
+    let mut out = rilievi_report(project);
     let tipi: HashSet<&str> = OBJECT_TYPES.iter().copied().collect();
     let enums: HashMap<&str, &[&str]> = FIELD_ENUMS.iter().copied().collect();
 
@@ -939,6 +973,20 @@ pub fn semantic(project: &Project, pages: &[SynopticPage]) -> Vec<Finding> {
                     "dichiara il tag in project.tags, oppure correggi il riferimento: \
                      un mapping verso un tag inesistente riceve dati e li butta",
                 ));
+            }
+            // La richiesta di stato (25-10-2026) si pubblica: un topic vuoto o
+            // con caratteri jolly è un errore di protocollo, e il broker chiude
+            // la connessione dell'intera sorgente. Il runtime la scarta, ma in
+            // silenzio: qui lo si dice.
+            if let Some(r) = &m.richiesta_stato {
+                if !sws_plugin_mqtt::pubblicabile(&r.topic) {
+                    out.push(Finding::err(
+                        format!("project.sources[{id}].topics[{i}].richiesta_stato.topic"),
+                        format!("richiesta di stato su un topic non pubblicabile: `{}`", r.topic),
+                        "scrivi un topic senza `+` né `#` (per Zigbee2MQTT è `<topic>/get`), \
+                         oppure togli la richiesta: il runtime non la manda",
+                    ));
+                }
             }
             let scrive = m.publish_topic.is_some();
             let e = mqtt_per_tag.entry(m.tag.as_str()).or_insert(false);
@@ -1292,6 +1340,50 @@ pub fn semantic(project: &Project, pages: &[SynopticPage]) -> Vec<Finding> {
 /// in cui il parser li ha imparati. Un validatore che mente su cosa il runtime
 /// accetta è peggio di nessun validatore, perché fa riscrivere codice che
 /// andava bene.
+/// I report programmati (P3, 26-10-2026): id unici e sicuri (diventano una
+/// cartella), cron leggibile, tag che esistono, formati conosciuti, qualcosa
+/// da riportare.
+pub fn rilievi_report(project: &Project) -> Vec<Finding> {
+    let mut out = Vec::new();
+    let tag: HashSet<&str> = project.tags.iter().map(|t| t.id.as_str()).collect();
+    let mut visti = HashSet::new();
+    for r in &project.reports {
+        let base = format!("project.reports[{}]", r.id);
+        if !crate::report::file_sicuro(&r.id) || r.id.trim().is_empty() {
+            out.push(Finding::err(format!("{base}.id"), format!("id di report non valido: `{}`", r.id),
+                "l'id diventa il nome di una cartella: lettere, cifre, `-` e `_`"));
+        }
+        if !visti.insert(r.id.as_str()) {
+            out.push(Finding::err(format!("{base}.id"), format!("report `{}` ripetuto", r.id),
+                "due report con lo stesso id scriverebbero nella stessa cartella"));
+        }
+        let (_, problemi) = crate::cron::analizza(r.cron());
+        for p in problemi {
+            match p.gravita {
+                crate::cron::Gravita::Errore => out.push(Finding::err(format!("{base}.quando"),
+                    format!("{} — il report NON partirebbe", p.messaggio), p.suggerimento)),
+                crate::cron::Gravita::Avviso => out.push(Finding::warn(format!("{base}.quando"), p.messaggio, p.suggerimento)),
+            }
+        }
+        if r.tags.is_empty() && !r.allarmi {
+            out.push(Finding::warn(format!("{base}.tags"), "il report non ha né tag né allarmi",
+                "senza niente da riportare, partirebbe un file vuoto"));
+        }
+        for (i, t) in r.tags.iter().enumerate() {
+            if !tag.contains(t.as_str()) {
+                out.push(Finding::err(format!("{base}.tags[{i}]"), format!("il tag `{t}` non è dichiarato"),
+                    "nel report resterebbe una riga vuota: correggi il riferimento o toglilo"));
+            }
+        }
+        for f in &r.formati {
+            if f != "pdf" && f != "xlsx" {
+                out.push(Finding::err(format!("{base}.formati"), format!("formato `{f}` sconosciuto"), "i formati sono `pdf` e `xlsx`"));
+            }
+        }
+    }
+    out
+}
+
 fn cron_rilievi(base: &str, schedule: &str) -> Vec<Finding> {
     let campo = format!("{base}.trigger.schedule");
     let (_, problemi) = crate::cron::analizza(schedule);
@@ -1928,6 +2020,23 @@ fn controlli_modbus<'a>(src: &'a SourceDef, id: &'a str, porte_rtu: &mut HashMap
         }
         _ => return,
     };
+    // Il setup del modulo (configuratore, 25-10-2026): un valore va in un
+    // registro a 16 bit, e un parametro ripetuto si scriverebbe due volte con
+    // due valori — vincerebbe l'ultimo, senza che nessuno l'abbia deciso.
+    for (d, dev) in devices.iter().enumerate() {
+        let mut visti = std::collections::HashSet::new();
+        for (i, p) in dev.setup.iter().enumerate() {
+            let dove = format!("project.sources[{id}].devices[{d}].setup[{i}]");
+            if !(-32768..=65535).contains(&p.valore) {
+                out.push(Finding::err(dove.clone(), format!("`{}` = {}: non sta in un registro a 16 bit", p.nome, p.valore),
+                    "un parametro di configurazione è un registro holding: da -32768 a 65535"));
+            }
+            if !visti.insert(p.nome.as_str()) {
+                out.push(Finding::err(dove, format!("`{}` compare due volte nel setup", p.nome),
+                    "tieni una voce sola: il runtime le scriverebbe tutte e due, e vincerebbe l'ultima"));
+            }
+        }
+    }
     if !devices.is_empty() && !registers.is_empty() {
         out.push(Finding::warn(
             format!("project.sources[{id}].registers"),
@@ -3568,6 +3677,117 @@ alarms: []
                 .any(|f| f.severity == Severity::Warning && f.message.contains("publish_topic")),
             "{rs:?}"
         );
+    }
+
+    /// I report: tag inesistente, cron illeggibile, id ripetuto, formato ignoto.
+    #[test]
+    fn i_report_si_validano() {
+        let prog: Project = serde_yaml::from_str(
+            r#"
+meta: { name: prova, version: "1.0.0" }
+tags: [{ id: temp, data_type: f32 }]
+sources: []
+alarms: []
+reports:
+  - { id: giorno, tags: [temp] }
+  - { id: giorno, tags: [manca], quando: "99 * * * *", formati: [doc] }
+"#,
+        )
+        .unwrap();
+        let rs = rilievi_report(&prog);
+        let e = errori(&rs);
+        assert!(cita(&e, "ripetuto") && cita(&e, "`manca`") && cita(&e, "NON partirebbe") && cita(&e, "`doc`"), "{rs:?}");
+        assert_eq!(rs.iter().filter(|f| f.path.starts_with("project.reports[giorno].tags[0]")).count(), 1, "solo il secondo ha il tag sbagliato");
+    }
+
+    /// Il setup del modulo: un valore fuori dai 16 bit e un parametro ripetuto
+    /// sono errori; il setup giusto passa.
+    #[test]
+    fn il_setup_del_modulo_si_valida() {
+        let prog = |setup: &str| {
+            format!(
+                r#"
+meta: {{ name: prova, version: "1.0.0" }}
+tags: []
+sources:
+  - kind: modbus_rtu
+    id: linea
+    device: /dev/ttyS1
+    devices:
+      - unit_id: 1
+        setup: {setup}
+alarms: []
+"#
+            )
+        };
+        let pagina0 = pagina("- { id: x, type: rect, x: 0, y: 0 }");
+        let giusto = rilievi(&prog("[{ nome: tipo_sensore_ai1, indirizzo: 2021, valore: 12, indirizzo_scrittura: 4021 }]"), &pagina0);
+        assert!(errori(&giusto).is_empty(), "{giusto:?}");
+        let fuori = rilievi(&prog("[{ nome: a, indirizzo: 1, valore: 70000 }]"), &pagina0);
+        assert!(cita(&errori(&fuori), "16 bit"), "{fuori:?}");
+        let doppio = rilievi(&prog("[{ nome: a, indirizzo: 1, valore: 1 }, { nome: a, indirizzo: 1, valore: 2 }]"), &pagina0);
+        assert!(cita(&errori(&doppio), "due volte"), "{doppio:?}");
+    }
+
+    /// Il trasporto del catalogo (25-10-2026): un MCM280X (solo TCP) su un bus
+    /// RTU è un errore; sul bus TCP no; un modello che il catalogo non conosce
+    /// non si giudica.
+    #[test]
+    fn un_dispositivo_del_catalogo_sul_trasporto_sbagliato() {
+        let prog: Project = serde_yaml::from_str(
+            r#"
+meta: { name: prova, version: "1.0.0" }
+tags: []
+sources:
+  - kind: modbus_rtu
+    id: rs485
+    device: /dev/ttyCOM1
+    devices:
+      - { unit_id: 1, modello: "pixsys/mcm280x@1" }
+      - { unit_id: 2, modello: "pixsys/atr121@1" }
+      - { unit_id: 3, modello: "altro/sconosciuto@1" }
+  - kind: modbus_tcp
+    id: rete
+    host: 192.168.1.20
+    devices:
+      - { unit_id: 1, modello: "pixsys/mcm280x@1" }
+alarms: []
+"#,
+        )
+        .unwrap();
+        let trasporti: HashMap<String, String> =
+            [("pixsys/mcm280x", "tcp"), ("pixsys/atr121", "rtu")].iter().map(|(a, b)| (a.to_string(), b.to_string())).collect();
+        let rs = rilievi_trasporto(&prog, &trasporti);
+        assert_eq!(rs.len(), 1, "{rs:?}");
+        assert!(rs[0].path.contains("rs485") && rs[0].message.contains("mcm280x"), "{rs:?}");
+    }
+
+    /// La richiesta di stato su un topic con caratteri jolly è un errore: il
+    /// runtime la scarterebbe in silenzio. Quella giusta di Zigbee2MQTT passa.
+    #[test]
+    fn una_richiesta_di_stato_col_jolly_e_un_errore() {
+        let prog = |topic: &str| {
+            format!(
+                r#"
+meta: {{ name: prova, version: "1.0.0" }}
+tags: [{{ id: garage.l1, data_type: bool }}]
+sources:
+  - kind: mqtt
+    id: z2m
+    host: 192.168.1.50
+    topics:
+      - tag: garage.l1
+        topic: zigbee2mqtt/garage
+        json_path: state_l1
+        richiesta_stato: {{ topic: "{topic}", payload: '{{"state_l1":""}}' }}
+alarms: []
+"#
+            )
+        };
+        let rs = rilievi(&prog("zigbee2mqtt/+/get"), &pagina("- { id: x, type: rect, x: 0, y: 0 }"));
+        assert!(cita(&errori(&rs), "richiesta di stato"), "{rs:?}");
+        let rs = rilievi(&prog("zigbee2mqtt/garage/get"), &pagina("- { id: x, type: rect, x: 0, y: 0 }"));
+        assert!(errori(&rs).is_empty(), "{rs:?}");
     }
 
     /// E nel verso giusto: con `publish_topic`, silenzio.

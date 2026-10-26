@@ -26,7 +26,7 @@ export function MqttAuthSection({
   const [show, setShow] = useState(false);
   return (
     <>
-      <SectionHeader>AUTENTICAZIONE</SectionHeader>
+      <SectionHeader>{t("sorgenti.autenticazione")}</SectionHeader>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 12 }}>
         <div>
           <label style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)", display: "block", marginBottom: 3 }}>{t("cfg.username")}</label>
@@ -56,7 +56,7 @@ export function MqttAuthSection({
               type="button"
               style={S.btn("ghost")}
               onClick={() => setShow((v) => !v)}
-              title={show ? "Nascondi" : "Mostra"}
+              title={show ? t("sorgenti.nascondi") : t("sorgenti.mostra")}
             >
               {show ? "🙈" : "👁"}
             </button>
@@ -66,11 +66,11 @@ export function MqttAuthSection({
       <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: 12, marginBottom: 12 }}>
         <div>
           <label style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)", display: "block", marginBottom: 3 }}>
-            Password da env (opz.) — alternativa al campo password, letta a runtime
+            {t("sorgenti.passwordEnv")}
           </label>
           <input
             style={S.input}
-            placeholder="es. MQTT_PUMP1_PWD"
+            placeholder={t("sorgenti.passwordEnvPh")}
             value={source.password_env ?? ""}
             onChange={(e) => onChange({ password_env: e.target.value || undefined })}
             spellCheck={false}
@@ -170,11 +170,11 @@ export function MqttTlsSection({
             onChange={(e) => setField("enabled", e.target.checked)}
             style={{ marginRight: 6 }}
           />
-          Abilita TLS
+          {t("sorgenti.abilitaTls")}
         </label>
         <input
           style={S.input}
-          placeholder="ca_cert_path (PEM, richiesto se abilitato)"
+          placeholder={t("sorgenti.caCertPh")}
           value={current.ca_cert_path ?? ""}
           onChange={(e) => setField("ca_cert_path", e.target.value || undefined)}
           spellCheck={false}
@@ -266,12 +266,12 @@ export function MqttRandomClientIdSection({
           onChange={(e) => setRandom({ position: e.target.value as "prefix" | "suffix" })}
           disabled={!enabled}
         >
-          <option value="suffix">client_id come suffisso</option>
-          <option value="prefix">client_id come prefisso</option>
+          <option value="suffix">{t("sorgenti.clientIdSuffisso")}</option>
+          <option value="prefix">{t("sorgenti.clientIdPrefisso")}</option>
         </select>
         <span style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)" }}>
           {enabled
-            ? "Ogni istanza (IDE e ogni device) aggiunge un id univoco persistente — client_id resta solo l'etichetta."
+            ? t("sorgenti.clientIdUnivoco")
             : t("cfgUi.literalClientIdIdenticalOn")}
         </span>
       </div>
@@ -292,7 +292,7 @@ export function MqttRandomClientIdSection({
             disabled={!remoteConnected || pushing}
             title={remoteConnected ? "" : t("cfgUi.connectToADeviceFrom")}
           >
-            {pushing ? "Invio…" : t("cfgUi.sendClientIdToThe")}
+            {pushing ? t("common.invio") : t("cfgUi.sendClientIdToThe")}
           </button>
         </div>
       )}

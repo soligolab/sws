@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Trans, useTranslation } from "react-i18next";
 import { api } from "@/api/client";
-import type { CanaliEvento, Destinatario, NotificationConfig, SmtpConfig, TabellaEventi, TelegramConfig } from "@/types";
+import type { CanaliEvento, Destinatario, NotificationConfig, Reperibile, SmtpConfig, TabellaEventi, TelegramConfig, TwilioConfig } from "@/types";
 import { TABELLA_PREDEFINITA } from "@/types";
 import { DestinatariEmail } from "@/config/DestinatariEmail";
 import { useAppStore } from "@/store";
@@ -37,6 +37,13 @@ export function NotificationsTab() {
   // era un salvataggio che cancellava ciò che la scheda non rimandava.
   const [destinatari, setDestinatari] = useState<Destinatario[]>(initial?.destinatari_email ?? []);
   const [eventi, setEventi] = useState<TabellaEventi>({ ...TABELLA_PREDEFINITA, ...(initial?.eventi ?? {}) });
+  // P4 (26-10-2026): Twilio, reperibili e attesa dell'escalation.
+  const [twEnabled, setTwEnabled] = useState<boolean>(initial?.twilio != null);
+  const [tw, setTw] = useState<TwilioConfig>(initial?.twilio ?? { account_sid: "", auth_token: "", numero: "" });
+  const [reperibili, setReperibili] = useState<Reperibile[]>(initial?.reperibili ?? []);
+  const [attesaMin, setAttesaMin] = useState<number | undefined>(initial?.telefono_attesa_min);
+  const [numeroProva, setNumeroProva] = useState("");
+  const [esitoSms, setEsitoSms] = useState<string | null>(null);
   // Quale delle tre foglie è aperta. Il registro dice che «telegram» ed
   // «eventi» sono ospiti di «notifications»: ConfigView monta sempre questo
   // componente, e la foglia decide **cosa mostrare**, non cosa tenere. La
@@ -47,6 +54,7 @@ export function NotificationsTab() {
   const mostraSmtp = foglia === "notifications";
   const mostraTelegram = foglia === "telegram";
   const mostraEventi = foglia === "eventi";
+  const mostraTelefono = foglia === "telefono";
 
   const [testing, setTesting] = useState(false);
   const [testMsg, setTestMsg] = useState<string | null>(null);
@@ -97,10 +105,14 @@ export function NotificationsTab() {
       const lingueAdesso = useAppStore.getState().project?.notifications;
       const destinatariPieni = destinatari.filter((d) => d.indirizzo.trim() !== "");
       const tabellaCambiata = JSON.stringify(eventi) !== JSON.stringify(TABELLA_PREDEFINITA);
-      const config: NotificationConfig | null = (enabled || tgEnabled || destinatariPieni.length > 0 || tabellaCambiata)
+      const reperibiliPieni = reperibili.filter((r) => r.telefono.trim() !== "");
+      const config: NotificationConfig | null = (enabled || tgEnabled || twEnabled || destinatariPieni.length > 0 || tabellaCambiata || reperibiliPieni.length > 0)
         ? {
             smtp: enabled ? smtp : undefined,
             telegram: tgEnabled ? tg : undefined,
+            twilio: twEnabled ? tw : undefined,
+            reperibili: reperibiliPieni.length ? reperibiliPieni : undefined,
+            telefono_attesa_min: attesaMin,
             destinatari_email: destinatariPieni.length ? destinatariPieni : undefined,
             // Scritta solo se diversa dai default: un progetto che non la tocca
             // non si trova il YAML riempito di caselle.
@@ -140,7 +152,7 @@ export function NotificationsTab() {
       // Il token va al server così com'è: se è il placeholder (o vuoto) usa
       // quello salvato. Così la prova percorre la stessa catena degli allarmi.
       await api.testTelegram({ bot_token: tg.bot_token, chat_ids: tg.chat_ids });
-      setTestMsg("✓ Messaggio inviato dal runtime.");
+      setTestMsg(t("notifiche.inviatoDalRuntime"));
     } catch (e: unknown) {
       setTestMsg("✗ " + (e instanceof Error ? e.message : String(e)));
     } finally {
@@ -241,7 +253,7 @@ export function NotificationsTab() {
         section="notifications"
         dirty={touched} />
       {mostraSmtp && (<>
-      <div style={S.sectionTitle}>NOTIFICHE EMAIL</div>
+      <div style={S.sectionTitle}>{t("notifiche.titoloEmail")}</div>
       <div style={S.notice}>
         <Trans i18nKey="cfgUi.smtpNotice" components={TRANS_COMP} />
       </div>
@@ -253,14 +265,14 @@ export function NotificationsTab() {
             checked={enabled}
             onChange={(e) => { setTouched(true); setEnabled(e.target.checked); }}
           />
-          Abilita notifiche SMTP
+          {t("notifiche.abilitaSmtp")}
         </label>
       </div>
 
       {enabled && (
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, maxWidth: 640 }}>
           <div>
-            <div style={{ fontSize: 11, color: "var(--brand-text-muted, #94a3b8)", marginBottom: 4 }}>Host SMTP *</div>
+            <div style={{ fontSize: 11, color: "var(--brand-text-muted, #94a3b8)", marginBottom: 4 }}>{t("notifiche.hostSmtp")}</div>
             <input
               style={S.input}
               placeholder="smtp.example.com"
@@ -279,7 +291,7 @@ export function NotificationsTab() {
             />
           </div>
           <div style={{ gridColumn: "1 / -1" }}>
-            <div style={{ fontSize: 11, color: "var(--brand-text-muted, #94a3b8)", marginBottom: 4 }}>Indirizzo From *</div>
+            <div style={{ fontSize: 11, color: "var(--brand-text-muted, #94a3b8)", marginBottom: 4 }}>{t("notifiche.indirizzoFrom")}</div>
             <input
               style={S.input}
               placeholder={t("cfgUi.alarmsExampleCom")}
@@ -288,7 +300,7 @@ export function NotificationsTab() {
             />
           </div>
           <div>
-            <div style={{ fontSize: 11, color: "var(--brand-text-muted, #94a3b8)", marginBottom: 4 }}>Username SMTP</div>
+            <div style={{ fontSize: 11, color: "var(--brand-text-muted, #94a3b8)", marginBottom: 4 }}>{t("notifiche.usernameSmtp")}</div>
             <input
               style={S.input}
               placeholder={t("cfg.optional")}
@@ -297,7 +309,7 @@ export function NotificationsTab() {
             />
           </div>
           <div>
-            <div style={{ fontSize: 11, color: "var(--brand-text-muted, #94a3b8)", marginBottom: 4 }}>Password SMTP</div>
+            <div style={{ fontSize: 11, color: "var(--brand-text-muted, #94a3b8)", marginBottom: 4 }}>{t("notifiche.passwordSmtp")}</div>
             <input
               style={S.input}
               type="password"
@@ -313,7 +325,7 @@ export function NotificationsTab() {
                 checked={smtp.starttls ?? true}
                 onChange={(e) => patchSmtp({ starttls: e.target.checked })}
               />
-              STARTTLS (raccomandato su porta 587)
+              {t("notifiche.starttls")}
             </label>
           </div>
 
@@ -356,6 +368,8 @@ export function NotificationsTab() {
             <th style={{ textAlign: "left", padding: "4px 12px 4px 0" }}>{t("notifiche.evento")}</th>
             <th style={{ padding: "4px 12px" }}>Email</th>
             <th style={{ padding: "4px 12px" }}>Telegram</th>
+            <th style={{ padding: "4px 12px" }}>SMS</th>
+            <th style={{ padding: "4px 12px" }}>{t("notifiche.voce")}</th>
           </tr>
         </thead>
         <tbody>
@@ -376,6 +390,24 @@ export function NotificationsTab() {
                   />
                 </td>
               ))}
+              {/* SMS e voce (P4): solo gli eventi di un allarme che chiedono
+                  qualcuno — lo scatto e l'escalation. */}
+              {(["sms", "voce"] as const).map((canale) => (
+                <td key={canale} style={{ textAlign: "center", padding: "4px 12px" }}>
+                  {(riga === "scatto" || riga === "escalation") && (
+                    <input
+                      type="checkbox"
+                      aria-label={`${t(`notifiche.eventi.${riga}`)} — ${canale}`}
+                      checked={eventi[riga][canale] ?? false}
+                      onChange={(e) => {
+                        setTouched(true);
+                        const aggiornata: CanaliEvento = { ...eventi[riga], [canale]: e.target.checked };
+                        setEventi({ ...eventi, [riga]: aggiornata });
+                      }}
+                    />
+                  )}
+                </td>
+              ))}
             </tr>
           ))}
         </tbody>
@@ -383,8 +415,88 @@ export function NotificationsTab() {
 
       </>)}
 
+      {mostraTelefono && (<>
+      <div style={{ ...S.sectionTitle, marginTop: 24 }}>{t("notifiche.telefonoTitolo")}</div>
+      <div style={S.notice}>{t("notifiche.telefonoNota")}</div>
+      <label style={{ fontSize: 13, display: "flex", alignItems: "center", gap: 8, marginBottom: 12, cursor: "pointer" }}>
+        <input type="checkbox" checked={twEnabled} onChange={(e) => { setTouched(true); setTwEnabled(e.target.checked); }} data-testid="twilio-attivo" />
+        {t("notifiche.twilioAttivo")}
+      </label>
+      {twEnabled && (
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12, maxWidth: 820, marginBottom: 12 }}>
+          <label style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)" }}>Account SID
+            <input style={S.input} value={tw.account_sid} spellCheck={false} onChange={(e) => { setTouched(true); setTw({ ...tw, account_sid: e.target.value.trim() }); }} />
+          </label>
+          <label style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)" }}>Auth token
+            <input style={S.input} type="password" value={tw.auth_token}
+              placeholder={tw.auth_token === MASKED ? t("cfgUi.savedLeaveEmptyToKeep") : ""}
+              onChange={(e) => { setTouched(true); setTw({ ...tw, auth_token: e.target.value.trim() }); }} />
+          </label>
+          <label style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)" }}>{t("notifiche.numeroTwilio")}
+            <input style={S.input} value={tw.numero} placeholder="+39…" onChange={(e) => { setTouched(true); setTw({ ...tw, numero: e.target.value.trim() }); }} />
+          </label>
+          <div style={{ gridColumn: "1 / -1", display: "flex", gap: 8, alignItems: "center" }}>
+            <input style={{ ...S.input, width: 200 }} value={numeroProva} placeholder="+39…" onChange={(e) => setNumeroProva(e.target.value)} />
+            <button style={S.btn("ghost")} disabled={!numeroProva.trim() || touched} title={touched ? t("notifiche.salvaPrima") : undefined}
+              onClick={async () => {
+                setEsitoSms(null);
+                try { await api.provaSms(numeroProva.trim()); setEsitoSms(t("notifiche.smsInviato")); }
+                catch (e) { setEsitoSms(t("cfgUi.errorMsg", { message: e instanceof Error ? e.message : String(e) })); }
+              }}>{t("notifiche.provaSms")}</button>
+            {esitoSms && <span style={{ fontSize: 12 }}>{esitoSms}</span>}
+          </div>
+        </div>
+      )}
+
+      <div style={{ ...S.sectionTitle, marginTop: 16 }}>{t("notifiche.reperibiliTitolo")}</div>
+      <div style={S.notice}>{t("notifiche.reperibiliNota")}</div>
+      <table style={{ ...S.table, marginBottom: 8 }}>
+        <thead><tr>
+          <th style={S.th}>{t("notifiche.nome")}</th><th style={S.th}>{t("notifiche.telefono")}</th>
+          <th style={S.th}>{t("notifiche.giorni")}</th><th style={S.th}>{t("notifiche.dalle")}</th><th style={S.th}>{t("notifiche.alle")}</th><th style={S.th} />
+        </tr></thead>
+        <tbody>
+          {reperibili.map((r, i) => {
+            const cambia = (patch: Partial<Reperibile>) => { setTouched(true); setReperibili(reperibili.map((x, j) => (j === i ? { ...x, ...patch } : x))); };
+            return (
+              <tr key={i}>
+                <td style={S.td}><input style={S.inputSm} value={r.nome} onChange={(e) => cambia({ nome: e.target.value })} /></td>
+                <td style={S.td}><input style={S.inputSm} value={r.telefono} placeholder="+39…" onChange={(e) => cambia({ telefono: e.target.value.trim() })} /></td>
+                <td style={S.td}>
+                  {[1, 2, 3, 4, 5, 6, 7].map((g) => (
+                    <label key={g} style={{ fontSize: 11, marginRight: 4 }}>
+                      <input type="checkbox" checked={!r.giorni?.length || r.giorni.includes(g)}
+                        onChange={(e) => {
+                          const tutti = r.giorni?.length ? r.giorni : [1, 2, 3, 4, 5, 6, 7];
+                          const n = e.target.checked ? [...tutti, g].sort() : tutti.filter((x) => x !== g);
+                          cambia({ giorni: n.length === 7 ? undefined : n });
+                        }} />
+                      {t(`notifiche.g${g}`)}
+                    </label>
+                  ))}
+                </td>
+                <td style={S.td}><input style={{ ...S.inputSm, width: 70 }} type="time" value={r.dalle ?? ""} onChange={(e) => cambia({ dalle: e.target.value || undefined })} /></td>
+                <td style={S.td}><input style={{ ...S.inputSm, width: 70 }} type="time" value={r.alle ?? ""} onChange={(e) => cambia({ alle: e.target.value || undefined })} /></td>
+                <td style={{ ...S.td, whiteSpace: "nowrap" }}>
+                  <button style={S.btnXs} disabled={i === 0} title={t("notifiche.sopra")} onClick={() => { setTouched(true); const n = [...reperibili]; [n[i - 1], n[i]] = [n[i], n[i - 1]]; setReperibili(n); }}>↑</button>
+                  <button style={{ ...S.btnXs, marginLeft: 4 }} onClick={() => { setTouched(true); setReperibili(reperibili.filter((_, j) => j !== i)); }}>×</button>
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+      <div style={{ display: "flex", gap: 16, alignItems: "center", marginBottom: 20 }}>
+        <button style={S.btn("ghost")} data-testid="reperibile-nuovo" onClick={() => { setTouched(true); setReperibili([...reperibili, { nome: "", telefono: "" }]); }}>{t("notifiche.aggiungiReperibile")}</button>
+        <label style={{ fontSize: 12 }}>{t("notifiche.attesaMin")}{" "}
+          <input style={{ ...S.inputSm, width: 70 }} type="number" min={1} value={attesaMin ?? ""} placeholder="10"
+            onChange={(e) => { setTouched(true); setAttesaMin(e.target.value === "" ? undefined : Number(e.target.value)); }} />
+        </label>
+      </div>
+      </>)}
+
       {mostraTelegram && (<>
-      <div style={{ ...S.sectionTitle, marginTop: 24 }}>NOTIFICHE TELEGRAM</div>
+      <div style={{ ...S.sectionTitle, marginTop: 24 }}>{t("notifiche.titoloTelegram")}</div>
       <div style={S.notice}>
         <Trans i18nKey="cfgUi.telegramNotice" components={TRANS_COMP} />
       </div>
@@ -396,7 +508,7 @@ export function NotificationsTab() {
             checked={tgEnabled}
             onChange={(e) => { setTouched(true); setTgEnabled(e.target.checked); }}
           />
-          Abilita notifiche Telegram
+          {t("notifiche.abilitaTelegram")}
         </label>
       </div>
 
@@ -460,7 +572,7 @@ export function NotificationsTab() {
                 disabled={detecting || (tg.bot_token.trim() === "" && !tokenSaved)}
                 title={t("cfg.telegramGetUpdatesTitle")}
               >
-                {detecting ? "Rilevamento…" : "Rileva chat"}
+                {detecting ? t("notifiche.rilevamento") : t("notifiche.rilevaChat")}
               </button>
               {detectMsg && (
                 <span style={{ fontSize: 11, color: detectMsg.startsWith("✗") ? "var(--brand-danger, #ef4444)" : "var(--brand-text-muted, #94a3b8)" }}>
@@ -482,7 +594,7 @@ export function NotificationsTab() {
                         onClick={() => addChatId(c.id)}
                         disabled={added}
                       >
-                        {added ? "✓ aggiunta" : t("cfgUi.add2")}
+                        {added ? t("notifiche.aggiunta") : t("cfgUi.add2")}
                       </button>
                     </div>
                   );
@@ -506,7 +618,7 @@ export function NotificationsTab() {
               onClick={handleTestTelegram}
               disabled={testing || (tg.bot_token.trim() === "" && !tokenSaved) || tg.chat_ids.length === 0}
             >
-              {testing ? "Invio…" : "Invia test"}
+              {testing ? t("common.invio") : t("notifiche.inviaTest")}
             </button>
             {testMsg && (
               <span style={{ fontSize: 12, color: testMsg.startsWith("✓") ? "var(--brand-success, #22c55e)" : "var(--brand-danger, #ef4444)" }}>
@@ -516,7 +628,7 @@ export function NotificationsTab() {
           </div>
 
           <div style={{ fontSize: 11, color: "var(--brand-text-muted, #94a3b8)", lineHeight: 1.7, background: "var(--brand-bg, #0f172a)", border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 6, padding: "10px 12px" }}>
-            <strong style={{ color: "var(--brand-text-2, #cbd5e1)" }}>Come configurare</strong>
+            <strong style={{ color: "var(--brand-text-2, #cbd5e1)" }}>{t("notifiche.comeConfigurare")}</strong>
             <ol style={{ margin: "6px 0 0", paddingLeft: 18 }}>
               <li><Trans i18nKey="cfgUi.telegramStep1" components={TRANS_COMP} /></li>
               <li><Trans i18nKey="cfgUi.telegramStep2" components={TRANS_COMP} /></li>

@@ -127,9 +127,24 @@ describe("Protocolli: bus → dispositivi", () => {
     useAppStore.setState({ configFocus: "plc/4" });
     render(<ProtocolsTab />);
     expect(useAppStore.getState().elenchiConfig.protocols![0].modificato).toBe(false);
-    fireEvent.change(screen.getAllByRole("textbox")[0], { target: { value: "pompa" } });
+    // Un indirizzo TCP con un dispositivo solo: bus implicito (25-10-2026), la
+    // card è una sola — prima i campi del bus (id, host), poi il dispositivo.
+    fireEvent.change(screen.getAllByRole("textbox")[2], { target: { value: "pompa" } });
     const voce = useAppStore.getState().elenchiConfig.protocols![0];
     expect(voce.modificato).toBe(true);
-    expect(voce.figli).toEqual([{ id: "plc/4", etichetta: "pompa · 4" }]);
+    expect(voce.figli, "un dispositivo solo: nell'albero il bus non ha figli").toBeUndefined();
+  });
+
+  /** Il bus implicito (25-10-2026): un secondo unit id dietro lo stesso
+   *  indirizzo — un gateway TCP→RTU — rimette il livello bus. */
+  it("un secondo dispositivo dietro lo stesso indirizzo rimette il livello bus", () => {
+    progetto([{ kind: "modbus_tcp", id: "plc", host: "h", port: 502, poll_interval_ms: 1000, devices: [{ unit_id: 1, registers: [] }] }]);
+    useAppStore.setState({ configFocus: "plc" });
+    render(<ProtocolsTab />);
+    expect(screen.queryByTestId("modbus-dev-row-plc-1"), "niente elenco: la card del dispositivo è dentro").toBeNull();
+    expect(screen.getByTestId("modbus-dev-card-plc-1")).toBeTruthy();
+    fireEvent.click(screen.getByTestId("modbus-gateway-plc"));
+    const voce = useAppStore.getState().elenchiConfig.protocols![0];
+    expect(voce.figli?.map((f) => f.id)).toEqual(["plc/1", "plc/2"]);
   });
 });

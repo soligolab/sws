@@ -33,7 +33,7 @@ import { chiaveRilievi, contaRilievi, type ConteggioRilievi } from "@/components
 import { IntestazioneSezione, SPAZIO, TESTO, guideAlbero, useSezioneAperta } from "./stilePannelli";
 import { PallinoStato } from "@/config/sorgenti/DispositiviModbus";
 import { statoDispositivo, useStatoSorgenti } from "@/config/sorgenti/statoSorgenti";
-import { dispositiviDi, eBusModbus, etichettaDispositivo, focusDispositivo } from "@/config/sorgenti/modbusDispositivi";
+import { busImplicito, dispositiviDi, eBusModbus, etichettaDispositivo, focusDispositivo } from "@/config/sorgenti/modbusDispositivi";
 import { IconaCatalogo, useElencoCatalogo, voceDelModello } from "@/config/sorgenti/CatalogoDispositiviModal";
 
 /** Gli elementi di ricette e utenti, che il progetto non porta: una richiesta
@@ -67,7 +67,7 @@ function useElementi(isAdmin: boolean): (id: IdScheda) => VoceElencoConfig[] {
     switch (id) {
       case "protocols":  return (project?.sources ?? []).map((x) => ({
         id: x.id, etichetta: x.id,
-        figli: eBusModbus(x)
+        figli: eBusModbus(x) && !busImplicito(x)
           ? dispositiviDi(x).map((d) => ({
               id: focusDispositivo(x.id, d.unit_id), etichetta: etichettaDispositivo(d), ...(d.modello ? { modello: d.modello } : {}),
             }))

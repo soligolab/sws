@@ -393,8 +393,8 @@ export function DevicesTab() {
                     </td>
                     <td style={{ padding: "8px", textAlign: "center" }}>
                       {!online ? <span style={{ color: "var(--brand-text-subtle, #94a3b8)" }}>—</span>
-                        : match === "sync"    ? <span style={{ color: "#34d399" }}>✓ in sync</span>
-                        : match === "diff"    ? <span style={{ color: "#fb923c" }}>✗ diff. versione</span>
+                        : match === "sync"    ? <span style={{ color: "#34d399" }}>{t("cfgUi.inSync")}</span>
+                        : match === "diff"    ? <span style={{ color: "#fb923c" }}>{t("cfgUi.diffVersione")}</span>
                         : <span style={{ color: "var(--brand-text-subtle, #64748b)" }}>? n/d</span>}
                     </td>
                     <td style={{ padding: "8px", textAlign: "right" }}>
@@ -527,7 +527,7 @@ export function DevicesTab() {
         </span>
         {localFp && (
           <div style={{ marginTop: 10, fontSize: 11, color: "var(--brand-text-subtle, #94a3b8)" }}>
-            Firma locale: <span style={{ fontFamily: "monospace", color: "var(--brand-text-subtle, #64748b)" }}>{localFp.substring(0, 16)}…</span>
+            {t("cfgUi.firmaLocale")} <span style={{ fontFamily: "monospace", color: "var(--brand-text-subtle, #64748b)" }}>{localFp.substring(0, 16)}…</span>
           </div>
         )}
       </div>

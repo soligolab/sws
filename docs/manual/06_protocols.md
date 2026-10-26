@@ -47,6 +47,13 @@ Nell'IDE: Configurazione → Progetto → Protocolli → il bus → i suoi dispo
 connessione, l'intervallo predefinito e l'elenco dei dispositivi («+ Aggiungi dispositivo» prende il primo unit id
 libero); la card del dispositivo ha unit id, nome, ordine, intervallo (vuoto = quello del bus), timeout e mappature.
 
+**Un indirizzo TCP con un dispositivo solo è il dispositivo** (dal 25-10-2026). Nel caso normale — un modulo, un IP —
+il livello bus non si vede: nell'albero la sorgente non ha figli, e la sua card ha insieme connessione e dispositivo
+(unit id, nome, mappature). Sotto c'è **«+ Un altro dispositivo dietro questo indirizzo (gateway)»**: con un secondo
+unit id il bus torna un livello, coi dispositivi sotto. Nel progetto non cambia niente: `devices` c'è sempre. Una
+sorgente Modbus TCP nuova nasce senza dispositivi, e il primo arriva da «+ Aggiungi dispositivo» o «Dal catalogo». Su
+RTU il bus è la porta seriale e resta sempre visibile.
+
 **Stato**: un pallino accanto al bus e a ogni dispositivo, nell'albero e nelle card — verde risponde, ambra risponde ma
 qualche registro dà errore, rosso non risponde (il motivo nel tooltip), grigio non attivo (sorgente ferma, mai
 collegata o non ancora salvata). È lo stato visto dal runtime con cui l'IDE parla.
@@ -59,12 +66,25 @@ campi di prima sono ignorati (il validatore lo segnala).
 
 Dentro un bus, **«+ Dal catalogo…»** aggiunge un dispositivo completo e già configurato (tipo, variabile e
 dispositivo si salvano subito, insieme alle altre modifiche aperte nei Protocolli): si sceglie il modello (con la
-sua icona), l'unit id, il nome della variabile e i gruppi di registri da leggere. Nascono dei **tipi annidati** per il modello — un sotto-tipo per gruppo (`pixsys_mcm260x_9ad__ingressi`) e il tipo
+sua icona), l'unit id, il nome della variabile e i gruppi di registri da leggere. La finestra mostra **solo i modelli
+che quel bus raggiunge** (dal 25-10-2026, `modbus.trasporto` nei file del catalogo): un MCM280X parla solo TCP, un
+ATR121 solo RTU, e un modello messo sul bus sbagliato è un errore di validazione. Nascono dei **tipi annidati** per il modello — un sotto-tipo per gruppo (`pixsys_mcm260x_9ad__ingressi`) e il tipo
 della variabile con un membro per gruppo scelto, così le variabili si leggono `mcm260x_9ad.ingressi.di1`,
 `mcm260x_9ad.diagnostica.errore_fram` — e, prima di queste righe, nascevano un **tipo** per il modello
 (tutti i suoi registri, i bit delle word come membri vero/falso, unità e decimali), una **variabile** istanza di quel
 tipo e il **dispositivo** del bus con le mappature, l'ordine dei byte e il timeout del modello. Un secondo dispositivo
 dello stesso modello riusa il tipo. Tipo e variabile si salvano subito; il dispositivo si salva coi Protocolli.
+
+**La configurazione del modulo** (dal 25-10-2026). Un dispositivo nato dal catalogo, se il suo modello ha parametri di
+configurazione (tipo di sonda di ogni ingresso, unità, tipo di uscita, modo degli encoder…), ha nella card la sezione
+**«Configurazione del modulo»**: per ogni parametro si sceglie il valore che il progetto vuole, oppure «— non gestito —»
+per lasciarlo com'è sul modulo. A ogni collegamento, alla prima risposta del dispositivo, il runtime **legge** quei
+parametri e **scrive solo quelli diversi**: vince il progetto, e un modulo sostituito o resettato torna configurato da
+solo. Sugli MCM260X la scrittura va nell'area che salva in memoria dopo 10 secondi (4001-4100) invece che a ogni
+scrittura, per non consumarla. Il log del runtime dice cosa ha cambiato («setup del modulo — tipo_sensore_ai1 da 0 a
+12») e cosa il modulo ha rifiutato. Indirizzo, baud e parità non si offrono: cambiati dal progetto, il runtime perderebbe
+il modulo. Nel YAML è `devices[].setup: [{nome, indirizzo, valore, indirizzo_scrittura}]`, completo: il runtime non
+legge il catalogo.
 
 **Eliminare un dispositivo** salvato chiede cosa fare delle sue variabili: «Dispositivo e variabili» toglie anche le
 variabili che nessun altro mappa (e i tipi rimasti senza istanze); «Solo il dispositivo» le tiene, e un dispositivo nuovo
@@ -287,6 +307,50 @@ automaticamente NBIRTH, NDATA, NCMD e il protocollo STATE.
 Quando un tag ha un `publish_topic`, SWS pubblica il valore sul topic ogni volta
 che il tag viene scritto tramite `PUT /api/tags/:id` o da un pulsante del sinottico.
 
+### Lo stato all'avvio (dal 25-10-2026)
+
+MQTT è un protocollo a eventi: SWS si iscrive ai topic e riceve un valore quando qualcuno lo pubblica. Alla
+sottoscrizione il broker consegna subito l'ultimo valore **solo se era stato pubblicato con `retain`**. Se non è
+così, dopo un riavvio del pannello il tag resta senza valore (sul sinottico: bianco, qualità incerta) finché lo
+stato non cambia.
+
+Per questi casi una riga della mappatura può avere una **richiesta di stato**: a ogni collegamento al broker,
+dopo le sottoscrizioni, SWS pubblica il `payload` sul `topic` indicato, e il dispositivo risponde sul topic di
+stato della riga.
+
+```yaml
+topics:
+  - tag: garage.luce1
+    topic: zigbee2mqtt/garage
+    json_path: state_l1
+    publish_topic: zigbee2mqtt/garage/set
+    richiesta_stato:
+      topic: zigbee2mqtt/garage/get
+      payload: '{"state_l1":""}'
+```
+
+Nella scheda della sorgente, il pulsante **⟳** di ogni riga aggiunge o toglie la richiesta (già compilata come
+la vuole Zigbee2MQTT, e modificabile), e il pulsante **«⟳ Richiedi lo stato all'avvio»** sotto la tabella la
+compila su tutte le righe `zigbee2mqtt/…` che non l'hanno. Più righe con la stessa richiesta la mandano una
+volta sola. Il topic della richiesta non può contenere `+` né `#`: il broker chiuderebbe la connessione
+dell'intera sorgente, e la validazione del progetto lo segnala come errore.
+
+#### Zigbee2MQTT: cosa sa fare e cosa no
+
+- **Per default Zigbee2MQTT non pubblica con `retain`.** È il motivo per cui serve la richiesta. In alternativa
+  si può accendere `retain: true` sul dispositivo (in `configuration.yaml`, sezione `devices:`, o dalla sua
+  interfaccia): il broker conserva l'ultimo stato e la richiesta non serve più. Le due cose possono convivere.
+- **`…/get` funziona solo per gli attributi che il dispositivo sa rileggere.** Prese, interruttori e luci
+  (alimentati dalla rete) rispondono. I **dispositivi a batteria** — sensori di porta, di movimento, di
+  temperatura — dormono quasi sempre e non rispondono a una lettura: per quelli l'unica strada è `retain: true`,
+  oppure aspettare il loro prossimo invio periodico.
+- **Gli interruttori a più canali** (come uno switch a tre vie) hanno un campo per canale: `state_l1`, `state_l2`,
+  `state_l3`. Il JSON path della riga è quel campo, e la richiesta chiede proprio quello.
+- **Il nome nel topic è il `friendly_name`** del dispositivo: se lo si cambia in Zigbee2MQTT cambiano insieme il
+  topic di stato e quello della richiesta, e le righe vanno corrette entrambe.
+- Se Zigbee2MQTT usa un `base_topic` diverso da `zigbee2mqtt`, il pulsante che compila tutte le righe non le
+  riconosce: si usa il ⟳ riga per riga, che segue il topic della riga qualunque sia.
+
 ---
 
 ## OPC-UA
@@ -374,6 +438,26 @@ di quello vecchio.
 
 Un progetto salvato prima del 15-10 senza il campo riparte con `false`: al primo collegamento dopo
 l'aggiornamento memorizza il certificato che trova.
+
+### Tag compositi e nodi struttura (dal 25-10-2026)
+
+Un tag **composito** (istanza di un tipo, vedi capitolo dei tag) si può mappare su un nodo OPC-UA che porta una
+**struttura**: SWS la legge e consegna ogni campo alla foglia corrispondente (`motore1.velocita`,
+`motore1.marcia`), con la sua scala e il suo tipo. Per farlo, a ogni collegamento la sorgente legge dal server la
+definizione dei suoi `DataType` — solo se ha almeno un tag composito, perché su un PLC con migliaia di tipi è una
+lettura che altrimenti non serve.
+
+| Caso | Cosa succede |
+|---|---|
+| Struttura con campi scalari o array di un livello | letta, foglia per foglia |
+| Campo opzionale assente | la foglia non riceve niente (resta col valore di prima) |
+| **Union** | qualità `Bad`: il dato arriva, ma non si sa quale campo vale |
+| Strutture **annidate**, array di strutture alla radice | fuori portata: qualità `Bad` |
+| Il server non lascia leggere i suoi tipi (limiti di lettura bassi, permessi) | le strutture restano `Bad`, gli scalari funzionano; il log della sorgente dice «albero dei tipi non costruito» col motivo |
+
+La scrittura passa dal **nodo figlio** del campo, non dalla struttura intera: molti server espongono i campi anche
+come nodi a sé. Il server OPC-UA di SWS pubblica i tag compositi come variabili struttura vere, con un nodo figlio
+per foglia.
 
 ### Formato NodeId
 

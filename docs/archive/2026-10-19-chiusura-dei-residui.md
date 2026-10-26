@@ -1,5 +1,9 @@
 # Piano — la chiusura dei residui
 
+> **CONCLUSO il 26-10-2026, archiviato.** Tutti e sette i rami fatti; l'ultimo, il tunnel, ha passato la misura dei
+> sette giorni con 0,29 riaperture non spiegate al giorno contro la soglia di 1 (dettaglio nel ramo 7). I collaudi
+> dal vivo che restano stanno in `COLLAUDI_IN_SOSPESO.md`.
+
 > 19-10-2026. Sei piani vivi sono fermi non per il lavoro che resta, ma per **code**: una voce
 > non fatta, una misura mai presa, una decisione mai sciolta. Finché quelle code esistono, i piani
 > non si archiviano e `docs/plans/` racconta come lavoro in corso cose finite da settimane.
@@ -177,7 +181,7 @@ e porta con sé una voce in `CAMPI_FISSI` di `scala/scalaPagina.ts`, che il test
 > La famiglia si chiama «Comandi **da quadro**» per non scontrarsi col gruppo omonimo della palette.
 
 
-Ramo 3 del piano [strumenti, simboli e comandi](../archive/2026-10-14-strumenti-simboli-comandi.md):
+Ramo 3 del piano [strumenti, simboli e comandi](2026-10-14-strumenti-simboli-comandi.md):
 famiglia **«Comandi»** nella libreria. **Primo lotto di sei, confermato dal maintainer il
 19-10-2026**, con il comando di partenza di ciascuno:
 
@@ -222,7 +226,7 @@ di un campo nuovo nel manifesto.
 
 > **CHIUSO il 25-10-2026 col terzo giro**: i 14 tipi rimasti (gauge, kpi_tile, data_log, sparkline, symbol,
 > lang_selector, i quattro degli allarmi, recipe_panel, clock, page_navigator), il campo nuovo `unit_font_size`
-> e i testi che LVGL non disegnava. Piano: [`2026-10-25-corpi-e-parita-lvgl.md`](2026-10-25-corpi-e-parita-lvgl.md).
+> e i testi che LVGL non disegnava. Piano: [`2026-10-25-corpi-e-parita-lvgl.md`](../plans/2026-10-25-corpi-e-parita-lvgl.md).
 
 > **Primo giro fatto il 21-10-2026**: cinque tipi a un testo solo — `button` (14),
 > `navbutton` (13), `lang_button` (13), `led` (11), `checkbox` (13). Per ognuno la voce nella
@@ -385,6 +389,33 @@ comparire niente: su un pannello abbinato chi sta davanti è anonimo, e le lettu
 
 ## Ramo 7 — `feat/tunnel-tenuta` — **si apre per primo, si chiude per ultimo**
 
+> **Codice FATTO il 26-10-2026** (sul ramo annidato `feat/sms-voce-reperibilita`, nella catena del 26-10): il gateway
+> ascolta i battiti e chiude un tunnel muto da oltre 95 s (solo per chi ha già battuto: i pannelli di prima del 16-10
+> restano come prima); lo spegnimento annunciato (byte `S` allo SIGTERM, prima delle sorgenti) e il pallino giallo
+> della console; i test chiesti qui sotto — backoff estratto (`prossima_attesa`), la connessione vecchia che non
+> toglie la nuova, `chiudi` su una connessione che tace, l'annuncio che arriva. **Trovato misurando**: `Registro::esce`
+> toglieva per nome, quindi la connessione vecchia di un pannello che aveva già richiamato si portava via la nuova; e
+> «sospendi» e «sposta azienda» toglievano il pannello dal registro senza chiudere il socket, quindi il pannello non
+> richiamava mai e restava irraggiungibile — ora `stacca` chiude davvero. **Resta la misura dei sette giorni**
+> (`misura_tunnel.sh`), che vuole SSH su pannello e VPS: la sola cosa fra questo ramo e l'archivio del piano.
+
+> **Misura dei sette giorni, 26-10-2026 (TC620, dal 19 al 25-10): 2 riaperture non spiegate in 7 giorni, 0,29 al
+> giorno — sotto la soglia di 1. Fetta chiusa.** Va detto come ci si è arrivati, perché la prima lettura diceva
+> **7 in 7 giorni, 1,00 al giorno**, cioè sulla soglia e non sotto. Guardando le sette una per una, cinque avevano una
+> causa che lo script non sapeva vedere, e lo script è stato corretto, non il numero:
+>
+> - **avvii del pannello non riconosciuti** (24-10 19:38, 25-10 12:26): `SWS runtime starting` si scrive prima che
+>   il bus dei log si agganci e nel file manca spesso (23 righe contro 27 spegnimenti). Ora contano anche `runtime
+>   instance id` e `shutdown signal received`;
+> - **riavvii di Traefik** (21-10 00:03, 23-10 00:13, un aggiornamento automatico dell'immagine): lo script guardava
+>   solo il gateway. Ora legge anche `Started traefik` dai messaggi di systemd (indicizzati: con `-u traefik`
+>   journalctl scorre tutti i log di accesso e va oltre i cinque minuti);
+> - **gateway giù senza journal** (19-10 05:28, 20-10 13:12): il journal del VPS di quelle ore è ruotato via, ma il
+>   pannello aveva scritto `tunnel non aperto: … 502` subito prima — Traefik c'era, il gateway dietro no.
+>
+> Restano **19-10 04:26 e 21-10 14:10**, senza nessun segno nei log dei due lati. Il gateway da oggi scrive «tunnel
+> muto» quando chiude un tunnel per silenzio: la prossima volta una caduta così avrà un nome.
+
 La fetta 3 chiede di contare le cadute del tunnel su giorni. Il piano non lo sa, ma **metà del suo
 contenuto è già stato chiuso**: il 16-10, misurando sul WP630, si è scoperto che il tunnel si
 riapriva **ogni quindici minuti esatti** — un timeout NAT da 900 secondi che scade senza traffico —
@@ -434,12 +465,12 @@ dove chiudere un capo è sempre pulito: va provata a mano.
 
 | Piano | Chiuso da |
 |---|---|
-| [2026-10-09-fase-4-gateway.md](../archive/2026-10-09-fase-4-gateway.md) | rami 1 e 2 |
+| [2026-10-09-fase-4-gateway.md](2026-10-09-fase-4-gateway.md) | rami 1 e 2 |
 | [2026-10-08-marchi-visibili-prima-del-login.md](2026-10-08-marchi-visibili-prima-del-login.md) | ramo 2 |
-| [2026-10-15-tubazioni-bocche-e-stili.md](../archive/2026-10-15-tubazioni-bocche-e-stili.md) | punto 6 dichiarato **fuori perimetro** (decisione del 19-10), più il ramo 3 che dà al tubo il tracciamento a clic |
-| [2026-10-14-strumenti-simboli-comandi.md](../archive/2026-10-14-strumenti-simboli-comandi.md) | ramo 4 — **archiviato il 21-10-2026** |
+| [2026-10-15-tubazioni-bocche-e-stili.md](2026-10-15-tubazioni-bocche-e-stili.md) | punto 6 dichiarato **fuori perimetro** (decisione del 19-10), più il ramo 3 che dà al tubo il tracciamento a clic |
+| [2026-10-14-strumenti-simboli-comandi.md](2026-10-14-strumenti-simboli-comandi.md) | ramo 4 — **archiviato il 21-10-2026** |
 | scalare tra risoluzioni | **archiviato il 19-10-2026**: il lavoro era finito, e il suo limite noto è diventato il ramo 5 di questo piano |
-| [2026-10-09-fase-6-tunnel-dei-pannelli.md](../archive/2026-10-09-fase-6-tunnel-dei-pannelli.md) | ramo 7 |
+| [2026-10-09-fase-6-tunnel-dei-pannelli.md](2026-10-09-fase-6-tunnel-dei-pannelli.md) | ramo 7 |
 
 Cinque sono già stati archiviati il 19-10-2026, perché il loro lavoro era completo: colore e
 assegnazioni, revisione IDE del collaudo WP630, git nel cloud, finestre popup e la scala fra

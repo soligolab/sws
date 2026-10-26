@@ -72,7 +72,7 @@ export function ResourcesTab() {
           <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
             <thead>
               <tr style={{ color: "var(--brand-text-subtle, #64748b)", borderBottom: "1px solid var(--brand-surface-2, #334155)" }}>
-                {["Etichetta", "URL", "Licenza", "Autore / fonte", ""].map((h) => (
+                {[t("cfgUi.etichetta"), "URL", t("cfgUi.licenza"), t("cfgUi.autoreFonte"), ""].map((h) => (
                   <th key={h} style={{ textAlign: "left", padding: "4px 8px", fontWeight: 600 }}>{h}</th>
                 ))}
               </tr>
@@ -119,7 +119,7 @@ export function ResourcesTab() {
         return (
           <section style={{ background: "var(--brand-surface, #1e293b)", border: "1px solid #38bdf8", borderRadius: 6, padding: 16 }}>
             <div style={{ fontSize: 13, fontWeight: 700, color: "#38bdf8", marginBottom: 8 }}>
-              MULTI-STATO — {sym.label}
+              {t("cfgUi.multiStato")} — {sym.label}
             </div>
             <p style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)", margin: "0 0 8px" }}>
               <Trans i18nKey="cfgUi.svgSymbolHelp" components={TRANS_COMP} />
@@ -192,25 +192,25 @@ export function ResourcesTab() {
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 2fr", gap: "8px 12px", alignItems: "start" }}>
           <div>
-            <div style={lbl}>Etichetta *</div>
-            <input style={inp} placeholder="es. Pompa centrifuga" value={form.label} onChange={(e) => setForm((f) => ({ ...f, label: e.target.value }))} />
+            <div style={lbl}>{t("cfgUi.etichetta")} *</div>
+            <input style={inp} placeholder={t("cfgUi.esPompa")} value={form.label} onChange={(e) => setForm((f) => ({ ...f, label: e.target.value }))} />
           </div>
           <div>
-            <div style={lbl}>URL SVG * (https://… oppure /symbols/…)</div>
+            <div style={lbl}>{t("cfgUi.urlSvg")}</div>
             <input style={inp} placeholder="https://example.com/pump.svg" value={form.url} onChange={(e) => setForm((f) => ({ ...f, url: e.target.value }))} />
           </div>
           <div>
-            <div style={lbl}>Licenza *</div>
+            <div style={lbl}>{t("cfgUi.licenza")} *</div>
             <select style={{ ...inp, cursor: "pointer" }} value={form.license} onChange={(e) => setForm((f) => ({ ...f, license: e.target.value }))}>
               {LICENSE_OPTIONS.map((l) => <option key={l} value={l}>{l}</option>)}
             </select>
           </div>
           <div>
             <div style={lbl}>{t("cfg.author")}</div>
-            <input style={inp} placeholder="es. Wikimedia Commons / Mario Rossi" value={form.author} onChange={(e) => setForm((f) => ({ ...f, author: e.target.value }))} />
+            <input style={inp} placeholder={t("cfgUi.esAutore")} value={form.author} onChange={(e) => setForm((f) => ({ ...f, author: e.target.value }))} />
           </div>
           <div style={{ gridColumn: "1 / -1" }}>
-            <div style={lbl}>URL fonte (per attribuzione CC-BY)</div>
+            <div style={lbl}>{t("cfgUi.urlFonte")}</div>
             <input style={inp} placeholder="https://commons.wikimedia.org/wiki/…" value={form.source} onChange={(e) => setForm((f) => ({ ...f, source: e.target.value }))} />
           </div>
         </div>

@@ -1,24 +1,33 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
-import type { ModbusTcpSource } from "@/types";
+import type { ModbusTcpSource, TagDef } from "@/types";
 import { S } from "@/config/comuni";
-import { dispositiviDi } from "@/config/sorgenti/modbusDispositivi";
-import { ElencoDispositiviModbus, PallinoStato } from "@/config/sorgenti/DispositiviModbus";
+import { useAppStore } from "@/store";
+import { busImplicito, conDispositivi, dispositiviDi, focusDispositivo, nuovoDispositivo } from "@/config/sorgenti/modbusDispositivi";
+import { DispositivoModbusCard, ElencoDispositiviModbus, PallinoStato } from "@/config/sorgenti/DispositiviModbus";
 import { useStatoSorgenti } from "@/config/sorgenti/statoSorgenti";
 
 /** Il bus Modbus TCP (04-10-2026): l'indirizzo, il polling predefinito e i
  *  dispositivi dietro quell'indirizzo (più unit id = un gateway). Le mappature
- *  stanno nella card di ogni dispositivo. */
+ *  stanno nella card di ogni dispositivo.
+ *
+ *  **Con un dispositivo solo il bus è implicito** (25-10-2026): la card del
+ *  dispositivo sta qui dentro, al posto dell'elenco, e un pulsante aggiunge un
+ *  secondo unit id dietro lo stesso indirizzo — da lì il bus torna un livello. */
 export function ModbusSourceCard({
   source,
   onChange,
   onDelete,
+  onCreateTag,
 }: {
   source: ModbusTcpSource;
   onChange: (s: ModbusTcpSource) => void;
   onDelete: () => void;
+  onCreateTag: (tag: TagDef) => void;
 }) {
   const { t } = useTranslation();
+  const navigateToConfig = useAppStore((s) => s.navigateToConfig);
+  const implicito = busImplicito(source);
   const [open, setOpen] = useState(true);
   const stato = useStatoSorgenti()[source.id];
 
@@ -80,7 +89,25 @@ export function ModbusSourceCard({
             </div>
           </div>
 
-          <ElencoDispositiviModbus bus={source} onChange={onChange} />
+          {implicito ? (
+            <>
+              <DispositivoModbusCard bus={source} unit={dispositiviDi(source)[0].unit_id} onChange={onChange} onCreateTag={onCreateTag} />
+              <button
+                style={S.btn("ghost")}
+                data-testid={`modbus-gateway-${source.id}`}
+                title={t("cfg.modbusGatewayHint")}
+                onClick={() => {
+                  const d = nuovoDispositivo(source);
+                  onChange(conDispositivi(source, [...dispositiviDi(source), d]));
+                  navigateToConfig("protocols", focusDispositivo(source.id, d.unit_id));
+                }}
+              >
+                {t("cfg.modbusGateway")}
+              </button>
+            </>
+          ) : (
+            <ElencoDispositiviModbus bus={source} onChange={onChange} />
+          )}
         </div>
       )}
     </div>

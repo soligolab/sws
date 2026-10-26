@@ -2133,6 +2133,25 @@ pub async fn remote_tls_rimuovi(State(s): State<AppState>, Extension(user): Exte
     inoltra_tls(&s, &user, "remote.tls_remove", reqwest::Method::DELETE, "/api/system/tls", None).await
 }
 
+/// `POST /api/remote/system/tls/scelta` — la risposta alla proposta dell'HTTPS
+/// col certificato del dispositivo, sul **dispositivo connesso** (C4, pezzo 3).
+pub async fn remote_tls_scelta(
+    State(s): State<AppState>,
+    Extension(user): Extension<AuthUser>,
+    Json(corpo): Json<crate::system::SceltaTls>,
+) -> Response {
+    // "{base}/api/system/tls/scelta".
+    inoltra_tls(
+        &s,
+        &user,
+        "remote.tls_choice",
+        reqwest::Method::POST,
+        "/api/system/tls/scelta",
+        Some(serde_json::json!({ "scelta": corpo.scelta })),
+    )
+    .await
+}
+
 /// Una GET al dispositivo connesso, con la sua sessione, e il JSON com'è.
 /// 400 senza dispositivo; 502 con il codice e il testo del dispositivo se
 /// risponde male, così l'errore che arriva all'editor dice da che parte è.
@@ -3781,3 +3800,46 @@ pub async fn remote_conferma_ritenzione(
     .await
 }
 
+
+/// `GET /api/remote/reports` — i report **del dispositivo connesso** coi loro
+/// file (P3, 26-10-2026): nell'IDE e nel cloud i report li genera il pannello.
+pub async fn remote_reports(State(s): State<AppState>) -> Response {
+    // "{base}/api/reports".
+    proxy_get_json(&s, "/api/reports").await
+}
+
+/// `POST /api/remote/reports/:id/genera` — «Genera ora» sul pannello.
+pub async fn remote_genera_report(State(s): State<AppState>, Extension(user): Extension<AuthUser>, Path(id): Path<String>) -> Response {
+    // "{base}/api/reports/{}/genera".
+    inoltra_al_pannello(&s, Some(&user), reqwest::Method::POST, &format!("/api/reports/{}/genera", pct_encode(&id)), None, 120).await
+}
+
+/// `GET /api/remote/reports/:id/:file` — scarica un report dal pannello.
+pub async fn remote_scarica_report(State(s): State<AppState>, Path((id, nome)): Path<(String, String)>) -> Response {
+    let target = match s.remote_target.read().await.clone() {
+        Some(t) => t,
+        None => return (StatusCode::BAD_REQUEST, "No remote runtime connected").into_response(),
+    };
+    let client = make_remote_client(&s, &target.url);
+    let base = target.url.trim_end_matches('/');
+    // "{base}/api/reports/{}/{}".
+    let mut req = client.get(format!("{base}/api/reports/{}/{}", pct_encode(&id), pct_encode(&nome)));
+    if !target.token.is_empty() {
+        req = req.header("Authorization", format!("Bearer {}", target.token));
+    }
+    match req.send().await {
+        Ok(r) if r.status().is_success() => {
+            let tipo = r.headers().get("content-type").and_then(|v| v.to_str().ok()).unwrap_or("application/octet-stream").to_string();
+            match r.bytes().await {
+                Ok(b) => Response::builder()
+                    .header("Content-Type", tipo)
+                    .header("Content-Disposition", format!("attachment; filename=\"{nome}\""))
+                    .body(Body::from(b))
+                    .unwrap_or_else(|_| StatusCode::INTERNAL_SERVER_ERROR.into_response()),
+                Err(e) => (StatusCode::BAD_GATEWAY, format!("Lettura della risposta dal dispositivo fallita: {e}")).into_response(),
+            }
+        }
+        Ok(r) => (StatusCode::BAD_GATEWAY, format!("Il dispositivo ha risposto {}", r.status())).into_response(),
+        Err(e) => (StatusCode::BAD_GATEWAY, format!("Il dispositivo non ha risposto: {e}")).into_response(),
+    }
+}

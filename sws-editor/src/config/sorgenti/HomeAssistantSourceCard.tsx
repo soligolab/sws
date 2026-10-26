@@ -76,8 +76,8 @@ export function HomeAssistantSourceCard({
             </div>
             <div>
               <label style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)", display: "block", marginBottom: 3 }}>
-                Token accesso{" "}
-                <span style={{ fontWeight: 400, color: "var(--brand-text-subtle, #94a3b8)" }}>(oppure usa token_env)</span>
+                {t("sorgenti.tokenAccesso")}{" "}
+                <span style={{ fontWeight: 400, color: "var(--brand-text-subtle, #94a3b8)" }}>{t("sorgenti.oppureTokenEnv")}</span>
               </label>
               <input style={S.input} type="password" placeholder="long-lived access token"
                 value={source.token ?? ""}
@@ -145,7 +145,7 @@ export function HomeAssistantSourceCard({
                   </td>
                   <td style={S.td}>
                     <div style={{ display: "flex", gap: 4 }}>
-                      <input style={S.inputSm} placeholder="(stato)"
+                      <input style={S.inputSm} placeholder={t("sorgenti.statoPh")}
                         value={e.attribute ?? ""}
                         onChange={(ev) => setEntity(i, { attribute: ev.target.value || undefined })}
                         spellCheck={false} />

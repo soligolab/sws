@@ -1,5 +1,5 @@
 // La riconciliazione dei tag al salvataggio (Fase 0b del piano
-// `docs/plans/2026-09-21-gestione-tag-oggetto-unico.md`).
+// `docs/archive/2026-09-21-gestione-tag-oggetto-unico.md`).
 //
 // Fino al 22-09-2026 un tag nasceva per cinque strade diverse («+var» nelle
 // card delle sorgenti, il modale rapido, i due wizard, la scheda Variabili), e

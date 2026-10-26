@@ -593,10 +593,39 @@ Un faceplate è un gruppo di widget riutilizzabile con parametri sostituibili.
 - Contiene un LED (tag: `{tag_prefix}.stato`), un gauge (tag: `{tag_prefix}.portata`), un label (`{label}`)
 - Ogni istanza sostituisce `{tag_prefix}` con il valore specifico
 
-Per creare un faceplate: **Configurazione → Progetto → Faceplates**.
-Per usarlo: strumenti, gruppo **Impianto → Faceplate**, poi si sceglie il faceplate e si danno i parametri.
+Per creare un faceplate: **Configurazione → Progetto → Faceplates**, oppure — dal 25-10-2026 — **dagli oggetti già
+disegnati**: si selezionano (due o più) e nel pannello della selezione si preme **«⧉ Crea faceplate dalla
+selezione»**, dandogli un nome. Le coordinate diventano relative al riquadro della selezione; **i tag diventano
+parametri** — se hanno una radice comune (`motore1.velocita`, `motore1.marcia`) un parametro solo `p` di tipo istanza
+(`{p}.velocita`), altrimenti uno per tag col tag originale come predefinito. Il faceplate si salva subito e la selezione
+diventa la sua **prima istanza**, con i parametri che la rifanno com'era; un «annulla» rimette gli oggetti.
+Per usarlo: strumenti, gruppo **Impianto → Faceplate**, poi si sceglie il faceplate e si danno i parametri. **Le istanze
+seguono la definizione**: cambiare il faceplate cambia tutte le sue istanze, sul web e sul pannello LVGL — è il
+template d'oggetto del piano prima fascia (P2).
 
 ---
+
+## Report programmati (dal 26-10-2026)
+
+**Configurazione → Progetto → Report**. Un report è un PDF e/o un Excel con:
+
+- il **riepilogo** dei tag scelti nel periodo: minimo, massimo, media, numero di campioni;
+- l'**andamento**: la media di ogni tag per intervallo («Righe ogni», predefinito 15 minuti per un turno, un'ora per un
+  giorno, un giorno per settimana e mese), con le righe che partono dall'inizio del periodo;
+- gli **allarmi** del periodo (se spuntato): quando sono scattati, il messaggio, la gravità, il rientro, chi li ha
+  riconosciuti.
+
+| Campo | |
+|---|---|
+| Periodo | turno (8 ore), giorno, settimana, mese (dallo stesso giorno del mese prima) |
+| Quando | un cron a cinque campi, nell'ora del pannello; vuoto = alla fine del periodo, alle 6 (turno: 6, 14 e 22). Il report copre il periodo che **finisce** in quel momento |
+| Formati | PDF (tabelle, A4 orizzontale; tanti tag si dividono in gruppi di colonne) ed Excel (un foglio per tabella, numeri veri) |
+| Manda per email a | destinatari, con l'SMTP di Notifiche; vuoto = solo salvato |
+| File da tenere | quante generazioni conservare (predefinito 30) |
+
+I report li genera **il pannello**, dove c'è lo storico: li salva nel progetto, in `reports/<id>/`. Nell'IDE e nel cloud
+la scheda mostra le definizioni; con un pannello collegato mostra anche i **suoi** file, da scaricare, e «▶ Genera
+ora», che fa partire un report adesso. Il PDF e l'Excel si scrivono senza librerie esterne.
 
 ## Configurazione avanzata
 

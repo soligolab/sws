@@ -32,6 +32,15 @@ export function useElencoCatalogo(): ElencoCatalogo | null {
   return e;
 }
 
+/** Il bus sa raggiungere quel modello? (25-10-2026, `modbus.trasporto`.) Un
+ *  MCM280X parla solo TCP, un ATR121 solo RTU: prima la finestra li offriva su
+ *  qualunque bus, e il dispositivo nasceva senza poter comunicare. Una voce
+ *  senza trasporto dichiarato (un file utente di prima) si offre lo stesso. */
+export function raggiungibile(v: { trasporto?: string }, bus: { kind: string }): boolean {
+  if (!v.trasporto || v.trasporto === "entrambi") return true;
+  return v.trasporto === (bus.kind === "modbus_rtu" ? "rtu" : "tcp");
+}
+
 /** La voce dell'elenco da cui viene un dispositivo (`modello: "pixsys/atr244@1"`). */
 export function voceDelModello(elenco: ElencoCatalogo | null, modello: string | undefined): VoceCatalogoElenco | undefined {
   if (!modello || !elenco) return undefined;
@@ -90,7 +99,7 @@ export function CatalogoDispositiviModal({ bus, onConferma, onClose }: {
   };
 
   const filtro = cerca.trim().toLowerCase();
-  const voci = (elenco?.voci ?? []).filter((v) =>
+  const voci = (elenco?.voci ?? []).filter((v) => raggiungibile(v, bus)).filter((v) =>
     !filtro || [v.modello, v.marca, v.famiglia ?? "", v.descrizione?.[lingua] ?? ""].some((x) => x.toLowerCase().includes(filtro)));
   const perFamiglia = new Map<string, VoceCatalogoElenco[]>();
   for (const v of voci) {

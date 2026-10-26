@@ -97,7 +97,7 @@ export function MqttBrowseModal({
         {/* Header */}
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
           <div style={{ fontWeight: 700, color: "var(--brand-text, #e2e8f0)" }}>
-            Sfoglia broker — {source.host}:{source.port}
+            {t("sorgenti.sfogliaBroker")} — {source.host}:{source.port}
           </div>
           <button style={{ ...S.btn("ghost"), padding: "4px 8px" }} onClick={onClose}>✕</button>
         </div>
@@ -113,11 +113,11 @@ export function MqttBrowseModal({
             disabled={loading}
           />
           <button style={S.btn("primary")} onClick={startBrowse} disabled={loading}>
-            {loading ? `Rilevamento… (${duration} s)` : result ? "Aggiorna" : t("cfgUi.startDiscovery")}
+            {loading ? t("sorgenti.rilevamentoS", { s: duration }) : result ? t("common.aggiorna") : t("cfgUi.startDiscovery")}
           </button>
           {result !== null && (
             <span style={{ fontSize: 12, color: "var(--brand-text-subtle, #64748b)" }}>
-              {result.length} topic rilevati — {selected.size} selezionati
+              {t("sorgenti.topicRilevati", { n: result.length, sel: selected.size })}
             </span>
           )}
         </div>

@@ -61,7 +61,7 @@ export function MqttJsonExtractModal({
     setError(null);
     let parsed: unknown;
     try { parsed = JSON.parse(jsonText); }
-    catch { setError("JSON non valido."); setLeaves(null); return; }
+    catch { setError(t("sorgenti.jsonNonValido")); setLeaves(null); return; }
     if (parsed === null || typeof parsed !== "object" || Array.isArray(parsed)) {
       setError(t("cfgUi.theJsonMustBeAn")); setLeaves(null); return;
     }
@@ -125,9 +125,9 @@ export function MqttJsonExtractModal({
         </div>
 
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          <button style={S.btn("primary")} onClick={analyze} disabled={jsonText.trim() === ""}>Analizza</button>
+          <button style={S.btn("primary")} onClick={analyze} disabled={jsonText.trim() === ""}>{t("sorgenti.analizza")}</button>
           {leaves !== null && leaves.length > 0 && (
-            <span style={{ fontSize: 12, color: "var(--brand-text-subtle, #64748b)" }}>{leaves.length} variabili — {selected.size} selezionate</span>
+            <span style={{ fontSize: 12, color: "var(--brand-text-subtle, #64748b)" }}>{t("sorgenti.variabiliSel", { n: leaves.length, sel: selected.size })}</span>
           )}
         </div>
 
@@ -146,7 +146,7 @@ export function MqttJsonExtractModal({
                       <input type="checkbox" onChange={toggleAll} checked={visible.length > 0 && visible.every((l) => selected.has(l.path))} />
                     </th>
                     <th style={{ ...S.th, width: "32%" }}>{t("cfgUi.variableJsonPath")}</th>
-                    <th style={{ ...S.th, width: "12%" }}>Tipo</th>
+                    <th style={{ ...S.th, width: "12%" }}>{t("sorgenti.tipo")}</th>
                     <th style={{ ...S.th, width: "18%" }}>{t("cfgUi.sample")}</th>
                     <th style={{ ...S.th }}>Tag</th>
                   </tr>

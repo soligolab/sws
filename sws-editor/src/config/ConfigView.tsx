@@ -1,4 +1,5 @@
 import React, { useEffect } from "react";
+import { ReportsTab } from "@/config/schede/ReportsTab";
 import { CertificatiTab } from "@/config/schede/CertificatiTab";
 import { useTranslation } from "react-i18next";
 import { Tenuta } from "@/components/Tenuta";
@@ -35,6 +36,7 @@ import { GitTab } from "@/config/schede/GitTab";
  *  riceve la scheda scelta e sa quale delle sue viste mostrare. */
 type IdConComponente = Exclude<IdScheda, IdOspitato>;
 const COMPONENTI: Record<IdConComponente, React.ComponentType<{ scheda: IdScheda }>> = {
+  reports: ReportsTab,
   certificati: CertificatiTab,
   tags: TagsTab,
   protocols: ProtocolsTab,

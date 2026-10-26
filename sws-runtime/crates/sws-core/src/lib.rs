@@ -27,15 +27,16 @@ pub use geometry::{bbox_of, is_off_page, BBox, CASI_FUORI_PAGINA};
 pub use logbus::{LogBus, LogEvent, DEFAULT_LOG_CAPACITY};
 pub use percorso::{Foglia, Forma, Segmento};
 pub use project::{
+    PeriodoReport, ReportDef, Reperibile, TwilioConfig,
     AffixPosition, CanaleNotifica, CanaliEvento, CustomSymbol, CustomSymbolAttribution, DatastoreBackendConfig,
     DatastoreConfig, EnIpConfig, EnIpDataType, EnIpTagMapping, EntityMapping, FunctionDef,
     FunctionParam, GeneratorSpec, GlobalScriptDef, HomeAssistantConfig, HostConfig, HostMetric,
-    AreaModbus, DispositivoModbus, HostMetricMapping, LangEntry, LanguageTable, Membro, ModbusRtuConfig, ModbusTcpConfig, OrdineModbus,
+    AreaModbus, DispositivoModbus, ParametroSetup, HostMetricMapping, LangEntry, LanguageTable, Membro, ModbusRtuConfig, ModbusTcpConfig, OrdineModbus,
     MqttConfig, MqttLastWill, MqttTlsConfig, NotificationConfig, OpcUaAuth, OpcUaClientConfig,
     OpcUaNodeMapping, OpcUaServerConfig, OpcUaServerNodeMapping, PageLayoutConfig, PageSizeMode,
     PageTreeNode, Project, ProjectMeta, ProjectTarget, ProjectTargetKind, RandomClientId,
     RegisterMapping, S7Config, S7DataType, S7TagMapping, ScriptTrigger, SmtpConfig, SourceDef,
-    SparkplugConfig, SparkplugMetricMapping, TabellaEventi, TagDef, TelegramConfig, TopicMapping, TypeDef,
+    SparkplugConfig, SparkplugMetricMapping, TabellaEventi, TagDef, TelegramConfig, TopicMapping, RichiestaStato, TypeDef,
     MAX_FUNCTION_CODE_BYTES,
 };
 pub use tag::{

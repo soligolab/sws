@@ -600,6 +600,9 @@ interface AppState {
   duplicateSelection: () => void;
   deleteObject: (id: string) => void;
   deleteSelection: () => void;
+  /** Gli oggetti selezionati diventano un oggetto solo, al posto del primo
+   *  («Crea faceplate dalla selezione», 25-10-2026). Un passo di cronologia. */
+  sostituisciSelezione: (nuovo: SynopticObject) => void;
   reorderObject: (id: string, dir: "front" | "forward" | "backward" | "back") => void;
 
   // Clipboard
@@ -1911,7 +1914,7 @@ export const useAppStore = create<AppState>((set, get) => {
       const copy: SynopticObject = {
         ...src,
         id: genId(),
-        name: src.name ? `${src.name} (copia)` : undefined,
+        name: src.name ? `${src.name} ${i18n.t("common.copiaSuffisso")}` : undefined,
         x: (src.x ?? 0) + 20,
         y: (src.y ?? 0) + 20,
         x2: src.x2 != null ? src.x2 + 20 : undefined,
@@ -1943,7 +1946,7 @@ export const useAppStore = create<AppState>((set, get) => {
           return {
             ...src,
             id,
-            name: src.name ? `${src.name} (copia)` : undefined,
+            name: src.name ? `${src.name} ${i18n.t("common.copiaSuffisso")}` : undefined,
             x: (src.x ?? 0) + 20,
             y: (src.y ?? 0) + 20,
             x2: src.x2 != null ? src.x2 + 20 : undefined,
@@ -1989,6 +1992,26 @@ export const useAppStore = create<AppState>((set, get) => {
         ),
         selectedObjectId: null,
         selectedObjectIds: [],
+      }));
+    },
+
+    sostituisciSelezione: (nuovo) => {
+      const { selectedObjectIds } = get();
+      if (selectedObjectIds.length === 0) return;
+      pushHistory("history.faceplateDaSelezione");
+      const via = new Set(selectedObjectIds);
+      set((s) => ({
+        pages: s.pages.map((p) => {
+          if (p.id !== s.currentPageId) return p;
+          // L'istanza prende il posto del primo oggetto selezionato nell'ordine
+          // di disegno: resta sotto e sopra le stesse cose.
+          const primo = p.objects.findIndex((o) => via.has(o.id));
+          const resto = p.objects.filter((o) => !via.has(o.id));
+          resto.splice(Math.max(0, primo), 0, nuovo);
+          return { ...p, objects: resto };
+        }),
+        selectedObjectId: nuovo.id,
+        selectedObjectIds: [nuovo.id],
       }));
     },
 
@@ -2073,7 +2096,7 @@ export const useAppStore = create<AppState>((set, get) => {
         const out: SynopticObject = {
           ...src,
           id,
-          name: src.name ? `${src.name} (incolla)` : undefined,
+          name: src.name ? `${src.name} ${i18n.t("common.incollaSuffisso")}` : undefined,
           x: (src.x ?? 0) + offset,
           y: (src.y ?? 0) + offset,
           x2: src.x2 != null ? src.x2 + offset : undefined,
@@ -2919,7 +2942,7 @@ export const useAppStore = create<AppState>((set, get) => {
       if (ids.length < 1) return;
       pushHistory("history.group");
       const groupId = genId();
-      const groupName = name ?? `Gruppo ${Date.now() % 10000}`;
+      const groupName = name ?? `${i18n.t("common.gruppo")} ${Date.now() % 10000}`;
       set((s) => {
         const page = s.pages.find((p) => p.id === s.currentPageId);
         if (!page) return s;

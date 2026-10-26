@@ -124,7 +124,7 @@ Scritto qui perché chi installa SWS sappia cosa deve coprire da sé, finché no
 
 | | Cosa | Quando |
 |---|---|---|
-| C4 | **TLS acceso di default sul pannello.** Oggi il pannello parla HTTP finché qualcuno non attiva HTTPS dall'IDE: in una rete non fidata va attivato a mano | onda 3, serve una sessione di plan |
+| C4 | **TLS acceso di default sul pannello.** Dal 25-10-2026 un pannello Pixsys che ha il certificato del dispositivo e gira in chiaro **lo propone** nella card TLS, col comando da lanciare una volta come `pixsys` (HOWTO §29); un «no» si ricorda. Gli altri pannelli restano in chiaro finché non si accende a mano: un autofirmato farebbe comparire l'avviso del browser sullo schermo | parziale: l'accensione richiede `sudo`, il runtime non può farla da solo |
 | P6 | **2FA e LDAP / Active Directory** | onda 3, con C4 |
 | C5 | **Reset di fabbrica dei dati** (progetti, storico, utenti, segreti, certificati) | onda 4 |
 | C7 | **Firma delle immagini** (cosign) con verifica sul pannello, **SBOM per release**, scansione dell'immagine in CI | onda 5 |

@@ -19,6 +19,16 @@ export function eBusModbus(s: SourceDef): s is BusModbus {
   return s.kind === "modbus_tcp" || s.kind === "modbus_rtu";
 }
 
+/** Il bus implicito (25-10-2026, decisione del maintainer sul seme «Modbus TCP
+ *  senza bus»): un indirizzo TCP con **un** dispositivo è il dispositivo, e il
+ *  livello bus non si mostra — né nell'albero né come elenco nella card. Il
+ *  modello non cambia: il bus c'è, dietro le quinte, e torna visibile appena
+ *  dietro lo stesso indirizzo c'è un secondo unit id (un gateway TCP→RTU). Su
+ *  RTU il bus è la porta seriale, e resta sempre. */
+export function busImplicito(bus: BusModbus): boolean {
+  return bus.kind === "modbus_tcp" && dispositiviDi(bus).length === 1;
+}
+
 /** I dispositivi del bus, col formato di prima letto come un dispositivo. */
 export function dispositiviDi(bus: BusModbus): DispositivoModbus[] {
   // Un dispositivo senza mappature arriva dal server **senza** `registers` (il

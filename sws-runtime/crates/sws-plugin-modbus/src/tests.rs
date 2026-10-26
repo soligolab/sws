@@ -242,6 +242,7 @@ fn disp(unit_id: u8, regs: Vec<RegisterMapping>) -> DispositivoModbus {
         poll_interval_ms: None,
         timeout_ms: 500,
         registers: regs,
+        setup: Vec::new(),
     }
 }
 
@@ -486,4 +487,57 @@ async fn le_foglie_annidate_si_leggono_come_le_altre() {
     let (v, q) = val(&db, "io.ingressi.ai1").await;
     assert!(matches!(v, TagValue::Float(f) if (f + 12.5).abs() < 1e-6), "{v:?}");
     assert_eq!(q, TagQuality::Good);
+}
+
+// ── Il configuratore dei moduli (25-10-2026) ───────────────────────────────
+
+fn param(nome: &str, indirizzo: u16, valore: i64, scrittura: Option<u16>) -> sws_core::ParametroSetup {
+    sws_core::ParametroSetup { nome: nome.into(), indirizzo, valore, indirizzo_scrittura: scrittura }
+}
+
+/// Il caso del 5AD del 04-10-2026: AI1 uscito di fabbrica «disabilitato» (0) e
+/// voluto PTC1K (12); AI2 già NTC10K (11) come il progetto; AI3 che il modulo
+/// non lascia leggere; la compatibilità già a posto. Si scrive **solo** AI1, e
+/// nell'area a salvataggio ritardato (4021), non in quella che si legge.
+#[tokio::test(start_paused = true)]
+async fn il_setup_scrive_solo_le_differenze_e_nell_area_ritardata() {
+    let mut dev = Finto::default();
+    dev.registri.insert(2021, 0);
+    dev.registri.insert(2022, 11);
+    dev.registri.insert(3, 1);
+    dev.eccezioni.insert(2023);
+    let mut d = disp(1, vec![]);
+    d.setup = vec![
+        param("tipo_sensore_ai1", 2021, 12, Some(4021)),
+        param("tipo_sensore_ai2", 2022, 11, Some(4022)),
+        param("tipo_sensore_ai3", 2023, 11, Some(4023)),
+        param("compatibilita_mcm260", 3, 1, None),
+    ];
+    let u = Unita::da(&d, 1000);
+    assert!(applica_setup(&mut dev, &u, "bus").await.unwrap(), "fatto, anche col parametro che non si legge");
+    assert_eq!(dev.scritture, vec![(4021, vec![12])]);
+}
+
+/// Una volta per sessione: al secondo giro il setup non si rilegge né si
+/// riscrive. E un dispositivo che non risponde lo rimanda al giro dopo.
+#[tokio::test(start_paused = true)]
+async fn il_setup_si_applica_una_volta_per_sessione() {
+    let db = db_con(&[tag("a", "u16")], &[]).await;
+    let stato = StatoSorgenti::new();
+    let mut dev = Finto::default();
+    dev.registri.insert(0, 7);
+    dev.registri.insert(2021, 0);
+    let mut d = disp(1, vec![mappa("a", 0, AreaModbus::Holding)]);
+    d.setup = vec![param("tipo_sensore_ai1", 2021, 12, None)];
+    let mut u = Unita::da(&d, 1000);
+    giro_unita(&mut dev, &db, &mut u, &stato, "bus").await.unwrap();
+    giro_unita(&mut dev, &db, &mut u, &stato, "bus").await.unwrap();
+    assert_eq!(dev.scritture, vec![(2021, vec![12])], "una scrittura sola in due giri");
+
+    let mut muto = Finto::default();
+    muto.mute.insert(1);
+    muto.imposta_unita(1); // come fa `giro_unita` prima del setup
+    let mut u2 = Unita::da(&disp(1, vec![]), 1000);
+    u2.setup = vec![param("x", 10, 1, None)];
+    assert!(!applica_setup(&mut muto, &u2, "bus").await.unwrap(), "senza risposta si riprova");
 }

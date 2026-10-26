@@ -93,7 +93,7 @@ export function ReAuthModal() {
           e instanceof RuntimeUnavailableError
             ? t("auth.runtimeUnreachable")
             : e instanceof RateLimitedError
-            ? `Troppi tentativi. Riprova tra ${e.retryAfterSecs}s.`
+            ? t("reauth.troppiTentativi", { s: e.retryAfterSecs })
             : t("auth.wrongPassword")
         );
         setPassword("");
@@ -129,7 +129,7 @@ export function ReAuthModal() {
             </div>
           </div>
           <button style={BTN_PRIMARY} onClick={handleGoToWelcome}>
-            Vai alla schermata di benvenuto
+            {t("reauth.vaiAlBenvenuto")}
           </button>
         </div>
       </div>
@@ -141,7 +141,7 @@ export function ReAuthModal() {
       <div style={CARD}>
         <div>
           <div style={{ fontSize: 15, fontWeight: 700, color: "var(--brand-text, #e2e8f0)", marginBottom: 4 }}>
-            Sessione scaduta
+            {t("reauth.sessioneScaduta")}
           </div>
           <div style={{ fontSize: 12, color: "var(--brand-text-subtle, #64748b)" }}>
             {t("reauth.enterPasswordAs")} <strong style={{ color: "var(--brand-text-muted, #94a3b8)" }}>{authUser}</strong>.
@@ -173,7 +173,7 @@ export function ReAuthModal() {
         </form>
 
         <button style={BTN_GHOST} onClick={handleDismiss}>
-          Esci e torna al login
+          {t("reauth.esciAlLogin")}
         </button>
       </div>
     </div>

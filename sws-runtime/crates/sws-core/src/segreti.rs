@@ -66,8 +66,9 @@ fn chiave_datastore(id: &str, campo: &str) -> String {
 /// vuole curare: per questo un test verifica che sia lungo quanto i segreti
 /// che [`estrai`] tira fuori dal progetto di prova, che i sette campi li ha
 /// tutti pieni.
-pub const CAMPI_COPERTI: [&str; 7] = [
+pub const CAMPI_COPERTI: [&str; 8] = [
     "TelegramConfig.bot_token",
+    "TwilioConfig.auth_token", // P4, 26-10-2026
     "SmtpConfig.password",
     "MqttConfig.password",
     "HomeAssistantConfig.token",
@@ -120,6 +121,11 @@ fn estrai_notifiche(notifiche: Option<&mut crate::project::NotificationConfig>) 
             out.insert("notifications.smtp.password".into(), p);
         }
     }
+    if let Some(t) = n.twilio.as_mut() {
+        if !t.auth_token.is_empty() {
+            out.insert("notifications.twilio.auth_token".into(), std::mem::take(&mut t.auth_token));
+        }
+    }
     out
 }
 
@@ -139,6 +145,13 @@ fn applica_notifiche(
         if s.password.is_none() {
             if let Some(v) = segreti.get("notifications.smtp.password") {
                 s.password = Some(v.clone());
+            }
+        }
+    }
+    if let Some(t) = n.twilio.as_mut() {
+        if t.auth_token.is_empty() {
+            if let Some(v) = segreti.get("notifications.twilio.auth_token") {
+                t.auth_token = v.clone();
             }
         }
     }
@@ -475,6 +488,7 @@ datastores:
 notifications:
   smtp: { host: h, from: f, password: smtp-secret }
   telegram: { bot_token: tg-secret, chat_ids: [] }
+  twilio: { account_sid: AC1, auth_token: twilio-secret, numero: "+39000" }
 "#,
         )
         .expect("progetto di prova con segreti")
@@ -486,7 +500,7 @@ notifications:
     fn estrai_e_applica_sono_un_round_trip_sui_sette_campi() {
         let mut originale = progetto_con_segreti();
         let segreti = estrai(&mut originale);
-        assert_eq!(segreti.len(), 7, "{segreti:?}");
+        assert_eq!(segreti.len(), 8, "{segreti:?}");
 
         // Dopo estrai, il progetto non contiene più nessun valore-segreto.
         assert_eq!(
@@ -776,7 +790,7 @@ notifications:
 
     /// I sette valori: quello che la maschera deve far sparire, e quello che
     /// il salvataggio deve saper ritrovare.
-    const VALORI: [&str; 7] = [
+    const VALORI: [&str; 8] = [
         "mqtt-secret",
         "ha-secret",
         "ua-secret",
@@ -784,6 +798,7 @@ notifications:
         "odbc-secret",
         "smtp-secret",
         "tg-secret",
+        "twilio-secret",
     ];
 
     /// La ragione per cui esiste il 2f: prima la maschera ne copriva tre e
@@ -791,7 +806,7 @@ notifications:
     #[test]
     fn la_maschera_copre_tutti_e_sette_i_campi() {
         let mut p = progetto_con_segreti();
-        assert_eq!(maschera(&mut p, "********"), 7);
+        assert_eq!(maschera(&mut p, "********"), 8);
         let yaml = serde_yaml::to_string(&p).unwrap();
         for v in VALORI {
             assert!(!yaml.contains(v), "«{v}» è uscito in chiaro:\n{yaml}");

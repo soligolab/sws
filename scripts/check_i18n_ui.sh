@@ -109,6 +109,12 @@ def scansiona(src):
             j = n if j < 0 else j + 2
             cancella(pulito, i, j); cancella(senza_commenti, i, j)
             i = j
+        elif c == "'" and i > 0 and src[i-1].isalpha():
+            # Un apostrofo dopo una lettera è testo JSX («l'assistente»), non
+            # l'apertura di una stringa: in TypeScript un letterale non comincia
+            # mai attaccato a un identificatore. Prima inghiottiva il resto della
+            # riga come se fosse una stringa, e il testo spariva dal conto.
+            i += 1
         elif c in "\"'":
             j = i + 1
             while j < n and src[j] != c:
@@ -202,6 +208,28 @@ FORTI = re.compile(r"\b(della|delle|degli|dell|nessun[ao]?|già|elimina(re|ta|to
                    r"esporta|importa|cerca|filtra|ordina|apri|chiudi|indietro|avanti|pronto)\b", re.I)
 DEBOLI = re.compile(r"\b(il|lo|la|gli|le|un|una|con|per|non|che|del|dei|sul|nel|anche|tutto|se|di|da|in|è)\b", re.I)
 
+# Il lessico dal catalogo (25-10-2026): le parole che compaiono nei testi di
+# it.json e mai in quelli di en.json. L'elenco FORTI qui sopra da solo non
+# vedeva «Certificato TLS», «Genera», «Disabilita», «Lingua interfaccia»: ogni
+# parola che non era nella lista passava, e nel collaudo della vista dei
+# certificati l'IDE inglese era pieno di italiano con la guardia verde. Il
+# lessico cresce da solo: ogni testo che entra nel catalogo insegna le sue parole.
+def _parole(v, out):
+    if isinstance(v, dict):
+        for x in v.values():
+            _parole(x, out)
+    elif isinstance(v, str):
+        out.update(w.lower() for w in re.findall(r"[A-Za-zÀ-ÿ]{4,}", re.sub(r"\{\{[^}]*\}\}", " ", v)))
+
+def _lessico():
+    import json
+    it, en = set(), set()
+    _parole(json.load(open(f"{SRC}/i18n/it.json", encoding="utf-8")), it)
+    _parole(json.load(open(f"{SRC}/i18n/en.json", encoding="utf-8")), en)
+    return it - en
+
+LESSICO = _lessico()
+
 def e_italiano(s):
     if not re.search(r"[A-Za-zÀ-ÿ]", s):
         return False
@@ -209,13 +237,17 @@ def e_italiano(s):
         return True
     if FORTI.search(s):
         return True
+    if any(w.lower() in LESSICO for w in re.findall(r"[A-Za-zÀ-ÿ]{4,}", s)):
+        return True
     # Due parole deboli **distinte**: «Lo-Lo» (soglia di allarme) ne ha una
     # sola ripetuta e non è italiano.
     return len({w.lower() for w in DEBOLI.findall(s)}) >= 2
 
 # Un identificatore travestito da stringa: `"non-trovato"`, `"senza-login"`,
 # `"my_memory"`. Niente spazi, solo minuscole e separatori.
-IDENTIFICATORE = re.compile(r"^[a-z0-9]+([._:/-][a-z0-9]+)+$")
+# Anche con il separatore in coda (`stato-albero-` prima di un `${…}`) o in
+# camelCase (`impianto.sorgentiSenzaPannello`, una chiave del catalogo).
+IDENTIFICATORE = re.compile(r"^[a-z0-9]+([._:/-][a-zA-Z0-9]*)+$|^[a-z]+[A-Z][a-zA-Z0-9]*$")
 
 # ── Esclusioni sul contesto che precede il letterale ─────────────────────────
 #
@@ -236,7 +268,7 @@ ESCLUSIONI = [
     (re.compile(r"(?:===|!==|==|!=)\s*$"), "confronto"),
     (re.compile(r"\bcase\s*$"), "case"),
     # chiave del catalogo scritta a mano (t(k) dove k è il letterale)
-    (re.compile(r"\b(?:key|chiave|id|type|kind|mode|value|className|style|href|src|d|gruppo)\s*[:=]\s*$"), "valore tecnico"),
+    (re.compile(r"\b(?:key|chiave|id|type|kind|mode|value|className|style|href|src|d|gruppo|testid|data-testid|storageKey|tono)\s*[:=]\s*$"), "valore tecnico"),
 ]
 
 def esclusa(contesto, testo):
@@ -256,14 +288,40 @@ def esclusa(contesto, testo):
     if re.fullmatch(r"[a-z]+", testo.strip()) and not re.search(r"[\w-]+=\s*$", ctx):
         return True
     # Un percorso di rotta (`"/api/traduzione/config"`): non è testo per l'utente.
-    if re.fullmatch(r"/[\w/.-]+", testo.strip()):
+    # Anche con dei `${…}` dentro, che lo scanner lascia come spazi.
+    if re.fullmatch(r"/[\w/.-]+", testo.strip()) or testo.strip().startswith("/api/"):
+        return True
+    # … e un percorso composto con `${…}` (`${base}/${id}/genera` → «/ /genera»):
+    # solo caratteri da URL, con gli spazi dei buchi.
+    if re.fullmatch(r"/[\w/.?=&-]*(\s+/?[\w/.?=&-]*)*", testo.strip()):
+        return True
+    # Dal 25-10-2026, col lessico del catalogo, passano per italiano anche cose
+    # che non sono scritte. Ognuna col suo perché:
+    # - un identificatore costruito con `${…}` (`bocca-${id}-${porta}` → «bocca- -»):
+    #   tolti gli spazi dei buchi è un identificatore come gli altri;
+    if IDENTIFICATORE.match(re.sub(r"\s+", "", testo.strip())):
+        return True
+    # - le sentinelle (`"__nessuna"`, `"\u0000a-mano"`): valori che non si
+    #   mostrano mai, scelti apposta per non collidere con un nome vero;
+    if re.fullmatch(r"__\w+", testo.strip()) or testo.startswith("\\u0000"):
+        return True
+    # - le costanti d'ambiente (`VITE_AI_WS_URL`);
+    if re.fullmatch(r"[A-Z][A-Z0-9_]+", testo.strip()):
+        return True
+    # - il CSS (`--brand-guida`, `linear-gradient(…)`, `@keyframes`) e il markup
+    #   SVG costruito a stringa (`<g data-tubo=…>`).
+    if re.match(r"\s*(--|@keyframes|<)", testo) or "gradient(" in testo or "var(--" in testo:
         return True
     return False
 
-JSX_TESTO = re.compile(r">\s*([^<>{}]*?)\s*<")
+# Il testo JSX sta fra `>` o `}` e `<` o `{`: «Vuoto = {predefinito}.» finisce
+# in un'espressione, e con il solo `>…<` non veniva mai letto.
+JSX_TESTO = re.compile(r"(?<=[>}])\s*([^<>{}]*?)\s*(?=[<{])")
 # Fra un `=>` e un `<Generico>` la regex del testo JSX pesca codice: se dentro
 # ci sono `;`, `const`, `return`, `??`, `===` non è una scritta, è TypeScript.
-CODICE = re.compile(r";|\b(const|let|return|import|export|function)\b|=>|\?\?|===|!==")
+# Un `;` in mezzo a una frase è prosa («…in questo browser; l'assistente…»):
+# conta come codice solo a fine riga.
+CODICE = re.compile(r";\s*$|;\s*\n|\b(const|let|return|import|export|function)\b|=>|\?\?|===|!==|&&|\|\||:\s*(string|number|boolean|Record|unknown|void)\b")
 DIALOGO = re.compile(r"(?<![\w.])(?:window\.)?(confirm|alert|prompt)\(\s*([\"'`])")
 
 def normalizza(t):
@@ -278,6 +336,31 @@ DATI_DI_SVILUPPO = {
     # i nomi dei segnaposti delle cornici, gli stessi di sws-web/src/cornici.rs:
     # tradurli li romperebbe (la fixture tests/fixtures/cornici.json li prova)
     "modello.ts": {"{{pagina.nome}}", "{{pagina.id}}", "{{progetto.nome}}"},
+    # i nomi dei casi della tabella fuori-pagina, gemella di quella in Rust (come
+    # le tre voci sopra): li legge check_off_page.sh, non li vede nessun utente
+    "pageLayout.ts": {"un pixel oltre il bordo", "piu grande della pagina", "pagina fluida",
+                      "a filo del bordo destro", "a cavallo del bordo destro", "esattamente sul bordo",
+                      "oltre il bordo destro", "oltre il bordo inferiore", "tutto a sinistra",
+                      "a cavallo del bordo sinistro", "area zero sul bordo", "area zero fuori"},
+    # il testo predefinito di un oggetto «Testo» appena creato: è contenuto del
+    # progetto (asse b), nella lingua dei contenuti, non interfaccia dell'IDE
+    "rasterizza.ts": {"Testo"},
+    "SvgCanvas.tsx": {"Testo"},
+    # i nomi CSS delle famiglie di font del progetto: sono nomi propri, gli
+    # stessi delle @font-face e del motore LVGL
+    "famiglie.ts": {"SWS Segmenti 7", "SWS Segmenti 14", "SWS Matrice"},
+    # i due ruoli del cloud come li scrive il server (`ruolo` in /api/amministrazione):
+    # sono valori del protocollo, l'interfaccia li traduce dove li mostra
+    "client.ts": {"Amministratore", "Sviluppatore"},
+    # un nome di tipo TypeScript (`Preso<T>`), non una scritta
+    "editor.ts": {"Preso"},
+    # il testo che il server mette nell'errore e che il client riconosce: tradurlo
+    # romperebbe il confronto
+    "AbbinaPannelloCloud.tsx": {"servono utente e password"},
+    # il suffisso del nome del file scaricato dal dispositivo
+    "BackupsTab.tsx": {"-remoto.zip"},
+    # la firma di una funzione Python del runtime, scritta com'è nel codice
+    "FunctionEditor.tsx": {"send_telegram(testo)"},
 }
 
 def candidati(percorso):
@@ -288,10 +371,16 @@ def candidati(percorso):
         if e_italiano(testo) and not esclusa(ctx, testo) and normalizza(testo) not in DATI_DI_SVILUPPO.get(os.path.basename(percorso), ()):
             fuori.append((riga, normalizza(testo)))
     for m in JSX_TESTO.finditer(pulito):
-        t = m.group(1)
+        # Le entità HTML (`&apos;`, `&quot;`) hanno un `;` che non è codice.
+        t = re.sub(r"&[a-z]+;", "'", m.group(1))
         if CODICE.search(t):
             continue
-        if e_italiano(t):
+        # Un pezzo che tocca un `{…}` è testo solo se ha l'aria di prosa: fra due
+        # espressioni JSX ci sono anche `setA(`, `etichetta=`, `, rect:`.
+        aperto = pulito[m.start() - 1:m.start()] == "}" or pulito[m.end():m.end() + 1] == "{"
+        if aperto and (re.search(r"[=();\[\]|&]", t) or len(t.split()) < 2 or t.startswith(",")):
+            continue
+        if e_italiano(t) and normalizza(t) not in DATI_DI_SVILUPPO.get(os.path.basename(percorso), ()):
             fuori.append((pulito.count("\n", 0, m.start(1)) + 1, normalizza(t)))
     dialoghi = [(senza_commenti.count("\n", 0, m.start()) + 1, m.group(1))
                 for m in DIALOGO.finditer(senza_commenti)]
@@ -344,9 +433,16 @@ console.warn("Salvataggio fallito");
 const f = <div title="Salva le modifiche">{t("x")}</div>;
 const g = <span>Nessun dato disponibile</span>;
 const h = `Importati ${n} tag. Ricarica la pagina`;
+const i = <span>Disabilita TLS</span>;
+const j = <p>Nota: l'assistente vive nel runtime; vale per tutti.</p>;
+const k = <span>Valore predefinito {x}.</span>;
+const l = <b data-testid={`stato-albero-${id}`}>{t("x")}</b>;
 '''
 ATTESI_STRINGHE = {"Salva le modifiche", "Nessun dato disponibile", "Eliminare la pagina?",
-                   "Importati tag. Ricarica la pagina"}
+                   "Importati tag. Ricarica la pagina",
+                   # dal 25-10-2026: una parola del lessico del catalogo, una frase
+                   # con apostrofo e `;`, il testo che finisce in un `{…}`
+                   "Disabilita TLS", "Nota: l'assistente vive nel runtime; vale per tutti.", "Valore predefinito"}
 
 if argv[:1] == ["--autotest"]:
     import tempfile

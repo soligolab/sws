@@ -20,7 +20,8 @@
 //! tag** quando c'è — quello che il progetto sa già, senza chiedere niente al
 //! server — e si ripiega sul comportamento di prima quando non c'è.
 
-use opcua::types::{DataValue, StatusCode, Variant};
+use opcua::types::custom::{DataTypeTree, DynamicStructure};
+use opcua::types::{DataValue, ExpandedMessageInfo, StatusCode, StructureType, Variant};
 use sws_core::{Forma, TagQuality, TagValue, TipoScalare};
 
 /// Il valore e la qualità di un `DataValue`.
@@ -29,6 +30,12 @@ use sws_core::{Forma, TagQuality, TagValue, TipoScalare};
 /// inventare un numero**, deve marcare la qualità e lasciare dov'è l'ultima
 /// lettura vera.
 pub fn da_data_value(dv: &DataValue) -> (Option<TagValue>, TagQuality) {
+    da_data_value_con(dv, None)
+}
+
+/// Come [`da_data_value`], con l'albero dei tipi del server: serve a leggere le
+/// strutture (`ExtensionObject`). Senza albero una struttura resta `Bad`.
+pub fn da_data_value_con(dv: &DataValue, albero: Option<&DataTypeTree>) -> (Option<TagValue>, TagQuality) {
     let qualita = match dv.status {
         Some(s) if s == StatusCode::Good => TagQuality::Good,
         Some(_) => TagQuality::Bad,
@@ -38,7 +45,7 @@ pub fn da_data_value(dv: &DataValue) -> (Option<TagValue>, TagQuality) {
         // Il valore non è arrivato: **Uncertain**. Non sappiamo ancora, e il
         // pannello lo ingrigisce.
         None => (None, TagQuality::Uncertain),
-        Some(v) => match da_variant(v) {
+        Some(v) => match da_variant_con(v, albero) {
             Some(tv) => (Some(tv), qualita),
             // Il dato c'è ma **non lo sappiamo leggere**: `Bad`, non
             // `Uncertain` (decisione del maintainer, 23-10-2026). È un difetto
@@ -52,6 +59,12 @@ pub fn da_data_value(dv: &DataValue) -> (Option<TagValue>, TagQuality) {
 
 /// `Variant` → `TagValue`, ricorsiva sugli array.
 pub fn da_variant(v: &Variant) -> Option<TagValue> {
+    da_variant_con(v, None)
+}
+
+/// `Variant` → `TagValue`, con l'albero dei tipi del server per le strutture
+/// (Fase 4d, passi 10-12, 25-10-2026).
+pub fn da_variant_con(v: &Variant, albero: Option<&DataTypeTree>) -> Option<TagValue> {
     Some(match v {
         Variant::Boolean(b) => TagValue::Bool(*b),
         Variant::Byte(n) => TagValue::Int(*n as i64),
@@ -67,14 +80,42 @@ pub fn da_variant(v: &Variant) -> Option<TagValue> {
         Variant::String(s) => TagValue::Str(s.as_ref().to_string()),
         Variant::LocalizedText(t) => TagValue::Str(t.text.as_ref().to_string()),
         Variant::Array(a) => {
-            let piatti: Option<Vec<TagValue>> = a.values.iter().map(da_variant).collect();
+            let piatti: Option<Vec<TagValue>> = a.values.iter().map(|x| da_variant_con(x, albero)).collect();
             annida(piatti?, a.dimensions.as_deref())?
         }
-        // Le strutture (`ExtensionObject`) vogliono il `DataTypeTree` del
-        // server e un type loader: è la parte della Fase 4 che non si può
-        // fare senza un server che le esponga.
+        Variant::ExtensionObject(eo) => da_struttura(eo.inner_as::<DynamicStructure>()?, albero?)?,
         _ => return None,
     })
+}
+
+/// Una struttura decodificata dal type loader della sessione → `TagValue::Struct`.
+///
+/// - **I nomi vengono dall'albero**, non dalla struttura: `DynamicStructure`
+///   tiene il suo tipo in un campo privato, e l'unica strada pubblica è l'id del
+///   `DataType` (`full_data_type_id`), che nell'albero porta i campi.
+/// - **Si scorre la lista dei campi del tipo**, nell'ordine dichiarato, e si
+///   prende il valore per posizione: è l'ordine in cui il server li ha
+///   codificati (insidia 2 del piano: mai il contrario, una mappa per nome).
+/// - **Un campo opzionale assente si salta**, non diventa un valore inventato.
+/// - **Le union** si decodificano ma il discriminante è privato: non si sa quale
+///   campo vale, e la risposta onesta è `None` → `Bad` (decisione 6).
+/// - Un campo che non si sa leggere fa fallire l'intera struttura: una struttura
+///   a metà con qualità `Good` sarebbe peggio di nessun valore.
+fn da_struttura(s: &DynamicStructure, albero: &DataTypeTree) -> Option<TagValue> {
+    let id = s.full_data_type_id().node_id;
+    let info = albero.get_struct_type(&id)?;
+    if !matches!(info.structure_type, StructureType::Structure | StructureType::StructureWithOptionalFields) {
+        return None;
+    }
+    let mut campi = std::collections::BTreeMap::new();
+    for (i, campo) in info.fields.iter().enumerate() {
+        let valore = s.get_field(i)?;
+        if campo.is_optional && matches!(valore, Variant::Empty) {
+            continue;
+        }
+        campi.insert(campo.name.clone(), da_variant_con(valore, Some(albero))?);
+    }
+    Some(TagValue::Struct(campi))
 }
 
 /// Da array piatto ad array annidato, secondo le dimensioni dichiarate.

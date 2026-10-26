@@ -53,8 +53,8 @@ export function RecipePanel({ idPrefix, compact = false, dark = false, corpo: co
     setResult("");
     try {
       const r = await api.applyRecipe(id, username);
-      setResult(`✓ ${r.applied}/${r.total} setpoint scritti` +
-        (r.errors.length > 0 ? ` — Errori: ${r.errors.join(", ")}` : ""));
+      setResult(t("recipePanel.scritti", { n: r.applied, tot: r.total }) +
+        (r.errors.length > 0 ? ` — ${t("recipePanel.errori")} ${r.errors.join(", ")}` : ""));
     } catch {
       setResult(t("viewer.recipeApplyError"));
     } finally {

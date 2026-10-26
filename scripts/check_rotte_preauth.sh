@@ -79,6 +79,16 @@ esito() {
 #                                        la firma del gateway (HMAC del token
 #                                        del tunnel), che conoscono solo
 #                                        gateway e pannello
+#   /api/telefono/voce                   (26-10-2026, P4) il tasto «1» premuto
+#   /api/telefono/sms                    in una chiamata o la risposta «OK» a
+#                                        un SMS: le chiama Twilio, che non ha
+#                                        una sessione. NON aperte: l'handler
+#                                        verifica la firma X-Twilio-Signature
+#                                        col token del progetto (confronto a
+#                                        tempo costante), la chiamata vuole
+#                                        anche un gettone monouso che scade in
+#                                        un'ora; possono solo riconoscere un
+#                                        allarme già mandato a quel numero
 ATTESE=(
     "/health"
     "/.well-known/security.txt"
@@ -91,6 +101,8 @@ ATTESE=(
     "/api/abbinamento"
     "/api/abbinamento/rivendica"
     "/api/abbinamento/nome"
+    "/api/telefono/voce"
+    "/api/telefono/sms"
 )
 
 echo "── Rotte raggiungibili senza credenziali ──"
