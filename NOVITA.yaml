@@ -33,8 +33,16 @@
 # successivo.
 
 versioni:
-  - versione: "Unreleased"
+  - versione: "2.23.0"
     voci:
+      - it: "Nell'IDE, in alto a sinistra, un campo che cerca in un colpo solo fra variabili, pagine, oggetti, strumenti e impostazioni."
+        en: "In the IDE, top left, one field that searches tags, pages, objects, tools and settings all at once."
+      - it: "Un tubo agganciato a un oggetto che si muove lungo un percorso adesso lo segue, invece di restare dov'era."
+        en: "A pipe attached to an object moving along a path now follows it, instead of staying where it was."
+      - it: "Il ruolo minimo di un oggetto mostra quello che chiede la sua variabile: si capisce perché un comando chiede il login prima di provarlo."
+        en: "An object's minimum role now shows what its tag requires: you can see why a command asks for a login before trying it."
+      - it: "Accanto a ogni campo che nomina una variabile c'è una freccia che porta alla sua riga nella tabella."
+        en: "Next to every field naming a tag there is an arrow that jumps to its row in the table."
       - it: "La pagina di boot accetta un'immagine di sfondo, come le altre pagine, e finisce nel PNG."
         en: "The boot page accepts a background image, like any other page, and it ends up in the PNG."
       - it: "Il PNG di boot non perde più le immagini del progetto quando si lavora dal cloud."

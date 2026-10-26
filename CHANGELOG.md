@@ -11,6 +11,8 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 
 ## [Unreleased]
 
+## [2.23.0] — 2026-10-26
+
 ### Added
 
 - **L'immagine di sfondo anche sulla pagina di boot.** Il campo c'era gia' nel modello
