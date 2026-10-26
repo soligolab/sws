@@ -235,6 +235,21 @@ struct Args {
     #[arg(long, value_name = "NOME=VALORE")]
     cambia_tag: Option<String>,
 
+    /// Fotografa **N fotogrammi dopo** il cambio di `--cambia-tag`, invece che
+    /// alla fine.
+    ///
+    /// Serve a vedere i **transitori**, che altrimenti non si misurano: la
+    /// foto di default arriva a cose ferme, quando tutto si e' assestato. Il
+    /// 26-10-2026 il maintainer ha visto sul TC620 un tubo che durante il
+    /// trascinamento restava indietro dalla bocca della pompa di 2-3 mm
+    /// (10-15 pixel su quello schermo) e tornava attaccato appena l'oggetto si
+    /// fermava: la guardia era verde perche' guardava solo la fine.
+    ///
+    /// Un fotogramma e' 16 ms di tempo LVGL simulato, quindi `1` vuol dire
+    /// «il giro subito dopo».
+    #[arg(long)]
+    istantanea_dopo_cambio: Option<u64>,
+
     /// Quanti millisecondi lasciar lavorare LVGL prima dell'istantanea.
     ///
     /// Non è un'attesa di cortesia: LVGL disegna dentro `task_handler()`, e
@@ -740,6 +755,7 @@ fn main() -> anyhow::Result<()> {
             args.istantanea_ms,
             args.tocca.as_deref(),
             args.cambia_tag.as_deref(),
+            args.istantanea_dopo_cambio,
             &shared_tags,
             &mut live_bindings,
             &tag_rx,
@@ -1113,6 +1129,7 @@ fn scrivi_istantanea(
     per_ms: u64,
     tocca: Option<&str>,
     cambia_tag: Option<&str>,
+    dopo_cambio: Option<u64>,
     shared_tags: &client::SharedTagSnapshot,
     live_bindings: &mut [lvgl_render::LiveBinding],
     tag_rx: &mpsc::Receiver<lvgl_render::TagCommand>,
@@ -1177,12 +1194,25 @@ fn scrivi_istantanea(
     // `giu`/`su` distinti e non un tocco istantaneo: LVGL riconosce il click al
     // **rilascio** (`LV_EVENT_CLICKED` da `lv_indev`), quindi un dito che tocca
     // e non stacca non preme niente.
+    // **Dove si ferma il tempo.** Di default alla fine, a cose assestate. Con
+    // `--istantanea-dopo-cambio N` al giro N dopo il cambio del tag: e' li'
+    // che si vedono i transitori, e un transitorio che nessuno fotografa e'
+    // un difetto che si scopre davanti al pannello.
+    let giro_cambio = giri / 2;
+    let ultimo_giro = match dopo_cambio {
+        Some(n) if cambi.is_empty() => {
+            eprintln!("  --istantanea-dopo-cambio {n} senza --cambia-tag: non c'e' nessun cambio da seguire");
+            giri
+        }
+        Some(n) => (giro_cambio + n).min(giri),
+        None => giri,
+    };
     let inizio = giri / 3;
     let passo = ((giri.saturating_sub(inizio + 3)) / punti.len().max(1) as u64).max(3);
     for giro in 0..giri {
         // A metà: come se il WS avesse consegnato un valore nuovo a pagina già
         // aperta. Prima metà per disegnare, seconda per far vedere l'effetto.
-        if !cambi.is_empty() && giro == giri / 2 {
+        if !cambi.is_empty() && giro == giro_cambio {
             let mut g = shared_tags.lock().unwrap_or_else(|e| e.into_inner());
             for (nome, valore) in &cambi {
                 eprintln!("  cambio tag: '{nome}' = {valore:?}");
@@ -1266,6 +1296,12 @@ fn scrivi_istantanea(
         );
         lvgl::task_handler();
         lvgl::tick_inc(Duration::from_millis(PASSO_MS));
+        if giro + 1 >= ultimo_giro {
+            if ultimo_giro < giri {
+                eprintln!("  foto al giro {} ({} dopo il cambio)", giro + 1, giro + 1 - giro_cambio);
+            }
+            break;
+        }
     }
 
     // Cosa ha PRODOTTO il tocco, non solo cosa si vede.
