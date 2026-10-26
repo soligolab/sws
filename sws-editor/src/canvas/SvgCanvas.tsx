@@ -46,6 +46,7 @@ import type { AlarmSeverity, AlarmState, CustomSymbol, FaceplateDef, FaceplatePa
 import { fattoreFondoRespiro, luminositaValida, parametriLuminosita } from "./luce";
 import { puntiSvg, verticiPoligono } from "./forme";
 import { aggancioSu, bersagli, calamita, diametriCapi, instrada, percorsoTubo, type Bersaglio } from "./tubazioni";
+import { ancoreInMoto, scostamentoMoto, useSegueIlMoto } from "./motoVivo";
 import { registraCentroVista } from "@/editor/azioniEditor";
 import { larghezzaTubo, stileTubo, svgTubo } from "./stiliTubo";
 import { useManifestoLib } from "@/symbols/lib/libreria";
@@ -2020,7 +2021,7 @@ export function SvgCanvas({
           }
         }
         return (
-          <g key={obj.id} style={{ ...gStyle, ...motionStyle }} data-blink={blinkOn ? "1" : undefined} onMouseDown={obj.type !== "grid" ? onPress : undefined} onMouseUp={obj.type !== "grid" ? onRelease : undefined}>
+          <g key={obj.id} style={{ ...gStyle, ...motionStyle }} data-moto={motionStyle ? obj.id : undefined} data-blink={blinkOn ? "1" : undefined} onMouseDown={obj.type !== "grid" ? onPress : undefined} onMouseUp={obj.type !== "grid" ? onRelease : undefined}>
             <SvgObject
               obj={obj}
               objects={objects}
@@ -3517,6 +3518,10 @@ export function SvgObject(p: ObjProps) {
  *  iscrivono, così gli altri oggetti non si ridisegnano a ogni SVG caricato. */
 function TuboVivo(p: ObjProps) {
   useManifestoLib();
+  // Fase 3 (26-10-2026): se un capo è agganciato a un oggetto che si muove su
+  // un percorso, il tubo si ridisegna a ogni fotogramma finché quello scivola.
+  // Solo i tubi agganciati a qualcosa in moto: gli altri non pagano niente.
+  useSegueIlMoto(ancoreInMoto(p.obj, p.objects), p.tagValues);
   return <SvgObjectBase {...p} />;
 }
 
@@ -4066,7 +4071,13 @@ function SvgObjectCorpo(p: ObjProps) {
     // trovare le ancore), mentre ogni oggetto viene disegnato da `resolveObject`
     // alla posizione che dicono i suoi binding. Senza questa riga il tubo nasce
     // staccato dalla pompa già al primo fotogramma, prima che un tag cambi.
-    const risolviAncora = (o: SynopticObject) => resolveObject(o, tagValues);
+    // Il moto su percorso lo disegna il browser e non sta nel modello: lo si
+    // chiede a lui (`scostamentoMoto`), e solo per gli oggetti che ce l'hanno.
+    const risolviAncora = (o: SynopticObject) => {
+      const r = resolveObject(o, tagValues);
+      const d = scostamentoMoto(o.id);
+      return d ? { ...r, x: r.x + d.dx, y: r.y + d.dy } : r;
+    };
     const pts = percorsoTubo(obj, objects, risolviAncora);
     if (pts.length < 2) return null;
     const pipeStyle = obj.pipe_style ?? "flat";

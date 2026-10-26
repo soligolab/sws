@@ -2400,6 +2400,46 @@ fn punti_ancorati(pipe: &SynopticObject, oggetti: &[SynopticObject]) -> Option<V
 /// ha binding, e per quelli `apply_bindings` torna `None` — non c'è ragione di
 /// copiare un `SynopticObject` per ognuno. Conta poco al caricamento della
 /// pagina; conterà quando questa funzione girerà a ogni ricalcolo (Fase 2).
+/// **Dove sta davvero un oggetto mosso da `motion_*`** (Fase 3 del piano dei
+/// tubi, 26-10-2026).
+///
+/// `apply_bindings` risolve i binding di geometria e non sa niente del
+/// movimento su percorso: quello vive in `LiveKind::Motion`, che sposta i
+/// widget per conto suo senza toccare il modello. Finché il tubo guardava solo
+/// i binding, un capo agganciato a una pompa in moto restava dov'era la pompa
+/// a riposo — il difetto che il maintainer ha visto il 26-10 sul WP630.
+///
+/// Rifà lo stesso conto di `LiveKind::Motion`, **arrotondando allo stesso
+/// modo**: lì lo spostamento diventa un `i16` prima di finire in
+/// `lv_obj_set_x`, e un tubo calcolato sul valore non arrotondato finirebbe
+/// fino a mezzo pixel più in là del widget a cui è attaccato. Un disallineamento
+/// costante si vede, su un tubo sottile.
+///
+/// `None` = quest'oggetto non si muove, o non si sa ancora dove sta.
+fn applica_movimento(obj: &SynopticObject, tags: &TagSnapshot) -> Option<SynopticObject> {
+    let tag = obj.motion_tag.as_deref().filter(|t| !t.is_empty())?;
+    let percorso = punti_movimento(obj.motion_path.as_ref()?);
+    if percorso.len() < 2 {
+        return None;
+    }
+    let tv = tags.get(tag)?;
+    let t = frazione_movimento(tag_value_as_f64(&tv.value), obj.motion_min, obj.motion_max)?;
+    let (px, py) = punto_a_frazione(&percorso, t)?;
+    // L'ancora: come in `crea_movimento`, il percorso guida il centro
+    // dell'oggetto o il suo angolo in alto a sinistra.
+    let x = obj.x.unwrap_or(0.0);
+    let y = obj.y.unwrap_or(0.0);
+    let (ax, ay) = if obj.motion_anchor.as_deref() == Some("top_left") {
+        (x, y)
+    } else {
+        (x + obj.width.unwrap_or(80.0) / 2.0, y + obj.height.unwrap_or(80.0) / 2.0)
+    };
+    let mut r = obj.clone();
+    r.x = Some(x + (px - ax).round());
+    r.y = Some(y + (py - ay).round());
+    Some(r)
+}
+
 fn ancora_risolta<'a>(
     oggetti: &'a [SynopticObject],
     id: Option<&str>,
@@ -2407,9 +2447,16 @@ fn ancora_risolta<'a>(
 ) -> Option<std::borrow::Cow<'a, SynopticObject>> {
     let id = id?;
     let o = oggetti.iter().find(|o| o.id.as_deref() == Some(id))?;
-    Some(match apply_bindings(o, tags) {
-        Some(r) => std::borrow::Cow::Owned(r),
-        None => std::borrow::Cow::Borrowed(o),
+    // Prima i binding, poi il movimento sopra il risultato: è l'ordine del
+    // runtime, dove `Geometry` scrive la posizione e `Motion` la scosta.
+    let con_binding = apply_bindings(o, tags);
+    let base = con_binding.as_ref().unwrap_or(o);
+    Some(match applica_movimento(base, tags) {
+        Some(m) => std::borrow::Cow::Owned(m),
+        None => match con_binding {
+            Some(r) => std::borrow::Cow::Owned(r),
+            None => std::borrow::Cow::Borrowed(o),
+        },
     })
 }
 
@@ -12647,9 +12694,12 @@ fn rendi_oggetti_in(
         // punto: senza, `update_bindings` ricalcolerebbe a ogni fotogramma il
         // percorso di ogni tubo della pagina per non muovere mai niente.
         //
-        // «Che una variabile può spostare» vuol dire oggi **un binding**:
-        // `motion_tag` muove il widget per conto suo, dentro `LiveKind::Motion`,
-        // e non passa di qui — è la Fase 3 del piano.
+        // «Che una variabile può spostare» vuol dire **un binding di
+        // geometria oppure un `motion_tag`**. Dal 26-10-2026 anche il secondo
+        // (Fase 3 del piano): il movimento su percorso è il caso più frequente
+        // — una pompa che scorre lungo una linea — e lasciarlo fuori voleva
+        // dire che proprio lì il tubo si sganciava. `ancora_risolta` sa
+        // calcolare la posizione del moto; qui si decide solo chi guardare.
         if obj_type == "pipe" {
             let ancore: Vec<&str> = [obj.from_obj_id.as_deref(), obj.to_obj_id.as_deref()]
                 .into_iter()
@@ -12661,9 +12711,10 @@ fn rendi_oggetti_in(
                 .filter(|o| o.id.as_deref().is_some_and(|i| ancore.contains(&i)))
                 .cloned()
                 .collect();
-            let si_muove = oggetti
-                .iter()
-                .any(|o| o.bindings.as_ref().is_some_and(|m| m.keys().any(|k| GEOM_KEYS.contains(&k.as_str()))));
+            let si_muove = oggetti.iter().any(|o| {
+                o.bindings.as_ref().is_some_and(|m| m.keys().any(|k| GEOM_KEYS.contains(&k.as_str())))
+                    || o.motion_tag.as_deref().is_some_and(|t| !t.is_empty())
+            });
             if si_muove {
                 ANCORE_TUBO.with(|a| {
                     a.borrow_mut().insert(
@@ -15604,6 +15655,65 @@ mod binding_tests {
         // E il diametro della bocca si legge sullo stesso riquadro vivo.
         let d = diametri_capi(&t, &oggetti, Some(&m), &snapshot(&[("carrello.x", TagValue::Int(500))]));
         assert!(d[0].is_some(), "la bocca non è stata trovata sull'oggetto risolto");
+    }
+
+    /// **Il capo segue anche un oggetto in moto su percorso** (Fase 3,
+    /// 26-10-2026).
+    ///
+    /// Il difetto che questo test blocca lo ha visto il maintainer sul WP630:
+    /// la pompa scorreva lungo la sua `motion_path` e il tubo restava
+    /// attaccato a dove la pompa stava da ferma. Non era una regressione —
+    /// `si_muove` guardava i soli `bindings`, e il commento accanto lo
+    /// dichiarava. Qui la Fase 3 lo chiude.
+    #[test]
+    fn il_capo_agganciato_segue_anche_il_moto_su_percorso() {
+        let m: sws_core::simboli_lib::ManifestLib = serde_json::from_str(include_str!(
+            "../../../../sws-editor/public/symbols/lib/manifest.json"
+        ))
+        .unwrap();
+        let o = |v: serde_json::Value| -> SynopticObject { serde_json::from_value(v).unwrap() };
+        // Percorso orizzontale lungo 400, ancorato al centro della pompa
+        // (140, 240): a meta' corsa il centro sta a (300, 240), cioe' 160 piu'
+        // a destra, e la mandata con lui.
+        let oggetti = vec![o(serde_json::json!({
+            "id": "p", "type": "symbol", "symbol_id": "lib:process/centrifugal-pump",
+            "x": 100, "y": 200, "width": 80, "height": 80,
+            "motion_tag": "corsa", "motion_min": 0, "motion_max": 100,
+            "motion_path": [{ "x": 100, "y": 240 }, { "x": 500, "y": 240 }]
+        }))];
+        let t = o(serde_json::json!({ "id": "t", "type": "pipe", "from_obj_id": "p",
+            "from_port": "n-top", "points": [{ "x": 0, "y": 0 }, { "x": 900, "y": 600 }] }));
+
+        // A 0 il centro va a (100, 240), cioe' 40 a sinistra di dov'era.
+        let inizio = percorso_tubo(&t, &oggetti, Some(&m), &snapshot(&[("corsa", TagValue::Int(0))])).unwrap();
+        assert_eq!((inizio[0].x, inizio[0].y), (110.0, 200.0));
+
+        // A meta': 300 - 140 = 160 di scostamento, mandata 150 + 160 = 310.
+        let meta = percorso_tubo(&t, &oggetti, Some(&m), &snapshot(&[("corsa", TagValue::Int(50))])).unwrap();
+        assert_eq!(
+            (meta[0].x, meta[0].y),
+            (310.0, 200.0),
+            "il capo e' rimasto dov'era: il moto su percorso non sta entrando nel calcolo"
+        );
+
+        // Senza il tag non si sa dove sia: resta la geometria del file.
+        let ferma = percorso_tubo(&t, &oggetti, Some(&m), &TagSnapshot::default()).unwrap();
+        assert_eq!((ferma[0].x, ferma[0].y), (150.0, 200.0));
+    }
+
+    /// Lo scostamento si arrotonda **come il runtime**, che scrive un `i16`
+    /// in `lv_obj_set_x`. Mezzo pixel costante, su un tubo sottile, si vede.
+    #[test]
+    fn il_moto_si_arrotonda_come_lo_fa_il_widget() {
+        let o = |v: serde_json::Value| -> SynopticObject { serde_json::from_value(v).unwrap() };
+        // Percorso lungo 3: a un terzo lo scostamento vero e' 0,999...
+        let obj = o(serde_json::json!({
+            "id": "p", "type": "ellipse", "x": 0, "y": 0, "width": 0, "height": 0,
+            "motion_tag": "v", "motion_min": 0, "motion_max": 3,
+            "motion_path": [{ "x": 0, "y": 0 }, { "x": 3, "y": 0 }]
+        }));
+        let r = applica_movimento(&obj, &snapshot(&[("v", TagValue::Float(0.9))])).unwrap();
+        assert_eq!(r.x, Some(1.0), "non e' stato arrotondato come fa il widget");
     }
 
     fn ancore_di_prova(pipe: SynopticObject, ancora: SynopticObject) -> AncoreTubo {
