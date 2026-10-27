@@ -489,7 +489,7 @@ pub fn avvia(s: &SharedAvviso, base_url: &str, token: Option<String>) {
 /// nulla a nessuno.
 pub fn avvia_controllo(stato: SharedAvviso, base_url: String, sessione: crate::session::SharedSession) {
     std::thread::Builder::new()
-        .name("sws-aggiornamento".into())
+        .name("sws-aggiorna".into())
         .spawn(move || {
             let rt = match tokio::runtime::Builder::new_current_thread()
                 .enable_all()

@@ -11,6 +11,17 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 
 ## [Unreleased]
 
+### Fixed
+
+- **Due nomi di thread erano troncati dal kernel**, e nessuno poteva accorgersene: `TASK_COMM_LEN` è 16 col
+  terminatore, quindi quindici caratteri utili, e oltre Linux taglia in silenzio. Visto in `htop` sul WP630 il
+  27-10-2026 subito dopo aver dato un nome a ogni lavoro: `sws-aggiornamento` (17) compariva `sws-aggiornamen`, e
+  `storico-migrazione` (18) sarebbe comparso `storico-migrazi`. Ora `sws-aggiorna` e `sws-migrazione`. Il limite
+  era già documentato in `sws-core/src/motori.rs` e c'era pure un test, ma quel test elencava i nomi **a mano** e
+  guardava solo i nuovi: al suo posto la guardia `check_nomi_thread.sh`, che li legge dal sorgente — `.name(…)`,
+  `.thread_name(…)` e le chiamate a `motori::motore(…)`.
+
+
 ## [2.23.2] — 2026-10-27
 
 ### Added

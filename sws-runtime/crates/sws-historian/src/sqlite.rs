@@ -504,7 +504,7 @@ impl SqliteStore {
             let p = path.clone();
             let flag = migrazione.clone();
             std::thread::Builder::new()
-                .name("storico-migrazione".into())
+                .name("sws-migrazione".into())
                 .spawn(move || {
                     // Un lotto che fallisce (lock conteso troppo a lungo, disco
                     // pieno per un momento) non ferma la migrazione fino al

@@ -163,15 +163,9 @@ mod tests {
         assert_ne!(qui, la, "il task gira sul motore, non qui");
     }
 
-    /// I nomi che il runtime usa davvero devono entrare nei 15 caratteri di
-    /// Linux, altrimenti in `htop` si vedono troncati e due si confondono.
-    #[test]
-    fn i_nomi_stanno_nei_quindici_caratteri() {
-        for n in [
-            "sws-modbus", "sws-mqtt", "sws-opcua", "sws-s7", "sws-enip", "sws-host",
-            "sws-ha", "sws-storico", "sws-log", "sws-backup", "sws-ritenzione",
-        ] {
-            assert!(n.len() <= MASSIMO_NOME, "«{n}» è lungo {}", n.len());
-        }
-    }
+    // Che i nomi veri stiano nei 15 caratteri lo controlla
+    // `scripts/check_nomi_thread.sh`, che li legge **dal sorgente**. Qui
+    // c'era un elenco scritto a mano, e il 27-10-2026 si e' visto perche' non
+    // basta: elencava i nomi nuovi e non vedeva `sws-aggiornamento`, che il
+    // kernel troncava da mesi.
 }
