@@ -11,6 +11,8 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 
 ## [Unreleased]
 
+## [2.23.3] — 2026-10-27
+
 ### Fixed
 
 - **Sul pannello LVGL l'immagine di sfondo di una pagina diventava una tinta unita**, e i formati raster non si
