@@ -212,7 +212,8 @@
       "stile": "Style",
       "certificati": "Certificates",
       "reports": "Reports",
-      "telefono": "Phone (SMS and voice)"
+      "telefono": "Phone (SMS and voice)",
+      "prestazioni": "Performance"
     },
     "sottorami": {
       "device": "Device",
@@ -3944,5 +3945,36 @@
     "dovePagina2": "page {{pagina}}",
     "doveImpostazione": "configuration tab",
     "istanzaDi": "instance of «{{tipo}}»"
+  },
+  "prestazioni": {
+    "intro": "Where the time goes: the work of this instance and, with a panel connected, of the panel. While this page is open the LVGL viewer sends the phases of its frame; once it is closed, the viewer goes quiet within a minute.",
+    "questaIstanza": "This instance",
+    "dispositivo": "Connected device ({{host}})",
+    "viewer": "LVGL VIEWER",
+    "viewerAssente": "No LVGL viewer has answered: there is none here, or its first summary has not arrived yet (up to 10 seconds).",
+    "fps": "{{fps}} frames per second — work per frame {{giro}} ms",
+    "fase": "Phase",
+    "perFotogramma": "Per frame (out of 16 ms)",
+    "volte": "Times",
+    "media": "Mean ms",
+    "massimo": "Max ms",
+    "viewerNota": "«Per frame» divides a phase's time by the frames in the interval: a phase that only runs now and then weighs what it really weighs. The bar is full at 16 ms, one frame at 60 per second.",
+    "runtime": "RUNTIME",
+    "runtimeVuoto": "No work measured in this interval.",
+    "lavoro": "Work",
+    "alSecondo": "Per second",
+    "occupato": "Busy",
+    "runtimeNota": "Wall-clock time, waits included: a source's cycle also contains the wait for the device's reply. «Busy» is the share of the interval spent in that work.",
+    "fasi": {
+      "tag": "Tags and bindings",
+      "lvgl": "LVGL drawing",
+      "display": "Copy to display",
+      "canvas.tubo.corpo": "Pipe: body (SVG)",
+      "canvas.tubo.bocchettoni": "Pipe: fittings",
+      "canvas.simbolo": "Symbols (SVG)",
+      "canvas.barre": "Bar charts",
+      "canvas.trend": "Trends",
+      "canvas.tabella": "Tables"
+    }
   }
 }

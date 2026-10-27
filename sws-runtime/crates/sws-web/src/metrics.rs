@@ -92,7 +92,8 @@ pub async fn get_metrics(State(state): State<AppState>) -> impl IntoResponse {
     }
 
     let handle = install_recorder();
-    let body = handle.render();
+    // I lavori del registro del processo (piano «dove se ne va il tempo»).
+    let body = handle.render() + &crate::prestazioni::testo_prometheus();
     (
         [(
             header::CONTENT_TYPE,

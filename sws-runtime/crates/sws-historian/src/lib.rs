@@ -267,9 +267,11 @@ impl Historian {
                     // Fase 1e: le foglie, non la radice — il buffer in RAM
                     // serve ai grafici, e un grafico si lega a una foglia.
                     Ok(update) => {
+                        let t0 = std::time::Instant::now();
                         for (id, st) in tag_db.espandi_foglie(&update).await {
                             self.record(&id, &st).await;
                         }
+                        sws_core::prestazioni::registra("storico", t0.elapsed());
                     }
                     Err(tokio::sync::broadcast::error::RecvError::Lagged(n)) => {
                         warn!("historian recorder lagged by {n}");

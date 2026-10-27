@@ -89,6 +89,26 @@ esito() {
 #                                        anche un gettone monouso che scade in
 #                                        un'ora; possono solo riconoscere un
 #                                        allarme già mandato a quel numero
+#   /api/project                         SOLO sulla porta del viewer (7443,
+#                                        `build_runtime_inner`): il progetto
+#                                        attivo coi segreti mascherati, che il
+#                                        viewer anonimo legge. Mai controllata
+#                                        fino al 26-10-2026 (la guardia leggeva
+#                                        solo il primo gruppo `open`). Porta con
+#                                        sé anche destinatari email e numeri dei
+#                                        reperibili: la decisione è nel seme
+#                                        docs/plans/2026-10-26-progetto-letto-da-un-anonimo.md
+#   /api/prestazioni/richiesta           (26-10-2026) il viewer LVGL chiede se
+#   /api/prestazioni/viewer              qualcuno guarda le prestazioni, e se sì
+#                                        manda il riassunto delle fasi del suo
+#                                        fotogramma. Il viewer di un pannello
+#                                        senza utenti non ha una sessione, e la
+#                                        rete rootless non lascia distinguere il
+#                                        loopback. Innocue: la prima dice solo
+#                                        sì/no; la seconda tiene un riassunto
+#                                        (≤16 KB, ≤64 voci) solo mentre un
+#                                        Supervisor ha la pagina aperta, e lo
+#                                        mostra solo a lui
 ATTESE=(
     "/health"
     "/.well-known/security.txt"
@@ -103,16 +123,21 @@ ATTESE=(
     "/api/abbinamento/nome"
     "/api/telefono/voce"
     "/api/telefono/sms"
+    "/api/project"
+    "/api/prestazioni/richiesta"
+    "/api/prestazioni/viewer"
 )
 
 echo "── Rotte raggiungibili senza credenziali ──"
 
-# Il gruppo `open` del router completo: dalla riga `let open = Router::new()`
-# fino al `;` che la chiude.
+# I gruppi `open`: dalla riga `let open = Router::new()` fino al `;` che la
+# chiude, **tutti**. Fino al 26-10-2026 si leggeva solo il primo, quello del
+# router completo, e il gruppo aperto della porta del viewer (7443,
+# `build_runtime_inner`) non l'ha mai guardato nessuno.
 blocco_open() {
     awk '/let open = Router::new\(\)/ {dentro=1}
          dentro {print}
-         dentro && /;[[:space:]]*$/ {exit}' "$ROUTER"
+         dentro && /;[[:space:]]*$/ {dentro=0}' "$ROUTER"
 }
 
 # Si estraggono TUTTE le stringhe che cominciano con `/`, non i soli

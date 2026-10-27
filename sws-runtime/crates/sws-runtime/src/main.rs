@@ -890,9 +890,11 @@ async fn main() -> anyhow::Result<()> {
                     // `espandi_foglie` ritorna l'aggiornamento stesso, quindi
                     // il caso di sempre costa una `Vec` di un elemento.
                     Ok(update) => {
+                        let t0 = std::time::Instant::now();
                         for (id, st) in tdb.espandi_foglie(&update).await {
                             adb.evaluate(&id, &st).await;
                         }
+                        sws_core::prestazioni::registra("allarmi", t0.elapsed());
                     }
                     Err(tokio::sync::broadcast::error::RecvError::Lagged(n)) => {
                         warn!("alarm evaluator lagged by {n}");
@@ -947,6 +949,7 @@ async fn main() -> anyhow::Result<()> {
                             continue;
                         }
 
+                        let t0 = std::time::Instant::now();
                         // Fase 1e: le **foglie** più le **radici**. Uno script
                         // può scrivere `tags["motore1.velocita"]` oppure
                         // `tags["motore1"]["velocita"]` — in Python il dict è
@@ -978,6 +981,7 @@ async fn main() -> anyhow::Result<()> {
                                 }
                             }
                         }
+                        sws_core::prestazioni::registra("derivati", t0.elapsed());
                     }
                     Err(tokio::sync::broadcast::error::RecvError::Lagged(n)) => {
                         // Log at debug: with the feedback-loop guard this should

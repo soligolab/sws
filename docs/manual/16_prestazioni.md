@@ -103,6 +103,32 @@ Dal 18-10-2026 il runtime limita le richieste alle API **per indirizzo**, con du
   l'apertura di IDE e viewer non hanno ricevuto nessun 429; con `SWS_LIMITE_LETTURE=20/1`, 60 richieste in raffica
   hanno ricevuto 20 risposte e 40 rifiuti, mentre dal loopback sono passate tutte.
 
+## Dove se ne va il tempo, guardando
+
+Le misure sopra dicono **quanto** regge il runtime visto da fuori. Per sapere **quale lavoro** lo occupa c'è
+**Configurazione → Istanza → Prestazioni** (dal 26-10-2026; piano `docs/plans/2026-10-26-dove-se-ne-va-il-tempo.md`):
+una colonna per questa istanza e, con un pannello collegato, una per il pannello. Si aggiorna ogni 2 secondi.
+
+- **Viewer LVGL**: i fotogrammi al secondo veri e, per ogni fase del fotogramma, quanto pesa **in media su un
+  fotogramma** (la barra è piena a 16 ms, un fotogramma a 60 al secondo), con media, 95° percentile e massimo:
+
+  | Fase | Cosa c'è dentro |
+  |---|---|
+  | Tag e collegamenti | la copia dei valori e l'aggiornamento di ogni oggetto legato a un tag |
+  | Disegno LVGL | il lavoro di LVGL: layout, ridisegno delle zone cambiate |
+  | Copia sul display | il fotogramma copiato e convertito nel buffer dello schermo |
+  | Tubo: corpo (SVG), bocchettoni, simboli, barre, trend, tabelle | le rasterizzazioni dei canvas, quando si ridisegnano |
+
+- **Runtime**: per ogni lavoro — il giro di ogni sorgente (`sorgente.<id>`), un messaggio MQTT o un valore OPC-UA,
+  lo storico, gli allarmi, i tag calcolati, ogni script (`script.<id>`), l'invio dei tag a un client (`ws.tags`) —
+  quante volte al secondo, media, 95° percentile, massimo e quota dell'intervallo. Sono **tempi di parete**: il giro
+  di una sorgente comprende l'attesa della risposta del dispositivo.
+- **Il viewer parla solo se qualcuno guarda.** Misura sempre (pochi nanosecondi per fase), ma manda i numeri al runtime
+  solo mentre la pagina è aperta: ogni 10 secondi chiede se c'è una richiesta, e finché c'è manda il riassunto ogni
+  2. Chiusa la pagina, entro un minuto torna zitto. Il primo riassunto arriva entro 10 secondi dall'apertura.
+- **Per chi usa Prometheus**: gli stessi lavori del runtime in `/metrics`, come istogramma
+  `sws_lavoro_secondi{lavoro=…}` (cumulato dall'avvio).
+
 ---
 
 ← [Indice](MAIN.md) | [← Multilingua](15_multilingua.md) | [Successivo → Sicurezza](17_sicurezza.md) →

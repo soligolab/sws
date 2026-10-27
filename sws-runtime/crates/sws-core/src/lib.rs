@@ -4,6 +4,7 @@ pub mod geometry;
 pub mod logbus;
 pub mod page_tree;
 pub mod percorso;
+pub mod prestazioni;
 pub mod pin_tls;
 pub mod project;
 pub mod riconnessione;

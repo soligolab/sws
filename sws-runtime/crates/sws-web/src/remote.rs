@@ -988,6 +988,12 @@ pub async fn remote_datastore_test(State(s): State<AppState>, Path(id): Path<Str
     inoltra_al_pannello(&s, None, reqwest::Method::POST, &p, None, 60).await
 }
 
+/// `GET /api/remote/prestazioni` → `"{base}/api/prestazioni"`: dove se ne va
+/// il tempo sul pannello collegato, runtime e viewer (26-10-2026).
+pub async fn remote_prestazioni(State(s): State<AppState>) -> Response {
+    proxy_get_json(&s, "/api/prestazioni").await
+}
+
 /// `GET /api/remote/certificati` → `"{base}/api/certificati"`: la vista dei
 /// certificati del dispositivo collegato (25-10-2026, decisione 3).
 pub async fn remote_certificati(State(s): State<AppState>) -> Response {

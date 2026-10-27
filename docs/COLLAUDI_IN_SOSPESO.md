@@ -25,6 +25,18 @@
 
 ---
 
+## Prestazioni: dove se ne va il tempo (26-10-2026)
+
+Serve la build (2.23.1). Sul TC620 con la pagina della pompa che scorre lungo il percorso.
+
+1. [ ] Dall'IDE collegato al TC620: Configurazione → Istanza → Prestazioni. Entro 10 secondi la colonna del pannello
+       mostra il viewer LVGL: fotogrammi al secondo e le fasi.
+2. [ ] Far scorrere la pompa: compaiono «Tubo: corpo (SVG)» e «Tubo: bocchettoni». Annotare per fotogramma e p95 di
+       quelle due, di «Copia sul display» e di «Disegno LVGL» — sono i numeri che decidono il rimedio del tubo.
+3. [ ] La colonna del runtime mostra le sorgenti di CasaDomotica (MQTT, Modbus) con i loro giri, e lo storico.
+4. [ ] Chiudere la pagina: dopo un minuto il viewer smette di mandare (nel log del runtime nessuna
+       `POST /api/prestazioni/viewer`).
+
 ## A. La misura che blocca C4 — il browser del pannello davanti al proprio certificato
 
 **È la più importante, ed è una misura, non un sì/no.** Da lei dipende se il TLS si può accendere

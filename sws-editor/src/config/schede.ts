@@ -92,6 +92,8 @@ export const SCHEDE = [
   { id: "users",         ramo: "sicurezza", icona: "👤", soloAdmin: true,  portaBozza: false, richiedeProgetto: false, elementi: true },
   // La vista dei certificati (25-10-2026, decisione 3 del piano dei certificati).
   { id: "certificati",   ramo: "sicurezza", icona: "🔏", soloAdmin: true,  portaBozza: false, richiedeProgetto: false },
+  // Dove se ne va il tempo (26-10-2026): i lavori di questa istanza e del pannello.
+  { id: "prestazioni",   ramo: "istanza",   icona: "⏱", soloAdmin: true,  portaBozza: false, richiedeProgetto: false },
   { id: "resources",     ramo: "istanza",   icona: "📦", soloAdmin: false, portaBozza: false, richiedeProgetto: false },
   { id: "backups",       ramo: "istanza",   icona: "💾", soloAdmin: true,  portaBozza: false, richiedeProgetto: false },
   { id: "system",        ramo: "istanza",   icona: "📊", soloAdmin: false, portaBozza: false, richiedeProgetto: false, sottoRamo: "device" },

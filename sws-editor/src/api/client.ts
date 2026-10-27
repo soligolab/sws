@@ -366,6 +366,26 @@ export interface EventoAggiornamento {
  *  certificato del dispositivo è stata ritirata insieme a quella strada. */
 export interface StatoTls { enabled: boolean; fiducia_browser: boolean }
 
+/** Gemelli di `sws_core::prestazioni` (26-10-2026, piano «dove se ne va il tempo»). */
+export interface VocePrestazioni {
+  nome: string;
+  n: number;
+  somma_ms: number;
+  max_ms: number;
+  /** Un conteggio per secchio, soglie in `SOGLIE_PRESTAZIONI_MS` più «oltre». */
+  secchi: number[];
+}
+export interface RiassuntoPrestazioni {
+  intervallo_s: number;
+  voci: VocePrestazioni[];
+}
+export interface Prestazioni {
+  runtime: RiassuntoPrestazioni;
+  viewer: RiassuntoPrestazioni | null;
+  viewer_eta_s: number | null;
+}
+export const SOGLIE_PRESTAZIONI_MS = [1, 2, 4, 8, 16, 33, 66];
+
 /** Gemelli di `certificati::Inventario` in `sws-web` (25-10-2026). */
 export interface DettagliCertificato {
   soggetto: string;
@@ -1969,6 +1989,9 @@ export const api = {
   // ── La vista dei certificati (25-10-2026, decisioni 3, 4 e 8) ──────────────
   // Funzioni esplicite per lato, **non** `suImpianto`: le due colonne della
   // vista parlano ciascuna col suo, anche con un pannello collegato.
+  // ── Dove se ne va il tempo (26-10-2026): leggerle accende il viewer ────────
+  prestazioni: (remoto: boolean) =>
+    request<Prestazioni>(remoto ? "/api/remote/prestazioni" : "/api/prestazioni"),
   certificati: (remoto: boolean) =>
     request<InventarioCertificati>(remoto ? "/api/remote/certificati" : "/api/certificati"),
   dimenticaImpronta: (remoto: boolean, archivio: "dispositivi" | "mqtt", chiave: string) =>

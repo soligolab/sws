@@ -127,6 +127,7 @@ mod simbolo_lib;
 mod svg_assets;
 mod svg_raster;
 mod tabella;
+mod tempi;
 mod testi_sistema;
 mod tls;
 mod touch_indev;
@@ -489,6 +490,8 @@ fn main() -> anyhow::Result<()> {
     // Prima di qualunque richiesta: l'indirizzo scritto nel quadlet può essere
     // quello di prima della 2.16 (vedi `base_url_viva`).
     args.base_url = rt.block_on(base_url_viva(&args.base_url));
+    // Le fasi del fotogramma, mandate al runtime solo se qualcuno le guarda.
+    tempi::avvia(args.base_url.clone());
     // Il pannello in attesa di abbinamento (11-10-2026): niente utenti, quindi
     // pagine, tag e allarmi rispondono 401. Si mostra il codice al loro posto
     // e si aspetta; ad abbinamento fatto il viewer riparte da sé.
@@ -1476,6 +1479,7 @@ fn run_drm(
     loop {
         let frame_start = Instant::now();
 
+        let t_tag = Instant::now();
         let tags_now = {
             let tags = shared_tags
                 .lock()
@@ -1491,8 +1495,9 @@ fn run_drm(
             mostra_rifiuto(&shared_session, &avviso);
             tags
         };
+        tempi::registra("tag", t_tag.elapsed());
 
-        lvgl::task_handler();
+        tempi::misura("lvgl", lvgl::task_handler);
         lvgl::tick_inc(Duration::from_millis(16));
 
         // L'avviso di aggiornamento, se c'è qualcosa da dire. Costa un lock e
@@ -1608,11 +1613,16 @@ fn run_drm(
             drm.riempi(0x0f, 0x17, 0x2a);
             eprintln!("[drm] pagina {hor_res}x{ver_res}, margine {drm_off:?}");
         }
+        // La copia sul display: lo schermo intero a ogni giro, anche fermo —
+        // è la prima ipotesi del piano «dove se ne va il tempo».
+        let t_display = Instant::now();
         if lvgl_display::copy_frame_rgb888(&mut frame_buf) {
             drm.flush_rgb888(&frame_buf, hor_res, ver_res, drm_off);
         }
 
+        tempi::registra("display", t_display.elapsed());
         let elapsed = frame_start.elapsed();
+        tempi::registra("giro", elapsed);
         let target = Duration::from_millis(16);
         if elapsed < target {
             std::thread::sleep(target - elapsed);
@@ -1821,6 +1831,7 @@ fn run_window(
             }
         }
 
+        let t_tag = Instant::now();
         let tags_now = {
             // Lock breve: solo per clonare lo stato corrente, mai tenuto
             // durante le chiamate FFI a LVGL più sotto.
@@ -1838,12 +1849,13 @@ fn run_window(
             mostra_rifiuto(&shared_session, &avviso);
             tags
         };
+        tempi::registra("tag", t_tag.elapsed());
 
         // Qui LVGL processa l'indev (click/drag) e può invocare sincronamente
         // le callback registrate in lvgl_render.rs, che accodano su tag_tx/
         // nav_tx — niente I/O di rete dentro quelle callback, solo dopo, qui
         // sotto.
-        lvgl::task_handler();
+        tempi::misura("lvgl", lvgl::task_handler);
         lvgl::tick_inc(Duration::from_millis(16));
 
         // L'avviso di aggiornamento, se c'è qualcosa da dire. Costa un lock e
@@ -2057,6 +2069,9 @@ fn run_window(
             eprintln!("[sdl2] pagina {hor_res}x{ver_res} nella finestra {win_w}x{win_h}, margine ({off_x},{off_y})");
         }
 
+        // La copia sul display: lo schermo intero a ogni giro, anche fermo —
+        // è la prima ipotesi del piano «dove se ne va il tempo».
+        let t_display = Instant::now();
         if lvgl_display::copy_frame_rgb888(&mut frame_buf) {
             let mut window_surface = window
                 .surface(&event_pump)
@@ -2103,7 +2118,9 @@ fn run_window(
                 .map_err(|e| anyhow::anyhow!("update_window: {e}"))?;
         }
 
+        tempi::registra("display", t_display.elapsed());
         let elapsed = frame_start.elapsed();
+        tempi::registra("giro", elapsed);
         let target = Duration::from_millis(16); // ~60 fps
         if elapsed < target {
             std::thread::sleep(target - elapsed);

@@ -244,6 +244,12 @@ impl FailureThrottle {
 }
 
 async fn exec_once(id: &str, code: &str, py: &PyEngine, throttle: &mut FailureThrottle) {
+    let t0 = std::time::Instant::now();
+    exec_once_(id, code, py, throttle).await;
+    sws_core::prestazioni::registra(&format!("script.{id}"), t0.elapsed());
+}
+
+async fn exec_once_(id: &str, code: &str, py: &PyEngine, throttle: &mut FailureThrottle) {
     // T-69: `id` è l'identità che tiene `uptime_ms()`/`delta_ms()`/`state`
     // per QUESTO script — stabile perché ogni script globale abilitato ha un
     // proprio `PyEngine` (vedi `GlobalScriptSupervisor::start`), quindi la

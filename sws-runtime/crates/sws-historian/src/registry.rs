@@ -415,6 +415,7 @@ impl DatastoreRegistry {
                         // espande nelle sue foglie, che sono scalari e hanno
                         // ognuna la sua qualità. Per un tag piatto
                         // `espandi_foglie` ritorna l'aggiornamento stesso.
+                        let t0 = std::time::Instant::now();
                         for (id, st) in tag_db.espandi_foglie(&update).await {
                             let sample = Sample {
                                 ts_ms: st.timestamp_ms,
@@ -423,6 +424,7 @@ impl DatastoreRegistry {
                             };
                             self.record(&id, &sample).await;
                         }
+                        sws_core::prestazioni::registra("storico", t0.elapsed());
                     }
                     Err(tokio::sync::broadcast::error::RecvError::Lagged(n)) => {
                         warn!("datastore recorder lagged by {n}");

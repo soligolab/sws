@@ -459,6 +459,7 @@ pub async fn giro_unita<D: Dispositivo>(
     sorgente: &str,
 ) -> anyhow::Result<()> {
     dev.imposta_unita(u.unit_id);
+    let _giro = sws_core::prestazioni::Misura::nuova(format!("sorgente.{sorgente}"));
     let m = prepara(db, &u.registri).await;
     let esito = leggi_giro(dev, db, &m, u.ordine, u.timeout, &mut u.in_errore, sorgente).await?;
     // Il setup alla prima risposta della sessione. Un dispositivo senza

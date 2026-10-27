@@ -191,6 +191,10 @@ pub struct Quadro {
 }
 
 pub fn rasterizza(svg: &str, q: Quadro, dove: Option<Ritaglio>) -> Option<BitmapStrato> {
+    crate::tempi::misura("canvas.simbolo", || rasterizza_(svg, q, dove))
+}
+
+fn rasterizza_(svg: &str, q: Quadro, dove: Option<Ritaglio>) -> Option<BitmapStrato> {
     let dove = match dove {
         Some(r) => r,
         None => svg_raster::ingombro(svg.as_bytes(), q.w, q.h, q.flip_h, q.flip_v)?,

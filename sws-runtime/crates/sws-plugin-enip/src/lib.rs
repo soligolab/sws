@@ -88,6 +88,7 @@ async fn session(
             }
 
             _ = ticker.tick() => {
+                let _giro = sws_core::prestazioni::Misura::nuova(format!("sorgente.{}", cfg.id));
                 for tm in &cfg.tags {
                     match read_one(&mut client, tm).await {
                         Ok(val) => { db.ingest(tm.tag.clone(), val, TagQuality::Good).await; }

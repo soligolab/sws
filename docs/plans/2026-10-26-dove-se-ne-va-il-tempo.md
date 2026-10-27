@@ -4,6 +4,14 @@
 > `ufficio`, misurando il codice; le tre decisioni sono del maintainer. Il testo del seme resta in coda, perché è il
 > motivo per cui il lavoro è nato.
 
+> **Punti 1-3 e 5 FATTI il 26-10-2026 (sera)** sul ramo `feat/dove-se-ne-va-il-tempo`. Provato da capo a fondo in
+> locale con un runtime di prova e il viewer SDL senza schermo: la richiesta accende il viewer, il riassunto arriva,
+> la pagina lo mostra (PC, build di debug: 59 fotogrammi al secondo, 8,2 ms di lavoro per fotogramma, di cui 6,2 di
+> LVGL e 1,5 di copia sul display). **Resta il punto 4**: la build e la misura sul TC620, collaudo in
+> `COLLAUDI_IN_SOSPESO.md`. Due scostamenti dal testo qui sotto: le rotte del viewer stanno sulla **porta del viewer**
+> (7443), dove il viewer parla, e sono **pre-auth ma innocue** invece che «solo da loopback» — sul pannello le porte
+> sono pubblicate su una rete rootless, e l'indirizzo di chi chiama non dice se è la stessa macchina.
+
 ## Decisioni del maintainer (26-10-2026)
 
 1. **Il viewer misura sempre e manda al runtime solo a richiesta.** Prendere l'ora a inizio e fine di ogni fase

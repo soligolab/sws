@@ -212,7 +212,8 @@
       "stile": "Stile",
       "certificati": "Certificati",
       "reports": "Report",
-      "telefono": "Telefono (SMS e voce)"
+      "telefono": "Telefono (SMS e voce)",
+      "prestazioni": "Prestazioni"
     },
     "sottorami": {
       "device": "Device",
@@ -3944,5 +3945,36 @@
     "dovePagina2": "pagina {{pagina}}",
     "doveImpostazione": "scheda di configurazione",
     "istanzaDi": "istanza di «{{tipo}}»"
+  },
+  "prestazioni": {
+    "intro": "Dove se ne va il tempo: i lavori di questa istanza e, con un pannello collegato, quelli del pannello. Finché la pagina è aperta il viewer LVGL manda le fasi del suo fotogramma; chiusa, entro un minuto torna zitto.",
+    "questaIstanza": "Questa istanza",
+    "dispositivo": "Dispositivo connesso ({{host}})",
+    "viewer": "VIEWER LVGL",
+    "viewerAssente": "Nessun viewer LVGL ha risposto: qui non ce n'è uno, oppure il primo riassunto non è ancora arrivato (fino a 10 secondi).",
+    "fps": "{{fps}} fotogrammi al secondo — lavoro per fotogramma {{giro}} ms",
+    "fase": "Fase",
+    "perFotogramma": "Per fotogramma (su 16 ms)",
+    "volte": "Volte",
+    "media": "Media ms",
+    "massimo": "Max ms",
+    "viewerNota": "«Per fotogramma» divide il tempo di una fase per i fotogrammi dell'intervallo: anche una fase che scatta ogni tanto pesa quanto pesa davvero. La barra è piena a 16 ms, un fotogramma a 60 al secondo.",
+    "runtime": "RUNTIME",
+    "runtimeVuoto": "Nessun lavoro misurato in questo intervallo.",
+    "lavoro": "Lavoro",
+    "alSecondo": "Al secondo",
+    "occupato": "Occupato",
+    "runtimeNota": "Tempo di parete, attese comprese: il giro di una sorgente contiene anche l'attesa della risposta del dispositivo. «Occupato» è la quota dell'intervallo passata in quel lavoro.",
+    "fasi": {
+      "tag": "Tag e collegamenti",
+      "lvgl": "Disegno LVGL",
+      "display": "Copia sul display",
+      "canvas.tubo.corpo": "Tubo: corpo (SVG)",
+      "canvas.tubo.bocchettoni": "Tubo: bocchettoni",
+      "canvas.simbolo": "Simboli (SVG)",
+      "canvas.barre": "Grafici a barre",
+      "canvas.trend": "Trend",
+      "canvas.tabella": "Tabelle"
+    }
   }
 }

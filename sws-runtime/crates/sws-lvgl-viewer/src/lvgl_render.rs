@@ -4634,7 +4634,7 @@ fn aggiorna_barre(b: &mut BarreVive, tags: &TagSnapshot) {
     if valori == b.ultimi {
         return;
     }
-    let testi = crate::barre::disegna(&b.cfg, &valori, &mut b.pixmap);
+    let testi = crate::tempi::misura("canvas.barre", || crate::barre::disegna(&b.cfg, &valori, &mut b.pixmap));
     b.ultimi = valori;
     pixmap_in_buffer_alfa(&b.pixmap, &mut b.buf);
     unsafe { lvgl_sys::lv_obj_invalidate(b.canvas.as_ptr()) };
@@ -5855,7 +5855,7 @@ fn crea_tabella_viva(
 
 fn ridisegna_tabella(t: &mut TabellaViva) {
     let misura = |s: &str, px: u16| misura_trend(s, px).0;
-    let scena = crate::tabella::disegna(&t.cfg, &t.righe, &t.stato, &mut t.pixmap, &misura);
+    let scena = crate::tempi::misura("canvas.tabella", || crate::tabella::disegna(&t.cfg, &t.righe, &t.stato, &mut t.pixmap, &misura));
     pixmap_in_buffer_alfa(&t.pixmap, &mut t.buf);
     unsafe { lvgl_sys::lv_obj_invalidate(t.canvas.as_ptr()) };
     scrivi_testi(t.canvas, &mut t.etichette, &scena.testi);
@@ -6737,16 +6737,18 @@ fn aggiorna_trend(t: &mut TrendVivo, lingua: &str, table: &LanguageTable) {
     t.sporco = false;
 
     let misura = |s: &str, px: u16| misura_trend(s, px).0;
-    let scena = crate::trend::disegna(
-        &t.cfg,
-        &t.dati,
-        &t.stato,
-        ora,
-        t.sfondo.as_ref(),
-        &mut t.pixmap,
-        &misura,
-        &crate::trend::ora_locale,
-    );
+    let scena = crate::tempi::misura("canvas.trend", || {
+        crate::trend::disegna(
+            &t.cfg,
+            &t.dati,
+            &t.stato,
+            ora,
+            t.sfondo.as_ref(),
+            &mut t.pixmap,
+            &misura,
+            &crate::trend::ora_locale,
+        )
+    });
     // RGBA premoltiplicato ma opaco (lo sfondo copre tutto) → RGB565.
     for (o, p) in t.buf.chunks_exact_mut(2).zip(t.pixmap.data().chunks_exact(4)) {
         let v: u16 = ((p[0] as u16 & 0xF8) << 8) | ((p[1] as u16 & 0xFC) << 3) | (p[2] as u16 >> 3);
@@ -9861,8 +9863,10 @@ impl ExtraTubo {
             return;
         }
         self.disegnato = Some((colore, flusso));
+        let t0 = std::time::Instant::now();
         crate::tubo::disegna(&self.extra, colore, flusso, &mut self.pixmap);
         pixmap_in_buffer_alfa(&self.pixmap, &mut self.buf);
+        crate::tempi::registra("canvas.tubo.bocchettoni", t0.elapsed());
         unsafe { lvgl_sys::lv_obj_invalidate(self.canvas.as_ptr()) };
     }
 
@@ -10101,6 +10105,9 @@ impl CorpoSvg {
         if self.disegnato.as_ref() == Some(&colore_stato) {
             return;
         }
+        // Il corpo del tubo passa da un SVG: stringa, `usvg`, `resvg`, a ogni
+        // spostamento. È la voce che decide il rimedio del tubo che resta indietro.
+        let t0 = std::time::Instant::now();
         let frammento = sws_core::stili_tubo::svg(&sws_core::stili_tubo::Tubo {
             id: "t",
             punti: &self.punti,
@@ -10124,6 +10131,7 @@ impl CorpoSvg {
             resvg::render(&tree, resvg::tiny_skia::Transform::identity(), &mut self.pixmap.as_mut());
         }
         pixmap_in_buffer_alfa(&self.pixmap, &mut self.buf);
+        crate::tempi::registra("canvas.tubo.corpo", t0.elapsed());
         unsafe { lvgl_sys::lv_obj_invalidate(self.canvas.as_ptr()) };
         self.disegnato = Some(colore_stato);
     }

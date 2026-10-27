@@ -33,6 +33,10 @@
 # successivo.
 
 versioni:
+  - versione: "2.23.1"
+    voci:
+      - it: "Configurazione → Istanza → Prestazioni: dove se ne va il tempo del pannello, fase per fase del fotogramma del viewer LVGL e lavoro per lavoro del runtime."
+        en: "Configuration → Instance → Performance: where the panel's time goes, phase by phase of the LVGL viewer's frame and job by job in the runtime."
   - versione: "2.23.0"
     voci:
       - it: "Nell'IDE, in alto a sinistra, un campo che cerca in un colpo solo fra variabili, pagine, oggetti, strumenti e impostazioni."

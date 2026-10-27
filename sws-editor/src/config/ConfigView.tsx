@@ -1,6 +1,7 @@
 import React, { useEffect } from "react";
 import { ReportsTab } from "@/config/schede/ReportsTab";
 import { CertificatiTab } from "@/config/schede/CertificatiTab";
+import { PrestazioniTab } from "@/config/schede/PrestazioniTab";
 import { useTranslation } from "react-i18next";
 import { Tenuta } from "@/components/Tenuta";
 import { schedaDa, schedeVisibili, type IdScheda, type IdOspitato } from "@/config/schede";
@@ -38,6 +39,7 @@ type IdConComponente = Exclude<IdScheda, IdOspitato>;
 const COMPONENTI: Record<IdConComponente, React.ComponentType<{ scheda: IdScheda }>> = {
   reports: ReportsTab,
   certificati: CertificatiTab,
+  prestazioni: PrestazioniTab,
   tags: TagsTab,
   protocols: ProtocolsTab,
   alarms: AlarmsTab,

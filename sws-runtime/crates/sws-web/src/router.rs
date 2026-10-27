@@ -848,6 +848,10 @@ pub fn build(
         // Cert TLS di un runtime remoto scaricato via backend (il browser non
         // può: bloccherebbe proprio la richiesta finché il cert non è accettato).
         .route("/api/remote/cert", get(crate::remote::remote_cert))
+        // Dove se ne va il tempo (26-10-2026): i lavori di questa istanza e del
+        // suo viewer, e gli stessi del pannello collegato.
+        .route("/api/prestazioni", get(crate::prestazioni::leggi))
+        .route("/api/remote/prestazioni", get(crate::remote::remote_prestazioni))
         // Upload/rimozione immagini di progetto (le letture stanno nei tier
         // read-only di entrambe le porte).
         .route(
@@ -1561,6 +1565,8 @@ fn deploy_only_app(state: AppState) -> Router<AppState> {
         .route("/api/system/tls", delete(crate::system::remove_tls_cert))
         // La vista dei certificati del pannello, letta dall'IDE collegato (25-10-2026).
         .route("/api/certificati", get(certificati_elenco))
+        // Le prestazioni del pannello, lette dall'IDE collegato (26-10-2026).
+        .route("/api/prestazioni", get(crate::prestazioni::leggi))
         .route("/api/certificati/dimentica", post(certificati_dimentica))
         // ── Override per-dispositivo del client id MQTT ────────────────────
         .route(
@@ -1714,6 +1720,14 @@ fn build_runtime_inner(state: AppState, www_dir: Option<PathBuf>) -> Router {
         .route("/api/auth/login", post(login))
         .route("/api/abbinamento", get(crate::abbinamento::stato))
         .route("/api/abbinamento/rivendica", post(crate::abbinamento::rivendica))
+        // Le due del viewer LVGL (piano «dove se ne va il tempo»), sulla porta
+        // con cui il viewer parla: senza sessione, innocue per costruzione —
+        // vedi `prestazioni.rs`.
+        .route("/api/prestazioni/richiesta", get(crate::prestazioni::richiesta))
+        .route(
+            "/api/prestazioni/viewer",
+            post(crate::prestazioni::dal_viewer).layer(DefaultBodyLimit::max(16 * 1024)),
+        )
         .route("/api/project", get(get_project));
 
     let cors = CorsLayer::new()
@@ -8280,6 +8294,9 @@ async fn handle_ws(
                 }
                 _ = flush_tick.tick() => {
                     if pending.is_empty() { continue; }
+                    // Un invio a un client, dall'espansione alla serializzazione
+                    // (piano «dove se ne va il tempo»): la voce cresce coi client.
+                    let _invio = sws_core::prestazioni::Misura::nuova("ws.tags");
                     // Fase 1d: una radice composita si espande nelle sue
                     // foglie PRIMA del filtro, così chi si è iscritto a
                     // `motore1.velocita` riceve quella e non la struttura.

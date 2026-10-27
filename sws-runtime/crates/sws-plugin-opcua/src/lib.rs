@@ -452,7 +452,9 @@ async fn run_once(
     let albero_clone = albero.clone();
     let source_id = cfg.id.clone();
     let dispatcher = tokio::spawn(async move {
+        let nome_misura = format!("sorgente.{source_id}");
         while let Some((node_id, dv)) = rx.recv().await {
+            let _valore = sws_core::prestazioni::Misura::nuova(nome_misura.as_str());
             let Some(tag_id) = routing_clone.get(&node_id) else {
                 continue;
             };

@@ -43,6 +43,22 @@ pub async fn risponde(base_url: &str, timeout: std::time::Duration) -> bool {
     matches!(client.get(url).send().await, Ok(r) if r.status().is_success())
 }
 
+/// `GET /api/prestazioni/richiesta` — qualcuno sta guardando le prestazioni?
+pub async fn prestazioni_richiesta(base_url: &str) -> anyhow::Result<bool> {
+    let url = format!("{}/api/prestazioni/richiesta", base_url.trim_end_matches('/'));
+    let client = reqwest::Client::builder().use_preconfigured_tls(pinned_client_config(base_url)?).build()?;
+    let v: serde_json::Value = client.get(url).send().await?.error_for_status()?.json().await?;
+    Ok(v["attiva"].as_bool().unwrap_or(false))
+}
+
+/// `POST /api/prestazioni/viewer` — il riassunto delle fasi del fotogramma.
+pub async fn invia_prestazioni(base_url: &str, r: &sws_core::prestazioni::Riassunto) -> anyhow::Result<()> {
+    let url = format!("{}/api/prestazioni/viewer", base_url.trim_end_matches('/'));
+    let client = reqwest::Client::builder().use_preconfigured_tls(pinned_client_config(base_url)?).build()?;
+    client.post(url).json(r).send().await?.error_for_status()?;
+    Ok(())
+}
+
 pub async fn fetch_page(base_url: &str, page_name: &str) -> anyhow::Result<SynopticPage> {
     let mut url = reqwest::Url::parse(base_url)?;
     url.path_segments_mut()

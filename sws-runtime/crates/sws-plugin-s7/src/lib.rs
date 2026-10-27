@@ -116,6 +116,7 @@ async fn session(
             }
 
             _ = ticker.tick() => {
+                let _giro = sws_core::prestazioni::Misura::nuova(format!("sorgente.{}", cfg.id));
                 // Poll all tags. Un tag che il PLC rifiuta (indirizzo sbagliato,
                 // DB inesistente) diventa Bad e gli altri continuano; il worker
                 // caduto o nessuna risposta per alcuni giri chiudono la sessione.

@@ -286,6 +286,7 @@ pub async fn run(cfg: HostConfig, db: Arc<TagDb>, cancel: CancellationToken) {
         tokio::select! {
             _ = cancel.cancelled() => return,
             _ = ticker.tick() => {
+                let _giro = sws_core::prestazioni::Misura::nuova(format!("sorgente.{}", cfg.id));
                 let snap = collector.leggi();
                 for m in &cfg.metrics {
                     if m.metric.e_testo() {

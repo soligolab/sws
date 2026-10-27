@@ -11,6 +11,23 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 
 ## [Unreleased]
 
+### Added
+
+- **Dove se ne va il tempo** (piano `docs/plans/2026-10-26-dove-se-ne-va-il-tempo.md`): `sws_core::prestazioni`
+  (accumulatore a secchi, registro del processo con finestra e totale, guardia `Misura`). Il viewer LVGL misura sempre
+  le fasi del fotogramma (`tempi.rs`: tag, LVGL, display, giro, e i canvas — corpo e bocchettoni del tubo, simboli,
+  barre, trend, tabelle) e le manda al runtime solo a richiesta (`GET /api/prestazioni/richiesta` ogni 10 s,
+  `POST /api/prestazioni/viewer` ogni 2 s, sulla porta del viewer, pre-auth e innocue). Il runtime misura i giri delle
+  sorgenti (Modbus, S7, EtherNet/IP, host, messaggi MQTT, valori OPC-UA), storico, allarmi, derivati, script e
+  l'invio su `/ws/tags`; `GET /api/prestazioni` (Supervisor, accende la richiesta per 60 s) col gemello remoto, e
+  `sws_lavoro_secondi` in `/metrics`. Pagina Configurazione → Istanza → Prestazioni a due colonne.
+
+### Fixed
+
+- **`check_rotte_preauth.sh` leggeva solo il primo gruppo `open`**: quello della porta del viewer (7443) non era mai
+  stato controllato. Ora li legge tutti; è comparso `/api/project`, dichiarato con il seme
+  `docs/plans/2026-10-26-progetto-letto-da-un-anonimo.md`.
+
 ## [2.23.0] — 2026-10-26
 
 ### Added
