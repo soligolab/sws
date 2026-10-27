@@ -345,3 +345,63 @@ mod tests {
         }
     }
 }
+
+// ── Immagini raster (27-10-2026, meta' raster della Q16) ─────────────────────
+//
+// Su questo motore si disegna rasterizzando un SVG. Un PNG o un JPEG non sono
+// un SVG, ma **possono starci dentro**: `<image href="data:…">`, e resvg con la
+// feature `raster-images` li decodifica. Cosi' il formato nuovo passa per la
+// catena che esiste gia' — cache, rasterizzatore, canvas — invece di aprirne
+// una seconda.
+
+/// Il tipo MIME di un'immagine dal suo nome, o `None` se non e' un formato che
+/// sappiamo decodificare. L'SVG non e' qui: quello ha la sua strada.
+pub fn tipo_raster(src: &str) -> Option<&'static str> {
+    // Un URL puo' portarsi dietro una query (`?v=3`): si guarda il percorso.
+    let percorso = src.split(['?', '#']).next().unwrap_or(src).to_ascii_lowercase();
+    match percorso.rsplit('.').next()? {
+        "png" => Some("image/png"),
+        "jpg" | "jpeg" => Some("image/jpeg"),
+        "gif" => Some("image/gif"),
+        "webp" => Some("image/webp"),
+        _ => None,
+    }
+}
+
+/// L'SVG che avvolge un'immagine raster, grande `w`×`h`.
+///
+/// `xMidYMid slice` e' «copri»: la stessa parola che il web scrive sul suo
+/// `<image>` per lo sfondo di un oggetto (`SvgCanvas.tsx`), quindi i due motori
+/// ritagliano allo stesso modo invece di deformare in due modi diversi.
+pub fn svg_attorno_al_raster(byte: &[u8], mime: &str, w: u32, h: u32) -> Vec<u8> {
+    use base64::Engine as _;
+    let dati = base64::engine::general_purpose::STANDARD.encode(byte);
+    format!(
+        r#"<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="{w}" height="{h}" viewBox="0 0 {w} {h}"><image x="0" y="0" width="{w}" height="{h}" preserveAspectRatio="xMidYMid slice" xlink:href="data:{mime};base64,{dati}"/></svg>"#
+    )
+    .into_bytes()
+}
+
+#[cfg(test)]
+mod prove_raster {
+    use super::*;
+
+    #[test]
+    fn il_tipo_viene_dall_estensione_non_dal_resto() {
+        assert_eq!(tipo_raster("/api/project/images/default.jpg"), Some("image/jpeg"));
+        assert_eq!(tipo_raster("/api/project/images/CARINA.JPEG"), Some("image/jpeg"));
+        assert_eq!(tipo_raster("/images/mdi/casa.png?v=3"), Some("image/png"));
+        assert_eq!(tipo_raster("/a/b.webp#x"), Some("image/webp"));
+        // L'SVG ha la sua strada, non questa.
+        assert_eq!(tipo_raster("/api/project/images/logo.svg"), None);
+        assert_eq!(tipo_raster("/senza/estensione"), None);
+    }
+
+    #[test]
+    fn l_involucro_e_un_svg_che_copre_il_riquadro() {
+        let svg = String::from_utf8(svg_attorno_al_raster(b"\x89PNG", "image/png", 1280, 800)).unwrap();
+        assert!(svg.contains(r#"width="1280""#) && svg.contains(r#"height="800""#));
+        assert!(svg.contains("xMidYMid slice"), "«copri», come sul web");
+        assert!(svg.contains("data:image/png;base64,"));
+    }
+}

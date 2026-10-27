@@ -33,6 +33,10 @@
 # successivo.
 
 versioni:
+  - versione: "2.23.3"
+    voci:
+      - it: "Sul pannello LVGL l'immagine di sfondo di una pagina adesso si vede, JPEG e PNG compresi: prima al suo posto compariva una tinta unita."
+        en: "On the LVGL panel a page's background image now shows, JPEG and PNG included: before, a flat colour appeared in its place."
   - versione: "2.23.2"
     voci:
       - it: "Un tubo agganciato a un oggetto che scorre lungo un percorso non resta più indietro mentre si muove: lo segue nello stesso fotogramma."

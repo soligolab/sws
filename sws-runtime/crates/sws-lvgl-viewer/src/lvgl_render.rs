@@ -1388,6 +1388,14 @@ fn apply_bg_color<W: Widget<Part = Part>>(
 /// (`colori-predefiniti.json`, coppie `lvgl`). Fase 2 del piano dei
 /// predefiniti espliciti (30-09-2026): prima molti widget non leggevano il
 /// campo affatto e restavano col tema di LVGL — il `data_log` bianco.
+/// `none` come il web lo intende: **niente riempimento**, non «il
+/// predefinito». SVG lo scrive così, e `parse_hex_color` non ha modo di
+/// distinguerlo da un colore scritto male — per quello serve guardare la
+/// parola prima di interpretarla.
+fn senza_riempimento(v: Option<&str>) -> bool {
+    v.map(str::trim).is_some_and(|s| s.eq_ignore_ascii_case("none"))
+}
+
 fn colore_campo(v: Option<&str>, tipo: &str, campo: &str) -> (u8, u8, u8) {
     v.and_then(parse_hex_color)
         .or_else(|| parse_hex_color(predefinito_lvgl(tipo, campo)))
@@ -2855,6 +2863,58 @@ fn create_child_obj(parent: &mut impl NativeObject) -> anyhow::Result<lvgl::Obj>
     }
 }
 
+/// L'immagine di sfondo di un rettangolo (27-10-2026).
+///
+/// Il server compone lo sfondo di una pagina **proprio così** — un rettangolo
+/// senza riempimento con l'immagine in `bg_image` (`sws-web/src/cornici.rs`,
+/// `sfondo_area`) — e qui non lo guardava nessuno: sul pannello compariva il
+/// colore di ripiego del rettangolo al posto della fotografia. Visto dal
+/// maintainer sul WP630 il 27-10-2026.
+///
+/// SVG e raster passano per la stessa strada: un PNG o un JPEG si avvolgono in
+/// un SVG (`svg_assets::svg_attorno_al_raster`) e il rasterizzatore non sa la
+/// differenza. È la metà raster della Q16, accesa con la decisione del
+/// maintainer dello stesso giorno.
+///
+/// Un fallimento non è fatale e non ferma la pagina: senza sfondo si vede il
+/// colore della pagina, che è molto meglio di una pagina che non compare.
+fn sfondo_del_rect(
+    screen: &mut lvgl::Obj,
+    obj: &SynopticObject,
+    base_url: &str,
+    rt_handle: &tokio::runtime::Handle,
+) -> Option<LiveBinding> {
+    let src = obj.bg_image.as_deref().map(str::trim).filter(|s| !s.is_empty())?;
+    // Niente il tetto di 500 px di `render_svg_raster`: uno sfondo di pagina è
+    // grande quanto la pagina. A 1280×800 il buffer del canvas è 4 MB, e vive
+    // quanto la pagina — uno solo, perché gli sfondi sono uno per pagina.
+    let w = obj.width.unwrap_or(100.0).round().clamp(1.0, 4096.0) as i16;
+    let h = obj.height.unwrap_or(50.0).round().clamp(1.0, 4096.0) as i16;
+    let fonte = crate::svg_assets::SvgSource::Url(src.to_string());
+    let byte = crate::svg_assets::bytes_for(base_url, rt_handle, &fonte)?;
+    let svg = match crate::svg_assets::tipo_raster(src) {
+        Some(mime) => crate::svg_assets::svg_attorno_al_raster(&byte, mime, w as u32, h as u32),
+        None => byte,
+    };
+    match disegna_svg_byte(
+        screen,
+        obj.x.unwrap_or(0.0).round() as i16,
+        obj.y.unwrap_or(0.0).round() as i16,
+        w,
+        h,
+        &svg,
+        false,
+        false,
+        crate::svg_raster::MAX_SIDE_SFONDO,
+    ) {
+        Ok(b) => Some(b),
+        Err(e) => {
+            eprintln!("[sfondo] {}: {e}", obj.id.as_deref().unwrap_or("?"));
+            None
+        }
+    }
+}
+
 fn render_rect(
     screen: &mut lvgl::Obj,
     obj: &SynopticObject,
@@ -2865,15 +2925,36 @@ fn render_rect(
     // Era `#555555` (web: `#555`), mentre un rettangolo piazzato nasce `#4a90d9`:
     // la tabella condivisa ha scelto ciò che si vede alla creazione. Come il
     // web, un `bg_color` vecchio fa da riempimento se `fill` manca.
-    let base = colore_campo(obj.fill.as_deref().or(obj.bg_color.as_deref()), "rect", "fill");
+    let riempimento = obj.fill.as_deref().or(obj.bg_color.as_deref());
+    let base = colore_campo(riempimento, "rect", "fill");
     let p = o.raw().map_err(|e| anyhow::anyhow!("raw: {e:?}"))?.as_ptr();
     // Fase 2 (30-09-2026): bordo, angoli e sfumatura, che il web disegnava e
     // qui mancavano. Il bordo tratteggiato non esiste in LVGL: resta pieno.
     unsafe {
-        stile::sfondo(p, base, stile::MAIN);
+        // `fill: "none"` vuol dire **trasparente**, non «il colore
+        // predefinito» (27-10-2026). `parse_hex_color("none")` torna `None` e
+        // `colore_campo` ripiegava sul predefinito del rettangolo: un
+        // rettangolo dichiarato senza riempimento si disegnava pieno.
+        //
+        // Non è un caso di scuola: il server compone l'immagine di sfondo di
+        // una pagina **come un rettangolo** con `fill: "none"` e `bg_image`
+        // (`sws-web/src/cornici.rs`, `sfondo_area`). Sul pannello quel
+        // rettangolo copriva la pagina intera di una tinta unita — visto dal
+        // maintainer sul WP630 il 27-10-2026, su «Finestre e porte».
+        if senza_riempimento(riempimento) {
+            stile::trasparente(p, stile::MAIN);
+        } else {
+            stile::sfondo(p, base, stile::MAIN);
+        }
         stile::raggio(p, obj.corner_radius.unwrap_or(0.0), stile::MAIN);
         stile::bordo(p, obj.stroke.as_deref().and_then(parse_hex_color), obj.stroke_width.unwrap_or(0.0), stile::MAIN);
-        if let Some(verso) = obj.fill_gradient.as_deref().filter(|v| !v.is_empty()) {
+        // Niente sfumatura su ciò che non ha riempimento: sarebbe un colore
+        // dipinto sopra il nulla.
+        if let Some(verso) = obj
+            .fill_gradient
+            .as_deref()
+            .filter(|v| !v.is_empty() && !senza_riempimento(riempimento))
+        {
             let chiaro = obj.gradient_light_color.as_deref().and_then(parse_hex_color).unwrap_or_else(|| schiarisci(base, true));
             let scuro = obj.gradient_dark_color.as_deref().and_then(parse_hex_color).unwrap_or_else(|| schiarisci(base, false));
             stile::sfumatura(p, verso, chiaro, scuro);
@@ -11052,7 +11133,7 @@ fn disegna_svg(
 ) -> anyhow::Result<LiveBinding> {
     let svg = crate::svg_assets::bytes_for(base_url, rt_handle, src)
         .ok_or_else(|| anyhow::anyhow!("SVG non disponibile"))?;
-    disegna_svg_byte(genitore, x, y, w, h, &svg, flip_h, flip_v)
+    disegna_svg_byte(genitore, x, y, w, h, &svg, flip_h, flip_v, crate::svg_raster::MAX_SIDE)
 }
 
 /// La seconda metà di `disegna_svg`: dai byte di un SVG al canvas. Separata il
@@ -11067,9 +11148,12 @@ fn disegna_svg_byte(
     svg: &[u8],
     flip_h: bool,
     flip_v: bool,
+    // Il lato massimo ammesso: `MAX_SIDE` per un'icona, `MAX_SIDE_SFONDO` per
+    // lo sfondo di una pagina, che è grande quanto lo schermo.
+    tetto: u32,
 ) -> anyhow::Result<LiveBinding> {
     let screen = genitore;
-    let raster = crate::svg_raster::rasterize(svg, w as u32, h as u32, flip_h, flip_v)
+    let raster = crate::svg_raster::rasterize_entro(svg, w as u32, h as u32, flip_h, flip_v, tetto)
         .ok_or_else(|| anyhow::anyhow!("SVG non rasterizzabile a {w}x{h}"))?;
     let mut buf = raster.to_lvgl_true_color_alpha();
     // Le dimensioni del canvas si prendono dalla bitmap prodotta, non dai `w`/`h`
@@ -12202,7 +12286,17 @@ fn dispatch_render(
     };
 
     let result = match obj_type {
-        "rect" => render_rect(screen, obj, styles),
+        "rect" => {
+            render_rect(screen, obj, styles)?;
+            // L'immagine di sfondo, sopra il rettangolo (ora trasparente) e
+            // sotto tutto quello che verrà creato dopo: in LVGL l'ordine di
+            // creazione è l'ordine di disegno, e lo sfondo di una pagina è il
+            // primo oggetto dell'elenco.
+            if let Some(b) = sfondo_del_rect(screen, obj, base_url, rt_handle) {
+                live.push(b);
+            }
+            Ok(())
+        }
         "ellipse" => render_ellipse(screen, obj, styles),
         "line" => render_line(screen, obj, styles),
         // Polilinea e poligono (26-09-2026): un SVG generato e rasterizzato
@@ -12210,7 +12304,7 @@ fn dispatch_render(
         // su un poligono concavo — una stella, una polilinea chiusa qualunque
         // — non ritorna mai (schermo nero, il caso della fiamma del `boiler`).
         "polyline" | "polygon" => match svg_forma(obj) {
-            Some(f) => disegna_svg_byte(screen, f.x, f.y, f.w, f.h, f.svg.as_bytes(), false, false).map(|b| live.push(b)),
+            Some(f) => disegna_svg_byte(screen, f.x, f.y, f.w, f.h, f.svg.as_bytes(), false, false, crate::svg_raster::MAX_SIDE).map(|b| live.push(b)),
             None => Ok(()),
         },
         "button" => render_button(screen, obj, styles, tag_tx, nav_tx, live),
@@ -15185,6 +15279,22 @@ mod binding_tests {
         assert_eq!(colore_text_list(Some(&voce), None, None), Some((0x22, 0xc5, 0x5e)));
         let senza = TextListEntry { color: None, ..voce };
         assert_eq!(colore_text_list(Some(&senza), Some("#123456"), None), Some((0x12, 0x34, 0x56)));
+    }
+
+    // ── `none` non è un colore (27-10-2026) ─────────────────────────────────
+
+    #[test]
+    fn none_vuol_dire_niente_riempimento() {
+        assert!(senza_riempimento(Some("none")));
+        assert!(senza_riempimento(Some(" None ")), "spazi e maiuscole come sul web");
+        assert!(!senza_riempimento(Some("#4a90d9")));
+        assert!(!senza_riempimento(None), "campo assente = predefinito, non trasparente");
+        // La trappola che il difetto ha scoperto: per `parse_hex_color` «none»
+        // e una stringa scritta male sono la stessa cosa, e `colore_campo`
+        // ripiega sul predefinito. Senza guardare la parola, un rettangolo
+        // senza riempimento si disegna pieno.
+        assert_eq!(parse_hex_color("none"), None);
+        assert_eq!(colore_campo(Some("none"), "rect", "fill"), colore_campo(None, "rect", "fill"));
     }
 
     // ── Orientamento dello slider (27-10-2026) ──────────────────────────────

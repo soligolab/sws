@@ -79,6 +79,27 @@ impl Raster {
 /// un'icona che non si vede e un runtime che viene ucciso dal kernel.
 pub const MAX_SIDE: u32 = 512;
 
+/// Il tetto per uno **sfondo di pagina** (27-10-2026).
+///
+/// Più alto perché lì la misura non la dichiara l'SVG: la dichiara la pagina,
+/// e una pagina è grande quanto lo schermo. 512 andava bene per un'icona e
+/// tagliava via ogni sfondo.
+///
+/// **Non è il tetto dell'immagine caricata**, che può essere grande quanto
+/// vuole: una fotografia 4K messa su una pagina 1920×1080 la rimpicciolisce
+/// resvg mentre disegna, perché l'involucro SVG è grande quanto la pagina e
+/// l'immagine ci sta dentro con «copri». Il tetto riguarda il **riquadro
+/// disegnato**, cioè la pagina.
+///
+/// 4096 e non 2048: il più largo dei formati che l'editor offre è
+/// 21:9 UltraWide, **2560**×1080 (`pageLayout.ts`), e con 2048 quello sfondo
+/// sarebbe sparito in silenzio. 4096 copre anche una pagina 4K
+/// (3840×2160), che è dove la gente sta andando. Il prezzo in memoria si
+/// legge: a 1280×800 sono 3 MB, a 1920×1080 6,2, a 3840×2160 **24,9** —
+/// bitmap RGB565 più alfa, una per pagina. Chi disegna una pagina 4K ha uno
+/// schermo 4K, e un pannello così ha la RAM per reggerla.
+pub const MAX_SIDE_SFONDO: u32 = 4096;
+
 /// `base` con lo specchio applicato **dopo**, attorno al riquadro `w`×`h`.
 ///
 /// # Perché lo specchio sta qui e non sui pixel
@@ -120,8 +141,21 @@ fn specchia(
 /// scala: chi chiama disegna il proprio segnaposto, come già fa per un simbolo
 /// sconosciuto. Un'icona mancante è un difetto visibile; un runtime che muore
 /// per una bitmap assurda no.
+/// Come [`rasterize_entro`] col tetto delle icone, per le **prove**: ripetere
+/// `MAX_SIDE` a ogni riga di test non aggiungerebbe niente.
+///
+/// Nel codice vero il tetto lo dichiara sempre chi chiama, e non è pedanteria:
+/// il 27-10-2026 lo sfondo di una pagina spariva in silenzio perché ereditava
+/// il tetto di un'icona, 512 px, senza che nessuna riga lo dicesse.
+#[cfg(test)]
 pub fn rasterize(svg: &[u8], w: u32, h: u32, flip_h: bool, flip_v: bool) -> Option<Raster> {
-    if w == 0 || h == 0 || w > MAX_SIDE || h > MAX_SIDE {
+    rasterize_entro(svg, w, h, flip_h, flip_v, MAX_SIDE)
+}
+
+/// Come [`rasterize`], ma col tetto dichiarato da chi chiama: serve allo
+/// sfondo di una pagina, dove la misura è la pagina e non una scelta dell'SVG.
+pub fn rasterize_entro(svg: &[u8], w: u32, h: u32, flip_h: bool, flip_v: bool, tetto: u32) -> Option<Raster> {
+    if w == 0 || h == 0 || w > tetto || h > tetto {
         return None;
     }
     let opt = resvg::usvg::Options::default();
@@ -415,5 +449,60 @@ mod tests {
             // Un disegno sottile (il traliccio, la curva) sta sopra il 5 %.
             assert!(pieni > 96 * 96 / 20, "{}: quasi vuoto ({pieni} pixel su {})", s.id, 96 * 96);
         }
+    }
+}
+
+#[cfg(test)]
+mod prove_raster_q16 {
+    /// La prova che la meta' raster della Q16 e' davvero accesa (27-10-2026).
+    ///
+    /// Non controlla un numero di pixel: controlla che un **JPEG vero**, dopo
+    /// essere stato avvolto in un SVG, esca come immagine e non come nulla. Se
+    /// la feature `raster-images` di resvg si spegnesse — un `default-features`
+    /// rimesso, un aggiornamento che cambia i nomi delle feature — `usvg`
+    /// lascerebbe l'`<image>` vuoto e la pagina tornerebbe senza sfondo, in
+    /// silenzio. E' successo esattamente cosi' per mesi, solo che allora la
+    /// feature non c'era mai stata.
+    /// Il formato più largo che l'editor offre è 21:9 UltraWide, 2560×1080
+    /// (`pageLayout.ts`). Con un tetto a 2048 il suo sfondo sarebbe sparito
+    /// senza che niente lo dicesse: è il genere di difetto che si scopre un
+    /// mese dopo, su un pannello di un cliente.
+    #[test]
+    fn il_tetto_dello_sfondo_copre_i_formati_che_offriamo() {
+        let svg = br##"<svg xmlns="http://www.w3.org/2000/svg" width="10" height="10"><rect width="10" height="10" fill="#123456"/></svg>"##;
+        for (w, h, cosa) in [
+            (1280u32, 800u32, "16:10, i pannelli"),
+            (1920, 1080, "Full HD"),
+            (2560, 1080, "21:9 UltraWide"),
+            (3840, 2160, "una pagina 4K"),
+        ] {
+            assert!(
+                super::rasterize_entro(svg, w, h, false, false, super::MAX_SIDE_SFONDO).is_some(),
+                "{cosa} ({w}×{h}) non passa il tetto dello sfondo"
+            );
+        }
+        // Il tetto però esiste: oltre, si rinuncia invece di allocare a caso.
+        assert!(super::rasterize_entro(svg, 5000, 100, false, false, super::MAX_SIDE_SFONDO).is_none());
+    }
+
+    #[test]
+    fn un_jpeg_avvolto_in_un_svg_si_disegna() {
+        let jpeg = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../../catalogo/dispositivi/pixsys/atr244.jpg");
+        let byte = match std::fs::read(&jpeg) {
+            Ok(b) => b,
+            // Il catalogo potrebbe non esserci in un albero ridotto: meglio
+            // saltare che inventare un fallimento.
+            Err(_) => return,
+        };
+        let svg = crate::svg_assets::svg_attorno_al_raster(&byte, "image/jpeg", 64, 48);
+        let r = super::rasterize(&svg, 64, 48, false, false).expect("il JPEG non si e' rasterizzato");
+        assert_eq!((r.width, r.height), (64, 48));
+        let opachi = r.pixels.chunks_exact(4).filter(|px| px[3] > 0).count();
+        assert!(
+            opachi > 64 * 48 / 2,
+            "«copri» riempie il riquadro: solo {opachi} pixel su {} sono opachi — la feature raster di resvg e' spenta?",
+            64 * 48
+        );
     }
 }

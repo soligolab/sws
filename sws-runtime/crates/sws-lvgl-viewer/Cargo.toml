@@ -41,7 +41,21 @@ sdl2 = "0.38"
 # non servono, perché i simboli del catalogo sono forme geometriche senza
 # testo. Se un giorno servisse un SVG con del testo, il limite è dichiarato e
 # la feature si riaccende sapendo cosa costa.
-resvg = { version = "0.45", default-features = false }
+#
+# `raster-images` acceso il 27-10-2026, con la decisione del maintainer: e' la
+# meta' raster della Q16, rimasta aperta dal 25-08 «in attesa di un bisogno
+# vero». Il bisogno e' arrivato — un'immagine di sfondo JPEG su una pagina, e
+# sul pannello si vedeva una tinta unita. La scheda immaginava di accendere i
+# decoder C di LVGL (`LV_USE_PNG`/`SJPG`): una dipendenza C nuova, `lv_conf.h`
+# da toccare, le pipeline da riverificare. Questa strada no: la feature tira
+# dentro `zune-jpeg`, `image-webp` e `gif`, tutto Rust puro (il PNG lo decodifica
+# gia' tiny-skia), e il raster passa per il rasterizzatore che c'e' gia',
+# avvolto in un SVG di due righe.
+resvg = { version = "0.45", default-features = false, features = ["raster-images"] }
+
+# L'immagine raster diventa un `data:` dentro l'SVG che la avvolge: stessa 0.22
+# che usa gia' sws-web, nessun peso nuovo nell'albero.
+base64 = "0.22"
 
 
 # Riuso diretto dei tipi wire già condivisi da tutto il runtime (TagValue è

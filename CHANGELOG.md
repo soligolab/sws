@@ -13,6 +13,20 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 
 ### Fixed
 
+- **Sul pannello LVGL l'immagine di sfondo di una pagina diventava una tinta unita**, e i formati raster non si
+  disegnavano affatto. Tre cose in una. (1) `fill: "none"` ora vuol dire **trasparente**: `parse_hex_color("none")`
+  torna `None` e `colore_campo` ripiegava sul predefinito del rettangolo — e il server compone lo sfondo di una
+  pagina proprio come un rettangolo senza riempimento con `bg_image` (`sws-web/src/cornici.rs`, `sfondo_area`),
+  quindi quel rettangolo copriva la pagina intera. (2) `render_rect` adesso disegna `bg_image`, con «copri»
+  (`xMidYMid slice`) come sul web. (3) **La metà raster della Q16 è accesa**, con la decisione del maintainer del
+  27-10-2026: feature `raster-images` di resvg (`zune-jpeg`, `image-webp`, `gif` — tutto Rust puro, il PNG lo fa già
+  tiny-skia), e il raster passa per il rasterizzatore che c'era già, avvolto in un SVG con un `data:` dentro. La
+  scheda Q16 immaginava i decoder C di LVGL: questa strada non tocca né `lv_conf.h` né le pipeline di build.
+  Il tetto di 512 px per lato resta per le icone, dove la misura la dichiara l'SVG; per lo sfondo di una pagina la
+  dichiara la pagina, e il tetto è **4096** — con 2048 il formato 21:9 UltraWide (2560×1080), che l'editor offre,
+  sarebbe sparito in silenzio. L'immagine caricata può essere grande quanto vuole: una 4K su una pagina Full HD la
+  rimpicciolisce resvg mentre disegna.
+
 - **Due nomi di thread erano troncati dal kernel**, e nessuno poteva accorgersene: `TASK_COMM_LEN` è 16 col
   terminatore, quindi quindici caratteri utili, e oltre Linux taglia in silenzio. Visto in `htop` sul WP630 il
   27-10-2026 subito dopo aver dato un nome a ogni lavoro: `sws-aggiornamento` (17) compariva `sws-aggiornamen`, e
