@@ -37,6 +37,8 @@ versioni:
     voci:
       - it: "Nel cloud, un progetto lasciato aperto adesso passa alla versione nuova quando il gateway si aggiorna, invece di restare indietro."
         en: "In the cloud, a project left open now moves to the new version when the gateway updates, instead of staying behind."
+      - it: "Nel cloud l'immagine di sfondo finisce davvero nel PNG dell'immagine di boot, invece di sparire con l'avviso «indirizzo esterno»."
+        en: "In the cloud a background image really ends up in the boot image PNG, instead of vanishing with the «external address» warning."
   - versione: "2.23.3"
     voci:
       - it: "Sul pannello LVGL l'immagine di sfondo di una pagina adesso si vede, JPEG e PNG compresi: prima al suo posto compariva una tinta unita."

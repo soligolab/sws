@@ -1,6 +1,13 @@
 // La rasterizzazione delle pagine di boot (T-72 F4): le due trasformazioni pure
 // che rendono un SVG caricabile in un `<img>`. La resa vera si guarda a occhio.
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+// Il `Blob` dietro un `blob:` che abbiamo creato noi: nella prova lo finge
+// questo mock, nell'app lo tiene `ImmagineSvg` quando scarica l'immagine.
+vi.mock("@/canvas/ImmagineSvg", async (originale) => ({
+  ...(await originale<typeof import("@/canvas/ImmagineSvg")>()),
+  blobDi: (url: string) => (url === "blob:nostro" ? new Blob(["foto"], { type: "image/jpeg" }) : undefined),
+}));
+
 import { immagineComeDataUri, incorporaImmagini, neutralizzaNonStatico, righeDiTesto, sostituisciVarBrand, spezzaTestiACapo } from "@/boot/rasterizza";
 import type { SynopticPage } from "@/types";
 
@@ -144,6 +151,23 @@ describe("quali immagini si incorporano nel PNG", () => {
   });
   afterEach(() => { vi.unstubAllGlobals(); });
 
+  /** Il difetto del 27-10-2026, trovato nella console del maintainer su
+   *  `sws.soligo.net`: `fetch("blob:…")` **non si puo' fare**. La Content
+   *  Security Policy del runtime elenca in `connect-src` `'self' http: https:
+   *  ws: wss:` e non `blob:`, quindi il browser rifiuta la lettura —
+   *  «Refused to connect because it violates the document's Content Security
+   *  Policy» — e l'immagine spariva dal PNG con l'avviso «indirizzo esterno».
+   *  Disegnarla si poteva: quello passa da `img-src`, un'altra direttiva.
+   *
+   *  Quindi un blob **nostro** si rilegge dalla memoria, e la rete non si
+   *  tocca. Il `toHaveLength(0)` e' il cuore della prova: se un giorno
+   *  tornasse un `fetch`, nel cloud l'immagine sparirebbe di nuovo. */
+  it("un `blob:` nostro si rilegge dalla memoria, senza toccare la rete", async () => {
+    const r = await immagineComeDataUri("blob:nostro");
+    expect(r).toMatch(/^data:image\/jpeg/);
+    expect(chiamate).toHaveLength(0);
+  });
+
   it("un `blob:` si rilegge **senza credenziali**: e' gia' roba del browser", async () => {
     const r = await immagineComeDataUri("blob:http://localhost/abc");
     expect(r).toMatch(/^data:/);
@@ -160,6 +184,21 @@ describe("quali immagini si incorporano nel PNG", () => {
   it("un'immagine del progetto (`/api/…`) passa dalla sessione dell'IDE", async () => {
     expect(await immagineComeDataUri("/api/project/images/logo.png")).toMatch(/^data:/);
     expect(chiamate[0].url).toContain("/api/project/images/logo.png");
+  });
+
+  /** `no-auth` non e' un gettone: e' il segnaposto di un progetto senza
+   *  utenti, e mandarlo come `Bearer` fa rispondere 401 — l'immagine sarebbe
+   *  finita fuori dal PNG. `scaricaImmagine` lo saltava gia'; qui no, e le due
+   *  funzioni scaricano la stessa immagine (27-10-2026). */
+  it("il segnaposto `no-auth` non si manda come gettone", async () => {
+    const { setAuthToken } = await import("@/api/client");
+    setAuthToken("no-auth");
+    try {
+      expect(await immagineComeDataUri("/api/project/images/logo.png")).toMatch(/^data:/);
+      expect(chiamate[0].auth).toBeNull();
+    } finally {
+      setAuthToken(null);
+    }
   });
 
   it("**un altro sito resta fuori**, ed e' una scelta", async () => {

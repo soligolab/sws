@@ -18,6 +18,26 @@ import { prefissoGateway } from "@/api/prefisso";
 
 const pronte = new Map<string, string>();
 const inVolo = new Map<string, Promise<string | null>>();
+/** Il `Blob` dietro ogni `blob:` che abbiamo creato, tenuto **in memoria**.
+ *
+ *  Serve a chi quell'immagine deve rileggerla invece che solo disegnarla — il
+ *  PNG di boot. E non è un'ottimizzazione: un `fetch("blob:…")` nel cloud **non
+ *  si può fare**, lo rifiuta la Content Security Policy del runtime, che in
+ *  `connect-src` elenca `'self' http: https: ws: wss:` e non `blob:`
+ *  (`sws-web/src/sicurezza_http.rs`). Il browser lo disegna volentieri — `img-src`
+ *  è un'altra direttiva — ma leggerlo via rete no, e il messaggio arriva solo
+ *  nella console: «Refused to connect because it violates the document's
+ *  Content Security Policy».
+ *
+ *  Trovato il 27-10-2026 sul PNG di boot nel cloud, con la console del
+ *  maintainer. L'alternativa era allargare la CSP a `blob:`; tenersi il Blob
+ *  costa meno, non tocca la politica di sicurezza, e risparmia pure un giro. */
+const corpi = new Map<string, Blob>();
+
+/** Il `Blob` dietro un `blob:` che abbiamo creato noi, se ce l'abbiamo ancora. */
+export function blobDi(url: string): Blob | undefined {
+  return corpi.get(url);
+}
 
 /** Quest'immagine va scaricata con la sessione invece che lasciata al browser? */
 export function serveScaricare(href: string | undefined): href is string {
@@ -39,6 +59,7 @@ export function scaricaImmagine(href: string): Promise<string | null> {
       if (!b) return null;
       const url = URL.createObjectURL(b);
       pronte.set(href, url);
+      corpi.set(url, b);
       return url;
     })
     .catch(() => null)
@@ -50,7 +71,10 @@ export function scaricaImmagine(href: string): Promise<string | null> {
 /** Un'immagine ricaricata con lo stesso nome: la copia in memoria non vale più. */
 export function dimenticaImmagine(href: string): void {
   const u = pronte.get(href);
-  if (u) URL.revokeObjectURL(u);
+  if (u) {
+    URL.revokeObjectURL(u);
+    corpi.delete(u);
+  }
   pronte.delete(href);
 }
 

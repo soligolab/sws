@@ -24,7 +24,7 @@ import { LinguaContenutiProvider } from "@/i18n/linguaContenuti";
 import { resolveMsg } from "@/i18n/projectI18n";
 import { useAppStore } from "@/store";
 import { oggettoSfondoArea } from "@/cornici/modello";
-import { scaricaImmagine, serveScaricare } from "@/canvas/ImmagineSvg";
+import { blobDi, scaricaImmagine, serveScaricare } from "@/canvas/ImmagineSvg";
 import type { CustomSymbol, SynopticObject, SynopticPage } from "@/types";
 
 /** Tetto del PNG: gemello di `MAX_BOOT_PNG_BYTES` in `sws-web/src/boot.rs`. */
@@ -181,16 +181,27 @@ function blobComeDataUri(blob: Blob): Promise<string> {
 export async function immagineComeDataUri(href: string): Promise<string | null> {
   if (/^https?:\/\//i.test(href)) return null;
   if (href.startsWith("data:")) return href;
+  // Un `blob:` che abbiamo creato noi si rilegge **dalla memoria**, non dalla
+  // rete (27-10-2026): la Content Security Policy del runtime non ha `blob:`
+  // in `connect-src`, quindi `fetch("blob:…")` viene rifiutato dal browser e
+  // l'immagine spariva dal PNG con l'avviso «indirizzo esterno». Il browser la
+  // disegnava, perché disegnare passa da `img-src`; rileggerla no.
+  const corpo = blobDi(href);
+  if (corpo) return await blobComeDataUri(corpo);
   if (href.startsWith("/api/")) {
     const headers = new Headers();
     const tok = getAuthToken();
-    if (tok) headers.set("Authorization", `Bearer ${tok}`);
+    // `no-auth` non è un gettone: è il segnaposto di un progetto senza utenti,
+    // e mandarlo come `Bearer` fa rispondere 401. `scaricaImmagine` lo saltava
+    // già; qui no, e le due funzioni scaricano la stessa immagine.
+    if (tok && tok !== "no-auth") headers.set("Authorization", `Bearer ${tok}`);
     const res = await fetch(`${getBaseUrl()}${href}`, { headers });
     if (!res.ok) return null;
     return await blobComeDataUri(await res.blob());
   }
-  // `blob:` e percorsi della stessa origine: nessuna credenziale, è l'URL che
-  // il browser ha già usato lui.
+  // Percorsi della stessa origine: nessuna credenziale, è l'URL che il browser
+  // ha già usato lui. Un `blob:` arriva qui solo se non è nostro — e allora la
+  // CSP lo fermerà, e si rinuncia invece di piantarsi.
   if (!href.startsWith("blob:") && !href.startsWith("/")) return null;
   try {
     const res = await fetch(href);

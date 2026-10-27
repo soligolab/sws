@@ -13,6 +13,17 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 
 ### Fixed
 
+- **Nel cloud l'immagine di sfondo non finiva nel PNG di boot**, con l'avviso «1 immagine con indirizzo esterno non
+  incorporabile». La correzione del 26-10 leggeva i `blob:` con un `fetch`, e **un `fetch` di un `blob:` il browser lo
+  rifiuta**: la Content Security Policy del runtime elenca in `connect-src` `'self' http: https: ws: wss:` e non
+  `blob:` (`sws-web/src/sicurezza_http.rs`). Disegnarlo si poteva — quello passa da `img-src` — rileggerlo no, e il
+  motivo compariva solo nella console del browser. Ora `ImmagineSvg` tiene in memoria il `Blob` dietro ogni `blob:`
+  che crea (`blobDi`), e `immagineComeDataUri` lo legge da lì senza toccare la rete: non si allarga la CSP e si
+  risparmia un giro. Trovato il 27-10-2026 con la console del maintainer su `sws.soligo.net`.
+- **`no-auth` non si manda più come gettone**: è il segnaposto di un progetto senza utenti, e `immagineComeDataUri`
+  lo spediva come `Bearer no-auth` ottenendo un 401 — l'immagine finiva fuori dal PNG. `scaricaImmagine` lo saltava
+  già, e le due funzioni scaricano la stessa immagine.
+
 - **Nel cloud un progetto lasciato aperto non vedeva mai un aggiornamento del gateway**: all'avvio,
   `Regia::riadotta` (`sws-web/src/gateway/progetti.rs`) riadottava **ogni** container di progetto acceso senza
   confrontarne l'immagine con `--gateway-immagine`, e il login successivo riusava quello che c'era. CasaDomotica è
