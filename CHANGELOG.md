@@ -11,6 +11,8 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 
 ## [Unreleased]
 
+## [2.23.2] — 2026-10-27
+
 ### Added
 
 - **Dove se ne va il tempo** (piano `docs/archive/2026-10-26-dove-se-ne-va-il-tempo.md`): `sws_core::prestazioni`

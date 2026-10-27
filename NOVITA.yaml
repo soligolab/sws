@@ -33,7 +33,7 @@
 # successivo.
 
 versioni:
-  - versione: "2.23.1"
+  - versione: "2.23.2"
     voci:
       - it: "Un tubo agganciato a un oggetto che scorre lungo un percorso non resta più indietro mentre si muove: lo segue nello stesso fotogramma."
         en: "A pipe attached to an object sliding along a path no longer lags behind while it moves: it follows within the same frame."
