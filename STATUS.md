@@ -21,10 +21,6 @@ feat/dove-se-ne-va-il-tempo              la misura
  └─ fix/tubo-stesso-fotogramma           il tubo nello stesso fotogramma
      └─ fix/gesture-del-browser-sugli-slider   gesture e orientamento
 ```
-main (9d8720fe, il piano)
- └─ feat/dove-se-ne-va-il-tempo   ed9d47b5 misura · 379db3ce vps
-     └─ fix/tubo-stesso-fotogramma 195e8c72 tubo · 8abb2db1 vps · questo STATUS   ← pushato
-```
 
 - **Il tubo che resta indietro: CORRETTO e confermato dal maintainer sul TC620** («sullo schermo ora si muove
   perfettamente»). Il TC620 mostra il **viewer web** (Chromium kiosk), non LVGL: la diagnosi qui sotto (canvas SVG su
