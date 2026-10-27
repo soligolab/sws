@@ -94,8 +94,3 @@ Annoto di seguito, uno per punto, le cose che devono essere verificate e trasfor
   Sul percorso DRM c'e' un secondo sospetto gia' scritto nel piano «dove se ne va il tempo»:
   flush_rgb888 riscrive il buffer un byte alla volta.
 
-- I due registratori dello storico — l'anello in RAM (sws-historian/src/lib.rs:262) e il datastore
-  su disco (registry.rs:398) — si misurano tutti e due col nome «storico», quindi nella pagina
-  Prestazioni sono una riga sola e non si sa di chi sia il massimo di 115 ms misurato sul WP630 il
-  27-10-2026. Vanno separati in due nomi. E' l'unica cosa del piano dei thread che non ha bisogno
-  di nessuna decisione.

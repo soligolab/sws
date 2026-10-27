@@ -26,6 +26,19 @@ const TITOLO: CSSProperties = {
 const NOTA: CSSProperties = { fontSize: 11, color: "var(--brand-text-subtle, #64748b)", lineHeight: 1.4 };
 const NUMERO: CSSProperties = { ...S.td, textAlign: "right", fontVariantNumeric: "tabular-nums" };
 
+/** L'etichetta di un lavoro del runtime.
+ *
+ *  Una sorgente si nomina col **thread su cui gira**, non solo col proprio id:
+ *  `sorgente.modbus.linea1` diventa `sws-modbus · linea1`. È lo stesso nome che
+ *  si legge in `htop` (27-10-2026, richiesta del maintainer: «lo stesso nome
+ *  poi lo riporterei in prestazioni»), così il numero di qui e la riga di là
+ *  parlano della stessa cosa. Tutto il resto resta com'è, e il nome crudo
+ *  rimane nel `title`. */
+export function etichettaLavoro(nome: string): string {
+  const m = /^sorgente\.([a-z0-9]+)\.(.+)$/.exec(nome);
+  return m ? `sws-${m[1]} \u00b7 ${m[2]}` : nome;
+}
+
 /** Un fotogramma a 60 al secondo: la misura di tutte le barre del viewer. */
 const FOTOGRAMMA_MS = 16;
 
@@ -174,7 +187,7 @@ function Runtime({ dati }: { dati: Prestazioni }) {
           <tbody>
             {r.voci.map((x) => (
               <tr key={x.nome} data-testid={`lavoro-${x.nome}`}>
-                <td style={{ ...S.td, fontFamily: "monospace", fontSize: 12 }}>{x.nome}</td>
+                <td style={{ ...S.td, fontFamily: "monospace", fontSize: 12 }} title={x.nome}>{etichettaLavoro(x.nome)}</td>
                 <td style={NUMERO}>{r.intervallo_s > 0 ? (x.n / r.intervallo_s).toFixed(1) : "—"}</td>
                 <td style={NUMERO}>{ms(x.somma_ms / Math.max(1, x.n))}</td>
                 <td style={NUMERO}>{ms(p95(x))}</td>

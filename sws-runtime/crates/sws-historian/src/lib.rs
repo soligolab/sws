@@ -271,7 +271,7 @@ impl Historian {
                         for (id, st) in tag_db.espandi_foglie(&update).await {
                             self.record(&id, &st).await;
                         }
-                        sws_core::prestazioni::registra("storico", t0.elapsed());
+                        sws_core::prestazioni::registra("storico.anello", t0.elapsed());
                     }
                     Err(tokio::sync::broadcast::error::RecvError::Lagged(n)) => {
                         warn!("historian recorder lagged by {n}");
@@ -430,6 +430,7 @@ mod tests {
                 .await;
             h.record("t", &s).await;
         }
+        store.svuota().await;
         let all = h.query("t", None, None).await;
         assert_eq!(all.len(), 6);
         assert_eq!(all[0].ts_ms, 0);

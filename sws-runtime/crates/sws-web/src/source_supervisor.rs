@@ -356,60 +356,67 @@ impl SourceSupervisor {
         let cancel_for_task = cancel.clone();
         let id_for_log = id.clone();
         let stato = self.stato.clone();
+        // Il thread del protocollo (27-10-2026, piano
+        // `docs/plans/2026-10-27-thread-con-un-nome-e-una-priorita.md`): tutte
+        // le sorgenti dello stesso tipo girano sullo stesso, che porta il suo
+        // nome. In `htop` si legge `sws-modbus` invece di `tokio-rt-worker`, e
+        // la CPU che si vede lì è davvero quella di Modbus. Priorità normale:
+        // una sorgente non è un lavoro di fondo.
+        let motore = sws_core::motori::motore(nome_motore(&def), 0);
         let handle = match def {
             SourceDef::ModbusTcp(cfg) => {
                 info!(source = %id_for_log, "starting Modbus TCP task");
-                tokio::spawn(async move {
+                motore.spawn(async move {
                     sws_plugin_modbus::run(cfg, db, bus, stato, cancel_for_task).await;
                 })
             }
             SourceDef::ModbusRtu(cfg) => {
                 info!(source = %id_for_log, device = %cfg.device, "starting Modbus RTU task");
-                tokio::spawn(async move {
+                motore.spawn(async move {
                     sws_plugin_modbus::run_rtu(cfg, db, bus, stato, cancel_for_task).await;
                 })
             }
             SourceDef::Mqtt(cfg) => {
                 info!(source = %id_for_log, "starting MQTT task");
                 let mqtt_certificati = self.mqtt_certificati.clone();
-                tokio::spawn(async move {
+                motore.spawn(async move {
                     sws_plugin_mqtt::run(cfg, db, bus, cancel_for_task, mqtt_certificati).await;
                 })
             }
             SourceDef::OpcUaServer(cfg) => {
                 info!(source = %id_for_log, port = cfg.port, "starting OPC-UA server task");
-                tokio::spawn(async move {
+                motore.spawn(async move {
                     sws_plugin_opcua::run_server(cfg, db, bus, cancel_for_task).await;
                 })
             }
             SourceDef::OpcUaClient(cfg) => {
                 info!(source = %id_for_log, "starting OPC-UA client task");
                 let pki = self.opcua_pki_root.read().await.clone();
-                tokio::spawn(async move {
+                motore.spawn(async move {
                     sws_plugin_opcua::run(cfg, db, bus, pki, cancel_for_task).await;
                 })
             }
             SourceDef::HomeAssistant(cfg) => {
                 info!(source = %id_for_log, url = %cfg.url, "starting HomeAssistant task");
-                tokio::spawn(async move {
+                motore.spawn(async move {
                     sws_plugin_homeassistant::run(cfg, db, bus, cancel_for_task).await;
                 })
             }
             SourceDef::S7(cfg) => {
                 info!(source = %id_for_log, ip = %cfg.ip, "starting S7 task");
-                tokio::spawn(async move {
+                motore.spawn(async move {
                     sws_plugin_s7::run(cfg, db, bus, cancel_for_task).await;
                 })
             }
             SourceDef::EnIp(cfg) => {
                 info!(source = %id_for_log, ip = %cfg.ip, "starting EtherNet/IP task");
-                tokio::spawn(async move {
+                motore.spawn(async move {
                     sws_plugin_enip::run(cfg, db, bus, cancel_for_task).await;
                 })
             }
             SourceDef::Host(cfg) => {
                 info!(source = %id_for_log, "starting Host metrics task");
-                tokio::spawn(async move {
+                motore.spawn(async move {
                     sws_plugin_host::run(cfg, db, cancel_for_task).await;
                 })
             }
@@ -692,5 +699,25 @@ mod tests_q33 {
             "lo Stop deve spegnere anche a flag già abbassato"
         );
         assert_eq!(s.running_count().await, 0);
+    }
+}
+
+/// Il nome del thread su cui gira un protocollo (27-10-2026). Dice il **tipo**
+/// e non la sorgente: su Linux un nome di thread sta in quindici caratteri, e
+/// infilarci anche l'id renderebbe indistinguibili due sorgenti con lo stesso
+/// prefisso. Quale sorgente consumi cosa lo dice la pagina Prestazioni, che le
+/// misura una per una (`sorgente.<id>`).
+///
+/// Le due varianti di Modbus condividono il thread perché condividono il
+/// plugin; lo stesso per client e server OPC-UA.
+fn nome_motore(def: &SourceDef) -> &'static str {
+    match def {
+        SourceDef::ModbusTcp(_) | SourceDef::ModbusRtu(_) => "sws-modbus",
+        SourceDef::Mqtt(_) => "sws-mqtt",
+        SourceDef::OpcUaServer(_) | SourceDef::OpcUaClient(_) => "sws-opcua",
+        SourceDef::HomeAssistant(_) => "sws-ha",
+        SourceDef::S7(_) => "sws-s7",
+        SourceDef::EnIp(_) => "sws-enip",
+        SourceDef::Host(_) => "sws-host",
     }
 }

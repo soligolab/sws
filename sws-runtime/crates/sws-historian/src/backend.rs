@@ -111,6 +111,16 @@ impl DatastoreBackend {
         }
     }
 
+    /// Scrive subito quello che è in coda, e torna quanti campioni. Solo
+    /// SQLite accoda (27-10-2026); gli altri scrivono quando glielo si chiede,
+    /// quindi non hanno niente da svuotare.
+    pub async fn svuota(&self) -> usize {
+        match self {
+            DatastoreBackend::Sqlite(b) => b.svuota().await,
+            DatastoreBackend::Postgres(_) | DatastoreBackend::Odbc(_) => 0,
+        }
+    }
+
     pub async fn query(
         &self,
         tag_id: &str,

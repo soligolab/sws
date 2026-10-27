@@ -391,6 +391,18 @@ impl DatastoreRegistry {
         self.chiuso.store(true, Ordering::SeqCst);
     }
 
+    /// Scrive subito i campioni in coda su tutti i datastore che ne tengono
+    /// una, e torna quanti ne ha scritti (27-10-2026). Va chiamata **prima**
+    /// di `chiudi` quando il progetto cambia, e allo spegnimento ordinato: la
+    /// coda vive nello store, e nessuno la svuota al posto nostro.
+    pub async fn svuota(&self) -> usize {
+        let mut quanti = 0;
+        for (_, b) in &self.backends {
+            quanti += b.svuota().await;
+        }
+        quanti
+    }
+
     /// Spawn a recorder task that subscribes to `tag_db` and routes every update.
     ///
     /// Una volta sola per registro: una seconda chiamata non avvia niente. Il
@@ -424,7 +436,7 @@ impl DatastoreRegistry {
                             };
                             self.record(&id, &sample).await;
                         }
-                        sws_core::prestazioni::registra("storico", t0.elapsed());
+                        sws_core::prestazioni::registra("storico.coda", t0.elapsed());
                     }
                     Err(tokio::sync::broadcast::error::RecvError::Lagged(n)) => {
                         warn!("datastore recorder lagged by {n}");
@@ -506,7 +518,12 @@ datastores:
         let secondo = reg.clone().spawn_recorder(db.clone());
         secondo.await.unwrap(); // il secondo finisce subito: non ha avviato niente
         let store = reg.primary_sqlite_store().unwrap();
-        let conta = || async { store.total_samples().await.unwrap() };
+        // Dal 27-10-2026 i campioni aspettano in coda: qui li si vuole contare
+        // subito, quindi ogni conteggio chiede prima la scrittura.
+        let conta = || async {
+            store.svuota().await;
+            store.total_samples().await.unwrap()
+        };
 
         db.set("piatto".into(), sws_core::TagValue::Float(1.0), sws_core::TagQuality::Good).await;
         tokio::time::sleep(std::time::Duration::from_millis(150)).await;

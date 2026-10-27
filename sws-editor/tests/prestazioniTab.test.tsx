@@ -10,7 +10,7 @@ vi.mock("@/api/client", async () => {
   return { ...actual, api: { ...actual.api, prestazioni } };
 });
 
-import { PrestazioniTab, p95 } from "../src/config/schede/PrestazioniTab";
+import { PrestazioniTab, p95, etichettaLavoro } from "../src/config/schede/PrestazioniTab";
 import { useAppStore } from "../src/store";
 import type { Prestazioni, VocePrestazioni } from "../src/api/client";
 
@@ -62,5 +62,20 @@ describe("Istanza → Prestazioni", () => {
     expect(p95(voce("x", 100, 0, 40, [0, 95, 0, 0, 0, 0, 5, 0]))).toBe(2);
     expect(p95(voce("x", 1, 90, 90, [0, 0, 0, 0, 0, 0, 0, 1]))).toBe(90);
     expect(p95(voce("x", 0, 0, 0, []))).toBe(0);
+  });
+});
+
+describe("etichettaLavoro", () => {
+  it("nomina una sorgente col thread su cui gira", () => {
+    expect(etichettaLavoro("sorgente.modbus.linea1")).toBe("sws-modbus · linea1");
+    expect(etichettaLavoro("sorgente.opcua.plc-nord")).toBe("sws-opcua · plc-nord");
+    // L'id può contenere punti: tutto quello che segue il tipo è l'id.
+    expect(etichettaLavoro("sorgente.mqtt.casa.piano.terra")).toBe("sws-mqtt · casa.piano.terra");
+  });
+
+  it("lascia stare i lavori che non sono sorgenti", () => {
+    for (const n of ["derivati", "allarmi", "ws.tags", "storico.anello", "storico.scrittura", "script.s1"]) {
+      expect(etichettaLavoro(n)).toBe(n);
+    }
   });
 });

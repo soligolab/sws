@@ -29,6 +29,13 @@ impl SqliteBackend {
         self.store.append(tag_id, sample).await;
     }
 
+    /// Scrive subito quello che è in coda. Dal 27-10-2026 `record` accoda e
+    /// basta: la chiama chi chiude per davvero — lo spegnimento ordinato e il
+    /// cambio di progetto.
+    pub async fn svuota(&self) -> usize {
+        self.store.svuota().await
+    }
+
     pub async fn query(
         &self,
         tag_id: &str,
@@ -151,6 +158,8 @@ mod tests_ritenzione {
         for i in 0..40 {
             b.record("b", &Sample { ts_ms: adesso - giorno + i, value: TagValue::Float(i as f64), quality: TagQuality::Good }).await;
         }
+
+        b.svuota().await;
 
         let a = b.anteprima(Some(50), Some(30)).await.unwrap();
         assert_eq!((a.righe_per_eta, a.righe_per_numero, a.righe_totali), (30, 20, 140));

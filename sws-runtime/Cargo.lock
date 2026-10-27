@@ -3741,6 +3741,7 @@ name = "sws-core"
 version = "2.23.0"
 dependencies = [
  "anyhow",
+ "libc",
  "rcgen",
  "rustls",
  "serde",

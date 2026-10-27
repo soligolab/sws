@@ -31,7 +31,10 @@ pub fn spawn_file_writer(
     // Subscribe synchronously before the task is scheduled — otherwise
     // events broadcast between this call and the task's first poll are lost.
     let mut rx = bus.subscribe();
-    tokio::spawn(async move {
+    // Un thread suo, a priorità bassa (27-10-2026): scrivere un log non deve
+    // mai contendere la CPU a una sorgente o a una risposta HTTP. In `htop` si
+    // chiama `sws-log`.
+    sws_core::motori::motore("sws-log", sws_core::motori::GENTILEZZA_FONDO).spawn(async move {
         if let Err(e) = tokio::fs::create_dir_all(&dir).await {
             eprintln!("log_file: cannot create log dir {dir:?}: {e}");
             return;

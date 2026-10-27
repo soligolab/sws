@@ -19,6 +19,11 @@ sha2.workspace       = true
 webpki-roots.workspace = true
 unicode-properties.workspace = true
 
+# `nice` per thread, per i lavori di fondo (motori.rs). Solo Unix: altrove la
+# funzione che la usa è un corpo vuoto.
+[target.'cfg(unix)'.dependencies]
+libc = "0.2"
+
 [dev-dependencies]
 tempfile.workspace = true
 rcgen.workspace    = true

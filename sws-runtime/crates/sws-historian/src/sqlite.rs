@@ -345,6 +345,29 @@ pub fn copia_coerente(sorgente: &std::path::Path, dest: &std::path::Path) -> rus
     Ok(())
 }
 
+/// Ogni quanto la coda si svuota sul disco (27-10-2026).
+///
+/// Dieci secondi è la scelta del maintainer, e si appoggia a un fatto
+/// dell'impianto: **le macchine hanno un UPS** che, mancando la corrente,
+/// avvia lo spegnimento ordinato. Quindi la finestra che conta non è «quanto
+/// si perde se si stacca la spina» ma «quanto si perde se il processo muore
+/// di colpo», e per quella dieci secondi vanno bene. Lo spegnimento ordinato
+/// la coda la svuota (`svuota`), quindi non perde niente.
+const INTERVALLO_SVUOTAMENTO: std::time::Duration = std::time::Duration::from_secs(10);
+
+/// Oltre questi campioni in attesa non si aspetta il timer. Serve a tenere a
+/// bada la memoria su un impianto veloce, non a ridurre la finestra: a 153
+/// campioni al secondo — la misura del WP630 — dieci secondi ne fanno circa
+/// millecinquecento, quindi di norma vince il timer.
+const MASSIMO_IN_CODA: usize = 5_000;
+
+/// I campioni che aspettano di essere scritti, e la sveglia per chi li scrive.
+#[derive(Default)]
+struct CodaScrittura {
+    campioni: std::sync::Mutex<Vec<(String, Sample)>>,
+    sveglia: tokio::sync::Notify,
+}
+
 /// Thin async wrapper around a single SQLite connection.
 /// The PoC uses one connection serialised by a tokio Mutex — write rate is
 /// low enough (one record per tag update) that contention is not a concern.
@@ -355,11 +378,102 @@ pub struct SqliteStore {
     /// Vero finché la migrazione dal formato di prima gira in sottofondo
     /// ([`migra_a_lotti`]): intanto il passato si vede solo in parte.
     migrazione: Arc<std::sync::atomic::AtomicBool>,
+    /// I campioni in attesa: `append` li accoda, un lavoratore li scrive tutti
+    /// insieme in una transazione sola (27-10-2026).
+    coda: Arc<CodaScrittura>,
 }
 
 /// (campioni, primo ts, ultimo ts, byte su disco… — vedi `stats`): il tipo grezzo
 /// che il thread bloccante restituisce prima di diventare `DatastoreStats`.
 type StatsGrezze = (u64, Option<u64>, Option<u64>, Option<u64>, u64);
+
+/// Il lavoratore che svuota la coda: a ogni [`INTERVALLO_SVUOTAMENTO`], o
+/// appena la coda si riempie.
+///
+/// Tiene riferimenti **deboli** alla connessione e alla coda: non è lui a
+/// tenere vivo lo store. Quando il progetto si chiude e nessuno usa più lo
+/// store, al giro dopo non riesce più a risalire alla connessione e finisce.
+/// Perciò chi chiude sul serio — lo spegnimento, il cambio di progetto —
+/// chiama `svuota` e non si affida a questo giro.
+fn avvia_svuotamento(conn: &Arc<Mutex<Connection>>, coda: &Arc<CodaScrittura>) {
+    let conn_debole = Arc::downgrade(conn);
+    let coda_debole = Arc::downgrade(coda);
+    // Un thread suo, con priorità bassa (27-10-2026): scrivere lo storico può
+    // aspettare, e da qui in poi in `htop` si chiama `sws-storico` invece di
+    // essere uno dei `tokio-rt-worker` in fila.
+    let motore = sws_core::motori::motore("sws-storico", sws_core::motori::GENTILEZZA_FONDO);
+    motore.spawn(async move {
+        loop {
+            let Some(coda) = coda_debole.upgrade() else { break };
+            tokio::select! {
+                _ = tokio::time::sleep(INTERVALLO_SVUOTAMENTO) => {}
+                _ = coda.sveglia.notified() => {}
+            }
+            let Some(conn) = conn_debole.upgrade() else { break };
+            svuota_coda(&conn, &coda).await;
+        }
+    });
+}
+
+/// Scrive in **una** transazione tutto quello che c'è in coda, e torna quanti
+/// campioni ha scritto. Se la scrittura fallisce quel lotto è perso: è la
+/// stessa scelta di prima («best-effort»), perché un disco pieno per un
+/// momento non deve fermare il flusso dei tag — solo che ora si perde un lotto
+/// invece di un campione, e il log lo dice.
+async fn svuota_coda(conn: &Arc<Mutex<Connection>>, coda: &Arc<CodaScrittura>) -> usize {
+    let lotto: Vec<(String, Sample)> = {
+        let mut q = coda.campioni.lock().unwrap_or_else(|e| e.into_inner());
+        if q.is_empty() {
+            return 0;
+        }
+        std::mem::take(&mut *q)
+    };
+    let quanti = lotto.len();
+    let conn = conn.clone();
+    let t0 = std::time::Instant::now();
+    let res = task::spawn_blocking(move || -> rusqlite::Result<()> {
+        let mut c = conn.blocking_lock();
+        let tx = c.transaction()?;
+        {
+            let mut ins = tx.prepare_cached(
+                "INSERT OR REPLACE INTO campioni (tag_id, ts_ms, tipo, valore, qualita) VALUES (?1, ?2, ?3, ?4, ?5)",
+            )?;
+            // L'id si cerca una volta per nome, non una per campione: in un
+            // lotto da dieci secondi lo stesso tag torna decine di volte, e
+            // `id_tag` è due interrogazioni.
+            let mut id_di: std::collections::HashMap<&str, i64> = std::collections::HashMap::new();
+            for (tag, s) in &lotto {
+                let id = match id_di.get(tag.as_str()) {
+                    Some(id) => *id,
+                    None => {
+                        let id = id_tag(&tx, tag)?;
+                        id_di.insert(tag.as_str(), id);
+                        id
+                    }
+                };
+                let (tipo, valore) = codifica(&s.value);
+                ins.execute(params![id, s.ts_ms as i64, tipo, valore, qualita_num(&s.quality)])?;
+            }
+        }
+        tx.commit()?;
+        Ok(())
+    })
+    .await;
+    match res {
+        Ok(Ok(())) => {
+            sws_core::prestazioni::registra("storico.scrittura", t0.elapsed());
+            quanti
+        }
+        Ok(Err(e)) => {
+            warn!(campioni = quanti, "historian: lotto non scritto su sqlite: {e}");
+            0
+        }
+        Err(e) => {
+            warn!(campioni = quanti, "historian: lo scrittore sqlite e' morto: {e}");
+            0
+        }
+    }
+}
 
 impl SqliteStore {
     /// Open (creating if absent) a SQLite db at `path` and prepare the schema.
@@ -412,10 +526,14 @@ impl SqliteStore {
                 .ok();
         }
         info!(path = %path.display(), "historian: SQLite store opened");
+        let conn = Arc::new(Mutex::new(conn));
+        let coda = Arc::new(CodaScrittura::default());
+        avvia_svuotamento(&conn, &coda);
         Ok(Self {
-            conn: Arc::new(Mutex::new(conn)),
+            conn,
             path,
             migrazione,
+            coda,
         })
     }
 
@@ -437,26 +555,34 @@ impl SqliteStore {
 
     /// Append one sample. Best-effort: errors are logged, not propagated, so
     /// a transient disk hiccup never breaks the live tag stream.
+    /// Mette un campione **in coda**. Scrive chi svuota, non chi accoda.
+    ///
+    /// Prima qui c'era una `spawn_blocking` per campione, che prendeva il lock
+    /// sull'unica connessione e faceva una `INSERT` in transazione implicita:
+    /// a 153 campioni al secondo (misurati sul WP630 il 27-10-2026) erano 153
+    /// transazioni al secondo, e quindici thread del pool bloccante nati solo
+    /// per stare in fila sullo stesso lucchetto.
     pub async fn append(&self, tag: &str, sample: &Sample) {
-        let conn = self.conn.clone();
-        let tag = tag.to_string();
-        let ts = sample.ts_ms as i64;
-        let (tipo, valore) = codifica(&sample.value);
-        let qualita = qualita_num(&sample.quality);
-        let res = task::spawn_blocking(move || -> rusqlite::Result<()> {
-            let c = conn.blocking_lock();
-            let id = id_tag(&c, &tag)?;
-            c.prepare_cached(
-                "INSERT OR REPLACE INTO campioni (tag_id, ts_ms, tipo, valore, qualita) VALUES (?1, ?2, ?3, ?4, ?5)",
-            )?
-            .execute(params![id, ts, tipo, valore, qualita])?;
-            Ok(())
-        }).await;
-        match res {
-            Ok(Ok(())) => {}
-            Ok(Err(e)) => warn!("historian: sqlite append failed: {e}"),
-            Err(e) => warn!("historian: sqlite append task panicked: {e}"),
+        let pieno = {
+            let mut q = self.coda.campioni.lock().unwrap_or_else(|e| e.into_inner());
+            q.push((tag.to_string(), sample.clone()));
+            q.len() >= MASSIMO_IN_CODA
+        };
+        if pieno {
+            self.coda.sveglia.notify_one();
         }
+    }
+
+    /// Scrive subito quello che c'è in coda, e aspetta che sia sul disco.
+    /// La chiama lo spegnimento ordinato e il cambio di progetto: sono i due
+    /// momenti in cui la coda non deve sopravvivere a chi la teneva.
+    pub async fn svuota(&self) -> usize {
+        svuota_coda(&self.conn, &self.coda).await
+    }
+
+    /// Quanti campioni aspettano: serve alle prove e alla diagnosi.
+    pub fn in_coda(&self) -> usize {
+        self.coda.campioni.lock().unwrap_or_else(|e| e.into_inner()).len()
     }
 
     /// Load up to `limit` most-recent samples per tag from SQLite.
@@ -1089,6 +1215,45 @@ mod tests {
         let completa_letta = &store.query_alarm_events(Some("completa"), None, None, 1).await[0];
         assert_eq!(completa_letta, &completa);
     }
+    /// Dal 27-10-2026 `append` **accoda**: il disco lo tocca `svuota`, una
+    /// transazione per lotto invece di una per campione. A 153 campioni al
+    /// secondo — la misura del WP630 — erano 153 transazioni al secondo.
+    #[tokio::test]
+    async fn append_accoda_e_svuota_scrive_il_lotto() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = SqliteStore::open(dir.path().join("h.db")).await.unwrap();
+        for ts in 1..=3u64 {
+            store.append("t", &Sample { ts_ms: ts, value: TagValue::Float(ts as f64), quality: TagQuality::Good }).await;
+        }
+        assert_eq!(store.in_coda(), 3, "aspettano in coda");
+        assert_eq!(store.total_samples().await.unwrap(), 0, "sul disco non c'è ancora niente");
+
+        assert_eq!(store.svuota().await, 3, "il lotto scritto");
+        assert_eq!(store.in_coda(), 0, "la coda è vuota");
+        assert_eq!(store.total_samples().await.unwrap(), 3, "e ora sono sul disco");
+        assert_eq!(store.query_range("t", 0, 10).await.len(), 3);
+
+        // Svuotare a vuoto non costa una transazione: è il caso normale fra
+        // un campione e l'altro su un impianto fermo.
+        assert_eq!(store.svuota().await, 0);
+    }
+
+    /// Lo stesso tag torna decine di volte in un lotto: il suo id si cerca una
+    /// volta sola, e i campioni finiscono comunque tutti al loro posto.
+    #[tokio::test]
+    async fn un_lotto_con_piu_tag_li_tiene_separati() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = SqliteStore::open(dir.path().join("h.db")).await.unwrap();
+        for ts in 1..=10u64 {
+            store.append("a", &Sample { ts_ms: ts, value: TagValue::Int(ts as i64), quality: TagQuality::Good }).await;
+            store.append("b", &Sample { ts_ms: ts, value: TagValue::Float(0.5), quality: TagQuality::Bad }).await;
+        }
+        assert_eq!(store.svuota().await, 20);
+        assert_eq!(store.query_range("a", 0, 100).await.len(), 10);
+        assert_eq!(store.query_range("b", 0, 100).await.len(), 10);
+        assert_eq!(store.distinct_tags().await.unwrap(), ["a", "b"]);
+    }
+
 
     #[tokio::test]
     async fn vacuum_into_produces_a_consistent_copy() {
@@ -1110,6 +1275,7 @@ mod tests {
             };
             store.append("t", &sample).await;
         }
+        store.svuota().await;
 
         store.vacuum_into(&dest_path).await.unwrap();
 
@@ -1239,8 +1405,11 @@ mod tests {
             c.execute("DELETE FROM samples_vecchi WHERE ts_ms < 5000", []).unwrap();
         }
         let store = SqliteStore::open(&path).await.unwrap();
-        // Il vivo scrive subito, anche a migrazione in corso.
+        // Il vivo scrive anche a migrazione in corso. Dal 27-10-2026 `append`
+        // accoda e `svuota` scrive: qui si chiede la scrittura subito, perché
+        // è proprio quella che deve convivere con la migrazione.
         store.append("b", &Sample { ts_ms: 99_999, value: TagValue::Int(7), quality: TagQuality::Good }).await;
+        store.svuota().await;
         store.attendi_migrazione().await;
         assert_eq!(store.total_samples().await.unwrap(), 12_001);
         let a = store.query_range("a", 0, 20_000).await;
@@ -1278,6 +1447,9 @@ mod tests {
         let mut ts = 1_000_000u64;
         while store.migrazione_in_corso() {
             store.append("vivo", &Sample { ts_ms: ts, value: TagValue::Float(1.0), quality: TagQuality::Good }).await;
+            // Scrittura subito, non fra dieci secondi: il punto della prova è
+            // che il vivo e la migrazione si contendano lo stesso file.
+            store.svuota().await;
             ts += 1;
             scritti += 1;
             tokio::time::sleep(std::time::Duration::from_millis(1)).await;
@@ -1343,6 +1515,7 @@ mod tests {
                 store.append(tag, &s).await;
             }
         }
+        store.svuota().await;
         let a_salti = store.distinct_tags().await.unwrap();
         assert_eq!(a_salti, ["a.tag", "a.tag.figlio", "b.tag", "c.tag"]);
         {
@@ -1375,6 +1548,7 @@ mod tests {
         for (ts, v, q) in serie { store.append("tenuto", &campione(ts, v, q)).await; }
         for ts in 1..=5 { store.append("scartato", &campione(ts, 0.0, TagQuality::Good)).await; }
         store.append("", &campione(1, 0.0, TagQuality::Bad)).await;
+        store.svuota().await;
 
         let prova = store.pulisci_storico(vec!["tenuto".into()], true).await.unwrap();
         assert_eq!(prova, EsitoPulizia { non_storicizzati: 6, ripetuti: 2, restanti: 5 });

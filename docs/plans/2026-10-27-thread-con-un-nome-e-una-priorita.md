@@ -1,8 +1,34 @@
 # I thread del runtime: un nome, e una priorità
 
-> **Piano — in attesa di tre decisioni del maintainer.** Scritto il 27-10-2026 su sua richiesta,
-> dopo aver guardato htop sul WP630 e trovato ventun righe tutte uguali. Non si scrive codice
-> prima delle risposte in fondo.
+> **FATTO il 27-10-2026, da collaudare sul pannello.** Le quattro decisioni le ha prese il
+> maintainer lo stesso giorno, e il lavoro è uscito subito dopo. Resta qui finché non lo conferma
+> su un pannello vero, poi va in archivio.
+>
+> **Le decisioni, e cosa ne è venuto:**
+>
+> 1. **Un thread per protocollo** (strada B). `sws_core::motori::motore(nome, gentilezza)` crea un
+>    thread con quel nome e un runtime tokio a thread singolo sopra, uno per nome; tutte le
+>    sorgenti di un tipo ci finiscono dentro. In `htop`: `sws-modbus`, `sws-mqtt`, `sws-opcua`,
+>    `sws-s7`, `sws-enip`, `sws-host`, `sws-ha`.
+> 2. **Il nome dice il tipo**, e la sorgente la dice la pagina Prestazioni. Le misure delle
+>    sorgenti si chiamano ora `sorgente.<tipo>.<id>` e la pagina le scrive `sws-modbus · linea1`,
+>    cioè lo stesso nome che si legge in `htop`.
+> 3. **Priorità bassa subito sui lavori di fondo**: `sws-storico`, `sws-log`, `sws-backup`,
+>    `sws-ritenzione` nascono con `nice 10`, e la gentilezza vale anche per i thread bloccanti di
+>    quel runtime — senza, una `spawn_blocking` sarebbe tornata a priorità normale proprio dove sta
+>    il lavoro pesante.
+> 4. **Lo storico accorpa, e la finestra è di dieci secondi**, perché le macchine hanno un UPS che
+>    avvia lo spegnimento ordinato e lo spegnimento ordinato svuota la coda.
+>
+> **Misurato dopo** (`tmp/thread-prova/LEGGIMI.md`, tre sorgenti vive): da ventun
+> `tokio-rt-worker` a otto, più i thread con un nome. E una cosa che prima non si poteva sapere:
+> **`sws-host` tiene nove thread**, perché il plugin delle metriche chiama `spawn_blocking` a ogni
+> giro. Il lavoro è lo stesso di prima; cambia che adesso si vede di chi è.
+>
+> **Quello che resta**, e non è stato fatto: i `tokio-rt-worker` del runtime condiviso tengono il
+> nome predefinito di tokio (la strada A non è stata scelta, e rinominarli non attribuisce niente a
+> nessuno); e il plugin Home Assistant ha il suo thread ma non misura ancora il proprio giro,
+> quindi in Prestazioni non compare.
 
 ## Perché
 

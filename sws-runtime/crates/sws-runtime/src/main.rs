@@ -624,6 +624,9 @@ async fn main() -> anyhow::Result<()> {
     // Populated below from project.yaml (if --project was passed) or later
     // by open_project when the user opens a project via WelcomeScreen.
     let registry: RegistryCell = Arc::new(tokio::sync::RwLock::new(None));
+    // Una copia che sopravvive a tutto: all'uscita serve ancora, per svuotare
+    // la coda dello storico, e il `registry` di sopra se lo prendono le rotte.
+    let registry_uscita = registry.clone();
 
     // Auth state: empty until a project is opened. When --project is set,
     // we swap to its users.yaml; otherwise the WelcomeScreen does it via
@@ -795,7 +798,9 @@ async fn main() -> anyhow::Result<()> {
         let dir_handle = active_dir.clone();
         let cli_interval_min = args.auto_backup_interval_minutes;
         let cli_retention = args.auto_backup_retention as usize;
-        tokio::spawn(async move {
+        // Thread suo e priorità bassa (27-10-2026): un backup copia file e può
+        // aspettare. `sws-backup` in `htop`.
+        sws_core::motori::motore("sws-backup", sws_core::motori::GENTILEZZA_FONDO).spawn(async move {
             let mut tick = tokio::time::interval(std::time::Duration::from_secs(60));
             tick.tick().await; // skip the immediate first tick
             let mut last_fired: Option<(PathBuf, std::time::Instant)> = None;
@@ -1171,7 +1176,9 @@ async fn main() -> anyhow::Result<()> {
         let dir_handle = active_dir.clone();
         let reg = registry.clone();
         let audit = audit.clone();
-        tokio::spawn(async move {
+        // Thread suo e priorità bassa (27-10-2026): la ritenzione cancella
+        // righe una volta al giorno. `sws-ritenzione` in `htop`.
+        sws_core::motori::motore("sws-ritenzione", sws_core::motori::GENTILEZZA_FONDO).spawn(async move {
             let mut tick = tokio::time::interval(std::time::Duration::from_secs(60));
             tick.tick().await; // non all'avvio: il progetto si sta ancora aprendo
             loop {
@@ -1882,6 +1889,17 @@ async fn main() -> anyhow::Result<()> {
     // dice, e la console lo mostra spento invece che perso (ramo 7 dei residui).
     sws_web::tunnel::pannello::annuncia_spegnimento().await;
     supervisor.stop_all().await;
+    // Lo storico tiene i campioni in coda e li scrive ogni dieci secondi
+    // (27-10-2026): qui la coda si svuota per forza, altrimenti l'ultimo
+    // pezzo di storico muore col processo. È il patto su cui quei dieci
+    // secondi stanno in piedi — le macchine hanno un UPS che avvia lo
+    // spegnimento ordinato, e questo è lo spegnimento ordinato.
+    if let Some(reg) = registry_uscita.read().await.as_ref() {
+        let quanti = reg.svuota().await;
+        if quanti > 0 {
+            info!(campioni = quanti, "storico: coda scritta prima di uscire");
+        }
+    }
     info!("sorgenti chiuse, esco");
 
     Ok(())

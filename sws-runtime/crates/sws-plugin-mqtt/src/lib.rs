@@ -480,7 +480,7 @@ async fn run_session(
                     Ok(inner) => inner.map_err(|e| anyhow::anyhow!("eventloop: {e}"))?,
                 };
                 if let Event::Incoming(Packet::Publish(p)) = event {
-                    let _messaggio = sws_core::prestazioni::Misura::nuova(format!("sorgente.{}", cfg.id));
+                    let _messaggio = sws_core::prestazioni::Misura::nuova(format!("sorgente.mqtt.{}", cfg.id));
                     let mut matched = false;
                     for topic in &cfg.topics {
                         if topic.topic == p.topic {

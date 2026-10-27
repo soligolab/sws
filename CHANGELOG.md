@@ -22,7 +22,41 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
   l'invio su `/ws/tags`; `GET /api/prestazioni` (Supervisor, accende la richiesta per 60 s) col gemello remoto, e
   `sws_lavoro_secondi` in `/metrics`. Pagina Configurazione → Istanza → Prestazioni a due colonne.
 
+- **Lo storico scrive a lotti** (piano `docs/plans/2026-10-27-thread-con-un-nome-e-una-priorita.md`):
+  `SqliteStore::append` mette il campione in coda e un lavoratore la svuota in **una** transazione ogni 10 s, o
+  prima se arrivano 5 000 campioni. Prima era una `spawn_blocking` per campione, un lock sull'unica connessione e
+  una `INSERT` in transazione implicita: a 153 campioni al secondo (misurati sul WP630) erano 153 transazioni al
+  secondo, e quindici thread del pool bloccante nati solo per stare in fila sullo stesso lucchetto. `svuota()` è
+  pubblica e la chiamano lo spegnimento ordinato (`main.rs`) e il cambio di progetto (`projects.rs`), così la coda
+  non muore con chi la teneva — i dieci secondi stanno in piedi su questo, più l'UPS che avvia lo spegnimento.
+  L'id del tag si cerca una volta per nome invece che una per campione. I due registratori dello storico non si
+  misurano più con lo stesso nome: `storico.anello` (RAM), `storico.coda` (instradamento) e `storico.scrittura`
+  (la transazione).
+
+- **Un thread per protocollo, e una priorità per i lavori di fondo** (piano
+  `docs/plans/2026-10-27-thread-con-un-nome-e-una-priorita.md`): `sws_core::motori` dà a un lavoro un thread con un
+  nome e un runtime tokio a thread singolo sopra, uno per nome. Le sorgenti ci finiscono per tipo (`sws-modbus`,
+  `sws-mqtt`, `sws-opcua`, `sws-s7`, `sws-enip`, `sws-host`, `sws-ha`), e in `htop` la CPU di un protocollo è la sua
+  invece di sparire fra i `tokio-rt-worker` — un task tokio cambia worker a ogni `await`, quindi nessun nome poteva
+  dire «questo è Modbus» finché viveva sul runtime condiviso. `sws-storico`, `sws-log`, `sws-backup` e
+  `sws-ritenzione` nascono con `nice 10`, che vale anche per i thread bloccanti di quel runtime (`on_thread_start`):
+  senza, `spawn_blocking` sarebbe tornata a priorità normale proprio dove sta il lavoro pesante. Le priorità si
+  abbassano e basta: alzarle vuole `CAP_SYS_NICE`, che in un container rootless non c'è. I nomi stanno nei 15
+  caratteri di `TASK_COMM_LEN`, e dicono il tipo: le misure delle sorgenti diventano `sorgente.<tipo>.<id>` e la
+  pagina Prestazioni le scrive `sws-modbus · linea1`, lo stesso nome che si legge in `htop`. Misurato con tre
+  sorgenti vive: da ventun `tokio-rt-worker` a otto.
+
 ### Fixed
+
+- **Le gesture del browser non rubano il trascinamento di uno slider**: su un pannello touch, trascinare in
+  orizzontale finiva interpretato da Chromium come «pagina precedente». Il gesto nasce dall'overscroll e
+  `html, body { overflow: hidden }` rende ogni trascinamento overscroll: `overscroll-behavior: none` sulla radice
+  (via anche il pull-to-refresh) e `touch-action: none` sugli `input[type=range]`, nelle cinque pagine d'ingresso.
+  Non con un parametro di Chromium: il servizio del browser sul pannello è di PixsysOS e non viaggia con l'immagine.
+- **Lo slider su LVGL legge «Orientamento»**: `render_slider` non lo guardava e disegnava sempre orizzontale, mentre
+  il web ruotava il controllo di −90°. Ora la geometria passa da `geometria_traccia_slider` (funzione pura, tre
+  prove); il verso lo sceglie `lv_bar`, che disegna verticale quando è più alto che largo e riempie dal basso —
+  lo stesso estremo dove il web porta il `min`. Nel verticale etichetta in cima e valore in fondo, centrati.
 
 - **Il tubo restava un fotogramma indietro alla pompa in moto su percorso** (viewer web, visto sul TC620 il
   26-10-2026: 10-15 px nella direzione del moto). `useSegueIlMoto` chiedeva il ridisegno con un `setState` dentro

@@ -1442,6 +1442,13 @@ pub async fn apply_loaded_project(
     // Il registro di prima si ferma: senza, il suo registratore restava vivo e
     // i registratori si accumulavano a ogni apertura.
     if let Some(vecchio) = registry.read().await.as_ref() {
+        // Prima di fermarlo, i campioni che aspettavano il prossimo
+        // svuotamento (27-10-2026): la coda vive nello store del progetto che
+        // stiamo lasciando, e dopo non la guarda più nessuno.
+        let quanti = vecchio.svuota().await;
+        if quanti > 0 {
+            info!(campioni = quanti, "storico: coda scritta prima di cambiare progetto");
+        }
         vecchio.chiudi();
     }
     match DatastoreRegistry::from_project(&project, project_dir).await {
