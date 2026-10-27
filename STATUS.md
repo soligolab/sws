@@ -12,6 +12,12 @@
 > resta in «Storico». Qui vive solo ciò che serve a riprendere il lavoro.
 
 
+## ⚠ Il lavoro del 26-27/10 non è su `main` (2026-10-27)
+
+**Si riparte dal ramo `fix/tubo-stesso-fotogramma`**, pushato: contiene la misura «dove se ne va il tempo» e la
+correzione del tubo, in attesa della prova su LVGL prima dello squash. Il riepilogo completo è nello `STATUS.md` di
+quel ramo. `./scripts/session_start.sh`, poi `git checkout fix/tubo-stesso-fotogramma`.
+
 ## ▶ Riprendere da qui — 2.23.0 costruita, e un tubo che resta indietro (2026-10-26, sera)
 
 **La 2.23.0 è su ghcr e `sws.soligo.net` ci gira sopra.** Due immagini verificate dal registry
