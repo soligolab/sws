@@ -120,6 +120,10 @@ pub struct Contenitore {
     pub riferimento: Option<String>,
     /// `running`, `exited`, `created`…
     pub stato: String,
+    /// L'immagine con cui il container è stato creato, come podman la
+    /// riporta. Serve a `Regia::riadotta` per non adottare un container di
+    /// una versione precedente (27-10-2026).
+    pub immagine: String,
 }
 
 pub struct Podman {
@@ -228,6 +232,11 @@ impl Podman {
                         .get("State")
                         .and_then(|v| v.as_str())
                         .unwrap_or("?")
+                        .to_string(),
+                    immagine: c
+                        .get("Image")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or_default()
                         .to_string(),
                     nome,
                 })

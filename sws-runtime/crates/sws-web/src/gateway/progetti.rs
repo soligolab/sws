@@ -178,6 +178,20 @@ impl Regia {
         &self.segreto
     }
 
+}
+
+/// Un container acceso si adotta solo se gira **la nostra** immagine
+/// (27-10-2026).
+///
+/// L'immagine vuota vuol dire che podman non l'ha detta: allora si adotta.
+/// Buttare via il lavoro di qualcuno per un campo mancante sarebbe la
+/// reazione sbagliata a un'informazione che non c'è — e un campo vuoto non
+/// è una prova che l'immagine sia diversa.
+fn si_adotta(immagine_container: &str, immagine_gateway: &str) -> bool {
+    immagine_container.is_empty() || immagine_container == immagine_gateway
+}
+
+impl Regia {
     /// I container nostri che erano già accesi, ripresi in carico.
     ///
     /// Si chiama all'avvio del gateway. Senza, dopo un riavvio quei container
@@ -188,7 +202,9 @@ impl Regia {
     /// Chi viene riadottato parte con zero collegati e il timer avviato: se
     /// nessuno torna, si spegne da sé al primo giro di pulizia. È il
     /// comportamento giusto — dopo un riavvio del gateway nessun browser è
-    /// più collegato a niente.
+    /// più collegato a niente. Ed è anche il motivo per cui qui si può
+    /// **buttare** un container di un'immagine vecchia senza togliere la
+    /// sedia a nessuno.
     pub async fn riadotta(&self) -> anyhow::Result<usize> {
         let trovati = self.podman.elenca_nostri().await?;
         let mut aperti = self.aperti.write().await;
@@ -211,6 +227,35 @@ impl Regia {
             if c.stato != "running" {
                 // Fermo: non c'è niente da adottare, e tenerlo occuperebbe il
                 // nome. Si rimuove, così la prossima apertura lo ricrea.
+                let _ = self.podman.rimuovi(&c.nome).await;
+                continue;
+            }
+            // **Un container di un'altra immagine non si adotta** (27-10-2026).
+            //
+            // Fino a oggi si adottava qualunque container acceso, qualunque
+            // immagine avesse: e un progetto lasciato aperto non vedeva mai un
+            // aggiornamento del gateway. CasaDomotica è rimasta sulla 2.22.0
+            // attraverso **quattro** versioni del gateway, e il maintainer ha
+            // passato due volte un'ora a inseguire difetti già corretti,
+            // perché l'IDE che aveva davanti era vecchio di giorni.
+            //
+            // Gateway e container di progetto devono essere la stessa
+            // versione: parlano fra loro, e due versioni diverse sono due
+            // protocolli che si assomigliano.
+            //
+            // Si ferma e si rimuove, invece di adottarlo: la prossima apertura
+            // lo ricrea con l'immagine giusta. Non si toglie una sessione a
+            // nessuno — questa funzione gira all'**avvio del gateway**, quando
+            // nessun browser è collegato, e il commento della funzione lo dice
+            // già. I dati stanno nel volume del progetto, non nel container.
+            if !si_adotta(&c.immagine, &self.immagine) {
+                tracing::info!(
+                    contenitore = %c.nome,
+                    aveva = %c.immagine,
+                    adesso = %self.immagine,
+                    "container di progetto su un'immagine vecchia: lo rifaccio alla prossima apertura"
+                );
+                let _ = self.podman.ferma(&c.nome, 5).await;
                 let _ = self.podman.rimuovi(&c.nome).await;
                 continue;
             }
@@ -709,6 +754,25 @@ mod tests {
     }
 
     use super::*;
+
+    /// Il difetto del 27-10-2026: CasaDomotica è rimasta sulla 2.22.0
+    /// attraverso **quattro** versioni del gateway, perché il progetto era
+    /// aperto e `riadotta` adottava qualunque container acceso. Il maintainer
+    /// ha inseguito due volte difetti già corretti, con davanti un IDE vecchio
+    /// di giorni.
+    #[test]
+    fn un_container_di_un_altra_immagine_non_si_adotta() {
+        let nostra = "ghcr.io/soligolab/sws-runtime:2.23.3-amd64";
+        assert!(si_adotta(nostra, nostra), "la stessa immagine si adotta");
+        assert!(
+            !si_adotta("ghcr.io/soligolab/sws-runtime:2.22.0-amd64", nostra),
+            "una versione precedente no: gateway e progetto devono parlare la stessa lingua"
+        );
+        // Podman non ha detto l'immagine: si adotta lo stesso. Un campo vuoto
+        // non è la prova che sia diversa, e buttare il container di qualcuno
+        // per un'informazione mancante sarebbe la reazione sbagliata.
+        assert!(si_adotta("", nostra), "immagine ignota: si adotta");
+    }
 
     fn aperto(collegati: u32, fermo_da_s: Option<u64>) -> Aperto {
         Aperto {

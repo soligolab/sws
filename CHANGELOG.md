@@ -11,6 +11,20 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 
 ## [Unreleased]
 
+### Fixed
+
+- **Nel cloud un progetto lasciato aperto non vedeva mai un aggiornamento del gateway**: all'avvio,
+  `Regia::riadotta` (`sws-web/src/gateway/progetti.rs`) riadottava **ogni** container di progetto acceso senza
+  confrontarne l'immagine con `--gateway-immagine`, e il login successivo riusava quello che c'era. CasaDomotica è
+  rimasta sulla **2.22.0** attraverso quattro versioni del gateway — 2.23.0, 2.23.2, 2.23.3 e un commit — e il
+  maintainer ha inseguito due volte difetti già corretti, con davanti un IDE vecchio di giorni. Ora un container
+  con un'immagine diversa non si adotta: si ferma e si rimuove, e la prima apertura lo ricrea con quella giusta.
+  Non toglie la sedia a nessuno — `riadotta` gira all'avvio del gateway, quando nessun browser è collegato, e i
+  dati stanno nel volume del progetto. Un'immagine che podman non riporta (campo vuoto) si adotta lo stesso: un
+  campo mancante non è la prova che sia diversa. `Contenitore` porta ora l'immagine, e la decisione sta in
+  `si_adotta`, con la sua prova.
+
+
 ## [2.23.3] — 2026-10-27
 
 ### Fixed
