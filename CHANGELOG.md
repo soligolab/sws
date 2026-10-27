@@ -11,6 +11,8 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 
 ## [Unreleased]
 
+## [2.23.4] — 2026-10-27
+
 ### Fixed
 
 - **Nel cloud l'immagine di sfondo non finiva nel PNG di boot**, con l'avviso «1 immagine con indirizzo esterno non
