@@ -13,7 +13,7 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 
 ### Added
 
-- **Dove se ne va il tempo** (piano `docs/plans/2026-10-26-dove-se-ne-va-il-tempo.md`): `sws_core::prestazioni`
+- **Dove se ne va il tempo** (piano `docs/archive/2026-10-26-dove-se-ne-va-il-tempo.md`): `sws_core::prestazioni`
   (accumulatore a secchi, registro del processo con finestra e totale, guardia `Misura`). Il viewer LVGL misura sempre
   le fasi del fotogramma (`tempi.rs`: tag, LVGL, display, giro, e i canvas — corpo e bocchettoni del tubo, simboli,
   barre, trend, tabelle) e le manda al runtime solo a richiesta (`GET /api/prestazioni/richiesta` ogni 10 s,
@@ -590,7 +590,7 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
   il riquadro cresce, e il conto del riquadro in un posto solo (`riquadro_corpo`,
   `riquadro_extra`) perché creazione e riposizionamento non divergano. Resta fuori il `motion`,
   che è una decisione di prodotto: piano
-  `docs/plans/2026-10-21-tubo-che-segue-gli-oggetti.md`, Fase 3.
+  `docs/archive/2026-10-21-tubo-che-segue-gli-oggetti.md`, Fase 3.
 
 - **`sws-lvgl-viewer --cambia-tag "nome=valore"`**: con `--istantanea`, cambia i tag a metà
   fotografia e continua a disegnare. Serve perché il tempo di `--istantanea` è **simulato** —

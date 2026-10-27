@@ -29,7 +29,7 @@
 #   ./scripts/check_tubo_segue_lvgl.sh
 #
 # Runtime scratch dichiarato (porte 8690/8691, dir temporanea), terminato dal trap.
-# Piano: docs/plans/2026-10-21-tubo-che-segue-gli-oggetti.md
+# Piano: docs/archive/2026-10-21-tubo-che-segue-gli-oggetti.md
 set -uo pipefail
 cd "$(dirname "$0")/.."
 

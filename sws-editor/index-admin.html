@@ -94,6 +94,12 @@
          viewer e IDE gestiscono lo scorrimento nei propri contenitori. */
       html, body { height: 100%; margin: 0; overflow: hidden; }
       #root { height: 100%; }
+      /* Niente gesture del browser sul trascinamento (27-10-2026): con
+         `overflow: hidden` ogni trascinamento è overscroll, e Chromium lo
+         legge come «pagina precedente». Il perché per esteso, e il motivo per
+         cui non si passa da un parametro di Chromium, sta in `index.html`. */
+      html, body { overscroll-behavior: none; }
+      input[type="range"] { touch-action: none; }
       /* Spinner dei campi numerici: Chromium li disegna minuscoli e solo in
          hover — bersaglio troppo piccolo col mouse (richiesta 2026-08-23).
          Sempre visibili e ~2x più larghi. Solo Chromium: Firefox li ignora. */

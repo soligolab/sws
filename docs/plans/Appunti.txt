@@ -68,3 +68,34 @@ Annoto di seguito, uno per punto, le cose che devono essere verificate e trasfor
   raddoppiano). Trovato cercando il rumore nel journal del WP630 il 22-10-2026: non era quello il
   difetto segnalato, ma e' lo stesso genere.
 
+
+- Il corpo del tubo si rasterizza da un SVG a ogni passo del moto: 12 ms per ridisegno sul WP630,
+  misurati il 27-10-2026 con la pagina Prestazioni aperta mentre la pompa scorreva (24 ridisegni
+  su 58 fotogrammi, cioe' 4,9 ms per fotogramma su 35 totali, e l'84% della fase «tag e
+  collegamenti»). Il maintainer ha guardato il movimento sul pannello e ha detto che visivamente
+  va bene, quindi non e' un problema oggi: si annota per quando lo diventera'. Il codice e'
+  CorpoSvg::disegna in lvgl_render.rs, intorno a riga 10200 — costruisce una stringa SVG, la fa
+  analizzare da usvg e la rasterizza con resvg dentro update_bindings. Il rimedio sarebbe
+  disegnare il corpo con le primitive di LVGL invece che con un SVG, e vale al massimo 4,9 ms su
+  35, cioe' da 28 a circa 33 fotogrammi al secondo. Il prezzo da valutare allora: gli stili ricchi
+  (materiali, volume, contorno) con le primitive non si rifanno uguali, quindi o si accetta una
+  resa diversa sul pannello o si tiene l'SVG per quegli stili e le primitive per i semplici.
+  NON vale la pena toccare i bocchettoni (ExtraTubo): nella stessa misura non compaiono affatto,
+  cioe' in quei secondi non sono stati rifatti.
+
+- La copia sullo schermo si mangia il fotogramma del pannello: 23 ms su 35, a OGNI fotogramma,
+  misurati sul WP630 il 27-10-2026. Da sola tiene il pannello sotto i 43 fotogrammi al secondo
+  anche se tutto il resto fosse gratis — e' il tetto vero, sopra qualunque ottimizzazione del
+  disegno. Sul WP630 il viewer passa da SDL con SDL_VIDEODRIVER=x11 (il Wayland nativo di SDL2 va
+  in SIGSEGV su questo hardware, Q14), dentro un container, quindi la fase misura
+  Surface::from_data + blit + SDL_UpdateWindowSurface, cioe' uno ShmPutImage di 1280x800 in
+  software. Da guardare quando servira' piu' fluidita': il percorso DRM diretto (che oggi non si
+  usa perche' non convive con weston), oppure capire se il blit puo' saltare la copia intermedia.
+  Sul percorso DRM c'e' un secondo sospetto gia' scritto nel piano «dove se ne va il tempo»:
+  flush_rgb888 riscrive il buffer un byte alla volta.
+
+- I due registratori dello storico — l'anello in RAM (sws-historian/src/lib.rs:262) e il datastore
+  su disco (registry.rs:398) — si misurano tutti e due col nome «storico», quindi nella pagina
+  Prestazioni sono una riga sola e non si sa di chi sia il massimo di 115 ms misurato sul WP630 il
+  27-10-2026. Vanno separati in due nomi. E' l'unica cosa del piano dei thread che non ha bisogno
+  di nessuna decisione.

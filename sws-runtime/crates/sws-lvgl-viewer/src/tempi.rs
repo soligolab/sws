@@ -1,5 +1,5 @@
 //! Le fasi del fotogramma, misurate sempre (piano
-//! `docs/plans/2026-10-26-dove-se-ne-va-il-tempo.md`).
+//! `docs/archive/2026-10-26-dove-se-ne-va-il-tempo.md`).
 //!
 //! Il giro di disegno registra qui quanto dura ogni fase; il thread di rete
 //! (`net_worker`) prende il riassunto e lo manda al runtime **solo se qualcuno

@@ -81,6 +81,29 @@
          viewer e IDE gestiscono lo scorrimento nei propri contenitori. */
       html, body { height: 100%; margin: 0; overflow: hidden; }
       #root { height: 100%; }
+      /* Le gesture del browser non devono rubare un trascinamento (27-10-2026).
+         Su un pannello touch, trascinare uno slider in orizzontale finiva
+         spesso interpretato da Chromium come «pagina precedente»: quel gesto
+         nasce dall'overscroll, e `overflow: hidden` qui sopra fa si' che la
+         pagina non possa scorrere — quindi ogni trascinamento È overscroll.
+         `overscroll-behavior: none` lo toglie su tutti e due gli assi: via
+         anche il pull-to-refresh, che su un chiosco ricarica la pagina per
+         sbaglio.
+
+         Si corregge qui e non con un parametro del browser
+         (`--overscroll-history-navigation=0`, `--disable-features=
+         OverscrollHistoryNavigation`): il servizio Chromium del pannello è di
+         PixsysOS, una modifica li' non viaggia con la nostra immagine, un
+         aggiornamento dell'OS se la porta via, e sul browser di un cliente non
+         vale comunque.
+
+         `touch-action: none` sui controlli che si trascinano è l'altra metà:
+         dice al browser di non interpretare affatto quel tocco, cosi' il primo
+         movimento non diventa uno scorrimento e lo slider non perde il dito.
+         Vale per tutti e tre gli `input[type=range]` dell'app — lo slider del
+         sinottico, il volume degli stili simbolo, lo zoom della barra. */
+      html, body { overscroll-behavior: none; }
+      input[type="range"] { touch-action: none; }
       /* Spinner dei campi numerici: Chromium li disegna minuscoli e solo in
          hover — bersaglio troppo piccolo col mouse (richiesta 2026-08-23).
          Sempre visibili e ~2x più larghi. Solo Chromium: Firefox li ignora. */

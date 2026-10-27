@@ -1,5 +1,5 @@
 //! Dove se ne va il tempo, lato runtime (piano
-//! `docs/plans/2026-10-26-dove-se-ne-va-il-tempo.md`).
+//! `docs/archive/2026-10-26-dove-se-ne-va-il-tempo.md`).
 //!
 //! - `GET /api/prestazioni` (Supervisor): la finestra del registro del
 //!   processo (`sws_core::prestazioni`) e l'ultimo riassunto del viewer LVGL.

@@ -1,5 +1,5 @@
 // Il tubo che segue un oggetto in **moto su percorso** (Fase 3 del piano
-// `docs/plans/2026-10-21-tubo-che-segue-gli-oggetti.md`, 26-10-2026).
+// `docs/archive/2026-10-21-tubo-che-segue-gli-oggetti.md`, 26-10-2026).
 //
 // **Perché serve un modulo e non due righe.** Le Fasi 1 e 2 hanno fatto
 // seguire il tubo agli oggetti mossi da un *binding* di geometria: lì la

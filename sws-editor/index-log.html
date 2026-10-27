@@ -29,6 +29,12 @@
         font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif, "SWS Emoji";
       }
       #root { height: 100%; }
+      /* Niente gesture del browser sul trascinamento (27-10-2026): con
+         `overflow: hidden` ogni trascinamento è overscroll, e Chromium lo
+         legge come «pagina precedente». Il perché per esteso, e il motivo per
+         cui non si passa da un parametro di Chromium, sta in `index.html`. */
+      html, body { overscroll-behavior: none; }
+      input[type="range"] { touch-action: none; }
     </style>
     <script src="/avvio-tema.js"></script>
   </head>

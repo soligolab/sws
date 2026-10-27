@@ -94,7 +94,7 @@ regressione: prima il tubo non seguiva affatto. Diagnosi chiusa, rimedio da deci
   scorre senza cambiare angolo, disegnano la stessa identica immagine, e oggi la cache viene
   buttata comunque; **(2)** disegnare il corpo con le primitive di LVGL invece che con un SVG.
   Prima di scegliere servirebbe **quanto costa su quella CPU**, e quel numero oggi non si può
-  avere → vedi il seme [dove se ne va il tempo](docs/plans/2026-10-26-dove-se-ne-va-il-tempo.md),
+  avere → vedi il seme [dove se ne va il tempo](docs/archive/2026-10-26-dove-se-ne-va-il-tempo.md),
   che il maintainer chiede di valutare se fare **subito**.
 - Il maintainer riprende **da casa, con accesso SSH al TC620**.
 
@@ -463,7 +463,7 @@ dietro da solo.
 ### Cosa è stato fatto, e cosa manca
 
 **1. Il tubo segue l'oggetto mosso da una variabile** — piano
-[`docs/plans/2026-10-21-tubo-che-segue-gli-oggetti.md`](docs/plans/2026-10-21-tubo-che-segue-gli-oggetti.md),
+[`docs/archive/2026-10-21-tubo-che-segue-gli-oggetti.md`](docs/archive/2026-10-21-tubo-che-segue-gli-oggetti.md),
 da seme a piano d'esecuzione con le misure dentro. **Fase 1 e 2 fatte, Fase 3 (il `motion`)
 aperta** perché è una decisione di prodotto.
 

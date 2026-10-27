@@ -1,5 +1,15 @@
 # Il tubo che segue gli oggetti mossi da una variabile
 
+> **Archiviato il 27-10-2026: confermato dal maintainer su tutti e due i motori.** Il viewer web
+> sul TC620 («sullo schermo ora si muove perfettamente») e il viewer LVGL sul WP630 («il movimento
+> del tubo mi sembra vada bene visivamente»). Era l'ultima cosa che mancava: il piano aspettava
+> solo la conferma sullo schermo di un pannello vero.
+>
+> Resta annotato in `docs/plans/Appunti.txt` **quanto costa**: rasterizzare il corpo del tubo da
+> un SVG costa 12 ms per ridisegno sul WP630, il 14% del fotogramma mentre la pompa scorre. Non e'
+> un problema oggi — il maintainer ha guardato e va bene — e l'appunto dice cosa fare il giorno in
+> cui lo diventasse.
+
 > **27-10-2026 — il ritardo nel moto su percorso (Fase 3), corretto.** Sul TC620 (viewer web) il tubo restava 10-15 px
 > indietro alla pompa mentre scorreva: un fotogramma di ritardo, perché il ridisegno chiesto dentro
 > `requestAnimationFrame` React lo eseguiva dopo la pittura. Ora è sincrono (`flushSync` in `useSegueIlMoto`); misurato

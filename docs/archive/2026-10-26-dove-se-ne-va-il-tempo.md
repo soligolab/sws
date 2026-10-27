@@ -1,5 +1,17 @@
 # Dove se ne va il tempo: misurare l'occupazione dei singoli lavori
 
+> **Archiviato il 27-10-2026: tutti e cinque i punti fatti.** Il punto 4 — «la build e il numero
+> per scegliere il rimedio del tubo» — e' stato misurato sul WP630, che e' il pannello LVGL
+> raggiungibile dall'ufficio, e il numero sta qui sotto. La scelta del rimedio non si fa: il
+> maintainer ha guardato il tubo in movimento e va bene cosi'. Le idee di ottimizzazione che
+> restano — il corpo del tubo con le primitive di LVGL, e la copia sullo schermo che si mangia 23
+> ms su 35 — sono in `docs/plans/Appunti.txt`, da riprendere quando la fluidita' diventera' un
+> problema.
+>
+> Quello che la misura ha aperto, invece, e' vivo: lo storico scrive una transazione per campione
+> e i thread non hanno un nome. Sta nel piano
+> [i thread del runtime](../plans/2026-10-27-thread-con-un-nome-e-una-priorita.md).
+
 > **Era un seme, dal 26-10-2026 (sera) è un piano d'esecuzione.** La sessione di plan l'ha fatta una sessione su
 > `ufficio`, misurando il codice; le tre decisioni sono del maintainer. Il testo del seme resta in coda, perché è il
 > motivo per cui il lavoro è nato.
@@ -17,6 +29,55 @@
 > `COLLAUDI_IN_SOSPESO.md`. Due scostamenti dal testo qui sotto: le rotte del viewer stanno sulla **porta del viewer**
 > (7443), dove il viewer parla, e sono **pre-auth ma innocue** invece che «solo da loopback» — sul pannello le porte
 > sono pubblicate su una rete rootless, e l'indirizzo di chi chiama non dice se è la stessa macchina.
+
+## Il numero, misurato il 27-10-2026 sul WP630
+
+Il punto 4 chiedeva «quanto costa su quella CPU». Risposto, con la pagina Prestazioni aperta
+mentre il maintainer muoveva lo slider e la pompa scorreva sul percorso. Pannello su
+`195e8c72-arm64`, progetto CasaDomotica, pagina Sandokan.
+
+**28 fotogrammi al secondo, 35 ms di lavoro per fotogramma.**
+
+| Fase | Per fotogramma | Volte | Media | p95 | Max |
+|---|---|---|---|---|---|
+| Copia sul display | **23 ms** | 58 | 23 | 27 | 27 |
+| Disegno LVGL | 6,7 ms | 58 | 6,7 | 21 | 21 |
+| Tag e collegamenti | 5,8 ms | 58 | 5,8 | 16 | 18 |
+| → di cui **tubo: corpo (SVG)** | **4,9 ms** | 24 | **12** | 15 | 15 |
+| Trend | 0,08 ms | 3 | 1,5 | 1,6 | 1,6 |
+
+**Le fasi sono annidate**: `canvas.tubo.corpo` si misura dentro `update_bindings`
+(`lvgl_render.rs:13449`), che è dentro la fase `tag`. Quindi dei 5,8 ms di «tag e collegamenti»,
+**4,9 sono la rasterizzazione del corpo del tubo** — l'84%. Le tre fasi di primo livello fanno
+35,6 ms, cioè il fotogramma intero.
+
+### Cosa dicono questi numeri sul rimedio del tubo
+
+- **Rasterizzare il corpo costa 12 ms, una volta su due fotogrammi** (24 ridisegni su 58). Dodici
+  millisecondi è quasi un fotogramma intero a 60 al secondo, per un oggetto solo.
+- **La strada 1 del seme — «non rifare ciò che non cambia» — qui non si applica al corpo.** La
+  pompa si muove, quindi un estremo del tubo si muove: la forma cambia davvero, e la cache
+  andrebbe buttata comunque. Il candidato della strada 1 erano i **bocchettoni**, e quelli in
+  questo campione **non compaiono affatto**: in quei secondi non sono stati rifatti, quindi non
+  costano niente da togliere.
+- Resta la **strada 2**: disegnare il corpo con le primitive di LVGL invece che con un SVG. Il
+  guadagno massimo è 4,9 ms su 35, cioè da 28 a circa 33 fotogrammi al secondo. **Decisione del
+  maintainer**, perché gli stili ricchi del tubo (materiali, volume, contorno) con le primitive
+  non si rifanno uguali.
+- **Il tetto però è un altro, e sta sopra tutti: la copia sul display, 23 ms, a ogni fotogramma.**
+  Da sola ferma il pannello a ~43 al secondo anche se tutto il resto fosse gratis. L'ipotesi 1 di
+  questo piano diceva «candidato numero uno a mangiarsi il giro», e aveva ragione — ma per un
+  motivo diverso da quello scritto: il WP630 **non** è sul percorso DRM. Il suo quadlet dice
+  `SDL_VIDEODRIVER=x11` (il backend Wayland nativo di SDL2 va in SIGSEGV su questo hardware,
+  Q14), quindi la fase misura `Surface::from_data` + `blit` + `SDL_UpdateWindowSurface`, cioè uno
+  `ShmPutImage` di 1280×800 verso XWayland, in software e dentro un container.
+
+### E dal lato runtime, due cose che non si cercavano
+
+- **`derivati` è il lavoro più pesante del runtime**: 21,6% dell'intervallo, 12,6 giri al secondo
+  da 17 ms di media (p95 27). A pannello fermo era l'1,8%.
+- **Lo storico ha una coda lunga**: media 0,61 ms su 153 scritture al secondo, ma **massimo
+  115 ms**. Un picco così, se capita nel momento sbagliato, è sette fotogrammi.
 
 ## Decisioni del maintainer (26-10-2026)
 

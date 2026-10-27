@@ -1,6 +1,6 @@
 /** Il tubo si calcola sulle posizioni **risolte dai binding** dei suoi capi.
  *
- *  Piano: docs/plans/2026-10-21-tubo-che-segue-gli-oggetti.md, Fase 1.
+ *  Piano: docs/archive/2026-10-21-tubo-che-segue-gli-oggetti.md, Fase 1.
  *
  *  Il difetto non era «il tubo non segue quando l'oggetto si muove»: era che il
  *  tubo nasceva staccato **già al primo fotogramma**. Ogni oggetto viene

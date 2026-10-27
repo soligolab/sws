@@ -1,5 +1,5 @@
 /** Istanza → Prestazioni (26-10-2026, piano
- *  `docs/plans/2026-10-26-dove-se-ne-va-il-tempo.md`).
+ *  `docs/archive/2026-10-26-dove-se-ne-va-il-tempo.md`).
  *
  *  Dove se ne va il tempo: i lavori di questa istanza e, con un pannello
  *  collegato, quelli del pannello — runtime e viewer LVGL. Due colonne come

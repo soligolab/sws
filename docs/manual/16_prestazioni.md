@@ -106,7 +106,7 @@ Dal 18-10-2026 il runtime limita le richieste alle API **per indirizzo**, con du
 ## Dove se ne va il tempo, guardando
 
 Le misure sopra dicono **quanto** regge il runtime visto da fuori. Per sapere **quale lavoro** lo occupa c'è
-**Configurazione → Istanza → Prestazioni** (dal 26-10-2026; piano `docs/plans/2026-10-26-dove-se-ne-va-il-tempo.md`):
+**Configurazione → Istanza → Prestazioni** (dal 26-10-2026; piano `docs/archive/2026-10-26-dove-se-ne-va-il-tempo.md`):
 una colonna per questa istanza e, con un pannello collegato, una per il pannello. Si aggiorna ogni 2 secondi.
 
 - **Viewer LVGL**: i fotogrammi al secondo veri e, per ogni fase del fotogramma, quanto pesa **in media su un

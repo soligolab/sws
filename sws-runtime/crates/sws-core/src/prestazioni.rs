@@ -1,4 +1,4 @@
-//! Dove se ne va il tempo (piano `docs/plans/2026-10-26-dove-se-ne-va-il-tempo.md`).
+//! Dove se ne va il tempo (piano `docs/archive/2026-10-26-dove-se-ne-va-il-tempo.md`).
 //!
 //! Un accumulatore di durate per **lavoro** — una fase del fotogramma del
 //! viewer, il giro di una sorgente del runtime — che si riempie sempre e si
