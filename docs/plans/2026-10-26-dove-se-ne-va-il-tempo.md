@@ -4,6 +4,12 @@
 > `ufficio`, misurando il codice; le tre decisioni sono del maintainer. Il testo del seme resta in coda, perché è il
 > motivo per cui il lavoro è nato.
 
+> **Il punto 4 è cambiato il 27-10-2026.** Il tubo che resta indietro il maintainer l'ha visto sul TC620 «così
+> com'è», e il TC620 mostra il **viewer web** (Chromium in kiosk), non LVGL: la diagnosi dello STATUS del 26-10 era
+> sul motore sbagliato. Misurato in Chromium, era un fotogramma di ritardo di React, corretto con `flushSync` sul
+> ramo annidato `fix/tubo-stesso-fotogramma` (scarto da 55,6 px a zero). La misura costruita qui resta valida per il
+> runtime e per i pannelli che usano LVGL; il collaudo sul TC620 guarda la colonna del runtime.
+
 > **Punti 1-3 e 5 FATTI il 26-10-2026 (sera)** sul ramo `feat/dove-se-ne-va-il-tempo`. Provato da capo a fondo in
 > locale con un runtime di prova e il viewer SDL senza schermo: la richiesta accende il viewer, il riassunto arriva,
 > la pagina lo mostra (PC, build di debug: 59 fotogrammi al secondo, 8,2 ms di lavoro per fotogramma, di cui 6,2 di

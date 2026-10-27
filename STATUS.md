@@ -12,13 +12,65 @@
 > resta in «Storico». Qui vive solo ciò che serve a riprendere il lavoro.
 
 
-## ⚠ Il lavoro del 26-27/10 non è su `main` (2026-10-27)
+## ▶ Riprendere da qui — dove se ne va il tempo, e il tubo nello stesso fotogramma (2026-10-27, notte)
 
-**Si riparte dal ramo `fix/tubo-stesso-fotogramma`**, pushato: contiene la misura «dove se ne va il tempo» e la
-correzione del tubo, in attesa della prova su LVGL prima dello squash. Il riepilogo completo è nello `STATUS.md` di
-quel ramo. `./scripts/session_start.sh`, poi `git checkout fix/tubo-stesso-fotogramma`.
+**Tutto mergiato su `main` il 27-10-2026**, in tre squash dal basso, e i rami eliminati:
 
-## ▶ Riprendere da qui — 2.23.0 costruita, e un tubo che resta indietro (2026-10-26, sera)
+```
+feat/dove-se-ne-va-il-tempo              la misura
+ └─ fix/tubo-stesso-fotogramma           il tubo nello stesso fotogramma
+     └─ fix/gesture-del-browser-sugli-slider   gesture e orientamento
+```
+main (9d8720fe, il piano)
+ └─ feat/dove-se-ne-va-il-tempo   ed9d47b5 misura · 379db3ce vps
+     └─ fix/tubo-stesso-fotogramma 195e8c72 tubo · 8abb2db1 vps · questo STATUS   ← pushato
+```
+
+- **Il tubo che resta indietro: CORRETTO e confermato dal maintainer sul TC620** («sullo schermo ora si muove
+  perfettamente»). Il TC620 mostra il **viewer web** (Chromium kiosk), non LVGL: la diagnosi qui sotto (canvas SVG su
+  LVGL) era sul motore sbagliato. Era un fotogramma di ritardo di React (`setState` dentro `requestAnimationFrame`,
+  eseguito dopo la pittura); ora `flushSync` in `useSegueIlMoto`. Misurato in Chromium con Playwright campionando in
+  un `ResizeObserver`: da 55,6 px (un passo di moto pieno) a zero.
+- **La misura «dove se ne va il tempo»**: viewer LVGL (fasi del fotogramma, mandate al runtime solo a richiesta),
+  runtime (sorgenti, storico, allarmi, derivati, script, `/ws/tags`), pagina Configurazione → Istanza → Prestazioni,
+  `sws_lavoro_secondi` in `/metrics`. Provata in locale col viewer SDL senza schermo.
+- **Guardia** `check_rotte_preauth.sh`: ora legge tutti i gruppi `open`; è uscito `/api/project` sulla 7443 → seme
+  `docs/plans/2026-10-26-progetto-letto-da-un-anonimo.md` (il progetto intero, coi numeri dei reperibili, a un anonimo).
+- **In servizio**: VPS gateway su `195e8c72-amd64`; TC620 su `195e8c72-arm64` ritaggata `rc-arm64`, ripiego
+  `prima-della-prova` (= `ed9d47b5`). Il TC620 ha `AutoUpdate=registry`: può tornare da sé alla 2.23.0 pubblicata.
+  Il container di progetto di CasaDomotica nel cloud è ancora sulla **2.22.0** (non riavviato, per regola): si
+  rinnova chiudendo e riaprendo il progetto dalla console.
+
+### Da fare
+
+1. **Prova su LVGL, al lavoro (WP630)**: display su LVGL, pagina Prestazioni dall'IDE collegato, pompa che scorre —
+   la colonna del pannello mostra il viewer con fps e fasi (compresi «Tubo: corpo» e «bocchettoni»). Il WP630 va
+   portato a `195e8c72-arm64`. Collaudo in `docs/COLLAUDI_IN_SOSPESO.md`, sezione «Prestazioni».
+2. **Da sistemare in ufficio — Prestazioni nel cloud** (screenshot del maintainer, 27-10-2026): su
+   `sws.soligo.net/p/-/CasaDomotica/#config/prestazioni` **tutte e due le colonne** mostrano
+   `API /api/prestazioni: 404 — <!doctype html>…` con l'intero `index.html` stampato in rosso.
+   - **Il 404 è atteso**: la pagina la serve il container di progetto, ancora sulla **2.22.0** (non ha la rotta, e il
+     ripiego della SPA risponde con l'`index.html`). Si rinnova chiudendo e riaprendo CasaDomotica dalla console;
+     poi riprovare.
+   - **Il messaggio invece è un difetto della pagina nuova** (`PrestazioniTab.tsx`, `ColonnaPrestazioni`): un errore
+     che arriva come HTML va ridotto a una riga — p. es. «questa istanza non conosce ancora la pagina Prestazioni
+     (versione precedente)» per un 404, e il testo dell'errore troncato per il resto. Guardare se c'è già un aiuto
+     comune in `api/client.ts` per gli errori HTML, e se altre schede (Certificati) hanno lo stesso difetto.
+3. **Da sistemare in ufficio — il container di progetto non segue l'immagine del gateway** (osservazione del
+   maintainer, 27-10-2026: «ho rifatto il login, mi aspetto un riavvio del container»). Misurato nel codice:
+   `Regia::riadotta` (`sws-web/src/gateway/progetti.rs`), all'avvio del gateway, riadotta **ogni** container di
+   progetto acceso **senza confrontare l'immagine** con `--gateway-immagine`; un nuovo login riusa il container che
+   c'è. Così CasaDomotica è rimasta sulla **2.22.0** attraverso tre aggiornamenti del gateway (2.23.0, `ed9d47b5`,
+   `195e8c72`), e la pagina Prestazioni nel cloud dà 404. Proposta da verificare: in `riadotta`, un container con
+   un'immagine diversa da quella del gateway non si adotta ma si ferma e si rimuove — la prossima apertura (il login)
+   lo ricrea con l'immagine giusta. Il commento della funzione dice già che dopo un riavvio del gateway nessun
+   browser è collegato, quindi non si toglie una sessione a nessuno. Serve l'immagine in `Contenitore`
+   (`elenca_nostri`). Attenzione alla regola «mai `podman restart` del container di progetto»: qui è il gateway che
+   lo ricrea, non un riavvio a mano.
+4. Con la prova fatta: squash dei due rami su `main`, eliminarli, e decidere se farne la 2.23.1 (NOVITA già scritte).
+5. Decisioni in coda: seme `progetto-letto-da-un-anonimo`; P5, P6 e C5-C8 del piano prima fascia; i 14 tutorial.
+
+## ▶ Prima — 2.23.0 costruita, e un tubo che resta indietro (2026-10-26, sera)
 
 **La 2.23.0 è su ghcr e `sws.soligo.net` ci gira sopra.** Due immagini verificate dal registry
 (arm64 e amd64), quadlet 7 invariato, sette voci di `NOVITA.yaml` in due lingue dentro

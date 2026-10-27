@@ -70,3 +70,35 @@ describe("leggere la posizione vera", () => {
     expect(scostamentoMoto(undefined)).toBeNull();
   });
 });
+
+describe("nello stesso fotogramma", () => {
+  /** Il difetto del 26-10-2026 sul TC620: il tubo ridisegnato **dopo** la
+   *  pittura, un fotogramma indietro alla pompa. Il ridisegno deve essere già
+   *  avvenuto quando la callback di `requestAnimationFrame` ritorna — nessun
+   *  `act`, nessuna attesa: se qualcuno torna a un `setState` semplice, React
+   *  lo rimanda e questo conteggio resta fermo. */
+  it("la callback del fotogramma ridisegna il tubo prima di tornare", async () => {
+    const { render } = await import("@testing-library/react");
+    const { useSegueIlMoto } = await import("@/canvas/motoVivo");
+    const fotogrammi: FrameRequestCallback[] = [];
+    const prima = { raf: globalThis.requestAnimationFrame, caf: globalThis.cancelAnimationFrame };
+    globalThis.requestAnimationFrame = ((cb: FrameRequestCallback) => { fotogrammi.push(cb); return fotogrammi.length; }) as typeof requestAnimationFrame;
+    globalThis.cancelAnimationFrame = (() => {}) as typeof cancelAnimationFrame;
+    try {
+      let disegni = 0;
+      function Tubo() {
+        disegni++;
+        useSegueIlMoto([POMPA], { v: { value: 1 } });
+        return null;
+      }
+      render(<Tubo />);
+      expect(fotogrammi.length).toBe(1);
+      const dopoIlPrimo = disegni;
+      fotogrammi[0](performance.now());
+      expect(disegni, "il tubo deve ridisegnarsi dentro il fotogramma").toBe(dopoIlPrimo + 1);
+    } finally {
+      globalThis.requestAnimationFrame = prima.raf;
+      globalThis.cancelAnimationFrame = prima.caf;
+    }
+  });
+});

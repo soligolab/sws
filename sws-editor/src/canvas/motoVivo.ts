@@ -26,6 +26,7 @@
 // unità utente qualunque cosa ci sia sopra.
 
 import { useEffect, useState } from "react";
+import { flushSync } from "react-dom";
 import type { SynopticObject } from "@/types";
 
 /** Quanto dura la transizione di un oggetto in moto, se non la dichiara.
@@ -98,7 +99,21 @@ export function durataDellaRincorsa(ancore: readonly SynopticObject[]): number {
  *  Non tiene nessuno stato della posizione: fa solo ripassare il componente,
  *  che a quel punto rilegge il browser con `scostamentoMoto`. Parte quando il
  *  valore di un `motion_tag` cambia e si ferma da sé alla fine della
- *  transizione — a impianto fermo nessun fotogramma, nessuna lettura. */
+ *  transizione — a impianto fermo nessun fotogramma, nessuna lettura.
+ *
+ *  **Nello stesso fotogramma, con `flushSync`** (27-10-2026). Un `setState`
+ *  dentro `requestAnimationFrame` React lo esegue dopo, in un compito suo,
+ *  quando il browser ha già dipinto: il tubo leggeva la posizione di un
+ *  fotogramma e compariva in quello dopo, con la pompa già avanti. Misurato in
+ *  Chromium con Playwright, campionando in un `ResizeObserver` (gira dopo i
+ *  `requestAnimationFrame` e prima della pittura, quindi vede ciò che verrà
+ *  dipinto): pompa su un tratto di 1000 px, lo scarto era **esattamente un
+ *  fotogramma di moto**, 55,6 px su 55,6 di passo, a ogni rallentamento della
+ *  CPU — i 10-15 px che il maintainer ha visto sul TC620 (26-10-2026). Dopo:
+ *  zero, a ogni fotogramma, anche con la CPU rallentata sei volte.
+ *  Dentro `requestAnimationFrame` la transizione CSS è già campionata per
+ *  questo fotogramma, quindi `getCTM()` dice dove la pompa verrà dipinta, e
+ *  il ridisegno sincrono mette il tubo nella stessa pittura. */
 export function useSegueIlMoto(
   ancore: readonly SynopticObject[],
   tagValues: Record<string, { value: unknown } | undefined>,
@@ -111,7 +126,7 @@ export function useSegueIlMoto(
     let raf = 0;
     const fine = performance.now() + durata;
     const giro = () => {
-      ridisegna((n) => n + 1);
+      flushSync(() => ridisegna((n) => n + 1));
       if (performance.now() < fine) raf = requestAnimationFrame(giro);
     };
     raf = requestAnimationFrame(giro);

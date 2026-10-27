@@ -169,8 +169,9 @@ Verificato uguale su un runtime normale. Il browser disegna la pagina lo stesso.
 proposito: con un 200 un bundle davvero mancante tornerebbe HTML con stato 200, e il browser
 proverebbe a eseguirlo come JavaScript — un errore molto più difficile da leggere di un 404.
 
-**Versione in esecuzione: `ed9d47b5-amd64`**, dal 26-10-2026 (sera): il commit della misura «dove se ne va il tempo»,
-sul ramo `feat/dove-se-ne-va-il-tempo`, non ancora una versione. Prima `2.23.0-amd64`, dallo stesso giorno.
+**Versione in esecuzione: `195e8c72-amd64`**, dal 27-10-2026: il tubo che segue la pompa nello stesso fotogramma,
+sul ramo `fix/tubo-stesso-fotogramma` (annidato su `feat/dove-se-ne-va-il-tempo`), non ancora una versione. Prima
+`ed9d47b5-amd64` (la misura «dove se ne va il tempo») dalla sera del 26-10, e `2.23.0-amd64` dallo stesso giorno.
 
 > **Il gateway si tiene sempre all'ultima immagine costruita**, senza aspettare che qualcuno lo
 > chieda: il maintainer lavora sempre da `sws.soligo.net`, e un IDE indietro mostra difetti che

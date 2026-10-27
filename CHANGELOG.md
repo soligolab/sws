@@ -24,6 +24,14 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 
 ### Fixed
 
+- **Il tubo restava un fotogramma indietro alla pompa in moto su percorso** (viewer web, visto sul TC620 il
+  26-10-2026: 10-15 px nella direzione del moto). `useSegueIlMoto` chiedeva il ridisegno con un `setState` dentro
+  `requestAnimationFrame`, che React esegue dopo la pittura: il tubo leggeva la posizione di un fotogramma e
+  compariva in quello dopo. Ora il ridisegno è sincrono (`flushSync`). Misurato in Chromium con Playwright
+  campionando ciò che verrà dipinto: lo scarto era esattamente un passo di moto (55,6 px su 55,6), ora è zero a ogni
+  fotogramma anche con la CPU rallentata sei volte. Test che fallisce se il ridisegno torna differito. La diagnosi
+  scritta in `STATUS.md` il 26-10 (rasterizzazione SVG nel viewer LVGL) era sbagliata: il TC620 mostra il viewer web.
+
 - **`check_rotte_preauth.sh` leggeva solo il primo gruppo `open`**: quello della porta del viewer (7443) non era mai
   stato controllato. Ora li legge tutti; è comparso `/api/project`, dichiarato con il seme
   `docs/plans/2026-10-26-progetto-letto-da-un-anonimo.md`.

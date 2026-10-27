@@ -35,6 +35,8 @@
 versioni:
   - versione: "2.23.1"
     voci:
+      - it: "Un tubo agganciato a un oggetto che scorre lungo un percorso non resta più indietro mentre si muove: lo segue nello stesso fotogramma."
+        en: "A pipe attached to an object sliding along a path no longer lags behind while it moves: it follows within the same frame."
       - it: "Configurazione → Istanza → Prestazioni: dove se ne va il tempo del pannello, fase per fase del fotogramma del viewer LVGL e lavoro per lavoro del runtime."
         en: "Configuration → Instance → Performance: where the panel's time goes, phase by phase of the LVGL viewer's frame and job by job in the runtime."
   - versione: "2.23.0"

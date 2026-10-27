@@ -1,5 +1,10 @@
 # Il tubo che segue gli oggetti mossi da una variabile
 
+> **27-10-2026 — il ritardo nel moto su percorso (Fase 3), corretto.** Sul TC620 (viewer web) il tubo restava 10-15 px
+> indietro alla pompa mentre scorreva: un fotogramma di ritardo, perché il ridisegno chiesto dentro
+> `requestAnimationFrame` React lo eseguiva dopo la pittura. Ora è sincrono (`flushSync` in `useSegueIlMoto`); misurato
+> in Chromium, lo scarto passa da un passo di moto pieno a zero. Il piano resta qui per la conferma sullo schermo.
+
 > **Era un seme, dal 22-10-2026 è un piano d'esecuzione.** Il seme nasceva il 21-10 dal punto 6
 > del ramo B di [tubazioni, bocche e stili](../archive/2026-10-15-tubazioni-bocche-e-stili.md) e
 > diceva di sé: «quando questo lavoro comincia, il primo passo è una sessione di plan

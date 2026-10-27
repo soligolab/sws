@@ -29,12 +29,14 @@
 
 Serve la build (2.23.1). Sul TC620 con la pagina della pompa che scorre lungo il percorso.
 
-1. [ ] Dall'IDE collegato al TC620: Configurazione → Istanza → Prestazioni. Entro 10 secondi la colonna del pannello
-       mostra il viewer LVGL: fotogrammi al secondo e le fasi.
-2. [ ] Far scorrere la pompa: compaiono «Tubo: corpo (SVG)» e «Tubo: bocchettoni». Annotare per fotogramma e p95 di
-       quelle due, di «Copia sul display» e di «Disegno LVGL» — sono i numeri che decidono il rimedio del tubo.
+1. [ ] Dall'IDE collegato al TC620: Configurazione → Istanza → Prestazioni. La colonna del pannello mostra il runtime;
+       il viewer LVGL compare solo se è quello che disegna lo schermo.
+2. [ ] (Solo su un pannello col viewer LVGL; il TC620 oggi usa il viewer web.) Far scorrere la pompa: compaiono
+       «Tubo: corpo (SVG)» e «Tubo: bocchettoni», con per fotogramma e p95.
 3. [ ] La colonna del runtime mostra le sorgenti di CasaDomotica (MQTT, Modbus) con i loro giri, e lo storico.
-4. [ ] Chiudere la pagina: dopo un minuto il viewer smette di mandare (nel log del runtime nessuna
+4. [ ] **Il tubo segue la pompa** (sul TC620, viewer web): con lo slider, la pompa che scorre lungo il percorso non si
+       stacca più dal tubo mentre si muove (prima 10-15 px nella direzione del moto).
+5. [ ] Chiudere la pagina: dopo un minuto il viewer smette di mandare (nel log del runtime nessuna
        `POST /api/prestazioni/viewer`).
 
 ## A. La misura che blocca C4 — il browser del pannello davanti al proprio certificato
