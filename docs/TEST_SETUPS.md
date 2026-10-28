@@ -201,11 +201,20 @@ rischio non c'era.
 |---|---|
 | Host | `wp630-a-p3-07a077.local` → **192.168.1.106** (ping da `theobroma`: 0,5 ms) |
 | Utente | **`user@`** — è quello indicato dal maintainer il 26-10. `pixsys@` è sudoer ma è di prova (vedi la memoria «credenziali e privilegi») |
-| Immagine in esecuzione | **2.21.1**, aggiornata il 26-10 da `sws.soligo.net` perché la 2.17 aveva il difetto della tastiera LVGL e dalla UI non si poteva |
+| Immagine in esecuzione | **2.23.4**, dal 28-10-2026 (il 26-10 era la 2.21.1, aggiornata da `sws.soligo.net` perché la 2.17 aveva il difetto della tastiera LVGL e dalla UI non si poteva) |
+| Orari | **si spegne la sera**: dopo le **17:30** non risponde, e non è un guasto |
 
 L'indirizzo va **riconfermato ogni sessione**: vedi «Convenzioni» in fondo. Il 26-10 era cambiato
 da `.120` a `.106` rispetto alla misura di agosto, e la riga vecchia diceva «risponde da frodo» —
 una macchina che non c'è più da settembre.
+
+**Il WP630 si spegne la sera** (detto dal maintainer il 28-10-2026). Dopo le 17:30 un ping che non
+torna, un SSH che non risolve il nome o un mDNS muto **sono il comportamento normale**, non un
+sintomo: non vanno indagati e non vanno scritti da nessuna parte come anomalia. Il 27-10 sera è
+successo esattamente questo — il nome non si risolveva più e la cosa è finita in `STATUS.md` fra le
+cose da guardare, dove non doveva stare.
+
+Vale solo per il WP630. Il **TC620** di casa sta acceso, ed è quello che risponde fuori orario.
 
 ### Il broker MQTT di prova (dal 2026-10-26)
 

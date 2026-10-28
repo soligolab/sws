@@ -74,14 +74,16 @@ ne risente. **La pulizia non l'ho fatta io**: è sua, e l'ha chiesta esplicitame
 Una nota che vale per sempre: **`podman system df` mente**. Diceva 307 GB; lo storage vero era 13.
 Somma la dimensione piena di ogni immagine contando gli strati condivisi tante volte.
 
-### Altre due cose viste e non chiuse
+### Una cosa vista e non chiusa
 
 - **WebSocket che non si aprono nel cloud**: nella console del maintainer, `wss://…/ws/tags` e
   soprattutto `wss://sws.soligo.net/ws/remote/logs` falliscono di continuo. Il secondo sta sulla
   **radice**, senza il prefisso del progetto: fa pensare a Traefik o al gateway più che al
   progetto. Non guardato.
-- **Il WP630 non risponde più al nome mDNS** (`wp630-a-p3-07a077.local`) da fine pomeriggio.
-  Prima rispondeva. Può essere l'mDNS o il pannello in aggiornamento.
+
+Qui c'era anche «il WP630 non risponde più al nome mDNS». **Non era un'anomalia**: quel pannello
+si spegne la sera, e dopo le 17:30 non rispondere è il suo comportamento normale. Detto dal
+maintainer il 28-10 e scritto dove va cercato, in `docs/TEST_SETUPS.md`.
 
 ### Fatto oggi, in otto squash
 
