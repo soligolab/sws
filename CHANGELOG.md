@@ -19,6 +19,18 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
   risponde non si scrive niente, perché una versione falsa è peggio di nessuna versione.
   **Nella schermata di accesso non c'è, ed è una scelta**: dirla prima del login la dice anche a chi non è entrato,
   cioè a chi sta cercando quali difetti noti provare, e su un'istanza aperta a esterni è un regalo gratuito.
+- **Un'azienda a testa** (ramo A di `docs/plans/2026-10-26-aprire-sws-soligo-net.md`): `crea_azienda_personale`
+  in `sws-identita` fa nascere chi si registrerà con un'azienda sua, di cui è Sviluppatore — nome uguale
+  all'indirizzo, cartella `u<id>` e non derivata dal nome, perché due indirizzi che normalizzano uguale si
+  prenderebbero un `-2` dal ciclo di disambiguazione, cioè la cartella di una persona dipenderebbe da chi si è
+  registrato prima. «Vede solo i suoi progetti», «niente console» e «non invita nessuno» diventano conseguenze di
+  regole che esistono già. Schema 4 dell'archivio utenti: `personale` e `max_progetti_totali` su `aziende`, con
+  default che lasciano gli archivi esistenti identici. La registrazione vera arriva col ramo C.
+- **Tetti sui container dei progetti nel cloud**: 256 MB di memoria e 512 processi ciascuno (misura dal VPS: 23-41 MB
+  in esercizio — largo di proposito, il punto è che un progetto che perde memoria non si porti giù la macchina
+  intera). E `--gateway-max-container`, tetto globale: la quota per azienda non ferma venti aziende da un progetto
+  ciascuna. Rifiuta e non spegne il più vecchio; risponde 503 con `Retry-After`, perché lì non c'è niente che chi
+  legge possa chiudere.
 - **La quota «quanti progetti in tutto»** si vede e si imposta dalla console, con il numero corrente preso dalla
   stessa funzione che usa chi rifiuta; e un'azienda **personale** si riconosce a colpo d'occhio nell'elenco.
 
@@ -65,6 +77,24 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 
 ### Fixed
 
+- **`create_project` non guardava nessuna appartenenza.** La rotta sta dietro `require_auth`, ma chiunque fosse
+  entrato poteva creare un progetto in qualunque azienda nominasse — ed era anche l'unico modo di farsi un
+  progetto **invisibile a sé stessi**, perché `visibilita` poi lo nascondeva al suo autore. Ora 404 come
+  `risolvi_progetto`, con la stessa funzione: due regole da tenere d'accordo è come è nato il buco. La quota sul
+  numero di progetti passa da **tutte e due** le porte che li creano, upload compreso — la prima stesura la
+  metteva solo su una, e `check_quota_progetti` l'ha preso.
+- **Cancellare un progetto e ricrearne uno con lo stesso nome lo rendeva inapribile nel cloud.** Misurato sul VPS il
+  26-10-2026: l'IDE rispondeva «500 project parse error» mentre sul disco il file c'era, perché il mount di podman
+  è legato all'inode e il container restava attaccato alla cartella vecchia. E l'autospegnimento dei 20 minuti non
+  riparava: ogni ricarica della pagina riapre un WebSocket e il cronometro riparte. Ora cancellare e rinominare un
+  progetto spengono il suo container prima di toccare la cartella — `regia.chiudi()` era chiamata da un punto solo
+  in tutto il repo, la console, che a un utente esterno non è data. E «project parse error» riporta di nuovo la
+  catena intera dell'errore: quella persa nascondeva un «No such file or directory».
+- **Quattro guardie statiche fallivano a caso.** `echo "$x" | grep -q …` sotto `set -o pipefail` è non
+  deterministico: `grep -q` esce al primo riscontro, `echo` riceve SIGPIPE, e la pipeline torna 141 — «non
+  trovato» — anche quando il riscontro c'è. `check_quota_progetti` passava a mano e falliva dentro
+  `check_static.sh` accusando ogni volta un campo diverso. Le quattro (`quota_progetti`, `amministrazione`,
+  `etichette_container`, `schema_tls`) usano ora il confronto di bash, che non ha pipe.
 - **Un pannello spento faceva dire al relay «non ritento».** Il gateway risponde **503** quando «il pannello
   esiste, non è collegato adesso» — cioè ogni volta che un pannello si riavvia, si spegne la sera o perde la rete
   per qualche secondo — ma il relay trattava **qualunque** risposta HTTP come definitiva: chiudeva il canale col

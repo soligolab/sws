@@ -35,6 +35,8 @@
 versioni:
   - versione: "2.23.6"
     voci:
+      - it: "Nel cloud, cancellare un progetto e crearne uno con lo stesso nome ora funziona, invece di dare un errore all'apertura."
+        en: "In the cloud, deleting a project and creating one with the same name now works, instead of failing on open."
       - it: "La versione del runtime in uso si legge accanto al marchio e nella scelta del progetto: utile quando segnali qualcosa."
         en: "The runtime version in use is shown next to the brand and in the project chooser: handy when you report something."
       - it: "I nomi dei progetti non si tagliano piu' e le schermate si adattano a finestre strette e telefoni."
