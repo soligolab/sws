@@ -1,8 +1,27 @@
 # Immagine di sfondo sulla pagina di boot, e PNG di boot che nel cloud perde le immagini
 
-> **Stato: piano d'esecuzione — da fare.** Rimandato dal maintainer il 26-10-2026: si apre
-> quando i rami aperti (freccia → ruolo → tubo → ricerca globale) sono chiusi, mergiati ed
-> eliminati. Le righe citate sono quelle di `main` a quella data: rimisurarle prima di partire.
+> **FATTO e CONFERMATO SUL PANNELLO il 28-10-2026.** Parole del maintainer, dopo la prova sul
+> WP630 in LVGL: «l'immagine PNG ora funziona correttamente anche per il boot».
+>
+> Il lavoro è uscito in tre pezzi, e due di questi il piano non li aveva previsti:
+>
+> - **Le modifiche A, B, C, D ed E** — il PNG che incorpora ogni immagine disegnata, il campo
+>   «Immagine di sfondo» sulla pagina di boot, il rasterizzatore che lo disegna, le prove e i
+>   documenti — sono uscite **nella 2.23.0**, la sera stessa del 26-10 (`f8d8eecc`, `7f248750`).
+> - **Nel cloud però non bastava**, e il piano non poteva saperlo: la correzione rileggeva il
+>   `blob:` con un `fetch`, e **un `fetch` di un `blob:` il browser lo rifiuta** — la Content
+>   Security Policy del runtime ha in `connect-src` `'self' http: https: ws: wss:` e non `blob:`.
+>   Il messaggio esisteva solo nella console del browser; il PNG si limitava a dire «indirizzo
+>   esterno». Trovato il 27-10 facendo stampare al maintainer l'href di quell'`<image>`, corretto
+>   nella **2.23.4**: `ImmagineSvg` tiene in memoria il `Blob` e il rasterizzatore lo legge da lì.
+> - **Il sospetto in coda a questo piano era fondato**, ed era peggio del previsto: su LVGL lo
+>   sfondo di una pagina non solo non si vedeva — diventava una **tinta unita**, perché
+>   `fill: "none"` ripiegava sul colore predefinito del rettangolo. Corretto nella **2.23.3**,
+>   insieme alla metà raster della **Q16**, accesa con la decisione del maintainer: `raster-images`
+>   di resvg, tutto Rust puro, nessun decoder C e nessun `lv_conf.h` toccato.
+>
+> Tre giri invece di uno, e il motivo vale la pena saperlo: **il cloud e il pannello sbagliavano in
+> due modi diversi, e nessuno dei due si riproduceva sull'altro**. In locale il PNG funzionava.
 
 ## Contesto
 

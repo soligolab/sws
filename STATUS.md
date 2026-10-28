@@ -12,24 +12,34 @@
 > resta in «Storico». Qui vive solo ciò che serve a riprendere il lavoro.
 
 
-## ▶ Riprendere da qui — 2.23.4 pubblicata, tre cose da provare e un disco da svuotare (2026-10-27, notte)
+## ▶ Riprendere da qui — 2.23.4 pubblicata, le immagini confermate, un disco svuotato (2026-10-28, mattina)
 
-**Giornata lunga: quattro release, 2.23.1 saltata.** `main` è su `a4c4c2ba`, i tag 2.23.2, 2.23.3 e
+**Giornata lunga: quattro release, 2.23.1 saltata.** `main` è su `f5eb4028`, i tag 2.23.2, 2.23.3 e
 2.23.4 sono su origin, nessun ramo aperto. Il gateway del VPS gira sulla **2.23.4-amd64**.
 
-### Le tre cose da provare, in ordine di dubbio
+### Confermato dal maintainer sul WP630, 28-10
 
-1. **Il PNG di boot nel cloud** (2.23.4). Era il difetto della serata e la causa è provata, non
-   supposta: `immagineComeDataUri` rileggeva il `blob:` con un `fetch`, e **un `fetch` di un
-   `blob:` il browser lo rifiuta** — la CSP del runtime ha in `connect-src` `'self' http: https:
-   ws: wss:` e non `blob:`. Lo ha stampato la console del maintainer su `sws.soligo.net`.
-   Ora `ImmagineSvg` tiene il `Blob` in memoria (`blobDi`) e il rasterizzatore lo legge da lì.
-   **Come si prova**: `sws.soligo.net`, ricarica forzata (la SPA sta in cache), pagina di boot,
-   «Rigenera PNG». La foto deve comparire e l'avviso arancione sparire.
-2. **Lo sfondo di una pagina su LVGL** (2.23.3), sul WP630: pagina «Finestre e porte», dove c'era
-   una tinta unita deve esserci `default.jpg`. Dietro c'è la **metà raster della Q16**, accesa con
-   la decisione del maintainer: `raster-images` di resvg, tutto Rust puro, nessun decoder C.
-3. **L'orientamento dello slider su LVGL** (2.23.2), mai confermato a schermo.
+**Le immagini si vedono, sulle pagine e sul boot.** Parole sue: «l'immagine PNG ora funziona
+correttamente anche per il boot». Chiude tre cose insieme, che erano tre difetti diversi per lo
+stesso sintomo:
+
+- su **LVGL** lo sfondo di una pagina diventava una tinta unita, perché `fill: "none"` ripiegava
+  sul colore predefinito del rettangolo (2.23.3). Dietro c'è la **metà raster della Q16**, accesa
+  con la decisione del maintainer: `raster-images` di resvg, tutto Rust puro, nessun decoder C e
+  nessun `lv_conf.h` toccato;
+- nel **cloud** il PNG di boot perdeva l'immagine perché il `blob:` si rileggeva con un `fetch`, e
+  **un `fetch` di un `blob:` il browser lo rifiuta** — la CSP non ha `blob:` in `connect-src`
+  (2.23.4). Lo ha stampato la console del maintainer: senza quella riga non ci si arrivava;
+- e le modifiche del piano, uscite nella 2.23.0 il 26-10.
+
+Il piano [sfondo dell'immagine di boot](../archive/2026-10-26-sfondo-dell-immagine-di-boot.md) è in
+archivio. La lezione che vale la pena ricordare: **cloud e pannello sbagliavano in due modi
+diversi, e nessuno dei due si riproduceva in locale**, dove il PNG funzionava.
+
+### Cosa resta da provare
+
+1. **L'orientamento dello slider su LVGL** (2.23.2), mai confermato a schermo: uno slider
+   dichiarato verticale si disegnava orizzontale.
 
 ### Quello che si aggiusta da sé
 
