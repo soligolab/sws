@@ -13,7 +13,7 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 
 ### Added
 
-- **Ogni scoperta dice chi la esegue** (piano `docs/plans/2026-10-28-cosa-sta-succedendo-nell-ide.md`, punto 1):
+- **Ogni scoperta dice chi la esegue** (piano `docs/archive/2026-10-28-cosa-sta-succedendo-nell-ide.md`, punto 1):
   accanto al titolo di «Sfoglia broker», «Sfoglia OPC-UA», Euromap e Home Assistant si legge ora **«eseguito da
   tc620-garage»**, o «eseguito su questa macchina» quando non c'è un pannello collegato. Il nome viene dall'URL del
   cloud (`…/dev/<pannello>`), come già fa la pagina Prestazioni. Nasce da un'ora persa il 28-10-2026: progetto del

@@ -843,7 +843,7 @@ pub async fn browse_one_level(
 ) -> anyhow::Result<Vec<BrowsedNode>> {
     // Il percorso buono era muto come quello MQTT: si vedeva solo l'errore, e
     // un browse che torna vuoto senza errore non lasciava traccia di dove
-    // fosse andato. Piano: docs/plans/2026-10-28-cosa-sta-succedendo-nell-ide.md
+    // fosse andato. Piano: docs/archive/2026-10-28-cosa-sta-succedendo-nell-ide.md
     let t0 = std::time::Instant::now();
     info!(
         endpoint = %cfg.endpoint_url,

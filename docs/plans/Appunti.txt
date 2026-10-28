@@ -94,3 +94,17 @@ Annoto di seguito, uno per punto, le cose che devono essere verificate e trasfor
   Sul percorso DRM c'e' un secondo sospetto gia' scritto nel piano «dove se ne va il tempo»:
   flush_rgb888 riscrive il buffer un byte alla volta.
 
+
+- Ricontare le richieste /api/history dal cloud, perche' il rimedio del 28-10-2026 non e' mai
+  stato misurato dopo. La misura di partenza c'e': ~17 richieste al secondo da una sola scheda
+  del browser sul progetto aperto in sws.soligo.net, alcune da 24 ore di storico ogni due
+  secondi, per sempre, viste nella scheda Network mentre si guardava altro. Il rimedio e' in
+  periodoPolling() dentro sws-editor/src/canvas/TrendCanvas.tsx — i trend non ricaricano piu'
+  spesso di quanto si muova un pixel del grafico (tetto a un minuto), e a scheda nascosta non
+  chiedono niente. Sulla carta 24 ore su 600 px passano da una richiesta ogni 2 s a una al
+  minuto, cioe' settantadue volte meno; nessuno pero' ha riaperto la scheda Network per vederlo.
+  Serve farlo, perche' quelle raffiche si mangiavano le sei connessioni per host di Chrome ed
+  erano un sospetto per i WebSocket che faticavano nel cloud. Se dopo la misura il flusso resta
+  pesante, i due rimedi veri vogliono il backend: chiedere solo i campioni nuovi invece di
+  rileggere la finestra intera, e una richiesta sola per piu' tag invece di una per tag. Piano
+  archiviato: docs/archive/2026-10-28-cosa-sta-succedendo-nell-ide.md, punto 5.

@@ -107,7 +107,7 @@ export function App() {
   //
   // Quella frase vale ancora per il **cassetto**, non più per gli errori: dal
   // 28-10-2026 `SpiaLog` li porta in barra e apre il cassetto sulla riga
-  // (docs/plans/2026-10-28-cosa-sta-succedendo-nell-ide.md).
+  // (docs/archive/2026-10-28-cosa-sta-succedendo-nell-ide.md).
   const [logOpen, setLogOpen] = useState<boolean>(() => {
     try { return localStorage.getItem(LOG_PANEL_KEY) === "1"; } catch { return false; }
   });
@@ -877,7 +877,7 @@ export function App() {
         <ViewerLink />
         {/* A quale pannello si è collegati, scritto. Il pallino del pulsante
             Deploy dice «collegato» e non dice a chi: il 28-10-2026 è costata
-            un'ora (docs/plans/2026-10-28-cosa-sta-succedendo-nell-ide.md). */}
+            un'ora (docs/archive/2026-10-28-cosa-sta-succedendo-nell-ide.md). */}
         <DispositivoCollegato />
         {/* Remote deploy target indicator — shows sync status when connected */}
         {(() => {

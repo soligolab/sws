@@ -12,7 +12,44 @@
 > resta in «Storico». Qui vive solo ciò che serve a riprendere il lavoro.
 
 
-## ▶ Riprendere da qui — 2.23.4 pubblicata, le immagini confermate, un disco svuotato (2026-10-28, mattina)
+## ▶ Riprendere da qui — l'IDE dice cosa sta facendo (2026-10-28, pomeriggio)
+
+`main` è su `95c9ed4c`, **non ancora pushato**, nessun ramo aperto.
+
+**Chiuso e archiviato: [cosa sta succedendo nell'IDE](docs/archive/2026-10-28-cosa-sta-succedendo-nell-ide.md).**
+Cinque punti, tutti dentro, collaudati dal maintainer sull'IDE 8460. Nascono da un'ora persa la
+mattina: progetto del WP630 aperto nel cloud, IDE ancora collegato al TC620 di casa, «Sfoglia
+broker» su un indirizzo dell'ufficio che risponde «0 topic». Era la risposta giusta a una domanda
+che nessuno poteva vedere.
+
+1. **Ogni scoperta dice chi la esegue** — «eseguito da tc620-garage» accanto al titolo, nei
+   quattro modali che passano da `suImpianto` (MQTT, OPC-UA, Euromap, Home Assistant).
+2. **Il pannello collegato si legge in barra**, accanto a Deploy, ed è cliccabile: porta alla sua
+   scheda Connessione. Prima c'era il pallino verde, che dice «collegato» e non dice a chi.
+3. **Pastiglia `≡ N` degli errori di log** accanto al fulmine; il clic apre il cassetto **sulla
+   riga**. Due pastiglie e non una: il fulmine conta avvisi *di stato* col rimedio scritto
+   accanto, questa conta *righe di log*. Si conta solo ciò che arriva dal vivo e si azzera
+   guardando il log.
+4. **Tre percorsi muti che ora parlano**: `browse()` MQTT, `browse_one_level()` OPC-UA (trovato
+   muto mentre si sistemava il primo) e `inoltra_al_pannello`. Il punto resta aperto per
+   costruzione: la tabella nel piano archiviato si allunga alla prossima diagnosi in cui si è
+   dovuto indovinare.
+5. **I trend non martellano più**: `periodoPolling()` non ricarica più spesso di quanto si muova
+   un pixel del grafico (tetto a un minuto), e a scheda nascosta non si chiede niente.
+
+### Le due cose che questa giornata lascia aperte
+
+- **Il punto 5 non è stato misurato.** Il maintainer lo ha dato per buono. La verifica vera è
+  riaprire la scheda Network sul progetto nel cloud e ricontare le richieste `/api/history`:
+  partivano da ~17 al secondo da una scheda sola. Annotato in `docs/plans/Appunti.txt`.
+- **Il 401 del relay verso `wp630-ufficio`** è fuori da quel piano e più urgente di tutto il
+  resto: finché c'è, dal cloud quel pannello non si comanda. Non è un problema di visibilità, è
+  una credenziale rifiutata, e va inseguito per conto suo. È anche la spiegazione dei WebSocket
+  falliti visti in console, che avevamo attribuito a Traefik.
+- **La regressione degli switch sul TC620** (luci del Garage che non comandano più) resta da
+  diagnosticare da casa, con SSH. Primo passo: cercare `[ws/tags] write … failed` in console.
+
+## Prima di questo, la stessa giornata — 2.23.4 pubblicata, le immagini confermate, un disco svuotato (2026-10-28, mattina)
 
 **Giornata lunga: quattro release, 2.23.1 saltata.** `main` è su `f5eb4028`, i tag 2.23.2, 2.23.3 e
 2.23.4 sono su origin, nessun ramo aperto. Il gateway del VPS gira sulla **2.23.4-amd64**.

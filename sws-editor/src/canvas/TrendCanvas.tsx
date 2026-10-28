@@ -42,7 +42,7 @@ const POLL_MAX_MS = 60_000;
  *  `/api/history` al secondo da una sola scheda, alcune da 24 ore di storico,
  *  per sempre. Chrome tiene sei connessioni per host, e quelle raffiche se le
  *  mangiavano — cioè è anche una delle ragioni per cui i WebSocket faticavano.
- *  Piano: docs/plans/2026-10-28-cosa-sta-succedendo-nell-ide.md */
+ *  Piano: docs/archive/2026-10-28-cosa-sta-succedendo-nell-ide.md */
 export function periodoPolling(pollMs: number, windowS: number, larghezzaPx: number): number {
   const msPerPixel = (windowS * 1000) / Math.max(120, larghezzaPx);
   return Math.round(Math.min(POLL_MAX_MS, Math.max(pollMs, msPerPixel)));
