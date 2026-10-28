@@ -10,6 +10,8 @@ import { BrandLogo } from "@/components/BrandLogo";
 import { DirtyIndicator } from "@/components/DirtyIndicator";
 import { RilieviProgetto } from "@/components/RilieviProgetto";
 import { HDR_BTN } from "@/components/headerStyles";
+import { DispositivoCollegato } from "@/components/DispositivoCollegato";
+import { SpiaLog } from "@/components/SpiaLog";
 import { MainMenu } from "@/components/MainMenu";
 import { RuntimeCtrl } from "@/components/RuntimeCtrl";
 import { ViewerLink } from "@/components/ViewerLink";
@@ -102,9 +104,25 @@ export function App() {
   const navigateToConfig = useAppStore((s) => s.navigateToConfig);
   // Log drawer: state stays here (App owns <LogPanel>), the toggle moved into
   // the ☰ menu — it is a diagnostic, not a per-minute control.
+  //
+  // Quella frase vale ancora per il **cassetto**, non più per gli errori: dal
+  // 28-10-2026 `SpiaLog` li porta in barra e apre il cassetto sulla riga
+  // (docs/plans/2026-10-28-cosa-sta-succedendo-nell-ide.md).
   const [logOpen, setLogOpen] = useState<boolean>(() => {
     try { return localStorage.getItem(LOG_PANEL_KEY) === "1"; } catch { return false; }
   });
+  const [logVaiA, setLogVaiA] = useState<number | null>(null);
+  const logNonVisti = useAppStore((s) => s.logNonVisti);
+  const segnaLogVisti = useAppStore((s) => s.segnaLogVisti);
+  // Col cassetto aperto la spia non deve contare niente: lo si sta guardando.
+  useEffect(() => {
+    if (logOpen && logNonVisti.errori + logNonVisti.avvisi > 0) segnaLogVisti();
+  }, [logOpen, logNonVisti, segnaLogVisti]);
+  const apriLogSu = (ts: number | null) => {
+    setLogVaiA(ts);
+    setLogOpen(true);
+    try { localStorage.setItem(LOG_PANEL_KEY, "1"); } catch { /* ignore */ }
+  };
   const toggleLog = () => {
     setLogOpen((prev) => {
       const next = !prev;
@@ -849,10 +867,18 @@ export function App() {
             nell'albero del pannello sinistro — una pagina porta all'editor,
             una foglia di configurazione alla sua scheda. */}
         <RuntimeCtrl />
+        {/* Errori e avvisi del log, **senza aprire il log**. Accanto al
+            fulmine di RuntimeCtrl di proposito, ma pastiglia a sé: quelli
+            sono avvisi di stato, questi sono righe (28-10-2026). */}
+        <SpiaLog onApri={apriLogSu} />
         {/* Apre la pagina operatore del runtime — quello connesso se c'è,
             altrimenti il locale. Sta accanto a Deploy di proposito: la domanda
             "ha funzionato?" arriva subito dopo averlo premuto. */}
         <ViewerLink />
+        {/* A quale pannello si è collegati, scritto. Il pallino del pulsante
+            Deploy dice «collegato» e non dice a chi: il 28-10-2026 è costata
+            un'ora (docs/plans/2026-10-28-cosa-sta-succedendo-nell-ide.md). */}
+        <DispositivoCollegato />
         {/* Remote deploy target indicator — shows sync status when connected */}
         {(() => {
           const syncLabel =
@@ -1088,8 +1114,9 @@ export function App() {
       </main>
 
       {/* Log drawer (bottom) */}
-      <LogPanel open={logOpen} onClose={() => {
+      <LogPanel open={logOpen} vaiA={logVaiA} onClose={() => {
         setLogOpen(false);
+        setLogVaiA(null);
         try { localStorage.setItem(LOG_PANEL_KEY, "0"); } catch { /* ignore */ }
       }} />
 

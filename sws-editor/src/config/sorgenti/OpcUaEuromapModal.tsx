@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import { api } from "@/api/client";
 import type { OpcUaEuromapVariable, OpcUaSource, TagDef } from "@/types";
 import { S } from "@/config/comuni";
+import { EseguitoDa } from "@/config/sorgenti/EseguitoDa";
 
 // ── OPC-UA Euromap auto-detect modal (BL-005b) ──────────────────────────────
 //
@@ -96,6 +97,7 @@ export function OpcUaEuromapModal({
           <div>
             <div style={{ fontSize: 14, fontWeight: 600 }}>
               🤖 Auto-detect Euromap 77 / 83
+              <EseguitoDa />
             </div>
             <div style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)", marginTop: 2 }}>
               {source.endpoint_url}

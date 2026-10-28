@@ -628,6 +628,7 @@ pub struct BrowsedTopic {
 /// `params.duration_secs` seconds, then disconnect and return the
 /// unique topics observed (sorted alphabetically).
 pub async fn browse(params: BrowseParams) -> Vec<BrowsedTopic> {
+    let t0 = std::time::Instant::now();
     let cid = format!("{}-browse", params.client_id);
     let mut opts = MqttOptions::new(&cid, &params.host, params.port);
     opts.set_max_packet_size(MAX_PACKET_SIZE_BYTES, MAX_PACKET_SIZE_BYTES);
@@ -670,6 +671,12 @@ pub async fn browse(params: BrowseParams) -> Vec<BrowsedTopic> {
     }
 
     let (client, mut eventloop) = AsyncClient::new(opts, 64);
+    // Il percorso buono parla (28-10-2026). Prima c'era un `warn!` sull'errore
+    // e nient'altro: uno sfoglia che torna vuoto era indistinguibile da uno
+    // che non e' mai partito, e per saperlo e' servita un'ora e riprodurre la
+    // funzione a mano su un'altra macchina.
+    info!(host = %params.host, port = params.port, client_id = %cid, secondi = params.duration_secs, "sfoglia broker: mi collego");
+
     let mut map: std::collections::HashMap<String, String> = std::collections::HashMap::new();
     let deadline = tokio::time::sleep(Duration::from_secs(u64::from(params.duration_secs)));
     tokio::pin!(deadline);
@@ -688,6 +695,7 @@ pub async fn browse(params: BrowseParams) -> Vec<BrowsedTopic> {
                             warn!("browse: subscribe '#' failed: {e}");
                             break;
                         }
+                        info!(host = %params.host, "sfoglia broker: collegato, mi iscrivo a #");
                         subscribed = true;
                     }
                     Ok(Event::Incoming(Packet::Publish(p))) => {
@@ -705,6 +713,7 @@ pub async fn browse(params: BrowseParams) -> Vec<BrowsedTopic> {
     }
 
     let _ = client.disconnect().await;
+    info!(host = %params.host, topic = map.len(), durata_s = t0.elapsed().as_secs_f32(), "sfoglia broker: finito");
 
     let mut result: Vec<BrowsedTopic> = map
         .into_iter()
@@ -786,5 +795,37 @@ mod tests_righe {
         assert_eq!(r[2].payload, r#"{"state_l3":""}"#);
         assert!(!pubblicabile("casa/#"));
         assert!(pubblicabile("zigbee2mqtt/garage/get"));
+    }
+}
+
+#[cfg(test)]
+mod prova_sfoglia_dal_vivo {
+    /// Lo «Sfoglia broker» contro un broker **vero**, per vedere da dentro cosa
+    /// fa (28-10-2026). `#[ignore]` perche' vuole un broker in ascolto: si
+    /// lancia a mano, e l'indirizzo si cambia con `SWS_BROKER_PROVA`.
+    ///
+    ///   SWS_BROKER_PROVA=192.168.0.203 cargo test -p sws-plugin-mqtt sfoglia_dal_vivo -- --ignored --nocapture
+    #[tokio::test]
+    #[ignore]
+    async fn sfoglia_dal_vivo() {
+        let host = std::env::var("SWS_BROKER_PROVA").unwrap_or_else(|_| "127.0.0.1".into());
+        let t0 = std::time::Instant::now();
+        let topics = super::browse(super::BrowseParams {
+            host: host.clone(),
+            port: 1883,
+            client_id: "sws-banco-wp630".into(),
+            username: None,
+            password: None,
+            tls_enabled: false,
+            insecure_skip_verify: false,
+            ca_cert_path: None,
+            duration_secs: 10,
+            certificati: std::sync::Arc::new(sws_core::pin_tls::ImprontaStore::new(std::env::temp_dir().join("sws-prova-impronte.json"))),
+        })
+        .await;
+        println!("--- {host}: {} topic in {:?} ---", topics.len(), t0.elapsed());
+        for t in &topics {
+            println!("    {}  =  {}", t.topic, t.sample_payload);
+        }
     }
 }

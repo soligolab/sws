@@ -889,6 +889,13 @@ async fn inoltra_al_pannello(
         )
             .into_response();
     };
+    // **Su quale pannello sta girando questa richiesta** (28-10-2026). Il log
+    // non lo diceva, e il 28-10 e' costato un'ora: una scoperta delegata al
+    // pannello sbagliato risponde «niente trovato», che e' la risposta giusta
+    // alla domanda che nessuno poteva vedere. L'interfaccia adesso lo scrive
+    // (`EseguitoDa`); qui lo scrive il log, per quando l'interfaccia non c'e'
+    // piu' — cioe' quando si indaga dopo.
+    tracing::info!(pannello = %target.url, %percorso, metodo = %metodo, "inoltro al pannello collegato");
     if let (Some(u), true) = (user, metodo != reqwest::Method::GET) {
         s.audit.log("remote.impianto", Some(u.username.clone()), serde_json::json!({ "url": target.url, "percorso": percorso, "metodo": metodo.as_str() }));
     }

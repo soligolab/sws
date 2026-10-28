@@ -33,6 +33,16 @@
 # successivo.
 
 versioni:
+  - versione: "2.23.5"
+    voci:
+      - it: "Quando cerchi topic MQTT o nodi OPC-UA, adesso c'è scritto quale pannello sta cercando: una ricerca vuota si spiega da sé."
+        en: "When you browse MQTT topics or OPC-UA nodes, it now says which panel is doing the search: an empty result explains itself."
+      - it: "Accanto a Deploy c'e' ora il nome del pannello a cui sei collegato: un clic porta alla sua scheda di connessione."
+        en: "Next to Deploy you now see the name of the panel you are connected to: one click opens its connection tab."
+      - it: "Gli errori del log si vedono in barra, senza aprire il cassetto: un clic sulla pastiglia apre il log sulla riga giusta."
+        en: "Log errors now show in the toolbar without opening the drawer: clicking the badge opens the log on the right line."
+      - it: "I grafici di tendenza chiedono lo storico molto meno spesso e si fermano quando la scheda e' nascosta: l'IDE e' piu' leggero."
+        en: "Trend charts ask for history far less often and stop while the tab is hidden: the IDE is lighter."
   - versione: "2.23.4"
     voci:
       - it: "Nel cloud, un progetto lasciato aperto adesso passa alla versione nuova quando il gateway si aggiorna, invece di restare indietro."

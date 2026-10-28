@@ -11,6 +11,46 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 
 ## [Unreleased]
 
+### Added
+
+- **Ogni scoperta dice chi la esegue** (piano `docs/plans/2026-10-28-cosa-sta-succedendo-nell-ide.md`, punto 1):
+  accanto al titolo di «Sfoglia broker», «Sfoglia OPC-UA», Euromap e Home Assistant si legge ora **«eseguito da
+  tc620-garage»**, o «eseguito su questa macchina» quando non c'è un pannello collegato. Il nome viene dall'URL del
+  cloud (`…/dev/<pannello>`), come già fa la pagina Prestazioni. Nasce da un'ora persa il 28-10-2026: progetto del
+  WP630 aperto ma IDE ancora collegato al TC620 di casa, e lo «Sfoglia broker» su un indirizzo dell'ufficio ha
+  risposto «0 topic» — la risposta giusta a una domanda che nessuno poteva vedere, perché la finestra diceva **dove**
+  cercare e mai **chi** cercava. Le scoperte le fa il pannello collegato, quindi il suo nome è metà della risposta.
+
+- **Il nome del pannello collegato accanto a Deploy** (stesso piano, punto 2). In barra c'era il pallino verde, che
+  dice «collegato» e non dice **a chi**: ora c'è una pastiglia `🖳 <pannello>`, cliccabile, che porta a
+  Configurazione → Istanza → Device → Connessione. Si mostra solo il pannello **collegato**, non quelli abbinati:
+  quelli sono un elenco e stanno nella loro scheda. `components/DispositivoCollegato.tsx`, sul modulo condiviso
+  `src/pannelloCollegato.ts` che serve anche il punto 1.
+
+- **Errori e avvisi del log si vedono senza aprire il log** (stesso piano, punto 3). Una pastiglia `≡ N` accanto al
+  fulmine di `RuntimeCtrl`, rossa se fra le righe c'è un `ERROR` e ambra se sono solo `WARN`; il clic apre il
+  cassetto **sulla riga** e la illumina. Fino a oggi `App.tsx` dichiarava che il log è «a diagnostic, not a
+  per-minute control» e stava nel menu ☰: la frase vale ancora per il cassetto, non più per gli errori — il 401 del
+  relay verso `wp630-ufficio` è rimasto lì dentro per ore. Si conta solo quello che arriva **dal vivo** (l'istantanea
+  iniziale è la storia di prima) e si azzera guardando il log. `components/SpiaLog.tsx`, `logNonVisti` nello store,
+  la prop `vaiA` di `LogPanel`.
+
+- **Tre percorsi muti che adesso parlano** (stesso piano, punto 4): `browse()` MQTT scrive «mi collego», «collegato,
+  mi iscrivo a #» e «finito: N topic in M secondi»; `browse_one_level` di OPC-UA fa lo stesso con endpoint, nodo di
+  partenza e numero di nodi; `inoltra_al_pannello` dice **verso quale pannello** sta andando una richiesta remota.
+  Prima c'era solo il `warn!` sull'errore, e un browse che torna vuoto senza errore non lasciava traccia.
+
+### Changed
+
+- **I trend non ricaricano più spesso di quanto si muova un pixel** (stesso piano, punto 5). Misurato il 28-10-2026
+  sul progetto aperto nel cloud: ~17 richieste `/api/history` al secondo da una sola scheda, alcune da 24 ore di
+  storico, ogni due secondi, per sempre — e Chrome tiene sei connessioni per host, quindi quelle raffiche se le
+  mangiavano (è anche una delle ragioni per cui i WebSocket faticavano). Ora il pavimento resta il `pollMs`
+  configurato e il soffitto è il tempo che vale un pixel del grafico, con un tetto di un minuto: 24 ore su 600 px
+  passano da una richiesta ogni 2 s a una al minuto. In più, **a scheda nascosta non si chiede niente**, e al ritorno
+  si ricarica subito. `periodoPolling()` in `canvas/TrendCanvas.tsx`.
+
+
 ## [2.23.4] — 2026-10-27
 
 ### Fixed

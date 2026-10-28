@@ -4,6 +4,7 @@ import { api } from "@/api/client";
 import type { BrowsedTopic, MqttSource, TopicMapping } from "@/types";
 import i18n from "@/i18n";
 import { S } from "@/config/comuni";
+import { EseguitoDa } from "@/config/sorgenti/EseguitoDa";
 
 // ── MqttBrowseModal ───────────────────────────────────────────────────────────
 
@@ -98,6 +99,7 @@ export function MqttBrowseModal({
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
           <div style={{ fontWeight: 700, color: "var(--brand-text, #e2e8f0)" }}>
             {t("sorgenti.sfogliaBroker")} — {source.host}:{source.port}
+            <EseguitoDa />
           </div>
           <button style={{ ...S.btn("ghost"), padding: "4px 8px" }} onClick={onClose}>✕</button>
         </div>

@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import { api } from "@/api/client";
 import type { HaBrowsedEntity } from "@/types";
 import { S } from "@/config/comuni";
+import { EseguitoDa } from "@/config/sorgenti/EseguitoDa";
 
 // ── HomeAssistant entity browser modal ────────────────────────────────────────
 
@@ -61,6 +62,7 @@ export function HaBrowseModal({
           <span style={{ fontSize: 13, fontWeight: 700, color: "var(--brand-warning, #f59e0b)", letterSpacing: 0.5 }}>
             {t("cfgUi.browseHomeAssistantEntities")}
           </span>
+          <EseguitoDa />
           <span style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)", flex: 1 }}>
             {target.field === "attribute" ? t("cfgUi.selectEntityThenAttribute") : t("cfgUi.selectEntity")}
           </span>

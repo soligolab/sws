@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import { api } from "@/api/client";
 import type { OpcUaBrowsedNode, OpcUaSource } from "@/types";
 import { S } from "@/config/comuni";
+import { EseguitoDa } from "@/config/sorgenti/EseguitoDa";
 
 // ── OPC-UA browse modal ──────────────────────────────────────────────────────
 //
@@ -196,7 +197,10 @@ export function OpcUaBrowseModal({
           display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           <div>
             <div style={{ fontSize: 14, fontWeight: 600 }}>{t("sorgenti.sfogliaOpcua")}</div>
-            <div style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)", marginTop: 2 }}>{source.endpoint_url}</div>
+            <div style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)", marginTop: 2 }}>
+              {source.endpoint_url}
+              <EseguitoDa />
+            </div>
           </div>
           <button onClick={onClose} style={{ background: "none", border: "none", color: "var(--brand-text-muted, #94a3b8)", cursor: "pointer", fontSize: 16 }}>×</button>
         </div>

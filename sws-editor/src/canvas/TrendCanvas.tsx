@@ -25,6 +25,29 @@ import { testoSistema } from "@/i18n/testiSistema";
  * Y range: hard `[yMin, yMax]` if both > 0 (config), otherwise autofit.
  */
 
+/** Il tetto al diradamento del polling (28-10-2026). Oltre un minuto un trend
+ *  fermo sembra rotto, anche quando la finestra è di trenta giorni. */
+const POLL_MAX_MS = 60_000;
+
+/** Ogni quanto ha senso ricaricare un trend largo `larghezzaPx` che mostra
+ *  `windowS` secondi (28-10-2026).
+ *
+ *  Il pavimento resta `pollMs`, che è la richiesta esplicita di chi ha
+ *  configurato il widget. Il **soffitto** è il tempo che un pixel rappresenta:
+ *  ricaricare più spesso di così ridisegna la stessa identica figura. Su una
+ *  finestra di 24 ore larga 600 px un pixel vale 144 secondi, e il `pollMs`
+ *  di 2 s chiedeva **settantadue volte** gli stessi dati.
+ *
+ *  Misurato il 28-10-2026 sul progetto aperto nel cloud: ~17 richieste
+ *  `/api/history` al secondo da una sola scheda, alcune da 24 ore di storico,
+ *  per sempre. Chrome tiene sei connessioni per host, e quelle raffiche se le
+ *  mangiavano — cioè è anche una delle ragioni per cui i WebSocket faticavano.
+ *  Piano: docs/plans/2026-10-28-cosa-sta-succedendo-nell-ide.md */
+export function periodoPolling(pollMs: number, windowS: number, larghezzaPx: number): number {
+  const msPerPixel = (windowS * 1000) / Math.max(120, larghezzaPx);
+  return Math.round(Math.min(POLL_MAX_MS, Math.max(pollMs, msPerPixel)));
+}
+
 /** Shared with TrendExpanded.tsx so the two views never drift on which
  *  color a given series index gets. */
 export const PALETTE = ["#3b82f6", "#22c55e", "#eab308", "#ef4444", "#a855f7", "#06b6d4"];
@@ -485,9 +508,19 @@ export function TrendCanvas({
       // WYSIWYG editor: una fetch sola, mai polling durante l'editing.
       return () => { cancelled = true; };
     }
-    const id = setInterval(tick, pollMs);
-    return () => { cancelled = true; clearInterval(id); };
-  }, [tags.join(","), windowS, pollMs, opcuaBackfill, isHistorical, explicitFromMs, explicitToMs, offsetMs, showAlarmMarkers, editPreview]);
+    // A scheda nascosta non si chiede niente: nessuno sta guardando, e la
+    // scheda in secondo piano mangiava banda e connessioni come quella davanti.
+    // Al ritorno si ricarica subito, così il grafico non è vecchio.
+    const tickSeVisibile = () => { if (!document.hidden) void tick(); };
+    const alRitorno = () => { if (!document.hidden) void tick(); };
+    document.addEventListener("visibilitychange", alRitorno);
+    const id = setInterval(tickSeVisibile, periodoPolling(pollMs, windowS, width));
+    return () => {
+      cancelled = true;
+      clearInterval(id);
+      document.removeEventListener("visibilitychange", alRitorno);
+    };
+  }, [tags.join(","), windowS, pollMs, width, opcuaBackfill, isHistorical, explicitFromMs, explicitToMs, offsetMs, showAlarmMarkers, editPreview]);
 
   // Layout constants for the plot area
   const PAD_TOP    = 6 + (tags.length > 1 ? 14 : 0); // legend space when multi-tag

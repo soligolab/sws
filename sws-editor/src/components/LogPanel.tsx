@@ -27,6 +27,10 @@ interface LogPanelProps {
    * dead space. Nothing else differs: same filters, same stream, same buffer.
    */
   variant?: "drawer" | "window";
+  /** `ts_ms` della riga su cui aprirsi, da `SpiaLog` (28-10-2026). Aprire il
+   *  log in fondo a duemila righe e dire «l'errore è lì dentro» non è
+   *  segnalare un errore: il cassetto ci si posiziona sopra e la illumina. */
+  vaiA?: number | null;
 }
 
 /**
@@ -34,7 +38,7 @@ interface LogPanelProps {
  * Operator+ only. Filters are client-side: level checkboxes, target
  * substring, free-text search with `<mark>` highlight in messages.
  */
-export function LogPanel({ open, onClose, variant = "drawer" }: LogPanelProps) {
+export function LogPanel({ open, onClose, variant = "drawer", vaiA = null }: LogPanelProps) {
   // Il DEBUG del dispositivo collegato (18-10-2026): la casella c'è solo per
   // l'amministratore di piattaforma; il relay ricontrolla comunque chi chiede.
   const remoteConnected = useAppStore((s) => s.remoteConnected);
@@ -138,6 +142,20 @@ export function LogPanel({ open, onClose, variant = "drawer" }: LogPanelProps) {
     const nearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 24;
     stickRef.current = nearBottom;
   };
+
+  // Posizionamento sulla riga chiesta da `SpiaLog`. Una volta sola per ogni
+  // `vaiA`: le righe continuano ad arrivare, e riportare l'elenco lì a ogni
+  // nuova riga impedirebbe di leggere il resto.
+  const postoSu = useRef<number | null>(null);
+  useLayoutEffect(() => {
+    if (!open) { postoSu.current = null; return; }
+    if (vaiA == null || postoSu.current === vaiA) return;
+    const riga = listRef.current?.querySelector(`[data-ts="${vaiA}"]`) as HTMLElement | null;
+    if (!riga) return;
+    postoSu.current = vaiA;
+    stickRef.current = false;   // altrimenti l'auto-scroll la riporta in fondo
+    riga.scrollIntoView({ block: "center" });
+  }, [open, vaiA, filtered.length]);
 
   if (!open) return null;
 
@@ -275,7 +293,7 @@ export function LogPanel({ open, onClose, variant = "drawer" }: LogPanelProps) {
       ) : (
         <div ref={listRef} onScroll={onScroll} style={listStyle}>
           {filtered.map((ev, i) => (
-            <LogRow key={`${ev.ts_ms}-${i}`} ev={ev} search={search} />
+            <LogRow key={`${ev.ts_ms}-${i}`} ev={ev} search={search} indicata={ev.ts_ms === vaiA} />
           ))}
         </div>
       )}
@@ -283,10 +301,15 @@ export function LogPanel({ open, onClose, variant = "drawer" }: LogPanelProps) {
   );
 }
 
-function LogRow({ ev, search }: { ev: LogEvent; search: string }) {
+function LogRow({ ev, search, indicata }: { ev: LogEvent; search: string; indicata?: boolean }) {
   const fieldEntries = ev.fields ? Object.entries(ev.fields) : [];
   return (
-    <div style={rowStyle}>
+    <div
+      data-ts={ev.ts_ms}
+      style={indicata
+        ? { ...rowStyle, background: "var(--brand-surface-2, #334155)", boxShadow: `inset 3px 0 0 ${LEVEL_COLOR[ev.level]}` }
+        : rowStyle}
+    >
       <span style={tsCell}>{formatTs(ev.ts_ms)}</span>
       <span style={{ ...lvCell, color: LEVEL_COLOR[ev.level] }}>{ev.level.padEnd(5)}</span>
       <span style={tgtCell}>{ev.target}</span>

@@ -841,6 +841,15 @@ pub async fn browse_one_level(
     parent_node_id: Option<&str>,
     direction: BrowseDir,
 ) -> anyhow::Result<Vec<BrowsedNode>> {
+    // Il percorso buono era muto come quello MQTT: si vedeva solo l'errore, e
+    // un browse che torna vuoto senza errore non lasciava traccia di dove
+    // fosse andato. Piano: docs/plans/2026-10-28-cosa-sta-succedendo-nell-ide.md
+    let t0 = std::time::Instant::now();
+    info!(
+        endpoint = %cfg.endpoint_url,
+        nodo = parent_node_id.unwrap_or("(ObjectsFolder)"),
+        "sfoglia opcua: mi collego"
+    );
     let tmpdir = tempfile::tempdir()
         .map_err(|e| anyhow::anyhow!("opcua browse: cannot create temp pki: {e}"))?;
     let mut client = build_client_builder(tmpdir.path(), true)
@@ -881,6 +890,7 @@ pub async fn browse_one_level(
         .map_err(|e| anyhow::anyhow!("opcua connect: {e}"))?;
     let loop_handle = event_loop.spawn();
     session.wait_for_connection().await;
+    info!(endpoint = %cfg.endpoint_url, "sfoglia opcua: collegato");
 
     let parent = match parent_node_id {
         Some(s) => {
@@ -996,6 +1006,12 @@ pub async fn browse_one_level(
     let _ = session.disconnect().await;
     loop_handle.abort();
     drop(tmpdir);
+    info!(
+        endpoint = %cfg.endpoint_url,
+        nodi = out.len(),
+        durata_s = t0.elapsed().as_secs_f32(),
+        "sfoglia opcua: finito"
+    );
     Ok(out)
 }
 

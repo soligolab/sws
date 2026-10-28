@@ -94,6 +94,9 @@
     "deployErrore": "Ultimo invio fallito: {{motivo}}",
     "deployConfigTitle": "Clicca per configurare la connessione al runtime remoto",
     "deployReconnectTitle": "Clicca per riconnetterti a {{url}}",
+    "dispositivoCollegatoTitle": "Collegato a {{dispositivo}} — è questo il pannello che esegue deploy e scoperte. Clicca per la scheda Connessione.",
+    "spiaLogErroriTitle": "{{errori}} errori e {{avvisi}} avvisi nel log da quando l'hai guardato. Clicca per aprirlo sul primo errore.",
+    "spiaLogAvvisiTitle": "{{avvisi}} avvisi nel log da quando l'hai guardato. Clicca per aprirlo sul primo.",
     "openViewer": "🖥 Viewer ↗",
     "openViewerTitle": "Apri {{url}} in una scheda nuova. Prima controlla che risponda.",
     "viewerProbing": "🖥 Controllo…",
@@ -3809,7 +3812,11 @@
   "impianto": {
     "nessunPannello": "Nessun pannello collegato: le scoperte e le prove le fa il pannello dell'impianto, che lo vede. Collegalo in Configurazione → Istanza → Device.",
     "sorgentiSulPannello": "Nel cloud le sorgenti girano sul pannello collegato: valori vivi, scoperte e comandi passano da lì.",
-    "sorgentiSenzaPannello": "Nel cloud le sorgenti non partono: collega il pannello dell'impianto (Configurazione → Istanza → Device) per i valori vivi e le scoperte."
+    "sorgentiSenzaPannello": "Nel cloud le sorgenti non partono: collega il pannello dell'impianto (Configurazione → Istanza → Device) per i valori vivi e le scoperte.",
+    "eseguitoDa": "eseguito da {{dispositivo}}",
+    "eseguitoQui": "eseguito su questa macchina",
+    "eseguitoDaSpiega": "Le scoperte le fa il pannello collegato, che vede l'impianto. Se cerchi un indirizzo che quel pannello non raggiunge, il risultato è vuoto — e non è un guasto.",
+    "eseguitoQuiSpiega": "Nessun pannello collegato: la ricerca parte da questa macchina."
   },
   "certificati": {
     "intro": "Tutti i certificati e le impronte di cui l'istanza si fida, in un posto solo. Con un pannello collegato, accanto ci sono i suoi.",

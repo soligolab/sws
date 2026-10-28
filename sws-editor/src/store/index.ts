@@ -337,6 +337,20 @@ interface AppState {
   /** Recent runtime log events streamed from /ws/logs. Capped at LOG_LIMIT.
    *  Oldest first; new events append. */
   logs: LogEvent[];
+  /** Errori e avvisi **arrivati dal vivo** da quando il log è stato guardato
+   *  l'ultima volta (28-10-2026). Serve alla spia in barra: fino a oggi un
+   *  `ERROR` poteva restare ore in un cassetto che nessuno apre.
+   *
+   *  Si conta solo quello che arriva dal socket, non l'istantanea iniziale di
+   *  `GET /api/logs`: quella è la storia di prima, e accendere la spia
+   *  all'apertura dell'IDE per una riga di ieri la renderebbe subito rumore.
+   *  I due `ts_ms` servono ad aprire il cassetto **su quella riga**. */
+  logNonVisti: {
+    errori: number;
+    avvisi: number;
+    primoErroreTs: number | null;
+    primoAvvisoTs: number | null;
+  };
   gridSize: number;
   snapEnabled: boolean;
   gridColor: string;
@@ -671,6 +685,8 @@ interface AppState {
   setLogs: (list: LogEvent[]) => void;
   appendLog: (ev: LogEvent) => void;
   clearLogs: () => void;
+  /** Azzera la spia: il log è stato guardato. */
+  segnaLogVisti: () => void;
 
   // Canvas settings
   setGridSize: (size: number) => void;
@@ -1037,6 +1053,7 @@ export const useAppStore = create<AppState>((set, get) => {
     tagValues: {},
     alarms: {},
     logs: [],
+    logNonVisti: { errori: 0, avvisi: 0, primoErroreTs: null, primoAvvisoTs: null },
     gridSize: 10,
     snapEnabled: true,
     gridColor: "#1e293b",
@@ -2565,10 +2582,25 @@ export const useAppStore = create<AppState>((set, get) => {
         const next = s.logs.length >= LOG_LIMIT
           ? [...s.logs.slice(s.logs.length - LOG_LIMIT + 1), ev]
           : [...s.logs, ev];
-        return { logs: next };
+        // L'oggetto si ricrea **solo** quando cambia davvero: la spia lo
+        // osserva per identità, e un nuovo oggetto a ogni riga INFO la
+        // farebbe ridisegnare per niente.
+        if (ev.level !== "ERROR" && ev.level !== "WARN") return { logs: next };
+        const v = s.logNonVisti;
+        return {
+          logs: next,
+          logNonVisti: ev.level === "ERROR"
+            ? { ...v, errori: v.errori + 1, primoErroreTs: v.primoErroreTs ?? ev.ts_ms }
+            : { ...v, avvisi: v.avvisi + 1, primoAvvisoTs: v.primoAvvisoTs ?? ev.ts_ms },
+        };
       }),
 
-    clearLogs: () => set({ logs: [] }),
+    clearLogs: () => set({ logs: [], logNonVisti: { errori: 0, avvisi: 0, primoErroreTs: null, primoAvvisoTs: null } }),
+
+    segnaLogVisti: () => set((s) =>
+      s.logNonVisti.errori === 0 && s.logNonVisti.avvisi === 0
+        ? {}
+        : { logNonVisti: { errori: 0, avvisi: 0, primoErroreTs: null, primoAvvisoTs: null } }),
 
     setGridSize: (gridSize) => set({ gridSize }),
     setSnapEnabled: (snapEnabled) => set({ snapEnabled }),
