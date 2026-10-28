@@ -1,9 +1,69 @@
-# Chi sta dall'altra parte: la disponibilità del dispositivo, e un allarme quando sparisce
+# Chi sta dall'altra parte: la disponibilità delle sorgenti, e un allarme quando sparisce
 
-> **Seme — decisione.** Nato il 28-10-2026 da un guasto diagnosticato sul TC620 di casa.
->
-> **Quando questo lavoro comincia, il primo passo è una sessione di plan dedicata e approfondita per sviscerarne
-> tutti i dettagli.** Quello che segue sono le misure di oggi e le strade che si vedono, non un disegno.
+> **Era un seme, dal 28-10-2026 (sera) è un piano d'esecuzione.** Sessione di plan col maintainer lo stesso giorno,
+> misurando il codice; le quattro decisioni sono sue. Il testo del seme resta sotto, perché è il motivo per cui il
+> lavoro è nato.
+
+## Decisioni del maintainer (28-10-2026)
+
+1. **La disponibilità è una proprietà della sorgente**, e produce un tag booleano normale `<sorgente>.disponibile`.
+   Per MQTT vale «broker raggiungibile **e** topic di disponibilità che dice vivo» (topic, percorso JSON, valore di
+   «vivo», con preimpostazioni Zigbee2MQTT / Tasmota / Shelly / ESPHome). Per gli altri protocolli vale lo stato di
+   collegamento che il plugin già conosce.
+2. **Quando l'altro capo è morto, i tag della sorgente passano a qualità `Bad`**: tengono l'ultimo valore, i sinottici
+   mostrano già lo stale, e un allarme di soglia non scatta su un valore `Bad` (regola già in `alarm.rs`). Tornano
+   `Good` col primo valore vero, non col ritorno del bridge: fino ad allora non sappiamo cosa c'è.
+3. **L'allarme si crea a mano, aiutato**: è un allarme normale `bool_false` sul tag di disponibilità; nella sorgente un
+   pulsante «Crea l'allarme di disponibilità» lo prepara (60 s di `on_delay_s`, messaggio con il nome della sorgente),
+   e da lì vale tutto quello che c'è — notifiche, tabella eventi, telefono, storico.
+4. **Tutte le sorgenti**, non solo MQTT.
+
+## Misurato il 28-10-2026
+
+- `sws_core::stato_sorgenti` (bus + dispositivi, con `da_ms`) esiste e lo legge l'albero dell'IDE, ma **lo scrive solo
+  Modbus**. MQTT, S7, OPC-UA, EtherNet/IP, Home Assistant hanno ognuno il punto in cui la sessione si apre e cade
+  (`MQTT session ended`, `tunnel/sessione chiusa`…), e da lì va scritto.
+- `TagDb::marca_qualita(id, q)` esiste, anche sulle foglie dei compositi (la radice prende la peggiore).
+- `AlarmDef.on_delay_s` esiste: «non risponde da N secondi» non chiede niente di nuovo.
+- La validazione avvisa per un allarme su un tag non dichiarato («non scatterà mai»): il tag di disponibilità si
+  **dichiara nel progetto** come le metriche della sorgente host, così il selettore dei tag e la validazione lo vedono.
+- Lo Zigbee2MQTT di casa ha `availability.enabled: false`: la disponibilità **per dispositivo** non c'è; c'è quella del
+  bridge (`zigbee2mqtt/bridge/state`, testamento sul broker, conservato).
+
+## Il lavoro — un ramo alla volta
+
+### 1. `feat/disponibilita-sorgenti` (runtime)
+
+- `sws-core`: `Disponibilita { topic, json_path?, vivo }` nella sorgente MQTT (serde default, assente = solo il
+  broker); il nome del tag `<id>.disponibile` in un punto solo.
+- Ogni plugin scrive lo stato del bus in `stato_sorgenti` all'apertura e alla caduta della sessione (oggi solo Modbus).
+- Il supervisore deriva `<id>.disponibile` per ogni sorgente dallo stato del bus (e, per MQTT, dal topic di
+  disponibilità), lo scrive ai cambi, e al passaggio a falso marca `Bad` i tag mappati di quella sorgente.
+- Test: la preimpostazione Zigbee2MQTT su `{"state":"offline"}` e su `offline` in chiaro; un broker giù; il ritorno
+  che non rimette `Good` finché non arriva un valore.
+
+### 2. `feat/disponibilita-editor` (IDE)
+
+- Nella card della sorgente MQTT: la sezione «Disponibilità» con le preimpostazioni; accenderla dichiara il tag.
+- Per tutte le sorgenti: il tag di disponibilità visibile nella card, e il pulsante «Crea l'allarme di disponibilità».
+- Validazione: un topic di disponibilità che nessuna preimpostazione riconosce e senza valore di «vivo» → avviso.
+
+### 3. Documenti e CasaDomotica
+
+- Manuale (protocolli e allarmi), CHANGELOG, NOVITA, collaudi.
+- **CasaDomotica**: disponibilità Zigbee2MQTT sulle sorgenti `mqtt-*` che parlano con Zigbee2MQTT, e l'allarme con
+  Telegram — è il caso che ha fatto nascere il piano.
+
+## Fuori, dichiarato
+
+- La disponibilità **per dispositivo** di Zigbee2MQTT (va accesa in Zigbee2MQTT; si aggiunge dopo, per riga).
+- **I comandi mentre l'altro capo è morto si mandano lo stesso**: il segnale può sbagliare, e un comando rifiutato da
+  SWS per un falso «morto» sarebbe peggio. Il sinottico in stale dice già all'operatore che non sa cosa c'è.
+- Un avviso nel fulmine dell'IDE: viene dopo, quando il tag esiste.
+
+---
+
+## Il seme (28-10-2026)
 
 ## Perché nasce
 
