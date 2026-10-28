@@ -36,10 +36,14 @@ Il piano [sfondo dell'immagine di boot](../archive/2026-10-26-sfondo-dell-immagi
 archivio. La lezione che vale la pena ricordare: **cloud e pannello sbagliavano in due modi
 diversi, e nessuno dei due si riproduceva in locale**, dove il PNG funzionava.
 
-### Cosa resta da provare
+Confermato anche lo **slider verticale** su LVGL (2.23.2): `render_slider` non leggeva
+`orientation` e disegnava sempre orizzontale.
 
-1. **L'orientamento dello slider su LVGL** (2.23.2), mai confermato a schermo: uno slider
-   dichiarato verticale si disegnava orizzontale.
+### Niente in attesa di collaudo, da questa giornata
+
+Tutto quello che è uscito fra la 2.23.2 e la 2.23.4 è stato provato su un pannello vero. Resta
+in sospeso solo ciò che viene da prima — `docs/COLLAUDI_IN_SOSPESO.md`, dove il punto 4 (il tubo
+che segue la pompa sul TC620, viewer web) è già confermato a voce ma non ancora segnato.
 
 ### Quello che si aggiusta da sé
 

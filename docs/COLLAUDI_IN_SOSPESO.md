@@ -34,7 +34,7 @@ Serve la build (2.23.1). Sul TC620 con la pagina della pompa che scorre lungo il
 2. [ ] (Solo su un pannello col viewer LVGL; il TC620 oggi usa il viewer web.) Far scorrere la pompa: compaiono
        «Tubo: corpo (SVG)» e «Tubo: bocchettoni», con per fotogramma e p95.
 3. [ ] La colonna del runtime mostra le sorgenti di CasaDomotica (MQTT, Modbus) con i loro giri, e lo storico.
-4. [ ] **Il tubo segue la pompa** (sul TC620, viewer web): con lo slider, la pompa che scorre lungo il percorso non si
+4. [x] **Il tubo segue la pompa** (sul TC620, viewer web) — **confermato dal maintainer il 27-10-2026**, «sullo schermo ora si muove perfettamente», dopo il `flushSync` in `useSegueIlMoto`: con lo slider, la pompa che scorre lungo il percorso non si
        stacca più dal tubo mentre si muove (prima 10-15 px nella direzione del moto).
 5. [ ] Chiudere la pagina: dopo un minuto il viewer smette di mandare (nel log del runtime nessuna
        `POST /api/prestazioni/viewer`).
