@@ -11,6 +11,58 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 
 ## [Unreleased]
 
+### Added
+
+- **La versione del runtime si vede** (richiesta del maintainer, 28-10-2026), in due posti: accanto al marchio in
+  testata e sotto il titolo nella scelta del progetto, che è il primo posto in cui si arriva dopo il login. Una
+  fetch sola per sessione — la versione di un processo non cambia mentre quel processo gira — e se il runtime non
+  risponde non si scrive niente, perché una versione falsa è peggio di nessuna versione.
+  **Nella schermata di accesso non c'è, ed è una scelta**: dirla prima del login la dice anche a chi non è entrato,
+  cioè a chi sta cercando quali difetti noti provare, e su un'istanza aperta a esterni è un regalo gratuito.
+- **La quota «quanti progetti in tutto»** si vede e si imposta dalla console, con il numero corrente preso dalla
+  stessa funzione che usa chi rifiuta; e un'azienda **personale** si riconosce a colpo d'occhio nell'elenco.
+
+### Changed
+
+- **Il colore del marchio usato come testo si legge, con qualunque marchio.** La prima misura del contrasto sulla
+  scelta del progetto ha trovato «Installa il runtime su un dispositivo» a 3,5:1 sul fondo chiaro, sotto la
+  soglia di 4,5. Non dipendeva dal marchio: il blu SWS fa 3,58, l'arancione Pixsys 3,54 — un colore pensato per
+  riempire un pulsante non è un colore per scrivere. Nuovo token `--brand-primary-testo`, calcolato come già si fa
+  per `--brand-on-primary`: il primario spostato **quanto basta** verso l'inchiostro del tema, così resta
+  riconoscibilmente del marchio. Se è già leggibile esce identico. Sostituito nei 22 punti che usavano il
+  primario come colore del testo. **La coppia che il piano dava a rischio** (`--brand-text-subtle` su
+  `--brand-surface`) **passava**: la misura ha detto un'altra cosa, e si è corretta quella.
+- **La guardia del contrasto guarda la porta d'ingresso.** Fino a oggi partiva sempre da un progetto aperto,
+  quindi primo accesso, accesso e scelta del progetto non erano mai stati misurati. Ora le attraversa davvero, su
+  un secondo runtime che si comporta come quello vero — il primo gira `--senza-autenticazione`, che salta proprio
+  quelle schermate. E misura **col marchio del repo**, non con quello che la macchina ha attivo: la prima misura
+  aveva trovato un arancione che era quello Pixsys di questa macchina, e la stessa guardia a casa avrebbe misurato
+  un altro colore. Una guardia che dice cose diverse a seconda di dove gira non è una guardia.
+- **`WelcomeScreen.tsx` si spezza**: da 1673 righe a 791, con il modale «Nuovo progetto», il navigatore di
+  cartelle e l'installazione di un runtime in `components/benvenuto/`. Sette funzioni spostate, verificate
+  identiche byte per byte all'originale.
+- **Un posto solo per le primitive dell'interfaccia**: `console/stile.ts` sale a `ui/base.ts` e ci arrivano le
+  costanti delle schermate di ingresso. Da tre sistemi di stile si passa a due, invece di aggiungerne un quarto.
+- **Il marchio anche nelle ultime quattro schermate** che dicevano «SWS» scritto a mano: primo amministratore,
+  abbinamento, la barra in cima alla scelta del progetto, la console. Il piano ne contava tre; ne erano sette.
+
+- **Le quattordici emoji delle due schermate diventano icone vere.** 📁 ⬆ ✓ ✕ ✎ 🗄 ▦ ☰ ⚑ 📦 📂 le disegnava il
+  sistema operativo: a colori e di dimensione diversa su Windows, rettangoli vuoti su un pannello senza font emoji,
+  e in nessun caso seguivano il tema. Ora una famiglia disegnata da noi (`ui/iconeInterfaccia.ts`, tratto su
+  viewBox 24×24, `currentColor`), modulo **separato** da quella degli strumenti perché la guardia
+  `check_icone_strumenti.sh` accoppia quella alla palette. Due pittogrammi erano dentro il **catalogo dei testi**
+  (`welcome.openFromZip`, `welcome.deployDone`): un'icona non è una traduzione, e in una lingua che non la vuole
+  non si poteva togliere. Restano le frecce tipografiche nei testi e i triangolini di apertura, che sono segni di
+  testo e non icone. Una prova legge i due file e fallisce se un pittogramma torna.
+- **Le schermate di accesso e di scelta progetto portano il marchio**, non più la stringa «SWS» cablata in tre
+  punti: su un'istanza con un marchio proprio erano gli ultimi posti che dicevano ancora «SWS». Sparisce anche il
+  nome vecchio «Soligo Web SCADA».
+- **I nomi dei progetti non si tagliano più, e la griglia si adatta alla finestra.** Erano due difetti con una
+  causa sola: piastrelle di 158 px fisse più `textOverflow: ellipsis`. Ora `grid` con `auto-fill`, il nome su due
+  righe, e il suggerimento mostra il **nome** invece del percorso — che era già scritto sotto. Sotto i 400 px di
+  finestra la scheda di accesso sforava e la pagina scorreva in orizzontale: `schedaModulo` prende una larghezza
+  **massima** invece che fissa, e la pagina ha il suo margine laterale.
+
 ### Fixed
 
 - **Un pannello spento faceva dire al relay «non ritento».** Il gateway risponde **503** quando «il pannello

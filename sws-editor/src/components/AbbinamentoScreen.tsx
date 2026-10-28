@@ -1,3 +1,4 @@
+import { BrandLogo } from "@/components/BrandLogo";
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { paginaCentrata, schedaModulo } from "@/components/schermataAccesso";
@@ -63,7 +64,9 @@ export function AbbinamentoScreen({
     <div style={paginaCentrata}>
       <form onSubmit={invia} style={schedaModulo(420)}>
         <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 4 }}>
-          <strong style={{ fontSize: 20, letterSpacing: 1 }}>SWS</strong>
+          {/* Il marchio, non «SWS» cablato (28-10-2026): stesso trattamento della
+            schermata d'accesso. */}
+          <BrandLogo />
           <span style={{ color: "var(--brand-text-subtle, #64748b)", fontSize: 13 }}>
             {t("abbinamento.titolo", { nome })}
           </span>

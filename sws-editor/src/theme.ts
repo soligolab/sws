@@ -60,6 +60,9 @@ const VAR_WARNING_BG    = "--brand-warning-bg";
 // Colori di primo piano (testo/icone) leggibili sopra i fill accento/stato,
 // calcolati per max-contrasto in applyAppearance().
 const VAR_ON_PRIMARY    = "--brand-on-primary";
+/** Il colore primario **usato come testo** su una superficie (28-10-2026). Vedi
+ *  `testoLeggibile`. */
+const VAR_PRIMARY_TESTO = "--brand-primary-testo";
 const VAR_ON_DANGER     = "--brand-on-danger";
 const VAR_ON_SUCCESS    = "--brand-on-success";
 const VAR_ON_WARNING    = "--brand-on-warning";
@@ -153,6 +156,37 @@ function contrast(a: string, b: string): number {
 /** Testo (scuro o chiaro) col contrasto maggiore sopra `bg`. */
 export function readableOn(bg: string): string {
   return contrast(LIGHT_INK, bg) >= contrast(DARK_INK, bg) ? LIGHT_INK : DARK_INK;
+}
+
+/** Mescola due colori `#rrggbb`: `t = 0` è `a`, `t = 1` è `b`. */
+function mescola(a: string, b: string, t: number): string {
+  const ca = [0, 2, 4].map((i) => parseInt(a.replace("#", "").slice(i, i + 2), 16));
+  const cb = [0, 2, 4].map((i) => parseInt(b.replace("#", "").slice(i, i + 2), 16));
+  return "#" + ca.map((v, i) => Math.round(v + (cb[i] - v) * t).toString(16).padStart(2, "0")).join("");
+}
+
+/** Il colore `colore` spostato **quanto basta** perché si legga come TESTO
+ *  sopra ognuno degli `sfondi` (≥4,5:1, WCAG AA), andando verso `inchiostro`.
+ *
+ *  Nasce il 28-10-2026 dalla prima misura del contrasto sulla scelta del
+ *  progetto: il collegamento «Installa il runtime su un dispositivo» era il
+ *  colore primario del marchio usato come testo, e sul fondo chiaro dava 3,5:1.
+ *  **Non dipende dal marchio**: il blu SWS `#3b82f6` fa 3,58, l'arancione
+ *  Pixsys 3,54. Un colore pensato per riempire un pulsante non è un colore per
+ *  scrivere, e nessun marchio lo sceglie pensando a quello.
+ *
+ *  Si sposta il colore invece di sostituirlo, così il collegamento resta
+ *  riconoscibilmente «del marchio»: solo più scuro in tema chiaro, più chiaro
+ *  in quello scuro. Se il marchio è già leggibile, esce identico. È lo stesso
+ *  principio di `--brand-on-primary`, che ignora `brand.onPrimary` perché per
+ *  alcuni marchi fallirebbe. */
+export function testoLeggibile(colore: string, sfondi: string[], inchiostro: string): string {
+  if (!/^#[0-9a-fA-F]{6}$/.test(colore)) return colore;
+  for (let passo = 0; passo <= 20; passo++) {
+    const c = mescola(colore, inchiostro, passo / 20);
+    if (sfondi.every((sf) => contrast(c, sf) >= 4.5)) return c;
+  }
+  return inchiostro;
 }
 
 let mql: MediaQueryList | null = null;
@@ -323,6 +357,13 @@ export function applyAppearance(mode: ThemeMode): ResolvedTheme {
   // Foreground leggibile sopra i fill accento/stato: calcolato per max-contrasto
   // (ignora brand.onPrimary, che per alcuni brand — es. ACME verde — fallirebbe).
   s.setProperty(VAR_ON_PRIMARY, readableOn(brand.colors.primary));
+  // Il primario come testo: deve leggersi sopra lo sfondo e su tutte e due le
+  // superfici, perché un collegamento può stare su ognuna delle tre.
+  s.setProperty(VAR_PRIMARY_TESTO, testoLeggibile(
+    brand.colors.primary,
+    [neutrals.bg, neutrals.surface, neutrals.surface2],
+    resolved === "light" ? DARK_INK : LIGHT_INK,
+  ));
   s.setProperty(VAR_ON_DANGER,  readableOn(status.danger));
   s.setProperty(VAR_ON_SUCCESS, readableOn(status.success));
   s.setProperty(VAR_ON_WARNING, readableOn(status.warning));

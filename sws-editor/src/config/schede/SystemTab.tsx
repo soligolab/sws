@@ -85,7 +85,7 @@ export function SystemTab() {
       <div>
         <div style={{ fontSize: 12, fontWeight: 700, color: "var(--brand-text-subtle, #64748b)", letterSpacing: 1, marginBottom: 10 }}>
           RUNTIME
-          {remoteConnected && <span style={{ fontWeight: 400, textTransform: "none", letterSpacing: 0, color: "var(--brand-primary, #3b82f6)" }}> {t("cfgUi.connectedRemoteDevice")}</span>}
+          {remoteConnected && <span style={{ fontWeight: 400, textTransform: "none", letterSpacing: 0, color: "var(--brand-primary-testo, #3b82f6)" }}> {t("cfgUi.connectedRemoteDevice")}</span>}
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
           <MetricCard icon="🖥" label={t("cfgUi.versione")} value={status.runtime_version} />
@@ -115,7 +115,7 @@ export function SystemTab() {
       <div>
         <div style={{ fontSize: 12, fontWeight: 700, color: "var(--brand-text-subtle, #64748b)", letterSpacing: 1, marginBottom: 10 }}>
           SISTEMA
-          {remoteConnected && <span style={{ fontWeight: 400, textTransform: "none", letterSpacing: 0, color: "var(--brand-primary, #3b82f6)" }}> {t("cfgUi.connectedRemoteDevice")}</span>}
+          {remoteConnected && <span style={{ fontWeight: 400, textTransform: "none", letterSpacing: 0, color: "var(--brand-primary-testo, #3b82f6)" }}> {t("cfgUi.connectedRemoteDevice")}</span>}
         </div>
         <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
           <div style={{ background: "var(--brand-bg, #0f172a)", border: "1px solid var(--brand-surface, #1e293b)", borderRadius: 6, padding: "10px 14px" }}>
@@ -249,7 +249,7 @@ function VaiACertificati() {
     <div style={{ fontSize: 12, color: "var(--brand-text-muted, #94a3b8)" }}>
       🔏 {t("certificati.daStato")}{" "}
       <button type="button" onClick={() => navigateToConfig("certificati")}
-        style={{ background: "none", border: "none", padding: 0, color: "var(--brand-primary, #3b82f6)", cursor: "pointer", fontSize: 12 }}>
+        style={{ background: "none", border: "none", padding: 0, color: "var(--brand-primary-testo, #3b82f6)", cursor: "pointer", fontSize: 12 }}>
         {t("certificati.apri")}
       </button>
     </div>

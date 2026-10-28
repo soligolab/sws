@@ -1,3 +1,4 @@
+import { BrandLogo } from "@/components/BrandLogo";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { api } from "@/api/client";
@@ -52,7 +53,9 @@ export function PrimoAmministratoreScreen({ onFatto }: { onFatto: () => void }) 
     <div style={paginaCentrata}>
       <form onSubmit={invia} style={schedaModulo(380)}>
         <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 4 }}>
-          <strong style={{ fontSize: 20, letterSpacing: 1 }}>SWS</strong>
+          {/* Il marchio, non «SWS» cablato (28-10-2026): stesso trattamento della
+            schermata d'accesso. */}
+          <BrandLogo />
           <span style={{ color: "var(--brand-text-subtle, #64748b)", fontSize: 13 }}>
             {t("primoAccesso.titolo")}
           </span>

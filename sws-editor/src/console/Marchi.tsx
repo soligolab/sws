@@ -4,7 +4,7 @@ import { api, type MarchioCompleto } from "@/api/client";
 import {
   avviso, campo, elencoEDettaglio, errore as stileErrore,
   pulsante, riga, rigaElenco, scheda, titoletto,
-} from "./stile";
+} from "@/ui/base";
 
 /**
  * I marchi: stili grafici e predefiniti dell'IDE (decisione 45).

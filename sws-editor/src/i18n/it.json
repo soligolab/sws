@@ -43,7 +43,9 @@
     "invio": "Invio…",
     "aggiorno": "Aggiorno…",
     "aggiorna": "Aggiorna",
-    "errore": "Errore"
+    "errore": "Errore",
+    "conferma": "Conferma",
+    "annulla": "Annulla"
   },
   "header": {
     "start": "Start",
@@ -96,6 +98,7 @@
     "deployReconnectTitle": "Clicca per riconnetterti a {{url}}",
     "dispositivoCollegatoTitle": "Collegato a {{dispositivo}} — è questo il pannello che esegue deploy e scoperte. Clicca per la scheda Connessione.",
     "dispositivoScadutoTitle": "La sessione con {{dispositivo}} non vale più: il pannello l'ha rifiutata e non si è potuto rientrare. Clicca e rifai «Connetti» con utente e password.",
+    "versioneRuntimeTitle": "Versione del runtime in uso: {{versione}}. Serve quando segnali qualcosa.",
     "spiaLogErroriTitle": "{{errori}} errori e {{avvisi}} avvisi nel log da quando l'hai guardato. Clicca per aprirlo sul primo errore.",
     "spiaLogAvvisiTitle": "{{avvisi}} avvisi nel log da quando l'hai guardato. Clicca per aprirlo sul primo.",
     "openViewer": "🖥 Viewer ↗",
@@ -501,7 +504,7 @@
     "chooseFile": "Scegli file…",
     "projectNameLabel": "Nome progetto",
     "projectNameZipOptional": "(opzionale — usa il nome dal ZIP se vuoto)",
-    "deployDone": "✓ Deploy completato",
+    "deployDone": "Deploy completato",
     "folderNameHint": "Sarà usato come nome della cartella. Solo lettere, cifre, trattini e underscore.",
     "target": "Target",
     "targetWeb": "Web (browser)",
@@ -538,7 +541,7 @@
     "newFolder": "Nuova cartella",
     "newFolderPlaceholder": "Nome della cartella",
     "mkdirError": "Creazione cartella non riuscita: {{err}}",
-    "openFromZip": "📂 Apri da file ZIP…",
+    "openFromZip": "Apri da file ZIP…",
     "openFromZipTitle": "Crea un nuovo progetto da una copia ZIP che hai sul PC",
     "installRuntimeTitle": "Installa il runtime su un dispositivo",
     "installRuntime": "Installa il runtime su un dispositivo",

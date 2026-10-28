@@ -47,7 +47,7 @@ export function SceltaCornice({ pagina }: { pagina: SynopticPage }) {
       {aperta && (
         <button type="button" onClick={() => setCurrentPage(aperta.id)}
           style={{ marginTop: 4, background: "none", border: "none", padding: 0, cursor: "pointer",
-            fontSize: 11, color: "var(--brand-primary, #3b82f6)", textDecoration: "underline" }}>
+            fontSize: 11, color: "var(--brand-primary-testo, #3b82f6)", textDecoration: "underline" }}>
           {t("cornici.modifica", { nome: aperta.name })}
         </button>
       )}

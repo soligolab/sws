@@ -4,7 +4,7 @@ import { api, type Azienda, type UtenteInstallazione } from "@/api/client";
 import {
   avviso, campo, elencoEDettaglio, errore as stileErrore,
   pulsante, riga, rigaElenco, scheda, titoletto,
-} from "./stile";
+} from "@/ui/base";
 
 /**
  * Le persone che possono aprire l'IDE.

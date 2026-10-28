@@ -41,7 +41,7 @@ export function ModbusSourceCard({
       <div style={S.cardHead} onClick={() => setOpen((v) => !v)}>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
           <PallinoStato stato={stato} testid={`stato-bus-${source.id}`} />
-          <span style={{ fontSize: 11, color: "var(--brand-primary, #3b82f6)", fontWeight: 700, letterSpacing: 1 }}>
+          <span style={{ fontSize: 11, color: "var(--brand-primary-testo, #3b82f6)", fontWeight: 700, letterSpacing: 1 }}>
             MODBUS TCP
           </span>
           <span style={{ fontWeight: 600, color: "var(--brand-text, #e2e8f0)" }}>{source.id}</span>

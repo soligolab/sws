@@ -216,7 +216,7 @@ export function AvvisoAggiornamento() {
           {ok && inst?.testo && (
             <div style={{ marginTop: 12 }}>
               <button type="button" onClick={() => setNovitaAperte(!novitaAperte)}
-                style={{ background: "none", border: "none", padding: 0, cursor: "pointer", fontSize: 13, color: "var(--brand-primary, #3b82f6)" }}>
+                style={{ background: "none", border: "none", padding: 0, cursor: "pointer", fontSize: 13, color: "var(--brand-primary-testo, #3b82f6)" }}>
                 {novitaAperte ? "▼" : "▶"} {testoSistema("agg_novita", lang)}
               </button>
               {novitaAperte && (
@@ -439,7 +439,7 @@ export function AvvisoAggiornamento() {
             <button
               type="button"
               onClick={() => setNovitaAperte(!novitaAperte)}
-              style={{ background: "none", border: "none", padding: 0, cursor: "pointer", fontSize: 13, color: "var(--brand-primary, #3b82f6)" }}
+              style={{ background: "none", border: "none", padding: 0, cursor: "pointer", fontSize: 13, color: "var(--brand-primary-testo, #3b82f6)" }}
             >
               {novitaAperte ? "▼" : "▶"} {testoSistema("agg_novita", lang)}
             </button>

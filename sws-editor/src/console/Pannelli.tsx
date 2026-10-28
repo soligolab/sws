@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { api } from "@/api/client";
-import { scheda, titoletto } from "./stile";
+import { scheda, titoletto } from "@/ui/base";
 
 /**
  * I pannelli del gateway (11-10-2026, fetta D dell'abbinamento): chi è

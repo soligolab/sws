@@ -211,7 +211,7 @@ export function OpcUaSourceCard({
             {source.security_policy === "None" ? `${t("cfgUi.trustStoreSenzaPolicy")} ` : ""}
             {t("certificati.daSorgente")}{" "}
             <button type="button" onClick={() => navigateToConfig("certificati")}
-              style={{ background: "none", border: "none", padding: 0, color: "var(--brand-primary, #3b82f6)", cursor: "pointer", fontSize: 11 }}>
+              style={{ background: "none", border: "none", padding: 0, color: "var(--brand-primary-testo, #3b82f6)", cursor: "pointer", fontSize: 11 }}>
               {t("certificati.apri")}
             </button>
           </div>

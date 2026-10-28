@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { BrandLogo } from "@/components/BrandLogo";
+import { getBrand } from "@/branding";
 import { api, RateLimitedError, RuntimeUnavailableError } from "@/api/client";
 import { useAppStore } from "@/store";
 import { paginaCentrata, schedaModulo } from "@/components/schermataAccesso";
@@ -108,9 +110,16 @@ export function LoginScreen({
   return (
     <div style={paginaCentrata}>
       <form onSubmit={submit} style={schedaModulo(320)}>
+        {/* Il marchio, non «SWS» cablato (28-10-2026): su un'istanza con un
+            marchio proprio la schermata d'accesso era l'unico posto che
+            diceva ancora «SWS». Il nome lungo viene dal brand, e non è più
+            «Soligo Web SCADA» — quello è un nome che il prodotto non usa più.
+            **La versione del runtime qui NON si mette**, ed è una scelta del
+            maintainer: dirla prima del login la dice anche a chi non è
+            entrato. Vedi `versioneRuntime.ts`. */}
         <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 4 }}>
-          <strong style={{ fontSize: 20, letterSpacing: 1 }}>SWS</strong>
-          <span style={{ color: "var(--brand-text-subtle, #64748b)", fontSize: 13 }}>Soligo Web SCADA</span>
+          <BrandLogo />
+          <span style={{ color: "var(--brand-text-subtle, #64748b)", fontSize: 13 }}>{getBrand().name}</span>
         </div>
         {motivo && (
           <div style={{ fontSize: 12, color: "var(--brand-warning-soft, #fbbf24)", background: "#78350f33", padding: "6px 10px", borderRadius: 4, lineHeight: 1.4 }}>

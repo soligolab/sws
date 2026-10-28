@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { api, type ProgettoAperto, type RisorseConsole } from "@/api/client";
-import { avviso, errore as stileErrore, scheda, titoletto } from "./stile";
+import { avviso, errore as stileErrore, scheda, titoletto } from "@/ui/base";
 
 /**
  * Il sinottico delle risorse: la prima pagina della console.

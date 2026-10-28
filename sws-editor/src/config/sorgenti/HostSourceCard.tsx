@@ -65,7 +65,7 @@ export function HostSourceCard({
 
   const headerRow = (
     <div style={{ display: "flex", gap: 8, alignItems: "center", cursor: "pointer" }} onClick={() => setCollapsed((c) => !c)}>
-      <span style={{ fontWeight: 700, fontSize: 13, color: "var(--brand-primary, #3b82f6)" }}>HOST</span>
+      <span style={{ fontWeight: 700, fontSize: 13, color: "var(--brand-primary-testo, #3b82f6)" }}>HOST</span>
       <span style={{ fontSize: 13, color: "var(--brand-text, #e2e8f0)" }}>
         {source.id} ({t("cfgUi.hostMetricsCount", { n: source.metrics.length })})
       </span>

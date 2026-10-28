@@ -691,7 +691,7 @@ export function RuntimeConnectionTab() {
                           style={{
                             fontSize: 10, lineHeight: 1.6, padding: "0 6px", borderRadius: 999,
                             whiteSpace: "nowrap", flexShrink: 0,
-                            color: "var(--brand-primary, #38bdf8)",
+                            color: "var(--brand-primary-testo, #38bdf8)",
                             background: "var(--brand-surface, #1e293b)",
                             border: "1px solid var(--brand-surface-2, #334155)",
                           }}
@@ -703,7 +703,7 @@ export function RuntimeConnectionTab() {
                           style={{
                             fontSize: 10, lineHeight: 1.6, padding: "0 6px", borderRadius: 999,
                             whiteSpace: "nowrap", flexShrink: 0,
-                            color: "var(--brand-primary, #38bdf8)",
+                            color: "var(--brand-primary-testo, #38bdf8)",
                             background: "var(--brand-surface, #1e293b)",
                             border: "1px solid var(--brand-surface-2, #334155)",
                           }}

@@ -4,7 +4,7 @@ import { api, type Azienda, type Marchio } from "@/api/client";
 import {
   avviso, campo, coloreStato, elencoEDettaglio, errore as stileErrore,
   pulsante, riga, rigaElenco, scheda, titoletto,
-} from "./stile";
+} from "@/ui/base";
 
 /**
  * Le aziende: approvarle, dar loro un marchio, fissare la versione predefinita.

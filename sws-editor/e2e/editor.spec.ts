@@ -32,7 +32,11 @@ async function login(page: Page, username = "admin", password = "admin") {
   // della shell dell'editor: si apre il primo progetto disponibile e solo allora
   // si attende il menu. Prima il test aspettava il menu subito e andava in
   // timeout ogni volta che il runtime non aveva un progetto aperto.
-  const apri = page.getByRole("button", { name: /^Apri$/i }).first();
+  // La scheda di un progetto, non un pulsante «Apri»: quel pulsante non
+  // esiste più da un pezzo — è una scheda cliccabile, e in vista griglia non
+  // c'è nessun testo «Apri» — e il `.catch(() => false)` qui sotto lo faceva
+  // fallire in silenzio (28-10-2026).
+  const apri = page.getByTestId("scheda-progetto").first();
   if (await apri.isVisible({ timeout: 3_000 }).catch(() => false)) await apri.click();
   await expect(page.locator('button:has-text("☰ Menu")')).toBeVisible({ timeout: 15_000 });
 }
@@ -40,9 +44,9 @@ async function login(page: Page, username = "admin", password = "admin") {
 async function openProjectFromWelcomeIfNeeded(page: Page) {
   // WelcomeScreen only renders when no project is active. The runtime
   // auto-opens the only project present under `--projects-root` — but a fresh
-  // clone (no projects yet) lands here. Try the first "Apri" button if
-  // visible; otherwise no-op.
-  const openBtn = page.getByRole("button", { name: /^Apri$/i }).first();
+  // clone (no projects yet) lands here. Si clicca la prima scheda di progetto
+  // se c'è; altrimenti non si fa niente.
+  const openBtn = page.getByTestId("scheda-progetto").first();
   if (await openBtn.isVisible().catch(() => false)) {
     await openBtn.click();
     await expect(page.locator('button:has-text("☰ Menu")')).toBeVisible({ timeout: 15_000 });

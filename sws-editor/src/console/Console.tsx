@@ -1,3 +1,4 @@
+import { getBrand } from "@/branding";
 import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { api } from "@/api/client";
@@ -130,7 +131,8 @@ export function Console() {
         }}
       >
         <div style={{ padding: "14px 16px", borderBottom: "1px solid var(--brand-surface-2, #334155)" }}>
-          <strong style={{ fontSize: 16, letterSpacing: 1 }}>SWS</strong>
+          {/* Il nome breve del marchio, non «SWS» cablato (28-10-2026). */}
+          <strong style={{ fontSize: 16, letterSpacing: 1 }}>{getBrand().shortName}</strong>
           <div style={{ color: "var(--brand-text-subtle, #64748b)", fontSize: 12, marginTop: 2 }}>
             {t("console.titolo")}
           </div>

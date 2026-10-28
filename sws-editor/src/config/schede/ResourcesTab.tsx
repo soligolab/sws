@@ -82,7 +82,7 @@ export function ResourcesTab() {
                 <tr key={s.id} style={{ borderBottom: "1px solid var(--brand-surface, #1e293b)" }}>
                   <td style={{ padding: "6px 8px", color: "var(--brand-text, #e2e8f0)" }}>{s.label}</td>
                   <td style={{ padding: "6px 8px", color: "var(--brand-text-muted, #94a3b8)", maxWidth: 200, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                    <a href={s.url} target="_blank" rel="noopener noreferrer" style={{ color: "var(--brand-primary, #3b82f6)" }}>{s.url}</a>
+                    <a href={s.url} target="_blank" rel="noopener noreferrer" style={{ color: "var(--brand-primary-testo, #3b82f6)" }}>{s.url}</a>
                   </td>
                   <td style={{ padding: "6px 8px", color: "var(--brand-text-muted, #94a3b8)" }}>{s.attribution.license}</td>
                   <td style={{ padding: "6px 8px", color: "var(--brand-text-subtle, #64748b)" }}>{s.attribution.author}{s.attribution.source ? ` / ${s.attribution.source}` : ""}</td>

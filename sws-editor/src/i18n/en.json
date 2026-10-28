@@ -43,7 +43,9 @@
     "invio": "Sending…",
     "aggiorno": "Refreshing…",
     "aggiorna": "Refresh",
-    "errore": "Error"
+    "errore": "Error",
+    "conferma": "Confirm",
+    "annulla": "Cancel"
   },
   "header": {
     "start": "Start",
@@ -96,6 +98,7 @@
     "deployReconnectTitle": "Click to reconnect to {{url}}",
     "dispositivoCollegatoTitle": "Connected to {{dispositivo}} — this is the panel that runs deploys and discoveries. Click for the Connection tab.",
     "dispositivoScadutoTitle": "The session with {{dispositivo}} is no longer valid: the panel refused it and re-login failed. Click and redo «Connect» with username and password.",
+    "versioneRuntimeTitle": "Runtime version in use: {{versione}}. Useful when you report something.",
     "spiaLogErroriTitle": "{{errori}} errors and {{avvisi}} warnings in the log since you last looked. Click to open it on the first error.",
     "spiaLogAvvisiTitle": "{{avvisi}} warnings in the log since you last looked. Click to open it on the first one.",
     "openViewer": "🖥 Viewer ↗",
@@ -501,7 +504,7 @@
     "chooseFile": "Choose file…",
     "projectNameLabel": "Project name",
     "projectNameZipOptional": "(optional — uses the name from the ZIP if empty)",
-    "deployDone": "✓ Deploy complete",
+    "deployDone": "Deploy complete",
     "folderNameHint": "It will be used as the folder name. Letters, digits, hyphens and underscores only.",
     "target": "Target",
     "targetWeb": "Web (browser)",
@@ -538,7 +541,7 @@
     "newFolder": "New folder",
     "newFolderPlaceholder": "Folder name",
     "mkdirError": "Could not create folder: {{err}}",
-    "openFromZip": "📂 Open from ZIP file…",
+    "openFromZip": "Open from ZIP file…",
     "openFromZipTitle": "Create a new project from a ZIP copy stored on your PC",
     "installRuntimeTitle": "Install the runtime on a device",
     "installRuntime": "Install the runtime on a device",

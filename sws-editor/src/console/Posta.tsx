@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { api } from "@/api/client";
-import { avviso, campo, errore as stileErrore, pulsante, riga, scheda, titoletto } from "./stile";
+import { avviso, campo, errore as stileErrore, pulsante, riga, scheda, titoletto } from "@/ui/base";
 
 /**
  * La posta dell'**installazione**, distinta da quella del progetto.

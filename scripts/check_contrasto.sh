@@ -47,7 +47,20 @@ AP="${APORT:-8726}"
 [ -f "$DIST/index-admin.html" ] || { echo "manca $DIST — esegui: cd sws-editor && pnpm build" >&2; exit 1; }
 
 mkdir -p "$WORK"/{config,projects}
-trap '[ -f "$WORK/rt.pid" ] && kill "$(cat "$WORK/rt.pid")" 2>/dev/null; rm -rf "$WORK"' EXIT
+
+# **Il marchio del repo, non quello della macchina** (28-10-2026). Il marchio
+# attivo sta in `dist/branding/active.json`, e il maintainer lo cambia per
+# macchina — Pixsys in ufficio, SWS a casa — scrivendolo proprio lì. La prima
+# misura della porta d'ingresso ha trovato un collegamento illeggibile in un
+# arancione che era quello Pixsys: la stessa guardia, sulla macchina di casa,
+# avrebbe misurato un altro colore. Una guardia che dice cose diverse a
+# seconda di dove gira non è una guardia. Si serve una copia di `dist` col
+# marchio scritto nel repo, e quello della macchina non si tocca.
+mkdir -p "$WORK/www"
+cp -a "$DIST/." "$WORK/www/"
+cp "sws-editor/public/branding/active.json" "$WORK/www/branding/active.json"
+DIST="$WORK/www"
+trap 'for p in "$WORK"/rt*.pid; do [ -f "$p" ] && kill "$(cat "$p")" 2>/dev/null; done; rm -rf "$WORK"' EXIT
 
 "$BIN" --config "$WORK/config" --projects-root "$WORK/projects" \
   --templates-root "examples/templates" --www "$DIST" --senza-autenticazione --admin-port "$AP" > "$WORK/rt.log" 2>&1 &
@@ -64,9 +77,67 @@ API="http://localhost:$AP/api"
 # misura direbbe «tutto a posto» avendo guardato quasi niente.
 curl -sf -X POST "$API/projects" -H 'Content-Type: application/json' \
   -d '{"name":"contrasto","template":"demo-items-web"}' > /dev/null
+
 curl -sf -X POST "$API/projects/contrasto/open" > /dev/null
 
 male=0
+
+# ── La porta d'ingresso (28-10-2026) ───────────────────────────────────────
+#
+# Primo accesso, accesso, scelta del progetto: le tre schermate che vede
+# chiunque arrivi, e che fino a oggi questa guardia non aveva mai guardato —
+# partiva sempre da un progetto aperto.
+#
+# Serve un **secondo** runtime, e non è un dettaglio. Il primo gira
+# `--senza-autenticazione`, che è comodo per l'IDE ma salta proprio queste
+# schermate: senza utenti mostra «primo accesso», con un utente mostra
+# l'accesso, e il login va a `sws_auth` del progetto invece che all'archivio
+# degli utenti, quindi non entra mai. Il secondo si comporta come quello vero —
+# come `sws.soligo.net` — e la porta la si attraversa davvero, una schermata
+# per volta, misurandole tutte e tre.
+AP2=$((AP + 1))
+mkdir -p "$WORK"/{config2,projects2}
+"$BIN" --config "$WORK/config2" --projects-root "$WORK/projects2" \
+  --templates-root "examples/templates" --www "$DIST" --admin-port "$AP2" > "$WORK/rt2.log" 2>&1 &
+echo $! > "$WORK/rt2.pid"
+su=0
+for _ in $(seq 1 40); do curl -sf -o /dev/null "http://localhost:$AP2/health" && { su=1; break; }; sleep 0.5; done
+if [ "$su" -ne 1 ]; then
+  echo "✗ il secondo runtime di prova non risponde su :$AP2" >&2
+  tail -20 "$WORK/rt2.log" >&2; exit 1
+fi
+API2="http://localhost:$AP2/api"
+
+for tema in light dark; do
+  IDE="http://localhost:$AP2" TEMA="$tema" SCHERMATA=primo-accesso \
+    node sws-editor/scripts/contrasto_measure.mjs || male=1
+done
+
+# Il codice di primo accesso lo stampa il runtime all'avvio: è la prova che
+# chi crea l'amministratore ha accesso alla macchina, e qui la macchina siamo noi.
+codice=$(grep -oE "codice: [0-9a-f]+" "$WORK/rt2.log" | head -1 | cut -d' ' -f2)
+curl -sf -X POST "$API2/identita/primo-amministratore" -H 'Content-Type: application/json' \
+  -d "{\"codice\":\"$codice\",\"email\":\"contrasto@prova.it\",\"nome\":\"Prova\",\"password\":\"unapasswordlunga\"}" > /dev/null \
+  || { echo "✗ non riesco a creare l'amministratore sul secondo runtime" >&2; exit 1; }
+
+for tema in light dark; do
+  IDE="http://localhost:$AP2" TEMA="$tema" SCHERMATA=accesso \
+    node sws-editor/scripts/contrasto_measure.mjs || male=1
+done
+
+token=$(curl -sf -X POST "$API2/auth/login" -H 'Content-Type: application/json' \
+  -d '{"username":"contrasto@prova.it","password":"unapasswordlunga"}' \
+  | python3 -c 'import sys,json; print(json.load(sys.stdin).get("token",""))')
+[ -n "$token" ] || { echo "✗ il login sul secondo runtime non ha dato un token" >&2; exit 1; }
+curl -sf -X POST "$API2/projects" -H "Authorization: Bearer $token" -H 'Content-Type: application/json' \
+  -d '{"name":"contrasto","template":"demo-items-web"}' > /dev/null
+
+for tema in light dark; do
+  IDE="http://localhost:$AP2" TEMA="$tema" SCHERMATA=benvenuto TOKEN="$token" \
+    node sws-editor/scripts/contrasto_measure.mjs || male=1
+done
+
+# ── L'IDE a progetto aperto, sul primo runtime (il caso di sempre) ──────────
 for tema in light dark; do
   IDE="http://localhost:$AP" ADMIN="http://localhost:$AP" TEMA="$tema" \
     node sws-editor/scripts/contrasto_measure.mjs || male=1

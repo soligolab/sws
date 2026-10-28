@@ -1502,7 +1502,7 @@ function PanelBreadcrumb({ parts }: { parts: BreadcrumbPart[] }) {
                 title={t("props.backToLevel")}
                 style={{
                   background: "transparent", border: "none", padding: 0,
-                  color: "var(--brand-primary, #3b82f6)", cursor: "pointer", fontSize: 10,
+                  color: "var(--brand-primary-testo, #3b82f6)", cursor: "pointer", fontSize: 10,
                   textDecoration: "underline dotted",
                   font: "inherit",
                 }}
@@ -2270,7 +2270,7 @@ export function PageProps({
             {t("shell.exactSize11No")}
           </p>
           {formatoPredefinito && segueIlPredefinito && (
-            <p style={{ fontSize: 10, color: "var(--brand-primary, #3b82f6)", margin: "2px 0 0" }}>
+            <p style={{ fontSize: 10, color: "var(--brand-primary-testo, #3b82f6)", margin: "2px 0 0" }}>
               {t("shell.followsProjectDefault", { size: formatoPredefinito })}
             </p>
           )}
@@ -5719,7 +5719,7 @@ export function ObjectProps({
       <CollapsibleSection
         title={t("props.motion")}
         storageKey="motion" gruppo="interazione"
-        headerExtra={obj.motion_tag ? <span style={{ fontSize: 10, color: "var(--brand-primary, #3b82f6)", fontWeight: 700 }}>●</span> : undefined}
+        headerExtra={obj.motion_tag ? <span style={{ fontSize: 10, color: "var(--brand-primary-testo, #3b82f6)", fontWeight: 700 }}>●</span> : undefined}
       >
         {/* T-53 — fuori dalla guardia su `motion_tag`: il tracciato è
             geometria e si disegna prima di scegliere la variabile che lo
@@ -5953,7 +5953,7 @@ export function ObjectProps({
           storageKey="events" gruppo="interazione"
           headerExtra={
             (obj.on_press_fn || obj.on_release_fn)
-              ? <span style={{ fontSize: 10, color: "var(--brand-primary, #3b82f6)", fontWeight: 700 }}>
+              ? <span style={{ fontSize: 10, color: "var(--brand-primary-testo, #3b82f6)", fontWeight: 700 }}>
                   ({(obj.on_press_fn ? 1 : 0) + (obj.on_release_fn ? 1 : 0)})
                 </span>
               : null
@@ -6164,7 +6164,7 @@ export function ObjectProps({
             <div key={prop} style={{ display: "flex", gap: 4, alignItems: "center", fontSize: 12, marginBottom: 2 }}>
               <span style={{ color: "var(--brand-text-subtle, #64748b)", flex: "0 0 auto" }}>{prop}</span>
               <span style={{ color: "var(--brand-text-subtle, #94a3b8)" }}>→</span>
-              <span style={{ color: "var(--brand-primary, #3b82f6)", flex: 1, overflow: "hidden", textOverflow: "ellipsis" }}>
+              <span style={{ color: "var(--brand-primary-testo, #3b82f6)", flex: 1, overflow: "hidden", textOverflow: "ellipsis" }}>
                 {typeof spec === "string"
                   ? (spec || t("shell.noTag"))
                   : spec.expr !== undefined
@@ -6482,7 +6482,7 @@ function GridCellEditor({
   const [newChildType, setNewChildType] = useState("rect");
   return (
     <div style={{ marginTop: 8, borderTop: "1px solid var(--brand-surface-2, #334155)", paddingTop: 8 }}>
-      <div style={{ fontSize: 10, color: "var(--brand-primary, #3b82f6)", fontWeight: 700, letterSpacing: 0.5, marginBottom: 6 }}>
+      <div style={{ fontSize: 10, color: "var(--brand-primary-testo, #3b82f6)", fontWeight: 700, letterSpacing: 0.5, marginBottom: 6 }}>
         CELLA {cell.row + 1},{cell.col + 1}
       </div>
 

@@ -137,3 +137,14 @@ Annoto di seguito, uno per punto, le cose che devono essere verificate e trasfor
   un PoC dietro un login e' poco, ma e' una scelta del maintainer, non un dettaglio. Le vie sono
   tre: versione piena sempre; versione piena solo dopo il login e in accesso niente; oppure in
   accesso solo la minore (2.23) e la patch dopo. Da decidere quando si fa il lavoro.
+
+- Un test che fallisce una volta su sei: tests/abbinaPannelloCloud.test.tsx, caso «si abbina col
+  solo codice, poi riepilogo e Rinomina». Visto il 28-10-2026 in una corsa intera di vitest
+  (1740 su 1741), poi verde in due corse intere e in tre corse da solo. Non tocca niente di
+  quello che si stava cambiando quel giorno (riordino di WelcomeScreen). Il sospetto, NON
+  verificato: usa i tempi predefiniti di findByTestId e waitFor (1 secondo), e la catena
+  «risposta finta → stato → ridisegno → rinomina → seconda risposta finta» sotto il carico di
+  1700 prove in parallelo puo' sforarli. Non l'ho toccato apposta, perche' una correzione che
+  non si riesce a riprodurre e' un'ipotesi scritta come codice. Serve prima vederlo fallire con
+  la traccia completa: quale `await` scade. E' la stessa famiglia delle quattro guardie che
+  fallivano a caso lo stesso giorno — un controllo che fallisce a caso insegna a ignorarlo.

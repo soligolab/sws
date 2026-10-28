@@ -12,6 +12,7 @@ import { RilieviProgetto } from "@/components/RilieviProgetto";
 import { HDR_BTN } from "@/components/headerStyles";
 import { DispositivoCollegato } from "@/components/DispositivoCollegato";
 import { SpiaLog } from "@/components/SpiaLog";
+import { VersioneRuntime } from "@/components/VersioneRuntime";
 import { MainMenu } from "@/components/MainMenu";
 import { RuntimeCtrl } from "@/components/RuntimeCtrl";
 import { ViewerLink } from "@/components/ViewerLink";
@@ -858,6 +859,9 @@ export function App() {
         flexShrink: 0,
       }}>
         <BrandLogo />
+        {/* La versione del runtime in uso (28-10-2026, richiesta del
+            maintainer). Dopo il login e non prima: vedi `versioneRuntime.ts`. */}
+        <VersioneRuntime />
         {/* Qui stava l'indicatore ARCH-004 del «runtime remoto a cui punta la
             SPA», con un click per staccarsi. Non poteva accendersi: leggeva
             `getRuntimeBaseUrl()`, e `admin-main.tsx` chiama

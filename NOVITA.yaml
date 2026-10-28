@@ -35,6 +35,12 @@
 versioni:
   - versione: "2.23.6"
     voci:
+      - it: "La versione del runtime in uso si legge accanto al marchio e nella scelta del progetto: utile quando segnali qualcosa."
+        en: "The runtime version in use is shown next to the brand and in the project chooser: handy when you report something."
+      - it: "I nomi dei progetti non si tagliano piu' e le schermate si adattano a finestre strette e telefoni."
+        en: "Project names are no longer truncated and the screens adapt to narrow windows and phones."
+      - it: "Le icone della schermata progetti sono disegnate da noi: uguali su ogni macchina, e seguono il tema."
+        en: "The project screen icons are drawn by us: the same on every machine, and they follow the theme."
       - it: "Se un pannello e' spento l'IDE aspetta che torni invece di arrendersi: il collegamento si riapre da solo."
         en: "If a panel is off the IDE now waits for it instead of giving up: the connection reopens by itself."
       - it: "L'indirizzo del pannello risponde «pagina trovata» invece di «404»: le sonde e i controlli di salute esterni ora funzionano."

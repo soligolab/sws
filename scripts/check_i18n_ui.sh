@@ -269,6 +269,14 @@ ESCLUSIONI = [
     (re.compile(r"\bcase\s*$"), "case"),
     # chiave del catalogo scritta a mano (t(k) dove k è il letterale)
     (re.compile(r"\b(?:key|chiave|id|type|kind|mode|value|className|style|href|src|d|gruppo|testid|data-testid|storageKey|tono)\s*[:=]\s*$"), "valore tecnico"),
+    # Il NOME di un'icona (`<IconaUI nome="chiudi" />`, `ICONE_UI`): e la
+    # chiave di una tabella, come `type` o `kind`, e si da il caso che quella
+    # tabella sia scritta in italiano perche lo e tutto il codice nuovo. Non
+    # e una scritta: non compare da nessuna parte sullo schermo, e tradurla
+    # vorrebbe dire cercare l'icona «close» in una tabella che non ce l'ha.
+    # Il testo che accompagna l'icona passa da `titolo=`, che resta fuori da
+    # questo elenco apposta (28-10-2026).
+    (re.compile(r"\bnome\s*=\s*$"), "nome di un'icona"),
 ]
 
 def esclusa(contesto, testo):

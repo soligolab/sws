@@ -1,3 +1,5 @@
+import { MARGINE_PAGINA_BENVENUTO } from "@/ui/base";
+import { getBrand } from "@/branding";
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { api } from "@/api/client";
@@ -104,14 +106,16 @@ export function BarraIdentita({
         borderBottom: "1px solid var(--brand-surface-2, #334155)",
         background: "var(--brand-surface, #1e293b)",
         // La barra sta in cima alla finestra, non dentro la colonna centrata
-        // dell'elenco: il contenitore ha `padding: 32px 0`, quindi si risale
-        // di altrettanto invece di cambiare il padding e muovere tutto.
-        // Nella WelcomeScreen la barra sta dentro un contenitore con
-        // `padding: 32px 0` e deve risalirlo; nella console sta in cima a una
-        // colonna e non deve muoversi.
-        margin: dove === "console" ? 0 : "-32px 0 28px",
+        // dell'elenco: il contenitore ha un padding verticale, quindi si
+        // risale di altrettanto invece di cambiare il padding e muovere tutto.
+        // Nella console sta in cima a una colonna e non deve muoversi.
+        //
+        // Il numero viene da `MARGINE_PAGINA_BENVENUTO`, lo stesso che usa il
+        // contenitore (28-10-2026): erano due `32` scritti a mano in due file,
+        // e cambiarne uno solo spostava la barra senza che niente lo dicesse.
+        margin: dove === "console" ? 0 : `-${MARGINE_PAGINA_BENVENUTO}px 0 28px`,
         position: dove === "console" ? "static" : "sticky",
-        top: dove === "console" ? undefined : -32,
+        top: dove === "console" ? undefined : -MARGINE_PAGINA_BENVENUTO,
         zIndex: 5,
         // Il contenitore e una colonna flex con `align-items: center`: senza
         // `stretch` la barra sarebbe larga quanto il suo contenuto e centrata.
@@ -119,7 +123,10 @@ export function BarraIdentita({
       }}
     >
       <div style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0 }}>
-        <span style={{ fontWeight: 700, letterSpacing: 1.5, fontSize: 14 }}>SWS</span>
+        {/* Il nome breve del marchio, non «SWS» cablato (28-10-2026). Era il
+            quarto punto con la stringa scritta a mano: il piano ne contava
+            tre, e questo l'ha trovato chi è passato di qui per altro. */}
+        <span style={{ fontWeight: 700, letterSpacing: 1.5, fontSize: 14 }}>{getBrand().shortName}</span>
       </div>
 
       <div ref={box} style={{ position: "relative" }}>

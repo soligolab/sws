@@ -571,7 +571,7 @@ export function NotificationsTab() {
                     <div style={{ color: "var(--brand-text-muted, #94a3b8)" }}>
                       1. {t("cfg.telegramPasso1")}{" "}
                       <a href={`https://t.me/${bot.username}`} target="_blank" rel="noreferrer"
-                         style={{ color: "var(--brand-primary, #3b82f6)" }}>
+                         style={{ color: "var(--brand-primary-testo, #3b82f6)" }}>
                         t.me/{bot.username}
                       </a>
                       <br />
