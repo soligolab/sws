@@ -17,8 +17,12 @@
 # COSA VERIFICA
 #
 #   Ogni funzione di `projects.rs` che **crea** un progetto — quelle che
-#   nominano `known_projects.touch` con una chiave nuova — nomina anche
-#   `rifiuta_se_piena`.
+#   nominano `known_projects.touch` con una chiave nuova — nomina **tutte e
+#   due** le quote: `rifiuta_se_piena` (lo spazio) e `rifiuta_se_troppi` (il
+#   numero di progetti, dal 28-10-2026). La seconda e nata per le aziende
+#   personali di `docs/plans/2026-10-26-aprire-sws-soligo-net.md`, e la prima
+#   stesura la metteva solo su `create_project`: esattamente il difetto che
+#   questa guardia esiste per prendere.
 #
 # Uso: ./scripts/check_quota_progetti.sh
 set -uo pipefail
@@ -42,8 +46,21 @@ for fn in "${CREANO[@]}"; do
     ' "$F")
     if [ -z "$corpo" ]; then
         mancanti+=("$fn (non trovata: rinominata?)")
-    elif ! echo "$corpo" | grep -q "rifiuta_se_piena("; then
-        mancanti+=("$fn")
+    else
+        # **Niente `echo … | grep -q`**, ed è una correzione, non uno stile
+        # (28-10-2026). Con `set -o pipefail` quella forma è *non
+        # deterministica*: `grep -q` esce al primo riscontro, `echo` si becca
+        # un SIGPIPE, e lo stato della pipeline diventa 141 — cioè «non
+        # trovato» — **anche quando il riscontro c'è**. Dipende da chi arriva
+        # prima, quindi la guardia falliva una volta sì e una no, e le due
+        # volte accusava campi diversi. Il confronto di bash non ha pipe e non
+        # ha questo problema.
+        for quota in rifiuta_se_piena rifiuta_se_troppi; do
+            case "$corpo" in
+                *"$quota("*) ;;
+                *) mancanti+=("$fn (manca $quota)") ;;
+            esac
+        done
     fi
 done
 
@@ -63,7 +80,7 @@ for a in $altre; do
 done
 
 if [ "${#mancanti[@]}" -eq 0 ]; then
-    echo -e "  \033[32m✓\033[0m tutte e ${#CREANO[@]} le strade che creano un progetto guardano la quota"
+    echo -e "  \033[32m✓\033[0m tutte e ${#CREANO[@]} le strade che creano un progetto guardano le due quote"
     echo
     echo -e "\033[32mquota: non si aggira da nessuna delle due porte.\033[0m"
     exit 0

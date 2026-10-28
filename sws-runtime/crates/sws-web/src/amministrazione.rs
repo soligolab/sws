@@ -266,6 +266,7 @@ async fn modifica_azienda(
             || m.marchio.is_some()
             || m.versione_predefinita.is_some()
             || m.max_progetti_aperti.is_some()
+            || m.max_progetti_totali.is_some()
             || m.max_pannelli.is_some()
             || m.max_byte.is_some();
         if riservati {
@@ -838,6 +839,16 @@ async fn risorse(State(s): State<AppState>, Extension(chi): Extension<AuthUser>)
                     "storico_byte": storico,
                     "max_byte": a.max_byte,
                     "max_progetti_aperti": a.max_progetti_aperti,
+                    // Quanti progetti in tutto, e quanti ne ha adesso: la
+                    // console mostra la frazione come per lo spazio, perche'
+                    // una quota senza il numero corrente non dice niente a
+                    // chi deve decidere se alzarla (28-10-2026).
+                    "max_progetti_totali": a.max_progetti_totali,
+                    "progetti": crate::projects::quanti_progetti(&radice, a, &aziende),
+                    // **L'azienda di una persona sola**, nata con lei alla
+                    // registrazione: serve a non confondere venti curiosi con
+                    // venti clienti.
+                    "personale": a.personale,
                     // Il tetto dei pannelli è un **dato concordato che si
                     // mostra**, non una quota applicata: la console lo scrive
                     // accanto al numero vero e nessuno rifiuta niente

@@ -218,6 +218,15 @@ struct Args {
     #[arg(long, default_value_t = 20)]
     gateway_fermo_minuti: u64,
 
+    /// Quanti container di progetto possono stare accesi **insieme**, in
+    /// tutto. `0` = nessun tetto.
+    ///
+    /// Diverso dalla quota per azienda (`max_progetti_aperti`): venti aziende
+    /// da un progetto ciascuna non si fermano a vicenda, e su una macchina
+    /// piccola venti container insieme sono gia' troppi.
+    #[arg(long, default_value_t = 0)]
+    gateway_max_container: usize,
+
     /// **L'indirizzo del gateway a cui questo pannello si collega.**
     ///
     /// Un pannello sta nella rete di un cliente, dietro NAT: nessuno da fuori
@@ -1324,7 +1333,8 @@ async fn main() -> anyhow::Result<()> {
             come,
             segreto,
         )
-        .con_fermo_dopo(std::time::Duration::from_secs(args.gateway_fermo_minuti * 60));
+        .con_fermo_dopo(std::time::Duration::from_secs(args.gateway_fermo_minuti * 60))
+        .con_massimo_container(args.gateway_max_container);
         let r = Arc::new(r);
         match r.riadotta().await {
             Ok(0) => info!("gateway acceso, nessun progetto da riprendere"),

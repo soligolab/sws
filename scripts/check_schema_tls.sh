@@ -29,6 +29,13 @@
 #
 # Uso: ./scripts/check_schema_tls.sh   (statica, nessuno stack)
 set -uo pipefail
+# Nota del 28-10-2026: le prove di contenuto qui sotto usano il confronto di
+# bash (`case`), non `echo … | grep -q`. Quella forma, sotto `set -o pipefail`,
+# e' **non deterministica**: `grep -q` esce al primo riscontro, `echo` si becca
+# un SIGPIPE, e lo stato della pipeline diventa 141 — cioe' «non trovato» —
+# anche quando il riscontro c'e'. Dipende da chi arriva prima, quindi la
+# guardia fallisce una volta si' e una no. Successo su `check_quota_progetti`
+# lo stesso giorno, due corse di fila che accusavano campi diversi.
 cd "$(dirname "$0")/.."
 
 male=0
@@ -43,8 +50,8 @@ for cf in deploy/container/Containerfile.aarch64 deploy/container/Containerfile.
     [ -n "$hc" ] || { ok 0 "$(basename "$cf"): nessun HEALTHCHECK — con Notify=healthy il servizio non si avvia più"; continue; }
     manca=""
     for p in 7443 7444 8444; do
-        echo "$hc" | grep -q "https://localhost:$p/health" || manca="$manca https:$p"
-        echo "$hc" | grep -q "http://localhost:$p/health"  || manca="$manca http:$p"
+        case "$hc" in *"https://localhost:$p/health"*) ;; *) manca="$manca https:$p" ;; esac
+        case "$hc" in *"http://localhost:$p/health"*)  ;; *) manca="$manca http:$p"  ;; esac
     done
     if [ -n "$manca" ]; then
         ok 0 "$(basename "$cf"): il controllo di salute non prova$manca — con Notify=healthy il pannello entra in ciclo di riavvio"
@@ -52,9 +59,10 @@ for cf in deploy/container/Containerfile.aarch64 deploy/container/Containerfile.
         ok 1 "$(basename "$cf"): il controllo di salute prova tutti e due gli schemi su tutte e tre le porte"
     fi
     # Senza `-k` un autofirmato fa fallire la sonda https, e torniamo al punto 1.
-    echo "$hc" | grep -q -- '-fsk https' \
-      && ok 1 "$(basename "$cf"): le sonde https usano -k (il certificato del pannello è autofirmato)" \
-      || ok 0 "$(basename "$cf"): una sonda https senza -k rifiuta il certificato autofirmato del pannello"
+    case "$hc" in
+        *'-fsk https'*) ok 1 "$(basename "$cf"): le sonde https usano -k (il certificato del pannello è autofirmato)" ;;
+        *)              ok 0 "$(basename "$cf"): una sonda https senza -k rifiuta il certificato autofirmato del pannello" ;;
+    esac
 done
 
 # ── 2. Il browser del pannello ──────────────────────────────────────────────

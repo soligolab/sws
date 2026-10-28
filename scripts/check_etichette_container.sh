@@ -20,6 +20,13 @@
 #
 # Uso: ./scripts/check_etichette_container.sh   (statica, nessuno stack)
 set -uo pipefail
+# Nota del 28-10-2026: le prove di contenuto qui sotto usano il confronto di
+# bash (`case`), non `echo … | grep -q`. Quella forma, sotto `set -o pipefail`,
+# e' **non deterministica**: `grep -q` esce al primo riscontro, `echo` si becca
+# un SIGPIPE, e lo stato della pipeline diventa 141 — cioe' «non trovato» —
+# anche quando il riscontro c'e'. Dipende da chi arriva prima, quindi la
+# guardia fallisce una volta si' e una no. Successo su `check_quota_progetti`
+# lo stesso giorno, due corse di fila che accusavano campi diversi.
 cd "$(dirname "$0")/.."
 
 male=0
@@ -68,7 +75,7 @@ fi
 # l'unica che si legge davvero dal container, e senza il gateway non riadotta
 # più niente dopo un riavvio.
 rif=$(grep -o 'ETICHETTA_RIFERIMENTO: &str = "[^"]*"' "$RUST" | sed 's/.*"\(.*\)"/\1/')
-if echo "$azzerate_rust" | grep -qx "$rif"; then
+if case $'\n'"$azzerate_rust"$'\n' in *$'\n'"$rif"$'\n'*) true ;; *) false ;; esac; then
     ok 0 "«$rif» è fra quelle azzerate: il gateway non ritroverebbe più i container dei progetti"
 else
     ok 1 "«$rif» non è azzerata: il gateway continua a ritrovare i suoi container"

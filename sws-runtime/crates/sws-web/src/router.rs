@@ -4644,7 +4644,7 @@ async fn get_project(State(s): State<AppState>) -> Response {
             tracing::error!("project load failed: {e:#}");
             (
                 StatusCode::INTERNAL_SERVER_ERROR,
-                format!("project parse error: {e}"),
+                format!("project parse error: {e:#}"),
             )
                 .into_response()
         }

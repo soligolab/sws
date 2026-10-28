@@ -108,6 +108,16 @@ export function Risorse() {
               <strong style={{ fontSize: 15 }}>
                 {a.implicita ? t("console.persone.questaInstallazione") : a.nome}
               </strong>
+              {/* Venti curiosi non sono venti clienti: con la registrazione
+                  libera l'elenco si riempie di aziende da una persona, e senza
+                  questo segno non si distinguono (28-10-2026). */}
+              {a.personale && (
+                <span data-testid={`personale-${a.id}`} style={{
+                  fontSize: 10, padding: "1px 6px", borderRadius: 10,
+                  background: "var(--brand-surface-2, #334155)",
+                  color: "var(--brand-text-muted, #94a3b8)",
+                }}>{t("console.risorse.personale")}</span>
+              )}
               {vicino && (
                 <span style={{ fontSize: 11, color: "var(--brand-warning-soft, #fbbf24)" }}>
                   ⚠ {frazione >= 1 ? t("console.risorse.esaurito") : t("console.risorse.quasiEsaurito")}
@@ -139,6 +149,21 @@ export function Risorse() {
               <span>■ {t("console.risorse.progetti")} {byte(a.progetti_byte)}</span>
               <span>■ {t("console.risorse.storico")} {byte(a.storico_byte)}</span>
             </div>
+
+            {/* Quanti progetti in tutto (28-10-2026). Sta PRIMA di «aperti
+                insieme» perché è il tetto che si incontra per primo: su
+                un'azienda personale sono tre, e chi li esaurisce non capisce
+                perché non può crearne un altro se la console gli mostra solo
+                i container accesi. Il numero corrente viene da
+                `quanti_progetti`, la stessa funzione che usa chi rifiuta. */}
+            {a.max_progetti_totali != null && (
+              <div style={{ marginTop: 12 }}>
+                <label style={titoletto}>{t("console.risorse.progettiTotali")}</label>
+                <div style={{ fontSize: 13 }} data-testid={`progetti-totali-${a.id}`}>
+                  {a.progetti ?? 0} / {a.max_progetti_totali}
+                </div>
+              </div>
+            )}
 
             <div style={{ marginTop: 12 }}>
               <label style={titoletto}>{t("console.risorse.progettiAperti")}</label>

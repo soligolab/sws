@@ -950,8 +950,14 @@ export type Azienda = {
    *  aperto e un container da avviare. Non il numero totale di progetti,
    *  che non e una quota (maintainer, 08-10-2026). */
   max_progetti_aperti: number | null;
+  /** Quanti progetti in TUTTO, non quanti aperti insieme (28-10-2026).
+   *  `max_progetti_aperti` e un tetto sui container accesi; questo e un tetto
+   *  su quanta roba si puo tenere. */
+  max_progetti_totali: number | null;
   max_pannelli: number | null;
   max_byte: number | null;
+  /** L'azienda di una persona sola, nata con lei alla registrazione. */
+  personale?: boolean;
   creata_ms: number;
 };
 
@@ -970,6 +976,15 @@ export type RisorseConsole = {
     storico_byte: number;
     max_byte: number | null;
     max_progetti_aperti: number | null;
+    /** Quanti progetti in tutto, e quanti ne ha adesso (28-10-2026). Il
+     *  numero corrente arriva da `quanti_progetti`, la stessa funzione che
+     *  usa chi RIFIUTA: un cruscotto che conta in un modo e un rifiuto che
+     *  conta in un altro si contraddicono. */
+    max_progetti_totali?: number | null;
+    progetti?: number;
+    /** L'azienda di una persona sola: serve a non confondere venti curiosi
+     *  con venti clienti. */
+    personale?: boolean;
     /** Il segmento con cui il gateway la nomina (`-` per l'implicita). */
     segmento?: string;
     /** Quanti suoi progetti sono aperti adesso, sul gateway (20-10-2026). */

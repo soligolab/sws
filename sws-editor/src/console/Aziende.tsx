@@ -34,6 +34,7 @@ type Bozza = {
   /** In GB, l'unita in cui si tratta con un cliente. Vuoto = nessun limite. */
   spazio_gb: string;
   progetti_aperti: string;
+  progetti_totali: string;
 };
 
 const GB = 1_073_741_824;
@@ -46,6 +47,7 @@ function bozzaDa(a: Azienda): Bozza {
     versione_predefinita: a.versione_predefinita ?? "",
     spazio_gb: a.max_byte !== null ? String(a.max_byte / GB) : "",
     progetti_aperti: a.max_progetti_aperti !== null ? String(a.max_progetti_aperti) : "",
+    progetti_totali: a.max_progetti_totali !== null ? String(a.max_progetti_totali) : "",
   };
 }
 
@@ -131,6 +133,7 @@ export function Aziende({ piattaforma = true }: { piattaforma?: boolean }) {
     try {
       const gb = bozza.spazio_gb.trim();
       const pa = bozza.progetti_aperti.trim();
+      const pt = bozza.progetti_totali.trim();
       // Chi amministra un'azienda manda solo cio che puo cambiare: mandare
       // anche il resto, pur senza averlo toccato, prenderebbe un 403 — il
       // server guarda i campi presenti, non quelli cambiati.
@@ -143,6 +146,7 @@ export function Aziende({ piattaforma = true }: { piattaforma?: boolean }) {
               versione_predefinita: bozza.versione_predefinita || null,
               max_byte: gb === "" ? null : Math.round(Number(gb) * GB),
               max_progetti_aperti: pa === "" ? null : Math.round(Number(pa)),
+              max_progetti_totali: pt === "" ? null : Math.round(Number(pt)),
             }
           : {}),
       });
@@ -330,6 +334,25 @@ export function Aziende({ piattaforma = true }: { piattaforma?: boolean }) {
               />
             </div>
             <div style={avviso}>{t("console.aziende.progettiApertiAvviso")}</div>
+
+            {/* Quanti progetti in TUTTO (28-10-2026). È l'altra domanda:
+                `progettiAperti` conta i container accesi insieme, questo conta
+                quanta roba si può tenere. Un'azienda personale ne ha tre. */}
+            <div style={riga}>
+              <label style={titoletto}>{t("console.aziende.progettiTotali")}</label>
+              <input
+                type="number"
+                min={0}
+                step={1}
+                data-testid="quota-progetti-totali"
+                value={bozza.progetti_totali}
+                disabled={!piattaforma}
+                onChange={(e) => setBozza({ ...bozza, progetti_totali: e.target.value })}
+                placeholder={t("console.aziende.senzaLimite")}
+                style={{ ...campo, opacity: piattaforma ? 1 : 0.6 }}
+              />
+            </div>
+            <div style={avviso}>{t("console.aziende.progettiTotaliAvviso")}</div>
             {!piattaforma && (
               <div style={{ ...avviso, marginTop: 8 }}>{t("console.aziende.soloLettura")}</div>
             )}

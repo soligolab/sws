@@ -104,6 +104,19 @@ async fn assicura_aperto(s: &AppState, azienda: &str, progetto: &str) -> Result<
         Err(e @ Apertura::TettoPieno { .. }) => {
             Err((StatusCode::CONFLICT, e.to_string()).into_response())
         }
+        // **503 e non 409**: la macchina piena e' transitoria, e lo stato lo
+        // deve dire — un 409 inviterebbe chi legge a chiudere qualcosa di
+        // suo, e invece i progetti aperti sono di altri. `Retry-After` perche'
+        // la risposta giusta e' esattamente «riprova fra un po'».
+        Err(e @ Apertura::MacchinaPiena { .. }) => {
+            tracing::warn!(azienda, progetto, "apertura rifiutata: {e}");
+            Err((
+                StatusCode::SERVICE_UNAVAILABLE,
+                [(axum::http::header::RETRY_AFTER, "60")],
+                e.to_string(),
+            )
+                .into_response())
+        }
         // Si registra anche questo, non solo i guasti di podman: il 16-10-2026
         // un progetto che sul disco c'era tutto dava «elenco vuoto» nell'IDE e
         // **niente** nei log, perche' qui si usciva in silenzio. Mezz'ora di

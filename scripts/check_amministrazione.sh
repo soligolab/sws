@@ -22,6 +22,13 @@
 #
 # Uso: ./scripts/check_amministrazione.sh
 set -uo pipefail
+# Nota del 28-10-2026: le prove di contenuto qui sotto usano il confronto di
+# bash (`case`), non `echo … | grep -q`. Quella forma, sotto `set -o pipefail`,
+# e' **non deterministica**: `grep -q` esce al primo riscontro, `echo` si becca
+# un SIGPIPE, e lo stato della pipeline diventa 141 — cioe' «non trovato» —
+# anche quando il riscontro c'e'. Dipende da chi arriva prima, quindi la
+# guardia fallisce una volta si' e una no. Successo su `check_quota_progetti`
+# lo stesso giorno, due corse di fila che accusavano campi diversi.
 cd "$(dirname "${BASH_SOURCE[0]}")/.."
 MOD=sws-runtime/crates/sws-web/src/amministrazione.rs
 ROUTER=sws-runtime/crates/sws-web/src/router.rs
@@ -68,7 +75,7 @@ in_gruppi=$(awk '/pub fn rotte_di_(piattaforma|azienda)\(\)/ {dentro=1}
                  dentro && /^\}/ {dentro=0}' "$MOD" | grep -oE '"/api/amministrazione[^"]*"' | tr -d '"' | sort -u)
 orfane=()
 for r in "${ROTTE[@]:-}"; do
-    echo "$in_gruppi" | grep -qxF "$r" || orfane+=("$r")
+    case $'\n'"$in_gruppi"$'\n' in *$'\n'"$r"$'\n'*) ;; *) orfane+=("$r") ;; esac
 done
 if [ "${#orfane[@]}" -eq 0 ]; then
     esito ok "ogni rotta sta in uno dei due gruppi"
@@ -84,10 +91,9 @@ if [ -z "$blocco" ]; then
     esito ko "il router non monta piu i due gruppi della console: le rotte esistono e non sono protette"
 else
     manca=()
-    echo "$blocco" | grep -q "rotte_di_azienda" || manca+=("rotte_di_azienda")
-    echo "$blocco" | grep -q "require_amministratore_piattaforma" || manca+=("require_amministratore_piattaforma")
-    echo "$blocco" | grep -q "require_console" || manca+=("require_console")
-    echo "$blocco" | grep -q "require_auth" || manca+=("require_auth")
+    for atteso in rotte_di_azienda require_amministratore_piattaforma require_console require_auth; do
+        case "$blocco" in *"$atteso"*) ;; *) manca+=("$atteso") ;; esac
+    done
     if [ "${#manca[@]}" -eq 0 ]; then
         esito ok "i due gruppi sono dietro require_auth, piu la guardia che gli spetta"
     else

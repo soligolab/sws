@@ -934,6 +934,7 @@ pub fn visibilita(
 /// optionally seeded from a template. Returns 409 if the folder exists.
 pub async fn create_project(
     State(s): State<AppState>,
+    chi: Option<axum::Extension<crate::router::AuthUser>>,
     Json(req): Json<CreateProjectRequest>,
 ) -> Response {
     let safe_name = match safe_project_name(&req.name) {
@@ -1002,7 +1003,41 @@ pub async fn create_project(
         )
             .into_response();
     }
+    // **Si crea solo nella propria azienda** (28-10-2026).
+    //
+    // Questa rotta sta dietro `require_auth`, ma fino a oggi non guardava
+    // **nessuna appartenenza**: chiunque fosse entrato poteva creare un
+    // progetto in qualunque azienda nominasse. Con un'installazione a un
+    // cliente non si vedeva; su un'istanza aperta a sconosciuti è il primo
+    // gesto di un curioso, ed era anche l'unico modo di farsi un progetto
+    // invisibile a sé stessi — `visibilita` poi lo nascondeva al suo stesso
+    // autore.
+    //
+    // **404 e non 403**, come `risolvi_progetto` e per la stessa ragione: un
+    // 403 confermerebbe che quell'azienda esiste. E con la **stessa
+    // funzione**, non con una regola gemella: due regole da tenere d'accordo
+    // è esattamente come è nato il buco che questa chiude.
+    let chi = chi.map(|c| c.0);
+    let appartenenze = appartenenze_di(&s, chi.as_ref()).await;
+    if !appartenenze.fuori_dal_modello {
+        let scelta = (segmento_azienda != crate::project_registry::AZIENDA_IMPLICITA)
+            .then_some(segmento_azienda.as_str());
+        let piattaforma = chi.as_ref().is_some_and(|c| c.amministratore_piattaforma);
+        if visibilita(scelta, &appartenenze.cartelle, appartenenze.implicita, piattaforma).is_none()
+        {
+            return (StatusCode::NOT_FOUND, "project not found").into_response();
+        }
+    }
+
     let chiave = crate::project_registry::riferimento(&segmento, &safe_name);
+
+    // **Quanti progetti in tutto**, prima dello spazio: è il tetto che una
+    // persona sola incontra per primo (tre, su un'azienda personale), e
+    // rifiutare per spazio quando il limite è il numero direbbe la cosa
+    // sbagliata.
+    if let Some(rifiuto) = rifiuta_se_troppi(&s, req.azienda_id).await {
+        return rifiuto;
+    }
 
     // **La quota, prima di scrivere.** Si rifiuta al limite, dopo aver
     // avvisato sopra la soglia: un progetto nuovo e cio che fa crescere lo
@@ -1597,7 +1632,7 @@ pub async fn open_project(
             warn!("open_project: project.yaml missing or invalid: {e:#}");
             return (
                 StatusCode::INTERNAL_SERVER_ERROR,
-                format!("project parse error: {e}"),
+                format!("project parse error: {e:#}"),
             )
                 .into_response();
         }
@@ -1912,6 +1947,39 @@ pub fn spazio_di_azienda(
     (p, st)
 }
 
+/// Quanti progetti ha un'azienda — **contati come lo spazio**.
+///
+/// Gemella di [`spazio_di_azienda`], e deliberatamente della stessa forma: il
+/// numero mostrato e il numero applicato devono venire dallo stesso posto,
+/// altrimenti si arriva al caso in cui la console dice «2 di 3» e la creazione
+/// rifiuta. Per l'azienda con una cartella sua si contano le sottocartelle di
+/// quella; per l'implicita, che vive nella radice, si contano quelle della
+/// radice saltando le cartelle delle altre aziende.
+pub fn quanti_progetti(
+    radice: &StdPath,
+    azienda: &sws_identita::Azienda,
+    tutte: &[sws_identita::Azienda],
+) -> usize {
+    let conta = |dir: &StdPath, salta_aziende: bool| {
+        let Ok(rd) = std::fs::read_dir(dir) else { return 0usize };
+        rd.flatten()
+            .filter(|e| e.file_type().map(|t| t.is_dir()).unwrap_or(false))
+            .filter(|e| {
+                if !salta_aziende {
+                    return true;
+                }
+                let nome = e.file_name().to_string_lossy().to_string();
+                !tutte.iter().any(|x| !x.cartella.is_empty() && x.cartella == nome)
+            })
+            .count()
+    };
+    if !azienda.cartella.is_empty() {
+        conta(&radice.join(&azienda.cartella), false)
+    } else {
+        conta(radice, true)
+    }
+}
+
 /// Sopra quale frazione della quota si **avvisa**, prima di rifiutare.
 ///
 /// Decisione del maintainer dell'08-10-2026: avvisa prima, rifiuta al limite.
@@ -2056,6 +2124,47 @@ pub fn segmento_da_percorso(radice: &StdPath, dir: &StdPath) -> String {
 /// Gemello di [`cartella_dell_azienda`], che dà la directory: l'uno serve a
 /// scrivere l'indirizzo, l'altro a scrivere sul disco, e vengono dalla stessa
 /// riga del database perché siano sempre d'accordo.
+/// **Quanti progetti in tutto** può tenere un'azienda (28-10-2026).
+///
+/// Diverso da `max_progetti_aperti`, che conta i container accesi insieme, e
+/// diverso da `max_byte`, che conta lo spazio. Su un'istanza aperta a
+/// sconosciuti è il tetto che si incontra per primo: tre progetti a testa.
+///
+/// Stessa semantica delle altre quote: `NULL` non limita, `0` non concede.
+/// Si contano i progetti con [`quanti_progetti`], gemella di
+/// `spazio_di_azienda`: il numero mostrato e il numero applicato vengono dallo
+/// stesso posto.
+async fn rifiuta_se_troppi(s: &AppState, azienda_id: Option<i64>) -> Option<Response> {
+    let identita = s.identita.as_ref()?;
+    let aziende = identita.elenca_aziende().await.ok()?;
+    // Senza azienda indicata si guarda l'implicita: e li che nasce un progetto
+    // creato senza sceglierne una. Stessa regola di `quota_spazio`, scritta
+    // allo stesso modo perche le due quote devono rispondere alla stessa
+    // domanda — «di chi e questo progetto?» — nello stesso modo.
+    let mia = match azienda_id {
+        Some(id) => aziende.iter().find(|a| a.id == id)?,
+        None => aziende.iter().find(|a| a.implicita)?,
+    };
+    let massimo = mia.max_progetti_totali?;
+    let quanti = quanti_progetti(s.projects_root.as_ref(), mia, &aziende);
+    if (quanti as i64) < massimo {
+        return None;
+    }
+    Some(
+        (
+            StatusCode::CONFLICT,
+            Json(serde_json::json!({
+                "error": "quota_progetti",
+                "detail": format!(
+                    "hai già {quanti} progetti e il limite è {massimo}. \
+                     Cancellane uno, oppure chiedi un aumento."
+                ),
+            })),
+        )
+            .into_response(),
+    )
+}
+
 async fn segmento_dell_azienda(s: &AppState, azienda_id: Option<i64>) -> String {
     let implicita = crate::project_registry::AZIENDA_IMPLICITA.to_string();
     let (Some(id), Some(identita)) = (azienda_id, s.identita.as_ref()) else {
@@ -2175,6 +2284,40 @@ pub(crate) fn deve_svuotare_utenti(replace_users: Option<bool>, bundle_ha_utenti
     replace_users == Some(true) && !bundle_ha_utenti
 }
 
+/// **Spegne il container del progetto prima di toccarne la cartella.**
+///
+/// Difetto misurato sul VPS il 26-10-2026, non dedotto. Il maintainer ha
+/// cancellato `CasaDomotica_WP630` e poi ci ha salvato sopra un altro progetto
+/// con lo stesso nome. Da quel momento l'IDE rispondeva `500 — project parse
+/// error: reading /progetto/project.yaml`. Sul disco il file c'era, 18 KB,
+/// leggibile da tutti; **dentro il container `ls /progetto` dava `total 0`**.
+///
+/// Il mount di podman e legato all'**inode**: cancellata la cartella, il
+/// container resta attaccato a quella vecchia — che esiste ancora solo per
+/// lui — e la nuova non la vede mai. Il container era nato alle 11:12:40, la
+/// cartella ricreata alle 11:14.
+///
+/// **E l'autospegnimento dei venti minuti non ripara.** La condizione e
+/// `collegati == 0 && fermo da >= limite`: ogni ricarica della pagina riapre
+/// un WebSocket, `collegati` torna a 1 e il cronometro riparte. Piu si
+/// riprova, meno si ripara — quel container e rimasto in piedi due ore.
+///
+/// Fino al 28-10-2026 `regia.chiudi()` era chiamata da **un solo punto in
+/// tutto il repo**, la chiusura a mano della console: un rimedio che un utente
+/// esterno non ha, visto che la console non gli e data.
+///
+/// Silenziosa di proposito: su un'installazione locale non c'e nessuna regia,
+/// e un progetto non aperto non e un errore da riportare a chi sta cancellando.
+async fn spegni_container(s: &AppState, chiave: &str) {
+    let Some(regia) = s.regia.as_ref() else { return };
+    if let Err(e) = regia.chiudi(chiave).await {
+        // Vale la pena saperlo: se il container resta su, la cartella nuova
+        // non la vedra. Ma non ferma la cancellazione — il progetto se ne va
+        // comunque, e il container si spegne da se quando nessuno lo usa.
+        tracing::warn!(progetto = %chiave, "non sono riuscito a spegnere il container: {e}");
+    }
+}
+
 pub async fn delete_project(
     State(s): State<AppState>,
     chi: Option<axum::Extension<crate::router::AuthUser>>,
@@ -2248,6 +2391,10 @@ pub async fn delete_project(
         return StatusCode::NO_CONTENT.into_response();
     }
 
+    // **Prima il container, poi la cartella.** Al contrario non servirebbe a
+    // niente: podman tiene il mount per inode, e un container gia attaccato
+    // alla cartella vecchia ci resta anche dopo che il nome e stato riusato.
+    spegni_container(&s, &chiave).await;
     if let Err(e) = tokio::fs::remove_dir_all(&target).await {
         warn!("delete_project: remove {}: {e}", target.display());
         return (
@@ -2358,6 +2505,12 @@ pub async fn rename_project(
     // difetto separato annotato in Q30: `rename_project` non prende
     // `project_switch_lock`), ma serializza tutto ciò che tocca i file.
     let _scrittura = s.project_write_lock.lock().await;
+    // Anche qui il container va spento prima (28-10-2026). `segui_rinomina`
+    // qui sotto sposta la **configurazione** del progetto, non il container:
+    // quello resterebbe registrato col riferimento vecchio e attaccato alla
+    // cartella, e al primo accesso col nome nuovo il gateway ne avvierebbe un
+    // secondo sulla stessa directory.
+    spegni_container(&s, &chiave_vecchia).await;
     if let Err(e) = tokio::fs::rename(&old_dir, &new_dir).await {
         warn!("rename_project: rename {old_name} → {new_name}: {e}");
         return (
@@ -2747,6 +2900,13 @@ pub async fn upload_project_zip(
     // dentro una cartella d'azienda non toccava mai la sua quota.
     if !q.deploy {
         let addebito = azienda_di_destinazione(&s, q.parent_path.as_deref()).await;
+        // **Tutte e due le quote, da tutte e due le porte.** Il numero di
+        // progetti ha la stessa forma dello spazio, e la stessa ragione per
+        // stare qui: un limite che si aggira caricando uno zip non e un
+        // limite. E la lezione di Q46, che `check_quota_progetti.sh` sorveglia.
+        if let Some(rifiuto) = rifiuta_se_troppi(&s, addebito).await {
+            return rifiuto;
+        }
         if let Some(rifiuto) = rifiuta_se_piena(&s, addebito).await {
             return rifiuto;
         }
@@ -3213,7 +3373,7 @@ pub async fn set_mqtt_client_id_override(
         Err(e) => {
             return (
                 StatusCode::INTERNAL_SERVER_ERROR,
-                format!("project parse error: {e}"),
+                format!("project parse error: {e:#}"),
             )
                 .into_response();
         }
@@ -3545,6 +3705,61 @@ fn migrate_legacy_sqlite_path(project_dir: &StdPath) {
 
 #[cfg(test)]
 mod tests {
+    /// Quanti progetti ha un'azienda, contati come lo spazio.
+    ///
+    /// Il caso che conta davvero e' l'azienda **implicita**, che vive nella
+    /// radice: li' le cartelle delle altre aziende stanno accanto ai progetti,
+    /// e contarle come progetti darebbe «3 di 3» a chi non ne ha nessuno.
+    #[test]
+    fn i_progetti_di_un_azienda_si_contano_come_lo_spazio() {
+        fn azienda(id: i64, cartella: &str, implicita: bool) -> sws_identita::Azienda {
+            sws_identita::Azienda {
+                id,
+                nome: format!("a{id}"),
+                stato: sws_identita::StatoAzienda::InProva,
+                marchio: None,
+                versione_predefinita: None,
+                implicita,
+                cartella: cartella.to_string(),
+                max_progetti_aperti: None,
+                max_progetti_totali: None,
+                max_pannelli: None,
+                max_byte: None,
+                personale: false,
+                creata_ms: 0,
+            }
+        }
+        let d = tempfile::tempdir().unwrap();
+        let radice = d.path();
+        // Due progetti nella radice (dell'implicita), una cartella d'azienda
+        // con tre progetti dentro, e un file sciolto che non e' un progetto.
+        std::fs::create_dir_all(radice.join("impianto")).unwrap();
+        std::fs::create_dir_all(radice.join("prova")).unwrap();
+        std::fs::write(radice.join("non-una-cartella.txt"), b"x").unwrap();
+        for n in ["uno", "due", "tre"] {
+            std::fs::create_dir_all(radice.join("u7").join(n)).unwrap();
+        }
+        let implicita = azienda(1, "", true);
+        let personale = azienda(2, "u7", false);
+        let tutte = vec![implicita.clone(), personale.clone()];
+
+        assert_eq!(
+            super::quanti_progetti(radice, &personale, &tutte),
+            3,
+            "l'azienda con la sua cartella conta cio' che ci sta dentro"
+        );
+        assert_eq!(
+            super::quanti_progetti(radice, &implicita, &tutte),
+            2,
+            "l'implicita conta la radice SALTANDO le cartelle delle altre aziende, \
+             e i file sciolti non sono progetti"
+        );
+
+        // Una cartella d'azienda vuota: zero, non «la radice».
+        let vuota = azienda(3, "u9", false);
+        assert_eq!(super::quanti_progetti(radice, &vuota, &tutte), 0);
+    }
+
     use super::*;
 
     /// Fase 4d: il **nome del tipo** di ogni istanza arriva fino al `TagDb`.

@@ -32,6 +32,51 @@ use super::podman::{nome_container, Podman, ETICHETTA_RIFERIMENTO};
 /// poco perché una scheda chiusa non tenga un container acceso tutta la notte.
 pub const FERMO_PREDEFINITO: Duration = Duration::from_secs(20 * 60);
 
+/// Quanta memoria puo' prendere il container di un progetto (28-10-2026).
+///
+/// Misura dal VPS: 23-41 MB per container in esercizio, 86 MB di RSS in
+/// debug. **256 MB e' largo**, e il punto non e' stringere: e' che senza
+/// nessun tetto un progetto che perde memoria si porta giu' la macchina
+/// intera — gateway, Traefik e tutti gli altri progetti — invece di morire da
+/// solo. Il VPS ha 2 vCore e 3,7 GiB.
+///
+/// Si applica a ogni container di progetto, non solo a quelli degli esterni:
+/// un tetto che vale per alcuni e non per altri e' un tetto che non si prova
+/// mai sul caso che conta.
+pub const MEMORIA_PREDEFINITA: &str = "256m";
+
+/// Quanti processi puo' avere dentro. Un fork bomb in uno script Python e'
+/// il modo piu' economico di rendere una macchina inservibile, e `pids` e'
+/// l'unica difesa che non costa niente.
+pub const PROCESSI_MASSIMI: i64 = 512;
+
+/// Quanti container di progetto possono stare accesi **insieme**, in tutto.
+///
+/// Diverso da `max_progetti_aperti`, che e' per azienda: venti aziende da un
+/// progetto ciascuna non si fermano a vicenda, e sul VPS venti container
+/// insieme sono gia' troppi. `None` = nessun tetto globale, che e' il caso di
+/// un'installazione a un cliente.
+///
+/// **Rifiuta, non spegne il piu' vecchio** — stessa scelta della regola 1 qui
+/// sopra, e per la stessa ragione: chi sta lavorando non deve ritrovarsi il
+/// progetto chiuso perche' e' arrivato qualcun altro.
+
+/// Da `256m` ai byte che vuole l'API di podman.
+///
+/// Si scrive il tetto come lo scriverebbe un umano in un quadlet, e lo si
+/// converte in un punto solo: un numero di byte in mezzo al codice non si
+/// rilegge, e `268435456` e' esattamente il genere di costante che fra sei
+/// mesi nessuno sa piu' da dove venga.
+fn byte_di(misura: &str) -> i64 {
+    let (numero, scala) = match misura.as_bytes().last() {
+        Some(b'k') | Some(b'K') => (&misura[..misura.len() - 1], 1024),
+        Some(b'm') | Some(b'M') => (&misura[..misura.len() - 1], 1024 * 1024),
+        Some(b'g') | Some(b'G') => (&misura[..misura.len() - 1], 1024 * 1024 * 1024),
+        _ => (misura, 1),
+    };
+    numero.parse::<i64>().unwrap_or(0) * scala
+}
+
 /// Un progetto aperto, dal punto di vista del gateway.
 #[derive(Debug, Clone)]
 pub struct Aperto {
@@ -129,6 +174,9 @@ pub struct Regia {
     radice: std::path::PathBuf,
     come: ComeRaggiungere,
     fermo_dopo: Duration,
+    /// Quanti container accesi insieme, in tutto il gateway. Vedi
+    /// [`MEMORIA_PREDEFINITA`] e il commento del tetto globale.
+    massimo_container: Option<usize>,
     /// Il segreto che il figlio pretende a ogni richiesta (`--auth-delegata`).
     /// Uno solo per tutto il gateway: i figli non si parlano fra loro, e un
     /// segreto per container vorrebbe dire tenerne traccia senza guadagno.
@@ -163,6 +211,7 @@ impl Regia {
             radice: radice.into(),
             come,
             fermo_dopo: FERMO_PREDEFINITO,
+            massimo_container: None,
             segreto: Arc::new(segreto.into()),
             aperti: RwLock::new(HashMap::new()),
             apertura: tokio::sync::Mutex::new(()),
@@ -171,6 +220,13 @@ impl Regia {
 
     pub fn con_fermo_dopo(mut self, d: Duration) -> Self {
         self.fermo_dopo = d;
+        self
+    }
+
+    /// Il tetto globale di container accesi. `0` vale «nessun tetto», come
+    /// per gli altri limiti di questo gateway.
+    pub fn con_massimo_container(mut self, quanti: usize) -> Self {
+        self.massimo_container = (quanti > 0).then_some(quanti);
         self
     }
 
@@ -401,6 +457,16 @@ impl Regia {
             }
         }
 
+        // **E il tetto globale**, che e' un'altra domanda: `max_progetti_aperti`
+        // e' per azienda, e venti aziende da un progetto ciascuna non si
+        // fermano a vicenda pur mettendo in ginocchio la macchina.
+        if let Some(max) = self.massimo_container {
+            let ora = self.aperti.read().await.len();
+            if ora >= max {
+                return Err(Apertura::MacchinaPiena { ora, max });
+            }
+        }
+
         // La cartella vera del progetto, che e l'unica cosa che il figlio
         // vedra del disco (decisione 25). L'azienda implicita ha la cartella
         // vuota: il progetto sta nella radice.
@@ -443,6 +509,14 @@ impl Regia {
         let mut spec = serde_json::json!({
             "image": self.immagine,
             "name": contenitore,
+            // **I tetti** (28-10-2026). Senza, un progetto che perde memoria
+            // o che forka si porta giu' la macchina intera invece di morire
+            // da solo. `resource_limits` e' la forma che vuole l'API di
+            // podman: `memory.limit` in byte, `pids.limit` come numero.
+            "resource_limits": {
+                "memory": { "limit": byte_di(MEMORIA_PREDEFINITA) },
+                "pids": { "limit": PROCESSI_MASSIMI },
+            },
             // Il riferimento del progetto, e le etichette pesanti dell'immagine
             // azzerate: qui i container sono uno per progetto aperto, quindi il
             // peso nel journal si moltiplica (vedi `ETICHETTE_DA_SVUOTARE`).
@@ -612,6 +686,10 @@ impl Regia {
 pub enum Apertura {
     /// L'azienda ha gia' aperti tutti i progetti che le spettano.
     TettoPieno { ora: i64, max: i64 },
+    /// La **macchina** e' piena: il tetto globale di container accesi.
+    /// Diverso da `TettoPieno`, e il messaggio lo dice: qui non c'e' niente
+    /// che chi legge possa chiudere, perche' i progetti aperti sono di altri.
+    MacchinaPiena { ora: usize, max: usize },
     /// Sul disco quella cartella non c'e'.
     NonTrovato,
     Podman(String),
@@ -624,6 +702,11 @@ impl std::fmt::Display for Apertura {
                 f,
                 "la tua azienda puo tenere aperti {max} progetti insieme, e sono gia {ora}. \
                  Chiudine uno e riprova."
+            ),
+            Self::MacchinaPiena { ora, max } => write!(
+                f,
+                "il server ha gia {ora} progetti aperti su {max} e non ne regge altri adesso. \
+                 Riprova fra qualche minuto."
             ),
             Self::NonTrovato => write!(f, "progetto non trovato"),
             Self::Podman(e) => write!(f, "non riesco ad avviare il progetto: {e}"),
@@ -706,6 +789,37 @@ fn alias_dns(contenitore: &str) -> Option<String> {
 
 #[cfg(test)]
 mod tests {
+    /// `256m` sono byte, e il numero non si scrive a mano.
+    #[test]
+    fn la_misura_del_tetto_si_legge_come_la_scriverebbe_un_umano() {
+        assert_eq!(super::byte_di("256m"), 268_435_456);
+        assert_eq!(super::byte_di(super::MEMORIA_PREDEFINITA), 268_435_456);
+        assert_eq!(super::byte_di("1g"), 1_073_741_824);
+        assert_eq!(super::byte_di("512k"), 524_288);
+        assert_eq!(super::byte_di("1024"), 1024, "senza suffisso sono byte");
+        // Una misura scritta male non diventa «nessun tetto»: diventa zero,
+        // cioe' il tetto piu' stretto. Un errore di battitura che TOGLIE il
+        // limite sarebbe il modo peggiore di sbagliare.
+        assert_eq!(super::byte_di("duecento"), 0);
+        assert_eq!(super::byte_di(""), 0);
+    }
+
+    /// Il tetto globale e quello per azienda rispondono a due domande
+    /// diverse, e i due messaggi lo dicono: uno nomina qualcosa che chi legge
+    /// puo' chiudere, l'altro no.
+    #[test]
+    fn i_due_tetti_dicono_due_cose_diverse() {
+        let azienda = super::Apertura::TettoPieno { ora: 3, max: 3 }.to_string();
+        let macchina = super::Apertura::MacchinaPiena { ora: 20, max: 20 }.to_string();
+        assert!(azienda.contains("Chiudine uno"), "{azienda}");
+        assert!(
+            !macchina.contains("Chiudine uno"),
+            "i progetti aperti sono di altri: non c'e' niente da chiudere — {macchina}"
+        );
+        assert!(macchina.contains("Riprova"), "{macchina}");
+        assert_ne!(azienda, macchina);
+    }
+
     /// La configurazione segue il progetto rinominato; nel duplicato vanno le
     /// chiavi, non il pannello ricordato (25-10-2026).
     #[tokio::test]

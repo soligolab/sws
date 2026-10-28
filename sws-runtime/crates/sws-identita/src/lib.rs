@@ -137,8 +137,14 @@ pub struct Azienda {
     /// progetto aperto e un container da avviare (maintainer, 08-10-2026).
     /// Non il numero totale di progetti, che non e una quota.
     pub max_progetti_aperti: Option<i64>,
+    /// Quanti progetti in tutto (28-10-2026). Diverso da
+    /// `max_progetti_aperti`, che conta i container accesi insieme.
+    pub max_progetti_totali: Option<i64>,
     pub max_pannelli: Option<i64>,
     pub max_byte: Option<i64>,
+    /// **L'azienda di una persona sola**, nata con lei alla registrazione.
+    /// Serve alla console a distinguere un curioso da un cliente.
+    pub personale: bool,
     pub creata_ms: u64,
 }
 
@@ -174,6 +180,8 @@ pub struct ModificaAzienda {
     pub versione_predefinita: Option<Option<String>>,
     #[serde(default, deserialize_with = "doppia_opzione")]
     pub max_progetti_aperti: Option<Option<i64>>,
+    #[serde(default, deserialize_with = "doppia_opzione")]
+    pub max_progetti_totali: Option<Option<i64>>,
     #[serde(default, deserialize_with = "doppia_opzione")]
     pub max_pannelli: Option<Option<i64>>,
     #[serde(default, deserialize_with = "doppia_opzione")]
@@ -387,9 +395,24 @@ CREATE TABLE IF NOT EXISTS aziende (
     -- accanto a loro. Una migrazione che non muove dati e una migrazione che
     -- non puo perderli.
     cartella         TEXT    NOT NULL DEFAULT '',
+    -- **Un'azienda a testa** (schema 4, 28-10-2026). Chi si registra da solo
+    -- su un'istanza aperta nasce con un'azienda sua, di cui e Sviluppatore:
+    -- cosi «vede solo i suoi progetti», «niente console» e «non invita
+    -- nessuno» sono conseguenze di regole che esistono gia, invece di tre
+    -- concetti nuovi. Vedi docs/plans/2026-10-26-aprire-sws-soligo-net.md.
+    --
+    -- NON si riusa `implicita`: quella e l'azienda singola condivisa di
+    -- un'installazione locale, e il codice la confronta in piu punti. Questa
+    -- serve alla console, per non confondere venti curiosi con venti clienti.
+    personale        INTEGER NOT NULL DEFAULT 0,
     -- Quote (decisione 23). Anche queste senza effetto in 3a: le colonne ci
     -- sono, il conteggio arriva con la 3b.
     max_progetti_aperti INTEGER,
+    -- Quanti progetti in tutto, non quanti aperti insieme (28-10-2026).
+    -- `max_progetti_aperti` e un tetto sui container accesi; questo e un tetto
+    -- su quanta roba si puo tenere. Stessa semantica delle altre: NULL non
+    -- limita, 0 non concede.
+    max_progetti_totali INTEGER,
     max_pannelli     INTEGER,
     max_byte         INTEGER,
     creata_ms        INTEGER NOT NULL,
@@ -424,6 +447,24 @@ const COLONNE_V2: &[(&str, &str)] = &[
     "utenti",
     "ALTER TABLE utenti ADD COLUMN amministratore_piattaforma INTEGER NOT NULL DEFAULT 0",
 )];
+
+/// Schema 4 (28-10-2026): l'azienda personale e il tetto sui progetti in tutto.
+///
+/// Stessa forma di `COLONNE_V2` e stessa ragione: `CREATE TABLE IF NOT EXISTS`
+/// non tocca una tabella che c'e' gia', quindi le colonne nuove vanno aggiunte
+/// a parte. Tutte e due hanno un default che lascia gli archivi esistenti
+/// esattamente come sono — `personale = 0` (nessuna delle aziende di oggi lo
+/// e') e `max_progetti_totali = NULL` (nessun limite).
+const COLONNE_V4: &[(&str, &str)] = &[
+    (
+        "aziende",
+        "ALTER TABLE aziende ADD COLUMN personale INTEGER NOT NULL DEFAULT 0",
+    ),
+    (
+        "aziende",
+        "ALTER TABLE aziende ADD COLUMN max_progetti_totali INTEGER",
+    ),
+];
 
 impl Identita {
     /// Apre (o crea) l'archivio in `percorso`, di solito `<config_dir>/identita.db`.
@@ -468,7 +509,12 @@ impl Identita {
                     [],
                 )?;
             }
-            conn.pragma_update(None, "user_version", 3)?;
+            for (tabella, sql) in COLONNE_V4 {
+                if !colonna_presente(&conn, tabella, sql) {
+                    conn.execute(sql, [])?;
+                }
+            }
+            conn.pragma_update(None, "user_version", 4)?;
             // Il file contiene hash di password e sessioni: non deve essere leggibile da altri.
             #[cfg(unix)]
             {
@@ -1260,8 +1306,100 @@ impl Identita {
                 versione_predefinita: None,
                 implicita: false,
                 max_progetti_aperti: None,
+                max_progetti_totali: None,
                 max_pannelli: None,
                 max_byte: None,
+                personale: false,
+                creata_ms: adesso,
+            })
+        })
+        .await?
+    }
+
+    /// **Un'azienda a testa**: l'azienda personale di chi si registra da solo.
+    ///
+    /// E il cardine di `docs/plans/2026-10-26-aprire-sws-soligo-net.md`. Tutto
+    /// quello che un utente esterno deve poter fare — vedere solo i propri
+    /// progetti, non aprire la console, non invitare nessuno, avere un marchio
+    /// assegnabile, abbinare un pannello — **il modello per azienda lo fa
+    /// gia**. Non serve un concetto nuovo di «proprietario del progetto»:
+    /// serve che chi si registra nasca con un'azienda sua.
+    ///
+    /// Due dettagli che non si indovinano:
+    ///
+    /// - **la cartella e `u<id>`, non derivata dal nome.** `cartella_da_nome`
+    ///   normalizza, e due indirizzi come `mario@tizio.it` e `mario@caio.it`
+    ///   finirebbero nella stessa cartella con un `-2` appiccicato dal ciclo
+    ///   di disambiguazione — cioe la cartella di una persona dipenderebbe da
+    ///   chi si e registrato prima. L'id della riga e unico per costruzione e
+    ///   non cambia mai.
+    /// - **il ruolo e `Sviluppatore`, non `Amministratore`.** E quello che
+    ///   rende vere le altre due regole senza scriverle: `require_console`
+    ///   rifiuta chi non amministra un'azienda, e `crea_utente` pure. Un
+    ///   amministratore della propria azienda potrebbe invitare gente, che e
+    ///   esattamente cio che il maintainer ha escluso.
+    ///
+    /// **Un'azienda senza amministratori e uno stato nuovo** per questo
+    /// archivio: niente lo dava per impossibile, ma e bene saperlo.
+    pub async fn crea_azienda_personale(
+        &self,
+        nome: &str,
+        utente_id: i64,
+        max_progetti_totali: Option<i64>,
+    ) -> anyhow::Result<Azienda> {
+        let nome = nome.trim().to_string();
+        if nome.is_empty() {
+            anyhow::bail!("il nome dell'azienda personale non puo essere vuoto");
+        }
+        let conn = self.conn.clone();
+        task::spawn_blocking(move || -> anyhow::Result<Azienda> {
+            let mut c = conn.lock().unwrap();
+            let adesso = ora_ms();
+            let tx = c.transaction()?;
+            // La cartella definitiva vuole l'id, che si sa solo dopo l'insert:
+            // si entra con una cartella provvisoria e si corregge subito, tutto
+            // dentro la stessa transazione. `cartella` non ha un vincolo di
+            // unicita in SQL — l'unicita la fa il codice — quindi il valore di
+            // passaggio non puo rompere niente.
+            tx.execute(
+                "INSERT INTO aziende
+                   (nome, stato, implicita, personale, cartella, max_progetti_totali,
+                    creata_ms, aggiornata_ms)
+                 VALUES (?1, 'in_prova', 0, 1, '', ?2, ?3, ?3)",
+                params![nome, max_progetti_totali, adesso as i64],
+            )
+            .map_err(|e| match e {
+                rusqlite::Error::SqliteFailure(f, _)
+                    if f.code == rusqlite::ErrorCode::ConstraintViolation =>
+                {
+                    anyhow::anyhow!("esiste gia un'azienda di nome «{nome}»")
+                }
+                altro => anyhow::anyhow!("creazione azienda personale: {altro}"),
+            })?;
+            let id = tx.last_insert_rowid();
+            let cartella = format!("u{id}");
+            tx.execute(
+                "UPDATE aziende SET cartella = ?1 WHERE id = ?2",
+                params![cartella, id],
+            )?;
+            tx.execute(
+                "INSERT INTO membri (azienda_id, utente_id, ruolo) VALUES (?1, ?2, ?3)",
+                params![id, utente_id, Ruolo::Sviluppatore.come_testo()],
+            )?;
+            tx.commit()?;
+            Ok(Azienda {
+                id,
+                nome,
+                cartella,
+                stato: StatoAzienda::InProva,
+                marchio: None,
+                versione_predefinita: None,
+                implicita: false,
+                max_progetti_aperti: None,
+                max_progetti_totali,
+                max_pannelli: None,
+                max_byte: None,
+                personale: true,
                 creata_ms: adesso,
             })
         })
@@ -1274,7 +1412,8 @@ impl Identita {
             let c = conn.lock().unwrap();
             let mut q = c.prepare(
                 "SELECT id, nome, stato, marchio, versione_predefinita, implicita,
-                        max_progetti_aperti, max_pannelli, max_byte, creata_ms, cartella
+                        max_progetti_aperti, max_pannelli, max_byte, creata_ms, cartella,
+                        max_progetti_totali, personale
                  FROM aziende ORDER BY implicita DESC, nome",
             )?;
             let righe = q
@@ -1291,6 +1430,8 @@ impl Identita {
                         max_byte: r.get(8)?,
                         creata_ms: r.get::<_, i64>(9)? as u64,
                         cartella: r.get(10)?,
+                        max_progetti_totali: r.get(11)?,
+                        personale: r.get::<_, i64>(12)? != 0,
                     })
                 })?
                 .collect::<Result<Vec<_>, _>>()?;
@@ -1364,6 +1505,7 @@ impl Identita {
             }
             for (campo, valore) in [
                 ("max_progetti_aperti", m.max_progetti_aperti),
+                ("max_progetti_totali", m.max_progetti_totali),
                 ("max_pannelli", m.max_pannelli),
                 ("max_byte", m.max_byte),
             ] {
@@ -1741,7 +1883,70 @@ mod test {
             let c = id.conn.lock().unwrap();
             c.query_row("PRAGMA user_version", [], |r| r.get(0)).unwrap()
         };
-        assert_eq!(versione, 3);
+        assert_eq!(versione, 4, "lo schema 4 e l'azienda personale (28-10-2026)");
+
+        // E le colonne dello schema 4 ci sono, con i valori che lasciano
+        // l'archivio com'era: nessuna azienda di prima e personale, e nessuna
+        // ha un tetto sul numero di progetti.
+        assert!(!acme.personale);
+        assert_eq!(acme.max_progetti_totali, None);
+    }
+
+    /// **Un'azienda a testa**, il cardine di
+    /// `docs/plans/2026-10-26-aprire-sws-soligo-net.md`.
+    #[tokio::test]
+    async fn chi_si_registra_nasce_con_un_azienda_sua() {
+        let (id, _d) = archivio().await;
+        let u = id
+            .crea_utente("mario@tizio.it", "Mario", "unapassword", Ruolo::Sviluppatore, false)
+            .await
+            .unwrap();
+        let a = id
+            .crea_azienda_personale("mario@tizio.it", u.id, Some(3))
+            .await
+            .unwrap();
+
+        assert!(a.personale, "e questo che la distingue da un cliente in console");
+        assert!(!a.implicita, "`implicita` e un'altra cosa: l'azienda unica di un'installazione");
+        assert_eq!(a.cartella, format!("u{}", a.id), "la cartella e l'id, non il nome");
+        assert_eq!(a.max_progetti_totali, Some(3));
+        assert_eq!(
+            id.aziende_di(u.id).await.unwrap(),
+            vec![(a.id, Ruolo::Sviluppatore)],
+            "Amministratore gli lascerebbe aprire la console e invitare gente"
+        );
+
+        // E rileggendola dall'archivio dice le stesse cose.
+        let riletta = id
+            .elenca_aziende()
+            .await
+            .unwrap()
+            .into_iter()
+            .find(|x| x.id == a.id)
+            .expect("l'azienda personale si elenca come le altre");
+        assert!(riletta.personale);
+        assert_eq!(riletta.cartella, a.cartella);
+        assert_eq!(riletta.max_progetti_totali, Some(3));
+    }
+
+    /// Due indirizzi che normalizzano allo stesso nome: le cartelle devono
+    /// restare diverse, e **non** dipendere da chi si e registrato prima.
+    ///
+    /// E la ragione per cui la cartella e `u<id>` e non `cartella_da_nome`:
+    /// quella avrebbe dato `mario-tizio-it` e `mario-caio-it`, che qui vanno
+    /// bene, ma `mario@tizio.it` e `Mario@Tizio.IT` no — e su un'istanza
+    /// aperta a sconosciuti la cartella di una persona non puo dipendere
+    /// dall'ordine di arrivo.
+    #[tokio::test]
+    async fn due_aziende_personali_non_condividono_la_cartella() {
+        let (id, _d) = archivio().await;
+        let a = id.crea_utente("mario@tizio.it", "M", "unapassword", Ruolo::Sviluppatore, false).await.unwrap();
+        let b = id.crea_utente("mario@caio.it", "M", "unapassword", Ruolo::Sviluppatore, false).await.unwrap();
+        let aa = id.crea_azienda_personale("mario@tizio.it", a.id, Some(3)).await.unwrap();
+        let bb = id.crea_azienda_personale("mario@caio.it", b.id, Some(3)).await.unwrap();
+        assert_ne!(aa.cartella, bb.cartella);
+        assert_ne!(aa.cartella, "");
+        assert_ne!(bb.cartella, "", "la radice e dell'azienda implicita, di nessun altro");
     }
 
     /// Un marchio e di una sola azienda: assegnarlo a una seconda si rifiuta.
