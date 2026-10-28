@@ -12,7 +12,29 @@
 > resta in «Storico». Qui vive solo ciò che serve a riprendere il lavoro.
 
 
-## ▶ Riprendere da qui — l'IDE dice cosa sta facendo (2026-10-28, pomeriggio)
+## ▶ Riprendere da qui — due semi sono diventati piani d'esecuzione (2026-10-28, sera)
+
+**Sessione di solo plan, nessun codice.** `main` non ha rami aperti. Due semi trasformati in
+piani d'esecuzione dettagliati, con le decisioni del maintainer prese in sessione:
+
+- **[Faceplate disegnato sul canvas](docs/plans/2026-10-27-faceplate-disegnato-sul-canvas.md)** —
+  strada B: il faceplate diventa una pagina `kind: "faceplate"` (sezione in LeftPanel come
+  Cornici/Boot, la scheda Configurazione sparisce); misura dichiarata salvata in `FaceplateDef`;
+  pulsante JSON con la definizione intera; niente faceplate dentro faceplate nell'editor.
+  Tre rami: `feat/faceplate-pagina` (modello e trasporto), `feat/faceplate-editor` (UI),
+  `feat/faceplate-rifiniture` (validatore, manuale, CasaDomotica sul WP630).
+- **[Planimetrie](docs/plans/2026-10-25-planimetrie-3d.md)** — pianta 2D disegnata nell'IDE
+  (muri/porte/finestre + aree e blocchi per l'industriale), resa 3D con three.js **solo
+  nell'IDE** (chunk lazy), **generata una volta** in un PNG di `images/` usato come
+  `sfondo_immagine`; gli oggetti del sinottico restano 2D sopra; web e LVGL consumano solo
+  l'immagine. Tre rami: `feat/planimetrie-modello`, `feat/planimetrie-resa`,
+  `feat/planimetrie-casadomotica`.
+
+**Da dove si riparte**: `feat/faceplate-pagina` (o l'ordine che il maintainer preferisce). Le code
+della giornata di ieri restano quelle elencate sotto (il 401 del relay verso `wp630-ufficio`, la
+regressione degli switch sul TC620, la misura del punto 5 dei trend).
+
+## Prima di questo, la stessa giornata — l'IDE dice cosa sta facendo (2026-10-28, pomeriggio)
 
 `main` è su `95c9ed4c`, **non ancora pushato**, nessun ramo aperto.
 
