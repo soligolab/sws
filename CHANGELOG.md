@@ -11,6 +11,8 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 
 ## [Unreleased]
 
+## [2.23.5] — 2026-10-28
+
 ### Fixed
 
 - **Twilio: il primo collaudo con un account vero non è partito, e a schermo c'era «runtime error».** Tre difetti,
