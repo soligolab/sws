@@ -1,5 +1,20 @@
 # «Chiunque, anche senza login» — il permesso di comandare sta nel tag
 
+> **FATTO e COLLAUDATO.** Provato sul **WP630** il 28-10-2026, con due `PUT` **anonimi** sulla
+> porta del viewer, stessa chiamata e stesso progetto, due tag diversi:
+>
+> | tag | soglia dichiarata | esito |
+> |---|---|---|
+> | `banco.cmd.finestra_cucina_sx` | `write_min_role: Viewer` | **202** |
+> | `banco.finestra_cucina_sx` | nessuna (vale il predefinito Operator) | **403** |
+>
+> E' esattamente il difetto che il piano doveva togliere: prima il blocco Operator scattava per
+> primo e la scelta sul tag non aveva effetto, quindi **tutti e due** avrebbero dato 403. Adesso
+> decide il tag, e un pulsante che accende la luce della stanza non chiede piu' il login.
+>
+> L'altra meta' — la restrizione dell'oggetto che puo' solo stringere — vive nel canvas e ha le
+> sue prove; non e' stata cliccata a schermo.
+
 ## Context
 
 Il maintainer (25-10-2026): in un sinottico, un pulsante che accende la luce della stanza non

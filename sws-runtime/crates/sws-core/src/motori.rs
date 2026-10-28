@@ -1,5 +1,5 @@
 //! Un thread con un nome, e un runtime tokio sopra (27-10-2026, piano
-//! `docs/plans/2026-10-27-thread-con-un-nome-e-una-priorita.md`).
+//! `docs/archive/2026-10-27-thread-con-un-nome-e-una-priorita.md`).
 //!
 //! # Perché non basta dare un nome ai task
 //!

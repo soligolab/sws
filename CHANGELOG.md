@@ -78,7 +78,7 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
   l'invio su `/ws/tags`; `GET /api/prestazioni` (Supervisor, accende la richiesta per 60 s) col gemello remoto, e
   `sws_lavoro_secondi` in `/metrics`. Pagina Configurazione → Istanza → Prestazioni a due colonne.
 
-- **Lo storico scrive a lotti** (piano `docs/plans/2026-10-27-thread-con-un-nome-e-una-priorita.md`):
+- **Lo storico scrive a lotti** (piano `docs/archive/2026-10-27-thread-con-un-nome-e-una-priorita.md`):
   `SqliteStore::append` mette il campione in coda e un lavoratore la svuota in **una** transazione ogni 10 s, o
   prima se arrivano 5 000 campioni. Prima era una `spawn_blocking` per campione, un lock sull'unica connessione e
   una `INSERT` in transazione implicita: a 153 campioni al secondo (misurati sul WP630) erano 153 transazioni al
@@ -90,7 +90,7 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
   (la transazione).
 
 - **Un thread per protocollo, e una priorità per i lavori di fondo** (piano
-  `docs/plans/2026-10-27-thread-con-un-nome-e-una-priorita.md`): `sws_core::motori` dà a un lavoro un thread con un
+  `docs/archive/2026-10-27-thread-con-un-nome-e-una-priorita.md`): `sws_core::motori` dà a un lavoro un thread con un
   nome e un runtime tokio a thread singolo sopra, uno per nome. Le sorgenti ci finiscono per tipo (`sws-modbus`,
   `sws-mqtt`, `sws-opcua`, `sws-s7`, `sws-enip`, `sws-host`, `sws-ha`), e in `htop` la CPU di un protocollo è la sua
   invece di sparire fra i `tokio-rt-worker` — un task tokio cambia worker a ogni `await`, quindi nessun nome poteva
@@ -377,7 +377,7 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
   CasaDomotica). Ora l'indirizzo è il nome del container, che il DNS della rete podman risolve a ogni connessione;
   `.` e `_` diventano `-` in un alias apposta, e un nome oltre i 63 caratteri ripiega sull'IP.
 - **«Chiunque, anche senza login»: un comando che non chiede il login** (`router.rs`, `permessoScrittura.ts`,
-  piano `docs/plans/2026-10-25-scrittura-senza-login.md`). Il ruolo minimo di scrittura «Viewer» di un tag non
+  piano `docs/archive/2026-10-25-scrittura-senza-login.md`). Il ruolo minimo di scrittura «Viewer» di un tag non
   aveva effetto: la `PUT /api/tags/:id` stava sotto `require_operator` (viewer e IDE) e il WebSocket aveva un suo
   `role < Operator` prima della soglia del tag, quindi nessun anonimo scriveva mai, e «Nessun vincolo» su un
   pulsante chiedeva il login lo stesso. Ora decide solo `tag_write_allowed` (default invariato: Operator). Regola

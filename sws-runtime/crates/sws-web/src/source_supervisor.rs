@@ -357,7 +357,7 @@ impl SourceSupervisor {
         let id_for_log = id.clone();
         let stato = self.stato.clone();
         // Il thread del protocollo (27-10-2026, piano
-        // `docs/plans/2026-10-27-thread-con-un-nome-e-una-priorita.md`): tutte
+        // `docs/archive/2026-10-27-thread-con-un-nome-e-una-priorita.md`): tutte
         // le sorgenti dello stesso tipo girano sullo stesso, che porta il suo
         // nome. In `htop` si legge `sws-modbus` invece di `tokio-rt-worker`, e
         // la CPU che si vede lì è davvero quella di Modbus. Priorità normale:

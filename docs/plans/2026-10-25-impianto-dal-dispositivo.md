@@ -1,5 +1,26 @@
 # L'impianto lo tocca il dispositivo — scoperte e comunicazione dal pannello (strada 3)
 
+> **Una gamba e' collaudata, il 28-10-2026.** «Nel cloud le sorgenti non partono» si vede adesso
+> **dal vivo**, e per una via che non era prevista: da quando ogni protocollo ha un thread col suo
+> nome, basta guardare i thread del container di progetto sul VPS.
+>
+> ```
+>   container del progetto nel cloud        il WP630
+>   4 tokio-rt-worker                      11 tokio-rt-worker
+>   1 sws-storico     nice 10               7 sws-host
+>   1 sws-ritenzione  nice 10               1 sws-mqtt
+>   1 sws-backup      nice 10               2 sws-storico   nice 10
+>   1 sws-log         nice 10               … e gli altri di fondo
+> ```
+>
+> Nel cloud **non c'e' ne' `sws-mqtt` ne' `sws-host`**: nessuna sorgente e' partita. Sul pannello
+> ci sono. La regola era leggibile solo nel codice (`imposta_nel_cloud`, `main.rs:571`); adesso si
+> vede con un `ps`.
+>
+> **Restano da vedere a schermo**, e sono due minuti all'IDE: lo «Sfoglia broker» dal cloud che
+> trova i topic passando dal pannello collegato, e i valori vivi nell'editor. Quelli vogliono un
+> pannello abbinato e un occhio, non un comando.
+
 **Stato: piano d'esecuzione — in corso** sul ramo `feat/impianto-dal-dispositivo` (annidato su
 `fix/esito-ricordato-dal-runtime`). Deciso il 25-10-2026 dal maintainer: strada 3, credenziali del
 pannello salvate per progetto, nel cloud le sorgenti non partono. Sessione di plan fatta lo stesso

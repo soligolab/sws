@@ -1,6 +1,26 @@
 # I thread del runtime: un nome, e una priorità
 
-> **FATTO il 27-10-2026, da collaudare sul pannello.** Le quattro decisioni le ha prese il
+> **FATTO e COLLAUDATO sul pannello.** Letto dal vivo sul **WP630** il 28-10-2026, runtime 2.23.4:
+>
+> ```
+>   11 tokio-rt-worker   nice 0     il runtime condiviso
+>    7 sws-host          nice 0     il plugin delle metriche e il suo pool bloccante
+>    1 sws-mqtt          nice 0     quattro sorgenti MQTT su un thread, come deciso
+>    2 sws-storico       nice 10
+>    2 sws-ritenzione    nice 10
+>    2 sws-backup        nice 10
+>    1 sws-log           nice 10
+> ```
+>
+> Ogni protocollo si riconosce, i quattro lavori di fondo sono a `nice 10`, e in `htop` la CPU di
+> Modbus o di MQTT e' davvero la loro. **Una cosa che nessuno aveva previsto**: lo stesso elenco,
+> letto sul container di progetto **nel cloud**, non ha ne' `sws-mqtt` ne' `sws-host` — e cosi' la
+> regola «nel cloud le sorgenti non partono» si vede con un `ps`, invece di doverla cercare nel
+> codice.
+>
+> ---
+>
+> Testo originale: **FATTO il 27-10-2026, da collaudare sul pannello.** Le quattro decisioni le ha prese il
 > maintainer lo stesso giorno, e il lavoro è uscito subito dopo. Resta qui finché non lo conferma
 > su un pannello vero, poi va in archivio.
 >

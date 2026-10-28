@@ -1,5 +1,5 @@
 // Chi può scrivere un tag dal viewer (25-10-2026, piano
-// docs/plans/2026-10-25-scrittura-senza-login.md).
+// docs/archive/2026-10-25-scrittura-senza-login.md).
 //
 // Valgono **tutti e due** i vincoli, e vince il più severo (decisione del
 // maintainer): il tag dice chi può scriverlo — ed è l'unico che il server fa

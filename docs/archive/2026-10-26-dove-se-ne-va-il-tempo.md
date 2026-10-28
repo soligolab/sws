@@ -10,7 +10,7 @@
 >
 > Quello che la misura ha aperto, invece, e' vivo: lo storico scrive una transazione per campione
 > e i thread non hanno un nome. Sta nel piano
-> [i thread del runtime](../plans/2026-10-27-thread-con-un-nome-e-una-priorita.md).
+> [i thread del runtime](2026-10-27-thread-con-un-nome-e-una-priorita.md).
 
 > **Era un seme, dal 26-10-2026 (sera) è un piano d'esecuzione.** La sessione di plan l'ha fatta una sessione su
 > `ufficio`, misurando il codice; le tre decisioni sono del maintainer. Il testo del seme resta in coda, perché è il
