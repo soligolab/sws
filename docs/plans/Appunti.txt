@@ -118,3 +118,22 @@ Annoto di seguito, uno per punto, le cose che devono essere verificate e trasfor
   Analizziamo le implicazioni, in particolare dell'ultima opzione, l'idea è che se da un progetto ne derivo 
   delle varianti posso così rapidamente importare le differenze da un branch all'altro ( di solito il 
   "Save as..." lo uso per fare una copia di prova, test o per gestire impianti simili ad uno madre.
+
+- La versione del runtime non si vede da nessuna parte, ne' nella schermata di accesso ne' a
+  progetto aperto. Chiesta dal maintainer il 28-10-2026 («per le prossime versioni, sarebbe
+  comodo vedere sia nella finestra di login https://sws.soligo.net/ sia una volta aperto il
+  progetto, la versione del runtime in uso»). Misurato lo stesso giorno: costa pochissimo,
+  perche' il dato e' gia' in mano a tutti e due i posti.
+  A PROGETTO APERTO non serve niente di nuovo: GET /api/system torna gia' `runtime_version`, e
+  RuntimeCtrl.tsx la mette gia' in uno stato suo (`setRuntimeVersion`) che poi NESSUNO disegna.
+  E' solo da mostrare — il posto naturale e' accanto al marchio in testata o nel menu.
+  NELLA SCHERMATA DI ACCESSO serve un campo in piu' nella risposta di GET /api/identita/stato,
+  che e' gia' pre-auth, e' gia' la prima cosa che il frontend chiede prima di decidere cosa
+  mostrare, e il cui commento in router.rs dice esplicitamente «una rotta in piu' sarebbe un
+  secondo viaggio per un booleano» — cioe' il posto e' quello. NON serve una rotta nuova, quindi
+  non si tocca l'elenco chiuso di check_rotte_preauth.sh (sedici percorsi dichiarati).
+  LA DECISIONE DA PRENDERE, e che non va presa da chi implementa: dire la versione esatta PRIMA
+  del login la dice anche a chi non e' entrato, cioe' a chi cerca quali difetti noti provare. Per
+  un PoC dietro un login e' poco, ma e' una scelta del maintainer, non un dettaglio. Le vie sono
+  tre: versione piena sempre; versione piena solo dopo il login e in accesso niente; oppure in
+  accesso solo la minore (2.23) e la patch dopo. Da decidere quando si fa il lavoro.

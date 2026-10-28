@@ -82,17 +82,12 @@ Questo è il cardine del piano. Tutto il resto è conseguenza.
 
 ---
 
-## Passo 0 — chiudere il ramo aperto (bloccante)
+## Passo 0 — chiudere il ramo aperto — **sciolto il 28-10-2026**
 
-`feat/accesso-lvgl-due-campi` è aperto e **contiene l'accesso LVGL a due campi**, finito dentro il
-commit `3269dd92`, che si chiama `chore(vps)`. Il lavoro non è perso, ma il messaggio non lo dice.
-
-Per «un ramo alla volta» non si apre niente finché quello non è chiuso. Serve:
-
-1. la conferma del maintainer che la schermata a due campi funziona sul WP630 (manca solo quella,
-   le altre quattro voci della *definition of done* sono verdi);
-2. squash merge con un messaggio che **nomina entrambe** le cose, non solo il VPS;
-3. `git branch -D` dopo il controllo degli alberi.
+`feat/accesso-lvgl-due-campi` era aperto e conteneva l'accesso LVGL a due campi, finito dentro il
+commit `3269dd92`, che si chiamava `chore(vps)`. Il ramo **non esiste più** (`git branch -a`,
+28-10-2026: restano solo `main` e il backup pre-riscrittura), e questo piano non è più bloccato da
+niente.
 
 ---
 
@@ -208,7 +203,7 @@ caricamento, avviso, più, conferma, chiudi. Spariscono le 14 emoji, compresa qu
 `welcome.openFromZip` nel catalogo i18n.
 
 **4. Il marchio si vede.** `<BrandLogo/>` (`components/BrandLogo.tsx`, oggi usato in **un solo
-punto**, `App.tsx:831`) al posto dello «SWS» cablato in `WelcomeScreen.tsx:1278` e
+punto**, `App.tsx:860` — era `:831` il 26-10, la riga si sposta) al posto dello «SWS» cablato in `WelcomeScreen.tsx:1278` e
 `LoginScreen.tsx:112-113`. Via anche il nome vecchio «Soligo Web SCADA», che il brand ufficiale
 chiama `"SWS — SCADA Web Studio"`. Prima dell'accesso vale `active.json` (standard SWS); dopo,
 `useMarchioDellAzienda()` ha già rimesso quello dell'azienda — cioè il requisito del marchio è
@@ -224,6 +219,28 @@ card e rendere veri quei due helper. Conservare invece `input[autocomplete="user
 Questo serve anche al piano vivo `docs/plans/2026-09-22-riorganizzare-i-file-dell-editor.md`, che
 va aggiornato di conseguenza. Attenzione: `tests/raggruppaProgetti.test.ts` importa `raggruppa` e
 `titoloGruppo` **da `@/components/WelcomeScreen`** — se si spostano, si aggiorna l'import.
+
+**8. La versione del runtime si vede — ma solo dopo il login** (richiesta del maintainer,
+28-10-2026: «sarebbe comodo vedere sia nella finestra di login sia una volta aperto il progetto, la
+versione del runtime in uso»).
+
+Misurato lo stesso giorno, e costa pochissimo perché **il dato è già in mano a tutti e due i
+posti**:
+
+- **A progetto aperto non serve niente di nuovo.** `GET /api/system` torna già `runtime_version`,
+  e `components/RuntimeCtrl.tsx` la mette già in uno stato suo (`setRuntimeVersion`) che poi
+  **nessuno disegna**. È solo da mostrare — accanto al `<BrandLogo/>` in testata, o nel menu ☰.
+- **Nella scelta del progetto** (`WelcomeScreen`) la pagina è già autenticata, quindi `/api/system`
+  si può chiedere come altrove. È il primo posto in cui si arriva dopo il login, ed è lì che
+  «quale versione sto usando» viene in mente.
+- **Nella schermata di accesso NON si mette** — scelta del maintainer, stesso giorno. Tecnicamente
+  sarebbe stato il più economico dei tre (un campo in più in `GET /api/identita/stato`, che è già
+  pre-auth, è già la prima cosa che il frontend chiede, e il cui commento in `router.rs` dice
+  «una rotta in più sarebbe un secondo viaggio per un booleano»), e **proprio per questo vale la
+  pena scrivere perché non si fa**: la versione esatta prima del login la dice anche a chi non è
+  entrato, cioè a chi vuole sapere quali difetti noti provare. Su un'istanza aperta a esterni —
+  che è il punto di tutto questo piano — è un regalo gratuito. Se un giorno servisse comunque, la
+  via di mezzo è dire solo la minore (`2.23`) prima del login e la patch dopo.
 
 **7. Guardie.** `check_i18n_ui.sh` ha **tolleranza zero**: ogni stringa italiana fuori da `t()` è
 un errore. Ogni testo nuovo va in `it.json` **e** `en.json` (`check_i18n_parita.sh`).
