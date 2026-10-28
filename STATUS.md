@@ -12,7 +12,78 @@
 > resta in «Storico». Qui vive solo ciò che serve a riprendere il lavoro.
 
 
-## ▶ Riprendere da qui — dove se ne va il tempo, e il tubo nello stesso fotogramma (2026-10-27, notte)
+## ▶ Riprendere da qui — 2.23.4 pubblicata, tre cose da provare e un disco da svuotare (2026-10-27, notte)
+
+**Giornata lunga: quattro release, 2.23.1 saltata.** `main` è su `a4c4c2ba`, i tag 2.23.2, 2.23.3 e
+2.23.4 sono su origin, nessun ramo aperto. Il gateway del VPS gira sulla **2.23.4-amd64**.
+
+### Le tre cose da provare, in ordine di dubbio
+
+1. **Il PNG di boot nel cloud** (2.23.4). Era il difetto della serata e la causa è provata, non
+   supposta: `immagineComeDataUri` rileggeva il `blob:` con un `fetch`, e **un `fetch` di un
+   `blob:` il browser lo rifiuta** — la CSP del runtime ha in `connect-src` `'self' http: https:
+   ws: wss:` e non `blob:`. Lo ha stampato la console del maintainer su `sws.soligo.net`.
+   Ora `ImmagineSvg` tiene il `Blob` in memoria (`blobDi`) e il rasterizzatore lo legge da lì.
+   **Come si prova**: `sws.soligo.net`, ricarica forzata (la SPA sta in cache), pagina di boot,
+   «Rigenera PNG». La foto deve comparire e l'avviso arancione sparire.
+2. **Lo sfondo di una pagina su LVGL** (2.23.3), sul WP630: pagina «Finestre e porte», dove c'era
+   una tinta unita deve esserci `default.jpg`. Dietro c'è la **metà raster della Q16**, accesa con
+   la decisione del maintainer: `raster-images` di resvg, tutto Rust puro, nessun decoder C.
+3. **L'orientamento dello slider su LVGL** (2.23.2), mai confermato a schermo.
+
+### Quello che si aggiusta da sé
+
+Il container di un progetto lasciato aperto **adesso segue il gateway**: `Regia::riadotta` non
+adotta più un container con un'immagine diversa, lo ferma e lo rimuove, e la prima apertura lo
+ricrea. Era la ragione per cui due correzioni di ieri non arrivavano al maintainer — CasaDomotica
+è rimasta sulla 2.22.0 attraverso quattro versioni del gateway, e ci sono volute due ore in due
+tornate per capirlo. **Non si è potuto vedere in azione**: quando ho allineato il gateway il
+container era già sparito da sé, nessuno collegato. Lo stato è comunque quello giusto.
+
+### Il disco, ed è la cosa da fare per prima domattina
+
+**111 GB liberi su 1,5 T, al 93%** — si lavora, ma il grosso è ancora lì. Il peso **non è
+`~/yocto`** (che non si tocca): è `sws-runtime/target/debug`, e dentro `deps/` da solo faceva
+124 GB. Quattro build di fila ne hanno riciclata una parte.
+
+Il maintainer ha chiesto di fare stasera, **dopo il finalize**, la pulizia completa e una
+compilazione da zero. I comandi pronti stanno in `tmp/stasera.md`. In breve:
+
+```
+rm -rf sws-runtime/target/debug/deps sws-runtime/target/debug/examples   # ~120 GB
+find dist -name 'sws-runtime-*.tar.gz' ! -name '*2.23.4*' -delete        # ~6 GB
+```
+
+`release/` e la cross-build `aarch64` restano fuori da entrambi, quindi la prossima immagine non
+ne risente. **La pulizia non l'ho fatta io**: è sua, e l'ha chiesta esplicitamente per sé.
+
+Una nota che vale per sempre: **`podman system df` mente**. Diceva 307 GB; lo storage vero era 13.
+Somma la dimensione piena di ogni immagine contando gli strati condivisi tante volte.
+
+### Altre due cose viste e non chiuse
+
+- **WebSocket che non si aprono nel cloud**: nella console del maintainer, `wss://…/ws/tags` e
+  soprattutto `wss://sws.soligo.net/ws/remote/logs` falliscono di continuo. Il secondo sta sulla
+  **radice**, senza il prefisso del progetto: fa pensare a Traefik o al gateway più che al
+  progetto. Non guardato.
+- **Il WP630 non risponde più al nome mDNS** (`wp630-a-p3-07a077.local`) da fine pomeriggio.
+  Prima rispondeva. Può essere l'mDNS o il pannello in aggiornamento.
+
+### Fatto oggi, in otto squash
+
+Freccia alla variabile, ruolo dell'oggetto dalla variabile, tubo Fase 3, ricerca globale, fiducia
+del browser del pannello, sfondo della pagina di boot — tutto mergiato nella mattinata. Poi: la
+misura «dove se ne va il tempo» (pagina Istanza → Prestazioni, fasi del fotogramma del viewer e
+lavori del runtime), il tubo nello stesso fotogramma (`flushSync`), le gesture del browser sugli
+slider e l'orientamento su LVGL, **lo storico che scrive una transazione ogni dieci secondi invece
+di una per campione**, **un thread per protocollo con un nome e una priorità**, i due nomi di
+thread che il kernel troncava, lo sfondo di pagina su LVGL col raster acceso, la riadozione dei
+container e il PNG di boot.
+
+Due piani archiviati (il tubo che segue gli oggetti, dove se ne va il tempo), due nati (i thread,
+il faceplate disegnato sul canvas), e `Appunti.txt` ha tre voci nuove con dentro i numeri.
+
+## ▶ Prima — dove se ne va il tempo, e il tubo nello stesso fotogramma (2026-10-27, notte)
 
 **Tutto mergiato su `main` il 27-10-2026**, in tre squash dal basso, e i rami eliminati:
 
