@@ -11,6 +11,8 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 
 ## [Unreleased]
 
+## [2.23.6] — 2026-10-28
+
 ### Added
 
 - **La versione del runtime si vede** (richiesta del maintainer, 28-10-2026), in due posti: accanto al marchio in
