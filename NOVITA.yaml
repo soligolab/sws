@@ -33,6 +33,10 @@
 # successivo.
 
 versioni:
+  - versione: "2.23.6"
+    voci:
+      - it: "L'indirizzo del pannello risponde «pagina trovata» invece di «404»: le sonde e i controlli di salute esterni ora funzionano."
+        en: "The panel address now answers «page found» instead of «404»: external probes and health checks now work."
   - versione: "2.23.5"
     voci:
       - it: "Quando cerchi topic MQTT o nodi OPC-UA, adesso c'è scritto quale pannello sta cercando: una ricerca vuota si spiega da sé."

@@ -33,7 +33,7 @@ use sws_historian::{DatastoreRegistry, Historian, Sample};
 use sws_pyscript::{Engine as PyEngine, ExecOutput};
 use tokio::sync::RwLock;
 use tower_http::cors::{Any, CorsLayer};
-use tower_http::services::{ServeDir, ServeFile};
+use tower_http::services::ServeDir;
 use tracing::{info, warn};
 
 /// Resolved function registry keyed by name. Hot-swapped on every
@@ -268,6 +268,63 @@ pub async fn active_dir(state: &AppState) -> Result<PathBuf, StatusCode> {
 
 // 26 argomenti: e' il vero odore di questo file, da rifare con una struct di configurazione (referto 2026-09-09).
 #[allow(clippy::too_many_arguments)]
+/// Il ripiego della SPA: una rotta del client **non è** una risorsa mancante.
+///
+/// `ServeDir::not_found_service` forza il 404 — in tower-http è letteralmente
+/// `fallback(SetStatus::new(…, NOT_FOUND))` — quindi fino al 28-10-2026 **ogni**
+/// indirizzo gestito dal router del browser usciva con `404` e la pagina
+/// dentro, radice compresa. Il browser la disegna lo stesso, ed è per questo
+/// che non se n'era accorto nessuno in sedici mesi; ma per chiunque non sia un
+/// browser — una sonda di disponibilità, un controllo di salute, un proxy che
+/// decide se mettere in cache, un motore di ricerca — quel sito è rotto.
+/// Misurato su `https://sws.soligo.net/` il 28-10-2026: `HTTP/2 404` con 5 838
+/// byte di HTML buono.
+///
+/// **Rispondere 200 a tutto però sarebbe peggio.** `/assets/manca.js` deve
+/// restare un 404: col 200 il browser riceve HTML dove si aspetta uno script,
+/// con lo stato che dice «è andato bene», e l'errore che ne esce non nomina il
+/// file mancante. Quindi si distingue, con tre segnali in ordine di precisione.
+fn e_navigazione(h: &axum::http::HeaderMap, percorso: &str) -> bool {
+    // 1. `Sec-Fetch-Mode: navigate` — lo mandano tutti i browser correnti, ed è
+    //    il browser stesso che dichiara «sto aprendo una pagina».
+    if let Some(m) = h.get("sec-fetch-mode").and_then(|v| v.to_str().ok()) {
+        return m.eq_ignore_ascii_case("navigate");
+    }
+    // 2. `Accept: text/html` — il ripiego per i browser vecchi.
+    if h.get(axum::http::header::ACCEPT)
+        .and_then(|v| v.to_str().ok())
+        .is_some_and(|a| a.contains("text/html"))
+    {
+        return true;
+    }
+    // 3. L'ultimo pezzo del percorso non ha un'estensione. Serve a `curl /`
+    //    e a qualunque sonda che non mandi nessuna delle due intestazioni:
+    //    senza questo, un controllo di salute sulla radice continuerebbe a
+    //    leggere 404 ed è esattamente il caso che ha fatto nascere la
+    //    correzione.
+    !percorso.rsplit('/').next().is_some_and(|f| f.contains('.'))
+}
+
+/// Serve la pagina d'ingresso con **200**, o un 404 onesto se non è una
+/// navigazione (o se la pagina non c'è davvero).
+async fn ripiego_spa(
+    axum::extract::State(indice): axum::extract::State<std::sync::Arc<std::path::PathBuf>>,
+    req: axum::extract::Request,
+) -> Response {
+    if !e_navigazione(req.headers(), req.uri().path()) {
+        return StatusCode::NOT_FOUND.into_response();
+    }
+    match tokio::fs::read(indice.as_path()).await {
+        Ok(byte) => (
+            [(axum::http::header::CONTENT_TYPE, "text/html; charset=utf-8")],
+            byte,
+        )
+            .into_response(),
+        // La pagina d'ingresso non c'è davvero: qui il 404 è la risposta giusta.
+        Err(_) => StatusCode::NOT_FOUND.into_response(),
+    }
+}
+
 pub fn build(
     db: Arc<TagDb>,
     bus: Arc<TagWriteBus>,
@@ -1349,11 +1406,17 @@ pub fn build(
             dir.join("index.html")
         };
         // Disable ServeDir's automatic directory-index (which would serve
-        // index.html for "/"), so that "/" also falls into not_found_service
-        // and gets served index-admin.html instead.
+        // index.html for "/"), so that "/" also falls into the fallback and
+        // gets served index-admin.html instead.
+        //
+        // `fallback` e non `not_found_service`: il secondo forza il 404 anche
+        // quando la pagina c'è (28-10-2026, vedi `ripiego_spa`).
         let fallback = ServeDir::new(&dir)
             .append_index_html_on_directories(false)
-            .not_found_service(ServeFile::new(fallback_html));
+            .fallback(axum::handler::Handler::with_state(
+                ripiego_spa,
+                std::sync::Arc::new(fallback_html),
+            ));
         app = app.fallback_service(fallback);
     }
 
@@ -1741,8 +1804,13 @@ fn build_runtime_inner(state: AppState, www_dir: Option<PathBuf>) -> Router {
         .with_state(state);
 
     if let Some(dir) = www_dir {
+        // Stessa ragione del router di amministrazione: una rotta del client
+        // non è una risorsa mancante (28-10-2026, vedi `ripiego_spa`).
         let index_html = dir.join("index.html");
-        let fallback = ServeDir::new(&dir).not_found_service(ServeFile::new(index_html));
+        let fallback = ServeDir::new(&dir).fallback(axum::handler::Handler::with_state(
+            ripiego_spa,
+            std::sync::Arc::new(index_html),
+        ));
         router = router.fallback_service(fallback);
     }
 
@@ -12611,3 +12679,57 @@ mod tests_metriche {
     }
 }
 
+#[cfg(test)]
+mod tests_ripiego_spa {
+    use axum::http::{HeaderMap, HeaderValue};
+
+    /// Il 404 su ogni rotta della SPA, misurato su sws.soligo.net il
+    /// 28-10-2026: `HTTP/2 404` con 5 838 byte di pagina buona dentro.
+    ///
+    /// Si prova `e_navigazione`, che e' la riga che decide — l'altra meta'
+    /// (leggere il file) e' `tokio::fs::read`, che non ha bisogno di una prova.
+    #[test]
+    fn una_rotta_della_spa_non_e_una_risorsa_mancante() {
+        let mut navigazione = HeaderMap::new();
+        navigazione.insert("sec-fetch-mode", HeaderValue::from_static("navigate"));
+        assert!(super::e_navigazione(&navigazione, "/"));
+        assert!(super::e_navigazione(&navigazione, "/p/-/CasaDomotica/"));
+
+        // Lo stesso browser che chiede un pezzo: niente pagina, 404 vero.
+        let mut risorsa = HeaderMap::new();
+        risorsa.insert("sec-fetch-mode", HeaderValue::from_static("cors"));
+        assert!(!super::e_navigazione(&risorsa, "/assets/manca.js"));
+        let mut incorporato = HeaderMap::new();
+        incorporato.insert("sec-fetch-mode", HeaderValue::from_static("no-cors"));
+        assert!(
+            !super::e_navigazione(&incorporato, "/"),
+            "il browser dice che non sta aprendo una pagina: gli si crede"
+        );
+    }
+
+    /// Browser vecchi e sonde: nessun `Sec-Fetch-Mode`.
+    #[test]
+    fn senza_sec_fetch_mode_decidono_accept_e_l_estensione() {
+        let mut html = HeaderMap::new();
+        html.insert(
+            axum::http::header::ACCEPT,
+            HeaderValue::from_static("text/html,application/xhtml+xml"),
+        );
+        assert!(super::e_navigazione(&html, "/qualunque/cosa.js"), "lo ha chiesto come pagina");
+
+        // `curl https://sws.soligo.net/` — Accept: */*, nessuna estensione.
+        // E' il caso che ha fatto nascere la correzione: un controllo di
+        // salute sulla radice leggeva 404.
+        let mut sonda = HeaderMap::new();
+        sonda.insert(axum::http::header::ACCEPT, HeaderValue::from_static("*/*"));
+        assert!(super::e_navigazione(&sonda, "/"));
+        assert!(super::e_navigazione(&sonda, "/p/-/CasaDomotica"));
+        assert!(!super::e_navigazione(&sonda, "/assets/indice-a1b2c3.js"));
+        assert!(!super::e_navigazione(&sonda, "/vite.svg"));
+
+        // Nessuna intestazione affatto.
+        let vuote = HeaderMap::new();
+        assert!(super::e_navigazione(&vuote, "/"));
+        assert!(!super::e_navigazione(&vuote, "/favicon.ico"));
+    }
+}

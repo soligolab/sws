@@ -11,6 +11,19 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 
 ## [Unreleased]
 
+### Fixed
+
+- **Ogni indirizzo della SPA usciva con `404`, radice compresa.** `https://sws.soligo.net/` rispondeva
+  `HTTP/2 404` con dentro 5 838 byte di pagina perfettamente buona: il browser la disegna, ed è per questo che in
+  sedici mesi non se n'era accorto nessuno. Ma per chi non è un browser — una sonda di disponibilità, un controllo
+  di salute, un proxy che decide se mettere in cache, un motore di ricerca — quel sito era rotto. La causa è una
+  riga: `ServeDir::not_found_service` in tower-http è letteralmente `fallback(SetStatus::new(…, NOT_FOUND))`, cioè
+  **forza** il 404 anche quando la pagina c'è. Ora il ripiego distingue una **navigazione** (`Sec-Fetch-Mode:
+  navigate`, oppure `Accept: text/html`, oppure un percorso senza estensione) da una risorsa: la prima riceve la
+  pagina con **200**, la seconda un 404 vero. Rispondere 200 a tutto sarebbe stato peggio — con un `/assets/x.js`
+  mancante il browser riceverebbe HTML dove si aspetta uno script, con lo stato che dice «è andato bene».
+  Vale per tutte e due le SPA, quella di gestione e quella del viewer.
+
 ## [2.23.5] — 2026-10-28
 
 ### Fixed
