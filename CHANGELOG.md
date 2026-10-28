@@ -13,6 +13,15 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 
 ### Fixed
 
+- **Un pannello spento faceva dire al relay «non ritento».** Il gateway risponde **503** quando «il pannello
+  esiste, non è collegato adesso» — cioè ogni volta che un pannello si riavvia, si spegne la sera o perde la rete
+  per qualche secondo — ma il relay trattava **qualunque** risposta HTTP come definitiva: chiudeva il canale col
+  codice «non riprovare» proprio nel momento in cui la cosa giusta era aspettare. Visto dal vivo il 28-10-2026
+  collaudando il rientro automatico: cinque 503 di fila verso `wp630-ufficio`, ognuno con quella frase. Ora 502,
+  503 e 504 sono transitori — chiusura normale, il client riprova con l'attesa crescente — e il log lo dice con una
+  riga sola a livello `INFO` invece di un avviso per tentativo. Tutto il resto resta definitivo: un 404 non diventa
+  200 riprovando, e nemmeno un 401 che il rientro non ha saputo rinnovare.
+
 - **Ogni indirizzo della SPA usciva con `404`, radice compresa.** `https://sws.soligo.net/` rispondeva
   `HTTP/2 404` con dentro 5 838 byte di pagina perfettamente buona: il browser la disegna, ed è per questo che in
   sedici mesi non se n'era accorto nessuno. Ma per chi non è un browser — una sonda di disponibilità, un controllo

@@ -152,7 +152,39 @@ fn url_remoto(ws_scheme: &str, host_path: &str, sub: &str, token: &str, debug: b
     }
 }
 
+/// Il pannello tornerà da solo, o serve un gesto umano?
+///
+/// Il relay chiude con **due codici diversi** a seconda della risposta, e la
+/// distinzione è tutta qui: su un codice definitivo il client smette (4404), su
+/// uno transitorio riprova con l'attesa crescente (1011).
+///
+/// Fino al 28-10-2026 **qualunque** risposta HTTP era definitiva, 503 compreso.
+/// È sbagliato proprio sul caso più frequente: il gateway risponde 503 quando
+/// «il pannello esiste, non è collegato adesso» — lo dice il suo commento in
+/// `tunnel/gateway.rs` — cioè ogni volta che un pannello si riavvia, si spegne
+/// la sera, o perde la rete per qualche secondo. Visto dal vivo lo stesso
+/// giorno, collaudando il rientro automatico: cinque 503 di fila verso
+/// `wp630-ufficio`, ognuno con scritto «non ritento», mentre la cosa giusta era
+/// esattamente aspettare.
+///
+/// 502 e 504 stanno con lui: sono il proxy che non ha raggiunto il pannello.
+fn e_transitorio(stato: u16) -> bool {
+    matches!(stato, 502 | 503 | 504)
+}
+
 fn motivo_rifiuto(sub: &str, stato: u16) -> (bool, String, String) {
+    if e_transitorio(stato) {
+        // `guasto = false`: è il funzionamento previsto di un impianto vero,
+        // non un difetto da mettere in evidenza.
+        return (
+            false,
+            "il pannello non è collegato in questo momento".to_string(),
+            format!(
+                "il pannello non risponde adesso ({stato}): può essere spento, riavviato o senza \
+                 rete. Il canale si riapre da solo quando torna."
+            ),
+        );
+    }
     // Dal 18-10-2026 il dispositivo espone `/ws/logs` (solo Admin): un 404 è un
     // pannello con una versione di prima, e il rimedio è aggiornarlo.
     if stato == 404 && sub == "logs" {
@@ -219,6 +251,14 @@ async fn fallito(
     if let TErr::Http(resp) = &e {
         let st = resp.status().as_u16();
         let (guasto, breve, lungo) = motivo_rifiuto(sub, st);
+        if e_transitorio(st) {
+            // Non è un difetto e non è definitivo: si dice una volta, piano, e
+            // si lascia che il client riprovi da solo.
+            tracing::info!(url = %remote_url, stato = st,
+                "ws relay: il pannello non c'è adesso, riproverà — {lungo}");
+            chiudi_spiegando(local, 1011, accorcia(breve)).await;
+            return;
+        }
         if guasto {
             tracing::warn!(url = %remote_url, stato = st,
                 "ws relay: collegamento rifiutato, non ritento — {lungo}");
@@ -226,8 +266,8 @@ async fn fallito(
             tracing::info!(url = %remote_url, stato = st,
                 "ws relay: canale non disponibile su questo runtime — {lungo}");
         }
-        // In entrambi i casi il client non deve ritentare: né un guasto di
-        // versione né una scelta di progetto cambiano riprovando fra un secondo.
+        // Qui invece il client non deve ritentare: né un guasto di versione né
+        // una scelta di progetto cambiano riprovando fra un secondo.
         // Nel frame va il motivo BREVE: sopra i 123 byte il frame è invalido e
         // il codice non arriva affatto.
         chiudi_spiegando(local, CHIUSURA_ROTTA_ASSENTE, accorcia(breve)).await;
@@ -358,6 +398,8 @@ async fn run_relay(
     // raro, è tutte le mattine: il WP630 si spegne la sera, e al riavvio il
     // token del giorno prima non vale più.
     // Piano: docs/archive/2026-10-28-cosa-sta-succedendo-nell-ide.md
+    // Solo sul 401: su un 503 non c'è nessuna sessione da rinnovare — il
+    // pannello non c'è proprio — e un login in più sarebbe solo rumore.
     if esito.as_ref().err().and_then(stato_http) == Some(401) {
         tracing::warn!(url = %remote_url, canale = %sub,
             "ws relay: il pannello ha rifiutato la sessione, provo a rientrare");
@@ -579,6 +621,34 @@ mod tests {
         assert!(vecchio.ends_with("?token=morto"));
         assert!(nuovo.ends_with("?token=vivo"));
         assert_ne!(vecchio, nuovo);
+    }
+
+    /// Un pannello spento non è un difetto, ed è il caso più frequente.
+    ///
+    /// Visto dal vivo il 28-10-2026 mentre si collaudava il rientro: cinque
+    /// 503 di fila verso `wp630-ufficio`, ognuno con scritto «non ritento»,
+    /// mentre la cosa giusta era aspettare che il tunnel tornasse.
+    #[test]
+    fn un_pannello_non_collegato_e_transitorio() {
+        for stato in [502u16, 503, 504] {
+            assert!(super::e_transitorio(stato), "{stato}");
+            let (guasto, breve, lungo) = motivo_rifiuto("tags", stato);
+            assert!(!guasto, "{stato}: un pannello spento non è un guasto da segnalare");
+            assert!(
+                !breve.contains("non ritento") && !lungo.contains("non ritento"),
+                "{stato}: {breve} / {lungo}"
+            );
+            assert!(lungo.contains("si riapre da solo"), "deve dire che tornerà: {lungo}");
+        }
+    }
+
+    /// E tutto il resto resta definitivo: un 404 non diventa 200 riprovando,
+    /// e nemmeno un 401 che il rientro non ha saputo rinnovare.
+    #[test]
+    fn il_resto_resta_definitivo() {
+        for stato in [400u16, 401, 403, 404, 500, 501] {
+            assert!(!super::e_transitorio(stato), "{stato}");
+        }
     }
 
     /// `stato_http` distingue «il pannello ha risposto e ha rifiutato» da «non
