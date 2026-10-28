@@ -1,6 +1,28 @@
 # Lo stato iniziale dei tag MQTT
 
-> **FATTO il 25-10-2026, da collaudare** sul ramo `feat/stato-iniziale-mqtt`. Nato come seme; il maintainer ha
+> **FATTO e COLLAUDATO.** Provato dal vivo il 28-10-2026 sul **WP630**, contro il mosquitto del
+> portatile del maintainer (`192.168.0.203`), su un banco costruito apposta nella pagina
+> «Finestre e porte» — nove righe MQTT con `richiesta_stato`.
+>
+> **La strada b, dal vivo e in tutti e due i tempi:**
+>
+> 1. riavviato il runtime, e sul broker sono comparse **tutte e nove** le richieste —
+>    `sws/banco/<nome>/get {"stato":""}` — subito dopo le sottoscrizioni;
+> 2. un finto dispositivo che risponde `true` sul topic di riga, e **subito dopo l'avvio** i tag
+>    sono a `true` con qualità `Good`.
+>
+> È esattamente l'osservazione da cui il piano è nato, rovesciata: all'accensione i LED non sono
+> più bianchi.
+>
+> **La strada c** (il ⟳ per riga e il pulsante che compila le righe Zigbee2MQTT) vive in
+> `config/sorgenti/MqttSourceCard.tsx` e `richiestaStato.ts`, con quattro prove sue; la **strada a**
+> è nel manuale, capitolo 06 §«Lo stato all'avvio», coi limiti di Zigbee2MQTT.
+>
+> Il banco resta acceso sul WP630: `tmp/banco/LEGGIMI.md` dice com'è fatto e come si smonta.
+>
+> ---
+>
+> Testo originale: **FATTO il 25-10-2026, da collaudare** sul ramo `feat/stato-iniziale-mqtt`. Nato come seme; il maintainer ha
 > chiesto lo stesso giorno di fare «la parte MQTT per quello che può fare SWS» e di documentare i limiti di
 > Zigbee2MQTT. Fatte le strade **b** e **c** qui sotto; la **a** è documentata nel manuale (capitolo 06, «Lo stato
 > all'avvio»), con i limiti di Zigbee2MQTT.

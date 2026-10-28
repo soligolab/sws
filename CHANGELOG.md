@@ -279,7 +279,7 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
   piano delle decisioni della Fase 4 e il **piano dei tag come oggetto unico**; le sue code (S7, EtherNet/IP, MQTT,
   HA, Host) sono un seme nuovo.
 
-- **Lo stato iniziale dei tag MQTT** (piano `docs/plans/2026-10-25-stato-iniziale-mqtt.md`): dopo un riavvio i tag
+- **Lo stato iniziale dei tag MQTT** (piano `docs/archive/2026-10-25-stato-iniziale-mqtt.md`): dopo un riavvio i tag
   MQTT restavano senza valore finché lo stato non cambiava, perché SWS si iscrive e aspetta e Zigbee2MQTT non pubblica
   con `retain` (i tre led dello switch del garage, bianchi all'accensione). Una riga della mappatura ora può avere una
   `richiesta_stato: {topic, payload}`, pubblicata a ogni collegamento dopo le sottoscrizioni; nell'editor il ⟳ di riga

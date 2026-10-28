@@ -1,5 +1,5 @@
 // La richiesta di stato di una riga MQTT (25-10-2026, piano
-// `docs/plans/2026-10-25-stato-iniziale-mqtt.md`).
+// `docs/archive/2026-10-25-stato-iniziale-mqtt.md`).
 //
 // Un broker che non conserva l'ultimo valore (`retain` spento: Zigbee2MQTT di
 // default) non ha niente da consegnare alla sottoscrizione, e dopo un riavvio il
