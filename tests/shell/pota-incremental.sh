@@ -3,9 +3,15 @@
 # `scripts/pota_incremental.sh` su un repo finto (03-10-2026).
 #
 # Tre target con cartelle incrementali vecchie e nuove, più quello che non va mai
-# toccato: `deps/` vecchia, una cross-build `aarch64` vecchia, un target con una
-# compilazione in corso (lock di cargo preso). Si controlla che spariscano solo le
-# cartelle incrementali vecchie dei target liberi.
+# toccato: `deps/` vecchia, un profilo che non è `debug` né `release`, un target
+# con una compilazione in corso (lock di cargo preso). Si controlla che spariscano
+# solo le cartelle incrementali vecchie dei target liberi.
+#
+# Il profilo estraneo si chiama `aarch64-unknown-linux-gnu` perché è il caso che
+# c'era davvero fino al 28-10-2026, quando quella cartella è stata tolta: la
+# cross-build vive dentro il container builder e sull'host non lascia niente. La
+# prova resta perché il vincolo resta — la potatura guarda **solo** i due profili
+# dell'host, e se un giorno ne comparisse un terzo non deve mangiarselo.
 #
 # Lo lancia scripts/check_pota_incremental.sh. Uso diretto: tests/shell/pota-incremental.sh
 set -euo pipefail
@@ -46,7 +52,7 @@ prova "tolta l'incrementale vecchia (release)"      "[ ! -e '$R/release/incremen
 prova "tolta l'incrementale vecchia (kiosk)"        "[ ! -e '$K/debug/incremental/sws_kiosk-vecchia' ]"
 prova "resta l'incrementale nuova"                  "[ -d '$R/debug/incremental/sws_web-nuova' ]"
 prova "resta deps/, anche vecchia"                  "[ -d '$R/debug/deps/libvecchia' ]"
-prova "resta la cross-build aarch64"                "[ -d '$R/aarch64-unknown-linux-gnu/release/incremental/sws_web-cross' ]"
+prova "resta un profilo che non è debug né release" "[ -d '$R/aarch64-unknown-linux-gnu/release/incremental/sws_web-cross' ]"
 prova "salta il target con una compilazione in corso" "[ -d '$V/debug/incremental/sws_lvgl_viewer-occupata' ] && grep -q 'compilazione è in corso' '$T/uscita.log'"
 prova "dice quanto ha tolto"                        "grep -q 'tolte 3 cartelle' '$T/uscita.log'"
 

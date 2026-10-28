@@ -16,10 +16,17 @@
 # `target/debug`); questo è il giro di tutti i giorni, chiamato da
 # `/finalizza-giornata` dopo il push. Piano: docs/archive/2026-09-29-pulizia-disco-periodica.md
 #
-# Cosa NON tocca mai: `deps/`, `build/`, `.fingerprint/`, la cross-build
-# `target/aarch64-*` (ricompilarla costa decine di minuti e un container).
-# Un target con una compilazione in corso (il lock `.cargo-lock` di cargo è
-# preso) si salta e lo si dice.
+# Cosa NON tocca mai: `deps/`, `build/`, `.fingerprint/`. Un target con una
+# compilazione in corso (il lock `.cargo-lock` di cargo è preso) si salta e lo
+# si dice.
+#
+# Qui c'era anche «la cross-build `target/aarch64-*`, ricompilarla costa decine
+# di minuti e un container». **Non è più vero, e dal 28-10-2026 quella cartella
+# non esiste**: la fase due della Q53, a settembre 2026, ha tolto i percorsi di
+# cross-build sull'host, e oggi l'aarch64 si compila **dentro** il container
+# builder, con il suo target. Quei 4,1 GB non li leggeva nessuno dal 9
+# settembre, e la riga che li proteggeva li faceva sembrare preziosi. Tolti su
+# decisione del maintainer.
 #
 # Uso:
 #   ./scripts/pota_incremental.sh                  dice cosa toglierebbe
@@ -55,8 +62,9 @@ umano() { awk -v k="$1" 'BEGIN { if (k >= 1048576) printf "%.1f GB", k/1048576; 
 totale_kb=0
 cartelle=0
 for t in "${TARGET[@]}"; do
-    # Solo i profili dell'host: `target/debug` e `target/release`. La cross-build
-    # sta in `target/aarch64-unknown-linux-gnu/…` e non compare qui per costruzione.
+    # Solo i profili dell'host: `target/debug` e `target/release`. Non ce ne
+    # sono altri — l'aarch64 si compila dentro il container builder, col suo
+    # target, e sull'host non lascia niente (28-10-2026).
     for profilo in debug release; do
         inc="$t/$profilo/incremental"
         [ -d "$inc" ] || continue
