@@ -1762,7 +1762,17 @@ export interface CanaliEvento {
 }
 
 /** L'account Twilio (P4). Il token arriva mascherato dalle GET. */
-export interface TwilioConfig { account_sid: string; auth_token: string; numero: string }
+/** `account_sid` comincia sempre per `AC` e sta nell'URL di ogni chiamata, anche
+ *  quando ci si autentica con una chiave API (`api_key_sid`/`api_key_secret`,
+ *  28-10-2026). La firma dei webhook in arrivo Twilio la calcola **sempre** col
+ *  token dell'account, mai con la chiave. */
+export interface TwilioConfig {
+  account_sid: string;
+  auth_token: string;
+  api_key_sid?: string;
+  api_key_secret?: string;
+  numero: string;
+}
 
 /** Una persona reperibile: giorni 1 (lun) - 7 (dom), fascia `HH:MM`. */
 export interface Reperibile { nome: string; telefono: string; giorni?: number[]; dalle?: string; alle?: string }

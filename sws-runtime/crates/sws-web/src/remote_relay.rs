@@ -71,7 +71,7 @@ pub async fn ws_relay_handler(
     };
     let certificati = s.certificati.clone();
     let chiave = s.ritorno.per(&target.url);
-    ws.on_upgrade(move |local| run_relay(local, target, sub, certificati, chiave, debug))
+    ws.on_upgrade(move |local| run_relay(local, s, target, sub, certificati, chiave, debug))
 }
 
 /// Codice di chiusura per «il remoto ha risposto, ma quella rotta non c'è».
@@ -164,6 +164,19 @@ fn motivo_rifiuto(sub: &str, stato: u16) -> (bool, String, String) {
                 .to_string(),
         );
     }
+    // **La sessione scaduta non è un guasto del pannello.** Si arriva qui solo
+    // dopo che il rientro automatico ha fallito (vedi `run_relay`), quindi il
+    // messaggio dice l'unica cosa che resta da fare.
+    if stato == 401 {
+        return (
+            true,
+            "sessione scaduta sul pannello: rifai «Connetti»".to_string(),
+            "il pannello ha rifiutato la sessione (401) e non si è potuto rientrare con le \
+             credenziali del «Connetti»: rifai «Connetti» con utente e password di un Admin del \
+             pannello. Succede quando il pannello si riavvia o la sessione scade."
+                .to_string(),
+        );
+    }
     if stato == 404 {
         return (
             true,
@@ -239,8 +252,63 @@ async fn fallito(
     chiudi_spiegando(local, 1011, accorcia(format!("{e}"))).await;
 }
 
+/// Il canale verso il pannello, aperto una volta.
+type Remoto = tokio_tungstenite::WebSocketStream<
+    tokio_tungstenite::MaybeTlsStream<tokio::net::TcpStream>,
+>;
+
+/// Apre il canale verso il pannello. Estratta da `run_relay` il 28-10-2026
+/// perché ora si chiama **due volte**: la seconda col token rinnovato.
+async fn apri_verso_il_pannello(
+    remote_url: &str,
+    target_url: &str,
+    host_path: &str,
+    ws_scheme: &str,
+    chiave_ritorno: Option<&str>,
+    certificati: &Arc<crate::certificati::ImprontaStore>,
+) -> Result<Remoto, tokio_tungstenite::tungstenite::Error> {
+    use tokio_tungstenite::tungstenite::client::IntoClientRequest;
+    // La chiave di ritorno, quando il remoto è un pannello dietro il gateway da
+    // cui arriva il lavoro (`gateway/ritorno.rs`).
+    let mut richiesta = remote_url.into_client_request()?;
+    if let Some(v) = chiave_ritorno.and_then(|c| c.parse().ok()) {
+        richiesta.headers_mut().insert(crate::gateway::ritorno::INTESTAZIONE, v);
+    }
+    // Q49: per wss:// la fiducia è per impronta, la stessa che ha memorizzato
+    // «Connetti» — non «accetta tutto» come fino al 2026-09-09.
+    if ws_scheme == "wss" {
+        let host_port = crate::certificati::host_port_da_url(target_url)
+            .unwrap_or_else(|| host_path.to_string());
+        let tls = Arc::new(crate::certificati::client_config_pinnato(
+            &host_port,
+            certificati.clone(),
+        ));
+        let connector = tokio_tungstenite::Connector::Rustls(tls);
+        let (ws, _) = tokio_tungstenite::connect_async_tls_with_config(
+            richiesta,
+            None,
+            false,
+            Some(connector),
+        )
+        .await?;
+        Ok(ws)
+    } else {
+        let (ws, _) = tokio_tungstenite::connect_async(richiesta).await?;
+        Ok(ws)
+    }
+}
+
+/// Lo stato HTTP con cui il pannello ha rifiutato, se ha rifiutato così.
+fn stato_http(e: &tokio_tungstenite::tungstenite::Error) -> Option<u16> {
+    match e {
+        tokio_tungstenite::tungstenite::Error::Http(r) => Some(r.status().as_u16()),
+        _ => None,
+    }
+}
+
 async fn run_relay(
     local: WebSocket,
+    s: crate::router::AppState,
     target: crate::remote::RemoteTarget,
     sub: String,
     certificati: Arc<crate::certificati::ImprontaStore>,
@@ -259,49 +327,68 @@ async fn run_relay(
         .url
         .trim_start_matches("https://")
         .trim_start_matches("http://");
-    let remote_url = url_remoto(ws_scheme, host_path, &sub, &target.token, debug);
+    let mut remote_url = url_remoto(ws_scheme, host_path, &sub, &target.token, debug);
 
-
-    // La chiave di ritorno, quando il remoto è un pannello dietro il gateway da
-    // cui arriva il lavoro (`gateway/ritorno.rs`).
-    let richiesta = {
-        use tokio_tungstenite::tungstenite::client::IntoClientRequest;
-        let mut r = match remote_url.as_str().into_client_request() {
-            Ok(r) => r,
-            Err(e) => return fallito(local, &sub, &remote_url, e).await,
-        };
-        if let Some(v) = chiave_ritorno.as_deref().and_then(|c| c.parse().ok()) {
-            r.headers_mut().insert(crate::gateway::ritorno::INTESTAZIONE, v);
+    let apri = |url: String| {
+        let certificati = certificati.clone();
+        let chiave = chiave_ritorno.clone();
+        let target_url = target.url.clone();
+        let host_path = host_path.to_string();
+        async move {
+            apri_verso_il_pannello(
+                &url,
+                &target_url,
+                &host_path,
+                ws_scheme,
+                chiave.as_deref(),
+                &certificati,
+            )
+            .await
         }
-        r
     };
 
-    // Q49: per wss:// la fiducia è per impronta, la stessa che ha memorizzato
-    // «Connetti» — non «accetta tutto» come fino al 2026-09-09.
-    let remote = if ws_scheme == "wss" {
-        let host_port = crate::certificati::host_port_da_url(&target.url)
-            .unwrap_or_else(|| host_path.to_string());
-        let tls = Arc::new(crate::certificati::client_config_pinnato(
-            &host_port,
-            certificati,
-        ));
-        let connector = tokio_tungstenite::Connector::Rustls(tls);
-        match tokio_tungstenite::connect_async_tls_with_config(
-            richiesta,
-            None,
-            false,
-            Some(connector),
-        )
-        .await
-        {
-            Ok((ws, _)) => ws,
-            Err(e) => return fallito(local, &sub, &remote_url, e).await,
+    let mut esito = apri(remote_url.clone()).await;
+
+    // **Il 401 non è un guasto: è un token da rinnovare** (28-10-2026).
+    //
+    // Fino a oggi il rientro automatico lo faceva solo il deploy. Il relay
+    // prendeva il 401, chiudeva con «non ritentare» e l'IDE restava muto col
+    // pallino verde — e `/ws/tags` non è solo il canale che legge, è anche
+    // quello che **scrive**: niente dati live e nessun comando. Il caso non è
+    // raro, è tutte le mattine: il WP630 si spegne la sera, e al riavvio il
+    // token del giorno prima non vale più.
+    // Piano: docs/archive/2026-10-28-cosa-sta-succedendo-nell-ide.md
+    if esito.as_ref().err().and_then(stato_http) == Some(401) {
+        tracing::warn!(url = %remote_url, canale = %sub,
+            "ws relay: il pannello ha rifiutato la sessione, provo a rientrare");
+        // Tre canali si aprono insieme (tags, alarms, logs) e prendono lo
+        // stesso 401: se un altro ha già rinnovato, il token nello stato è
+        // diverso da quello che abbiamo usato e basta riprovare con quello,
+        // senza un secondo login.
+        let gia_rinnovato = s
+            .remote_target
+            .read()
+            .await
+            .as_ref()
+            .map(|t| t.token.clone())
+            .filter(|t| *t != target.token);
+        let nuovo = match gia_rinnovato {
+            Some(t) => Some(t),
+            None => crate::remote::rinnova_sessione(&s).await,
+        };
+        if let Some(token) = nuovo {
+            remote_url = url_remoto(ws_scheme, host_path, &sub, &token, debug);
+            esito = apri(remote_url.clone()).await;
+            if esito.is_ok() {
+                tracing::info!(canale = %sub,
+                    "ws relay: sessione rinnovata da sola, il canale è aperto");
+            }
         }
-    } else {
-        match tokio_tungstenite::connect_async(richiesta).await {
-            Ok((ws, _)) => ws,
-            Err(e) => return fallito(local, &sub, &remote_url, e).await,
-        }
+    }
+
+    let remote = match esito {
+        Ok(ws) => ws,
+        Err(e) => return fallito(local, &sub, &remote_url, e).await,
     };
 
     tracing::debug!(url = %remote_url, "ws relay established");
@@ -463,5 +550,51 @@ mod tests {
     fn accorcia_lascia_stare_quelli_che_ci_stanno() {
         let m = "corto".to_string();
         assert_eq!(accorcia(m.clone()), m);
+    }
+
+    /// Il 401 dice **cosa fare**, non «il runtime remoto ha rifiutato: 401».
+    ///
+    /// Si arriva a questo messaggio solo dopo che il rientro automatico ha
+    /// fallito: prima del 28-10-2026 il rientro non c'era affatto, e il 401
+    /// cadeva nel ramo generico, che non nomina nessun rimedio.
+    #[test]
+    fn il_401_nomina_il_rimedio() {
+        let (guasto, breve, lungo) = motivo_rifiuto("tags", 401);
+        assert!(guasto, "una sessione morta è un difetto da segnalare, non un INFO");
+        assert!(breve.contains("Connetti"), "il frame deve dire cosa fare: {breve}");
+        assert!(lungo.contains("401"));
+        assert!(
+            !breve.contains("rotta"),
+            "il 401 non è una rotta assente: {breve}"
+        );
+    }
+
+    /// Il token nuovo finisce nell'indirizzo del secondo tentativo. Banale, ed
+    /// è il punto in cui il rientro si rompe in silenzio se un giorno qualcuno
+    /// ricostruisse l'URL dalla copia vecchia del bersaglio.
+    #[test]
+    fn il_rientro_cambia_il_token_nell_indirizzo() {
+        let vecchio = url_remoto("wss", "sws.soligo.net/dev/wp630", "tags", "morto", false);
+        let nuovo = url_remoto("wss", "sws.soligo.net/dev/wp630", "tags", "vivo", false);
+        assert!(vecchio.ends_with("?token=morto"));
+        assert!(nuovo.ends_with("?token=vivo"));
+        assert_ne!(vecchio, nuovo);
+    }
+
+    /// `stato_http` distingue «il pannello ha risposto e ha rifiutato» da «non
+    /// si è arrivati al pannello»: è la condizione che decide se rientrare.
+    #[test]
+    fn solo_una_risposta_http_ha_uno_stato() {
+        use tokio_tungstenite::tungstenite::Error as TErr;
+        let risposta = axum::http::Response::builder()
+            .status(401)
+            .body(None)
+            .expect("risposta di prova");
+        assert_eq!(super::stato_http(&TErr::Http(risposta)), Some(401));
+        assert_eq!(
+            super::stato_http(&TErr::ConnectionClosed),
+            None,
+            "una connessione caduta non è un rifiuto: lì non c'è niente da rinnovare"
+        );
     }
 }

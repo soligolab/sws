@@ -39,7 +39,7 @@ export function NotificationsTab() {
   const [eventi, setEventi] = useState<TabellaEventi>({ ...TABELLA_PREDEFINITA, ...(initial?.eventi ?? {}) });
   // P4 (26-10-2026): Twilio, reperibili e attesa dell'escalation.
   const [twEnabled, setTwEnabled] = useState<boolean>(initial?.twilio != null);
-  const [tw, setTw] = useState<TwilioConfig>(initial?.twilio ?? { account_sid: "", auth_token: "", numero: "" });
+  const [tw, setTw] = useState<TwilioConfig>(initial?.twilio ?? { account_sid: "", auth_token: "", api_key_sid: "", api_key_secret: "", numero: "" });
   const [reperibili, setReperibili] = useState<Reperibile[]>(initial?.reperibili ?? []);
   const [attesaMin, setAttesaMin] = useState<number | undefined>(initial?.telefono_attesa_min);
   const [numeroProva, setNumeroProva] = useState("");
@@ -425,7 +425,9 @@ export function NotificationsTab() {
       {twEnabled && (
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12, maxWidth: 820, marginBottom: 12 }}>
           <label style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)" }}>Account SID
-            <input style={S.input} value={tw.account_sid} spellCheck={false} onChange={(e) => { setTouched(true); setTw({ ...tw, account_sid: e.target.value.trim() }); }} />
+            <input style={S.input} value={tw.account_sid} spellCheck={false} placeholder="AC…"
+              data-testid="twilio-account-sid"
+              onChange={(e) => { setTouched(true); setTw({ ...tw, account_sid: e.target.value.trim() }); }} />
           </label>
           <label style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)" }}>Auth token
             <input style={S.input} type="password" value={tw.auth_token}
@@ -435,6 +437,20 @@ export function NotificationsTab() {
           <label style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)" }}>{t("notifiche.numeroTwilio")}
             <input style={S.input} value={tw.numero} placeholder="+39…" onChange={(e) => { setTouched(true); setTw({ ...tw, numero: e.target.value.trim() }); }} />
           </label>
+          {/* La chiave API (28-10-2026): Twilio la consiglia al posto del token
+              perché si revoca da sola. Il SID dell'account resta obbligatorio —
+              sta nell'URL di ogni chiamata anche con la chiave. */}
+          <label style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)" }}>{t("notifiche.chiaveApiSid")}
+            <input style={S.input} value={tw.api_key_sid ?? ""} spellCheck={false} placeholder="SK…"
+              data-testid="twilio-api-key-sid"
+              onChange={(e) => { setTouched(true); setTw({ ...tw, api_key_sid: e.target.value.trim() }); }} />
+          </label>
+          <label style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)" }}>{t("notifiche.chiaveApiSegreto")}
+            <input style={S.input} type="password" value={tw.api_key_secret ?? ""}
+              placeholder={tw.api_key_secret === MASKED ? t("cfgUi.savedLeaveEmptyToKeep") : ""}
+              onChange={(e) => { setTouched(true); setTw({ ...tw, api_key_secret: e.target.value.trim() }); }} />
+          </label>
+          <div style={{ gridColumn: "1 / -1", ...S.notice }}>{t("notifiche.chiaveApiNota")}</div>
           <div style={{ gridColumn: "1 / -1", display: "flex", gap: 8, alignItems: "center" }}>
             <input style={{ ...S.input, width: 200 }} value={numeroProva} placeholder="+39…" onChange={(e) => setNumeroProva(e.target.value)} />
             <button style={S.btn("ghost")} disabled={!numeroProva.trim() || touched} title={touched ? t("notifiche.salvaPrima") : undefined}

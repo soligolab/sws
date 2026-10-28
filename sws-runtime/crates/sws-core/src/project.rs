@@ -1589,12 +1589,49 @@ pub struct NotificationConfig {
 /// L'account Twilio da cui partono SMS e chiamate.
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 pub struct TwilioConfig {
+    /// Il SID dell'**account**, che comincia sempre per `AC`.
+    ///
+    /// Sta nell'URL di ogni chiamata (`/2010-04-01/Accounts/<AC…>/…`) **anche
+    /// quando ci si autentica con una chiave API**: la chiave dice chi sei, non
+    /// su quale account stai lavorando. Metterci un `SK…` produce un URL che
+    /// non esiste, e Twilio risponde 404 — il collaudo del 28-10-2026.
     pub account_sid: String,
     /// Il token dell'account: sta in `secrets.yaml`, come gli altri segreti.
+    ///
+    /// Serve a due cose diverse: autenticare le chiamate **verso** Twilio
+    /// (quando non c'è una chiave API) e verificare la firma delle richieste
+    /// che **arrivano** da Twilio. La seconda non ha alternative: Twilio firma
+    /// i webhook con il token dell'account, mai con una chiave API.
     #[serde(default, skip_serializing_if = "String::is_empty")]
     pub auth_token: String,
+    /// Il SID di una **chiave API** (`SK…`), se si preferisce al token.
+    ///
+    /// È un identificatore, non un segreto: sta in chiaro come un nome utente.
+    /// Il segreto che gli va insieme è `api_key_secret`.
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub api_key_sid: String,
+    /// Il segreto della chiave API: in `secrets.yaml`, come il token.
+    ///
+    /// Twilio lo mostra **una volta sola**, quando la chiave viene creata.
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub api_key_secret: String,
     /// Il numero Twilio mittente, in formato internazionale (`+39…`).
     pub numero: String,
+}
+
+impl TwilioConfig {
+    /// L'utente e la password dell'autenticazione HTTP verso Twilio.
+    ///
+    /// La chiave API vince sul token quando c'è **tutta**: un SID senza
+    /// segreto non è una credenziale, ed è il caso in cui si finisce
+    /// incollando metà della cosa.
+    pub fn credenziali(&self) -> (&str, &str) {
+        if !self.api_key_sid.is_empty() && !self.api_key_secret.is_empty() {
+            (&self.api_key_sid, &self.api_key_secret)
+        } else {
+            (&self.account_sid, &self.auth_token)
+        }
+    }
 }
 
 /// Una persona reperibile e il suo turno settimanale.

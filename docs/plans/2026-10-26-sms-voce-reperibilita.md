@@ -33,6 +33,56 @@
 | **La conferma** | il gateway espone `/telefono/<pannello>/…` senza sessione e lo inoltra al pannello come `/api/telefono/…`, con l'URL pubblico in un'intestazione; il pannello **verifica la firma di Twilio** (`X-Twilio-Signature`) col suo token e un **gettone** monouso dell'allarme. Tasto 1 → allarme riconosciuto da «telefono: <nome>»; risposta «OK» a un SMS → stessa cosa per l'ultimo allarme mandato a quel numero |
 | **Editor** | Notifiche: sezione Twilio (con «Invia SMS di prova»), tabella dei reperibili; la tabella eventi ha le colonne SMS e Voce |
 
+## Il collaudo del 28-10-2026: fallito, e perché
+
+Primo collaudo con un account Twilio vero. **Non è partito niente**, e a schermo c'era scritto
+«runtime error». Tre difetti distinti, tutti corretti lo stesso giorno.
+
+**1. Il SID di una chiave API dove va quello dell'account.** A Twilio si può entrare in due modi:
+col SID dell'account (`AC…`) più il suo auth token, oppure con una **chiave API** (`SK…`) più il
+suo segreto — ed è quello che la documentazione di Twilio consiglia oggi, perché una chiave si
+revoca senza toccare l'account. Il maintainer ne ha creata una e ha incollato il suo `SK…` nel
+campo «Account SID», che era l'unico che c'era.
+
+Il punto che si sbaglia: **nell'URL di ogni chiamata ci va sempre il SID dell'account**, anche
+quando ci si autentica con una chiave. La chiave dice *chi sei*, non *su quale account lavori*.
+Con un `SK…` lì dentro l'URL diventa `/2010-04-01/Accounts/SK0000…/Messages.json`, che non esiste, e
+Twilio risponde 404.
+
+Corretto in due modi: `TwilioConfig` ha ora `api_key_sid` e `api_key_secret` (il secondo in
+`secrets.yaml`, come il token), e `controlla()` rifiuta un `SK…` nel campo sbagliato **nominando
+il campo giusto**.
+
+**Un vincolo che resta, ed è bene saperlo**: la firma delle richieste che *arrivano* da Twilio
+(tasto 1, risposta «OK») Twilio la calcola **sempre** col token dell'account, mai con una chiave
+API. Quindi chi vuole le conferme dal telefono deve avere anche il token. L'interfaccia lo dice.
+
+**2. Un `+39` davanti a un numero tedesco.** Il mittente era `+390049123456789` invece di
+`+49123456789`. Questo **non si può prendere con un controllo locale**, e vale la pena
+scriverlo perché la tentazione c'è: quindici cifre sono un numero E.164 perfettamente valido, e
+quali numeri siano davvero dell'account lo sa solo Twilio. Il controllo su `numero` resta quello
+che può dire con certezza — il `+`, da 8 a 15 cifre, niente spazi — e per il resto parla Twilio,
+che risponde 21606 nominando il numero.
+
+**3. E qui il difetto vero: la risposta di Twilio non arrivava a schermo.** `POST
+/api/telefono/prova` rispondeva **502**, e il client dell'IDE traduce ogni 502 in «runtime
+irraggiungibile» **buttando via il corpo** (`api/client.ts`, il 502 lo tiene solo per
+`/api/remote/…`). Quindi il runtime aveva in mano «The requested resource
+/Accounts/SK0000…/Messages.json was not found» e mostrava «runtime error».
+
+Due correzioni: la rotta risponde **400**, così il corpo sopravvive; e `motivo_twilio()` tira
+fuori `message` e `code` dal JSON di Twilio invece di mostrare il JSON intero — che è un modo
+elegante di non dire niente.
+
+**La lezione, che non è di Twilio.** Nessuno dei tre difetti era nel lavoro del 26-10: la logica
+dei turni, la firma, il TwiML erano giusti. Tutti e tre erano **diagnosi esistenti e buttate
+via** — la stessa famiglia del piano
+[cosa sta succedendo nell'IDE](../archive/2026-10-28-cosa-sta-succedendo-nell-ide.md), scritto lo
+stesso giorno per tutt'altro motivo.
+
+**Da rifare**, col collaudo vero: un SMS che arriva davvero, con la coppia account+token e poi con
+una chiave API; una chiamata; e il tasto 1 dal telefono su un pannello del cloud.
+
 ## Fuori, dichiarato
 
 Altri fornitori; più numeri mittenti; calendari di reperibilità per data (ferie, festivi): l'elenco settimanale è il

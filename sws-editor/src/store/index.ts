@@ -736,7 +736,13 @@ interface AppState {
   logDispositivoDebug: boolean;
   setLogDispositivoDebug: (v: boolean) => void;
   remoteUrl: string | null;
+  /** Falso quando il collegamento c'è ma la sessione col pannello non vale più
+   *  (28-10-2026). Lo dice `GET /api/remote/status` col campo `autenticato`.
+   *  Viveva solo dentro la scheda Connessione, cioè in un posto dove si va
+   *  apposta: in barra il pallino restava verde mentre niente funzionava. */
+  remoteAutenticato: boolean;
   setRemoteConnected: (connected: boolean, url?: string | null) => void;
+  setRemoteAutenticato: (v: boolean) => void;
   remoteDeployStatus: "idle" | "syncing" | "ok" | "error";
   /** Perché l'ultimo deploy è fallito, per il tooltip della testata. */
   remoteDeployErrore: string | null;
@@ -2654,10 +2660,18 @@ export const useAppStore = create<AppState>((set, get) => {
 
     remoteConnected: false,
     remoteUrl: null,
+    remoteAutenticato: true,
     logDispositivoDebug: false,
     setLogDispositivoDebug: (logDispositivoDebug) => set({ logDispositivoDebug }),
     setRemoteConnected: (connected, url = null) =>
-      set({ remoteConnected: connected, remoteUrl: connected ? (url ?? null) : null }),
+      set({
+        remoteConnected: connected,
+        remoteUrl: connected ? (url ?? null) : null,
+        // Un collegamento nuovo nasce autenticato; uno chiuso non ha niente da
+        // dire. In tutti e due i casi l'avviso di prima non vale più.
+        remoteAutenticato: true,
+      }),
+    setRemoteAutenticato: (remoteAutenticato) => set({ remoteAutenticato }),
     remoteDeployStatus: "idle",
     remoteDeployErrore: null,
     deployAlSalvataggio: (() => { try { return localStorage.getItem(CHIAVE_DEPLOY_AL_SALVATAGGIO) !== "0"; } catch { return true; } })(),

@@ -114,6 +114,25 @@ pub struct RemoteStatus {
 /// deve andare a guardare lo schermo del pannello. Su `http://` non c'è
 /// impronta e non c'è niente da dire: il campo resta assente, invece di
 /// mostrare una riga vuota che farebbe credere a un'identità verificata.
+/// Quello che il pannello dice di sé quando rifiuta, tradotto in un rimedio.
+///
+/// Il corpo è l'inviluppo d'errore del runtime (`{"error":…,"detail":…}`). Si
+/// riconoscono i casi che hanno un rimedio diverso da «riprova»; per tutto il
+/// resto si torna `None` e chi chiama tiene il suo messaggio.
+fn spiegazione_del_pannello(url: &str, corpo: &str) -> Option<String> {
+    let v: serde_json::Value = serde_json::from_str(corpo).ok()?;
+    let errore = v.get("error").and_then(|e| e.as_str())?;
+    if errore != "abbinamento_richiesto" {
+        return None;
+    }
+    Some(format!(
+        "{url} è un pannello abbinato al cloud e senza utenti propri: da qui non ci si può \
+         collegare, e non è un guasto. Passa dal cloud (l'indirizzo è \
+         https://<gateway>/dev/<nome del pannello>), oppure distribuiscigli un progetto con i \
+         suoi utenti usando il codice di abbinamento mostrato sullo schermo."
+    ))
+}
+
 fn impronta_da_mostrare(prima: Option<&str>, adesso: Option<String>) -> (Option<String>, Option<bool>) {
     match adesso {
         None => (None, None),
@@ -428,6 +447,16 @@ pub async fn connect_remote(
         }
         Ok(r) => {
             let code = r.status();
+            // **Il pannello spesso dice già di sé perché rifiuta**, e fino al
+            // 28-10-2026 quella frase finiva nel cestino: a schermo restava
+            // «Target returned 401 Unauthorized on /api/projects», che non
+            // suggerisce niente da fare. Il caso vero, misurato quel giorno sul
+            // WP630 dalla LAN dell'ufficio: il pannello è abbinato al cloud e
+            // non ha utenti locali, quindi da fuori dal cloud **non si entra**,
+            // e non è un guasto — è la scelta dell'abbinamento.
+            let corpo = r.text().await.unwrap_or_default();
+            let motivo = spiegazione_del_pannello(&url, &corpo)
+                .unwrap_or_else(|| format!("Target returned {code} on /api/projects"));
             return (
                 StatusCode::OK,
                 Json(ConnectResult {
@@ -436,7 +465,7 @@ pub async fn connect_remote(
                     impronta_nuova: None,
                     nota: None,
                     azione: None,
-                    error: Some(format!("Target returned {code} on /api/projects")),
+                    error: Some(motivo),
                 }),
             );
         }
@@ -3144,6 +3173,7 @@ pub async fn delete_remote_project(
 }
 
 /// Com'è andato il tentativo di rientrare dopo un deploy.
+#[derive(Debug)]
 pub(crate) enum Esito {
     /// Il token vale ancora: il dispositivo non ha cambiato regime.
     NienteDaFare,
@@ -3259,6 +3289,30 @@ async fn rientra(
     }
 }
 
+/// Il pannello ha rifiutato la sessione: si rientra con le credenziali del
+/// «Connetti» e si torna il token nuovo. `None` se non si è potuto.
+///
+/// Esiste per il **relay WebSocket** (28-10-2026). Fino a oggi il rientro
+/// automatico lo faceva solo il deploy: `/ws/tags` prendeva il 401, chiudeva
+/// con «non ritentare» e l'IDE restava muto con il pallino verde. Il caso non è
+/// raro — è tutte le mattine: il WP630 si spegne la sera, al riavvio le sessioni
+/// non ci sono più, e il token del giorno prima è carta straccia. E `/ws/tags`
+/// non è solo il canale che *legge*: è anche quello che **scrive**, quindi un
+/// relay chiuso vuol dire pulsanti che non comandano.
+pub(crate) async fn rinnova_sessione(s: &AppState) -> Option<String> {
+    let target = s.remote_target.read().await.clone()?;
+    let client = make_remote_client(s, &target.url);
+    let base = target.url.trim_end_matches('/').to_string();
+    match rientra(s, &client, &base, true).await {
+        Esito::Rientrato => s.remote_target.read().await.as_ref().map(|t| t.token.clone()),
+        altro => {
+            tracing::warn!(remote = %base, esito = ?altro,
+                "rientro nel pannello non riuscito: serve un «Connetti» a mano");
+            None
+        }
+    }
+}
+
 async fn segna_non_autenticato(s: &AppState) {
     if let Some(t) = s.remote_target.write().await.as_mut() {
         t.autenticato = false;
@@ -3291,6 +3345,28 @@ pub async fn remote_status(State(s): State<AppState>) -> Json<RemoteStatus> {
 
 #[cfg(test)]
 mod tests {
+    /// Il 401 del WP630 visto dalla LAN dell'ufficio il 28-10-2026, parola per
+    /// parola. L'IDE mostrava «Target returned 401 Unauthorized on
+    /// /api/projects»; il pannello stava dicendo tutt'altro.
+    #[test]
+    fn un_pannello_abbinato_al_cloud_spiega_perche_rifiuta() {
+        let corpo = r#"{"abbinamento_richiesto":true,"detail":"questo pannello non ha ancora utenti: si abbina col codice mostrato sullo schermo","error":"abbinamento_richiesto"}"#;
+        let m = super::spiegazione_del_pannello("https://wp630.local:7444", corpo)
+            .expect("questo caso ha un rimedio da dire");
+        assert!(m.contains("wp630.local"), "{m}");
+        assert!(m.contains("cloud"), "il rimedio e' passare dal cloud: {m}");
+        assert!(m.contains("codice"), "o abbinarlo: {m}");
+    }
+
+    /// Per un 401 qualunque non si inventa una spiegazione: chi chiama tiene
+    /// il suo messaggio, che almeno dice il codice.
+    #[test]
+    fn un_401_senza_spiegazione_non_se_ne_inventa_una() {
+        assert!(super::spiegazione_del_pannello("u", "").is_none());
+        assert!(super::spiegazione_del_pannello("u", "Unauthorized").is_none());
+        assert!(super::spiegazione_del_pannello("u", r#"{"error":"unauthorized"}"#).is_none());
+    }
+
     use super::*;
     use std::io::Write;
 

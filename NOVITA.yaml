@@ -43,6 +43,10 @@ versioni:
         en: "Log errors now show in the toolbar without opening the drawer: clicking the badge opens the log on the right line."
       - it: "I grafici di tendenza chiedono lo storico molto meno spesso e si fermano quando la scheda e' nascosta: l'IDE e' piu' leggero."
         en: "Trend charts ask for history far less often and stop while the tab is hidden: the IDE is lighter."
+      - it: "Se il pannello si riavvia, l'IDE rientra da solo invece di restare verde e muto; se non ci riesce lo scrive in alto."
+        en: "If the panel restarts, the IDE logs back in by itself instead of staying green and silent; if it cannot, it says so at the top."
+      - it: "Twilio: si puo' usare una chiave API al posto del token, e quando un invio fallisce adesso si legge il motivo vero."
+        en: "Twilio: you can use an API key instead of the token, and when a send fails you now read the real reason."
   - versione: "2.23.4"
     voci:
       - it: "Nel cloud, un progetto lasciato aperto adesso passa alla versione nuova quando il gateway si aggiorna, invece di restare indietro."

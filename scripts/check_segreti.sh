@@ -53,6 +53,10 @@ ECCEZIONI=(
     "MqttConfig.password_env"
     "UsernamePassword.password_env"
     "LangEntry.key"
+    # Il SID di una chiave API Twilio (`SK…`) è un identificatore, come un nome
+    # utente: Twilio lo mostra nella console tutte le volte che vuoi. Il segreto
+    # che gli va insieme è `api_key_secret`, che infatti è in CAMPI_COPERTI.
+    "TwilioConfig.api_key_sid"
 )
 
 coperti=$(grep -oE '"[A-Za-z]+\.[a-z_]+"' "$CORE/segreti.rs" | tr -d '"')

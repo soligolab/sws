@@ -102,6 +102,7 @@ export function App() {
   const configTab        = useAppStore((s) => s.configTab);
   const configFocus      = useAppStore((s) => s.configFocus);
   const navigateToConfig = useAppStore((s) => s.navigateToConfig);
+  const setRemoteAutenticato = useAppStore((s) => s.setRemoteAutenticato);
   // Log drawer: state stays here (App owns <LogPanel>), the toggle moved into
   // the ☰ menu — it is a diagnostic, not a per-minute control.
   //
@@ -352,11 +353,21 @@ export function App() {
   // E finché non c'è, si richiede ogni 30 s: al primo collaudo il pannello era
   // irraggiungibile proprio all'apertura (il gateway appena ripartito, il tunnel
   // non ancora riaperto: 503) e nessuno ha più riprovato.
+  //
+  // Dal 28-10-2026 **non si ferma quando il pannello c'è**: continua a chiedere
+  // per leggere `autenticato`, che diventa falso quando la sessione col
+  // pannello non vale più (riavvio del pannello, scadenza). Prima quel campo lo
+  // guardava solo la scheda Connessione, cioè un posto dove si va apposta, e in
+  // barra il pallino restava verde mentre niente funzionava.
   useEffect(() => {
-    if (!project || !authToken || !prefissoGateway() || remoteConnected) return;
+    if (!project || !authToken || !prefissoGateway()) return;
     let vivo = true;
     const chiedi = () => api.remoteStatus()
-      .then((st) => { if (vivo && st.connected) setRemoteConnected(true, st.url ?? null); })
+      .then((st) => {
+        if (!vivo) return;
+        if (st.connected) setRemoteConnected(true, st.url ?? null);
+        setRemoteAutenticato(st.autenticato !== false);
+      })
       .catch(() => { /* nessun pannello: l'IDE lo dice dove serve */ });
     void chiedi();
     const id = window.setInterval(() => void chiedi(), 30_000);

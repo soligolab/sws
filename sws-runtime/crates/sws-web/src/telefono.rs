@@ -113,18 +113,112 @@ pub fn firma_valida(token: &str, url: &str, parametri: &HashMap<String, String>,
     attesa.len() == ricevuta.len() && attesa.bytes().zip(ricevuta.bytes()).fold(0u8, |acc, (a, b)| acc | (a ^ b)) == 0
 }
 
+/// Un numero in formato internazionale: `+` e da 8 a 15 cifre (E.164).
+fn e164(n: &str) -> bool {
+    let Some(cifre) = n.strip_prefix('+') else { return false };
+    (8..=15).contains(&cifre.len()) && cifre.bytes().all(|b| b.is_ascii_digit())
+}
+
+/// La configurazione sta in piedi? Il motivo, scritto per chi lo leggerà.
+///
+/// Nasce dal collaudo del 28-10-2026, che è fallito per due errori di campo e
+/// nessuno dei due si poteva capire dalla risposta.
+///
+/// Il primo — il SID di una **chiave API** (`SK…`) incollato dove va quello
+/// dell'**account** (`AC…`) — si vede da qui, prima di uscire in rete, e si
+/// dice con le parole dei campi dell'interfaccia.
+///
+/// Il secondo — un `+39` davanti a un numero tedesco — **da qui non si vede**,
+/// e vale la pena scriverlo perché la tentazione di provarci è forte:
+/// `+390049123456789` ha quindici cifre, cioè è un numero E.164 perfettamente
+/// valido. Quali numeri siano davvero dell'account lo sa solo Twilio, che
+/// infatti risponde 21606 nominando il numero. Il rimedio per quel caso non è
+/// un controllo in più qui: è `motivo_twilio`, che quella frase la fa arrivare
+/// a schermo invece di buttarla via.
+pub fn controlla(cfg: &TwilioConfig) -> Result<(), String> {
+    if cfg.account_sid.is_empty() {
+        return Err("manca il SID dell'account Twilio (comincia per AC).".into());
+    }
+    if cfg.account_sid.starts_with("SK") {
+        return Err(format!(
+            "«{}» è il SID di una chiave API, non dell'account: va nel campo «SID chiave API». \
+             In «SID account» va quello che comincia per AC, in cima alla console di Twilio.",
+            cfg.account_sid
+        ));
+    }
+    if !cfg.account_sid.starts_with("AC") {
+        return Err(format!(
+            "il SID dell'account comincia sempre per AC: «{}» non è un SID di account.",
+            cfg.account_sid
+        ));
+    }
+    // Mezza chiave API non è una credenziale, ed è il caso in cui si finisce
+    // incollando il SID e dimenticando il segreto — che Twilio mostra una
+    // volta sola, quindi recuperarlo vuol dire rifare la chiave.
+    match (cfg.api_key_sid.is_empty(), cfg.api_key_secret.is_empty()) {
+        (false, true) => return Err(
+            "c'è il SID della chiave API ma non il suo segreto. Twilio lo mostra una volta sola, \
+             quando la chiave viene creata: se è perduto, crea una chiave nuova.".into()),
+        (true, false) => return Err(
+            "c'è il segreto della chiave API ma non il suo SID (comincia per SK).".into()),
+        _ => {}
+    }
+    if cfg.api_key_sid.is_empty() && cfg.auth_token.is_empty() {
+        return Err("serve il token dell'account, oppure SID e segreto di una chiave API.".into());
+    }
+    if !cfg.api_key_sid.is_empty() && !cfg.api_key_sid.starts_with("SK") {
+        return Err(format!(
+            "il SID di una chiave API comincia per SK: «{}» non lo è.",
+            cfg.api_key_sid
+        ));
+    }
+    if !e164(&cfg.numero) {
+        return Err(format!(
+            "il numero mittente va in formato internazionale — «+» e da 8 a 15 cifre, senza \
+             spazi: «{}» non lo è.",
+            cfg.numero
+        ));
+    }
+    Ok(())
+}
+
+/// Il messaggio di Twilio, tirato fuori dal JSON dell'errore.
+///
+/// Twilio risponde `{"code":20404,"message":"The requested resource … was not
+/// found","more_info":"https://www.twilio.com/docs/errors/20404"}`. Mostrare il
+/// JSON intero vuol dire non mostrare niente: la riga che conta è `message`, e
+/// `code` è quello da cercare nella documentazione.
+fn motivo_twilio(corpo: &str) -> String {
+    let Ok(v) = serde_json::from_str::<serde_json::Value>(corpo) else {
+        return corpo.trim().to_string();
+    };
+    let messaggio = v.get("message").and_then(|m| m.as_str()).unwrap_or("").trim();
+    if messaggio.is_empty() {
+        return corpo.trim().to_string();
+    }
+    match v.get("code").and_then(|c| c.as_i64()) {
+        Some(c) => format!("{messaggio} (codice Twilio {c})"),
+        None => messaggio.to_string(),
+    }
+}
+
 async fn twilio(cfg: &TwilioConfig, risorsa: &str, campi: &[(&str, &str)]) -> anyhow::Result<()> {
+    controlla(cfg).map_err(|e| anyhow::anyhow!("{e}"))?;
+    // **Nell'URL ci va sempre il SID dell'account**, anche autenticandosi con
+    // una chiave API: la chiave dice chi sei, non su quale account lavori.
     let url = format!("https://api.twilio.com/2010-04-01/Accounts/{}/{risorsa}.json", cfg.account_sid);
+    let (utente, password) = cfg.credenziali();
     let r = reqwest::Client::new()
         .post(url)
-        .basic_auth(&cfg.account_sid, Some(&cfg.auth_token))
+        .basic_auth(utente, Some(password))
         .form(campi)
         .timeout(std::time::Duration::from_secs(20))
         .send()
         .await?;
     if !r.status().is_success() {
         let codice = r.status();
-        anyhow::bail!("Twilio ha risposto {codice}: {}", r.text().await.unwrap_or_default());
+        let corpo = r.text().await.unwrap_or_default();
+        anyhow::bail!("Twilio ha risposto {codice}: {}", motivo_twilio(&corpo));
     }
     Ok(())
 }
@@ -379,9 +473,23 @@ pub async fn prova(
     let Some(cfg) = Project::load(&dir).ok().and_then(|p| p.notifications).and_then(|n| n.twilio) else {
         return (StatusCode::BAD_REQUEST, "Twilio non configurato").into_response();
     };
+    if !e164(&b.numero) {
+        return (
+            StatusCode::BAD_REQUEST,
+            format!("il numero di destinazione va in formato internazionale — «+» e da 8 a 15 \
+                     cifre, senza spazi: «{}» non lo è.", b.numero),
+        )
+            .into_response();
+    }
     match manda_sms(&cfg, &b.numero, "SWS: prova di invio SMS.").await {
         Ok(()) => StatusCode::NO_CONTENT.into_response(),
-        Err(e) => (StatusCode::BAD_GATEWAY, e.to_string()).into_response(),
+        // **400, non 502.** Un 502 il client dell'IDE lo traduce in «runtime
+        // irraggiungibile» e **butta via il corpo** (`api/client.ts`), cioè
+        // esattamente la risposta di Twilio che dice cosa non va. Il 28-10-2026
+        // è costato un collaudo: a schermo «runtime error», mentre il runtime
+        // aveva in mano «The requested resource /Accounts/SK0000…/Messages.json
+        // was not found».
+        Err(e) => (StatusCode::BAD_REQUEST, e.to_string()).into_response(),
     }
 }
 
@@ -407,6 +515,88 @@ mod tests {
         assert!(di_turno(&sempre, 7, 3 * 60));
         let tutti = [giorno.clone(), notte.clone(), sempre.clone()];
         assert_eq!(reperibili_di_turno(&tutti, 1, 23 * 60).len(), 2, "l'ordine dell'elenco resta");
+    }
+
+    /// Il collaudo fallito del 28-10-2026, in cinque righe.
+    ///
+    /// Il maintainer ha incollato il SID di una **chiave API** nel campo del
+    /// SID **account**, e un `+39` davanti a un numero tedesco. Nessuno dei
+    /// due si poteva capire da quello che l'IDE mostrava: «runtime error».
+    #[test]
+    fn il_collaudo_fallito_adesso_si_spiega() {
+        let chiave_al_posto_dell_account = TwilioConfig {
+            account_sid: "SK00000000000000000000000000000001".into(),
+            auth_token: "x".into(),
+            api_key_sid: String::new(),
+            api_key_secret: String::new(),
+            numero: "+49123456789".into(),
+        };
+        let e = controlla(&chiave_al_posto_dell_account).expect_err("un SK come account non va");
+        assert!(e.contains("chiave API"), "{e}");
+        assert!(e.contains("SID chiave API"), "deve nominare il campo giusto: {e}");
+
+        // Il secondo errore — `+39` davanti a un numero tedesco — passa i
+        // controlli, e **deve passarli**: quindici cifre sono un numero E.164
+        // valido, e quali numeri siano dell'account lo sa solo Twilio. Quello
+        // che il 28-10 mancava non era un controllo: era la frase di Twilio,
+        // che l'IDE buttava via insieme al corpo del 502.
+        let prefisso_doppio = TwilioConfig {
+            account_sid: "AC00000000000000000000000000000001".into(),
+            auth_token: "x".into(),
+            api_key_sid: String::new(),
+            api_key_secret: String::new(),
+            numero: "+390049123456789".into(),
+        };
+        assert!(controlla(&prefisso_doppio).is_ok(), "un E.164 valido non si rifiuta qui");
+        let risposta = r#"{"code":21606,"message":"The From phone number +390049123456789 is not a valid, SMS-capable inbound phone number or short code for your account.","status":400}"#;
+        let m = motivo_twilio(risposta);
+        assert!(m.contains("+390049123456789"), "la frase nomina il numero: {m}");
+        assert!(m.contains("21606"), "{m}");
+    }
+
+    /// La coppia che va in `basic_auth`: la chiave API quando c'è tutta, il
+    /// token altrimenti. **L'URL usa sempre il SID dell'account**, ed è la
+    /// cosa che si sbaglia.
+    #[test]
+    fn la_chiave_api_vince_sul_token_solo_se_e_completa() {
+        let mut cfg = TwilioConfig {
+            account_sid: "AC1".into(),
+            auth_token: "token".into(),
+            api_key_sid: String::new(),
+            api_key_secret: String::new(),
+            numero: "+390000000".into(),
+        };
+        assert_eq!(cfg.credenziali(), ("AC1", "token"));
+        cfg.api_key_sid = "SK1".into();
+        assert_eq!(cfg.credenziali(), ("AC1", "token"), "mezza chiave non è una credenziale");
+        assert!(controlla(&cfg).is_err(), "e si deve dire, invece di provarci");
+        cfg.api_key_secret = "segreto".into();
+        assert_eq!(cfg.credenziali(), ("SK1", "segreto"));
+        assert!(controlla(&cfg).is_ok());
+    }
+
+    /// Twilio risponde JSON. Mostrarlo intero vuol dire non mostrare niente.
+    #[test]
+    fn il_motivo_di_twilio_e_una_frase_non_un_json() {
+        let corpo = r#"{"code":20404,"message":"The requested resource /2010-04-01/Accounts/SK0000/Messages.json was not found","more_info":"https://www.twilio.com/docs/errors/20404","status":404}"#;
+        let m = motivo_twilio(corpo);
+        assert!(m.starts_with("The requested resource"), "{m}");
+        assert!(m.contains("20404"), "il codice serve per cercarlo: {m}");
+        assert!(!m.contains("more_info"), "il JSON non si mostra: {m}");
+        // Un corpo che JSON non è torna com'è, invece di sparire.
+        assert_eq!(motivo_twilio("  boh  "), "boh");
+    }
+
+    #[test]
+    fn e164_accetta_quello_che_accetta_twilio() {
+        assert!(e164("+49123456789"));
+        assert!(e164("+393470000000"));
+        assert!(e164("+390049123456789"), "quindici cifre sono il massimo di E.164, non oltre");
+        assert!(!e164("+3900491234567891"), "sedici cifre: oltre il massimo");
+        assert!(!e164("+39346"), "sotto le otto cifre");
+        assert!(!e164("3470000000"), "senza +");
+        assert!(!e164("+39 347 0000000"), "con gli spazi Twilio non lo accetta");
+        assert!(!e164("+39abc4567"));
     }
 
     /// La firma con l'esempio della documentazione di Twilio («Validating

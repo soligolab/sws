@@ -11,6 +11,44 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 
 ## [Unreleased]
 
+### Fixed
+
+- **Twilio: il primo collaudo con un account vero non è partito, e a schermo c'era «runtime error».** Tre difetti,
+  nessuno dei quali nella logica del 26-10 (turni, firma e TwiML erano giusti): **(a)** a Twilio si può entrare con
+  una **chiave API** (`SK…`) invece che col token, ed è quello che la sua documentazione consiglia — ma **nell'URL
+  di ogni chiamata ci va sempre il SID dell'account** (`AC…`), anche con la chiave, perché la chiave dice chi sei,
+  non su quale account lavori. Un `SK…` nel campo «Account SID» produce `/Accounts/SK…/Messages.json`, che non
+  esiste, e Twilio risponde 404. Ora `TwilioConfig` ha `api_key_sid` e `api_key_secret` (il secondo in
+  `secrets.yaml`) e il controllo rifiuta un `SK…` nel campo sbagliato **nominando il campo giusto**; **(b)**
+  `POST /api/telefono/prova` rispondeva **502**, e il client dell'IDE traduce ogni 502 in «runtime irraggiungibile»
+  **buttando via il corpo** — cioè esattamente la risposta di Twilio. Ora risponde 400, e il corpo arriva; **(c)** di
+  quel corpo si mostrava il JSON intero: ora se ne estraggono `message` e `code`. In più, un controllo E.164 sul
+  mittente e sul destinatario. Il prefisso doppio (`+39` davanti a un numero tedesco) **non** si può prendere da
+  qui — quindici cifre sono un numero valido — e lo dice Twilio con l'errore 21606, che adesso si legge.
+  Vincolo che resta, dichiarato nell'interfaccia: la firma delle richieste **in arrivo** da Twilio è calcolata
+  sempre col token dell'account, mai con una chiave API, quindi le conferme dal telefono vogliono il token.
+- **«Connetti» verso un pannello abbinato al cloud diceva solo «Target returned 401 Unauthorized on /api/projects».**
+  Il pannello stava rispondendo `{"error":"abbinamento_richiesto","detail":"questo pannello non ha ancora utenti…"}`
+  e l'IDE buttava via la frase. Un pannello abbinato al cloud e senza utenti propri **non è raggiungibile dalla LAN
+  per scelta**, non per guasto: ora lo dice, e dice da dove passare. Misurato sul WP630 il 28-10-2026.
+
+- **Il relay WebSocket rientra da solo quando il pannello rifiuta la sessione.** `/ws/tags`,
+  `/ws/alarms` e `/ws/logs` verso un pannello remoto prendevano il 401 con un token morto, chiudevano con
+  «non ritentare» (codice 4404) e l'IDE restava muto **col pallino verde**. Non è un caso raro: è tutte le
+  mattine — il WP630 si spegne la sera, al riavvio le sessioni non ci sono più, e il token del giorno prima
+  non vale niente. E `/ws/tags` non è solo il canale che legge: è anche quello che **scrive**, quindi un
+  relay chiuso vuol dire niente dati live *e* nessun comando. Ora, sul 401, il relay rientra con le
+  credenziali del «Connetti» (`rinnova_sessione` in `remote.rs`, già usata dal deploy dal 20-10) e riapre il
+  canale col token nuovo; i tre canali si aprono insieme, quindi chi arriva secondo riusa il token che il
+  primo ha già rinnovato invece di rifare il login. Visto nel log del cloud il 28-10-2026:
+  `ws relay: collegamento rifiutato — il runtime remoto ha rifiutato: 401` verso `wp630-ufficio`, ripetuto.
+- **Quando il rientro non è possibile, l'IDE lo dice in barra.** Due cose mancavano: il 401 cadeva nel
+  messaggio generico («il runtime remoto ha rifiutato il collegamento: 401»), che non nomina nessun rimedio;
+  e `autenticato` — il campo di `GET /api/remote/status` che dice «il collegamento c'è ma non vale più» — lo
+  guardava **solo** la scheda Connessione, cioè un posto dove si va apposta. Ora il motivo nomina il rimedio
+  («sessione scaduta sul pannello: rifai «Connetti»») e la pastiglia del pannello collegato in testata
+  diventa rossa con `⚠`, col rimedio nel tooltip.
+
 ### Added
 
 - **Ogni scoperta dice chi la esegue** (piano `docs/archive/2026-10-28-cosa-sta-succedendo-nell-ide.md`, punto 1):

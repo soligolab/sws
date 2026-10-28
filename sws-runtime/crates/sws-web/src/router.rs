@@ -10174,19 +10174,19 @@ mod prove_token_twilio {
     #[test]
     fn il_token_mascherato_o_vuoto_resta_quello_salvato() {
         let salvata = sws_core::NotificationConfig {
-            twilio: Some(sws_core::TwilioConfig { account_sid: "AC".into(), auth_token: "vero".into(), numero: "+39".into() }),
+            twilio: Some(sws_core::TwilioConfig { account_sid: "AC".into(), auth_token: "vero".into(), api_key_sid: String::new(), api_key_secret: String::new(), numero: "+39".into() }),
             ..Default::default()
         };
         for arriva in [MASKED_PASSWORD, ""] {
             let mut c = sws_core::NotificationConfig {
-                twilio: Some(sws_core::TwilioConfig { account_sid: "AC".into(), auth_token: arriva.into(), numero: "+39".into() }),
+                twilio: Some(sws_core::TwilioConfig { account_sid: "AC".into(), auth_token: arriva.into(), api_key_sid: String::new(), api_key_secret: String::new(), numero: "+39".into() }),
                 ..Default::default()
             };
             ripristina_token_twilio(&mut c, Some(&salvata));
             assert_eq!(c.twilio.unwrap().auth_token, "vero", "«{arriva}» non deve cancellare il token");
         }
         let mut nuovo = sws_core::NotificationConfig {
-            twilio: Some(sws_core::TwilioConfig { account_sid: "AC".into(), auth_token: "nuovo".into(), numero: "+39".into() }),
+            twilio: Some(sws_core::TwilioConfig { account_sid: "AC".into(), auth_token: "nuovo".into(), api_key_sid: String::new(), api_key_secret: String::new(), numero: "+39".into() }),
             ..Default::default()
         };
         ripristina_token_twilio(&mut nuovo, Some(&salvata));

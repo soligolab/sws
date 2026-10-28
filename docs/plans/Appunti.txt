@@ -108,3 +108,13 @@ Annoto di seguito, uno per punto, le cose che devono essere verificate e trasfor
   pesante, i due rimedi veri vogliono il backend: chiedere solo i campioni nuovi invece di
   rileggere la finestra intera, e una richiesta sola per piu' tag invece di una per tag. Piano
   archiviato: docs/archive/2026-10-28-cosa-sta-succedendo-nell-ide.md, punto 5.
+
+- Se faccio "Save as..." mi sembra che crei una copia del progetto ma a quel punto viene copiato 
+  anche il link al repository.
+  Succede quindi che mi ritorovo due progetti diversi che fanno riferimento ad un unico repository.
+  Durante il "Save as...", nel momento in cui il repository è inizializzato, dovrei avere l'opzione
+  per usare un nuovo repository, per non usare nessun prepository e, che è la mia scelta preferenziale, 
+  vorrei l'opzione per creare un branch con un nome specifico.
+  Analizziamo le implicazioni, in particolare dell'ultima opzione, l'idea è che se da un progetto ne derivo 
+  delle varianti posso così rapidamente importare le differenze da un branch all'altro ( di solito il 
+  "Save as..." lo uso per fare una copia di prova, test o per gestire impianti simili ad uno madre.
