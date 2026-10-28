@@ -169,7 +169,7 @@ Verificato uguale su un runtime normale. Il browser disegna la pagina lo stesso.
 proposito: con un 200 un bundle davvero mancante tornerebbe HTML con stato 200, e il browser
 proverebbe a eseguirlo come JavaScript — un errore molto più difficile da leggere di un 404.
 
-**Versione in esecuzione: `2.23.3-amd64`**, dal 27-10-2026 (sera): una versione vera, non più un tag di
+**Versione in esecuzione: `2.23.4-amd64`**, dalla notte fra il 27 e il 28-10-2026: una versione vera, non più un tag di
 commit. Dentro: il tubo nello stesso fotogramma, la pagina Prestazioni, le due correzioni dello slider, lo storico
 che scrive a lotti e i thread con un nome e una priorità. Prima `195e8c72-amd64` dalla notte del 27-10,
 `ed9d47b5-amd64` dalla sera del 26-10, e `2.23.0-amd64` dallo stesso giorno.
