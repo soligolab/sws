@@ -19,7 +19,10 @@ nessun cookie: il browser conserva in `localStorage` il gettone di sessione e al
 
 1. **Solo imprese e professionisti** (B2B): il Codice del Consumo non si applica, e per questo c'è la dichiarazione al
    punto 3 delle condizioni.
-2. **Prova gratuita, «così com'è», senza livelli di servizio**, con preavviso di 30 giorni per modifiche e chiusura.
+2. **Strumento in fase di sviluppo, offerto gratis a scopo di sviluppo e test**, a chi vuole contribuire a trovarne i
+   difetti; nessuna responsabilità sul suo uso e sul suo funzionamento finché la fase di sviluppo non si chiude, nei
+   limiti di legge. È la seconda versione delle condizioni (29-10-2026): la prima, «prova gratuita» con preavviso di
+   30 giorni per ogni modifica, è nella storia di Git.
 3. **Assistente IA solo con la chiave dell'utente**: la piattaforma non manda progetti a un fornitore di IA a proprio
    nome. Anthropic e Moonshot/Kimi compaiono quindi solo fra i servizi che l'utente attiva.
 4. **Account inattivi**: avviso dopo 12 mesi senza accessi, cancellazione 30 giorni dopo.
@@ -34,13 +37,21 @@ nessun cookie: il browser conserva in `localStorage` il gettone di sessione e al
 
 ## Punti da verificare con chi rivede
 
+0. **L'esclusione di responsabilità** (punto 8 delle condizioni). Il maintainer vuole dichiarare che lo strumento è
+   divulgato a scopo di sviluppo e test e che non risponde né del suo uso né del suo funzionamento finché la fase di
+   sviluppo non è chiusa. Il testo lo dice nella forma più ampia che ci sembra sostenibile: esclusione totale, ma con
+   la salvezza di dolo e colpa grave, che l'art. 1229 c.c. non permette di escludere. Funziona fra professionisti (punto
+   3); verso i consumatori non reggerebbe. Va bene così? Serve altro, per esempio sulla gratuità o sulla natura di
+   «programma di test»?
+
 1. **Ruolo per i dati dentro i progetti.** Abbiamo scritto che l'utente è titolare e Soligonet responsabile (art. 28),
    con le clausole minime al punto 8 delle condizioni invece di un accordo separato. Va bene così, o serve un DPA a
    parte?
-2. **Approvazione specifica (artt. 1341-1342 c.c.).** Il punto 17 elenca le clausole da approvare: alla registrazione
+2. **Approvazione specifica (artt. 1341-1342 c.c.).** Il punto 14 elenca le clausole da approvare: alla registrazione
    ci sarà una **seconda casella**, distinta da quella di accettazione. È sufficiente online, o serve altro?
-3. **Tetto della responsabilità** (punto 12.3): l'importo è un segnaposto.
-4. **Cessione d'uso dei contenuti** (punto 7): è abbastanza stretta, o troppo?
+3. **Le segnalazioni** (punto 6): l'utente ci permette di usarle liberamente per sviluppare SWS. È formulato bene?
+4. **Azzerare progetti e account senza preavviso** (punto 4): serve allo sviluppo; è compatibile con gli obblighi di
+   responsabile del trattamento del punto 7?
 5. **Servizi che l'utente attiva** (punto 9 delle condizioni, punto 4 e 5 dell'informativa): Twilio e il gateway del
    cloud ricevono anche le risposte dei reperibili («premi 1», «OK»). È corretto descriverli solo come servizi
    dell'utente?
@@ -52,9 +63,8 @@ nessun cookie: il browser conserva in `localStorage` il gettone di sessione e al
 |---|---|---|
 | tutti e due | [RAGIONE SOCIALE], [SEDE], [P.IVA], [EMAIL DI CONTATTO] | da compilare |
 | condizioni §5 | [EMAIL SICUREZZA] per le segnalazioni di vulnerabilità | da decidere: la stessa di contatto, o `security@` (c'entra anche il CRA) |
-| condizioni §4 | numero di progetti e quota di spazio | oggi 3 progetti; la quota è quella della console |
-| condizioni §11 | licenza e marchi | dopo la decisione sulla licenza |
-| condizioni §12.3 | tetto della responsabilità | da decidere |
+| condizioni §5 | numero di progetti e quota di spazio | oggi 3 progetti; la quota è quella della console |
+| condizioni §10 | licenza e marchi | dopo la decisione sulla licenza |
 | informativa §6 | conservazione del **registro delle attività** | oggi non ha rotazione: va decisa (proposta: 12 mesi) e poi realizzata |
 | informativa §6 | conservazione dei **registri tecnici** | oggi il log di Traefik va nel journal del VPS senza un limite esplicito: va fissato (proposta: 30 giorni) |
 | informativa §6 | **copie di sicurezza** del server | da verificare cosa si fa oggi sul VPS, e per quanto |

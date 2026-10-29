@@ -7,7 +7,8 @@
 Versione [N] — aggiornata al [DATA]
 
 Questa informativa spiega come trattiamo i dati personali di chi si registra e usa il servizio SWS all'indirizzo
-**sws.soligo.net**, ai sensi dell'art. 13 del Regolamento (UE) 2016/679 («**GDPR**»).
+**sws.soligo.net**, ai sensi dell'art. 13 del Regolamento (UE) 2016/679 («**GDPR**»). Il servizio è in fase di sviluppo
+ed è offerto gratis a scopo di test (vedi le condizioni d'uso): questo non cambia i tuoi diritti sui dati.
 
 ## 1. Titolare del trattamento
 
@@ -51,6 +52,7 @@ Non raccogliamo dati da altre fonti, e non chiediamo categorie particolari di da
 |---|---|
 | Creare e gestire l'account, farti accedere, erogare il servizio | esecuzione del contratto (art. 6.1.b) |
 | Mandarti codici di verifica, PIN e comunicazioni sul servizio (manutenzioni, modifiche delle condizioni, avviso di inattività) | esecuzione del contratto (art. 6.1.b) |
+| Ricevere e gestire le tue segnalazioni di difetti, e risponderti | esecuzione del contratto (art. 6.1.b) |
 | Proteggere il servizio: limitare i tentativi di accesso, ricostruire gli eventi, prevenire abusi | legittimo interesse alla sicurezza del servizio e degli altri utenti (art. 6.1.f) |
 | Rispettare obblighi di legge e richieste delle autorità | obbligo legale (art. 6.1.c) |
 

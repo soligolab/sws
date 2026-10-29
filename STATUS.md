@@ -34,11 +34,11 @@ cambiano il runtime).
 
 ### Da fare
 
-0. **Aperto, dopo**: il ramo `feat/anteprima-prima-pagina` (ramo D: la miniatura della pagina iniziale nell'elenco dei
-   progetti), da vedere a schermo sulla 8460 (§A-decies) e poi squash. Su `main`, non pushati: i piani della
-   disponibilità e delle card in archivio (`6ef01de5`) e la **bozza di condizioni d'uso e informativa privacy** in
-   `docs/legale/` (`7168dfaa`), da far rivedere a un professionista; la licenza è il seme
-   `2026-10-29-licenza-del-software.md`. **Twilio**: due errori nuovi annotati nel piano SMS, da vedere dopo.
+0. **Fatto dopo**: la miniatura della pagina iniziale nell'elenco dei progetti (ramo D, approvata a schermo, squash
+   `adc65fc9`); i piani della disponibilità e delle card in archivio; la **bozza di condizioni d'uso e informativa
+   privacy** in `docs/legale/` — seconda versione: strumento in sviluppo, gratis, a scopo di test — da far rivedere a
+   un professionista; la licenza è il seme `2026-10-29-licenza-del-software.md`. **Twilio**: due errori nuovi annotati
+   nel piano SMS, da vedere dopo.
 1. **Collaudi rimasti**: `docs/COLLAUDI_IN_SOSPESO.md` §A-septies (la disponibilità dal vivo), §A-octies (card),
    §A-nonies (faceplate) — il maintainer li ha visti nell'IDE, le caselle restano da spuntare.
 2. **Release 2.23.7** con tutto questo (le Novità sono già nel blocco 2.23.7); poi il gateway del VPS.

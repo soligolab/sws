@@ -324,7 +324,9 @@ la subisce non lo segnala — se ne va.
 la decisione 17 del piano cloud li vuole già. Serve il testo — anche breve — prima di aprire.
 
 > **Bozza scritta il 29-10-2026** dalle risposte del maintainer: [`docs/legale/`](../legale/LEGGIMI.md), condizioni
-> d'uso e informativa, con le scelte (B2B, prova gratuita «così com'è», IA solo con la chiave dell'utente, account
+> d'uso e informativa, con le scelte (B2B, strumento in sviluppo offerto gratis a scopo di test a chi vuole aiutare a
+> trovarne i difetti, senza responsabilità sul suo uso e funzionamento nei limiti di legge — seconda versione dello
+> stesso giorno —, IA solo con la chiave dell'utente, account
 > inattivi cancellati dopo 12 mesi + 30 giorni, `privacy@soligo.net`, legge italiana e foro della sede, italiano e
 > inglese) e i punti da far verificare. **Va rivista da una persona competente** prima di pubblicarla. Il `LEGGIMI`
 > elenca anche quello che il codice del ramo C deve fare perché i testi siano veri (le due caselle alla registrazione,
@@ -338,7 +340,7 @@ accanto a «accedi con la password», e la casella «ricordami per 30 giorni».
 
 ## Ramo D — `feat/anteprima-prima-pagina`
 
-> **FATTO il 29-10-2026, da vedere a schermo.** Le due decisioni del maintainer: la miniatura **sta nel progetto**
+> **FATTO e approvato a schermo il 29-10-2026.** Le due decisioni del maintainer: la miniatura **sta nel progetto**
 > (`anteprima.png`, fuori da Git e dal deploy, segue rinomina, duplica e archivio; nel cloud è l'unico posto in cui il
 > container del progetto scrive e il gateway legge), **400 px di larghezza e al massimo 256 KB**. E una terza: è la
 > **pagina iniziale**, con la sua cornice. La disegna l'IDE dopo ogni salvataggio in cui pagina iniziale o cornice
