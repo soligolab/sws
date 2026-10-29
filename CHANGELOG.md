@@ -71,6 +71,14 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
   quelli dei suoi dispositivi, e la morte di un dispositivo solo i suoi. Lo STATE dell'host aveva il topic della 3.0
   e il contenuto della 2.x (`ONLINE`): ora è il JSON della 3.0, `{"online", "timestamp"}`, con lo stesso istante nel
   testamento e nella nascita.
+- **Nuovo progetto, la riga «Verrà creato…»**: senza cartella scelta incollava la scritta tradotta come se fosse un
+  percorso («Predefinita (la cartella dei progetti)/impianto»). Ora dice «nella cartella dei progetti» o «nella
+  cartella dell'azienda X», col nome; con una cartella scelta, il percorso vero.
+- **Viewer LVGL, un trend guasto non riempie più il journal**: lo storico fallito scriveva una riga ogni 2 s (43 200 al
+  giorno per widget, misurato sul WP630 il 22-10-2026). Il ritmo delle richieste non cambia; il log sì: la prima
+  subito, poi sempre più di rado fino a una ogni 30 s, con quante ne ha taciute, e una riga quando torna.
+- **Commenti che dicevano il falso** (`projects.rs`, `project_registry.rs`, `NuovoProgetto.tsx`): le rotte dei progetti
+  non sono pre-auth dal 06-10-2026, e un progetto non nasce più fuori dalla cartella dei progetti da Q46.
 
 ## [2.23.6] — 2026-10-28
 

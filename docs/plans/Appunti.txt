@@ -27,24 +27,6 @@ Annoto di seguito, uno per punto, le cose che devono essere verificate e trasfor
   giro dell'IDE in inglese piu' le lingue dei contenuti (viewer in `de`, traduzione automatica,
   email, Telegram in `es`, e la chiave Google che deve sopravvivere a un ricaricamento).
 
-- Progetti, create_project: l'`azienda_id` arriva a fiducia. La rotta e' dietro require_auth, ma
-  non controlla che l'utente APPARTENGA all'azienda che nomina, mentre risolvi_progetto quel
-  controllo lo fa (appartenenze_di + visibilita, projects.rs). Trovato il 22-10-2026 chiudendo il
-  difetto del parent_path: quello e' chiuso (destinazione e azienda scelta devono coincidere),
-  questo no. Serve l'estrattore AuthUser su create_project e la stessa coppia di funzioni.
-
-- Commenti nel codice che dicono il falso, trovati misurando i piani di settembre (22-10-2026):
-  projects.rs sopra browse_dirs e create_dir li dichiara «pre-auth», ma sono dietro require_auth
-  dal 06-10 e check_rotte_preauth.sh verifica attivamente il contrario; project_registry.rs
-  promette ancora progetti «in una cartella scelta dal maintainer (Documenti, una condivisione di
-  backup)», impossibili da Q46; WelcomeScreen.tsx dice «no whitelist», idem.
-
-- WelcomeScreen: il campo «Cartella di destinazione» non dice dove finira' il progetto. Lasciandolo
-  vuoto l'anteprima legge «Verra' creato in: Predefinita (la cartella dei progetti)/impianto» —
-  concatena la STRINGA TRADOTTA come se fosse un percorso. Nessuna rotta restituisce la radice
-  all'editor. Era una decisione del 18-09 («una banda dice dove sei e come cambiarlo») mai
-  realizzata, e il seme che la conteneva e' stato archiviato il 22-10-2026.
-
 - MCP: se un giorno debba anche SCRIVERE, e non solo leggere. Dal 22-10-2026 `sws-runtime --mcp`
   espone undici strumenti di lettura e nessuno che scrive (piano archiviato
   2026-09-18-mcp-editing-con-ia.md). Il no di oggi non e' un ostacolo tecnico: scrivere vorrebbe
@@ -60,14 +42,6 @@ Annoto di seguito, uno per punto, le cose che devono essere verificate e trasfor
   solo le vecchie (aggiornamento.rs, intorno a riga 221). Toglierle alleggerisce immagine e
   registry; si puo' fare quando quelle versioni non esistono piu' da nessuna parte. Dal 22-10-2026
   non pesano piu' nel journal dei pannelli, perche' nei container non entrano affatto.
-
-- Il viewer LVGL interroga lo storico ogni 2 secondi e, se la lettura fallisce, scrive una riga a
-  ogni giro SENZA attenuazione: sws-lvgl-viewer/src/client.rs, intorno a riga 1034, dentro il ramo
-  Err di fetch_history_con. Un solo widget trend guasto fa 43 200 righe di journal al giorno. I
-  WebSocket li' accanto l'attenuazione ce l'hanno gia' (riconnessione.rs, da 1 a 30 secondi che
-  raddoppiano). Trovato cercando il rumore nel journal del WP630 il 22-10-2026: non era quello il
-  difetto segnalato, ma e' lo stesso genere.
-
 
 - Il corpo del tubo si rasterizza da un SVG a ogni passo del moto: 12 ms per ridisegno sul WP630,
   misurati il 27-10-2026 con la pagina Prestazioni aperta mentre la pompa scorreva (24 ridisegni
@@ -94,7 +68,6 @@ Annoto di seguito, uno per punto, le cose che devono essere verificate e trasfor
   Sul percorso DRM c'e' un secondo sospetto gia' scritto nel piano «dove se ne va il tempo»:
   flush_rgb888 riscrive il buffer un byte alla volta.
 
-
 - Ricontare le richieste /api/history dal cloud, perche' il rimedio del 28-10-2026 non e' mai
   stato misurato dopo. La misura di partenza c'e': ~17 richieste al secondo da una sola scheda
   del browser sul progetto aperto in sws.soligo.net, alcune da 24 ore di storico ogni due
@@ -118,25 +91,6 @@ Annoto di seguito, uno per punto, le cose che devono essere verificate e trasfor
   Analizziamo le implicazioni, in particolare dell'ultima opzione, l'idea è che se da un progetto ne derivo 
   delle varianti posso così rapidamente importare le differenze da un branch all'altro ( di solito il 
   "Save as..." lo uso per fare una copia di prova, test o per gestire impianti simili ad uno madre.
-
-- La versione del runtime non si vede da nessuna parte, ne' nella schermata di accesso ne' a
-  progetto aperto. Chiesta dal maintainer il 28-10-2026 («per le prossime versioni, sarebbe
-  comodo vedere sia nella finestra di login https://sws.soligo.net/ sia una volta aperto il
-  progetto, la versione del runtime in uso»). Misurato lo stesso giorno: costa pochissimo,
-  perche' il dato e' gia' in mano a tutti e due i posti.
-  A PROGETTO APERTO non serve niente di nuovo: GET /api/system torna gia' `runtime_version`, e
-  RuntimeCtrl.tsx la mette gia' in uno stato suo (`setRuntimeVersion`) che poi NESSUNO disegna.
-  E' solo da mostrare — il posto naturale e' accanto al marchio in testata o nel menu.
-  NELLA SCHERMATA DI ACCESSO serve un campo in piu' nella risposta di GET /api/identita/stato,
-  che e' gia' pre-auth, e' gia' la prima cosa che il frontend chiede prima di decidere cosa
-  mostrare, e il cui commento in router.rs dice esplicitamente «una rotta in piu' sarebbe un
-  secondo viaggio per un booleano» — cioe' il posto e' quello. NON serve una rotta nuova, quindi
-  non si tocca l'elenco chiuso di check_rotte_preauth.sh (sedici percorsi dichiarati).
-  LA DECISIONE DA PRENDERE, e che non va presa da chi implementa: dire la versione esatta PRIMA
-  del login la dice anche a chi non e' entrato, cioe' a chi cerca quali difetti noti provare. Per
-  un PoC dietro un login e' poco, ma e' una scelta del maintainer, non un dettaglio. Le vie sono
-  tre: versione piena sempre; versione piena solo dopo il login e in accesso niente; oppure in
-  accesso solo la minore (2.23) e la patch dopo. Da decidere quando si fa il lavoro.
 
 - Un test che fallisce una volta su sei: tests/abbinaPannelloCloud.test.tsx, caso «si abbina col
   solo codice, poi riepilogo e Rinomina». Visto il 28-10-2026 in una corsa intera di vitest

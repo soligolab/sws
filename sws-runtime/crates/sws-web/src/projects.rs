@@ -1,8 +1,9 @@
 //! Multi-project endpoints — list / create / open / close / upload-zip.
 //!
-//! Pre-auth: these endpoints run outside the auth middleware so the
-//! WelcomeScreen can show a project picker without a session token. Once
-//! a project is opened, the per-project AuthState gates everything else.
+//! Dal 06-10-2026 stanno **tutti dietro `require_auth`** (Fase 2 del tronco
+//! cloud): la WelcomeScreen arriva dopo il login, non prima. Prima questo
+//! commento li diceva pre-auth, ed era falso da allora — `check_rotte_preauth.sh`
+//! verifica il contrario a ogni giro (corretto il 29-10-2026).
 
 use crate::global_scripts::GlobalScriptSupervisor;
 use crate::notifications::NotificationSupervisor;
@@ -301,9 +302,9 @@ pub struct CreateProjectRequest {
     #[serde(default)]
     pub template: Option<String>,
     /// Optional absolute parent directory to create the project under, instead
-    /// of the default `projects_root` (e.g. the maintainer's Documents folder,
-    /// or a backup share). Must be an absolute path; created if missing. When
-    /// absent, behavior is 100% unchanged from before this field existed.
+    /// of the default `projects_root`. Must be an absolute path that already
+    /// exists **inside** `projects_root` (Q46), and inside the chosen company's
+    /// folder (22-10-2026). When absent, the company's folder.
     #[serde(default)]
     pub parent_path: Option<String>,
     /// L'azienda a cui il progetto appartiene. Il server ne ricava la
@@ -406,8 +407,8 @@ pub fn safe_project_name(name: &str) -> Result<String, &'static str> {
 // ── Handlers ─────────────────────────────────────────────────────────────────
 
 /// `GET /api/projects` — list subfolders of `projects_root` that contain a
-/// `project.yaml`. Pre-auth so the WelcomeScreen can populate without a
-/// session.
+/// `project.yaml`, filtered by the caller's companies. Behind `require_auth`
+/// like the rest of this module.
 pub async fn list_projects(
     State(s): State<AppState>,
     chi: Option<axum::Extension<crate::router::AuthUser>>,
@@ -942,8 +943,8 @@ pub async fn create_project(
         Err(msg) => return (StatusCode::BAD_REQUEST, msg).into_response(),
     };
 
-    // Resolve the parent directory: default projects_root (unchanged behavior)
-    // or a maintainer-chosen absolute path (Documents folder, backup share...).
+    // Resolve the parent directory: the company's folder, or a chosen
+    // absolute path that must stay inside `projects_root` (Q46).
     let parent_dir: PathBuf = match req.parent_path.as_deref().filter(|p| !p.trim().is_empty()) {
         Some(p) => {
             let parent = PathBuf::from(p);
@@ -2235,10 +2236,9 @@ async fn cartella_dell_azienda(
 /// `projects_root/<name>` location.
 /// `DELETE /api/projects/:name` — remove a project. For a root-scoped project
 /// this deletes the folder on disk (today's behavior); for an external
-/// project (custom parent_path, e.g. the maintainer's Documents folder or a
-/// backup share) it only de-registers it from the known-projects list —
-/// files the maintainer deliberately placed outside the editor are never
-/// touched.
+/// project — registered before Q46 (09-09-2026), when a parent path could be
+/// anywhere — it only de-registers it from the known-projects list: files
+/// placed outside the projects folder are never touched.
 /// Query params for `DELETE /api/projects/:name`.
 #[derive(Deserialize, Default)]
 pub struct DeleteQuery {
@@ -2658,13 +2658,9 @@ pub struct BrowseDirsResponse {
 
 /// `GET /api/fs/browse-dirs?path=<abs|absent>` — backend for the "choose a
 /// destination folder" UI shown when creating a project. Lists only the
-/// subdirectories of `path` (or `projects_root` itself when absent). Stays
-/// pre-auth like the rest of the project-lifecycle endpoints (the picker is
-/// reachable from the WelcomeScreen before any session exists), but since
-/// Q46 (2026-09-09) navigation is clamped to `projects_root` via
-/// `dentro_radice` below — this docstring used to say "no whitelist by
-/// design, free navigation", which stopped being true once that restriction
-/// was added and was never updated to match.
+/// subdirectories of `path` (or `projects_root` itself when absent). Behind
+/// `require_auth` (06-10-2026), and since Q46 (2026-09-09) navigation is
+/// clamped to `projects_root` via `dentro_radice` below.
 pub async fn browse_dirs(State(s): State<AppState>, Query(q): Query<BrowseDirsQuery>) -> Response {
     let radice: &std::path::Path = s.projects_root.as_ref();
     let richiesto: PathBuf = match q.path.as_deref().filter(|p| !p.trim().is_empty()) {
@@ -2762,11 +2758,9 @@ fn resolve_new_dir(parent: &str, name: &str) -> Result<PathBuf, &'static str> {
 }
 
 /// `POST /api/fs/mkdir` — create one directory, for the "new folder" button in
-/// the destination picker. Pre-auth like `browse_dirs` and the rest of the
-/// project-lifecycle group: the picker is reachable from the WelcomeScreen
-/// before any session exists, which is precisely when the first project (and
-/// its folder) gets created. Da Q46 (2026-09-09) né questa né `parent_path`
-/// escono dalla cartella dei progetti: pre-auth resta, ma il perimetro è quello.
+/// the destination picker. Behind `require_auth` like `browse_dirs`
+/// (06-10-2026). Da Q46 (2026-09-09) né questa né `parent_path` escono dalla
+/// cartella dei progetti.
 pub async fn create_dir(State(s): State<AppState>, Json(req): Json<CreateDirRequest>) -> Response {
     let target = match resolve_new_dir(&req.parent, &req.name) {
         Ok(p) => p,
@@ -2876,7 +2870,7 @@ struct UploadManifest {
 /// - Body: raw `application/zip` bytes.
 /// - Query param `?name=<override>` is optional; falls back to `manifest.json`.
 /// - Returns 201 `{"name": "..."}` on success, 409 if the folder exists.
-/// - Pre-auth: no session token required.
+/// - Behind `require_auth`, like the rest of this module (06-10-2026).
 pub async fn upload_project_zip(
     State(s): State<AppState>,
     Query(q): Query<UploadQuery>,
@@ -2964,8 +2958,8 @@ pub async fn upload_project_zip(
         Err(msg) => return (StatusCode::BAD_REQUEST, msg).into_response(),
     };
 
-    // 3. Resolve the parent directory (default projects_root, or a
-    //    maintainer-chosen absolute path), then reject if the folder already
+    // 3. Resolve the parent directory (default projects_root, or a chosen
+    //    absolute path inside it — Q46), then reject if the folder already
     //    exists — include the real name so the client can display a
     //    confirmation dialog before deleting + re-uploading.
     let parent_dir: PathBuf = match q.parent_path.as_deref().filter(|p| !p.trim().is_empty()) {

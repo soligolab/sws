@@ -1033,6 +1033,7 @@ pub fn spawn_history_poller(
     let shared_bg = shared.clone();
     rt_handle.spawn(async move {
         let mut first = true;
+        let mut voce = VoceAttenuata::nuova();
         let mut interval = tokio::time::interval(std::time::Duration::from_secs(2));
         loop {
             interval.tick().await;
@@ -1042,12 +1043,17 @@ pub fn spawn_history_poller(
             first = false;
             match fetch_history_con(&base_url, &tag, from_ms, now_ms, do_backfill, true).await {
                 Ok(samples) => {
+                    if voce.riuscito() {
+                        eprintln!("[trend] storico di '{tag}' di nuovo raggiungibile");
+                    }
                     let mut guard = shared_bg.lock().unwrap_or_else(|e| e.into_inner());
                     guard.0 = guard.0.wrapping_add(1);
                     guard.1 = samples;
                 }
                 Err(e) => {
-                    eprintln!("[trend] storico di '{tag}' fallito: {e} — riprovo al prossimo poll");
+                    if let Some(n) = voce.errore(std::time::Instant::now()) {
+                        eprintln!("[trend] storico di '{tag}' fallito: {e} — riprovo al prossimo poll{}", taciuti(n));
+                    }
                 }
             }
         }
@@ -1131,6 +1137,7 @@ pub fn spawn_trend_poller(
     let bg = feed.clone();
     rt_handle.spawn(async move {
         let mut primo = true;
+        let mut voce = VoceAttenuata::nuova();
         let mut gen_servita: Option<u64> = None;
         loop {
             if Arc::strong_count(&bg) == 1 {
@@ -1163,7 +1170,9 @@ pub fn spawn_trend_poller(
                                 secchi.push(Some((b, v)));
                             }
                             Err(e) => {
-                                eprintln!("[trend] storico a secchi di '{tag}' fallito: {e}");
+                                if let Some(n) = voce.errore(std::time::Instant::now()) {
+                                    eprintln!("[trend] storico a secchi di '{tag}' fallito: {e}{}", taciuti(n));
+                                }
                                 ok = false;
                             }
                         },
@@ -1173,7 +1182,9 @@ pub fn spawn_trend_poller(
                                 secchi.push(None);
                             }
                             Err(e) => {
-                                eprintln!("[trend] storico di '{tag}' fallito: {e}");
+                                if let Some(n) = voce.errore(std::time::Instant::now()) {
+                                    eprintln!("[trend] storico di '{tag}' fallito: {e}{}", taciuti(n));
+                                }
                                 ok = false;
                             }
                         },
@@ -1186,6 +1197,9 @@ pub fn spawn_trend_poller(
                 };
                 // Un giro fallito tiene i dati di prima, come il web.
                 if ok {
+                    if voce.riuscito() {
+                        eprintln!("[trend] storico di nuovo raggiungibile");
+                    }
                     primo = false;
                     gen_servita = Some(req.gen);
                     let mut g = bg.risposta.lock().unwrap_or_else(|e| e.into_inner());
@@ -1436,6 +1450,51 @@ fn prossima_attesa(a: std::time::Duration) -> std::time::Duration {
     } else {
         doppia
     }
+}
+
+/// Il log di un poller che fallisce sempre (29-10-2026, da `Appunti.txt`): la
+/// stessa attenuazione dei WebSocket, ma sul **log** e non sul ritmo — lo
+/// storico si chiede comunque ogni 2 s, perché quando torna deve tornare
+/// subito. Prima ogni giro fallito scriveva una riga: un trend guasto faceva
+/// 43 200 righe di journal al giorno (misurato sul WP630 il 22-10-2026).
+/// Adesso la prima subito, poi dopo 1, 2, 4… fino a 30 s, con quante ne ha
+/// taciute; e una riga quando torna.
+struct VoceAttenuata {
+    taciuti: u32,
+    prossima: Option<std::time::Instant>,
+    attesa: std::time::Duration,
+}
+
+impl VoceAttenuata {
+    fn nuova() -> Self {
+        Self { taciuti: 0, prossima: None, attesa: ATTESA_MIN }
+    }
+
+    /// Un errore: `Some(taciuti prima)` se va scritto, `None` se si tace.
+    fn errore(&mut self, adesso: std::time::Instant) -> Option<u32> {
+        if let Some(t) = self.prossima {
+            if adesso < t {
+                self.taciuti += 1;
+                return None;
+            }
+        }
+        let taciuti = std::mem::take(&mut self.taciuti);
+        self.prossima = Some(adesso + self.attesa);
+        self.attesa = prossima_attesa(self.attesa);
+        Some(taciuti)
+    }
+
+    /// Un giro riuscito: si riparte da capo. Vero se prima c'era un guasto,
+    /// cioè se vale la pena dire che è tornato.
+    fn riuscito(&mut self) -> bool {
+        let guasto = self.prossima.is_some();
+        *self = Self::nuova();
+        guasto
+    }
+}
+
+fn taciuti(n: u32) -> String {
+    if n == 0 { String::new() } else { format!(" ({n} errori uguali taciuti)") }
 }
 
 type FlussoWs =
@@ -1835,9 +1894,36 @@ mod tests_riconnessione {
     }
 
     use super::{
-        primo_id_dell_albero, prossima_attesa, NavPaginaDati, NavPagineDati, ATTESA_MAX, ATTESA_MIN,
+        primo_id_dell_albero, prossima_attesa, NavPaginaDati, NavPagineDati, VoceAttenuata,
+        ATTESA_MAX, ATTESA_MIN,
     };
     use std::time::Duration;
+
+    /// Un trend guasto scriveva una riga ogni 2 s, per sempre. Adesso la
+    /// prima subito, poi sempre più di rado, con quante ne ha taciute.
+    #[test]
+    fn il_log_di_un_poller_guasto_si_attenua() {
+        let t0 = std::time::Instant::now();
+        let s = |ms: u64| t0 + Duration::from_millis(ms);
+        let mut v = VoceAttenuata::nuova();
+        assert_eq!(v.errore(s(0)), Some(0), "la prima si scrive");
+        assert_eq!(v.errore(s(500)), None);
+        assert_eq!(v.errore(s(1000)), Some(1), "dopo 1 s, con quella taciuta");
+        assert_eq!(v.errore(s(2000)), None);
+        assert_eq!(v.errore(s(3000)), Some(1), "poi dopo 2 s");
+        // A regime una riga ogni 30 s al massimo: su un giorno di poll ogni 2 s
+        // sono meno di 3 000 righe invece di 43 200.
+        let mut scritte = 0;
+        for i in 2..43_200u64 {
+            if v.errore(s(i * 2000)).is_some() {
+                scritte += 1;
+            }
+        }
+        assert!(scritte < 3_000, "{scritte}");
+        assert!(v.riuscito(), "tornato: si dice");
+        assert!(!v.riuscito(), "ma una volta sola");
+        assert_eq!(v.errore(s(100_000_000)), Some(0), "un guasto nuovo si scrive subito");
+    }
 
     #[test]
     fn raddoppia_e_si_ferma_al_tetto() {

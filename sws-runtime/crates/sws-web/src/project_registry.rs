@@ -11,9 +11,12 @@
 //! Touched automatically on every successful create/open, so the WelcomeScreen
 //! can show a "recent projects" list ordered by recency — covering both
 //! default-root projects (`projects_root/<name>`, discovered today by a
-//! directory scan) and "external" ones created at a custom parent path chosen
-//! by the maintainer (e.g. their Documents folder, a backup share). No
-//! migration needed: the file starts absent/empty and fills in from first use;
+//! directory scan) and "external" ones. Un progetto esterno **non nasce più**:
+//! da Q46 (09-09-2026) ogni destinazione sta dentro `projects_root`. Le voci
+//! esterne che il registro ha ancora vengono da prima, e restano perché quei
+//! progetti si aprano (commento corretto il 29-10-2026: prometteva ancora
+//! progetti «nella cartella Documenti o in una condivisione»). No migration
+//! needed: the file starts absent/empty and fills in from first use;
 //! pre-existing root-scoped projects are still found by the legacy scan even
 //! before they ever get a registry entry.
 

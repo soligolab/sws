@@ -526,6 +526,8 @@
     "destinationDefault": "Predefinita (la cartella dei progetti)",
     "browse": "Sfoglia…",
     "finalPathPreview": "Verrà creato in: {{path}}",
+    "finalPathPreviewRadice": "Verrà creato nella cartella dei progetti, come «{{name}}»",
+    "finalPathPreviewAzienda": "Verrà creato nella cartella dell'azienda «{{azienda}}», come «{{name}}»",
     "directoryBrowserTitle": "Scegli una cartella",
     "useThisFolder": "Usa questa cartella",
     "noSubfolders": "Nessuna sottocartella",

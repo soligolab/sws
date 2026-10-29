@@ -526,6 +526,8 @@
     "destinationDefault": "Default (the projects folder)",
     "browse": "Browse…",
     "finalPathPreview": "Will be created at: {{path}}",
+    "finalPathPreviewRadice": "Will be created in the projects folder, as «{{name}}»",
+    "finalPathPreviewAzienda": "Will be created in the «{{azienda}}» company folder, as «{{name}}»",
     "directoryBrowserTitle": "Choose a folder",
     "useThisFolder": "Use this folder",
     "noSubfolders": "No subfolders",

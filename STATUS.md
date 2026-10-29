@@ -12,7 +12,42 @@
 > resta in «Storico». Qui vive solo ciò che serve a riprendere il lavoro.
 
 
-## ▶ Riprendere da qui — chi sta dall'altra parte: la disponibilità delle sorgenti (2026-10-29)
+## ▶ Riprendere da qui — card delle sorgenti, Sparkplug B, faceplate sul canvas, residui (2026-10-29, ufficio)
+
+> ⚠ **SI RIPARTE DAL RAMO `fix/residui-dei-piani`, NON da `main`.** È la punta di una catena di rami annidati, tutti
+> **locali e non pushati** (solo `feat/disponibilita-editor` è su origin, fermo a `e2c01c86`):
+>
+> `main` ← `feat/disponibilita-editor` ← `feat/card-sorgenti` ← `fix/sparkplug-b` ← `feat/faceplate-sul-canvas` ← `fix/residui-dei-piani`
+>
+> Rientrano dal basso verso l'alto, dopo il sì del maintainer a schermo. Lo squash su `main` si fa ramo per ramo,
+> così ogni commit di `main` dice una cosa sola.
+
+| Ramo | Commit | Cosa |
+|---|---|---|
+| `feat/card-sorgenti` | `26e7971c` `f97bc242` | le nove card di Protocolli ridisegnate (piano `2026-10-29-card-delle-sorgenti.md`): testata con lo stato, l'indirizzo prima e l'ID sorgente in fondo, titoli in pieno contrasto, DISPONIBILITÀ dentro la card, AVANZATE chiusa, Sparkplug B come modo della mappatura; campi e card con più contrasto |
+| `fix/sparkplug-b` | `f7181ce7` | i testi di Sparkplug B approvati dal maintainer, e tre difetti del runtime: i comandi a `NCMD/<nodo>` o `DCMD/<nodo>/<disp>` di chi ha annunciato la metrica (andavano a `NCMD/<host_id>`), le morti solo per i tag di chi muore, lo STATE nel JSON della 3.0 |
+| `feat/faceplate-sul-canvas` | `920b11ff` `38014da5` | piano `2026-10-27-faceplate-disegnato-sul-canvas.md`: il faceplate è una pagina `kind: "faceplate"`, ramo Faceplate nell'albero, parametri/usi/JSON/ripristino nelle proprietà, la scheda Faceplates della Configurazione via, `width`/`height` in `FaceplateDef`, `GET /api/faceplates?dettagli=1`, rilievo per un faceplate dentro un faceplate; poi (osservazioni del maintainer) si mette in pagina **trascinandolo dal ramo**, lo strumento Faceplate non c'è più, e la cornice non compare sotto un faceplate aperto |
+| `fix/residui-dei-piani` | `bb21208c` | da `Appunti.txt`: la riga «Verrà creato…» del nuovo progetto, il log attenuato dello storico nel viewer LVGL, i commenti falsi su pre-auth e cartelle esterne; tolte dagli appunti cinque voci chiuse |
+
+Verifiche sulla punta: `cargo check`, `cargo test`, `pnpm build`, `vitest` 1782, `check_static.sh` (contrasto
+compreso) tutti verdi. L'IDE sulla **8460** gira col binario e il `dist` di `feat/faceplate-sul-canvas` (i residui non
+cambiano il runtime).
+
+### Da fare
+
+1. **Il maintainer guarda a schermo**: `docs/COLLAUDI_IN_SOSPESO.md` §A-septies (disponibilità, passi 1-4), §A-octies
+   (card), §A-nonies (faceplate). Al suo sì: squash dal basso, ramo per ramo, ed eliminazione dei rami.
+2. **Release 2.23.7** con tutto questo (le Novità sono già nel blocco 2.23.7); poi il gateway del VPS.
+3. **CasaDomotica**, dopo il rilascio: la disponibilità Zigbee2MQTT sulle sorgenti `mqtt-*` con l'allarme su Telegram
+   (ramo 3 di «chi sta dall'altra parte»), e `tank_level` ridisegnato dal canvas, visto sul WP630.
+4. **Ancora aperti**: ramo C di `aprire-sws-soligo-net` (servono i testi di condizioni e privacy dal maintainer), ramo
+   D (due decisioni: dove vive la miniatura e quanto pesa). Negli appunti restano cose da decidere o da misurare, non
+   codice breve: il test del socket con un token revocato (serve un `AppState` di prova, è quello il lavoro), LVGL
+   ruolo minimo e login.
+
+---
+
+## ▶ Prima — chi sta dall'altra parte: la disponibilità delle sorgenti (2026-10-29)
 
 > ⚠ **SI RIPARTE DAL RAMO `feat/disponibilita-editor`, NON da `main`.** È pushato e contiene anche
 > `feat/disponibilita-sorgenti` (annidato). `main` ha solo il piano. Su un'altra macchina:

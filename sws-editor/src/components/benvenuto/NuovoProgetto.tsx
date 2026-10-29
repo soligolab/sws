@@ -33,9 +33,8 @@ function previewSafeName(raw: string): string {
 // ── DirectoryBrowser ──────────────────────────────────────────────────────────
 //
 // Mini file-browser backing the "destination folder" picker: navigates the
-// runtime's filesystem via GET /api/fs/browse-dirs (no whitelist — the
-// maintainer archives projects in Documents/backup shares outside the
-// editor's own projects_root).
+// runtime's projects folder via GET /api/fs/browse-dirs. It can't leave it:
+// since Q46 (09-09-2026) the runtime clamps every path to `projects_root`.
 
 export function NewProjectModal({
   onClose,
@@ -339,11 +338,17 @@ export function NewProjectModal({
             fontSize: 11, color: "var(--brand-text-subtle, #64748b)", marginTop: 4,
             fontFamily: "monospace", wordBreak: "break-all",
           }}>
-            {t("welcome.finalPathPreview", {
-              path: `${parentPath.trim() || t("welcome.destinationDefault")}/${
-                previewSafeName(name) || (tab === "zip" ? t("welcome.nameFromZipPlaceholder") : "…")
-              }`,
-            })}
+            {/* Senza cartella scelta non si inventa un percorso (29-10-2026):
+                prima si leggeva «Predefinita (la cartella dei progetti)/impianto»,
+                la scritta tradotta incollata come se fosse una cartella. */}
+            {(() => {
+              const nome = previewSafeName(name) || (tab === "zip" ? t("welcome.nameFromZipPlaceholder") : "…");
+              if (parentPath.trim()) return t("welcome.finalPathPreview", { path: `${parentPath.trim()}/${nome}` });
+              const azienda = mieAziende.find((a) => a.id === aziendaScelta);
+              return azienda && !azienda.implicita
+                ? t("welcome.finalPathPreviewAzienda", { name: nome, azienda: azienda.nome })
+                : t("welcome.finalPathPreviewRadice", { name: nome });
+            })()}
           </div>
         </div>
 

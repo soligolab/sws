@@ -46,7 +46,7 @@ riprende il lavoro.)*
 
 (Questa riga diceva «nessun piano d'esecuzione in corso» dal 26-09.)
 
-**Ancora aperto, a fasi**: [gestione dei tag come oggetto unico](../archive/2026-09-21-gestione-tag-oggetto-unico.md) — Fasi 0-2 chiuse, restano **Fase 3 (Modbus)** e **Fase 4 (OPC-UA)**, più il collaudo a schermo della Fase 2. La riga in tabella lo dice già; la testa di questo indice diceva «nessun piano in corso» ed era imprecisa.
+**Chiuso il 25-10-2026**: [gestione dei tag come oggetto unico](../archive/2026-09-21-gestione-tag-oggetto-unico.md) — Fase 3 (Modbus) il 04-10, Fase 4 (OPC-UA) il 25-10; le code sugli altri protocolli sono il seme [strutture sugli altri protocolli](2026-10-25-strutture-sugli-altri-protocolli.md). *(Fino al 29-10-2026 questa riga diceva ancora «restano Fase 3 e Fase 4».)*
 
 Il resto sono **semi**, non piani d'esecuzione: ognuno va aperto con una sessione di plan approfondita prima di scrivere codice.
 
