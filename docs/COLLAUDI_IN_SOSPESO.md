@@ -208,7 +208,7 @@ riga. Basta l'8460 sul ramo; un progetto con una sorgente per tipo aiuta.
 
 ## A-nonies. Un faceplate si disegna sul canvas (29-10-2026)
 
-Piano `docs/plans/2026-10-27-faceplate-disegnato-sul-canvas.md`. Basta l'8460 sul ramo, con un progetto che usa un
+Piano `docs/archive/2026-10-27-faceplate-disegnato-sul-canvas.md`. Basta l'8460 sul ramo, con un progetto che usa un
 faceplate (il dimostrativo ha `tank_level`).
 
 1. [ ] Albero delle pagine: il ramo **🧩 Faceplate** con i tre predefiniti (◇). Configurazione non ha più la scheda

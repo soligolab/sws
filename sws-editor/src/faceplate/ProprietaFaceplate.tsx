@@ -1,5 +1,5 @@
 // Le proprietà di un faceplate aperto sul canvas (29-10-2026, piano
-// docs/plans/2026-10-27-faceplate-disegnato-sul-canvas.md): l'id, i parametri,
+// docs/archive/2026-10-27-faceplate-disegnato-sul-canvas.md): l'id, i parametri,
 // dove è usato, la definizione intera in JSON e, per i predefiniti
 // personalizzati, il ripristino. Nome e misura stanno in PageProps, come per
 // le cornici.

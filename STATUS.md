@@ -14,13 +14,12 @@
 
 ## ▶ Riprendere da qui — card delle sorgenti, Sparkplug B, faceplate sul canvas, residui (2026-10-29, ufficio)
 
-> ⚠ **SI RIPARTE DAL RAMO `fix/residui-dei-piani`, NON da `main`.** È la punta di una catena di rami annidati, tutti
-> **locali e non pushati** (solo `feat/disponibilita-editor` è su origin, fermo a `e2c01c86`):
+> **Tutto su `main` e pushato il 29-10-2026**, dopo il sì del maintainer a schermo («ora mi piace»): cinque squash,
+> uno per ramo — `9c3a3f72` disponibilità, `678730dd` card, `34caf506` Sparkplug B, `6a509ac1` faceplate, `8d9e92be`
+> residui — e i rami eliminati. Su origin resta il ramo remoto `feat/disponibilita-editor`, ormai dentro `main`:
+> cancellabile, quando il maintainer lo dice. Il piano dei faceplate è in archivio. Si riparte da `main`.
 >
-> `main` ← `feat/disponibilita-editor` ← `feat/card-sorgenti` ← `fix/sparkplug-b` ← `feat/faceplate-sul-canvas` ← `fix/residui-dei-piani`
->
-> Rientrano dal basso verso l'alto, dopo il sì del maintainer a schermo. Lo squash su `main` si fa ramo per ramo,
-> così ogni commit di `main` dice una cosa sola.
+> Gli hash della tabella qui sotto sono quelli dei rami, prima dello squash.
 
 | Ramo | Commit | Cosa |
 |---|---|---|
@@ -35,8 +34,8 @@ cambiano il runtime).
 
 ### Da fare
 
-1. **Il maintainer guarda a schermo**: `docs/COLLAUDI_IN_SOSPESO.md` §A-septies (disponibilità, passi 1-4), §A-octies
-   (card), §A-nonies (faceplate). Al suo sì: squash dal basso, ramo per ramo, ed eliminazione dei rami.
+1. **Collaudi rimasti**: `docs/COLLAUDI_IN_SOSPESO.md` §A-septies (la disponibilità dal vivo), §A-octies (card),
+   §A-nonies (faceplate) — il maintainer li ha visti nell'IDE, le caselle restano da spuntare.
 2. **Release 2.23.7** con tutto questo (le Novità sono già nel blocco 2.23.7); poi il gateway del VPS.
 3. **CasaDomotica**, dopo il rilascio: la disponibilità Zigbee2MQTT sulle sorgenti `mqtt-*` con l'allarme su Telegram
    (ramo 3 di «chi sta dall'altra parte»), e `tank_level` ridisegnato dal canvas, visto sul WP630.
@@ -86,7 +85,7 @@ così: la 2.23.6 non le contiene.
 **Sessione di solo plan, nessun codice.** `main` non ha rami aperti. Due semi trasformati in
 piani d'esecuzione dettagliati, con le decisioni del maintainer prese in sessione:
 
-- **[Faceplate disegnato sul canvas](docs/plans/2026-10-27-faceplate-disegnato-sul-canvas.md)** —
+- **[Faceplate disegnato sul canvas](docs/archive/2026-10-27-faceplate-disegnato-sul-canvas.md)** —
   strada B: il faceplate diventa una pagina `kind: "faceplate"` (sezione in LeftPanel come
   Cornici/Boot, la scheda Configurazione sparisce); misura dichiarata salvata in `FaceplateDef`;
   pulsante JSON con la definizione intera; niente faceplate dentro faceplate nell'editor.

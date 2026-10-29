@@ -1,5 +1,5 @@
 // I faceplate come pagine dello store (29-10-2026, piano
-// docs/plans/2026-10-27-faceplate-disegnato-sul-canvas.md): andata e ritorno
+// docs/archive/2026-10-27-faceplate-disegnato-sul-canvas.md): andata e ritorno
 // della definizione, il salvataggio che scrive solo i cambiati, i predefiniti
 // che non si eliminano, e niente faceplate dentro un faceplate.
 

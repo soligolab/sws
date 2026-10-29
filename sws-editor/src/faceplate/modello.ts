@@ -1,5 +1,5 @@
 // I faceplate disegnati sul canvas (29-10-2026, piano
-// docs/plans/2026-10-27-faceplate-disegnato-sul-canvas.md).
+// docs/archive/2026-10-27-faceplate-disegnato-sul-canvas.md).
 //
 // Nell'IDE un faceplate si modifica come una pagina: è una pagina dello store
 // con `kind: "faceplate"`, come le cornici hanno `kind: "cornice"`. Su disco

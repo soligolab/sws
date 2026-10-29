@@ -29,7 +29,7 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 
 ### Changed
 
-- **Un faceplate si disegna sul canvas** (piano `docs/plans/2026-10-27-faceplate-disegnato-sul-canvas.md`): è una pagina
+- **Un faceplate si disegna sul canvas** (piano `docs/archive/2026-10-27-faceplate-disegnato-sul-canvas.md`): è una pagina
   `kind: "faceplate"` dello store, quarta ripetizione dello schema di cornici, boot e finestre
   (`src/faceplate/modello.ts`). Si apre dal ramo **Faceplate** dell'albero delle pagine; la scheda Faceplates della
   Configurazione, che lo faceva scrivere in JSON, non c'è più. Sul canvas i figli si vedono coi parametri sostituiti

@@ -1,7 +1,9 @@
 # Un faceplate si disegna, non si scrive in JSON — piano d'esecuzione
 
-> **FATTO il 29-10-2026, da vedere a schermo** (`docs/COLLAUDI_IN_SOSPESO.md` §A-nonies), ramo `feat/faceplate-sul-canvas`
-> annidato su `fix/sparkplug-b`. Quattro scostamenti da quello che sta scritto sotto, voluti:
+> **FATTO e visto a schermo il 29-10-2026, archiviato lo stesso giorno** («ora mi piace»): squash `6a509ac1` su
+> `main`. Il residuo — `tank_level` ridisegnato in CasaDomotica e visto sul WP630, dopo il rilascio — sta in
+> `docs/plans/Appunti.txt`. Era il ramo `feat/faceplate-sul-canvas`, annidato su `fix/sparkplug-b`. Cinque
+> scostamenti da quello che sta scritto sotto, voluti:
 >
 > - **Un ramo solo, tre parti** invece di tre rami: i tre rami non si potevano mergiare separati (il trasporto senza la
 >   UI lascia l'IDE a metà), e annidati uno sull'altro non cambiavano niente.
@@ -12,6 +14,10 @@
 >   senza parametro l'elenco resta quello di sempre, che leggono viewer e pannello.
 > - **«Ripristina il predefinito» è un pulsante delle proprietà**, non la ×: cancella il file subito (non passa dal
 >   Salva) e rilegge la definizione. Un predefinito non ha la ×.
+> - **Un'istanza si mette in pagina trascinando il faceplate dal suo ramo** (osservazione del maintainer al primo giro
+>   a schermo): nasce col faceplate giusto e la sua misura, e lo strumento «Faceplate» della palette — un riquadro
+>   vuoto di 120×80 da riempire dopo — non c'è più. Nello stesso giro: la cornice predefinita non compare più sotto un
+>   faceplate aperto.
 >
 > Resta **CasaDomotica**: ridisegnare `tank_level` dal canvas e vederlo sul WP630, dopo il rilascio.
 
