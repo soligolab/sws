@@ -2,9 +2,15 @@ import { useTranslation } from "react-i18next";
 import { TagInput } from "@/components/TagInput";
 import type { SparkplugConfig, SparkplugMetricMapping, TagDef } from "@/types";
 import { S } from "@/config/comuni";
-import { SectionHeader } from "@/config/sorgenti/MqttSezioni";
 
 // ── Sparkplug B section (inside MqttSourceCard) ───────────────────────────────
+//
+// Dal 29-10-2026 Sparkplug B non si accende con una casella sua: è un **modo
+// della mappatura**, scelto da `[Topic | Sparkplug B]` nel titolo della sezione
+// MAPPATURA della card (scelta del maintainer sul mockup). Qui resta solo la
+// sua configurazione, che si mostra quando il modo è quello. Stessi dati di
+// prima: `source.sparkplug` presente o no.
+// Piano: docs/plans/2026-10-29-card-delle-sorgenti.md
 
 export function SparkplugSection({
   spb,
@@ -34,18 +40,11 @@ export function SparkplugSection({
 
   return (
     <>
-      <SectionHeader>SPARKPLUG B</SectionHeader>
-      <div style={{ marginBottom: 8 }}>
-        <label style={{ fontSize: 12, color: "var(--brand-text-2, #cbd5e1)", cursor: "pointer" }}>
-          <input
-            type="checkbox"
-            checked={enabled}
-            onChange={(e) => onChange(e.target.checked ? current : undefined)}
-            style={{ marginRight: 6 }}
-          />
+      {enabled && (
+        <div style={{ fontSize: 11, color: "var(--brand-text-subtle, #94a3b8)", marginBottom: 8 }}>
           {t("cfgUi.sparkplugBModeProtobufPayloads")}
-        </label>
-      </div>
+        </div>
+      )}
       {enabled && (
         <>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 12 }}>

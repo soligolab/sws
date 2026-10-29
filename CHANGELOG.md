@@ -20,12 +20,28 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
   il valore di un comando mandato. S7, EtherNet/IP, OPC-UA client e Home Assistant scrivono lo stato del collegamento
   (`riconnessione::con_attesa_e_stato`), come già Modbus. Provato dal vivo sul broker di casa con Zigbee2MQTT spento.
 
-- **La disponibilità nell'IDE** (ramo 2 dello stesso piano): sotto ogni card di Protocolli che ce l'ha, la riga
-  «Disponibilità» col tag `<sorgente>.disponibile`, lo stato attuale e «Crea l'allarme di disponibilità» — dichiara il
+- **La disponibilità nell'IDE** (ramo 2 dello stesso piano): in ogni card di Protocolli che ce l'ha, la sezione
+  DISPONIBILITÀ col tag `<sorgente>.disponibile`, lo stato attuale e «Crea l'allarme di disponibilità» — dichiara il
   tag e prepara un allarme a livelli `bool_false` con 60 s di ritardo, che la scheda Allarmi accoglie nella sua bozza
   (`allarmeInAttesa` nello store) e non duplica se sul tag ce n'è già uno. Nella card MQTT la sezione «Disponibilità»
   con le impostazioni pronte (Zigbee2MQTT, Tasmota, Shelly, ESPHome, personalizzato). Validazione: `{nome}` lasciato
   nel topic, topic vuoto o con caratteri jolly, valore «vivo» vuoto.
+
+### Changed
+
+- **Le card delle sorgenti, ridisegnate** (piano `docs/plans/2026-10-29-card-delle-sorgenti.md`, dal collaudo a
+  schermo della disponibilità). Le nove card passano da tre parti comuni in `config/sorgenti/card/`:
+  `TestataSorgente` (tipo · id · riepilogo · **stato** · azioni — lo stato si legge a card chiusa, «non risponde
+  dalle 14:09» col motivo nel suggerimento, da `stato_sorgenti` come il pallino dell'albero), `SezioneSorgente`
+  (titoli in `--brand-text` invece del colore delle etichette, sezioni che si chiudono col riepilogo) e
+  `DisponibilitaSezione`, che porta il pulsante dell'allarme **dentro** la card: prima era una riga sotto, dopo la
+  tabella dei topic. In ogni card l'indirizzo viene per primo e l'ID sorgente per ultimo. MQTT: BROKER,
+  AUTENTICAZIONE su una riga, DISPONIBILITÀ, MAPPATURA con `[Topic | Sparkplug B]` nel titolo (Sparkplug non è più
+  una casella a parte), e AVANZATE chiusa con connessione — watchdog in riga con gli altri —, TLS, last will.
+  OPC-UA client: security policy e certificati in AVANZATE. Home Assistant: token e variabile d'ambiente su una riga.
+- **Contrasto della Configurazione**: i campi (`S.input`, `S.inputSm`) hanno il fondo della pagina e il bordo
+  `--brand-border`, come già S7 e `ui/base.ts`; le card hanno bordo `--brand-border` e un'ombra leggera
+  (`--brand-ombra-card`), perché nel tema chiaro la card bianca si confondeva col grigio della sezione.
 
 ## [2.23.6] — 2026-10-28
 

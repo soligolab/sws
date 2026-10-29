@@ -6,6 +6,8 @@ import { TagInput } from "@/components/TagInput";
 import { useAppStore } from "@/store";
 import type { HostMetric, HostMetricMapping, HostSource, TagDef } from "@/types";
 import { S } from "@/config/comuni";
+import { SezioneSorgente } from "@/config/sorgenti/card/SezioneSorgente";
+import { TestataSorgente } from "@/config/sorgenti/card/TestataSorgente";
 
 // ── Host (risorse di sistema) ─────────────────────────────────────────────────
 // Metriche, parametri e catalogo stanno in `sorgenteHost.ts`, provabile da solo.
@@ -63,49 +65,53 @@ export function HostSourceCard({
   const suggerimenti = (k: ParametroHost | undefined): string[] => suggerimentiPer(catalogo, k);
   const mancanti = metricheSenzaParametro(source);
 
-  const headerRow = (
-    <div style={{ display: "flex", gap: 8, alignItems: "center", cursor: "pointer" }} onClick={() => setCollapsed((c) => !c)}>
-      <span style={{ fontWeight: 700, fontSize: 13, color: "var(--brand-primary-testo, #3b82f6)" }}>HOST</span>
-      <span style={{ fontSize: 13, color: "var(--brand-text, #e2e8f0)" }}>
-        {source.id} ({t("cfgUi.hostMetricsCount", { n: source.metrics.length })})
-      </span>
-      <span style={{ marginLeft: "auto", color: "var(--brand-text-subtle, #64748b)", fontSize: 12 }}>{collapsed ? "▶" : "▼"}</span>
-      <button style={S.btnXs} onClick={(e) => { e.stopPropagation(); onDelete(); }}>✕</button>
-    </div>
-  );
-  if (collapsed) return <div style={{ ...S.card, padding: "10px 16px" }}>{headerRow}</div>;
-
-  const campo: React.CSSProperties = { background: "var(--brand-bg, #0f172a)", border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 4, color: "var(--brand-text, #e2e8f0)", padding: "4px 6px", fontSize: 12 };
+  // `S.inputSm` e non uno stile locale (29-10-2026): quello di prima aveva il
+  // bordo `--brand-surface-2`, invisibile nel tema chiaro.
+  const campo: React.CSSProperties = { ...S.inputSm, width: "auto" };
+  const etichetta = { fontSize: 11, color: "var(--brand-text-subtle, #64748b)", display: "block", marginBottom: 3 } as const;
 
   return (
     <div style={S.card}>
-      {headerRow}
-      <div style={{ fontSize: 12, color: "var(--brand-text-muted, #94a3b8)", marginTop: 8 }}>{t("cfgUi.hostIntro")}</div>
-      <div style={{ fontSize: 12, marginTop: 4, color: origineCatalogo === "remoto" ? "var(--brand-success-soft, #4ade80)" : "var(--brand-warning-soft, #facc15)" }}>
-        {origineCatalogo === "remoto" && t("cfgUi.hostCatalogoRemoto", { url: remoteUrl ?? "" })}
-        {origineCatalogo === "remoto-vecchio" && t("cfgUi.hostCatalogoRemotoVecchio", { url: remoteUrl ?? "" })}
-        {origineCatalogo === "locale" && t("cfgUi.hostCatalogoLocale")}
-        {origineCatalogo === "nessuno" && t("cfgUi.hostCatalogoAssente")}
-      </div>
-      {mancanti > 0 && (
-        <div style={{ fontSize: 12, marginTop: 4, color: "var(--brand-danger-soft, #f87171)" }}>
-          ⚠ {t("cfgUi.hostSenzaParametro", { n: mancanti })}
+      {/* Senza stato in testata: la sorgente host legge la macchina su cui
+          gira, non ha un altro capo che possa non rispondere. */}
+      <TestataSorgente
+        tipo="HOST"
+        colore="var(--brand-primary-testo, #3b82f6)"
+        id={source.id}
+        riepilogo={t("cfgUi.hostMetricsCount", { n: source.metrics.length })}
+        aperta={!collapsed}
+        onToggle={() => setCollapsed((c) => !c)}
+        azioni={<button style={S.btn("danger")} onClick={onDelete}>{t("cfgUi.delete")}</button>}
+        senzaStato
+      />
+      {!collapsed && (
+      <div style={{ padding: "0 16px 14px" }}>
+      <SezioneSorgente titolo={t("sorgenti.sezioni.impostazioni")}>
+        <div style={{ display: "grid", gridTemplateColumns: "110px 240px", gap: 12, marginBottom: 8 }}>
+          <div>
+            <label style={etichetta}>Poll (ms)</label>
+            <input type="number" value={source.poll_interval_ms} onChange={(e) => upd({ poll_interval_ms: Number(e.target.value) })} style={S.input} />
+          </div>
+          <div>
+            <label style={etichetta}>{t("cfgUi.sourceId")}</label>
+            <input value={source.id} onChange={(e) => upd({ id: e.target.value })} style={S.input} spellCheck={false} />
+          </div>
         </div>
-      )}
-      <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginTop: 12 }}>
-        <label style={{ display: "flex", flexDirection: "column", gap: 3 }}>
-          <span style={{ fontSize: 11, color: "var(--brand-text-muted, #94a3b8)" }}>{t("cfgUi.sourceId")}</span>
-          <input value={source.id} onChange={(e) => upd({ id: e.target.value })} style={{ ...campo, width: 120 }} />
-        </label>
-        <label style={{ display: "flex", flexDirection: "column", gap: 3 }}>
-          <span style={{ fontSize: 11, color: "var(--brand-text-muted, #94a3b8)" }}>Poll (ms)</span>
-          <input type="number" value={source.poll_interval_ms} onChange={(e) => upd({ poll_interval_ms: Number(e.target.value) })} style={{ ...campo, width: 100 }} />
-        </label>
-      </div>
-      <div style={{ marginTop: 16 }}>
-        <div style={{ fontSize: 12, fontWeight: 700, color: "var(--brand-text-subtle, #64748b)", marginBottom: 8 }}>
-          {t("cfgUi.hostMetrics")} ({source.metrics.length})
+      </SezioneSorgente>
+
+      <SezioneSorgente titolo={`${t("sorgenti.sezioni.metriche")} (${source.metrics.length})`}>
+        <div style={{ fontSize: 12, color: "var(--brand-text-muted, #94a3b8)" }}>{t("cfgUi.hostIntro")}</div>
+        <div style={{ fontSize: 12, marginTop: 4, marginBottom: 8, color: origineCatalogo === "remoto" ? "var(--brand-success-soft, #4ade80)" : "var(--brand-warning-soft, #facc15)" }}>
+          {origineCatalogo === "remoto" && t("cfgUi.hostCatalogoRemoto", { url: remoteUrl ?? "" })}
+          {origineCatalogo === "remoto-vecchio" && t("cfgUi.hostCatalogoRemotoVecchio", { url: remoteUrl ?? "" })}
+          {origineCatalogo === "locale" && t("cfgUi.hostCatalogoLocale")}
+          {origineCatalogo === "nessuno" && t("cfgUi.hostCatalogoAssente")}
         </div>
+        {mancanti > 0 && (
+          <div style={{ fontSize: 12, marginBottom: 8, color: "var(--brand-danger-soft, #f87171)" }}>
+            ⚠ {t("cfgUi.hostSenzaParametro", { n: mancanti })}
+          </div>
+        )}
         {source.metrics.map((m, idx) => {
           const d = def(m.metric);
           const listId = `host-${source.id}-${idx}`;
@@ -133,7 +139,9 @@ export function HostSourceCard({
           );
         })}
         <button style={S.btn("ghost")} onClick={() => upd({ metrics: [...source.metrics, { tag: "", metric: "cpu_pct" }] })}>+ {t("cfgUi.hostMetric")}</button>
+      </SezioneSorgente>
       </div>
+      )}
     </div>
   );
 }

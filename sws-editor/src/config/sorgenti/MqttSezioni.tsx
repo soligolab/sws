@@ -1,20 +1,19 @@
-import React, { useState } from "react";
+import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { api } from "@/api/client";
 import { useAppStore } from "@/store";
 import type { DisponibilitaMqtt, MqttLastWill, MqttSource, MqttTlsConfig, TagDef } from "@/types";
 import { S } from "@/config/comuni";
 import { PRESET_DISPONIBILITA, presetDi, tagDefDisponibilita, type PresetDisponibilita } from "@/config/sorgenti/disponibilita";
+import { SottoTitolo } from "@/config/sorgenti/card/SezioneSorgente";
 
 // ── MqttSourceCard sub-sections (auth / connection / TLS / last-will) ────────
-
-export function SectionHeader({ children }: { children: React.ReactNode }) {
-  return (
-    <div style={{ marginBottom: 6, marginTop: 8, fontSize: 12, color: "var(--brand-text-subtle, #64748b)", fontWeight: 600, letterSpacing: 0.5 }}>
-      {children}
-    </div>
-  );
-}
+//
+// Dal 29-10-2026 queste sezioni **non hanno un titolo loro**: lo mette la card,
+// con `SezioneSorgente` (titolo in pieno contrasto) o `SottoTitolo` dentro
+// AVANZATE. Prima ognuna aveva il suo `SectionHeader`, dello stesso colore delle
+// etichette dei campi — ed era quello il «poco contrasto» del collaudo.
+// Piano: docs/plans/2026-10-29-card-delle-sorgenti.md
 
 export function MqttAuthSection({
   source,
@@ -27,8 +26,7 @@ export function MqttAuthSection({
   const [show, setShow] = useState(false);
   return (
     <>
-      <SectionHeader>{t("sorgenti.autenticazione")}</SectionHeader>
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 12 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12, marginBottom: 12 }}>
         <div>
           <label style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)", display: "block", marginBottom: 3 }}>{t("cfg.username")}</label>
           <input
@@ -63,8 +61,6 @@ export function MqttAuthSection({
             </button>
           </div>
         </div>
-      </div>
-      <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: 12, marginBottom: 12 }}>
         <div>
           <label style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)", display: "block", marginBottom: 3 }}>
             {t("sorgenti.passwordEnv")}
@@ -92,8 +88,10 @@ export function MqttConnectionSection({
   const { t } = useTranslation();
   return (
     <>
-      <SectionHeader>{t("cfgUi.connection")}</SectionHeader>
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12, marginBottom: 12 }}>
+      <SottoTitolo>{t("sorgenti.sezioni.connessione")}</SottoTitolo>
+      {/* Quattro colonne: il watchdog è un parametro di connessione, e stava da
+          solo su una riga sua (osservazione del maintainer, 29-10-2026). */}
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: 12, marginBottom: 12 }}>
         <div>
           <label style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)", display: "block", marginBottom: 3 }}>{t("cfg.keepAlive")}</label>
           <input
@@ -129,20 +127,17 @@ export function MqttConnectionSection({
             <option value="false">false — preserve subscriptions</option>
           </select>
         </div>
-      </div>
-      <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: 12, marginBottom: 12 }}>
         <div>
-          <label style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)", display: "block", marginBottom: 3 }}>{t("cfg.maxSilenceSecs")}</label>
+          <label style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)", display: "block", marginBottom: 3 }}
+            title={t("cfg.maxSilenceSecsHint")}>{t("cfg.maxSilenceSecs")}</label>
           <input
-            style={{ ...S.input, maxWidth: 160 }}
+            style={S.input}
             type="number" min={1}
             value={source.max_silence_secs ?? ""}
             placeholder={t("cfg.maxSilenceSecsPlaceholder")}
+            title={t("cfg.maxSilenceSecsHint")}
             onChange={(e) => onChange({ max_silence_secs: e.target.value === "" ? undefined : Number(e.target.value) })}
           />
-          <p style={{ fontSize: 10, color: "var(--brand-text-subtle, #94a3b8)", margin: "4px 0 0" }}>
-            {t("cfg.maxSilenceSecsHint")}
-          </p>
         </div>
       </div>
     </>
@@ -162,7 +157,7 @@ export function MqttTlsSection({
     onChange({ ...current, [k]: v });
   return (
     <>
-      <SectionHeader>TLS</SectionHeader>
+      <SottoTitolo>TLS</SottoTitolo>
       <div style={{ display: "grid", gridTemplateColumns: "auto 1fr auto", gap: 12, marginBottom: 12, alignItems: "center" }}>
         <label style={{ fontSize: 12, color: "var(--brand-text-2, #cbd5e1)", cursor: "pointer" }}>
           <input
@@ -216,9 +211,14 @@ export function MqttTlsSection({
 export function MqttRandomClientIdSection({
   source,
   onChange,
+  invio = false,
 }: {
   source: MqttSource;
   onChange: (patch: Partial<MqttSource>) => void;
+  /** Dal 29-10-2026 la card ne mostra due pezzi in due posti: la scelta
+   *  («casuale», in BROKER, accanto al Client ID a cui si riferisce) e, con
+   *  `invio`, l'invio al dispositivo (in AVANZATE, perché si fa una volta sola). */
+  invio?: boolean;
 }) {
   const { t } = useTranslation();
   const remoteConnected = useAppStore((s) => s.remoteConnected);
@@ -250,7 +250,7 @@ export function MqttRandomClientIdSection({
 
   return (
     <>
-      <SectionHeader>CLIENT ID</SectionHeader>
+      {!invio && (
       <div style={{ display: "grid", gridTemplateColumns: "auto 220px 1fr", gap: 12, marginBottom: 8, alignItems: "center" }}>
         <label style={{ fontSize: 12, color: "var(--brand-text-2, #cbd5e1)", cursor: "pointer" }}>
           <input
@@ -259,7 +259,7 @@ export function MqttRandomClientIdSection({
             onChange={(e) => setRandom({ enabled: e.target.checked })}
             style={{ marginRight: 6 }}
           />
-          Random Client ID
+          {t("sorgenti.clientIdCasuale")}
         </label>
         <select
           style={S.input}
@@ -276,8 +276,10 @@ export function MqttRandomClientIdSection({
             : t("cfgUi.literalClientIdIdenticalOn")}
         </span>
       </div>
+      )}
 
-      {!enabled && (
+      {invio && !enabled && <SottoTitolo>Client ID</SottoTitolo>}
+      {invio && !enabled && (
         <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 8 }}>
           <input
             style={{ ...S.input, flex: 1 }}
@@ -297,7 +299,7 @@ export function MqttRandomClientIdSection({
           </button>
         </div>
       )}
-      {pushMsg && (
+      {invio && pushMsg && (
         <div style={{
           fontSize: 12, marginBottom: 12,
           color: pushMsg.startsWith("✓") ? "var(--brand-success-soft, #4ade80)" : "var(--brand-danger-soft, #f87171)",
@@ -323,7 +325,7 @@ export function MqttLastWillSection({
     onChange({ ...current, [k]: v });
   return (
     <>
-      <SectionHeader>LAST WILL</SectionHeader>
+      <SottoTitolo>Last will</SottoTitolo>
       <div style={{ marginBottom: 8 }}>
         <label style={{ fontSize: 12, color: "var(--brand-text-2, #cbd5e1)", cursor: "pointer" }}>
           <input
@@ -412,7 +414,6 @@ export function MqttDisponibilitaSection({
   const etichetta = { fontSize: 11, color: "var(--brand-text-subtle, #64748b)", display: "block", marginBottom: 3 } as const;
   return (
     <>
-      <SectionHeader>{t("sorgenti.disponibilita.titolo")}</SectionHeader>
       <div style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)", marginBottom: 8, lineHeight: 1.4 }}>
         {t("sorgenti.disponibilita.nota")}
       </div>

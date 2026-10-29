@@ -93,10 +93,15 @@ export const S = {
     borderBottom: "1px solid var(--brand-surface, #1e293b)",
     verticalAlign: "middle" as const,
   },
+  // Il campo su `--brand-bg` e col bordo di `--brand-border` (29-10-2026). Prima
+  // aveva lo **stesso fondo della card** (contrasto 1,00) e un bordo che nel
+  // tema chiaro faceva 1,10: si capiva dov'era un campo solo dalla scritta
+  // dentro. Ora è come `ui/base.ts` `campo` e come i campi di S7, che lo
+  // facevano già. Piano `docs/plans/2026-10-29-card-delle-sorgenti.md`.
   input: {
-    background: "var(--brand-surface, #1e293b)",
+    background: "var(--brand-bg, #0f172a)",
     color: "var(--brand-text, #e2e8f0)",
-    border: "1px solid var(--brand-surface-2, #334155)",
+    border: "1px solid var(--brand-border, #475569)",
     borderRadius: 4,
     padding: "4px 8px",
     fontSize: 13,
@@ -104,9 +109,9 @@ export const S = {
     boxSizing: "border-box" as const,
   },
   inputSm: {
-    background: "var(--brand-surface, #1e293b)",
+    background: "var(--brand-bg, #0f172a)",
     color: "var(--brand-text, #e2e8f0)",
-    border: "1px solid var(--brand-surface-2, #334155)",
+    border: "1px solid var(--brand-border, #475569)",
     borderRadius: 4,
     padding: "4px 6px",
     fontSize: 12,
@@ -129,12 +134,17 @@ export const S = {
       whiteSpace: "nowrap" as const,
     };
   },
+  // Bordo `--brand-border` e un'ombra (29-10-2026): nel tema chiaro una card
+  // bianca su `#f8fafc` col bordo `--brand-surface-2` non si vedeva — fondo e
+  // bordo facevano 1,05 contro lo sfondo. Osservazione del maintainer sul
+  // mockup: «le varie card si confondono un po' troppo con lo sfondo».
   card: {
     background: "var(--brand-surface, #1e293b)",
-    border: "1px solid var(--brand-surface-2, #334155)",
+    border: "1px solid var(--brand-border, #475569)",
     borderRadius: 8,
     marginBottom: 12,
     overflow: "hidden" as const,
+    boxShadow: "var(--brand-ombra-card, none)",
   },
   cardHead: {
     display: "flex" as const,

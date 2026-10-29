@@ -8,10 +8,54 @@ import { emptyTopic } from "@/config/sorgenti/vuote";
 import { MqttBrowseModal } from "@/config/sorgenti/MqttBrowseModal";
 import { MqttJsonExtractModal } from "@/config/sorgenti/MqttJsonExtractModal";
 import { MqttAuthSection, MqttConnectionSection, MqttTlsSection, MqttRandomClientIdSection, MqttLastWillSection, MqttDisponibilitaSection } from "@/config/sorgenti/MqttSezioni";
+import { SezioneSorgente } from "@/config/sorgenti/card/SezioneSorgente";
+import { TestataSorgente } from "@/config/sorgenti/card/TestataSorgente";
+import { DisponibilitaSezione } from "@/config/sorgenti/card/DisponibilitaSezione";
 import { SparkplugSection } from "@/config/sorgenti/SparkplugSection";
 import { compilaRichiesteZigbee2mqtt, pubblicabile, richiestaZigbee2mqtt } from "@/config/sorgenti/richiestaStato";
 
 // ── MQTT card ─────────────────────────────────────────────────────────────────
+//
+// L'ordine delle sezioni è quello dell'importanza (29-10-2026, piano
+// `docs/plans/2026-10-29-card-delle-sorgenti.md`, scelte del maintainer sul
+// mockup): BROKER, AUTENTICAZIONE, DISPONIBILITÀ, MAPPATURA sempre aperte;
+// connessione, TLS, last will e l'invio del client id in AVANZATE, chiusa.
+// Prima i campi stavano nell'ordine in cui erano nati, l'ID sorgente per primo
+// e il pulsante dell'allarme di disponibilità sotto la card, a fine pagina.
+
+/** Il modo della mappatura: topic per topic, o Sparkplug B. Prima era una
+ *  casella in fondo alla card che, accesa, faceva sparire la tabella dei topic
+ *  senza dire dove fosse finita. */
+function ModoMappatura({ source, onChange }: { source: MqttSource; onChange: (s: MqttSource) => void }) {
+  const { t } = useTranslation();
+  const sparkplug = !!source.sparkplug;
+  const bottone = (attivo: boolean): React.CSSProperties => ({
+    padding: "3px 10px", fontSize: 12, cursor: attivo ? "default" : "pointer", border: "none",
+    background: attivo ? "var(--brand-primary, #3b82f6)" : "transparent",
+    color: attivo ? "var(--brand-on-primary, #0f172a)" : "var(--brand-text-subtle, #94a3b8)",
+    fontWeight: attivo ? 600 : 400,
+  });
+  return (
+    <span role="group" aria-label={t("sorgenti.modo.titolo")} title={t("sorgenti.modo.titolo")}
+      style={{ display: "inline-flex", border: "1px solid var(--brand-border, #475569)", borderRadius: 5, overflow: "hidden" }}>
+      <button type="button" data-testid="modo-topic" aria-pressed={!sparkplug} style={bottone(!sparkplug)}
+        onClick={() => {
+          if (!sparkplug) return;
+          // Tornare ai topic butta la configurazione Sparkplug, come la casella
+          // di prima. Con delle metriche dentro si chiede: un clic su un
+          // interruttore è più facile da sbagliare di una casella con la sua
+          // scritta accanto.
+          if ((source.sparkplug?.metrics.length ?? 0) > 0 && !window.confirm(t("sorgenti.modo.confermaTopic"))) return;
+          onChange({ ...source, sparkplug: undefined });
+        }}>{t("sorgenti.modo.topic")}</button>
+      <button type="button" data-testid="modo-sparkplug" aria-pressed={sparkplug} style={bottone(sparkplug)}
+        onClick={() => {
+          if (sparkplug) return;
+          onChange({ ...source, sparkplug: { group_id: "", host_id: "SWS-SCADA", metrics: [] } });
+        }}>{t("sorgenti.modo.sparkplug")}</button>
+    </span>
+  );
+}
 
 export function MqttSourceCard({
   source,
@@ -49,130 +93,89 @@ export function MqttSourceCard({
   const removeTopic = (idx: number) =>
     onChange({ ...source, topics: source.topics.filter((_, i) => i !== idx) });
 
+  const etichetta = { fontSize: 11, color: "var(--brand-text-subtle, #64748b)", display: "block", marginBottom: 3 } as const;
+  const nMappatura = source.sparkplug ? source.sparkplug.metrics.length : source.topics.length;
+
   return (
     <div style={S.card}>
-      <div style={S.cardHead} onClick={() => setOpen((v) => !v)}>
-        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <span style={{ fontSize: 11, color: "#a855f7", fontWeight: 700, letterSpacing: 1 }}>
-            MQTT
-          </span>
-          <span style={{ fontWeight: 600, color: "var(--brand-text, #e2e8f0)" }}>{source.id}</span>
-          <span style={{ color: "var(--brand-text-subtle, #64748b)", fontSize: 12 }}>
-            {source.host}:{source.port} — {source.topics.length} topic
-          </span>
-        </div>
-        <div style={{ display: "flex", gap: 8 }}>
-          <button
-            style={S.btn("ghost")}
-            onClick={(e) => { e.stopPropagation(); setBrowseOpen(true); }}
-          >
+      <TestataSorgente
+        tipo="MQTT"
+        colore="#a855f7"
+        id={source.id}
+        riepilogo={`${source.host}:${source.port} · ${source.topics.length} topic`}
+        aperta={open}
+        onToggle={() => setOpen((v) => !v)}
+        azioni={<>
+          <button style={S.btn("ghost")} onClick={() => setBrowseOpen(true)}>
             {t("sorgenti.sfogliaBroker")}
           </button>
           {!source.sparkplug && (
-            <button
-              style={S.btn("ghost")}
-              onClick={(e) => { e.stopPropagation(); setJsonExtractOpen(true); }}
-              title={t("cfgUi.pasteAJsonPayloadAnd")}
-            >
+            <button style={S.btn("ghost")} onClick={() => setJsonExtractOpen(true)} title={t("cfgUi.pasteAJsonPayloadAnd")}>
               {t("sorgenti.estraiJson")}
             </button>
           )}
-          <button
-            style={S.btn("danger")}
-            onClick={(e) => { e.stopPropagation(); onDelete(); }}
-          >
-            {t("cfgUi.delete")}
-          </button>
-          <span style={{ color: "var(--brand-text-subtle, #94a3b8)", fontSize: 14 }}>{open ? "▲" : "▼"}</span>
-        </div>
-      </div>
+          <button style={S.btn("danger")} onClick={onDelete}>{t("cfgUi.delete")}</button>
+        </>}
+      />
 
       {open && (
-        <div style={{ padding: "14px 16px" }}>
-          <div style={{
-            display: "grid",
-            gridTemplateColumns: "1fr 1fr 90px 1fr",
-            gap: 12,
-            marginBottom: 16,
-          }}>
-            <div>
-              <label style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)", display: "block", marginBottom: 3 }}>{t("cfg.sourceId")}</label>
-              <input
-                style={S.input}
-                value={source.id}
-                onChange={(e) => setField("id", e.target.value)}
-                spellCheck={false}
-              />
+        <div style={{ padding: "0 16px 14px" }}>
+          {/* L'indirizzo per primo, l'ID sorgente per ultimo: è il campo che si
+              tocca quasi mai, e stava davanti a tutti. */}
+          <SezioneSorgente titolo={t("sorgenti.sezioni.broker")}>
+            <div style={{ display: "grid", gridTemplateColumns: "2fr 90px 1.5fr 1.2fr", gap: 12, marginBottom: 8 }}>
+              <div>
+                <label style={etichetta}>{t("cfg.hostIp")}</label>
+                <input style={S.input} value={source.host} spellCheck={false}
+                  onChange={(e) => setField("host", e.target.value)} />
+              </div>
+              <div>
+                <label style={etichetta}>{t("cfg.port")}</label>
+                <input style={S.input} type="number" min={1} max={65535} value={source.port}
+                  onChange={(e) => setField("port", Number(e.target.value))} />
+              </div>
+              <div>
+                <label style={etichetta}>{t("cfg.clientId")}</label>
+                <input style={S.input} value={source.client_id} spellCheck={false}
+                  onChange={(e) => setField("client_id", e.target.value)} />
+              </div>
+              <div>
+                <label style={etichetta}>{t("cfg.sourceId")}</label>
+                <input style={S.input} value={source.id} spellCheck={false}
+                  onChange={(e) => setField("id", e.target.value)} />
+              </div>
             </div>
-            <div>
-              <label style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)", display: "block", marginBottom: 3 }}>{t("cfg.hostIp")}</label>
-              <input
-                style={S.input}
-                value={source.host}
-                onChange={(e) => setField("host", e.target.value)}
-                spellCheck={false}
-              />
-            </div>
-            <div>
-              <label style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)", display: "block", marginBottom: 3 }}>{t("cfg.port")}</label>
-              <input
-                style={S.input}
-                type="number"
-                min={1} max={65535}
-                value={source.port}
-                onChange={(e) => setField("port", Number(e.target.value))}
-              />
-            </div>
-            <div>
-              <label style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)", display: "block", marginBottom: 3 }}>{t("cfg.clientId")}</label>
-              <input
-                style={S.input}
-                value={source.client_id}
-                onChange={(e) => setField("client_id", e.target.value)}
-                spellCheck={false}
-              />
-            </div>
-          </div>
+            <MqttRandomClientIdSection source={source}
+              onChange={(patch) => onChange({ ...source, ...patch })} />
+          </SezioneSorgente>
 
-          <MqttRandomClientIdSection
-            source={source}
-            onChange={(patch) => onChange({ ...source, ...patch })}
-          />
+          <SezioneSorgente titolo={t("sorgenti.sezioni.autenticazione")}>
+            <MqttAuthSection source={source} onChange={(patch) => onChange({ ...source, ...patch })} />
+          </SezioneSorgente>
 
-          <MqttAuthSection
-            source={source}
-            onChange={(patch) => onChange({ ...source, ...patch })}
-          />
-          <MqttConnectionSection
-            source={source}
-            onChange={(patch) => onChange({ ...source, ...patch })}
-          />
-          <MqttTlsSection
-            tls={source.tls}
-            onChange={(tls) => onChange({ ...source, tls })}
-          />
-          <MqttLastWillSection
-            lw={source.last_will}
-            onChange={(lw) => onChange({ ...source, last_will: lw })}
-          />
+          {/* Prima della mappatura: con ventiquattro topic, dopo la tabella il
+              pulsante dell'allarme stava a fine pagina. */}
           {!source.sparkplug && (
-            <MqttDisponibilitaSection
-              source={source}
-              onChange={(d) => onChange({ ...source, disponibilita: d })}
-              onCreateTag={onCreateTag}
-            />
+            <DisponibilitaSezione src={source}>
+              <MqttDisponibilitaSection
+                source={source}
+                onChange={(d) => onChange({ ...source, disponibilita: d })}
+                onCreateTag={onCreateTag}
+              />
+            </DisponibilitaSezione>
           )}
 
-          <SparkplugSection
-            spb={source.sparkplug}
-            onChange={(spb) => onChange({ ...source, sparkplug: spb })}
-            onCreateTag={onCreateTag}
-          />
-
-          {!source.sparkplug && (
-          <><div style={{ marginBottom: 6, fontSize: 12, color: "var(--brand-text-subtle, #64748b)", fontWeight: 600, letterSpacing: 0.5 }}>
-            {t("sorgenti.mappaturaTopic")}
-          </div>
+          <SezioneSorgente
+            titolo={`${t("sorgenti.sezioni.mappatura")} (${nMappatura})`}
+            destra={<ModoMappatura source={source} onChange={onChange} />}
+          >
+            {source.sparkplug ? (
+              <SparkplugSection
+                spb={source.sparkplug}
+                onChange={(spb) => onChange({ ...source, sparkplug: spb })}
+                onCreateTag={onCreateTag}
+              />
+            ) : (<>
           <table style={{ ...S.table, marginBottom: 8 }}>
             <thead>
               <tr>
@@ -303,7 +306,22 @@ export function MqttSourceCard({
               {t("sorgenti.compilaRichieste", { count: daCompilare })}
             </button>
           )}
-          </>)}
+            </>)}
+          </SezioneSorgente>
+
+          <SezioneSorgente
+            titolo={t("sorgenti.sezioni.avanzate")}
+            apribile
+            chiusaDiPartenza
+            riepilogo={t("sorgenti.riepilogoAvanzateMqtt")}
+            testid={`mqtt-avanzate-${source.id}`}
+          >
+            <MqttConnectionSection source={source} onChange={(patch) => onChange({ ...source, ...patch })} />
+            <MqttTlsSection tls={source.tls} onChange={(tls) => onChange({ ...source, tls })} />
+            <MqttLastWillSection lw={source.last_will} onChange={(lw) => onChange({ ...source, last_will: lw })} />
+            <MqttRandomClientIdSection invio source={source}
+              onChange={(patch) => onChange({ ...source, ...patch })} />
+          </SezioneSorgente>
         </div>
       )}
       {quickCreate !== null && (

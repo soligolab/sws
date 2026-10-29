@@ -4,8 +4,10 @@ import type { ModbusTcpSource, TagDef } from "@/types";
 import { S } from "@/config/comuni";
 import { useAppStore } from "@/store";
 import { busImplicito, conDispositivi, dispositiviDi, focusDispositivo, nuovoDispositivo } from "@/config/sorgenti/modbusDispositivi";
-import { DispositivoModbusCard, ElencoDispositiviModbus, PallinoStato } from "@/config/sorgenti/DispositiviModbus";
-import { useStatoSorgenti } from "@/config/sorgenti/statoSorgenti";
+import { DispositivoModbusCard, ElencoDispositiviModbus } from "@/config/sorgenti/DispositiviModbus";
+import { SezioneSorgente } from "@/config/sorgenti/card/SezioneSorgente";
+import { TestataSorgente } from "@/config/sorgenti/card/TestataSorgente";
+import { DisponibilitaSezione } from "@/config/sorgenti/card/DisponibilitaSezione";
 
 /** Il bus Modbus TCP (04-10-2026): l'indirizzo, il polling predefinito e i
  *  dispositivi dietro quell'indirizzo (più unit id = un gateway). Le mappature
@@ -29,7 +31,7 @@ export function ModbusSourceCard({
   const navigateToConfig = useAppStore((s) => s.navigateToConfig);
   const implicito = busImplicito(source);
   const [open, setOpen] = useState(true);
-  const stato = useStatoSorgenti()[source.id];
+  const n = dispositiviDi(source).length;
 
   const setField = <K extends keyof ModbusTcpSource>(k: K, v: ModbusTcpSource[K]) =>
     onChange({ ...source, [k]: v });
@@ -38,76 +40,69 @@ export function ModbusSourceCard({
 
   return (
     <div style={S.card}>
-      <div style={S.cardHead} onClick={() => setOpen((v) => !v)}>
-        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <PallinoStato stato={stato} testid={`stato-bus-${source.id}`} />
-          <span style={{ fontSize: 11, color: "var(--brand-primary-testo, #3b82f6)", fontWeight: 700, letterSpacing: 1 }}>
-            MODBUS TCP
-          </span>
-          <span style={{ fontWeight: 600, color: "var(--brand-text, #e2e8f0)" }}>{source.id}</span>
-          <span style={{ color: "var(--brand-text-subtle, #64748b)", fontSize: 12 }}>
-            {source.host}:{source.port} — {t("cfg.modbusNDispositivi", { count: dispositiviDi(source).length })}
-          </span>
-        </div>
-        <div style={{ display: "flex", gap: 8 }}>
-          <button
-            style={S.btn("danger")}
-            onClick={(e) => { e.stopPropagation(); onDelete(); }}
-          >
-            {t("cfgUi.delete")}
-          </button>
-          <span style={{ color: "var(--brand-text-subtle, #94a3b8)", fontSize: 14 }}>{open ? "▲" : "▼"}</span>
-        </div>
-      </div>
+      <TestataSorgente
+        tipo="MODBUS TCP"
+        colore="var(--brand-primary-testo, #3b82f6)"
+        id={source.id}
+        riepilogo={`${source.host}:${source.port} · ${t("cfg.modbusNDispositivi", { count: n })}`}
+        aperta={open}
+        onToggle={() => setOpen((v) => !v)}
+        azioni={<button style={S.btn("danger")} onClick={onDelete}>{t("cfgUi.delete")}</button>}
+      />
 
       {open && (
-        <div style={{ padding: "14px 16px" }}>
-          <div style={{
-            display: "grid",
-            gridTemplateColumns: "1fr 1fr 80px 140px",
-            gap: 12,
-            marginBottom: 16,
-          }}>
-            <div>
-              <label style={etichetta}>{t("cfg.sourceId")}</label>
-              <input style={S.input} value={source.id} onChange={(e) => setField("id", e.target.value)} spellCheck={false} />
+        <div style={{ padding: "0 16px 14px" }}>
+          {/* L'indirizzo per primo, l'ID sorgente per ultimo (29-10-2026). */}
+          <SezioneSorgente titolo={t("sorgenti.sezioni.collegamento")}>
+            <div style={{ display: "grid", gridTemplateColumns: "2fr 80px 140px 1.2fr", gap: 12, marginBottom: 8 }}>
+              <div>
+                <label style={etichetta}>{t("cfg.hostIp")}</label>
+                <input style={S.input} value={source.host} onChange={(e) => setField("host", e.target.value)} spellCheck={false} />
+              </div>
+              <div>
+                <label style={etichetta}>{t("cfg.port")}</label>
+                <input style={S.input} type="number" min={1} max={65535} value={source.port}
+                  onChange={(e) => setField("port", Number(e.target.value))} />
+              </div>
+              <div>
+                <label style={etichetta}>{t("cfg.pollInterval")}</label>
+                <input style={S.input} type="number" min={100} value={source.poll_interval_ms}
+                  title={t("cfg.modbusPollPredefinito")}
+                  onChange={(e) => setField("poll_interval_ms", Number(e.target.value))} />
+              </div>
+              <div>
+                <label style={etichetta}>{t("cfg.sourceId")}</label>
+                <input style={S.input} value={source.id} onChange={(e) => setField("id", e.target.value)} spellCheck={false} />
+              </div>
             </div>
-            <div>
-              <label style={etichetta}>{t("cfg.hostIp")}</label>
-              <input style={S.input} value={source.host} onChange={(e) => setField("host", e.target.value)} spellCheck={false} />
-            </div>
-            <div>
-              <label style={etichetta}>{t("cfg.port")}</label>
-              <input style={S.input} type="number" min={1} max={65535} value={source.port}
-                onChange={(e) => setField("port", Number(e.target.value))} />
-            </div>
-            <div>
-              <label style={etichetta}>{t("cfg.pollInterval")}</label>
-              <input style={S.input} type="number" min={100} value={source.poll_interval_ms}
-                title={t("cfg.modbusPollPredefinito")}
-                onChange={(e) => setField("poll_interval_ms", Number(e.target.value))} />
-            </div>
-          </div>
+          </SezioneSorgente>
 
-          {implicito ? (
-            <>
-              <DispositivoModbusCard bus={source} unit={dispositiviDi(source)[0].unit_id} onChange={onChange} onCreateTag={onCreateTag} />
-              <button
-                style={S.btn("ghost")}
-                data-testid={`modbus-gateway-${source.id}`}
-                title={t("cfg.modbusGatewayHint")}
-                onClick={() => {
-                  const d = nuovoDispositivo(source);
-                  onChange(conDispositivi(source, [...dispositiviDi(source), d]));
-                  navigateToConfig("protocols", focusDispositivo(source.id, d.unit_id));
-                }}
-              >
-                {t("cfg.modbusGateway")}
-              </button>
-            </>
-          ) : (
-            <ElencoDispositiviModbus bus={source} onChange={onChange} />
-          )}
+          <DisponibilitaSezione src={source} />
+
+          {/* Il pulsante «è un gateway» sta qui e non in AVANZATE: aggiungere un
+              secondo unit id dietro lo stesso indirizzo è una cosa che si fa,
+              e nascosta in una sezione chiusa non la si troverebbe. */}
+          <SezioneSorgente titolo={`${t("sorgenti.sezioni.dispositivi")} (${n})`}>
+            {implicito ? (
+              <>
+                <DispositivoModbusCard bus={source} unit={dispositiviDi(source)[0].unit_id} onChange={onChange} onCreateTag={onCreateTag} />
+                <button
+                  style={S.btn("ghost")}
+                  data-testid={`modbus-gateway-${source.id}`}
+                  title={t("cfg.modbusGatewayHint")}
+                  onClick={() => {
+                    const d = nuovoDispositivo(source);
+                    onChange(conDispositivi(source, [...dispositiviDi(source), d]));
+                    navigateToConfig("protocols", focusDispositivo(source.id, d.unit_id));
+                  }}
+                >
+                  {t("cfg.modbusGateway")}
+                </button>
+              </>
+            ) : (
+              <ElencoDispositiviModbus bus={source} onChange={onChange} />
+            )}
+          </SezioneSorgente>
         </div>
       )}
     </div>

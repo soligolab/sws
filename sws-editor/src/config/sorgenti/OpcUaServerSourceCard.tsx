@@ -5,6 +5,8 @@ import { TagInput } from "@/components/TagInput";
 import type { OpcUaServerNodeMapping, OpcUaServerSource, TagDef } from "@/types";
 import { S } from "@/config/comuni";
 import { emptyOpcUaServerNode } from "@/config/sorgenti/vuote";
+import { SezioneSorgente } from "@/config/sorgenti/card/SezioneSorgente";
+import { TestataSorgente } from "@/config/sorgenti/card/TestataSorgente";
 
 // ── OPC-UA server card ───────────────────────────────────────────────────────
 
@@ -35,53 +37,48 @@ export function OpcUaServerSourceCard({
   const removeNode = (idx: number) =>
     onChange({ ...source, nodes: source.nodes.filter((_, i) => i !== idx) });
 
+  const etichetta = { fontSize: 11, color: "var(--brand-text-subtle, #64748b)", display: "block", marginBottom: 3 } as const;
+
   return (
     <div style={S.card}>
-      <div style={S.cardHead} onClick={() => setOpen((v) => !v)}>
-        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <span style={{ fontSize: 11, color: "#8b5cf6", fontWeight: 700, letterSpacing: 1 }}>
-            OPC-UA SERVER
-          </span>
-          <span style={{ fontWeight: 600, color: "var(--brand-text, #e2e8f0)" }}>{source.id}</span>
-          <span style={{ color: "var(--brand-text-subtle, #64748b)", fontSize: 12 }}>
-            :{source.port} — {source.nodes.length} nodi
-          </span>
-        </div>
-        <div style={{ display: "flex", gap: 8 }}>
-          <button
-            style={S.btn("danger")}
-            onClick={(e) => { e.stopPropagation(); onDelete(); }}
-          >
-            {t("cfgUi.delete")}
-          </button>
-          <span style={{ color: "var(--brand-text-subtle, #94a3b8)", fontSize: 14 }}>{open ? "▲" : "▼"}</span>
-        </div>
-      </div>
+      {/* Senza stato in testata: è SWS a fare da server, e non c'è un altro
+          capo che possa non rispondere. */}
+      <TestataSorgente
+        tipo="OPC-UA SERVER"
+        colore="#8b5cf6"
+        id={source.id}
+        riepilogo={`:${source.port} · ${t("sorgenti.nNodi", { count: source.nodes.length })}`}
+        aperta={open}
+        onToggle={() => setOpen((v) => !v)}
+        azioni={<button style={S.btn("danger")} onClick={onDelete}>{t("cfgUi.delete")}</button>}
+        senzaStato
+      />
 
       {open && (
-        <div style={{ padding: "14px 16px" }}>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 100px 1fr", gap: 12, marginBottom: 16 }}>
-            <div>
-              <label style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)", display: "block", marginBottom: 3 }}>{t("cfg.sourceId")}</label>
-              <input style={S.input} value={source.id}
-                onChange={(e) => setField("id", e.target.value)} spellCheck={false} />
+        <div style={{ padding: "0 16px 14px" }}>
+          {/* La porta per prima, l'ID sorgente per ultimo (29-10-2026). */}
+          <SezioneSorgente titolo={t("sorgenti.sezioni.collegamento")}>
+            <div style={{ display: "grid", gridTemplateColumns: "100px 2fr 1.2fr", gap: 12, marginBottom: 8 }}>
+              <div>
+                <label style={etichetta}>{t("cfg.tcpPort")}</label>
+                <input style={S.input} type="number" min={1} max={65535}
+                  value={source.port}
+                  onChange={(e) => setField("port", Number(e.target.value))} />
+              </div>
+              <div>
+                <label style={etichetta}>{t("cfg.namespaceUri")}</label>
+                <input style={S.input} value={source.namespace_uri}
+                  onChange={(e) => setField("namespace_uri", e.target.value)} spellCheck={false} />
+              </div>
+              <div>
+                <label style={etichetta}>{t("cfg.sourceId")}</label>
+                <input style={S.input} value={source.id}
+                  onChange={(e) => setField("id", e.target.value)} spellCheck={false} />
+              </div>
             </div>
-            <div>
-              <label style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)", display: "block", marginBottom: 3 }}>{t("cfg.tcpPort")}</label>
-              <input style={S.input} type="number" min={1} max={65535}
-                value={source.port}
-                onChange={(e) => setField("port", Number(e.target.value))} />
-            </div>
-            <div>
-              <label style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)", display: "block", marginBottom: 3 }}>{t("cfg.namespaceUri")}</label>
-              <input style={S.input} value={source.namespace_uri}
-                onChange={(e) => setField("namespace_uri", e.target.value)} spellCheck={false} />
-            </div>
-          </div>
+          </SezioneSorgente>
 
-          <div style={{ marginBottom: 6, fontSize: 12, color: "var(--brand-text-subtle, #64748b)", fontWeight: 600, letterSpacing: 0.5 }}>
-            {t("sorgenti.nodiEsposti")}
-          </div>
+          <SezioneSorgente titolo={`${t("sorgenti.sezioni.nodi")} (${source.nodes.length})`}>
           <table style={{ ...S.table, marginBottom: 8 }}>
             <thead>
               <tr>
@@ -125,6 +122,7 @@ export function OpcUaServerSourceCard({
             </tbody>
           </table>
           <button style={S.btn("ghost")} onClick={addNode}>{t("cfgUi.addNode")}</button>
+          </SezioneSorgente>
         </div>
       )}
       {quickCreate !== null && (

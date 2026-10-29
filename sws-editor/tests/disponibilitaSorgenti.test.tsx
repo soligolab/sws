@@ -3,11 +3,20 @@
  *  impostazioni pronte, e l'allarme preparato che la scheda Allarmi accoglie
  *  nella sua bozza — senza farne un secondo se sul tag ce n'è già uno. */
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
-import { describe, expect, it, beforeEach } from "vitest";
+import { describe, expect, it, beforeEach, vi } from "vitest";
+
+// Lo stato della sorgente viene da `stato_sorgenti` (29-10-2026): è la stessa
+// fonte da cui il runtime deriva il tag `<sorgente>.disponibile`, quindi la
+// testata, la sezione e l'albero non possono dire cose diverse.
+const { statoSorgenti } = vi.hoisted(() => ({ statoSorgenti: vi.fn() }));
+vi.mock("@/api/client", async () => {
+  const actual = await vi.importActual<typeof import("@/api/client")>("@/api/client");
+  return { ...actual, api: { ...actual.api, statoSorgenti } };
+});
 import {
   allarmeDisponibilita, haDisponibilita, presetDi, tagDisponibilita, PRESET_DISPONIBILITA,
 } from "../src/config/sorgenti/disponibilita";
-import { DisponibilitaSorgente } from "../src/config/sorgenti/DisponibilitaSorgente";
+import { DisponibilitaSezione } from "../src/config/sorgenti/card/DisponibilitaSezione";
 import { AlarmsTab } from "../src/config/schede/AlarmsTab";
 import { useAppStore } from "../src/store";
 import type { SourceDef } from "../src/types";
@@ -49,14 +58,20 @@ describe("dal pulsante alla scheda Allarmi", () => {
     Element.prototype.scrollIntoView = () => {};
     useAppStore.setState({
       tagInAttesa: [], allarmeInAttesa: null, configTab: "protocols", configFocus: null,
-      tagValues: { "mqtt-garage.disponibile": { value: false, quality: "Good", timestamp_ms: 1 } },
+      remoteConnected: false,
       project: { meta: { name: "p", version: "1" }, tags: [], sources: [mqtt], alarms: [], functions: [] },
     } as never);
   });
 
-  it("il pulsante dichiara il tag e prepara l'allarme, e porta alla scheda", () => {
-    render(<DisponibilitaSorgente src={mqtt} />);
-    expect(screen.getByTestId("disponibilita-adesso-mqtt-garage").textContent).toMatch(/non risponde|not responding/);
+  it("il pulsante dichiara il tag e prepara l'allarme, e porta alla scheda", async () => {
+    statoSorgenti.mockResolvedValue({
+      "mqtt-garage": { stato: "non_risponde", errore: "«zigbee2mqtt/bridge/state» dice offline", da_ms: Date.now() },
+    });
+    render(<DisponibilitaSezione src={mqtt} />);
+    await waitFor(() => expect(screen.getByTestId("disponibilita-adesso-mqtt-garage").getAttribute("data-stato")).toBe("errore"));
+    // Il motivo si legge nella riga, non solo nel suggerimento: «non risponde»
+    // da solo non dice cosa guardare.
+    expect(screen.getByTestId("disponibilita-mqtt-garage").textContent).toContain("dice offline");
     fireEvent.click(screen.getByTestId("disponibilita-crea-mqtt-garage"));
     const s = useAppStore.getState();
     expect(s.tagInAttesa.map((t) => t.id)).toEqual(["mqtt-garage.disponibile"]);

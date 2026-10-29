@@ -159,12 +159,15 @@ ignora `disponibilita:` e la cancella al primo salvataggio, senza avvisare.
 
 **Nell'IDE, subito** (basta l'8460 sul ramo, progetto `casa-locale`, che punta a un broker che non esiste):
 
-1. [ ] Configurazione → Protocolli → una card MQTT: sotto c'è la riga **Disponibilità: non risponde**.
+1. [ ] Configurazione → Protocolli → una card MQTT, **chiusa**: la testata dice «non risponde dalle HH:MM» col
+       pallino rosso, e il motivo nel suggerimento. Aperta: la sezione **DISPONIBILITÀ** sta fra Autenticazione e
+       Mappatura, con lo stato a destra del titolo e il pulsante «⚠ Crea l'allarme di disponibilità». Sotto la
+       card non c'è più nessuna riga.
 2. [ ] Sezione **DISPONIBILITÀ** → «Chi dice se è vivo» → Zigbee2MQTT: si compilano topic, campo e valore. Salvare: in
        Variabili compare il tag `<sorgente>.disponibile`.
-3. [ ] «Crea l'allarme di disponibilità»: la scheda Allarmi si apre con l'allarme in bozza (`bool_false`, 60 s,
-       Warning, il nome della sorgente nel messaggio). Salvare. Tornando alla card, il pulsante dice «Vai
-       all'allarme».
+3. [ ] «⚠ Crea l'allarme di disponibilità», dentro la sezione: la scheda Allarmi si apre con l'allarme in bozza
+       (`bool_false`, 60 s, Warning, il nome della sorgente nel messaggio). Salvare. Tornando alla card, al posto
+       del pulsante c'è «Vai all'allarme».
 4. [ ] «Personalizzato…» con un topic e **senza** valore «vivo»: la validazione avvisa.
 
 **Dal vivo, con CasaDomotica e il Zigbee2MQTT di casa:**
@@ -183,6 +186,25 @@ ignora `disponibilita:` e la cancella al primo salvataggio, senza avvisare.
 
 10. [ ] Una sorgente Modbus o S7 verso un dispositivo vero: staccarlo → `<sorgente>.disponibile` falso e tag `Bad`;
         riattaccarlo → vero, e i tag tornano buoni alla prima lettura.
+
+## A-octies. Le card delle sorgenti, ridisegnate (29-10-2026)
+
+Piano `docs/plans/2026-10-29-card-delle-sorgenti.md`. Nasce dal collaudo a schermo di A-septies: il pulsante
+dell'allarme troppo nascosto, i titoli delle sezioni dello stesso colore delle etichette, il watchdog da solo su una
+riga. Basta l'8460 sul ramo; un progetto con una sorgente per tipo aiuta.
+
+1. [ ] **Le nove testate uguali**: tipo colorato · id · riepilogo · stato · azioni · ▲. Host e server OPC-UA senza
+       stato (non hanno un altro capo).
+2. [ ] **L'ordine dei campi**: in ogni card l'indirizzo (host, porta seriale, IP, endpoint, URL) viene per primo,
+       l'ID sorgente per ultimo nella prima riga.
+3. [ ] **MQTT → AVANZATE** parte chiusa e dice cosa c'è dentro; aperta, keep-alive, QoS, clean session e
+       **watchdog** stanno su una riga sola.
+4. [ ] **MQTT → MAPPATURA**: l'interruttore `[Topic | Sparkplug B]` nel titolo. Sparkplug B sostituisce la tabella
+       dei topic e fa sparire DISPONIBILITÀ; tornare a Topic con delle metriche chiede conferma.
+5. [ ] **Il contrasto, nei due temi**: i titoli di sezione si staccano dalle etichette; i campi hanno un fondo
+       diverso dalla card; nel tema chiaro la card si stacca dal grigio della pagina (bordo e ombra).
+6. [ ] **OPC-UA client**: la security policy e i certificati stanno in AVANZATE, chiusa, col riepilogo «Security
+       policy: …»; utente e password si scelgono in AUTENTICAZIONE.
 
 ## B. Lo schema `http`/`https` non è più scritto a mano
 

@@ -63,6 +63,13 @@ const VAR_ON_PRIMARY    = "--brand-on-primary";
 /** Il colore primario **usato come testo** su una superficie (28-10-2026). Vedi
  *  `testoLeggibile`. */
 const VAR_PRIMARY_TESTO = "--brand-primary-testo";
+/** L'ombra di una card sullo sfondo (29-10-2026, piano
+ *  `docs/plans/2026-10-29-card-delle-sorgenti.md`). Nel tema chiaro una card
+ *  bianca su `#f8fafc` non si distingueva: fondo e bordo facevano 1,05 contro
+ *  lo sfondo, cioè lo stesso colore. Il bordo passa a `--brand-border`, e
+ *  questa dà il resto. Un token e non un valore scritto nelle card, perché
+ *  l'ombra giusta è diversa nei due temi. */
+const VAR_OMBRA_CARD    = "--brand-ombra-card";
 const VAR_ON_DANGER     = "--brand-on-danger";
 const VAR_ON_SUCCESS    = "--brand-on-success";
 const VAR_ON_WARNING    = "--brand-on-warning";
@@ -337,6 +344,9 @@ export function applyAppearance(mode: ThemeMode): ResolvedTheme {
   s.setProperty(VAR_TEXT_SUBTLE,    neutrals.textSubtle);
   s.setProperty(VAR_CANVAS_DESK,    resolved === "light" ? LIGHT_DESK : DARK_DESK);
   s.setProperty(VAR_GUIDA_ALBERO,   resolved === "light" ? LIGHT_GUIDA : DARK_GUIDA);
+  s.setProperty(VAR_OMBRA_CARD, resolved === "light"
+    ? "0 1px 2px rgba(15,23,42,.08), 0 2px 8px rgba(15,23,42,.07)"
+    : "0 1px 2px rgba(0,0,0,.35), 0 2px 8px rgba(0,0,0,.25)");
 
   // Stato.
   s.setProperty(VAR_DANGER,       status.danger);

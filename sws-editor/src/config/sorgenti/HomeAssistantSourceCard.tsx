@@ -6,6 +6,9 @@ import type { EntityMapping, HomeAssistantSource, TagDef } from "@/types";
 import { S } from "@/config/comuni";
 import { emptyEntityMapping } from "@/config/sorgenti/vuote";
 import { type HaBrowseTarget, HaBrowseModal } from "@/config/sorgenti/HaBrowseModal";
+import { SezioneSorgente } from "@/config/sorgenti/card/SezioneSorgente";
+import { TestataSorgente } from "@/config/sorgenti/card/TestataSorgente";
+import { DisponibilitaSezione } from "@/config/sorgenti/card/DisponibilitaSezione";
 
 // ── HomeAssistant card ────────────────────────────────────────────────────────
 
@@ -37,67 +40,63 @@ export function HomeAssistantSourceCard({
   const removeEntity = (idx: number) =>
     onChange({ ...source, entities: source.entities.filter((_, i) => i !== idx) });
 
+  const etichetta = { fontSize: 11, color: "var(--brand-text-subtle, #64748b)", display: "block", marginBottom: 3 } as const;
+
   return (
     <div style={S.card}>
-      <div style={S.cardHead} onClick={() => setOpen((v) => !v)}>
-        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <span style={{ fontSize: 11, color: "var(--brand-warning, #f59e0b)", fontWeight: 700, letterSpacing: 1 }}>
-            HOME ASSISTANT
-          </span>
-          <span style={{ fontWeight: 600, color: "var(--brand-text, #e2e8f0)" }}>{source.id}</span>
-          <span style={{ color: "var(--brand-text-subtle, #64748b)", fontSize: 12 }}>
-            {source.url} — {source.entities.length} entità
-          </span>
-        </div>
-        <div style={{ display: "flex", gap: 8 }}>
-          <button
-            style={S.btn("danger")}
-            onClick={(e) => { e.stopPropagation(); onDelete(); }}
-          >
-            {t("cfgUi.delete")}
-          </button>
-          <span style={{ color: "var(--brand-text-subtle, #94a3b8)", fontSize: 14 }}>{open ? "▲" : "▼"}</span>
-        </div>
-      </div>
+      <TestataSorgente
+        tipo="HOME ASSISTANT"
+        colore="var(--brand-warning, #f59e0b)"
+        id={source.id}
+        riepilogo={`${source.url} · ${t("sorgenti.nEntita", { count: source.entities.length })}`}
+        aperta={open}
+        onToggle={() => setOpen((v) => !v)}
+        azioni={<button style={S.btn("danger")} onClick={onDelete}>{t("cfgUi.delete")}</button>}
+      />
 
       {open && (
-        <div style={{ padding: "14px 16px" }}>
-          <div style={{ display: "grid", gridTemplateColumns: "120px 1fr 1fr", gap: 12, marginBottom: 16 }}>
-            <div>
-              <label style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)", display: "block", marginBottom: 3 }}>{t("cfg.sourceId")}</label>
-              <input style={S.input} value={source.id}
-                onChange={(e) => setField("id", e.target.value)} spellCheck={false} />
+        <div style={{ padding: "0 16px 14px" }}>
+          {/* L'indirizzo per primo, l'ID sorgente per ultimo (29-10-2026). */}
+          <SezioneSorgente titolo={t("sorgenti.sezioni.collegamento")}>
+            <div style={{ display: "grid", gridTemplateColumns: "2fr 1.2fr", gap: 12 }}>
+              <div>
+                <label style={etichetta}>{t("cfg.haUrl")}</label>
+                <input style={S.input} placeholder="http://homeassistant.local:8123"
+                  value={source.url}
+                  onChange={(e) => setField("url", e.target.value)} spellCheck={false} />
+              </div>
+              <div>
+                <label style={etichetta}>{t("cfg.sourceId")}</label>
+                <input style={S.input} value={source.id}
+                  onChange={(e) => setField("id", e.target.value)} spellCheck={false} />
+              </div>
             </div>
-            <div>
-              <label style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)", display: "block", marginBottom: 3 }}>{t("cfg.haUrl")}</label>
-              <input style={S.input} placeholder="http://homeassistant.local:8123"
-                value={source.url}
-                onChange={(e) => setField("url", e.target.value)} spellCheck={false} />
-            </div>
-            <div>
-              <label style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)", display: "block", marginBottom: 3 }}>
-                {t("sorgenti.tokenAccesso")}{" "}
-                <span style={{ fontWeight: 400, color: "var(--brand-text-subtle, #94a3b8)" }}>{t("sorgenti.oppureTokenEnv")}</span>
-              </label>
-              <input style={S.input} type="password" placeholder="long-lived access token"
-                value={source.token ?? ""}
-                onChange={(e) => setField("token", e.target.value || undefined)} />
-            </div>
-          </div>
+          </SezioneSorgente>
 
-          <div style={{ marginBottom: 8 }}>
-            <label style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)", display: "block", marginBottom: 3 }}>
-              {t("cfgUi.envVariableForTheToken")}
-            </label>
-            <input style={{ ...S.input, maxWidth: 240 }} placeholder="HA_TOKEN"
-              value={source.token_env ?? ""}
-              onChange={(e) => setField("token_env", e.target.value || undefined)}
-              spellCheck={false} />
-          </div>
+          {/* Il token e la sua variabile d'ambiente su una riga: prima la
+              variabile stava da sola, sotto, e l'etichetta del token doveva
+              rimandarci con «(oppure usa token_env)». */}
+          <SezioneSorgente titolo={t("sorgenti.sezioni.autenticazione")}>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+              <div>
+                <label style={etichetta}>{t("sorgenti.tokenAccesso")}</label>
+                <input style={S.input} type="password" placeholder="long-lived access token"
+                  value={source.token ?? ""}
+                  onChange={(e) => setField("token", e.target.value || undefined)} />
+              </div>
+              <div>
+                <label style={etichetta}>{t("cfgUi.envVariableForTheToken")}</label>
+                <input style={S.input} placeholder="HA_TOKEN"
+                  value={source.token_env ?? ""}
+                  onChange={(e) => setField("token_env", e.target.value || undefined)}
+                  spellCheck={false} />
+              </div>
+            </div>
+          </SezioneSorgente>
 
-          <div style={{ marginBottom: 6, fontSize: 12, color: "var(--brand-text-subtle, #64748b)", fontWeight: 600, letterSpacing: 0.5 }}>
-            {t("cfgUi.haEntitiesSwsTags")}
-          </div>
+          <DisponibilitaSezione src={source} />
+
+          <SezioneSorgente titolo={`${t("sorgenti.sezioni.entita")} (${source.entities.length})`}>
           <table style={{ ...S.table, marginBottom: 8 }}>
             <thead>
               <tr>
@@ -176,6 +175,7 @@ export function HomeAssistantSourceCard({
             </tbody>
           </table>
           <button style={S.btn("ghost")} onClick={addEntity}>{t("cfgUi.addEntity")}</button>
+          </SezioneSorgente>
         </div>
       )}
 

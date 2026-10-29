@@ -18,8 +18,6 @@ import { OpcUaServerSourceCard } from "@/config/sorgenti/OpcUaServerSourceCard";
 import { ModbusSourceCard } from "@/config/sorgenti/ModbusSourceCard";
 import { ModbusRtuSourceCard } from "@/config/sorgenti/ModbusRtuSourceCard";
 import { MqttSourceCard } from "@/config/sorgenti/MqttSourceCard";
-import { DisponibilitaSorgente } from "@/config/sorgenti/DisponibilitaSorgente";
-import { haDisponibilita } from "@/config/sorgenti/disponibilita";
 import { DispositivoModbusCard, SalvaBusContext } from "@/config/sorgenti/DispositiviModbus";
 import {
   busImplicito, dispositiviDi, eBusModbus, etichettaDispositivo, focusDispositivo, idElementiProtocolli, leggiFocus,
@@ -316,16 +314,14 @@ export function ProtocolsTab() {
 
       {sources.map((src, i) => {
         if (focus !== null && src.id !== focus) return null;
-        // La card, e sotto la riga della disponibilità (28-10-2026) per le
-        // sorgenti che sanno dire se hanno qualcuno dall'altra parte.
+        // La disponibilità sta **dentro** la card dal 29-10-2026 (sezione
+        // DISPONIBILITÀ, prima della mappatura): qui sotto, fuori dal bordo e
+        // dopo la tabella dei topic, era «troppo nascosta». E l'eccezione del
+        // dispositivo Modbus scelto si tiene da sola: in quel caso `cardDi`
+        // disegna la card del dispositivo **al posto** di quella del bus.
         const card = cardDi(src, i);
         if (!card) return null;
-        return (
-          <Fragment key={i}>
-            {card}
-            {haDisponibilita(src) && !(eBusModbus(src) && scelto?.unit != null && !busImplicito(src)) && <DisponibilitaSorgente src={src} />}
-          </Fragment>
-        );
+        return <Fragment key={i}>{card}</Fragment>;
       })}
 
 
