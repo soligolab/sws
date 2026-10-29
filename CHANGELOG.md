@@ -11,6 +11,8 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 
 ## [Unreleased]
 
+## [2.23.7] — 2026-10-29
+
 ### Added
 
 - **Lo schermo del pannello dal cloud** (piano `docs/plans/2026-10-29-schermo-remoto.md`): dall'IDE su
