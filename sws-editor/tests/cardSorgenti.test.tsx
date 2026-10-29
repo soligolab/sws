@@ -100,6 +100,14 @@ describe("la card MQTT", () => {
     expect(screen.queryByTestId("disponibilita-mqtt-garage")).toBeNull();
   });
 
+  it("una riga dice cosa vuol dire il modo scelto", () => {
+    const { rerender } = render(<MqttSourceCard source={mqtt} onChange={() => {}} onDelete={() => {}} onCreateTag={() => {}} />);
+    expect(screen.getByTestId("modo-descrizione").textContent).toContain("Ogni topic MQTT");
+    const conSparkplug = { ...mqtt, sparkplug: { group_id: "", host_id: "SWS-SCADA", metrics: [] } } as unknown as MqttSource;
+    rerender(<MqttSourceCard source={conSparkplug} onChange={() => {}} onDelete={() => {}} onCreateTag={() => {}} />);
+    expect(screen.getByTestId("modo-descrizione").textContent).toContain("Uno standard industriale");
+  });
+
   it("le avanzate partono chiuse", () => {
     render(<MqttSourceCard source={mqtt} onChange={() => {}} onDelete={() => {}} onCreateTag={() => {}} />);
     const avanzate = screen.getByTestId("mqtt-avanzate-mqtt-garage");

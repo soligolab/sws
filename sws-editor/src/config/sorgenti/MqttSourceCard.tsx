@@ -169,6 +169,13 @@ export function MqttSourceCard({
             titolo={`${t("sorgenti.sezioni.mappatura")} (${nMappatura})`}
             destra={<ModoMappatura source={source} onChange={onChange} />}
           >
+            {/* Una riga che dice cosa vuol dire il modo scelto (29-10-2026):
+                «payload protobuf — ignora topic normali» non diceva quando
+                Sparkplug B serve. */}
+            <div style={{ fontSize: 12, color: "var(--brand-text-subtle, #94a3b8)", marginBottom: 10, lineHeight: 1.45 }}
+              data-testid="modo-descrizione">
+              {source.sparkplug ? t("sorgenti.modo.descrizioneSparkplug") : t("sorgenti.modo.descrizioneTopic")}
+            </div>
             {source.sparkplug ? (
               <SparkplugSection
                 spb={source.sparkplug}

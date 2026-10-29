@@ -39,6 +39,8 @@ versioni:
         en: "Every source tells whether someone is on the other side. For MQTT you choose who reports it (Zigbee2MQTT, Tasmota, Shelly, ESPHome); a button creates the alarm to link to notifications."
       - it: "Le schede dei protocolli sono piu' ordinate: lo stato si legge anche a scheda chiusa, i campi importanti vengono prima, le opzioni rare stanno in «Avanzate»."
         en: "Protocol cards are tidier: the status shows even when a card is closed, the important fields come first, rare options sit under «Advanced»."
+      - it: "Sparkplug B: i comandi arrivano al nodo o dispositivo giusto, e un nodo che si spegne rende non validi solo i suoi valori."
+        en: "Sparkplug B: commands now reach the right node or device, and a node that goes down invalidates only its own values."
   - versione: "2.23.6"
     voci:
       - it: "Nel cloud, cancellare un progetto e crearne uno con lo stesso nome ora funziona, invece di dare un errore all'apertura."

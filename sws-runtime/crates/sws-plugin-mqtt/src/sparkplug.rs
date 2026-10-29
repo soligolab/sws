@@ -5,10 +5,17 @@
 //!   spBv1.0/{group_id}/{msg_type}/{edge_node_id}[/{device_id}]
 //!
 //! This module handles:
-//!   - SCADA Host STATE birth (online/offline)
+//!   - SCADA Host STATE birth (online/offline), nella forma di Sparkplug 3.0
 //!   - NBIRTH / NDATA / DBIRTH / DDATA → tag updates
-//!   - NDEATH / DDEATH → Bad quality on mapped tags
-//!   - NCMD write-back for writable metrics
+//!   - NDEATH / DDEATH → Bad quality on the tags **of that node or device**
+//!   - NCMD / DCMD write-back for writable metrics, al nodo o dispositivo che
+//!     ha annunciato la metrica
+//!
+//! Le ultime tre righe sono del 29-10-2026. Fino a quel giorno lo STATE aveva
+//! il topic della 3.0 e il contenuto della 2.x (`ONLINE`), la morte di un nodo
+//! marcava `Bad` i tag di tutto il gruppo, e un comando partiva verso
+//! `NCMD/<host_id>` — cioè verso il nome di SWS, dove nessun nodo ascolta —
+//! e il valore scritto si vedeva buono lo stesso.
 //!
 //! Protobuf structs are hand-written (no protoc/build.rs needed — the schema
 //! is small and stable).
@@ -172,11 +179,14 @@ async fn session(
         opts.set_credentials(user, pw);
     }
 
-    // SCADA Host STATE: last-will = offline, birth = online.
-    let state_topic = format!("spBv1.0/STATE/{}", spb.host_id);
+    // SCADA Host STATE: last-will = offline, birth = online. Lo stesso
+    // istante nei due: la 3.0 lo chiede, ed è così che un nodo distingue il
+    // testamento di questa sessione da quello di una vecchia.
+    let state_topic = topic_stato_host(&spb.host_id);
+    let istante = adesso_ms();
     opts.set_last_will(rumqttc::LastWill::new(
         &state_topic,
-        "OFFLINE",
+        stato_host(false, istante),
         QoS::AtLeastOnce,
         true,
     ));
@@ -192,7 +202,7 @@ async fn session(
 
     // Publish SCADA Host online STATE.
     client
-        .publish(&state_topic, QoS::AtLeastOnce, true, "ONLINE")
+        .publish(&state_topic, QoS::AtLeastOnce, true, stato_host(true, istante))
         .await
         .map_err(|e| anyhow::anyhow!("publish STATE ONLINE: {e}"))?;
 
@@ -208,20 +218,10 @@ async fn session(
             .max(30),
     );
 
-    // Build metric-name → index lookup for fast dispatch.
-    let metric_idx: HashMap<String, usize> = spb
-        .metrics
-        .iter()
-        .enumerate()
-        .map(|(i, m)| (m.metric_name.clone(), i))
-        .collect();
-
-    // (ambito, alias) → indice della metrica. Si riempie dalle **nascite**
-    // (NBIRTH/DBIRTH), che sono le uniche a portare nome e alias insieme, e la
-    // leggono i dati, che di solito portano solo l'alias. Vive quanto la
-    // sessione: una riconnessione riparte da zero e aspetta la nascita nuova,
-    // che è esattamente quello che Sparkplug prescrive.
-    let mut alias_idx: HashMap<(String, u64), usize> = HashMap::new();
+    // Quello che la sessione sa dei nodi. Vive quanto la sessione: una
+    // riconnessione riparte da zero e aspetta le nascite nuove, che è
+    // esattamente quello che Sparkplug prescrive.
+    let mut stato = Stato::nuovo(spb);
 
     // Register writable metrics on the write bus.
     let (write_tx, mut write_rx) = mpsc::channel::<WriteRequest>(32);
@@ -233,7 +233,7 @@ async fn session(
     loop {
         tokio::select! {
             _ = cancel.cancelled() => {
-                let _ = client.publish(&state_topic, QoS::AtLeastOnce, true, "OFFLINE").await;
+                let _ = client.publish(&state_topic, QoS::AtLeastOnce, true, stato_host(false, istante)).await;
                 return Ok(());
             }
 
@@ -246,21 +246,29 @@ async fn session(
                     warn!(tag = %tag, percorso = %p, "scrittura su una foglia: non ancora supportata da questa sorgente");
                     continue;
                 }
-                // Find the metric mapping for this tag.
-                let Some(m) = spb.metrics.iter().find(|m| m.tag == tag) else { continue };
+                let Some(idx) = spb.metrics.iter().position(|m| m.tag == tag) else { continue };
+                let m = &spb.metrics[idx];
 
-                // Build NCMD payload with one metric.
+                // Il comando va al nodo (NCMD) o al dispositivo (DCMD) che ha
+                // annunciato la metrica: è l'unico che lo ascolta. Prima della
+                // sua nascita non sappiamo a chi mandarlo, e non lo mandiamo.
+                let Some((destinazione, vivo)) = stato.comando(&spb.group_id, idx) else {
+                    warn!(source = %cfg.id, %tag, metrica = %m.metric_name,
+                          "Sparkplug: nessun nodo ha ancora annunciato questa metrica, comando non mandato");
+                    continue;
+                };
                 let payload_bytes = build_cmd_payload(&m.metric_name, &value);
-
-                // Send to the first edge node we know about. In a PoC, we
-                // use the group id; a full implementation would track NBIRTH
-                // node IDs per group. Use a wildcard-free topic to keep
-                // the broker simple: `spBv1.0/{group}/NCMD/{host_id}`.
-                let ncmd_topic = format!("spBv1.0/{}/NCMD/{}", spb.group_id, spb.host_id);
-                if let Err(e) = client.publish(&ncmd_topic, QoS::AtLeastOnce, false, payload_bytes).await {
-                    warn!(source = %cfg.id, tag, "Sparkplug NCMD publish failed: {e}");
+                if let Err(e) = client.publish(&destinazione, QoS::AtLeastOnce, false, payload_bytes).await {
+                    warn!(source = %cfg.id, tag, "Sparkplug command publish failed: {e}");
                 } else {
-                    db.ingest(tag, value, TagQuality::Good).await;
+                    // Come per MQTT (28-10-2026): il comando parte anche verso
+                    // un nodo morto, ma il valore si scrive buono solo se
+                    // dall'altra parte c'è qualcuno. Il nodo vivo lo conferma
+                    // comunque col suo NDATA/DDATA.
+                    if vivo {
+                        db.ingest(tag.clone(), value, TagQuality::Good).await;
+                    }
+                    info!(source = %cfg.id, %tag, %destinazione, vivo, "Sparkplug command");
                 }
             }
 
@@ -272,10 +280,74 @@ async fn session(
                     Ok(inner) => inner.map_err(|e| anyhow::anyhow!("eventloop: {e}"))?,
                 };
                 if let Event::Incoming(Packet::Publish(p)) = event {
-                    handle_message(&p.topic, &p.payload, db, spb, &metric_idx, &mut alias_idx).await;
+                    handle_message(&p.topic, &p.payload, db, spb, &mut stato).await;
                 }
             }
         }
+    }
+}
+
+/// Il topic dello stato dell'host: `spBv1.0/STATE/<host_id>` (Sparkplug 3.0).
+fn topic_stato_host(host_id: &str) -> String {
+    format!("spBv1.0/STATE/{host_id}")
+}
+
+/// Il contenuto dello stato dell'host nella forma della 3.0: un JSON con
+/// `online` e `timestamp`. Era la stringa `ONLINE`/`OFFLINE` della 2.x, su un
+/// topic della 3.0: un nodo 3.0 legge il JSON, e una stringa non la capisce.
+/// Le due versioni non si possono servire insieme — il testamento di una
+/// connessione MQTT è uno solo — e la 3.0 è quella in vigore.
+fn stato_host(online: bool, timestamp: u64) -> String {
+    format!(r#"{{"online":{online},"timestamp":{timestamp}}}"#)
+}
+
+fn adesso_ms() -> u64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_millis() as u64)
+        .unwrap_or(0)
+}
+
+/// Da dove arriva una metrica: il nodo, e il dispositivo se è sua.
+#[derive(Debug, Clone, PartialEq)]
+struct Origine {
+    nodo: String,
+    dispositivo: Option<String>,
+    /// Falso dopo la morte del nodo o del dispositivo, vero alla nascita o al
+    /// primo dato.
+    vivo: bool,
+}
+
+/// Quello che una sessione sa dei nodi del gruppo.
+struct Stato {
+    per_nome: HashMap<String, usize>,
+    /// (ambito, alias) → indice della metrica. Si riempie dalle **nascite**
+    /// (NBIRTH/DBIRTH), che sono le uniche a portare nome e alias insieme, e
+    /// la leggono i dati, che di solito portano solo l'alias.
+    alias: HashMap<(String, u64), usize>,
+    /// Per ogni metrica mappata, chi l'ha mandata per ultimo. Serve a due
+    /// cose: sapere a chi mandare un comando, e quali tag una morte tocca.
+    origine: Vec<Option<Origine>>,
+}
+
+impl Stato {
+    fn nuovo(spb: &SparkplugConfig) -> Self {
+        Self {
+            per_nome: spb.metrics.iter().enumerate().map(|(i, m)| (m.metric_name.clone(), i)).collect(),
+            alias: HashMap::new(),
+            origine: vec![None; spb.metrics.len()],
+        }
+    }
+
+    /// Il topic del comando per la metrica `idx`, e se dall'altra parte c'è
+    /// qualcuno. `None` se nessuno l'ha ancora annunciata.
+    fn comando(&self, group_id: &str, idx: usize) -> Option<(String, bool)> {
+        let o = self.origine.get(idx)?.as_ref()?;
+        let topic = match &o.dispositivo {
+            Some(d) => format!("spBv1.0/{group_id}/DCMD/{}/{d}", o.nodo),
+            None => format!("spBv1.0/{group_id}/NCMD/{}", o.nodo),
+        };
+        Some((topic, o.vivo))
     }
 }
 
@@ -284,8 +356,7 @@ async fn handle_message(
     payload: &[u8],
     db: &TagDb,
     spb: &SparkplugConfig,
-    metric_idx: &HashMap<String, usize>,
-    alias_idx: &mut HashMap<(String, u64), usize>,
+    stato: &mut Stato,
 ) {
     // Topic format: spBv1.0/{group}/{msg_type}/{edge_node}[/{device}]
     let parts: Vec<&str> = topic.splitn(6, '/').collect();
@@ -293,6 +364,8 @@ async fn handle_message(
         return;
     }
     let msg_type = parts[2];
+    let nodo = parts[3];
+    let dispositivo = parts.get(4).copied();
     // Un alias vale dentro **un** nodo, e un suo dispositivo: due dispositivi
     // possono usare il numero 7 per due metriche diverse. La chiave porta
     // quindi tutto quello che nel topic viene dopo il tipo di messaggio.
@@ -306,12 +379,12 @@ async fn handle_message(
                     // Una nascita ribattezza tutto. Tenere gli alias di prima
                     // vorrebbe dire, dopo un riavvio del nodo, scrivere il
                     // valore di una metrica sul tag di un'altra.
-                    alias_idx.retain(|(a, _), _| a != &ambito);
+                    stato.alias.retain(|(a, _), _| a != &ambito);
                 }
                 for metric in &pl.metrics {
                     let idx = match metric.name.as_deref() {
                         Some(name) => {
-                            let Some(&idx) = metric_idx.get(name) else {
+                            let Some(&idx) = stato.per_nome.get(name) else {
                                 debug!(topic, metric = name, "Sparkplug metric not mapped");
                                 continue;
                             };
@@ -319,20 +392,25 @@ async fn handle_message(
                             // in un NDATA accanto al nome non è una definizione.
                             if nascita {
                                 if let Some(a) = metric.alias {
-                                    alias_idx.insert((ambito.clone(), a), idx);
+                                    stato.alias.insert((ambito.clone(), a), idx);
                                 }
                             }
                             idx
                         }
                         None => {
                             let Some(a) = metric.alias else { continue };
-                            let Some(&idx) = alias_idx.get(&(ambito.clone(), a)) else {
+                            let Some(&idx) = stato.alias.get(&(ambito.clone(), a)) else {
                                 debug!(topic, alias = a, "Sparkplug: alias sconosciuto, manca la nascita che lo battezza");
                                 continue;
                             };
                             idx
                         }
                     };
+                    stato.origine[idx] = Some(Origine {
+                        nodo: nodo.to_string(),
+                        dispositivo: dispositivo.map(str::to_string),
+                        vivo: true,
+                    });
                     let tag = &spb.metrics[idx].tag;
                     match metric_to_tagvalue(metric) {
                         Some(value) => db.ingest(tag.clone(), value, TagQuality::Good).await,
@@ -347,9 +425,18 @@ async fn handle_message(
             }
             Err(e) => warn!(topic, "Sparkplug proto decode error: {e}"),
         },
+        // Una morte tocca i tag di chi è morto, non quelli di tutto il gruppo.
+        // La morte di un nodo porta con sé i suoi dispositivi; quella di un
+        // dispositivo lascia stare il nodo e gli altri dispositivi.
         "NDEATH" | "DDEATH" => {
-            for m in &spb.metrics {
-                db.marca_qualita(&m.tag, TagQuality::Bad).await;
+            for (i, o) in stato.origine.iter_mut().enumerate() {
+                let Some(o) = o else { continue };
+                let tocca = o.nodo == nodo
+                    && (msg_type == "NDEATH" || o.dispositivo.as_deref() == dispositivo);
+                if tocca {
+                    o.vivo = false;
+                    db.marca_qualita(&spb.metrics[i].tag, TagQuality::Bad).await;
+                }
             }
         }
         _ => {}
@@ -660,8 +747,7 @@ mod prove_sparkplug {
     async fn i_dati_che_portano_solo_l_alias_arrivano() {
         let db = TagDb::new(16);
         let spb = cfg_di_prova();
-        let idx: HashMap<String, usize> = [("Pump/Speed".to_string(), 0usize)].into();
-        let mut alias = HashMap::new();
+        let mut stato = Stato::nuovo(&spb);
 
         let mut nascita = Vec::new();
         specifica::stringa(NOME, "Pump/Speed", &mut nascita);
@@ -671,7 +757,7 @@ mod prove_sparkplug {
         handle_message(
             "spBv1.0/plant-a/NBIRTH/edge1",
             &payload(vec![nascita]),
-            &db, &spb, &idx, &mut alias,
+            &db, &spb, &mut stato,
         ).await;
         assert_eq!(valore(&db, "pompa.velocita").await, Some(TagValue::Float(10.0)));
 
@@ -681,7 +767,7 @@ mod prove_sparkplug {
         handle_message(
             "spBv1.0/plant-a/NDATA/edge1",
             &payload(vec![dato]),
-            &db, &spb, &idx, &mut alias,
+            &db, &spb, &mut stato,
         ).await;
         assert_eq!(valore(&db, "pompa.velocita").await, Some(TagValue::Float(42.0)));
     }
@@ -693,20 +779,19 @@ mod prove_sparkplug {
     async fn l_alias_di_un_nodo_non_vale_per_un_altro() {
         let db = TagDb::new(16);
         let spb = cfg_di_prova();
-        let idx: HashMap<String, usize> = [("Pump/Speed".to_string(), 0usize)].into();
-        let mut alias = HashMap::new();
+        let mut stato = Stato::nuovo(&spb);
 
         let mut nascita = Vec::new();
         specifica::stringa(NOME, "Pump/Speed", &mut nascita);
         specifica::vint(ALIAS, 7, &mut nascita);
         specifica::vint(DATATYPE, 10, &mut nascita);
         specifica::fisso64(DOUBLE_VALUE, 1.0, &mut nascita);
-        handle_message("spBv1.0/plant-a/NBIRTH/edge1", &payload(vec![nascita]), &db, &spb, &idx, &mut alias).await;
+        handle_message("spBv1.0/plant-a/NBIRTH/edge1", &payload(vec![nascita]), &db, &spb, &mut stato).await;
 
         let mut dato = Vec::new();
         specifica::vint(ALIAS, 7, &mut dato);
         specifica::fisso64(DOUBLE_VALUE, 99.0, &mut dato);
-        handle_message("spBv1.0/plant-a/NDATA/edge2", &payload(vec![dato]), &db, &spb, &idx, &mut alias).await;
+        handle_message("spBv1.0/plant-a/NDATA/edge2", &payload(vec![dato]), &db, &spb, &mut stato).await;
 
         assert_eq!(
             valore(&db, "pompa.velocita").await,
@@ -722,15 +807,14 @@ mod prove_sparkplug {
     async fn una_nascita_nuova_cancella_gli_alias_di_prima() {
         let db = TagDb::new(16);
         let spb = cfg_di_prova();
-        let idx: HashMap<String, usize> = [("Pump/Speed".to_string(), 0usize)].into();
-        let mut alias = HashMap::new();
+        let mut stato = Stato::nuovo(&spb);
 
         let mut prima = Vec::new();
         specifica::stringa(NOME, "Pump/Speed", &mut prima);
         specifica::vint(ALIAS, 7, &mut prima);
         specifica::vint(DATATYPE, 10, &mut prima);
         specifica::fisso64(DOUBLE_VALUE, 1.0, &mut prima);
-        handle_message("spBv1.0/plant-a/NBIRTH/edge1", &payload(vec![prima]), &db, &spb, &idx, &mut alias).await;
+        handle_message("spBv1.0/plant-a/NBIRTH/edge1", &payload(vec![prima]), &db, &spb, &mut stato).await;
 
         // Rinasce, e stavolta Pump/Speed ha l'alias 9.
         let mut dopo = Vec::new();
@@ -738,20 +822,20 @@ mod prove_sparkplug {
         specifica::vint(ALIAS, 9, &mut dopo);
         specifica::vint(DATATYPE, 10, &mut dopo);
         specifica::fisso64(DOUBLE_VALUE, 2.0, &mut dopo);
-        handle_message("spBv1.0/plant-a/NBIRTH/edge1", &payload(vec![dopo]), &db, &spb, &idx, &mut alias).await;
+        handle_message("spBv1.0/plant-a/NBIRTH/edge1", &payload(vec![dopo]), &db, &spb, &mut stato).await;
 
         // Il 7 non vuol più dire niente: un dato che lo usa si scarta.
         let mut vecchio = Vec::new();
         specifica::vint(ALIAS, 7, &mut vecchio);
         specifica::fisso64(DOUBLE_VALUE, 777.0, &mut vecchio);
-        handle_message("spBv1.0/plant-a/NDATA/edge1", &payload(vec![vecchio]), &db, &spb, &idx, &mut alias).await;
+        handle_message("spBv1.0/plant-a/NDATA/edge1", &payload(vec![vecchio]), &db, &spb, &mut stato).await;
         assert_eq!(valore(&db, "pompa.velocita").await, Some(TagValue::Float(2.0)));
 
         // Il 9 sì.
         let mut nuovo = Vec::new();
         specifica::vint(ALIAS, 9, &mut nuovo);
         specifica::fisso64(DOUBLE_VALUE, 3.0, &mut nuovo);
-        handle_message("spBv1.0/plant-a/NDATA/edge1", &payload(vec![nuovo]), &db, &spb, &idx, &mut alias).await;
+        handle_message("spBv1.0/plant-a/NDATA/edge1", &payload(vec![nuovo]), &db, &spb, &mut stato).await;
         assert_eq!(valore(&db, "pompa.velocita").await, Some(TagValue::Float(3.0)));
     }
 
@@ -761,20 +845,19 @@ mod prove_sparkplug {
     async fn una_metrica_nulla_tiene_il_valore_e_segna_incerto() {
         let db = TagDb::new(16);
         let spb = cfg_di_prova();
-        let idx: HashMap<String, usize> = [("Pump/Speed".to_string(), 0usize)].into();
-        let mut alias = HashMap::new();
+        let mut stato = Stato::nuovo(&spb);
 
         let mut buono = Vec::new();
         specifica::stringa(NOME, "Pump/Speed", &mut buono);
         specifica::vint(DATATYPE, 10, &mut buono);
         specifica::fisso64(DOUBLE_VALUE, 12.5, &mut buono);
-        handle_message("spBv1.0/plant-a/NDATA/edge1", &payload(vec![buono]), &db, &spb, &idx, &mut alias).await;
+        handle_message("spBv1.0/plant-a/NDATA/edge1", &payload(vec![buono]), &db, &spb, &mut stato).await;
 
         let mut nullo = Vec::new();
         specifica::stringa(NOME, "Pump/Speed", &mut nullo);
         specifica::vint(DATATYPE, 10, &mut nullo);
         specifica::vint(IS_NULL, 1, &mut nullo);
-        handle_message("spBv1.0/plant-a/NDATA/edge1", &payload(vec![nullo]), &db, &spb, &idx, &mut alias).await;
+        handle_message("spBv1.0/plant-a/NDATA/edge1", &payload(vec![nullo]), &db, &spb, &mut stato).await;
 
         let st = db.get("pompa.velocita").await.expect("il tag esiste");
         assert_eq!(st.value, TagValue::Float(12.5), "il valore buono resta");
@@ -798,5 +881,95 @@ mod prove_sparkplug {
             byte.windows(chiave.len()).any(|w| w == chiave),
             "il valore non è sul campo 13 della specifica"
         );
+    }
+
+    // ── A chi va un comando, e chi tocca una morte (29-10-2026) ────────────
+
+    fn due_metriche() -> SparkplugConfig {
+        SparkplugConfig {
+            group_id: "plant-a".into(),
+            host_id: "SWS-SCADA".into(),
+            metrics: vec![
+                SparkplugMetricMapping { metric_name: "Pump/Speed".into(), tag: "pompa.velocita".into(), writable: true },
+                SparkplugMetricMapping { metric_name: "Valve/Open".into(), tag: "valvola.aperta".into(), writable: true },
+            ],
+        }
+    }
+
+    fn metrica(nome: &str, v: f64) -> Vec<u8> {
+        let mut m = Vec::new();
+        specifica::stringa(NOME, nome, &mut m);
+        specifica::vint(DATATYPE, 10, &mut m);
+        specifica::fisso64(DOUBLE_VALUE, v, &mut m);
+        m
+    }
+
+    async fn qualita(db: &TagDb, tag: &str) -> TagQuality {
+        db.get(tag).await.expect("il tag esiste").quality
+    }
+
+    /// Il comando andava a `NCMD/<host_id>`, cioè al nome di SWS: nessun nodo
+    /// ascolta lì. Va al nodo che ha annunciato la metrica, o al suo
+    /// dispositivo con DCMD — e prima della nascita a nessuno.
+    #[tokio::test]
+    async fn il_comando_va_a_chi_ha_annunciato_la_metrica() {
+        let db = TagDb::new(16);
+        let spb = due_metriche();
+        let mut stato = Stato::nuovo(&spb);
+        assert_eq!(stato.comando("plant-a", 0), None, "prima della nascita non si sa a chi");
+
+        handle_message("spBv1.0/plant-a/NBIRTH/edge1", &payload(vec![metrica("Pump/Speed", 1.0)]), &db, &spb, &mut stato).await;
+        handle_message("spBv1.0/plant-a/DBIRTH/edge1/pump3", &payload(vec![metrica("Valve/Open", 0.0)]), &db, &spb, &mut stato).await;
+
+        assert_eq!(stato.comando("plant-a", 0), Some(("spBv1.0/plant-a/NCMD/edge1".into(), true)));
+        assert_eq!(stato.comando("plant-a", 1), Some(("spBv1.0/plant-a/DCMD/edge1/pump3".into(), true)));
+    }
+
+    /// La morte di un nodo marcava `Bad` i tag di tutto il gruppo.
+    #[tokio::test]
+    async fn la_morte_di_un_nodo_tocca_solo_i_suoi_tag() {
+        let db = TagDb::new(16);
+        let spb = due_metriche();
+        let mut stato = Stato::nuovo(&spb);
+        handle_message("spBv1.0/plant-a/NBIRTH/edge1", &payload(vec![metrica("Pump/Speed", 1.0)]), &db, &spb, &mut stato).await;
+        handle_message("spBv1.0/plant-a/NBIRTH/edge2", &payload(vec![metrica("Valve/Open", 1.0)]), &db, &spb, &mut stato).await;
+
+        handle_message("spBv1.0/plant-a/NDEATH/edge1", &payload(vec![]), &db, &spb, &mut stato).await;
+
+        assert_eq!(qualita(&db, "pompa.velocita").await, TagQuality::Bad);
+        assert_eq!(qualita(&db, "valvola.aperta").await, TagQuality::Good, "edge2 è vivo");
+        assert_eq!(stato.comando("plant-a", 0).map(|(_, v)| v), Some(false), "il comando parte, ma il nodo è morto");
+    }
+
+    /// Un dispositivo che muore non si porta via il nodo; il nodo che muore
+    /// si porta via i suoi dispositivi.
+    #[tokio::test]
+    async fn la_morte_di_un_dispositivo_lascia_stare_il_nodo() {
+        let db = TagDb::new(16);
+        let spb = due_metriche();
+        let mut stato = Stato::nuovo(&spb);
+        handle_message("spBv1.0/plant-a/NBIRTH/edge1", &payload(vec![metrica("Pump/Speed", 1.0)]), &db, &spb, &mut stato).await;
+        handle_message("spBv1.0/plant-a/DBIRTH/edge1/pump3", &payload(vec![metrica("Valve/Open", 1.0)]), &db, &spb, &mut stato).await;
+
+        handle_message("spBv1.0/plant-a/DDEATH/edge1/pump3", &payload(vec![]), &db, &spb, &mut stato).await;
+        assert_eq!(qualita(&db, "valvola.aperta").await, TagQuality::Bad);
+        assert_eq!(qualita(&db, "pompa.velocita").await, TagQuality::Good);
+
+        handle_message("spBv1.0/plant-a/DBIRTH/edge1/pump3", &payload(vec![metrica("Valve/Open", 2.0)]), &db, &spb, &mut stato).await;
+        handle_message("spBv1.0/plant-a/NDEATH/edge1", &payload(vec![]), &db, &spb, &mut stato).await;
+        assert_eq!(qualita(&db, "valvola.aperta").await, TagQuality::Bad, "il dispositivo muore col suo nodo");
+        assert_eq!(qualita(&db, "pompa.velocita").await, TagQuality::Bad);
+    }
+
+    /// Lo stato dell'host nella forma della 3.0: JSON con `online` e
+    /// `timestamp`, lo stesso istante nel testamento e nella nascita.
+    #[test]
+    fn lo_stato_dell_host_e_quello_della_3_0() {
+        assert_eq!(topic_stato_host("SWS-SCADA"), "spBv1.0/STATE/SWS-SCADA");
+        let nascita: serde_json::Value = serde_json::from_str(&stato_host(true, 1_700_000_000_123)).unwrap();
+        let morte: serde_json::Value = serde_json::from_str(&stato_host(false, 1_700_000_000_123)).unwrap();
+        assert_eq!(nascita["online"], serde_json::json!(true));
+        assert_eq!(morte["online"], serde_json::json!(false));
+        assert_eq!(nascita["timestamp"], morte["timestamp"]);
     }
 }

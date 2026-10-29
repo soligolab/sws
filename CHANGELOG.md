@@ -42,6 +42,20 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 - **Contrasto della Configurazione**: i campi (`S.input`, `S.inputSm`) hanno il fondo della pagina e il bordo
   `--brand-border`, come già S7 e `ui/base.ts`; le card hanno bordo `--brand-border` e un'ombra leggera
   (`--brand-ombra-card`), perché nel tema chiaro la card bianca si confondeva col grigio della sezione.
+- **Sparkplug B detto chiaro**: sotto l'interruttore `[Topic | Sparkplug B]` una riga dice cosa vuol dire il modo
+  scelto (al posto di «payload protobuf — ignora topic normali»); «SCADA Host ID» diventa «Nome di SWS verso i
+  dispositivi», «NCMD write» diventa «Scrivibile», ognuno col suo suggerimento.
+
+### Fixed
+
+- **Sparkplug B, tre difetti del runtime** (`sws-plugin-mqtt/src/sparkplug.rs`, trovati il 29-10-2026 leggendo il
+  codice per scrivere quella riga). I comandi partivano verso `spBv1.0/<gruppo>/NCMD/<host_id>`, cioè verso il nome
+  di SWS, dove nessun nodo ascolta, e il valore si scriveva buono lo stesso: ora vanno a `NCMD/<nodo>` o
+  `DCMD/<nodo>/<dispositivo>` di chi ha annunciato la metrica, non partono se nessuno l'ha annunciata, e il valore si
+  scrive buono solo se il nodo è vivo. La morte di un nodo marcava `Bad` i tag di tutto il gruppo: ora solo i suoi e
+  quelli dei suoi dispositivi, e la morte di un dispositivo solo i suoi. Lo STATE dell'host aveva il topic della 3.0
+  e il contenuto della 2.x (`ONLINE`): ora è il JSON della 3.0, `{"online", "timestamp"}`, con lo stesso istante nel
+  testamento e nella nascita.
 
 ## [2.23.6] — 2026-10-28
 

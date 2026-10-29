@@ -1453,7 +1453,7 @@
     "onDelayHint": "Ritardo attivazione (s): la condizione deve essere vera per almeno N secondi",
     "offDelayHint": "Ritardo disattivazione (s): la condizione deve essere falsa per almeno N secondi prima del rientro",
     "role": "Ruolo",
-    "scadaHostId": "SCADA Host ID",
+    "scadaHostId": "Nome di SWS verso i dispositivi",
     "skipCargo": "Salta cargo build, rigenera solo SPA",
     "skipPnpm": "Salta pnpm build, ricompila solo il binario Rust",
     "sessionExpiry": "Scadenza sessione",
@@ -1467,7 +1467,7 @@
     "browseEntities": "Sfoglia entità disponibili",
     "browseAddressSpace": "Sfoglia l'address space del server e seleziona i nodi",
     "threshold": "Soglia",
-    "sparkplugMetric": "Sparkplug metric name",
+    "sparkplugMetric": "Nome della metrica Sparkplug",
     "spec": "Spec",
     "state": "Stato",
     "history": "Storico",
@@ -2380,7 +2380,6 @@
     "connectToADeviceFrom": "Connettiti a un dispositivo da Configurazione → Istanza → Device → Connessione per usare questo pulsante",
     "sendClientIdToThe": "Invia Client ID al dispositivo connesso",
     "publishALastWillWhen": "Pubblica un last-will quando la connessione cade",
-    "sparkplugBModeProtobufPayloads": "Modalità Sparkplug B (payloads protobuf — ignora topic normali)",
     "savedSourcesReconnectedOnThe": "✓ Salvato — sorgenti ricollegate al volo.",
     "noSourcesConfigured": "Nessuna sorgente configurata.",
     "addModbusTcp": "+ Aggiungi Modbus TCP",
@@ -3955,14 +3954,21 @@
       "topic": "Topic",
       "sparkplug": "Sparkplug B",
       "titolo": "Come arrivano i dati",
-      "confermaTopic": "Tornare ai topic toglie la configurazione Sparkplug B e le sue metriche. Continuare?"
+      "confermaTopic": "Tornare ai topic toglie la configurazione Sparkplug B e le sue metriche. Continuare?",
+      "descrizioneSparkplug": "Uno standard industriale: i dispositivi pubblicano i loro valori in un formato fisso sotto spBv1.0/<Group ID>/…. Qui non si scrivono topic: si collega ogni metrica, per nome, a un tag. Usalo solo se il dispositivo dice di parlare Sparkplug B.",
+      "descrizioneTopic": "Ogni topic MQTT è collegato a un tag. Il valore può essere testo o JSON."
     },
     "riepilogoAvanzateMqtt": "connessione · TLS · last will · client id",
     "clientIdCasuale": "Client ID casuale",
     "nNodi_one": "{{count}} nodo",
     "nNodi_other": "{{count}} nodi",
     "nEntita_one": "{{count}} entità",
-    "nEntita_other": "{{count}} entità"
+    "nEntita_other": "{{count}} entità",
+    "spb": {
+      "hostIdAiuto": "Pubblicato in spBv1.0/STATE/<nome>: dice ai dispositivi che SWS è collegato.",
+      "scrivibile": "Scrivibile",
+      "scrivibileAiuto": "SWS manda il comando al nodo (NCMD) o al dispositivo (DCMD) che ha annunciato la metrica."
+    }
   },
   "reportTab": {
     "titolo": "REPORT PROGRAMMATI",

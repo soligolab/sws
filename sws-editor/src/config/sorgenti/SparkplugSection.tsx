@@ -2,6 +2,7 @@ import { useTranslation } from "react-i18next";
 import { TagInput } from "@/components/TagInput";
 import type { SparkplugConfig, SparkplugMetricMapping, TagDef } from "@/types";
 import { S } from "@/config/comuni";
+import { SottoTitolo } from "@/config/sorgenti/card/SezioneSorgente";
 
 // ── Sparkplug B section (inside MqttSourceCard) ───────────────────────────────
 //
@@ -9,7 +10,8 @@ import { S } from "@/config/comuni";
 // della mappatura**, scelto da `[Topic | Sparkplug B]` nel titolo della sezione
 // MAPPATURA della card (scelta del maintainer sul mockup). Qui resta solo la
 // sua configurazione, che si mostra quando il modo è quello. Stessi dati di
-// prima: `source.sparkplug` presente o no.
+// prima: `source.sparkplug` presente o no. La riga che spiega il modo la
+// scrive la card, sopra, per tutti e due i modi.
 // Piano: docs/plans/2026-10-29-card-delle-sorgenti.md
 
 export function SparkplugSection({
@@ -41,11 +43,6 @@ export function SparkplugSection({
   return (
     <>
       {enabled && (
-        <div style={{ fontSize: 11, color: "var(--brand-text-subtle, #94a3b8)", marginBottom: 8 }}>
-          {t("cfgUi.sparkplugBModeProtobufPayloads")}
-        </div>
-      )}
-      {enabled && (
         <>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 12 }}>
             <div>
@@ -59,7 +56,8 @@ export function SparkplugSection({
               />
             </div>
             <div>
-              <label style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)", display: "block", marginBottom: 3 }}>{t("cfg.scadaHostId")}</label>
+              <label style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)", display: "block", marginBottom: 3 }}
+                title={t("sorgenti.spb.hostIdAiuto")}>{t("cfg.scadaHostId")}</label>
               <input
                 style={S.input}
                 value={current.host_id}
@@ -68,9 +66,7 @@ export function SparkplugSection({
               />
             </div>
           </div>
-          <div style={{ fontSize: 12, fontWeight: 700, color: "var(--brand-text-subtle, #64748b)", marginBottom: 6 }}>
-            METRICHE ({current.metrics.length})
-          </div>
+          <SottoTitolo>{`${t("sorgenti.sezioni.metriche")} (${current.metrics.length})`}</SottoTitolo>
           {current.metrics.map((m, idx) => (
             <div key={idx} style={{ display: "flex", gap: 6, alignItems: "center", marginBottom: 6, flexWrap: "wrap" }}>
               <TagInput
@@ -83,9 +79,10 @@ export function SparkplugSection({
                 placeholder={t("cfg.sparkplugMetric")}
                 style={{ background: "var(--brand-bg, #0f172a)", border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 4, color: "var(--brand-text, #e2e8f0)", padding: "4px 6px", fontSize: 12, width: 200 }}
               />
-              <label style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 12, color: "var(--brand-text-muted, #94a3b8)" }}>
+              <label style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 12, color: "var(--brand-text-muted, #94a3b8)" }}
+                title={t("sorgenti.spb.scrivibileAiuto")}>
                 <input type="checkbox" checked={m.writable} onChange={(e) => updateMetric(idx, { writable: e.target.checked })} />
-                NCMD write
+                {t("sorgenti.spb.scrivibile")}
               </label>
               <button
                 style={S.btnXs}

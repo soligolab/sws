@@ -1453,7 +1453,7 @@
     "onDelayHint": "Activation delay (s): the condition must be true for at least N seconds",
     "offDelayHint": "Deactivation delay (s): the condition must be false for at least N seconds before clearing",
     "role": "Role",
-    "scadaHostId": "SCADA Host ID",
+    "scadaHostId": "SWS name seen by devices",
     "skipCargo": "Skip cargo build, rebuild only the SPA",
     "skipPnpm": "Skip pnpm build, rebuild only the Rust binary",
     "sessionExpiry": "Session expiry",
@@ -2380,7 +2380,6 @@
     "connectToADeviceFrom": "Connect to a device from Configuration → Instance → Device → Connection to use this button",
     "sendClientIdToThe": "Send Client ID to the connected device",
     "publishALastWillWhen": "Publish a last-will when the connection drops",
-    "sparkplugBModeProtobufPayloads": "Sparkplug B mode (protobuf payloads — ignores normal topics)",
     "savedSourcesReconnectedOnThe": "✓ Saved — sources reconnected on the fly.",
     "noSourcesConfigured": "No sources configured.",
     "addModbusTcp": "+ Add Modbus TCP",
@@ -3955,14 +3954,21 @@
       "topic": "Topic",
       "sparkplug": "Sparkplug B",
       "titolo": "How data arrives",
-      "confermaTopic": "Going back to topics removes the Sparkplug B configuration and its metrics. Continue?"
+      "confermaTopic": "Going back to topics removes the Sparkplug B configuration and its metrics. Continue?",
+      "descrizioneSparkplug": "An industrial standard: devices publish their values in a fixed format under spBv1.0/<Group ID>/…. No topics to write here: each metric is linked to a tag by name. Use it only if the device says it speaks Sparkplug B.",
+      "descrizioneTopic": "Each MQTT topic is linked to a tag. The value can be text or JSON."
     },
     "riepilogoAvanzateMqtt": "connection · TLS · last will · client id",
     "clientIdCasuale": "Random client ID",
     "nNodi_one": "{{count}} node",
     "nNodi_other": "{{count}} nodes",
     "nEntita_one": "{{count}} entity",
-    "nEntita_other": "{{count}} entities"
+    "nEntita_other": "{{count}} entities",
+    "spb": {
+      "hostIdAiuto": "Published on spBv1.0/STATE/<name>: tells the devices that SWS is connected.",
+      "scrivibile": "Writable",
+      "scrivibileAiuto": "SWS sends the command to the node (NCMD) or device (DCMD) that announced the metric."
+    }
   },
   "reportTab": {
     "titolo": "SCHEDULED REPORTS",

@@ -273,7 +273,12 @@ sources:
 
 ### Sparkplug B
 
-Per ambienti con host SCADA Sparkplug B:
+Sparkplug B è uno standard industriale (Eclipse Foundation) che fissa come si usa MQTT: i topic stanno tutti sotto
+`spBv1.0/<group_id>/…`, il contenuto è binario (protobuf), e ogni nodo all'avvio annuncia l'elenco dei suoi valori,
+le **metriche**, poi manda solo i cambi. Serve solo se il dispositivo o il gateway dice di parlare Sparkplug B:
+Zigbee2MQTT, Tasmota, Shelly ed ESPHome non lo fanno.
+
+Nell'IDE si sceglie nella sezione **Mappatura** della card MQTT, con l'interruttore `[Topic | Sparkplug B]`. In YAML:
 
 ```yaml
     sparkplug:
@@ -288,8 +293,22 @@ Per ambienti con host SCADA Sparkplug B:
           writable: true
 ```
 
-In modalità Sparkplug B, i `topics` normali vengono ignorati. SWS gestisce
-automaticamente NBIRTH, NDATA, NCMD e il protocollo STATE.
+In modalità Sparkplug B, i `topics` normali vengono ignorati. Cosa fa SWS:
+
+- si iscrive a `spBv1.0/<group_id>/#` e collega ogni metrica, **per nome**, al suo tag (anche quando i dati
+  arrivano col solo alias, come fa Ignition);
+- pubblica il proprio stato su `spBv1.0/STATE/<host_id>` nella forma di **Sparkplug 3.0**: un JSON
+  `{"online": true, "timestamp": …}`, e lo stesso con `false` come testamento. I nodi che seguono la 2.x
+  aspettano `STATE/<host_id>` con `ONLINE`/`OFFLINE`: le due forme non si possono servire insieme, perché il
+  testamento di una connessione MQTT è uno solo;
+- quando un nodo muore (NDEATH) passano a `Bad` i tag delle metriche **di quel nodo e dei suoi dispositivi**;
+  quando muore un dispositivo (DDEATH), solo i suoi;
+- un tag `writable` manda il comando al nodo (`NCMD/<nodo>`) o al dispositivo (`DCMD/<nodo>/<dispositivo>`) che
+  ha annunciato la metrica. Prima che qualcuno l'abbia annunciata il comando **non parte**, e il log lo dice. Verso
+  un nodo morto parte lo stesso, come per MQTT, ma il valore mandato non si scrive buono.
+
+Un limite da sapere: la metrica si riconosce per nome. Se due nodi dello stesso gruppo hanno una metrica con lo
+stesso nome, il tag riceve i valori di tutti e due.
 
 ### Parametri
 
