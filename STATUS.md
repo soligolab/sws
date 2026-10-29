@@ -12,6 +12,13 @@
 > resta in «Storico». Qui vive solo ciò che serve a riprendere il lavoro.
 
 
+## ⚠ Il lavoro del 28-29/10 non è su `main` (2026-10-29)
+
+**Si riparte dal ramo `feat/disponibilita-editor`**, pushato: contiene la disponibilità delle sorgenti (runtime e
+IDE, rami 1 e 2 del piano `docs/plans/2026-10-28-chi-sta-dall-altra-parte.md`), in attesa di vederla a schermo prima
+dello squash. Il riepilogo completo è nello `STATUS.md` di quel ramo. `./scripts/session_start.sh`, poi
+`git checkout feat/disponibilita-editor`. Allo squash questo rimando va tolto.
+
 ## ▶ Riprendere da qui — due semi sono diventati piani d'esecuzione (2026-10-28, sera)
 
 **Sessione di solo plan, nessun codice.** `main` non ha rami aperti. Due semi trasformati in
