@@ -27,6 +27,10 @@
   da decidere prima di aprire lo schermo a clienti veri.
 - **Annotato in `Appunti.txt`**: l'IDE non mostra più «nuova versione disponibile» (il controllo prende 404 dal
   ripiego della SPA), dal 28-10.
+- **Prossimo passo suggerito**, dopo la 2.23.7 e da `docs/plans/Appunti.txt`: la disponibilità Zigbee2MQTT e
+  l'avviso Telegram in CasaDomotica; il report per email e il cron; Twilio quando l'account sarà pagato. Proposte
+  non ancora approvate: l'avviso «progetto cambiato» che scatta per errori passeggeri, il prefisso dell'errore del
+  relay, e il 404 della barra «nuova versione» qui sopra.
 
 ## ▶ Riprendere da qui — card delle sorgenti, Sparkplug B, faceplate sul canvas, residui (2026-10-29, ufficio)
 
