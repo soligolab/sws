@@ -101,6 +101,22 @@ almeno il motivo di Twilio arriva a schermo, col suo codice: è la correzione de
 Nella stessa schermata, una cosa nostra: la nota sulla chiave API mostra `**sending**` con gli asterischi, perché il
 testo (`notifiche.chiaveApiNota`) usa il grassetto Markdown e la scheda lo stampa come testo.
 
+**Capito lo stesso giorno** (ramo `fix/twilio-chiave-api`):
+
+1. Il **572006 è il limite dell'account di prova**, e lo dice la documentazione di Twilio
+   ([Try out SMS](https://www.twilio.com/docs/usage/trials/try-out-sms)): in prova il campo `Body` deve essere il
+   nome di uno dei modelli di Twilio (`sms_internal_alerts`, `sms_2fa`, `sms_account_alerts`…), i testi liberi non
+   sono ammessi, e si manda solo a numeri verificati (fino a cinque). Gli SMS rimasti (98 su 100) non c'entrano. Si
+   toglie solo passando a un account a pagamento. Anche il TwiML personalizzato delle chiamate, in prova, non è
+   disponibile ([Trial](https://www.twilio.com/docs/usage/trials)). Adesso il messaggio a schermo lo spiega.
+2. L'**8001 ha anche una causa nostra**: l'IDE rilegge il segreto della chiave API mascherato (`********`), e al
+   salvataggio successivo `ripristina_token_twilio` ripristinava solo il token, non il segreto. Quindi `********` finiva
+   su disco come se fosse il segreto vero, e Twilio rifiutava. Corretto: il segreto mascherato (o vuoto accanto a un
+   SID di chiave) resta quello salvato, **se la chiave è la stessa**. Se dopo la correzione l'8001 resta, la causa è la
+   chiave: Twilio non documenta l'8001, e la prima cosa da guardare è che sia una chiave «Standard» dello stesso account
+   (una «Restricted» deve avere i permessi sui messaggi).
+3. Gli asterischi: tolti dal testo.
+
 ## Fuori, dichiarato
 
 Altri fornitori; più numeri mittenti; calendari di reperibilità per data (ferie, festivi): l'elenco settimanale è il

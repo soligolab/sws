@@ -3147,7 +3147,7 @@
     "numeroTwilio": "Sender number",
     "chiaveApiSid": "API key SID (optional)",
     "chiaveApiSegreto": "API key secret",
-    "chiaveApiNota": "An API key replaces the Auth token for **sending** SMS and calls, and can be revoked without touching the account. The Auth token is still needed for phone confirmations (press 1, reply «OK»): Twilio signs incoming requests with that one only. The account SID (AC…) is always required.",
+    "chiaveApiNota": "An API key replaces the Auth token for sending SMS and calls, and can be revoked without touching the account. The Auth token is still needed for phone confirmations (press 1, reply «OK»): Twilio signs incoming requests with that one only. The account SID (AC…) is always required.",
     "provaSms": "Send test SMS",
     "smsInviato": "✓ SMS sent",
     "salvaPrima": "Save the changes first",

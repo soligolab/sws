@@ -10270,12 +10270,33 @@ async fn soft_reload_project(s: &AppState, dir: &std::path::Path) {
 
 /// Il token di Twilio che torna dall'IDE mascherato o vuoto vuol dire «tieni
 /// quello salvato» (P4, 26-10-2026). Uno nuovo, scritto a mano, vince.
+///
+/// Lo stesso per il **segreto della chiave API** (29-10-2026). Mancava: l'IDE
+/// lo rilegge mascherato come gli altri segreti, e al salvataggio successivo
+/// tornava `********`, che finiva su disco come se fosse il segreto vero — e
+/// Twilio rispondeva 401 a ogni invio. Con una differenza: il segreto salvato
+/// si tiene **solo se la chiave è la stessa**. Il segreto di una chiave vecchia
+/// non apre quella nuova, e rimetterlo direbbe «a posto» a una configurazione
+/// che non lo è.
 fn ripristina_token_twilio(cfg: &mut sws_core::NotificationConfig, salvata: Option<&sws_core::NotificationConfig>) {
     if let Some(tw) = cfg.twilio.as_mut() {
+        let prima = salvata.and_then(|n| n.twilio.as_ref());
         if tw.auth_token == MASKED_PASSWORD || tw.auth_token.is_empty() {
-            tw.auth_token = salvata.and_then(|n| n.twilio.as_ref()).map(|t| t.auth_token.clone()).unwrap_or_default();
+            tw.auth_token = prima.map(|t| t.auth_token.clone()).unwrap_or_default();
+        }
+        if segreto_chiave_da_ripristinare(tw) {
+            tw.api_key_secret = prima
+                .filter(|t| !tw.api_key_sid.is_empty() && t.api_key_sid == tw.api_key_sid)
+                .map(|t| t.api_key_secret.clone())
+                .unwrap_or_default();
         }
     }
+}
+
+/// Il segreto della chiave API è tornato mascherato, o vuoto accanto a un SID
+/// di chiave: vuol dire «tieni quello salvato».
+fn segreto_chiave_da_ripristinare(tw: &sws_core::TwilioConfig) -> bool {
+    tw.api_key_secret == MASKED_PASSWORD || (tw.api_key_secret.is_empty() && !tw.api_key_sid.is_empty())
 }
 
 #[cfg(test)]
@@ -10302,6 +10323,36 @@ mod prove_token_twilio {
         };
         ripristina_token_twilio(&mut nuovo, Some(&salvata));
         assert_eq!(nuovo.twilio.unwrap().auth_token, "nuovo");
+    }
+
+    /// Il segreto della chiave API tornava `********` e finiva su disco così.
+    #[test]
+    fn il_segreto_della_chiave_mascherato_resta_quello_salvato_se_la_chiave_e_la_stessa() {
+        let tw = |sid: &str, segreto: &str| sws_core::NotificationConfig {
+            twilio: Some(sws_core::TwilioConfig {
+                account_sid: "AC".into(), auth_token: "tok".into(),
+                api_key_sid: sid.into(), api_key_secret: segreto.into(), numero: "+39".into(),
+            }),
+            ..Default::default()
+        };
+        let salvata = tw("SK1", "vero");
+        for arriva in [MASKED_PASSWORD, ""] {
+            let mut c = tw("SK1", arriva);
+            ripristina_token_twilio(&mut c, Some(&salvata));
+            assert_eq!(c.twilio.unwrap().api_key_secret, "vero", "«{arriva}» con la stessa chiave");
+        }
+        // Una chiave nuova col segreto mascherato: niente segreto, non quello della vecchia.
+        let mut altra = tw("SK2", MASKED_PASSWORD);
+        ripristina_token_twilio(&mut altra, Some(&salvata));
+        assert_eq!(altra.twilio.unwrap().api_key_secret, "");
+        // Un segreto nuovo scritto a mano vince.
+        let mut nuovo = tw("SK1", "nuovo");
+        ripristina_token_twilio(&mut nuovo, Some(&salvata));
+        assert_eq!(nuovo.twilio.unwrap().api_key_secret, "nuovo");
+        // Senza chiave, un segreto vuoto resta vuoto.
+        let mut senza = tw("", "");
+        ripristina_token_twilio(&mut senza, Some(&salvata));
+        assert_eq!(senza.twilio.unwrap().api_key_secret, "");
     }
 }
 
@@ -10365,7 +10416,7 @@ async fn update_project_notifications(
         let needs_tw = cfg
             .twilio
             .as_ref()
-            .map(|t| t.auth_token == MASKED_PASSWORD || t.auth_token.is_empty())
+            .map(|t| t.auth_token == MASKED_PASSWORD || t.auth_token.is_empty() || segreto_chiave_da_ripristinare(t))
             .unwrap_or(false);
         if needs_smtp || needs_tg || needs_tw {
             if let Ok(existing) = Project::load(&dir) {

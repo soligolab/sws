@@ -197,8 +197,34 @@ fn motivo_twilio(corpo: &str) -> String {
         return corpo.trim().to_string();
     }
     match v.get("code").and_then(|c| c.as_i64()) {
-        Some(c) => format!("{messaggio} (codice Twilio {c})"),
+        Some(c) => match spiegazione_twilio(c) {
+            Some(s) => format!("{messaggio} (codice Twilio {c}). {s}"),
+            None => format!("{messaggio} (codice Twilio {c})"),
+        },
         None => messaggio.to_string(),
+    }
+}
+
+/// Cosa vuol dire, per chi usa SWS, un codice di Twilio che si incontra
+/// configurando (29-10-2026, seconda prova del maintainer). Solo quelli di cui
+/// si è sicuri: per gli altri basta il messaggio di Twilio col suo codice.
+fn spiegazione_twilio(codice: i64) -> Option<&'static str> {
+    match codice {
+        // Documentato da Twilio: un account di prova manda solo i suoi
+        // modelli (`sms_internal_alerts`, …), mai un testo libero.
+        572006 => Some(
+            "È il limite dell'account di prova di Twilio: manda solo i suoi messaggi predefiniti, non un \
+             testo scritto da SWS. Gli SMS di SWS partono con un account a pagamento.",
+        ),
+        21608 => Some(
+            "Con un account di prova Twilio manda solo ai numeri verificati: aggiungi questo numero fra \
+             i «Verified Caller IDs» della console di Twilio.",
+        ),
+        20003 => Some(
+            "Credenziali rifiutate: controlla il SID dell'account (AC…) e il token, o SID (SK…) e \
+             segreto della chiave API.",
+        ),
+        _ => None,
     }
 }
 
@@ -585,6 +611,17 @@ mod tests {
         assert!(!m.contains("more_info"), "il JSON non si mostra: {m}");
         // Un corpo che JSON non è torna com'è, invece di sparire.
         assert_eq!(motivo_twilio("  boh  "), "boh");
+    }
+
+    /// La seconda prova del maintainer (29-10-2026): il 572006 dell'account di
+    /// prova adesso dice cosa vuol dire, non solo cosa è successo.
+    #[test]
+    fn il_limite_dell_account_di_prova_si_spiega() {
+        let corpo = r#"{"code":572006,"message":"Invalid template name. Trial accounts can only use predefined SMS templates.","status":400}"#;
+        let m = motivo_twilio(corpo);
+        assert!(m.contains("572006") && m.contains("account di prova") && m.contains("a pagamento"), "{m}");
+        let ignoto = motivo_twilio(r#"{"code":99999,"message":"Qualcosa","status":400}"#);
+        assert_eq!(ignoto, "Qualcosa (codice Twilio 99999)", "un codice che non conosciamo non si spiega");
     }
 
     #[test]

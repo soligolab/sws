@@ -3147,7 +3147,7 @@
     "numeroTwilio": "Numero mittente",
     "chiaveApiSid": "SID chiave API (facoltativo)",
     "chiaveApiSegreto": "Segreto chiave API",
-    "chiaveApiNota": "La chiave API sostituisce l'Auth token per **inviare** SMS e chiamate, e si revoca senza toccare l'account. L'Auth token serve comunque se vuoi le conferme dal telefono (tasto 1, risposta «OK»): Twilio firma le richieste in arrivo solo con quello. Il SID account (AC…) è sempre obbligatorio.",
+    "chiaveApiNota": "La chiave API sostituisce l'Auth token per inviare SMS e chiamate, e si revoca senza toccare l'account. L'Auth token serve comunque se vuoi le conferme dal telefono (tasto 1, risposta «OK»): Twilio firma le richieste in arrivo solo con quello. Il SID account (AC…) è sempre obbligatorio.",
     "provaSms": "Invia SMS di prova",
     "smsInviato": "✓ SMS inviato",
     "salvaPrima": "Salva prima le modifiche",

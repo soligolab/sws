@@ -71,6 +71,12 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 
 ### Fixed
 
+- **Twilio, il segreto della chiave API si perdeva salvando**: l'IDE lo rilegge mascherato, e
+  `ripristina_token_twilio` ripristinava solo il token dell'account, quindi al salvataggio successivo su disco finiva
+  `********` e Twilio rifiutava ogni invio. Ora il segreto mascherato (o vuoto accanto a un SID di chiave) resta quello
+  salvato, se la chiave è la stessa. E tre codici di Twilio che si incontrano configurando hanno una spiegazione a
+  schermo: 572006 (account di prova: solo messaggi predefiniti), 21608 (numero non verificato), 20003 (credenziali).
+  Tolti gli asterischi Markdown dalla nota sulla chiave API.
 - **Sparkplug B, tre difetti del runtime** (`sws-plugin-mqtt/src/sparkplug.rs`, trovati il 29-10-2026 leggendo il
   codice per scrivere quella riga). I comandi partivano verso `spBv1.0/<gruppo>/NCMD/<host_id>`, cioè verso il nome
   di SWS, dove nessun nodo ascolta, e il valore si scriveva buono lo stesso: ora vanno a `NCMD/<nodo>` o

@@ -45,6 +45,8 @@ versioni:
         en: "Faceplates are now drawn on the canvas like a page, from the Faceplates branch of the tree; the JSON is one click away."
       - it: "Nell'elenco dei progetti ogni scheda mostra la miniatura della pagina iniziale, aggiornata a ogni salvataggio."
         en: "In the project list each card shows a thumbnail of the start page, refreshed on every save."
+      - it: "Twilio: il segreto della chiave API non si perde piu' salvando, e gli errori dell'account di prova si spiegano a schermo."
+        en: "Twilio: the API key secret is no longer lost when saving, and trial-account errors are explained on screen."
   - versione: "2.23.6"
     voci:
       - it: "Nel cloud, cancellare un progetto e crearne uno con lo stesso nome ora funziona, invece di dare un errore all'apertura."
