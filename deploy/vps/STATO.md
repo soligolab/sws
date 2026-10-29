@@ -163,16 +163,18 @@ un container di progetto su sws-rete, chiamato dalla rete:
     con il segreto                        → 200
 ```
 
-**`https://sws.soligo.net/` risponde 404 con dentro l'IDE.** Non è un guasto del gateway: lo fa
-ogni istanza SWS, perché `ServeDir` serve il guscio della SPA come risposta «non trovato».
-Verificato uguale su un runtime normale. Il browser disegna la pagina lo stesso. Lasciato com'è di
-proposito: con un 200 un bundle davvero mancante tornerebbe HTML con stato 200, e il browser
-proverebbe a eseguirlo come JavaScript — un errore molto più difficile da leggere di un 404.
+**`https://sws.soligo.net/` risponde 200 con dentro l'IDE**, dalla 2.23.6. Prima rispondeva 404
+con la pagina dentro, perché `ServeDir` serviva il guscio della SPA come risposta «non trovato».
+Ora una rotta della SPA (una richiesta di navigazione) ha 200, mentre un file davvero mancante
+resta 404: così un bundle che manca non torna come HTML con stato 200.
 
-**Versione in esecuzione: `2.23.6-amd64`**, dal 28-10-2026 sera: azienda a testa e quote nel cloud, tetti sui container, il buco di `create_project` chiuso, il container che non resta attaccato a una cartella cancellata, e le schermate d'ingresso col marchio e la versione.
-commit. Dentro: il tubo nello stesso fotogramma, la pagina Prestazioni, le due correzioni dello slider, lo storico
-che scrive a lotti e i thread con un nome e una priorità. Prima `195e8c72-amd64` dalla notte del 27-10,
-`ed9d47b5-amd64` dalla sera del 26-10, e `2.23.0-amd64` dallo stesso giorno.
+**Versione in esecuzione: `2.23.7-amd64`**, dal 29-10-2026 sera: lo schermo del pannello dal
+cloud (`/schermo/<pannello>/`, col biglietto monouso e il cookie `sws_schermo`) e la disponibilità
+delle sorgenti. Verificato dopo il riavvio: radice e `/health` 200, `/schermo/<pannello>/` senza
+cookie 401, il tunnel di `tc620-garage` riaperto da solo, il container di CasaDomotica rifatto
+sulla nuova immagine. Prima `2.23.6-amd64` dal 28-10-2026 sera, `2.23.5-amd64` dal 28-10,
+`195e8c72-amd64` dalla notte del 27-10, `ed9d47b5-amd64` dalla sera del 26-10 e `2.23.0-amd64`
+dallo stesso giorno.
 
 > **Il gateway si tiene sempre all'ultima immagine costruita**, senza aspettare che qualcuno lo
 > chieda: il maintainer lavora sempre da `sws.soligo.net`, e un IDE indietro mostra difetti che

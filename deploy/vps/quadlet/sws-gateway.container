@@ -38,7 +38,7 @@ After=network-online.target
 # si costruisce un'immagine sola, quindi i due dicono la stessa cosa — ma il
 # numero di versione e' quello che il pannello e la console confrontano, e
 # ritrovarlo qui evita di dover tradurre un sha per sapere cosa sta girando.
-Image=ghcr.io/soligolab/sws-runtime:2.23.6-amd64
+Image=ghcr.io/soligolab/sws-runtime:2.23.7-amd64
 
 # ── Le etichette delle Novità non entrano nel container (22-10-2026) ─────────
 #
@@ -85,7 +85,7 @@ Exec=--config /var/sws/config \
      --www /var/sws/www \
      --admin-port 8444 \
      --gateway \
-     --gateway-immagine ghcr.io/soligolab/sws-runtime:2.23.6-amd64 \
+     --gateway-immagine ghcr.io/soligolab/sws-runtime:2.23.7-amd64 \
      --gateway-rete sws-rete
 
 [Service]
