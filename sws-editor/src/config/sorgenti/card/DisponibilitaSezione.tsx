@@ -11,7 +11,7 @@ import { SezioneSorgente } from "@/config/sorgenti/card/SezioneSorgente";
 const NESSUNO: never[] = [];
 
 /** La sezione DISPONIBILITÀ di una card di Protocolli (29-10-2026, piano
- *  `docs/plans/2026-10-29-card-delle-sorgenti.md`).
+ *  `docs/archive/2026-10-29-card-delle-sorgenti.md`).
  *
  *  Era una riga **sotto** la card, fuori dal suo bordo e dopo la tabella dei
  *  topic: con ventiquattro topic, il pulsante dell'allarme stava a fine

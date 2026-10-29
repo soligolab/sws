@@ -2,7 +2,7 @@ import { useState, type ReactNode } from "react";
 
 /** Una sezione dentro la card di una sorgente: BROKER, AUTENTICAZIONE,
  *  DISPONIBILITÀ, MAPPATURA, AVANZATE (29-10-2026, piano
- *  `docs/plans/2026-10-29-card-delle-sorgenti.md`).
+ *  `docs/archive/2026-10-29-card-delle-sorgenti.md`).
  *
  *  **Il titolo ha il colore del testo pieno**, non quello attenuato. Prima i
  *  titoli di sezione e le etichette dei campi avevano lo stesso identico

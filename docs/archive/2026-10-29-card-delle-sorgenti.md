@@ -1,5 +1,8 @@
 # Le card delle sorgenti, ridisegnate
 
+> **Archiviato il 29-10-2026**, visto a schermo dal maintainer: squash `678730dd` su `main`. La prova rimasta è in
+> `docs/plans/Appunti.txt`.
+>
 > **Piano d'esecuzione**, approvato il 29-10-2026. Nato dal collaudo a schermo del ramo 2 di
 > [chi sta dall'altra parte](2026-10-28-chi-sta-dall-altra-parte.md). Ramo annidato `feat/card-sorgenti`.
 >

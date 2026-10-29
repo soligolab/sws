@@ -1,5 +1,5 @@
 /** Le card delle sorgenti ridisegnate (29-10-2026, piano
- *  `docs/plans/2026-10-29-card-delle-sorgenti.md`): lo stato in testata con
+ *  `docs/archive/2026-10-29-card-delle-sorgenti.md`): lo stato in testata con
  *  l'ora, le sezioni che si aprono, Sparkplug B come modo della mappatura, e
  *  la disponibilità **dentro** la card invece che in una riga sotto. */
 import { render, screen, fireEvent, waitFor, within } from "@testing-library/react";

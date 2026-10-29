@@ -56,7 +56,7 @@ cambiano il runtime).
 Diagnosi in sola lettura: SWS pubblicava i `TOGGLE`, ma **Zigbee2MQTT era spento** (`zigbee2mqtt/bridge/state` =
 `{"state":"offline"}`, zero messaggi dal vivo, ultimo resoconto di salute il 27-10 alle 14:09), e nessuno lo sapeva.
 Il maintainer ha chiesto che SWS lo dica, con un allarme collegabile alle notifiche → piano
-[`2026-10-28-chi-sta-dall-altra-parte.md`](docs/plans/2026-10-28-chi-sta-dall-altra-parte.md), quattro decisioni prese.
+[`2026-10-28-chi-sta-dall-altra-parte.md`](docs/archive/2026-10-28-chi-sta-dall-altra-parte.md), quattro decisioni prese.
 **Zigbee2MQTT va riavviato a mano** dove gira (fuori da SWS): finché non lo è, le luci non rispondono.
 
 | Ramo | Commit | Cosa |

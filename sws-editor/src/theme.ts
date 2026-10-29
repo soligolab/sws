@@ -64,7 +64,7 @@ const VAR_ON_PRIMARY    = "--brand-on-primary";
  *  `testoLeggibile`. */
 const VAR_PRIMARY_TESTO = "--brand-primary-testo";
 /** L'ombra di una card sullo sfondo (29-10-2026, piano
- *  `docs/plans/2026-10-29-card-delle-sorgenti.md`). Nel tema chiaro una card
+ *  `docs/archive/2026-10-29-card-delle-sorgenti.md`). Nel tema chiaro una card
  *  bianca su `#f8fafc` non si distingueva: fondo e bordo facevano 1,05 contro
  *  lo sfondo, cioè lo stesso colore. Il bordo passa a `--brand-border`, e
  *  questa dà il resto. Un token e non un valore scritto nelle card, perché

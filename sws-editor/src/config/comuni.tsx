@@ -97,7 +97,7 @@ export const S = {
   // aveva lo **stesso fondo della card** (contrasto 1,00) e un bordo che nel
   // tema chiaro faceva 1,10: si capiva dov'era un campo solo dalla scritta
   // dentro. Ora è come `ui/base.ts` `campo` e come i campi di S7, che lo
-  // facevano già. Piano `docs/plans/2026-10-29-card-delle-sorgenti.md`.
+  // facevano già. Piano `docs/archive/2026-10-29-card-delle-sorgenti.md`.
   input: {
     background: "var(--brand-bg, #0f172a)",
     color: "var(--brand-text, #e2e8f0)",

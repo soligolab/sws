@@ -13,7 +13,7 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 
 ### Added
 
-- **La disponibilità delle sorgenti** (ramo 1 del piano `docs/plans/2026-10-28-chi-sta-dall-altra-parte.md`):
+- **La disponibilità delle sorgenti** (ramo 1 del piano `docs/archive/2026-10-28-chi-sta-dall-altra-parte.md`):
   ogni sorgente che dice se risponde scrive il tag `<sorgente>.disponibile` (vero/falso, solo ai cambi; il nome in
   `sws_core::tag_disponibilita`). MQTT impara `disponibilita: { topic, json_path, vivo }` — il testamento di
   Zigbee2MQTT, Tasmota, Shelly, ESPHome — e quando l'altro capo è morto porta i suoi tag a `Bad` e non rimette `Good`
@@ -44,7 +44,7 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
   ramo** (o col ＋ della riga): l'istanza nasce col suo faceplate e la sua misura, e lo strumento «Faceplate», che
   creava un riquadro vuoto di 120×80 da riempire dopo, non c'è più. La cornice predefinita non compare più sotto un
   faceplate aperto (`corniceDellaPagina` esclude qualunque `kind`, e il gemello Rust uguale).
-- **Le card delle sorgenti, ridisegnate** (piano `docs/plans/2026-10-29-card-delle-sorgenti.md`, dal collaudo a
+- **Le card delle sorgenti, ridisegnate** (piano `docs/archive/2026-10-29-card-delle-sorgenti.md`, dal collaudo a
   schermo della disponibilità). Le nove card passano da tre parti comuni in `config/sorgenti/card/`:
   `TestataSorgente` (tipo · id · riepilogo · **stato** · azioni — lo stato si legge a card chiusa, «non risponde
   dalle 14:09» col motivo nel suggerimento, da `stato_sorgenti` come il pallino dell'albero), `SezioneSorgente`

@@ -17,7 +17,7 @@ import { compilaRichiesteZigbee2mqtt, pubblicabile, richiestaZigbee2mqtt } from 
 // ── MQTT card ─────────────────────────────────────────────────────────────────
 //
 // L'ordine delle sezioni è quello dell'importanza (29-10-2026, piano
-// `docs/plans/2026-10-29-card-delle-sorgenti.md`, scelte del maintainer sul
+// `docs/archive/2026-10-29-card-delle-sorgenti.md`, scelte del maintainer sul
 // mockup): BROKER, AUTENTICAZIONE, DISPONIBILITÀ, MAPPATURA sempre aperte;
 // connessione, TLS, last will e l'invio del client id in AVANZATE, chiusa.
 // Prima i campi stavano nell'ordine in cui erano nati, l'ID sorgente per primo

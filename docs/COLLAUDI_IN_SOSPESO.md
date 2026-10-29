@@ -153,7 +153,7 @@ Serve un account Twilio (anche di prova: chiama e scrive solo ai numeri verifica
 
 ## A-septies. Chi sta dall'altra parte: la disponibilità delle sorgenti (29-10-2026)
 
-Piano `docs/plans/2026-10-28-chi-sta-dall-altra-parte.md`. Nasce dal Zigbee2MQTT di casa spento per trenta ore senza
+Piano `docs/archive/2026-10-28-chi-sta-dall-altra-parte.md`. Nasce dal Zigbee2MQTT di casa spento per trenta ore senza
 che niente lo dicesse. **Si fa dopo che il cloud gira la versione che contiene la funzione**: un runtime più vecchio
 ignora `disponibilita:` e la cancella al primo salvataggio, senza avvisare.
 
@@ -189,7 +189,7 @@ ignora `disponibilita:` e la cancella al primo salvataggio, senza avvisare.
 
 ## A-octies. Le card delle sorgenti, ridisegnate (29-10-2026)
 
-Piano `docs/plans/2026-10-29-card-delle-sorgenti.md`. Nasce dal collaudo a schermo di A-septies: il pulsante
+Piano `docs/archive/2026-10-29-card-delle-sorgenti.md`. Nasce dal collaudo a schermo di A-septies: il pulsante
 dell'allarme troppo nascosto, i titoli delle sezioni dello stesso colore delle etichette, il watchdog da solo su una
 riga. Basta l'8460 sul ramo; un progetto con una sorgente per tipo aiuta.
 

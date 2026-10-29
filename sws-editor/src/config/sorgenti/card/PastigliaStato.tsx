@@ -14,7 +14,7 @@ export function oraDello(daMs: number, adesso: number = Date.now(), lingua = "it
 }
 
 /** Lo stato di una sorgente in una riga: il pallino e un testo breve
- *  (29-10-2026, piano `docs/plans/2026-10-29-card-delle-sorgenti.md`).
+ *  (29-10-2026, piano `docs/archive/2026-10-29-card-delle-sorgenti.md`).
  *
  *  **Una fonte sola**: `stato_sorgenti`, la stessa del pallino dell'albero. Il
  *  tag `<sorgente>.disponibile` il runtime lo deriva proprio da lì

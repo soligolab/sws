@@ -12,7 +12,7 @@ import { SottoTitolo } from "@/config/sorgenti/card/SezioneSorgente";
 // sua configurazione, che si mostra quando il modo è quello. Stessi dati di
 // prima: `source.sparkplug` presente o no. La riga che spiega il modo la
 // scrive la card, sopra, per tutti e due i modi.
-// Piano: docs/plans/2026-10-29-card-delle-sorgenti.md
+// Piano: docs/archive/2026-10-29-card-delle-sorgenti.md
 
 export function SparkplugSection({
   spb,

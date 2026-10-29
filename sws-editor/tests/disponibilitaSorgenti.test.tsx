@@ -1,5 +1,5 @@
 /** La disponibilità delle sorgenti nell'IDE (28-10-2026, ramo 2 del piano
- *  `docs/plans/2026-10-28-chi-sta-dall-altra-parte.md`): il tag giusto, le
+ *  `docs/archive/2026-10-28-chi-sta-dall-altra-parte.md`): il tag giusto, le
  *  impostazioni pronte, e l'allarme preparato che la scheda Allarmi accoglie
  *  nella sua bozza — senza farne un secondo se sul tag ce n'è già uno. */
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";

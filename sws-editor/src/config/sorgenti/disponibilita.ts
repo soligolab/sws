@@ -1,5 +1,5 @@
 // La disponibilità delle sorgenti nell'IDE (28-10-2026, ramo 2 del piano
-// `docs/plans/2026-10-28-chi-sta-dall-altra-parte.md`).
+// `docs/archive/2026-10-28-chi-sta-dall-altra-parte.md`).
 //
 // Il runtime scrive `<sorgente>.disponibile` (vero/falso) per ogni sorgente che
 // sa dire se ha qualcuno dall'altra parte. Qui: quali sorgenti lo fanno, il tag

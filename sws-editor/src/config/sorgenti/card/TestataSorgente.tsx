@@ -4,7 +4,7 @@ import { PastigliaStato } from "@/config/sorgenti/card/PastigliaStato";
 import type { StatoCollegamento } from "@/types";
 
 /** La testata di ogni card di Protocolli (29-10-2026, piano
- *  `docs/plans/2026-10-29-card-delle-sorgenti.md`): tipo · id · riepilogo ·
+ *  `docs/archive/2026-10-29-card-delle-sorgenti.md`): tipo · id · riepilogo ·
  *  stato · azioni · ▲.
  *
  *  Prima ognuna delle nove card la scriveva da sé, e quattro non avevano

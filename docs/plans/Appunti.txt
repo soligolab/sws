@@ -103,11 +103,14 @@ Annoto di seguito, uno per punto, le cose che devono essere verificate e trasfor
   la traccia completa: quale `await` scade. E' la stessa famiglia delle quattro guardie che
   fallivano a caso lo stesso giorno — un controllo che fallisce a caso insegna a ignorarlo.
 
-- CasaDomotica e i faceplate disegnati sul canvas (residuo del piano archiviato
-  docs/archive/2026-10-27-faceplate-disegnato-sul-canvas.md, 29-10-2026). Dalla 2.23.7 un
-  faceplate si disegna come una pagina, dal ramo Faceplate dell'albero, e si mette nelle pagine
-  trascinandolo da li'. Quando il gateway del VPS gira una versione che lo contiene: aprire
-  CasaDomotica, ridisegnare `tank_level` (o il faceplate che serve all'impianto) dal canvas,
-  salvare e vederlo sul WP630. E' la regola di CLAUDE.md del 16-10 («una funzione visibile entra
-  anche in CasaDomotica»), e serve anche a vedere sul pannello che le istanze non si spostano
-  quando il faceplate prende la sua misura (`width`/`height`, nati uguali al riquadro dei figli).
+- Prova delle card delle sorgenti (piano archiviato docs/archive/2026-10-29-card-delle-sorgenti.md,
+  passi in docs/COLLAUDI_IN_SOSPESO.md §A-octies). Nell'IDE, una sorgente per tipo: le nove testate
+  uguali con lo stato a card chiusa; l'indirizzo primo e l'ID sorgente ultimo; MQTT con AVANZATE
+  chiusa e il watchdog in riga; l'interruttore [Topic | Sparkplug B]; il contrasto nei due temi.
+
+- Prova dal vivo della disponibilita' (piano archiviato docs/archive/2026-10-28-chi-sta-dall-altra-parte.md,
+  passi in docs/COLLAUDI_IN_SOSPESO.md §A-septies), dopo che il gateway gira la 2.23.7. In
+  CasaDomotica: preimpostazione Zigbee2MQTT sulle sorgenti mqtt-*, allarme dal pulsante con
+  Telegram acceso. Fermare Zigbee2MQTT: Telegram entro un minuto, tag del sinottico in stale.
+  Riavviarlo: i tag tornano buoni solo al primo valore vero. Un comando con Zigbee2MQTT fermo parte
+  lo stesso. Poi una sorgente Modbus o S7 staccata e riattaccata.

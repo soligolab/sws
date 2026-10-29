@@ -859,7 +859,7 @@ pub struct MqttConfig {
     pub max_silence_secs: Option<u64>,
 
     /// Chi sta dall'altra parte del broker (28-10-2026, piano
-    /// `docs/plans/2026-10-28-chi-sta-dall-altra-parte.md`). Un broker vivo
+    /// `docs/archive/2026-10-28-chi-sta-dall-altra-parte.md`). Un broker vivo
     /// non vuol dire un Zigbee2MQTT vivo: senza questo campo la sorgente è
     /// «disponibile» finché il broker risponde; con questo, anche il topic di
     /// disponibilità deve dire vivo.

@@ -1,5 +1,8 @@
 # Chi sta dall'altra parte: la disponibilità delle sorgenti, e un allarme quando sparisce
 
+> **Archiviato il 29-10-2026**: squash `9c3a3f72` su `main`. La prova dal vivo con CasaDomotica, dopo il rilascio della
+> 2.23.7, è in `docs/plans/Appunti.txt`.
+>
 > **Era un seme, dal 28-10-2026 (sera) è un piano d'esecuzione.** Sessione di plan col maintainer lo stesso giorno,
 > misurando il codice; le quattro decisioni sono sue. Il testo del seme resta sotto, perché è il motivo per cui il
 > lavoro è nato.

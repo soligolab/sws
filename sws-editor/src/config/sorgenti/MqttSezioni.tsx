@@ -13,7 +13,7 @@ import { SottoTitolo } from "@/config/sorgenti/card/SezioneSorgente";
 // con `SezioneSorgente` (titolo in pieno contrasto) o `SottoTitolo` dentro
 // AVANZATE. Prima ognuna aveva il suo `SectionHeader`, dello stesso colore delle
 // etichette dei campi — ed era quello il «poco contrasto» del collaudo.
-// Piano: docs/plans/2026-10-29-card-delle-sorgenti.md
+// Piano: docs/archive/2026-10-29-card-delle-sorgenti.md
 
 export function MqttAuthSection({
   source,
