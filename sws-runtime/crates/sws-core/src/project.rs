@@ -1631,7 +1631,7 @@ pub struct NotificationConfig {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub notify_lang_telegram: Option<String>,
     /// SMS e chiamate vocali con Twilio (P4, 26-10-2026; piano
-    /// `docs/plans/2026-10-26-sms-voce-reperibilita.md`).
+    /// `docs/archive/2026-10-26-sms-voce-reperibilita.md`).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub twilio: Option<TwilioConfig>,
     /// Chi è reperibile e quando. **L'ordine è l'ordine di escalation**: si

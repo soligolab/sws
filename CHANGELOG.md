@@ -492,7 +492,7 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
   di chiudere le sorgenti, e la console *Pannelli* lo mostra con un pallino giallo e l'ora (`spento_ms`). Test per il
   backoff (`prossima_attesa`), `Maniglia::chiudi`, l'annuncio e il registro.
 
-- **SMS, voce e reperibilità** (P4, piano `docs/plans/2026-10-26-sms-voce-reperibilita.md`): `notifications.twilio`
+- **SMS, voce e reperibilità** (P4, piano `docs/archive/2026-10-26-sms-voce-reperibilita.md`): `notifications.twilio`
   (token in `secrets.yaml`), `reperibili` a turni settimanali con fascia oraria (anche a cavallo della mezzanotte),
   `telefono_attesa_min`; `CanaliEvento.sms/voce` per scatto ed escalation. `sws-web/src/telefono.rs`: catena di
   escalation per allarme (un reperibile alla volta, ferma al riconoscimento), chiamata con TwiML e `<Gather>`, SMS.

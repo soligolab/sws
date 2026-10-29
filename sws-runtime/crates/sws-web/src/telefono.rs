@@ -1,5 +1,5 @@
 //! SMS, chiamate e reperibilità con Twilio (P4, 26-10-2026; piano
-//! `docs/plans/2026-10-26-sms-voce-reperibilita.md`).
+//! `docs/archive/2026-10-26-sms-voce-reperibilita.md`).
 //!
 //! Un allarme che la tabella eventi × canali manda «al telefono» avvisa il
 //! primo reperibile **di turno adesso**; se nessuno lo riconosce entro

@@ -1,5 +1,5 @@
 /** La foglia Telefono delle notifiche (P4, 26-10-2026; piano
- *  `docs/plans/2026-10-26-sms-voce-reperibilita.md`).
+ *  `docs/archive/2026-10-26-sms-voce-reperibilita.md`).
  *
  *  Tre cose che il pannello deve poter credere:
  *  - quello che si scrive qui (Twilio, reperibili, attesa) arriva nel salvataggio,

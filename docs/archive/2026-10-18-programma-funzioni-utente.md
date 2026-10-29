@@ -90,4 +90,4 @@ Certificati in un posto solo, archiviato (`9d58dbf3`); C4, l'HTTPS proposto col 
 ### Gruppo 9 — fatto il 26-10-2026, da collaudare
 
 P2 «Crea faceplate dalla selezione» (`736c714a`), P3 [report programmati](../plans/2026-10-26-report-programmati.md)
-(`b000f309`), P4 [SMS, voce e reperibilità](../plans/2026-10-26-sms-voce-reperibilita.md) (`2d8d50b7`).
+(`b000f309`), P4 [SMS, voce e reperibilità](2026-10-26-sms-voce-reperibilita.md) (`2d8d50b7`).

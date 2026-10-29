@@ -1,5 +1,8 @@
 # SMS, voce e reperibilità (P4) — piano d'esecuzione
 
+> **Archiviato il 29-10-2026**, dato per completo dal maintainer. La prova vera si fa quando l'account Twilio passa a
+> pagamento: l'account di prova manda solo i messaggi predefiniti di Twilio (572006). È in `docs/plans/Appunti.txt`.
+
 > **FATTO il 26-10-2026, da collaudare** sul ramo `feat/sms-voce-reperibilita` (annidato). Firma di Twilio verificata
 > contro un calcolo indipendente in Python; turni, TwiML e ripristino del token mascherato coperti da test. Collaudo
 > vero con un account Twilio in `COLLAUDI_IN_SOSPESO.md` §A-quinquies.

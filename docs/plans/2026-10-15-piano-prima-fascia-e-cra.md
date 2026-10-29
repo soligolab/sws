@@ -20,7 +20,7 @@ perché, non il come.
 - **P3 report** — **FATTO il 26-10-2026** (piano [`2026-10-26-report-programmati.md`](2026-10-26-report-programmati.md)): PDF ed Excel, con le tabelle dello storico (per ogni tag scelto min/max/media e i campioni o le
   aggregazioni del periodo, più gli allarmi), per turno/giorno/mese, salvati nel progetto e inviati per email con
   l'SMTP delle notifiche.
-- **P4 SMS e voce** — **FATTO il 26-10-2026** (piano [`2026-10-26-sms-voce-reperibilita.md`](2026-10-26-sms-voce-reperibilita.md)): da un **servizio esterno via API** (niente modem sul pannello) — **Twilio**, SMS e chiamata con
+- **P4 SMS e voce** — **FATTO il 26-10-2026** (piano [`2026-10-26-sms-voce-reperibilita.md`](../archive/2026-10-26-sms-voce-reperibilita.md)): da un **servizio esterno via API** (niente modem sul pannello) — **Twilio**, SMS e chiamata con
   sintesi vocale; **turni di reperibilità** con escalation al successivo; la **conferma dal telefono** solo per i
   pannelli collegati al cloud (il fornitore deve richiamare un indirizzo pubblico).
 - **P2 template d'oggetto**: i faceplate sono già i template (parametri, istanze che seguono la definizione, web e

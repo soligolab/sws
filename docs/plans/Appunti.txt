@@ -114,3 +114,10 @@ Annoto di seguito, uno per punto, le cose che devono essere verificate e trasfor
   Telegram acceso. Fermare Zigbee2MQTT: Telegram entro un minuto, tag del sinottico in stale.
   Riavviarlo: i tag tornano buoni solo al primo valore vero. Un comando con Zigbee2MQTT fermo parte
   lo stesso. Poi una sorgente Modbus o S7 staccata e riattaccata.
+
+- Prova vera di SMS e chiamate Twilio (piano archiviato docs/archive/2026-10-26-sms-voce-reperibilita.md),
+  appena l'account Twilio passa a pagamento: l'account di prova manda solo i messaggi predefiniti di Twilio
+  e risponde 572006 a un testo di SWS. Da provare: «Invia SMS di prova» con account+token e poi con una
+  chiave API «Standard» (riscrivendo una volta il segreto); un allarme che manda un SMS e una chiamata a un
+  reperibile; il tasto 1 dal telefono, e la risposta «OK» a un SMS, su un pannello collegato al cloud. Passi
+  completi in docs/COLLAUDI_IN_SOSPESO.md §A-quinquies.
