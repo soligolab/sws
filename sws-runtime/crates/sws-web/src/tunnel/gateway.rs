@@ -16,7 +16,6 @@ use axum::body::Body;
 use axum::extract::{Path, State};
 use axum::http::{HeaderMap, Request, StatusCode};
 use axum::response::{IntoResponse, Response};
-use http_body_util::BodyExt as _;
 use std::sync::Arc;
 use tokio_util::compat::FuturesAsyncReadCompatExt as _;
 
@@ -301,7 +300,7 @@ pub fn azienda_del_pannello(s: &crate::router::AppState, pannello: &str) -> Opti
 /// Si appoggia alle **stesse** appartenenze che filtrano i progetti, e di
 /// proposito: scrivere qui una seconda regola vorrebbe dire due regole da
 /// tenere d'accordo, e una delle due resterebbe indietro.
-async fn puo_parlargli(
+pub(crate) async fn puo_parlargli(
     s: &crate::router::AppState,
     chi: Option<&crate::router::AuthUser>,
     pannello: &str,
@@ -456,76 +455,14 @@ pub async fn inoltra(
 }
 
 /// Apre uno stream, ci parla HTTP, e torna la risposta.
-async fn attraverso(
+pub(crate) async fn attraverso(
     maniglia: &Maniglia,
     percorso: &str,
     query: &str,
     req: Request<Body>,
 ) -> anyhow::Result<Response> {
     let stream = maniglia.apri().await.map_err(|e| anyhow::anyhow!(e))?;
-    let io = hyper_util::rt::TokioIo::new(stream.compat());
-    let (mut mittente, connessione) = hyper::client::conn::http1::handshake(io).await?;
-    // La connessione va fatta girare, o `send_request` resta appesa. Muore da
-    // sé quando `mittente` cade, cioè alla fine di questa funzione.
-    // `with_upgrades`: dopo un 101 la socket passa a chi l'ha chiesta invece
-    // di chiudersi (websocket, vedi sotto).
-    tokio::spawn(async move {
-        let _ = connessione.with_upgrades().await;
-    });
-
-    let (mut parti, corpo) = req.into_parts();
-    // **I websocket nel tunnel (10-10-2026).** Senza questo, il pannello
-    // rispondeva 101 e il 101 arrivava a chi chiamava, ma i due lati non
-    // venivano mai collegati: i tag dal vivo dell'IDE nel cloud
-    // (`/ws/remote/tags` → `/dev/<pannello>/ws/tags`) restavano fermi senza un
-    // errore da nessuna parte. Si tiene la metà «client» dell'upgrade, e se il
-    // pannello accetta si cuciono le due socket.
-    let upgrade_dal_client = parti
-        .headers
-        .contains_key(hyper::header::UPGRADE)
-        .then(|| parti.extensions.remove::<hyper::upgrade::OnUpgrade>())
-        .flatten();
-    let mut dentro = hyper::Request::builder()
-        .method(parti.method)
-        // `Host` non significa niente qui dentro — dall'altra parte c'è una
-        // socket sola — ma HTTP/1.1 lo pretende.
-        .uri(format!("http://pannello{percorso}{query}"))
-        .header(hyper::header::HOST, "pannello");
-    for (nome, valore) in parti.headers.iter() {
-        let n = nome.as_str();
-        if n.eq_ignore_ascii_case("host") || n.eq_ignore_ascii_case("content-length") {
-            continue;
-        }
-        dentro = dentro.header(nome.clone(), valore.clone());
-    }
-    let dentro = dentro.body(corpo)?;
-
-    let mut risposta = mittente.send_request(dentro).await?;
-    if risposta.status() == StatusCode::SWITCHING_PROTOCOLS {
-        if let Some(lato_client) = upgrade_dal_client {
-            let lato_pannello = hyper::upgrade::on(&mut risposta);
-            tokio::spawn(async move {
-                match tokio::try_join!(lato_client, lato_pannello) {
-                    Ok((c, p)) => {
-                        let mut c = hyper_util::rt::TokioIo::new(c);
-                        let mut p = hyper_util::rt::TokioIo::new(p);
-                        let _ = tokio::io::copy_bidirectional(&mut c, &mut p).await;
-                    }
-                    Err(e) => tracing::warn!("websocket nel tunnel non cucito: {e}"),
-                }
-                drop(mittente);
-            });
-        }
-    }
-    let (parti, corpo) = risposta.into_parts();
-    let mut fuori = Response::builder().status(parti.status);
-    for (nome, valore) in parti.headers.iter() {
-        if nome.as_str().eq_ignore_ascii_case("content-length") {
-            continue;
-        }
-        fuori = fuori.header(nome.clone(), valore.clone());
-    }
-    Ok(fuori.body(Body::new(corpo.map_err(axum::Error::new)))?)
+    super::http::http_su(stream.compat(), percorso, query, req).await
 }
 
 #[derive(serde::Deserialize)]
@@ -768,6 +705,33 @@ pub async fn imposta_stato(
 
 #[derive(serde::Deserialize)]
 #[serde(deny_unknown_fields)]
+pub struct Schermo {
+    acceso: bool,
+}
+
+/// `POST /api/amministrazione/pannelli/:nome/schermo` — accende o spegne lo
+/// schermo remoto di un pannello (29-10-2026). Spento, lo schermo già aperto si
+/// chiude alla richiesta successiva: `schermo::schermo` lo guarda ogni volta.
+pub async fn imposta_schermo(
+    State(s): State<crate::router::AppState>,
+    Path(nome): Path<String>,
+    axum::Json(b): axum::Json<Schermo>,
+) -> Response {
+    let Some(a) = s.pannelli_abbinati.as_ref() else {
+        return StatusCode::NOT_FOUND.into_response();
+    };
+    match a.imposta_schermo(&nome, b.acceso) {
+        Ok(true) => {
+            s.audit.log("pannello.schermo_remoto", None, serde_json::json!({ "pannello": nome, "acceso": b.acceso }));
+            StatusCode::NO_CONTENT.into_response()
+        }
+        Ok(false) => StatusCode::NOT_FOUND.into_response(),
+        Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response(),
+    }
+}
+
+#[derive(serde::Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct NuovaAzienda {
     /// Il segmento del gateway: la cartella dell'azienda, `-` per la radice.
     azienda: String,
@@ -828,7 +792,7 @@ pub async fn sposta_azienda(
 
 /// La firma del gateway per un pannello abbinato col codice: `None` per i
 /// dichiarati a mano, che non la conoscono.
-fn firma_per(s: &crate::router::AppState, pannello: &str) -> Option<String> {
+pub(crate) fn firma_per(s: &crate::router::AppState, pannello: &str) -> Option<String> {
     let p = s.pannelli_abbinati.as_ref()?.per_nome(pannello)?;
     let segreto = s.regia.as_ref()?.segreto().to_string();
     let token = crate::tunnel::abbinati::token_per(&segreto, &p.hw);

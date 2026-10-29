@@ -28,6 +28,8 @@ type Riga = {
   collegato: boolean;
   /** Si è annunciato spento (ms), se dopo non è più tornato. */
   spento_ms?: number;
+  /** Lo schermo remoto spento da qui (29-10-2026): acceso se manca. */
+  schermo_spento?: boolean;
 };
 type Elenco = {
   abbinati: Riga[];
@@ -92,6 +94,35 @@ export function Pannelli() {
     }
   };
 
+  const impostaSchermo = async (nome: string, acceso: boolean) => {
+    try {
+      await api.schermoPannello(nome, acceso);
+      carica();
+    } catch (e: unknown) {
+      setErr(e instanceof Error ? e.message : String(e));
+    }
+  };
+
+  // Lo schermo remoto (29-10-2026): la scheda si apre dentro il clic, poi
+  // riceve l'indirizzo col biglietto — aperta dopo l'attesa, il browser la
+  // bloccherebbe come finestra non richiesta.
+  const apriSchermo = async (nome: string) => {
+    const w = window.open("about:blank", "_blank");
+    try {
+      const { url } = await api.bigliettoSchermo(nome);
+      const dove = new URL(url, window.location.origin).toString();
+      if (w) {
+        w.opener = null;
+        w.location.href = dove;
+      } else {
+        window.open(dove, "_blank", "noopener");
+      }
+    } catch (e: unknown) {
+      w?.close();
+      window.alert(e instanceof Error ? e.message : String(e));
+    }
+  };
+
   if (err) return <div style={scheda}>{err}</div>;
   if (!elenco) return <div style={scheda}>{t("console.verifica")}</div>;
   const quando = (ms: number) => (ms > 0 ? new Date(ms).toLocaleString() : "—");
@@ -118,6 +149,7 @@ export function Pannelli() {
                 <th>{t("console.pannelli.nome")}</th><th>{t("console.pannelli.azienda")}</th>
                 <th>{t("console.pannelli.hardware")}</th><th>{t("console.pannelli.ultimo")}</th>
                 <th>{t("console.pannelli.stato")}</th>
+                <th>{t("console.pannelli.schermo")}</th>
               </tr>
             </thead>
             <tbody>
@@ -154,6 +186,21 @@ export function Pannelli() {
                       <option value="sospeso">{t("console.pannelli.sospeso")}</option>
                       <option value="bandito">{t("console.pannelli.bandito")}</option>
                     </select>
+                  </td>
+                  <td style={{ whiteSpace: "nowrap" }}>
+                    <label title={t("console.pannelli.schermoAiuto")} style={{ fontSize: 12, display: "inline-flex", alignItems: "center", gap: 4 }}>
+                      <input type="checkbox" checked={!r.schermo_spento}
+                        data-testid={`schermo-acceso-${r.nome}`}
+                        onChange={(e) => void impostaSchermo(r.nome, e.target.checked)} />
+                      {r.schermo_spento ? t("console.pannelli.schermoSpento") : t("console.pannelli.schermoAcceso")}
+                    </label>
+                    {!r.schermo_spento && r.collegato && r.stato === "attivo" && (
+                      <button onClick={() => void apriSchermo(r.nome)} title={t("console.pannelli.schermoApri")}
+                        data-testid={`schermo-apri-${r.nome}`}
+                        style={{ marginLeft: 6, background: "transparent", border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 4, cursor: "pointer", color: "var(--brand-text, #e2e8f0)", fontSize: 12, padding: "1px 6px" }}>
+                        ↗
+                      </button>
+                    )}
                   </td>
                 </tr>
               ))}

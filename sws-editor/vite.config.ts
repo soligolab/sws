@@ -45,6 +45,25 @@ export default defineConfig({
     __SWS_BUILD_MS__: JSON.stringify(Date.now()),
   },
   plugins: [react()],
+  // **La pagina operatore funziona sotto un prefisso** (29-10-2026, piano
+  // `docs/plans/2026-10-29-schermo-remoto.md`): dal cloud si apre a
+  // `/schermo/<pannello>/`, e tutto — pagina, script, font — deve arrivare dal
+  // pannello, non dalla radice del sito. Quindi:
+  //
+  // - dentro script e fogli di stile gli indirizzi sono **relativi al file che
+  //   li nomina** (`import.meta.url`): valgono ovunque il file sia servito;
+  // - in `index.html` (la pagina operatore) sono relativi alla pagina;
+  // - nelle altre pagine d'ingresso restano **assoluti**. L'IDE nel cloud sta
+  //   sotto `/p/<azienda>/<progetto>/`, dove il gateway chiede la sessione a
+  //   ogni richiesta: un `<script src>` relativo non la porterebbe. Alla
+  //   radice il gateway serve gli stessi file senza chiederla.
+  experimental: {
+    renderBuiltUrl(filename, { hostId, hostType }) {
+      if (hostType === "js" || hostType === "css") return { relative: true };
+      if (hostType === "html" && /(^|\/)index\.html$/.test(hostId)) return `./${filename}`;
+      return `/${filename}`;
+    },
+  },
   resolve: {
     alias: { "@": "/src" },
   },

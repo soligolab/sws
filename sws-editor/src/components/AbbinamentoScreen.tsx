@@ -3,6 +3,8 @@ import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { paginaCentrata, schedaModulo } from "@/components/schermataAccesso";
 import { useAppStore, type Role } from "@/store";
+// Anche dallo schermo remoto (29-10-2026) le chiamate vanno al pannello.
+import { percorsoPubblico } from "@/api/prefisso";
 
 /**
  * Il pannello è **in attesa di abbinamento** (11-10-2026): non ha nessun
@@ -42,7 +44,7 @@ export function AbbinamentoScreen({
     setErrore(null);
     setInCorso(true);
     try {
-      const r = await fetch("/api/abbinamento/rivendica", {
+      const r = await fetch(percorsoPubblico("/api/abbinamento/rivendica"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ codice, username: username.trim(), password }),
@@ -212,7 +214,7 @@ export function CancelloAbbinamento({ children }: { children: React.ReactNode })
   const [abbinato, setAbbinato] = useState<Stato | null>(null);
   useEffect(() => {
     let vivo = true;
-    fetch("/api/abbinamento")
+    fetch(percorsoPubblico("/api/abbinamento"))
       .then((r) => (r.ok ? r.json() : null))
       .then((s: Stato | null) => { if (vivo) setStato(daMostrare(s) ?? "nessuno"); })
       .catch(() => { if (vivo) setStato("nessuno"); });
@@ -229,7 +231,7 @@ export function CancelloAbbinamento({ children }: { children: React.ReactNode })
   useEffect(() => {
     if (!inAttesa) return;
     const t = setInterval(() => {
-      fetch("/api/abbinamento")
+      fetch(percorsoPubblico("/api/abbinamento"))
         .then((r) => (r.ok ? r.json() : null))
         .then((s: Stato | null) => {
           if (s && !s.in_attesa) {

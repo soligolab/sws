@@ -17,6 +17,7 @@
 //
 // Nothing here touches the runtime (Rust) — the brand folder is served as a
 // plain static asset out of dist/branding/.
+import { percorsoPubblico } from "@/api/prefisso";
 
 export interface BrandColors {
   bg: string;
@@ -163,14 +164,16 @@ export async function loadBranding(forzato?: string | null): Promise<Brand> {
     if (forzato) {
       id = forzato;
     } else {
-      const active = await fetch("/branding/active.json", { cache: "no-store" }).then((r) => {
+      // Sullo schermo di un pannello aperto dal cloud il marchio è quello
+      // del pannello (29-10-2026): `percorsoPubblico` mette il prefisso.
+      const active = await fetch(percorsoPubblico("/branding/active.json"), { cache: "no-store" }).then((r) => {
         if (!r.ok) throw new Error(`active.json ${r.status}`);
         return r.json();
       });
       id = active?.brand || "sws";
     }
 
-    const meta = await fetch(`/branding/${id}/brand.json`, { cache: "no-store" }).then((r) => {
+    const meta = await fetch(percorsoPubblico(`/branding/${id}/brand.json`), { cache: "no-store" }).then((r) => {
       if (!r.ok) throw new Error(`brand.json ${r.status}`);
       return r.json();
     });
@@ -179,8 +182,8 @@ export async function loadBranding(forzato?: string | null): Promise<Brand> {
       id,
       name: meta.name ?? id,
       shortName: meta.shortName ?? meta.name ?? id,
-      logoUrl: meta.logo ? `/branding/${id}/${meta.logo}` : null,
-      faviconUrl: meta.favicon ? `/branding/${id}/${meta.favicon}` : null,
+      logoUrl: meta.logo ? percorsoPubblico(`/branding/${id}/${meta.logo}`) : null,
+      faviconUrl: meta.favicon ? percorsoPubblico(`/branding/${id}/${meta.favicon}`) : null,
       colors: { ...SWS_FALLBACK.colors, ...(meta.colors ?? {}) },
       devicePresets: meta.device_presets ?? [],
       dataPathPresets: meta.data_path_presets ?? [],

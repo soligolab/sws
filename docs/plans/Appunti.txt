@@ -126,3 +126,11 @@ Annoto di seguito, uno per punto, le cose che devono essere verificate e trasfor
   passi 3 e 4 di docs/COLLAUDI_IN_SOSPESO.md §A-quater): con un destinatario e l'SMTP delle Notifiche, la mail
   arriva con PDF ed Excel allegati; con il cron a */15 e «File da tenere» = 2, i file nascono da soli sul
   pannello e ne restano solo le ultime due generazioni. Il deploy va fatto dopo ogni modifica del report.
+
+- L'IDE non si accorge più di una versione nuova del frontend (visto il 29-10-2026, dal 28-10). Il
+  `buildWatcher` dell'IDE (`sws-editor/src/ws/buildWatcher.ts`, usato in `App.tsx`) fa `fetch("/")` per
+  confrontare gli asset; la porta dell'IDE serve la radice dal ripiego della SPA (`ripiego_spa` in
+  `sws-web/src/router.rs`), e `e_navigazione` dice 404 a una fetch (`Sec-Fetch-Mode: cors`). Il watcher
+  vede `!ok`, riprova, e la barra «nuova versione» non compare mai. Il viewer (7443) non ha il problema:
+  lì la radice è un file vero. Strade: il watcher chiede con `Accept: text/html` e il ripiego guarda
+  l'Accept prima del modo, oppure il watcher legge `/index-admin.html` per nome.

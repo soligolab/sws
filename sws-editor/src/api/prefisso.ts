@@ -22,6 +22,28 @@ export function prefissoGateway(percorso?: string): string {
   return m ? `/p/${m[1]}/${m[2]}` : "";
 }
 
+/** `/schermo/<pannello>` se questa pagina è **lo schermo di un pannello**
+ *  aperto dal cloud (29-10-2026, `docs/plans/2026-10-29-schermo-remoto.md`),
+ *  `""` altrove.
+ *
+ *  Lì la pagina operatore è quella del pannello, servita attraverso il tunnel:
+ *  tutto quello che chiede — API, websocket, immagini, file pubblici — deve
+ *  passare dallo stesso prefisso, o finirebbe alla radice del sito, cioè al
+ *  gateway. Non è `prefissoGateway`: quello vale anche per le rotte che nel
+ *  cloud vanno **al** gateway (login, elenco dei progetti), e sullo schermo il
+ *  login è quello del pannello. */
+export function prefissoSchermo(percorso?: string): string {
+  const p = percorso ?? (typeof window !== "undefined" ? window.location.pathname : "");
+  const m = /^\/schermo\/([^/]+)(?:\/|$)/.exec(p);
+  return m ? `/schermo/${m[1]}` : "";
+}
+
+/** Un file pubblico della stessa origine (`/symbols/…`, `/branding/…`): sullo
+ *  schermo di un pannello viene dal pannello, altrove dalla radice. */
+export function percorsoPubblico(percorso: string): string {
+  return prefissoSchermo() + percorso;
+}
+
 /** `{azienda, progetto}` del progetto aperto, o `null` se non siamo nel cloud. */
 export function progettoDalPercorso(
   percorso?: string,

@@ -5,6 +5,22 @@ import { HDR_BTN } from "@/components/headerStyles";
 import { viewerUrlFromAdmin } from "@/runtimeUrl";
 import { useAppStore } from "@/store";
 
+/** Il pannello dietro un indirizzo del tunnel (`https://sws.soligo.net/dev/<pannello>`),
+ *  se l'indirizzo è di questo stesso sito: è il caso dell'IDE nel cloud
+ *  collegato a un pannello (29-10-2026). Lì la pagina operatore non ha una
+ *  porta sua, e si apre come **schermo remoto** (`/schermo/<pannello>/`). */
+export function pannelloDelTunnel(url: string | null | undefined, origine: string): string | null {
+  if (!url) return null;
+  try {
+    const u = new URL(url);
+    if (u.origin !== origine) return null;
+    const m = /^\/dev\/([^/]+)\/?$/.exec(u.pathname);
+    return m ? decodeURIComponent(m[1]) : null;
+  } catch {
+    return null;
+  }
+}
+
 /** Quanto si aspetta il runtime prima di dichiararlo non raggiungibile. */
 const PROBE_TIMEOUT_MS = 4000;
 /** Per quanto resta a schermo l'esito di un sondaggio fallito. */
@@ -78,6 +94,8 @@ export function ViewerLink() {
   // quando la SPA è servita dalla sua stessa origine, non `null`.
   const adminUrl = connectedUrl || getRuntimeBaseUrl() || window.location.origin;
   const viewerUrl = viewerUrlFromAdmin(adminUrl);
+  const pannello = pannelloDelTunnel(connectedUrl, window.location.origin);
+  if (pannello) return <SchermoRemoto pannello={pannello} />;
   if (!viewerUrl) return null;
 
   const showError = (msg: string, certAction = false) => {
@@ -162,6 +180,59 @@ export function ViewerLink() {
         >
           {t("header.viewerAcceptCert")}
         </button>
+      )}
+    </div>
+  );
+}
+
+/** Il tasto Viewer dell'IDE nel cloud collegato a un pannello (29-10-2026,
+ *  `docs/plans/2026-10-29-schermo-remoto.md`): apre la pagina operatore del
+ *  pannello attraverso il tunnel. Il gateway dà un biglietto monouso e lo
+ *  scambia con un cookie ristretto a quel pannello: una scheda nuova non
+ *  potrebbe portare il gettone della sessione. */
+function SchermoRemoto({ pannello }: { pannello: string }) {
+  const { t } = useTranslation();
+  const [inCorso, setInCorso] = useState(false);
+  const [errore, setErrore] = useState<string | null>(null);
+  const apri = async () => {
+    if (inCorso) return;
+    setInCorso(true);
+    setErrore(null);
+    // La scheda si apre **subito**, dentro il clic: aperta dopo l'attesa del
+    // biglietto, il browser la prenderebbe per una finestra non richiesta.
+    const scheda = window.open("about:blank", "_blank");
+    try {
+      const { url } = await api.bigliettoSchermo(pannello);
+      const dove = new URL(url, window.location.origin).toString();
+      if (scheda) {
+        scheda.opener = null;
+        scheda.location.href = dove;
+      } else {
+        window.open(dove, "_blank", "noopener");
+      }
+    } catch (e) {
+      scheda?.close();
+      setErrore(e instanceof Error ? e.message : String(e));
+    } finally {
+      setInCorso(false);
+    }
+  };
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+      <button
+        style={{ ...HDR_BTN, opacity: inCorso ? 0.6 : 1 }}
+        disabled={inCorso}
+        onClick={() => void apri()}
+        title={t("header.schermoRemotoTitolo", { pannello })}
+        data-testid="apri-schermo-remoto"
+      >
+        {t("header.openViewer")}
+      </button>
+      {errore && (
+        <span role="status" title={errore} style={{
+          fontSize: 11, maxWidth: 320, color: "var(--brand-danger, #ef4444)",
+          whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
+        }}>{errore}</span>
       )}
     </div>
   );

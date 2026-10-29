@@ -14,7 +14,7 @@
 import { useEffect, useState } from "react";
 import type { ImgHTMLAttributes, SVGProps } from "react";
 import { getAuthToken, getBaseUrl } from "@/api/client";
-import { prefissoGateway } from "@/api/prefisso";
+import { prefissoGateway, prefissoSchermo } from "@/api/prefisso";
 
 const pronte = new Map<string, string>();
 const inVolo = new Map<string, Promise<string | null>>();
@@ -41,7 +41,9 @@ export function blobDi(url: string): Blob | undefined {
 
 /** Quest'immagine va scaricata con la sessione invece che lasciata al browser? */
 export function serveScaricare(href: string | undefined): href is string {
-  return !!href && href.startsWith("/api/") && !!prefissoGateway();
+  // Anche sullo schermo di un pannello aperto dal cloud (29-10-2026): lì
+  // l'indirizzo alla radice andrebbe al gateway, non al pannello.
+  return !!href && href.startsWith("/api/") && (!!prefissoGateway() || !!prefissoSchermo());
 }
 
 /** Scarica (una volta sola per URL) e restituisce un `blob:` da disegnare. */

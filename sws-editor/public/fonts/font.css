@@ -4,15 +4,15 @@
    grassetto dichiara il regolare anche come bold: il browser non lo ingrossa da sé, e
    resta uguale al pannello, che usa il regolare. Lo richiamano index.html (viewer) e
    index-admin.html (IDE): il canvas deve disegnare come il viewer. */
-@font-face { font-family: "SWS Sans"; src: url("/fonts/DejaVuSans.woff2") format("woff2"); font-weight: normal; font-display: swap; }
-@font-face { font-family: "SWS Sans"; src: url("/fonts/DejaVuSans-Bold.woff2") format("woff2"); font-weight: bold; font-display: swap; }
-@font-face { font-family: "SWS Mono"; src: url("/fonts/DejaVuSansMono.woff2") format("woff2"); font-weight: normal; font-display: swap; }
-@font-face { font-family: "SWS Mono"; src: url("/fonts/DejaVuSansMono-Bold.woff2") format("woff2"); font-weight: bold; font-display: swap; }
-@font-face { font-family: "SWS Serif"; src: url("/fonts/DejaVuSerif.woff2") format("woff2"); font-weight: normal; font-display: swap; }
-@font-face { font-family: "SWS Serif"; src: url("/fonts/DejaVuSerif-Bold.woff2") format("woff2"); font-weight: bold; font-display: swap; }
-@font-face { font-family: "SWS Segmenti 7"; src: url("/fonts/DSEG7Classic-Regular.woff2") format("woff2"); font-weight: normal; font-display: swap; }
-@font-face { font-family: "SWS Segmenti 7"; src: url("/fonts/DSEG7Classic-Bold.woff2") format("woff2"); font-weight: bold; font-display: swap; }
-@font-face { font-family: "SWS Segmenti 14"; src: url("/fonts/DSEG14Classic-Regular.woff2") format("woff2"); font-weight: normal; font-display: swap; }
-@font-face { font-family: "SWS Segmenti 14"; src: url("/fonts/DSEG14Classic-Bold.woff2") format("woff2"); font-weight: bold; font-display: swap; }
-@font-face { font-family: "SWS Matrice"; src: url("/fonts/DotGothic16-Regular.woff2") format("woff2"); font-weight: normal; font-display: swap; }
-@font-face { font-family: "SWS Matrice"; src: url("/fonts/DotGothic16-Regular.woff2") format("woff2"); font-weight: bold; font-display: swap; }
+@font-face { font-family: "SWS Sans"; src: url("./DejaVuSans.woff2") format("woff2"); font-weight: normal; font-display: swap; }
+@font-face { font-family: "SWS Sans"; src: url("./DejaVuSans-Bold.woff2") format("woff2"); font-weight: bold; font-display: swap; }
+@font-face { font-family: "SWS Mono"; src: url("./DejaVuSansMono.woff2") format("woff2"); font-weight: normal; font-display: swap; }
+@font-face { font-family: "SWS Mono"; src: url("./DejaVuSansMono-Bold.woff2") format("woff2"); font-weight: bold; font-display: swap; }
+@font-face { font-family: "SWS Serif"; src: url("./DejaVuSerif.woff2") format("woff2"); font-weight: normal; font-display: swap; }
+@font-face { font-family: "SWS Serif"; src: url("./DejaVuSerif-Bold.woff2") format("woff2"); font-weight: bold; font-display: swap; }
+@font-face { font-family: "SWS Segmenti 7"; src: url("./DSEG7Classic-Regular.woff2") format("woff2"); font-weight: normal; font-display: swap; }
+@font-face { font-family: "SWS Segmenti 7"; src: url("./DSEG7Classic-Bold.woff2") format("woff2"); font-weight: bold; font-display: swap; }
+@font-face { font-family: "SWS Segmenti 14"; src: url("./DSEG14Classic-Regular.woff2") format("woff2"); font-weight: normal; font-display: swap; }
+@font-face { font-family: "SWS Segmenti 14"; src: url("./DSEG14Classic-Bold.woff2") format("woff2"); font-weight: bold; font-display: swap; }
+@font-face { font-family: "SWS Matrice"; src: url("./DotGothic16-Regular.woff2") format("woff2"); font-weight: normal; font-display: swap; }
+@font-face { font-family: "SWS Matrice"; src: url("./DotGothic16-Regular.woff2") format("woff2"); font-weight: bold; font-display: swap; }

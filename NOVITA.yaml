@@ -47,6 +47,8 @@ versioni:
         en: "In the project list each card shows a thumbnail of the start page, refreshed on every save."
       - it: "Twilio: il segreto della chiave API non si perde piu' salvando, e gli errori dell'account di prova si spiegano a schermo."
         en: "Twilio: the API key secret is no longer lost when saving, and trial-account errors are explained on screen."
+      - it: "Dall'IDE nel cloud il tasto Viewer apre lo schermo del pannello collegato: la sua pagina operatore, coi valori veri. Si spegne per pannello dalla console."
+        en: "From the cloud IDE the Viewer button opens the connected panel's screen: its operator page, with live values. It can be turned off per panel in the console."
   - versione: "2.23.6"
     voci:
       - it: "Nel cloud, cancellare un progetto e crearne uno con lo stesso nome ora funziona, invece di dare un errore all'apertura."

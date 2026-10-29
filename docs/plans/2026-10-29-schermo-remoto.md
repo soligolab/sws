@@ -90,3 +90,36 @@ CHANGELOG, NOVITA, collaudi.
 - **Chi sta guardando**: il pannello non sa che qualcuno lo guarda da remoto, e non lo mostra a chi ha davanti lo
   schermo. Se servirà, è un lavoro a parte.
 - **Lo schermo senza cloud**, in rete locale: c'è già, è la porta 7443.
+
+## Stato (29-10-2026, sera)
+
+Fatti i quattro passi sul ramo `feat/schermo-remoto`. Il collaudo dal vivo aspetta un'immagine: servono il pannello e
+il gateway alla stessa versione (`docs/COLLAUDI_IN_SOSPESO.md` §A-undecies).
+
+Quello che è andato diverso dal disegno, detto qui:
+
+- **L'interruttore lo cambia chi amministra la piattaforma**, non l'amministratore dell'azienda: la pagina *Pannelli*
+  della console è della piattaforma (stato, ban, spostamento). Portarla agli amministratori d'azienda è un lavoro a
+  parte, che vale per tutte le colonne, non solo per questa.
+- **Il cookie è legato alla sessione cloud davvero**: a ogni richiesta il gateway ricontrolla il gettone di chi ha
+  aperto lo schermo e la sua appartenenza all'azienda del pannello. Logout, scadenza, uscita dall'azienda o pannello
+  spostato chiudono lo schermo subito, non dopo 8 ore.
+- **Il login dello schermo ha una chiave sua** in `localStorage` (`sws.auth@/schermo/<pannello>`). La pagina sta
+  sulla stessa origine dell'IDE del cloud: con la chiave di sempre avrebbe mandato al pannello il gettone del cloud,
+  e un login nello schermo avrebbe sostituito quello dell'IDE nelle altre schede.
+- **I risultati 403/503/409 del biglietto** dicono perché lo schermo non si apre (spento, pannello non collegato,
+  pannello dichiarato a mano), e il tasto lo mostra accanto a sé.
+
+### Limite da decidere: la pagina del pannello sull'origine del cloud
+
+La decisione 5 («la pagina è quella del pannello») vuol dire che HTML e script **scritti dal pannello** girano
+sull'origine `sws.soligo.net`. Con il pannello nostro, che serve la nostra immagine, è la stessa pagina che gira in
+rete locale. Ma un pannello **manomesso** (accesso fisico, root) potrebbe servire uno script che legge dal
+`localStorage` di quell'origine il gettone cloud di chi apre il suo schermo — anche di chi amministra la
+piattaforma, dal link della console. La chiave separata del login non basta: lo script può leggere tutte le chiavi.
+
+La strada che chiude il problema è un'**origine separata** per gli schermi (un sottodominio, per esempio
+`schermo.sws.soligo.net`, o uno per pannello), dove il gettone del cloud non c'è: il biglietto si scambia lì, e il
+cookie nasce lì. Costa un nome DNS e un certificato in più su Traefik. Da decidere prima che lo schermo esca dalla
+prova con i due clienti di oggi.
+

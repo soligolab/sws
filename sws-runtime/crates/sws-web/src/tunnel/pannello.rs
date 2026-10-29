@@ -284,7 +284,7 @@ pub(crate) async fn gira_alla_porta(stream: yamux::Stream, porta: u16, tls: bool
 /// processo stesso serve (autofirmato, del dispositivo o caricato a mano), quindi
 /// non c'è un'identità da verificare — chi risponde su `127.0.0.1:<porta di
 /// gestione>` è questo runtime. Le firme dell'handshake restano verificate.
-fn config_loopback() -> Arc<rustls::ClientConfig> {
+pub(crate) fn config_loopback() -> Arc<rustls::ClientConfig> {
     static CFG: std::sync::OnceLock<Arc<rustls::ClientConfig>> = std::sync::OnceLock::new();
     CFG.get_or_init(|| {
         let provider = Arc::new(rustls::crypto::ring::default_provider());

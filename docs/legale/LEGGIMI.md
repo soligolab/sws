@@ -13,7 +13,8 @@ SWS è un software HMI/SCADA. Sul cloud c'è l'ambiente di progettazione: l'uten
 allarmi e notifiche, e può collegare i propri pannelli (runtime SWS installato sul dispositivo) con un tunnel cifrato
 che parte dal pannello. Ogni utente che si registra riceve un'azienda personale con limiti (tre progetti, una quota di
 spazio). Il server è un VPS OVH in Francia; la posta parte da Infomaniak (Svizzera). Nessuno strumento di statistica,
-nessun cookie: il browser conserva in `localStorage` il gettone di sessione e alcune preferenze.
+un solo cookie tecnico (`sws_schermo`, dal 29-10-2026, solo per lo schermo di un pannello aperto dal cloud): per il
+resto il browser conserva in `localStorage` il gettone di sessione e alcune preferenze.
 
 ## Le scelte del maintainer (29-10-2026)
 

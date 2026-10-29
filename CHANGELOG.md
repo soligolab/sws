@@ -13,6 +13,20 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 
 ### Added
 
+- **Lo schermo del pannello dal cloud** (piano `docs/plans/2026-10-29-schermo-remoto.md`): dall'IDE su
+  sws.soligo.net collegato a un pannello, il tasto Viewer apre `/schermo/<pannello>/` — la pagina operatore del
+  pannello attraverso il tunnel, websocket compresi. Il gateway dà un biglietto monouso
+  (`POST /api/pannelli/:nome/schermo`, solo persone dell'azienda del pannello, registro `pannello.schermo`) e lo
+  scambia con il cookie tecnico `sws_schermo` (`HttpOnly`, `Secure`, `SameSite=Strict`, ristretto al pannello),
+  legato al gettone cloud e ricontrollato a ogni richiesta; lo toglie prima del tunnel e aggiunge la firma. Il
+  pannello risponde a `/schermo/*` sulla 7444 solo con la firma, girando alla propria 7443 (`schermo.rs`); il
+  trasporto HTTP sopra uno stream sta ora in `tunnel/http.rs`, usato dal tunnel e dal giro. La pagina operatore
+  funziona sotto un prefisso: `index.html` e `font.css` con percorsi relativi (`renderBuiltUrl` in
+  `vite.config.ts`), `prefissoSchermo()` per API, websocket, simboli, marchio; il login dello schermo ha una chiave
+  sua in `localStorage`; il service worker non lo tocca. Interruttore per pannello nella console (*Pannelli* →
+  *Schermo remoto*, `POST /api/amministrazione/pannelli/:nome/schermo`, campo `schermo_spento` negli abbinati) e
+  link per aprirlo. Un pannello di una versione precedente risponde «va aggiornato».
+
 - **La disponibilità delle sorgenti** (ramo 1 del piano `docs/archive/2026-10-28-chi-sta-dall-altra-parte.md`):
   ogni sorgente che dice se risponde scrive il tag `<sorgente>.disponibile` (vero/falso, solo ai cambi; il nome in
   `sws_core::tag_disponibilita`). MQTT impara `disponibilita: { topic, json_path, vivo }` — il testamento di

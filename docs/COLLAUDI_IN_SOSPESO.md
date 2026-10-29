@@ -240,6 +240,21 @@ Ramo D del piano `docs/plans/2026-10-26-aprire-sws-soligo-net.md`.
 3. [ ] Nel cloud: la miniatura si vede nell'elenco servito dal gateway, e `anteprima.png` non compare in un commit Git
        del progetto.
 
+## A-undecies. Lo schermo del pannello dal cloud (29-10-2026)
+
+Piano `docs/plans/2026-10-29-schermo-remoto.md`. Serve un pannello **e** il gateway alla stessa versione (dopo il
+rilascio che lo porta).
+
+1. [ ] Dal cloud, IDE collegato a `tc620-garage`, tasto **Viewer**: si apre una scheda con la pagina operatore di
+       CasaDomotica, coi valori veri che si muovono.
+2. [ ] Un comando dalla scheda (un pulsante, uno slider) arriva al campo come dal pannello.
+3. [ ] Login con un utente del progetto e uscita, nella scheda dello schermo: l'IDE nell'altra scheda resta collegato.
+4. [ ] Console → *Pannelli* → *Schermo remoto* spento: il tasto Viewer dice perché non si apre, e la scheda già
+       aperta smette di rispondere al primo ricaricamento.
+5. [ ] Logout dall'IDE: lo schermo aperto smette di rispondere.
+6. [ ] Un utente di un'altra azienda, con l'indirizzo `/schermo/<pannello>/` copiato: non entra.
+7. [ ] Un pannello ancora alla versione di prima: il tasto apre una pagina che dice «va aggiornato».
+
 ## B. Lo schema `http`/`https` non è più scritto a mano
 
 Quattro punti che prima non rileggevano il certificato. **Nessuno cambia il comportamento di un

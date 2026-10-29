@@ -125,7 +125,9 @@ personali** (www.garanteprivacy.it) o all'autorità del paese dell'UE in cui viv
 
 Il servizio **non usa cookie di profilazione né strumenti di statistica** di terzi. Nel tuo browser conserva solo quello
 che serve a farlo funzionare: il gettone della sessione (per restare collegato) e alcune preferenze dell'interfaccia
-(tema, lingua, pannelli aperti). Sono strumenti tecnici necessari, per cui non serve il consenso.
+(tema, lingua, pannelli aperti). Quando apri lo **schermo di un pannello** dal servizio, usa anche un cookie tecnico
+(`sws_schermo`), valido solo per lo schermo di quel pannello e al massimo per 8 ore, che ti riconosce mentre lo guardi.
+Sono strumenti tecnici necessari, per cui non serve il consenso.
 
 ## 10. Modifiche a questa informativa
 

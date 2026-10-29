@@ -39,7 +39,7 @@ canvas.
 
 | Elemento | Funzione |
 |----------|---------|
-| **🖥 Viewer ↗** | Apre il viewer degli operatori in una scheda nuova, dopo aver controllato che risponda; con il TLS non ancora accettato propone **Accetta cert ↗** |
+| **🖥 Viewer ↗** | Apre il viewer degli operatori in una scheda nuova, dopo aver controllato che risponda; con il TLS non ancora accettato propone **Accetta cert ↗**. **Nel cloud**, con l'IDE collegato a un pannello, apre lo **schermo del pannello**: la sua pagina operatore attraverso il tunnel, coi valori veri ([capitolo 18](18_container_e_comunicazione.md), «Lo schermo del pannello dal cloud») |
 | **RUN / STOP** | Avvia o ferma l'acquisizione dal campo — vedi sotto |
 | **⚠ (contatore)** | Avvisi del runtime: compare solo se c'è qualcosa che non va |
 | **⚠ Aggiorna progetto** | Compare se il progetto è stato salvato da una versione di SWS più vecchia — vedi [sotto](#-aggiorna-progetto) |

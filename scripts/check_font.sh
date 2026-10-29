@@ -21,7 +21,12 @@ for pagina in ("sws-editor/index.html", "sws-editor/index-admin.html"):
     if '<link rel="stylesheet" href="/fonts/font.css" />' not in open(pagina).read():
         print(f"{pagina} non richiama /fonts/font.css: lì i font dell'elenco non si vedono")
         sys.exit(1)
-facce = set(re.findall(r'@font-face \{ font-family: "([^"]+)"; src: url\("/fonts/([^"]+)\.woff2"\) format\("woff2"\); font-weight: (normal|bold);', html))
+# Indirizzi relativi al file (29-10-2026): la pagina operatore si serve anche sotto
+# `/schermo/<pannello>/`, e un `/fonts/` assoluto prenderebbe i font del cloud.
+facce = set(re.findall(r'@font-face \{ font-family: "([^"]+)"; src: url\("\./([^"/]+)\.woff2"\) format\("woff2"\); font-weight: (normal|bold);', html))
+if "/fonts/" in html:
+    print("font.css ha ancora un indirizzo assoluto /fonts/: sotto un prefisso i font arriverebbero da un'altra parte")
+    sys.exit(1)
 problemi = []
 attese = set()
 for f in fx["famiglie"]:

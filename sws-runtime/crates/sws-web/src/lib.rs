@@ -1,4 +1,5 @@
 pub mod abbinamento;
+pub mod schermo;
 pub mod ai;
 pub mod anteprima;
 pub mod cornici;

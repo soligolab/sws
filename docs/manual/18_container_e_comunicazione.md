@@ -400,6 +400,44 @@ sequenceDiagram
   abbinati e quanti accesi adesso. Se l'azienda ha un `max_pannelli` concordato, è scritto accanto al numero ma
   **non ferma niente**: prima di rifiutare un abbinamento va deciso quando una licenza si libera.
 
+#### Lo schermo del pannello dal cloud
+
+Dal 29-10-2026 il tunnel porta anche la **pagina operatore** del pannello, quella della 7443: dall'IDE nel cloud
+collegato a un pannello, il tasto **Viewer** la apre in una scheda nuova, coi valori veri e i comandi che arrivano al
+campo. È un'anteprima dell'accesso remoto, al posto di VNC: si vede il disegno del browser, non quello di LVGL.
+
+```mermaid
+sequenceDiagram
+  participant B as Browser
+  participant G as gateway
+  participant P as pannello :7444
+  participant V as pagina operatore :7443
+  B->>G: POST /api/pannelli/<p>/schermo (Bearer)
+  G-->>B: /schermo/<p>/?biglietto=… (vale 60 s, una volta)
+  B->>G: GET /schermo/<p>/?biglietto=…
+  G-->>B: 303 + cookie sws_schermo (solo /schermo/<p>/)
+  B->>G: /schermo/<p>/… (cookie)
+  G->>P: /schermo/… senza cookie, con la firma del gateway
+  P->>V: la stessa richiesta, websocket compresi
+```
+
+- **Il biglietto e il cookie**: una scheda nuova e un websocket non possono mandare il gettone `Bearer`, quindi il
+  gateway scambia un biglietto monouso con un cookie tecnico (`HttpOnly`, `Secure`, `SameSite=Strict`, ristretto a
+  `/schermo/<pannello>/`). Il cookie è **legato alla sessione cloud** di chi l'ha aperto: a ogni richiesta il gateway
+  ricontrolla quel gettone e l'azienda del pannello. Logout, scadenza, uscita dall'azienda o pannello spostato
+  chiudono lo schermo subito; in ogni caso dopo 8 ore.
+- **Il pannello non vede le credenziali del cloud**: il gateway toglie il cookie e aggiunge la sua firma
+  (`X-SWS-Dal-Gateway`). Sulla 7444 `/schermo/*` senza firma risponde 404: la porta di gestione non diventa una seconda
+  porta della pagina operatore.
+- **Si entra come davanti allo schermo**: senza login del pannello, con quello che il progetto permette a chi non ha
+  fatto l'accesso. Il login, se serve, è quello degli utenti del progetto; la pagina lo tiene con una chiave sua
+  (`sws.auth@/schermo/<pannello>`), separata dal gettone dell'IDE.
+- **La pagina è quella del pannello**: HTML, script e dati arrivano tutti dal pannello, anche con un pannello di
+  una versione diversa dal cloud. Un pannello che non conosce `/schermo` risponde «va aggiornato».
+- **Acceso di default, spegnibile per pannello** dalla console (*Pannelli* → colonna *Schermo remoto*); ogni
+  apertura si registra (`pannello.schermo` nel registro delle attività). Solo per i pannelli **abbinati col codice**:
+  quelli dichiarati a mano non conoscono la firma del gateway.
+
 ### 5.4 Il browser, il gateway e il container di progetto
 
 ```mermaid
@@ -467,6 +505,7 @@ acquisisce nel cloud). Dettagli e configurazione nel [capitolo 06](06_protocols.
 | **Gateway → container** | `X-SWS-Gateway: <segreto>` + `X-SWS-Utente: <email>` | `segreto_gateway`, passato al container in `SWS_SEGRETO_GATEWAY` | finché non si cambia |
 | **Container → gateway** | `X-SWS-Figlio: <azienda>/<progetto>:<HMAC>` | calcolata dal segreto, mai salvata | idem |
 | **Pannello → gateway** (tunnel) | `Authorization: Bearer HMAC(segreto, identità hardware)` | config del pannello, ricevuto all'abbinamento | idem |
+| **Schermo remoto** (browser → gateway) | cookie `sws_schermo`, da un biglietto monouso | memoria del gateway; legato al gettone cloud | finché vale la sessione cloud, al massimo 8 h |
 | **Prometheus → /metrics** | `Authorization: Bearer <SWS_METRICS_TOKEN>` | variabile d'ambiente | — |
 
 **I token di sessione** si mandano come `Authorization: Bearer …`; i WebSocket, che non possono mandare

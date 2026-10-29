@@ -10,8 +10,11 @@ import { applicaStile, type StileSimbolo } from "./applicaStile";
 import type { ManifestLib, SimboloLib } from "./manifest";
 import type { ParteLegata } from "@/types";
 import { veroSimbolo } from "@/symbols/statoSimbolo";
+import { percorsoPubblico } from "@/api/prefisso";
 
-export const BASE_LIB = "/symbols/lib/";
+// `percorsoPubblico`: sullo schermo di un pannello aperto dal cloud la
+// libreria è quella del pannello (29-10-2026).
+export const BASE_LIB = percorsoPubblico("/symbols/lib/");
 export const CONTORNO_PREDEFINITO = "#1c2329";
 
 let manifesto: ManifestLib | null = null;

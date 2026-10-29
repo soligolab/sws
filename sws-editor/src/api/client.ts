@@ -59,7 +59,7 @@ import type {
   ConfigTraduzione,
   TypeDef,
 } from "@/types";
-import { prefissoGateway } from "./prefisso";
+import { prefissoGateway, prefissoSchermo } from "./prefisso";
 import { corniceAPagina } from "@/cornici/modello";
 import { faceplateAPagina } from "@/faceplate/modello";
 import i18n from "i18next";
@@ -116,7 +116,9 @@ export function getBaseUrl(): string {
   // Sotto il gateway il prefisso vince su tutto, `_forceLocalApi` compreso:
   // quello dice «stessa origine», e `/p/<azienda>/<progetto>` è la stessa
   // origine — è solo il punto in cui, su quell'origine, vive questo progetto.
-  const pre = prefissoGateway();
+  // Lo schermo di un pannello aperto dal cloud (29-10-2026): stessa regola, col
+  // suo prefisso. Le API sono quelle del pannello, attraverso il tunnel.
+  const pre = prefissoGateway() || prefissoSchermo();
   if (pre) return pre;
   if (_forceLocalApi) return "";
   if (typeof window !== "undefined") {
@@ -781,7 +783,10 @@ export const sulGateway = (path: string) =>
   // Il marchio dell'azienda lo sa il gateway, che ha le identità: il
   // container del progetto non le ha, e rispondeva «nessun marchio» — nel
   // cloud un utente Pixsys non vedeva i preset dei pannelli (25-10-2026).
-  || path === "/api/identita/marchio" || path === "/api/identita/marchio/privato";
+  || path === "/api/identita/marchio" || path === "/api/identita/marchio/privato"
+  // Il biglietto dello schermo di un pannello (29-10-2026): lo dà il gateway a
+  // una **persona**, e dal container del progetto arriverebbe a nome suo.
+  || /^\/api\/pannelli\/[^/]+\/schermo$/.test(path);
 
 /** La base a cui mandare una richiesta: il prefisso del progetto, o la radice
  *  per le rotte del gateway quando siamo nel cloud. */
@@ -2716,6 +2721,17 @@ export const api = {
 
   /** Console del gateway: i pannelli abbinati, dichiarati e in attesa. */
   pannelliAmministrazione: () => request<unknown>("/api/amministrazione/pannelli"),
+  /** Lo schermo remoto di un pannello, acceso o spento (29-10-2026). */
+  schermoPannello: (nome: string, acceso: boolean) =>
+    request<void>(`/api/amministrazione/pannelli/${encodeURIComponent(nome)}/schermo`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ acceso }),
+    }),
+  /** Il biglietto per aprire lo schermo di un pannello: l'indirizzo da aprire
+   *  in una scheda (29-10-2026). Lo dà il gateway, a nome di chi chiede. */
+  bigliettoSchermo: (nome: string) =>
+    request<{ url: string }>(`/api/pannelli/${encodeURIComponent(nome)}/schermo`, { method: "POST" }),
   statoPannello: (nome: string, stato: "attivo" | "sospeso" | "bandito") =>
     request<void>(`/api/amministrazione/pannelli/${encodeURIComponent(nome)}/stato`, {
       method: "POST",

@@ -1,3 +1,4 @@
+import { prefissoSchermo } from "@/api/prefisso";
 import { create } from "zustand";
 import { impostaStileProgetto } from "@/symbols/stileProgetto";
 import i18n from "i18next";
@@ -127,7 +128,12 @@ const LOG_LIMIT = 2000;
 // Persist the session token in localStorage so a page refresh doesn't kick
 // the operator back to the login screen. Username + token only — no secrets.
 
-const AUTH_KEY = "sws.auth";
+// Nello **schermo di un pannello** aperto dal cloud (29-10-2026) la pagina sta
+// sulla stessa origine dell'IDE del cloud, quindi vede lo stesso localStorage.
+// Con la stessa chiave manderebbe al pannello il gettone del cloud, e un login
+// fatto lì sovrascriverebbe quello dell'IDE nelle altre schede. Il login dello
+// schermo è del pannello: ha una chiave sua, una per pannello.
+const AUTH_KEY = prefissoSchermo() ? `sws.auth@${prefissoSchermo()}` : "sws.auth";
 
 type PersistedAuth = { token: string; username: string; role?: string; must_change_password?: boolean; expires_at_ms?: number | null };
 

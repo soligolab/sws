@@ -102,6 +102,7 @@
     "spiaLogAvvisiTitle": "{{avvisi}} avvisi nel log da quando l'hai guardato. Clicca per aprirlo sul primo.",
     "openViewer": "🖥 Viewer ↗",
     "openViewerTitle": "Apri {{url}} in una scheda nuova. Prima controlla che risponda.",
+    "schermoRemotoTitolo": "Apre lo schermo di «{{pannello}}» in una scheda nuova: la pagina operatore del pannello, coi valori veri, attraverso il cloud.",
     "viewerProbing": "🖥 Controllo…",
     "viewerUnreachable": "{{url}} non risponde.",
     "viewerUnreachableTls": "{{url}} non risponde — se il runtime è acceso, il certificato non è ancora stato accettato per QUESTO indirizzo (il viewer è un origin separato dall'IDE: va accettato anche lui).",
@@ -3443,7 +3444,12 @@
       "spostaAiuto": "Sposta il pannello a un'altra azienda. È l'unica strada: un pannello non cambia azienda facendosi rivendicare, nemmeno se è sospeso.",
       "confermaBan": "Bandire «{{nome}}»? Il pannello viene staccato e non potrà rientrare nemmeno dopo una riformattazione.",
       "rinomina": "Rinomina (il pannello deve essere collegato)",
-      "nuovoNome": "Nuovo nome per «{{nome}}» (lettere, cifre, trattini):"
+      "nuovoNome": "Nuovo nome per «{{nome}}» (lettere, cifre, trattini):",
+      "schermo": "Schermo remoto",
+      "schermoAcceso": "acceso",
+      "schermoSpento": "spento",
+      "schermoAiuto": "Se acceso, chi è dell'azienda del pannello può aprirne la pagina operatore dal cloud (tasto Viewer dell'IDE). Ogni apertura si registra.",
+      "schermoApri": "Apri lo schermo del pannello in una scheda nuova"
     }
   },
   "symbols": {

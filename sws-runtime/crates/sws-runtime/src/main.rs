@@ -1513,6 +1513,9 @@ async fn main() -> anyhow::Result<()> {
         let addr: SocketAddr = bind.parse()?;
         let l = TcpListener::bind(addr).await?;
         info!(addr = %addr, kiosk = args.kiosk, tls = acceptor.is_some(), "runtime listener ready");
+        // Lo schermo remoto (29-10-2026): la porta di gestione gira qui chi
+        // arriva dal tunnel con la firma del gateway.
+        sws_web::schermo::imposta_pagina_operatore(vport, acceptor.is_some());
         Some(l)
     } else {
         info!("--viewer-port not set — IDE-only mode (admin port only)");

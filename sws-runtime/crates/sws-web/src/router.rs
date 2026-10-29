@@ -1328,7 +1328,15 @@ pub fn build(
                 .route("/tunnel/v1", get(crate::tunnel::gateway::accetta))
                 // Twilio che richiama un pannello (P4, 26-10-2026): pre-auth, e
                 // solo verso `/api/telefono/…`; la firma la verifica il pannello.
-                .route("/telefono/:pannello/:tipo", post(crate::tunnel::gateway::inoltra_telefono)),
+                .route("/telefono/:pannello/:tipo", post(crate::tunnel::gateway::inoltra_telefono))
+                // Lo schermo del pannello (29-10-2026, `schermo.rs`): senza
+                // `require_auth` perché una scheda nuova e un websocket non
+                // portano il gettone. Lo protegge il cookie che il biglietto
+                // posa, ristretto a quel pannello; il biglietto lo dà
+                // `/api/pannelli/:nome/schermo`, che invece è protetta.
+                .route("/schermo/:pannello", any(crate::schermo::schermo))
+                .route("/schermo/:pannello/", any(crate::schermo::schermo))
+                .route("/schermo/:pannello/*resto", any(crate::schermo::schermo)),
             Router::new()
                 .route("/dev/:pannello/*resto", any(crate::tunnel::gateway::inoltra))
                 .route("/api/pannelli", get(crate::tunnel::gateway::collegati))
@@ -1336,6 +1344,7 @@ pub fn build(
                 // (chiave di ritorno → l'azienda del progetto) o dalla piattaforma.
                 .route("/api/pannelli/abbina", post(crate::tunnel::gateway::abbina))
                 .route("/api/pannelli/:nome/rinomina", post(crate::tunnel::gateway::rinomina))
+                .route("/api/pannelli/:nome/schermo", post(crate::schermo::biglietto))
                 .route_layer(middleware::from_fn_with_state(state.clone(), auth_utente_o_figlio))
                 // Elenco e ban: solo chi amministra la piattaforma.
                 .merge(
@@ -1355,6 +1364,11 @@ pub fn build(
                             "/api/amministrazione/pannelli/:nome/azienda",
                             post(crate::tunnel::gateway::sposta_azienda),
                         )
+                        // Lo schermo remoto, acceso o spento per pannello (29-10-2026).
+                        .route(
+                            "/api/amministrazione/pannelli/:nome/schermo",
+                            post(crate::tunnel::gateway::imposta_schermo),
+                        )
                         .route_layer(middleware::from_fn(require_amministratore_piattaforma))
                         .route_layer(middleware::from_fn_with_state(state.clone(), require_auth)),
                 ),
@@ -1364,6 +1378,17 @@ pub fn build(
     };
     let open = open.merge(tunnel_aperto);
     let protected = protected.merge(tunnel_protetto);
+
+    // Lo schermo **sul pannello** (29-10-2026, `schermo.rs`): la pagina
+    // operatore girata a chi arriva dal tunnel. Non su un gateway, che ha le
+    // sue rotte `/schermo/:pannello/…`. Senza credenziali di proposito — chi
+    // apre lo schermo è come chi sta davanti al pannello — ma solo con la firma
+    // del gateway, che l'handler verifica.
+    let open = if state.tunnel.is_none() {
+        open.merge(schermo_dal_gateway())
+    } else {
+        open
+    };
 
     // ── La porta stretta di `--no-admin` ─────────────────────────────────────
     //
@@ -1688,7 +1713,16 @@ fn deploy_only_app(state: AppState) -> Router<AppState> {
     // Lo stato **non** si applica qui: lo fa il chiamante alla fine, insieme al
     // CORS e al contatore HTTP. Applicarlo due volte non compila, e applicarlo
     // qui salterebbe quel tratto comune.
-    aperte.merge(gestione).merge(flussi).merge(metriche(&state))
+    aperte.merge(gestione).merge(flussi).merge(metriche(&state)).merge(schermo_dal_gateway())
+}
+
+/// Le rotte dello schermo remoto sul pannello (29-10-2026): la pagina operatore
+/// a chi arriva dal tunnel con la firma del gateway. Vedi `schermo.rs`.
+fn schermo_dal_gateway() -> Router<AppState> {
+    Router::new()
+        .route("/schermo", any(crate::schermo::dal_gateway))
+        .route("/schermo/", any(crate::schermo::dal_gateway))
+        .route("/schermo/*resto", any(crate::schermo::dal_gateway))
 }
 
 fn build_runtime_inner(state: AppState, www_dir: Option<PathBuf>) -> Router {
@@ -2264,7 +2298,7 @@ fn auth_user_da_identita(u: sws_identita::Utente) -> AuthUser {
 
 /// Il token della richiesta: intestazione `Authorization`, oppure `?token=`
 /// per i WebSocket, che non possono mandare intestazioni.
-fn token_della_richiesta(req: &Request) -> Option<String> {
+pub(crate) fn token_della_richiesta(req: &Request) -> Option<String> {
     req.headers()
         .get(header::AUTHORIZATION)
         .and_then(|h| h.to_str().ok())
@@ -2277,6 +2311,21 @@ fn token_della_richiesta(req: &Request) -> Option<String> {
                 .find(|(k, _)| k == "token")
                 .map(|(_, v)| v)
         })
+}
+
+/// Chi è il padrone di un gettone, con la fonte di autenticazione data. Solo
+/// le due fonti che hanno gettoni: le altre si decidono prima di cercarne uno.
+/// La usa anche lo schermo remoto (29-10-2026), che lega il suo cookie alla
+/// sessione cloud di chi l'ha aperto.
+pub(crate) async fn utente_del_gettone(s: &AppState, fonte: FonteAutenticazione, token: &str) -> Option<AuthUser> {
+    match fonte {
+        FonteAutenticazione::Progetto => valida_utente_dispositivo(s, token).await,
+        FonteAutenticazione::Installazione => match s.identita.as_ref() {
+            Some(id) => id.valida(token).await.map(auth_user_da_identita),
+            None => None,
+        },
+        FonteAutenticazione::Nessuna | FonteAutenticazione::Delegata | FonteAutenticazione::InAttesa => None,
+    }
 }
 
 /// Il token appartiene a un utente del dispositivo: del progetto o l'Admin
@@ -2342,7 +2391,7 @@ fn utenti_dispositivo(config_dir: &std::path::Path, pannello: bool) -> Arc<AuthS
     AuthState::empty(ttl, 5, finestra)
 }
 
-fn admin_sintetico() -> AuthUser {
+pub(crate) fn admin_sintetico() -> AuthUser {
     AuthUser {
         username: "admin".to_string(),
         role: Role::Admin,
@@ -2465,20 +2514,7 @@ async fn require_auth(State(s): State<AppState>, mut req: Request, next: Next) -
         return StatusCode::UNAUTHORIZED.into_response();
     };
 
-    let utente = match fonte {
-        FonteAutenticazione::Nessuna
-        | FonteAutenticazione::Delegata
-        | FonteAutenticazione::InAttesa => {
-            unreachable!("gestite sopra")
-        }
-        FonteAutenticazione::Progetto => valida_utente_dispositivo(&s, &token).await,
-        FonteAutenticazione::Installazione => match s.identita.as_ref() {
-            Some(id) => id.valida(&token).await.map(auth_user_da_identita),
-            None => None,
-        },
-    };
-
-    let Some(utente) = utente else {
+    let Some(utente) = utente_del_gettone(&s, fonte, &token).await else {
         return StatusCode::UNAUTHORIZED.into_response();
     };
     req.extensions_mut().insert(utente);

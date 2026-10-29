@@ -47,6 +47,11 @@ pub struct Pannello {
     pub abbinato_ms: u64,
     #[serde(default)]
     pub ultimo_ms: u64,
+    /// Lo schermo remoto spento per questo pannello (29-10-2026,
+    /// `crate::schermo`). Acceso di default: il campo dice l'eccezione, così
+    /// i pannelli abbinati prima nascono accesi.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub schermo_spento: bool,
 }
 
 /// Il token di un pannello: ripetibile, mai memorizzato.
@@ -209,6 +214,7 @@ impl Abbinati {
             stato: StatoPannello::Attivo,
             abbinato_ms: ora,
             ultimo_ms: ora,
+            schermo_spento: false,
         };
         let token = token_per(segreto, hw);
         Ok((p, token))
@@ -252,6 +258,21 @@ impl Abbinati {
         p.stato = stato;
         self.scrivi(&righe)?;
         Ok(true)
+    }
+
+    /// Accende o spegne lo schermo remoto di un pannello.
+    pub fn imposta_schermo(&self, nome: &str, acceso: bool) -> anyhow::Result<bool> {
+        let mut righe = self.g();
+        let Some(p) = righe.iter_mut().find(|p| p.nome == nome) else { return Ok(false) };
+        p.schermo_spento = !acceso;
+        self.scrivi(&righe)?;
+        Ok(true)
+    }
+
+    /// Lo schermo remoto di questo pannello è acceso? Un pannello che il
+    /// registro non conosce non ha uno schermo da aprire.
+    pub fn schermo_acceso(&self, nome: &str) -> bool {
+        self.per_nome(nome).is_some_and(|p| !p.schermo_spento)
     }
 
     /// Annota l'ultima connessione (in memoria; finisce su disco alla

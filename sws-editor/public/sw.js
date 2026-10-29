@@ -31,6 +31,10 @@ self.addEventListener("fetch", (event) => {
     // Network-only for API/WS
     return;
   }
+  // Lo schermo di un pannello aperto dal cloud (29-10-2026): pagine e dati
+  // sono del pannello, e un service worker registrato altrove sullo stesso
+  // sito non li deve né mettere in cache né servire da lì.
+  if (url.pathname.startsWith("/schermo/")) return;
   event.respondWith(
     fetch(event.request)
       .then((response) => {
