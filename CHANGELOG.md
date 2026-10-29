@@ -502,7 +502,7 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
   rimandato dall'IDE tiene quello salvato. Foglia Notifiche → Telefono nell'editor. Nessun crate nuovo (`hmac`,
   `sha1` erano nel lock).
 
-- **Report programmati** (P3, piano `docs/plans/2026-10-26-report-programmati.md`): `reports:` nel progetto
+- **Report programmati** (P3, piano `docs/archive/2026-10-26-report-programmati.md`): `reports:` nel progetto
   (periodo, cron, tag, passo, allarmi, formati, email, conserva). Il pannello li genera da solo a ogni minuto
   utile (compito unico che rilegge il progetto), salva in `reports/<id>/`, pota, manda per email con gli allegati.
   PDF e `.xlsx` **scritti a mano**, senza dipendenze nuove (verificati con `qpdf --check`, `pdftotext`, openpyxl,

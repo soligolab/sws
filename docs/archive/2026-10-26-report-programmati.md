@@ -1,5 +1,9 @@
 # Report programmati (P3) — piano d'esecuzione
 
+> **Archiviato il 29-10-2026**, provato dal vivo dal maintainer: dal cloud, con `tc620-garage` collegato, «Genera ora»
+> produce PDF ed Excel. Serve il deploy prima (il pannello genera con la definizione del suo progetto). L'email e il
+> cron restano da vedere: in `docs/plans/Appunti.txt`.
+
 > **FATTO il 26-10-2026, da collaudare** sul ramo `feat/report-programmati` (annidato). Il PDF del campione passa
 > `qpdf --check` e si legge con `pdftotext`; l'Excel si apre con openpyxl e LibreOffice. Collaudo vero sul pannello in
 > `COLLAUDI_IN_SOSPESO.md` §A-quater.

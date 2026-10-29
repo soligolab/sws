@@ -1,5 +1,5 @@
 //! I report programmati (P3, 26-10-2026; piano
-//! `docs/plans/2026-10-26-report-programmati.md`).
+//! `docs/archive/2026-10-26-report-programmati.md`).
 //!
 //! Un report raccoglie dallo storico i tag che dichiara e gli allarmi del
 //! periodo, ne fa tre tabelle (`dati`) e le scrive in PDF (`pdf`) ed Excel

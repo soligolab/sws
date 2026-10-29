@@ -120,9 +120,10 @@ fatta il 24-10. Va tolta — era un'eccezione a una strada che non esiste più.
 
 ## A-quater. I report programmati (26-10-2026)
 
-1. [ ] Dal cloud, con il TC620 collegato: Configurazione → Progetto → Report → «+ Nuovo report», periodo «turno», due o
-       tre tag con lo storico acceso, salvare.
-2. [ ] «▶ Genera ora»: compaiono un PDF e un Excel; scaricarli. Il PDF ha riepilogo, andamento e allarmi con i valori
+1. [x] Dal cloud, con il TC620 collegato: Configurazione → Progetto → Report → «+ Nuovo report», periodo «turno», due o
+       tre tag con lo storico acceso, salvare, e **fare il deploy**: il pannello genera con la definizione del suo
+       progetto, e senza deploy risponde «nessun progetto aperto» o «report sconosciuto» (29-10-2026).
+2. [x] «▶ Genera ora»: compaiono un PDF e un Excel; scaricarli (visto il 29-10-2026 su `tc620-garage`). Il PDF ha riepilogo, andamento e allarmi con i valori
        veri; l'Excel si apre e i numeri si sommano.
 3. [ ] Con un destinatario email e l'SMTP delle Notifiche configurato: la mail arriva con i due allegati.
 4. [ ] Lasciare il pannello acceso oltre l'ora del cron (es. `*/15 * * * *` per provare): i file nascono da soli; con

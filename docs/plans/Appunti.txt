@@ -121,3 +121,8 @@ Annoto di seguito, uno per punto, le cose che devono essere verificate e trasfor
   chiave API «Standard» (riscrivendo una volta il segreto); un allarme che manda un SMS e una chiamata a un
   reperibile; il tasto 1 dal telefono, e la risposta «OK» a un SMS, su un pannello collegato al cloud. Passi
   completi in docs/COLLAUDI_IN_SOSPESO.md §A-quinquies.
+
+- Report programmati, le due prove rimaste (piano archiviato docs/archive/2026-10-26-report-programmati.md,
+  passi 3 e 4 di docs/COLLAUDI_IN_SOSPESO.md §A-quater): con un destinatario e l'SMTP delle Notifiche, la mail
+  arriva con PDF ed Excel allegati; con il cron a */15 e «File da tenere» = 2, i file nascono da soli sul
+  pannello e ne restano solo le ultime due generazioni. Il deploy va fatto dopo ogni modifica del report.

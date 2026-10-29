@@ -1,5 +1,5 @@
 /** Configurazione → Progetto → Report (P3, 26-10-2026; piano
- *  `docs/plans/2026-10-26-report-programmati.md`).
+ *  `docs/archive/2026-10-26-report-programmati.md`).
  *
  *  A sinistra i report del progetto, a destra quello scelto: periodo, quando,
  *  tag, formati, destinatari. Sotto, i file già generati e «Genera ora».

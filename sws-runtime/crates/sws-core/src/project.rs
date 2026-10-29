@@ -1937,7 +1937,7 @@ pub struct Project {
     pub notifications: Option<NotificationConfig>,
     /// I report programmati (P3, 26-10-2026): PDF ed Excel con le tabelle dello
     /// storico e gli allarmi del periodo, salvati nel progetto e mandati per
-    /// email. Piano `docs/plans/2026-10-26-report-programmati.md`.
+    /// email. Piano `docs/archive/2026-10-26-report-programmati.md`.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub reports: Vec<ReportDef>,
     /// Le sorgenti di questo progetto non le ha ancora guardate nessuno.
