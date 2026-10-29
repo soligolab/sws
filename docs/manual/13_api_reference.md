@@ -235,6 +235,8 @@ Tutto quello che legge la 7443, più:
 | POST | `/api/projects/:azienda/:nome/rename` | rinomina |
 | POST | `/api/projects/:azienda/:nome/duplicate` | duplica («Salva come…») |
 | POST | `/api/projects/:azienda/:nome/archive`, `/…/unarchive` | archivia e disarchivia |
+| GET | `/api/projects/:azienda/:nome/anteprima` | la miniatura della pagina iniziale (PNG); l'elenco dice quando è stata scritta in `anteprima_ms` |
+| PUT | `/api/project/anteprima` | scrive la miniatura del progetto aperto (PNG, al massimo 256 KB; Supervisor e oltre) |
 | DELETE | `/api/projects/:azienda/:nome` | elimina |
 | POST | `/api/projects/upload` | carica un progetto da un archivio |
 | GET | `/api/templates` | i modelli di progetto |

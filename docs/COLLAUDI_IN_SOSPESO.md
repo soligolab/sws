@@ -229,6 +229,16 @@ faceplate (il dimostrativo ha `tank_level`).
        selezione diventa un'istanza, un Ctrl+Z toglie tutti e due.
 8. [ ] **CasaDomotica** (dopo il rilascio, regola del 16-10): ridisegnare `tank_level` dal canvas e vederlo sul WP630.
 
+## A-decies. La miniatura nell'elenco dei progetti (29-10-2026)
+
+Ramo D del piano `docs/plans/2026-10-26-aprire-sws-soligo-net.md`.
+
+1. [ ] Aprire un progetto, cambiare qualcosa nella pagina iniziale, salvare, chiudere il progetto: la sua scheda
+       mostra la miniatura, con la cornice, nelle due viste (griglia ed elenco) e su un telefono.
+2. [ ] Salvare una modifica a un'altra pagina: la miniatura non si rifà (nella scheda Network non parte il `PUT`).
+3. [ ] Nel cloud: la miniatura si vede nell'elenco servito dal gateway, e `anteprima.png` non compare in un commit Git
+       del progetto.
+
 ## B. Lo schema `http`/`https` non è più scritto a mano
 
 Quattro punti che prima non rileggevano il certificato. **Nessuno cambia il comportamento di un

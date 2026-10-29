@@ -187,6 +187,7 @@ Un progetto SWS è **una cartella di file YAML**:
 ├── recipes/           # ricette
 ├── boot/              # pagine di boot: <nome>.yaml + <nome>.png
 ├── images/            # immagini caricate
+├── anteprima.png      # la miniatura della pagina iniziale, per l'elenco dei progetti (fuori da Git e dal deploy)
 └── history/
     └── historian.db   # lo storico SQLite del progetto
 ```

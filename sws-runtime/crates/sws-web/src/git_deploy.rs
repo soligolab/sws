@@ -1271,6 +1271,9 @@ const RIGHE_GITIGNORE_DATI: &[&str] = &[
     // Lo stato della ritenzione (20-10-2026): dice cosa è stato confermato per
     // **questo** storico, e non deve viaggiare con il progetto.
     "history/ritenzione.json",
+    // La miniatura della pagina iniziale (29-10-2026): si rifà a ogni
+    // salvataggio dalle pagine, che sono già nel repository.
+    "/anteprima.png",
 ];
 
 /// Assicura che `<dir>/.gitignore` contenga [`RIGA_GITIGNORE`]: la crea se
@@ -1467,7 +1470,7 @@ mod tests {
         let gi = std::fs::read_to_string(tmp.path().join(".gitignore")).unwrap();
         assert_eq!(
             gi,
-            "*.log\nsecrets.yaml\nbackups/\n*.db\n*.db-wal\n*.db-shm\n*.db-journal\nhistory/ritenzione.json\n"
+            "*.log\nsecrets.yaml\nbackups/\n*.db\n*.db-wal\n*.db-shm\n*.db-journal\nhistory/ritenzione.json\n/anteprima.png\n"
         );
     }
 

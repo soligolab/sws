@@ -1,5 +1,6 @@
 pub mod abbinamento;
 pub mod ai;
+pub mod anteprima;
 pub mod cornici;
 pub mod report;
 pub mod prestazioni;

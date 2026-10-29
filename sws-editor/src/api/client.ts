@@ -1492,6 +1492,27 @@ export const api = {
     segnalaScritturaNostra(path, "PUT");
   },
 
+  /** La miniatura della pagina iniziale del progetto aperto (29-10-2026). */
+  putAnteprima: async (png: Blob): Promise<void> => {
+    const path = "/api/project/anteprima";
+    const res = await fetch(`${getBaseUrl()}${path}`, {
+      method: "PUT", headers: authHeaders({ "Content-Type": "image/png" }), body: png,
+    });
+    if (res.status === 401) throw new AuthError();
+    if (!res.ok) throw new Error(`API ${path}: ${res.status} ${res.statusText}`);
+    segnalaScritturaNostra(path, "PUT");
+  },
+
+  /** La miniatura di un progetto dell'elenco, o `null` se non ce l'ha. Va al
+   *  gateway nel cloud, come l'elenco: `?v=` è la sua data, così il browser
+   *  tiene in cache quella giusta. */
+  scaricaAnteprima: async (riferimento: string, v: number): Promise<Blob | null> => {
+    const path = `/api/projects/${rotta(riferimento)}/anteprima`;
+    const res = await fetch(`${baseDi(path)}${path}?v=${v}`, { headers: authHeaders() });
+    if (res.status === 401) throw new AuthError();
+    return res.ok ? await res.blob() : null;
+  },
+
   deleteBootPage: async (name: string) => {
     try {
       await request<void>(`/api/boot-pages/${encodeURIComponent(name)}`, { method: "DELETE" });

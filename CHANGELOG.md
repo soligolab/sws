@@ -27,6 +27,14 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
   con le impostazioni pronte (Zigbee2MQTT, Tasmota, Shelly, ESPHome, personalizzato). Validazione: `{nome}` lasciato
   nel topic, topic vuoto o con caratteri jolly, valore «vivo» vuoto.
 
+### Added
+
+- **La miniatura della pagina iniziale nell'elenco dei progetti** (ramo D di
+  `docs/plans/2026-10-26-aprire-sws-soligo-net.md`): l'IDE la disegna dopo ogni salvataggio in cui la pagina iniziale
+  o la sua cornice cambiano (`progetto/anteprima.ts`, con la catena delle pagine di boot, che ora sa rimpicciolire e
+  disegnare la cornice), larga 400 px e al massimo 256 KB; il runtime la tiene in `anteprima.png` nella cartella del
+  progetto (fuori da Git e dal deploy), l'elenco dice `anteprima_ms`, e le schede la mostrano al posto dell'icona.
+
 ### Changed
 
 - **Un faceplate si disegna sul canvas** (piano `docs/archive/2026-10-27-faceplate-disegnato-sul-canvas.md`): è una pagina

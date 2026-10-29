@@ -220,6 +220,11 @@ pub struct ProjectListEntry {
     /// progetto che non ha ancora scelto).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub risoluzione: Option<String>,
+    /// Quando è stata scritta la miniatura della pagina iniziale
+    /// (`anteprima.png`, 29-10-2026), se c'è: l'elenco la chiede con questo
+    /// numero, così una nuova si vede subito e la stessa resta in cache.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub anteprima_ms: Option<u64>,
 }
 
 /// I pochi campi di `project.yaml` che servono all'elenco.
@@ -468,6 +473,7 @@ pub async fn list_projects(
                         storico_byte: None,
                         motore: None,
                         risoluzione: None,
+                        anteprima_ms: None,
                         archiviato: None,
                     },
                 );
@@ -528,6 +534,7 @@ pub async fn list_projects(
                         storico_byte: None,
                         motore: None,
                         risoluzione: None,
+                        anteprima_ms: None,
                         archiviato: None,
                     },
                 );
@@ -580,6 +587,7 @@ pub async fn list_projects(
                 storico_byte: None,
                 motore: None,
                 risoluzione: None,
+                anteprima_ms: None,
                 archiviato: None,
             },
         );
@@ -597,6 +605,7 @@ pub async fn list_projects(
         e.archiviato = crate::archivio::leggi(dir);
         e.motore = motore;
         e.risoluzione = risoluzione;
+        e.anteprima_ms = crate::anteprima::scritta_ms(dir);
     }
     // Most recently opened first; untouched legacy entries (no registry
     // timestamp) sort after every timestamped one, alphabetically among

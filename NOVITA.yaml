@@ -43,6 +43,8 @@ versioni:
         en: "Sparkplug B: commands now reach the right node or device, and a node that goes down invalidates only its own values."
       - it: "I faceplate si disegnano sul canvas come una pagina, dal ramo Faceplate dell'albero; il JSON resta a un clic."
         en: "Faceplates are now drawn on the canvas like a page, from the Faceplates branch of the tree; the JSON is one click away."
+      - it: "Nell'elenco dei progetti ogni scheda mostra la miniatura della pagina iniziale, aggiornata a ogni salvataggio."
+        en: "In the project list each card shows a thumbnail of the start page, refreshed on every save."
   - versione: "2.23.6"
     voci:
       - it: "Nel cloud, cancellare un progetto e crearne uno con lo stesso nome ora funziona, invece di dare un errore all'apertura."

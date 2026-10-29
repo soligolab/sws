@@ -265,6 +265,9 @@ ESCLUSIONI = [
     (re.compile(r"new Error\(\s*$"), "Error — ATTENZIONE: se finisce in un alert(e.message) è debito vero"),
     # import, confronti e switch: è un valore, non una scritta
     (re.compile(r"\bfrom\s*$"), "import"),
+    # e l'import dinamico (`await import("@/progetto/anteprima")`, 29-10-2026):
+    # un percorso di modulo, anche se le sue parole sono italiane
+    (re.compile(r"\bimport\(\s*$"), "import dinamico"),
     (re.compile(r"(?:===|!==|==|!=)\s*$"), "confronto"),
     (re.compile(r"\bcase\s*$"), "case"),
     # chiave del catalogo scritta a mano (t(k) dove k è il letterale)

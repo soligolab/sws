@@ -415,6 +415,10 @@ interface AppState {
    *  ne differiscono: risalvare un predefinito identico lo farebbe diventare
    *  un file del progetto. */
   faceplateFirme: Record<string, string>;
+  /** Da cosa è stata disegnata l'ultima miniatura del progetto (29-10-2026):
+   *  se la pagina iniziale e la sua cornice non sono cambiate, il salvataggio
+   *  non la rifà. `null` = mai in questa sessione. */
+  anteprimaFirma: string | null;
   setBootPng: (id: string, esito: { ok: boolean; messaggio?: string; byte?: number }, firma?: string) => void;
   /** Sections with an unsaved draft, keyed by owner → flush function. */
   pendingSections: Record<string, () => Promise<void>>;
@@ -1100,6 +1104,7 @@ export const useAppStore = create<AppState>((set, get) => {
     bootPng: {},
     bootPngFirme: {},
     faceplateFirme: {},
+    anteprimaFirma: null,
     pendingSections: {},
     tagInAttesa: [],
     allarmeInAttesa: null,
@@ -1407,6 +1412,7 @@ export const useAppStore = create<AppState>((set, get) => {
         bootPng: {},
         bootPngFirme: {},
         faceplateFirme: Object.fromEntries(pagineFaceplate(normalizzate).map((p) => [p.id, firmaFaceplate(p)])),
+        anteprimaFirma: null,
       });
     },
 
@@ -3091,6 +3097,10 @@ export const useAppStore = create<AppState>((set, get) => {
       }
       set({ saveStatus: "ok", ultimiTagCreati: tagCreati });
       get().markPagesSaved();
+      // La miniatura della pagina iniziale per l'elenco dei progetti
+      // (29-10-2026). Non si aspetta e non fa fallire il salvataggio: senza,
+      // l'elenco mostra l'icona come prima.
+      void aggiornaAnteprima(get, set);
       // Fase 0d: dopo aver scritto, cosa dice il validatore del progetto su
       // disco. Non si aspetta: la testata si aggiorna quando arriva.
       void get().aggiornaRilievi();
@@ -3237,6 +3247,40 @@ export const useAppStore = create<AppState>((set, get) => {
 // pannello collegato; si abbonano qui anche ai `setState` diretti dei test.
 segnaPannelloCollegato(useAppStore.getState().remoteConnected);
 useAppStore.subscribe((st) => segnaPannelloCollegato(st.remoteConnected));
+
+/** Rifà la miniatura del progetto se la pagina iniziale o la sua cornice sono
+ *  cambiate dall'ultima volta. Il disegno sta in un modulo caricato a parte,
+ *  come quello delle pagine di boot: monta un canvas, e lo store non deve
+ *  portarselo dietro. */
+async function aggiornaAnteprima(
+  get: () => AppState,
+  set: (p: Partial<AppState>) => void,
+): Promise<void> {
+  const st = get();
+  if (!st.project) return;
+  try {
+    const { corniceDellAnteprima, firmaAnteprima, paginaDellAnteprima, LARGHEZZA_ANTEPRIMA, MAX_ANTEPRIMA_BYTES } =
+      await import("@/progetto/anteprima");
+    const layout = st.project.page_layout;
+    const pagina = paginaDellAnteprima(st.pages, layout?.home_page_id);
+    if (!pagina) return;
+    const cornice = corniceDellAnteprima(pagina, st.pages, layout?.cornice_predefinita);
+    const firma = firmaAnteprima(pagina, cornice);
+    if (firma === st.anteprimaFirma) return;
+    const { rasterizzaPagina } = await import("@/boot/rasterizza");
+    // Coi valori che l'editor mostra in quel momento: la miniatura è la pagina
+    // come la si vede, non con i nomi dei tag al posto dei numeri.
+    const { png } = await rasterizzaPagina(pagina, st.customSymbols ?? [], {
+      larghezza: LARGHEZZA_ANTEPRIMA, cornice, valori: st.tagValues,
+    });
+    // Oltre il tetto non si manda: il runtime la rifiuterebbe, e l'elenco
+    // mostra l'icona.
+    if (png.size <= MAX_ANTEPRIMA_BYTES) await api.putAnteprima(png);
+    set({ anteprimaFirma: firma });
+  } catch (e) {
+    console.warn("miniatura del progetto non aggiornata:", e);
+  }
+}
 
 // ── I faceplate dell'editor vengono dalle loro pagine (29-10-2026) ──────────
 //

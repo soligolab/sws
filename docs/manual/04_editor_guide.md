@@ -523,6 +523,14 @@ Vedi [12 — GitOps](12_gitops.md) per i dettagli.
 
 ---
 
+## La miniatura nell'elenco dei progetti
+
+Dal 29-10-2026 ogni scheda della schermata dei progetti mostra la **miniatura della pagina iniziale** del progetto,
+con la sua cornice, al posto dell'icona. La disegna l'IDE **a ogni salvataggio** in cui la pagina iniziale (o la sua
+cornice) è cambiata, coi valori che l'editor mostra in quel momento: larga 400 pixel, al massimo 256 KB. Sta nella
+cartella del progetto come `anteprima.png`, quindi segue il progetto quando lo si rinomina, lo si duplica o lo si
+archivia; non va in Git e non va al pannello. Un progetto mai salvato da questa versione mostra l'icona.
+
 ## Archiviare un progetto
 
 Dalla schermata dei progetti, sulla scheda di un progetto chiuso: **🗄 Archivia**, con gli stessi permessi di

@@ -23,9 +23,9 @@ import { getAuthToken, getBaseUrl } from "@/api/client";
 import { LinguaContenutiProvider } from "@/i18n/linguaContenuti";
 import { resolveMsg } from "@/i18n/projectI18n";
 import { useAppStore } from "@/store";
-import { oggettoSfondoArea } from "@/cornici/modello";
+import { oggettiComposti, oggettoSfondoArea } from "@/cornici/modello";
 import { blobDi, scaricaImmagine, serveScaricare } from "@/canvas/ImmagineSvg";
-import type { CustomSymbol, SynopticObject, SynopticPage } from "@/types";
+import type { Cornice, CustomSymbol, SynopticObject, SynopticPage, TagState } from "@/types";
 
 /** Tetto del PNG: gemello di `MAX_BOOT_PNG_BYTES` in `sws-web/src/boot.rs`. */
 export const MAX_PNG_BYTES = 5 * 1024 * 1024;
@@ -219,14 +219,22 @@ const FONT_PREDEFINITO = "system-ui, -apple-system, 'Segoe UI', Roboto, 'Noto Sa
 const attendi = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 
 /** Disegna la pagina in un contenitore staccato e ne restituisce il markup SVG,
- *  con larghezza e altezza fissate alle misure della pagina. */
-async function svgDellaPagina(page: SynopticPage, customSymbols: CustomSymbol[]): Promise<string> {
+ *  con larghezza e altezza fissate alle misure della pagina. Con una `cornice`
+ *  (la miniatura del progetto, 29-10-2026) la pagina si disegna dentro la sua
+ *  cornice, composta come la compone il runtime. */
+async function svgDellaPagina(
+  page: SynopticPage, customSymbols: CustomSymbol[], cornice?: Cornice, valori?: Record<string, TagState>,
+): Promise<string> {
   // La lingua dei contenuti è quella **predefinita del progetto**, non quella che chi salva sta
   // guardando: un'immagine di boot non deve cambiare a seconda di chi preme «Salva».
   const tabella = useAppStore.getState().project?.languages;
   const lingua = { lang: tabella?.default ?? "", table: tabella };
-  const w = page.width ?? 1280;
-  const h = page.height ?? 800;
+  const w = cornice?.larghezza ?? page.width ?? 1280;
+  const h = cornice?.altezza ?? page.height ?? 800;
+  const progetto = useAppStore.getState().project?.meta?.name ?? "";
+  const objects = cornice
+    ? [...oggettiComposti(cornice, { paginaNome: page.name, paginaId: page.id, progettoNome: progetto }), ...page.objects]
+    : page.objects;
   // **Le immagini pronte prima di montare** (26-10-2026). Nel cloud
   // `ImmagineSvg` non disegna l'href: scarica con la sessione e disegna un
   // `blob:`. Se quel giro non e' finito entro i 60 ms di attesa qui sotto, il
@@ -235,7 +243,7 @@ async function svgDellaPagina(page: SynopticPage, customSymbols: CustomSymbol[])
   // prima costa un'attesa sola e toglie la corsa: `scaricaImmagine` tiene una
   // cache per URL, quindi il montaggio trova il blob gia' pronto.
   await Promise.all(
-    [...page.objects.map((o) => o.bg_image ?? o.src), page.sfondo_immagine]
+    [...objects.map((o) => o.bg_image ?? o.src), page.sfondo_immagine]
       .filter(serveScaricare)
       .map((href) => scaricaImmagine(href)),
   );
@@ -247,7 +255,10 @@ async function svgDellaPagina(page: SynopticPage, customSymbols: CustomSymbol[])
     // Modalità viewer (nessun `onMove`), fissa 1:1, effetti spenti: è una foto ferma.
     flushSync(() => root.render(createElement(LinguaContenutiProvider, { value: lingua },
       createElement(SvgCanvas, {
-        objects: page.objects,
+        objects,
+        // I valori che l'IDE ha in mano (la miniatura): senza, un indicatore
+        // mostra il nome del suo tag al posto del numero.
+        ...(valori ? { tagValues: valori } : {}),
         background: page.background,
         customSymbols,
         pageWidth: w,
@@ -259,7 +270,7 @@ async function svgDellaPagina(page: SynopticPage, customSymbols: CustomSymbol[])
         // pagina. Il PNG nasceva senza, perche' questa prop non si passava —
         // il campo c'era gia' nel modello e il canvas lo sapeva gia'
         // disegnare.
-        sfondoArea: oggettoSfondoArea(page, undefined),
+        sfondoArea: oggettoSfondoArea(page, cornice),
       }))));
     // Un giro perché gli effetti di montaggio (font, immagini) si assestino.
     await attendi(60);
@@ -282,19 +293,24 @@ async function svgDellaPagina(page: SynopticPage, customSymbols: CustomSymbol[])
 }
 
 /** Il PNG di una pagina di boot, alle sue misure, a 1 pixel per unità, e gli **avvisi** su ciò
- *  che nel PNG non c'è (oggetti che non si possono disegnare senza macchiare il canvas). */
+ *  che nel PNG non c'è (oggetti che non si possono disegnare senza macchiare il canvas).
+ *
+ *  Le `opzioni` servono alla miniatura del progetto (29-10-2026): `larghezza` la
+ *  rimpicciolisce mantenendo le proporzioni, `cornice` disegna la pagina dentro
+ *  la sua cornice. */
 export async function rasterizzaPagina(
   paginaOriginale: SynopticPage,
   customSymbols: CustomSymbol[] = [],
+  opzioni: { larghezza?: number; cornice?: Cornice; valori?: Record<string, TagState> } = {},
 ): Promise<{ png: Blob; avvisi: string[] }> {
-  const w = paginaOriginale.width ?? 1280;
-  const h = paginaOriginale.height ?? 800;
+  const w = opzioni.cornice?.larghezza ?? paginaOriginale.width ?? 1280;
+  const h = opzioni.cornice?.altezza ?? paginaOriginale.height ?? 800;
   const page = spezzaTestiACapo(
     paginaOriginale,
     (font, testo) => { const c = document.createElement("canvas").getContext("2d"); if (!c) return testo.length * 8; c.font = font; return c.measureText(testo).width; },
     (t) => { const tab = useAppStore.getState().project?.languages; return resolveMsg(t, tab?.default ?? "", tab); },
   );
-  let svg = await svgDellaPagina(page, customSymbols);
+  let svg = await svgDellaPagina(page, customSymbols, opzioni.cornice, opzioni.valori);
   const stile = getComputedStyle(document.documentElement);
   svg = sostituisciVarBrand(svg, (n) => stile.getPropertyValue(n));
   svg = await incorporaImmagini(svg, immagineComeDataUri);
@@ -314,15 +330,19 @@ export async function rasterizzaPagina(
       img.src = url;
     });
     const canvas = document.createElement("canvas");
-    canvas.width = w;
-    canvas.height = h;
+    const scala = opzioni.larghezza && opzioni.larghezza < w ? opzioni.larghezza / w : 1;
+    const cw = Math.max(1, Math.round(w * scala));
+    const ch = Math.max(1, Math.round(h * scala));
+    canvas.width = cw;
+    canvas.height = ch;
     const ctx = canvas.getContext("2d");
     if (!ctx) throw new Error("canvas 2D non disponibile");
     // Il foglio: lo sfondo della pagina, sotto l'SVG (un `background` sul
     // `<svg>` radice non è affidabile fra i browser).
     ctx.fillStyle = page.background || "#0f172a";
-    ctx.fillRect(0, 0, w, h);
-    ctx.drawImage(img, 0, 0, w, h);
+    ctx.fillRect(0, 0, cw, ch);
+    ctx.imageSmoothingQuality = "high";
+    ctx.drawImage(img, 0, 0, cw, ch);
     const png = await new Promise<Blob>((ok, ko) =>
       canvas.toBlob((b) => (b ? ok(b) : ko(new Error("toBlob non ha prodotto il PNG"))), "image/png"));
     return { png, avvisi: pulito.avvisi };

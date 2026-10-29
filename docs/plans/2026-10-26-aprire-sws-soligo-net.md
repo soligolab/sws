@@ -338,6 +338,14 @@ accanto a «accedi con la password», e la casella «ricordami per 30 giorni».
 
 ## Ramo D — `feat/anteprima-prima-pagina`
 
+> **FATTO il 29-10-2026, da vedere a schermo.** Le due decisioni del maintainer: la miniatura **sta nel progetto**
+> (`anteprima.png`, fuori da Git e dal deploy, segue rinomina, duplica e archivio; nel cloud è l'unico posto in cui il
+> container del progetto scrive e il gateway legge), **400 px di larghezza e al massimo 256 KB**. E una terza: è la
+> **pagina iniziale**, con la sua cornice. La disegna l'IDE dopo ogni salvataggio in cui pagina iniziale o cornice
+> sono cambiate, coi valori che l'editor mostra; `PUT /api/project/anteprima` la scrive, l'elenco dice `anteprima_ms`,
+> `GET /api/projects/:azienda/:nome/anteprima` la dà passando dal risolutore. Provata dal vivo con un runtime di prova
+> e Chromium: miniatura di `homeassistant-pro` 400×250, 38 KB, con la cornice.
+
 L'ultimo, e il più contenibile. Non esiste nessuna miniatura di progetto, ma **la catena è già
 scritta** per le pagine di boot: `sws-editor/src/boot/rasterizza.ts` (monta `SvgCanvas` fuori
 schermo, incorpora le `<image>` come data URI, sostituisce le `var(--brand-*)` con colori

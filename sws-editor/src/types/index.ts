@@ -2222,6 +2222,9 @@ export interface ProjectListEntry {
   /** `"1024×600"`, oppure il rapporto (`"16:9"`) per i progetti che ragionano
    *  per proporzione. Assente quando il progetto non ne dichiara nessuna. */
   risoluzione?: string | null;
+  /** Quando è stata scritta la miniatura della pagina iniziale (29-10-2026):
+   *  assente = nessuna miniatura, l'elenco mostra l'icona. */
+  anteprima_ms?: number;
 }
 
 export interface BrowseDirEntry {

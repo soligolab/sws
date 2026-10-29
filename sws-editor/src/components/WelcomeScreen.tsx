@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { BrandLogo } from "@/components/BrandLogo";
 import { IconaUI } from "@/ui/IconaUI";
+import { AnteprimaProgetto } from "@/components/benvenuto/AnteprimaProgetto";
 import { MARGINE_PAGINA_BENVENUTO, campoAmpio, pulsantePrimario, pulsanteSecondario, schedaCliccabile } from "@/ui/base";
 import { VersioneRuntime } from "@/components/VersioneRuntime";
 import { NewProjectModal, type NewProjectTab } from "@/components/benvenuto/NuovoProgetto";
@@ -607,8 +608,8 @@ export function WelcomeScreen({ onProjectOpened }: WelcomeScreenProps) {
                     {!isOpening && !isBusy && azioni}
                   </div>
 
-                  <div style={{ display: "flex", justifyContent: "center", marginBottom: 8 }}>
-                    <IconaUI nome="progetto" px={40} colore="var(--brand-text-muted, #94a3b8)" />
+                  <div style={{ marginBottom: 8 }}>
+                    <AnteprimaProgetto riferimento={p.riferimento} ms={p.anteprima_ms} />
                   </div>
 
                   {isRenaming ? campoNome : (
@@ -658,12 +659,8 @@ export function WelcomeScreen({ onProjectOpened }: WelcomeScreenProps) {
                   title={p.name}
                   data-testid="scheda-progetto"
                 >
-                  {/* icon */}
-                  <div style={{
-                    width: 40, height: 40, borderRadius: 8, background: "var(--brand-surface-2, #334155)",
-                    display: "flex", alignItems: "center", justifyContent: "center",
-                    flexShrink: 0,
-                  }}><IconaUI nome="progetto" px={20} colore="var(--brand-text-muted, #94a3b8)" /></div>
+                  {/* la miniatura della pagina iniziale, o l'icona */}
+                  <AnteprimaProgetto riferimento={p.riferimento} ms={p.anteprima_ms} riga />
 
                   {/* name + date */}
                   <div style={{ flex: 1, minWidth: 0 }}>

@@ -899,6 +899,12 @@ pub fn build(
             "/api/boot-pages/import",
             post(crate::boot::import_boot_page),
         )
+        // La miniatura della pagina iniziale (29-10-2026): la scrive l'IDE al
+        // salvataggio, come il PNG delle pagine di boot.
+        .route(
+            "/api/project/anteprima",
+            put(crate::anteprima::scrivi).layer(DefaultBodyLimit::max(LIMITE_CORPO_UPLOAD)),
+        )
         // mDNS discovery: scan LAN for _sws._tcp.local. services (~2 s).
         // Supervisor+ only — used from the RuntimeConnectionTab deploy panel.
         .route("/api/discover", get(crate::discover::discover_runtimes))
@@ -1157,6 +1163,8 @@ pub fn build(
         // eliminare** (decisione del maintainer): è meno distruttivo, non deve
         // chiedere di più. Vedi `archivio.rs`.
         .route("/api/projects/:azienda/:nome/archive", post(crate::archivio::archivia))
+        // La miniatura nell'elenco dei progetti (29-10-2026).
+        .route("/api/projects/:azienda/:nome/anteprima", get(crate::anteprima::leggi))
         .route("/api/projects/:azienda/:nome/unarchive", post(crate::archivio::ripristina))
         .route(
             "/api/projects/:nome",
