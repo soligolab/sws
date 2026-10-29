@@ -93,8 +93,10 @@ CHANGELOG, NOVITA, collaudi.
 
 ## Stato (29-10-2026, sera)
 
-Fatti i quattro passi sul ramo `feat/schermo-remoto`. Il collaudo dal vivo aspetta un'immagine: servono il pannello e
-il gateway alla stessa versione (`docs/COLLAUDI_IN_SOSPESO.md` §A-undecies).
+**Fatto e validato dal maintainer, archiviato il 29-10-2026.** I quattro passi sono entrati in `main` con lo squash
+`b4b0330b` e sono usciti nella **2.23.7**. Il maintainer l'ha provato dal cloud, col gateway e il pannello alla
+2.23.7: «funziona perfettamente lo schermo remoto». Il limite qui sotto è diventato il seme
+[lo schermo del pannello su un'origine sua](../plans/2026-10-29-schermo-su-un-origine-sua.md).
 
 Quello che è andato diverso dal disegno, detto qui:
 

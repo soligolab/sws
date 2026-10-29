@@ -14,17 +14,17 @@
 
 ## ▶ Riprendere da qui — release 2.23.7, lo schermo del pannello dal cloud (2026-10-29 sera, ufficio)
 
-- **Schermo remoto su `main`** (`b4b0330b`, piano `docs/plans/2026-10-29-schermo-remoto.md`): dall'IDE su
+- **Schermo remoto su `main`** (`b4b0330b`, piano `docs/archive/2026-10-29-schermo-remoto.md`): dall'IDE su
   sws.soligo.net il tasto Viewer apre `/schermo/<pannello>/`, la pagina operatore del pannello attraverso il tunnel;
   console *Pannelli* → colonna *Schermo remoto* per spegnerlo e aprirlo. Ramo eliminato.
 - **Release 2.23.7** (`9e299651`, tag annotato): immagini arm64 e amd64 pubblicate alle 20:49; `main` e tag su origin.
   Gateway del VPS sulla 2.23.7 (`a046760b`), verificato dal vivo; il container di CasaDomotica nel cloud è stato
   rifatto sulla nuova immagine. IDE 8460 sul binario 2.23.7 col marchio Pixsys.
-- **Da fare**: il collaudo vero dello schermo (`docs/COLLAUDI_IN_SOSPESO.md` §A-undecies) — il maintainer aggiorna
-  il pannello alla 2.23.7 e prova. Poi, col suo sì, il piano dello schermo si archivia.
-- **Decisione aperta (nel piano)**: la pagina del pannello gira sull'origine `sws.soligo.net`; un pannello manomesso
-  potrebbe leggere il gettone cloud di chi apre il suo schermo. Proposta: un sottodominio solo per gli schermi,
-  prima di aprire lo schermo a clienti veri.
+- **Validato dal maintainer** la sera stessa, sulla 2.23.7: «funziona perfettamente lo schermo remoto». Piano in
+  archivio.
+- **Decisione aperta**: la pagina del pannello gira sull'origine `sws.soligo.net`, e un pannello manomesso potrebbe
+  leggere il gettone cloud di chi apre il suo schermo. È il seme `docs/plans/2026-10-29-schermo-su-un-origine-sua.md`,
+  da decidere prima di aprire lo schermo a clienti veri.
 - **Annotato in `Appunti.txt`**: l'IDE non mostra più «nuova versione disponibile» (il controllo prende 404 dal
   ripiego della SPA), dal 28-10.
 

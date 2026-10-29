@@ -23,7 +23,7 @@ export function prefissoGateway(percorso?: string): string {
 }
 
 /** `/schermo/<pannello>` se questa pagina è **lo schermo di un pannello**
- *  aperto dal cloud (29-10-2026, `docs/plans/2026-10-29-schermo-remoto.md`),
+ *  aperto dal cloud (29-10-2026, `docs/archive/2026-10-29-schermo-remoto.md`),
  *  `""` altrove.
  *
  *  Lì la pagina operatore è quella del pannello, servita attraverso il tunnel:

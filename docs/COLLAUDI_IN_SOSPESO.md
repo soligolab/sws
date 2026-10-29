@@ -242,8 +242,11 @@ Ramo D del piano `docs/plans/2026-10-26-aprire-sws-soligo-net.md`.
 
 ## A-undecies. Lo schermo del pannello dal cloud (29-10-2026)
 
-Piano `docs/plans/2026-10-29-schermo-remoto.md`. Serve un pannello **e** il gateway alla stessa versione (dopo il
+Piano `docs/archive/2026-10-29-schermo-remoto.md`. Serve un pannello **e** il gateway alla stessa versione (dopo il
 rilascio che lo porta).
+
+**Validato dal maintainer il 29-10-2026 sera**, sulla 2.23.7: «funziona perfettamente lo schermo remoto». Le voci
+restano come traccia per chi lo riprova; non sono state spuntate una per una.
 
 1. [ ] Dal cloud, IDE collegato a `tc620-garage`, tasto **Viewer**: si apre una scheda con la pagina operatore di
        CasaDomotica, coi valori veri che si muovono.

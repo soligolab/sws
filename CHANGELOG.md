@@ -15,7 +15,7 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 
 ### Added
 
-- **Lo schermo del pannello dal cloud** (piano `docs/plans/2026-10-29-schermo-remoto.md`): dall'IDE su
+- **Lo schermo del pannello dal cloud** (piano `docs/archive/2026-10-29-schermo-remoto.md`): dall'IDE su
   sws.soligo.net collegato a un pannello, il tasto Viewer apre `/schermo/<pannello>/` — la pagina operatore del
   pannello attraverso il tunnel, websocket compresi. Il gateway dà un biglietto monouso
   (`POST /api/pannelli/:nome/schermo`, solo persone dell'azienda del pannello, registro `pannello.schermo`) e lo

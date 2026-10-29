@@ -186,7 +186,7 @@ export function ViewerLink() {
 }
 
 /** Il tasto Viewer dell'IDE nel cloud collegato a un pannello (29-10-2026,
- *  `docs/plans/2026-10-29-schermo-remoto.md`): apre la pagina operatore del
+ *  `docs/archive/2026-10-29-schermo-remoto.md`): apre la pagina operatore del
  *  pannello attraverso il tunnel. Il gateway dà un biglietto monouso e lo
  *  scambia con un cookie ristretto a quel pannello: una scheda nuova non
  *  potrebbe portare il gettone della sessione. */

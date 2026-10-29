@@ -1,5 +1,5 @@
 //! Lo schermo del pannello dal cloud (29-10-2026, piano
-//! `docs/plans/2026-10-29-schermo-remoto.md`).
+//! `docs/archive/2026-10-29-schermo-remoto.md`).
 //!
 //! Dall'IDE su sws.soligo.net il tasto Viewer apre in una scheda la **pagina
 //! operatore del pannello**, coi suoi valori, attraverso il tunnel: un'anteprima

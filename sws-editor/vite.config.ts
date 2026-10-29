@@ -46,7 +46,7 @@ export default defineConfig({
   },
   plugins: [react()],
   // **La pagina operatore funziona sotto un prefisso** (29-10-2026, piano
-  // `docs/plans/2026-10-29-schermo-remoto.md`): dal cloud si apre a
+  // `docs/archive/2026-10-29-schermo-remoto.md`): dal cloud si apre a
   // `/schermo/<pannello>/`, e tutto — pagina, script, font — deve arrivare dal
   // pannello, non dalla radice del sito. Quindi:
   //
