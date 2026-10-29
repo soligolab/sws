@@ -169,7 +169,7 @@ Verificato uguale su un runtime normale. Il browser disegna la pagina lo stesso.
 proposito: con un 200 un bundle davvero mancante tornerebbe HTML con stato 200, e il browser
 proverebbe a eseguirlo come JavaScript — un errore molto più difficile da leggere di un 404.
 
-**Versione in esecuzione: `2.23.5-amd64`**, dal 28-10-2026: il relay WebSocket rientra da solo quando il pannello rifiuta la sessione, Twilio dice il motivo vero di un invio fallito, e «Connetti» spiega il 401 di un pannello abbinato al cloud.
+**Versione in esecuzione: `2.23.6-amd64`**, dal 28-10-2026 sera: azienda a testa e quote nel cloud, tetti sui container, il buco di `create_project` chiuso, il container che non resta attaccato a una cartella cancellata, e le schermate d'ingresso col marchio e la versione.
 commit. Dentro: il tubo nello stesso fotogramma, la pagina Prestazioni, le due correzioni dello slider, lo storico
 che scrive a lotti e i thread con un nome e una priorità. Prima `195e8c72-amd64` dalla notte del 27-10,
 `ed9d47b5-amd64` dalla sera del 26-10, e `2.23.0-amd64` dallo stesso giorno.
