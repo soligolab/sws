@@ -16,6 +16,7 @@ import type {
   ReportElenco,
   Cornice,
   CorniceInElenco,
+  FaceplateInElenco,
   FunctionDef,
   GlobalScriptDef,
   HaBrowsedEntity,
@@ -60,6 +61,7 @@ import type {
 } from "@/types";
 import { prefissoGateway } from "./prefisso";
 import { corniceAPagina } from "@/cornici/modello";
+import { faceplateAPagina } from "@/faceplate/modello";
 import i18n from "i18next";
 
 import { pannelloCollegato } from "./pannello";
@@ -1520,7 +1522,19 @@ export const api = {
       cornici = (await Promise.all(elenco.map((c) => request<Cornice>(`/api/cornici/${encodeURIComponent(c.id)}`))))
         .map(corniceAPagina);
     } catch { /* nessuna cornice */ }
-    return [...sinottici, ...boot, ...cornici];
+    // I faceplate (29-10-2026) entrano come pagine `kind: "faceplate"`, con
+    // l'origine: un predefinito si ripristina e non si elimina.
+    let faceplate: SynopticPage[] = [];
+    try {
+      // Un runtime di prima del 29-10-2026 ignora `dettagli` e dà gli id nudi.
+      const elenco = (await request<(FaceplateInElenco | string)[]>("/api/faceplates?dettagli=1"))
+        .map((f) => (typeof f === "string" ? { id: f, predefinito: false, personalizzato: false } : f));
+      faceplate = await Promise.all(elenco.map(async (f) => {
+        const def = await request<FaceplateDef>(`/api/faceplates/${encodeURIComponent(f.id)}`);
+        return faceplateAPagina(def, f.predefinito ? (f.personalizzato ? "personalizzato" : "intatto") : undefined);
+      }));
+    } catch { /* nessun faceplate */ }
+    return [...sinottici, ...boot, ...cornici, ...faceplate];
   },
 
   deleteSynoptic: async (name: string) => {
@@ -1561,6 +1575,7 @@ export const api = {
 
   // ── Faceplate API ────────────────────────────────────────────────────────
   listFaceplates: () => request<string[]>("/api/faceplates"),
+  listFaceplatesDettagli: () => request<FaceplateInElenco[]>("/api/faceplates?dettagli=1"),
   getFaceplate: (id: string) => request<FaceplateDef>(`/api/faceplates/${encodeURIComponent(id)}`),
   saveFaceplate: (fp: FaceplateDef) =>
     request<void>(`/api/faceplates/${encodeURIComponent(fp.id)}`, {

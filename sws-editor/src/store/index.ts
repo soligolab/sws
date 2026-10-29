@@ -21,12 +21,16 @@ import { uguale } from "@/ai/confronto";
 import { valoriDiNascita } from "@/formatoProgetto";
 import {
   BOOT_TYPES, chiavePagina, eBoot, nomeBootLibero,
-  pagineDiBoot, paginePerNavigazione, sinotticiPoiBoot,
+  paginePerNavigazione, pagineSpeciali, sinotticiPoiBoot,
 } from "@/boot/tipi";
 import {
   corniceAPagina, daModello, eCornice, idCornice, idLibero, nomeLibero, pagineCornice, paginaACornice,
   type ModelloCornice,
 } from "@/cornici/modello";
+import {
+  contieneFaceplate, eFaceplateDef, faceplateAPagina, firmaFaceplate, idFaceplate, idFaceplateLibero,
+  paginaAFaceplate, pagineFaceplate,
+} from "@/faceplate/modello";
 import { scalaCornice, scalaPagina, type Misura } from "@/scala/scalaPagina";
 import type {
   AlarmDef,
@@ -406,6 +410,11 @@ interface AppState {
   /** La pagina (serializzata) da cui è stato generato l'ultimo PNG: se non è
    *  cambiata, al salvataggio non si rigenera. */
   bootPngFirme: Record<string, string>;
+  /** La definizione (serializzata) di ogni pagina-faceplate com'è su disco,
+   *  per id di pagina (29-10-2026). Il salvataggio scrive solo i faceplate che
+   *  ne differiscono: risalvare un predefinito identico lo farebbe diventare
+   *  un file del progetto. */
+  faceplateFirme: Record<string, string>;
   setBootPng: (id: string, esito: { ok: boolean; messaggio?: string; byte?: number }, firma?: string) => void;
   /** Sections with an unsaved draft, keyed by owner → flush function. */
   pendingSections: Record<string, () => Promise<void>>;
@@ -536,6 +545,15 @@ interface AppState {
   scalaProgetto: (ids: string[], a: Misura) => void;
   /** Una cornice nuova da un modello, aperta sul canvas (15-10-2026). */
   addCornice: (modello: ModelloCornice) => void;
+  /** Un faceplate nuovo, aperto sul canvas come pagina (29-10-2026). */
+  addFaceplate: () => void;
+  /** Un faceplate predefinito personalizzato torna com'è nel runtime: il file
+   *  del progetto si cancella subito (non passa dal Salva), e la pagina si
+   *  rilegge. */
+  ripristinaFaceplate: (pageId: string) => Promise<void>;
+  /** La definizione intera scritta a mano (il pulsante JSON): riscrive la
+   *  pagina-faceplate in un passo di cronologia. */
+  applicaDefinizioneFaceplate: (pageId: string, def: FaceplateDef) => void;
   deletePage: (id: string) => void;
   renamePage: (id: string, name: string) => void;
   /** Una posizione su/giù fra i fratelli, nell'albero delle pagine. */
@@ -549,7 +567,7 @@ interface AppState {
   duplicatePage: (id: string) => void;
   /** Più pagine in un colpo solo: un solo passo di cronologia. */
   updatePagesProps: (patches: { id: string; patch: Partial<SynopticPage> }[]) => void;
-  updatePageProps: (id: string, patch: Partial<Pick<SynopticPage, "name" | "background" | "background_dark" | "width" | "height" | "auto_rotate_skip" | "zones" | "locked" | "cornice" | "cornice_testata" | "cornice_piede" | "finestra" | "finestra_parametri">>) => void;
+  updatePageProps: (id: string, patch: Partial<Pick<SynopticPage, "name" | "background" | "background_dark" | "width" | "height" | "auto_rotate_skip" | "zones" | "locked" | "cornice" | "cornice_testata" | "cornice_piede" | "finestra" | "finestra_parametri" | "faceplate_parametri">>) => void;
   updateGridCell: (pageId: string, objectId: string, cell: GridCell) => void;
   setSelectedCellRange: (range: { objectId: string; r1: number; c1: number; r2: number; c2: number } | null) => void;
   setSelectedSubCell: (sub: { objectId: string; row: number; col: number; path: ("a" | "b")[] } | null) => void;
@@ -624,7 +642,7 @@ interface AppState {
   deleteSelection: () => void;
   /** Gli oggetti selezionati diventano un oggetto solo, al posto del primo
    *  («Crea faceplate dalla selezione», 25-10-2026). Un passo di cronologia. */
-  sostituisciSelezione: (nuovo: SynopticObject) => void;
+  sostituisciSelezione: (nuovo: SynopticObject, paginaNuova?: SynopticPage) => void;
   reorderObject: (id: string, dir: "front" | "forward" | "backward" | "back") => void;
 
   // Clipboard
@@ -938,8 +956,7 @@ export function alberoCambiato(s: AppState): boolean {
  *  pagine di boot in coda. Ritorna lo stesso array se l'ordine è già quello, per non
  *  far ridisegnare chi lo legge senza motivo. */
 function conOrdineAlbero<T extends SynopticPage>(pages: readonly T[], layout: PageLayoutConfig | null | undefined): T[] {
-  const ordinate = [...ordinaPagine(paginePerNavigazione(pages), layout?.page_tree), ...pagineDiBoot(pages),
-    ...pages.filter((p) => p.kind === "cornice")];
+  const ordinate = [...ordinaPagine(paginePerNavigazione(pages), layout?.page_tree), ...pagineSpeciali(pages)];
   const uguale = ordinate.length === pages.length && ordinate.every((p, i) => p === pages[i]);
   return uguale ? (pages as T[]) : ordinate;
 }
@@ -1082,6 +1099,7 @@ export const useAppStore = create<AppState>((set, get) => {
     persistedPageNames: [],
     bootPng: {},
     bootPngFirme: {},
+    faceplateFirme: {},
     pendingSections: {},
     tagInAttesa: [],
     allarmeInAttesa: null,
@@ -1213,7 +1231,7 @@ export const useAppStore = create<AppState>((set, get) => {
 
     resetProjectState: () => {
       get().setPages([], "");
-      set({ project: null, projectLoadError: null, customSymbols: [], faceplates: [], alarms: {} });
+      set({ project: null, projectLoadError: null, customSymbols: [], faceplates: [], alarms: {}, faceplateFirme: {} });
     },
 
     // ── Function CRUD ──────────────────────────────────────────────────────
@@ -1341,6 +1359,10 @@ export const useAppStore = create<AppState>((set, get) => {
       // 2026-09-12, F5.3x/T-70): il primo salvataggio scrive solo il
       // formato nuovo.
       const normalizzate = pages.map((p) => {
+          // I faceplate restano come sono su disco: la normalizzazione li
+          // farebbe risultare cambiati, e un predefinito salvato senza che
+          // nessuno l'abbia toccato diventerebbe un file del progetto.
+          if (eFaceplateDef(p)) return p;
           // E i colori `var(…)` scritti dall'IDE fino al 21-09-2026 → hex o
           // automatico (D2 del piano colori): stesso taglio, stesso momento.
           // E i predefiniti fissi mancanti scritti nel file (30-09-2026): un
@@ -1384,6 +1406,7 @@ export const useAppStore = create<AppState>((set, get) => {
         persistedPageNames: pages.map(chiavePagina),
         bootPng: {},
         bootPngFirme: {},
+        faceplateFirme: Object.fromEntries(pagineFaceplate(normalizzate).map((p) => [p.id, firmaFaceplate(p)])),
       });
     },
 
@@ -1443,6 +1466,57 @@ export const useAppStore = create<AppState>((set, get) => {
       }));
     },
 
+    addFaceplate: () => {
+      pushHistory("history.newFaceplate");
+      const s0 = get();
+      const nome = nomeLibero(pagineFaceplate(s0.pages).map((p) => p.name), i18n.t("history.faceplateBaseName"));
+      const id = idFaceplateLibero(nome, new Set(pagineFaceplate(s0.pages).map(idFaceplate)));
+      // I due parametri con cui nasceva nella Configurazione, e un foglio
+      // della misura tipica di un'istanza.
+      const page = faceplateAPagina({
+        id, label: nome, objects: [], width: 240, height: 160,
+        params: [{ name: "tag_prefix", type: "istanza" }, { name: "label", type: "string" }],
+      });
+      set((s) => ({
+        pages: [...s.pages, page],
+        currentPageId: page.id,
+        selectedObjectId: null,
+        selectedObjectIds: [],
+      }));
+    },
+
+    ripristinaFaceplate: async (pageId) => {
+      const page = get().pages.find((p) => p.id === pageId);
+      if (!page || page.faceplate_predefinito !== "personalizzato") return;
+      const id = idFaceplate(page);
+      await api.deleteFaceplate(id);
+      const def = await api.getFaceplate(id);
+      const nuova = faceplateAPagina(def, "intatto");
+      set((s) => ({
+        pages: s.pages.map((p) => (p.id === pageId ? nuova : p)),
+        faceplateFirme: { ...s.faceplateFirme, [pageId]: firmaFaceplate(nuova) },
+        selectedObjectId: null,
+        selectedObjectIds: [],
+        // La cronologia resta: annullare rimette la versione personalizzata
+        // nella pagina, e il Salva la riscrive — perché ora differisce dalla
+        // firma, che è quella del predefinito.
+      }));
+    },
+
+    applicaDefinizioneFaceplate: (pageId, def) => {
+      const page = get().pages.find((p) => p.id === pageId);
+      if (!page || !eFaceplateDef(page) || contieneFaceplate(def.objects ?? [])) return;
+      pushHistory("history.faceplateJson");
+      // L'id non cambia da qui: le istanze lo citano, e rinominarlo vuol dire
+      // rinominare anche loro.
+      const nuova = { ...faceplateAPagina({ ...def, id: idFaceplate(page) }), faceplate_predefinito: page.faceplate_predefinito };
+      set((s) => ({
+        pages: s.pages.map((p) => (p.id === pageId ? nuova : p)),
+        selectedObjectId: null,
+        selectedObjectIds: [],
+      }));
+    },
+
     addBootPage: () => {
       pushHistory("history.newBootPage");
       const nome = nomeBootLibero(get().pages, i18n.t("history.bootPageBaseName"));
@@ -1464,13 +1538,17 @@ export const useAppStore = create<AppState>((set, get) => {
       const page = pages.find((p) => p.id === id);
       if (!page) return;
       // «Non si elimina l'ultima pagina» vale per le sinottiche: una pagina di
-      // boot non è una pagina del pannello, e togliere l'ultima è lecito.
-      if (!eBoot(page) && paginePerNavigazione(pages).length <= 1) return;
+      // boot, una cornice o un faceplate non sono pagine del pannello, e
+      // togliere l'ultima è lecito.
+      if (!page.kind && paginePerNavigazione(pages).length <= 1) return;
+      // Un faceplate predefinito non si elimina: lo porta il runtime, e
+      // tornerebbe al caricamento. Si ripristina.
+      if (eFaceplateDef(page) && page.faceplate_predefinito) return;
       pushHistoryAlbero("history.deletePage");
       const next = pages.filter((p) => p.id !== id);
       // Una pagina sinottica esce anche dall'albero: i suoi figli salgono al suo posto.
       const s0 = get();
-      const project = !eBoot(page) && s0.project
+      const project = !page.kind && s0.project
         ? {
             ...s0.project,
             page_layout: {
@@ -1569,7 +1647,9 @@ export const useAppStore = create<AppState>((set, get) => {
       pushHistory("history.scalaProgetto");
       const scelte = new Set(ids);
       set((s) => ({
-        pages: s.pages.map((p) => (!scelte.has(p.id) ? p : eCornice(p) ? scalaCornice(p, a) : scalaPagina(p, a))),
+        // I faceplate non si scalano col progetto: le istanze li scalano già,
+        // e cambiare la loro misura sposterebbe ogni istanza.
+        pages: s.pages.map((p) => (!scelte.has(p.id) || eFaceplateDef(p) ? p : eCornice(p) ? scalaCornice(p, a) : scalaPagina(p, a))),
         selectedObjectId: null,
         selectedObjectIds: [],
       }));
@@ -1874,6 +1954,8 @@ export const useAppStore = create<AppState>((set, get) => {
       // rifiuterebbe il salvataggio, e il PNG non li mostrerebbe fedelmente.
       const corrente = get().pages.find((p) => p.id === get().currentPageId);
       if (eBoot(corrente) && !BOOT_TYPES.includes(partial.type)) return;
+      // Niente faceplate dentro un faceplate: il pannello non lo disegna.
+      if (eFaceplateDef(corrente) && partial.type === "faceplate") return;
       pushHistory("history.add", { type: partial.type });
       const obj: SynopticObject = { ...partial, id: genId() };
       set((s) => {
@@ -2027,13 +2109,15 @@ export const useAppStore = create<AppState>((set, get) => {
       }));
     },
 
-    sostituisciSelezione: (nuovo) => {
+    sostituisciSelezione: (nuovo, paginaNuova) => {
       const { selectedObjectIds } = get();
       if (selectedObjectIds.length === 0) return;
       pushHistory("history.faceplateDaSelezione");
       const via = new Set(selectedObjectIds);
       set((s) => ({
-        pages: s.pages.map((p) => {
+        // La definizione nasce come pagina nello stesso passo: un annulla toglie
+        // insieme il faceplate e la sua prima istanza.
+        pages: [...s.pages, ...(paginaNuova ? [paginaNuova] : [])].map((p) => {
           if (p.id !== s.currentPageId) return p;
           // L'istanza prende il posto del primo oggetto selezionato nell'ordine
           // di disegno: resta sotto e sopra le stesse cose.
@@ -2119,6 +2203,7 @@ export const useAppStore = create<AppState>((set, get) => {
       // Su una pagina di boot si incollano solo oggetti statici.
       const paginaCorrente = get().pages.find((p) => p.id === currentPageId);
       if (eBoot(paginaCorrente) && clipboard.some((o) => !BOOT_TYPES.includes(o.type))) return;
+      if (eFaceplateDef(paginaCorrente) && contieneFaceplate(clipboard)) return;
       pushHistory("history.paste");
       const newIds: string[] = [];
       const copies = clipboard.map((src) => {
@@ -2482,14 +2567,14 @@ export const useAppStore = create<AppState>((set, get) => {
           ? { ...attuale, objects }
           : { ...proposta, objects };
       };
-      // L'assistente lavora sulle pagine sinottiche: una pagina di boot con lo
-      // stesso nome non è la stessa pagina.
+      // L'assistente lavora sulle pagine sinottiche: una pagina di boot, una
+      // cornice o un faceplate con lo stesso nome non sono la stessa pagina.
       const nuovePages = sinotticiPoiBoot([
         ...s.pages.map((pg) => {
-          const q = eBoot(pg) ? undefined : proposte.find((x) => x.name === pg.name);
+          const q = pg.kind ? undefined : proposte.find((x) => x.name === pg.name);
           return q ? fondi(pg, q) : pg;
         }),
-        ...proposte.filter((q) => !s.pages.some((pg) => !eBoot(pg) && pg.name === q.name)),
+        ...proposte.filter((q) => !s.pages.some((pg) => !pg.kind && pg.name === q.name)),
       ]);
 
       // ── 3. Un solo passo, con dentro anche il progetto ────────────────────
@@ -2760,8 +2845,10 @@ export const useAppStore = create<AppState>((set, get) => {
       if (selectIsDirty(s)) throw new Error(i18n.t("rinomina.salvaPrima"));
       const motivo = motivoIdNonValido(nuovo, new Set(s.project.tags.map((t) => t.id)), vecchio);
       if (motivo) throw new Error(motivo);
+      // Le pagine-faceplate entrano come faceplate, non come pagine: il walker
+      // le conosce già come definizioni.
       const e = rinomina(vecchio, nuovo.trim(), {
-        pages: s.pages, faceplates: s.faceplates, tags: s.project.tags, sources: s.project.sources,
+        pages: s.pages.filter((p) => !eFaceplateDef(p)), faceplates: s.faceplates, tags: s.project.tags, sources: s.project.sources,
         alarms: s.project.alarms ?? [], globalScripts: s.project.global_scripts ?? [], recipes,
       });
       // In serie: tutto ciò che passa da project.yaml prima (Q30), poi i file
@@ -2785,12 +2872,18 @@ export const useAppStore = create<AppState>((set, get) => {
         set({ saveStatus: "error", saveError: errText(err) });
         throw err;
       }
+      const perId = new Map(e.faceplates.map((f) => [f.id, f]));
+      const conFaceplate = (pg: SynopticPage): SynopticPage => {
+        const f = perId.get(idFaceplate(pg));
+        return f && e.faceplateCambiati.has(f.id) ? { ...pg, objects: f.objects, faceplate_parametri: faceplateAPagina(f).faceplate_parametri } : pg;
+      };
+      const pagineFp = pagineFaceplate(s.pages).map(conFaceplate);
       set((st) => ({
         project: st.project ? {
           ...st.project, tags: e.tags, sources: e.sources, alarms: e.alarms, global_scripts: e.globalScripts,
         } : st.project,
-        pages: e.pages,
-        faceplates: e.faceplates,
+        pages: [...e.pages, ...pagineFp],
+        faceplateFirme: { ...st.faceplateFirme, ...Object.fromEntries(pagineFp.map((p) => [p.id, firmaFaceplate(p)])) },
         // Le pagine sono già su disco: la revisione salvata segue quella corrente.
         savedPagesRev: st.pagesRev,
       }));
@@ -2898,8 +2991,12 @@ export const useAppStore = create<AppState>((set, get) => {
       //    Restano functions e custom_symbols: si modificano dall'editor
       //    (FunctionEditor, symbol picker) e non hanno altro percorso di
       //    salvataggio.
-      const tasks: Promise<unknown>[] = state.pages.map((p) =>
+      // I faceplate solo se cambiati (29-10-2026): un predefinito risalvato
+      // identico diventerebbe un file del progetto.
+      const faceplateDaScrivere = pagineFaceplate(state.pages).filter((p) => state.faceplateFirme[p.id] !== firmaFaceplate(p));
+      const tasks: Promise<unknown>[] = state.pages.filter((p) => !eFaceplateDef(p)).map((p) =>
         eBoot(p) ? api.saveBootPage(p) : eCornice(p) ? api.saveCornice(paginaACornice(p)) : api.saveSynoptic(p));
+      tasks.push(...faceplateDaScrivere.map((p) => api.saveFaceplate(paginaAFaceplate(p))));
       if (isAdmin && state.project) {
         // Anche questi due passano da `patch_project` sullo stesso
         // `project.yaml`: incatenati, non affiancati, per la stessa ragione
@@ -2921,6 +3018,7 @@ export const useAppStore = create<AppState>((set, get) => {
       tasks.push(...namesToDelete.map((n) =>
         n.startsWith("boot/") ? api.deleteBootPage(n.slice("boot/".length))
           : n.startsWith("cornice/") ? api.deleteCornice(n.slice("cornice/".length))
+          : n.startsWith("faceplate/") ? api.deleteFaceplate(n.slice("faceplate/".length))
           : api.deleteSynoptic(n)));
       const results = await Promise.allSettled(tasks);
       results.forEach((r) => {
@@ -2939,7 +3037,16 @@ export const useAppStore = create<AppState>((set, get) => {
       // On a partial failure some pages are on disk and some are not, so
       // "modified" is the only honest answer; a retry re-PUTs everything
       // (the endpoints are idempotent).
-      set({ persistedPageNames: state.pages.map(chiavePagina) });
+      set((st) => ({
+        persistedPageNames: state.pages.map(chiavePagina),
+        // Quello che è stato scritto ora è su disco: le firme lo seguono, e un
+        // predefinito appena scritto è diventato personalizzato.
+        faceplateFirme: { ...st.faceplateFirme, ...Object.fromEntries(faceplateDaScrivere.map((p) => [p.id, firmaFaceplate(p)])) },
+        pages: faceplateDaScrivere.some((p) => p.faceplate_predefinito === "intatto")
+          ? st.pages.map((p) => (faceplateDaScrivere.some((q) => q.id === p.id) && p.faceplate_predefinito === "intatto"
+            ? { ...p, faceplate_predefinito: "personalizzato" as const } : p))
+          : st.pages,
+      }));
 
       // L'albero delle pagine, DOPO le pagine (Passo 4). L'ordine conta: se
       // arrivasse prima, il viewer potrebbe leggere un ordine che nomina una
@@ -3130,5 +3237,32 @@ export const useAppStore = create<AppState>((set, get) => {
 // pannello collegato; si abbonano qui anche ai `setState` diretti dei test.
 segnaPannelloCollegato(useAppStore.getState().remoteConnected);
 useAppStore.subscribe((st) => segnaPannelloCollegato(st.remoteConnected));
+
+// ── I faceplate dell'editor vengono dalle loro pagine (29-10-2026) ──────────
+//
+// Nell'IDE la fonte è `pages`: un faceplate si disegna come una pagina. Tutto
+// il resto — istanze sul canvas, pannello proprietà, ricerca, rinomina e
+// riconciliazione dei tag, la vista Runtime — legge `faceplates`, e lo legge
+// da qui: così una modifica non ancora salvata si vede subito nelle istanze
+// delle altre pagine, come il sottofondo delle cornici.
+//
+// Solo quando le pagine portano faceplate, o li portavano: il viewer carica
+// le pagine senza e i faceplate a parte, e lì `faceplates` resta suo.
+const definizioniPerPagina = new WeakMap<SynopticPage, FaceplateDef>();
+const definizione = (p: SynopticPage): FaceplateDef => {
+  let d = definizioniPerPagina.get(p);
+  if (!d) { d = paginaAFaceplate(p); definizioniPerPagina.set(p, d); }
+  return d;
+};
+useAppStore.subscribe((st, prima) => {
+  if (st.pages === prima.pages) return;
+  const ora = pagineFaceplate(st.pages);
+  const prec = pagineFaceplate(prima.pages);
+  if (ora.length === 0 && prec.length === 0) return;
+  // Le stesse pagine-faceplate di prima: niente da rifare, e chi legge
+  // `faceplates` non ridisegna a ogni spostamento su un'altra pagina.
+  if (ora.length === prec.length && ora.every((p, i) => p === prec[i])) return;
+  useAppStore.setState({ faceplates: ora.map(definizione) });
+});
 
 export type { AppState, SynopticObject, ObjectGroup };

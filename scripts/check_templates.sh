@@ -83,6 +83,10 @@ for _v in _manifesto["symbols"]:
         BOCCHE[_v["replaces"]] = _ids
 PALETTE = set(re.findall(r'type:\s*"([a-z_]+)"',
                          open(f"{root}/sws-editor/src/editor/LeftPanel.tsx").read()))
+# I tipi che si mettono in pagina senza passare dagli strumenti, ognuno col suo
+# perché: il faceplate si trascina dal suo ramo dell'albero (29-10-2026), e le
+# sue istanze nei template restano legittime.
+PALETTE |= {"faceplate"}
 
 # ── Le regole del parco template (17-09-2026) ────────────────────────────────
 #

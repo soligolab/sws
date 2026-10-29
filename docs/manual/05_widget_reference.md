@@ -806,12 +806,18 @@ Ideale per diagrammi P&ID.
 
 ### Faceplate (`faceplate`)
 
-Istanza di un faceplate parametrico definito nel progetto.
+Istanza di un faceplate parametrico definito nel progetto. Il faceplate stesso si disegna sul canvas, dal ramo
+**Faceplate** dell'albero delle pagine (capitolo 04).
 
 | Proprietà | Descrizione |
 |-----------|-------------|
 | `faceplate_id` | ID del FaceplateDef da istanziare |
 | `faceplate_params` | Mappa `{parametro: valore}` sostituita nel template |
+| `faceplate_scale` | Scala i figli al riquadro dell'istanza, rispetto alla misura del faceplate |
+
+La definizione, in `faceplates/<id>.yaml`, ha `id`, `label`, `params`, `objects` e — dal 29-10-2026 — `width` e
+`height`, la misura del foglio. Un faceplate che non la dichiara usa il riquadro dei suoi oggetti. Un faceplate dentro
+un faceplate il pannello non lo disegna, e il validatore lo dice.
 
 ---
 

@@ -76,7 +76,8 @@ export const SCHEDE = [
   { id: "protocols",     ramo: "progetto",  icona: "🔌", soloAdmin: false, portaBozza: true,  richiedeProgetto: true,  elementi: true, sezione: "sources" },
   { id: "alarms",        ramo: "progetto",  icona: "🔔", soloAdmin: false, portaBozza: true,  richiedeProgetto: true, sezione: "alarms"  },
   { id: "scripts",       ramo: "progetto",  icona: "🐍", soloAdmin: false, portaBozza: true,  richiedeProgetto: false, elementi: true, sezione: "global_scripts" },
-  { id: "faceplates",    ramo: "progetto",  icona: "🧩", soloAdmin: false, portaBozza: true,  richiedeProgetto: false, elementi: true, sezione: "faceplates" },
+  // I faceplate non sono più una scheda (29-10-2026): si disegnano sul canvas,
+  // dal ramo Faceplate dell'albero delle pagine.
   // I report programmati (P3, 26-10-2026).
   { id: "reports",       ramo: "progetto",  icona: "📑", soloAdmin: false, portaBozza: true,  richiedeProgetto: true, sezione: "reports" },
   { id: "recipes",       ramo: "progetto",  icona: "📋", soloAdmin: false, portaBozza: true,  richiedeProgetto: false, elementi: true, sezione: "recipes" },

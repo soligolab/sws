@@ -489,8 +489,11 @@ fn motivo_senza_barra(project: &Project) -> Option<(&'static str, &'static str)>
 
 /// Una pagina fra cui si naviga: non l'immagine di accensione, non una finestra
 /// popup (P1), che si apre da un bottone e si chiude col suo.
+/// Gemello di `pagineNavigabili` nell'IDE: una pagina speciale (boot, cornice,
+/// faceplate) non si naviga, qualunque sia il suo `kind` — un tipo di pagina
+/// nuovo nasce già escluso (29-10-2026).
 fn da_navigare(p: &SynopticPage) -> bool {
-    p.kind.as_deref() != Some("boot") && p.finestra.is_none()
+    p.kind.is_none() && p.finestra.is_none()
 }
 
 fn pagine_da_navigare(pages: &[SynopticPage]) -> usize {
@@ -642,6 +645,39 @@ pub fn rilievi_trasporto(project: &Project, trasporti: &HashMap<String, String>)
                      non si vede da nessun'altra parte",
                 ));
             }
+        }
+    }
+    out
+}
+
+/// Un faceplate con dentro un altro faceplate (29-10-2026). Dall'editor non
+/// si crea più — la palette non lo offre, aggiungere e incollare lo
+/// rifiutano — ma un progetto nato prima, o scritto a mano, può averlo. Il
+/// web lo disegna e non ha una guardia di ciclo; il pannello lo salta. Non
+/// blocca il salvataggio: rifiutarlo romperebbe i progetti che lo hanno già.
+pub fn rilievi_faceplate(project: &Project, faceplates: &[crate::synoptic::FaceplateDef]) -> Vec<Finding> {
+    let lvgl = matches!(
+        project.target.as_ref().map(|t| t.kind),
+        Some(ProjectTargetKind::LvglFramebuffer | ProjectTargetKind::LvglWayland)
+    );
+    let mut out = Vec::new();
+    for fp in faceplates {
+        for o in &fp.objects {
+            if o.get("type").and_then(Value::as_str) != Some("faceplate") {
+                continue;
+            }
+            let figlio = o.get("id").and_then(Value::as_str).unwrap_or("?");
+            out.push(Finding::warn(
+                format!("faceplates[{}].objects[{figlio}]", fp.id),
+                format!("il faceplate «{}» ha dentro un altro faceplate (`{figlio}`)", fp.label),
+                if lvgl {
+                    "il pannello non disegna un faceplate dentro un faceplate: quell'oggetto non comparirà. \
+                     Copia i suoi oggetti dentro questo faceplate"
+                } else {
+                    "il web lo disegna, ma un faceplate che contiene sé stesso non finisce mai, e il \
+                     pannello non lo disegna affatto. Copia i suoi oggetti dentro questo faceplate"
+                },
+            ));
         }
     }
     out
@@ -3048,6 +3084,26 @@ alarms: []
             &pagina("- { id: x, type: led, x: 0, y: 0, tag: inesistente }"),
         );
         assert!(cita(&errori(&rs), "inesistente"), "{rs:?}");
+    }
+
+    #[test]
+    fn un_faceplate_dentro_un_faceplate_si_dice() {
+        let fp: crate::synoptic::FaceplateDef = serde_yaml::from_str(
+            "id: pompa\nlabel: Pompa\nobjects:\n- { id: m, type: faceplate, x: 0, y: 0, faceplate_id: motor_basic }\n- { id: r, type: rect, x: 0, y: 0 }",
+        )
+        .unwrap();
+        let liscio: crate::synoptic::FaceplateDef =
+            serde_yaml::from_str("id: liscio\nlabel: L\nobjects:\n- { id: r, type: rect, x: 0, y: 0 }").unwrap();
+        let web: Project = serde_yaml::from_str("meta: { name: p, version: '1' }\ntags: []\nsources: []\nalarms: []\n").unwrap();
+        let rs = rilievi_faceplate(&web, &[fp.clone(), liscio]);
+        assert_eq!(rs.len(), 1, "{rs:?}");
+        assert!(rs[0].message.contains("Pompa"));
+        assert!(rs.iter().all(|f| f.severity == Severity::Warning), "un avviso, non un blocco");
+        let pannello: Project = serde_yaml::from_str(
+            "meta: { name: p, version: '1' }\ntarget: { kind: lvgl_framebuffer }\ntags: []\nsources: []\nalarms: []\n",
+        )
+        .unwrap();
+        assert!(rilievi_faceplate(&pannello, &[fp]).iter().any(|f| f.hint.as_deref().unwrap_or("").contains("non comparirà")));
     }
 
     #[test]

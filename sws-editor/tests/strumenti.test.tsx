@@ -28,11 +28,13 @@ const tipi = (gs: { items: { type: string }[] }[]) => gs.flatMap((g) => g.items.
 beforeAll(() => { act(() => impostaLibreriaPerTest(manifesto)); });
 
 describe("gerarchia", () => {
-  it("39 tipi, nessuno perso né doppio, ognuno con la sua icona", () => {
+  it("38 tipi, nessuno perso né doppio, ognuno con la sua icona", () => {
     const tutti = tipi(PALETTE_GROUPS);
-    expect(tutti).toHaveLength(39);
+    // 38 dal 29-10-2026: il faceplate si trascina dal suo ramo, non è più uno
+    // strumento. La sua icona resta, per le righe di quel ramo.
+    expect(tutti).toHaveLength(38);
     expect(new Set(tutti).size).toBe(tutti.length);
-    expect(Object.keys(ICONE_STRUMENTI).sort()).toEqual([...tutti].sort());
+    expect(Object.keys(ICONE_STRUMENTI).sort()).toEqual([...tutti, "faceplate"].sort());
   });
 
   it("ogni gruppo ha il suo nome in italiano e in inglese", () => {

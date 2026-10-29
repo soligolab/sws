@@ -59,7 +59,6 @@ function useElementiDaApi(isAdmin: boolean) {
 function useElementi(isAdmin: boolean): (id: IdScheda) => VoceElencoConfig[] {
   const pubblicati  = useAppStore((s) => s.elenchiConfig);
   const project     = useAppStore((s) => s.project);
-  const faceplates  = useAppStore((s) => s.faceplates);
   const daApi = useElementiDaApi(isAdmin);
   return (id) => {
     const p = pubblicati[id];
@@ -74,7 +73,6 @@ function useElementi(isAdmin: boolean): (id: IdScheda) => VoceElencoConfig[] {
           : undefined,
       }));
       case "scripts":    return (project?.global_scripts ?? []).map((x) => ({ id: x.id, etichetta: x.id }));
-      case "faceplates": return faceplates.map((f) => ({ id: f.id, etichetta: f.label || f.id }));
       case "datastores": return (project?.datastores ?? []).map((d) => ({ id: d.id, etichetta: d.label || d.id }));
       case "recipes":    return daApi.ricette;
       case "users":      return daApi.utenti;

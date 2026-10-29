@@ -80,7 +80,10 @@ export function paginaACornice(p: SynopticPage): Cornice {
  *  `cornice_della_pagina` in `cornici.rs`. */
 export function corniceDellaPagina(p: SynopticPage, predefinita: string | undefined): string | null {
   // Una pagina-finestra (P1) non ha mai una cornice: è un riquadro sopra la pagina.
-  if (p.kind === "boot" || p.kind === "cornice" || p.finestra) return null;
+  // E nemmeno una pagina speciale — boot, cornice, faceplate (29-10-2026: la
+  // cornice predefinita finiva sotto il faceplate aperto, segnalato dal
+  // maintainer): qualunque `kind`, così un tipo nuovo nasce già escluso.
+  if (p.kind || p.finestra) return null;
   if (p.cornice === undefined) return predefinita || null;
   return p.cornice || null;
 }

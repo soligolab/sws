@@ -22,6 +22,7 @@ import { aggiungiOggetto } from "@/editor/azioniEditor";
 import { paletteForTarget } from "@/editor/LeftPanel";
 import { SCHEDE } from "@/config/schede";
 import { eBoot } from "@/boot/tipi";
+import { eFaceplateDef } from "@/faceplate/modello";
 import { cercaOvunque, inFila, type Categoria, type Voce } from "@/editor/ricercaGlobale";
 import type { AppConfigTab } from "@/config/schede";
 
@@ -100,7 +101,6 @@ export function RisultatiRicerca({ testo, onChiudi }: { testo: string; onChiudi:
   const tags = useAppStore((s) => s.project?.tags);
   const alarms = useAppStore((s) => s.project?.alarms);
   const sources = useAppStore((s) => s.project?.sources);
-  const faceplates = useAppStore((s) => s.faceplates);
   const targetKind = useAppStore((s) => s.project?.target?.kind);
   const currentPageId = useAppStore((s) => s.currentPageId);
   const navigateToConfig = useAppStore((s) => s.navigateToConfig);
@@ -112,11 +112,12 @@ export function RisultatiRicerca({ testo, onChiudi }: { testo: string; onChiudi:
 
   const isLvgl = targetKind === "lvgl_framebuffer" || targetKind === "lvgl_wayland";
   const paginaBoot = eBoot(pages.find((p) => p.id === currentPageId));
+  const paginaFaceplate = eFaceplateDef(pages.find((p) => p.id === currentPageId));
 
   const gruppi = useMemo(() => cercaOvunque(testo, {
     pages,
     tags: tags ?? [],
-    gruppiPalette: paletteForTarget(isLvgl, paginaBoot),
+    gruppiPalette: paletteForTarget(isLvgl, paginaBoot, paginaFaceplate),
     simboli: manifesto?.symbols ?? [],
     schede: SCHEDE as readonly { id: string }[],
     elementi: [
@@ -127,10 +128,11 @@ export function RisultatiRicerca({ testo, onChiudi }: { testo: string; onChiudi:
         scheda: "protocols", id: s.id ?? s.kind,
         nome: (s as { name?: string }).name ?? s.id ?? s.kind,
       })),
-      ...(faceplates ?? []).map((f) => ({ scheda: "faceplates", id: f.id, nome: f.label })),
+      // I faceplate non sono più un elemento della Configurazione: sono pagine
+      // (29-10-2026), e la ricerca li trova fra le pagine.
     ],
     t,
-  }), [testo, pages, tags, alarms, sources, faceplates, isLvgl, paginaBoot, manifesto, t]);
+  }), [testo, pages, tags, alarms, sources, isLvgl, paginaBoot, paginaFaceplate, manifesto, t]);
 
   const fila = useMemo(() => inFila(gruppi), [gruppi]);
   useEffect(() => { setScelto(0); }, [testo]);

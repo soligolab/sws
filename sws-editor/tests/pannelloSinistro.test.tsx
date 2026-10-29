@@ -74,9 +74,11 @@ describe("pannello sinistro — un albero solo", () => {
 
   it("una foglia porta in Configurazione, sulla sua scheda", () => {
     monta();
-    fireEvent.click(screen.getByTestId("foglia-config-faceplates"));
+    // Era «faceplates», scheda che dal 29-10-2026 non c'è più: i faceplate
+    // sono pagine. Gli script sono una foglia con elementi come era quella.
+    fireEvent.click(screen.getByTestId("foglia-config-scripts"));
     expect(useAppStore.getState().appMode).toBe("config");
-    expect(useAppStore.getState().configTab).toBe("faceplates");
+    expect(useAppStore.getState().configTab).toBe("scripts");
   });
 
   it("«Tipi» è una foglia sua", () => {
@@ -282,4 +284,38 @@ describe("eModificato", () => {
   it("una copia uguale non è modificata", () => expect(eModificato([salvato], { id: "a", x: 1 })).toBe(false));
   it("un valore diverso sì", () => expect(eModificato([salvato], { id: "a", x: 2 })).toBe(true));
   it("un elemento nuovo, o rinominato, sì", () => expect(eModificato([salvato], { id: "b", x: 1 })).toBe(true));
+});
+
+/** Il faceplate non è più uno strumento (29-10-2026): si mette nella pagina dal
+ *  suo ramo — trascinandolo, o col ＋ — già con la sua definizione. */
+describe("il ramo Faceplate mette istanze", () => {
+  const fp = { id: "faceplate:pompa", name: "Pompa", kind: "faceplate" as const, objects: [], width: 200, height: 80, faceplate_parametri: [] };
+  const pagina = { id: "home", name: "Home", objects: [] };
+
+  beforeEach(() => {
+    try { localStorage.clear(); } catch { /* jsdom senza storage */ }
+    useAppStore.setState({ authRole: "Admin", appMode: "edit", pages: [pagina, fp], currentPageId: "home", elenchiConfig: {}, pendingSections: {} });
+  });
+
+  it("lo strumento Faceplate non c'è più, il ramo sì", () => {
+    monta();
+    expect(screen.queryByTestId("strumento-faceplate")).toBeNull();
+    expect(screen.getByTestId("faceplate-pompa").getAttribute("draggable")).toBe("true");
+  });
+
+  it("il ＋ mette un'istanza col suo faceplate", async () => {
+    const { registraAggiunta } = await import("../src/editor/azioniEditor");
+    const aggiungi = vi.fn();
+    registraAggiunta(aggiungi);
+    monta();
+    fireEvent.click(screen.getByTestId("faceplate-metti-pompa"));
+    expect(aggiungi).toHaveBeenCalledWith("faceplate", { faceplate_id: "pompa" });
+    registraAggiunta(null);
+  });
+
+  it("su un faceplate aperto il ＋ è spento: niente faceplate dentro un faceplate", () => {
+    useAppStore.setState({ currentPageId: "faceplate:pompa" });
+    monta();
+    expect((screen.getByTestId("faceplate-metti-pompa") as HTMLButtonElement).disabled).toBe(true);
+  });
 });

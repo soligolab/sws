@@ -93,7 +93,9 @@ function inventarioDi(tipo: string): { sezioni: string[]; campi: string[] } {
   };
 }
 
-const TIPI = PALETTE_GROUPS.flatMap((g) => g.items.map((i) => i.type as string));
+// Il faceplate non è più nella palette (29-10-2026, si trascina dal suo ramo),
+// ma un'istanza ha il suo pannello proprietà e va inventariato come gli altri.
+const TIPI = [...PALETTE_GROUPS.flatMap((g) => g.items.map((i) => i.type as string)), "faceplate"];
 
 describe("pannello proprietà — nessun campo perso nel riordino (T-56)", () => {
   beforeAll(() => {

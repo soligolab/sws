@@ -13,8 +13,10 @@ import { useAppStore } from "@/store";
 import type { SynopticObject } from "@/types";
 
 /** Cosa si sa già dell'oggetto prima di crearlo: un simbolo scelto dal ramo
- *  «Simboli» di Strumenti nasce col suo `symbol_id` (14-10-2026). */
-export type Preimpostato = { symbol_id?: string };
+ *  «Simboli» di Strumenti nasce col suo `symbol_id` (14-10-2026); un faceplate
+ *  trascinato dal suo ramo col suo `faceplate_id`, e nel punto in cui lo si è
+ *  lasciato (29-10-2026). */
+export type Preimpostato = { symbol_id?: string; faceplate_id?: string; punto?: { x: number; y: number } };
 type Aggiungi = (type: SynopticObject["type"], pre?: Preimpostato) => void;
 let aggiungi: Aggiungi | null = null;
 /** Un oggetto chiesto mentre l'editor non c'era (dalla Configurazione): lo

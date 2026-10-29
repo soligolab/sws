@@ -858,6 +858,11 @@ export interface FaceplateDef {
   params: (string | FaceplateParamDef)[];
   /** Template objects. Position is relative to the faceplate origin (0,0). */
   objects: SynopticObject[];
+  /** La misura dichiarata (28-10-2026, piano «faceplate disegnato sul
+   *  canvas»): il foglio su cui si disegna. Assente nei faceplate nati prima,
+   *  che usano il riquadro dei figli (`faceplateDefBBox`). */
+  width?: number;
+  height?: number;
 }
 
 // ── Historian sample (wire shape from GET /api/history/:tag) ──────────────
@@ -922,8 +927,17 @@ export interface SynopticPage {
   /** When true, the page is read-only in the editor (no object/property edits). */
   locked?: boolean;
   /** Tipo di pagina (T-72). Assente = sinottica; `"boot"` = immagine di boot del
-   *  pannello, salvata in `boot/` e mai vista dai viewer. */
-  kind?: "boot" | "cornice";
+   *  pannello, salvata in `boot/` e mai vista dai viewer. `"faceplate"`
+   *  (29-10-2026): la definizione di un faceplate aperta sul canvas, salvata in
+   *  `faceplates/` — `src/faceplate/modello.ts`. */
+  kind?: "boot" | "cornice" | "faceplate";
+  /** Solo per `kind: "faceplate"`: i parametri della definizione. Come le
+   *  fasce della cornice, non arrivano mai su `synoptics/`. */
+  faceplate_parametri?: FaceplateParamDef[];
+  /** Solo per `kind: "faceplate"`: se è uno dei faceplate che il runtime porta
+   *  con sé, e se il progetto ne ha una versione sua. Lo dice il runtime al
+   *  caricamento; non si salva. */
+  faceplate_predefinito?: "intatto" | "personalizzato";
   /** Solo per `kind: "cornice"` (la cornice aperta sul canvas): le due fasce.
    *  Non arrivano mai su `synoptics/`: una pagina-cornice si salva in `cornici/`. */
   cornice_testata?: FasciaCornice;
@@ -955,6 +969,15 @@ export interface Cornice {
   testata: FasciaCornice;
   piede: FasciaCornice;
   oggetti: SynopticObject[];
+}
+
+/** Un faceplate in `GET /api/faceplates?dettagli=1` (29-10-2026). */
+export interface FaceplateInElenco {
+  id: string;
+  /** Uno dei faceplate che il runtime porta con sé. */
+  predefinito: boolean;
+  /** Predefinito, e il progetto ne ha una versione sua in `faceplates/`. */
+  personalizzato: boolean;
 }
 
 export interface CorniceInElenco {

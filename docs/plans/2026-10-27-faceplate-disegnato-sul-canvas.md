@@ -1,5 +1,20 @@
 # Un faceplate si disegna, non si scrive in JSON — piano d'esecuzione
 
+> **FATTO il 29-10-2026, da vedere a schermo** (`docs/COLLAUDI_IN_SOSPESO.md` §A-nonies), ramo `feat/faceplate-sul-canvas`
+> annidato su `fix/sparkplug-b`. Quattro scostamenti da quello che sta scritto sotto, voluti:
+>
+> - **Un ramo solo, tre parti** invece di tre rami: i tre rami non si potevano mergiare separati (il trasporto senza la
+>   UI lascia l'IDE a metà), e annidati uno sull'altro non cambiavano niente.
+> - **Lo store ricava `faceplates` dalle pagine** (una sottoscrizione in `store/index.ts`) invece di un `useMemo` in
+>   EditorShell: così tutti i posti che leggono `s.faceplates` — rinomina, riconciliazione dei tag, Variabili, Lingue, la
+>   vista Runtime — vedono la modifica non salvata senza essere toccati uno per uno.
+> - **I predefiniti si riconoscono** da `GET /api/faceplates?dettagli=1`, che dice `predefinito` e `personalizzato`;
+>   senza parametro l'elenco resta quello di sempre, che leggono viewer e pannello.
+> - **«Ripristina il predefinito» è un pulsante delle proprietà**, non la ×: cancella il file subito (non passa dal
+>   Salva) e rilegge la definizione. Un predefinito non ha la ×.
+>
+> Resta **CasaDomotica**: ridisegnare `tank_level` dal canvas e vederlo sul WP630, dopo il rilascio.
+
 ## Context
 
 Nato come seme il 27-10-2026 collaudando lo slider sul WP630: un faceplate si modifica scrivendo

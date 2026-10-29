@@ -206,6 +206,29 @@ riga. Basta l'8460 sul ramo; un progetto con una sorgente per tipo aiuta.
 6. [ ] **OPC-UA client**: la security policy e i certificati stanno in AVANZATE, chiusa, col riepilogo «Security
        policy: …»; utente e password si scelgono in AUTENTICAZIONE.
 
+## A-nonies. Un faceplate si disegna sul canvas (29-10-2026)
+
+Piano `docs/plans/2026-10-27-faceplate-disegnato-sul-canvas.md`. Basta l'8460 sul ramo, con un progetto che usa un
+faceplate (il dimostrativo ha `tank_level`).
+
+1. [ ] Albero delle pagine: il ramo **🧩 Faceplate** con i tre predefiniti (◇). Configurazione non ha più la scheda
+       Faceplates.
+2. [ ] Aprire `tank_level`: il foglio ha la misura del faceplate, i testi `{label}` si leggono «label» (o il
+       predefinito). Con una cornice predefinita nel progetto, sotto il faceplate **non** c'è la cornice.
+3. [ ] Trascinare un figlio, poi aprire una pagina con un'istanza di `tank_level`: **l'istanza è già cambiata**, prima
+       di salvare. Ctrl+Z la rimette.
+4. [ ] Salvare: `tank_level` diventa ◆ (personalizzato). Nelle proprietà, «Ripristina il predefinito» lo riporta com'era
+       e il ◇ torna.
+5. [ ] «+ Nuovo faceplate», disegnarlo, aggiungere un parametro dalle proprietà, salvare e ricaricare la pagina del
+       browser: c'è ancora. **Trascinarlo dal ramo su una pagina**: l'istanza nasce dove lo si lascia, col faceplate
+       giusto e della sua misura. Il ＋ della riga fa lo stesso al centro della vista; su un faceplate aperto è spento.
+       Fra gli strumenti, «Faceplate» non c'è più.
+6. [ ] «{ } JSON»: cambiare il nome nella definizione e «Applica»; scrivere un JSON rotto: «Applica» resta spento. Con
+       un oggetto `type: faceplate` dentro, lo dice e non applica.
+7. [ ] Selezionare due oggetti su una pagina → «⧉ Crea faceplate dalla selezione»: il faceplate compare nel ramo, la
+       selezione diventa un'istanza, un Ctrl+Z toglie tutti e due.
+8. [ ] **CasaDomotica** (dopo il rilascio, regola del 16-10): ridisegnare `tank_level` dal canvas e vederlo sul WP630.
+
 ## B. Lo schema `http`/`https` non è più scritto a mano
 
 Quattro punti che prima non rileggevano il certificato. **Nessuno cambia il comportamento di un

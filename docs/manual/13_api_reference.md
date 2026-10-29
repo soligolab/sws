@@ -113,7 +113,7 @@ curl -k -X POST https://localhost:7444/api/auth/login \
 | GET | `/api/synoptics/:name` | un sinottico; con `?cornice=1` già composto con la sua cornice |
 | GET | `/api/pages/nav` | l'albero delle pagine con gli id, per il navigatore |
 | GET | `/api/cornici`, `/api/cornici/:id` | le cornici di pagina |
-| GET | `/api/faceplates`, `/api/faceplates/:id` | i faceplate |
+| GET | `/api/faceplates`, `/api/faceplates/:id` | i faceplate; `?dettagli=1` dà anche `predefinito` e `personalizzato` per ognuno |
 | GET | `/api/recipes`, `/api/recipes/:id`, `/api/recipes/history` | le ricette e il loro storico |
 | GET | `/api/project/images`, `/api/project/images/:name` | le immagini del progetto |
 | GET | `/api/datastores`, `/api/datastores/:id/stats` | i datastore e le loro statistiche |

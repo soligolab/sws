@@ -19,10 +19,12 @@ export const BOOT_SFONDO = "#0f172a";
 
 export const eBoot = (p: { kind?: string } | undefined | null): boolean => p?.kind === "boot";
 
-/** Le pagine che un pannello mostra e fra cui si naviga: tutte tranne quelle di
- *  boot e le cornici (15-10-2026), che nell'IDE sono pagine ma non si navigano. */
+/** Le pagine che un pannello mostra e fra cui si naviga: le sinottiche, cioè
+ *  quelle senza `kind`. Boot, cornici (15-10-2026) e faceplate (29-10-2026)
+ *  nell'IDE sono pagine ma non si navigano. Si filtra «qualunque `kind`», non
+ *  i tre per nome: un quinto tipo di pagina speciale nasce già escluso. */
 export function paginePerNavigazione<T extends { kind?: string }>(pages: readonly T[]): T[] {
-  return pages.filter((p) => !eBoot(p) && p.kind !== "cornice");
+  return pages.filter((p) => !p.kind);
 }
 
 /** Le pagine fra cui si **naviga** a runtime (navigatori, tab del viewer,
@@ -37,11 +39,17 @@ export function pagineDiBoot<T extends { kind?: string }>(pages: readonly T[]): 
   return pages.filter((p) => eBoot(p));
 }
 
+/** Le pagine speciali, nell'ordine in cui stanno in coda alle sinottiche:
+ *  boot, cornici, faceplate. */
+export function pagineSpeciali<T extends { kind?: string }>(pages: readonly T[]): T[] {
+  return [...pagineDiBoot(pages), ...pages.filter((p) => p.kind === "cornice"), ...pages.filter((p) => p.kind === "faceplate")];
+}
+
 /** Sinottici prima, boot in fondo (ordine stabile). L'elenco pagine dell'IDE
  *  usa gli indici della sola parte sinottica: tenere le pagine di boot in coda
  *  li lascia validi. */
 export function sinotticiPoiBoot<T extends { kind?: string }>(pages: readonly T[]): T[] {
-  return [...paginePerNavigazione(pages), ...pagineDiBoot(pages), ...pages.filter((p) => p.kind === "cornice")];
+  return [...paginePerNavigazione(pages), ...pagineSpeciali(pages)];
 }
 
 /** La chiave con cui il salvataggio ricorda una pagina già su disco: il nome
@@ -49,6 +57,7 @@ export function sinotticiPoiBoot<T extends { kind?: string }>(pages: readonly T[
  *  uguale (cartelle diverse). */
 export function chiavePagina(p: Pick<SynopticPage, "id" | "name" | "kind">): string {
   if (p.kind === "cornice") return `cornice/${p.id.replace(/^cornice:/, "")}`;
+  if (p.kind === "faceplate") return `faceplate/${p.id.replace(/^faceplate:/, "")}`;
   return eBoot(p) ? `boot/${p.name}` : p.name;
 }
 

@@ -42,12 +42,14 @@ import {
   riquadroTestoSemplice,
   softClampToPage,
 } from "@/pageLayout";
-import type { AlarmSeverity, AlarmState, CustomSymbol, FaceplateDef, FaceplateParamDef, GridCell, PageSizeMode, PipePoint, Sample, SynopticObject, TableRow, TagDef, TagState } from "@/types";
+import { faceplateDefBBox, normalizeFaceplateParams } from "@/faceplate/definizione";
+import type { AlarmSeverity, AlarmState, CustomSymbol, FaceplateDef, GridCell, PageSizeMode, PipePoint, Sample, SynopticObject, TableRow, TagDef, TagState } from "@/types";
 import { fattoreFondoRespiro, luminositaValida, parametriLuminosita } from "./luce";
 import { puntiSvg, verticiPoligono } from "./forme";
 import { aggancioSu, bersagli, calamita, diametriCapi, instrada, percorsoTubo, type Bersaglio } from "./tubazioni";
 import { ancoreInMoto, scostamentoMoto, useSegueIlMoto } from "./motoVivo";
-import { registraCentroVista } from "@/editor/azioniEditor";
+import { aggiungiOggetto, registraCentroVista } from "@/editor/azioniEditor";
+import { TRASCINA_FACEPLATE } from "@/faceplate/modello";
 import { larghezzaTubo, stileTubo, svgTubo } from "./stiliTubo";
 import { useManifestoLib } from "@/symbols/lib/libreria";
 import { cssFamiglia } from "@/font/famiglie";
@@ -150,6 +152,8 @@ interface SvgCanvasProps {
    *  (`oggettoSfondoArea`). Piena, non attenuata come la cornice: è quella che
    *  si vedrà dal vivo. */
   sfondoArea?: SynopticObject;
+  /** Editor: si può lasciare qui un faceplate trascinato dal suo ramo. */
+  accettaFaceplate?: boolean;
 }
 
 interface DragState {
@@ -682,6 +686,7 @@ export function SvgCanvas({
   sottofondo,
   fasceCornice,
   sfondoArea,
+  accettaFaceplate = false,
 }: SvgCanvasProps) {
   const { t } = useTranslation();
   // Il default storico del componente, ripristinato subito: tutto il resto del
@@ -1786,6 +1791,21 @@ export function SvgCanvas({
                overflow: "visible",
                cursor: captureTarget || inDisegno ? "crosshair" : panDragRef.current ? "grabbing" : undefined }}
       onMouseDown={handleSvgMouseDown}
+      // Un faceplate trascinato dal suo ramo (29-10-2026): l'istanza nasce
+      // dove lo si lascia, già con la sua definizione.
+      onDragOver={onMove && accettaFaceplate ? (e) => {
+        if (!e.dataTransfer.types.includes(TRASCINA_FACEPLATE)) return;
+        e.preventDefault();
+        e.dataTransfer.dropEffect = "copy";
+      } : undefined}
+      onDrop={onMove && accettaFaceplate ? (e) => {
+        const id = e.dataTransfer.getData(TRASCINA_FACEPLATE);
+        const r = svgRef.current?.getBoundingClientRect();
+        if (!id || !r) return;
+        e.preventDefault();
+        const p = toSvg(e.clientX - r.left, e.clientY - r.top);
+        aggiungiOggetto("faceplate", { faceplate_id: id, punto: { x: Math.round(snap(p.x)), y: Math.round(snap(p.y)) } });
+      } : undefined}
       onClick={() => {
         if (suppressClick.current) { suppressClick.current = false; return; }
         // In cattura waypoint la selezione resta sull'oggetto in cattura:
@@ -3405,10 +3425,9 @@ export function substituteFaceplateParams(
   return walk(child) as SynopticObject;
 }
 
-/** F6.2 — normalizza i parametri di una definizione (stringa nuda → oggetto). */
-export function normalizeFaceplateParams(def: FaceplateDef): FaceplateParamDef[] {
-  return (def.params ?? []).map((p) => (typeof p === "string" ? { name: p } : p));
-}
+// Pure, e vivono in `faceplate/definizione.ts` dal 29-10-2026: lo store le
+// usa, e importarle da qui faceva un giro store → canvas → store.
+export { faceplateDefBBox, normalizeFaceplateParams };
 
 /** F6.2 — parametri effettivi di un'istanza: valori dell'istanza + default
  *  della definizione per i parametri non forniti. */
@@ -3428,16 +3447,6 @@ export function effectiveFaceplateParams(
     if (!(k in out) && v !== "") out[k] = v;
   }
   return out;
-}
-
-/** F6.4 — bbox della definizione (per lo scaling al box dell'istanza). */
-export function faceplateDefBBox(def: FaceplateDef): { w: number; h: number } {
-  let w = 0, h = 0;
-  for (const c of def.objects) {
-    w = Math.max(w, (c.x ?? 0) + (c.width ?? 100));
-    h = Math.max(h, (c.y ?? 0) + (c.height ?? 50));
-  }
-  return { w: Math.max(1, w), h: Math.max(1, h) };
 }
 
 /** F6.3 — popup faceplate: rende i figli della definizione (parametri
@@ -6737,8 +6746,10 @@ function SvgObjectCorpo(p: ObjProps) {
       return (
         <>
           {selRect(obj.x, obj.y, w, h)}
+          {/* `transparent` e non `none`: con `none` lo si prendeva solo sul
+              tratteggio, e spostarlo era una caccia al pixel (29-10-2026). */}
           <rect x={obj.x} y={obj.y} width={w} height={h}
-            fill="none" stroke="#f59e0b" strokeWidth={1.5} strokeDasharray="4 2"
+            fill="transparent" stroke="#f59e0b" strokeWidth={1.5} strokeDasharray="4 2"
             style={{ cursor: editCursor }} onMouseDown={handleMouseDown}
             onClick={(e) => e.stopPropagation()} />
           <text x={obj.x + 4} y={obj.y + 14} fill="#f59e0b" fontSize={11} fontFamily="monospace" style={{ pointerEvents: "none" }}>

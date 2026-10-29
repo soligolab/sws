@@ -7556,29 +7556,64 @@ fn faceplates_dir_at(project_dir: &std::path::Path) -> PathBuf {
     project_dir.join("faceplates")
 }
 
-async fn list_faceplates(State(s): State<AppState>) -> Response {
+#[derive(Deserialize)]
+struct ElencoFaceplateQuery {
+    /// `?dettagli=1`: per ogni faceplate anche se è predefinito e se il
+    /// progetto ne ha una versione sua. Senza, l'elenco di id di sempre — lo
+    /// leggono il viewer e il pannello.
+    #[serde(default)]
+    dettagli: Option<String>,
+}
+
+/// Un faceplate nell'elenco con i dettagli (29-10-2026): all'IDE serve sapere
+/// quali sono predefiniti — si ripristinano, non si eliminano — e quali di
+/// quelli il progetto ha personalizzato.
+#[derive(Debug, PartialEq, Serialize)]
+struct FaceplateInElenco {
+    id: String,
+    predefinito: bool,
+    personalizzato: bool,
+}
+
+/// L'elenco con i dettagli, dai file che il progetto ha in `faceplates/`:
+/// quelli più i predefiniti, in ordine di id.
+fn elenco_faceplate(su_disco: &std::collections::HashSet<String>) -> Vec<FaceplateInElenco> {
+    let mut ids: std::collections::BTreeSet<String> = su_disco.iter().cloned().collect();
+    ids.extend(BUILTIN_FACEPLATES.iter().map(|(id, _)| id.to_string()));
+    ids.into_iter()
+        .map(|id| {
+            let predefinito = testo_builtin_faceplate(&id).is_some();
+            let personalizzato = predefinito && su_disco.contains(&id);
+            FaceplateInElenco { id, predefinito, personalizzato }
+        })
+        .collect()
+}
+
+async fn list_faceplates(
+    State(s): State<AppState>,
+    Query(q): Query<ElencoFaceplateQuery>,
+) -> Response {
     let project_dir = match active_dir(&s).await {
         Ok(d) => d,
         Err(c) => return c.into_response(),
     };
     let dir = faceplates_dir_at(&project_dir);
-    let mut ids: std::collections::HashSet<String> = BUILTIN_FACEPLATES
-        .iter()
-        .map(|(id, _)| id.to_string())
-        .collect();
+    let mut su_disco: std::collections::HashSet<String> = std::collections::HashSet::new();
     if let Ok(mut entries) = tokio::fs::read_dir(&dir).await {
         while let Ok(Some(entry)) = entries.next_entry().await {
             let path = entry.path();
             if path.extension().and_then(|e| e.to_str()) == Some("yaml") {
                 if let Some(stem) = path.file_stem().and_then(|s| s.to_str()) {
-                    ids.insert(stem.to_owned());
+                    su_disco.insert(stem.to_owned());
                 }
             }
         }
     }
-    let mut sorted: Vec<String> = ids.into_iter().collect();
-    sorted.sort();
-    Json(sorted).into_response()
+    let elenco = elenco_faceplate(&su_disco);
+    if q.dettagli.is_some() {
+        return Json(elenco).into_response();
+    }
+    Json(elenco.into_iter().map(|f| f.id).collect::<Vec<String>>()).into_response()
 }
 
 /// Il testo di un faceplate builtin, se `id` è uno di loro.
@@ -11173,6 +11208,40 @@ notifications:
         let mut s = String::new();
         std::io::Read::read_to_string(&mut f, &mut s).unwrap();
         s
+    }
+
+    /// L'elenco con i dettagli dice all'IDE quali faceplate sono predefiniti
+    /// e quali di quelli il progetto ha personalizzato (29-10-2026).
+    #[test]
+    fn l_elenco_dei_faceplate_distingue_predefiniti_e_personalizzati() {
+        let su_disco: std::collections::HashSet<String> =
+            ["tank_level".to_string(), "pompa".to_string()].into();
+        let elenco = elenco_faceplate(&su_disco);
+        let di = |id: &str| elenco.iter().find(|f| f.id == id).expect(id);
+        assert_eq!(di("tank_level"), &FaceplateInElenco { id: "tank_level".into(), predefinito: true, personalizzato: true });
+        assert_eq!(di("motor_basic"), &FaceplateInElenco { id: "motor_basic".into(), predefinito: true, personalizzato: false });
+        assert_eq!(di("pompa"), &FaceplateInElenco { id: "pompa".into(), predefinito: false, personalizzato: false });
+        let ids: Vec<&str> = elenco.iter().map(|f| f.id.as_str()).collect();
+        let mut ordinati = ids.clone();
+        ordinati.sort();
+        assert_eq!(ids, ordinati, "in ordine di id, come l'elenco semplice");
+    }
+
+    /// La misura dichiarata va e torna dal YAML, e un faceplate che non ce
+    /// l'ha resta senza: non la si inventa sul disco.
+    #[test]
+    fn la_misura_del_faceplate_va_e_torna() {
+        let fp: crate::synoptic::FaceplateDef =
+            serde_yaml::from_str("id: f\nlabel: F\nwidth: 240\nheight: 160\n").unwrap();
+        assert_eq!((fp.width, fp.height), (Some(240.0), Some(160.0)));
+        let testo = serde_yaml::to_string(&fp).unwrap();
+        assert!(testo.lines().any(|l| l == "width: 240.0" || l == "width: 240"), "{testo}");
+        for (_, yaml) in BUILTIN_FACEPLATES {
+            let b: crate::synoptic::FaceplateDef = serde_yaml::from_str(yaml).unwrap();
+            assert_eq!((b.width, b.height), (None, None));
+            let testo = serde_yaml::to_string(&b).unwrap();
+            assert!(!testo.lines().any(|l| l.starts_with("width:")), "nessuna misura inventata");
+        }
     }
 
     /// L'impronta segue faceplate, ricette e immagini (17-10-2026): prima un

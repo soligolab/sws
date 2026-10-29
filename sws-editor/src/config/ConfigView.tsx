@@ -17,7 +17,6 @@ import { UsersTab } from "@/config/schede/UsersTab";
 import { ResourcesTab } from "@/config/schede/ResourcesTab";
 import { DatastoresTab } from "@/config/schede/DatastoresTab";
 import { GlobalScriptsTab } from "@/config/schede/GlobalScriptsTab";
-import { FaceplatesTab } from "@/config/schede/FaceplatesTab";
 import { RecipesTab } from "@/config/schede/RecipesTab";
 import { NotificationsTab } from "@/config/schede/NotificationsTab";
 import { useRepoDisponibile } from "./repoDisponibile";
@@ -44,7 +43,6 @@ const COMPONENTI: Record<IdConComponente, React.ComponentType<{ scheda: IdScheda
   protocols: ProtocolsTab,
   alarms: AlarmsTab,
   scripts: GlobalScriptsTab,
-  faceplates: FaceplatesTab,
   recipes: RecipesTab,
   notifications: NotificationsTab,
   languages: LanguagesTab,

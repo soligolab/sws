@@ -29,6 +29,21 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 
 ### Changed
 
+- **Un faceplate si disegna sul canvas** (piano `docs/plans/2026-10-27-faceplate-disegnato-sul-canvas.md`): è una pagina
+  `kind: "faceplate"` dello store, quarta ripetizione dello schema di cornici, boot e finestre
+  (`src/faceplate/modello.ts`). Si apre dal ramo **Faceplate** dell'albero delle pagine; la scheda Faceplates della
+  Configurazione, che lo faceva scrivere in JSON, non c'è più. Sul canvas i figli si vedono coi parametri sostituiti
+  (predefinito, o il nome); il pannello proprietà ha id in sola lettura, parametri, «usato in», il JSON della
+  definizione intera e, per i predefiniti personalizzati, «Ripristina il predefinito». Lo store ricava `faceplates`
+  dalle pagine, quindi una modifica non salvata si vede subito nelle istanze; il Salva scrive solo i faceplate
+  cambiati, così un predefinito intatto resta del runtime. `FaceplateDef` impara `width`/`height` (la misura del
+  foglio, nata uguale al riquadro dei figli: le istanze che scalano non si spostano); `GET /api/faceplates?dettagli=1`
+  dice quali sono predefiniti e personalizzati. Niente faceplate dentro un faceplate dall'editor (palette, aggiungi,
+  incolla, JSON), e il validatore avvisa per quelli che ci sono già. «Crea faceplate dalla selezione» crea la pagina
+  nello stesso passo dell'istanza, invece di scrivere subito sul disco. **Si mette in una pagina trascinandolo dal suo
+  ramo** (o col ＋ della riga): l'istanza nasce col suo faceplate e la sua misura, e lo strumento «Faceplate», che
+  creava un riquadro vuoto di 120×80 da riempire dopo, non c'è più. La cornice predefinita non compare più sotto un
+  faceplate aperto (`corniceDellaPagina` esclude qualunque `kind`, e il gemello Rust uguale).
 - **Le card delle sorgenti, ridisegnate** (piano `docs/plans/2026-10-29-card-delle-sorgenti.md`, dal collaudo a
   schermo della disponibilità). Le nove card passano da tre parti comuni in `config/sorgenti/card/`:
   `TestataSorgente` (tipo · id · riepilogo · **stato** · azioni — lo stato si legge a card chiusa, «non risponde

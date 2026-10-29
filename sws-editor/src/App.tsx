@@ -290,7 +290,6 @@ export function App() {
   const setReAuthNeeded        = useAppStore((s) => s.setReAuthNeeded);
   const setProgettoHaUtenti    = useAppStore((s) => s.setProgettoHaUtenti);
   const setPages       = useAppStore((s) => s.setPages);
-  const setFaceplates  = useAppStore((s) => s.setFaceplates);
   const resetProjectState = useAppStore((s) => s.resetProjectState);
   const project             = useAppStore((s) => s.project);
   const setProject          = useAppStore((s) => s.setProject);
@@ -590,13 +589,8 @@ export function App() {
         else if (e instanceof PasswordChangeRequiredError) setMustChangePassword(true);
       });
 
-    api.listFaceplates()
-      .then(async (ids) => {
-        if (ids.length === 0) { setFaceplates([]); return; }
-        const loaded = await Promise.all(ids.map((id) => api.getFaceplate(id)));
-        setFaceplates(loaded);
-      })
-      .catch(() => { /* non-critical — no faceplates configured */ });
+    // I faceplate arrivano con le pagine (`loadAllPages`, 29-10-2026): nell'IDE
+    // sono pagine `kind: "faceplate"`, e lo store ne ricava `faceplates`.
     // `noActiveProject` fra le dipendenze dal 06-10-2026. Prima bastava
     // `authToken` perche aprire un progetto **cambiava il token**: la
     // WelcomeScreen faceva clearAuth + setAuth(sentinella), e quel cambio

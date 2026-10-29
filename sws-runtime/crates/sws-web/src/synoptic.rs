@@ -860,6 +860,14 @@ pub struct FaceplateDef {
     /// Template objects. Positions are relative to the faceplate origin (0,0).
     #[serde(default)]
     pub objects: Vec<serde_json::Value>,
+    /// La misura dichiarata (29-10-2026): il foglio su cui il faceplate si
+    /// disegna nell'IDE. Assente nei faceplate nati prima, che usano il
+    /// riquadro dei figli; l'IDE la scrive al primo salvataggio, uguale a quel
+    /// riquadro, così le istanze che scalano non si spostano.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub width: Option<f64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub height: Option<f64>,
 }
 
 /// Sanitize a page name to a safe filename stem.

@@ -10,7 +10,7 @@ import { corniceDellaPagina, eCornice, idCornice, oggettiComposti, oggettoSfondo
 import { CampoSfondoArea } from "@/editor/CampoSfondoArea";
 import { useTranslation } from "react-i18next";
 import { api } from "@/api/client";
-import { QDOT_BUILTIN_TYPES, SvgCanvas, normalizeFaceplateParams, type CanvasViewApi } from "@/canvas/SvgCanvas";
+import { QDOT_BUILTIN_TYPES, SvgCanvas, faceplateDefBBox, normalizeFaceplateParams, substituteFaceplateParams, type CanvasViewApi } from "@/canvas/SvgCanvas";
 import { PALETTE } from "@/canvas/TrendCanvas";
 import { resolvePageBackground, sfondoPagina } from "@/theme";
 import { EditorToolbar } from "@/editor/EditorToolbar";
@@ -39,6 +39,8 @@ import { ASPECT_RATIOS, editorFitSize, effectiveSizeMode, getDevicePresets, isOf
 import { getBrand, type DevicePreset } from "@/branding";
 import { genId } from "@/id";
 import { faceplateDallaSelezione } from "@/editor/faceplateDaSelezione";
+import { eFaceplateDef, faceplateAPagina, anteprimaParametri } from "@/faceplate/modello";
+import { ProprietaFaceplate } from "@/faceplate/ProprietaFaceplate";
 import type { SimboloLib } from "@/symbols/lib/manifest";
 import { angoliLeva, trovaSimboloLib, useManifestoLib, useSimboloLib } from "@/symbols/lib/libreria";
 import { AnteprimaLib } from "@/symbols/lib/AnteprimaLib";
@@ -657,6 +659,17 @@ export function EditorShell() {
       }
     : undefined;
   const objects     = currentPage?.objects ?? [];
+  // Un faceplate aperto si vede coi parametri sostituiti (29-10-2026): il
+  // predefinito, o il nome del parametro — `{label}` scritto si legge
+  // «label». Lo store resta coi riferimenti, e il pannello proprietà li
+  // mostra: si disegna quello che si vedrà, si scrive quello che servirà.
+  const paginaFaceplate = eFaceplateDef(currentPage);
+  const parametriFaceplate = currentPage?.faceplate_parametri;
+  const objectsSulCanvas = useMemo(() => {
+    if (!paginaFaceplate) return objects;
+    const anteprima = anteprimaParametri(parametriFaceplate);
+    return objects.map((o) => substituteFaceplateParams(o, anteprima));
+  }, [paginaFaceplate, parametriFaceplate, objects]);
 
   // Canvas viewport: the transform itself lives inside SvgCanvas (pan writes
   // at mousemove rate), we only mirror the zoom *factor* for the toolbar
@@ -686,9 +699,11 @@ export function EditorShell() {
   const selected    = objects.find((o) => o.id === selectedId) ?? null;
   const multi       = selectedIds.length > 1;
 
-  // «Crea faceplate dalla selezione» (P2, 25-10-2026): il faceplate si salva
-  // subito, come nella sua scheda, e la selezione diventa la sua prima istanza.
-  const creaFaceplate = async () => {
+  // «Crea faceplate dalla selezione» (P2, 25-10-2026): la selezione diventa la
+  // prima istanza di un faceplate nuovo. Dal 29-10-2026 il faceplate nasce
+  // come pagina nello store, nello stesso passo di cronologia, e si salva col
+  // Salva di tutto il resto — prima si scriveva subito sul disco.
+  const creaFaceplate = () => {
     const st = useAppStore.getState();
     const scelti = (st.pages.find((p) => p.id === st.currentPageId)?.objects ?? []).filter((o) => selectedIds.includes(o.id));
     if (scelti.length === 0) return;
@@ -699,14 +714,7 @@ export function EditorShell() {
     let id = base;
     for (let n = 2; esistenti.has(id); n++) id = `${base}_${n}`;
     const { def, istanza } = faceplateDallaSelezione(scelti, id, nome, genId());
-    try {
-      await api.saveFaceplate(def);
-    } catch (e) {
-      window.alert(t("shell.creaFaceplateErrore", { errore: e instanceof Error ? e.message : String(e) }));
-      return;
-    }
-    st.setFaceplates([...st.faceplates, def]);
-    sostituisciSelezione(istanza);
+    sostituisciSelezione(istanza, faceplateAPagina(def));
   };
 
   // Il tipo che conta è quello del FIGLIO quando se ne sta editando uno
@@ -964,7 +972,18 @@ export function EditorShell() {
   };
 
   const handleAddObject = (type: SynopticObject["type"], pre?: Preimpostato) => {
-    const { x, y } = nextPos();
+    const { x, y } = pre?.punto ?? nextPos();
+    // Un faceplate trascinato dal suo ramo (29-10-2026) nasce già con la sua
+    // definizione e la sua misura, centrato dove lo si è lasciato. Prima lo
+    // strumento faceva un riquadro tratteggiato di 120×80, e quale faceplate
+    // fosse lo si sceglieva dopo, nelle proprietà.
+    if (type === "faceplate" && pre?.faceplate_id) {
+      const def = faceplates.find((f) => f.id === pre.faceplate_id);
+      if (!def) return;
+      const box = faceplateDefBBox(def);
+      addObject(centraSulPunto({ type, x, y, faceplate_id: def.id, width: box.w, height: box.h }));
+      return;
+    }
     // Un simbolo già scelto (ramo «Simboli» di Strumenti) nasce subito.
     if (type === "symbol" && pre?.symbol_id) { addObject(oggettoSimbolo(pre.symbol_id, x, y)); return; }
     // Due tipi chiedono prima qualcosa all'utente e si creano dopo la scelta.
@@ -1055,7 +1074,7 @@ export function EditorShell() {
       <div style={{ flex: 1, overflow: "hidden" }}>
         <LinguaContenutiProvider value={linguaAnteprima}>
         <SvgCanvas
-          objects={objects}
+          objects={objectsSulCanvas}
           tagValues={tagValues}
           background={sfondoPagina(currentPage, themeMode, tagValues)}
           selectedId={selectedId}
@@ -1087,6 +1106,9 @@ export function EditorShell() {
           sottofondo={sottofondo}
           fasceCornice={fasceCornice}
           sfondoArea={sfondoArea}
+          // Un faceplate si lascia su una pagina o una cornice; non su un
+          // altro faceplate né su un'immagine di boot.
+          accettaFaceplate={!!currentPage && !currentPage.locked && !paginaBoot && !paginaFaceplate}
         />
         </LinguaContenutiProvider>
       </div>
@@ -1343,13 +1365,15 @@ export function EditorShell() {
               auto_rotate_skip={currentPage?.auto_rotate_skip}
               zones={currentPage?.zones}
               locked={currentPage?.locked}
-              sizeMode={paginaBoot ? "fixed" : effectiveSizeMode(project?.page_layout)}
+              sizeMode={paginaBoot || paginaFaceplate ? "fixed" : effectiveSizeMode(project?.page_layout)}
               boot={paginaBoot}
-              cornice={eCornice(currentPage)}
+              // Un faceplate, come una cornice, ha solo nome e misura: il resto
+              // della pagina non si salva in `faceplates/`.
+              cornice={eCornice(currentPage) || paginaFaceplate}
               pageId={currentPageId}
               offPageCount={(currentPage?.objects ?? []).filter(
                 (o) => isOffPage(o, currentPage?.width, currentPage?.height)).length}
-              onChange={(patch) => eCornice(currentPage)
+              onChange={(patch) => eCornice(currentPage) || paginaFaceplate
                 ? useAppStore.getState().updatePageProps(currentPageId, patch)
                 : aggiornaPagina(currentPageId, patch)}
               segueIlPredefinito={!!currentPage && seguePredefinito(currentPage, project?.page_layout)}
@@ -1359,6 +1383,7 @@ export function EditorShell() {
             {currentPage && !currentPage.kind && <ProprietaFinestra pagina={currentPage} />}
             {currentPage && !currentPage.kind && !currentPage.finestra && <SceltaCornice pagina={currentPage} />}
             {currentPage && eCornice(currentPage) && <ProprietaFasce pagina={currentPage} />}
+            {currentPage && paginaFaceplate && <ProprietaFaceplate pagina={currentPage} />}
             <span style={{ fontSize: 11, fontWeight: 700, color: "var(--brand-text-subtle, #64748b)", letterSpacing: 1, marginTop: 8, display: "block" }}>
               {t("shell.projectSettings")}
             </span>

@@ -39,7 +39,6 @@
     "gruppo": "Group",
     "aggiornaFreccia": "↻ Refresh",
     "inCorso": "in progress…",
-    "anteprima": "Preview",
     "invio": "Sending…",
     "aggiorno": "Refreshing…",
     "aggiorna": "Refresh",
@@ -200,7 +199,6 @@
       "alarms": "Alarms",
       "datastores": "Datastore",
       "scripts": "Python",
-      "faceplates": "Faceplates",
       "recipes": "Recipes",
       "notifications": "SMTP",
       "users": "Users",
@@ -1670,7 +1668,6 @@
     "downloadRemoteDbTitle": "Download the database of the same datastore, but from the connected remote device (not from this local project).",
     "uploadRemoteDbTitle": "Replaces the database on the connected remote device (automatic backup of the previous one, needs a restart of the remote runtime).",
     "openFunctionEditorTitle": "Open in the full-screen editor (parameters and snippets)",
-    "deleteFaceplateConfirm": "Delete faceplate \"{{label}}\"?",
     "telegramBotTrovato": "✓ Bot: {{nome}} · @{{username}}",
     "telegramBotNonRaggiunto": "Cannot identify the bot: {{errore}}",
     "telegramPasso1": "Open the chat with the bot and press Start (or add it to a group and send a message):",
@@ -1976,7 +1973,10 @@
     "newCornice": "New frame",
     "corniceBaseName": "Frame",
     "scalaProgetto": "Change project resolution",
-    "faceplateDaSelezione": "Create faceplate from selection"
+    "faceplateDaSelezione": "Create faceplate from selection",
+    "newFaceplate": "New faceplate",
+    "faceplateBaseName": "Faceplate",
+    "faceplateJson": "Faceplate definition"
   },
   "storeErr": {
     "invalidRange": "Invalid range.",
@@ -2170,8 +2170,7 @@
     "creaFaceplate": "⧉ Create faceplate from selection",
     "creaFaceplateHint": "The selected objects become a reusable faceplate: tags become parameters, and its first instance stays here.",
     "creaFaceplatePrompt": "Faceplate name",
-    "creaFaceplateNome": "New faceplate",
-    "creaFaceplateErrore": "The faceplate was not saved: {{errore}}"
+    "creaFaceplateNome": "New faceplate"
   },
   "credenziali": {
     "waitWithoutRetryingEveryNew": "Wait **without** retrying: every new attempt lengthens the lockout. ",
@@ -2297,9 +2296,6 @@
     "svgSymbolHelp": "Import the symbol's SVG and tick the elements (by <code>id</code>) that must color with the state (off/on/alarm or the object's STATES N). Elements without an id in the SVG cannot be selected: add them in the vector editor.",
     "dbBackupInTab": "The full database backup is in the <strong>Backup</strong> tab: «Create backup» includes <code>history/</code> (automatic backups do not).",
     "odbcNotImplemented": "⚠ The ODBC backend is <strong>not implemented</strong>: the fields below are saved in the project, but the runtime answers «not compiled in» to every read and write. The real wiring (odbc-api + unixODBC) is postponed until there is an SQL Server or Oracle plant to actually connect.",
-    "faceplateIntro": "A <strong>faceplate</strong> is a reusable, parametric graphic block: you define it once here (with parameters such as <code>tag_prefix</code>), then place it as an object on the pages — as many times as you like, each with its own values (e.g. a \"motor\" block reused for motor1/motor2 by changing only the tag prefix). Unlike a normal object, changing the faceplate here updates all the instances that use it.",
-    "faceplateParams": "Parameters (one per line): <code>name</code> or <code>name:type=default!</code> — type tag/string/number/color, <code>!</code> = required",
-    "faceplateObjects": "Template objects (JSON array — use <code>{{ph}}</code> as a placeholder in the tag/label fields)",
     "recipeIntro": "A recipe is a named set of setpoints that are written atomically to the selected tags. Used to change the plant configuration (product change, shift, start-up). Recipes can also be applied from the Runtime View.",
     "smtpNotice": "Configure an SMTP server to send emails when an alarm activates. The <em>notify_email</em> and <em>escalate_to</em> fields can be set for each alarm in the Alarms tab.",
     "telegramNotice": "Sends a Telegram message when alarms activate and, from scripts, with <em>send_telegram(\"text\")</em>. Create a bot with <em>@BotFather</em>, then paste the token and the destination chat IDs. These are the <em>default</em> chats: in the Alarms tab each alarm can use its own or not notify at all.",
@@ -2528,10 +2524,7 @@
     "msOptionalTakesPrecedence": "ms (optional, takes precedence)",
     "everyValue": "* every value\n",
     "selectOrCreateAScript": "Select or create a script",
-    "noObjects": "No objects",
     "saved2": "✓ Saved",
-    "noUsageInThisProject": "No usage in this project's pages.",
-    "selectOrCreateAFaceplate": "Select or create a faceplate. The built-in faceplates are motor_basic, valve_basic, tank_level.",
     "noRecipes": "No recipes.",
     "selectOrCreateARecipe": "Select or create a recipe to edit it.",
     "noSetpointsClickAddTo": "No setpoints. Click \"+ Add\" to start.",
@@ -2601,7 +2594,6 @@
     "tagSamplesDeleted": "✓ \"{{tag}}\": {{n}} samples deleted.",
     "noSpaceToReclaim": "No space to reclaim (file at {{mb}} MB).",
     "previousBackup": "Backup of the previous one: {{path}}. Restart the runtime for the new database to be used.",
-    "usedBy": "Used by {{instances}} instances and {{popups}} popup buttons in: {{pages}} — renaming ids or parameters breaks them.",
     "certDownloadFailed": "Cannot download the cert ({{message}}). Is the remote runtime on with TLS active? Alternatively, from a terminal:\n  curl -k {{target}}/cert -o sws.crt",
     "deployFailedReason": "Deploy failed: {{reason}} ({{status}})",
     "deployFailedStatus": "Deploy failed: {{status}} {{statusText}}",
@@ -4044,5 +4036,50 @@
       "canvas.trend": "Trends",
       "canvas.tabella": "Tables"
     }
+  },
+  "faceplate": {
+    "titolo": "Faceplates",
+    "nuovo": "+ New faceplate",
+    "elimina": "Delete the faceplate",
+    "eliminaConferma": "Delete the faceplate «{{name}}»?",
+    "eliminaConfermaUsato": "The faceplate «{{name}}» is used {{n}} times: those instances will stay empty. Delete it anyway?",
+    "id": "Id",
+    "idSpiega": "Instances refer to it, so it can't be changed here. The name can.",
+    "origine": {
+      "intatto": "built-in",
+      "personalizzato": "built-in, customised in the project"
+    },
+    "parametri": "Parameters",
+    "parametriSpiega": "In the object fields you write {name}. The canvas shows the default, or the name if there is none.",
+    "aggiungiParametro": "+ Parameter",
+    "nomeParametro": "name",
+    "togliParametro": "Remove the parameter",
+    "predefinito": "default",
+    "tipoStruttura": "structure type",
+    "tipoStrutturaAiuto": "Optional: limits the choice to the project's instances of this type.",
+    "obbligatorio": "required",
+    "tipo": {
+      "istanza": "instance",
+      "tag": "tag",
+      "string": "text",
+      "number": "number",
+      "color": "colour"
+    },
+    "usatoIn": "Used in",
+    "maiUsato": "No instances in this project.",
+    "usi": "{{istanze}} instances and {{popup}} popups, in: {{pagine}}",
+    "json": {
+      "pulsante": "{ } JSON",
+      "titolo": "Faceplate definition",
+      "spiega": "The whole definition: name, parameters, size and objects. «Apply» rewrites the faceplate in one step, undone with Ctrl+Z. The id stays the same.",
+      "applica": "Apply",
+      "senzaOggetti": "The «objects» list is missing.",
+      "annidato": "A faceplate can't contain another faceplate: the panel doesn't draw it."
+    },
+    "ripristina": "Restore the built-in",
+    "ripristinaConferma": "Restore «{{nome}}» as it is in the runtime? The project's customised version is deleted right away.",
+    "rigaAiuto": "Drag it onto a page to place an instance. Click: open it to edit; double click: rename it.",
+    "metti": "Place an instance on the open page",
+    "mettiNo": "It goes on a page or a frame, not on a faceplate or a boot image"
   }
 }

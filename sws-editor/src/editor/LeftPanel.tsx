@@ -18,6 +18,7 @@ import { canConfigureProject, canEditProject } from "@/auth/permissions";
 import { IntestazioneSezione, PREFISSO_MEMORIA, TitoloVista, useSezioneAperta, colonneGuide, guideAlbero } from "./stilePannelli";
 import type { ObjectGroup, SynopticObject, SynopticPage } from "@/types";
 import { BOOT_TYPES, eBoot, paginePerNavigazione, pagineDiBoot } from "@/boot/tipi";
+import { TRASCINA_FACEPLATE, eFaceplateDef, idFaceplate, pagineFaceplate, usiDelFaceplate } from "@/faceplate/modello";
 import { MODELLI_CORNICE, idCornice, pagineCornice, type ModelloCornice } from "@/cornici/modello";
 import { PropostaCornice } from "@/cornici/PropostaCornice";
 import { impostaBootAbilitata } from "@/boot/abilitata";
@@ -179,6 +180,14 @@ function PagesSection() {
   const addBootPage   = useAppStore((s) => s.addBootPage);
   const cornici       = pagineCornice(tutte);
   const addCornice    = useAppStore((s) => s.addCornice);
+  const faceplatePages = pagineFaceplate(tutte);
+  const addFaceplate  = useAppStore((s) => s.addFaceplate);
+  // Dove si può mettere un faceplate: su una pagina o una cornice, non su un
+  // altro faceplate né su un'immagine di boot.
+  const paginaAccettaFaceplate = useAppStore((s) => {
+    const p = s.pages.find((x) => x.id === s.currentPageId);
+    return !!p && !p.locked && !eBoot(p) && !eFaceplateDef(p);
+  });
   const corniceDefault = useAppStore((s) => s.project?.page_layout?.cornice_predefinita);
   // F8 — serve alla miniatura: il colore della pagina dipende dal tema, e
   // qui era l'unico punto dell'IDE che non lo risolveva.
@@ -620,6 +629,95 @@ function PagesSection() {
         </div>
     </>
   );
+  // I faceplate (29-10-2026): si disegnano sul canvas come le cornici. Prima
+  // erano una scheda della Configurazione, col disegno scritto in JSON.
+  const corpoFaceplate = (
+    <>
+        {faceplatePages.map((p) => (
+          <div
+            key={p.id}
+            data-testid={`faceplate-${idFaceplate(p)}`}
+            style={{ ...S.row(p.id === currentPageId), justifyContent: "space-between", gap: 6, cursor: "grab" }}
+            onClick={() => editingId !== p.id && setCurrentPage(p.id)}
+            onDoubleClick={() => beginRename(p.id, p.name)}
+            // Trascinato sul canvas mette un'istanza nella pagina aperta
+            // (29-10-2026): è il modo di usarlo, al posto dello strumento.
+            draggable={editingId !== p.id}
+            onDragStart={(e) => {
+              e.dataTransfer.setData(TRASCINA_FACEPLATE, idFaceplate(p));
+              e.dataTransfer.effectAllowed = "copy";
+            }}
+            title={t("faceplate.rigaAiuto")}
+          >
+            <span style={{ flexShrink: 0, display: "flex", color: "var(--brand-text-subtle, #94a3b8)" }}>
+              <IconaStrumento tipo="faceplate" px={14} />
+            </span>
+            {editingId === p.id ? (
+              <input
+                autoFocus
+                value={editingValue}
+                onChange={(e) => setEditingValue(e.target.value)}
+                onBlur={commitRename}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") commitRename();
+                  else if (e.key === "Escape") { setEditingId(null); setEditingValue(""); }
+                }}
+                onClick={(e) => e.stopPropagation()}
+                style={{
+                  flex: 1, background: "var(--brand-bg, #0f172a)", color: "var(--brand-text, #e2e8f0)",
+                  border: "1px solid var(--brand-border, #475569)", borderRadius: 3, padding: "1px 4px", fontSize: 12,
+                }}
+              />
+            ) : (
+              <>
+                <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1, minWidth: 0 }}>
+                  {p.name}
+                  {p.faceplate_predefinito && (
+                    <span title={t(`faceplate.origine.${p.faceplate_predefinito}`)}
+                      style={{ marginLeft: 4, fontSize: 10, color: "var(--brand-text-subtle, #94a3b8)" }}>
+                      {p.faceplate_predefinito === "personalizzato" ? "◆" : "◇"}
+                    </span>
+                  )}
+                </span>
+                <span style={{ display: "flex", gap: 2, flexShrink: 0, alignItems: "center" }}>
+                  {/* Lo stesso del trascinamento, al centro di ciò che si vede:
+                      per chi non trascina, e sui pannelli a tocco. */}
+                  <button style={S.iconBtn} data-testid={`faceplate-metti-${idFaceplate(p)}`}
+                    title={paginaAccettaFaceplate ? t("faceplate.metti") : t("faceplate.mettiNo")}
+                    disabled={!paginaAccettaFaceplate}
+                    onClick={(e) => { e.stopPropagation(); aggiungiOggetto("faceplate", { faceplate_id: idFaceplate(p) }); }}>＋</button>
+                  <button style={S.iconBtn} title={t("editor.rename")}
+                    onClick={(e) => { e.stopPropagation(); beginRename(p.id, p.name); }}>✎</button>
+                  {/* Un predefinito non si elimina: lo porta il runtime. Si
+                      ripristina dalle sue proprietà. */}
+                  {!p.faceplate_predefinito && (
+                    <button style={S.iconBtn} title={t("faceplate.elimina")}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        const u = usiDelFaceplate(tutte, idFaceplate(p));
+                        const n = u.istanze + u.popup;
+                        if (!window.confirm(n > 0
+                          ? t("faceplate.eliminaConfermaUsato", { name: p.name, n })
+                          : t("faceplate.eliminaConferma", { name: p.name }))) return;
+                        deletePage(p.id);
+                      }}>×</button>
+                  )}
+                </span>
+              </>
+            )}
+          </div>
+        ))}
+        <div style={{ padding: "4px 8px" }}>
+          <button
+            data-testid="nuovo-faceplate"
+            onClick={addFaceplate}
+            style={{ ...S.objBtn, width: "100%", borderStyle: "dashed", color: "var(--brand-text-subtle, #64748b)" }}
+          >
+            {t("faceplate.nuovo")}
+          </button>
+        </div>
+    </>
+  );
   const modale = (
     <>
       {linkReportOpen && (
@@ -648,6 +746,9 @@ function PagesSection() {
       </div>
       <RamoPagine titolo={t("cornici.titolo")} icona="▭" memoria="albero.cornici">
         {corpoCornici}
+      </RamoPagine>
+      <RamoPagine titolo={t("faceplate.titolo")} icona="🧩" memoria="albero.faceplate">
+        {corpoFaceplate}
       </RamoPagine>
       <RamoPagine titolo={t("leftPanel.bootPagesHeading")} icona="🖼" memoria="albero.boot">
         {corpoBoot}
@@ -766,7 +867,9 @@ export const PALETTE_GROUPS: PaletteGroup[] = [
   { category: "navigazione", color: "#22d3ee", colorLight: "#0e7490",
     items: [{ type: "navbutton" }, { type: "page_navigator" }, { type: "lang_selector" }, { type: "lang_button" }] },
   { category: "impianto", color: "#f472b6", colorLight: "#be185d",
-    items: [{ type: "pipe" }, { type: "faceplate" }, { type: "grid" }] },
+    // Il faceplate non è più uno strumento (29-10-2026): si trascina dal ramo
+    // Faceplate dell'albero, già con la sua definizione.
+    items: [{ type: "pipe" }, { type: "grid" }] },
   // I simboli: un gruppo con la voce generica (il riquadro di scelta) e, sotto,
   // la libreria per famiglia e tipologia (`RamoSimboli`).
   { category: "simboli", color: "#c084fc", colorLight: "#7e22ce",
@@ -1007,7 +1110,7 @@ const LVGL_SUPPORTED_TYPES = new Set<SynopticObject["type"]>([
  *  già interpretare — evita di far piazzare qualcosa che poi nel viewer
  *  LVGL semplicemente non comparirà. Gruppi che restano senza item vengono
  *  nascosti del tutto invece di mostrare un accordion vuoto. */
-export function paletteForTarget(isLvgl: boolean, paginaBoot = false): PaletteGroup[] {
+export function paletteForTarget(isLvgl: boolean, paginaBoot = false, paginaFaceplate = false): PaletteGroup[] {
   // Una pagina di boot ammette solo gli oggetti statici: hanno la precedenza sul
   // motore di destinazione, perché il PNG lo produce il browser.
   if (paginaBoot) {
@@ -1015,9 +1118,12 @@ export function paletteForTarget(isLvgl: boolean, paginaBoot = false): PaletteGr
       .map((g) => ({ ...g, items: g.items.filter((i) => (BOOT_TYPES as readonly string[]).includes(i.type)) }))
       .filter((g) => g.items.length > 0);
   }
-  if (!isLvgl) return PALETTE_GROUPS;
+  // Su un faceplate tutto, meno il faceplate (29-10-2026): il pannello non
+  // disegna un faceplate dentro un faceplate.
+  const ammesso = (type: SynopticObject["type"]) => (!isLvgl || LVGL_SUPPORTED_TYPES.has(type)) && !(paginaFaceplate && type === "faceplate");
+  if (!isLvgl && !paginaFaceplate) return PALETTE_GROUPS;
   return PALETTE_GROUPS
-    .map((g) => ({ ...g, items: g.items.filter((i) => LVGL_SUPPORTED_TYPES.has(i.type)) }))
+    .map((g) => ({ ...g, items: g.items.filter((i) => ammesso(i.type)) }))
     .filter((g) => g.items.length > 0);
 }
 
@@ -1068,11 +1174,12 @@ function RamoStrumenti() {
   const targetKind = useAppStore((s) => s.project?.target?.kind);
   const isLvgl = targetKind === "lvgl_framebuffer" || targetKind === "lvgl_wayland";
   const paginaBoot = useAppStore((s) => eBoot(s.pages.find((p) => p.id === s.currentPageId)));
+  const paginaFaceplate = useAppStore((s) => eFaceplateDef(s.pages.find((p) => p.id === s.currentPageId)));
   // Il manifesto resta sottoscritto anche senza il filtro: i gruppi della
   // palette mostrano i simboli, e senza l'iscrizione non si ridisegnano
   // quando arriva.
   useManifestoLib();
-  const groups = paletteForTarget(isLvgl, paginaBoot);
+  const groups = paletteForTarget(isLvgl, paginaBoot, paginaFaceplate);
   const [aperto, commuta] = useSezioneAperta("config.strumenti", true);
   const nota = { fontSize: 11, color: "var(--brand-text-subtle, #64748b)", padding: "0 8px 6px 20px" };
   return (

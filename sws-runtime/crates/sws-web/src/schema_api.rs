@@ -196,6 +196,8 @@ pub async fn validate_project(
     let cornici = carica_cornici(&dir).await;
     findings.extend(crate::validate::rilievi_cornici(&project, &pages, &cornici));
     findings.extend(crate::validate::rilievi_finestre(&project, &pages));
+    let faceplate = carica_faceplate(&dir).await;
+    findings.extend(crate::validate::rilievi_faceplate(&project, &faceplate));
     let trasporti = trasporti_catalogo(&s).await;
     findings.extend(crate::validate::rilievi_trasporto(&project, &trasporti));
 
@@ -212,6 +214,9 @@ pub async fn validate_project(
             prima.insert(chiave(&f));
         }
         for f in crate::validate::rilievi_finestre(&p0, &pg0) {
+            prima.insert(chiave(&f));
+        }
+        for f in crate::validate::rilievi_faceplate(&p0, &faceplate) {
             prima.insert(chiave(&f));
         }
         for f in crate::validate::rilievi_trasporto(&p0, &trasporti) {
@@ -257,6 +262,7 @@ pub async fn project_findings(State(s): State<AppState>) -> Json<Vec<Finding>> {
     let mut out = semantic(&project, &pages);
     out.extend(crate::validate::rilievi_cornici(&project, &pages, &carica_cornici(&dir).await));
     out.extend(crate::validate::rilievi_finestre(&project, &pages));
+    out.extend(crate::validate::rilievi_faceplate(&project, &carica_faceplate(&dir).await));
     out.extend(crate::validate::rilievi_trasporto(&project, &trasporti_catalogo(&s).await));
     Json(out)
 }
@@ -289,6 +295,28 @@ async fn carica_cornici(dir: &std::path::Path) -> Vec<crate::cornici::Cornice> {
         }
     }
     out.sort_by(|a: &crate::cornici::Cornice, b| a.id.cmp(&b.id));
+    out
+}
+
+/// I faceplate del progetto (`faceplates/*.yaml`), per `rilievi_faceplate`. I
+/// predefiniti non servono: nessuno di loro ne contiene un altro.
+async fn carica_faceplate(dir: &std::path::Path) -> Vec<crate::synoptic::FaceplateDef> {
+    let mut out = Vec::new();
+    let Ok(mut entries) = tokio::fs::read_dir(dir.join("faceplates")).await else {
+        return out;
+    };
+    while let Ok(Some(e)) = entries.next_entry().await {
+        let path = e.path();
+        if path.extension().and_then(|x| x.to_str()) != Some("yaml") {
+            continue;
+        }
+        if let Ok(testo) = tokio::fs::read_to_string(&path).await {
+            if let Ok(f) = serde_yaml::from_str(&testo) {
+                out.push(f);
+            }
+        }
+    }
+    out.sort_by(|a: &crate::synoptic::FaceplateDef, b| a.id.cmp(&b.id));
     out
 }
 

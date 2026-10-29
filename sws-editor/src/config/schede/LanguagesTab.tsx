@@ -5,6 +5,7 @@ import type { LanguageTable, LangEntry } from "@/types";
 import { useAppStore } from "@/store";
 import { contaAutomatiche, eAutomatica, marcaComeUmana } from "@/i18n/tabellaLingue";
 import { migraTestiProgetto } from "@/i18n/migraTesti";
+import { eFaceplateDef, idPaginaDiFaceplate } from "@/faceplate/modello";
 import { S, SaveBar } from "@/config/comuni";
 
 // ── ConfigView root ───────────────────────────────────────────────────────────
@@ -180,7 +181,8 @@ export function LanguagesTab() {
     const st = useAppStore.getState();
     const clean: LanguageTable = { ...table, entries: table.entries.filter((e) => e.key.trim() !== "") };
     const esito = migraTestiProgetto({
-      pages: st.pages, faceplates: st.faceplates, alarms: st.project?.alarms ?? [], tabella: clean,
+      // Le pagine-faceplate entrano come faceplate (29-10-2026), non due volte.
+      pages: st.pages.filter((p) => !eFaceplateDef(p)), faceplates: st.faceplates, alarms: st.project?.alarms ?? [], tabella: clean,
     });
     const r = esito.riepilogo;
     if (r.campi === 0) { window.alert(t("langtab.migrateNothing")); return; }
@@ -199,8 +201,13 @@ export function LanguagesTab() {
       // pagine migrate ma non ancora salvate (successo il 20-09-2026: tabella
       // piena, pagine rimaste letterali).
       const mod = new Set(r.pagineToccate);
-      st.updatePagesProps(esito.pages.filter((p) => mod.has(p.id)).map((p) => ({ id: p.id, patch: { objects: p.objects } })));
-      st.setFaceplates(esito.faceplates);
+      const fpToccati = new Set(r.faceplateToccati);
+      // I faceplate sono pagine: si aggiornano come le altre, e il `saveAll`
+      // in fondo li scrive, perché ora differiscono da quello che c'è su disco.
+      st.updatePagesProps([
+        ...esito.pages.filter((p) => mod.has(p.id)).map((p) => ({ id: p.id, patch: { objects: p.objects } })),
+        ...esito.faceplates.filter((f) => fpToccati.has(f.id)).map((f) => ({ id: idPaginaDiFaceplate(f.id), patch: { objects: f.objects } })),
+      ]);
       await api.updateLanguages(esito.tabella);
       updateLanguages(esito.tabella);
       setTable(esito.tabella);
@@ -210,9 +217,6 @@ export function LanguagesTab() {
         st.updateProjectAlarms(esito.alarms);
         markSaveOk();
       }
-      const modificati = new Set(r.faceplateToccati);
-      for (const f of esito.faceplates.filter((x) => modificati.has(x.id))) await api.saveFaceplate(f);
-      markSaveOk();
       // `saveAll` esce in silenzio se un altro salvataggio è in corso: si aspetta.
       for (let i = 0; i < 50 && useAppStore.getState().saveStatus === "saving"; i++) {
         await new Promise((res) => setTimeout(res, 200));

@@ -58,7 +58,9 @@ pub fn tre_stati<'de, D: Deserializer<'de>>(d: D) -> Result<Option<Option<String
 /// una pagina che si naviga.
 pub fn cornice_della_pagina(pagina: &SynopticPage, predefinita: Option<&str>) -> Option<String> {
     // Una pagina-finestra (P1) non ha mai una cornice: è un riquadro sopra la pagina.
-    if pagina.kind.as_deref() == Some("boot") || pagina.finestra.is_some() {
+    // E nemmeno una pagina speciale, qualunque sia il suo `kind` (29-10-2026),
+    // come il gemello `corniceDellaPagina` dell'IDE.
+    if pagina.kind.is_some() || pagina.finestra.is_some() {
         return None;
     }
     match &pagina.cornice {

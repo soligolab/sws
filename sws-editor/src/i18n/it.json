@@ -39,7 +39,6 @@
     "gruppo": "Gruppo",
     "aggiornaFreccia": "↻ Aggiorna",
     "inCorso": "in corso…",
-    "anteprima": "Anteprima",
     "invio": "Invio…",
     "aggiorno": "Aggiorno…",
     "aggiorna": "Aggiorna",
@@ -200,7 +199,6 @@
       "alarms": "Allarmi",
       "datastores": "Datastore",
       "scripts": "Python",
-      "faceplates": "Faceplates",
       "recipes": "Ricette",
       "notifications": "SMTP",
       "users": "Utenti",
@@ -1670,7 +1668,6 @@
     "downloadRemoteDbTitle": "Scarica il database dello stesso datastore, ma dal dispositivo remoto connesso (non da questo progetto locale).",
     "uploadRemoteDbTitle": "Sostituisce il database sul dispositivo remoto connesso (backup automatico del precedente, serve un riavvio del runtime remoto).",
     "openFunctionEditorTitle": "Apri nell'editor a schermo intero (parametri e snippet)",
-    "deleteFaceplateConfirm": "Eliminare il faceplate \"{{label}}\"?",
     "telegramBotTrovato": "✓ Bot: {{nome}} · @{{username}}",
     "telegramBotNonRaggiunto": "Non riesco a identificare il bot: {{errore}}",
     "telegramPasso1": "Apri la chat col bot e premi Avvia (oppure aggiungilo a un gruppo e scrivi un messaggio):",
@@ -1976,7 +1973,10 @@
     "newCornice": "Nuova cornice",
     "corniceBaseName": "Cornice",
     "scalaProgetto": "Cambia risoluzione del progetto",
-    "faceplateDaSelezione": "Crea faceplate dalla selezione"
+    "faceplateDaSelezione": "Crea faceplate dalla selezione",
+    "newFaceplate": "Nuovo faceplate",
+    "faceplateBaseName": "Faceplate",
+    "faceplateJson": "Definizione del faceplate"
   },
   "storeErr": {
     "invalidRange": "Range non valido.",
@@ -2170,8 +2170,7 @@
     "creaFaceplate": "⧉ Crea faceplate dalla selezione",
     "creaFaceplateHint": "Gli oggetti selezionati diventano un faceplate riusabile: i tag diventano parametri, e qui resta la sua prima istanza.",
     "creaFaceplatePrompt": "Nome del faceplate",
-    "creaFaceplateNome": "Nuovo faceplate",
-    "creaFaceplateErrore": "Il faceplate non si è salvato: {{errore}}"
+    "creaFaceplateNome": "Nuovo faceplate"
   },
   "credenziali": {
     "waitWithoutRetryingEveryNew": "Aspetta **senza** riprovare: ogni nuovo tentativo allunga il blocco. ",
@@ -2297,9 +2296,6 @@
     "svgSymbolHelp": "Importa l'SVG del simbolo e spunta gli elementi (per <code>id</code>) che devono colorarsi con lo stato (off/on/allarme o gli STATI N dell'oggetto). Gli elementi senza id nell'SVG non sono selezionabili: aggiungili nell'editor vettoriale.",
     "dbBackupInTab": "Il backup completo del database è nella tab <strong>Backup</strong>: «Crea backup» include <code>history/</code> (i backup automatici no).",
     "odbcNotImplemented": "⚠ Il backend ODBC <strong>non è implementato</strong>: i campi qui sotto si salvano nel progetto, ma il runtime risponde «not compiled in» a ogni lettura e scrittura. Il cablaggio vero (odbc-api + unixODBC) è rimandato a quando ci sarà un impianto SQL Server o Oracle da agganciare davvero.",
-    "faceplateIntro": "Un <strong>faceplate</strong> è un blocco grafico riutilizzabile e parametrico: lo definisci una volta qui (con parametri come <code>tag_prefix</code>), poi lo piazzi come oggetto sulle pagine — quante volte vuoi, ognuna con i propri valori (es. un blocco \"motore\" riusato per motore1/motore2 cambiando solo il prefisso tag). A differenza di un oggetto normale, cambiare il faceplate qui aggiorna tutte le istanze che lo usano.",
-    "faceplateParams": "Parametri (uno per riga): <code>nome</code> oppure <code>nome:tipo=default!</code> — tipo tag/string/number/color, <code>!</code> = obbligatorio",
-    "faceplateObjects": "Oggetti template (JSON array — usa <code>{{ph}}</code> come placeholder nei campi tag/label)",
     "recipeIntro": "Una ricetta è un insieme nominato di setpoint che vengono scritti atomicamente sui tag selezionati. Usata per cambiare configurazione impianto (cambio prodotto, turno, avvio). Le ricette possono essere applicate anche dalla Runtime View.",
     "smtpNotice": "Configura un server SMTP per inviare email al momento dell'attivazione di un allarme. I campi <em>notify_email</em> e <em>escalate_to</em> sono configurabili per ogni allarme nella tab Allarmi.",
     "telegramNotice": "Invia un messaggio Telegram all'attivazione degli allarmi e, dagli script, con <em>send_telegram(\"testo\")</em>. Crea un bot con <em>@BotFather</em>, poi incolla il token e le chat ID di destinazione. Queste sono le chat <em>predefinite</em>: nella tab Allarmi ogni allarme può usarne di proprie o non notificare affatto.",
@@ -2528,10 +2524,7 @@
     "msOptionalTakesPrecedence": "ms (opzionale, ha priorità)",
     "everyValue": "*        ogni valore\n",
     "selectOrCreateAScript": "Seleziona o crea uno script",
-    "noObjects": "Nessun oggetto",
     "saved2": "✓ Salvato",
-    "noUsageInThisProject": "Nessun uso nelle pagine di questo progetto.",
-    "selectOrCreateAFaceplate": "Seleziona o crea un faceplate. I faceplate built-in sono motor_basic, valve_basic, tank_level.",
     "noRecipes": "Nessuna ricetta.",
     "selectOrCreateARecipe": "Seleziona o crea una ricetta per modificarla.",
     "noSetpointsClickAddTo": "Nessun setpoint. Clicca \"+ Aggiungi\" per iniziare.",
@@ -2601,7 +2594,6 @@
     "tagSamplesDeleted": "✓ \"{{tag}}\": {{n}} campioni cancellati.",
     "noSpaceToReclaim": "Nessuno spazio da liberare (file a {{mb}} MB).",
     "previousBackup": "Backup del precedente: {{path}}. Riavvia il runtime perché il nuovo database venga usato.",
-    "usedBy": "Usato da {{instances}} istanze e {{popups}} pulsanti popup in: {{pages}} — rinominare id o parametri li rompe.",
     "certDownloadFailed": "Non riesco a scaricare il cert ({{message}}). Il runtime remoto è acceso e ha il TLS attivo? In alternativa, da un terminale:\n  curl -k {{target}}/cert -o sws.crt",
     "deployFailedReason": "Deploy fallito: {{reason}} ({{status}})",
     "deployFailedStatus": "Deploy fallito: {{status}} {{statusText}}",
@@ -4044,5 +4036,50 @@
       "canvas.trend": "Trend",
       "canvas.tabella": "Tabelle"
     }
+  },
+  "faceplate": {
+    "titolo": "Faceplate",
+    "nuovo": "+ Nuovo faceplate",
+    "elimina": "Elimina il faceplate",
+    "eliminaConferma": "Eliminare il faceplate «{{name}}»?",
+    "eliminaConfermaUsato": "Il faceplate «{{name}}» è usato {{n}} volte: quelle istanze resteranno vuote. Eliminarlo lo stesso?",
+    "id": "Id",
+    "idSpiega": "Lo citano le istanze, quindi non si cambia da qui. Il nome sì.",
+    "origine": {
+      "intatto": "predefinito",
+      "personalizzato": "predefinito, personalizzato nel progetto"
+    },
+    "parametri": "Parametri",
+    "parametriSpiega": "Nei campi degli oggetti si scrive {nome}. Sul canvas si vede il predefinito, o il nome se non ce l'ha.",
+    "aggiungiParametro": "+ Parametro",
+    "nomeParametro": "nome",
+    "togliParametro": "Togli il parametro",
+    "predefinito": "predefinito",
+    "tipoStruttura": "tipo di struttura",
+    "tipoStrutturaAiuto": "Facoltativo: limita la scelta alle istanze di questo tipo del progetto.",
+    "obbligatorio": "obbligatorio",
+    "tipo": {
+      "istanza": "istanza",
+      "tag": "tag",
+      "string": "testo",
+      "number": "numero",
+      "color": "colore"
+    },
+    "usatoIn": "Usato in",
+    "maiUsato": "Nessuna istanza in questo progetto.",
+    "usi": "{{istanze}} istanze e {{popup}} popup, in: {{pagine}}",
+    "json": {
+      "pulsante": "{ } JSON",
+      "titolo": "Definizione del faceplate",
+      "spiega": "La definizione intera: nome, parametri, misura e oggetti. «Applica» riscrive il faceplate in un passo, che si annulla con Ctrl+Z. L'id resta quello di prima.",
+      "applica": "Applica",
+      "senzaOggetti": "Manca l'elenco «objects».",
+      "annidato": "Un faceplate non può contenere un altro faceplate: il pannello non lo disegna."
+    },
+    "ripristina": "Ripristina il predefinito",
+    "ripristinaConferma": "Ripristinare «{{nome}}» com'è nel runtime? La versione personalizzata del progetto si cancella subito.",
+    "rigaAiuto": "Trascinalo su una pagina per metterne un'istanza. Clic: lo apri per modificarlo; doppio clic: lo rinomini.",
+    "metti": "Metti un'istanza nella pagina aperta",
+    "mettiNo": "Si mette su una pagina o una cornice, non su un faceplate né su un'immagine di boot"
   }
 }

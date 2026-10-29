@@ -8,6 +8,7 @@ import { useAppStore } from "@/store";
 import { getDevicePresets, STANDARD_DEVICE_PRESETS } from "@/pageLayout";
 import { eBoot } from "@/boot/tipi";
 import { eCornice } from "@/cornici/modello";
+import { eFaceplateDef } from "@/faceplate/modello";
 import { salvaLayout } from "@/formatoProgettoAzioni";
 import { fattore, misuraDaProporre, type Misura } from "./scalaPagina";
 
@@ -26,7 +27,10 @@ const uguale = (a: Misura | null, w?: number, h?: number) => !!a && a.width === 
 
 export function DialogoRisoluzione({ onClose }: { onClose: () => void }) {
   const { t } = useTranslation();
-  const pages = useAppStore((s) => s.pages);
+  // I faceplate non si scalano col progetto (29-10-2026): le istanze li
+  // scalano già, e cambiare la loro misura sposterebbe ogni istanza.
+  const tutte = useAppStore((s) => s.pages);
+  const pages = useMemo(() => tutte.filter((p) => !eFaceplateDef(p)), [tutte]);
   const scalaProgetto = useAppStore((s) => s.scalaProgetto);
   const predefinita = useAppStore((s) => s.project?.page_layout);
   const proposta = useMemo(() => misuraDaProporre(pages, predefinita), [pages, predefinita]);

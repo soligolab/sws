@@ -113,7 +113,7 @@ I link del tipo `#config/<scheda>` e `#config/<scheda>/<elemento>` (per esempio
 Il pannello sinistro è **un albero solo**, lo stesso in editor e in Configurazione. Ogni ramo si apre e si
 chiude col suo triangolo, e lo stato si ricorda; scorre l'albero intero. Dall'alto:
 
-- **📄 Pagine**, **▭ Cornici** e **🖼 Immagini di boot**
+- **📄 Pagine**, **▭ Cornici**, **🧩 Faceplate** e **🖼 Immagini di boot**
 - **🧰 Strumenti** — gli oggetti da mettere nella pagina, in dieci gruppi (vedi sotto)
 - **🗂 Oggetti della pagina**, **ƒ Funzioni**, **🏷 Tag**
 - i rami di configurazione: **Progetto**, **Dati**, **Sicurezza**, **Istanza**, **IDE**
@@ -154,7 +154,7 @@ cinque, e «Display» ne teneva diciotto. I tipi sono gli stessi, 39:
 | **Tabelle e registri** | Tabella, Storico valori, Lista testi, Ricette |
 | **Allarmi** | Allarmi, Barra allarmi, Campanella allarmi, Storico allarmi |
 | **Navigazione e lingua** | Nav pagina, Navigatore pagine, Lingua ▾, Lingua btn |
-| **Impianto** | Tubazione, Faceplate, Griglia |
+| **Impianto** | Tubazione, Griglia (i faceplate si trascinano dal loro ramo, vedi sotto) |
 | **Simboli** | il riquadro di scelta, e sotto la libreria per famiglia — vedi [Simboli](#simboli-svg-industriali) |
 
 ### Il limite della pagina
@@ -217,7 +217,7 @@ Tutte le schede di configurazione, divise in rami (`sws-editor/src/config/schede
 
 | Ramo | Schede |
 |---|---|
-| **Progetto** | Variabili, Tipi, Protocolli, Allarmi, Python, Faceplates, Ricette, **Notifiche** (SMTP, Telegram, Cosa e dove), Stile, Lingue, Git |
+| **Progetto** | Variabili, Tipi, Protocolli, Allarmi, Python, Ricette, **Notifiche** (SMTP, Telegram, Cosa e dove), Stile, Lingue, Git |
 | **Dati** | Datastore |
 | **Sicurezza** | Utenti |
 | **Istanza** | Risorse, Backup, **Device** (Stato, Dispositivi, Connessione, Installazione, Container), **Sviluppatore** (Pacchetto runtime, solo da un checkout) |
@@ -226,8 +226,8 @@ Tutte le schede di configurazione, divise in rami (`sws-editor/src/config/schede
 Le schede da amministratore compaiono solo all'Admin.
 
 - Un clic su una scheda la apre, anche partendo dall'editor.
-- Protocolli, Python, Faceplates, Ricette, Datastore e Utenti hanno accanto il numero di elementi e una freccia ▶ che li mostra: una foglia per
-  sorgente, script, faceplate, ricetta, datastore o utente. Un clic su un elemento apre la scheda **su quell'elemento solo** (per le sorgenti:
+- Protocolli, Python, Ricette, Datastore e Utenti hanno accanto il numero di elementi e una freccia ▶ che li mostra: una foglia per
+  sorgente, script, ricetta, datastore o utente. Un clic su un elemento apre la scheda **su quell'elemento solo** (per le sorgenti:
   solo la sua card); un clic sulla scheda torna all'elenco intero.
 - Gli elementi vengono dalla **bozza**: una sorgente aggiunta e non ancora salvata compare subito. Aggiungendone una mentre ne è scelta un'altra,
   la nuova prende il suo posto.
@@ -593,13 +593,37 @@ Un faceplate è un gruppo di widget riutilizzabile con parametri sostituibili.
 - Contiene un LED (tag: `{tag_prefix}.stato`), un gauge (tag: `{tag_prefix}.portata`), un label (`{label}`)
 - Ogni istanza sostituisce `{tag_prefix}` con il valore specifico
 
-Per creare un faceplate: **Configurazione → Progetto → Faceplates**, oppure — dal 25-10-2026 — **dagli oggetti già
-disegnati**: si selezionano (due o più) e nel pannello della selezione si preme **«⧉ Crea faceplate dalla
-selezione»**, dandogli un nome. Le coordinate diventano relative al riquadro della selezione; **i tag diventano
-parametri** — se hanno una radice comune (`motore1.velocita`, `motore1.marcia`) un parametro solo `p` di tipo istanza
-(`{p}.velocita`), altrimenti uno per tag col tag originale come predefinito. Il faceplate si salva subito e la selezione
-diventa la sua **prima istanza**, con i parametri che la rifanno com'era; un «annulla» rimette gli oggetti.
-Per usarlo: strumenti, gruppo **Impianto → Faceplate**, poi si sceglie il faceplate e si danno i parametri. **Le istanze
+**Un faceplate si disegna sul canvas, come una pagina** (dal 29-10-2026; prima si scriveva in JSON in una scheda della
+Configurazione). Nell'albero delle pagine c'è il ramo **Faceplate**, accanto a Cornici e Immagini di boot: un clic apre
+il faceplate sul canvas, **«+ Nuovo faceplate»** ne crea uno. Tutto quello che vale su una pagina vale qui: gli
+strumenti, la selezione multipla, copia e incolla, allineamenti, griglia, annulla. Due differenze:
+
+- **i parametri si vedono sostituiti**: un testo `{label}` sul canvas si legge col predefinito del parametro, o
+  «label» se non ne ha uno; il pannello proprietà mostra quello che c'è scritto davvero (`{label}`);
+- **niente faceplate dentro un faceplate**: lo strumento non c'è, e incollarne uno non fa niente. Il pannello non lo
+  disegna.
+
+Senza nessun oggetto scelto, il pannello di destra ha le proprietà del faceplate: **nome** e **misura** (il foglio su cui
+si disegna, quella che le istanze usano per scalare), l'**id** in sola lettura — lo citano le istanze —, i
+**parametri** (nome, tipo, predefinito, obbligatorio; per il tipo «istanza» anche il tipo di struttura), **dove è
+usato**, e il pulsante **{ } JSON** con la definizione intera, da leggere o da scrivere a mano: «Applica» la riscrive
+in un passo che si annulla. Il faceplate si salva con **Salva**, insieme al resto.
+
+I tre faceplate che il runtime porta con sé (`motor_basic`, `valve_basic`, `tank_level`) hanno accanto ◇. Si possono
+modificare: il progetto ne tiene una versione sua (◆), e dalle proprietà **«Ripristina il predefinito»** la cancella.
+Non si eliminano, perché tornerebbero al caricamento.
+
+Un faceplate nasce anche **dagli oggetti già disegnati** (dal 25-10-2026): si selezionano (due o più) e nel pannello
+della selezione si preme **«⧉ Crea faceplate dalla selezione»**, dandogli un nome. Le coordinate diventano relative al
+riquadro della selezione; **i tag diventano parametri** — se hanno una radice comune (`motore1.velocita`,
+`motore1.marcia`) un parametro solo `p` di tipo istanza (`{p}.velocita`), altrimenti uno per tag col tag originale come
+predefinito. Il faceplate compare nel ramo Faceplate e la selezione diventa la sua **prima istanza**, con i parametri che
+la rifanno com'era; un «annulla» toglie tutti e due.
+Per usarlo **lo si trascina dal ramo Faceplate sulla pagina** (o si preme il suo **＋**, che lo mette al centro di ciò
+che si vede): l'istanza nasce già col suo faceplate e con la sua misura, e i parametri si danno nelle proprietà. Non
+c'è più uno strumento «Faceplate» fra gli strumenti, che creava un riquadro vuoto da riempire dopo. Un faceplate si
+mette su una pagina o su una cornice, non dentro un altro faceplate. La cornice delle pagine non compare sotto un
+faceplate aperto: il faceplate è un pezzo da mettere nelle pagine, non una pagina. **Le istanze
 seguono la definizione**: cambiare il faceplate cambia tutte le sue istanze, sul web e sul pannello LVGL — è il
 template d'oggetto del piano prima fascia (P2).
 

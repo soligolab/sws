@@ -36,13 +36,20 @@ if not tab:
     print("✗ ICONE_STRUMENTI non trovato in iconeStrumenti.ts"); sys.exit(1)
 icone = dict(re.findall(r"^\s+([a-z_]+): '([^']*)',", tab.group(1), re.M))
 
+# Icone usate fuori dalla palette, ognuna col suo perché.
+FUORI_PALETTE = {
+    # il faceplate non è più uno strumento (29-10-2026): si trascina dal ramo
+    # Faceplate dell'albero delle pagine, e le sue righe usano questa icona
+    "faceplate",
+}
+
 errori = []
 if len(tipi) != len(set(tipi)):
     errori.append("un tipo compare due volte in PALETTE_GROUPS")
 for t in tipi:
     if t not in icone: errori.append(f"{t}: nella palette ma senza icona")
 for t in icone:
-    if t not in tipi: errori.append(f"{t}: icona senza voce nella palette")
+    if t not in tipi and t not in FUORI_PALETTE: errori.append(f"{t}: icona senza voce nella palette")
 visti = {}
 for t, svg in icone.items():
     if svg in visti: errori.append(f"{t}: stessa icona di {visti[svg]}")
