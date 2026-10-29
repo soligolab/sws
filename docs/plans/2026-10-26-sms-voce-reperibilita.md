@@ -83,6 +83,24 @@ stesso giorno per tutt'altro motivo.
 **Da rifare**, col collaudo vero: un SMS che arriva davvero, con la coppia account+token e poi con
 una chiave API; una chiamata; e il tasto 1 dal telefono su un pannello del cloud.
 
+## La seconda prova, 29-10-2026: da vedere
+
+Il maintainer ha riprovato «Invia SMS di prova» con la 2.23.6 e ha segnalato due errori, **da vedere dopo**. Adesso
+almeno il motivo di Twilio arriva a schermo, col suo codice: è la correzione del 28-10 che funziona.
+
+1. **Solo account (`AC…` + token)**: `Twilio ha risposto 400 Bad Request: Invalid template name. Trial accounts can only
+   use predefined SMS templates. (codice Twilio 572006)`. Prima lettura, da verificare sulla documentazione di Twilio:
+   è un limite dell'**account di prova**, che non manda testi liberi. Il rimedio sarebbe dalla parte di Twilio
+   (passare a un account pagato), non nel nostro codice; da capire se esiste un modello predefinito che SWS possa usare
+   per la prova, e cosa dire a schermo davanti al 572006.
+2. **Con la chiave API (`SK…` + segreto)**: `Twilio ha risposto 401 Unauthorized: actor doesn't have any assertions
+   (codice Twilio 8001)`. Prima lettura, da verificare: la chiave non ha permessi sui messaggi — una chiave
+   «Restricted» senza permessi, o creata in un altro account o sotto-account. Da controllare il tipo di chiave e il suo
+   account, e cosa dire a schermo davanti all'8001.
+
+Nella stessa schermata, una cosa nostra: la nota sulla chiave API mostra `**sending**` con gli asterischi, perché il
+testo (`notifiche.chiaveApiNota`) usa il grassetto Markdown e la scheda lo stampa come testo.
+
 ## Fuori, dichiarato
 
 Altri fornitori; più numeri mittenti; calendari di reperibilità per data (ferie, festivi): l'elenco settimanale è il

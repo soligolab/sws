@@ -323,6 +323,14 @@ la subisce non lo segnala — se ne va.
 **6. Termini e informativa privacy.** La registrazione libera raccoglie indirizzi di sconosciuti:
 la decisione 17 del piano cloud li vuole già. Serve il testo — anche breve — prima di aprire.
 
+> **Bozza scritta il 29-10-2026** dalle risposte del maintainer: [`docs/legale/`](../legale/LEGGIMI.md), condizioni
+> d'uso e informativa, con le scelte (B2B, prova gratuita «così com'è», IA solo con la chiave dell'utente, account
+> inattivi cancellati dopo 12 mesi + 30 giorni, `privacy@soligo.net`, legge italiana e foro della sede, italiano e
+> inglese) e i punti da far verificare. **Va rivista da una persona competente** prima di pubblicarla. Il `LEGGIMI`
+> elenca anche quello che il codice del ramo C deve fare perché i testi siano veri (le due caselle alla registrazione,
+> l'avviso di inattività, la chiusura dell'account, le pagine pubbliche). La licenza del software, che il maintainer
+> vuole cambiare, è un seme a parte.
+
 **Schermate** (nello stile del ramo B): registrazione, conferma del codice, «accedi con un PIN»
 accanto a «accedi con la password», e la casella «ricordami per 30 giorni».
 
