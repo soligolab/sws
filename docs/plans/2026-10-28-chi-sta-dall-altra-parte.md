@@ -34,6 +34,11 @@
 
 ### 1. `feat/disponibilita-sorgenti` (runtime)
 
+> **FATTO il 28-10-2026 (sera).** Provato dal vivo contro il broker di casa con un runtime di prova, solo in
+> sottoscrizione: col testamento di Zigbee2MQTT `{"state":"offline"}` il tag `mqtt-prova.disponibile` vale `false`, il
+> tag mappato passa a `Bad` e lo stato della sorgente dice perché; con un topic che dice vivo, `true` e `ok`. Modbus
+> resta com'era (scrive già lo stato, compresi i dispositivi); gli altri passano da `con_attesa_e_stato`.
+
 - `sws-core`: `Disponibilita { topic, json_path?, vivo }` nella sorgente MQTT (serde default, assente = solo il
   broker); il nome del tag `<id>.disponibile` in un punto solo.
 - Ogni plugin scrive lo stato del bus in `stato_sorgenti` all'apertura e alla caduta della sessione (oggi solo Modbus).
@@ -44,15 +49,32 @@
 
 ### 2. `feat/disponibilita-editor` (IDE)
 
+> **FATTO il 29-10-2026**, annidato sul ramo 1. L'allarme preparato passa da `allarmeInAttesa` nello store e la scheda
+> Allarmi lo prende nella **sua** bozza: scriverlo nel progetto da fuori avrebbe rifatto il salvataggio parziale che
+> quella scheda evita. Un allarme su un tag non ancora dichiarato **non** blocca il salvataggio (bloccano solo il
+> formato vecchio e i doppioni), quindi il tag in attesa, creato subito dopo, basta. Da vedere a schermo.
+
 - Nella card della sorgente MQTT: la sezione «Disponibilità» con le preimpostazioni; accenderla dichiara il tag.
 - Per tutte le sorgenti: il tag di disponibilità visibile nella card, e il pulsante «Crea l'allarme di disponibilità».
 - Validazione: un topic di disponibilità che nessuna preimpostazione riconosce e senza valore di «vivo» → avviso.
 
 ### 3. Documenti e CasaDomotica
 
-- Manuale (protocolli e allarmi), CHANGELOG, NOVITA, collaudi.
-- **CasaDomotica**: disponibilità Zigbee2MQTT sulle sorgenti `mqtt-*` che parlano con Zigbee2MQTT, e l'allarme con
-  Telegram — è il caso che ha fatto nascere il piano.
+> **Documenti FATTI il 29-10-2026** (dall'ufficio, sul ramo). **CasaDomotica ASPETTA**, e il perché è da sapere:
+> né `SourceDef` né `MqttConfig` rifiutano i campi sconosciuti, quindi un runtime che non conosce la disponibilità
+> **non si rompe** leggendo `disponibilita:` — però la **ignora**, e al primo salvataggio dal cloud la **cancella
+> senza dire niente**. Il cloud gira la 2.23.6, che non la conosce. CasaDomotica si tocca **dopo** che il gateway è
+> sulla versione che la contiene.
+
+- Manuale: `06_protocols.md`, sezione «Chi sta dall'altra parte: la disponibilità» (cosa vuol dire per ogni
+  protocollo, le preimpostazioni, il limite di Zigbee2MQTT che pubblica solo il bridge, i comandi che partono lo
+  stesso); `07_alarms.md`, sezione «Un allarme quando una sorgente non risponde», con l'allarme **come il pulsante
+  lo prepara davvero** (a livelli, `kind: bool_false`, Warning, 60 s).
+- CHANGELOG e NOVITA: già scritti dai rami 1 e 2, nel blocco 2.23.7.
+- Collaudi: `docs/COLLAUDI_IN_SOSPESO.md` §A-septies, dieci passi — quattro nell'IDE subito, cinque dal vivo con
+  CasaDomotica e il Zigbee2MQTT di casa, uno con una sorgente non MQTT.
+- **CasaDomotica** (da fare dopo il rilascio): disponibilità Zigbee2MQTT sulle sorgenti `mqtt-*` che parlano con
+  Zigbee2MQTT, e l'allarme con Telegram — è il caso che ha fatto nascere il piano.
 
 ## Fuori, dichiarato
 

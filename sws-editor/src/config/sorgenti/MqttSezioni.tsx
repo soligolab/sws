@@ -2,8 +2,9 @@ import React, { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { api } from "@/api/client";
 import { useAppStore } from "@/store";
-import type { MqttLastWill, MqttSource, MqttTlsConfig } from "@/types";
+import type { DisponibilitaMqtt, MqttLastWill, MqttSource, MqttTlsConfig, TagDef } from "@/types";
 import { S } from "@/config/comuni";
+import { PRESET_DISPONIBILITA, presetDi, tagDefDisponibilita, type PresetDisponibilita } from "@/config/sorgenti/disponibilita";
 
 // ── MqttSourceCard sub-sections (auth / connection / TLS / last-will) ────────
 
@@ -377,6 +378,74 @@ export function MqttLastWillSection({
               style={{ accentColor: "var(--brand-primary, #3b82f6)", marginTop: 5 }}
             />
           </div>
+        </div>
+      )}
+    </>
+  );
+}
+
+/** Chi sta dall'altra parte del broker (28-10-2026, piano «chi sta dall'altra
+ *  parte»). Un broker vivo non vuol dire un Zigbee2MQTT vivo: qui si dice quale
+ *  topic lo racconta. Le impostazioni pronte riempiono i tre campi; `{nome}`
+ *  resta da sostituire col nome del dispositivo. Accenderla dichiara il tag
+ *  `<sorgente>.disponibile`, così il selettore e la validazione lo vedono. */
+export function MqttDisponibilitaSection({
+  source,
+  onChange,
+  onCreateTag,
+}: {
+  source: MqttSource;
+  onChange: (d: DisponibilitaMqtt | undefined) => void;
+  onCreateTag: (tag: TagDef) => void;
+}) {
+  const { t } = useTranslation();
+  const d = source.disponibilita;
+  const preset = presetDi(d);
+  const set = (patch: Partial<DisponibilitaMqtt>) => onChange({ ...(d ?? { topic: "", vivo: "" }), ...patch });
+  const scegli = (k: string) => {
+    if (k === "") return onChange(undefined);
+    if (k === "personalizzato") return onChange(d ?? { topic: "", vivo: "online" });
+    const p = PRESET_DISPONIBILITA[k as PresetDisponibilita];
+    onChange({ topic: p.topic, vivo: p.vivo, ...("json_path" in p ? { json_path: p.json_path } : {}) });
+    onCreateTag(tagDefDisponibilita(source.id, t("sorgenti.disponibilita.descrizioneTag", { id: source.id })));
+  };
+  const etichetta = { fontSize: 11, color: "var(--brand-text-subtle, #64748b)", display: "block", marginBottom: 3 } as const;
+  return (
+    <>
+      <SectionHeader>{t("sorgenti.disponibilita.titolo")}</SectionHeader>
+      <div style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)", marginBottom: 8, lineHeight: 1.4 }}>
+        {t("sorgenti.disponibilita.nota")}
+      </div>
+      <div style={{ display: "grid", gridTemplateColumns: "180px 1fr 120px 120px", gap: 12, marginBottom: 12, alignItems: "end" }}>
+        <label style={etichetta}>{t("sorgenti.disponibilita.chi")}
+          <select style={{ ...S.input, cursor: "pointer" }} value={preset ?? ""} data-testid="disponibilita-preset"
+            onChange={(e) => scegli(e.target.value)}>
+            <option value="">{t("sorgenti.disponibilita.soloBroker")}</option>
+            <option value="zigbee2mqtt">Zigbee2MQTT</option>
+            <option value="tasmota">Tasmota</option>
+            <option value="shelly">Shelly</option>
+            <option value="esphome">ESPHome</option>
+            <option value="personalizzato">{t("sorgenti.disponibilita.personalizzato")}</option>
+          </select>
+        </label>
+        {d && (<>
+          <label style={etichetta}>{t("cfg.topic")}
+            <input style={S.input} value={d.topic} spellCheck={false} data-testid="disponibilita-topic"
+              onChange={(e) => set({ topic: e.target.value })} />
+          </label>
+          <label style={etichetta}>{t("cfg.jsonPathOpt")}
+            <input style={S.input} value={d.json_path ?? ""} spellCheck={false}
+              onChange={(e) => set({ json_path: e.target.value || undefined })} />
+          </label>
+          <label style={etichetta}>{t("sorgenti.disponibilita.vivo")}
+            <input style={S.input} value={d.vivo} spellCheck={false}
+              onChange={(e) => set({ vivo: e.target.value })} />
+          </label>
+        </>)}
+      </div>
+      {d?.topic.includes("{nome}") && (
+        <div style={{ fontSize: 11, color: "var(--brand-warning, #f59e0b)", marginTop: -6, marginBottom: 10 }}>
+          {t("sorgenti.disponibilita.nomeDaSostituire")}
         </div>
       )}
     </>

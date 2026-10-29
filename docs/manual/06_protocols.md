@@ -351,6 +351,74 @@ dell'intera sorgente, e la validazione del progetto lo segnala come errore.
 - Se Zigbee2MQTT usa un `base_topic` diverso da `zigbee2mqtt`, il pulsante che compila tutte le righe non le
   riconosce: si usa il ⟳ riga per riga, che segue il topic della riga qualunque sia.
 
+### Chi sta dall'altra parte: la disponibilità (dal 29-10-2026)
+
+**Un broker raggiungibile non vuol dire che dietro ci sia qualcuno.** Il 28-10-2026 i pulsanti delle luci del
+garage non rispondevano più: SWS pubblicava i comandi, il broker li riceveva, ma **Zigbee2MQTT era spento** da oltre
+trenta ore — e nell'interfaccia niente lo diceva, perché i tag tenevano l'ultimo valore con qualità buona.
+
+Da questa versione ogni sorgente ha un tag booleano **`<sorgente>.disponibile`**, che il runtime scrive da solo:
+
+| Sorgente | `disponibile` è vero quando |
+|---|---|
+| MQTT, senza disponibilità impostata | il broker è raggiungibile |
+| MQTT, con disponibilità impostata | il broker è raggiungibile **e** il topic di disponibilità dice «vivo» |
+| Modbus, S7, OPC-UA, EtherNet/IP, Home Assistant | la sessione col dispositivo è aperta — lo stato che il protocollo già conosce |
+
+**Quando diventa falso, i tag della sorgente passano a qualità `Bad`.** Tengono l'ultimo valore, i sinottici li
+mostrano come non aggiornati (lo stale c'è già), e **un allarme di soglia non scatta su un valore `Bad`**: un
+sensore di temperatura spento non fa scattare «troppo caldo». Tornano `Good` **col primo valore vero** che arriva,
+non al ritorno del bridge: fino ad allora non si sa cosa c'è.
+
+**I comandi si mandano lo stesso.** È una scelta: il segnale di disponibilità può sbagliare, e un comando rifiutato
+da SWS per un falso «morto» sarebbe peggio. Il sinottico non aggiornato dice già all'operatore che non sa cosa c'è.
+
+#### Impostarla, per MQTT
+
+Configurazione → Protocolli → la card della sorgente MQTT → sezione **DISPONIBILITÀ** → **Chi dice se è vivo**:
+
+| Scelta | Topic | Campo | Valore «vivo» |
+|---|---|---|---|
+| Solo il broker | — | — | — |
+| Zigbee2MQTT | `zigbee2mqtt/bridge/state` | `state` | `online` |
+| Tasmota | `tele/{nome}/LWT` | — | `online` |
+| Shelly | `{nome}/online` | — | `true` |
+| ESPHome | `{nome}/status` | — | `online` |
+| Personalizzato… | a mano | facoltativo | a mano |
+
+Dove c'è `{nome}` va sostituito col nome del dispositivo: Tasmota, Shelly ed ESPHome hanno un topic per apparecchio,
+Zigbee2MQTT ne ha uno per tutto il bridge. Il valore «vivo» si confronta **senza badare a maiuscole e spazi**:
+`Online` di Tasmota e `online` di Zigbee2MQTT sono la stessa parola. Se il messaggio non è JSON, il campo non serve:
+si confronta il testo intero.
+
+In YAML:
+
+```yaml
+- kind: mqtt
+  id: zigbee2mqtt
+  host: 192.168.1.10
+  disponibilita:
+    topic: zigbee2mqtt/bridge/state
+    json_path: state
+    vivo: online
+```
+
+Accendere la disponibilità **dichiara il tag** `<sorgente>.disponibile` nel progetto, come le metriche della sorgente
+host: così lo trovano il selettore dei tag e la validazione. Un topic personalizzato senza valore «vivo» è un avviso
+della validazione, perché non direbbe mai che è vivo.
+
+**Il limite di Zigbee2MQTT, da sapere.** Con la configurazione di fabbrica Zigbee2MQTT pubblica la disponibilità
+**del bridge**, non di ogni dispositivo (`availability.enabled: false`). Quindi la preimpostazione dice se Zigbee2MQTT
+è acceso, non se una singola lampadina risponde. La disponibilità per dispositivo va accesa in Zigbee2MQTT, e in SWS
+arriverà dopo.
+
+#### L'allarme
+
+Sotto ogni card c'è la riga **Disponibilità: risponde / non risponde**, col pulsante **Crea l'allarme di
+disponibilità**. Lo prepara nella scheda Allarmi — è un allarme normale, descritto nel capitolo
+[Allarmi](07_alarms.md#un-allarme-quando-una-sorgente-non-risponde) — e da lì vale tutto quello che c'è: notifiche,
+tabella eventi, telefono, storico.
+
 ---
 
 ## OPC-UA

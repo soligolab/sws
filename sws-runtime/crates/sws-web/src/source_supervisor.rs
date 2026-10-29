@@ -112,7 +112,24 @@ impl SourceSupervisor {
         });
         let watchdog = this.clone();
         tokio::spawn(async move { watchdog.watchdog_loop().await });
+        let disponibilita = this.clone();
+        tokio::spawn(async move { disponibilita.disponibilita_loop().await });
         this
+    }
+
+    /// Il tag `<sorgente>.disponibile` (28-10-2026, piano «chi sta dall'altra
+    /// parte»): vero quando la sorgente dice di avere qualcuno dall'altra
+    /// parte. Ogni 2 secondi, e si scrive **solo ai cambi** — lo storico e gli
+    /// allarmi vedono una riga per transizione, non una ogni due secondi.
+    async fn disponibilita_loop(self: Arc<Self>) {
+        let mut tick = tokio::time::interval(std::time::Duration::from_secs(2));
+        let mut scritti: HashMap<String, bool> = HashMap::new();
+        loop {
+            tick.tick().await;
+            for (tag, vivo) in disponibilita_da_scrivere(&self.stato.istantanea(), &mut scritti) {
+                self.db.set(tag, sws_core::TagValue::Bool(vivo), sws_core::TagQuality::Good).await;
+            }
+        }
     }
 
     /// Periodically checks for source tasks that ended on their own (plugin
@@ -380,7 +397,7 @@ impl SourceSupervisor {
                 info!(source = %id_for_log, "starting MQTT task");
                 let mqtt_certificati = self.mqtt_certificati.clone();
                 motore.spawn(async move {
-                    sws_plugin_mqtt::run(cfg, db, bus, cancel_for_task, mqtt_certificati).await;
+                    sws_plugin_mqtt::run(cfg, db, bus, cancel_for_task, mqtt_certificati, stato).await;
                 })
             }
             SourceDef::OpcUaServer(cfg) => {
@@ -393,25 +410,25 @@ impl SourceSupervisor {
                 info!(source = %id_for_log, "starting OPC-UA client task");
                 let pki = self.opcua_pki_root.read().await.clone();
                 motore.spawn(async move {
-                    sws_plugin_opcua::run(cfg, db, bus, pki, cancel_for_task).await;
+                    sws_plugin_opcua::run(cfg, db, bus, pki, cancel_for_task, stato).await;
                 })
             }
             SourceDef::HomeAssistant(cfg) => {
                 info!(source = %id_for_log, url = %cfg.url, "starting HomeAssistant task");
                 motore.spawn(async move {
-                    sws_plugin_homeassistant::run(cfg, db, bus, cancel_for_task).await;
+                    sws_plugin_homeassistant::run(cfg, db, bus, cancel_for_task, stato).await;
                 })
             }
             SourceDef::S7(cfg) => {
                 info!(source = %id_for_log, ip = %cfg.ip, "starting S7 task");
                 motore.spawn(async move {
-                    sws_plugin_s7::run(cfg, db, bus, cancel_for_task).await;
+                    sws_plugin_s7::run(cfg, db, bus, cancel_for_task, stato).await;
                 })
             }
             SourceDef::EnIp(cfg) => {
                 info!(source = %id_for_log, ip = %cfg.ip, "starting EtherNet/IP task");
                 motore.spawn(async move {
-                    sws_plugin_enip::run(cfg, db, bus, cancel_for_task).await;
+                    sws_plugin_enip::run(cfg, db, bus, cancel_for_task, stato).await;
                 })
             }
             SourceDef::Host(cfg) => {
@@ -534,6 +551,61 @@ fn default_pki_root() -> std::path::PathBuf {
 
 /// Store di prova per i test: mai letto né scritto davvero (nessun test qui
 /// avvia una sessione MQTT), un percorso qualunque in temp basta.
+/// Quali tag di disponibilità scrivere adesso: quelli delle sorgenti il cui
+/// «risponde» è cambiato da quanto scritto l'ultima volta. Una sorgente che
+/// non c'è più si dimentica, così se ritorna si riscrive.
+fn disponibilita_da_scrivere(
+    stato: &std::collections::BTreeMap<String, sws_core::stato_sorgenti::StatoSorgente>,
+    scritti: &mut HashMap<String, bool>,
+) -> Vec<(String, bool)> {
+    use sws_core::stato_sorgenti::Collegamento;
+    scritti.retain(|id, _| stato.contains_key(id));
+    let mut fuori = Vec::new();
+    for (id, s) in stato {
+        let vivo = s.bus.stato == Collegamento::Ok;
+        if scritti.get(id) != Some(&vivo) {
+            scritti.insert(id.clone(), vivo);
+            fuori.push((sws_core::tag_disponibilita(id), vivo));
+        }
+    }
+    fuori
+}
+
+#[cfg(test)]
+mod prove_disponibilita {
+    use super::*;
+    use sws_core::stato_sorgenti::{Collegamento, StatoSorgenti};
+
+    #[test]
+    fn si_scrive_solo_ai_cambi() {
+        let st = StatoSorgenti::new();
+        st.registra("mqtt-garage", []);
+        let mut scritti = HashMap::new();
+        // Appena registrata non ha mai risposto: falso, una volta.
+        assert_eq!(disponibilita_da_scrivere(&st.istantanea(), &mut scritti), vec![("mqtt-garage.disponibile".to_string(), false)]);
+        assert!(disponibilita_da_scrivere(&st.istantanea(), &mut scritti).is_empty(), "niente di nuovo, niente da scrivere");
+        st.bus("mqtt-garage", Collegamento::Ok, None);
+        assert_eq!(disponibilita_da_scrivere(&st.istantanea(), &mut scritti), vec![("mqtt-garage.disponibile".to_string(), true)]);
+        st.caduta("mqtt-garage", "zigbee2mqtt/bridge/state dice offline".into());
+        assert_eq!(disponibilita_da_scrivere(&st.istantanea(), &mut scritti), vec![("mqtt-garage.disponibile".to_string(), false)]);
+    }
+
+    #[test]
+    fn una_sorgente_tolta_si_dimentica() {
+        let st = StatoSorgenti::new();
+        st.registra("s7", []);
+        st.bus("s7", Collegamento::Ok, None);
+        let mut scritti = HashMap::new();
+        disponibilita_da_scrivere(&st.istantanea(), &mut scritti);
+        st.rimuovi("s7");
+        assert!(disponibilita_da_scrivere(&st.istantanea(), &mut scritti).is_empty());
+        assert!(scritti.is_empty());
+        st.registra("s7", []);
+        st.bus("s7", Collegamento::Ok, None);
+        assert_eq!(disponibilita_da_scrivere(&st.istantanea(), &mut scritti).len(), 1, "tornata, si riscrive");
+    }
+}
+
 #[cfg(test)]
 pub(crate) fn store_di_prova() -> Arc<sws_core::pin_tls::ImprontaStore> {
     Arc::new(sws_core::pin_tls::ImprontaStore::new(

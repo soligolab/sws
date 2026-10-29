@@ -92,6 +92,7 @@ pub async fn run(
     bus: Arc<TagWriteBus>,
     pki_dir: PathBuf,
     cancel: tokio_util::sync::CancellationToken,
+    stato: Arc<sws_core::stato_sorgenti::StatoSorgenti>,
 ) {
     let source_pki = pki_dir.join(&cfg.id);
     // Il token del supervisore, dal 22-10-2026. Prima qui ne nasceva uno nuovo
@@ -114,11 +115,12 @@ pub async fn run(
             "opcua: policy «None», il certificato del server non si valida — il trust store di questa sorgente resta vuoto"
         );
     }
-    sws_core::riconnessione::con_attesa(
+    sws_core::riconnessione::con_attesa_e_stato(
         &cfg.id,
+        &stato,
         cancel,
         || async {
-            if let Err(e) = run_once(&cfg, &db, &bus, &source_pki).await {
+            if let Err(e) = run_once(&cfg, &db, &bus, &source_pki, &stato).await {
                 // Fiducia al primo contatto (15-10-2026): solo se il progetto
                 // non accetta già tutto, e solo dopo un fallimento — è lì che
                 // async-opcua ha messo il certificato sconosciuto in `rejected/`.
@@ -217,6 +219,7 @@ async fn run_once(
     db: &Arc<TagDb>,
     bus: &Arc<TagWriteBus>,
     pki_dir: &Path,
+    stato: &sws_core::stato_sorgenti::StatoSorgenti,
 ) -> anyhow::Result<()> {
     // Ensure the PKI dir exists; async-opcua expects it to be present when
     // create_sample_keypair=true.
@@ -443,6 +446,7 @@ async fn run_once(
         .map_err(|e| anyhow::anyhow!("create_monitored_items: {e}"))?;
 
     info!(source = %cfg.id, count = cfg.nodes.len(), "opcua: subscribed");
+    stato.bus(&cfg.id, sws_core::stato_sorgenti::Collegamento::Ok, None);
 
     // Dispatcher: each DataValue arriving from the callback lands in TagDb.
     // We exit when the session event loop ends or the channel closes.
@@ -2364,6 +2368,7 @@ mod tests {
             Arc::new(sws_core::TagWriteBus::default()),
             pki_client.path().to_path_buf(),
             cancel.clone(),
+            Arc::new(sws_core::stato_sorgenti::StatoSorgenti::new()),
         ));
 
         let attendi = |id: &'static str, atteso: sws_core::TagValue| {

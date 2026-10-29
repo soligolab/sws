@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { Fragment, useState } from "react";
 import { Trans, useTranslation } from "react-i18next";
 import { api } from "@/api/client";
 import { emptyHost } from "@/config/sorgenteHost";
@@ -18,6 +18,8 @@ import { OpcUaServerSourceCard } from "@/config/sorgenti/OpcUaServerSourceCard";
 import { ModbusSourceCard } from "@/config/sorgenti/ModbusSourceCard";
 import { ModbusRtuSourceCard } from "@/config/sorgenti/ModbusRtuSourceCard";
 import { MqttSourceCard } from "@/config/sorgenti/MqttSourceCard";
+import { DisponibilitaSorgente } from "@/config/sorgenti/DisponibilitaSorgente";
+import { haDisponibilita } from "@/config/sorgenti/disponibilita";
 import { DispositivoModbusCard, SalvaBusContext } from "@/config/sorgenti/DispositiviModbus";
 import {
   busImplicito, dispositiviDi, eBusModbus, etichettaDispositivo, focusDispositivo, idElementiProtocolli, leggiFocus,
@@ -145,6 +147,121 @@ export function ProtocolsTab() {
     }
   };
 
+  const cardDi = (src: SourceDef, i: number) => {
+    // Un bus implicito si mostra intero anche col focus sul suo dispositivo
+    // (ci si arriva dopo «Dal catalogo»): la card è una sola.
+    if (eBusModbus(src) && scelto?.unit != null && !busImplicito(src)) {
+      return (
+        <DispositivoModbusCard
+          key={i}
+          bus={src}
+          unit={scelto.unit}
+          onChange={(updated) => updateSource(i, updated)}
+          onCreateTag={handleCreateTag}
+        />
+      );
+    }
+    if (src.kind === "modbus_tcp") {
+      return (
+        <ModbusSourceCard
+          key={i}
+          source={src}
+          onChange={(updated) => updateSource(i, updated)}
+          onDelete={() => removeSource(i)}
+          onCreateTag={handleCreateTag}
+        />
+      );
+    }
+    if (src.kind === "modbus_rtu") {
+      return (
+        <ModbusRtuSourceCard
+          key={i}
+          source={src}
+          onChange={(updated) => updateSource(i, updated)}
+          onDelete={() => removeSource(i)}
+        />
+      );
+    }
+    if (src.kind === "mqtt") {
+      return (
+        <MqttSourceCard
+          key={i}
+          source={src}
+          onChange={(updated) => updateSource(i, updated)}
+          onDelete={() => removeSource(i)}
+          onCreateTag={handleCreateTag}
+        />
+      );
+    }
+    if (src.kind === "opcua_client") {
+      return (
+        <OpcUaSourceCard
+          key={i}
+          source={src}
+          onChange={(updated) => updateSource(i, updated)}
+          onDelete={() => removeSource(i)}
+          onCreateTag={handleCreateTag}
+        />
+      );
+    }
+    if (src.kind === "opcua_server") {
+      return (
+        <OpcUaServerSourceCard
+          key={i}
+          source={src}
+          onChange={(updated) => updateSource(i, updated)}
+          onDelete={() => removeSource(i)}
+          onCreateTag={handleCreateTag}
+        />
+      );
+    }
+    if (src.kind === "homeassistant") {
+      return (
+        <HomeAssistantSourceCard
+          key={i}
+          source={src}
+          onChange={(updated) => updateSource(i, updated)}
+          onDelete={() => removeSource(i)}
+          onCreateTag={handleCreateTag}
+        />
+      );
+    }
+    if (src.kind === "s7") {
+      return (
+        <S7SourceCard
+          key={i}
+          source={src}
+          onChange={(updated) => updateSource(i, updated)}
+          onDelete={() => removeSource(i)}
+          onCreateTag={handleCreateTag}
+        />
+      );
+    }
+    if (src.kind === "enip") {
+      return (
+        <EnIpSourceCard
+          key={i}
+          source={src}
+          onChange={(updated) => updateSource(i, updated)}
+          onDelete={() => removeSource(i)}
+          onCreateTag={handleCreateTag}
+        />
+      );
+    }
+    if (src.kind === "host") {
+      return (
+        <HostSourceCard
+          key={i}
+          source={src}
+          onChange={(updated) => updateSource(i, updated)}
+          onDelete={() => removeSource(i)}
+          onCreateTag={handleCreateTag}
+        />
+      );
+    }
+    return null;
+  };
+
   return (
     <SalvaBusContext.Provider value={salvaBus}>
     <div style={S.section}>
@@ -199,119 +316,19 @@ export function ProtocolsTab() {
 
       {sources.map((src, i) => {
         if (focus !== null && src.id !== focus) return null;
-        // Un bus implicito si mostra intero anche col focus sul suo dispositivo
-        // (ci si arriva dopo «Dal catalogo»): la card è una sola.
-        if (eBusModbus(src) && scelto?.unit != null && !busImplicito(src)) {
-          return (
-            <DispositivoModbusCard
-              key={i}
-              bus={src}
-              unit={scelto.unit}
-              onChange={(updated) => updateSource(i, updated)}
-              onCreateTag={handleCreateTag}
-            />
-          );
-        }
-        if (src.kind === "modbus_tcp") {
-          return (
-            <ModbusSourceCard
-              key={i}
-              source={src}
-              onChange={(updated) => updateSource(i, updated)}
-              onDelete={() => removeSource(i)}
-              onCreateTag={handleCreateTag}
-            />
-          );
-        }
-        if (src.kind === "modbus_rtu") {
-          return (
-            <ModbusRtuSourceCard
-              key={i}
-              source={src}
-              onChange={(updated) => updateSource(i, updated)}
-              onDelete={() => removeSource(i)}
-            />
-          );
-        }
-        if (src.kind === "mqtt") {
-          return (
-            <MqttSourceCard
-              key={i}
-              source={src}
-              onChange={(updated) => updateSource(i, updated)}
-              onDelete={() => removeSource(i)}
-              onCreateTag={handleCreateTag}
-            />
-          );
-        }
-        if (src.kind === "opcua_client") {
-          return (
-            <OpcUaSourceCard
-              key={i}
-              source={src}
-              onChange={(updated) => updateSource(i, updated)}
-              onDelete={() => removeSource(i)}
-              onCreateTag={handleCreateTag}
-            />
-          );
-        }
-        if (src.kind === "opcua_server") {
-          return (
-            <OpcUaServerSourceCard
-              key={i}
-              source={src}
-              onChange={(updated) => updateSource(i, updated)}
-              onDelete={() => removeSource(i)}
-              onCreateTag={handleCreateTag}
-            />
-          );
-        }
-        if (src.kind === "homeassistant") {
-          return (
-            <HomeAssistantSourceCard
-              key={i}
-              source={src}
-              onChange={(updated) => updateSource(i, updated)}
-              onDelete={() => removeSource(i)}
-              onCreateTag={handleCreateTag}
-            />
-          );
-        }
-        if (src.kind === "s7") {
-          return (
-            <S7SourceCard
-              key={i}
-              source={src}
-              onChange={(updated) => updateSource(i, updated)}
-              onDelete={() => removeSource(i)}
-              onCreateTag={handleCreateTag}
-            />
-          );
-        }
-        if (src.kind === "enip") {
-          return (
-            <EnIpSourceCard
-              key={i}
-              source={src}
-              onChange={(updated) => updateSource(i, updated)}
-              onDelete={() => removeSource(i)}
-              onCreateTag={handleCreateTag}
-            />
-          );
-        }
-        if (src.kind === "host") {
-          return (
-            <HostSourceCard
-              key={i}
-              source={src}
-              onChange={(updated) => updateSource(i, updated)}
-              onDelete={() => removeSource(i)}
-              onCreateTag={handleCreateTag}
-            />
-          );
-        }
-        return null;
+        // La card, e sotto la riga della disponibilità (28-10-2026) per le
+        // sorgenti che sanno dire se hanno qualcuno dall'altra parte.
+        const card = cardDi(src, i);
+        if (!card) return null;
+        return (
+          <Fragment key={i}>
+            {card}
+            {haDisponibilita(src) && !(eBusModbus(src) && scelto?.unit != null && !busImplicito(src)) && <DisponibilitaSorgente src={src} />}
+          </Fragment>
+        );
       })}
+
+
 
       <div style={{ display: "flex", gap: 8, marginTop: 4, flexWrap: "wrap" }}>
         <button style={S.btn("ghost")} onClick={addModbus}>

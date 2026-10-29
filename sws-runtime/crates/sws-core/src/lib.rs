@@ -29,7 +29,7 @@ pub use geometry::{bbox_of, is_off_page, BBox, CASI_FUORI_PAGINA};
 pub use logbus::{LogBus, LogEvent, DEFAULT_LOG_CAPACITY};
 pub use percorso::{Foglia, Forma, Segmento};
 pub use project::{
-    PeriodoReport, ReportDef, Reperibile, TwilioConfig,
+    PeriodoReport, ReportDef, Reperibile, TwilioConfig, DisponibilitaMqtt, tag_disponibilita,
     AffixPosition, CanaleNotifica, CanaliEvento, CustomSymbol, CustomSymbolAttribution, DatastoreBackendConfig,
     DatastoreConfig, EnIpConfig, EnIpDataType, EnIpTagMapping, EntityMapping, FunctionDef,
     FunctionParam, GeneratorSpec, GlobalScriptDef, HomeAssistantConfig, HostConfig, HostMetric,

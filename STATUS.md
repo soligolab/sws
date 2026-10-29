@@ -12,14 +12,41 @@
 > resta in «Storico». Qui vive solo ciò che serve a riprendere il lavoro.
 
 
-## ⚠ Il lavoro del 28-29/10 non è su `main` (2026-10-29)
+## ▶ Riprendere da qui — chi sta dall'altra parte: la disponibilità delle sorgenti (2026-10-29)
 
-**Si riparte dal ramo `feat/disponibilita-editor`**, pushato: contiene la disponibilità delle sorgenti (runtime e
-IDE, rami 1 e 2 del piano `docs/plans/2026-10-28-chi-sta-dall-altra-parte.md`), in attesa di vederla a schermo prima
-dello squash. Il riepilogo completo è nello `STATUS.md` di quel ramo. `./scripts/session_start.sh`, poi
-`git checkout feat/disponibilita-editor`. Allo squash questo rimando va tolto.
+> ⚠ **SI RIPARTE DAL RAMO `feat/disponibilita-editor`, NON da `main`.** È pushato e contiene anche
+> `feat/disponibilita-sorgenti` (annidato). `main` ha solo il piano. Su un'altra macchina:
+> `./scripts/session_start.sh`, poi `git checkout feat/disponibilita-editor`. Un lavoro nuovo si annida lì sopra.
 
-## ▶ Riprendere da qui — due semi sono diventati piani d'esecuzione (2026-10-28, sera)
+**Da dove nasce.** Il 28-10 sera, a casa, i bottoni della pagina Garage sul TC620 non accendevano più le luci.
+Diagnosi in sola lettura: SWS pubblicava i `TOGGLE`, ma **Zigbee2MQTT era spento** (`zigbee2mqtt/bridge/state` =
+`{"state":"offline"}`, zero messaggi dal vivo, ultimo resoconto di salute il 27-10 alle 14:09), e nessuno lo sapeva.
+Il maintainer ha chiesto che SWS lo dica, con un allarme collegabile alle notifiche → piano
+[`2026-10-28-chi-sta-dall-altra-parte.md`](docs/plans/2026-10-28-chi-sta-dall-altra-parte.md), quattro decisioni prese.
+**Zigbee2MQTT va riavviato a mano** dove gira (fuori da SWS): finché non lo è, le luci non rispondono.
+
+| Ramo | Commit | Cosa |
+|---|---|---|
+| `feat/disponibilita-sorgenti` | `bc672519` | runtime: il tag `<sorgente>.disponibile` per tutte le sorgenti; MQTT con `disponibilita: { topic, json_path, vivo }`, tag a `Bad` e niente eco `Good` dei comandi quando l'altro capo è morto; S7/EtherNet-IP/OPC-UA/HA scrivono lo stato (`con_attesa_e_stato`). **Provato dal vivo** sul broker di casa, solo sottoscrizione |
+| `feat/disponibilita-editor` | `d549fceb` | IDE: riga «Disponibilità» sotto ogni card di Protocolli con «Crea l'allarme di disponibilità» (dichiara il tag, prepara un allarme `bool_false` con 60 s nella bozza della scheda Allarmi via `allarmeInAttesa`); sezione MQTT con preset Zigbee2MQTT/Tasmota/Shelly/ESPHome; validazione del topic |
+
+Verifiche: `cargo test` 1406, `vitest` 1756, `pnpm build`, guardie verdi. La **2.23.6** è stata costruita
+dall'ufficio la notte del 28-29/10: immagini pubblicate, tag su origin, gateway del VPS sulla 2.23.6-amd64 — la
+domanda che c'era qui («costruita o no?») è chiusa. Le Novità di questi rami sono nel blocco **2.23.7**, ed è giusto
+così: la 2.23.6 non le contiene.
+
+### Da fare
+
+1. **Vedere i rami 1 e 2 a schermo**: serve una build del ramo (chiedere) portata sul VPS e sul TC620; poi in
+   CasaDomotica (nel cloud) la disponibilità Zigbee2MQTT sulle sorgenti `mqtt-*` che parlano con Zigbee2MQTT e
+   l'allarme con Telegram — è il **ramo 3** del piano, insieme al manuale (protocolli e allarmi) e ai collaudi.
+2. Con la conferma: squash dei due rami su `main`, eliminarli (anche su origin), togliere il rimando in testa allo
+   STATUS di `main`.
+3. Resta dal 28-10: la misura del punto 5 dei trend (in `docs/plans/Appunti.txt`). Il 401 del relay verso
+   `wp630-ufficio` **non resta**: corretto nella 2.23.5 e collaudato dal vivo spegnendo e riaccendendo il WP630 —
+   «sessione rinnovata da sola, il canale è aperto».
+
+## ▶ Prima — due semi sono diventati piani d'esecuzione (2026-10-28, sera)
 
 **Sessione di solo plan, nessun codice.** `main` non ha rami aperti. Due semi trasformati in
 piani d'esecuzione dettagliati, con le decisioni del maintainer prese in sessione:

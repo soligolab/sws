@@ -23,6 +23,7 @@ pub async fn run(
     db: Arc<TagDb>,
     bus: Arc<TagWriteBus>,
     cancel: CancellationToken,
+    stato: Arc<sws_core::stato_sorgenti::StatoSorgenti>,
 ) {
     let entity_map: HashMap<String, EntityMapping> = cfg
         .entities
@@ -44,10 +45,11 @@ pub async fn run(
     // errore il task finiva con «stopped (save config to retry)» e aspettava il
     // watchdog del supervisore. Dal 04-10-2026 riconnette davvero, con
     // un'attesa crescente.
-    sws_core::riconnessione::con_attesa(
+    sws_core::riconnessione::con_attesa_e_stato(
         &cfg.id,
+        &stato,
         cancel.clone(),
-        || run_session(&cfg, &db, &bus, &entity_map, cancel.clone()),
+        || run_session(&cfg, &db, &bus, &entity_map, cancel.clone(), &stato),
         || async {
             for m in &cfg.entities {
                 db.marca_qualita(&m.tag, TagQuality::Bad).await;
@@ -63,6 +65,7 @@ async fn run_session(
     bus: &Arc<TagWriteBus>,
     entity_map: &HashMap<String, EntityMapping>,
     cancel: CancellationToken,
+    stato: &sws_core::stato_sorgenti::StatoSorgenti,
 ) -> anyhow::Result<()> {
     let token = effective_token(cfg)?;
 
@@ -141,6 +144,7 @@ async fn run_session(
         anyhow::bail!("HA auth failed: {msg}");
     }
     info!(source = %cfg.id, "authenticated with HomeAssistant");
+    stato.bus(&cfg.id, sws_core::stato_sorgenti::Collegamento::Ok, None);
 
     write
         .send(Message::Text(

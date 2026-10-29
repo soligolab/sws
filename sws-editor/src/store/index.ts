@@ -414,6 +414,14 @@ interface AppState {
    *  referenziato, altrimenti le scarta. Prima vivevano nello stato locale
    *  della scheda Sorgenti e cambiare scheda le perdeva. */
   tagInAttesa: TagDef[];
+  /** Un allarme preparato fuori dalla scheda Allarmi (28-10-2026: «Crea
+   *  l'allarme di disponibilità» nei Protocolli). La scheda Allarmi lo prende
+   *  nella **sua** bozza e lo svuota: scriverlo nel progetto da fuori
+   *  rifarebbe il salvataggio parziale che quella scheda evita. */
+  allarmeInAttesa: AlarmDef | null;
+  /** Prepara l'allarme e porta alla scheda Allarmi, con la riga scelta. */
+  preparaAllarme: (a: AlarmDef) => void;
+  svuotaAllarmeInAttesa: () => void;
   aggiungiTagInAttesa: (t: TagDef) => void;
   svuotaTagInAttesa: () => void;
   /** Gli id creati dall'ultimo salvataggio riuscito, per il riepilogo. */
@@ -1076,6 +1084,7 @@ export const useAppStore = create<AppState>((set, get) => {
     bootPngFirme: {},
     pendingSections: {},
     tagInAttesa: [],
+    allarmeInAttesa: null,
     ultimiTagCreati: [],
     rilieviProgetto: [],
 
@@ -2721,6 +2730,8 @@ export const useAppStore = create<AppState>((set, get) => {
         tagInAttesa: [...s.tagInAttesa.filter((x) => x.id !== t.id), t],
       })),
     svuotaTagInAttesa: () => set({ tagInAttesa: [] }),
+    preparaAllarme: (a) => set({ allarmeInAttesa: a, appMode: "config", configTab: "alarms", configFocus: a.id }),
+    svuotaAllarmeInAttesa: () => set({ allarmeInAttesa: null }),
 
     riconciliaTag: async () => {
       const s = get();

@@ -11,6 +11,22 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 
 ## [Unreleased]
 
+### Added
+
+- **La disponibilità delle sorgenti** (ramo 1 del piano `docs/plans/2026-10-28-chi-sta-dall-altra-parte.md`):
+  ogni sorgente che dice se risponde scrive il tag `<sorgente>.disponibile` (vero/falso, solo ai cambi; il nome in
+  `sws_core::tag_disponibilita`). MQTT impara `disponibilita: { topic, json_path, vivo }` — il testamento di
+  Zigbee2MQTT, Tasmota, Shelly, ESPHome — e quando l'altro capo è morto porta i suoi tag a `Bad` e non rimette `Good`
+  il valore di un comando mandato. S7, EtherNet/IP, OPC-UA client e Home Assistant scrivono lo stato del collegamento
+  (`riconnessione::con_attesa_e_stato`), come già Modbus. Provato dal vivo sul broker di casa con Zigbee2MQTT spento.
+
+- **La disponibilità nell'IDE** (ramo 2 dello stesso piano): sotto ogni card di Protocolli che ce l'ha, la riga
+  «Disponibilità» col tag `<sorgente>.disponibile`, lo stato attuale e «Crea l'allarme di disponibilità» — dichiara il
+  tag e prepara un allarme a livelli `bool_false` con 60 s di ritardo, che la scheda Allarmi accoglie nella sua bozza
+  (`allarmeInAttesa` nello store) e non duplica se sul tag ce n'è già uno. Nella card MQTT la sezione «Disponibilità»
+  con le impostazioni pronte (Zigbee2MQTT, Tasmota, Shelly, ESPHome, personalizzato). Validazione: `{nome}` lasciato
+  nel topic, topic vuoto o con caratteri jolly, valore «vivo» vuoto.
+
 ## [2.23.6] — 2026-10-28
 
 ### Added

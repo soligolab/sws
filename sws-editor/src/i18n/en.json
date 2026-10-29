@@ -3918,7 +3918,23 @@
     "richiestaStatoPayload": "Request payload, as is",
     "compilaRichieste_one": "⟳ Request state on start: {{count}} Zigbee2MQTT row",
     "compilaRichieste_other": "⟳ Request state on start: {{count}} Zigbee2MQTT rows",
-    "compilaRichiesteTitolo": "Fill in the state request (`<topic>/get` with the JSON path field) on the `zigbee2mqtt/…` rows that lack one."
+    "compilaRichiesteTitolo": "Fill in the state request (`<topic>/get` with the JSON path field) on the `zigbee2mqtt/…` rows that lack one.",
+    "disponibilita": {
+      "titolo": "AVAILABILITY",
+      "nota": "Who is on the other side of the broker. A reachable broker does not mean Zigbee2MQTT is running: choose the topic that tells. When it says «dead», this source's tags go to Bad quality and the availability tag to false.",
+      "chi": "Who tells if it is alive",
+      "soloBroker": "Broker only",
+      "personalizzato": "Custom…",
+      "vivo": "«Alive» value",
+      "nomeDaSostituire": "Replace «{nome}» with the device name.",
+      "riga": "Availability:",
+      "adesso_si": "responding",
+      "adesso_no": "not responding",
+      "creaAllarme": "Create the availability alarm",
+      "vaiAllarme": "Go to the alarm",
+      "descrizioneTag": "True when source «{{id}}» has someone on the other side (written by the runtime)",
+      "messaggio": "Source «{{id}}» has not responded for a minute"
+    }
   },
   "reportTab": {
     "titolo": "SCHEDULED REPORTS",

@@ -26,7 +26,7 @@ const GIRI_MUTI_PER_RICONNETTERE: u32 = 3;
 /// (`sws_core::riconnessione`, 04-10-2026: before, the first error ended the task
 /// and the log said «stopped (save config to retry)», which was not true — the
 /// supervisor's watchdog restarted it every 30 s).
-pub async fn run(cfg: S7Config, db: Arc<TagDb>, bus: Arc<TagWriteBus>, cancel: CancellationToken) {
+pub async fn run(cfg: S7Config, db: Arc<TagDb>, bus: Arc<TagWriteBus>, cancel: CancellationToken, stato: Arc<sws_core::stato_sorgenti::StatoSorgenti>) {
     // Register writable tags on the write bus.
     let (write_tx, write_rx) = mpsc::channel::<WriteRequest>(32);
     for tm in cfg.tags.iter().filter(|t| t.writable) {
@@ -35,10 +35,11 @@ pub async fn run(cfg: S7Config, db: Arc<TagDb>, bus: Arc<TagWriteBus>, cancel: C
     drop(write_tx);
     let write_rx = tokio::sync::Mutex::new(write_rx);
 
-    sws_core::riconnessione::con_attesa(
+    sws_core::riconnessione::con_attesa_e_stato(
         &cfg.id,
+        &stato,
         cancel.clone(),
-        || async { session(&cfg, &db, &mut *write_rx.lock().await, cancel.clone()).await },
+        || async { session(&cfg, &db, &mut *write_rx.lock().await, cancel.clone(), &stato).await },
         || async {
             for tm in &cfg.tags {
                 db.marca_qualita(&tm.tag, TagQuality::Bad).await;
@@ -56,6 +57,7 @@ async fn session(
     db: &TagDb,
     write_rx: &mut mpsc::Receiver<WriteRequest>,
     cancel: CancellationToken,
+    stato: &sws_core::stato_sorgenti::StatoSorgenti,
 ) -> anyhow::Result<()> {
     let ip: IpAddr = cfg
         .ip
@@ -82,6 +84,7 @@ async fn session(
     .map_err(|e| anyhow::anyhow!("spawn_blocking panic: {e}"))??;
 
     info!(source = %cfg.id, ip = %cfg.ip, port, "S7 connected");
+    stato.bus(&cfg.id, sws_core::stato_sorgenti::Collegamento::Ok, None);
 
     // The Client is not Send, so wrap it in a channel-based bridge.
     // Requests go in, responses come out.

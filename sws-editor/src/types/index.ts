@@ -1382,7 +1382,18 @@ export interface MqttSource {
   random_client_id?: {
     enabled: boolean;
     position: "prefix" | "suffix";
-  };
+  };  /** Chi sta dall'altra parte del broker (28-10-2026, piano «chi sta
+   *  dall'altra parte»): il topic che dice se è vivo. Gemello di
+   *  `sws_core::DisponibilitaMqtt`. */
+  disponibilita?: DisponibilitaMqtt;
+}
+
+export interface DisponibilitaMqtt {
+  topic: string;
+  /** Il campo del JSON da leggere (`state`); senza, si confronta il testo intero. */
+  json_path?: string;
+  /** Il valore che vuol dire vivo; maiuscole e spazi non contano. */
+  vivo: string;
 }
 
 // ── OPC-UA client source (BL-005) ─────────────────────────────────────────

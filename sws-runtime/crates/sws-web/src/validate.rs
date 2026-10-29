@@ -928,6 +928,7 @@ pub fn semantic(project: &Project, pages: &[SynopticPage]) -> Vec<Finding> {
     for src in &project.sources {
         let id = source_id(src);
         controlli_modbus(src, id, &mut porte_rtu, &mut out);
+        controlli_disponibilita(src, id, &mut out);
         if id.trim().is_empty() {
             out.push(Finding::err(
                 "project.sources[]",
@@ -2147,6 +2148,65 @@ fn mappature_tag(src: &SourceDef) -> Vec<(String, &str)> {
         SourceDef::Mqtt(_) => {}
     }
     out
+}
+
+/// Il topic di disponibilità MQTT (28-10-2026, piano «chi sta dall'altra
+/// parte»). Tre modi di scriverlo che non funzioneranno mai, e che nessuno
+/// noterebbe finché il dispositivo non si spegne davvero: il `{nome}` delle
+/// impostazioni pronte lasciato lì, un topic vuoto o con i caratteri jolly,
+/// un valore «vivo» vuoto. Avvisi: il progetto si salva, ma la sorgente
+/// direbbe «non risponde» per sempre.
+fn controlli_disponibilita(src: &SourceDef, id: &str, out: &mut Vec<Finding>) {
+    let SourceDef::Mqtt(c) = src else { return };
+    let Some(d) = c.disponibilita.as_ref() else { return };
+    let campo = format!("project.sources[{id}].disponibilita");
+    if d.topic.contains("{nome}") {
+        out.push(Finding::warn(
+            &campo,
+            format!("il topic di disponibilità `{}` contiene ancora `{{nome}}`", d.topic),
+            "sostituisci `{nome}` col nome del dispositivo: così com'è nessuno ci pubblica, e la \
+             sorgente risulterebbe sempre non disponibile",
+        ));
+    } else if d.topic.trim().is_empty() || d.topic.contains('#') || d.topic.contains('+') {
+        out.push(Finding::warn(
+            &campo,
+            format!("il topic di disponibilità `{}` non è un topic preciso", d.topic),
+            "serve il topic esatto su cui il dispositivo pubblica il suo stato (vuoto o con `#`/`+` \
+             non dice di chi si parla)",
+        ));
+    }
+    if d.vivo.trim().is_empty() {
+        out.push(Finding::warn(
+            &campo,
+            "il valore che vuol dire «vivo» è vuoto",
+            "scrivi il valore che il dispositivo pubblica quando è acceso (`online`, `true`…)",
+        ));
+    }
+}
+
+#[cfg(test)]
+mod prove_disponibilita {
+    use super::*;
+
+    fn con(topic: &str, vivo: &str) -> SourceDef {
+        let y = format!("kind: mqtt\nid: m\nhost: h\ntopics: []\ndisponibilita:\n  topic: '{topic}'\n  vivo: '{vivo}'\n");
+        serde_yaml::from_str(&y).unwrap()
+    }
+
+    #[test]
+    fn i_tre_modi_che_non_funzionano_mai() {
+        for (topic, vivo, attesi) in [
+            ("tele/{nome}/LWT", "online", 1),
+            ("zigbee2mqtt/#", "online", 1),
+            ("", "online", 1),
+            ("zigbee2mqtt/bridge/state", "", 1),
+            ("zigbee2mqtt/bridge/state", "online", 0),
+        ] {
+            let mut out = Vec::new();
+            controlli_disponibilita(&con(topic, vivo), "m", &mut out);
+            assert_eq!(out.len(), attesi, "{topic:?} / {vivo:?}");
+        }
+    }
 }
 
 /// Copia locale di `source_supervisor::source_id`, che è `pub(crate)` e vive in

@@ -182,6 +182,42 @@ condition:
 
 ---
 
+## Un allarme quando una sorgente non risponde
+
+Ogni sorgente ha un tag booleano **`<sorgente>.disponibile`**, che il runtime scrive da solo: vero quando c'è
+qualcuno dall'altra parte (vedi [Protocolli](06_protocols.md#chi-sta-dallaltra-parte-la-disponibilità-dal-29-10-2026)).
+Un allarme su quel tag avvisa quando un dispositivo, un PLC o un bridge come Zigbee2MQTT smette di rispondere — che è
+il caso in cui altrimenti non se ne accorge nessuno, perché i valori restano fermi all'ultimo letto.
+
+**Non serve una condizione nuova**: è un allarme `bool_false` come gli altri. Il pulsante **Crea l'allarme di
+disponibilità**, sotto la card della sorgente in Configurazione → Protocolli, lo prepara già compilato:
+
+```yaml
+alarms:
+  - id: disponibilita-zigbee2mqtt
+    tag: zigbee2mqtt.disponibile
+    levels:
+      - condition: { kind: bool_false }
+        severity: Warning
+        message: "La sorgente «zigbee2mqtt» non risponde da un minuto"
+    on_delay_s: 60
+```
+
+È nella forma **a livelli**, come ogni allarme nuovo della scheda Allarmi: la forma a condizione singola è quella
+vecchia, e la scheda chiede di convertirla.
+
+- **`severity: Warning`**, non `Critical`: un dispositivo che non risponde va guardato, ma non è ancora un
+  guasto d'impianto. Se per quell'impianto lo è, si alza.
+- **`on_delay_s: 60`** perché una rete che va e viene per qualche secondo non è un guasto, e un allarme che suona a
+  ogni riconnessione smette di essere ascoltato. Si può cambiare come qualunque altro campo.
+- L'allarme si apre nella **bozza** della scheda Allarmi, non viene scritto nel progetto da fuori: si guarda, si
+  corregge, e si salva come gli altri. Una volta creato, il pulsante diventa **Vai all'allarme**.
+- Da lì vale tutto: la severità, la tabella eventi × canali, Telegram, email, SMS e voce, lo storico. Il caso che ha
+  fatto nascere questa funzione è proprio un Zigbee2MQTT spento da trenta ore senza che nessuno lo sapesse: con un
+  allarme collegato a Telegram, il messaggio sarebbe arrivato dopo un minuto.
+
+---
+
 ## Severità
 
 | Severità | Colore | Priorità | Uso tipico |

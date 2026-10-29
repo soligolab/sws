@@ -7,7 +7,7 @@ import { S } from "@/config/comuni";
 import { emptyTopic } from "@/config/sorgenti/vuote";
 import { MqttBrowseModal } from "@/config/sorgenti/MqttBrowseModal";
 import { MqttJsonExtractModal } from "@/config/sorgenti/MqttJsonExtractModal";
-import { MqttAuthSection, MqttConnectionSection, MqttTlsSection, MqttRandomClientIdSection, MqttLastWillSection } from "@/config/sorgenti/MqttSezioni";
+import { MqttAuthSection, MqttConnectionSection, MqttTlsSection, MqttRandomClientIdSection, MqttLastWillSection, MqttDisponibilitaSection } from "@/config/sorgenti/MqttSezioni";
 import { SparkplugSection } from "@/config/sorgenti/SparkplugSection";
 import { compilaRichiesteZigbee2mqtt, pubblicabile, richiestaZigbee2mqtt } from "@/config/sorgenti/richiestaStato";
 
@@ -155,6 +155,13 @@ export function MqttSourceCard({
             lw={source.last_will}
             onChange={(lw) => onChange({ ...source, last_will: lw })}
           />
+          {!source.sparkplug && (
+            <MqttDisponibilitaSection
+              source={source}
+              onChange={(d) => onChange({ ...source, disponibilita: d })}
+              onCreateTag={onCreateTag}
+            />
+          )}
 
           <SparkplugSection
             spb={source.sparkplug}

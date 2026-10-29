@@ -857,6 +857,64 @@ pub struct MqttConfig {
     /// legitimately just quiet.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub max_silence_secs: Option<u64>,
+
+    /// Chi sta dall'altra parte del broker (28-10-2026, piano
+    /// `docs/plans/2026-10-28-chi-sta-dall-altra-parte.md`). Un broker vivo
+    /// non vuol dire un Zigbee2MQTT vivo: senza questo campo la sorgente è
+    /// «disponibile» finché il broker risponde; con questo, anche il topic di
+    /// disponibilità deve dire vivo.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub disponibilita: Option<DisponibilitaMqtt>,
+}
+
+/// Il topic che dice se l'altro capo è vivo: il «testamento» di Zigbee2MQTT
+/// (`zigbee2mqtt/bridge/state`, `{"state":"online"}`), di Tasmota
+/// (`tele/<x>/LWT`, `Online`), di Shelly (`<x>/online`, `true`), di ESPHome
+/// (`<x>/status`, `online`). Convenzioni diverse per la stessa cosa: un topic,
+/// un percorso facoltativo dentro il JSON, e il valore che vuol dire «vivo».
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct DisponibilitaMqtt {
+    pub topic: String,
+    /// Il campo del JSON da leggere (`state`). Se il messaggio non è JSON si
+    /// confronta il testo intero: Zigbee2MQTT prima della 1.x pubblicava
+    /// `online` in chiaro, e un dispositivo può fare lo stesso.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub json_path: Option<String>,
+    /// Il valore che vuol dire vivo. Il confronto ignora maiuscole e spazi:
+    /// `Online` di Tasmota e `online` di Zigbee2MQTT sono la stessa parola.
+    pub vivo: String,
+}
+
+impl DisponibilitaMqtt {
+    /// Il messaggio arrivato sul topic dice che l'altro capo è vivo?
+    pub fn e_vivo(&self, payload: &[u8]) -> bool {
+        let testo = String::from_utf8_lossy(payload);
+        let letto = match (self.json_path.as_deref().filter(|p| !p.is_empty()), serde_json::from_str::<serde_json::Value>(&testo)) {
+            (Some(percorso), Ok(json)) => {
+                let mut v = &json;
+                for parte in percorso.split('.') {
+                    v = &v[parte];
+                }
+                match v {
+                    serde_json::Value::String(s) => s.clone(),
+                    serde_json::Value::Null => String::new(),
+                    altro => altro.to_string(),
+                }
+            }
+            // Una stringa JSON (`"online"`) si legge senza virgolette.
+            (None, Ok(serde_json::Value::String(s))) => s,
+            _ => testo.into_owned(),
+        };
+        letto.trim().eq_ignore_ascii_case(self.vivo.trim())
+    }
+}
+
+/// Il tag in cui il runtime scrive se una sorgente ha qualcuno dall'altra
+/// parte. Il nome si compone **qui e solo qui**: lo usano il supervisore che
+/// lo scrive, l'IDE che lo dichiara e l'allarme che lo guarda.
+pub fn tag_disponibilita(sorgente: &str) -> String {
+    format!("{sorgente}.disponibile")
 }
 
 /// See `MqttConfig::random_client_id`.
@@ -2516,5 +2574,57 @@ mod dispositivi_modbus_tests {
         assert!(!y.contains("registers: []"), "{y}");
         assert!(!y.contains("timeout_ms"), "predefinito omesso: {y}");
         assert_eq!(y.matches("unit_id").count(), 1, "solo quello del dispositivo: {y}");
+    }
+}
+
+#[cfg(test)]
+mod prove_disponibilita {
+    use super::*;
+
+    fn d(topic: &str, json_path: Option<&str>, vivo: &str) -> DisponibilitaMqtt {
+        DisponibilitaMqtt { topic: topic.into(), json_path: json_path.map(Into::into), vivo: vivo.into() }
+    }
+
+    #[test]
+    fn zigbee2mqtt_in_json_e_in_chiaro() {
+        let z = d("zigbee2mqtt/bridge/state", Some("state"), "online");
+        assert!(z.e_vivo(br#"{"state":"online"}"#));
+        // Il messaggio visto sul broker di casa il 28-10-2026.
+        assert!(!z.e_vivo(br#"{"state":"offline"}"#));
+        // Le versioni vecchie pubblicavano il testo nudo.
+        assert!(z.e_vivo(b"online"));
+        assert!(!z.e_vivo(b"offline"));
+    }
+
+    #[test]
+    fn tasmota_shelly_esphome() {
+        assert!(d("tele/x/LWT", None, "online").e_vivo(b"Online"), "maiuscole ignorate");
+        assert!(!d("tele/x/LWT", None, "online").e_vivo(b"Offline"));
+        assert!(d("shelly/online", None, "true").e_vivo(b"true"));
+        assert!(!d("shelly/online", None, "true").e_vivo(b"false"));
+        assert!(d("esp/status", None, "online").e_vivo(b"\"online\""), "una stringa JSON si legge senza virgolette");
+    }
+
+    #[test]
+    fn un_campo_che_manca_non_e_vivo() {
+        let z = d("t", Some("state"), "online");
+        assert!(!z.e_vivo(br#"{"altro":"online"}"#));
+        assert!(!z.e_vivo(b""));
+    }
+
+    #[test]
+    fn il_nome_del_tag_si_compone_in_un_punto_solo() {
+        assert_eq!(tag_disponibilita("mqtt-switch-garage"), "mqtt-switch-garage.disponibile");
+    }
+
+    #[test]
+    fn senza_disponibilita_il_yaml_resta_com_era() {
+        let y = "id: m\nhost: h\ntopics: []\n";
+        let c: MqttConfig = serde_yaml::from_str(y).unwrap();
+        assert!(c.disponibilita.is_none());
+        assert!(!serde_yaml::to_string(&c).unwrap().contains("disponibilita"));
+        let con = "id: m\nhost: h\ntopics: []\ndisponibilita:\n  topic: zigbee2mqtt/bridge/state\n  json_path: state\n  vivo: online\n";
+        let c: MqttConfig = serde_yaml::from_str(con).unwrap();
+        assert_eq!(c.disponibilita.unwrap().vivo, "online");
     }
 }

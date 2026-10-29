@@ -151,6 +151,39 @@ Serve un account Twilio (anche di prova: chiama e scrive solo ai numeri verifica
        «tunnel muto» e il pallino diventa grigio.
 3. [ ] «Sposta azienda» su un pannello collegato: si ricollega da sé in pochi secondi.
 
+## A-septies. Chi sta dall'altra parte: la disponibilità delle sorgenti (29-10-2026)
+
+Piano `docs/plans/2026-10-28-chi-sta-dall-altra-parte.md`. Nasce dal Zigbee2MQTT di casa spento per trenta ore senza
+che niente lo dicesse. **Si fa dopo che il cloud gira la versione che contiene la funzione**: un runtime più vecchio
+ignora `disponibilita:` e la cancella al primo salvataggio, senza avvisare.
+
+**Nell'IDE, subito** (basta l'8460 sul ramo, progetto `casa-locale`, che punta a un broker che non esiste):
+
+1. [ ] Configurazione → Protocolli → una card MQTT: sotto c'è la riga **Disponibilità: non risponde**.
+2. [ ] Sezione **DISPONIBILITÀ** → «Chi dice se è vivo» → Zigbee2MQTT: si compilano topic, campo e valore. Salvare: in
+       Variabili compare il tag `<sorgente>.disponibile`.
+3. [ ] «Crea l'allarme di disponibilità»: la scheda Allarmi si apre con l'allarme in bozza (`bool_false`, 60 s,
+       Warning, il nome della sorgente nel messaggio). Salvare. Tornando alla card, il pulsante dice «Vai
+       all'allarme».
+4. [ ] «Personalizzato…» con un topic e **senza** valore «vivo»: la validazione avvisa.
+
+**Dal vivo, con CasaDomotica e il Zigbee2MQTT di casa:**
+
+5. [ ] Su ogni sorgente `mqtt-*` che parla con Zigbee2MQTT: la preimpostazione Zigbee2MQTT. Lo stato dice
+       «risponde».
+6. [ ] Allarme di disponibilità creato dal pulsante, e Telegram acceso per il suo scatto nella tabella eventi.
+7. [ ] **Fermare Zigbee2MQTT**: entro un minuto e qualche secondo arriva il messaggio Telegram; i tag della sorgente
+       nel sinottico sono non aggiornati (stale); un allarme di soglia su uno di quei tag **non** scatta.
+8. [ ] Riavviare Zigbee2MQTT: la disponibilità torna vera, ma i tag restano `Bad` finché ognuno non riceve un valore
+       vero — premere un interruttore e vederlo tornare buono.
+9. [ ] Con Zigbee2MQTT fermo, premere un pulsante del sinottico: il comando **parte lo stesso** (si vede nel log
+       del runtime). È voluto: un falso «morto» non deve bloccare i comandi.
+
+**Le altre sorgenti** (basta una):
+
+10. [ ] Una sorgente Modbus o S7 verso un dispositivo vero: staccarlo → `<sorgente>.disponibile` falso e tag `Bad`;
+        riattaccarlo → vero, e i tag tornano buoni alla prima lettura.
+
 ## B. Lo schema `http`/`https` non è più scritto a mano
 
 Quattro punti che prima non rileggevano il certificato. **Nessuno cambia il comportamento di un

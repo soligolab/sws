@@ -26,6 +26,7 @@ pub async fn run(
     db: Arc<TagDb>,
     bus: Arc<TagWriteBus>,
     cancel: CancellationToken,
+    stato: Arc<sws_core::stato_sorgenti::StatoSorgenti>,
 ) {
     let (write_tx, write_rx) = mpsc::channel::<WriteRequest>(32);
     for tm in cfg.tags.iter().filter(|t| t.writable) {
@@ -37,10 +38,11 @@ pub async fn run(
     // Una sessione caduta si riapre con un'attesa crescente (04-10-2026): prima
     // il task finiva, il log diceva «stopped (save config to retry)» e la
     // sorgente aspettava il watchdog del supervisore.
-    sws_core::riconnessione::con_attesa(
+    sws_core::riconnessione::con_attesa_e_stato(
         &cfg.id,
+        &stato,
         cancel.clone(),
-        || async { session(&cfg, &db, &mut *write_rx.lock().await, cancel.clone()).await },
+        || async { session(&cfg, &db, &mut *write_rx.lock().await, cancel.clone(), &stato).await },
         || async {
             for tm in &cfg.tags {
                 db.marca_qualita(&tm.tag, TagQuality::Bad).await;
@@ -55,6 +57,7 @@ async fn session(
     db: &TagDb,
     write_rx: &mut mpsc::Receiver<WriteRequest>,
     cancel: CancellationToken,
+    stato: &sws_core::stato_sorgenti::StatoSorgenti,
 ) -> anyhow::Result<()> {
     // rseip expects "host:port" — default EtherNet/IP port is 44818.
     let host = format!("{}:44818", cfg.ip);
@@ -66,6 +69,7 @@ async fn session(
         .with_connection_path(PortSegment::default());
 
     info!(source = %cfg.id, "EtherNet/IP connected");
+    stato.bus(&cfg.id, sws_core::stato_sorgenti::Collegamento::Ok, None);
 
     // Build writable-tag lookup: SWS tag id → index in cfg.tags.
     let write_map: HashMap<String, usize> = cfg

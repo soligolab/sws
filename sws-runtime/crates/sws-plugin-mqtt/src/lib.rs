@@ -9,6 +9,7 @@
 
 use rumqttc::{AsyncClient, Event, MqttOptions, Packet, QoS};
 use std::{sync::Arc, time::Duration};
+use sws_core::stato_sorgenti::{Collegamento, StatoSorgenti};
 use sws_core::{MqttConfig, TagDb, TagQuality, TagValue, TagWriteBus, WriteRequest};
 use tokio::sync::mpsc;
 use tokio_util::sync::CancellationToken;
@@ -199,12 +200,18 @@ pub async fn run(
     bus: Arc<TagWriteBus>,
     cancel: CancellationToken,
     certificati: Arc<sws_core::pin_tls::ImprontaStore>,
+    stato: Arc<StatoSorgenti>,
 ) {
     // Sparkplug B mode: fully different subscription + protobuf decode path.
+    // Non scrive lo stato della sorgente: niente tag di disponibilità, invece
+    // di uno che direbbe «mai collegato» per sempre.
     if let Some(spb) = cfg.sparkplug.clone() {
         sparkplug::run_sparkplug(cfg, spb, db, bus, cancel).await;
         return;
     }
+    // Il «risponde / non risponde» della sorgente (28-10-2026, piano «chi sta
+    // dall'altra parte»): da qui nasce il tag `<id>.disponibile`.
+    stato.registra(&cfg.id, []);
     // Pre-build a (tag → publish_topic) lookup for the writable subset.
     let writers: Vec<(String, String)> = cfg
         .topics
@@ -244,6 +251,7 @@ pub async fn run(
             &writers,
             cancel.clone(),
             &certificati,
+            &stato,
         )
         .await
         {
@@ -261,6 +269,7 @@ pub async fn run(
                         "MQTT session ended: {e:#} — riprovo fra {attesa}s"
                     );
                 }
+                stato.caduta(&cfg.id, format!("{e:#}"));
                 for topic in cfg.topics.iter().filter(|t| mappata(&t.tag)) {
                     db.marca_qualita(&topic.tag, TagQuality::Bad).await;
                 }
@@ -285,6 +294,7 @@ async fn run_session(
     writers: &[(String, String)],
     cancel: CancellationToken,
     certificati: &Arc<sws_core::pin_tls::ImprontaStore>,
+    stato: &StatoSorgenti,
 ) -> anyhow::Result<()> {
     let mut opts = MqttOptions::new(&cfg.client_id, &cfg.host, cfg.port);
     opts.set_max_packet_size(MAX_PACKET_SIZE_BYTES, MAX_PACKET_SIZE_BYTES);
@@ -384,6 +394,23 @@ async fn run_session(
             .map_err(|e| anyhow::anyhow!("subscribe '{}': {e}", topic.topic))?;
     }
 
+    // Chi sta dall'altra parte (28-10-2026): il topic di disponibilità si
+    // sottoscrive come gli altri. Finché non dice «vivo» la sorgente non
+    // risponde — il testamento di Zigbee2MQTT e dei suoi simili è conservato,
+    // quindi arriva subito dopo la SUBSCRIBE.
+    if let Some(d) = cfg.disponibilita.as_ref().filter(|d| sottoscrivibile(&d.topic)) {
+        client
+            .subscribe(&d.topic, source_qos)
+            .await
+            .map_err(|e| anyhow::anyhow!("subscribe '{}': {e}", d.topic))?;
+        stato.bus(&cfg.id, Collegamento::NonRisponde, Some(format!("nessun messaggio su «{}»", d.topic)));
+    } else {
+        stato.bus(&cfg.id, Collegamento::Ok, None);
+    }
+    // Vero finché l'altro capo non dice il contrario. Senza topic di
+    // disponibilità resta vero: c'è solo il broker da guardare.
+    let mut altro_capo_vivo = cfg.disponibilita.is_none();
+
     // Lo stato iniziale (25-10-2026): un broker senza `retain` non ha niente da
     // consegnare alla sottoscrizione, e il tag resterebbe senza valore finché lo
     // stato non cambia. Le richieste partono dopo le SUBSCRIBE, nella stessa coda
@@ -465,9 +492,14 @@ async fn run_session(
                     warn!(source = %cfg.id, %tag, %pt, "MQTT publish failed: {e}");
                 } else {
                     // Echo back into TagDb so the UI updates immediately, before
-                    // any return-trip on the subscribe topic.
-                    db.ingest(tag.clone(), value, TagQuality::Good).await;
-                    info!(source = %cfg.id, %tag, %pt, payload, "MQTT publish");
+                    // any return-trip on the subscribe topic. **Non con l'altro
+                    // capo morto** (28-10-2026): il comando parte lo stesso, ma
+                    // scrivere `Good` il valore mandato direbbe che è stato
+                    // eseguito, e nessuno lo ha ricevuto.
+                    if altro_capo_vivo {
+                        db.ingest(tag.clone(), value, TagQuality::Good).await;
+                    }
+                    info!(source = %cfg.id, %tag, %pt, payload, vivo = altro_capo_vivo, "MQTT publish");
                 }
             }
 
@@ -482,6 +514,27 @@ async fn run_session(
                 if let Event::Incoming(Packet::Publish(p)) = event {
                     let _messaggio = sws_core::prestazioni::Misura::nuova(format!("sorgente.mqtt.{}", cfg.id));
                     let mut matched = false;
+                    if let Some(d) = cfg.disponibilita.as_ref().filter(|d| d.topic == p.topic) {
+                        matched = true;
+                        let vivo = d.e_vivo(&p.payload);
+                        if vivo != altro_capo_vivo || !vivo {
+                            if vivo {
+                                stato.bus(&cfg.id, Collegamento::Ok, None);
+                                info!(source = %cfg.id, topic = %p.topic, "MQTT: l'altro capo è di nuovo vivo");
+                            } else {
+                                let detto = String::from_utf8_lossy(&p.payload).chars().take(120).collect::<String>();
+                                if stato.bus(&cfg.id, Collegamento::NonRisponde, Some(format!("«{}» dice {detto}", p.topic))) {
+                                    warn!(source = %cfg.id, topic = %p.topic, payload = %detto, "MQTT: l'altro capo non c'è — i tag passano a Bad");
+                                }
+                                // I valori restano, ma nessuno può più dire che
+                                // siano veri: tornano `Good` col primo valore vero.
+                                for topic in cfg.topics.iter().filter(|t| mappata(&t.tag)) {
+                                    db.marca_qualita(&topic.tag, TagQuality::Bad).await;
+                                }
+                            }
+                        }
+                        altro_capo_vivo = vivo;
+                    }
                     for topic in &cfg.topics {
                         if topic.topic == p.topic {
                             matched = true;

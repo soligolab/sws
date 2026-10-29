@@ -40,6 +40,43 @@ pub fn prossima_attesa(prima: Option<Duration>, durata_sessione: Duration) -> Du
 pub async fn con_attesa<S, Fut, C, FutC>(
     sorgente: &str,
     cancel: CancellationToken,
+    sessione: S,
+    alla_caduta: C,
+) where
+    S: FnMut() -> Fut,
+    Fut: Future<Output = anyhow::Result<()>>,
+    C: FnMut() -> FutC,
+    FutC: Future<Output = ()>,
+{
+    giro(sorgente, None, cancel, sessione, alla_caduta).await
+}
+
+/// Come [`con_attesa`], e in più **dice** se la sorgente risponde (28-10-2026,
+/// piano «chi sta dall'altra parte»): la registra in `stato` all'inizio e ne
+/// segna la caduta con l'errore. Il «risponde» lo segna la sessione stessa,
+/// subito dopo essersi collegata — è lei a sapere quando lo è.
+///
+/// Modbus non la usa: tiene anche lo stato dei dispositivi, e lo scrive da sé.
+pub async fn con_attesa_e_stato<S, Fut, C, FutC>(
+    sorgente: &str,
+    stato: &crate::stato_sorgenti::StatoSorgenti,
+    cancel: CancellationToken,
+    sessione: S,
+    alla_caduta: C,
+) where
+    S: FnMut() -> Fut,
+    Fut: Future<Output = anyhow::Result<()>>,
+    C: FnMut() -> FutC,
+    FutC: Future<Output = ()>,
+{
+    stato.registra(sorgente, []);
+    giro(sorgente, Some(stato), cancel, sessione, alla_caduta).await
+}
+
+async fn giro<S, Fut, C, FutC>(
+    sorgente: &str,
+    stato: Option<&crate::stato_sorgenti::StatoSorgenti>,
+    cancel: CancellationToken,
     mut sessione: S,
     mut alla_caduta: C,
 ) where
@@ -58,6 +95,9 @@ pub async fn con_attesa<S, Fut, C, FutC>(
         match esito {
             Ok(()) => return,
             Err(e) => {
+                if let Some(st) = stato {
+                    st.caduta(sorgente, format!("{e:#}"));
+                }
                 alla_caduta().await;
                 let a = prossima_attesa(attesa, inizio.elapsed());
                 attesa = Some(a);

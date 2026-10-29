@@ -61,6 +61,30 @@ export function AlarmsTab() {
     setAlarms((prev) => [...prev, emptyAlarm()]);
   };
 
+  // Un allarme preparato altrove (28-10-2026: «Crea l'allarme di
+  // disponibilità» nei Protocolli) entra nella bozza di questa scheda, scelto,
+  // e lo si salva come ogni altro. Se sullo stesso tag ce n'è già uno — un tag
+  // vuole un allarme solo, con più livelli — non se ne fa un secondo: si va a
+  // quello che c'è.
+  const allarmeInAttesa = useAppStore((s) => s.allarmeInAttesa);
+  const svuotaAllarmeInAttesa = useAppStore((s) => s.svuotaAllarmeInAttesa);
+  const navigateToConfig = useAppStore((s) => s.navigateToConfig);
+  useEffect(() => {
+    if (!allarmeInAttesa) return;
+    const a = allarmeInAttesa;
+    svuotaAllarmeInAttesa();
+    const esiste = alarms.find((x) => x.id === a.id || x.tag.trim() === a.tag);
+    if (esiste) {
+      navigateToConfig("alarms", esiste.id);
+      return;
+    }
+    setTouched(true);
+    setAlarms((prev) => [...prev, a]);
+    // Solo all'arrivo di un allarme preparato: `alarms` serve a vedere se c'è
+    // già, non a ripartire a ogni modifica della bozza.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [allarmeInAttesa]);
+
   const updateAlarm = (idx: number, patch: Partial<AlarmDef>) => {
     setTouched(true);
     setAlarms((prev) => prev.map((a, i) => (i === idx ? { ...a, ...patch } : a)));
