@@ -49,6 +49,8 @@ versioni:
         en: "IDE: project images (backgrounds, images in objects) show on the canvas again in a locally installed IDE too."
       - it: "Nel tema chiaro il logo SWS si legge: la scritta non è più bianca su fondo bianco."
         en: "In the light theme the SWS logo is readable: the text is no longer white on white."
+      - it: "Slider: sul pannello funziona anche con passi decimali (0..1 a 0,05), rispetta sola lettura, scrittura al rilascio e conferma; il valore sta sotto la traccia come sul web."
+        en: "Slider: on the panel it now works with decimal steps (0..1 by 0.05) and honours read-only, write on release and confirmation; the value sits under the track as on the web."
       - it: "OpenPLC si installa dall'IDE: un bottone per un pannello già installato, o una casella mentre si installa SWS. Parte subito e tiene il programma anche dopo un riavvio."
         en: "OpenPLC installs from the IDE: a button for a panel already installed, or a checkbox while installing SWS. It starts right away and keeps its program across reboots."
   - versione: "2.23.7"

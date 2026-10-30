@@ -43,7 +43,7 @@ import {
   softClampToPage,
 } from "@/pageLayout";
 import { faceplateDefBBox, normalizeFaceplateParams } from "@/faceplate/definizione";
-import type { AlarmSeverity, AlarmState, CustomSymbol, FaceplateDef, GridCell, PageSizeMode, PipePoint, Sample, SynopticObject, TableRow, TagDef, TagState } from "@/types";
+import type { AlarmSeverity, AlarmState, CustomSymbol, FaceplateDef, GridCell, PageSizeMode, PipePoint, Sample, SynopticObject, SynopticObjectType, TableRow, TagDef, TagState } from "@/types";
 import { fattoreFondoRespiro, luminositaValida, parametriLuminosita } from "./luce";
 import { puntiSvg, verticiPoligono } from "./forme";
 import { aggancioSu, bersagli, calamita, diametriCapi, instrada, percorsoTubo, type Bersaglio } from "./tubazioni";
@@ -53,6 +53,20 @@ import { TRASCINA_FACEPLATE } from "@/faceplate/modello";
 import { larghezzaTubo, stileTubo, svgTubo } from "./stiliTubo";
 import { useManifestoLib } from "@/symbols/lib/libreria";
 import { cssFamiglia } from "@/font/famiglie";
+
+/** La misura che ogni ramo di disegno usa quando l'oggetto non la scrive. Il
+ *  contorno di pagina (bordo d'allarme, lampeggio) la prendeva fissa a 100×50,
+ *  e uno slider senza `width` — largo 200 — aveva il bordo d'allarme a metà
+ *  (revisione dello slider, fase 1, 30-10-2026). Deve restare uguale ai
+ *  `obj.width ?? …` dei rami qui sotto. */
+const MISURA_DI_RIPIEGO: Partial<Record<SynopticObjectType, [number, number]>> = {
+  ellipse: [100, 60], polygon: [100, 100], clock: [180, 36], button: [120, 40],
+  navbutton: [140, 36], page_navigator: [400, 48], lang_button: [80, 32], lang_selector: [120, 32],
+  progress_bar: [200, 28], gauge: [160, 140], slider: [200, 50], checkbox: [180, 32],
+  xy_plot: [200, 200], bar_chart: [240, 180], pie_chart: [200, 200], data_log: [380, 240],
+  kpi_tile: [180, 100], sparkline: [120, 30], alarm_viewer: [360, 160], alarm_bell: [130, 34],
+  alarm_banner: [600, 32], alarm_history: [420, 220], recipe_panel: [260, 160],
+};
 
 // ── Canvas props ──────────────────────────────────────────────────────────────
 
@@ -1932,8 +1946,9 @@ export function SvgCanvas({
         if (!inEdit && !roleOk && obj.min_role_effect === "hide") return null;
         // F4 — lampeggio, stato allarme, stale e Bad-gray (tutti opt-in,
         // tutti calcolati qui una volta per ogni tipo di oggetto).
-        const objW = obj.width ?? 100;
-        const objH = obj.height ?? 50;
+        const [ripiegoW, ripiegoH] = MISURA_DI_RIPIEGO[obj.type] ?? [100, 50];
+        const objW = obj.width ?? ripiegoW;
+        const objH = obj.height ?? ripiegoH;
         const tvMain = obj.tag ? tagValues[obj.tag] : undefined;
         // fxOn: effetti runtime attivi (sempre a runtime; in edit solo col
         // toggle "Anteprima effetti" — decisione maintainer 2026-08-23).
@@ -3596,29 +3611,46 @@ function SvgObjectCorpo(p: ObjProps) {
   // e ultimo valore scritto per il deadband. Hook incondizionati come sopra.
   const [sliderDraft, setSliderDraft] = useState<number | null>(null);
   const sliderLastWritten = useRef<number | null>(null);
+  // Revisione dello slider, fase 1 (30-10-2026): dopo una scrittura il cursore
+  // resta dove l'ha lasciato l'operatore, col bordo tratteggiato, finché il tag
+  // non riporta quel valore o per 3 s. Prima `setSliderDraft(null)` lo faceva
+  // saltare al valore vecchio fino al giro successivo del tag.
+  const [sliderInAttesa, setSliderInAttesa] = useState<number | null>(null);
+  const valoreTagSlider = obj.type === "slider" && obj.tag ? tagValues[obj.tag]?.value : undefined;
+  useEffect(() => {
+    if (sliderInAttesa === null) return;
+    if (Math.abs(Number(valoreTagSlider) - sliderInAttesa) <= (obj.step ?? 1) / 2) {
+      setSliderInAttesa(null);
+      return;
+    }
+    const id = setTimeout(() => setSliderInAttesa(null), 3000);
+    return () => clearTimeout(id);
+  }, [sliderInAttesa, valoreTagSlider, obj.step]);
   // F3.4: tastierino numerico touch del setpoint. Hook incondizionato.
   const [keypadOpen, setKeypadOpen] = useState(false);
 
   // F3.2/F3.3: ogni scrittura originata da questo oggetto passa da qui —
   // conferma configurabile, e per i comandi critici re-auth (password della
   // sessione) + motivo obbligatorio, entrambi registrati nell'audit.
-  const guardedWrite = (tagId: string | undefined, value: string | number | boolean) => {
-    if (!tagId) return;
-    guardedWrites([[tagId, value]]);
+  /** Vero se la scrittura è partita (o partirà dopo la password): falso se
+   *  l'operatore l'ha annullata, così chi la chiama non la dà per fatta. */
+  const guardedWrite = (tagId: string | undefined, value: string | number | boolean): boolean => {
+    if (!tagId) return false;
+    return guardedWrites([[tagId, value]]);
   };
 
   /** Più scritture con un gesto solo (le assegnazioni di un bottone): una
    *  conferma, una verifica della password e un motivo per tutte. */
-  const guardedWrites = (scritture: [string, string | number | boolean][]) => {
+  const guardedWrites = (scritture: [string, string | number | boolean][]): boolean => {
     const valide = scritture.filter(([id]) => !!id);
-    if (!valide.length || isEditMode) return;
+    if (!valide.length || isEditMode) return false;
     const descrizione = valide.length === 1
       ? String(valide[0][1])
       : valide.map(([id, v]) => `${id} = ${String(v)}`).join(", ");
     if (obj.require_confirm) {
       const base = t("viewer.confirmWrite", { value: descrizione });
       const msg = obj.confirm_message?.trim() ? `${obj.confirm_message}\n\n${base}` : base;
-      if (!window.confirm(msg)) return;
+      if (!window.confirm(msg)) return false;
     }
     if (obj.critical) {
       // In no-auth mode non esistono password: il flusso salta la verifica
@@ -3644,16 +3676,17 @@ function SvgObjectCorpo(p: ObjProps) {
         if (obj.require_reason && reason === undefined) return; // annullato
         finish(reason);
       };
-      if (noAuth) { askReason(); return; }
+      if (noAuth) { askReason(); return true; }
       const pw = window.prompt(t("viewer.reauthPrompt"));
-      if (pw === null) return; // annullato
+      if (pw === null) return false; // annullato
       api.verifyPassword(pw)
         .then(() => askReason())
         .catch(() => window.alert(t("viewer.reauthFailed")));
-      return;
+      return true;
     }
     // Una scrittura rifiutata non ferma le altre: ognuna va per conto suo.
     for (const [id, v] of valide) onWriteTag?.(id, v);
+    return true;
   };
 
   /** Il comando di un bottone, o di un simbolo che comanda (14-10-2026):
@@ -4904,14 +4937,19 @@ function SvgObjectCorpo(p: ObjProps) {
     const tv = obj.tag ? tagValues[obj.tag] : undefined;
     const min = obj.min ?? 0; const max = obj.max ?? 100;
     const rawVal = tv ? Number(tv.value) : min;
+    // Un valore non numerico (una stringa, un tag di tipo sbagliato) stampava
+    // `NaN`: si scrive «—» e il cursore resta al minimo.
+    const numerico = Number.isFinite(rawVal);
     // Stessa convenzione di radio_group: la proprietà è opzionale e l'assenza
     // vale "horizontal", che è come si comportava lo slider prima che
     // l'orientamento venisse letto.
     const isVertical = obj.orientation === "vertical";
     const readOnly = !!obj.read_only;
     const accent = coloreEffettivo(obj, "fill");
-    const shownVal = sliderDraft ?? rawVal;
-    const valueText = `${shownVal.toFixed(obj.decimals ?? (obj.step && obj.step < 1 ? 2 : 0))}${obj.unit ? ` ${obj.unit}` : ""}`;
+    const shownVal = sliderDraft ?? sliderInAttesa ?? (numerico ? rawVal : min);
+    const valueText = sliderDraft === null && sliderInAttesa === null && !numerico
+      ? "—"
+      : `${shownVal.toFixed(obj.decimals ?? (obj.step && obj.step < 1 ? 2 : 0))}${obj.unit ? ` ${obj.unit}` : ""}`;
     // Due testi, due campi (21-10-2026): `font_size` e' il valore,
     // `label_font_size` il nome sopra la traccia. I due rami — verticale e
     // orizzontale — scrivevano i due corpi quattro volte in tutto; adesso i
@@ -4940,10 +4978,20 @@ function SvgObjectCorpo(p: ObjProps) {
         setSliderDraft(null);
         return;
       }
-      sliderLastWritten.current = v;
-      guardedWrite(obj.tag!, v);
+      if (guardedWrite(obj.tag!, v)) {
+        sliderLastWritten.current = v;
+        setSliderInAttesa(v);
+      }
       setSliderDraft(null);
     };
+    // Il bordo dell'attesa: tratteggiato, nel colore dell'indicatore, finché il
+    // tag non conferma. Sull'input nativo non si può tratteggiare il cursore,
+    // quindi è il riquadro; col disegno SVG della fase 2 diventa il cursore.
+    const bordoInAttesa = sliderInAttesa !== null && (
+      <rect x={obj.x + 0.5} y={obj.y + 0.5} width={w - 1} height={h - 1} rx={4}
+        fill="none" stroke={accent} strokeWidth={1} strokeDasharray="4 3" opacity={0.8}
+        pointerEvents="none" data-slider-in-attesa="" />
+    );
     const releaseSlider = () => {
       if (writeOnRelease && sliderDraft !== null) commitSlider(sliderDraft);
     };
@@ -4951,7 +4999,7 @@ function SvgObjectCorpo(p: ObjProps) {
       type: "range" as const,
       min, max,
       step: obj.step ?? 1,
-      value: sliderDraft ?? rawVal,
+      value: shownVal,
       // In editor il controllo è inerte: si trascina l'oggetto, non il valore.
       disabled: readOnly || isEditMode,
       onChange: (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -4984,6 +5032,7 @@ function SvgObjectCorpo(p: ObjProps) {
         <g onMouseDown={isEditMode ? handleMouseDown : undefined} onClick={(e) => e.stopPropagation()}>
           {selRect(obj.x, obj.y, w, h)}
           {bgLayer(obj.x, obj.y, w, h, 4)}
+          {bordoInAttesa}
           <foreignObject x={obj.x} y={obj.y} width={w} height={h}
             style={isEditMode ? { pointerEvents: "none" } : undefined}>
           <div style={{
@@ -5029,6 +5078,7 @@ function SvgObjectCorpo(p: ObjProps) {
       <g onMouseDown={isEditMode ? handleMouseDown : undefined} onClick={(e) => e.stopPropagation()}>
         {selRect(obj.x, obj.y, w, h)}
         {bgLayer(obj.x, obj.y, w, h, 4)}
+        {bordoInAttesa}
         <foreignObject x={obj.x} y={obj.y} width={w} height={h}
           style={isEditMode ? { pointerEvents: "none" } : undefined}>
         <div

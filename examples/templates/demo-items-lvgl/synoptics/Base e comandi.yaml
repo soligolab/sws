@@ -268,6 +268,27 @@ objects:
   step: 1.0
   show_value: true
   unit: '%'
+- id: o_slider_frazione
+  type: slider
+  x: 30.0
+  y: 450.0
+  width: 290.0
+  height: 60.0
+  tag: demo.cmd.frazione
+  label: "{{t0107}}"
+  min: 0.0
+  max: 1.0
+  step: 0.05
+- id: o_slider_lettura
+  type: slider
+  x: 340.0
+  y: 450.0
+  width: 290.0
+  height: 60.0
+  tag: demo.cmd.slider
+  label: "{{t0108}}"
+  read_only: true
+  unit: '%'
 - id: c_symbol
   type: text
   x: 650.0

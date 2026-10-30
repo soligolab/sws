@@ -85,6 +85,21 @@ rimisurare** i punti che tocca: il codice si muove.
 
 ### Fase 1 — difetti e parità, senza cambiare aspetto (M)
 
+> **Scritta il 30-10-2026** sul ramo `feat/slider-fase-1`, in attesa del collaudo del maintainer. Scelte prese
+> scrivendola:
+> - il bordo tratteggiato dell'attesa è sul **riquadro**, non sul cursore: l'input nativo non si lascia
+>   tratteggiare. Con il disegno SVG della fase 2 passa al cursore;
+> - il contorno di pagina usa una tabella `MISURA_DI_RIPIEGO` per **tutti** i tipi, non solo per lo slider: era lo
+>   stesso difetto ovunque;
+> - i limiti della TagDef arrivano a LVGL **dal server**, nella pagina composta (`?cornice=1`): il pannello non ha i
+>   `TagDef`. Valgono per tutti i tipi, ma solo per gli oggetti della pagina, non per i figli di griglie e faceplate;
+> - su LVGL il blocco etichetta-traccia-valore è centrato come la colonna del web, quindi senza etichetta la traccia
+>   sale di qualche pixel rispetto a prima;
+> - su LVGL **non** c'è l'attesa dopo la scrittura: il cursore torna al valore del tag finché non risponde, di solito
+>   un giro. Arriva con la fase 2, insieme al cursore disegnato.
+>
+> Istantanee LVGL e web della pagina di prova: `sws/tmp/prova-slider/`.
+
 - **Pannello:** la casella «Mostra valore» legge `obj.show_value !== false`, come i motori. Stesso difetto in `gauge`
   e `progress_bar`, che si correggono qui. Entrano i campi `unit` e `decimals`.
 - **Web:** dopo la scrittura il cursore **resta dov'è**, col bordo tratteggiato, finché il tag non arriva o per 3 s

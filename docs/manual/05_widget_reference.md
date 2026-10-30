@@ -261,15 +261,28 @@ Selezione singola tra opzioni predefinite.
 
 ### Slider (`slider`)
 
-Cursore analogico per impostare valori numerici.
+Cursore per impostare un valore numerico trascinandolo. Lo stesso tag è letto e scritto.
 
 | Proprietà | Descrizione |
 |-----------|-------------|
 | `tag` | Tag da leggere e scrivere |
-| `min, max` | Limiti del range |
-| `step` | Passo minimo |
-| `orientation` | `horizontal` (default) o `vertical` |
-| `show_value` | Mostra il valore corrente sopra il cursore |
+| `min`, `max` | Estremi; se mancano, `range_lo` e `range_hi` del tag. `min` deve stare sotto `max` |
+| `step` | Passo (predefinito 1, maggiore di zero). Con un passo frazionario, o un `min` frazionario, si scrive un numero con la virgola; altrimenti un intero |
+| `orientation` | `horizontal` (predefinito) o `vertical`, col minimo in basso |
+| `label` | Etichetta sopra la traccia |
+| `font_size`, `label_font_size` | Corpo del valore (12) e dell'etichetta (11) |
+| `show_value` | Il valore sotto la traccia, centrato; mostrato salvo `false` |
+| `unit`, `decimals` | Unità e decimali del valore; se mancano, quelli del tag. Decimali predefiniti: 2 con un passo sotto l'unità, altrimenti 0 |
+| `fill` | Colore della parte piena e del cursore |
+| `read_only` | Il cursore mostra il valore ma non si muove |
+| `write_on_release` | Scrive solo quando si lascia il cursore (predefinito). `false` scrive durante il trascinamento |
+| `write_deadband` | Non scrive se il valore è cambiato meno di così dall'ultima scrittura (0 o più) |
+| `bg_color`, `bg_image` | Sfondo dietro tutto il riquadro, come per gli altri oggetti |
+| `require_confirm`, `critical` | Chiede conferma prima di scrivere, come i bottoni. Con `write_on_release: false` la chiede a ogni passo: si usano insieme alla scrittura al rilascio |
+
+Dopo una scrittura il cursore resta dove l'ha lasciato l'operatore, col bordo tratteggiato, finché il tag non riporta quel valore (al massimo 3 secondi). Un valore non numerico si mostra come «—».
+
+Sul pannello LVGL valgono le stesse regole. Lì la traccia è spessa 16 px e l'area di tocco copre tutto il riquadro; `critical` chiede conferma ma non la password, come per i bottoni.
 
 ---
 

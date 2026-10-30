@@ -1487,6 +1487,34 @@ fn controlla_oggetto(
         return; // senza il tipo, le regole che dipendono dal tipo non dicono niente
     }
 
+    // Lo slider (revisione, fase 1, 30-10-2026): con `min >= max` o un passo
+    // non positivo la traccia non ha posizioni, e su LVGL il numero di passi
+    // diventa una divisione per zero. Una deadband negativa non filtra niente.
+    if t == "slider" {
+        let (min, max) = (o.min.unwrap_or(0.0), o.max.unwrap_or(100.0));
+        if min >= max {
+            out.push(Finding::err(
+                format!("{base}.max"),
+                format!("lo slider va da {min} a {max}: il massimo deve stare sopra il minimo"),
+                "correggi `min` o `max`",
+            ));
+        }
+        if let Some(step) = o.step.filter(|s| s.is_nan() || *s <= 0.0) {
+            out.push(Finding::err(
+                format!("{base}.step"),
+                format!("il passo dello slider è {step}: deve essere maggiore di zero"),
+                "togli `step` (vale 1) o scrivine uno positivo",
+            ));
+        }
+        if let Some(db) = o.write_deadband.filter(|d| *d < 0.0) {
+            out.push(Finding::err(
+                format!("{base}.write_deadband"),
+                format!("la deadband di scrittura è {db}: non può essere negativa"),
+                "togli `write_deadband` o scrivi 0 o più",
+            ));
+        }
+    }
+
     // Un font che non è nell'elenco (18-10-2026): il browser lo cerca fra i
     // suoi, il pannello LVGL disegna in Sans. Gli alias si riconducono da soli
     // all'apertura nell'IDE, quindi qui arrivano solo i nomi sconosciuti.
@@ -2797,6 +2825,22 @@ alarms: []
         let font: Vec<_> = rs.iter().filter(|f| f.path.ends_with(".font_family")).collect();
         assert_eq!(font.len(), 1, "{rs:?}");
         assert!(font[0].path.contains("objects[c]"));
+    }
+
+    #[test]
+    fn lo_slider_vuole_un_intervallo_e_un_passo_veri() {
+        let prog = "meta: { name: p, version: '1' }\ntags: []\nsources: []\nalarms: []\n";
+        let p: Project = serde_yaml::from_str(prog).unwrap();
+        let pagina: SynopticPage = serde_yaml::from_str(
+            "id: pg\nname: P\nobjects:\n- { id: buono, type: slider, x: 0, y: 0, tag: t, min: 0, max: 1, step: 0.05 }\n- { id: rovescio, type: slider, x: 0, y: 60, tag: t, min: 10, max: 10 }\n- { id: fermo, type: slider, x: 0, y: 120, tag: t, step: 0, write_deadband: -1 }",
+        )
+        .unwrap();
+        let rs = semantic(&p, &[pagina]);
+        let di = |id: &str, campo: &str| rs.iter().any(|f| f.path.contains(&format!("objects[{id}].{campo}")));
+        assert!(!rs.iter().any(|f| f.path.contains("objects[buono]") && f.path.ends_with("max")), "{rs:?}");
+        assert!(di("rovescio", "max"), "{rs:?}");
+        assert!(di("fermo", "step"), "{rs:?}");
+        assert!(di("fermo", "write_deadband"), "{rs:?}");
     }
 
     /// LVGL disegna 1:1: in `ratio` e `fluid` la pagina non riempie lo schermo
