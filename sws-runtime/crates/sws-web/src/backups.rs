@@ -42,6 +42,12 @@ const BACKED_UP: &[&str] = &[
     // La logica PLC (23-10-2026): un backup senza di lei non ripristina un
     // impianto che funziona, esattamente come uno senza i segreti.
     "openplc",
+    // Faceplate, cornici e planimetrie (29-10-2026). Le prime due mancavano da
+    // quando esistono: un ripristino riportava le pagine e perdeva in silenzio
+    // i faceplate che usano e la loro cornice. Trovato aggiungendo la terza.
+    "faceplates",
+    "cornici",
+    "planimetrie",
 ];
 
 #[derive(Serialize, Debug, Clone)]
@@ -461,6 +467,26 @@ mod tests {
     #[test]
     fn il_backup_copre_le_pagine_di_boot() {
         assert!(BACKED_UP.contains(&"boot"));
+    }
+
+    /// Un ripristino che riporta le pagine deve riportare anche quello che le
+    /// pagine usano (29-10-2026).
+    #[test]
+    fn il_backup_riporta_faceplate_cornici_e_planimetrie() {
+        let tmp = tempfile::tempdir().unwrap();
+        let d = tmp.path();
+        write(d, "project.yaml", "meta: { name: p, version: '1' }\n");
+        write(d, "faceplates/motore.yaml", "id: motore\n");
+        write(d, "cornici/base.yaml", "id: base\n");
+        write(d, "planimetrie/casa.yaml", "id: casa\n");
+        let nome = backup_now(d).unwrap().file_name().unwrap().to_string_lossy().into_owned();
+        for f in ["faceplates/motore.yaml", "cornici/base.yaml", "planimetrie/casa.yaml"] {
+            std::fs::remove_file(d.join(f)).unwrap();
+        }
+        restore_backup(d, &nome).unwrap();
+        for f in ["faceplates/motore.yaml", "cornici/base.yaml", "planimetrie/casa.yaml"] {
+            assert!(d.join(f).exists(), "{f} non è tornato col ripristino");
+        }
     }
     use tempfile::TempDir;
 

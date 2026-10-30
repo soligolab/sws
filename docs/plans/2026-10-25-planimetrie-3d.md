@@ -84,7 +84,9 @@ sfondo: "#0f172a"
 
 ## Rami (uno alla volta)
 
-1. **`feat/planimetrie-modello`** — modello TS+Rust, rotte, trasporto, impronta, test cargo;
+1. **FATTO il 29-10-2026** (sul ramo annidato `feat/planimetrie-modello`): server, trasporto, ramo nel pannello,
+   editor 2D, test della geometria e dell'editor, provato in Chromium. Trovato per strada: il backup non conteneva
+   faceplate né cornici (corretto). **`feat/planimetrie-modello`** — modello TS+Rust, rotte, trasporto, impronta, test cargo;
    sezione LeftPanel; editor di pianta 2D completo (senza 3D), salvataggio a draft.
 2. **`feat/planimetrie-resa`** — chunk three.js lazy, anteprima 3D orbitabile, «Genera sfondo» →
    `images/`, misura del PNG, collaudo del peso del chunk.

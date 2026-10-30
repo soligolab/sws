@@ -61,6 +61,7 @@ import type {
 } from "@/types";
 import { prefissoGateway, prefissoSchermo } from "./prefisso";
 import { corniceAPagina } from "@/cornici/modello";
+import type { Planimetria } from "@/planimetrie/modello";
 import { faceplateAPagina } from "@/faceplate/modello";
 import i18n from "i18next";
 
@@ -195,7 +196,7 @@ function segnalaCambioProgettoNostro(): void {
  *  (`/api/project/…`), le pagine, le pagine di boot, i faceplate, le ricette.
  *  Non `/api/projects/…` (plurale): quelle cambiano progetto e hanno il loro
  *  segnale. */
-const SCRITTURE_SUL_PROGETTO = /^\/api\/(project\/|synoptics|boot-pages|faceplates|cornici|recipes)/;
+const SCRITTURE_SUL_PROGETTO = /^\/api\/(project\/|synoptics|boot-pages|faceplates|cornici|planimetrie|recipes)/;
 
 /** Ogni scrittura riuscita sul progetto fatta **da questo client** rifissa la
  *  baseline del sorvegliante, qui e non nei punti di chiamata.
@@ -732,7 +733,7 @@ const VERSIONI_FILE = new Map<string, string>();
  *  un `ETag` preso da un endpoint che non è il file farebbe fallire il
  *  salvataggio successivo con un 409 inventato. */
 function chiaveFile(path: string): string | null {
-  return /^\/api\/(synoptics|boot-pages|faceplates|cornici|recipes)\/[^/]+$/.test(path) ? path : null;
+  return /^\/api\/(synoptics|boot-pages|faceplates|cornici|planimetrie|recipes)\/[^/]+$/.test(path) ? path : null;
 }
 
 /** La versione ricomincia da zero: si chiama quando si apre o si ricarica un
@@ -1623,6 +1624,18 @@ export const api = {
     }),
   deleteCornice: (id: string) =>
     request<void>(`/api/cornici/${encodeURIComponent(id)}`, { method: "DELETE" }),
+
+  // ── Planimetrie (29-10-2026): il server le archivia, le disegna l'IDE ─────
+  planimetrie: () => request<{ id: string; nome: string }[]>("/api/planimetrie"),
+  planimetria: (id: string) => request<Planimetria>(`/api/planimetrie/${encodeURIComponent(id)}`),
+  salvaPlanimetria: (p: Planimetria) =>
+    request<void>(`/api/planimetrie/${encodeURIComponent(p.id)}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json", ...seVersionato(`/api/planimetrie/${encodeURIComponent(p.id)}`) },
+      body: JSON.stringify(p),
+    }),
+  eliminaPlanimetria: (id: string) =>
+    request<void>(`/api/planimetrie/${encodeURIComponent(id)}`, { method: "DELETE" }),
 
   // ── Recipe API ───────────────────────────────────────────────────────────
   listRecipes: () => request<RecipeSummary[]>("/api/recipes"),

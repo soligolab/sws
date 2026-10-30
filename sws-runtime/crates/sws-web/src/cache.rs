@@ -77,7 +77,7 @@ pub fn politica(percorso: &str, tipo: Option<&str>, gia_dichiarata: bool) -> Opt
     // versione vecchia anche con i file giusti sul disco. `no-cache`, non
     // `no-store`: si tengono, ma si rivalidano (le rotte hanno già l'ETag, Q30).
     // Solo questi: le altre API restano come sono, non le si è misurate.
-    const DI_PROGETTO: &[&str] = &["/api/synoptics", "/api/cornici", "/api/faceplates", "/api/pages/nav"];
+    const DI_PROGETTO: &[&str] = &["/api/synoptics", "/api/cornici", "/api/planimetrie", "/api/faceplates", "/api/pages/nav"];
     if percorso == "/api/project" || DI_PROGETTO.iter().any(|p| percorso == *p || percorso.starts_with(&format!("{p}/"))) {
         return Some(RIVALIDA);
     }

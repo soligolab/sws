@@ -997,6 +997,7 @@ pub fn rotta_bloccata_in_prova(path: &str) -> bool {
         "/api/boot-pages",
         "/api/faceplates",
         "/api/cornici",
+        "/api/planimetrie",
         "/api/recipes/",
         "/api/auth/users",
     ]

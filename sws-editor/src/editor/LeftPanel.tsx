@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useRef, useState } from "react";
+import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
 import { ImgProgetto } from "@/canvas/ImmagineSvg";
 import { useTranslation } from "react-i18next";
 import { api } from "@/api/client";
@@ -21,6 +21,7 @@ import { BOOT_TYPES, eBoot, paginePerNavigazione, pagineDiBoot } from "@/boot/ti
 import { TRASCINA_FACEPLATE, eFaceplateDef, idFaceplate, pagineFaceplate, usiDelFaceplate } from "@/faceplate/modello";
 import { MODELLI_CORNICE, idCornice, pagineCornice, type ModelloCornice } from "@/cornici/modello";
 import { PropostaCornice } from "@/cornici/PropostaCornice";
+import { idNuovo, nuovaPlanimetria } from "@/planimetrie/modello";
 import { impostaBootAbilitata } from "@/boot/abilitata";
 import { discendentiDi, riconcilia, righe, spostaRispettoA, type ZonaRilascio } from "@/pageTree";
 
@@ -753,6 +754,66 @@ function PagesSection() {
       <RamoPagine titolo={t("leftPanel.bootPagesHeading")} icona="🖼" memoria="albero.boot">
         {corpoBoot}
       </RamoPagine>
+      <RamoPagine titolo={t("planimetrie.titolo")} icona="🏠" memoria="albero.planimetrie">
+        <CorpoPlanimetrie />
+      </RamoPagine>
+    </>
+  );
+}
+
+/** Le planimetrie del progetto (29-10-2026, piano
+ *  `docs/plans/2026-10-25-planimetrie-3d.md`): una riga per pianta, e scelta
+ *  si apre l'editor al posto del canvas. Non sono pagine — non hanno oggetti
+ *  sinottici, hanno muri — quindi stanno fuori dallo store delle pagine e si
+ *  leggono dal server quando il ramo si apre. */
+export function CorpoPlanimetrie() {
+  const { t } = useTranslation();
+  const aperta = useAppStore((s) => s.planimetriaAperta);
+  const apri = useAppStore((s) => s.apriPlanimetria);
+  const progetto = useAppStore((s) => s.project?.meta?.name);
+  const [elenco, setElenco] = useState<{ id: string; nome: string }[]>([]);
+  const ricarica = useCallback(() => {
+    api.planimetrie().then(setElenco).catch(() => setElenco([]));
+  }, []);
+  // Si rilegge quando cambia il progetto e quando l'editor si chiude (un nome
+  // cambiato, una pianta nuova).
+  useEffect(ricarica, [ricarica, progetto, aperta]);
+
+  const nuova = async () => {
+    const nome = window.prompt(t("planimetrie.nomeNuova"), t("planimetrie.nomePredefinito"))?.trim();
+    if (!nome) return;
+    const base = nome.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "planimetria";
+    // L'id viene dal nome («Casa — piano terra» → `casa-piano-terra`); se c'è
+    // già, un numero in coda.
+    const id = elenco.some((x) => x.id === base) ? idNuovo(`${base}-`, elenco.map((x) => x.id)) : base;
+    await api.salvaPlanimetria(nuovaPlanimetria(id, nome));
+    ricarica();
+    apri(id);
+  };
+
+  return (
+    <>
+      {elenco.map((p) => (
+        <div key={p.id} data-testid={`planimetria-${p.id}`}
+          style={{ ...S.row(p.id === aperta), justifyContent: "space-between", gap: 6 }}
+          onClick={() => apri(p.id)}>
+          <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1, minWidth: 0 }}>{p.nome || p.id}</span>
+          <button style={S.iconBtn} title={t("planimetrie.elimina")}
+            onClick={async (e) => {
+              e.stopPropagation();
+              if (!window.confirm(t("planimetrie.eliminaConferma", { name: p.nome || p.id }))) return;
+              await api.eliminaPlanimetria(p.id);
+              if (aperta === p.id) apri(null);
+              ricarica();
+            }}>×</button>
+        </div>
+      ))}
+      <div style={{ padding: "4px 8px" }}>
+        <button data-testid="nuova-planimetria" onClick={() => void nuova()}
+          style={{ ...S.objBtn, width: "100%", borderStyle: "dashed", color: "var(--brand-text-subtle, #64748b)" }}>
+          {t("planimetrie.nuova")}
+        </button>
+      </div>
     </>
   );
 }

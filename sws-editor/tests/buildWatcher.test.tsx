@@ -25,7 +25,7 @@ describe("useBuildWatcher", () => {
     for (let i = 0; i < 4; i++) {
       await act(async () => { await vi.advanceTimersByTimeAsync(1000); });
     }
-    const opzioni = fetchFinta.mock.calls[0][1] as RequestInit;
+    const opzioni = (fetchFinta.mock.calls[0] as unknown as [string, RequestInit])[1];
     expect((opzioni.headers as Record<string, string>).Accept).toBe("text/html");
     expect(opzioni.cache).toBe("no-store");
     expect(onNew).toHaveBeenCalledTimes(1);

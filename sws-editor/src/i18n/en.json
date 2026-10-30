@@ -4089,5 +4089,58 @@
     "rigaAiuto": "Drag it onto a page to place an instance. Click: open it to edit; double click: rename it.",
     "metti": "Place an instance on the open page",
     "mettiNo": "It goes on a page or a frame, not on a faceplate or a boot image"
+  },
+  "planimetrie": {
+    "titolo": "FLOOR PLANS",
+    "nuova": "+ New floor plan",
+    "nomeNuova": "Floor plan name",
+    "nomePredefinito": "Ground floor",
+    "elimina": "Delete the floor plan",
+    "eliminaConferma": "Delete the floor plan «{{name}}»? The image already generated stays among the project images.",
+    "caricamento": "Loading the floor plan…",
+    "errore": "Floor plan not readable: {{message}}",
+    "salva": "Save",
+    "chiudi": "Close",
+    "sporcaChiudi": "The floor plan has unsaved changes. Close anyway?",
+    "passo": "Grid",
+    "nessunaSelezione": "Pick a tool and draw on the plan. Measures are in metres.",
+    "titoloPianta": "PLAN",
+    "eliminaElemento": "Delete",
+    "strumenti": {
+      "seleziona": "Select",
+      "muro": "Wall",
+      "porta": "Door",
+      "finestra": "Window",
+      "area": "Area",
+      "blocco": "Block"
+    },
+    "tipi": {
+      "muro": "WALL",
+      "apertura": "OPENING",
+      "area": "AREA",
+      "blocco": "BLOCK"
+    },
+    "aiuto": {
+      "seleziona": "Click to pick; drag a block or the vertices of the picked wall; drag the background to pan, wheel to zoom; Del deletes.",
+      "muro": "Click for each point of the wall; double click or Enter to finish, Esc to give up.",
+      "porta": "Click near a wall to place a door.",
+      "finestra": "Click near a wall to place a window.",
+      "area": "Click for each corner of the area (at least three); double click or Enter to close it.",
+      "blocco": "Click to place a machine or a piece of furniture."
+    },
+    "campi": {
+      "nome": "Name",
+      "sfondo": "Background colour",
+      "spessore": "Thickness (m)",
+      "altezza": "Height (m)",
+      "larghezza": "Width (m)",
+      "profondita": "Depth (m)",
+      "rotazione": "Rotation (°)",
+      "colore": "Colour",
+      "etichetta": "Label",
+      "daTerra": "Sill height (m)",
+      "posizione": "Position on the wall (0–1)",
+      "tipo": "Type"
+    }
   }
 }

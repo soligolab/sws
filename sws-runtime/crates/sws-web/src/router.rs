@@ -987,6 +987,15 @@ pub fn build(
             "/api/cornici/:id",
             get(get_cornice).put(save_cornice).delete(delete_cornice),
         )
+        // Planimetrie (29-10-2026, `planimetrie.rs`): come le cornici, ma il
+        // server le archivia soltanto — le disegna e le rende l'IDE.
+        .route("/api/planimetrie", get(crate::planimetrie::elenco))
+        .route(
+            "/api/planimetrie/:id",
+            get(crate::planimetrie::leggi)
+                .put(crate::planimetrie::scrivi)
+                .delete(crate::planimetrie::elimina),
+        )
         // Recipe REST (read)
         .route("/api/recipes", get(list_recipes))
         .route("/api/recipes/history", get(get_recipe_history))
@@ -6138,6 +6147,7 @@ pub(crate) async fn build_project_zip(
         .map_err(|e| anyhow::anyhow!("cannot read synoptics: {e}"))?;
     let faceplates = read_yaml_dir(&faceplates_dir_at(dir)).await;
     let cornici = read_yaml_dir(&cornici_dir_at(dir)).await;
+    let planimetrie = read_yaml_dir(&crate::planimetrie::cartella_di(dir)).await;
     let recipes = read_yaml_dir(&recipes_dir_at(dir)).await;
     let images = read_images_dir(&images_dir_at(dir)).await;
     let boot = crate::boot::leggi_per_bundle(dir).await;
@@ -6166,6 +6176,7 @@ pub(crate) async fn build_project_zip(
         users_yaml.as_deref(),
         &faceplates,
         &cornici,
+        &planimetrie,
         &recipes,
         &images,
         &boot,
@@ -6212,6 +6223,7 @@ async fn export_project_zip(
     };
     let faceplates = read_yaml_dir(&faceplates_dir_at(&dir)).await;
     let cornici = read_yaml_dir(&cornici_dir_at(&dir)).await;
+    let planimetrie = read_yaml_dir(&crate::planimetrie::cartella_di(&dir)).await;
     let recipes = read_yaml_dir(&recipes_dir_at(&dir)).await;
     let images = read_images_dir(&images_dir_at(&dir)).await;
     let boot = crate::boot::leggi_per_bundle(&dir).await;
@@ -6239,6 +6251,7 @@ async fn export_project_zip(
         users_yaml.as_deref(),
         &faceplates,
         &cornici,
+        &planimetrie,
         &recipes,
         &images,
         &boot,
@@ -6284,6 +6297,7 @@ fn build_export_zip(
     users_yaml: Option<&str>,
     faceplates: &[(String, String)],
     cornici: &[(String, String)],
+    planimetrie: &[(String, String)],
     recipes: &[(String, String)],
     images: &[(String, Vec<u8>)],
     boot: &[(String, Vec<u8>)],
@@ -6337,6 +6351,10 @@ fn build_export_zip(
         // ne chiedono una che il dispositivo non ha.
         for (fname, yaml) in cornici {
             z.start_file(format!("cornici/{fname}"), opts)?;
+            z.write_all(yaml.as_bytes())?;
+        }
+        for (fname, yaml) in planimetrie {
+            z.start_file(format!("{}/{fname}", crate::planimetrie::CARTELLA), opts)?;
             z.write_all(yaml.as_bytes())?;
         }
         for (fname, yaml) in recipes {
@@ -6690,6 +6708,16 @@ async fn import_project_zip(
     {
         warn!("import: sync cornici: {e}");
         return (StatusCode::INTERNAL_SERVER_ERROR, "sync cornici").into_response();
+    }
+    if let Err(e) = sync_yaml_dir_from_zip(
+        &mut archive,
+        crate::planimetrie::CARTELLA,
+        &crate::planimetrie::cartella_di(project_dir),
+    )
+    .await
+    {
+        warn!("import: sync planimetrie: {e}");
+        return (StatusCode::INTERNAL_SERVER_ERROR, "sync planimetrie").into_response();
     }
     if let Err(e) =
         sync_yaml_dir_from_zip(&mut archive, "recipes", &recipes_dir_at(project_dir)).await
@@ -9571,6 +9599,7 @@ pub(crate) fn calcola_impronta(dir: &std::path::Path) -> anyhow::Result<String> 
     // le ha resta quella di prima.
     for (cartella, estensioni) in [
         ("cornici", &["yaml"][..]),
+        ("planimetrie", &["yaml"][..]),
         ("faceplates", &["yaml"][..]),
         ("recipes", &["yaml"][..]),
         ("images", &["png", "jpg", "jpeg", "svg", "webp", "gif"][..]),
@@ -11367,6 +11396,22 @@ notifications:
         assert_ne!(calcola_impronta(d).unwrap(), base);
     }
 
+    /// Le planimetrie (29-10-2026) viaggiano come le cornici: l'impronta le
+    /// segue — un IDE su un'altra macchina deve vederle cambiare — e il bundle
+    /// di export e deploy le porta.
+    #[tokio::test]
+    async fn le_planimetrie_entrano_nell_impronta_e_nel_bundle() {
+        let tmp = tempfile::tempdir().unwrap();
+        let d = tmp.path();
+        std::fs::write(d.join("project.yaml"), "meta: { name: p, version: '1' }\n").unwrap();
+        let base = calcola_impronta(d).unwrap();
+        std::fs::create_dir(d.join(crate::planimetrie::CARTELLA)).unwrap();
+        std::fs::write(d.join("planimetrie/casa.yaml"), "id: casa\nnome: Casa\nmuri: []\n").unwrap();
+        assert_ne!(calcola_impronta(d).unwrap(), base, "una planimetria nuova cambia l'impronta");
+        let zip = build_project_zip(d, false).await.expect("build zip");
+        assert!(zip_entry(&zip, "planimetrie/casa.yaml").contains("nome: Casa"));
+    }
+
     /// I segreti sono dati di progetto e devono viaggiare: un backup che li
     /// perde non ripristina, e un deploy che li perde consegna al dispositivo un
     /// progetto che non riesce a collegarsi. Decisione del maintainer, 2026-07-29
@@ -11445,7 +11490,7 @@ notifications:
             exported_at_ms: 0,
             secrets_masked: true,
         };
-        let zip = build_export_zip(&manifest, &project, &[], None, &[], &[], &[], &[], &[], &[], None)
+        let zip = build_export_zip(&manifest, &project, &[], None, &[], &[], &[], &[], &[], &[], &[], None)
             .expect("build zip senza segreti");
 
         let mut a = zip::ZipArchive::new(Cursor::new(zip.clone())).unwrap();
@@ -11469,6 +11514,7 @@ notifications:
             &project,
             &[],
             None,
+            &[],
             &[],
             &[],
             &[],

@@ -543,6 +543,10 @@ interface AppState {
   renameFunction: (id: string, name: string) => void;
   deleteFunction: (id: string) => void;
   selectFunction: (id: string | null) => void;
+  /** La planimetria aperta nell'editor (29-10-2026): quando c'è, prende il
+   *  posto del canvas come fa l'editor delle funzioni. */
+  planimetriaAperta: string | null;
+  apriPlanimetria: (id: string | null) => void;
 
   // Page management
   setPages: (pages: SynopticPage[], currentPageId?: string) => void;
@@ -1082,6 +1086,7 @@ export const useAppStore = create<AppState>((set, get) => {
     selectedObjectId: null,
     selectedObjectIds: [],
     selectedFunctionId: null,
+    planimetriaAperta: null,
     selectedCell: null,
     selectedCellChild: null,
     selectedCellRange: null,
@@ -1905,6 +1910,8 @@ export const useAppStore = create<AppState>((set, get) => {
 
     setCurrentPage: (id) => set({
       currentPageId: id,
+      // Scegliere una pagina torna al canvas, anche da una planimetria aperta.
+      planimetriaAperta: null,
       selectedObjectId: null,
       selectedObjectIds: [],
       selectedFunctionId: null,
@@ -1953,9 +1960,11 @@ export const useAppStore = create<AppState>((set, get) => {
             selectedCell: null, selectedCellChild: null,
             selectedCellRange: null, selectedSubCell: null }),
 
+    apriPlanimetria: (id) => set({ planimetriaAperta: id, selectedFunctionId: null }),
     selectFunction: (id) =>
       set({
         selectedFunctionId: id,
+        planimetriaAperta: null,
         // Editing a function preempts the object/page properties panel.
         selectedObjectId: null,
         selectedObjectIds: [],

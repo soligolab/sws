@@ -3,6 +3,7 @@ pub mod schermo;
 pub mod ai;
 pub mod anteprima;
 pub mod cornici;
+pub mod planimetrie;
 pub mod report;
 pub mod prestazioni;
 pub mod telefono;

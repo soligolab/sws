@@ -4089,5 +4089,58 @@
     "rigaAiuto": "Trascinalo su una pagina per metterne un'istanza. Clic: lo apri per modificarlo; doppio clic: lo rinomini.",
     "metti": "Metti un'istanza nella pagina aperta",
     "mettiNo": "Si mette su una pagina o una cornice, non su un faceplate né su un'immagine di boot"
+  },
+  "planimetrie": {
+    "titolo": "PLANIMETRIE",
+    "nuova": "+ Nuova planimetria",
+    "nomeNuova": "Nome della planimetria",
+    "nomePredefinito": "Piano terra",
+    "elimina": "Elimina la planimetria",
+    "eliminaConferma": "Eliminare la planimetria «{{name}}»? L'immagine già generata resta fra le immagini del progetto.",
+    "caricamento": "Caricamento della planimetria…",
+    "errore": "Planimetria non leggibile: {{message}}",
+    "salva": "Salva",
+    "chiudi": "Chiudi",
+    "sporcaChiudi": "La planimetria ha modifiche non salvate. Chiudere lo stesso?",
+    "passo": "Griglia",
+    "nessunaSelezione": "Scegli uno strumento e disegna sulla pianta. Le misure sono in metri.",
+    "titoloPianta": "PIANTA",
+    "eliminaElemento": "Elimina",
+    "strumenti": {
+      "seleziona": "Seleziona",
+      "muro": "Muro",
+      "porta": "Porta",
+      "finestra": "Finestra",
+      "area": "Area",
+      "blocco": "Blocco"
+    },
+    "tipi": {
+      "muro": "MURO",
+      "apertura": "APERTURA",
+      "area": "AREA",
+      "blocco": "BLOCCO"
+    },
+    "aiuto": {
+      "seleziona": "Clic per scegliere; trascina un blocco o i vertici del muro scelto; trascina il fondo per spostare la vista, rotella per lo zoom; Canc elimina.",
+      "muro": "Clic per ogni punto del muro; doppio clic o Invio per finire, Esc per lasciar perdere.",
+      "porta": "Clic vicino a un muro per mettere una porta.",
+      "finestra": "Clic vicino a un muro per mettere una finestra.",
+      "area": "Clic per ogni vertice dell'area (almeno tre); doppio clic o Invio per chiuderla.",
+      "blocco": "Clic per mettere una macchina o un arredo."
+    },
+    "campi": {
+      "nome": "Nome",
+      "sfondo": "Colore di fondo",
+      "spessore": "Spessore (m)",
+      "altezza": "Altezza (m)",
+      "larghezza": "Larghezza (m)",
+      "profondita": "Profondità (m)",
+      "rotazione": "Rotazione (°)",
+      "colore": "Colore",
+      "etichetta": "Etichetta",
+      "daTerra": "Davanzale da terra (m)",
+      "posizione": "Posizione sul muro (0–1)",
+      "tipo": "Tipo"
+    }
   }
 }

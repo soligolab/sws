@@ -28,6 +28,9 @@ import { PageTabs } from "@/editor/PageTabs";
  *  arriva dallo stesso server che ha appena servito la pagina. */
 const FunctionEditor = lazy(() =>
   import("@/editor/FunctionEditor").then((m) => ({ default: m.FunctionEditor })));
+// L'editor delle planimetrie (29-10-2026): chunk suo, come quello delle funzioni.
+const PlanimetriaEditor = lazy(() =>
+  import("@/planimetrie/PlanimetriaEditor").then((m) => ({ default: m.PlanimetriaEditor })));
 import { TagInput } from "@/components/TagInput";
 import { EditorAssegnazioni } from "@/editor/EditorAssegnazioni";
 import { CapoTubo } from "@/editor/CapoTubo";
@@ -589,6 +592,7 @@ export function EditorShell() {
   const selectedId      = useAppStore((s) => s.selectedObjectId);
   const selectedIds     = useAppStore((s) => s.selectedObjectIds);
   const selectedFnId    = useAppStore((s) => s.selectedFunctionId);
+  const planimetriaAperta = useAppStore((s) => s.planimetriaAperta);
   const project         = useAppStore((s) => s.project);
   const customSymbols   = useAppStore((s) => s.customSymbols);
   const faceplates      = useAppStore((s) => s.faceplates);
@@ -1020,6 +1024,16 @@ export function EditorShell() {
     const list = useAppStore.getState().project?.functions ?? [];
     await api.updateFunctions(list);
   };
+
+  if (planimetriaAperta) {
+    return (
+      <div style={{ display: "flex", flex: 1, overflow: "hidden" }}>
+        <Suspense fallback={<div style={{ flex: 1, padding: 24, color: "var(--brand-text-subtle, #94a3b8)", fontSize: 13 }}>{t("planimetrie.caricamento")}</div>}>
+          <PlanimetriaEditor key={planimetriaAperta} id={planimetriaAperta} />
+        </Suspense>
+      </div>
+    );
+  }
 
   if (selectedFn) {
     return (

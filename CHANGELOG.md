@@ -11,7 +11,21 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 
 ## [Unreleased]
 
+### Added
+
+- **Planimetrie, ramo 1** (piano `docs/plans/2026-10-25-planimetrie-3d.md`): la pianta si disegna nell'IDE. Server:
+  `planimetrie/<id>.yaml` archiviate e non interpretate (`sws-web/src/planimetrie.rs`), rotte `/api/planimetrie`
+  (versione Q30, scrittura atomica), nel bundle di export/deploy, nell'impronta, in `git_deploy` e nella cache.
+  IDE: ramo «Planimetrie» nel pannello sinistro, editor 2D al posto del canvas (muri a polilinea, porte e finestre
+  agganciate al muro, aree, blocchi; griglia metrica con aggancio, zoom e trascinamento, proprietà a destra), salvato
+  anche dal Salva generale; geometria pura in `src/planimetrie/modello.ts` (il muro spezzato alle aperture, senza
+  CSG). Provato in Chromium disegnando muri, porta, finestra, area e blocco. La vista 3D e «Genera sfondo» col ramo 2.
+
 ### Fixed
+
+- **Il backup non conteneva faceplate né cornici** da quando esistono: `BACKED_UP` li saltava, e un ripristino
+  riportava le pagine perdendo in silenzio i faceplate che usano e la loro cornice. Ora ci sono, con le planimetrie;
+  prova di andata e ritorno.
 
 - **Il socket dei tag ha la sua prova** (appunto del 22-10). `router::stato_di_prova` costruisce un `AppState` vero da
   `build` con pezzi vuoti — fino ad oggi nessun test di sws-web poteva farlo — e
