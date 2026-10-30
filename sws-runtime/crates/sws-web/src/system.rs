@@ -194,6 +194,10 @@ pub struct SystemStatus {
     /// immagine si aspetta (02-10-2026). `None` fuori da un container.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub quadlet: Option<crate::quadlet::Stato>,
+    /// OpenPLC sul pannello: se risponde, e com'è andata l'ultima installazione
+    /// chiesta dall'IDE (30-10-2026). `None` fuori da un container.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub openplc: Option<crate::openplc::Stato>,
     /// Dopo un aggiornamento: la domanda (confermare, rimandare, tornare
     /// indietro), l'ultima pulizia e l'ultimo ritorno (03-10-2026). `None` fuori
     /// da un dispositivo.
@@ -409,6 +413,7 @@ pub async fn compute_system_status(
         boot_image: None,
         display: None,
         quadlet: None,
+        openplc: None,
         conferma_aggiornamento: None,
     }
 }
@@ -553,6 +558,7 @@ pub async fn get_system_status(
         }
         status.quadlet = Some(q);
     }
+    status.openplc = crate::openplc::stato(&state.config_dir).await;
     // La ritenzione automatica che aspetta la conferma (20-10-2026): solo all'Admin,
     // che è chi può confermarla (decisione del maintainer).
     if utente.as_ref().is_some_and(|u| u.0.role == sws_auth::Role::Admin) {

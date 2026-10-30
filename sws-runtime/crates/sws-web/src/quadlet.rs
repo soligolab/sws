@@ -28,18 +28,15 @@ use std::path::{Path, PathBuf};
 pub const DIR_IMMAGINE: &str = "/usr/share/sws/quadlet";
 const RUNTIME: &str = "sws-runtime.service";
 const VIEWER: &str = "sws-lvgl-viewer.service";
-/// OpenPLC Runtime, **opzionale**: l'installer la mette solo con
-/// `--con-openplc`. È la prima unità che un pannello può legittimamente non
-/// avere, ed è il motivo per cui esiste [`UnitaScelte`].
-const OPENPLC: &str = "openplc-runtime.service";
 /// Le unità **oltre** al runtime che entrano nel conto della versione. Il segno
-/// delle unità scelte decide quali contare davvero.
-const ALTRE_UNITA: [&str; 2] = [VIEWER, OPENPLC];
+/// delle unità scelte decide quali contare davvero. OpenPLC c'è stato dal 23 al
+/// 30-10-2026: ora è un container persistente (`openplc.rs`), non un quadlet.
+const ALTRE_UNITA: [&str; 1] = [VIEWER];
 const FILE_ESITO: &str = "quadlet-esito.json";
 /// Le unità che **questa installazione ha scelto di avere** (23-10-2026).
 /// Lo scrive l'installer, che è l'unico a sapere cosa ha messo.
 const FILE_UNITA: &str = "unita-scelte.json";
-const DIR_COPIA: &str = "quadlet-nuovo";
+pub(crate) const DIR_COPIA: &str = "quadlet-nuovo";
 /// Oltre questo tempo un «in corso» che non ha portato le versioni attese è un
 /// aggiornamento non riuscito.
 const SCADENZA_MS: i64 = 10 * 60 * 1000;
@@ -248,15 +245,7 @@ pub async fn aggiorna(config_dir: &Path) -> Result<(), String> {
     // I file nella cartella config: il container la scrive, l'host la vede.
     let copia = config_dir.join(DIR_COPIA);
     tokio::fs::create_dir_all(&copia).await.map_err(|e| format!("{}: {e}", copia.display()))?;
-    // Il quadlet di OpenPLC viaggia come gli altri **anche su un pannello che
-    // non lo usa**: costa qualche kB, e il giorno in cui qualcuno lo chiede
-    // l'installer lo trova già lì invece di pretendere un'immagine nuova.
-    for f in [
-        "install-container.sh",
-        "sws-runtime.container",
-        "sws-lvgl-viewer.container",
-        "openplc-runtime.container",
-    ] {
+    for f in ["install-container.sh", "sws-runtime.container", "sws-lvgl-viewer.container"] {
         tokio::fs::copy(Path::new(DIR_IMMAGINE).join(f), copia.join(f))
             .await
             .map_err(|e| format!("copia di {f}: {e}"))?;
@@ -361,8 +350,9 @@ mod tests {
         assert_eq!(minimo_installato(Some(&tutte), 6, &[(VIEWER, Some(6))]), 6);
     }
 
-    /// Un'unità futura che il segno nomina ma che questo motore non conosce
-    /// ancora non rompe niente: si conta solo quello che si legge.
+    /// Un'unità che il segno nomina ma che questo motore non conosce non rompe
+    /// niente: si conta solo quello che si legge. È il caso dei pannelli che
+    /// hanno avuto il quadlet di OpenPLC (23-30/10/2026).
     #[test]
     fn un_unita_che_il_motore_non_conosce_non_rompe() {
         let con_openplc = scelte(&[RUNTIME, VIEWER, "openplc-runtime.service"]);
@@ -390,13 +380,8 @@ mod tests {
     fn i_template_del_repo_hanno_la_versione() {
         let r = include_str!("../../../../deploy/container/sws-runtime.container");
         let v = include_str!("../../../../deploy/container/sws-lvgl-viewer.container");
-        // Anche quello opzionale: è **nostro**, quindi quando cambia i pannelli
-        // che l'hanno devono riceverlo, e l'unico modo è che porti lo stesso
-        // numero degli altri.
-        let o = include_str!("../../../../deploy/container/openplc-runtime.container");
         assert!(versione_template(r).is_some());
         assert_eq!(versione_template(r), versione_template(v));
-        assert_eq!(versione_template(r), versione_template(o), "openplc-runtime.container");
     }
 
     #[test]

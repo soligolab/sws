@@ -689,6 +689,10 @@ pub struct DeviceContainerDeployRequest {
     /// model, see the IDE's brand-specific data-path presets.
     #[serde(default)]
     pub data_path: String,
+    /// Installa anche OpenPLC Runtime (`--con-openplc`, 30-10-2026). `false`
+    /// per default: è un'opzione, «non è detto che a tutti i clienti serva».
+    #[serde(default)]
+    pub con_openplc: bool,
 }
 
 /// Da dove arriva l'immagine sul dispositivo.
@@ -774,7 +778,7 @@ fn cmd_togli_archivio(remote_dir: &str, image: &ImageSpec) -> Option<String> {
 /// Build the remote `install-container.sh` invocation. Split out from
 /// `deploy_device_container` so it's unit-testable without an actual SSH
 /// round-trip — mirrors `resolve_dist_file`/`parse_image_tarball` above.
-fn build_install_cmd(remote_dir: &str, image: &ImageSpec, data_path: &str) -> String {
+fn build_install_cmd(remote_dir: &str, image: &ImageSpec, data_path: &str, con_openplc: bool) -> String {
     let mut cmd = install_sh(remote_dir);
     match image {
         ImageSpec::Archive(f) => cmd.push_str(&format!(" --image {f}")),
@@ -783,6 +787,9 @@ fn build_install_cmd(remote_dir: &str, image: &ImageSpec, data_path: &str) -> St
     }
     if !data_path.is_empty() {
         cmd.push_str(&format!(" --data {data_path}"));
+    }
+    if con_openplc {
+        cmd.push_str(" --con-openplc");
     }
     cmd
 }
@@ -846,14 +853,8 @@ const CONTAINER_DEPLOY_EMBEDDED: &[(&str, &str)] = &[
         "sws-lvgl-viewer.container",
         include_str!("../../../../deploy/container/sws-lvgl-viewer.container"),
     ),
-    // OpenPLC Runtime (23-10-2026): **opzionale** sul pannello — l'installer lo
-    // mette solo con `--con-openplc` — ma il file va spedito lo stesso, o quel
-    // flag non avrebbe niente da installare e l'installer lo direbbe soltanto
-    // in una NOTA.
-    (
-        "openplc-runtime.container",
-        include_str!("../../../../deploy/container/openplc-runtime.container"),
-    ),
+    // OpenPLC Runtime non ha più un file suo (30-10-2026): è un container
+    // persistente che l'installer crea da sé con `--con-openplc`.
     // La fiducia del browser del pannello (26-10-2026): lo script che importa
     // il certificato nell'archivio NSS, e il guardiano che lo rifà a ogni
     // cambio. Hanno sostituito il passaggio del certificato del dispositivo,
@@ -902,8 +903,6 @@ const CONTAINER_DEPLOY_FILES: &[&str] = &[
     // Il viewer LVGL (Q25): lo avvia il runtime quando il progetto lo chiede.
     // La commutazione non spedisce più niente sull'host (29-09-2026).
     "sws-lvgl-viewer.container",
-    // OpenPLC: opzionale da installare, ma spedito sempre (vedi sopra).
-    "openplc-runtime.container",
     // La fiducia del browser: lo script e il guardiano che tengono allineato
     // l'archivio NSS col certificato del runtime (26-10-2026).
     "fiducia-browser.sh",
@@ -1370,7 +1369,7 @@ pub async fn deploy_device_container(
         send(
             "==> Installazione (install-container.sh, podman rootless — nessun sudo richiesto)...",
         );
-        let install_cmd = build_install_cmd(&req.remote_dir, &image_spec, &req.data_path);
+        let install_cmd = build_install_cmd(&req.remote_dir, &image_spec, &req.data_path, req.con_openplc);
         let ok = run_ssh_cmd(
             use_sshpass,
             &req.password,
@@ -2111,7 +2110,7 @@ mod tests {
     /// stringa che produce non deve cambiare di un carattere.
     #[test]
     fn build_install_cmd_omits_data_flag_when_empty() {
-        let cmd = build_install_cmd("/tmp/sws-deploy", &archive("img.tar.gz"), "");
+        let cmd = build_install_cmd("/tmp/sws-deploy", &archive("img.tar.gz"), "", false);
         assert_eq!(
             cmd,
             "cd /tmp/sws-deploy && chmod +x install-container.sh && \
@@ -2123,13 +2122,13 @@ mod tests {
     /// più passare `--www`, che l'installer ora rifiuta con un errore esplicito.
     #[test]
     fn build_install_cmd_never_passes_www() {
-        let cmd = build_install_cmd("/tmp/sws-deploy", &archive("img.tar.gz"), "/opt/sws-data");
+        let cmd = build_install_cmd("/tmp/sws-deploy", &archive("img.tar.gz"), "/opt/sws-data", false);
         assert!(!cmd.contains("--www"), "comando inatteso: {cmd}");
     }
 
     #[test]
     fn build_install_cmd_appends_data_flag_when_present() {
-        let cmd = build_install_cmd("/tmp/sws-deploy", &archive("img.tar.gz"), "/opt/sws-data");
+        let cmd = build_install_cmd("/tmp/sws-deploy", &archive("img.tar.gz"), "/opt/sws-data", false);
         assert_eq!(
             cmd,
             "cd /tmp/sws-deploy && chmod +x install-container.sh && \
@@ -2141,7 +2140,7 @@ mod tests {
     /// comando deve dire `--pull` e basta, non inventare un'architettura.
     #[test]
     fn build_install_cmd_registry_senza_riferimento() {
-        let cmd = build_install_cmd("/tmp/sws-deploy", &registry(""), "");
+        let cmd = build_install_cmd("/tmp/sws-deploy", &registry(""), "", false);
         assert_eq!(
             cmd,
             "cd /tmp/sws-deploy && chmod +x install-container.sh && \
@@ -2155,6 +2154,7 @@ mod tests {
             "/tmp/sws-deploy",
             &registry("ghcr.io/soligolab/sws-runtime:2026.7.0-amd64"),
             "/opt/sws-data",
+            false,
         );
         assert_eq!(
             cmd,
@@ -2164,12 +2164,21 @@ mod tests {
         );
     }
 
+    /// OpenPLC è un'opzione: la flag c'è solo se chiesta, e dopo `--data`.
+    #[test]
+    fn build_install_cmd_openplc_solo_se_chiesto() {
+        let senza = build_install_cmd("/tmp/d", &registry(""), "/data/user/sws", false);
+        assert!(!senza.contains("openplc"));
+        let con = build_install_cmd("/tmp/d", &registry(""), "/data/user/sws", true);
+        assert!(con.ends_with("--data /data/user/sws --con-openplc"), "{con}");
+    }
+
     /// L'installer rifiuta `--pull` e `--image` insieme: l'enum deve renderlo
     /// impossibile, non solo improbabile.
     #[test]
     fn build_install_cmd_non_mescola_mai_pull_e_image() {
         for spec in [archive("img.tar.gz"), registry(""), registry("reg:tag")] {
-            let cmd = build_install_cmd("/tmp/d", &spec, "/data/user/sws");
+            let cmd = build_install_cmd("/tmp/d", &spec, "/data/user/sws", false);
             assert!(
                 !(cmd.contains("--pull") && cmd.contains("--image")),
                 "comando con entrambe le flag: {cmd}"

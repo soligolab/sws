@@ -3093,6 +3093,21 @@
       "non_riuscito": "L'ultimo aggiornamento della configurazione NON è riuscito ({{da}} → {{a}}): reinstallare dall'Installazione."
     }
   },
+  "openplc": {
+    "titolo": "OpenPLC sul pannello",
+    "scelta": "Installa anche OpenPLC",
+    "sceltaAiuto": "Il pannello fa anche da PLC. Scarica circa 1 GB; OpenPLC parte vuoto, senza programma, e riparte da solo dopo un riavvio.",
+    "assente": "Non installato.",
+    "installa": "Installa OpenPLC",
+    "riprova": "Riprova",
+    "conferma": "Installare OpenPLC Runtime su questo pannello?\n\nScarica circa 1 GB da internet: servono qualche minuto e la rete. SWS non si ferma. OpenPLC parte vuoto, senza programma: lo carichi poi con l'Editor di OpenPLC.",
+    "inCorso": "Installazione in corso…",
+    "acceso": "Acceso.",
+    "porte": "Editor di OpenPLC: questo pannello, porta 8443. Crea subito il suo utente: finché non ne ha, il primo che si collega dalla rete lo crea. Dalla rete: Modbus 1502, S7 10102, OPC-UA 14840; per SWS: 127.0.0.1:1502.",
+    "nonRiuscito": "Installazione non riuscita: {{motivo}}",
+    "nonDaQui": "Questo pannello non sa installare da sé: reinstallalo da Installazione con «Installa anche OpenPLC».",
+    "guida": "Installa anche OpenPLC (il pannello fa anche da PLC, circa 1 GB in più)"
+  },
   "confermaAggiornamento": {
     "titolo": "Dopo l'aggiornamento",
     "carico": "Leggo lo stato dal dispositivo…",

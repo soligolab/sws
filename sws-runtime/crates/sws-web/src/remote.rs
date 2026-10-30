@@ -1627,6 +1627,11 @@ pub async fn remote_quadlet_aggiorna(State(s): State<AppState>, Extension(user):
     inoltra_aggiornamento(&s, &user, reqwest::Method::POST, None, |base| format!("{base}/api/quadlet/aggiorna")).await
 }
 
+/// `POST /api/remote/openplc/installa` — OpenPLC sul pannello collegato (30-10-2026).
+pub async fn remote_openplc_installa(State(s): State<AppState>, Extension(user): Extension<AuthUser>) -> Response {
+    inoltra_aggiornamento(&s, &user, reqwest::Method::POST, None, |base| format!("{base}/api/openplc/installa")).await
+}
+
 /// `POST /api/remote/aggiornamento/conferma` — la risposta alla domanda dopo un aggiornamento.
 pub async fn remote_conferma_aggiornamento(
     State(s): State<AppState>,

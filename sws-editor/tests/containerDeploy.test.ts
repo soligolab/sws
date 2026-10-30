@@ -55,3 +55,10 @@ describe("effectiveDataPath", () => {
     expect(effectiveDataPath("/opt/sws-data")).toBe("/opt/sws-data");
   });
 });
+
+describe("OpenPLC nel payload (30-10-2026)", () => {
+  it("è spento se nessuno lo chiede, e viaggia se chiesto", () => {
+    expect(containerDeployPayload(base).con_openplc).toBe(false);
+    expect(containerDeployPayload({ ...base, conOpenplc: true }).con_openplc).toBe(true);
+  });
+});

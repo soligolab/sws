@@ -5,6 +5,7 @@ import { ListaControlli } from "@/config/installazione/ListaControlli";
 import { TabellaDispositivi } from "@/config/installazione/TabellaDispositivi";
 import { hostDaUrl, imageRefAutomatico, imageRefDaVariante, installazioneConsentita, varianteDaArch } from "@/config/installazione/sondaggio";
 import { getBrand } from "@/branding";
+import { SceltaOpenplc } from "@/boot/OpenplcSulPannello";
 import { containerDeployPayload, effectiveDataPath, type ContainerSource } from "@/containerDeploy";
 import type { ContainerPackage } from "@/types";
 import { useAppStore } from "@/store";
@@ -79,6 +80,7 @@ export function InstallTab() {
   // inchiodare una versione precisa.
   const [imageRef, setImageRef] = useState("");
   const [cleanInstall, setCleanInstall] = useState(false);
+  const [conOpenplc, setConOpenplc] = useState(false);
 
   const fetchContainerPackages = useCallback(async () => {
     try {
@@ -177,7 +179,7 @@ export function InstallTab() {
         cleanInstall,
         host: deviceHost, port: devicePort,
         user: deviceUser, password: devicePass, remoteDir: deviceTmpDir,
-        dataPath,
+        dataPath, conOpenplc,
       }));
       if (!res.ok) {
         // Il corpo porta il messaggio in italiano del backend ("riferimento
@@ -477,6 +479,7 @@ export function InstallTab() {
           
             <>
               <span style={{ fontSize: 10, color: "var(--brand-text-subtle, #94a3b8)" }}>{t("cfg.requiresSshpassContainer")}</span>
+              <SceltaOpenplc valore={conOpenplc} onChange={setConOpenplc} />
               {/* Vale per entrambe le sorgenti: agisce sui dati del
                   dispositivo, non sull'immagine. */}
               <div style={{ borderTop: "1px solid var(--brand-surface, #1e293b)", paddingTop: 8 }}>

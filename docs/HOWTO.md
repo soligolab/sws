@@ -1862,25 +1862,34 @@ che non lo chiede non lo ha nemmeno sul disco.
 
 ### Installarlo
 
-```bash
-./install-container.sh --pull ghcr.io/soligolab/sws-runtime:latest-arm64 --con-openplc
-```
+Tre strade, una per ogni modo in cui si installa SWS:
 
-L'immagine di OpenPLC pesa **circa 1 GB**, e va contata due volte perché la precedente si tiene
-per il ritorno. Su un TC620 con 3,1 GB liberi il conto è stretto: guarda lo spazio prima.
+| Dove sei | Cosa fai |
+|---|---|
+| **Pannello che ha già SWS**, collegato dall'IDE | Istanza → Device → Connessione → riquadro **«OpenPLC sul pannello»** → **Installa OpenPLC**. Niente SSH, SWS non si ferma: lo installa il pannello da sé, e il riquadro dice com'è andata |
+| Installazione **dall'IDE via SSH** (scheda Installazione o schermata di benvenuto) | spunta **«Installa anche OpenPLC»** prima di installare |
+| **Guida del cloud** (sws.soligo.net, il comando da copiare sul pannello) | spunta **«Installa anche OpenPLC»**: l'ultimo comando prende `--con-openplc` |
 
-**Non parte da solo**, e non è una dimenticanza: un PLC che si avvia su un pannello che nessuno ha
-configurato manderebbe uscite a un impianto senza che nessuno l'abbia chiesto. Lo avvii tu:
+A mano, sul pannello: `./install-container.sh … --con-openplc` insieme a SWS, oppure
+`./install-container.sh --solo-openplc` su un pannello che ha già SWS.
 
-```bash
-XDG_RUNTIME_DIR=/run/user/$(id -u) systemctl --user enable --now openplc-runtime
-```
+L'immagine di OpenPLC pesa **circa 1 GB**: l'installazione controlla lo spazio prima di
+scaricarla e si ferma con un messaggio se non basta.
+
+**Parte subito, vuoto**, e riparte da solo dopo un riavvio. Senza programma non comanda niente:
+il programma lo carica l'Editor di OpenPLC, e da lì resta anche dopo un riavvio del pannello.
+
+Com'è fatto, se serve saperlo: un container `openplc-runtime` creato una volta con
+`--restart always`, che al boot avvia `podman-restart.service` dell'utente. **Non è un quadlet**:
+un quadlet ricrea il container a ogni avvio, e OpenPLC tiene il programma caricato dentro il
+container — lo perderebbe a ogni riavvio (provato sul WP630 il 30-10-2026). Utenti e segreti di
+OpenPLC stanno in `/data/user/openplc`.
 
 ### Le porte, e perché non sono quelle standard
 
 | Cosa | Standard | Sul pannello |
 |---|---|---|
-| API REST (caricare il programma) | 8443 | **8443** |
+| API REST (l'Editor si collega qui) | 8443 | **8443** |
 | Modbus TCP server | 502 | **1502** |
 | S7 | 102 | **10102** |
 | OPC-UA server | 4840 | **14840** |
@@ -1892,9 +1901,13 @@ opzionale.
 
 La 8443 invece è libera davvero: dal 21-10-2026 SWS è sulla 7443 e 7444.
 
-**Tutte e quattro ascoltano solo su `127.0.0.1`.** Un PLC raggiungibile dalla rete è una decisione
-di chi installa l'impianto, non un default: per aprirlo si toglie il `127.0.0.1:` dal quadlet,
-sapendo cosa si sta facendo.
+**Tutte e quattro ascoltano sulla rete del pannello** (decisione del maintainer, 30-10-2026): OpenPLC fa la
+logica dell'impianto e parla coi dispositivi da sé, e l'Editor ci si collega dal PC. Dentro il container le porte
+sono quelle standard, quindi un progetto dell'Editor coi valori di fabbrica funziona com'è; fuori Modbus e S7 sono
+rimappate (sopra), e OPC-UA è 14840 per non litigare col server OPC-UA di SWS sulla 4840.
+
+**Finché OpenPLC non ha utenti, il primo che si collega dalla rete crea l'amministratore.** Crealo subito
+dall'Editor, appena installato.
 
 ### Leggere i tag del PLC da SWS
 
@@ -1920,7 +1933,7 @@ sostituendola.
 | | |
 |---|---|
 | **Tempo reale** | Di fabbrica `sched_setscheduler` fallisce e il ciclo gira senza priorità realtime. Non è il rootless: è il limite RTPRIO di `user`, che è 0. Un drop-in di `user@1000.service` messo una volta da root lo alza, e il container avviato dal systemd dell'utente gira in SCHED_FIFO (provato su un PLX800 il 29-10-2026). Finché PixsysOS non lo mette nell'immagine, i passi sono in `docs/plans/Appunti.txt` |
-| **L'aggiornamento** | È di chi usa OpenPLC: il quadlet non ha `AutoUpdate=`. Il ciclo di conferma e ritorno di SWS è costruito sulle nostre immagini e su una di un altro registry non saprebbe cosa vuol dire «tornare indietro» |
+| **L'aggiornamento** | È di chi usa OpenPLC: SWS non lo aggiorna. Per una versione nuova si cancella il container (`podman rm -f openplc-runtime`), si cambia l'immagine in `install-container.sh` e si reinstalla: utenti e segreti restano, **il programma va ricaricato** dall'Editor |
 | **Due server OPC-UA** | Se accendi anche quello di SWS, uno dei due va spostato: sono tutti e due configurabili |
 | **CODESYS** | Sui Pixsys c'è già, e già litiga con SWS per il browser. Due PLC sullo stesso dispositivo è una scelta di prodotto, non tecnica |
 
@@ -1928,8 +1941,9 @@ sostituendola.
 
 | Sintomo | Cosa guardare |
 |---|---|
-| `--con-openplc` dice che il quadlet non c'è | serve un'immagine di SWS che lo porti (2.19.1 o successiva) |
-| Il container non parte | `XDG_RUNTIME_DIR=/run/user/$(id -u) journalctl --user -u openplc-runtime -n 50`; spesso è lo spazio |
+| Il riquadro dice «non riuscito» | il motivo è scritto lì; per esteso, sul pannello, `cat /data/user/sws/config/openplc-esito.json` |
+| Il container non parte | `podman logs openplc-runtime`; `podman ps -a` dice se esiste |
+| Dopo un riavvio non riparte | `systemctl --user is-enabled podman-restart.service` deve dire `enabled` |
 | SWS non legge i tag | la sorgente Modbus punta a 1502, non a 502 |
 
 ---

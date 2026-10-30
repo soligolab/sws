@@ -13,6 +13,17 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 
 ### Added
 
+- **OpenPLC dall'IDE, come container persistente** (piano `docs/archive/2026-10-20-openplc-sul-dispositivo.md`,
+  collaudo del 30-10-2026). Il quadlet `openplc-runtime.container` non partiva sul WP630 (il volume copriva la
+  `/workdir` dell'immagine), non si poteva abilitare al boot (`enable` su un'unità generata) e avrebbe perso il
+  programma a ogni avvio (`--rm`). Ora `install-container.sh` crea una volta il container `openplc-runtime` con
+  `--restart always`, dati in `/var/run/runtime`, e lo avvia da `podman-restart.service` dell'utente: parte subito,
+  vuoto, e riparte al boot col programma. `--con-openplc` insieme a SWS, `--solo-openplc` da solo; esito in
+  `config/openplc-esito.json`. Runtime: `openplc.rs`, `POST /api/openplc/installa` (servizio transitorio, Admin),
+  `openplc` in `/api/system`, rotta remota. IDE: riquadro «OpenPLC sul pannello» nella Connessione, casella
+  «Installa anche OpenPLC» in Installazione, nel benvenuto e nella guida del cloud. Il quadlet è tolto da template,
+  immagini, conto delle versioni e guardie; l'installer toglie quello vecchio dove c'è.
+
 - **Registrazione, PIN e «ricordami»** (ramo C del piano `docs/plans/2026-10-26-aprire-sws-soligo-net.md`).
   `sws-identita`, schema 5: `sessioni.durata_ms` (il rinnovo scorrevole usa la durata della riga, «ricordami» = 30
   giorni), `utenti.da_confermare`, `condizioni_versione`/`condizioni_ms`, `ultimo_accesso_ms`; `emetti_accesso` è

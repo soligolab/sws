@@ -3093,6 +3093,21 @@
       "non_riuscito": "The last configuration update did NOT succeed ({{da}} → {{a}}): reinstall from Installation."
     }
   },
+  "openplc": {
+    "titolo": "OpenPLC on the panel",
+    "scelta": "Also install OpenPLC",
+    "sceltaAiuto": "The panel also works as a PLC. Downloads about 1 GB; OpenPLC starts empty, with no program, and restarts by itself after a reboot.",
+    "assente": "Not installed.",
+    "installa": "Install OpenPLC",
+    "riprova": "Retry",
+    "conferma": "Install OpenPLC Runtime on this panel?\n\nIt downloads about 1 GB from the internet: it takes a few minutes and needs the network. SWS keeps running. OpenPLC starts empty, with no program: you load one later with the OpenPLC Editor.",
+    "inCorso": "Installing…",
+    "acceso": "Running.",
+    "porte": "OpenPLC Editor: this panel, port 8443. Create its user right away: until it has one, the first to connect from the network creates it. From the network: Modbus 1502, S7 10102, OPC-UA 14840; for SWS: 127.0.0.1:1502.",
+    "nonRiuscito": "Installation failed: {{motivo}}",
+    "nonDaQui": "This panel cannot install by itself: reinstall it from Install with «Also install OpenPLC».",
+    "guida": "Also install OpenPLC (the panel also works as a PLC, about 1 GB more)"
+  },
   "confermaAggiornamento": {
     "titolo": "After the update",
     "carico": "Reading state from the device…",

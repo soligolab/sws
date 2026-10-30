@@ -1,5 +1,9 @@
 # OpenPLC sul dispositivo — le decisioni, dopo la sessione di plan
 
+> **CHIUSO il 30-10-2026**, dopo il collaudo da utente sul WP630 («mi sembra funzioni»). I due residui brevi sono
+> passati in `docs/plans/Appunti.txt`; la prova della guida del cloud resta in `COLLAUDI_IN_SOSPESO.md` §F (20c),
+> perché vuole una release.
+
 > **DECISO dal maintainer il 23-10-2026.** Le otto scelte sono in testa, qui sotto; il materiale
 > che le ha istruite resta in coda. Da qui si apre un ramo, non un'altra sessione di plan.
 >
@@ -203,45 +207,55 @@ e le decisioni 1 e 3 diventano domande di prodotto senza codice dietro.
 
 ---
 
-## Dopo il collaudo sul WP630 (30-10-2026) — il lavoro che resta
+## Dopo il collaudo sul WP630 (30-10-2026) — rifatto, da collaudare dall'IDE
 
-Il collaudo (`COLLAUDI_IN_SOSPESO.md` §F) è in corso. Quello che è già emerso, e la richiesta nuova del
-maintainer, vanno in **un ramo solo** dopo il collaudo. Prima di scrivere codice servono le risposte alle domande
-in fondo.
+Il primo collaudo ha trovato il quadlet rotto in tre modi, e il maintainer ha chiesto l'installazione dall'IDE e
+dallo script del cloud. Fatto lo stesso pomeriggio, ramo `feat/openplc-da-utente`.
 
-**Difetti**
-1. **`enable --now` non funziona**: systemd rifiuta `enable` su un'unità generata da un quadlet («transient or
-   generated», visto sul WP630). Il comando è scritto in tre posti: messaggio dell'installer, HOWTO cap. 28,
-   commento del quadlet. La conseguenza vera: **OpenPLC non riparte dopo un riavvio**, mentre la decisione del
-   23-10 chiedeva il contrario. Oggi si avvia solo con `start`.
-2. **«Aggiorna» la configurazione del servizio dimentica OpenPLC**: il runtime lancia `install-container.sh
-   --solo-unita` senza `--con-openplc`. `unita-scelte.json` perde `openplc-runtime.service` e il suo quadlet non si
-   aggiorna più. Rimedio probabile: in modalità `--solo-unita`, se `openplc-runtime.container` c'è già, la scelta
-   resta.
-3. **Lo stop lascia le uscite congelate**: il PID 1 dell'immagine di OpenPLC ignora SIGTERM (trovato nel progetto
-   GitPixsys/openplc; dettagli e rimedio provato in `Appunti.txt`). Nel nostro quadlet: `Exec=` con la trappola che
-   trasforma lo stop in SIGINT, e `StopTimeout=30`.
-4. **Il container non parte affatto** (visto sul WP630 il 30-10-2026, in ciclo di riavvio ogni 5 s):
-   `Volume=/data/user/openplc:/workdir` copre la `/workdir` dell'immagine con una cartella vuota, e
-   `./start_openplc.sh`, che sta lì, non c'è più (exit 127). Il progetto GitPixsys/openplc monta invece i dati su
-   `/var/run/runtime` e un solo file in `/workdir` (`plugins.conf`, in sola lettura). Da verificare insieme: lì il
-   programma caricato **si perde se il container si ricrea**, e il nostro quadlet lo ricrea a ogni avvio (`--rm`).
-5. Intestazione di `install-container.sh`: la riga di `--con-openplc` è finita in mezzo a quella di `--solo-unita`.
+**I difetti trovati**
+1. **Il container non partiva**: `Volume=/data/user/openplc:/workdir` copriva la `/workdir` dell'immagine, dove
+   sta `start_openplc.sh` (exit 127, ciclo di riavvio ogni 5 s).
+2. **`enable --now` non funziona**: systemd rifiuta `enable` su un'unità generata da un quadlet («transient or
+   generated»). Niente avvio al boot.
+3. **Il programma si perdeva a ogni avvio**: un quadlet ricrea il container (`--rm`), e OpenPLC tiene il programma
+   caricato dentro il container (`core/generated`, `build/`, `plugins.conf`).
+4. **«Aggiorna» la configurazione del servizio dimenticava OpenPLC** (`--solo-unita` senza `--con-openplc`).
+5. L'intestazione di `install-container.sh` aveva la riga di `--con-openplc` in mezzo a quella di `--solo-unita`.
 
-**Richiesta del maintainer (30-10-2026)**: l'installazione di OpenPLC deve essere un'opzione in **due** posti:
-- **dall'IDE, su un pannello che ha già SWS**. Oggi si fa solo a mano, via SSH, con `--con-openplc`;
-- **nello script di primo setup** che l'utente copia dalla pagina di sws.soligo.net
-  (`components/benvenuto/InstallaRuntime.tsx`: oggi `podman pull` + `./install-container.sh --pull <img>`).
+Il difetto di SIGTERM trovato nel progetto GitPixsys (v4.2.3) **non c'è nella v4.3.1**: `start_openplc.sh` fa
+`exec`, e sul WP630 lo stop ha chiuso i plugin in ordine in 6 s.
 
-Misurato: la scheda Installazione dell'IDE costruisce la riga di `install-container.sh` in `packaging.rs`
-(`install_sh`, ~riga 757), e passa da SSH. Il bottone «Aggiorna» invece passa dal runtime, senza SSH
-(`quadlet.rs`, servizio transitorio con `--solo-unita`). Quindi per un pannello già installato le strade sono due.
+**Le decisioni del maintainer (30-10-2026)**
+- **Container persistente**, non quadlet: come Autonomy e il progetto GitPixsys certificato sul PLX800. Creato una
+  volta con `--restart always`, avviato al boot da `podman-restart.service` dell'utente, dati in `/var/run/runtime`.
+  Risolve 1-4 insieme: niente volume su `/workdir`, niente `enable`, il programma resta, «Aggiorna» non lo tocca.
+- **Parte subito e al boot**, vuoto.
+- **Dall'IDE, tutte e due le strade**: la casella in Installazione (SSH) e il bottone dal pannello collegato.
+- **Sulla rete, non solo su 127.0.0.1** (dopo il primo giro da utente): «SWS e OpenPLC devono coesistere con le
+  regole già definite ma OpenPLC deve poter accedere a tutta la rete in modo indipendente, in molti casi sarà lui a
+  fare la logica dell'impianto e sarà lui ad uscire con i protocolli, si interfaccerà con SWS probabilmente solo in
+  OPC-UA o Modbus». Le quattro porte si pubblicano su tutte le interfacce (8443, 1502, 10102, 14840); il container
+  fatto prima, solo locale, l'installer lo ricrea. Rischio dichiarato: finché OpenPLC non ha utenti, il primo che
+  si collega crea l'amministratore.
 
-**Domande per il maintainer**
-- **Avvio al boot**: OpenPLC deve ripartire da solo dopo un riavvio una volta che qualcuno l'ha avviato? E chi lo
-  decide: una seconda scelta («avvia all'avvio»), o la stessa opzione d'installazione?
-- **Dall'IDE, quale strada**: una casella nella scheda Installazione (SSH, reinstalla), o un bottone dal pannello
-  collegato (niente SSH, come «Aggiorna»)? E si può anche **togliere** OpenPLC dalla stessa schermata?
-- **Il tempo reale**: il quadlet prende già `Ulimit=rtprio=99` e `Ulimit=memlock=-1`, così basta il setup di
-  PixsysOS (`Appunti.txt`) perché funzioni? Senza quel setup i due limiti non fanno danni.
-- **Lo spazio**: l'immagine pesa ~1 GB. L'opzione va bloccata, o solo avvisata, quando lo spazio non basta?
+**Cosa c'è adesso**
+- `install-container.sh`: `installa_openplc` (spazio, pull, create, `podman-restart.service`, attesa della 8443,
+  esito in `config/openplc-esito.json`), `--con-openplc` dopo SWS, `--solo-openplc` da solo. Toglie il quadlet
+  vecchio dove c'è. Niente `--ulimit rtprio`: senza il drop-in di PixsysOS il limite massimo è 0 e crun non
+  avvierebbe il container; con il drop-in il container lo eredita da sé (`Appunti.txt`).
+- Runtime: `openplc.rs` (stato in `/api/system`, `POST /api/openplc/installa` con servizio transitorio), rotta
+  remota per l'IDE.
+- IDE: riquadro «OpenPLC sul pannello» nella Connessione, casella «Installa anche OpenPLC» in Installazione, nella
+  schermata di benvenuto e nella guida del cloud.
+- Il quadlet `openplc-runtime.container` non esiste più: via da template, immagini, conto delle versioni, guardie.
+
+**Provato da Claude sul WP630** (via SSH, col permesso del maintainer): `--solo-openplc` in 18 s con l'immagine
+già scaricata, caricamento dall'Editor (CLI 4.3.2, `--create-user`), Modbus `soglia_alta` = 900 su 127.0.0.1:1502,
+stop pulito, **riavvio vero del pannello col programma ancora in RUN**.
+
+**Manca nell'IDE**: un modo per scaricare e ricaricare la cartella `openplc/` del progetto. Le rotte ci sono
+(`GET`/`PUT /api/project/logica-plc`), i bottoni no: con l'Editor su un PC Windows la logica non entra nel
+progetto SWS se non a mano. Visto nel collaudo del 30-10-2026.
+
+**Resta**: il collaudo da utente (`COLLAUDI_IN_SOSPESO.md` §F, punti 20-24). La guida del cloud si prova solo dopo
+una release, perché lo script arriva dall'immagine del registry.

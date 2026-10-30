@@ -358,16 +358,25 @@ login».
 
 ## F. OpenPLC sul pannello (opzionale)
 
-19. [ ] Installare **senza** `--con-openplc`: l'unità `openplc-runtime` **non deve esistere**, e
-        il pannello non deve dichiarare di avere una versione più vecchia di quella che ha
-        (era il difetto del conteggio delle unità).
-20. [ ] Installare **con** `--con-openplc`: l'unità c'è ma **non parte da sola**. Si avvia a mano
-        con `systemctl --user enable --now openplc-runtime`.
-21. [ ] L'Editor di OpenPLC raggiunge `https://127.0.0.1:8443` sul pannello, e la cartella della
-        logica è `<progetto>/openplc/`.
+Rifatto il 30-10-2026 dopo il primo collaudo sul WP630, che aveva trovato il quadlet rotto: ora è un
+container persistente (HOWTO cap. 28). **Già visto da Claude sul WP630 via SSH**: installazione con
+`--solo-openplc`, programma caricato dall'Editor (CLI), stop pulito in 6 s, programma ancora in RUN
+dopo un riavvio vero. Il giro **da utente** è fatto il 30-10-2026: bottone dall'IDE, Editor da Windows senza tunnel, Modbus letto da
+SWS (`soglia_alta` = 900). Il riavvio (24) l'ha fatto Claude via SSH, col programma ancora in RUN.
+
+19. [x] Senza `--con-openplc` OpenPLC non c'è: nessun container, nessun quadlet (WP630, 30-10-2026).
+20. [x] **Dall'IDE, pannello già installato**: Istanza → Connessione → «OpenPLC sul pannello» →
+        Installa. Il riquadro passa da «in corso» ad «Acceso» senza che SWS si fermi.
+20b. [ ] **Dall'IDE, installando SWS**: scheda Installazione, «Installa anche OpenPLC» spuntata. Alla
+        fine il riquadro della Connessione dice «Acceso».
+20c. [ ] **Dalla guida del cloud**: la casella aggiunge `--con-openplc` all'ultimo comando. Si prova
+        dopo una release: lo script viene dall'immagine del registry.
+21. [x] L'Editor di OpenPLC **dal PC Windows**, sulla stessa rete, si collega alla 8443 del pannello
+        senza tunnel, crea l'utente e carica un programma. La logica sta in `<progetto>/openplc/`.
 22. [ ] La logica viaggia col progetto: backup, export e deploy la portano; `git` la prende da sé.
-23. [ ] Modbus di OpenPLC risponde su `127.0.0.1:1502` (non 502: in rootless sotto la 1024 non si
-        pubblica) e una sorgente Modbus di SWS puntata lì legge.
+23. [x] Modbus di OpenPLC risponde su `127.0.0.1:1502` e una sorgente Modbus di SWS puntata lì legge
+        (`soglia_alta` = 900 col programma del laboratorio). Da Claude via SSH: sì.
+24. [x] Dopo un riavvio del pannello OpenPLC riparte da solo, **col programma**.
 
 ---
 

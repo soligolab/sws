@@ -49,6 +49,8 @@ versioni:
         en: "IDE: project images (backgrounds, images in objects) show on the canvas again in a locally installed IDE too."
       - it: "Nel tema chiaro il logo SWS si legge: la scritta non è più bianca su fondo bianco."
         en: "In the light theme the SWS logo is readable: the text is no longer white on white."
+      - it: "OpenPLC si installa dall'IDE: un bottone per un pannello già installato, o una casella mentre si installa SWS. Parte subito e tiene il programma anche dopo un riavvio."
+        en: "OpenPLC installs from the IDE: a button for a panel already installed, or a checkbox while installing SWS. It starts right away and keeps its program across reboots."
   - versione: "2.23.7"
     voci:
       - it: "Ogni sorgente dice se ha qualcuno dall'altra parte. Per MQTT si sceglie chi lo racconta (Zigbee2MQTT, Tasmota, Shelly, ESPHome); un pulsante crea l'allarme da collegare alle notifiche."

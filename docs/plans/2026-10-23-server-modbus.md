@@ -16,7 +16,7 @@ Un server Modbus (slave) ribalta la direzione: SWS ascolta, e chi comanda è l'a
 
 ## Perché è nato
 
-Il piano [OpenPLC sul dispositivo](2026-10-20-openplc-sul-dispositivo.md) è stato deciso con
+Il piano [OpenPLC sul dispositivo](../archive/2026-10-20-openplc-sul-dispositivo.md) è stato deciso con
 l'idea che **l'utente scelga chi è il master**. Misurando le quattro combinazioni, due funzionano
 e due no:
 

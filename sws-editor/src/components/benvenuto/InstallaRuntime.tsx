@@ -14,6 +14,7 @@ import { api, type SondaggioDispositivo } from "@/api/client";
 import { ListaControlli } from "@/config/installazione/ListaControlli";
 import { imageRefDaVariante, installazioneConsentita } from "@/config/installazione/sondaggio";
 import { containerDeployPayload } from "@/containerDeploy";
+import { SceltaOpenplc } from "@/boot/OpenplcSulPannello";
 import { campoAmpio, pulsantePrimario, pulsanteSecondario } from "@/ui/base";
 
 // I nomi corti della schermata da cui questo file viene (`WelcomeScreen`),
@@ -41,6 +42,7 @@ function DeploySection() {
   const [user, setUser]           = useState("user");
   const [password, setPassword]   = useState("");
   const [deploying, setDeploying] = useState(false);
+  const [conOpenplc, setConOpenplc] = useState(false);
   const [logs, setLogs]           = useState<string[]>([]);
   // La chiave host del dispositivo non è quella memorizzata (factory reset):
   // stesso pulsante di ConfigView, stesso endpoint, stesso gesto umano.
@@ -95,6 +97,7 @@ function DeploySection() {
         host, port, user, password,
         remoteDir: "/tmp/sws-deploy",
         dataPath: "",
+        conOpenplc,
       }));
       if (!res.ok) {
         // Il corpo porta la frase del backend: mostrare solo lo stato la butterebbe via.
@@ -211,6 +214,7 @@ function DeploySection() {
           </button>
         </div>
       )}
+      <SceltaOpenplc valore={conOpenplc} onChange={setConOpenplc} />
       {(() => {
         const bloccato = !installazioneConsentita(sondaggio);
         const spento = !host || !user || deploying || bloccato;
@@ -317,6 +321,8 @@ function Comando({ testo }: { testo: string }) {
 function GuidaInstallazione() {
   const { t } = useTranslation();
   const IMG = "ghcr.io/soligolab/sws-runtime:rc-arm64";
+  // OpenPLC a richiesta (30-10-2026): una flag in fondo all'ultimo comando.
+  const [conOpenplc, setConOpenplc] = useState(false);
   const passi: [string, string][] = [
     // Il segnaposto segue la lingua come tutto il resto: cablato in italiano
     // stonava in mezzo a una guida in inglese (maintainer, 21-10-2026).
@@ -324,7 +330,7 @@ function GuidaInstallazione() {
     [t("welcome.installCloudPasso2"), `podman pull ${IMG}`],
     [t("welcome.installCloudPasso3"), "mkdir -p ~/sws-install && cd ~/sws-install"],
     [t("welcome.installCloudPasso4"), `podman run --rm --entrypoint tar ${IMG} \\\n  -C /usr/share/sws/quadlet -cf - . | tar -xf -`],
-    [t("welcome.installCloudPasso5"), `./install-container.sh --pull ${IMG}`],
+    [t("welcome.installCloudPasso5"), `./install-container.sh --pull ${IMG}${conOpenplc ? " --con-openplc" : ""}`],
   ];
   // I quattro passi dopo l'SSH, uniti in una riga sola (22-10-2026). Il
   // maintainer ha chiesto di **aggiungere** questa forma, non di sostituire
@@ -341,6 +347,10 @@ function GuidaInstallazione() {
       <p style={{ margin: 0, fontSize: 13, color: "var(--brand-text-muted, #94a3b8)", lineHeight: 1.6 }}>
         {t("welcome.installCloudIntro")}
       </p>
+      <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 13, color: "var(--brand-text-2, #cbd5e1)", cursor: "pointer" }}>
+        <input type="checkbox" data-testid="guida-openplc" checked={conOpenplc} onChange={(e) => setConOpenplc(e.target.checked)} />
+        {t("openplc.guida")}
+      </label>
       <div style={{ display: "flex", gap: 6 }}>
         {([[false, t("welcome.installCloudAPassi")], [true, t("welcome.installCloudAggregato")]] as const).map(([v, etichetta]) => (
           <button key={String(v)} type="button" onClick={() => setUnaRiga(v)}

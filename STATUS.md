@@ -12,6 +12,21 @@
 > resta in «Storico». Qui vive solo ciò che serve a riprendere il lavoro.
 
 
+## ▶ Riprendere da qui — OpenPLC in `main`, piano chiuso (2026-10-30 sera, theobroma)
+
+- **OpenPLC sul pannello è in `main`** e il piano è in archivio
+  ([`2026-10-20-openplc-sul-dispositivo.md`](docs/archive/2026-10-20-openplc-sul-dispositivo.md)). Container
+  persistente (`--restart always`, `podman-restart.service`), porte sulla rete (8443, 1502, 10102, 14840),
+  installabile dall'IDE (riquadro «OpenPLC sul pannello» nella Connessione, casella «Installa anche OpenPLC») e dalla
+  guida del cloud. Collaudato dal maintainer sul WP630: Editor da Windows senza tunnel, programma caricato,
+  `soglia_alta` = 900 letto da SWS via Modbus. Riavvio vero col programma in RUN, provato via SSH.
+- Verifiche verdi: cargo test 1445, vitest 1853, pnpm build, check_static 51. IDE 8460 sul codice di `main`.
+- Archivio di prova `dist/sws-runtime-2.23.7-openplc-aarch64-image.tar.gz` (dal ramo, prima dello squash).
+- **Non pushato**: `main` è avanti su origin; i rami remoti della catena sono da eliminare quando si pusha.
+- Restano: guida del cloud con OpenPLC dopo una release (COLLAUDI §F 20c); due voci nuove in `Appunti.txt` (logica
+  di OpenPLC nel progetto dall'IDE, tipo del tag creato col ＋); il tempo reale di OpenPLC senza root, in attesa di
+  PixsysOS.
+
 ## ▶ Riprendere da qui — la catena dei rami è tutta in `main` (2026-10-30 pomeriggio, theobroma)
 
 - **Collaudo sul WP630** (archivio aarch64 della punta, deploy di `specchio-prova`): login e logout LVGL dai bottoni,
@@ -553,7 +568,7 @@ niente: da qui si aprono rami.
 
 | Documento | Stato |
 |---|---|
-| [OpenPLC sul dispositivo](docs/plans/2026-10-20-openplc-sul-dispositivo.md) | **otto su otto** — governo ibrido, per board generiche **e** Pixsys, **opzionale**, logica in `<progetto>/openplc/` con git **e** deploy |
+| [OpenPLC sul dispositivo](docs/archive/2026-10-20-openplc-sul-dispositivo.md) | **otto su otto** — governo ibrido, per board generiche **e** Pixsys, **opzionale**, logica in `<progetto>/openplc/` con git **e** deploy |
 | [I certificati in un posto solo](docs/archive/2026-10-15-certificati-in-un-posto-solo.md) | **otto su otto** — vista a due colonne, rotte remote, trust store riparato col default della policy, certificato con nome e scadenza |
 | [OPC-UA, Fase 4](docs/archive/2026-10-22-opcua-fase-4-decisioni.md) | **sei su sei** — la 4a è già nella 2.19.0; 4b e 4c diventano **un ramo solo** |
 | [Server Modbus](docs/plans/2026-10-23-server-modbus.md) | **seme nuovo**: SWS parla Modbus solo da client |
@@ -626,7 +641,7 @@ Tre documenti fatti per decidere, non per leggere. Ognuno ha le opzioni e cosa c
 |---|---|
 | [OPC-UA, le sei decisioni](docs/archive/2026-10-22-opcua-fase-4-decisioni.md) | come si collauda una struttura senza un server che le esponga; `NumericRange` indirizza **solo** gli array; da dove arriva il `DataType`; se le scritture dal server passano dal bus |
 | [I certificati in un posto solo](docs/archive/2026-10-15-certificati-in-un-posto-solo.md) | otto scelte. «Serve una dipendenza nuova» era **falso**: `x509-cert` è già dentro il binario. Il trust store OPC-UA **non funziona**, e correggere il percorso non basta |
-| [OpenPLC sul dispositivo](docs/plans/2026-10-20-openplc-sul-dispositivo.md) | cinque scelte, e la seconda decide tutto. Il conflitto sulla 8443 **non esiste più** |
+| [OpenPLC sul dispositivo](docs/archive/2026-10-20-openplc-sul-dispositivo.md) | cinque scelte, e la seconda decide tutto. Il conflitto sulla 8443 **non esiste più** |
 
 ### E il collaudo a schermo della Fase 2 dei tag
 
@@ -673,7 +688,7 @@ Sono tre documenti fatti per decidere, non per leggere. Ognuno ha le opzioni e c
 |---|---|
 | [OPC-UA, le sei decisioni](docs/archive/2026-10-22-opcua-fase-4-decisioni.md) | come si collauda una struttura se un server con strutture non ce l'abbiamo; come si scrive dentro una struttura (`NumericRange` indirizza **solo** gli array); da dove arriva il `DataType`; se le scritture dal server passano dal bus |
 | [I certificati in un posto solo](docs/archive/2026-10-15-certificati-in-un-posto-solo.md) | otto scelte. «Serve una dipendenza nuova» era **falso**: `x509-cert` è già dentro il binario. Il trust store OPC-UA **non funziona**, e correggerlo non basta |
-| [OpenPLC sul dispositivo](docs/plans/2026-10-20-openplc-sul-dispositivo.md) | cinque scelte, e la seconda decide tutto. Il conflitto sulla 8443 **non esiste più** |
+| [OpenPLC sul dispositivo](docs/archive/2026-10-20-openplc-sul-dispositivo.md) | cinque scelte, e la seconda decide tutto. Il conflitto sulla 8443 **non esiste più** |
 
 ### Quello che resta della Fase 2 dei tag
 
@@ -1218,7 +1233,7 @@ ripubblicando il tag dall'immagine vera. Dopo un rilascio, **alzare subito la ve
 
 ### Seme nuovo
 
-- [OpenPLC sul dispositivo](docs/plans/2026-10-20-openplc-sul-dispositivo.md): l'idea del maintainer di farne una
+- [OpenPLC sul dispositivo](docs/archive/2026-10-20-openplc-sul-dispositivo.md): l'idea del maintainer di farne una
   funzione di SWS anche in produzione, con le misure di oggi e tre strade. Va discusso in una sessione di plan.
 
 ### Prossimo passo

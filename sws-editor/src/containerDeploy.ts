@@ -14,6 +14,8 @@ export interface ContainerDeployInput {
   password: string;
   remoteDir: string;
   dataPath: string;
+  /** Installa anche OpenPLC Runtime (`--con-openplc`, 30-10-2026). */
+  conOpenplc?: boolean;
 }
 
 /**
@@ -38,6 +40,7 @@ export function containerDeployPayload(i: ContainerDeployInput): Record<string, 
     password: i.password,
     remote_dir: i.remoteDir,
     data_path: i.dataPath,
+    con_openplc: i.conOpenplc ?? false,
   };
 }
 

@@ -11,6 +11,7 @@ import { StatoBootImage } from "@/boot/StatoBootImage";
 import { StatoDisplay } from "@/boot/StatoDisplay";
 import { AggiornamentoRuntime } from "@/boot/AggiornamentoRuntime";
 import { ConfigurazioneServizio } from "@/boot/ConfigurazioneServizio";
+import { OpenplcSulPannello } from "@/boot/OpenplcSulPannello";
 import { OriginiIframe } from "@/boot/OriginiIframe";
 import { StoricoDispositivo } from "@/boot/StoricoDispositivo";
 import { ConfermaAggiornamento } from "@/boot/ConfermaAggiornamento";
@@ -1044,6 +1045,7 @@ export function RuntimeConnectionTab() {
 
       {/* Il quadlet che viaggia (02-10-2026): la configurazione del servizio. */}
       {connected && <ConfigurazioneServizio />}
+      {connected && <OpenplcSulPannello />}
 
       {/* Chi può mostrare il dispositivo in un iframe (C6, 17-10-2026). */}
       {connected && <OriginiIframe />}

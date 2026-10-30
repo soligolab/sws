@@ -539,6 +539,14 @@ export interface StatoQuadlet {
   ultimo_esito: { esito: "in_corso" | "riuscito" | "non_riuscito"; da: number; a: number; quando_ms: number } | null;
 }
 
+/** OpenPLC sul pannello (30-10-2026): se risponde, e l'ultima installazione
+ *  chiesta dall'IDE. Assente fuori da un pannello in container. */
+export interface StatoOpenplc {
+  risponde: boolean;
+  si_puo_installare: boolean;
+  ultimo_esito: { esito: "in_corso" | "riuscito" | "non_riuscito"; messaggio: string; quando_ms: number } | null;
+}
+
 export interface SystemStatus {
   runtime_version: string;
   /** La revisione git da cui e stato compilato il binario, o «sconosciuta». */
@@ -556,6 +564,7 @@ export interface SystemStatus {
   /** La configurazione del servizio (i quadlet) del pannello rispetto a quella
    *  dell'immagine che gira (02-10-2026). Assente fuori da un container. */
   quadlet?: StatoQuadlet | null;
+  openplc?: StatoOpenplc | null;
   conferma_aggiornamento?: StatoConferma | null;
   uptime_s: number;
   /** Q52 (dal 2.7.2): architettura del binario (`aarch64`, `x86_64`), nome
@@ -2300,6 +2309,8 @@ export const api = {
    *  il pannello si riavvia. */
   remoteAggiornaQuadlet: () =>
     request<StatoQuadlet>("/api/remote/quadlet/aggiorna", { method: "POST" }),
+  remoteInstallaOpenplc: () =>
+    request<{ avviata: boolean }>("/api/remote/openplc/installa", { method: "POST" }),
   /** La risposta alla domanda dopo un aggiornamento, sul pannello collegato. */
   remoteConfermaAggiornamento: (scelta: SceltaConferma) =>
     request<{ scelta: string }>("/api/remote/aggiornamento/conferma", {

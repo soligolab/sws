@@ -722,6 +722,8 @@ pub fn build(
         .route("/api/update/status", get(aggiornamento_stato))
         .route("/api/update/apply", post(aggiornamento_avvia))
         .route("/api/quadlet/aggiorna", post(quadlet_aggiorna))
+        // OpenPLC dall'IDE (30-10-2026): Admin, come i quadlet.
+        .route("/api/openplc/installa", post(openplc_installa))
         .route("/api/aggiornamento/conferma", post(conferma_aggiornamento))
         .route("/api/aggiornamento/istantanea", post(istantanea_dati_prendi))
         .route("/api/update/schedule", get(finestra_leggi).put(finestra_scrivi))
@@ -734,6 +736,7 @@ pub fn build(
         .route("/api/remote/update/status", get(crate::remote::remote_update_status))
         .route("/api/remote/update/apply", post(crate::remote::remote_update_apply))
         .route("/api/remote/quadlet/aggiorna", post(crate::remote::remote_quadlet_aggiorna))
+        .route("/api/remote/openplc/installa", post(crate::remote::remote_openplc_installa))
         .route("/api/remote/aggiornamento/conferma", post(crate::remote::remote_conferma_aggiornamento))
         .route("/api/remote/aggiornamento/istantanea", post(crate::remote::remote_istantanea_dati))
         .route("/api/system/stop", post(crate::system::system_stop))
@@ -1680,6 +1683,8 @@ fn deploy_only_app(state: AppState) -> Router<AppState> {
         .route("/api/update/status", get(aggiornamento_stato))
         .route("/api/update/apply", post(aggiornamento_avvia))
         .route("/api/quadlet/aggiorna", post(quadlet_aggiorna))
+        // OpenPLC dall'IDE (30-10-2026): Admin, come i quadlet.
+        .route("/api/openplc/installa", post(openplc_installa))
         .route("/api/aggiornamento/conferma", post(conferma_aggiornamento))
         .route("/api/aggiornamento/istantanea", post(istantanea_dati_prendi))
         .route("/api/update/schedule", get(finestra_leggi).put(finestra_scrivi))
@@ -4183,6 +4188,17 @@ async fn quadlet_aggiorna(
         }
     });
     (StatusCode::ACCEPTED, Json(st)).into_response()
+}
+
+/// `POST /api/openplc/installa` — installa OpenPLC su un pannello che ha già
+/// SWS (30-10-2026). Torna subito: il download dura minuti, e l'esito si legge
+/// in `/api/system` (`openplc`).
+async fn openplc_installa(State(s): State<AppState>, Extension(user): Extension<AuthUser>) -> Response {
+    s.audit.log("openplc.installa", Some(user.username), serde_json::json!({}));
+    match crate::openplc::installa(&s.config_dir).await {
+        Ok(()) => (StatusCode::ACCEPTED, Json(serde_json::json!({ "avviata": true }))).into_response(),
+        Err(e) => (StatusCode::CONFLICT, e).into_response(),
+    }
 }
 
 #[derive(serde::Deserialize)]

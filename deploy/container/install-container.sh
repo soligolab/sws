@@ -44,12 +44,16 @@
 #                                              # delle installazioni pre-2026-07-28
 #   ./install-container.sh --no-autostart      # solo podman run, nessuna unit
 #   ./install-container.sh --solo-unita        # riscrive SOLO i quadlet da questi
-#   ./install-container.sh --con-openplc       # installa anche OpenPLC Runtime,
-#                                              fermo: lo avvii tu quando serve
 #                                              # template, con l'immagine, i dati e la
 #                                              # rete di quelli già installati, e
 #                                              # riavvia: nessun pull, nessun container
 #                                              # rifatto (02-10-2026, lo usa il runtime)
+#   ./install-container.sh --con-openplc       # installa anche OpenPLC Runtime, e
+#                                              # lo accende: parte vuoto, senza
+#                                              # programma, e riparte al boot
+#   ./install-container.sh --solo-openplc      # SOLO OpenPLC, su un pannello che ha
+#                                              # gia' SWS: lo usa il runtime
+#                                              # (Istanza → Connessione → OpenPLC)
 #   ./install-container.sh --uninstall         # rimuove servizio e container
 #   ./install-container.sh --uninstall --purge # ...e anche i dati (!)
 #
@@ -107,7 +111,6 @@ UNIT_SRC="$SRC_DIR/sws-runtime.container"
 USER_UNIT_DIR="$HOME/.config/systemd/user"
 DISPLAY_UNITS_VECCHIE=(sws-display.path sws-display.service)
 VIEWER_UNIT_SRC="$SRC_DIR/sws-lvgl-viewer.container"
-OPENPLC_UNIT_SRC="$SRC_DIR/openplc-runtime.container"
 # L'immagine di boot non installa più niente sull'host (24-09-2026): la chiede
 # il runtime al launcher via D-Bus, da dentro il container. Il quadlet monta
 # `/run/dbus/system_bus_socket` e dichiara `SWS_HOST_CONFIG_DIR`; le tre cose
@@ -146,6 +149,7 @@ SOLO_UNITA=0
 # OpenPLC e OPZIONALE: «non e detto che a tutti i clienti serva» (decisione del
 # maintainer, 23-10-2026). Niente si installa senza che qualcuno lo chieda.
 CON_OPENPLC=0
+SOLO_OPENPLC=0
 UNINSTALL=0
 PURGE=0
 
@@ -196,6 +200,7 @@ while [ $# -gt 0 ]; do
         --no-autostart)  AUTOSTART=0; shift ;;
         --solo-unita)    SOLO_UNITA=1; shift ;;
         --con-openplc)   CON_OPENPLC=1; shift ;;
+        --solo-openplc)  SOLO_OPENPLC=1; shift ;;
         --uninstall)     UNINSTALL=1; shift ;;
         --purge)         PURGE=1; shift ;;
         *) echo "Flag non riconosciuta: $1" >&2; exit 1 ;;
@@ -203,6 +208,151 @@ while [ $# -gt 0 ]; do
 done
 
 command -v podman >/dev/null || { echo "ERRORE: podman non installato." >&2; exit 1; }
+
+# ── OpenPLC Runtime, a richiesta (23-10-2026, rifatto il 30-10-2026) ─────────
+#
+# **Un container persistente, non un quadlet.** Fino al 30-10-2026 era un
+# quadlet, e sul WP630 non e' mai partito: il volume copriva la `/workdir`
+# dell'immagine, dove sta `start_openplc.sh`. Ma anche corretto quello, un
+# quadlet ricrea il container a ogni avvio (`--rm`), e OpenPLC tiene il
+# programma caricato dall'Editor DENTRO il container (`core/generated`,
+# `build/`, `plugins.conf`): a ogni riavvio del pannello il PLC tornava vuoto.
+# Ed `enable` su un'unita' generata da un quadlet systemd lo rifiuta, quindi
+# non ripartiva nemmeno.
+#
+# Qui si fa come fanno Autonomy (il README dell'immagine) e il progetto
+# GitPixsys/openplc, certificato su un PLX800: il container si crea UNA volta,
+# con `--restart always`, e al boot lo avvia `podman-restart.service`
+# dell'utente. Il programma sopravvive ai riavvii; utenti e segreti di OpenPLC
+# stanno in `/var/run/runtime`, che e' l'unico volume (sul disco del pannello).
+#
+# Parte subito, vuoto: senza programma non comanda niente, e acceso serve a
+# collegare l'Editor (decisione del maintainer del 30-10-2026, «parte subito e
+# al boot»).
+#
+# Il tempo reale: il container eredita i limiti di chi lo avvia, e lo avvia il
+# systemd dell'utente. Quando PixsysOS alzera' RTPRIO per `user@1000` (drop-in
+# in `docs/plans/Appunti.txt`) gira in SCHED_FIFO senza toccare niente qui.
+# `--ulimit rtprio=99` invece NO: senza il drop-in il limite massimo e' 0, e
+# crun rifiuterebbe di avviare il container.
+OPENPLC_IMG="ghcr.io/autonomy-logic/openplc-runtime:v4.3.1"
+OPENPLC_NAME="openplc-runtime"
+# L'immagine estratta pesa 1,02 GB (misurato sul WP630 il 30-10-2026).
+OPENPLC_MB=1500
+
+openplc_esito() { # openplc_esito <in_corso|riuscito|non_riuscito> [messaggio]
+    # Lo legge il runtime (`openplc.rs`) e lo mostra l'IDE. JSON a mano: sul
+    # pannello python3 c'e', ma qui non deve essere lui a far fallire un esito.
+    local m
+    m="$(printf '%s' "${2:-}" | tr '\n' ' ' | sed 's/\\/\\\\/g; s/"/\\"/g')"
+    mkdir -p "$DATA/config" 2>/dev/null || true
+    printf '{"esito": "%s", "messaggio": "%s", "quando_ms": %s000}\n' "$1" "$m" "$(date +%s)" \
+        > "$DATA/config/openplc-esito.json" 2>/dev/null || true
+}
+
+openplc_fallito() { # openplc_fallito <messaggio>
+    echo "    ERRORE: OpenPLC: $1" >&2
+    openplc_esito non_riuscito "$1"
+    return 1
+}
+
+installa_openplc() {
+    local dati store liberi err
+    dati="$(dirname "$DATA")/openplc"
+    echo "==> OpenPLC Runtime"
+    openplc_esito in_corso "Scarico e avvio OpenPLC Runtime"
+
+    # Il quadlet di prima (23-10-2026), se c'e': non partiva, e se partiva
+    # perdeva il programma a ogni avvio. Esiste solo sui pannelli di prova.
+    if [ -f "$UNIT_DIR/openplc-runtime.container" ]; then
+        systemctl --user stop openplc-runtime.service 2>/dev/null || true
+        rm -f "$UNIT_DIR/openplc-runtime.container"
+        systemctl --user daemon-reload 2>/dev/null || true
+        echo "    tolto il quadlet di prima di OpenPLC"
+    fi
+
+    if ! podman image exists "$OPENPLC_IMG"; then
+        store="$(podman info --format '{{.Store.GraphRoot}}' 2>/dev/null || echo "$HOME")"
+        liberi="$(df -Pm "$store" 2>/dev/null | awk 'NR==2 {print $4}')"
+        if [ -n "$liberi" ] && [ "$liberi" -lt "$OPENPLC_MB" ]; then
+            openplc_fallito "spazio insufficiente: $liberi MB liberi, ne servono circa $OPENPLC_MB"
+            return 1
+        fi
+        echo "    scarico $OPENPLC_IMG (circa 1 GB: qualche minuto)"
+        if ! err="$(podman pull -q "$OPENPLC_IMG" 2>&1 >/dev/null)"; then
+            openplc_fallito "download non riuscito: $(printf '%s' "$err" | tail -1)"
+            return 1
+        fi
+    fi
+
+    # Il container del pomeriggio del 30-10-2026 ascoltava solo su 127.0.0.1:
+    # si ricrea. E' il solo caso in cui si butta via un container esistente,
+    # e c'e' solo sul WP630 di prova.
+    if podman container exists "$OPENPLC_NAME" \
+        && podman inspect -f '{{json .HostConfig.PortBindings}}' "$OPENPLC_NAME" 2>/dev/null | grep -q '"HostIp":"127.0.0.1"'; then
+        podman rm -f "$OPENPLC_NAME" >/dev/null 2>&1 || true
+        echo "    OpenPLC ascoltava solo sul pannello: lo ricreo sulla rete (il programma va ricaricato)"
+    fi
+
+    # Se il container c'e' gia' non si ricrea: dentro c'e' il programma.
+    if ! podman container exists "$OPENPLC_NAME"; then
+        mkdir -p "$dati"
+        # Sulla rete, tutte e quattro (decisione del maintainer, 30-10-2026):
+        # «OpenPLC deve poter accedere a tutta la rete in modo indipendente, in
+        # molti casi sara' lui a fare la logica dell'impianto e ad uscire con i
+        # protocolli». L'Editor si collega dal PC alla 8443, e chi legge il PLC
+        # (SWS compreso, da 127.0.0.1) usa Modbus o OPC-UA. In uscita, verso i
+        # dispositivi di campo, il container raggiunge la rete da se'.
+        #
+        # Le porte dentro il container sono quelle standard, cosi' un progetto
+        # dell'Editor coi valori di fabbrica funziona com'e'. Fuori Modbus e S7
+        # sono alte perche' in rootless sotto la 1024 non si pubblica; OPC-UA e'
+        # 14840 per non litigare col server OPC-UA di SWS, che sta sulla 4840.
+        if ! err="$(podman create --name "$OPENPLC_NAME" --restart always --stop-timeout 30 --tz local \
+                -v "$dati:/var/run/runtime" \
+                -p 8443:8443 -p 1502:502 -p 10102:102 -p 14840:4840 \
+                "$OPENPLC_IMG" 2>&1 >/dev/null)"; then
+            openplc_fallito "container non creato: $(printf '%s' "$err" | tail -1)"
+            return 1
+        fi
+    fi
+
+    # Lo avvia il systemd dell'utente, non questa shell: un `podman start` da
+    # qui metterebbe conmon nella sessione (ssh) o nel servizio transitorio (il
+    # runtime), e systemd lo ucciderebbe quando finiscono. `restart` perche'
+    # il servizio e' oneshot con RemainAfterExit: se e' gia' «attivo» uno
+    # `start` non rifa' niente. Riavvia anche gli altri container con
+    # `--restart always`, se ce ne sono: SWS e il suo viewer no, sono quadlet.
+    systemctl --user enable podman-restart.service >/dev/null 2>&1 \
+        || echo "    ATTENZIONE: podman-restart.service non abilitato: OpenPLC non ripartira' al boot" >&2
+    if [ "$(podman inspect -f '{{.State.Running}}' "$OPENPLC_NAME" 2>/dev/null)" != true ]; then
+        if ! err="$(systemctl --user restart podman-restart.service 2>&1)"; then
+            openplc_fallito "avvio non riuscito: $err"
+            return 1
+        fi
+    fi
+
+    for _ in $(seq 1 90); do
+        if curl -sk --max-time 2 -o /dev/null https://127.0.0.1:8443/ 2>/dev/null; then
+            echo "    OpenPLC acceso, senza programma. Editor di OpenPLC: questo pannello, porta 8443."
+            echo "    Crea subito il suo utente: finche' non ne ha, il primo che si collega lo crea."
+            echo "    Dalla rete: Modbus 1502, S7 10102, OPC-UA 14840 (SWS: 127.0.0.1:1502)."
+            openplc_esito riuscito ""
+            return 0
+        fi
+        sleep 1
+    done
+    openplc_fallito "il container gira ma la 8443 non risponde dopo 90 s: podman logs $OPENPLC_NAME"
+    return 1
+}
+
+# `--solo-openplc` (30-10-2026): su un pannello che ha gia' SWS, il runtime lo
+# lancia con un servizio transitorio quando l'IDE chiede «Installa OpenPLC».
+# Non tocca SWS: niente da validare, niente da fermare.
+if [ "$SOLO_OPENPLC" -eq 1 ]; then
+    installa_openplc
+    exit $?
+fi
 
 # Il tunnel: o tutti e tre o nessuno, e si rifiuta QUI invece di scrivere un
 # quadlet che poi non parte. Il runtime fa lo stesso controllo all'avvio — ma
@@ -699,32 +849,6 @@ if [ "$AUTOSTART" -eq 1 ]; then
         INSTALL_DISPLAY=0
     fi
 
-    # ── OpenPLC Runtime, solo se chiesto (23-10-2026) ───────────────────────
-    #
-    # A differenza del viewer, che si installa sempre perche costa niente ed e
-    # inerte, questo si mette solo con `--con-openplc`: e un container da ~1 GB
-    # di un altro registry, e su un TC620 con 3,1 GB liberi non e una cosa che
-    # si aggiunge per scrupolo.
-    #
-    # E NON si avvia: il quadlet non ha `WantedBy=` e qui non si fa `start`.
-    # Un PLC che parte da solo su un pannello che nessuno ha configurato
-    # manderebbe uscite a un impianto senza che nessuno l'abbia chiesto.
-    INSTALL_OPENPLC=0
-    if [ "$CON_OPENPLC" -eq 1 ]; then
-        if [ -f "$OPENPLC_UNIT_SRC" ]; then
-            install -m 0644 "$OPENPLC_UNIT_SRC" "$UNIT_DIR/openplc-runtime.container"
-            mkdir -p "$DATA/../openplc" 2>/dev/null || true
-            INSTALL_OPENPLC=1
-            echo "    OpenPLC Runtime installato, FERMO. Per avviarlo:"
-            echo "      XDG_RUNTIME_DIR=/run/user/\$(id -u) systemctl --user enable --now openplc-runtime"
-            echo "    Poi punta una sorgente Modbus TCP a 127.0.0.1:1502 (in rootless la 502"
-            echo "    non si pubblica: vedi il commento in openplc-runtime.container)."
-        else
-            echo "    ATTENZIONE: --con-openplc chiesto ma il quadlet non c'è in $SRC_DIR." >&2
-            echo "                Serve un'immagine di SWS che lo porti (2.19.1 o successiva)." >&2
-        fi
-    fi
-
     # ── Il segno delle unità scelte (23-10-2026) ────────────────────────────
     #
     # Dice al runtime QUALI unità questa installazione ha deciso di avere, e
@@ -738,13 +862,15 @@ if [ "$AUTOSTART" -eq 1 ]; then
     # deciso oggi: «non è detto che a tutti i clienti serva» — quella
     # presunzione si rovescia, e un'unità che non si vuole varrebbe 0 per
     # sempre: il pannello chiederebbe un aggiornamento dei quadlet a ogni giro.
+    # (Dal 30-10-2026 OpenPLC non e' piu' un quadlet ma un container
+    # persistente, e non entra in questo conto. Il segno resta: dice se c'e' il
+    # viewer.)
     #
     # Il runtime legge questo file in `quadlet.rs` (`UnitaScelte`). Se manca,
     # fa come prima — ed è giusto: un pannello installato prima che questo file
     # esistesse è davvero un pannello che precede il suo quadlet.
     UNITA_SCELTE='"sws-runtime.service"'
     [ "$INSTALL_DISPLAY" -eq 1 ] && UNITA_SCELTE="$UNITA_SCELTE, \"sws-lvgl-viewer.service\""
-    [ "$INSTALL_OPENPLC" -eq 1 ] && UNITA_SCELTE="$UNITA_SCELTE, \"openplc-runtime.service\""
     mkdir -p "$DATA/config"
     if printf '{"unita": [%s]}\n' "$UNITA_SCELTE" > "$DATA/config/unita-scelte.json"; then
         echo "    unità scelte registrate ($DATA/config/unita-scelte.json)"
@@ -800,6 +926,13 @@ if [ "$AUTOSTART" -eq 1 ]; then
             echo "                precedente. Sul dispositivo, come utente user:" >&2
             echo "                systemctl --user restart sws-lvgl-viewer.service" >&2
         fi
+    fi
+
+    # OpenPLC dopo SWS: se il download non riesce, SWS e' installato lo stesso,
+    # e OpenPLC si riprova dall'IDE senza reinstallare niente.
+    if [ "$CON_OPENPLC" -eq 1 ]; then
+        installa_openplc \
+            || echo "    SWS e' installato lo stesso: OpenPLC si riprova dall'IDE (Istanza → Connessione)." >&2
     fi
 
 else

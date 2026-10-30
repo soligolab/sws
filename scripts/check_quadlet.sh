@@ -36,9 +36,6 @@ import hashlib, json, re, subprocess, sys
 FILE = [
     "deploy/container/sws-runtime.container",
     "deploy/container/sws-lvgl-viewer.container",
-    # Opzionale sul pannello, ma e' un quadlet NOSTRO: quando cambia, chi ce
-    # l'ha deve riceverlo, e l'unico modo e' che porti lo stesso numero.
-    "deploy/container/openplc-runtime.container",
 ]
 FIXTURE = "tests/fixtures/quadlet-versioni.json"
 aggiorna = sys.argv[1] == "--aggiorna"

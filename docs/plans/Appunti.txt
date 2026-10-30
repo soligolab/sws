@@ -106,7 +106,7 @@ Annoto di seguito, uno per punto, le cose che devono essere verificate e trasfor
   (plx800-a-p3-l2-a2-07db62, RK3399, PixsysOS 2.1.1, kernel 6.12 PREEMPT_RT, Podman 5.0.2, OpenPLC Runtime
   v4.2.3). Da tenere a mente FINCHE' chi sviluppa PixsysOS non mette quel setup nell'immagine: allora va
   solo verificato. Contraddice quello che SWS dice oggi («in rootless il tempo reale non si ha»: HOWTO
-  cap. 28, quadlet `openplc-runtime.container`, piano 2026-10-20-openplc-sul-dispositivo).
+  cap. 28, quadlet `openplc-runtime.container`, piano archiviato docs/archive/2026-10-20-openplc-sul-dispositivo.md).
   Il punto: in rootless `CAP_SYS_NICE` dentro il container non conta (il kernel guarda il namespace
   iniziale); conta il LIMITE. Un processo senza privilegi passa a SCHED_FIFO fino a RLIMIT_RTPRIO e fa
   `mlockall` fino a RLIMIT_MEMLOCK. Di fabbrica `user` ha rtprio 0 e memlock 8 MB, quindi il runtime logga
@@ -144,3 +144,17 @@ Annoto di seguito, uno per punto, le cose che devono essere verificate e trasfor
       bash -c 'set -m; ./start_openplc.sh & trap "kill -INT -- -$!" TERM INT; wait; wait'
   (nel quadlet `$$!` al posto di `$!`) e `StopTimeout=30`: lo stop diventa un SIGINT al runtime, che
   ferma il PLC e porta le uscite nello stato sicuro.
+
+- La logica di OpenPLC dentro il progetto SWS, dall'IDE. La cartella `<progetto>/openplc/` viaggia col deploy, col
+  backup e col git, e le rotte per scaricarla e ricaricarla come zip ci sono (GET/PUT /api/project/logica-plc in
+  sws-web/src/logica_plc.rs). Mancano i due bottoni nell'IDE: con l'Editor di OpenPLC su un PC Windows (il caso
+  vero, collaudo del 30-10-2026) la logica non entra nel progetto SWS se non a mano, quindi il punto 22 della
+  sezione F di COLLAUDI_IN_SOSPESO non si e' potuto provare. Dove metterli e' da decidere (vicino al riquadro
+  «OpenPLC sul pannello» della Connessione, o nell'albero del progetto). Piano archiviato:
+  docs/archive/2026-10-20-openplc-sul-dispositivo.md.
+
+- Il «＋» accanto al tag nella tabella dei registri Modbus crea il tag di tipo f64 qualunque sia l'area. Su una riga
+  holding la lettura diventa di 4 registri (`4 x 16 bit · f64`) e il valore e' sbagliato, quasi zero: visto il
+  30-10-2026 leggendo OpenPLC, `soglia_alta` = 900 si vedeva 0 finche' il tipo non e' passato a i16. Il tipo
+  dovrebbe seguire l'area: bool per coil e discrete input, i16 per holding e input register. Il codice:
+  config/sorgenti/TabellaRegistriModbus.tsx (onQuickCreate) e registriMappatura in modbusRegistri.ts.
