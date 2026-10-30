@@ -95,6 +95,15 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
   volta con resvg sul pannello. `slider_track_opacity` e, per tutti gli oggetti, `bg_image_opacity` (web: l'immagine
   del `bgLayer`; LVGL: il canvas di `sfondo_del_rect`).
 
+- **Lo slider, fase 4: tacche e bande.** `slider_tick_major`/`slider_tick_minor` nelle unità del valore (sui
+  multipli, al massimo 200), `slider_tick_labels`, `slider_snap_ticks` (il passo diventa quello della divisione),
+  `slider_bands` (`sempre`/`in_allarme`/`mai`) dai quattro limiti, anche quelli della TagDef. Le funzioni pure sono
+  gemelle (`tacche`, `bande`, `fuoriDaiLimiti`, `passoEffettivo`, `altezzaZonaTacche` in `geometria.ts` e in
+  `lvgl_render.rs`, stessi casi di prova); la zona sta sotto la traccia nell'orizzontale e a destra nel verticale, e
+  le bande tengono il loro posto anche quando non si vedono. LVGL: le bande sono rettangoli (`LiveKind::BandeSlider`
+  le accende e spegne), le tacche un'immagine rasterizzata una volta, i numeri etichette. Il pannello dello slider ha
+  ora anche i quattro limiti, quando le bande sono accese.
+
 ### Fixed
 
 - **Lo slider, fase 1 della revisione** (piano `docs/plans/2026-10-30-revisione-slider.md`): i difetti misurati il

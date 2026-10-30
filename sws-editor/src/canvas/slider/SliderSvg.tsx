@@ -12,9 +12,11 @@
 import { useEffect, useRef, useState } from "react";
 import { useTrascinamento } from "@/canvas/puntatore";
 import { altezzaValore } from "@/canvas/geometriaTesto";
+import { corpoSecondario } from "@/canvas/geometriaTesto";
 import {
-  COLORI_ISA, CURSORE_PILLOLA, aspettoStile, centroCursore, frazioneDaPunto, frazioneDaValore, fumettoCursore,
-  geometriaSlider, valoreDaFrazione, valoreDaTasto, type PosizioneValore, type StileSlider,
+  COLORI_BANDE, COLORI_ISA, CURSORE_PILLOLA, STRISCIA_BANDE, TACCA_MAGGIORE, TACCA_MINORE, altezzaZonaTacche, aspettoStile,
+  bande, centroCursore, frazioneDaPunto, frazioneDaValore, fumettoCursore, fuoriDaiLimiti, geometriaSlider, passoEffettivo,
+  tacche, valoreDaFrazione, valoreDaTasto, type Limiti, type PosizioneValore, type StileSlider,
 } from "./geometria";
 import { ICONE_SLIDER } from "./icone";
 
@@ -44,6 +46,13 @@ export interface PropsSlider {
   stile?: StileSlider;
   icona?: string;
   opacitaTraccia?: number;
+  /** Fase 4: tacche nelle unità del valore, i loro numeri, l'aggancio, le bande. */
+  taccaMaggiore?: number;
+  taccaMinore?: number;
+  numeriTacche?: boolean;
+  agganciaTacche?: boolean;
+  modoBande?: "sempre" | "in_allarme" | "mai";
+  limiti?: Limiti;
   etichetta?: string;
   corpoEtichetta: number;
   corpoValore: number;
@@ -82,10 +91,19 @@ export function SliderSvg(p: PropsSlider) {
 
   const altoEtichetta = p.etichetta ? altezzaValore(p.corpoEtichetta) : 0;
   const altoValore = p.mostraValore ? altezzaValore(p.corpoValore) : 0;
+  // Fase 4: tacche e bande, mai sulla piastra. Le bande si prendono il loro
+  // spazio anche quando «in allarme» non le mostra: la traccia non deve saltare.
+  const piastra = p.stile === "piastra";
+  const conTacche = !piastra && !!(p.taccaMaggiore || p.taccaMinore);
+  const conNumeri = conTacche && (p.numeriTacche ?? !!p.taccaMaggiore);
+  const listaBande = !piastra && p.modoBande && p.modoBande !== "mai" ? bande(p.min, p.max, p.limiti ?? {}) : [];
+  const corpoNumeri = corpoSecondario(p.corpoValore);
+  const altoTacche = altezzaZonaTacche(conTacche, conNumeri, listaBande.length > 0, corpoNumeri);
+  const step = passoEffettivo(p.step, !!p.agganciaTacche && conTacche, p.taccaMaggiore, p.taccaMinore);
   const icona = p.stile === "piastra" && p.icona ? ICONE_SLIDER[p.icona] : undefined;
   const g = geometriaSlider({
     verticale: p.verticale, w: p.w, h: p.h, altoEtichetta, altoValore,
-    spessore: p.spessore, posizione: p.posizioneValore, stile: p.stile, conIcona: !!icona,
+    spessore: p.spessore, posizione: p.posizioneValore, stile: p.stile, conIcona: !!icona, altoTacche,
   });
   const aspetto = aspettoStile(p.stile);
   const isa = p.stile === "isa";
@@ -121,7 +139,7 @@ export function SliderSvg(p: PropsSlider) {
       setTrascina(true);
       // Il punto è già nelle coordinate del gruppo, cioè del riquadro: l'area
       // sta dentro il `translate`.
-      cambia(valoreDaFrazione(frazioneDaPunto(g, x, y), p.min, p.max, p.step));
+      cambia(valoreDaFrazione(frazioneDaPunto(g, x, y), p.min, p.max, step));
     },
     fine: (annullato) => {
       setTrascina(false);
@@ -131,7 +149,7 @@ export function SliderSvg(p: PropsSlider) {
 
   const tasto = (e: React.KeyboardEvent) => {
     if (!interattivo) return;
-    const v = valoreDaTasto(e.key, bozza ?? mostrato, p.min, p.max, p.step);
+    const v = valoreDaTasto(e.key, bozza ?? mostrato, p.min, p.max, step);
     if (v === null) return;
     e.preventDefault();
     cambia(v);
@@ -141,6 +159,12 @@ export function SliderSvg(p: PropsSlider) {
   };
 
   const testo = p.valoreTag === null && bozza === null && inAttesa === null ? "—" : p.formatta(mostrato);
+  // Abbreviato per il disegno delle bande, che lo legge due volte per banda.
+  const v = p.verticale;
+  const bandeVisibili = listaBande.length > 0 && (p.modoBande === "sempre" || fuoriDaiLimiti(mostrato, p.limiti ?? {}));
+  const zona = g.inizioTacche;
+  const inizioTacche = zona + (listaBande.length > 0 ? STRISCIA_BANDE + 1 : 0);
+  const elencoTacche = conTacche ? tacche(p.min, p.max, p.taccaMaggiore, p.taccaMinore, conNumeri) : [];
   const fumetto = p.mostraValore && p.posizioneValore === "cursore" && p.stile !== "piastra" && (trascina || inAttesa !== null);
   const fb = fumetto ? fumettoCursore(g, f, altoValore) : null;
   const larghezzaFumetto = Math.max(28, testo.length * p.corpoValore * 0.62 + 10);
@@ -185,6 +209,34 @@ export function SliderSvg(p: PropsSlider) {
         width={p.verticale ? t.w : Math.max(0, c.cx - t.x)}
         height={p.verticale ? Math.max(0, t.y + t.h - c.cy) : t.h}
         rx={g.raggioTraccia} fill={isa ? COLORI_ISA.indicatore : p.colore} pointerEvents="none" data-slider-indicatore="" />
+      {bandeVisibili && listaBande.map((b, k) => (
+        v
+          ? <rect key={`b${k}`} x={zona} y={t.y + t.h * (1 - b.a)} width={STRISCIA_BANDE} height={t.h * (b.a - b.da)}
+              fill={COLORI_BANDE[b.tipo]} pointerEvents="none" data-slider-banda={b.tipo} />
+          : <rect key={`b${k}`} x={t.x + t.w * b.da} y={zona} width={t.w * (b.a - b.da)} height={STRISCIA_BANDE}
+              fill={COLORI_BANDE[b.tipo]} pointerEvents="none" data-slider-banda={b.tipo} />
+      ))}
+      {elencoTacche.map((tc, k) => {
+        const lungo = tc.maggiore ? TACCA_MAGGIORE : TACCA_MINORE;
+        const colore = "var(--synoptic-subtle, var(--brand-text-subtle, #64748b))";
+        if (p.verticale) {
+          const y = t.y + t.h * (1 - tc.f);
+          return (
+            <g key={`t${k}`} pointerEvents="none">
+              <line x1={inizioTacche} x2={inizioTacche + lungo} y1={y} y2={y} stroke={colore} strokeWidth={1} data-slider-tacca="" />
+              {tc.testo && <text x={inizioTacche + TACCA_MAGGIORE + 3} y={y} dominantBaseline="central" fontSize={corpoNumeri} fill={colore}>{tc.testo}</text>}
+            </g>
+          );
+        }
+        const x = t.x + t.w * tc.f;
+        return (
+          <g key={`t${k}`} pointerEvents="none">
+            <line x1={x} x2={x} y1={inizioTacche} y2={inizioTacche + lungo} stroke={colore} strokeWidth={1} data-slider-tacca="" />
+            {tc.testo && <text x={x} y={inizioTacche + TACCA_MAGGIORE + 1 + Math.ceil(corpoNumeri * 1.3) / 2} textAnchor="middle"
+              dominantBaseline="central" fontSize={corpoNumeri} fill={colore}>{tc.testo}</text>}
+          </g>
+        );
+      })}
       {icona && g.icona && (
         <g transform={`translate(${g.icona.cx - g.icona.lato / 2} ${g.icona.cy - g.icona.lato / 2}) scale(${g.icona.lato / 24})`}
           fill="none" stroke="var(--synoptic-text, var(--brand-text, #e2e8f0))" strokeWidth={2}

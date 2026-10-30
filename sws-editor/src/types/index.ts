@@ -484,6 +484,16 @@ export interface SynopticObject {
   slider_icon?: string;
   /** Slider: l'opacità della parte vuota della traccia, 0-100 (predefinito 100). */
   slider_track_opacity?: number;
+  /** Slider (fase 4): una tacca marcata ogni tanto e una di divisione ogni
+   *  tanto, nelle unità del valore («marcata ogni 10, divisione ogni 2»). */
+  slider_tick_major?: number;
+  slider_tick_minor?: number;
+  /** Slider: i numeri sotto le tacche marcate. Assente = sì, se ci sono. */
+  slider_tick_labels?: boolean;
+  /** Slider: il cursore si aggancia alle tacche (alla divisione, o alla marcata). */
+  slider_snap_ticks?: boolean;
+  /** Slider: le bande dei limiti (warn/alarm, anche dal tag) sotto la traccia. */
+  slider_bands?: "sempre" | "in_allarme" | "mai";
   /** Universale (fase 3 dello slider): l'opacità di `bg_image`, 0-100
    *  (predefinito 100). Lascia vedere l'immagine in trasparenza dietro l'oggetto. */
   bg_image_opacity?: number;

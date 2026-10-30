@@ -4947,6 +4947,12 @@ function SvgObjectCorpo(p: ObjProps) {
           stile={obj.slider_style}
           icona={obj.slider_icon}
           opacitaTraccia={obj.slider_track_opacity}
+          taccaMaggiore={obj.slider_tick_major}
+          taccaMinore={obj.slider_tick_minor}
+          numeriTacche={obj.slider_tick_labels}
+          agganciaTacche={obj.slider_snap_ticks}
+          modoBande={obj.slider_bands}
+          limiti={{ alarmLow: obj.alarm_low, warnLow: obj.warn_low, warnHigh: obj.warn_high, alarmHigh: obj.alarm_high }}
           etichetta={obj.label || undefined}
           corpoEtichetta={obj.label_font_size ?? 11}
           corpoValore={obj.font_size ?? 12}

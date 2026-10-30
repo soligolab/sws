@@ -1,6 +1,7 @@
 /** La geometria pura dello slider (fase 2): gli stessi numeri del pannello LVGL. */
 import { describe, it, expect } from "vitest";
 import {
+  altezzaZonaTacche, bande, decimaliDelPasso, fuoriDaiLimiti, passoEffettivo, tacche,
   agganciaAlPasso, centroCursore, frazioneDaPunto, geometriaSlider, valoreDaFrazione, valoreDaTasto,
 } from "../src/canvas/slider/geometria";
 
@@ -66,5 +67,45 @@ describe("gli stili (fase 3)", () => {
     const tapparella = geometriaSlider({ verticale: true, w: 80, h: 200, altoEtichetta: 18, altoValore: 18, stile: "piastra", conIcona: true });
     expect(tapparella.icona).toEqual({ cx: 40, cy: 26, lato: 28 });
     expect(tapparella.valore).toEqual({ cx: 40, cy: 179 });
+  });
+});
+
+
+describe("tacche e bande (fase 4)", () => {
+  it("marcata ogni 10, divisione ogni 2 su 0..100", () => {
+    const t = tacche(0, 100, 10, 2);
+    expect(t).toHaveLength(51);
+    expect(t.filter((x) => x.maggiore).map((x) => x.testo)).toEqual(["0", "10", "20", "30", "40", "50", "60", "70", "80", "90", "100"]);
+    expect(t[1]).toEqual({ f: 0.02, maggiore: false, testo: undefined });
+  });
+
+  it("sui multipli del passo, coi decimali del passo", () => {
+    expect(tacche(15, 30, 5).map((x) => x.testo)).toEqual(["15", "20", "25", "30"]);
+    expect(tacche(0, 1, 0.25).map((x) => x.testo)).toEqual(["0.00", "0.25", "0.50", "0.75", "1.00"]);
+    expect(decimaliDelPasso(0.5)).toBe(1);
+    expect(tacche(0, 100, 0.001)).toEqual([]);
+  });
+
+  it("le bande dai limiti", () => {
+    expect(bande(0, 100, { alarmLow: 10, warnLow: 20, warnHigh: 80, alarmHigh: 90 })).toEqual([
+      { da: 0, a: 0.1, tipo: "allarme" }, { da: 0.1, a: 0.2, tipo: "avviso" },
+      { da: 0.8, a: 0.9, tipo: "avviso" }, { da: 0.9, a: 1, tipo: "allarme" },
+    ]);
+    expect(bande(0, 100, { warnHigh: 70 })).toEqual([{ da: 0.7, a: 1, tipo: "avviso" }]);
+    expect(fuoriDaiLimiti(75, { warnHigh: 70 })).toBe(true);
+    expect(fuoriDaiLimiti(50, { warnHigh: 70 })).toBe(false);
+  });
+
+  it("l'aggancio usa il passo della divisione, poi della marcata", () => {
+    expect(passoEffettivo(1, true, 10, 2)).toBe(2);
+    expect(passoEffettivo(1, true, 10)).toBe(10);
+    expect(passoEffettivo(1, false, 10, 2)).toBe(1);
+  });
+
+  it("la zona sotto la traccia", () => {
+    expect(altezzaZonaTacche(true, true, true, 11)).toBe(5 + 7 + 15);
+    expect(altezzaZonaTacche(false, false, false, 11)).toBe(0);
+    const g = geometriaSlider({ verticale: false, w: 300, h: 60, altoEtichetta: 0, altoValore: 18, altoTacche: 12 });
+    expect(g.inizioTacche).toBe(g.traccia.y + g.traccia.h + 1);
   });
 });

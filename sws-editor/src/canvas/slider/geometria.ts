@@ -65,6 +65,9 @@ export interface GeometriaSlider {
   icona: { cx: number; cy: number; lato: number } | null;
   /** Come si allineano i testi: al centro, o a sinistra (piastra orizzontale). */
   allinea: "middle" | "start";
+  /** Dove comincia la zona di bande e tacche: la `y` sotto la traccia
+   *  nell'orizzontale, la `x` a destra nel verticale. */
+  inizioTacche: number;
   /** Il centro della riga dell'etichetta, se c'è. */
   etichetta: { cx: number; cy: number } | null;
   /** Il centro della riga del valore: sotto, sopra o dentro la traccia. Per
@@ -84,6 +87,9 @@ export interface IngressoGeometria {
   posizione?: PosizioneValore;
   stile?: StileSlider;
   conIcona?: boolean;
+  /** Fase 4: lo spessore della zona di bande e tacche sotto la traccia
+   *  (`altezzaZonaTacche`). Nel verticale sta a destra e non sposta niente. */
+  altoTacche?: number;
 }
 
 /** Il cursore di uno stile, per una traccia spessa `t`. */
@@ -120,6 +126,7 @@ export function geometriaSlider(i: IngressoGeometria): GeometriaSlider {
       cursore: { w: k.w, h: k.h },
       icona: null,
       allinea: "middle",
+      inizioTacche: traccia.x + traccia.w + 1,
       etichetta: i.altoEtichetta > 0 ? { cx: i.w / 2, cy: i.altoEtichetta / 2 } : null,
       valore:
         posizione === "cursore" || i.altoValore === 0 ? null
@@ -136,6 +143,7 @@ export function geometriaSlider(i: IngressoGeometria): GeometriaSlider {
   if (i.altoEtichetta > 0) righe.push(["etichetta", i.altoEtichetta]);
   if (posizione === "sopra" && rigaValore > 0) righe.push(["valore", rigaValore]);
   righe.push(["traccia", t]);
+  if ((i.altoTacche ?? 0) > 0) righe.push(["tacche", i.altoTacche!]);
   if (posizione === "sotto" && rigaValore > 0) righe.push(["valore", rigaValore]);
   const blocco = righe.reduce((s, [, a]) => s + a, 0) + SPAZIO * (righe.length - 1);
   let y = (i.h - blocco) / 2;
@@ -154,6 +162,7 @@ export function geometriaSlider(i: IngressoGeometria): GeometriaSlider {
     cursore: { w: k.w, h: k.h },
     icona: null,
     allinea: "middle",
+    inizioTacche: yTraccia + t + 1,
     etichetta: centri.etichetta !== undefined ? { cx: i.w / 2, cy: centri.etichetta } : null,
     valore:
       posizione === "cursore" || i.altoValore === 0 ? null
@@ -169,7 +178,10 @@ export function geometriaSlider(i: IngressoGeometria): GeometriaSlider {
 function geometriaPiastra(i: IngressoGeometria, a: AspettoStile): GeometriaSlider {
   const m = MARGINE_PIASTRA;
   const traccia = { x: 0, y: 0, w: i.w, h: i.h };
-  const comune = { traccia, raggioTraccia: Math.min(a.raggioTraccia ?? 12, i.w / 2, i.h / 2), raggioCursore: 0, cursore: { w: 0, h: 0 } };
+  const comune = {
+    traccia, raggioTraccia: Math.min(a.raggioTraccia ?? 12, i.w / 2, i.h / 2), raggioCursore: 0, cursore: { w: 0, h: 0 },
+    inizioTacche: 0,
+  };
   const conValore = i.altoValore > 0 && i.posizione !== "cursore";
   if (i.verticale) {
     const lato = i.conIcona ? Math.min(28, i.w - 2 * m) : 0;
@@ -262,4 +274,90 @@ export function valoreDaTasto(tasto: string, v: number, min: number, max: number
     : tasto === "End" ? max
     : null;
   return nuovo === null ? null : agganciaAlPasso(nuovo, min, max, step);
+}
+
+// ── Fase 4: tacche e bande ───────────────────────────────────────────────────
+
+/** Una tacca: dove sta (frazione), se è marcata, e il suo numero. */
+export interface Tacca { f: number; maggiore: boolean; testo?: string }
+
+/** Le lunghezze delle tacche e della striscia delle bande, in px. */
+export const TACCA_MAGGIORE = 6;
+export const TACCA_MINORE = 3;
+export const STRISCIA_BANDE = 4;
+/** Oltre tante tacche non si disegna: un passo sbagliato non deve fermare la pagina. */
+const MASSIMO_TACCHE = 200;
+
+/** Lo spessore della zona sotto la traccia: la striscia delle bande, le tacche e
+ *  la riga dei numeri. Zero se non c'è niente. */
+export function altezzaZonaTacche(conTacche: boolean, conNumeri: boolean, conBande: boolean, corpoNumeri: number): number {
+  let h = 0;
+  if (conBande) h += STRISCIA_BANDE + 1;
+  if (conTacche) h += TACCA_MAGGIORE + 1;
+  if (conTacche && conNumeri) h += Math.ceil(corpoNumeri * 1.3);
+  return h;
+}
+
+/** I decimali con cui scrivere i numeri di un passo: 0,5 → 1, 0,25 → 2. */
+export function decimaliDelPasso(passo: number): number {
+  for (let d = 0; d <= 6; d++) if (Math.abs(Math.round(passo * 10 ** d) - passo * 10 ** d) < 1e-9) return d;
+  return 6;
+}
+
+/** Le tacche sui multipli dei due passi, dentro l'intervallo. Una tacca che è
+ *  di tutti e due è marcata. */
+export function tacche(min: number, max: number, maggiore?: number, minore?: number, conNumeri = true): Tacca[] {
+  if (!(max > min)) return [];
+  const valido = (p?: number) => (p !== undefined && Number.isFinite(p) && p > 0 && (max - min) / p <= MASSIMO_TACCHE ? p : undefined);
+  const M = valido(maggiore);
+  const m = valido(minore);
+  const mappa = new Map<string, Tacca>();
+  const aggiungi = (p: number, marcata: boolean) => {
+    for (let k = Math.ceil(min / p - 1e-9); k * p <= max + 1e-9; k++) {
+      const v = Math.round(k * p * 1e9) / 1e9;
+      const chiave = v.toFixed(9);
+      const prima = mappa.get(chiave);
+      if (prima?.maggiore) continue;
+      mappa.set(chiave, {
+        f: (v - min) / (max - min),
+        maggiore: marcata,
+        testo: marcata && conNumeri ? v.toFixed(decimaliDelPasso(p)) : undefined,
+      });
+    }
+  };
+  if (m) aggiungi(m, false);
+  if (M) aggiungi(M, true);
+  return [...mappa.values()].sort((a, b) => a.f - b.f);
+}
+
+export interface Limiti { alarmLow?: number; warnLow?: number; warnHigh?: number; alarmHigh?: number }
+export interface Banda { da: number; a: number; tipo: "allarme" | "avviso" }
+
+/** I colori delle bande: quelli delle soglie della barra (`thresholdColor`). */
+export const COLORI_BANDE = { allarme: "#ef4444", avviso: "#eab308" } as const;
+
+/** Le bande dai quattro limiti, come frazioni della traccia. */
+export function bande(min: number, max: number, l: Limiti): Banda[] {
+  if (!(max > min)) return [];
+  const f = (v: number) => Math.min(1, Math.max(0, (v - min) / (max - min)));
+  const out: Banda[] = [];
+  const basso = l.alarmLow !== undefined ? f(l.alarmLow) : undefined;
+  const alto = l.alarmHigh !== undefined ? f(l.alarmHigh) : undefined;
+  if (basso !== undefined && basso > 0) out.push({ da: 0, a: basso, tipo: "allarme" });
+  if (l.warnLow !== undefined) out.push({ da: basso ?? 0, a: f(l.warnLow), tipo: "avviso" });
+  if (l.warnHigh !== undefined) out.push({ da: f(l.warnHigh), a: alto ?? 1, tipo: "avviso" });
+  if (alto !== undefined && alto < 1) out.push({ da: alto, a: 1, tipo: "allarme" });
+  return out.filter((b) => b.a > b.da);
+}
+
+/** Il valore sta in una banda: per `slider_bands: in_allarme`. */
+export function fuoriDaiLimiti(v: number, l: Limiti): boolean {
+  return (l.alarmHigh !== undefined && v >= l.alarmHigh) || (l.alarmLow !== undefined && v <= l.alarmLow)
+    || (l.warnHigh !== undefined && v >= l.warnHigh) || (l.warnLow !== undefined && v <= l.warnLow);
+}
+
+/** Il passo con cui si muove il cursore: quello delle tacche, se ci si aggancia. */
+export function passoEffettivo(step: number | undefined, aggancia: boolean, maggiore?: number, minore?: number): number | undefined {
+  if (!aggancia) return step;
+  return minore && minore > 0 ? minore : maggiore && maggiore > 0 ? maggiore : step;
 }

@@ -223,6 +223,18 @@ pub struct SynopticObject {
     pub slider_icon: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub slider_track_opacity: Option<f64>,
+    /// Slider (fase 4): tacche marcate e di divisione nelle unità del valore,
+    /// i loro numeri, l'aggancio, le bande dei limiti (`sempre|in_allarme|mai`).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub slider_tick_major: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub slider_tick_minor: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub slider_tick_labels: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub slider_snap_ticks: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub slider_bands: Option<String>,
     /// Universale: l'opacità di `bg_image`, 0-100.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub bg_image_opacity: Option<f64>,

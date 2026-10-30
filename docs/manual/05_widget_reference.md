@@ -283,6 +283,10 @@ Cursore per impostare un valore numerico trascinandolo. Lo stesso tag è letto e
 | `slider_style` | `classico` (predefinito), `pillola` (traccia spessa, cursore bianco dentro), `piastra` (la traccia è tutto il riquadro, senza cursore, con icona, etichetta e valore dentro: per la domotica) o `isa` (ISA-101: grigi, traccia sottile, cursore rettangolare, nessun colore acceso) |
 | `slider_icon` | Con `piastra`: `lampadina`, `tapparella`, `termometro`, `ventola`, `presa`, `volume`, `goccia` o `sole` |
 | `slider_track_opacity` | Opacità della parte vuota della traccia, 0–100 |
+| `slider_tick_major`, `slider_tick_minor` | Una tacca marcata e una di divisione ogni tanto, nelle unità del valore: «marcata ogni 10, divisione ogni 2». Stanno sui multipli: 15..30 con la marcata ogni 5 dà 15, 20, 25, 30 |
+| `slider_tick_labels` | I numeri sotto le tacche marcate (predefinito: sì, se ci sono) |
+| `slider_snap_ticks` | Il cursore si aggancia alla divisione, o alla marcata se c'è solo quella |
+| `slider_bands` | Le bande dei limiti sotto la traccia: `mai` (predefinito), `sempre`, `in_allarme` (solo quando il valore è fuori). I limiti sono `warn_low`, `warn_high`, `alarm_low`, `alarm_high`, o quelli del tag; rosso per gli allarmi, giallo per gli avvisi |
 | `bg_color`, `bg_image` | Sfondo dietro tutto il riquadro, come per gli altri oggetti. `bg_image_opacity` (0–100, per tutti gli oggetti) la mette in trasparenza |
 | `require_confirm`, `critical` | Chiede conferma prima di scrivere, come i bottoni. Con `write_on_release: false` la chiede a ogni passo: si usano insieme alla scrittura al rilascio |
 

@@ -268,6 +268,9 @@ objects:
   step: 1.0
   show_value: true
   unit: '%'
+  slider_tick_major: 25.0
+  slider_tick_minor: 5.0
+  slider_tick_labels: false
 - id: o_slider_frazione
   type: slider
   x: 30.0
@@ -292,6 +295,8 @@ objects:
   read_only: true
   unit: '%'
   slider_style: isa
+  slider_bands: sempre
+  warn_high: 80.0
 - id: c_symbol
   type: text
   x: 650.0
