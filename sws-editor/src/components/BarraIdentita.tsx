@@ -5,6 +5,7 @@ import { useTranslation } from "react-i18next";
 import { api } from "@/api/client";
 import { useAppStore } from "@/store";
 import { identitaPagina, paginaVecchia } from "@/versione";
+import { ChiudiAccount } from "@/components/accesso/ChiudiAccount";
 
 /**
  * La barra sopra l'elenco dei progetti: chi sei, per conto di chi, e cosa
@@ -45,6 +46,9 @@ export function BarraIdentita({
   // risposta deve stare dove si e gia cliccato.
   const [sistema, setSistema] = useState<import("@/api/client").SystemStatus | null>(null);
   const [aperto, setAperto] = useState(false);
+  // Chiudere l'account da sé: solo chi si è registrato (30-10-2026).
+  const [chiudibile, setChiudibile] = useState(false);
+  const [chiusura, setChiusura] = useState(false);
   const box = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
@@ -54,6 +58,7 @@ export function BarraIdentita({
       .catch(() => setAmministratore(false));
     api.mieAziende().then(setAziende).catch(() => setAziende([]));
     api.getSystemStatus().then(setSistema).catch(() => setSistema(null));
+    api.statoAccount().then((a) => setChiudibile(a.chiudibile)).catch(() => setChiudibile(false));
   }, []);
 
   // Un menu che non si chiude cliccando fuori resta aperto sopra il contenuto
@@ -187,6 +192,11 @@ export function BarraIdentita({
             <button style={voce} onClick={() => { setAperto(false); onCambiaPassword(); }}>
               {t("welcome.barraCambiaPassword")}
             </button>
+            {chiudibile && (
+              <button style={voce} onClick={() => { setAperto(false); setChiusura(true); }}>
+                {t("accesso.chiudiAccount")}
+              </button>
+            )}
             <div style={{ height: 1, background: "var(--brand-surface-2, #334155)", margin: "4px 0" }} />
             <button style={{ ...voce, color: "var(--brand-danger-soft, #fca5a5)" }} onClick={esci}>
               {t("welcome.barraEsci")}
@@ -208,6 +218,9 @@ export function BarraIdentita({
           </div>
         )}
       </div>
+      {chiusura && (
+        <ChiudiAccount onAnnulla={() => setChiusura(false)} onChiuso={() => { setChiusura(false); clearAuth(); }} />
+      )}
     </div>
   );
 }

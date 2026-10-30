@@ -1439,6 +1439,12 @@ async fn main() -> anyhow::Result<()> {
     // creato adesso da un template, che porta con sé le sorgenti della casa in
     // cui il template è nato.
     app_state.supervisor.imposta_sola_lettura(ide_only);
+    // Il giro quotidiano sugli account registrati e sul registro delle attività
+    // (30-10-2026): solo sul gateway, dove ci sono utenti che si registrano da sé
+    // e dove l'informativa promette i 12 mesi.
+    if args.gateway {
+        sws_web::ciclo_account::avvia(app_state.clone());
+    }
 
     // Il codice di abbinamento (11-10-2026): un pannello senza nessun utente
     // non lascia entrare nessuno, e questa riga è il primo posto in cui chi lo

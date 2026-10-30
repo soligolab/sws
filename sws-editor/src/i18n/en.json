@@ -2270,7 +2270,13 @@
     "codice": "Confirmation code",
     "codiceSbagliato": "Wrong or expired code.",
     "conferma": "Confirm and sign in",
-    "nonArrivato": "Didn't arrive? Sign up again"
+    "nonArrivato": "Didn't arrive? Sign up again",
+    "chiudiAccount": "Close the account…",
+    "chiudiTitolo": "Close the account",
+    "chiudiSpiegazione": "From now on you will not be able to sign in. In 30 days the account, your personal company and its projects will be deleted. If you change your mind before then, write to us and we will reactivate it.",
+    "chiudiPassword": "To confirm, your password",
+    "chiudiConferma": "Close the account",
+    "chiudiErrore": "Account not closed: {{motivo}}"
   },
   "imageBrowser": {
     "loadingCatalog": "Loading catalog…",

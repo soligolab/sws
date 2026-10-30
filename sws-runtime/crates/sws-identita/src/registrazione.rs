@@ -198,8 +198,8 @@ impl Identita {
                     c.execute(
                         "INSERT INTO utenti (email, nome, hash_password, ruolo, attivo,
                                              da_confermare, condizioni_versione, condizioni_ms,
-                                             creato_ms, aggiornato_ms)
-                         VALUES (?1, '', ?2, ?3, 0, 1, ?4, ?5, ?5, ?5)",
+                                             da_se, creato_ms, aggiornato_ms)
+                         VALUES (?1, '', ?2, ?3, 0, 1, ?4, ?5, 1, ?5, ?5)",
                         params![
                             e,
                             hash,

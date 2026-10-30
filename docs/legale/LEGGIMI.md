@@ -66,14 +66,14 @@ resto il browser conserva in `localStorage` il gettone di sessione e alcune pref
 | condizioni §5 | [EMAIL SICUREZZA] per le segnalazioni di vulnerabilità | da decidere: la stessa di contatto, o `security@` (c'entra anche il CRA) |
 | condizioni §5 | numero di progetti e quota di spazio | oggi 3 progetti; la quota è quella della console |
 | condizioni §10 | licenza e marchi | dopo la decisione sulla licenza |
-| informativa §6 | conservazione del **registro delle attività** | oggi non ha rotazione: va decisa (proposta: 12 mesi) e poi realizzata |
-| informativa §6 | conservazione dei **registri tecnici** | oggi il log di Traefik va nel journal del VPS senza un limite esplicito: va fissato (proposta: 30 giorni) |
+| informativa §6 | conservazione del **registro delle attività** | **12 mesi**, deciso il 30-10-2026: il gateway toglie una volta al giorno le voci più vecchie |
+| informativa §6 | conservazione dei **registri tecnici** | il journal del VPS ha ora un tetto di 12 mesi (`deploy/vps/sistema/90-sws-journal.conf`, da applicare); la proposta di 30 giorni per i log di Traefik resta da decidere |
 | informativa §6 | **copie di sicurezza** del server | da verificare cosa si fa oggi sul VPS, e per quanto |
 | informativa §1 | casella `privacy@soligo.net` | da creare |
 
 ## Quello che il codice deve fare perché i testi siano veri
 
-I testi descrivono il servizio **dopo** il ramo C. Alcune cose ancora non ci sono, e vanno fatte prima di pubblicarli:
+I testi descrivono il servizio **dopo** il ramo C. Dal 30-10-2026 sono tutte scritte (ramo C), e restano da provare dal vivo sul VPS:
 
 - registrazione con conferma dell'e-mail, accesso con PIN, «ricordami» per 30 giorni (ramo C, punti 1-3);
 - le due caselle alla registrazione (accettazione, e approvazione specifica), con data e versione delle condizioni

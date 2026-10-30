@@ -2270,7 +2270,13 @@
     "codice": "Codice di conferma",
     "codiceSbagliato": "Codice sbagliato o scaduto.",
     "conferma": "Conferma ed entra",
-    "nonArrivato": "Non è arrivato? Registrati di nuovo"
+    "nonArrivato": "Non è arrivato? Registrati di nuovo",
+    "chiudiAccount": "Chiudi l'account…",
+    "chiudiTitolo": "Chiudere l'account",
+    "chiudiSpiegazione": "Da subito non potrai più entrare. Fra 30 giorni l'account, la tua azienda personale e i suoi progetti saranno cancellati. Se cambi idea prima, scrivici e lo riattiviamo.",
+    "chiudiPassword": "Per confermare, la tua password",
+    "chiudiConferma": "Chiudi l'account",
+    "chiudiErrore": "Account non chiuso: {{motivo}}"
   },
   "imageBrowser": {
     "loadingCatalog": "Caricamento catalogo…",

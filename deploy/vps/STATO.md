@@ -294,6 +294,11 @@ mai dai file.
   giorno che cercherai chi si è collegato davvero non lo troverai — e a coprire i servizi futuri che
   avranno una loro pagina di accesso. Nei primi otto secondi aveva già bloccato un indirizzo.
 
+- **Il journal si tiene 12 mesi** (30-10-2026, **da applicare**): `sistema/90-sws-journal.conf`,
+  `MaxRetentionSec=12month` e un tetto di 2 GB. È la metà del «registro delle attività per 12 mesi»
+  dell'informativa che il gateway non può fare da sé; l'altra metà, il registro di SWS, si pota nel
+  giro quotidiano del gateway. Le due righe per applicarlo stanno in testa al file.
+
 ## La posta in uscita (26-10-2026)
 
 Configurata dal maintainer dalla console, **Posta**. Vive in

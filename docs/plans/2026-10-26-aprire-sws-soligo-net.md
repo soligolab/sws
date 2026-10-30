@@ -292,6 +292,11 @@ secondo `goto` senza progetto le porterebbe dentro la rete WCAG. Il punto a risc
 >   l'azienda personale, progetti compresi. Entro i 30 giorni la piattaforma lo può riattivare dalla console;
 > - **il registro delle attività si tiene 12 mesi**: le righe più vecchie si tolgono una volta al giorno. Il limite del
 >   journal sul VPS è configurazione di sistema e si scrive in `deploy/vps/`, non nel codice.
+>
+> **Scritti il 30-10-2026** sul ramo `feat/ramo-c-resto`: inattività, chiusura dell'account, registrazioni mai
+> confermate (cancellate dopo 30 giorni, scelta presa scrivendolo: l'indirizzo non ha mai provato di essere di chi
+> l'ha scritto), potatura del registro e journal del VPS (file da applicare). **Resta il punto 4, SMTP per
+> azienda**, rimandato dal maintainer dopo la revisione dello slider.
 
 **1. Il blocco che emette una sessione si estrae.** `Identita::accedi` (`lib.rs:581`) è oggi
 l'**unica** cosa che produce un `Accesso`, e lo fa nel blocco `lib.rs:638-654`. Si estrae in

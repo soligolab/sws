@@ -276,6 +276,8 @@ pub struct Identita {
 
 mod registrazione;
 pub use registrazione::{Registrato, Scopo, VERSIONE_CONDIZIONI};
+mod ciclo_di_vita;
+pub use ciclo_di_vita::{Cancellato, DaAvvisare, Motivo, INATTIVITA, PREAVVISO};
 
 fn ora_ms() -> u64 {
     SystemTime::now()
@@ -505,6 +507,25 @@ const COLONNE_V5: &[(&str, &str)] = &[
     ("utenti", "ALTER TABLE utenti ADD COLUMN ultimo_accesso_ms INTEGER"),
 ];
 
+/// Schema 6 (30-10-2026): il ciclo di vita degli account che si registrano da
+/// sé (decisioni del maintainer nel piano `2026-10-26-aprire-sws-soligo-net.md`).
+///
+/// - `utenti.da_se`: l'account è nato dalla registrazione aperta. L'avviso di
+///   inattività e la cancellazione valgono **solo** per questi: gli utenti
+///   creati da un amministratore d'azienda li gestisce l'azienda. Gli account
+///   registrati prima di questa colonna si riconoscono dalle condizioni
+///   accettate, che solo la registrazione scrive.
+/// - `utenti.avviso_inattivita_ms`: quando è partito l'avviso dei 12 mesi. Un
+///   accesso lo azzera; 30 giorni dopo, senza accessi, l'account si cancella.
+/// - `utenti.chiuso_ms`: quando l'interessato ha chiuso l'account. Da subito è
+///   disattivato; 30 giorni dopo si cancella, salvo una riattivazione dalla
+///   console, che azzera questa colonna.
+const COLONNE_V6: &[(&str, &str)] = &[
+    ("utenti", "ALTER TABLE utenti ADD COLUMN da_se INTEGER NOT NULL DEFAULT 0"),
+    ("utenti", "ALTER TABLE utenti ADD COLUMN avviso_inattivita_ms INTEGER"),
+    ("utenti", "ALTER TABLE utenti ADD COLUMN chiuso_ms INTEGER"),
+];
+
 impl Identita {
     /// Apre (o crea) l'archivio in `percorso`, di solito `<config_dir>/identita.db`.
     pub async fn apri(percorso: impl AsRef<Path>) -> anyhow::Result<Self> {
@@ -558,7 +579,15 @@ impl Identita {
                     conn.execute(sql, [])?;
                 }
             }
-            conn.pragma_update(None, "user_version", 5)?;
+            for (tabella, sql) in COLONNE_V6 {
+                if !colonna_presente(&conn, tabella, sql) {
+                    conn.execute(sql, [])?;
+                    if sql.contains(" da_se ") {
+                        conn.execute("UPDATE utenti SET da_se = 1 WHERE condizioni_versione IS NOT NULL", [])?;
+                    }
+                }
+            }
+            conn.pragma_update(None, "user_version", 6)?;
             // Il file contiene hash di password e sessioni: non deve essere leggibile da altri.
             #[cfg(unix)]
             {
@@ -758,8 +787,9 @@ impl Identita {
                  VALUES (?1, ?2, ?3, ?4, ?3, ?5)",
                 params![imp, id, adesso as i64, scade_ms as i64, durata_ms],
             )?;
+            // Un accesso azzera l'avviso d'inattività: chi è tornato non va cancellato.
             c.execute(
-                "UPDATE utenti SET ultimo_accesso_ms = ?1 WHERE id = ?2",
+                "UPDATE utenti SET ultimo_accesso_ms = ?1, avviso_inattivita_ms = NULL WHERE id = ?2",
                 params![adesso as i64, id],
             )?;
             // Pulizia opportunistica: le sessioni scadute non servono a nessuno e il momento in
@@ -1095,7 +1125,9 @@ impl Identita {
         task::spawn_blocking(move || -> anyhow::Result<()> {
             let c = conn.lock().unwrap();
             let n = c.execute(
-                "UPDATE utenti SET attivo = 1, aggiornato_ms = ?1 WHERE id = ?2",
+                // `chiuso_ms` si azzera: riattivare entro i 30 giorni è il modo
+                // di ripensarci dopo aver chiuso l'account (schema 6).
+                "UPDATE utenti SET attivo = 1, chiuso_ms = NULL, aggiornato_ms = ?1 WHERE id = ?2",
                 params![ora_ms() as i64, utente_id],
             )?;
             if n == 0 {
@@ -1980,7 +2012,7 @@ mod test {
             let c = id.conn.lock().unwrap();
             c.query_row("PRAGMA user_version", [], |r| r.get(0)).unwrap()
         };
-        assert_eq!(versione, 5, "lo schema 5: registrazione e «ricordami» (30-10-2026)");
+        assert_eq!(versione, 6, "lo schema 6: il ciclo di vita degli account registrati (30-10-2026)");
 
         // E le colonne dello schema 4 ci sono, con i valori che lasciano
         // l'archivio com'era: nessuna azienda di prima e personale, e nessuna

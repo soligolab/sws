@@ -1115,6 +1115,8 @@ pub fn build(
     let self_service = Router::new()
         .route("/api/auth/whoami", get(whoami))
         .route("/api/auth/logout", post(logout))
+        .route("/api/identita/account", get(crate::ciclo_account::stato_account))
+        .route("/api/identita/chiudi-account", post(crate::ciclo_account::chiudi_account))
         .route("/api/auth/change-password", post(change_password))
         .route("/api/auth/verify-password", post(verify_password_handler))
         .route("/api/auth/refresh", post(refresh_session))

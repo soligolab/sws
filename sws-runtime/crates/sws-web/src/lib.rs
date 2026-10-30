@@ -1,5 +1,6 @@
 pub mod abbinamento;
 pub mod registrazione;
+pub mod ciclo_account;
 pub mod schermo;
 pub mod ai;
 pub mod anteprima;
