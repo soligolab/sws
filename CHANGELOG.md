@@ -19,7 +19,15 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
   IDE: ramo «Planimetrie» nel pannello sinistro, editor 2D al posto del canvas (muri a polilinea, porte e finestre
   agganciate al muro, aree, blocchi; griglia metrica con aggancio, zoom e trascinamento, proprietà a destra), salvato
   anche dal Salva generale; geometria pura in `src/planimetrie/modello.ts` (il muro spezzato alle aperture, senza
-  CSG). Provato in Chromium disegnando muri, porta, finestra, area e blocco. La vista 3D e «Genera sfondo» col ramo 2.
+  CSG). Provato in Chromium disegnando muri, porta, finestra, area e blocco.
+
+- **Planimetrie, ramo 2**: la vista 3D accanto alla pianta (three.js 0.170.0, MIT, **caricato solo all'apertura della
+  vista**: 172 KB compressi in un pezzo suo che nessuna pagina d'ingresso precarica, verificato nel `dist` e in
+  Chromium), con la scena costruita come dati puri (`scena.ts`: i muri spezzati alle aperture diventano scatole, un
+  tratto che gira l'angolo si spezza sui due lati) e l'inquadratura salvata nella planimetria. «Genera sfondo…» rende
+  la vista alla misura della pagina (al doppio, poi ridotta), la salva come `images/planimetria-<id>.png` e propone di
+  metterla come `sfondo_immagine` della pagina aperta: web e LVGL ricevono solo l'immagine. Provato in Chromium: PNG
+  1280×800 caricato e assegnato.
 
 ### Fixed
 

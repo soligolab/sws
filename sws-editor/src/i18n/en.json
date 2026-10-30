@@ -4140,7 +4140,21 @@
       "etichetta": "Label",
       "daTerra": "Sill height (m)",
       "posizione": "Position on the wall (0–1)",
-      "tipo": "Type"
-    }
+      "tipo": "Type",
+      "larghezzaPx": "Width (px)",
+      "altezzaPx": "Height (px)"
+    },
+    "vista3d": "3D view",
+    "generaSfondo": "Generate background…",
+    "generaServe3d": "Open the 3D view: the background is what you see there.",
+    "caricamento3d": "Loading the 3D view…",
+    "senza3d": "The 3D view does not start in this browser: {{message}}",
+    "senzaVista": "The 3D view is not open.",
+    "generaNota": "The image is the 3D view as framed now, saved among the project images as «{{nome}}». Generating it again overwrites the same file, and the pages using it update by themselves.",
+    "usaComeSfondo": "Use it as the background of page «{{pagina}}»",
+    "genera": "Generate",
+    "generando": "Generating…",
+    "generata": "Saved as «{{nome}}».",
+    "generataEUsata": "Saved as «{{nome}}» and set as the background of «{{pagina}}»."
   }
 }

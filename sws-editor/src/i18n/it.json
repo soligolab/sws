@@ -4140,7 +4140,21 @@
       "etichetta": "Etichetta",
       "daTerra": "Davanzale da terra (m)",
       "posizione": "Posizione sul muro (0–1)",
-      "tipo": "Tipo"
-    }
+      "tipo": "Tipo",
+      "larghezzaPx": "Larghezza (px)",
+      "altezzaPx": "Altezza (px)"
+    },
+    "vista3d": "Vista 3D",
+    "generaSfondo": "Genera sfondo…",
+    "generaServe3d": "Apri la vista 3D: lo sfondo è quello che si vede lì.",
+    "caricamento3d": "Caricamento della vista 3D…",
+    "senza3d": "La vista 3D non parte su questo browser: {{message}}",
+    "senzaVista": "La vista 3D non è aperta.",
+    "generaNota": "L'immagine è la vista 3D com'è inquadrata adesso, salvata fra le immagini del progetto come «{{nome}}». Rigenerarla sovrascrive lo stesso file, e le pagine che la usano si aggiornano da sole.",
+    "usaComeSfondo": "Usala come sfondo della pagina «{{pagina}}»",
+    "genera": "Genera",
+    "generando": "Genero…",
+    "generata": "Salvata come «{{nome}}».",
+    "generataEUsata": "Salvata come «{{nome}}» e messa come sfondo di «{{pagina}}»."
   }
 }

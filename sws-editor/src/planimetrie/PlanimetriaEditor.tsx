@@ -10,12 +10,15 @@
  *  Gli strumenti: seleziona (sposta blocchi, trascina i vertici del muro
  *  scelto), muro e area (clic per punto, doppio clic o Invio per chiudere, Esc
  *  per lasciar perdere), porta e finestra (un clic vicino a un muro), blocco
- *  (un clic). La vista 3D e «Genera sfondo» arrivano col ramo 2. */
-import { useCallback, useEffect, useRef, useState } from "react";
+ *  (un clic). Accanto, a richiesta, la vista 3D (ramo 2, three.js caricato
+ *  solo allora) e «Genera sfondo», che ne fa l'immagine di sfondo di una pagina. */
+import { lazy, Suspense, useCallback, useEffect, useRef, useState } from "react";
 import type { CSSProperties, ReactElement } from "react";
 import { useTranslation } from "react-i18next";
 import { api } from "@/api/client";
 import { useAppStore } from "@/store";
+import { aggiornaPagina } from "@/formatoProgettoAzioni";
+import type { Vista3DApi } from "./Vista3D";
 import {
   PREDEFINITI, aggancia, centroDi, idNuovo, ingombro, normalizza, proiezione, puntoA, senzaOrfani, spigoliBlocco, tuttiGliId,
   type Apertura, type Area, type Blocco, type Muro, type Planimetria, type Punto,
@@ -25,6 +28,9 @@ type Strumento = "seleziona" | "muro" | "porta" | "finestra" | "area" | "blocco"
 type Scelto = { tipo: "muro" | "apertura" | "area" | "blocco"; id: string } | null;
 type Trascina = { tipo: "blocco"; id: string; dx: number; dy: number } | { tipo: "vertice"; id: string; i: number } | { tipo: "vista"; da: Punto; vb: Vista } | null;
 type Vista = { x: number; y: number; w: number; h: number };
+
+// three.js entra qui e solo qui, quando si apre la vista: non nell'avvio dell'IDE.
+const Vista3D = lazy(() => import("./Vista3D").then((m) => ({ default: m.Vista3D })));
 
 const STRUMENTI: Strumento[] = ["seleziona", "muro", "porta", "finestra", "area", "blocco"];
 const ICONE: Record<Strumento, string> = { seleziona: "↖", muro: "▬", porta: "🚪", finestra: "🪟", area: "▦", blocco: "⬛" };
@@ -47,6 +53,9 @@ export function PlanimetriaEditor({ id }: { id: string }) {
   const [vista, setVista] = useState<Vista | null>(null);
   const trascina = useRef<Trascina>(null);
   const svgRef = useRef<SVGSVGElement | null>(null);
+  const [vista3d, setVista3d] = useState(false);
+  const [genera, setGenera] = useState(false);
+  const api3d = useRef<Vista3DApi | null>(null);
 
   useEffect(() => {
     let vivo = true;
@@ -221,6 +230,13 @@ export function PlanimetriaEditor({ id }: { id: string }) {
           </select>
         </label>
         <span style={{ flex: 1 }} />
+        <button style={{ ...PULSANTE, ...(vista3d ? PULSANTE_ATTIVO : {}) }} data-testid="planimetria-3d" onClick={() => setVista3d((v) => !v)}>
+          🧊 {t("planimetrie.vista3d")}
+        </button>
+        <button style={PULSANTE} data-testid="planimetria-genera" disabled={!vista3d} title={vista3d ? undefined : t("planimetrie.generaServe3d")}
+          onClick={() => setGenera(true)}>
+          🖼 {t("planimetrie.generaSfondo")}
+        </button>
         <button style={{ ...PULSANTE, ...(sporca ? PULSANTE_ATTIVO : {}) }} disabled={!sporca} data-testid="planimetria-salva"
           onClick={() => void salva().catch((e: unknown) => setErrore(e instanceof Error ? e.message : String(e)))}>
           💾 {t("planimetrie.salva")}
@@ -295,7 +311,76 @@ export function PlanimetriaEditor({ id }: { id: string }) {
           )}
           {cursore && strumento !== "seleziona" && <circle cx={cursore[0]} cy={cursore[1]} r={linea * 3} fill="#38bdf8" pointerEvents="none" />}
         </svg>
+        {vista3d && (
+          <div style={{ flex: 1, minWidth: 0, display: "flex", borderLeft: "1px solid var(--brand-surface-2, #334155)" }}>
+            <Suspense fallback={<div style={{ padding: 16, fontSize: 12 }}>{t("planimetrie.caricamento3d")}</div>}>
+              <Vista3D ref={api3d} pianta={bozza} onCamera={(c) => cambia((p) => ({ ...p, camera: c }))} />
+            </Suspense>
+          </div>
+        )}
         <Proprieta bozza={bozza} scelto={scelto} cambia={cambia} elimina={eliminaScelto} />
+      </div>
+      {genera && <GeneraSfondo id={bozza.id} api3d={api3d} onChiudi={() => setGenera(false)} />}
+    </div>
+  );
+}
+
+/** «Genera sfondo»: la misura del PNG (quella della pagina aperta, di
+ *  solito), il nome fisso `planimetria-<id>.png` — rigenerare sovrascrive, e
+ *  le pagine che lo usano si aggiornano da sole — e, se c'è una pagina normale
+ *  aperta, la proposta di metterlo subito come suo sfondo. */
+function GeneraSfondo({ id, api3d, onChiudi }: { id: string; api3d: React.MutableRefObject<Vista3DApi | null>; onChiudi: () => void }) {
+  const { t } = useTranslation();
+  const pagina = useAppStore((s) => s.pages.find((p) => p.id === s.currentPageId));
+  const formato = useAppStore((s) => s.project?.page_layout);
+  const paginaNormale = pagina && !pagina.kind ? pagina : undefined;
+  const [w, setW] = useState(paginaNormale?.width ?? formato?.default_width ?? 1280);
+  const [h, setH] = useState(paginaNormale?.height ?? formato?.default_height ?? 800);
+  const [usa, setUsa] = useState(!!paginaNormale);
+  const [stato, setStato] = useState<string | null>(null);
+  const [lavoro, setLavoro] = useState(false);
+  const nome = `planimetria-${id}.png`;
+  const vai = async () => {
+    setLavoro(true);
+    setStato(null);
+    try {
+      const blob = await api3d.current!.genera(Math.round(w), Math.round(h));
+      const r = await api.uploadProjectImage(nome, blob);
+      if (usa && paginaNormale) aggiornaPagina(paginaNormale.id, { sfondo_immagine: r.url });
+      setStato(t(usa && paginaNormale ? "planimetrie.generataEUsata" : "planimetrie.generata", { nome, pagina: paginaNormale?.name ?? "" }));
+    } catch (e) {
+      setStato(t("planimetrie.errore", { message: e instanceof Error ? e.message : String(e) }));
+    } finally {
+      setLavoro(false);
+    }
+  };
+  return (
+    <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000 }}
+      onClick={(e) => { if (e.target === e.currentTarget) onChiudi(); }}>
+      <div data-testid="genera-sfondo" style={{ background: "var(--brand-surface, #1e293b)", border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 8, padding: 20, width: 380, display: "flex", flexDirection: "column", gap: 12, color: "var(--brand-text, #e2e8f0)" }}>
+        <strong>{t("planimetrie.generaSfondo")}</strong>
+        <div style={{ fontSize: 12, color: "var(--brand-text-subtle, #94a3b8)", lineHeight: 1.4 }}>{t("planimetrie.generaNota", { nome })}</div>
+        <div style={{ display: "flex", gap: 10 }}>
+          <label style={ETICHETTA}>{t("planimetrie.campi.larghezzaPx")}
+            <input type="number" min={100} max={4096} value={w} style={CAMPO} onChange={(e) => setW(Number(e.target.value))} />
+          </label>
+          <label style={ETICHETTA}>{t("planimetrie.campi.altezzaPx")}
+            <input type="number" min={100} max={4096} value={h} style={CAMPO} onChange={(e) => setH(Number(e.target.value))} />
+          </label>
+        </div>
+        {paginaNormale && (
+          <label style={{ fontSize: 12, display: "flex", gap: 6, alignItems: "center" }}>
+            <input type="checkbox" checked={usa} onChange={(e) => setUsa(e.target.checked)} />
+            {t("planimetrie.usaComeSfondo", { pagina: paginaNormale.name })}
+          </label>
+        )}
+        {stato && <div style={{ fontSize: 12 }} data-testid="genera-esito">{stato}</div>}
+        <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
+          <button style={PULSANTE} onClick={onChiudi}>{t("planimetrie.chiudi")}</button>
+          <button style={{ ...PULSANTE, ...PULSANTE_ATTIVO }} disabled={lavoro || w < 100 || h < 100} data-testid="genera-vai" onClick={() => void vai()}>
+            {lavoro ? t("planimetrie.generando") : t("planimetrie.genera")}
+          </button>
+        </div>
       </div>
     </div>
   );

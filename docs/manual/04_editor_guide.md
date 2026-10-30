@@ -402,8 +402,9 @@ ovunque.
 - **Immagine di sfondo dell'area attiva.** Nelle proprietà della pagina, «Immagine di sfondo dell'area attiva»:
   «⬆ Carica…» o una delle immagini del progetto. Riempie la parte **fra testata e piede** (tutta la pagina se non
   ha cornice), sotto gli oggetti e senza coprire le fasce; l'immagine si adatta senza deformarsi e ritaglia i bordi
-  in eccesso. La compone il server (`cornici::sfondo_area`), quindi il viewer web la vede uguale all'editor. Sul
-  pannello LVGL si vedono solo immagini SVG (Q16: nessun decoder raster).
+  in eccesso. La compone il server (`cornici::sfondo_area`), quindi il viewer web la vede uguale all'editor. Dalla
+  2.23.3 il pannello LVGL disegna anche PNG e JPEG (prima solo SVG), quindi uno sfondo generato da una planimetria
+  si vede anche lì.
 - **Sotto, non sopra.** La cornice si disegna sotto il contenuto della pagina. Un oggetto della pagina nello spazio
   libero di una fascia va bene (il titolo della pagina accanto all'orologio); il validatore avvisa solo quando un
   oggetto della pagina copre un oggetto della cornice.
@@ -413,6 +414,43 @@ ovunque.
   viewer web e sul pannello LVGL. Le immagini di boot e le finestre non hanno cornice.
 - **Esempi.** `homeassistant-pro` (il navigatore in fondo alle sei pagine) e `tc620-sistema` (la testata con ora,
   data e identità del pannello).
+
+## Planimetrie (dal 29-10-2026)
+
+Una **planimetria** è la pianta di un ambiente — una casa, un reparto, un garage — disegnata nell'IDE e resa in 3D,
+da cui si genera con un clic l'**immagine di sfondo** di una pagina. Sopra lo sfondo si mettono gli oggetti del
+sinottico come sempre (lampade, sensori, pulsanti), dove si vedono nella vista. Il pannello non sa che le planimetrie
+esistono: riceve un'immagine, uguale sul viewer web e su quello LVGL.
+
+**Dove.** Nel pannello sinistro, ramo **Planimetrie** → **+ Nuova planimetria**. Scelta una pianta, l'editor prende il
+posto del canvas; scegliere una pagina lo richiude.
+
+**Disegnare.** Le misure sono in **metri**; la griglia aggancia al passo scelto in barra (da 5 cm a 1 m).
+
+| Strumento | Come |
+|---|---|
+| ↖ Seleziona | clic per scegliere; trascina un blocco o i vertici del muro scelto; trascina il fondo per spostare la vista, rotella per lo zoom; **Canc** elimina |
+| ▬ Muro | clic per ogni punto; doppio clic o **Invio** per finire, **Esc** per lasciar perdere |
+| 🚪 Porta, 🪟 Finestra | un clic vicino a un muro: l'apertura si aggancia lì e segue il muro |
+| ▦ Area | clic per ogni vertice (almeno tre), doppio clic o Invio per chiuderla: una zona colorata a pavimento, con etichetta (una stanza, un reparto) |
+| ⬛ Blocco | un clic: una macchina o un arredo, con misure, rotazione, colore ed etichetta |
+
+A destra le proprietà dell'elemento scelto — spessore e altezza di un muro, larghezza e altezza di un'apertura (e il
+davanzale di una finestra), colore ed etichetta — o, senza niente di scelto, il nome e il colore di fondo della
+pianta. **Salva** salva la pianta; anche il Salva generale la trova.
+
+**La vista 3D.** **🧊 Vista 3D** apre accanto alla pianta la stessa planimetria in 3D: i muri con i vani delle
+aperture (sopra una porta resta l'architrave, una finestra ha davanzale e architrave), le aree a pavimento, i blocchi.
+Si gira col mouse, e l'inquadratura si salva con la pianta. La vista si carica solo quando la si apre: l'IDE non la
+scarica all'avvio.
+
+**Lo sfondo.** **🖼 Genera sfondo…** rende la vista 3D com'è inquadrata adesso, alla misura della pagina aperta (si
+può cambiare), e la salva fra le immagini del progetto come `planimetria-<id>.png`. Se è aperta una pagina, propone
+di metterla subito come suo sfondo (Proprietà pagina → Immagine di sfondo). Rigenerarla sovrascrive lo stesso file, e
+le pagine che la usano si aggiornano da sole.
+
+**Dove vive.** `planimetrie/<id>.yaml` nel progetto: viaggia con l'export, il deploy, i backup e git; l'immagine
+generata sta in `images/`. Eliminare una planimetria lascia l'immagine, perché può essere lo sfondo di una pagina.
 
 ## Finestre (una pagina aperta sopra l'altra)
 

@@ -88,7 +88,9 @@ sfondo: "#0f172a"
    editor 2D, test della geometria e dell'editor, provato in Chromium. Trovato per strada: il backup non conteneva
    faceplate né cornici (corretto). **`feat/planimetrie-modello`** — modello TS+Rust, rotte, trasporto, impronta, test cargo;
    sezione LeftPanel; editor di pianta 2D completo (senza 3D), salvataggio a draft.
-2. **`feat/planimetrie-resa`** — chunk three.js lazy, anteprima 3D orbitabile, «Genera sfondo» →
+2. **FATTO il 29-10-2026** (annidato su `feat/planimetrie-modello`): three.js 0.170.0 in un pezzo suo, mai
+   precaricato (172 KB gzip); scena come dati in `scena.ts`; PNG generato e assegnato in Chromium.
+   **`feat/planimetrie-resa`** — chunk three.js lazy, anteprima 3D orbitabile, «Genera sfondo» →
    `images/`, misura del PNG, collaudo del peso del chunk.
 3. **`feat/planimetrie-casadomotica`** — planimetria della casa (o del garage) su CasaDomotica,
    sfondo della pagina corrispondente, manuale (capitolo editor), CHANGELOG + NOVITA (it+en).
