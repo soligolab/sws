@@ -283,6 +283,15 @@ secondo `goto` senza progetto le porterebbe dentro la rete WCAG. Il punto a risc
 >   attività e il limite del journal;
 > - **fuori dal codice**: la prova di consegna verso Gmail/Outlook, la revisione dei testi, e accendere il flag sul
 >   VPS.
+>
+> **Decisioni del maintainer del 30-10-2026 sul resto:**
+>
+> - **l'inattività** (avviso a 12 mesi, cancellazione 30 giorni dopo) vale **solo per chi si è registrato da sé**:
+>   gli utenti creati da un amministratore d'azienda li gestisce l'azienda;
+> - **la chiusura dell'account**: subito disattivato e sessioni chiuse; dopo 30 giorni si cancellano l'utente e
+>   l'azienda personale, progetti compresi. Entro i 30 giorni la piattaforma lo può riattivare dalla console;
+> - **il registro delle attività si tiene 12 mesi**: le righe più vecchie si tolgono una volta al giorno. Il limite del
+>   journal sul VPS è configurazione di sistema e si scrive in `deploy/vps/`, non nel codice.
 
 **1. Il blocco che emette una sessione si estrae.** `Identita::accedi` (`lib.rs:581`) è oggi
 l'**unica** cosa che produce un `Accesso`, e lo fa nel blocco `lib.rs:638-654`. Si estrae in
