@@ -12,6 +12,31 @@
 > resta in «Storico». Qui vive solo ciò che serve a riprendere il lavoro.
 
 
+## ▶ Riprendere da qui — lo slider fasi 1-6 e il resto del ramo C, sette rami annidati (2026-10-30 sera, ufficio)
+
+> ⚠ **SI RIPARTE DAL RAMO `feat/slider-fase-6`, NON da `main`.** È la punta di una catena di sette rami annidati;
+> `main` locale ha in più solo `56cd70c6` (le decisioni del ramo C nel piano), **non pushato**. Niente è pushato.
+
+| Ramo (in ordine) | Commit | Cosa |
+|---|---|---|
+| `feat/slider-fase-1` | `f60c9088` | difetti e parità: «Mostra valore» (anche gauge e barra), unità e decimali nel pannello, attesa dopo la scrittura sul web, «—» per NaN, LVGL in passi/Float/scrittura al rilascio/deadband/sola lettura/conferma/sfondo, predefiniti della TagDef nella pagina composta, validatore |
+| `feat/ramo-c-resto` | `69427568` | ramo C: inattività 12 mesi + avviso + cancellazione, chiusura dell'account (menu utente), registrazioni mai confermate via a 30 giorni, registro attività potato a 12 mesi (catena verificabile), journal del VPS (file da applicare). **Resta l'SMTP per azienda** |
+| `feat/slider-fase-2` | `66a53d58` | slider SVG sul web (puntatore, tastiera, 44 px), geometria gemella web/LVGL, colore/spessore traccia, posizione del valore |
+| `feat/slider-fase-3` | `0cb2f6cb` | stili pillola, piastra con 8 icone, ISA-101; opacità traccia e `bg_image_opacity` universale |
+| `feat/slider-fase-4` | `428fedd2` | tacche marcate/divisione con numeri, aggancio, bande dei limiti |
+| `feat/slider-fase-5` | `070927b3` | bipolare (origine) e valore misurato (PV) |
+| `feat/slider-fase-6` | `2a322766` `b454cf9d` | ritorno a molla, attesa dopo la scrittura anche su LVGL; **progetto di collaudo** in `docs/plans/allegati/2026-10-30-revisione-slider/collaudo-slider/` (LEGGIMI dentro); validatore: la sola lettura su un tag calcolato non è più un errore |
+
+Verifiche sulla punta: `cargo test`, `vitest` 1878, `pnpm build`, `check_static.sh` 51/51 verdi. Istantanee web/LVGL di
+ogni fase in `tmp/prova-slider/` e `tmp/prova-collaudo/` (solo su questa macchina). Nessuna build d'immagine.
+
+### Da fare
+
+1. **Collaudo del maintainer** col progetto `collaudo-slider`, sul web e sul pannello LVGL (serve una build della
+   punta). Poi sette squash su `main` nell'ordine della tabella.
+2. Fase 7 dello slider (CasaDomotica, dal cloud, col maintainer) e l'SMTP per azienda (ramo C, punto 4).
+3. Il test `abbinaPannelloCloud.test.tsx` è risultato rosso una volta su tre giri (tempo), poi verde: da tenere d'occhio.
+
 ## ▶ Riprendere da qui — chiusura del 30-10-2026: la catena e OpenPLC in `main`, tutto pushato (theobroma)
 
 **Si riparte da `main`.** Nessun ramo aperto, né qui né su origin (i sei rami remoti della catena eliminati col push).

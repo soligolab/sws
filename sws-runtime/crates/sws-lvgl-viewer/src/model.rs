@@ -588,6 +588,7 @@ pub struct SynopticObject {
     pub slider_origin: Option<f64>,
     pub slider_pv_tag: Option<String>,
     pub slider_pv_color: Option<String>,
+    pub slider_rest_value: Option<f64>,
     /// Universale (fase 3 dello slider): l'opacità di `bg_image`, 0-100.
     pub bg_image_opacity: Option<f64>,
 

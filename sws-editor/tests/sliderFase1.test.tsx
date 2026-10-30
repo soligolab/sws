@@ -3,7 +3,7 @@
  *  resta dov'è col bordo tratteggiato finché il tag non risponde o per 3 s;
  *  una conferma annullata non lascia niente in attesa; un valore non numerico
  *  si scrive «—». */
-import { render, fireEvent, act } from "@testing-library/react";
+import { render, fireEvent, act, waitFor } from "@testing-library/react";
 import { describe, it, expect, vi, afterEach } from "vitest";
 import "../src/i18n/index";
 import { SvgObject } from "../src/canvas/SvgCanvas";
@@ -154,5 +154,19 @@ describe("bipolare e valore misurato (fase 5)", () => {
     const d = disegna(obj, tv);
     expect(d.container.querySelector("[data-slider-pv]")).not.toBeNull();
     expect(d.container.textContent).toContain("62 % · PV 58 %");
+  });
+});
+
+describe("la molla (fase 6)", () => {
+  it("mentre si tiene scrive al massimo ogni 200 ms, al rilascio scrive il riposo", async () => {
+    const d = disegna(slider({ min: -50, max: 50, step: 1, slider_origin: 0, slider_rest_value: 0 }), valore(0));
+    const area = d.container.querySelector("[data-slider-area]") as SVGRectElement;
+    fireEvent.pointerDown(area, { pointerId: 1, button: 0, clientX: 150, clientY: 25 });
+    fireEvent.pointerMove(area, { pointerId: 1, clientX: 160, clientY: 25 });
+    fireEvent.pointerMove(area, { pointerId: 1, clientX: 170, clientY: 25 });
+    fireEvent.pointerUp(area, { pointerId: 1, clientX: 170, clientY: 25 });
+    // Il primo punto subito; i due movimenti entro 200 ms no; il riposo al rilascio.
+    expect(d.onWriteTag.mock.calls.map((c) => c[1])).toEqual([25, 0]);
+    await waitFor(() => expect(d.valore()).toBe("0"));
   });
 });

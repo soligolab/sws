@@ -22,6 +22,9 @@ import { ICONE_SLIDER } from "./icone";
 
 /** L'area di tocco minima: anche un riquadro basso si prende col dito. */
 const TOCCO_MINIMO = 44;
+/** La molla (fase 6): una scrittura ogni 200 ms al massimo, 150 ms per tornare. */
+const INTERVALLO_MOLLA_MS = 200;
+const RITORNO_MOLLA_MS = 150;
 /** Quanto si aspetta il tag prima di tornare al suo valore. */
 const ATTESA_MS = 3000;
 
@@ -53,6 +56,9 @@ export interface PropsSlider {
   agganciaTacche?: boolean;
   modoBande?: "sempre" | "in_allarme" | "mai";
   limiti?: Limiti;
+  /** Fase 6: il ritorno a molla. Mentre si tiene scrive al massimo 5 volte al
+   *  secondo; al rilascio torna qui in 150 ms e scrive questo valore una volta. */
+  riposo?: number;
   /** Fase 5: l'origine del riempimento (bipolare). */
   origine?: number;
   /** Fase 5: il valore misurato. `undefined` = nessun PV; `null` = PV non numerico. */
@@ -80,6 +86,10 @@ export function SliderSvg(p: PropsSlider) {
   const [trascina, setTrascina] = useState(false);
   const [fuoco, setFuoco] = useState(false);
   const ultimoScritto = useRef<number | null>(null);
+  // Fase 6: quando è partita l'ultima scrittura della molla, e l'animazione del ritorno.
+  const ultimaMolla = useRef(0);
+  const ritorno = useRef<number | null>(null);
+  useEffect(() => () => { if (ritorno.current !== null) cancelAnimationFrame(ritorno.current); }, []);
   const area = useRef<SVGRectElement | null>(null);
 
   // Dopo una scrittura il cursore resta dov'è finché il tag non riporta quel
@@ -127,11 +137,34 @@ export function SliderSvg(p: PropsSlider) {
       setInAttesa(v);
     }
   };
+  const molla = p.riposo !== undefined;
   const cambia = (v: number) => {
+    if (ritorno.current !== null) { cancelAnimationFrame(ritorno.current); ritorno.current = null; }
     setBozza(v);
+    if (molla) {
+      // Mentre si tiene: al massimo una scrittura ogni 200 ms.
+      const ora = Date.now();
+      if (v !== bozza && ora - ultimaMolla.current >= INTERVALLO_MOLLA_MS && p.scrivi(v)) ultimaMolla.current = ora;
+      return;
+    }
     if (!p.scriviAlRilascio && v !== bozza) scrivi(v);
   };
   const concludi = (v: number | null) => {
+    if (molla) {
+      // Al rilascio: torna al riposo in 150 ms, e scrive il riposo una volta.
+      const riposo = p.riposo!;
+      const da = v ?? riposo;
+      const inizio = performance.now();
+      const passo = (t: number) => {
+        const k = Math.min(1, (t - inizio) / RITORNO_MOLLA_MS);
+        setBozza(da + (riposo - da) * k);
+        if (k < 1) ritorno.current = requestAnimationFrame(passo);
+        else { ritorno.current = null; setBozza(null); }
+      };
+      ritorno.current = requestAnimationFrame(passo);
+      if (p.scrivi(riposo)) { ultimoScritto.current = riposo; setInAttesa(riposo); }
+      return;
+    }
     setBozza(null);
     if (v !== null && p.scriviAlRilascio) scrivi(v);
   };

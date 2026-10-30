@@ -193,12 +193,21 @@ rimisurare** i punti che tocca: il codice si muove.
 
 ### Fase 6 — ritorno a molla (S)
 
+> **Scritta il 30-10-2026** sul ramo `feat/slider-fase-6`, annidato. La molla c'è quando `slider_rest_value` c'è: il
+> «riposo predefinito» della decisione 7 lo applica il pannello, che accendendo la casella scrive l'origine o il
+> minimo. La molla ignora `write_on_release` e la deadband. Su LVGL è arrivata anche l'attesa dopo la scrittura, che
+> la fase 1 aveva lasciato al web: senza, al rilascio il cursore tornava per un giro all'ultimo valore scritto.
+
 - `slider_rest_value`, con le regole della decisione 7. Su LVGL l'animazione è un `lv_anim` di 150 ms.
 - Il validatore segnala come **errore** la molla insieme a conferma o comando critico: una conferma a ogni scrittura
   renderebbe la leva inutilizzabile.
 - **Si prova con:** un jog bipolare: nel log del runtime, le scritture mentre si tiene e lo zero al rilascio.
 
 ### Fase 7 — CasaDomotica (S)
+
+> **Non ancora fatta** (30-10-2026): il progetto sta sul VPS e si fa col maintainer. Per il collaudo delle fasi 1-6
+> c'è il progetto [`allegati/2026-10-30-revisione-slider/collaudo-slider/`](allegati/2026-10-30-revisione-slider/collaudo-slider/LEGGIMI.md),
+> quattro pagine con tutti i tipi di slider, da provare sul web e sul pannello.
 
 - Luci e tapparelle in piastra, un termostato con PV (regola di `CLAUDE.md`), quando lo slider nuovo entra in `main`.
 - Il progetto sta sul VPS: si fa dal cloud, col maintainer.

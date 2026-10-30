@@ -321,6 +321,9 @@ pub enum LiveKind {
         /// Il valore misurato (fase 5): il tag e l'ultimo valore, che legge anche
         /// la callback del trascinamento per scrivere «62 % · PV 58 %».
         pv: Option<(String, Rc<std::cell::Cell<Option<f64>>>)>,
+        /// L'attesa dopo una scrittura (fase 6, come il web dalla fase 1): il
+        /// valore scritto e fin quando tenerlo, se il tag non lo riporta prima.
+        attesa: Rc<std::cell::Cell<Option<(f64, std::time::Instant)>>>,
     },
     /// Solo lo stato checked/unchecked cambia dal vivo,
     /// `lv_obj_add_state`/`clear_state` con `LV_STATE_CHECKED`.
@@ -1158,6 +1161,12 @@ struct SliderCtx {
     scarto: i32,
     /// L'ultimo PV, per il testo durante il trascinamento.
     pv: Option<Rc<std::cell::Cell<Option<f64>>>>,
+    /// L'attesa condivisa con il `BarLike` dello slider (fase 6).
+    attesa: Rc<std::cell::Cell<Option<(f64, std::time::Instant)>>>,
+    /// La molla: il valore di riposo, e quando è partita l'ultima scrittura.
+    molla: Option<f64>,
+    ultima_molla: std::cell::Cell<Option<std::time::Instant>>,
+    ptr: core::ptr::NonNull<lvgl_sys::lv_obj_t>,
     al_rilascio: bool,
     deadband: Option<f64>,
     ultimo_scritto: std::cell::Cell<Option<f64>>,
@@ -1199,6 +1208,11 @@ impl Fumetto {
 }
 
 impl SliderCtx {
+    /// Il cursore aspetta il tag per al massimo 3 s.
+    fn attendi(&self, v: f64) {
+        self.attesa.set(Some((v, std::time::Instant::now() + std::time::Duration::from_secs(3))));
+    }
+
     fn valore(&self, target: *mut lvgl_sys::lv_obj_t) -> TagValue {
         let i = (unsafe { lvgl_sys::lv_bar_get_value(target) } + self.scarto).clamp(0, self.passi);
         valore_slider(i, self.min, self.passo)
@@ -1212,6 +1226,7 @@ impl SliderCtx {
         }
         let Some(regola) = &self.conferma else {
             self.ultimo_scritto.set(Some(v));
+            self.attendi(v);
             manda_scritture(&self.tx, &[(self.tag.clone(), valore)]);
             return;
         };
@@ -1269,6 +1284,15 @@ unsafe extern "C" fn sws_slider_changed_cb(e: *mut lvgl_sys::lv_event_t) {
         let i = unsafe { lvgl_sys::lv_bar_get_value(target) } + ctx.scarto;
         f.segui(i as f64 / ctx.passi.max(1) as f64);
     }
+    if ctx.molla.is_some() {
+        // La molla: mentre si tiene, una scrittura ogni 200 ms al massimo.
+        let ora = std::time::Instant::now();
+        if ctx.ultima_molla.get().is_none_or(|t| ora.duration_since(t) >= std::time::Duration::from_millis(200)) {
+            ctx.ultima_molla.set(Some(ora));
+            manda_scritture(&ctx.tx, &[(ctx.tag.clone(), valore)]);
+        }
+        return;
+    }
     if !ctx.al_rilascio {
         ctx.scrivi(valore);
     }
@@ -1285,6 +1309,25 @@ unsafe extern "C" fn sws_slider_rilasciato_cb(e: *mut lvgl_sys::lv_event_t) {
     let ctx = unsafe { &*(user_data as *const SliderCtx) };
     if let Some(f) = &ctx.fumetto {
         unsafe { lvgl_sys::lv_obj_add_flag(f.ptr.as_ptr(), lvgl_sys::LV_OBJ_FLAG_HIDDEN) };
+    }
+    if let Some(riposo) = ctx.molla {
+        // Al rilascio: torna al riposo in 150 ms (l'animazione di `lv_bar`) e
+        // scrive il riposo una volta.
+        let n = ctx.passi;
+        let i = indice_slider(riposo, ctx.min, ctx.passo, n);
+        unsafe {
+            lvgl_sys::lv_obj_set_style_anim_time(ctx.ptr.as_ptr(), 150, 0);
+            lvgl_sys::lv_bar_set_value(ctx.ptr.as_ptr(), i - ctx.scarto, lvgl::Animation::ON.into());
+        }
+        let valore = valore_slider(i, ctx.min, ctx.passo);
+        if let Some((p, decimali, unita)) = &ctx.etichetta {
+            let testo = testo_valore_slider(tag_value_as_f64(&valore), *decimali, unita, ctx.pv.as_ref().map(|c| c.get()));
+            unsafe { lvgl_sys::lv_label_set_text(p.as_ptr(), text_cstring(&testo).as_ptr()) };
+        }
+        ctx.attendi(tag_value_as_f64(&valore));
+        ctx.ultima_molla.set(None);
+        manda_scritture(&ctx.tx, &[(ctx.tag.clone(), valore)]);
+        return;
     }
     if ctx.al_rilascio {
         ctx.scrivi(ctx.valore(target));
@@ -1304,6 +1347,7 @@ unsafe extern "C" fn sws_slider_conferma_cb(e: *mut lvgl_sys::lv_event_t) {
     if let Some(valore) = ctx.in_attesa.borrow_mut().take() {
         if scelta == 1 {
             ctx.ultimo_scritto.set(Some(tag_value_as_f64(&valore)));
+            ctx.attendi(tag_value_as_f64(&valore));
             manda_scritture(&ctx.tx, &[(ctx.tag.clone(), valore)]);
         }
     }
@@ -5338,11 +5382,12 @@ fn render_slider(
     } else {
         init_bar_like(screen, ptr, obj, tags, false, valore_in, Some(passo))?
     };
-    let LiveKind::BarLike { min, max, value_ptr, decimals, ref unit, scarto, ref pv, .. } = binding.kind else {
+    let LiveKind::BarLike { min, max, value_ptr, decimals, ref unit, scarto, ref pv, ref attesa, .. } = binding.kind else {
         unreachable!("init_bar_like dà sempre un BarLike")
     };
     let unita = unit.clone();
     let pv_cella = pv.as_ref().map(|(_, c)| Rc::clone(c));
+    let attesa = Rc::clone(attesa);
     live.push(binding);
     // Fase 5: la linea sull'origine di uno slider bipolare, e il segno del PV.
     if let Some(o) = obj.slider_origin.filter(|o| *o > min && *o < max) {
@@ -5362,6 +5407,9 @@ fn render_slider(
             stile::bordo(p.as_ptr(), None, 0.0, stile::MAIN);
             stile::raggio(p.as_ptr(), 0.0, stile::MAIN);
             lvgl_sys::lv_obj_clear_flag(p.as_ptr(), lvgl_sys::LV_OBJ_FLAG_CLICKABLE | lvgl_sys::LV_OBJ_FLAG_SCROLLABLE);
+            // Sotto lo slider, non sopra: creata dopo, passerebbe sopra il
+            // cursore. Si vede ai due capi e attraverso la traccia vuota.
+            lvgl_sys::lv_obj_move_to_index(p.as_ptr(), lvgl_sys::lv_obj_get_index(ptr.as_ptr()) as i32);
         }
     }
     if let Some(pv_tag) = obj.slider_pv_tag.as_deref().filter(|t| !t.is_empty()) {
@@ -5475,6 +5523,10 @@ fn render_slider(
         fumetto,
         scarto,
         pv: pv_cella,
+        attesa,
+        molla: obj.slider_rest_value,
+        ultima_molla: std::cell::Cell::new(None),
+        ptr,
     });
     unsafe {
         // Il valore sotto la traccia segue il dito anche quando si scrive solo
@@ -5485,7 +5537,7 @@ fn render_slider(
             lvgl_sys::lv_event_code_t_LV_EVENT_VALUE_CHANGED,
             ctx,
         );
-        if al_rilascio || (*(ctx as *const SliderCtx)).fumetto.is_some() {
+        if al_rilascio || (*(ctx as *const SliderCtx)).fumetto.is_some() || obj.slider_rest_value.is_some() {
             // `PRESS_LOST` anche: il dito che scivola fuori dal riquadro non
             // manda `RELEASED`, e il valore scelto resterebbe senza scrittura.
             // Il rilascio nasconde anche il fumetto.
@@ -5668,6 +5720,7 @@ fn init_bar_like(
             passo,
             scarto,
             pv: obj.slider_pv_tag.clone().filter(|t| !t.is_empty()).map(|t| (t, Rc::new(std::cell::Cell::new(None)))),
+            attesa: Rc::new(std::cell::Cell::new(None)),
         },
     })
 }
@@ -14179,6 +14232,7 @@ pub fn update_bindings(
                 passo,
                 scarto,
                 pv,
+                attesa,
             } => {
                 // Se l'utente sta trascinando lo slider in questo momento
                 // (LV_STATE_PRESSED), non sovrascrivere il valore con quello
@@ -14207,6 +14261,16 @@ pub fn update_bindings(
                     .map(|t| tag_value_as_f64(&t.value))
                     .unwrap_or(*min)
                     .clamp(min.min(*max), min.max(*max));
+                // Dopo una scrittura il cursore resta dove l'ha lasciato
+                // l'operatore finché il tag non la riporta, o per 3 s: senza, al
+                // rilascio tornerebbe per un giro al valore vecchio.
+                if let Some((scritto, fino)) = attesa.get() {
+                    let tolleranza = passo.flatten().unwrap_or(1.0) / 2.0;
+                    if std::time::Instant::now() < fino && (raw - scritto).abs() > tolleranza {
+                        continue;
+                    }
+                    attesa.set(None);
+                }
                 let posizione = match passo {
                     Some(step) => indice_slider(raw, *min, *step, passi_slider(*min, *max, *step)) - *scarto,
                     None => raw.round() as i32,

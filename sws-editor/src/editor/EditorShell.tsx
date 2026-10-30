@@ -4322,6 +4322,13 @@ export function ObjectProps({
                 <input type="checkbox" checked={!!obj.slider_snap_ticks}
                   onChange={(e) => onChange({ slider_snap_ticks: e.target.checked || undefined })} />
               )}
+              {/* Fase 6: la molla. Accenderla scrive il riposo — l'origine se lo
+                  slider è bipolare, altrimenti il minimo (decisione 7). */}
+              {field(t("props.mollaSlider"),
+                <input type="checkbox" checked={obj.slider_rest_value !== undefined}
+                  onChange={(e) => onChange({ slider_rest_value: e.target.checked ? (obj.slider_origin ?? obj.min ?? 0) : undefined })} />
+              )}
+              {obj.slider_rest_value !== undefined && field(t("props.riposoSlider"), numInput("slider_rest_value", 0))}
               {/* Fase 5 della revisione: bipolare e valore misurato. */}
               {field(t("props.origineSlider"), numInput("slider_origin", 0))}
               {field(t("props.pvSlider"),

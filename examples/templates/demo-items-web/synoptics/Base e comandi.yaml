@@ -286,6 +286,7 @@ objects:
   slider_track_thickness: 20.0
   slider_value_position: cursore
   slider_origin: 0.5
+  slider_rest_value: 0.5
 - id: o_slider_lettura
   type: slider
   x: 340.0

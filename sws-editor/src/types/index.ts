@@ -501,6 +501,10 @@ export interface SynopticObject {
   slider_pv_tag?: string;
   /** Slider: il colore del segno del PV. Assente = il tono testo della pagina. */
   slider_pv_color?: string;
+  /** Slider (fase 6): il ritorno a molla. Presente = la molla c'è: mentre si
+   *  tiene scrive al massimo 5 volte al secondo, al rilascio torna a questo
+   *  valore e lo scrive. Il pannello lo propone all'origine, o al minimo. */
+  slider_rest_value?: number;
   /** Universale (fase 3 dello slider): l'opacità di `bg_image`, 0-100
    *  (predefinito 100). Lascia vedere l'immagine in trasparenza dietro l'oggetto. */
   bg_image_opacity?: number;

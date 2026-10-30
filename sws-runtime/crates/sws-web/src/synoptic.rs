@@ -243,6 +243,9 @@ pub struct SynopticObject {
     pub slider_pv_tag: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub slider_pv_color: Option<String>,
+    /// Slider (fase 6): il valore di riposo della molla; presente = la molla c'è.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub slider_rest_value: Option<f64>,
     /// Universale: l'opacità di `bg_image`, 0-100.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub bg_image_opacity: Option<f64>,
