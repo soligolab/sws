@@ -119,6 +119,9 @@ tags:
   - id: demo.cmd.slider
     description: "Scritto trascinando lo slider. Con un binding sposta l'ellisse della pagina 1: è la prova del movimento degli oggetti."
     data_type: float
+  - id: demo.cmd.frazione
+    description: "Scritto dallo slider frazionario (0..1, passo 0,05): il pannello deve scrivere un numero con la virgola, non un intero."
+    data_type: float
   - id: demo.cmd.setpoint
     description: "Scritto dal widget setpoint (+/-)."
     data_type: float
@@ -815,6 +818,16 @@ languages:
         it: "Finestra pompa"
         en: "Pump window"
         es: "Ventana de la bomba"
+    - key: t0107
+      values:
+        it: "Frazione 0..1, passo 0,05"
+        en: "Fraction 0..1, step 0.05"
+        es: "Fracción 0..1, paso 0,05"
+    - key: t0108
+      values:
+        it: "Sola lettura"
+        en: "Read only"
+        es: "Solo lectura"
 
 # ── Pagina iniziale ──────────────────────────────────────────────────────────
 #

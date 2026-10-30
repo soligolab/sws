@@ -7284,6 +7284,11 @@ async fn get_synoptic(
                     }
                     // L'immagine dell'area attiva, sotto tutto (25-10-2026).
                     crate::cornici::sfondo_area(&mut page, cornice.as_ref());
+                    // I predefiniti dei tag (30-10-2026): il web li applica da
+                    // sé, il pannello LVGL no. Un viewer li riceve già messi.
+                    if let Some(p) = &progetto {
+                        crate::synoptic::applica_predefiniti_tag(&mut page.objects, &p.tags);
+                    }
                 }
                 // Q30: la versione di **questa** pagina. Le pagine sono file
                 // distinti, quindi la corsa è fra due che salvano la stessa —

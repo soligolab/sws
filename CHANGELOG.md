@@ -64,6 +64,26 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 
 ### Fixed
 
+- **Lo slider, fase 1 della revisione** (piano `docs/plans/2026-10-30-revisione-slider.md`): i difetti misurati il
+  30-10-2026, senza cambiare aspetto.
+  - Pannello: «Mostra valore» leggeva `!!obj.show_value` mentre i motori mostrano il valore salvo `false` — una
+    casella spenta su un valore visibile; stesso difetto corretto su `gauge` e `progress_bar`. Entrano `unit` e
+    `decimals`.
+  - Web: dopo la scrittura il cursore resta dove l'ha lasciato l'operatore, col bordo tratteggiato, finché il tag non
+    riporta il valore o per 3 s (prima `setSliderDraft(null)` lo faceva saltare indietro); un valore non numerico
+    scrive «—» invece di `NaN`. `guardedWrite` dice se la scrittura è partita, così una conferma annullata non lascia
+    il cursore in attesa. Il contorno di pagina (bordo d'allarme, lampeggio) usa la misura di ripiego del tipo
+    (`MISURA_DI_RIPIEGO`) invece di 100×50.
+  - LVGL: la traccia va in passi (`passi_slider`, 0..N con valore `min + i·step`), e uno 0..1 col passo 0,05 ha venti
+    posizioni invece di due; si scrive `Float` quando passo o minimo non sono interi. `write_on_release` (anche su
+    `PRESS_LOST`), `write_deadband`, `read_only`, `require_confirm`/`critical` con la finestra dei bottoni, `bg_color` e
+    `bg_image`. Il valore sta sotto la traccia, centrato, e il blocco etichetta-traccia-valore è centrato come la
+    colonna del web; durante il trascinamento il valore segue il dito.
+  - I predefiniti del tag (`unit`, `decimals`, `range_lo/hi`, i quattro limiti) arrivano al pannello LVGL nella pagina
+    composta (`?cornice=1`, `applica_predefiniti_tag`): il web li applicava da sé, il pannello non aveva i `TagDef`.
+  - Validatore: `min < max`, `step > 0`, `write_deadband >= 0`. Manuale: la voce Slider con tutti i campi. Gemelli:
+    `o_slider_frazione` (0..1, passo 0,05, tag `demo.cmd.frazione`) e `o_slider_lettura`.
+
 - **Un'installazione pulita si fermava a metà su un pannello senza `~/.config/systemd/user`**, dopo aver già cancellato
   progetti e configurazione: `install-container.sh` scriveva le unità `sws-fiducia.*` (dal 26-10-2026) in una cartella
   che nessuno creava, e con `set -e` usciva lì. Il pannello restava senza runtime. Visto sul WP630 il 30-10-2026;

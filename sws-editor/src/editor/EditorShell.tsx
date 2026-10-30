@@ -4154,8 +4154,8 @@ export function ObjectProps({
                 <div><div style={LABEL}>{t("props.alarmHigh")}</div><BindableInput obj={obj} propName="alarm_high" onChange={onChange}>{numInput("alarm_high", 0)}</BindableInput></div>
               </div>
               {field(t("props.showValue"),
-                <input type="checkbox" checked={!!obj.show_value}
-                  onChange={(e) => onChange({ show_value: e.target.checked })} />
+                <input type="checkbox" checked={obj.show_value !== false}
+                  onChange={(e) => onChange({ show_value: e.target.checked ? undefined : false })} />
               )}
               {field(t("props.needleColor"), <BindableInput obj={obj} propName="stroke" onChange={onChange}>{colorInput("stroke")}</BindableInput>)}
               {field(t("props.textsColor"), <BindableInput obj={obj} propName="color" onChange={onChange}>{colorInput("color")}</BindableInput>)}
@@ -4245,6 +4245,10 @@ export function ObjectProps({
                 <div><div style={LABEL}>Max</div><BindableInput obj={obj} propName="max" onChange={onChange}>{numInput("max", 100)}</BindableInput></div>
                 <div><div style={LABEL}>Step</div><BindableInput obj={obj} propName="step" onChange={onChange}>{numInput("step", 1)}</BindableInput></div>
               </div>
+              {/* 30-10-2026 (revisione dello slider, fase 1): i due motori usano
+                  unità e decimali da sempre, il pannello non li offriva. */}
+              {field(t("props.unit"), <BindableInput obj={obj} propName="unit" onChange={onChange}>{textInput("unit", "")}</BindableInput>)}
+              {field(t("props.decimals"), <BindableInput obj={obj} propName="decimals" onChange={onChange}>{numInput("decimals", 0)}</BindableInput>)}
               {field(t("props.orientation"),
                 <select
                   style={{ ...INPUT, cursor: "pointer" }}
@@ -4256,8 +4260,8 @@ export function ObjectProps({
                 </select>
               )}
               {field(t("props.showValue"),
-                <input type="checkbox" checked={!!obj.show_value}
-                  onChange={(e) => onChange({ show_value: e.target.checked })} />
+                <input type="checkbox" checked={obj.show_value !== false}
+                  onChange={(e) => onChange({ show_value: e.target.checked ? undefined : false })} />
               )}
               {field(t("props.readOnly"),
                 <input type="checkbox" checked={!!obj.read_only}
@@ -4411,8 +4415,8 @@ export function ObjectProps({
                 <div><div style={LABEL}>{t("props.alarmHigh")}</div><BindableInput obj={obj} propName="alarm_high" onChange={onChange}>{numInput("alarm_high", 0)}</BindableInput></div>
               </div>
               {field(t("props.showValue"),
-                <input type="checkbox" checked={!!obj.show_value}
-                  onChange={(e) => onChange({ show_value: e.target.checked })} />
+                <input type="checkbox" checked={obj.show_value !== false}
+                  onChange={(e) => onChange({ show_value: e.target.checked ? undefined : false })} />
               )}
             </>
           )}

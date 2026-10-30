@@ -847,6 +847,28 @@ impl SynopticObject {
     }
 }
 
+/// Il tag è la fonte di verità (F1.2): unità, decimali, intervallo e limiti
+/// del `TagDef` diventano i predefiniti dell'oggetto, e quello che l'oggetto
+/// scrive resta suo. Gemello di `applyTagDefaults` in `SvgCanvas.tsx`, che il
+/// web applica da sé; il pannello LVGL non ha i `TagDef`, e li riceve così
+/// nella pagina composta (revisione dello slider, fase 1, 30-10-2026). Solo
+/// gli oggetti della pagina: i figli di griglie e faceplate restano come sono.
+pub fn applica_predefiniti_tag(objects: &mut [SynopticObject], tags: &[sws_core::TagDef]) {
+    for o in objects {
+        let Some(def) = o.tag.as_deref().and_then(|id| tags.iter().find(|t| t.id == id)) else {
+            continue;
+        };
+        o.unit = o.unit.take().or_else(|| def.unit.clone());
+        o.decimals = o.decimals.or(def.decimals);
+        o.min = o.min.or(def.range_lo);
+        o.max = o.max.or(def.range_hi);
+        o.warn_low = o.warn_low.or(def.limit_lo);
+        o.alarm_low = o.alarm_low.or(def.limit_lo_lo);
+        o.warn_high = o.warn_high.or(def.limit_hi);
+        o.alarm_high = o.alarm_high.or(def.limit_hi_hi);
+    }
+}
+
 /// A reusable parametric component. `objects` use `{param}` placeholders in
 /// string fields (tag, label, text…). Each instance supplies concrete values.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -962,5 +984,28 @@ mod tests_assegnazioni {
         let o: SynopticObject = serde_json::from_value(dentro.clone()).unwrap();
         let fuori = serde_json::to_value(&o).unwrap();
         assert_eq!(fuori["assegnazioni"], dentro["assegnazioni"]);
+    }
+}
+
+#[cfg(test)]
+mod tests_predefiniti_tag {
+    use super::*;
+
+    #[test]
+    fn il_tag_riempie_solo_quello_che_l_oggetto_non_scrive() {
+        let tags: Vec<sws_core::TagDef> = serde_yaml::from_str(
+            "- { id: t, unit: '°C', decimals: 1, range_lo: 15, range_hi: 30, limit_hi: 26, limit_hi_hi: 28 }",
+        )
+        .unwrap();
+        let mut objs: Vec<SynopticObject> = serde_yaml::from_str(
+            "- { id: a, type: slider, x: 0, y: 0, tag: t, max: 25 }\n- { id: b, type: slider, x: 0, y: 0, tag: altro }",
+        )
+        .unwrap();
+        applica_predefiniti_tag(&mut objs, &tags);
+        let a = &objs[0];
+        assert_eq!((a.min, a.max, a.decimals), (Some(15.0), Some(25.0), Some(1)));
+        assert_eq!(a.unit.as_deref(), Some("°C"));
+        assert_eq!((a.warn_high, a.alarm_high, a.warn_low), (Some(26.0), Some(28.0), None));
+        assert_eq!((objs[1].min, objs[1].unit.as_deref()), (None, None));
     }
 }

@@ -293,6 +293,8 @@ pub enum LiveKind {
         value_ptr: Option<core::ptr::NonNull<lvgl_sys::lv_obj_t>>,
         decimals: u8,
         unit: String,
+        /// `Some` per lo slider, che va in passi (`passi_slider`).
+        passo: Option<Option<f64>>,
     },
     /// Solo lo stato checked/unchecked cambia dal vivo,
     /// `lv_obj_add_state`/`clear_state` con `LV_STATE_CHECKED`.
@@ -766,15 +768,6 @@ struct Conferma {
     messaggio: String,
 }
 
-/// Contesto per checkbox/radio/slider: il valore da scrivere si legge dal
-/// widget stesso al momento dell'evento (stato checked, valore bar), non è
-/// precalcolato — a differenza del bottone qui non c'è nulla di fisso da
-/// portarsi dietro oltre al tag.
-struct WidgetChangeCtx {
-    tag: String,
-    tx: mpsc::Sender<TagCommand>,
-}
-
 /// Contesto per il toggle di una checkbox/radio: a differenza dello slider,
 /// il valore da scrivere NON si legge dal widget (LVGL conosce solo
 /// checked/unchecked, non `checked_value`/`unchecked_value` custom) — va
@@ -1125,9 +1118,77 @@ unsafe extern "C" fn sws_radio_option_clicked_cb(e: *mut lvgl_sys::lv_event_t) {
     });
 }
 
-/// `LV_EVENT_VALUE_CHANGED` su uno slider: fires ripetutamente durante il
-/// drag (non solo al rilascio) — comportamento nativo LVGL, dà un feedback
-/// live coerente con quello che uno slider SCADA normalmente offre.
+/// Lo slider con le regole di scrittura del web (`commitSlider` in
+/// `SvgCanvas.tsx`), dalla fase 1 della revisione (30-10-2026). Prima scriveva
+/// un intero a ogni `VALUE_CHANGED`, ignorando passo, scrittura al rilascio,
+/// deadband e conferma.
+struct SliderCtx {
+    tag: String,
+    tx: mpsc::Sender<TagCommand>,
+    min: f64,
+    passo: Option<f64>,
+    passi: i32,
+    al_rilascio: bool,
+    deadband: Option<f64>,
+    ultimo_scritto: std::cell::Cell<Option<f64>>,
+    conferma: Option<RegolaConferma>,
+    /// Il valore in attesa della risposta alla finestra di conferma.
+    in_attesa: RefCell<Option<TagValue>>,
+    /// Il valore sotto la traccia, che segue il dito: `(etichetta, decimali, unità)`.
+    etichetta: Option<(core::ptr::NonNull<lvgl_sys::lv_obj_t>, u8, String)>,
+}
+
+impl SliderCtx {
+    fn valore(&self, target: *mut lvgl_sys::lv_obj_t) -> TagValue {
+        let i = unsafe { lvgl_sys::lv_bar_get_value(target) }.clamp(0, self.passi);
+        valore_slider(i, self.min, self.passo)
+    }
+
+    /// Scrive, passando da deadband e conferma.
+    fn scrivi(&self, valore: TagValue) {
+        let v = tag_value_as_f64(&valore);
+        if !supera_deadband(v, self.ultimo_scritto.get(), self.deadband) {
+            return;
+        }
+        let Some(regola) = &self.conferma else {
+            self.ultimo_scritto.set(Some(v));
+            manda_scritture(&self.tx, &[(self.tag.clone(), valore)]);
+            return;
+        };
+        let c = conferma_per(regola, &[(self.tag.clone(), valore.clone())]);
+        *self.in_attesa.borrow_mut() = Some(valore);
+        // Stessa finestra del bottone (`sws_button_clicked_cb`), con la sua
+        // risposta: annullare non scrive, e lo slider torna al valore del tag
+        // al primo giro di `update_bindings`.
+        unsafe {
+            let titolo = text_cstring(&c.titolo);
+            let testo = text_cstring(&c.messaggio);
+            let mbox = lvgl_sys::lv_msgbox_create(
+                core::ptr::null_mut(),
+                titolo.as_ptr(),
+                testo.as_ptr(),
+                BOTTONI_CONFERMA.0.as_ptr() as *mut *const std::os::raw::c_char,
+                false,
+            );
+            if mbox.is_null() {
+                eprintln!("[conferma] impossibile creare la finestra per '{}': non scritto", self.tag);
+                self.in_attesa.borrow_mut().take();
+                return;
+            }
+            lvgl_sys::lv_obj_align(mbox, lvgl_sys::LV_ALIGN_CENTER as lvgl_sys::lv_align_t, 0, 0);
+            lvgl_sys::lv_obj_add_event_cb(
+                mbox,
+                Some(sws_slider_conferma_cb),
+                lvgl_sys::lv_event_code_t_LV_EVENT_VALUE_CHANGED,
+                self as *const SliderCtx as *mut std::ffi::c_void,
+            );
+        }
+    }
+}
+
+/// `LV_EVENT_VALUE_CHANGED` su uno slider: arriva di continuo durante il
+/// trascinamento. Aggiorna il valore sotto la traccia, e scrive solo se lo
+/// slider non aspetta il rilascio (`write_on_release: false`).
 /// `lv_bar_get_value` perché lo slider è internamente uno specializzato
 /// `lv_bar_t`, stesso motivo per cui la creazione usa `lv_bar_set_range`/
 /// `set_value` (vedi `init_bar_like`).
@@ -1137,12 +1198,47 @@ unsafe extern "C" fn sws_slider_changed_cb(e: *mut lvgl_sys::lv_event_t) {
     if target.is_null() || user_data.is_null() {
         return;
     }
-    let ctx = unsafe { &*(user_data as *const WidgetChangeCtx) };
-    let v = unsafe { lvgl_sys::lv_bar_get_value(target) };
-    let _ = ctx.tx.send(TagCommand {
-        tag: ctx.tag.clone(),
-        value: TagValue::Int(v as i64),
-    });
+    let ctx = unsafe { &*(user_data as *const SliderCtx) };
+    let valore = ctx.valore(target);
+    if let Some((p, decimali, unita)) = &ctx.etichetta {
+        let v = tag_value_as_f64(&valore);
+        let d = *decimali as usize;
+        unsafe { lvgl_sys::lv_label_set_text(p.as_ptr(), text_cstring(&format!("{v:.d$}{unita}")).as_ptr()) };
+    }
+    if !ctx.al_rilascio {
+        ctx.scrivi(valore);
+    }
+}
+
+/// `LV_EVENT_RELEASED` / `PRESS_LOST`: la scrittura al rilascio, il
+/// predefinito come sul web (F3.6).
+unsafe extern "C" fn sws_slider_rilasciato_cb(e: *mut lvgl_sys::lv_event_t) {
+    let target = unsafe { lvgl_sys::lv_event_get_target(e) };
+    let user_data = unsafe { lvgl_sys::lv_event_get_user_data(e) };
+    if target.is_null() || user_data.is_null() {
+        return;
+    }
+    let ctx = unsafe { &*(user_data as *const SliderCtx) };
+    ctx.scrivi(ctx.valore(target));
+}
+
+/// La risposta alla conferma di uno slider: indice 1 = "Conferma", come
+/// `sws_conferma_cb`.
+unsafe extern "C" fn sws_slider_conferma_cb(e: *mut lvgl_sys::lv_event_t) {
+    let user_data = unsafe { lvgl_sys::lv_event_get_user_data(e) };
+    let mbox = unsafe { lvgl_sys::lv_event_get_current_target(e) };
+    if user_data.is_null() || mbox.is_null() {
+        return;
+    }
+    let ctx = unsafe { &*(user_data as *const SliderCtx) };
+    let scelta = unsafe { lvgl_sys::lv_msgbox_get_active_btn(mbox) };
+    if let Some(valore) = ctx.in_attesa.borrow_mut().take() {
+        if scelta == 1 {
+            ctx.ultimo_scritto.set(Some(tag_value_as_f64(&valore)));
+            manda_scritture(&ctx.tx, &[(ctx.tag.clone(), valore)]);
+        }
+    }
+    unsafe { lvgl_sys::lv_msgbox_close(mbox) };
 }
 
 pub(crate) fn parse_hex_color(s: &str) -> Option<(u8, u8, u8)> {
@@ -4448,9 +4544,60 @@ fn geometria_traccia_slider(
         let dx = (box_w - w) / 2.0;
         (dx, alto_etichetta + 4.0, w, h, dx)
     } else {
+        // Come la colonna del web (`justifyContent: center`): etichetta,
+        // traccia e valore impilati con 2 px fra l'uno e l'altro, e il blocco
+        // centrato nell'altezza. Prima la traccia stava al centro e il valore
+        // sopra il riquadro, a sinistra (revisione dello slider, fase 1).
         let h = SPESSORE_TRACCIA.min(box_h);
-        let dy = (box_h - h) / 2.0;
-        (0.0, dy, box_w, h, dy)
+        let spazi = if alto_etichetta > 0.0 { 2.0 } else { 0.0 } + if alto_valore > 0.0 { 2.0 } else { 0.0 };
+        let blocco = alto_etichetta + h + alto_valore + spazi;
+        // Senza `max(0)`: anche il web centra il blocco quando non ci sta, e
+        // lo fa sbordare in egual misura sopra e sotto.
+        let cima = (box_h - blocco) / 2.0;
+        let dy = cima + if alto_etichetta > 0.0 { alto_etichetta + 2.0 } else { 0.0 };
+        let dy = dy.min(box_h - h).max(0.0);
+        (0.0, dy, box_w, h, dy.max(box_h - dy - h))
+    }
+}
+
+/// I passi di uno slider: la traccia LVGL va da 0 a N, e il valore è
+/// `min + i·step`. `lv_bar` conosce solo interi, e prima riceveva `min` e `max`
+/// arrotondati: uno slider 0..1 col passo 0,05 aveva due posizioni. Per
+/// difetto, come l'input del browser: 0..10 col passo 4 si ferma a 8.
+pub(crate) fn passi_slider(min: f64, max: f64, step: Option<f64>) -> i32 {
+    let s = passo_valido(step);
+    ((max - min) / s + 1e-9).floor().clamp(1.0, 100_000.0) as i32
+}
+
+fn passo_valido(step: Option<f64>) -> f64 {
+    step.filter(|s| s.is_finite() && *s > 0.0).unwrap_or(1.0)
+}
+
+/// La posizione sulla traccia di un valore del tag.
+pub(crate) fn indice_slider(v: f64, min: f64, step: Option<f64>, passi: i32) -> i32 {
+    let i = ((v - min) / passo_valido(step)).round();
+    if i.is_finite() { i.clamp(0.0, passi as f64) as i32 } else { 0 }
+}
+
+/// Il valore da scrivere per una posizione: intero se intervallo e passo lo
+/// sono (com'era sempre), altrimenti `Float`, ripulito dal rumore della
+/// moltiplicazione (3 × 0,05 = 0,15000000000000002).
+pub(crate) fn valore_slider(i: i32, min: f64, step: Option<f64>) -> TagValue {
+    let s = passo_valido(step);
+    let v = ((min + i as f64 * s) * 1e9).round() / 1e9;
+    if min.fract() == 0.0 && s.fract() == 0.0 {
+        TagValue::Int(v.round() as i64)
+    } else {
+        TagValue::Float(v)
+    }
+}
+
+/// La deadband di scrittura, come `commitSlider` del web: sotto soglia rispetto
+/// all'ultimo valore scritto non si scrive.
+pub(crate) fn supera_deadband(v: f64, ultimo: Option<f64>, deadband: Option<f64>) -> bool {
+    match (ultimo, deadband.filter(|d| *d > 0.0)) {
+        (Some(u), Some(d)) => (v - u).abs() >= d,
+        _ => true,
     }
 }
 
@@ -4459,7 +4606,24 @@ fn render_slider(
     obj: &SynopticObject,
     tags: &TagSnapshot,
     tx: &mpsc::Sender<TagCommand>,
-) -> anyhow::Result<LiveBinding> {
+    base_url: &str,
+    rt_handle: &tokio::runtime::Handle,
+    live: &mut Vec<LiveBinding>,
+) -> anyhow::Result<()> {
+    // Lo sfondo universale (fase 1, 30-10-2026), prima di tutto il resto:
+    // LVGL disegna nell'ordine di creazione. Il colore come il `bgLayer` del
+    // web (angoli di 4), l'immagine col pezzo degli sfondi di pagina.
+    if obj.bg_color.as_deref().is_some_and(|c| !c.trim().is_empty()) {
+        riquadro(screen, obj, "slider", (200.0, 50.0), None, 4.0)?;
+    }
+    if obj.bg_image.as_deref().is_some_and(|c| !c.trim().is_empty()) {
+        let mut misurato = obj.clone();
+        misurato.width = Some(obj.width.unwrap_or(200.0));
+        misurato.height = Some(obj.height.unwrap_or(50.0));
+        if let Some(b) = sfondo_del_rect(screen, &misurato, base_url, rt_handle) {
+            live.push(b);
+        }
+    }
     let mut slider =
         Slider::create(screen).map_err(|e| anyhow::anyhow!("Slider::create: {e:?}"))?;
 
@@ -4511,14 +4675,6 @@ fn render_slider(
     // esistono lv_slider_set_range/set_value dedicati, si riusano quelli di
     // bar (confermato dai bindgen bindings reali, non da supposizione) — vedi
     // init_bar_like, condivisa con progress_bar per lo stesso motivo.
-    if let Some(l) = obj.label.as_deref().filter(|l| !l.is_empty()) {
-        // L'etichetta ha il suo campo dal 21-10-2026 (`label_font_size`):
-        // `font_size` governa il valore, qui sotto in `init_bar_like`.
-        let corpo = corpo_etichetta as u16;
-        etichetta_piccola_corpo(
-            screen, l, obj.x.unwrap_or(0.0), obj.y.unwrap_or(0.0) + corpo as f64, Some(box_w), GRIGIO_ETICHETTA, corpo,
-        )?;
-    }
     // Fase 2 (30-09-2026): il web colora indicatore e manopola col
     // riempimento (`accentColor`); qui restavano del blu del tema.
     unsafe {
@@ -4526,30 +4682,75 @@ fn render_slider(
         stile::sfondo(ptr.as_ptr(), c, stile::INDICATORE);
         stile::sfondo(ptr.as_ptr(), c, stile::MANOPOLA);
     }
-    // Verticale: il valore va **sotto** la traccia, centrato nel riquadro, come
-    // sul web. Orizzontale: resta dov'era, sopra la traccia.
-    let valore_sotto = verticale
-        .then(|| (obj.x.unwrap_or(0.0), obj.y.unwrap_or(0.0) + box_h - alto_valore, box_w));
-    let binding = init_bar_like(screen, ptr, obj, tags, false, valore_sotto)?;
+    // Il valore va **sotto** la traccia, centrato nel riquadro, come sul web:
+    // in fondo al riquadro nel verticale, subito sotto la traccia
+    // nell'orizzontale (fino al 30-10-2026 stava sopra il riquadro, a sinistra).
+    let x0 = obj.x.unwrap_or(0.0);
+    let y0 = obj.y.unwrap_or(0.0);
+    let valore_sotto = if verticale {
+        (x0, y0 + box_h - alto_valore, box_w)
+    } else {
+        (x0, y0 + dy + altezza + 2.0, box_w)
+    };
+    if let Some(l) = obj.label.as_deref().filter(|l| !l.is_empty()) {
+        // L'etichetta ha il suo campo dal 21-10-2026 (`label_font_size`):
+        // `font_size` governa il valore, in `init_bar_like`. Nell'orizzontale
+        // sta subito sopra la traccia, come nella colonna del web.
+        let corpo = corpo_etichetta as u16;
+        let cima = if verticale { y0 } else { y0 + dy - 2.0 - alto_etichetta };
+        etichetta_piccola_corpo(screen, l, x0, cima + corpo as f64, Some(box_w), GRIGIO_ETICHETTA, corpo)?;
+    }
+    let passo = obj.step;
+    let binding = init_bar_like(screen, ptr, obj, tags, false, Some(valore_sotto), Some(passo))?;
+    let LiveKind::BarLike { min, max, value_ptr, decimals, ref unit, .. } = binding.kind else {
+        unreachable!("init_bar_like dà sempre un BarLike")
+    };
+    let unita = unit.clone();
+    live.push(binding);
 
     // Solo lo slider è interattivo — non progress_bar, che condivide
     // init_bar_like ma resta un indicatore read-only (nessuna callback
     // registrata lì): la wiring va qui, non dentro init_bar_like.
-    if let Some(tag) = &obj.tag {
-        let ctx = leak_ctx(WidgetChangeCtx {
-            tag: tag.clone(),
-            tx: tx.clone(),
-        });
-        unsafe {
-            lvgl_sys::lv_obj_add_event_cb(
-                ptr.as_ptr(),
-                Some(sws_slider_changed_cb),
-                lvgl_sys::lv_event_code_t_LV_EVENT_VALUE_CHANGED,
-                ctx,
-            );
+    //
+    // `read_only` (fase 1): l'oggetto non riceve più il tocco. Prima il campo
+    // c'era nel pannello e qui non lo leggeva nessuno.
+    if obj.read_only == Some(true) {
+        unsafe { lvgl_sys::lv_obj_clear_flag(ptr.as_ptr(), lvgl_sys::LV_OBJ_FLAG_CLICKABLE) };
+        return Ok(());
+    }
+    let Some(tag) = obj.tag.clone().filter(|t| !t.trim().is_empty()) else { return Ok(()) };
+    let al_rilascio = obj.write_on_release != Some(false);
+    let ctx = leak_ctx(SliderCtx {
+        tag,
+        tx: tx.clone(),
+        min,
+        passo,
+        passi: passi_slider(min, max, passo),
+        al_rilascio,
+        deadband: obj.write_deadband,
+        ultimo_scritto: std::cell::Cell::new(None),
+        conferma: regola_conferma(obj),
+        in_attesa: RefCell::new(None),
+        etichetta: value_ptr.map(|p| (p, decimals, unita)),
+    });
+    unsafe {
+        // Il valore sotto la traccia segue il dito anche quando si scrive solo
+        // al rilascio: è il `sliderDraft` del web.
+        lvgl_sys::lv_obj_add_event_cb(
+            ptr.as_ptr(),
+            Some(sws_slider_changed_cb),
+            lvgl_sys::lv_event_code_t_LV_EVENT_VALUE_CHANGED,
+            ctx,
+        );
+        if al_rilascio {
+            // `PRESS_LOST` anche: il dito che scivola fuori dal riquadro non
+            // manda `RELEASED`, e il valore scelto resterebbe senza scrittura.
+            for code in [lvgl_sys::lv_event_code_t_LV_EVENT_RELEASED, lvgl_sys::lv_event_code_t_LV_EVENT_PRESS_LOST] {
+                lvgl_sys::lv_obj_add_event_cb(ptr.as_ptr(), Some(sws_slider_rilasciato_cb), code, ctx);
+            }
         }
     }
-    Ok(binding)
+    Ok(())
 }
 
 fn render_progress_bar(
@@ -4587,7 +4788,7 @@ fn render_progress_bar(
             );
         }
     }
-    init_bar_like(screen, ptr, obj, tags, true, None)
+    init_bar_like(screen, ptr, obj, tags, true, None, None)
 }
 
 /// `dentro`: il valore sta dentro la traccia, centrato (la barra di
@@ -4611,6 +4812,9 @@ fn init_bar_like(
     // larghezza)` del riquadro in cui centrarlo. `None` = sopra la traccia,
     // dov'è sempre stato.
     valore_in: Option<(f64, f64, f64)>,
+    // `Some(step)` per lo slider: la traccia va in passi (`passi_slider`).
+    // `None` per la barra, che resta sull'intervallo arrotondato.
+    passo: Option<Option<f64>>,
 ) -> anyhow::Result<LiveBinding> {
     let min = obj.min.unwrap_or(0.0);
     let max = obj.max.unwrap_or(100.0);
@@ -4619,12 +4823,17 @@ fn init_bar_like(
         .unwrap_or(min)
         .clamp(min.min(max), min.max(max));
     unsafe {
-        lvgl_sys::lv_bar_set_range(ptr.as_ptr(), min.round() as i32, max.round() as i32);
-        lvgl_sys::lv_bar_set_value(
-            ptr.as_ptr(),
-            raw.round() as i32,
-            lvgl::Animation::OFF.into(),
-        );
+        match passo {
+            Some(step) => {
+                let n = passi_slider(min, max, step);
+                lvgl_sys::lv_bar_set_range(ptr.as_ptr(), 0, n);
+                lvgl_sys::lv_bar_set_value(ptr.as_ptr(), indice_slider(raw, min, step, n), lvgl::Animation::OFF.into());
+            }
+            None => {
+                lvgl_sys::lv_bar_set_range(ptr.as_ptr(), min.round() as i32, max.round() as i32);
+                lvgl_sys::lv_bar_set_value(ptr.as_ptr(), raw.round() as i32, lvgl::Animation::OFF.into());
+            }
+        }
     }
     let (decimals, unit) = formato_valore_barra(obj, dentro);
     // show_value, default true come sul web (SvgCanvas.tsx, slider e
@@ -4689,6 +4898,7 @@ fn init_bar_like(
             decimals,
             unit,
             max,
+            passo,
         },
     })
 }
@@ -11912,7 +12122,7 @@ fn dispatch_render(
         }
         "clock" => render_clock(screen, obj, &current_lang).map(|b| live.push(b)),
         "led" => render_led(screen, obj, tags).map(|b| live.push(b)),
-        "slider" => render_slider(screen, obj, tags, tag_tx).map(|b| live.push(b)),
+        "slider" => render_slider(screen, obj, tags, tag_tx, base_url, rt_handle, live),
         "progress_bar" => render_progress_bar(screen, obj, tags).map(|b| live.push(b)),
         "checkbox" => render_checkbox(screen, obj, tags, tag_tx).map(|b| live.push(b)),
         "radio" => render_radio(screen, obj, tags, tag_tx).map(|b| live.push(b)),
@@ -13164,6 +13374,7 @@ pub fn update_bindings(
                 value_ptr,
                 decimals,
                 unit,
+                passo,
             } => {
                 // Se l'utente sta trascinando lo slider in questo momento
                 // (LV_STATE_PRESSED), non sovrascrivere il valore con quello
@@ -13187,12 +13398,12 @@ pub fn update_bindings(
                     .map(|t| tag_value_as_f64(&t.value))
                     .unwrap_or(*min)
                     .clamp(min.min(*max), min.max(*max));
+                let posizione = match passo {
+                    Some(step) => indice_slider(raw, *min, *step, passi_slider(*min, *max, *step)),
+                    None => raw.round() as i32,
+                };
                 unsafe {
-                    lvgl_sys::lv_bar_set_value(
-                        ptr.as_ptr(),
-                        raw.round() as i32,
-                        lvgl::Animation::OFF.into(),
-                    );
+                    lvgl_sys::lv_bar_set_value(ptr.as_ptr(), posizione, lvgl::Animation::OFF.into());
                     if let Some(vp) = value_ptr {
                         let d = *decimals as usize;
                         lvgl_sys::lv_label_set_text(
@@ -14896,6 +15107,40 @@ mod binding_tests {
         // e non sborda.
         let (_, dy, _, h, _) = geometria_traccia_slider(false, 200.0, 10.0, 0.0, 0.0);
         assert_eq!((dy, h), (0.0, 10.0));
+        // Senza etichetta (30-10-2026): traccia e valore impilati e centrati
+        // come nella colonna del web, quindi la traccia sale: 50 − (16+2+18) = 14,
+        // metà sopra. L'area di tocco copre il pezzo più lungo, quello sotto.
+        let (_, dy, _, h, est) = geometria_traccia_slider(false, 200.0, 50.0, 0.0, 18.0);
+        assert_eq!((dy, h, est), (7.0, 16.0, 27.0));
+    }
+
+    // ── I passi dello slider (fase 1 della revisione, 30-10-2026) ──────────
+
+    #[test]
+    fn lo_slider_frazionario_ha_tutte_le_sue_posizioni() {
+        // 0..1 col passo 0,05: venti passi, non i due di `lv_bar_set_range(0, 1)`.
+        assert_eq!(passi_slider(0.0, 1.0, Some(0.05)), 20);
+        assert_eq!(indice_slider(0.35, 0.0, Some(0.05), 20), 7);
+        assert_eq!(valore_slider(3, 0.0, Some(0.05)), TagValue::Float(0.15));
+        // Intervallo e passo interi: si scrive un intero, com'era sempre.
+        assert_eq!(valore_slider(42, 0.0, None), TagValue::Int(42));
+        assert_eq!(valore_slider(3, 10.0, Some(5.0)), TagValue::Int(25));
+        // Un minimo frazionario basta a fare un Float.
+        assert_eq!(valore_slider(1, 0.5, None), TagValue::Float(1.5));
+        // Per difetto, come il browser: 0..10 col passo 4 si ferma a 8.
+        assert_eq!(passi_slider(0.0, 10.0, Some(4.0)), 2);
+        // Un passo che non vale ricade su 1; fuori intervallo si resta agli estremi.
+        assert_eq!(passi_slider(0.0, 100.0, Some(0.0)), 100);
+        assert_eq!(indice_slider(250.0, 0.0, None, 100), 100);
+        assert_eq!(indice_slider(f64::NAN, 0.0, None, 100), 0);
+    }
+
+    #[test]
+    fn la_deadband_dello_slider_come_sul_web() {
+        assert!(supera_deadband(5.0, None, Some(2.0)), "la prima scrittura passa sempre");
+        assert!(!supera_deadband(5.5, Some(5.0), Some(2.0)));
+        assert!(supera_deadband(7.0, Some(5.0), Some(2.0)));
+        assert!(supera_deadband(5.1, Some(5.0), None));
     }
 
     #[test]
