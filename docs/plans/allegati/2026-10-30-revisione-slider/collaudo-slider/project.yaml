@@ -1,0 +1,75 @@
+meta:
+  name: collaudo-slider
+  version: 0.1.0
+tags:
+- id: c.luce
+  description: 'scrivibile: luce, piastra'
+  data_type: float
+  unit: '%'
+- id: c.ventola
+  description: 'scrivibile: ventola, piastra'
+  data_type: float
+  unit: '%'
+- id: c.tapparella
+  description: 'scrivibile: tapparella, piastra verticale'
+  data_type: float
+  unit: '%'
+- id: c.valore
+  description: 'scrivibile: gli slider generici'
+  data_type: float
+  unit: '%'
+- id: c.frazione
+  description: 'scrivibile: 0..1 col passo 0,05 (deve arrivare un decimale)'
+  data_type: float
+- id: c.offset
+  description: 'scrivibile: bipolare −50..50'
+  data_type: float
+- id: c.setpoint
+  description: 'scrivibile: il setpoint del termostato'
+  data_type: float
+  unit: °C
+- id: c.jog
+  description: 'scrivibile: la leva a molla −100..100'
+  data_type: float
+- id: c.continuo
+  description: 'scrivibile: scrittura continua con deadband 5'
+  data_type: float
+  unit: '%'
+- id: c.conferma
+  description: 'scrivibile: con conferma'
+  data_type: float
+  unit: '%'
+- id: c.verticale
+  description: 'scrivibile: verticale'
+  data_type: float
+  unit: '%'
+- id: s.rampa
+  description: 'si muove da solo: rampa 0..100 in 40 s (PV, bande, sola lettura)'
+  data_type: float
+  unit: '%'
+  generator:
+    shape: ramp
+    period_ms: 40000
+    min: 0.0
+    max: 100.0
+    enabled: true
+- id: s.temperatura
+  description: 'si muove da solo: 18..26 °C in 60 s (il PV del termostato)'
+  data_type: float
+  unit: °C
+  generator:
+    shape: triangle
+    period_ms: 60000
+    min: 18.0
+    max: 26.0
+    enabled: true
+sources: []
+alarms: []
+functions: []
+page_layout:
+  size_mode: fixed
+  default_width: 1280.0
+  default_height: 800.0
+  home_page_id: p_stili
+target:
+  kind: lvgl_framebuffer

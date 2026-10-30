@@ -205,6 +205,10 @@ rimisurare** i punti che tocca: il codice si muove.
 
 ### Fase 7 — CasaDomotica (S)
 
+> **Non ancora fatta** (30-10-2026): il progetto sta sul VPS e si fa col maintainer. Per il collaudo delle fasi 1-6
+> c'è il progetto [`allegati/2026-10-30-revisione-slider/collaudo-slider/`](allegati/2026-10-30-revisione-slider/collaudo-slider/LEGGIMI.md),
+> quattro pagine con tutti i tipi di slider, da provare sul web e sul pannello.
+
 - Luci e tapparelle in piastra, un termostato con PV (regola di `CLAUDE.md`), quando lo slider nuovo entra in `main`.
 - Il progetto sta sul VPS: si fa dal cloud, col maintainer.
 

@@ -5407,6 +5407,9 @@ fn render_slider(
             stile::bordo(p.as_ptr(), None, 0.0, stile::MAIN);
             stile::raggio(p.as_ptr(), 0.0, stile::MAIN);
             lvgl_sys::lv_obj_clear_flag(p.as_ptr(), lvgl_sys::LV_OBJ_FLAG_CLICKABLE | lvgl_sys::LV_OBJ_FLAG_SCROLLABLE);
+            // Sotto lo slider, non sopra: creata dopo, passerebbe sopra il
+            // cursore. Si vede ai due capi e attraverso la traccia vuota.
+            lvgl_sys::lv_obj_move_to_index(p.as_ptr(), lvgl_sys::lv_obj_get_index(ptr.as_ptr()) as i32);
         }
     }
     if let Some(pv_tag) = obj.slider_pv_tag.as_deref().filter(|t| !t.is_empty()) {

@@ -1748,7 +1748,10 @@ fn controlla_oggetto(
     // Un comando verso un tag calcolato non arriva da nessuna parte.
     // Il simbolo che comanda segue le stesse regole, sul suo `command_tag`.
     let ha_assegnazioni = o.assegnazioni.as_ref().is_some_and(|a| !a.is_empty());
-    if INTERATTIVI.contains(&t) || simbolo_comanda {
+    // Un oggetto in sola lettura non comanda (30-10-2026): uno slider che mostra
+    // una rampa calcolata è un indicatore, non un comando rifiutato.
+    let solo_lettura = o.read_only == Some(true);
+    if (INTERATTIVI.contains(&t) || simbolo_comanda) && !solo_lettura {
         match tag_scritto_def {
             Some(td) if td.is_computed() => out.push(Finding::err(
                 format!("{base}.{campo_scritto}"),
@@ -2857,6 +2860,16 @@ alarms: []
         .unwrap();
         let rs = semantic(&p, &[molla]);
         assert!(rs.iter().any(|f| f.path.contains("objects[leva].slider_rest_value")), "{rs:?}");
+        // In sola lettura su un tag calcolato non è un comando rifiutato.
+        let prog = "meta: { name: p, version: '1' }\ntags:\n- { id: rampa, data_type: float, generator: { shape: ramp, period_ms: 1000, min: 0, max: 1 } }\nsources: []\nalarms: []\n";
+        let p2: Project = serde_yaml::from_str(prog).unwrap();
+        let pagina: SynopticPage = serde_yaml::from_str(
+            "id: pg\nname: P\nobjects:\n- { id: ro, type: slider, x: 0, y: 0, tag: rampa, read_only: true }\n- { id: rw, type: slider, x: 0, y: 60, tag: rampa }",
+        )
+        .unwrap();
+        let rs = semantic(&p2, &[pagina]);
+        assert!(!rs.iter().any(|f| f.path.contains("objects[ro]")), "{rs:?}");
+        assert!(rs.iter().any(|f| f.path.contains("objects[rw].tag")), "{rs:?}");
     }
 
     /// LVGL disegna 1:1: in `ratio` e `fluid` la pagina non riempie lo schermo

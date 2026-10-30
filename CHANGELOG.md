@@ -120,6 +120,9 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 
 ### Fixed
 
+- **Validatore: uno slider (o un bottone, una casella) in sola lettura su un tag calcolato non è più un errore.** Non
+  comanda niente: è un indicatore. Visto preparando il progetto di collaudo dello slider.
+
 - **Lo slider, fase 1 della revisione** (piano `docs/plans/2026-10-30-revisione-slider.md`): i difetti misurati il
   30-10-2026, senza cambiare aspetto.
   - Pannello: «Mostra valore» leggeva `!!obj.show_value` mentre i motori mostrano il valore salvo `false` — una
