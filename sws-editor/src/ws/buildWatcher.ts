@@ -44,7 +44,10 @@ export function useBuildWatcher(onNewBuild: () => void, intervalMs = 30_000) {
       try {
         // location.pathname invece di "/" così funziona anche se la SPA fosse
         // servita da un sottopercorso.
-        const res = await fetch(window.location.pathname, { cache: "no-store" });
+        // `Accept: text/html` (29-10-2026): sulla porta dell'IDE la radice la
+        // serve il ripiego della SPA, che a una fetch qualunque risponde 404
+        // perché non è una pagina. Chiedendo HTML si dichiara di volerla.
+        const res = await fetch(window.location.pathname, { cache: "no-store", headers: { Accept: "text/html" } });
         if (!res.ok) return;                 // runtime in riavvio: si riprova
         const html = await res.text();
         const assets = html.match(/assets\/[A-Za-z0-9_.-]+\.js/g);

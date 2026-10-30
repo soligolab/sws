@@ -62,6 +62,11 @@ RIMEDI_RAW = {
         "MainMenu.handleRename rilegge con getProject() (la risposta è {name}, senza ETag)",
     "/api/projects/upload":
         "ConfigView chiama dimenticaVersioneProgetto() e poi openProject()",
+    # La miniatura della pagina iniziale (29-10-2026): scrive un PNG accanto a
+    # project.yaml, non project.yaml. La versione è l'impronta di project.yaml
+    # (`versione_di`), quindi non cambia e non c'è niente da rimediare.
+    "/api/project/anteprima":
+        "nessun rimedio serve: scrive anteprima.png, la versione è l'impronta del solo project.yaml",
 }
 
 FAMIGLIE = ("/api/project", "/api/projects", "/api/synoptics", "/api/boot-pages", "/api/faceplates", "/api/cornici", "/api/recipes")
@@ -101,9 +106,15 @@ per_file_fam = per_file_fam[0].split("|") if per_file_fam else []
 rotte = set(re.findall(r'\.route\(\s*"(/api/[^"]*)"\s*,\s*(\w+)\(([\w:]+)\)', MODULI["router.rs"]))
 
 def corpo(handler):
-    n = handler.split("::")[-1]
+    parti = handler.split("::")
+    n = parti[-1]
     pat = r'\n(?:pub(?:\(crate\))? )?(?:async )?fn ' + re.escape(n) + r'\b.*?\n\}'
-    for t in MODULI.values():
+    # `crate::anteprima::scrivi` si cerca prima in anteprima.rs. Senza, vinceva il
+    # primo modulo di os.listdir() con una `fn scrivi` — ce ne sono sei, e l'ordine
+    # cambia da un disco all'altro: il 30-10-2026 la guardia era verde su una
+    # macchina e rossa su theobroma, con lo stesso commit.
+    modulo = f"{parti[-2]}.rs" if len(parti) > 1 else None
+    for t in ([MODULI[modulo]] if modulo in MODULI else []) + list(MODULI.values()):
         m = re.search(pat, t, re.S)
         if m:
             return m.group(0)

@@ -11,6 +11,14 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 
 ## [Unreleased]
 
+### Fixed
+
+- **La barra «nuova versione» dell'IDE non compariva più** (dal 28-10-2026, appunto del 29-10). Il `buildWatcher`
+  rilegge la pagina d'ingresso con una `fetch`, e il ripiego della SPA — corretto il 28-10 per rispondere 404 a ciò che
+  non è una pagina — trattava anche quella come una risorsa mancante. Ora una `fetch` (`cors`/`same-origin`) che chiede
+  esplicitamente `text/html` riceve la pagina, e il watcher la chiede così; le richieste incorporate e le `fetch`
+  qualunque restano 404. Test Rust e vitest; provato con `curl` su un runtime di prova.
+
 ## [2.23.7] — 2026-10-29
 
 ### Added

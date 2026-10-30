@@ -287,14 +287,21 @@ pub async fn active_dir(state: &AppState) -> Result<PathBuf, StatusCode> {
 fn e_navigazione(h: &axum::http::HeaderMap, percorso: &str) -> bool {
     // 1. `Sec-Fetch-Mode: navigate` — lo mandano tutti i browser correnti, ed è
     //    il browser stesso che dichiara «sto aprendo una pagina».
+    let chiede_html = h
+        .get(axum::http::header::ACCEPT)
+        .and_then(|v| v.to_str().ok())
+        .is_some_and(|a| a.contains("text/html"));
     if let Some(m) = h.get("sec-fetch-mode").and_then(|v| v.to_str().ok()) {
-        return m.eq_ignore_ascii_case("navigate");
+        // Anche una `fetch` che chiede **esplicitamente** HTML vuole la pagina
+        // (29-10-2026): il `buildWatcher` dell'IDE rilegge la pagina d'ingresso
+        // per accorgersi di un frontend nuovo, e col 404 la barra «nuova
+        // versione» non compariva più dal 28-10. Le richieste incorporate
+        // (`no-cors`: script, immagini) restano fuori: non sono una pagina.
+        return m.eq_ignore_ascii_case("navigate")
+            || ((m.eq_ignore_ascii_case("cors") || m.eq_ignore_ascii_case("same-origin")) && chiede_html);
     }
     // 2. `Accept: text/html` — il ripiego per i browser vecchi.
-    if h.get(axum::http::header::ACCEPT)
-        .and_then(|v| v.to_str().ok())
-        .is_some_and(|a| a.contains("text/html"))
-    {
+    if chiede_html {
         return true;
     }
     // 3. L'ultimo pezzo del percorso non ha un'estensione. Serve a `curl /`
@@ -12869,6 +12876,28 @@ mod tests_ripiego_spa {
             !super::e_navigazione(&incorporato, "/"),
             "il browser dice che non sta aprendo una pagina: gli si crede"
         );
+    }
+
+    /// Il `buildWatcher` dell'IDE (29-10-2026): una `fetch` che chiede HTML
+    /// rilegge la pagina d'ingresso. Col 404 la barra «nuova versione» non
+    /// compariva più; una `fetch` qualunque (`*/*`) resta un 404.
+    #[test]
+    fn una_fetch_che_chiede_html_vuole_la_pagina() {
+        let mut watcher = HeaderMap::new();
+        watcher.insert("sec-fetch-mode", HeaderValue::from_static("cors"));
+        watcher.insert(axum::http::header::ACCEPT, HeaderValue::from_static("text/html"));
+        assert!(super::e_navigazione(&watcher, "/"));
+        assert!(super::e_navigazione(&watcher, "/p/-/CasaDomotica/"));
+
+        let mut api = HeaderMap::new();
+        api.insert("sec-fetch-mode", HeaderValue::from_static("cors"));
+        api.insert(axum::http::header::ACCEPT, HeaderValue::from_static("*/*"));
+        assert!(!super::e_navigazione(&api, "/assets/manca.js"));
+
+        let mut immagine = HeaderMap::new();
+        immagine.insert("sec-fetch-mode", HeaderValue::from_static("no-cors"));
+        immagine.insert(axum::http::header::ACCEPT, HeaderValue::from_static("text/html,*/*"));
+        assert!(!super::e_navigazione(&immagine, "/"), "incorporata: non è una pagina anche se accetta HTML");
     }
 
     /// Browser vecchi e sonde: nessun `Sec-Fetch-Mode`.
