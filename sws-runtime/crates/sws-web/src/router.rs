@@ -12926,3 +12926,95 @@ mod tests_ripiego_spa {
         assert!(!super::e_navigazione(&vuote, "/favicon.ico"));
     }
 }
+
+/// Un `AppState` vero, costruito da [`build`] con pezzi vuoti, per i test che
+/// devono passare dalle funzioni che lo vogliono (29-10-2026). Fino ad allora
+/// nessun test di sws-web poteva costruirlo, e il socket dei tag — l'unica
+/// riconvalida di sicurezza della serie del 22-10 — restava senza prova: chi
+/// ci avesse rimesso il ruolo dell'handshake non se ne sarebbe accorto.
+#[cfg(test)]
+pub(crate) async fn stato_di_prova(dir: &std::path::Path) -> AppState {
+    let db = Arc::new(TagDb::new(64));
+    let bus = Arc::new(TagWriteBus::new());
+    let certificati = Arc::new(sws_core::pin_tls::ImprontaStore::in_config(dir, "mqtt_broker_conosciuti.yaml"));
+    let supervisor = SourceSupervisor::new(db.clone(), bus.clone(), certificati);
+    let (_, _, stato) = build(
+        db.clone(),
+        bus.clone(),
+        Arc::new(AlarmDb::new(16)),
+        Arc::new(Historian::new(100)),
+        Arc::new(tokio::sync::RwLock::new(None)),
+        PyEngine::new(db, bus),
+        sws_auth::AuthState::empty(std::time::Duration::from_secs(3600), 100, std::time::Duration::from_secs(60)),
+        supervisor,
+        Arc::new(tokio::sync::RwLock::new(None)),
+        Arc::new(tokio::sync::RwLock::new(std::collections::HashMap::new())),
+        Arc::new(tokio::sync::RwLock::new(Vec::new())),
+        Arc::new(tokio::sync::RwLock::new(Vec::new())),
+        Arc::new(tokio::sync::RwLock::new(None)),
+        Arc::new(dir.to_path_buf()),
+        Arc::new(dir.join("templates")),
+        Arc::new(dir.join("catalogo")),
+        Arc::new(sws_core::logbus::LogBus::new(16)),
+        Arc::new(dir.join("logs")),
+        std::time::Instant::now(),
+        Arc::new(Vec::new()),
+        Arc::new(dir.to_path_buf()),
+        None,
+        None,
+        false,
+        false,
+        Arc::new(sws_audit::AuditLog::open(dir.join("audit.jsonl"), None)),
+        Arc::new(crate::project_registry::ProjectRegistry::load(dir, dir).await),
+        Arc::new("prova".to_string()),
+        None,
+        false,
+        None,
+        None,
+        None,
+        None,
+    );
+    stato
+}
+
+#[cfg(test)]
+mod prove_socket_riconvalida {
+    use super::*;
+
+    /// Il socket dei tag rilegge il ruolo **a ogni scrittura** (22-10-2026):
+    /// un token invalidato dopo l'apertura del socket non deve più scrivere
+    /// con i privilegi dell'handshake.
+    #[tokio::test]
+    async fn un_token_invalidato_non_scrive_piu_coi_privilegi_di_prima() {
+        let dir = std::env::temp_dir().join(format!("sws-prova-socket-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        let s = stato_di_prova(&dir).await;
+        s.auth
+            .swap_store(dir.join("users.yaml"), vec![("operatore".into(), Role::Operator, "segreto-di-prova".into())])
+            .await
+            .unwrap();
+        let ok = s
+            .auth
+            .login(&sws_auth::Credentials { username: "operatore".into(), password: "segreto-di-prova".into() })
+            .await
+            .unwrap_or_else(|_| panic!("login di prova fallito"));
+        let token = ok.token.clone();
+
+        // Con la sessione viva vale il ruolo vero, qualunque fosse all'handshake.
+        assert_eq!(ruolo_adesso(&s, Some(&token), Role::Viewer).await, Role::Operator);
+
+        // La sessione finisce (logout, o un deploy che cambia gli utenti): il
+        // socket è ancora aperto, ma da qui il ruolo è quello di un anonimo.
+        assert!(s.auth.logout(&token).await);
+        assert_eq!(
+            ruolo_adesso(&s, Some(&token), Role::Operator).await,
+            Role::Viewer,
+            "il ruolo dell'handshake non deve sopravvivere al token"
+        );
+
+        // Senza token (runtime senza utenti) resta quello dell'handshake.
+        assert_eq!(ruolo_adesso(&s, None, Role::Admin).await, Role::Admin);
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+}

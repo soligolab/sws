@@ -13,6 +13,11 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 
 ### Fixed
 
+- **Il socket dei tag ha la sua prova** (appunto del 22-10). `router::stato_di_prova` costruisce un `AppState` vero da
+  `build` con pezzi vuoti — fino ad oggi nessun test di sws-web poteva farlo — e
+  `un_token_invalidato_non_scrive_piu_coi_privilegi_di_prima` verifica che `ruolo_adesso` rilegga il ruolo a ogni
+  scrittura: col token invalidato si scende a Viewer. Verificato che cade se si rimette il ruolo dell'handshake.
+
 - **LVGL: login e logout dai bottoni del progetto, come sul web** (appunti del 22-10). Il viewer ignorava le azioni
   `login`/`logout` dei bottoni e su un progetto con utenti aggiungeva a ogni pagina un controllo «Login» suo, in alto a
   destra, che il progetto non prevedeva. Ora `login` apre il pannellino d'accesso (titolo «Accedi»), `logout` chiude la

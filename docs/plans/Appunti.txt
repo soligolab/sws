@@ -2,15 +2,6 @@ Annoto di seguito, uno per punto, le cose che devono essere verificate e trasfor
 
 - LVGL & WEB : L'oggetto slider va impreziosito, servono più stili e modi di funzionamento, è un oggetto 
 
-- sws-web, socket dei tag: manca il test «un socket aperto con un token che poi viene
-  invalidato deve ricevere forbidden alla scrittura successiva». La riconvalida c'e' e funziona
-  (ruolo_adesso in router.rs, chiamata a ogni InboundMsg::Write prima dei due controlli), ma
-  nessun test la tocca, quindi qualcuno potrebbe rimetterci il `role` dell'handshake senza
-  accorgersene. Serve un AppState costruito a mano nei test di sws-web, che oggi non esiste:
-  e' quello il lavoro, non il test. Nato chiudendo il piano della sessione che non sopravvive
-  a un deploy (22-10-2026), dove la riconvalida per scrittura e' l'unico rimedio dei quattro
-  che tocca la sicurezza e non la comodita'.
-
 - Traduzioni inglesi dell'IDE: nessuno ha mai letto le voci in inglese, e nessuno ha mai girato
   l'IDE in inglese a schermo. Non e' lavoro di codice, e' verifica, ed e' per questo che sta qui
   (piano 2026-09-19 archiviato il 22-10-2026). Le misure di oggi: en.json ha 3187 chiavi foglia
