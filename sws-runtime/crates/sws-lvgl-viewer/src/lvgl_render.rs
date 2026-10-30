@@ -138,6 +138,14 @@ pub struct RenderSummary {
 /// stesso principio degli `Style` altrove in questo file.
 #[allow(dead_code)]
 pub enum LiveKind {
+    /// Le bande dei limiti di uno slider con `slider_bands: in_allarme`: si
+    /// mostrano solo quando il valore è fuori dai limiti (fase 4, 30-10-2026).
+    BandeSlider {
+        oggetti: Vec<core::ptr::NonNull<lvgl_sys::lv_obj_t>>,
+        tag: Option<String>,
+        limiti: LimitiSlider,
+        visibili: bool,
+    },
     /// «Data e ora» (15-10-2026): il testo si riscrive quando cambia il secondo
     /// dell'orologio locale (`ultimo`), non a ogni giro del ciclo.
     Orologio {
@@ -4645,6 +4653,9 @@ pub(crate) struct GeometriaSlider {
     pub icona: Option<(f64, f64, f64)>,
     /// I testi allineati a sinistra (piastra orizzontale) invece che al centro.
     pub a_sinistra: bool,
+    /// Dove comincia la zona di bande e tacche: la `y` sotto la traccia
+    /// nell'orizzontale, la `x` a destra nel verticale (fase 4).
+    pub inizio_tacche: f64,
     /// Il centro della riga dell'etichetta.
     pub etichetta: Option<(f64, f64)>,
     /// Il centro del valore; `None` col fumetto sul cursore.
@@ -4701,7 +4712,7 @@ pub(crate) fn geometria_slider(
     spessore: f64,
     posizione: &str,
 ) -> GeometriaSlider {
-    geometria_slider_stile(verticale, box_w, box_h, alto_etichetta, alto_valore, Some(spessore), Some(posizione), "classico", false)
+    geometria_slider_stile(verticale, box_w, box_h, alto_etichetta, alto_valore, Some(spessore), Some(posizione), "classico", false, 0.0)
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -4715,6 +4726,7 @@ pub(crate) fn geometria_slider_stile(
     posizione: Option<&str>,
     stile: &str,
     con_icona: bool,
+    alto_tacche: f64,
 ) -> GeometriaSlider {
     let a = aspetto_stile(stile);
     if stile == "piastra" {
@@ -4758,6 +4770,7 @@ pub(crate) fn geometria_slider_stile(
             cursore: (cw, ch),
             icona: None,
             a_sinistra: false,
+            inizio_tacche: traccia.0 + traccia.2 + 1.0,
             etichetta: (alto_etichetta > 0.0).then_some((box_w / 2.0, alto_etichetta / 2.0)),
             valore,
         };
@@ -4774,6 +4787,9 @@ pub(crate) fn geometria_slider_stile(
         righe.push(("valore", riga_valore));
     }
     righe.push(("traccia", t));
+    if alto_tacche > 0.0 {
+        righe.push(("tacche", alto_tacche));
+    }
     if posizione == "sotto" && riga_valore > 0.0 {
         righe.push(("valore", riga_valore));
     }
@@ -4802,6 +4818,7 @@ pub(crate) fn geometria_slider_stile(
         cursore: (cw, ch),
         icona: None,
         a_sinistra: false,
+        inizio_tacche: y_traccia + t + 1.0,
         etichetta: c("etichetta").map(|cy| (box_w / 2.0, cy)),
         valore,
     }
@@ -4831,6 +4848,7 @@ fn geometria_piastra(
         cursore: (0.0, 0.0),
         icona: None,
         a_sinistra: false,
+        inizio_tacche: 0.0,
         etichetta: None,
         valore: None,
     };
@@ -4867,6 +4885,115 @@ pub(crate) fn fumetto_cursore(g: &GeometriaSlider, f: f64, alto_valore: f64) -> 
     } else {
         (tx + tw * f, ty + th / 2.0 - g.raggio_cursore - 4.0 - alto_valore / 2.0)
     }
+}
+
+// ── Fase 4: tacche e bande, gemelle di `geometria.ts` ──────────────────────
+
+const TACCA_MAGGIORE: f64 = 6.0;
+const TACCA_MINORE: f64 = 3.0;
+const STRISCIA_BANDE: f64 = 4.0;
+const MASSIMO_TACCHE: f64 = 200.0;
+const BANDA_ALLARME: (u8, u8, u8) = (0xef, 0x44, 0x44);
+const BANDA_AVVISO: (u8, u8, u8) = (0xea, 0xb3, 0x08);
+
+/// I quattro limiti: `(allarme basso, avviso basso, avviso alto, allarme alto)`.
+pub type LimitiSlider = [Option<f64>; 4];
+
+#[derive(Debug, Clone, PartialEq)]
+pub(crate) struct Tacca {
+    pub f: f64,
+    pub maggiore: bool,
+    pub testo: Option<String>,
+}
+
+pub(crate) fn altezza_zona_tacche(con_tacche: bool, con_numeri: bool, con_bande: bool, corpo_numeri: f64) -> f64 {
+    let mut h = 0.0;
+    if con_bande {
+        h += STRISCIA_BANDE + 1.0;
+    }
+    if con_tacche {
+        h += TACCA_MAGGIORE + 1.0;
+    }
+    if con_tacche && con_numeri {
+        h += (corpo_numeri * 1.3).ceil();
+    }
+    h
+}
+
+pub(crate) fn decimali_del_passo(passo: f64) -> usize {
+    (0..=6).find(|d| {
+        let x = passo * 10f64.powi(*d as i32);
+        (x.round() - x).abs() < 1e-9
+    }).unwrap_or(6)
+}
+
+pub(crate) fn tacche(min: f64, max: f64, maggiore: Option<f64>, minore: Option<f64>, con_numeri: bool) -> Vec<Tacca> {
+    if !(max > min) {
+        return Vec::new();
+    }
+    let valido = |p: Option<f64>| p.filter(|p| p.is_finite() && *p > 0.0 && (max - min) / p <= MASSIMO_TACCHE);
+    let mut mappa: std::collections::BTreeMap<i64, Tacca> = std::collections::BTreeMap::new();
+    let mut aggiungi = |p: f64, marcata: bool| {
+        let mut k = (min / p - 1e-9).ceil() as i64;
+        while (k as f64) * p <= max + 1e-9 {
+            let v = ((k as f64) * p * 1e9).round() / 1e9;
+            let chiave = (v * 1e6).round() as i64;
+            if !mappa.get(&chiave).is_some_and(|t| t.maggiore) {
+                let d = decimali_del_passo(p);
+                mappa.insert(chiave, Tacca {
+                    f: (v - min) / (max - min),
+                    maggiore: marcata,
+                    testo: (marcata && con_numeri).then(|| format!("{v:.d$}")),
+                });
+            }
+            k += 1;
+        }
+    };
+    if let Some(m) = valido(minore) {
+        aggiungi(m, false);
+    }
+    if let Some(m) = valido(maggiore) {
+        aggiungi(m, true);
+    }
+    mappa.into_values().collect()
+}
+
+/// Le bande: `(da, a, allarme?)` come frazioni.
+pub(crate) fn bande(min: f64, max: f64, l: &LimitiSlider) -> Vec<(f64, f64, bool)> {
+    if !(max > min) {
+        return Vec::new();
+    }
+    let f = |v: f64| ((v - min) / (max - min)).clamp(0.0, 1.0);
+    let [al, wl, wh, ah] = *l;
+    let basso = al.map(f);
+    let alto = ah.map(f);
+    let mut out = Vec::new();
+    if let Some(b) = basso.filter(|b| *b > 0.0) {
+        out.push((0.0, b, true));
+    }
+    if let Some(w) = wl {
+        out.push((basso.unwrap_or(0.0), f(w), false));
+    }
+    if let Some(w) = wh {
+        out.push((f(w), alto.unwrap_or(1.0), false));
+    }
+    if let Some(a) = alto.filter(|a| *a < 1.0) {
+        out.push((a, 1.0, true));
+    }
+    out.retain(|(da, a, _)| a > da);
+    out
+}
+
+pub(crate) fn fuori_dai_limiti(v: f64, l: &LimitiSlider) -> bool {
+    let [al, wl, wh, ah] = *l;
+    ah.is_some_and(|x| v >= x) || al.is_some_and(|x| v <= x) || wh.is_some_and(|x| v >= x) || wl.is_some_and(|x| v <= x)
+}
+
+pub(crate) fn passo_effettivo(step: Option<f64>, aggancia: bool, maggiore: Option<f64>, minore: Option<f64>) -> Option<f64> {
+    if !aggancia {
+        return step;
+    }
+    minore.filter(|m| *m > 0.0).or(maggiore.filter(|m| *m > 0.0)).or(step)
 }
 
 /// I passi di uno slider: la traccia LVGL va da 0 a N, e il valore è
@@ -4977,8 +5104,21 @@ fn render_slider(
     let icona = (stile == "piastra")
         .then(|| obj.slider_icon.as_deref().and_then(icona_slider))
         .flatten();
+    // Fase 4: tacche e bande, mai sulla piastra. Le bande tengono il loro posto
+    // anche quando «in allarme» non le mostra: la traccia non deve saltare.
+    let piastra = stile == "piastra";
+    let con_tacche = !piastra && (obj.slider_tick_major.is_some_and(|t| t > 0.0) || obj.slider_tick_minor.is_some_and(|t| t > 0.0));
+    let con_numeri = con_tacche && obj.slider_tick_labels.unwrap_or(obj.slider_tick_major.is_some_and(|t| t > 0.0));
+    let modo_bande = obj.slider_bands.as_deref().unwrap_or("mai");
+    let limiti: LimitiSlider = [obj.alarm_low, obj.warn_low, obj.warn_high, obj.alarm_high];
+    let min_v = obj.min.unwrap_or(0.0);
+    let max_v = obj.max.unwrap_or(100.0);
+    let lista_bande = if !piastra && matches!(modo_bande, "sempre" | "in_allarme") { bande(min_v, max_v, &limiti) } else { Vec::new() };
+    let corpo_numeri = (corpo_valore - 1.0).max(6.0);
+    let alto_tacche = altezza_zona_tacche(con_tacche, con_numeri, !lista_bande.is_empty(), corpo_numeri);
     let g = geometria_slider_stile(
         verticale, box_w, box_h, alto_etichetta, alto_valore, spessore_scritto, posizione_scritta, stile, icona.is_some(),
+        alto_tacche,
     );
     let (gx, gy, gw, gh) = g.traccia;
     let x0 = obj.x.unwrap_or(0.0);
@@ -5042,6 +5182,84 @@ fn render_slider(
         lvgl_sys::lv_obj_set_style_pad_left(p, orizz as lvgl_sys::lv_coord_t, stile::MANOPOLA);
         lvgl_sys::lv_obj_set_style_pad_right(p, orizz as lvgl_sys::lv_coord_t, stile::MANOPOLA);
     }
+    // Bande e tacche, nella zona che la geometria ha lasciato sotto (o a destra
+    // della) traccia. Le bande sono rettangoli; le tacche un'immagine sola,
+    // rasterizzata una volta; i numeri etichette.
+    {
+        let (tx0, ty0) = (x0 + gx, y0 + gy);
+        let zona = g.inizio_tacche;
+        let mut oggetti_bande = Vec::new();
+        for (da, a, allarme) in &lista_bande {
+            let mut o = create_child_obj(screen)?;
+            let (bx, by, bw, bh) = if verticale {
+                (x0 + zona, ty0 + gh * (1.0 - a), STRISCIA_BANDE, gh * (a - da))
+            } else {
+                (tx0 + gw * da, y0 + zona, gw * (a - da), STRISCIA_BANDE)
+            };
+            o.set_pos(bx.round() as i16, by.round() as i16).map_err(|e| anyhow::anyhow!("set_pos banda: {e:?}"))?;
+            o.set_size(bw.round().max(1.0) as i16, bh.round().max(1.0) as i16).map_err(|e| anyhow::anyhow!("set_size banda: {e:?}"))?;
+            let p = o.raw().map_err(|e| anyhow::anyhow!("raw: {e:?}"))?;
+            unsafe {
+                stile::sfondo(p.as_ptr(), if *allarme { BANDA_ALLARME } else { BANDA_AVVISO }, stile::MAIN);
+                stile::bordo(p.as_ptr(), None, 0.0, stile::MAIN);
+                stile::raggio(p.as_ptr(), 0.0, stile::MAIN);
+                lvgl_sys::lv_obj_clear_flag(p.as_ptr(), lvgl_sys::LV_OBJ_FLAG_CLICKABLE | lvgl_sys::LV_OBJ_FLAG_SCROLLABLE);
+            }
+            oggetti_bande.push(p);
+        }
+        if modo_bande == "in_allarme" && !oggetti_bande.is_empty() {
+            let fuori = lookup(tags, &obj.tag).is_some_and(|t| fuori_dai_limiti(tag_value_as_f64(&t.value), &limiti));
+            if !fuori {
+                for o in &oggetti_bande {
+                    unsafe { lvgl_sys::lv_obj_add_flag(o.as_ptr(), lvgl_sys::LV_OBJ_FLAG_HIDDEN) };
+                }
+            }
+            live.push(LiveBinding {
+                kind: LiveKind::BandeSlider { oggetti: oggetti_bande, tag: obj.tag.clone(), limiti, visibili: fuori },
+            });
+        }
+        if con_tacche {
+            let elenco = tacche(min_v, max_v, obj.slider_tick_major, obj.slider_tick_minor, con_numeri);
+            let inizio = zona + if lista_bande.is_empty() { 0.0 } else { STRISCIA_BANDE + 1.0 };
+            let (r, gg, b) = colori_predefiniti::sottile_pagina();
+            let hex = format!("#{r:02x}{gg:02x}{b:02x}");
+            // L'immagine delle tacche: larga quanto la traccia (+1 per l'ultima
+            // linea), alta quanto la tacca più lunga.
+            let (iw, ih) = if verticale { (TACCA_MAGGIORE + 1.0, gh + 1.0) } else { (gw + 1.0, TACCA_MAGGIORE + 1.0) };
+            let mut linee = String::new();
+            for t in &elenco {
+                let lungo = if t.maggiore { TACCA_MAGGIORE } else { TACCA_MINORE };
+                if verticale {
+                    let y = (gh * (1.0 - t.f)).round() + 0.5;
+                    linee.push_str(&format!("<line x1='0' x2='{lungo}' y1='{y}' y2='{y}'/>"));
+                } else {
+                    let x = (gw * t.f).round() + 0.5;
+                    linee.push_str(&format!("<line x1='{x}' x2='{x}' y1='0' y2='{lungo}'/>"));
+                }
+            }
+            let doc = format!(
+                "<svg xmlns='http://www.w3.org/2000/svg' width='{iw}' height='{ih}' viewBox='0 0 {iw} {ih}' stroke='{hex}' stroke-width='1'>{linee}</svg>"
+            );
+            let (ix, iy) = if verticale { (x0 + inizio, ty0) } else { (tx0, y0 + inizio) };
+            match disegna_svg_byte(
+                screen, ix.round() as i16, iy.round() as i16, iw.round() as i16, ih.round() as i16,
+                doc.as_bytes(), false, false, crate::svg_raster::MAX_SIDE_SFONDO,
+            ) {
+                Ok(b) => live.push(b),
+                Err(e) => eprintln!("[slider] tacche: {e}"),
+            }
+            for t in elenco.iter().filter(|t| t.testo.is_some()) {
+                let testo = t.testo.as_deref().unwrap_or_default();
+                if verticale {
+                    let cy = ty0 + gh * (1.0 - t.f);
+                    etichetta_posata(screen, testo, x0 + inizio + TACCA_MAGGIORE + 3.0, cy, true, (r, gg, b), corpo_numeri as u16)?;
+                } else {
+                    let cy = y0 + inizio + TACCA_MAGGIORE + 1.0 + (corpo_numeri * 1.3).ceil() / 2.0;
+                    etichetta_posata(screen, testo, tx0 + gw * t.f, cy, false, (r, gg, b), corpo_numeri as u16)?;
+                }
+            }
+        }
+    }
     // Sulla piastra i testi stanno sopra la traccia colorata: il tono testo
     // della pagina, non il grigio dell'etichetta.
     let colore_etichetta = if stile == "piastra" {
@@ -5065,7 +5283,8 @@ fn render_slider(
     });
     let fumetto = posizione == "cursore" && alto_valore > 0.0;
     let valore_in = if fumetto { Some((x0, y0, box_w)) } else { centro_valore };
-    let passo = obj.step;
+    // L'aggancio alle tacche cambia il passo del cursore (fase 4).
+    let passo = passo_effettivo(obj.step, obj.slider_snap_ticks == Some(true) && con_tacche, obj.slider_tick_major, obj.slider_tick_minor);
     let binding = if obj.show_value != Some(false) && valore_in.is_none() {
         // Nessun posto per il valore (non dovrebbe succedere): senza etichetta.
         let mut senza = obj.clone();
@@ -13696,6 +13915,21 @@ pub fn update_bindings(
             // Trattato dal giro dedicato in testa a `update_bindings`.
             LiveKind::SfondoPagina { .. } => {}
             LiveKind::ValoreComando { .. } => {}
+            LiveKind::BandeSlider { oggetti, tag, limiti, visibili } => {
+                let fuori = lookup(tags, tag).is_some_and(|t| fuori_dai_limiti(tag_value_as_f64(&t.value), limiti));
+                if fuori != *visibili {
+                    *visibili = fuori;
+                    for o in oggetti.iter() {
+                        unsafe {
+                            if fuori {
+                                lvgl_sys::lv_obj_clear_flag(o.as_ptr(), lvgl_sys::LV_OBJ_FLAG_HIDDEN);
+                            } else {
+                                lvgl_sys::lv_obj_add_flag(o.as_ptr(), lvgl_sys::LV_OBJ_FLAG_HIDDEN);
+                            }
+                        }
+                    }
+                }
+            }
             LiveKind::Motion {
                 widgets,
                 percorso,
@@ -15576,21 +15810,46 @@ mod binding_tests {
     #[test]
     fn gli_stili_dello_slider_come_sul_web() {
         // Gli stessi casi di `tests/sliderGeometria.test.ts` (fase 3).
-        let pillola = geometria_slider_stile(false, 200.0, 60.0, 0.0, 18.0, None, None, "pillola", false);
+        let pillola = geometria_slider_stile(false, 200.0, 60.0, 0.0, 18.0, None, None, "pillola", false, 0.0);
         assert_eq!((pillola.traccia.3, pillola.raggio_cursore), (28.0, 11.0));
-        let isa = geometria_slider_stile(false, 200.0, 50.0, 0.0, 18.0, None, None, "isa", false);
+        let isa = geometria_slider_stile(false, 200.0, 50.0, 0.0, 18.0, None, None, "isa", false, 0.0);
         assert_eq!((isa.traccia.3, isa.cursore, isa.raggio_traccia), (6.0, (10.0, 20.0), 1.0));
-        let isa_v = geometria_slider_stile(true, 50.0, 200.0, 0.0, 18.0, None, None, "isa", false);
+        let isa_v = geometria_slider_stile(true, 50.0, 200.0, 0.0, 18.0, None, None, "isa", false, 0.0);
         assert_eq!(isa_v.cursore, (20.0, 10.0));
-        let piastra = geometria_slider_stile(false, 240.0, 64.0, 18.0, 18.0, None, None, "piastra", true);
+        let piastra = geometria_slider_stile(false, 240.0, 64.0, 18.0, 18.0, None, None, "piastra", true, 0.0);
         assert_eq!((piastra.traccia, piastra.cursore, piastra.raggio_traccia), ((0.0, 0.0, 240.0, 64.0), (0.0, 0.0), 12.0));
         assert_eq!(piastra.icona, Some((26.0, 32.0, 28.0)));
         assert!(piastra.a_sinistra);
         assert_eq!((piastra.etichetta, piastra.valore), (Some((50.0, 23.0)), Some((50.0, 41.0))));
-        let tapparella = geometria_slider_stile(true, 80.0, 200.0, 18.0, 18.0, None, None, "piastra", true);
+        let tapparella = geometria_slider_stile(true, 80.0, 200.0, 18.0, 18.0, None, None, "piastra", true, 0.0);
         assert_eq!(tapparella.icona, Some((40.0, 26.0, 28.0)));
         assert_eq!(tapparella.valore, Some((40.0, 179.0)));
         assert!(icona_slider("lampadina").is_some() && icona_slider("drago").is_none());
+    }
+
+    #[test]
+    fn tacche_e_bande_come_sul_web() {
+        // Gli stessi casi di `tests/sliderGeometria.test.ts` (fase 4).
+        let t = tacche(0.0, 100.0, Some(10.0), Some(2.0), true);
+        assert_eq!(t.len(), 51);
+        let numeri: Vec<_> = t.iter().filter_map(|x| x.testo.clone()).collect();
+        assert_eq!(numeri, ["0", "10", "20", "30", "40", "50", "60", "70", "80", "90", "100"]);
+        assert_eq!(t[1], Tacca { f: 0.02, maggiore: false, testo: None });
+        let termostato: Vec<_> = tacche(15.0, 30.0, Some(5.0), None, true).into_iter().filter_map(|x| x.testo).collect();
+        assert_eq!(termostato, ["15", "20", "25", "30"]);
+        let quarti: Vec<_> = tacche(0.0, 1.0, Some(0.25), None, true).into_iter().filter_map(|x| x.testo).collect();
+        assert_eq!(quarti, ["0.00", "0.25", "0.50", "0.75", "1.00"]);
+        assert!(tacche(0.0, 100.0, Some(0.001), None, true).is_empty());
+        assert_eq!(
+            bande(0.0, 100.0, &[Some(10.0), Some(20.0), Some(80.0), Some(90.0)]),
+            vec![(0.0, 0.1, true), (0.1, 0.2, false), (0.8, 0.9, false), (0.9, 1.0, true)]
+        );
+        assert_eq!(bande(0.0, 100.0, &[None, None, Some(70.0), None]), vec![(0.7, 1.0, false)]);
+        assert!(fuori_dai_limiti(75.0, &[None, None, Some(70.0), None]));
+        assert!(!fuori_dai_limiti(50.0, &[None, None, Some(70.0), None]));
+        assert_eq!(passo_effettivo(Some(1.0), true, Some(10.0), Some(2.0)), Some(2.0));
+        assert_eq!(passo_effettivo(Some(1.0), false, Some(10.0), Some(2.0)), Some(1.0));
+        assert_eq!(altezza_zona_tacche(true, true, true, 11.0), 5.0 + 7.0 + 15.0);
     }
 
     #[test]

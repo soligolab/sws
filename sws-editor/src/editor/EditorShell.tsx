@@ -4307,6 +4307,37 @@ export function ObjectProps({
                   onChange={(e) => onChange({ write_on_release: e.target.checked ? undefined : false })} />
               )}
               {field(t("props.writeDeadband"), numInput("write_deadband", 0))}
+              {/* Fase 4 della revisione (30-10-2026): tacche nelle unità del
+                  valore, i loro numeri, l'aggancio; le bande dai quattro limiti
+                  (che si possono lasciare al tag). */}
+              <div style={GRIGLIA_NUMERICA}>
+                <div><div style={LABEL}>{t("props.taccaMaggiore")}</div>{numInput("slider_tick_major", 0)}</div>
+                <div><div style={LABEL}>{t("props.taccaMinore")}</div>{numInput("slider_tick_minor", 0)}</div>
+              </div>
+              {field(t("props.numeriTacche"),
+                <input type="checkbox" checked={obj.slider_tick_labels ?? !!obj.slider_tick_major}
+                  onChange={(e) => onChange({ slider_tick_labels: e.target.checked })} />
+              )}
+              {field(t("props.agganciaTacche"),
+                <input type="checkbox" checked={!!obj.slider_snap_ticks}
+                  onChange={(e) => onChange({ slider_snap_ticks: e.target.checked || undefined })} />
+              )}
+              {field(t("props.bandeSlider"),
+                <select style={{ ...INPUT, cursor: "pointer" }} value={obj.slider_bands ?? "mai"}
+                  onChange={(e) => onChange({ slider_bands: e.target.value === "mai" ? undefined : e.target.value as "sempre" | "in_allarme" })}>
+                  <option value="mai">{t("props.bandeMai")}</option>
+                  <option value="sempre">{t("props.bandeSempre")}</option>
+                  <option value="in_allarme">{t("props.bandeInAllarme")}</option>
+                </select>
+              )}
+              {obj.slider_bands && (
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
+                  <div><div style={LABEL}>{t("props.warnLow")}</div><BindableInput obj={obj} propName="warn_low" onChange={onChange}>{numInput("warn_low", 0)}</BindableInput></div>
+                  <div><div style={LABEL}>{t("props.warnHigh")}</div><BindableInput obj={obj} propName="warn_high" onChange={onChange}>{numInput("warn_high", 0)}</BindableInput></div>
+                  <div><div style={LABEL}>{t("props.alarmLow")}</div><BindableInput obj={obj} propName="alarm_low" onChange={onChange}>{numInput("alarm_low", 0)}</BindableInput></div>
+                  <div><div style={LABEL}>{t("props.alarmHigh")}</div><BindableInput obj={obj} propName="alarm_high" onChange={onChange}>{numInput("alarm_high", 0)}</BindableInput></div>
+                </div>
+              )}
             </>
           )}
 

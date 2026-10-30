@@ -1278,7 +1278,15 @@
     "icona_presa": "Presa",
     "icona_volume": "Volume",
     "icona_goccia": "Goccia",
-    "icona_sole": "Sole"
+    "icona_sole": "Sole",
+    "taccaMaggiore": "Tacca marcata ogni",
+    "taccaMinore": "Tacca di divisione ogni",
+    "numeriTacche": "Numeri sulle tacche marcate",
+    "agganciaTacche": "Aggancia il cursore alle tacche",
+    "bandeSlider": "Bande dei limiti",
+    "bandeMai": "Mai",
+    "bandeSempre": "Sempre",
+    "bandeInAllarme": "Solo fuori dai limiti"
   },
   "shortcut": {
     "navCanvas": "Navigazione canvas",

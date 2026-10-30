@@ -166,6 +166,14 @@ rimisurare** i punti che tocca: il codice si muove.
 
 ### Fase 4 — tacche e bande (M)
 
+> **Scritta il 30-10-2026** sul ramo `feat/slider-fase-4`, annidato. Scelte prese scrivendola:
+> - le tacche stanno sui **multipli** del passo, non partono dal minimo; numeri coi decimali del passo;
+> - le bande sono una **striscia di 4 px subito sotto la traccia** (a destra nel verticale), non dietro: dietro la
+>   traccia piena non si vedrebbero; i colori sono quelli delle soglie della barra;
+> - su LVGL le tacche sono un'immagine SVG rasterizzata una volta invece di `lv_line`: stesso risultato, un oggetto
+>   solo invece di cinquanta;
+> - niente tacche né bande sulla piastra.
+
 - `slider_tick_major`, `slider_tick_minor`, `slider_tick_labels`, `slider_snap_ticks`.
 - `slider_bands` con i quattro limiti.
 - LVGL con `lv_line` ed etichette a mano, non `lv_meter`, che è circolare. Le bande sono rettangoli sotto la traccia.

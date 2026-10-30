@@ -1278,7 +1278,15 @@
     "icona_presa": "Socket",
     "icona_volume": "Volume",
     "icona_goccia": "Drop",
-    "icona_sole": "Sun"
+    "icona_sole": "Sun",
+    "taccaMaggiore": "Major tick every",
+    "taccaMinore": "Minor tick every",
+    "numeriTacche": "Numbers on major ticks",
+    "agganciaTacche": "Snap the handle to ticks",
+    "bandeSlider": "Limit bands",
+    "bandeMai": "Never",
+    "bandeSempre": "Always",
+    "bandeInAllarme": "Only outside the limits"
   },
   "shortcut": {
     "navCanvas": "Canvas navigation",

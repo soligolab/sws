@@ -46,7 +46,7 @@ export const CAMPI_POSIZIONE = ["x", "y", "x2", "y2", "points", "motion_path", "
  *  conteggi. Restano come sono. Il test-guardia pretende che ogni campo numerico
  *  di `SynopticObject` stia in una delle tre tabelle. */
 export const CAMPI_FISSI = [
-  "alarm_bell_sound_repeat_s", "alarm_high", "alarm_low", "bg_image_opacity", "slider_track_opacity", "alarm_shelve_minutes", "alarm_viewer_max_rows",
+  "alarm_bell_sound_repeat_s", "alarm_high", "alarm_low", "bg_image_opacity", "slider_track_opacity", "slider_tick_major", "slider_tick_minor", "alarm_shelve_minutes", "alarm_viewer_max_rows",
   "bar_gap", "bar_ticks", "blink_fade_depth", "blink_rate_ms", "brightness", "datalog_page_size", "decimals",
   "fill_level", "gauge_end_angle", "gauge_start_angle", "gauge_ticks", "grid_cols", "grid_rows", "line_height",
   "marker_size", "max", "min", "motion_max", "motion_min", "opacity", "pan_step_s", "pie_group_below_pct",
