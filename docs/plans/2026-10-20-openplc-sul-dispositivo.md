@@ -200,3 +200,43 @@ precedente; OpenPLC ~1000 MB più la sua.
 **La domanda che decide tutto è la 2**, e il 21-10 l'avevi già quasi risposta. Se vale ancora
 «autonomo e indipendente», la strada è la **b**, il lavoro è **configurazione più documentazione**,
 e le decisioni 1 e 3 diventano domande di prodotto senza codice dietro.
+
+---
+
+## Dopo il collaudo sul WP630 (30-10-2026) — il lavoro che resta
+
+Il collaudo (`COLLAUDI_IN_SOSPESO.md` §F) è in corso. Quello che è già emerso, e la richiesta nuova del
+maintainer, vanno in **un ramo solo** dopo il collaudo. Prima di scrivere codice servono le risposte alle domande
+in fondo.
+
+**Difetti**
+1. **`enable --now` non funziona**: systemd rifiuta `enable` su un'unità generata da un quadlet («transient or
+   generated», visto sul WP630). Il comando è scritto in tre posti: messaggio dell'installer, HOWTO cap. 28,
+   commento del quadlet. La conseguenza vera: **OpenPLC non riparte dopo un riavvio**, mentre la decisione del
+   23-10 chiedeva il contrario. Oggi si avvia solo con `start`.
+2. **«Aggiorna» la configurazione del servizio dimentica OpenPLC**: il runtime lancia `install-container.sh
+   --solo-unita` senza `--con-openplc`. `unita-scelte.json` perde `openplc-runtime.service` e il suo quadlet non si
+   aggiorna più. Rimedio probabile: in modalità `--solo-unita`, se `openplc-runtime.container` c'è già, la scelta
+   resta.
+3. **Lo stop lascia le uscite congelate**: il PID 1 dell'immagine di OpenPLC ignora SIGTERM (trovato nel progetto
+   GitPixsys/openplc; dettagli e rimedio provato in `Appunti.txt`). Nel nostro quadlet: `Exec=` con la trappola che
+   trasforma lo stop in SIGINT, e `StopTimeout=30`.
+4. Intestazione di `install-container.sh`: la riga di `--con-openplc` è finita in mezzo a quella di `--solo-unita`.
+
+**Richiesta del maintainer (30-10-2026)**: l'installazione di OpenPLC deve essere un'opzione in **due** posti:
+- **dall'IDE, su un pannello che ha già SWS**. Oggi si fa solo a mano, via SSH, con `--con-openplc`;
+- **nello script di primo setup** che l'utente copia dalla pagina di sws.soligo.net
+  (`components/benvenuto/InstallaRuntime.tsx`: oggi `podman pull` + `./install-container.sh --pull <img>`).
+
+Misurato: la scheda Installazione dell'IDE costruisce la riga di `install-container.sh` in `packaging.rs`
+(`install_sh`, ~riga 757), e passa da SSH. Il bottone «Aggiorna» invece passa dal runtime, senza SSH
+(`quadlet.rs`, servizio transitorio con `--solo-unita`). Quindi per un pannello già installato le strade sono due.
+
+**Domande per il maintainer**
+- **Avvio al boot**: OpenPLC deve ripartire da solo dopo un riavvio una volta che qualcuno l'ha avviato? E chi lo
+  decide: una seconda scelta («avvia all'avvio»), o la stessa opzione d'installazione?
+- **Dall'IDE, quale strada**: una casella nella scheda Installazione (SSH, reinstalla), o un bottone dal pannello
+  collegato (niente SSH, come «Aggiorna»)? E si può anche **togliere** OpenPLC dalla stessa schermata?
+- **Il tempo reale**: il quadlet prende già `Ulimit=rtprio=99` e `Ulimit=memlock=-1`, così basta il setup di
+  PixsysOS (`Appunti.txt`) perché funzioni? Senza quel setup i due limiti non fanno danni.
+- **Lo spazio**: l'immagine pesa ~1 GB. L'opzione va bloccata, o solo avvisata, quando lo spazio non basta?
