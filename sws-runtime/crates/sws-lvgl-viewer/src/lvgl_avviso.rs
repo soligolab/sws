@@ -251,7 +251,7 @@ impl Overlay {
                 let titolo = format!(
                     "🔑 {}",
                     testo(
-                        if motivo == "cmd_serve_accesso" { Testo::CmdServeAccesso } else { Testo::AggServeAdmin },
+                        titolo_accesso(motivo),
                         lingua,
                     )
                 );
@@ -261,6 +261,8 @@ impl Overlay {
                     utente: &ultimo,
                     annulla: testo(Testo::ConfAnnulla, lingua),
                     accedi: testo(Testo::ConfAccedi, lingua),
+                    utente_etichetta: testo(Testo::ConfUtente, lingua),
+                    password_etichetta: testo(Testo::ConfPassword, lingua),
                 });
                 if self.accesso.is_none() {
                     aggiornamento::accesso_fallito(stato, "tastiera non disponibile".into());
@@ -619,7 +621,7 @@ impl Overlay {
                 // un amministratore» lì sarebbe falso (25-10-2026).
                 titolo: format!(
                     "🔑 {}",
-                    testo(if motivo == "cmd_serve_accesso" { Testo::CmdServeAccesso } else { Testo::AggServeAdmin }, lingua)
+                    testo(titolo_accesso(motivo), lingua)
                 ),
                 sotto: String::new(),
                 // Un rifiuto si legge qui, in rosso, e il pannellino resta
@@ -812,4 +814,16 @@ fn etichetta_centrata(
         lvgl_sys::lv_obj_align(l, lvgl_sys::LV_ALIGN_CENTER as lvgl_sys::lv_align_t, 0, 0);
     }
     Ok(())
+}
+
+/// Il titolo del pannellino d'accesso, secondo chi l'ha chiesto: un comando
+/// rifiutato, il bottone «Accedi» del progetto (29-10-2026), o l'avviso
+/// d'aggiornamento — «per aggiornare serve un amministratore» negli altri due
+/// casi sarebbe falso.
+fn titolo_accesso(motivo: &str) -> Testo {
+    match motivo {
+        "cmd_serve_accesso" => Testo::CmdServeAccesso,
+        "conf_accedi" => Testo::ConfAccedi,
+        _ => Testo::AggServeAdmin,
+    }
 }

@@ -1054,7 +1054,8 @@ fn servi_finestra(
                 }
             }
         }
-        Navigazione::Pagina(_) | Navigazione::ChiudiFinestra => return None,
+        // Accedi ed Esci non sono finestre: le serve il giro di disegno prima di arrivare qui.
+        Navigazione::Pagina(_) | Navigazione::ChiudiFinestra | Navigazione::Accedi | Navigazione::Esci => return None,
     };
 
     // I valori effettivi: quelli passati da chi apre, poi i default dichiarati
@@ -1256,6 +1257,18 @@ fn scrivi_istantanea(
                     lvgl_render::Navigazione::Pagina(p) => {
                         eprintln!("  navigazione richiesta: pagina '{p}'");
                         comandi_nav += 1;
+                    }
+                    // Come nei cicli veri (29-10-2026): l'istantanea deve poter
+                    // fotografare il pannellino che il bottone «Accedi» apre.
+                    lvgl_render::Navigazione::Accedi => {
+                        eprintln!("  accesso richiesto");
+                        comandi_nav += 1;
+                        aggiornamento::chiedi_accesso(avviso, aggiornamento::AzioneRichiesta::Accesso);
+                    }
+                    lvgl_render::Navigazione::Esci => {
+                        eprintln!("  uscita richiesta");
+                        comandi_nav += 1;
+                        shared_session.lock().unwrap_or_else(|e| e.into_inner()).clear();
                     }
                     a => {
                         match a {
@@ -1546,6 +1559,15 @@ fn run_drm(
         }
 
         let richiesta = nav_rx.try_recv().ok();
+        // Accedi ed Esci dai bottoni del progetto (29-10-2026), come sul web.
+        match richiesta.as_ref() {
+            Some(lvgl_render::Navigazione::Accedi) => aggiornamento::chiedi_accesso(&avviso, aggiornamento::AzioneRichiesta::Accesso),
+            Some(lvgl_render::Navigazione::Esci) => {
+                shared_session.lock().unwrap_or_else(|e| e.into_inner()).clear();
+                session::chiedi_ridisegno();
+            }
+            _ => {}
+        }
         // Le tre richieste di finestra si servono qui e non toccano la pagina
         // sotto: resta viva, coi suoi widget e i suoi collegamenti, e ricompare
         // da sé quando la finestra si chiude.
@@ -1917,6 +1939,15 @@ fn run_window(
         // per un runtime locale (tipicamente pochi millisecondi), non lo
         // sarebbe per una pagina servita da lontano.
         let richiesta = nav_rx.try_recv().ok();
+        // Accedi ed Esci dai bottoni del progetto (29-10-2026), come sul web.
+        match richiesta.as_ref() {
+            Some(lvgl_render::Navigazione::Accedi) => aggiornamento::chiedi_accesso(&avviso, aggiornamento::AzioneRichiesta::Accesso),
+            Some(lvgl_render::Navigazione::Esci) => {
+                shared_session.lock().unwrap_or_else(|e| e.into_inner()).clear();
+                session::chiedi_ridisegno();
+            }
+            _ => {}
+        }
         // Le tre richieste di finestra si servono qui e non toccano la pagina
         // sotto: resta viva, coi suoi widget e i suoi collegamenti, e ricompare
         // da sé quando la finestra si chiude.
@@ -1991,7 +2022,12 @@ fn run_window(
         //
         // Si rilegge la pagina CORRENTE, non quella di partenza: chi ha
         // navigato altrove deve restare dov'è, col contenuto aggiornato.
-        if reload_flag.swap(false, std::sync::atomic::Ordering::Relaxed) {
+        // Anche quando la sessione cambia (29-10-2026): chi entra o esce vede
+        // gli oggetti col loro `min_role` rimessi a posto. Tutte e due le
+        // letture, sempre: con `||` la seconda resterebbe alzata per il giro dopo.
+        let progetto_cambiato = reload_flag.swap(false, std::sync::atomic::Ordering::Relaxed);
+        let sessione_cambiata = session::ridisegno_chiesto();
+        if progetto_cambiato || sessione_cambiata {
             // Gli SVG già scaricati vanno buttati: un deploy può aver
             // cambiato un simbolo custom o un'immagine **sotto lo stesso
             // URL**, e una cache che non se ne accorge ridisegna la pagina

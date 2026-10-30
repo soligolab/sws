@@ -261,6 +261,8 @@ pub enum AzioneRichiesta {
     /// chiede di entrare, e **non** lo si ripete da soli — lo ripete chi sta
     /// davanti al pannello, guardando l'impianto.
     Comando,
+    /// Il bottone «Accedi» del progetto (29-10-2026): si entra e basta.
+    Accesso,
 }
 
 /// L'accesso chiesto dall'avviso, in corso.
@@ -315,6 +317,7 @@ impl StatoAvviso {
                     Some(AzioneRichiesta::Quadlet) => "agg_accesso_quadlet".into(),
                     Some(AzioneRichiesta::Conferma(_)) => "agg_accesso_conferma".into(),
                     Some(AzioneRichiesta::Comando) => "cmd_serve_accesso".into(),
+                    Some(AzioneRichiesta::Accesso) => "conf_accedi".into(),
                     _ => "agg_accesso_aggiorna".into(),
                 },
                 errore: a.errore.clone(),

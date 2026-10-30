@@ -13,6 +13,17 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 
 ### Fixed
 
+- **LVGL: login e logout dai bottoni del progetto, come sul web** (appunti del 22-10). Il viewer ignorava le azioni
+  `login`/`logout` dei bottoni e su un progetto con utenti aggiungeva a ogni pagina un controllo «Login» suo, in alto a
+  destra, che il progetto non prevedeva. Ora `login` apre il pannellino d'accesso (titolo «Accedi»), `logout` chiude la
+  sessione, e dopo un accesso o un'uscita la pagina si ridisegna, così gli oggetti col loro `min_role` tornano a posto;
+  il controllo sintetico non c'è più (un comando rifiutato apre comunque il pannellino). Il pannellino stesso: le
+  etichette «Utente:»/«Password:» erano italiane su ogni pannello (ora testi di sistema `conf_utente`/`conf_password`,
+  cinque lingue), e sulle pagine da 800×480 i pulsanti finivano sopra la tastiera (`misure_accesso`). Visto con
+  l'istantanea del viewer, `--tocca` sul bottone. Il ridisegno per sessione è nel ciclo SDL, non in quello DRM.
+  L'altro appunto («serve l'autenticazione anche per oggetti che non la chiedono») non è un difetto del viewer: una
+  scrittura la decide la soglia del tag sul server (`write_min_role`, piano «scrittura senza login» del 25-10).
+
 - **La barra «nuova versione» dell'IDE non compariva più** (dal 28-10-2026, appunto del 29-10). Il `buildWatcher`
   rilegge la pagina d'ingresso con una `fetch`, e il ripiego della SPA — corretto il 28-10 per rispondere 404 a ciò che
   non è una pagina — trattava anche quella come una risorsa mancante. Ora una `fetch` (`cors`/`same-origin`) che chiede

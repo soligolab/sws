@@ -156,6 +156,9 @@ async fn esegui(cmd: Comando) -> anyhow::Result<()> {
                     if let Ok(mut s) = sessione.lock() {
                         s.set_logged_in(ok);
                     }
+                    // Chi è entrato può vedere e usare oggetti che prima non
+                    // poteva: la pagina si ridisegna (29-10-2026).
+                    crate::session::chiedi_ridisegno();
                     // Entrati: si riprende il gesto che aveva chiesto l'accesso.
                     if let Some(a) = crate::aggiornamento::accesso_riuscito(&avviso) {
                         use crate::aggiornamento::AzioneRichiesta as A;
@@ -166,6 +169,8 @@ async fn esegui(cmd: Comando) -> anyhow::Result<()> {
                             A::Conferma(scelta) => Some(Comando::ConfermaAggiornamento { base_url, token, scelta }),
                             // Il comando della pagina lo ripete chi sta davanti.
                             A::Comando => None,
+                            // Si voleva solo entrare.
+                            A::Accesso => None,
                         };
                         if let Some(c) = dopo {
                             invia(c);

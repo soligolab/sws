@@ -207,9 +207,32 @@ impl SessionState {
     }
 }
 
+/// La sessione è cambiata e la pagina va ridisegnata (29-10-2026): un accesso
+/// dal pannellino o un «Esci» da un bottone. Il ridisegno rimette al loro
+/// posto gli oggetti con un `min_role` — nascosti o spenti per chi non basta.
+/// Lo alza il thread di rete (l'accesso) o il giro di disegno (l'uscita), lo
+/// abbassa il giro di disegno quando ridisegna.
+static RIDISEGNA: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
+pub fn chiedi_ridisegno() {
+    RIDISEGNA.store(true, std::sync::atomic::Ordering::Relaxed);
+}
+
+/// Vero una volta per ogni richiesta.
+pub fn ridisegno_chiesto() -> bool {
+    RIDISEGNA.swap(false, std::sync::atomic::Ordering::Relaxed)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn il_ridisegno_si_chiede_e_si_consuma() {
+        chiedi_ridisegno();
+        assert!(ridisegno_chiesto());
+        assert!(!ridisegno_chiesto(), "una richiesta, un ridisegno");
+    }
 
     #[test]
     fn una_sessione_scaduta_conta_come_scaduta() {

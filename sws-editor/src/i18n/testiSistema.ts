@@ -59,7 +59,9 @@ export type VoceSistema =
   | "conf_ritorna"
   | "conf_ritorna_sicuro"
   | "conf_annulla"
-  | "conf_accedi";
+  | "conf_accedi"
+  | "conf_utente"
+  | "conf_password";
 
 export const LINGUE_SISTEMA = ["it", "de", "fr", "es", "en"] as const;
 export type LinguaSistema = (typeof LINGUE_SISTEMA)[number];
@@ -163,6 +165,8 @@ export const TESTI_SISTEMA: Record<VoceSistema, Record<LinguaSistema, string>> =
   conf_ritorna_sicuro: { it: "Tornare davvero alla {da}? Il pannello si riavvia.", de: "Wirklich zu {da} zurückkehren? Das Panel startet neu.", fr: "Revenir vraiment à la {da} ? Le panneau redémarre.", es: "¿Volver realmente a la {da}? El panel se reinicia.", en: "Really go back to {da}? The panel restarts." },
   conf_annulla: { it: "Annulla", de: "Abbrechen", fr: "Annuler", es: "Cancelar", en: "Cancel" },
   conf_accedi: { it: "Accedi", de: "Anmelden", fr: "Se connecter", es: "Acceder", en: "Log in" },
+  conf_utente: { it: "Utente", de: "Benutzer", fr: "Utilisateur", es: "Usuario", en: "User" },
+  conf_password: { it: "Password", de: "Passwort", fr: "Mot de passe", es: "Contraseña", en: "Password" },
   allarme_attivo: {
     it: "🔴 ALLARME ATTIVO", de: "🔴 ALARM AKTIV", fr: "🔴 ALARME ACTIVE", es: "🔴 ALARMA ACTIVA", en: "🔴 ALARM ACTIVE",
   },

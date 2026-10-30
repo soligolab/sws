@@ -391,6 +391,20 @@
       "fr": "Se connecter",
       "es": "Acceder",
       "en": "Log in"
+    },
+    "conf_utente": {
+      "it": "Utente",
+      "de": "Benutzer",
+      "fr": "Utilisateur",
+      "es": "Usuario",
+      "en": "User"
+    },
+    "conf_password": {
+      "it": "Password",
+      "de": "Passwort",
+      "fr": "Mot de passe",
+      "es": "Contraseña",
+      "en": "Password"
     }
   }
 }

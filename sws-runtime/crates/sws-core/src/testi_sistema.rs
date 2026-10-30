@@ -103,6 +103,8 @@ pub enum Testo {
     ConfRitornaSicuro,
     ConfAnnulla,
     ConfAccedi,
+    ConfUtente,
+    ConfPassword,
 }
 
 /// Tutte le voci, per i test che devono iterarle senza ripetere l'elenco a
@@ -158,6 +160,8 @@ pub const TUTTI: &[Testo] = &[
     Testo::ConfRitornaSicuro,
     Testo::ConfAnnulla,
     Testo::ConfAccedi,
+    Testo::ConfUtente,
+    Testo::ConfPassword,
 ];
 
 /// Dal nome nella fixture alla voce. `None` = la fixture ha una voce che
@@ -214,6 +218,8 @@ pub fn da_nome(nome: &str) -> Option<Testo> {
         "conf_ritorna_sicuro" => Testo::ConfRitornaSicuro,
         "conf_annulla" => Testo::ConfAnnulla,
         "conf_accedi" => Testo::ConfAccedi,
+        "conf_utente" => Testo::ConfUtente,
+        "conf_password" => Testo::ConfPassword,
         _ => return None,
     })
 }
@@ -512,6 +518,16 @@ pub fn testo(t: Testo, lingua: &str) -> &'static str {
         (ConfAccedi, "fr") => "Se connecter",
         (ConfAccedi, "es") => "Acceder",
         (ConfAccedi, _) => "Log in",
+        (ConfUtente, "it") => "Utente",
+        (ConfUtente, "de") => "Benutzer",
+        (ConfUtente, "fr") => "Utilisateur",
+        (ConfUtente, "es") => "Usuario",
+        (ConfUtente, _) => "User",
+        (ConfPassword, "it") => "Password",
+        (ConfPassword, "de") => "Passwort",
+        (ConfPassword, "fr") => "Mot de passe",
+        (ConfPassword, "es") => "Contraseña",
+        (ConfPassword, _) => "Password",
     }
 }
 

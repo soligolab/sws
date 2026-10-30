@@ -37,6 +37,8 @@ versioni:
     voci:
       - it: "L'IDE torna ad avvisare quando è disponibile una versione nuova dell'interfaccia, con la barra per ricaricare."
         en: "The IDE again tells you when a new version of the interface is available, with the bar to reload."
+      - it: "Pannello LVGL: si entra e si esce con i bottoni del progetto, come sul web; sparisce il «Login» che il pannello aggiungeva da sé in alto."
+        en: "LVGL panel: log in and out with the project's buttons, as on the web; the «Login» the panel added on its own at the top is gone."
   - versione: "2.23.7"
     voci:
       - it: "Ogni sorgente dice se ha qualcuno dall'altra parte. Per MQTT si sceglie chi lo racconta (Zigbee2MQTT, Tasmota, Shelly, ESPHome); un pulsante crea l'allarme da collegare alle notifiche."
