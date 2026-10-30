@@ -35,12 +35,20 @@
 versioni:
   - versione: "2.23.8"
     voci:
+      - it: "IDE: all'accesso si può spuntare «Ricordami su questo browser per 30 giorni»; se l'installazione ha la posta configurata, si entra anche con un PIN via e-mail."
+        en: "IDE: at sign-in you can tick «Remember me on this browser for 30 days»; if the installation has e-mail set up, you can also sign in with a PIN by e-mail."
       - it: "L'IDE torna ad avvisare quando è disponibile una versione nuova dell'interfaccia, con la barra per ricaricare."
         en: "The IDE again tells you when a new version of the interface is available, with the bar to reload."
       - it: "Pannello LVGL: si entra e si esce con i bottoni del progetto, come sul web; sparisce il «Login» che il pannello aggiungeva da sé in alto."
         en: "LVGL panel: log in and out with the project's buttons, as on the web; the «Login» the panel added on its own at the top is gone."
       - it: "Planimetrie: si disegna la pianta nell'IDE (muri, porte, finestre, aree, macchine), si guarda in 3D e se ne fa con un clic lo sfondo di una pagina."
         en: "Floor plans: draw the plan in the IDE (walls, doors, windows, areas, machines), look at it in 3D and turn it into a page background with one click."
+      - it: "IDE: niente più «Sessione scaduta» mentre si lavora. Quando scade davvero si rientra con la password o con un PIN, e il progetto resta aperto."
+        en: "IDE: no more «Session expired» while you work. When it really expires you sign back in with the password or a PIN, and the project stays open."
+      - it: "IDE: le immagini del progetto (sfondi, immagini negli oggetti) si vedono di nuovo sul canvas anche nell'IDE installato in locale."
+        en: "IDE: project images (backgrounds, images in objects) show on the canvas again in a locally installed IDE too."
+      - it: "Nel tema chiaro il logo SWS si legge: la scritta non è più bianca su fondo bianco."
+        en: "In the light theme the SWS logo is readable: the text is no longer white on white."
   - versione: "2.23.7"
     voci:
       - it: "Ogni sorgente dice se ha qualcuno dall'altra parte. Per MQTT si sceglie chi lo racconta (Zigbee2MQTT, Tasmota, Shelly, ESPHome); un pulsante crea l'allarme da collegare alle notifiche."

@@ -2242,6 +2242,36 @@
     "troppiTentativi": "Too many failed attempts. Try again in {{s}}s.",
     "accountBloccato": "Account locked. Try again in {{s}}s."
   },
+  "accesso": {
+    "conPin": "Use a PIN by e-mail instead",
+    "conPassword": "← Use your password",
+    "pinSpiegazione": "Enter your address: if it is registered, we send you a single-use PIN, valid for 10 minutes. Your password does not change.",
+    "mandaPin": "Send me the PIN",
+    "pinInviato": "If {{email}} is registered, a PIN has just been sent to it. Check the spam folder too.",
+    "pin": "PIN",
+    "pinSbagliato": "Wrong or expired PIN.",
+    "mandaneUnAltro": "Send another one",
+    "ricordami": "Remember me on this browser for 30 days",
+    "creaAccount": "Create an account",
+    "registrazioneSpiegazione": "SWS is under development: the account is free and is meant for trying it out. You get a space of your own, with up to three projects.",
+    "ripetiPassword": "Repeat the password",
+    "passwordCorta": "The password must be at least {{n}} characters long.",
+    "passwordDiverse": "The two passwords do not match.",
+    "accettoPrima": "I accept the",
+    "condizioni": "terms of use",
+    "accettoE": "and I have read",
+    "informativa": "the privacy notice",
+    "approvoClausole": "I specifically approve the clauses listed in section 14 of the terms of use (Articles 1341-1342 of the Italian Civil Code)",
+    "registrati": "Sign up",
+    "registrazioneRifiutata": "Sign-up failed: check the address and the password.",
+    "hoGiaUnAccount": "← I already have an account",
+    "confermaIndirizzo": "Confirm your address",
+    "codiceInviato": "We have written to {{email}}. If the address was new you will find a confirmation code, valid for 10 minutes; if it was already registered, a message saying so. Check the spam folder too.",
+    "codice": "Confirmation code",
+    "codiceSbagliato": "Wrong or expired code.",
+    "conferma": "Confirm and sign in",
+    "nonArrivato": "Didn't arrive? Sign up again"
+  },
   "imageBrowser": {
     "loadingCatalog": "Loading catalog…",
     "noResults": "No results for \"{{filter}}\"",
@@ -4150,11 +4180,13 @@
     "caricamento3d": "Loading the 3D view…",
     "senza3d": "The 3D view does not start in this browser: {{message}}",
     "senzaVista": "The 3D view is not open.",
-    "generaNota": "The image is the 3D view as framed now, saved among the project images as «{{nome}}». Generating it again overwrites the same file, and the pages using it update by themselves.",
+    "generaNota": "The image is what lies inside the frame of the 3D view, saved among the project images as «{{nome}}». Generating it again overwrites the same file, and the pages using it update by themselves.",
     "usaComeSfondo": "Use it as the background of page «{{pagina}}»",
     "genera": "Generate",
     "generando": "Generating…",
     "generata": "Saved as «{{nome}}».",
-    "generataEUsata": "Saved as «{{nome}}» and set as the background of «{{pagina}}»."
+    "generataEUsata": "Saved as «{{nome}}» and set as the background of «{{pagina}}».",
+    "inquadra": "Fit",
+    "inquadraTitolo": "Fits the floor plan to the page frame, looking from the same direction as now."
   }
 }

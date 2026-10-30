@@ -9,7 +9,27 @@ Da `docs/plans/Appunti.txt`:
 
 > LVGL & WEB : L'oggetto slider va impreziosito, servono più stili e modi di funzionamento, è un oggetto
 
-La frase nel file è **troncata**. Chiedi al maintainer come continuava, prima di proporre.
+La frase nel file era **troncata**. Il 30-10-2026 il maintainer l'ha completata:
+
+> … è un oggetto molto importante che si deve adattare a vari stili grafici, disegni di impianti, scada di
+> domotica e simili, per questo motivo l'aspetto grafico SVG deve permettere di scegliere molteplici stili oltre ad
+> avere le impostazioni delle tacche di divisione, delle tacche marcate, prevedere l'effetto di ritorno in
+> posizione stile molla di ritenuta.
+
+**Decisioni del 30-10-2026** (prima revisione, tavola in `sws/tmp/revisione-slider/tavola.html`):
+- uso: domotica e impianti, **priorità alla domotica**;
+- web: **disegno SVG proprio**, puntatore e tastiera gestiti a mano (via l'input nativo);
+- lo stile «classico» è **uno solo per i due motori, quello LVGL di oggi** (sul web la traccia si ispessisce);
+- stili: classico, pillola, piastra (domotica), ISA-101;
+- modi: bipolare, valore misurato (PV), bande e tacche, **ritorno a molla** (scrive mentre si tiene, al rilascio
+  torna al riposo e scrive il riposo); l'intervallo a due cursori va in Appunti;
+- tacche **per passo nelle unità del valore**;
+- i difetti misurati sono la **prima fase** del piano, non un ramo a parte.
+- icone della piastra: **8 fisse** (lampadina, tapparella, termometro, ventola, presa, volume, goccia, sole);
+- riposo della molla, se non scritto: **l'origine se bipolare, altrimenti il minimo**.
+- **immagine di sfondo** dietro tutto il riquadro (`bg_image`, già universale; LVGL la deve leggere anche sullo
+  slider) con un'opacità da regolare: `bg_image_opacity` nuovo e **universale**, più `slider_track_opacity` per la
+  parte vuota della traccia o della piastra.
 
 In più, dal 22-10-2026: lo stile ISA-101 è **uno degli stili** dello slider, non l'unico
 (vedi i principi in `SKILL.md`).
@@ -70,6 +90,20 @@ Lo stesso tag è letto e scritto: non c'è un tag di ritorno separato.
 limite, formato del valore, marker del valore di processo.
 
 ## Fatti noti al 22-10-2026, da riverificare
+
+> **Riverificati il 30-10-2026** sul codice (punta di `feat/registrazione-e-pin`). Sono ancora veri tutti, tranne
+> due cambiati il 27-10-2026 (commit `262dfa21`, collaudo sul WP630):
+> - **LVGL legge `orientation`**: `geometria_traccia_slider`, traccia di 16 px (`SPESSORE_TRACCIA`) in verticale,
+>   riempimento dal basso; nel verticale il valore va **sotto** la traccia, centrato, come sul web. Nell'orizzontale
+>   resta **sopra il box, a sinistra** (web: sotto la traccia, centrato).
+> - **Web**: `touch-action: none` sugli `input[type=range]` e `overscroll-behavior: none` sulla radice, perché su un
+>   pannello touch il trascinamento orizzontale diventava «pagina precedente» di Chromium.
+>
+> Confermati, fra gli altri: la casella «Mostra valore» con `!!obj.show_value` (uguale in gauge e progress_bar);
+> `unit` e `decimals` assenti dal pannello; il salto indietro dopo la scrittura (`setSliderDraft(null)`); su LVGL
+> range intero, scrittura `TagValue::Int` a ogni `VALUE_CHANGED`, `read_only`/`write_on_release`/deadband/conferma
+> ignorati; bordo allarme con larghezza di ripiego 100; validatore senza regole sullo slider; manuale con cinque
+> campi; `o_slider` dei gemelli col minimo.
 
 **Pannello proprietà**
 - La casella «Mostra valore» legge `!!obj.show_value`, ma i due motori mostrano il valore se il

@@ -49,6 +49,11 @@ Viewer, Operator, Supervisor, Admin, gerarchici — «Supervisor» vuol dire «S
 | POST | `/api/abbinamento/nome` | rinomina nel tunnel; la protegge la firma del gateway | 7444 |
 | GET | `/api/identita/stato` | dice se l'installazione ha già un amministratore | 7444 |
 | POST | `/api/identita/primo-amministratore` | crea il primo amministratore col codice di primo accesso | 7444 |
+| POST | `/api/identita/registrazione` | registrazione da sé: parte un codice per posta (solo gateway con `--gateway-registrazione`) | 7444 |
+| POST | `/api/identita/registrazione/conferma` | il codice attiva l'account e fa entrare | 7444 |
+| POST | `/api/auth/pin` | «mandami un PIN»; risponde 204 per chiunque | 7444 |
+| POST | `/api/auth/pin/accesso` | entra con il PIN | 7444 |
+| GET | `/condizioni`, `/privacy` | i testi da accettare alla registrazione (solo a registrazione aperta) | 7444 |
 | GET | `/branding/:marchio/:file` | logo, favicon e `brand.json` di un marchio | 7444 |
 | GET | `/api/project` | il progetto attivo, coi segreti mascherati | **solo 7443** |
 

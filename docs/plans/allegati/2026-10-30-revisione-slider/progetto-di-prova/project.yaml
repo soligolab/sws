@@ -1,0 +1,28 @@
+meta:
+  name: demo-slider
+  version: 0.1.0
+tags:
+- id: s.val
+  description: costante 62
+  data_type: float
+  unit: '%'
+  generator: {shape: ramp, period_ms: 60000, min: 62.0, max: 62.0, enabled: true}
+- id: s.frac
+  description: costante 0.35
+  data_type: float
+  generator: {shape: ramp, period_ms: 60000, min: 0.35, max: 0.35, enabled: true}
+- id: s.temp
+  description: costante 21.5
+  data_type: float
+  unit: '°C'
+  generator: {shape: ramp, period_ms: 60000, min: 21.5, max: 21.5, enabled: true}
+sources: []
+alarms: []
+functions: []
+page_layout:
+  size_mode: fixed
+  default_width: 1280.0
+  default_height: 800.0
+  home_page_id: p_scuro
+target:
+  kind: lvgl_framebuffer

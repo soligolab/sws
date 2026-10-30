@@ -1,5 +1,5 @@
 //! Le planimetrie del progetto (29-10-2026, ramo 1 del piano
-//! `docs/plans/2026-10-25-planimetrie-3d.md`).
+//! `docs/archive/2026-10-25-planimetrie-3d.md`).
 //!
 //! Una planimetria è una pianta disegnata nell'IDE — muri, aperture, aree,
 //! blocchi — da cui l'IDE genera **una volta** l'immagine 3D che diventa lo

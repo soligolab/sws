@@ -93,6 +93,10 @@ niente.
 
 ## Ramo A — `feat/azienda-personale-e-tetti`
 
+> **FATTO il 28-10-2026** (`c66fff2d`), tutti e sei i punti; l'interfaccia della console per la quota nuova è arrivata
+> dopo (`console/Aziende.tsx`, `Risorse.tsx`). `crea_azienda_personale` la chiama la conferma della registrazione
+> (ramo C): gli utenti creati dalla console restano nelle aziende in cui li si mette.
+
 Backend puro, nessuna interfaccia. È il ramo che rende sicuro far entrare degli sconosciuti.
 
 **1. Ogni utente nuovo nasce con la sua azienda.** In `sws-identita`, accanto a
@@ -169,6 +173,9 @@ rimandata (`docs/plans/2026-10-21-quando-si-libera-una-licenza.md`).
 ---
 
 ## Ramo B — `feat/schermate-accesso-e-progetti`
+
+> **FATTO il 28-10-2026** (`59a7c94f`), tutti i punti compresa la proposta sul contrasto: `check_contrasto.sh` ora
+> attraversa primo accesso, accesso e scelta del progetto.
 
 Solo frontend. Va **prima** della registrazione, così le schermate nuove del ramo C nascono già
 nello stile giusto invece di essere rifatte due volte.
@@ -253,6 +260,29 @@ secondo `goto` senza progetto le porterebbe dentro la rete WCAG. Il punto a risc
 ---
 
 ## Ramo C — `feat/registrazione-e-pin`
+
+> **Punti 1-3 e le schermate FATTI il 30-10-2026**, sul ramo `feat/registrazione-e-pin`; vedi il CHANGELOG. Scelte
+> prese scrivendolo, in più di quelle qui sotto:
+>
+> - **la registrazione è spenta di default** e si accende sul gateway con `--gateway-registrazione`: le condizioni
+>   sono una bozza da rivedere, e un gateway che diventa aperto agli sconosciuti a un aggiornamento sarebbe un
+>   regalo. Serve anche la posta d'installazione; il PIN invece c'è ovunque ci sia la posta;
+> - **la registrazione risponde 202 anche a un indirizzo già iscritto**, e al proprietario parte una e-mail «hai già
+>   un account», senza codice: come il PIN, il modulo non dice chi è iscritto;
+> - **l'azienda personale nasce alla conferma**, non alla registrazione: chi non conferma non lascia aziende vuote;
+> - **un codice al minuto per indirizzo**: chiedere un PIN manda posta a una persona, e senza freno il modulo
+>   servirebbe a riempirle la casella;
+> - **`/condizioni` e `/privacy` esistono solo a registrazione aperta**, in testo semplice: la pagina impaginata
+>   arriva con il testo rivisto.
+>
+> **Resta del ramo C**, da fare in un ramo suo:
+>
+> - il **punto 4**, SMTP per azienda (sei colonne, la scheda dell'azienda, il confine della console che si sposta);
+> - dal `LEGGIMI` dei testi legali: l'avviso di inattività a 12 mesi e la cancellazione (la colonna
+>   `ultimo_accesso_ms` c'è già), la chiusura dell'account dalle impostazioni, la rotazione del registro delle
+>   attività e il limite del journal;
+> - **fuori dal codice**: la prova di consegna verso Gmail/Outlook, la revisione dei testi, e accendere il flag sul
+>   VPS.
 
 **1. Il blocco che emette una sessione si estrae.** `Identita::accedi` (`lib.rs:581`) è oggi
 l'**unica** cosa che produce un `Accesso`, e lo fa nel blocco `lib.rs:638-654`. Si estrae in

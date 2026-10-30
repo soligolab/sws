@@ -25,7 +25,7 @@ import { riassumi } from "@/ai/riassunto";
 import { LoginScreen } from "@/components/LoginScreen";
 import { PrimoAmministratoreScreen } from "@/components/PrimoAmministratoreScreen";
 import { ReAuthModal } from "@/components/ReAuthModal";
-import { azionePerSessioneRifiutata, MOTIVO_AUTENTICAZIONE_ACCESA } from "@/auth/sessioneScaduta";
+import { azionePerSessioneRifiutata, MOTIVO_AUTENTICAZIONE_ACCESA, ritardoRinnovo } from "@/auth/sessioneScaduta";
 import { WelcomeScreen } from "@/components/WelcomeScreen";
 import { EditorShell } from "@/editor/EditorShell";
 import { LeftPanel } from "@/editor/LeftPanel";
@@ -475,7 +475,7 @@ export function App() {
   // each successful refresh), creating a self-rescheduling timer chain.
   useEffect(() => {
     if (!authToken || !expiresAtMs) return;
-    const delay = Math.max(expiresAtMs - Date.now() - 5 * 60_000, 30_000);
+    const delay = ritardoRinnovo(expiresAtMs, Date.now());
     const timer = setTimeout(async () => {
       try {
         const r = await api.refresh();

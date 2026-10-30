@@ -1,0 +1,366 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Revisione slider</title>
+<style>
+  :root { --bg:#0b1220; --pan:#111a2e; --bordo:#26324a; --testo:#e2e8f0; --tenue:#94a3b8; --acc:#3b82f6; }
+  body { margin:0; background:var(--bg); color:var(--testo); font:14px/1.5 system-ui, -apple-system, sans-serif; }
+  main { max-width:1180px; margin:0 auto; padding:24px 16px 80px; }
+  h1 { font-size:24px; margin:0 0 4px; }
+  h2 { font-size:18px; margin:40px 0 8px; border-bottom:1px solid var(--bordo); padding-bottom:6px; }
+  h3 { font-size:15px; margin:20px 0 6px; }
+  p, li { color:#cbd5e1; }
+  .tenue { color:var(--tenue); }
+  .riquadro { background:var(--pan); border:1px solid var(--bordo); border-radius:8px; padding:12px 16px; }
+  .griglia2 { display:grid; grid-template-columns:repeat(auto-fit, minmax(420px, 1fr)); gap:12px; }
+  figure { margin:0; } figure img { width:100%; border-radius:6px; border:1px solid var(--bordo); display:block; }
+  figcaption { font-size:12px; color:var(--tenue); margin-top:4px; }
+  table { border-collapse:collapse; width:100%; font-size:13px; }
+  th, td { border-bottom:1px solid var(--bordo); padding:5px 8px; text-align:left; vertical-align:top; }
+  th { color:var(--tenue); font-weight:600; position:sticky; top:0; background:var(--bg); }
+  code { font-family:ui-monospace, monospace; font-size:12px; background:#1e293b; padding:1px 4px; border-radius:3px; }
+  .scorre { overflow-x:auto; }
+  .matrice { border-collapse:separate; border-spacing:6px; }
+  .matrice td, .matrice th { border:none; padding:0; text-align:center; font-size:12px; }
+  .matrice th.riga { text-align:right; padding-right:6px; color:var(--testo); white-space:nowrap; }
+  .tag { display:inline-block; font-size:11px; padding:1px 6px; border-radius:9px; background:#1e293b; color:#cbd5e1; margin-right:4px; }
+  .S { background:#14532d; } .M { background:#713f12; } .L { background:#7f1d1d; }
+  ol li, ul li { margin:3px 0; }
+</style>
+</head>
+<body>
+<main>
+<h1>Revisione dello slider</h1>
+<p class="tenue">30-10-2026 · /revisione-oggetto slider · web (SVG) e LVGL 8.3.5 · niente codice scritto: questa è la proposta da approvare.</p>
+
+<div class="riquadro">
+<b>Decisioni già prese con te</b>
+<ul>
+  <li><b>Uso:</b> domotica e impianti, con priorità alla domotica. «È un oggetto molto importante che si deve adattare a vari stili grafici».</li>
+  <li><b>Web:</b> lo slider diventa un disegno SVG proprio, con dito, mouse e tastiera gestiti a mano. Il controllo nativo del browser se ne va.</li>
+  <li><b>Stile «classico»:</b> uno solo per i due motori, quello di LVGL di oggi. Sul web la traccia diventa più spessa.</li>
+  <li><b>Stili:</b> classico, pillola, piastra (domotica), ISA-101 (piatto).</li>
+  <li><b>Modi:</b> bipolare, valore misurato (PV), bande e tacche, ritorno a molla. L'intervallo a due cursori va in Appunti.</li>
+  <li><b>Tacche:</b> per passo, nelle unità del valore. <b>Molla:</b> scrive mentre tieni, al rilascio torna al riposo e scrive il riposo.</li>
+  <li><b>Difetti:</b> dentro il piano, come prima fase.</li>
+  <li><b>Immagine di sfondo:</b> dietro tutto il riquadro (<code>bg_image</code>, che esiste già), con un'opacità da regolare, e la parte vuota della traccia che può lasciarla vedere.</li>
+</ul>
+</div>
+
+<h2>1. Com'è oggi</h2>
+<p>La stessa pagina di prova (nove slider, <code>progetto-di-prova/</code>, accanto a questa tavola) sui due motori, su sfondo scuro e chiaro.</p>
+<div class="griglia2">
+  <figure><img src="web-scuro.png" alt="web, sfondo scuro"><figcaption>Web, sfondo scuro: controllo nativo di Chromium, traccia di 4 px quasi bianca.</figcaption></figure>
+  <figure><img src="lvgl-Slider-scuro.png" alt="LVGL, sfondo scuro"><figcaption>LVGL, sfondo scuro: traccia di 16 px, valore <b>sopra il riquadro</b>, cioè fuori dall'ingombro.</figcaption></figure>
+  <figure><img src="web-chiaro.png" alt="web, sfondo chiaro"><figcaption>Web, sfondo chiaro: col verde la traccia vuota diventa nera (la sceglie il browser).</figcaption></figure>
+  <figure><img src="lvgl-Slider-chiaro.png" alt="LVGL, sfondo chiaro"><figcaption>LVGL, sfondo chiaro: colori del tema LVGL, non i nostri.</figcaption></figure>
+</div>
+<h3>Cosa si vede nelle istantanee</h3>
+<ol>
+  <li><b>Frazione 0..1 con passo 0,05</b> (n. 3): su LVGL il cursore sta a 0 con il valore 0,35. Il range è intero, quindi 0..1 ha due posizioni sole.</li>
+  <li><b>Sola lettura</b> (n. 4): su LVGL è identico agli altri e si muove. Sul web è grigio e fermo.</li>
+  <li><b>Valore</b>: web sotto la traccia e centrato; LVGL sopra il riquadro, a sinistra. Col corpo 24 (n. 5) il valore LVGL copre il testo che sta sopra.</li>
+  <li><b>Riquadro basso</b> (n. 8, h 24): sul web il valore è tagliato a metà.</li>
+  <li><b>Etichetta</b> su LVGL: con «senza valore» (n. 7) finisce sopra il cursore.</li>
+</ol>
+
+<h2>2. Anatomia</h2>
+<p>Ogni parte con il campo che la governa. I campi <b>nuovi</b> hanno il prefisso <code>slider_</code>, come <code>gauge_ticks</code> o <code>bar_mode</code>. Quelli che esistono già si riusano col loro significato.</p>
+<div class="riquadro" id="anatomia"></div>
+
+<h2>3. Stili × stati × sfondo</h2>
+<p>Ogni casella è un riquadro di 240×64. Il colore d'accento è <code>fill</code>, quindi #3b82f6 di default. Gli stati «qualità» e «allarme» sono gli effetti <b>generici</b> della pagina: lo slider non li rifà, li riceve.</p>
+<div class="scorre"><table class="matrice" id="matrice"></table></div>
+
+<h2>4. Modi di funzionamento</h2>
+<p>I modi si combinano con qualunque stile. Qui sono disegnati sul classico e, dove serve a capire, sulla piastra.</p>
+<div class="scorre"><table class="matrice" id="modi"></table></div>
+<div class="riquadro" style="margin-top:12px">
+<b>Ritorno a molla, passo per passo</b>
+<ol>
+  <li>Il dito prende il cursore: lo slider si ingrandisce (stato «trascinamento»).</li>
+  <li>Mentre si trascina, scrive il valore <b>al massimo 5 volte al secondo</b>, anche con «scrivi al rilascio» acceso. La molla lo scavalca, e il pannello lo dice.</li>
+  <li>Al rilascio il cursore torna a <code>slider_rest_value</code> in 150 ms, e scrive quel valore <b>una volta</b>.</li>
+  <li>Conferma e comando critico <b>non si combinano</b> con la molla: il validatore lo segnala come errore, perché una conferma a ogni scrittura renderebbe la leva inutilizzabile.</li>
+</ol>
+</div>
+
+<h2>4 bis. Immagine dietro lo slider</h2>
+<p><code>bg_image</code> esiste già per tutti gli oggetti: sul web lo slider lo disegna, su LVGL no (si aggiunge in fase 1, riusando il pezzo che disegna gli sfondi di pagina). Le novità sono due campi: <code>bg_image_opacity</code>, <b>universale</b> come <code>bg_image</code>, e <code>slider_track_opacity</code>, che lascia vedere l'immagine attraverso la parte vuota. Il «tramonto» qui sotto fa le veci di una fotografia.</p>
+<div class="scorre"><table class="matrice" id="immagini"></table></div>
+
+<h2>5. I campi</h2>
+<div class="scorre"><table id="campi"></table></div>
+
+<h2>6. Note per motore</h2>
+<div class="griglia2">
+<div class="riquadro">
+<h3 style="margin-top:0">Web — <code>SvgCanvas.tsx</code></h3>
+<ul>
+  <li>Un componente suo, <code>canvas/slider/</code>, invece del ramo dentro <code>SvgCanvas.tsx</code>: disegno puro (geometria in una funzione pura, testabile senza DOM) più la gestione del puntatore.</li>
+  <li><b>Puntatore</b>: Pointer Events con <code>setPointerCapture</code> (mouse, dito e penna in un solo percorso), <code>touch-action:none</code> sul gruppo. Area di tocco: tutto il riquadro, e almeno 44 px di spessore anche se la traccia è sottile.</li>
+  <li><b>Tastiera</b>: <code>tabindex</code> e <code>role="slider"</code> con <code>aria-valuemin/max/now</code>; frecce = un passo, PagSu/PagGiù = una tacca marcata (o il 10 %), Home/Fine = estremi. Anello di focus visibile.</li>
+  <li><b>In attesa</b>: dopo la scrittura il cursore resta dov'è, col bordo tratteggiato, finché il tag non arriva o per 3 s. Poi si allinea al tag. Oggi salta indietro subito.</li>
+  <li>In edit: stesso disegno, <code>pointerEvents:"none"</code> e hit-rect, come gli altri (WYSIWYG).</li>
+  <li>Sarà il primo oggetto con un gestore del puntatore suo. Lo schema servirà poi al bottone: per questo lo scrivo riusabile, ma senza toccare il bottone in questo piano.</li>
+</ul>
+</div>
+<div class="riquadro">
+<h3 style="margin-top:0">LVGL — <code>lvgl_render.rs</code></h3>
+<ul>
+  <li>Resta <code>lv_slider</code>. Gli stili vanno sulle tre parti: <code>MAIN</code> (traccia), <code>INDICATOR</code> (riempimento), <code>KNOB</code> (cursore: raggio, padding = dimensione, colore).</li>
+  <li><b>Range non intero</b>: la barra lavora in <b>passi</b> (0..N con N = (max−min)/step), e il valore vero è min + i·step. Si scrive <code>Float</code> quando il passo o il range non sono interi.</li>
+  <li><b>Scrittura</b>: <code>LV_EVENT_RELEASED</code> per «scrivi al rilascio», deadband, sola lettura (via <code>CLICKABLE</code>), conferma e comando critico con la conferma che i bottoni hanno già (<code>RegolaConferma</code>).</li>
+  <li><b>Piastra</b>: traccia grande quanto il riquadro, cursore con opacità 0. Etichetta, valore e icona sono <code>lv_label</code> sopra. Le icone sono SVG rasterizzati una volta con resvg, che il viewer usa già per il tubo.</li>
+  <li><b>Tacche e bande</b>: <code>lv_line</code> ed etichette disegnate a mano, non <code>lv_meter</code>, che è circolare. Le bande sono rettangoli sotto la traccia.</li>
+  <li><b>PV</b>: un triangolino (<code>lv_obj</code> con raggio 0, o una linea) spostato a ogni valore, come la lancetta SP del gauge.</li>
+  <li><b>Molla</b>: un'animazione <code>lv_anim</code> di 150 ms sul valore, poi la scrittura.</li>
+  <li>Il valore torna <b>dentro</b> il riquadro. Fallback dichiarati: niente ombre, niente gradienti; nello stile ISA il cursore rettangolare è un <code>KNOB</code> con raggio 2.</li>
+</ul>
+</div>
+</div>
+
+<h2>7. Le fasi</h2>
+<p>Ogni fase sta in una sessione e finisce con qualcosa da provare, sulla pagina di prova e sui gemelli <code>demo-items-*</code>.</p>
+<div class="scorre"><table id="fasi"></table></div>
+
+<h2>8. Fuori da questo piano</h2>
+<ul>
+  <li><b>Seme — uno stile grafico di progetto per tutti gli oggetti</b> (per esempio «ISA-101 ovunque»), come <code>symbol_style</code> fa per i simboli. Qui lo stile è per oggetto, e un progetto lo sceglie oggetto per oggetto.</li>
+  <li><b>Seme — lo stato «in attesa» per tutte le scritture</b> (bottone, setpoint, checkbox). Lo slider lo ha suo, in fase 1, perché è quello che salta indietro.</li>
+  <li><b>Appunti — l'intervallo a due cursori</b> (minimo e massimo su due tag).</li>
+  <li>Il <b>bottone</b> col gestore del puntatore nuovo: dopo, se serve.</li>
+</ul>
+
+<h2>9. Decise dopo la prima stesura</h2>
+<ol>
+  <li><b>Icone della piastra</b>: un insieme fisso di 8 (lampadina, tapparella, termometro, ventola, presa, volume, goccia, sole), uguali sui due motori.</li>
+  <li><b>Riposo della molla</b>, se non lo scrivi: l'origine se lo slider è bipolare, altrimenti il minimo.</li>
+  <li><b>Stile classico</b>: campo assente = classico, così i progetti esistenti non scrivono niente di nuovo.</li>
+</ol>
+</main>
+
+<script>
+const SFONDI = { scuro: { bg:"#0f172a", testo:"#e2e8f0", tenue:"#94a3b8", traccia:"#0d2a4a", piastra:"#1e293b", isaT:"#64748b", isaF:"#94a3b8", isaK:"#cbd5e1", isaKb:"#0f172a" },
+                 chiaro:{ bg:"#f1f5f9", testo:"#0f172a", tenue:"#64748b", traccia:"#cfe1f5", piastra:"#e2e8f0", isaT:"#cbd5e1", isaF:"#64748b", isaK:"#334155", isaKb:"#f8fafc" } };
+const ACC = "#3b82f6";
+const W = 240, H = 64;
+
+function icona(tipo, x, y, s, c) {
+  // Lampadina stilizzata.
+  return `<g transform="translate(${x},${y}) scale(${s/24})" fill="none" stroke="${c}" stroke-width="2" stroke-linecap="round">
+    <path d="M9 18h6M10 21h4M12 3a6 6 0 0 0-4 10.5c.7.7 1 1.5 1 2.5h6c0-1 .3-1.8 1-2.5A6 6 0 0 0 12 3z"/></g>`;
+}
+
+/** Al posto di una fotografia: un tramonto disegnato, con opacità `op`. */
+function immagineFinta(op) {
+  return `<g opacity="${op}"><defs><linearGradient id="cielo" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#f97316"/><stop offset="1" stop-color="#7c3aed"/></linearGradient></defs>
+    <rect width="${W}" height="${H}" fill="url(#cielo)"/><circle cx="185" cy="40" r="18" fill="#fde68a"/>
+    <path d="M0 ${H} L40 44 L80 54 L130 36 L175 52 L210 42 L${W} 50 L${W} ${H} Z" fill="#1e1b4b"/></g>`;
+}
+
+/** Uno slider in SVG. o = { stile, stato, sfondo, v (0..1), modo } */
+function slider(o) {
+  const S = SFONDI[o.sfondo]; const v = o.v ?? 0.62; const st = o.stato || "normale";
+  const ro = st === "sola_lettura", drag = st === "trascinamento", attesa = st === "attesa";
+  let g = `<rect width="${W}" height="${H}" fill="${S.bg}"/>`;
+  if (o.img !== undefined) g += immagineFinta(o.img);
+  const etichetta = o.etichetta ?? "Luce soggiorno";
+  const valTxt = o.valTxt ?? `${Math.round(v*100)} %`;
+  const x0 = 16, x1 = W - 16, L = x1 - x0, cy = 34;
+  const xv = x0 + L * v;
+  const lucchetto = ro ? `<g transform="translate(${W/2 + 48},6)" fill="${S.tenue}"><rect x="0" y="5" width="8" height="6" rx="1"/><path d="M2 5V3a2 2 0 0 1 4 0v2" fill="none" stroke="${S.tenue}" stroke-width="1.4"/></g>` : "";
+
+  if (o.stile === "piastra") {
+    const r = 12, top = 4, h = H - 8;
+    g += `<rect x="4" y="${top}" width="${W-8}" height="${h}" rx="${r}" fill="${S.piastra}" opacity="${o.trackOp ?? 1}"/>`;
+    const fw = ro ? (W-8)*v : (W-8)*v;
+    g += `<clipPath id="c${o.id}"><rect x="4" y="${top}" width="${W-8}" height="${h}" rx="${r}"/></clipPath>`;
+    const origine = o.modo === "bipolare" ? 0.5 : 0;
+    const a = 4 + (W-8)*Math.min(origine, v), b = 4 + (W-8)*Math.max(origine, v);
+    g += `<rect clip-path="url(#c${o.id})" x="${a}" y="${top}" width="${b-a}" height="${h}" fill="${ACC}" opacity="${ro ? 0.45 : 0.9}"/>`;
+    if (drag) g += `<rect x="4" y="${top}" width="${W-8}" height="${h}" rx="${r}" fill="none" stroke="${S.testo}" stroke-width="2"/>`;
+    if (attesa) g += `<line x1="${b}" y1="${top+6}" x2="${b}" y2="${top+h-6}" stroke="${S.testo}" stroke-width="2" stroke-dasharray="3 3"/>`;
+    g += icona("luce", 14, top + h/2 - 11, 22, "#fff");
+    g += `<text x="44" y="${top+22}" font-size="12" fill="#fff" opacity=".9">${etichetta}</text>`;
+    g += `<text x="44" y="${top+42}" font-size="18" font-weight="600" fill="#fff">${valTxt}</text>`;
+    g += lucchetto;
+    return g;
+  }
+
+  const spessore = { classico:16, pillola:28, isa:6 }[o.stile || "classico"];
+  const r = spessore / 2;
+  const coloreTraccia = o.stile === "isa" ? S.isaT : S.traccia;
+  const coloreFill = o.stile === "isa" ? S.isaF : (ro ? S.tenue : ACC);
+  g += `<text x="${W/2}" y="13" font-size="11" text-anchor="middle" fill="${S.tenue}">${etichetta}</text>` + lucchetto;
+
+  // Bande (sotto la traccia).
+  if (o.modo === "bande") {
+    const b = (a, c, col) => `<rect x="${x0 + L*a}" y="${cy + r + 2}" width="${L*(c-a)}" height="4" fill="${col}"/>`;
+    g += b(0, .1, "#ef4444") + b(.1, .25, "#f59e0b") + b(.25, .75, o.stile === "isa" ? S.isaT : "#22c55e") + b(.75, .9, "#f59e0b") + b(.9, 1, "#ef4444");
+  }
+  // Traccia.
+  g += `<rect x="${x0}" y="${cy - r}" width="${L}" height="${spessore}" rx="${r}" fill="${coloreTraccia}" opacity="${o.trackOp ?? 1}"/>`;
+  // Riempimento.
+  const origine = o.modo === "bipolare" ? 0.5 : 0;
+  const xa = x0 + L * Math.min(origine, v), xb = x0 + L * Math.max(origine, v);
+  if (o.stile !== "isa" || true) g += `<rect x="${xa}" y="${cy - r}" width="${Math.max(0, xb - xa)}" height="${spessore}" rx="${o.modo === "bipolare" ? 0 : r}" fill="${coloreFill}"/>`;
+  if (o.modo === "bipolare") g += `<line x1="${x0 + L*origine}" y1="${cy - r - 4}" x2="${x0 + L*origine}" y2="${cy + r + 4}" stroke="${S.testo}" stroke-width="1.5"/>`;
+  // Tacche.
+  if (o.modo === "bande" || o.modo === "tacche") {
+    for (let i = 0; i <= 50; i++) {
+      const x = x0 + L * i / 50, magg = i % 10 === 0;
+      if (i % 2 && !magg) continue;
+      g += `<line x1="${x}" y1="${cy + r + 7}" x2="${x}" y2="${cy + r + (magg ? 13 : 10)}" stroke="${S.tenue}" stroke-width="${magg ? 1.2 : .8}"/>`;
+      if (magg) g += `<text x="${x}" y="${cy + r + 22}" font-size="8" text-anchor="middle" fill="${S.tenue}">${i*2}</text>`;
+    }
+  }
+  // PV.
+  if (o.modo === "pv") {
+    const xp = x0 + L * 0.48;
+    g += `<path d="M${xp-5} ${cy - r - 9} L${xp+5} ${cy - r - 9} L${xp} ${cy - r - 2} Z" fill="${S.testo}"/>`;
+  }
+  // Cursore.
+  if (!ro) {
+    const k = drag ? 1.15 : 1;
+    if (o.stile === "isa") {
+      g += `<rect x="${xv - 6*k}" y="${cy - 14*k}" width="${12*k}" height="${28*k}" rx="2" fill="${S.isaK}" stroke="${S.isaKb}" stroke-width="1.5" ${attesa ? 'stroke-dasharray="3 2"' : ""}/>`;
+    } else if (o.stile === "pillola") {
+      g += `<circle cx="${Math.max(x0 + r, xv - r)}" cy="${cy}" r="${(r - 4)*k}" fill="#fff" ${attesa ? `stroke="${ACC}" stroke-width="2" stroke-dasharray="3 2"` : ""}/>`;
+    } else {
+      g += `<circle cx="${xv}" cy="${cy}" r="${13*k}" fill="${ACC}" ${drag ? `stroke="${S.testo}" stroke-width="2"` : ""} ${attesa ? `stroke="${S.testo}" stroke-width="2" stroke-dasharray="3 2"` : ""}/>`;
+    }
+  } else {
+    g += `<line x1="${xv}" y1="${cy - r - 3}" x2="${xv}" y2="${cy + r + 3}" stroke="${S.testo}" stroke-width="2"/>`;
+  }
+  // Valore.
+  const sottoY = (o.modo === "bande" || o.modo === "tacche") ? null : H - 4;
+  if (drag) {
+    g += `<g><rect x="${xv - 22}" y="${cy - r - 26}" width="44" height="18" rx="4" fill="${S.testo}"/><text x="${xv}" y="${cy - r - 13}" font-size="11" text-anchor="middle" fill="${S.bg}" font-weight="600">${valTxt}</text></g>`;
+  } else if (sottoY) {
+    g += `<text x="${W/2}" y="${sottoY}" font-size="12" text-anchor="middle" fill="${S.testo}">${valTxt}${o.modo === "pv" ? `  <tspan fill="${S.tenue}">PV 48 %</tspan>` : ""}</text>`;
+  }
+  return g;
+}
+
+function effetti(g, stato, S) {
+  if (stato === "qualita") return `<g opacity=".55" style="filter:grayscale(.9)">${g}</g><text x="4" y="12" font-size="11" fill="${S.tenue}">⌛</text><circle cx="${W-8}" cy="8" r="4" fill="#f59e0b"/>`;
+  if (stato === "allarme") return `${g}<rect x="1.5" y="1.5" width="${W-3}" height="${H-3}" rx="4" fill="none" stroke="#ef4444" stroke-width="2"/>`;
+  return g;
+}
+
+let nid = 0;
+function cella(o) {
+  o.id = nid++;
+  const S = SFONDI[o.sfondo];
+  return `<svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" style="border-radius:4px;display:block">${effetti(slider(o), o.stato, S)}</svg>`;
+}
+
+// Matrice stili × stati × sfondo.
+const STILI = [["classico","Classico (oggi LVGL)"],["pillola","Pillola"],["piastra","Piastra"],["isa","ISA-101"]];
+const STATI = [["normale","normale"],["trascinamento","trascinamento"],["attesa","in attesa del tag"],["sola_lettura","sola lettura"],["qualita","qualità Bad / stale (generico)"],["allarme","allarme (generico)"]];
+let h = "<tr><th></th>" + STATI.map(s => `<th>${s[1]}</th>`).join("") + "</tr>";
+for (const [st, nome] of STILI) for (const sf of ["scuro","chiaro"]) {
+  h += `<tr><th class="riga">${nome}<br><span class="tenue">sfondo ${sf}</span></th>` + STATI.map(([s]) => `<td>${cella({ stile: st, stato: s, sfondo: sf })}</td>`).join("") + "</tr>";
+}
+document.getElementById("matrice").innerHTML = h;
+
+// Modi.
+const MODI = [
+  ["bipolare", "Bipolare, origine a 0 (range −50..50)", { valTxt: "+12", v: .62 }],
+  ["pv", "Valore misurato (PV) col triangolino", { etichetta: "Termostato", valTxt: "21,0 °C", v: .55 }],
+  ["bande", "Bande di limite + tacche ogni 10 / ogni 2", { etichetta: "Pressione" }],
+  ["molla", "Molla: rilasciato, torna al riposo (centro)", { etichetta: "Jog", valTxt: "0", v: .5 }],
+];
+let m = "<tr><th></th><th>classico, scuro</th><th>classico, chiaro</th><th>piastra, scuro</th><th>ISA-101, chiaro</th></tr>";
+for (const [modo, nome, extra] of MODI) {
+  const md = modo === "molla" ? "bipolare" : modo;
+  m += `<tr><th class="riga">${nome}</th>` +
+    `<td>${cella({ stile:"classico", sfondo:"scuro", modo: md, ...extra })}</td>` +
+    `<td>${cella({ stile:"classico", sfondo:"chiaro", modo: md, ...extra })}</td>` +
+    `<td>${cella({ stile:"piastra", sfondo:"scuro", modo: md, ...extra })}</td>` +
+    `<td>${cella({ stile:"isa", sfondo:"chiaro", modo: md, ...extra })}</td></tr>`;
+}
+document.getElementById("modi").innerHTML = m;
+
+// Immagini.
+const IMG = [
+  ["classico, immagine al 100 %", { stile:"classico", sfondo:"scuro", img:1 }],
+  ["classico, immagine al 40 %", { stile:"classico", sfondo:"scuro", img:.4 }],
+  ["classico, immagine al 70 %, traccia al 40 %", { stile:"classico", sfondo:"scuro", img:.7, trackOp:.4 }],
+  ["piastra, immagine al 100 %, traccia al 30 %", { stile:"piastra", sfondo:"scuro", img:1, trackOp:.3 }],
+  ["pillola, immagine al 50 %, sfondo chiaro", { stile:"pillola", sfondo:"chiaro", img:.5, trackOp:.6 }],
+  ["ISA-101, immagine al 25 %, sfondo chiaro", { stile:"isa", sfondo:"chiaro", img:.25 }],
+];
+document.getElementById("immagini").innerHTML =
+  "<tr>" + IMG.slice(0,3).map(i => `<th>${i[0]}</th>`).join("") + "</tr><tr>" + IMG.slice(0,3).map(i => `<td>${cella({ ...i[1] })}</td>`).join("") + "</tr>" +
+  "<tr>" + IMG.slice(3).map(i => `<th>${i[0]}</th>`).join("") + "</tr><tr>" + IMG.slice(3).map(i => `<td>${cella({ ...i[1] })}</td>`).join("") + "</tr>";
+
+// Anatomia.
+(function () {
+  const S = SFONDI.scuro;
+  const g = slider({ stile:"classico", sfondo:"scuro", modo:"bande", v:.62, id:"an" }).replace(`<rect width="${W}" height="${H}" fill="${S.bg}"/>`, "");
+  const pv = `<path d="M${16+208*.48-5} ${34-8-9} L${16+208*.48+5} ${34-8-9} L${16+208*.48} ${34-8-2} Z" fill="${S.testo}"/>`;
+  const note = [
+    [150, 9, 440, 22, "Etichetta — label, label_font_size"],
+    [116, 21, 440, 48, "PV — slider_pv_tag, slider_pv_color (nuovi)"],
+    [60, 34, 440, 74, "Riempimento — fill · origine: slider_origin (nuovo)"],
+    [205, 34, 440, 100, "Traccia — slider_track_color, slider_track_thickness"],
+    [145, 22, 440, 126, "Cursore — forma dallo stile: slider_style"],
+    [30, 44, 440, 152, "Bande — warn/alarm low/high · slider_bands"],
+    [120, 58, 440, 178, "Tacche — slider_tick_major / _minor / _labels"],
+  ];
+  let s = `<svg viewBox="0 0 900 215" style="width:100%;max-width:900px;display:block"><rect width="900" height="215" fill="#0b1220"/>
+    <g transform="translate(20,40) scale(1.6)"><rect width="${W}" height="${H+14}" fill="${S.bg}" rx="4"/>${g}${pv}</g>`;
+  for (const [ax, ay, tx, ty, t] of note) {
+    const X = 20 + ax*1.6, Y = 40 + ay*1.6;
+    s += `<line x1="${X}" y1="${Y}" x2="${tx}" y2="${ty-4}" stroke="#475569" stroke-width="1"/><circle cx="${X}" cy="${Y}" r="2.5" fill="#f59e0b"/>
+          <text x="${tx+6}" y="${ty}" font-size="13" fill="#e2e8f0">${t}</text>`;
+  }
+  s += `<text x="20" y="208" font-size="12" fill="#94a3b8">Valore: unit, decimals (già nei motori, mancano nel pannello) · font_size · posizione in slider_value_position (nuovo)</text></svg>`;
+  document.getElementById("anatomia").innerHTML = s;
+})();
+
+// Campi.
+const CAMPI = [
+  ["<b>slider_style</b>", "classico | pillola | piastra | isa", "assente = classico", "Aspetto (sezione nuova)", "nuovo"],
+  ["<b>slider_track_thickness</b>", "px", "dallo stile: 16 / 28 / riquadro / 6", "Aspetto", "nuovo, in CAMPI_SCALATI"],
+  ["<b>slider_track_color</b>", "colore", "auto (segue lo sfondo, come oggi LVGL)", "Aspetto", "nuovo, colori-predefiniti «auto»"],
+  ["fill", "colore", "#3b82f6", "Aspetto", "esiste: riempimento e cursore"],
+  ["<b>slider_value_position</b>", "sotto | sopra | dentro | cursore", "sotto (piastra: dentro)", "Valore", "nuovo; «cursore» = fumetto sul cursore mentre si trascina"],
+  ["unit, decimals", "testo, intero", "dalla TagDef / dal passo", "Valore", "esistono, entrano nel pannello"],
+  ["show_value", "bool", "mostrato", "Valore", "esiste; la casella del pannello va corretta"],
+  ["<b>slider_icon</b>", "uno di 8 nomi", "nessuna", "Aspetto (solo piastra)", "nuovo"],
+  ["<b>slider_tick_major</b> / <b>slider_tick_minor</b>", "numero, nelle unità", "assente = nessuna tacca", "Scala", "nuovi"],
+  ["<b>slider_tick_labels</b>", "bool", "vero se ci sono tacche marcate", "Scala", "nuovo"],
+  ["<b>slider_snap_ticks</b>", "bool", "falso", "Scala", "nuovo: il cursore si aggancia alle divisioni"],
+  ["warn_low, warn_high, alarm_low, alarm_high", "numero", "dalla TagDef (limiti)", "Scala", "esistono (progress_bar, gauge); LVGL deve leggere anche quelli della TagDef"],
+  ["<b>slider_bands</b>", "sempre | in_allarme | mai", "mai (nessun progetto cambia)", "Scala", "nuovo"],
+  ["bg_image", "URL", "nessuna", "Aspetto (sfondo, sezione universale)", "esiste per tutti; LVGL lo deve leggere anche sullo slider"],
+  ["<b>bg_image_opacity</b>", "0-100 %", "100 (come oggi)", "sfondo, sezione universale", "nuovo e <b>universale</b>: vale per ogni oggetto con bg_image"],
+  ["<b>slider_track_opacity</b>", "0-100 %", "100 (come oggi)", "Aspetto", "nuovo: la parte vuota della traccia, o della piastra, lascia vedere l'immagine"],
+  ["<b>slider_origin</b>", "numero", "assente = dal minimo", "Modo", "nuovo: bipolare"],
+  ["<b>slider_pv_tag</b>, <b>slider_pv_color</b>", "tag, colore", "nessuno / auto", "Modo", "nuovi, come gauge_sp_tag al contrario"],
+  ["<b>slider_rest_value</b>", "numero", "assente = niente molla", "Comportamento", "nuovo: ritorno a molla"],
+  ["write_on_release, write_deadband, read_only, require_confirm, critical", "", "come oggi", "Comportamento", "esistono; LVGL li deve leggere"],
+];
+document.getElementById("campi").innerHTML = "<tr><th>Campo</th><th>Tipo</th><th>Default</th><th>Sezione del pannello</th><th>Note</th></tr>" +
+  CAMPI.map(r => `<tr>${r.map(c => `<td>${c}</td>`).join("")}</tr>`).join("");
+
+// Fasi.
+const FASI = [
+  ["1", "Difetti e parità, senza cambiare aspetto", "M", "Pannello: «Mostra valore» giusto (anche gauge e progress_bar), unit e decimali. Web: niente salto indietro, «in attesa» fino al tag o 3 s, «—» invece di NaN. LVGL: range in passi (0..1 col passo 0,05 funziona), scrittura Float, al rilascio, deadband, sola lettura, conferma e critico, valore dentro il riquadro, sfondo universale (bg_color e bg_image, col pezzo degli sfondi di pagina). Bordo allarme con la misura giusta. Validatore: min < max, passo > 0. Manuale e gemelli."],
+  ["2", "Web in SVG, stile classico unico", "M", "Componente nuovo con puntatore, tastiera e focus; il classico = LVGL di oggi sui due motori; slider_track_color, slider_track_thickness, slider_value_position. Su LVGL lo stesso classico coi colori nostri invece di quelli del tema."],
+  ["3", "Stili pillola, piastra, ISA-101, e l'immagine in trasparenza", "M", "slider_style e slider_icon (8 icone SVG, rasterizzate su LVGL); bg_image_opacity (universale: il bgLayer del web e gli sfondi LVGL) e slider_track_opacity. Matrice di questa tavola rifatta coi due motori veri."],
+  ["4", "Tacche e bande", "M", "slider_tick_*, slider_snap_ticks, slider_bands con i limiti; LVGL a linee ed etichette."],
+  ["5", "Bipolare e valore misurato", "S", "slider_origin, slider_pv_tag, slider_pv_color."],
+  ["6", "Ritorno a molla", "S", "slider_rest_value: scrittura ogni 200 ms mentre si tiene, animazione di 150 ms e scrittura del riposo al rilascio; validatore contro conferma e critico."],
+  ["7", "CasaDomotica", "S", "Le luci e le tapparelle in piastra, un termostato con PV, quando lo slider nuovo entra in main (regola di CLAUDE.md). CHANGELOG e NOVITA in ogni fase."],
+];
+document.getElementById("fasi").innerHTML = "<tr><th>Fase</th><th>Cosa</th><th>Costo</th><th>Si prova con</th></tr>" +
+  FASI.map(f => `<tr><td>${f[0]}</td><td><b>${f[1]}</b></td><td><span class="tag ${f[2]}">${f[2]}</span></td><td>${f[3]}</td></tr>`).join("");
+</script>
+</body>
+</html>

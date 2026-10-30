@@ -36,3 +36,19 @@ export function azionePerSessioneRifiutata(authToken: string | null): AzioneSess
  *  ci si ritrova davanti a un login comparso dal nulla su un IDE che fino a un
  *  secondo prima non ne chiedeva nessuno. */
 export const MOTIVO_AUTENTICAZIONE_ACCESA = "auth.autenticazioneAppenaAccesa";
+
+/** Il tetto del timer di rinnovo: un giorno. */
+export const RINNOVO_MASSIMO_MS = 24 * 3600_000;
+
+/** Fra quanto rinnovare la sessione: cinque minuti prima della scadenza, ma
+ *  mai prima di 30 s e **mai oltre un giorno**.
+ *
+ *  Il tetto non è prudenza. Con «ricordami» (30 giorni, 30-10-2026) il
+ *  ritardo valeva ~2,59·10⁹ ms, oltre il massimo di `setTimeout` (2³¹-1 ms,
+ *  ~24,8 giorni): il browser lo tronca e il timer scatta **subito**. Rinnovata,
+ *  la sessione torna a 30 giorni e il timer ripartirebbe subito di nuovo, in
+ *  ciclo. Un giorno sta comodo sotto il limite, e a ogni rinnovo il timer
+ *  riparte dalla scadenza nuova. */
+export function ritardoRinnovo(scadeMs: number, adessoMs: number): number {
+  return Math.min(Math.max(scadeMs - adessoMs - 5 * 60_000, 30_000), RINNOVO_MASSIMO_MS);
+}

@@ -1,7 +1,5 @@
 Annoto di seguito, uno per punto, le cose che devono essere verificate e trasformate in plan da eseguire:
 
-- LVGL & WEB : L'oggetto slider va impreziosito, servono più stili e modi di funzionamento, è un oggetto 
-
 - Traduzioni inglesi dell'IDE: nessuno ha mai letto le voci in inglese, e nessuno ha mai girato
   l'IDE in inglese a schermo. Non e' lavoro di codice, e' verifica, ed e' per questo che sta qui
   (piano 2026-09-19 archiviato il 22-10-2026). Le misure di oggi: en.json ha 3187 chiavi foglia
@@ -91,26 +89,14 @@ Annoto di seguito, uno per punto, le cose che devono essere verificate e trasfor
   la traccia completa: quale `await` scade. E' la stessa famiglia delle quattro guardie che
   fallivano a caso lo stesso giorno — un controllo che fallisce a caso insegna a ignorarlo.
 
-- Prova delle card delle sorgenti (piano archiviato docs/archive/2026-10-29-card-delle-sorgenti.md,
-  passi in docs/COLLAUDI_IN_SOSPESO.md §A-octies). Nell'IDE, una sorgente per tipo: le nove testate
-  uguali con lo stato a card chiusa; l'indirizzo primo e l'ID sorgente ultimo; MQTT con AVANZATE
-  chiusa e il watchdog in riga; l'interruttore [Topic | Sparkplug B]; il contrasto nei due temi.
+- Planimetrie, il ramo 3 rimasto (piano archiviato docs/archive/2026-10-25-planimetrie-3d.md, archiviato il
+  30-10-2026 con i rami 1 e 2 fatti e visti a schermo): disegnare una planimetria vera di CasaDomotica (la casa o
+  il garage), generarne lo sfondo e metterlo alla pagina corrispondente — e' anche la regola di CLAUDE.md su
+  CasaDomotica, che va rispettata quando le planimetrie entrano in main. Poi guardare quella pagina su un pannello
+  LVGL (WP630): la strada raster degli sfondi e' gia' confermata dalla 2.23.3, ma con un PNG di planimetria nessuno
+  l'ha vista. Il capitolo del manuale c'e' gia'.
 
-- Prova dal vivo della disponibilita' (piano archiviato docs/archive/2026-10-28-chi-sta-dall-altra-parte.md,
-  passi in docs/COLLAUDI_IN_SOSPESO.md §A-septies), dopo che il gateway gira la 2.23.7. In
-  CasaDomotica: preimpostazione Zigbee2MQTT sulle sorgenti mqtt-*, allarme dal pulsante con
-  Telegram acceso. Fermare Zigbee2MQTT: Telegram entro un minuto, tag del sinottico in stale.
-  Riavviarlo: i tag tornano buoni solo al primo valore vero. Un comando con Zigbee2MQTT fermo parte
-  lo stesso. Poi una sorgente Modbus o S7 staccata e riattaccata.
-
-- Prova vera di SMS e chiamate Twilio (piano archiviato docs/archive/2026-10-26-sms-voce-reperibilita.md),
-  appena l'account Twilio passa a pagamento: l'account di prova manda solo i messaggi predefiniti di Twilio
-  e risponde 572006 a un testo di SWS. Da provare: «Invia SMS di prova» con account+token e poi con una
-  chiave API «Standard» (riscrivendo una volta il segreto); un allarme che manda un SMS e una chiamata a un
-  reperibile; il tasto 1 dal telefono, e la risposta «OK» a un SMS, su un pannello collegato al cloud. Passi
-  completi in docs/COLLAUDI_IN_SOSPESO.md §A-quinquies.
-
-- Report programmati, le due prove rimaste (piano archiviato docs/archive/2026-10-26-report-programmati.md,
-  passi 3 e 4 di docs/COLLAUDI_IN_SOSPESO.md §A-quater): con un destinatario e l'SMTP delle Notifiche, la mail
-  arriva con PDF ed Excel allegati; con il cron a */15 e «File da tenere» = 2, i file nascono da soli sul
-  pannello e ne restano solo le ultime due generazioni. Il deploy va fatto dopo ogni modifica del report.
+- Slider a intervallo, cioe' due cursori (minimo e massimo) su due tag: escluso dal piano della revisione dello
+  slider il 30-10-2026 (docs/plans/2026-10-30-revisione-slider.md), perche' e' il modo piu' costoso (L) e la
+  priorita' e' la domotica. Serve per fasce orarie, finestre di temperatura, soglie min/max. Quando lo si prende,
+  riusa il componente SVG della fase 2 di quel piano: due cursori, due scritture, e la regola che non si incrocino.

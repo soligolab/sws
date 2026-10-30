@@ -304,6 +304,34 @@ Ogni azienda ha una cartella sotto la radice dei progetti, un marchio facoltativ
 `max_progetti_aperti` (quanti progetti può tenere **aperti insieme**, perché ogni progetto aperto
 è un container da avviare — non il numero totale), `max_pannelli` e `max_byte`.
 
+### Entrare: password, PIN, «ricordami»
+
+Un utente dell'installazione entra con email e password. Dalla 2.23.8, nella stessa schermata:
+
+- **«Ricordami su questo browser per 30 giorni»**: la sessione dura 30 giorni invece di 8 ore, e
+  come quella normale si rinnova a ogni uso;
+- **«Entra con un PIN via e-mail»**, se l'installazione ha la posta configurata (console → Posta):
+  arriva un codice di otto simboli, valido 10 minuti e una volta sola. La password non cambia.
+
+I tentativi sbagliati di password e di PIN si contano **insieme**: cinque in cinque minuti
+bloccano quell'indirizzo per cinque minuti, e il PIN in volo si butta.
+
+### Registrarsi da soli (gateway)
+
+Un gateway acceso con **`--gateway-registrazione`** (o `SWS_GATEWAY_REGISTRAZIONE=1`) e con la
+posta configurata mostra anche **«Crea un account»**. Chi si registra accetta le condizioni d'uso e
+approva a parte le clausole del punto 14, riceve un codice per posta e, scrivendolo, entra: nasce
+con **un'azienda sua**, di cui è Sviluppatore, con un tetto di tre progetti. Vede solo i suoi
+progetti, non entra nella console e non invita nessuno. Le condizioni e l'informativa sono in
+`/condizioni` e `/privacy`, che esistono solo a registrazione aperta.
+
+Per costruzione la schermata non dice mai se un indirizzo è iscritto: registrarsi con un
+indirizzo che ha già un account, o chiedere un PIN per uno che non ce l'ha, risponde allo stesso
+modo, e all'iscritto arriva una e-mail che lo avvisa.
+
+L'interruttore è spento di default, e va acceso di proposito: i testi di `docs/legale/` sono
+ancora una bozza da rivedere.
+
 ### La console
 
 Aziende, persone, pannelli, marchi, risorse, posta e impostazioni dell'installazione si governano

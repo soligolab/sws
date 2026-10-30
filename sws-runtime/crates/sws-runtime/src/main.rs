@@ -227,6 +227,16 @@ struct Args {
     #[arg(long, default_value_t = 0)]
     gateway_max_container: usize,
 
+    /// **Chiunque puo registrarsi da solo** su questo gateway, con la verifica
+    /// dell'indirizzo per posta (30-10-2026). Chi si registra nasce con
+    /// un'azienda sua, di cui e Sviluppatore, e tre progetti.
+    ///
+    /// Spenta di default, e va accesa di proposito: prima servono le condizioni
+    /// d'uso riviste e una posta d'installazione che non finisca nello spam.
+    /// Vedi `docs/plans/2026-10-26-aprire-sws-soligo-net.md`, ramo C.
+    #[arg(long, env = "SWS_GATEWAY_REGISTRAZIONE")]
+    gateway_registrazione: bool,
+
     /// **L'indirizzo del gateway a cui questo pannello si collega.**
     ///
     /// Un pannello sta nella rete di un cliente, dietro NAT: nessuno da fuori
@@ -1334,7 +1344,8 @@ async fn main() -> anyhow::Result<()> {
             segreto,
         )
         .con_fermo_dopo(std::time::Duration::from_secs(args.gateway_fermo_minuti * 60))
-        .con_massimo_container(args.gateway_max_container);
+        .con_massimo_container(args.gateway_max_container)
+        .con_registrazione(args.gateway_registrazione);
         let r = Arc::new(r);
         match r.riadotta().await {
             Ok(0) => info!("gateway acceso, nessun progetto da riprendere"),

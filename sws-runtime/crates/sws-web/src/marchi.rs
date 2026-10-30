@@ -90,9 +90,11 @@ fn nome_sicuro(s: &str) -> bool {
 
 /// I campi di `brand.json` che si servono **prima** dell'accesso: quelli che
 /// disegnano la schermata d'accesso. Lista bianca: un campo nuovo resta
-/// privato finché qualcuno non decide di aggiungerlo qui.
+/// privato finché qualcuno non decide di aggiungerlo qui. `logo_chiaro`
+/// (30-10-2026) è il logo per il tema chiaro, che la schermata d'accesso
+/// disegna su fondo bianco.
 pub const CAMPI_PUBBLICI: &[&str] = &[
-    "id", "name", "shortName", "logo", "favicon", "colors", "neutrals_dark", "neutrals_light",
+    "id", "name", "shortName", "logo", "logo_chiaro", "favicon", "colors", "neutrals_dark", "neutrals_light",
 ];
 
 /// Solo i campi pubblici di un `brand.json`.
@@ -439,12 +441,13 @@ mod tests {
     #[test]
     fn del_brand_json_pre_auth_esce_solo_la_lista_bianca() {
         let v = serde_json::json!({
-            "name": "Pixsys", "logo": "logo.svg", "colors": {"primary": "#f00"},
+            "name": "Pixsys", "logo": "logo.svg", "logo_chiaro": "logo-chiaro.svg", "colors": {"primary": "#f00"},
             "device_presets": [{"id": "wp630"}], "data_path_presets": ["/data/user"],
             "qualsiasi": "segreto",
         });
         let p = super::solo_pubblici(&v);
         assert_eq!(p["name"], "Pixsys");
+        assert_eq!(p["logo_chiaro"], "logo-chiaro.svg", "il logo del tema chiaro serve alla schermata d'accesso");
         assert!(p.get("device_presets").is_none());
         assert!(p.get("qualsiasi").is_none(), "un campo nuovo resta privato per costruzione");
         let q = super::solo_privati(&v);

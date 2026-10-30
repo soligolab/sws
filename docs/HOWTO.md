@@ -1985,7 +1985,7 @@ fiducia al primo contatto con l'impronta mostrata, come sempre.
 
 ## 30. Lavorare dal cloud su un impianto
 
-*Dal 25-10-2026 (piano `docs/plans/2026-10-25-impianto-dal-dispositivo.md`).*
+*Dal 25-10-2026 (piano `docs/archive/2026-10-25-impianto-dal-dispositivo.md`).*
 
 Dal cloud (sws.soligo.net) il progetto si modifica nel container sul VPS, ma **l'impianto lo tocca il
 pannello**: il VPS non vede la rete di casa o di fabbrica.

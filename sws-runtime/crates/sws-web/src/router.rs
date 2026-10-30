@@ -159,6 +159,11 @@ pub struct AppState {
     pub derived_tags: DerivedTagsRegistry,
     pub generator_tags: GeneratorTagsRegistry,
     pub project_dir: ActiveProjectDir,
+    /// Chi ha aperto il progetto attivo (l'utente di `open_project`), `None`
+    /// a progetto chiuso. Serve solo a `entra`: chi **rientra** dal modale
+    /// «Sessione scaduta» ritrova il progetto che aveva aperto lui, invece di
+    /// vederselo chiudere sotto le mani (30-10-2026).
+    pub aperto_da: Arc<std::sync::Mutex<Option<String>>>,
     pub projects_root: Arc<PathBuf>,
     pub templates_root: Arc<PathBuf>,
     /// Il catalogo dei dispositivi del prodotto (`--catalog-root`); quello
@@ -421,6 +426,7 @@ pub fn build(
         derived_tags,
         generator_tags,
         project_dir,
+        aperto_da: Arc::new(std::sync::Mutex::new(None)),
         projects_root,
         templates_root,
         catalog_root,
@@ -1287,6 +1293,20 @@ pub fn build(
         // esistere. La creazione è protetta dal codice stampato all'avvio e si
         // chiude da sé appena un utente esiste.
         .route("/api/identita/stato", get(identita_stato))
+        // Registrazione e PIN (30-10-2026): pre-auth per costruzione — chi le
+        // chiama non ha ancora un account, o non ha la password. Le protegge
+        // un codice monouso per posta, 10 minuti, 5 tentativi per indirizzo
+        // contati insieme alla password; e rispondono uguale per chi e
+        // iscritto e chi no. Vedi `registrazione.rs`.
+        .route("/api/identita/registrazione", post(crate::registrazione::registra))
+        .route(
+            "/api/identita/registrazione/conferma",
+            post(crate::registrazione::conferma),
+        )
+        .route("/api/auth/pin", post(crate::registrazione::chiedi_pin))
+        .route("/api/auth/pin/accesso", post(crate::registrazione::accedi_con_pin))
+        .route("/condizioni", get(crate::registrazione::condizioni))
+        .route("/privacy", get(crate::registrazione::privacy))
         // I file dei marchi: logo, favicon, brand.json. **Pre-auth perché la
         // schermata di accesso mostra il logo** prima che un token esista.
         // Non passa da `ServeDir` di proposito: guarda in due radici (l'utente
@@ -1595,7 +1615,7 @@ fn deploy_only_app(state: AppState) -> Router<AppState> {
         // cloud lo sfoglia del broker di casa trovava 0 topic. L'IDE le chiama
         // attraverso `/api/remote/…` (remote.rs) già con i segreti risolti dal
         // progetto che fa fede, il suo. Piano
-        // `docs/plans/2026-10-25-impianto-dal-dispositivo.md`.
+        // `docs/archive/2026-10-25-impianto-dal-dispositivo.md`.
         .route("/api/sources/mqtt/browse", post(mqtt_browse_handler))
         .route("/api/sources/opcua/browse", post(opcua_browse_handler))
         .route("/api/sources/opcua/detect-euromap", post(opcua_detect_euromap_handler))
@@ -2136,6 +2156,9 @@ async fn identita_stato(State(s): State<AppState>) -> Response {
         "gestita": true,
         "gateway": gateway,
         "serve_primo_amministratore": !ha,
+        // Quali porte mostra la schermata d'accesso (30-10-2026).
+        "registrazione": ha && crate::registrazione::registrazione_aperta(&s).await,
+        "pin": ha && crate::registrazione::pin_disponibile(&s).await,
     }))
     .into_response()
 }
@@ -2780,12 +2803,92 @@ async fn get_cert(State(s): State<AppState>) -> Response {
 
 // ── Auth endpoints ───────────────────────────────────────────────────────────
 
+/// Il corpo di `POST /api/auth/login`: le credenziali di sempre, più la
+/// casella «ricordami su questo browser» (30-10-2026), che vale solo per gli
+/// utenti dell'installazione — quelli del progetto hanno sessioni in RAM.
+#[derive(serde::Deserialize)]
+struct CredenzialiLogin {
+    username: String,
+    password: String,
+    #[serde(default)]
+    ricordami: bool,
+    /// Lo manda solo il modale «Sessione scaduta»: vedi `entra`.
+    #[serde(default)]
+    riautentica: bool,
+}
+
+/// **Si entra**, comunque si sia dimostrato chi si è: password, PIN, codice
+/// della registrazione. Estratto dal login il 30-10-2026, quando le strade
+/// sono diventate tre: la chiusura del progetto aperto e la forma della
+/// risposta devono essere le stesse per tutte, o la prima che diverge apre
+/// un buco (il progetto ereditato di un'altra azienda, sotto).
+pub(crate) async fn entra(s: &AppState, a: sws_identita::Accesso, via: &str, riautentica: bool) -> Response {
+    // **Entrare chiude il progetto aperto.**
+    //
+    // Il progetto attivo e uno stato globale dell'istanza, non di
+    // chi e collegato: senza questo, chi entra eredita il progetto
+    // di chi c'era prima. Due conseguenze, e la seconda e seria:
+    //
+    // - si finisce dentro l'editor invece che sull'elenco, e per
+    //   cambiare progetto bisogna chiuderlo a mano. Segnalato dal
+    //   maintainer il 07-10-2026 facendo log-out da un progetto;
+    // - il progetto ereditato puo essere di un'azienda che il
+    //   nuovo arrivato non puo vedere. Le rotte `/api/project/*`
+    //   lavorano sull'**attivo** e non hanno nessun indirizzo da
+    //   verificare: la separazione per azienda, che `risolvi_progetto`
+    //   difende all'apertura, qui verrebbe scavalcata da chi non ha
+    //   aperto niente.
+    //
+    // Solo su un'istanza IDE: su un **pannello** la fonte e il
+    // progetto, e chiudere l'impianto perche qualcuno fa il login
+    // sarebbe esattamente il contrario di cio che serve.
+    //
+    // **Tranne chi rientra nel progetto che ha aperto lui** (30-10-2026): il
+    // modale «Sessione scaduta» rinnova la sessione di chi sta lavorando, e
+    // chiudergli il progetto lo lasciava in un editor senza progetto. Servono
+    // tutt'e due le condizioni: il modale che lo chiede, e la stessa persona
+    // che il progetto l'ha aperto. Chiunque altro lo trova chiuso, come prima.
+    let tieni = riautentica
+        && s.aperto_da
+            .lock()
+            .unwrap()
+            .as_deref()
+            .is_some_and(|chi| chi.eq_ignore_ascii_case(&a.utente.email));
+    if !tieni {
+        let _ = crate::projects::close_project(State(s.clone())).await;
+    }
+    s.audit.log(
+        "auth.login",
+        Some(a.utente.email.clone()),
+        serde_json::json!({"ruolo": a.utente.ruolo.come_testo(), "fonte": "installazione", "via": via}),
+    );
+    // Il modale lo guarda per sapere dove rimandare chi rientra: nell'editor
+    // o all'elenco. Si legge lo stato, non `tieni`: dietro il gateway un
+    // progetto non si chiude, e resta aperto anche quando `tieni` e falso.
+    let progetto_aperto = s.project_dir.read().await.is_some();
+    // La forma della risposta è quella che il frontend già conosce
+    // (`LoginOk`): email al posto di username, e il ruolo tradotto.
+    Json(serde_json::json!({
+        "token": a.token,
+        "username": a.utente.email,
+        "role": "Admin",
+        "expires_at_ms": a.scade_ms,
+        "must_change_password": a.utente.deve_cambiare_password,
+        "amministratore_piattaforma": a.utente.amministratore_piattaforma,
+        "progetto_aperto": progetto_aperto,
+    }))
+    .into_response()
+}
+
 async fn login(
     State(s): State<AppState>,
     peer: Option<axum::extract::Extension<std::net::SocketAddr>>,
     headers: axum::http::HeaderMap,
-    Json(creds): Json<Credentials>,
+    Json(richiesta): Json<CredenzialiLogin>,
 ) -> Response {
+    let ricordami = richiesta.ricordami;
+    let riautentica = richiesta.riautentica;
+    let creds = Credentials { username: richiesta.username, password: richiesta.password };
     // IP allowlist check — only enforced when SWS_IP_ALLOWLIST is set.
     if !s.ip_allowlist.is_empty() {
         let peer_ip: Option<std::net::IpAddr> = peer
@@ -2813,45 +2916,16 @@ async fn login(
         let Some(id) = s.identita.as_ref() else {
             return StatusCode::SERVICE_UNAVAILABLE.into_response();
         };
-        return match id.accedi(&creds.username, &creds.password).await {
-            Ok(a) => {
-                // **Entrare chiude il progetto aperto.**
-                //
-                // Il progetto attivo e uno stato globale dell'istanza, non di
-                // chi e collegato: senza questo, chi entra eredita il progetto
-                // di chi c'era prima. Due conseguenze, e la seconda e seria:
-                //
-                // - si finisce dentro l'editor invece che sull'elenco, e per
-                //   cambiare progetto bisogna chiuderlo a mano. Segnalato dal
-                //   maintainer il 07-10-2026 facendo log-out da un progetto;
-                // - il progetto ereditato puo essere di un'azienda che il
-                //   nuovo arrivato non puo vedere. Le rotte `/api/project/*`
-                //   lavorano sull'**attivo** e non hanno nessun indirizzo da
-                //   verificare: la separazione per azienda, che `risolvi_progetto`
-                //   difende all'apertura, qui verrebbe scavalcata da chi non ha
-                //   aperto niente.
-                //
-                // Solo su un'istanza IDE: su un **pannello** la fonte e il
-                // progetto, e chiudere l'impianto perche qualcuno fa il login
-                // sarebbe esattamente il contrario di cio che serve.
-                let _ = crate::projects::close_project(State(s.clone())).await;
-                s.audit.log(
-                    "auth.login",
-                    Some(a.utente.email.clone()),
-                    serde_json::json!({"ruolo": a.utente.ruolo.come_testo(), "fonte": "installazione"}),
-                );
-                // La forma della risposta è quella che il frontend già conosce
-                // (`LoginOk`): email al posto di username, e il ruolo tradotto.
-                Json(serde_json::json!({
-                    "token": a.token,
-                    "username": a.utente.email,
-                    "role": "Admin",
-                    "expires_at_ms": a.scade_ms,
-                    "must_change_password": a.utente.deve_cambiare_password,
-                    "amministratore_piattaforma": a.utente.amministratore_piattaforma,
-                }))
-                .into_response()
-            }
+        let durata = ricordami.then_some(sws_identita::DURATA_RICORDAMI);
+        return match id.accedi_per(&creds.username, &creds.password, durata).await {
+            Ok(a) => entra(&s, a, "password", riautentica).await,
+            // La password era giusta: dirlo non rivela niente a chi non la sa,
+            // e a chi la sa serve sapere che manca solo il codice per posta.
+            Err(sws_identita::Rifiuto::DaConfermare) => (
+                StatusCode::FORBIDDEN,
+                Json(serde_json::json!({"motivo": "da_confermare"})),
+            )
+                .into_response(),
             Err(sws_identita::Rifiuto::Bloccato { riprova_fra }) => (
                 StatusCode::TOO_MANY_REQUESTS,
                 [(
@@ -2975,7 +3049,22 @@ async fn refresh_session(State(s): State<AppState>, req: Request) -> Response {
     let Some(token) = token else {
         return StatusCode::UNAUTHORIZED.into_response();
     };
-    match s.auth.touch(token).await {
+    // Negli stessi tre archivi di `logout`, e per lo stesso motivo: si
+    // guardava solo `sws-auth`, cioe gli utenti del progetto. Un token
+    // dell'IDE (archivio `identita`) prendeva sempre 401, e il frontend
+    // mostrava «Sessione scaduta» a chi stava lavorando — dopo 7 h 55 con la
+    // password, subito con «ricordami» (30-10-2026). Un token sta in un
+    // archivio solo, quindi l'ordine non decide niente.
+    let mut scade = s.auth.touch(token).await;
+    if scade.is_none() {
+        scade = s.auth_dispositivo.touch(token).await;
+    }
+    if scade.is_none() {
+        if let Some(id) = s.identita.as_ref() {
+            scade = id.valida_con_scadenza(token).await.map(|(_, ms)| Some(ms));
+        }
+    }
+    match scade {
         Some(expires_at_ms) => {
             Json(serde_json::json!({ "expires_at_ms": expires_at_ms })).into_response()
         }
@@ -13062,5 +13151,104 @@ mod prove_socket_riconvalida {
         // Senza token (runtime senza utenti) resta quello dell'handshake.
         assert_eq!(ruolo_adesso(&s, None, Role::Admin).await, Role::Admin);
         let _ = std::fs::remove_dir_all(&dir);
+    }
+}
+
+/// Il rinnovo della sessione e il rientro dal modale «Sessione scaduta»
+/// (30-10-2026): il rinnovo cercava il token solo fra gli utenti del progetto,
+/// e un token dell'IDE prendeva 401 — subito, con «ricordami».
+#[cfg(test)]
+mod prove_sessione_ide {
+    use super::*;
+    use axum::body::to_bytes;
+
+    async fn stato(nome: &str) -> (AppState, std::path::PathBuf) {
+        let dir = std::env::temp_dir().join(format!("sws-prova-{nome}-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        let mut s = stato_di_prova(&dir).await;
+        let id = sws_identita::Identita::apri(dir.join("identita.db")).await.unwrap();
+        for email in ["anna@sws.it", "bruno@sws.it"] {
+            id.crea_utente(email, email, "password-lunga", sws_identita::Ruolo::Amministratore, false)
+                .await
+                .unwrap();
+        }
+        s.identita = Some(id);
+        (s, dir)
+    }
+
+    async fn rinnova(s: &AppState, token: &str) -> (StatusCode, Option<u64>) {
+        let req = Request::builder()
+            .method("POST")
+            .uri("/api/auth/refresh")
+            .header(header::AUTHORIZATION, format!("Bearer {token}"))
+            .body(axum::body::Body::empty())
+            .unwrap();
+        let r = refresh_session(State(s.clone()), req).await;
+        let codice = r.status();
+        let corpo = to_bytes(r.into_body(), 1 << 16).await.unwrap();
+        let ms = serde_json::from_slice::<serde_json::Value>(&corpo)
+            .ok()
+            .and_then(|v| v["expires_at_ms"].as_u64());
+        (codice, ms)
+    }
+
+    fn ora() -> u64 {
+        std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_millis() as u64
+    }
+
+    #[tokio::test]
+    async fn un_token_dell_ide_si_rinnova() {
+        let (s, dir) = stato("rinnovo-ide").await;
+        let id = s.identita.clone().unwrap();
+        let normale = id.accedi("anna@sws.it", "password-lunga").await.unwrap();
+        let (codice, ms) = rinnova(&s, &normale.token).await;
+        assert_eq!(codice, StatusCode::OK);
+        let ms = ms.expect("la scadenza nuova");
+        assert!(ms > ora() + 7 * 3600 * 1000 && ms <= ora() + 8 * 3600 * 1000 + 1000, "8 ore: {ms}");
+
+        let lunga = id
+            .accedi_per("anna@sws.it", "password-lunga", Some(sws_identita::DURATA_RICORDAMI))
+            .await
+            .unwrap();
+        let (codice, ms) = rinnova(&s, &lunga.token).await;
+        assert_eq!(codice, StatusCode::OK);
+        assert!(ms.unwrap() > ora() + 29 * 24 * 3600 * 1000, "«ricordami» resta di 30 giorni");
+
+        let (codice, _) = rinnova(&s, "inventato").await;
+        assert_eq!(codice, StatusCode::UNAUTHORIZED);
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    /// Simula un progetto aperto da `chi`, senza passare da un progetto vero:
+    /// a `entra` interessano solo i due campi.
+    async fn apri_come(s: &AppState, dir: &std::path::Path, chi: &str) {
+        *s.project_dir.write().await = Some(dir.to_path_buf());
+        *s.aperto_da.lock().unwrap() = Some(chi.to_string());
+    }
+
+    #[tokio::test]
+    async fn rientra_nel_suo_progetto_solo_chi_l_ha_aperto() {
+        let (s, dir) = stato("rientro").await;
+        let id = s.identita.clone().unwrap();
+
+        // Dal modale, la stessa persona: il progetto resta aperto.
+        apri_come(&s, &dir, "anna@sws.it").await;
+        let a = id.accedi("anna@sws.it", "password-lunga").await.unwrap();
+        let _ = entra(&s, a, "password", true).await;
+        assert!(s.project_dir.read().await.is_some(), "chi l'ha aperto lo ritrova");
+
+        // Dal modale, un'altra persona: si chiude, come sempre.
+        let b = id.accedi("bruno@sws.it", "password-lunga").await.unwrap();
+        let _ = entra(&s, b, "password", true).await;
+        assert!(s.project_dir.read().await.is_none(), "un altro non eredita il progetto");
+        assert!(s.aperto_da.lock().unwrap().is_none());
+
+        // Dalla schermata d'accesso, anche la stessa persona: si chiude.
+        apri_come(&s, &dir, "anna@sws.it").await;
+        let a = id.accedi("anna@sws.it", "password-lunga").await.unwrap();
+        let _ = entra(&s, a, "password", false).await;
+        assert!(s.project_dir.read().await.is_none(), "il login normale chiude, come dal 07-10");
+        let _ = std::fs::remove_dir_all(dir);
     }
 }

@@ -1738,6 +1738,7 @@ pub async fn open_project(
         warn!("open_project: could not write .active-project marker: {e}");
     }
     *s.project_dir.write().await = Some(project_dir.clone());
+    *s.aperto_da.lock().unwrap() = chi.as_ref().map(|e| e.0.username.clone()).filter(|u| !u.is_empty());
 
     // Progetto diverso da quello di prima: chi ne sta disegnando una pagina
     // deve ricominciare da capo (Q20).
@@ -1837,6 +1838,7 @@ pub async fn close_project(State(s): State<AppState>) -> Response {
     // sopra — «messo da parte, non buttato».
     s.auth.chiudi().await;
     *s.project_dir.write().await = None;
+    *s.aperto_da.lock().unwrap() = None;
     info!("project closed");
     StatusCode::NO_CONTENT.into_response()
 }

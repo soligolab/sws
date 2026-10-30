@@ -76,6 +76,10 @@ export interface Brand {
   name: string;
   shortName: string;
   logoUrl: string | null;
+  /** Il logo per il tema chiaro (`logo_chiaro` in brand.json, 30-10-2026):
+   *  un logo col testo chiaro su fondo bianco non si legge. `null` = il
+   *  marchio ne ha uno solo, che vale per tutti e due i temi. */
+  logoChiaroUrl: string | null;
   faviconUrl: string | null;
   colors: BrandColors;
   /** Brand-specific device resolution presets (e.g. Pixsys WP-series panels),
@@ -100,6 +104,7 @@ export const SWS_FALLBACK: Brand = {
   name: "SWS — SCADA Web Studio",
   shortName: "SWS",
   logoUrl: "/branding/sws/logo.svg",
+  logoChiaroUrl: "/branding/sws/logo-chiaro.svg",
   faviconUrl: "/branding/sws/favicon.svg",
   colors: {
     bg: "#0f172a",
@@ -183,6 +188,7 @@ export async function loadBranding(forzato?: string | null): Promise<Brand> {
       name: meta.name ?? id,
       shortName: meta.shortName ?? meta.name ?? id,
       logoUrl: meta.logo ? percorsoPubblico(`/branding/${id}/${meta.logo}`) : null,
+      logoChiaroUrl: meta.logo_chiaro ? percorsoPubblico(`/branding/${id}/${meta.logo_chiaro}`) : null,
       faviconUrl: meta.favicon ? percorsoPubblico(`/branding/${id}/${meta.favicon}`) : null,
       colors: { ...SWS_FALLBACK.colors, ...(meta.colors ?? {}) },
       devicePresets: meta.device_presets ?? [],

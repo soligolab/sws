@@ -1,5 +1,5 @@
 // Il modello delle planimetrie (29-10-2026, ramo 1 del piano
-// `docs/plans/2026-10-25-planimetrie-3d.md`).
+// `docs/archive/2026-10-25-planimetrie-3d.md`).
 //
 // Una planimetria è una pianta in **metri**: muri a polilinea con spessore e
 // altezza, aperture (porte e finestre) agganciate a un muro, aree a pavimento,

@@ -751,7 +751,7 @@ async fn senza_utenti(client: &reqwest::Client, url: &str) -> bool {
 }
 
 /// Il pannello del progetto, ricordato **nel cloud** (25-10-2026, piano
-/// `docs/plans/2026-10-25-impianto-dal-dispositivo.md`, scelta del maintainer:
+/// `docs/archive/2026-10-25-impianto-dal-dispositivo.md`, scelta del maintainer:
 /// credenziali salvate per progetto). Sta in `config/dispositivo.yaml`, 0600:
 /// nel cloud `config/` è la cartella persistente **del progetto**, fuori dal
 /// progetto — non finisce in git, nei backup né in un deploy. In locale non si
@@ -828,7 +828,7 @@ pub(crate) async fn ripristina_se_serve(s: &AppState) {
 // fa fede, nel cloud — ciò che il pannello non può sapere: la password che
 // l'editor manda mascherata, URL e token di Home Assistant. Sul pannello la
 // sorgente può non esserci ancora (progetto non distribuito) o avere altri
-// segreti. Piano `docs/plans/2026-10-25-impianto-dal-dispositivo.md`.
+// segreti. Piano `docs/archive/2026-10-25-impianto-dal-dispositivo.md`.
 
 /// Il progetto aperto in questa istanza, con i segreti (`secrets.yaml`).
 async fn progetto_ide(s: &AppState) -> Option<sws_core::project::Project> {

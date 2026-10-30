@@ -222,6 +222,12 @@ pub enum Rifiuto {
     CredenzialiErrate,
     Bloccato { riprova_fra: Duration },
     UtenteDisattivato,
+    /// Si e registrato da solo e non ha ancora confermato l'indirizzo
+    /// (30-10-2026, ramo C di `docs/plans/2026-10-26-aprire-sws-soligo-net.md`).
+    /// Distinto da `UtenteDisattivato` perche la risposta e diversa: «guarda
+    /// la posta», non «chiedi all'amministratore». Si dice solo **dopo** una
+    /// password giusta, quindi non rivela chi e iscritto.
+    DaConfermare,
 }
 
 impl std::fmt::Display for Rifiuto {
@@ -232,6 +238,7 @@ impl std::fmt::Display for Rifiuto {
                 write!(f, "troppi tentativi, riprova fra {}s", riprova_fra.as_secs())
             }
             Rifiuto::UtenteDisattivato => write!(f, "utente disattivato"),
+            Rifiuto::DaConfermare => write!(f, "indirizzo non ancora confermato"),
         }
     }
 }
@@ -241,6 +248,9 @@ const TENTATIVI_MAX: u32 = 5;
 const FINESTRA: Duration = Duration::from_secs(300);
 /// Durata di una sessione. Scorre a ogni uso (vedi [`Identita::valida`]).
 const DURATA_SESSIONE: Duration = Duration::from_secs(8 * 3600);
+/// «Ricordami su questo browser»: 30 giorni, anche questi scorrevoli. La
+/// durata sta nella riga della sessione (schema 5), non in una costante sola.
+pub const DURATA_RICORDAMI: Duration = Duration::from_secs(30 * 24 * 3600);
 
 #[derive(Debug, Clone, Copy)]
 struct Fallimenti {
@@ -257,8 +267,15 @@ pub struct Identita {
     conn: Arc<Mutex<Connection>>,
     /// Effimero di proposito: vedi la nota in testa al modulo.
     fallimenti: Arc<Mutex<HashMap<String, Fallimenti>>>,
+    /// I codici monouso in volo (verifica della registrazione, PIN). In
+    /// memoria come i fallimenti: un riavvio invalida i codici di una finestra
+    /// di dieci minuti, ed e un prezzo che vale una tabella in meno.
+    codici: Arc<Mutex<HashMap<(String, registrazione::Scopo), registrazione::InVolo>>>,
     percorso: PathBuf,
 }
+
+mod registrazione;
+pub use registrazione::{Registrato, Scopo, VERSIONE_CONDIZIONI};
 
 fn ora_ms() -> u64 {
     SystemTime::now()
@@ -466,6 +483,28 @@ const COLONNE_V4: &[(&str, &str)] = &[
     ),
 ];
 
+/// Schema 5 (30-10-2026): registrazione da sé, «ricordami», ultimo accesso.
+///
+/// - `sessioni.durata_ms`: NULL = le 8 ore di [`DURATA_SESSIONE`]. Il rinnovo
+///   scorrevole usa il valore della riga, cosi «ricordami» resta 30 giorni a
+///   ogni uso invece di ricadere a 8 ore alla prima richiesta.
+/// - `utenti.da_confermare`: chi si e registrato e non ha ancora scritto il
+///   codice ricevuto per posta. Sta con `attivo = 0`, quindi ogni regola che
+///   gia guarda `attivo` lo tiene fuori senza saperne niente.
+/// - `utenti.condizioni_versione` / `condizioni_ms`: quali condizioni ha
+///   accettato e quando — lo chiede l'informativa (`docs/legale/LEGGIMI.md`).
+/// - `utenti.ultimo_accesso_ms`: la base dell'avviso di inattivita a 12 mesi.
+const COLONNE_V5: &[(&str, &str)] = &[
+    ("sessioni", "ALTER TABLE sessioni ADD COLUMN durata_ms INTEGER"),
+    (
+        "utenti",
+        "ALTER TABLE utenti ADD COLUMN da_confermare INTEGER NOT NULL DEFAULT 0",
+    ),
+    ("utenti", "ALTER TABLE utenti ADD COLUMN condizioni_versione TEXT"),
+    ("utenti", "ALTER TABLE utenti ADD COLUMN condizioni_ms INTEGER"),
+    ("utenti", "ALTER TABLE utenti ADD COLUMN ultimo_accesso_ms INTEGER"),
+];
+
 impl Identita {
     /// Apre (o crea) l'archivio in `percorso`, di solito `<config_dir>/identita.db`.
     pub async fn apri(percorso: impl AsRef<Path>) -> anyhow::Result<Self> {
@@ -514,7 +553,12 @@ impl Identita {
                     conn.execute(sql, [])?;
                 }
             }
-            conn.pragma_update(None, "user_version", 4)?;
+            for (tabella, sql) in COLONNE_V5 {
+                if !colonna_presente(&conn, tabella, sql) {
+                    conn.execute(sql, [])?;
+                }
+            }
+            conn.pragma_update(None, "user_version", 5)?;
             // Il file contiene hash di password e sessioni: non deve essere leggibile da altri.
             #[cfg(unix)]
             {
@@ -528,6 +572,7 @@ impl Identita {
         let id = Self {
             conn: Arc::new(Mutex::new(conn)),
             fallimenti: Arc::new(Mutex::new(HashMap::new())),
+            codici: Arc::new(Mutex::new(HashMap::new())),
             percorso,
         };
         id.assicura_azienda_implicita().await?;
@@ -620,11 +665,22 @@ impl Identita {
         Ok(utente)
     }
 
-    /// Verifica le credenziali e apre una sessione.
+    /// Verifica le credenziali e apre una sessione di 8 ore.
+    pub async fn accedi(&self, email: &str, password: &str) -> Result<Accesso, Rifiuto> {
+        self.accedi_per(email, password, None).await
+    }
+
+    /// Verifica le credenziali e apre una sessione lunga `durata` (`None` = le
+    /// 8 ore normali; «ricordami» passa [`DURATA_RICORDAMI`]).
     ///
     /// Il limite ai tentativi è **per email**, non per indirizzo IP: dietro un gateway tutti gli
     /// utenti condividono l'indirizzo, e bloccare quello chiuderebbe fuori anche gli innocenti.
-    pub async fn accedi(&self, email: &str, password: &str) -> Result<Accesso, Rifiuto> {
+    pub async fn accedi_per(
+        &self,
+        email: &str,
+        password: &str,
+        durata: Option<Duration>,
+    ) -> Result<Accesso, Rifiuto> {
         let chiave = email.trim().to_lowercase();
 
         if let Some(attesa) = self.blocco_residuo(&chiave) {
@@ -633,90 +689,104 @@ impl Identita {
 
         let conn = self.conn.clone();
         let chiave_sql = chiave.clone();
-        let trovato = task::spawn_blocking(
-            move || -> Option<(i64, String, String, String, bool, bool, bool, u64)> {
-                let c = conn.lock().unwrap();
-                c.query_row(
-                    "SELECT id, email, nome, hash_password, attivo, deve_cambiare_password,
-                            amministratore_piattaforma, creato_ms
-                     FROM utenti WHERE email = ?1",
-                    params![chiave_sql],
-                    |r| {
-                        Ok((
-                            r.get::<_, i64>(0)?,
-                            r.get::<_, String>(1)?,
-                            r.get::<_, String>(2)?,
-                            r.get::<_, String>(3)?,
-                            r.get::<_, i64>(4)? != 0,
-                            r.get::<_, i64>(5)? != 0,
-                            r.get::<_, i64>(6)? != 0,
-                            r.get::<_, i64>(7)? as u64,
-                        ))
-                    },
-                )
-                .optional()
-                .ok()
-                .flatten()
-            },
-        )
+        let trovato = task::spawn_blocking(move || -> Option<(i64, String, bool, bool)> {
+            let c = conn.lock().unwrap();
+            c.query_row(
+                "SELECT id, hash_password, attivo, da_confermare FROM utenti WHERE email = ?1",
+                params![chiave_sql],
+                |r| {
+                    Ok((
+                        r.get::<_, i64>(0)?,
+                        r.get::<_, String>(1)?,
+                        r.get::<_, i64>(2)? != 0,
+                        r.get::<_, i64>(3)? != 0,
+                    ))
+                },
+            )
+            .optional()
+            .ok()
+            .flatten()
+        })
         .await
         .ok()
         .flatten();
 
         // Un utente inesistente e una password sbagliata danno la stessa risposta: dire «questo
         // indirizzo non esiste» regalerebbe a chi prova l'elenco degli iscritti.
-        let Some((id, email_vera, nome, hash, attivo, deve_cambiare, piattaforma, creato_ms)) =
-            trovato
-        else {
+        let Some((id, hash, attivo, da_confermare)) = trovato else {
             self.segna_fallimento(&chiave);
             return Err(Rifiuto::CredenzialiErrate);
         };
-        let ruolo = self.ruolo_di(id).await.unwrap_or(Ruolo::Sviluppatore);
-
         if !verifica_password(password, &hash) {
             self.segna_fallimento(&chiave);
             return Err(Rifiuto::CredenzialiErrate);
+        }
+        if da_confermare {
+            return Err(Rifiuto::DaConfermare);
         }
         if !attivo {
             return Err(Rifiuto::UtenteDisattivato);
         }
 
         self.fallimenti.lock().unwrap().remove(&chiave);
+        self.emetti_accesso(id, durata)
+            .await
+            .map_err(|_| Rifiuto::CredenzialiErrate)
+    }
 
+    /// **L'unico posto che apre una sessione** (30-10-2026). Prima stava dentro
+    /// `accedi`; ora lo chiamano la password, il PIN e la conferma della
+    /// registrazione. Chi lo chiama ha gia verificato chi e la persona: qui si
+    /// scrive la sessione e basta.
+    pub(crate) async fn emetti_accesso(
+        &self,
+        id: i64,
+        durata: Option<Duration>,
+    ) -> anyhow::Result<Accesso> {
+        let ruolo = self.ruolo_di(id).await.unwrap_or(Ruolo::Sviluppatore);
         let token = uuid::Uuid::new_v4().to_string();
-        let scade_ms = ora_ms() + DURATA_SESSIONE.as_millis() as u64;
+        let durata_ms = durata.map(|d| d.as_millis() as i64);
+        let scade_ms = ora_ms() + durata.unwrap_or(DURATA_SESSIONE).as_millis() as u64;
         let imp = impronta(&token);
         let conn = self.conn.clone();
-        let _ = task::spawn_blocking(move || -> anyhow::Result<()> {
+        let utente = task::spawn_blocking(move || -> anyhow::Result<Utente> {
             let c = conn.lock().unwrap();
             let adesso = ora_ms();
             c.execute(
-                "INSERT INTO sessioni (impronta_token, utente_id, creata_ms, scade_ms, ultimo_uso_ms)
-                 VALUES (?1, ?2, ?3, ?4, ?3)",
-                params![imp, id, adesso as i64, scade_ms as i64],
+                "INSERT INTO sessioni
+                   (impronta_token, utente_id, creata_ms, scade_ms, ultimo_uso_ms, durata_ms)
+                 VALUES (?1, ?2, ?3, ?4, ?3, ?5)",
+                params![imp, id, adesso as i64, scade_ms as i64, durata_ms],
+            )?;
+            c.execute(
+                "UPDATE utenti SET ultimo_accesso_ms = ?1 WHERE id = ?2",
+                params![adesso as i64, id],
             )?;
             // Pulizia opportunistica: le sessioni scadute non servono a nessuno e il momento in
             // cui se ne crea una è quello giusto per toglierle, senza un lavoro periodico in più.
             let _ = c.execute("DELETE FROM sessioni WHERE scade_ms < ?1", params![adesso as i64]);
-            Ok(())
+            Ok(c.query_row(
+                "SELECT id, email, nome, attivo, deve_cambiare_password,
+                        amministratore_piattaforma, creato_ms
+                 FROM utenti WHERE id = ?1",
+                params![id],
+                |r| {
+                    Ok(Utente {
+                        id: r.get(0)?,
+                        email: r.get(1)?,
+                        nome: r.get(2)?,
+                        ruolo,
+                        attivo: r.get::<_, i64>(3)? != 0,
+                        deve_cambiare_password: r.get::<_, i64>(4)? != 0,
+                        amministratore_piattaforma: r.get::<_, i64>(5)? != 0,
+                        creato_ms: r.get::<_, i64>(6)? as u64,
+                    })
+                },
+            )?)
         })
-        .await;
-
-        info!(email = %email_vera, "accesso riuscito");
-        Ok(Accesso {
-            token,
-            utente: Utente {
-                id,
-                email: email_vera,
-                nome,
-                ruolo,
-                attivo,
-                deve_cambiare_password: deve_cambiare,
-                amministratore_piattaforma: piattaforma,
-                creato_ms,
-            },
-            scade_ms,
-        })
+        .await??;
+        info!(email = %utente.email, "accesso riuscito");
+        Ok(Accesso { token, utente, scade_ms })
     }
 
     async fn ruolo_di(&self, id: i64) -> anyhow::Result<Ruolo> {
@@ -735,15 +805,22 @@ impl Identita {
     /// Lo scorrimento è deliberato: chi sta lavorando non deve essere buttato fuori a metà di una
     /// modifica solo perché sono passate otto ore dall'accesso. Chi ha smesso, invece, scade.
     pub async fn valida(&self, token: &str) -> Option<Utente> {
+        self.valida_con_scadenza(token).await.map(|(u, _)| u)
+    }
+
+    /// Come [`Identita::valida`], e restituisce anche la scadenza nuova: la
+    /// chiede `POST /api/auth/refresh`, che la rimanda al frontend perche
+    /// rifissi il proprio timer di rinnovo.
+    pub async fn valida_con_scadenza(&self, token: &str) -> Option<(Utente, u64)> {
         let imp = impronta(token);
         let conn = self.conn.clone();
-        task::spawn_blocking(move || -> Option<Utente> {
+        task::spawn_blocking(move || -> Option<(Utente, u64)> {
             let c = conn.lock().unwrap();
             let adesso = ora_ms();
             let riga = c
                 .query_row(
                     "SELECT u.id, u.email, u.nome, u.ruolo, u.attivo, u.deve_cambiare_password,
-                            u.creato_ms, s.scade_ms, u.amministratore_piattaforma
+                            u.creato_ms, s.scade_ms, u.amministratore_piattaforma, s.durata_ms
                      FROM sessioni s JOIN utenti u ON u.id = s.utente_id
                      WHERE s.impronta_token = ?1",
                     params![imp],
@@ -758,6 +835,7 @@ impl Identita {
                             r.get::<_, i64>(6)? as u64,
                             r.get::<_, i64>(7)? as u64,
                             r.get::<_, i64>(8)? != 0,
+                            r.get::<_, Option<i64>>(9)?,
                         ))
                     },
                 )
@@ -765,8 +843,18 @@ impl Identita {
                 .ok()
                 .flatten()?;
 
-            let (id, email, nome, ruolo, attivo, deve_cambiare, creato_ms, scade_ms, piattaforma) =
-                riga;
+            let (
+                id,
+                email,
+                nome,
+                ruolo,
+                attivo,
+                deve_cambiare,
+                creato_ms,
+                scade_ms,
+                piattaforma,
+                durata_ms,
+            ) = riga;
             if scade_ms <= adesso {
                 let _ = c.execute("DELETE FROM sessioni WHERE impronta_token = ?1", params![imp]);
                 return None;
@@ -777,21 +865,30 @@ impl Identita {
                 let _ = c.execute("DELETE FROM sessioni WHERE impronta_token = ?1", params![imp]);
                 return None;
             }
-            let nuova_scadenza = adesso + DURATA_SESSIONE.as_millis() as u64;
+            // La durata e quella con cui la sessione e nata: una sessione
+            // «ricordami» scorre di 30 giorni, le altre di 8 ore.
+            let durata = durata_ms
+                .filter(|d| *d > 0)
+                .map(|d| d as u64)
+                .unwrap_or(DURATA_SESSIONE.as_millis() as u64);
+            let nuova_scadenza = adesso + durata;
             let _ = c.execute(
                 "UPDATE sessioni SET ultimo_uso_ms = ?1, scade_ms = ?2 WHERE impronta_token = ?3",
                 params![adesso as i64, nuova_scadenza as i64, imp],
             );
-            Some(Utente {
-                id,
-                email,
-                nome,
-                ruolo: Ruolo::da_testo(&ruolo).unwrap_or(Ruolo::Sviluppatore),
-                attivo,
-                deve_cambiare_password: deve_cambiare,
-                amministratore_piattaforma: piattaforma,
-                creato_ms,
-            })
+            Some((
+                Utente {
+                    id,
+                    email,
+                    nome,
+                    ruolo: Ruolo::da_testo(&ruolo).unwrap_or(Ruolo::Sviluppatore),
+                    attivo,
+                    deve_cambiare_password: deve_cambiare,
+                    amministratore_piattaforma: piattaforma,
+                    creato_ms,
+                },
+                nuova_scadenza,
+            ))
         })
         .await
         .ok()
@@ -1197,7 +1294,7 @@ impl Identita {
             if attivi == 0 {
                 c.execute(
                     "UPDATE utenti SET attivo = 1, aggiornato_ms = ?1 WHERE id = (
-                         SELECT id FROM utenti
+                         SELECT id FROM utenti WHERE da_confermare = 0
                          ORDER BY (ruolo = 'amministratore') DESC, id ASC LIMIT 1
                      )",
                     params![ora_ms() as i64],
@@ -1883,7 +1980,7 @@ mod test {
             let c = id.conn.lock().unwrap();
             c.query_row("PRAGMA user_version", [], |r| r.get(0)).unwrap()
         };
-        assert_eq!(versione, 4, "lo schema 4 e l'azienda personale (28-10-2026)");
+        assert_eq!(versione, 5, "lo schema 5: registrazione e «ricordami» (30-10-2026)");
 
         // E le colonne dello schema 4 ci sono, con i valori che lasciano
         // l'archivio com'era: nessuna azienda di prima e personale, e nessuna

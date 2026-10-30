@@ -12,6 +12,41 @@
 > resta in «Storico». Qui vive solo ciò che serve a riprendere il lavoro.
 
 
+## ▶ Riprendere da qui — cinque rami annidati, uno già in `main` (2026-10-30, theobroma)
+
+> ⚠ **SI RIPARTE DAL RAMO `feat/registrazione-e-pin`, NON da `main`.** È la punta di una catena di cinque rami
+> annidati, ognuno figlio del precedente. Su un'altra macchina: `./scripts/session_start.sh`, poi
+> `git checkout feat/registrazione-e-pin`. Un lavoro nuovo si annida lì sopra.
+
+- **`fix/barra-nuova-versione` è in `main`** (squash `130505a5`, confermato dal maintainer, ramo locale eliminato),
+  insieme alla correzione di `check_versione_progetto` (cercava l'handler nel primo modulo di `os.listdir()`: verde
+  su una macchina, rosso su theobroma). **Non pushato**; su origin il ramo remoto esiste ancora.
+- **Collaudo del maintainer sulla punta, IDE 8460**: PIN, miniatura e planimetrie confermati. Ne sono nati tre
+  commit sulla punta: il rinnovo della sessione che trova i token dell'IDE e il modale con password o PIN
+  (`d0053494`); le immagini del progetto sul canvas dell'IDE locale (`7224c1f0`); la cornice della pagina nella
+  vista 3D e «Inquadra» (`50c181ad`) — tutti e tre confermati. Poi il logo SWS nel tema chiaro (da Appunti).
+- **Pulizia**: in archivio sessione scaduta, planimetrie 3D (ramo 3 in Appunti), corpi LVGL e impianto dal
+  dispositivo (i loro collaudi in `COLLAUDI_IN_SOSPESO` §A-duodecies e §A-terdecies); da Appunti tolte le prove
+  che avevano già i passi nei collaudi.
+
+| Ramo (in ordine) | Cosa | Stato |
+|---|---|---|
+| `fix/lvgl-ruolo-e-login` | LVGL: login/logout dai bottoni del progetto; pannellino d'accesso nella lingua giusta e sopra la tastiera | **da provare sul WP630** — serve l'archivio aarch64 (HOWTO cap. 10) |
+| `test/socket-riconvalida` | `AppState` di prova da `build()`; riconvalida del ruolo sul socket provata | solo test |
+| `feat/planimetrie-modello` | planimetrie, ramo 1: server ed editor 2D | confermato |
+| `feat/planimetrie-resa` | planimetrie, ramo 2: vista 3D e «Genera sfondo» | confermato |
+| `feat/registrazione-e-pin` | ramo C punti 1-3 (registrazione, PIN, «ricordami») + i commit del collaudo del 30-10 | PIN confermato in locale; **registrazione con la posta vera sul VPS** da fare |
+
+### Da fare
+
+1. **Login LVGL sul WP630**: archivio aarch64 della punta senza `--push` (worktree pronto in uno scratchpad di
+   theobroma, con le cache del cross-build già copiate), deploy dall'IDE da «Archivio locale».
+2. Con la conferma: squash dei cinque rami nell'ordine della tabella, rami eliminati (anche su origin, quando il
+   maintainer dice di pushare).
+3. Registrazione e PIN con la posta vera sul VPS (gateway con `--gateway-registrazione`).
+4. **Resto del ramo C**, in un ramo suo: SMTP per azienda, inattività a 12 mesi, chiusura dell'account, rotazione
+   del registro attività.
+
 ## ▶ Riprendere da qui — release 2.23.7, lo schermo del pannello dal cloud (2026-10-29 sera, ufficio)
 
 - **Schermo remoto su `main`** (`b4b0330b`, piano `docs/archive/2026-10-29-schermo-remoto.md`): dall'IDE su
@@ -116,7 +151,7 @@ piani d'esecuzione dettagliati, con le decisioni del maintainer prese in session
   pulsante JSON con la definizione intera; niente faceplate dentro faceplate nell'editor.
   Tre rami: `feat/faceplate-pagina` (modello e trasporto), `feat/faceplate-editor` (UI),
   `feat/faceplate-rifiniture` (validatore, manuale, CasaDomotica sul WP630).
-- **[Planimetrie](docs/plans/2026-10-25-planimetrie-3d.md)** — pianta 2D disegnata nell'IDE
+- **[Planimetrie](docs/archive/2026-10-25-planimetrie-3d.md)** — pianta 2D disegnata nell'IDE
   (muri/porte/finestre + aree e blocchi per l'industriale), resa 3D con three.js **solo
   nell'IDE** (chunk lazy), **generata una volta** in un PNG di `images/` usato come
   `sfondo_immagine`; gli oggetti del sinottico restano 2D sopra; web e LVGL consumano solo
@@ -402,7 +437,7 @@ Da fare:
   G-ter, e quelli di C4/gruppo 6 sul TC620 con l'MCM. Prima serve la build (2.21.1): chiedere.
 - **Manuale, ramo 3**: i 14 tutorial col laboratorio OpenPLC v4 + Mosquitto, eseguiti e fotografati; poi ramo 4.
 - **Decide il maintainer**: se P5, P6 e C5-C8 del piano prima fascia/CRA rientrano in «piani iniziati».
-- In coda (osservazioni): seme planimetrie 3D (`docs/plans/2026-10-25-planimetrie-3d.md`).
+- In coda (osservazioni): seme planimetrie 3D (`docs/archive/2026-10-25-planimetrie-3d.md`).
 
 ## ▶ Prima — 2.21.0 rilasciata, VPS aggiornato (2026-10-25)
 

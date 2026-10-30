@@ -244,6 +244,16 @@ export class NoProjectError extends Error {
 
 /** Login returned 429 Too Many Requests. `retryAfterSecs` is the value of
  *  the Retry-After header (defaults to 60 if the header is absent). */
+/** La password è giusta, ma l'indirizzo non è ancora confermato: chi si è
+ *  registrato da solo deve prima scrivere il codice ricevuto per posta
+ *  (30-10-2026). Il server lo dice solo a password giusta. */
+export class DaConfermareError extends Error {
+  constructor() {
+    super("address not confirmed yet");
+    this.name = "DaConfermareError";
+  }
+}
+
 export class RateLimitedError extends Error {
   retryAfterSecs: number;
   constructor(secs: number) {
@@ -884,6 +894,9 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     if (bodyText.includes("password_change_required")) {
       throw new PasswordChangeRequiredError();
     }
+    if (bodyText.includes("da_confermare")) {
+      throw new DaConfermareError();
+    }
     throw new Error(`API ${path}: 403 Forbidden${bodyText ? ` — ${bodyText}` : ""}`);
   }
   if (res.status === 429) {
@@ -1081,21 +1094,54 @@ function rotta(riferimento: string): string {
 /** La rotta dei progetti aperti nel cloud (console). */
 const PROGETTI_APERTI = "/api/amministrazione/progetti-aperti";
 
+/** La risposta di ogni strada che fa entrare: password, PIN, conferma della
+ *  registrazione. Il server la scrive in un posto solo (`entra`). */
+export interface LoginOk {
+  token: string;
+  username: string;
+  role: UserRole;
+  expires_at_ms: number | null;
+  must_change_password: boolean;
+  /** Solo per gli utenti dell'installazione: decide se offrire la console. */
+  amministratore_piattaforma?: boolean;
+  /** Dopo l'accesso c'è ancora un progetto aperto. Lo guarda il modale
+   *  «Sessione scaduta»: chi rientra nel progetto che aveva aperto lui lo
+   *  ritrova, chiunque altro torna all'elenco (30-10-2026). */
+  progetto_aperto?: boolean;
+}
+
 export const api = {
   // Auth
-  login: (username: string, password: string) =>
-    request<{
-      token: string;
-      username: string;
-      role: UserRole;
-      expires_at_ms: number | null;
-      must_change_password: boolean;
-      /** Solo per gli utenti dell'installazione: decide se offrire la console. */
-      amministratore_piattaforma?: boolean;
-    }>("/api/auth/login", {
+  /** `ricordami` vale solo per gli utenti dell'installazione: 30 giorni
+   *  invece di 8 ore, scorrevoli. `riautentica` lo manda solo il modale
+   *  «Sessione scaduta»: chi rientra nel progetto che ha aperto lui non se lo
+   *  vede chiudere. */
+  login: (username: string, password: string, ricordami = false, riautentica = false) =>
+    request<LoginOk>("/api/auth/login", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ username, password }),
+      body: JSON.stringify({ username, password, ricordami, riautentica }),
+    }),
+
+  /** «Mandami un PIN». Risponde uguale per chiunque: non dice chi è iscritto. */
+  chiediPin: (email: string, lingua: string) =>
+    request<void>("/api/auth/pin", { method: "POST", body: JSON.stringify({ email, lingua }) }),
+
+  accediConPin: (email: string, pin: string, ricordami: boolean, riautentica = false) =>
+    request<LoginOk>("/api/auth/pin/accesso", { method: "POST", body: JSON.stringify({ email, pin, ricordami, riautentica }) }),
+
+  /** Registrazione da sé: parte un codice per posta. Anche qui la risposta è la
+   *  stessa per un indirizzo nuovo e per uno già iscritto. */
+  registrati: (email: string, password: string, condizioni: boolean, clausole: boolean, lingua: string) =>
+    request<void>("/api/identita/registrazione", {
+      method: "POST",
+      body: JSON.stringify({ email, password, condizioni, clausole, lingua }),
+    }),
+
+  confermaRegistrazione: (email: string, codice: string) =>
+    request<LoginOk>("/api/identita/registrazione/conferma", {
+      method: "POST",
+      body: JSON.stringify({ email, codice }),
     }),
 
   /// Il primo accesso di un'installazione: serve a sapere QUALE schermata
@@ -1106,6 +1152,10 @@ export const api = {
       serve_primo_amministratore?: boolean;
       /** Questo processo è il gateway: i progetti si aprono in un container. */
       gateway?: boolean;
+      /** Ci si può registrare da soli (gateway con `--gateway-registrazione`). */
+      registrazione?: boolean;
+      /** Si può entrare con un PIN per posta. */
+      pin?: boolean;
     }>("/api/identita/stato"),
 
   /// Crea il primo amministratore. Il `codice` è quello stampato all'avvio nei

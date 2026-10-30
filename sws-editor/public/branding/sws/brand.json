@@ -3,6 +3,7 @@
   "name": "SWS — SCADA Web Studio",
   "shortName": "SWS",
   "logo": "logo.svg",
+  "logo_chiaro": "logo-chiaro.svg",
   "favicon": "favicon.svg",
   "colors": {
     "bg": "#0f172a",

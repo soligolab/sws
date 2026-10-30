@@ -63,7 +63,7 @@ pub struct SourceSupervisor {
     /// succedesse era merito del broker irraggiungibile, non del codice.
     sola_lettura: std::sync::atomic::AtomicBool,
     /// Il container di un progetto **nel cloud** (`--auth-delegata`, 25-10-2026,
-    /// piano `docs/plans/2026-10-25-impianto-dal-dispositivo.md`): lì le
+    /// piano `docs/archive/2026-10-25-impianto-dal-dispositivo.md`): lì le
     /// sorgenti non partono. L'impianto lo tocca il pannello collegato, e dal
     /// VPS un broker di casa non si vede — CasaDomotica andava in timeout ogni
     /// 5 s su tutte e quattro le sorgenti MQTT. Vale per ogni tipo, `host`

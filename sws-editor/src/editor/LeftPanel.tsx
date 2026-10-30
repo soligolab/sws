@@ -762,7 +762,7 @@ function PagesSection() {
 }
 
 /** Le planimetrie del progetto (29-10-2026, piano
- *  `docs/plans/2026-10-25-planimetrie-3d.md`): una riga per pianta, e scelta
+ *  `docs/archive/2026-10-25-planimetrie-3d.md`): una riga per pianta, e scelta
  *  si apre l'editor al posto del canvas. Non sono pagine — non hanno oggetti
  *  sinottici, hanno muri — quindi stanno fuori dallo store delle pagine e si
  *  leggono dal server quando il ramo si apre. */

@@ -1,5 +1,5 @@
 /** L'editor di una planimetria (29-10-2026, ramo 1 del piano
- *  `docs/plans/2026-10-25-planimetrie-3d.md`): la pianta in 2D.
+ *  `docs/archive/2026-10-25-planimetrie-3d.md`): la pianta in 2D.
  *
  *  Prende il posto del canvas come l'editor delle funzioni. La pianta è in
  *  **metri**: l'SVG disegna direttamente nelle unità del modello, e la scala
@@ -12,13 +12,15 @@
  *  per lasciar perdere), porta e finestra (un clic vicino a un muro), blocco
  *  (un clic). Accanto, a richiesta, la vista 3D (ramo 2, three.js caricato
  *  solo allora) e «Genera sfondo», che ne fa l'immagine di sfondo di una pagina. */
-import { lazy, Suspense, useCallback, useEffect, useRef, useState } from "react";
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties, ReactElement } from "react";
 import { useTranslation } from "react-i18next";
 import { api } from "@/api/client";
 import { useAppStore } from "@/store";
 import { aggiornaPagina } from "@/formatoProgettoAzioni";
-import type { Vista3DApi } from "./Vista3D";
+import { dimenticaImmagine } from "@/canvas/ImmagineSvg";
+import type { Formato, Vista3DApi } from "./Vista3D";
+import { corniceDellaPagina, eCornice, idCornice, oggettoSfondoArea, paginaACornice } from "@/cornici/modello";
 import {
   PREDEFINITI, aggancia, centroDi, idNuovo, ingombro, normalizza, proiezione, puntoA, senzaOrfani, spigoliBlocco, tuttiGliId,
   type Apertura, type Area, type Blocco, type Muro, type Planimetria, type Punto,
@@ -56,6 +58,12 @@ export function PlanimetriaEditor({ id }: { id: string }) {
   const [vista3d, setVista3d] = useState(false);
   const [genera, setGenera] = useState(false);
   const api3d = useRef<Vista3DApi | null>(null);
+  // La misura dello sfondo: quella dell'area della pagina aperta, finché in
+  // «Genera sfondo» non se ne scrive un'altra. Dà le proporzioni alla cornice
+  // della vista 3D.
+  const misuraPagina = useMisuraSfondo();
+  const [misuraScritta, setMisuraScritta] = useState<Formato | null>(null);
+  const formato = misuraScritta ?? misuraPagina;
 
   useEffect(() => {
     let vivo = true;
@@ -233,6 +241,12 @@ export function PlanimetriaEditor({ id }: { id: string }) {
         <button style={{ ...PULSANTE, ...(vista3d ? PULSANTE_ATTIVO : {}) }} data-testid="planimetria-3d" onClick={() => setVista3d((v) => !v)}>
           🧊 {t("planimetrie.vista3d")}
         </button>
+        {vista3d && (
+          <button style={PULSANTE} data-testid="planimetria-inquadra" title={t("planimetrie.inquadraTitolo")}
+            onClick={() => api3d.current?.inquadra()}>
+            ⛶ {t("planimetrie.inquadra")}
+          </button>
+        )}
         <button style={PULSANTE} data-testid="planimetria-genera" disabled={!vista3d} title={vista3d ? undefined : t("planimetrie.generaServe3d")}
           onClick={() => setGenera(true)}>
           🖼 {t("planimetrie.generaSfondo")}
@@ -314,13 +328,13 @@ export function PlanimetriaEditor({ id }: { id: string }) {
         {vista3d && (
           <div style={{ flex: 1, minWidth: 0, display: "flex", borderLeft: "1px solid var(--brand-surface-2, #334155)" }}>
             <Suspense fallback={<div style={{ padding: 16, fontSize: 12 }}>{t("planimetrie.caricamento3d")}</div>}>
-              <Vista3D ref={api3d} pianta={bozza} onCamera={(c) => cambia((p) => ({ ...p, camera: c }))} />
+              <Vista3D ref={api3d} pianta={bozza} formato={formato} onCamera={(c) => cambia((p) => ({ ...p, camera: c }))} />
             </Suspense>
           </div>
         )}
         <Proprieta bozza={bozza} scelto={scelto} cambia={cambia} elimina={eliminaScelto} />
       </div>
-      {genera && <GeneraSfondo id={bozza.id} api3d={api3d} onChiudi={() => setGenera(false)} />}
+      {genera && <GeneraSfondo id={bozza.id} api3d={api3d} formato={formato} onFormato={setMisuraScritta} onChiudi={() => setGenera(false)} />}
     </div>
   );
 }
@@ -329,13 +343,20 @@ export function PlanimetriaEditor({ id }: { id: string }) {
  *  solito), il nome fisso `planimetria-<id>.png` — rigenerare sovrascrive, e
  *  le pagine che lo usano si aggiornano da sole — e, se c'è una pagina normale
  *  aperta, la proposta di metterlo subito come suo sfondo. */
-function GeneraSfondo({ id, api3d, onChiudi }: { id: string; api3d: React.MutableRefObject<Vista3DApi | null>; onChiudi: () => void }) {
+function GeneraSfondo({ id, api3d, formato, onFormato, onChiudi }: {
+  id: string;
+  api3d: React.MutableRefObject<Vista3DApi | null>;
+  formato: Formato;
+  /** La misura scritta qui cambia anche la cornice della vista 3D. */
+  onFormato: (f: Formato) => void;
+  onChiudi: () => void;
+}) {
   const { t } = useTranslation();
   const pagina = useAppStore((s) => s.pages.find((p) => p.id === s.currentPageId));
-  const formato = useAppStore((s) => s.project?.page_layout);
   const paginaNormale = pagina && !pagina.kind ? pagina : undefined;
-  const [w, setW] = useState(paginaNormale?.width ?? formato?.default_width ?? 1280);
-  const [h, setH] = useState(paginaNormale?.height ?? formato?.default_height ?? 800);
+  const w = formato.larghezza, h = formato.altezza;
+  const setW = (v: number) => onFormato({ larghezza: v, altezza: h });
+  const setH = (v: number) => onFormato({ larghezza: w, altezza: v });
   const [usa, setUsa] = useState(!!paginaNormale);
   const [stato, setStato] = useState<string | null>(null);
   const [lavoro, setLavoro] = useState(false);
@@ -346,6 +367,8 @@ function GeneraSfondo({ id, api3d, onChiudi }: { id: string; api3d: React.Mutabl
     try {
       const blob = await api3d.current!.genera(Math.round(w), Math.round(h));
       const r = await api.uploadProjectImage(nome, blob);
+      // Stesso nome a ogni giro: la copia in memoria del giro prima non vale più.
+      dimenticaImmagine(r.url);
       if (usa && paginaNormale) aggiornaPagina(paginaNormale.id, { sfondo_immagine: r.url });
       setStato(t(usa && paginaNormale ? "planimetrie.generataEUsata" : "planimetrie.generata", { nome, pagina: paginaNormale?.name ?? "" }));
     } catch (e) {
@@ -491,3 +514,29 @@ const CAMPO: CSSProperties = {
   borderRadius: 3, padding: "3px 6px", fontSize: 12,
 };
 const CAMPO_PICCOLO: CSSProperties = { ...CAMPO, padding: "1px 4px" };
+
+/** La misura dello sfondo per la pagina aperta (30-10-2026): l'**area attiva**,
+ *  cioè la pagina senza testata e piede della cornice, perché è lì che
+ *  `sfondo_immagine` si disegna (`oggettoSfondoArea`). Generare alla misura
+ *  della pagina intera lo faceva tagliare sopra e sotto. Senza una pagina
+ *  normale aperta, il formato di progetto. */
+function useMisuraSfondo(): Formato {
+  const pagina = useAppStore((s) => s.pages.find((p) => p.id === s.currentPageId));
+  const pagine = useAppStore((s) => s.pages);
+  const layout = useAppStore((s) => s.project?.page_layout);
+  return useMemo(() => {
+    const larghezza = layout?.default_width ?? 1280;
+    const altezza = layout?.default_height ?? 800;
+    const normale = pagina && !pagina.kind ? pagina : undefined;
+    if (!normale) return { larghezza, altezza };
+    const id = corniceDellaPagina(normale, layout?.cornice_predefinita);
+    const pc = id ? pagine.find((p) => eCornice(p) && idCornice(p) === id) : undefined;
+    const area = oggettoSfondoArea(
+      { ...normale, width: normale.width ?? larghezza, height: normale.height ?? altezza, sfondo_immagine: "misura" },
+      pc ? paginaACornice(pc) : undefined,
+    );
+    return area?.width && area?.height
+      ? { larghezza: area.width, altezza: area.height }
+      : { larghezza: normale.width ?? larghezza, altezza: normale.height ?? altezza };
+  }, [pagina, pagine, layout]);
+}

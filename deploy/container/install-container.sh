@@ -399,6 +399,12 @@ install -m 0755 "$SRC_DIR/fiducia-browser.sh" "$DATA/config/fiducia-browser.sh" 
 if command -v certutil >/dev/null 2>&1 && [ -x "$DATA/config/fiducia-browser.sh" ]; then
     echo "fiducia-browser" > "$DATA/config/fiducia-browser"
     echo "    fiducia del browser: certutil c'e', il TLS si accendera' da se'"
+    # La cartella delle unita' utente non c'e' per forza: sul WP630 non
+    # esisteva, e il 30-10-2026 un'installazione pulita si e' fermata qui
+    # («No such file or directory», con `set -e`) dopo aver gia' cancellato
+    # tutto — pannello senza runtime. I quadlet stanno altrove
+    # (~/.config/containers/systemd), quindi nessuno l'aveva mai creata.
+    mkdir -p "$USER_UNIT_DIR"
     for U in sws-fiducia.path sws-fiducia.service; do
         sed "s|/data/user/sws/config|$DATA/config|g" "$SRC_DIR/$U" > "$USER_UNIT_DIR/$U"
     done

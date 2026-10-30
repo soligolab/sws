@@ -1,5 +1,5 @@
 // La scena 3D di una planimetria, **come dati** (29-10-2026, ramo 2 del piano
-// `docs/plans/2026-10-25-planimetrie-3d.md`).
+// `docs/archive/2026-10-25-planimetrie-3d.md`).
 //
 // three.js riceve una lista di scatole e di pavimenti già calcolati: tutta la
 // geometria sta qui, pura e provata senza WebGL. La pianta è in metri con la y
@@ -118,4 +118,30 @@ export function inquadraturaDiPartenza(s: Scena): { pos: [number, number, number
     target: [cx, 0, cz],
     fov,
   };
+}
+
+/** Dove sta la pagina dentro la vista 3D (30-10-2026): il rettangolo più grande
+ *  con le proporzioni `larghezza × altezza` che entra in `W × H` lasciando
+ *  `margine` pixel per lato, centrato. È la cornice che la vista disegna, e il
+ *  pezzo di vista che «Genera sfondo» rende: prima si rendeva la vista intera
+ *  con le proporzioni della pagina, e quello che usciva non era quello che si
+ *  vedeva — la stanza più piccola, con margini mai visti. */
+export function riquadroPagina(
+  W: number, H: number, larghezza: number, altezza: number, margine = 16,
+): { x: number; y: number; w: number; h: number } {
+  const dispW = Math.max(1, W - 2 * margine);
+  const dispH = Math.max(1, H - 2 * margine);
+  const k = Math.min(dispW / Math.max(1, larghezza), dispH / Math.max(1, altezza));
+  const w = larghezza * k, h = altezza * k;
+  return { x: (W - w) / 2, y: (H - h) / 2, w, h };
+}
+
+/** Gli otto spigoli della scatola che contiene la pianta, muri compresi: è
+ *  quello che «Inquadra» deve far stare dentro la cornice. */
+export function spigoliScena(s: Scena): [number, number, number][] {
+  const [x0, z0, x1, z1] = s.limiti;
+  const alto = Math.max(s.altezzaMassima, 0.1);
+  const out: [number, number, number][] = [];
+  for (const x of [x0, x1]) for (const y of [0, alto]) for (const z of [z0, z1]) out.push([x, y, z]);
+  return out;
 }

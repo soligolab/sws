@@ -13,7 +13,23 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 
 ### Added
 
-- **Planimetrie, ramo 1** (piano `docs/plans/2026-10-25-planimetrie-3d.md`): la pianta si disegna nell'IDE. Server:
+- **Registrazione, PIN e «ricordami»** (ramo C del piano `docs/plans/2026-10-26-aprire-sws-soligo-net.md`).
+  `sws-identita`, schema 5: `sessioni.durata_ms` (il rinnovo scorrevole usa la durata della riga, «ricordami» = 30
+  giorni), `utenti.da_confermare`, `condizioni_versione`/`condizioni_ms`, `ultimo_accesso_ms`; `emetti_accesso` è
+  ora l'unico posto che apre una sessione (password, PIN, conferma). Modulo nuovo `registrazione.rs`: codici Crockford
+  di 8 simboli, 10 minuti, monouso, uno al minuto per indirizzo, tentativi contati **insieme a quelli della password**
+  e PIN buttato al blocco; l'azienda personale (tre progetti) nasce alla conferma. Rotte pre-auth nuove, dichiarate in
+  `check_rotte_preauth.sh`: `POST /api/identita/registrazione` (+`/conferma`), `POST /api/auth/pin` (+`/accesso`),
+  `GET /condizioni` e `/privacy` (le bozze di `docs/legale/`, in testo semplice). Rispondono uguale per iscritti e no,
+  e la posta parte dopo la risposta. **La registrazione è spenta di default**: si accende sul gateway con
+  `--gateway-registrazione` (o `SWS_GATEWAY_REGISTRAZIONE`), e solo con la posta d'installazione configurata; il PIN
+  c'è dove c'è la posta. Il login con password giusta su un indirizzo non confermato risponde 403 `da_confermare`.
+  IDE: la schermata d'accesso offre «ricordami», «Entra con un PIN via e-mail» e «Crea un account» (due caselle:
+  condizioni + approvazione specifica delle clausole), più il passo del codice; primitive del modulo in
+  `schermataAccesso.ts`, componenti in `components/accesso/`. Provato su un gateway di prova con `curl` e in
+  Chromium a 1280 e 390 px nei due temi; il giro con una e-mail vera resta per il collaudo sul VPS.
+
+- **Planimetrie, ramo 1** (piano `docs/archive/2026-10-25-planimetrie-3d.md`): la pianta si disegna nell'IDE. Server:
   `planimetrie/<id>.yaml` archiviate e non interpretate (`sws-web/src/planimetrie.rs`), rotte `/api/planimetrie`
   (versione Q30, scrittura atomica), nel bundle di export/deploy, nell'impronta, in `git_deploy` e nella cache.
   IDE: ramo «Planimetrie» nel pannello sinistro, editor 2D al posto del canvas (muri a polilinea, porte e finestre
@@ -28,9 +44,34 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
   la vista alla misura della pagina (al doppio, poi ridotta), la salva come `images/planimetria-<id>.png` e propone di
   metterla come `sfondo_immagine` della pagina aperta: web e LVGL ricevono solo l'immagine. Provato in Chromium: PNG
   1280×800 caricato e assegnato.
+- **La cornice della pagina nella vista 3D** (30-10-2026, osservazione del maintainer al collaudo: «la stanza è
+  centrata ma più piccola»). «Genera sfondo» rendeva la vista intera con le proporzioni della pagina, diverse da quelle
+  del riquadro 3D: usciva altro da quello che si vedeva. Ora la vista disegna la cornice della pagina (fuori scurito,
+  `riquadroPagina`) e il PNG è esattamente il pezzo dentro (`setViewOffset`); «Inquadra» mette la pianta a filo della
+  cornice, e una pianta senza inquadratura salvata ci parte già. La misura è quella dell'**area attiva** della pagina
+  (senza testata e piede della cornice, dove `sfondo_immagine` si disegna), non della pagina intera.
 
 ### Fixed
 
+- **Un'installazione pulita si fermava a metà su un pannello senza `~/.config/systemd/user`**, dopo aver già cancellato
+  progetti e configurazione: `install-container.sh` scriveva le unità `sws-fiducia.*` (dal 26-10-2026) in una cartella
+  che nessuno creava, e con `set -e` usciva lì. Il pannello restava senza runtime. Visto sul WP630 il 30-10-2026;
+  ora la cartella si crea.
+- **Il logo SWS nel tema chiaro**: la scritta «SWS» del logo standard è chiara e su fondo bianco (schermata d'accesso,
+  elenco dei progetti) quasi non si vedeva. Campo nuovo e facoltativo `logo_chiaro` in `brand.json`, pubblico prima
+  dell'accesso (`marchi::CAMPI_PUBBLICI`); `BrandLogo` lo usa quando `data-theme` è `light`. Il marchio `sws` ha
+  `logo-chiaro.svg`; Pixsys no, perché la sua scritta rossa si legge sui due fondi. Da `Appunti.txt`.
+- **«Sessione scaduta» a chi stava lavorando nell'IDE** (piano `docs/archive/2026-10-30-sessione-scaduta-e-immagini.md`).
+  `POST /api/auth/refresh` cercava il token solo in `sws-auth` (utenti del progetto): un token dell'IDE (`identita`)
+  prendeva sempre 401. Con la password succedeva dopo 7 h 55; con «ricordami» subito, perché il ritardo di 30 giorni
+  superava il massimo di `setTimeout` (2³¹-1 ms) e il timer scattava all'istante. Ora il rinnovo guarda i tre archivi
+  come `logout` (`Identita::valida_con_scadenza`, nuova), e il timer ha un tetto di un giorno (`ritardoRinnovo`). Il
+  modale offre anche il PIN, e manda `riautentica`: `entra` non chiude il progetto se a rientrare è chi l'ha aperto
+  (`AppState::aperto_da`); la risposta dice `progetto_aperto`, e se è falso il modale manda all'elenco.
+- **Le immagini del progetto non si vedevano sul canvas dell'IDE locale**: `/api/project/images/…` chiede la sessione da
+  quando l'IDE ha i suoi utenti, e `<image href>` non la manda. `serveScaricare` scaricava col token solo nel cloud; ora
+  anche con una sessione vera. Trovato con lo sfondo generato da una planimetria. «Genera sfondo» chiama
+  `dimenticaImmagine`, come il caricamento a mano: rigenerare sullo stesso nome mostra l'immagine nuova.
 - **Il backup non conteneva faceplate né cornici** da quando esistono: `BACKED_UP` li saltava, e un ripristino
   riportava le pagine perdendo in silenzio i faceplate che usano e la loro cornice. Ora ci sono, con le planimetrie;
   prova di andata e ritorno.
@@ -651,7 +692,7 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
   lato. La card TLS esce da Istanza → Stato e il trust store dalla card della sorgente OPC-UA (al loro posto un
   collegamento). **Quadlet 6 → 7**: il runtime monta `/data/user/sws/viewer` in sola lettura (`SWS_VIEWER_DATA`).
 - **Il corpo del testo su tutti i tipi, e i testi che il pannello LVGL non disegnava** (terzo giro del ramo 5 dei
-  residui, piano `docs/plans/2026-10-25-corpi-e-parita-lvgl.md`). `font_size`, `label_font_size` e il campo nuovo
+  residui, piano `docs/archive/2026-10-25-corpi-e-parita-lvgl.md`). `font_size`, `label_font_size` e il campo nuovo
   **`unit_font_size`** valgono ora anche su gauge, kpi_tile, data_log, sparkline, symbol, lang_selector, i quattro
   oggetti degli allarmi, recipe_panel, clock e page_navigator, nei due motori, coi predefiniti uguali ai numeri di
   prima del web. Sul pannello LVGL: valore e unità separati su gauge e kpi; pillola ISA e ACK sul banner allarmi;
@@ -666,7 +707,7 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
   rettangolo `sfondo:area` sotto tutto (`cornici::sfondo_area`), l'editor ha il gemello per il WYSIWYG
   (`oggettoSfondoArea`); test con gli stessi numeri nei due lati. Su LVGL solo SVG (Q16).
 
-- **L'impianto lo tocca il pannello, anche dal cloud** (piano `docs/plans/2026-10-25-impianto-dal-dispositivo.md`,
+- **L'impianto lo tocca il pannello, anche dal cloud** (piano `docs/archive/2026-10-25-impianto-dal-dispositivo.md`,
   strada 3 decisa dal maintainer). Dal cloud lo «Sfoglia broker» trovava 0 topic: le scoperte giravano sul VPS,
   che l'impianto non lo vede.
   - Le scoperte (sfoglia MQTT, OPC-UA, Euromap, Home Assistant), i certificati OPC-UA e la prova del datastore

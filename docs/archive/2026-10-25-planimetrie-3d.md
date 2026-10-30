@@ -1,5 +1,9 @@
 # Planimetrie: la pianta si disegna nell'IDE, la vista 3D diventa lo sfondo — piano d'esecuzione
 
+> **Archiviato il 30-10-2026** con i rami 1 e 2 fatti e visti a schermo, più la cornice della pagina nella vista 3D
+> e «Inquadra» (nati al collaudo dello stesso giorno: «ora funziona»). Il ramo 3 — una planimetria vera in
+> CasaDomotica e la prova su LVGL — è passato in `docs/plans/Appunti.txt`, come vuole la regola dei piani quasi finiti.
+
 ## Context
 
 Idea del maintainer (25-10-2026): «introdurre un minimo editor di ambienti 3D per disegnare delle

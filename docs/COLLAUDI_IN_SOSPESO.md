@@ -258,6 +258,32 @@ restano come traccia per chi lo riprova; non sono state spuntate una per una.
 6. [ ] Un utente di un'altra azienda, con l'indirizzo `/schermo/<pannello>/` copiato: non entra.
 7. [ ] Un pannello ancora alla versione di prima: il tasto apre una pagina che dice «va aggiornato».
 
+## A-duodecies. I corpi del testo e i testi che LVGL non disegnava (25-10-2026)
+
+Piano `docs/archive/2026-10-25-corpi-e-parita-lvgl.md`, archiviato il 30-10-2026 con questo collaudo come unico
+residuo. Serve un pannello in **modalità LVGL** (WP630, o TC620 commutato) col progetto `demo-items-lvgl`, che usa
+tutti questi tipi.
+
+1. [ ] Cambiare il corpo del valore e quello dell'unità (`unit_font_size`) su un gauge e su un kpi: sul pannello
+       cambiano tutt'e due, e l'unità segue il valore (nel kpi accanto, nel gauge sotto).
+2. [ ] Sotto un **symbol** compare l'etichetta dello stato attivo; in una **sparkline** l'ultimo valore in alto a
+       destra.
+3. [ ] **alarm_banner**: la pillola ISA (piena per l'attivo, col bordo per il rientrato) e il tasto ACK sulla riga.
+4. [ ] **Storico allarmi** e **registro dati**: la tabella scorre col dito fino all'ultima riga; titolo «STORICO
+       ALLARMI». Il messaggio e lo stato stanno in due colonne, non in una sottoriga (dichiarato: resta del web).
+5. [ ] **alarm_bell**: la campana si vede (non un quadratino); **lang_selector**: codici in maiuscolo.
+6. [ ] **recipe_panel**: senza ricette dice che è vuoto; applicandone una, la riga d'esito.
+
+## A-terdecies. L'impianto lo tocca il pannello, anche dal cloud (25-10-2026)
+
+Piano `docs/archive/2026-10-25-impianto-dal-dispositivo.md`, uscito nella 2.21.0 e archiviato il 30-10-2026. La gamba
+«nel cloud le sorgenti non partono» è già provata (28-10, dai thread del container); restano due minuti all'IDE.
+Serve un progetto nel cloud con un **pannello collegato** (CasaDomotica e il TC620 del garage).
+
+1. [ ] Dal cloud, una sorgente MQTT → **Sfoglia broker**: trova i topic, passando dal pannello (prima: 0 topic).
+2. [ ] Nell'editor nel cloud i valori dei tag si muovono: arrivano dal pannello collegato, non da sorgenti
+       avviate nel container.
+
 ## B. Lo schema `http`/`https` non è più scritto a mano
 
 Quattro punti che prima non rileggevano il certificato. **Nessuno cambia il comportamento di un

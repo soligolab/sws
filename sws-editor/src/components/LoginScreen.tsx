@@ -2,18 +2,31 @@ import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { BrandLogo } from "@/components/BrandLogo";
 import { getBrand } from "@/branding";
-import { api, RateLimitedError, RuntimeUnavailableError } from "@/api/client";
+import { api, DaConfermareError, RateLimitedError, RuntimeUnavailableError, type LoginOk } from "@/api/client";
 import { useAppStore } from "@/store";
-import { paginaCentrata, schedaModulo } from "@/components/schermataAccesso";
+import {
+  campoAccesso,
+  casellaAccesso,
+  collegamentoAccesso,
+  erroreAccesso,
+  etichettaAccesso,
+  paginaCentrata,
+  pulsanteAccesso,
+  schedaModulo,
+} from "@/components/schermataAccesso";
+import { AccessoPin } from "@/components/accesso/AccessoPin";
+import { Registrazione } from "@/components/accesso/Registrazione";
 
 /**
  * Minimal login screen shown when the store has no auth token.
  * Calls POST /api/auth/login, stores the returned token, and the App
  * unmounts/remounts to render the authenticated UI.
  *
- * PoC scope: no "remember me" toggle, no captcha.
- * The runtime's session map is in-memory, so a runtime restart logs
- * everyone out automatically.
+ * Dal 30-10-2026 (ramo C di `docs/plans/2026-10-26-aprire-sws-soligo-net.md`)
+ * le strade per entrare, sugli utenti dell'installazione, sono tre: password
+ * (con «ricordami» 30 giorni), PIN per posta, registrazione con il codice di
+ * conferma. Le ultime due compaiono solo se `/api/identita/stato` le offre.
+ * Su un pannello resta il login di sempre, con le sessioni in memoria.
  */
 export function LoginScreen({
   onCancel,
@@ -36,12 +49,16 @@ export function LoginScreen({
   // sbagliato, ed è stato segnalato appena creato il primo amministratore.
   const [perInstallazione, setPerInstallazione] = useState<boolean | null>(null);
   const [username, setUsername] = useState("");
+  const [offre, setOffre] = useState<{ pin: boolean; registrazione: boolean }>({ pin: false, registrazione: false });
+  const [vista, setVista] = useState<"password" | "pin" | "registrazione" | "conferma">("password");
+  const [ricordami, setRicordami] = useState(false);
   useEffect(() => {
     let vivo = true;
     api.identitaStato()
       .then((st) => {
         if (!vivo) return;
         setPerInstallazione(!!st.gestita);
+        setOffre({ pin: !!st.pin, registrazione: !!st.registrazione });
         if (!st.gestita) setUsername("admin");
       })
       .catch(() => { if (vivo) { setPerInstallazione(false); setUsername("admin"); } });
@@ -83,16 +100,20 @@ export function LoginScreen({
 
   const isLocked = lockedUntilMs !== null && countdown > 0;
 
+  const entrato = (res: LoginOk) =>
+    setAuth(res.token, res.username, res.role, res.must_change_password, res.expires_at_ms);
+
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (isLocked) return;
     setError(null);
     setBusy(true);
     try {
-      const res = await api.login(username, password);
-      setAuth(res.token, res.username, res.role, res.must_change_password, res.expires_at_ms);
+      entrato(await api.login(username, password, perInstallazione === true && ricordami));
     } catch (e: unknown) {
-      if (e instanceof RateLimitedError) {
+      if (e instanceof DaConfermareError) {
+        setVista("conferma");
+      } else if (e instanceof RateLimitedError) {
         setLockedUntilMs(Date.now() + e.retryAfterSecs * 1000);
         setCountdown(e.retryAfterSecs);
         setError(t("login.troppiTentativi", { s: e.retryAfterSecs }));
@@ -109,7 +130,7 @@ export function LoginScreen({
 
   return (
     <div style={paginaCentrata}>
-      <form onSubmit={submit} style={schedaModulo(320)}>
+      <div style={schedaModulo(vista === "registrazione" ? 380 : 320)}>
         {/* Il marchio, non «SWS» cablato (28-10-2026): su un'istanza con un
             marchio proprio la schermata d'accesso era l'unico posto che
             diceva ancora «SWS». Il nome lungo viene dal brand, e non è più
@@ -121,13 +142,23 @@ export function LoginScreen({
           <BrandLogo />
           <span style={{ color: "var(--brand-text-subtle, #64748b)", fontSize: 13 }}>{getBrand().name}</span>
         </div>
+        {vista === "pin" && (
+          <AccessoPin emailIniziale={username} onEntrato={entrato} onIndietro={() => setVista("password")} />
+        )}
+        {(vista === "registrazione" || vista === "conferma") && (
+          <Registrazione emailIniziale={vista === "conferma" ? username : ""}
+            passo={vista === "conferma" ? "codice" : "modulo"}
+            onEntrato={entrato} onIndietro={() => setVista("password")} />
+        )}
+        {vista === "password" && (
+        <form onSubmit={submit} style={{ display: "flex", flexDirection: "column", gap: 14 }}>
         {motivo && (
           <div style={{ fontSize: 12, color: "var(--brand-warning-soft, #fbbf24)", background: "#78350f33", padding: "6px 10px", borderRadius: 4, lineHeight: 1.4 }}>
             {t(motivo)}
           </div>
         )}
         <div>
-          <label style={{ fontSize: 11, color: "var(--brand-text-muted, #94a3b8)", display: "block", marginBottom: 4 }}>
+          <label style={etichettaAccesso}>
             {perInstallazione ? t("auth.email") : t("auth.user")}
           </label>
           <input
@@ -136,11 +167,11 @@ export function LoginScreen({
             onChange={(e) => setUsername(e.target.value)}
             autoComplete={perInstallazione ? "email" : "username"}
             disabled={isLocked}
-            style={input}
+            style={campoAccesso}
           />
         </div>
         <div>
-          <label style={{ fontSize: 11, color: "var(--brand-text-muted, #94a3b8)", display: "block", marginBottom: 4 }}>{t("auth.password")}</label>
+          <label style={etichettaAccesso}>{t("auth.password")}</label>
           <input
             type="password"
             value={password}
@@ -148,27 +179,39 @@ export function LoginScreen({
             autoComplete="current-password"
             autoFocus
             disabled={isLocked}
-            style={input}
+            style={campoAccesso}
           />
         </div>
+        {/* Solo per gli utenti dell'installazione: le sessioni del progetto
+            stanno in memoria, e 30 giorni non li reggerebbero comunque. */}
+        {perInstallazione && (
+          <label style={casellaAccesso}>
+            <input type="checkbox" checked={ricordami} onChange={(e) => setRicordami(e.target.checked)} />
+            {t("accesso.ricordami")}
+          </label>
+        )}
         {error && (
-          <div style={{ color: "var(--brand-danger-soft, #fca5a5)", fontSize: 12, background: "#7f1d1d33", padding: "6px 10px", borderRadius: 4 }}>
+          <div style={erroreAccesso}>
             {isLocked ? t("login.accountBloccato", { s: countdown }) : error}
           </div>
         )}
         <button
           type="submit"
           disabled={busy || !password || !username || isLocked}
-          style={{
-            background: isLocked ? "var(--brand-surface-2, #334155)" : busy ? "#1e3a8a" : "var(--brand-primary, #3b82f6)",
-            color: isLocked ? "var(--brand-text-subtle, #64748b)" : busy ? "#fff" : "var(--brand-on-primary, #fff)",
-            border: "none", borderRadius: 4,
-            padding: "8px 12px", cursor: (busy || isLocked) ? "default" : "pointer",
-            fontSize: 14, fontWeight: 600,
-          }}
+          style={pulsanteAccesso(busy || isLocked || !password || !username)}
         >
           {isLocked ? `${t("auth.locked", { s: countdown })}` : busy ? t("auth.loggingIn") : t("auth.login")}
         </button>
+        {(offre.pin || offre.registrazione) && (
+          <div style={{ display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
+            {offre.pin && (
+              <button type="button" onClick={() => setVista("pin")} style={collegamentoAccesso}>{t("accesso.conPin")}</button>
+            )}
+            {offre.registrazione && (
+              <button type="button" onClick={() => setVista("registrazione")} style={collegamentoAccesso}>{t("accesso.creaAccount")}</button>
+            )}
+          </div>
+        )}
         {onCancel && (
           <button
             type="button"
@@ -186,21 +229,14 @@ export function LoginScreen({
             {t("login.backToTheProjectList")}
           </button>
         )}
-        <p style={{ fontSize: 11, color: "var(--brand-text-subtle, #94a3b8)", margin: 0 }}>
-          {t("login.inMemorySessionsARuntime")}
-        </p>
-      </form>
+        {perInstallazione === false && (
+          <p style={{ fontSize: 11, color: "var(--brand-text-subtle, #94a3b8)", margin: 0 }}>
+            {t("login.inMemorySessionsARuntime")}
+          </p>
+        )}
+        </form>
+        )}
+      </div>
     </div>
   );
 }
-
-const input: React.CSSProperties = {
-  width: "100%",
-  background: "var(--brand-bg, #0f172a)",
-  border: "1px solid var(--brand-surface-2, #334155)",
-  borderRadius: 4,
-  padding: "7px 10px",
-  color: "var(--brand-text, #e2e8f0)",
-  fontSize: 14,
-  boxSizing: "border-box",
-};

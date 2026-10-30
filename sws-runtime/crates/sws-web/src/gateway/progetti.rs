@@ -177,6 +177,11 @@ pub struct Regia {
     /// Quanti container accesi insieme, in tutto il gateway. Vedi
     /// [`MEMORIA_PREDEFINITA`] e il commento del tetto globale.
     massimo_container: Option<usize>,
+    /// Chiunque puo registrarsi da solo (`--gateway-registrazione`, 30-10-2026).
+    /// Spenta di default: un gateway e aperto agli sconosciuti solo quando
+    /// lo si decide — condizioni d'uso riviste, posta che non finisce nello
+    /// spam (`docs/plans/2026-10-26-aprire-sws-soligo-net.md`, ramo C).
+    registrazione_aperta: bool,
     /// Il segreto che il figlio pretende a ogni richiesta (`--auth-delegata`).
     /// Uno solo per tutto il gateway: i figli non si parlano fra loro, e un
     /// segreto per container vorrebbe dire tenerne traccia senza guadagno.
@@ -212,6 +217,7 @@ impl Regia {
             come,
             fermo_dopo: FERMO_PREDEFINITO,
             massimo_container: None,
+            registrazione_aperta: false,
             segreto: Arc::new(segreto.into()),
             aperti: RwLock::new(HashMap::new()),
             apertura: tokio::sync::Mutex::new(()),
@@ -228,6 +234,15 @@ impl Regia {
     pub fn con_massimo_container(mut self, quanti: usize) -> Self {
         self.massimo_container = (quanti > 0).then_some(quanti);
         self
+    }
+
+    pub fn con_registrazione(mut self, aperta: bool) -> Self {
+        self.registrazione_aperta = aperta;
+        self
+    }
+
+    pub fn registrazione_aperta(&self) -> bool {
+        self.registrazione_aperta
     }
 
     pub fn segreto(&self) -> &str {

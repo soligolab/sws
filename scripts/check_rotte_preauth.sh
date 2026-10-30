@@ -109,6 +109,20 @@ esito() {
 #                                        (≤16 KB, ≤64 voci) solo mentre un
 #                                        Supervisor ha la pagina aperta, e lo
 #                                        mostra solo a lui
+#   /api/identita/registrazione          (30-10-2026, ramo C di aprire-sws-soligo-net)
+#   /api/identita/registrazione/conferma chi si registra non ha un account, chi
+#   /api/auth/pin                        chiede un PIN non ha la password. Le
+#   /api/auth/pin/accesso                protegge un codice monouso per posta
+#                                        (10 minuti, 5 tentativi per indirizzo
+#                                        contati con la password); rispondono
+#                                        uguale per iscritti e no, e la posta
+#                                        parte dopo la risposta. Le prime due
+#                                        danno 404 se il gateway non ha
+#                                        `--gateway-registrazione`
+#   /condizioni  /privacy                (30-10-2026) i testi da accettare alla
+#                                        registrazione, da leggere prima di
+#                                        avere un account. 404 a registrazione
+#                                        chiusa
 ATTESE=(
     "/health"
     "/.well-known/security.txt"
@@ -126,6 +140,12 @@ ATTESE=(
     "/api/project"
     "/api/prestazioni/richiesta"
     "/api/prestazioni/viewer"
+    "/api/identita/registrazione"
+    "/api/identita/registrazione/conferma"
+    "/api/auth/pin"
+    "/api/auth/pin/accesso"
+    "/condizioni"
+    "/privacy"
 )
 
 echo "── Rotte raggiungibili senza credenziali ──"

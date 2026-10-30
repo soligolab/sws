@@ -10,7 +10,14 @@
  *  altro — il maintainer: «sembra mostri solo un pezzo piccolo molto
  *  ingrandito». Nel cloud quindi l'immagine si scarica con la sessione, come fa
  *  già l'immagine di boot (`boot/rasterizza.ts`), e si disegna da un `blob:`
- *  tenuto in memoria. Altrove l'URL resta com'è: lì funziona già. */
+ *  tenuto in memoria.
+ *
+ *  **Anche in locale, con una sessione vera** (30-10-2026). «In locale l'IDE
+ *  non si autentica» era vero quando questo file è nato e non lo è più: l'IDE
+ *  ha i suoi utenti, `/api/project/images/…` risponde 401 senza token, e sul
+ *  canvas dell'IDE locale ogni immagine del progetto mancava — trovato con lo
+ *  sfondo generato dalla planimetria. Senza token (pannello, viewer anonimo,
+ *  IDE senza utenti) l'URL resta com'è: lì funziona già. */
 import { useEffect, useState } from "react";
 import type { ImgHTMLAttributes, SVGProps } from "react";
 import { getAuthToken, getBaseUrl } from "@/api/client";
@@ -43,7 +50,9 @@ export function blobDi(url: string): Blob | undefined {
 export function serveScaricare(href: string | undefined): href is string {
   // Anche sullo schermo di un pannello aperto dal cloud (29-10-2026): lì
   // l'indirizzo alla radice andrebbe al gateway, non al pannello.
-  return !!href && href.startsWith("/api/") && (!!prefissoGateway() || !!prefissoSchermo());
+  const tok = getAuthToken();
+  const sessione = !!tok && tok !== "no-auth";
+  return !!href && href.startsWith("/api/") && (!!prefissoGateway() || !!prefissoSchermo() || sessione);
 }
 
 /** Scarica (una volta sola per URL) e restituisce un `blob:` da disegnare. */

@@ -41,3 +41,81 @@ export function schedaModulo(larghezza: number): React.CSSProperties {
     boxShadow: "0 10px 30px rgba(0,0,0,0.4)",
   };
 }
+
+// ── I pezzi del modulo (30-10-2026) ─────────────────────────────────────────
+//
+// Con la registrazione e il PIN le schermate di accesso sono diventate quattro
+// (password, PIN, registrazione, codice di conferma): stavano tutte in
+// `LoginScreen.tsx` come costanti locali, e la seconda copia sarebbe stata
+// l'inizio di quattro stili che divergono.
+
+export const etichettaAccesso: React.CSSProperties = {
+  fontSize: 11,
+  color: "var(--brand-text-muted, #94a3b8)",
+  display: "block",
+  marginBottom: 4,
+};
+
+export const campoAccesso: React.CSSProperties = {
+  width: "100%",
+  background: "var(--brand-bg, #0f172a)",
+  border: "1px solid var(--brand-surface-2, #334155)",
+  borderRadius: 4,
+  padding: "7px 10px",
+  color: "var(--brand-text, #e2e8f0)",
+  fontSize: 14,
+  boxSizing: "border-box",
+};
+
+/** Il pulsante principale del modulo; spento mentre si aspetta o si è bloccati. */
+export function pulsanteAccesso(spento: boolean): React.CSSProperties {
+  return {
+    background: spento ? "var(--brand-surface-2, #334155)" : "var(--brand-primary, #3b82f6)",
+    color: spento ? "var(--brand-text-subtle, #64748b)" : "var(--brand-on-primary, #fff)",
+    border: "none",
+    borderRadius: 4,
+    padding: "8px 12px",
+    cursor: spento ? "default" : "pointer",
+    fontSize: 14,
+    fontWeight: 600,
+  };
+}
+
+/** Un collegamento fra le schermate («accedi con un PIN», «crea un account»). */
+export const collegamentoAccesso: React.CSSProperties = {
+  background: "transparent",
+  color: "var(--brand-primary-testo, #60a5fa)",
+  border: "none",
+  cursor: "pointer",
+  fontSize: 13,
+  padding: 0,
+  textAlign: "left",
+};
+
+export const erroreAccesso: React.CSSProperties = {
+  color: "var(--brand-danger-soft, #fca5a5)",
+  fontSize: 12,
+  background: "#7f1d1d33",
+  padding: "6px 10px",
+  borderRadius: 4,
+};
+
+export const avvisoAccesso: React.CSSProperties = {
+  fontSize: 12,
+  color: "var(--brand-text-muted, #94a3b8)",
+  background: "var(--brand-bg, #0f172a)",
+  border: "1px solid var(--brand-surface-2, #334155)",
+  padding: "8px 10px",
+  borderRadius: 4,
+  lineHeight: 1.45,
+};
+
+export const casellaAccesso: React.CSSProperties = {
+  display: "flex",
+  gap: 8,
+  alignItems: "flex-start",
+  fontSize: 12,
+  color: "var(--brand-text-muted, #94a3b8)",
+  lineHeight: 1.4,
+  cursor: "pointer",
+};

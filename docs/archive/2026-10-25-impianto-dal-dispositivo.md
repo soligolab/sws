@@ -39,7 +39,7 @@ il runtime del dispositivo e l'IDE nel cloud ne è un client. Più due scelte:
   così l'IDE si ricollega da solo;
 - **nel cloud le sorgenti d'impianto non partono**: i valori vivi vengono dal pannello collegato.
 
-Il seme è `docs/plans/2026-10-25-impianto-dal-dispositivo.md`; questo piano lo sostituisce come
+Il seme è `docs/archive/2026-10-25-impianto-dal-dispositivo.md`; questo piano lo sostituisce come
 disegno.
 
 ## Cosa c'è già (dalle esplorazioni)
@@ -164,7 +164,7 @@ regola «un ramo alla volta», opzione 2. Rientra passando da lì.
   collegato».
 - **HOWTO**: un capitolo «lavorare dal cloud su un impianto».
 - **CHANGELOG e NOVITA**.
-- **Il seme**: `docs/plans/2026-10-25-impianto-dal-dispositivo.md` diventa questo piano, aggiornato
+- **Il seme**: `docs/archive/2026-10-25-impianto-dal-dispositivo.md` diventa questo piano, aggiornato
   nell'indice.
 
 ## Scelte prese eseguendo (25-10-2026)

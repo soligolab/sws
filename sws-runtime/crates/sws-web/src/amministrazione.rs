@@ -605,7 +605,7 @@ fn percorso_smtp(s: &AppState) -> std::path::PathBuf {
     s.config_dir.join("smtp.yaml")
 }
 
-async fn leggi_smtp(s: &AppState) -> Option<sws_core::SmtpConfig> {
+pub(crate) async fn leggi_smtp(s: &AppState) -> Option<sws_core::SmtpConfig> {
     let testo = tokio::fs::read_to_string(percorso_smtp(s)).await.ok()?;
     serde_yaml::from_str(&testo).ok()
 }

@@ -1,7 +1,7 @@
 /** La scena 3D come dati (29-10-2026, ramo 2): il muro diventa scatole, le
  *  aperture lasciano il vano, un angolo spezza il tratto sui due lati. */
 import { describe, expect, it } from "vitest";
-import { costruisciScena, inquadraturaDiPartenza } from "../src/planimetrie/scena";
+import { costruisciScena, inquadraturaDiPartenza, riquadroPagina, spigoliScena } from "../src/planimetrie/scena";
 import { nuovaPlanimetria, type Planimetria } from "../src/planimetrie/modello";
 
 const pianta = (patch: Partial<Planimetria>): Planimetria => ({ ...nuovaPlanimetria("p", "P"), ...patch });
@@ -47,5 +47,38 @@ describe("costruisciScena", () => {
     const cam = inquadraturaDiPartenza(costruisciScena(pianta({ muri: [muro] })));
     expect(cam.target).toEqual([5, 0, 0]);
     expect(cam.pos[1]).toBeGreaterThan(5);
+  });
+});
+
+/** La cornice della pagina nella vista 3D (30-10-2026): il PNG generato è il
+ *  pezzo di vista dentro la cornice. Prima si rendeva la vista intera con le
+ *  proporzioni della pagina, e la stanza usciva più piccola di come si vedeva. */
+describe("riquadroPagina", () => {
+  it("una pagina larga in un riquadro alto: a tutta larghezza, centrata in verticale", () => {
+    const r = riquadroPagina(500, 800, 900, 500, 10);
+    expect(r.w).toBeCloseTo(480);
+    expect(r.h).toBeCloseTo(480 * 500 / 900);
+    expect(r.x).toBeCloseTo(10);
+    expect(r.y).toBeCloseTo((800 - r.h) / 2);
+  });
+  it("una pagina alta in un riquadro largo: a tutta altezza, centrata in orizzontale", () => {
+    const r = riquadroPagina(1000, 400, 600, 800, 0);
+    expect(r.h).toBeCloseTo(400);
+    expect(r.w).toBeCloseTo(300);
+    expect(r.x).toBeCloseTo(350);
+  });
+  it("le proporzioni sono sempre quelle della pagina", () => {
+    const r = riquadroPagina(733, 517, 1920, 1080);
+    expect(r.w / r.h).toBeCloseTo(1920 / 1080);
+  });
+});
+
+describe("spigoliScena", () => {
+  it("otto spigoli: la pianta in pianta, dal pavimento al muro più alto", () => {
+    const s = costruisciScena(pianta({ muri: [{ ...muro, punti: [[0, 0], [10, 0], [10, 6]] }] }));
+    const sp = spigoliScena(s);
+    expect(sp).toHaveLength(8);
+    expect(Math.max(...sp.map((p) => p[1]))).toBeCloseTo(2.7);
+    expect(Math.min(...sp.map((p) => p[1]))).toBe(0);
   });
 });

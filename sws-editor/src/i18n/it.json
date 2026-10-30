@@ -2242,6 +2242,36 @@
     "troppiTentativi": "Troppi tentativi falliti. Riprova tra {{s}}s.",
     "accountBloccato": "Account bloccato. Riprova tra {{s}}s."
   },
+  "accesso": {
+    "conPin": "Entra con un PIN via e-mail",
+    "conPassword": "← Entra con la password",
+    "pinSpiegazione": "Scrivi il tuo indirizzo: se è iscritto, ti mandiamo un PIN da usare una volta sola, valido 10 minuti. La password resta quella di prima.",
+    "mandaPin": "Mandami il PIN",
+    "pinInviato": "Se {{email}} è iscritto, gli è appena arrivato un PIN. Controlla anche la cartella dello spam.",
+    "pin": "PIN",
+    "pinSbagliato": "PIN sbagliato o scaduto.",
+    "mandaneUnAltro": "Mandane un altro",
+    "ricordami": "Ricordami su questo browser per 30 giorni",
+    "creaAccount": "Crea un account",
+    "registrazioneSpiegazione": "SWS è in fase di sviluppo: l'account è gratuito e serve a provarlo. Avrai uno spazio tuo, con un massimo di tre progetti.",
+    "ripetiPassword": "Ripeti la password",
+    "passwordCorta": "La password deve avere almeno {{n}} caratteri.",
+    "passwordDiverse": "Le due password non coincidono.",
+    "accettoPrima": "Accetto le",
+    "condizioni": "condizioni d'uso",
+    "accettoE": "e ho letto",
+    "informativa": "l'informativa sulla privacy",
+    "approvoClausole": "Approvo in modo specifico le clausole elencate al punto 14 delle condizioni d'uso (artt. 1341-1342 c.c.)",
+    "registrati": "Registrati",
+    "registrazioneRifiutata": "Registrazione non riuscita: controlla l'indirizzo e la password.",
+    "hoGiaUnAccount": "← Ho già un account",
+    "confermaIndirizzo": "Conferma l'indirizzo",
+    "codiceInviato": "Abbiamo scritto a {{email}}. Se l'indirizzo era nuovo trovi un codice di conferma, valido 10 minuti; se era già iscritto, un messaggio che lo dice. Controlla anche lo spam.",
+    "codice": "Codice di conferma",
+    "codiceSbagliato": "Codice sbagliato o scaduto.",
+    "conferma": "Conferma ed entra",
+    "nonArrivato": "Non è arrivato? Registrati di nuovo"
+  },
   "imageBrowser": {
     "loadingCatalog": "Caricamento catalogo…",
     "noResults": "Nessun risultato per \"{{filter}}\"",
@@ -4150,11 +4180,13 @@
     "caricamento3d": "Caricamento della vista 3D…",
     "senza3d": "La vista 3D non parte su questo browser: {{message}}",
     "senzaVista": "La vista 3D non è aperta.",
-    "generaNota": "L'immagine è la vista 3D com'è inquadrata adesso, salvata fra le immagini del progetto come «{{nome}}». Rigenerarla sovrascrive lo stesso file, e le pagine che la usano si aggiornano da sole.",
+    "generaNota": "L'immagine è quello che sta dentro la cornice della vista 3D, salvata fra le immagini del progetto come «{{nome}}». Rigenerarla sovrascrive lo stesso file, e le pagine che la usano si aggiornano da sole.",
     "usaComeSfondo": "Usala come sfondo della pagina «{{pagina}}»",
     "genera": "Genera",
     "generando": "Genero…",
     "generata": "Salvata come «{{nome}}».",
-    "generataEUsata": "Salvata come «{{nome}}» e messa come sfondo di «{{pagina}}»."
+    "generataEUsata": "Salvata come «{{nome}}» e messa come sfondo di «{{pagina}}».",
+    "inquadra": "Inquadra",
+    "inquadraTitolo": "Mette la pianta a filo della cornice della pagina, guardando dalla stessa direzione di adesso."
   }
 }
