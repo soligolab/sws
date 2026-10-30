@@ -1350,6 +1350,17 @@ export const api = {
       amministratore_piattaforma?: boolean;
     }>("/api/auth/whoami"),
 
+  /** L'account si può chiudere da sé: solo chi si è registrato (30-10-2026). */
+  statoAccount: () => request<{ chiudibile: boolean }>("/api/identita/account"),
+
+  /** Chiude il proprio account: fuori subito, cancellato fra 30 giorni. */
+  chiudiAccount: (password: string) =>
+    request<void>("/api/identita/chiudi-account", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ password }),
+    }),
+
   changePassword: (oldPassword: string, newPassword: string) =>
     request<void>("/api/auth/change-password", {
       method: "POST",

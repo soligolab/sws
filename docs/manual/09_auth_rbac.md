@@ -332,6 +332,21 @@ modo, e all'iscritto arriva una e-mail che lo avvisa.
 L'interruttore è spento di default, e va acceso di proposito: i testi di `docs/legale/` sono
 ancora una bozza da rivedere.
 
+**Quanto dura un account registrato.** Solo per chi si è registrato da sé; gli utenti creati da un
+amministratore d'azienda li gestisce l'azienda.
+
+- **Dopo 12 mesi senza accessi** parte un'e-mail di avviso (con la posta d'installazione). Se nei
+  30 giorni seguenti nessuno entra, l'account si cancella con la sua azienda personale e i suoi
+  progetti. Basta entrare una volta per fermare il conto. Senza posta l'avviso non parte, e quindi
+  nessuno si cancella per inattività.
+- **Chiudere l'account**: dal menu col proprio nome, «Chiudi l'account…», con la password. Da
+  subito non si entra più; dopo 30 giorni l'account si cancella. Entro quei 30 giorni la
+  piattaforma può riattivarlo dalla console, e la riattivazione annulla la chiusura.
+- **Una registrazione mai confermata** sparisce dopo 30 giorni.
+- **Il registro delle attività** del gateway si tiene 12 mesi: le voci più vecchie si tolgono.
+
+Tutto questo lo fa un giro quotidiano del gateway, che parte cinque minuti dopo l'avvio.
+
 ### La console
 
 Aziende, persone, pannelli, marchi, risorse, posta e impostazioni dell'installazione si governano

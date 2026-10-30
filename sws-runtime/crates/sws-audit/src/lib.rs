@@ -124,6 +124,38 @@ impl AuditLog {
         all
     }
 
+    /// Toglie le voci più vecchie di `prima_di_ms` (rotazione del registro, 30-10-2026: l'informativa
+    /// del gateway promette 12 mesi, `docs/legale/LEGGIMI.md`). Restituisce quante ne ha tolte.
+    ///
+    /// La catena resta verificabile: le voci rimaste non si toccano, e [`verify`] accetta che la
+    /// prima non parta dalla genesi — la prende come ancora e lo dice (`dal_seq`). L'ultima voce
+    /// resta sempre, anche se vecchia, perché da lei riparte la numerazione. Il file si riscrive in
+    /// una copia e si rinomina, così un'interruzione a metà non lo tronca.
+    pub async fn pota(&self, prima_di_ms: u64) -> anyhow::Result<usize> {
+        let st = self.state.lock().await;
+        let content = match tokio::fs::read_to_string(&self.path).await {
+            Ok(c) => c,
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(0),
+            Err(e) => return Err(e.into()),
+        };
+        let righe: Vec<&str> = content.lines().filter(|l| !l.trim().is_empty()).collect();
+        let vecchia = |l: &str| {
+            serde_json::from_str::<AuditEntry>(l).map(|e| e.ts_ms < prima_di_ms).unwrap_or(false)
+        };
+        // Solo le voci in testa: quello che viene dopo la prima recente resta comunque, perché
+        // un buco in mezzo spezzerebbe la catena.
+        let tolte = righe.iter().take(righe.len().saturating_sub(1)).take_while(|l| vecchia(l)).count();
+        if tolte == 0 {
+            return Ok(0);
+        }
+        let resto = righe[tolte..].join("\n") + "\n";
+        let tmp = self.path.with_extension("jsonl.potatura");
+        tokio::fs::write(&tmp, resto).await?;
+        tokio::fs::rename(&tmp, &self.path).await?;
+        drop(st);
+        Ok(tolte)
+    }
+
     /// Verify the whole on-disk chain (+ HMAC if a key is configured).
     pub async fn verify_self(&self) -> VerifyReport {
         verify(&self.path, self.key.as_deref())
@@ -134,6 +166,10 @@ impl AuditLog {
 pub struct VerifyReport {
     pub ok: bool,
     pub entries: u64,
+    /// Il registro è stato potato ([`AuditLog::pota`]): la verifica parte da questa voce, presa
+    /// per buona, invece che dalla genesi.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub dal_seq: Option<u64>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub broken_at: Option<u64>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -147,6 +183,7 @@ pub fn verify(path: &Path, key: Option<&[u8]>) -> VerifyReport {
     let mut prev = GENESIS_HASH.to_string();
     let mut expected_seq = 1u64;
     let mut count = 0u64;
+    let mut dal_seq = None;
     for line in content.lines() {
         if line.trim().is_empty() {
             continue;
@@ -155,6 +192,12 @@ pub fn verify(path: &Path, key: Option<&[u8]>) -> VerifyReport {
             Ok(e) => e,
             Err(err) => return broken(count, expected_seq, &format!("parse: {err}")),
         };
+        // La prima voce di un registro potato: si parte da lei.
+        if count == 0 && e.seq != 1 {
+            dal_seq = Some(e.seq);
+            expected_seq = e.seq;
+            prev = e.prev_hash.clone();
+        }
         if e.seq != expected_seq {
             return broken(count, e.seq, "seq non consecutivo");
         }
@@ -184,6 +227,7 @@ pub fn verify(path: &Path, key: Option<&[u8]>) -> VerifyReport {
     VerifyReport {
         ok: true,
         entries: count,
+        dal_seq,
         broken_at: None,
         reason: None,
     }
@@ -193,6 +237,7 @@ fn broken(count: u64, seq: u64, reason: &str) -> VerifyReport {
     VerifyReport {
         ok: false,
         entries: count,
+        dal_seq: None,
         broken_at: Some(seq),
         reason: Some(reason.to_string()),
     }
@@ -255,6 +300,45 @@ mod tests {
         let rep2 = verify(&path, Some(b"secret"));
         assert!(!rep2.ok);
         assert_eq!(rep2.broken_at, Some(2));
+
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[tokio::test]
+    async fn la_potatura_toglie_le_vecchie_e_la_catena_regge() {
+        let dir = std::env::temp_dir().join(format!("sws-audit-pota-{}", now_ms()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("audit.jsonl");
+        let log = Arc::new(AuditLog::open(path.clone(), Some(b"k".to_vec())));
+        for i in 0..4 {
+            log.append(format!("a{i}"), None, json!({})).await.unwrap();
+        }
+        // Le date a mano: le prime due «vecchie». Riscritte con la catena rifatta.
+        let mut prev = GENESIS_HASH.to_string();
+        let righe: Vec<String> = std::fs::read_to_string(&path).unwrap().lines().enumerate().map(|(i, l)| {
+            let mut e: AuditEntry = serde_json::from_str(l).unwrap();
+            e.ts_ms = if i < 2 { 1_000 } else { 5_000 };
+            e.prev_hash = prev.clone();
+            e.hash = chain::entry_hash(e.seq, e.ts_ms, e.actor.as_deref(), &e.action, &e.detail, &e.prev_hash);
+            e.sig = Some(chain::hmac_sign(b"k", &e.hash));
+            prev = e.hash.clone();
+            serde_json::to_string(&e).unwrap()
+        }).collect();
+        std::fs::write(&path, righe.join("\n") + "\n").unwrap();
+        // Riaperto: la catena riscritta a mano non è quella che il log ha in memoria.
+        let log = Arc::new(AuditLog::open(path.clone(), Some(b"k".to_vec())));
+
+        assert_eq!(log.pota(2_000).await.unwrap(), 2);
+        let rep = verify(&path, Some(b"k"));
+        assert!(rep.ok, "{rep:?}");
+        assert_eq!((rep.entries, rep.dal_seq), (2, Some(3)));
+        // Niente da togliere la seconda volta; e l'ultima voce resta anche se vecchia.
+        assert_eq!(log.pota(2_000).await.unwrap(), 0);
+        assert_eq!(log.pota(u64::MAX).await.unwrap(), 1);
+        assert_eq!(verify(&path, Some(b"k")).entries, 1);
+        // Si continua a scrivere sulla catena di prima.
+        log.append("dopo".into(), None, json!({})).await.unwrap();
+        assert!(verify(&path, Some(b"k")).ok);
 
         let _ = std::fs::remove_dir_all(&dir);
     }

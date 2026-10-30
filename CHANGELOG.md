@@ -62,6 +62,20 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
   cornice, e una pianta senza inquadratura salvata ci parte già. La misura è quella dell'**area attiva** della pagina
   (senza testata e piede della cornice, dove `sfondo_immagine` si disegna), non della pagina intera.
 
+- **Il ciclo di vita degli account registrati e il registro di 12 mesi** (ramo C di
+  `docs/plans/2026-10-26-aprire-sws-soligo-net.md`, decisioni del maintainer del 30-10-2026). Schema identità 6:
+  `utenti.da_se`, `avviso_inattivita_ms`, `chiuso_ms` (gli account registrati prima si riconoscono dalle
+  condizioni accettate). `sws-identita/ciclo_di_vita.rs`: `da_avvisare`, `segna_avvisato`, `chiudi_account`,
+  `chiudibile`, `cancella_scaduti` — solo per chi si è registrato da sé, mai un amministratore di piattaforma; un
+  accesso azzera l'avviso, una riattivazione dalla console azzera la chiusura. `sws-web/ciclo_account.rs`: il giro
+  quotidiano del gateway manda l'avviso dei 12 mesi (segnato solo se la posta è partita), cancella inattivi
+  avvisati da 30 giorni, account chiusi da 30 giorni e registrazioni mai confermate — spegnendo i progetti aperti
+  e togliendo la cartella dell'azienda personale, con un controllo che il nome sia una cartella semplice — e pota
+  il registro delle attività (`AuditLog::pota`: la catena resta verificabile, `verify` riparte dalla prima voce
+  rimasta e lo dice in `dal_seq`). Rotte `GET /api/identita/account` e `POST /api/identita/chiudi-account`; nell'IDE
+  «Chiudi l'account…» nel menu dell'utente. VPS: `deploy/vps/sistema/90-sws-journal.conf`, journal a 12 mesi, da
+  applicare.
+
 ### Fixed
 
 - **Lo slider, fase 1 della revisione** (piano `docs/plans/2026-10-30-revisione-slider.md`): i difetti misurati il
