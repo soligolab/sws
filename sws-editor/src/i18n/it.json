@@ -1254,7 +1254,14 @@
     "unitFontSize": "Corpo dell'unità",
     "vari": "(vari)",
     "sfondoBoot": "Immagine di sfondo",
-    "sfondoBootHint": "Copre tutta l'immagine di boot, sotto gli oggetti, e finisce nel PNG."
+    "sfondoBootHint": "Copre tutta l'immagine di boot, sotto gli oggetti, e finisce nel PNG.",
+    "sliderTrackColor": "Colore della traccia",
+    "sliderTrackThickness": "Spessore della traccia (px)",
+    "sliderValuePosition": "Posizione del valore",
+    "posizioneSotto": "Sotto la traccia",
+    "posizioneSopra": "Sopra la traccia",
+    "posizioneDentro": "Dentro la traccia",
+    "posizioneCursore": "Sul cursore, mentre si trascina"
   },
   "shortcut": {
     "navCanvas": "Navigazione canvas",

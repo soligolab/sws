@@ -573,6 +573,11 @@ pub struct SynopticObject {
     pub write_on_release: Option<bool>,
     pub write_deadband: Option<f64>,
 
+    // ── Slider (revisione, fase 2) ──
+    pub slider_track_color: Option<String>,
+    pub slider_track_thickness: Option<f64>,
+    pub slider_value_position: Option<String>,
+
     // ── Limiti ──
     /// Gate per ruolo (Q36 parte 2, `lvgl_render::render_page_objects`):
     /// "hide" non crea l'oggetto, qualunque altro valore (o l'assenza del

@@ -279,6 +279,8 @@ objects:
   min: 0.0
   max: 1.0
   step: 0.05
+  slider_track_thickness: 20.0
+  slider_value_position: cursore
 - id: o_slider_lettura
   type: slider
   x: 340.0
@@ -289,6 +291,7 @@ objects:
   label: "{{t0108}}"
   read_only: true
   unit: '%'
+  slider_track_color: '#334155'
 - id: c_symbol
   type: text
   x: 650.0

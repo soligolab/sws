@@ -1136,6 +1136,36 @@ struct SliderCtx {
     in_attesa: RefCell<Option<TagValue>>,
     /// Il valore sotto la traccia, che segue il dito: `(etichetta, decimali, unità)`.
     etichetta: Option<(core::ptr::NonNull<lvgl_sys::lv_obj_t>, u8, String)>,
+    /// Col valore sul cursore: dove spostare il fumetto.
+    fumetto: Option<Fumetto>,
+}
+
+/// Il fumetto del valore che segue il cursore (`slider_value_position: cursore`).
+struct Fumetto {
+    ptr: core::ptr::NonNull<lvgl_sys::lv_obj_t>,
+    x0: f64,
+    y0: f64,
+    geometria: GeometriaSlider,
+    alto: f64,
+}
+
+impl Fumetto {
+    /// Centra il fumetto sulla posizione del cursore e lo mostra.
+    fn segui(&self, frazione: f64) {
+        let (cx, cy) = fumetto_cursore(&self.geometria, frazione, self.alto);
+        unsafe {
+            let p = self.ptr.as_ptr();
+            lvgl_sys::lv_obj_clear_flag(p, lvgl_sys::LV_OBJ_FLAG_HIDDEN);
+            lvgl_sys::lv_obj_update_layout(p);
+            let w = lvgl_sys::lv_obj_get_width(p) as f64;
+            let h = lvgl_sys::lv_obj_get_height(p) as f64;
+            lvgl_sys::lv_obj_set_pos(
+                p,
+                (self.x0 + cx - w / 2.0).round() as lvgl_sys::lv_coord_t,
+                (self.y0 + cy - h / 2.0).round() as lvgl_sys::lv_coord_t,
+            );
+        }
+    }
 }
 
 impl SliderCtx {
@@ -1205,6 +1235,10 @@ unsafe extern "C" fn sws_slider_changed_cb(e: *mut lvgl_sys::lv_event_t) {
         let d = *decimali as usize;
         unsafe { lvgl_sys::lv_label_set_text(p.as_ptr(), text_cstring(&format!("{v:.d$}{unita}")).as_ptr()) };
     }
+    if let Some(f) = &ctx.fumetto {
+        let i = unsafe { lvgl_sys::lv_bar_get_value(target) };
+        f.segui(i as f64 / ctx.passi.max(1) as f64);
+    }
     if !ctx.al_rilascio {
         ctx.scrivi(valore);
     }
@@ -1219,7 +1253,12 @@ unsafe extern "C" fn sws_slider_rilasciato_cb(e: *mut lvgl_sys::lv_event_t) {
         return;
     }
     let ctx = unsafe { &*(user_data as *const SliderCtx) };
-    ctx.scrivi(ctx.valore(target));
+    if let Some(f) = &ctx.fumetto {
+        unsafe { lvgl_sys::lv_obj_add_flag(f.ptr.as_ptr(), lvgl_sys::LV_OBJ_FLAG_HIDDEN) };
+    }
+    if ctx.al_rilascio {
+        ctx.scrivi(ctx.valore(target));
+    }
 }
 
 /// La risposta alla conferma di uno slider: indice 1 = "Conferma", come
@@ -1630,6 +1669,30 @@ fn etichetta_piccola_corpo(
         // Era `- 11.0` fisso: col corpo a 11 e' lo stesso numero, ma un'etichetta
         // piu' grande finiva addosso a cio' che ha sopra (21-10-2026).
         lvgl_sys::lv_obj_set_pos(p, x.round() as lvgl_sys::lv_coord_t, (y_base - corpo as f64).round() as lvgl_sys::lv_coord_t);
+    }
+    Ok(())
+}
+
+/// Un'etichetta col centro in `(cx, cy)`: la riga del web disegnata con
+/// `textAnchor="middle"` e `dominantBaseline="central"`.
+fn etichetta_centrata(
+    screen: &mut lvgl::Obj,
+    testo: &str,
+    cx: f64,
+    cy: f64,
+    colore: (u8, u8, u8),
+    corpo: u16,
+) -> anyhow::Result<()> {
+    let mut l = Label::create(screen).map_err(|e| anyhow::anyhow!("Label::create: {e:?}"))?;
+    l.set_text(&text_cstring(testo)).map_err(|e| anyhow::anyhow!("set_text: {e:?}"))?;
+    let p = l.raw().map_err(|e| anyhow::anyhow!("raw: {e:?}"))?.as_ptr();
+    unsafe {
+        stile::font(p, corpo, stile::MAIN);
+        stile::testo(p, colore, stile::MAIN);
+        lvgl_sys::lv_obj_update_layout(p);
+        let w = lvgl_sys::lv_obj_get_width(p) as f64;
+        let h = lvgl_sys::lv_obj_get_height(p) as f64;
+        lvgl_sys::lv_obj_set_pos(p, (cx - w / 2.0).round() as lvgl_sys::lv_coord_t, (cy - h / 2.0).round() as lvgl_sys::lv_coord_t);
     }
     Ok(())
 }
@@ -4520,43 +4583,117 @@ fn corpo_valore_barra(obj: &SynopticObject, dentro: bool) -> f64 {
         .clamp(6.0, 200.0)
 }
 
-/// Dove sta la traccia di uno slider **dentro** il riquadro dichiarato, e di
-/// quanto va estesa l'area di click per coprirlo tutto:
-/// `(dx, dy, larghezza, altezza, estensione)`.
+/// `LV_SIZE_CONTENT`, che bindgen non porta perché è una macro: `LV_COORD_SET_SPEC(2001)`
+/// con le coordinate a 16 bit di questa build (`_LV_COORD_TYPE_SHIFT` = 13, `lv_area.h`).
+const LV_SIZE_CONTENT: lvgl_sys::lv_coord_t = 2001 | (1 << 13);
+
+/// Di quanto il cursore tondo sborda dalla traccia, per lato: il `pad` della
+/// parte `KNOB`. Gemello di `SBORDO_CURSORE` in `geometria.ts`.
+const SBORDO_CURSORE: f64 = 5.0;
+
+/// Dove stanno i pezzi di uno slider dentro il riquadro dichiarato. **Gemella di
+/// `geometriaSlider` in `sws-editor/src/canvas/slider/geometria.ts`** (fase 2
+/// della revisione, 30-10-2026): stessi pezzi, stessi numeri, stessi casi di
+/// prova. Chi cambia un numero qui lo cambia anche là.
 ///
 /// Verticale e orizzontale si distinguono solo qui: `lv_bar` — di cui
 /// `lv_slider` è una specializzazione — sceglie il verso da sé guardando se è
-/// più alto che largo, e riempie dal basso. Che è lo stesso estremo dove il
-/// web porta il `min`, ruotando il controllo di −90°.
-///
-/// Nel verticale i due testi stanno sopra e sotto la traccia, come sul web:
-/// l'etichetta in cima, il valore in fondo, e otto pixel di respiro.
-fn geometria_traccia_slider(
+/// più alto che largo, e riempie dal basso.
+#[derive(Debug, Clone, PartialEq)]
+pub(crate) struct GeometriaSlider {
+    pub verticale: bool,
+    /// `(x, y, larghezza, altezza)` della traccia, relativa al riquadro.
+    pub traccia: (f64, f64, f64, f64),
+    pub raggio_cursore: f64,
+    /// Il centro della riga dell'etichetta.
+    pub etichetta: Option<(f64, f64)>,
+    /// Il centro del valore; `None` col fumetto sul cursore.
+    pub valore: Option<(f64, f64)>,
+}
+
+pub(crate) fn geometria_slider(
     verticale: bool,
     box_w: f64,
     box_h: f64,
     alto_etichetta: f64,
     alto_valore: f64,
-) -> (f64, f64, f64, f64, f64) {
+    spessore: f64,
+    posizione: &str,
+) -> GeometriaSlider {
+    let riga_valore = if matches!(posizione, "sotto" | "sopra") { alto_valore } else { 0.0 };
+    let senza_valore = posizione == "cursore" || alto_valore == 0.0;
     if verticale {
-        let w = SPESSORE_TRACCIA.min(box_w);
-        let h = (box_h - alto_etichetta - alto_valore - 8.0).max(24.0);
-        let dx = (box_w - w) / 2.0;
-        (dx, alto_etichetta + 4.0, w, h, dx)
+        let t = spessore.min(box_w);
+        let sopra = if posizione == "sopra" { riga_valore } else { 0.0 };
+        let sotto = if posizione == "sotto" { riga_valore } else { 0.0 };
+        let lunghezza = (box_h - alto_etichetta - riga_valore - 8.0).max(24.0);
+        let traccia = ((box_w - t) / 2.0, alto_etichetta + sopra + 4.0, t, lunghezza);
+        let valore = if senza_valore {
+            None
+        } else {
+            Some(match posizione {
+                "dentro" => (box_w / 2.0, traccia.1 + traccia.3 / 2.0),
+                "sopra" => (box_w / 2.0, alto_etichetta + sopra / 2.0),
+                _ => (box_w / 2.0, box_h - sotto / 2.0),
+            })
+        };
+        return GeometriaSlider {
+            verticale,
+            traccia,
+            raggio_cursore: t / 2.0 + SBORDO_CURSORE,
+            etichetta: (alto_etichetta > 0.0).then_some((box_w / 2.0, alto_etichetta / 2.0)),
+            valore,
+        };
+    }
+    // Orizzontale: etichetta, (valore), traccia, (valore), 2 px fra le righe, il
+    // blocco centrato nell'altezza anche quando sborda — come la colonna che il
+    // web aveva con l'input nativo.
+    let t = spessore.min(box_h);
+    let mut righe: Vec<(&str, f64)> = Vec::new();
+    if alto_etichetta > 0.0 {
+        righe.push(("etichetta", alto_etichetta));
+    }
+    if posizione == "sopra" && riga_valore > 0.0 {
+        righe.push(("valore", riga_valore));
+    }
+    righe.push(("traccia", t));
+    if posizione == "sotto" && riga_valore > 0.0 {
+        righe.push(("valore", riga_valore));
+    }
+    let blocco: f64 = righe.iter().map(|(_, a)| a).sum::<f64>() + 2.0 * (righe.len() as f64 - 1.0);
+    let mut y = (box_h - blocco) / 2.0;
+    let mut centri: Vec<(&str, f64)> = Vec::new();
+    for (nome, alto) in &righe {
+        centri.push((nome, y + alto / 2.0));
+        y += alto + 2.0;
+    }
+    let c = |nome: &str| centri.iter().find(|(n, _)| *n == nome).map(|(_, v)| *v);
+    let y_traccia = (c("traccia").unwrap_or(box_h / 2.0) - t / 2.0).min(box_h - t).max(0.0);
+    let valore = if senza_valore {
+        None
+    } else if posizione == "dentro" {
+        Some((box_w / 2.0, y_traccia + t / 2.0))
     } else {
-        // Come la colonna del web (`justifyContent: center`): etichetta,
-        // traccia e valore impilati con 2 px fra l'uno e l'altro, e il blocco
-        // centrato nell'altezza. Prima la traccia stava al centro e il valore
-        // sopra il riquadro, a sinistra (revisione dello slider, fase 1).
-        let h = SPESSORE_TRACCIA.min(box_h);
-        let spazi = if alto_etichetta > 0.0 { 2.0 } else { 0.0 } + if alto_valore > 0.0 { 2.0 } else { 0.0 };
-        let blocco = alto_etichetta + h + alto_valore + spazi;
-        // Senza `max(0)`: anche il web centra il blocco quando non ci sta, e
-        // lo fa sbordare in egual misura sopra e sotto.
-        let cima = (box_h - blocco) / 2.0;
-        let dy = cima + if alto_etichetta > 0.0 { alto_etichetta + 2.0 } else { 0.0 };
-        let dy = dy.min(box_h - h).max(0.0);
-        (0.0, dy, box_w, h, dy.max(box_h - dy - h))
+        c("valore").map(|cy| (box_w / 2.0, cy))
+    };
+    GeometriaSlider {
+        verticale,
+        traccia: (0.0, y_traccia, box_w, t),
+        raggio_cursore: t / 2.0 + SBORDO_CURSORE,
+        etichetta: c("etichetta").map(|cy| (box_w / 2.0, cy)),
+        valore,
+    }
+}
+
+/// Il centro del fumetto del valore (`posizione: cursore`) per una frazione:
+/// sopra il cursore nell'orizzontale, alla sua destra nel verticale. Gemello di
+/// `fumettoCursore` in `geometria.ts`.
+pub(crate) fn fumetto_cursore(g: &GeometriaSlider, f: f64, alto_valore: f64) -> (f64, f64) {
+    let (tx, ty, tw, th) = g.traccia;
+    if g.verticale {
+        (tx + tw / 2.0 + g.raggio_cursore + 4.0 + alto_valore, ty + th * (1.0 - f))
+    } else {
+        (tx + tw * f, ty + th / 2.0 - g.raggio_cursore - 4.0 - alto_valore / 2.0)
     }
 }
 
@@ -4640,73 +4777,105 @@ fn render_slider(
     // l'intero box originale: tocco preciso quanto prima, solo la traccia
     // disegnata è sottile.
     //
-    // «Orientamento» (27-10-2026): il campo c'era nel pannello proprietà, il web
-    // lo disegnava, e qui non lo leggeva nessuno — uno slider dichiarato
-    // verticale, sul pannello, restava orizzontale. Il verso lo decide
-    // `geometria_traccia_slider` qui sopra.
+    // «Orientamento» (27-10-2026) e tutto il resto della disposizione: dalla
+    // fase 2 della revisione (30-10-2026) la decide `geometria_slider`, gemella
+    // di quella del web.
     let verticale = obj.orientation.as_deref() == Some("vertical");
     let box_w = obj.width.unwrap_or(200.0);
     let box_h = obj.height.unwrap_or(50.0);
     let corpo_etichetta = obj.label_font_size.unwrap_or(11.0).round().clamp(6.0, 200.0);
     let corpo_valore = corpo_valore_barra(obj, false);
-    // Quanto spazio si prendono i due testi quando stanno incolonnati: le
-    // stesse due misure del ramo verticale del web (`altezzaValore`).
     let alto_etichetta = match obj.label.as_deref() {
         Some(l) if !l.is_empty() => altezza_valore(corpo_etichetta),
         _ => 0.0,
     };
     let alto_valore = if obj.show_value != Some(false) { altezza_valore(corpo_valore) } else { 0.0 };
-    let (dx, dy, larghezza, altezza, estensione) =
-        geometria_traccia_slider(verticale, box_w, box_h, alto_etichetta, alto_valore);
+    let posizione = match obj.slider_value_position.as_deref() {
+        Some(p @ ("sopra" | "dentro" | "cursore")) => p,
+        _ => "sotto",
+    };
+    let spessore = obj.slider_track_thickness.filter(|t| t.is_finite() && *t > 0.0).unwrap_or(SPESSORE_TRACCIA);
+    let g = geometria_slider(verticale, box_w, box_h, alto_etichetta, alto_valore, spessore, posizione);
+    let (gx, gy, gw, gh) = g.traccia;
+    let x0 = obj.x.unwrap_or(0.0);
+    let y0 = obj.y.unwrap_or(0.0);
+    // L'area di tocco copre tutto il riquadro, e mai meno di 44 px di spessore.
+    let estensione = if verticale { gx.max(box_w - gx - gw) } else { gy.max(box_h - gy - gh) }
+        .max((44.0 - spessore) / 2.0);
     slider
-        .set_pos(
-            (obj.x.unwrap_or(0.0) + dx).round() as i16,
-            (obj.y.unwrap_or(0.0) + dy).round() as i16,
-        )
+        .set_pos((x0 + gx).round() as i16, (y0 + gy).round() as i16)
         .map_err(|e| anyhow::anyhow!("set_pos (slider sottile): {e:?}"))?;
     slider
-        .set_size(larghezza.round() as i16, altezza.round() as i16)
+        .set_size(gw.round() as i16, gh.round() as i16)
         .map_err(|e| anyhow::anyhow!("set_size (slider sottile): {e:?}"))?;
     let ptr = slider.raw().map_err(|e| anyhow::anyhow!("raw: {e:?}"))?;
     unsafe {
         lvgl_sys::lv_obj_set_ext_click_area(ptr.as_ptr(), estensione.round() as lvgl_sys::lv_coord_t);
     }
-    // lv_slider_t è internamente uno specializzato lv_bar_t in LVGL: non
-    // esistono lv_slider_set_range/set_value dedicati, si riusano quelli di
-    // bar (confermato dai bindgen bindings reali, non da supposizione) — vedi
-    // init_bar_like, condivisa con progress_bar per lo stesso motivo.
-    // Fase 2 (30-09-2026): il web colora indicatore e manopola col
-    // riempimento (`accentColor`); qui restavano del blu del tema.
+    // I colori sono nostri, non del tema (fase 2): indicatore e cursore col
+    // riempimento; la traccia vuota col suo colore, o — «auto» — col
+    // riempimento al 20 %, come il web. Il cursore sborda di 5 px per lato.
     unsafe {
+        let p = ptr.as_ptr();
         let c = colore_campo(obj.fill.as_deref(), "slider", "fill");
-        stile::sfondo(ptr.as_ptr(), c, stile::INDICATORE);
-        stile::sfondo(ptr.as_ptr(), c, stile::MANOPOLA);
+        match obj.slider_track_color.as_deref().and_then(parse_hex_color) {
+            Some(t) => stile::sfondo(p, t, stile::MAIN),
+            None => {
+                stile::sfondo(p, c, stile::MAIN);
+                lvgl_sys::lv_obj_set_style_bg_opa(p, 51, stile::MAIN);
+            }
+        }
+        stile::sfondo(p, c, stile::INDICATORE);
+        stile::sfondo(p, c, stile::MANOPOLA);
+        let tondo = lvgl_sys::LV_RADIUS_CIRCLE as f64;
+        stile::raggio(p, tondo, stile::MAIN);
+        stile::raggio(p, tondo, stile::INDICATORE);
+        stile::raggio(p, tondo, stile::MANOPOLA);
+        let sbordo = SBORDO_CURSORE as lvgl_sys::lv_coord_t;
+        lvgl_sys::lv_obj_set_style_pad_top(p, sbordo, stile::MANOPOLA);
+        lvgl_sys::lv_obj_set_style_pad_bottom(p, sbordo, stile::MANOPOLA);
+        lvgl_sys::lv_obj_set_style_pad_left(p, sbordo, stile::MANOPOLA);
+        lvgl_sys::lv_obj_set_style_pad_right(p, sbordo, stile::MANOPOLA);
     }
-    // Il valore va **sotto** la traccia, centrato nel riquadro, come sul web:
-    // in fondo al riquadro nel verticale, subito sotto la traccia
-    // nell'orizzontale (fino al 30-10-2026 stava sopra il riquadro, a sinistra).
-    let x0 = obj.x.unwrap_or(0.0);
-    let y0 = obj.y.unwrap_or(0.0);
-    let valore_sotto = if verticale {
-        (x0, y0 + box_h - alto_valore, box_w)
-    } else {
-        (x0, y0 + dy + altezza + 2.0, box_w)
-    };
-    if let Some(l) = obj.label.as_deref().filter(|l| !l.is_empty()) {
+    if let (Some(l), Some((cx, cy))) = (obj.label.as_deref().filter(|l| !l.is_empty()), g.etichetta) {
         // L'etichetta ha il suo campo dal 21-10-2026 (`label_font_size`):
-        // `font_size` governa il valore, in `init_bar_like`. Nell'orizzontale
-        // sta subito sopra la traccia, come nella colonna del web.
-        let corpo = corpo_etichetta as u16;
-        let cima = if verticale { y0 } else { y0 + dy - 2.0 - alto_etichetta };
-        etichetta_piccola_corpo(screen, l, x0, cima + corpo as f64, Some(box_w), GRIGIO_ETICHETTA, corpo)?;
+        // `font_size` governa il valore, in `init_bar_like`.
+        etichetta_centrata(screen, l, x0 + cx, y0 + cy, GRIGIO_ETICHETTA, corpo_etichetta as u16)?;
     }
+    // Il valore: centrato sul suo punto. Col fumetto parte nascosto, e lo
+    // mostra il trascinamento.
+    let centro_valore = g.valore.map(|(cx, cy)| (x0 + cx - box_w / 2.0, y0 + cy, box_w));
+    let fumetto = posizione == "cursore" && alto_valore > 0.0;
+    let valore_in = if fumetto { Some((x0, y0, box_w)) } else { centro_valore };
     let passo = obj.step;
-    let binding = init_bar_like(screen, ptr, obj, tags, false, Some(valore_sotto), Some(passo))?;
+    let binding = if obj.show_value != Some(false) && valore_in.is_none() {
+        // Nessun posto per il valore (non dovrebbe succedere): senza etichetta.
+        let mut senza = obj.clone();
+        senza.show_value = Some(false);
+        init_bar_like(screen, ptr, &senza, tags, false, None, Some(passo))?
+    } else {
+        init_bar_like(screen, ptr, obj, tags, false, valore_in, Some(passo))?
+    };
     let LiveKind::BarLike { min, max, value_ptr, decimals, ref unit, .. } = binding.kind else {
         unreachable!("init_bar_like dà sempre un BarLike")
     };
     let unita = unit.clone();
     live.push(binding);
+    let fumetto = match (fumetto, value_ptr) {
+        (true, Some(vp)) => {
+            unsafe {
+                let p = vp.as_ptr();
+                lvgl_sys::lv_obj_set_width(p, LV_SIZE_CONTENT);
+                stile::sfondo(p, (0x1e, 0x29, 0x3b), stile::MAIN);
+                stile::bordo(p, Some(colore_campo(obj.fill.as_deref(), "slider", "fill")), 1.0, stile::MAIN);
+                stile::raggio(p, 4.0, stile::MAIN);
+                stile::margini(p, 1, 6, stile::MAIN);
+                lvgl_sys::lv_obj_add_flag(p, lvgl_sys::LV_OBJ_FLAG_HIDDEN);
+            }
+            Some(Fumetto { ptr: vp, x0, y0, geometria: g.clone(), alto: alto_valore })
+        }
+        _ => None,
+    };
 
     // Solo lo slider è interattivo — non progress_bar, che condivide
     // init_bar_like ma resta un indicatore read-only (nessuna callback
@@ -4732,6 +4901,7 @@ fn render_slider(
         conferma: regola_conferma(obj),
         in_attesa: RefCell::new(None),
         etichetta: value_ptr.map(|p| (p, decimals, unita)),
+        fumetto,
     });
     unsafe {
         // Il valore sotto la traccia segue il dito anche quando si scrive solo
@@ -4742,9 +4912,10 @@ fn render_slider(
             lvgl_sys::lv_event_code_t_LV_EVENT_VALUE_CHANGED,
             ctx,
         );
-        if al_rilascio {
+        if al_rilascio || (*(ctx as *const SliderCtx)).fumetto.is_some() {
             // `PRESS_LOST` anche: il dito che scivola fuori dal riquadro non
             // manda `RELEASED`, e il valore scelto resterebbe senza scrittura.
+            // Il rilascio nasconde anche il fumetto.
             for code in [lvgl_sys::lv_event_code_t_LV_EVENT_RELEASED, lvgl_sys::lv_event_code_t_LV_EVENT_PRESS_LOST] {
                 lvgl_sys::lv_obj_add_event_cb(ptr.as_ptr(), Some(sws_slider_rilasciato_cb), code, ctx);
             }
@@ -4862,15 +5033,23 @@ fn init_bar_like(
             let mut lbl = Label::create(screen).map_err(|e| anyhow::anyhow!("Label::create: {e:?}"))?;
             // Lo scostamento sopra la traccia era `- 16.0` fisso: col corpo a 12
             // e' lo stesso numero, ma a corpo 24 il valore finiva sulla traccia.
-            let (vx, vy) = valore_in.map_or_else(
-                || (obj.x.unwrap_or(0.0), obj.y.unwrap_or(0.0) - (corpo_valore + 4.0)),
-                |(x, y, _)| (x, y),
-            );
-            lbl.set_pos(vx.round() as i16, vy.round() as i16)
-                .map_err(|e| anyhow::anyhow!("set_pos: {e:?}"))?;
+            // `valore_in` dà il **centro** verticale della riga (fase 2 dello
+            // slider): l'altezza vera dell'etichetta si sa dopo il font.
             lbl.set_text(&testo).map_err(|e| anyhow::anyhow!("set_text: {e:?}"))?;
             let p = lbl.raw().map_err(|e| anyhow::anyhow!("raw: {e:?}"))?;
             unsafe { stile::font(p.as_ptr(), corpo_valore as u16, stile::MAIN) };
+            let (vx, vy) = valore_in.map_or_else(
+                || (obj.x.unwrap_or(0.0), obj.y.unwrap_or(0.0) - (corpo_valore + 4.0)),
+                |(x, cy, _)| {
+                    let h = unsafe {
+                        lvgl_sys::lv_obj_update_layout(p.as_ptr());
+                        lvgl_sys::lv_obj_get_height(p.as_ptr()) as f64
+                    };
+                    (x, cy - h / 2.0)
+                },
+            );
+            lbl.set_pos(vx.round() as i16, vy.round() as i16)
+                .map_err(|e| anyhow::anyhow!("set_pos: {e:?}"))?;
             // Centrato dall'etichetta stessa, non da un calcolo fatto una volta:
             // il valore cambia a ogni movimento e con la larghezza del testo
             // cambierebbe anche il suo scostamento.
@@ -15101,17 +15280,23 @@ mod binding_tests {
         // Il riquadro della demo: 200×50. La traccia è spessa 16 e centrata,
         // cioè i numeri che qui erano scritti a mano prima che il verso
         // esistesse.
-        let (dx, dy, w, h, est) = geometria_traccia_slider(false, 200.0, 50.0, 18.0, 18.0);
-        assert_eq!((dx, dy, w, h, est), (0.0, 17.0, 200.0, 16.0, 17.0));
+        // Gli stessi casi di `tests/sliderGeometria.test.ts` (fase 2).
+        let g = |w, h, et, va, pos| geometria_slider(false, w, h, et, va, SPESSORE_TRACCIA, pos);
+        assert_eq!(g(200.0, 50.0, 18.0, 18.0, "sotto").traccia, (0.0, 17.0, 200.0, 16.0));
         // Un riquadro più basso dello spessore: la traccia si stringe su di lui
         // e non sborda.
-        let (_, dy, _, h, _) = geometria_traccia_slider(false, 200.0, 10.0, 0.0, 0.0);
-        assert_eq!((dy, h), (0.0, 10.0));
+        assert_eq!(g(200.0, 10.0, 0.0, 0.0, "sotto").traccia, (0.0, 0.0, 200.0, 10.0));
         // Senza etichetta (30-10-2026): traccia e valore impilati e centrati
         // come nella colonna del web, quindi la traccia sale: 50 − (16+2+18) = 14,
-        // metà sopra. L'area di tocco copre il pezzo più lungo, quello sotto.
-        let (_, dy, _, h, est) = geometria_traccia_slider(false, 200.0, 50.0, 0.0, 18.0);
-        assert_eq!((dy, h, est), (7.0, 16.0, 27.0));
+        // metà sopra.
+        assert_eq!(g(200.0, 50.0, 0.0, 18.0, "sotto").traccia.1, 7.0);
+        // Il valore sopra, dentro, sul cursore.
+        let sopra = g(200.0, 60.0, 0.0, 18.0, "sopra");
+        assert!(sopra.valore.unwrap().1 < sopra.traccia.1);
+        let dentro = geometria_slider(false, 200.0, 60.0, 0.0, 18.0, 28.0, "dentro");
+        assert_eq!((dentro.traccia.1, dentro.valore.unwrap().1), (16.0, 30.0));
+        assert_eq!(g(200.0, 60.0, 0.0, 18.0, "cursore").valore, None);
+        assert_eq!(fumetto_cursore(&g(200.0, 60.0, 0.0, 18.0, "cursore"), 0.5, 18.0), (100.0, 30.0 - 13.0 - 4.0 - 9.0));
     }
 
     // ── I passi dello slider (fase 1 della revisione, 30-10-2026) ──────────
@@ -15147,8 +15332,10 @@ mod binding_tests {
     fn lo_slider_verticale_e_piu_alto_che_largo() {
         // 60×240, etichetta e valore da 18: la traccia è spessa 16, centrata in
         // orizzontale, e lunga quanto resta fra i due testi.
-        let (dx, dy, w, h, est) = geometria_traccia_slider(true, 60.0, 240.0, 18.0, 18.0);
-        assert_eq!((dx, dy, w, h, est), (22.0, 22.0, 16.0, 196.0, 22.0));
+        let g = geometria_slider(true, 60.0, 240.0, 18.0, 18.0, SPESSORE_TRACCIA, "sotto");
+        assert_eq!(g.traccia, (22.0, 22.0, 16.0, 196.0));
+        assert_eq!(g.valore, Some((30.0, 231.0)));
+        let (_, _, w, h) = g.traccia;
         // **È questo che fa il verso**: `lv_bar` disegna verticale solo se è
         // più alto che largo. Senza, lo slider tornerebbe orizzontale senza
         // che niente lo dica.
@@ -15159,8 +15346,8 @@ mod binding_tests {
     fn lo_slider_verticale_non_sparisce_in_un_riquadro_piccolo() {
         // Riquadro basso e due testi che se lo mangerebbero tutto: resta la
         // corsa minima di 24, come sul web.
-        let (_, _, _, h, _) = geometria_traccia_slider(true, 40.0, 30.0, 18.0, 18.0);
-        assert_eq!(h, 24.0);
+        let g = geometria_slider(true, 40.0, 30.0, 18.0, 18.0, SPESSORE_TRACCIA, "sotto");
+        assert_eq!(g.traccia.3, 24.0);
     }
 
     // ── Fase 3 dei predefiniti espliciti (30-09-2026) ───────────────────────

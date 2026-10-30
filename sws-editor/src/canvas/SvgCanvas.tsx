@@ -7,7 +7,7 @@ import { useTranslation } from "react-i18next";
 import { PALETTE, TrendCanvas } from "@/canvas/TrendCanvas";
 import { TrendExpandedModal } from "@/canvas/TrendExpanded";
 import { XyPlotCanvas, type XyPlotSeriesLive } from "@/canvas/XyPlotCanvas";
-import { altezzaEtichetta, altezzaMinimaSetpoint, altezzaValore, corpoAnnotazione, corpoSecondario, passoRiga } from "@/canvas/geometriaTesto";
+import { altezzaEtichetta, altezzaMinimaSetpoint, corpoAnnotazione, corpoSecondario, passoRiga } from "@/canvas/geometriaTesto";
 import { dividiSegmento, aggiungiInCoda, percorsoDaSalvare, puntiMovimento, tracciatoVisibile } from "@/canvas/percorsoMovimento";
 import { api } from "@/api/client";
 import { useAlarmStream } from "@/ws/alarmStream";
@@ -53,6 +53,7 @@ import { TRASCINA_FACEPLATE } from "@/faceplate/modello";
 import { larghezzaTubo, stileTubo, svgTubo } from "./stiliTubo";
 import { useManifestoLib } from "@/symbols/lib/libreria";
 import { cssFamiglia } from "@/font/famiglie";
+import { SliderSvg } from "./slider/SliderSvg";
 
 /** La misura che ogni ramo di disegno usa quando l'oggetto non la scrive. Il
  *  contorno di pagina (bordo d'allarme, lampeggio) la prendeva fissa a 100×50,
@@ -3607,25 +3608,6 @@ function SvgObjectCorpo(p: ObjProps) {
   // one — write only fires on explicit confirm (Enter/button), never on every
   // keystroke. Same unconditional-hooks reasoning as trendZoom above.
   const [setpointDraft, setSetpointDraft] = useState<string | null>(null);
-  // F3.6: draft dello slider mentre si trascina (scrittura solo al rilascio)
-  // e ultimo valore scritto per il deadband. Hook incondizionati come sopra.
-  const [sliderDraft, setSliderDraft] = useState<number | null>(null);
-  const sliderLastWritten = useRef<number | null>(null);
-  // Revisione dello slider, fase 1 (30-10-2026): dopo una scrittura il cursore
-  // resta dove l'ha lasciato l'operatore, col bordo tratteggiato, finché il tag
-  // non riporta quel valore o per 3 s. Prima `setSliderDraft(null)` lo faceva
-  // saltare al valore vecchio fino al giro successivo del tag.
-  const [sliderInAttesa, setSliderInAttesa] = useState<number | null>(null);
-  const valoreTagSlider = obj.type === "slider" && obj.tag ? tagValues[obj.tag]?.value : undefined;
-  useEffect(() => {
-    if (sliderInAttesa === null) return;
-    if (Math.abs(Number(valoreTagSlider) - sliderInAttesa) <= (obj.step ?? 1) / 2) {
-      setSliderInAttesa(null);
-      return;
-    }
-    const id = setTimeout(() => setSliderInAttesa(null), 3000);
-    return () => clearTimeout(id);
-  }, [sliderInAttesa, valoreTagSlider, obj.step]);
   // F3.4: tastierino numerico touch del setpoint. Hook incondizionato.
   const [keypadOpen, setKeypadOpen] = useState(false);
 
@@ -4940,169 +4922,39 @@ function SvgObjectCorpo(p: ObjProps) {
     // Un valore non numerico (una stringa, un tag di tipo sbagliato) stampava
     // `NaN`: si scrive «—» e il cursore resta al minimo.
     const numerico = Number.isFinite(rawVal);
-    // Stessa convenzione di radio_group: la proprietà è opzionale e l'assenza
-    // vale "horizontal", che è come si comportava lo slider prima che
-    // l'orientamento venisse letto.
-    const isVertical = obj.orientation === "vertical";
-    const readOnly = !!obj.read_only;
-    const accent = coloreEffettivo(obj, "fill");
-    const shownVal = sliderDraft ?? sliderInAttesa ?? (numerico ? rawVal : min);
-    const valueText = sliderDraft === null && sliderInAttesa === null && !numerico
-      ? "—"
-      : `${shownVal.toFixed(obj.decimals ?? (obj.step && obj.step < 1 ? 2 : 0))}${obj.unit ? ` ${obj.unit}` : ""}`;
-    // Due testi, due campi (21-10-2026): `font_size` e' il valore,
-    // `label_font_size` il nome sopra la traccia. I due rami — verticale e
-    // orizzontale — scrivevano i due corpi quattro volte in tutto; adesso i
-    // numeri stanno qui, una volta sola, e i rami li leggono.
-    const corpoValore = obj.font_size ?? 12;
-    const corpoEtichetta = obj.label_font_size ?? 11;
-
-    // WYSIWYG (2026-08-23): un solo rendering per edit e runtime — l'anteprima
-    // statica disegnava label ed etichette min/max FUORI dal box dichiarato e
-    // con un valore finto al 50%. Ora il layout è quello vero, contenuto
-    // nell'altezza dichiarata, con gli input disabilitati in editor.
-
-    // View mode: foreignObject with native range input.
+    const decimali = obj.decimals ?? (obj.step && obj.step < 1 ? 2 : 0);
+    // Disegnato in SVG dalla fase 2 della revisione (30-10-2026): prima era un
+    // `<input type="range">` nativo in un foreignObject, che accettava un
+    // colore solo. Stesso disegno in edit e a runtime (WYSIWYG): in edit è
+    // inerte e si seleziona dall'`hitRect`.
     //
-    // `disabled` e non solo un cursore diverso: la spunta "Sola lettura" era
-    // offerta nel pannello proprietà e non faceva niente, quindi uno slider
-    // dichiarato in sola lettura scriveva comunque il tag.
-    // F3.6 — default nuovo: scrivi SOLO al rilascio (prima ogni pixel di
-    // trascinamento generava una scrittura verso il PLC). write_on_release:
-    // false ripristina la scrittura continua; write_deadband filtra le
-    // variazioni sotto soglia in entrambe le modalità.
-    const writeOnRelease = obj.write_on_release !== false;
-    const commitSlider = (v: number) => {
-      const last = sliderLastWritten.current;
-      if (obj.write_deadband && last !== null && Math.abs(v - last) < obj.write_deadband) {
-        setSliderDraft(null);
-        return;
-      }
-      if (guardedWrite(obj.tag!, v)) {
-        sliderLastWritten.current = v;
-        setSliderInAttesa(v);
-      }
-      setSliderDraft(null);
-    };
-    // Il bordo dell'attesa: tratteggiato, nel colore dell'indicatore, finché il
-    // tag non conferma. Sull'input nativo non si può tratteggiare il cursore,
-    // quindi è il riquadro; col disegno SVG della fase 2 diventa il cursore.
-    const bordoInAttesa = sliderInAttesa !== null && (
-      <rect x={obj.x + 0.5} y={obj.y + 0.5} width={w - 1} height={h - 1} rx={4}
-        fill="none" stroke={accent} strokeWidth={1} strokeDasharray="4 3" opacity={0.8}
-        pointerEvents="none" data-slider-in-attesa="" />
-    );
-    const releaseSlider = () => {
-      if (writeOnRelease && sliderDraft !== null) commitSlider(sliderDraft);
-    };
-    const commonInput = {
-      type: "range" as const,
-      min, max,
-      step: obj.step ?? 1,
-      value: shownVal,
-      // In editor il controllo è inerte: si trascina l'oggetto, non il valore.
-      disabled: readOnly || isEditMode,
-      onChange: (e: React.ChangeEvent<HTMLInputElement>) => {
-        const v = Number(e.target.value);
-        if (writeOnRelease) setSliderDraft(v);
-        else commitSlider(v);
-      },
-      onMouseUp: releaseSlider,
-      onTouchEnd: releaseSlider,
-      onKeyUp: releaseSlider,
-    };
-
-    if (isVertical) {
-      // Rotazione e non `writing-mode: vertical-rl`: quest'ultimo è lo standard
-      // moderno ma vuole Chrome 120+/WebKit 17.4+, e sul browser dei pannelli
-      // Yocto non sappiamo cosa ci sia — dove non è supportato lo slider
-      // resterebbe orizzontale, cioè il difetto di partenza ma più difficile da
-      // riconoscere. La rotazione funziona su qualunque motore e conserva il
-      // comportamento nativo su touch e tastiera.
-      //
-      // -90° e non +90°: porta l'estremo `min` (a sinistra) in basso, che è
-      // dove ci si aspetta il minimo di uno slider verticale.
-      const labelH = obj.label ? altezzaValore(corpoEtichetta) : 0;
-      const valueH = obj.show_value !== false ? altezzaValore(corpoValore) : 0;
-      // La lunghezza del controllo ruotato va data in pixel: dopo la rotazione
-      // il riquadro di layout resta quello di prima, quindi non può ricavarla
-      // da un `height: 100%` del contenitore.
-      const trackLen = Math.max(24, h - labelH - valueH - 8);
-      return (
-        <g onMouseDown={isEditMode ? handleMouseDown : undefined} onClick={(e) => e.stopPropagation()}>
-          {selRect(obj.x, obj.y, w, h)}
-          {bgLayer(obj.x, obj.y, w, h, 4)}
-          {bordoInAttesa}
-          <foreignObject x={obj.x} y={obj.y} width={w} height={h}
-            style={isEditMode ? { pointerEvents: "none" } : undefined}>
-          <div style={{
-            display: "flex", flexDirection: "column", alignItems: "center",
-            justifyContent: "center", gap: 2, height: "100%", boxSizing: "border-box",
-          }}>
-            {obj.label && (
-              <span style={{ color: "var(--brand-text-muted, #94a3b8)", fontSize: corpoEtichetta, textAlign: "center" }}>
-                {obj.label}
-              </span>
-            )}
-            <div style={{
-              height: trackLen, display: "flex", alignItems: "center", justifyContent: "center",
-            }}>
-              <input
-                {...commonInput}
-                style={{
-                  width: trackLen,
-                  transform: "rotate(-90deg)",
-                  accentColor: accent,
-                  cursor: readOnly ? "default" : "pointer",
-                }}
-              />
-            </div>
-            {obj.show_value !== false && (
-              <span style={{ color: "var(--synoptic-text, var(--brand-text, #e2e8f0))", fontSize: corpoValore, textAlign: "center" }}>
-                {valueText}
-              </span>
-            )}
-          </div>
-          </foreignObject>
-          {hitRect(obj.x, obj.y, w, h)}
-        </g>
-      );
-    }
-
-    // Orizzontale: tutto DENTRO l'altezza dichiarata. Prima il foreignObject
-    // era alto `h + 20` quando c'era la label, quindi il controllo sfondava il
-    // box disegnato nell'editor (decisione maintainer 2026-08-23: il box è
-    // l'ingombro vero). `justifyContent: center` distribuisce label, track e
-    // valore nello spazio disponibile invece di farli crescere in fondo.
+    // F3.6: si scrive al rilascio salvo `write_on_release: false`;
+    // `write_deadband` filtra le variazioni piccole. `read_only` non si muove.
     return (
       <g onMouseDown={isEditMode ? handleMouseDown : undefined} onClick={(e) => e.stopPropagation()}>
         {selRect(obj.x, obj.y, w, h)}
         {bgLayer(obj.x, obj.y, w, h, 4)}
-        {bordoInAttesa}
-        <foreignObject x={obj.x} y={obj.y} width={w} height={h}
-          style={isEditMode ? { pointerEvents: "none" } : undefined}>
-        <div
-          style={{
-            display: "flex", flexDirection: "column", justifyContent: "center",
-            gap: 2, height: "100%", boxSizing: "border-box", padding: "2px 0",
-          }}
-        >
-          {obj.label && (
-            <span style={{ color: "var(--brand-text-muted, #94a3b8)", fontSize: corpoEtichetta, textAlign: "center", lineHeight: 1.2 }}>
-              {obj.label}
-            </span>
-          )}
-          <input
-            {...commonInput}
-            style={{ width: "100%", margin: 0, accentColor: accent, cursor: readOnly ? "default" : "pointer" }}
-          />
-          {obj.show_value !== false && (
-            <span style={{ color: "var(--synoptic-text, var(--brand-text, #e2e8f0))", fontSize: corpoValore, textAlign: "center", lineHeight: 1.2 }}>
-              {valueText}
-            </span>
-          )}
-        </div>
-        </foreignObject>
+        <SliderSvg
+          x={obj.x} y={obj.y} w={w} h={h}
+          verticale={obj.orientation === "vertical"}
+          min={min} max={max} step={obj.step}
+          valoreTag={tv && numerico ? rawVal : tv ? null : min}
+          colore={coloreEffettivo(obj, "fill")}
+          coloreTraccia={obj.slider_track_color || undefined}
+          spessore={obj.slider_track_thickness}
+          posizioneValore={obj.slider_value_position}
+          etichetta={obj.label || undefined}
+          corpoEtichetta={obj.label_font_size ?? 11}
+          corpoValore={obj.font_size ?? 12}
+          mostraValore={obj.show_value !== false}
+          formatta={(v) => `${v.toFixed(decimali)}${obj.unit ? ` ${obj.unit}` : ""}`}
+          sola={!!obj.read_only}
+          inEdit={isEditMode}
+          scriviAlRilascio={obj.write_on_release !== false}
+          deadband={obj.write_deadband}
+          scrivi={(v) => guardedWrite(obj.tag, v)}
+          nome={obj.label || obj.tag}
+        />
         {hitRect(obj.x, obj.y, w, h)}
       </g>
     );

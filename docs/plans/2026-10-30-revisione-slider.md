@@ -120,6 +120,14 @@ rimisurare** i punti che tocca: il codice si muove.
 
 ### Fase 2 — il web in SVG, uno stile classico per i due motori (M)
 
+> **Scritta il 30-10-2026** sul ramo `feat/slider-fase-2`, annidato. Scelte prese scrivendola:
+> - il colore «auto» della traccia è il **riempimento al 20 %**, non un colore calcolato dallo sfondo: è quello che
+>   il tema LVGL faceva col suo blu, lascia vedere la pagina in chiaro e in scuro, e non chiede ai due motori di
+>   sapere il colore della pagina;
+> - il fumetto `cursore` compare mentre si trascina (e sul web anche durante l'attesa); nel verticale sta a destra
+>   del cursore;
+> - nell'orizzontale vale ancora la colonna centrata di prima (etichetta, traccia, valore).
+
 - Un componente suo, `sws-editor/src/canvas/slider/`, invece del ramo dentro `SvgCanvas.tsx`:
   - geometria in una **funzione pura**, testata senza DOM;
   - disegno in SVG;
