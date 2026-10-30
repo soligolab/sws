@@ -12,20 +12,36 @@
 > resta in «Storico». Qui vive solo ciò che serve a riprendere il lavoro.
 
 
-## ▶ Riprendere da qui — OpenPLC in `main`, piano chiuso (2026-10-30 sera, theobroma)
+## ▶ Riprendere da qui — chiusura del 30-10-2026: la catena e OpenPLC in `main`, tutto pushato (theobroma)
 
-- **OpenPLC sul pannello è in `main`** e il piano è in archivio
-  ([`2026-10-20-openplc-sul-dispositivo.md`](docs/archive/2026-10-20-openplc-sul-dispositivo.md)). Container
+**Si riparte da `main`.** Nessun ramo aperto, né qui né su origin (i sei rami remoti della catena eliminati col push).
+
+- **La catena dei cinque rami annidati** è in `main` dopo il collaudo sul WP630 (dettagli nella sezione sotto):
+  login LVGL, prova del socket, planimetrie rami 1-2, registrazione/PIN/«ricordami» con le correzioni del collaudo
+  (sessione, immagini, cornice della planimetria, logo nel tema chiaro, installazione pulita).
+- **OpenPLC sul pannello** (`1826e9ea`, piano in archivio
+  [`2026-10-20-openplc-sul-dispositivo.md`](docs/archive/2026-10-20-openplc-sul-dispositivo.md)): container
   persistente (`--restart always`, `podman-restart.service`), porte sulla rete (8443, 1502, 10102, 14840),
   installabile dall'IDE (riquadro «OpenPLC sul pannello» nella Connessione, casella «Installa anche OpenPLC») e dalla
-  guida del cloud. Collaudato dal maintainer sul WP630: Editor da Windows senza tunnel, programma caricato,
-  `soglia_alta` = 900 letto da SWS via Modbus. Riavvio vero col programma in RUN, provato via SSH.
-- Verifiche verdi: cargo test 1445, vitest 1853, pnpm build, check_static 51. IDE 8460 sul codice di `main`.
-- Archivio di prova `dist/sws-runtime-2.23.7-openplc-aarch64-image.tar.gz` (dal ramo, prima dello squash).
-- **Non pushato**: `main` è avanti su origin; i rami remoti della catena sono da eliminare quando si pusha.
-- Restano: guida del cloud con OpenPLC dopo una release (COLLAUDI §F 20c); due voci nuove in `Appunti.txt` (logica
-  di OpenPLC nel progetto dall'IDE, tipo del tag creato col ＋); il tempo reale di OpenPLC senza root, in attesa di
-  PixsysOS.
+  guida del cloud. Collaudato dal maintainer: Editor da Windows senza tunnel, programma caricato, `soglia_alta` = 900
+  letto da SWS via Modbus. Riavvio vero col programma in RUN, provato via SSH.
+- **Piani**: in archivio sessione scaduta, planimetrie 3D, corpi LVGL, impianto dal dispositivo, OpenPLC. Nuovi: il
+  piano della **revisione dello slider** (sette fasi, `fc17f237`) con due semi, e — da un'altra sessione sullo stesso
+  checkout — **SWS solo LVGL sui Tiny TY** (`ef962d07`, da iniziare dopo il 04-11).
+- **Appunti** nuovi: il tempo reale di OpenPLC senza root (drop-in di `user@1000`, finché PixsysOS non lo mette); la
+  logica di OpenPLC nel progetto dall'IDE; il tipo del tag creato col ＋ nella tabella Modbus.
+- Verifiche verdi su `main`: cargo test 1445, vitest 1853, pnpm build, check_static 51. IDE 8460 sul codice di `main`.
+- WP630: runtime dall'archivio `dist/sws-runtime-2.23.7-openplc-aarch64-image.tar.gz` (non una release), OpenPLC
+  installato col programma del laboratorio in RUN, `specchio-prova` con la sorgente Modbus `plc-…`.
+
+### Da fare
+
+1. Lunedì, all'accensione del WP630: OpenPLC deve essere tornato in RUN da solo (`soglia_alta` = 900).
+2. Una **release** porta in un'immagine del registry tutto quanto: poi la guida del cloud con OpenPLC (COLLAUDI §F
+   20c) e registrazione/PIN con la posta vera sul VPS.
+3. **Resto del ramo C**, in un ramo suo: SMTP per azienda, inattività a 12 mesi, chiusura dell'account, rotazione
+   del registro attività.
+4. Da scegliere: revisione dello slider (fase 1), le due voci OpenPLC in Appunti, CasaDomotica con la planimetria.
 
 ## ▶ Riprendere da qui — la catena dei rami è tutta in `main` (2026-10-30 pomeriggio, theobroma)
 
@@ -38,12 +54,11 @@
   `2bb9d497` LVGL login, `d90b6a7d` socket, `4bc75907` planimetrie ramo 1, `ecb8c5b8` ramo 2, `c514f93b` ramo C
   con le correzioni del collaudo. Prima dello squash, sulla punta: cargo check, cargo test (1441), pnpm build,
   vitest (1848), check_static (51) tutti verdi. **Nessun ramo locale aperto.**
-- **Non pushato.** `main` è avanti di 6 su origin; su origin restano i rami remoti della catena da eliminare quando
-  il maintainer dice di pushare.
+- Pushato la sera stessa, con `/finalizza-giornata`.
 
 ### Da fare
 
-1. Push di `main` ed eliminazione dei rami remoti — solo su richiesta.
+1. ~~Push di `main` ed eliminazione dei rami remoti~~ fatto la sera.
 2. Registrazione e PIN con la posta vera sul VPS (gateway con `--gateway-registrazione`), dopo una release.
 3. **Resto del ramo C**, in un ramo suo: SMTP per azienda, inattività a 12 mesi, chiusura dell'account, rotazione
    del registro attività.
