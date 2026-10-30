@@ -111,6 +111,13 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
   anche durante il trascinamento. `slider_pv_tag` è nei campi-tag di `validate.rs` e `collectTagIds.ts`. Su LVGL il
   valore centrato non va più a capo su uno slider stretto.
 
+- **Lo slider, fase 6: il ritorno a molla.** `slider_rest_value`: mentre si tiene, una scrittura ogni 200 ms al
+  massimo; al rilascio il cursore torna al riposo in 150 ms (web: `requestAnimationFrame`; LVGL: l'animazione di
+  `lv_bar` con `anim_time` 150) e scrive il riposo una volta. Il pannello ha la casella «Ritorno a molla», che propone
+  il riposo all'origine o al minimo. Il validatore rifiuta la molla con `require_confirm`/`critical`. LVGL ha ora
+  anche l'**attesa dopo la scrittura** che il web ha dalla fase 1: il cursore resta sul valore scritto finché il tag
+  non lo riporta, o per 3 s (`attesa` condivisa fra `BarLike` e `SliderCtx`).
+
 ### Fixed
 
 - **Lo slider, fase 1 della revisione** (piano `docs/plans/2026-10-30-revisione-slider.md`): i difetti misurati il

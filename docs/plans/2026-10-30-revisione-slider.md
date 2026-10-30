@@ -193,6 +193,11 @@ rimisurare** i punti che tocca: il codice si muove.
 
 ### Fase 6 — ritorno a molla (S)
 
+> **Scritta il 30-10-2026** sul ramo `feat/slider-fase-6`, annidato. La molla c'è quando `slider_rest_value` c'è: il
+> «riposo predefinito» della decisione 7 lo applica il pannello, che accendendo la casella scrive l'origine o il
+> minimo. La molla ignora `write_on_release` e la deadband. Su LVGL è arrivata anche l'attesa dopo la scrittura, che
+> la fase 1 aveva lasciato al web: senza, al rilascio il cursore tornava per un giro all'ultimo valore scritto.
+
 - `slider_rest_value`, con le regole della decisione 7. Su LVGL l'animazione è un `lv_anim` di 150 ms.
 - Il validatore segnala come **errore** la molla insieme a conferma o comando critico: una conferma a ogni scrittura
   renderebbe la leva inutilizzabile.
