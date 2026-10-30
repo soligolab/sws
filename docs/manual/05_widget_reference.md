@@ -280,7 +280,10 @@ Cursore per impostare un valore numerico trascinandolo. Lo stesso tag è letto e
 | `read_only` | Il cursore mostra il valore ma non si muove |
 | `write_on_release` | Scrive solo quando si lascia il cursore (predefinito). `false` scrive durante il trascinamento |
 | `write_deadband` | Non scrive se il valore è cambiato meno di così dall'ultima scrittura (0 o più) |
-| `bg_color`, `bg_image` | Sfondo dietro tutto il riquadro, come per gli altri oggetti |
+| `slider_style` | `classico` (predefinito), `pillola` (traccia spessa, cursore bianco dentro), `piastra` (la traccia è tutto il riquadro, senza cursore, con icona, etichetta e valore dentro: per la domotica) o `isa` (ISA-101: grigi, traccia sottile, cursore rettangolare, nessun colore acceso) |
+| `slider_icon` | Con `piastra`: `lampadina`, `tapparella`, `termometro`, `ventola`, `presa`, `volume`, `goccia` o `sole` |
+| `slider_track_opacity` | Opacità della parte vuota della traccia, 0–100 |
+| `bg_color`, `bg_image` | Sfondo dietro tutto il riquadro, come per gli altri oggetti. `bg_image_opacity` (0–100, per tutti gli oggetti) la mette in trasparenza |
 | `require_confirm`, `critical` | Chiede conferma prima di scrivere, come i bottoni. Con `write_on_release: false` la chiede a ogni passo: si usano insieme alla scrittura al rilascio |
 
 Dopo una scrittura il cursore resta dove l'ha lasciato l'operatore, col bordo tratteggiato, finché il tag non riporta quel valore (al massimo 3 secondi). Un valore non numerico si mostra come «—».

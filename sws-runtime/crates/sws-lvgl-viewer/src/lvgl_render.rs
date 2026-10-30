@@ -1673,13 +1673,31 @@ fn etichetta_piccola_corpo(
     Ok(())
 }
 
+/// Le icone della piastra, dalla tabella condivisa col web
+/// (`tests/fixtures/icone-slider.json`).
+fn icona_slider(nome: &str) -> Option<&'static str> {
+    static TABELLA: std::sync::OnceLock<std::collections::HashMap<String, String>> = std::sync::OnceLock::new();
+    let t = TABELLA.get_or_init(|| {
+        #[derive(serde::Deserialize)]
+        struct F {
+            icone: std::collections::HashMap<String, String>,
+        }
+        serde_json::from_str::<F>(include_str!("../../../../tests/fixtures/icone-slider.json"))
+            .map(|f| f.icone)
+            .unwrap_or_default()
+    });
+    t.get(nome).map(String::as_str)
+}
+
 /// Un'etichetta col centro in `(cx, cy)`: la riga del web disegnata con
 /// `textAnchor="middle"` e `dominantBaseline="central"`.
-fn etichetta_centrata(
+fn etichetta_posata(
     screen: &mut lvgl::Obj,
     testo: &str,
     cx: f64,
     cy: f64,
+    // Vero: `cx` è il bordo sinistro (la piastra orizzontale), non il centro.
+    a_sinistra: bool,
     colore: (u8, u8, u8),
     corpo: u16,
 ) -> anyhow::Result<()> {
@@ -1692,7 +1710,8 @@ fn etichetta_centrata(
         lvgl_sys::lv_obj_update_layout(p);
         let w = lvgl_sys::lv_obj_get_width(p) as f64;
         let h = lvgl_sys::lv_obj_get_height(p) as f64;
-        lvgl_sys::lv_obj_set_pos(p, (cx - w / 2.0).round() as lvgl_sys::lv_coord_t, (cy - h / 2.0).round() as lvgl_sys::lv_coord_t);
+        let x = if a_sinistra { cx } else { cx - w / 2.0 };
+        lvgl_sys::lv_obj_set_pos(p, x.round() as lvgl_sys::lv_coord_t, (cy - h / 2.0).round() as lvgl_sys::lv_coord_t);
     }
     Ok(())
 }
@@ -3072,7 +3091,21 @@ fn sfondo_del_rect(
         false,
         crate::svg_raster::MAX_SIDE_SFONDO,
     ) {
-        Ok(b) => Some(b),
+        Ok(b) => {
+            // `bg_image_opacity` (fase 3 dello slider, 30-10-2026, universale):
+            // l'immagine in trasparenza. Il canvas appena creato è l'ultimo figlio.
+            if let Some(o) = obj.bg_image_opacity.filter(|o| *o < 100.0) {
+                if let Ok(padre) = screen.raw() {
+                    unsafe {
+                        let figlio = lvgl_sys::lv_obj_get_child(padre.as_ptr(), -1);
+                        if !figlio.is_null() {
+                            lvgl_sys::lv_obj_set_style_opa(figlio, (o.max(0.0) * 2.55).round() as u8, 0);
+                        }
+                    }
+                }
+            }
+            Some(b)
+        }
         Err(e) => {
             eprintln!("[sfondo] {}: {e}", obj.id.as_deref().unwrap_or("?"));
             None
@@ -4604,13 +4637,61 @@ pub(crate) struct GeometriaSlider {
     pub verticale: bool,
     /// `(x, y, larghezza, altezza)` della traccia, relativa al riquadro.
     pub traccia: (f64, f64, f64, f64),
+    pub raggio_traccia: f64,
     pub raggio_cursore: f64,
+    /// Il cursore come rettangolo `(larghezza, altezza)`; `(0, 0)` = nessuno.
+    pub cursore: (f64, f64),
+    /// L'icona della piastra: `(cx, cy, lato)`.
+    pub icona: Option<(f64, f64, f64)>,
+    /// I testi allineati a sinistra (piastra orizzontale) invece che al centro.
+    pub a_sinistra: bool,
     /// Il centro della riga dell'etichetta.
     pub etichetta: Option<(f64, f64)>,
     /// Il centro del valore; `None` col fumetto sul cursore.
     pub valore: Option<(f64, f64)>,
 }
 
+/// Come è fatto uno stile (fase 3, 30-10-2026). Gemello di `aspettoStile` in
+/// `geometria.ts`: i `pad` sono quelli della parte `KNOB`, di quanto il cursore
+/// sborda lungo l'asse e di traverso (negativi = rientra).
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub(crate) struct AspettoStile {
+    /// 0 = tutta la piastra.
+    pub spessore: f64,
+    pub cursore: &'static str,
+    pub pad_asse: f64,
+    pub pad_traverso: f64,
+    /// `None` = pieno.
+    pub raggio_traccia: Option<f64>,
+    pub posizione: &'static str,
+}
+
+pub(crate) fn aspetto_stile(stile: &str) -> AspettoStile {
+    match stile {
+        "pillola" => AspettoStile { spessore: 28.0, cursore: "dentro", pad_asse: -3.0, pad_traverso: -3.0, raggio_traccia: None, posizione: "sotto" },
+        "piastra" => AspettoStile { spessore: 0.0, cursore: "nessuno", pad_asse: 0.0, pad_traverso: 0.0, raggio_traccia: Some(12.0), posizione: "dentro" },
+        "isa" => AspettoStile { spessore: 6.0, cursore: "rettangolo", pad_asse: 2.0, pad_traverso: 7.0, raggio_traccia: Some(1.0), posizione: "sotto" },
+        _ => AspettoStile {
+            spessore: SPESSORE_TRACCIA,
+            cursore: "tondo",
+            pad_asse: SBORDO_CURSORE,
+            pad_traverso: SBORDO_CURSORE,
+            raggio_traccia: None,
+            posizione: "sotto",
+        },
+    }
+}
+
+/// I colori fissi dell'ISA-101 e il cursore bianco della pillola, come
+/// `COLORI_ISA` e `CURSORE_PILLOLA` del web.
+const ISA_TRACCIA: (u8, u8, u8) = (0x64, 0x74, 0x8b);
+const ISA_INDICATORE: (u8, u8, u8) = (0x94, 0xa3, 0xb8);
+const ISA_CURSORE: (u8, u8, u8) = (0xcb, 0xd5, 0xe1);
+const ISA_BORDO: (u8, u8, u8) = (0x33, 0x41, 0x55);
+const CURSORE_PILLOLA: (u8, u8, u8) = (0xff, 0xff, 0xff);
+
+/// Lo stile classico, come prima della fase 3: lo usano i test della geometria.
+#[cfg(test)]
 pub(crate) fn geometria_slider(
     verticale: bool,
     box_w: f64,
@@ -4620,6 +4701,37 @@ pub(crate) fn geometria_slider(
     spessore: f64,
     posizione: &str,
 ) -> GeometriaSlider {
+    geometria_slider_stile(verticale, box_w, box_h, alto_etichetta, alto_valore, Some(spessore), Some(posizione), "classico", false)
+}
+
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn geometria_slider_stile(
+    verticale: bool,
+    box_w: f64,
+    box_h: f64,
+    alto_etichetta: f64,
+    alto_valore: f64,
+    spessore: Option<f64>,
+    posizione: Option<&str>,
+    stile: &str,
+    con_icona: bool,
+) -> GeometriaSlider {
+    let a = aspetto_stile(stile);
+    if stile == "piastra" {
+        return geometria_piastra(verticale, box_w, box_h, alto_etichetta, alto_valore, posizione, con_icona, a);
+    }
+    let posizione = posizione.unwrap_or(a.posizione);
+    let spessore = spessore.unwrap_or(a.spessore);
+    // Il cursore: tondo col pad di traverso, o un rettangolo coi due pad.
+    let cursore_di = |t: f64| -> (f64, f64, f64) {
+        if a.cursore == "nessuno" {
+            return (0.0, 0.0, 0.0);
+        }
+        let lungo = t + 2.0 * a.pad_asse;
+        let traverso = t + 2.0 * a.pad_traverso;
+        let (w, h) = if verticale { (traverso, lungo) } else { (lungo, traverso) };
+        (traverso / 2.0, w, h)
+    };
     let riga_valore = if matches!(posizione, "sotto" | "sopra") { alto_valore } else { 0.0 };
     let senza_valore = posizione == "cursore" || alto_valore == 0.0;
     if verticale {
@@ -4637,10 +4749,15 @@ pub(crate) fn geometria_slider(
                 _ => (box_w / 2.0, box_h - sotto / 2.0),
             })
         };
+        let (raggio, cw, ch) = cursore_di(t);
         return GeometriaSlider {
             verticale,
             traccia,
-            raggio_cursore: t / 2.0 + SBORDO_CURSORE,
+            raggio_traccia: a.raggio_traccia.unwrap_or(t / 2.0),
+            raggio_cursore: raggio,
+            cursore: (cw, ch),
+            icona: None,
+            a_sinistra: false,
             etichetta: (alto_etichetta > 0.0).then_some((box_w / 2.0, alto_etichetta / 2.0)),
             valore,
         };
@@ -4676,12 +4793,67 @@ pub(crate) fn geometria_slider(
     } else {
         c("valore").map(|cy| (box_w / 2.0, cy))
     };
+    let (raggio, cw, ch) = cursore_di(t);
     GeometriaSlider {
         verticale,
         traccia: (0.0, y_traccia, box_w, t),
-        raggio_cursore: t / 2.0 + SBORDO_CURSORE,
+        raggio_traccia: a.raggio_traccia.unwrap_or(t / 2.0),
+        raggio_cursore: raggio,
+        cursore: (cw, ch),
+        icona: None,
+        a_sinistra: false,
         etichetta: c("etichetta").map(|cy| (box_w / 2.0, cy)),
         valore,
+    }
+}
+
+/// La piastra, come `geometriaPiastra` del web: la traccia è tutto il
+/// riquadro, niente cursore, dentro icona, etichetta e valore.
+#[allow(clippy::too_many_arguments)]
+fn geometria_piastra(
+    verticale: bool,
+    box_w: f64,
+    box_h: f64,
+    alto_etichetta: f64,
+    alto_valore: f64,
+    posizione: Option<&str>,
+    con_icona: bool,
+    a: AspettoStile,
+) -> GeometriaSlider {
+    let m = 12.0;
+    let con_valore = alto_valore > 0.0 && posizione != Some("cursore");
+    let raggio = a.raggio_traccia.unwrap_or(12.0).min(box_w / 2.0).min(box_h / 2.0);
+    let base = GeometriaSlider {
+        verticale,
+        traccia: (0.0, 0.0, box_w, box_h),
+        raggio_traccia: raggio,
+        raggio_cursore: 0.0,
+        cursore: (0.0, 0.0),
+        icona: None,
+        a_sinistra: false,
+        etichetta: None,
+        valore: None,
+    };
+    if verticale {
+        let lato = if con_icona { 28.0_f64.min(box_w - 2.0 * m) } else { 0.0 };
+        return GeometriaSlider {
+            icona: (lato > 0.0).then_some((box_w / 2.0, m + lato / 2.0, lato)),
+            etichetta: (alto_etichetta > 0.0)
+                .then_some((box_w / 2.0, m + lato + if lato > 0.0 { 8.0 } else { 0.0 } + alto_etichetta / 2.0)),
+            valore: con_valore.then_some((box_w / 2.0, box_h - m - alto_valore / 2.0)),
+            ..base
+        };
+    }
+    let lato = if con_icona { 28.0_f64.min(box_h - 16.0) } else { 0.0 };
+    let x_testo = m + if lato > 0.0 { lato + 10.0 } else { 0.0 };
+    let righe = alto_etichetta + if con_valore { alto_valore } else { 0.0 };
+    let cima = (box_h - righe) / 2.0;
+    GeometriaSlider {
+        icona: (lato > 0.0).then_some((m + lato / 2.0, box_h / 2.0, lato)),
+        a_sinistra: true,
+        etichetta: (alto_etichetta > 0.0).then_some((x_testo, cima + alto_etichetta / 2.0)),
+        valore: con_valore.then_some((x_testo, cima + alto_etichetta + alto_valore / 2.0)),
+        ..base
     }
 }
 
@@ -4790,18 +4962,33 @@ fn render_slider(
         _ => 0.0,
     };
     let alto_valore = if obj.show_value != Some(false) { altezza_valore(corpo_valore) } else { 0.0 };
-    let posizione = match obj.slider_value_position.as_deref() {
-        Some(p @ ("sopra" | "dentro" | "cursore")) => p,
-        _ => "sotto",
+    let stile = match obj.slider_style.as_deref() {
+        Some(s @ ("pillola" | "piastra" | "isa")) => s,
+        _ => "classico",
     };
-    let spessore = obj.slider_track_thickness.filter(|t| t.is_finite() && *t > 0.0).unwrap_or(SPESSORE_TRACCIA);
-    let g = geometria_slider(verticale, box_w, box_h, alto_etichetta, alto_valore, spessore, posizione);
+    let aspetto = aspetto_stile(stile);
+    let posizione_scritta = match obj.slider_value_position.as_deref() {
+        Some(p @ ("sotto" | "sopra" | "dentro" | "cursore")) => Some(p),
+        _ => None,
+    };
+    let posizione = posizione_scritta.unwrap_or(aspetto.posizione);
+    let spessore_scritto = obj.slider_track_thickness.filter(|t| t.is_finite() && *t > 0.0);
+    let spessore = spessore_scritto.unwrap_or(aspetto.spessore);
+    let icona = (stile == "piastra")
+        .then(|| obj.slider_icon.as_deref().and_then(icona_slider))
+        .flatten();
+    let g = geometria_slider_stile(
+        verticale, box_w, box_h, alto_etichetta, alto_valore, spessore_scritto, posizione_scritta, stile, icona.is_some(),
+    );
     let (gx, gy, gw, gh) = g.traccia;
     let x0 = obj.x.unwrap_or(0.0);
     let y0 = obj.y.unwrap_or(0.0);
     // L'area di tocco copre tutto il riquadro, e mai meno di 44 px di spessore.
-    let estensione = if verticale { gx.max(box_w - gx - gw) } else { gy.max(box_h - gy - gh) }
-        .max((44.0 - spessore) / 2.0);
+    let estensione = if stile == "piastra" {
+        0.0
+    } else {
+        if verticale { gx.max(box_w - gx - gw) } else { gy.max(box_h - gy - gh) }.max((44.0 - spessore) / 2.0)
+    };
     slider
         .set_pos((x0 + gx).round() as i16, (y0 + gy).round() as i16)
         .map_err(|e| anyhow::anyhow!("set_pos (slider sottile): {e:?}"))?;
@@ -4815,36 +5002,67 @@ fn render_slider(
     // I colori sono nostri, non del tema (fase 2): indicatore e cursore col
     // riempimento; la traccia vuota col suo colore, o — «auto» — col
     // riempimento al 20 %, come il web. Il cursore sborda di 5 px per lato.
+    // Fase 3 (30-10-2026): gli stili. L'ISA-101 ha i suoi grigi e ignora il
+    // riempimento; la pillola ha il cursore bianco dentro la traccia; la piastra
+    // non ha cursore. La traccia vuota prende anche `slider_track_opacity`.
     unsafe {
         let p = ptr.as_ptr();
         let c = colore_campo(obj.fill.as_deref(), "slider", "fill");
-        match obj.slider_track_color.as_deref().and_then(parse_hex_color) {
-            Some(t) => stile::sfondo(p, t, stile::MAIN),
-            None => {
-                stile::sfondo(p, c, stile::MAIN);
-                lvgl_sys::lv_obj_set_style_bg_opa(p, 51, stile::MAIN);
+        let isa = stile == "isa";
+        let opacita_vuota = obj.slider_track_opacity.unwrap_or(100.0).clamp(0.0, 100.0) / 100.0;
+        let (traccia, opa) = match (isa, obj.slider_track_color.as_deref().and_then(parse_hex_color)) {
+            (true, _) => (ISA_TRACCIA, 255.0),
+            (false, Some(t)) => (t, 255.0),
+            (false, None) => (c, 51.0),
+        };
+        stile::sfondo(p, traccia, stile::MAIN);
+        lvgl_sys::lv_obj_set_style_bg_opa(p, (opa * opacita_vuota).round() as u8, stile::MAIN);
+        stile::sfondo(p, if isa { ISA_INDICATORE } else { c }, stile::INDICATORE);
+        stile::raggio(p, g.raggio_traccia, stile::MAIN);
+        stile::raggio(p, g.raggio_traccia, stile::INDICATORE);
+        match aspetto.cursore {
+            "nessuno" => {
+                lvgl_sys::lv_obj_set_style_bg_opa(p, 0, stile::MANOPOLA);
+            }
+            "rettangolo" => {
+                stile::sfondo(p, ISA_CURSORE, stile::MANOPOLA);
+                stile::bordo(p, Some(ISA_BORDO), 1.0, stile::MANOPOLA);
+                stile::raggio(p, 2.0, stile::MANOPOLA);
+            }
+            altro => {
+                stile::sfondo(p, if altro == "dentro" { CURSORE_PILLOLA } else { c }, stile::MANOPOLA);
+                stile::raggio(p, lvgl_sys::LV_RADIUS_CIRCLE as f64, stile::MANOPOLA);
             }
         }
-        stile::sfondo(p, c, stile::INDICATORE);
-        stile::sfondo(p, c, stile::MANOPOLA);
-        let tondo = lvgl_sys::LV_RADIUS_CIRCLE as f64;
-        stile::raggio(p, tondo, stile::MAIN);
-        stile::raggio(p, tondo, stile::INDICATORE);
-        stile::raggio(p, tondo, stile::MANOPOLA);
-        let sbordo = SBORDO_CURSORE as lvgl_sys::lv_coord_t;
-        lvgl_sys::lv_obj_set_style_pad_top(p, sbordo, stile::MANOPOLA);
-        lvgl_sys::lv_obj_set_style_pad_bottom(p, sbordo, stile::MANOPOLA);
-        lvgl_sys::lv_obj_set_style_pad_left(p, sbordo, stile::MANOPOLA);
-        lvgl_sys::lv_obj_set_style_pad_right(p, sbordo, stile::MANOPOLA);
+        // I pad del cursore: lungo l'asse e di traverso, scambiati nel verticale.
+        let (orizz, vert) = if verticale { (aspetto.pad_traverso, aspetto.pad_asse) } else { (aspetto.pad_asse, aspetto.pad_traverso) };
+        let (orizz, vert) = if aspetto.cursore == "nessuno" { (0.0, 0.0) } else { (orizz, vert) };
+        lvgl_sys::lv_obj_set_style_pad_top(p, vert as lvgl_sys::lv_coord_t, stile::MANOPOLA);
+        lvgl_sys::lv_obj_set_style_pad_bottom(p, vert as lvgl_sys::lv_coord_t, stile::MANOPOLA);
+        lvgl_sys::lv_obj_set_style_pad_left(p, orizz as lvgl_sys::lv_coord_t, stile::MANOPOLA);
+        lvgl_sys::lv_obj_set_style_pad_right(p, orizz as lvgl_sys::lv_coord_t, stile::MANOPOLA);
     }
+    // Sulla piastra i testi stanno sopra la traccia colorata: il tono testo
+    // della pagina, non il grigio dell'etichetta.
+    let colore_etichetta = if stile == "piastra" {
+        colori_predefiniti::testo_pagina().unwrap_or((0xe2, 0xe8, 0xf0))
+    } else {
+        GRIGIO_ETICHETTA
+    };
     if let (Some(l), Some((cx, cy))) = (obj.label.as_deref().filter(|l| !l.is_empty()), g.etichetta) {
         // L'etichetta ha il suo campo dal 21-10-2026 (`label_font_size`):
         // `font_size` governa il valore, in `init_bar_like`.
-        etichetta_centrata(screen, l, x0 + cx, y0 + cy, GRIGIO_ETICHETTA, corpo_etichetta as u16)?;
+        etichetta_posata(screen, l, x0 + cx, y0 + cy, g.a_sinistra, colore_etichetta, corpo_etichetta as u16)?;
     }
     // Il valore: centrato sul suo punto. Col fumetto parte nascosto, e lo
     // mostra il trascinamento.
-    let centro_valore = g.valore.map(|(cx, cy)| (x0 + cx - box_w / 2.0, y0 + cy, box_w));
+    let centro_valore = g.valore.map(|(cx, cy)| {
+        if g.a_sinistra {
+            (x0 + cx, y0 + cy, (box_w - cx - 12.0).max(10.0))
+        } else {
+            (x0 + cx - box_w / 2.0, y0 + cy, box_w)
+        }
+    });
     let fumetto = posizione == "cursore" && alto_valore > 0.0;
     let valore_in = if fumetto { Some((x0, y0, box_w)) } else { centro_valore };
     let passo = obj.step;
@@ -4861,6 +5079,33 @@ fn render_slider(
     };
     let unita = unit.clone();
     live.push(binding);
+    if let (true, Some(vp)) = (stile == "piastra", value_ptr) {
+        unsafe {
+            if g.a_sinistra {
+                lvgl_sys::lv_obj_set_style_text_align(vp.as_ptr(), lvgl_sys::LV_TEXT_ALIGN_LEFT as lvgl_sys::lv_text_align_t, 0);
+            }
+            stile::font_grassetto(vp.as_ptr(), corpo_valore as u16, stile::MAIN);
+        }
+    }
+    // L'icona della piastra, dopo la traccia così le sta sopra: rasterizzata una
+    // volta, nel tono testo della pagina.
+    if let (Some(svg), Some((cx, cy, lato))) = (icona, g.icona) {
+        let (r, gg, b) = colori_predefiniti::testo_pagina().unwrap_or((0xe2, 0xe8, 0xf0));
+        let hex = format!("#{r:02x}{gg:02x}{b:02x}");
+        let doc = format!(
+            "<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' width='{lato}' height='{lato}' fill='none' \
+             stroke='{hex}' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'>{}</svg>",
+            svg.replace("currentColor", &hex)
+        );
+        let l = lato.round() as i16;
+        match disegna_svg_byte(
+            screen, (x0 + cx - lato / 2.0).round() as i16, (y0 + cy - lato / 2.0).round() as i16, l, l,
+            doc.as_bytes(), false, false, crate::svg_raster::MAX_SIDE,
+        ) {
+            Ok(b) => live.push(b),
+            Err(e) => eprintln!("[slider] icona {:?}: {e}", obj.slider_icon),
+        }
+    }
     let fumetto = match (fumetto, value_ptr) {
         (true, Some(vp)) => {
             unsafe {
@@ -15326,6 +15571,26 @@ mod binding_tests {
         assert!(!supera_deadband(5.5, Some(5.0), Some(2.0)));
         assert!(supera_deadband(7.0, Some(5.0), Some(2.0)));
         assert!(supera_deadband(5.1, Some(5.0), None));
+    }
+
+    #[test]
+    fn gli_stili_dello_slider_come_sul_web() {
+        // Gli stessi casi di `tests/sliderGeometria.test.ts` (fase 3).
+        let pillola = geometria_slider_stile(false, 200.0, 60.0, 0.0, 18.0, None, None, "pillola", false);
+        assert_eq!((pillola.traccia.3, pillola.raggio_cursore), (28.0, 11.0));
+        let isa = geometria_slider_stile(false, 200.0, 50.0, 0.0, 18.0, None, None, "isa", false);
+        assert_eq!((isa.traccia.3, isa.cursore, isa.raggio_traccia), (6.0, (10.0, 20.0), 1.0));
+        let isa_v = geometria_slider_stile(true, 50.0, 200.0, 0.0, 18.0, None, None, "isa", false);
+        assert_eq!(isa_v.cursore, (20.0, 10.0));
+        let piastra = geometria_slider_stile(false, 240.0, 64.0, 18.0, 18.0, None, None, "piastra", true);
+        assert_eq!((piastra.traccia, piastra.cursore, piastra.raggio_traccia), ((0.0, 0.0, 240.0, 64.0), (0.0, 0.0), 12.0));
+        assert_eq!(piastra.icona, Some((26.0, 32.0, 28.0)));
+        assert!(piastra.a_sinistra);
+        assert_eq!((piastra.etichetta, piastra.valore), (Some((50.0, 23.0)), Some((50.0, 41.0))));
+        let tapparella = geometria_slider_stile(true, 80.0, 200.0, 18.0, 18.0, None, None, "piastra", true);
+        assert_eq!(tapparella.icona, Some((40.0, 26.0, 28.0)));
+        assert_eq!(tapparella.valore, Some((40.0, 179.0)));
+        assert!(icona_slider("lampadina").is_some() && icona_slider("drago").is_none());
     }
 
     #[test]

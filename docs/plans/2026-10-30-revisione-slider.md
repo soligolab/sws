@@ -146,6 +146,14 @@ rimisurare** i punti che tocca: il codice si muove.
 
 ### Fase 3 — pillola, piastra, ISA-101, e l'immagine in trasparenza (M)
 
+> **Scritta il 30-10-2026** sul ramo `feat/slider-fase-3`, annidato. Scelte prese scrivendola:
+> - la **pillola** ha il cursore bianco, 3 px dentro la traccia di 28;
+> - la **piastra** ignora lo spessore: la traccia è il riquadro, angoli di 12, e i testi seguono la sua disposizione
+>   (orizzontale: icona a sinistra e testi in colonna allineati a sinistra; verticale: icona, etichetta, valore in
+>   fondo). Il valore è in grassetto; l'attesa si vede come bordo tratteggiato della piastra;
+> - l'**ISA-101** ignora `fill`: traccia #64748b, parte piena #94a3b8, cursore #cbd5e1 col bordo #334155, 10×20;
+> - le icone si mostrano solo sulla piastra.
+
 - `slider_style`, con gli stati della matrice della tavola:
   - **pillola:** traccia spessa, cursore dentro la traccia;
   - **piastra:** la traccia è il riquadro, niente cursore, si trascina ovunque; etichetta, valore e icona dentro;

@@ -3940,7 +3940,8 @@ function SvgObjectCorpo(p: ObjProps) {
         )}
         {obj.bg_image && (
           <ImmagineSvg href={obj.bg_image} x={x} y={y} width={w} height={h}
-            preserveAspectRatio="xMidYMid slice" style={{ pointerEvents: "none" }} />
+            preserveAspectRatio="xMidYMid slice" style={{ pointerEvents: "none" }}
+            opacity={obj.bg_image_opacity !== undefined ? Math.min(100, Math.max(0, obj.bg_image_opacity)) / 100 : undefined} />
         )}
       </>
     ) : null;
@@ -4943,6 +4944,9 @@ function SvgObjectCorpo(p: ObjProps) {
           coloreTraccia={obj.slider_track_color || undefined}
           spessore={obj.slider_track_thickness}
           posizioneValore={obj.slider_value_position}
+          stile={obj.slider_style}
+          icona={obj.slider_icon}
+          opacitaTraccia={obj.slider_track_opacity}
           etichetta={obj.label || undefined}
           corpoEtichetta={obj.label_font_size ?? 11}
           corpoValore={obj.font_size ?? 12}

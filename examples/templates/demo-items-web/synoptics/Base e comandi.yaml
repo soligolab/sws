@@ -291,7 +291,7 @@ objects:
   label: "{{t0108}}"
   read_only: true
   unit: '%'
-  slider_track_color: '#334155'
+  slider_style: isa
 - id: c_symbol
   type: text
   x: 650.0

@@ -577,6 +577,11 @@ pub struct SynopticObject {
     pub slider_track_color: Option<String>,
     pub slider_track_thickness: Option<f64>,
     pub slider_value_position: Option<String>,
+    pub slider_style: Option<String>,
+    pub slider_icon: Option<String>,
+    pub slider_track_opacity: Option<f64>,
+    /// Universale (fase 3 dello slider): l'opacità di `bg_image`, 0-100.
+    pub bg_image_opacity: Option<f64>,
 
     // ── Limiti ──
     /// Gate per ruolo (Q36 parte 2, `lvgl_render::render_page_objects`):
