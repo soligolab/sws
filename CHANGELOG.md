@@ -76,6 +76,17 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
   «Chiudi l'account…» nel menu dell'utente. VPS: `deploy/vps/sistema/90-sws-journal.conf`, journal a 12 mesi, da
   applicare.
 
+- **Lo slider, fase 2 della revisione: disegnato in SVG, uno stile classico per i due motori** (piano
+  `docs/plans/2026-10-30-revisione-slider.md`). Web: `canvas/slider/SliderSvg.tsx` al posto dell'`<input
+  type="range">` nativo — traccia di 16 px arrotondata, cursore tondo che sborda di 5 px (lo stile LVGL di sempre),
+  puntatore gestito a mano (`canvas/puntatore.ts`, `useTrascinamento` con `setPointerCapture`, riusabile per il
+  bottone), tastiera (`role="slider"`, frecce, PagSu/PagGiù, Home/Fine, anello di focus), area di tocco minima di
+  44 px, stesso disegno inerte in edit. La geometria è pura e gemella in `canvas/slider/geometria.ts` e
+  `geometria_slider` di `lvgl_render.rs`, con gli stessi casi di prova. Campi nuovi: `slider_track_color` («auto» =
+  `fill` al 20 %), `slider_track_thickness`, `slider_value_position` (`sotto|sopra|dentro|cursore`, il fumetto che
+  segue il cursore anche su LVGL). LVGL: colori di traccia, indicatore e cursore nostri e non del tema, raggio pieno,
+  `pad` del cursore 5.
+
 ### Fixed
 
 - **Lo slider, fase 1 della revisione** (piano `docs/plans/2026-10-30-revisione-slider.md`): i difetti misurati il

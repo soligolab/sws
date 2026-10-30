@@ -36,7 +36,7 @@ export const CAMPI_SCALATI: Record<string, number> = {
   font_size: MINIMO_TESTO, label_font_size: MINIMO_TESTO, button_font_size: MINIMO_TESTO, unit_font_size: MINIMO_TESTO, table_font_size: MINIMO_TESTO,
   stroke_width: MINIMO_SPESSORE, spark_stroke_width: MINIMO_SPESSORE, symbol_outline_width: MINIMO_SPESSORE,
   corner_radius: 0, grid_gap: 0, grid_padding: 0, nav_gap: 0, nav_btn_size: 0,
-  pie_explode_px: 0, pipe_label_offset: 0,
+  pie_explode_px: 0, pipe_label_offset: 0, slider_track_thickness: MINIMO_SPESSORE,
 };
 
 /** I campi di posizione: punti nella pagina, si scalano e si spostano. */

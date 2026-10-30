@@ -1254,7 +1254,14 @@
     "unitFontSize": "Unit font size",
     "vari": "(mixed)",
     "sfondoBoot": "Background image",
-    "sfondoBootHint": "Covers the whole boot image, under the objects, and ends up in the PNG."
+    "sfondoBootHint": "Covers the whole boot image, under the objects, and ends up in the PNG.",
+    "sliderTrackColor": "Track colour",
+    "sliderTrackThickness": "Track thickness (px)",
+    "sliderValuePosition": "Value position",
+    "posizioneSotto": "Below the track",
+    "posizioneSopra": "Above the track",
+    "posizioneDentro": "Inside the track",
+    "posizioneCursore": "On the handle, while dragging"
   },
   "shortcut": {
     "navCanvas": "Canvas navigation",

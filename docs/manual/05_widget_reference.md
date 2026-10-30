@@ -274,6 +274,9 @@ Cursore per impostare un valore numerico trascinandolo. Lo stesso tag è letto e
 | `show_value` | Il valore sotto la traccia, centrato; mostrato salvo `false` |
 | `unit`, `decimals` | Unità e decimali del valore; se mancano, quelli del tag. Decimali predefiniti: 2 con un passo sotto l'unità, altrimenti 0 |
 | `fill` | Colore della parte piena e del cursore |
+| `slider_track_color` | Colore della parte vuota della traccia. Se manca, il colore di `fill` al 20 %, che lascia vedere lo sfondo |
+| `slider_track_thickness` | Spessore della traccia in px (predefinito 16). Il cursore tondo sborda di 5 px per lato |
+| `slider_value_position` | Dove sta il valore: `sotto` (predefinito), `sopra`, `dentro` la traccia (con una traccia spessa), `cursore` (un fumetto che segue il cursore mentre lo si trascina) |
 | `read_only` | Il cursore mostra il valore ma non si muove |
 | `write_on_release` | Scrive solo quando si lascia il cursore (predefinito). `false` scrive durante il trascinamento |
 | `write_deadband` | Non scrive se il valore è cambiato meno di così dall'ultima scrittura (0 o più) |
@@ -282,7 +285,9 @@ Cursore per impostare un valore numerico trascinandolo. Lo stesso tag è letto e
 
 Dopo una scrittura il cursore resta dove l'ha lasciato l'operatore, col bordo tratteggiato, finché il tag non riporta quel valore (al massimo 3 secondi). Un valore non numerico si mostra come «—».
 
-Sul pannello LVGL valgono le stesse regole. Lì la traccia è spessa 16 px e l'area di tocco copre tutto il riquadro; `critical` chiede conferma ma non la password, come per i bottoni.
+Si muove col dito, col mouse e con la tastiera: le frecce di un passo, Pag↑ e Pag↓ di un decimo dell'intervallo, Inizio e Fine agli estremi. L'area di tocco è tutto il riquadro, mai meno di 44 px di spessore.
+
+Sul pannello LVGL il disegno è lo stesso, con gli stessi numeri: traccia, cursore, posizione del valore. `critical` chiede conferma ma non la password, come per i bottoni.
 
 ---
 

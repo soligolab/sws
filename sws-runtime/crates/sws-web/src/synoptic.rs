@@ -208,6 +208,14 @@ pub struct SynopticObject {
     pub write_on_release: Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub write_deadband: Option<f64>,
+    /// Slider (revisione, fase 2): colore della parte vuota della traccia,
+    /// spessore in px, posizione del valore (`sotto|sopra|dentro|cursore`).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub slider_track_color: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub slider_track_thickness: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub slider_value_position: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub checked_value: Option<Value>,
     #[serde(skip_serializing_if = "Option::is_none")]

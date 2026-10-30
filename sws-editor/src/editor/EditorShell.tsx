@@ -4240,6 +4240,19 @@ export function ObjectProps({
                 <div><div style={LABEL}>{t("props.labelFontSize")}</div><BindableInput obj={obj} propName="label_font_size" onChange={onChange}>{numInput("label_font_size", 11)}</BindableInput></div>
               </div>
               {field(t("props.color"), <BindableInput obj={obj} propName="fill" onChange={onChange}>{colorInput("fill")}</BindableInput>)}
+              {/* Fase 2 della revisione (30-10-2026): la traccia vuota (vuota =
+                  il colore qui sopra al 20 %), il suo spessore, dove sta il valore. */}
+              {field(t("props.sliderTrackColor"), colorInput("slider_track_color"))}
+              {field(t("props.sliderTrackThickness"), numInput("slider_track_thickness", 16))}
+              {field(t("props.sliderValuePosition"),
+                <select style={{ ...INPUT, cursor: "pointer" }} value={obj.slider_value_position ?? "sotto"}
+                  onChange={(e) => onChange({ slider_value_position: e.target.value === "sotto" ? undefined : e.target.value as "sopra" | "dentro" | "cursore" })}>
+                  <option value="sotto">{t("props.posizioneSotto")}</option>
+                  <option value="sopra">{t("props.posizioneSopra")}</option>
+                  <option value="dentro">{t("props.posizioneDentro")}</option>
+                  <option value="cursore">{t("props.posizioneCursore")}</option>
+                </select>
+              )}
               <div style={GRIGLIA_NUMERICA}>
                 <div><div style={LABEL}>Min</div><BindableInput obj={obj} propName="min" onChange={onChange}>{numInput("min", 0)}</BindableInput></div>
                 <div><div style={LABEL}>Max</div><BindableInput obj={obj} propName="max" onChange={onChange}>{numInput("max", 100)}</BindableInput></div>

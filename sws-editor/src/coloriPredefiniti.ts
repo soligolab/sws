@@ -68,7 +68,7 @@ export const PREDEFINITI: Record<string, Record<string, RegolaColore>> = {
   gauge:   { color: { auto: "testo" }, stroke: { hex: "#e2e8f0" }, fill: { hex: "#22c55e" }, gauge_sp_color: { hex: "#f59e0b" } },
   led:     { on_color: { hex: "#22c55e" }, off_color: { hex: "#374151" } },
   progress_bar: { fill: { hex: "#3b82f6" }, bg_color: { hex: "#1e293b" } },
-  slider:   { fill: { hex: "#3b82f6" } },
+  slider:   { fill: { hex: "#3b82f6" }, slider_track_color: { vuoto: "derivato" } },
   checkbox: { fill: { hex: "#3b82f6" } },
   radio:    { fill: { hex: "#3b82f6" } },
   setpoint: { fill: { hex: "#3b82f6" } },

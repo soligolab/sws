@@ -467,6 +467,16 @@ export interface SynopticObject {
   /** Slider: variazione minima rispetto all'ultimo valore scritto perché
    *  parta una nuova scrittura. */
   write_deadband?: number;
+  /** Slider (revisione, fase 2): il colore della parte vuota della traccia.
+   *  Assente = «auto», il colore dell'indicatore al 20 %, che lascia
+   *  trasparire lo sfondo della pagina. */
+  slider_track_color?: string;
+  /** Slider: lo spessore della traccia in px. Assente = quello dello stile (16
+   *  nel classico). */
+  slider_track_thickness?: number;
+  /** Slider: dove sta il valore. `cursore` = un fumetto sopra il cursore
+   *  mentre lo si trascina. Assente = `sotto`. */
+  slider_value_position?: "sotto" | "sopra" | "dentro" | "cursore";
   // Alarm / warning thresholds
   warn_low?: number;
   warn_high?: number;
