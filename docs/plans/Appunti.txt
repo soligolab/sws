@@ -100,3 +100,47 @@ Annoto di seguito, uno per punto, le cose che devono essere verificate e trasfor
   slider il 30-10-2026 (docs/plans/2026-10-30-revisione-slider.md), perche' e' il modo piu' costoso (L) e la
   priorita' e' la domotica. Serve per fasce orarie, finestre di temperatura, soglie min/max. Quando lo si prende,
   riusa il componente SVG della fase 2 di quel piano: due cursori, due scritture, e la regola che non si incrocino.
+
+- OpenPLC in tempo reale sul pannello, SENZA root per `user`: provato il 29-10-2026 nel progetto
+  /home/ut1/GitPixsys/openplc (analisi.md §9 e docs/1-install.md «Real-time scheduling"), su un PLX800
+  (plx800-a-p3-l2-a2-07db62, RK3399, PixsysOS 2.1.1, kernel 6.12 PREEMPT_RT, Podman 5.0.2, OpenPLC Runtime
+  v4.2.3). Da tenere a mente FINCHE' chi sviluppa PixsysOS non mette quel setup nell'immagine: allora va
+  solo verificato. Contraddice quello che SWS dice oggi («in rootless il tempo reale non si ha»: HOWTO
+  cap. 28, quadlet `openplc-runtime.container`, piano 2026-10-20-openplc-sul-dispositivo).
+  Il punto: in rootless `CAP_SYS_NICE` dentro il container non conta (il kernel guarda il namespace
+  iniziale); conta il LIMITE. Un processo senza privilegi passa a SCHED_FIFO fino a RLIMIT_RTPRIO e fa
+  `mlockall` fino a RLIMIT_MEMLOCK. Di fabbrica `user` ha rtprio 0 e memlock 8 MB, quindi il runtime logga
+  `sched_setscheduler failed` e gira col tempo normale.
+  Il setup, UNA volta da root (o nell'immagine di PixsysOS), niente sudo a `user`:
+      mkdir -p /etc/systemd/system/user@1000.service.d
+      printf '[Service]\nLimitRTPRIO=99\nLimitMEMLOCK=infinity\n' \
+          > /etc/systemd/system/user@1000.service.d/realtime.conf
+      systemctl daemon-reload && reboot
+  /etc e' persistente su PixsysOS (verificato: dopo il reboot il file c'e').
+  Vale per i servizi del systemd DELL'UTENTE, non per le shell ssh (pam_limits non e' nel PAM di sshd,
+  quindi un limits.d non basterebbe). Conseguenze pratiche:
+  - il container va avviato dal gestore utente (al boot `podman-restart.service`, o un quadlet come il
+    nostro): eredita RTPRIO 99 e MEMLOCK infinito. Un `podman start/restart` scritto in ssh lo avvia
+    SENZA tempo reale;
+  - `systemd-run --user podman restart` NON va: conmon resta nel servizio transitorio, systemd lo uccide
+    alla fine e il container resta bloccato in `stopping` (sbloccato scrivendo 0 in
+    /run/user/1000/libpod/tmp/exits/<id>). Loro hanno risolto con `podman create` + `systemctl --user
+    restart podman-restart.service`;
+  - sul container: `--ulimit rtprio=99 --ulimit memlock=-1` (nel quadlet `Ulimit=rtprio=99`,
+    `Ulimit=memlock=-1`); `--cap-add SYS_NICE SYS_RESOURCE` serve solo in rootful. Un container creato
+    senza --ulimit eredita comunque i limiti da chi lo avvia.
+  Verifica, col PLC in RUN:
+      grep 'realtime priority' /proc/$(podman inspect -f '{{.State.Pid}}' openplc)/limits   # 99
+      podman logs openplc | grep -E 'Scheduler set|SCHED_FIFO priority'
+  Numeri misurati (risvegli a 1 ms per 30 s, con le altre applicazioni accese, load ~5): tempo normale
+  max 4,5 ms di ritardo e 590 risvegli oltre 1 ms; SCHED_FIFO max 120 us, nessuno oltre 1 ms. Il runtime
+  usa FIFO 99 per il dispatcher e la priorita' del TASK IEC per ogni task (1..98); il sistema rinfresca
+  l'I/O a FIFO 80, quindi i task stiano sotto 80. Il kernel non ha CONFIG_RT_GROUP_SCHED: nessun budget
+  RT per cgroup da configurare (sched_rt_runtime_us resta 950000).
+  Due cose da sapere per i pannelli piccoli: `mlockall` blocca ~330 MB di RAM (sul WP630 ce ne sono
+  1979). E dallo stesso progetto, un difetto che vale anche per il nostro quadlet: il PID 1 dell'immagine
+  di OpenPLC IGNORA SIGTERM, quindi `podman stop` uccide il runtime dopo il timeout e le uscite restano
+  congelate all'ultimo stato. Rimedio provato: avviare con
+      bash -c 'set -m; ./start_openplc.sh & trap "kill -INT -- -$!" TERM INT; wait; wait'
+  (nel quadlet `$$!` al posto di `$!`) e `StopTimeout=30`: lo stop diventa un SIGINT al runtime, che
+  ferma il PLC e porta le uscite nello stato sicuro.

@@ -1919,7 +1919,7 @@ sostituendola.
 
 | | |
 |---|---|
-| **Tempo reale** | In rootless `sched_setscheduler` fallisce: il ciclo gira senza priorità realtime. Il rootless è una scelta di disegno del pannello, non un caso |
+| **Tempo reale** | Di fabbrica `sched_setscheduler` fallisce e il ciclo gira senza priorità realtime. Non è il rootless: è il limite RTPRIO di `user`, che è 0. Un drop-in di `user@1000.service` messo una volta da root lo alza, e il container avviato dal systemd dell'utente gira in SCHED_FIFO (provato su un PLX800 il 29-10-2026). Finché PixsysOS non lo mette nell'immagine, i passi sono in `docs/plans/Appunti.txt` |
 | **L'aggiornamento** | È di chi usa OpenPLC: il quadlet non ha `AutoUpdate=`. Il ciclo di conferma e ritorno di SWS è costruito sulle nostre immagini e su una di un altro registry non saprebbe cosa vuol dire «tornare indietro» |
 | **Due server OPC-UA** | Se accendi anche quello di SWS, uno dei due va spostato: sono tutti e due configurabili |
 | **CODESYS** | Sui Pixsys c'è già, e già litiga con SWS per il browser. Due PLC sullo stesso dispositivo è una scelta di prodotto, non tecnica |
