@@ -36,6 +36,7 @@ export const TAG_FIELDS = [
   "pipe_flow_tag",
   "symbol_spin_tag",
   "gauge_sp_tag",
+  "slider_pv_tag",
 ] as const;
 
 function addIf(ids: Set<string>, v: unknown): void {

@@ -104,6 +104,7 @@ const CAMPI_TAG: &[&str] = &[
     "pie_center_tag",
     "pipe_label_tag",
     "y_tag",
+    "slider_pv_tag",
 ];
 
 /// Un id di tag che contiene `{` è un segnaposto di faceplate (`{motore}.stato`),

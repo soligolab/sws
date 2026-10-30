@@ -4322,6 +4322,13 @@ export function ObjectProps({
                 <input type="checkbox" checked={!!obj.slider_snap_ticks}
                   onChange={(e) => onChange({ slider_snap_ticks: e.target.checked || undefined })} />
               )}
+              {/* Fase 5 della revisione: bipolare e valore misurato. */}
+              {field(t("props.origineSlider"), numInput("slider_origin", 0))}
+              {field(t("props.pvSlider"),
+                <TagInput value={obj.slider_pv_tag ?? ""} onChange={(v) => onChange({ slider_pv_tag: v || undefined })}
+                  style={INPUT} placeholder={t("props.pvSliderAiuto")} />
+              )}
+              {obj.slider_pv_tag && field(t("props.colorePv"), colorInput("slider_pv_color"))}
               {field(t("props.bandeSlider"),
                 <select style={{ ...INPUT, cursor: "pointer" }} value={obj.slider_bands ?? "mai"}
                   onChange={(e) => onChange({ slider_bands: e.target.value === "mai" ? undefined : e.target.value as "sempre" | "in_allarme" })}>

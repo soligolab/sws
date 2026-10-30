@@ -138,3 +138,21 @@ describe("lo slider SVG (fase 2)", () => {
     expect([t2.getAttribute("fill"), t2.getAttribute("fill-opacity")]).toEqual(["#334155", "1"]);
   });
 });
+
+describe("bipolare e valore misurato (fase 5)", () => {
+  it("il riempimento parte dall'origine, con la linea", () => {
+    const d = disegna(slider({ min: -50, max: 50, step: 1, slider_origin: 0 }), valore(-25));
+    const ind = d.container.querySelector("[data-slider-indicatore]") as SVGRectElement;
+    // 200 px di traccia: da −25 (x 50) all'origine (x 100).
+    expect([Number(ind.getAttribute("x")), Number(ind.getAttribute("width"))]).toEqual([50, 50]);
+    expect(d.container.querySelector("[data-slider-origine]")).not.toBeNull();
+  });
+
+  it("il PV: il segno sulla traccia e accanto al valore", () => {
+    const obj = slider({ min: 0, max: 100, step: 1, unit: "%", slider_pv_tag: "pv" });
+    const tv = { ...valore(62), pv: { value: 58, quality: "Good", timestamp_ms: 1 } as unknown as TagState };
+    const d = disegna(obj, tv);
+    expect(d.container.querySelector("[data-slider-pv]")).not.toBeNull();
+    expect(d.container.textContent).toContain("62 % · PV 58 %");
+  });
+});

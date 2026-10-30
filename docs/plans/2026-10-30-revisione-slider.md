@@ -182,6 +182,10 @@ rimisurare** i punti che tocca: il codice si muove.
 
 ### Fase 5 — bipolare e valore misurato (S)
 
+> **Scritta il 30-10-2026** sul ramo `feat/slider-fase-5`, annidato. Scelte prese scrivendola: il PV si scrive nel
+> testo del valore, «62 % · PV 58 %», con le stesse unità e decimali; un PV fuori intervallo sta all'estremo; un PV
+> non numerico nasconde il segno e scrive «PV —»; l'origine vale solo se sta dentro l'intervallo.
+
 - `slider_origin`: il riempimento parte dall'origine, con una linea sull'origine.
 - `slider_pv_tag`, `slider_pv_color`: un triangolino sulla traccia, come la lancetta SP del gauge al contrario, e il
   PV accanto al valore.

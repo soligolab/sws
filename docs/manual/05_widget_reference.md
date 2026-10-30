@@ -287,6 +287,8 @@ Cursore per impostare un valore numerico trascinandolo. Lo stesso tag è letto e
 | `slider_tick_labels` | I numeri sotto le tacche marcate (predefinito: sì, se ci sono) |
 | `slider_snap_ticks` | Il cursore si aggancia alla divisione, o alla marcata se c'è solo quella |
 | `slider_bands` | Le bande dei limiti sotto la traccia: `mai` (predefinito), `sempre`, `in_allarme` (solo quando il valore è fuori). I limiti sono `warn_low`, `warn_high`, `alarm_low`, `alarm_high`, o quelli del tag; rosso per gli allarmi, giallo per gli avvisi |
+| `slider_origin` | Slider bipolare: il riempimento parte da qui invece che dal minimo, con una linea sull'origine (−50..50 con origine 0) |
+| `slider_pv_tag`, `slider_pv_color` | Il valore misurato (PV): un triangolino sulla traccia e il valore accanto, «21.5 °C · PV 20.8 °C». Il colore, se manca, è quello del testo della pagina |
 | `bg_color`, `bg_image` | Sfondo dietro tutto il riquadro, come per gli altri oggetti. `bg_image_opacity` (0–100, per tutti gli oggetti) la mette in trasparenza |
 | `require_confirm`, `critical` | Chiede conferma prima di scrivere, come i bottoni. Con `write_on_release: false` la chiede a ogni passo: si usano insieme alla scrittura al rilascio |
 
