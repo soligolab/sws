@@ -1,0 +1,16 @@
+/** Le otto icone della piastra dello slider (fase 3 della revisione,
+ *  30-10-2026). **La fonte è `tests/fixtures/icone-slider.json`**, che legge anche
+ *  il pannello LVGL: questa è la sua copia per il web, e `tests/sliderIcone.test.ts`
+ *  pretende che siano uguali. SVG 24×24 a tratto, in `currentColor`. */
+export const ICONE_SLIDER: Record<string, string> = {
+  lampadina: "<path d='M9 18h6M10 21h4'/><path d='M12 3a6 6 0 0 0-3.5 10.9c.6.5 1 1.2 1 2.1h5c0-.9.4-1.6 1-2.1A6 6 0 0 0 12 3z'/>",
+  tapparella: "<rect x='4' y='3' width='16' height='18' rx='1'/><path d='M4 7h16M4 11h16M4 15h16'/>",
+  termometro: "<path d='M14 14.8V5a2 2 0 0 0-4 0v9.8a4 4 0 1 0 4 0z'/><path d='M12 9v7'/>",
+  ventola: "<circle cx='12' cy='12' r='2'/><path d='M12 10c0-4 1-7 4-7s2 5-2 7M14 12c4 0 7 1 7 4s-5 2-7-2M12 14c0 4-1 7-4 7s-2-5 2-7M10 12c-4 0-7-1-7-4s5-2 7 2'/>",
+  presa: "<rect x='3' y='3' width='18' height='18' rx='4'/><circle cx='12' cy='12' r='5'/><path d='M10 12h.01M14 12h.01'/>",
+  volume: "<path d='M4 9h4l5-4v14l-5-4H4z'/><path d='M16 9a4 4 0 0 1 0 6M19 6a8 8 0 0 1 0 12'/>",
+  goccia: "<path d='M12 3s-6 7-6 11a6 6 0 0 0 12 0c0-4-6-11-6-11z'/>",
+  sole: "<circle cx='12' cy='12' r='4'/><path d='M12 2v2M12 20v2M2 12h2M20 12h2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4'/>",
+};
+
+export const NOMI_ICONE_SLIDER = Object.keys(ICONE_SLIDER);

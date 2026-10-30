@@ -477,6 +477,16 @@ export interface SynopticObject {
   /** Slider: dove sta il valore. `cursore` = un fumetto sopra il cursore
    *  mentre lo si trascina. Assente = `sotto`. */
   slider_value_position?: "sotto" | "sopra" | "dentro" | "cursore";
+  /** Slider (fase 3): lo stile. Assente = `classico`. `piastra` è la traccia
+   *  grande quanto il riquadro, da domotica, con icona, etichetta e valore dentro. */
+  slider_style?: "classico" | "pillola" | "piastra" | "isa";
+  /** Slider, stile piastra: una delle otto icone (`tests/fixtures/icone-slider.json`). */
+  slider_icon?: string;
+  /** Slider: l'opacità della parte vuota della traccia, 0-100 (predefinito 100). */
+  slider_track_opacity?: number;
+  /** Universale (fase 3 dello slider): l'opacità di `bg_image`, 0-100
+   *  (predefinito 100). Lascia vedere l'immagine in trasparenza dietro l'oggetto. */
+  bg_image_opacity?: number;
   // Alarm / warning thresholds
   warn_low?: number;
   warn_high?: number;

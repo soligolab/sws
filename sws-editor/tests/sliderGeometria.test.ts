@@ -48,3 +48,23 @@ describe("geometria dello slider", () => {
     expect(valoreDaTasto("a", 3, 0, 10)).toBeNull();
   });
 });
+
+describe("gli stili (fase 3)", () => {
+  it("gli stessi numeri del pannello", () => {
+    // Gli stessi casi di `gli_stili_dello_slider_come_sul_web` in lvgl_render.rs.
+    const pillola = geometriaSlider({ verticale: false, w: 200, h: 60, altoEtichetta: 0, altoValore: 18, stile: "pillola" });
+    expect([pillola.traccia.h, pillola.raggioCursore]).toEqual([28, 11]);
+    const isa = geometriaSlider({ verticale: false, w: 200, h: 50, altoEtichetta: 0, altoValore: 18, stile: "isa" });
+    expect([isa.traccia.h, isa.cursore, isa.raggioTraccia]).toEqual([6, { w: 10, h: 20 }, 1]);
+    expect(geometriaSlider({ verticale: true, w: 50, h: 200, altoEtichetta: 0, altoValore: 18, stile: "isa" }).cursore)
+      .toEqual({ w: 20, h: 10 });
+    const piastra = geometriaSlider({ verticale: false, w: 240, h: 64, altoEtichetta: 18, altoValore: 18, stile: "piastra", conIcona: true });
+    expect([piastra.traccia, piastra.cursore, piastra.raggioTraccia]).toEqual([{ x: 0, y: 0, w: 240, h: 64 }, { w: 0, h: 0 }, 12]);
+    expect(piastra.icona).toEqual({ cx: 26, cy: 32, lato: 28 });
+    expect(piastra.allinea).toBe("start");
+    expect([piastra.etichetta, piastra.valore]).toEqual([{ cx: 50, cy: 23 }, { cx: 50, cy: 41 }]);
+    const tapparella = geometriaSlider({ verticale: true, w: 80, h: 200, altoEtichetta: 18, altoValore: 18, stile: "piastra", conIcona: true });
+    expect(tapparella.icona).toEqual({ cx: 40, cy: 26, lato: 28 });
+    expect(tapparella.valore).toEqual({ cx: 40, cy: 179 });
+  });
+});

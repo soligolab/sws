@@ -87,6 +87,14 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
   segue il cursore anche su LVGL). LVGL: colori di traccia, indicatore e cursore nostri e non del tema, raggio pieno,
   `pad` del cursore 5.
 
+- **Lo slider, fase 3: pillola, piastra, ISA-101, e l'immagine in trasparenza.** `slider_style` con l'aspetto di
+  ogni stile in un posto solo per motore (`aspettoStile` in `geometria.ts`, `aspetto_stile` in `lvgl_render.rs`:
+  spessore, cursore, `pad` lungo l'asse e di traverso, raggio, posizione del valore). La piastra è la traccia grande
+  quanto il riquadro, senza cursore, con icona, etichetta e valore dentro (a sinistra in orizzontale, in colonna in
+  verticale). `slider_icon`: otto icone in `tests/fixtures/icone-slider.json`, copiate per il web e rasterizzate una
+  volta con resvg sul pannello. `slider_track_opacity` e, per tutti gli oggetti, `bg_image_opacity` (web: l'immagine
+  del `bgLayer`; LVGL: il canvas di `sfondo_del_rect`).
+
 ### Fixed
 
 - **Lo slider, fase 1 della revisione** (piano `docs/plans/2026-10-30-revisione-slider.md`): i difetti misurati il

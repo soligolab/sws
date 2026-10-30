@@ -9,6 +9,38 @@
  *  Tutte le coordinate sono relative all'angolo del riquadro dichiarato. */
 
 export type PosizioneValore = "sotto" | "sopra" | "dentro" | "cursore";
+export type StileSlider = "classico" | "pillola" | "piastra" | "isa";
+
+/** Come è fatto uno stile (fase 3, 30-10-2026). Gemella di `aspetto_stile` in
+ *  `lvgl_render.rs`: i `pad` sono quelli della parte `KNOB` di LVGL, cioè di
+ *  quanto il cursore sborda dalla traccia lungo l'asse e di traverso (negativi =
+ *  rientra). */
+export interface AspettoStile {
+  /** Spessore predefinito della traccia; 0 = tutto il riquadro (piastra). */
+  spessore: number;
+  cursore: "tondo" | "dentro" | "rettangolo" | "nessuno";
+  padAsse: number;
+  padTraverso: number;
+  /** Raggio della traccia: `null` = pieno (metà dello spessore). */
+  raggioTraccia: number | null;
+  posizione: PosizioneValore;
+}
+
+export function aspettoStile(stile: StileSlider | undefined): AspettoStile {
+  switch (stile) {
+    case "pillola": return { spessore: 28, cursore: "dentro", padAsse: -3, padTraverso: -3, raggioTraccia: null, posizione: "sotto" };
+    case "piastra": return { spessore: 0, cursore: "nessuno", padAsse: 0, padTraverso: 0, raggioTraccia: 12, posizione: "dentro" };
+    case "isa": return { spessore: 6, cursore: "rettangolo", padAsse: 2, padTraverso: 7, raggioTraccia: 1, posizione: "sotto" };
+    default: return { spessore: 16, cursore: "tondo", padAsse: 5, padTraverso: 5, raggioTraccia: null, posizione: "sotto" };
+  }
+}
+
+/** I colori fissi dello stile ISA-101: niente colori accesi (decisione 4). */
+export const COLORI_ISA = { traccia: "#64748b", indicatore: "#94a3b8", cursore: "#cbd5e1", bordo: "#334155" };
+/** Il cursore bianco della pillola, dentro la traccia. */
+export const CURSORE_PILLOLA = "#ffffff";
+/** Il margine interno della piastra. */
+const MARGINE_PIASTRA = 12;
 
 /** Lo spessore della traccia dello stile classico: quello del pannello LVGL di
  *  sempre, ora anche sul web (decisione 3 del piano). */
@@ -24,7 +56,15 @@ export interface Rett { x: number; y: number; w: number; h: number }
 export interface GeometriaSlider {
   verticale: boolean;
   traccia: Rett;
+  raggioTraccia: number;
+  /** Il cursore tondo (classico e pillola), il raggio. */
   raggioCursore: number;
+  /** Il cursore come rettangolo: larghezza e altezza (0×0 = nessuno). */
+  cursore: { w: number; h: number };
+  /** L'icona della piastra, se c'è. */
+  icona: { cx: number; cy: number; lato: number } | null;
+  /** Come si allineano i testi: al centro, o a sinistra (piastra orizzontale). */
+  allinea: "middle" | "start";
   /** Il centro della riga dell'etichetta, se c'è. */
   etichetta: { cx: number; cy: number } | null;
   /** Il centro della riga del valore: sotto, sopra o dentro la traccia. Per
@@ -42,14 +82,32 @@ export interface IngressoGeometria {
   altoValore: number;
   spessore?: number;
   posizione?: PosizioneValore;
+  stile?: StileSlider;
+  conIcona?: boolean;
+}
+
+/** Il cursore di uno stile, per una traccia spessa `t`. */
+function cursoreDi(a: AspettoStile, t: number, verticale: boolean) {
+  if (a.cursore === "nessuno") return { raggio: 0, w: 0, h: 0 };
+  const lungoAsse = t + 2 * a.padAsse;
+  const traverso = t + 2 * a.padTraverso;
+  return {
+    raggio: (t + 2 * a.padTraverso) / 2,
+    w: verticale ? traverso : lungoAsse,
+    h: verticale ? lungoAsse : traverso,
+  };
 }
 
 export function geometriaSlider(i: IngressoGeometria): GeometriaSlider {
-  const posizione = i.posizione ?? "sotto";
+  const a = aspettoStile(i.stile);
+  if (i.stile === "piastra") return geometriaPiastra(i, a);
+  const posizione = i.posizione ?? a.posizione;
+  const spessorePredefinito = a.spessore;
   // Il valore occupa una riga sua solo sotto o sopra la traccia.
   const rigaValore = posizione === "sotto" || posizione === "sopra" ? i.altoValore : 0;
   if (i.verticale) {
-    const t = Math.min(i.spessore ?? SPESSORE_CLASSICO, i.w);
+    const t = Math.min(i.spessore ?? spessorePredefinito, i.w);
+    const k = cursoreDi(a, t, true);
     const sopra = posizione === "sopra" ? rigaValore : 0;
     const sotto = posizione === "sotto" ? rigaValore : 0;
     const lunghezza = Math.max(24, i.h - i.altoEtichetta - rigaValore - 8);
@@ -57,7 +115,11 @@ export function geometriaSlider(i: IngressoGeometria): GeometriaSlider {
     return {
       verticale: true,
       traccia,
-      raggioCursore: t / 2 + SBORDO_CURSORE,
+      raggioTraccia: a.raggioTraccia ?? t / 2,
+      raggioCursore: k.raggio,
+      cursore: { w: k.w, h: k.h },
+      icona: null,
+      allinea: "middle",
       etichetta: i.altoEtichetta > 0 ? { cx: i.w / 2, cy: i.altoEtichetta / 2 } : null,
       valore:
         posizione === "cursore" || i.altoValore === 0 ? null
@@ -68,7 +130,8 @@ export function geometriaSlider(i: IngressoGeometria): GeometriaSlider {
   }
   // Orizzontale: la colonna del web di prima — etichetta, (valore), traccia,
   // (valore) — centrata nell'altezza, anche quando sborda.
-  const t = Math.min(i.spessore ?? SPESSORE_CLASSICO, i.h);
+  const t = Math.min(i.spessore ?? spessorePredefinito, i.h);
+  const k = cursoreDi(a, t, false);
   const righe: [string, number][] = [];
   if (i.altoEtichetta > 0) righe.push(["etichetta", i.altoEtichetta]);
   if (posizione === "sopra" && rigaValore > 0) righe.push(["valore", rigaValore]);
@@ -86,13 +149,56 @@ export function geometriaSlider(i: IngressoGeometria): GeometriaSlider {
   return {
     verticale: false,
     traccia,
-    raggioCursore: t / 2 + SBORDO_CURSORE,
+    raggioTraccia: a.raggioTraccia ?? t / 2,
+    raggioCursore: k.raggio,
+    cursore: { w: k.w, h: k.h },
+    icona: null,
+    allinea: "middle",
     etichetta: centri.etichetta !== undefined ? { cx: i.w / 2, cy: centri.etichetta } : null,
     valore:
       posizione === "cursore" || i.altoValore === 0 ? null
       : posizione === "dentro" ? { cx: i.w / 2, cy: yTraccia + t / 2 }
       : centri.valore !== undefined ? { cx: i.w / 2, cy: centri.valore } : null,
   };
+}
+
+/** La piastra: la traccia è tutto il riquadro, niente cursore, e dentro
+ *  icona, etichetta e valore. Orizzontale: l'icona a sinistra, i due testi in
+ *  colonna accanto, allineati a sinistra. Verticale (una tapparella): l'icona in
+ *  alto, l'etichetta sotto, il valore in fondo, tutti centrati. */
+function geometriaPiastra(i: IngressoGeometria, a: AspettoStile): GeometriaSlider {
+  const m = MARGINE_PIASTRA;
+  const traccia = { x: 0, y: 0, w: i.w, h: i.h };
+  const comune = { traccia, raggioTraccia: Math.min(a.raggioTraccia ?? 12, i.w / 2, i.h / 2), raggioCursore: 0, cursore: { w: 0, h: 0 } };
+  const conValore = i.altoValore > 0 && i.posizione !== "cursore";
+  if (i.verticale) {
+    const lato = i.conIcona ? Math.min(28, i.w - 2 * m) : 0;
+    return {
+      ...comune,
+      verticale: true,
+      icona: lato > 0 ? { cx: i.w / 2, cy: m + lato / 2, lato } : null,
+      allinea: "middle",
+      etichetta: centro(i.altoEtichetta > 0, i.w / 2, m + lato + (lato > 0 ? 8 : 0) + i.altoEtichetta / 2),
+      valore: centro(conValore, i.w / 2, i.h - m - i.altoValore / 2),
+    };
+  }
+  const lato = i.conIcona ? Math.min(28, i.h - 16) : 0;
+  const xTesto = m + (lato > 0 ? lato + 10 : 0);
+  const righe = i.altoEtichetta + (conValore ? i.altoValore : 0);
+  const cima = (i.h - righe) / 2;
+  return {
+    ...comune,
+    verticale: false,
+    icona: lato > 0 ? { cx: m + lato / 2, cy: i.h / 2, lato } : null,
+    allinea: "start",
+    etichetta: centro(i.altoEtichetta > 0, xTesto, cima + i.altoEtichetta / 2),
+    valore: centro(conValore, xTesto, cima + i.altoEtichetta + i.altoValore / 2),
+  };
+}
+
+/** Un centro, o nessuno se il pezzo non c'è. */
+function centro(c: boolean, cx: number, cy: number): { cx: number; cy: number } | null {
+  return c ? { cx, cy } : null;
 }
 
 const limita = (f: number) => (Number.isFinite(f) ? Math.min(1, Math.max(0, f)) : 0);

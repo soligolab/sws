@@ -49,6 +49,8 @@ versioni:
         en: "IDE: project images (backgrounds, images in objects) show on the canvas again in a locally installed IDE too."
       - it: "Nel tema chiaro il logo SWS si legge: la scritta non è più bianca su fondo bianco."
         en: "In the light theme the SWS logo is readable: the text is no longer white on white."
+      - it: "Slider: quattro stili — classico, pillola, piastra con icona (per luci e tapparelle) e ISA-101 — e l'immagine di sfondo di ogni oggetto si può rendere trasparente."
+        en: "Slider: four styles — classic, pill, tile with an icon (for lights and shutters) and ISA-101 — and every object's background image can be made transparent."
       - it: "Slider ridisegnato: lo stesso aspetto sul web e sul pannello, si muove col dito e con la tastiera; si scelgono colore e spessore della traccia e dove mostrare il valore."
         en: "Slider redrawn: the same look on the web and on the panel, moved by finger or keyboard; choose track colour and thickness and where the value shows."
       - it: "Slider: sul pannello funziona anche con passi decimali (0..1 a 0,05), rispetta sola lettura, scrittura al rilascio e conferma; il valore sta sotto la traccia come sul web."

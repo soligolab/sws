@@ -216,6 +216,16 @@ pub struct SynopticObject {
     pub slider_track_thickness: Option<f64>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub slider_value_position: Option<String>,
+    /// Slider (fase 3): lo stile, l'icona della piastra, l'opacità della traccia vuota.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub slider_style: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub slider_icon: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub slider_track_opacity: Option<f64>,
+    /// Universale: l'opacità di `bg_image`, 0-100.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub bg_image_opacity: Option<f64>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub checked_value: Option<Value>,
     #[serde(skip_serializing_if = "Option::is_none")]

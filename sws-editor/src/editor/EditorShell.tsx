@@ -48,6 +48,8 @@ import type { SimboloLib } from "@/symbols/lib/manifest";
 import { angoliLeva, trovaSimboloLib, useManifestoLib, useSimboloLib } from "@/symbols/lib/libreria";
 import { AnteprimaLib } from "@/symbols/lib/AnteprimaLib";
 import { CONTORNO_DISEGNO, useStileProgetto } from "@/symbols/stileProgetto";
+import { NOMI_ICONE_SLIDER } from "@/canvas/slider/icone";
+import { aspettoStile } from "@/canvas/slider/geometria";
 import { useAppStore } from "@/store";
 import { coloreAuto, estraiHex, predefinito, regola, coloreDaProgetto, daProgetto } from "@/coloriPredefiniti";
 import { oggettoNuovo } from "./oggettiNuovi";
@@ -3762,6 +3764,9 @@ export function ObjectProps({
                 </select>
               </div>
             )}
+            {/* Fase 3 dello slider (30-10-2026), ma per tutti: l'immagine in
+                trasparenza. Solo quando un'immagine c'è. */}
+            {obj.bg_image && field(t("props.bgImageOpacity"), numInput("bg_image_opacity", 100))}
           </>
         )}
       </CollapsibleSection>
@@ -4242,11 +4247,28 @@ export function ObjectProps({
               {field(t("props.color"), <BindableInput obj={obj} propName="fill" onChange={onChange}>{colorInput("fill")}</BindableInput>)}
               {/* Fase 2 della revisione (30-10-2026): la traccia vuota (vuota =
                   il colore qui sopra al 20 %), il suo spessore, dove sta il valore. */}
+              {field(t("props.sliderStyle"),
+                <select style={{ ...INPUT, cursor: "pointer" }} value={obj.slider_style ?? "classico"}
+                  onChange={(e) => onChange({ slider_style: e.target.value === "classico" ? undefined : e.target.value as "pillola" | "piastra" | "isa" })}>
+                  <option value="classico">{t("props.stileClassico")}</option>
+                  <option value="pillola">{t("props.stilePillola")}</option>
+                  <option value="piastra">{t("props.stilePiastra")}</option>
+                  <option value="isa">{t("props.stileIsa")}</option>
+                </select>
+              )}
+              {obj.slider_style === "piastra" && field(t("props.sliderIcon"),
+                <select style={{ ...INPUT, cursor: "pointer" }} value={obj.slider_icon ?? ""}
+                  onChange={(e) => onChange({ slider_icon: e.target.value || undefined })}>
+                  <option value="">{t("props.nessunaIcona")}</option>
+                  {NOMI_ICONE_SLIDER.map((n) => <option key={n} value={n}>{t(`props.icona_${n}`)}</option>)}
+                </select>
+              )}
               {field(t("props.sliderTrackColor"), colorInput("slider_track_color"))}
+              {field(t("props.sliderTrackOpacity"), numInput("slider_track_opacity", 100))}
               {field(t("props.sliderTrackThickness"), numInput("slider_track_thickness", 16))}
               {field(t("props.sliderValuePosition"),
-                <select style={{ ...INPUT, cursor: "pointer" }} value={obj.slider_value_position ?? "sotto"}
-                  onChange={(e) => onChange({ slider_value_position: e.target.value === "sotto" ? undefined : e.target.value as "sopra" | "dentro" | "cursore" })}>
+                <select style={{ ...INPUT, cursor: "pointer" }} value={obj.slider_value_position ?? aspettoStile(obj.slider_style).posizione}
+                  onChange={(e) => onChange({ slider_value_position: e.target.value === aspettoStile(obj.slider_style).posizione ? undefined : e.target.value as "sotto" | "sopra" | "dentro" | "cursore" })}>
                   <option value="sotto">{t("props.posizioneSotto")}</option>
                   <option value="sopra">{t("props.posizioneSopra")}</option>
                   <option value="dentro">{t("props.posizioneDentro")}</option>
