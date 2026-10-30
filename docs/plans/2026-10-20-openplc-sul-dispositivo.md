@@ -221,7 +221,12 @@ in fondo.
 3. **Lo stop lascia le uscite congelate**: il PID 1 dell'immagine di OpenPLC ignora SIGTERM (trovato nel progetto
    GitPixsys/openplc; dettagli e rimedio provato in `Appunti.txt`). Nel nostro quadlet: `Exec=` con la trappola che
    trasforma lo stop in SIGINT, e `StopTimeout=30`.
-4. Intestazione di `install-container.sh`: la riga di `--con-openplc` è finita in mezzo a quella di `--solo-unita`.
+4. **Il container non parte affatto** (visto sul WP630 il 30-10-2026, in ciclo di riavvio ogni 5 s):
+   `Volume=/data/user/openplc:/workdir` copre la `/workdir` dell'immagine con una cartella vuota, e
+   `./start_openplc.sh`, che sta lì, non c'è più (exit 127). Il progetto GitPixsys/openplc monta invece i dati su
+   `/var/run/runtime` e un solo file in `/workdir` (`plugins.conf`, in sola lettura). Da verificare insieme: lì il
+   programma caricato **si perde se il container si ricrea**, e il nostro quadlet lo ricrea a ogni avvio (`--rm`).
+5. Intestazione di `install-container.sh`: la riga di `--con-openplc` è finita in mezzo a quella di `--solo-unita`.
 
 **Richiesta del maintainer (30-10-2026)**: l'installazione di OpenPLC deve essere un'opzione in **due** posti:
 - **dall'IDE, su un pannello che ha già SWS**. Oggi si fa solo a mano, via SSH, con `--con-openplc`;
