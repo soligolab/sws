@@ -138,6 +138,18 @@ pub struct RenderSummary {
 /// stesso principio degli `Style` altrove in questo file.
 #[allow(dead_code)]
 pub enum LiveKind {
+    /// Il segno del valore misurato di uno slider (fase 5): si sposta lungo la
+    /// traccia col suo tag.
+    SegnoPv {
+        ptr: core::ptr::NonNull<lvgl_sys::lv_obj_t>,
+        tag: String,
+        min: f64,
+        max: f64,
+        /// L'angolo del riquadro dello slider.
+        origine: (f64, f64),
+        verticale: bool,
+        traccia: (f64, f64, f64, f64),
+    },
     /// Le bande dei limiti di uno slider con `slider_bands: in_allarme`: si
     /// mostrano solo quando il valore è fuori dai limiti (fase 4, 30-10-2026).
     BandeSlider {
@@ -303,6 +315,12 @@ pub enum LiveKind {
         unit: String,
         /// `Some` per lo slider, che va in passi (`passi_slider`).
         passo: Option<Option<f64>>,
+        /// Lo spostamento dei passi di uno slider bipolare (fase 5): l'indice
+        /// sulla traccia è `lv_bar_get_value + scarto`.
+        scarto: i32,
+        /// Il valore misurato (fase 5): il tag e l'ultimo valore, che legge anche
+        /// la callback del trascinamento per scrivere «62 % · PV 58 %».
+        pv: Option<(String, Rc<std::cell::Cell<Option<f64>>>)>,
     },
     /// Solo lo stato checked/unchecked cambia dal vivo,
     /// `lv_obj_add_state`/`clear_state` con `LV_STATE_CHECKED`.
@@ -1136,6 +1154,10 @@ struct SliderCtx {
     min: f64,
     passo: Option<f64>,
     passi: i32,
+    /// Lo spostamento dei passi di uno slider bipolare (fase 5).
+    scarto: i32,
+    /// L'ultimo PV, per il testo durante il trascinamento.
+    pv: Option<Rc<std::cell::Cell<Option<f64>>>>,
     al_rilascio: bool,
     deadband: Option<f64>,
     ultimo_scritto: std::cell::Cell<Option<f64>>,
@@ -1178,7 +1200,7 @@ impl Fumetto {
 
 impl SliderCtx {
     fn valore(&self, target: *mut lvgl_sys::lv_obj_t) -> TagValue {
-        let i = unsafe { lvgl_sys::lv_bar_get_value(target) }.clamp(0, self.passi);
+        let i = (unsafe { lvgl_sys::lv_bar_get_value(target) } + self.scarto).clamp(0, self.passi);
         valore_slider(i, self.min, self.passo)
     }
 
@@ -1240,11 +1262,11 @@ unsafe extern "C" fn sws_slider_changed_cb(e: *mut lvgl_sys::lv_event_t) {
     let valore = ctx.valore(target);
     if let Some((p, decimali, unita)) = &ctx.etichetta {
         let v = tag_value_as_f64(&valore);
-        let d = *decimali as usize;
-        unsafe { lvgl_sys::lv_label_set_text(p.as_ptr(), text_cstring(&format!("{v:.d$}{unita}")).as_ptr()) };
+        let testo = testo_valore_slider(v, *decimali, unita, ctx.pv.as_ref().map(|c| c.get()));
+        unsafe { lvgl_sys::lv_label_set_text(p.as_ptr(), text_cstring(&testo).as_ptr()) };
     }
     if let Some(f) = &ctx.fumetto {
-        let i = unsafe { lvgl_sys::lv_bar_get_value(target) };
+        let i = unsafe { lvgl_sys::lv_bar_get_value(target) } + ctx.scarto;
         f.segui(i as f64 / ctx.passi.max(1) as f64);
     }
     if !ctx.al_rilascio {
@@ -4996,6 +5018,29 @@ pub(crate) fn passo_effettivo(step: Option<f64>, aggancia: bool, maggiore: Optio
     minore.filter(|m| *m > 0.0).or(maggiore.filter(|m| *m > 0.0)).or(step)
 }
 
+/// Il testo del valore, col PV accanto se c'è: «62 % · PV 58 %», come il web.
+/// `pv`: `None` = nessun PV; `Some(None)` = PV non numerico.
+pub(crate) fn testo_valore_slider(v: f64, decimali: u8, unita: &str, pv: Option<Option<f64>>) -> String {
+    let d = decimali as usize;
+    match pv {
+        None => format!("{v:.d$}{unita}"),
+        Some(None) => format!("{v:.d$}{unita} · PV —"),
+        Some(Some(p)) => format!("{v:.d$}{unita} · PV {p:.d$}{unita}"),
+    }
+}
+
+/// Il triangolino del PV, gemello di `puntiPv` in `geometria.ts`: sopra la
+/// traccia con la punta in giù, o a sinistra con la punta a destra nel verticale.
+/// Restituisce l'angolo in alto a sinistra del suo riquadro 10×7 (o 7×10).
+pub(crate) fn angolo_pv(verticale: bool, traccia: (f64, f64, f64, f64), f: f64) -> (f64, f64) {
+    let (tx, ty, tw, th) = traccia;
+    if verticale {
+        (tx - 9.0, ty + th * (1.0 - f) - 5.0)
+    } else {
+        (tx + tw * f - 5.0, ty - 9.0)
+    }
+}
+
 /// I passi di uno slider: la traccia LVGL va da 0 a N, e il valore è
 /// `min + i·step`. `lv_bar` conosce solo interi, e prima riceveva `min` e `max`
 /// arrotondati: uno slider 0..1 col passo 0,05 aveva due posizioni. Per
@@ -5293,14 +5338,76 @@ fn render_slider(
     } else {
         init_bar_like(screen, ptr, obj, tags, false, valore_in, Some(passo))?
     };
-    let LiveKind::BarLike { min, max, value_ptr, decimals, ref unit, .. } = binding.kind else {
+    let LiveKind::BarLike { min, max, value_ptr, decimals, ref unit, scarto, ref pv, .. } = binding.kind else {
         unreachable!("init_bar_like dà sempre un BarLike")
     };
     let unita = unit.clone();
+    let pv_cella = pv.as_ref().map(|(_, c)| Rc::clone(c));
     live.push(binding);
+    // Fase 5: la linea sull'origine di uno slider bipolare, e il segno del PV.
+    if let Some(o) = obj.slider_origin.filter(|o| *o > min && *o < max) {
+        let fo = (o - min) / (max - min);
+        let mut l = create_child_obj(screen)?;
+        let (lx, ly, lw, lh) = if verticale {
+            (x0 + gx - 3.0, y0 + gy + gh * (1.0 - fo) - 1.0, gw + 6.0, 2.0)
+        } else {
+            (x0 + gx + gw * fo - 1.0, y0 + gy - 3.0, 2.0, gh + 6.0)
+        };
+        l.set_pos(lx.round() as i16, ly.round() as i16).map_err(|e| anyhow::anyhow!("set_pos origine: {e:?}"))?;
+        l.set_size(lw.round() as i16, lh.round() as i16).map_err(|e| anyhow::anyhow!("set_size origine: {e:?}"))?;
+        let p = l.raw().map_err(|e| anyhow::anyhow!("raw: {e:?}"))?;
+        unsafe {
+            stile::sfondo(p.as_ptr(), colori_predefiniti::testo_pagina().unwrap_or((0xe2, 0xe8, 0xf0)), stile::MAIN);
+            lvgl_sys::lv_obj_set_style_bg_opa(p.as_ptr(), 153, stile::MAIN);
+            stile::bordo(p.as_ptr(), None, 0.0, stile::MAIN);
+            stile::raggio(p.as_ptr(), 0.0, stile::MAIN);
+            lvgl_sys::lv_obj_clear_flag(p.as_ptr(), lvgl_sys::LV_OBJ_FLAG_CLICKABLE | lvgl_sys::LV_OBJ_FLAG_SCROLLABLE);
+        }
+    }
+    if let Some(pv_tag) = obj.slider_pv_tag.as_deref().filter(|t| !t.is_empty()) {
+        let colore = obj.slider_pv_color.as_deref().and_then(parse_hex_color)
+            .or_else(colori_predefiniti::testo_pagina)
+            .unwrap_or((0xe2, 0xe8, 0xf0));
+        let hex = format!("#{:02x}{:02x}{:02x}", colore.0, colore.1, colore.2);
+        let (iw, ih, punti) = if verticale { (7, 10, "0,0 0,10 7,5") } else { (10, 7, "0,0 10,0 5,7") };
+        let doc = format!("<svg xmlns='http://www.w3.org/2000/svg' width='{iw}' height='{ih}'><polygon points='{punti}' fill='{hex}'/></svg>");
+        let pv0 = lookup(tags, &Some(pv_tag.to_string())).map(|t| tag_value_as_f64(&t.value)).filter(|v| v.is_finite());
+        let f = pv0.map(|v| ((v - min) / (max - min)).clamp(0.0, 1.0)).unwrap_or(0.0);
+        let (ax, ay) = angolo_pv(verticale, g.traccia, f);
+        let b = disegna_svg_byte(
+            screen, (x0 + ax).round() as i16, (y0 + ay).round() as i16, iw, ih, doc.as_bytes(), false, false,
+            crate::svg_raster::MAX_SIDE,
+        )?;
+        live.push(b);
+        let segno = unsafe {
+            let padre = screen.raw().map_err(|e| anyhow::anyhow!("raw: {e:?}"))?;
+            core::ptr::NonNull::new(lvgl_sys::lv_obj_get_child(padre.as_ptr(), -1))
+        };
+        if let Some(segno) = segno {
+            if pv0.is_none() {
+                unsafe { lvgl_sys::lv_obj_add_flag(segno.as_ptr(), lvgl_sys::LV_OBJ_FLAG_HIDDEN) };
+            }
+            live.push(LiveBinding {
+                kind: LiveKind::SegnoPv {
+                    ptr: segno,
+                    tag: pv_tag.to_string(),
+                    min,
+                    max,
+                    origine: (x0, y0),
+                    verticale,
+                    traccia: g.traccia,
+                },
+            });
+        }
+    }
     if let (true, Some(vp)) = (stile == "piastra", value_ptr) {
         unsafe {
             if g.a_sinistra {
+                // A sinistra non si allarga: si torna al punto e alla larghezza della piastra.
+                if let Some((cx, _)) = g.valore {
+                    lvgl_sys::lv_obj_set_x(vp.as_ptr(), (x0 + cx).round() as lvgl_sys::lv_coord_t);
+                    lvgl_sys::lv_obj_set_width(vp.as_ptr(), (box_w - cx - 12.0).max(10.0).round() as lvgl_sys::lv_coord_t);
+                }
                 lvgl_sys::lv_obj_set_style_text_align(vp.as_ptr(), lvgl_sys::LV_TEXT_ALIGN_LEFT as lvgl_sys::lv_text_align_t, 0);
             }
             stile::font_grassetto(vp.as_ptr(), corpo_valore as u16, stile::MAIN);
@@ -5366,6 +5473,8 @@ fn render_slider(
         in_attesa: RefCell::new(None),
         etichetta: value_ptr.map(|p| (p, decimals, unita)),
         fumetto,
+        scarto,
+        pv: pv_cella,
     });
     unsafe {
         // Il valore sotto la traccia segue il dito anche quando si scrive solo
@@ -5457,12 +5566,22 @@ fn init_bar_like(
         .map(|t| tag_value_as_f64(&t.value))
         .unwrap_or(min)
         .clamp(min.min(max), min.max(max));
+    // Fase 5: l'origine di uno slider bipolare. `lv_bar` in modo simmetrico
+    // riempie dallo zero del suo intervallo: si sposta l'intervallo in passi in
+    // modo che lo zero cada sull'origine, `(−io, N − io)`.
+    let scarto = match (passo, obj.slider_origin) {
+        (Some(step), Some(o)) if o > min && o < max => indice_slider(o, min, step, passi_slider(min, max, step)),
+        _ => 0,
+    };
     unsafe {
         match passo {
             Some(step) => {
                 let n = passi_slider(min, max, step);
-                lvgl_sys::lv_bar_set_range(ptr.as_ptr(), 0, n);
-                lvgl_sys::lv_bar_set_value(ptr.as_ptr(), indice_slider(raw, min, step, n), lvgl::Animation::OFF.into());
+                if scarto != 0 {
+                    lvgl_sys::lv_bar_set_mode(ptr.as_ptr(), lvgl_sys::LV_BAR_MODE_SYMMETRICAL as lvgl_sys::lv_bar_mode_t);
+                }
+                lvgl_sys::lv_bar_set_range(ptr.as_ptr(), -scarto, n - scarto);
+                lvgl_sys::lv_bar_set_value(ptr.as_ptr(), indice_slider(raw, min, step, n) - scarto, lvgl::Animation::OFF.into());
             }
             None => {
                 lvgl_sys::lv_bar_set_range(ptr.as_ptr(), min.round() as i32, max.round() as i32);
@@ -5518,8 +5637,13 @@ fn init_bar_like(
             // il valore cambia a ogni movimento e con la larghezza del testo
             // cambierebbe anche il suo scostamento.
             if let Some((_, _, w)) = valore_in {
+                // Almeno 240 px, allargati in egual misura dai due lati: il centro
+                // non cambia, e un testo lungo («62 % · PV 58 %») su uno slider
+                // stretto non va a capo — sul web sborda, qui farebbe due righe.
+                let largo = w.max(240.0);
                 unsafe {
-                    lvgl_sys::lv_obj_set_width(p.as_ptr(), w.round() as lvgl_sys::lv_coord_t);
+                    lvgl_sys::lv_obj_set_x(p.as_ptr(), (vx - (largo - w) / 2.0).round() as lvgl_sys::lv_coord_t);
+                    lvgl_sys::lv_obj_set_width(p.as_ptr(), largo.round() as lvgl_sys::lv_coord_t);
                     lvgl_sys::lv_obj_set_style_text_align(
                         p.as_ptr(),
                         lvgl_sys::LV_TEXT_ALIGN_CENTER as lvgl_sys::lv_text_align_t,
@@ -5542,6 +5666,8 @@ fn init_bar_like(
             unit,
             max,
             passo,
+            scarto,
+            pv: obj.slider_pv_tag.clone().filter(|t| !t.is_empty()).map(|t| (t, Rc::new(std::cell::Cell::new(None)))),
         },
     })
 }
@@ -13915,6 +14041,24 @@ pub fn update_bindings(
             // Trattato dal giro dedicato in testa a `update_bindings`.
             LiveKind::SfondoPagina { .. } => {}
             LiveKind::ValoreComando { .. } => {}
+            LiveKind::SegnoPv { ptr, tag, min, max, origine, verticale, traccia } => {
+                let v = lookup(tags, &Some(tag.clone())).map(|t| tag_value_as_f64(&t.value)).filter(|v| v.is_finite());
+                unsafe {
+                    match v {
+                        Some(v) => {
+                            let f = if max > min { ((v - *min) / (*max - *min)).clamp(0.0, 1.0) } else { 0.0 };
+                            let (ax, ay) = angolo_pv(*verticale, *traccia, f);
+                            lvgl_sys::lv_obj_clear_flag(ptr.as_ptr(), lvgl_sys::LV_OBJ_FLAG_HIDDEN);
+                            lvgl_sys::lv_obj_set_pos(
+                                ptr.as_ptr(),
+                                (origine.0 + ax).round() as lvgl_sys::lv_coord_t,
+                                (origine.1 + ay).round() as lvgl_sys::lv_coord_t,
+                            );
+                        }
+                        None => lvgl_sys::lv_obj_add_flag(ptr.as_ptr(), lvgl_sys::LV_OBJ_FLAG_HIDDEN),
+                    }
+                }
+            }
             LiveKind::BandeSlider { oggetti, tag, limiti, visibili } => {
                 let fuori = lookup(tags, tag).is_some_and(|t| fuori_dai_limiti(tag_value_as_f64(&t.value), limiti));
                 if fuori != *visibili {
@@ -14033,6 +14177,8 @@ pub fn update_bindings(
                 decimals,
                 unit,
                 passo,
+                scarto,
+                pv,
             } => {
                 // Se l'utente sta trascinando lo slider in questo momento
                 // (LV_STATE_PRESSED), non sovrascrivere il valore con quello
@@ -14049,6 +14195,11 @@ pub fn update_bindings(
                         lvgl_sys::LV_STATE_PRESSED as lvgl_sys::lv_state_t,
                     )
                 };
+                let valore_pv = pv.as_ref().map(|(t, cella)| {
+                    let v = lookup(tags, &Some(t.clone())).map(|x| tag_value_as_f64(&x.value)).filter(|v| v.is_finite());
+                    cella.set(v);
+                    v
+                });
                 if dragging {
                     continue;
                 }
@@ -14057,16 +14208,15 @@ pub fn update_bindings(
                     .unwrap_or(*min)
                     .clamp(min.min(*max), min.max(*max));
                 let posizione = match passo {
-                    Some(step) => indice_slider(raw, *min, *step, passi_slider(*min, *max, *step)),
+                    Some(step) => indice_slider(raw, *min, *step, passi_slider(*min, *max, *step)) - *scarto,
                     None => raw.round() as i32,
                 };
                 unsafe {
                     lvgl_sys::lv_bar_set_value(ptr.as_ptr(), posizione, lvgl::Animation::OFF.into());
                     if let Some(vp) = value_ptr {
-                        let d = *decimals as usize;
                         lvgl_sys::lv_label_set_text(
                             vp.as_ptr(),
-                            text_cstring(&format!("{raw:.d$}{unit}")).as_ptr(),
+                            text_cstring(&testo_valore_slider(raw, *decimals, unit, valore_pv)).as_ptr(),
                         );
                     }
                 }
@@ -15850,6 +16000,16 @@ mod binding_tests {
         assert_eq!(passo_effettivo(Some(1.0), true, Some(10.0), Some(2.0)), Some(2.0));
         assert_eq!(passo_effettivo(Some(1.0), false, Some(10.0), Some(2.0)), Some(1.0));
         assert_eq!(altezza_zona_tacche(true, true, true, 11.0), 5.0 + 7.0 + 15.0);
+    }
+
+    #[test]
+    fn il_pv_e_l_origine_come_sul_web() {
+        // Fase 5: lo stesso testo e lo stesso triangolino del web.
+        assert_eq!(testo_valore_slider(62.0, 0, " %", None), "62 %");
+        assert_eq!(testo_valore_slider(62.0, 0, " %", Some(Some(58.0))), "62 % · PV 58 %");
+        assert_eq!(testo_valore_slider(21.5, 1, " °C", Some(None)), "21.5 °C · PV —");
+        assert_eq!(angolo_pv(false, (0.0, 20.0, 200.0, 16.0), 0.5), (95.0, 11.0));
+        assert_eq!(angolo_pv(true, (20.0, 0.0, 16.0, 200.0), 0.25), (11.0, 145.0));
     }
 
     #[test]

@@ -235,6 +235,14 @@ pub struct SynopticObject {
     pub slider_snap_ticks: Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub slider_bands: Option<String>,
+    /// Slider (fase 5): l'origine del riempimento (bipolare), il tag del
+    /// valore misurato e il colore del suo segno.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub slider_origin: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub slider_pv_tag: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub slider_pv_color: Option<String>,
     /// Universale: l'opacità di `bg_image`, 0-100.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub bg_image_opacity: Option<f64>,

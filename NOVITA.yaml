@@ -49,6 +49,8 @@ versioni:
         en: "IDE: project images (backgrounds, images in objects) show on the canvas again in a locally installed IDE too."
       - it: "Nel tema chiaro il logo SWS si legge: la scritta non è più bianca su fondo bianco."
         en: "In the light theme the SWS logo is readable: the text is no longer white on white."
+      - it: "Slider bipolare, che si riempie da un'origine (−50..50 da zero), e il valore misurato accanto a quello impostato, come in un termostato."
+        en: "Bipolar slider, filling from an origin (−50..50 from zero), and the measured value next to the set one, as on a thermostat."
       - it: "Slider: tacche marcate e di divisione coi loro numeri, cursore che si aggancia alle tacche, e le bande dei limiti di avviso e di allarme."
         en: "Slider: major and minor ticks with their numbers, a handle that snaps to ticks, and the warning and alarm limit bands."
       - it: "Slider: quattro stili — classico, pillola, piastra con icona (per luci e tapparelle) e ISA-101 — e l'immagine di sfondo di ogni oggetto si può rendere trasparente."

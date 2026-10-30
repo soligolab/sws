@@ -585,6 +585,9 @@ pub struct SynopticObject {
     pub slider_tick_labels: Option<bool>,
     pub slider_snap_ticks: Option<bool>,
     pub slider_bands: Option<String>,
+    pub slider_origin: Option<f64>,
+    pub slider_pv_tag: Option<String>,
+    pub slider_pv_color: Option<String>,
     /// Universale (fase 3 dello slider): l'opacità di `bg_image`, 0-100.
     pub bg_image_opacity: Option<f64>,
 

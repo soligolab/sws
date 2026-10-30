@@ -1286,7 +1286,11 @@
     "bandeSlider": "Limit bands",
     "bandeMai": "Never",
     "bandeSempre": "Always",
-    "bandeInAllarme": "Only outside the limits"
+    "bandeInAllarme": "Only outside the limits",
+    "origineSlider": "Fill origin (bipolar)",
+    "pvSlider": "Measured value (PV)",
+    "pvSliderAiuto": "measured value tag",
+    "colorePv": "PV marker colour"
   },
   "shortcut": {
     "navCanvas": "Canvas navigation",

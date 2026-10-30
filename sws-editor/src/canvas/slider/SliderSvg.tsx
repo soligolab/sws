@@ -16,7 +16,7 @@ import { corpoSecondario } from "@/canvas/geometriaTesto";
 import {
   COLORI_BANDE, COLORI_ISA, CURSORE_PILLOLA, STRISCIA_BANDE, TACCA_MAGGIORE, TACCA_MINORE, altezzaZonaTacche, aspettoStile,
   bande, centroCursore, frazioneDaPunto, frazioneDaValore, fumettoCursore, fuoriDaiLimiti, geometriaSlider, passoEffettivo,
-  tacche, valoreDaFrazione, valoreDaTasto, type Limiti, type PosizioneValore, type StileSlider,
+  puntiPv, tacche, valoreDaFrazione, valoreDaTasto, type Limiti, type PosizioneValore, type StileSlider,
 } from "./geometria";
 import { ICONE_SLIDER } from "./icone";
 
@@ -53,6 +53,11 @@ export interface PropsSlider {
   agganciaTacche?: boolean;
   modoBande?: "sempre" | "in_allarme" | "mai";
   limiti?: Limiti;
+  /** Fase 5: l'origine del riempimento (bipolare). */
+  origine?: number;
+  /** Fase 5: il valore misurato. `undefined` = nessun PV; `null` = PV non numerico. */
+  valorePv?: number | null;
+  colorePv?: string;
   etichetta?: string;
   corpoEtichetta: number;
   corpoValore: number;
@@ -158,7 +163,14 @@ export function SliderSvg(p: PropsSlider) {
     if (interattivo && bozza !== null) concludi(bozza);
   };
 
-  const testo = p.valoreTag === null && bozza === null && inAttesa === null ? "—" : p.formatta(mostrato);
+  const testoSolo = p.valoreTag === null && bozza === null && inAttesa === null ? "—" : p.formatta(mostrato);
+  // Fase 5: il PV accanto al valore, «62 % · PV 58 %».
+  const testo = p.valorePv === undefined ? testoSolo : `${testoSolo} · PV ${p.valorePv === null ? "—" : p.formatta(p.valorePv)}`;
+  // L'origine del riempimento: il minimo, o `origine` se è dentro l'intervallo.
+  const fo = p.origine !== undefined && p.origine > p.min && p.origine < p.max ? frazioneDaValore(p.origine, p.min, p.max) : null;
+  const da = fo === null ? 0 : Math.min(fo, f);
+  const a = fo === null ? f : Math.max(fo, f);
+  const fPv = typeof p.valorePv === "number" ? frazioneDaValore(p.valorePv, p.min, p.max) : null;
   // Abbreviato per il disegno delle bande, che lo legge due volte per banda.
   const v = p.verticale;
   const bandeVisibili = listaBande.length > 0 && (p.modoBande === "sempre" || fuoriDaiLimiti(mostrato, p.limiti ?? {}));
@@ -204,11 +216,18 @@ export function SliderSvg(p: PropsSlider) {
         strokeDasharray={inAttesa !== null && aspetto.cursore === "nessuno" ? "4 3" : undefined}
         pointerEvents="none" data-slider-traccia="" />
       <rect
-        x={t.x}
-        y={p.verticale ? c.cy : t.y}
-        width={p.verticale ? t.w : Math.max(0, c.cx - t.x)}
-        height={p.verticale ? Math.max(0, t.y + t.h - c.cy) : t.h}
+        x={p.verticale ? t.x : t.x + t.w * da}
+        y={p.verticale ? t.y + t.h * (1 - a) : t.y}
+        width={p.verticale ? t.w : t.w * (a - da)}
+        height={p.verticale ? t.h * (a - da) : t.h}
         rx={g.raggioTraccia} fill={isa ? COLORI_ISA.indicatore : p.colore} pointerEvents="none" data-slider-indicatore="" />
+      {fo !== null && (
+        p.verticale
+          ? <rect x={t.x - 3} y={t.y + t.h * (1 - fo) - 1} width={t.w + 6} height={2} fill="var(--synoptic-text, #e2e8f0)"
+              fillOpacity={0.6} pointerEvents="none" data-slider-origine="" />
+          : <rect x={t.x + t.w * fo - 1} y={t.y - 3} width={2} height={t.h + 6} fill="var(--synoptic-text, #e2e8f0)"
+              fillOpacity={0.6} pointerEvents="none" data-slider-origine="" />
+      )}
       {bandeVisibili && listaBande.map((b, k) => (
         v
           ? <rect key={`b${k}`} x={zona} y={t.y + t.h * (1 - b.a)} width={STRISCIA_BANDE} height={t.h * (b.a - b.da)}
@@ -255,6 +274,11 @@ export function SliderSvg(p: PropsSlider) {
           strokeDasharray={inAttesa !== null ? "3 2" : undefined}
           data-slider-in-attesa={inAttesa !== null ? "" : undefined} />
       ) : inAttesa !== null ? <g data-slider-in-attesa="" /> : null}
+      {fPv !== null && (
+        <polygon pointerEvents="none" data-slider-pv=""
+          fill={p.colorePv ?? "var(--synoptic-text, var(--brand-text, #e2e8f0))"}
+          points={puntiPv(g.verticale, t, fPv).map(([x, y]) => `${x},${y}`).join(" ")} />
+      )}
       {/* Dopo la traccia: sulla piastra l'etichetta sta sopra il riempimento. */}
       {p.etichetta && g.etichetta && (
         <text x={g.etichetta.cx} y={g.etichetta.cy} textAnchor={g.allinea} dominantBaseline="central"

@@ -361,3 +361,17 @@ export function passoEffettivo(step: number | undefined, aggancia: boolean, magg
   if (!aggancia) return step;
   return minore && minore > 0 ? minore : maggiore && maggiore > 0 ? maggiore : step;
 }
+
+// ── Fase 5: il segno del valore misurato ─────────────────────────────────────
+
+/** Il triangolino del PV: sopra la traccia e con la punta in giù
+ *  nell'orizzontale, a sinistra con la punta a destra nel verticale. Come la
+ *  lancetta SP del gauge, al contrario. Gemello di `punti_pv` in `lvgl_render.rs`. */
+export function puntiPv(verticale: boolean, t: Rett, f: number): [number, number][] {
+  if (verticale) {
+    const y = t.y + t.h * (1 - f);
+    return [[t.x - 9, y - 5], [t.x - 9, y + 5], [t.x - 2, y]];
+  }
+  const x = t.x + t.w * f;
+  return [[x - 5, t.y - 9], [x + 5, t.y - 9], [x, t.y - 2]];
+}

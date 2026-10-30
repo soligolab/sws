@@ -104,6 +104,13 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
   le accende e spegne), le tacche un'immagine rasterizzata una volta, i numeri etichette. Il pannello dello slider ha
   ora anche i quattro limiti, quando le bande sono accese.
 
+- **Lo slider, fase 5: bipolare e valore misurato.** `slider_origin`: il riempimento parte dall'origine, con una
+  linea; su LVGL è `LV_BAR_MODE_SYMMETRICAL` con l'intervallo dei passi spostato, `(−io, N − io)`, e lo spostamento
+  (`scarto`) passa da `BarLike` e `SliderCtx`. `slider_pv_tag`/`slider_pv_color`: un triangolino sulla traccia (gemelli
+  `puntiPv` e `angolo_pv`; su LVGL un'immagine spostata da `LiveKind::SegnoPv`) e «valore · PV x» accanto al valore,
+  anche durante il trascinamento. `slider_pv_tag` è nei campi-tag di `validate.rs` e `collectTagIds.ts`. Su LVGL il
+  valore centrato non va più a capo su uno slider stretto.
+
 ### Fixed
 
 - **Lo slider, fase 1 della revisione** (piano `docs/plans/2026-10-30-revisione-slider.md`): i difetti misurati il

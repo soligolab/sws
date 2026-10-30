@@ -1286,7 +1286,11 @@
     "bandeSlider": "Bande dei limiti",
     "bandeMai": "Mai",
     "bandeSempre": "Sempre",
-    "bandeInAllarme": "Solo fuori dai limiti"
+    "bandeInAllarme": "Solo fuori dai limiti",
+    "origineSlider": "Origine del riempimento (bipolare)",
+    "pvSlider": "Valore misurato (PV)",
+    "pvSliderAiuto": "tag del valore misurato",
+    "colorePv": "Colore del segno del PV"
   },
   "shortcut": {
     "navCanvas": "Navigazione canvas",

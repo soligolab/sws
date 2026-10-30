@@ -4953,6 +4953,9 @@ function SvgObjectCorpo(p: ObjProps) {
           agganciaTacche={obj.slider_snap_ticks}
           modoBande={obj.slider_bands}
           limiti={{ alarmLow: obj.alarm_low, warnLow: obj.warn_low, warnHigh: obj.warn_high, alarmHigh: obj.alarm_high }}
+          origine={obj.slider_origin}
+          valorePv={obj.slider_pv_tag ? (Number.isFinite(Number(tagValues[obj.slider_pv_tag]?.value)) ? Number(tagValues[obj.slider_pv_tag]?.value) : null) : undefined}
+          colorePv={obj.slider_pv_color || undefined}
           etichetta={obj.label || undefined}
           corpoEtichetta={obj.label_font_size ?? 11}
           corpoValore={obj.font_size ?? 12}
