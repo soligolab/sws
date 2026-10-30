@@ -12,40 +12,28 @@
 > resta in «Storico». Qui vive solo ciò che serve a riprendere il lavoro.
 
 
-## ▶ Riprendere da qui — cinque rami annidati, uno già in `main` (2026-10-30, theobroma)
+## ▶ Riprendere da qui — la catena dei rami è tutta in `main` (2026-10-30 pomeriggio, theobroma)
 
-> ⚠ **SI RIPARTE DAL RAMO `feat/registrazione-e-pin`, NON da `main`.** È la punta di una catena di cinque rami
-> annidati, ognuno figlio del precedente. Su un'altra macchina: `./scripts/session_start.sh`, poi
-> `git checkout feat/registrazione-e-pin`. Un lavoro nuovo si annida lì sopra.
-
-- **`fix/barra-nuova-versione` è in `main`** (squash `130505a5`, confermato dal maintainer, ramo locale eliminato),
-  insieme alla correzione di `check_versione_progetto` (cercava l'handler nel primo modulo di `os.listdir()`: verde
-  su una macchina, rosso su theobroma). **Non pushato**; su origin il ramo remoto esiste ancora.
-- **Collaudo del maintainer sulla punta, IDE 8460**: PIN, miniatura e planimetrie confermati. Ne sono nati tre
-  commit sulla punta: il rinnovo della sessione che trova i token dell'IDE e il modale con password o PIN
-  (`d0053494`); le immagini del progetto sul canvas dell'IDE locale (`7224c1f0`); la cornice della pagina nella
-  vista 3D e «Inquadra» (`50c181ad`) — tutti e tre confermati. Poi il logo SWS nel tema chiaro (da Appunti).
-- **Pulizia**: in archivio sessione scaduta, planimetrie 3D (ramo 3 in Appunti), corpi LVGL e impianto dal
-  dispositivo (i loro collaudi in `COLLAUDI_IN_SOSPESO` §A-duodecies e §A-terdecies); da Appunti tolte le prove
-  che avevano già i passi nei collaudi.
-
-| Ramo (in ordine) | Cosa | Stato |
-|---|---|---|
-| `fix/lvgl-ruolo-e-login` | LVGL: login/logout dai bottoni del progetto; pannellino d'accesso nella lingua giusta e sopra la tastiera | **da provare sul WP630** — serve l'archivio aarch64 (HOWTO cap. 10) |
-| `test/socket-riconvalida` | `AppState` di prova da `build()`; riconvalida del ruolo sul socket provata | solo test |
-| `feat/planimetrie-modello` | planimetrie, ramo 1: server ed editor 2D | confermato |
-| `feat/planimetrie-resa` | planimetrie, ramo 2: vista 3D e «Genera sfondo» | confermato |
-| `feat/registrazione-e-pin` | ramo C punti 1-3 (registrazione, PIN, «ricordami») + i commit del collaudo del 30-10 | PIN confermato in locale; **registrazione con la posta vera sul VPS** da fare |
+- **Collaudo sul WP630** (archivio aarch64 della punta, deploy di `specchio-prova`): login e logout LVGL dai bottoni,
+  checkbox protetta prima e dopo l'accesso, planimetria come sfondo raster — **tutto confermato dal maintainer**.
+- **Installazione pulita sul WP630**: si fermava dopo aver cancellato tutto, perché `~/.config/systemd/user` non
+  esisteva. Corretto in `install-container.sh` (`mkdir -p`), reinstallato via SSH. Dopo una reinstallazione l'IDE
+  chiede di dimenticare il vecchio certificato: è atteso, e il campo del codice di abbinamento compare solo dopo.
+- **Squash in `main`**, nell'ordine della catena, ognuno con il controllo degli alberi e il ramo eliminato:
+  `2bb9d497` LVGL login, `d90b6a7d` socket, `4bc75907` planimetrie ramo 1, `ecb8c5b8` ramo 2, `c514f93b` ramo C
+  con le correzioni del collaudo. Prima dello squash, sulla punta: cargo check, cargo test (1441), pnpm build,
+  vitest (1848), check_static (51) tutti verdi. **Nessun ramo locale aperto.**
+- **Non pushato.** `main` è avanti di 6 su origin; su origin restano i rami remoti della catena da eliminare quando
+  il maintainer dice di pushare.
 
 ### Da fare
 
-1. **Login LVGL sul WP630**: archivio aarch64 della punta senza `--push` (worktree pronto in uno scratchpad di
-   theobroma, con le cache del cross-build già copiate), deploy dall'IDE da «Archivio locale».
-2. Con la conferma: squash dei cinque rami nell'ordine della tabella, rami eliminati (anche su origin, quando il
-   maintainer dice di pushare).
-3. Registrazione e PIN con la posta vera sul VPS (gateway con `--gateway-registrazione`).
-4. **Resto del ramo C**, in un ramo suo: SMTP per azienda, inattività a 12 mesi, chiusura dell'account, rotazione
+1. Push di `main` ed eliminazione dei rami remoti — solo su richiesta.
+2. Registrazione e PIN con la posta vera sul VPS (gateway con `--gateway-registrazione`), dopo una release.
+3. **Resto del ramo C**, in un ramo suo: SMTP per azienda, inattività a 12 mesi, chiusura dell'account, rotazione
    del registro attività.
+4. CasaDomotica: la planimetria vera (Appunti, «Planimetrie, il ramo 3»), ora che le planimetrie sono in `main`.
+5. Il worktree del cross-build nello scratchpad di questa sessione (~14 GB) si può cancellare.
 
 ## ▶ Riprendere da qui — release 2.23.7, lo schermo del pannello dal cloud (2026-10-29 sera, ufficio)
 
