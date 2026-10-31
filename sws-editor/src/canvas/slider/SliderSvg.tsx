@@ -154,9 +154,15 @@ export function SliderSvg(p: PropsSlider) {
       // Al rilascio: torna al riposo in 150 ms, e scrive il riposo una volta.
       const riposo = p.riposo!;
       const da = v ?? riposo;
-      const inizio = performance.now();
+      // L'inizio è il primo fotogramma, non `performance.now()`: il tempo che
+      // riceve `requestAnimationFrame` è l'inizio del fotogramma, e può venire
+      // prima. Con l'altro orologio la frazione partiva negativa e il cursore
+      // scattava oltre il punto di rilascio (31-10-2026, il test della molla
+      // rosso due volte su tre sotto carico).
+      let inizio: number | null = null;
       const passo = (t: number) => {
-        const k = Math.min(1, (t - inizio) / RITORNO_MOLLA_MS);
+        inizio ??= t;
+        const k = Math.min(1, Math.max(0, (t - inizio) / RITORNO_MOLLA_MS));
         setBozza(da + (riposo - da) * k);
         if (k < 1) ritorno.current = requestAnimationFrame(passo);
         else { ritorno.current = null; setBozza(null); }

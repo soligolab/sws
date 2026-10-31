@@ -120,6 +120,17 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 
 ### Fixed
 
+- **Ctrl+Z annulla una modifica, non un tasto**: ogni carattere scritto in un campo del pannello proprietà era una voce
+  di annulla. Ora le modifiche consecutive allo stesso campo dello stesso oggetto (o della pagina, o della sottocella)
+  a meno di 1,5 s l'una dall'altra restano una voce sola (`pushHistory` con chiave di unione, `UNIONE_MS`). Un altro
+  oggetto, un altro campo, una pausa o un annulla aprono una voce nuova; il «non salvato» resta giusto anche se si
+  salva a metà.
+
+- **Slider con ritorno a molla: niente scatto al rilascio.** L'animazione contava il tempo da `performance.now()`, ma
+  il primo fotogramma di `requestAnimationFrame` può portare un istante precedente: la frazione partiva negativa e il
+  cursore scattava oltre il punto di rilascio prima di tornare. Ora conta dal primo fotogramma. Era anche il test
+  della molla rosso due volte su tre sotto carico.
+
 - **Il selettore colore del pannello proprietà non rallenta più**: il selettore nativo manda un evento per pixel di
   trascinamento, e ognuno scriveva il progetto, ridisegnava l'editor e spingeva una voce di annulla. Sulla home di
   CasaDomotica il pallino non stava più dietro al mouse. `CampoColore` ora mostra subito il colore nello swatch e

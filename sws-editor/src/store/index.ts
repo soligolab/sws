@@ -999,11 +999,20 @@ function ripristinaAlbero(
   };
 }
 
+/** Quanto a lungo modifiche consecutive allo stesso campo restano una voce
+ *  sola di annulla: la pausa di chi smette di scrivere, non di chi pensa. */
+export const UNIONE_MS = 1500;
+
+/** La chiave di unione di una modifica: chi, dove e quali campi. */
+const chiaveUnione = (...parti: unknown[]) => JSON.stringify(parti);
+
 export const useAppStore = create<AppState>((set, get) => {
   // Suspend per-mutation history pushes while > 0. Lets a drag/resize
   // capture one history entry up front (at beginInteraction) instead of
   // one per pixel.
   let interactionDepth = 0;
+  /** L'ultima voce spinta con una chiave di unione: vedi `pushHistory`. */
+  let ultimaUnione: { chiave: string; quando: number; rev: number } | null = null;
 
   /** Etichetta (chiave + argomenti) da ricopiare sulla controparte di undo/redo. */
   const etichetta = (e?: HistoryEntry) =>
@@ -1014,13 +1023,28 @@ export const useAppStore = create<AppState>((set, get) => {
    * before applying a mutation. Clears the redo stack. Capped at HISTORY_LIMIT.
    * Becomes a no-op while inside a bracketed interaction.
    */
-  const pushHistory = (label: string, labelArgs?: HistoryEntry["labelArgs"]) => {
+  const pushHistory = (label: string, labelArgs?: HistoryEntry["labelArgs"], unione?: string) => {
     if (interactionDepth > 0) return;
-    const { pages, past, pagesRev } = get();
+    const { pages, past, pagesRev, future } = get();
+    const ora = Date.now();
+    // La stessa modifica che continua (31-10-2026): scrivere in un campo del
+    // pannello proprietà spingeva una voce per tasto, e Ctrl+Z toglieva una
+    // lettera alla volta. Se la voce in cima è nata dalla stessa `unione`
+    // (stesso campo dello stesso oggetto), da meno di `UNIONE_MS` e nient'altro
+    // ha toccato le pagine nel frattempo, si tiene quella: annullando si torna
+    // a prima della raffica. `pagesRev` sale comunque, così il controllo
+    // «non salvato» resta vero anche se si è salvato a metà.
+    if (unione && ultimaUnione && ultimaUnione.chiave === unione && ultimaUnione.rev === pagesRev
+        && ora - ultimaUnione.quando < UNIONE_MS && future.length === 0 && past.length > 0) {
+      ultimaUnione = { chiave: unione, quando: ora, rev: pagesRev + 1 };
+      set({ pagesRev: pagesRev + 1 });
+      return;
+    }
     const entry: HistoryEntry = { pages: clonePages(pages), label, labelArgs, rev: pagesRev };
     const trimmed = past.length >= HISTORY_LIMIT
       ? past.slice(past.length - HISTORY_LIMIT + 1)
       : past;
+    ultimaUnione = unione ? { chiave: unione, quando: ora, rev: pagesRev + 1 } : null;
     set({ past: [...trimmed, entry], future: [], pagesRev: pagesRev + 1 });
   };
 
@@ -1649,7 +1673,7 @@ export const useAppStore = create<AppState>((set, get) => {
     },
 
     updatePageProps: (id, patch) => {
-      pushHistory("history.pageProps");
+      pushHistory("history.pageProps", undefined, chiaveUnione("pagina", id, Object.keys(patch).sort()));
       set((s) => ({ pages: s.pages.map((p) => (p.id === id ? { ...p, ...patch } : p)) }));
     },
 
@@ -1889,7 +1913,7 @@ export const useAppStore = create<AppState>((set, get) => {
     },
 
     updateSubCellAt: (pageId, objectId, row, col, path, patch) => {
-      pushHistory("history.editSubCell");
+      pushHistory("history.editSubCell", undefined, chiaveUnione("sottocella", pageId, objectId, row, col, path, Object.keys(patch).sort()));
       set((s) => ({
         pages: s.pages.map((p) =>
           p.id !== pageId ? p : {
@@ -2021,7 +2045,7 @@ export const useAppStore = create<AppState>((set, get) => {
     segmentoScelto: null,
     setSegmentoScelto: (sg) => set({ segmentoScelto: sg, waypointScelto: null }),
     updateObject: (id, patch) => {
-      pushHistory("history.editObject");
+      pushHistory("history.editObject", undefined, chiaveUnione("oggetto", get().currentPageId, id, Object.keys(patch).sort()));
       set((s) => ({
         pages: s.pages.map((p) =>
           p.id === s.currentPageId
@@ -2032,7 +2056,7 @@ export const useAppStore = create<AppState>((set, get) => {
     },
 
     updateObjects: (ids, patch) => {
-      pushHistory("history.editObjects");
+      pushHistory("history.editObjects", undefined, chiaveUnione("oggetti", get().currentPageId, ids, Object.keys(patch).sort()));
       set((s) => ({
         pages: s.pages.map((p) =>
           p.id === s.currentPageId
