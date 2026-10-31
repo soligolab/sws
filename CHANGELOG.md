@@ -120,6 +120,11 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 
 ### Fixed
 
+- **Importare uno ZIP compresso**: l'importazione del progetto accettava solo archivi `Stored`, quelli che SWS
+  scrive; uno ZIP fatto a mano (file manager, `zip`, Windows) è Deflate ed era rifiutato con «Compression method not
+  supported». `sws-web` ora legge Deflate (feature `deflate` del crate `zip`); la scrittura resta `Stored`. Vale per
+  ogni archivio letto da `sws-web`: progetto, backup, logica PLC.
+
 - **Validatore: uno slider (o un bottone, una casella) in sola lettura su un tag calcolato non è più un errore.** Non
   comanda niente: è un indicatore. Visto preparando il progetto di collaudo dello slider.
 

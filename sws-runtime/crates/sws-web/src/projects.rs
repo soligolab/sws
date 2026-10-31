@@ -3948,6 +3948,30 @@ mod tests {
         assert_eq!(dopo.meta.name, "pippo");
     }
 
+    // ── Uno ZIP fatto a mano (30-10-2026) ────────────────────────────────────
+    //
+    // Noi scriviamo `Stored`, ma un archivio fatto dal file manager, da `zip` o
+    // da Windows è Deflate: senza il codec l'importazione lo rifiutava con
+    // «Compression method not supported».
+
+    #[test]
+    fn uno_zip_compresso_si_legge() {
+        use std::io::Write;
+        let mut buf = Vec::new();
+        {
+            let mut z = zip::ZipWriter::new(std::io::Cursor::new(&mut buf));
+            let opts = zip::write::SimpleFileOptions::default()
+                .compression_method(zip::CompressionMethod::Deflated);
+            z.start_file("project.yaml", opts).unwrap();
+            z.write_all("meta:\n  name: compresso\n".repeat(20).as_bytes()).unwrap();
+            z.finish().unwrap();
+        }
+        let mut a = zip::ZipArchive::new(Cursor::new(buf.as_slice())).unwrap();
+        assert_eq!(a.by_index(0).unwrap().compression(), zip::CompressionMethod::Deflated);
+        let letto = read_zip_entry(&mut a, "project.yaml").unwrap().unwrap();
+        assert!(String::from_utf8(letto).unwrap().starts_with("meta:\n  name: compresso"));
+    }
+
     // ── Chi decide di `users.yaml` in un upload (2026-09-11) ────────────────
     //
     // La matrice completa dei tre stati, perché è la regola su cui si regge

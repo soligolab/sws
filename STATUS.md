@@ -36,9 +36,11 @@ eliminati. **Niente è pushato da questo squash**: su origin restano i sette ram
 ### Da fare
 
 1. **Push** di `main` ed eliminazione dei sette rami remoti (`/finalizza-giornata`).
-2. Il **caricamento del progetto sul TC620 non è riuscito** al maintainer: errore da farsi dire e indagare.
-3. **Importazione ZIP**: accetta solo archivi non compressi (`Stored`); uno ZIP fatto a mano (Deflate) è rifiutato con
-   «Compression method not supported». Visto creando `tmp/collaudo-slider.zip`.
+2. ~~Il caricamento del progetto sul TC620 non è riuscito~~ — **non era un errore** (31-10): il TC620 è abbinato a
+   `sws.soligo.net` e il maintainer non ha voluto staccarlo per caricarci il progetto dall'IDE locale.
+3. **Importazione ZIP**: accettava solo archivi non compressi (`Stored`). Corretto il 31-10 sul ramo
+   `fix/zip-compresso` (feature `deflate` di `zip` in `sws-web`, test `uno_zip_compresso_si_legge`), in attesa di
+   collaudo.
 4. Slider fase 7 (CasaDomotica, dal cloud col maintainer, serve l'immagine amd64 sul gateway); ramo C punto 4 (SMTP
    per azienda); la release vera 2.23.8.
 5. `abbinaPannelloCloud.test.tsx`: rosso una volta su tre giri (tempo), da tenere d'occhio.
