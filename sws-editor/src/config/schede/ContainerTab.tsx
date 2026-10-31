@@ -32,6 +32,7 @@ import {
   CONTAINER_USER as K_USER, ricorda, ricordato,
 } from "@/config/campiDispositivo";
 import { BTN, BTN_RED, INPUT, LOG_BOX, coloreRigaLog } from "./stiliRuntime";
+import { CampoNumero } from "@/components/CampoNumero";
 
 
 export function ContainerTab() {
@@ -130,12 +131,11 @@ export function ContainerTab() {
               value={host}
               onChange={(e) => { setHost(e.target.value); ricorda(K_HOST, e.target.value); }}
             />
-            <input
+            <CampoNumero
               style={{ ...INPUT, width: 70 }}
-              type="number"
               title={t("cfg.port")}
               value={port}
-              onChange={(e) => { setPort(Number(e.target.value) || 22); ricorda(K_PORT, e.target.value); }}
+              onTesto={(e) => { setPort(Number(e) || 22); ricorda(K_PORT, e); }}
             />
             <input
               style={{ ...INPUT, width: 110 }}

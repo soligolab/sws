@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { api } from "@/api/client";
 import { avviso, campo, errore as stileErrore, pulsante, riga, scheda, titoletto } from "@/ui/base";
+import { CampoNumero } from "@/components/CampoNumero";
 
 /**
  * La posta dell'**installazione**, distinta da quella del progetto.
@@ -66,7 +67,7 @@ export function Posta() {
           <input value={cfg.host} onChange={(e) => setCfg({ ...cfg, host: e.target.value })} style={campo} />
         </Campo>
         <Campo etichetta={t("console.posta.porta")}>
-          <input type="number" value={cfg.port} onChange={(e) => setCfg({ ...cfg, port: Number(e.target.value) })} style={campo} />
+          <CampoNumero value={cfg.port} onTesto={(e) => setCfg({ ...cfg, port: Number(e) })} style={campo} />
         </Campo>
         <Campo etichetta={t("console.posta.mittente")}>
           <input value={cfg.from} onChange={(e) => setCfg({ ...cfg, from: e.target.value })} placeholder="SWS &lt;noreply@soligo.net&gt;" style={campo} />

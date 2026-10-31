@@ -7,6 +7,7 @@ import { useAppStore } from "@/store";
 import type { FasciaCornice, SynopticPage } from "@/types";
 import { SEGNAPOSTI, idCornice, pagineCornice } from "./modello";
 import { impostaCornicePredefinita } from "./predefinita";
+import { CampoNumero } from "@/components/CampoNumero";
 
 const LABEL: React.CSSProperties = { fontSize: 11, color: "var(--brand-text-muted, #94a3b8)", marginBottom: 2 };
 const INPUT: React.CSSProperties = {
@@ -64,8 +65,8 @@ function Fascia({ titolo, fascia, onChange }: {
     <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6, marginTop: 6 }}>
       <div>
         <div style={LABEL}>{titolo} — {t("cornici.altezza")}</div>
-        <input type="number" min={0} style={INPUT} value={fascia.altezza}
-          onChange={(e) => onChange({ ...fascia, altezza: Math.max(0, Number(e.target.value) || 0) })} />
+        <CampoNumero min={0} style={INPUT} value={fascia.altezza}
+          onTesto={(e) => onChange({ ...fascia, altezza: Math.max(0, Number(e) || 0) })} />
       </div>
       <div>
         <div style={LABEL}>{t("cornici.fondo")}</div>

@@ -6,6 +6,7 @@ import { TABELLA_PREDEFINITA } from "@/types";
 import { DestinatariEmail } from "@/config/DestinatariEmail";
 import { useAppStore } from "@/store";
 import { TRANS_COMP, S, MASKED, SaveBar } from "@/config/comuni";
+import { CampoNumero } from "@/components/CampoNumero";
 
 // ── Notifications tab ─────────────────────────────────────────────────────────
 
@@ -282,12 +283,11 @@ export function NotificationsTab() {
           </div>
           <div>
             <div style={{ fontSize: 11, color: "var(--brand-text-muted, #94a3b8)", marginBottom: 4 }}>{t("cfg.port")}</div>
-            <input
+            <CampoNumero
               style={S.input}
-              type="number"
               placeholder="587"
               value={smtp.port ?? ""}
-              onChange={(e) => patchSmtp({ port: e.target.value ? Number(e.target.value) : undefined })}
+              onTesto={(e) => patchSmtp({ port: e ? Number(e) : undefined })}
             />
           </div>
           <div style={{ gridColumn: "1 / -1" }}>
@@ -505,8 +505,8 @@ export function NotificationsTab() {
       <div style={{ display: "flex", gap: 16, alignItems: "center", marginBottom: 20 }}>
         <button style={S.btn("ghost")} data-testid="reperibile-nuovo" onClick={() => { setTouched(true); setReperibili([...reperibili, { nome: "", telefono: "" }]); }}>{t("notifiche.aggiungiReperibile")}</button>
         <label style={{ fontSize: 12 }}>{t("notifiche.attesaMin")}{" "}
-          <input style={{ ...S.inputSm, width: 70 }} type="number" min={1} value={attesaMin ?? ""} placeholder="10"
-            onChange={(e) => { setTouched(true); setAttesaMin(e.target.value === "" ? undefined : Number(e.target.value)); }} />
+          <CampoNumero style={{ ...S.inputSm, width: 70 }} min={1} value={attesaMin ?? ""} placeholder="10"
+            onTesto={(e) => { setTouched(true); setAttesaMin(e === "" ? undefined : Number(e)); }} />
         </label>
       </div>
       </>)}

@@ -72,6 +72,7 @@ import { impostaBootAbilitata } from "@/boot/abilitata";
 import { AnteprimaPng } from "@/boot/AnteprimaPng";
 import { PermessoTagNota } from "@/editor/PermessoTagNota";
 import { rangoRuolo, sogliaEreditata } from "@/auth/permessoScrittura";
+import { CampoNumero } from "@/components/CampoNumero";
 
 // ── Shared styles ─────────────────────────────────────────────────────────────
 
@@ -476,24 +477,22 @@ function SceltaMisura({ width, height, disabled, chiave, segnaposto, onChange }:
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0 6px" }}>
           <div>
             <div style={LABEL}>{t("props.widthPx")}</div>
-            <input
-              type="number"
+            <CampoNumero
               style={INPUT}
               disabled={disabled}
               placeholder={segnaposto ?? t("props.fluid")}
               value={width ?? ""}
-              onChange={(e) => onChange({ width: e.target.value ? Number(e.target.value) : undefined, height })}
+              onTesto={(e) => onChange({ width: e ? Number(e) : undefined, height })}
             />
           </div>
           <div>
             <div style={LABEL}>{t("props.heightPx")}</div>
-            <input
-              type="number"
+            <CampoNumero
               style={INPUT}
               disabled={disabled}
               placeholder={segnaposto ?? t("props.fluid")}
               value={height ?? ""}
-              onChange={(e) => onChange({ width, height: e.target.value ? Number(e.target.value) : undefined })}
+              onTesto={(e) => onChange({ width, height: e ? Number(e) : undefined })}
             />
           </div>
         </div>
@@ -2817,11 +2816,11 @@ function PartiSimboloLib({ obj, onChange }: { obj: SynopticObject; onChange: (pa
             {p.kind === "needle" && (
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 4, marginTop: 4 }}>
                 <div><div style={LABEL}>{t("props.parteMin")}</div>
-                  <input type="number" style={INPUT} placeholder="0" value={l.min ?? ""}
-                    onChange={(e) => metti(p.id, { min: numero(e.target.value) })} /></div>
+                  <CampoNumero style={INPUT} placeholder="0" value={l.min ?? ""}
+                    onTesto={(e) => metti(p.id, { min: numero(e) })} /></div>
                 <div><div style={LABEL}>{t("props.parteMax")}</div>
-                  <input type="number" style={INPUT} placeholder="100" value={l.max ?? ""}
-                    onChange={(e) => metti(p.id, { max: numero(e.target.value) })} /></div>
+                  <CampoNumero style={INPUT} placeholder="100" value={l.max ?? ""}
+                    onTesto={(e) => metti(p.id, { max: numero(e) })} /></div>
               </div>
             )}
           </div>
@@ -2851,8 +2850,8 @@ function StileOggettoLib({ obj, onChange }: { obj: SynopticObject; onChange: (pa
   const numero = (campo: "symbol_volume" | "symbol_outline_width" | "symbol_blink_ms" | "symbol_level_transition_ms", etichetta: string, predef: number, passo: number) => (
     <div>
       <div style={LABEL}>{etichetta}</div>
-      <input type="number" style={INPUT} step={passo} placeholder={`${predef} · ${t("props.colorDaProgetto")}`} value={obj[campo] ?? ""}
-        onChange={(e) => onChange({ [campo]: e.target.value.trim() === "" ? undefined : Number(e.target.value) } as Partial<SynopticObject>)} />
+      <CampoNumero style={INPUT} step={passo} placeholder={`${predef} · ${t("props.colorDaProgetto")}`} value={obj[campo] ?? ""}
+        onTesto={(e) => onChange({ [campo]: e.trim() === "" ? undefined : Number(e) } as Partial<SynopticObject>)} />
     </div>
   );
   const materiale = (m: string) => progetto?.materials?.[m] ?? manifesto.materials[m] ?? "#808080";
@@ -2900,12 +2899,11 @@ function CrossTypeProps({
   const isMixed = (k: keyof SynopticObject) => mixedKeys.has(k);
 
   const numInput = (k: keyof SynopticObject, fallback: number) => (
-    <input
-      type="number"
+    <CampoNumero
       style={INPUT}
       value={isMixed(k) ? "" : (mergedProps[k] !== undefined ? (mergedProps[k] as number) : fallback)}
       placeholder={isMixed(k) ? t("props.vari") : undefined}
-      onChange={(e) => onChange({ [k]: e.target.value === "" ? undefined : Number(e.target.value) } as Partial<SynopticObject>)}
+      onTesto={(e) => onChange({ [k]: e === "" ? undefined : Number(e) } as Partial<SynopticObject>)}
     />
   );
 
@@ -3166,15 +3164,14 @@ export function ObjectProps({
     const motivo = statoVuoto(key);
     const assente = !mixedKeys.has(key) && obj[key] === undefined;
     const input = (
-      <input
-        type="number"
+      <CampoNumero
         // `minWidth: LARGHEZZA_MIN_NUMERO` e non 0: e' la rete di sicurezza.
         // Qualunque cosa succeda al chip accanto, il campo resta digitabile.
         style={{ ...INPUT, ...(assente && !motivo ? { fontStyle: "italic", color: "var(--brand-text-muted, #94a3b8)" } : {}), ...(motivo ? { flex: "1 1 auto", minWidth: LARGHEZZA_MIN_NUMERO } : {}) }}
         value={mixedKeys.has(key) || motivo ? "" : (obj[key] !== undefined ? (obj[key] as number) : fallback)}
         placeholder={mixedKeys.has(key) ? t("props.vari") : undefined}
         title={assente && !motivo ? t("props.valoreNonSalvato") : undefined}
-        onChange={(e) => onChange({ [key]: e.target.value === "" ? undefined : Number(e.target.value) } as Partial<SynopticObject>)}
+        onTesto={(e) => onChange({ [key]: e === "" ? undefined : Number(e) } as Partial<SynopticObject>)}
       />
     );
     return motivo
@@ -3348,18 +3345,18 @@ export function ObjectProps({
               vedi rangeWarning sopra e props.rangeHint sotto per il perché. */}
           <div style={{ display: "flex", gap: 4, alignItems: "center", paddingLeft: 58 }}>
             <span style={{ fontSize: 11, color: "var(--brand-text-subtle, #94a3b8)" }}>[</span>
-            <input style={{ ...INPUT, width: 56 }} type="number" placeholder={t("props.rangeMin")}
+            <CampoNumero style={{ ...INPUT, width: 56 }} placeholder={t("props.rangeMin")}
               value={e.value_min ?? ""}
-              onChange={(ev) => {
-                const raw = ev.target.value;
+              onTesto={(ev) => {
+                const raw = ev;
                 const next = [...(obj.text_list_entries ?? [])]; next[i] = { ...e, value_min: raw === "" ? undefined : Number(raw) };
                 onChange({ text_list_entries: next });
               }} />
             <span style={{ fontSize: 10, color: "var(--brand-text-subtle, #94a3b8)" }}>–</span>
-            <input style={{ ...INPUT, width: 56 }} type="number" placeholder={t("props.rangeMax")}
+            <CampoNumero style={{ ...INPUT, width: 56 }} placeholder={t("props.rangeMax")}
               value={e.value_max ?? ""}
-              onChange={(ev) => {
-                const raw = ev.target.value;
+              onTesto={(ev) => {
+                const raw = ev;
                 const next = [...(obj.text_list_entries ?? [])]; next[i] = { ...e, value_max: raw === "" ? undefined : Number(raw) };
                 onChange({ text_list_entries: next });
               }} />
@@ -3540,10 +3537,10 @@ export function ObjectProps({
               {(obj.points ?? []).map((pt, i) => (
                 <div key={i} style={{ display: "flex", gap: 4, alignItems: "center", marginBottom: 2 }}>
                   <span style={{ fontSize: 10, width: 16, color: "var(--brand-text-subtle, #94a3b8)" }}>{i + 1}</span>
-                  <input type="number" style={{ ...INPUT, flex: 1 }} value={pt.x}
-                    onChange={(e) => onChange({ points: (obj.points ?? []).map((p, j) => (j === i ? { ...p, x: Number(e.target.value) } : p)) })} />
-                  <input type="number" style={{ ...INPUT, flex: 1 }} value={pt.y}
-                    onChange={(e) => onChange({ points: (obj.points ?? []).map((p, j) => (j === i ? { ...p, y: Number(e.target.value) } : p)) })} />
+                  <CampoNumero style={{ ...INPUT, flex: 1 }} value={pt.x}
+                    onTesto={(e) => onChange({ points: (obj.points ?? []).map((p, j) => (j === i ? { ...p, x: Number(e) } : p)) })} />
+                  <CampoNumero style={{ ...INPUT, flex: 1 }} value={pt.y}
+                    onTesto={(e) => onChange({ points: (obj.points ?? []).map((p, j) => (j === i ? { ...p, y: Number(e) } : p)) })} />
                   <button disabled={(obj.points ?? []).length <= 2} title={t("props.removeWaypoint")}
                     onClick={() => onChange({ points: (obj.points ?? []).filter((_, j) => j !== i) })}
                     style={{ ...INPUT, cursor: "pointer", width: 24, padding: "2px 4px", flex: "none" }}>−</button>
@@ -3581,11 +3578,10 @@ export function ObjectProps({
         {field(t("props.opacityRange"),
           <BindableInput obj={obj} propName="opacity" onChange={onChange}>
             <div style={{ display: "flex", gap: 4, alignItems: "center" }}>
-              <input
-                type="number"
+              <CampoNumero
                 min={0} max={1} step={0.05}
                 value={obj.opacity ?? 1}
-                onChange={(e) => onChange({ opacity: Number(e.target.value) })}
+                onTesto={(e) => onChange({ opacity: Number(e) })}
                 style={{ ...INPUT, flex: 1 }}
               />
               <button
@@ -3599,11 +3595,10 @@ export function ObjectProps({
         {field(t("props.brightness"),
           <BindableInput obj={obj} propName="brightness" onChange={onChange}>
             <div style={{ display: "flex", gap: 4, alignItems: "center" }}>
-              <input
-                type="number"
+              <CampoNumero
                 min={-100} max={100} step={5}
                 value={obj.brightness ?? 0}
-                onChange={(e) => onChange({ brightness: Number(e.target.value) || undefined })}
+                onTesto={(e) => onChange({ brightness: Number(e) || undefined })}
                 style={{ ...INPUT, flex: 1 }}
                 title={t("props.brightnessHint")}
               />
@@ -4190,17 +4185,17 @@ export function ObjectProps({
               </div>
               {(obj.gauge_zones ?? []).map((z, i) => (
                 <div key={i} style={{ display: "flex", gap: 4, alignItems: "center", marginBottom: 3 }}>
-                  <input type="number" style={{ ...INPUT, width: 56 }} value={z.from}
-                    onChange={(e) => {
+                  <CampoNumero style={{ ...INPUT, width: 56 }} value={z.from}
+                    onTesto={(e) => {
                       const zs = [...(obj.gauge_zones ?? [])];
-                      zs[i] = { ...zs[i], from: Number(e.target.value) };
+                      zs[i] = { ...zs[i], from: Number(e) };
                       onChange({ gauge_zones: zs });
                     }} />
                   <span style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)" }}>→</span>
-                  <input type="number" style={{ ...INPUT, width: 56 }} value={z.to}
-                    onChange={(e) => {
+                  <CampoNumero style={{ ...INPUT, width: 56 }} value={z.to}
+                    onTesto={(e) => {
                       const zs = [...(obj.gauge_zones ?? [])];
-                      zs[i] = { ...zs[i], to: Number(e.target.value) };
+                      zs[i] = { ...zs[i], to: Number(e) };
                       onChange({ gauge_zones: zs });
                     }} />
                   <SelettoreColore style={{ ...INPUT, padding: 2, height: 26, width: 38, cursor: "pointer", flex: "none" }}
@@ -4594,11 +4589,11 @@ export function ObjectProps({
                     title={t("props.color")}
                     style={{ width: 26, height: 22, padding: 1, border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 3 }}
                   />
-                  <input
-                    type="number" min={0.5} max={10} step={0.5}
+                  <CampoNumero
+                    min={0.5} max={10} step={0.5}
                     value={tr.width ?? 1.5}
                     title={t("props.strokeWidth")}
-                    onChange={(e) => patchTrace(idx, { width: e.target.value === "" ? undefined : Number(e.target.value) })}
+                    onTesto={(e) => patchTrace(idx, { width: e === "" ? undefined : Number(e) })}
                     style={{ ...INPUT, width: 46, padding: "2px 4px" }}
                   />
                   <select
@@ -4616,11 +4611,11 @@ export function ObjectProps({
                     {t("props.fillArea")}
                   </label>
                   {tr.fill && (
-                    <input
-                      type="number" min={0} max={1} step={0.05}
+                    <CampoNumero
+                      min={0} max={1} step={0.05}
                       value={tr.fill_opacity ?? 0.15}
                       title={t("props.fillOpacity")}
-                      onChange={(e) => patchTrace(idx, { fill_opacity: e.target.value === "" ? undefined : Number(e.target.value) })}
+                      onTesto={(e) => patchTrace(idx, { fill_opacity: e === "" ? undefined : Number(e) })}
                       style={{ ...INPUT, width: 46, padding: "2px 4px" }}
                     />
                   )}
@@ -4834,11 +4829,11 @@ export function ObjectProps({
                     title={t("props.color")}
                     style={{ width: 26, height: 22, padding: 1, border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 3 }}
                   />
-                  <input
-                    type="number" min={0.5} max={10} step={0.5}
+                  <CampoNumero
+                    min={0.5} max={10} step={0.5}
                     value={p.width ?? 1.5}
                     title={t("props.strokeWidth")}
-                    onChange={(e) => patchPair(idx, { width: e.target.value === "" ? undefined : Number(e.target.value) })}
+                    onTesto={(e) => patchPair(idx, { width: e === "" ? undefined : Number(e) })}
                     style={{ ...INPUT, width: 46, padding: "2px 4px" }}
                   />
                   <select
@@ -4949,18 +4944,18 @@ export function ObjectProps({
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0 6px" }}>
                 <div>
                   <div style={LABEL}>{t("shell.righe")}</div>
-                  <input
-                    type="number" min={1} max={20} style={INPUT}
+                  <CampoNumero
+                    min={1} max={20} style={INPUT}
                     value={obj.grid_rows ?? 2}
-                    onChange={(e) => onChange({ grid_rows: Math.max(1, Number(e.target.value)) })}
+                    onTesto={(e) => onChange({ grid_rows: Math.max(1, Number(e)) })}
                   />
                 </div>
                 <div>
                   <div style={LABEL}>{t("props.columns")}</div>
-                  <input
-                    type="number" min={1} max={20} style={INPUT}
+                  <CampoNumero
+                    min={1} max={20} style={INPUT}
                     value={obj.grid_cols ?? 2}
-                    onChange={(e) => onChange({ grid_cols: Math.max(1, Number(e.target.value)) })}
+                    onTesto={(e) => onChange({ grid_cols: Math.max(1, Number(e)) })}
                   />
                 </div>
               </div>
@@ -5082,10 +5077,10 @@ export function ObjectProps({
                     style={{ width: 28, height: 24, padding: 1, border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 3 }} />
                   {obj.bar_mode !== "stacked" && (
                     <>
-                      <input type="number" style={{ ...INPUT, width: 48 }} placeholder="min" value={s.min ?? ""}
-                        onChange={(e) => { const next = [...(obj.bar_series ?? [])]; next[i] = { ...s, min: e.target.value === "" ? undefined : Number(e.target.value) }; onChange({ bar_series: next }); }} />
-                      <input type="number" style={{ ...INPUT, width: 48 }} placeholder="max" value={s.max ?? ""}
-                        onChange={(e) => { const next = [...(obj.bar_series ?? [])]; next[i] = { ...s, max: e.target.value === "" ? undefined : Number(e.target.value) }; onChange({ bar_series: next }); }} />
+                      <CampoNumero style={{ ...INPUT, width: 48 }} placeholder="min" value={s.min ?? ""}
+                        onTesto={(e) => { const next = [...(obj.bar_series ?? [])]; next[i] = { ...s, min: e === "" ? undefined : Number(e) }; onChange({ bar_series: next }); }} />
+                      <CampoNumero style={{ ...INPUT, width: 48 }} placeholder="max" value={s.max ?? ""}
+                        onTesto={(e) => { const next = [...(obj.bar_series ?? [])]; next[i] = { ...s, max: e === "" ? undefined : Number(e) }; onChange({ bar_series: next }); }} />
                     </>
                   )}
                   <button style={{ ...INPUT, width: "auto", padding: "0 6px", cursor: "pointer" }}
@@ -5481,10 +5476,10 @@ export function ObjectProps({
                     <div style={{ display: "flex", gap: 4, alignItems: "center" }}>
                       <input style={{ ...INPUT, width: 48 }} placeholder="val" value={String(e.value)}
                         onChange={(ev) => upd({ value: ev.target.value })} />
-                      <input style={{ ...INPUT, width: 44 }} type="number" placeholder="min" value={e.value_min ?? ""}
-                        onChange={(ev) => upd({ value_min: ev.target.value === "" ? undefined : Number(ev.target.value) })} />
-                      <input style={{ ...INPUT, width: 44 }} type="number" placeholder="max" value={e.value_max ?? ""}
-                        onChange={(ev) => upd({ value_max: ev.target.value === "" ? undefined : Number(ev.target.value) })} />
+                      <CampoNumero style={{ ...INPUT, width: 44 }} placeholder="min" value={e.value_min ?? ""}
+                        onTesto={(ev) => upd({ value_min: ev === "" ? undefined : Number(ev) })} />
+                      <CampoNumero style={{ ...INPUT, width: 44 }} placeholder="max" value={e.value_max ?? ""}
+                        onTesto={(ev) => upd({ value_max: ev === "" ? undefined : Number(ev) })} />
                       <SelettoreColore value={estraiHex(e.color) ?? "#22c55e"}
                         onColore={(ev) => upd({ color: ev })}
                         style={{ width: 26, height: 22, padding: 1, border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 3 }} />
@@ -5792,16 +5787,16 @@ export function ObjectProps({
                 {(obj.points ?? []).map((pt, i) => (
                   <div key={i} style={{ display: "flex", gap: 4, alignItems: "center", marginBottom: 3 }}>
                     <span style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)", width: 18, flexShrink: 0 }}>{i}</span>
-                    <input type="number" style={{ ...INPUT, width: 58 }} value={pt.x}
-                      onChange={(e) => {
+                    <CampoNumero style={{ ...INPUT, width: 58 }} value={pt.x}
+                      onTesto={(e) => {
                         const pts = [...(obj.points ?? [])];
-                        pts[i] = { ...pts[i], x: Number(e.target.value) };
+                        pts[i] = { ...pts[i], x: Number(e) };
                         onChange({ points: pts });
                       }} />
-                    <input type="number" style={{ ...INPUT, width: 58 }} value={pt.y}
-                      onChange={(e) => {
+                    <CampoNumero style={{ ...INPUT, width: 58 }} value={pt.y}
+                      onTesto={(e) => {
                         const pts = [...(obj.points ?? [])];
-                        pts[i] = { ...pts[i], y: Number(e.target.value) };
+                        pts[i] = { ...pts[i], y: Number(e) };
                         onChange({ points: pts });
                       }} />
                     {(obj.points ?? []).length > 2 && (
@@ -5912,21 +5907,21 @@ export function ObjectProps({
                         <tr key={i}>
                           <td style={{ padding: "1px 4px", color: "var(--brand-text-subtle, #64748b)" }}>{i + 1}</td>
                           <td style={{ padding: "1px 2px" }}>
-                            <input type="number" style={{ ...INPUT, padding: "1px 4px", fontSize: 11 }} value={p.x}
+                            <CampoNumero style={{ ...INPUT, padding: "1px 4px", fontSize: 11 }} value={p.x}
                               onFocus={() => setMotionMarker(p)}
                               onBlur={() => setMotionMarker(null)}
-                              onChange={(e) => {
-                                const x = Number(e.target.value);
+                              onTesto={(e) => {
+                                const x = Number(e);
                                 setMotionMarker({ x, y: p.y });
                                 setPts(pts.map((q, j) => (j === i ? { ...q, x } : q)));
                               }} />
                           </td>
                           <td style={{ padding: "1px 2px" }}>
-                            <input type="number" style={{ ...INPUT, padding: "1px 4px", fontSize: 11 }} value={p.y}
+                            <CampoNumero style={{ ...INPUT, padding: "1px 4px", fontSize: 11 }} value={p.y}
                               onFocus={() => setMotionMarker(p)}
                               onBlur={() => setMotionMarker(null)}
-                              onChange={(e) => {
-                                const y = Number(e.target.value);
+                              onTesto={(e) => {
+                                const y = Number(e);
                                 setMotionMarker({ x: p.x, y });
                                 setPts(pts.map((q, j) => (j === i ? { ...q, y } : q)));
                               }} />
@@ -5960,10 +5955,9 @@ export function ObjectProps({
           {field(t("props.rotationDeg"),
             <BindableInput obj={obj} propName="rotation" onChange={onChange}>
               <div style={{ display: "flex", gap: 4, alignItems: "center" }}>
-                <input
-                  type="number"
+                <CampoNumero
                   value={obj.rotation ?? 0}
-                  onChange={(e) => onChange({ rotation: Number(e.target.value) || 0 })}
+                  onTesto={(e) => onChange({ rotation: Number(e) || 0 })}
                   style={{ ...INPUT, flex: 1 }}
                 />
                 <button
@@ -5996,11 +5990,10 @@ export function ObjectProps({
           </div>
           {field(t("props.transitionMs"),
             <div style={{ display: "flex", gap: 4, alignItems: "center" }}>
-              <input
-                type="number"
+              <CampoNumero
                 min={0} max={5000} step={50}
                 value={obj.transition_duration_ms ?? 0}
-                onChange={(e) => onChange({ transition_duration_ms: Number(e.target.value) || undefined })}
+                onTesto={(e) => onChange({ transition_duration_ms: Number(e) || undefined })}
                 style={{ ...INPUT, flex: 1 }}
               />
               <button
@@ -6445,8 +6438,8 @@ function TableRowsEditor({
             </div>
             <div>
               <div style={LABEL}>{t("props.decimals")}</div>
-              <input type="number" style={INPUT} value={row.decimals ?? ""}
-                onChange={(e) => update(i, { decimals: e.target.value === "" ? undefined : Number(e.target.value) })} />
+              <CampoNumero style={INPUT} value={row.decimals ?? ""}
+                onTesto={(e) => update(i, { decimals: e === "" ? undefined : Number(e) })} />
             </div>
           </div>
           {/* F7.1 — soglie della riga: colorano il valore, indipendenti dal tag. */}
@@ -6455,8 +6448,8 @@ function TableRowsEditor({
                ["warn_high", t("props.warnHigh")], ["alarm_high", t("props.alarmHigh")]] as const).map(([k, lbl]) => (
               <div key={k}>
                 <div style={LABEL}>{lbl}</div>
-                <input type="number" style={INPUT} value={(row[k] as number | undefined) ?? ""}
-                  onChange={(e) => update(i, { [k]: e.target.value === "" ? undefined : Number(e.target.value) })} />
+                <CampoNumero style={INPUT} value={(row[k] as number | undefined) ?? ""}
+                  onTesto={(e) => update(i, { [k]: e === "" ? undefined : Number(e) })} />
               </div>
             ))}
           </div>
@@ -6608,18 +6601,18 @@ function GridCellEditor({
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0 6px", marginBottom: 6 }}>
         <div>
           <div style={LABEL}>{t("props.rowspan")}</div>
-          <input
-            type="number" min={1} max={10} style={INPUT}
+          <CampoNumero
+            min={1} max={10} style={INPUT}
             value={cell.rowspan ?? 1}
-            onChange={(e) => onChange({ rowspan: Math.max(1, Number(e.target.value)) })}
+            onTesto={(e) => onChange({ rowspan: Math.max(1, Number(e)) })}
           />
         </div>
         <div>
           <div style={LABEL}>{t("props.colspan")}</div>
-          <input
-            type="number" min={1} max={10} style={INPUT}
+          <CampoNumero
+            min={1} max={10} style={INPUT}
             value={cell.colspan ?? 1}
-            onChange={(e) => onChange({ colspan: Math.max(1, Number(e.target.value)) })}
+            onTesto={(e) => onChange({ colspan: Math.max(1, Number(e)) })}
           />
         </div>
       </div>

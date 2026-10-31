@@ -22,6 +22,7 @@ import { motivoNomeIstanza, nomeIstanzaProposto } from "@/tag/istanze";
 import type { Membro, TagDataType, TypeDef } from "@/types";
 import { S, SaveBar, SezionePendente } from "@/config/comuni";
 import { segnalaSalvataggioFallito } from "@/config/salvataggioFallito";
+import { CampoNumero } from "@/components/CampoNumero";
 
 const IN: React.CSSProperties = {
   width: "100%", boxSizing: "border-box", background: "var(--brand-bg, #0f172a)",
@@ -354,9 +355,9 @@ export function TipiTab({ incorporata = false, onIstanzaCreata, variabiliToccate
                               ] as const).map(([campo, chiave]) => (
                                 <label key={campo} style={{ display: "flex", flexDirection: "column", gap: 2, width: 96 }}>
                                   <span style={{ color: "var(--brand-text-subtle, #64748b)" }}>{t(`tipiTab.${chiave}`)}</span>
-                                  <input type="number" style={IN}
+                                  <CampoNumero style={IN}
                                     value={(m[campo] as number | undefined) ?? ""}
-                                    onChange={(e) => patchMembro(i, { [campo]: e.target.value === "" ? undefined : Number(e.target.value) } as Partial<Membro>)} />
+                                    onTesto={(e) => patchMembro(i, { [campo]: e === "" ? undefined : Number(e) } as Partial<Membro>)} />
                                 </label>
                               ))}
                               <label style={{ display: "flex", flexDirection: "column", gap: 2, width: 130 }}>

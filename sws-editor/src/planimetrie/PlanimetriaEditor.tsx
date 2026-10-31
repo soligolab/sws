@@ -25,6 +25,7 @@ import {
   PREDEFINITI, aggancia, centroDi, idNuovo, ingombro, normalizza, proiezione, puntoA, senzaOrfani, spigoliBlocco, tuttiGliId,
   type Apertura, type Area, type Blocco, type Muro, type Planimetria, type Punto,
 } from "./modello";
+import { CampoNumero } from "@/components/CampoNumero";
 
 type Strumento = "seleziona" | "muro" | "porta" | "finestra" | "area" | "blocco";
 type Scelto = { tipo: "muro" | "apertura" | "area" | "blocco"; id: string } | null;
@@ -385,10 +386,10 @@ function GeneraSfondo({ id, api3d, formato, onFormato, onChiudi }: {
         <div style={{ fontSize: 12, color: "var(--brand-text-subtle, #94a3b8)", lineHeight: 1.4 }}>{t("planimetrie.generaNota", { nome })}</div>
         <div style={{ display: "flex", gap: 10 }}>
           <label style={ETICHETTA}>{t("planimetrie.campi.larghezzaPx")}
-            <input type="number" min={100} max={4096} value={w} style={CAMPO} onChange={(e) => setW(Number(e.target.value))} />
+            <CampoNumero min={100} max={4096} value={w} style={CAMPO} onTesto={(e) => setW(Number(e))} />
           </label>
           <label style={ETICHETTA}>{t("planimetrie.campi.altezzaPx")}
-            <input type="number" min={100} max={4096} value={h} style={CAMPO} onChange={(e) => setH(Number(e.target.value))} />
+            <CampoNumero min={100} max={4096} value={h} style={CAMPO} onTesto={(e) => setH(Number(e))} />
           </label>
         </div>
         {paginaNormale && (
@@ -429,8 +430,8 @@ function Proprieta({ bozza, scelto, cambia, elimina }: {
   const { t } = useTranslation();
   const num = (etichetta: string, valore: number, imposta: (v: number) => void, passo = 0.05) => (
     <label style={ETICHETTA} key={etichetta}>{t(`planimetrie.campi.${etichetta}`)}
-      <input type="number" step={passo} value={Number.isFinite(valore) ? Number(valore.toFixed(3)) : 0} style={CAMPO}
-        onChange={(e) => { const v = Number(e.target.value); if (Number.isFinite(v)) imposta(v); }} />
+      <CampoNumero step={passo} value={Number.isFinite(valore) ? Number(valore.toFixed(3)) : 0} style={CAMPO}
+        onTesto={(e) => { const v = Number(e); if (Number.isFinite(v)) imposta(v); }} />
     </label>
   );
   const testo = (etichetta: string, valore: string | undefined, imposta: (v: string) => void, tipo = "text") => (

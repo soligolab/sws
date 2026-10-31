@@ -8,6 +8,7 @@ import type { HostMetric, HostMetricMapping, HostSource, TagDef } from "@/types"
 import { S } from "@/config/comuni";
 import { SezioneSorgente } from "@/config/sorgenti/card/SezioneSorgente";
 import { TestataSorgente } from "@/config/sorgenti/card/TestataSorgente";
+import { CampoNumero } from "@/components/CampoNumero";
 
 // ── Host (risorse di sistema) ─────────────────────────────────────────────────
 // Metriche, parametri e catalogo stanno in `sorgenteHost.ts`, provabile da solo.
@@ -90,7 +91,7 @@ export function HostSourceCard({
         <div style={{ display: "grid", gridTemplateColumns: "110px 240px", gap: 12, marginBottom: 8 }}>
           <div>
             <label style={etichetta}>Poll (ms)</label>
-            <input type="number" value={source.poll_interval_ms} onChange={(e) => upd({ poll_interval_ms: Number(e.target.value) })} style={S.input} />
+            <CampoNumero value={source.poll_interval_ms} onTesto={(e) => upd({ poll_interval_ms: Number(e) })} style={S.input} />
           </div>
           <div>
             <label style={etichetta}>{t("cfgUi.sourceId")}</label>

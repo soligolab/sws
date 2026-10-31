@@ -13,6 +13,7 @@ import { TestataSorgente } from "@/config/sorgenti/card/TestataSorgente";
 import { DisponibilitaSezione } from "@/config/sorgenti/card/DisponibilitaSezione";
 import { SparkplugSection } from "@/config/sorgenti/SparkplugSection";
 import { compilaRichiesteZigbee2mqtt, pubblicabile, richiestaZigbee2mqtt } from "@/config/sorgenti/richiestaStato";
+import { CampoNumero } from "@/components/CampoNumero";
 
 // ── MQTT card ─────────────────────────────────────────────────────────────────
 //
@@ -131,8 +132,8 @@ export function MqttSourceCard({
               </div>
               <div>
                 <label style={etichetta}>{t("cfg.port")}</label>
-                <input style={S.input} type="number" min={1} max={65535} value={source.port}
-                  onChange={(e) => setField("port", Number(e.target.value))} />
+                <CampoNumero style={S.input} min={1} max={65535} value={source.port}
+                  onTesto={(e) => setField("port", Number(e))} />
               </div>
               <div>
                 <label style={etichetta}>{t("cfg.clientId")}</label>

@@ -6,6 +6,7 @@ import type { DisponibilitaMqtt, MqttLastWill, MqttSource, MqttTlsConfig, TagDef
 import { S } from "@/config/comuni";
 import { PRESET_DISPONIBILITA, presetDi, tagDefDisponibilita, type PresetDisponibilita } from "@/config/sorgenti/disponibilita";
 import { SottoTitolo } from "@/config/sorgenti/card/SezioneSorgente";
+import { CampoNumero } from "@/components/CampoNumero";
 
 // ── MqttSourceCard sub-sections (auth / connection / TLS / last-will) ────────
 //
@@ -94,12 +95,12 @@ export function MqttConnectionSection({
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: 12, marginBottom: 12 }}>
         <div>
           <label style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)", display: "block", marginBottom: 3 }}>{t("cfg.keepAlive")}</label>
-          <input
+          <CampoNumero
             style={S.input}
-            type="number" min={1} max={3600}
+            min={1} max={3600}
             value={source.keep_alive_secs ?? ""}
             placeholder="10"
-            onChange={(e) => onChange({ keep_alive_secs: e.target.value === "" ? undefined : Number(e.target.value) })}
+            onTesto={(e) => onChange({ keep_alive_secs: e === "" ? undefined : Number(e) })}
           />
         </div>
         <div>
@@ -130,13 +131,13 @@ export function MqttConnectionSection({
         <div>
           <label style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)", display: "block", marginBottom: 3 }}
             title={t("cfg.maxSilenceSecsHint")}>{t("cfg.maxSilenceSecs")}</label>
-          <input
+          <CampoNumero
             style={S.input}
-            type="number" min={1}
+            min={1}
             value={source.max_silence_secs ?? ""}
             placeholder={t("cfg.maxSilenceSecsPlaceholder")}
             title={t("cfg.maxSilenceSecsHint")}
-            onChange={(e) => onChange({ max_silence_secs: e.target.value === "" ? undefined : Number(e.target.value) })}
+            onTesto={(e) => onChange({ max_silence_secs: e === "" ? undefined : Number(e) })}
           />
         </div>
       </div>

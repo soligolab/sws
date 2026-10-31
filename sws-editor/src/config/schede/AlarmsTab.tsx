@@ -11,6 +11,7 @@ import { CampoTestoTradotto } from "@/editor/CampoTestoTradotto";
 import { TRANS_COMP, BarraConflittoSezione, S, SaveBar } from "@/config/comuni";
 import { livelliDi, unisciAllarmi } from "./unisciAllarmi";
 import { segnalaSalvataggioFallito } from "@/config/salvataggioFallito";
+import { CampoNumero } from "@/components/CampoNumero";
 
 // ── ALARMS tab ────────────────────────────────────────────────────────────────
 
@@ -359,13 +360,12 @@ export function AlarmsTab() {
                       );
                     }
                     return (
-                      <input
+                      <CampoNumero
                         style={S.inputSm}
-                        type="number"
                         step="any"
                         value={(cond as { kind: "above" | "below"; threshold: number }).threshold}
-                        onChange={(e) =>
-                          updateCondition(i, { kind: cond.kind as "above" | "below", threshold: Number(e.target.value) })
+                        onTesto={(e) =>
+                          updateCondition(i, { kind: cond.kind as "above" | "below", threshold: Number(e) })
                         }
                       />
                     );
@@ -374,15 +374,14 @@ export function AlarmsTab() {
                 <td style={S.td}>
                   {/* dead_band: only for above/below atomic conditions */}
                   {(l0.condition.kind === "above" || l0.condition.kind === "below") && (
-                    <input
+                    <CampoNumero
                       style={S.inputSm}
-                      type="number"
                       step="any"
                       min="0"
                       placeholder="0"
                       title={t("cfg.hysteresis1")}
                       value={l0.dead_band ?? ""}
-                      onChange={(e) => updateLivello(i, 0, { dead_band: e.target.value !== "" ? Number(e.target.value) : undefined })}
+                      onTesto={(e) => updateLivello(i, 0, { dead_band: e !== "" ? Number(e) : undefined })}
                     />
                   )}
                 </td>
@@ -417,21 +416,21 @@ export function AlarmsTab() {
                     onChange={(e) => updateAlarm(i, { notify_url: e.target.value || undefined })}
                   />
                   <div style={{ display: "flex", gap: 4, marginTop: 4 }}>
-                    <input
+                    <CampoNumero
                       style={{ ...S.inputSm, width: "50%", fontSize: 11 }}
-                      type="number" step="any" min="0"
+                      step="any" min="0"
                       placeholder={t("cfg.onDelayS")}
                       title={t("cfg.onDelayHint")}
                       value={alm.on_delay_s ?? ""}
-                      onChange={(e) => updateAlarm(i, { on_delay_s: e.target.value !== "" ? Number(e.target.value) : undefined })}
+                      onTesto={(e) => updateAlarm(i, { on_delay_s: e !== "" ? Number(e) : undefined })}
                     />
-                    <input
+                    <CampoNumero
                       style={{ ...S.inputSm, width: "50%", fontSize: 11 }}
-                      type="number" step="any" min="0"
+                      step="any" min="0"
                       placeholder={t("cfg.offDelayS")}
                       title={t("cfg.offDelayHint")}
                       value={alm.off_delay_s ?? ""}
-                      onChange={(e) => updateAlarm(i, { off_delay_s: e.target.value !== "" ? Number(e.target.value) : undefined })}
+                      onTesto={(e) => updateAlarm(i, { off_delay_s: e !== "" ? Number(e) : undefined })}
                     />
                   </div>
                   <TagInput
@@ -462,13 +461,13 @@ export function AlarmsTab() {
                     </div>
                   )}
                   <div style={{ display: "flex", gap: 4, marginTop: 4 }}>
-                    <input
+                    <CampoNumero
                       style={{ ...S.inputSm, width: "40%", fontSize: 11 }}
-                      type="number" step="any" min="0"
+                      step="any" min="0"
                       placeholder={t("cfg.escalateS")}
                       title={t("cfgUi.escalateAfterSSecondsAfter")}
                       value={alm.escalate_after_s ?? ""}
-                      onChange={(e) => updateAlarm(i, { escalate_after_s: e.target.value !== "" ? Number(e.target.value) : undefined })}
+                      onTesto={(e) => updateAlarm(i, { escalate_after_s: e !== "" ? Number(e) : undefined })}
                     />
                   </div>
                   {alm.escalate_after_s ? (
@@ -574,16 +573,16 @@ export function AlarmsTab() {
                     </td>
                     <td style={S.td}>
                       {soglia !== undefined && (
-                        <input type="number" style={S.inputSm} value={soglia}
-                          onChange={(e) => updateLivello(i, j, {
-                            condition: { kind: liv.condition.kind as "above" | "below", threshold: Number(e.target.value) },
+                        <CampoNumero style={S.inputSm} value={soglia}
+                          onTesto={(e) => updateLivello(i, j, {
+                            condition: { kind: liv.condition.kind as "above" | "below", threshold: Number(e) },
                           })} />
                       )}
                     </td>
                     <td style={S.td}>
-                      <input type="number" style={S.inputSm} placeholder="—" title={t("cfg.hysteresis2")}
+                      <CampoNumero style={S.inputSm} placeholder="—" title={t("cfg.hysteresis2")}
                         value={liv.dead_band ?? ""}
-                        onChange={(e) => updateLivello(i, j, { dead_band: e.target.value !== "" ? Number(e.target.value) : undefined })} />
+                        onTesto={(e) => updateLivello(i, j, { dead_band: e !== "" ? Number(e) : undefined })} />
                     </td>
                     <td style={S.td}>
                       <select style={{ ...S.inputSm, cursor: "pointer" }} value={liv.severity ?? "Warning"}

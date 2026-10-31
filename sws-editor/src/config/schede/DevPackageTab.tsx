@@ -19,6 +19,7 @@ import { api, getAuthToken } from "@/api/client";
 import type { PackageFile } from "@/types";
 import { ricorda, ricordato } from "@/config/campiDispositivo";
 import { BTN, BTN_PRIMARY, INPUT, LOG_BOX, coloreRigaLog } from "./stiliRuntime";
+import { CampoNumero } from "@/components/CampoNumero";
 
 // Il dispositivo su cui installare il binario: campi suoi, come le altre
 // schede del ramo Device, e ricordati perché la scheda si smonta.
@@ -179,8 +180,8 @@ export function DevPackageTab() {
             <input style={{ ...INPUT, flex: 1, minWidth: 150 }} placeholder="wp630-xxxx.local"
               title={t("cfg.sshHost")} value={host}
               onChange={(e) => { setHost(e.target.value); ricorda(K_HOST, e.target.value); }} />
-            <input style={{ ...INPUT, width: 70 }} type="number" title={t("cfg.port")} value={port}
-              onChange={(e) => { setPort(Number(e.target.value) || 22); ricorda(K_PORT, e.target.value); }} />
+            <CampoNumero style={{ ...INPUT, width: 70 }} title={t("cfg.port")} value={port}
+              onTesto={(e) => { setPort(Number(e) || 22); ricorda(K_PORT, e); }} />
             <input style={{ ...INPUT, width: 110 }} placeholder="user" title={t("cfg.sshUser")} value={user}
               onChange={(e) => { setUser(e.target.value); ricorda(K_USER, e.target.value); }} />
             {/* La password solo nello stato, mai in localStorage. */}

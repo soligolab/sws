@@ -6,6 +6,7 @@ import { useAppStore } from "@/store";
 import { eModificato, useFocus, usePubblicaElenco } from "@/config/fogliaConfig";
 import { TRANS_COMP, SaveBar } from "@/config/comuni";
 import { RitenzioneAutomatica } from "./RitenzioneAutomatica";
+import { CampoNumero } from "@/components/CampoNumero";
 
 // ── DATASTORES tab ────────────────────────────────────────────────────────────
 
@@ -487,16 +488,16 @@ export function DatastoresTab() {
             <div style={{ display: "flex", gap: 16, marginTop: 8 }}>
               <div>
                 <span style={labelStyle}>{t("cfg.maxRowsPerTag")}</span>
-                <input type="number" min={0}
+                <CampoNumero min={0}
                   value={ds.retention_rows ?? ""}
-                  onChange={(e) => patchDs(ds.id, { retention_rows: e.target.value ? Number(e.target.value) : undefined })}
+                  onTesto={(e) => patchDs(ds.id, { retention_rows: e ? Number(e) : undefined })}
                   style={{ ...inputStyle, width: 120 }} placeholder={t("cfg.unlimited")} />
               </div>
               <div>
                 <span style={labelStyle}>{t("cfg.retentionDays")}</span>
-                <input type="number" min={0}
+                <CampoNumero min={0}
                   value={ds.retention_days ?? ""}
-                  onChange={(e) => patchDs(ds.id, { retention_days: e.target.value ? Number(e.target.value) : undefined })}
+                  onTesto={(e) => patchDs(ds.id, { retention_days: e ? Number(e) : undefined })}
                   style={{ ...inputStyle, width: 120 }} placeholder={t("cfg.unlimited")} />
               </div>
             </div>

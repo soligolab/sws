@@ -16,6 +16,7 @@ import { imageRefDaVariante, installazioneConsentita } from "@/config/installazi
 import { containerDeployPayload } from "@/containerDeploy";
 import { SceltaOpenplc } from "@/boot/OpenplcSulPannello";
 import { campoAmpio, pulsantePrimario, pulsanteSecondario } from "@/ui/base";
+import { CampoNumero } from "@/components/CampoNumero";
 
 // I nomi corti della schermata da cui questo file viene (`WelcomeScreen`),
 // tenuti apposta: lo spostamento resta leggibile riga per riga.
@@ -154,7 +155,7 @@ function DeploySection() {
         </div>
         <div>
           <label style={{ fontSize: 11, color: "var(--brand-text-muted, #94a3b8)", display: "block", marginBottom: 3 }}>{t("welcome.port")}</label>
-          <input style={{ ...INPUT, width: 60 }} type="number" min={1} max={65535} value={port} onChange={(e) => setPort(Number(e.target.value))} />
+          <CampoNumero style={{ ...INPUT, width: 60 }} min={1} max={65535} value={port} onTesto={(e) => setPort(Number(e))} />
         </div>
       </div>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>

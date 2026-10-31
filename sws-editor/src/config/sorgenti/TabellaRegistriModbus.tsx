@@ -4,6 +4,7 @@ import { useAppStore } from "@/store";
 import type { OrdineModbus, RegisterMapping } from "@/types";
 import { S } from "@/config/comuni";
 import { registriMappatura, type AreaModbus } from "@/config/sorgenti/modbusRegistri";
+import { CampoNumero } from "@/components/CampoNumero";
 
 const AREE: AreaModbus[] = ["holding", "input", "coil", "discrete"];
 /** I formati sul filo (catalogo, 04-10-2026): «dal tipo» è il vuoto. */
@@ -81,8 +82,8 @@ export function TabellaRegistriModbus({ registri, setRegister, removeRegister, o
                   </select>
                 </td>
                 <td style={S.td}>
-                  <input style={S.inputSm} type="number" min={0} value={r.address}
-                    onChange={(e) => setRegister(i, { address: Number(e.target.value) })} />
+                  <CampoNumero style={S.inputSm} min={0} value={r.address}
+                    onTesto={(e) => setRegister(i, { address: Number(e) })} />
                 </td>
                 <td style={S.td}>
                   <select style={S.inputSm} value={r.formato ?? ""} disabled={aBit || r.bit !== undefined}
@@ -91,12 +92,12 @@ export function TabellaRegistriModbus({ registri, setRegister, removeRegister, o
                   </select>
                 </td>
                 <td style={S.td}>
-                  <input style={S.inputSm} type="number" min={0} max={15} value={r.bit ?? ""} disabled={aBit}
-                    onChange={(e) => setRegister(i, { bit: e.target.value === "" ? undefined : Math.max(0, Math.min(15, Number(e.target.value))) })} />
+                  <CampoNumero style={S.inputSm} min={0} max={15} value={r.bit ?? ""} disabled={aBit}
+                    onTesto={(e) => setRegister(i, { bit: e === "" ? undefined : Math.max(0, Math.min(15, Number(e))) })} />
                 </td>
                 <td style={S.td}>
-                  <input style={S.inputSm} type="number" step="0.001" value={r.scale}
-                    onChange={(e) => setRegister(i, { scale: Number(e.target.value) })}
+                  <CampoNumero style={S.inputSm} step="0.001" value={r.scale}
+                    onTesto={(e) => setRegister(i, { scale: Number(e) })}
                     disabled={!scalaAttiva} title={scalaAttiva ? undefined : t("cfg.modbusScalaSoloStorici")} />
                 </td>
                 <td style={{ ...S.td, textAlign: "center" }}>

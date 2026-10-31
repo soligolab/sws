@@ -120,6 +120,13 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 
 ### Fixed
 
+- **Il «-» da tastiera nei campi numerici** (piano `docs/plans/2026-10-31-campi-numerici.md`): un numero negativo
+  si scriveva solo con le freccette. Con «-» il browser riporta un valore vuoto, il gestore scriveva «non impostato»
+  (o uno **0**, dove faceva `Number(…)`: porte, indirizzi, scale) e il campo tornava al ripiego. I 105
+  `<input type="number">` dell'editor passano ora da `CampoNumero` (`components/CampoNumero.tsx`), che tiene il testo
+  a metà (`validity.badInput`) senza scriverlo, tiene vuoto un campo svuotato mentre ci si scrive, e all'uscita
+  torna al valore del progetto. Guardia nuova `check_campi_numerici.sh`. Vale anche per il setpoint a runtime.
+
 - **Ctrl+Z annulla una modifica, non un tasto**: ogni carattere scritto in un campo del pannello proprietà era una voce
   di annulla. Ora le modifiche consecutive allo stesso campo dello stesso oggetto (o della pagina, o della sottocella)
   a meno di 1,5 s l'una dall'altra restano una voce sola (`pushHistory` con chiave di unione, `UNIONE_MS`). Un altro

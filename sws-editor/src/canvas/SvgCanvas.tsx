@@ -54,6 +54,7 @@ import { larghezzaTubo, stileTubo, svgTubo } from "./stiliTubo";
 import { useManifestoLib } from "@/symbols/lib/libreria";
 import { cssFamiglia } from "@/font/famiglie";
 import { SliderSvg } from "./slider/SliderSvg";
+import { CampoNumero } from "@/components/CampoNumero";
 
 /** La misura che ogni ramo di disegno usa quando l'oggetto non la scrive. Il
  *  contorno di pagina (bordo d'allarme, lampeggio) la prendeva fissa a 100×50,
@@ -5023,12 +5024,11 @@ function SvgObjectCorpo(p: ObjProps) {
               {testoSistema("sp_attuale", lingua.lang)} {currentVal !== undefined && Number.isFinite(currentVal) ? `${(currentVal as number).toFixed(obj.decimals ?? 1)}${unit}` : "—"}
             </span>
             <div style={{ display: "flex", gap: 4 }}>
-              <input
-                type="number"
+              <CampoNumero
                 min={obj.min} max={obj.max} step={obj.step ?? 1}
                 disabled={readOnly}
                 value={setpointDraft ?? (currentVal !== undefined && Number.isFinite(currentVal) ? currentVal : "")}
-                onChange={(e) => setSetpointDraft(e.target.value)}
+                onTesto={(e) => setSetpointDraft(e)}
                 onKeyDown={(e) => { if (e.key === "Enter") commit(); }}
                 onClick={(e) => e.stopPropagation()}
                 style={{

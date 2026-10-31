@@ -15,6 +15,7 @@ import { S, SaveBar } from "@/config/comuni";
 import { useAppStore } from "@/store";
 import { TagInput } from "@/components/TagInput";
 import { DestinatariEmail } from "@/config/DestinatariEmail";
+import { CampoNumero } from "@/components/CampoNumero";
 
 const PERIODI = ["turno", "giorno", "settimana", "mese"] as const;
 const CRON_PREDEFINITO: Record<(typeof PERIODI)[number], string> = {
@@ -154,9 +155,9 @@ export function ReportsTab() {
 
             <div style={{ display: "flex", gap: 16, flexWrap: "wrap", alignItems: "flex-end" }}>
               <label style={ETICHETTA}>{t("reportTab.passo")}
-                <input style={{ ...S.input, width: 110 }} type="number" min={1} value={cur.intervallo_min ?? ""}
+                <CampoNumero style={{ ...S.input, width: 110 }} min={1} value={cur.intervallo_min ?? ""}
                   placeholder={String({ turno: 15, giorno: 60, settimana: 1440, mese: 1440 }[cur.periodo ?? "giorno"])}
-                  onChange={(e) => cambia({ intervallo_min: e.target.value === "" ? undefined : Number(e.target.value) })} />
+                  onTesto={(e) => cambia({ intervallo_min: e === "" ? undefined : Number(e) })} />
               </label>
               <label style={{ ...ETICHETTA, display: "flex", gap: 6, alignItems: "center" }}>
                 <input type="checkbox" checked={cur.allarmi !== false} onChange={(e) => cambia({ allarmi: e.target.checked ? undefined : false })} />
@@ -176,8 +177,8 @@ export function ReportsTab() {
                 );
               })}
               <label style={ETICHETTA}>{t("reportTab.conserva")}
-                <input style={{ ...S.input, width: 90 }} type="number" min={1} value={cur.conserva ?? ""} placeholder="30"
-                  onChange={(e) => cambia({ conserva: e.target.value === "" ? undefined : Number(e.target.value) })} />
+                <CampoNumero style={{ ...S.input, width: 90 }} min={1} value={cur.conserva ?? ""} placeholder="30"
+                  onTesto={(e) => cambia({ conserva: e === "" ? undefined : Number(e) })} />
               </label>
             </div>
 

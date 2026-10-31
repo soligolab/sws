@@ -11,6 +11,7 @@ import { OpcUaEuromapModal } from "@/config/sorgenti/OpcUaEuromapModal";
 import { SezioneSorgente } from "@/config/sorgenti/card/SezioneSorgente";
 import { TestataSorgente } from "@/config/sorgenti/card/TestataSorgente";
 import { DisponibilitaSezione } from "@/config/sorgenti/card/DisponibilitaSezione";
+import { CampoNumero } from "@/components/CampoNumero";
 
 // ── OPC-UA card ───────────────────────────────────────────────────────────────
 //
@@ -91,10 +92,10 @@ export function OpcUaSourceCard({
               </div>
               <div>
                 <label style={S.label}>{t("cfg.subInterval")}</label>
-                <input
-                  type="number" min={50} step={50} style={S.input}
+                <CampoNumero
+                  min={50} step={50} style={S.input}
                   value={source.subscription_interval_ms}
-                  onChange={(e) => setField("subscription_interval_ms", Number(e.target.value) || 500)}
+                  onTesto={(e) => setField("subscription_interval_ms", Number(e) || 500)}
                 />
               </div>
               <div>

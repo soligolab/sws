@@ -8,6 +8,7 @@ import { DispositivoModbusCard, ElencoDispositiviModbus } from "@/config/sorgent
 import { SezioneSorgente } from "@/config/sorgenti/card/SezioneSorgente";
 import { TestataSorgente } from "@/config/sorgenti/card/TestataSorgente";
 import { DisponibilitaSezione } from "@/config/sorgenti/card/DisponibilitaSezione";
+import { CampoNumero } from "@/components/CampoNumero";
 
 /** Il bus Modbus TCP (04-10-2026): l'indirizzo, il polling predefinito e i
  *  dispositivi dietro quell'indirizzo (più unit id = un gateway). Le mappature
@@ -61,14 +62,14 @@ export function ModbusSourceCard({
               </div>
               <div>
                 <label style={etichetta}>{t("cfg.port")}</label>
-                <input style={S.input} type="number" min={1} max={65535} value={source.port}
-                  onChange={(e) => setField("port", Number(e.target.value))} />
+                <CampoNumero style={S.input} min={1} max={65535} value={source.port}
+                  onTesto={(e) => setField("port", Number(e))} />
               </div>
               <div>
                 <label style={etichetta}>{t("cfg.pollInterval")}</label>
-                <input style={S.input} type="number" min={100} value={source.poll_interval_ms}
+                <CampoNumero style={S.input} min={100} value={source.poll_interval_ms}
                   title={t("cfg.modbusPollPredefinito")}
-                  onChange={(e) => setField("poll_interval_ms", Number(e.target.value))} />
+                  onTesto={(e) => setField("poll_interval_ms", Number(e))} />
               </div>
               <div>
                 <label style={etichetta}>{t("cfg.sourceId")}</label>

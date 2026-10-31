@@ -18,6 +18,7 @@ import { tagSorgenteSenzaVariabile } from "@/tag/riconciliaTag";
 import { useSezioneSincronizzata } from "@/config/useSezioneSincronizzata";
 import { TRANS_COMP, BarraConflittoSezione, S, SaveBar } from "@/config/comuni";
 import { segnalaSalvataggioFallito } from "@/config/salvataggioFallito";
+import { CampoNumero } from "@/components/CampoNumero";
 
 // ── TAG tab ───────────────────────────────────────────────────────────────────
 
@@ -630,11 +631,11 @@ export function TagsTab({ scheda }: { scheda: IdScheda }) {
                       const numCell = (label: string, key: keyof TagDef, ph = "") => (
                         <label style={{ display: "flex", flexDirection: "column", gap: 2, fontSize: 10, color: "var(--brand-text-subtle, #64748b)", width: 90 }}>
                           {label}
-                          <input
+                          <CampoNumero
                             style={{ ...S.input, fontSize: 12 }}
-                            type="number" placeholder={ph}
+                            placeholder={ph}
                             value={(tag[key] as number | undefined) ?? ""}
-                            onChange={(e) => updateTag(i, { [key]: e.target.value === "" ? undefined : Number(e.target.value) } as Partial<TagDef>)}
+                            onTesto={(e) => updateTag(i, { [key]: e === "" ? undefined : Number(e) } as Partial<TagDef>)}
                           />
                         </label>
                       );
@@ -753,29 +754,27 @@ export function TagsTab({ scheda }: { scheda: IdScheda }) {
                       </label>
                       <label style={{ display: "flex", flexDirection: "column", gap: 2, fontSize: 10, color: "var(--brand-text-subtle, #64748b)", width: 90 }}>
                         {t("cfg.tagGeneratorPeriod")}
-                        <input
+                        <CampoNumero
                           style={{ ...S.input, fontSize: 12 }}
-                          type="number" min={50}
+                          min={50}
                           value={tag.generator?.period_ms ?? 1000}
-                          onChange={(e) => patchGenerator(i, tag, { period_ms: Number(e.target.value) })}
+                          onTesto={(e) => patchGenerator(i, tag, { period_ms: Number(e) })}
                         />
                       </label>
                       <label style={{ display: "flex", flexDirection: "column", gap: 2, fontSize: 10, color: "var(--brand-text-subtle, #64748b)", width: 90 }}>
                         Min
-                        <input
+                        <CampoNumero
                           style={{ ...S.input, fontSize: 12 }}
-                          type="number"
                           value={tag.generator?.min ?? 0}
-                          onChange={(e) => patchGenerator(i, tag, { min: Number(e.target.value) })}
+                          onTesto={(e) => patchGenerator(i, tag, { min: Number(e) })}
                         />
                       </label>
                       <label style={{ display: "flex", flexDirection: "column", gap: 2, fontSize: 10, color: "var(--brand-text-subtle, #64748b)", width: 90 }}>
                         Max
-                        <input
+                        <CampoNumero
                           style={{ ...S.input, fontSize: 12 }}
-                          type="number"
                           value={tag.generator?.max ?? 100}
-                          onChange={(e) => patchGenerator(i, tag, { max: Number(e.target.value) })}
+                          onTesto={(e) => patchGenerator(i, tag, { max: Number(e) })}
                         />
                       </label>
                       <button

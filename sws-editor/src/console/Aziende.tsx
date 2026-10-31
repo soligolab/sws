@@ -5,6 +5,7 @@ import {
   avviso, campo, coloreStato, elencoEDettaglio, errore as stileErrore,
   pulsante, riga, rigaElenco, scheda, titoletto,
 } from "@/ui/base";
+import { CampoNumero } from "@/components/CampoNumero";
 
 /**
  * Le aziende: approvarle, dar loro un marchio, fissare la versione predefinita.
@@ -308,13 +309,12 @@ export function Aziende({ piattaforma = true }: { piattaforma?: boolean }) {
                 non e un accordo (decisione del maintainer, 08-10-2026). */}
             <div style={{ ...riga, marginTop: 16 }}>
               <label style={titoletto}>{t("console.aziende.spazio")}</label>
-              <input
-                type="number"
+              <CampoNumero
                 min={0}
                 step="0.5"
                 value={bozza.spazio_gb}
                 disabled={!piattaforma}
-                onChange={(e) => setBozza({ ...bozza, spazio_gb: e.target.value })}
+                onTesto={(e) => setBozza({ ...bozza, spazio_gb: e })}
                 placeholder={t("console.aziende.senzaLimite")}
                 style={{ ...campo, opacity: piattaforma ? 1 : 0.6 }}
               />
@@ -322,13 +322,12 @@ export function Aziende({ piattaforma = true }: { piattaforma?: boolean }) {
 
             <div style={riga}>
               <label style={titoletto}>{t("console.aziende.progettiAperti")}</label>
-              <input
-                type="number"
+              <CampoNumero
                 min={0}
                 step={1}
                 value={bozza.progetti_aperti}
                 disabled={!piattaforma}
-                onChange={(e) => setBozza({ ...bozza, progetti_aperti: e.target.value })}
+                onTesto={(e) => setBozza({ ...bozza, progetti_aperti: e })}
                 placeholder={t("console.aziende.senzaLimite")}
                 style={{ ...campo, opacity: piattaforma ? 1 : 0.6 }}
               />
@@ -340,14 +339,13 @@ export function Aziende({ piattaforma = true }: { piattaforma?: boolean }) {
                 quanta roba si può tenere. Un'azienda personale ne ha tre. */}
             <div style={riga}>
               <label style={titoletto}>{t("console.aziende.progettiTotali")}</label>
-              <input
-                type="number"
+              <CampoNumero
                 min={0}
                 step={1}
                 data-testid="quota-progetti-totali"
                 value={bozza.progetti_totali}
                 disabled={!piattaforma}
-                onChange={(e) => setBozza({ ...bozza, progetti_totali: e.target.value })}
+                onTesto={(e) => setBozza({ ...bozza, progetti_totali: e })}
                 placeholder={t("console.aziende.senzaLimite")}
                 style={{ ...campo, opacity: piattaforma ? 1 : 0.6 }}
               />

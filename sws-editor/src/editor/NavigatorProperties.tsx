@@ -12,6 +12,7 @@ import { paginePerNavigazione } from "@/boot/tipi";
 import { CampoTestoTradotto } from "@/editor/CampoTestoTradotto";
 import { ordinaPagine, riconcilia, righe } from "@/pageTree";
 import type { NavItem, SynopticObject } from "@/types";
+import { CampoNumero } from "@/components/CampoNumero";
 
 type Campo = (etichetta: string, contenuto: ReactNode) => ReactNode;
 
@@ -125,11 +126,11 @@ export function NavigatorProperties({
               stile={inputStyle}
               onChange={(v) => cambiaItem(p.id, { label: v.trim() === "" ? undefined : v })}
             />
-            <input
-              type="number" min={1} style={{ ...inputStyle, padding: "2px 4px" }} title={t("nav.posTitle")}
+            <CampoNumero
+              min={1} style={{ ...inputStyle, padding: "2px 4px" }} title={t("nav.posTitle")}
               placeholder={t("nav.posPh")}
               value={it?.order ?? ""}
-              onChange={(e) => cambiaItem(p.id, { order: e.target.value === "" ? undefined : Number(e.target.value) })}
+              onTesto={(e) => cambiaItem(p.id, { order: e === "" ? undefined : Number(e) })}
             />
             <input
               type="checkbox" title={t("nav.hideTitle")} checked={!!it?.hidden}

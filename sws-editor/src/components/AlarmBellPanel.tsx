@@ -10,6 +10,7 @@ import { effectiveProjectLang, resolveMsg } from "@/i18n/projectI18n";
 import { playAlarmBeep, worstSeverity } from "@/alarmSound";
 import { SEV_COLOR } from "@/alarmSeverity";
 import type { AlarmSeverity, AlarmState, ShelvedAlarm } from "@/types";
+import { CampoNumero } from "@/components/CampoNumero";
 
 // ── AlarmBellPanel ────────────────────────────────────────────────────────────
 //
@@ -314,10 +315,10 @@ export function AlarmBellPanel({ idPrefix = "", allowedSev, showHistory = true, 
                       />
                       <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
                         <label style={{ fontSize: corpoSecondario(corpo), color: "#94a3b8" }}>{t("alarmBell.durataOre")}</label>
-                        <input
-                          type="number" min={0} max={720} step={1}
+                        <CampoNumero
+                          min={0} max={720} step={1}
                           value={shelveHours}
-                          onChange={(e) => setShelveHours(parseInt(e.target.value) || 0)}
+                          onTesto={(e) => setShelveHours(parseInt(e) || 0)}
                           style={{ width: 55, background: "#0f172a", border: "1px solid #334155", borderRadius: 4, color: "#e2e8f0", fontSize: corpo, padding: "3px 6px", textAlign: "center" }}
                         />
                         <span style={{ fontSize: corpoSecondario(corpo), color: "#64748b" }}>{t("alarmBell.zeroIndefinito")}</span>

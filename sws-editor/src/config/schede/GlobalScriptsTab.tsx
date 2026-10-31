@@ -8,6 +8,7 @@ import { useAppStore } from "@/store";
 import { eModificato, useFocus, usePubblicaElenco } from "@/config/fogliaConfig";
 import i18n from "@/i18n";
 import { SaveBar } from "@/config/comuni";
+import { CampoNumero } from "@/components/CampoNumero";
 
 // ── GlobalScriptsTab ──────────────────────────────────────────────────────────
 
@@ -255,24 +256,22 @@ export function GlobalScriptsTab() {
 
             {cur.trigger.kind === "interval" && (
               <>
-                <input
-                  type="number"
+                <CampoNumero
                   min={1}
                   value={cur.trigger.interval_s}
-                  onChange={(e) => updateTrigger(selected, { interval_s: Number(e.target.value) })}
+                  onTesto={(e) => updateTrigger(selected, { interval_s: Number(e) })}
                   style={{ background: "var(--brand-surface, #1e293b)", border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 4, color: "var(--brand-text, #e2e8f0)", padding: "4px 8px", fontSize: 13, width: 80 }}
                 />
                 {/* T-69 fase B: additivo — quando valorizzato vince su
                     interval_s. Vuoto = assente (undefined), non 0: uno 0
                     esplicito fallirebbe la validazione server, invece
                     "niente qui" deve tornare al comportamento di sempre. */}
-                <input
-                  type="number"
+                <CampoNumero
                   min={50}
                   placeholder={t("cfgUi.msOptionalTakesPrecedence")}
                   value={cur.trigger.interval_ms ?? ""}
-                  onChange={(e) => {
-                    const raw = e.target.value;
+                  onTesto={(e) => {
+                    const raw = e;
                     updateTrigger(selected, {
                       interval_ms: raw === "" ? undefined : Number(raw),
                     });

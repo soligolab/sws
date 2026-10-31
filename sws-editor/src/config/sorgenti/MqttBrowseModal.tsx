@@ -5,6 +5,7 @@ import type { BrowsedTopic, MqttSource, TopicMapping } from "@/types";
 import i18n from "@/i18n";
 import { S } from "@/config/comuni";
 import { EseguitoDa } from "@/config/sorgenti/EseguitoDa";
+import { CampoNumero } from "@/components/CampoNumero";
 
 // ── MqttBrowseModal ───────────────────────────────────────────────────────────
 
@@ -107,11 +108,11 @@ export function MqttBrowseModal({
         {/* Controls */}
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
           <label style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)" }}>{t("cfg.durationS")}</label>
-          <input
+          <CampoNumero
             style={{ ...S.input, width: 60 }}
-            type="number" min={2} max={120}
+            min={2} max={120}
             value={duration}
-            onChange={(e) => setDuration(Number(e.target.value))}
+            onTesto={(e) => setDuration(Number(e))}
             disabled={loading}
           />
           <button style={S.btn("primary")} onClick={startBrowse} disabled={loading}>

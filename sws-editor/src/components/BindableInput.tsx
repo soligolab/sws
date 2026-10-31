@@ -2,6 +2,7 @@ import { useTranslation } from "react-i18next";
 import { TagInput } from "@/components/TagInput";
 import { validateExpr } from "@/expr/engine";
 import type { BindingSpec, SynopticObject } from "@/types";
+import { CampoNumero } from "@/components/CampoNumero";
 
 const BTN: React.CSSProperties = {
   background: "var(--brand-bg, #0f172a)",
@@ -106,15 +107,15 @@ export function BindableInput({ obj, propName, onChange, children }: Props) {
             )}
             {mode === "scale" && (
               <div style={{ display: "flex", gap: 3, alignItems: "center", flexWrap: "wrap" }}>
-                <input style={MINI} type="number" placeholder="in min" title="in min"
-                  value={spec.in_min ?? ""} onChange={(e) => patchSpec({ in_min: e.target.value === "" ? undefined : Number(e.target.value) })} />
-                <input style={MINI} type="number" placeholder="in max" title="in max"
-                  value={spec.in_max ?? ""} onChange={(e) => patchSpec({ in_max: e.target.value === "" ? undefined : Number(e.target.value) })} />
+                <CampoNumero style={MINI} placeholder="in min" title="in min"
+                  value={spec.in_min ?? ""} onTesto={(e) => patchSpec({ in_min: e === "" ? undefined : Number(e) })} />
+                <CampoNumero style={MINI} placeholder="in max" title="in max"
+                  value={spec.in_max ?? ""} onTesto={(e) => patchSpec({ in_max: e === "" ? undefined : Number(e) })} />
                 <span style={{ fontSize: 10, color: "var(--brand-text-subtle, #64748b)" }}>→</span>
-                <input style={MINI} type="number" placeholder="out min" title="out min"
-                  value={spec.out_min ?? ""} onChange={(e) => patchSpec({ out_min: e.target.value === "" ? undefined : Number(e.target.value) })} />
-                <input style={MINI} type="number" placeholder="out max" title="out max"
-                  value={spec.out_max ?? ""} onChange={(e) => patchSpec({ out_max: e.target.value === "" ? undefined : Number(e.target.value) })} />
+                <CampoNumero style={MINI} placeholder="out min" title="out min"
+                  value={spec.out_min ?? ""} onTesto={(e) => patchSpec({ out_min: e === "" ? undefined : Number(e) })} />
+                <CampoNumero style={MINI} placeholder="out max" title="out max"
+                  value={spec.out_max ?? ""} onTesto={(e) => patchSpec({ out_max: e === "" ? undefined : Number(e) })} />
                 <label style={{ fontSize: 10, color: "var(--brand-text-subtle, #64748b)", display: "flex", gap: 2, alignItems: "center" }}>
                   <input type="checkbox" checked={spec.clamp !== false}
                     onChange={(e) => patchSpec({ clamp: e.target.checked ? undefined : false })} />

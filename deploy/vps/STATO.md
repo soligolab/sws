@@ -168,7 +168,8 @@ con la pagina dentro, perché `ServeDir` serviva il guscio della SPA come rispos
 Ora una rotta della SPA (una richiesta di navigazione) ha 200, mentre un file davvero mancante
 resta 404: così un bundle che manca non torna come HTML con stato 200.
 
-**Versione in esecuzione: `985edd4e-amd64`** dal 31-10-2026, 17:05: Ctrl+Z per modifica e non per tasto, la
+**Versione in esecuzione: `aa5317d8-amd64`** dal 31-10-2026, 18:20: il «-» da tastiera nei campi numerici.
+Prima `985edd4e-amd64` dalle 17:05: Ctrl+Z per modifica e non per tasto, la
 molla dello slider senza scatto. Prima `82209793-amd64` dalle 12:30: lo stesso freno su tutti i selettori
 colore dell'editor. Prima `bf9843ea-amd64` da mezzogiorno: la `76aecffb` più il selettore
 colore che scrive al massimo ogni 100 ms. La `76aecffb-amd64` (2.23.8-rc.1 più la lettura degli ZIP compressi), dal

@@ -15,6 +15,7 @@ import { useAppStore } from "@/store";
 import { tagCatalog } from "@/tagCatalog";
 import { categoriaDi, normalizzaColore } from "@/tag/tipiScalari";
 import type { Assegnazione } from "@/types";
+import { CampoNumero } from "@/components/CampoNumero";
 
 const INPUT: React.CSSProperties = {
   background: "var(--brand-bg, #0f172a)",
@@ -115,9 +116,9 @@ function CampoValore({ categoria, valore, onChange }: {
   }
   if (categoria === "intero" || categoria === "reale" || categoria === "tempo") {
     return (
-      <input type="number" style={INPUT} value={typeof valore === "number" ? valore : Number(valore) || 0}
+      <CampoNumero style={INPUT} value={typeof valore === "number" ? valore : Number(valore) || 0}
         step={categoria === "reale" ? "any" : 1}
-        onChange={(e) => onChange(Number(e.target.value))} />
+        onTesto={(e) => onChange(Number(e))} />
     );
   }
   return <input style={INPUT} value={String(valore)} onChange={(e) => onChange(e.target.value)} />;

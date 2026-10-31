@@ -16,6 +16,7 @@ import { SelettoreColore } from "@/editor/CampoColore";
 import { svgLibCaricato, useManifestoLib } from "@/symbols/lib/libreria";
 import { SimboloLibSvg } from "@/symbols/lib/SimboloLib";
 import { CONTORNO_DISEGNO, type StileSimboliProgetto } from "@/symbols/stileProgetto";
+import { CampoNumero } from "@/components/CampoNumero";
 
 type Campo = keyof StileSimboliProgetto;
 const STATI: { campo: "state_off_color" | "state_on_color" | "state_alarm_color"; chiave: string }[] = [
@@ -106,19 +107,19 @@ export function StileSimboliTab() {
           <label style={S.label} htmlFor="stile-contorno">{t("stileTab.contorno")}</label>
           {colore(bozza.outline_color, CONTORNO_DISEGNO, (v) => metti({ outline_color: v }), "stile-contorno")}
           <label style={S.label} htmlFor="stile-spessore">{t("stileTab.spessore")}</label>
-          <input id="stile-spessore" type="number" step={0.1} min={0} max={10} placeholder="1" style={S.input}
-            value={bozza.outline_width ?? ""} onChange={(e) => metti({ outline_width: numero(e.target.value) })} />
+          <CampoNumero id="stile-spessore" step={0.1} min={0} max={10} placeholder="1" style={S.input}
+            value={bozza.outline_width ?? ""} onTesto={(e) => metti({ outline_width: numero(e) })} />
 
           <div style={{ ...S.sectionTitle, marginTop: 14 }}>{t("stileTab.animazioni")}</div>
           <label style={S.label} htmlFor="stile-giro">{t("stileTab.giro")}</label>
-          <input id="stile-giro" type="number" step={0.1} min={0.05} placeholder="2" style={S.input}
-            value={bozza.spin_s ?? ""} onChange={(e) => metti({ spin_s: numero(e.target.value) })} />
+          <CampoNumero id="stile-giro" step={0.1} min={0.05} placeholder="2" style={S.input}
+            value={bozza.spin_s ?? ""} onTesto={(e) => metti({ spin_s: numero(e) })} />
           <label style={S.label} htmlFor="stile-lampeggio">{t("stileTab.lampeggio")}</label>
-          <input id="stile-lampeggio" type="number" step={50} min={50} placeholder="800" style={S.input}
-            value={bozza.blink_ms ?? ""} onChange={(e) => metti({ blink_ms: numero(e.target.value) })} />
+          <CampoNumero id="stile-lampeggio" step={50} min={50} placeholder="800" style={S.input}
+            value={bozza.blink_ms ?? ""} onTesto={(e) => metti({ blink_ms: numero(e) })} />
           <label style={S.label} htmlFor="stile-livello">{t("stileTab.livello")}</label>
-          <input id="stile-livello" type="number" step={50} min={0} placeholder="0" style={S.input}
-            value={bozza.level_transition_ms ?? ""} onChange={(e) => metti({ level_transition_ms: numero(e.target.value) })} />
+          <CampoNumero id="stile-livello" step={50} min={0} placeholder="0" style={S.input}
+            value={bozza.level_transition_ms ?? ""} onTesto={(e) => metti({ level_transition_ms: numero(e) })} />
         </div>
 
         <div>

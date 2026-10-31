@@ -8,6 +8,7 @@ import { emptyS7Tag } from "@/config/sorgenti/vuote";
 import { SezioneSorgente } from "@/config/sorgenti/card/SezioneSorgente";
 import { TestataSorgente } from "@/config/sorgenti/card/TestataSorgente";
 import { DisponibilitaSezione } from "@/config/sorgenti/card/DisponibilitaSezione";
+import { CampoNumero } from "@/components/CampoNumero";
 
 // ── S7SourceCard ──────────────────────────────────────────────────────────────
 
@@ -99,18 +100,16 @@ export function S7SourceCard({
               <option value="q">Q (Output)</option>
             </select>
             {tm.area === "db" && (
-              <input
-                type="number"
+              <CampoNumero
                 value={tm.db_num}
-                onChange={(e) => updateTag(idx, { db_num: Number(e.target.value) })}
+                onTesto={(e) => updateTag(idx, { db_num: Number(e) })}
                 title={t("cfg.dbNumber")}
                 style={{ ...S.inputSm, width: 60 }}
               />
             )}
-            <input
-              type="number"
+            <CampoNumero
               value={tm.byte_offset}
-              onChange={(e) => updateTag(idx, { byte_offset: Number(e.target.value) })}
+              onTesto={(e) => updateTag(idx, { byte_offset: Number(e) })}
               title="byte offset"
               style={{ ...S.inputSm, width: 60 }}
             />
@@ -127,12 +126,11 @@ export function S7SourceCard({
               <option value="bool">BOOL</option>
             </select>
             {tm.data_type === "bool" && (
-              <input
-                type="number"
+              <CampoNumero
                 min={0}
                 max={7}
                 value={tm.bit_offset}
-                onChange={(e) => updateTag(idx, { bit_offset: Number(e.target.value) })}
+                onTesto={(e) => updateTag(idx, { bit_offset: Number(e) })}
                 title="bit (0-7)"
                 style={{ ...S.inputSm, width: 50 }}
               />

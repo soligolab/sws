@@ -3,6 +3,7 @@ import { Trans, useTranslation } from "react-i18next";
 import { api } from "@/api/client";
 import { useAppStore } from "@/store";
 import { TRANS_COMP } from "@/config/comuni";
+import { CampoNumero } from "@/components/CampoNumero";
 
 // ── Backups tab ──────────────────────────────────────────────────────────────
 //
@@ -336,15 +337,15 @@ export function BackupsTab() {
       <div style={{ display: "flex", gap: 8, alignItems: "flex-end", flexWrap: "wrap", border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 5, padding: 8 }}>
         <div>
           <span style={labelStyleBak}>{t("cfgUi.intervalloAutoBackup")}</span>
-          <input type="number" min={0} value={intervalMin}
-            onChange={(e) => setIntervalMin(e.target.value)}
+          <CampoNumero min={0} value={intervalMin}
+            onTesto={(e) => setIntervalMin(e)}
             placeholder={t("cfgUi.ereditaDalRuntime")}
             style={{ ...inputStyleBak, width: 160 }} />
         </div>
         <div>
           <span style={labelStyleBak}>{t("cfgUi.backupDaTenere")}</span>
-          <input type="number" min={0} value={retention}
-            onChange={(e) => setRetention(e.target.value)}
+          <CampoNumero min={0} value={retention}
+            onTesto={(e) => setRetention(e)}
             placeholder={t("cfgUi.ereditaDalRuntime")}
             style={{ ...inputStyleBak, width: 140 }} />
         </div>

@@ -14,6 +14,7 @@ import { motivoNomeIstanza } from "@/tag/istanze";
 import { type BusModbus, dispositiviDi, prossimoUnitId } from "@/config/sorgenti/modbusDispositivi";
 import { type DaCatalogo, daCatalogo, gruppiDi, idTipoDaVoce, nomeProposto, urlImmagine } from "@/config/sorgenti/daCatalogo";
 import { variabiliRiassociabili } from "@/config/sorgenti/variabiliDispositivo";
+import { CampoNumero } from "@/components/CampoNumero";
 
 const ETICHETTA = { fontSize: 11, color: "var(--brand-text-subtle, #64748b)", display: "block", marginBottom: 3 } as const;
 
@@ -187,8 +188,8 @@ export function CatalogoDispositiviModal({ bus, onConferma, onClose }: {
             <div style={{ display: "grid", gridTemplateColumns: "110px 1fr", gap: 12, marginBottom: 12 }}>
               <div>
                 <label style={ETICHETTA}>{t("cfg.unitId")}</label>
-                <input style={{ ...S.input, ...(unitOccupato ? { borderColor: "var(--brand-danger, #ef4444)" } : {}) }} type="number" min={1} max={247}
-                  value={unit} onChange={(e) => setUnit(Number(e.target.value))} data-testid="catalogo-unit" />
+                <CampoNumero style={{ ...S.input, ...(unitOccupato ? { borderColor: "var(--brand-danger, #ef4444)" } : {}) }} min={1} max={247}
+                  value={unit} onTesto={(e) => setUnit(Number(e))} data-testid="catalogo-unit" />
               </div>
               <div>
                 <label style={ETICHETTA}>{t("catalogo.nomeVariabile")}</label>

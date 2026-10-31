@@ -7,6 +7,7 @@ import { S } from "@/config/comuni";
 import { emptyOpcUaServerNode } from "@/config/sorgenti/vuote";
 import { SezioneSorgente } from "@/config/sorgenti/card/SezioneSorgente";
 import { TestataSorgente } from "@/config/sorgenti/card/TestataSorgente";
+import { CampoNumero } from "@/components/CampoNumero";
 
 // ── OPC-UA server card ───────────────────────────────────────────────────────
 
@@ -61,9 +62,9 @@ export function OpcUaServerSourceCard({
             <div style={{ display: "grid", gridTemplateColumns: "100px 2fr 1.2fr", gap: 12, marginBottom: 8 }}>
               <div>
                 <label style={etichetta}>{t("cfg.tcpPort")}</label>
-                <input style={S.input} type="number" min={1} max={65535}
+                <CampoNumero style={S.input} min={1} max={65535}
                   value={source.port}
-                  onChange={(e) => setField("port", Number(e.target.value))} />
+                  onTesto={(e) => setField("port", Number(e))} />
               </div>
               <div>
                 <label style={etichetta}>{t("cfg.namespaceUri")}</label>

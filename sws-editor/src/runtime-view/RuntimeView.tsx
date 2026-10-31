@@ -20,6 +20,7 @@ import { LinguaContenutiProvider, useLinguaContenuti } from "@/i18n/linguaConten
 import { useTagStream, tryTagWriteWs, sendSubscribe } from "@/ws/tagStream";
 import type { ButtonAction, FunctionDef } from "@/types";
 import { puoScrivere, sogliaScritturaTag } from "@/auth/permessoScrittura";
+import { CampoNumero } from "@/components/CampoNumero";
 
 // ── Script output toast ───────────────────────────────────────────────────────
 
@@ -460,12 +461,11 @@ export function RuntimeView() {
             >
               {autoRotate ? t("runtimeView.stop") : t("runtimeView.ciclo")}
             </button>
-            <input
-              type="number"
+            <CampoNumero
               min={5}
               max={3600}
               value={autoRotateIntervalS}
-              onChange={(e) => setAutoRotateIntervalS(Math.max(5, parseInt(e.target.value) || 30))}
+              onTesto={(e) => setAutoRotateIntervalS(Math.max(5, parseInt(e) || 30))}
               title={t("viewer.rotationInterval")}
               style={{
                 width: 44,

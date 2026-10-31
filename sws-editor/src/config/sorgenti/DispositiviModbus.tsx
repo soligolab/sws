@@ -22,6 +22,7 @@ import { CatalogoDispositiviModal, IconaCatalogo, useElencoCatalogo, voceDelMode
 import type { DaCatalogo } from "@/config/sorgenti/daCatalogo";
 import { pianoEliminazione } from "@/config/sorgenti/variabiliDispositivo";
 import { conParametro, parametriSetup } from "@/config/sorgenti/setupModulo";
+import { CampoNumero } from "@/components/CampoNumero";
 
 /** «Salva subito questo bus» (04-10-2026), dato dalla scheda Protocolli: salva
  *  la bozza delle sorgenti con il bus cambiato. Serve quando una modifica del
@@ -302,9 +303,9 @@ export function DispositivoModbusCard<B extends BusModbus>({ bus, unit, onChange
         <div style={{ marginBottom: 16, display: "grid", gridTemplateColumns: "90px 1fr 160px 140px 140px", gap: 12 }}>
           <div>
             <label style={ETICHETTA}>{t("cfg.unitId")}</label>
-            <input style={S.input} type="number" min={0} max={255} value={d.unit_id}
-              onChange={(e) => {
-                const u = Number(e.target.value);
+            <CampoNumero style={S.input} min={0} max={255} value={d.unit_id}
+              onTesto={(e) => {
+                const u = Number(e);
                 if (Number.isInteger(u) && u >= 0 && u <= 255 && !unitDoppio(u)) cambia({ unit_id: u });
               }} />
           </div>
@@ -316,15 +317,15 @@ export function DispositivoModbusCard<B extends BusModbus>({ bus, unit, onChange
           <CampoOrdineModbus value={d.ordine} onChange={(o) => cambia({ ordine: o === "abcd" ? undefined : o })} />
           <div>
             <label style={ETICHETTA}>{t("cfg.pollInterval")}</label>
-            <input style={S.input} type="number" min={10} value={d.poll_interval_ms ?? ""}
+            <CampoNumero style={S.input} min={10} value={d.poll_interval_ms ?? ""}
               placeholder={String(bus.poll_interval_ms)} title={t("cfg.modbusPollDelBus")}
-              onChange={(e) => cambia({ poll_interval_ms: numeroOVuoto(e.target.value) })} />
+              onTesto={(e) => cambia({ poll_interval_ms: numeroOVuoto(e) })} />
           </div>
           <div>
             <label style={ETICHETTA}>{t("cfg.modbusTimeout")}</label>
-            <input style={S.input} type="number" min={10} value={d.timeout_ms ?? ""}
+            <CampoNumero style={S.input} min={10} value={d.timeout_ms ?? ""}
               placeholder={String(TIMEOUT_MODBUS_MS)}
-              onChange={(e) => cambia({ timeout_ms: numeroOVuoto(e.target.value) })} />
+              onTesto={(e) => cambia({ timeout_ms: numeroOVuoto(e) })} />
           </div>
         </div>
         {d.modello && (
@@ -396,9 +397,9 @@ function SetupModulo({ modello, setup, onChange }: {
                   {Object.entries(r.valori).map(([k, testo]) => <option key={k} value={k}>{k} — {testo[lingua]}</option>)}
                 </select>
               ) : (
-                <input style={{ ...S.input, marginTop: 3 }} type="number" value={v ?? ""} placeholder={t("cfg.modbusSetupNonGestito")}
+                <CampoNumero style={{ ...S.input, marginTop: 3 }} value={v ?? ""} placeholder={t("cfg.modbusSetupNonGestito")}
                   data-testid={`setup-${r.nome}`}
-                  onChange={(e) => onChange(conParametro(setup, voce, r, e.target.value.trim() === "" ? undefined : Number(e.target.value)))} />
+                  onTesto={(e) => onChange(conParametro(setup, voce, r, e.trim() === "" ? undefined : Number(e)))} />
               )}
             </label>
           );

@@ -63,6 +63,7 @@ STATICHE=(
     check_release_coerente  # versione, CHANGELOG e tag dicono la stessa cosa (anche su origin)
     check_i18n_ui           # l'interfaccia dell'IDE parla dal catalogo: italiano cablato per file, tetti che scendono
     check_testi_sistema     # «Ora», «sì», «N/D»: una tabella, e le due implementazioni la contengono parola per parola
+    check_campi_numerici    # i campi numerici dell'editor passano da CampoNumero: il «-» da tastiera non si perde
     check_colori            # i colori predefiniti sono una tabella sola: creazione, pannello e template senza var(--), swatch sempre hex
     check_predefiniti       # i predefiniti dei campi: una tabella scritta nei file (creazione e apertura), e i ripieghi web che non la contraddicono
     check_intestazioni      # CSP, nosniff, referrer e limiti per indirizzo su ogni router, e nessuno script in linea nelle pagine dell'IDE

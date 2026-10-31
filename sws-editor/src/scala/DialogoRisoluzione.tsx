@@ -11,6 +11,7 @@ import { eCornice } from "@/cornici/modello";
 import { eFaceplateDef } from "@/faceplate/modello";
 import { salvaLayout } from "@/formatoProgettoAzioni";
 import { fattore, misuraDaProporre, type Misura } from "./scalaPagina";
+import { CampoNumero } from "@/components/CampoNumero";
 
 const INPUT: React.CSSProperties = {
   width: "100%", background: "var(--brand-bg, #0f172a)", color: "var(--brand-text, #e2e8f0)",
@@ -101,11 +102,11 @@ export function DialogoRisoluzione({ onClose }: { onClose: () => void }) {
               {preset.map((d) => <option key={d.label} value={d.label}>{d.label}</option>)}
             </select>
             <div style={{ display: "flex", gap: 4, marginTop: 4 }}>
-              <input type="number" min={1} style={INPUT} data-testid="scala-a-w" value={a.width}
-                onChange={(e) => setA({ ...a, width: Number(e.target.value) || 0 })} />
+              <CampoNumero min={1} style={INPUT} data-testid="scala-a-w" value={a.width}
+                onTesto={(e) => setA({ ...a, width: Number(e) || 0 })} />
               <span style={{ alignSelf: "center" }}>×</span>
-              <input type="number" min={1} style={INPUT} data-testid="scala-a-h" value={a.height}
-                onChange={(e) => setA({ ...a, height: Number(e.target.value) || 0 })} />
+              <CampoNumero min={1} style={INPUT} data-testid="scala-a-h" value={a.height}
+                onTesto={(e) => setA({ ...a, height: Number(e) || 0 })} />
             </div>
           </div>
         </div>

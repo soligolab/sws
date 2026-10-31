@@ -14,6 +14,7 @@ import {
   INSTALL_DATA, INSTALL_HOST, INSTALL_PORT, INSTALL_USER, ricorda, ricordato,
 } from "@/config/campiDispositivo";
 import { BTN, BTN_PRIMARY, BTN_RED, INPUT } from "./stiliRuntime";
+import { CampoNumero } from "@/components/CampoNumero";
 
 export function InstallTab() {
   const { t } = useTranslation();
@@ -298,9 +299,9 @@ export function InstallTab() {
             </div>
             <div style={{ width: 70 }}>
               <label style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)", display: "block", marginBottom: 4 }}>{t("cfg.port")}</label>
-              <input style={{ ...INPUT, width: "100%", boxSizing: "border-box" as const }}
-                type="number" value={devicePort}
-                onChange={(e) => setDevicePort(Number(e.target.value))} />
+              <CampoNumero style={{ ...INPUT, width: "100%", boxSizing: "border-box" as const }}
+                value={devicePort}
+                onTesto={(e) => setDevicePort(Number(e))} />
             </div>
             <button style={{ ...BTN, flexShrink: 0 }} disabled={cercandoDispositivi}
               onClick={() => void cercaDispositivi()}>
