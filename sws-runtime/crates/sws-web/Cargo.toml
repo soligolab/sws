@@ -23,11 +23,12 @@ hyper.workspace          = true
 hyper-util.workspace     = true
 http-body-util.workspace = true
 bytes.workspace          = true
-# Project import/export uses an in-memory ZIP. `default-features = false`
-# strips deflate / xz / zstd codecs — the bundle is a handful of small
-# YAML files so we store them uncompressed (`CompressionMethod::Stored`)
-# and avoid pulling in flate2/miniz_oxide and friends.
-zip = { version = "2", default-features = false }
+# Project import/export uses an in-memory ZIP. We write uncompressed
+# (`CompressionMethod::Stored`), but we must read Deflate too: a ZIP made by
+# hand (file manager, `zip`, Windows) is Deflate, and without the codec the
+# import said «Compression method not supported» (30-10-2026). xz / zstd /
+# bzip2 stay out: no archiver uses them by default.
+zip = { version = "2", default-features = false, features = ["deflate"] }
 sws-core          = { path = "../sws-core" }
 sws-historian     = { path = "../sws-historian" }
 sws-pyscript      = { path = "../sws-pyscript" }

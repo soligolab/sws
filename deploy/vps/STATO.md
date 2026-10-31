@@ -168,7 +168,13 @@ con la pagina dentro, perché `ServeDir` serviva il guscio della SPA come rispos
 Ora una rotta della SPA (una richiesta di navigazione) ha 200, mentre un file davvero mancante
 resta 404: così un bundle che manca non torna come HTML con stato 200.
 
-**Versione in esecuzione: `2.23.7-amd64`**, dal 29-10-2026 sera: lo schermo del pannello dal
+**Versione in esecuzione: `76aecffb-amd64`** (2.23.8-rc.1 più la lettura degli ZIP compressi), dal
+31-10-2026 mattina: lo slider nuovo (fasi 1-6), il resto del ramo C (schema identità 6, chiusura
+dell'account, inattività, registro a 12 mesi). Prima del cambio: copia di `identita.db`,
+`audit.jsonl` e del quadlet in `~/sws-vps/backup-prima-di-76aecffb/`. Verificato dopo il riavvio:
+gateway `healthy`, radice 200, tunnel di `tc620-garage` riaperto da solo.
+
+Prima `2.23.7-amd64`, dal 29-10-2026 sera: lo schermo del pannello dal
 cloud (`/schermo/<pannello>/`, col biglietto monouso e il cookie `sws_schermo`) e la disponibilità
 delle sorgenti. Verificato dopo il riavvio: radice e `/health` 200, `/schermo/<pannello>/` senza
 cookie 401, il tunnel di `tc620-garage` riaperto da solo, il container di CasaDomotica rifatto

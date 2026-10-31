@@ -35,6 +35,8 @@
 versioni:
   - versione: "2.23.8"
     voci:
+      - it: "Si può importare un progetto da uno ZIP compresso, anche fatto a mano con il file manager o con Windows."
+        en: "You can import a project from a compressed ZIP, even one made by hand with the file manager or Windows."
       - it: "IDE: all'accesso si può spuntare «Ricordami su questo browser per 30 giorni»; se l'installazione ha la posta configurata, si entra anche con un PIN via e-mail."
         en: "IDE: at sign-in you can tick «Remember me on this browser for 30 days»; if the installation has e-mail set up, you can also sign in with a PIN by e-mail."
       - it: "L'IDE torna ad avvisare quando è disponibile una versione nuova dell'interfaccia, con la barra per ricaricare."
