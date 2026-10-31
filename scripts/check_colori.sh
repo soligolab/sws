@@ -71,14 +71,16 @@ rs = righe(SHELL)
 problemi = []
 n_swatch = 0
 for i, r in enumerate(rs):
-    if 'type="color"' not in r:
+    # Dal 31-10-2026 i selettori a mano sono `<SelettoreColore` (lo stesso freno
+    # di `CampoColore`): sono swatch come gli altri, e il loro `value=` si guarda.
+    if 'type="color"' not in r and "<SelettoreColore" not in r:
         continue
     n_swatch += 1
     # Il tag comincia alla riga con `<input` (la stessa, o una sopra) e finisce
     # alla prima `/>`: solo quel testo, così il `value=` è il suo e non quello
     # del campo accanto.
     inizio = i
-    while inizio > 0 and "<input" not in rs[inizio]:
+    while inizio > 0 and "<input" not in rs[inizio] and "<SelettoreColore" not in rs[inizio]:
         inizio -= 1
     blocco = ""
     for j in range(inizio, min(len(rs), i + 10)):
@@ -87,6 +89,8 @@ for i, r in enumerate(rs):
             break
     if "<input" in rs[inizio]:
         blocco = blocco[blocco.index("<input"):]
+    elif "<SelettoreColore" in rs[inizio]:
+        blocco = blocco[blocco.index("<SelettoreColore"):]
     m = re.search(r"value=\{([^}]*(?:\{[^}]*\}[^}]*)*)\}", blocco)
     valore = m.group(1) if m else ""
     ok = ("estraiHex(" in valore) or ("perSwatch" in valore)
@@ -98,7 +102,9 @@ for i, r in enumerate(rs):
 esito(n_swatch > 0, f"{n_swatch} swatch trovati in EditorShell.tsx")
 esito(not problemi, "ogni swatch passa da estraiHex()/CampoColore" + ("".join("\n      " + p for p in problemi)))
 campo = open(f"{root}/sws-editor/src/editor/CampoColore.tsx", encoding="utf-8").read()
-esito('value={mixed ? "#808080" : perSwatch}' in campo, "CampoColore: lo swatch riceve `perSwatch` (estraiHex, mai il valore grezzo)")
+# `bozza` è il colore che il selettore nativo ha appena dato, durante il
+# trascinamento (31-10-2026, `useColoreFluido`): esce da lui, quindi è già hex.
+esito('value={bozza ?? (mixed ? "#808080" : perSwatch)}' in campo, "CampoColore: lo swatch riceve `perSwatch` (estraiHex, mai il valore grezzo)")
 
 print("=== 3b. un campo colore dell'oggetto passa dal controllo condiviso ===")
 # La regola del maintainer, 23-09-2026: «il selettore colore deve essere
@@ -118,10 +124,10 @@ ELENCHI_AMMESSI = 14  # swatch dentro righe di elenco, contati il 23-09-2026
 nudi_su_obj = []
 n_elenco = 0
 for i, r in enumerate(rs):
-    if 'type="color"' not in r:
+    if 'type="color"' not in r and "<SelettoreColore" not in r:
         continue
     inizio = i
-    while inizio > 0 and "<input" not in rs[inizio]:
+    while inizio > 0 and "<input" not in rs[inizio] and "<SelettoreColore" not in rs[inizio]:
         inizio -= 1
     blocco = ""
     for j in range(inizio, min(len(rs), i + 12)):

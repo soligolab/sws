@@ -2,6 +2,7 @@
 // cornice mostra; su una cornice aperta, le due fasce e se è la predefinita.
 
 import { useTranslation } from "react-i18next";
+import { SelettoreColore } from "@/editor/CampoColore";
 import { useAppStore } from "@/store";
 import type { FasciaCornice, SynopticPage } from "@/types";
 import { SEGNAPOSTI, idCornice, pagineCornice } from "./modello";
@@ -69,8 +70,8 @@ function Fascia({ titolo, fascia, onChange }: {
       <div>
         <div style={LABEL}>{t("cornici.fondo")}</div>
         <div style={{ display: "flex", gap: 4, alignItems: "center" }}>
-          <input type="color" value={fascia.sfondo ?? "#1e293b"} disabled={!fascia.sfondo}
-            onChange={(e) => onChange({ ...fascia, sfondo: e.target.value })}
+          <SelettoreColore value={fascia.sfondo ?? "#1e293b"} disabled={!fascia.sfondo}
+            onColore={(e) => onChange({ ...fascia, sfondo: e })}
             style={{ width: 32, height: 24, padding: 0, border: "none", background: "none" }} />
           <label style={{ fontSize: 11, color: "var(--brand-text-muted, #94a3b8)", display: "flex", gap: 3, alignItems: "center" }}>
             <input type="checkbox" checked={!!fascia.sfondo}

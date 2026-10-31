@@ -53,7 +53,7 @@ import { aspettoStile } from "@/canvas/slider/geometria";
 import { useAppStore } from "@/store";
 import { coloreAuto, estraiHex, predefinito, regola, coloreDaProgetto, daProgetto } from "@/coloriPredefiniti";
 import { oggettoNuovo } from "./oggettiNuovi";
-import { CampoColore } from "./CampoColore";
+import { CampoColore, SelettoreColore } from "./CampoColore";
 import { regolaCampo, valorePredefinito, type MotivoVuoto } from "@/predefinitiCampi";
 import { IntestazioneSezione, PREFISSO_MEMORIA, RigaProprieta, SPAZIO, TESTO, TitoloVista, migraMemorieVecchie, useSezioneAperta } from "./stilePannelli";
 import { cosaCancella, eliminaWaypoint, percorsoDaSalvare, puntiMovimento } from "@/canvas/percorsoMovimento";
@@ -1212,8 +1212,8 @@ export function EditorShell() {
                   />
                   <label style={{ fontSize: 11, color: "var(--brand-text-muted, #94a3b8)", display: "flex", alignItems: "center", gap: 6, marginBottom: 8 }}>
                     {t("shell.coloreSfondo")}
-                    <input type="color" value={estraiHex(entry.bg_color) ?? "#1e293b"}
-                      onChange={(e) => updateSub({ bg_color: e.target.value })}
+                    <SelettoreColore value={estraiHex(entry.bg_color) ?? "#1e293b"}
+                      onColore={(e) => updateSub({ bg_color: e })}
                       style={{ width: 28, height: 22, border: "1px solid var(--brand-surface-2, #334155)", background: "transparent", cursor: "pointer" }} />
                     {entry.bg_color && (
                       <button onClick={() => updateSub({ bg_color: undefined })}
@@ -1224,8 +1224,8 @@ export function EditorShell() {
                   </label>
                   <label style={{ fontSize: 11, color: "var(--brand-text-muted, #94a3b8)", display: "flex", alignItems: "center", gap: 6, marginBottom: 8 }}>
                     {t("shell.coloreBordo")}
-                    <input type="color" value={estraiHex(entry.border_color) ?? "#64748b"}
-                      onChange={(e) => updateSub({ border_color: e.target.value })}
+                    <SelettoreColore value={estraiHex(entry.border_color) ?? "#64748b"}
+                      onColore={(e) => updateSub({ border_color: e })}
                       style={{ width: 28, height: 22, border: "1px solid var(--brand-surface-2, #334155)", background: "transparent", cursor: "pointer" }} />
                     {entry.border_color && (
                       <button onClick={() => updateSub({ border_color: undefined })}
@@ -2237,12 +2237,11 @@ export function PageProps({
       <div>
         <div style={LABEL}>{t("props.backgroundLight")}</div>
         <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
-          <input
-            type="color"
+          <SelettoreColore
             style={{ ...INPUT, padding: 2, height: 28, width: 44, cursor: "pointer", flex: "none" }}
             value={background}
             disabled={ro}
-            onChange={(e) => onChange({ background: e.target.value })}
+            onColore={(e) => onChange({ background: e })}
           />
           <input
             type="text"
@@ -2258,12 +2257,11 @@ export function PageProps({
       <div>
         <div style={LABEL}>{t("props.backgroundDark")}</div>
         <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
-          <input
-            type="color"
+          <SelettoreColore
             style={{ ...INPUT, padding: 2, height: 28, width: 44, cursor: "pointer", flex: "none" }}
             value={background_dark || background}
             disabled={ro}
-            onChange={(e) => onChange({ background_dark: e.target.value })}
+            onColore={(e) => onChange({ background_dark: e })}
           />
           <input
             type="text"
@@ -3337,8 +3335,8 @@ export function ObjectProps({
               }} />
             <input style={{ ...INPUT, flex: 1 }} placeholder={t("props.labelPh")} value={e.label}
               onChange={(ev) => { const next = [...(obj.text_list_entries ?? [])]; next[i] = { ...e, label: ev.target.value }; onChange({ text_list_entries: next }); }} />
-            <input type="color" value={estraiHex(e.color) ?? estraiHex(coloreAuto("testo", sfondoPagina)) ?? "#e2e8f0"} title={t("props.colorText")}
-              onChange={(ev) => { const next = [...(obj.text_list_entries ?? [])]; next[i] = { ...e, color: ev.target.value }; onChange({ text_list_entries: next }); }}
+            <SelettoreColore value={estraiHex(e.color) ?? estraiHex(coloreAuto("testo", sfondoPagina)) ?? "#e2e8f0"} title={t("props.colorText")}
+              onColore={(ev) => { const next = [...(obj.text_list_entries ?? [])]; next[i] = { ...e, color: ev }; onChange({ text_list_entries: next }); }}
               style={{ width: 28, height: 24, padding: 1, border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 3, cursor: "pointer" }} />
             <button style={{ ...INPUT, width: "auto", padding: "0 6px", cursor: "pointer" }}
               onClick={() => { const next = (obj.text_list_entries ?? []).filter((_, j) => j !== i); onChange({ text_list_entries: next }); }}>✕</button>
@@ -4205,11 +4203,11 @@ export function ObjectProps({
                       zs[i] = { ...zs[i], to: Number(e.target.value) };
                       onChange({ gauge_zones: zs });
                     }} />
-                  <input type="color" style={{ ...INPUT, padding: 2, height: 26, width: 38, cursor: "pointer", flex: "none" }}
+                  <SelettoreColore style={{ ...INPUT, padding: 2, height: 26, width: 38, cursor: "pointer", flex: "none" }}
                     value={estraiHex(z.color) ?? "#22c55e"}
-                    onChange={(e) => {
+                    onColore={(e) => {
                       const zs = [...(obj.gauge_zones ?? [])];
-                      zs[i] = { ...zs[i], color: e.target.value };
+                      zs[i] = { ...zs[i], color: e };
                       onChange({ gauge_zones: zs });
                     }} />
                   <button title={t("props.remove")}
@@ -4590,10 +4588,9 @@ export function ObjectProps({
                   >×</button>
                 </div>
                 <div style={{ display: "flex", gap: 5, alignItems: "center", flexWrap: "wrap" }}>
-                  <input
-                    type="color"
+                  <SelettoreColore
                     value={estraiHex(tr.color) ?? PALETTE[idx % PALETTE.length]}
-                    onChange={(e) => patchTrace(idx, { color: e.target.value })}
+                    onColore={(e) => patchTrace(idx, { color: e })}
                     title={t("props.color")}
                     style={{ width: 26, height: 22, padding: 1, border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 3 }}
                   />
@@ -4831,10 +4828,9 @@ export function ObjectProps({
                     value={p.label ?? ""}
                     onChange={(e) => patchPair(idx, { label: e.target.value || undefined })}
                   />
-                  <input
-                    type="color"
+                  <SelettoreColore
                     value={estraiHex(p.color) ?? PALETTE[idx % PALETTE.length]}
-                    onChange={(e) => patchPair(idx, { color: e.target.value })}
+                    onColore={(e) => patchPair(idx, { color: e })}
                     title={t("props.color")}
                     style={{ width: 26, height: 22, padding: 1, border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 3 }}
                   />
@@ -5082,7 +5078,7 @@ export function ObjectProps({
                     onChange={(v) => { const next = [...(obj.bar_series ?? [])]; next[i] = { ...s, tag: v }; onChange({ bar_series: next }); }} />
                   <input style={{ ...INPUT, width: 60 }} placeholder="label" value={s.label}
                     onChange={(e) => { const next = [...(obj.bar_series ?? [])]; next[i] = { ...s, label: e.target.value }; onChange({ bar_series: next }); }} />
-                  <input type="color" value={estraiHex(s.color) ?? PALETTE[i % PALETTE.length]} onChange={(e) => { const next = [...(obj.bar_series ?? [])]; next[i] = { ...s, color: e.target.value }; onChange({ bar_series: next }); }}
+                  <SelettoreColore value={estraiHex(s.color) ?? PALETTE[i % PALETTE.length]} onColore={(e) => { const next = [...(obj.bar_series ?? [])]; next[i] = { ...s, color: e }; onChange({ bar_series: next }); }}
                     style={{ width: 28, height: 24, padding: 1, border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 3 }} />
                   {obj.bar_mode !== "stacked" && (
                     <>
@@ -5182,7 +5178,7 @@ export function ObjectProps({
                     onChange={(v) => { const next = [...(obj.pie_slices ?? [])]; next[i] = { ...s, tag: v }; onChange({ pie_slices: next }); }} />
                   <input style={{ ...INPUT, width: 60 }} placeholder="label" value={s.label}
                     onChange={(e) => { const next = [...(obj.pie_slices ?? [])]; next[i] = { ...s, label: e.target.value }; onChange({ pie_slices: next }); }} />
-                  <input type="color" value={estraiHex(s.color) ?? PALETTE[i % PALETTE.length]} onChange={(e) => { const next = [...(obj.pie_slices ?? [])]; next[i] = { ...s, color: e.target.value }; onChange({ pie_slices: next }); }}
+                  <SelettoreColore value={estraiHex(s.color) ?? PALETTE[i % PALETTE.length]} onColore={(e) => { const next = [...(obj.pie_slices ?? [])]; next[i] = { ...s, color: e }; onChange({ pie_slices: next }); }}
                     style={{ width: 28, height: 24, padding: 1, border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 3 }} />
                   <button style={{ ...INPUT, width: "auto", padding: "0 6px", cursor: "pointer" }}
                     onClick={() => onChange({ pie_slices: (obj.pie_slices ?? []).filter((_, j) => j !== i) })}>✕</button>
@@ -5489,8 +5485,8 @@ export function ObjectProps({
                         onChange={(ev) => upd({ value_min: ev.target.value === "" ? undefined : Number(ev.target.value) })} />
                       <input style={{ ...INPUT, width: 44 }} type="number" placeholder="max" value={e.value_max ?? ""}
                         onChange={(ev) => upd({ value_max: ev.target.value === "" ? undefined : Number(ev.target.value) })} />
-                      <input type="color" value={estraiHex(e.color) ?? "#22c55e"}
-                        onChange={(ev) => upd({ color: ev.target.value })}
+                      <SelettoreColore value={estraiHex(e.color) ?? "#22c55e"}
+                        onColore={(ev) => upd({ color: ev })}
                         style={{ width: 26, height: 22, padding: 1, border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 3 }} />
                       <button style={{ background: "transparent", border: "none", color: "var(--brand-danger, #ef4444)", cursor: "pointer" }}
                         onClick={() => onChange({ symbol_states: (obj.symbol_states ?? []).filter((_, j) => j !== i) })}>✕</button>
@@ -5583,8 +5579,8 @@ export function ObjectProps({
                             <SceltaIstanza valore={val} tipo={p.type_ref} onChange={setVal} style={style} />
                           ) : p.type === "color" ? (
                             <div style={{ display: "flex", gap: 4, alignItems: "center" }}>
-                              <input type="color" value={estraiHex(val) ?? estraiHex(p.default) ?? "#3b82f6"}
-                                onChange={(e) => setVal(e.target.value)}
+                              <SelettoreColore value={estraiHex(val) ?? estraiHex(p.default) ?? "#3b82f6"}
+                                onColore={(e) => setVal(e)}
                                 style={{ width: 40, height: 26, padding: 1, border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 3 }} />
                               <input type="text" style={{ ...style, flex: 1 }} placeholder={p.default ?? ""} value={val}
                                 onChange={(e) => setVal(e.target.value)} />
@@ -6631,11 +6627,10 @@ function GridCellEditor({
       <div style={{ marginBottom: 6 }}>
         <div style={LABEL}>{t("props.colBg")}</div>
         <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
-          <input
-            type="color"
+          <SelettoreColore
             style={{ ...INPUT, padding: 2, height: 28, width: 44, cursor: "pointer", flex: "none" }}
             value={estraiHex(cell.bg_color) ?? "#1e293b"}
-            onChange={(e) => onChange({ bg_color: e.target.value })}
+            onColore={(e) => onChange({ bg_color: e })}
           />
           <input
             type="text" style={INPUT}
@@ -6659,11 +6654,10 @@ function GridCellEditor({
       <div style={{ marginBottom: 6 }}>
         <div style={LABEL}>{t("shell.borderColorIndependentOfThe")}</div>
         <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
-          <input
-            type="color"
+          <SelettoreColore
             style={{ ...INPUT, padding: 2, height: 28, width: 44, cursor: "pointer", flex: "none" }}
             value={estraiHex(cell.border_color) ?? "#64748b"}
-            onChange={(e) => onChange({ border_color: e.target.value })}
+            onColore={(e) => onChange({ border_color: e })}
           />
           <input
             type="text" style={INPUT}
