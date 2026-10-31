@@ -120,7 +120,7 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 
 ### Fixed
 
-- **Il «-» da tastiera nei campi numerici** (piano `docs/plans/2026-10-31-campi-numerici.md`): un numero negativo
+- **Il «-» da tastiera nei campi numerici** (piano `docs/archive/2026-10-31-campi-numerici.md`): un numero negativo
   si scriveva solo con le freccette. Con «-» il browser riporta un valore vuoto, il gestore scriveva «non impostato»
   (o uno **0**, dove faceva `Number(…)`: porte, indirizzi, scale) e il campo tornava al ripiego. I 105
   `<input type="number">` dell'editor passano ora da `CampoNumero` (`components/CampoNumero.tsx`), che tiene il testo

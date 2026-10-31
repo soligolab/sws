@@ -1,5 +1,5 @@
 /** Il «-» da tastiera nei campi numerici (31-10-2026, piano
- *  docs/plans/2026-10-31-campi-numerici.md): il testo a metà resta nel campo e
+ *  docs/archive/2026-10-31-campi-numerici.md): il testo a metà resta nel campo e
  *  non arriva al gestore. In jsdom `validity.badInput` non nasce da solo, e lo
  *  si imposta a mano com'è nel browser per «-». */
 import { render, screen, fireEvent } from "@testing-library/react";

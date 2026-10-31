@@ -10,7 +10,7 @@
 # Un numero negativo si scriveva solo con le freccette. Visto il 31-10-2026 sul
 # Min di uno slider bipolare in CasaDomotica; i campi così erano 105.
 # `sws-editor/src/components/CampoNumero.tsx` tiene il testo a metà e lo passa
-# solo quando è un numero (piano docs/plans/2026-10-31-campi-numerici.md).
+# solo quando è un numero (piano docs/archive/2026-10-31-campi-numerici.md).
 #
 # COSA PRETENDE
 #

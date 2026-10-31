@@ -1,5 +1,5 @@
 /** Il campo numerico dell'editor (31-10-2026, piano
- *  `docs/plans/2026-10-31-campi-numerici.md`).
+ *  `docs/archive/2026-10-31-campi-numerici.md`).
  *
  *  Un `<input type="number">` controllato non sapeva tenere un testo a metà:
  *  con «-» il browser riporta `value === ""`, il gestore scriveva «non

@@ -12,6 +12,35 @@
 > resta in «Storico». Qui vive solo ciò che serve a riprendere il lavoro.
 
 
+## ▶ Riprendere da qui — ZIP compresso, selettori colore, Ctrl+Z, campi numerici in `main` (2026-10-31, ufficio)
+
+**Si riparte da `main`.** Nessun ramo aperto in locale. Quattro squash, tutti collaudati dal maintainer sul cloud:
+
+| Commit su `main` | Cosa |
+|---|---|
+| `8d7a66bc` | l'importazione legge anche gli ZIP compressi (Deflate) |
+| `3d190480` | i selettori colore (CampoColore e i 18 a mano, `SelettoreColore`) scrivono al massimo ogni 100 ms |
+| `80a51a40` | Ctrl+Z annulla una modifica e non un tasto (unione a 1,5 s); la molla dello slider senza scatto |
+| `8f2dbc11` | il «-» da tastiera nei 105 campi numerici (`CampoNumero`, guardia `check_campi_numerici.sh`) |
+
+- **VPS**: gateway su `aa5317d8-amd64` (contenuto di `8f2dbc11`), copie di sicurezza in
+  `~/sws-vps/backup-prima-di-76aecffb/` (identità, registro, quadlet). Le immagini vecchie (2.15.0…2.23.5) sono
+  ancora lì: toglierle è stato negato dal classificatore, da fare dopo l'ok del maintainer.
+- **Su origin** restano i rami `fix/zip-compresso` e `fix/colore-fluido` (pushati a metà giornata): vanno eliminati
+  col prossimo push.
+- Il TC620 è su `2.23.8-rc.1` e resta abbinato a `sws.soligo.net` (il «caricamento fallito» non era un errore).
+
+### Da fare
+
+1. **Fase 7 dello slider in CasaDomotica**: servono dal maintainer le luci dimmerabili, la posizione delle tapparelle,
+   setpoint e temperatura del termostato. Lo slider di prova `mvw9aukjek0im` sulla Home non ha tag (vedi sotto).
+2. **Slider senza tag**: oggi a runtime si lascia trascinare e ricade al minimo senza dire niente; proposto di
+   mostrarlo inerte con un avviso.
+3. **Pannello proprietà allargato a trascinamento**: ridisegna tutto l'editor a ogni pixel (da misurare se lento).
+4. **SMTP per azienda**: oggi nessuno la userebbe (inviti assenti, posta dei progetti dal container); rimandata
+   finché non c'è un uso concreto — tre domande nel messaggio del 31-10 (uso, precedenza, conservazione password).
+5. La release vera **2.23.8**; `abbinaPannelloCloud.test.tsx` da tenere d'occhio.
+
 ## ▶ Riprendere da qui — lo slider fasi 1-6 e il resto del ramo C sono in `main` (2026-10-30 sera, ufficio)
 
 **Si riparte da `main`.** Il maintainer ha provato il progetto `collaudo-slider` in locale (IDE 8460 e runtime
