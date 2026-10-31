@@ -168,7 +168,8 @@ con la pagina dentro, perché `ServeDir` serviva il guscio della SPA come rispos
 Ora una rotta della SPA (una richiesta di navigazione) ha 200, mentre un file davvero mancante
 resta 404: così un bundle che manca non torna come HTML con stato 200.
 
-**Versione in esecuzione: `76aecffb-amd64`** (2.23.8-rc.1 più la lettura degli ZIP compressi), dal
+**Versione in esecuzione: `bf9843ea-amd64`** dal 31-10-2026 mezzogiorno: la `76aecffb` più il selettore
+colore che scrive al massimo ogni 100 ms. La `76aecffb-amd64` (2.23.8-rc.1 più la lettura degli ZIP compressi), dal
 31-10-2026 mattina: lo slider nuovo (fasi 1-6), il resto del ramo C (schema identità 6, chiusura
 dell'account, inattività, registro a 12 mesi). Prima del cambio: copia di `identita.db`,
 `audit.jsonl` e del quadlet in `~/sws-vps/backup-prima-di-76aecffb/`. Verificato dopo il riavvio:
