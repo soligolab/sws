@@ -48,6 +48,14 @@ export function useColoreFluido(onChange: (v: string) => void) {
   return { bozza, cambia };
 }
 
+/** Il selettore nudo, per chi non usa `CampoColore` (righe di elenco, sfondo
+ *  della pagina, cornici…): stesso freno, `onColore` riceve il colore. */
+export function SelettoreColore({ value, onColore, ...resto }:
+  Omit<React.InputHTMLAttributes<HTMLInputElement>, "type" | "value" | "onChange"> & { value: string; onColore: (v: string) => void }) {
+  const { bozza, cambia } = useColoreFluido(onColore);
+  return <input {...resto} type="color" value={bozza ?? value} onChange={(e) => cambia(e.target.value)} />;
+}
+
 const INPUT: React.CSSProperties = {
   width: "100%", boxSizing: "border-box", background: "var(--brand-bg, #0f172a)",
   border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 4,

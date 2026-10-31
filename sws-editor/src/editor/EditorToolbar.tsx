@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import type { CanvasViewApi } from "@/canvas/SvgCanvas";
 import { useAppStore } from "@/store";
 import { SPAZIO, TESTO } from "./stilePannelli";
+import { SelettoreColore } from "./CampoColore";
 
 /**
  * Contextual toolbar for the editor: drawing tools only, no project-level
@@ -150,7 +151,7 @@ export function EditorToolbar({
           style={{ accentColor: "var(--brand-primary, #3b82f6)" }} />
         {t("header.gridSnap")}
       </label>
-      <input type="color" value={gridColor} onChange={(e) => setGridColor(e.target.value)}
+      <SelettoreColore value={gridColor} onColore={(e) => setGridColor(e)}
         style={{ width: 22, height: 22, padding: 0, border: "none", background: "none", cursor: "pointer" }}
         title={t("header.gridColor")} />
 

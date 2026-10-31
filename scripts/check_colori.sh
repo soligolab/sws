@@ -71,14 +71,16 @@ rs = righe(SHELL)
 problemi = []
 n_swatch = 0
 for i, r in enumerate(rs):
-    if 'type="color"' not in r:
+    # Dal 31-10-2026 i selettori a mano sono `<SelettoreColore` (lo stesso freno
+    # di `CampoColore`): sono swatch come gli altri, e il loro `value=` si guarda.
+    if 'type="color"' not in r and "<SelettoreColore" not in r:
         continue
     n_swatch += 1
     # Il tag comincia alla riga con `<input` (la stessa, o una sopra) e finisce
     # alla prima `/>`: solo quel testo, così il `value=` è il suo e non quello
     # del campo accanto.
     inizio = i
-    while inizio > 0 and "<input" not in rs[inizio]:
+    while inizio > 0 and "<input" not in rs[inizio] and "<SelettoreColore" not in rs[inizio]:
         inizio -= 1
     blocco = ""
     for j in range(inizio, min(len(rs), i + 10)):
@@ -87,6 +89,8 @@ for i, r in enumerate(rs):
             break
     if "<input" in rs[inizio]:
         blocco = blocco[blocco.index("<input"):]
+    elif "<SelettoreColore" in rs[inizio]:
+        blocco = blocco[blocco.index("<SelettoreColore"):]
     m = re.search(r"value=\{([^}]*(?:\{[^}]*\}[^}]*)*)\}", blocco)
     valore = m.group(1) if m else ""
     ok = ("estraiHex(" in valore) or ("perSwatch" in valore)
@@ -120,10 +124,10 @@ ELENCHI_AMMESSI = 14  # swatch dentro righe di elenco, contati il 23-09-2026
 nudi_su_obj = []
 n_elenco = 0
 for i, r in enumerate(rs):
-    if 'type="color"' not in r:
+    if 'type="color"' not in r and "<SelettoreColore" not in r:
         continue
     inizio = i
-    while inizio > 0 and "<input" not in rs[inizio]:
+    while inizio > 0 and "<input" not in rs[inizio] and "<SelettoreColore" not in rs[inizio]:
         inizio -= 1
     blocco = ""
     for j in range(inizio, min(len(rs), i + 12)):

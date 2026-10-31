@@ -12,6 +12,7 @@ import { api } from "@/api/client";
 import { useAppStore } from "@/store";
 import { S, SaveBar } from "@/config/comuni";
 import { regola } from "@/coloriPredefiniti";
+import { SelettoreColore } from "@/editor/CampoColore";
 import { svgLibCaricato, useManifestoLib } from "@/symbols/lib/libreria";
 import { SimboloLibSvg } from "@/symbols/lib/SimboloLib";
 import { CONTORNO_DISEGNO, type StileSimboliProgetto } from "@/symbols/stileProgetto";
@@ -68,7 +69,7 @@ export function StileSimboliTab() {
   const materiali = Object.entries(manifesto?.materials ?? {});
   const colore = (valore: string | undefined, predef: string, onChange: (v: string | undefined) => void, id: string) => (
     <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
-      <input id={id} type="color" value={valore || predef} onChange={(e) => onChange(e.target.value)}
+      <SelettoreColore id={id} value={valore || predef} onColore={(e) => onChange(e)}
         style={{ ...S.input, width: 44, padding: 2, height: 28, flex: "none" }} />
       <span style={{ fontSize: 11, color: "var(--brand-text-muted, #94a3b8)", fontStyle: valore ? "normal" : "italic" }}>
         {valore ? valore : `${predef} · ${t("stileTab.predefinito")}`}

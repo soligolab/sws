@@ -10,6 +10,7 @@
 import { useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { TagInput } from "@/components/TagInput";
+import { SelettoreColore } from "./CampoColore";
 import { useAppStore } from "@/store";
 import { tagCatalog } from "@/tagCatalog";
 import { categoriaDi, normalizzaColore } from "@/tag/tipiScalari";
@@ -95,7 +96,7 @@ function CampoValore({ categoria, valore, onChange }: {
     return (
       <div style={{ display: "flex", gap: 4, alignItems: "center", minWidth: 0 }}>
         {/* `<input type="color">` vuole #rrggbb: la trasparenza si scrive nel testo. */}
-        <input type="color" value={c.slice(0, 7)} onChange={(e) => onChange(e.target.value + c.slice(7))}
+        <SelettoreColore value={c.slice(0, 7)} onColore={(v) => onChange(v + c.slice(7))}
           style={{ width: 28, height: 24, padding: 0, border: "none", background: "transparent", cursor: "pointer" }} />
         <input style={{ ...INPUT, flex: 1, fontFamily: "ui-monospace, monospace" }} value={String(valore)}
           onChange={(e) => onChange(e.target.value)}

@@ -123,7 +123,11 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 - **Il selettore colore del pannello proprietà non rallenta più**: il selettore nativo manda un evento per pixel di
   trascinamento, e ognuno scriveva il progetto, ridisegnava l'editor e spingeva una voce di annulla. Sulla home di
   CasaDomotica il pallino non stava più dietro al mouse. `CampoColore` ora mostra subito il colore nello swatch e
-  scrive il progetto al massimo ogni 100 ms, sempre con l'ultimo valore (`useColoreFluido`).
+  scrive il progetto al massimo ogni 100 ms, sempre con l'ultimo valore (`useColoreFluido`). Gli altri 18 selettori
+  scritti a mano che modificavano il progetto a ogni pixel (sfondo della pagina, sottocelle, voci di text_list, zone
+  del gauge, serie di trend, xy, barre e torta, stati dei simboli, parametri dei faceplate, assegnazioni, stile dei
+  simboli, cornici, colore della griglia) passano da `SelettoreColore`, con lo stesso freno; `check_colori.sh` li
+  riconosce come swatch.
 
 - **Importare uno ZIP compresso**: l'importazione del progetto accettava solo archivi `Stored`, quelli che SWS
   scrive; uno ZIP fatto a mano (file manager, `zip`, Windows) è Deflate ed era rifiutato con «Compression method not

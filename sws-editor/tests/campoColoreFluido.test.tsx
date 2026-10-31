@@ -4,7 +4,7 @@
 import { render, fireEvent, act } from "@testing-library/react";
 import { describe, it, expect, vi, afterEach } from "vitest";
 import "../src/i18n";
-import { CampoColore } from "../src/editor/CampoColore";
+import { CampoColore, SelettoreColore } from "../src/editor/CampoColore";
 
 afterEach(() => vi.useRealTimers());
 
@@ -33,5 +33,17 @@ describe("CampoColore durante il trascinamento", () => {
     fireEvent.input(container.querySelector('input[type="color"]')!, { target: { value: "#602a2a" } });
     unmount();
     expect(onChange).toHaveBeenCalledWith("#602a2a");
+  });
+
+  it("il selettore nudo delle righe di elenco ha lo stesso freno", () => {
+    vi.useFakeTimers();
+    const onColore = vi.fn();
+    const { container } = render(<SelettoreColore value="#000000" onColore={onColore} title="zona" />);
+    const selettore = container.querySelector('input[type="color"]') as HTMLInputElement;
+    expect(selettore.title).toBe("zona");
+    fireEvent.input(selettore, { target: { value: "#111111" } });
+    fireEvent.input(selettore, { target: { value: "#222222" } });
+    act(() => { vi.advanceTimersByTime(100); });
+    expect(onColore.mock.calls).toEqual([["#222222"]]);
   });
 });
