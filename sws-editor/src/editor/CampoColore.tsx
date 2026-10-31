@@ -14,8 +14,39 @@
 // **sfondo della pagina** — è l'unica cosa che il canvas sa da sé e il
 // pannello no.
 
+import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { coloreAuto, estraiHex, normalizzaColore, type RegolaColore } from "@/coloriPredefiniti";
+
+/** Ogni quanto, al massimo, il trascinamento nel selettore scrive il progetto.
+ *  Il selettore nativo manda un evento per pixel, e ogni scrittura ridisegna
+ *  l'editor e spinge una voce di annulla: su una pagina piena (la home di
+ *  CasaDomotica, 31-10-2026) il pallino non stava più dietro al mouse. */
+const INTERVALLO_SELETTORE_MS = 100;
+
+/** Il selettore che scrive con calma: lo swatch segue subito, il progetto ogni
+ *  `INTERVALLO_SELETTORE_MS` e sempre con l'ultimo valore. */
+export function useColoreFluido(onChange: (v: string) => void) {
+  const [bozza, setBozza] = useState<string | null>(null);
+  const inAttesa = useRef<string | null>(null);
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const scrivi = useRef(onChange);
+  scrivi.current = onChange;
+  const svuota = () => {
+    timer.current = null;
+    if (inAttesa.current !== null) scrivi.current(inAttesa.current);
+    inAttesa.current = null;
+    setBozza(null);
+  };
+  // Smontato a metà (cambio di selezione): l'ultimo colore non si perde.
+  useEffect(() => () => { if (timer.current) { clearTimeout(timer.current); svuota(); } }, []);
+  const cambia = (v: string) => {
+    setBozza(v);
+    inAttesa.current = v;
+    if (!timer.current) timer.current = setTimeout(svuota, INTERVALLO_SELETTORE_MS);
+  };
+  return { bozza, cambia };
+}
 
 const INPUT: React.CSSProperties = {
   width: "100%", boxSizing: "border-box", background: "var(--brand-bg, #0f172a)",
@@ -43,6 +74,7 @@ export function CampoColore({
   style?: React.CSSProperties;
 }) {
   const { t } = useTranslation();
+  const { bozza, cambia } = useColoreFluido(onChange);
   const esplicito = normalizzaColore(valore);
   // Cosa succede quando il file non dice niente (30-09-2026: il pannello lo
   // **dichiara**, invece di un segnaposto grigio che sembrava un valore).
@@ -84,9 +116,9 @@ export function CampoColore({
         type="color"
         style={{ ...INPUT, padding: 2, height: 28, width: 44, cursor: "pointer", flex: "none",
           opacity: mixed || stato === "nessuno" || stato === "derivato" ? 0.4 : 1 }}
-        value={mixed ? "#808080" : perSwatch}
+        value={bozza ?? (mixed ? "#808080" : perSwatch)}
         title={dichiarato?.[1]}
-        onChange={(e) => onChange(e.target.value)}
+        onChange={(e) => cambia(e.target.value)}
       />
       <input
         type="text"

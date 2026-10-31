@@ -98,7 +98,9 @@ for i, r in enumerate(rs):
 esito(n_swatch > 0, f"{n_swatch} swatch trovati in EditorShell.tsx")
 esito(not problemi, "ogni swatch passa da estraiHex()/CampoColore" + ("".join("\n      " + p for p in problemi)))
 campo = open(f"{root}/sws-editor/src/editor/CampoColore.tsx", encoding="utf-8").read()
-esito('value={mixed ? "#808080" : perSwatch}' in campo, "CampoColore: lo swatch riceve `perSwatch` (estraiHex, mai il valore grezzo)")
+# `bozza` è il colore che il selettore nativo ha appena dato, durante il
+# trascinamento (31-10-2026, `useColoreFluido`): esce da lui, quindi è già hex.
+esito('value={bozza ?? (mixed ? "#808080" : perSwatch)}' in campo, "CampoColore: lo swatch riceve `perSwatch` (estraiHex, mai il valore grezzo)")
 
 print("=== 3b. un campo colore dell'oggetto passa dal controllo condiviso ===")
 # La regola del maintainer, 23-09-2026: «il selettore colore deve essere

@@ -120,6 +120,11 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 
 ### Fixed
 
+- **Il selettore colore del pannello proprietà non rallenta più**: il selettore nativo manda un evento per pixel di
+  trascinamento, e ognuno scriveva il progetto, ridisegnava l'editor e spingeva una voce di annulla. Sulla home di
+  CasaDomotica il pallino non stava più dietro al mouse. `CampoColore` ora mostra subito il colore nello swatch e
+  scrive il progetto al massimo ogni 100 ms, sempre con l'ultimo valore (`useColoreFluido`).
+
 - **Importare uno ZIP compresso**: l'importazione del progetto accettava solo archivi `Stored`, quelli che SWS
   scrive; uno ZIP fatto a mano (file manager, `zip`, Windows) è Deflate ed era rifiutato con «Compression method not
   supported». `sws-web` ora legge Deflate (feature `deflate` del crate `zip`); la scrittura resta `Stored`. Vale per
