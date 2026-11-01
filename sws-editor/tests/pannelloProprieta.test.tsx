@@ -1,9 +1,11 @@
 import { render, screen, fireEvent } from "@testing-library/react";
 import { describe, it, expect, beforeAll } from "vitest";
-import i18n from "../src/i18n";
+import "../src/i18n";
 import { GRUPPI_PROPRIETA, GruppoAttivo, ObjectProps, type GruppoProprieta } from "../src/editor/EditorShell";
+import { slotDi } from "../src/editor/proprieta/slotTag";
 import { PALETTE_GROUPS } from "../src/editor/LeftPanel";
 import type { SynopticObject } from "../src/types";
+import { writeFileSync } from "node:fs";
 import inventario from "./fixtures/campiPannelloProprieta.json";
 
 /** L'inventario dei campi del pannello proprietà, tipo per tipo.
@@ -31,6 +33,10 @@ import inventario from "./fixtures/campiPannelloProprieta.json";
  *  aggiorna `tests/fixtures/campiPannelloProprieta.json` **guardando il
  *  diff**. Una riga in più è un campo nuovo; una in meno, in una sessione che
  *  non voleva toglierne, è il guasto che questo test esiste per vedere.
+ *
+ *  Per riscriverla (01-11-2026, il pannello per frequenza la cambia a ogni
+ *  fase): `SWS_RIGENERA_INVENTARIO=1 pnpm exec vitest run tests/pannelloProprieta.test.tsx`,
+ *  poi `git diff` sulla fixture, letto riga per riga, prima del commit.
  */
 
 /** Apre tutte le sezioni pieghevoli, ripetutamente: una sezione può contenerne
@@ -74,6 +80,10 @@ function inventarioDelGruppo(tipo: string, gruppo: GruppoProprieta) {
   const campi = Array.from(container.querySelectorAll("div > div:first-child, label > div:first-child"))
     .filter((d) => d.children.length === 0 && (d.textContent ?? "").trim().length > 0)
     .map((d) => (d.textContent ?? "").trim());
+  // Dal 01-11-2026 i tag non collegati non si vedono: stanno nel menu «+ Collega…»
+  // di «Collegamenti». Si contano da lì, o l'inventario non li vedrebbe più.
+  campi.push(...Array.from(container.querySelectorAll('[data-testid="collega-slot"] option'))
+    .slice(1).map((o) => `+ ${(o.textContent ?? "").trim()}`));
   unmount();
   return { sezioni, campi };
 }
@@ -103,6 +113,14 @@ describe("pannello proprietà — nessun campo perso nel riordino (T-56)", () =>
     try { localStorage.clear(); } catch { /* jsdom senza storage */ }
   });
 
+  if (process.env.SWS_RIGENERA_INVENTARIO) {
+    it("riscrive la fixture", () => {
+      const nuovo = Object.fromEntries(TIPI.map((tipo) => [tipo, inventarioDi(tipo)]));
+      writeFileSync(`${process.cwd()}/tests/fixtures/campiPannelloProprieta.json`, JSON.stringify(nuovo, null, 2) + "\n");
+    }, 120_000);
+    return;
+  }
+
   it("la palette non ha perso né guadagnato tipi senza che l'inventario lo sappia", () => {
     expect(TIPI.slice().sort()).toEqual(Object.keys(inventario).sort());
   });
@@ -117,19 +135,34 @@ describe("pannello proprietà — nessun campo perso nel riordino (T-56)", () =>
 });
 
 /** Regola UI 2 del maintainer (23-08-2026): mai due punti del pannello che
- *  scrivono lo stesso campo. Per `obj.tag` i punti possibili sono due — «Tag»
- *  (il dato, nel ramo del tipo) e «Tag di stato» (qualità, per i tipi che il
- *  tag non lo usano come dato) — e finora li teneva insieme solo una lista a
- *  mano. Dal 26-09-2026, con il tag spostato nel ramo del tipo, c'è la guardia. */
-describe("regola UI 2: il tag dell'oggetto si scrive da un punto solo", () => {
+ *  scrivono lo stesso campo. Fino al 01-11-2026 la guardia guardava solo
+ *  `obj.tag` («Tag» o «Tag di stato»); da quando i tag stanno tutti in
+ *  «Collegamenti» guarda **ogni slot** di `slotTag.ts`.
+ *
+ *  Si dà a ogni campo tag un valore riconoscibile, si accendono le modalità che
+ *  li fanno comparire, e si conta in quanti campi del pannello intero compare
+ *  quel valore: dev'essere uno. Per valore e non per etichetta, così un campo
+ *  rimasto in un ramo con un'etichetta diversa non sfugge. */
+describe("regola UI 2: ogni tag dell'oggetto si scrive da un punto solo", () => {
   for (const tipo of TIPI) {
-    it(`${tipo}: al più un campo «Tag» o «Tag di stato»`, () => {
-      const etichette = [i18n.t("props.tag"), i18n.t("props.stateTag")];
-      let n = 0;
-      for (const g of GRUPPI_PROPRIETA) {
-        n += inventarioDelGruppo(tipo, g.id).campi.filter((c) => etichette.includes(c)).length;
+    it(`${tipo}: ogni slot in un campo solo`, () => {
+      const base = {
+        id: `x-${tipo}`, type: tipo, x: 10, y: 10, width: 100, height: 40,
+        blink_mode: "tag", symbol_spin: "tag", pipe_flow: true, pie_mode: "donut",
+      } as SynopticObject;
+      const obj = { ...base } as Record<string, unknown>;
+      for (const s of slotDi(base)) obj[s.campo] = `tag-${s.campo}`;
+      const { container, unmount } = render(
+        <GruppoAttivo.Provider value="tutti">
+          <ObjectProps obj={obj as unknown as SynopticObject} pages={[]} functions={[]} onChange={() => {}} onDelete={() => {}} />
+        </GruppoAttivo.Provider>,
+      );
+      apriTutto();
+      const valori = Array.from(container.querySelectorAll("input")).map((i) => i.value);
+      for (const s of slotDi(base)) {
+        expect(valori.filter((v) => v === `tag-${s.campo}`).length, `${tipo}.${s.campo}`).toBe(1);
       }
-      expect(n).toBeLessThanOrEqual(1);
+      unmount();
     });
   }
 });

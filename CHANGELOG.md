@@ -26,6 +26,21 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
   senza 📌; Pagina o Selezione quando i rami non ci sono. Un clic sull'icona attiva chiude la colonna. Anche il bordo
   del pannello sinistro passa da `trascinaBordo`. Tolta la `BarraIcone` del T-56, senza più usi.
 
+- **Il pannello proprietà ordinato per frequenza** (piano `docs/plans/2026-11-01-pannello-proprieta-per-frequenza.md`).
+  Tre rami invece di quattro (`GRUPPI_PROPRIETA`: funzione, aspetto, comportamento; i nomi ricordati prima ricadono
+  sui nuovi con `ramoAttuale`). Una **striscia fissa** in testa con nome, tipo/id, X Y W H e il cestino; i bottoni
+  dell'ordine dei livelli passano in Layer. **Collegamenti** (`proprieta/Collegamenti.tsx`) raccoglie tutti i tag
+  dell'oggetto da una tabella sola (`proprieta/slotTag.ts`): solo i collegati più il principale, letti/scritti, effetto
+  scritto, valore live, «+ Collega…»; sotto i riepiloghi dei tag in lista e i 🔗 dei campi, che portano al campo
+  aprendo il ramo (`VaiACampo`). I tag sparsi in Parametri, Layer, Movimento, qualità e lampeggio sono tolti; dove
+  serve resta un rimando in sola lettura. «Dato» e «Binding attivi» spariscono. La sezione **Parametri** di
+  trentatré tipi è divisa in Scala, Testo, Stati, Comando, Serie, Filtro (funzione) e Colori, Stile (aspetto) con
+  `metti()`/`SEZIONI_TIPO`; resta Parametri solo dove è l'identità del tipo. «Sicurezza» diventa **Accesso**, la
+  qualità si vede solo con un tag e i suoi colori solo col pallino acceso, il lampeggio è una sezione del
+  comportamento. **Filtra proprietà** (`proprieta/filtro.tsx`) apre tutti i rami e lascia ciò che corrisponde.
+  Inventario dei campi invariato (`SWS_RIGENERA_INVENTARIO=1` riscrive la fixture), e la guardia della regola UI 2
+  guarda ora ogni slot di tag, per valore.
+
 - **OpenPLC dall'IDE, come container persistente** (piano `docs/archive/2026-10-20-openplc-sul-dispositivo.md`,
   collaudo del 30-10-2026). Il quadlet `openplc-runtime.container` non partiva sul WP630 (il volume copriva la
   `/workdir` dell'immagine), non si poteva abilitare al boot (`enable` su un'unità generata) e avrebbe perso il

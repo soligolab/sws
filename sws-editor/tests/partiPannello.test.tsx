@@ -16,7 +16,7 @@ beforeAll(() => { act(() => impostaLibreriaPerTest(manifesto, {})); });
 
 function pannello(obj: SynopticObject, onChange: (p: Partial<SynopticObject>) => void = () => {}) {
   render(
-    <GruppoAttivo.Provider value="tipo">
+    <GruppoAttivo.Provider value="funzione">
       <ObjectProps obj={obj} pages={[]} functions={[]} onChange={onChange} onDelete={() => {}} />
     </GruppoAttivo.Provider>,
   );

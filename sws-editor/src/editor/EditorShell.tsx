@@ -1,4 +1,4 @@
-import { createContext, lazy, Suspense, useCallback, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { createContext, Fragment, lazy, Suspense, useCallback, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { ImgProgetto } from "@/canvas/ImmagineSvg";
 import { dimenticaImmagine } from "@/canvas/ImmagineSvg";
 import { ProprietaFinestra } from "@/finestre/ProprietaFinestra";
@@ -32,6 +32,9 @@ const FunctionEditor = lazy(() =>
 const PlanimetriaEditor = lazy(() =>
   import("@/planimetrie/PlanimetriaEditor").then((m) => ({ default: m.PlanimetriaEditor })));
 import { TagInput } from "@/components/TagInput";
+import { Collegamenti, RimandoCollegamenti, VaiACampo } from "./proprieta/Collegamenti";
+import { simboloLibHa } from "./proprieta/slotTag";
+import { applicaFiltro, CampoFiltro } from "./proprieta/filtro";
 import { EditorAssegnazioni } from "@/editor/EditorAssegnazioni";
 import { CapoTubo } from "@/editor/CapoTubo";
 import { AnteprimaTubo } from "@/editor/AnteprimaTubo";
@@ -1343,8 +1346,8 @@ export function EditorShell() {
           // ── Regular object (or grid with no cell selected) ─────────────
           return (
             <>
-                <ZOrderBar id={selected.id} objectCount={objects.length} onReorder={reorderObject} />
               <ObjectProps
+                ordineLivelli={<ZOrderBar id={selected.id} objectCount={objects.length} onReorder={reorderObject} />}
                 obj={selected}
                 pages={otherPages}
                 functions={functions}
@@ -1558,12 +1561,18 @@ function PanelBreadcrumb({ parts }: { parts: BreadcrumbPart[] }) {
  *  nomi non dicevano cosa c'era dentro, e che «Parametri», la sezione che si
  *  tocca di più, stava sepolta sotto «Dato». Ora i rami dicono il contenuto,
  *  e il primo porta **il nome del tipo** e ne tiene le impostazioni proprie.
- *  Esiste solo dove il tipo ne ha (non sulle forme). */
+ *  Esiste solo dove il tipo ne ha (non sulle forme).
+ *
+ *  Dal 01-11-2026 (piano docs/plans/2026-11-01-pannello-proprieta-per-frequenza.md)
+ *  i rami sono tre e seguono la **frequenza d'uso**, non la categoria tecnica:
+ *  prima la funzione (collegamenti, scala, comando, accesso), poi l'aspetto,
+ *  poi il comportamento. Il ramo «Dati e collegamenti» non c'è più — era quasi
+ *  sempre vuoto — e un bottone «normale» non chiede più tre rami su quattro.
+ *  Nome, tipo e X Y W H stanno in una striscia fissa fuori dai rami. */
 export const GRUPPI_PROPRIETA = [
-  { id: "tipo",        icona: "🎛", chiave: "props.gruppoTipo" },
-  { id: "aspetto",     icona: "📐", chiave: "props.gruppoPosizioneAspetto" },
-  { id: "dati",        icona: "🔗", chiave: "props.gruppoDatiCollegamenti" },
-  { id: "interazione", icona: "⚡", chiave: "props.gruppoAnimazioneInterazione" },
+  { id: "funzione",      icona: "🎛", chiave: "props.gruppoFunzione" },
+  { id: "aspetto",       icona: "🎨", chiave: "props.gruppoAspetto" },
+  { id: "comportamento", icona: "✨", chiave: "props.gruppoComportamento" },
 ] as const;
 export type GruppoProprieta = (typeof GRUPPI_PROPRIETA)[number]["id"];
 
@@ -1582,37 +1591,51 @@ export function gruppiPerTipo(_tipo: string, paginaBoot = false) {
 }
 
 /** I rami del pannello proprietà che una pagina di boot ammette. */
-const GRUPPI_BOOT: readonly GruppoProprieta[] = ["tipo", "aspetto"];
+const GRUPPI_BOOT: readonly GruppoProprieta[] = ["funzione", "aspetto"];
 
-// I tipi che hanno una sezione «Parametri» propria (T-56, sezione canonica 6).
-// Fuori restano rect, ellipse e line: sono forme, non strumenti, e non hanno
-// niente da parametrizzare oltre ad aspetto e posizione. A livello di modulo
-// perché lo legge anche `gruppoAffine`, non solo il pannello.
-export const TIPI_CON_PARAMETRI: readonly string[] = [
-  "alarm_banner", "alarm_bell", "alarm_history", "alarm_viewer", "bar_chart", "button",
-  "checkbox", "clock", "data_log", "faceplate", "gauge", "grid", "image", "kpi_tile", "lang_button",
-  "lang_selector", "led", "navbutton", "page_navigator", "pie_chart", "pipe", "progress_bar", "radio",
-  "recipe_panel", "setpoint", "slider", "sparkline", "state_lamp", "symbol", "table",
-  "text_list", "trend", "xy_plot",
-];
+/** I rami di prima del 01-11-2026, ricordati nel browser, e dove ricadono. */
+const RAMI_RINOMINATI: Readonly<Record<string, GruppoProprieta>> = {
+  tipo: "funzione", dati: "funzione", interazione: "comportamento",
+};
+/** Il ramo di oggi per un nome letto dalla memoria. */
+export const ramoAttuale = (g: string) => RAMI_RINOMINATI[g] ?? g;
+
+/** Le sezioni in cui un tipo mette le sue impostazioni (01-11-2026, fase 3 del
+ *  piano 2026-11-01-pannello-proprieta-per-frequenza). Prima erano tutte in
+ *  «Parametri» (T-56, sezione canonica 6): sullo slider trentacinque campi in
+ *  fila, con colori e comportamento mescolati al dato. L'ordine nella colonna
+ *  lo dà `ORDINE_SEZIONI`. */
+export const SEZIONI_TIPO = [
+  { chiave: "scala",     titolo: "props.sezioneScala",      gruppo: "funzione" },
+  { chiave: "testo",     titolo: "props.sectionText",       gruppo: "funzione" },
+  { chiave: "stati",     titolo: "props.sezioneStati",      gruppo: "funzione" },
+  { chiave: "comando",   titolo: "props.sezioneComando",    gruppo: "funzione" },
+  { chiave: "serie",     titolo: "props.sezioneSerie",      gruppo: "funzione" },
+  { chiave: "filtro",    titolo: "props.sezioneFiltro",     gruppo: "funzione" },
+  { chiave: "parametri", titolo: "props.sectionParameters", gruppo: "funzione" },
+  { chiave: "colori",    titolo: "props.sezioneColori",     gruppo: "aspetto" },
+  { chiave: "stile",     titolo: "props.sezioneStile",      gruppo: "aspetto" },
+] as const satisfies readonly { chiave: string; titolo: string; gruppo: GruppoProprieta }[];
+export type SezioneTipo = (typeof SEZIONI_TIPO)[number]["chiave"];
 
 /** Il ramo che più caratterizza un tipo: dal 26-09-2026 ogni tipo ha il suo. */
 export function gruppoAffine(_tipo: string): GruppoProprieta {
-  return "tipo";
+  return "funzione";
 }
 
 /** Le sezioni che su una pagina di boot non hanno senso anche se il loro ramo
- *  c'è: il dato (tag) sta nel ramo del tipo, ma un'immagine d'avvio non ha dati. */
-const SEZIONI_NON_BOOT: readonly string[] = ["dato"];
+ *  c'è: il dato (tag) sta nel ramo della funzione, ma un'immagine d'avvio non ha
+ *  dati. Dal 01-11-2026 ci stanno anche qualità, binding e accesso, e valgono lo stesso. */
+const SEZIONI_NON_BOOT: readonly string[] = ["collegamenti", "quality", "security"];
 
 /** L'ordine delle sezioni canoniche dentro il loro ramo (R4, 25-09-2026). Una
  *  tabella e non l'ordine di disegno: una sezione che si ridisegna da sola non
  *  deve cambiare posto. Una chiave che manca qui va in fondo al suo ramo. */
 export const ORDINE_SEZIONI: readonly string[] = [
-  "parametri", "testo", "forma", "dato",         // il tipo
-  "identita", "aspetto", "transform", "layer",   // Posizione e aspetto
-  "bindings", "quality",                         // Dati e collegamenti
-  "motion", "events", "security",                // Animazione e interazione
+  "collegamenti", "quality",                                // la funzione: prima i tag
+  "filtro", "parametri", "scala", "testo", "stati", "comando", "serie", "security",
+  "colori", "stile", "forma", "aspetto", "layer", "transform", // l'aspetto
+  "events", "lampeggio", "motion",                          // il comportamento
 ];
 
 /** Il ramo aperto davvero (26-09-2026, dalle sezioni ai rami): l'ultimo
@@ -1745,8 +1768,9 @@ export function PannelloDestro({
   // sezioni dentro un ramo sono sottotitoli, sempre visibili. Il ramo scelto
   // si ricorda per nome: chi stava su «Dati» e passa a un oggetto che li ha
   // resta su «Dati».
-  const [scelto, setScelto] = useState<string | null>(() => leggi(CHIAVE_RAMO_DESTRA, "") || null);
-  const [appuntati, setAppuntati] = useState<Set<string>>(() => new Set(JSON.parse(leggi(CHIAVE_RAMI_APPUNTATI, "[]")) as string[]));
+  // `ramoAttuale`: i nomi dei rami di prima del 01-11-2026 ricadono su quelli di oggi.
+  const [scelto, setScelto] = useState<string | null>(() => ramoAttuale(leggi(CHIAVE_RAMO_DESTRA, "")) || null);
+  const [appuntati, setAppuntati] = useState<Set<string>>(() => new Set((JSON.parse(leggi(CHIAVE_RAMI_APPUNTATI, "[]")) as string[]).map(ramoAttuale)));
   // «Ho chiuso tutto» vale per l'oggetto su cui lo si è fatto: al cambio di
   // oggetto si riapre il ramo ricordato (un pannello tutto chiuso sembra vuoto).
   const [chiusoSu, setChiusoSu] = useState<string | null>(null);
@@ -1771,9 +1795,17 @@ export function PannelloDestro({
 
   const visibili = gruppiVisibili.filter((g) => !conSezioni || conSezioni.has(g.id));
   const effettivo = ramoEffettivo(scelto, visibili.map((g) => g.id), tipo, !vscode && chiusoSu === chiaveOggetto);
-  const ramiAperti = vscode
-    ? new Set(effettivo ? [effettivo] : [])
-    : new Set([...(effettivo ? [effettivo] : []), ...[...appuntati].filter((g) => visibili.some((v) => v.id === g))]);
+  // «Filtra proprietà» (01-11-2026, fase 4): con un testo si aprono tutti i
+  // rami, e `applicaFiltro` nasconde quello che non corrisponde. Vale per
+  // l'oggetto su cui lo si è scritto.
+  const [filtro, setFiltro] = useState("");
+  useEffect(() => setFiltro(""), [chiaveOggetto]);
+  const filtrando = aSezioni && filtro.trim() !== "";
+  const ramiAperti = filtrando
+    ? new Set(visibili.map((g) => g.id))
+    : vscode
+      ? new Set(effettivo ? [effettivo] : [])
+      : new Set([...(effettivo ? [effettivo] : []), ...[...appuntati].filter((g) => visibili.some((v) => v.id === g))]);
 
   const indiceGruppo = new Map(gruppiVisibili.map((g, i) => [g.id, i]));
   const fisarmonica: StatoFisarmonica = {
@@ -1800,11 +1832,35 @@ export function PannelloDestro({
     if (g === effettivo) setChiusoSu(chiaveOggetto);
   };
 
-  const titoloRamo = (g: { id: string; chiave: string }) => g.id === "tipo" ? t(`editor.palette.item.${tipo}`) : t(g.chiave);
+  const titoloRamo = (g: { id: string; chiave: string }) => g.id === "funzione" ? t(`editor.palette.item.${tipo}`) : t(g.chiave);
   const vociBarra: VoceAttivita[] = aSezioni
     ? visibili.map((g) => ({ id: g.id, titolo: titoloRamo(g), spiegazione: t(`props.att.${g.id}`) }))
     : [{ id: voceSingola, titolo: t(`props.att.${voceSingola}Titolo`), spiegazione: t(`props.att.${voceSingola}`) }];
   const voceAttiva = aSezioni ? effettivo : voceSingola;
+  // «Porta al campo» (01-11-2026): dai riepiloghi e dai 🔗 di «Collegamenti».
+  // Il campo può stare in un ramo chiuso, e le sezioni di un ramo chiuso non
+  // si disegnano: si apre un ramo dopo l'altro finché il campo compare.
+  const contenuto = useRef<HTMLDivElement>(null);
+  const [cerca, setCerca] = useState<{ campo: string; prossimo: number } | null>(null);
+  useLayoutEffect(() => {
+    if (!cerca) return;
+    const el = [...(contenuto.current?.querySelectorAll<HTMLElement>("[data-field]") ?? [])]
+      .find((e) => e.dataset.field === cerca.campo);
+    if (el) {
+      el.scrollIntoView?.({ block: "center", behavior: "smooth" });
+      el.animate?.([{ outline: "2px solid var(--brand-primary, #3b82f6)" }, { outline: "2px solid transparent" }], { duration: 1200 });
+      setCerca(null);
+      return;
+    }
+    const ramo = visibili[cerca.prossimo];
+    if (!ramo) { setCerca(null); return; }
+    apri(ramo.id);
+    setCerca({ ...cerca, prossimo: cerca.prossimo + 1 });
+  });
+  const vaiACampo = useCallback((campo: string) => setCerca({ campo, prossimo: 0 }), []);
+  // Dopo ogni disegno: il filtro tocca il DOM, e React non lo sa.
+  useLayoutEffect(() => { if (contenuto.current) applicaFiltro(contenuto.current, filtrando ? filtro : ""); });
+
   const scegliVoce = (id: string) => {
     const chiudi = id === voceAttiva && !colonnaChiusa;
     setColonnaChiusa(chiudi);
@@ -1831,12 +1887,14 @@ export function PannelloDestro({
       />
       {/* Deve restare il fratello subito dopo la maniglia: durante il
           trascinamento `trascinaBordo` gli scrive la larghezza a mano. */}
-      <div data-pannello-destro-contenuto style={{ width: larghezza, display: "flex", flexDirection: "column", overflow: "hidden" }}>
+      <div data-pannello-destro-contenuto ref={contenuto} style={{ width: larghezza, display: "flex", flexDirection: "column", overflow: "hidden" }}>
         <TitoloVista titolo={titoloColonna} />
+        {aSezioni && <CampoFiltro valore={filtro} onValore={setFiltro} />}
         <div style={{ flex: 1, minHeight: 0, overflowY: "auto", display: "flex", flexDirection: "column", gap: SPAZIO.m, padding: SPAZIO.l }}>
           {/* Locked page: fieldset[disabled] natively disables every nested
               form control (inputs/selects/buttons) in one shot — no need to
               thread a `disabled` prop through every ObjectProps variant. */}
+          <VaiACampo.Provider value={vaiACampo}>
           <fieldset disabled={bloccato} style={{ border: "none", margin: 0, padding: 0, display: "contents" }}>
             {aSezioni ? (
               // Una colonna sola: i rami sono le sole cose che si aprono, e le
@@ -1844,13 +1902,21 @@ export function PannelloDestro({
               // dirette di questa colonna, e così ognuna si disegna una volta.
               <GruppoAttivo.Provider value="tutti">
                 <Fisarmonica.Provider value={fisarmonica}>
+                  {/* Stile VS Code mentre si filtra: i rami sono tutti aperti, e
+                      il nome del ramo separa i loro campi. */}
+                  {vscode && filtrando && visibili.map((g) => (
+                    <div key={g.id} data-branch={((indiceGruppo.get(g.id) ?? 0) + 1) * 100} style={{ order: ((indiceGruppo.get(g.id) ?? 0) + 1) * 100, fontSize: TESTO.nota, fontWeight: 700,
+                      textTransform: "uppercase", letterSpacing: 0.5, color: "var(--brand-text-muted, #94a3b8)", marginTop: SPAZIO.s }}>
+                      {titoloRamo(g)}
+                    </div>
+                  ))}
                   {!vscode && gruppiVisibili.map((g, i) => {
                     if (conSezioni && !conSezioni.has(g.id)) return null;
                     const appuntato = appuntati.has(g.id);
                     return (
-                      <div key={g.id} data-testid={`ramo-proprieta-${g.id}`} style={{ order: (i + 1) * 100, marginTop: i ? SPAZIO.s : 0 }}>
+                      <div key={g.id} data-testid={`ramo-proprieta-${g.id}`} data-branch={(i + 1) * 100} style={{ order: (i + 1) * 100, marginTop: i ? SPAZIO.s : 0 }}>
                         <IntestazioneSezione
-                          titolo={g.id === "tipo" ? t(`editor.palette.item.${tipo}`) : t(g.chiave)} icona={g.icona}
+                          titolo={g.id === "funzione" ? t(`editor.palette.item.${tipo}`) : t(g.chiave)} icona={g.icona}
                           aperta={ramiAperti.has(g.id)} onToggle={() => commutaRamo(g.id)} rilievo
                           azione={
                             <button
@@ -1876,6 +1942,7 @@ export function PannelloDestro({
               <GruppoAttivo.Provider value="tutti">{children}</GruppoAttivo.Provider>
             )}
           </fieldset>
+          </VaiACampo.Provider>
         </div>
       </div>
       {barra}
@@ -1987,9 +2054,12 @@ export function figlioProprietaAttivo(
 const TipoOggetto = createContext<string>("");
 
 function CollapsibleSection({
-  title, storageKey, defaultOpen = true, headerExtra, hint, gruppo, children,
+  title, storageKey, defaultOpen = true, headerExtra, hint, gruppo, alias, children,
 }: {
   title: string;
+  /** Altre parole con cui il filtro delle proprietà trova la sezione: chi cerca
+   *  «tag» vuole Collegamenti, che non lo scrive. */
+  alias?: string;
   storageKey?: string;
   /** Aperta alla prima apertura, finché l'utente non la chiude (la memoria per
    *  tipo resta). Dal 21-09-2026 il default è **aperta**: da quando le sezioni
@@ -2037,8 +2107,8 @@ function CollapsibleSection({
     const ordine = fis.registra(storageKey!, gruppo!);
     if (!fis.ramiAperti.has(gruppo!)) return null;
     return (
-      <div data-testid={`sezione-${storageKey}`} style={{ order: ordine, paddingLeft: 4 }}>
-        <div style={{
+      <div data-testid={`sezione-${storageKey}`} data-section={storageKey} style={{ order: ordine, paddingLeft: 4 }}>
+        <div data-alias={alias} style={{
           display: "flex", alignItems: "center", gap: 6, marginTop: SPAZIO.s, marginBottom: 2,
           fontSize: TESTO.nota, color: "var(--brand-text-subtle, #94a3b8)", fontWeight: 700, letterSpacing: 0.5, textTransform: "uppercase",
         }}>
@@ -2771,15 +2841,6 @@ function MultiSelectionProps({
  *  pannelli avevano una tassonomia tutta loro — POSIZIONE, ASPETTO, VISIBILITÀ,
  *  TAG — che nominava le stesse cose in modo diverso, scritta a mano in italiano
  *  in sette punti. */
-/** Un campo legato a una parte (livello, rotazione) si mostra su un simbolo di
- *  libreria solo se il disegno ha quella parte; sugli altri simboli resta com'era.
- *  Manifesto non ancora arrivato: si mostra, meglio un campo in più che uno sparito. */
-function simboloLibHa(obj: SynopticObject, kind: "level" | "rotor"): boolean {
-  // Vale anche per un builtin che la libreria sostituisce (alias, Fase 6).
-  const sim = obj.symbol_id ? trovaSimboloLib(obj.symbol_id) : undefined;
-  return !sim || sim.parts.some((p) => p.kind === kind);
-}
-
 /** M4: un simbolo vecchio in un riquadro quadrato mostra il disegno nuovo
  *  contenuto e centrato; questo pulsante porta il riquadro alle proporzioni del
  *  disegno, tenendo la larghezza. Compare solo se le proporzioni differiscono. */
@@ -2818,6 +2879,7 @@ function PartiSimboloLib({ obj, onChange }: { obj: SynopticObject; onChange: (pa
   const numero = (v: string) => (v.trim() === "" || !Number.isFinite(Number(v)) ? undefined : Number(v));
   return (
     <>
+      <span data-field="symbol_parts" />
       <SottoTitolo chiave="partiSimbolo" />
       {parti.map((p) => {
         const l = legami[p.id] ?? {};
@@ -3102,6 +3164,7 @@ export function ObjectProps({
   mixedKeys = new Set<keyof SynopticObject>(),
   onChange,
   onDelete,
+  ordineLivelli,
 }: {
   obj: SynopticObject;
   pages: { id: string; name: string }[];
@@ -3110,6 +3173,9 @@ export function ObjectProps({
   mixedKeys?: Set<keyof SynopticObject>;
   onChange: (p: Partial<SynopticObject>) => void;
   onDelete: () => void;
+  /** I bottoni porta-davanti/manda-dietro (`ZOrderBar`): dal 01-11-2026 stanno
+   *  nella sezione Layer, accanto allo z-index, invece che sopra la striscia fissa. */
+  ordineLivelli?: React.ReactNode;
 }) {
   // Lo sfondo della pagina corrente, come lo disegna il canvas (stesso
   // default di SvgCanvas): serve a mostrare il colore effettivo dei campi
@@ -3119,7 +3185,6 @@ export function ObjectProps({
     return estraiHex(resolvePageBackground(pg?.background, pg?.background_dark, st.themeMode)) ?? "#1a1a2e";
   });
   const { t } = useTranslation();
-  const gruppoAttivo = useContext(GruppoAttivo);
   // Il fatto «il progetto ha utenti», non la modalità dell'istanza: vedi
   // `avvisoRuoloMinimo`.
   const progettoHaUtenti = useAppStore((st) => st.progettoHaUtenti);
@@ -3257,14 +3322,6 @@ export function ObjectProps({
     />
   );
 
-  const tagInput = (placeholder?: string) => (
-    <TagInput
-      style={INPUT}
-      placeholder={mixedKeys.has("tag") ? t("props.vari") : placeholder}
-      value={mixedKeys.has("tag") ? "" : (obj.tag ?? "")}
-      onChange={(v) => onChange({ tag: v })}
-    />
-  );
 
   // Il ripiego non si passa più: viene dalla tabella condivisa con canvas e
   // LVGL (`coloriPredefiniti.ts`), e un campo automatico mostra il colore
@@ -3429,6 +3486,7 @@ export function ObjectProps({
       {/* Le assegnazioni (11-10-2026): con almeno una, il clic fa
           quelle e la modalità di prima non serve — non si mostra, così
           nessun campo scrive un dato che il clic non userebbe. */}
+      <span data-field="assegnazioni" />
       {field(t("props.assegnazioni"),
         <EditorAssegnazioni value={obj.assegnazioni}
           onChange={(assegnazioni) => onChange({ assegnazioni })} />
@@ -3484,6 +3542,2164 @@ export function ObjectProps({
     </>
   );
 
+  // Le sezioni proprie del tipo (01-11-2026, fase 3 del piano
+  // 2026-11-01-pannello-proprieta-per-frequenza): ogni tipo mette i suoi pezzi
+  // nella sezione che dice cosa sono — Scala, Testo, Stati, Comando nella
+  // funzione; Colori e Stile nell'aspetto — invece che in un'unica «Parametri»
+  // di trenta campi. Le sezioni vuote non si disegnano.
+  const parti = {} as Record<SezioneTipo, React.ReactNode[]>;
+  for (const { chiave } of SEZIONI_TIPO) parti[chiave] = [];
+  // Un pezzo condizionale che vale `false`, o un elenco vuoto, non conta: la
+  // sezione resterebbe un titolo senza niente sotto.
+  const metti = (k: SezioneTipo, pezzo: React.ReactNode) => {
+    if (pezzo === false || pezzo === null || pezzo === undefined || pezzo === "" || (Array.isArray(pezzo) && pezzo.length === 0)) return;
+    parti[k].push(<Fragment key={parti[k].length}>{pezzo}</Fragment>);
+  };
+
+    // Il comune a più tipi, prima del proprio di ciascuno (01-11-2026): stava
+    // nella sezione Aspetto; ora i colori vanno in Colori e la forma in Stile.
+    // Riempimento.
+    metti("colori", (obj.type === "rect" || obj.type === "ellipse" || obj.type === "button" || obj.type === "navbutton"
+      || obj.type === "polygon" || (obj.type === "polyline" && obj.closed)) &&
+      field(t("props.color"), <BindableInput obj={obj} propName="fill" onChange={onChange}>{colorInput("fill")}</BindableInput>));
+    // Bordo.
+    metti("colori", hasStroke && (
+      <>
+        {field(t("props.border"), <BindableInput obj={obj} propName="stroke" onChange={onChange}>{colorInput("stroke")}</BindableInput>)}
+        {field(t("props.borderThickness"), <BindableInput obj={obj} propName="stroke_width" onChange={onChange}>{numInput("stroke_width", 1)}</BindableInput>)}
+      </>
+    ));
+    // F7.6 — il bordo del navbutton, come gli altri tipi con bordo.
+    metti("colori", obj.type === "navbutton" && (
+      <>
+        {field(t("props.border"), <BindableInput obj={obj} propName="stroke" onChange={onChange}>{colorInput("stroke")}</BindableInput>)}
+        {field(t("props.borderThickness"), <BindableInput obj={obj} propName="stroke_width" onChange={onChange}>{numInput("stroke_width", 1.5)}</BindableInput>)}
+      </>
+    ));
+    // F7.6 — la sfumatura del rettangolo.
+    metti("colori", obj.type === "rect" && (
+      <>
+        {field(t("props.gradient"),
+          <select style={{ ...INPUT, cursor: "pointer" }}
+            value={obj.fill_gradient ?? ""}
+            onChange={(e) => onChange({ fill_gradient: (e.target.value || undefined) as "vertical" | "horizontal" | "radial" | undefined })}>
+            <option value="">{t("props.gradientNone")}</option>
+            <option value="vertical">{t("props.gradientVertical")}</option>
+            <option value="horizontal">{t("props.gradientHorizontal")}</option>
+            <option value="radial">{t("props.gradientRadial")}</option>
+          </select>
+        )}
+        {obj.fill_gradient && (
+          <>
+            {field(t("props.gradientLight"), colorInput("gradient_light_color"))}
+            {field(t("props.gradientDark"), colorInput("gradient_dark_color"))}
+            <p style={{ fontSize: 10, color: "var(--brand-text-subtle, #94a3b8)", margin: "-2px 0 4px" }}>
+              {t("props.gradientHint")}
+            </p>
+          </>
+        )}
+      </>
+    ));
+    // F7.6 — raggio degli angoli del navbutton.
+    metti("stile", obj.type === "navbutton" &&
+      field(t("props.cornerRadius"), numInput("corner_radius", 0)));
+    // F7.6 — tratteggio del bordo.
+    metti("stile", ["rect", "polyline", "polygon"].includes(obj.type) &&
+      field(t("props.borderDash"),
+        <select style={{ ...INPUT, cursor: "pointer" }}
+          value={obj.stroke_dasharray ?? ""}
+          onChange={(e) => onChange({ stroke_dasharray: e.target.value || undefined })}>
+          <option value="">{t("props.dashSolid")}</option>
+          <option value="6 3">{t("props.dashDashed")}</option>
+          <option value="2 3">{t("props.dashDotted")}</option>
+          <option value="10 4 2 4">{t("props.dashDashDot")}</option>
+        </select>
+      ));
+    // F7.6 — forma del led.
+    metti("stile", obj.type === "led" &&
+      field(t("props.ledShape"),
+        <select style={{ ...INPUT, cursor: "pointer" }}
+          value={obj.led_shape ?? "circle"}
+          onChange={(e) => onChange({ led_shape: e.target.value === "circle" ? undefined : (e.target.value as "square" | "triangle") })}>
+          <option value="circle">{t("props.shapeCircle")}</option>
+          <option value="square">{t("props.shapeSquare")}</option>
+          <option value="triangle">{t("props.shapeTriangle")}</option>
+        </select>
+      ));
+
+    if (obj.type === "text") {
+      metti("testo", <>
+        {/* F7.4 — con il testo multiriga il campo statico diventa un'area:
+            gli a-capo scritti a mano vengono rispettati dal rendering. */}
+        {obj.text_wrap
+          ? field(t("props.textStatic"),
+              <textarea
+                style={{ ...INPUT, minHeight: 56, fontFamily: "inherit", resize: "vertical" }}
+                placeholder={t("shell.esTemperatura")}
+                value={obj.text ?? ""}
+                onChange={(e) => onChange({ text: e.target.value || undefined })}
+              />)
+          : field(t("props.textStatic"), <BindableInput obj={obj} propName="text" onChange={onChange}>{textInput("text", t("shell.esTemperatura"))}</BindableInput>)}
+        {field(t("props.formatBound"), <BindableInput obj={obj} propName="format" onChange={onChange}>{formatInput("{value:.1f} °C")}</BindableInput>)}
+        <p style={{ fontSize: 10, color: "var(--brand-text-subtle, #94a3b8)", margin: "0 0 4px" }}>
+          {t("shell.formatWinsPre")} <code>{"{value}"}</code>{t("shell.formatWinsPost")}
+        </p>
+      </>);
+      metti("stati", <>
+        <label style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 4, fontSize: 11, color: "var(--brand-text-muted, #94a3b8)", cursor: "pointer" }}>
+          <input
+            type="checkbox"
+            checked={!!obj.text_color_by_threshold}
+            onChange={(e) => onChange({ text_color_by_threshold: e.target.checked || undefined })}
+          />
+          {t("props.colorByThreshold")}
+        </label>
+        {obj.text_color_by_threshold && (
+          <>
+            <p style={{ fontSize: 10, color: "var(--brand-text-subtle, #94a3b8)", margin: "2px 0 4px" }}>
+              {t("props.colorByThresholdHint")}
+            </p>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
+              <div><div style={LABEL}>{t("props.warnLow")}</div><BindableInput obj={obj} propName="warn_low" onChange={onChange}>{numInput("warn_low", 0)}</BindableInput></div>
+              <div><div style={LABEL}>{t("props.warnHigh")}</div><BindableInput obj={obj} propName="warn_high" onChange={onChange}>{numInput("warn_high", 0)}</BindableInput></div>
+              <div><div style={LABEL}>{t("props.alarmLow")}</div><BindableInput obj={obj} propName="alarm_low" onChange={onChange}>{numInput("alarm_low", 0)}</BindableInput></div>
+              <div><div style={LABEL}>{t("props.alarmHigh")}</div><BindableInput obj={obj} propName="alarm_high" onChange={onChange}>{numInput("alarm_high", 0)}</BindableInput></div>
+            </div>
+          </>
+        )}
+      </>);
+      metti("colori", <>
+        {field(t("props.colorText"), <BindableInput obj={obj} propName="color" onChange={onChange}>{colorInput("color")}</BindableInput>)}
+      </>);
+      metti("stile", <>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
+          <div><div style={LABEL}>{t("props.dimensionPx")}</div><BindableInput obj={obj} propName="font_size" onChange={onChange}>{numInput("font_size", 14)}</BindableInput></div>
+          <div>
+            <div style={LABEL}>{t("props.alignment")}</div>
+            <select
+              style={{ ...INPUT, cursor: "pointer" }}
+              value={obj.text_anchor ?? "start"}
+              onChange={(e) => onChange({ text_anchor: e.target.value as "start" | "middle" | "end" })}
+            >
+              <option value="start">{t("props.left")}</option>
+              <option value="middle">{t("props.center")}</option>
+              <option value="end">{t("props.right")}</option>
+            </select>
+          </div>
+        </div>
+        {/* F7.4 — testo multiriga dentro il box dichiarato. */}
+        <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: "var(--brand-text-2, #cbd5e1)", marginTop: 4, cursor: "pointer" }}>
+          <input type="checkbox" checked={!!obj.text_wrap}
+            onChange={(e) => onChange({ text_wrap: e.target.checked || undefined })}
+            style={{ accentColor: "var(--brand-primary, #3b82f6)" }} />
+          {t("props.textWrap")}
+        </label>
+        {obj.text_wrap && (
+          <>
+            <p style={{ fontSize: 10, color: "var(--brand-text-subtle, #94a3b8)", margin: "2px 0 4px" }}>
+              {t("props.textWrapHint")}
+            </p>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
+              <div>
+                <div style={LABEL}>{t("props.vAlign")}</div>
+                <select style={{ ...INPUT, cursor: "pointer" }}
+                  value={obj.text_valign ?? "top"}
+                  onChange={(e) => onChange({ text_valign: e.target.value === "top" ? undefined : (e.target.value as "middle" | "bottom") })}>
+                  <option value="top">{t("props.vAlignTop")}</option>
+                  <option value="middle">{t("props.vAlignMiddle")}</option>
+                  <option value="bottom">{t("props.vAlignBottom")}</option>
+                </select>
+              </div>
+              <div><div style={LABEL}>{t("props.lineHeight")}</div>{numInput("line_height", 1.25)}</div>
+            </div>
+          </>
+        )}
+        {field(t("props.fontFamily"),
+          <BindableInput obj={obj} propName="font_family" onChange={onChange}>
+            {/* L'elenco dei font (18-10-2026): uguale nel browser e sul
+                pannello. Un nome scritto a mano che non è nell'elenco
+                resta selezionabile com'è, ma vale solo nel browser. */}
+            <select
+              data-testid="prop-font-family"
+              style={{ ...INPUT, cursor: "pointer", fontFamily: cssFamiglia(obj.font_family) }}
+              value={obj.font_family ?? ""}
+              onChange={(e) => onChange({ font_family: e.target.value || undefined })}
+            >
+              <option value="">{t("font.predefinito")}</option>
+              {FAMIGLIE.map((f) => (
+                <option key={f.id} value={f.id} style={{ fontFamily: cssFamiglia(f.id) }}>{t(`font.famiglia.${f.id}`)}</option>
+              ))}
+              {obj.font_family && !famigliaDi(obj.font_family) && (
+                <option value={obj.font_family}>{t("font.soloWeb", { nome: obj.font_family })}</option>
+              )}
+            </select>
+          </BindableInput>
+        )}
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
+          <div>
+            <div style={LABEL}>{t("shell.peso")}</div>
+            <select
+              style={{ ...INPUT, cursor: "pointer" }}
+              value={String(obj.font_weight ?? "normal")}
+              onChange={(e) => {
+                const v = e.target.value;
+                const n = Number(v);
+                onChange({ font_weight: Number.isFinite(n) && v.match(/^\d+$/) ? n : v });
+              }}
+            >
+              <option value="normal">{t("props.normal400")}</option>
+              <option value="bold">{t("props.bold700")}</option>
+              <option value="300">300</option>
+              <option value="500">500</option>
+              <option value="600">600</option>
+              <option value="800">800</option>
+            </select>
+          </div>
+          <div>
+            <div style={LABEL}>{t("shell.stile")}</div>
+            <select
+              style={{ ...INPUT, cursor: "pointer" }}
+              value={obj.font_style ?? "normal"}
+              onChange={(e) => onChange({ font_style: e.target.value as "normal" | "italic" })}
+            >
+              <option value="normal">{t("props.normalOpt")}</option>
+              <option value="italic">{t("props.italic")}</option>
+            </select>
+          </div>
+        </div>
+      </>);
+    }
+
+    /* Button label + write value + built-in action */
+    if (obj.type === "button") {
+      metti("testo", <>
+        {field(t("props.label"), <BindableInput obj={obj} propName="label" onChange={onChange}>{textInput("label")}</BindableInput>)}
+      </>);
+      metti("comando", <>
+        {sezioneComando}
+        {field(t("props.builtinAction"),
+          <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+            <select
+              style={{ ...INPUT, cursor: "pointer" }}
+              value={obj.button_action?.type ?? ""}
+              onChange={(e) => {
+                const t = e.target.value as ButtonAction["type"] | "";
+                if (!t) { onChange({ button_action: undefined }); return; }
+                if (t === "navigate") onChange({ button_action: { type: "navigate", url: "" } });
+                else if (t === "open_faceplate") onChange({ button_action: { type: "open_faceplate", faceplate_id: "", params: {} } });
+                else if (t === "open_popup") onChange({ button_action: { type: "open_popup", page: "", params: {} } });
+                else onChange({ button_action: { type: t } as ButtonAction });
+              }}
+            >
+              <option value="">{t("props.dashNone")}</option>
+              <option value="login">{t("props.loginModal")}</option>
+              <option value="logout">{t("props.logoutReadonly")}</option>
+              <option value="navigate">{t("props.navigateUrl")}</option>
+              <option value="open_faceplate">{t("props.openFaceplate")}</option>
+              <option value="open_popup">{t("finestraPopup.apri")}</option>
+              <option value="close_popup">{t("finestraPopup.chiudiAzione")}</option>
+            </select>
+            {obj.button_action?.type === "open_popup" && (() => {
+              const act = obj.button_action as { type: "open_popup"; page: string; params?: Record<string, string> };
+              const finestre = tutteLePagine.filter((p) => p.finestra);
+              const scelta = finestre.find((p) => p.id === act.page);
+              return (
+                <>
+                  <select style={{ ...INPUT, cursor: "pointer" }} value={act.page} data-testid="azione-finestra"
+                    onChange={(e) => onChange({ button_action: { ...act, page: e.target.value, params: {} } })}>
+                    <option value="">{t("finestraPopup.scegli")}</option>
+                    {finestre.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+                  </select>
+                  {finestre.length === 0 && (
+                    <span style={{ fontSize: 10, color: "var(--brand-text-subtle, #94a3b8)" }}>{t("finestraPopup.nessuna")}</span>
+                  )}
+                  {(scelta?.finestra_parametri ?? []).map((p) => (
+                    <div key={p.name} style={{ display: "flex", gap: 4, alignItems: "center" }}>
+                      <span style={{ fontSize: 10, color: "var(--brand-text-subtle, #64748b)", width: 80, flexShrink: 0 }}>{p.name}</span>
+                      {p.type === "tag" ? (
+                        <TagInput style={{ ...INPUT, flex: 1 }} placeholder={p.default ?? ""}
+                          value={act.params?.[p.name] ?? ""}
+                          onChange={(v) => onChange({ button_action: { ...act, params: { ...(act.params ?? {}), [p.name]: v } } })} />
+                      ) : (
+                        <input type="text" style={{ ...INPUT, flex: 1 }} placeholder={p.default ?? ""}
+                          value={act.params?.[p.name] ?? ""}
+                          onChange={(e) => onChange({ button_action: { ...act, params: { ...(act.params ?? {}), [p.name]: e.target.value } } })} />
+                      )}
+                    </div>
+                  ))}
+                </>
+              );
+            })()}
+            {obj.button_action?.type === "navigate" && (() => {
+              const act = obj.button_action as { type: "navigate"; url: string; target?: "self" | "blank" };
+              return (
+                <>
+                  <input
+                    type="text"
+                    style={INPUT}
+                    placeholder="https://..."
+                    value={act.url}
+                    onChange={(e) => onChange({ button_action: { ...act, url: e.target.value } })}
+                  />
+                  {/* "Apri in": su un pannello in kiosk una scheda nuova non si
+                      chiude facilmente, quindi la scelta è per pulsante. */}
+                  <select
+                    style={{ ...INPUT, cursor: "pointer" }}
+                    value={act.target ?? "blank"}
+                    onChange={(e) => onChange({ button_action: { ...act, target: e.target.value as "self" | "blank" } })}
+                  >
+                    <option value="blank">{t("props.openInNewTab")}</option>
+                    <option value="self">{t("props.openInSameTab")}</option>
+                  </select>
+                </>
+              );
+            })()}
+            {obj.button_action?.type === "open_faceplate" && (() => {
+              const act = obj.button_action as { type: "open_faceplate"; faceplate_id: string; params?: Record<string, string> };
+              const defn = faceplates.find((f) => f.id === act.faceplate_id);
+              return (
+                <>
+                  <select style={{ ...INPUT, cursor: "pointer" }} value={act.faceplate_id}
+                    onChange={(e) => onChange({ button_action: { ...act, faceplate_id: e.target.value, params: {} } })}>
+                    <option value="">{t("props.faceplateChoose")}</option>
+                    {faceplates.map((f) => <option key={f.id} value={f.id}>{f.label}</option>)}
+                  </select>
+                  {defn && normalizeFaceplateParams(defn).map((p) => (
+                    <div key={p.name} style={{ display: "flex", gap: 4, alignItems: "center" }}>
+                      <span style={{ fontSize: 10, color: "var(--brand-text-subtle, #64748b)", width: 80, flexShrink: 0 }}>
+                        {p.name}{p.required ? " *" : ""}
+                      </span>
+                      {p.type === "tag" ? (
+                        <TagInput style={{ ...INPUT, flex: 1 }} placeholder={p.default ?? ""}
+                          value={act.params?.[p.name] ?? ""}
+                          onChange={(v) => onChange({ button_action: { ...act, params: { ...(act.params ?? {}), [p.name]: v } } })} />
+                      ) : (
+                        <input type="text" style={{ ...INPUT, flex: 1 }} placeholder={p.default ?? ""}
+                          value={act.params?.[p.name] ?? ""}
+                          onChange={(e) => onChange({ button_action: { ...act, params: { ...(act.params ?? {}), [p.name]: e.target.value } } })} />
+                      )}
+                    </div>
+                  ))}
+                </>
+              );
+            })()}
+          </div>
+        )}
+      </>);
+      metti("colori", <>
+        {field(t("props.labelColor"), <BindableInput obj={obj} propName="color" onChange={onChange}>{colorInput("color")}</BindableInput>)}
+      </>);
+      metti("stile", <>
+        {field(t("props.fontSize"), <BindableInput obj={obj} propName="font_size" onChange={onChange}>{numInput("font_size", 14)}</BindableInput>)}
+      </>);
+    }
+
+    /* Navigatore di pagine */
+    if (obj.type === "page_navigator") metti("parametri", (
+      <NavigatorProperties obj={obj} onChange={onChange} field={field} numInput={numInput}
+        colorInput={colorInput} inputStyle={INPUT} />
+    ));
+
+    /* NavButton */
+    if (obj.type === "navbutton") {
+      const targetMissing = !!obj.target_page && !pages.some((p) => p.id === obj.target_page);
+      metti("testo", <>
+        {field(t("props.label"), <BindableInput obj={obj} propName="label" onChange={onChange}>{textInput("label")}</BindableInput>)}
+      </>);
+      metti("comando", <>
+        {field(t("props.targetPage"),
+          <select
+            style={{
+              ...INPUT,
+              cursor: "pointer",
+              borderColor: targetMissing ? "#dc2626" : (INPUT.border ? undefined : "var(--brand-surface-2, #334155)"),
+            }}
+            value={obj.target_page ?? ""}
+            onChange={(e) => onChange({ target_page: e.target.value || undefined })}
+          >
+            <option value="">{t("props.dashSelect")}</option>
+            {pages.map((p) => (
+              <option key={p.id} value={p.id}>{p.name}</option>
+            ))}
+            {targetMissing && (
+              <option value={obj.target_page} disabled>
+                ⚠ {t("shell.paginaInesistente")}: {obj.target_page}
+              </option>
+            )}
+          </select>
+        )}
+        {targetMissing && (
+          <div style={{ fontSize: 11, color: "var(--brand-danger-soft, #fca5a5)", marginTop: -4 }}>
+            {t("shell.theTargetPageWasDeleted")}
+          </div>
+        )}
+      </>);
+      metti("colori", <>
+        {field(t("props.labelColor"), <BindableInput obj={obj} propName="color" onChange={onChange}>{colorInput("color")}</BindableInput>)}
+      </>);
+      metti("stile", <>
+        {field(t("props.fontSize"), <BindableInput obj={obj} propName="font_size" onChange={onChange}>{numInput("font_size", 13)}</BindableInput>)}
+      </>);
+    }
+
+    /* Language button (T-40) */
+    if (obj.type === "lang_button") {
+      metti("testo", <>
+        {field(t("props.label"), <BindableInput obj={obj} propName="label" onChange={onChange}>{textInput("label")}</BindableInput>)}
+      </>);
+      metti("comando", <>
+        {field(t("props.targetLang"),
+          <select style={{ ...INPUT, cursor: "pointer" }} value={obj.target_lang ?? ""}
+            onChange={(e) => onChange({ target_lang: e.target.value || undefined })}>
+            <option value="">{t("props.dashSelect")}</option>
+            {projLangs.map((l) => <option key={l} value={l}>{l}</option>)}
+          </select>
+        )}
+      </>);
+      metti("stile", <>
+        {field(t("props.fontSize"), <BindableInput obj={obj} propName="font_size" onChange={onChange}>{numInput("font_size", 13)}</BindableInput>)}
+      </>);
+    }
+
+    /* Language selector (T-40) — auto-lists the project languages */
+    if (obj.type === "lang_selector") metti("parametri", (
+      <div style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)", padding: "4px 0" }}>
+        {t("props.langSelectorHint")}
+      </div>
+    ));
+
+    /* Gauge */
+    if (obj.type === "gauge") {
+      metti("testo", <>
+        {field(t("props.label"), <BindableInput obj={obj} propName="label" onChange={onChange}>{textInput("label")}</BindableInput>)}
+        {field(t("props.showValue"),
+          <input type="checkbox" checked={obj.show_value !== false}
+            onChange={(e) => onChange({ show_value: e.target.checked ? undefined : false })} />
+        )}
+      </>);
+      metti("scala", <>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
+          <div><div style={LABEL}>Min</div><BindableInput obj={obj} propName="min" onChange={onChange}>{numInput("min", 0)}</BindableInput></div>
+          <div><div style={LABEL}>Max</div><BindableInput obj={obj} propName="max" onChange={onChange}>{numInput("max", 100)}</BindableInput></div>
+        </div>
+        {field(t("props.unit"), <BindableInput obj={obj} propName="unit" onChange={onChange}>{textInput("unit", "")}</BindableInput>)}
+        {field(t("props.decimals"), <BindableInput obj={obj} propName="decimals" onChange={onChange}>{numInput("decimals", 1)}</BindableInput>)}
+      </>);
+      metti("stati", <>
+        <div style={{ fontSize: 10, color: "var(--brand-text-subtle, #94a3b8)", marginTop: 4, marginBottom: 2, fontWeight: 700 }}>{t("shell.soglie")}</div>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
+          <div><div style={LABEL}>{t("props.warnLow")}</div><BindableInput obj={obj} propName="warn_low" onChange={onChange}>{numInput("warn_low", 0)}</BindableInput></div>
+          <div><div style={LABEL}>{t("props.warnHigh")}</div><BindableInput obj={obj} propName="warn_high" onChange={onChange}>{numInput("warn_high", 0)}</BindableInput></div>
+          <div><div style={LABEL}>{t("props.alarmLow")}</div><BindableInput obj={obj} propName="alarm_low" onChange={onChange}>{numInput("alarm_low", 0)}</BindableInput></div>
+          <div><div style={LABEL}>{t("props.alarmHigh")}</div><BindableInput obj={obj} propName="alarm_high" onChange={onChange}>{numInput("alarm_high", 0)}</BindableInput></div>
+        </div>
+        {/* F7.6 — zone colorate del fondo scala. */}
+        <div style={{ fontSize: 10, color: "var(--brand-text-subtle, #94a3b8)", marginTop: 6, marginBottom: 2, fontWeight: 700 }}>
+          {t("props.zones")}
+        </div>
+        {(obj.gauge_zones ?? []).map((z, i) => (
+          <div key={i} style={{ display: "flex", gap: 4, alignItems: "center", marginBottom: 3 }}>
+            <CampoNumero style={{ ...INPUT, width: 56 }} value={z.from}
+              onTesto={(e) => {
+                const zs = [...(obj.gauge_zones ?? [])];
+                zs[i] = { ...zs[i], from: Number(e) };
+                onChange({ gauge_zones: zs });
+              }} />
+            <span style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)" }}>→</span>
+            <CampoNumero style={{ ...INPUT, width: 56 }} value={z.to}
+              onTesto={(e) => {
+                const zs = [...(obj.gauge_zones ?? [])];
+                zs[i] = { ...zs[i], to: Number(e) };
+                onChange({ gauge_zones: zs });
+              }} />
+            <SelettoreColore style={{ ...INPUT, padding: 2, height: 26, width: 38, cursor: "pointer", flex: "none" }}
+              value={estraiHex(z.color) ?? "#22c55e"}
+              onColore={(e) => {
+                const zs = [...(obj.gauge_zones ?? [])];
+                zs[i] = { ...zs[i], color: e };
+                onChange({ gauge_zones: zs });
+              }} />
+            <button title={t("props.remove")}
+              onClick={() => {
+                const zs = [...(obj.gauge_zones ?? [])];
+                zs.splice(i, 1);
+                onChange({ gauge_zones: zs.length > 0 ? zs : undefined });
+              }}
+              style={{ ...INPUT, width: 26, padding: 0, cursor: "pointer", flex: "none" }}>×</button>
+          </div>
+        ))}
+        <button
+          onClick={() => {
+            const zs = [...(obj.gauge_zones ?? [])];
+            const lo = obj.min ?? 0; const hi = obj.max ?? 100;
+            const from = zs.length > 0 ? zs[zs.length - 1].to : lo;
+            zs.push({ from, to: hi, color: "#22c55e" });
+            onChange({ gauge_zones: zs });
+          }}
+          style={{ ...INPUT, cursor: "pointer", marginBottom: 4 }}>+ {t("props.addZone")}</button>
+      </>);
+      metti("colori", <>
+        {field(t("props.needleColor"), <BindableInput obj={obj} propName="stroke" onChange={onChange}>{colorInput("stroke")}</BindableInput>)}
+        {field(t("props.textsColor"), <BindableInput obj={obj} propName="color" onChange={onChange}>{colorInput("color")}</BindableInput>)}
+        {/* F7.6 — secondo indicatore (setpoint). */}
+        {/* Il tag del setpoint sta in «Collegamenti» (01-11-2026). */}
+        {obj.gauge_sp_tag && (<>
+          <div style={{ fontSize: 10, color: "var(--brand-text-subtle, #94a3b8)", marginTop: 6, marginBottom: 2, fontWeight: 700 }}>
+            {t("props.secondIndicator")}
+          </div>
+          {field(t("props.color"), colorInput("gauge_sp_color"))}
+        </>)}
+      </>);
+      metti("stile", <>
+        {/* F7.6 — quadrante: apertura dell'arco e tacche numerate. */}
+        <div style={{ fontSize: 10, color: "var(--brand-text-subtle, #94a3b8)", marginTop: 6, marginBottom: 2, fontWeight: 700 }}>
+          {t("props.dial")}
+        </div>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
+          <div><div style={LABEL}>{t("props.startAngle")}</div>{numInput("gauge_start_angle", -135)}</div>
+          <div><div style={LABEL}>{t("props.endAngle")}</div>{numInput("gauge_end_angle", 135)}</div>
+        </div>
+        {field(t("props.ticks"), numInput("gauge_ticks", 0))}
+        <p style={{ fontSize: 10, color: "var(--brand-text-subtle, #94a3b8)", margin: "-2px 0 4px" }}>
+          {t("props.ticksHint")}
+        </p>
+      </>);
+    }
+
+    /* Slider */
+    if (obj.type === "slider") {
+      metti("testo", <>
+        {/* 30-09-2026: il web disegna `label` dello slider da sempre, ma il
+            pannello non aveva il campo — si poteva solo ereditare da un file. */}
+        {field(t("props.label"), <BindableInput obj={obj} propName="label" onChange={onChange}>{textInput("label")}</BindableInput>)}
+        {field(t("props.showValue"),
+          <input type="checkbox" checked={obj.show_value !== false}
+            onChange={(e) => onChange({ show_value: e.target.checked ? undefined : false })} />
+        )}
+      </>);
+      metti("scala", <>
+        <div style={GRIGLIA_NUMERICA}>
+          <div><div style={LABEL}>Min</div><BindableInput obj={obj} propName="min" onChange={onChange}>{numInput("min", 0)}</BindableInput></div>
+          <div><div style={LABEL}>Max</div><BindableInput obj={obj} propName="max" onChange={onChange}>{numInput("max", 100)}</BindableInput></div>
+          <div><div style={LABEL}>Step</div><BindableInput obj={obj} propName="step" onChange={onChange}>{numInput("step", 1)}</BindableInput></div>
+        </div>
+        {/* 30-10-2026 (revisione dello slider, fase 1): i due motori usano
+            unità e decimali da sempre, il pannello non li offriva. */}
+        {field(t("props.unit"), <BindableInput obj={obj} propName="unit" onChange={onChange}>{textInput("unit", "")}</BindableInput>)}
+        {field(t("props.decimals"), <BindableInput obj={obj} propName="decimals" onChange={onChange}>{numInput("decimals", 0)}</BindableInput>)}
+        {/* Fase 5 della revisione: bipolare e valore misurato. */}
+        {field(t("props.origineSlider"), numInput("slider_origin", 0))}
+      </>);
+      metti("stati", <>
+        {field(t("props.bandeSlider"),
+          <select style={{ ...INPUT, cursor: "pointer" }} value={obj.slider_bands ?? "mai"}
+            onChange={(e) => onChange({ slider_bands: e.target.value === "mai" ? undefined : e.target.value as "sempre" | "in_allarme" })}>
+            <option value="mai">{t("props.bandeMai")}</option>
+            <option value="sempre">{t("props.bandeSempre")}</option>
+            <option value="in_allarme">{t("props.bandeInAllarme")}</option>
+          </select>
+        )}
+        {obj.slider_bands && (
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
+            <div><div style={LABEL}>{t("props.warnLow")}</div><BindableInput obj={obj} propName="warn_low" onChange={onChange}>{numInput("warn_low", 0)}</BindableInput></div>
+            <div><div style={LABEL}>{t("props.warnHigh")}</div><BindableInput obj={obj} propName="warn_high" onChange={onChange}>{numInput("warn_high", 0)}</BindableInput></div>
+            <div><div style={LABEL}>{t("props.alarmLow")}</div><BindableInput obj={obj} propName="alarm_low" onChange={onChange}>{numInput("alarm_low", 0)}</BindableInput></div>
+            <div><div style={LABEL}>{t("props.alarmHigh")}</div><BindableInput obj={obj} propName="alarm_high" onChange={onChange}>{numInput("alarm_high", 0)}</BindableInput></div>
+          </div>
+        )}
+      </>);
+      metti("comando", <>
+        {field(t("props.readOnly"),
+          <input type="checkbox" checked={!!obj.read_only}
+            onChange={(e) => onChange({ read_only: e.target.checked })} />
+        )}
+        {field(t("props.writeOnRelease"),
+          <input type="checkbox" checked={obj.write_on_release !== false}
+            onChange={(e) => onChange({ write_on_release: e.target.checked ? undefined : false })} />
+        )}
+        {field(t("props.writeDeadband"), numInput("write_deadband", 0))}
+        {field(t("props.agganciaTacche"),
+          <input type="checkbox" checked={!!obj.slider_snap_ticks}
+            onChange={(e) => onChange({ slider_snap_ticks: e.target.checked || undefined })} />
+        )}
+        {/* Fase 6: la molla. Accenderla scrive il riposo — l'origine se lo
+            slider è bipolare, altrimenti il minimo (decisione 7). */}
+        {field(t("props.mollaSlider"),
+          <input type="checkbox" checked={obj.slider_rest_value !== undefined}
+            onChange={(e) => onChange({ slider_rest_value: e.target.checked ? (obj.slider_origin ?? obj.min ?? 0) : undefined })} />
+        )}
+        {obj.slider_rest_value !== undefined && field(t("props.riposoSlider"), numInput("slider_rest_value", 0))}
+      </>);
+      metti("colori", <>
+        {field(t("props.color"), <BindableInput obj={obj} propName="fill" onChange={onChange}>{colorInput("fill")}</BindableInput>)}
+        {field(t("props.sliderTrackColor"), colorInput("slider_track_color"))}
+        {field(t("props.sliderTrackOpacity"), numInput("slider_track_opacity", 100))}
+        {obj.slider_pv_tag && field(t("props.colorePv"), colorInput("slider_pv_color"))}
+      </>);
+      metti("stile", <>
+        {/* Fase 2 della revisione (30-10-2026): la traccia vuota (vuota =
+            il colore qui sopra al 20 %), il suo spessore, dove sta il valore. */}
+        {field(t("props.sliderStyle"),
+          <select style={{ ...INPUT, cursor: "pointer" }} value={obj.slider_style ?? "classico"}
+            onChange={(e) => onChange({ slider_style: e.target.value === "classico" ? undefined : e.target.value as "pillola" | "piastra" | "isa" })}>
+            <option value="classico">{t("props.stileClassico")}</option>
+            <option value="pillola">{t("props.stilePillola")}</option>
+            <option value="piastra">{t("props.stilePiastra")}</option>
+            <option value="isa">{t("props.stileIsa")}</option>
+          </select>
+        )}
+        {obj.slider_style === "piastra" && field(t("props.sliderIcon"),
+          <select style={{ ...INPUT, cursor: "pointer" }} value={obj.slider_icon ?? ""}
+            onChange={(e) => onChange({ slider_icon: e.target.value || undefined })}>
+            <option value="">{t("props.nessunaIcona")}</option>
+            {NOMI_ICONE_SLIDER.map((n) => <option key={n} value={n}>{t(`props.icona_${n}`)}</option>)}
+          </select>
+        )}
+        {field(t("props.sliderTrackThickness"), numInput("slider_track_thickness", 16))}
+        {field(t("props.sliderValuePosition"),
+          <select style={{ ...INPUT, cursor: "pointer" }} value={obj.slider_value_position ?? aspettoStile(obj.slider_style).posizione}
+            onChange={(e) => onChange({ slider_value_position: e.target.value === aspettoStile(obj.slider_style).posizione ? undefined : e.target.value as "sotto" | "sopra" | "dentro" | "cursore" })}>
+            <option value="sotto">{t("props.posizioneSotto")}</option>
+            <option value="sopra">{t("props.posizioneSopra")}</option>
+            <option value="dentro">{t("props.posizioneDentro")}</option>
+            <option value="cursore">{t("props.posizioneCursore")}</option>
+          </select>
+        )}
+        <div style={GRIGLIA_NUMERICA}>
+          <div><div style={LABEL}>{t("props.fontSize")}</div><BindableInput obj={obj} propName="font_size" onChange={onChange}>{numInput("font_size", 12)}</BindableInput></div>
+          <div><div style={LABEL}>{t("props.labelFontSize")}</div><BindableInput obj={obj} propName="label_font_size" onChange={onChange}>{numInput("label_font_size", 11)}</BindableInput></div>
+        </div>
+        {field(t("props.orientation"),
+          <select
+            style={{ ...INPUT, cursor: "pointer" }}
+            value={obj.orientation ?? "horizontal"}
+            onChange={(e) => onChange({ orientation: e.target.value as "horizontal" | "vertical" })}
+          >
+            <option value="horizontal">{t("props.horizontal")}</option>
+            <option value="vertical">{t("props.vertical")}</option>
+          </select>
+        )}
+        {/* Fase 4 della revisione (30-10-2026): tacche nelle unità del
+            valore, i loro numeri, l'aggancio; le bande dai quattro limiti
+            (che si possono lasciare al tag). */}
+        <div style={GRIGLIA_NUMERICA}>
+          <div><div style={LABEL}>{t("props.taccaMaggiore")}</div>{numInput("slider_tick_major", 0)}</div>
+          <div><div style={LABEL}>{t("props.taccaMinore")}</div>{numInput("slider_tick_minor", 0)}</div>
+        </div>
+        {field(t("props.numeriTacche"),
+          <input type="checkbox" checked={obj.slider_tick_labels ?? !!obj.slider_tick_major}
+            onChange={(e) => onChange({ slider_tick_labels: e.target.checked })} />
+        )}
+      </>);
+    }
+
+    /* Setpoint */
+    if (obj.type === "setpoint") {
+      metti("testo", <>
+        {field(t("props.label"), <BindableInput obj={obj} propName="label" onChange={onChange}>{textInput("label")}</BindableInput>)}
+      </>);
+      metti("scala", <>
+        <div style={GRIGLIA_NUMERICA}>
+          <div><div style={LABEL}>Min</div><BindableInput obj={obj} propName="min" onChange={onChange}>{numInput("min", 0)}</BindableInput></div>
+          <div><div style={LABEL}>Max</div><BindableInput obj={obj} propName="max" onChange={onChange}>{numInput("max", 100)}</BindableInput></div>
+          <div><div style={LABEL}>Step</div><BindableInput obj={obj} propName="step" onChange={onChange}>{numInput("step", 1)}</BindableInput></div>
+        </div>
+        {field(t("props.unit"), <BindableInput obj={obj} propName="unit" onChange={onChange}>{textInput("unit", "")}</BindableInput>)}
+        {field(t("props.decimals"), <BindableInput obj={obj} propName="decimals" onChange={onChange}>{numInput("decimals", 1)}</BindableInput>)}
+      </>);
+      metti("comando", <>
+        {field(t("props.readOnly"),
+          <input type="checkbox" checked={!!obj.read_only}
+            onChange={(e) => onChange({ read_only: e.target.checked })} />
+        )}
+      </>);
+      metti("stile", <>
+        <div style={GRIGLIA_NUMERICA}>
+          <div><div style={LABEL}>{t("props.fontSize")}</div><BindableInput obj={obj} propName="font_size" onChange={onChange}>{numInput("font_size", 12)}</BindableInput></div>
+          <div><div style={LABEL}>{t("props.labelFontSize")}</div><BindableInput obj={obj} propName="label_font_size" onChange={onChange}>{numInput("label_font_size", 11)}</BindableInput></div>
+          <div><div style={LABEL}>{t("props.buttonFontSize")}</div><BindableInput obj={obj} propName="button_font_size" onChange={onChange}>{numInput("button_font_size", 12)}</BindableInput></div>
+        </div>
+      </>);
+    }
+
+    /* Checkbox */
+    if (obj.type === "checkbox") {
+      metti("testo", <>
+        {field(t("props.label"), <BindableInput obj={obj} propName="label" onChange={onChange}>{textInput("label")}</BindableInput>)}
+      </>);
+      metti("comando", <>
+        {field(t("props.valueOn"),
+          <BindableInput obj={obj} propName="checked_value" onChange={onChange}>
+            <input type="text" style={INPUT} placeholder={t("props.trueHint")}
+              value={obj.checked_value !== undefined ? String(obj.checked_value) : ""}
+              onChange={(e) => {
+                const raw = e.target.value;
+                const v = raw === "true" ? true : raw === "false" ? false
+                  : isNaN(Number(raw)) || raw.trim() === "" ? raw : Number(raw);
+                onChange({ checked_value: v });
+              }} />
+          </BindableInput>
+        )}
+        {field(t("props.valueOff"),
+          <BindableInput obj={obj} propName="unchecked_value" onChange={onChange}>
+            <input type="text" style={INPUT} placeholder={t("props.falseHint")}
+              value={obj.unchecked_value !== undefined ? String(obj.unchecked_value) : ""}
+              onChange={(e) => {
+                const raw = e.target.value;
+                const v = raw === "true" ? true : raw === "false" ? false
+                  : isNaN(Number(raw)) || raw.trim() === "" ? raw : Number(raw);
+                onChange({ unchecked_value: v });
+              }} />
+          </BindableInput>
+        )}
+        {field(t("props.readOnly"),
+          <input type="checkbox" checked={!!obj.read_only}
+            onChange={(e) => onChange({ read_only: e.target.checked })} />
+        )}
+      </>);
+      metti("colori", <>
+        {field(t("props.color"), <BindableInput obj={obj} propName="fill" onChange={onChange}>{colorInput("fill")}</BindableInput>)}
+      </>);
+      metti("stile", <>
+        {field(t("props.fontSize"), <BindableInput obj={obj} propName="font_size" onChange={onChange}>{numInput("font_size", 13)}</BindableInput>)}
+      </>);
+    }
+
+    /* Radio */
+    if (obj.type === "radio") {
+      metti("testo", <>
+        {field(t("props.label"), <BindableInput obj={obj} propName="label" onChange={onChange}>{textInput("label")}</BindableInput>)}
+      </>);
+      metti("comando", <>
+        <RadioOptionsEditor
+          options={(obj.options as RadioOption[] | undefined) ?? []}
+          onChange={(opts) => onChange({ options: opts as SynopticObject["options"] })}
+        />
+        {field(t("props.readOnly"),
+          <input type="checkbox" checked={!!obj.read_only}
+            onChange={(e) => onChange({ read_only: e.target.checked })} />
+        )}
+      </>);
+      metti("colori", <>
+        {field(t("props.color"), <BindableInput obj={obj} propName="fill" onChange={onChange}>{colorInput("fill")}</BindableInput>)}
+      </>);
+      metti("stile", <>
+        <div style={GRIGLIA_NUMERICA}>
+          <div><div style={LABEL}>{t("props.fontSize")}</div><BindableInput obj={obj} propName="font_size" onChange={onChange}>{numInput("font_size", 13)}</BindableInput></div>
+          <div><div style={LABEL}>{t("props.labelFontSize")}</div><BindableInput obj={obj} propName="label_font_size" onChange={onChange}>{numInput("label_font_size", 11)}</BindableInput></div>
+        </div>
+        {field(t("props.orientation"),
+          <select
+            style={{ ...INPUT, cursor: "pointer" }}
+            value={obj.orientation ?? "vertical"}
+            onChange={(e) => onChange({ orientation: e.target.value as "horizontal" | "vertical" })}
+          >
+            <option value="vertical">{t("props.vertical")}</option>
+            <option value="horizontal">{t("props.horizontal")}</option>
+          </select>
+        )}
+      </>);
+    }
+
+    /* LED */
+    if (obj.type === "led") {
+      metti("testo", <>
+        {field(t("props.label"), <BindableInput obj={obj} propName="label" onChange={onChange}>{textInput("label")}</BindableInput>)}
+      </>);
+      metti("stati", <>
+        {field(t("props.valueOn"),
+          <BindableInput obj={obj} propName="on_value" onChange={onChange}>
+            <input type="text" style={INPUT} placeholder={t("props.trueHint")}
+              value={obj.on_value !== undefined ? String(obj.on_value) : ""}
+              onChange={(e) => {
+                const raw = e.target.value;
+                const v = raw === "true" ? true : raw === "false" ? false
+                  : isNaN(Number(raw)) || raw.trim() === "" ? raw : Number(raw);
+                onChange({ on_value: v });
+              }} />
+          </BindableInput>
+        )}
+        {field(t("props.colorOn"),  <BindableInput obj={obj} propName="on_color" onChange={onChange}>{colorInput("on_color")}</BindableInput>)}
+        {field(t("props.colorOff"), <BindableInput obj={obj} propName="off_color" onChange={onChange}>{colorInput("off_color")}</BindableInput>)}
+      </>);
+      metti("stile", <>
+        {field(t("props.fontSize"), <BindableInput obj={obj} propName="font_size" onChange={onChange}>{numInput("font_size", 11)}</BindableInput>)}
+      </>);
+    }
+
+    /* Progress bar */
+    if (obj.type === "progress_bar") {
+      metti("testo", <>
+        {field(t("props.label"), <BindableInput obj={obj} propName="label" onChange={onChange}>{textInput("label")}</BindableInput>)}
+        {field(t("props.showValue"),
+          <input type="checkbox" checked={obj.show_value !== false}
+            onChange={(e) => onChange({ show_value: e.target.checked ? undefined : false })} />
+        )}
+      </>);
+      metti("scala", <>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
+          <div><div style={LABEL}>Min</div><BindableInput obj={obj} propName="min" onChange={onChange}>{numInput("min", 0)}</BindableInput></div>
+          <div><div style={LABEL}>Max</div><BindableInput obj={obj} propName="max" onChange={onChange}>{numInput("max", 100)}</BindableInput></div>
+        </div>
+        {field(t("props.unit"), <BindableInput obj={obj} propName="unit" onChange={onChange}>{textInput("unit", "")}</BindableInput>)}
+        {field(t("props.decimals"), <BindableInput obj={obj} propName="decimals" onChange={onChange}>{numInput("decimals", 1)}</BindableInput>)}
+      </>);
+      metti("stati", <>
+        <div style={{ fontSize: 10, color: "var(--brand-text-subtle, #94a3b8)", marginTop: 4, marginBottom: 2, fontWeight: 700 }}>{t("shell.soglie")}</div>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
+          <div><div style={LABEL}>{t("props.warnLow")}</div><BindableInput obj={obj} propName="warn_low" onChange={onChange}>{numInput("warn_low", 0)}</BindableInput></div>
+          <div><div style={LABEL}>{t("props.warnHigh")}</div><BindableInput obj={obj} propName="warn_high" onChange={onChange}>{numInput("warn_high", 0)}</BindableInput></div>
+          <div><div style={LABEL}>{t("props.alarmLow")}</div><BindableInput obj={obj} propName="alarm_low" onChange={onChange}>{numInput("alarm_low", 0)}</BindableInput></div>
+          <div><div style={LABEL}>{t("props.alarmHigh")}</div><BindableInput obj={obj} propName="alarm_high" onChange={onChange}>{numInput("alarm_high", 0)}</BindableInput></div>
+        </div>
+      </>);
+      metti("colori", <>
+        {field(t("props.colorBar"), <BindableInput obj={obj} propName="fill" onChange={onChange}>{colorInput("fill")}</BindableInput>)}
+      </>);
+      metti("stile", <>
+        <div style={GRIGLIA_NUMERICA}>
+          <div><div style={LABEL}>{t("props.fontSize")}</div><BindableInput obj={obj} propName="font_size" onChange={onChange}>{numInput("font_size", 11)}</BindableInput></div>
+          <div><div style={LABEL}>{t("props.labelFontSize")}</div><BindableInput obj={obj} propName="label_font_size" onChange={onChange}>{numInput("label_font_size", 11)}</BindableInput></div>
+        </div>
+      </>);
+    }
+
+    /* Table */
+    if (obj.type === "table") {
+      // F7.1 — colonne mostrate, in ordine fisso di presentazione; l'utente
+      // sceglie quali accendere (le tre storiche sono il default).
+      const ALL_COLS = ["label", "value", "unit", "quality", "time"] as const;
+      const active = obj.table_columns ?? ["label", "value", "quality"];
+      const toggleCol = (c: typeof ALL_COLS[number]) => {
+        const next = active.includes(c) ? active.filter((x) => x !== c) : ALL_COLS.filter((x) => active.includes(x) || x === c);
+        onChange({ table_columns: next.length > 0 ? [...next] : undefined });
+      };
+      metti("serie", <>
+        <p style={{ fontSize: 10, color: "var(--brand-text-subtle, #94a3b8)", margin: "4px 0" }}>
+          {t("props.tableHint")}
+        </p>
+        <span data-field="table_rows" />
+        <TableRowsEditor
+          rows={(obj.table_rows as TableRow[] | undefined) ?? []}
+          onChange={(rows) => onChange({ table_rows: rows as SynopticObject["table_rows"] })}
+        />
+      </>);
+      metti("stile", <>
+        <div style={{ fontSize: 10, color: "var(--brand-text-subtle, #94a3b8)", marginTop: 4, marginBottom: 2, fontWeight: 700 }}>
+          {t("props.columns")}
+        </div>
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+          {ALL_COLS.map((c) => (
+            <label key={c} style={{ fontSize: 11, color: "var(--brand-text-muted, #94a3b8)", display: "flex", gap: 3, alignItems: "center" }}>
+              <input type="checkbox" checked={active.includes(c)} onChange={() => toggleCol(c)} />
+              {t(`props.col_${c}`)}
+            </label>
+          ))}
+        </div>
+        {field(t("props.labelHeader"), textInput("table_label_header", t("shell.data")))}
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
+          {/* Il ripiego e' a catena come nei due motori (22-10-2026): una
+              tabella che ha ancora `table_font_size` non riceve `font_size`
+              — gliel'ha impedito `riempiPredefiniti`, o si rimpicciolirebbe
+              da sola — quindi senza questo il campo mostrava 11 mentre i
+              due canvas disegnavano il 16 del campo vecchio. */}
+          <div><div style={LABEL}>{t("props.dimensionPx")}</div>{numInput("font_size", (obj.table_font_size ?? 11))}</div>
+        </div>
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 4 }}>
+          <label style={{ fontSize: 11, color: "var(--brand-text-muted, #94a3b8)", display: "flex", gap: 3, alignItems: "center" }}>
+            <input type="checkbox" checked={obj.table_sortable !== false}
+              onChange={(e) => onChange({ table_sortable: e.target.checked ? undefined : false })} />
+            {t("props.sortable")}
+          </label>
+          <label style={{ fontSize: 11, color: "var(--brand-text-muted, #94a3b8)", display: "flex", gap: 3, alignItems: "center" }}>
+            <input type="checkbox" checked={obj.table_filterable === true}
+              onChange={(e) => onChange({ table_filterable: e.target.checked || undefined })} />
+            {t("props.filterRow")}
+          </label>
+        </div>
+      </>);
+    }
+
+    /* Trend */
+    if (obj.type === "trend") {
+      // TRACCE unificate (migrazione 2026-08-23): ogni riga è un
+      // TrendTrace {tag, label, colore, stile…}. La traccia 1 non è più
+      // speciale; niente più campo Tag separato né line_color.
+      const traces = obj.trend_tags ?? [];
+      const patchTrace = (idx: number, patch: Partial<TrendTrace>) => {
+        const next = traces.map((tr, i) => (i === idx ? { ...tr, ...patch } : tr));
+        onChange({ trend_tags: next });
+      };
+      const removeTrace = (idx: number) =>
+        onChange({ trend_tags: traces.filter((_, i) => i !== idx) });
+      const traceRow = (tr: TrendTrace, idx: number) => (
+        <div key={idx} style={{ marginBottom: 6, padding: 4, border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 4 }}>
+          <div style={{ display: "flex", gap: 4, marginBottom: 3, alignItems: "center" }}>
+            <TagInput
+              style={{ ...INPUT, flex: 1 }}
+              placeholder={t("props.exBoiler")}
+              value={tr.tag}
+              onChange={(v) => patchTrace(idx, { tag: v })}
+            />
+            <input
+              style={{ ...INPUT, width: 90 }}
+              placeholder={t("props.traceLabel")}
+              value={tr.label ?? ""}
+              onChange={(e) => patchTrace(idx, { label: e.target.value || undefined })}
+            />
+            <button
+              title={t("props.remove")}
+              style={{ background: "transparent", border: "none", color: "var(--brand-danger, #ef4444)", cursor: "pointer", fontSize: 14, padding: "0 4px" }}
+              onClick={() => removeTrace(idx)}
+            >×</button>
+          </div>
+          <div style={{ display: "flex", gap: 5, alignItems: "center", flexWrap: "wrap" }}>
+            <SelettoreColore
+              value={estraiHex(tr.color) ?? PALETTE[idx % PALETTE.length]}
+              onColore={(e) => patchTrace(idx, { color: e })}
+              title={t("props.color")}
+              style={{ width: 26, height: 22, padding: 1, border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 3 }}
+            />
+            <CampoNumero
+              min={0.5} max={10} step={0.5}
+              value={tr.width ?? 1.5}
+              title={t("props.strokeWidth")}
+              onTesto={(e) => patchTrace(idx, { width: e === "" ? undefined : Number(e) })}
+              style={{ ...INPUT, width: 46, padding: "2px 4px" }}
+            />
+            <select
+              value={tr.dash ?? "solid"}
+              title={t("props.dashPattern")}
+              onChange={(e) => patchTrace(idx, { dash: e.target.value === "solid" ? undefined : (e.target.value as TrendTrace["dash"]) })}
+              style={{ ...INPUT, width: 84, padding: "2px 4px" }}
+            >
+              <option value="solid">{t("props.dashSolid")}</option>
+              <option value="dashed">{t("props.dashDashed")}</option>
+              <option value="dotted">{t("props.dashDotted")}</option>
+            </select>
+            <label style={{ fontSize: 10, color: "var(--brand-text-muted, #94a3b8)", display: "flex", gap: 2, alignItems: "center" }}>
+              <input type="checkbox" checked={tr.fill ?? false} onChange={(e) => patchTrace(idx, { fill: e.target.checked || undefined })} />
+              {t("props.fillArea")}
+            </label>
+            {tr.fill && (
+              <CampoNumero
+                min={0} max={1} step={0.05}
+                value={tr.fill_opacity ?? 0.15}
+                title={t("props.fillOpacity")}
+                onTesto={(e) => patchTrace(idx, { fill_opacity: e === "" ? undefined : Number(e) })}
+                style={{ ...INPUT, width: 46, padding: "2px 4px" }}
+              />
+            )}
+            <label style={{ fontSize: 10, color: "var(--brand-text-muted, #94a3b8)", display: "flex", gap: 2, alignItems: "center" }}>
+              <input type="checkbox" checked={tr.smooth ?? false} onChange={(e) => patchTrace(idx, { smooth: e.target.checked || undefined })} />
+              {t("props.smoothCurve")}
+            </label>
+            <label style={{ fontSize: 10, color: "var(--brand-text-muted, #94a3b8)", display: "flex", gap: 2, alignItems: "center" }} title={t("props.ownScaleHint")}>
+              <input type="checkbox" checked={tr.own_scale ?? false} onChange={(e) => patchTrace(idx, { own_scale: e.target.checked || undefined })} />
+              {t("props.ownScale")}
+            </label>
+            <label style={{ fontSize: 10, color: "var(--brand-text-muted, #94a3b8)", display: "flex", gap: 2, alignItems: "center" }} title={t("props.traceHiddenHint")}>
+              <input type="checkbox" checked={tr.hidden ?? false} onChange={(e) => patchTrace(idx, { hidden: e.target.checked || undefined })} />
+              {t("props.traceHidden")}
+            </label>
+          </div>
+        </div>
+      );
+      metti("serie", <>
+        {/* TRACCE — la prima cosa che si configura */}
+        <SottoTitolo chiave="traces" />
+        <span data-field="trend_tags" />
+        {traces.map(traceRow)}
+        <button
+          style={{ ...INPUT, cursor: "pointer", color: "var(--brand-text-subtle, #64748b)", borderStyle: "dashed", width: "100%", marginBottom: 8 }}
+          onClick={() => onChange({ trend_tags: [...traces, { tag: "" }] })}
+        >
+          + {t("props.addTrace")}
+        </button>
+      </>);
+      metti("scala", <>
+        {field(t("props.windowS"), <BindableInput obj={obj} propName="window_s" onChange={onChange}>{numInput("window_s", 60)}</BindableInput>)}
+        {field(t("props.panStepS"), numInput("pan_step_s", Math.round((obj.window_s ?? 60) * 0.25)))}
+        <p style={{ fontSize: 10, color: "var(--brand-text-subtle, #94a3b8)", margin: "-4px 0 0" }}>
+          {t("props.panStepSHint")}
+        </p>
+        <div style={{ ...GRIGLIA_NUMERICA, marginTop: 8 }}>
+          <div><div style={LABEL}>Y min</div><BindableInput obj={obj} propName="y_min" onChange={onChange}>{numInput("y_min", 0)}</BindableInput></div>
+          <div><div style={LABEL}>Y max</div><BindableInput obj={obj} propName="y_max" onChange={onChange}>{numInput("y_max", 100)}</BindableInput></div>
+        </div>
+        {/* La frase diceva «Lascia Y min/max a 0 per autofit», ed era
+            italiano cablato **e** in disaccordo col resto: il chip accanto
+            al campo dice «vuoto = auto», e `predefinitiCampi.ts` dichiara
+            `{ vuoto: "adatta" }`. `TrendCanvas` accetta tutt'e due le
+            forme, ma insegnarne una che nessun'altra parte
+            dell'interfaccia nomina manda a indovinare. Stessa chiave di
+            xy_plot, quattro righe più sotto. */}
+        <p style={{ fontSize: 10, color: "var(--brand-text-subtle, #94a3b8)", margin: "2px 0 0" }}>
+          {t("shell.leaveMinMaxEmptyTo")}
+        </p>
+        {/* F5.2x: scala Y logaritmica (solo scala condivisa, dominio > 0). */}
+        <label style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 8, fontSize: 11, color: "var(--brand-text-muted, #94a3b8)", cursor: "pointer" }}>
+          <input
+            type="checkbox"
+            checked={obj.trend_log_scale ?? false}
+            onChange={(e) => onChange({ trend_log_scale: e.target.checked || undefined })}
+          />
+          {t("shell.scalaLog")}
+        </label>
+      </>);
+      metti("stati", <>
+        {/* Soglie warn/alarm come linee tratteggiate orizzontali (stesso
+            pattern del bar chart). Valori sulla scala condivisa. */}
+        <label style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 8, fontSize: 11, color: "var(--brand-text-muted, #94a3b8)", cursor: "pointer" }}>
+          <input
+            type="checkbox"
+            checked={obj.trend_show_thresholds ?? false}
+            onChange={(e) => onChange({ trend_show_thresholds: e.target.checked || undefined })}
+          />
+          {t("shell.mostraSoglie")}
+        </label>
+        {obj.trend_show_thresholds && (
+          <>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6, marginTop: 4 }}>
+              <div><div style={LABEL}>Warn min</div>{numInput("warn_low", 0)}</div>
+              <div><div style={LABEL}>Warn max</div>{numInput("warn_high", 0)}</div>
+              <div><div style={LABEL}>Alarm min</div>{numInput("alarm_low", 0)}</div>
+              <div><div style={LABEL}>Alarm max</div>{numInput("alarm_high", 0)}</div>
+            </div>
+            <p style={{ fontSize: 10, color: "var(--brand-text-subtle, #94a3b8)", margin: "2px 0 0" }}>
+              {t("shell.thresholdsAreValuesOnThe")}
+            </p>
+          </>
+        )}
+        {/* Marker verticali agli eventi di allarme nella finestra visibile */}
+        <label style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 4, fontSize: 11, color: "var(--brand-text-muted, #94a3b8)", cursor: "pointer" }}>
+          <input
+            type="checkbox"
+            checked={obj.trend_show_alarm_markers ?? false}
+            onChange={(e) => onChange({ trend_show_alarm_markers: e.target.checked || undefined })}
+          />
+          {t("shell.showAlarmEventsOnThe")}
+        </label>
+      </>);
+      metti("colori", <>
+        {field(t("props.axisColor"), <BindableInput obj={obj} propName="axis_color" onChange={onChange}>{colorInput("axis_color")}</BindableInput>)}
+        {field(t("props.gridColor"), <BindableInput obj={obj} propName="grid_color" onChange={onChange}>{colorInput("grid_color")}</BindableInput>)}
+      </>);
+      metti("stile", <>
+        {field(t("props.fontSize"), <BindableInput obj={obj} propName="font_size" onChange={onChange}>{numInput("font_size", 10)}</BindableInput>)}
+        {/* Formato data/ora (asse X + tooltip) */}
+        <SottoTitolo chiave="dateTimeFormat" />
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
+          <div>
+            <div style={LABEL}>{t("shell.ordineData")}</div>
+            <select
+              style={INPUT}
+              value={obj.trend_dt_date_order ?? "dmy"}
+              onChange={(e) => onChange({ trend_dt_date_order: e.target.value as SynopticObject["trend_dt_date_order"] })}
+            >
+              <option value="dmy">{t("shell.dmy")}</option>
+              <option value="mdy">{t("shell.mdy")}</option>
+              <option value="ymd">{t("shell.ymd")}</option>
+            </select>
+          </div>
+          <div>
+            <div style={LABEL}>{t("shell.separatore")}</div>
+            <select
+              style={INPUT}
+              value={obj.trend_dt_separator ?? "/"}
+              onChange={(e) => onChange({ trend_dt_separator: e.target.value as SynopticObject["trend_dt_separator"] })}
+            >
+              <option value="/">{t("shell.sepBarra")}</option>
+              <option value="-">{t("shell.sepTrattino")}</option>
+              <option value=".">{t("shell.sepPunto")}</option>
+            </select>
+          </div>
+          <div>
+            <div style={LABEL}>{t("shell.formatoOra")}</div>
+            <select
+              style={INPUT}
+              value={obj.trend_dt_time_format ?? "24h"}
+              onChange={(e) => onChange({ trend_dt_time_format: e.target.value as SynopticObject["trend_dt_time_format"] })}
+            >
+              <option value="24h">24h</option>
+              <option value="12h">12h (AM/PM)</option>
+            </select>
+          </div>
+        </div>
+        <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginTop: 6 }}>
+          <label style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 11, color: "var(--brand-text-muted, #94a3b8)", cursor: "pointer" }}>
+            <input type="checkbox" checked={obj.trend_dt_show_year ?? false}
+              onChange={(e) => onChange({ trend_dt_show_year: e.target.checked || undefined })} />
+            {t("shell.mostraAnno")}
+          </label>
+          <label style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 11, color: "var(--brand-text-muted, #94a3b8)", cursor: "pointer" }}>
+            <input type="checkbox" checked={obj.trend_dt_show_seconds ?? false}
+              onChange={(e) => onChange({ trend_dt_show_seconds: e.target.checked || undefined })} />
+            {t("shell.mostraSecondi")}
+          </label>
+          <label style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 11, color: "var(--brand-text-muted, #94a3b8)", cursor: "pointer" }}>
+            <input type="checkbox" checked={obj.trend_dt_two_lines ?? true}
+              onChange={(e) => onChange({ trend_dt_two_lines: e.target.checked })} />
+            {t("shell.dataOraDueRighe")}
+          </label>
+          <label style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 11, color: "var(--brand-text-muted, #94a3b8)", cursor: "pointer" }}>
+            <input type="checkbox" checked={obj.trend_dt_always_show_date ?? false}
+              onChange={(e) => onChange({ trend_dt_always_show_date: e.target.checked || undefined })} />
+            {t("shell.mostraSempreData")}
+          </label>
+        </div>
+        <p style={{ fontSize: 10, color: "var(--brand-text-subtle, #94a3b8)", margin: "2px 0 0" }}>
+          {t("shell.withoutAlwaysShowDateThe")}
+        </p>
+      </>);
+      metti("serie", <>
+        {/* OPC-UA historian backfill */}
+        <label style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 8, fontSize: 11, color: "var(--brand-text-muted, #94a3b8)", cursor: "pointer" }}>
+          <input
+            type="checkbox"
+            checked={obj.opcua_backfill ?? false}
+            onChange={(e) => onChange({ opcua_backfill: e.target.checked || undefined })}
+          />
+          {t("shell.backfillFromOpcUaHistory")}
+        </label>
+      </>);
+    }
+
+    /* XY plot */
+    if (obj.type === "xy_plot") {
+      // COPPIE unificate (F5.3x/T-70, 2026-09-12): ogni riga è una
+      // XySeries {tag, y_tag, label, colore, stile…} — stesso taglio
+      // di trend_tags. Una curva di riferimento/target è una coppia
+      // come le altre, marcata "dashed": nessun campo "role" a parte.
+      const pairs = obj.xy_series ?? [];
+      const patchPair = (idx: number, patch: Partial<XySeries>) => {
+        const next = pairs.map((p, i) => (i === idx ? { ...p, ...patch } : p));
+        onChange({ xy_series: next });
+      };
+      const removePair = (idx: number) =>
+        onChange({ xy_series: pairs.filter((_, i) => i !== idx) });
+      const pairRow = (p: XySeries, idx: number) => (
+        <div key={idx} style={{ marginBottom: 6, padding: 4, border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 4 }}>
+          <div style={{ display: "flex", gap: 4, marginBottom: 3, alignItems: "center" }}>
+            <TagInput style={{ ...INPUT, flex: 1 }} placeholder={t("props.xTag")} value={p.tag} onChange={(v) => patchPair(idx, { tag: v })} />
+            <TagInput style={{ ...INPUT, flex: 1 }} placeholder={t("props.yTag")} value={p.y_tag} onChange={(v) => patchPair(idx, { y_tag: v })} />
+            <button
+              title={t("props.remove")}
+              style={{ background: "transparent", border: "none", color: "var(--brand-danger, #ef4444)", cursor: "pointer", fontSize: 14, padding: "0 4px" }}
+              onClick={() => removePair(idx)}
+            >×</button>
+          </div>
+          <div style={{ display: "flex", gap: 5, alignItems: "center", flexWrap: "wrap" }}>
+            <input
+              style={{ ...INPUT, width: 90 }}
+              placeholder={t("props.traceLabel")}
+              value={p.label ?? ""}
+              onChange={(e) => patchPair(idx, { label: e.target.value || undefined })}
+            />
+            <SelettoreColore
+              value={estraiHex(p.color) ?? PALETTE[idx % PALETTE.length]}
+              onColore={(e) => patchPair(idx, { color: e })}
+              title={t("props.color")}
+              style={{ width: 26, height: 22, padding: 1, border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 3 }}
+            />
+            <CampoNumero
+              min={0.5} max={10} step={0.5}
+              value={p.width ?? 1.5}
+              title={t("props.strokeWidth")}
+              onTesto={(e) => patchPair(idx, { width: e === "" ? undefined : Number(e) })}
+              style={{ ...INPUT, width: 46, padding: "2px 4px" }}
+            />
+            <select
+              value={p.dash ?? "solid"}
+              title={t("props.dashPattern")}
+              onChange={(e) => patchPair(idx, { dash: e.target.value === "solid" ? undefined : (e.target.value as XySeries["dash"]) })}
+              style={{ ...INPUT, width: 84, padding: "2px 4px" }}
+            >
+              <option value="solid">{t("props.dashSolid")}</option>
+              <option value="dashed">{t("props.dashDashed")}</option>
+              <option value="dotted">{t("props.dashDotted")}</option>
+            </select>
+          </div>
+        </div>
+      );
+      metti("serie", <>
+        <SottoTitolo chiave="xyPairs" />
+        <span data-field="xy_series" />
+        {pairs.map(pairRow)}
+        <button
+          style={{ ...INPUT, cursor: "pointer", color: "var(--brand-text-subtle, #64748b)", borderStyle: "dashed", width: "100%", marginBottom: 8 }}
+          onClick={() => onChange({ xy_series: [...pairs, { tag: "", y_tag: "" }] })}
+        >
+          + {t("props.addXyPair")}
+        </button>
+        {field(t("props.trailS"), <BindableInput obj={obj} propName="xy_trail_s" onChange={onChange}>{numInput("xy_trail_s", 30)}</BindableInput>)}
+        {field(t("props.xySampleMs"), <BindableInput obj={obj} propName="xy_sample_ms" onChange={onChange}>{numInput("xy_sample_ms", 200)}</BindableInput>)}
+      </>);
+      metti("scala", <>
+        <div style={GRIGLIA_NUMERICA}>
+          <div><div style={LABEL}>X min</div><BindableInput obj={obj} propName="xy_x_min" onChange={onChange}>{numInput("xy_x_min", 0)}</BindableInput></div>
+          <div><div style={LABEL}>X max</div><BindableInput obj={obj} propName="xy_x_max" onChange={onChange}>{numInput("xy_x_max", 100)}</BindableInput></div>
+          <div><div style={LABEL}>Y min</div><BindableInput obj={obj} propName="xy_y_min" onChange={onChange}>{numInput("xy_y_min", 0)}</BindableInput></div>
+          <div><div style={LABEL}>Y max</div><BindableInput obj={obj} propName="xy_y_max" onChange={onChange}>{numInput("xy_y_max", 100)}</BindableInput></div>
+        </div>
+        <p style={{ fontSize: 10, color: "var(--brand-text-subtle, #94a3b8)", margin: "2px 0 0" }}>
+          {t("shell.leaveMinMaxEmptyTo")}
+        </p>
+      </>);
+      metti("testo", <>
+        {field(t("props.xAxisLabel"), <BindableInput obj={obj} propName="xy_x_label" onChange={onChange}><input style={INPUT} value={obj.xy_x_label ?? ""} onChange={(e) => onChange({ xy_x_label: e.target.value || undefined })} /></BindableInput>)}
+        {field(t("props.yAxisLabel"), <BindableInput obj={obj} propName="xy_y_label" onChange={onChange}><input style={INPUT} value={obj.xy_y_label ?? ""} onChange={(e) => onChange({ xy_y_label: e.target.value || undefined })} /></BindableInput>)}
+      </>);
+      metti("stile", <>
+        {field(t("props.fontSize"), <BindableInput obj={obj} propName="font_size" onChange={onChange}>{numInput("font_size", 10)}</BindableInput>)}
+      </>);
+    }
+
+    /* Image (external URL) */
+    if (obj.type === "image") {
+      metti("parametri", <>
+        {field(t("props.imageUrl"),
+          <div style={{ display: "flex", gap: 4 }}>
+            <BindableInput obj={obj} propName="src" onChange={onChange}>
+              <input
+                style={{ ...INPUT, flex: 1, minWidth: 0 }}
+                placeholder="https://… o /images/…"
+                value={obj.src ?? ""}
+                onChange={(e) => onChange({ src: e.target.value || undefined })}
+              />
+            </BindableInput>
+            <button
+              style={{
+                flexShrink: 0, background: "#1e3a5f", border: "1px solid #1e40af",
+                borderRadius: 4, color: "#93c5fd", cursor: "pointer",
+                padding: "0 8px", fontSize: 12,
+              }}
+              onClick={() => setImgBrowserOpen(true)}
+              title={t("props.browseImages")}
+            >
+              ⋯
+            </button>
+          </div>
+        )}
+        {obj.src && (
+          <div style={{ marginTop: 4, textAlign: "center" }}>
+            <ImgProgetto
+              src={obj.src}
+              alt=""
+              style={{
+                maxWidth: "100%", maxHeight: 80, objectFit: "contain",
+                filter: "invert(1) brightness(0.85)", borderRadius: 4,
+                border: "1px solid var(--brand-surface, #1e293b)",
+              }}
+            />
+          </div>
+        )}
+        {imgBrowserOpen && (
+          <ImageBrowser
+            onSelect={(path) => { onChange({ src: path }); }}
+            onClose={() => setImgBrowserOpen(false)}
+          />
+        )}
+      </>);
+      metti("stile", <>
+        {/* Adattamento al box: accanto alla sorgente, nel ramo del tipo
+            (26-09-2026; prima stava in «Aspetto»). */}
+        {field(t("props.imageFit"),
+          <select style={{ ...INPUT, cursor: "pointer" }}
+            value={obj.image_fit ?? "stretch"}
+            onChange={(e) => onChange({ image_fit: e.target.value === "stretch" ? undefined : (e.target.value as "contain" | "cover") })}>
+            <option value="stretch">{t("props.fitStretch")}</option>
+            <option value="contain">{t("props.fitContain")}</option>
+            <option value="cover">{t("props.fitCover")}</option>
+          </select>
+        )}
+      </>);
+    }
+
+    /* Grid layout */
+    if (obj.type === "grid") {
+      metti("stile", <>
+        <SottoTitolo chiave="gridSection" />
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0 6px" }}>
+          <div>
+            <div style={LABEL}>{t("shell.righe")}</div>
+            <CampoNumero
+              min={1} max={20} style={INPUT}
+              value={obj.grid_rows ?? 2}
+              onTesto={(e) => onChange({ grid_rows: Math.max(1, Number(e)) })}
+            />
+          </div>
+          <div>
+            <div style={LABEL}>{t("props.columns")}</div>
+            <CampoNumero
+              min={1} max={20} style={INPUT}
+              value={obj.grid_cols ?? 2}
+              onTesto={(e) => onChange({ grid_cols: Math.max(1, Number(e)) })}
+            />
+          </div>
+        </div>
+        {/* F7.6 — spazio tra celle e margine interno. */}
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0 6px", marginTop: 4 }}>
+          <div><div style={LABEL}>{t("props.gap")}</div>{numInput("grid_gap", 0)}</div>
+          <div><div style={LABEL}>{t("props.padding")}</div>{numInput("grid_padding", 0)}</div>
+        </div>
+        <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: "var(--brand-text-2, #cbd5e1)", marginTop: 6, cursor: "pointer" }}>
+          <input
+            type="checkbox"
+            checked={obj.grid_show_borders !== false}
+            onChange={(e) => onChange({ grid_show_borders: e.target.checked })}
+            style={{ accentColor: "var(--brand-primary, #3b82f6)" }}
+          />
+          {t("shell.mostraBordi")}
+        </label>
+        {obj.grid_show_borders !== false && (
+          <div style={{ marginTop: 4 }}>
+            <div style={LABEL}>{t("props.colorBorders")}</div>
+            {colorInput("grid_border_color")}
+          </div>
+        )}
+        <p style={{ fontSize: 10, color: "var(--brand-text-subtle, #94a3b8)", margin: "6px 0 0" }}>
+          {t("shell.clickACellOnThe")}
+        </p>
+      </>);
+    }
+
+    /* Text List */
+    if (obj.type === "text_list") {
+      metti("stati", <>
+        {textListEntriesField()}
+        {field(t("props.textDefault"), <input style={INPUT} value={obj.text_list_default ?? ""} onChange={(e) => onChange({ text_list_default: e.target.value })} />)}
+        {field(t("props.colorDefault"), colorInput("text_list_default_color"))}
+      </>);
+      metti("stile", <>
+        {field(t("props.fontSize"), numInput("font_size", 16))}
+        {field(t("props.alignment"), (
+          <select style={INPUT} value={obj.text_anchor ?? "middle"} onChange={(e) => onChange({ text_anchor: e.target.value as any })}>
+            <option value="start">{t("props.left")}</option>
+            <option value="middle">{t("props.center")}</option>
+            <option value="end">{t("props.right")}</option>
+          </select>
+        ))}
+      </>);
+    }
+
+    /* State Lamp — same data model as text_list (value→label→color), shape instead of text */
+    if (obj.type === "state_lamp") {
+      metti("stati", <>
+        {textListEntriesField()}
+        <p style={{ fontSize: 10, color: "var(--brand-text-subtle, #94a3b8)", margin: "-2px 0 4px" }}>
+          {t("props.stateLampHint")}
+        </p>
+      </>);
+    }
+
+    /* Bar Chart */
+    if (obj.type === "bar_chart") {
+      metti("serie", <>
+        <div style={{ fontSize: 10, color: "var(--brand-text-subtle, #94a3b8)", marginTop: 6, marginBottom: 2, fontWeight: 700 }}>{t("shell.serie")}</div>
+        {obj.bar_mode !== "stacked" && (
+          <p style={{ fontSize: 10, color: "var(--brand-text-subtle, #94a3b8)", margin: "0 0 4px" }}>
+            {t("props.barSeriesScaleHint")}
+          </p>
+        )}
+        <span data-field="bar_series" />
+        {(obj.bar_series ?? []).map((s, i) => (
+          <div key={i} style={{ display: "flex", gap: 4, marginBottom: 4, alignItems: "center", flexWrap: "wrap" }}>
+            <TagInput style={{ ...INPUT, flex: 1, minWidth: 80 }} placeholder="tag" value={s.tag}
+              onChange={(v) => { const next = [...(obj.bar_series ?? [])]; next[i] = { ...s, tag: v }; onChange({ bar_series: next }); }} />
+            <input style={{ ...INPUT, width: 60 }} placeholder="label" value={s.label}
+              onChange={(e) => { const next = [...(obj.bar_series ?? [])]; next[i] = { ...s, label: e.target.value }; onChange({ bar_series: next }); }} />
+            <SelettoreColore value={estraiHex(s.color) ?? PALETTE[i % PALETTE.length]} onColore={(e) => { const next = [...(obj.bar_series ?? [])]; next[i] = { ...s, color: e }; onChange({ bar_series: next }); }}
+              style={{ width: 28, height: 24, padding: 1, border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 3 }} />
+            {obj.bar_mode !== "stacked" && (
+              <>
+                <CampoNumero style={{ ...INPUT, width: 48 }} placeholder="min" value={s.min ?? ""}
+                  onTesto={(e) => { const next = [...(obj.bar_series ?? [])]; next[i] = { ...s, min: e === "" ? undefined : Number(e) }; onChange({ bar_series: next }); }} />
+                <CampoNumero style={{ ...INPUT, width: 48 }} placeholder="max" value={s.max ?? ""}
+                  onTesto={(e) => { const next = [...(obj.bar_series ?? [])]; next[i] = { ...s, max: e === "" ? undefined : Number(e) }; onChange({ bar_series: next }); }} />
+              </>
+            )}
+            <button style={{ ...INPUT, width: "auto", padding: "0 6px", cursor: "pointer" }}
+              onClick={() => onChange({ bar_series: (obj.bar_series ?? []).filter((_, j) => j !== i) })}>✕</button>
+          </div>
+        ))}
+        <button style={{ ...INPUT, width: "100%", cursor: "pointer", marginBottom: 4 }}
+          onClick={() => onChange({ bar_series: [...(obj.bar_series ?? []), { tag: "", label: `Serie ${(obj.bar_series?.length ?? 0) + 1}` }] })}>
+          {t("shell.addSeries")}
+        </button>
+        {/* F7.2 — barre affiancate (storico) o impilate in una sola barra. */}
+        {field(t("props.barMode"), (
+          <select style={{ ...INPUT, cursor: "pointer" }} value={obj.bar_mode ?? "grouped"}
+            onChange={(e) => onChange({ bar_mode: e.target.value === "grouped" ? undefined : "stacked" })}>
+            <option value="grouped">{t("props.barGrouped")}</option>
+            <option value="stacked">{t("props.barStacked")}</option>
+          </select>
+        ))}
+      </>);
+      metti("scala", <>
+        {/* Q28 (2026-09-12): min/max dell'oggetto contano SOLO in stacked
+            — la somma dei segmenti è per costruzione a scala unica. In
+            grouped ogni serie ha la propria scala (sotto, per riga). */}
+        {obj.bar_mode === "stacked" && (
+          <>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
+              <div><div style={LABEL}>Min</div><BindableInput obj={obj} propName="min" onChange={onChange}>{numInput("min", 0)}</BindableInput></div>
+              <div><div style={LABEL}>Max</div><BindableInput obj={obj} propName="max" onChange={onChange}>{numInput("max", 100)}</BindableInput></div>
+            </div>
+            <p style={{ fontSize: 10, color: "var(--brand-text-subtle, #94a3b8)", margin: "-2px 0 4px" }}>
+              {t("props.barRangeHint")}
+            </p>
+          </>
+        )}
+        {field(t("props.unit"), textInput("unit", ""))}
+        {field(t("props.decimals"), numInput("decimals", 1))}
+      </>);
+      metti("stati", <>
+        <div style={{ fontSize: 10, color: "var(--brand-text-subtle, #94a3b8)", marginTop: 2, marginBottom: 2, fontWeight: 700 }}>{t("shell.soglie")}</div>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
+          <div><div style={LABEL}>{t("props.warnHigh")}</div><BindableInput obj={obj} propName="warn_high" onChange={onChange}>{numInput("warn_high", 0)}</BindableInput></div>
+          <div><div style={LABEL}>{t("props.alarmHigh")}</div><BindableInput obj={obj} propName="alarm_high" onChange={onChange}>{numInput("alarm_high", 0)}</BindableInput></div>
+        </div>
+      </>);
+      metti("testo", <>
+        {field(t("props.yAxisLabel"), textInput("bar_y_label", ""))}
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+          {[["bar_show_values", t("props.values")], ["bar_show_labels", t("props.labels")],
+            ["bar_show_thresholds", t("props.thresholdsShort")], ["bar_show_legend", t("props.legend")]].map(([k,l]) => (
+            <label key={k} style={{ fontSize: 11, color: "var(--brand-text-muted, #94a3b8)", display: "flex", gap: 3, alignItems: "center" }}>
+              <input type="checkbox" checked={!!(obj as any)[k]} onChange={(e) => onChange({ [k]: e.target.checked })} />{l}
+            </label>
+          ))}
+        </div>
+      </>);
+      metti("stile", <>
+        {field(t("props.fontSize"), <BindableInput obj={obj} propName="font_size" onChange={onChange}>{numInput("font_size", 10)}</BindableInput>)}
+        {field(t("props.orientation"), (
+          <select style={INPUT} value={obj.bar_orientation ?? "vertical"} onChange={(e) => onChange({ bar_orientation: e.target.value as any })}>
+            <option value="vertical">{t("props.vertical")}</option>
+            <option value="horizontal">{t("props.horizontal")}</option>
+          </select>
+        ))}
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
+          <div><div style={LABEL}>{t("props.barGap")}</div>{numInput("bar_gap", 0.2)}</div>
+          <div><div style={LABEL}>{t("props.ticks")}</div>{numInput("bar_ticks", 0)}</div>
+        </div>
+      </>);
+    }
+
+    /* Pie / Donut Chart */
+    if (obj.type === "pie_chart") {
+      metti("serie", <>
+        <div style={{ fontSize: 10, color: "var(--brand-text-subtle, #94a3b8)", marginTop: 6, marginBottom: 2, fontWeight: 700 }}>SLICE</div>
+        <span data-field="pie_slices" />
+        {(obj.pie_slices ?? []).map((s, i) => (
+          <div key={i} style={{ display: "flex", gap: 4, marginBottom: 4, alignItems: "center" }}>
+            <TagInput style={{ ...INPUT, flex: 1 }} placeholder="tag" value={s.tag}
+              onChange={(v) => { const next = [...(obj.pie_slices ?? [])]; next[i] = { ...s, tag: v }; onChange({ pie_slices: next }); }} />
+            <input style={{ ...INPUT, width: 60 }} placeholder="label" value={s.label}
+              onChange={(e) => { const next = [...(obj.pie_slices ?? [])]; next[i] = { ...s, label: e.target.value }; onChange({ pie_slices: next }); }} />
+            <SelettoreColore value={estraiHex(s.color) ?? PALETTE[i % PALETTE.length]} onColore={(e) => { const next = [...(obj.pie_slices ?? [])]; next[i] = { ...s, color: e }; onChange({ pie_slices: next }); }}
+              style={{ width: 28, height: 24, padding: 1, border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 3 }} />
+            <button style={{ ...INPUT, width: "auto", padding: "0 6px", cursor: "pointer" }}
+              onClick={() => onChange({ pie_slices: (obj.pie_slices ?? []).filter((_, j) => j !== i) })}>✕</button>
+          </div>
+        ))}
+        <button style={{ ...INPUT, width: "100%", cursor: "pointer" }}
+          onClick={() => onChange({ pie_slices: [...(obj.pie_slices ?? []), { tag: "", label: `Slice ${(obj.pie_slices?.length ?? 0) + 1}` }] })}>
+          {t("shell.addSlice")}
+        </button>
+      </>);
+      metti("testo", <>
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+          {[["pie_show_labels", t("props.labels")], ["pie_show_legend", t("props.legend")]].map(([k,l]) => (
+            <label key={k} style={{ fontSize: 11, color: "var(--brand-text-muted, #94a3b8)", display: "flex", gap: 3, alignItems: "center" }}>
+              <input type="checkbox" checked={!!(obj as any)[k]} onChange={(e) => onChange({ [k]: e.target.checked })} />{l}
+            </label>
+          ))}
+        </div>
+        {/* F7.3 — contenuto delle etichette, unità e decimali del valore. */}
+        {obj.pie_show_labels !== false && (
+          <>
+            {field(t("props.labelContent"), (
+              <select style={{ ...INPUT, cursor: "pointer" }} value={obj.pie_label_mode ?? "percent"}
+                onChange={(e) => onChange({ pie_label_mode: e.target.value === "percent" ? undefined : (e.target.value as "value" | "value_percent" | "label_percent") })}>
+                <option value="percent">{t("props.labelPercent")}</option>
+                <option value="value">{t("props.labelValue")}</option>
+                <option value="value_percent">{t("props.labelValuePercent")}</option>
+                <option value="label_percent">{t("props.labelNamePercent")}</option>
+              </select>
+            ))}
+            {(obj.pie_label_mode ?? "percent") !== "percent" && (
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
+                <div><div style={LABEL}>{t("props.unit")}</div>{textInput("unit", "")}</div>
+                <div><div style={LABEL}>{t("props.decimals")}</div>{numInput("decimals", 1)}</div>
+              </div>
+            )}
+          </>
+        )}
+        {(obj.pie_mode ?? "pie") === "donut" && field(t("props.textCenter"), <BindableInput obj={obj} propName="pie_center_text" onChange={onChange}>{textInput("pie_center_text", "")}</BindableInput>)}
+        {(obj.pie_mode ?? "pie") === "donut" && obj.pie_center_tag && field(t("props.format"), textInput("pie_center_format", "{value}"))}
+      </>);
+      metti("stile", <>
+        {field(t("props.fontSize"), <BindableInput obj={obj} propName="font_size" onChange={onChange}>{numInput("font_size", 10)}</BindableInput>)}
+        {field(t("props.mode"), (
+          <select style={INPUT} value={obj.pie_mode ?? "pie"} onChange={(e) => onChange({ pie_mode: e.target.value as any })}>
+            <option value="pie">{t("props.pieFull")}</option>
+            <option value="donut">{t("props.donut")}</option>
+          </select>
+        ))}
+        {(obj.pie_mode ?? "pie") === "donut" && (
+          <>
+            {field(t("props.innerRadius"), <BindableInput obj={obj} propName="pie_inner_ratio" onChange={onChange}>{numInput("pie_inner_ratio", 0.5)}</BindableInput>)}
+            {/* F7.3 — il foro era fisso #0f172a: su sfondo chiaro un disco nero. */}
+            {field(t("props.holeColor"), colorInput("pie_hole_color"))}
+          </>
+        )}
+        {/* F7.3 — raggruppamento delle fette piccole e fetta staccata. */}
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
+          <div><div style={LABEL}>{t("props.groupBelowPct")}</div>{numInput("pie_group_below_pct", 0)}</div>
+          <div><div style={LABEL}>{t("props.explodePx")}</div>{numInput("pie_explode_px", 0)}</div>
+        </div>
+        <p style={{ fontSize: 10, color: "var(--brand-text-subtle, #94a3b8)", margin: "-2px 0 4px" }}>
+          {t("props.pieGroupHint")}
+        </p>
+        {!!obj.pie_group_below_pct && (
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
+            <div><div style={LABEL}>{t("props.groupLabel")}</div>{textInput("pie_group_label", "altro")}</div>
+            <div><div style={LABEL}>{t("props.color")}</div>{colorInput("pie_group_color")}</div>
+          </div>
+        )}
+      </>);
+    }
+
+    /* Sparkline */
+    if (obj.type === "kpi_tile") {
+      metti("testo", <>
+        {field(t("props.label"), <BindableInput obj={obj} propName="label" onChange={onChange}>{textInput("label")}</BindableInput>)}
+      </>);
+      metti("scala", <>
+        {field(t("props.unit"), <BindableInput obj={obj} propName="unit" onChange={onChange}>{textInput("unit", "")}</BindableInput>)}
+        {field(t("props.decimals"), <BindableInput obj={obj} propName="decimals" onChange={onChange}>{numInput("decimals", 1)}</BindableInput>)}
+        {field(t("props.kpiWindow"), numInput("spark_window_s", 3600))}
+      </>);
+      metti("stati", <>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
+          <div><div style={LABEL}>Warn high</div><BindableInput obj={obj} propName="warn_high" onChange={onChange}>{numInput("warn_high", 0)}</BindableInput></div>
+          <div><div style={LABEL}>Alarm high</div><BindableInput obj={obj} propName="alarm_high" onChange={onChange}>{numInput("alarm_high", 0)}</BindableInput></div>
+        </div>
+      </>);
+    }
+
+    if (obj.type === "clock") {
+      metti("parametri", <>
+        {field(t("props.clockFormat"), (
+          <select style={{ ...INPUT, cursor: "pointer" }} value={obj.clock_formato ?? "ora"}
+            onChange={(e) => onChange({ clock_formato: e.target.value as NonNullable<SynopticObject["clock_formato"]> })}>
+            <option value="ora">{t("props.clockTime")}</option>
+            <option value="data">{t("props.clockDate")}</option>
+            <option value="data_ora">{t("props.clockDateTime")}</option>
+            <option value="giorno">{t("props.clockDay")}</option>
+            <option value="personalizzato">{t("props.clockCustom")}</option>
+          </select>
+        ))}
+        {(obj.clock_formato ?? "ora") === "personalizzato" ? (
+          <>
+            {field(t("props.clockPattern"), textInput("clock_modello", "%A %d %B, %H:%M"))}
+            <p style={{ fontSize: 10, color: "var(--brand-text-subtle, #94a3b8)", margin: "0 0 4px" }}>{t("props.clockPatternHint")}</p>
+          </>
+        ) : ["ora", "data_ora"].includes(obj.clock_formato ?? "ora") && (
+          <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: "var(--brand-text-2, #cbd5e1)", cursor: "pointer" }}>
+            <input type="checkbox" checked={!!obj.clock_secondi}
+              onChange={(e) => onChange({ clock_secondi: e.target.checked || undefined })}
+              style={{ accentColor: "var(--brand-primary, #3b82f6)" }} />
+            {t("props.clockSeconds")}
+          </label>
+        )}
+        <p style={{ fontSize: 10, color: "var(--brand-text-subtle, #94a3b8)", margin: "4px 0 0" }}>{t("props.clockDeviceHint")}</p>
+      </>);
+      metti("stile", <>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
+          <div><div style={LABEL}>{t("props.dimensionPx")}</div>{numInput("font_size", 16)}</div>
+          <div>
+            <div style={LABEL}>{t("props.alignment")}</div>
+            <select style={{ ...INPUT, cursor: "pointer" }} value={obj.text_anchor ?? "middle"}
+              onChange={(e) => onChange({ text_anchor: e.target.value as "start" | "middle" | "end" })}>
+              <option value="start">{t("props.left")}</option>
+              <option value="middle">{t("props.center")}</option>
+              <option value="end">{t("props.right")}</option>
+            </select>
+          </div>
+        </div>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
+          <div>
+            <div style={LABEL}>{t("props.weight")}</div>
+            <select style={{ ...INPUT, cursor: "pointer" }} value={String(obj.font_weight ?? "normal")}
+              onChange={(e) => onChange({ font_weight: e.target.value === "bold" ? "bold" : undefined })}>
+              <option value="normal">{t("props.normal400")}</option>
+              <option value="bold">{t("props.bold700")}</option>
+            </select>
+          </div>
+          <div><div style={LABEL}>{t("props.colorText")}</div>{colorInput("color")}</div>
+        </div>
+      </>);
+    }
+
+    if (obj.type === "data_log") {
+      metti("testo", <>
+        {field(t("props.label"), <BindableInput obj={obj} propName="label" onChange={onChange}>{textInput("label")}</BindableInput>)}
+      </>);
+      metti("scala", <>
+        {field(t("props.windowS"), numInput("window_s", 3600))}
+        {field(t("props.decimals"), <BindableInput obj={obj} propName="decimals" onChange={onChange}>{numInput("decimals", 1)}</BindableInput>)}
+      </>);
+      metti("stile", <>
+        {field(t("props.pageSize"), numInput("datalog_page_size", 25))}
+      </>);
+    }
+
+    if (obj.type === "sparkline") {
+      metti("scala", <>
+        {field(t("props.windowS"), <BindableInput obj={obj} propName="spark_window_s" onChange={onChange}>{numInput("spark_window_s", 60)}</BindableInput>)}
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
+          <div><div style={LABEL}>Y min</div><BindableInput obj={obj} propName="y_min" onChange={onChange}>{numInput("y_min", 0)}</BindableInput></div>
+          <div><div style={LABEL}>Y max</div><BindableInput obj={obj} propName="y_max" onChange={onChange}>{numInput("y_max", 0)}</BindableInput></div>
+        </div>
+      </>);
+      metti("colori", <>
+        {field(t("props.colorLine"), colorInput("spark_color"))}
+        {obj.spark_fill && field(t("props.opacityFill"), numInput("spark_fill_opacity", 0.2))}
+      </>);
+      metti("stile", <>
+        {field(t("props.thicknessPx"), numInput("spark_stroke_width", 1.5))}
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+          {[["spark_fill",t("shell.riempiArea")], ["spark_show_last",t("shell.mostraUltimo")]].map(([k,l]) => (
+            <label key={k} style={{ fontSize: 11, color: "var(--brand-text-muted, #94a3b8)", display: "flex", gap: 3, alignItems: "center" }}>
+              <input type="checkbox" checked={!!(obj as any)[k]} onChange={(e) => onChange({ [k]: e.target.checked })} />{l}
+            </label>
+          ))}
+        </div>
+      </>);
+    }
+
+    /* Alarm Viewer */
+    if (obj.type === "alarm_viewer") {
+      metti("filtro", <>
+        {field(t("props.alarmIdPrefix"), <input style={INPUT} placeholder={t("props.exZone")} value={obj.alarm_viewer_id_prefix ?? ""} onChange={(e) => onChange({ alarm_viewer_id_prefix: e.target.value })} />)}
+        {field(t("props.severity"), severityFilterField("alarm_viewer_severities"))}
+      </>);
+      // Solo in tabella: altrimenti la sezione sarebbe un titolo vuoto.
+      if ((obj.alarm_viewer_mode ?? "list") === "table") metti("comando", <>
+        {/* F7.5 — ACK massivo e messa in silenzio, solo in modalità tabella
+            (in "list"/"banner" non c'è spazio per i comandi). */}
+        {(obj.alarm_viewer_mode ?? "list") === "table" && (
+          <>
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 4 }}>
+              <label style={{ fontSize: 11, color: "var(--brand-text-muted, #94a3b8)", display: "flex", gap: 3, alignItems: "center" }}>
+                <input type="checkbox" checked={!!obj.alarm_viewer_show_ack_all}
+                  onChange={(e) => onChange({ alarm_viewer_show_ack_all: e.target.checked || undefined })} />
+                {t("props.ackAll")}
+              </label>
+              <label style={{ fontSize: 11, color: "var(--brand-text-muted, #94a3b8)", display: "flex", gap: 3, alignItems: "center" }}>
+                <input type="checkbox" checked={!!obj.alarm_viewer_show_shelve}
+                  onChange={(e) => onChange({ alarm_viewer_show_shelve: e.target.checked || undefined })} />
+                {t("props.shelveBtn")}
+              </label>
+              {/* F7.5 — riusa `require_reason`, lo stesso campo delle scritture
+                  critiche: un solo concetto "chiedi il motivo" in tutto l'editor. */}
+              <label style={{ fontSize: 11, color: "var(--brand-text-muted, #94a3b8)", display: "flex", gap: 3, alignItems: "center" }}>
+                <input type="checkbox" checked={!!obj.require_reason}
+                  onChange={(e) => onChange({ require_reason: e.target.checked || undefined })} />
+                {t("props.ackReason")}
+              </label>
+            </div>
+            {obj.alarm_viewer_show_shelve && field(t("props.shelveMinutes"), numInput("alarm_shelve_minutes", 15))}
+            <p style={{ fontSize: 10, color: "var(--brand-text-subtle, #94a3b8)", margin: "2px 0 4px" }}>
+              {t("props.ackAllHint")}
+            </p>
+          </>
+        )}
+      </>);
+      metti("colori", <>
+        {field(t("props.emptyBackground"), colorInput("alarm_viewer_bg_color"))}
+      </>);
+      metti("stile", <>
+        {field(t("props.mode"), (
+          <select style={INPUT} value={obj.alarm_viewer_mode ?? "list"} onChange={(e) => onChange({ alarm_viewer_mode: e.target.value as any })}>
+            <option value="list">{t("props.list")}</option>
+            <option value="banner">{t("props.scrollingBanner")}</option>
+            <option value="table">{t("props.table")}</option>
+          </select>
+        ))}
+        {field(t("props.maxRows"), <BindableInput obj={obj} propName="alarm_viewer_max_rows" onChange={onChange}>{numInput("alarm_viewer_max_rows", 5)}</BindableInput>)}
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+          {[["alarm_viewer_show_ack",t("shell.mostraAck")], ["alarm_viewer_show_ts",t("shell.timestamp")], ["alarm_viewer_show_empty",t("shell.showEmpty")]].map(([k,l]) => (
+            <label key={k} style={{ fontSize: 11, color: "var(--brand-text-muted, #94a3b8)", display: "flex", gap: 3, alignItems: "center" }}>
+              <input type="checkbox" checked={!!(obj as any)[k] || (obj as any)[k] === undefined} onChange={(e) => onChange({ [k]: e.target.checked })} />{l}
+            </label>
+          ))}
+        </div>
+      </>);
+    }
+
+    /* Storico allarmi piazzabile (F7.5) */
+    if (obj.type === "alarm_history") {
+      metti("filtro", <>
+        <div style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)", marginBottom: 4 }}>
+          {t("props.alarmHistoryHint")}
+        </div>
+        {field(t("props.alarmIdFilter"),
+          <input style={INPUT} placeholder={t("props.allAlarms")}
+            value={obj.alarm_history_id ?? ""}
+            onChange={(e) => onChange({ alarm_history_id: e.target.value || undefined })} />
+        )}
+      </>);
+    }
+
+    /* Alarm Bell — click apre sempre il dropdown allarmi, nessuna azione configurabile */
+    if (obj.type === "alarm_bell") {
+      metti("filtro", <>
+        <div style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)", marginBottom: 4 }}>
+          {t("props.alarmBellHint")}
+        </div>
+        {field(t("props.alarmIdPrefix"), <input style={INPUT} placeholder={t("props.exZone")} value={obj.alarm_bell_id_prefix ?? ""} onChange={(e) => onChange({ alarm_bell_id_prefix: e.target.value })} />)}
+        {field(t("props.severity"), severityFilterField("alarm_bell_severities"))}
+      </>);
+      metti("comando", <>
+        {/* F7.5 — segnalazione acustica. */}
+        <div style={{ fontSize: 10, color: "var(--brand-text-subtle, #94a3b8)", marginTop: 6, marginBottom: 2, fontWeight: 700 }}>
+          {t("props.sound")}
+        </div>
+        <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: "var(--brand-text-2, #cbd5e1)", cursor: "pointer" }}>
+          <input type="checkbox" checked={!!obj.alarm_bell_sound}
+            onChange={(e) => onChange({ alarm_bell_sound: e.target.checked || undefined })}
+            style={{ accentColor: "var(--brand-primary, #3b82f6)" }} />
+          {t("props.soundEnable")}
+        </label>
+        {obj.alarm_bell_sound && (
+          <>
+            {field(t("props.soundSeverities"), severityFilterField("alarm_bell_sound_severities"))}
+            {field(t("props.soundRepeatS"), numInput("alarm_bell_sound_repeat_s", 20))}
+            <p style={{ fontSize: 10, color: "var(--brand-text-subtle, #94a3b8)", margin: "2px 0 4px" }}>
+              {t("props.soundHint")}
+            </p>
+          </>
+        )}
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+          {[["alarm_bell_show_history", t("props.showHistory")], ["alarm_bell_show_shelve", t("props.showShelve")]].map(([k, l]) => (
+            <label key={k} style={{ fontSize: 11, color: "var(--brand-text-muted, #94a3b8)", display: "flex", gap: 3, alignItems: "center" }}>
+              <input type="checkbox" checked={!!(obj as any)[k] || (obj as any)[k] === undefined} onChange={(e) => onChange({ [k]: e.target.checked } as Partial<SynopticObject>)} />{l}
+            </label>
+          ))}
+        </div>
+      </>);
+      metti("colori", <>
+        {field(t("props.color"), <BindableInput obj={obj} propName="fill" onChange={onChange}>{colorInput("fill")}</BindableInput>)}
+      </>);
+    }
+
+    /* Alarm Banner */
+    if (obj.type === "alarm_banner") {
+      metti("filtro", <>
+        {field(t("props.alarmIdPrefix"), <input style={INPUT} placeholder={t("props.exZone")} value={obj.alarm_banner_id_prefix ?? ""} onChange={(e) => onChange({ alarm_banner_id_prefix: e.target.value })} />)}
+        {field(t("props.severity"), severityFilterField("alarm_banner_severities"))}
+      </>);
+    }
+
+    /* Recipe panel — lista ricette + applica, promosso dal modale fisso di RuntimeView.tsx */
+    if (obj.type === "recipe_panel") {
+      metti("filtro", <>
+        <div style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)", marginBottom: 4 }}>
+          {t("props.recipePanelHint")}
+        </div>
+        {field(t("props.recipeIdPrefix"), <input style={INPUT} placeholder={t("shell.esLineaPrefisso")} value={obj.recipe_panel_id_prefix ?? ""} onChange={(e) => onChange({ recipe_panel_id_prefix: e.target.value })} />)}
+      </>);
+    }
+
+    /* Symbol (built-in SCADA library + custom project symbols) */
+    if (obj.type === "symbol") {
+      metti("parametri", <>
+        {field(t("props.symbol"),
+          <SymbolGallery value={obj.symbol_id ?? "lib:process/centrifugal-pump"} onChange={(v) => onChange({ symbol_id: v as any })} />
+        )}
+        {/* Fase 3 del piano dei simboli di libreria (M8): le parti vive che
+            il disegno ha davvero, ognuna col suo tag. */}
+        <AdattaProporzioni obj={obj} onChange={onChange} />
+        <PartiSimboloLib obj={obj} onChange={onChange} />
+      </>);
+      // Solo se il simbolo comanda (lo slot del comando in Collegamenti).
+      if (obj.command_tag !== undefined || !!obj.assegnazioni?.length) metti("comando", <>
+        {/* Stato, allarme, comando, rotazione e livello: in «Collegamenti»
+            (01-11-2026). «Il simbolo comanda» è lo slot del comando. */}
+        {(obj.command_tag !== undefined || !!obj.assegnazioni?.length) && (<>
+          {sezioneComando}
+        </>)}
+      </>);
+      metti("stati", <>
+        <div style={(obj.symbol_states?.length ?? 0) > 0 ? { opacity: 0.45 } : undefined}>
+          {(obj.symbol_states?.length ?? 0) > 0 && (
+            <p style={{ fontSize: 10, color: "var(--brand-warning, #f59e0b)", margin: "0 0 4px" }}>
+              {t("props.statesPrecedence")}
+            </p>
+          )}
+          {field(t("props.colorOff"),   <BindableInput obj={obj} propName="state_off_color"   onChange={onChange}>{colorInput("state_off_color")}</BindableInput>)}
+          {field(t("props.colorOn"),    <BindableInput obj={obj} propName="state_on_color"    onChange={onChange}>{colorInput("state_on_color")}</BindableInput>)}
+          {field(t("props.colorAlarm"), <BindableInput obj={obj} propName="state_alarm_color" onChange={onChange}>{colorInput("state_alarm_color")}</BindableInput>)}
+        </div>
+        {/* F6.6: stati N — mappa valore→colore/lampeggio/label sul valore di
+            state_tag (valore esatto o range, come le VOCI di text_list). */}
+        <div style={{ fontSize: 10, color: "var(--brand-text-subtle, #94a3b8)", marginTop: 8, marginBottom: 2, fontWeight: 700 }}>
+          {t("props.symbolStates")}
+        </div>
+        {(obj.symbol_states ?? []).map((e, i) => {
+          const upd = (patch: Partial<TextListEntry>) => {
+            const next = [...(obj.symbol_states ?? [])];
+            next[i] = { ...e, ...patch };
+            onChange({ symbol_states: next });
+          };
+          return (
+            <div key={i} style={{ display: "flex", flexDirection: "column", gap: 3, marginBottom: 4, padding: 4, border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 4 }}>
+              <div style={{ display: "flex", gap: 4, alignItems: "center" }}>
+                <input style={{ ...INPUT, width: 48 }} placeholder="val" value={String(e.value)}
+                  onChange={(ev) => upd({ value: ev.target.value })} />
+                <CampoNumero style={{ ...INPUT, width: 44 }} placeholder="min" value={e.value_min ?? ""}
+                  onTesto={(ev) => upd({ value_min: ev === "" ? undefined : Number(ev) })} />
+                <CampoNumero style={{ ...INPUT, width: 44 }} placeholder="max" value={e.value_max ?? ""}
+                  onTesto={(ev) => upd({ value_max: ev === "" ? undefined : Number(ev) })} />
+                <SelettoreColore value={estraiHex(e.color) ?? "#22c55e"}
+                  onColore={(ev) => upd({ color: ev })}
+                  style={{ width: 26, height: 22, padding: 1, border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 3 }} />
+                <button style={{ background: "transparent", border: "none", color: "var(--brand-danger, #ef4444)", cursor: "pointer" }}
+                  onClick={() => onChange({ symbol_states: (obj.symbol_states ?? []).filter((_, j) => j !== i) })}>✕</button>
+              </div>
+              <div style={{ display: "flex", gap: 4, alignItems: "center" }}>
+                <input style={{ ...INPUT, flex: 1 }} placeholder="label" value={e.label}
+                  onChange={(ev) => upd({ label: ev.target.value })} />
+                <label style={{ fontSize: 10, color: "var(--brand-text-subtle, #64748b)", display: "flex", gap: 3, alignItems: "center" }}>
+                  <input type="checkbox" checked={!!e.blink} onChange={(ev) => upd({ blink: ev.target.checked || undefined })} />
+                  blink
+                </label>
+              </div>
+            </div>
+          );
+        })}
+        <button style={{ ...INPUT, width: "100%", cursor: "pointer", marginBottom: 4 }}
+          onClick={() => onChange({ symbol_states: [...(obj.symbol_states ?? []), { value: "", label: "", color: "#22c55e" }] })}>
+          + {t("props.addState")}
+        </button>
+        {/* F6.10: rotazione continua — su un simbolo di libreria solo se ha un rotore */}
+        {simboloLibHa(obj, "rotor") && field(t("props.symbolSpin"), (
+          <select style={{ ...INPUT, cursor: "pointer" }} value={obj.symbol_spin ?? ""}
+            onChange={(e) => onChange({ symbol_spin: (e.target.value || undefined) as SynopticObject["symbol_spin"] })}>
+            <option value="">{t("props.blinkOff")}</option>
+            <option value="on_state">{t("props.spinOnState")}</option>
+            <option value="tag">{t("props.blinkTag")}</option>
+            <option value="always">{t("props.blinkAlways")}</option>
+          </select>
+        ))}
+        {obj.symbol_spin === "tag" && <RimandoCollegamenti tag={obj.symbol_spin_tag} />}
+        {obj.symbol_spin && field(t("props.spinPeriod"),
+          // Legabile a un tag (14-10-2026, richiesta del maintainer): la
+          // velocità di una ventola che segue il suo inverter.
+          <BindableInput obj={obj} propName="symbol_spin_s" onChange={onChange}>
+            {numInput("symbol_spin_s", 2)}
+          </BindableInput>
+        )}
+      </>);
+      metti("stile", <>
+        <StileOggettoLib obj={obj} onChange={onChange} />
+      </>);
+    }
+
+    /* Faceplate instance (parametric reusable component, defined in Config → Faceplates) */
+    if (obj.type === "faceplate") metti("parametri", (() => {
+      const defn = faceplates.find((f) => f.id === obj.faceplate_id);
+      return (
+        <>
+          {field(t("props.faceplate"), (
+            <select
+              style={{ ...INPUT, cursor: "pointer" }}
+              value={obj.faceplate_id ?? ""}
+              onChange={(e) => onChange({ faceplate_id: e.target.value || undefined, faceplate_params: {} })}
+            >
+              <option value="">{t("props.faceplateChoose")}</option>
+              {faceplates.map((f) => <option key={f.id} value={f.id}>{f.label}</option>)}
+            </select>
+          ))}
+          {!defn && obj.faceplate_id && (
+            <p style={{ fontSize: 10, color: "var(--brand-warning, #f59e0b)", margin: "2px 0 4px" }}>
+              {t("props.faceplateMissing")}
+            </p>
+          )}
+          {defn && defn.params.length > 0 && (
+            <>
+              <SottoTitolo chiave="faceplateParams" />
+              {normalizeFaceplateParams(defn).map((p) => {
+                const val = obj.faceplate_params?.[p.name] ?? "";
+                const missing = !!p.required && val.trim() === "" && (p.default === undefined || p.default === "");
+                const setVal = (v: string) => onChange({ faceplate_params: { ...(obj.faceplate_params ?? {}), [p.name]: v } });
+                const style = { ...INPUT, borderColor: missing ? "var(--brand-danger, #ef4444)" : undefined };
+                return (
+                  <div key={p.name}>
+                    <div style={LABEL}>
+                      {p.name}{p.required ? " *" : ""}{p.type ? ` (${p.type})` : ""}
+                    </div>
+                    {p.type === "tag" ? (
+                      <TagInput style={style} placeholder={p.default ?? ""} value={val} onChange={setVal} />
+                    ) : p.type === "istanza" ? (
+                      // Fase 2: il parametro vuole una **radice**
+                      // composita (`motore1`), non un id qualunque; gli
+                      // oggetti del faceplate ci attaccano `.velocita`.
+                      // Se il tipo chiesto non ha istanze, l'elenco è
+                      // vuoto e il campo lo dice invece di restare muto.
+                      <SceltaIstanza valore={val} tipo={p.type_ref} onChange={setVal} style={style} />
+                    ) : p.type === "color" ? (
+                      <div style={{ display: "flex", gap: 4, alignItems: "center" }}>
+                        <SelettoreColore value={estraiHex(val) ?? estraiHex(p.default) ?? "#3b82f6"}
+                          onColore={(e) => setVal(e)}
+                          style={{ width: 40, height: 26, padding: 1, border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 3 }} />
+                        <input type="text" style={{ ...style, flex: 1 }} placeholder={p.default ?? ""} value={val}
+                          onChange={(e) => setVal(e.target.value)} />
+                      </div>
+                    ) : (
+                      <input type={p.type === "number" ? "number" : "text"} style={style}
+                        placeholder={p.default ?? ""} value={val}
+                        onChange={(e) => setVal(e.target.value)} />
+                    )}
+                    {missing && (
+                      <div style={{ fontSize: 10, color: "var(--brand-danger-soft, #fca5a5)" }}>{t("props.paramRequired")}</div>
+                    )}
+                  </div>
+                );
+              })}
+            </>
+          )}
+          {/* F6.4: scaling dei figli al box dell'istanza (opt-in) */}
+          {defn && field(t("props.faceplateScale"),
+            <input type="checkbox" checked={!!obj.faceplate_scale}
+              onChange={(e) => onChange({ faceplate_scale: e.target.checked || undefined })} />
+          )}
+        </>
+      );
+    })());
+
+    /* ── Pipe / connector ────────────────────────────────────────────────── */
+    if (obj.type === "pipe") {
+      metti("stile", <>
+        {/* Routing + style */}
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
+          <div>
+            <div style={LABEL}>{t("props.path")}</div>
+            <select style={{ ...INPUT, cursor: "pointer" }}
+              value={obj.routing ?? "straight"}
+              onChange={(e) => onChange({ routing: e.target.value as "straight" | "orthogonal" | "diagonal" | "bezier" })}>
+              <option value="straight">{t("props.straightLines")}</option>
+              <option value="bezier">{t("props.curved")}</option>
+              <option value="orthogonal">{t("props.ortho90")}</option>
+              <option value="diagonal">{t("props.diag45")}</option>
+            </select>
+          </div>
+          <div>
+            <div style={LABEL}>{t("shell.stile")}</div>
+            <select style={{ ...INPUT, cursor: "pointer" }}
+              value={obj.pipe_style ?? "flat"}
+              onChange={(e) => onChange({ pipe_style: e.target.value as SynopticObject["pipe_style"] })}>
+              <optgroup label={t("props.stiliTubo25d")}>
+                {STILI_TUBO.map((st) => <option key={st.id} value={st.id}>{t(`props.stileTubo.${st.id}`)}</option>)}
+              </optgroup>
+              <optgroup label={t("props.stiliTuboSemplici")}>
+                <option value="flat">{t("props.flat")}</option>
+                <option value="tube">{t("props.pipe3d")}</option>
+                <option value="wire">{t("props.wire")}</option>
+              </optgroup>
+            </select>
+          </div>
+        </div>
+        <AnteprimaTubo obj={obj} />
+        {/* Tratteggio */}
+        {field(t("props.dashArray"), textInput("stroke_dasharray", "6,3"))}
+          {field(t("props.fontSize"), <BindableInput obj={obj} propName="font_size" onChange={onChange}>{numInput("font_size", 12)}</BindableInput>)}
+        {/* Markers */}
+        <>
+        <SottoTitolo chiave="endMarker" />
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
+            <div>
+              <div style={LABEL}>{t("props.markerStart")}</div>
+              <select style={{ ...INPUT, cursor: "pointer" }}
+                value={obj.start_marker ?? (stileTubo(obj.pipe_style) ? "auto" : "none")}
+                onChange={(e) => onChange({ start_marker: e.target.value === "auto" ? undefined : e.target.value as SynopticObject["start_marker"] })}>
+                {stileTubo(obj.pipe_style) && <option value="auto">{t("props.estremita.auto")}</option>}
+                <option value="none">{t("props.noneM")}</option>
+                {(stileTubo(obj.pipe_style) ? ESTREMITA_TUBO : (["arrow", "dot", "flange"] as const)).map((e) => (
+                  <option key={e} value={e}>{t(`props.estremita.${e}`)}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <div style={LABEL}>{t("props.markerEnd")}</div>
+              <select style={{ ...INPUT, cursor: "pointer" }}
+                value={obj.end_marker ?? (stileTubo(obj.pipe_style) ? "auto" : "none")}
+                onChange={(e) => onChange({ end_marker: e.target.value === "auto" ? undefined : e.target.value as SynopticObject["end_marker"] })}>
+                {stileTubo(obj.pipe_style) && <option value="auto">{t("props.estremita.auto")}</option>}
+                <option value="none">{t("props.noneM")}</option>
+                {(stileTubo(obj.pipe_style) ? ESTREMITA_TUBO : (["arrow", "dot", "flange"] as const)).map((e) => (
+                  <option key={e} value={e}>{t(`props.estremita.${e}`)}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+          {field(t("props.markerSize"), <BindableInput obj={obj} propName="marker_size" onChange={onChange}>{numInput("marker_size", 1)}</BindableInput>)}
+        </>
+        {/* Connection anchoring */}
+        <>
+        <SottoTitolo chiave="snapObjects" />
+          <p style={{ fontSize: 10, color: "var(--brand-text-subtle, #94a3b8)", margin: "0 0 6px" }}>
+            {t("shell.whenSetTheFirstLast")}
+          </p>
+          {field(t("props.capoInizio"), <CapoTubo obj={obj} capo="from" onChange={onChange} stile={INPUT} />)}
+          {field(t("props.capoFine"), <CapoTubo obj={obj} capo="to" onChange={onChange} stile={INPUT} />)}
+        </>
+        {/* Waypoints editor */}
+        <>
+        <SottoTitolo chiave="waypoint" />
+          <p style={{ fontSize: 10, color: "var(--brand-text-subtle, #94a3b8)", margin: "0 0 4px" }}>
+            {t("shell.dragTheYellowPointsOn")}
+          </p>
+          {(obj.points ?? []).map((pt, i) => (
+            <div key={i} style={{ display: "flex", gap: 4, alignItems: "center", marginBottom: 3 }}>
+              <span style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)", width: 18, flexShrink: 0 }}>{i}</span>
+              <CampoNumero style={{ ...INPUT, width: 58 }} value={pt.x}
+                onTesto={(e) => {
+                  const pts = [...(obj.points ?? [])];
+                  pts[i] = { ...pts[i], x: Number(e) };
+                  onChange({ points: pts });
+                }} />
+              <CampoNumero style={{ ...INPUT, width: 58 }} value={pt.y}
+                onTesto={(e) => {
+                  const pts = [...(obj.points ?? [])];
+                  pts[i] = { ...pts[i], y: Number(e) };
+                  onChange({ points: pts });
+                }} />
+              {(obj.points ?? []).length > 2 && (
+                <button style={{ ...INPUT, cursor: "pointer", padding: "2px 6px", width: 22 }}
+                  title={t("props.removeWaypoint")}
+                  onClick={() => {
+                    const pts = (obj.points ?? []).filter((_, idx) => idx !== i);
+                    onChange({ points: pts });
+                  }}>−</button>
+              )}
+            </div>
+          ))}
+          <button
+            style={{ ...INPUT, cursor: "pointer", width: "100%", marginTop: 2 }}
+            onClick={() => {
+              const pts = [...(obj.points ?? [])];
+              const last = pts[pts.length - 1] ?? { x: obj.x, y: obj.y };
+              pts.push({ x: last.x + 40, y: last.y });
+              onChange({ points: pts });
+            }}>
+            {t("shell.addWaypoint")}
+          </button>
+        </>
+      </>);
+      metti("stati", <>
+        {/* Fill level */}
+        <>
+        <SottoTitolo chiave="fluidFill" />
+          <RimandoCollegamenti tag={obj.fill_level_tag} />
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
+            <div>
+              <div style={LABEL}>{t("props.tagScale")}</div>
+              <select style={{ ...INPUT, cursor: "pointer" }}
+                value={obj.fill_level_scale ?? "0-100"}
+                onChange={(e) => onChange({ fill_level_scale: e.target.value as "0-1" | "0-100" })}>
+                <option value="0-100">0 – 100</option>
+                <option value="0-1">0.0 – 1.0</option>
+              </select>
+            </div>
+            <div>
+              <div style={LABEL}>{t("props.direction")}</div>
+              <select style={{ ...INPUT, cursor: "pointer" }}
+                value={obj.fill_direction ?? "start-to-end"}
+                onChange={(e) => onChange({ fill_direction: e.target.value as "start-to-end" | "end-to-start" })}>
+                <option value="start-to-end">{t("props.startToEnd")}</option>
+                <option value="end-to-start">{t("props.endToStart")}</option>
+              </select>
+            </div>
+          </div>
+          {field(t("props.staticLevel"), numInput("fill_level", 0))}
+          {field(t("props.colorFluid"), <BindableInput obj={obj} propName="fill_color" onChange={onChange}>{colorInput("fill_color")}</BindableInput>)}
+        </>
+        {/* State coloring */}
+        <CollapsibleSection title={t("props.stateAndAlarm")} storageKey="pipe-state">
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 6 }}>
+            <div>{field(t("props.off"),   <BindableInput obj={obj} propName="state_off_color"   onChange={onChange}>{colorInput("state_off_color")}</BindableInput>)}</div>
+            <div>{field(t("props.on"),    <BindableInput obj={obj} propName="state_on_color"    onChange={onChange}>{colorInput("state_on_color")}</BindableInput>)}</div>
+            <div>{field(t("props.alarmWord"), <BindableInput obj={obj} propName="state_alarm_color" onChange={onChange}>{colorInput("state_alarm_color")}</BindableInput>)}</div>
+          </div>
+        </CollapsibleSection>
+          {/* F6.10: flusso animato */}
+          {field(t("props.pipeFlow"),
+            <input type="checkbox" checked={!!obj.pipe_flow}
+              onChange={(e) => onChange({ pipe_flow: e.target.checked || undefined })} />
+          )}
+          {obj.pipe_flow && <RimandoCollegamenti tag={obj.pipe_flow_tag} />}
+      </>);
+      metti("testo", <>
+        {/* Label */}
+        <SottoTitolo chiave="label" />
+          {field(t("props.text"), textInput("pipe_label", "es. P-101"))}
+          {field(t("props.format"), textInput("pipe_label_format", "{value:.1f}"))}
+          {field(t("props.offsetPx"), numInput("pipe_label_offset", 10))}
+      </>);
+      metti("colori", <>
+        {/* Stroke */}
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
+          <div>
+            {field(t("props.colorPipe"), <BindableInput obj={obj} propName="stroke" onChange={onChange}>{colorInput("stroke")}</BindableInput>)}
+          </div>
+          <div>
+            {field(t("props.thicknessPx"), numInput("stroke_width", 8))}
+          </div>
+        </div>
+        {/* Gradiente (tube style) */}
+        {(obj.pipe_style === "tube" || obj.pipe_gradient) && (
+          <>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
+              <div>{field(t("props.colorLight"), <BindableInput obj={obj} propName="gradient_light_color" onChange={onChange}>{colorInput("gradient_light_color")}</BindableInput>)}</div>
+              <div>{field(t("props.colorDark"),  <BindableInput obj={obj} propName="gradient_dark_color" onChange={onChange}>{colorInput("gradient_dark_color")}</BindableInput>)}</div>
+            </div>
+          </>
+        )}
+          {field(t("props.labelColor"), <BindableInput obj={obj} propName="color" onChange={onChange}>{colorInput("color")}</BindableInput>)}
+      </>);
+    }
+
+    // I corpi del testo dei tipi del terzo giro (25-10-2026, piano
+    // 2026-10-25-corpi-e-parita-lvgl): un campo per testo, il predefinito dalla
+    // tabella condivisa. In Stile, dopo i campi propri del tipo.
+    metti("stile", (CORPI_DEL_TIPO[obj.type] ?? []).map(([campo, etichetta]) => (
+      <div key={campo}>{field(t(etichetta),
+        <BindableInput obj={obj} propName={campo} onChange={onChange}>
+          {numInput(campo, Number(valorePredefinito(obj.type, campo) ?? 12))}
+        </BindableInput>)}</div>
+    )));
+    // Il selettore dei token (T-40) inserisce {{chiave}} nel testo principale: sta
+    // con il testo, dove c'è (01-11-2026; prima era l'unico resto di «Dato»).
+    const selettoreToken = langKeys.length > 0 && ("text" in obj || "label" in obj || ["text","button","navbutton","led","checkbox","gauge","progress_bar","slider","symbol","bar_chart","pie_chart","alarm_viewer"].includes(obj.type)) && field(t("props.insertToken"),
+      <select style={{ ...INPUT, cursor: "pointer" }} value=""
+        onChange={(e) => {
+          const key = e.target.value; if (!key) return;
+          const fieldName = obj.type === "text" ? "text" : "label";
+          const prev = (obj as unknown as Record<string, unknown>)[fieldName];
+          const base = typeof prev === "string" ? prev : "";
+          onChange({ [fieldName]: `${base}{{${key}}}` } as Partial<SynopticObject>);
+        }}>
+        <option value="">{t("props.insertTokenHint")}</option>
+        {langKeys.map((k) => <option key={k} value={k}>{`{{${k}}}`}</option>)}
+      </select>
+    );
+    if (parti.testo.length > 0 && selettoreToken) metti("testo", selettoreToken);
+
   return (
     <TipoOggetto.Provider value={obj.type}>
       {/* Le sezioni canoniche di T-56: ogni tipo di oggetto mostra le stesse,
@@ -3496,15 +5712,34 @@ export function ObjectProps({
           un'intestazione e tre righe di etichetta, circa 70 px — un terzo di
           quello che occupavano. Sopra i campi lunghi l'etichetta resta sopra,
           perché a pannello stretto a fianco mangerebbe larghezza al controllo. */}
-      <CollapsibleSection title={t("props.sectionIdentityGeometry")} storageKey="identita" gruppo="aspetto">
-        <RigaProprieta etichetta={t("props.name")} inLinea>
-          <input
-            type="text" style={INPUT}
-            placeholder={obj.type}
-            value={obj.name ?? ""}
-            onChange={(e) => onChange({ name: e.target.value || undefined })}
-          />
-        </RigaProprieta>
+      {/* La striscia fissa (01-11-2026, piano 2026-11-01-pannello-proprieta-per-
+          frequenza): nome, tipo/id e X Y W H fuori dai rami, sempre in vista in
+          testa alla colonna, come in Figma. Si cambiano quasi sempre trascinando
+          sul canvas: un ramo intero era sprecato. `order: 0` la mette prima di
+          ogni ramo (i rami partono da 100); `sticky` la tiene ferma mentre la
+          colonna scorre. Il cestino sta qui, piccolo e grigio: un blocco rosso
+          in fondo a ogni ramo era un incidente a portata di pollice. */}
+      <div data-testid="striscia-oggetto" style={{
+        order: 0, position: "sticky", top: -SPAZIO.l, zIndex: 2,
+        margin: `-${SPAZIO.l}px -${SPAZIO.l}px 0`, padding: `${SPAZIO.m}px ${SPAZIO.l}px ${SPAZIO.xs}px`,
+        background: PANEL.background, borderBottom: "1px solid var(--brand-surface-2, #334155)",
+      }}>
+        <div style={{ display: "flex", alignItems: "center", gap: SPAZIO.xs }}>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <RigaProprieta etichetta={t("props.name")} inLinea>
+              <input
+                type="text" style={INPUT}
+                placeholder={obj.type}
+                value={obj.name ?? ""}
+                onChange={(e) => onChange({ name: e.target.value || undefined })}
+              />
+            </RigaProprieta>
+          </div>
+          <button type="button" data-testid="elimina-oggetto" onClick={onDelete}
+            title={t("props.deleteObject")} aria-label={t("props.deleteObject")}
+            style={{ border: "none", background: "transparent", cursor: "pointer", padding: "0 2px", marginBottom: 2,
+                     fontSize: 13, color: "var(--brand-text-subtle, #94a3b8)" }}>🗑</button>
+        </div>
         <div style={{ fontSize: 10, color: "var(--brand-text-subtle, #64748b)", margin: "0 0 6px", display: "flex", gap: 6 }}>
           <span style={{ background: "var(--brand-surface, #1e293b)", padding: "1px 6px", borderRadius: 3, color: "var(--brand-text-muted, #94a3b8)", fontWeight: 600 }}>
             {obj.type}
@@ -3531,13 +5766,13 @@ export function ObjectProps({
             </>
           )}
         </div>
-      </CollapsibleSection>
+      </div>
 
       {/* Il ramo del tipo c'è per ogni oggetto (26-09-2026): per le forme tiene
           solo ciò che è proprio della forma — raggio degli angoli, estremi
           della linea — mentre colore e bordo restano in «Posizione e aspetto». */}
       {["rect", "line", "polygon", "polyline"].includes(obj.type) && (
-        <CollapsibleSection title={t("props.sectionShape")} storageKey="forma" gruppo="tipo">
+        <CollapsibleSection title={t("props.sectionShape")} storageKey="forma" gruppo="aspetto">
           {obj.type === "polygon" && (
             <>
               {field(t("props.sides"), numInput("sides", 6))}
@@ -3583,16 +5818,7 @@ export function ObjectProps({
         </CollapsibleSection>
       )}
 
-      <CollapsibleSection title={t("props.sectionAppearance")} storageKey="aspetto" gruppo="aspetto">
-        {/* I corpi del testo dei tipi del terzo giro (25-10-2026, piano
-            2026-10-25-corpi-e-parita-lvgl): un campo per testo, il predefinito
-            dalla tabella condivisa. Una tabella sola invece di sette blocchi. */}
-        {(CORPI_DEL_TIPO[obj.type] ?? []).map(([campo, etichetta]) => (
-          <div key={campo}>{field(t(etichetta),
-            <BindableInput obj={obj} propName={campo} onChange={onChange}>
-              {numInput(campo, Number(valorePredefinito(obj.type, campo) ?? 12))}
-            </BindableInput>)}</div>
-        ))}
+      <CollapsibleSection title={t("props.sezioneOpacitaSfondo")} storageKey="aspetto" gruppo="aspetto">
         {/* Opacità e luminosità per **ogni** tipo (26-09-2026, piano pannello-luce-
             forme): prima l'opacità stava in «Trasformazione», che esiste solo per
             14 tipi. Tutte e due si legano a un tag col 🔗 — una waveform fa il fade. */}
@@ -3631,77 +5857,6 @@ export function ObjectProps({
             </div>
           </BindableInput>
         )}
-        {/* Fill */}
-        {(obj.type === "rect" || obj.type === "ellipse" || obj.type === "button" || obj.type === "navbutton"
-          || obj.type === "polygon" || (obj.type === "polyline" && obj.closed)) &&
-          field(t("props.color"), <BindableInput obj={obj} propName="fill" onChange={onChange}>{colorInput("fill")}</BindableInput>)}
-
-        {/* Stroke */}
-        {hasStroke && (
-          <>
-            {field(t("props.border"), <BindableInput obj={obj} propName="stroke" onChange={onChange}>{colorInput("stroke")}</BindableInput>)}
-            {field(t("props.borderThickness"), <BindableInput obj={obj} propName="stroke_width" onChange={onChange}>{numInput("stroke_width", 1)}</BindableInput>)}
-          </>
-        )}
-        {/* F7.6 — il navbutton disegnava il bordo col colore primario del tema,
-            non modificabile: stessi due campi degli altri tipi con bordo. */}
-        {obj.type === "navbutton" && (
-          <>
-            {field(t("props.border"), <BindableInput obj={obj} propName="stroke" onChange={onChange}>{colorInput("stroke")}</BindableInput>)}
-            {field(t("props.borderThickness"), <BindableInput obj={obj} propName="stroke_width" onChange={onChange}>{numInput("stroke_width", 1.5)}</BindableInput>)}
-          </>
-        )}
-
-        {/* F7.6 — rifiniture di forma: raggio angoli, tratteggio, sfumatura. */}
-        {obj.type === "navbutton" &&
-          field(t("props.cornerRadius"), numInput("corner_radius", 0))}
-        {["rect", "polyline", "polygon"].includes(obj.type) &&
-          field(t("props.borderDash"),
-            <select style={{ ...INPUT, cursor: "pointer" }}
-              value={obj.stroke_dasharray ?? ""}
-              onChange={(e) => onChange({ stroke_dasharray: e.target.value || undefined })}>
-              <option value="">{t("props.dashSolid")}</option>
-              <option value="6 3">{t("props.dashDashed")}</option>
-              <option value="2 3">{t("props.dashDotted")}</option>
-              <option value="10 4 2 4">{t("props.dashDashDot")}</option>
-            </select>
-          )}
-        {obj.type === "rect" && (
-          <>
-            {field(t("props.gradient"),
-              <select style={{ ...INPUT, cursor: "pointer" }}
-                value={obj.fill_gradient ?? ""}
-                onChange={(e) => onChange({ fill_gradient: (e.target.value || undefined) as "vertical" | "horizontal" | "radial" | undefined })}>
-                <option value="">{t("props.gradientNone")}</option>
-                <option value="vertical">{t("props.gradientVertical")}</option>
-                <option value="horizontal">{t("props.gradientHorizontal")}</option>
-                <option value="radial">{t("props.gradientRadial")}</option>
-              </select>
-            )}
-            {obj.fill_gradient && (
-              <>
-                {field(t("props.gradientLight"), colorInput("gradient_light_color"))}
-                {field(t("props.gradientDark"), colorInput("gradient_dark_color"))}
-                <p style={{ fontSize: 10, color: "var(--brand-text-subtle, #94a3b8)", margin: "-2px 0 4px" }}>
-                  {t("props.gradientHint")}
-                </p>
-              </>
-            )}
-          </>
-        )}
-
-
-        {/* F7.6 — forma del led. */}
-        {obj.type === "led" &&
-          field(t("props.ledShape"),
-            <select style={{ ...INPUT, cursor: "pointer" }}
-              value={obj.led_shape ?? "circle"}
-              onChange={(e) => onChange({ led_shape: e.target.value === "circle" ? undefined : (e.target.value as "square" | "triangle") })}>
-              <option value="circle">{t("props.shapeCircle")}</option>
-              <option value="square">{t("props.shapeSquare")}</option>
-              <option value="triangle">{t("props.shapeTriangle")}</option>
-            </select>
-          )}
 
         {/* Sfondo universale (colore + immagine URL) — un solo punto di
             inserimento: per estenderlo a un tipo nuovo basta aggiungerlo a
@@ -3785,2066 +5940,21 @@ export function ObjectProps({
         )}
       </CollapsibleSection>
 
-      {/* Il dato sta nel ramo del tipo (26-09-2026, maintainer: «per i bottoni non
-          trovo il menù in cui ci sia il tag da associare»): il tag di un bottone
-          stava in «Dati e collegamenti», lontano da modalità e valore da scrivere. */}
-      <CollapsibleSection title={t("props.sectionData")} storageKey="dato" gruppo="tipo">
-        {/* Tag binding */}
-        {!["navbutton","page_navigator","gauge","slider","checkbox","radio","led","progress_bar","trend","pipe","text_list","state_lamp","setpoint","xy_plot",
-          // 2026-08-23: tipi dove obj.tag NON è il dato primario (serie/figli
-          // propri) o è puro rumore — il campo vive nella sezione qualità come
-          // "Tag di stato" (alimenta bordo-allarme/stale/Bad-gray/QDot).
-          "kpi_tile","data_log","sparkline","bar_chart","pie_chart","table","symbol",
-          "alarm_viewer","alarm_bell","alarm_banner","alarm_history","recipe_panel","grid","faceplate",
-          "image","lang_button","lang_selector","clock"].includes(obj.type) && field(t("props.tag"), tagInput("es. pump1.speed"))}
-
-        {/* Token picker (T-40): insert {{key}} into the primary text field so the
-            viewer resolves it per the project language table. */}
-        {langKeys.length > 0 && ("text" in obj || "label" in obj || ["text","button","navbutton","led","checkbox","gauge","progress_bar","slider","symbol","bar_chart","pie_chart","alarm_viewer"].includes(obj.type)) && field(t("props.insertToken"),
-          <select style={{ ...INPUT, cursor: "pointer" }} value=""
-            onChange={(e) => {
-              const key = e.target.value; if (!key) return;
-              const fieldName = obj.type === "text" ? "text" : "label";
-              const prev = (obj as unknown as Record<string, unknown>)[fieldName];
-              const base = typeof prev === "string" ? prev : "";
-              onChange({ [fieldName]: `${base}{{${key}}}` } as Partial<SynopticObject>);
-            }}>
-            <option value="">{t("props.insertTokenHint")}</option>
-            {langKeys.map((k) => <option key={k} value={k}>{`{{${k}}}`}</option>)}
-          </select>
-        )}
+      {/* «Collegamenti» (01-11-2026, piano 2026-11-01-pannello-proprieta-per-
+          frequenza): tutti i tag dell'oggetto, i riepiloghi dei tag in lista e i
+          🔗 dei campi. La tabella degli slot (`slotTag.ts`) è la sola fonte. */}
+      <CollapsibleSection title={t("props.sectionCollegamenti")} storageKey="collegamenti" gruppo="funzione"
+        alias={t("props.filtro.aliasCollegamenti")}>
+        <Collegamenti key={obj.id} obj={obj} onChange={onChange} stileCampo={INPUT} mixedKeys={mixedKeys} />
       </CollapsibleSection>
 
-
-      {/* 4 · Testo — solo per i tipi che ne hanno uno. Chiusa di default:
-       *  chi disegna una pagina tocca prima posizione e colore. */}
-      {obj.type === "text" && (
-        <CollapsibleSection title={t("props.sectionText")} storageKey="testo" gruppo="tipo">
-          {/* Text object: static content + typography */}
-          {obj.type === "text" && (
-            <>
-              {/* F7.4 — con il testo multiriga il campo statico diventa un'area:
-                  gli a-capo scritti a mano vengono rispettati dal rendering. */}
-              {obj.text_wrap
-                ? field(t("props.textStatic"),
-                    <textarea
-                      style={{ ...INPUT, minHeight: 56, fontFamily: "inherit", resize: "vertical" }}
-                      placeholder={t("shell.esTemperatura")}
-                      value={obj.text ?? ""}
-                      onChange={(e) => onChange({ text: e.target.value || undefined })}
-                    />)
-                : field(t("props.textStatic"), <BindableInput obj={obj} propName="text" onChange={onChange}>{textInput("text", t("shell.esTemperatura"))}</BindableInput>)}
-              {field(t("props.formatBound"), <BindableInput obj={obj} propName="format" onChange={onChange}>{formatInput("{value:.1f} °C")}</BindableInput>)}
-              <p style={{ fontSize: 10, color: "var(--brand-text-subtle, #94a3b8)", margin: "0 0 4px" }}>
-                {t("shell.formatWinsPre")} <code>{"{value}"}</code>{t("shell.formatWinsPost")}
-              </p>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
-                <div><div style={LABEL}>{t("props.dimensionPx")}</div><BindableInput obj={obj} propName="font_size" onChange={onChange}>{numInput("font_size", 14)}</BindableInput></div>
-                <div>
-                  <div style={LABEL}>{t("props.alignment")}</div>
-                  <select
-                    style={{ ...INPUT, cursor: "pointer" }}
-                    value={obj.text_anchor ?? "start"}
-                    onChange={(e) => onChange({ text_anchor: e.target.value as "start" | "middle" | "end" })}
-                  >
-                    <option value="start">{t("props.left")}</option>
-                    <option value="middle">{t("props.center")}</option>
-                    <option value="end">{t("props.right")}</option>
-                  </select>
-                </div>
-              </div>
-              {/* F7.4 — testo multiriga dentro il box dichiarato. */}
-              <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: "var(--brand-text-2, #cbd5e1)", marginTop: 4, cursor: "pointer" }}>
-                <input type="checkbox" checked={!!obj.text_wrap}
-                  onChange={(e) => onChange({ text_wrap: e.target.checked || undefined })}
-                  style={{ accentColor: "var(--brand-primary, #3b82f6)" }} />
-                {t("props.textWrap")}
-              </label>
-              {obj.text_wrap && (
-                <>
-                  <p style={{ fontSize: 10, color: "var(--brand-text-subtle, #94a3b8)", margin: "2px 0 4px" }}>
-                    {t("props.textWrapHint")}
-                  </p>
-                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
-                    <div>
-                      <div style={LABEL}>{t("props.vAlign")}</div>
-                      <select style={{ ...INPUT, cursor: "pointer" }}
-                        value={obj.text_valign ?? "top"}
-                        onChange={(e) => onChange({ text_valign: e.target.value === "top" ? undefined : (e.target.value as "middle" | "bottom") })}>
-                        <option value="top">{t("props.vAlignTop")}</option>
-                        <option value="middle">{t("props.vAlignMiddle")}</option>
-                        <option value="bottom">{t("props.vAlignBottom")}</option>
-                      </select>
-                    </div>
-                    <div><div style={LABEL}>{t("props.lineHeight")}</div>{numInput("line_height", 1.25)}</div>
-                  </div>
-                </>
-              )}
-              {field(t("props.fontFamily"),
-                <BindableInput obj={obj} propName="font_family" onChange={onChange}>
-                  {/* L'elenco dei font (18-10-2026): uguale nel browser e sul
-                      pannello. Un nome scritto a mano che non è nell'elenco
-                      resta selezionabile com'è, ma vale solo nel browser. */}
-                  <select
-                    data-testid="prop-font-family"
-                    style={{ ...INPUT, cursor: "pointer", fontFamily: cssFamiglia(obj.font_family) }}
-                    value={obj.font_family ?? ""}
-                    onChange={(e) => onChange({ font_family: e.target.value || undefined })}
-                  >
-                    <option value="">{t("font.predefinito")}</option>
-                    {FAMIGLIE.map((f) => (
-                      <option key={f.id} value={f.id} style={{ fontFamily: cssFamiglia(f.id) }}>{t(`font.famiglia.${f.id}`)}</option>
-                    ))}
-                    {obj.font_family && !famigliaDi(obj.font_family) && (
-                      <option value={obj.font_family}>{t("font.soloWeb", { nome: obj.font_family })}</option>
-                    )}
-                  </select>
-                </BindableInput>
-              )}
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
-                <div>
-                  <div style={LABEL}>{t("shell.peso")}</div>
-                  <select
-                    style={{ ...INPUT, cursor: "pointer" }}
-                    value={String(obj.font_weight ?? "normal")}
-                    onChange={(e) => {
-                      const v = e.target.value;
-                      const n = Number(v);
-                      onChange({ font_weight: Number.isFinite(n) && v.match(/^\d+$/) ? n : v });
-                    }}
-                  >
-                    <option value="normal">{t("props.normal400")}</option>
-                    <option value="bold">{t("props.bold700")}</option>
-                    <option value="300">300</option>
-                    <option value="500">500</option>
-                    <option value="600">600</option>
-                    <option value="800">800</option>
-                  </select>
-                </div>
-                <div>
-                  <div style={LABEL}>{t("shell.stile")}</div>
-                  <select
-                    style={{ ...INPUT, cursor: "pointer" }}
-                    value={obj.font_style ?? "normal"}
-                    onChange={(e) => onChange({ font_style: e.target.value as "normal" | "italic" })}
-                  >
-                    <option value="normal">{t("props.normalOpt")}</option>
-                    <option value="italic">{t("props.italic")}</option>
-                  </select>
-                </div>
-              </div>
-              {field(t("props.colorText"), <BindableInput obj={obj} propName="color" onChange={onChange}>{colorInput("color")}</BindableInput>)}
-              <label style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 4, fontSize: 11, color: "var(--brand-text-muted, #94a3b8)", cursor: "pointer" }}>
-                <input
-                  type="checkbox"
-                  checked={!!obj.text_color_by_threshold}
-                  onChange={(e) => onChange({ text_color_by_threshold: e.target.checked || undefined })}
-                />
-                {t("props.colorByThreshold")}
-              </label>
-              {obj.text_color_by_threshold && (
-                <>
-                  <p style={{ fontSize: 10, color: "var(--brand-text-subtle, #94a3b8)", margin: "2px 0 4px" }}>
-                    {t("props.colorByThresholdHint")}
-                  </p>
-                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
-                    <div><div style={LABEL}>{t("props.warnLow")}</div><BindableInput obj={obj} propName="warn_low" onChange={onChange}>{numInput("warn_low", 0)}</BindableInput></div>
-                    <div><div style={LABEL}>{t("props.warnHigh")}</div><BindableInput obj={obj} propName="warn_high" onChange={onChange}>{numInput("warn_high", 0)}</BindableInput></div>
-                    <div><div style={LABEL}>{t("props.alarmLow")}</div><BindableInput obj={obj} propName="alarm_low" onChange={onChange}>{numInput("alarm_low", 0)}</BindableInput></div>
-                    <div><div style={LABEL}>{t("props.alarmHigh")}</div><BindableInput obj={obj} propName="alarm_high" onChange={onChange}>{numInput("alarm_high", 0)}</BindableInput></div>
-                  </div>
-                </>
-              )}
-            </>
-          )}
-        </CollapsibleSection>
-      )}
-
-      {/* 6 · La sezione «grande» del tipo: stati, tracce, parametri — quello
-       *  che rende un trend un trend. Una sola, perché di tipi ne rende uno
-       *  per volta.
-       *
-       *  La condizione elenca i tipi che ne hanno una: rect, ellipse e line
-       *  non ne hanno, e una sezione vuota sarebbe peggio di nessuna. Un tipo
-       *  nuovo dimenticato qui non perde la sezione in silenzio — perde i
-       *  suoi campi, e il test d'inventario lo dice. */}
-      {TIPI_CON_PARAMETRI.includes(obj.type) && (
-        <CollapsibleSection title={t("props.sectionParameters")} storageKey="parametri" gruppo="tipo">
-          {/* Button label + write value + built-in action */}
-          {obj.type === "button" && (
-            <>
-              {field(t("props.label"), <BindableInput obj={obj} propName="label" onChange={onChange}>{textInput("label")}</BindableInput>)}
-              {field(t("props.labelColor"), <BindableInput obj={obj} propName="color" onChange={onChange}>{colorInput("color")}</BindableInput>)}
-              {field(t("props.fontSize"), <BindableInput obj={obj} propName="font_size" onChange={onChange}>{numInput("font_size", 14)}</BindableInput>)}
-              {sezioneComando}
-              {field(t("props.builtinAction"),
-                <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-                  <select
-                    style={{ ...INPUT, cursor: "pointer" }}
-                    value={obj.button_action?.type ?? ""}
-                    onChange={(e) => {
-                      const t = e.target.value as ButtonAction["type"] | "";
-                      if (!t) { onChange({ button_action: undefined }); return; }
-                      if (t === "navigate") onChange({ button_action: { type: "navigate", url: "" } });
-                      else if (t === "open_faceplate") onChange({ button_action: { type: "open_faceplate", faceplate_id: "", params: {} } });
-                      else if (t === "open_popup") onChange({ button_action: { type: "open_popup", page: "", params: {} } });
-                      else onChange({ button_action: { type: t } as ButtonAction });
-                    }}
-                  >
-                    <option value="">{t("props.dashNone")}</option>
-                    <option value="login">{t("props.loginModal")}</option>
-                    <option value="logout">{t("props.logoutReadonly")}</option>
-                    <option value="navigate">{t("props.navigateUrl")}</option>
-                    <option value="open_faceplate">{t("props.openFaceplate")}</option>
-                    <option value="open_popup">{t("finestraPopup.apri")}</option>
-                    <option value="close_popup">{t("finestraPopup.chiudiAzione")}</option>
-                  </select>
-                  {obj.button_action?.type === "open_popup" && (() => {
-                    const act = obj.button_action as { type: "open_popup"; page: string; params?: Record<string, string> };
-                    const finestre = tutteLePagine.filter((p) => p.finestra);
-                    const scelta = finestre.find((p) => p.id === act.page);
-                    return (
-                      <>
-                        <select style={{ ...INPUT, cursor: "pointer" }} value={act.page} data-testid="azione-finestra"
-                          onChange={(e) => onChange({ button_action: { ...act, page: e.target.value, params: {} } })}>
-                          <option value="">{t("finestraPopup.scegli")}</option>
-                          {finestre.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
-                        </select>
-                        {finestre.length === 0 && (
-                          <span style={{ fontSize: 10, color: "var(--brand-text-subtle, #94a3b8)" }}>{t("finestraPopup.nessuna")}</span>
-                        )}
-                        {(scelta?.finestra_parametri ?? []).map((p) => (
-                          <div key={p.name} style={{ display: "flex", gap: 4, alignItems: "center" }}>
-                            <span style={{ fontSize: 10, color: "var(--brand-text-subtle, #64748b)", width: 80, flexShrink: 0 }}>{p.name}</span>
-                            {p.type === "tag" ? (
-                              <TagInput style={{ ...INPUT, flex: 1 }} placeholder={p.default ?? ""}
-                                value={act.params?.[p.name] ?? ""}
-                                onChange={(v) => onChange({ button_action: { ...act, params: { ...(act.params ?? {}), [p.name]: v } } })} />
-                            ) : (
-                              <input type="text" style={{ ...INPUT, flex: 1 }} placeholder={p.default ?? ""}
-                                value={act.params?.[p.name] ?? ""}
-                                onChange={(e) => onChange({ button_action: { ...act, params: { ...(act.params ?? {}), [p.name]: e.target.value } } })} />
-                            )}
-                          </div>
-                        ))}
-                      </>
-                    );
-                  })()}
-                  {obj.button_action?.type === "navigate" && (() => {
-                    const act = obj.button_action as { type: "navigate"; url: string; target?: "self" | "blank" };
-                    return (
-                      <>
-                        <input
-                          type="text"
-                          style={INPUT}
-                          placeholder="https://..."
-                          value={act.url}
-                          onChange={(e) => onChange({ button_action: { ...act, url: e.target.value } })}
-                        />
-                        {/* "Apri in": su un pannello in kiosk una scheda nuova non si
-                            chiude facilmente, quindi la scelta è per pulsante. */}
-                        <select
-                          style={{ ...INPUT, cursor: "pointer" }}
-                          value={act.target ?? "blank"}
-                          onChange={(e) => onChange({ button_action: { ...act, target: e.target.value as "self" | "blank" } })}
-                        >
-                          <option value="blank">{t("props.openInNewTab")}</option>
-                          <option value="self">{t("props.openInSameTab")}</option>
-                        </select>
-                      </>
-                    );
-                  })()}
-                  {obj.button_action?.type === "open_faceplate" && (() => {
-                    const act = obj.button_action as { type: "open_faceplate"; faceplate_id: string; params?: Record<string, string> };
-                    const defn = faceplates.find((f) => f.id === act.faceplate_id);
-                    return (
-                      <>
-                        <select style={{ ...INPUT, cursor: "pointer" }} value={act.faceplate_id}
-                          onChange={(e) => onChange({ button_action: { ...act, faceplate_id: e.target.value, params: {} } })}>
-                          <option value="">{t("props.faceplateChoose")}</option>
-                          {faceplates.map((f) => <option key={f.id} value={f.id}>{f.label}</option>)}
-                        </select>
-                        {defn && normalizeFaceplateParams(defn).map((p) => (
-                          <div key={p.name} style={{ display: "flex", gap: 4, alignItems: "center" }}>
-                            <span style={{ fontSize: 10, color: "var(--brand-text-subtle, #64748b)", width: 80, flexShrink: 0 }}>
-                              {p.name}{p.required ? " *" : ""}
-                            </span>
-                            {p.type === "tag" ? (
-                              <TagInput style={{ ...INPUT, flex: 1 }} placeholder={p.default ?? ""}
-                                value={act.params?.[p.name] ?? ""}
-                                onChange={(v) => onChange({ button_action: { ...act, params: { ...(act.params ?? {}), [p.name]: v } } })} />
-                            ) : (
-                              <input type="text" style={{ ...INPUT, flex: 1 }} placeholder={p.default ?? ""}
-                                value={act.params?.[p.name] ?? ""}
-                                onChange={(e) => onChange({ button_action: { ...act, params: { ...(act.params ?? {}), [p.name]: e.target.value } } })} />
-                            )}
-                          </div>
-                        ))}
-                      </>
-                    );
-                  })()}
-                </div>
-              )}
-            </>
-          )}
-
-          {/* Navigatore di pagine */}
-          {obj.type === "page_navigator" && (
-            <NavigatorProperties obj={obj} onChange={onChange} field={field} numInput={numInput}
-              colorInput={colorInput} inputStyle={INPUT} />
-          )}
-
-          {/* NavButton */}
-          {obj.type === "navbutton" && (() => {
-            const targetMissing = !!obj.target_page && !pages.some((p) => p.id === obj.target_page);
-            return (
-              <>
-                {field(t("props.label"), <BindableInput obj={obj} propName="label" onChange={onChange}>{textInput("label")}</BindableInput>)}
-                {field(t("props.targetPage"),
-                  <select
-                    style={{
-                      ...INPUT,
-                      cursor: "pointer",
-                      borderColor: targetMissing ? "#dc2626" : (INPUT.border ? undefined : "var(--brand-surface-2, #334155)"),
-                    }}
-                    value={obj.target_page ?? ""}
-                    onChange={(e) => onChange({ target_page: e.target.value || undefined })}
-                  >
-                    <option value="">{t("props.dashSelect")}</option>
-                    {pages.map((p) => (
-                      <option key={p.id} value={p.id}>{p.name}</option>
-                    ))}
-                    {targetMissing && (
-                      <option value={obj.target_page} disabled>
-                        ⚠ {t("shell.paginaInesistente")}: {obj.target_page}
-                      </option>
-                    )}
-                  </select>
-                )}
-                {targetMissing && (
-                  <div style={{ fontSize: 11, color: "var(--brand-danger-soft, #fca5a5)", marginTop: -4 }}>
-                    {t("shell.theTargetPageWasDeleted")}
-                  </div>
-                )}
-                {field(t("props.labelColor"), <BindableInput obj={obj} propName="color" onChange={onChange}>{colorInput("color")}</BindableInput>)}
-                {field(t("props.fontSize"), <BindableInput obj={obj} propName="font_size" onChange={onChange}>{numInput("font_size", 13)}</BindableInput>)}
-              </>
-            );
-          })()}
-
-          {/* Language button (T-40) */}
-          {obj.type === "lang_button" && (
-            <>
-              {field(t("props.label"), <BindableInput obj={obj} propName="label" onChange={onChange}>{textInput("label")}</BindableInput>)}
-              {field(t("props.fontSize"), <BindableInput obj={obj} propName="font_size" onChange={onChange}>{numInput("font_size", 13)}</BindableInput>)}
-              {field(t("props.targetLang"),
-                <select style={{ ...INPUT, cursor: "pointer" }} value={obj.target_lang ?? ""}
-                  onChange={(e) => onChange({ target_lang: e.target.value || undefined })}>
-                  <option value="">{t("props.dashSelect")}</option>
-                  {projLangs.map((l) => <option key={l} value={l}>{l}</option>)}
-                </select>
-              )}
-            </>
-          )}
-
-          {/* Language selector (T-40) — auto-lists the project languages */}
-          {obj.type === "lang_selector" && (
-            <div style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)", padding: "4px 0" }}>
-              {t("props.langSelectorHint")}
-            </div>
-          )}
-
-          {/* Gauge */}
-          {obj.type === "gauge" && (
-            <>
-              {field(t("props.label"), <BindableInput obj={obj} propName="label" onChange={onChange}>{textInput("label")}</BindableInput>)}
-              {field(t("props.tag"), tagInput("es. pump1.speed"))}
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
-                <div><div style={LABEL}>Min</div><BindableInput obj={obj} propName="min" onChange={onChange}>{numInput("min", 0)}</BindableInput></div>
-                <div><div style={LABEL}>Max</div><BindableInput obj={obj} propName="max" onChange={onChange}>{numInput("max", 100)}</BindableInput></div>
-              </div>
-              {field(t("props.unit"), <BindableInput obj={obj} propName="unit" onChange={onChange}>{textInput("unit", "")}</BindableInput>)}
-              {field(t("props.decimals"), <BindableInput obj={obj} propName="decimals" onChange={onChange}>{numInput("decimals", 1)}</BindableInput>)}
-              <div style={{ fontSize: 10, color: "var(--brand-text-subtle, #94a3b8)", marginTop: 4, marginBottom: 2, fontWeight: 700 }}>{t("shell.soglie")}</div>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
-                <div><div style={LABEL}>{t("props.warnLow")}</div><BindableInput obj={obj} propName="warn_low" onChange={onChange}>{numInput("warn_low", 0)}</BindableInput></div>
-                <div><div style={LABEL}>{t("props.warnHigh")}</div><BindableInput obj={obj} propName="warn_high" onChange={onChange}>{numInput("warn_high", 0)}</BindableInput></div>
-                <div><div style={LABEL}>{t("props.alarmLow")}</div><BindableInput obj={obj} propName="alarm_low" onChange={onChange}>{numInput("alarm_low", 0)}</BindableInput></div>
-                <div><div style={LABEL}>{t("props.alarmHigh")}</div><BindableInput obj={obj} propName="alarm_high" onChange={onChange}>{numInput("alarm_high", 0)}</BindableInput></div>
-              </div>
-              {field(t("props.showValue"),
-                <input type="checkbox" checked={obj.show_value !== false}
-                  onChange={(e) => onChange({ show_value: e.target.checked ? undefined : false })} />
-              )}
-              {field(t("props.needleColor"), <BindableInput obj={obj} propName="stroke" onChange={onChange}>{colorInput("stroke")}</BindableInput>)}
-              {field(t("props.textsColor"), <BindableInput obj={obj} propName="color" onChange={onChange}>{colorInput("color")}</BindableInput>)}
-
-              {/* F7.6 — quadrante: apertura dell'arco e tacche numerate. */}
-              <div style={{ fontSize: 10, color: "var(--brand-text-subtle, #94a3b8)", marginTop: 6, marginBottom: 2, fontWeight: 700 }}>
-                {t("props.dial")}
-              </div>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
-                <div><div style={LABEL}>{t("props.startAngle")}</div>{numInput("gauge_start_angle", -135)}</div>
-                <div><div style={LABEL}>{t("props.endAngle")}</div>{numInput("gauge_end_angle", 135)}</div>
-              </div>
-              {field(t("props.ticks"), numInput("gauge_ticks", 0))}
-              <p style={{ fontSize: 10, color: "var(--brand-text-subtle, #94a3b8)", margin: "-2px 0 4px" }}>
-                {t("props.ticksHint")}
-              </p>
-
-              {/* F7.6 — secondo indicatore (setpoint). */}
-              <div style={{ fontSize: 10, color: "var(--brand-text-subtle, #94a3b8)", marginTop: 6, marginBottom: 2, fontWeight: 700 }}>
-                {t("props.secondIndicator")}
-              </div>
-              <TagInput value={obj.gauge_sp_tag ?? ""} onChange={(v) => onChange({ gauge_sp_tag: v || undefined })}
-                placeholder={t("props.setpointTagPlaceholder")} />
-              {obj.gauge_sp_tag && field(t("props.color"), colorInput("gauge_sp_color"))}
-
-              {/* F7.6 — zone colorate del fondo scala. */}
-              <div style={{ fontSize: 10, color: "var(--brand-text-subtle, #94a3b8)", marginTop: 6, marginBottom: 2, fontWeight: 700 }}>
-                {t("props.zones")}
-              </div>
-              {(obj.gauge_zones ?? []).map((z, i) => (
-                <div key={i} style={{ display: "flex", gap: 4, alignItems: "center", marginBottom: 3 }}>
-                  <CampoNumero style={{ ...INPUT, width: 56 }} value={z.from}
-                    onTesto={(e) => {
-                      const zs = [...(obj.gauge_zones ?? [])];
-                      zs[i] = { ...zs[i], from: Number(e) };
-                      onChange({ gauge_zones: zs });
-                    }} />
-                  <span style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)" }}>→</span>
-                  <CampoNumero style={{ ...INPUT, width: 56 }} value={z.to}
-                    onTesto={(e) => {
-                      const zs = [...(obj.gauge_zones ?? [])];
-                      zs[i] = { ...zs[i], to: Number(e) };
-                      onChange({ gauge_zones: zs });
-                    }} />
-                  <SelettoreColore style={{ ...INPUT, padding: 2, height: 26, width: 38, cursor: "pointer", flex: "none" }}
-                    value={estraiHex(z.color) ?? "#22c55e"}
-                    onColore={(e) => {
-                      const zs = [...(obj.gauge_zones ?? [])];
-                      zs[i] = { ...zs[i], color: e };
-                      onChange({ gauge_zones: zs });
-                    }} />
-                  <button title={t("props.remove")}
-                    onClick={() => {
-                      const zs = [...(obj.gauge_zones ?? [])];
-                      zs.splice(i, 1);
-                      onChange({ gauge_zones: zs.length > 0 ? zs : undefined });
-                    }}
-                    style={{ ...INPUT, width: 26, padding: 0, cursor: "pointer", flex: "none" }}>×</button>
-                </div>
-              ))}
-              <button
-                onClick={() => {
-                  const zs = [...(obj.gauge_zones ?? [])];
-                  const lo = obj.min ?? 0; const hi = obj.max ?? 100;
-                  const from = zs.length > 0 ? zs[zs.length - 1].to : lo;
-                  zs.push({ from, to: hi, color: "#22c55e" });
-                  onChange({ gauge_zones: zs });
-                }}
-                style={{ ...INPUT, cursor: "pointer", marginBottom: 4 }}>+ {t("props.addZone")}</button>
-            </>
-          )}
-
-          {/* Slider */}
-          {obj.type === "slider" && (
-            <>
-              {field(t("props.tag"), tagInput("es. pump1.speed"))}
-              {/* 30-09-2026: il web disegna `label` dello slider da sempre, ma il
-                  pannello non aveva il campo — si poteva solo ereditare da un file. */}
-              {field(t("props.label"), <BindableInput obj={obj} propName="label" onChange={onChange}>{textInput("label")}</BindableInput>)}
-              <div style={GRIGLIA_NUMERICA}>
-                <div><div style={LABEL}>{t("props.fontSize")}</div><BindableInput obj={obj} propName="font_size" onChange={onChange}>{numInput("font_size", 12)}</BindableInput></div>
-                <div><div style={LABEL}>{t("props.labelFontSize")}</div><BindableInput obj={obj} propName="label_font_size" onChange={onChange}>{numInput("label_font_size", 11)}</BindableInput></div>
-              </div>
-              {field(t("props.color"), <BindableInput obj={obj} propName="fill" onChange={onChange}>{colorInput("fill")}</BindableInput>)}
-              {/* Fase 2 della revisione (30-10-2026): la traccia vuota (vuota =
-                  il colore qui sopra al 20 %), il suo spessore, dove sta il valore. */}
-              {field(t("props.sliderStyle"),
-                <select style={{ ...INPUT, cursor: "pointer" }} value={obj.slider_style ?? "classico"}
-                  onChange={(e) => onChange({ slider_style: e.target.value === "classico" ? undefined : e.target.value as "pillola" | "piastra" | "isa" })}>
-                  <option value="classico">{t("props.stileClassico")}</option>
-                  <option value="pillola">{t("props.stilePillola")}</option>
-                  <option value="piastra">{t("props.stilePiastra")}</option>
-                  <option value="isa">{t("props.stileIsa")}</option>
-                </select>
-              )}
-              {obj.slider_style === "piastra" && field(t("props.sliderIcon"),
-                <select style={{ ...INPUT, cursor: "pointer" }} value={obj.slider_icon ?? ""}
-                  onChange={(e) => onChange({ slider_icon: e.target.value || undefined })}>
-                  <option value="">{t("props.nessunaIcona")}</option>
-                  {NOMI_ICONE_SLIDER.map((n) => <option key={n} value={n}>{t(`props.icona_${n}`)}</option>)}
-                </select>
-              )}
-              {field(t("props.sliderTrackColor"), colorInput("slider_track_color"))}
-              {field(t("props.sliderTrackOpacity"), numInput("slider_track_opacity", 100))}
-              {field(t("props.sliderTrackThickness"), numInput("slider_track_thickness", 16))}
-              {field(t("props.sliderValuePosition"),
-                <select style={{ ...INPUT, cursor: "pointer" }} value={obj.slider_value_position ?? aspettoStile(obj.slider_style).posizione}
-                  onChange={(e) => onChange({ slider_value_position: e.target.value === aspettoStile(obj.slider_style).posizione ? undefined : e.target.value as "sotto" | "sopra" | "dentro" | "cursore" })}>
-                  <option value="sotto">{t("props.posizioneSotto")}</option>
-                  <option value="sopra">{t("props.posizioneSopra")}</option>
-                  <option value="dentro">{t("props.posizioneDentro")}</option>
-                  <option value="cursore">{t("props.posizioneCursore")}</option>
-                </select>
-              )}
-              <div style={GRIGLIA_NUMERICA}>
-                <div><div style={LABEL}>Min</div><BindableInput obj={obj} propName="min" onChange={onChange}>{numInput("min", 0)}</BindableInput></div>
-                <div><div style={LABEL}>Max</div><BindableInput obj={obj} propName="max" onChange={onChange}>{numInput("max", 100)}</BindableInput></div>
-                <div><div style={LABEL}>Step</div><BindableInput obj={obj} propName="step" onChange={onChange}>{numInput("step", 1)}</BindableInput></div>
-              </div>
-              {/* 30-10-2026 (revisione dello slider, fase 1): i due motori usano
-                  unità e decimali da sempre, il pannello non li offriva. */}
-              {field(t("props.unit"), <BindableInput obj={obj} propName="unit" onChange={onChange}>{textInput("unit", "")}</BindableInput>)}
-              {field(t("props.decimals"), <BindableInput obj={obj} propName="decimals" onChange={onChange}>{numInput("decimals", 0)}</BindableInput>)}
-              {field(t("props.orientation"),
-                <select
-                  style={{ ...INPUT, cursor: "pointer" }}
-                  value={obj.orientation ?? "horizontal"}
-                  onChange={(e) => onChange({ orientation: e.target.value as "horizontal" | "vertical" })}
-                >
-                  <option value="horizontal">{t("props.horizontal")}</option>
-                  <option value="vertical">{t("props.vertical")}</option>
-                </select>
-              )}
-              {field(t("props.showValue"),
-                <input type="checkbox" checked={obj.show_value !== false}
-                  onChange={(e) => onChange({ show_value: e.target.checked ? undefined : false })} />
-              )}
-              {field(t("props.readOnly"),
-                <input type="checkbox" checked={!!obj.read_only}
-                  onChange={(e) => onChange({ read_only: e.target.checked })} />
-              )}
-              {field(t("props.writeOnRelease"),
-                <input type="checkbox" checked={obj.write_on_release !== false}
-                  onChange={(e) => onChange({ write_on_release: e.target.checked ? undefined : false })} />
-              )}
-              {field(t("props.writeDeadband"), numInput("write_deadband", 0))}
-              {/* Fase 4 della revisione (30-10-2026): tacche nelle unità del
-                  valore, i loro numeri, l'aggancio; le bande dai quattro limiti
-                  (che si possono lasciare al tag). */}
-              <div style={GRIGLIA_NUMERICA}>
-                <div><div style={LABEL}>{t("props.taccaMaggiore")}</div>{numInput("slider_tick_major", 0)}</div>
-                <div><div style={LABEL}>{t("props.taccaMinore")}</div>{numInput("slider_tick_minor", 0)}</div>
-              </div>
-              {field(t("props.numeriTacche"),
-                <input type="checkbox" checked={obj.slider_tick_labels ?? !!obj.slider_tick_major}
-                  onChange={(e) => onChange({ slider_tick_labels: e.target.checked })} />
-              )}
-              {field(t("props.agganciaTacche"),
-                <input type="checkbox" checked={!!obj.slider_snap_ticks}
-                  onChange={(e) => onChange({ slider_snap_ticks: e.target.checked || undefined })} />
-              )}
-              {/* Fase 6: la molla. Accenderla scrive il riposo — l'origine se lo
-                  slider è bipolare, altrimenti il minimo (decisione 7). */}
-              {field(t("props.mollaSlider"),
-                <input type="checkbox" checked={obj.slider_rest_value !== undefined}
-                  onChange={(e) => onChange({ slider_rest_value: e.target.checked ? (obj.slider_origin ?? obj.min ?? 0) : undefined })} />
-              )}
-              {obj.slider_rest_value !== undefined && field(t("props.riposoSlider"), numInput("slider_rest_value", 0))}
-              {/* Fase 5 della revisione: bipolare e valore misurato. */}
-              {field(t("props.origineSlider"), numInput("slider_origin", 0))}
-              {field(t("props.pvSlider"),
-                <TagInput value={obj.slider_pv_tag ?? ""} onChange={(v) => onChange({ slider_pv_tag: v || undefined })}
-                  style={INPUT} placeholder={t("props.pvSliderAiuto")} />
-              )}
-              {obj.slider_pv_tag && field(t("props.colorePv"), colorInput("slider_pv_color"))}
-              {field(t("props.bandeSlider"),
-                <select style={{ ...INPUT, cursor: "pointer" }} value={obj.slider_bands ?? "mai"}
-                  onChange={(e) => onChange({ slider_bands: e.target.value === "mai" ? undefined : e.target.value as "sempre" | "in_allarme" })}>
-                  <option value="mai">{t("props.bandeMai")}</option>
-                  <option value="sempre">{t("props.bandeSempre")}</option>
-                  <option value="in_allarme">{t("props.bandeInAllarme")}</option>
-                </select>
-              )}
-              {obj.slider_bands && (
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
-                  <div><div style={LABEL}>{t("props.warnLow")}</div><BindableInput obj={obj} propName="warn_low" onChange={onChange}>{numInput("warn_low", 0)}</BindableInput></div>
-                  <div><div style={LABEL}>{t("props.warnHigh")}</div><BindableInput obj={obj} propName="warn_high" onChange={onChange}>{numInput("warn_high", 0)}</BindableInput></div>
-                  <div><div style={LABEL}>{t("props.alarmLow")}</div><BindableInput obj={obj} propName="alarm_low" onChange={onChange}>{numInput("alarm_low", 0)}</BindableInput></div>
-                  <div><div style={LABEL}>{t("props.alarmHigh")}</div><BindableInput obj={obj} propName="alarm_high" onChange={onChange}>{numInput("alarm_high", 0)}</BindableInput></div>
-                </div>
-              )}
-            </>
-          )}
-
-          {/* Setpoint */}
-          {obj.type === "setpoint" && (
-            <>
-              {field(t("props.label"), <BindableInput obj={obj} propName="label" onChange={onChange}>{textInput("label")}</BindableInput>)}
-              {field(t("props.tag"), tagInput("es. pump1.speed_sp"))}
-              <div style={GRIGLIA_NUMERICA}>
-                <div><div style={LABEL}>{t("props.fontSize")}</div><BindableInput obj={obj} propName="font_size" onChange={onChange}>{numInput("font_size", 12)}</BindableInput></div>
-                <div><div style={LABEL}>{t("props.labelFontSize")}</div><BindableInput obj={obj} propName="label_font_size" onChange={onChange}>{numInput("label_font_size", 11)}</BindableInput></div>
-                <div><div style={LABEL}>{t("props.buttonFontSize")}</div><BindableInput obj={obj} propName="button_font_size" onChange={onChange}>{numInput("button_font_size", 12)}</BindableInput></div>
-              </div>
-              {field(t("props.unit"), <BindableInput obj={obj} propName="unit" onChange={onChange}>{textInput("unit", "")}</BindableInput>)}
-              {field(t("props.decimals"), <BindableInput obj={obj} propName="decimals" onChange={onChange}>{numInput("decimals", 1)}</BindableInput>)}
-              <div style={GRIGLIA_NUMERICA}>
-                <div><div style={LABEL}>Min</div><BindableInput obj={obj} propName="min" onChange={onChange}>{numInput("min", 0)}</BindableInput></div>
-                <div><div style={LABEL}>Max</div><BindableInput obj={obj} propName="max" onChange={onChange}>{numInput("max", 100)}</BindableInput></div>
-                <div><div style={LABEL}>Step</div><BindableInput obj={obj} propName="step" onChange={onChange}>{numInput("step", 1)}</BindableInput></div>
-              </div>
-              {field(t("props.readOnly"),
-                <input type="checkbox" checked={!!obj.read_only}
-                  onChange={(e) => onChange({ read_only: e.target.checked })} />
-              )}
-            </>
-          )}
-
-          {/* Checkbox */}
-          {obj.type === "checkbox" && (
-            <>
-              {field(t("props.label"), <BindableInput obj={obj} propName="label" onChange={onChange}>{textInput("label")}</BindableInput>)}
-              {field(t("props.fontSize"), <BindableInput obj={obj} propName="font_size" onChange={onChange}>{numInput("font_size", 13)}</BindableInput>)}
-              {field(t("props.tag"), tagInput("es. pump1.run"))}
-              {field(t("props.color"), <BindableInput obj={obj} propName="fill" onChange={onChange}>{colorInput("fill")}</BindableInput>)}
-              {field(t("props.valueOn"),
-                <BindableInput obj={obj} propName="checked_value" onChange={onChange}>
-                  <input type="text" style={INPUT} placeholder={t("props.trueHint")}
-                    value={obj.checked_value !== undefined ? String(obj.checked_value) : ""}
-                    onChange={(e) => {
-                      const raw = e.target.value;
-                      const v = raw === "true" ? true : raw === "false" ? false
-                        : isNaN(Number(raw)) || raw.trim() === "" ? raw : Number(raw);
-                      onChange({ checked_value: v });
-                    }} />
-                </BindableInput>
-              )}
-              {field(t("props.valueOff"),
-                <BindableInput obj={obj} propName="unchecked_value" onChange={onChange}>
-                  <input type="text" style={INPUT} placeholder={t("props.falseHint")}
-                    value={obj.unchecked_value !== undefined ? String(obj.unchecked_value) : ""}
-                    onChange={(e) => {
-                      const raw = e.target.value;
-                      const v = raw === "true" ? true : raw === "false" ? false
-                        : isNaN(Number(raw)) || raw.trim() === "" ? raw : Number(raw);
-                      onChange({ unchecked_value: v });
-                    }} />
-                </BindableInput>
-              )}
-              {field(t("props.readOnly"),
-                <input type="checkbox" checked={!!obj.read_only}
-                  onChange={(e) => onChange({ read_only: e.target.checked })} />
-              )}
-            </>
-          )}
-
-          {/* Radio */}
-          {obj.type === "radio" && (
-            <>
-              {field(t("props.label"), <BindableInput obj={obj} propName="label" onChange={onChange}>{textInput("label")}</BindableInput>)}
-              <div style={GRIGLIA_NUMERICA}>
-                <div><div style={LABEL}>{t("props.fontSize")}</div><BindableInput obj={obj} propName="font_size" onChange={onChange}>{numInput("font_size", 13)}</BindableInput></div>
-                <div><div style={LABEL}>{t("props.labelFontSize")}</div><BindableInput obj={obj} propName="label_font_size" onChange={onChange}>{numInput("label_font_size", 11)}</BindableInput></div>
-              </div>
-              {field(t("props.tag"), tagInput("es. pump1.mode"))}
-              {field(t("props.color"), <BindableInput obj={obj} propName="fill" onChange={onChange}>{colorInput("fill")}</BindableInput>)}
-              {field(t("props.orientation"),
-                <select
-                  style={{ ...INPUT, cursor: "pointer" }}
-                  value={obj.orientation ?? "vertical"}
-                  onChange={(e) => onChange({ orientation: e.target.value as "horizontal" | "vertical" })}
-                >
-                  <option value="vertical">{t("props.vertical")}</option>
-                  <option value="horizontal">{t("props.horizontal")}</option>
-                </select>
-              )}
-              {field(t("props.readOnly"),
-                <input type="checkbox" checked={!!obj.read_only}
-                  onChange={(e) => onChange({ read_only: e.target.checked })} />
-              )}
-              <RadioOptionsEditor
-                options={(obj.options as RadioOption[] | undefined) ?? []}
-                onChange={(opts) => onChange({ options: opts as SynopticObject["options"] })}
-              />
-            </>
-          )}
-
-          {/* LED */}
-          {obj.type === "led" && (
-            <>
-              {field(t("props.label"), <BindableInput obj={obj} propName="label" onChange={onChange}>{textInput("label")}</BindableInput>)}
-              {field(t("props.fontSize"), <BindableInput obj={obj} propName="font_size" onChange={onChange}>{numInput("font_size", 11)}</BindableInput>)}
-              {field(t("props.tag"), tagInput("es. pump1.run"))}
-              {field(t("props.valueOn"),
-                <BindableInput obj={obj} propName="on_value" onChange={onChange}>
-                  <input type="text" style={INPUT} placeholder={t("props.trueHint")}
-                    value={obj.on_value !== undefined ? String(obj.on_value) : ""}
-                    onChange={(e) => {
-                      const raw = e.target.value;
-                      const v = raw === "true" ? true : raw === "false" ? false
-                        : isNaN(Number(raw)) || raw.trim() === "" ? raw : Number(raw);
-                      onChange({ on_value: v });
-                    }} />
-                </BindableInput>
-              )}
-              {field(t("props.colorOn"),  <BindableInput obj={obj} propName="on_color" onChange={onChange}>{colorInput("on_color")}</BindableInput>)}
-              {field(t("props.colorOff"), <BindableInput obj={obj} propName="off_color" onChange={onChange}>{colorInput("off_color")}</BindableInput>)}
-            </>
-          )}
-
-          {/* Progress bar */}
-          {obj.type === "progress_bar" && (
-            <>
-              {field(t("props.label"), <BindableInput obj={obj} propName="label" onChange={onChange}>{textInput("label")}</BindableInput>)}
-              {field(t("props.tag"), tagInput("es. tank1.level"))}
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
-                <div><div style={LABEL}>Min</div><BindableInput obj={obj} propName="min" onChange={onChange}>{numInput("min", 0)}</BindableInput></div>
-                <div><div style={LABEL}>Max</div><BindableInput obj={obj} propName="max" onChange={onChange}>{numInput("max", 100)}</BindableInput></div>
-              </div>
-              {field(t("props.unit"), <BindableInput obj={obj} propName="unit" onChange={onChange}>{textInput("unit", "")}</BindableInput>)}
-              {field(t("props.decimals"), <BindableInput obj={obj} propName="decimals" onChange={onChange}>{numInput("decimals", 1)}</BindableInput>)}
-              {field(t("props.colorBar"), <BindableInput obj={obj} propName="fill" onChange={onChange}>{colorInput("fill")}</BindableInput>)}
-              <div style={GRIGLIA_NUMERICA}>
-                <div><div style={LABEL}>{t("props.fontSize")}</div><BindableInput obj={obj} propName="font_size" onChange={onChange}>{numInput("font_size", 11)}</BindableInput></div>
-                <div><div style={LABEL}>{t("props.labelFontSize")}</div><BindableInput obj={obj} propName="label_font_size" onChange={onChange}>{numInput("label_font_size", 11)}</BindableInput></div>
-              </div>
-              <div style={{ fontSize: 10, color: "var(--brand-text-subtle, #94a3b8)", marginTop: 4, marginBottom: 2, fontWeight: 700 }}>{t("shell.soglie")}</div>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
-                <div><div style={LABEL}>{t("props.warnLow")}</div><BindableInput obj={obj} propName="warn_low" onChange={onChange}>{numInput("warn_low", 0)}</BindableInput></div>
-                <div><div style={LABEL}>{t("props.warnHigh")}</div><BindableInput obj={obj} propName="warn_high" onChange={onChange}>{numInput("warn_high", 0)}</BindableInput></div>
-                <div><div style={LABEL}>{t("props.alarmLow")}</div><BindableInput obj={obj} propName="alarm_low" onChange={onChange}>{numInput("alarm_low", 0)}</BindableInput></div>
-                <div><div style={LABEL}>{t("props.alarmHigh")}</div><BindableInput obj={obj} propName="alarm_high" onChange={onChange}>{numInput("alarm_high", 0)}</BindableInput></div>
-              </div>
-              {field(t("props.showValue"),
-                <input type="checkbox" checked={obj.show_value !== false}
-                  onChange={(e) => onChange({ show_value: e.target.checked ? undefined : false })} />
-              )}
-            </>
-          )}
-
-          {/* Table */}
-          {obj.type === "table" && (() => {
-            // F7.1 — colonne mostrate, in ordine fisso di presentazione; l'utente
-            // sceglie quali accendere (le tre storiche sono il default).
-            const ALL_COLS = ["label", "value", "unit", "quality", "time"] as const;
-            const active = obj.table_columns ?? ["label", "value", "quality"];
-            const toggleCol = (c: typeof ALL_COLS[number]) => {
-              const next = active.includes(c) ? active.filter((x) => x !== c) : ALL_COLS.filter((x) => active.includes(x) || x === c);
-              onChange({ table_columns: next.length > 0 ? [...next] : undefined });
-            };
-            return (
-              <>
-                <div style={{ fontSize: 10, color: "var(--brand-text-subtle, #94a3b8)", marginTop: 4, marginBottom: 2, fontWeight: 700 }}>
-                  {t("props.columns")}
-                </div>
-                <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                  {ALL_COLS.map((c) => (
-                    <label key={c} style={{ fontSize: 11, color: "var(--brand-text-muted, #94a3b8)", display: "flex", gap: 3, alignItems: "center" }}>
-                      <input type="checkbox" checked={active.includes(c)} onChange={() => toggleCol(c)} />
-                      {t(`props.col_${c}`)}
-                    </label>
-                  ))}
-                </div>
-                {field(t("props.labelHeader"), textInput("table_label_header", t("shell.data")))}
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
-                  {/* Il ripiego e' a catena come nei due motori (22-10-2026): una
-                      tabella che ha ancora `table_font_size` non riceve `font_size`
-                      — gliel'ha impedito `riempiPredefiniti`, o si rimpicciolirebbe
-                      da sola — quindi senza questo il campo mostrava 11 mentre i
-                      due canvas disegnavano il 16 del campo vecchio. */}
-                  <div><div style={LABEL}>{t("props.dimensionPx")}</div>{numInput("font_size", (obj.table_font_size ?? 11))}</div>
-                </div>
-                <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 4 }}>
-                  <label style={{ fontSize: 11, color: "var(--brand-text-muted, #94a3b8)", display: "flex", gap: 3, alignItems: "center" }}>
-                    <input type="checkbox" checked={obj.table_sortable !== false}
-                      onChange={(e) => onChange({ table_sortable: e.target.checked ? undefined : false })} />
-                    {t("props.sortable")}
-                  </label>
-                  <label style={{ fontSize: 11, color: "var(--brand-text-muted, #94a3b8)", display: "flex", gap: 3, alignItems: "center" }}>
-                    <input type="checkbox" checked={obj.table_filterable === true}
-                      onChange={(e) => onChange({ table_filterable: e.target.checked || undefined })} />
-                    {t("props.filterRow")}
-                  </label>
-                </div>
-                <p style={{ fontSize: 10, color: "var(--brand-text-subtle, #94a3b8)", margin: "4px 0" }}>
-                  {t("props.tableHint")}
-                </p>
-                <TableRowsEditor
-                  rows={(obj.table_rows as TableRow[] | undefined) ?? []}
-                  onChange={(rows) => onChange({ table_rows: rows as SynopticObject["table_rows"] })}
-                />
-              </>
-            );
-          })()}
-
-          {/* Trend */}
-          {obj.type === "trend" && (() => {
-            // TRACCE unificate (migrazione 2026-08-23): ogni riga è un
-            // TrendTrace {tag, label, colore, stile…}. La traccia 1 non è più
-            // speciale; niente più campo Tag separato né line_color.
-            const traces = obj.trend_tags ?? [];
-            const patchTrace = (idx: number, patch: Partial<TrendTrace>) => {
-              const next = traces.map((tr, i) => (i === idx ? { ...tr, ...patch } : tr));
-              onChange({ trend_tags: next });
-            };
-            const removeTrace = (idx: number) =>
-              onChange({ trend_tags: traces.filter((_, i) => i !== idx) });
-            const traceRow = (tr: TrendTrace, idx: number) => (
-              <div key={idx} style={{ marginBottom: 6, padding: 4, border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 4 }}>
-                <div style={{ display: "flex", gap: 4, marginBottom: 3, alignItems: "center" }}>
-                  <TagInput
-                    style={{ ...INPUT, flex: 1 }}
-                    placeholder={t("props.exBoiler")}
-                    value={tr.tag}
-                    onChange={(v) => patchTrace(idx, { tag: v })}
-                  />
-                  <input
-                    style={{ ...INPUT, width: 90 }}
-                    placeholder={t("props.traceLabel")}
-                    value={tr.label ?? ""}
-                    onChange={(e) => patchTrace(idx, { label: e.target.value || undefined })}
-                  />
-                  <button
-                    title={t("props.remove")}
-                    style={{ background: "transparent", border: "none", color: "var(--brand-danger, #ef4444)", cursor: "pointer", fontSize: 14, padding: "0 4px" }}
-                    onClick={() => removeTrace(idx)}
-                  >×</button>
-                </div>
-                <div style={{ display: "flex", gap: 5, alignItems: "center", flexWrap: "wrap" }}>
-                  <SelettoreColore
-                    value={estraiHex(tr.color) ?? PALETTE[idx % PALETTE.length]}
-                    onColore={(e) => patchTrace(idx, { color: e })}
-                    title={t("props.color")}
-                    style={{ width: 26, height: 22, padding: 1, border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 3 }}
-                  />
-                  <CampoNumero
-                    min={0.5} max={10} step={0.5}
-                    value={tr.width ?? 1.5}
-                    title={t("props.strokeWidth")}
-                    onTesto={(e) => patchTrace(idx, { width: e === "" ? undefined : Number(e) })}
-                    style={{ ...INPUT, width: 46, padding: "2px 4px" }}
-                  />
-                  <select
-                    value={tr.dash ?? "solid"}
-                    title={t("props.dashPattern")}
-                    onChange={(e) => patchTrace(idx, { dash: e.target.value === "solid" ? undefined : (e.target.value as TrendTrace["dash"]) })}
-                    style={{ ...INPUT, width: 84, padding: "2px 4px" }}
-                  >
-                    <option value="solid">{t("props.dashSolid")}</option>
-                    <option value="dashed">{t("props.dashDashed")}</option>
-                    <option value="dotted">{t("props.dashDotted")}</option>
-                  </select>
-                  <label style={{ fontSize: 10, color: "var(--brand-text-muted, #94a3b8)", display: "flex", gap: 2, alignItems: "center" }}>
-                    <input type="checkbox" checked={tr.fill ?? false} onChange={(e) => patchTrace(idx, { fill: e.target.checked || undefined })} />
-                    {t("props.fillArea")}
-                  </label>
-                  {tr.fill && (
-                    <CampoNumero
-                      min={0} max={1} step={0.05}
-                      value={tr.fill_opacity ?? 0.15}
-                      title={t("props.fillOpacity")}
-                      onTesto={(e) => patchTrace(idx, { fill_opacity: e === "" ? undefined : Number(e) })}
-                      style={{ ...INPUT, width: 46, padding: "2px 4px" }}
-                    />
-                  )}
-                  <label style={{ fontSize: 10, color: "var(--brand-text-muted, #94a3b8)", display: "flex", gap: 2, alignItems: "center" }}>
-                    <input type="checkbox" checked={tr.smooth ?? false} onChange={(e) => patchTrace(idx, { smooth: e.target.checked || undefined })} />
-                    {t("props.smoothCurve")}
-                  </label>
-                  <label style={{ fontSize: 10, color: "var(--brand-text-muted, #94a3b8)", display: "flex", gap: 2, alignItems: "center" }} title={t("props.ownScaleHint")}>
-                    <input type="checkbox" checked={tr.own_scale ?? false} onChange={(e) => patchTrace(idx, { own_scale: e.target.checked || undefined })} />
-                    {t("props.ownScale")}
-                  </label>
-                  <label style={{ fontSize: 10, color: "var(--brand-text-muted, #94a3b8)", display: "flex", gap: 2, alignItems: "center" }} title={t("props.traceHiddenHint")}>
-                    <input type="checkbox" checked={tr.hidden ?? false} onChange={(e) => patchTrace(idx, { hidden: e.target.checked || undefined })} />
-                    {t("props.traceHidden")}
-                  </label>
-                </div>
-              </div>
-            );
-
-            return (
-            <>
-              {/* TRACCE — la prima cosa che si configura */}
-              <SottoTitolo chiave="traces" />
-              {traces.map(traceRow)}
-              <button
-                style={{ ...INPUT, cursor: "pointer", color: "var(--brand-text-subtle, #64748b)", borderStyle: "dashed", width: "100%", marginBottom: 8 }}
-                onClick={() => onChange({ trend_tags: [...traces, { tag: "" }] })}
-              >
-                + {t("props.addTrace")}
-              </button>
-
-              {field(t("props.windowS"), <BindableInput obj={obj} propName="window_s" onChange={onChange}>{numInput("window_s", 60)}</BindableInput>)}
-              {field(t("props.fontSize"), <BindableInput obj={obj} propName="font_size" onChange={onChange}>{numInput("font_size", 10)}</BindableInput>)}
-              {field(t("props.panStepS"), numInput("pan_step_s", Math.round((obj.window_s ?? 60) * 0.25)))}
-              <p style={{ fontSize: 10, color: "var(--brand-text-subtle, #94a3b8)", margin: "-4px 0 0" }}>
-                {t("props.panStepSHint")}
-              </p>
-
-              {/* Formato data/ora (asse X + tooltip) */}
-              <SottoTitolo chiave="dateTimeFormat" />
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
-                <div>
-                  <div style={LABEL}>{t("shell.ordineData")}</div>
-                  <select
-                    style={INPUT}
-                    value={obj.trend_dt_date_order ?? "dmy"}
-                    onChange={(e) => onChange({ trend_dt_date_order: e.target.value as SynopticObject["trend_dt_date_order"] })}
-                  >
-                    <option value="dmy">{t("shell.dmy")}</option>
-                    <option value="mdy">{t("shell.mdy")}</option>
-                    <option value="ymd">{t("shell.ymd")}</option>
-                  </select>
-                </div>
-                <div>
-                  <div style={LABEL}>{t("shell.separatore")}</div>
-                  <select
-                    style={INPUT}
-                    value={obj.trend_dt_separator ?? "/"}
-                    onChange={(e) => onChange({ trend_dt_separator: e.target.value as SynopticObject["trend_dt_separator"] })}
-                  >
-                    <option value="/">{t("shell.sepBarra")}</option>
-                    <option value="-">{t("shell.sepTrattino")}</option>
-                    <option value=".">{t("shell.sepPunto")}</option>
-                  </select>
-                </div>
-                <div>
-                  <div style={LABEL}>{t("shell.formatoOra")}</div>
-                  <select
-                    style={INPUT}
-                    value={obj.trend_dt_time_format ?? "24h"}
-                    onChange={(e) => onChange({ trend_dt_time_format: e.target.value as SynopticObject["trend_dt_time_format"] })}
-                  >
-                    <option value="24h">24h</option>
-                    <option value="12h">12h (AM/PM)</option>
-                  </select>
-                </div>
-              </div>
-              <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginTop: 6 }}>
-                <label style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 11, color: "var(--brand-text-muted, #94a3b8)", cursor: "pointer" }}>
-                  <input type="checkbox" checked={obj.trend_dt_show_year ?? false}
-                    onChange={(e) => onChange({ trend_dt_show_year: e.target.checked || undefined })} />
-                  {t("shell.mostraAnno")}
-                </label>
-                <label style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 11, color: "var(--brand-text-muted, #94a3b8)", cursor: "pointer" }}>
-                  <input type="checkbox" checked={obj.trend_dt_show_seconds ?? false}
-                    onChange={(e) => onChange({ trend_dt_show_seconds: e.target.checked || undefined })} />
-                  {t("shell.mostraSecondi")}
-                </label>
-                <label style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 11, color: "var(--brand-text-muted, #94a3b8)", cursor: "pointer" }}>
-                  <input type="checkbox" checked={obj.trend_dt_two_lines ?? true}
-                    onChange={(e) => onChange({ trend_dt_two_lines: e.target.checked })} />
-                  {t("shell.dataOraDueRighe")}
-                </label>
-                <label style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 11, color: "var(--brand-text-muted, #94a3b8)", cursor: "pointer" }}>
-                  <input type="checkbox" checked={obj.trend_dt_always_show_date ?? false}
-                    onChange={(e) => onChange({ trend_dt_always_show_date: e.target.checked || undefined })} />
-                  {t("shell.mostraSempreData")}
-                </label>
-              </div>
-              <p style={{ fontSize: 10, color: "var(--brand-text-subtle, #94a3b8)", margin: "2px 0 0" }}>
-                {t("shell.withoutAlwaysShowDateThe")}
-              </p>
-
-              <div style={{ ...GRIGLIA_NUMERICA, marginTop: 8 }}>
-                <div><div style={LABEL}>Y min</div><BindableInput obj={obj} propName="y_min" onChange={onChange}>{numInput("y_min", 0)}</BindableInput></div>
-                <div><div style={LABEL}>Y max</div><BindableInput obj={obj} propName="y_max" onChange={onChange}>{numInput("y_max", 100)}</BindableInput></div>
-              </div>
-              {/* La frase diceva «Lascia Y min/max a 0 per autofit», ed era
-                  italiano cablato **e** in disaccordo col resto: il chip accanto
-                  al campo dice «vuoto = auto», e `predefinitiCampi.ts` dichiara
-                  `{ vuoto: "adatta" }`. `TrendCanvas` accetta tutt'e due le
-                  forme, ma insegnarne una che nessun'altra parte
-                  dell'interfaccia nomina manda a indovinare. Stessa chiave di
-                  xy_plot, quattro righe più sotto. */}
-              <p style={{ fontSize: 10, color: "var(--brand-text-subtle, #94a3b8)", margin: "2px 0 0" }}>
-                {t("shell.leaveMinMaxEmptyTo")}
-              </p>
-
-              {/* F5.2x: scala Y logaritmica (solo scala condivisa, dominio > 0). */}
-              <label style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 8, fontSize: 11, color: "var(--brand-text-muted, #94a3b8)", cursor: "pointer" }}>
-                <input
-                  type="checkbox"
-                  checked={obj.trend_log_scale ?? false}
-                  onChange={(e) => onChange({ trend_log_scale: e.target.checked || undefined })}
-                />
-                {t("shell.scalaLog")}
-              </label>
-              {/* Soglie warn/alarm come linee tratteggiate orizzontali (stesso
-                  pattern del bar chart). Valori sulla scala condivisa. */}
-              <label style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 8, fontSize: 11, color: "var(--brand-text-muted, #94a3b8)", cursor: "pointer" }}>
-                <input
-                  type="checkbox"
-                  checked={obj.trend_show_thresholds ?? false}
-                  onChange={(e) => onChange({ trend_show_thresholds: e.target.checked || undefined })}
-                />
-                {t("shell.mostraSoglie")}
-              </label>
-              {obj.trend_show_thresholds && (
-                <>
-                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6, marginTop: 4 }}>
-                    <div><div style={LABEL}>Warn min</div>{numInput("warn_low", 0)}</div>
-                    <div><div style={LABEL}>Warn max</div>{numInput("warn_high", 0)}</div>
-                    <div><div style={LABEL}>Alarm min</div>{numInput("alarm_low", 0)}</div>
-                    <div><div style={LABEL}>Alarm max</div>{numInput("alarm_high", 0)}</div>
-                  </div>
-                  <p style={{ fontSize: 10, color: "var(--brand-text-subtle, #94a3b8)", margin: "2px 0 0" }}>
-                    {t("shell.thresholdsAreValuesOnThe")}
-                  </p>
-                </>
-              )}
-
-              {/* Marker verticali agli eventi di allarme nella finestra visibile */}
-              <label style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 4, fontSize: 11, color: "var(--brand-text-muted, #94a3b8)", cursor: "pointer" }}>
-                <input
-                  type="checkbox"
-                  checked={obj.trend_show_alarm_markers ?? false}
-                  onChange={(e) => onChange({ trend_show_alarm_markers: e.target.checked || undefined })}
-                />
-                {t("shell.showAlarmEventsOnThe")}
-              </label>
-
-              {field(t("props.axisColor"), <BindableInput obj={obj} propName="axis_color" onChange={onChange}>{colorInput("axis_color")}</BindableInput>)}
-              {field(t("props.gridColor"), <BindableInput obj={obj} propName="grid_color" onChange={onChange}>{colorInput("grid_color")}</BindableInput>)}
-              {/* OPC-UA historian backfill */}
-              <label style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 8, fontSize: 11, color: "var(--brand-text-muted, #94a3b8)", cursor: "pointer" }}>
-                <input
-                  type="checkbox"
-                  checked={obj.opcua_backfill ?? false}
-                  onChange={(e) => onChange({ opcua_backfill: e.target.checked || undefined })}
-                />
-                {t("shell.backfillFromOpcUaHistory")}
-              </label>
-            </>
-            );
-          })()}
-
-          {/* XY plot */}
-          {obj.type === "xy_plot" && (() => {
-            // COPPIE unificate (F5.3x/T-70, 2026-09-12): ogni riga è una
-            // XySeries {tag, y_tag, label, colore, stile…} — stesso taglio
-            // di trend_tags. Una curva di riferimento/target è una coppia
-            // come le altre, marcata "dashed": nessun campo "role" a parte.
-            const pairs = obj.xy_series ?? [];
-            const patchPair = (idx: number, patch: Partial<XySeries>) => {
-              const next = pairs.map((p, i) => (i === idx ? { ...p, ...patch } : p));
-              onChange({ xy_series: next });
-            };
-            const removePair = (idx: number) =>
-              onChange({ xy_series: pairs.filter((_, i) => i !== idx) });
-            const pairRow = (p: XySeries, idx: number) => (
-              <div key={idx} style={{ marginBottom: 6, padding: 4, border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 4 }}>
-                <div style={{ display: "flex", gap: 4, marginBottom: 3, alignItems: "center" }}>
-                  <TagInput style={{ ...INPUT, flex: 1 }} placeholder={t("props.xTag")} value={p.tag} onChange={(v) => patchPair(idx, { tag: v })} />
-                  <TagInput style={{ ...INPUT, flex: 1 }} placeholder={t("props.yTag")} value={p.y_tag} onChange={(v) => patchPair(idx, { y_tag: v })} />
-                  <button
-                    title={t("props.remove")}
-                    style={{ background: "transparent", border: "none", color: "var(--brand-danger, #ef4444)", cursor: "pointer", fontSize: 14, padding: "0 4px" }}
-                    onClick={() => removePair(idx)}
-                  >×</button>
-                </div>
-                <div style={{ display: "flex", gap: 5, alignItems: "center", flexWrap: "wrap" }}>
-                  <input
-                    style={{ ...INPUT, width: 90 }}
-                    placeholder={t("props.traceLabel")}
-                    value={p.label ?? ""}
-                    onChange={(e) => patchPair(idx, { label: e.target.value || undefined })}
-                  />
-                  <SelettoreColore
-                    value={estraiHex(p.color) ?? PALETTE[idx % PALETTE.length]}
-                    onColore={(e) => patchPair(idx, { color: e })}
-                    title={t("props.color")}
-                    style={{ width: 26, height: 22, padding: 1, border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 3 }}
-                  />
-                  <CampoNumero
-                    min={0.5} max={10} step={0.5}
-                    value={p.width ?? 1.5}
-                    title={t("props.strokeWidth")}
-                    onTesto={(e) => patchPair(idx, { width: e === "" ? undefined : Number(e) })}
-                    style={{ ...INPUT, width: 46, padding: "2px 4px" }}
-                  />
-                  <select
-                    value={p.dash ?? "solid"}
-                    title={t("props.dashPattern")}
-                    onChange={(e) => patchPair(idx, { dash: e.target.value === "solid" ? undefined : (e.target.value as XySeries["dash"]) })}
-                    style={{ ...INPUT, width: 84, padding: "2px 4px" }}
-                  >
-                    <option value="solid">{t("props.dashSolid")}</option>
-                    <option value="dashed">{t("props.dashDashed")}</option>
-                    <option value="dotted">{t("props.dashDotted")}</option>
-                  </select>
-                </div>
-              </div>
-            );
-
-            return (
-            <>
-              <SottoTitolo chiave="xyPairs" />
-              {pairs.map(pairRow)}
-              <button
-                style={{ ...INPUT, cursor: "pointer", color: "var(--brand-text-subtle, #64748b)", borderStyle: "dashed", width: "100%", marginBottom: 8 }}
-                onClick={() => onChange({ xy_series: [...pairs, { tag: "", y_tag: "" }] })}
-              >
-                + {t("props.addXyPair")}
-              </button>
-              {field(t("props.trailS"), <BindableInput obj={obj} propName="xy_trail_s" onChange={onChange}>{numInput("xy_trail_s", 30)}</BindableInput>)}
-              {field(t("props.xySampleMs"), <BindableInput obj={obj} propName="xy_sample_ms" onChange={onChange}>{numInput("xy_sample_ms", 200)}</BindableInput>)}
-              {field(t("props.fontSize"), <BindableInput obj={obj} propName="font_size" onChange={onChange}>{numInput("font_size", 10)}</BindableInput>)}
-              <div style={GRIGLIA_NUMERICA}>
-                <div><div style={LABEL}>X min</div><BindableInput obj={obj} propName="xy_x_min" onChange={onChange}>{numInput("xy_x_min", 0)}</BindableInput></div>
-                <div><div style={LABEL}>X max</div><BindableInput obj={obj} propName="xy_x_max" onChange={onChange}>{numInput("xy_x_max", 100)}</BindableInput></div>
-                <div><div style={LABEL}>Y min</div><BindableInput obj={obj} propName="xy_y_min" onChange={onChange}>{numInput("xy_y_min", 0)}</BindableInput></div>
-                <div><div style={LABEL}>Y max</div><BindableInput obj={obj} propName="xy_y_max" onChange={onChange}>{numInput("xy_y_max", 100)}</BindableInput></div>
-              </div>
-              <p style={{ fontSize: 10, color: "var(--brand-text-subtle, #94a3b8)", margin: "2px 0 0" }}>
-                {t("shell.leaveMinMaxEmptyTo")}
-              </p>
-              {field(t("props.xAxisLabel"), <BindableInput obj={obj} propName="xy_x_label" onChange={onChange}><input style={INPUT} value={obj.xy_x_label ?? ""} onChange={(e) => onChange({ xy_x_label: e.target.value || undefined })} /></BindableInput>)}
-              {field(t("props.yAxisLabel"), <BindableInput obj={obj} propName="xy_y_label" onChange={onChange}><input style={INPUT} value={obj.xy_y_label ?? ""} onChange={(e) => onChange({ xy_y_label: e.target.value || undefined })} /></BindableInput>)}
-            </>
-            );
-          })()}
-
-          {/* Image (external URL) */}
-          {obj.type === "image" && (
-            <>
-              {/* Adattamento al box: accanto alla sorgente, nel ramo del tipo
-                  (26-09-2026; prima stava in «Aspetto»). */}
-              {field(t("props.imageFit"),
-                <select style={{ ...INPUT, cursor: "pointer" }}
-                  value={obj.image_fit ?? "stretch"}
-                  onChange={(e) => onChange({ image_fit: e.target.value === "stretch" ? undefined : (e.target.value as "contain" | "cover") })}>
-                  <option value="stretch">{t("props.fitStretch")}</option>
-                  <option value="contain">{t("props.fitContain")}</option>
-                  <option value="cover">{t("props.fitCover")}</option>
-                </select>
-              )}
-              {field(t("props.imageUrl"),
-                <div style={{ display: "flex", gap: 4 }}>
-                  <BindableInput obj={obj} propName="src" onChange={onChange}>
-                    <input
-                      style={{ ...INPUT, flex: 1, minWidth: 0 }}
-                      placeholder="https://… o /images/…"
-                      value={obj.src ?? ""}
-                      onChange={(e) => onChange({ src: e.target.value || undefined })}
-                    />
-                  </BindableInput>
-                  <button
-                    style={{
-                      flexShrink: 0, background: "#1e3a5f", border: "1px solid #1e40af",
-                      borderRadius: 4, color: "#93c5fd", cursor: "pointer",
-                      padding: "0 8px", fontSize: 12,
-                    }}
-                    onClick={() => setImgBrowserOpen(true)}
-                    title={t("props.browseImages")}
-                  >
-                    ⋯
-                  </button>
-                </div>
-              )}
-              {obj.src && (
-                <div style={{ marginTop: 4, textAlign: "center" }}>
-                  <ImgProgetto
-                    src={obj.src}
-                    alt=""
-                    style={{
-                      maxWidth: "100%", maxHeight: 80, objectFit: "contain",
-                      filter: "invert(1) brightness(0.85)", borderRadius: 4,
-                      border: "1px solid var(--brand-surface, #1e293b)",
-                    }}
-                  />
-                </div>
-              )}
-              {imgBrowserOpen && (
-                <ImageBrowser
-                  onSelect={(path) => { onChange({ src: path }); }}
-                  onClose={() => setImgBrowserOpen(false)}
-                />
-              )}
-            </>
-          )}
-
-          {/* Grid layout */}
-          {obj.type === "grid" && (
-            <>
-              <SottoTitolo chiave="gridSection" />
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0 6px" }}>
-                <div>
-                  <div style={LABEL}>{t("shell.righe")}</div>
-                  <CampoNumero
-                    min={1} max={20} style={INPUT}
-                    value={obj.grid_rows ?? 2}
-                    onTesto={(e) => onChange({ grid_rows: Math.max(1, Number(e)) })}
-                  />
-                </div>
-                <div>
-                  <div style={LABEL}>{t("props.columns")}</div>
-                  <CampoNumero
-                    min={1} max={20} style={INPUT}
-                    value={obj.grid_cols ?? 2}
-                    onTesto={(e) => onChange({ grid_cols: Math.max(1, Number(e)) })}
-                  />
-                </div>
-              </div>
-              {/* F7.6 — spazio tra celle e margine interno. */}
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0 6px", marginTop: 4 }}>
-                <div><div style={LABEL}>{t("props.gap")}</div>{numInput("grid_gap", 0)}</div>
-                <div><div style={LABEL}>{t("props.padding")}</div>{numInput("grid_padding", 0)}</div>
-              </div>
-              <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: "var(--brand-text-2, #cbd5e1)", marginTop: 6, cursor: "pointer" }}>
-                <input
-                  type="checkbox"
-                  checked={obj.grid_show_borders !== false}
-                  onChange={(e) => onChange({ grid_show_borders: e.target.checked })}
-                  style={{ accentColor: "var(--brand-primary, #3b82f6)" }}
-                />
-                {t("shell.mostraBordi")}
-              </label>
-              {obj.grid_show_borders !== false && (
-                <div style={{ marginTop: 4 }}>
-                  <div style={LABEL}>{t("props.colorBorders")}</div>
-                  {colorInput("grid_border_color")}
-                </div>
-              )}
-              <p style={{ fontSize: 10, color: "var(--brand-text-subtle, #94a3b8)", margin: "6px 0 0" }}>
-                {t("shell.clickACellOnThe")}
-              </p>
-            </>
-          )}
-
-          {/* Text List */}
-          {obj.type === "text_list" && (
-            <>
-              {field(t("props.tag"), tagInput(t("shell.esValvola")))}
-              {textListEntriesField()}
-              {field(t("props.textDefault"), <input style={INPUT} value={obj.text_list_default ?? ""} onChange={(e) => onChange({ text_list_default: e.target.value })} />)}
-              {field(t("props.colorDefault"), colorInput("text_list_default_color"))}
-              {field(t("props.fontSize"), numInput("font_size", 16))}
-              {field(t("props.alignment"), (
-                <select style={INPUT} value={obj.text_anchor ?? "middle"} onChange={(e) => onChange({ text_anchor: e.target.value as any })}>
-                  <option value="start">{t("props.left")}</option>
-                  <option value="middle">{t("props.center")}</option>
-                  <option value="end">{t("props.right")}</option>
-                </select>
-              ))}
-            </>
-          )}
-
-          {/* State Lamp — same data model as text_list (value→label→color), shape instead of text */}
-          {obj.type === "state_lamp" && (
-            <>
-              {field(t("props.tag"), tagInput(t("shell.esValvola")))}
-              {textListEntriesField()}
-              <p style={{ fontSize: 10, color: "var(--brand-text-subtle, #94a3b8)", margin: "-2px 0 4px" }}>
-                {t("props.stateLampHint")}
-              </p>
-            </>
-          )}
-
-          {/* Bar Chart */}
-          {obj.type === "bar_chart" && (
-            <>
-              {field(t("props.fontSize"), <BindableInput obj={obj} propName="font_size" onChange={onChange}>{numInput("font_size", 10)}</BindableInput>)}
-              {field(t("props.orientation"), (
-                <select style={INPUT} value={obj.bar_orientation ?? "vertical"} onChange={(e) => onChange({ bar_orientation: e.target.value as any })}>
-                  <option value="vertical">{t("props.vertical")}</option>
-                  <option value="horizontal">{t("props.horizontal")}</option>
-                </select>
-              ))}
-              {/* Q28 (2026-09-12): min/max dell'oggetto contano SOLO in stacked
-                  — la somma dei segmenti è per costruzione a scala unica. In
-                  grouped ogni serie ha la propria scala (sotto, per riga). */}
-              {obj.bar_mode === "stacked" && (
-                <>
-                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
-                    <div><div style={LABEL}>Min</div><BindableInput obj={obj} propName="min" onChange={onChange}>{numInput("min", 0)}</BindableInput></div>
-                    <div><div style={LABEL}>Max</div><BindableInput obj={obj} propName="max" onChange={onChange}>{numInput("max", 100)}</BindableInput></div>
-                  </div>
-                  <p style={{ fontSize: 10, color: "var(--brand-text-subtle, #94a3b8)", margin: "-2px 0 4px" }}>
-                    {t("props.barRangeHint")}
-                  </p>
-                </>
-              )}
-              {field(t("props.unit"), textInput("unit", ""))}
-              {field(t("props.decimals"), numInput("decimals", 1))}
-              {field(t("props.yAxisLabel"), textInput("bar_y_label", ""))}
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
-                <div><div style={LABEL}>{t("props.barGap")}</div>{numInput("bar_gap", 0.2)}</div>
-                <div><div style={LABEL}>{t("props.ticks")}</div>{numInput("bar_ticks", 0)}</div>
-              </div>
-              {/* F7.2 — barre affiancate (storico) o impilate in una sola barra. */}
-              {field(t("props.barMode"), (
-                <select style={{ ...INPUT, cursor: "pointer" }} value={obj.bar_mode ?? "grouped"}
-                  onChange={(e) => onChange({ bar_mode: e.target.value === "grouped" ? undefined : "stacked" })}>
-                  <option value="grouped">{t("props.barGrouped")}</option>
-                  <option value="stacked">{t("props.barStacked")}</option>
-                </select>
-              ))}
-              <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                {[["bar_show_values", t("props.values")], ["bar_show_labels", t("props.labels")],
-                  ["bar_show_thresholds", t("props.thresholdsShort")], ["bar_show_legend", t("props.legend")]].map(([k,l]) => (
-                  <label key={k} style={{ fontSize: 11, color: "var(--brand-text-muted, #94a3b8)", display: "flex", gap: 3, alignItems: "center" }}>
-                    <input type="checkbox" checked={!!(obj as any)[k]} onChange={(e) => onChange({ [k]: e.target.checked })} />{l}
-                  </label>
-                ))}
-              </div>
-              <div style={{ fontSize: 10, color: "var(--brand-text-subtle, #94a3b8)", marginTop: 6, marginBottom: 2, fontWeight: 700 }}>{t("shell.serie")}</div>
-              {obj.bar_mode !== "stacked" && (
-                <p style={{ fontSize: 10, color: "var(--brand-text-subtle, #94a3b8)", margin: "0 0 4px" }}>
-                  {t("props.barSeriesScaleHint")}
-                </p>
-              )}
-              {(obj.bar_series ?? []).map((s, i) => (
-                <div key={i} style={{ display: "flex", gap: 4, marginBottom: 4, alignItems: "center", flexWrap: "wrap" }}>
-                  <TagInput style={{ ...INPUT, flex: 1, minWidth: 80 }} placeholder="tag" value={s.tag}
-                    onChange={(v) => { const next = [...(obj.bar_series ?? [])]; next[i] = { ...s, tag: v }; onChange({ bar_series: next }); }} />
-                  <input style={{ ...INPUT, width: 60 }} placeholder="label" value={s.label}
-                    onChange={(e) => { const next = [...(obj.bar_series ?? [])]; next[i] = { ...s, label: e.target.value }; onChange({ bar_series: next }); }} />
-                  <SelettoreColore value={estraiHex(s.color) ?? PALETTE[i % PALETTE.length]} onColore={(e) => { const next = [...(obj.bar_series ?? [])]; next[i] = { ...s, color: e }; onChange({ bar_series: next }); }}
-                    style={{ width: 28, height: 24, padding: 1, border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 3 }} />
-                  {obj.bar_mode !== "stacked" && (
-                    <>
-                      <CampoNumero style={{ ...INPUT, width: 48 }} placeholder="min" value={s.min ?? ""}
-                        onTesto={(e) => { const next = [...(obj.bar_series ?? [])]; next[i] = { ...s, min: e === "" ? undefined : Number(e) }; onChange({ bar_series: next }); }} />
-                      <CampoNumero style={{ ...INPUT, width: 48 }} placeholder="max" value={s.max ?? ""}
-                        onTesto={(e) => { const next = [...(obj.bar_series ?? [])]; next[i] = { ...s, max: e === "" ? undefined : Number(e) }; onChange({ bar_series: next }); }} />
-                    </>
-                  )}
-                  <button style={{ ...INPUT, width: "auto", padding: "0 6px", cursor: "pointer" }}
-                    onClick={() => onChange({ bar_series: (obj.bar_series ?? []).filter((_, j) => j !== i) })}>✕</button>
-                </div>
-              ))}
-              <button style={{ ...INPUT, width: "100%", cursor: "pointer", marginBottom: 4 }}
-                onClick={() => onChange({ bar_series: [...(obj.bar_series ?? []), { tag: "", label: `Serie ${(obj.bar_series?.length ?? 0) + 1}` }] })}>
-                {t("shell.addSeries")}
-              </button>
-              <div style={{ fontSize: 10, color: "var(--brand-text-subtle, #94a3b8)", marginTop: 2, marginBottom: 2, fontWeight: 700 }}>{t("shell.soglie")}</div>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
-                <div><div style={LABEL}>{t("props.warnHigh")}</div><BindableInput obj={obj} propName="warn_high" onChange={onChange}>{numInput("warn_high", 0)}</BindableInput></div>
-                <div><div style={LABEL}>{t("props.alarmHigh")}</div><BindableInput obj={obj} propName="alarm_high" onChange={onChange}>{numInput("alarm_high", 0)}</BindableInput></div>
-              </div>
-            </>
-          )}
-
-          {/* Pie / Donut Chart */}
-          {obj.type === "pie_chart" && (
-            <>
-              {field(t("props.fontSize"), <BindableInput obj={obj} propName="font_size" onChange={onChange}>{numInput("font_size", 10)}</BindableInput>)}
-              {field(t("props.mode"), (
-                <select style={INPUT} value={obj.pie_mode ?? "pie"} onChange={(e) => onChange({ pie_mode: e.target.value as any })}>
-                  <option value="pie">{t("props.pieFull")}</option>
-                  <option value="donut">{t("props.donut")}</option>
-                </select>
-              ))}
-              {(obj.pie_mode ?? "pie") === "donut" && (
-                <>
-                  {field(t("props.innerRadius"), <BindableInput obj={obj} propName="pie_inner_ratio" onChange={onChange}>{numInput("pie_inner_ratio", 0.5)}</BindableInput>)}
-                  {/* F7.3 — il foro era fisso #0f172a: su sfondo chiaro un disco nero. */}
-                  {field(t("props.holeColor"), colorInput("pie_hole_color"))}
-                </>
-              )}
-              <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                {[["pie_show_labels", t("props.labels")], ["pie_show_legend", t("props.legend")]].map(([k,l]) => (
-                  <label key={k} style={{ fontSize: 11, color: "var(--brand-text-muted, #94a3b8)", display: "flex", gap: 3, alignItems: "center" }}>
-                    <input type="checkbox" checked={!!(obj as any)[k]} onChange={(e) => onChange({ [k]: e.target.checked })} />{l}
-                  </label>
-                ))}
-              </div>
-              {/* F7.3 — contenuto delle etichette, unità e decimali del valore. */}
-              {obj.pie_show_labels !== false && (
-                <>
-                  {field(t("props.labelContent"), (
-                    <select style={{ ...INPUT, cursor: "pointer" }} value={obj.pie_label_mode ?? "percent"}
-                      onChange={(e) => onChange({ pie_label_mode: e.target.value === "percent" ? undefined : (e.target.value as "value" | "value_percent" | "label_percent") })}>
-                      <option value="percent">{t("props.labelPercent")}</option>
-                      <option value="value">{t("props.labelValue")}</option>
-                      <option value="value_percent">{t("props.labelValuePercent")}</option>
-                      <option value="label_percent">{t("props.labelNamePercent")}</option>
-                    </select>
-                  ))}
-                  {(obj.pie_label_mode ?? "percent") !== "percent" && (
-                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
-                      <div><div style={LABEL}>{t("props.unit")}</div>{textInput("unit", "")}</div>
-                      <div><div style={LABEL}>{t("props.decimals")}</div>{numInput("decimals", 1)}</div>
-                    </div>
-                  )}
-                </>
-              )}
-              {/* F7.3 — raggruppamento delle fette piccole e fetta staccata. */}
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
-                <div><div style={LABEL}>{t("props.groupBelowPct")}</div>{numInput("pie_group_below_pct", 0)}</div>
-                <div><div style={LABEL}>{t("props.explodePx")}</div>{numInput("pie_explode_px", 0)}</div>
-              </div>
-              <p style={{ fontSize: 10, color: "var(--brand-text-subtle, #94a3b8)", margin: "-2px 0 4px" }}>
-                {t("props.pieGroupHint")}
-              </p>
-              {!!obj.pie_group_below_pct && (
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
-                  <div><div style={LABEL}>{t("props.groupLabel")}</div>{textInput("pie_group_label", "altro")}</div>
-                  <div><div style={LABEL}>{t("props.color")}</div>{colorInput("pie_group_color")}</div>
-                </div>
-              )}
-              {(obj.pie_mode ?? "pie") === "donut" && field(t("props.textCenter"), <BindableInput obj={obj} propName="pie_center_text" onChange={onChange}>{textInput("pie_center_text", "")}</BindableInput>)}
-              {(obj.pie_mode ?? "pie") === "donut" && field(t("props.tagCenter"),
-                <TagInput
-                  style={INPUT} placeholder={t("shell.esTotaleKw")}
-                  value={obj.pie_center_tag ?? ""}
-                  onChange={(v) => onChange({ pie_center_tag: v || undefined })}
-                />
-              )}
-              {(obj.pie_mode ?? "pie") === "donut" && obj.pie_center_tag && field(t("props.format"), textInput("pie_center_format", "{value}"))}
-              <div style={{ fontSize: 10, color: "var(--brand-text-subtle, #94a3b8)", marginTop: 6, marginBottom: 2, fontWeight: 700 }}>SLICE</div>
-              {(obj.pie_slices ?? []).map((s, i) => (
-                <div key={i} style={{ display: "flex", gap: 4, marginBottom: 4, alignItems: "center" }}>
-                  <TagInput style={{ ...INPUT, flex: 1 }} placeholder="tag" value={s.tag}
-                    onChange={(v) => { const next = [...(obj.pie_slices ?? [])]; next[i] = { ...s, tag: v }; onChange({ pie_slices: next }); }} />
-                  <input style={{ ...INPUT, width: 60 }} placeholder="label" value={s.label}
-                    onChange={(e) => { const next = [...(obj.pie_slices ?? [])]; next[i] = { ...s, label: e.target.value }; onChange({ pie_slices: next }); }} />
-                  <SelettoreColore value={estraiHex(s.color) ?? PALETTE[i % PALETTE.length]} onColore={(e) => { const next = [...(obj.pie_slices ?? [])]; next[i] = { ...s, color: e }; onChange({ pie_slices: next }); }}
-                    style={{ width: 28, height: 24, padding: 1, border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 3 }} />
-                  <button style={{ ...INPUT, width: "auto", padding: "0 6px", cursor: "pointer" }}
-                    onClick={() => onChange({ pie_slices: (obj.pie_slices ?? []).filter((_, j) => j !== i) })}>✕</button>
-                </div>
-              ))}
-              <button style={{ ...INPUT, width: "100%", cursor: "pointer" }}
-                onClick={() => onChange({ pie_slices: [...(obj.pie_slices ?? []), { tag: "", label: `Slice ${(obj.pie_slices?.length ?? 0) + 1}` }] })}>
-                {t("shell.addSlice")}
-              </button>
-            </>
-          )}
-
-          {/* Sparkline */}
-          {obj.type === "kpi_tile" && (
-            <>
-              {field(t("props.label"), <BindableInput obj={obj} propName="label" onChange={onChange}>{textInput("label")}</BindableInput>)}
-              {field(t("props.tag"), tagInput("es. plant.power"))}
-              {field(t("props.unit"), <BindableInput obj={obj} propName="unit" onChange={onChange}>{textInput("unit", "")}</BindableInput>)}
-              {field(t("props.decimals"), <BindableInput obj={obj} propName="decimals" onChange={onChange}>{numInput("decimals", 1)}</BindableInput>)}
-              {field(t("props.kpiWindow"), numInput("spark_window_s", 3600))}
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
-                <div><div style={LABEL}>Warn high</div><BindableInput obj={obj} propName="warn_high" onChange={onChange}>{numInput("warn_high", 0)}</BindableInput></div>
-                <div><div style={LABEL}>Alarm high</div><BindableInput obj={obj} propName="alarm_high" onChange={onChange}>{numInput("alarm_high", 0)}</BindableInput></div>
-              </div>
-            </>
-          )}
-
-          {obj.type === "clock" && (
-            <>
-              {field(t("props.clockFormat"), (
-                <select style={{ ...INPUT, cursor: "pointer" }} value={obj.clock_formato ?? "ora"}
-                  onChange={(e) => onChange({ clock_formato: e.target.value as NonNullable<SynopticObject["clock_formato"]> })}>
-                  <option value="ora">{t("props.clockTime")}</option>
-                  <option value="data">{t("props.clockDate")}</option>
-                  <option value="data_ora">{t("props.clockDateTime")}</option>
-                  <option value="giorno">{t("props.clockDay")}</option>
-                  <option value="personalizzato">{t("props.clockCustom")}</option>
-                </select>
-              ))}
-              {(obj.clock_formato ?? "ora") === "personalizzato" ? (
-                <>
-                  {field(t("props.clockPattern"), textInput("clock_modello", "%A %d %B, %H:%M"))}
-                  <p style={{ fontSize: 10, color: "var(--brand-text-subtle, #94a3b8)", margin: "0 0 4px" }}>{t("props.clockPatternHint")}</p>
-                </>
-              ) : ["ora", "data_ora"].includes(obj.clock_formato ?? "ora") && (
-                <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: "var(--brand-text-2, #cbd5e1)", cursor: "pointer" }}>
-                  <input type="checkbox" checked={!!obj.clock_secondi}
-                    onChange={(e) => onChange({ clock_secondi: e.target.checked || undefined })}
-                    style={{ accentColor: "var(--brand-primary, #3b82f6)" }} />
-                  {t("props.clockSeconds")}
-                </label>
-              )}
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
-                <div><div style={LABEL}>{t("props.dimensionPx")}</div>{numInput("font_size", 16)}</div>
-                <div>
-                  <div style={LABEL}>{t("props.alignment")}</div>
-                  <select style={{ ...INPUT, cursor: "pointer" }} value={obj.text_anchor ?? "middle"}
-                    onChange={(e) => onChange({ text_anchor: e.target.value as "start" | "middle" | "end" })}>
-                    <option value="start">{t("props.left")}</option>
-                    <option value="middle">{t("props.center")}</option>
-                    <option value="end">{t("props.right")}</option>
-                  </select>
-                </div>
-              </div>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
-                <div>
-                  <div style={LABEL}>{t("props.weight")}</div>
-                  <select style={{ ...INPUT, cursor: "pointer" }} value={String(obj.font_weight ?? "normal")}
-                    onChange={(e) => onChange({ font_weight: e.target.value === "bold" ? "bold" : undefined })}>
-                    <option value="normal">{t("props.normal400")}</option>
-                    <option value="bold">{t("props.bold700")}</option>
-                  </select>
-                </div>
-                <div><div style={LABEL}>{t("props.colorText")}</div>{colorInput("color")}</div>
-              </div>
-              <p style={{ fontSize: 10, color: "var(--brand-text-subtle, #94a3b8)", margin: "4px 0 0" }}>{t("props.clockDeviceHint")}</p>
-            </>
-          )}
-
-          {obj.type === "data_log" && (
-            <>
-              {field(t("props.label"), <BindableInput obj={obj} propName="label" onChange={onChange}>{textInput("label")}</BindableInput>)}
-              {field(t("props.tag"), tagInput("es. plant.power"))}
-              {field(t("props.windowS"), numInput("window_s", 3600))}
-              {field(t("props.pageSize"), numInput("datalog_page_size", 25))}
-              {field(t("props.decimals"), <BindableInput obj={obj} propName="decimals" onChange={onChange}>{numInput("decimals", 1)}</BindableInput>)}
-            </>
-          )}
-
-          {obj.type === "sparkline" && (
-            <>
-              {field(t("props.tag"), tagInput("es. flow.rate"))}
-              {field(t("props.windowS"), <BindableInput obj={obj} propName="spark_window_s" onChange={onChange}>{numInput("spark_window_s", 60)}</BindableInput>)}
-              {field(t("props.colorLine"), colorInput("spark_color"))}
-              {field(t("props.thicknessPx"), numInput("spark_stroke_width", 1.5))}
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
-                <div><div style={LABEL}>Y min</div><BindableInput obj={obj} propName="y_min" onChange={onChange}>{numInput("y_min", 0)}</BindableInput></div>
-                <div><div style={LABEL}>Y max</div><BindableInput obj={obj} propName="y_max" onChange={onChange}>{numInput("y_max", 0)}</BindableInput></div>
-              </div>
-              <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                {[["spark_fill",t("shell.riempiArea")], ["spark_show_last",t("shell.mostraUltimo")]].map(([k,l]) => (
-                  <label key={k} style={{ fontSize: 11, color: "var(--brand-text-muted, #94a3b8)", display: "flex", gap: 3, alignItems: "center" }}>
-                    <input type="checkbox" checked={!!(obj as any)[k]} onChange={(e) => onChange({ [k]: e.target.checked })} />{l}
-                  </label>
-                ))}
-              </div>
-              {obj.spark_fill && field(t("props.opacityFill"), numInput("spark_fill_opacity", 0.2))}
-            </>
-          )}
-
-          {/* Alarm Viewer */}
-          {obj.type === "alarm_viewer" && (
-            <>
-              {field(t("props.mode"), (
-                <select style={INPUT} value={obj.alarm_viewer_mode ?? "list"} onChange={(e) => onChange({ alarm_viewer_mode: e.target.value as any })}>
-                  <option value="list">{t("props.list")}</option>
-                  <option value="banner">{t("props.scrollingBanner")}</option>
-                  <option value="table">{t("props.table")}</option>
-                </select>
-              ))}
-              {field(t("props.maxRows"), <BindableInput obj={obj} propName="alarm_viewer_max_rows" onChange={onChange}>{numInput("alarm_viewer_max_rows", 5)}</BindableInput>)}
-              {field(t("props.alarmIdPrefix"), <input style={INPUT} placeholder={t("props.exZone")} value={obj.alarm_viewer_id_prefix ?? ""} onChange={(e) => onChange({ alarm_viewer_id_prefix: e.target.value })} />)}
-              {field(t("props.severity"), severityFilterField("alarm_viewer_severities"))}
-              <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                {[["alarm_viewer_show_ack",t("shell.mostraAck")], ["alarm_viewer_show_ts",t("shell.timestamp")], ["alarm_viewer_show_empty",t("shell.showEmpty")]].map(([k,l]) => (
-                  <label key={k} style={{ fontSize: 11, color: "var(--brand-text-muted, #94a3b8)", display: "flex", gap: 3, alignItems: "center" }}>
-                    <input type="checkbox" checked={!!(obj as any)[k] || (obj as any)[k] === undefined} onChange={(e) => onChange({ [k]: e.target.checked })} />{l}
-                  </label>
-                ))}
-              </div>
-              {field(t("props.emptyBackground"), colorInput("alarm_viewer_bg_color"))}
-              {/* F7.5 — ACK massivo e messa in silenzio, solo in modalità tabella
-                  (in "list"/"banner" non c'è spazio per i comandi). */}
-              {(obj.alarm_viewer_mode ?? "list") === "table" && (
-                <>
-                  <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 4 }}>
-                    <label style={{ fontSize: 11, color: "var(--brand-text-muted, #94a3b8)", display: "flex", gap: 3, alignItems: "center" }}>
-                      <input type="checkbox" checked={!!obj.alarm_viewer_show_ack_all}
-                        onChange={(e) => onChange({ alarm_viewer_show_ack_all: e.target.checked || undefined })} />
-                      {t("props.ackAll")}
-                    </label>
-                    <label style={{ fontSize: 11, color: "var(--brand-text-muted, #94a3b8)", display: "flex", gap: 3, alignItems: "center" }}>
-                      <input type="checkbox" checked={!!obj.alarm_viewer_show_shelve}
-                        onChange={(e) => onChange({ alarm_viewer_show_shelve: e.target.checked || undefined })} />
-                      {t("props.shelveBtn")}
-                    </label>
-                    {/* F7.5 — riusa `require_reason`, lo stesso campo delle scritture
-                        critiche: un solo concetto "chiedi il motivo" in tutto l'editor. */}
-                    <label style={{ fontSize: 11, color: "var(--brand-text-muted, #94a3b8)", display: "flex", gap: 3, alignItems: "center" }}>
-                      <input type="checkbox" checked={!!obj.require_reason}
-                        onChange={(e) => onChange({ require_reason: e.target.checked || undefined })} />
-                      {t("props.ackReason")}
-                    </label>
-                  </div>
-                  {obj.alarm_viewer_show_shelve && field(t("props.shelveMinutes"), numInput("alarm_shelve_minutes", 15))}
-                  <p style={{ fontSize: 10, color: "var(--brand-text-subtle, #94a3b8)", margin: "2px 0 4px" }}>
-                    {t("props.ackAllHint")}
-                  </p>
-                </>
-              )}
-            </>
-          )}
-
-          {/* Storico allarmi piazzabile (F7.5) */}
-          {obj.type === "alarm_history" && (
-            <>
-              <div style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)", marginBottom: 4 }}>
-                {t("props.alarmHistoryHint")}
-              </div>
-              {field(t("props.alarmIdFilter"),
-                <input style={INPUT} placeholder={t("props.allAlarms")}
-                  value={obj.alarm_history_id ?? ""}
-                  onChange={(e) => onChange({ alarm_history_id: e.target.value || undefined })} />
-              )}
-            </>
-          )}
-
-          {/* Alarm Bell — click apre sempre il dropdown allarmi, nessuna azione configurabile */}
-          {obj.type === "alarm_bell" && (
-            <>
-              <div style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)", marginBottom: 4 }}>
-                {t("props.alarmBellHint")}
-              </div>
-              {field(t("props.alarmIdPrefix"), <input style={INPUT} placeholder={t("props.exZone")} value={obj.alarm_bell_id_prefix ?? ""} onChange={(e) => onChange({ alarm_bell_id_prefix: e.target.value })} />)}
-              {field(t("props.severity"), severityFilterField("alarm_bell_severities"))}
-              {/* F7.5 — segnalazione acustica. */}
-              <div style={{ fontSize: 10, color: "var(--brand-text-subtle, #94a3b8)", marginTop: 6, marginBottom: 2, fontWeight: 700 }}>
-                {t("props.sound")}
-              </div>
-              <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: "var(--brand-text-2, #cbd5e1)", cursor: "pointer" }}>
-                <input type="checkbox" checked={!!obj.alarm_bell_sound}
-                  onChange={(e) => onChange({ alarm_bell_sound: e.target.checked || undefined })}
-                  style={{ accentColor: "var(--brand-primary, #3b82f6)" }} />
-                {t("props.soundEnable")}
-              </label>
-              {obj.alarm_bell_sound && (
-                <>
-                  {field(t("props.soundSeverities"), severityFilterField("alarm_bell_sound_severities"))}
-                  {field(t("props.soundRepeatS"), numInput("alarm_bell_sound_repeat_s", 20))}
-                  <p style={{ fontSize: 10, color: "var(--brand-text-subtle, #94a3b8)", margin: "2px 0 4px" }}>
-                    {t("props.soundHint")}
-                  </p>
-                </>
-              )}
-              <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                {[["alarm_bell_show_history", t("props.showHistory")], ["alarm_bell_show_shelve", t("props.showShelve")]].map(([k, l]) => (
-                  <label key={k} style={{ fontSize: 11, color: "var(--brand-text-muted, #94a3b8)", display: "flex", gap: 3, alignItems: "center" }}>
-                    <input type="checkbox" checked={!!(obj as any)[k] || (obj as any)[k] === undefined} onChange={(e) => onChange({ [k]: e.target.checked } as Partial<SynopticObject>)} />{l}
-                  </label>
-                ))}
-              </div>
-              {field(t("props.color"), <BindableInput obj={obj} propName="fill" onChange={onChange}>{colorInput("fill")}</BindableInput>)}
-            </>
-          )}
-
-          {/* Alarm Banner */}
-          {obj.type === "alarm_banner" && (
-            <>
-              {field(t("props.alarmIdPrefix"), <input style={INPUT} placeholder={t("props.exZone")} value={obj.alarm_banner_id_prefix ?? ""} onChange={(e) => onChange({ alarm_banner_id_prefix: e.target.value })} />)}
-              {field(t("props.severity"), severityFilterField("alarm_banner_severities"))}
-            </>
-          )}
-
-          {/* Recipe panel — lista ricette + applica, promosso dal modale fisso di RuntimeView.tsx */}
-          {obj.type === "recipe_panel" && (
-            <>
-              <div style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)", marginBottom: 4 }}>
-                {t("props.recipePanelHint")}
-              </div>
-              {field(t("props.recipeIdPrefix"), <input style={INPUT} placeholder={t("shell.esLineaPrefisso")} value={obj.recipe_panel_id_prefix ?? ""} onChange={(e) => onChange({ recipe_panel_id_prefix: e.target.value })} />)}
-            </>
-          )}
-
-          {/* Symbol (built-in SCADA library + custom project symbols) */}
-          {obj.type === "symbol" && (
-            <>
-              {field(t("props.symbol"),
-                <SymbolGallery value={obj.symbol_id ?? "lib:process/centrifugal-pump"} onChange={(v) => onChange({ symbol_id: v as any })} />
-              )}
-              {/* Fase 3 del piano dei simboli di libreria (M8): le parti vive che
-                  il disegno ha davvero, ognuna col suo tag. */}
-              <AdattaProporzioni obj={obj} onChange={onChange} />
-              <PartiSimboloLib obj={obj} onChange={onChange} />
-              <StileOggettoLib obj={obj} onChange={onChange} />
-              {field(t("props.tagState"),
-                <TagInput
-                  style={INPUT} placeholder={t("props.exRunning")}
-                  value={obj.state_tag ?? ""}
-                  onChange={(v) => onChange({ state_tag: v || undefined })}
-                />
-              )}
-              {field(t("props.tagAlarm"),
-                <TagInput
-                  style={INPUT} placeholder={t("props.exFault")}
-                  value={obj.alarm_tag ?? ""}
-                  onChange={(v) => onChange({ alarm_tag: v || undefined })}
-                />
-              )}
-              {/* Il simbolo che comanda (14-10-2026, piano strumenti-simboli-comandi):
-                  scrive `command_tag`, non `tag` (qui è la qualità) né `state_tag`
-                  (un pulsante di marcia scrive START e mostra RUNNING). Accendendo
-                  la spunta si parte dal tag di stato: per una levetta è quello. */}
-              {field(t("props.simboloComanda"),
-                <input type="checkbox" data-testid="simbolo-comanda" checked={obj.command_tag !== undefined || !!obj.assegnazioni?.length}
-                  onChange={(e) => onChange(e.target.checked
-                    ? { command_tag: obj.state_tag ?? "" }
-                    : { command_tag: undefined, assegnazioni: undefined, button_mode: undefined, write_value: undefined, release_value: undefined })} />
-              )}
-              {(obj.command_tag !== undefined || !!obj.assegnazioni?.length) && (<>
-                {field(t("props.commandTag"),
-                  <TagInput style={INPUT} placeholder={t("props.commandTagPh")}
-                    value={obj.command_tag ?? ""}
-                    onChange={(v) => onChange({ command_tag: v })} />
-                )}
-                {sezioneComando}
-              </>)}
-              <div style={(obj.symbol_states?.length ?? 0) > 0 ? { opacity: 0.45 } : undefined}>
-                {(obj.symbol_states?.length ?? 0) > 0 && (
-                  <p style={{ fontSize: 10, color: "var(--brand-warning, #f59e0b)", margin: "0 0 4px" }}>
-                    {t("props.statesPrecedence")}
-                  </p>
-                )}
-                {field(t("props.colorOff"),   <BindableInput obj={obj} propName="state_off_color"   onChange={onChange}>{colorInput("state_off_color")}</BindableInput>)}
-                {field(t("props.colorOn"),    <BindableInput obj={obj} propName="state_on_color"    onChange={onChange}>{colorInput("state_on_color")}</BindableInput>)}
-                {field(t("props.colorAlarm"), <BindableInput obj={obj} propName="state_alarm_color" onChange={onChange}>{colorInput("state_alarm_color")}</BindableInput>)}
-              </div>
-              {/* F6.6: stati N — mappa valore→colore/lampeggio/label sul valore di
-                  state_tag (valore esatto o range, come le VOCI di text_list). */}
-              <div style={{ fontSize: 10, color: "var(--brand-text-subtle, #94a3b8)", marginTop: 8, marginBottom: 2, fontWeight: 700 }}>
-                {t("props.symbolStates")}
-              </div>
-              {(obj.symbol_states ?? []).map((e, i) => {
-                const upd = (patch: Partial<TextListEntry>) => {
-                  const next = [...(obj.symbol_states ?? [])];
-                  next[i] = { ...e, ...patch };
-                  onChange({ symbol_states: next });
-                };
-                return (
-                  <div key={i} style={{ display: "flex", flexDirection: "column", gap: 3, marginBottom: 4, padding: 4, border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 4 }}>
-                    <div style={{ display: "flex", gap: 4, alignItems: "center" }}>
-                      <input style={{ ...INPUT, width: 48 }} placeholder="val" value={String(e.value)}
-                        onChange={(ev) => upd({ value: ev.target.value })} />
-                      <CampoNumero style={{ ...INPUT, width: 44 }} placeholder="min" value={e.value_min ?? ""}
-                        onTesto={(ev) => upd({ value_min: ev === "" ? undefined : Number(ev) })} />
-                      <CampoNumero style={{ ...INPUT, width: 44 }} placeholder="max" value={e.value_max ?? ""}
-                        onTesto={(ev) => upd({ value_max: ev === "" ? undefined : Number(ev) })} />
-                      <SelettoreColore value={estraiHex(e.color) ?? "#22c55e"}
-                        onColore={(ev) => upd({ color: ev })}
-                        style={{ width: 26, height: 22, padding: 1, border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 3 }} />
-                      <button style={{ background: "transparent", border: "none", color: "var(--brand-danger, #ef4444)", cursor: "pointer" }}
-                        onClick={() => onChange({ symbol_states: (obj.symbol_states ?? []).filter((_, j) => j !== i) })}>✕</button>
-                    </div>
-                    <div style={{ display: "flex", gap: 4, alignItems: "center" }}>
-                      <input style={{ ...INPUT, flex: 1 }} placeholder="label" value={e.label}
-                        onChange={(ev) => upd({ label: ev.target.value })} />
-                      <label style={{ fontSize: 10, color: "var(--brand-text-subtle, #64748b)", display: "flex", gap: 3, alignItems: "center" }}>
-                        <input type="checkbox" checked={!!e.blink} onChange={(ev) => upd({ blink: ev.target.checked || undefined })} />
-                        blink
-                      </label>
-                    </div>
-                  </div>
-                );
-              })}
-              <button style={{ ...INPUT, width: "100%", cursor: "pointer", marginBottom: 4 }}
-                onClick={() => onChange({ symbol_states: [...(obj.symbol_states ?? []), { value: "", label: "", color: "#22c55e" }] })}>
-                + {t("props.addState")}
-              </button>
-              {/* F6.10: rotazione continua — su un simbolo di libreria solo se ha un rotore */}
-              {simboloLibHa(obj, "rotor") && field(t("props.symbolSpin"), (
-                <select style={{ ...INPUT, cursor: "pointer" }} value={obj.symbol_spin ?? ""}
-                  onChange={(e) => onChange({ symbol_spin: (e.target.value || undefined) as SynopticObject["symbol_spin"] })}>
-                  <option value="">{t("props.blinkOff")}</option>
-                  <option value="on_state">{t("props.spinOnState")}</option>
-                  <option value="tag">{t("props.blinkTag")}</option>
-                  <option value="always">{t("props.blinkAlways")}</option>
-                </select>
-              ))}
-              {obj.symbol_spin === "tag" && field(t("props.blinkTagField"),
-                <TagInput style={INPUT} placeholder="es. fan1.running" value={obj.symbol_spin_tag ?? ""}
-                  onChange={(v) => onChange({ symbol_spin_tag: v || undefined })} />
-              )}
-              {obj.symbol_spin && field(t("props.spinPeriod"),
-                // Legabile a un tag (14-10-2026, richiesta del maintainer): la
-                // velocità di una ventola che segue il suo inverter.
-                <BindableInput obj={obj} propName="symbol_spin_s" onChange={onChange}>
-                  {numInput("symbol_spin_s", 2)}
-                </BindableInput>
-              )}
-              {/* F6.7: livello continuo (tank) — su un simbolo di libreria solo se ha la finestra */}
-              {simboloLibHa(obj, "level") && field(t("props.levelTag"),
-                <TagInput style={INPUT} placeholder="es. tank1.level" value={obj.fill_level_tag ?? ""}
-                  onChange={(v) => onChange({ fill_level_tag: v || undefined })} />
-              )}
-            </>
-          )}
-
-          {/* Faceplate instance (parametric reusable component, defined in Config → Faceplates) */}
-          {obj.type === "faceplate" && (() => {
-            const defn = faceplates.find((f) => f.id === obj.faceplate_id);
-            return (
-              <>
-                {field(t("props.faceplate"), (
-                  <select
-                    style={{ ...INPUT, cursor: "pointer" }}
-                    value={obj.faceplate_id ?? ""}
-                    onChange={(e) => onChange({ faceplate_id: e.target.value || undefined, faceplate_params: {} })}
-                  >
-                    <option value="">{t("props.faceplateChoose")}</option>
-                    {faceplates.map((f) => <option key={f.id} value={f.id}>{f.label}</option>)}
-                  </select>
-                ))}
-                {!defn && obj.faceplate_id && (
-                  <p style={{ fontSize: 10, color: "var(--brand-warning, #f59e0b)", margin: "2px 0 4px" }}>
-                    {t("props.faceplateMissing")}
-                  </p>
-                )}
-                {defn && defn.params.length > 0 && (
-                  <>
-                    <SottoTitolo chiave="faceplateParams" />
-                    {normalizeFaceplateParams(defn).map((p) => {
-                      const val = obj.faceplate_params?.[p.name] ?? "";
-                      const missing = !!p.required && val.trim() === "" && (p.default === undefined || p.default === "");
-                      const setVal = (v: string) => onChange({ faceplate_params: { ...(obj.faceplate_params ?? {}), [p.name]: v } });
-                      const style = { ...INPUT, borderColor: missing ? "var(--brand-danger, #ef4444)" : undefined };
-                      return (
-                        <div key={p.name}>
-                          <div style={LABEL}>
-                            {p.name}{p.required ? " *" : ""}{p.type ? ` (${p.type})` : ""}
-                          </div>
-                          {p.type === "tag" ? (
-                            <TagInput style={style} placeholder={p.default ?? ""} value={val} onChange={setVal} />
-                          ) : p.type === "istanza" ? (
-                            // Fase 2: il parametro vuole una **radice**
-                            // composita (`motore1`), non un id qualunque; gli
-                            // oggetti del faceplate ci attaccano `.velocita`.
-                            // Se il tipo chiesto non ha istanze, l'elenco è
-                            // vuoto e il campo lo dice invece di restare muto.
-                            <SceltaIstanza valore={val} tipo={p.type_ref} onChange={setVal} style={style} />
-                          ) : p.type === "color" ? (
-                            <div style={{ display: "flex", gap: 4, alignItems: "center" }}>
-                              <SelettoreColore value={estraiHex(val) ?? estraiHex(p.default) ?? "#3b82f6"}
-                                onColore={(e) => setVal(e)}
-                                style={{ width: 40, height: 26, padding: 1, border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 3 }} />
-                              <input type="text" style={{ ...style, flex: 1 }} placeholder={p.default ?? ""} value={val}
-                                onChange={(e) => setVal(e.target.value)} />
-                            </div>
-                          ) : (
-                            <input type={p.type === "number" ? "number" : "text"} style={style}
-                              placeholder={p.default ?? ""} value={val}
-                              onChange={(e) => setVal(e.target.value)} />
-                          )}
-                          {missing && (
-                            <div style={{ fontSize: 10, color: "var(--brand-danger-soft, #fca5a5)" }}>{t("props.paramRequired")}</div>
-                          )}
-                        </div>
-                      );
-                    })}
-                  </>
-                )}
-                {/* F6.4: scaling dei figli al box dell'istanza (opt-in) */}
-                {defn && field(t("props.faceplateScale"),
-                  <input type="checkbox" checked={!!obj.faceplate_scale}
-                    onChange={(e) => onChange({ faceplate_scale: e.target.checked || undefined })} />
-                )}
-              </>
-            );
-          })()}
-
-          {/* ── Pipe / connector ────────────────────────────────────────────────── */}
-          {obj.type === "pipe" && (
-            <>
-              {/* Routing + style */}
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
-                <div>
-                  <div style={LABEL}>{t("props.path")}</div>
-                  <select style={{ ...INPUT, cursor: "pointer" }}
-                    value={obj.routing ?? "straight"}
-                    onChange={(e) => onChange({ routing: e.target.value as "straight" | "orthogonal" | "diagonal" | "bezier" })}>
-                    <option value="straight">{t("props.straightLines")}</option>
-                    <option value="bezier">{t("props.curved")}</option>
-                    <option value="orthogonal">{t("props.ortho90")}</option>
-                    <option value="diagonal">{t("props.diag45")}</option>
-                  </select>
-                </div>
-                <div>
-                  <div style={LABEL}>{t("shell.stile")}</div>
-                  <select style={{ ...INPUT, cursor: "pointer" }}
-                    value={obj.pipe_style ?? "flat"}
-                    onChange={(e) => onChange({ pipe_style: e.target.value as SynopticObject["pipe_style"] })}>
-                    <optgroup label={t("props.stiliTubo25d")}>
-                      {STILI_TUBO.map((st) => <option key={st.id} value={st.id}>{t(`props.stileTubo.${st.id}`)}</option>)}
-                    </optgroup>
-                    <optgroup label={t("props.stiliTuboSemplici")}>
-                      <option value="flat">{t("props.flat")}</option>
-                      <option value="tube">{t("props.pipe3d")}</option>
-                      <option value="wire">{t("props.wire")}</option>
-                    </optgroup>
-                  </select>
-                </div>
-              </div>
-              <AnteprimaTubo obj={obj} />
-
-              {/* Stroke */}
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
-                <div>
-                  {field(t("props.colorPipe"), <BindableInput obj={obj} propName="stroke" onChange={onChange}>{colorInput("stroke")}</BindableInput>)}
-                </div>
-                <div>
-                  {field(t("props.thicknessPx"), numInput("stroke_width", 8))}
-                </div>
-              </div>
-
-              {/* Tratteggio */}
-              {field(t("props.dashArray"), textInput("stroke_dasharray", "6,3"))}
-
-              {/* Gradiente (tube style) */}
-              {(obj.pipe_style === "tube" || obj.pipe_gradient) && (
-                <>
-                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
-                    <div>{field(t("props.colorLight"), <BindableInput obj={obj} propName="gradient_light_color" onChange={onChange}>{colorInput("gradient_light_color")}</BindableInput>)}</div>
-                    <div>{field(t("props.colorDark"),  <BindableInput obj={obj} propName="gradient_dark_color" onChange={onChange}>{colorInput("gradient_dark_color")}</BindableInput>)}</div>
-                  </div>
-                </>
-              )}
-
-              {/* Fill level */}
-              <>
-              <SottoTitolo chiave="fluidFill" />
-                {field(t("props.tagLevel"),
-                  <TagInput
-                    style={INPUT} placeholder={t("props.exLevel")}
-                    value={obj.fill_level_tag ?? ""}
-                    onChange={(v) => onChange({ fill_level_tag: v || undefined })}
-                  />
-                )}
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
-                  <div>
-                    <div style={LABEL}>{t("props.tagScale")}</div>
-                    <select style={{ ...INPUT, cursor: "pointer" }}
-                      value={obj.fill_level_scale ?? "0-100"}
-                      onChange={(e) => onChange({ fill_level_scale: e.target.value as "0-1" | "0-100" })}>
-                      <option value="0-100">0 – 100</option>
-                      <option value="0-1">0.0 – 1.0</option>
-                    </select>
-                  </div>
-                  <div>
-                    <div style={LABEL}>{t("props.direction")}</div>
-                    <select style={{ ...INPUT, cursor: "pointer" }}
-                      value={obj.fill_direction ?? "start-to-end"}
-                      onChange={(e) => onChange({ fill_direction: e.target.value as "start-to-end" | "end-to-start" })}>
-                      <option value="start-to-end">{t("props.startToEnd")}</option>
-                      <option value="end-to-start">{t("props.endToStart")}</option>
-                    </select>
-                  </div>
-                </div>
-                {field(t("props.staticLevel"), numInput("fill_level", 0))}
-                {field(t("props.colorFluid"), <BindableInput obj={obj} propName="fill_color" onChange={onChange}>{colorInput("fill_color")}</BindableInput>)}
-              </>
-
-              {/* Markers */}
-              <>
-              <SottoTitolo chiave="endMarker" />
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
-                  <div>
-                    <div style={LABEL}>{t("props.markerStart")}</div>
-                    <select style={{ ...INPUT, cursor: "pointer" }}
-                      value={obj.start_marker ?? (stileTubo(obj.pipe_style) ? "auto" : "none")}
-                      onChange={(e) => onChange({ start_marker: e.target.value === "auto" ? undefined : e.target.value as SynopticObject["start_marker"] })}>
-                      {stileTubo(obj.pipe_style) && <option value="auto">{t("props.estremita.auto")}</option>}
-                      <option value="none">{t("props.noneM")}</option>
-                      {(stileTubo(obj.pipe_style) ? ESTREMITA_TUBO : (["arrow", "dot", "flange"] as const)).map((e) => (
-                        <option key={e} value={e}>{t(`props.estremita.${e}`)}</option>
-                      ))}
-                    </select>
-                  </div>
-                  <div>
-                    <div style={LABEL}>{t("props.markerEnd")}</div>
-                    <select style={{ ...INPUT, cursor: "pointer" }}
-                      value={obj.end_marker ?? (stileTubo(obj.pipe_style) ? "auto" : "none")}
-                      onChange={(e) => onChange({ end_marker: e.target.value === "auto" ? undefined : e.target.value as SynopticObject["end_marker"] })}>
-                      {stileTubo(obj.pipe_style) && <option value="auto">{t("props.estremita.auto")}</option>}
-                      <option value="none">{t("props.noneM")}</option>
-                      {(stileTubo(obj.pipe_style) ? ESTREMITA_TUBO : (["arrow", "dot", "flange"] as const)).map((e) => (
-                        <option key={e} value={e}>{t(`props.estremita.${e}`)}</option>
-                      ))}
-                    </select>
-                  </div>
-                </div>
-                {field(t("props.markerSize"), <BindableInput obj={obj} propName="marker_size" onChange={onChange}>{numInput("marker_size", 1)}</BindableInput>)}
-              </>
-
-              {/* State coloring */}
-              <CollapsibleSection title={t("props.stateAndAlarm")} storageKey="pipe-state">
-                {field(t("props.tagState"),
-                  <TagInput style={INPUT} placeholder={t("props.exRunning")}
-                    value={obj.state_tag ?? ""}
-                    onChange={(v) => onChange({ state_tag: v || undefined })} />
-                )}
-                {field(t("props.tagAlarm"),
-                  <TagInput style={INPUT} placeholder={t("props.exFault")}
-                    value={obj.alarm_tag ?? ""}
-                    onChange={(v) => onChange({ alarm_tag: v || undefined })} />
-                )}
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 6 }}>
-                  <div>{field(t("props.off"),   <BindableInput obj={obj} propName="state_off_color"   onChange={onChange}>{colorInput("state_off_color")}</BindableInput>)}</div>
-                  <div>{field(t("props.on"),    <BindableInput obj={obj} propName="state_on_color"    onChange={onChange}>{colorInput("state_on_color")}</BindableInput>)}</div>
-                  <div>{field(t("props.alarmWord"), <BindableInput obj={obj} propName="state_alarm_color" onChange={onChange}>{colorInput("state_alarm_color")}</BindableInput>)}</div>
-                </div>
-              </CollapsibleSection>
-
-              {/* Label */}
-              <>
-              <SottoTitolo chiave="label" />
-                {field(t("props.text"), textInput("pipe_label", "es. P-101"))}
-                {field(t("props.tagValue"),
-                  <TagInput style={INPUT} placeholder={t("props.exFlow")}
-                    value={obj.pipe_label_tag ?? ""}
-                    onChange={(v) => onChange({ pipe_label_tag: v || undefined })} />
-                )}
-                {field(t("props.format"), textInput("pipe_label_format", "{value:.1f}"))}
-                {field(t("props.offsetPx"), numInput("pipe_label_offset", 10))}
-                {field(t("props.labelColor"), <BindableInput obj={obj} propName="color" onChange={onChange}>{colorInput("color")}</BindableInput>)}
-                {field(t("props.fontSize"), <BindableInput obj={obj} propName="font_size" onChange={onChange}>{numInput("font_size", 12)}</BindableInput>)}
-                {/* F6.10: flusso animato */}
-                {field(t("props.pipeFlow"),
-                  <input type="checkbox" checked={!!obj.pipe_flow}
-                    onChange={(e) => onChange({ pipe_flow: e.target.checked || undefined })} />
-                )}
-                {obj.pipe_flow && field(t("props.pipeFlowTag"),
-                  <TagInput style={INPUT} placeholder={t("shell.esPompaFlusso")} value={obj.pipe_flow_tag ?? ""}
-                    onChange={(v) => onChange({ pipe_flow_tag: v || undefined })} />
-                )}
-              </>
-
-              {/* Connection anchoring */}
-              <>
-              <SottoTitolo chiave="snapObjects" />
-                <p style={{ fontSize: 10, color: "var(--brand-text-subtle, #94a3b8)", margin: "0 0 6px" }}>
-                  {t("shell.whenSetTheFirstLast")}
-                </p>
-                {field(t("props.capoInizio"), <CapoTubo obj={obj} capo="from" onChange={onChange} stile={INPUT} />)}
-                {field(t("props.capoFine"), <CapoTubo obj={obj} capo="to" onChange={onChange} stile={INPUT} />)}
-              </>
-
-              {/* Waypoints editor */}
-              <>
-              <SottoTitolo chiave="waypoint" />
-                <p style={{ fontSize: 10, color: "var(--brand-text-subtle, #94a3b8)", margin: "0 0 4px" }}>
-                  {t("shell.dragTheYellowPointsOn")}
-                </p>
-                {(obj.points ?? []).map((pt, i) => (
-                  <div key={i} style={{ display: "flex", gap: 4, alignItems: "center", marginBottom: 3 }}>
-                    <span style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)", width: 18, flexShrink: 0 }}>{i}</span>
-                    <CampoNumero style={{ ...INPUT, width: 58 }} value={pt.x}
-                      onTesto={(e) => {
-                        const pts = [...(obj.points ?? [])];
-                        pts[i] = { ...pts[i], x: Number(e) };
-                        onChange({ points: pts });
-                      }} />
-                    <CampoNumero style={{ ...INPUT, width: 58 }} value={pt.y}
-                      onTesto={(e) => {
-                        const pts = [...(obj.points ?? [])];
-                        pts[i] = { ...pts[i], y: Number(e) };
-                        onChange({ points: pts });
-                      }} />
-                    {(obj.points ?? []).length > 2 && (
-                      <button style={{ ...INPUT, cursor: "pointer", padding: "2px 6px", width: 22 }}
-                        title={t("props.removeWaypoint")}
-                        onClick={() => {
-                          const pts = (obj.points ?? []).filter((_, idx) => idx !== i);
-                          onChange({ points: pts });
-                        }}>−</button>
-                    )}
-                  </div>
-                ))}
-                <button
-                  style={{ ...INPUT, cursor: "pointer", width: "100%", marginTop: 2 }}
-                  onClick={() => {
-                    const pts = [...(obj.points ?? [])];
-                    const last = pts[pts.length - 1] ?? { x: obj.x, y: obj.y };
-                    pts.push({ x: last.x + 40, y: last.y });
-                    onChange({ points: pts });
-                  }}>
-                  {t("shell.addWaypoint")}
-                </button>
-              </>
-            </>
-          )}
-        </CollapsibleSection>
-      )}
+      {/* Le sezioni proprie del tipo (01-11-2026, fase 3 del piano
+          2026-11-01-pannello-proprieta-per-frequenza): quello che stava in
+          un'unica «Parametri» ora sta in sezioni che dicono cosa contengono, e
+          ognuna nel suo ramo. I pezzi li mettono i tipi, qui sopra il `return`. */}
+      {SEZIONI_TIPO.map(({ chiave, titolo, gruppo }) => parti[chiave].length > 0 && (
+        <CollapsibleSection key={chiave} title={t(titolo)} storageKey={chiave} gruppo={gruppo}>{parti[chiave]}</CollapsibleSection>
+      ))}
 
       {/* ── Le sezioni trasversali, nell'ordine canonico di T-56 (7→13):
        *  Movimento, Trasformazione, Layer, Eventi, Sicurezza, Qualità,
@@ -5853,7 +5963,7 @@ export function ObjectProps({
       {/* F6.10 — MOVIMENTO su percorso (universale) */}
       <CollapsibleSection
         title={t("props.motion")}
-        storageKey="motion" gruppo="interazione"
+        storageKey="motion" gruppo="comportamento"
         headerExtra={obj.motion_tag ? <span style={{ fontSize: 10, color: "var(--brand-primary-testo, #3b82f6)", fontWeight: 700 }}>●</span> : undefined}
       >
         {/* T-53 — fuori dalla guardia su `motion_tag`: il tracciato è
@@ -5866,10 +5976,7 @@ export function ObjectProps({
             {t("props.motionShowTrack")}
           </span>
         </label>
-        {field(t("props.motionTag"),
-          <TagInput style={INPUT} placeholder={t("shell.esCarrello")} value={obj.motion_tag ?? ""}
-            onChange={(v) => onChange({ motion_tag: v || undefined })} />
-        )}
+        <RimandoCollegamenti tag={obj.motion_tag} />
         {obj.motion_tag && (
           <>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
@@ -6032,6 +6139,7 @@ export function ObjectProps({
 
       {/* ── Cross-cutting: layer & visibility (advanced, collapsed) ─── */}
       <CollapsibleSection title={t("props.layerVisibility")} storageKey="layer" gruppo="aspetto">
+        {ordineLivelli}
         <div style={{ display: "grid", gridTemplateColumns: "1fr auto auto", gap: 4, alignItems: "end" }}>
           <div><div style={LABEL}>z-index</div><BindableInput obj={obj} propName="z_index" onChange={onChange}>{numInput("z_index", 0)}</BindableInput></div>
           <button
@@ -6065,12 +6173,7 @@ export function ObjectProps({
         </label>
         <div>
           <div style={LABEL}>{t("props.tagVisOverride")}</div>
-          <TagInput
-            style={INPUT}
-            placeholder={t("props.exValve")}
-            value={obj.visible_tag ?? ""}
-            onChange={(v) => onChange({ visible_tag: v || undefined })}
-          />
+          <RimandoCollegamenti tag={obj.visible_tag} />
         </div>
       </CollapsibleSection>
 
@@ -6083,7 +6186,7 @@ export function ObjectProps({
       {obj.type !== "grid" && (
         <CollapsibleSection
           title={t("props.events")}
-          storageKey="events" gruppo="interazione"
+          storageKey="events" gruppo="comportamento"
           headerExtra={
             (obj.on_press_fn || obj.on_release_fn)
               ? <span style={{ fontSize: 10, color: "var(--brand-primary-testo, #3b82f6)", fontWeight: 700 }}>
@@ -6114,8 +6217,8 @@ export function ObjectProps({
 
       {/* F3 — SICUREZZA: gating per ruolo + conferma comando, universali. */}
       <CollapsibleSection
-        title={t("props.security")}
-        storageKey="security" gruppo="interazione"
+        title={t("props.sectionAccesso")}
+        storageKey="security" gruppo="funzione"
         headerExtra={
           (obj.min_role || obj.require_confirm)
             ? <span style={{ fontSize: 10, color: "var(--brand-warning, #f59e0b)", fontWeight: 700 }}>●</span>
@@ -6195,28 +6298,14 @@ export function ObjectProps({
         )}
       </CollapsibleSection>
 
-      {/* ── Quality dot — always present; hint when no tag bound ──────── */}
-      <CollapsibleSection
+      {/* ── La qualità del dato (01-11-2026): sotto «Collegamenti», e solo
+          quando c'è il tag che la alimenta. Il «Tag di stato» che stava qui per
+          i tipi senza un dato primario è uno slot di «Collegamenti». */}
+      {obj.tag && <CollapsibleSection
         title={t("props.qualityIndicator")}
-        storageKey="quality" gruppo="dati"
-        hint={!obj.tag ? t("shell.setATagTagSection") : undefined}
+        storageKey="quality" gruppo="funzione"
       >
-        {/* 2026-08-23: per i tipi dove obj.tag non è il dato primario, il tag
-            che alimenta allarme/stale/qualità si imposta QUI (il campo Tag
-            generico in alto per loro non esiste più). */}
-        {["bar_chart","pie_chart","table","symbol",
-          "alarm_viewer","alarm_bell","alarm_banner","alarm_history","recipe_panel","grid","faceplate",
-          "image","lang_button","lang_selector"].includes(obj.type) &&
-          field(t("props.stateTag"),
-            <TagInput style={INPUT} placeholder={t("props.stateTagPh")}
-              value={obj.tag ?? ""}
-              onChange={(v) => onChange({ tag: v || undefined })} />
-          )}
-        {!obj.tag ? (
-          <p style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)", margin: "0 0 4px" }}>
-            {t("shell.thisObjectHasNoBound")}
-          </p>
-        ) : (
+        {(
           <>
             <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: "var(--brand-text-2, #cbd5e1)", cursor: "pointer" }}>
               <input
@@ -6235,7 +6324,10 @@ export function ObjectProps({
               />
               {t("shell.showQualityIndicator")}
             </label>
-            {obj.quality_dot !== false && (
+            {/* I colori solo col pallino acceso (01-11-2026): prima comparivano
+                anche a casella spenta sui tipi senza il pallino integrato, e la
+                qualità occupava otto righe in testa al ramo della funzione. */}
+            {(QDOT_BUILTIN_TYPES.has(obj.type) ? obj.quality_dot !== false : obj.quality_dot === true) && (
               <>
                 {field(t("props.colorGood"),    colorInput("quality_dot_good_color"))}
                 {field(t("props.colorUncertain"), colorInput("quality_dot_uncertain_color"))}
@@ -6254,7 +6346,12 @@ export function ObjectProps({
             {field(t("props.staleAfterS"), numInput("stale_after_s", 0))}
           </>
         )}
-        {/* F4.1: lampeggio universale — anche senza tag (modalità fissa/tag) */}
+      </CollapsibleSection>}
+
+      {/* F4.1: lampeggio universale — anche senza tag (modalità fissa/tag).
+          Dal 01-11-2026 è un effetto, nel comportamento; il suo tag sta in
+          «Collegamenti». */}
+      <CollapsibleSection title={t("props.blinkMode")} storageKey="lampeggio" gruppo="comportamento">
         {field(t("props.blinkMode"), (
           <select style={{ ...INPUT, cursor: "pointer" }} value={obj.blink_mode ?? ""}
             onChange={(e) => onChange({ blink_mode: (e.target.value || undefined) as SynopticObject["blink_mode"] })}>
@@ -6264,10 +6361,7 @@ export function ObjectProps({
             <option value="alarm">{t("props.blinkAlarm")}</option>
           </select>
         ))}
-        {obj.blink_mode === "tag" && field(t("props.blinkTagField"),
-          <TagInput style={INPUT} placeholder="es. plant.warning" value={obj.blink_tag ?? ""}
-            onChange={(v) => onChange({ blink_tag: v || undefined })} />
-        )}
+        {obj.blink_mode === "tag" && <RimandoCollegamenti tag={obj.blink_tag} />}
         {obj.blink_mode && field(t("props.blinkStyle"),
           <select style={{ ...INPUT, cursor: "pointer" }} value={obj.blink_style ?? "step"}
             onChange={(e) => onChange({ blink_style: e.target.value === "fade" ? "fade" : undefined })}>
@@ -6279,71 +6373,8 @@ export function ObjectProps({
         {obj.blink_mode && obj.blink_style === "fade" && field(t("props.blinkFadeDepth"), numInput("blink_fade_depth", -60))}
       </CollapsibleSection>
 
-      {/* ── Binding attivi (audit) — always shown with count ──────────── */}
-      <CollapsibleSection
-        title={t("props.activeBindings")}
-        storageKey="bindings" gruppo="dati"
-        headerExtra={
-          <span style={{ fontSize: 10, color: obj.bindings && Object.keys(obj.bindings).length > 0 ? "var(--brand-primary, #3b82f6)" : "var(--brand-border, #475569)", fontWeight: 700 }}>
-            ({obj.bindings ? Object.keys(obj.bindings).length : 0})
-          </span>
-        }
-        hint={!obj.bindings || Object.keys(obj.bindings).length === 0
-          ? t("shell.useTheToggleNextTo")
-          : undefined}
-      >
-        {obj.bindings && Object.keys(obj.bindings).length > 0 ? (
-          Object.entries(obj.bindings).map(([prop, spec]) => (
-            <div key={prop} style={{ display: "flex", gap: 4, alignItems: "center", fontSize: 12, marginBottom: 2 }}>
-              <span style={{ color: "var(--brand-text-subtle, #64748b)", flex: "0 0 auto" }}>{prop}</span>
-              <span style={{ color: "var(--brand-text-subtle, #94a3b8)" }}>→</span>
-              <span style={{ color: "var(--brand-primary-testo, #3b82f6)", flex: 1, overflow: "hidden", textOverflow: "ellipsis" }}>
-                {typeof spec === "string"
-                  ? (spec || t("shell.noTag"))
-                  : spec.expr !== undefined
-                    ? `ƒ ${spec.expr || "(vuota)"}`
-                    : `${spec.tag || "(nessun tag)"}${spec.in_min !== undefined ? ` [${spec.in_min}..${spec.in_max}→${spec.out_min}..${spec.out_max}]` : ""}`}
-              </span>
-              <button
-                title={t("props.removeBinding")}
-                onClick={() => {
-                  const next = { ...obj.bindings! };
-                  delete next[prop];
-                  onChange({ bindings: Object.keys(next).length > 0 ? next : undefined });
-                }}
-                style={{ ...LABEL, cursor: "pointer", background: "transparent", border: "none", color: "var(--brand-danger, #ef4444)", padding: "0 4px" }}
-              >×</button>
-            </div>
-          ))
-        ) : (
-          <p style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)", margin: "0 0 4px" }}>
-            {t("shell.noActiveBindingOnThis")}
-          </p>
-        )}
-      </CollapsibleSection>
 
-      {/* Solo nel ramo Posizione e aspetto, dove sta l'identità: cancellare è
-          un'operazione su quella. Fino all'11-09-2026 stava in fondo a una
-          colonna lunga, quindi lontano da tutto; con gruppi da due o tre
-          sezioni finirebbe subito sotto il pollice in ognuno dei quattro, e un
-          rosso distruttivo a portata di clic ovunque è un incidente che
-          aspetta solo di succedere. */}
-      {/* Nella colonna unica (R4, 25-09-2026) il gruppo attivo è «tutti»: il
-          pulsante va in fondo, dopo l'ultimo ramo, una volta sola. */}
-      {(gruppoAttivo === "aspetto" || gruppoAttivo === "tutti") && (
-        <button
-          onClick={onDelete}
-          style={{
-            order: 10000,
-            marginTop: 4,
-            background: "var(--brand-danger-bg, #7f1d1d)", color: "var(--brand-danger-soft, #fca5a5)",
-            border: "1px solid #991b1b", borderRadius: 4,
-            padding: "5px 10px", cursor: "pointer", fontSize: 13,
-          }}
-        >
-          {t("props.deleteObject")}
-        </button>
-      )}
+
     </TipoOggetto.Provider>
   );
 }

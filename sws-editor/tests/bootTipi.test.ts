@@ -54,13 +54,15 @@ describe("dove una pagina di boot non deve comparire", () => {
 });
 
 describe("il pannello proprietà di una pagina di boot", () => {
-  it("mostra solo il tipo e posizione/aspetto: niente dati né interazione", () => {
+  it("mostra solo la funzione e l'aspetto: niente comportamento", () => {
     // Dal 26-09-2026 il ramo del tipo c'è per ogni oggetto: su un rect di boot
     // tiene la forma (raggio angoli); il dato (tag) lì resta fuori — lo toglie
     // `SEZIONI_NON_BOOT` nel pannello, e un ramo senza sezioni non si mostra.
-    expect(gruppiPerTipo("rect", true).map((g) => g.id)).toEqual(["tipo", "aspetto"]);
-    expect(gruppiPerTipo("text", true).map((g) => g.id)).toEqual(["tipo", "aspetto"]);
-    expect(gruppiPerTipo("rect").map((g) => g.id)).toContain("dati");
+    // Dal 01-11-2026 qualità, binding e accesso stanno nella funzione: su una
+    // pagina di boot li toglie `SEZIONI_NON_BOOT` come il dato.
+    expect(gruppiPerTipo("rect", true).map((g) => g.id)).toEqual(["funzione", "aspetto"]);
+    expect(gruppiPerTipo("text", true).map((g) => g.id)).toEqual(["funzione", "aspetto"]);
+    expect(gruppiPerTipo("rect").map((g) => g.id)).toContain("comportamento");
   });
 
 });

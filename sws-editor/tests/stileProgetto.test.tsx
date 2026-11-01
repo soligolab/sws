@@ -68,7 +68,7 @@ describe("la scheda Stile", () => {
 
 describe("pannello proprietà", () => {
   const pannello = (obj: SynopticObject) => {
-    render(<GruppoAttivo.Provider value="tipo"><ObjectProps obj={obj} pages={[]} functions={[]} onChange={() => {}} onDelete={() => {}} /></GruppoAttivo.Provider>);
+    render(<GruppoAttivo.Provider value="tutti"><ObjectProps obj={obj} pages={[]} functions={[]} onChange={() => {}} onDelete={() => {}} /></GruppoAttivo.Provider>);
     for (let g = 0; g < 8; g++) { const c = screen.queryAllByRole("button", { expanded: false }); if (!c.length) break; c.forEach((b) => fireEvent.click(b)); }
   };
   it("un simbolo di libreria ha lo stile dell'oggetto; il serbatoio anche il contenuto", () => {

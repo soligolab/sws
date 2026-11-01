@@ -43,8 +43,8 @@ vale per il browser in cui la si fa, come il tema e la misura delle icone.
   - alcune icone aprono anche la scheda al centro (Allarmi, Report, Utenti, Dispositivo, Preferenze); altre solo la
     colonna, per lavorare tenendo il sinottico in vista. **Tag** mostra i valori live: un clic su un tag dice dove è
     usato, un clic su un uso porta alla pagina e seleziona l'oggetto, ✎ (o «Tabella») apre la modifica;
-  - a destra le icone sono i rami delle proprietà dell'oggetto selezionato (parametri, posizione e aspetto, dati,
-    animazione e interazione); senza selezione l'icona è una sola, Pagina, e con più oggetti Selezione;
+  - a destra le icone sono i tre rami delle proprietà dell'oggetto selezionato (funzione, aspetto,
+    comportamento); senza selezione l'icona è una sola, Pagina, e con più oggetti Selezione;
   - passando col mouse su un'icona, o arrivandoci col tasto Tab, un riquadro dice cosa c'è dietro;
   - un clic sull'icona già attiva **chiude la colonna**, e il canvas si allarga; un altro clic la riapre. Le
     frecce su e giù scorrono le icone.
@@ -283,24 +283,43 @@ Tieni **Shift** per mantenere le proporzioni.
 
 ### Proprietà nel pannello destro
 
-Il pannello destro è **una colonna sola**, come l'albero a sinistra. Le sezioni stanno sotto quattro rami, che
-si chiudono e lo ricordano:
+Il pannello destro è **una colonna sola**, come l'albero a sinistra. Dal 01-11-2026 è ordinato per **quanto si
+usa una cosa**, non per categoria tecnica: per configurare un oggetto «normale» basta il primo ramo.
 
-- **🎛 il tipo** (per esempio «Gauge», «Testo»): le impostazioni proprie dell'oggetto — *Parametri*, o *Testo*
-  su un testo. Non c'è sulle forme (rettangolo, ellisse, linea), che non ne hanno;
-- **📐 Posizione e aspetto**: Identità e posizione, Aspetto, Trasformazione, Livello e visibilità;
-- **🔗 Dati e collegamenti**: Dato (tag), Binding attivi, Indicatore di qualità;
-- **⚡ Animazione e interazione**: Movimento su percorso, Eventi, Sicurezza.
+In testa c'è una **striscia fissa**, sempre in vista anche scorrendo: nome, tipo e id, X Y W H, e il cestino per
+eliminare l'oggetto. Sotto, il campo **Filtra proprietà**.
 
-- **Una sezione aperta alla volta**: aprendone una si chiude la precedente, così non si scorre.
-- **📌 Appunta** una sezione per tenerla aperta insieme alle altre (per esempio Aspetto mentre si lavora sulla
-  Trasformazione). Le sezioni appuntate valgono per tutti gli oggetti.
-- **Cambiando oggetto** la sezione aperta resta quella, se il tipo nuovo ce l'ha; altrimenti si apre quella
-  del tipo (Parametri su uno strumento, Testo su un testo, Aspetto su una forma). Tornando su un oggetto che
-  ce l'ha, si ritrova la sezione scelta.
+Le sezioni stanno sotto **tre rami**:
 
-Fino al 2026-09-25 il pannello aveva una colonna di icone che mostrava un gruppo per volta, e i gruppi erano
-Oggetto, Testo, Dato, Comportamento e Resa — con Parametri dentro Dato.
+- **🎛 la funzione** (il ramo porta il nome del tipo, per esempio «Slider»). In ordine:
+  - **Collegamenti**: tutti i tag dell'oggetto in un punto, divisi in *letti* (←) e *scritti* (→, o ⇄ se il tag si
+    legge e si scrive), ognuno con l'effetto scritto («Valore misurato (PV)», «Rotazione», «Visibilità»…) e il valore
+    live. Si vedono solo i tag collegati, più quello principale del tipo; gli altri si aggiungono da **+ Collega…**
+    e si tolgono con ✕. Sotto ci sono i riepiloghi dei tag in lista (tracce, serie, righe, parti del simbolo,
+    assegnazioni) e i 🔗 dei singoli campi: si leggono qui, e un clic porta al campo, aprendo il ramo giusto;
+  - **Indicatore qualità**, solo quando l'oggetto ha un tag;
+  - poi, secondo il tipo: **Filtro** (quali allarmi o ricette), **Parametri** (dove è l'identità del tipo: il
+    simbolo, la sorgente dell'immagine, il formato dell'orologio), **Scala** (min, max, unità, decimali, finestra),
+    **Testo**, **Stati** (soglie, bande, colori che dipendono dal valore), **Comando** (cosa fa al clic, sola
+    lettura, molla), **Serie** (tracce, serie, righe);
+  - **Accesso**: ruolo minimo, conferma, password.
+- **🎨 Aspetto**: **Colori** (quelli fissi), **Stile** (forma, traccia, tacche, font e corpi), **Opacità e sfondo**,
+  **Layer e visibilità** (con i bottoni porta-davanti/manda-dietro), **Trasformazione**.
+- **✨ Comportamento**: **Eventi** (le funzioni da chiamare), **Lampeggio**, **Movimento su percorso**.
+
+Un tag tolto da una sezione per stare in Collegamenti lascia al suo posto una riga che dice da quale tag la cosa è
+comandata, con il rimando (la visibilità in Layer, il percorso nel Movimento, il lampeggio).
+
+**Filtra proprietà**: scrivendo «colore» si aprono tutti i rami e restano solo i campi colore; una sezione il cui
+titolo corrisponde resta intera, e chi cerca «tag» trova Collegamenti. Esc svuota.
+
+- **Un ramo aperto alla volta**, più quelli appuntati con **📌** (solo nella disposizione classica: nello stile
+  VS Code la colonna ne mostra uno, e un clic sull'icona attiva la chiude).
+- **Cambiando oggetto** il ramo aperto resta quello. Chi aveva scelto un ramo di prima del 01-11-2026 ritrova il
+  suo equivalente (il tipo e i dati → la funzione, animazione e interazione → il comportamento).
+
+Fino al 2026-11-01 i rami erano quattro — il tipo, Posizione e aspetto, Dati e collegamenti, Animazione e
+interazione — e un bottone chiedeva di aprirne tre; fino al 2026-09-25 erano gruppi in una colonna di icone.
 
 Ogni tipo di widget ha proprietà specifiche (vedi [05 — Widget Reference](05_widget_reference.md)).
 Le proprietà comuni a tutti gli oggetti sono:
@@ -315,7 +334,7 @@ Le proprietà comuni a tutti gli oggetti sono:
 | **Rotazione** | Gradi, applicata attorno al centro dell'oggetto |
 | **Flip H / V** | Specchio orizzontale/verticale |
 | **Opacità** | 0.0 (trasparente) → 1.0 (opaco) |
-| **Ruolo minimo per operare** | Sotto quel ruolo l'oggetto si nasconde o si disabilita (sezione Sicurezza) |
+| **Ruolo minimo per operare** | Sotto quel ruolo l'oggetto si nasconde o si disabilita (sezione Accesso) |
 | **Durata transizione (ms)** | Anima il cambio di colore, opacità e trasformazione |
 
 **Chi può comandare: il tag e l'oggetto, e vince il più severo.** Per scrivere un tag serve il suo *Ruolo min.
@@ -324,7 +343,7 @@ qualunque pulsante, script o chiamata API. Con **«Chiunque, anche senza login»
 viewer senza aver fatto login: la luce della stanza. Il *Ruolo minimo per operare* dell'oggetto può solo
 restringere: due pulsanti sullo stesso tag aperto possono essere uno libero e uno da Operator. Ricorda però che
 la restrizione del secondo vale per quel pulsante: il tag resta comandabile da chiunque attraverso il primo. La
-sezione Sicurezza del pannello proprietà mostra cosa chiede il tag che l'oggetto scrive.
+sezione Accesso del pannello proprietà mostra cosa chiede il tag che l'oggetto scrive.
 
 Le **zone** non sono una proprietà dell'oggetto ma della pagina: vedi [Zone di accesso](#zone-di-accesso-abac).
 
@@ -333,7 +352,7 @@ Le **zone** non sono una proprietà dell'oggetto ma della pagina: vedi [Zone di 
 ## Binding tag
 
 Il binding è il collegamento tra un widget e un tag PLC.
-Quasi tutti i widget hanno un campo **Tag** nel pannello proprietà.
+Quasi tutti i widget hanno un tag principale, nella sezione **Collegamenti** del pannello proprietà.
 
 Quando imposti un tag:
 1. Il widget mostra il valore live del tag nel Viewer operatori (porta 7443)

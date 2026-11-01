@@ -80,7 +80,8 @@ export function BindableInput({ obj, propName, onChange, children }: Props) {
   const exprError = mode === "expr" && spec.expr ? validateExpr(spec.expr) : null;
 
   return (
-    <div style={{ display: "flex", gap: 4, alignItems: "flex-start" }}>
+    // `data-field`: è il bersaglio del clic su un 🔗 in «Collegamenti» (01-11-2026).
+    <div data-field={propName} style={{ display: "flex", gap: 4, alignItems: "flex-start" }}>
       <div style={{ flex: 1, minWidth: 0 }}>
         {!isBound ? children : (
           <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
