@@ -1,8 +1,13 @@
-# Gestione dell'energia: contatori, gruppi, periodi — bozza di specifica
+# Gestione dell'energia: contatori, gruppi, periodi — seme
 
-> **Stato: bozza di specifica — in discussione col maintainer.** Nata il 01-11-2026 dalla domotica di CasaDomotica.
-> Quando le domande in fondo hanno risposta, diventa piano d'esecuzione con una sessione di plan dedicata (modello
-> dati, nomi YAML, migrazioni, fasi in rami).
+> **Stato: seme — decisione.** Nato il 01-11-2026 dalla domotica di CasaDomotica; il maintainer ha chiesto di
+> salvarlo come seme da riprendere più avanti. Contiene già un'analisi ampia (l'esistente misurato, una specifica
+> proposta, le funzioni accessorie, le fasi) e sei domande aperte in fondo.
+>
+> **Quando questo lavoro comincia, il primo passo è una sessione di plan approfondita, dedicata, per sviscerarne
+> tutti i dettagli**: prima le risposte alle sei domande, poi una nuova misura del codice (le righe citate qui
+> invecchiano), e solo allora modello dati, nomi YAML, migrazioni e rami. La specifica qui sotto è materiale per
+> quella sessione, non un piano d'esecuzione.
 
 ## L'idea, con le parole del maintainer
 
