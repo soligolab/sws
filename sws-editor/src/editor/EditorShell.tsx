@@ -54,6 +54,7 @@ import { useAppStore } from "@/store";
 import { coloreAuto, estraiHex, predefinito, regola, coloreDaProgetto, daProgetto } from "@/coloriPredefiniti";
 import { oggettoNuovo } from "./oggettiNuovi";
 import { CampoColore, SelettoreColore } from "./CampoColore";
+import { trascinaBordo } from "./bordoPannello";
 import { regolaCampo, valorePredefinito, type MotivoVuoto } from "@/predefinitiCampi";
 import { IntestazioneSezione, PREFISSO_MEMORIA, RigaProprieta, SPAZIO, TESTO, TitoloVista, migraMemorieVecchie, useSezioneAperta } from "./stilePannelli";
 import { cosaCancella, eliminaWaypoint, percorsoDaSalvare, puntiMovimento } from "@/canvas/percorsoMovimento";
@@ -773,28 +774,10 @@ export function EditorShell() {
     const stored = Number(localStorage.getItem(RIGHT_PANEL_WIDTH_KEY));
     return stored >= RIGHT_PANEL_MIN && stored <= RIGHT_PANEL_MAX ? stored : 280;
   });
-  const rightWidthRef = useRef(rightPanelWidth);
-  const onRightResizeStart = (e: React.MouseEvent) => {
-    e.preventDefault();
-    const startX = e.clientX;
-    const startWidth = rightPanelWidth;
-    document.body.style.cursor = "ew-resize";
-    document.body.style.userSelect = "none";
-    const onMove = (ev: MouseEvent) => {
-      const next = Math.min(RIGHT_PANEL_MAX, Math.max(RIGHT_PANEL_MIN, startWidth - (ev.clientX - startX)));
-      rightWidthRef.current = next;
-      setRightPanelWidth(next);
-    };
-    const onUp = () => {
-      document.removeEventListener("mousemove", onMove);
-      document.removeEventListener("mouseup", onUp);
-      document.body.style.cursor = "";
-      document.body.style.userSelect = "";
-      localStorage.setItem(RIGHT_PANEL_WIDTH_KEY, String(rightWidthRef.current));
-    };
-    document.addEventListener("mousemove", onMove);
-    document.addEventListener("mouseup", onUp);
-  };
+  const onRightResizeStart = (e: React.MouseEvent) => trascinaBordo(e, {
+    larghezza: rightPanelWidth, min: RIGHT_PANEL_MIN, max: RIGHT_PANEL_MAX, verso: -1,
+    onFine: (l) => { setRightPanelWidth(l); localStorage.setItem(RIGHT_PANEL_WIDTH_KEY, String(l)); },
+  });
 
   const handleSelect = (id: string | null, shift?: boolean) => {
     if (id === null) { selectObject(null); return; }
@@ -1811,7 +1794,9 @@ export function PannelloDestro({
         title={t("editor.dragToResize")}
         style={{ position: "absolute", top: 0, left: -3, bottom: 0, width: 6, cursor: "ew-resize", zIndex: 10 }}
       />
-      <div style={{ width: larghezza, display: "flex", flexDirection: "column", overflow: "hidden" }}>
+      {/* Deve restare il fratello subito dopo la maniglia: durante il
+          trascinamento `trascinaBordo` gli scrive la larghezza a mano. */}
+      <div data-pannello-destro-contenuto style={{ width: larghezza, display: "flex", flexDirection: "column", overflow: "hidden" }}>
         <TitoloVista titolo={titolo} />
         <div style={{ flex: 1, minHeight: 0, overflowY: "auto", display: "flex", flexDirection: "column", gap: SPAZIO.m, padding: SPAZIO.l }}>
           {/* Locked page: fieldset[disabled] natively disables every nested

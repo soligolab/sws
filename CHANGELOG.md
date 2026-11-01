@@ -120,6 +120,11 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 
 ### Fixed
 
+- **Il bordo del pannello proprietà segue il mouse**: allargarlo trascinandone il bordo aggiornava a ogni pixel la
+  larghezza nello stato di `EditorShell`, e ridisegnava l'editor intero, canvas compreso. Ora durante il
+  trascinamento la larghezza va sull'elemento una volta per fotogramma, e lo stato si aggiorna al rilascio
+  (`editor/bordoPannello.ts`).
+
 - **Slider senza tag: inerte, sui due motori.** Sul web si lasciava trascinare e ricadeva al minimo; sul pannello LVGL
   si trascinava e restava dove lo si lasciava. In tutti e due i casi senza scrivere niente. Ora senza tag è come
   `read_only`: non si prende né col dito né con la tastiera (l'IDE lo segnala già: «senza tag non comanda niente»).
