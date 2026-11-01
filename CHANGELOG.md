@@ -120,6 +120,10 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 
 ### Fixed
 
+- **Slider senza tag: inerte, sui due motori.** Sul web si lasciava trascinare e ricadeva al minimo; sul pannello LVGL
+  si trascinava e restava dove lo si lasciava. In tutti e due i casi senza scrivere niente. Ora senza tag è come
+  `read_only`: non si prende né col dito né con la tastiera (l'IDE lo segnala già: «senza tag non comanda niente»).
+
 - **Il «-» da tastiera nei campi numerici** (piano `docs/archive/2026-10-31-campi-numerici.md`): un numero negativo
   si scriveva solo con le freccette. Con «-» il browser riporta un valore vuoto, il gestore scriveva «non impostato»
   (o uno **0**, dove faceva `Number(…)`: porte, indirizzi, scale) e il campo tornava al ripiego. I 105

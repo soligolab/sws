@@ -129,6 +129,12 @@ describe("lo slider SVG (fase 2)", () => {
     expect(d.onWriteTag).not.toHaveBeenCalled();
   });
 
+  it("senza tag è inerte come in sola lettura", () => {
+    const d = disegna(slider({ tag: undefined }), {});
+    expect(d.slider.getAttribute("tabindex")).toBeNull();
+    expect(d.container.querySelector('[data-slider-area]')).toBeNull();
+  });
+
   it("la traccia ha il colore dell'indicatore al 20 %, salvo un colore scritto", () => {
     const a = disegna(slider({ fill: "#22c55e" }), valore(0.5));
     const traccia = a.container.querySelector('[data-slider] > rect:not([data-slider-indicatore])') as SVGRectElement;

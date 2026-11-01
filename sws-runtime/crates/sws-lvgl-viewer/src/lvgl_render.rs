@@ -5502,11 +5502,15 @@ fn render_slider(
     //
     // `read_only` (fase 1): l'oggetto non riceve più il tocco. Prima il campo
     // c'era nel pannello e qui non lo leggeva nessuno.
-    if obj.read_only == Some(true) {
+    //
+    // Senza tag vale lo stesso (31-10-2026): prima si lasciava trascinare e
+    // restava dove lo si lasciava, senza scrivere niente — e sul web ricadeva
+    // al minimo. Un indicatore di niente non si deve poter prendere.
+    let tag = obj.tag.clone().filter(|t| !t.trim().is_empty());
+    let Some(tag) = tag.filter(|_| obj.read_only != Some(true)) else {
         unsafe { lvgl_sys::lv_obj_clear_flag(ptr.as_ptr(), lvgl_sys::LV_OBJ_FLAG_CLICKABLE) };
         return Ok(());
-    }
-    let Some(tag) = obj.tag.clone().filter(|t| !t.trim().is_empty()) else { return Ok(()) };
+    };
     let al_rilascio = obj.write_on_release != Some(false);
     let ctx = leak_ctx(SliderCtx {
         tag,

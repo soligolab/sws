@@ -4963,7 +4963,10 @@ function SvgObjectCorpo(p: ObjProps) {
           corpoValore={obj.font_size ?? 12}
           mostraValore={obj.show_value !== false}
           formatta={(v) => `${v.toFixed(decimali)}${obj.unit ? ` ${obj.unit}` : ""}`}
-          sola={!!obj.read_only}
+          // Senza tag non comanda niente (il validatore lo dice nell'IDE): a
+          // runtime si lasciava trascinare e ricadeva al minimo. Inerte come
+          // `read_only`, e così fa anche il pannello LVGL (31-10-2026).
+          sola={!!obj.read_only || !obj.tag?.trim()}
           inEdit={isEditMode}
           scriviAlRilascio={obj.write_on_release !== false}
           deadband={obj.write_deadband}

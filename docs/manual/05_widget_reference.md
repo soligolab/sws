@@ -277,7 +277,7 @@ Cursore per impostare un valore numerico trascinandolo. Lo stesso tag è letto e
 | `slider_track_color` | Colore della parte vuota della traccia. Se manca, il colore di `fill` al 20 %, che lascia vedere lo sfondo |
 | `slider_track_thickness` | Spessore della traccia in px (predefinito 16). Il cursore tondo sborda di 5 px per lato |
 | `slider_value_position` | Dove sta il valore: `sotto` (predefinito), `sopra`, `dentro` la traccia (con una traccia spessa), `cursore` (un fumetto che segue il cursore mentre lo si trascina) |
-| `read_only` | Il cursore mostra il valore ma non si muove |
+| `read_only` | Il cursore mostra il valore ma non si muove. Uno slider **senza tag** si comporta allo stesso modo, sul web e sul pannello: non ha niente da comandare |
 | `write_on_release` | Scrive solo quando si lascia il cursore (predefinito). `false` scrive durante il trascinamento |
 | `write_deadband` | Non scrive se il valore è cambiato meno di così dall'ultima scrittura (0 o più) |
 | `slider_style` | `classico` (predefinito), `pillola` (traccia spessa, cursore bianco dentro), `piastra` (la traccia è tutto il riquadro, senza cursore, con icona, etichetta e valore dentro: per la domotica) o `isa` (ISA-101: grigi, traccia sottile, cursore rettangolare, nessun colore acceso) |
