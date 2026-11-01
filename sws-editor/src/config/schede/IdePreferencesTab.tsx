@@ -266,7 +266,7 @@ function MisuraIconeSection() {
 }
 
 /** La disposizione dei pannelli (31-10-2026, piano
- *  docs/plans/2026-10-31-ide-stile-vscode.md): un elenco di scelte, ognuna con
+ *  docs/archive/2026-10-31-ide-stile-vscode.md): un elenco di scelte, ognuna con
  *  la sua frase, perché le disposizioni sono destinate a essere più di due. */
 function DisposizioneSection() {
   const { t } = useTranslation();

@@ -1563,7 +1563,7 @@ function PanelBreadcrumb({ parts }: { parts: BreadcrumbPart[] }) {
  *  e il primo porta **il nome del tipo** e ne tiene le impostazioni proprie.
  *  Esiste solo dove il tipo ne ha (non sulle forme).
  *
- *  Dal 01-11-2026 (piano docs/plans/2026-11-01-pannello-proprieta-per-frequenza.md)
+ *  Dal 01-11-2026 (piano docs/archive/2026-11-01-pannello-proprieta-per-frequenza.md)
  *  i rami sono tre e seguono la **frequenza d'uso**, non la categoria tecnica:
  *  prima la funzione (collegamenti, scala, comando, accesso), poi l'aspetto,
  *  poi il comportamento. Il ramo «Dati e collegamenti» non c'è più — era quasi
@@ -1786,7 +1786,7 @@ export function PannelloDestro({
   });
 
   // La disposizione «Stile VS Code» (31-10-2026, piano
-  // docs/plans/2026-10-31-ide-stile-vscode.md): i rami diventano le icone di
+  // docs/archive/2026-10-31-ide-stile-vscode.md): i rami diventano le icone di
   // una barra sul bordo destro, la colonna ne mostra **uno** — niente 📌 e
   // niente «tutto chiuso» per oggetto: a chiudere è il clic sull'icona attiva,
   // che chiude la colonna intera.

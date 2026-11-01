@@ -2318,7 +2318,7 @@ export const VOCI_SINISTRA = [
 type VoceSinistra = (typeof VOCI_SINISTRA)[number];
 
 /** Il pannello sinistro nella disposizione «Stile VS Code» (31-10-2026, piano
- *  docs/plans/2026-10-31-ide-stile-vscode.md): la barra di attività e una
+ *  docs/archive/2026-10-31-ide-stile-vscode.md): la barra di attività e una
  *  colonna con **una** voce. Le sezioni sono quelle dell'albero: Strumenti e
  *  Oggetti nella forma «vista» (`ModoVista`, scritta per il T-56), le altre
  *  col titolo della colonna sopra. */

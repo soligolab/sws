@@ -1,5 +1,5 @@
 /** La sezione «Collegamenti» (01-11-2026, piano
- *  docs/plans/2026-11-01-pannello-proprieta-per-frequenza.md, fase 2): tutti i
+ *  docs/archive/2026-11-01-pannello-proprieta-per-frequenza.md, fase 2): tutti i
  *  tag dell'oggetto in un punto, solo quelli collegati più il principale. */
 import { render, screen, fireEvent, within } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach } from "vitest";

@@ -159,7 +159,7 @@ Annoto di seguito, uno per punto, le cose che devono essere verificate e trasfor
   dovrebbe seguire l'area: bool per coil e discrete input, i16 per holding e input register. Il codice:
   config/sorgenti/TabellaRegistriModbus.tsx (onQuickCreate) e registriMappatura in modbusRegistri.ts.
 
-- Disposizione «Stile VS Code» dell'IDE (piano docs/plans/2026-10-31-ide-stile-vscode.md), cose lasciate fuori il
+- Disposizione «Stile VS Code» dell'IDE (piano docs/archive/2026-10-31-ide-stile-vscode.md), cose lasciate fuori il
   31-10-2026: chat e log come voci della barra di attività (in VS Code stanno in fondo alla barra e nel pannello in
   basso; da noi sono cassetti in App.tsx e funzionano), una barra di stato in basso, e altre disposizioni oltre a
   Classica e VS Code (l'elenco DISPOSIZIONI_IDE in store/index.ts e la scheda Configurazione → IDE sono già pronti).

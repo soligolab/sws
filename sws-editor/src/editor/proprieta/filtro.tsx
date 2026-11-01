@@ -1,5 +1,5 @@
 // «Filtra proprietà» (01-11-2026, piano
-// docs/plans/2026-11-01-pannello-proprieta-per-frequenza.md, fase 4): si scrive
+// docs/archive/2026-11-01-pannello-proprieta-per-frequenza.md, fase 4): si scrive
 // «colore» e si vedono i campi colore di tutti i rami. È la promessa dello
 // stile VS Code — trovo tutto cercando — e risponde al «non ricordo dove sta»
 // che nessuna disposizione dei rami toglie del tutto.

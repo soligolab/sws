@@ -1,5 +1,5 @@
 /** La barra di attività della disposizione «Stile VS Code» (31-10-2026, piano
- *  docs/plans/2026-10-31-ide-stile-vscode.md). */
+ *  docs/archive/2026-10-31-ide-stile-vscode.md). */
 import { render, screen, fireEvent, act } from "@testing-library/react";
 import { describe, it, expect, vi, afterEach, beforeEach } from "vitest";
 import { BarraAttivita, useAttivita, type VoceAttivita } from "../src/editor/BarraAttivita";

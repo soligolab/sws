@@ -274,7 +274,7 @@ function misuraIconeSalvata(): MisuraIcone {
 }
 
 /** Le disposizioni dell'IDE (31-10-2026, piano
- *  docs/plans/2026-10-31-ide-stile-vscode.md): come sono ordinati i pannelli.
+ *  docs/archive/2026-10-31-ide-stile-vscode.md): come sono ordinati i pannelli.
  *  Un elenco e non un interruttore: le prossime ci entrano senza rifare niente. */
 export const DISPOSIZIONI_IDE = ["classica", "vscode"] as const;
 export type DisposizioneIde = (typeof DISPOSIZIONI_IDE)[number];

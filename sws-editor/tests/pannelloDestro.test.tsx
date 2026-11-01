@@ -310,7 +310,7 @@ describe("i rami dicono cosa contengono", () => {
 });
 
 /** La disposizione «Stile VS Code» (31-10-2026, piano
- *  docs/plans/2026-10-31-ide-stile-vscode.md): i rami sono le icone della
+ *  docs/archive/2026-10-31-ide-stile-vscode.md): i rami sono le icone della
  *  barra sul bordo destro, la colonna ne mostra uno, niente 📌. */
 describe("pannello destro — stile VS Code", () => {
   beforeEach(() => {

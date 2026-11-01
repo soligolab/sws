@@ -50,7 +50,7 @@ config):
 
 - **Il ramo:** `feat/ide-stile-vscode`, annidato su `fix/bordo-pannello` (opzione 2: stessi file,
   `EditorShell.tsx`). Si chiude passando da lì.
-- **Il piano:** si copia in `docs/plans/2026-10-31-ide-stile-vscode.md` appena approvato, con la riga nel README.
+- **Il piano:** si copia in `docs/archive/2026-10-31-ide-stile-vscode.md` appena approvato, con la riga nel README.
 
 ## Il lavoro, in quattro passi (ciascuno verde e committato)
 

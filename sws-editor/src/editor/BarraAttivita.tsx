@@ -1,4 +1,4 @@
-// La barra di attività (31-10-2026, piano docs/plans/2026-10-31-ide-stile-vscode.md):
+// La barra di attività (31-10-2026, piano docs/archive/2026-10-31-ide-stile-vscode.md):
 // la colonna di icone della disposizione «Stile VS Code», la stessa per i due
 // lati. Ogni icona apre la sua colonna; un clic sull'icona attiva la chiude e
 // il canvas si allarga, come in VS Code. Al passaggio del mouse, o col fuoco

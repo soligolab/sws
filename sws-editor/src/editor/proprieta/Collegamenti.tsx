@@ -1,5 +1,5 @@
 // La sezione «Collegamenti» (01-11-2026, piano
-// docs/plans/2026-11-01-pannello-proprieta-per-frequenza.md, fase 2): tutti i
+// docs/archive/2026-11-01-pannello-proprieta-per-frequenza.md, fase 2): tutti i
 // tag di un oggetto in un punto solo, in testa al ramo della funzione.
 //
 // Si vedono **solo i tag collegati**, più il principale del tipo anche vuoto:

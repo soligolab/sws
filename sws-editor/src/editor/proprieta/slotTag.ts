@@ -1,5 +1,5 @@
 // I tag di un oggetto, tipo per tipo (01-11-2026, piano
-// docs/plans/2026-11-01-pannello-proprieta-per-frequenza.md, fase 2).
+// docs/archive/2026-11-01-pannello-proprieta-per-frequenza.md, fase 2).
 //
 // Prima i campi tag stavano sparsi in tre rami e cinque sezioni: sul simbolo
 // lo stato in testa a «Parametri», la rotazione più in basso fra i colori, il

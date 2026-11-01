@@ -1,5 +1,5 @@
 // Le icone delle barre di attività (31-10-2026, piano
-// docs/plans/2026-10-31-ide-stile-vscode.md): la disposizione «Stile VS Code»
+// docs/archive/2026-10-31-ide-stile-vscode.md): la disposizione «Stile VS Code»
 // ha una colonna di icone per lato, e a differenza di VS Code — richiesta del
 // maintainer — sono colorate, una tinta per voce.
 //

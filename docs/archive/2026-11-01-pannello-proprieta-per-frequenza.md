@@ -334,7 +334,7 @@ l'etichetta di un campo: serve al filtro e all'inventario.
   - `NOVITA.yaml` nel blocco dopo 2.23.8, in it e en.
 - **CasaDomotica:** la regola non si applica (è l'IDE).
 - **I piani:**
-  - `docs/plans/2026-11-01-pannello-proprieta-per-frequenza.md` e `2026-10-31-ide-stile-vscode.md` vanno in archivio
+  - `docs/archive/2026-11-01-pannello-proprieta-per-frequenza.md` e `2026-10-31-ide-stile-vscode.md` vanno in archivio
     dopo l'ok;
   - il seme di riorganizzazione dei file prende nota della cartella `proprieta/`.
 
