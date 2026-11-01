@@ -168,7 +168,10 @@ con la pagina dentro, perché `ServeDir` serviva il guscio della SPA come rispos
 Ora una rotta della SPA (una richiesta di navigazione) ha 200, mentre un file davvero mancante
 resta 404: così un bundle che manca non torna come HTML con stato 200.
 
-**Versione in esecuzione: `8f204595-amd64`** dal 31-10-2026, 20:46: il bordo del pannello proprietà segue il mouse.
+**Versione in esecuzione: `2.23.8-amd64`** dal 01-11-2026: la release con l'IDE in stile VS Code e il pannello proprietà
+riordinato. Quadlet di prima in `~/sws-vps/backup-prima-di-2.23.8/`; verificato: radice e /health 200, un file mancante 404,
+CasaDomotica rifatto sulla nuova immagine. Tenuta come ripiego la `8f204595-amd64`, tolte le immagini di commit più vecchie.
+Prima `8f204595-amd64` dal 31-10-2026, 20:46: il bordo del pannello proprietà segue il mouse.
 Prima `f8724665-amd64` dalle 19:08: lo slider senza tag è inerte.
 Prima `aa5317d8-amd64` dalle 18:20: il «-» da tastiera nei campi numerici.
 Prima `985edd4e-amd64` dalle 17:05: Ctrl+Z per modifica e non per tasto, la

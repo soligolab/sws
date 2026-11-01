@@ -12,6 +12,27 @@
 > resta in «Storico». Qui vive solo ciò che serve a riprendere il lavoro.
 
 
+## ▶ Riprendere da qui — rilasciata la 2.23.8 (2026-11-01)
+
+**Si riparte da `main`, nessun ramo aperto.** Il maintainer ha approvato lo stile VS Code insieme al pannello
+proprietà rivisto e ha chiesto la release stabile.
+
+| Commit su `main` | Cosa |
+|---|---|
+| `7e7f4996` | lo slider senza tag è inerte, web e LVGL |
+| `12ac91b9` | il bordo del pannello proprietà segue il mouse |
+| `6ed92fa2` | l'IDE in stile VS Code (disposizione accanto alla Classica) |
+| `6ff53ef4` | pannello proprietà per frequenza: tre rami, striscia fissa, Collegamenti, Parametri divisa, filtro |
+| `b64edd82` | `chore(release): 2.23.8`, tag `2.23.8` |
+
+- **Immagini**: `2.23.8-arm64` e `2.23.8-amd64` su ghcr, con `latest-*` e `rc-*` spostati (canale stabile e di prova).
+- **VPS**: gateway e CasaDomotica su `2.23.8-amd64`; ripiego `8f204595-amd64`, quadlet di prima in
+  `~/sws-vps/backup-prima-di-2.23.8/`.
+- **NOVITA 2.23.8**: una voce nuova per l'IDE; due voci dello slider unite per restare entro le 15.
+- **Piani archiviati**: `2026-10-31-ide-stile-vscode.md`, `2026-11-01-pannello-proprieta-per-frequenza.md`.
+- **Da fare**: il pannello di prova (TC620) non è stato toccato: si aggiorna da Configurazione → Istanza → Device →
+  «Aggiorna ora» (`latest-arm64`). Su origin restano i rami `fix/zip-compresso` e `fix/colore-fluido` da eliminare.
+
 ## ▶ Riprendere da qui — ZIP compresso, selettori colore, Ctrl+Z, campi numerici in `main` (2026-10-31, ufficio)
 
 **Si riparte da `main`.** Nessun ramo aperto in locale. Quattro squash, tutti collaudati dal maintainer sul cloud:
