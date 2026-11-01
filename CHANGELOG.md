@@ -11,9 +11,11 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 
 ## [Unreleased]
 
+## [2.23.8] — 2026-11-01
+
 ### Added
 
-- **Le disposizioni dell'IDE, e «Stile VS Code»** (piano `docs/plans/2026-10-31-ide-stile-vscode.md`). In
+- **Le disposizioni dell'IDE, e «Stile VS Code»** (piano `docs/archive/2026-10-31-ide-stile-vscode.md`). In
   Configurazione → IDE si sceglie la disposizione dei pannelli (`disposizioneIde`, per browser): **Classica** è
   quella di sempre; **Stile VS Code** mette una barra di icone colorate per lato (`BarraAttivita`, icone e colori in
   `iconeAttivita.ts`, una tinta per voce e per tema, contrasto ≥ 3:1) con un riquadro di spiegazione al passaggio e al
@@ -26,7 +28,7 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
   senza 📌; Pagina o Selezione quando i rami non ci sono. Un clic sull'icona attiva chiude la colonna. Anche il bordo
   del pannello sinistro passa da `trascinaBordo`. Tolta la `BarraIcone` del T-56, senza più usi.
 
-- **Il pannello proprietà ordinato per frequenza** (piano `docs/plans/2026-11-01-pannello-proprieta-per-frequenza.md`).
+- **Il pannello proprietà ordinato per frequenza** (piano `docs/archive/2026-11-01-pannello-proprieta-per-frequenza.md`).
   Tre rami invece di quattro (`GRUPPI_PROPRIETA`: funzione, aspetto, comportamento; i nomi ricordati prima ricadono
   sui nuovi con `ramoAttuale`). Una **striscia fissa** in testa con nome, tipo/id, X Y W H e il cestino; i bottoni
   dell'ordine dei livelli passano in Layer. **Collegamenti** (`proprieta/Collegamenti.tsx`) raccoglie tutti i tag

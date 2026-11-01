@@ -35,6 +35,8 @@
 versioni:
   - versione: "2.23.8"
     voci:
+      - it: "IDE: nuova disposizione «Stile VS Code» e pannello proprietà riordinato: in alto tutti i tag dell'oggetto, poi Funzione, Aspetto, Comportamento, e un campo per cercare una proprietà."
+        en: "IDE: new «VS Code style» layout and a reordered properties panel: all the object's tags at the top, then Function, Look, Behaviour, and a box to search for a property."
       - it: "Si può importare un progetto da uno ZIP compresso, anche fatto a mano con il file manager o con Windows."
         en: "You can import a project from a compressed ZIP, even one made by hand with the file manager or Windows."
       - it: "IDE: all'accesso si può spuntare «Ricordami su questo browser per 30 giorni»; se l'installazione ha la posta configurata, si entra anche con un PIN via e-mail."
@@ -53,10 +55,8 @@ versioni:
         en: "In the light theme the SWS logo is readable: the text is no longer white on white."
       - it: "Slider a molla: mentre lo tieni comanda, quando lo lasci torna da solo al riposo — per le regolazioni a impulsi."
         en: "Spring-return slider: it commands while you hold it and returns to rest by itself when you let go — for jog adjustments."
-      - it: "Slider bipolare, che si riempie da un'origine (−50..50 da zero), e il valore misurato accanto a quello impostato, come in un termostato."
-        en: "Bipolar slider, filling from an origin (−50..50 from zero), and the measured value next to the set one, as on a thermostat."
-      - it: "Slider: tacche marcate e di divisione coi loro numeri, cursore che si aggancia alle tacche, e le bande dei limiti di avviso e di allarme."
-        en: "Slider: major and minor ticks with their numbers, a handle that snaps to ticks, and the warning and alarm limit bands."
+      - it: "Slider: bipolare da un'origine (−50..50 da zero), valore misurato accanto a quello impostato, tacche coi loro numeri, aggancio alle tacche e bande dei limiti di avviso e allarme."
+        en: "Slider: bipolar from an origin (−50..50 from zero), measured value next to the set one, ticks with their numbers, snapping to ticks and warning and alarm limit bands."
       - it: "Slider: quattro stili — classico, pillola, piastra con icona (per luci e tapparelle) e ISA-101 — e l'immagine di sfondo di ogni oggetto si può rendere trasparente."
         en: "Slider: four styles — classic, pill, tile with an icon (for lights and shutters) and ISA-101 — and every object's background image can be made transparent."
       - it: "Slider ridisegnato: lo stesso aspetto sul web e sul pannello, si muove col dito e con la tastiera; si scelgono colore e spessore della traccia e dove mostrare il valore."
