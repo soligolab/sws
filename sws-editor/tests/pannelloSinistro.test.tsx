@@ -13,7 +13,8 @@ vi.mock("@/api/client", async () => {
       descrizione: { it: "Modulo I/O remoto", en: "Remote I/O module" }, origine: "prodotto" }] }) } };
 });
 
-import { LeftPanel } from "../src/editor/LeftPanel";
+import { LeftPanel, VOCI_SINISTRA } from "../src/editor/LeftPanel";
+import { SCHEDE } from "../src/config/schede";
 import { useAppStore } from "../src/store";
 import { eModificato } from "../src/config/fogliaConfig";
 
@@ -317,5 +318,83 @@ describe("il ramo Faceplate mette istanze", () => {
     useAppStore.setState({ currentPageId: "faceplate:pompa" });
     monta();
     expect((screen.getByTestId("faceplate-metti-pompa") as HTMLButtonElement).disabled).toBe(true);
+  });
+});
+
+/** La disposizione «Stile VS Code» (31-10-2026, piano
+ *  docs/plans/2026-10-31-ide-stile-vscode.md): la barra di attività con
+ *  tredici voci dirette e una colonna con una voce per volta. */
+describe("pannello sinistro — stile VS Code", () => {
+  beforeEach(() => {
+    try { localStorage.clear(); } catch { /* jsdom senza storage */ }
+    useAppStore.setState({ authRole: "Admin", appMode: "edit", configTab: "tags", configFocus: null, elenchiConfig: {},
+      pendingSections: {}, repoDisponibile: false, disposizioneIde: "vscode", project: null, pages: [] });
+  });
+  const voci = () => screen.getAllByRole("tab").map((b) => b.getAttribute("data-testid")!.replace("attivita-", ""));
+
+  it("tredici voci all'Admin, nell'ordine; si parte dalle pagine", () => {
+    monta();
+    expect(voci()).toEqual(["cerca", "pagine", "strumenti", "oggetti", "tag", "comunicazione", "allarmi", "logica",
+      "report", "utenti", "dispositivo", "progetto", "preferenze"]);
+    expect(screen.getByTestId("albero-pagine")).toBeTruthy();
+  });
+
+  it("ogni scheda di configurazione sta sotto una voce, e una sola", () => {
+    const assegnate = VOCI_SINISTRA.flatMap((v) => ("schede" in v ? [...v.schede] : []));
+    expect(new Set(assegnate).size).toBe(assegnate.length);
+    expect([...assegnate].sort()).toEqual(SCHEDE.map((s) => s.id).sort());
+  });
+
+  it("Allarmi apre colonna e scheda; Tag apre solo la colonna e lascia il sinottico", () => {
+    monta();
+    fireEvent.click(screen.getByTestId("attivita-tag"));
+    expect(useAppStore.getState().appMode).toBe("edit");
+    expect(screen.getByTestId("colonna-sinistra").textContent).toContain(i18n.t("leftPanel.att.tag"));
+    fireEvent.click(screen.getByTestId("attivita-allarmi"));
+    expect(useAppStore.getState().appMode).toBe("config");
+    expect(useAppStore.getState().configTab).toBe("alarms");
+    fireEvent.click(screen.getByTestId("attivita-strumenti"));
+    expect(useAppStore.getState().appMode).toBe("edit");
+  });
+
+  it("un clic sull'icona attiva chiude la colonna, e la scelta si ricorda", () => {
+    const { unmount } = monta();
+    fireEvent.click(screen.getByTestId("attivita-oggetti"));
+    fireEvent.click(screen.getByTestId("attivita-oggetti"));
+    expect(screen.queryByTestId("colonna-sinistra")).toBeNull();
+    unmount();
+    monta();
+    expect(screen.queryByTestId("colonna-sinistra")).toBeNull();
+    fireEvent.click(screen.getByTestId("attivita-oggetti"));
+    expect(screen.getByTestId("colonna-sinistra").textContent).toContain(i18n.t("editor.sectionPageObjects"));
+  });
+
+  it("chi non può modificare né configurare vede cerca e tag, e parte dai tag", () => {
+    useAppStore.setState({ authRole: "Viewer" });
+    monta();
+    expect(voci()).toEqual(["cerca", "tag"]);
+    expect(screen.getByTestId("attivita-tag").getAttribute("aria-selected")).toBe("true");
+  });
+
+  it("entrare in una scheda da un'altra strada mostra la sua voce", async () => {
+    monta();
+    useAppStore.setState({ appMode: "config", configTab: "users" });
+    await waitFor(() => expect(screen.getByTestId("attivita-utenti").getAttribute("aria-selected")).toBe("true"));
+  });
+
+  it("dal tag agli oggetti che lo usano: il clic mostra gli usi, l'uso seleziona l'oggetto", () => {
+    useAppStore.setState({
+      project: { name: "p", tags: [{ id: "temp", data_type: "f64" }] } as never,
+      pages: [{ id: "home", name: "Home", objects: [{ id: "g1", type: "gauge", x: 0, y: 0, width: 50, height: 50, tag: "temp", name: "Termometro" }] }] as never,
+      currentPageId: undefined, selectedObjectId: null,
+    });
+    monta();
+    fireEvent.click(screen.getByTestId("attivita-tag"));
+    expect(useAppStore.getState().appMode).toBe("edit");
+    fireEvent.click(screen.getByText("temp"));
+    fireEvent.click(screen.getByText(/Termometro/));
+    expect(useAppStore.getState().currentPageId).toBe("home");
+    expect(useAppStore.getState().selectedObjectId).toBe("g1");
+    expect(screen.getByTestId("modifica-tag-temp")).toBeTruthy();
   });
 });

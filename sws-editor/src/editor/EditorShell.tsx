@@ -55,6 +55,7 @@ import { coloreAuto, estraiHex, predefinito, regola, coloreDaProgetto, daProgett
 import { oggettoNuovo } from "./oggettiNuovi";
 import { CampoColore, SelettoreColore } from "./CampoColore";
 import { trascinaBordo } from "./bordoPannello";
+import { BarraAttivita, type VoceAttivita } from "./BarraAttivita";
 import { regolaCampo, valorePredefinito, type MotivoVuoto } from "@/predefinitiCampi";
 import { IntestazioneSezione, PREFISSO_MEMORIA, RigaProprieta, SPAZIO, TESTO, TitoloVista, migraMemorieVecchie, useSezioneAperta } from "./stilePannelli";
 import { cosaCancella, eliminaWaypoint, percorsoDaSalvare, puntiMovimento } from "@/canvas/percorsoMovimento";
@@ -92,6 +93,7 @@ const RIGHT_PANEL_WIDTH_KEY = "sws.rightPanelWidth";
 /** L'ultimo ramo aperto del pannello destro, per **id** (26-09-2026: la
  *  fisarmonica è passata dalle sezioni ai rami). */
 const CHIAVE_RAMO_DESTRA = PREFISSO_MEMORIA + "destra.ramo";
+const CHIAVE_COLONNA_DESTRA_CHIUSA = PREFISSO_MEMORIA + "destra.vscodeChiusa";
 /** I rami appuntati 📌: restano aperti insieme a quello scelto. */
 const CHIAVE_RAMI_APPUNTATI = PREFISSO_MEMORIA + "destra.ramiAppuntati";
 const RIGHT_PANEL_MIN = 220;
@@ -1127,6 +1129,7 @@ export function EditorShell() {
         chiaveOggetto={`${selected?.id ?? ""}|${figlioAttivo?.id ?? ""}`}
         bloccato={!!currentPage?.locked}
         paginaBoot={paginaBoot}
+        voceSingola={multi || !!selected ? "selezione" : "pagina"}
       >
         {multi ? (
           <>
@@ -1710,7 +1713,11 @@ export function avvisoRuoloMinimo(
  *  componente, il filo si può provare da solo — vedi `pannelloDestro.test.tsx`. */
 export function PannelloDestro({
   larghezza, onRidimensiona, titolo, tipo, gruppiVisibili, aSezioni, chiaveOggetto, bloccato, paginaBoot = false, children,
+  voceSingola = "pagina",
 }: {
+  /** Disposizione «Stile VS Code», senza rami (pagina, più oggetti, cella):
+   *  la voce sola della barra. */
+  voceSingola?: "pagina" | "selezione";
   larghezza: number;
   onRidimensiona: (e: React.MouseEvent) => void;
   titolo: string;
@@ -1754,9 +1761,19 @@ export function PannelloDestro({
     if (!conSezioni || n.size !== conSezioni.size || [...n].some((g) => !conSezioni.has(g))) setConSezioni(n);
   });
 
+  // La disposizione «Stile VS Code» (31-10-2026, piano
+  // docs/plans/2026-10-31-ide-stile-vscode.md): i rami diventano le icone di
+  // una barra sul bordo destro, la colonna ne mostra **uno** — niente 📌 e
+  // niente «tutto chiuso» per oggetto: a chiudere è il clic sull'icona attiva,
+  // che chiude la colonna intera.
+  const vscode = useAppStore((s) => s.disposizioneIde) === "vscode";
+  const [colonnaChiusa, setColonnaChiusa] = useState(() => leggi(CHIAVE_COLONNA_DESTRA_CHIUSA, "0") === "1");
+
   const visibili = gruppiVisibili.filter((g) => !conSezioni || conSezioni.has(g.id));
-  const effettivo = ramoEffettivo(scelto, visibili.map((g) => g.id), tipo, chiusoSu === chiaveOggetto);
-  const ramiAperti = new Set([...(effettivo ? [effettivo] : []), ...[...appuntati].filter((g) => visibili.some((v) => v.id === g))]);
+  const effettivo = ramoEffettivo(scelto, visibili.map((g) => g.id), tipo, !vscode && chiusoSu === chiaveOggetto);
+  const ramiAperti = vscode
+    ? new Set(effettivo ? [effettivo] : [])
+    : new Set([...(effettivo ? [effettivo] : []), ...[...appuntati].filter((g) => visibili.some((v) => v.id === g))]);
 
   const indiceGruppo = new Map(gruppiVisibili.map((g, i) => [g.id, i]));
   const fisarmonica: StatoFisarmonica = {
@@ -1783,6 +1800,24 @@ export function PannelloDestro({
     if (g === effettivo) setChiusoSu(chiaveOggetto);
   };
 
+  const titoloRamo = (g: { id: string; chiave: string }) => g.id === "tipo" ? t(`editor.palette.item.${tipo}`) : t(g.chiave);
+  const vociBarra: VoceAttivita[] = aSezioni
+    ? visibili.map((g) => ({ id: g.id, titolo: titoloRamo(g), spiegazione: t(`props.att.${g.id}`) }))
+    : [{ id: voceSingola, titolo: t(`props.att.${voceSingola}Titolo`), spiegazione: t(`props.att.${voceSingola}`) }];
+  const voceAttiva = aSezioni ? effettivo : voceSingola;
+  const scegliVoce = (id: string) => {
+    const chiudi = id === voceAttiva && !colonnaChiusa;
+    setColonnaChiusa(chiudi);
+    scrivi(CHIAVE_COLONNA_DESTRA_CHIUSA, chiudi ? "1" : "0");
+    if (!chiudi && aSezioni) apri(id);
+  };
+  const barra = vscode && (
+    <BarraAttivita voci={vociBarra} attiva={voceAttiva} aperta={!colonnaChiusa} lato="right" onScegli={scegliVoce}
+      etichetta={t("props.att.barra")} />
+  );
+  if (vscode && colonnaChiusa) return <aside style={{ display: "flex", flexShrink: 0 }}>{barra}</aside>;
+  const titoloColonna = vscode ? (vociBarra.find((v) => v.id === voceAttiva)?.titolo ?? titolo) : titolo;
+
   return (
     <aside style={{
       display: "flex", flexShrink: 0, position: "relative",
@@ -1797,7 +1832,7 @@ export function PannelloDestro({
       {/* Deve restare il fratello subito dopo la maniglia: durante il
           trascinamento `trascinaBordo` gli scrive la larghezza a mano. */}
       <div data-pannello-destro-contenuto style={{ width: larghezza, display: "flex", flexDirection: "column", overflow: "hidden" }}>
-        <TitoloVista titolo={titolo} />
+        <TitoloVista titolo={titoloColonna} />
         <div style={{ flex: 1, minHeight: 0, overflowY: "auto", display: "flex", flexDirection: "column", gap: SPAZIO.m, padding: SPAZIO.l }}>
           {/* Locked page: fieldset[disabled] natively disables every nested
               form control (inputs/selects/buttons) in one shot — no need to
@@ -1809,7 +1844,7 @@ export function PannelloDestro({
               // dirette di questa colonna, e così ognuna si disegna una volta.
               <GruppoAttivo.Provider value="tutti">
                 <Fisarmonica.Provider value={fisarmonica}>
-                  {gruppiVisibili.map((g, i) => {
+                  {!vscode && gruppiVisibili.map((g, i) => {
                     if (conSezioni && !conSezioni.has(g.id)) return null;
                     const appuntato = appuntati.has(g.id);
                     return (
@@ -1843,6 +1878,7 @@ export function PannelloDestro({
           </fieldset>
         </div>
       </div>
+      {barra}
     </aside>
   );
 }

@@ -273,6 +273,21 @@ function misuraIconeSalvata(): MisuraIcone {
   return 24;
 }
 
+/** Le disposizioni dell'IDE (31-10-2026, piano
+ *  docs/plans/2026-10-31-ide-stile-vscode.md): come sono ordinati i pannelli.
+ *  Un elenco e non un interruttore: le prossime ci entrano senza rifare niente. */
+export const DISPOSIZIONI_IDE = ["classica", "vscode"] as const;
+export type DisposizioneIde = (typeof DISPOSIZIONI_IDE)[number];
+const CHIAVE_DISPOSIZIONE = "sws.ide.disposizione";
+/** «Classica» se non c'è una scelta salvata: è quella di sempre. */
+function disposizioneSalvata(): DisposizioneIde {
+  try {
+    const v = localStorage.getItem(CHIAVE_DISPOSIZIONE);
+    if ((DISPOSIZIONI_IDE as readonly string[]).includes(v ?? "")) return v as DisposizioneIde;
+  } catch { /* storage non disponibile */ }
+  return "classica";
+}
+
 export type Role = "Viewer" | "Operator" | "Supervisor" | "Admin";
 export type AppMode = "edit" | "config";
 // L'elenco delle schede vive in `config/schede.ts`, il solo posto che lo dichiara.
@@ -499,6 +514,10 @@ interface AppState {
    *  questo browser, per adattarsi a monitor diversi. */
   misuraIcone: MisuraIcone;
   setMisuraIcone: (px: MisuraIcone) => void;
+
+  /** La disposizione dei pannelli (31-10-2026): preferenza di questo browser. */
+  disposizioneIde: DisposizioneIde;
+  setDisposizioneIde: (d: DisposizioneIde) => void;
 
   /** Lingua CORRENTE dei contenuti di progetto (tabella lingue, T-40).
    *  Asse indipendente dalla lingua UI. "" = usa il default della tabella. */
@@ -1202,6 +1221,12 @@ export const useAppStore = create<AppState>((set, get) => {
     setMisuraIcone: (px) => {
       try { localStorage.setItem(CHIAVE_MISURA_ICONE, String(px)); } catch { /* storage non disponibile */ }
       set({ misuraIcone: px });
+    },
+
+    disposizioneIde: disposizioneSalvata(),
+    setDisposizioneIde: (d) => {
+      try { localStorage.setItem(CHIAVE_DISPOSIZIONE, d); } catch { /* storage non disponibile */ }
+      set({ disposizioneIde: d });
     },
 
     projectLang: getStoredProjectLang(),

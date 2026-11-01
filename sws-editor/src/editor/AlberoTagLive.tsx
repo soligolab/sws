@@ -40,8 +40,11 @@ function ricordato(): Raggruppa {
   } catch { return "nessuno"; }
 }
 
-export function AlberoTagLive({ rientro = 20, puoAprire = true }: {
+export function AlberoTagLive({ rientro = 20, puoAprire = true, esplora = false }: {
   rientro?: number;
+  /** Colonna Tag della disposizione «Stile VS Code» (31-10-2026): il clic su
+   *  un tag ne mostra gli usi (e porta all'oggetto), la modifica sta su ✎. */
+  esplora?: boolean;
   /** Chi non può configurare vede i valori ma non apre la scheda di
    *  modifica: per lui il clic non fa niente. */
   puoAprire?: boolean;
@@ -55,6 +58,14 @@ export function AlberoTagLive({ rientro = 20, puoAprire = true }: {
   // configurare quella scheda non la apre: per lui la riga è in sola lettura.
   const navigateToConfig = useAppStore((s) => s.navigateToConfig);
   const apri = puoAprire ? (id: string) => navigateToConfig("tags", id) : undefined;
+  const setAppMode = useAppStore((s) => s.setAppMode);
+  const setCurrentPage = useAppStore((s) => s.setCurrentPage);
+  const selectObject = useAppStore((s) => s.selectObject);
+  const vaiAUso = (pageId: string, oggettoId?: string) => {
+    setAppMode("edit");
+    setCurrentPage(pageId);
+    if (oggettoId) selectObject(oggettoId);
+  };
 
   const [aperto, setAperto] = useState<string | null>(null);
   const [criterio, setCriterio] = useState<Raggruppa>(ricordato);
@@ -120,7 +131,9 @@ export function AlberoTagLive({ rientro = 20, puoAprire = true }: {
         usi={usiDi(tg.id)}
         aperta={aperto === tg.id}
         onToggle={() => setAperto(aperto === tg.id ? null : tg.id)}
-        onApri={apri && (() => apri(tg.id))}
+        onApri={esplora ? () => setAperto(aperto === tg.id ? null : tg.id) : apri && (() => apri(tg.id))}
+        onModifica={esplora ? apri && (() => apri(tg.id)) : undefined}
+        onVaiAUso={esplora ? vaiAUso : undefined}
         stileRiga={stile}
         figli={foglie.length === 0 ? undefined : (
           <>
@@ -133,7 +146,9 @@ export function AlberoTagLive({ rientro = 20, puoAprire = true }: {
                 usi={usiDi(f.percorso)}
                 aperta={aperto === f.percorso}
                 onToggle={() => setAperto(aperto === f.percorso ? null : f.percorso)}
-                onApri={apri && (() => apri(f.percorso))}
+                onApri={esplora ? () => setAperto(aperto === f.percorso ? null : f.percorso) : apri && (() => apri(f.percorso))}
+                onModifica={esplora ? apri && (() => apri(f.percorso)) : undefined}
+                onVaiAUso={esplora ? vaiAUso : undefined}
                 stileRiga={{
                   paddingLeft: rientro + 14 + (dentro ? 12 : 0),
                   paddingRight: 6,

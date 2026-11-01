@@ -13,6 +13,19 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 
 ### Added
 
+- **Le disposizioni dell'IDE, e «Stile VS Code»** (piano `docs/plans/2026-10-31-ide-stile-vscode.md`). In
+  Configurazione → IDE si sceglie la disposizione dei pannelli (`disposizioneIde`, per browser): **Classica** è
+  quella di sempre; **Stile VS Code** mette una barra di icone colorate per lato (`BarraAttivita`, icone e colori in
+  `iconeAttivita.ts`, una tinta per voce e per tema, contrasto ≥ 3:1) con un riquadro di spiegazione al passaggio e al
+  fuoco, e accanto una colonna sola. A sinistra **tredici voci dirette** in tre gruppi (`VOCI_SINISTRA`): Cerca,
+  Pagine, Strumenti, Oggetti; Tag, Comunicazione, Allarmi, Logica, Report; in fondo Utenti, Dispositivo, Progetto,
+  Preferenze. Ogni scheda di configurazione sta sotto una voce sola (`FoglieConfigurazione`, nell'ordine della voce);
+  Allarmi, Report, Utenti, Dispositivo e Preferenze aprono anche la scheda, Tag/Comunicazione/Logica solo la colonna.
+  La colonna Tag mostra i valori live (`AlberoTagLive` in modalità `esplora`): il clic mostra gli usi, l'uso porta
+  alla pagina e seleziona l'oggetto (`TagUse.oggettoId`), ✎ apre la modifica. A destra: i rami delle proprietà, uno per volta,
+  senza 📌; Pagina o Selezione quando i rami non ci sono. Un clic sull'icona attiva chiude la colonna. Anche il bordo
+  del pannello sinistro passa da `trascinaBordo`. Tolta la `BarraIcone` del T-56, senza più usi.
+
 - **OpenPLC dall'IDE, come container persistente** (piano `docs/archive/2026-10-20-openplc-sul-dispositivo.md`,
   collaudo del 30-10-2026). Il quadlet `openplc-runtime.container` non partiva sul WP630 (il volume copriva la
   `/workdir` dell'immagine), non si poteva abilitare al boot (`enable` su un'unità generata) e avrebbe perso il

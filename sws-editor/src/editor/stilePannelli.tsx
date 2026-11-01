@@ -22,7 +22,6 @@
  *  loro. Qui ci sono solo misure, e i componenti che le applicano.
  */
 import React, { useCallback, useState } from "react";
-import { useTranslation } from "react-i18next";
 
 /** Spaziature. Quattro valori, non un continuo: la scala serve a togliere le
  *  decisioni, non a spostarle da `padding: 5px` a `SPAZIO.cinque`. */
@@ -291,68 +290,6 @@ export function TitoloVista({ titolo, azione }: { titolo: string; azione?: React
         {titolo}
       </span>
       {azione}
-    </div>
-  );
-}
-
-/** Una voce della barra delle icone. `chiave` è una chiave i18n, non un testo:
- *  la barra la risolve da sé, così i chiamanti non devono passarsi `t`. */
-export interface VoceBarra {
-  readonly id: string;
-  readonly icona: string;
-  readonly chiave: string;
-}
-
-/** La colonna di icone che sceglie la vista: sempre visibile, **fuori** dalla
- *  zona che si ridimensiona e da quella che scorre.
- *
- *  Una sola, per tutti e due i pannelli: `lato` decide soltanto da che parte
- *  cade il bordo. Nata a sinistra l'11-09-2026 (T-56 passo 2) ed estratta qui
- *  il giorno stesso, quando il pannello destro ha preso la stessa forma. */
-export function BarraIcone<T extends string>({
-  voci, attiva, onScegli, lato,
-}: {
-  voci: readonly VoceBarra[];
-  attiva: T;
-  onScegli: (v: T) => void;
-  lato: "sinistra" | "destra";
-}) {
-  const { t } = useTranslation();
-  return (
-    <div
-      role="tablist"
-      aria-orientation="vertical"
-      style={{
-        width: 40, flexShrink: 0, display: "flex", flexDirection: "column",
-        alignItems: "center", gap: SPAZIO.xs, padding: `${SPAZIO.s}px 0`,
-        background: "var(--brand-bg, #0f172a)",
-        [lato === "sinistra" ? "borderRight" : "borderLeft"]:
-          "1px solid var(--brand-surface-2, #334155)",
-      }}
-    >
-      {voci.map((v) => {
-        const scelta = v.id === attiva;
-        return (
-          <button
-            key={v.id}
-            role="tab"
-            aria-selected={scelta}
-            title={t(v.chiave)}
-            onClick={() => onScegli(v.id as T)}
-            style={{
-              width: 30, height: 30, display: "flex", alignItems: "center", justifyContent: "center",
-              fontSize: 15, lineHeight: 1, cursor: "pointer", borderRadius: 4,
-              background: scelta ? "var(--brand-surface-2, #334155)" : "transparent",
-              // Il bordo c'è sempre, trasparente quando non serve: senza, la
-              // scelta sposterebbe le icone di un pixel a ogni clic.
-              border: `1px solid ${scelta ? "var(--brand-border, #475569)" : "transparent"}`,
-              color: scelta ? "var(--brand-text, #e2e8f0)" : "var(--brand-text-subtle, #94a3b8)",
-            }}
-          >
-            <span aria-hidden="true">{v.icona}</span>
-          </button>
-        );
-      })}
     </div>
   );
 }

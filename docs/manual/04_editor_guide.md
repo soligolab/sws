@@ -28,6 +28,29 @@ L'interfaccia è divisa in quattro aree:
 | **Canvas** | Al centro | Sinottico in costruzione |
 | **Pannello proprietà** | A destra | Configurazione dell'oggetto selezionato |
 
+### Le disposizioni (dal 31-10-2026)
+
+Come sono ordinati i due pannelli si sceglie in **Configurazione → IDE → Disposizione dell'interfaccia**. La scelta
+vale per il browser in cui la si fa, come il tema e la misura delle icone.
+
+- **Classica** — quella descritta in questo capitolo: a sinistra un albero solo con tutte le sezioni, a destra le
+  proprietà a fisarmonica, con i rami che si possono appuntare (📌).
+- **Stile VS Code** — una **barra di icone colorate** per lato e, accanto, **una colonna sola**:
+  - a sinistra ci sono tredici icone in tre gruppi. **Disegno**: Cerca, Pagine, Strumenti, Oggetti della pagina.
+    **Dati e logica**: Tag, Comunicazione, Allarmi e notifiche, Logica (funzioni, script, ricette), Report.
+    **In fondo**: Utenti e sicurezza, Dispositivo, Progetto (stile, lingue, git, archivi dati), Preferenze. Chi non
+    può modificare il progetto non vede le icone del disegno; chi non può configurarlo vede Cerca e Tag;
+  - alcune icone aprono anche la scheda al centro (Allarmi, Report, Utenti, Dispositivo, Preferenze); altre solo la
+    colonna, per lavorare tenendo il sinottico in vista. **Tag** mostra i valori live: un clic su un tag dice dove è
+    usato, un clic su un uso porta alla pagina e seleziona l'oggetto, ✎ (o «Tabella») apre la modifica;
+  - a destra le icone sono i rami delle proprietà dell'oggetto selezionato (parametri, posizione e aspetto, dati,
+    animazione e interazione); senza selezione l'icona è una sola, Pagina, e con più oggetti Selezione;
+  - passando col mouse su un'icona, o arrivandoci col tasto Tab, un riquadro dice cosa c'è dietro;
+  - un clic sull'icona già attiva **chiude la colonna**, e il canvas si allarga; un altro clic la riapre. Le
+    frecce su e giù scorrono le icone.
+
+  Le sezioni dentro le colonne sono le stesse della disposizione classica: cambia solo come sono messe.
+
 ---
 
 ## Toolbar

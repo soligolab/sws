@@ -7,18 +7,21 @@
  *  su una pagina piena il bordo non stava dietro al mouse — lo stesso guasto
  *  dei selettori colore.
  *
- *  Il contenuto da allargare è il fratello subito dopo la maniglia. */
+ *  Il contenuto da allargare è `contenuto`, o il fratello subito dopo la
+ *  maniglia (il pannello destro, che ha la maniglia sul bordo sinistro). */
 export function trascinaBordo(e: React.MouseEvent, o: {
   larghezza: number;
   min: number;
   max: number;
   /** -1 se la maniglia sta sul bordo sinistro (il pannello destro). */
   verso: 1 | -1;
+  /** L'elemento da allargare, quando non è il fratello dopo la maniglia. */
+  contenuto?: HTMLElement | null;
   onFine: (larghezza: number) => void;
 }): void {
   e.preventDefault();
   const startX = e.clientX;
-  const contenuto = (e.currentTarget as HTMLElement).nextElementSibling as HTMLElement | null;
+  const contenuto = o.contenuto ?? (e.currentTarget as HTMLElement).nextElementSibling as HTMLElement | null;
   let larghezza = o.larghezza;
   let fotogramma: number | null = null;
   document.body.style.cursor = "ew-resize";

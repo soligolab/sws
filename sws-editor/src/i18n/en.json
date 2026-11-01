@@ -1292,7 +1292,18 @@
     "pvSliderAiuto": "measured value tag",
     "colorePv": "PV marker colour",
     "mollaSlider": "Spring return",
-    "riposoSlider": "Rest value"
+    "riposoSlider": "Rest value",
+    "att": {
+      "barra": "Property groups",
+      "tipo": "The parameters specific to this object type.",
+      "aspetto": "Position, size, colours, text and layer.",
+      "dati": "The tag, bindings and quality indicators.",
+      "interazione": "Events, animations, visibility and security.",
+      "paginaTitolo": "Page",
+      "pagina": "The open page's properties: background, size, navigation.",
+      "selezioneTitolo": "Selection",
+      "selezione": "The properties shared by the selected objects."
+    }
   },
   "shortcut": {
     "navCanvas": "Canvas navigation",
@@ -2073,7 +2084,39 @@
     "senzaGruppo": "⤓ No group",
     "rinominaGruppo": "Rename group",
     "separaGruppo": "Ungroup",
-    "configurazionePython": "Configuration → Python"
+    "configurazionePython": "Configuration → Python",
+    "att": {
+      "barra": "Activity bar",
+      "cerca": "Search",
+      "cercaNota": "Search the project: pages, objects, tags, functions and settings.",
+      "pagine": "Pages",
+      "pagineNota": "The project pages, with frames, faceplates, boot images and floor plans.",
+      "strumenti": "Tools",
+      "strumentiNota": "Objects to put on the page: click to add, or drag.",
+      "oggetti": "Page objects",
+      "oggettiNota": "The objects on the open page, with their groups.",
+      "tag": "Tags",
+      "tagNota": "Tags with live values, while the synoptic stays in view. Click shows where a tag is used and jumps to the object; ✎ edits it.",
+      "tagTabella": "Table",
+      "tagTabellaNota": "Opens the tag table to edit them.",
+      "comunicazione": "Communication",
+      "comunicazioneNota": "Data sources and devices, with their status: Modbus, OPC-UA, MQTT, S7 and the others.",
+      "allarmi": "Alarms and notifications",
+      "allarmiNota": "Alarms and who to notify: e-mail, Telegram, phone, events.",
+      "logica": "Logic",
+      "logicaNota": "Functions called by objects, Python scripts and recipes.",
+      "report": "Reports",
+      "reportNota": "Scheduled reports: shift, day, month.",
+      "utenti": "Users and security",
+      "utentiNota": "Project users, roles and certificates.",
+      "dispositivo": "Device",
+      "dispositivoNota": "The panel: status, connection, installation, backups and performance.",
+      "progetto": "Project",
+      "progettoNota": "The rest of the project: style, languages, versions (git) and data stores.",
+      "preferenze": "Preferences",
+      "preferenzeNota": "This editor's preferences: theme, language, layout, icons."
+    },
+    "tagModifica": "Edit the tag"
   },
   "shell": {
     "offPage_one": "⚠ {{count}} object is off the sheet and will not be drawn at runtime. Drag it inside the dashed border to re-enable it, or enlarge the page.",
@@ -2818,7 +2861,13 @@
     "disco": "Disk",
     "copia": "Copy",
     "tlsFiduciaSi": "The panel's browser trusts the certificate: the screen opens the synoptic without warnings.",
-    "tlsFiduciaNo": "Browser trust cannot be installed on this device (certutil is missing): with a self-signed certificate the screen will show «Your connection is not private»."
+    "tlsFiduciaNo": "Browser trust cannot be installed on this device (certutil is missing): with a self-signed certificate the screen will show «Your connection is not private».",
+    "disposizione": "Interface layout",
+    "disposizioneNota": "How the editor panels are arranged. Applies to this browser.",
+    "disposizioneClassica": "Classic",
+    "disposizioneClassicaNota": "One tree on the left with every section, properties as an accordion on the right.",
+    "disposizioneVscode": "VS Code style",
+    "disposizioneVscodeNota": "An icon bar on each side: each icon opens its column, clicking the active icon closes it."
   },
   "boot": {
     "pngTooLarge": "PNG too large ({{kb}} KB, max 5120 KB): it was not uploaded",

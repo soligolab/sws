@@ -30,6 +30,9 @@ export interface TagUse {
   /** Il nome dell'oggetto che lo usa, quando si sa: «pagina Home» dice dove
    *  cercare, «Home › indicatore CPU» dice cosa si è trovato. */
   oggetto?: string;
+  /** L'id dell'oggetto, per saltarci (31-10-2026, colonna Tag della
+   *  disposizione «Stile VS Code»: dal tag agli oggetti che lo usano). */
+  oggettoId?: string;
 }
 
 /** Gli usi di un tag **comprese le sue foglie**, per un'istanza.
@@ -109,7 +112,7 @@ export function buildTagUsage({
       for (const id of collectTagIds([obj], faceplates)) {
         add(id, {
           where: i18n.t("tagUsage.page", { name: pg.name }),
-          categoria: "pagina", pageId: pg.id, oggetto: nome,
+          categoria: "pagina", pageId: pg.id, oggetto: nome, oggettoId: obj.id,
         });
       }
     }

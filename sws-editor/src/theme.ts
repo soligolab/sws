@@ -21,6 +21,7 @@
 // `data-theme` prima del primo paint per evitare il flash.
 
 import { CSS_VARS, getBrand } from "@/branding";
+import { COLORI_ATTIVITA, varAttivita } from "@/editor/iconeAttivita";
 
 export type ThemeMode = "light" | "dark" | "system";
 export type ResolvedTheme = "light" | "dark";
@@ -347,6 +348,14 @@ export function applyAppearance(mode: ThemeMode): ResolvedTheme {
   s.setProperty(VAR_OMBRA_CARD, resolved === "light"
     ? "0 1px 2px rgba(15,23,42,.08), 0 2px 8px rgba(15,23,42,.07)"
     : "0 1px 2px rgba(0,0,0,.35), 0 2px 8px rgba(0,0,0,.25)");
+
+  // Le barre di attività della disposizione «Stile VS Code» (31-10-2026): un
+  // colore per voce, nella variante del tema. Il fondo serve alle icone che
+  // hanno pieni «bucati» (i cursori di `tipo`).
+  for (const [voce, [scuro, chiaro]] of Object.entries(COLORI_ATTIVITA)) {
+    s.setProperty(varAttivita(voce), resolved === "light" ? chiaro : scuro);
+  }
+  s.setProperty("--sws-att-fondo", neutrals.bg);
 
   // Stato.
   s.setProperty(VAR_DANGER,       status.danger);

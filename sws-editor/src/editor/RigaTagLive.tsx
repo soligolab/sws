@@ -46,7 +46,8 @@ export function PallinoQualita({ qualita }: { qualita?: string }) {
 
 export function UsiDelTag({ usi, onVaiAPagina }: {
   usi: readonly TagUse[];
-  onVaiAPagina?: (pageId: string) => void;
+  /** Con l'oggetto, quando l'uso ne nomina uno: si può selezionarlo. */
+  onVaiAPagina?: (pageId: string, oggettoId?: string) => void;
 }) {
   const { t } = useTranslation();
   if (usi.length === 0) {
@@ -69,7 +70,7 @@ export function UsiDelTag({ usi, onVaiAPagina }: {
             {voci.map((u, i) => (
               <div
                 key={i}
-                onClick={u.pageId && onVaiAPagina ? () => onVaiAPagina(u.pageId!) : undefined}
+                onClick={u.pageId && onVaiAPagina ? () => onVaiAPagina(u.pageId!, u.oggettoId) : undefined}
                 title={u.where}
                 style={{
                   fontSize: 10, color: "var(--brand-text-muted, #94a3b8)", padding: "1px 0 1px 8px",
@@ -125,7 +126,13 @@ export function testoValoreTag(v: unknown, decimals?: number, unit?: string): st
   return unit && typeof v === "number" ? `${s} ${unit}` : s;
 }
 
-export function RigaTagLive({ tag, valore, usi, aperta, onToggle, onApri, stileRiga, figli, etichetta }: {
+export function RigaTagLive({ tag, valore, usi, aperta, onToggle, onApri, stileRiga, figli, etichetta, onModifica, onVaiAUso }: {
+  /** Colonna Tag della disposizione «Stile VS Code» (31-10-2026): il clic
+   *  apre gli usi qui sotto invece della scheda, e la scheda si apre da ✎ —
+   *  così si guardano i valori senza lasciare il sinottico. */
+  onModifica?: () => void;
+  /** Con `onModifica`: un uso cliccato porta alla pagina e all'oggetto. */
+  onVaiAUso?: (pageId: string, oggettoId?: string) => void;
   /** Per una foglia, decimali e unità vengono dal membro del tipo. */
   tag: Pick<TagDef, "id" | "decimals" | "unit">;
   valore?: TagState;
@@ -181,13 +188,27 @@ export function RigaTagLive({ tag, valore, usi, aperta, onToggle, onApri, stileR
             />
           )}
         </div>
-        {valore != null && (
-          <span style={{ color: "var(--brand-text-subtle, #64748b)", fontSize: 11, flexShrink: 0 }}>
-            {testoValoreTag(valore.value, tag.decimals, tag.unit)}
-          </span>
-        )}
+        <div style={{ display: "flex", alignItems: "center", gap: 6, flexShrink: 0 }}>
+          {valore != null && (
+            <span style={{ color: "var(--brand-text-subtle, #64748b)", fontSize: 11 }}>
+              {testoValoreTag(valore.value, tag.decimals, tag.unit)}
+            </span>
+          )}
+          {onModifica && (
+            <button type="button" data-testid={`modifica-tag-${tag.id}`} title={t("leftPanel.tagModifica")}
+              aria-label={t("leftPanel.tagModifica")}
+              onClick={(e) => { e.stopPropagation(); onModifica(); }}
+              style={{ border: "none", background: "transparent", cursor: "pointer", padding: 0, fontSize: 11,
+                       color: "var(--brand-text-subtle, #64748b)" }}>✎</button>
+          )}
+        </div>
       </div>
       {aperta && figli}
+      {aperta && figli === undefined && onModifica && (
+        <div style={{ padding: "2px 6px 4px", paddingLeft: (Number(stileRiga?.paddingLeft) || 0) + 18 }}>
+          <UsiDelTag usi={usi} onVaiAPagina={onVaiAUso} />
+        </div>
+      )}
     </div>
   );
 }

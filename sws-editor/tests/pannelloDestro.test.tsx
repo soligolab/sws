@@ -1,5 +1,6 @@
 import { render, screen, fireEvent, within } from "@testing-library/react";
-import { describe, it, expect, beforeEach } from "vitest";
+import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { useAppStore } from "../src/store";
 import i18n from "../src/i18n";
 import { GRUPPI_PROPRIETA, ObjectProps, PannelloDestro, barraGruppiVisibile, figlioProprietaAttivo, gruppiPerTipo, gruppoAffine, ramoEffettivo } from "../src/editor/EditorShell";
 import { PALETTE_GROUPS } from "../src/editor/LeftPanel";
@@ -223,5 +224,48 @@ describe("i rami dicono cosa contengono", () => {
   it("il ramo del tipo è il primo, ed è l'affine di ogni tipo", () => {
     expect(GRUPPI_PROPRIETA[0].id).toBe("tipo");
     for (const t of ["text", "button", "rect", "line"]) expect(gruppoAffine(t), t).toBe("tipo");
+  });
+});
+
+/** La disposizione «Stile VS Code» (31-10-2026, piano
+ *  docs/plans/2026-10-31-ide-stile-vscode.md): i rami sono le icone della
+ *  barra sul bordo destro, la colonna ne mostra uno, niente 📌. */
+describe("pannello destro — stile VS Code", () => {
+  beforeEach(() => {
+    try { localStorage.clear(); } catch { /* jsdom senza storage */ }
+    useAppStore.setState({ disposizioneIde: "vscode" });
+  });
+  afterEach(() => useAppStore.setState({ disposizioneIde: "classica" }));
+
+  it("una icona per ramo, nessun 📌, e un ramo solo nella colonna", () => {
+    render(<Guscio obj={oggetto("g1", "gauge")} />);
+    const voci = screen.getAllByRole("tab").map((b) => b.getAttribute("data-testid"));
+    expect(voci).toEqual(gruppiPerTipo("gauge", false).map((g) => `attivita-${g.id}`));
+    expect(screen.queryAllByTestId(/^pin-ramo-/)).toHaveLength(0);
+    expect(screen.queryAllByTestId(/^ramo-proprieta-/)).toHaveLength(0);
+    fireEvent.click(screen.getByTestId("attivita-dati"));
+    expect(screen.getByTestId("attivita-dati").getAttribute("aria-selected")).toBe("true");
+    expect(screen.getAllByRole("tab").filter((b) => b.getAttribute("aria-selected") === "true")).toHaveLength(1);
+  });
+
+  it("un clic sull'icona attiva chiude la colonna e lascia la barra; un altro la riapre", () => {
+    render(<Guscio obj={oggetto("g1", "gauge")} />);
+    fireEvent.click(screen.getByTestId("attivita-aspetto"));
+    fireEvent.click(screen.getByTestId("attivita-aspetto"));
+    expect(screen.queryAllByTestId(/^sezione-/)).toHaveLength(0);
+    expect(screen.getAllByRole("tab").length).toBeGreaterThan(0);
+    fireEvent.click(screen.getByTestId("attivita-aspetto"));
+    expect(screen.queryAllByTestId(/^sezione-/).length).toBeGreaterThan(0);
+  });
+
+  it("senza rami (la pagina) la barra ha una voce sola", () => {
+    render(
+      <PannelloDestro larghezza={280} onRidimensiona={() => {}} titolo="x" tipo="" gruppiVisibili={[]} aSezioni={false}
+        chiaveOggetto="" bloccato={false} voceSingola="pagina">
+        <div data-testid="proprieta-pagina" />
+      </PannelloDestro>,
+    );
+    expect(screen.getAllByRole("tab").map((b) => b.getAttribute("data-testid"))).toEqual(["attivita-pagina"]);
+    expect(screen.getByTestId("proprieta-pagina")).toBeTruthy();
   });
 });

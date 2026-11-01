@@ -6,7 +6,7 @@ import { ThemeToggle } from "@/components/ThemeToggle";
 import { UiLangSelect } from "@/components/UiLangSelect";
 import { chiudiAiStream } from "@/ws/aiStream";
 import type { AiConfig } from "@/types";
-import { MISURE_ICONE, useAppStore } from "@/store";
+import { DISPOSIZIONI_IDE, MISURE_ICONE, useAppStore, type DisposizioneIde } from "@/store";
 import { IconaStrumento } from "@/editor/IconaStrumento";
 
 // ── Preferenze IDE ───────────────────────────────────────────────────────────
@@ -265,6 +265,42 @@ function MisuraIconeSection() {
   );
 }
 
+/** La disposizione dei pannelli (31-10-2026, piano
+ *  docs/plans/2026-10-31-ide-stile-vscode.md): un elenco di scelte, ognuna con
+ *  la sua frase, perché le disposizioni sono destinate a essere più di due. */
+function DisposizioneSection() {
+  const { t } = useTranslation();
+  const scelta = useAppStore((s) => s.disposizioneIde);
+  const scegli = useAppStore((s) => s.setDisposizioneIde);
+  const etichette: Record<DisposizioneIde, [string, string]> = {
+    classica: [t("cfgUi.disposizioneClassica"), t("cfgUi.disposizioneClassicaNota")],
+    vscode: [t("cfgUi.disposizioneVscode"), t("cfgUi.disposizioneVscodeNota")],
+  };
+  return (
+    <div style={{ background: "var(--brand-bg, #0f172a)", border: "1px solid var(--brand-surface, #1e293b)", borderRadius: 6, padding: "10px 14px", display: "flex", flexDirection: "column", gap: 8 }}>
+      <div>
+        <div style={{ fontSize: 13, fontWeight: 600, color: "var(--brand-text, #e2e8f0)" }}>{t("cfgUi.disposizione")}</div>
+        <div style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)", marginTop: 2 }}>{t("cfgUi.disposizioneNota")}</div>
+      </div>
+      <div role="radiogroup" aria-label={t("cfgUi.disposizione")} style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+        {DISPOSIZIONI_IDE.map((d) => (
+          <button key={d} type="button" role="radio" aria-checked={scelta === d} data-testid={`disposizione-${d}`}
+            onClick={() => scegli(d)}
+            style={{
+              textAlign: "left", padding: "6px 10px", borderRadius: 4, cursor: "pointer",
+              background: scelta === d ? "var(--brand-surface-2, #334155)" : "transparent",
+              border: `1px solid ${scelta === d ? "var(--brand-accent, #3b82f6)" : "var(--brand-surface-2, #334155)"}`,
+              color: "var(--brand-text, #e2e8f0)",
+            }}>
+            <div style={{ fontSize: 12, fontWeight: 600 }}>{etichette[d][0]}</div>
+            <div style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)", marginTop: 1 }}>{etichette[d][1]}</div>
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export function IdePreferencesTab() {
   const { t } = useTranslation();
   return (
@@ -286,6 +322,7 @@ export function IdePreferencesTab() {
         </div>
         <UiLangSelect />
       </div>
+      <DisposizioneSection />
       <MisuraIconeSection />
       <SezioneScorciatoie />
       <AssistenteSection />

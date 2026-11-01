@@ -442,6 +442,41 @@ function Ramo({ ramo, icona, elementiDi, repo }: {
   );
 }
 
+/** Solo alcune schede, senza l'intestazione del ramo (31-10-2026): le colonne
+ *  della disposizione «Stile VS Code», dove l'icona ha già detto dove si è
+ *  («Allarmi» mostra allarmi e notifiche, «Dispositivo» l'istanza). I
+ *  sotto-rami restano, come nell'albero; l'ordine è quello del registro.
+ *  Restituisce `null` se a questo ruolo non ne resta nessuna. */
+export function FoglieConfigurazione({ schede }: { schede: readonly IdScheda[] }) {
+  const isAdmin = useAppStore((s) => s.authRole === "Admin");
+  const elementiDi = useElementi(isAdmin);
+  const repo = useRepoDisponibile();
+  const modificataFn = useSchedaModificata();
+  const foglie: FogliaCalcolata[] = schedeVisibili(isAdmin, repo).filter((s) => schede.includes(s.id)).map((s) => {
+    const elementi = "elementi" in s && s.elementi ? elementiDi(s.id) : null;
+    return { s, elementi, modificata: modificataFn(s, elementi) };
+  });
+  if (!foglie.length) return null;
+  // L'ordine è quello di `schede`, non del registro: «Allarmi» prima delle
+  // sue notifiche, «Stato» del dispositivo prima di prestazioni e backup. E
+  // niente sotto-rami (maintainer, 31-10-2026: «nel menù allarmi, device, non
+  // dividerei le voci al suo interno in rami»): la colonna è già il ramo.
+  const posto = (id: string) => (schede as readonly string[]).indexOf(id);
+  foglie.sort((a, b) => posto(a.s.id) - posto(b.s.id));
+  const pezzi = foglie.map((f, i) => (
+    <Foglia key={f.s.id} scheda={f.s} elementi={f.elementi} modificata={f.modificata} ultimo={i === foglie.length - 1} />
+  ));
+  return <div style={{ padding: `0 ${SPAZIO.m}px` }}>{pezzi}</div>;
+}
+
+/** Le schede di `schede` che questo ruolo vede (per sapere se una voce della
+ *  barra ha qualcosa da mostrare, e quale scheda aprire per prima). */
+export function useSchedeVisibili(schede: readonly IdScheda[]): IdScheda[] {
+  const isAdmin = useAppStore((s) => s.authRole === "Admin");
+  const repo = useRepoDisponibile();
+  return schedeVisibili(isAdmin, repo).filter((s) => schede.includes(s.id)).map((s) => s.id);
+}
+
 /** I rami di configurazione. Stanno in fondo all'albero unico del pannello
  *  sinistro (`LeftPanel`), che scorre per intero. */
 export function AlberoConfigurazione({ soloVariabili = false }: {

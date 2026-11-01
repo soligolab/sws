@@ -1292,7 +1292,18 @@
     "pvSliderAiuto": "tag del valore misurato",
     "colorePv": "Colore del segno del PV",
     "mollaSlider": "Ritorno a molla",
-    "riposoSlider": "Valore di riposo"
+    "riposoSlider": "Valore di riposo",
+    "att": {
+      "barra": "Rami delle proprietà",
+      "tipo": "I parametri propri di questo tipo di oggetto.",
+      "aspetto": "Posizione, misure, colori, testo e livello.",
+      "dati": "Il tag, i collegamenti e gli indicatori di qualità.",
+      "interazione": "Eventi, animazioni, visibilità e sicurezza.",
+      "paginaTitolo": "Pagina",
+      "pagina": "Le proprietà della pagina aperta: sfondo, misure, navigazione.",
+      "selezioneTitolo": "Selezione",
+      "selezione": "Le proprietà comuni agli oggetti scelti."
+    }
   },
   "shortcut": {
     "navCanvas": "Navigazione canvas",
@@ -2073,7 +2084,39 @@
     "senzaGruppo": "⤓ Senza gruppo",
     "rinominaGruppo": "Rinomina gruppo",
     "separaGruppo": "Separa gruppo",
-    "configurazionePython": "Configurazione → Python"
+    "configurazionePython": "Configurazione → Python",
+    "att": {
+      "barra": "Barra delle attività",
+      "cerca": "Cerca",
+      "cercaNota": "Cerca nel progetto: pagine, oggetti, tag, funzioni e schede.",
+      "pagine": "Pagine",
+      "pagineNota": "Le pagine del progetto, con cornici, faceplate, immagini di boot e planimetrie.",
+      "strumenti": "Strumenti",
+      "strumentiNota": "Gli oggetti da mettere in pagina: un clic aggiunge, si può anche trascinare.",
+      "oggetti": "Oggetti della pagina",
+      "oggettiNota": "Gli oggetti della pagina aperta, con i gruppi.",
+      "tag": "Tag",
+      "tagNota": "I tag coi valori live, mentre il sinottico resta in vista. Un clic mostra dove è usato un tag e porta all'oggetto; ✎ lo modifica.",
+      "tagTabella": "Tabella",
+      "tagTabellaNota": "Apre la tabella dei tag per modificarli.",
+      "comunicazione": "Comunicazione",
+      "comunicazioneNota": "Le sorgenti dati e i dispositivi, col loro stato: Modbus, OPC-UA, MQTT, S7 e gli altri.",
+      "allarmi": "Allarmi e notifiche",
+      "allarmiNota": "Gli allarmi e chi avvisare: e-mail, Telegram, telefono, eventi.",
+      "logica": "Logica",
+      "logicaNota": "Le funzioni richiamate dagli oggetti, gli script Python e le ricette.",
+      "report": "Report",
+      "reportNota": "I report programmati: turno, giorno, mese.",
+      "utenti": "Utenti e sicurezza",
+      "utentiNota": "Gli utenti del progetto, i ruoli e i certificati.",
+      "dispositivo": "Dispositivo",
+      "dispositivoNota": "Il pannello: stato, connessione, installazione, backup e prestazioni.",
+      "progetto": "Progetto",
+      "progettoNota": "Il resto del progetto: stile, lingue, versioni (git) e archivi dati.",
+      "preferenze": "Preferenze",
+      "preferenzeNota": "Le preferenze di questo editor: tema, lingua, disposizione, icone."
+    },
+    "tagModifica": "Modifica il tag"
   },
   "shell": {
     "offPage_one": "⚠ {{count}} oggetto è fuori dal foglio e non verrà disegnato a runtime. Trascinalo dentro il bordo tratteggiato per riattivarlo, oppure allarga la pagina.",
@@ -2818,7 +2861,13 @@
     "disco": "Disco",
     "copia": "Copia",
     "tlsFiduciaSi": "Il browser del pannello si fida del certificato: lo schermo apre il sinottico senza avvisi.",
-    "tlsFiduciaNo": "Su questo dispositivo la fiducia del browser non si installa (manca certutil): con un certificato autofirmato lo schermo mostrerà «La connessione non è privata»."
+    "tlsFiduciaNo": "Su questo dispositivo la fiducia del browser non si installa (manca certutil): con un certificato autofirmato lo schermo mostrerà «La connessione non è privata».",
+    "disposizione": "Disposizione dell'interfaccia",
+    "disposizioneNota": "Come sono ordinati i pannelli dell'editor. Vale per questo browser.",
+    "disposizioneClassica": "Classica",
+    "disposizioneClassicaNota": "Un albero a sinistra con tutte le sezioni, le proprietà a fisarmonica a destra.",
+    "disposizioneVscode": "Stile VS Code",
+    "disposizioneVscodeNota": "Una barra di icone per lato: ogni icona apre la sua colonna, un clic sull'icona attiva la chiude."
   },
   "boot": {
     "pngTooLarge": "PNG troppo grande ({{kb}} KB, max 5120 KB): non è stato caricato",

@@ -7,9 +7,13 @@ import { findObjects } from "@/search/findObjects";
 import { SvgCanvas } from "@/canvas/SvgCanvas";
 import { findBrokenNavLinks, findOrphanPageIds } from "@/pageLayout";
 import { resolvePageBackground } from "@/theme";
-import { AlberoConfigurazione } from "./AlberoConfigurazione";
+import { AlberoConfigurazione, FoglieConfigurazione, useSchedeVisibili } from "./AlberoConfigurazione";
+import { AlberoTagLive } from "./AlberoTagLive";
+import type { IdScheda } from "@/config/schede";
 import { aggiungiOggetto, persistiFunzioni } from "./azioniEditor";
 import { CampoRicerca, RisultatiRicerca } from "./RicercaGlobale";
+import { BarraAttivita, useAttivita, type VoceAttivita } from "./BarraAttivita";
+import { trascinaBordo } from "./bordoPannello";
 import { IconaStrumento } from "./IconaStrumento";
 import { AnteprimaLib } from "@/symbols/lib/AnteprimaLib";
 import { useManifestoLib } from "@/symbols/lib/libreria";
@@ -1243,6 +1247,24 @@ function RamoStrumenti() {
   const groups = paletteForTarget(isLvgl, paginaBoot, paginaFaceplate);
   const [aperto, commuta] = useSezioneAperta("config.strumenti", true);
   const nota = { fontSize: 11, color: "var(--brand-text-subtle, #64748b)", padding: "0 8px 6px 20px" };
+  const vista = useContext(ModoVista);
+  if (vista) {
+    // Colonna della disposizione «Stile VS Code»: il titolo è della colonna,
+    // e la palette non si chiude (chiuderla lascerebbe la colonna vuota).
+    return (
+      <div style={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column" }}>
+        <TitoloVista titolo={t("leftPanel.strumenti")} />
+        <div style={{ flex: 1, minHeight: 0, overflowY: "auto", padding: "4px 8px" }}>
+          {paginaBoot && <div style={nota}>{t("leftPanel.paletteBootHint")}</div>}
+          {!paginaBoot && isLvgl && <div style={nota}>{t("editor.paletteLvglHint")}</div>}
+          {groups.map((group) => (
+            <GruppoStrumenti key={group.category} group={group} showLvglBadge={!isLvgl}
+              ultimo={group === groups[groups.length - 1]} />
+          ))}
+        </div>
+      </div>
+    );
+  }
   return (
     <div style={{ padding: "0 8px" }}>
       <IntestazioneSezione titolo={t("leftPanel.strumenti")} icona="🧰" aperta={aperto} onToggle={commuta} />
@@ -2195,6 +2217,7 @@ export function LeftPanel() {
   const { t } = useTranslation();
   const setProject = useAppStore((s) => s.setProject);
   const authRole   = useAppStore((s) => s.authRole);
+  const disposizione = useAppStore((s) => s.disposizioneIde);
   const puoConfigurare = canConfigureProject(authRole);
   const puoModificare  = canEditProject(authRole);
 
@@ -2205,7 +2228,7 @@ export function LeftPanel() {
     const stored = Number(localStorage.getItem(LEFT_PANEL_WIDTH_KEY));
     return stored >= LEFT_PANEL_MIN && stored <= LEFT_PANEL_MAX ? stored : 220;
   });
-  const widthRef = useRef(panelWidth);
+  const colonna = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     api.getProject()
@@ -2213,31 +2236,30 @@ export function LeftPanel() {
       .catch(() => {});
   }, []);
 
-  const onResizeStart = (e: React.MouseEvent) => {
-    e.preventDefault();
-    const startX = e.clientX;
-    const startWidth = panelWidth;
-    document.body.style.cursor = "ew-resize";
-    document.body.style.userSelect = "none";
-    const onMove = (ev: MouseEvent) => {
-      const next = Math.min(LEFT_PANEL_MAX, Math.max(LEFT_PANEL_MIN, startWidth + (ev.clientX - startX)));
-      widthRef.current = next;
-      setPanelWidth(next);
-    };
-    const onUp = () => {
-      document.removeEventListener("mousemove", onMove);
-      document.removeEventListener("mouseup", onUp);
-      document.body.style.cursor = "";
-      document.body.style.userSelect = "";
-      localStorage.setItem(LEFT_PANEL_WIDTH_KEY, String(widthRef.current));
-    };
-    document.addEventListener("mousemove", onMove);
-    document.addEventListener("mouseup", onUp);
-  };
+  // Il bordo come quello del pannello destro (31-10-2026): la larghezza va
+  // sulla colonna durante il trascinamento, nello stato al rilascio.
+  const onResizeStart = (e: React.MouseEvent) => trascinaBordo(e, {
+    larghezza: panelWidth, min: LEFT_PANEL_MIN, max: LEFT_PANEL_MAX, verso: 1, contenuto: colonna.current,
+    onFine: (l) => { setPanelWidth(l); localStorage.setItem(LEFT_PANEL_WIDTH_KEY, String(l)); },
+  });
+  const maniglia = (
+    <div
+      onMouseDown={onResizeStart}
+      title={t("editor.dragToResize")}
+      style={{ position: "absolute", top: 0, right: -3, bottom: 0, width: 6, cursor: "ew-resize", zIndex: 10 }}
+    />
+  );
+
+  if (disposizione === "vscode") {
+    return (
+      <SinistraVscode larghezza={panelWidth} colonna={colonna} maniglia={maniglia}
+        conPagine={conPagine} puoConfigurare={puoConfigurare} ricerca={ricerca} setRicerca={setRicerca} />
+    );
+  }
 
   return (
     <div style={{ display: "flex", flexShrink: 0, position: "relative" }}>
-      <div style={{ ...S.panel, width: panelWidth }}>
+      <div ref={colonna} style={{ ...S.panel, width: panelWidth }}>
         <InAlbero.Provider value={true}>
           {/* La ricerca sta **fuori** dal contenitore che scorre: non e'
               appiccicata in alto, e' proprio in un posto che non scorre.
@@ -2258,11 +2280,162 @@ export function LeftPanel() {
           </div>
         </InAlbero.Provider>
       </div>
-      <div
-        onMouseDown={onResizeStart}
-        title={t("editor.dragToResize")}
-        style={{ position: "absolute", top: 0, right: -3, bottom: 0, width: 6, cursor: "ew-resize", zIndex: 10 }}
-      />
+      {maniglia}
+    </div>
+  );
+}
+
+/** Le voci della barra sinistra nella disposizione «Stile VS Code»
+ *  (31-10-2026, scelta del maintainer: «più voci più dirette», tredici).
+ *
+ *  - `schede`: le schede di configurazione che la colonna mostra; ogni
+ *    scheda del registro sta sotto una voce sola (lo prova il test).
+ *  - `apre`: la scheda che si apre al centro insieme alla colonna. Solo dove
+ *    la colonna da sola non basterebbe: per Tag, Comunicazione e Logica no —
+ *    «per esempio i tag è comodo aprire l'elenco, vederli live ma continuare
+ *    a vedere il sinottico fino a che non serve editarne qualcuno».
+ *  - `disegno`: si lavora sulla pagina; dalla Configurazione si torna
+ *    all'editor. */
+export const VOCI_SINISTRA = [
+  { id: "cerca", gruppo: "disegno" },
+  { id: "pagine", gruppo: "disegno", disegno: true, modifica: true },
+  { id: "strumenti", gruppo: "disegno", disegno: true, modifica: true },
+  { id: "oggetti", gruppo: "disegno", disegno: true, modifica: true },
+  { id: "tag", gruppo: "dati", schede: ["tags", "types"] },
+  { id: "comunicazione", gruppo: "dati", schede: ["protocols"] },
+  { id: "allarmi", gruppo: "dati", schede: ["alarms", "notifications", "telegram", "telefono", "eventi"], apre: "alarms" },
+  { id: "logica", gruppo: "dati", schede: ["scripts", "recipes"], modifica: true },
+  { id: "report", gruppo: "dati", schede: ["reports"], apre: "reports" },
+  { id: "utenti", gruppo: "fondo", inFondo: true, schede: ["users", "certificati"], apre: "users" },
+  { id: "dispositivo", gruppo: "fondo", inFondo: true,
+    schede: ["system", "devices", "runtime", "install", "container", "prestazioni", "resources", "backups", "devpackage"], apre: "system" },
+  { id: "progetto", gruppo: "fondo", inFondo: true, schede: ["stile", "languages", "git", "datastores"] },
+  { id: "preferenze", gruppo: "fondo", inFondo: true, schede: ["ide"], apre: "ide" },
+] as const satisfies readonly {
+  id: string; gruppo: string; inFondo?: boolean; schede?: readonly IdScheda[]; apre?: IdScheda;
+  disegno?: boolean; modifica?: boolean;
+}[];
+type VoceSinistra = (typeof VOCI_SINISTRA)[number];
+
+/** Il pannello sinistro nella disposizione «Stile VS Code» (31-10-2026, piano
+ *  docs/plans/2026-10-31-ide-stile-vscode.md): la barra di attività e una
+ *  colonna con **una** voce. Le sezioni sono quelle dell'albero: Strumenti e
+ *  Oggetti nella forma «vista» (`ModoVista`, scritta per il T-56), le altre
+ *  col titolo della colonna sopra. */
+function SinistraVscode({ larghezza, colonna, maniglia, conPagine, puoConfigurare, ricerca, setRicerca }: {
+  larghezza: number;
+  colonna: React.MutableRefObject<HTMLDivElement | null>;
+  maniglia: React.ReactNode;
+  conPagine: boolean;
+  puoConfigurare: boolean;
+  ricerca: string;
+  setRicerca: (v: string) => void;
+}) {
+  const { t } = useTranslation();
+  const appMode = useAppStore((s) => s.appMode);
+  const configTab = useAppStore((s) => s.configTab);
+  const setAppMode = useAppStore((s) => s.setAppMode);
+  const navigateToConfig = useAppStore((s) => s.navigateToConfig);
+  const visibili = useSchedeVisibili(VOCI_SINISTRA.flatMap((v) => ("schede" in v ? [...v.schede] : [])));
+
+  // Una voce c'è se il ruolo la può usare: chi non modifica non disegna, chi
+  // non configura vede i Tag (in sola lettura) e basta, e una voce di schede
+  // ne deve avere almeno una visibile.
+  const presente = (v: VoceSinistra) => {
+    if ("modifica" in v && v.modifica && !conPagine) return false;
+    if (!("schede" in v)) return true;
+    if (!puoConfigurare) return v.id === "tag";
+    return v.id === "logica" || v.schede.some((sc) => visibili.includes(sc));
+  };
+  const voci = VOCI_SINISTRA.filter(presente);
+  const vociBarra: VoceAttivita[] = voci.map((v) => ({
+    id: v.id, gruppo: v.gruppo, inFondo: "inFondo" in v && v.inFondo,
+    titolo: t(`leftPanel.att.${v.id}`), spiegazione: t(`leftPanel.att.${v.id}Nota`),
+  }));
+
+  const att = useAttivita("sws.ide.vscode.sinistra", conPagine ? "pagine" : "tag");
+  const voce = voci.find((v) => v.id === att.voce) ?? voci[0];
+  const scegli = (id: string) => {
+    const v = voci.find((x) => x.id === id);
+    const apre = v && !(id === voce.id && att.aperta);
+    att.scegli(id);
+    if (!v || !apre) return;
+    if ("disegno" in v && v.disegno && appMode === "config") setAppMode("edit");
+    if ("apre" in v && v.apre && visibili.includes(v.apre)) navigateToConfig(v.apre);
+  };
+  // Entrare in una scheda da un'altra strada (menu, un allarme da preparare)
+  // mostra la voce che la contiene, se la colonna è aperta.
+  useEffect(() => {
+    if (appMode !== "config" || !att.aperta) return;
+    const giusta = voci.find((v) => "schede" in v && (v.schede as readonly string[]).includes(configTab));
+    if (giusta && giusta.id !== voce.id && voce.id !== "cerca") att.scegli(giusta.id);
+  }, [appMode, configTab]);
+
+  const titolo = t(`leftPanel.att.${voce.id}`);
+  const scorre = (corpo: React.ReactNode, azione?: React.ReactNode) => (
+    <>
+      <TitoloVista titolo={titolo} azione={azione} />
+      <div style={{ flex: 1, minHeight: 0, overflowY: "auto", padding: "4px 0" }}>
+        <InAlbero.Provider value={true}>{corpo}</InAlbero.Provider>
+      </div>
+    </>
+  );
+  const foglie = (v: VoceSinistra) => "schede" in v ? <FoglieConfigurazione schede={v.schede} /> : null;
+
+  let corpo: React.ReactNode;
+  switch (voce.id) {
+    case "cerca":
+      corpo = (
+        <>
+          <TitoloVista titolo={titolo} />
+          <CampoRicerca testo={ricerca} onTesto={setRicerca} />
+          <div style={{ flex: 1, minHeight: 0, overflowY: "auto", padding: "4px 0" }}>
+            {ricerca.trim() && <RisultatiRicerca testo={ricerca} onChiudi={() => setRicerca("")} />}
+          </div>
+        </>
+      );
+      break;
+    case "pagine": corpo = scorre(<PagesSection />); break;
+    case "strumenti": corpo = <ModoVista.Provider value={true}><RamoStrumenti /></ModoVista.Provider>; break;
+    case "oggetti": corpo = <ModoVista.Provider value={true}><ObjectsSection /></ModoVista.Provider>; break;
+    case "tag":
+      // I valori live col sinottico in vista: il clic su un tag ne mostra
+      // gli usi (e porta all'oggetto), la modifica sta su ✎ e sul bottone.
+      corpo = scorre(
+        // Il corpo del testo come nell'albero di configurazione, dove la
+        // stessa lista vive sotto la foglia Variabili.
+        <div style={{ fontSize: 12 }}><AlberoTagLive rientro={12} puoAprire={puoConfigurare} esplora /></div>,
+        puoConfigurare ? (
+          <button type="button" data-testid="apri-tabella-tag" onClick={() => navigateToConfig("tags")}
+            title={t("leftPanel.att.tagTabellaNota")}
+            style={{ border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 3, background: "transparent",
+                     color: "var(--brand-text-muted, #94a3b8)", cursor: "pointer", fontSize: 10, padding: "1px 6px",
+                     textTransform: "none", letterSpacing: 0 }}>
+            ✎ {t("leftPanel.att.tagTabella")}
+          </button>
+        ) : undefined,
+      );
+      break;
+    case "logica":
+      corpo = scorre(<><FunctionsSection onFunctionsChanged={persistiFunzioni} />{foglie(voce)}</>);
+      break;
+    default:
+      corpo = scorre(foglie(voce));
+  }
+
+  return (
+    <div style={{ display: "flex", flexShrink: 0, position: "relative" }} data-disposizione="vscode">
+      <BarraAttivita voci={vociBarra} attiva={voce.id} aperta={att.aperta} lato="left" onScegli={scegli}
+        etichetta={t("leftPanel.att.barra")} />
+      {att.aperta && (
+        <div style={{ display: "flex", flexShrink: 0, position: "relative" }}>
+          <div ref={colonna} data-testid="colonna-sinistra"
+            style={{ ...S.panel, width: larghezza, display: "flex", flexDirection: "column" }}>
+            {corpo}
+          </div>
+          {maniglia}
+        </div>
+      )}
     </div>
   );
 }
