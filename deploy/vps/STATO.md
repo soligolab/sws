@@ -168,7 +168,11 @@ con la pagina dentro, perché `ServeDir` serviva il guscio della SPA come rispos
 Ora una rotta della SPA (una richiesta di navigazione) ha 200, mentre un file davvero mancante
 resta 404: così un bundle che manca non torna come HTML con stato 200.
 
-**Versione in esecuzione: `c1e5e728-amd64`** dal 02-11-2026, 11:40: la 2.24.0 più il ramo `fix/riabbinare-dal-cloud`
+**Versione in esecuzione: `0b7d2135-amd64`** dal 02-11-2026, 13:05: la `c1e5e728` più il template «Slider — stili e modi»
+(ramo `feat/template-demo-slider`). Verificato: radice 200, gateway healthy, `demo-slider` fra i template del
+container, tunnel di `tc620-garage` e `wp630-ufficio` riaperti da soli.
+
+Prima: **Versione in esecuzione: `c1e5e728-amd64`** dal 02-11-2026, 11:40: la 2.24.0 più il ramo `fix/riabbinare-dal-cloud`
 (un pannello con utenti si riabbina dal cloud, la console segna chi è da riabbinare, istruzioni di aggiornamento coi
 menù giusti, Installazione nel cloud coi comandi per il pannello). Quadlet della 2.24.0 in
 `~/sws-vps/backup-prima-di-f66fd7ba/`; verificato: radice 200, gateway healthy, CasaDomotica e collaudo-slider-compresso

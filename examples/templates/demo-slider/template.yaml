@@ -1,0 +1,5 @@
+id: demo-slider
+label: Slider — stili e modi
+description: 'Tutti gli slider del prodotto su cinque pagine: classico, pillola, piastra con le otto icone e ISA-101; valore,
+  tacche, bande e aggancio; bipolare, valore misurato e leva a molla; sfondo chiaro; un''immagine dietro, i limiti dal tag
+  e il comando critico. Variabili interne, due che si muovono da sole: si prova senza impianto, sul web e sul pannello LVGL.'

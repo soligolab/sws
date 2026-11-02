@@ -11,6 +11,15 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 
 ## [Unreleased]
 
+### Added
+
+- **Template «Slider — stili e modi»** (`examples/templates/demo-slider`, 02-11-2026): la demo del collaudo dello
+  slider, che il maintainer ha chiesto di dare a tutti, più una quinta pagina con le opzioni che il collaudo non
+  mostrava — le otto icone della piastra, un'immagine dietro lo slider in trasparenza, minimo/massimo/unità dal tag,
+  tacche senza numeri, comando critico. 76 testi in it/en/es, generati da `scripts/genera_template_demo_slider.py`.
+  La regola R3 dei template passa da 3 a **6 pagine** (decisione del maintainer); `demo-items-*` e `tc620-sistema`
+  escono dal debito.
+
 ### Fixed
 
 - **«Abbina un pannello» dal cloud con un pannello che ha già utenti** (02-11-2026, WP630 dopo un'installazione

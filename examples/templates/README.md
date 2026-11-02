@@ -43,11 +43,16 @@ nient'altro.*
 
 ## R3 — Semplice, e il numero lo dice
 
-Al massimo **3 pagine**, al massimo **60 oggetti per pagina**.
+Al massimo **6 pagine**, al massimo **60 oggetti per pagina**.
 
 «Semplice» non si può verificare; un numero sì. I numeri vengono dalla misura: la gran parte dei
 template ci stava già dentro, e quelli che sfondavano sono esattamente quelli che nessuno
 consiglierebbe a un utente nuovo come punto di partenza.
+
+*Erano 3 pagine fino al 02-11-2026.* Il maintainer, davanti alla demo degli slider che ne ha cinque:
+«con 3 pagine il concetto era di farne poche, ma non è un problema se sono anche 5/6, l'importante è
+non avere una pagina per oggetto o demo ingarbugliate». Il tetto delle pagine guarda alla prima
+metà della frase; la seconda la giudica chi legge il template.
 
 ## R4 — Un tipo di risorsa, e un caso d'uso vero
 
@@ -92,11 +97,11 @@ template dichiara `it/en/es` con tutte e tre le colonne piene, e nessuno porta l
 credenziali di una rete vera. Se una riga ricompare in `R2_DEBITO`, è un template che è tornato
 indietro.
 
-Le quattro che restano sono tutte di semplicità (R3), e sono queste:
+Le due che restano sono di semplicità (R3), e dal 02-11-2026 riguardano solo gli oggetti per
+pagina — col tetto delle pagine a 6, `demo-items-*` e `tc620-sistema` ci stanno dentro:
 
 | Template | Regola | Perché |
 |---|---|---|
-| `demo-items-web` / `-lvgl` | R3 | 4 pagine, perché i tipi di widget da mostrare sono 35 |
 | `homeassistant-demo` | R3 | 62 oggetti nella panoramica, due sopra il tetto |
 | `homeassistant-pro` | R3 | la vetrina del «cosa si può fare» — eccezione decisa dal maintainer |
 

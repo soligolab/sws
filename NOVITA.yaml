@@ -35,6 +35,8 @@
 versioni:
   - versione: "2.24.1"
     voci:
+      - it: "Nuovo template «Slider — stili e modi»: tutti gli slider, dalla luce a piastra al termostato, in cinque pagine da provare senza impianto."
+        en: "New template «Slider — styles and modes»: every slider, from the light tile to the thermostat, on five pages to try without a plant."
       - it: "Cloud: un pannello che ha già utenti si riabbina con codice, utente e password; la console segnala chi va riabbinato dopo un'installazione pulita."
         en: "Cloud: a panel that already has users pairs again with code, user and password; the console flags panels to pair again after a clean install."
   - versione: "2.24.0"

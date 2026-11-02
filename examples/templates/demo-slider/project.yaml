@@ -1,0 +1,489 @@
+meta:
+  name: Slider — stili e modi
+  version: 0.1.0
+  description: Tutti gli slider del prodotto, dalla luce a piastra al termostato col valore misurato, su variabili interne
+    che si muovono da sole.
+tags:
+- id: c.luce
+  description: Luce del soggiorno (piastra)
+  data_type: float
+  unit: '%'
+- id: c.luce_terrazzo
+  description: Luce del terrazzo (piastra)
+  data_type: float
+  unit: '%'
+- id: c.ventola
+  description: Ventola (piastra)
+  data_type: float
+  unit: '%'
+- id: c.tapparella
+  description: Tapparella (piastra verticale)
+  data_type: float
+  unit: '%'
+- id: c.presa
+  description: Presa smart, limite di potenza (piastra)
+  data_type: float
+  unit: '%'
+- id: c.volume
+  description: Volume della musica (piastra)
+  data_type: float
+  unit: '%'
+- id: c.irrigazione
+  description: Irrigazione (piastra)
+  data_type: float
+  unit: '%'
+- id: c.valore
+  description: Il valore comune agli slider generici
+  data_type: float
+  unit: '%'
+- id: c.frazione
+  description: Frazione 0..1 col passo 0,05
+  data_type: float
+- id: c.offset
+  description: Offset bipolare −50..50
+  data_type: float
+- id: c.setpoint
+  description: Setpoint del termostato
+  data_type: float
+  unit: °C
+- id: c.jog
+  description: Leva a molla −100..100
+  data_type: float
+- id: c.continuo
+  description: Scrittura continua con deadband 5
+  data_type: float
+  unit: '%'
+- id: c.conferma
+  description: Scrittura con conferma
+  data_type: float
+  unit: '%'
+- id: c.verticale
+  description: Slider verticali
+  data_type: float
+  unit: '%'
+- id: c.pressione
+  description: 'Pressione: limiti, unità e decimali presi dal tag'
+  data_type: float
+  unit: bar
+  range_lo: 0.0
+  range_hi: 6.0
+  decimals: 1
+- id: c.critico
+  description: Comando critico
+  data_type: float
+  unit: '%'
+- id: s.rampa
+  description: 'Si muove da solo: rampa 0..100 in 40 s'
+  data_type: float
+  unit: '%'
+  generator:
+    shape: ramp
+    period_ms: 40000
+    min: 0.0
+    max: 100.0
+    enabled: true
+- id: s.temperatura
+  description: 'Si muove da solo: 18..26 °C in 60 s'
+  data_type: float
+  unit: °C
+  generator:
+    shape: triangle
+    period_ms: 60000
+    min: 18.0
+    max: 26.0
+    enabled: true
+sources: []
+alarms: []
+functions: []
+page_layout:
+  size_mode: fixed
+  default_width: 1280.0
+  default_height: 800.0
+  home_page_id: p_stili
+languages:
+  default: it
+  langs:
+  - it
+  - en
+  - es
+  entries:
+  - key: t0001
+    values:
+      it: 'scritto:'
+      en: 'written:'
+      es: 'escrito:'
+  - key: t0002
+    values:
+      it: Gli stili — trascina col dito, col mouse, o con Tab e le frecce
+      en: The styles — drag with a finger, with the mouse, or with Tab and the arrows
+      es: Los estilos — arrastra con el dedo, con el ratón o con Tab y las flechas
+  - key: t0003
+    values:
+      it: Classico
+      en: Classic
+      es: Clásico
+  - key: t0004
+    values:
+      it: 'Pillola: il cursore bianco sta dentro la traccia'
+      en: 'Pill: the white knob sits inside the track'
+      es: 'Píldora: el cursor blanco va dentro de la pista'
+  - key: t0005
+    values:
+      it: Pillola
+      en: Pill
+      es: Píldora
+  - key: t0006
+    values:
+      it: 'ISA-101: grigi e cursore rettangolare, ignora il colore'
+      en: 'ISA-101: greys and a square knob, it ignores the colour'
+      es: 'ISA-101: grises y cursor rectangular, ignora el color'
+  - key: t0007
+    values:
+      it: ISA-101
+      en: ISA-101
+      es: ISA-101
+  - key: t0008
+    values:
+      it: 'Classico: colore, traccia scura, spessore 24'
+      en: 'Classic: colour, dark track, thickness 24'
+      es: 'Clásico: color, pista oscura, grosor 24'
+  - key: t0009
+    values:
+      it: Colori
+      en: Colours
+      es: Colores
+  - key: t0010
+    values:
+      it: Traccia al 30 % su uno sfondo colorato
+      en: Track at 30 % on a coloured background
+      es: Pista al 30 % sobre un fondo de color
+  - key: t0011
+    values:
+      it: Trasparenza
+      en: Transparency
+      es: Transparencia
+  - key: t0012
+    values:
+      it: 'Piastra (domotica): si trascina ovunque'
+      en: 'Tile (home automation): drag anywhere'
+      es: 'Placa (domótica): se arrastra desde cualquier punto'
+  - key: t0013
+    values:
+      it: Luce soggiorno
+      en: Living room light
+      es: Luz del salón
+  - key: t0014
+    values:
+      it: Ventola
+      en: Fan
+      es: Ventilador
+  - key: t0015
+    values:
+      it: Volume
+      en: Volume
+      es: Volumen
+  - key: t0016
+    values:
+      it: Senza icona
+      en: No icon
+      es: Sin icono
+  - key: t0017
+    values:
+      it: Verticali
+      en: Vertical
+      es: Verticales
+  - key: t0018
+    values:
+      it: Tapparella
+      en: Shutter
+      es: Persiana
+  - key: t0019
+    values:
+      it: ISA
+      en: ISA
+      es: ISA
+  - key: t0020
+    values:
+      it: Dove sta il valore, tacche, bande, passi
+      en: Where the value goes, ticks, bands, steps
+      es: Dónde va el valor, marcas, bandas, pasos
+  - key: t0021
+    values:
+      it: Valore sotto (predefinito)
+      en: Value below (default)
+      es: Valor debajo (predeterminado)
+  - key: t0022
+    values:
+      it: Valore sopra
+      en: Value above
+      es: Valor encima
+  - key: t0023
+    values:
+      it: Sul cursore, mentre trascini
+      en: On the knob, while you drag
+      es: Sobre el cursor, mientras arrastras
+  - key: t0024
+    values:
+      it: Senza valore
+      en: No value
+      es: Sin valor
+  - key: t0025
+    values:
+      it: 'Tacche: marcata ogni 10, divisione ogni 2'
+      en: 'Ticks: major every 10, minor every 2'
+      es: 'Marcas: principal cada 10, división cada 2'
+  - key: t0026
+    values:
+      it: Tacche
+      en: Ticks
+      es: Marcas
+  - key: t0027
+    values:
+      it: Aggancio alle tacche da 5 (prova con le frecce)
+      en: Snap to the ticks of 5 (try the arrows)
+      es: Ajuste a las marcas de 5 (prueba con las flechas)
+  - key: t0028
+    values:
+      it: Aggancio
+      en: Snap
+      es: Ajuste
+  - key: t0029
+    values:
+      it: 'Bande sempre: allarme 10/90, avviso 20/80'
+      en: 'Bands always: alarm 10/90, warning 20/80'
+      es: 'Bandas siempre: alarma 10/90, aviso 20/80'
+  - key: t0030
+    values:
+      it: Bande
+      en: Bands
+      es: Bandas
+  - key: t0031
+    values:
+      it: Bande solo fuori dai limiti, su una rampa (sola lettura)
+      en: Bands only outside the limits, on a ramp (read only)
+      es: Bandas solo fuera de los límites, sobre una rampa (solo lectura)
+  - key: t0032
+    values:
+      it: Rampa
+      en: Ramp
+      es: Rampa
+  - key: t0033
+    values:
+      it: Frazione 0..1, passo 0,05
+      en: Fraction 0..1, step 0.05
+      es: Fracción 0..1, paso 0,05
+  - key: t0034
+    values:
+      it: Frazione
+      en: Fraction
+      es: Fracción
+  - key: t0035
+    values:
+      it: Sola lettura su una rampa
+      en: Read only, on a ramp
+      es: Solo lectura, sobre una rampa
+  - key: t0036
+    values:
+      it: Sola lettura
+      en: Read only
+      es: Solo lectura
+  - key: t0037
+    values:
+      it: Scrittura continua, deadband 5
+      en: Continuous writing, deadband 5
+      es: Escritura continua, banda muerta 5
+  - key: t0038
+    values:
+      it: Continuo
+      en: Continuous
+      es: Continuo
+  - key: t0039
+    values:
+      it: Con conferma, al rilascio
+      en: With confirmation, on release
+      es: Con confirmación, al soltar
+  - key: t0040
+    values:
+      it: Conferma
+      en: Confirm
+      es: Confirmación
+  - key: t0041
+    values:
+      it: Cambiare il valore?
+      en: Change the value?
+      es: ¿Cambiar el valor?
+  - key: t0042
+    values:
+      it: Bipolare, valore misurato, molla
+      en: Bipolar, measured value, spring
+      es: Bipolar, valor medido, muelle
+  - key: t0043
+    values:
+      it: Offset −50..50, origine 0
+      en: Offset −50..50, origin 0
+      es: Offset −50..50, origen 0
+  - key: t0044
+    values:
+      it: Offset
+      en: Offset
+      es: Offset
+  - key: t0045
+    values:
+      it: Termostato 15..30, passo 0,5, col valore misurato che si muove
+      en: Thermostat 15..30, step 0.5, with the measured value moving
+      es: Termostato 15..30, paso 0,5, con el valor medido en movimiento
+  - key: t0046
+    values:
+      it: Termostato
+      en: Thermostat
+      es: Termostato
+  - key: t0047
+    values:
+      it: Lo stesso, a piastra
+      en: The same, as a tile
+      es: Lo mismo, como placa
+  - key: t0048
+    values:
+      it: Soggiorno
+      en: Living room
+      es: Salón
+  - key: t0049
+    values:
+      it: 'Leva a molla −100..100: tienila, poi lascia'
+      en: 'Spring lever −100..100: hold it, then let go'
+      es: 'Palanca con muelle −100..100: mantenla y suelta'
+  - key: t0050
+    values:
+      it: Jog
+      en: Jog
+      es: Jog
+  - key: t0051
+    values:
+      it: (mentre la tieni al massimo 5 volte al secondo, poi 0)
+      en: (at most 5 times a second while held, then 0)
+      es: (como mucho 5 veces por segundo mientras la mantienes, luego 0)
+  - key: t0052
+    values:
+      it: Molla verticale, riposo al minimo
+      en: Vertical spring, rest at the minimum
+      es: Muelle vertical, reposo en el mínimo
+  - key: t0053
+    values:
+      it: Bipolare verticale col valore misurato
+      en: Vertical bipolar with the measured value
+      es: Bipolar vertical con el valor medido
+  - key: t0054
+    values:
+      it: Gli stessi stili su sfondo chiaro
+      en: The same styles on a light background
+      es: Los mismos estilos sobre fondo claro
+  - key: t0055
+    values:
+      it: Tacche e bande
+      en: Ticks and bands
+      es: Marcas y bandas
+  - key: t0056
+    values:
+      it: Luce terrazzo
+      en: Terrace light
+      es: Luz de la terraza
+  - key: t0057
+    values:
+      it: Irrigazione
+      en: Irrigation
+      es: Riego
+  - key: t0058
+    values:
+      it: Presa smart
+      en: Smart plug
+      es: Enchufe inteligente
+  - key: t0059
+    values:
+      it: Riscaldamento
+      en: Heating
+      es: Calefacción
+  - key: t0060
+    values:
+      it: Ventilazione
+      en: Ventilation
+      es: Ventilación
+  - key: t0061
+    values:
+      it: Musica
+      en: Music
+      es: Música
+  - key: t0062
+    values:
+      it: 'In casa: le otto icone, un''immagine dietro, i limiti dal tag'
+      en: 'At home: the eight icons, an image behind, the limits from the tag'
+      es: 'En casa: los ocho iconos, una imagen detrás, los límites desde el tag'
+  - key: t0063
+    values:
+      it: Le otto icone della piastra
+      en: The eight tile icons
+      es: Los ocho iconos de la placa
+  - key: t0064
+    values:
+      it: Un'immagine dietro tutto il riquadro, in trasparenza
+      en: An image behind the whole box, see-through
+      es: Una imagen detrás de todo el recuadro, en transparencia
+  - key: t0065
+    values:
+      it: Soggiorno, opacità 45 %
+      en: Living room, opacity 45 %
+      es: Salón, opacidad 45 %
+  - key: t0066
+    values:
+      it: Classico sopra la stessa immagine, opacità 25 %
+      en: Classic on the same image, opacity 25 %
+      es: Clásico sobre la misma imagen, opacidad 25 %
+  - key: t0067
+    values:
+      it: Minimo, massimo, unità e decimali presi dal tag (0..6 bar)
+      en: Minimum, maximum, unit and decimals taken from the tag (0..6 bar)
+      es: Mínimo, máximo, unidad y decimales tomados del tag (0..6 bar)
+  - key: t0068
+    values:
+      it: Pressione dell'impianto
+      en: System pressure
+      es: Presión de la instalación
+  - key: t0069
+    values:
+      it: Tacche senza numeri
+      en: Ticks without numbers
+      es: Marcas sin números
+  - key: t0070
+    values:
+      it: 'Comando critico: chiede conferma prima di scrivere'
+      en: 'Critical command: it asks for confirmation before writing'
+      es: 'Mando crítico: pide confirmación antes de escribir'
+  - key: t0071
+    values:
+      it: Potenza della pompa
+      en: Pump power
+      es: Potencia de la bomba
+  - key: t0072
+    values:
+      it: Stili
+      en: Styles
+      es: Estilos
+  - key: t0073
+    values:
+      it: Valore e tacche
+      en: Value and ticks
+      es: Valor y marcas
+  - key: t0074
+    values:
+      it: Bipolare, PV, molla
+      en: Bipolar, PV, spring
+      es: Bipolar, PV, muelle
+  - key: t0075
+    values:
+      it: Sfondo chiaro
+      en: Light background
+      es: Fondo claro
+  - key: t0076
+    values:
+      it: In casa e altre opzioni
+      en: At home and more options
+      es: En casa y más opciones

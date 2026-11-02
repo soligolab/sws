@@ -118,20 +118,14 @@ R2_DEBITO = {
 }
 
 # R3 — semplicità. Decisione D2: `homeassistant-pro` è l'eccezione dichiarata.
-R3_PAGINE_MAX, R3_OGGETTI_MAX = 3, 60
+# 6 pagine dal 02-11-2026 (erano 3): «non è un problema se sono anche 5/6, l'importante è non avere
+# una pagina per oggetto o demo ingarbugliate» — il maintainer, con la demo degli slider.
+R3_PAGINE_MAX, R3_OGGETTI_MAX = 6, 60
 R3_DEBITO = {
     # nome: (pagine, oggetti nella pagina più piena, perché)
-    "homeassistant-pro":  (6, 107, "vetrina del «cosa si può fare», non punto di partenza — "
+    "homeassistant-pro":  (6, 106, "vetrina del «cosa si può fare», non punto di partenza — "
                                    "la parola «pro» nel nome è l'avviso (decisione del maintainer, 17-09-2026)"),
-    "demo-items-lvgl":    (5, 0,   "inventario: 4 pagine per coprire 35 tipi di widget, più la pagina-finestra "
-                                   "aggiunta il 22-10-2026 — si apre solo da un bottone e non compare nei navigatori; "
-                                   "nessuna pagina supera il tetto di oggetti"),
-    "demo-items-web":     (5, 0,   "inventario: 4 pagine per coprire 35 tipi di widget, più la pagina-finestra "
-                                   "aggiunta il 22-10-2026 — si apre solo da un bottone e non compare nei navigatori; "
-                                   "nessuna pagina supera il tetto di oggetti"),
     "homeassistant-demo": (3, 62,  "due oggetti sopra il tetto nella pagina di panoramica"),
-    "tc620-sistema":      (6, 0,   "richiesta del maintainer (03-10-2026): una pagina di grafici per tipologia di "
-                                   "informazione di sistema; nessuna pagina supera il tetto di oggetti"),
 }
 
 # R5 — indirizzi. `localhost` e i nomi mDNS di prodotto (`homeassistant.local`)
