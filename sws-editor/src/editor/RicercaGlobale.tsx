@@ -23,6 +23,7 @@ import { paletteForTarget } from "@/editor/LeftPanel";
 import { SCHEDE } from "@/config/schede";
 import { eBoot } from "@/boot/tipi";
 import { eFaceplateDef } from "@/faceplate/modello";
+import { effectiveProjectLang, getStoredEditorPreviewLang, resolveMsg } from "@/i18n/projectI18n";
 import { cercaOvunque, inFila, type Categoria, type Voce } from "@/editor/ricercaGlobale";
 import type { AppConfigTab } from "@/config/schede";
 
@@ -101,6 +102,7 @@ export function RisultatiRicerca({ testo, onChiudi }: { testo: string; onChiudi:
   const tags = useAppStore((s) => s.project?.tags);
   const alarms = useAppStore((s) => s.project?.alarms);
   const sources = useAppStore((s) => s.project?.sources);
+  const lingue = useAppStore((s) => s.project?.languages);
   const targetKind = useAppStore((s) => s.project?.target?.kind);
   const currentPageId = useAppStore((s) => s.currentPageId);
   const navigateToConfig = useAppStore((s) => s.navigateToConfig);
@@ -132,7 +134,8 @@ export function RisultatiRicerca({ testo, onChiudi }: { testo: string; onChiudi:
       // (29-10-2026), e la ricerca li trova fra le pagine.
     ],
     t,
-  }), [testo, pages, tags, alarms, sources, isLvgl, paginaBoot, paginaFaceplate, manifesto, t]);
+    risolvi: (x: string) => resolveMsg(x, getStoredEditorPreviewLang() || effectiveProjectLang(lingue), lingue),
+  }), [testo, pages, tags, alarms, sources, isLvgl, paginaBoot, paginaFaceplate, manifesto, t, lingue]);
 
   const fila = useMemo(() => inFila(gruppi), [gruppi]);
   useEffect(() => { setScelto(0); }, [testo]);

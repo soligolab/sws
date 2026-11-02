@@ -2286,7 +2286,7 @@ export function LeftPanel() {
 }
 
 /** Le voci della barra sinistra nella disposizione «Stile VS Code»
- *  (31-10-2026, scelta del maintainer: «più voci più dirette», tredici).
+ *  (31-10-2026, scelta del maintainer: «più voci più dirette», tredici; dodici dal 02-11-2026, quando la ricerca è passata in testa a ogni colonna).
  *
  *  - `schede`: le schede di configurazione che la colonna mostra; ogni
  *    scheda del registro sta sotto una voce sola (lo prova il test).
@@ -2297,7 +2297,6 @@ export function LeftPanel() {
  *  - `disegno`: si lavora sulla pagina; dalla Configurazione si torna
  *    all'editor. */
 export const VOCI_SINISTRA = [
-  { id: "cerca", gruppo: "disegno" },
   { id: "pagine", gruppo: "disegno", disegno: true, modifica: true },
   { id: "strumenti", gruppo: "disegno", disegno: true, modifica: true },
   { id: "oggetti", gruppo: "disegno", disegno: true, modifica: true },
@@ -2368,7 +2367,7 @@ function SinistraVscode({ larghezza, colonna, maniglia, conPagine, puoConfigurar
   useEffect(() => {
     if (appMode !== "config" || !att.aperta) return;
     const giusta = voci.find((v) => "schede" in v && (v.schede as readonly string[]).includes(configTab));
-    if (giusta && giusta.id !== voce.id && voce.id !== "cerca") att.scegli(giusta.id);
+    if (giusta && giusta.id !== voce.id) att.scegli(giusta.id);
   }, [appMode, configTab]);
 
   const titolo = t(`leftPanel.att.${voce.id}`);
@@ -2384,17 +2383,6 @@ function SinistraVscode({ larghezza, colonna, maniglia, conPagine, puoConfigurar
 
   let corpo: React.ReactNode;
   switch (voce.id) {
-    case "cerca":
-      corpo = (
-        <>
-          <TitoloVista titolo={titolo} />
-          <CampoRicerca testo={ricerca} onTesto={setRicerca} />
-          <div style={{ flex: 1, minHeight: 0, overflowY: "auto", padding: "4px 0" }}>
-            {ricerca.trim() && <RisultatiRicerca testo={ricerca} onChiudi={() => setRicerca("")} />}
-          </div>
-        </>
-      );
-      break;
     case "pagine": corpo = scorre(<PagesSection />); break;
     case "strumenti": corpo = <ModoVista.Provider value={true}><RamoStrumenti /></ModoVista.Provider>; break;
     case "oggetti": corpo = <ModoVista.Provider value={true}><ObjectsSection /></ModoVista.Provider>; break;
@@ -2428,7 +2416,16 @@ function SinistraVscode({ larghezza, colonna, maniglia, conPagine, puoConfigurar
         <div style={{ display: "flex", flexShrink: 0, position: "relative" }}>
           <div ref={colonna} data-testid="colonna-sinistra"
             style={{ ...S.panel, width: larghezza, display: "flex", flexDirection: "column" }}>
-            {corpo}
+            {/* La ricerca in testa a ogni voce (02-11-2026, il maintainer: «deve
+                essere qualcosa di sempre raggiungibile e comodo»). Era una voce
+                della barra a sé, e dalle altre non si vedeva. Scrivendo, i
+                risultati prendono il posto della voce; svuotando, la voce torna. */}
+            <CampoRicerca testo={ricerca} onTesto={setRicerca} />
+            {ricerca.trim() ? (
+              <div style={{ flex: 1, minHeight: 0, overflowY: "auto", padding: "4px 0" }}>
+                <RisultatiRicerca testo={ricerca} onChiudi={() => setRicerca("")} />
+              </div>
+            ) : corpo}
           </div>
           {maniglia}
         </div>

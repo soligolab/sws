@@ -332,9 +332,9 @@ describe("pannello sinistro — stile VS Code", () => {
   });
   const voci = () => screen.getAllByRole("tab").map((b) => b.getAttribute("data-testid")!.replace("attivita-", ""));
 
-  it("tredici voci all'Admin, nell'ordine; si parte dalle pagine", () => {
+  it("dodici voci all'Admin, nell'ordine; si parte dalle pagine", () => {
     monta();
-    expect(voci()).toEqual(["cerca", "pagine", "strumenti", "oggetti", "tag", "comunicazione", "allarmi", "logica",
+    expect(voci()).toEqual(["pagine", "strumenti", "oggetti", "tag", "comunicazione", "allarmi", "logica",
       "report", "utenti", "dispositivo", "progetto", "preferenze"]);
     expect(screen.getByTestId("albero-pagine")).toBeTruthy();
   });
@@ -378,10 +378,10 @@ describe("pannello sinistro — stile VS Code", () => {
     expect(screen.getByTestId("colonna-sinistra").textContent).toContain(i18n.t("editor.sectionPageObjects"));
   });
 
-  it("chi non può modificare né configurare vede cerca e tag, e parte dai tag", () => {
+  it("chi non può modificare né configurare vede i tag, e parte da lì", () => {
     useAppStore.setState({ authRole: "Viewer" });
     monta();
-    expect(voci()).toEqual(["cerca", "tag"]);
+    expect(voci()).toEqual(["tag"]);
     expect(screen.getByTestId("attivita-tag").getAttribute("aria-selected")).toBe("true");
   });
 

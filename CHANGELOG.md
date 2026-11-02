@@ -13,6 +13,16 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 
 ### Changed
 
+- **La ricerca in testa a ogni colonna** (Stile VS Code, 02-11-2026): era una voce della barra a sé («cerca») e dalle
+  altre non si vedeva; ora sta sopra ogni voce, e scrivendo i risultati prendono il posto della colonna. La barra
+  passa a dodici voci. Nei risultati le etichette e i nomi di pagina della tabella lingue si leggono tradotti (prima
+  «{{t0081}}») e si trovano cercandone il testo (`risolvi` in `ricercaGlobale.ts`).
+- **Trascinare un oggetto sul canvas segue il mouse** (lo stesso difetto dei selettori colore): ogni movimento
+  scriveva il progetto nello store e su un progetto grande l'editor intero si ridisegnava a ogni pixel. Ora il canvas
+  disegna subito la posizione (`anteprima` in `SvgCanvas.tsx`) e lo store la riceve al massimo ogni 100 ms, per intero
+  al rilascio e nella stessa voce di cronologia. Vale per spostamento, ridimensionamento, rotazione, capi e punti
+  delle linee e dei tubi, bordi delle griglie.
+
 - **L'unità del tag, vista e uguale sui due motori** (piano `docs/plans/2026-11-02-unita-dal-tag.md`, dal collaudo
   dell'inverter). In Tag una variabile strutturata si espande e mostra i membri con unità, decimali, intervallo e
   valore; il suo ⚙ non offre più i campi di una variabile semplice, che su una struttura non facevano niente, e porta

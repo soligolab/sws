@@ -147,3 +147,14 @@ describe("come si chiama un oggetto nei risultati", () => {
       .toBe("editor.palette.item.pipe mvav2aagbjio9");
   });
 });
+
+/** 02-11-2026: un'etichetta della tabella lingue compariva come «{{t0081}}» e
+ *  non si trovava cercandone il testo. */
+describe("i testi tradotti nella ricerca", () => {
+  const risolvi = (s: string) => s.replace("{{t0081}}", "Televisione soggiorno");
+  it("il nome è il testo risolto, e il testo si trova", () => {
+    const pagine = [pagina("home", "Home", [{ id: "tv", type: "button", label: "{{t0081}}" }])];
+    const voci = inFila(cercaOvunque("televisione", ctx({ pages: pagine, risolvi })));
+    expect(voci.map((v) => v.nome)).toContain("Televisione soggiorno");
+  });
+});

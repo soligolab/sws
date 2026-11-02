@@ -657,8 +657,12 @@ function QDot({ x, y, quality, goodColor, badColor, uncertainColor }: {
 
 // ── SvgCanvas root ────────────────────────────────────────────────────────────
 
+/** Ogni quanto lo store riceve la posizione mentre si trascina: come
+ *  `INTERVALLO_SELETTORE_MS` dei selettori colore (`editor/CampoColore.tsx`). */
+const INTERVALLO_TRASCINAMENTO_MS = 100;
+
 export function SvgCanvas({
-  objects,
+  objects: oggettiDelProgetto,
   tagValues = {},
   // Il default resta (lo usano una quarantina di punti, `defaultObjectTextColor`
   // compreso), ma serve anche sapere se la prop **è stata data**: vedi
@@ -702,6 +706,34 @@ export function SvgCanvas({
   accettaFaceplate = false,
 }: SvgCanvasProps) {
   const { t } = useTranslation();
+  // **Il trascinamento fluido** (02-11-2026, lo stesso difetto dei selettori
+  // colore del 31-10): ogni movimento del mouse scriveva il progetto nello
+  // store, e su CasaDomotica ridisegnare tutto l'editor a ogni pixel lasciava
+  // il simbolo indietro rispetto al cursore. Ora il canvas disegna subito la
+  // posizione nuova (`anteprima`), e lo store la riceve al massimo ogni
+  // `INTERVALLO_TRASCINAMENTO_MS` — sempre l'ultima, e per intero al rilascio.
+  const [anteprima, setAnteprima] = useState<Record<string, Partial<SynopticObject>> | null>(null);
+  const objects = useMemo(
+    () => (anteprima ? oggettiDelProgetto.map((o) => (anteprima[o.id] ? { ...o, ...anteprima[o.id] } : o)) : oggettiDelProgetto),
+    [oggettiDelProgetto, anteprima],
+  );
+  const inSospeso = useRef<Record<string, Partial<SynopticObject>>>({});
+  const timerScrittura = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const onMoveCorrente = useRef(onMove);
+  onMoveCorrente.current = onMove;
+  const scriviSospesi = () => {
+    if (timerScrittura.current) clearTimeout(timerScrittura.current);
+    timerScrittura.current = null;
+    const p = inSospeso.current;
+    inSospeso.current = {};
+    for (const [id, patch] of Object.entries(p)) onMoveCorrente.current?.(id, patch);
+  };
+  const muovi = (id: string, patch: Partial<SynopticObject>) => {
+    inSospeso.current[id] = { ...inSospeso.current[id], ...patch };
+    setAnteprima((a) => ({ ...(a ?? {}), [id]: { ...(a?.[id] ?? {}), ...patch } }));
+    if (!timerScrittura.current) timerScrittura.current = setTimeout(scriviSospesi, INTERVALLO_TRASCINAMENTO_MS);
+  };
+  useEffect(() => () => { if (timerScrittura.current) clearTimeout(timerScrittura.current); }, []);
   // Il default storico del componente, ripristinato subito: tutto il resto del
   // file lo usa come prima. L'unico posto che guarda `backgroundProp` grezzo è
   // `pageFillOn`.
@@ -1177,7 +1209,7 @@ export function SvgCanvas({
         const patch: Partial<SynopticObject> = ref.axis === "col"
           ? { col_widths: sizes }
           : { row_heights: sizes };
-        onMove(ref.objId, patch);
+        muovi(ref.objId, patch);
 
         // Snap line is in canvas coordinates: position relative to grid origin.
         if (snapHit !== null) {
@@ -1216,7 +1248,7 @@ export function SvgCanvas({
       // Normalizzato in [0,360): un angolo di -730° salvato sul file è
       // corretto ma illeggibile nel pannello.
       deg = ((deg % 360) + 360) % 360;
-      onMove(objId, { rotation: Math.round(deg * 10) / 10 });
+      muovi(objId, { rotation: Math.round(deg * 10) / 10 });
       return;
     }
 
@@ -1236,9 +1268,9 @@ export function SvgCanvas({
         dx = rx; dy = ry;
       }
       if (handle === "p1") {
-        onMove(objId, { x: snap(startObj.x + dx), y: snap(startObj.y + dy) });
+        muovi(objId, { x: snap(startObj.x + dx), y: snap(startObj.y + dy) });
       } else if (handle === "p2") {
-        onMove(objId, { x2: snap((startObj.x2 ?? startObj.x + 100) + dx), y2: snap((startObj.y2 ?? startObj.y) + dy) });
+        muovi(objId, { x2: snap((startObj.x2 ?? startObj.x + 100) + dx), y2: snap((startObj.y2 ?? startObj.y) + dy) });
       } else if (handle.startsWith("mwp-")) {
         // T-53 — waypoint del percorso di MOVIMENTO. Gemello del ramo `wp-`
         // qui sotto (i waypoint delle pipe): stesso schema, altro campo. I
@@ -1251,7 +1283,7 @@ export function SvgCanvas({
           const nuovi = punti.map((p, i) =>
             i === idx ? { x: snap(startObj.x + dx), y: snap(startObj.y + dy) } : p
           );
-          onMove(objId, { motion_path: nuovi });
+          muovi(objId, { motion_path: nuovi });
         }
       } else if (handle.startsWith("plp-")) {
         // I punti di una polilinea (26-09-2026): stesso schema del percorso
@@ -1260,7 +1292,7 @@ export function SvgCanvas({
         const pObj = objects.find((o) => o.id === objId);
         const punti = puntiMovimento(pObj?.points);
         if (punti.length > idx) {
-          onMove(objId, { points: punti.map((p, i) => (i === idx ? { x: snap(startObj.x + dx), y: snap(startObj.y + dy) } : p)) });
+          muovi(objId, { points: punti.map((p, i) => (i === idx ? { x: snap(startObj.x + dx), y: snap(startObj.y + dy) } : p)) });
         }
       } else if (handle.startsWith("wp-")) {
         const wpIdx = parseInt(handle.slice(3));
@@ -1281,7 +1313,7 @@ export function SvgCanvas({
             setCapoInPresa({ pipeId: objId, bersaglio: b });
           }
           const newPoints = pipeObj.points.map((p, i) => (i === wpIdx ? punto : p));
-          onMove(objId, { points: newPoints, ...aggancio });
+          muovi(objId, { points: newPoints, ...aggancio });
         }
       } else {
         let { x, y, width, height } = startObj;
@@ -1378,7 +1410,7 @@ export function SvgCanvas({
           // dentro `x + width`, quindi trascinando la maniglia destra oltre il
           // bordo il lato **sinistro** dell'oggetto scivolava a sinistra
           // (x=1000 w=200 su pagina 1280, w→400 ⇒ x=880).
-          onMove(objId, { x, y, width, height, ...patchWrap });
+          muovi(objId, { x, y, width, height, ...patchWrap });
         }
       }
     } else if (dragRef.current && onMove) {
@@ -1493,7 +1525,7 @@ export function SvgCanvas({
         patch.x = patch.points[0].x;
         patch.y = patch.points[0].y;
       }
-      onMove(dragRef.current.objId, patch);
+      muovi(dragRef.current.objId, patch);
 
       // Group drag: shift every other selected object by the same rigid
       // delta the anchor just moved by (post snapping/clamping), so the
@@ -1511,7 +1543,7 @@ export function SvgCanvas({
           if (g.points) {
             followerPatch.points = g.points.map((pp) => ({ x: pp.x + dx, y: pp.y + dy }));
           }
-          onMove(g.id, followerPatch);
+          muovi(g.id, followerPatch);
         }
       }
     } else if (selDragRef.current) {
@@ -1535,6 +1567,10 @@ export function SvgCanvas({
         || gridBorderRef.current || subBorderRef.current) {
       suppressClick.current = true;
     }
+    // L'ultima posizione allo store **prima** di chiudere l'interazione, così
+    // entra nella stessa voce di cronologia; poi l'anteprima non serve più.
+    scriviSospesi();
+    setAnteprima(null);
     closeInteraction();
     setCapoInPresa(null);
     dragRef.current = null;

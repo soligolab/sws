@@ -69,6 +69,10 @@ export interface ContestoRicerca {
    *  sorgenti, faceplate. Chi chiama li raccoglie, perché sa quali esistono. */
   elementi: readonly { scheda: string; id: string; nome?: string }[];
   t: (k: string, o?: Record<string, unknown>) => string;
+  /** Risolve i testi della tabella lingue (`{{t0081}}`) nella lingua di
+   *  anteprima del progetto (02-11-2026): un'etichetta tradotta compariva fra i
+   *  risultati come chiave nuda, e non si trovava cercandone il testo. */
+  risolvi?: (s: string) => string;
 }
 
 /** Vero se una delle stringhe contiene `q`. Sottostringa e non prefisso: in
@@ -80,8 +84,9 @@ function passa(q: string, ...xs: (string | undefined)[]): boolean {
 /** Il nome con cui un oggetto si riconosce: la sua etichetta se ce l'ha,
  *  altrimenti il tag che mostra, altrimenti il tipo e l'id. Un id generato
  *  (`mvav2aagbjio9`) da solo non dice niente a nessuno. */
-export function nomeOggetto(o: SynopticObject, t: ContestoRicerca["t"]): string {
-  const etichetta = (o as { label?: string }).label?.trim();
+export function nomeOggetto(o: SynopticObject, t: ContestoRicerca["t"], risolvi: (s: string) => string = (x) => x): string {
+  const grezza = (o as { label?: string; text?: string }).label?.trim() || (o as { text?: string }).text?.trim();
+  const etichetta = grezza ? risolvi(grezza).trim() : "";
   if (etichetta) return etichetta;
   const tipo = t(`editor.palette.item.${o.type}`);
   const tag = o.tag?.trim() || (o as { command_tag?: string }).command_tag?.trim();
@@ -93,6 +98,7 @@ export function cercaOvunque(testo: string, ctx: ContestoRicerca): Gruppo[] {
   const q = testo.trim().toLocaleLowerCase();
   if (!q) return [];
   const { t } = ctx;
+  const risolvi = ctx.risolvi ?? ((x: string) => x);
   const per = new Map<Categoria, Voce[]>();
   const metti = (v: Voce) => {
     const a = per.get(v.categoria) ?? [];
@@ -101,9 +107,10 @@ export function cercaOvunque(testo: string, ctx: ContestoRicerca): Gruppo[] {
   };
 
   for (const p of ctx.pages) {
-    if (passa(q, p.name, p.id)) {
+    const nomePagina = p.name ? risolvi(p.name) : p.id;
+    if (passa(q, nomePagina, p.id)) {
       metti({
-        categoria: "pagine", chiave: `pagina:${p.id}`, nome: p.name || p.id,
+        categoria: "pagine", chiave: `pagina:${p.id}`, nome: nomePagina,
         dove: t("ricerca.dovePagina", { n: p.objects?.length ?? 0 }),
         esito: { tipo: "pagina", pageId: p.id },
       });
@@ -124,11 +131,11 @@ export function cercaOvunque(testo: string, ctx: ContestoRicerca): Gruppo[] {
   for (const p of ctx.pages) {
     for (const o of p.objects ?? []) {
       if (!o.id) continue;
-      const nome = nomeOggetto(o, t);
-      if (passa(q, nome, o.id, o.tag, (o as { label?: string }).label)) {
+      const nome = nomeOggetto(o, t, risolvi);
+      if (passa(q, nome, o.id, o.tag)) {
         metti({
           categoria: "oggetti", chiave: `oggetto:${p.id}:${o.id}`, nome,
-          dove: t("ricerca.dovePagina2", { pagina: p.name || p.id }),
+          dove: t("ricerca.dovePagina2", { pagina: p.name ? risolvi(p.name) : p.id }),
           esito: { tipo: "oggetto", pageId: p.id, objId: o.id },
         });
       }

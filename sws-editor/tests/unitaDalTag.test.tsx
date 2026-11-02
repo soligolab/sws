@@ -8,7 +8,7 @@ import i18n from "../src/i18n";
 import { useAppStore } from "../src/store";
 import { TagsTab } from "../src/config/schede/TagsTab";
 import { GruppoAttivo, ObjectProps } from "../src/editor/EditorShell";
-import type { Project, SynopticObject } from "../src/types";
+import type { SynopticObject } from "../src/types";
 
 const progetto = {
   meta: { name: "casa", version: "0.1.0" },
@@ -18,7 +18,7 @@ const progetto = {
     { name: "battery_soc", data_type: "u16", unit: "%", range_lo: 0, range_hi: 100 },
   ] }],
   sources: [], alarms: [], functions: [],
-} as unknown as Project;
+} as never;
 
 beforeEach(() => {
   useAppStore.setState({ project: progetto, tagValues: {}, configTab: "tags", configFocus: null, authRole: "Admin" });
@@ -26,7 +26,7 @@ beforeEach(() => {
 
 describe("in Tag una variabile strutturata", () => {
   it("si espande e mostra i membri con la loro unità", () => {
-    render(<TagsTab />);
+    render(<TagsTab scheda="tags" />);
     expect(screen.queryByTestId("foglia-inverter.grid_power")).toBeNull();
     fireEvent.click(screen.getByTestId("espandi-inverter"));
     expect(screen.getByTestId("foglia-inverter.grid_power").textContent).toContain("W");
@@ -34,7 +34,7 @@ describe("in Tag una variabile strutturata", () => {
   });
 
   it("il dettaglio porta al tipo invece di offrire campi che non fanno niente", () => {
-    render(<TagsTab />);
+    render(<TagsTab scheda="tags" />);
     fireEvent.click(screen.getByTitle(i18n.t("cfg.tagMeta")));
     expect(screen.getByTestId("meta-struttura-inverter")).toBeTruthy();
     expect(screen.queryByPlaceholderText("°C, bar…")).toBeNull();
