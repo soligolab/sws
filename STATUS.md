@@ -12,6 +12,23 @@
 > resta in «Storico». Qui vive solo ciò che serve a riprendere il lavoro.
 
 
+## ▶ Riprendere da qui — rilasciata la 2.24.0, inverter Solarman e pagina Energy (2026-11-02)
+
+**Si riparte da `main`, nessun ramo aperto.** Il maintainer ha visto la pagina Energy con i dati veri dell'inverter
+ZCS di casa e ha chiesto la release e l'aggiornamento di CasaDomotica con lo storico acceso.
+
+- **In `main`**: squash di `feat/inverter-solarman` (trasporti Solarman V5 e RTU su TCP, blocchi, plausibilità, testi,
+  diagnostica, catalogo inverter, pubblicazione MQTT, `verifica_mappa`, simbolo `lib:building/house`, unità e decimali
+  dalle foglie), poi `chore(release): 2.24.0`. Piano archiviato: `docs/archive/2026-11-01-inverter-solarman.md`;
+  seguito nel seme `docs/plans/2026-11-02-inverter-sunspec.md` e in `docs/plans/Appunti.txt`.
+- **CasaDomotica** (sul VPS): sorgente `inverter-zcs` (192.168.1.29:8899, Solarman, seriale 1786079474), variabile
+  `inverter` con storico, pagine `energy` (sotto Home) ed `energy_dati` (finestra). Nel cloud la sorgente va in
+  timeout come le altre di casa: legge **dal pannello di casa** dopo il deploy.
+- **Un client alla volta sulla chiavetta**: l'integrazione solarman di Home Assistant è spenta (scelta del
+  maintainer). Se HA deve vedere l'inverter, lo legge da SWS via MQTT (HOWTO 31).
+- **Da guardare di giorno**: il segno di `grid_power` in immissione e di `battery_power` in carica (Appunti).
+- Lavoro di prova in `tmp/inverter/energy/` (generatore della pagina, anteprima, istantanee).
+
 ## ▶ Riprendere da qui — rilasciata la 2.23.8 (2026-11-01)
 
 **Si riparte da `main`, nessun ramo aperto.** Il maintainer ha approvato lo stile VS Code insieme al pannello

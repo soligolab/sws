@@ -11,6 +11,8 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 
 ## [Unreleased]
 
+## [2.24.0] — 2026-11-02
+
 ### Added
 
 - **Inverter fotovoltaici dalla chiavetta Solarman** (piano `docs/archive/2026-11-01-inverter-solarman.md`). La
