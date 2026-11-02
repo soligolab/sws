@@ -27,7 +27,13 @@ ZCS di casa e ha chiesto la release e l'aggiornamento di CasaDomotica con lo sto
 - **Un client alla volta sulla chiavetta**: l'integrazione solarman di Home Assistant è spenta (scelta del
   maintainer). Se HA deve vedere l'inverter, lo legge da SWS via MQTT (HOWTO 31).
 - **Da guardare di giorno**: il segno di `grid_power` in immissione e di `battery_power` in carica (Appunti).
-- Lavoro di prova in `tmp/inverter/energy/` (generatore della pagina, anteprima, istantanee).
+- **Immagini** `2.24.0-arm64` e `2.24.0-amd64` su ghcr (con `latest-*` e `rc-*`). **VPS**: gateway e CasaDomotica
+  su `2.24.0-amd64` (`d59a4b0d`), copie di sicurezza in `~/sws-vps/backup-prima-di-2.24.0/` (quadlet, project.yaml,
+  synoptics); l'inserimento è stato fatto con `~/sws-vps/lavori/energy-2026-11-02/inserisci.py`.
+- **Prossimo passo, del maintainer, dal pannello di casa**: «Aggiorna ora» alla 2.24.0, deploy di CasaDomotica dal
+  cloud, poi i tubi dalle bocche della casa ai carichi (`presa.televisione`…). Dopo: controllare a schermo la pagina
+  Energy e i contatori `inverter-zcs.diagnostics.*` nei primi giorni.
+- Lavoro di prova in `tmp/inverter/energy/` (generatore della pagina, anteprima — spenta —, istantanee).
 
 ## ▶ Riprendere da qui — rilasciata la 2.23.8 (2026-11-01)
 
