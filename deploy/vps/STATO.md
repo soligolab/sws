@@ -168,7 +168,12 @@ con la pagina dentro, perché `ServeDir` serviva il guscio della SPA come rispos
 Ora una rotta della SPA (una richiesta di navigazione) ha 200, mentre un file davvero mancante
 resta 404: così un bundle che manca non torna come HTML con stato 200.
 
-**Versione in esecuzione: `03919934-amd64`** dal 02-11-2026 pomeriggio: la `0b7d2135` più il ramo `feat/unita-dal-tag`
+**Versione in esecuzione: `2.24.1-amd64`** dal 02-11-2026 sera: la release di correzioni dopo la 2.24.0. Quadlet di prima
+in `~/sws-vps/backup-prima-di-2.24.1/`; verificato: radice e /health 200, gateway healthy, CasaDomotica rifatto sulla
+nuova immagine. Tenuta come ripiego la `2.24.0-amd64`; tolte tutte le altre immagini di SWS (le commit del 02-11 e le
+release fino alla 2.23.8), il disco è passato da 11 a 9,1 GB usati.
+
+Prima: **Versione in esecuzione: `03919934-amd64`** dal 02-11-2026 pomeriggio: la `0b7d2135` più il ramo `feat/unita-dal-tag`
 (membri delle variabili strutturate in Tag, Tipi nella colonna Tag, unità del tag precompilata negli oggetti).
 Verificato: radice 200, gateway healthy, CasaDomotica rifatto, tunnel di `tc620-garage` e `wp630-ufficio` riaperti.
 

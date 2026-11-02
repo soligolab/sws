@@ -12,6 +12,28 @@
 > resta in «Storico». Qui vive solo ciò che serve a riprendere il lavoro.
 
 
+## ▶ Riprendere da qui — rilasciata la 2.24.1 (2026-11-02 sera, theobroma)
+
+**Si riparte da `main`, nessun ramo aperto** (né qui né su origin: tolti anche `fix/zip-compresso` e `fix/colore-fluido`).
+
+- **Release 2.24.1** (`b4406b04`, tag annotato `2.24.1`, `main` e tag su origin). Immagini su ghcr: `2.24.1-arm64`
+  (con `latest-arm64`, `rc-arm64`, `-generic`) e `2.24.1-amd64` (con `latest-amd64`, `rc-amd64`). Contiene i quattro
+  squash del giorno: template «Slider — stili e modi», unità del tag fino agli oggetti (piano in archivio
+  `2026-11-02-unita-dal-tag.md`), ricerca in testa alle colonne e trascinamento fluido, quaranta simboli della casa
+  con parti vive in Collegamenti e le correzioni (deploy e libreria dei simboli, OpenPLC 33333/udp, Container, nomi di
+  pagina tradotti, tubo), più il riabbinamento dal cloud (`97afc337`).
+- **VPS** su `2.24.1-amd64` (ripiego `2.24.0-amd64`), immagini vecchie tolte. **theobroma**: tolte tutte le immagini di
+  SWS tranne la 2.24.1 e i builder, e gli archivi in `dist/` fino alla 2.23.7 (resta `sws-runtime-2.24.1-aarch64`).
+  IDE 8460 sulla 2.24.1.
+- **Da fare**:
+  1. **WP630**: era spento (17:30). Va aggiornato alla 2.24.1 e ripulito: `podman pull rc-arm64`, installer estratto
+     dall'immagine, `./install-container.sh --pull ghcr.io/soligolab/sws-runtime:rc-arm64 --con-openplc` (ricrea
+     OpenPLC con la 33333/udp: **il programma va ricaricato dall'Editor**), poi `podman rmi
+     localhost/sws-runtime:2.23.7-arm64`. Il maintainer ha autorizzato l'SSH per questo.
+  2. **TC620 di casa**: «Aggiorna ora» dal pannello o dal cloud (canale stabile), poi verificare che il deploy non
+     dica più «senza libreria».
+  3. CasaDomotica coi simboli nuovi, col maintainer.
+
 ## ▶ Riprendere da qui — rilasciata la 2.24.0, inverter Solarman e pagina Energy (2026-11-02)
 
 **Si riparte da `main`, nessun ramo aperto.** Il maintainer ha visto la pagina Energy con i dati veri dell'inverter
