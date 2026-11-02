@@ -2,7 +2,7 @@
 
 **Piano d'esecuzione, approvato il 30-10-2026.** Nato da `/revisione-oggetto slider`. La tavola con le istantanee
 di oggi, la matrice stili × stati × sfondo, i modi e i campi è in
-[`allegati/2026-10-30-revisione-slider/tavola.html`](allegati/2026-10-30-revisione-slider/tavola.html). Lì accanto
+[`allegati/2026-10-30-revisione-slider/tavola.html`](../plans/allegati/2026-10-30-revisione-slider/tavola.html). Lì accanto
 c'è anche il progetto di prova (`progetto-di-prova/`), con nove slider su sfondo scuro e chiaro. La scheda
 dell'oggetto, con i fatti misurati, è `.claude/skills/revisione-oggetto/schede/slider.md`.
 
@@ -206,7 +206,7 @@ rimisurare** i punti che tocca: il codice si muove.
 ### Fase 7 — CasaDomotica (S)
 
 > **Non ancora fatta** (30-10-2026): il progetto sta sul VPS e si fa col maintainer. Per il collaudo delle fasi 1-6
-> c'è il progetto [`allegati/2026-10-30-revisione-slider/collaudo-slider/`](allegati/2026-10-30-revisione-slider/collaudo-slider/LEGGIMI.md),
+> c'è il progetto [`allegati/2026-10-30-revisione-slider/collaudo-slider/`](../plans/allegati/2026-10-30-revisione-slider/collaudo-slider/LEGGIMI.md),
 > quattro pagine con tutti i tipi di slider, da provare sul web e sul pannello.
 
 - Luci e tapparelle in piastra, un termostato con PV (regola di `CLAUDE.md`), quando lo slider nuovo entra in `main`.
@@ -214,9 +214,9 @@ rimisurare** i punti che tocca: il codice si muove.
 
 ## Fuori da questo piano
 
-- **Seme** [uno stile grafico di progetto per tutti gli oggetti](2026-10-30-stile-grafico-di-progetto.md): qui lo
+- **Seme** [uno stile grafico di progetto per tutti gli oggetti](../plans/2026-10-30-stile-grafico-di-progetto.md): qui lo
   stile è per oggetto.
-- **Seme** [lo stato «in attesa» per tutte le scritture](2026-10-30-in-attesa-per-tutte-le-scritture.md): lo slider
+- **Seme** [lo stato «in attesa» per tutte le scritture](../plans/2026-10-30-in-attesa-per-tutte-le-scritture.md): lo slider
   ha il suo in fase 1.
 - **Appunti:** l'intervallo a due cursori.
 - Il bottone col gestore del puntatore nuovo.
@@ -228,3 +228,10 @@ Per ogni fase, la *definition of done* di `CLAUDE.md`: `cargo check`, `cargo tes
 - vitest sulla geometria pura del componente: posizione del cursore, passi, aggancio, origine, molla;
 - test LVGL sulla conversione in passi e sul tipo del valore scritto;
 - istantanee LVGL della pagina di prova, confrontate con la tavola.
+
+## Chiusura (03-11-2026)
+
+Le fasi 1-6 sono in `main` dal collaudo del maintainer (`cfcbeea7` … `bb1b4285`, poi `7e7f4996`), rilasciate nella
+2.23.8; il progetto di collaudo è diventato il template «Slider — stili e modi» nella 2.24.1 (`b25bf081`). Resta la
+fase 7 (lo slider nuovo in CasaDomotica), breve e da fare col maintainer dal cloud: è passata in
+`docs/plans/Appunti.txt` e il piano è archiviato, come vuole la regola del 22-10-2026 sui piani quasi finiti.

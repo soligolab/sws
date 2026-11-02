@@ -236,7 +236,7 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
   applicare.
 
 - **Lo slider, fase 2 della revisione: disegnato in SVG, uno stile classico per i due motori** (piano
-  `docs/plans/2026-10-30-revisione-slider.md`). Web: `canvas/slider/SliderSvg.tsx` al posto dell'`<input
+  `docs/archive/2026-10-30-revisione-slider.md`). Web: `canvas/slider/SliderSvg.tsx` al posto dell'`<input
   type="range">` nativo — traccia di 16 px arrotondata, cursore tondo che sborda di 5 px (lo stile LVGL di sempre),
   puntatore gestito a mano (`canvas/puntatore.ts`, `useTrascinamento` con `setPointerCapture`, riusabile per il
   bottone), tastiera (`role="slider"`, frecce, PagSu/PagGiù, Home/Fine, anello di focus), area di tocco minima di
@@ -323,7 +323,7 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 - **Validatore: uno slider (o un bottone, una casella) in sola lettura su un tag calcolato non è più un errore.** Non
   comanda niente: è un indicatore. Visto preparando il progetto di collaudo dello slider.
 
-- **Lo slider, fase 1 della revisione** (piano `docs/plans/2026-10-30-revisione-slider.md`): i difetti misurati il
+- **Lo slider, fase 1 della revisione** (piano `docs/archive/2026-10-30-revisione-slider.md`): i difetti misurati il
   30-10-2026, senza cambiare aspetto.
   - Pannello: «Mostra valore» leggeva `!!obj.show_value` mentre i motori mostrano il valore salvo `false` — una
     casella spenta su un valore visibile; stesso difetto corretto su `gauge` e `progress_bar`. Entrano `unit` e

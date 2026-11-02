@@ -97,7 +97,7 @@ Annoto di seguito, uno per punto, le cose che devono essere verificate e trasfor
   l'ha vista. Il capitolo del manuale c'e' gia'.
 
 - Slider a intervallo, cioe' due cursori (minimo e massimo) su due tag: escluso dal piano della revisione dello
-  slider il 30-10-2026 (docs/plans/2026-10-30-revisione-slider.md), perche' e' il modo piu' costoso (L) e la
+  slider il 30-10-2026 (docs/archive/2026-10-30-revisione-slider.md), perche' e' il modo piu' costoso (L) e la
   priorita' e' la domotica. Serve per fasce orarie, finestre di temperatura, soglie min/max. Quando lo si prende,
   riusa il componente SVG della fase 2 di quel piano: due cursori, due scritture, e la regola che non si incrocino.
 
@@ -181,3 +181,6 @@ Annoto di seguito, uno per punto, le cose che devono essere verificate e trasfor
     chiavetta ha chiuso la connessione dopo tre minuti di timeout a raffica: vale la pena guardare in CasaDomotica
     i contatori <sorgente>.diagnostics.* nei primi giorni;
 
+- Slider nuovo in CasaDomotica (fase 7 del piano archiviato docs/archive/2026-10-30-revisione-slider.md, 03-11-2026):
+  luci e tapparelle con lo stile «piastra» (con icona), un termostato con lo slider che mostra anche il valore
+  misurato (PV). Le fasi 1-6 sono in main dalla 2.23.8. Il progetto sta sul VPS: si fa dal cloud, col maintainer.
