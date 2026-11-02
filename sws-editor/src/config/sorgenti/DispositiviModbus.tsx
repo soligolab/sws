@@ -157,7 +157,10 @@ export function ElencoDispositiviModbus<B extends BusModbus>({ bus, onChange }: 
       await api.updateTags(tags);
       updateProjectTags(tags);
     }
-    const nuovo = conDispositivi(bus, [...dispositivi, r.dispositivo]);
+    // Le impostazioni che il modello vuole sul bus (una chiavetta Solarman):
+    // `daCatalogo` le dà solo se il bus non ha dispositivi da rompere.
+    const base = r.bus && bus.kind === "modbus_tcp" ? ({ ...bus, ...r.bus } as B) : bus;
+    const nuovo = conDispositivi(base, [...dispositivi, r.dispositivo]);
     if (salvaBus) await salvaBus(nuovo); else onChange(nuovo);
     markSaveOk();
     navigateToConfig("protocols", focusDispositivo(bus.id, r.dispositivo.unit_id));

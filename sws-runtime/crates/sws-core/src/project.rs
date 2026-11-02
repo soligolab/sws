@@ -579,6 +579,56 @@ pub struct ModbusTcpConfig {
     /// lo stesso indirizzo.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub devices: Vec<DispositivoModbus>,
+    /// Come viaggia il Modbus nel socket (01-11-2026, piano
+    /// `docs/archive/2026-11-01-inverter-solarman.md`): MBAP, trama RTU nuda, o
+    /// dentro un pacchetto Solarman V5.
+    #[serde(default, skip_serializing_if = "TrasportoTcp::e_predefinito")]
+    pub trasporto: TrasportoTcp,
+    /// Il numero di serie della chiavetta Solarman: senza, non risponde.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub seriale_logger: Option<u32>,
+    /// Pausa minima fra due richieste, in ms: le chiavette Wi-Fi non reggono
+    /// richieste attaccate.
+    #[serde(default, skip_serializing_if = "e_zero_u64")]
+    pub pausa_ms: u64,
+    /// Quante volte si rifà una richiesta la cui risposta arriva rotta (CRC,
+    /// checksum, pezzi mescolati) prima di darla per persa.
+    #[serde(default, skip_serializing_if = "e_zero_u8")]
+    pub tentativi: u8,
+    /// Pubblica i contatori `<id>.diagnostics.timeouts`, `.bad_replies` e
+    /// `.implausible` (01-11-2026): per gli allarmi su un collegamento che
+    /// zoppica e per le prove di durata.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub diagnostica: bool,
+}
+
+/// Il trasporto di una sorgente Modbus su TCP (01-11-2026).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum TrasportoTcp {
+    /// Modbus TCP vero (intestazione MBAP), porta 502.
+    #[default]
+    Mbap,
+    /// La trama RTU, CRC compreso, nel socket: i convertitori seriale/Ethernet
+    /// trasparenti.
+    RtuSuTcp,
+    /// La trama RTU in un pacchetto Solarman V5 (chiavette Wi-Fi degli
+    /// inverter, porta 8899).
+    SolarmanV5,
+}
+
+impl TrasportoTcp {
+    pub fn e_predefinito(&self) -> bool {
+        *self == Self::Mbap
+    }
+}
+
+fn e_zero_u64(v: &u64) -> bool {
+    *v == 0
+}
+
+fn e_zero_u8(v: &u8) -> bool {
+    *v == 0
 }
 
 /// Modbus RTU (serial) source. Mirrors `ModbusTcpConfig` but uses a serial
@@ -647,6 +697,99 @@ pub struct DispositivoModbus {
     /// compreso — perché il runtime non legge il catalogo: l'IDE la compila da lì.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub setup: Vec<ParametroSetup>,
+    /// I blocchi letti con una richiesta sola (01-11-2026, piano
+    /// `docs/archive/2026-11-01-inverter-solarman.md`): una mappatura che ci cade
+    /// dentro si serve dal blocco e non fa una richiesta sua. Una chiavetta
+    /// Solarman con ottanta richieste a giro non regge; con due sì.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub blocchi: Vec<BloccoModbus>,
+}
+
+/// Un intervallo di registri letto in una richiesta (01-11-2026).
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct BloccoModbus {
+    #[serde(default, skip_serializing_if = "AreaModbus::e_predefinita")]
+    pub area: AreaModbus,
+    /// Il primo registro.
+    pub da: u16,
+    /// L'ultimo registro, compreso.
+    pub a: u16,
+    /// Un giro su quanti: 1 = sempre; 6 con un intervallo di 10 s = un minuto,
+    /// per i contatori e le temperature che non corrono.
+    #[serde(default = "default_ogni", skip_serializing_if = "e_ogni_predefinito")]
+    pub ogni: u32,
+}
+
+fn default_ogni() -> u32 {
+    1
+}
+
+fn e_ogni_predefinito(v: &u32) -> bool {
+    *v <= 1
+}
+
+/// Il testo di un registro al posto del numero (01-11-2026).
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct TestiRegistro {
+    #[serde(default, skip_serializing_if = "ModoTesti::e_predefinito")]
+    pub modo: ModoTesti,
+    /// Valore (o numero del bit) → testo.
+    #[serde(deserialize_with = "voci_con_chiavi_tolleranti")]
+    pub voci: std::collections::BTreeMap<u32, String>,
+}
+
+/// Le chiavi delle voci, numeri anche quando sono scritte come stringhe
+/// (02-11-2026). Il JSON non ha chiavi numeriche, e uno YAML scritto a mano o
+/// da uno script le mette spesso fra virgolette (`'0': standby`): prima la
+/// sorgente intera veniva scartata per una virgoletta.
+fn voci_con_chiavi_tolleranti<'de, D>(d: D) -> Result<std::collections::BTreeMap<u32, String>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    #[derive(Deserialize)]
+    #[serde(untagged)]
+    enum Chiave {
+        Numero(u32),
+        Testo(String),
+    }
+    let lette: Vec<(Chiave, String)> = {
+        let m: serde_yaml::Mapping = serde::Deserialize::deserialize(d)?;
+        m.into_iter()
+            .map(|(k, v)| {
+                let k: Chiave = serde_yaml::from_value(k).map_err(serde::de::Error::custom)?;
+                let v: String = serde_yaml::from_value(v).map_err(serde::de::Error::custom)?;
+                Ok((k, v))
+            })
+            .collect::<Result<_, D::Error>>()?
+    };
+    lette
+        .into_iter()
+        .map(|(k, v)| match k {
+            Chiave::Numero(n) => Ok((n, v)),
+            Chiave::Testo(t) => t
+                .trim()
+                .parse::<u32>()
+                .map(|n| (n, v))
+                .map_err(|_| serde::de::Error::custom(format!("voce dei testi «{t}»: la chiave deve essere un numero"))),
+        })
+        .collect()
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum ModoTesti {
+    /// Il registro è un'enumerazione: il testo del suo valore.
+    #[default]
+    Valore,
+    /// Il registro è una maschera di bit: i testi dei bit accesi, separati da
+    /// «; » (i registri di guasto degli inverter).
+    Bit,
+}
+
+impl ModoTesti {
+    pub fn e_predefinito(&self) -> bool {
+        *self == Self::Valore
+    }
 }
 
 /// Vedi `DispositivoModbus::setup`. Un registro holding a 16 bit.
@@ -699,6 +842,7 @@ fn dispositivi_modbus(devices: &[DispositivoModbus], unit_id: u8, ordine: Ordine
         timeout_ms: TIMEOUT_MODBUS_MS,
         registers: registers.to_vec(),
         setup: Vec::new(),
+        blocchi: Vec::new(),
     }]
 }
 
@@ -789,6 +933,17 @@ pub struct RegisterMapping {
     /// del manuale del dispositivo).
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub sola_lettura: bool,
+    /// I limiti di plausibilità (01-11-2026): un valore fuori è un registro letto
+    /// male o una mappa sbagliata, e il tag va Bad invece di finire nello storico
+    /// come buono. Si guardano dopo la scala della mappatura.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub min: Option<f64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub max: Option<f64>,
+    /// Il testo al posto del numero: un'enumerazione o una maschera di bit. Il
+    /// tag è una stringa.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub testi: Option<TestiRegistro>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -865,6 +1020,80 @@ pub struct MqttConfig {
     /// disponibilità deve dire vivo.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub disponibilita: Option<DisponibilitaMqtt>,
+    /// Lo stato dei tag pubblicato sul broker (01-11-2026, piano
+    /// `docs/archive/2026-11-01-inverter-solarman.md`, fase 5): SWS come lettore
+    /// unico di un dispositivo, e gli altri (Home Assistant) che leggono da qui.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub pubblica: Vec<PubblicazioneMqtt>,
+}
+
+/// Una pubblicazione: dei tag su un topic (01-11-2026).
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct PubblicazioneMqtt {
+    pub topic: String,
+    /// I tag da pubblicare: un tag, una variabile intera o un suo ramo
+    /// (`inverter.main`). In JSON le chiavi sono le foglie **relative** a
+    /// ciascuno (`battery_soc`); un tag semplice usa il suo ultimo segmento.
+    pub tags: Vec<String>,
+    #[serde(default, skip_serializing_if = "FormatoPubblicazione::e_predefinito")]
+    pub formato: FormatoPubblicazione,
+    /// Il broker tiene l'ultimo messaggio per chi si collega dopo.
+    #[serde(default = "vero", skip_serializing_if = "e_vero")]
+    pub retain: bool,
+    /// Ripubblica anche senza cambiamenti, ogni tanti ms (0 = solo quando cambia).
+    #[serde(default, skip_serializing_if = "e_zero_u64")]
+    pub intervallo_ms: u64,
+    /// La disponibilità del dispositivo: `online`/`offline` su un topic suo,
+    /// da un tag booleano (`inverter.disponibile`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub disponibilita: Option<DisponibilitaPubblicata>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum FormatoPubblicazione {
+    /// Un oggetto JSON piatto, `null` dove il valore non è buono.
+    #[default]
+    Json,
+    /// Il valore nudo di un tag solo (`23.5`, `true`, `acceso`).
+    Valore,
+}
+
+impl FormatoPubblicazione {
+    pub fn e_predefinito(&self) -> bool {
+        *self == Self::Json
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct DisponibilitaPubblicata {
+    pub topic: String,
+    /// Il tag booleano che dice se il dispositivo risponde.
+    pub tag: String,
+    #[serde(default = "default_online", skip_serializing_if = "e_online")]
+    pub online: String,
+    #[serde(default = "default_offline", skip_serializing_if = "e_offline")]
+    pub offline: String,
+}
+
+fn e_vero(v: &bool) -> bool {
+    *v
+}
+
+fn default_online() -> String {
+    "online".into()
+}
+
+fn default_offline() -> String {
+    "offline".into()
+}
+
+fn e_online(s: &String) -> bool {
+    s == "online"
+}
+
+fn e_offline(s: &String) -> bool {
+    s == "offline"
 }
 
 /// Il topic che dice se l'altro capo è vivo: il «testamento» di Zigbee2MQTT
@@ -1468,9 +1697,12 @@ where
             .and_then(|k| k.as_str())
             .unwrap_or("?")
             .to_string();
+        let id = val.get("id").and_then(|k| k.as_str()).unwrap_or("?").to_string();
         match serde_yaml::from_value::<SourceDef>(val) {
             Ok(src) => out.push(src),
-            Err(e) => tracing::warn!(%kind, "skipping unrecognized source kind: {e}"),
+            // Il motivo vero, non «tipo non riconosciuto»: il 02-11-2026 una
+            // virgoletta in una chiave dei testi diceva così, e il tipo era giusto.
+            Err(e) => tracing::warn!(%kind, %id, "sorgente scartata, non si legge: {e}"),
         }
     }
     Ok(out)
@@ -1518,6 +1750,25 @@ fn default_edge() -> String {
 
 fn default_interval_s() -> u64 {
     1
+}
+
+#[cfg(test)]
+mod testi_registro_tests {
+    use super::TestiRegistro;
+
+    /// 02-11-2026: chiavi numeriche, fra virgolette (YAML scritto da uno
+    /// script) e da JSON (il salvataggio dell'IDE) danno la stessa cosa.
+    #[test]
+    fn le_chiavi_dei_testi_si_leggono_anche_fra_virgolette() {
+        let numeri: TestiRegistro = serde_yaml::from_str("voci: {0: standby, 2: running}").unwrap();
+        let virgolette: TestiRegistro = serde_yaml::from_str("voci: {'0': standby, '2': running}").unwrap();
+        let json: TestiRegistro = serde_json::from_str(r#"{"voci": {"0": "standby", "2": "running"}}"#).unwrap();
+        assert_eq!(numeri, virgolette);
+        assert_eq!(numeri, json);
+        assert_eq!(numeri.voci[&2], "running");
+        let e = serde_yaml::from_str::<TestiRegistro>("voci: {acceso: x}").unwrap_err().to_string();
+        assert!(e.contains("acceso"), "{e}");
+    }
 }
 
 #[cfg(test)]

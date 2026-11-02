@@ -1204,6 +1204,26 @@ export interface RegisterMapping {
   bit?: number;
   /** Scrittura rifiutata anche su holding. */
   sola_lettura?: boolean;
+  /** I limiti di plausibilità (01-11-2026): fuori, il tag va Bad. */
+  min?: number;
+  max?: number;
+  /** Il testo al posto del numero: un'enumerazione o una maschera di bit. */
+  testi?: TestiRegistro;
+}
+
+/** Il testo di un registro (01-11-2026). `voci`: valore, o numero del bit → testo. */
+export interface TestiRegistro {
+  modo?: "valore" | "bit";
+  voci: Record<string, string>;
+}
+
+/** Un intervallo di registri letto in una richiesta (01-11-2026). `a` compreso;
+ *  `ogni`: un giro su quanti (assente = 1). */
+export interface BloccoModbus {
+  area?: "holding" | "input" | "coil" | "discrete";
+  da: number;
+  a: number;
+  ogni?: number;
 }
 
 /** Ordine di parole e byte dei valori su più registri (Fase 3). Assente = abcd. */
@@ -1228,6 +1248,8 @@ export interface DispositivoModbus {
    *  legge a ogni sessione e scrive solo le differenze. Gemello di
    *  `sws_core::ParametroSetup`. */
   setup?: ParametroSetup[];
+  /** I blocchi letti con una richiesta sola (01-11-2026). */
+  blocchi?: BloccoModbus[];
 }
 
 export interface ParametroSetup {
@@ -1274,6 +1296,11 @@ export interface RegistroCatalogo {
   bit?: BitCatalogo[];
   /** L'enumerazione per la tendina del configuratore (25-10-2026). */
   valori?: Record<string, TestoIt>;
+  /** Limiti di plausibilità (01-11-2026). */
+  min?: number;
+  max?: number;
+  /** Il testo al posto del numero: enumerazione o maschera di bit (01-11-2026). */
+  testi?: { modo?: "valore" | "bit"; voci: Record<string, TestoIt> };
   /** `false` = non si configura dal progetto (indirizzo, baud…). */
   setup?: boolean;
 }
@@ -1308,7 +1335,18 @@ export interface VoceCatalogo extends VoceCatalogoElenco {
     trasporto?: "tcp" | "rtu" | "entrambi";
     /** Gli indirizzi letti in `da..a` si scrivono `scostamento` più in là. */
     setup_ritardato?: { da: number; a: number; scostamento: number };
+    /** Inverter (01-11-2026): cosa viaggia nel socket, e le impostazioni del bus
+     *  che il modello vuole (la chiavetta Solarman: porta 8899, pause, tentativi). */
+    trasporto_tcp?: TrasportoTcp;
+    porta?: number;
+    intervallo_ms?: number;
+    pausa_ms?: number;
+    tentativi?: number;
+    blocchi?: BloccoModbus[];
   };
+  /** «inverter»: i punti del gruppo `principali` parlano il vocabolario canonico. */
+  categoria?: string;
+  verifica?: { stato: "non_verificata" | "parziale" | "verificata"; data: string; note?: TestoIt };
   registri: RegistroCatalogo[];
 }
 
@@ -1339,7 +1377,20 @@ export interface ModbusTcpSource {
   registers?: RegisterMapping[];
   /** Più unit id dietro lo stesso indirizzo (un gateway). */
   devices?: DispositivoModbus[];
+  /** Cosa viaggia nel socket (01-11-2026): MBAP (predefinito), la trama RTU
+   *  nuda, o la trama RTU in un pacchetto Solarman V5. */
+  trasporto?: TrasportoTcp;
+  /** Il numero di serie della chiavetta Solarman: senza, non risponde. */
+  seriale_logger?: number;
+  /** Pausa minima fra due richieste, in ms. */
+  pausa_ms?: number;
+  /** Tentativi su una lettura con la risposta rotta. */
+  tentativi?: number;
+  /** Pubblica i contatori `<id>.diagnostica.*` (01-11-2026). */
+  diagnostica?: boolean;
 }
+
+export type TrasportoTcp = "mbap" | "rtu_su_tcp" | "solarman_v5";
 
 export interface ModbusRtuSource {
   kind: "modbus_rtu";
@@ -1411,6 +1462,18 @@ export interface SparkplugConfig {
   metrics: SparkplugMetricMapping[];
 }
 
+/** Una pubblicazione MQTT (01-11-2026): dei tag su un topic. `tags`: un tag,
+ *  una variabile o un suo ramo; in JSON le chiavi sono le foglie relative. */
+export interface PubblicazioneMqtt {
+  topic: string;
+  tags: string[];
+  formato?: "json" | "valore";
+  /** Assente = true. */
+  retain?: boolean;
+  intervallo_ms?: number;
+  disponibilita?: { topic: string; tag: string; online?: string; offline?: string };
+}
+
 export interface MqttSource {
   kind: "mqtt";
   id: string;
@@ -1450,6 +1513,8 @@ export interface MqttSource {
    *  dall'altra parte»): il topic che dice se è vivo. Gemello di
    *  `sws_core::DisponibilitaMqtt`. */
   disponibilita?: DisponibilitaMqtt;
+  /** I tag che SWS pubblica sul broker (01-11-2026). */
+  pubblica?: PubblicazioneMqtt[];
 }
 
 export interface DisponibilitaMqtt {

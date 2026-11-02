@@ -538,6 +538,7 @@ pub const FIELD_ENUMS: &[(&str, &[&str])] = &[
             "lib:building/fan-coil",
             "lib:building/garage-door",
             "lib:building/heat-pump",
+            "lib:building/house",
             "lib:building/radiator",
             "lib:building/roller-shutter",
             "lib:building/thermostat",
@@ -731,6 +732,10 @@ pub const SYMBOL_PORTS: &[(&str, &[&str])] = &[
     ("lib:building/fan-coil", &[]),
     ("lib:building/garage-door", &[]),
     ("lib:building/heat-pump", &["n-right", "n-right-2"]),
+    (
+        "lib:building/house",
+        &["n-left", "n-top", "n-right", "n-bottom"],
+    ),
     ("lib:building/radiator", &[]),
     ("lib:building/roller-shutter", &[]),
     ("lib:building/thermostat", &[]),
@@ -956,6 +961,11 @@ pub const SOURCE_MODBUS_TCP_FIELDS: &[Field] = &[
     Field { name: "ordine", ty: "OrdineModbus", required: false, group: "", doc: "Formato di prima: l'ordine dell'unico dispositivo." },
     Field { name: "registers", ty: "RegisterMapping[]", required: false, group: "", doc: "Formato di prima: i registri dell'unico dispositivo." },
     Field { name: "devices", ty: "DispositivoModbus[]", required: false, group: "", doc: "I dispositivi sul bus (04-10-2026): per un gateway, più unit id dietro lo stesso indirizzo." },
+    Field { name: "trasporto", ty: "TrasportoTcp", required: false, group: "", doc: "Come viaggia il Modbus nel socket (01-11-2026, piano `docs/archive/2026-11-01-inverter-solarman.md`): MBAP, trama RTU nuda, o dentro un pacchetto Solarman V5." },
+    Field { name: "seriale_logger", ty: "number", required: false, group: "", doc: "Il numero di serie della chiavetta Solarman: senza, non risponde." },
+    Field { name: "pausa_ms", ty: "number", required: false, group: "", doc: "Pausa minima fra due richieste, in ms: le chiavette Wi-Fi non reggono richieste attaccate." },
+    Field { name: "tentativi", ty: "number", required: false, group: "", doc: "Quante volte si rifà una richiesta la cui risposta arriva rotta (CRC, checksum, pezzi mescolati) prima di darla per persa." },
+    Field { name: "diagnostica", ty: "bool", required: false, group: "", doc: "Pubblica i contatori `<id>.diagnostics.timeouts`, `.bad_replies` e `.implausible` (01-11-2026): per gli allarmi su un collegamento che zoppica e per le prove di durata." },
 ];
 
 /// Campi di `DispositivoModbus`, usato dentro la sorgente `modbus_tcp`.
@@ -968,6 +978,7 @@ pub const SOURCE_MODBUS_TCP_DISPOSITIVOMODBUS_FIELDS: &[Field] = &[
     Field { name: "timeout_ms", ty: "number", required: false, group: "", doc: "Attesa massima di una risposta, in ms." },
     Field { name: "registers", ty: "RegisterMapping[]", required: false, group: "", doc: "" },
     Field { name: "setup", ty: "ParametroSetup[]", required: false, group: "", doc: "La configurazione del modulo (configuratore, 25-10-2026): parametri che il progetto vuole così — tipo di sonda di un ingresso, tipo di un'uscita… A ogni sessione, alla prima risposta del dispositivo, il runtime li legge e **scrive solo quelli diversi**: vince il progetto, e un modulo sostituito o resettato torna configurato da solo. Ogni voce è completa — indirizzo compreso — perché il runtime non legge il catalogo: l'IDE la compila da lì." },
+    Field { name: "blocchi", ty: "BloccoModbus[]", required: false, group: "", doc: "I blocchi letti con una richiesta sola (01-11-2026, piano `docs/archive/2026-11-01-inverter-solarman.md`): una mappatura che ci cade dentro si serve dal blocco e non fa una richiesta sua. Una chiavetta Solarman con ottanta richieste a giro non regge; con due sì." },
 ];
 
 /// Campi di `RegisterMapping`, usato dentro la sorgente `modbus_tcp`.
@@ -979,6 +990,9 @@ pub const SOURCE_MODBUS_TCP_REGISTERMAPPING_FIELDS: &[Field] = &[
     Field { name: "formato", ty: "string", required: false, group: "", doc: "Il tipo **sul filo** (catalogo dei dispositivi, 04-10-2026): `i16`, `u32`, `f32`… Se c'è, decide registri e decodifica al posto del tipo del tag, e `scale` si applica sempre (`i16` × 0.1 → 10.0 in un tag `f32`)." },
     Field { name: "bit", ty: "number", required: false, group: "", doc: "Un bit (0-15) di un registro → un bool. In scrittura il registro si legge, si cambia il bit e si riscrive." },
     Field { name: "sola_lettura", ty: "bool", required: false, group: "", doc: "La scrittura è rifiutata anche su un holding register (i registri «R» del manuale del dispositivo)." },
+    Field { name: "min", ty: "number", required: false, group: "", doc: "I limiti di plausibilità (01-11-2026): un valore fuori è un registro letto male o una mappa sbagliata, e il tag va Bad invece di finire nello storico come buono. Si guardano dopo la scala della mappatura." },
+    Field { name: "max", ty: "number", required: false, group: "", doc: "" },
+    Field { name: "testi", ty: "TestiRegistro", required: false, group: "", doc: "Il testo al posto del numero: un'enumerazione o una maschera di bit. Il tag è una stringa." },
 ];
 
 /// Campi della sorgente `modbus_rtu` (ModbusRtuConfig).
@@ -1006,6 +1020,7 @@ pub const SOURCE_MODBUS_RTU_DISPOSITIVOMODBUS_FIELDS: &[Field] = &[
     Field { name: "timeout_ms", ty: "number", required: false, group: "", doc: "Attesa massima di una risposta, in ms." },
     Field { name: "registers", ty: "RegisterMapping[]", required: false, group: "", doc: "" },
     Field { name: "setup", ty: "ParametroSetup[]", required: false, group: "", doc: "La configurazione del modulo (configuratore, 25-10-2026): parametri che il progetto vuole così — tipo di sonda di un ingresso, tipo di un'uscita… A ogni sessione, alla prima risposta del dispositivo, il runtime li legge e **scrive solo quelli diversi**: vince il progetto, e un modulo sostituito o resettato torna configurato da solo. Ogni voce è completa — indirizzo compreso — perché il runtime non legge il catalogo: l'IDE la compila da lì." },
+    Field { name: "blocchi", ty: "BloccoModbus[]", required: false, group: "", doc: "I blocchi letti con una richiesta sola (01-11-2026, piano `docs/archive/2026-11-01-inverter-solarman.md`): una mappatura che ci cade dentro si serve dal blocco e non fa una richiesta sua. Una chiavetta Solarman con ottanta richieste a giro non regge; con due sì." },
 ];
 
 /// Campi di `RegisterMapping`, usato dentro la sorgente `modbus_rtu`.
@@ -1017,6 +1032,9 @@ pub const SOURCE_MODBUS_RTU_REGISTERMAPPING_FIELDS: &[Field] = &[
     Field { name: "formato", ty: "string", required: false, group: "", doc: "Il tipo **sul filo** (catalogo dei dispositivi, 04-10-2026): `i16`, `u32`, `f32`… Se c'è, decide registri e decodifica al posto del tipo del tag, e `scale` si applica sempre (`i16` × 0.1 → 10.0 in un tag `f32`)." },
     Field { name: "bit", ty: "number", required: false, group: "", doc: "Un bit (0-15) di un registro → un bool. In scrittura il registro si legge, si cambia il bit e si riscrive." },
     Field { name: "sola_lettura", ty: "bool", required: false, group: "", doc: "La scrittura è rifiutata anche su un holding register (i registri «R» del manuale del dispositivo)." },
+    Field { name: "min", ty: "number", required: false, group: "", doc: "I limiti di plausibilità (01-11-2026): un valore fuori è un registro letto male o una mappa sbagliata, e il tag va Bad invece di finire nello storico come buono. Si guardano dopo la scala della mappatura." },
+    Field { name: "max", ty: "number", required: false, group: "", doc: "" },
+    Field { name: "testi", ty: "TestiRegistro", required: false, group: "", doc: "Il testo al posto del numero: un'enumerazione o una maschera di bit. Il tag è una stringa." },
 ];
 
 /// Campi della sorgente `opcua_server` (OpcUaServerConfig).
@@ -1052,6 +1070,7 @@ pub const SOURCE_MQTT_FIELDS: &[Field] = &[
     Field { name: "random_client_id", ty: "RandomClientId", required: false, group: "Connection tuning", doc: "When enabled, the runtime derives the wire client_id by gluing an instance-specific id to `client_id` (used as a prefix/suffix label) instead of using `client_id` literally. Avoids collisions when the same project is opened from the IDE and/or deployed to several devices against the same broker — each instance would otherwise connect with the exact same client_id and keep kicking each other." },
     Field { name: "max_silence_secs", ty: "number", required: false, group: "Connection tuning", doc: "Opt-in staleness guard: if no tag owned by this source updates within this many seconds, the watchdog in `SourceSupervisor` restarts it — independent of any error from the MQTT client, which may report \"connected\" even when a stuck/half-open session stops producing data. Off by default: MQTT is push-based with no natural reporting interval, so a guessed default would risk restarting sources that are legitimately just quiet." },
     Field { name: "disponibilita", ty: "DisponibilitaMqtt", required: false, group: "Connection tuning", doc: "Chi sta dall'altra parte del broker (28-10-2026, piano `docs/archive/2026-10-28-chi-sta-dall-altra-parte.md`). Un broker vivo non vuol dire un Zigbee2MQTT vivo: senza questo campo la sorgente è «disponibile» finché il broker risponde; con questo, anche il topic di disponibilità deve dire vivo." },
+    Field { name: "pubblica", ty: "PubblicazioneMqtt[]", required: false, group: "Connection tuning", doc: "Lo stato dei tag pubblicato sul broker (01-11-2026, piano `docs/archive/2026-11-01-inverter-solarman.md`, fase 5): SWS come lettore unico di un dispositivo, e gli altri (Home Assistant) che leggono da qui." },
 ];
 
 /// Campi di `TopicMapping`, usato dentro la sorgente `mqtt`.

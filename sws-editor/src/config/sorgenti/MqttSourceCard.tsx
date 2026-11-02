@@ -9,6 +9,7 @@ import { MqttBrowseModal } from "@/config/sorgenti/MqttBrowseModal";
 import { MqttJsonExtractModal } from "@/config/sorgenti/MqttJsonExtractModal";
 import { MqttAuthSection, MqttConnectionSection, MqttTlsSection, MqttRandomClientIdSection, MqttLastWillSection, MqttDisponibilitaSection } from "@/config/sorgenti/MqttSezioni";
 import { SezioneSorgente } from "@/config/sorgenti/card/SezioneSorgente";
+import { MqttPubblicazioniSection } from "@/config/sorgenti/MqttPubblicazioni";
 import { TestataSorgente } from "@/config/sorgenti/card/TestataSorgente";
 import { DisponibilitaSezione } from "@/config/sorgenti/card/DisponibilitaSezione";
 import { SparkplugSection } from "@/config/sorgenti/SparkplugSection";
@@ -315,6 +316,16 @@ export function MqttSourceCard({
             </button>
           )}
             </>)}
+          </SezioneSorgente>
+
+          <SezioneSorgente
+            titolo={t("sorgenti.sezioni.pubblicazione")}
+            apribile
+            chiusaDiPartenza={!source.pubblica?.length}
+            riepilogo={t("sorgenti.pubblica.riepilogo", { count: source.pubblica?.length ?? 0 })}
+            testid={`mqtt-pubblicazione-${source.id}`}
+          >
+            <MqttPubblicazioniSection source={source} onChange={(pubblica) => onChange({ ...source, pubblica })} />
           </SezioneSorgente>
 
           <SezioneSorgente

@@ -63,6 +63,7 @@ fn mappata(tag: &str) -> bool {
 }
 
 mod sparkplug;
+pub mod pubblica;
 
 /// Verifica del certificato del broker **disattivata**, per `insecure_skip_verify`.
 ///
@@ -471,9 +472,75 @@ async fn run_session(
             .max(30),
     );
 
+    // Le pubblicazioni (01-11-2026): tutte alla connessione, poi quando i loro
+    // tag cambiano — raccolte in un messaggio solo, perché un giro di lettura
+    // aggiorna decine di tag uno dopo l'altro — e, se chiesto, a intervallo.
+    let mut rx_tag = (!cfg.pubblica.is_empty()).then(|| db.subscribe());
+    let mut sporche = vec![true; cfg.pubblica.len()];
+    let mut scadenza = (!cfg.pubblica.is_empty()).then(tokio::time::Instant::now);
+    let mut periodiche: Vec<Option<tokio::time::Instant>> = cfg
+        .pubblica
+        .iter()
+        .map(|p| (p.intervallo_ms > 0).then(|| tokio::time::Instant::now() + Duration::from_millis(p.intervallo_ms)))
+        .collect();
+    let mut disponibilita_mandata: Vec<Option<String>> = vec![None; cfg.pubblica.len()];
+    const RACCOLTA: Duration = Duration::from_millis(500);
+
     loop {
+        let prossima = scadenza.into_iter().chain(periodiche.iter().flatten().copied()).min();
         tokio::select! {
             _ = cancel.cancelled() => return Ok(()),
+
+            r = async { match rx_tag.as_mut() { Some(rx) => rx.recv().await, None => std::future::pending().await } } => {
+                match r {
+                    Ok(u) => {
+                        for (i, p) in cfg.pubblica.iter().enumerate() {
+                            if pubblica::riguarda(p, &u.id) {
+                                sporche[i] = true;
+                                scadenza.get_or_insert_with(|| tokio::time::Instant::now() + RACCOLTA);
+                            }
+                        }
+                    }
+                    Err(tokio::sync::broadcast::error::RecvError::Lagged(_)) => {
+                        sporche.iter_mut().for_each(|s| *s = true);
+                        scadenza.get_or_insert_with(|| tokio::time::Instant::now() + RACCOLTA);
+                    }
+                    Err(tokio::sync::broadcast::error::RecvError::Closed) => rx_tag = None,
+                }
+            }
+
+            _ = async { match prossima { Some(t) => tokio::time::sleep_until(t).await, None => std::future::pending().await } } => {
+                let adesso = tokio::time::Instant::now();
+                for (i, per) in periodiche.iter_mut().enumerate() {
+                    if per.is_some_and(|t| t <= adesso) {
+                        sporche[i] = true;
+                        *per = Some(adesso + Duration::from_millis(cfg.pubblica[i].intervallo_ms));
+                    }
+                }
+                if scadenza.is_some_and(|t| t <= adesso) || sporche.iter().any(|s| *s) {
+                    scadenza = None;
+                    for (i, p) in cfg.pubblica.iter().enumerate() {
+                        if !std::mem::take(&mut sporche[i]) {
+                            continue;
+                        }
+                        if let Some(payload) = pubblica::stato(&db, p).await {
+                            if let Err(e) = client.publish(&p.topic, source_qos, p.retain, payload.into_bytes()).await {
+                                warn!(source = %cfg.id, topic = %p.topic, "MQTT: pubblicazione non riuscita: {e}");
+                            }
+                        }
+                        if let Some((topic, payload)) = pubblica::disponibilita(&db, p).await {
+                            if disponibilita_mandata[i].as_deref() != Some(payload.as_str()) {
+                                if let Err(e) = client.publish(&topic, source_qos, true, payload.clone().into_bytes()).await {
+                                    warn!(source = %cfg.id, %topic, "MQTT: disponibilità non pubblicata: {e}");
+                                } else {
+                                    info!(source = %cfg.id, %topic, %payload, "MQTT: disponibilità pubblicata");
+                                    disponibilita_mandata[i] = Some(payload);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
 
             // Outbound: a tag write came in via the bus → publish to the mapped topic.
             Some((tag, percorso, value)) = write_rx.recv() => {

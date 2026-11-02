@@ -3394,7 +3394,9 @@
     "anteprimaRiassocia": "Re-associates the existing variable «{{nome}}» ({{tipo}}): a device with {{n}} mappings, nothing new to create.",
     "avvisoMembriMancanti": "{{n}} catalog registers have no member in type «{{tipo}}» (older catalog version): they are not read.",
     "avvisoTipoAllargato": "The variable moves from type «{{da}}» to «{{a}}», which also has the chosen groups: its existing members stay the same, with their history.",
-    "avvisoPercorsiCambiano": "«{{nome}}» has an older flat type missing some members: it moves to the nested type «{{tipo}}», and the paths change (e.g. {{nome}}.ingressi.di1 instead of {{nome}}.di1): charts and alarms using the old ones need reconnecting."
+    "avvisoPercorsiCambiano": "«{{nome}}» has an older flat type missing some members: it moves to the nested type «{{tipo}}», and the paths change (e.g. {{nome}}.ingressi.di1 instead of {{nome}}.di1): charts and alarms using the old ones need reconnecting.",
+    "avvisoTrasportoImpostato": "The bus switches to {{trasporto}} on port {{porta}}, with pauses, retries and diagnostic counters: that is what the model wants. Only the stick serial number is missing, in the source card.",
+    "avvisoTrasportoOccupato": "This model wants the {{voluto}} transport, but the bus uses {{attuale}} and already has devices: I am not changing it so as not to break them. Put it on a source of its own."
   },
   "abbinamento": {
     "titolo": "panel «{{nome}}» to pair",
@@ -3832,6 +3834,7 @@
         "fan-coil": "Fan coil",
         "garage-door": "Garage door",
         "heat-pump": "Heat pump",
+        "house": "House",
         "radiator": "Radiator",
         "roller-shutter": "Roller shutter",
         "thermostat": "Thermostat",
@@ -4137,7 +4140,8 @@
       "metriche": "Metrics",
       "entita": "Entities",
       "impostazioni": "Settings",
-      "nodiMonitorati": "Monitored nodes"
+      "nodiMonitorati": "Monitored nodes",
+      "pubblicazione": "Publishing"
     },
     "modo": {
       "topic": "Topic",
@@ -4157,6 +4161,38 @@
       "hostIdAiuto": "Published on spBv1.0/STATE/<name>: tells the devices that SWS is connected.",
       "scrivibile": "Writable",
       "scrivibileAiuto": "SWS sends the command to the node (NCMD) or device (DCMD) that announced the metric."
+    },
+    "modbusTcp": {
+      "trasporto": "Transport",
+      "trasportoMbap": "Modbus TCP",
+      "trasportoRtu": "RTU over TCP",
+      "trasportoSolarman": "Solarman V5",
+      "trasportoHint": "Modbus TCP for devices with an Ethernet port; RTU over TCP for transparent serial/Ethernet converters; Solarman V5 for inverter Wi-Fi sticks (port 8899)",
+      "serialeLogger": "Stick serial number",
+      "serialeLoggerHint": "The Solarman logger serial number, on the stick's label or in its web page: without it the stick does not answer",
+      "pausa": "Pause between requests (ms)",
+      "pausaHint": "Wi-Fi sticks cannot take back-to-back requests: 0 = no pause",
+      "tentativi": "Retries on a broken reply",
+      "tentativiHint": "How many times a read whose reply arrives corrupted is repeated; writes are never repeated",
+      "riepilogoAvanzate": "pause {{pausa}} ms · {{tentativi}} retries",
+      "diagnostica": "Publish the diagnostic counters",
+      "diagnosticaHint": "The tags {{id}}.diagnostics.timeouts, .bad_replies and .implausible: for alarms on a limping link and for endurance tests"
+    },
+    "pubblica": {
+      "nota": "The tag state SWS puts on the broker: so that others (Home Assistant) can read a device without polling it too. In JSON the keys are the leaves relative to the chosen tag; a value that is not good goes out as null.",
+      "formato": "Format",
+      "valore": "Bare value",
+      "intervallo": "Every (s)",
+      "intervalloHint": "Republish even without changes; 0 = only when a tag changes",
+      "tags": "Tags (a tag, a variable or one of its branches)",
+      "aggiungiTag": "+ tag",
+      "disponibilitaTag": "Availability from (boolean tag)",
+      "disponibilitaHint": "online/offline according to this tag, usually <source>.disponibile of the device being read",
+      "disponibilitaTopic": "Availability topic",
+      "retainHint": "The broker keeps the last message for those who connect later",
+      "aggiungi": "+ Publication",
+      "riepilogo_one": "{{count}} publication",
+      "riepilogo_other": "{{count}} publications"
     }
   },
   "reportTab": {

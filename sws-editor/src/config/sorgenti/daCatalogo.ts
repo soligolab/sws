@@ -13,9 +13,9 @@
  *  modello, qualunque cosa si sia spuntato.
  */
 import type {
-  DispositivoModbus, Membro, RegisterMapping, RegistroCatalogo, TagDataType, TagDef, TestoIt, TypeDef, VoceCatalogo,
+  DispositivoModbus, Membro, ModbusTcpSource, RegisterMapping, RegistroCatalogo, TagDataType, TagDef, TestoIt, TestiRegistro, TypeDef, VoceCatalogo,
 } from "@/types";
-import { type BusModbus, nuovoDispositivo } from "@/config/sorgenti/modbusDispositivi";
+import { type BusModbus, dispositiviDi, nuovoDispositivo } from "@/config/sorgenti/modbusDispositivi";
 import { api } from "@/api/client";
 
 export interface OpzioniCatalogo {
@@ -54,6 +54,10 @@ export interface DaCatalogo {
    *  va salvata al posto della vecchia. */
   sostituisciVariabile?: boolean;
   dispositivo: DispositivoModbus;
+  /** Le impostazioni che il modello vuole sul bus (01-11-2026): il trasporto
+   *  Solarman, la porta, le pause. Solo quando il bus non ha ancora dispositivi
+   *  con registri: cambiarle sotto un dispositivo che c'è lo romperebbe. */
+  bus?: Partial<ModbusTcpSource>;
   avvisi: Avviso[];
 }
 
@@ -88,11 +92,24 @@ export function baseIstanza(id: string): string {
 
 const testo = (t: TestoIt | undefined, lingua: "it" | "en") => (t ? t[lingua] || t.it : undefined);
 
-/** Il tipo del membro: quello dichiarato, o `f32` se c'è una scala, o il formato. */
+/** Il tipo del membro: quello dichiarato; con una scala, il tipo del valore
+ *  **dopo** la scala; senza, il formato sul filo.
+ *
+ *  Una scala intera (×10 per passare da centinaia di watt a watt, −10 per
+ *  rovesciare il segno) dà ancora un intero (01-11-2026, richiesta del
+ *  maintainer: «impostassi correttamente sia il tipo che l'unità»): prima ogni
+ *  scala faceva un `f32`, e una potenza in watt nasceva decimale. Il tipo si
+ *  allarga di un passo, perché ×10 su 16 bit esce dai 16 bit, ed è con segno
+ *  se lo è il formato o se la scala è negativa. Una scala decimale resta `f32`. */
 function tipoMembro(r: RegistroCatalogo): string {
   if (r.tipo) return r.tipo;
-  if (r.scala !== undefined && r.scala !== 1) return "f32";
-  return r.formato ?? "u16";
+  const formato = r.formato ?? "u16";
+  const s = r.scala ?? 1;
+  if (s === 1) return formato;
+  if (!Number.isInteger(s)) return "f32";
+  const conSegno = formato.startsWith("i") || s < 0;
+  const largo = /(32|64)$/.test(formato);
+  return largo ? "i64" : conSegno ? "i32" : "u32";
 }
 
 /** I decimali da mostrare, dalla scala (0.1 → 1, 0.01 → 2). */
@@ -122,7 +139,14 @@ function membri(voce: VoceCatalogo, lingua: "it" | "en", gruppi?: ReadonlySet<st
   return out;
 }
 
-function mappature(voce: VoceCatalogo, istanza: string, gruppi: ReadonlySet<string>, membriDisponibili?: ReadonlySet<string>, piatto = false): RegisterMapping[] {
+/** I testi di un registro nella lingua scelta. */
+function testiDi(r: RegistroCatalogo, lingua: "it" | "en"): TestiRegistro | undefined {
+  if (!r.testi) return undefined;
+  const voci = Object.fromEntries(Object.entries(r.testi.voci).map(([k, v]) => [k, testo(v, lingua) ?? k]));
+  return { ...(r.testi.modo === "bit" ? { modo: "bit" as const } : {}), voci };
+}
+
+function mappature(voce: VoceCatalogo, istanza: string, gruppi: ReadonlySet<string>, lingua: "it" | "en", membriDisponibili?: ReadonlySet<string>, piatto = false): RegisterMapping[] {
   const out: RegisterMapping[] = [];
   const ce = (nome: string) => !membriDisponibili || membriDisponibili.has(nome);
   for (const r of voce.registri) {
@@ -137,7 +161,13 @@ function mappature(voce: VoceCatalogo, istanza: string, gruppi: ReadonlySet<stri
     if (r.bit) {
       for (const b of r.bit) if (ce(b.nome)) out.push({ tag: `${radice}.${b.nome}`, scale: 1, bit: b.bit, ...base });
     } else if (ce(r.nome)) {
-      out.push({ tag: `${radice}.${r.nome}`, scale: r.scala ?? 1, formato: r.formato ?? "u16", ...base });
+      const testi = testiDi(r, lingua);
+      out.push({
+        tag: `${radice}.${r.nome}`, scale: r.scala ?? 1, formato: r.formato ?? "u16", ...base,
+        ...(r.min !== undefined ? { min: r.min } : {}),
+        ...(r.max !== undefined ? { max: r.max } : {}),
+        ...(testi ? { testi } : {}),
+      });
     }
   }
   return out;
@@ -199,6 +229,8 @@ function dispositivoDa(voce: VoceCatalogo, bus: BusModbus, nome: string, unit: n
     modello: `${voce.id}@${voce.versione ?? 1}`,
     ...(voce.modbus?.ordine && voce.modbus.ordine !== "abcd" ? { ordine: voce.modbus.ordine } : {}),
     ...(voce.modbus?.timeout_ms ? { timeout_ms: voce.modbus.timeout_ms } : {}),
+    ...(voce.modbus?.intervallo_ms ? { poll_interval_ms: voce.modbus.intervallo_ms } : {}),
+    ...(voce.modbus?.blocchi?.length ? { blocchi: voce.modbus.blocchi } : {}),
     registers,
   });
   return { ...d, unit_id: unit };
@@ -218,12 +250,38 @@ function avvisiLinea(voce: VoceCatalogo, bus: BusModbus): Avviso[] {
   return avvisi;
 }
 
+/** Le impostazioni del bus che il modello vuole, e l'avviso se non si possono
+ *  dare (01-11-2026). */
+function impostazioniBus(voce: VoceCatalogo, bus: BusModbus): { bus?: Partial<ModbusTcpSource>; avvisi: Avviso[] } {
+  const m = voce.modbus;
+  if (bus.kind !== "modbus_tcp" || !m?.trasporto_tcp) return { avvisi: [] };
+  const voluto: Partial<ModbusTcpSource> = {
+    trasporto: m.trasporto_tcp === "mbap" ? undefined : m.trasporto_tcp,
+    ...(m.porta ? { port: m.porta } : {}),
+    ...(m.pausa_ms ? { pausa_ms: m.pausa_ms } : {}),
+    ...(m.tentativi ? { tentativi: m.tentativi } : {}),
+    ...(voce.categoria === "inverter" ? { diagnostica: true } : {}),
+  };
+  const attuale = bus.trasporto ?? "mbap";
+  if (attuale === m.trasporto_tcp && (!m.porta || bus.port === m.porta)) return { avvisi: [] };
+  const occupato = dispositiviDi(bus).some((d) => d.registers.length > 0);
+  if (occupato) {
+    return { avvisi: [{ chiave: "catalogo.avvisoTrasportoOccupato", valori: { voluto: m.trasporto_tcp, attuale } }] };
+  }
+  return { bus: voluto, avvisi: [{ chiave: "catalogo.avvisoTrasportoImpostato", valori: { trasporto: m.trasporto_tcp, porta: m.porta ?? bus.port } }] };
+}
+
 export function daCatalogo(voce: VoceCatalogo, bus: BusModbus, o: OpzioniCatalogo, tipiEsistenti: readonly TypeDef[]): DaCatalogo {
   if (o.esistente) return riassocia(voce, bus, o, o.esistente, tipiEsistenti);
   const t = tipoPerGruppi(voce, o.gruppi, o.lingua, tipiEsistenti);
   const tag: TagDef = { id: o.nome, description: `${voce.marca} ${voce.modello}`, type_ref: t.tipo.id, history: false } as TagDef;
-  const dispositivo = dispositivoDa(voce, bus, o.nome, o.unit, mappature(voce, o.nome, o.gruppi));
-  return { tipo: t.tipo, tipi: t.tipi, tipiNuovi: t.tipiNuovi, riusaTipo: t.riusaTipo, foglie: t.foglie, tag, dispositivo, avvisi: [...t.avvisi, ...avvisiLinea(voce, bus)] };
+  const dispositivo = dispositivoDa(voce, bus, o.nome, o.unit, mappature(voce, o.nome, o.gruppi, o.lingua));
+  const ib = impostazioniBus(voce, bus);
+  return {
+    tipo: t.tipo, tipi: t.tipi, tipiNuovi: t.tipiNuovi, riusaTipo: t.riusaTipo, foglie: t.foglie, tag, dispositivo,
+    ...(ib.bus ? { bus: ib.bus } : {}),
+    avvisi: [...t.avvisi, ...avvisiLinea(voce, bus), ...ib.avvisi],
+  };
 }
 
 /** Un dispositivo nuovo sopra una variabile che c'è già.
@@ -248,18 +306,18 @@ function riassocia(voce: VoceCatalogo, bus: BusModbus, o: OpzioniCatalogo, e: { 
     const presenti = new Set(e.tipo.members.map((m) => m.name));
     const servono = membri(voce, o.lingua, o.gruppi).map((m) => m.name);
     if (servono.every((n) => presenti.has(n))) {
-      return fine(e.tipo, [e.tipo], [], e.tag, mappature(voce, e.tag.id, o.gruppi, presenti, true), presenti.size, false);
+      return fine(e.tipo, [e.tipo], [], e.tag, mappature(voce, e.tag.id, o.gruppi, o.lingua, presenti, true), presenti.size, false);
     }
     const t = tipoPerGruppi(voce, o.gruppi, o.lingua, tipiEsistenti);
     avvisi.push(...t.avvisi, { chiave: "catalogo.avvisoPercorsiCambiano", valori: { nome: e.tag.id, tipo: t.tipo.id } });
-    return fine(t.tipo, t.tipi, t.tipiNuovi, { ...e.tag, type_ref: t.tipo.id }, mappature(voce, e.tag.id, o.gruppi), t.foglie, true);
+    return fine(t.tipo, t.tipi, t.tipiNuovi, { ...e.tag, type_ref: t.tipo.id }, mappature(voce, e.tag.id, o.gruppi, o.lingua), t.foglie, true);
   }
   const haGia = new Set(e.tipo.members.filter((m) => gruppiVoce.has(m.name)).map((m) => m.name));
   const unione = new Set([...haGia, ...o.gruppi]);
   const t = tipoPerGruppi(voce, unione, o.lingua, tipiEsistenti);
   const cambia = t.tipo.id !== e.tipo.id;
   if (cambia) avvisi.push(...t.avvisi, { chiave: "catalogo.avvisoTipoAllargato", valori: { da: e.tipo.id, a: t.tipo.id } });
-  return fine(t.tipo, t.tipi, t.tipiNuovi, cambia ? { ...e.tag, type_ref: t.tipo.id } : e.tag, mappature(voce, e.tag.id, o.gruppi), t.foglie, cambia);
+  return fine(t.tipo, t.tipi, t.tipiNuovi, cambia ? { ...e.tag, type_ref: t.tipo.id } : e.tag, mappature(voce, e.tag.id, o.gruppi, o.lingua), t.foglie, cambia);
 }
 
 /** Il nome proposto per la variabile: `atr244_3` (modello e unit id); se c'è

@@ -33,7 +33,7 @@ pub use project::{
     AffixPosition, CanaleNotifica, CanaliEvento, CustomSymbol, CustomSymbolAttribution, DatastoreBackendConfig,
     DatastoreConfig, EnIpConfig, EnIpDataType, EnIpTagMapping, EntityMapping, FunctionDef,
     FunctionParam, GeneratorSpec, GlobalScriptDef, HomeAssistantConfig, HostConfig, HostMetric,
-    AreaModbus, DispositivoModbus, ParametroSetup, HostMetricMapping, LangEntry, LanguageTable, Membro, ModbusRtuConfig, ModbusTcpConfig, OrdineModbus,
+    AreaModbus, BloccoModbus, DisponibilitaPubblicata, FormatoPubblicazione, PubblicazioneMqtt, DispositivoModbus, ModoTesti, TestiRegistro, ParametroSetup, HostMetricMapping, LangEntry, LanguageTable, Membro, ModbusRtuConfig, ModbusTcpConfig, OrdineModbus, TrasportoTcp,
     MqttConfig, MqttLastWill, MqttTlsConfig, NotificationConfig, OpcUaAuth, OpcUaClientConfig,
     OpcUaNodeMapping, OpcUaServerConfig, OpcUaServerNodeMapping, PageLayoutConfig, PageSizeMode,
     PageTreeNode, Project, ProjectMeta, ProjectTarget, ProjectTargetKind, RandomClientId,

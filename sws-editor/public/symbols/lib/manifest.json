@@ -1,6 +1,6 @@
 {
   "_comment": "Generato da scripts/simboli/genera.py — non modificare a mano.",
-  "version": "b144f6acba18",
+  "version": "40d15f892f9b",
   "materials": {
     "steel": "#9aa5af",
     "steel-dark": "#4a545d",
@@ -4446,6 +4446,62 @@
         }
       ],
       "replaces": "heat_pump"
+    },
+    {
+      "id": "lib:building/house",
+      "file": "building/house.svg",
+      "family": "building",
+      "kind": "building",
+      "label": "symbols.lib.building.house",
+      "viewBox": [
+        100,
+        90
+      ],
+      "body": "wall",
+      "materials": [
+        "flame-core",
+        "glass-dark",
+        "porcelain",
+        "steel-dark",
+        "wall",
+        "wood"
+      ],
+      "parts": [
+        {
+          "id": "lamp",
+          "kind": "lamp"
+        }
+      ],
+      "ports": [
+        {
+          "id": "n-left",
+          "x": 16,
+          "y": 70,
+          "side": "left",
+          "d": 8
+        },
+        {
+          "id": "n-top",
+          "x": 50,
+          "y": 4,
+          "side": "top",
+          "d": 8
+        },
+        {
+          "id": "n-right",
+          "x": 84,
+          "y": 70,
+          "side": "right",
+          "d": 8
+        },
+        {
+          "id": "n-bottom",
+          "x": 50,
+          "y": 90,
+          "side": "bottom",
+          "d": 8
+        }
+      ]
     },
     {
       "id": "lib:building/radiator",

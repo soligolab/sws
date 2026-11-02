@@ -615,6 +615,34 @@ def roller_shutter():
     return s
 
 
+def house():
+    # 02-11-2026, la pagina Energy di CasaDomotica: la casa è il nodo da cui
+    # partono i tubi verso i carichi misurati (prese, elettrodomestici). Quattro
+    # bocche, una per lato; le finestre sono la spia (accese = la casa consuma).
+    s = Simbolo("building", "house", 100, 90, tipo="building", body="wall",
+                it="Casa", en="House")
+    s.corpo()
+    s.forma(*R(16, 40, 68, 48), velo="paint-v")
+    s.statico()
+    s.forma(*R(66, 10, 10, 22), mat="porcelain", velo="paint-h")
+    s.forma(*P("M4 44 L50 4 L96 44 L88 48 L50 15 L12 48 Z"), mat="porcelain", velo="paint-d")
+    s.forma(*R(42, 60, 16, 28, 1), mat="wood", velo="paint-v")
+    s.forma(*C(54.5, 75, 1.2), mat="steel-dark")
+    s.forma(*R(23, 52, 14, 14, 1), mat="glass-dark")
+    s.forma(*R(63, 52, 14, 14, 1), mat="glass-dark")
+    s.parte("lamp", "lamp")
+    s.forma(*R(23, 52, 14, 14, 1), mat="flame-core", velo="glass-r")
+    s.forma(*R(63, 52, 14, 14, 1), mat="flame-core", velo="glass-r")
+    s.statico()
+    s.tratto("M30 52 L30 66 M23 59 L37 59 M70 52 L70 66 M63 59 L77 59", mat="steel-dark", stroke_width=1.2)
+    s.forma(*R(12, 86, 76, 4, 1), mat="steel-dark")
+    s.bocca(50, 4, "top", 8)
+    s.bocca(16, 70, "left", 8)
+    s.bocca(84, 70, "right", 8)
+    s.bocca(50, 90, "bottom", 8)
+    return s
+
+
 def tutti():
     return [f() for f in (
         check_valve, three_way_valve, relief_valve, motorized_valve, pneumatic_valve,
@@ -624,5 +652,5 @@ def tutti():
         thermometer, magnetic_flowmeter, radar_level_sensor,
         circuit_breaker, transmission_tower, battery_rack,
         axial_fan, blower, screw_compressor,
-        heat_pump, chiller, ceiling_light, garage_door, window, roller_shutter,
+        heat_pump, chiller, ceiling_light, garage_door, window, roller_shutter, house,
     )]

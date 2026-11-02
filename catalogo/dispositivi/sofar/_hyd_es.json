@@ -1,0 +1,1861 @@
+{
+  "id": "sofar/_hyd_es",
+  "descrizione": {
+    "it": "Sofar HYD-ES (e i suoi marchi, come ZCS Azzurro HYD ZSS): ibrido monofase con batteria a 48 V, dalla definizione della comunità solarman",
+    "en": "Sofar HYD-ES (and its brands, such as ZCS Azzurro HYD ZSS): single-phase hybrid with a 48 V battery, from the solarman community definition"
+  },
+  "fonte": {
+    "progetto": "StephanJoubert/home_assistant_solarman",
+    "url": "https://github.com/StephanJoubert/home_assistant_solarman",
+    "file": "custom_components/solarman/inverter_definitions/sofar_hyd3k-6k-es.yaml",
+    "commit": "485f0f01208d",
+    "licenza": "Apache-2.0",
+    "convertito_con": "scripts/inverter/da_solarman.py",
+    "ricetta": "scripts/inverter/ricette/sofar_hyd_es.yaml"
+  },
+  "esclusi": [
+    {
+      "nome": "Battery Total Energy Charged",
+      "registri": [
+        "0x0227"
+      ],
+      "perche": "è solo la parola bassa di Battery Total Charge (u32 a 0x0226): un doppione troncato, sbagliato oltre 65535 kWh"
+    },
+    {
+      "nome": "Battery Total Energy Dischaged",
+      "registri": [
+        "0x0229"
+      ],
+      "perche": "è solo la parola bassa di Battery Total Discharge (u32 a 0x0228): un doppione troncato, sbagliato oltre 65535 kWh"
+    },
+    {
+      "nome": "Buck Current",
+      "registri": [
+        "0x022F"
+      ],
+      "perche": "il 01-11-2026 leggeva 651 A, impossibile: significato, scala o tipo sbagliati. Da riprendere con la documentazione Sofar"
+    },
+    {
+      "nome": "DCI Voltage",
+      "registri": [
+        "0x023C"
+      ],
+      "perche": "il 01-11-2026 leggeva 815 V, impossibile: significato, scala o tipo sbagliati. Da riprendere con la documentazione Sofar"
+    },
+    {
+      "nome": "Grid S Voltage",
+      "registri": [
+        "0x0232"
+      ],
+      "perche": "inverter monofase: sempre 0"
+    },
+    {
+      "nome": "Grid S Current",
+      "registri": [
+        "0x0233"
+      ],
+      "perche": "inverter monofase: sempre 0"
+    },
+    {
+      "nome": "Grid T voltage",
+      "registri": [
+        "0x0234"
+      ],
+      "perche": "inverter monofase: sempre 0"
+    },
+    {
+      "nome": "Grid T current",
+      "registri": [
+        "0x0235"
+      ],
+      "perche": "inverter monofase: sempre 0"
+    }
+  ],
+  "registri": [
+    {
+      "nome": "pv_power",
+      "indirizzo": 533,
+      "formato": "u16",
+      "accesso": "r",
+      "gruppo": "main",
+      "scala": 10,
+      "unita": "W",
+      "min": 0,
+      "max": 9000,
+      "descrizione": {
+        "it": "Potenza fotovoltaica",
+        "en": "PV Instant Generated PW"
+      }
+    },
+    {
+      "nome": "pv1_power",
+      "indirizzo": 594,
+      "formato": "u16",
+      "accesso": "r",
+      "gruppo": "main",
+      "scala": 10,
+      "unita": "W",
+      "min": 0,
+      "max": 9000,
+      "descrizione": {
+        "it": "Potenza PV1",
+        "en": "PV1 Power"
+      }
+    },
+    {
+      "nome": "pv2_power",
+      "indirizzo": 597,
+      "formato": "u16",
+      "accesso": "r",
+      "gruppo": "main",
+      "scala": 10,
+      "unita": "W",
+      "min": 0,
+      "max": 9000,
+      "descrizione": {
+        "it": "Potenza PV2",
+        "en": "PV2 Power"
+      }
+    },
+    {
+      "nome": "pv1_voltage",
+      "indirizzo": 592,
+      "formato": "u16",
+      "accesso": "r",
+      "gruppo": "main",
+      "scala": 0.1,
+      "unita": "V",
+      "min": 0,
+      "max": 600,
+      "descrizione": {
+        "it": "Tensione PV1",
+        "en": "PV1 Voltage"
+      }
+    },
+    {
+      "nome": "pv2_voltage",
+      "indirizzo": 595,
+      "formato": "u16",
+      "accesso": "r",
+      "gruppo": "main",
+      "scala": 0.1,
+      "unita": "V",
+      "min": 0,
+      "max": 600,
+      "descrizione": {
+        "it": "Tensione PV2",
+        "en": "PV2 Voltage"
+      }
+    },
+    {
+      "nome": "pv1_current",
+      "indirizzo": 593,
+      "formato": "u16",
+      "accesso": "r",
+      "gruppo": "main",
+      "scala": 0.01,
+      "unita": "A",
+      "min": 0,
+      "max": 16,
+      "descrizione": {
+        "it": "Corrente PV1",
+        "en": "PV1 Current"
+      }
+    },
+    {
+      "nome": "pv2_current",
+      "indirizzo": 596,
+      "formato": "u16",
+      "accesso": "r",
+      "gruppo": "main",
+      "scala": 0.01,
+      "unita": "A",
+      "min": 0,
+      "max": 16,
+      "descrizione": {
+        "it": "Corrente PV2",
+        "en": "PV2 Current"
+      }
+    },
+    {
+      "nome": "energy_pv_today",
+      "indirizzo": 536,
+      "formato": "u16",
+      "accesso": "r",
+      "gruppo": "main",
+      "scala": 0.01,
+      "unita": "kWh",
+      "min": 0,
+      "max": 200,
+      "descrizione": {
+        "it": "Produzione di oggi",
+        "en": "Daily Production"
+      }
+    },
+    {
+      "nome": "energy_pv_total",
+      "indirizzo": 540,
+      "formato": "u32",
+      "accesso": "r",
+      "gruppo": "main",
+      "unita": "kWh",
+      "min": 0,
+      "max": 10000000,
+      "descrizione": {
+        "it": "Produzione totale",
+        "en": "Total Production"
+      }
+    },
+    {
+      "nome": "total_generation_time",
+      "indirizzo": 580,
+      "formato": "u32",
+      "accesso": "r",
+      "gruppo": "diagnostics",
+      "predefinito": false,
+      "unita": "h",
+      "descrizione": {
+        "it": "Total generation time",
+        "en": "Total generation time"
+      }
+    },
+    {
+      "nome": "today_generation_time",
+      "indirizzo": 579,
+      "formato": "u16",
+      "accesso": "r",
+      "gruppo": "diagnostics",
+      "predefinito": false,
+      "unita": "min",
+      "descrizione": {
+        "it": "Today generation time",
+        "en": "Today generation time"
+      }
+    },
+    {
+      "nome": "energy_export_today",
+      "indirizzo": 537,
+      "formato": "u16",
+      "accesso": "r",
+      "gruppo": "main",
+      "scala": 0.01,
+      "unita": "kWh",
+      "min": 0,
+      "max": 200,
+      "descrizione": {
+        "it": "Immissione in rete di oggi",
+        "en": "Today Grid Return"
+      }
+    },
+    {
+      "nome": "energy_import_today",
+      "indirizzo": 538,
+      "formato": "u16",
+      "accesso": "r",
+      "gruppo": "main",
+      "scala": 0.01,
+      "unita": "kWh",
+      "min": 0,
+      "max": 200,
+      "descrizione": {
+        "it": "Prelievo dalla rete di oggi",
+        "en": "Today Grid Consumption"
+      }
+    },
+    {
+      "nome": "energy_load_today",
+      "indirizzo": 539,
+      "formato": "u16",
+      "accesso": "r",
+      "gruppo": "main",
+      "scala": 0.01,
+      "unita": "kWh",
+      "min": 0,
+      "max": 200,
+      "descrizione": {
+        "it": "Consumo della casa di oggi",
+        "en": "Today Power Consumption"
+      }
+    },
+    {
+      "nome": "energy_export_total",
+      "indirizzo": 542,
+      "formato": "u32",
+      "accesso": "r",
+      "gruppo": "main",
+      "unita": "kWh",
+      "min": 0,
+      "max": 10000000,
+      "descrizione": {
+        "it": "Immissione in rete totale",
+        "en": "Total Grid Return"
+      }
+    },
+    {
+      "nome": "energy_import_total",
+      "indirizzo": 544,
+      "formato": "u32",
+      "accesso": "r",
+      "gruppo": "main",
+      "unita": "kWh",
+      "min": 0,
+      "max": 10000000,
+      "descrizione": {
+        "it": "Prelievo dalla rete totale",
+        "en": "Total Grid Consumption"
+      }
+    },
+    {
+      "nome": "energy_load_total",
+      "indirizzo": 546,
+      "formato": "u32",
+      "accesso": "r",
+      "gruppo": "main",
+      "unita": "kWh",
+      "min": 0,
+      "max": 10000000,
+      "descrizione": {
+        "it": "Consumo della casa totale",
+        "en": "Total Power Consumption"
+      }
+    },
+    {
+      "nome": "load_power",
+      "indirizzo": 531,
+      "formato": "u16",
+      "accesso": "r",
+      "gruppo": "main",
+      "scala": 10,
+      "unita": "W",
+      "min": 0,
+      "max": 15000,
+      "descrizione": {
+        "it": "Consumo della casa",
+        "en": "Power Consumption"
+      }
+    },
+    {
+      "nome": "grid_frequency",
+      "indirizzo": 524,
+      "formato": "u16",
+      "accesso": "r",
+      "gruppo": "main",
+      "scala": 0.01,
+      "unita": "Hz",
+      "min": 45,
+      "max": 55,
+      "descrizione": {
+        "it": "Frequenza di rete",
+        "en": "Grid frequency"
+      }
+    },
+    {
+      "nome": "grid_voltage",
+      "indirizzo": 518,
+      "formato": "u16",
+      "accesso": "r",
+      "gruppo": "main",
+      "scala": 0.1,
+      "unita": "V",
+      "min": 150,
+      "max": 300,
+      "descrizione": {
+        "it": "Tensione di rete",
+        "en": "Grid Voltage"
+      }
+    },
+    {
+      "nome": "inverter_output_current",
+      "indirizzo": 519,
+      "formato": "i16",
+      "accesso": "r",
+      "gruppo": "diagnostics",
+      "predefinito": false,
+      "scala": 0.01,
+      "unita": "A",
+      "descrizione": {
+        "it": "Grid Current — è la corrente d'uscita dell'inverter, non quella di rete: il 01-11-2026 alle 21:40 valeva 0,05 A con l'inverter in standby mentre la casa prelevava 1580 W",
+        "en": "Grid Current — è la corrente d'uscita dell'inverter, non quella di rete: il 01-11-2026 alle 21:40 valeva 0,05 A con l'inverter in standby mentre la casa prelevava 1580 W"
+      }
+    },
+    {
+      "nome": "battery_voltage",
+      "indirizzo": 526,
+      "formato": "u16",
+      "accesso": "r",
+      "gruppo": "main",
+      "scala": 0.1,
+      "unita": "V",
+      "min": 30,
+      "max": 70,
+      "descrizione": {
+        "it": "Tensione della batteria",
+        "en": "Battery Voltage"
+      }
+    },
+    {
+      "nome": "battery_current",
+      "indirizzo": 527,
+      "formato": "i16",
+      "accesso": "r",
+      "gruppo": "main",
+      "scala": 0.01,
+      "unita": "A",
+      "min": -100,
+      "max": 100,
+      "descrizione": {
+        "it": "Corrente della batteria",
+        "en": "Battery Charge / Discharge current"
+      }
+    },
+    {
+      "nome": "battery_soc",
+      "indirizzo": 528,
+      "formato": "u16",
+      "accesso": "r",
+      "gruppo": "main",
+      "unita": "%",
+      "min": 0,
+      "max": 100,
+      "descrizione": {
+        "it": "Stato di carica della batteria",
+        "en": "Battery Percentage"
+      }
+    },
+    {
+      "nome": "battery_temperature",
+      "indirizzo": 529,
+      "formato": "i16",
+      "accesso": "r",
+      "gruppo": "main",
+      "unita": "°C",
+      "min": -40,
+      "max": 90,
+      "descrizione": {
+        "it": "Temperatura della batteria — letto come i16 (la definizione dice U16): una temperatura sotto zero in un locale non riscaldato non deve diventare 65 mila gradi",
+        "en": "Battery Temperature — letto come i16 (la definizione dice U16): una temperatura sotto zero in un locale non riscaldato non deve diventare 65 mila gradi"
+      }
+    },
+    {
+      "nome": "energy_charge_today",
+      "indirizzo": 548,
+      "formato": "u16",
+      "accesso": "r",
+      "gruppo": "main",
+      "scala": 0.01,
+      "unita": "kWh",
+      "min": 0,
+      "max": 200,
+      "descrizione": {
+        "it": "Carica della batteria di oggi",
+        "en": "Battery Daily Charge"
+      }
+    },
+    {
+      "nome": "battery_cycles",
+      "indirizzo": 556,
+      "formato": "u16",
+      "accesso": "r",
+      "gruppo": "diagnostics",
+      "predefinito": false,
+      "descrizione": {
+        "it": "Battery Cicles — il nome solarman ha un refuso («Cicles»), e l'unità «Charges» non è un'unità",
+        "en": "Battery Cicles — il nome solarman ha un refuso («Cicles»), e l'unità «Charges» non è un'unità"
+      }
+    },
+    {
+      "nome": "battery_power_0237",
+      "indirizzo": 567,
+      "formato": "i16",
+      "accesso": "r",
+      "gruppo": "diagnostics",
+      "predefinito": false,
+      "scala": 10,
+      "unita": "W",
+      "descrizione": {
+        "it": "Battery Power — NON è la potenza della batteria: il 01-11-2026 alle 21:40 valeva 950 W con la batteria ferma. Significato da capire con la documentazione Sofar",
+        "en": "Battery Power — NON è la potenza della batteria: il 01-11-2026 alle 21:40 valeva 950 W con la batteria ferma. Significato da capire con la documentazione Sofar"
+      }
+    },
+    {
+      "nome": "battery_type",
+      "indirizzo": 4272,
+      "area": "input",
+      "formato": "u16",
+      "accesso": "r",
+      "gruppo": "diagnostics",
+      "predefinito": false,
+      "descrizione": {
+        "it": "Battery Type",
+        "en": "Battery Type"
+      }
+    },
+    {
+      "nome": "battery_capacity",
+      "indirizzo": 4273,
+      "area": "input",
+      "formato": "u16",
+      "accesso": "r",
+      "gruppo": "diagnostics",
+      "predefinito": false,
+      "unita": "Ah",
+      "descrizione": {
+        "it": "Battery Capacity",
+        "en": "Battery Capacity"
+      }
+    },
+    {
+      "nome": "energy_discharge_today",
+      "indirizzo": 549,
+      "formato": "u16",
+      "accesso": "r",
+      "gruppo": "main",
+      "scala": 0.01,
+      "unita": "kWh",
+      "min": 0,
+      "max": 200,
+      "descrizione": {
+        "it": "Scarica della batteria di oggi",
+        "en": "Battery Daily Discharge"
+      }
+    },
+    {
+      "nome": "energy_charge_total",
+      "indirizzo": 550,
+      "formato": "u32",
+      "accesso": "r",
+      "gruppo": "main",
+      "unita": "kWh",
+      "min": 0,
+      "max": 10000000,
+      "descrizione": {
+        "it": "Carica della batteria totale",
+        "en": "Battery Total Charge"
+      }
+    },
+    {
+      "nome": "energy_discharge_total",
+      "indirizzo": 552,
+      "formato": "u32",
+      "accesso": "r",
+      "gruppo": "main",
+      "unita": "kWh",
+      "min": 0,
+      "max": 10000000,
+      "descrizione": {
+        "it": "Scarica della batteria totale",
+        "en": "Battery Total Discharge"
+      }
+    },
+    {
+      "nome": "max_charge_voltage",
+      "indirizzo": 4275,
+      "area": "input",
+      "formato": "u16",
+      "accesso": "r",
+      "gruppo": "diagnostics",
+      "predefinito": false,
+      "scala": 0.1,
+      "unita": "V",
+      "descrizione": {
+        "it": "Max Charge Voltage",
+        "en": "Max Charge Voltage"
+      }
+    },
+    {
+      "nome": "max_charge_current",
+      "indirizzo": 4276,
+      "area": "input",
+      "formato": "u16",
+      "accesso": "r",
+      "gruppo": "diagnostics",
+      "predefinito": false,
+      "scala": 0.01,
+      "unita": "A",
+      "descrizione": {
+        "it": "Max Charge Current",
+        "en": "Max Charge Current"
+      }
+    },
+    {
+      "nome": "over_voltage_protection",
+      "indirizzo": 4277,
+      "area": "input",
+      "formato": "u16",
+      "accesso": "r",
+      "gruppo": "diagnostics",
+      "predefinito": false,
+      "scala": 0.1,
+      "unita": "V",
+      "descrizione": {
+        "it": "Over Voltage Protection",
+        "en": "Over Voltage Protection"
+      }
+    },
+    {
+      "nome": "min_discharge_voltage",
+      "indirizzo": 4278,
+      "area": "input",
+      "formato": "u16",
+      "accesso": "r",
+      "gruppo": "diagnostics",
+      "predefinito": false,
+      "scala": 0.1,
+      "unita": "V",
+      "descrizione": {
+        "it": "Min Discharge Voltage",
+        "en": "Min Discharge Voltage"
+      }
+    },
+    {
+      "nome": "max_discharge_current",
+      "indirizzo": 4279,
+      "area": "input",
+      "formato": "u16",
+      "accesso": "r",
+      "gruppo": "diagnostics",
+      "predefinito": false,
+      "scala": 0.01,
+      "unita": "A",
+      "descrizione": {
+        "it": "Max Discharge Current",
+        "en": "Max Discharge Current"
+      }
+    },
+    {
+      "nome": "undervoltage_protection",
+      "indirizzo": 4280,
+      "area": "input",
+      "formato": "u16",
+      "accesso": "r",
+      "gruppo": "diagnostics",
+      "predefinito": false,
+      "scala": 0.1,
+      "unita": "V",
+      "descrizione": {
+        "it": "Undervoltage Protection",
+        "en": "Undervoltage Protection"
+      }
+    },
+    {
+      "nome": "discharge_depth",
+      "indirizzo": 4281,
+      "area": "input",
+      "formato": "u16",
+      "accesso": "r",
+      "gruppo": "diagnostics",
+      "predefinito": false,
+      "unita": "%",
+      "descrizione": {
+        "it": "Discharge Depth",
+        "en": "Discharge Depth"
+      }
+    },
+    {
+      "nome": "periods_of_discharge_time",
+      "indirizzo": 4282,
+      "area": "input",
+      "formato": "u16",
+      "accesso": "r",
+      "gruppo": "diagnostics",
+      "predefinito": false,
+      "unita": "h",
+      "descrizione": {
+        "it": "Periods Of Discharge Time",
+        "en": "Periods Of Discharge Time"
+      }
+    },
+    {
+      "nome": "empty_battery_voltage",
+      "indirizzo": 4283,
+      "area": "input",
+      "formato": "u16",
+      "accesso": "r",
+      "gruppo": "diagnostics",
+      "predefinito": false,
+      "scala": 0.01,
+      "unita": "V",
+      "descrizione": {
+        "it": "Empty Battery Voltage",
+        "en": "Empty Battery Voltage"
+      }
+    },
+    {
+      "nome": "full_battery_voltage",
+      "indirizzo": 4284,
+      "area": "input",
+      "formato": "u16",
+      "accesso": "r",
+      "gruppo": "diagnostics",
+      "predefinito": false,
+      "scala": 0.01,
+      "unita": "V",
+      "descrizione": {
+        "it": "Full Battery Voltage",
+        "en": "Full Battery Voltage"
+      }
+    },
+    {
+      "nome": "inverter_status_code",
+      "indirizzo": 512,
+      "formato": "u16",
+      "accesso": "r",
+      "gruppo": "main",
+      "descrizione": {
+        "it": "Codice di stato dell'inverter",
+        "en": "Inverter status"
+      }
+    },
+    {
+      "nome": "inverter_module_temperature",
+      "indirizzo": 569,
+      "formato": "i16",
+      "accesso": "r",
+      "gruppo": "diagnostics",
+      "predefinito": false,
+      "unita": "°C",
+      "descrizione": {
+        "it": "Inverter module temperature",
+        "en": "Inverter module temperature"
+      }
+    },
+    {
+      "nome": "inverter_temperature",
+      "indirizzo": 568,
+      "formato": "i16",
+      "accesso": "r",
+      "gruppo": "main",
+      "unita": "°C",
+      "min": -40,
+      "max": 120,
+      "descrizione": {
+        "it": "Temperatura interna dell'inverter",
+        "en": "Inverter inner temperature"
+      }
+    },
+    {
+      "nome": "inverter_bus_voltage",
+      "indirizzo": 557,
+      "formato": "i16",
+      "accesso": "r",
+      "gruppo": "diagnostics",
+      "predefinito": false,
+      "scala": 0.1,
+      "unita": "V",
+      "descrizione": {
+        "it": "Inverter bus voltage",
+        "en": "Inverter bus voltage"
+      }
+    },
+    {
+      "nome": "countdown_time",
+      "indirizzo": 554,
+      "formato": "u16",
+      "accesso": "r",
+      "gruppo": "diagnostics",
+      "predefinito": false,
+      "unita": "s",
+      "descrizione": {
+        "it": "Countdown time",
+        "en": "Countdown time"
+      }
+    },
+    {
+      "nome": "communication_board_inner_message",
+      "indirizzo": 578,
+      "formato": "u16",
+      "accesso": "r",
+      "gruppo": "diagnostics",
+      "predefinito": false,
+      "descrizione": {
+        "it": "Communication Board inner message",
+        "en": "Communication Board inner message"
+      }
+    },
+    {
+      "nome": "insulation_of_pv1_to_ground",
+      "indirizzo": 582,
+      "formato": "u16",
+      "accesso": "r",
+      "gruppo": "diagnostics",
+      "predefinito": false,
+      "descrizione": {
+        "it": "Insulation of PV1+ to ground",
+        "en": "Insulation of PV1+ to ground"
+      }
+    },
+    {
+      "nome": "insulation_of_pv2_to_ground",
+      "indirizzo": 583,
+      "formato": "u16",
+      "accesso": "r",
+      "gruppo": "diagnostics",
+      "predefinito": false,
+      "descrizione": {
+        "it": "Insulation of PV2+ to ground",
+        "en": "Insulation of PV2+ to ground"
+      }
+    },
+    {
+      "nome": "insulation_of_pv_to_ground",
+      "indirizzo": 584,
+      "formato": "u16",
+      "accesso": "r",
+      "gruppo": "diagnostics",
+      "predefinito": false,
+      "descrizione": {
+        "it": "Insulation of PV- to ground",
+        "en": "Insulation of PV- to ground"
+      }
+    },
+    {
+      "nome": "country",
+      "indirizzo": 570,
+      "formato": "u16",
+      "accesso": "r",
+      "gruppo": "diagnostics",
+      "predefinito": false,
+      "testi": {
+        "voci": {
+          "0": {
+            "it": "Germany",
+            "en": "Germany"
+          },
+          "1": {
+            "it": "CEI0-21 Internal",
+            "en": "CEI0-21 Internal"
+          },
+          "2": {
+            "it": "Australia",
+            "en": "Australia"
+          },
+          "3": {
+            "it": "Spain RD1699",
+            "en": "Spain RD1699"
+          },
+          "4": {
+            "it": "Turkey",
+            "en": "Turkey"
+          },
+          "5": {
+            "it": "Denmark",
+            "en": "Denmark"
+          },
+          "6": {
+            "it": "Greece",
+            "en": "Greece"
+          },
+          "7": {
+            "it": "Netherland",
+            "en": "Netherland"
+          },
+          "8": {
+            "it": "Belgium",
+            "en": "Belgium"
+          },
+          "9": {
+            "it": "UK-G59",
+            "en": "UK-G59"
+          },
+          "10": {
+            "it": "China",
+            "en": "China"
+          },
+          "11": {
+            "it": "France",
+            "en": "France"
+          },
+          "12": {
+            "it": "Poland",
+            "en": "Poland"
+          },
+          "13": {
+            "it": "Germany BDEW",
+            "en": "Germany BDEW"
+          },
+          "14": {
+            "it": "Germany VDE0126",
+            "en": "Germany VDE0126"
+          },
+          "15": {
+            "it": "Italy CEI0-16",
+            "en": "Italy CEI0-16"
+          },
+          "16": {
+            "it": "UK-G83",
+            "en": "UK-G83"
+          },
+          "17": {
+            "it": "Greece Islands",
+            "en": "Greece Islands"
+          },
+          "18": {
+            "it": "EU EN50438",
+            "en": "EU EN50438"
+          },
+          "19": {
+            "it": "EU EN61727",
+            "en": "EU EN61727"
+          },
+          "20": {
+            "it": "Korea",
+            "en": "Korea"
+          },
+          "21": {
+            "it": "Sweden",
+            "en": "Sweden"
+          },
+          "22": {
+            "it": "Europe General",
+            "en": "Europe General"
+          },
+          "23": {
+            "it": "CEI0-21 External",
+            "en": "CEI0-21 External"
+          },
+          "24": {
+            "it": "Cyprus",
+            "en": "Cyprus"
+          },
+          "25": {
+            "it": "India",
+            "en": "India"
+          },
+          "26": {
+            "it": "Philippines",
+            "en": "Philippines"
+          },
+          "27": {
+            "it": "New Zeland",
+            "en": "New Zeland"
+          },
+          "28": {
+            "it": "Reserve",
+            "en": "Reserve"
+          },
+          "29": {
+            "it": "Reserve",
+            "en": "Reserve"
+          }
+        }
+      },
+      "tipo": "string",
+      "descrizione": {
+        "it": "Country",
+        "en": "Country"
+      }
+    },
+    {
+      "nome": "inverter_alert_message",
+      "indirizzo": 555,
+      "formato": "u16",
+      "accesso": "r",
+      "gruppo": "diagnostics",
+      "predefinito": false,
+      "testi": {
+        "voci": {
+          "0": {
+            "it": "No error",
+            "en": "No error"
+          },
+          "1": {
+            "it": "ID01 The power grid voltage is too high",
+            "en": "ID01 The power grid voltage is too high"
+          },
+          "2": {
+            "it": "ID02 The power grid voltage is too low",
+            "en": "ID02 The power grid voltage is too low"
+          },
+          "3": {
+            "it": "ID03 The power grid frequency is too high",
+            "en": "ID03 The power grid frequency is too high"
+          },
+          "4": {
+            "it": "ID04 The power grid frequency is too low",
+            "en": "ID04 The power grid frequency is too low"
+          },
+          "5": {
+            "it": "ID05 The battery voltage is too high",
+            "en": "ID05 The battery voltage is too high"
+          },
+          "7": {
+            "it": "ID07 GridLVRT fault",
+            "en": "ID07 GridLVRT fault"
+          },
+          "8": {
+            "it": "ID08 The PV voltage is too high",
+            "en": "ID08 The PV voltage is too high"
+          },
+          "9": {
+            "it": "ID09 LLCBus voltage is too high and has triggered hardware protection",
+            "en": "ID09 LLCBus voltage is too high and has triggered hardware protection"
+          },
+          "10": {
+            "it": "ID10 Boost voltage is too high and has triggered hardware protection",
+            "en": "ID10 Boost voltage is too high and has triggered hardware protection"
+          },
+          "11": {
+            "it": "ID11 BuckBoost current is too high and has triggered hardware protection",
+            "en": "ID11 BuckBoost current is too high and has triggered hardware protection"
+          },
+          "12": {
+            "it": "ID12 The battery current is too high and has triggered hardware protection",
+            "en": "ID12 The battery current is too high and has triggered hardware protection"
+          },
+          "13": {
+            "it": "ID13 The GFCI sampling value between the master DSP and slave DSP is not consistent",
+            "en": "ID13 The GFCI sampling value between the master DSP and slave DSP is not consistent"
+          },
+          "14": {
+            "it": "ID14 The PV current is too high and has triggered hardware protection",
+            "en": "ID14 The PV current is too high and has triggered hardware protection"
+          },
+          "15": {
+            "it": "ID15 The grid current is too high and has triggered hardware protection",
+            "en": "ID15 The grid current is too high and has triggered hardware protection"
+          },
+          "16": {
+            "it": "ID16 Input current is not balanced",
+            "en": "ID16 Input current is not balanced"
+          },
+          "17": {
+            "it": "ID17 Grid current sampling error",
+            "en": "ID17 Grid current sampling error"
+          },
+          "18": {
+            "it": "ID18 DCI sampling error",
+            "en": "ID18 DCI sampling error"
+          },
+          "19": {
+            "it": "ID19 Grid voltage sampling error",
+            "en": "ID19 Grid voltage sampling error"
+          },
+          "20": {
+            "it": "ID20 GFCI sampling error",
+            "en": "ID20 GFCI sampling error"
+          },
+          "21": {
+            "it": "ID21 Master chip fault",
+            "en": "ID21 Master chip fault"
+          },
+          "22": {
+            "it": "ID22 Auxiliary voltage error",
+            "en": "ID22 Auxiliary voltage error"
+          },
+          "25": {
+            "it": "ID25 LLCBus voltage is too high",
+            "en": "ID25 LLCBus voltage is too high"
+          },
+          "26": {
+            "it": "ID26 Bus voltage is too high and has triggered software protection",
+            "en": "ID26 Bus voltage is too high and has triggered software protection"
+          },
+          "27": {
+            "it": "ID27 Battery current is too high",
+            "en": "ID27 Battery current is too high"
+          },
+          "28": {
+            "it": "ID28 The DCI is too high",
+            "en": "ID28 The DCI is too high"
+          },
+          "29": {
+            "it": "ID29 The grid current is too high",
+            "en": "ID29 The grid current is too high"
+          },
+          "30": {
+            "it": "ID30 Bunk current is too high",
+            "en": "ID30 Bunk current is too high"
+          },
+          "31": {
+            "it": "ID31 The output current is too high",
+            "en": "ID31 The output current is too high"
+          },
+          "32": {
+            "it": "ID32 The input current is too high",
+            "en": "ID32 The input current is too high"
+          },
+          "33": {
+            "it": "ID33 Incorrect input mode",
+            "en": "ID33 Incorrect input mode"
+          },
+          "48": {
+            "it": "ID48 The GFCI sampling value between the master DSP and slave DSP is not consistent",
+            "en": "ID48 The GFCI sampling value between the master DSP and slave DSP is not consistent"
+          },
+          "49": {
+            "it": "ID49 The grid voltage sampling value between the master DSP and slave DSP is no consistent",
+            "en": "ID49 The grid voltage sampling value between the master DSP and slave DSP is no consistent"
+          },
+          "50": {
+            "it": "ID50 The grid frequency sampling value between the master DSP and slave DSP is no consistent",
+            "en": "ID50 The grid frequency sampling value between the master DSP and slave DSP is no consistent"
+          },
+          "51": {
+            "it": "ID51 The DCI sampling value between the master DSP and slave DSP is no consistent",
+            "en": "ID51 The DCI sampling value between the master DSP and slave DSP is no consistent"
+          },
+          "52": {
+            "it": "ID52 HYD-ES inverter can't communicate with Lithium battery BMS correctly",
+            "en": "ID52 HYD-ES inverter can't communicate with Lithium battery BMS correctly"
+          },
+          "53": {
+            "it": "ID53 SPI communication fault",
+            "en": "ID53 SPI communication fault"
+          },
+          "54": {
+            "it": "ID54 SCI communication fault",
+            "en": "ID54 SCI communication fault"
+          },
+          "55": {
+            "it": "ID55 Relays fault",
+            "en": "ID55 Relays fault"
+          },
+          "56": {
+            "it": "ID56 Insulation resistance is too low",
+            "en": "ID56 Insulation resistance is too low"
+          },
+          "57": {
+            "it": "ID57 Battery temperature is too high",
+            "en": "ID57 Battery temperature is too high"
+          },
+          "58": {
+            "it": "ID58 Heat sink temperature is too high",
+            "en": "ID58 Heat sink temperature is too high"
+          },
+          "59": {
+            "it": "ID59 Environment temperature is too high",
+            "en": "ID59 Environment temperature is too high"
+          },
+          "60": {
+            "it": "ID60 PE connectFault",
+            "en": "ID60 PE connectFault"
+          },
+          "65": {
+            "it": "ID65 The grid current is too high and has caused unrecoverable hardware fault",
+            "en": "ID65 The grid current is too high and has caused unrecoverable hardware fault"
+          },
+          "66": {
+            "it": "ID66 The bus voltage is too high and has caused unrecoverable fault",
+            "en": "ID66 The bus voltage is too high and has caused unrecoverable fault"
+          },
+          "67": {
+            "it": "ID67 Unrecoverable fault of battery overcurrent in EPS mode",
+            "en": "ID67 Unrecoverable fault of battery overcurrent in EPS mode"
+          },
+          "68": {
+            "it": "ID68 The input current is unbalanced and has triggered an unrecoverable fault",
+            "en": "ID68 The input current is unbalanced and has triggered an unrecoverable fault"
+          },
+          "70": {
+            "it": "ID70 The grid current is too high and has triggered an unrecoverable fault",
+            "en": "ID70 The grid current is too high and has triggered an unrecoverable fault"
+          },
+          "73": {
+            "it": "ID73 The input current is too high and has triggered an unrecoverable fault",
+            "en": "ID73 The input current is too high and has triggered an unrecoverable fault"
+          },
+          "74": {
+            "it": "ID74 Incorrect input mode",
+            "en": "ID74 Incorrect input mode"
+          },
+          "75": {
+            "it": "ID75 Unrecoverable EEPROM write",
+            "en": "ID75 Unrecoverable EEPROM write"
+          },
+          "76": {
+            "it": "ID76 Unrecoverable EEPROM read",
+            "en": "ID76 Unrecoverable EEPROM read"
+          },
+          "77": {
+            "it": "ID77 Relay has triggered permanent fault",
+            "en": "ID77 Relay has triggered permanent fault"
+          },
+          "81": {
+            "it": "ID81 Internal temperature is too high",
+            "en": "ID81 Internal temperature is too high"
+          },
+          "82": {
+            "it": "ID82 AC frequency is too high",
+            "en": "ID82 AC frequency is too high"
+          },
+          "83": {
+            "it": "ID83 Remote power derate",
+            "en": "ID83 Remote power derate"
+          },
+          "84": {
+            "it": "ID84 Switch OFF HYD series inverter remotely",
+            "en": "ID84 Switch OFF HYD series inverter remotely"
+          },
+          "85": {
+            "it": "ID85 SOC <= 1 - DOD or Low battery voltage",
+            "en": "ID85 SOC <= 1 - DOD or Low battery voltage"
+          },
+          "86": {
+            "it": "ID86 Battery voltage is too low and caused HYD series inverter to switch OFF",
+            "en": "ID86 Battery voltage is too low and caused HYD series inverter to switch OFF"
+          },
+          "94": {
+            "it": "ID94 Software version is not consistent",
+            "en": "ID94 Software version is not consistent"
+          },
+          "95": {
+            "it": "ID95 The communication board EEPROM is faulty",
+            "en": "ID95 The communication board EEPROM is faulty"
+          },
+          "96": {
+            "it": "ID96 RTC clock chip fault",
+            "en": "ID96 RTC clock chip fault"
+          },
+          "98": {
+            "it": "ID98 SD card fault",
+            "en": "ID98 SD card fault"
+          },
+          "100": {
+            "it": "ID100 Battery overcurrent discharging protection",
+            "en": "ID100 Battery overcurrent discharging protection"
+          },
+          "101": {
+            "it": "ID101 Discharging short circuit protection",
+            "en": "ID101 Discharging short circuit protection"
+          },
+          "102": {
+            "it": "ID102 Battery high voltage protection",
+            "en": "ID102 Battery high voltage protection"
+          },
+          "103": {
+            "it": "ID103 Battery low voltage protection",
+            "en": "ID103 Battery low voltage protection"
+          },
+          "104": {
+            "it": "ID104 Battery high temperature protection while discharging",
+            "en": "ID104 Battery high temperature protection while discharging"
+          },
+          "105": {
+            "it": "ID105 Battery high temperature protection while charging",
+            "en": "ID105 Battery high temperature protection while charging"
+          },
+          "106": {
+            "it": "ID106 Battery low temperature protection while discharging",
+            "en": "ID106 Battery low temperature protection while discharging"
+          },
+          "107": {
+            "it": "ID107 Battery low temperature protection while charging",
+            "en": "ID107 Battery low temperature protection while charging"
+          }
+        }
+      },
+      "tipo": "string",
+      "descrizione": {
+        "it": "Inverter alert message",
+        "en": "Inverter alert message"
+      }
+    },
+    {
+      "nome": "faults_1",
+      "indirizzo": 513,
+      "formato": "u16",
+      "accesso": "r",
+      "gruppo": "main",
+      "testi": {
+        "modo": "bit",
+        "voci": {
+          "0": {
+            "it": "ID01 Grid Over Voltage Protection",
+            "en": "ID01 Grid Over Voltage Protection"
+          },
+          "1": {
+            "it": "ID02 Grid Under Voltage Protection",
+            "en": "ID02 Grid Under Voltage Protection"
+          },
+          "2": {
+            "it": "ID03 Grid Over Frequency Protection",
+            "en": "ID03 Grid Over Frequency Protection"
+          },
+          "3": {
+            "it": "ID04 Grid Under Frequency Protection",
+            "en": "ID04 Grid Under Frequency Protection"
+          },
+          "4": {
+            "it": "ID05 Battery Over Voltage",
+            "en": "ID05 Battery Over Voltage"
+          },
+          "5": {
+            "it": "ID06",
+            "en": "ID06"
+          },
+          "6": {
+            "it": "ID07",
+            "en": "ID07"
+          },
+          "7": {
+            "it": "ID08",
+            "en": "ID08"
+          },
+          "8": {
+            "it": "ID09 LLCBus Over Voltage Hardware",
+            "en": "ID09 LLCBus Over Voltage Hardware"
+          },
+          "9": {
+            "it": "ID10 Bus Over Voltage Hardware",
+            "en": "ID10 Bus Over Voltage Hardware"
+          },
+          "10": {
+            "it": "ID11 BuckBoost over Current Hardware",
+            "en": "ID11 BuckBoost over Current Hardware"
+          },
+          "11": {
+            "it": "ID12 Battery over Current Hardware",
+            "en": "ID12 Battery over Current Hardware"
+          },
+          "12": {
+            "it": "ID13",
+            "en": "ID13"
+          },
+          "13": {
+            "it": "ID14",
+            "en": "ID14"
+          },
+          "14": {
+            "it": "ID15 Output Current Hardware",
+            "en": "ID15 Output Current Hardware"
+          },
+          "15": {
+            "it": "ID16",
+            "en": "ID16"
+          }
+        }
+      },
+      "tipo": "string",
+      "descrizione": {
+        "it": "Guasti, registro 1",
+        "en": "Fault 1"
+      }
+    },
+    {
+      "nome": "faults_2",
+      "indirizzo": 514,
+      "formato": "u16",
+      "accesso": "r",
+      "gruppo": "main",
+      "testi": {
+        "modo": "bit",
+        "voci": {
+          "0": {
+            "it": "ID17 Grid current sampling error",
+            "en": "ID17 Grid current sampling error"
+          },
+          "1": {
+            "it": "ID18 DCI sampling error",
+            "en": "ID18 DCI sampling error"
+          },
+          "2": {
+            "it": "ID19 Grid voltage sampling error",
+            "en": "ID19 Grid voltage sampling error"
+          },
+          "3": {
+            "it": "ID20",
+            "en": "ID20"
+          },
+          "4": {
+            "it": "ID21 Main chip fault",
+            "en": "ID21 Main chip fault"
+          },
+          "5": {
+            "it": "ID22 Hardware auxiliary power fault",
+            "en": "ID22 Hardware auxiliary power fault"
+          },
+          "6": {
+            "it": "ID23",
+            "en": "ID23"
+          },
+          "7": {
+            "it": "ID24",
+            "en": "ID24"
+          },
+          "8": {
+            "it": "ID25 LLCBus Over Current protection",
+            "en": "ID25 LLCBus Over Current protection"
+          },
+          "9": {
+            "it": "ID26 Bus over voltage protection",
+            "en": "ID26 Bus over voltage protection"
+          },
+          "10": {
+            "it": "ID27 Battery Over Current protection",
+            "en": "ID27 Battery Over Current protection"
+          },
+          "11": {
+            "it": "ID28 Dci Over Current Protection",
+            "en": "ID28 Dci Over Current Protection"
+          },
+          "12": {
+            "it": "ID29 Output over current software",
+            "en": "ID29 Output over current software"
+          },
+          "13": {
+            "it": "ID30 Buck Over Current",
+            "en": "ID30 Buck Over Current"
+          },
+          "14": {
+            "it": "ID31 Output over current protection",
+            "en": "ID31 Output over current protection"
+          },
+          "15": {
+            "it": "ID32 The input current is too high",
+            "en": "ID32 The input current is too high"
+          }
+        }
+      },
+      "tipo": "string",
+      "descrizione": {
+        "it": "Guasti, registro 2",
+        "en": "Fault 2"
+      }
+    },
+    {
+      "nome": "faults_3",
+      "indirizzo": 515,
+      "formato": "u16",
+      "accesso": "r",
+      "gruppo": "main",
+      "testi": {
+        "modo": "bit",
+        "voci": {
+          "0": {
+            "it": "ID33 Reserved",
+            "en": "ID33 Reserved"
+          },
+          "1": {
+            "it": "ID34 Reserved",
+            "en": "ID34 Reserved"
+          },
+          "2": {
+            "it": "ID35 Reserved",
+            "en": "ID35 Reserved"
+          },
+          "3": {
+            "it": "ID36 Reserved",
+            "en": "ID36 Reserved"
+          },
+          "4": {
+            "it": "ID37 Reserved",
+            "en": "ID37 Reserved"
+          },
+          "5": {
+            "it": "ID38 Reserved",
+            "en": "ID38 Reserved"
+          },
+          "6": {
+            "it": "ID39 Reserved",
+            "en": "ID39 Reserved"
+          },
+          "7": {
+            "it": "ID40 Reserved",
+            "en": "ID40 Reserved"
+          },
+          "8": {
+            "it": "ID41 Reserved",
+            "en": "ID41 Reserved"
+          },
+          "9": {
+            "it": "ID42 Reserved",
+            "en": "ID42 Reserved"
+          },
+          "10": {
+            "it": "ID43 Reserved",
+            "en": "ID43 Reserved"
+          },
+          "11": {
+            "it": "ID44 Reserved",
+            "en": "ID44 Reserved"
+          },
+          "12": {
+            "it": "ID45 Reserved",
+            "en": "ID45 Reserved"
+          },
+          "13": {
+            "it": "ID46 Reserved",
+            "en": "ID46 Reserved"
+          },
+          "14": {
+            "it": "ID47 Reserved",
+            "en": "ID47 Reserved"
+          },
+          "15": {
+            "it": "ID48 Reserved",
+            "en": "ID48 Reserved"
+          }
+        }
+      },
+      "tipo": "string",
+      "descrizione": {
+        "it": "Guasti, registro 3",
+        "en": "Fault 3"
+      }
+    },
+    {
+      "nome": "faults_4",
+      "indirizzo": 516,
+      "formato": "u16",
+      "accesso": "r",
+      "gruppo": "main",
+      "testi": {
+        "modo": "bit",
+        "voci": {
+          "0": {
+            "it": "ID49 Grid voltage sampling value between master and slave DSP vary widely",
+            "en": "ID49 Grid voltage sampling value between master and slave DSP vary widely"
+          },
+          "1": {
+            "it": "ID50 Grid frequency sampling value between master and slave DSP vary widely",
+            "en": "ID50 Grid frequency sampling value between master and slave DSP vary widely"
+          },
+          "2": {
+            "it": "ID51 DCI sampling value between master and slave DSP vary widely",
+            "en": "ID51 DCI sampling value between master and slave DSP vary widely"
+          },
+          "3": {
+            "it": "ID52 GFCI sampling value between master and slave DSP vary widely",
+            "en": "ID52 GFCI sampling value between master and slave DSP vary widely"
+          },
+          "4": {
+            "it": "ID53 Communication failure between master and slave DSP failure",
+            "en": "ID53 Communication failure between master and slave DSP failure"
+          },
+          "5": {
+            "it": "ID53 Communication failure between slave and communication board",
+            "en": "ID53 Communication failure between slave and communication board"
+          },
+          "6": {
+            "it": "ID55 Relay fault",
+            "en": "ID55 Relay fault"
+          },
+          "7": {
+            "it": "ID56",
+            "en": "ID56"
+          },
+          "8": {
+            "it": "ID57 Inverter temp is too high",
+            "en": "ID57 Inverter temp is too high"
+          },
+          "9": {
+            "it": "ID58 Boost temp is too high",
+            "en": "ID58 Boost temp is too high"
+          },
+          "10": {
+            "it": "ID59 Environment temp is too high",
+            "en": "ID59 Environment temp is too high"
+          },
+          "11": {
+            "it": "ID60",
+            "en": "ID60"
+          },
+          "12": {
+            "it": "ID61 Reserved",
+            "en": "ID61 Reserved"
+          },
+          "13": {
+            "it": "ID62 Reserved",
+            "en": "ID62 Reserved"
+          },
+          "14": {
+            "it": "ID63 Reserved",
+            "en": "ID63 Reserved"
+          },
+          "15": {
+            "it": "ID64 Reserved",
+            "en": "ID64 Reserved"
+          }
+        }
+      },
+      "tipo": "string",
+      "descrizione": {
+        "it": "Guasti, registro 4",
+        "en": "Fault 4"
+      }
+    },
+    {
+      "nome": "faults_5",
+      "indirizzo": 517,
+      "formato": "u16",
+      "accesso": "r",
+      "gruppo": "main",
+      "testi": {
+        "modo": "bit",
+        "voci": {
+          "0": {
+            "it": "ID65 Grid current is too high and causes unrecoverable fault",
+            "en": "ID65 Grid current is too high and causes unrecoverable fault"
+          },
+          "1": {
+            "it": "ID66 Bus voltage is too high and causes unrecoverable fault",
+            "en": "ID66 Bus voltage is too high and causes unrecoverable fault"
+          },
+          "2": {
+            "it": "ID67 EPS Mode Battery Over current,and has cause unrecoverable fault",
+            "en": "ID67 EPS Mode Battery Over current,and has cause unrecoverable fault"
+          },
+          "3": {
+            "it": "ID68",
+            "en": "ID68"
+          },
+          "4": {
+            "it": "ID69",
+            "en": "ID69"
+          },
+          "5": {
+            "it": "ID70 The Output current is too high,and has cause unrecoverable fault",
+            "en": "ID70 The Output current is too high,and has cause unrecoverable fault"
+          },
+          "6": {
+            "it": "ID71",
+            "en": "ID71"
+          },
+          "7": {
+            "it": "ID72 Reserved",
+            "en": "ID72 Reserved"
+          },
+          "8": {
+            "it": "ID73 Reserved",
+            "en": "ID73 Reserved"
+          },
+          "9": {
+            "it": "ID74",
+            "en": "ID74"
+          },
+          "10": {
+            "it": "ID75 Error writing from EEPROM",
+            "en": "ID75 Error writing from EEPROM"
+          },
+          "11": {
+            "it": "ID76 Error reading to EEPROM",
+            "en": "ID76 Error reading to EEPROM"
+          },
+          "12": {
+            "it": "ID77 Relay fauilure causes unrecoverable fault",
+            "en": "ID77 Relay fauilure causes unrecoverable fault"
+          },
+          "13": {
+            "it": "ID78 Reserved",
+            "en": "ID78 Reserved"
+          },
+          "14": {
+            "it": "ID79 Reserved",
+            "en": "ID79 Reserved"
+          },
+          "15": {
+            "it": "ID80 Reserved",
+            "en": "ID80 Reserved"
+          }
+        }
+      },
+      "tipo": "string",
+      "descrizione": {
+        "it": "Guasti, registro 5",
+        "en": "Fault 5"
+      }
+    },
+    {
+      "nome": "grid_r_voltage",
+      "indirizzo": 560,
+      "formato": "u16",
+      "accesso": "r",
+      "gruppo": "diagnostics",
+      "predefinito": false,
+      "scala": 0.1,
+      "unita": "V",
+      "descrizione": {
+        "it": "Grid R Voltage",
+        "en": "Grid R Voltage"
+      }
+    },
+    {
+      "nome": "grid_current",
+      "indirizzo": 561,
+      "formato": "u16",
+      "accesso": "r",
+      "gruppo": "main",
+      "scala": 0.01,
+      "unita": "A",
+      "min": 0,
+      "max": 60,
+      "descrizione": {
+        "it": "Corrente di rete — verificato il 01-11-2026 alle 21:40: 6,44 A con 1580 W di prelievo a 235 V. Senza segno: il verso lo dice grid_power",
+        "en": "Grid R Current — verificato il 01-11-2026 alle 21:40: 6,44 A con 1580 W di prelievo a 235 V. Senza segno: il verso lo dice grid_power"
+      }
+    },
+    {
+      "nome": "generation_current",
+      "indirizzo": 566,
+      "formato": "u16",
+      "accesso": "r",
+      "gruppo": "diagnostics",
+      "predefinito": false,
+      "scala": 0.01,
+      "unita": "A",
+      "descrizione": {
+        "it": "Generation Current",
+        "en": "Generation Current"
+      }
+    },
+    {
+      "nome": "battery_power",
+      "indirizzo": 525,
+      "formato": "i16",
+      "accesso": "r",
+      "gruppo": "main",
+      "scala": 10,
+      "unita": "W",
+      "min": -4000,
+      "max": 4000,
+      "descrizione": {
+        "it": "Potenza della batteria — negativo = scarica, letto il 01-11-2026 alle 19:18 in scarica (−1,25 kW): già nella convenzione canonica. La carica è da verificare di giorno",
+        "en": "Charge / Discharge Power — negativo = scarica, letto il 01-11-2026 alle 19:18 in scarica (−1,25 kW): già nella convenzione canonica. La carica è da verificare di giorno"
+      }
+    },
+    {
+      "nome": "grid_power",
+      "indirizzo": 530,
+      "formato": "i16",
+      "accesso": "r",
+      "gruppo": "main",
+      "scala": -10,
+      "unita": "W",
+      "min": -15000,
+      "max": 15000,
+      "descrizione": {
+        "it": "Potenza scambiata con la rete — Sofar dà negativo = prelievo e lo si inverte (canonico: positivo = prelievo). Verificato in prelievo il 01-11-2026 alle 21:40: grezzo 0xFF62 (−158) → +1580 W con la casa a 1580 W, fotovoltaico e batteria a zero. L'immissione è da vedere di giorno",
+        "en": "Feed in / out power — Sofar dà negativo = prelievo e lo si inverte (canonico: positivo = prelievo). Verificato in prelievo il 01-11-2026 alle 21:40: grezzo 0xFF62 (−158) → +1580 W con la casa a 1580 W, fotovoltaico e batteria a zero. L'immissione è da vedere di giorno"
+      }
+    },
+    {
+      "nome": "input_output_power",
+      "indirizzo": 532,
+      "formato": "i16",
+      "accesso": "r",
+      "gruppo": "diagnostics",
+      "predefinito": false,
+      "scala": 10,
+      "unita": "W",
+      "descrizione": {
+        "it": "Input/Output Power",
+        "en": "Input/Output Power"
+      }
+    },
+    {
+      "nome": "energy_management_model",
+      "indirizzo": 4274,
+      "area": "input",
+      "formato": "u16",
+      "accesso": "r",
+      "gruppo": "diagnostics",
+      "predefinito": false,
+      "descrizione": {
+        "it": "Energy Management Model",
+        "en": "Energy Management Model"
+      }
+    },
+    {
+      "nome": "dci_current",
+      "indirizzo": 571,
+      "formato": "i16",
+      "accesso": "r",
+      "gruppo": "diagnostics",
+      "predefinito": false,
+      "unita": "mA",
+      "descrizione": {
+        "it": "DCI Current — con segno: il 01-11-2026 valeva 0xFFF4, cioè −12 mA e non 65524",
+        "en": "DCI Current — con segno: il 01-11-2026 valeva 0xFFF4, cioè −12 mA e non 65524"
+      }
+    },
+    {
+      "nome": "inverter_status",
+      "indirizzo": 512,
+      "formato": "u16",
+      "tipo": "string",
+      "accesso": "r",
+      "gruppo": "main",
+      "testi": {
+        "voci": {
+          "0": {
+            "it": "standby",
+            "en": "standby"
+          },
+          "1": {
+            "it": "starting",
+            "en": "starting"
+          },
+          "2": {
+            "it": "running",
+            "en": "running"
+          },
+          "3": {
+            "it": "running",
+            "en": "running"
+          },
+          "4": {
+            "it": "running",
+            "en": "running"
+          },
+          "5": {
+            "it": "eps",
+            "en": "eps"
+          },
+          "6": {
+            "it": "fault",
+            "en": "fault"
+          }
+        }
+      },
+      "descrizione": {
+        "it": "Stato normalizzato dell'inverter (standby, starting, running, eps, fault): Normal, Discharging Check e Discharging sono tutti running",
+        "en": "Normalised inverter status (standby, starting, running, eps, fault): Normal, Discharging Check and Discharging are all running"
+      }
+    },
+    {
+      "nome": "inverter_status_text",
+      "indirizzo": 512,
+      "formato": "u16",
+      "tipo": "string",
+      "accesso": "r",
+      "gruppo": "diagnostics",
+      "predefinito": false,
+      "testi": {
+        "voci": {
+          "0": {
+            "it": "Stand-by",
+            "en": "Stand-by"
+          },
+          "1": {
+            "it": "Self-Checking",
+            "en": "Self-Checking"
+          },
+          "2": {
+            "it": "Normal",
+            "en": "Normal"
+          },
+          "3": {
+            "it": "Discharging Check State",
+            "en": "Discharging Check State"
+          },
+          "4": {
+            "it": "Discharging State",
+            "en": "Discharging State"
+          },
+          "5": {
+            "it": "EPS State",
+            "en": "EPS State"
+          },
+          "6": {
+            "it": "Fault State",
+            "en": "Fault State"
+          }
+        }
+      },
+      "descrizione": {
+        "it": "Stato dell'inverter con le parole del costruttore",
+        "en": "Inverter status in the manufacturer's words"
+      }
+    }
+  ]
+}

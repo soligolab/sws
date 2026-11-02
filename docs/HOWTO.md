@@ -48,6 +48,7 @@
 28. [Far girare OpenPLC sul pannello](#28-far-girare-openplc-sul-pannello)
 29. [Il certificato del dispositivo su un pannello Pixsys (HTTPS senza avvisi)](#29-il-certificato-del-dispositivo-su-un-pannello-pixsys-https-senza-avvisi)
 30. [Lavorare dal cloud su un impianto](#30-lavorare-dal-cloud-su-un-impianto)
+31. [Leggere un inverter fotovoltaico (chiavetta Solarman)](#31-leggere-un-inverter-fotovoltaico-chiavetta-solarman)
 
 ---
 
@@ -2024,3 +2025,68 @@ pannello**: il VPS non vede la rete di casa o di fabbrica.
 | «Il pannello ha una versione di SWS senza questa funzione: aggiornalo» | il pannello è precedente alla 2.21.0 |
 | «Il pannello ha rifiutato le credenziali» | riconnettiti con un Admin del pannello |
 
+---
+
+## 31. Leggere un inverter fotovoltaico (chiavetta Solarman)
+
+*Dalla 2.24.0 (piano `docs/archive/2026-11-01-inverter-solarman.md`).*
+
+Molti inverter ibridi (Sofar, ZCS Azzurro, Deye, Solis…) si leggono attraverso la **chiavetta Wi-Fi Solarman**:
+Modbus dentro un pacchetto proprio, sulla porta 8899. SWS lo parla come trasporto della sorgente Modbus TCP.
+
+### Aggiungere l'inverter
+
+1. Configurazione → Progetto → Protocolli → «+ Modbus TCP», indirizzo IP della chiavetta.
+2. «Dal catalogo…» → il modello (oggi **ZCS Azzurro 1PH HYD3000–6000 ZSS** e **Sofar HYD 3000–6000-ES**, che
+   sono lo stesso apparecchio). Su un bus nuovo il catalogo imposta da sé trasporto **Solarman V5**, porta 8899,
+   pausa fra le richieste, tentativi e contatori di diagnostica.
+3. Scrivi il **numero di serie della chiavetta** (sull'etichetta, o nella pagina web della chiavetta): senza, la
+   chiavetta non risponde, e il validatore lo dice.
+4. Il gruppo `main` sono i punti con i nomi del vocabolario canonico (`catalogo/canonico/inverter.json`):
+   `pv_power`, `grid_power` (positivo = prelievo), `battery_power` (positivo = carica), `battery_soc`, le energie.
+   `diagnostics` sono i punti grezzi del modello, da spuntare se servono.
+5. Per i grafici accendi lo **storico** sulla variabile (`inverter`): l'interruttore sta sulla radice, i membri
+   sono accesi di default e si spengono uno per uno nel tipo.
+
+**Un client alla volta.** La chiavetta non regge due lettori: con Home Assistant (integrazione solarman) e SWS
+insieme le risposte si mescolano e a volte la chiavetta si riavvia. Se Home Assistant deve continuare a vedere
+l'inverter, legge da SWS: sorgente MQTT → sezione PUBBLICAZIONE, topic `inverter/<id>/state` con la variabile
+`inverter.main` e la disponibilità `<sorgente>.disponibile` su `inverter/<id>/availability`.
+
+**Le porte 8899 e 502 non si espongono a internet**, e i parametri di rete dell'inverter (CEI 0-21) e della
+batteria **non si scrivono** da SWS: la mappa è in sola lettura.
+
+### Provare una mappa sul campo, senza progetto
+
+```bash
+cd sws-runtime && cargo run -p sws-plugin-modbus --example verifica_mappa -- \
+    --catalogo ../catalogo/dispositivi/zcs/azzurro-hyd-zss.json \
+    --host 192.168.1.29 --seriale 1786079474 [--diagnostica] [--giri 60 --ogni 10] \
+    [--traccia pv_power,grid_power,battery_power]
+```
+
+Stampa ogni punto con valore, unità, parole grezze e «FUORI DAI LIMITI» quando un valore non è plausibile; con
+`--giri` conta timeout e risposte rotte, con `--traccia` scrive una riga CSV per giro. Non si ricollega: per le
+prove lunghe serve il runtime, che lo fa da sé.
+
+### Un modello nuovo
+
+Le «inverter definitions» dell'integrazione Home Assistant solarman descrivono decine di modelli. Non si riscrivono:
+
+1. Copia la definizione `.yaml` del modello (controlla la **licenza** del progetto da cui la prendi).
+2. Scrivi una **ricetta** in `scripts/inverter/ricette/` (modello: `sofar_hyd_es.yaml`): fonte e commit, per ogni
+   punto il nome canonico, il gruppo, la scala nelle unità canoniche (kW → W), i limiti di plausibilità; `escludi`
+   col perché per i punti sbagliati.
+3. `scripts/inverter/da_solarman.py <definizione> <ricetta> catalogo/dispositivi/<marca>/_<modello>.json`
+4. Un file del modello che lo include, con la sezione `modbus` (trasporto, porta, blocchi) e
+   `verifica: {stato: non_verificata}` finché non lo provi dal vivo.
+5. `./scripts/check_catalogo.sh` controlla vocabolario, unità, blocchi, fonte e limiti.
+
+### Quando qualcosa non va
+
+| Sintomo | Causa |
+|---|---|
+| Tutti i punti Bad, «nessuna risposta» | numero di serie sbagliato, o un altro client sulla chiavetta |
+| Un giro Bad ogni tanto, `diagnostics.timeouts` che sale | la chiavetta perde richieste; il runtime ne rimanda una e si riprende da solo |
+| `diagnostics.implausible` che sale | un registro fuori dai limiti della mappa: valore Bad, non entra nello storico come buono |
+| I contatori «di oggi» si azzerano a un'ora strana | l'orologio dell'inverter (per esempio rimasto all'ora legale): si regola dall'app dell'inverter |

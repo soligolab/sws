@@ -3,6 +3,7 @@ import { ImmagineSvg } from "@/canvas/ImmagineSvg";
 import { defaultObjectSubtleColor, defaultObjectTextColor } from "@/theme";
 import { coloreEffettivo, predefinito } from "@/coloriPredefiniti";
 import { useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from "react";
+import { descrizioniDeiTag, type DescrizioneTag } from "@/tag/forma";
 import { useTranslation } from "react-i18next";
 import { PALETTE, TrendCanvas } from "@/canvas/TrendCanvas";
 import { TrendExpandedModal } from "@/canvas/TrendExpanded";
@@ -43,7 +44,7 @@ import {
   softClampToPage,
 } from "@/pageLayout";
 import { faceplateDefBBox, normalizeFaceplateParams } from "@/faceplate/definizione";
-import type { AlarmSeverity, AlarmState, CustomSymbol, FaceplateDef, GridCell, PageSizeMode, PipePoint, Sample, SynopticObject, SynopticObjectType, TableRow, TagDef, TagState } from "@/types";
+import type { AlarmSeverity, AlarmState, CustomSymbol, FaceplateDef, GridCell, PageSizeMode, PipePoint, Sample, SynopticObject, SynopticObjectType, TableRow, TagState } from "@/types";
 import { fattoreFondoRespiro, luminositaValida, parametriLuminosita } from "./luce";
 import { puntiSvg, verticiPoligono } from "./forme";
 import { aggancioSu, bersagli, calamita, diametriCapi, instrada, percorsoTubo, type Bersaglio } from "./tubazioni";
@@ -539,7 +540,7 @@ function transitionStyle(obj: SynopticObject): React.CSSProperties | undefined {
  *  TagDef diventano i default del widget; i campi impostati sull'oggetto
  *  restano override locali. Un solo punto d'innesto: tutti i branch di
  *  rendering continuano a leggere obj.unit/min/max/soglie come prima. */
-function applyTagDefaults(obj: SynopticObject, def: TagDef | undefined): SynopticObject {
+function applyTagDefaults(obj: SynopticObject, def: DescrizioneTag | undefined): SynopticObject {
   if (!def) return obj;
   const merged = { ...obj };
   if (merged.unit === undefined && def.unit !== undefined) merged.unit = def.unit;
@@ -3593,10 +3594,9 @@ function SvgObjectCorpo(p: ObjProps) {
   // E sta **dopo** `applyTagDefaults`, non prima: l'unità ereditata dal `TagDef`
   // viene innestata qui, quindi localizzare per prima cosa non l'avrebbe mai
   // vista. Era il secondo modo in cui un token poteva non risolversi.
-  const conDefault = applyTagDefaults(
-    resolved,
-    resolved.tag && projectTags ? projectTags.find((td) => td.id === resolved.tag) : undefined,
-  );
+  const projectTypes = useAppStore((s) => s.project?.types);
+  const descrizioni = projectTags ? descrizioniDeiTag(projectTags, projectTypes) : undefined;
+  const conDefault = applyTagDefaults(resolved, resolved.tag ? descrizioni?.get(resolved.tag) : undefined);
   const lingua = useLinguaContenuti();
   const obj = localizeObject(conDefault, lingua.lang, lingua.table);
   // Drag-to-zoom range for the "trend" object type (T-48). Declared
@@ -5217,14 +5217,18 @@ function SvgObjectCorpo(p: ObjProps) {
       const n = Number(v);
       return typeof v === "boolean" || v === undefined || !Number.isFinite(n) ? undefined : n;
     };
-    /** Testo del valore: format esplicito, altrimenti decimali+unità. */
+    /** Unità della riga: la sua, altrimenti quella della variabile o del membro. */
+    const unitaRiga = (r: TableRow): string | undefined => r.unit ?? descrizioni?.get(r.tag)?.unit;
+    /** Testo del valore: format esplicito, altrimenti decimali+unità (della riga o della variabile). */
     const rowText = (r: TableRow): string => {
       const tv = tagValues[r.tag];
       if (tv == null) return "—";
       if (r.format) return formatValue(tv.value, r.format);
       const n = rowNum(r);
-      const base = n !== undefined && r.decimals !== undefined ? n.toFixed(r.decimals) : String(tv.value);
-      return cols.includes("unit") ? base : `${base}${r.unit ? ` ${r.unit}` : ""}`;
+      const dec = r.decimals ?? descrizioni?.get(r.tag)?.decimals;
+      const base = n !== undefined && dec !== undefined ? n.toFixed(dec) : String(tv.value);
+      const unit = unitaRiga(r);
+      return cols.includes("unit") ? base : `${base}${unit ? ` ${unit}` : ""}`;
     };
 
     const columns: DataTableColumn<TableRow>[] = cols.map((c): DataTableColumn<TableRow> => {
@@ -5232,7 +5236,7 @@ function SvgObjectCorpo(p: ObjProps) {
         return { key: "label", header: obj.table_label_header ?? testoSistema("dati", lingua.lang).toUpperCase(), accessor: (r) => r.label };
       }
       if (c === "unit") {
-        return { key: "unit", header: testoSistema("unita", lingua.lang), accessor: (r) => r.unit ?? "", width: 52, filterable: false };
+        return { key: "unit", header: testoSistema("unita", lingua.lang), accessor: (r) => unitaRiga(r) ?? "", width: 52, filterable: false };
       }
       if (c === "quality") {
         return {

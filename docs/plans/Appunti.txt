@@ -164,3 +164,22 @@ Annoto di seguito, uno per punto, le cose che devono essere verificate e trasfor
   basso; da noi sono cassetti in App.tsx e funzionano), una barra di stato in basso, e altre disposizioni oltre a
   Classica e VS Code (l'elenco DISPOSIZIONI_IDE in store/index.ts e la scheda Configurazione → IDE sono già pronti).
   Per CasaDomotica la regola del CLAUDE.md non si applica: è l'IDE, non il progetto.
+
+- Inverter Solarman (piano archiviato docs/archive/2026-11-01-inverter-solarman.md), cose brevi rimaste il 02-11-2026:
+  * il segno di grid_power in immissione e di battery_power in carica sono confermati solo di notte (prelievo,
+    batteria ferma): da guardare di giorno nella pagina Energy di CasaDomotica, e correggere la scala nella ricetta
+    scripts/inverter/ricette/sofar_hyd_es.yaml se un verso è sbagliato;
+  * l'allarme «produzione nulla di giorno» vuole l'ora del giorno (o l'alba/tramonto) dentro una condizione di
+    allarme: oggi non c'è;
+  * la discovery MQTT di Home Assistant (homeassistant/sensor/.../config) per la pubblicazione: oggi HA va
+    configurato a mano sul topic inverter/<id>/state;
+  * «inverter_alert_message» (0x022B) vale 128 e la mappa lo tratta come enumerazione senza quel valore: forse è a
+    bit come i faults_1..5. Da verificare su un documento Sofar prima di cambiarlo;
+  * «Dal catalogo» crea la variabile con lo storico spento: per un inverter i punti main andrebbero storicizzati
+    (in CasaDomotica acceso a mano). Proposta da decidere: un campo «storico» per gruppo nel catalogo;
+  * verifica_mappa non si ricollega: dopo un «Connection reset» registra solo errori. Il 02-11 alle 05:53 la
+    chiavetta ha chiuso la connessione dopo tre minuti di timeout a raffica: vale la pena guardare in CasaDomotica
+    i contatori <sorgente>.diagnostics.* nei primi giorni;
+  * parità LVGL: verificare che testi e tabelle su LVGL prendano unità e decimali dalle foglie di una variabile
+    strutturata come ora fa il web (descrizioniDeiTag in tag/forma.ts).
+

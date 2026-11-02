@@ -1,0 +1,169 @@
+# La ricetta del Sofar HYD 3000–6000-ES, che è anche lo ZCS Azzurro 1PH HYD ZSS
+# (01-11-2026, piano docs/archive/2026-11-01-inverter-solarman.md, fase 4).
+#
+#   scripts/inverter/da_solarman.py <sofar_hyd3k-6k-es.yaml> scripts/inverter/ricette/sofar_hyd_es.yaml \
+#       catalogo/dispositivi/sofar/_hyd_es.json
+#
+# Per ogni punto della definizione solarman: il nome canonico
+# (catalogo/canonico/inverter.json) e il gruppo `main`, la scala nelle
+# unità canoniche (la definizione dà kW × 0.01: in W è × 10), i limiti di
+# plausibilità per un inverter da 6 kW con batteria a 48 V. I punti non nominati
+# vanno in `diagnostics`. `escludi` toglie un punto e dice perché: resta scritto
+# nel catalogo, sotto `esclusi`.
+#
+# Quello che è ancora da verificare dal vivo lo dice la `nota` del punto, e il
+# file del modello lo riassume in `verifica`.
+
+id: sofar/_hyd_es
+descrizione:
+  - "Sofar HYD-ES (e i suoi marchi, come ZCS Azzurro HYD ZSS): ibrido monofase con batteria a 48 V, dalla definizione della comunità solarman"
+  - "Sofar HYD-ES (and its brands, such as ZCS Azzurro HYD ZSS): single-phase hybrid with a 48 V battery, from the solarman community definition"
+
+sorgente:
+  progetto: StephanJoubert/home_assistant_solarman
+  url: https://github.com/StephanJoubert/home_assistant_solarman
+  file: custom_components/solarman/inverter_definitions/sofar_hyd3k-6k-es.yaml
+  commit: 485f0f01208d
+  licenza: Apache-2.0
+
+punti:
+  # ── Fotovoltaico ──────────────────────────────────────────────────────────
+  "PV Instant Generated PW": { nome: pv_power, gruppo: main, scala: 10, unita: W, min: 0, max: 9000, it: "Potenza fotovoltaica" }
+  "PV1 Power": { nome: pv1_power, gruppo: main, scala: 10, unita: W, min: 0, max: 9000, it: "Potenza PV1" }
+  "PV2 Power": { nome: pv2_power, gruppo: main, scala: 10, unita: W, min: 0, max: 9000, it: "Potenza PV2" }
+  "PV1 Voltage": { nome: pv1_voltage, gruppo: main, min: 0, max: 600, it: "Tensione PV1" }
+  "PV2 Voltage": { nome: pv2_voltage, gruppo: main, min: 0, max: 600, it: "Tensione PV2" }
+  "PV1 Current": { nome: pv1_current, gruppo: main, min: 0, max: 16, it: "Corrente PV1" }
+  "PV2 Current": { nome: pv2_current, gruppo: main, min: 0, max: 16, it: "Corrente PV2" }
+
+  # ── Energie ───────────────────────────────────────────────────────────────
+  "Daily Production": { nome: energy_pv_today, gruppo: main, min: 0, max: 200, it: "Produzione di oggi" }
+  "Total Production": { nome: energy_pv_total, gruppo: main, min: 0, max: 10000000, it: "Produzione totale" }
+  "Today Grid Return": { nome: energy_export_today, gruppo: main, min: 0, max: 200, it: "Immissione in rete di oggi" }
+  "Today Grid Consumption": { nome: energy_import_today, gruppo: main, min: 0, max: 200, it: "Prelievo dalla rete di oggi" }
+  "Today Power Consumption": { nome: energy_load_today, gruppo: main, min: 0, max: 200, it: "Consumo della casa di oggi" }
+  "Total Grid Return": { nome: energy_export_total, gruppo: main, min: 0, max: 10000000, it: "Immissione in rete totale" }
+  "Total Grid Consumption": { nome: energy_import_total, gruppo: main, min: 0, max: 10000000, it: "Prelievo dalla rete totale" }
+  "Total Power Consumption": { nome: energy_load_total, gruppo: main, min: 0, max: 10000000, it: "Consumo della casa totale" }
+  "Battery Daily Charge": { nome: energy_charge_today, gruppo: main, min: 0, max: 200, it: "Carica della batteria di oggi" }
+  "Battery Daily Discharge": { nome: energy_discharge_today, gruppo: main, min: 0, max: 200, it: "Scarica della batteria di oggi" }
+  "Battery Total Charge": { nome: energy_charge_total, gruppo: main, min: 0, max: 10000000, it: "Carica della batteria totale" }
+  "Battery Total Discharge": { nome: energy_discharge_total, gruppo: main, min: 0, max: 10000000, it: "Scarica della batteria totale" }
+  "Battery Total Energy Charged":
+    escludi: "è solo la parola bassa di Battery Total Charge (u32 a 0x0226): un doppione troncato, sbagliato oltre 65535 kWh"
+  "Battery Total Energy Dischaged":
+    escludi: "è solo la parola bassa di Battery Total Discharge (u32 a 0x0228): un doppione troncato, sbagliato oltre 65535 kWh"
+
+  # ── Rete e casa ───────────────────────────────────────────────────────────
+  "Feed in / out power":
+    nome: grid_power
+    gruppo: main
+    scala: -10
+    unita: W
+    min: -15000
+    max: 15000
+    it: "Potenza scambiata con la rete"
+    nota: "Sofar dà negativo = prelievo e lo si inverte (canonico: positivo = prelievo). Verificato in prelievo il 01-11-2026 alle 21:40: grezzo 0xFF62 (−158) → +1580 W con la casa a 1580 W, fotovoltaico e batteria a zero. L'immissione è da vedere di giorno"
+  "Power Consumption": { nome: load_power, gruppo: main, scala: 10, unita: W, min: 0, max: 15000, it: "Consumo della casa" }
+  "Grid Voltage": { nome: grid_voltage, gruppo: main, min: 150, max: 300, it: "Tensione di rete" }
+  "Grid frequency": { nome: grid_frequency, gruppo: main, min: 45, max: 55, it: "Frequenza di rete" }
+  "Grid Current":
+    nome: inverter_output_current
+    nota: "è la corrente d'uscita dell'inverter, non quella di rete: il 01-11-2026 alle 21:40 valeva 0,05 A con l'inverter in standby mentre la casa prelevava 1580 W"
+  "Grid R Current":
+    nome: grid_current
+    gruppo: main
+    min: 0
+    max: 60
+    it: "Corrente di rete"
+    nota: "verificato il 01-11-2026 alle 21:40: 6,44 A con 1580 W di prelievo a 235 V. Senza segno: il verso lo dice grid_power"
+
+  # ── Batteria ──────────────────────────────────────────────────────────────
+  "Charge / Discharge Power":
+    nome: battery_power
+    gruppo: main
+    scala: 10
+    unita: W
+    min: -4000
+    max: 4000
+    it: "Potenza della batteria"
+    nota: "negativo = scarica, letto il 01-11-2026 alle 19:18 in scarica (−1,25 kW): già nella convenzione canonica. La carica è da verificare di giorno"
+  "Battery Charge / Discharge current": { nome: battery_current, gruppo: main, min: -100, max: 100, it: "Corrente della batteria" }
+  "Battery Voltage": { nome: battery_voltage, gruppo: main, min: 30, max: 70, it: "Tensione della batteria" }
+  "Battery Percentage": { nome: battery_soc, gruppo: main, min: 0, max: 100, it: "Stato di carica della batteria" }
+  "Battery Temperature":
+    nome: battery_temperature
+    gruppo: main
+    formato: i16
+    min: -40
+    max: 90
+    it: "Temperatura della batteria"
+    nota: "letto come i16 (la definizione dice U16): una temperatura sotto zero in un locale non riscaldato non deve diventare 65 mila gradi"
+  "Battery Power":
+    nome: battery_power_0237
+    scala: 10
+    unita: W
+    nota: "NON è la potenza della batteria: il 01-11-2026 alle 21:40 valeva 950 W con la batteria ferma. Significato da capire con la documentazione Sofar"
+  "Battery Cicles": { nome: battery_cycles, unita: "", nota: "il nome solarman ha un refuso («Cicles»), e l'unità «Charges» non è un'unità" }
+  "DCI Current": { formato: i16, nota: "con segno: il 01-11-2026 valeva 0xFFF4, cioè −12 mA e non 65524" }
+  "Input/Output Power": { scala: 10, unita: W }
+
+  # ── Inverter ──────────────────────────────────────────────────────────────
+  "Inverter status": { nome: inverter_status_code, gruppo: main, modo: numero, it: "Codice di stato dell'inverter" }
+  "Inverter inner temperature": { nome: inverter_temperature, gruppo: main, min: -40, max: 120, it: "Temperatura interna dell'inverter" }
+  "Fault 1": { nome: faults_1, gruppo: main, modo: bit, it: "Guasti, registro 1" }
+  "Fault 2": { nome: faults_2, gruppo: main, modo: bit, it: "Guasti, registro 2" }
+  "Fault 3": { nome: faults_3, gruppo: main, modo: bit, it: "Guasti, registro 3" }
+  "Fault 4": { nome: faults_4, gruppo: main, modo: bit, it: "Guasti, registro 4" }
+  "Fault 5": { nome: faults_5, gruppo: main, modo: bit, it: "Guasti, registro 5" }
+
+  # ── Esclusi: i due errori noti, e le fasi che un monofase non ha ───────────
+  "Buck Current":
+    escludi: "il 01-11-2026 leggeva 651 A, impossibile: significato, scala o tipo sbagliati. Da riprendere con la documentazione Sofar"
+  "DCI Voltage":
+    escludi: "il 01-11-2026 leggeva 815 V, impossibile: significato, scala o tipo sbagliati. Da riprendere con la documentazione Sofar"
+  "Grid S Voltage": { escludi: "inverter monofase: sempre 0" }
+  "Grid S Current": { escludi: "inverter monofase: sempre 0" }
+  "Grid T voltage": { escludi: "inverter monofase: sempre 0" }
+  "Grid T current": { escludi: "inverter monofase: sempre 0" }
+
+# Lo stato normalizzato accanto al codice grezzo: stesso registro, letto due volte
+# nello stesso blocco (non costa una richiesta in più).
+aggiunti:
+  - nome: inverter_status
+    indirizzo: 0x0200
+    formato: u16
+    tipo: string
+    accesso: r
+    gruppo: main
+    testi:
+      voci:
+        "0": { it: standby, en: standby }
+        "1": { it: starting, en: starting }
+        "2": { it: running, en: running }
+        "3": { it: running, en: running }
+        "4": { it: running, en: running }
+        "5": { it: eps, en: eps }
+        "6": { it: fault, en: fault }
+    descrizione:
+      it: "Stato normalizzato dell'inverter (standby, starting, running, eps, fault): Normal, Discharging Check e Discharging sono tutti running"
+      en: "Normalised inverter status (standby, starting, running, eps, fault): Normal, Discharging Check and Discharging are all running"
+  - nome: inverter_status_text
+    indirizzo: 0x0200
+    formato: u16
+    tipo: string
+    accesso: r
+    gruppo: diagnostics
+    predefinito: false
+    testi:
+      voci:
+        "0": { it: Stand-by, en: Stand-by }
+        "1": { it: Self-Checking, en: Self-Checking }
+        "2": { it: Normal, en: Normal }
+        "3": { it: Discharging Check State, en: Discharging Check State }
+        "4": { it: Discharging State, en: Discharging State }
+        "5": { it: EPS State, en: EPS State }
+        "6": { it: Fault State, en: Fault State }
+    descrizione:
+      it: "Stato dell'inverter con le parole del costruttore"
+      en: "Inverter status in the manufacturer's words"

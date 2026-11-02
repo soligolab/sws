@@ -174,3 +174,50 @@ describe("daCatalogo — Pixsys ATR244", () => {
     expect(allargato.dispositivo.registers[0].tag.startsWith("forno.processo.")).toBe(true);
   });
 });
+
+/** Gli inverter (01-11-2026, piano docs/archive/2026-11-01-inverter-solarman.md):
+ *  lo ZCS di casa del maintainer, dalla voce vera del catalogo. */
+describe("daCatalogo — ZCS Azzurro HYD ZSS", () => {
+  const zcs = voce("zcs/azzurro-hyd-zss");
+  const opzioni = (gruppi: string[]) => ({ unit: 1, nome: "inverter", gruppi: new Set(gruppi), lingua: "it" as const });
+
+  it("di default solo i punti canonici; la diagnostica si spunta a parte", () => {
+    const g = gruppiDi(zcs);
+    expect(g.find((x) => x.nome === "main")!.predefinito).toBe(true);
+    expect(g.find((x) => x.nome === "diagnostics")!.predefinito).toBe(false);
+  });
+
+  it("su un bus nuovo porta trasporto, porta, pause e diagnostica; blocchi, limiti e testi nelle mappature", () => {
+    const r = daCatalogo(zcs, { ...emptyModbus(), id: "inv" }, opzioni(["main"]), []);
+    expect(r.bus).toEqual({ trasporto: "solarman_v5", port: 8899, pausa_ms: 200, tentativi: 2, diagnostica: true });
+    expect(r.avvisi.map((a) => a.chiave)).toContain("catalogo.avvisoTrasportoImpostato");
+    expect(r.dispositivo.blocchi).toEqual([{ da: 0x0200, a: 0x0255 }, { area: "input", da: 0x10B0, a: 0x10BC, ogni: 6 }]);
+    expect(r.dispositivo.poll_interval_ms).toBe(10000);
+    const per = Object.fromEntries(r.dispositivo.registers.map((m) => [m.tag, m]));
+    expect(per["inverter.main.grid_power"]).toMatchObject({ address: 0x0212, formato: "i16", scale: -10, min: -15000, max: 15000 });
+    expect(per["inverter.main.inverter_status"].testi?.voci["2"]).toBe("running");
+    expect(per["inverter.main.faults_1"].testi).toMatchObject({ modo: "bit" });
+    expect(per["inverter.main.energy_pv_total"]).toMatchObject({ address: 0x021C, formato: "u32" });
+    expect(Object.keys(per).some((k) => k.includes("diagnostics"))).toBe(false);
+  });
+
+  it("tipi e unità giusti: una scala intera resta intera, una decimale fa f32", () => {
+    const r = daCatalogo(zcs, { ...emptyModbus(), id: "inv" }, opzioni(["main"]), []);
+    const tipo = r.tipi.find((x) => x.members.some((m) => m.name === "grid_power"))!;
+    const m = Object.fromEntries(tipo.members.map((x) => [x.name, x]));
+    expect(m.grid_power).toMatchObject({ data_type: "i32", unit: "W" });
+    expect(m.pv_power).toMatchObject({ data_type: "u32", unit: "W" });
+    expect(m.battery_soc).toMatchObject({ data_type: "u16", unit: "%" });
+    expect(m.energy_pv_total).toMatchObject({ data_type: "u32", unit: "kWh" });
+    expect(m.energy_pv_today).toMatchObject({ data_type: "f32", unit: "kWh", decimals: 2 });
+    expect(m.battery_temperature).toMatchObject({ data_type: "i16", unit: "°C" });
+    expect(m.inverter_status).toMatchObject({ data_type: "string" });
+  });
+
+  it("su un bus che ha già dispositivi non cambia il trasporto, e lo dice", () => {
+    const pieno = { ...emptyModbus(), id: "plc", devices: [{ unit_id: 5, registers: [{ tag: "x", address: 0, scale: 1 }] }] };
+    const r = daCatalogo(zcs, pieno, opzioni(["main"]), []);
+    expect(r.bus).toBeUndefined();
+    expect(r.avvisi.map((a) => a.chiave)).toContain("catalogo.avvisoTrasportoOccupato");
+  });
+});

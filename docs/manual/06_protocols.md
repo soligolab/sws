@@ -91,11 +91,42 @@ variabili che nessun altro mappa (e i tipi rimasti senza istanze); «Solo il dis
 dello stesso modello le riprende dal catalogo scegliendo **«Riprendi …»** al posto di «Variabile nuova»: grafici,
 allarmi e storico che le usano restano agganciati.
 
-Oggi il catalogo ha i Pixsys ATR121/142/144/244, STR551/561/571, MCM260X nelle sei varianti (1AD, 2AD, 3AD, 4AD,
+**Inverter** (dal 02-11-2026): ZCS Azzurro 1PH HYD3000–6000 ZSS e Sofar HYD 3000–6000-ES, dalla definizione
+della comunità solarman (Apache-2.0), con i nomi del vocabolario canonico (`catalogo/canonico/inverter.json`) nel
+gruppo `main` e i punti grezzi in `diagnostics`. Su un bus senza dispositivi il modello imposta da sé trasporto,
+porta, pausa e tentativi.
+
+Oggi il catalogo ha anche i Pixsys ATR121/142/144/244, STR551/561/571, MCM260X nelle sei varianti (1AD, 2AD, 3AD, 4AD,
 5AD, 9AD, ognuna coi suoi I/O), MCM280X, DRR245/460, dalla mappa dei registri
 fornita da Pixsys — **da verificare sul manuale di ogni prodotto** (i decimali `Dec.P` in particolare: la scala
 proposta è 0.1). I file stanno in `catalogo/dispositivi/` e si leggono a ogni apertura: correggerli o aggiungerne è
 spiegato in `docs/HOWTO.md`, capitolo 22.
+
+### I trasporti: MBAP, RTU su TCP, Solarman V5 (dal 02-11-2026)
+
+`trasporto` dice come viaggiano le richieste sul socket:
+
+| `trasporto` | Quando |
+|---|---|
+| `mbap` (predefinito) | Modbus TCP vero e proprio: PLC, gateway, moduli |
+| `rtu_su_tcp` | trama RTU nuda nel socket: convertitori seriale/Ethernet in modo «trasparente» |
+| `solarman_v5` | chiavette Wi-Fi Solarman degli inverter (porta 8899); vuole `seriale_logger`, il numero di serie della chiavetta |
+
+Per i dispositivi lenti o fragili: `pausa_ms` è la pausa minima fra due richieste, `tentativi` quante volte si
+riprova una lettura arrivata rotta (le scritture non si ripetono mai). Con Solarman e i tentativi accesi, una lettura
+senza risposta a metà del timeout si rimanda una volta. `diagnostica: true` pubblica tre contatori,
+`<sorgente>.diagnostics.timeouts`, `.bad_replies` e `.implausible`, utili per un allarme. Una guida passo per
+passo è in `docs/HOWTO.md`, capitolo 31.
+
+### Blocchi, limiti e testi (dal 02-11-2026)
+
+- **`blocchi`** sul dispositivo: `[{area, da, a, ogni}]`. Ogni giro legge i blocchi una volta sola (al massimo 125
+  registri o 2000 bit) e le mappature che ci cadono dentro si servono da lì: un inverter da 80 punti sono 2
+  richieste invece di 80. `ogni: 6` legge il blocco un giro su sei, per i parametri che non cambiano.
+- **`min`/`max`** su una mappatura: un valore fuori è **Bad** e non entra nello storico come buono.
+- **`testi`** su una mappatura: `{modo: valore | bit, voci: {0: standby, 2: running}}`. Il tag (stringa) porta il
+  testo del valore, o l'elenco dei bit accesi separati da «; » (i registri di guasto). Le chiavi si possono
+  scrivere anche fra virgolette.
 
 ### Configurazione YAML
 
@@ -439,6 +470,27 @@ disponibilità**. Lo prepara nella scheda Allarmi — è un allarme normale, des
 tabella eventi, telefono, storico.
 
 ---
+
+### Pubblicare i tag sul broker (dal 02-11-2026)
+
+Oltre a leggere, una sorgente MQTT può **pubblicare** lo stato dei tag: sezione PUBBLICAZIONE della card, campo
+`pubblica`. Serve quando un dispositivo regge un client solo (la chiavetta di un inverter) e gli altri devono
+leggere da SWS.
+
+```yaml
+    pubblica:
+      - topic: inverter/zcs/state
+        tags: [inverter.main]        # un tag, una variabile o un suo ramo
+        formato: json                # json (oggetto piatto) | valore (un tag solo, il valore nudo)
+        retain: true                 # predefinito
+        intervallo_ms: 60000         # facoltativo: ripubblica anche se non cambia niente
+        disponibilita:
+          topic: inverter/zcs/availability
+          tag: inverter-zcs.disponibile   # online/offline secondo questo tag
+```
+
+In JSON le chiavi sono le foglie relative al tag (`battery_soc`, `grid_power`), e un valore non buono è `null`. Gli
+aggiornamenti di un giro di lettura si raccolgono in un messaggio solo; la disponibilità si manda quando cambia.
 
 ## OPC-UA
 

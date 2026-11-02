@@ -23,6 +23,9 @@
 //! until third-party plugin support is needed (OPEN_QUESTIONS Q3).
 
 pub mod codec;
+pub mod trama_rtu;
+pub mod solarman;
+pub mod trasporti;
 
 use std::{
     collections::{HashMap, HashSet},
@@ -33,7 +36,7 @@ use std::{
 use sws_core::stato_sorgenti::{Collegamento, StatoSorgenti};
 use sws_core::{
     AreaModbus, DispositivoModbus, ModbusRtuConfig, ModbusTcpConfig, OrdineModbus, RegisterMapping, TagDb,
-    TagQuality, TagValue, TagWriteBus, WriteRequest,
+    BloccoModbus, ModoTesti, TagQuality, TagValue, TagWriteBus, TestiRegistro, TrasportoTcp, WriteRequest,
 };
 use tokio::time::Instant;
 use tokio::sync::{mpsc, Mutex};
@@ -115,6 +118,11 @@ pub struct Mappatura {
     /// Un bit di un registro.
     pub bit: Option<u8>,
     pub sola_lettura: bool,
+    /// I limiti di plausibilità (01-11-2026).
+    pub min: Option<f64>,
+    pub max: Option<f64>,
+    /// Il testo al posto del numero.
+    pub testi: Option<TestiRegistro>,
 }
 
 /// Il layout di ogni mappatura, dai tipi e dalle forme che il `TagDb` conosce
@@ -137,6 +145,9 @@ pub async fn prepara(db: &TagDb, registri: &[RegisterMapping]) -> Vec<Mappatura>
                 formato: if r.bit.is_some() { None } else { formato },
                 bit: r.bit,
                 sola_lettura: r.sola_lettura,
+                min: r.min,
+                max: r.max,
+                testi: r.testi.clone(),
             });
             continue;
         }
@@ -158,6 +169,9 @@ pub async fn prepara(db: &TagDb, registri: &[RegisterMapping]) -> Vec<Mappatura>
             formato: None,
             bit: None,
             sola_lettura: r.sola_lettura,
+            min: r.min,
+            max: r.max,
+            testi: r.testi.clone(),
         });
     }
     out
@@ -174,12 +188,96 @@ async fn marca_bad(db: &TagDb, m: &Mappatura) {
 pub struct EsitoGiro {
     /// Mappature che hanno risposto.
     pub risposte: usize,
+    /// Mappature (o blocchi) chiesti in questo giro: un giro in cui tocca solo
+    /// a blocchi lenti non chiede niente, e non vuol dire che il dispositivo
+    /// taccia.
+    pub chieste: usize,
     /// Il primo errore del giro, per lo stato del dispositivo.
     pub errore: Option<String>,
+    /// I contatori di diagnostica del giro (01-11-2026).
+    pub diagnostica: Diagnostica,
+}
+
+/// Cosa è andato storto, contato (01-11-2026).
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
+pub struct Diagnostica {
+    /// Richieste senza risposta nel tempo massimo.
+    pub timeout: u64,
+    /// Risposte arrivate rotte (CRC, checksum, pezzi mescolati) anche dopo i tentativi.
+    pub risposte_rotte: u64,
+    /// Valori fuori dai limiti di plausibilità.
+    pub non_plausibili: u64,
+}
+
+impl Diagnostica {
+    fn somma(&mut self, o: Diagnostica) {
+        self.timeout += o.timeout;
+        self.risposte_rotte += o.risposte_rotte;
+        self.non_plausibili += o.non_plausibili;
+    }
+}
+
+/// Il blocco che contiene per intero `n` registri da `addr` nell'area `area`.
+fn blocco_di(blocchi: &[BloccoModbus], area: AreaModbus, addr: u16, n: u16) -> Option<usize> {
+    let fine = addr as u32 + n.max(1) as u32 - 1;
+    blocchi.iter().position(|b| b.area == area && addr >= b.da && fine <= b.a as u32)
+}
+
+/// Il pezzo di un blocco letto che serve a una mappatura.
+fn ritaglia(l: &Letti, da: u16, addr: u16, n: u16) -> Option<Letti> {
+    let (a, b) = ((addr - da) as usize, (addr - da) as usize + n as usize);
+    match l {
+        Letti::Registri(r) if r.len() >= b => Some(Letti::Registri(r[a..b].to_vec())),
+        Letti::Bit(x) if x.len() >= b => Some(Letti::Bit(x[a..b].to_vec())),
+        _ => None,
+    }
+}
+
+/// Fuori dai limiti di plausibilità? Solo i numeri.
+fn fuori_limiti(m: &Mappatura, v: &TagValue) -> bool {
+    let x = match v {
+        TagValue::Float(f) => *f,
+        TagValue::Int(i) => *i as f64,
+        _ => return false,
+    };
+    m.min.is_some_and(|lo| x < lo) || m.max.is_some_and(|hi| x > hi)
+}
+
+/// Il testo di un numero: la voce del valore, o le voci dei bit accesi.
+pub fn testo_di(testi: &TestiRegistro, v: &TagValue) -> TagValue {
+    let n = match v {
+        TagValue::Int(i) => *i as u32,
+        TagValue::Float(f) => f.round() as u32,
+        TagValue::Bool(b) => *b as u32,
+        altro => return altro.clone(),
+    };
+    TagValue::Str(match testi.modo {
+        ModoTesti::Valore => testi.voci.get(&n).cloned().unwrap_or_else(|| n.to_string()),
+        ModoTesti::Bit => (0..32)
+            .filter(|b| n & (1 << b) != 0)
+            .map(|b| testi.voci.get(&b).cloned().unwrap_or_else(|| format!("bit {b}")))
+            .collect::<Vec<_>>()
+            .join("; "),
+    })
+}
+
+/// Un errore di lettura che non è di trasporto, per i contatori.
+fn conta(d: &mut Diagnostica, esito: &Result<io::Result<Letti>, tokio::time::error::Elapsed>) {
+    match esito {
+        Err(_) => d.timeout += 1,
+        Ok(Err(e)) if e.kind() == io::ErrorKind::InvalidData => d.risposte_rotte += 1,
+        _ => {}
+    }
 }
 
 /// Un giro di lettura su un dispositivo. `Err` solo per un guasto di
 /// trasporto: chi chiama chiude la sessione e riconnette.
+///
+/// Prima i **blocchi** che toccano a questo giro (`giro % ogni == 0`), una
+/// richiesta ciascuno; poi le mappature: quella che cade in un blocco si serve
+/// da lì (e se il blocco non tocca a questo giro, resta com'è), le altre
+/// chiedono per sé come sempre.
+#[allow(clippy::too_many_arguments)]
 pub async fn leggi_giro<D: Dispositivo>(
     dev: &mut D,
     db: &TagDb,
@@ -188,8 +286,46 @@ pub async fn leggi_giro<D: Dispositivo>(
     timeout: Duration,
     in_errore: &mut HashSet<String>,
     sorgente: &str,
+    blocchi: &[BloccoModbus],
+    giro: u64,
 ) -> anyhow::Result<EsitoGiro> {
     let mut esito_giro = EsitoGiro::default();
+    // I blocchi del giro: `None` = non tocca a questo giro, `Some(None)` =
+    // chiesto e non risposto.
+    let mut letti_blocchi: Vec<Option<Option<Letti>>> = Vec::with_capacity(blocchi.len());
+    for b in blocchi {
+        if giro % b.ogni.max(1) as u64 != 0 {
+            letti_blocchi.push(None);
+            continue;
+        }
+        esito_giro.chieste += 1;
+        let n = b.a.saturating_sub(b.da) + 1;
+        let esito = tokio::time::timeout(timeout, dev.leggi(b.area, b.da, n)).await;
+        conta(&mut esito_giro.diagnostica, &esito);
+        letti_blocchi.push(Some(match esito {
+            Ok(Ok(l)) => Some(l),
+            Ok(Err(e)) if e_trasporto(&e) => return Err(anyhow::anyhow!("lettura del blocco @{}..{}: {e}", b.da, b.a)),
+            Ok(Err(e)) => {
+                let chiave = format!("blocco@{}", b.da);
+                if in_errore.insert(chiave) {
+                    warn!(source = %sorgente, da = b.da, a = b.a, "Modbus: il blocco risponde con un errore: {e} — i suoi tag Bad");
+                }
+                esito_giro.errore.get_or_insert_with(|| format!("blocco @{}..{}: {e}", b.da, b.a));
+                None
+            }
+            Err(_) => {
+                let chiave = format!("blocco@{}", b.da);
+                if in_errore.insert(chiave) {
+                    warn!(source = %sorgente, da = b.da, a = b.a, "Modbus: il blocco non risponde in {} ms — i suoi tag Bad", timeout.as_millis());
+                }
+                esito_giro.errore.get_or_insert_with(|| format!("nessuna risposta in {} ms", timeout.as_millis()));
+                None
+            }
+        }));
+        if letti_blocchi.last().is_some_and(|l| l.as_ref().is_some_and(Option::is_some)) && in_errore.remove(&format!("blocco@{}", b.da)) {
+            info!(source = %sorgente, da = b.da, "Modbus: il blocco risponde di nuovo");
+        }
+    }
     // Una lettura per blocco in un giro: dieci bit della stessa word sono una
     // richiesta sola (catalogo, 04-10-2026).
     let mut cache: HashMap<(AreaModbus, u16, u16), Letti> = HashMap::new();
@@ -198,40 +334,62 @@ pub async fn leggi_giro<D: Dispositivo>(
     let mut muti: HashSet<(AreaModbus, u16, u16)> = HashSet::new();
     for m in mappature {
         let n = codec::totale(&m.slots);
-        let chiave = (m.area, m.address, n);
-        if muti.contains(&chiave) {
-            marca_bad(db, m).await;
-            continue;
-        }
-        let esito = match cache.get(&chiave) {
-            Some(l) => Ok(Ok(l.clone())),
-            None => tokio::time::timeout(timeout, dev.leggi(m.area, m.address, n)).await,
-        };
-        if let Ok(Ok(l)) = &esito {
-            cache.insert(chiave, l.clone());
-        }
-        let letti = match esito {
-            Ok(Ok(l)) => l,
-            Ok(Err(e)) if e_trasporto(&e) => {
-                return Err(anyhow::anyhow!("lettura di {} @{}: {e}", m.tag, m.address));
-            }
-            Ok(Err(e)) => {
-                muti.insert(chiave);
-                if in_errore.insert(m.tag.clone()) {
-                    warn!(source = %sorgente, tag = %m.tag, address = m.address, "Modbus: il dispositivo risponde con un errore: {e} — tag Bad, gli altri continuano");
+        let letti = if let Some(i) = blocco_di(blocchi, m.area, m.address, n) {
+            match &letti_blocchi[i] {
+                None => continue,
+                Some(None) => {
+                    marca_bad(db, m).await;
+                    continue;
                 }
-                esito_giro.errore.get_or_insert_with(|| format!("{} @{}: {e}", m.tag, m.address));
+                Some(Some(l)) => match ritaglia(l, blocchi[i].da, m.address, n) {
+                    Some(l) => l,
+                    None => {
+                        marca_bad(db, m).await;
+                        continue;
+                    }
+                },
+            }
+        } else {
+            let chiave = (m.area, m.address, n);
+            if muti.contains(&chiave) {
                 marca_bad(db, m).await;
                 continue;
             }
-            Err(_) => {
-                muti.insert(chiave);
-                if in_errore.insert(m.tag.clone()) {
-                    warn!(source = %sorgente, tag = %m.tag, address = m.address, "Modbus: nessuna risposta in {} ms — tag Bad", timeout.as_millis());
+            let esito = match cache.get(&chiave) {
+                Some(l) => Ok(Ok(l.clone())),
+                None => {
+                    esito_giro.chieste += 1;
+                    let e = tokio::time::timeout(timeout, dev.leggi(m.area, m.address, n)).await;
+                    conta(&mut esito_giro.diagnostica, &e);
+                    e
                 }
-                esito_giro.errore.get_or_insert_with(|| format!("nessuna risposta in {} ms", timeout.as_millis()));
-                marca_bad(db, m).await;
-                continue;
+            };
+            if let Ok(Ok(l)) = &esito {
+                cache.insert(chiave, l.clone());
+            }
+            match esito {
+                Ok(Ok(l)) => l,
+                Ok(Err(e)) if e_trasporto(&e) => {
+                    return Err(anyhow::anyhow!("lettura di {} @{}: {e}", m.tag, m.address));
+                }
+                Ok(Err(e)) => {
+                    muti.insert(chiave);
+                    if in_errore.insert(m.tag.clone()) {
+                        warn!(source = %sorgente, tag = %m.tag, address = m.address, "Modbus: il dispositivo risponde con un errore: {e} — tag Bad, gli altri continuano");
+                    }
+                    esito_giro.errore.get_or_insert_with(|| format!("{} @{}: {e}", m.tag, m.address));
+                    marca_bad(db, m).await;
+                    continue;
+                }
+                Err(_) => {
+                    muti.insert(chiave);
+                    if in_errore.insert(m.tag.clone()) {
+                        warn!(source = %sorgente, tag = %m.tag, address = m.address, "Modbus: nessuna risposta in {} ms — tag Bad", timeout.as_millis());
+                    }
+                    esito_giro.errore.get_or_insert_with(|| format!("nessuna risposta in {} ms", timeout.as_millis()));
+                    marca_bad(db, m).await;
+                    continue;
+                }
             }
         };
         esito_giro.risposte += 1;
@@ -252,7 +410,22 @@ pub async fn leggi_giro<D: Dispositivo>(
                 _ => Err("risposta più corta del blocco".into()),
             };
             match valore {
-                Ok(v) => db.ingest(s.percorso.clone(), v, TagQuality::Good).await,
+                Ok(v) if fuori_limiti(m, &v) => {
+                    esito_giro.diagnostica.non_plausibili += 1;
+                    if in_errore.insert(format!("plausibile:{}", s.percorso)) {
+                        warn!(source = %sorgente, tag = %s.percorso, valore = ?v, min = ?m.min, max = ?m.max,
+                            "Modbus: valore fuori dai limiti di plausibilità — tag Bad (registro o mappa sbagliati?)");
+                    }
+                    db.marca_qualita(&s.percorso, TagQuality::Bad).await;
+                }
+                Ok(v) => {
+                    in_errore.remove(&format!("plausibile:{}", s.percorso));
+                    let v = match &m.testi {
+                        Some(t) => testo_di(t, &v),
+                        None => v,
+                    };
+                    db.ingest(s.percorso.clone(), v, TagQuality::Good).await
+                }
                 Err(e) => {
                     warn!(source = %sorgente, tag = %s.percorso, "Modbus: non decodificabile: {e}");
                     db.marca_qualita(&s.percorso, TagQuality::Bad).await;
@@ -421,6 +594,14 @@ pub struct Unita {
     in_errore: HashSet<String>,
     giri_muti: u32,
     prossimo: Instant,
+    /// I blocchi letti con una richiesta sola, e il numero del giro per quelli
+    /// che si leggono un giro su n (01-11-2026).
+    pub blocchi: Vec<BloccoModbus>,
+    giro: u64,
+    /// I contatori dall'avvio della sorgente.
+    pub diagnostica: Diagnostica,
+    /// La sorgente li pubblica come tag (`<id>.diagnostics.*`).
+    pub pubblica_diagnostica: bool,
 }
 
 impl Unita {
@@ -436,6 +617,10 @@ impl Unita {
             in_errore: HashSet::new(),
             giri_muti: 0,
             prossimo: Instant::now(),
+            blocchi: d.blocchi.clone(),
+            giro: 0,
+            diagnostica: Diagnostica::default(),
+            pubblica_diagnostica: false,
         }
     }
 
@@ -461,7 +646,9 @@ pub async fn giro_unita<D: Dispositivo>(
     dev.imposta_unita(u.unit_id);
     let _giro = sws_core::prestazioni::Misura::nuova(format!("sorgente.modbus.{sorgente}"));
     let m = prepara(db, &u.registri).await;
-    let esito = leggi_giro(dev, db, &m, u.ordine, u.timeout, &mut u.in_errore, sorgente).await?;
+    let esito = leggi_giro(dev, db, &m, u.ordine, u.timeout, &mut u.in_errore, sorgente, &u.blocchi, u.giro).await?;
+    u.giro += 1;
+    u.diagnostica.somma(esito.diagnostica);
     // Il setup alla prima risposta della sessione. Un dispositivo senza
     // mappature ma con un setup lo riceve lo stesso: lì la lettura dei
     // parametri fa da prova di vita.
@@ -469,6 +656,9 @@ pub async fn giro_unita<D: Dispositivo>(
         u.setup_fatto = applica_setup(dev, u, sorgente).await?;
     }
     if m.is_empty() {
+        return Ok(());
+    }
+    if esito.chieste == 0 {
         return Ok(());
     }
     if esito.risposte == 0 {
@@ -549,6 +739,7 @@ pub async fn sessione<D: Dispositivo>(
     cancel: &CancellationToken,
 ) -> anyhow::Result<()> {
     let mut rx = write_rx.lock().await;
+    let mut ultima_diagnostica: Option<Diagnostica> = None;
     for u in unita.iter_mut() {
         u.prossimo = Instant::now();
         u.giri_muti = 0;
@@ -564,6 +755,14 @@ pub async fn sessione<D: Dispositivo>(
                     giro_unita(&mut dev, db, u, stato, sorgente).await?;
                     u.prossimo = Instant::now() + u.intervallo;
                 }
+                if unita.iter().any(|u| u.pubblica_diagnostica) {
+                    let mut tot = Diagnostica::default();
+                    unita.iter().for_each(|u| tot.somma(u.diagnostica));
+                    if ultima_diagnostica != Some(tot) {
+                        pubblica_diagnostica(db, sorgente, tot).await;
+                        ultima_diagnostica = Some(tot);
+                    }
+                }
                 if !unita.is_empty() && unita.iter().all(Unita::muto) {
                     return Err(anyhow::anyhow!("nessun dispositivo risponde da {GIRI_MUTI_PER_RICONNETTERE} giri"));
                 }
@@ -575,6 +774,19 @@ pub async fn sessione<D: Dispositivo>(
                 scrivi(&mut dev, db, &m, u.ordine, req, sorgente).await?;
             }
         }
+    }
+}
+
+/// I nomi dei tag di diagnostica di una sorgente (01-11-2026): in inglese,
+/// come ogni nome che SWS dà da sé (decisione del maintainer, 01-11-2026).
+pub fn tag_diagnostica(sorgente: &str) -> [String; 3] {
+    ["timeouts", "bad_replies", "implausible"].map(|c| format!("{sorgente}.diagnostics.{c}"))
+}
+
+async fn pubblica_diagnostica(db: &TagDb, sorgente: &str, d: Diagnostica) {
+    let [t, r, p] = tag_diagnostica(sorgente);
+    for (id, v) in [(t, d.timeout), (r, d.risposte_rotte), (p, d.non_plausibili)] {
+        db.set_tipizzato(id, TagValue::Int(v as i64), TagQuality::Good).await;
     }
 }
 
@@ -609,36 +821,79 @@ async fn con_stato(stato: &StatoSorgenti, sorgente: &str, r: anyhow::Result<()>)
 
 /// Modbus TCP: sessioni una dopo l'altra finché `cancel` non scatta. Più
 /// dispositivi = più unit id dietro lo stesso indirizzo (un gateway).
+///
+/// Il trasporto (01-11-2026) decide cosa viaggia nel socket: MBAP, la trama RTU
+/// nuda, o la trama RTU in un pacchetto Solarman V5 ([`trasporti`]). L'indirizzo
+/// si risolve a ogni connessione, così un nome (`inverter.casa.lan`) va bene
+/// quanto un IP.
 pub async fn run(cfg: ModbusTcpConfig, db: Arc<TagDb>, bus: Arc<TagWriteBus>, stato: Arc<StatoSorgenti>, cancel: CancellationToken) {
     let dispositivi = cfg.dispositivi();
     let registri = tutti_i_registri(&dispositivi);
     stato.registra(&cfg.id, dispositivi.iter().map(|d| d.unit_id));
     let rx = registra(&bus, &registri).await;
-    let addr: std::net::SocketAddr = match format!("{}:{}", cfg.host, cfg.port).parse() {
-        Ok(a) => a,
-        Err(e) => {
-            warn!(source = %cfg.id, "Modbus TCP: indirizzo non valido «{}:{}»: {e} — ferma finché non si corregge la configurazione", cfg.host, cfg.port);
-            stato.caduta(&cfg.id, format!("indirizzo non valido: {e}"));
-            tutti_bad(&db, &registri).await;
-            return;
-        }
-    };
-    let mut unita: Vec<Unita> = dispositivi.iter().map(|d| Unita::da(d, cfg.poll_interval_ms)).collect();
+    let indirizzo = format!("{}:{}", cfg.host, cfg.port);
+    if cfg.trasporto == TrasportoTcp::SolarmanV5 && cfg.seriale_logger.is_none() {
+        warn!(source = %cfg.id, "Modbus: Solarman V5 senza il numero di serie della chiavetta — ferma finché non si corregge la configurazione");
+        stato.caduta(&cfg.id, "manca il numero di serie della chiavetta Solarman".into());
+        tutti_bad(&db, &registri).await;
+        return;
+    }
+    let mut unita: Vec<Unita> = dispositivi
+        .iter()
+        .map(|d| Unita { pubblica_diagnostica: cfg.diagnostica, ..Unita::da(d, cfg.poll_interval_ms) })
+        .collect();
     let primo = unita.first().map(|u| u.unit_id).unwrap_or(cfg.unit_id);
     let unita = Mutex::new(&mut unita);
     sws_core::riconnessione::con_attesa(
         &cfg.id,
         cancel.clone(),
         || async {
-            info!(source = %cfg.id, %addr, dispositivi = dispositivi.len(), "Modbus TCP: connessione");
+            info!(source = %cfg.id, %indirizzo, trasporto = ?cfg.trasporto, dispositivi = dispositivi.len(), "Modbus TCP: connessione");
             let r = async {
-                let ctx = tcp::connect_slave(addr, Slave(primo))
+                let addr = tokio::net::lookup_host(&indirizzo)
                     .await
-                    .map_err(|e| anyhow::anyhow!("connessione a {addr}: {e}"))?;
-                info!(source = %cfg.id, "Modbus TCP: connesso");
-                stato.bus(&cfg.id, Collegamento::Ok, None);
+                    .map_err(|e| anyhow::anyhow!("indirizzo «{indirizzo}»: {e}"))?
+                    .next()
+                    .ok_or_else(|| anyhow::anyhow!("indirizzo «{indirizzo}»: nessun risultato"))?;
+                let (pausa, tentativi) = (cfg.pausa_ms, cfg.tentativi);
                 let mut u = unita.lock().await;
-                sessione(ctx, &cfg.id, u.as_mut_slice(), &db, &stato, &rx, &cancel).await
+                match cfg.trasporto {
+                    TrasportoTcp::Mbap => {
+                        let ctx = tcp::connect_slave(addr, Slave(primo))
+                            .await
+                            .map_err(|e| anyhow::anyhow!("connessione a {addr}: {e}"))?;
+                        info!(source = %cfg.id, "Modbus TCP: connesso");
+                        stato.bus(&cfg.id, Collegamento::Ok, None);
+                        sessione(trasporti::Ritmato::nuovo(ctx, pausa, tentativi), &cfg.id, u.as_mut_slice(), &db, &stato, &rx, &cancel).await
+                    }
+                    TrasportoTcp::RtuSuTcp => {
+                        let s = tokio::net::TcpStream::connect(addr)
+                            .await
+                            .map_err(|e| anyhow::anyhow!("connessione a {addr}: {e}"))?;
+                        let ctx = rtu::connect_slave(s, Slave(primo))
+                            .await
+                            .map_err(|e| anyhow::anyhow!("RTU su TCP {addr}: {e}"))?;
+                        info!(source = %cfg.id, "Modbus RTU su TCP: connesso");
+                        stato.bus(&cfg.id, Collegamento::Ok, None);
+                        sessione(trasporti::Ritmato::nuovo(ctx, pausa, tentativi), &cfg.id, u.as_mut_slice(), &db, &stato, &rx, &cancel).await
+                    }
+                    TrasportoTcp::SolarmanV5 => {
+                        let s = tokio::net::TcpStream::connect(addr)
+                            .await
+                            .map_err(|e| anyhow::anyhow!("connessione a {addr}: {e}"))?;
+                        let mut client = trasporti::ClientSolarman::nuovo(s, cfg.seriale_logger.unwrap_or(0), primo);
+                        // Con i tentativi accesi, una lettura muta si rimanda a metà del
+                        // timeout più corto: c'è ancora tempo per la seconda risposta.
+                        if tentativi > 0 {
+                            if let Some(t) = u.iter().map(|x| x.timeout).min() {
+                                client = client.con_ripetizione(t / 2);
+                            }
+                        }
+                        info!(source = %cfg.id, "Modbus su Solarman V5: connesso");
+                        stato.bus(&cfg.id, Collegamento::Ok, None);
+                        sessione(trasporti::Ritmato::nuovo(client, pausa, tentativi), &cfg.id, u.as_mut_slice(), &db, &stato, &rx, &cancel).await
+                    }
+                }
             }
             .await;
             con_stato(&stato, &cfg.id, r).await

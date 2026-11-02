@@ -1,0 +1,59 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="100" height="90" viewBox="0 0 100 90">
+  <defs>
+    <linearGradient id="house-paint-v" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#000" stop-opacity="0.25"/>
+      <stop offset="0.2" stop-color="#fff" stop-opacity="0.5"/>
+      <stop offset="0.45" stop-color="#fff" stop-opacity="0.08"/>
+      <stop offset="0.75" stop-color="#000" stop-opacity="0.12"/>
+      <stop offset="1" stop-color="#000" stop-opacity="0.45"/>
+    </linearGradient>
+    <linearGradient id="house-paint-h" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#000" stop-opacity="0.25"/>
+      <stop offset="0.2" stop-color="#fff" stop-opacity="0.5"/>
+      <stop offset="0.45" stop-color="#fff" stop-opacity="0.08"/>
+      <stop offset="0.75" stop-color="#000" stop-opacity="0.12"/>
+      <stop offset="1" stop-color="#000" stop-opacity="0.45"/>
+    </linearGradient>
+    <linearGradient id="house-paint-d" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#fff" stop-opacity="0.35"/>
+      <stop offset="0.5" stop-color="#fff" stop-opacity="0"/>
+      <stop offset="1" stop-color="#000" stop-opacity="0.3"/>
+    </linearGradient>
+    <radialGradient id="house-glass-r" cx="0.35" cy="0.3" r="0.7">
+      <stop offset="0" stop-color="#fff" stop-opacity="0.9"/>
+      <stop offset="0.3" stop-color="#fff" stop-opacity="0.25"/>
+      <stop offset="1" stop-color="#fff" stop-opacity="0"/>
+    </radialGradient>
+    <rect id="house-g1" x="16" y="40" width="68" height="48"/>
+    <rect id="house-g2" x="66" y="10" width="10" height="22"/>
+    <path id="house-g3" d="M4 44 L50 4 L96 44 L88 48 L50 15 L12 48 Z"/>
+    <rect id="house-g4" x="42" y="60" width="16" height="28" rx="1"/>
+    <rect id="house-g5" x="23" y="52" width="14" height="14" rx="1"/>
+    <rect id="house-g6" x="63" y="52" width="14" height="14" rx="1"/>
+  </defs>
+  <g id="body" data-layer="part" data-mat="wall" fill="#c9c2b6" stroke="#1c2329" stroke-width="1" stroke-linejoin="round">
+    <use href="#house-g1"/>
+    <use href="#house-g1" fill="url(#house-paint-v)" stroke="none" opacity="1" data-shade="paint-v"/>
+  </g>
+  <g id="layer-1" data-layer="static" stroke="#1c2329" stroke-width="1" stroke-linejoin="round">
+    <use href="#house-g2" fill="#8c4a2f" data-mat="porcelain"/>
+    <use href="#house-g2" fill="url(#house-paint-h)" stroke="none" opacity="1" data-shade="paint-h"/>
+    <use href="#house-g3" fill="#8c4a2f" data-mat="porcelain"/>
+    <use href="#house-g3" fill="url(#house-paint-d)" stroke="none" opacity="1" data-shade="paint-d"/>
+    <use href="#house-g4" fill="#b98a55" data-mat="wood"/>
+    <use href="#house-g4" fill="url(#house-paint-v)" stroke="none" opacity="1" data-shade="paint-v"/>
+    <circle cx="54.5" cy="75" r="1.2" fill="#4a545d" data-mat="steel-dark"/>
+    <rect x="23" y="52" width="14" height="14" rx="1" fill="#1d2a35" data-mat="glass-dark"/>
+    <rect x="63" y="52" width="14" height="14" rx="1" fill="#1d2a35" data-mat="glass-dark"/>
+  </g>
+  <g id="lamp" data-layer="part" stroke="#1c2329" stroke-width="1" stroke-linejoin="round">
+    <use href="#house-g5" fill="#ffd34d" data-mat="flame-core"/>
+    <use href="#house-g5" fill="url(#house-glass-r)" stroke="none" opacity="1" data-shade="glass-r"/>
+    <use href="#house-g6" fill="#ffd34d" data-mat="flame-core"/>
+    <use href="#house-g6" fill="url(#house-glass-r)" stroke="none" opacity="1" data-shade="glass-r"/>
+  </g>
+  <g id="layer-2" data-layer="static" stroke="#1c2329" stroke-width="1" stroke-linejoin="round">
+    <path d="M30 52 L30 66 M23 59 L37 59 M70 52 L70 66 M63 59 L77 59" fill="none" stroke="#4a545d" data-mat-stroke="steel-dark" stroke-width="1.2"/>
+    <rect x="12" y="86" width="76" height="4" rx="1" fill="#4a545d" data-mat="steel-dark"/>
+  </g>
+</svg>

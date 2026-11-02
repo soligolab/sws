@@ -11,6 +11,46 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 
 ## [Unreleased]
 
+### Added
+
+- **Inverter fotovoltaici dalla chiavetta Solarman** (piano `docs/archive/2026-11-01-inverter-solarman.md`). La
+  sorgente Modbus TCP ha un campo `trasporto`: `mbap` (di sempre), `rtu_su_tcp` (trama RTU nuda nel socket, client
+  RTU di tokio-modbus su un `TcpStream`) e `solarman_v5` (`trasporti::ClientSolarman`, protocollo da pysolarmanv5,
+  MIT: pacchetto V5 con il numero di serie della chiavetta, `seriale_logger`; risposte vecchie e pacchetti di servizio
+  scartati o risposti; trame in `trama_rtu.rs` col CRC16). `Ritmato` avvolge ogni trasporto con `pausa_ms` fra le
+  richieste e `tentativi` sulle letture rotte; le scritture non si ripetono. Nella card: trasporto (la porta passa da
+  sola 502↔8899), numero di serie, sezione AVANZATE.
+- **Blocchi, plausibilità, testi e diagnostica** nella sorgente Modbus: `devices[].blocchi` (`{area, da, a, ogni}`,
+  una richiesta per blocco e per giro, le mappature dentro si servono da lì), `min`/`max` per mappatura (fuori = Bad),
+  `testi` (`modo: valore | bit`, il testo dell'enumerazione o l'elenco dei bit accesi), e con `diagnostica: true` i
+  contatori `<sorgente>.diagnostics.timeouts`, `.bad_replies`, `.implausible`. Il validatore controlla serie mancante
+  e blocchi rovesciati o troppo grandi.
+- **Pubblicazione MQTT dei tag** (`MqttConfig.pubblica`, `sws-plugin-mqtt/src/pubblica.rs`): topic, tag (tag,
+  variabile o ramo), `formato` json (oggetto piatto delle foglie, `null` dove non buono) o `valore`, `retain`,
+  `intervallo_ms`, e la `disponibilita` online/offline da un tag. Gli aggiornamenti di un giro si raccolgono in 500 ms.
+  Sezione PUBBLICAZIONE nella card MQTT.
+- **Catalogo: inverter.** Vocabolario canonico `catalogo/canonico/inverter.json` (31 punti, unità e segni:
+  `grid_power` > 0 prelievo, `battery_power` > 0 carica); ZCS Azzurro HYD ZSS e Sofar HYD-ES da
+  `catalogo/dispositivi/sofar/_hyd_es.json`, generato da `scripts/inverter/da_solarman.py` con la ricetta
+  `scripts/inverter/ricette/sofar_hyd_es.yaml` (fonte home_assistant_solarman, Apache-2.0); `check_catalogo.sh` con
+  la sezione inverter. Il modello porta le impostazioni del bus (`modbus.trasporto_tcp`, porta, pausa, tentativi,
+  blocchi), applicate solo su un bus senza dispositivi. I tag nascono col tipo giusto: una scala intera resta intera
+  (`grid_power` i32, `pv_power` u32), una decimale dà f32.
+- **`verifica_mappa`** (`sws-plugin-modbus/examples/`): legge un modello del catalogo dal vivo e stampa ogni punto con
+  plausibilità; `--giri`, `--traccia` per le prove lunghe. `docs/HOWTO.md` capitolo 31.
+- **Simbolo `lib:building/house`**: la casa, con le finestre che si accendono (parte `lamp`) e quattro bocche per i
+  tubi verso i carichi.
+
+### Fixed
+
+- **Un widget legato alla foglia di una variabile strutturata non ereditava unità e decimali** dal membro del tipo
+  (solo dalle variabili semplici): una tabella mostrava `235.60000000000002`. `descrizioniDeiTag` in `tag/forma.ts`
+  dà radici e foglie; la tabella usa decimali e unità della variabile quando la riga non li dice.
+- **Le chiavi dei `testi` fra virgolette** (`'0': standby`) facevano scartare l'intera sorgente, e il log diceva
+  «skipping unrecognized source kind». Ora si leggono, e una sorgente scartata dice il motivo vero con il suo id.
+- **Solarman: una lettura persa rendeva Bad tutto il giro.** Con i tentativi accesi, una lettura senza risposta a metà
+  del timeout si rimanda una volta con una sequenza nuova.
+
 ## [2.23.8] — 2026-11-01
 
 ### Added

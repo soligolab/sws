@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import "../src/i18n";
-import { FormaNonValida, foglieDi } from "../src/tag/forma";
+import { FormaNonValida, descrizioniDeiTag, foglieDi } from "../src/tag/forma";
 import type { TagDef, TypeDef } from "../src/types";
 
 /** La forma di una variabile composita. **I casi non stanno qui**: stanno in
@@ -60,5 +60,26 @@ describe("foglieDi — i metadati del membro arrivano alla foglia", () => {
     const foglie = foglieDi({ id: "m", description: "", data_type: "u16", array: [2] } as TagDef, []);
     expect(foglie).toHaveLength(2);
     expect(foglie[0].membro).toBeUndefined();
+  });
+});
+
+describe("descrizioniDeiTag — cosa eredita un widget (02-11-2026)", () => {
+  const tipi: TypeDef[] = [
+    { id: "main", members: [{ name: "grid_voltage", data_type: "f32", unit: "V", decimals: 1 }, { name: "soc", data_type: "u16", unit: "%" }] },
+    { id: "inv", members: [{ name: "main", type_ref: "main" }] },
+  ];
+  const tags = [{ id: "inverter", description: "", type_ref: "inv" }, { id: "t", description: "", data_type: "f32", unit: "°C", decimals: 2 }] as TagDef[];
+
+  it("una foglia prende unità e decimali dal membro del tipo, una variabile semplice dal suo TagDef", () => {
+    const d = descrizioniDeiTag(tags, tipi);
+    expect(d.get("inverter.main.grid_voltage")).toMatchObject({ unit: "V", decimals: 1 });
+    expect(d.get("inverter.main.soc")?.unit).toBe("%");
+    expect(d.get("t")).toMatchObject({ unit: "°C", decimals: 2 });
+    expect(d.get("nessuno")).toBeUndefined();
+  });
+
+  it("la mappa si ricalcola solo quando cambiano tag o tipi", () => {
+    expect(descrizioniDeiTag(tags, tipi)).toBe(descrizioniDeiTag(tags, tipi));
+    expect(descrizioniDeiTag(tags, [...tipi])).not.toBe(descrizioniDeiTag(tags, tipi));
   });
 });

@@ -3394,7 +3394,9 @@
     "anteprimaRiassocia": "Riassocia la variabile esistente «{{nome}}» ({{tipo}}): un dispositivo con {{n}} mappature, niente di nuovo da creare.",
     "avvisoMembriMancanti": "{{n}} registri del catalogo non hanno un membro nel tipo «{{tipo}}» (versione precedente del catalogo): non vengono letti.",
     "avvisoTipoAllargato": "La variabile passa dal tipo «{{da}}» a «{{a}}», che ha anche i gruppi scelti: i membri che aveva restano gli stessi, con il loro storico.",
-    "avvisoPercorsiCambiano": "«{{nome}}» ha un tipo piatto di prima e le mancano dei membri: passa al tipo annidato «{{tipo}}», e i percorsi cambiano (es. {{nome}}.ingressi.di1 al posto di {{nome}}.di1): grafici e allarmi che usano i vecchi vanno ricollegati."
+    "avvisoPercorsiCambiano": "«{{nome}}» ha un tipo piatto di prima e le mancano dei membri: passa al tipo annidato «{{tipo}}», e i percorsi cambiano (es. {{nome}}.ingressi.di1 al posto di {{nome}}.di1): grafici e allarmi che usano i vecchi vanno ricollegati.",
+    "avvisoTrasportoImpostato": "Il bus passa a {{trasporto}} sulla porta {{porta}}, con pause, tentativi e contatori di diagnostica: è quello che il modello vuole. Manca solo il numero di serie della chiavetta, nella card della sorgente.",
+    "avvisoTrasportoOccupato": "Questo modello vuole il trasporto {{voluto}}, ma il bus usa {{attuale}} e ha già dei dispositivi: non lo cambio per non romperli. Mettilo su una sorgente sua."
   },
   "abbinamento": {
     "titolo": "pannello «{{nome}}» da abbinare",
@@ -3832,6 +3834,7 @@
         "fan-coil": "Ventilconvettore",
         "garage-door": "Porta del garage",
         "heat-pump": "Pompa di calore",
+        "house": "Casa",
         "radiator": "Radiatore",
         "roller-shutter": "Tapparella",
         "thermostat": "Termostato",
@@ -4137,7 +4140,8 @@
       "metriche": "Metriche",
       "entita": "Entità",
       "impostazioni": "Impostazioni",
-      "nodiMonitorati": "Nodi monitorati"
+      "nodiMonitorati": "Nodi monitorati",
+      "pubblicazione": "Pubblicazione"
     },
     "modo": {
       "topic": "Topic",
@@ -4157,6 +4161,38 @@
       "hostIdAiuto": "Pubblicato in spBv1.0/STATE/<nome>: dice ai dispositivi che SWS è collegato.",
       "scrivibile": "Scrivibile",
       "scrivibileAiuto": "SWS manda il comando al nodo (NCMD) o al dispositivo (DCMD) che ha annunciato la metrica."
+    },
+    "modbusTcp": {
+      "trasporto": "Trasporto",
+      "trasportoMbap": "Modbus TCP",
+      "trasportoRtu": "RTU su TCP",
+      "trasportoSolarman": "Solarman V5",
+      "trasportoHint": "Modbus TCP per i dispositivi con porta Ethernet; RTU su TCP per i convertitori seriale/Ethernet trasparenti; Solarman V5 per le chiavette Wi-Fi degli inverter (porta 8899)",
+      "serialeLogger": "N. di serie della chiavetta",
+      "serialeLoggerHint": "Il numero di serie del logger Solarman, sull'etichetta della chiavetta o nella sua pagina web: senza, la chiavetta non risponde",
+      "pausa": "Pausa fra le richieste (ms)",
+      "pausaHint": "Le chiavette Wi-Fi non reggono richieste attaccate: 0 = nessuna pausa",
+      "tentativi": "Tentativi su risposta rotta",
+      "tentativiHint": "Quante volte si rifà una lettura la cui risposta arriva rovinata; le scritture non si ripetono mai",
+      "riepilogoAvanzate": "pausa {{pausa}} ms · {{tentativi}} tentativi",
+      "diagnostica": "Pubblica i contatori di diagnostica",
+      "diagnosticaHint": "I tag {{id}}.diagnostics.timeouts, .bad_replies e .implausible: per gli allarmi su un collegamento che zoppica e per le prove di durata"
+    },
+    "pubblica": {
+      "nota": "Lo stato dei tag che SWS mette sul broker: per far leggere un dispositivo ad altri (Home Assistant) senza che lo interroghino anche loro. In JSON le chiavi sono le foglie relative al tag scelto; un valore non buono esce come null.",
+      "formato": "Formato",
+      "valore": "Valore nudo",
+      "intervallo": "Ogni (s)",
+      "intervalloHint": "Ripubblica anche senza cambiamenti; 0 = solo quando un tag cambia",
+      "tags": "Tag (un tag, una variabile o un suo ramo)",
+      "aggiungiTag": "+ tag",
+      "disponibilitaTag": "Disponibilità da (tag booleano)",
+      "disponibilitaHint": "online/offline secondo questo tag, di solito <sorgente>.disponibile del dispositivo letto",
+      "disponibilitaTopic": "Topic di disponibilità",
+      "retainHint": "Il broker tiene l'ultimo messaggio per chi si collega dopo",
+      "aggiungi": "+ Pubblicazione",
+      "riepilogo_one": "{{count}} pubblicazione",
+      "riepilogo_other": "{{count}} pubblicazioni"
     }
   },
   "reportTab": {

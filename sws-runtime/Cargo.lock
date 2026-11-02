@@ -3898,6 +3898,7 @@ name = "sws-plugin-modbus"
 version = "2.23.8"
 dependencies = [
  "anyhow",
+ "serde_json",
  "serde_yaml",
  "sws-core",
  "tokio",

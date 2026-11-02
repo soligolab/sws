@@ -33,6 +33,16 @@
 # successivo.
 
 versioni:
+  - versione: "2.24.0"
+    voci:
+      - it: "Inverter fotovoltaici: la sorgente Modbus legge attraverso la chiavetta Wi-Fi Solarman. Dal catalogo: ZCS Azzurro HYD ZSS e Sofar HYD-ES, con nomi standard per potenze, batteria ed energie."
+        en: "PV inverters: the Modbus source reads through the Solarman Wi-Fi stick. From the catalogue: ZCS Azzurro HYD ZSS and Sofar HYD-ES, with standard names for power, battery and energy."
+      - it: "MQTT: una sorgente può pubblicare i tag sul broker, in JSON o come valore, con la disponibilità online/offline. Così Home Assistant legge da SWS invece che dal dispositivo."
+        en: "MQTT: a source can publish tags to the broker, as JSON or a bare value, with online/offline availability. Home Assistant can read from SWS instead of the device."
+      - it: "Modbus: lettura a blocchi, limiti di plausibilità (un valore fuori è Bad), testi al posto dei codici e contatori di diagnostica della comunicazione."
+        en: "Modbus: block reads, plausibility limits (an out-of-range value is Bad), texts instead of codes and communication diagnostic counters."
+      - it: "Testi, tabelle e indicatori legati a un membro di una variabile strutturata ne prendono unità e decimali. Nuovo simbolo: la casa."
+        en: "Texts, tables and indicators bound to a member of a structured variable take its unit and decimals. New symbol: the house."
   - versione: "2.23.8"
     voci:
       - it: "IDE: nuova disposizione «Stile VS Code» e pannello proprietà riordinato: in alto tutti i tag dell'oggetto, poi Funzione, Aspetto, Comportamento, e un campo per cercare una proprietà."

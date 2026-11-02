@@ -1,0 +1,46 @@
+{
+  "id": "zcs/azzurro-hyd-zss",
+  "versione": 1,
+  "categoria": "inverter",
+  "marca": "ZCS",
+  "modello": "Azzurro 1PH HYD3000–6000 ZSS",
+  "famiglia": "Azzurro ibridi monofase (Sofar HYD-ES)",
+  "descrizione": {
+    "it": "Inverter ibrido monofase da 3 a 6 kW con batteria a 48 V, letto attraverso la chiavetta Wi-Fi Solarman (porta 8899). È un Sofar HYD-ES con un altro marchio.",
+    "en": "Single-phase hybrid inverter, 3 to 6 kW, 48 V battery, read through the Solarman Wi-Fi stick (port 8899). It is a rebranded Sofar HYD-ES."
+  },
+  "modbus": {
+    "trasporto": "tcp",
+    "trasporto_tcp": "solarman_v5",
+    "porta": 8899,
+    "ordine": "abcd",
+    "timeout_ms": 5000,
+    "intervallo_ms": 10000,
+    "pausa_ms": 200,
+    "tentativi": 2,
+    "blocchi": [
+      {
+        "da": 512,
+        "a": 597
+      },
+      {
+        "area": "input",
+        "da": 4272,
+        "a": 4284,
+        "ogni": 6
+      }
+    ]
+  },
+  "verifica": {
+    "stato": "parziale",
+    "data": "2026-11-01",
+    "note": {
+      "it": "Letta dal vivo sullo ZCS Azzurro HYD6000 ZSS del maintainer il 01-11-2026 alle 21:40 (sera, batteria al minimo, inverter in standby), attraverso la chiavetta Solarman: due blocchi, nessun errore. Confermati: l'ordine delle parole dei contatori a 32 bit (25.599 kWh di produzione totale, uguale a Home Assistant), il segno di grid_power in prelievo, la corrente di rete (0x0231). Da vedere di giorno: grid_power in immissione e battery_power in carica.",
+      "en": "Read live on the maintainer's ZCS Azzurro HYD6000 ZSS on 01-11-2026 at 21:40 (evening, battery at minimum, inverter in standby) through the Solarman stick: two blocks, no errors. Confirmed: the word order of the 32-bit counters, the sign of grid_power while importing, the grid current (0x0231). To see by day: grid_power while exporting and battery_power while charging."
+    }
+  },
+  "includi": [
+    "sofar/_hyd_es"
+  ],
+  "registri": []
+}

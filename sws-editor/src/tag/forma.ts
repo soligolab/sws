@@ -132,3 +132,25 @@ export function foglieDelProgetto(
 ): FogliaTag[] {
   return tags.flatMap((t) => foglieDiTolleranti(t, types));
 }
+
+/** Quello che un widget eredita da una variabile: unità, decimali, campo e
+ *  limiti. `TagDef` e `Membro` hanno gli stessi nomi, quindi vale per tutte e due. */
+export type DescrizioneTag = Pick<TagDef,
+  "unit" | "decimals" | "range_lo" | "range_hi" | "limit_lo_lo" | "limit_lo" | "limit_hi" | "limit_hi_hi">;
+
+const cacheDescrizioni = new WeakMap<readonly TagDef[], { types: readonly TypeDef[]; mappa: Map<string, DescrizioneTag> }>();
+
+/** Id → descrizione, per le radici **e per le foglie** (02-11-2026): un testo
+ *  legato a `inverter.main.grid_voltage` prende unità e decimali dal membro del
+ *  tipo, come uno legato a una variabile semplice li prende dal suo `TagDef`.
+ *  Prima le foglie non ereditavano niente, e una tabella mostrava
+ *  `235.60000000000002`. Una mappa sola per progetto, finché tag e tipi non cambiano. */
+export function descrizioniDeiTag(tags: readonly TagDef[], types: readonly TypeDef[] = []): Map<string, DescrizioneTag> {
+  const c = cacheDescrizioni.get(tags);
+  if (c && c.types === types) return c.mappa;
+  const mappa = new Map<string, DescrizioneTag>();
+  for (const t of tags) mappa.set(t.id, t);
+  for (const f of foglieDelProgetto(tags, types)) if (f.membro) mappa.set(f.percorso, f.membro);
+  cacheDescrizioni.set(tags, { types, mappa });
+  return mappa;
+}

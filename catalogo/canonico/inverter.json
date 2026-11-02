@@ -1,0 +1,281 @@
+{
+  "versione": 1,
+  "descrizione": {
+    "it": "Il vocabolario comune degli inverter: i nomi e le convenzioni di segno che allarmi, sinottici, storico e pubblicazione MQTT usano, qualunque sia la marca. Piano docs/archive/2026-11-01-inverter-solarman.md.",
+    "en": "The common inverter vocabulary: the names and sign conventions that alarms, synoptics, history and MQTT publishing use, whatever the brand."
+  },
+  "gruppo": "main",
+  "punti": [
+    {
+      "id": "pv_power",
+      "unita": "W",
+      "descrizione": {
+        "it": "Potenza fotovoltaica totale",
+        "en": "Total PV power"
+      },
+      "segno": "≥ 0"
+    },
+    {
+      "id": "pv{n}_power",
+      "unita": "W",
+      "descrizione": {
+        "it": "Potenza della stringa n",
+        "en": "String n power"
+      },
+      "segno": "≥ 0"
+    },
+    {
+      "id": "pv{n}_voltage",
+      "unita": "V",
+      "descrizione": {
+        "it": "Tensione della stringa n",
+        "en": "String n voltage"
+      },
+      "segno": "≥ 0"
+    },
+    {
+      "id": "pv{n}_current",
+      "unita": "A",
+      "descrizione": {
+        "it": "Corrente della stringa n",
+        "en": "String n current"
+      },
+      "segno": "≥ 0"
+    },
+    {
+      "id": "grid_power",
+      "unita": "W",
+      "descrizione": {
+        "it": "Potenza scambiata con la rete",
+        "en": "Grid exchange power"
+      },
+      "segno": "positivo = prelievo dalla rete, negativo = immissione / positive = import, negative = export"
+    },
+    {
+      "id": "grid_voltage",
+      "unita": "V",
+      "descrizione": {
+        "it": "Tensione di rete",
+        "en": "Grid voltage"
+      }
+    },
+    {
+      "id": "grid_voltage_l{n}",
+      "unita": "V",
+      "descrizione": {
+        "it": "Tensione della fase n",
+        "en": "Phase n voltage"
+      }
+    },
+    {
+      "id": "grid_frequency",
+      "unita": "Hz",
+      "descrizione": {
+        "it": "Frequenza di rete",
+        "en": "Grid frequency"
+      }
+    },
+    {
+      "id": "grid_current",
+      "unita": "A",
+      "descrizione": {
+        "it": "Corrente di rete",
+        "en": "Grid current"
+      },
+      "segno": "≥ 0, senza verso: il verso lo dice grid_power / unsigned: grid_power gives the direction"
+    },
+    {
+      "id": "load_power",
+      "unita": "W",
+      "descrizione": {
+        "it": "Consumo della casa",
+        "en": "House consumption"
+      },
+      "segno": "≥ 0"
+    },
+    {
+      "id": "battery_power",
+      "unita": "W",
+      "descrizione": {
+        "it": "Potenza della batteria",
+        "en": "Battery power"
+      },
+      "segno": "positivo = carica, negativo = scarica / positive = charging, negative = discharging"
+    },
+    {
+      "id": "battery_soc",
+      "unita": "%",
+      "descrizione": {
+        "it": "Stato di carica della batteria",
+        "en": "Battery state of charge"
+      },
+      "segno": "0-100"
+    },
+    {
+      "id": "battery_voltage",
+      "unita": "V",
+      "descrizione": {
+        "it": "Tensione della batteria",
+        "en": "Battery voltage"
+      }
+    },
+    {
+      "id": "battery_current",
+      "unita": "A",
+      "descrizione": {
+        "it": "Corrente della batteria",
+        "en": "Battery current"
+      },
+      "segno": "come battery_power / same as battery_power"
+    },
+    {
+      "id": "battery_temperature",
+      "unita": "°C",
+      "descrizione": {
+        "it": "Temperatura della batteria",
+        "en": "Battery temperature"
+      }
+    },
+    {
+      "id": "energy_pv_today",
+      "unita": "kWh",
+      "descrizione": {
+        "it": "Produzione di oggi",
+        "en": "PV energy today"
+      },
+      "segno": "si azzera a mezzanotte / resets at midnight"
+    },
+    {
+      "id": "energy_pv_total",
+      "unita": "kWh",
+      "descrizione": {
+        "it": "Produzione totale",
+        "en": "PV energy total"
+      },
+      "segno": "monotono / monotonic"
+    },
+    {
+      "id": "energy_import_today",
+      "unita": "kWh",
+      "descrizione": {
+        "it": "Prelievo dalla rete di oggi",
+        "en": "Grid import today"
+      },
+      "segno": "si azzera a mezzanotte / resets at midnight"
+    },
+    {
+      "id": "energy_import_total",
+      "unita": "kWh",
+      "descrizione": {
+        "it": "Prelievo dalla rete totale",
+        "en": "Grid import total"
+      },
+      "segno": "monotono / monotonic"
+    },
+    {
+      "id": "energy_export_today",
+      "unita": "kWh",
+      "descrizione": {
+        "it": "Immissione in rete di oggi",
+        "en": "Grid export today"
+      },
+      "segno": "si azzera a mezzanotte / resets at midnight"
+    },
+    {
+      "id": "energy_export_total",
+      "unita": "kWh",
+      "descrizione": {
+        "it": "Immissione in rete totale",
+        "en": "Grid export total"
+      },
+      "segno": "monotono / monotonic"
+    },
+    {
+      "id": "energy_load_today",
+      "unita": "kWh",
+      "descrizione": {
+        "it": "Consumo della casa di oggi",
+        "en": "House consumption today"
+      },
+      "segno": "si azzera a mezzanotte / resets at midnight"
+    },
+    {
+      "id": "energy_load_total",
+      "unita": "kWh",
+      "descrizione": {
+        "it": "Consumo della casa totale",
+        "en": "House consumption total"
+      },
+      "segno": "monotono / monotonic"
+    },
+    {
+      "id": "energy_charge_today",
+      "unita": "kWh",
+      "descrizione": {
+        "it": "Energia caricata in batteria oggi",
+        "en": "Battery charge today"
+      },
+      "segno": "si azzera a mezzanotte / resets at midnight"
+    },
+    {
+      "id": "energy_charge_total",
+      "unita": "kWh",
+      "descrizione": {
+        "it": "Energia caricata in batteria totale",
+        "en": "Battery charge total"
+      },
+      "segno": "monotono / monotonic"
+    },
+    {
+      "id": "energy_discharge_today",
+      "unita": "kWh",
+      "descrizione": {
+        "it": "Energia scaricata dalla batteria oggi",
+        "en": "Battery discharge today"
+      },
+      "segno": "si azzera a mezzanotte / resets at midnight"
+    },
+    {
+      "id": "energy_discharge_total",
+      "unita": "kWh",
+      "descrizione": {
+        "it": "Energia scaricata dalla batteria totale",
+        "en": "Battery discharge total"
+      },
+      "segno": "monotono / monotonic"
+    },
+    {
+      "id": "inverter_status",
+      "unita": "",
+      "descrizione": {
+        "it": "Stato normalizzato: standby, starting, running, eps, fault, off",
+        "en": "Normalised status: standby, starting, running, eps, fault, off"
+      }
+    },
+    {
+      "id": "inverter_status_code",
+      "unita": "",
+      "descrizione": {
+        "it": "Codice di stato grezzo del costruttore",
+        "en": "Manufacturer raw status code"
+      }
+    },
+    {
+      "id": "faults_{n}",
+      "unita": "",
+      "descrizione": {
+        "it": "Guasti attivi del registro di guasto n, separati da «; »",
+        "en": "Active faults of fault register n, separated by «; »"
+      },
+      "segno": "vuoto = nessun guasto / empty = no fault"
+    },
+    {
+      "id": "inverter_temperature",
+      "unita": "°C",
+      "descrizione": {
+        "it": "Temperatura interna dell'inverter",
+        "en": "Inverter internal temperature"
+      }
+    }
+  ]
+}

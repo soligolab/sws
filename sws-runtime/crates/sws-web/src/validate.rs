@@ -651,6 +651,99 @@ pub fn rilievi_trasporto(project: &Project, trasporti: &HashMap<String, String>)
     out
 }
 
+/// Una sorgente Solarman V5 senza il numero di serie della chiavetta (01-11-2026,
+/// piano `docs/archive/2026-11-01-inverter-solarman.md`): la chiavetta non risponde
+/// a un pacchetto col seriale sbagliato, e da fuori sembra solo spenta. Il
+/// runtime la ferma; qui lo si dice prima, dove si corregge.
+pub fn rilievi_solarman(project: &Project) -> Vec<Finding> {
+    project
+        .sources
+        .iter()
+        .filter_map(|s| match s {
+            SourceDef::ModbusTcp(c) if c.trasporto == sws_core::TrasportoTcp::SolarmanV5 && c.seriale_logger.is_none() => Some(Finding::err(
+                format!("project.sources[{}].seriale_logger", c.id),
+                format!("la sorgente `{}` usa Solarman V5 ma non ha il numero di serie della chiavetta", c.id),
+                "scrivilo nella card della sorgente: sta sull'etichetta della chiavetta o nella sua pagina web. \
+                 Senza, la chiavetta non risponde",
+            )),
+            _ => None,
+        })
+        .collect()
+}
+
+/// Un blocco Modbus che non si può chiedere (01-11-2026): rovesciato, o più
+/// lungo di quanto una richiesta porti (125 registri, 2000 bit). Il dispositivo
+/// risponderebbe con un'eccezione a ogni giro, e tutti i tag del blocco
+/// resterebbero Bad senza che si capisca perché.
+pub fn rilievi_blocchi(project: &Project) -> Vec<Finding> {
+    let mut out = Vec::new();
+    for src in &project.sources {
+        let (id, devices) = match src {
+            SourceDef::ModbusTcp(c) => (c.id.as_str(), &c.devices),
+            SourceDef::ModbusRtu(c) => (c.id.as_str(), &c.devices),
+            _ => continue,
+        };
+        for (i, d) in devices.iter().enumerate() {
+            for (j, b) in d.blocchi.iter().enumerate() {
+                let massimo = if b.area.a_bit() { 2000 } else { 125 };
+                let problema = if b.a < b.da {
+                    Some(format!("finisce ({}) prima di cominciare ({})", b.a, b.da))
+                } else if (b.a - b.da) as u32 + 1 > massimo {
+                    Some(format!("è lungo {} e una richiesta ne porta al massimo {massimo}", b.a - b.da + 1))
+                } else {
+                    None
+                };
+                if let Some(p) = problema {
+                    out.push(Finding::err(
+                        format!("project.sources[{id}].devices[{i}].blocchi[{j}]"),
+                        format!("il blocco {}..{} {p}", b.da, b.a),
+                        "dividilo in due blocchi: così com'è il dispositivo lo rifiuta a ogni giro",
+                    ));
+                }
+            }
+        }
+    }
+    out
+}
+
+/// Una pubblicazione MQTT che non può partire (01-11-2026): senza topic, con un
+/// carattere jolly (`+`, `#`: si sottoscrivono, non si pubblicano — il broker
+/// chiude la connessione e con lei l'intera sorgente), senza tag, o un valore
+/// nudo per più tag.
+pub fn rilievi_pubblicazioni(project: &Project) -> Vec<Finding> {
+    let mut out = Vec::new();
+    for src in &project.sources {
+        let SourceDef::Mqtt(c) = src else { continue };
+        for (i, p) in c.pubblica.iter().enumerate() {
+            let dove = format!("project.sources[{}].pubblica[{i}]", c.id);
+            let mut topic = |t: &str, cosa: &str| {
+                if t.trim().is_empty() || t.contains(['+', '#']) {
+                    out.push(Finding::err(
+                        format!("{dove}.{cosa}"),
+                        format!("il topic «{t}» non si può pubblicare"),
+                        "un topic di pubblicazione non è vuoto e non ha + né #: quelli servono a sottoscrivere, \
+                         e il broker chiuderebbe la connessione dell'intera sorgente",
+                    ));
+                }
+            };
+            topic(&p.topic, "topic");
+            if let Some(d) = &p.disponibilita {
+                topic(&d.topic, "disponibilita.topic");
+            }
+            if p.tags.iter().all(|t| t.trim().is_empty()) {
+                out.push(Finding::err(format!("{dove}.tags"), "una pubblicazione senza tag", "scegli almeno un tag, una variabile o un suo ramo"));
+            } else if p.formato == sws_core::FormatoPubblicazione::Valore && p.tags.len() > 1 {
+                out.push(Finding::err(
+                    format!("{dove}.formato"),
+                    "il valore nudo porta un tag solo",
+                    "usa il formato JSON per pubblicare più tag sullo stesso topic",
+                ));
+            }
+        }
+    }
+    out
+}
+
 /// Un faceplate con dentro un altro faceplate (29-10-2026). Dall'editor non
 /// si crea più — la palette non lo offre, aggiungere e incollare lo
 /// rifiutano — ma un progetto nato prima, o scritto a mano, può averlo. Il
@@ -727,6 +820,9 @@ pub fn rilievi_finestre(project: &Project, pages: &[SynopticPage]) -> Vec<Findin
 
 pub fn semantic(project: &Project, pages: &[SynopticPage]) -> Vec<Finding> {
     let mut out = rilievi_report(project);
+    out.extend(rilievi_solarman(project));
+    out.extend(rilievi_blocchi(project));
+    out.extend(rilievi_pubblicazioni(project));
     let tipi: HashSet<&str> = OBJECT_TYPES.iter().copied().collect();
     let enums: HashMap<&str, &[&str]> = FIELD_ENUMS.iter().copied().collect();
 
@@ -3705,6 +3801,50 @@ alarms: []
             &pagina("- { id: r, type: rect, x: 0, y: 0 }"),
         );
         assert!(cita(&errori(&rs), "calcolato"), "{rs:?}");
+    }
+
+    #[test]
+    fn un_blocco_troppo_lungo_o_rovesciato_e_un_errore() {
+        let prog = |blocchi: &str| {
+            format!(
+                "meta: {{ name: prova, version: \"1.0.0\" }}\ntags: []\nsources:\n  - {{ kind: modbus_tcp, id: inv, host: h, devices: [{{ unit_id: 1, blocchi: [{blocchi}] }}] }}\nalarms: []\n"
+            )
+        };
+        let p = pagina("- { id: x, type: rect, x: 0, y: 0 }");
+        assert!(!cita(&errori(&rilievi(&prog("{ da: 512, a: 597 }"), &p)), "blocchi"));
+        assert!(cita(&errori(&rilievi(&prog("{ da: 0, a: 125 }"), &p)), "blocchi[0]"));
+        assert!(cita(&errori(&rilievi(&prog("{ da: 10, a: 5 }"), &p)), "blocchi[0]"));
+        assert!(!cita(&errori(&rilievi(&prog("{ area: coil, da: 0, a: 999 }"), &p)), "blocchi"));
+    }
+
+    #[test]
+    fn pubblicazioni_che_non_possono_partire() {
+        let prog = |pubblica: &str| {
+            format!(
+                "meta: {{ name: prova, version: \"1.0.0\" }}\ntags: []\nsources:\n  - {{ kind: mqtt, id: casa, host: h, topics: [], pubblica: [{pubblica}] }}\nalarms: []\n"
+            )
+        };
+        let p = pagina("- { id: x, type: rect, x: 0, y: 0 }");
+        assert!(!cita(&errori(&rilievi(&prog("{ topic: inverter/zcs/state, tags: [inverter.main] }"), &p)), "pubblica"));
+        assert!(cita(&errori(&rilievi(&prog("{ topic: inverter/+/state, tags: [inverter] }"), &p)), "pubblica[0].topic"));
+        assert!(cita(&errori(&rilievi(&prog("{ topic: a, tags: [] }"), &p)), "pubblica[0].tags"));
+        assert!(cita(&errori(&rilievi(&prog("{ topic: a, tags: [x, y], formato: valore }"), &p)), "pubblica[0].formato"));
+        assert!(cita(&errori(&rilievi(&prog("{ topic: a, tags: [x], disponibilita: { topic: '', tag: d } }"), &p)), "disponibilita.topic"));
+    }
+
+    /// Solarman V5 senza il seriale della chiavetta: errore; col seriale, e
+    /// sugli altri trasporti, niente (01-11-2026).
+    #[test]
+    fn solarman_senza_seriale_e_un_errore() {
+        let prog = |extra: &str| {
+            format!(
+                "meta: {{ name: prova, version: \"1.0.0\" }}\ntags: []\nsources:\n  - {{ kind: modbus_tcp, id: inv, host: h, port: 8899{extra} }}\nalarms: []\n"
+            )
+        };
+        let p = pagina("- { id: x, type: rect, x: 0, y: 0 }");
+        assert!(cita(&errori(&rilievi(&prog(", trasporto: solarman_v5"), &p)), "seriale_logger"));
+        assert!(!cita(&errori(&rilievi(&prog(", trasporto: solarman_v5, seriale_logger: 1786079474"), &p)), "seriale_logger"));
+        assert!(!cita(&errori(&rilievi(&prog(", trasporto: rtu_su_tcp"), &p)), "seriale_logger"));
     }
 
     /// Fase 0d: il controllo «il tag mappato esiste» valeva solo per MQTT.

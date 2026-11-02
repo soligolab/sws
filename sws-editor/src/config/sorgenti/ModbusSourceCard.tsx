@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
-import type { ModbusTcpSource, TagDef } from "@/types";
+import type { ModbusTcpSource, TagDef, TrasportoTcp } from "@/types";
 import { S } from "@/config/comuni";
 import { useAppStore } from "@/store";
 import { busImplicito, conDispositivi, dispositiviDi, focusDispositivo, nuovoDispositivo } from "@/config/sorgenti/modbusDispositivi";
@@ -37,6 +37,14 @@ export function ModbusSourceCard({
   const setField = <K extends keyof ModbusTcpSource>(k: K, v: ModbusTcpSource[K]) =>
     onChange({ ...source, [k]: v });
 
+  const trasporto = source.trasporto ?? "mbap";
+  // Le porte di fabbrica seguono il trasporto, finché nessuno le ha cambiate a
+  // mano: 502 per il Modbus TCP, 8899 per le chiavette Solarman.
+  const cambiaTrasporto = (v: TrasportoTcp) => {
+    const porta = source.port === 502 && v === "solarman_v5" ? 8899 : source.port === 8899 && v !== "solarman_v5" ? 502 : source.port;
+    onChange({ ...source, trasporto: v === "mbap" ? undefined : v, port: porta });
+  };
+
   const etichetta = { fontSize: 11, color: "var(--brand-text-subtle, #64748b)", display: "block", marginBottom: 3 } as const;
 
   return (
@@ -45,7 +53,7 @@ export function ModbusSourceCard({
         tipo="MODBUS TCP"
         colore="var(--brand-primary-testo, #3b82f6)"
         id={source.id}
-        riepilogo={`${source.host}:${source.port} · ${t("cfg.modbusNDispositivi", { count: n })}`}
+        riepilogo={`${source.host}:${source.port}${trasporto === "mbap" ? "" : ` · ${t(trasporto === "solarman_v5" ? "sorgenti.modbusTcp.trasportoSolarman" : "sorgenti.modbusTcp.trasportoRtu")}`} · ${t("cfg.modbusNDispositivi", { count: n })}`}
         aperta={open}
         onToggle={() => setOpen((v) => !v)}
         azioni={<button style={S.btn("danger")} onClick={onDelete}>{t("cfgUi.delete")}</button>}
@@ -76,6 +84,26 @@ export function ModbusSourceCard({
                 <input style={S.input} value={source.id} onChange={(e) => setField("id", e.target.value)} spellCheck={false} />
               </div>
             </div>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 8 }}>
+              <div>
+                <label style={etichetta}>{t("sorgenti.modbusTcp.trasporto")}</label>
+                <select style={S.input} value={trasporto} title={t("sorgenti.modbusTcp.trasportoHint")}
+                  data-testid={`modbus-trasporto-${source.id}`}
+                  onChange={(e) => cambiaTrasporto(e.target.value as TrasportoTcp)}>
+                  <option value="mbap">{t("sorgenti.modbusTcp.trasportoMbap")}</option>
+                  <option value="rtu_su_tcp">{t("sorgenti.modbusTcp.trasportoRtu")}</option>
+                  <option value="solarman_v5">{t("sorgenti.modbusTcp.trasportoSolarman")}</option>
+                </select>
+              </div>
+              {trasporto === "solarman_v5" && (
+                <div>
+                  <label style={etichetta}>{t("sorgenti.modbusTcp.serialeLogger")}</label>
+                  <CampoNumero style={S.input} min={0} value={source.seriale_logger ?? ""}
+                    title={t("sorgenti.modbusTcp.serialeLoggerHint")}
+                    onTesto={(e) => setField("seriale_logger", e === "" ? undefined : Number(e))} />
+                </div>
+              )}
+            </div>
           </SezioneSorgente>
 
           <DisponibilitaSezione src={source} />
@@ -103,6 +131,27 @@ export function ModbusSourceCard({
             ) : (
               <ElencoDispositiviModbus bus={source} onChange={onChange} />
             )}
+          </SezioneSorgente>
+
+          <SezioneSorgente titolo={t("sorgenti.sezioni.avanzate")} apribile chiusaDiPartenza
+            riepilogo={t("sorgenti.modbusTcp.riepilogoAvanzate", { pausa: source.pausa_ms ?? 0, tentativi: source.tentativi ?? 0 })}>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+              <div>
+                <label style={etichetta}>{t("sorgenti.modbusTcp.pausa")}</label>
+                <CampoNumero style={S.input} min={0} value={source.pausa_ms ?? 0} title={t("sorgenti.modbusTcp.pausaHint")}
+                  onTesto={(e) => setField("pausa_ms", Number(e) || undefined)} />
+              </div>
+              <div>
+                <label style={etichetta}>{t("sorgenti.modbusTcp.tentativi")}</label>
+                <CampoNumero style={S.input} min={0} max={10} value={source.tentativi ?? 0} title={t("sorgenti.modbusTcp.tentativiHint")}
+                  onTesto={(e) => setField("tentativi", Number(e) || undefined)} />
+              </div>
+            </div>
+            <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, marginTop: 8 }}
+              title={t("sorgenti.modbusTcp.diagnosticaHint", { id: source.id })}>
+              <input type="checkbox" checked={!!source.diagnostica} onChange={(e) => setField("diagnostica", e.target.checked || undefined)} />
+              {t("sorgenti.modbusTcp.diagnostica")}
+            </label>
           </SezioneSorgente>
         </div>
       )}
