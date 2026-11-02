@@ -11,6 +11,8 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 
 ## [Unreleased]
 
+## [2.24.1] — 2026-11-02
+
 ### Changed
 
 - **Le parti vive dei simboli fra i tag principali** (02-11-2026): lancette, leve e spie si legano in
@@ -29,7 +31,7 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
   al rilascio e nella stessa voce di cronologia. Vale per spostamento, ridimensionamento, rotazione, capi e punti
   delle linee e dei tubi, bordi delle griglie.
 
-- **L'unità del tag, vista e uguale sui due motori** (piano `docs/plans/2026-11-02-unita-dal-tag.md`, dal collaudo
+- **L'unità del tag, vista e uguale sui due motori** (piano `docs/archive/2026-11-02-unita-dal-tag.md`, dal collaudo
   dell'inverter). In Tag una variabile strutturata si espande e mostra i membri con unità, decimali, intervallo e
   valore; il suo ⚙ non offre più i campi di una variabile semplice, che su una struttura non facevano niente, e porta
   al tipo («Apri il tipo»). Nello Stile VS Code la colonna Tag mostra anche le foglie Variabili e **Tipi**, che non si
