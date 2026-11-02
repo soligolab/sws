@@ -2400,20 +2400,17 @@ function SinistraVscode({ larghezza, colonna, maniglia, conPagine, puoConfigurar
     case "oggetti": corpo = <ModoVista.Provider value={true}><ObjectsSection /></ModoVista.Provider>; break;
     case "tag":
       // I valori live col sinottico in vista: il clic su un tag ne mostra
-      // gli usi (e porta all'oggetto), la modifica sta su ✎ e sul bottone.
+      // gli usi (e porta all'oggetto), la modifica sta su ✎. Sopra, le due
+      // foglie della voce (02-11-2026): Variabili (la tabella) e **Tipi**, che
+      // dallo stile VS Code non si raggiungeva — «dove vedo ora le strutture
+      // dati? non trovo più la voce dal menù dei tag».
       corpo = scorre(
-        // Il corpo del testo come nell'albero di configurazione, dove la
-        // stessa lista vive sotto la foglia Variabili.
-        <div style={{ fontSize: 12 }}><AlberoTagLive rientro={12} puoAprire={puoConfigurare} esplora /></div>,
-        puoConfigurare ? (
-          <button type="button" data-testid="apri-tabella-tag" onClick={() => navigateToConfig("tags")}
-            title={t("leftPanel.att.tagTabellaNota")}
-            style={{ border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 3, background: "transparent",
-                     color: "var(--brand-text-muted, #94a3b8)", cursor: "pointer", fontSize: 10, padding: "1px 6px",
-                     textTransform: "none", letterSpacing: 0 }}>
-            ✎ {t("leftPanel.att.tagTabella")}
-          </button>
-        ) : undefined,
+        <>
+          {foglie(voce)}
+          {/* Il corpo del testo come nell'albero di configurazione, dove la
+              stessa lista vive sotto la foglia Variabili. */}
+          <div style={{ fontSize: 12 }}><AlberoTagLive rientro={12} puoAprire={puoConfigurare} esplora /></div>
+        </>,
       );
       break;
     case "logica":

@@ -234,6 +234,13 @@ variabile di quel tipo, un'**istanza**. Nella scheda Tipi, sotto il tipo scelto,
 (modificabile) e porta alla sua riga fra le Variabili; da lì le sue parti (`sistema.cpu_pct`) compaiono nell'albero e nei
 selettori dei tag. Il template «TC620 — sistema» ne è un esempio completo.
 
+Nella tabella delle Variabili una variabile strutturata ha un **▸** che mostra i suoi membri (le foglie), con tipo,
+unità, decimali, intervallo e valore live. Sono in sola lettura: unità, decimali, scala e limiti stanno nei **membri
+del tipo** e valgono per ogni variabile di quel tipo, quindi si cambiano nel tipo. Il ⚙ di una variabile strutturata
+porta lì («Apri il tipo»). È il caso di un dispositivo aggiunto dal catalogo: l'inverter `inverter` ha l'unità di
+`inverter.grid_power` (W) nel membro `grid_power` del suo tipo. Nella disposizione Stile VS Code i Tipi stanno nella
+colonna **Tag**, sotto le Variabili.
+
 ### I rami di configurazione
 
 Tutte le schede di configurazione, divise in rami (`sws-editor/src/config/schede.ts`):
@@ -353,6 +360,11 @@ Le **zone** non sono una proprietà dell'oggetto ma della pagina: vedi [Zone di 
 
 Il binding è il collegamento tra un widget e un tag PLC.
 Quasi tutti i widget hanno un tag principale, nella sezione **Collegamenti** del pannello proprietà.
+
+**Il tag dà i predefiniti al widget.** Unità, decimali, intervallo (`min`/`max`) e limiti del tag — o del membro del
+tipo, per una foglia come `inverter.grid_power` — valgono per il widget finché il widget non ne scrive uno suo. Nel
+pannello proprietà il campo vuoto li mostra in grigio («preso dal tag»): scriverci li cambia per quel widget, svuotarlo
+torna al tag. Vale sul web e sul pannello LVGL.
 
 Quando imposti un tag:
 1. Il widget mostra il valore live del tag nel Viewer operatori (porta 7443)

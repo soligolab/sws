@@ -3,7 +3,7 @@ import { ImmagineSvg } from "@/canvas/ImmagineSvg";
 import { defaultObjectSubtleColor, defaultObjectTextColor } from "@/theme";
 import { coloreEffettivo, predefinito } from "@/coloriPredefiniti";
 import { useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from "react";
-import { descrizioniDeiTag, type DescrizioneTag } from "@/tag/forma";
+import { dalTag, descrizioniDeiTag, PREDEFINITI_DAL_TAG, type DescrizioneTag } from "@/tag/forma";
 import { useTranslation } from "react-i18next";
 import { PALETTE, TrendCanvas } from "@/canvas/TrendCanvas";
 import { TrendExpandedModal } from "@/canvas/TrendExpanded";
@@ -542,16 +542,12 @@ function transitionStyle(obj: SynopticObject): React.CSSProperties | undefined {
  *  rendering continuano a leggere obj.unit/min/max/soglie come prima. */
 function applyTagDefaults(obj: SynopticObject, def: DescrizioneTag | undefined): SynopticObject {
   if (!def) return obj;
-  const merged = { ...obj };
-  if (merged.unit === undefined && def.unit !== undefined) merged.unit = def.unit;
-  if (merged.decimals === undefined && def.decimals !== undefined) merged.decimals = def.decimals;
-  if (merged.min === undefined && def.range_lo !== undefined) merged.min = def.range_lo;
-  if (merged.max === undefined && def.range_hi !== undefined) merged.max = def.range_hi;
-  if (merged.warn_low === undefined && def.limit_lo !== undefined) merged.warn_low = def.limit_lo;
-  if (merged.alarm_low === undefined && def.limit_lo_lo !== undefined) merged.alarm_low = def.limit_lo_lo;
-  if (merged.warn_high === undefined && def.limit_hi !== undefined) merged.warn_high = def.limit_hi;
-  if (merged.alarm_high === undefined && def.limit_hi_hi !== undefined) merged.alarm_high = def.limit_hi_hi;
-  return merged;
+  const merged = { ...obj } as Record<string, unknown>;
+  for (const chiave of Object.keys(PREDEFINITI_DAL_TAG)) {
+    const v = dalTag(def, chiave);
+    if (merged[chiave] === undefined && v !== undefined) merged[chiave] = v;
+  }
+  return merged as unknown as SynopticObject;
 }
 
 /** F3.1 — ranking dei ruoli per il gating per-oggetto. Anonimo (null) sta

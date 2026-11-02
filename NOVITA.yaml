@@ -35,6 +35,8 @@
 versioni:
   - versione: "2.24.1"
     voci:
+      - it: "Un dispositivo dal catalogo porta le sue unità fino agli oggetti: le vedi nei membri della variabile in Tag, precompilate nelle proprietà, e anche sul pannello."
+        en: "A catalogue device carries its units all the way to the objects: you see them in the variable's members in Tags, prefilled in the properties, and on the panel too."
       - it: "Nuovo template «Slider — stili e modi»: tutti gli slider, dalla luce a piastra al termostato, in cinque pagine da provare senza impianto."
         en: "New template «Slider — styles and modes»: every slider, from the light tile to the thermostat, on five pages to try without a plant."
       - it: "Cloud: un pannello che ha già utenti si riabbina con codice, utente e password; la console segnala chi va riabbinato dopo un'installazione pulita."

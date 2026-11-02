@@ -180,6 +180,4 @@ Annoto di seguito, uno per punto, le cose che devono essere verificate e trasfor
   * verifica_mappa non si ricollega: dopo un «Connection reset» registra solo errori. Il 02-11 alle 05:53 la
     chiavetta ha chiuso la connessione dopo tre minuti di timeout a raffica: vale la pena guardare in CasaDomotica
     i contatori <sorgente>.diagnostics.* nei primi giorni;
-  * parità LVGL: verificare che testi e tabelle su LVGL prendano unità e decimali dalle foglie di una variabile
-    strutturata come ora fa il web (descrizioniDeiTag in tag/forma.ts).
 

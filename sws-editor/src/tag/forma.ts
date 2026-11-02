@@ -138,6 +138,27 @@ export function foglieDelProgetto(
 export type DescrizioneTag = Pick<TagDef,
   "unit" | "decimals" | "range_lo" | "range_hi" | "limit_lo_lo" | "limit_lo" | "limit_hi" | "limit_hi_hi">;
 
+/** I campi dell'oggetto che prendono il predefinito dal tag, e da dove
+ *  (F1.2; 02-11-2026 per il pannello proprietà). Un elenco solo: lo usano
+ *  `applyTagDefaults` sul canvas e il segnaposto del pannello proprietà, e lo
+ *  ripete `applica_predefiniti_tag` in `sws-web/src/synoptic.rs` per LVGL. */
+export const PREDEFINITI_DAL_TAG = {
+  unit: "unit",
+  decimals: "decimals",
+  min: "range_lo",
+  max: "range_hi",
+  warn_low: "limit_lo",
+  alarm_low: "limit_lo_lo",
+  warn_high: "limit_hi",
+  alarm_high: "limit_hi_hi",
+} as const satisfies Record<string, keyof DescrizioneTag>;
+
+/** Il predefinito che il tag dà al campo `chiave` dell'oggetto, se c'è. */
+export function dalTag(d: DescrizioneTag, chiave: string): string | number | undefined {
+  const campo = (PREDEFINITI_DAL_TAG as Record<string, keyof DescrizioneTag>)[chiave];
+  return campo ? d[campo] : undefined;
+}
+
 const cacheDescrizioni = new WeakMap<readonly TagDef[], { types: readonly TypeDef[]; mappa: Map<string, DescrizioneTag> }>();
 
 /** Id → descrizione, per le radici **e per le foglie** (02-11-2026): un testo

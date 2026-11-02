@@ -894,12 +894,41 @@ impl SynopticObject {
 /// web applica da sé; il pannello LVGL non ha i `TagDef`, e li riceve così
 /// nella pagina composta (revisione dello slider, fase 1, 30-10-2026). Solo
 /// gli oggetti della pagina: i figli di griglie e faceplate restano come sono.
-pub fn applica_predefiniti_tag(objects: &mut [SynopticObject], tags: &[sws_core::TagDef]) {
-    for o in objects {
-        let Some(def) = o.tag.as_deref().and_then(|id| tags.iter().find(|t| t.id == id)) else {
+///
+/// **Anche le foglie** (02-11-2026): un oggetto su `inverter.grid_power` non
+/// trovava niente, perché quel percorso non è un tag ma una foglia del tipo
+/// della variabile `inverter`, e l'unità sta nel suo membro. Il web la
+/// prendeva già (`descrizioniDeiTag`); il pannello no.
+pub fn applica_predefiniti_tag(
+    objects: &mut [SynopticObject],
+    tags: &[sws_core::TagDef],
+    types: &[sws_core::TypeDef],
+) {
+    let mut foglie: std::collections::HashMap<String, Predefiniti> = std::collections::HashMap::new();
+    for o in objects.iter() {
+        let Some(id) = o.tag.as_deref() else { continue };
+        if foglie.contains_key(id) || tags.iter().any(|t| t.id == id) {
             continue;
+        }
+        let radice = id.split(['.', '[']).next().unwrap_or(id);
+        let Some(t) = tags.iter().find(|t| t.id == radice) else { continue };
+        let Ok(Some(forma)) = sws_core::Forma::da_tag(t, types) else { continue };
+        for f in forma.foglie(&t.id, types) {
+            if let Some(m) = f.membro {
+                foglie.entry(f.percorso).or_insert(Predefiniti::da_membro(&m));
+            }
+        }
+    }
+    for o in objects {
+        let Some(id) = o.tag.as_deref() else { continue };
+        let def = match tags.iter().find(|t| t.id == id) {
+            Some(t) => Predefiniti::da_tag(t),
+            None => match foglie.get(id) {
+                Some(p) => p.clone(),
+                None => continue,
+            },
         };
-        o.unit = o.unit.take().or_else(|| def.unit.clone());
+        o.unit = o.unit.take().or(def.unit);
         o.decimals = o.decimals.or(def.decimals);
         o.min = o.min.or(def.range_lo);
         o.max = o.max.or(def.range_hi);
@@ -907,6 +936,47 @@ pub fn applica_predefiniti_tag(objects: &mut [SynopticObject], tags: &[sws_core:
         o.alarm_low = o.alarm_low.or(def.limit_lo_lo);
         o.warn_high = o.warn_high.or(def.limit_hi);
         o.alarm_high = o.alarm_high.or(def.limit_hi_hi);
+    }
+}
+
+/// I campi che passano dal tag (o dal membro di una foglia) all'oggetto.
+#[derive(Clone, Default)]
+struct Predefiniti {
+    unit: Option<String>,
+    decimals: Option<u8>,
+    range_lo: Option<f64>,
+    range_hi: Option<f64>,
+    limit_lo_lo: Option<f64>,
+    limit_lo: Option<f64>,
+    limit_hi: Option<f64>,
+    limit_hi_hi: Option<f64>,
+}
+
+impl Predefiniti {
+    fn da_tag(t: &sws_core::TagDef) -> Self {
+        Predefiniti {
+            unit: t.unit.clone(),
+            decimals: t.decimals,
+            range_lo: t.range_lo,
+            range_hi: t.range_hi,
+            limit_lo_lo: t.limit_lo_lo,
+            limit_lo: t.limit_lo,
+            limit_hi: t.limit_hi,
+            limit_hi_hi: t.limit_hi_hi,
+        }
+    }
+
+    fn da_membro(m: &sws_core::Membro) -> Self {
+        Predefiniti {
+            unit: m.unit.clone(),
+            decimals: m.decimals,
+            range_lo: m.range_lo,
+            range_hi: m.range_hi,
+            limit_lo_lo: m.limit_lo_lo,
+            limit_lo: m.limit_lo,
+            limit_hi: m.limit_hi,
+            limit_hi_hi: m.limit_hi_hi,
+        }
     }
 }
 
@@ -1042,11 +1112,35 @@ mod tests_predefiniti_tag {
             "- { id: a, type: slider, x: 0, y: 0, tag: t, max: 25 }\n- { id: b, type: slider, x: 0, y: 0, tag: altro }",
         )
         .unwrap();
-        applica_predefiniti_tag(&mut objs, &tags);
+        applica_predefiniti_tag(&mut objs, &tags, &[]);
         let a = &objs[0];
         assert_eq!((a.min, a.max, a.decimals), (Some(15.0), Some(25.0), Some(1)));
         assert_eq!(a.unit.as_deref(), Some("°C"));
         assert_eq!((a.warn_high, a.alarm_high, a.warn_low), (Some(26.0), Some(28.0), None));
         assert_eq!((objs[1].min, objs[1].unit.as_deref()), (None, None));
+    }
+
+    /// Un oggetto su una foglia prende unità e decimali dal membro del tipo
+    /// (02-11-2026, l'inverter dal catalogo): sul pannello LVGL non li aveva.
+    #[test]
+    fn una_foglia_prende_unita_e_decimali_dal_membro() {
+        let tags: Vec<sws_core::TagDef> = serde_yaml::from_str("- { id: inverter, type_ref: inv }").unwrap();
+        let types: Vec<sws_core::TypeDef> = serde_yaml::from_str(
+            "- { id: inv, members: [ { name: grid_power, data_type: i32, unit: W, decimals: 0 }, \
+               { name: pv, type_ref: mppt } ] }\n\
+             - { id: mppt, members: [ { name: voltage, data_type: f32, unit: V, decimals: 1, range_hi: 600 } ] }",
+        )
+        .unwrap();
+        let mut objs: Vec<SynopticObject> = serde_yaml::from_str(
+            "- { id: a, type: text, x: 0, y: 0, tag: inverter.grid_power }\n\
+             - { id: b, type: gauge, x: 0, y: 0, tag: inverter.pv.voltage, unit: kV }\n\
+             - { id: c, type: text, x: 0, y: 0, tag: inverter.non_c_e }",
+        )
+        .unwrap();
+        applica_predefiniti_tag(&mut objs, &tags, &types);
+        assert_eq!((objs[0].unit.as_deref(), objs[0].decimals), (Some("W"), Some(0)));
+        assert_eq!(objs[1].unit.as_deref(), Some("kV"), "quello scritto sull'oggetto vince");
+        assert_eq!((objs[1].decimals, objs[1].max), (Some(1), Some(600.0)));
+        assert_eq!(objs[2].unit, None);
     }
 }

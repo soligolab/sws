@@ -7289,7 +7289,7 @@ async fn get_synoptic(
                     // I predefiniti dei tag (30-10-2026): il web li applica da
                     // sé, il pannello LVGL no. Un viewer li riceve già messi.
                     if let Some(p) = &progetto {
-                        crate::synoptic::applica_predefiniti_tag(&mut page.objects, &p.tags);
+                        crate::synoptic::applica_predefiniti_tag(&mut page.objects, &p.tags, &p.types);
                     }
                 }
                 // Q30: la versione di **questa** pagina. Le pagine sono file

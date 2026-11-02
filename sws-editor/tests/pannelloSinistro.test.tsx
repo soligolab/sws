@@ -357,6 +357,15 @@ describe("pannello sinistro — stile VS Code", () => {
     expect(useAppStore.getState().appMode).toBe("edit");
   });
 
+  // 02-11-2026: «dove vedo ora le strutture dati? non trovo più la voce dal
+  // menù dei tag» — la colonna Tag mostrava solo l'albero live.
+  it("la colonna Tag porta anche ai Tipi", () => {
+    monta();
+    fireEvent.click(screen.getByTestId("attivita-tag"));
+    expect(screen.getByTestId("foglia-config-types")).toBeTruthy();
+    expect(screen.getByTestId("foglia-config-tags")).toBeTruthy();
+  });
+
   it("un clic sull'icona attiva chiude la colonna, e la scelta si ricorda", () => {
     const { unmount } = monta();
     fireEvent.click(screen.getByTestId("attivita-oggetti"));

@@ -77,6 +77,12 @@ export function TipiTab({ incorporata = false, onIstanzaCreata, variabiliToccate
   const [saved, setSaved] = useState(false);
   const [avanzate, setAvanzate] = useState<Set<number>>(new Set());
 
+  // «Apri il tipo» dal dettaglio di una variabile strutturata (02-11-2026).
+  const configTab = useAppStore((s) => s.configTab);
+  const configFocus = useAppStore((s) => s.configFocus);
+  useEffect(() => {
+    if (configTab === "types" && configFocus && types.some((x) => x.id === configFocus)) setScelto(configFocus);
+  }, [configTab, configFocus, types]);
   const corrente = types.find((x) => x.id === scelto) ?? null;
 
   const modifica = (fn: (t: TypeDef) => TypeDef) => {

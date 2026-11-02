@@ -1354,7 +1354,8 @@
     "filtro": {
       "segnaposto": "Filter properties…",
       "aliasCollegamenti": "tag tags variable variables link"
-    }
+    },
+    "dalTag": "Taken from the tag {{tag}}: type to change it, clear it to go back to the tag."
   },
   "shortcut": {
     "navCanvas": "Canvas navigation",
@@ -1889,7 +1890,12 @@
     "modbusSetupTitolo": "Module configuration",
     "modbusSetupSpiega": "How the project wants the module configured. On every connection the runtime reads these parameters and writes only the ones that differ: a replaced or reset module configures itself again. «Not managed» leaves the module as it is.",
     "modbusSetupNonGestito": "— not managed —",
-    "installDalCloud": "From the cloud the IDE cannot get into the panel: it sits in the plant's network, and the cloud reaches it only through the tunnel. To install or update it, run these commands on the panel itself (SSH from its network). They leave projects, users and the cloud pairing alone."
+    "installDalCloud": "From the cloud the IDE cannot get into the panel: it sits in the plant's network, and the cloud reaches it only through the tunnel. To install or update it, run these commands on the panel itself (SSH from its network). They leave projects, users and the cloud pairing alone.",
+    "tagEspandi": "Show the {{n}} members",
+    "tagComprimi": "Hide the members",
+    "tagFogliaDecimali": "{{n}} dec.",
+    "tagStrutturaMeta": "This is a structured variable: unit, decimals, scaling and limits live in the members of the type «{{tipo}}», and apply to every variable of that type.",
+    "tagApriTipo": "Open the type"
   },
   "langtab": {
     "migrate": "Migrate texts…",
@@ -2149,8 +2155,6 @@
       "oggettiNota": "The objects on the open page, with their groups.",
       "tag": "Tags",
       "tagNota": "Tags with live values, while the synoptic stays in view. Click shows where a tag is used and jumps to the object; ✎ edits it.",
-      "tagTabella": "Table",
-      "tagTabellaNota": "Opens the tag table to edit them.",
       "comunicazione": "Communication",
       "comunicazioneNota": "Data sources and devices, with their status: Modbus, OPC-UA, MQTT, S7 and the others.",
       "allarmi": "Alarms and notifications",

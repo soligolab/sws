@@ -8,6 +8,7 @@ import { OpzioniTipo } from "@/components/OpzioniTipo";
 import { TipiTab } from "@/config/schede/TipiTab";
 import { csvVariabiliETipi } from "@/tag/csvTag";
 import { normalizzaTipo } from "@/tag/tipiScalari";
+import { foglieDiTolleranti } from "@/tag/forma";
 import type { GeneratorSpec, TagDataType, TagDef } from "@/types";
 import { buildTagUsage, usiDiUnTag } from "@/search/tagUsage";
 import { UsiDelTag } from "@/editor/RigaTagLive";
@@ -34,6 +35,7 @@ export function TagsTab({ scheda }: { scheda: IdScheda }) {
   const datastoreIds        = storeProject?.datastores?.map((d) => ({ id: d.id, label: d.label })) ?? [];
   const setCurrentPage      = useAppStore((s) => s.setCurrentPage);
   const setConfigTab        = useAppStore((s) => s.setConfigTab);
+  const navigateToConfig    = useAppStore((s) => s.navigateToConfig);
   const setConfigFocus      = useAppStore((s) => s.setConfigFocus);
   const configFocus         = useAppStore((s) => s.configFocus);
   const inQuestaScheda      = useAppStore((s) => s.configTab === "tags");
@@ -72,6 +74,14 @@ export function TagsTab({ scheda }: { scheda: IdScheda }) {
   const [exprOpen, setExprOpen] = useState<Set<number>>(new Set());
   // F1: riga espandibile "⚙" con unità/decimali/scaling/range/limiti per tag.
   const [metaOpen, setMetaOpen] = useState<Set<number>>(new Set());
+  // Le variabili strutturate aperte (02-11-2026): si vede da cosa sono fatte,
+  // con le unità dei membri. Per id, così un riordino non apre la riga sbagliata.
+  const [aperte, setAperte] = useState<Set<string>>(new Set());
+  const apriChiudi = (id: string) => setAperte((a) => {
+    const n = new Set(a);
+    if (n.has(id)) n.delete(id); else n.add(id);
+    return n;
+  });
   // T-69 Fase D: riga espandibile "∿" con la forma d'onda generata.
   const [genOpen, setGenOpen] = useState<Set<number>>(new Set());
   // Sort + filtri per colonna e vista "non usate". L'ordinamento agisce su
@@ -468,6 +478,8 @@ export function TagsTab({ scheda }: { scheda: IdScheda }) {
             // perché il riquadro dentro l'albero «creava confusione»
             // (maintainer, 25-09-2026). Una foglia evidenzia la sua radice.
             const scelta = radiceScelta !== null && tag.id === radiceScelta;
+            const foglie = foglieDiTolleranti(tag, storeProject?.types ?? []);
+            const aperta = foglie.length > 0 && aperte.has(tag.id);
             return (
               <React.Fragment key={i}>
               <tr
@@ -486,13 +498,22 @@ export function TagsTab({ scheda }: { scheda: IdScheda }) {
                       : null}
                 </td>
                 <td style={S.td}>
-                  <input
-                    style={S.input}
-                    placeholder="es. pump1.speed"
-                    value={tag.id}
-                    onChange={(e) => updateTag(i, { id: e.target.value })}
-                    spellCheck={false}
-                  />
+                  <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                    {foglie.length > 0 && (
+                      <button type="button" data-testid={`espandi-${tag.id}`} onClick={() => apriChiudi(tag.id)}
+                        title={t(aperta ? "cfg.tagComprimi" : "cfg.tagEspandi", { n: foglie.length })}
+                        style={{ ...S.btn("ghost"), padding: "0 4px", width: 20 }}>
+                        {aperta ? "▾" : "▸"}
+                      </button>
+                    )}
+                    <input
+                      style={S.input}
+                      placeholder="es. pump1.speed"
+                      value={tag.id}
+                      onChange={(e) => updateTag(i, { id: e.target.value })}
+                      spellCheck={false}
+                    />
+                  </div>
                 </td>
                 <td style={S.td}>
                   <input
@@ -615,6 +636,32 @@ export function TagsTab({ scheda }: { scheda: IdScheda }) {
                           onClick={() => { if (!uses) removeTag(i); }}>✕</button>
                 </td>
               </tr>
+              {/* Le foglie di una variabile strutturata, in sola lettura: unità,
+                  decimali e intervallo stanno nei membri del tipo, e si cambiano
+                  lì (una sezione per dato). */}
+              {aperta && foglie.map((f) => {
+                const v = tagValues[f.percorso];
+                const m = f.membro;
+                const intervallo = m?.range_lo !== undefined || m?.range_hi !== undefined
+                  ? `${m?.range_lo ?? "…"}..${m?.range_hi ?? "…"}` : "";
+                return (
+                  <tr key={f.percorso} data-testid={`foglia-${f.percorso}`} style={{ fontSize: 12, color: "var(--brand-text-2, #cbd5e1)" }}>
+                    <td style={S.td} />
+                    <td style={{ ...S.td, fontFamily: "monospace", paddingLeft: 30 }}>{f.percorso.slice(tag.id.length)}</td>
+                    <td style={{ ...S.td, color: "var(--brand-text-subtle, #94a3b8)" }}>{m?.description ?? ""}</td>
+                    <td style={{ ...S.td, fontFamily: "monospace" }}>{f.tipo}</td>
+                    <td style={S.td} />
+                    <td style={S.td}>
+                      {[m?.unit, m?.decimals !== undefined ? t("cfg.tagFogliaDecimali", { n: m.decimals }) : "", intervallo]
+                        .filter(Boolean).join(" · ")}
+                    </td>
+                    <td style={{ ...S.td, textAlign: "center" }}>
+                      {v != null ? `${String(v.value)}${m?.unit ? ` ${m.unit}` : ""}` : "—"}
+                    </td>
+                    <td style={S.td} />
+                  </tr>
+                );
+              })}
               {/* Il dettaglio della variabile scelta dall'albero: dove è
                   usata, raggruppato. Qui c'è la larghezza per leggerlo. */}
               {scelta && (
@@ -627,7 +674,17 @@ export function TagsTab({ scheda }: { scheda: IdScheda }) {
               {metaOpen.has(i) && (
                 <tr style={{ background: "#0a1628" }}>
                   <td colSpan={8} style={{ ...S.td, paddingTop: 6, paddingBottom: 8 }}>
-                    {(() => {
+                    {tag.type_ref ? (
+                      // Una struttura non ha un'unità sua: ce l'hanno i membri del
+                      // tipo (02-11-2026). I campi di una variabile semplice qui
+                      // non facevano niente, e il maintainer cercava l'unità lì.
+                      <div data-testid={`meta-struttura-${tag.id}`} style={{ display: "flex", gap: 8, alignItems: "center", fontSize: 12, color: "var(--brand-text-2, #cbd5e1)" }}>
+                        <span>{t("cfg.tagStrutturaMeta", { tipo: tag.type_ref })}</span>
+                        <button type="button" style={S.btn("ghost")} onClick={() => navigateToConfig("types", tag.type_ref)}>
+                          {t("cfg.tagApriTipo")}
+                        </button>
+                      </div>
+                    ) : (() => {
                       const numCell = (label: string, key: keyof TagDef, ph = "") => (
                         <label style={{ display: "flex", flexDirection: "column", gap: 2, fontSize: 10, color: "var(--brand-text-subtle, #64748b)", width: 90 }}>
                           {label}

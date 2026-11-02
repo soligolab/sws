@@ -1354,7 +1354,8 @@
     "filtro": {
       "segnaposto": "Filtra proprietà…",
       "aliasCollegamenti": "tag variabile variabili collegamento"
-    }
+    },
+    "dalTag": "Preso dal tag {{tag}}: scrivi per cambiarlo, svuota per tornare al tag."
   },
   "shortcut": {
     "navCanvas": "Navigazione canvas",
@@ -1889,7 +1890,12 @@
     "modbusSetupTitolo": "Configurazione del modulo",
     "modbusSetupSpiega": "Come il progetto vuole configurato il modulo. A ogni collegamento il runtime legge questi parametri e scrive solo quelli diversi: un modulo sostituito o resettato torna configurato da solo. «Non gestito» lascia il modulo com'è.",
     "modbusSetupNonGestito": "— non gestito —",
-    "installDalCloud": "Dal cloud l'IDE non può entrare nel pannello: sta nella rete dell'impianto, e il cloud lo raggiunge solo attraverso il tunnel. Per installarlo o aggiornarlo si danno questi comandi sul pannello stesso (SSH dalla sua rete). Non toccano progetti, utenti né l'abbinamento al cloud."
+    "installDalCloud": "Dal cloud l'IDE non può entrare nel pannello: sta nella rete dell'impianto, e il cloud lo raggiunge solo attraverso il tunnel. Per installarlo o aggiornarlo si danno questi comandi sul pannello stesso (SSH dalla sua rete). Non toccano progetti, utenti né l'abbinamento al cloud.",
+    "tagEspandi": "Mostra i {{n}} membri",
+    "tagComprimi": "Nascondi i membri",
+    "tagFogliaDecimali": "{{n}} dec.",
+    "tagStrutturaMeta": "È una variabile strutturata: unità, decimali, scala e limiti stanno nei membri del tipo «{{tipo}}», e valgono per ogni variabile di quel tipo.",
+    "tagApriTipo": "Apri il tipo"
   },
   "langtab": {
     "migrate": "Migra i testi…",
@@ -2149,8 +2155,6 @@
       "oggettiNota": "Gli oggetti della pagina aperta, con i gruppi.",
       "tag": "Tag",
       "tagNota": "I tag coi valori live, mentre il sinottico resta in vista. Un clic mostra dove è usato un tag e porta all'oggetto; ✎ lo modifica.",
-      "tagTabella": "Tabella",
-      "tagTabellaNota": "Apre la tabella dei tag per modificarli.",
       "comunicazione": "Comunicazione",
       "comunicazioneNota": "Le sorgenti dati e i dispositivi, col loro stato: Modbus, OPC-UA, MQTT, S7 e gli altri.",
       "allarmi": "Allarmi e notifiche",

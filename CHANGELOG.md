@@ -11,6 +11,17 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 
 ## [Unreleased]
 
+### Changed
+
+- **L'unità del tag, vista e uguale sui due motori** (piano `docs/plans/2026-11-02-unita-dal-tag.md`, dal collaudo
+  dell'inverter). In Tag una variabile strutturata si espande e mostra i membri con unità, decimali, intervallo e
+  valore; il suo ⚙ non offre più i campi di una variabile semplice, che su una struttura non facevano niente, e porta
+  al tipo («Apri il tipo»). Nello Stile VS Code la colonna Tag mostra anche le foglie Variabili e **Tipi**, che non si
+  raggiungevano. Nel pannello proprietà i campi che prendono il predefinito dal tag (unità, decimali, min/max,
+  soglie) mostrano il valore ereditato quando sono vuoti (`PREDEFINITI_DAL_TAG` e `dalTag` in `tag/forma.ts`, usati
+  anche da `applyTagDefaults`). Sul pannello LVGL `applica_predefiniti_tag` risolve anche le foglie dai membri dei
+  tipi: un valore su `inverter.grid_power` non aveva l'unità.
+
 ### Added
 
 - **Template «Slider — stili e modi»** (`examples/templates/demo-slider`, 02-11-2026): la demo del collaudo dello

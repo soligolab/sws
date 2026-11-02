@@ -72,6 +72,7 @@ import type { AlignMode } from "@/store";
 import type { AlarmSeverity, ButtonAction, FunctionDef, GridCell, PageLayoutConfig, PageSizeMode, ParteLegata, ProjectTargetKind, RadioOption, SubCellEntry, SubGrid, SynopticObject, TableRow, TextListEntry, TrendTrace, XySeries } from "@/types";
 import { eBoot, paginePerNavigazione } from "@/boot/tipi";
 import { aggiornaPagina, applicaPredefinito, salvaLayout } from "@/formatoProgettoAzioni";
+import { dalTag, descrizioniDeiTag } from "@/tag/forma";
 import { seguePredefinito } from "@/formatoProgetto";
 import { impostaBootAbilitata } from "@/boot/abilitata";
 import { AnteprimaPng } from "@/boot/AnteprimaPng";
@@ -3189,6 +3190,19 @@ export function ObjectProps({
   // `avvisoRuoloMinimo`.
   const progettoHaUtenti = useAppStore((st) => st.progettoHaUtenti);
   const tagsDelProgetto = useAppStore((st) => st.project?.tags);
+  const tipiDelProgetto = useAppStore((st) => st.project?.types);
+  // La preconfigurazione dal tag (02-11-2026): unità, decimali, intervallo e
+  // limiti del tag — o del membro, per una foglia come `inverter.grid_power` —
+  // sono i predefiniti dell'oggetto (`applyTagDefaults`). Il campo vuoto li
+  // mostra in grigio invece di sembrare «niente»; scriverci li sostituisce.
+  const descrizioneTag = useMemo(
+    () => (obj.tag ? descrizioniDeiTag(tagsDelProgetto ?? [], tipiDelProgetto ?? []).get(obj.tag) : undefined),
+    [obj.tag, tagsDelProgetto, tipiDelProgetto],
+  );
+  const ereditatoDalTag = (key: keyof SynopticObject): string | number | undefined => {
+    if (!descrizioneTag || mixedKeys.has(key) || obj[key] !== undefined) return undefined;
+    return dalTag(descrizioneTag, key);
+  };
   // D (2026-08-23): cattura waypoint dal canvas — stato condiviso nello store.
   const capturePathTarget = useAppStore((st) => st.capturePathTarget);
   const mostraTracciato    = useAppStore((st) => st.mostraTracciato);
@@ -3249,6 +3263,8 @@ export function ObjectProps({
   const numInput = (key: keyof SynopticObject, fallback: number) => {
     const motivo = statoVuoto(key);
     const assente = !mixedKeys.has(key) && obj[key] === undefined;
+    const ereditato = ereditatoDalTag(key);
+    if (typeof ereditato === "number") fallback = ereditato;
     const input = (
       <CampoNumero
         // `minWidth: LARGHEZZA_MIN_NUMERO` e non 0: e' la rete di sicurezza.
@@ -3256,7 +3272,7 @@ export function ObjectProps({
         style={{ ...INPUT, ...(assente && !motivo ? { fontStyle: "italic", color: "var(--brand-text-muted, #94a3b8)" } : {}), ...(motivo ? { flex: "1 1 auto", minWidth: LARGHEZZA_MIN_NUMERO } : {}) }}
         value={mixedKeys.has(key) || motivo ? "" : (obj[key] !== undefined ? (obj[key] as number) : fallback)}
         placeholder={mixedKeys.has(key) ? t("props.vari") : undefined}
-        title={assente && !motivo ? t("props.valoreNonSalvato") : undefined}
+        title={assente && !motivo ? (typeof ereditato === "number" ? t("props.dalTag", { tag: obj.tag }) : t("props.valoreNonSalvato")) : undefined}
         onTesto={(e) => onChange({ [key]: e === "" ? undefined : Number(e) } as Partial<SynopticObject>)}
       />
     );
@@ -3281,7 +3297,9 @@ export function ObjectProps({
     // motori li disegnava. Il vuoto voluto lo dice l'etichetta accanto.
     const inTabella = !!regolaCampo(obj.type, key as string);
     const motivo = statoVuoto(key);
-    const segnaposto = inTabella ? undefined : placeholder;
+    const ereditato = ereditatoDalTag(key);
+    const segnaposto = ereditato !== undefined ? String(ereditato) : inTabella ? undefined : placeholder;
+    if (ereditato !== undefined && title === undefined) title = t("props.dalTag", { tag: obj.tag });
     const conChip = (el: React.ReactNode) => {
       if (!motivo) return el;
       return <div style={RIGA_CON_CHIP}><div style={{ flex: 1, minWidth: 0 }}>{el}</div>{chipVuoto(motivo)}</div>;
