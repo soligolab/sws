@@ -628,6 +628,13 @@ pub async fn elenco_amministrazione(State(s): State<crate::router::AppState>) ->
     };
     // Spento annunciato: il pannello ha detto «mi spengo» prima di chiudere.
     let spento_il = |n: &str| s.tunnel.as_ref().and_then(|r| r.spento_il(n));
+    // In sala d'attesa con l'hardware di un pannello abbinato (02-11-2026): il
+    // WP630 dopo un'installazione pulita chiamava in attesa da tre giorni, e la
+    // console lo mostrava solo come scollegato.
+    let in_sala = match s.pannelli_in_attesa.as_ref() {
+        Some(a) => a.hw_collegati().await,
+        None => Default::default(),
+    };
     let abbinati: Vec<_> = s
         .pannelli_abbinati
         .as_ref()
@@ -640,6 +647,9 @@ pub async fn elenco_amministrazione(State(s): State<crate::router::AppState>) ->
             v["collegato"] = serde_json::Value::Bool(c);
             if let Some(ms) = spento_il(&p.nome).filter(|_| !c) {
                 v["spento_ms"] = ms.into();
+            }
+            if !c && in_sala.contains(&p.hw) {
+                v["da_riabbinare"] = true.into();
             }
             v
         })

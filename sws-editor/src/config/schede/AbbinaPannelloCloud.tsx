@@ -39,9 +39,19 @@ export function AbbinaPannelloCloud({ onAbbinato }: { onAbbinato: (url: string) 
 
   const pronto = codice.trim().length >= 16 && (!chiedeCredenziali || (utente.trim() !== "" && password !== ""));
 
-  const riepilogo = async (n: string) => {
-    try { setAbbinato(await api.pannelloCloud(n)); }
-    catch { setAbbinato({ nome: n, url: "", collegato: false }); }
+  // Subito dopo l'abbinamento il pannello deve ancora richiamare il gateway col
+  // nome nuovo: il primo riepilogo diceva «collegato: no» anche quando dopo un
+  // secondo il tunnel era aperto (WP630, 02-11-2026). Si riprova per qualche
+  // secondo, finché non risulta collegato.
+  const riepilogo = async (n: string, tentativi = 8) => {
+    let r: PannelloCloud;
+    try { r = await api.pannelloCloud(n); }
+    catch { r = { nome: n, url: "", collegato: false }; }
+    setAbbinato(r);
+    if (!r.collegato && tentativi > 0) {
+      await new Promise((ok) => window.setTimeout(ok, ATTESA_RIEPILOGO_MS));
+      await riepilogo(n, tentativi - 1);
+    }
   };
 
   const abbina = async () => {
@@ -55,7 +65,7 @@ export function AbbinaPannelloCloud({ onAbbinato }: { onAbbinato: (url: string) 
       );
       setCodice(""); setPassword("");
       if (r.url) onAbbinato(r.url);
-      await riepilogo(r.nome);
+      void riepilogo(r.nome);
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : String(e);
       if (msg.includes("credenziali_admin") || msg.includes("servono utente e password")) setChiedeCredenziali(true);
@@ -173,6 +183,9 @@ function dettaglio(msg: string): string {
   }
   return msg;
 }
+
+/** Fra un riepilogo e l'altro, mentre il pannello si ricollega col nome nuovo. */
+export const ATTESA_RIEPILOGO_MS = 2000;
 
 const TITOLO: React.CSSProperties = {
   fontSize: 13, fontWeight: 600, color: "var(--brand-text-muted, #94a3b8)", marginBottom: 8,

@@ -6,6 +6,8 @@ import { TabellaDispositivi } from "@/config/installazione/TabellaDispositivi";
 import { hostDaUrl, imageRefAutomatico, imageRefDaVariante, installazioneConsentita, varianteDaArch } from "@/config/installazione/sondaggio";
 import { getBrand } from "@/branding";
 import { SceltaOpenplc } from "@/boot/OpenplcSulPannello";
+import { GuidaInstallazione } from "@/components/benvenuto/InstallaRuntime";
+import { prefissoGateway } from "@/api/prefisso";
 import { containerDeployPayload, effectiveDataPath, type ContainerSource } from "@/containerDeploy";
 import type { ContainerPackage } from "@/types";
 import { useAppStore } from "@/store";
@@ -267,6 +269,25 @@ export function InstallTab() {
     setErroreSondaggio(null);
     setChiaveHostCambiata(false);
   }, [deviceHost, devicePort, deviceUser]);
+
+  // **Nel cloud non si entra nel pannello via SSH** (02-11-2026): il pannello sta
+  // nella rete del cliente, dietro NAT, ed è proprio quello che il tunnel evita.
+  // Il modulo SSH chiedeva un host e lo riempiva con sws.soligo.net. Al suo posto
+  // la stessa guida della schermata di benvenuto: i comandi da dare sul
+  // pannello, che valgono anche per aggiornarlo (non toccano dati né abbinamento).
+  if (prefissoGateway()) {
+    return (
+      <div style={{ padding: 24, maxWidth: 700, display: "flex", flexDirection: "column", gap: 12 }}>
+        <div style={{ fontSize: 13, fontWeight: 600, color: "var(--brand-text-muted, #94a3b8)", textTransform: "uppercase", letterSpacing: 1 }}>
+          {t("cfg.installTitle")}
+        </div>
+        <p data-testid="installa-dal-cloud" style={{ margin: 0, fontSize: 13, color: "var(--brand-text-muted, #94a3b8)", lineHeight: 1.6 }}>
+          {t("cfg.installDalCloud")}
+        </p>
+        <GuidaInstallazione />
+      </div>
+    );
+  }
 
   return (
     <div style={{ padding: 24, maxWidth: 600, display: "flex", flexDirection: "column", gap: 20 }}>

@@ -277,9 +277,18 @@ impl Abbinati {
 
     /// Annota l'ultima connessione (in memoria; finisce su disco alla
     /// prossima scrittura: è un'informazione, non un dato da non perdere).
+    /// Il pannello si è collegato adesso. **Si scrive su disco** (02-11-2026):
+    /// finché restava in memoria, ogni riavvio del gateway riportava la data
+    /// dell'ultima scrittura per altri motivi, e la console mostrava il WP630
+    /// «visto» il 22-10 dopo una settimana di collegamenti. Succede a ogni
+    /// apertura del tunnel, cioè di rado: un file piccolo riscritto va bene.
     pub fn visto(&self, nome: &str) {
-        if let Some(p) = self.g().iter_mut().find(|p| p.nome == nome) {
+        let mut righe = self.g();
+        if let Some(p) = righe.iter_mut().find(|p| p.nome == nome) {
             p.ultimo_ms = ora_ms();
+            if let Err(e) = self.scrivi(&righe) {
+                tracing::warn!(pannello = %nome, "non ho salvato l'ultimo collegamento: {e}");
+            }
         }
     }
 }
@@ -348,6 +357,13 @@ impl InAttesa {
     pub async fn quanti(&self) -> usize {
         self.per_codice.read().await.values().filter(|a| a.maniglia.vivo()).count()
     }
+
+    /// L'hardware di chi aspetta adesso. Serve alla console: un pannello già
+    /// abbinato che richiama **in attesa** ha perso le credenziali del cloud
+    /// (installazione pulita, reset), e va solo riabbinato col codice.
+    pub async fn hw_collegati(&self) -> std::collections::HashSet<String> {
+        self.per_codice.read().await.values().filter(|a| a.maniglia.vivo()).map(|a| a.hw.clone()).collect()
+    }
 }
 
 #[cfg(test)]
@@ -391,6 +407,17 @@ mod tests {
         assert!(a.bandito("mac:aa"));
         assert_eq!(a.prepara("seg", "mac:aa", "acme", None, "x", &[]).unwrap_err(), ErroreAbbina::Bandito);
         assert_eq!(a.azienda_di("linea-1"), None, "un bandito non si raggiunge");
+    }
+
+    #[test]
+    fn l_ultimo_collegamento_resta_dopo_un_riavvio() {
+        let d = tempfile::tempdir().unwrap();
+        let a = Abbinati::apri(d.path());
+        let (mut p, _) = a.prepara("s", "seriale:X", "-", Some("wp630"), "x", &[]).unwrap();
+        p.ultimo_ms = 1;
+        a.salva(p).unwrap();
+        a.visto("wp630");
+        assert!(Abbinati::apri(d.path()).per_nome("wp630").unwrap().ultimo_ms > 1, "su disco, non solo in memoria");
     }
 
     #[test]

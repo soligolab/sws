@@ -94,7 +94,7 @@ pub fn decidi(installata: Option<u32>, attesa: Option<u32>, bus: bool, host_conf
             true,
             false,
             Some("Il pannello non espone il bus utente: la configurazione del servizio è precedente al \
-                  27-09-2026 e si aggiorna solo reinstallando dall'IDE (Istanza → Device → Installazione)."
+                  27-09-2026 e si aggiorna solo reinstallando dall'IDE (Device → Installazione)."
                 .into()),
         );
     };
@@ -106,7 +106,7 @@ pub fn decidi(installata: Option<u32>, attesa: Option<u32>, bus: bool, host_conf
             true,
             false,
             Some("Questo pannello non sa riscrivere la sua configurazione da sé: reinstallare dall'IDE \
-                  (Istanza → Device → Installazione)."
+                  (Device → Installazione)."
                 .into()),
         );
     }

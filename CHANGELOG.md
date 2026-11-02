@@ -11,6 +11,24 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 
 ## [Unreleased]
 
+### Fixed
+
+- **«Abbina un pannello» dal cloud con un pannello che ha già utenti** (02-11-2026, WP630 dopo un'installazione
+  pulita): il pannello rispondeva 401 `credenziali_admin`, ma il client buttava il corpo di ogni 401 e mostrava solo
+  «unauthorized», quindi i campi utente e password non comparivano mai. Ora un 401 da `/api/remote/…` tiene il motivo
+  (`AuthError` col dettaglio). La console, in Pannelli, segna un pannello abbinato che è scollegato ma chiama il
+  gateway in sala d'attesa con lo stesso hardware: ha perso le credenziali del cloud e va solo riabbinato col codice
+  (`da_riabbinare` in `/api/amministrazione/pannelli`).
+- Dopo «Pair» il riepilogo riprova per qualche secondo finché il pannello non risulta collegato (prima diceva
+  «Connected: no» per sempre); l'ultimo collegamento di un pannello abbinato si scrive su disco (`Abbinati::visto`),
+  quindi la console non torna a una data vecchia a ogni riavvio del gateway.
+- **Le istruzioni per aggiornare un pannello** (02-11-2026): i percorsi di menù dicevano «Configurazione → Istanza →
+  Device → …», che nelle due disposizioni dell'IDE non c'è più; ora «Device → …», nei testi dell'IDE e nei messaggi
+  del runtime. Il pannello installato da archivio dice perché non riceve aggiornamenti e ha un bottone «Apri
+  Installazione». **Nel cloud la scheda Installazione non mostra più il modulo SSH** (riempiva l'host con
+  sws.soligo.net): mostra i comandi da dare sul pannello, e la frase finale della guida distingue un pannello nuovo
+  da uno già abbinato.
+
 ## [2.24.0] — 2026-11-02
 
 ### Added

@@ -526,7 +526,7 @@ async fn main() -> anyhow::Result<()> {
     // TLS is opt-in: if config_dir/tls.crt exists, start in HTTPS mode.
     // Otherwise serve plain HTTP — localhost is a "secure context" in all
     // modern browsers, so the editor works without any cert acceptance step.
-    // Users can enable TLS from Configurazione → Istanza → Device → Stato → Certificato TLS.
+    // Users can enable TLS from Device → Stato → Certificato TLS.
     std::fs::create_dir_all(&args.config).context("creating config directory")?;
     // La cartella dei progetti deve esistere prima che qualcuno la elenchi: il
     // default è fuori dal repo (Q46) e su una macchina nuova non c'è ancora.
@@ -552,7 +552,7 @@ async fn main() -> anyhow::Result<()> {
     let acceptor: Option<TlsAcceptor> = if args.config.join("tls.crt").exists() {
         Some(build_tls_acceptor(&args.config)?)
     } else {
-        info!("no TLS certificate found — plain HTTP mode (enable via Configurazione → Istanza → Device → Stato → Certificato TLS)");
+        info!("no TLS certificate found — plain HTTP mode (enable via Device → Stato → Certificato TLS)");
         None
     };
 

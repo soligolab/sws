@@ -631,7 +631,7 @@ pub fn build(
             "/api/discover/dispositivi",
             get(crate::discover::discover_dispositivi),
         )
-        // Q50: la lista dei dispositivi registrati (Configurazione → Istanza → Device → Dispositivi),
+        // Q50: la lista dei dispositivi registrati (Device → Dispositivi),
         // sul server in <progetti>/.ambiente/dispositivi.yaml invece che nel
         // browser. Etichetta, URL, utente: mai la password.
         .route(
@@ -4134,7 +4134,7 @@ async fn aggiornamento_avvia(
         return (
             StatusCode::CONFLICT,
             "Questo runtime non segue un canale del registry (installato da archivio, o con una \
-             versione fissata): si aggiorna dall'IDE, in Configurazione → Istanza → Device → Installazione.",
+             versione fissata): si aggiorna dall'IDE, in Device → Installazione.",
         )
             .into_response();
     }

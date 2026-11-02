@@ -563,7 +563,7 @@ fn aggiungi_riga(testo: &mut String, riga: &str) {
 /// (fuori da un container) non si dice niente.
 pub fn nota_quadlet(attesa_adesso: Option<u32>, nuova: u32) -> Option<(&'static str, &'static str)> {
     (attesa_adesso? < nuova).then_some((
-        "Dopo l'aggiornamento la configurazione del servizio va aggiornata: Istanza → Device → \
+        "Dopo l'aggiornamento la configurazione del servizio va aggiornata: Device → \
          Connessione → «Configurazione del servizio» → Aggiorna (il pannello si riavvia una seconda volta).",
         "After the update the service configuration must be updated: Instance → Device → Connection → \
          «Service configuration» → Update (the panel restarts a second time).",

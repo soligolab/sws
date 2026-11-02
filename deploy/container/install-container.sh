@@ -53,7 +53,7 @@
 #                                              # programma, e riparte al boot
 #   ./install-container.sh --solo-openplc      # SOLO OpenPLC, su un pannello che ha
 #                                              # gia' SWS: lo usa il runtime
-#                                              # (Istanza → Connessione → OpenPLC)
+#                                              # (Device → Connessione → OpenPLC)
 #   ./install-container.sh --uninstall         # rimuove servizio e container
 #   ./install-container.sh --uninstall --purge # ...e anche i dati (!)
 #
@@ -932,7 +932,7 @@ if [ "$AUTOSTART" -eq 1 ]; then
     # e OpenPLC si riprova dall'IDE senza reinstallare niente.
     if [ "$CON_OPENPLC" -eq 1 ]; then
         installa_openplc \
-            || echo "    SWS e' installato lo stesso: OpenPLC si riprova dall'IDE (Istanza → Connessione)." >&2
+            || echo "    SWS e' installato lo stesso: OpenPLC si riprova dall'IDE (Device → Connessione)." >&2
     fi
 
 else
@@ -1079,7 +1079,7 @@ for i in $(seq 1 30); do
             case "$ESITO" in "") sleep 2 ;; *) break ;; esac
         done
         case "$ESITO" in
-            "") echo "    commutazione web/LVGL: il runtime non ha ancora detto niente (vedi Configurazione → Istanza → Device → Connessione)" ;;
+            "") echo "    commutazione web/LVGL: il runtime non ha ancora detto niente (vedi Device → Connessione)" ;;
             web*|lvgl*) echo "    commutazione web/LVGL: $ESITO" ;;
             *) echo "    ATTENZIONE: commutazione web/LVGL: $ESITO" >&2 ;;
         esac

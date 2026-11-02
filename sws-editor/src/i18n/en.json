@@ -555,7 +555,7 @@
     "installCloudAPassi": "Step by step",
     "installCloudAggregato": "Single command",
     "installCloudAggregatoPasso": "Paste this, once",
-    "installCloudDopo": "The panel comes up with no users, so closed, and shows a pairing code on its screen. Come back here, open a project and use «Pair a panel» in Configuration → Instance → Device → Connection.",
+    "installCloudDopo": "A new panel comes up with no users, so closed, and shows a pairing code on its screen: come back here, open a project and use «Pair a panel» in Device → Connection. A panel that was already paired comes back as it was, on the new version: nothing else to do.",
     "installCloudIndirizzo": "panel-address",
     "installCloudCopia": "Copy",
     "installCloudCopiato": "Copied",
@@ -1707,7 +1707,7 @@
     "devicesNoneSaved": "No device saved. Search the network or add one below.",
     "devicesAdd": "Add device",
     "devicesAddToList": "+ Devices",
-    "devicesAddToListTitle": "Register in Configuration → Instance → Device → Devices",
+    "devicesAddToListTitle": "Register in Device → Devices",
     "devicesAlreadyIn": "already listed",
     "devicesAdded": "“{{label}}” registered among the devices",
     "devicesSaveFailed": "Device list not saved: {{err}}",
@@ -1888,7 +1888,8 @@
     "modbusGatewayHint": "For a Modbus TCP→RTU gateway: several unit ids behind the same address. With two or more devices the bus shows as a level of its own.",
     "modbusSetupTitolo": "Module configuration",
     "modbusSetupSpiega": "How the project wants the module configured. On every connection the runtime reads these parameters and writes only the ones that differ: a replaced or reset module configures itself again. «Not managed» leaves the module as it is.",
-    "modbusSetupNonGestito": "— not managed —"
+    "modbusSetupNonGestito": "— not managed —",
+    "installDalCloud": "From the cloud the IDE cannot get into the panel: it sits in the plant's network, and the cloud reaches it only through the tunnel. To install or update it, run these commands on the panel itself (SSH from its network). They leave projects, users and the cloud pairing alone."
   },
   "langtab": {
     "migrate": "Migrate texts…",
@@ -2544,7 +2545,7 @@
     "overrideRemovedFromTheDevice": "✓ Override removed from the device.",
     "literalClientIdIdenticalOn": "literal client_id: identical on every instance that opens this project.",
     "clientIdToSendTo": "client_id to send to the connected device",
-    "connectToADeviceFrom": "Connect to a device from Configuration → Instance → Device → Connection to use this button",
+    "connectToADeviceFrom": "Connect to a device from Device → Connection to use this button",
     "sendClientIdToThe": "Send Client ID to the connected device",
     "publishALastWillWhen": "Publish a last-will when the connection drops",
     "savedSourcesReconnectedOnThe": "✓ Saved — sources reconnected on the fly.",
@@ -2559,7 +2560,7 @@
     "hostIntro": "Device resources as read-only tags.",
     "hostCatalogoRemoto": "Zones, mounts and interfaces read from the connected device ({{url}}).",
     "hostCatalogoRemotoVecchio": "Device connected ({{url}}), but its runtime predates 21-09-2026 and has no catalog: update the container. Meanwhile suggestions come from THIS machine and the zone must be typed by hand (on the device: cat /sys/class/thermal/thermal_zone*/type).",
-    "hostCatalogoLocale": "No device connected: suggestions come from THIS machine, not the panel. Connect the runtime from Configuration → Instance → Device → Connection to get its zones.",
+    "hostCatalogoLocale": "No device connected: suggestions come from THIS machine, not the panel. Connect the runtime from Device → Connection to get its zones.",
     "hostCatalogoAssente": "Catalog unavailable: type the parameter by hand (on the device: cat /sys/class/thermal/thermal_zone*/type).",
     "hostSenzaParametro": "{{n}} metrics without a parameter: their tags will stay Bad on the device.",
     "hostParamObbligatorio": "Required parameter: without it the tag stays Bad.",
@@ -3170,14 +3171,15 @@
     "aggiornato": "Version {{versione}} ({{canale}}): up to date.",
     "disponibile": "Version {{versione}} ({{canale}}): {{a}} is available.",
     "registryErrore": "Version {{versione}} ({{canale}}). Cannot tell whether a newer one exists: {{msg}}",
-    "manuale": "Version {{versione}} ({{canale}}): it does not update by itself. To update it use Configuration → Instance → Device → Install.",
+    "manuale": "Version {{versione}} ({{canale}}): it gets no updates, which reach only a panel installed from the registry. To change it you reinstall, from Device → Install.",
     "pulsante": "Update now to {{a}}",
     "inCorso": "Starting…",
     "conferma": "The panel runtime goes from {{da}} to {{a}}.\n\nIt restarts: for a few seconds alarms, history and screen stop and the connection drops. If the new version does not start properly, the panel goes back to the previous one by itself.\n\nProceed?",
     "confermaCompat": "This version comes with compatibility warnings:\n\n{{avvisi}}\n\nUpdate anyway?",
     "avviato": "Update to {{a}} started: the runtime is restarting. Reconnect in a minute to see the new version.",
     "tornatoAlla": "the panel went back to {{da}}",
-    "inCorsoSulPannello": "An update is in progress on the panel: the outcome shows here in a couple of minutes."
+    "inCorsoSulPannello": "An update is in progress on the panel: the outcome shows here in a couple of minutes.",
+    "apriInstallazione": "Open Install"
   },
   "finestra": {
     "orologio": "Panel clock: {{locale}} (UTC{{scostamento}}) · {{utc}} UTC",
@@ -3640,7 +3642,8 @@
       "schermoAcceso": "on",
       "schermoSpento": "off",
       "schermoAiuto": "When on, members of the panel's company can open its operator page from the cloud (IDE Viewer button). Every opening is logged.",
-      "schermoApri": "Open the panel's screen in a new tab"
+      "schermoApri": "Open the panel's screen in a new tab",
+      "daRiabbinare": "Switched on, but it calls the cloud waiting to be paired: it lost its credentials (clean install?). Pair it again with the code it shows: it gets back its name and company."
     }
   },
   "symbols": {
@@ -4011,9 +4014,9 @@
     "dispositivoCollegato": "Connected device — runs at {{ora}}"
   },
   "impianto": {
-    "nessunPannello": "No panel connected: discovery and connection tests run on the plant's panel, which can see the plant. Connect it in Configuration → Instance → Device.",
+    "nessunPannello": "No panel connected: discovery and connection tests run on the plant's panel, which can see the plant. Connect it in Device.",
     "sorgentiSulPannello": "In the cloud the sources run on the connected panel: live values, discovery and commands go through it.",
-    "sorgentiSenzaPannello": "In the cloud the sources do not start: connect the plant's panel (Configuration → Instance → Device) for live values and discovery.",
+    "sorgentiSenzaPannello": "In the cloud the sources do not start: connect the plant's panel (Device) for live values and discovery.",
     "eseguitoDa": "run by {{dispositivo}}",
     "eseguitoQui": "run on this machine",
     "eseguitoDaSpiega": "Discovery runs on the connected panel, which can see the plant. If you search an address that panel cannot reach, the result is empty — and that is not a fault.",

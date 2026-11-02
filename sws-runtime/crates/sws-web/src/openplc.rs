@@ -103,7 +103,7 @@ pub async fn installa(config_dir: &Path) -> Result<(), String> {
     let st = stato(config_dir).await.ok_or("Non è un pannello: OpenPLC si installa solo sul dispositivo.")?;
     if !st.si_puo_installare {
         return Err("Questo pannello non sa installare da sé: serve la reinstallazione dall'IDE \
-                    (Istanza → Device → Installazione, «Installa anche OpenPLC»)."
+                    (Device → Installazione, «Installa anche OpenPLC»)."
             .into());
     }
     if st.ultimo_esito.as_ref().is_some_and(|e| e.esito == "in_corso") {

@@ -369,7 +369,7 @@ SWS (`soglia_alta` = 900). Il riavvio (24) l'ha fatto Claude via SSH, col progra
         Installa. Il riquadro passa da «in corso» ad «Acceso» senza che SWS si fermi.
 20b. [ ] **Dall'IDE, installando SWS**: scheda Installazione, «Installa anche OpenPLC» spuntata. Alla
         fine il riquadro della Connessione dice «Acceso».
-20c. [ ] **Dalla guida del cloud**: la casella aggiunge `--con-openplc` all'ultimo comando. Si prova
+20c. [x] **Dalla guida del cloud** (WP630, 02-11-2026: aggiornato alla 2.24.0 col comando della guida, OpenPLC e programma tenuti): la casella aggiunge `--con-openplc` all'ultimo comando. Si prova
         dopo una release: lo script viene dall'immagine del registry.
 21. [x] L'Editor di OpenPLC **dal PC Windows**, sulla stessa rete, si collega alla 8443 del pannello
         senza tunnel, crea l'utente e carica un programma. La logica sta in `<progetto>/openplc/`.

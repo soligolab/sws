@@ -168,7 +168,14 @@ con la pagina dentro, perché `ServeDir` serviva il guscio della SPA come rispos
 Ora una rotta della SPA (una richiesta di navigazione) ha 200, mentre un file davvero mancante
 resta 404: così un bundle che manca non torna come HTML con stato 200.
 
-**Versione in esecuzione: `2.23.8-amd64`** dal 01-11-2026: la release con l'IDE in stile VS Code e il pannello proprietà
+**Versione in esecuzione: `c1e5e728-amd64`** dal 02-11-2026, 11:40: la 2.24.0 più il ramo `fix/riabbinare-dal-cloud`
+(un pannello con utenti si riabbina dal cloud, la console segna chi è da riabbinare, istruzioni di aggiornamento coi
+menù giusti, Installazione nel cloud coi comandi per il pannello). Quadlet della 2.24.0 in
+`~/sws-vps/backup-prima-di-f66fd7ba/`; verificato: radice 200, gateway healthy, CasaDomotica e collaudo-slider-compresso
+rifatti sull'immagine nuova, tunnel di `tc620-garage` e `wp630-ufficio` riaperti da soli. Prima `f66fd7ba-amd64`
+dalle 10:40, e prima ancora la `2.24.0-amd64`.
+
+Prima: **Versione in esecuzione: `2.23.8-amd64`** dal 01-11-2026: la release con l'IDE in stile VS Code e il pannello proprietà
 riordinato. Quadlet di prima in `~/sws-vps/backup-prima-di-2.23.8/`; verificato: radice e /health 200, un file mancante 404,
 CasaDomotica rifatto sulla nuova immagine. Tenuta come ripiego la `8f204595-amd64`, tolte le immagini di commit più vecchie.
 Prima `8f204595-amd64` dal 31-10-2026, 20:46: il bordo del pannello proprietà segue il mouse.

@@ -30,6 +30,9 @@ type Riga = {
   spento_ms?: number;
   /** Lo schermo remoto spento da qui (29-10-2026): acceso se manca. */
   schermo_spento?: boolean;
+  /** Scollegato, ma la sua scatola chiama il gateway in attesa di abbinamento
+   *  (02-11-2026): ha perso le credenziali del cloud, va riabbinato col codice. */
+  da_riabbinare?: boolean;
 };
 type Elenco = {
   abbinati: Riga[];
@@ -159,6 +162,12 @@ export function Pannelli() {
                     {pallino(r.collegato, r.spento_ms)}{r.nome}
                     <button onClick={() => rinomina(r.nome)} title={t("console.pannelli.rinomina")}
                       style={{ marginLeft: 6, background: "transparent", border: "none", cursor: "pointer", color: "var(--brand-text-muted, #94a3b8)", fontSize: 12 }}>✎</button>
+                    {r.da_riabbinare && (
+                      <div data-testid={`da-riabbinare-${r.nome}`}
+                        style={{ fontSize: 11, color: "var(--brand-warning-soft, #fbbf24)", marginTop: 2, maxWidth: 360 }}>
+                        {t("console.pannelli.daRiabbinare")}
+                      </div>
+                    )}
                   </td>
                   <td>
                     {aziende.length > 0 ? (

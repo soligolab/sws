@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { api, novitaNellaLingua, type NovitaVersione, type StatoAggiornamento } from "@/api/client";
 import { FinestraAggiornamento } from "./FinestraAggiornamento";
+import { useAppStore } from "@/store";
 // Le due frasi sull'esito le scrive il runtime e le mostrano tre posti (qui,
 // il viewer web, il pannello LVGL): stanno nella tabella del testo di sistema,
 // una volta sola. Qui però la lingua è quella dell'**IDE** — questa è una
@@ -58,6 +59,8 @@ export function AggiornamentoRuntime() {
 
   let riga: string;
   let tono = "var(--brand-text-subtle, #64748b)";
+  const manuale = !errore && !avviato && !!stato
+    && (stato.canale === "archivio" || stato.canale === "fissata" || stato.canale === "sconosciuto");
   if (errore) { riga = errore; tono = "var(--brand-danger, #ef4444)"; }
   else if (stato === undefined) riga = t("aggiornamento.carico");
   else if (stato === null) riga = t("aggiornamento.illeggibile");
@@ -111,6 +114,14 @@ export function AggiornamentoRuntime() {
         <div style={{ marginBottom: 8, fontSize: 12, color: "var(--brand-warning, #f59e0b)" }}>{t("aggiornamento.inCorsoSulPannello")}</div>
       )}
       <span style={{ fontSize: 12, color: tono }}>{riga}</span>
+      {/* Il percorso scritto non bastava (02-11-2026): nelle due disposizioni
+          dell'IDE i menù si chiamano in modo diverso. Un bottone porta lì. */}
+      {manuale && (
+        <button type="button" data-testid="apri-installazione" style={{ marginLeft: 8 }}
+          onClick={() => useAppStore.getState().setConfigTab("install")}>
+          {t("aggiornamento.apriInstallazione")}
+        </button>
+      )}
 
       {/* Cosa cambia, prima di premere (decisione 42). Le versioni sono in
           ordine, dalla più vecchia alla più nuova: saltandone alcune si

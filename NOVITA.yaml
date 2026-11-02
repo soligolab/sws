@@ -33,6 +33,10 @@
 # successivo.
 
 versioni:
+  - versione: "2.24.1"
+    voci:
+      - it: "Cloud: un pannello che ha già utenti si riabbina con codice, utente e password; la console segnala chi va riabbinato dopo un'installazione pulita."
+        en: "Cloud: a panel that already has users pairs again with code, user and password; the console flags panels to pair again after a clean install."
   - versione: "2.24.0"
     voci:
       - it: "Inverter fotovoltaici: la sorgente Modbus legge attraverso la chiavetta Wi-Fi Solarman. Dal catalogo: ZCS Azzurro HYD ZSS e Sofar HYD-ES, con nomi standard per potenze, batteria ed energie."

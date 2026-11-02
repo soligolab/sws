@@ -319,7 +319,7 @@ function Comando({ testo }: { testo: string }) {
  *  niente `--tunnel-nome` né `--tunnel-token`, che servono alla strada del
  *  pannello dichiarato a mano. L'indirizzo del gateway viaggia nell'immagine.
  */
-function GuidaInstallazione() {
+export function GuidaInstallazione() {
   const { t } = useTranslation();
   const IMG = "ghcr.io/soligolab/sws-runtime:rc-arm64";
   // OpenPLC a richiesta (30-10-2026): una flag in fondo all'ultimo comando.

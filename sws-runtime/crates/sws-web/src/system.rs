@@ -550,7 +550,7 @@ pub async fn get_system_status(
                     q.attesa.unwrap_or(0)
                 ),
                 rimedio: if q.si_puo_aggiornare {
-                    "Istanza → Device → Connessione → «Configurazione del servizio» → Aggiorna (il pannello si riavvia).".into()
+                    "Device → Connessione → «Configurazione del servizio» → Aggiorna (il pannello si riavvia).".into()
                 } else {
                     q.motivo.clone().unwrap_or_default()
                 },

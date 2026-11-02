@@ -63,3 +63,31 @@ describe("AbbinaPannelloCloud", () => {
     expect(await screen.findByText(/servono utente e password/)).toBeTruthy();
   });
 });
+
+describe("AbbinaPannelloCloud: il riepilogo aspetta il pannello", () => {
+  beforeEach(() => {
+    for (const f of [remoteCloud, abbinaPannelloCloud, pannelloCloud, rinominaPannelloCloud]) f.mockReset();
+    remoteCloud.mockResolvedValue({ cloud: true });
+  });
+
+  // WP630, 02-11-2026: il primo riepilogo arrivava prima che il pannello
+  // richiamasse col nome nuovo, e diceva «Connected: no» per sempre.
+  it("se il pannello non è ancora collegato riprova, e mostra quando lo è", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    try {
+      abbinaPannelloCloud.mockResolvedValue({ nome: "wp630-ufficio", azienda: "-" });
+      pannelloCloud
+        .mockResolvedValueOnce({ nome: "wp630-ufficio", url: "", collegato: false })
+        .mockResolvedValue({ nome: "wp630-ufficio", url: "https://sws/dev/wp630-ufficio", collegato: true });
+      render(<AbbinaPannelloCloud onAbbinato={() => {}} />);
+      const campo = await screen.findByPlaceholderText("XXXX-XXXX-XXXX-XXXX");
+      fireEvent.change(campo, { target: { value: CODICE } });
+      fireEvent.click(screen.getByRole("button", { name: /abbina|pair/i }));
+      await waitFor(() => expect(pannelloCloud).toHaveBeenCalledTimes(1));
+      await vi.advanceTimersByTimeAsync(2100);
+      await waitFor(() => expect(pannelloCloud).toHaveBeenCalledTimes(2));
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+});

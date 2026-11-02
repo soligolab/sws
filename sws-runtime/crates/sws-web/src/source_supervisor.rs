@@ -273,7 +273,7 @@ impl SourceSupervisor {
             tracing::info!(
                 sorgenti = desired.len(),
                 "progetto nel cloud: le sorgenti NON partono qui — le scoperte, i valori vivi e i \
-                 comandi passano dal pannello collegato (Configurazione → Istanza → Device)"
+                 comandi passano dal pannello collegato (Device)"
             );
             Vec::new()
         } else {

@@ -914,7 +914,7 @@ async fn inoltra_al_pannello(
     let Some(target) = s.remote_target.read().await.clone() else {
         return (
             StatusCode::BAD_GATEWAY,
-            "Nessun pannello collegato: collegalo in Configurazione → Istanza → Device. Le scoperte le fa lui, che vede l'impianto.",
+            "Nessun pannello collegato: collegalo in Device. Le scoperte le fa lui, che vede l'impianto.",
         )
             .into_response();
     };
@@ -1228,7 +1228,7 @@ fn riferisci_piano_utenti(
                     elenco(&solo_progetto),
                     elenco(&solo_dispositivo)
                 ));
-                send("    Per allinearli: accendi la casella, oppure Configurazione → Istanza → Device → Connessione → \"Aggiorna utenti sul dispositivo\".");
+                send("    Per allinearli: accendi la casella, oppure Device → Connessione → \"Aggiorna utenti sul dispositivo\".");
             }
         }
         return;

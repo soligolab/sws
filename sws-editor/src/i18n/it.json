@@ -555,7 +555,7 @@
     "installCloudAPassi": "A passi",
     "installCloudAggregato": "Comando aggregato",
     "installCloudAggregatoPasso": "Incolla questo, una volta sola",
-    "installCloudDopo": "Il pannello riparte senza utenti, quindi chiuso, e mostra sullo schermo un codice di abbinamento. Torna qui, apri un progetto e usa «Abbina un pannello» in Configurazione → Istanza → Device → Connessione.",
+    "installCloudDopo": "Un pannello nuovo riparte senza utenti, quindi chiuso, e mostra sullo schermo un codice di abbinamento: torna qui, apri un progetto e usa «Abbina un pannello» in Device → Connessione. Un pannello già abbinato riparte com'era, sulla versione nuova: non c'è altro da fare.",
     "installCloudIndirizzo": "indirizzo-del-pannello",
     "installCloudCopia": "Copia",
     "installCloudCopiato": "Copiato",
@@ -1707,7 +1707,7 @@
     "devicesNoneSaved": "Nessun dispositivo salvato. Cercalo in rete o aggiungilo qui sotto.",
     "devicesAdd": "Aggiungi dispositivo",
     "devicesAddToList": "+ Dispositivi",
-    "devicesAddToListTitle": "Registra in Configurazione → Istanza → Device → Dispositivi",
+    "devicesAddToListTitle": "Registra in Device → Dispositivi",
     "devicesAlreadyIn": "già in lista",
     "devicesAdded": "«{{label}}» registrato fra i dispositivi",
     "devicesSaveFailed": "Lista dei dispositivi non salvata: {{err}}",
@@ -1888,7 +1888,8 @@
     "modbusGatewayHint": "Per un gateway Modbus TCP→RTU: più unit id dietro lo stesso indirizzo. Con due o più dispositivi il bus compare come livello a sé.",
     "modbusSetupTitolo": "Configurazione del modulo",
     "modbusSetupSpiega": "Come il progetto vuole configurato il modulo. A ogni collegamento il runtime legge questi parametri e scrive solo quelli diversi: un modulo sostituito o resettato torna configurato da solo. «Non gestito» lascia il modulo com'è.",
-    "modbusSetupNonGestito": "— non gestito —"
+    "modbusSetupNonGestito": "— non gestito —",
+    "installDalCloud": "Dal cloud l'IDE non può entrare nel pannello: sta nella rete dell'impianto, e il cloud lo raggiunge solo attraverso il tunnel. Per installarlo o aggiornarlo si danno questi comandi sul pannello stesso (SSH dalla sua rete). Non toccano progetti, utenti né l'abbinamento al cloud."
   },
   "langtab": {
     "migrate": "Migra i testi…",
@@ -2544,7 +2545,7 @@
     "overrideRemovedFromTheDevice": "✓ Override rimosso dal dispositivo.",
     "literalClientIdIdenticalOn": "client_id letterale: identico su ogni istanza che apre questo progetto.",
     "clientIdToSendTo": "client_id da inviare al dispositivo connesso",
-    "connectToADeviceFrom": "Connettiti a un dispositivo da Configurazione → Istanza → Device → Connessione per usare questo pulsante",
+    "connectToADeviceFrom": "Connettiti a un dispositivo da Device → Connessione per usare questo pulsante",
     "sendClientIdToThe": "Invia Client ID al dispositivo connesso",
     "publishALastWillWhen": "Pubblica un last-will quando la connessione cade",
     "savedSourcesReconnectedOnThe": "✓ Salvato — sorgenti ricollegate al volo.",
@@ -2559,7 +2560,7 @@
     "hostIntro": "Le risorse del dispositivo come tag, in sola lettura.",
     "hostCatalogoRemoto": "Zone, mount e interfacce lette dal dispositivo connesso ({{url}}).",
     "hostCatalogoRemotoVecchio": "Dispositivo connesso ({{url}}), ma il suo runtime è anteriore al 21-09-2026 e non espone il catalogo: aggiorna il container. Intanto i suggerimenti sono di QUESTA macchina e la zona va scritta a mano (sul dispositivo: cat /sys/class/thermal/thermal_zone*/type).",
-    "hostCatalogoLocale": "Nessun dispositivo connesso: i suggerimenti sono di QUESTA macchina, non del pannello. Collega il runtime da Configurazione → Istanza → Device → Connessione per avere le sue zone.",
+    "hostCatalogoLocale": "Nessun dispositivo connesso: i suggerimenti sono di QUESTA macchina, non del pannello. Collega il runtime da Device → Connessione per avere le sue zone.",
     "hostCatalogoAssente": "Catalogo non disponibile: scrivi il parametro a mano (sul dispositivo: cat /sys/class/thermal/thermal_zone*/type).",
     "hostSenzaParametro": "{{n}} metriche senza parametro: i loro tag resteranno Bad sul dispositivo.",
     "hostParamObbligatorio": "Parametro obbligatorio: senza, il tag resta Bad.",
@@ -3170,14 +3171,15 @@
     "aggiornato": "Versione {{versione}} ({{canale}}): è la più recente.",
     "disponibile": "Versione {{versione}} ({{canale}}): disponibile la {{a}}.",
     "registryErrore": "Versione {{versione}} ({{canale}}). Non so se ce n'è una più nuova: {{msg}}",
-    "manuale": "Versione {{versione}} ({{canale}}): non si aggiorna da sola. Per aggiornarla usa Configurazione → Istanza → Device → Installazione.",
+    "manuale": "Versione {{versione}} ({{canale}}): non riceve gli aggiornamenti, che arrivano solo a un pannello installato dal registry. Per cambiarla si reinstalla, da Device → Installazione.",
     "pulsante": "Aggiorna ora alla {{a}}",
     "inCorso": "Avvio…",
     "conferma": "Il runtime del pannello passa dalla {{da}} alla {{a}}.\n\nSi riavvia: per qualche secondo allarmi, storico e schermo si fermano e la connessione cade. Se la versione nuova non parte bene, il pannello torna da solo alla precedente.\n\nProcedo?",
     "confermaCompat": "Questa versione porta avvisi di compatibilità:\n\n{{avvisi}}\n\nVuoi aggiornare lo stesso?",
     "avviato": "Aggiornamento alla {{a}} avviato: il runtime si sta riavviando. Riconnettiti fra un minuto per vedere la versione nuova.",
     "tornatoAlla": "il pannello è tornato alla {{da}}",
-    "inCorsoSulPannello": "Un aggiornamento è in corso sul pannello: l'esito compare qui fra un paio di minuti."
+    "inCorsoSulPannello": "Un aggiornamento è in corso sul pannello: l'esito compare qui fra un paio di minuti.",
+    "apriInstallazione": "Apri Installazione"
   },
   "finestra": {
     "orologio": "Orologio del pannello: {{locale}} (UTC{{scostamento}}) · {{utc}} UTC",
@@ -3640,7 +3642,8 @@
       "schermoAcceso": "acceso",
       "schermoSpento": "spento",
       "schermoAiuto": "Se acceso, chi è dell'azienda del pannello può aprirne la pagina operatore dal cloud (tasto Viewer dell'IDE). Ogni apertura si registra.",
-      "schermoApri": "Apri lo schermo del pannello in una scheda nuova"
+      "schermoApri": "Apri lo schermo del pannello in una scheda nuova",
+      "daRiabbinare": "Acceso, ma chiama il cloud in attesa di abbinamento: ha perso le sue credenziali (installazione pulita?). Riabbinalo col codice che mostra: ritrova nome e azienda."
     }
   },
   "symbols": {
@@ -4011,9 +4014,9 @@
     "dispositivoCollegato": "Dispositivo collegato — giro alle {{ora}}"
   },
   "impianto": {
-    "nessunPannello": "Nessun pannello collegato: le scoperte e le prove le fa il pannello dell'impianto, che lo vede. Collegalo in Configurazione → Istanza → Device.",
+    "nessunPannello": "Nessun pannello collegato: le scoperte e le prove le fa il pannello dell'impianto, che lo vede. Collegalo in Device.",
     "sorgentiSulPannello": "Nel cloud le sorgenti girano sul pannello collegato: valori vivi, scoperte e comandi passano da lì.",
-    "sorgentiSenzaPannello": "Nel cloud le sorgenti non partono: collega il pannello dell'impianto (Configurazione → Istanza → Device) per i valori vivi e le scoperte.",
+    "sorgentiSenzaPannello": "Nel cloud le sorgenti non partono: collega il pannello dell'impianto (Device) per i valori vivi e le scoperte.",
     "eseguitoDa": "eseguito da {{dispositivo}}",
     "eseguitoQui": "eseguito su questa macchina",
     "eseguitoDaSpiega": "Le scoperte le fa il pannello collegato, che vede l'impianto. Se cerchi un indirizzo che quel pannello non raggiunge, il risultato è vuoto — e non è un guasto.",

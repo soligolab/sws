@@ -154,7 +154,14 @@ export function setAuthToken(token: string | null) { TOKEN = token; }
 export function getAuthToken(): string | null { return TOKEN; }
 
 export class AuthError extends Error {
-  constructor() { super("unauthorized"); this.name = "AuthError"; }
+  /** Il motivo, quando il 401 viene da un **altro** runtime e lo dice
+   *  (02-11-2026): «abbina un pannello» dal cloud riceveva dal pannello
+   *  `credenziali_admin`, e il messaggio diventava solo «unauthorized» — i campi
+   *  utente e password non comparivano mai. */
+  constructor(dettaglio?: string) {
+    super(dettaglio ? `unauthorized — ${dettaglio}` : "unauthorized");
+    this.name = "AuthError";
+  }
 }
 
 /** The runtime is not reachable (network error, or proxy returned 502/504).
@@ -888,7 +895,12 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     if (TOKEN && !PARLA_CON_UN_ALTRO_RUNTIME(path)) {
       window.dispatchEvent(new CustomEvent("sws:session-expired"));
     }
-    throw new AuthError();
+    // Il 401 di un altro runtime porta il suo motivo: si tiene.
+    let motivo = "";
+    if (PARLA_CON_UN_ALTRO_RUNTIME(path)) {
+      try { motivo = (await res.text()).trim(); } catch { /* il motivo è un extra */ }
+    }
+    throw new AuthError(motivo || undefined);
   }
   if (res.status === 503) {
     // Runtime has no active project. The WelcomeScreen should take over.

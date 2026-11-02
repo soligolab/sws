@@ -457,7 +457,7 @@ async fn base_url_viva(configurata: &str) -> String {
                 "[base-url] {configurata} non risponde, {alt} sì: uso quello.\n\
                  [base-url] La configurazione del servizio di questo pannello è rimasta indietro: \
                  porta di prima della 2.16, oppure TLS acceso dopo l'installazione.\n\
-                 [base-url] Per allinearla: Configurazione → Istanza → Device → Connessione → Aggiorna."
+                 [base-url] Per allinearla: Device → Connessione → Aggiorna."
             );
             return alt;
         }

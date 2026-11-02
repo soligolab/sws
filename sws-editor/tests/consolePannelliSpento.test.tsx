@@ -62,3 +62,23 @@ describe("Console → Pannelli: schermo remoto", () => {
     await waitFor(() => expect(schermoPannello).toHaveBeenCalledWith("acceso", false));
   });
 });
+
+/** Un pannello abbinato che richiama in sala d'attesa ha perso le credenziali
+ *  del cloud (02-11-2026, il WP630 dopo un'installazione pulita): la console lo
+ *  dice, invece di mostrarlo solo come scollegato. */
+describe("Console → Pannelli: da riabbinare", () => {
+  it("l'avviso c'è solo sulla riga che il gateway segna", async () => {
+    const riga = { azienda: "-", stato: "attivo", abbinato_ms: 1, ultimo_ms: 1, collegato: false };
+    pannelliAmministrazione.mockResolvedValue({
+      abbinati: [
+        { ...riga, nome: "wp630-ufficio", hw: "h1", da_riabbinare: true },
+        { ...riga, nome: "spento", hw: "h2" },
+      ],
+      dichiarati: [],
+      in_attesa: 1,
+    });
+    render(<Pannelli />);
+    expect(await screen.findByTestId("da-riabbinare-wp630-ufficio")).toBeTruthy();
+    expect(screen.queryByTestId("da-riabbinare-spento")).toBeNull();
+  });
+});
