@@ -155,7 +155,6 @@ export function listeDiTag(o: SynopticObject): { campo: string; effetto: string;
   metti("bar_series", "serie", conta(o.bar_series));
   metti("pie_slices", "spicchi", conta(o.pie_slices));
   metti("table_rows", "righe", conta(o.table_rows));
-  metti("symbol_parts", "parti", conta(Object.values(o.symbol_parts ?? {})));
   metti("assegnazioni", "assegnazioni", conta(o.assegnazioni));
   return out;
 }

@@ -1,4 +1,5 @@
 import { useAppStore } from "@/store";
+import { useNomePagina } from "@/i18n/nomePagina";
 import { paginePerNavigazione } from "@/boot/tipi";
 
 /**
@@ -8,6 +9,7 @@ import { paginePerNavigazione } from "@/boot/tipi";
  * to select `pages`/`currentPageId` only for this).
  */
 export function PageTabs() {
+  const nomePagina = useNomePagina();
   const tutte          = useAppStore((s) => s.pages);
   // La striscia elenca solo ciò che il pannello mostrerà: le pagine di boot si
   // aprono dall'elenco a sinistra.
@@ -43,7 +45,7 @@ export function PageTabs() {
             whiteSpace: "nowrap",
           }}
         >
-          {p.name}
+          {nomePagina(p.name)}
         </button>
       ))}
     </div>

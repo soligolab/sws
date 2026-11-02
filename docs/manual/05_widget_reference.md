@@ -785,13 +785,19 @@ calcola con una regola sola per tutti i simboli e per i due motori (`symbols/sta
 
 | Parte | Cosa fa | Simboli che ce l'hanno |
 |---|---|---|
-| `lamp` | si accende quando il tag è vero | 27 |
-| `rotor` | gira (ventole, giranti, agitatori) | 20 |
+| `lamp` | si accende quando il tag è vero | 59 |
+| `rotor` | gira (ventole, giranti, agitatori) | 18 |
 | `level` | mostra il livello del contenuto (serbatoi, silos) | 12 |
-| `lever` | passa da aperto a chiuso (leve, valvole) | 5 |
-| `needle` | la lancetta di uno strumento, fra `min` e `max` (predefiniti 0 e 100) | 3 |
+| `lever` | passa da aperto a chiuso (leve, valvole) | 16 |
+| `needle` | la lancetta di uno strumento, fra `min` e `max` (predefiniti 0 e 100) | 4 |
 
-**Le bocche.** 59 simboli dichiarano le bocche dove si aggancia una tubazione: trascinando il capo di una pipe
+Ogni parte si lega a un tag suo, in **Collegamenti** insieme allo stato e al comando. Il tag di stato colora il corpo e
+non muove le parti, con un'eccezione: **inserendo il tag di stato, la leva a due posizioni lo prende come suo**, se non
+ne ha già uno scelto apposta — un interruttore a levetta legato allo stato mostra da solo on e off, e il tag della leva
+si può cambiare. Una parte senza tag resta ferma — la leva a metà, la spia sempre accesa — e il pannello lo dice sopra
+le parti (decisioni del maintainer del 02-11-2026).
+
+**Le bocche.** 92 simboli dichiarano le bocche dove si aggancia una tubazione: trascinando il capo di una pipe
 vicino a una bocca, ci si aggancia.
 
 **«Adatta le proporzioni al disegno»** riporta il riquadro dell'oggetto alle proporzioni del simbolo.

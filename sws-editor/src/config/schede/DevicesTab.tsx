@@ -83,10 +83,10 @@ async function deployToTarget(
         const d = await res.json().catch(() => ({})) as {
           conferma?: string; utenti_dispositivo?: string[]; progetto?: string;
           progetti?: { nome: string; storico_byte?: number | null }[];
-          simboli?: string[]; senza_libreria?: boolean;
+          simboli?: string[]; non_verificabile?: boolean; versione_pannello?: string | null;
         };
         if (d.conferma === "simboli-mancanti" && !confermaSimboli) {
-          if (!window.confirm(testoSimboliMancanti(d.simboli ?? [], !!d.senza_libreria))) throw new Error(i18n.t("cfg.deployAnnullato"));
+          if (!window.confirm(testoSimboliMancanti(d.simboli ?? [], !!d.non_verificabile, d.versione_pannello))) throw new Error(i18n.t("cfg.deployAnnullato"));
           confermaSimboli = true;
           continue;
         }

@@ -48,7 +48,7 @@ import { faceplateDallaSelezione } from "@/editor/faceplateDaSelezione";
 import { eFaceplateDef, faceplateAPagina, anteprimaParametri } from "@/faceplate/modello";
 import { ProprietaFaceplate } from "@/faceplate/ProprietaFaceplate";
 import type { SimboloLib } from "@/symbols/lib/manifest";
-import { angoliLeva, trovaSimboloLib, useManifestoLib, useSimboloLib } from "@/symbols/lib/libreria";
+import { trovaSimboloLib, useManifestoLib, useSimboloLib } from "@/symbols/lib/libreria";
 import { AnteprimaLib } from "@/symbols/lib/AnteprimaLib";
 import { CONTORNO_DISEGNO, useStileProgetto } from "@/symbols/stileProgetto";
 import { NOMI_ICONE_SLIDER } from "@/canvas/slider/icone";
@@ -69,7 +69,7 @@ import { NavigatorProperties } from "./NavigatorProperties";
 import { CampoTestoTradotto } from "@/editor/CampoTestoTradotto";
 import { CampoFormato } from "@/components/CampoFormato";
 import type { AlignMode } from "@/store";
-import type { AlarmSeverity, ButtonAction, FunctionDef, GridCell, PageLayoutConfig, PageSizeMode, ParteLegata, ProjectTargetKind, RadioOption, SubCellEntry, SubGrid, SynopticObject, TableRow, TextListEntry, TrendTrace, XySeries } from "@/types";
+import type { AlarmSeverity, ButtonAction, FunctionDef, GridCell, PageLayoutConfig, PageSizeMode, ProjectTargetKind, RadioOption, SubCellEntry, SubGrid, SynopticObject, TableRow, TextListEntry, TrendTrace, XySeries } from "@/types";
 import { eBoot, paginePerNavigazione } from "@/boot/tipi";
 import { aggiornaPagina, applicaPredefinito, salvaLayout } from "@/formatoProgettoAzioni";
 import { dalTag, descrizioniDeiTag } from "@/tag/forma";
@@ -2861,59 +2861,6 @@ function AdattaProporzioni({ obj, onChange }: { obj: SynopticObject; onChange: (
   );
 }
 
-/** La sezione «Parti» di un simbolo di libreria: lancetta, leva e spie, una riga
- *  per parte del manifesto. Livello e rotazione hanno già i loro campi
- *  (`fill_level_tag`, `symbol_spin`). */
-function PartiSimboloLib({ obj, onChange }: { obj: SynopticObject; onChange: (patch: Partial<SynopticObject>) => void }) {
-  const { t } = useTranslation();
-  const { sim } = useSimboloLib(obj.symbol_id);
-  const parti = (sim?.parts ?? []).filter((p) => p.kind === "needle" || p.kind === "lever" || p.kind === "lamp");
-  if (parti.length === 0) return null;
-  const legami = obj.symbol_parts ?? {};
-  const metti = (id: string, patch: Partial<ParteLegata>) => {
-    const nuovo = { ...(legami[id] ?? {}), ...patch };
-    for (const k of Object.keys(nuovo) as (keyof ParteLegata)[]) if (nuovo[k] === undefined || nuovo[k] === "") delete nuovo[k];
-    const tutti = { ...legami, [id]: nuovo };
-    if (Object.keys(nuovo).length === 0) delete tutti[id];
-    onChange({ symbol_parts: Object.keys(tutti).length > 0 ? tutti : undefined });
-  };
-  const numero = (v: string) => (v.trim() === "" || !Number.isFinite(Number(v)) ? undefined : Number(v));
-  return (
-    <>
-      <span data-field="symbol_parts" />
-      <SottoTitolo chiave="partiSimbolo" />
-      {parti.map((p) => {
-        const l = legami[p.id] ?? {};
-        // Una leva a più di due posizioni non si apre e non si chiude: si
-        // mette su una posizione, e il tag è l'indice. L'etichetta lo dice,
-        // altrimenti «Leva aperta» manderebbe a legarci un booleano.
-        const posizioni = p.kind === "lever" ? angoliLeva(p).length : 0;
-        const etichetta = p.kind === "needle" ? t("props.parteLancetta")
-          : p.kind === "lever"
-            ? (posizioni >= 3 ? t("props.parteLevaPosizioni", { ultima: posizioni - 1 }) : t("props.parteLeva"))
-          : t("props.parteSpia", { id: p.id });
-        return (
-          <div key={p.id}>
-            <div style={LABEL}>{etichetta}</div>
-            <TagInput style={INPUT} placeholder={t("shell.esLineaPressione")} value={l.tag ?? ""}
-              onChange={(v) => metti(p.id, { tag: v || undefined })} />
-            {p.kind === "needle" && (
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 4, marginTop: 4 }}>
-                <div><div style={LABEL}>{t("props.parteMin")}</div>
-                  <CampoNumero style={INPUT} placeholder="0" value={l.min ?? ""}
-                    onTesto={(e) => metti(p.id, { min: numero(e) })} /></div>
-                <div><div style={LABEL}>{t("props.parteMax")}</div>
-                  <CampoNumero style={INPUT} placeholder="100" value={l.max ?? ""}
-                    onTesto={(e) => metti(p.id, { max: numero(e) })} /></div>
-              </div>
-            )}
-          </div>
-        );
-      })}
-    </>
-  );
-}
-
 /** Le sovrascritture dello stile del progetto per un simbolo di libreria (Fase 4,
  *  M7). Vuoto = vale il progetto, poi il disegno: il segnaposto dice quale. */
 function StileOggettoLib({ obj, onChange }: { obj: SynopticObject; onChange: (patch: Partial<SynopticObject>) => void }) {
@@ -5339,10 +5286,9 @@ export function ObjectProps({
         {field(t("props.symbol"),
           <SymbolGallery value={obj.symbol_id ?? "lib:process/centrifugal-pump"} onChange={(v) => onChange({ symbol_id: v as any })} />
         )}
-        {/* Fase 3 del piano dei simboli di libreria (M8): le parti vive che
-            il disegno ha davvero, ognuna col suo tag. */}
+        {/* Le parti vive (lancette, leve, spie) stanno in «Collegamenti» dal
+            02-11-2026, con gli altri tag del simbolo. */}
         <AdattaProporzioni obj={obj} onChange={onChange} />
-        <PartiSimboloLib obj={obj} onChange={onChange} />
       </>);
       // Solo se il simbolo comanda (lo slot del comando in Collegamenti).
       if (obj.command_tag !== undefined || !!obj.assegnazioni?.length) metti("comando", <>

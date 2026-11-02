@@ -1531,23 +1531,23 @@ fn build_manage_cmd(
         // di `podman ps` — che si legge come «non funziona», non come
         // «non c'è niente». Segnalato dal maintainer il 2026-09-07.
         "status" => Ok(format!(
-            "echo '== systemctl --user status =='; systemctl --user status {name} --no-pager -l || true; \
-             echo; echo '== companion LVGL =='; \
+            "echo '== service =='; systemctl --user status {name} --no-pager -l || true; \
+             echo; echo '== lvgl =='; \
              (test -f ~/.config/containers/systemd/{lvgl}.container \
                 && systemctl --user status {lvgl} --no-pager -l \
                 || echo 'non installato'); \
-             echo; echo '== avvio automatico al boot =='; \
+             echo; echo '== boot =='; \
              (grep -q '^WantedBy=' ~/.config/containers/systemd/{name}.container 2>/dev/null \
                 && echo 'abilitato' || echo 'disabilitato'); \
              echo; echo '== linger =='; loginctl show-user \"$USER\" --property=Linger || true; \
-             echo; echo '== container sws =='; \
+             echo; echo '== container =='; \
              (podman ps -a --filter name=sws | tail -n +2 | grep -q . \
                 && podman ps -a --filter name=sws \
                 || echo 'nessun container sws su questa macchina'); \
-             echo; echo '== altri container =='; \
+             echo; echo '== other-containers =='; \
              (podman ps -a --format '{{{{.Names}}}}  {{{{.Status}}}}' 2>/dev/null \
                 | grep -v '^sws' | grep . || echo 'nessuno'); \
-             echo; echo '== immagini sws =='; \
+             echo; echo '== images =='; \
              (podman images 2>/dev/null | grep -i sws | head -10 \
                 || echo 'nessuna immagine sws')"
         )),

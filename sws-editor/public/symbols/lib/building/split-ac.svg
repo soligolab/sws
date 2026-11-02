@@ -1,0 +1,52 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="140" height="60" viewBox="0 0 140 60">
+  <defs>
+    <linearGradient id="split-ac-paint-v" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#000" stop-opacity="0.25"/>
+      <stop offset="0.2" stop-color="#fff" stop-opacity="0.5"/>
+      <stop offset="0.45" stop-color="#fff" stop-opacity="0.08"/>
+      <stop offset="0.75" stop-color="#000" stop-opacity="0.12"/>
+      <stop offset="1" stop-color="#000" stop-opacity="0.45"/>
+    </linearGradient>
+    <linearGradient id="split-ac-dark-v" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#fff" stop-opacity="0.1"/>
+      <stop offset="0.2" stop-color="#fff" stop-opacity="0.37"/>
+      <stop offset="0.6" stop-color="#000" stop-opacity="0.17"/>
+      <stop offset="1" stop-color="#000" stop-opacity="0.48"/>
+    </linearGradient>
+    <radialGradient id="split-ac-glass-r" cx="0.35" cy="0.3" r="0.7">
+      <stop offset="0" stop-color="#fff" stop-opacity="0.9"/>
+      <stop offset="0.3" stop-color="#fff" stop-opacity="0.25"/>
+      <stop offset="1" stop-color="#fff" stop-opacity="0"/>
+    </radialGradient>
+    <path id="split-ac-g1" d="M6 8 Q6 4 12 4 L128 4 Q134 4 134 10 L134 40 Q134 52 120 52 L20 52 Q6 52 6 40 Z"/>
+    <rect id="split-ac-g2" x="14" y="40" width="112" height="8" rx="2"/>
+    <rect id="split-ac-g3" x="104" y="12" width="22" height="7" rx="2"/>
+  </defs>
+  <g id="body" data-layer="part" data-mat="appliance" fill="#e2e6ea" stroke="#1c2329" stroke-width="1" stroke-linejoin="round">
+    <use href="#split-ac-g1"/>
+    <use href="#split-ac-g1" fill="url(#split-ac-paint-v)" stroke="none" opacity="1" data-shade="paint-v"/>
+  </g>
+  <g id="layer-1" data-layer="static" stroke="#1c2329" stroke-width="1" stroke-linejoin="round">
+    <use href="#split-ac-g2" fill="#4a545d" data-mat="steel-dark"/>
+    <use href="#split-ac-g2" fill="url(#split-ac-dark-v)" stroke="none" opacity="1" data-shade="dark-v"/>
+    <path d="M20 41 L17 47" fill="none" stroke-opacity="0.5"/>
+    <path d="M28 41 L25 47" fill="none" stroke-opacity="0.5"/>
+    <path d="M36 41 L33 47" fill="none" stroke-opacity="0.5"/>
+    <path d="M44 41 L41 47" fill="none" stroke-opacity="0.5"/>
+    <path d="M52 41 L49 47" fill="none" stroke-opacity="0.5"/>
+    <path d="M60 41 L57 47" fill="none" stroke-opacity="0.5"/>
+    <path d="M68 41 L65 47" fill="none" stroke-opacity="0.5"/>
+    <path d="M76 41 L73 47" fill="none" stroke-opacity="0.5"/>
+    <path d="M84 41 L81 47" fill="none" stroke-opacity="0.5"/>
+    <path d="M92 41 L89 47" fill="none" stroke-opacity="0.5"/>
+    <path d="M100 41 L97 47" fill="none" stroke-opacity="0.5"/>
+    <path d="M108 41 L105 47" fill="none" stroke-opacity="0.5"/>
+    <path d="M116 41 L113 47" fill="none" stroke-opacity="0.5"/>
+    <path d="M12 30 L128 30" fill="none" stroke-opacity="0.25"/>
+    <rect x="104" y="12" width="22" height="7" rx="2" fill="#1d2a35" data-mat="glass-dark"/>
+  </g>
+  <g id="lamp" data-layer="part" stroke="#1c2329" stroke-width="1" stroke-linejoin="round">
+    <use href="#split-ac-g3" fill="#2b8fd6" data-mat="liquid"/>
+    <use href="#split-ac-g3" fill="url(#split-ac-glass-r)" stroke="none" opacity="1" data-shade="glass-r"/>
+  </g>
+</svg>

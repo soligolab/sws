@@ -1,0 +1,49 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="60" height="100" viewBox="0 0 60 100">
+  <defs>
+    <linearGradient id="air-purifier-paint-h" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#000" stop-opacity="0.25"/>
+      <stop offset="0.2" stop-color="#fff" stop-opacity="0.5"/>
+      <stop offset="0.45" stop-color="#fff" stop-opacity="0.08"/>
+      <stop offset="0.75" stop-color="#000" stop-opacity="0.12"/>
+      <stop offset="1" stop-color="#000" stop-opacity="0.45"/>
+    </linearGradient>
+    <linearGradient id="air-purifier-dark-v" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#fff" stop-opacity="0.1"/>
+      <stop offset="0.2" stop-color="#fff" stop-opacity="0.37"/>
+      <stop offset="0.6" stop-color="#000" stop-opacity="0.17"/>
+      <stop offset="1" stop-color="#000" stop-opacity="0.48"/>
+    </linearGradient>
+    <radialGradient id="air-purifier-glass-r" cx="0.35" cy="0.3" r="0.7">
+      <stop offset="0" stop-color="#fff" stop-opacity="0.9"/>
+      <stop offset="0.3" stop-color="#fff" stop-opacity="0.25"/>
+      <stop offset="1" stop-color="#fff" stop-opacity="0"/>
+    </radialGradient>
+    <rect id="air-purifier-g1" x="8" y="10" width="44" height="84" rx="10"/>
+    <ellipse id="air-purifier-g2" cx="30" cy="12" rx="20" ry="5"/>
+    <circle id="air-purifier-g3" cx="30" cy="26" r="2.4"/>
+  </defs>
+  <g id="body" data-layer="part" data-mat="appliance" fill="#e2e6ea" stroke="#1c2329" stroke-width="1" stroke-linejoin="round">
+    <use href="#air-purifier-g1"/>
+    <use href="#air-purifier-g1" fill="url(#air-purifier-paint-h)" stroke="none" opacity="1" data-shade="paint-h"/>
+  </g>
+  <g id="layer-1" data-layer="static" stroke="#1c2329" stroke-width="1" stroke-linejoin="round">
+    <use href="#air-purifier-g2" fill="#4a545d" data-mat="steel-dark"/>
+    <use href="#air-purifier-g2" fill="url(#air-purifier-dark-v)" stroke="none" opacity="1" data-shade="dark-v"/>
+    <path d="M14 36 L46 36" fill="none" stroke-opacity="0.35"/>
+    <path d="M14 41 L46 41" fill="none" stroke-opacity="0.35"/>
+    <path d="M14 46 L46 46" fill="none" stroke-opacity="0.35"/>
+    <path d="M14 51 L46 51" fill="none" stroke-opacity="0.35"/>
+    <path d="M14 56 L46 56" fill="none" stroke-opacity="0.35"/>
+    <path d="M14 61 L46 61" fill="none" stroke-opacity="0.35"/>
+    <path d="M14 66 L46 66" fill="none" stroke-opacity="0.35"/>
+    <path d="M14 71 L46 71" fill="none" stroke-opacity="0.35"/>
+    <path d="M14 76 L46 76" fill="none" stroke-opacity="0.35"/>
+    <path d="M14 81 L46 81" fill="none" stroke-opacity="0.35"/>
+    <path d="M14 86 L46 86" fill="none" stroke-opacity="0.35"/>
+    <circle cx="30" cy="26" r="2.4" fill="#2f5a39" data-mat="lamp-green-off"/>
+  </g>
+  <g id="lamp" data-layer="part" stroke="#1c2329" stroke-width="1" stroke-linejoin="round">
+    <use href="#air-purifier-g3" fill="#3fb950" data-mat="lamp-green"/>
+    <use href="#air-purifier-g3" fill="url(#air-purifier-glass-r)" stroke="none" opacity="1" data-shade="glass-r"/>
+  </g>
+</svg>

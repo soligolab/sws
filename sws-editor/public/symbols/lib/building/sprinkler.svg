@@ -1,0 +1,66 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="80" height="80" viewBox="0 0 80 80">
+  <defs>
+    <linearGradient id="sprinkler-metal-h" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#000" stop-opacity="0.42"/>
+      <stop offset="0.18" stop-color="#fff" stop-opacity="0.85"/>
+      <stop offset="0.45" stop-color="#fff" stop-opacity="0.25"/>
+      <stop offset="0.8" stop-color="#000" stop-opacity="0.19"/>
+      <stop offset="1" stop-color="#000" stop-opacity="0.49"/>
+    </linearGradient>
+    <linearGradient id="sprinkler-metal-v" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#000" stop-opacity="0.42"/>
+      <stop offset="0.18" stop-color="#fff" stop-opacity="0.85"/>
+      <stop offset="0.45" stop-color="#fff" stop-opacity="0.25"/>
+      <stop offset="0.8" stop-color="#000" stop-opacity="0.19"/>
+      <stop offset="1" stop-color="#000" stop-opacity="0.49"/>
+    </linearGradient>
+    <linearGradient id="sprinkler-paint-v" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#000" stop-opacity="0.25"/>
+      <stop offset="0.2" stop-color="#fff" stop-opacity="0.5"/>
+      <stop offset="0.45" stop-color="#fff" stop-opacity="0.08"/>
+      <stop offset="0.75" stop-color="#000" stop-opacity="0.12"/>
+      <stop offset="1" stop-color="#000" stop-opacity="0.45"/>
+    </linearGradient>
+    <linearGradient id="sprinkler-paint-h" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#000" stop-opacity="0.25"/>
+      <stop offset="0.2" stop-color="#fff" stop-opacity="0.5"/>
+      <stop offset="0.45" stop-color="#fff" stop-opacity="0.08"/>
+      <stop offset="0.75" stop-color="#000" stop-opacity="0.12"/>
+      <stop offset="1" stop-color="#000" stop-opacity="0.45"/>
+    </linearGradient>
+    <linearGradient id="sprinkler-dark-v" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#fff" stop-opacity="0.1"/>
+      <stop offset="0.2" stop-color="#fff" stop-opacity="0.37"/>
+      <stop offset="0.6" stop-color="#000" stop-opacity="0.17"/>
+      <stop offset="1" stop-color="#000" stop-opacity="0.48"/>
+    </linearGradient>
+    <rect id="sprinkler-g1" x="35" y="66" width="10" height="14"/>
+    <rect id="sprinkler-g2" x="32" y="76" width="16" height="4" rx="0.8"/>
+    <ellipse id="sprinkler-g3" cx="40" cy="64" rx="34" ry="5"/>
+    <rect id="sprinkler-g4" x="32" y="40" width="16" height="24" rx="3"/>
+    <rect id="sprinkler-g5" x="36" y="34" width="8" height="8" rx="2"/>
+  </defs>
+  <g id="layer-0" data-layer="static" stroke="#1c2329" stroke-width="1" stroke-linejoin="round">
+    <use href="#sprinkler-g1" fill="#9aa5af" data-mat="steel"/>
+    <use href="#sprinkler-g1" fill="url(#sprinkler-metal-h)" stroke="none" opacity="1" data-shade="metal-h"/>
+    <use href="#sprinkler-g2" fill="#9aa5af" data-mat="steel"/>
+    <use href="#sprinkler-g2" fill="url(#sprinkler-metal-v)" stroke="none" opacity="1" data-shade="metal-v"/>
+    <use href="#sprinkler-g3" fill="#2e7d4f" data-mat="gas"/>
+    <use href="#sprinkler-g3" fill="url(#sprinkler-paint-v)" stroke="none" opacity="1" data-shade="paint-v"/>
+  </g>
+  <g id="body" data-layer="part" data-mat="gas" fill="#2e7d4f" stroke="#1c2329" stroke-width="1" stroke-linejoin="round">
+    <use href="#sprinkler-g4"/>
+    <use href="#sprinkler-g4" fill="url(#sprinkler-paint-h)" stroke="none" opacity="1" data-shade="paint-h"/>
+  </g>
+  <g id="layer-1" data-layer="static" stroke="#1c2329" stroke-width="1" stroke-linejoin="round">
+    <use href="#sprinkler-g5" fill="#4a545d" data-mat="steel-dark"/>
+    <use href="#sprinkler-g5" fill="url(#sprinkler-dark-v)" stroke="none" opacity="1" data-shade="dark-v"/>
+  </g>
+  <g id="lamp" data-layer="part" stroke="#1c2329" stroke-width="1" stroke-linejoin="round">
+    <path d="M40 34 Q20 10 6 22" fill="none" stroke="#2b8fd6" data-mat-stroke="liquid" stroke-width="1.6" stroke-dasharray="3 3" stroke-linecap="round"/>
+    <path d="M40 34 Q40 6 40 4" fill="none" stroke="#2b8fd6" data-mat-stroke="liquid" stroke-width="1.6" stroke-dasharray="3 3" stroke-linecap="round"/>
+    <path d="M40 34 Q60 10 74 22" fill="none" stroke="#2b8fd6" data-mat-stroke="liquid" stroke-width="1.6" stroke-dasharray="3 3" stroke-linecap="round"/>
+    <path d="M40 34 Q28 14 18 10" fill="none" stroke="#2b8fd6" data-mat-stroke="liquid" stroke-width="1.6" stroke-dasharray="3 3" stroke-linecap="round"/>
+    <path d="M40 34 Q52 14 62 10" fill="none" stroke="#2b8fd6" data-mat-stroke="liquid" stroke-width="1.6" stroke-dasharray="3 3" stroke-linecap="round"/>
+  </g>
+</svg>

@@ -1,0 +1,69 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="70" height="110" viewBox="0 0 70 110">
+  <defs>
+    <linearGradient id="towel-radiator-metal-h" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#000" stop-opacity="0.42"/>
+      <stop offset="0.18" stop-color="#fff" stop-opacity="0.85"/>
+      <stop offset="0.45" stop-color="#fff" stop-opacity="0.25"/>
+      <stop offset="0.8" stop-color="#000" stop-opacity="0.19"/>
+      <stop offset="1" stop-color="#000" stop-opacity="0.49"/>
+    </linearGradient>
+    <linearGradient id="towel-radiator-metal-v" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#000" stop-opacity="0.42"/>
+      <stop offset="0.18" stop-color="#fff" stop-opacity="0.85"/>
+      <stop offset="0.45" stop-color="#fff" stop-opacity="0.25"/>
+      <stop offset="0.8" stop-color="#000" stop-opacity="0.19"/>
+      <stop offset="1" stop-color="#000" stop-opacity="0.49"/>
+    </linearGradient>
+    <radialGradient id="towel-radiator-glass-r" cx="0.35" cy="0.3" r="0.7">
+      <stop offset="0" stop-color="#fff" stop-opacity="0.9"/>
+      <stop offset="0.3" stop-color="#fff" stop-opacity="0.25"/>
+      <stop offset="1" stop-color="#fff" stop-opacity="0"/>
+    </radialGradient>
+    <rect id="towel-radiator-g1" x="6" y="4" width="8" height="100" rx="3"/>
+    <rect id="towel-radiator-g2" x="56" y="4" width="8" height="100" rx="3"/>
+    <rect id="towel-radiator-g3" x="12" y="12" width="46" height="4" rx="2"/>
+    <rect id="towel-radiator-g4" x="12" y="21" width="46" height="4" rx="2"/>
+    <rect id="towel-radiator-g5" x="12" y="30" width="46" height="4" rx="2"/>
+    <rect id="towel-radiator-g6" x="12" y="39" width="46" height="4" rx="2"/>
+    <rect id="towel-radiator-g7" x="12" y="48" width="46" height="4" rx="2"/>
+    <rect id="towel-radiator-g8" x="12" y="57" width="46" height="4" rx="2"/>
+    <rect id="towel-radiator-g9" x="12" y="66" width="46" height="4" rx="2"/>
+    <rect id="towel-radiator-g10" x="12" y="75" width="46" height="4" rx="2"/>
+    <rect id="towel-radiator-g11" x="12" y="84" width="46" height="4" rx="2"/>
+    <rect id="towel-radiator-g12" x="12" y="93" width="46" height="4" rx="2"/>
+    <circle id="towel-radiator-g13" cx="60" cy="106" r="1.6"/>
+  </defs>
+  <g id="body" data-layer="part" data-mat="stainless" fill="#b4bec7" stroke="#1c2329" stroke-width="1" stroke-linejoin="round">
+    <use href="#towel-radiator-g1"/>
+    <use href="#towel-radiator-g1" fill="url(#towel-radiator-metal-h)" stroke="none" opacity="1" data-shade="metal-h"/>
+    <use href="#towel-radiator-g2"/>
+    <use href="#towel-radiator-g2" fill="url(#towel-radiator-metal-h)" stroke="none" opacity="1" data-shade="metal-h"/>
+  </g>
+  <g id="layer-1" data-layer="static" stroke="#1c2329" stroke-width="1" stroke-linejoin="round">
+    <use href="#towel-radiator-g3" fill="#b4bec7" data-mat="stainless"/>
+    <use href="#towel-radiator-g3" fill="url(#towel-radiator-metal-v)" stroke="none" opacity="1" data-shade="metal-v"/>
+    <use href="#towel-radiator-g4" fill="#b4bec7" data-mat="stainless"/>
+    <use href="#towel-radiator-g4" fill="url(#towel-radiator-metal-v)" stroke="none" opacity="1" data-shade="metal-v"/>
+    <use href="#towel-radiator-g5" fill="#b4bec7" data-mat="stainless"/>
+    <use href="#towel-radiator-g5" fill="url(#towel-radiator-metal-v)" stroke="none" opacity="1" data-shade="metal-v"/>
+    <use href="#towel-radiator-g6" fill="#b4bec7" data-mat="stainless"/>
+    <use href="#towel-radiator-g6" fill="url(#towel-radiator-metal-v)" stroke="none" opacity="1" data-shade="metal-v"/>
+    <use href="#towel-radiator-g7" fill="#b4bec7" data-mat="stainless"/>
+    <use href="#towel-radiator-g7" fill="url(#towel-radiator-metal-v)" stroke="none" opacity="1" data-shade="metal-v"/>
+    <use href="#towel-radiator-g8" fill="#b4bec7" data-mat="stainless"/>
+    <use href="#towel-radiator-g8" fill="url(#towel-radiator-metal-v)" stroke="none" opacity="1" data-shade="metal-v"/>
+    <use href="#towel-radiator-g9" fill="#b4bec7" data-mat="stainless"/>
+    <use href="#towel-radiator-g9" fill="url(#towel-radiator-metal-v)" stroke="none" opacity="1" data-shade="metal-v"/>
+    <use href="#towel-radiator-g10" fill="#b4bec7" data-mat="stainless"/>
+    <use href="#towel-radiator-g10" fill="url(#towel-radiator-metal-v)" stroke="none" opacity="1" data-shade="metal-v"/>
+    <use href="#towel-radiator-g11" fill="#b4bec7" data-mat="stainless"/>
+    <use href="#towel-radiator-g11" fill="url(#towel-radiator-metal-v)" stroke="none" opacity="1" data-shade="metal-v"/>
+    <use href="#towel-radiator-g12" fill="#b4bec7" data-mat="stainless"/>
+    <use href="#towel-radiator-g12" fill="url(#towel-radiator-metal-v)" stroke="none" opacity="1" data-shade="metal-v"/>
+    <circle cx="60" cy="106" r="1.6" fill="#2f5a39" data-mat="lamp-green-off"/>
+  </g>
+  <g id="lamp" data-layer="part" stroke="#1c2329" stroke-width="1" stroke-linejoin="round">
+    <use href="#towel-radiator-g13" fill="#3fb950" data-mat="lamp-green"/>
+    <use href="#towel-radiator-g13" fill="url(#towel-radiator-glass-r)" stroke="none" opacity="1" data-shade="glass-r"/>
+  </g>
+</svg>

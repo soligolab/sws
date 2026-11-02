@@ -2542,13 +2542,39 @@ pub(crate) fn raccogli_simboli_lib(v: &serde_yaml::Value, out: &mut std::collect
 
 /// Gli id del manifesto della libreria del pannello; `None` se non ne ha uno
 /// (un runtime di prima della libreria risponde 404 o con la SPA).
-async fn leggi_manifesto_pannello(client: &reqwest::Client, base: &str) -> Option<Vec<String>> {
+async fn leggi_manifesto_pannello(client: &reqwest::Client, base: &str, auth_hdr: &Option<String>) -> Option<Vec<String>> {
+    // La rotta di gestione (02-11-2026): su un pannello con `--no-admin` la
+    // porta di gestione non serve file statici, e il manifesto chiesto come
+    // file rispondeva 404 — ogni deploy diceva «il pannello non ha la
+    // libreria», anche col pannello sulla stessa versione dell'IDE.
+    let mut r = client.get(format!("{base}/api/simboli-lib"));
+    if let Some(h) = auth_hdr {
+        r = r.header("Authorization", h);
+    }
+    if let Ok(resp) = r.send().await {
+        if resp.status().is_success() {
+            if let Ok(v) = resp.json::<Vec<String>>().await {
+                return Some(v);
+            }
+        }
+    }
+    // La strada di prima: il router completo (IDE, sviluppo) serve la SPA.
     let r = client.get(format!("{base}/symbols/lib/manifest.json")).send().await.ok()?;
     if !r.status().is_success() {
         return None;
     }
     let m: sws_core::simboli_lib::ManifestLib = r.json().await.ok()?;
     Some(m.symbols.into_iter().map(|s| s.id).collect())
+}
+
+/// La versione del runtime del pannello, da `/api/system`.
+async fn versione_pannello(client: &reqwest::Client, base: &str, auth_hdr: &Option<String>) -> Option<String> {
+    let mut r = client.get(format!("{base}/api/system"));
+    if let Some(h) = auth_hdr {
+        r = r.header("Authorization", h);
+    }
+    let v: serde_json::Value = r.send().await.ok()?.json().await.ok()?;
+    v.get("runtime_version").and_then(|x| x.as_str()).map(str::to_string)
 }
 
 /// Gli usati che il pannello non conosce; senza manifesto, tutti.
@@ -2799,15 +2825,23 @@ pub async fn remote_deploy(
     if !opz.confirm_missing_symbols {
         let usati = simboli_lib_usati(&proj_dir).await;
         if !usati.is_empty() {
-            let noti = leggi_manifesto_pannello(&client, &base).await;
-            let mancanti = simboli_mancanti(&usati, noti.as_ref());
+            let noti = leggi_manifesto_pannello(&client, &base, &auth_hdr).await;
+            // Un pannello che non sa dire quali simboli ha (un runtime di prima
+            // del 02-11-2026, senza `/api/simboli-lib`): sulla stessa versione
+            // di questo runtime ha la stessa libreria, e non c'è niente da
+            // chiedere. Su un'altra versione non si sa, e lo si dice così —
+            // non «il pannello non ha la libreria», che era falso.
+            let versione = if noti.is_none() { versione_pannello(&client, &base, &auth_hdr).await } else { None };
+            let stessa = versione.as_deref() == Some(crate::aggiornamento::VERSIONE);
+            let mancanti = if stessa { Vec::new() } else { simboli_mancanti(&usati, noti.as_ref()) };
             if !mancanti.is_empty() {
                 return (
                     StatusCode::PRECONDITION_REQUIRED,
                     Json(serde_json::json!({
                         "conferma": "simboli-mancanti",
                         "simboli": mancanti,
-                        "senza_libreria": noti.is_none(),
+                        "non_verificabile": noti.is_none(),
+                        "versione_pannello": versione,
                     })),
                 )
                     .into_response();

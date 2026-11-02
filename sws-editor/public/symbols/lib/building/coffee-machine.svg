@@ -1,0 +1,73 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="70" height="90" viewBox="0 0 70 90">
+  <defs>
+    <linearGradient id="coffee-machine-dark-v" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#fff" stop-opacity="0.1"/>
+      <stop offset="0.2" stop-color="#fff" stop-opacity="0.37"/>
+      <stop offset="0.6" stop-color="#000" stop-opacity="0.17"/>
+      <stop offset="1" stop-color="#000" stop-opacity="0.48"/>
+    </linearGradient>
+    <linearGradient id="coffee-machine-dark-h" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#fff" stop-opacity="0.1"/>
+      <stop offset="0.2" stop-color="#fff" stop-opacity="0.37"/>
+      <stop offset="0.6" stop-color="#000" stop-opacity="0.17"/>
+      <stop offset="1" stop-color="#000" stop-opacity="0.48"/>
+    </linearGradient>
+    <linearGradient id="coffee-machine-metal-v" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#000" stop-opacity="0.42"/>
+      <stop offset="0.18" stop-color="#fff" stop-opacity="0.85"/>
+      <stop offset="0.45" stop-color="#fff" stop-opacity="0.25"/>
+      <stop offset="0.8" stop-color="#000" stop-opacity="0.19"/>
+      <stop offset="1" stop-color="#000" stop-opacity="0.49"/>
+    </linearGradient>
+    <linearGradient id="coffee-machine-metal-h" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#000" stop-opacity="0.42"/>
+      <stop offset="0.18" stop-color="#fff" stop-opacity="0.85"/>
+      <stop offset="0.45" stop-color="#fff" stop-opacity="0.25"/>
+      <stop offset="0.8" stop-color="#000" stop-opacity="0.19"/>
+      <stop offset="1" stop-color="#000" stop-opacity="0.49"/>
+    </linearGradient>
+    <linearGradient id="coffee-machine-paint-h" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#000" stop-opacity="0.25"/>
+      <stop offset="0.2" stop-color="#fff" stop-opacity="0.5"/>
+      <stop offset="0.45" stop-color="#fff" stop-opacity="0.08"/>
+      <stop offset="0.75" stop-color="#000" stop-opacity="0.12"/>
+      <stop offset="1" stop-color="#000" stop-opacity="0.45"/>
+    </linearGradient>
+    <radialGradient id="coffee-machine-glass-r" cx="0.35" cy="0.3" r="0.7">
+      <stop offset="0" stop-color="#fff" stop-opacity="0.9"/>
+      <stop offset="0.3" stop-color="#fff" stop-opacity="0.25"/>
+      <stop offset="1" stop-color="#fff" stop-opacity="0"/>
+    </radialGradient>
+    <rect id="coffee-machine-g1" x="6" y="4" width="58" height="26" rx="4"/>
+    <rect id="coffee-machine-g2" x="48" y="30" width="16" height="52" rx="2"/>
+    <rect id="coffee-machine-g3" x="6" y="80" width="58" height="6" rx="2"/>
+    <rect id="coffee-machine-g4" x="22" y="30" width="14" height="8" rx="1"/>
+    <path id="coffee-machine-g5" d="M18 58 L40 58 L38 78 L20 78 Z"/>
+    <rect id="coffee-machine-g6" x="12" y="10" width="26" height="10" rx="1.5"/>
+  </defs>
+  <g id="body" data-layer="part" data-mat="steel-dark" fill="#4a545d" stroke="#1c2329" stroke-width="1" stroke-linejoin="round">
+    <use href="#coffee-machine-g1"/>
+    <use href="#coffee-machine-g1" fill="url(#coffee-machine-dark-v)" stroke="none" opacity="1" data-shade="dark-v"/>
+    <use href="#coffee-machine-g2"/>
+    <use href="#coffee-machine-g2" fill="url(#coffee-machine-dark-h)" stroke="none" opacity="1" data-shade="dark-h"/>
+  </g>
+  <g id="layer-1" data-layer="static" stroke="#1c2329" stroke-width="1" stroke-linejoin="round">
+    <use href="#coffee-machine-g3" fill="#9aa5af" data-mat="steel"/>
+    <use href="#coffee-machine-g3" fill="url(#coffee-machine-metal-v)" stroke="none" opacity="1" data-shade="metal-v"/>
+    <use href="#coffee-machine-g4" fill="#9aa5af" data-mat="steel"/>
+    <use href="#coffee-machine-g4" fill="url(#coffee-machine-metal-h)" stroke="none" opacity="1" data-shade="metal-h"/>
+    <use href="#coffee-machine-g5" fill="#e2e6ea" data-mat="appliance"/>
+    <use href="#coffee-machine-g5" fill="url(#coffee-machine-paint-h)" stroke="none" opacity="1" data-shade="paint-h"/>
+    <path d="M40 62 Q47 62 47 68 Q47 74 39 74" fill="none" stroke-width="1.6"/>
+  </g>
+  <g id="lamp" data-layer="part" stroke="#1c2329" stroke-width="1" stroke-linejoin="round">
+    <rect x="28" y="38" width="2" height="16" rx="1" fill="#6b4a3a" data-mat="body-furnace"/>
+  </g>
+  <g id="layer-2" data-layer="static" stroke="#1c2329" stroke-width="1" stroke-linejoin="round">
+    <rect x="12" y="10" width="26" height="10" rx="1.5" fill="#1d2a35" data-mat="glass-dark"/>
+  </g>
+  <g id="lamp" data-layer="part" stroke="#1c2329" stroke-width="1" stroke-linejoin="round">
+    <use href="#coffee-machine-g6" fill="#2b8fd6" data-mat="liquid"/>
+    <use href="#coffee-machine-g6" fill="url(#coffee-machine-glass-r)" stroke="none" opacity="1" data-shade="glass-r"/>
+  </g>
+</svg>

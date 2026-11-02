@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="120" height="70" viewBox="0 0 120 70">
+  <defs>
+    <linearGradient id="induction-hob-dark-v" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#fff" stop-opacity="0.1"/>
+      <stop offset="0.2" stop-color="#fff" stop-opacity="0.37"/>
+      <stop offset="0.6" stop-color="#000" stop-opacity="0.17"/>
+      <stop offset="1" stop-color="#000" stop-opacity="0.48"/>
+    </linearGradient>
+    <rect id="induction-hob-g1" x="4" y="6" width="112" height="58" rx="4"/>
+  </defs>
+  <g id="body" data-layer="part" data-mat="glass-dark" fill="#1d2a35" stroke="#1c2329" stroke-width="1" stroke-linejoin="round">
+    <use href="#induction-hob-g1"/>
+    <use href="#induction-hob-g1" fill="url(#induction-hob-dark-v)" stroke="none" opacity="1" data-shade="dark-v"/>
+  </g>
+  <g id="lamp" data-layer="part" stroke="#1c2329" stroke-width="1" stroke-linejoin="round">
+    <path d="M16 30 A16 16 0 1 0 48 30 A16 16 0 1 0 16 30" fill="none" stroke="#d13c32" data-mat-stroke="lamp-red" stroke-width="2.4"/>
+    <path d="M70 26 A12 12 0 1 0 94 26 A12 12 0 1 0 70 26" fill="none" stroke="#d13c32" data-mat-stroke="lamp-red" stroke-width="2.4"/>
+    <path d="M75 50 A9 9 0 1 0 93 50 A9 9 0 1 0 75 50" fill="none" stroke="#d13c32" data-mat-stroke="lamp-red" stroke-width="2.4"/>
+  </g>
+  <g id="layer-2" data-layer="static" stroke="#1c2329" stroke-width="1" stroke-linejoin="round">
+    <path d="M19 30 A13 13 0 1 0 45 30 A13 13 0 1 0 19 30" fill="none" stroke-opacity="0.4"/>
+    <path d="M73 26 A9 9 0 1 0 91 26 A9 9 0 1 0 73 26" fill="none" stroke-opacity="0.4"/>
+    <path d="M78 50 A6 6 0 1 0 90 50 A6 6 0 1 0 78 50" fill="none" stroke-opacity="0.4"/>
+    <rect x="20" y="54" width="30" height="6" rx="2" fill="#4a545d" data-mat="steel-dark"/>
+    <path d="M8 10 L40 10 L8 36 Z" fill="#fff" fill-opacity="0.1" stroke="none" opacity="1" data-shade="highlight"/>
+  </g>
+</svg>

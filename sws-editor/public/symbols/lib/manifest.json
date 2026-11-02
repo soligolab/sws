@@ -1,6 +1,6 @@
 {
   "_comment": "Generato da scripts/simboli/genera.py — non modificare a mano.",
-  "version": "40d15f892f9b",
+  "version": "30e8eaad12b9",
   "materials": {
     "steel": "#9aa5af",
     "steel-dark": "#4a545d",
@@ -4257,6 +4257,55 @@
       ]
     },
     {
+      "id": "lib:building/ac-outdoor-unit",
+      "file": "building/ac-outdoor-unit.svg",
+      "family": "building",
+      "kind": "outdoor",
+      "label": "symbols.lib.building.ac-outdoor-unit",
+      "viewBox": [
+        120,
+        90
+      ],
+      "body": "appliance",
+      "materials": [
+        "appliance",
+        "steel",
+        "steel-dark"
+      ],
+      "parts": [
+        {
+          "id": "rotor",
+          "kind": "rotor",
+          "cx": 44,
+          "cy": 46,
+          "symmetry": 120
+        }
+      ],
+      "ports": [
+        {
+          "id": "n-top",
+          "x": 104,
+          "y": 0,
+          "side": "top",
+          "d": 6
+        },
+        {
+          "id": "n-right",
+          "x": 120,
+          "y": 59.0,
+          "side": "right",
+          "d": 6
+        },
+        {
+          "id": "n-right-2",
+          "x": 120,
+          "y": 73.0,
+          "side": "right",
+          "d": 6
+        }
+      ]
+    },
+    {
       "id": "lib:building/air-handling-unit",
       "file": "building/air-handling-unit.svg",
       "family": "building",
@@ -4282,6 +4331,72 @@
           "cx": 108,
           "cy": 45,
           "symmetry": 90
+        }
+      ]
+    },
+    {
+      "id": "lib:building/air-purifier",
+      "file": "building/air-purifier.svg",
+      "family": "building",
+      "kind": "living",
+      "label": "symbols.lib.building.air-purifier",
+      "viewBox": [
+        60,
+        100
+      ],
+      "body": "appliance",
+      "materials": [
+        "appliance",
+        "lamp-green",
+        "lamp-green-off",
+        "steel-dark"
+      ],
+      "parts": [
+        {
+          "id": "lamp",
+          "kind": "lamp"
+        }
+      ],
+      "ports": [
+        {
+          "id": "n-top",
+          "x": 30.0,
+          "y": 0,
+          "side": "top",
+          "d": 6
+        }
+      ]
+    },
+    {
+      "id": "lib:building/alarm-panel",
+      "file": "building/alarm-panel.svg",
+      "family": "building",
+      "kind": "security",
+      "label": "symbols.lib.building.alarm-panel",
+      "viewBox": [
+        70,
+        90
+      ],
+      "body": "appliance",
+      "materials": [
+        "appliance",
+        "glass-dark",
+        "lamp-red",
+        "steel"
+      ],
+      "parts": [
+        {
+          "id": "lamp",
+          "kind": "lamp"
+        }
+      ],
+      "ports": [
+        {
+          "id": "n-top",
+          "x": 35.0,
+          "y": 0,
+          "side": "top",
+          "d": 6
         }
       ]
     },
@@ -4362,6 +4477,169 @@
       "replaces": "chiller"
     },
     {
+      "id": "lib:building/coffee-machine",
+      "file": "building/coffee-machine.svg",
+      "family": "building",
+      "kind": "kitchen",
+      "label": "symbols.lib.building.coffee-machine",
+      "viewBox": [
+        70,
+        90
+      ],
+      "body": "steel-dark",
+      "materials": [
+        "appliance",
+        "body-furnace",
+        "glass-dark",
+        "liquid",
+        "steel",
+        "steel-dark"
+      ],
+      "parts": [
+        {
+          "id": "lamp",
+          "kind": "lamp"
+        },
+        {
+          "id": "lamp",
+          "kind": "lamp"
+        }
+      ],
+      "ports": [
+        {
+          "id": "n-top",
+          "x": 35.0,
+          "y": 0,
+          "side": "top",
+          "d": 6
+        }
+      ]
+    },
+    {
+      "id": "lib:building/cooker-hood",
+      "file": "building/cooker-hood.svg",
+      "family": "building",
+      "kind": "kitchen",
+      "label": "symbols.lib.building.cooker-hood",
+      "viewBox": [
+        100,
+        90
+      ],
+      "body": "stainless",
+      "materials": [
+        "flame-core",
+        "stainless",
+        "steel"
+      ],
+      "parts": [
+        {
+          "id": "lamp",
+          "kind": "lamp"
+        }
+      ],
+      "ports": [
+        {
+          "id": "n-top",
+          "x": 50,
+          "y": 0,
+          "side": "top",
+          "d": 6
+        }
+      ]
+    },
+    {
+      "id": "lib:building/dehumidifier",
+      "file": "building/dehumidifier.svg",
+      "family": "building",
+      "kind": "living",
+      "label": "symbols.lib.building.dehumidifier",
+      "viewBox": [
+        70,
+        100
+      ],
+      "body": "appliance",
+      "materials": [
+        "appliance",
+        "glass",
+        "glass-dark",
+        "liquid",
+        "rubber"
+      ],
+      "parts": [
+        {
+          "id": "lamp",
+          "kind": "lamp"
+        }
+      ],
+      "ports": [
+        {
+          "id": "n-top",
+          "x": 35.0,
+          "y": 0,
+          "side": "top",
+          "d": 6
+        }
+      ]
+    },
+    {
+      "id": "lib:building/dishwasher",
+      "file": "building/dishwasher.svg",
+      "family": "building",
+      "kind": "kitchen",
+      "label": "symbols.lib.building.dishwasher",
+      "viewBox": [
+        80,
+        100
+      ],
+      "body": "stainless",
+      "materials": [
+        "glass-dark",
+        "liquid",
+        "rubber",
+        "stainless",
+        "steel",
+        "steel-dark"
+      ],
+      "parts": [
+        {
+          "id": "lamp",
+          "kind": "lamp"
+        }
+      ],
+      "ports": [
+        {
+          "id": "n-top",
+          "x": 40.0,
+          "y": 0,
+          "side": "top",
+          "d": 6
+        }
+      ]
+    },
+    {
+      "id": "lib:building/door-sensor",
+      "file": "building/door-sensor.svg",
+      "family": "building",
+      "kind": "security",
+      "label": "symbols.lib.building.door-sensor",
+      "viewBox": [
+        70,
+        60
+      ],
+      "body": "appliance",
+      "materials": [
+        "appliance",
+        "lamp-green",
+        "lamp-green-off"
+      ],
+      "parts": [
+        {
+          "id": "lamp",
+          "kind": "lamp"
+        }
+      ]
+    },
+    {
       "id": "lib:building/fan-coil",
       "file": "building/fan-coil.svg",
       "family": "building",
@@ -4386,6 +4664,175 @@
       ]
     },
     {
+      "id": "lib:building/fireplace",
+      "file": "building/fireplace.svg",
+      "family": "building",
+      "kind": "living",
+      "label": "symbols.lib.building.fireplace",
+      "viewBox": [
+        110,
+        100
+      ],
+      "body": "wall",
+      "materials": [
+        "flame",
+        "flame-core",
+        "steel-dark",
+        "wall",
+        "wood"
+      ],
+      "parts": [
+        {
+          "id": "lamp",
+          "kind": "lamp"
+        }
+      ]
+    },
+    {
+      "id": "lib:building/flood-sensor",
+      "file": "building/flood-sensor.svg",
+      "family": "building",
+      "kind": "security",
+      "label": "symbols.lib.building.flood-sensor",
+      "viewBox": [
+        60,
+        50
+      ],
+      "body": "appliance",
+      "materials": [
+        "appliance",
+        "copper",
+        "lamp-green",
+        "lamp-green-off",
+        "liquid"
+      ],
+      "parts": [
+        {
+          "id": "lamp",
+          "kind": "lamp"
+        }
+      ]
+    },
+    {
+      "id": "lib:building/floor-lamp",
+      "file": "building/floor-lamp.svg",
+      "family": "building",
+      "kind": "smart-home",
+      "label": "symbols.lib.building.floor-lamp",
+      "viewBox": [
+        60,
+        130
+      ],
+      "body": "steel-dark",
+      "materials": [
+        "flame-core",
+        "steel",
+        "steel-dark"
+      ],
+      "parts": [
+        {
+          "id": "lamp",
+          "kind": "lamp"
+        }
+      ],
+      "ports": [
+        {
+          "id": "n-top",
+          "x": 50,
+          "y": 0,
+          "side": "top",
+          "d": 6
+        }
+      ]
+    },
+    {
+      "id": "lib:building/freezer",
+      "file": "building/freezer.svg",
+      "family": "building",
+      "kind": "kitchen",
+      "label": "symbols.lib.building.freezer",
+      "viewBox": [
+        100,
+        80
+      ],
+      "body": "appliance",
+      "materials": [
+        "appliance",
+        "lamp-green",
+        "lamp-green-off",
+        "rubber",
+        "steel"
+      ],
+      "parts": [
+        {
+          "id": "lamp",
+          "kind": "lamp"
+        }
+      ],
+      "ports": [
+        {
+          "id": "n-top",
+          "x": 50.0,
+          "y": 0,
+          "side": "top",
+          "d": 6
+        }
+      ]
+    },
+    {
+      "id": "lib:building/fridge",
+      "file": "building/fridge.svg",
+      "family": "building",
+      "kind": "kitchen",
+      "label": "symbols.lib.building.fridge",
+      "viewBox": [
+        70,
+        130
+      ],
+      "body": "appliance",
+      "materials": [
+        "appliance",
+        "glass-dark",
+        "liquid",
+        "rubber",
+        "steel"
+      ],
+      "parts": [
+        {
+          "id": "lamp",
+          "kind": "lamp"
+        }
+      ],
+      "ports": [
+        {
+          "id": "n-top",
+          "x": 35.0,
+          "y": 0,
+          "side": "top",
+          "d": 6
+        }
+      ]
+    },
+    {
+      "id": "lib:building/front-door",
+      "file": "building/front-door.svg",
+      "family": "building",
+      "kind": "security",
+      "label": "symbols.lib.building.front-door",
+      "viewBox": [
+        80,
+        120
+      ],
+      "body": "wood",
+      "materials": [
+        "steel",
+        "steel-dark",
+        "wall",
+        "wood"
+      ],
+      "parts": []
+    },
+    {
       "id": "lib:building/garage-door",
       "file": "building/garage-door.svg",
       "family": "building",
@@ -4403,6 +4850,38 @@
       ],
       "parts": [],
       "replaces": "garage"
+    },
+    {
+      "id": "lib:building/garden-light",
+      "file": "building/garden-light.svg",
+      "family": "building",
+      "kind": "outdoor",
+      "label": "symbols.lib.building.garden-light",
+      "viewBox": [
+        50,
+        120
+      ],
+      "body": "steel-dark",
+      "materials": [
+        "flame-core",
+        "glass-dark",
+        "steel-dark"
+      ],
+      "parts": [
+        {
+          "id": "lamp",
+          "kind": "lamp"
+        }
+      ],
+      "ports": [
+        {
+          "id": "n-top",
+          "x": 25,
+          "y": 0,
+          "side": "top",
+          "d": 6
+        }
+      ]
     },
     {
       "id": "lib:building/heat-pump",
@@ -4504,6 +4983,208 @@
       ]
     },
     {
+      "id": "lib:building/induction-hob",
+      "file": "building/induction-hob.svg",
+      "family": "building",
+      "kind": "kitchen",
+      "label": "symbols.lib.building.induction-hob",
+      "viewBox": [
+        120,
+        70
+      ],
+      "body": "glass-dark",
+      "materials": [
+        "glass-dark",
+        "lamp-red",
+        "steel-dark"
+      ],
+      "parts": [
+        {
+          "id": "lamp",
+          "kind": "lamp"
+        }
+      ],
+      "ports": [
+        {
+          "id": "n-top",
+          "x": 60.0,
+          "y": 0,
+          "side": "top",
+          "d": 6
+        }
+      ]
+    },
+    {
+      "id": "lib:building/microwave",
+      "file": "building/microwave.svg",
+      "family": "building",
+      "kind": "kitchen",
+      "label": "symbols.lib.building.microwave",
+      "viewBox": [
+        100,
+        70
+      ],
+      "body": "appliance",
+      "materials": [
+        "appliance",
+        "flame-core",
+        "glass-dark",
+        "rubber",
+        "steel",
+        "steel-dark"
+      ],
+      "parts": [
+        {
+          "id": "lamp",
+          "kind": "lamp"
+        }
+      ],
+      "ports": [
+        {
+          "id": "n-top",
+          "x": 50.0,
+          "y": 0,
+          "side": "top",
+          "d": 6
+        }
+      ]
+    },
+    {
+      "id": "lib:building/motion-sensor",
+      "file": "building/motion-sensor.svg",
+      "family": "building",
+      "kind": "security",
+      "label": "symbols.lib.building.motion-sensor",
+      "viewBox": [
+        60,
+        60
+      ],
+      "body": "appliance",
+      "materials": [
+        "appliance",
+        "dial",
+        "lamp-green",
+        "lamp-green-off"
+      ],
+      "parts": [
+        {
+          "id": "lamp",
+          "kind": "lamp"
+        }
+      ]
+    },
+    {
+      "id": "lib:building/oven",
+      "file": "building/oven.svg",
+      "family": "building",
+      "kind": "kitchen",
+      "label": "symbols.lib.building.oven",
+      "viewBox": [
+        90,
+        80
+      ],
+      "body": "stainless",
+      "materials": [
+        "flame",
+        "glass-dark",
+        "stainless",
+        "steel",
+        "steel-dark"
+      ],
+      "parts": [
+        {
+          "id": "lamp",
+          "kind": "lamp"
+        }
+      ],
+      "ports": [
+        {
+          "id": "n-top",
+          "x": 45.0,
+          "y": 0,
+          "side": "top",
+          "d": 6
+        }
+      ]
+    },
+    {
+      "id": "lib:building/pellet-stove",
+      "file": "building/pellet-stove.svg",
+      "family": "building",
+      "kind": "living",
+      "label": "symbols.lib.building.pellet-stove",
+      "viewBox": [
+        80,
+        110
+      ],
+      "body": "steel-dark",
+      "materials": [
+        "flame",
+        "flame-core",
+        "glass-dark",
+        "steel",
+        "steel-dark"
+      ],
+      "parts": [
+        {
+          "id": "lamp",
+          "kind": "lamp"
+        }
+      ],
+      "ports": [
+        {
+          "id": "n-top",
+          "x": 64,
+          "y": 0,
+          "side": "top",
+          "d": 6
+        }
+      ]
+    },
+    {
+      "id": "lib:building/pool-pump",
+      "file": "building/pool-pump.svg",
+      "family": "building",
+      "kind": "outdoor",
+      "label": "symbols.lib.building.pool-pump",
+      "viewBox": [
+        110,
+        70
+      ],
+      "body": "body-pump",
+      "materials": [
+        "body-pump",
+        "glass",
+        "liquid",
+        "steel",
+        "steel-dark"
+      ],
+      "parts": [],
+      "ports": [
+        {
+          "id": "n-left",
+          "x": 0,
+          "y": 45.0,
+          "side": "left",
+          "d": 10
+        },
+        {
+          "id": "n-top",
+          "x": 45.0,
+          "y": 0,
+          "side": "top",
+          "d": 10
+        },
+        {
+          "id": "n-top-2",
+          "x": 90,
+          "y": 0,
+          "side": "top",
+          "d": 6
+        }
+      ]
+    },
+    {
       "id": "lib:building/radiator",
       "file": "building/radiator.svg",
       "family": "building",
@@ -4519,6 +5200,40 @@
         "steel"
       ],
       "parts": []
+    },
+    {
+      "id": "lib:building/robot-vacuum",
+      "file": "building/robot-vacuum.svg",
+      "family": "building",
+      "kind": "smart-home",
+      "label": "symbols.lib.building.robot-vacuum",
+      "viewBox": [
+        80,
+        60
+      ],
+      "body": "steel-dark",
+      "materials": [
+        "lamp-green",
+        "lamp-green-off",
+        "rubber",
+        "steel",
+        "steel-dark"
+      ],
+      "parts": [
+        {
+          "id": "lamp",
+          "kind": "lamp"
+        }
+      ],
+      "ports": [
+        {
+          "id": "n-top",
+          "x": 40.0,
+          "y": 0,
+          "side": "top",
+          "d": 6
+        }
+      ]
     },
     {
       "id": "lib:building/roller-shutter",
@@ -4539,6 +5254,323 @@
       ],
       "parts": [],
       "replaces": "roller_shade"
+    },
+    {
+      "id": "lib:building/security-camera",
+      "file": "building/security-camera.svg",
+      "family": "building",
+      "kind": "security",
+      "label": "symbols.lib.building.security-camera",
+      "viewBox": [
+        100,
+        70
+      ],
+      "body": "appliance",
+      "materials": [
+        "appliance",
+        "glass-dark",
+        "lamp-green",
+        "lamp-green-off",
+        "pv-cell",
+        "steel-dark"
+      ],
+      "parts": [
+        {
+          "id": "lamp",
+          "kind": "lamp"
+        }
+      ],
+      "ports": [
+        {
+          "id": "n-top",
+          "x": 86,
+          "y": 0,
+          "side": "top",
+          "d": 6
+        }
+      ]
+    },
+    {
+      "id": "lib:building/sliding-gate",
+      "file": "building/sliding-gate.svg",
+      "family": "building",
+      "kind": "security",
+      "label": "symbols.lib.building.sliding-gate",
+      "viewBox": [
+        160,
+        90
+      ],
+      "body": "steel-dark",
+      "materials": [
+        "lamp-amber",
+        "safety-yellow",
+        "steel",
+        "steel-dark",
+        "wall"
+      ],
+      "parts": [
+        {
+          "id": "lamp",
+          "kind": "lamp"
+        }
+      ],
+      "ports": [
+        {
+          "id": "n-top",
+          "x": 150,
+          "y": 0,
+          "side": "top",
+          "d": 6
+        }
+      ]
+    },
+    {
+      "id": "lib:building/smart-lock",
+      "file": "building/smart-lock.svg",
+      "family": "building",
+      "kind": "security",
+      "label": "symbols.lib.building.smart-lock",
+      "viewBox": [
+        50,
+        80
+      ],
+      "body": "steel-dark",
+      "materials": [
+        "glass-dark",
+        "lamp-green",
+        "steel",
+        "steel-dark"
+      ],
+      "parts": [
+        {
+          "id": "lamp",
+          "kind": "lamp"
+        }
+      ]
+    },
+    {
+      "id": "lib:building/smart-plug",
+      "file": "building/smart-plug.svg",
+      "family": "building",
+      "kind": "smart-home",
+      "label": "symbols.lib.building.smart-plug",
+      "viewBox": [
+        60,
+        60
+      ],
+      "body": "appliance",
+      "materials": [
+        "appliance",
+        "lamp-green",
+        "lamp-green-off",
+        "steel-dark"
+      ],
+      "parts": [
+        {
+          "id": "lamp",
+          "kind": "lamp"
+        }
+      ],
+      "ports": [
+        {
+          "id": "n-top",
+          "x": 30.0,
+          "y": 0,
+          "side": "top",
+          "d": 6
+        }
+      ]
+    },
+    {
+      "id": "lib:building/smoke-detector",
+      "file": "building/smoke-detector.svg",
+      "family": "building",
+      "kind": "security",
+      "label": "symbols.lib.building.smoke-detector",
+      "viewBox": [
+        80,
+        50
+      ],
+      "body": "appliance",
+      "materials": [
+        "appliance",
+        "lamp-red",
+        "lamp-red-off"
+      ],
+      "parts": [
+        {
+          "id": "lamp",
+          "kind": "lamp"
+        }
+      ]
+    },
+    {
+      "id": "lib:building/solar-thermal",
+      "file": "building/solar-thermal.svg",
+      "family": "building",
+      "kind": "outdoor",
+      "label": "symbols.lib.building.solar-thermal",
+      "viewBox": [
+        140,
+        90
+      ],
+      "body": "steel",
+      "materials": [
+        "copper",
+        "pv-cell",
+        "steel"
+      ],
+      "parts": [],
+      "ports": [
+        {
+          "id": "n-left",
+          "x": 0,
+          "y": 22.0,
+          "side": "left",
+          "d": 8
+        },
+        {
+          "id": "n-right",
+          "x": 140,
+          "y": 70.0,
+          "side": "right",
+          "d": 8
+        }
+      ]
+    },
+    {
+      "id": "lib:building/speaker",
+      "file": "building/speaker.svg",
+      "family": "building",
+      "kind": "living",
+      "label": "symbols.lib.building.speaker",
+      "viewBox": [
+        60,
+        90
+      ],
+      "body": "steel-dark",
+      "materials": [
+        "lamp-green",
+        "lamp-green-off",
+        "rubber",
+        "steel",
+        "steel-dark"
+      ],
+      "parts": [
+        {
+          "id": "lamp",
+          "kind": "lamp"
+        }
+      ],
+      "ports": [
+        {
+          "id": "n-top",
+          "x": 30.0,
+          "y": 0,
+          "side": "top",
+          "d": 6
+        }
+      ]
+    },
+    {
+      "id": "lib:building/split-ac",
+      "file": "building/split-ac.svg",
+      "family": "building",
+      "kind": "living",
+      "label": "symbols.lib.building.split-ac",
+      "viewBox": [
+        140,
+        60
+      ],
+      "body": "appliance",
+      "materials": [
+        "appliance",
+        "glass-dark",
+        "liquid",
+        "steel-dark"
+      ],
+      "parts": [
+        {
+          "id": "lamp",
+          "kind": "lamp"
+        }
+      ],
+      "ports": [
+        {
+          "id": "n-top",
+          "x": 130,
+          "y": 0,
+          "side": "top",
+          "d": 6
+        }
+      ]
+    },
+    {
+      "id": "lib:building/sprinkler",
+      "file": "building/sprinkler.svg",
+      "family": "building",
+      "kind": "outdoor",
+      "label": "symbols.lib.building.sprinkler",
+      "viewBox": [
+        80,
+        80
+      ],
+      "body": "gas",
+      "materials": [
+        "gas",
+        "liquid",
+        "steel",
+        "steel-dark"
+      ],
+      "parts": [
+        {
+          "id": "lamp",
+          "kind": "lamp"
+        }
+      ],
+      "ports": [
+        {
+          "id": "n-bottom",
+          "x": 40.0,
+          "y": 80,
+          "side": "bottom",
+          "d": 10
+        }
+      ]
+    },
+    {
+      "id": "lib:building/television",
+      "file": "building/television.svg",
+      "family": "building",
+      "kind": "living",
+      "label": "symbols.lib.building.television",
+      "viewBox": [
+        120,
+        90
+      ],
+      "body": "steel-dark",
+      "materials": [
+        "glass-dark",
+        "lamp-red",
+        "pv-grid",
+        "steel",
+        "steel-dark"
+      ],
+      "parts": [
+        {
+          "id": "lamp",
+          "kind": "lamp"
+        }
+      ],
+      "ports": [
+        {
+          "id": "n-top",
+          "x": 60.0,
+          "y": 0,
+          "side": "top",
+          "d": 6
+        }
+      ]
     },
     {
       "id": "lib:building/thermostat",
@@ -4565,6 +5597,325 @@
           "cy": 30,
           "a0": -135,
           "a1": 135
+        }
+      ]
+    },
+    {
+      "id": "lib:building/towel-radiator",
+      "file": "building/towel-radiator.svg",
+      "family": "building",
+      "kind": "laundry",
+      "label": "symbols.lib.building.towel-radiator",
+      "viewBox": [
+        70,
+        110
+      ],
+      "body": "stainless",
+      "materials": [
+        "lamp-green",
+        "lamp-green-off",
+        "stainless"
+      ],
+      "parts": [
+        {
+          "id": "lamp",
+          "kind": "lamp"
+        }
+      ],
+      "ports": [
+        {
+          "id": "n-top",
+          "x": 60,
+          "y": 0,
+          "side": "top",
+          "d": 6
+        }
+      ]
+    },
+    {
+      "id": "lib:building/tumble-dryer",
+      "file": "building/tumble-dryer.svg",
+      "family": "building",
+      "kind": "laundry",
+      "label": "symbols.lib.building.tumble-dryer",
+      "viewBox": [
+        80,
+        100
+      ],
+      "body": "appliance",
+      "materials": [
+        "appliance",
+        "glass-dark",
+        "liquid",
+        "rubber",
+        "steel",
+        "steel-dark"
+      ],
+      "parts": [
+        {
+          "id": "lamp",
+          "kind": "lamp"
+        }
+      ],
+      "ports": [
+        {
+          "id": "n-top",
+          "x": 40.0,
+          "y": 0,
+          "side": "top",
+          "d": 6
+        }
+      ]
+    },
+    {
+      "id": "lib:building/video-intercom",
+      "file": "building/video-intercom.svg",
+      "family": "building",
+      "kind": "security",
+      "label": "symbols.lib.building.video-intercom",
+      "viewBox": [
+        60,
+        100
+      ],
+      "body": "steel-dark",
+      "materials": [
+        "glass-dark",
+        "pv-cell",
+        "pv-grid",
+        "steel",
+        "steel-dark"
+      ],
+      "parts": [
+        {
+          "id": "lamp",
+          "kind": "lamp"
+        }
+      ],
+      "ports": [
+        {
+          "id": "n-top",
+          "x": 30.0,
+          "y": 0,
+          "side": "top",
+          "d": 6
+        }
+      ]
+    },
+    {
+      "id": "lib:building/wall-switch",
+      "file": "building/wall-switch.svg",
+      "family": "building",
+      "kind": "smart-home",
+      "label": "symbols.lib.building.wall-switch",
+      "viewBox": [
+        50,
+        60
+      ],
+      "body": "appliance",
+      "materials": [
+        "appliance",
+        "lamp-green",
+        "lamp-green-off",
+        "steel-dark"
+      ],
+      "parts": [
+        {
+          "id": "bilanciere",
+          "kind": "lever",
+          "cx": 25,
+          "cy": 30,
+          "open": -7,
+          "closed": 7
+        },
+        {
+          "id": "lamp",
+          "kind": "lamp"
+        }
+      ]
+    },
+    {
+      "id": "lib:building/washing-machine",
+      "file": "building/washing-machine.svg",
+      "family": "building",
+      "kind": "laundry",
+      "label": "symbols.lib.building.washing-machine",
+      "viewBox": [
+        80,
+        100
+      ],
+      "body": "appliance",
+      "materials": [
+        "appliance",
+        "glass-dark",
+        "lamp-green",
+        "lamp-green-off",
+        "liquid",
+        "rubber",
+        "steel",
+        "steel-dark"
+      ],
+      "parts": [
+        {
+          "id": "lamp-1",
+          "kind": "lamp"
+        },
+        {
+          "id": "rotor",
+          "kind": "rotor",
+          "cx": 40,
+          "cy": 58,
+          "symmetry": 120
+        }
+      ],
+      "ports": [
+        {
+          "id": "n-top",
+          "x": 40.0,
+          "y": 0,
+          "side": "top",
+          "d": 6
+        }
+      ]
+    },
+    {
+      "id": "lib:building/water-heater",
+      "file": "building/water-heater.svg",
+      "family": "building",
+      "kind": "laundry",
+      "label": "symbols.lib.building.water-heater",
+      "viewBox": [
+        70,
+        130
+      ],
+      "body": "appliance",
+      "materials": [
+        "appliance",
+        "dial",
+        "lamp-green",
+        "lamp-green-off",
+        "steel"
+      ],
+      "parts": [
+        {
+          "id": "lamp",
+          "kind": "lamp"
+        }
+      ],
+      "ports": [
+        {
+          "id": "n-top",
+          "x": 35,
+          "y": 0,
+          "side": "top",
+          "d": 6
+        },
+        {
+          "id": "n-bottom",
+          "x": 20.0,
+          "y": 130,
+          "side": "bottom",
+          "d": 8
+        },
+        {
+          "id": "n-bottom-2",
+          "x": 50.0,
+          "y": 130,
+          "side": "bottom",
+          "d": 8
+        }
+      ]
+    },
+    {
+      "id": "lib:building/water-softener",
+      "file": "building/water-softener.svg",
+      "family": "building",
+      "kind": "laundry",
+      "label": "symbols.lib.building.water-softener",
+      "viewBox": [
+        70,
+        110
+      ],
+      "body": "appliance",
+      "materials": [
+        "appliance",
+        "glass-dark",
+        "liquid",
+        "steel",
+        "steel-dark"
+      ],
+      "parts": [
+        {
+          "id": "lamp",
+          "kind": "lamp"
+        }
+      ],
+      "ports": [
+        {
+          "id": "n-left",
+          "x": 0,
+          "y": 24.0,
+          "side": "left",
+          "d": 8
+        },
+        {
+          "id": "n-top",
+          "x": 50,
+          "y": 0,
+          "side": "top",
+          "d": 6
+        },
+        {
+          "id": "n-right",
+          "x": 70,
+          "y": 24.0,
+          "side": "right",
+          "d": 8
+        }
+      ]
+    },
+    {
+      "id": "lib:building/wifi-router",
+      "file": "building/wifi-router.svg",
+      "family": "building",
+      "kind": "smart-home",
+      "label": "symbols.lib.building.wifi-router",
+      "viewBox": [
+        90,
+        60
+      ],
+      "body": "appliance",
+      "materials": [
+        "appliance",
+        "lamp-green",
+        "lamp-green-off",
+        "rubber",
+        "steel-dark"
+      ],
+      "parts": [
+        {
+          "id": "lamp-1",
+          "kind": "lamp"
+        },
+        {
+          "id": "lamp-2",
+          "kind": "lamp"
+        },
+        {
+          "id": "lamp-3",
+          "kind": "lamp"
+        },
+        {
+          "id": "lamp-4",
+          "kind": "lamp"
+        }
+      ],
+      "ports": [
+        {
+          "id": "n-top",
+          "x": 80,
+          "y": 0,
+          "side": "top",
+          "d": 6
         }
       ]
     },

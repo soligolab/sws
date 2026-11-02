@@ -5,6 +5,7 @@
 // Un componente a parte perché `EditorShell` è già enorme; riceve dal pannello
 // i suoi stessi costruttori di campo, così l'aspetto è quello degli altri tipi.
 
+import { useNomePagina } from "@/i18n/nomePagina";
 import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { useAppStore } from "@/store";
@@ -33,6 +34,7 @@ export function NavigatorProperties({
   inputStyle: React.CSSProperties;
 }) {
   const { t } = useTranslation();
+  const nomePagina = useNomePagina();
   const pagine = useAppStore((s) => s.pages);
   const albero = useAppStore((s) => s.project?.page_layout?.page_tree);
 
@@ -75,7 +77,7 @@ export function NavigatorProperties({
           onChange={(e) => onChange({ nav_node: e.target.value || undefined })}>
           <option value="">{t("props.dashSelect")}</option>
           {ordinate.map((p) => (
-            <option key={p.id} value={p.id}>{" ".repeat(livelli.get(p.id) ?? 0)}{p.name}</option>
+            <option key={p.id} value={p.id}>{" ".repeat(livelli.get(p.id) ?? 0)}{nomePagina(p.name)}</option>
           ))}
         </select>)}
 
@@ -118,7 +120,7 @@ export function NavigatorProperties({
             <div style={{ gridColumn: "1 / -1", fontSize: 11, paddingLeft: (livelli.get(p.id) ?? 0) * 10,
                           color: it?.hidden ? "var(--brand-text-subtle, #64748b)" : "var(--brand-text, #e2e8f0)",
                           textDecoration: it?.hidden ? "line-through" : undefined }}>
-              {p.name}
+              {nomePagina(p.name)}
             </div>
             <CampoTestoTradotto
               valore={it?.label}

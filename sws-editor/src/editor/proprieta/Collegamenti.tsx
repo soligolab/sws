@@ -14,7 +14,10 @@ import { createContext, useContext, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { TagInput } from "@/components/TagInput";
 import { useAppStore } from "@/store";
-import type { SynopticObject } from "@/types";
+import { CampoNumero } from "@/components/CampoNumero";
+import { angoliLeva, trovaSimboloLib, useSimboloLib } from "@/symbols/lib/libreria";
+import type { SimboloLib } from "@/symbols/lib/manifest";
+import type { ParteLegata, SynopticObject } from "@/types";
 import { testoValoreTag } from "../RigaTagLive";
 import { SPAZIO, TESTO } from "../stilePannelli";
 import { listeDiTag, slotDi, slotPresente, type CampoTag, type SlotTag, type Verso } from "./slotTag";
@@ -23,6 +26,109 @@ import { listeDiTag, slotDi, slotPresente, type CampoTag, type SlotTag, type Ver
  *  fornisce `PannelloDestro`; fuori (un test, la selezione multipla) è `null`
  *  e le righe non sono cliccabili. */
 export const VaiACampo = createContext<((campo: string) => void) | null>(null);
+
+/** Le parti vive di un simbolo che si legano a un tag: lancette, leve, spie.
+ *  Livello e rotazione hanno già i loro slot (`fill_level_tag`, `symbol_spin_tag`). */
+function partiLegabili(sim: SimboloLib | undefined) {
+  return (sim?.parts ?? []).filter((p) => p.kind === "needle" || p.kind === "lever" || p.kind === "lamp");
+}
+
+/** Il tag di stato fa da predefinito alla leva a due posizioni (02-11-2026, il
+ *  maintainer: «quando viene inserito un tag in "state" potresti ricopiarlo in
+ *  "Lever open" così è il comportamento di default ma l'utente lo può
+ *  sovrascrivere»). Si copia solo dove la leva non ha un tag, o ha quello di
+ *  prima: un tag scelto apposta per la leva resta suo. */
+export function conLevaDalloStato(obj: SynopticObject, patch: Partial<SynopticObject>): Partial<SynopticObject> {
+  if (!("state_tag" in patch) || obj.type !== "symbol" || !obj.symbol_id) return patch;
+  const leve = (trovaSimboloLib(obj.symbol_id)?.parts ?? [])
+    .filter((p) => p.kind === "lever" && angoliLeva(p).length === 2);
+  if (leve.length === 0) return patch;
+  const prima = obj.state_tag ?? "";
+  const dopo = patch.state_tag ?? "";
+  const parti: Record<string, ParteLegata> = { ...(obj.symbol_parts ?? {}) };
+  let cambiate = false;
+  for (const p of leve) {
+    const attuale = parti[p.id]?.tag ?? "";
+    if (attuale !== "" && attuale !== prima) continue;
+    const nuova: ParteLegata = { ...(parti[p.id] ?? {}) };
+    if (dopo) nuova.tag = dopo; else delete nuova.tag;
+    if (Object.keys(nuova).length === 0) delete parti[p.id]; else parti[p.id] = nuova;
+    cambiate = true;
+  }
+  if (!cambiate) return patch;
+  return { ...patch, symbol_parts: Object.keys(parti).length > 0 ? parti : undefined };
+}
+
+/** Le parti vive del simbolo, fra i tag principali (02-11-2026: «è una funzione
+ *  molto utile e un po' troppo nascosta»). Erano una sezione a parte dentro
+ *  «Parametri»; qui stanno con lo stato e il comando, ognuna col suo tag. */
+function PartiDelSimbolo({ obj, onChange, stileCampo }: {
+  obj: SynopticObject; onChange: (p: Partial<SynopticObject>) => void; stileCampo: React.CSSProperties;
+}) {
+  const { t } = useTranslation();
+  const { sim } = useSimboloLib(obj.type === "symbol" ? obj.symbol_id : undefined);
+  const parti = partiLegabili(sim);
+  if (parti.length === 0) return null;
+  const legami = obj.symbol_parts ?? {};
+  const metti = (id: string, patch: Partial<ParteLegata>) => {
+    const nuovo = { ...(legami[id] ?? {}), ...patch };
+    for (const k of Object.keys(nuovo) as (keyof ParteLegata)[]) if (nuovo[k] === undefined || nuovo[k] === "") delete nuovo[k];
+    const tutti = { ...legami, [id]: nuovo };
+    if (Object.keys(nuovo).length === 0) delete tutti[id];
+    onChange({ symbol_parts: Object.keys(tutti).length > 0 ? tutti : undefined });
+  };
+  const numero = (v: string) => (v.trim() === "" || !Number.isFinite(Number(v)) ? undefined : Number(v));
+  const senzaTag = parti.filter((p) => !legami[p.id]?.tag).length;
+  const piccola: React.CSSProperties = { fontSize: TESTO.nota, color: "var(--brand-text-subtle, #94a3b8)" };
+  return (
+    <div data-field="symbol_parts" data-testid="parti-del-simbolo">
+      <div style={{ ...piccola, margin: `${SPAZIO.xs}px 0 2px` }}>{t("props.partiSimbolo")}</div>
+      {/* Una parte senza tag resta ferma (scelta del maintainer del 02-11-2026):
+          la leva a metà, la spia sempre accesa. Detto qui, o sembra un disegno
+          con un solo aspetto. */}
+      {senzaTag > 0 && (
+        <div data-testid="parti-senza-tag" style={{ fontSize: TESTO.nota, color: "var(--brand-warning-soft, #fbbf24)", margin: "0 0 4px", lineHeight: 1.4 }}>
+          {t("props.partiSenzaTag", { count: senzaTag })}
+        </div>
+      )}
+      {parti.map((p) => {
+        const l = legami[p.id] ?? {};
+        // Una leva a più di due posizioni non si apre e non si chiude: si
+        // mette su una posizione, e il tag è l'indice.
+        const posizioni = p.kind === "lever" ? angoliLeva(p).length : 0;
+        const etichetta = p.kind === "needle" ? t("props.parteLancetta")
+          : p.kind === "lever"
+            ? (posizioni >= 3 ? t("props.parteLevaPosizioni", { ultima: posizioni - 1 }) : t("props.parteLeva"))
+          : t("props.parteSpia", { id: p.id });
+        return (
+          <div key={p.id} data-row={etichetta} data-parte={p.id} style={{ display: "flex", gap: SPAZIO.xs, marginBottom: SPAZIO.s }}>
+            <span aria-hidden="true" style={{ width: 12, flexShrink: 0, fontSize: 12, lineHeight: "16px", color: "var(--brand-text-muted, #94a3b8)" }}>
+              {FRECCIA.in}
+            </span>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: SPAZIO.xs, marginBottom: 2 }}>
+                <div style={{ flex: 1, minWidth: 0, fontSize: TESTO.etichetta, color: "var(--brand-text-muted, #94a3b8)" }}>{etichetta}</div>
+                <ValoreLive tag={l.tag ?? ""} />
+              </div>
+              <TagInput style={stileCampo} placeholder={t("props.slot.scegli")} value={l.tag ?? ""}
+                onChange={(v) => metti(p.id, { tag: v || undefined })} />
+              {p.kind === "needle" && (
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 4, marginTop: 4 }}>
+                  <div><div style={piccola}>{t("props.parteMin")}</div>
+                    <CampoNumero style={stileCampo} placeholder="0" value={l.min ?? ""}
+                      onTesto={(e) => metti(p.id, { min: numero(e) })} /></div>
+                  <div><div style={piccola}>{t("props.parteMax")}</div>
+                    <CampoNumero style={stileCampo} placeholder="100" value={l.max ?? ""}
+                      onTesto={(e) => metti(p.id, { max: numero(e) })} /></div>
+                </div>
+              )}
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
 
 /** Il `data-field` della sezione stessa: il bersaglio di `RimandoCollegamenti`. */
 const CAMPO_SEZIONE = "links";
@@ -128,6 +234,9 @@ export function Collegamenti({ obj, onChange, stileCampo, mixedKeys }: {
   // Gli slot scelti da «+ Collega…» e non ancora collegati: stato locale, non
   // si scrive `""` nel progetto per un tag che non c'è ancora.
   const [aggiunti, setAggiunti] = useState<ReadonlySet<CampoTag>>(new Set());
+  // Il tag di stato porta con sé la leva (02-11-2026): vedi `conLevaDalloStato`.
+  const onChangeOriginale = onChange;
+  onChange = (p) => onChangeOriginale(conLevaDalloStato(obj, p));
   const slot = slotDi(obj);
   const vari = (s: SlotTag) => !!mixedKeys?.has(s.campo);
   const visibili = slot.filter((s) => s.principale || slotPresente(s, obj) || aggiunti.has(s.campo) || vari(s));
@@ -159,6 +268,7 @@ export function Collegamenti({ obj, onChange, stileCampo, mixedKeys }: {
   return (
     <div data-field={CAMPO_SEZIONE} data-testid="collegamenti">
       {letti.length > 0 && <>{scritti.length > 0 && titolo("props.slot.letti")}{letti.map(riga)}</>}
+      {!mixedKeys?.size && <PartiDelSimbolo obj={obj} onChange={onChange} stileCampo={stileCampo} />}
       {scritti.length > 0 && <>{letti.length > 0 && titolo("props.slot.scritti")}{scritti.map(riga)}</>}
       {liste.map((l) => (
         <RigaRimando key={l.campo} icona="☰" campo={l.campo} testo={t(`props.slot.lista.${l.effetto}`)}

@@ -33,6 +33,58 @@ import {
 } from "@/config/campiDispositivo";
 import { BTN, BTN_RED, INPUT, LOG_BOX, coloreRigaLog } from "./stiliRuntime";
 import { CampoNumero } from "@/components/CampoNumero";
+import { prefissoGateway } from "@/api/prefisso";
+
+/** Le sezioni dello stato, come le stampa `packaging.rs` («== id ==», un id
+ *  stabile e non una frase), con un nome che un utente legge. */
+const SEZIONI: Record<string, string> = {
+  service: "cfg.manageSezServizio",
+  lvgl: "cfg.manageSezViewer",
+  boot: "cfg.manageSezBoot",
+  linger: "cfg.manageSezLinger",
+  container: "cfg.manageSezContainer",
+  "other-containers": "cfg.manageSezAltri",
+  images: "cfg.manageSezImmagini",
+};
+
+/** Il log della gestione, leggibile (02-11-2026, il maintainer: «quel log è poco
+ *  leggibile da un utente normale e il campo di testo […] non responsive»): le
+ *  sezioni diventano titoli, «sh: 1: podman: not found» diventa una frase, e il
+ *  testo va a capo invece di uscire dal riquadro. */
+export function LogGestione({ righe }: { righe: string[] }) {
+  const { t } = useTranslation();
+  const mancanti = [...new Set(righe.map((r) => /: ([a-z-]+): not found$/.exec(r)?.[1]).filter(Boolean))] as string[];
+  return (
+    <div data-testid="log-gestione" style={{
+      ...LOG_BOX, maxHeight: 420, fontSize: 12, whiteSpace: "pre-wrap", overflowWrap: "anywhere", lineHeight: 1.45,
+    }}>
+      {mancanti.includes("podman") && (
+        <div data-testid="senza-podman" style={{ color: "var(--brand-warning-soft, #fbbf24)", fontFamily: "inherit", marginBottom: 6 }}>
+          {t("cfg.manageSenzaPodman")}
+        </div>
+      )}
+      {righe.map((l, i) => {
+        const sez = /^== (.+) ==$/.exec(l);
+        if (sez) {
+          const chiave = SEZIONI[sez[1]];
+          return (
+            <div key={i} style={{ marginTop: i ? 8 : 0, fontWeight: 700, color: "var(--brand-text-2, #cbd5e1)", fontFamily: "system-ui, sans-serif" }}>
+              {chiave ? t(chiave) : sez[1]}
+            </div>
+          );
+        }
+        const manca = /: ([a-z-]+): not found$/.exec(l);
+        if (manca) {
+          return <div key={i} style={{ color: "var(--brand-text-subtle, #64748b)" }}>{t("cfg.manageComandoAssente", { comando: manca[1] })}</div>;
+        }
+        if (l.startsWith("==> ")) {
+          return <div key={i} style={{ color: "var(--brand-text-subtle, #64748b)" }}>{l.slice(4)}</div>;
+        }
+        return <div key={i} style={{ color: coloreRigaLog(l) }}>{l}</div>;
+      })}
+    </div>
+  );
+}
 
 
 export function ContainerTab() {
@@ -110,8 +162,25 @@ export function ContainerTab() {
     </button>
   );
 
+  // Nel cloud questa scheda non ha niente da gestire (02-11-2026): «locale» è il
+  // container del progetto sul VPS, che podman non ce l'ha, e via SSH il cloud
+  // non entra nel pannello. Lo stato e i comandi del pannello collegato stanno
+  // nella Connessione.
+  if (prefissoGateway()) {
+    return (
+      <div style={{ padding: 24, maxWidth: 700 }}>
+        <div style={{ fontSize: 12, fontWeight: 700, color: "var(--brand-text-2, #cbd5e1)", marginBottom: 8 }}>
+          {t("cfg.manageTitle")}
+        </div>
+        <p data-testid="container-dal-cloud" style={{ margin: 0, fontSize: 13, lineHeight: 1.6, color: "var(--brand-text-muted, #94a3b8)" }}>
+          {t("cfg.manageDalCloud")}
+        </p>
+      </div>
+    );
+  }
+
   return (
-    <div style={{ padding: 24, maxWidth: 600, display: "flex", flexDirection: "column", gap: 20 }}>
+    <div style={{ padding: 24, maxWidth: 900, width: "100%", boxSizing: "border-box", display: "flex", flexDirection: "column", gap: 20 }}>
       <section>
         <div style={{ fontSize: 12, fontWeight: 700, color: "var(--brand-text-2, #cbd5e1)", marginBottom: 8 }}>
           {t("cfg.manageTitle")}
@@ -215,13 +284,7 @@ export function ContainerTab() {
           </div>
         </div>
 
-        {manageLog.length > 0 && (
-          <div style={LOG_BOX}>
-            {manageLog.map((l, i) => (
-              <div key={i} style={{ color: coloreRigaLog(l) }}>{l}</div>
-            ))}
-          </div>
-        )}
+        {manageLog.length > 0 && <LogGestione righe={manageLog} />}
       </section>
     </div>
   );

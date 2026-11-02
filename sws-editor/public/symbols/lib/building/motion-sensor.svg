@@ -1,0 +1,40 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="60" height="60" viewBox="0 0 60 60">
+  <defs>
+    <linearGradient id="motion-sensor-paint-h" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#000" stop-opacity="0.25"/>
+      <stop offset="0.2" stop-color="#fff" stop-opacity="0.5"/>
+      <stop offset="0.45" stop-color="#fff" stop-opacity="0.08"/>
+      <stop offset="0.75" stop-color="#000" stop-opacity="0.12"/>
+      <stop offset="1" stop-color="#000" stop-opacity="0.45"/>
+    </linearGradient>
+    <radialGradient id="motion-sensor-dial-r" cx="0.4" cy="0.35" r="0.75">
+      <stop offset="0" stop-color="#fff" stop-opacity="1"/>
+      <stop offset="0.7" stop-color="#fff" stop-opacity="0"/>
+      <stop offset="1" stop-color="#000" stop-opacity="0.14"/>
+    </radialGradient>
+    <radialGradient id="motion-sensor-glass-r" cx="0.35" cy="0.3" r="0.7">
+      <stop offset="0" stop-color="#fff" stop-opacity="0.9"/>
+      <stop offset="0.3" stop-color="#fff" stop-opacity="0.25"/>
+      <stop offset="1" stop-color="#fff" stop-opacity="0"/>
+    </radialGradient>
+    <rect id="motion-sensor-g1" x="10" y="6" width="40" height="48" rx="8"/>
+    <path id="motion-sensor-g2" d="M16 30 Q16 16 30 16 Q44 16 44 30 Z"/>
+    <circle id="motion-sensor-g3" cx="30" cy="44" r="2"/>
+  </defs>
+  <g id="body" data-layer="part" data-mat="appliance" fill="#e2e6ea" stroke="#1c2329" stroke-width="1" stroke-linejoin="round">
+    <use href="#motion-sensor-g1"/>
+    <use href="#motion-sensor-g1" fill="url(#motion-sensor-paint-h)" stroke="none" opacity="1" data-shade="paint-h"/>
+  </g>
+  <g id="layer-1" data-layer="static" stroke="#1c2329" stroke-width="1" stroke-linejoin="round">
+    <use href="#motion-sensor-g2" fill="#eef1f3" data-mat="dial"/>
+    <use href="#motion-sensor-g2" fill="url(#motion-sensor-dial-r)" stroke="none" opacity="1" data-shade="dial-r"/>
+    <path d="M22 18 L22 30" fill="none" stroke-opacity="0.25"/>
+    <path d="M30 18 L30 30" fill="none" stroke-opacity="0.25"/>
+    <path d="M38 18 L38 30" fill="none" stroke-opacity="0.25"/>
+    <circle cx="30" cy="44" r="2" fill="#2f5a39" data-mat="lamp-green-off"/>
+  </g>
+  <g id="lamp" data-layer="part" stroke="#1c2329" stroke-width="1" stroke-linejoin="round">
+    <use href="#motion-sensor-g3" fill="#3fb950" data-mat="lamp-green"/>
+    <use href="#motion-sensor-g3" fill="url(#motion-sensor-glass-r)" stroke="none" opacity="1" data-shade="glass-r"/>
+  </g>
+</svg>

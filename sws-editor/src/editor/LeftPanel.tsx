@@ -27,6 +27,7 @@ import { MODELLI_CORNICE, idCornice, pagineCornice, type ModelloCornice } from "
 import { PropostaCornice } from "@/cornici/PropostaCornice";
 import { idNuovo, nuovaPlanimetria } from "@/planimetrie/modello";
 import { impostaBootAbilitata } from "@/boot/abilitata";
+import { useNomePagina } from "@/i18n/nomePagina";
 import { discendentiDi, riconcilia, righe, spostaRispettoA, type ZonaRilascio } from "@/pageTree";
 
 // ── Shared styles ─────────────────────────────────────────────────────────────
@@ -178,6 +179,7 @@ function RamoPagine({ titolo, icona, memoria, azione, children }: {
 
 function PagesSection() {
   const { t } = useTranslation();
+  const nomePagina = useNomePagina();
   const tutte         = useAppStore((s) => s.pages);
   // L'elenco delle pagine del pannello: le pagine di boot hanno la loro sezione.
   const pages         = paginePerNavigazione(tutte);
@@ -419,7 +421,7 @@ function PagesSection() {
                   {p.finestra && <span title={t("finestraPopup.segnoAlbero")} style={{ flexShrink: 0 }}>🪟</span>}
                   {p.locked && !mostraAzioni && <span style={{ flexShrink: 0, fontSize: 10 }}>🔒</span>}
                   <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1, minWidth: 0 }}>
-                    {p.name}
+                    {nomePagina(p.name)}
                   </span>
                   {mostraAzioni && (
                     // Le azioni stanno sopra il nome, a destra (come negli alberi dei file): il

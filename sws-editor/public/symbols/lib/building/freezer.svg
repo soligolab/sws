@@ -1,0 +1,66 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="100" height="80" viewBox="0 0 100 80">
+  <defs>
+    <linearGradient id="freezer-paint-v" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#000" stop-opacity="0.25"/>
+      <stop offset="0.2" stop-color="#fff" stop-opacity="0.5"/>
+      <stop offset="0.45" stop-color="#fff" stop-opacity="0.08"/>
+      <stop offset="0.75" stop-color="#000" stop-opacity="0.12"/>
+      <stop offset="1" stop-color="#000" stop-opacity="0.45"/>
+    </linearGradient>
+    <linearGradient id="freezer-paint-h" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#000" stop-opacity="0.25"/>
+      <stop offset="0.2" stop-color="#fff" stop-opacity="0.5"/>
+      <stop offset="0.45" stop-color="#fff" stop-opacity="0.08"/>
+      <stop offset="0.75" stop-color="#000" stop-opacity="0.12"/>
+      <stop offset="1" stop-color="#000" stop-opacity="0.45"/>
+    </linearGradient>
+    <linearGradient id="freezer-metal-v" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#000" stop-opacity="0.42"/>
+      <stop offset="0.18" stop-color="#fff" stop-opacity="0.85"/>
+      <stop offset="0.45" stop-color="#fff" stop-opacity="0.25"/>
+      <stop offset="0.8" stop-color="#000" stop-opacity="0.19"/>
+      <stop offset="1" stop-color="#000" stop-opacity="0.49"/>
+    </linearGradient>
+    <radialGradient id="freezer-glass-r" cx="0.35" cy="0.3" r="0.7">
+      <stop offset="0" stop-color="#fff" stop-opacity="0.9"/>
+      <stop offset="0.3" stop-color="#fff" stop-opacity="0.25"/>
+      <stop offset="1" stop-color="#fff" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="freezer-dark-v" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#fff" stop-opacity="0.1"/>
+      <stop offset="0.2" stop-color="#fff" stop-opacity="0.37"/>
+      <stop offset="0.6" stop-color="#000" stop-opacity="0.17"/>
+      <stop offset="1" stop-color="#000" stop-opacity="0.48"/>
+    </linearGradient>
+    <rect id="freezer-g1" x="6" y="8" width="88" height="12" rx="3"/>
+    <rect id="freezer-g2" x="6" y="18" width="88" height="54" rx="3"/>
+    <rect id="freezer-g3" x="40" y="22" width="20" height="4" rx="2"/>
+    <circle id="freezer-g4" cx="84" cy="30" r="2"/>
+    <rect id="freezer-g5" x="10" y="72" width="8" height="4" rx="1"/>
+    <rect id="freezer-g6" x="82" y="72" width="8" height="4" rx="1"/>
+  </defs>
+  <g id="layer-0" data-layer="static" stroke="#1c2329" stroke-width="1" stroke-linejoin="round">
+    <use href="#freezer-g1" fill="#e2e6ea" data-mat="appliance"/>
+    <use href="#freezer-g1" fill="url(#freezer-paint-v)" stroke="none" opacity="1" data-shade="paint-v"/>
+  </g>
+  <g id="body" data-layer="part" data-mat="appliance" fill="#e2e6ea" stroke="#1c2329" stroke-width="1" stroke-linejoin="round">
+    <use href="#freezer-g2"/>
+    <use href="#freezer-g2" fill="url(#freezer-paint-h)" stroke="none" opacity="1" data-shade="paint-h"/>
+  </g>
+  <g id="layer-1" data-layer="static" stroke="#1c2329" stroke-width="1" stroke-linejoin="round">
+    <use href="#freezer-g3" fill="#9aa5af" data-mat="steel"/>
+    <use href="#freezer-g3" fill="url(#freezer-metal-v)" stroke="none" opacity="1" data-shade="metal-v"/>
+    <path d="M14 40 L22 44 L14 48 M22 44 L34 44" fill="none" stroke-opacity="0.25"/>
+    <circle cx="84" cy="30" r="2" fill="#2f5a39" data-mat="lamp-green-off"/>
+  </g>
+  <g id="lamp" data-layer="part" stroke="#1c2329" stroke-width="1" stroke-linejoin="round">
+    <use href="#freezer-g4" fill="#3fb950" data-mat="lamp-green"/>
+    <use href="#freezer-g4" fill="url(#freezer-glass-r)" stroke="none" opacity="1" data-shade="glass-r"/>
+  </g>
+  <g id="layer-2" data-layer="static" stroke="#1c2329" stroke-width="1" stroke-linejoin="round">
+    <use href="#freezer-g5" fill="#2a2d31" data-mat="rubber"/>
+    <use href="#freezer-g5" fill="url(#freezer-dark-v)" stroke="none" opacity="1" data-shade="dark-v"/>
+    <use href="#freezer-g6" fill="#2a2d31" data-mat="rubber"/>
+    <use href="#freezer-g6" fill="url(#freezer-dark-v)" stroke="none" opacity="1" data-shade="dark-v"/>
+  </g>
+</svg>

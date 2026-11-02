@@ -285,13 +285,17 @@ installa_openplc() {
         fi
     fi
 
-    # Il container del pomeriggio del 30-10-2026 ascoltava solo su 127.0.0.1:
-    # si ricrea. E' il solo caso in cui si butta via un container esistente,
-    # e c'e' solo sul WP630 di prova.
-    if podman container exists "$OPENPLC_NAME" \
-        && podman inspect -f '{{json .HostConfig.PortBindings}}' "$OPENPLC_NAME" 2>/dev/null | grep -q '"HostIp":"127.0.0.1"'; then
-        podman rm -f "$OPENPLC_NAME" >/dev/null 2>&1 || true
-        echo "    OpenPLC ascoltava solo sul pannello: lo ricreo sulla rete (il programma va ricaricato)"
+    # Un container fatto prima delle porte di oggi si ricrea: quello del 30-10-2026
+    # ascoltava solo su 127.0.0.1, quelli fino al 02-11-2026 non avevano la
+    # 33333/udp della ricerca dell'Editor. Sono i soli casi in cui si butta via un
+    # container esistente, e ci sono solo sui pannelli di prova: il programma
+    # caricato va ricaricato dall'Editor, e lo si dice.
+    if podman container exists "$OPENPLC_NAME"; then
+        porte="$(podman inspect -f '{{json .HostConfig.PortBindings}}' "$OPENPLC_NAME" 2>/dev/null)"
+        if printf '%s' "$porte" | grep -q '"HostIp":"127.0.0.1"' || ! printf '%s' "$porte" | grep -q '33333/udp'; then
+            podman rm -f "$OPENPLC_NAME" >/dev/null 2>&1 || true
+            echo "    OpenPLC aveva le porte di prima: lo ricreo (il programma va ricaricato dall'Editor)"
+        fi
     fi
 
     # Se il container c'e' gia' non si ricrea: dentro c'e' il programma.
@@ -308,9 +312,17 @@ installa_openplc() {
         # dell'Editor coi valori di fabbrica funziona com'e'. Fuori Modbus e S7
         # sono alte perche' in rootless sotto la 1024 non si pubblica; OPC-UA e'
         # 14840 per non litigare col server OPC-UA di SWS, che sta sulla 4840.
-        if ! err="$(podman create --name "$OPENPLC_NAME" --restart always --stop-timeout 30 --tz local \
+        #
+        # La 33333/udp e' la ricerca dell'Editor (02-11-2026): «Search» manda
+        # `OPENPLC_DISCOVER_V1` in broadcast su quella porta e il runtime
+        # risponde (webserver/discovery/network_discovery.py dell'immagine).
+        # Senza, l'Editor non trovava il pannello, anche se poi ci si collegava
+        # scrivendo l'indirizzo.
+        # `--hostname`: la risposta alla ricerca dell'Editor porta il nome della
+        # macchina, e senza diceva l'id del container.
+        if ! err="$(podman create --name "$OPENPLC_NAME" --hostname "$(hostname)" --restart always --stop-timeout 30 --tz local \
                 -v "$dati:/var/run/runtime" \
-                -p 8443:8443 -p 1502:502 -p 10102:102 -p 14840:4840 \
+                -p 8443:8443 -p 1502:502 -p 10102:102 -p 14840:4840 -p 33333:33333/udp \
                 "$OPENPLC_IMG" 2>&1 >/dev/null)"; then
             openplc_fallito "container non creato: $(printf '%s' "$err" | tail -1)"
             return 1

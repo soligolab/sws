@@ -1,0 +1,81 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="90" height="60" viewBox="0 0 90 60">
+  <defs>
+    <linearGradient id="wifi-router-dark-h" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#fff" stop-opacity="0.1"/>
+      <stop offset="0.2" stop-color="#fff" stop-opacity="0.37"/>
+      <stop offset="0.6" stop-color="#000" stop-opacity="0.17"/>
+      <stop offset="1" stop-color="#000" stop-opacity="0.48"/>
+    </linearGradient>
+    <linearGradient id="wifi-router-paint-v" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#000" stop-opacity="0.25"/>
+      <stop offset="0.2" stop-color="#fff" stop-opacity="0.5"/>
+      <stop offset="0.45" stop-color="#fff" stop-opacity="0.08"/>
+      <stop offset="0.75" stop-color="#000" stop-opacity="0.12"/>
+      <stop offset="1" stop-color="#000" stop-opacity="0.45"/>
+    </linearGradient>
+    <radialGradient id="wifi-router-glass-r" cx="0.35" cy="0.3" r="0.7">
+      <stop offset="0" stop-color="#fff" stop-opacity="0.9"/>
+      <stop offset="0.3" stop-color="#fff" stop-opacity="0.25"/>
+      <stop offset="1" stop-color="#fff" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="wifi-router-dark-v" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#fff" stop-opacity="0.1"/>
+      <stop offset="0.2" stop-color="#fff" stop-opacity="0.37"/>
+      <stop offset="0.6" stop-color="#000" stop-opacity="0.17"/>
+      <stop offset="1" stop-color="#000" stop-opacity="0.48"/>
+    </linearGradient>
+    <rect id="wifi-router-g1" x="14" y="4" width="4" height="30" rx="2"/>
+    <rect id="wifi-router-g2" x="72" y="4" width="4" height="30" rx="2"/>
+    <rect id="wifi-router-g3" x="6" y="30" width="78" height="22" rx="4"/>
+    <circle id="wifi-router-g4" cx="26" cy="44" r="1.6"/>
+    <circle id="wifi-router-g5" cx="36" cy="44" r="1.6"/>
+    <circle id="wifi-router-g6" cx="46" cy="44" r="1.6"/>
+    <circle id="wifi-router-g7" cx="56" cy="44" r="1.6"/>
+    <rect id="wifi-router-g8" x="12" y="52" width="8" height="4" rx="1"/>
+    <rect id="wifi-router-g9" x="70" y="52" width="8" height="4" rx="1"/>
+  </defs>
+  <g id="layer-0" data-layer="static" stroke="#1c2329" stroke-width="1" stroke-linejoin="round">
+    <use href="#wifi-router-g1" fill="#4a545d" data-mat="steel-dark"/>
+    <use href="#wifi-router-g1" fill="url(#wifi-router-dark-h)" stroke="none" opacity="1" data-shade="dark-h"/>
+    <use href="#wifi-router-g2" fill="#4a545d" data-mat="steel-dark"/>
+    <use href="#wifi-router-g2" fill="url(#wifi-router-dark-h)" stroke="none" opacity="1" data-shade="dark-h"/>
+  </g>
+  <g id="body" data-layer="part" data-mat="appliance" fill="#e2e6ea" stroke="#1c2329" stroke-width="1" stroke-linejoin="round">
+    <use href="#wifi-router-g3"/>
+    <use href="#wifi-router-g3" fill="url(#wifi-router-paint-v)" stroke="none" opacity="1" data-shade="paint-v"/>
+  </g>
+  <g id="layer-1" data-layer="static" stroke="#1c2329" stroke-width="1" stroke-linejoin="round">
+    <circle cx="26" cy="44" r="1.6" fill="#2f5a39" data-mat="lamp-green-off"/>
+  </g>
+  <g id="lamp-1" data-layer="part" stroke="#1c2329" stroke-width="1" stroke-linejoin="round">
+    <use href="#wifi-router-g4" fill="#3fb950" data-mat="lamp-green"/>
+    <use href="#wifi-router-g4" fill="url(#wifi-router-glass-r)" stroke="none" opacity="1" data-shade="glass-r"/>
+  </g>
+  <g id="layer-2" data-layer="static" stroke="#1c2329" stroke-width="1" stroke-linejoin="round">
+    <circle cx="36" cy="44" r="1.6" fill="#2f5a39" data-mat="lamp-green-off"/>
+  </g>
+  <g id="lamp-2" data-layer="part" stroke="#1c2329" stroke-width="1" stroke-linejoin="round">
+    <use href="#wifi-router-g5" fill="#3fb950" data-mat="lamp-green"/>
+    <use href="#wifi-router-g5" fill="url(#wifi-router-glass-r)" stroke="none" opacity="1" data-shade="glass-r"/>
+  </g>
+  <g id="layer-3" data-layer="static" stroke="#1c2329" stroke-width="1" stroke-linejoin="round">
+    <circle cx="46" cy="44" r="1.6" fill="#2f5a39" data-mat="lamp-green-off"/>
+  </g>
+  <g id="lamp-3" data-layer="part" stroke="#1c2329" stroke-width="1" stroke-linejoin="round">
+    <use href="#wifi-router-g6" fill="#3fb950" data-mat="lamp-green"/>
+    <use href="#wifi-router-g6" fill="url(#wifi-router-glass-r)" stroke="none" opacity="1" data-shade="glass-r"/>
+  </g>
+  <g id="layer-4" data-layer="static" stroke="#1c2329" stroke-width="1" stroke-linejoin="round">
+    <circle cx="56" cy="44" r="1.6" fill="#2f5a39" data-mat="lamp-green-off"/>
+  </g>
+  <g id="lamp-4" data-layer="part" stroke="#1c2329" stroke-width="1" stroke-linejoin="round">
+    <use href="#wifi-router-g7" fill="#3fb950" data-mat="lamp-green"/>
+    <use href="#wifi-router-g7" fill="url(#wifi-router-glass-r)" stroke="none" opacity="1" data-shade="glass-r"/>
+  </g>
+  <g id="layer-5" data-layer="static" stroke="#1c2329" stroke-width="1" stroke-linejoin="round">
+    <use href="#wifi-router-g8" fill="#2a2d31" data-mat="rubber"/>
+    <use href="#wifi-router-g8" fill="url(#wifi-router-dark-v)" stroke="none" opacity="1" data-shade="dark-v"/>
+    <use href="#wifi-router-g9" fill="#2a2d31" data-mat="rubber"/>
+    <use href="#wifi-router-g9" fill="url(#wifi-router-dark-v)" stroke="none" opacity="1" data-shade="dark-v"/>
+  </g>
+</svg>

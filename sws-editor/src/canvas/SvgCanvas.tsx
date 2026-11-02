@@ -750,7 +750,9 @@ export function SvgCanvas({
   // Polilinea a clic (26-09-2026): come la cattura, i clic non selezionano ma
   // posano punti. Doppio clic o Invio finiscono, Esc annulla.
   const polilineaInDisegno = useAppStore((s) => s.polilineaInDisegno);
-  const inDisegno = polilineaInDisegno !== null;
+  // Solo nel canvas che si modifica (02-11-2026): le miniature delle pagine
+  // nell'albero sono SvgCanvas anche loro, e ognuna mostrava l'aiuto.
+  const inDisegno = polilineaInDisegno !== null && !!onMove;
   const [puntoMouse, setPuntoMouse] = useState<{ x: number; y: number; dritto?: boolean } | null>(null);
   const finisciPolilinea = (annulla: boolean) => {
     const st = useAppStore.getState();
@@ -2215,7 +2217,16 @@ export function SvgCanvas({
         // `points` si spostano, si dividono e si cancellano con le maniglie.
         const polilinea = obj?.type === "polyline" || obj?.type === "pipe";
         if (!polilinea && !tracciatoVisibile(obj, mostraTracciato)) return null;
-        const punti = puntiMovimento(polilinea ? obj!.points : obj!.motion_path);
+        const tubo = obj?.type === "pipe";
+        // Un tubo agganciato ha i capi dove sono le bocche, non dove dice il file
+        // (02-11-2026: il punto scritto, vecchio, compariva come un pallino
+        // azzurro che non si muoveva). Gli stessi capi delle maniglie gialle.
+        const punti = puntiMovimento(polilinea ? obj!.points : obj!.motion_path).map((pt, i, tutti) => {
+          if (!tubo) return pt;
+          const id = i === 0 ? obj!.from_obj_id : i === tutti.length - 1 ? obj!.to_obj_id : undefined;
+          const o = id ? objects.find((x) => x.id === id) : undefined;
+          return o ? aggancioSu(o, i === 0 ? obj!.from_port : obj!.to_port) : pt;
+        });
         const tinta = polilinea ? "#38bdf8" : "#f59e0b";
         const chiusa = polilinea && !!obj!.closed;
         // Chiusa: c'è anche il segmento che torna dall'ultimo al primo punto.
@@ -2260,7 +2271,10 @@ export function SvgCanvas({
                 />
               );
             })}
-            {punti.map((p, i) => (
+            {/* Sul tubo i punti hanno già le maniglie gialle, con la calamita:
+                qui restano solo i segmenti, per dividerli. Due maniglie sullo
+                stesso punto si contendevano il clic. */}
+            {!tubo && punti.map((p, i) => (
               <g key={`wp-${i}`}>
                 <line x1={p.x - 8 / z} y1={p.y} x2={p.x + 8 / z} y2={p.y}
                   stroke={tinta} strokeWidth={sw} style={{ pointerEvents: "none" }} />

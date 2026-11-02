@@ -420,7 +420,8 @@ def tutti():
     from disegni_elettrico import tutti as elettrico
     from disegni_macchine import tutti as macchine
     from disegni_comandi import tutti as comandi
-    return sostitutivi() + processo() + elettrico() + macchine() + comandi() + [f() for f in (
+    from disegni_casa import tutti as casa
+    return sostitutivi() + processo() + elettrico() + macchine() + comandi() + casa() + [f() for f in (
         centrifugal_pump, ball_valve, vertical_tank, shell_tube_exchanger, cartridge_filter,
         pressure_gauge, elbow_90,
         electric_motor, electrical_cabinet, transformer, solar_panel,

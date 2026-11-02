@@ -1,0 +1,37 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="60" height="60" viewBox="0 0 60 60">
+  <defs>
+    <linearGradient id="smart-plug-paint-d" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#fff" stop-opacity="0.35"/>
+      <stop offset="0.5" stop-color="#fff" stop-opacity="0"/>
+      <stop offset="1" stop-color="#000" stop-opacity="0.3"/>
+    </linearGradient>
+    <radialGradient id="smart-plug-paint-r" cx="0.36" cy="0.3" r="0.75">
+      <stop offset="0" stop-color="#fff" stop-opacity="0.55"/>
+      <stop offset="0.5" stop-color="#fff" stop-opacity="0.05"/>
+      <stop offset="1" stop-color="#000" stop-opacity="0.45"/>
+    </radialGradient>
+    <radialGradient id="smart-plug-glass-r" cx="0.35" cy="0.3" r="0.7">
+      <stop offset="0" stop-color="#fff" stop-opacity="0.9"/>
+      <stop offset="0.3" stop-color="#fff" stop-opacity="0.25"/>
+      <stop offset="1" stop-color="#fff" stop-opacity="0"/>
+    </radialGradient>
+    <rect id="smart-plug-g1" x="6" y="6" width="48" height="48" rx="10"/>
+    <circle id="smart-plug-g2" cx="30" cy="32" r="14"/>
+    <circle id="smart-plug-g3" cx="30" cy="12" r="2"/>
+  </defs>
+  <g id="body" data-layer="part" data-mat="appliance" fill="#e2e6ea" stroke="#1c2329" stroke-width="1" stroke-linejoin="round">
+    <use href="#smart-plug-g1"/>
+    <use href="#smart-plug-g1" fill="url(#smart-plug-paint-d)" stroke="none" opacity="1" data-shade="paint-d"/>
+  </g>
+  <g id="layer-1" data-layer="static" stroke="#1c2329" stroke-width="1" stroke-linejoin="round">
+    <use href="#smart-plug-g2" fill="#e2e6ea" data-mat="appliance"/>
+    <use href="#smart-plug-g2" fill="url(#smart-plug-paint-r)" stroke="none" opacity="1" data-shade="paint-r"/>
+    <circle cx="24" cy="32" r="2.6" fill="#4a545d" data-mat="steel-dark"/>
+    <circle cx="36" cy="32" r="2.6" fill="#4a545d" data-mat="steel-dark"/>
+    <circle cx="30" cy="12" r="2" fill="#2f5a39" data-mat="lamp-green-off"/>
+  </g>
+  <g id="lamp" data-layer="part" stroke="#1c2329" stroke-width="1" stroke-linejoin="round">
+    <use href="#smart-plug-g3" fill="#3fb950" data-mat="lamp-green"/>
+    <use href="#smart-plug-g3" fill="url(#smart-plug-glass-r)" stroke="none" opacity="1" data-shade="glass-r"/>
+  </g>
+</svg>

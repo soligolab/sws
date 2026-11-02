@@ -1,0 +1,54 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="120" height="90" viewBox="0 0 120 90">
+  <defs>
+    <linearGradient id="television-metal-h" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#000" stop-opacity="0.42"/>
+      <stop offset="0.18" stop-color="#fff" stop-opacity="0.85"/>
+      <stop offset="0.45" stop-color="#fff" stop-opacity="0.25"/>
+      <stop offset="0.8" stop-color="#000" stop-opacity="0.19"/>
+      <stop offset="1" stop-color="#000" stop-opacity="0.49"/>
+    </linearGradient>
+    <linearGradient id="television-metal-v" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#000" stop-opacity="0.42"/>
+      <stop offset="0.18" stop-color="#fff" stop-opacity="0.85"/>
+      <stop offset="0.45" stop-color="#fff" stop-opacity="0.25"/>
+      <stop offset="0.8" stop-color="#000" stop-opacity="0.19"/>
+      <stop offset="1" stop-color="#000" stop-opacity="0.49"/>
+    </linearGradient>
+    <linearGradient id="television-dark-v" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#fff" stop-opacity="0.1"/>
+      <stop offset="0.2" stop-color="#fff" stop-opacity="0.37"/>
+      <stop offset="0.6" stop-color="#000" stop-opacity="0.17"/>
+      <stop offset="1" stop-color="#000" stop-opacity="0.48"/>
+    </linearGradient>
+    <radialGradient id="television-glass-r" cx="0.35" cy="0.3" r="0.7">
+      <stop offset="0" stop-color="#fff" stop-opacity="0.9"/>
+      <stop offset="0.3" stop-color="#fff" stop-opacity="0.25"/>
+      <stop offset="1" stop-color="#fff" stop-opacity="0"/>
+    </radialGradient>
+    <rect id="television-g1" x="52" y="72" width="16" height="10" rx="1"/>
+    <rect id="television-g2" x="32" y="82" width="56" height="6" rx="2"/>
+    <rect id="television-g3" x="4" y="6" width="112" height="68" rx="3"/>
+    <rect id="television-g4" x="9" y="11" width="102" height="56" rx="1.5"/>
+  </defs>
+  <g id="layer-0" data-layer="static" stroke="#1c2329" stroke-width="1" stroke-linejoin="round">
+    <use href="#television-g1" fill="#9aa5af" data-mat="steel"/>
+    <use href="#television-g1" fill="url(#television-metal-h)" stroke="none" opacity="1" data-shade="metal-h"/>
+    <use href="#television-g2" fill="#9aa5af" data-mat="steel"/>
+    <use href="#television-g2" fill="url(#television-metal-v)" stroke="none" opacity="1" data-shade="metal-v"/>
+  </g>
+  <g id="body" data-layer="part" data-mat="steel-dark" fill="#4a545d" stroke="#1c2329" stroke-width="1" stroke-linejoin="round">
+    <use href="#television-g3"/>
+    <use href="#television-g3" fill="url(#television-dark-v)" stroke="none" opacity="1" data-shade="dark-v"/>
+  </g>
+  <g id="layer-1" data-layer="static" stroke="#1c2329" stroke-width="1" stroke-linejoin="round">
+    <rect x="9" y="11" width="102" height="56" rx="1.5" fill="#1d2a35" data-mat="glass-dark"/>
+  </g>
+  <g id="lamp" data-layer="part" stroke="#1c2329" stroke-width="1" stroke-linejoin="round">
+    <use href="#television-g4" fill="#7f9fc6" data-mat="pv-grid"/>
+    <use href="#television-g4" fill="url(#television-glass-r)" stroke="none" opacity="1" data-shade="glass-r"/>
+  </g>
+  <g id="layer-2" data-layer="static" stroke="#1c2329" stroke-width="1" stroke-linejoin="round">
+    <path d="M12 14 L40 14 L12 40 Z" fill="#fff" fill-opacity="0.12" stroke="none" opacity="1" data-shade="highlight"/>
+    <circle cx="108" cy="70" r="1.3" fill="#d13c32" data-mat="lamp-red"/>
+  </g>
+</svg>

@@ -879,9 +879,13 @@ export function testoSostituzione(
 
 /** Il testo della conferma quando il pannello non conosce dei simboli di
  *  libreria usati dal progetto (M9, 14-10-2026). Puro, per i test. */
-export function testoSimboliMancanti(simboli: string[], senzaLibreria: boolean): string {
+export function testoSimboliMancanti(simboli: string[], nonVerificabile: boolean, versione?: string | null): string {
   const elenco = simboli.map((s) => `• ${s}`).join("\n");
-  return i18n.t(senzaLibreria ? "cfg.deploySimboliSenzaLibreria" : "cfg.deploySimboliMancanti", { n: simboli.length, elenco });
+  // Il pannello non dice quali simboli ha (02-11-2026): prima il testo diceva
+  // «senza la libreria di simboli», che era falso — era la porta di gestione a
+  // non servire il manifesto.
+  return i18n.t(nonVerificabile ? "cfg.deploySimboliNonVerificabili" : "cfg.deploySimboliMancanti",
+    { n: simboli.length, elenco, versione: versione ?? "?" });
 }
 
 async function eseguiDeploy(completo: boolean, confermato = false, sostituzioneConfermata = false, simboliConfermati = false): Promise<void> {
@@ -896,12 +900,12 @@ async function eseguiDeploy(completo: boolean, confermato = false, sostituzioneC
       const d = await res.json().catch(() => ({} as Record<string, unknown>)) as {
         conferma?: string; utenti_dispositivo?: string[]; progetto?: string;
         progetti?: { nome: string; storico_byte?: number | null }[];
-        simboli?: string[]; senza_libreria?: boolean;
+        simboli?: string[]; non_verificabile?: boolean; versione_pannello?: string | null;
       };
       // Il pannello non conosce dei simboli di libreria (M9): si avvisa, e si
       // può procedere — li disegnerà come segnaposto.
       if (d.conferma === "simboli-mancanti" && !simboliConfermati) {
-        if (window.confirm(testoSimboliMancanti(d.simboli ?? [], !!d.senza_libreria))) return eseguiDeploy(completo, confermato, sostituzioneConfermata, true);
+        if (window.confirm(testoSimboliMancanti(d.simboli ?? [], !!d.non_verificabile, d.versione_pannello))) return eseguiDeploy(completo, confermato, sostituzioneConfermata, true);
         useAppStore.setState({ remoteDeployStatus: "idle" });
         return;
       }

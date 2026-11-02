@@ -1,0 +1,51 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="80" height="50" viewBox="0 0 80 50">
+  <defs>
+    <linearGradient id="smoke-detector-paint-v" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#000" stop-opacity="0.25"/>
+      <stop offset="0.2" stop-color="#fff" stop-opacity="0.5"/>
+      <stop offset="0.45" stop-color="#fff" stop-opacity="0.08"/>
+      <stop offset="0.75" stop-color="#000" stop-opacity="0.12"/>
+      <stop offset="1" stop-color="#000" stop-opacity="0.45"/>
+    </linearGradient>
+    <radialGradient id="smoke-detector-paint-r" cx="0.36" cy="0.3" r="0.75">
+      <stop offset="0" stop-color="#fff" stop-opacity="0.55"/>
+      <stop offset="0.5" stop-color="#fff" stop-opacity="0.05"/>
+      <stop offset="1" stop-color="#000" stop-opacity="0.45"/>
+    </radialGradient>
+    <radialGradient id="smoke-detector-glass-r" cx="0.35" cy="0.3" r="0.7">
+      <stop offset="0" stop-color="#fff" stop-opacity="0.9"/>
+      <stop offset="0.3" stop-color="#fff" stop-opacity="0.25"/>
+      <stop offset="1" stop-color="#fff" stop-opacity="0"/>
+    </radialGradient>
+    <rect id="smoke-detector-g1" x="28" y="4" width="24" height="8" rx="2"/>
+    <path id="smoke-detector-g2" d="M6 22 Q6 12 16 12 L64 12 Q74 12 74 22 L74 30 Q74 42 60 42 L20 42 Q6 42 6 30 Z"/>
+    <circle id="smoke-detector-g3" cx="40" cy="29" r="6"/>
+    <circle id="smoke-detector-g4" cx="66" cy="18" r="2.2"/>
+  </defs>
+  <g id="layer-0" data-layer="static" stroke="#1c2329" stroke-width="1" stroke-linejoin="round">
+    <use href="#smoke-detector-g1" fill="#e2e6ea" data-mat="appliance"/>
+    <use href="#smoke-detector-g1" fill="url(#smoke-detector-paint-v)" stroke="none" opacity="1" data-shade="paint-v"/>
+  </g>
+  <g id="body" data-layer="part" data-mat="appliance" fill="#e2e6ea" stroke="#1c2329" stroke-width="1" stroke-linejoin="round">
+    <use href="#smoke-detector-g2"/>
+    <use href="#smoke-detector-g2" fill="url(#smoke-detector-paint-v)" stroke="none" opacity="1" data-shade="paint-v"/>
+  </g>
+  <g id="layer-1" data-layer="static" stroke="#1c2329" stroke-width="1" stroke-linejoin="round">
+    <path d="M16 24 L16 34" fill="none" stroke-opacity="0.35"/>
+    <path d="M22 24 L22 34" fill="none" stroke-opacity="0.35"/>
+    <path d="M28 24 L28 34" fill="none" stroke-opacity="0.35"/>
+    <path d="M34 24 L34 34" fill="none" stroke-opacity="0.35"/>
+    <path d="M40 24 L40 34" fill="none" stroke-opacity="0.35"/>
+    <path d="M46 24 L46 34" fill="none" stroke-opacity="0.35"/>
+    <path d="M52 24 L52 34" fill="none" stroke-opacity="0.35"/>
+    <path d="M58 24 L58 34" fill="none" stroke-opacity="0.35"/>
+    <path d="M64 24 L64 34" fill="none" stroke-opacity="0.35"/>
+    <use href="#smoke-detector-g3" fill="#e2e6ea" data-mat="appliance"/>
+    <use href="#smoke-detector-g3" fill="url(#smoke-detector-paint-r)" stroke="none" opacity="1" data-shade="paint-r"/>
+    <circle cx="66" cy="18" r="2.2" fill="#6b3a37" data-mat="lamp-red-off"/>
+  </g>
+  <g id="lamp" data-layer="part" stroke="#1c2329" stroke-width="1" stroke-linejoin="round">
+    <use href="#smoke-detector-g4" fill="#d13c32" data-mat="lamp-red"/>
+    <use href="#smoke-detector-g4" fill="url(#smoke-detector-glass-r)" stroke="none" opacity="1" data-shade="glass-r"/>
+  </g>
+</svg>

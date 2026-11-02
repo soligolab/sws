@@ -1,0 +1,101 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="160" height="90" viewBox="0 0 160 90">
+  <defs>
+    <linearGradient id="sliding-gate-paint-h" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#000" stop-opacity="0.25"/>
+      <stop offset="0.2" stop-color="#fff" stop-opacity="0.5"/>
+      <stop offset="0.45" stop-color="#fff" stop-opacity="0.08"/>
+      <stop offset="0.75" stop-color="#000" stop-opacity="0.12"/>
+      <stop offset="1" stop-color="#000" stop-opacity="0.45"/>
+    </linearGradient>
+    <linearGradient id="sliding-gate-metal-v" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#000" stop-opacity="0.42"/>
+      <stop offset="0.18" stop-color="#fff" stop-opacity="0.85"/>
+      <stop offset="0.45" stop-color="#fff" stop-opacity="0.25"/>
+      <stop offset="0.8" stop-color="#000" stop-opacity="0.19"/>
+      <stop offset="1" stop-color="#000" stop-opacity="0.49"/>
+    </linearGradient>
+    <linearGradient id="sliding-gate-dark-v" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#fff" stop-opacity="0.1"/>
+      <stop offset="0.2" stop-color="#fff" stop-opacity="0.37"/>
+      <stop offset="0.6" stop-color="#000" stop-opacity="0.17"/>
+      <stop offset="1" stop-color="#000" stop-opacity="0.48"/>
+    </linearGradient>
+    <linearGradient id="sliding-gate-dark-h" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#fff" stop-opacity="0.1"/>
+      <stop offset="0.2" stop-color="#fff" stop-opacity="0.37"/>
+      <stop offset="0.6" stop-color="#000" stop-opacity="0.17"/>
+      <stop offset="1" stop-color="#000" stop-opacity="0.48"/>
+    </linearGradient>
+    <linearGradient id="sliding-gate-paint-v" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#000" stop-opacity="0.25"/>
+      <stop offset="0.2" stop-color="#fff" stop-opacity="0.5"/>
+      <stop offset="0.45" stop-color="#fff" stop-opacity="0.08"/>
+      <stop offset="0.75" stop-color="#000" stop-opacity="0.12"/>
+      <stop offset="1" stop-color="#000" stop-opacity="0.45"/>
+    </linearGradient>
+    <radialGradient id="sliding-gate-glass-r" cx="0.35" cy="0.3" r="0.7">
+      <stop offset="0" stop-color="#fff" stop-opacity="0.9"/>
+      <stop offset="0.3" stop-color="#fff" stop-opacity="0.25"/>
+      <stop offset="1" stop-color="#fff" stop-opacity="0"/>
+    </radialGradient>
+    <rect id="sliding-gate-g1" x="140" y="10" width="16" height="76" rx="2"/>
+    <rect id="sliding-gate-g2" x="4" y="84" width="136" height="4" rx="1"/>
+    <rect id="sliding-gate-g3" x="8" y="16" width="128" height="6" rx="1"/>
+    <rect id="sliding-gate-g4" x="8" y="74" width="128" height="6" rx="1"/>
+    <rect id="sliding-gate-g5" x="10" y="10" width="4" height="70" rx="1"/>
+    <rect id="sliding-gate-g6" x="22" y="10" width="4" height="70" rx="1"/>
+    <rect id="sliding-gate-g7" x="34" y="10" width="4" height="70" rx="1"/>
+    <rect id="sliding-gate-g8" x="46" y="10" width="4" height="70" rx="1"/>
+    <rect id="sliding-gate-g9" x="58" y="10" width="4" height="70" rx="1"/>
+    <rect id="sliding-gate-g10" x="70" y="10" width="4" height="70" rx="1"/>
+    <rect id="sliding-gate-g11" x="82" y="10" width="4" height="70" rx="1"/>
+    <rect id="sliding-gate-g12" x="94" y="10" width="4" height="70" rx="1"/>
+    <rect id="sliding-gate-g13" x="106" y="10" width="4" height="70" rx="1"/>
+    <rect id="sliding-gate-g14" x="118" y="10" width="4" height="70" rx="1"/>
+    <rect id="sliding-gate-g15" x="130" y="10" width="4" height="70" rx="1"/>
+    <rect id="sliding-gate-g16" x="142" y="14" width="12" height="10" rx="2"/>
+    <rect id="sliding-gate-g17" x="142" y="14" width="12" height="10" rx="2"/>
+  </defs>
+  <g id="layer-0" data-layer="static" stroke="#1c2329" stroke-width="1" stroke-linejoin="round">
+    <use href="#sliding-gate-g1" fill="#c9c2b6" data-mat="wall"/>
+    <use href="#sliding-gate-g1" fill="url(#sliding-gate-paint-h)" stroke="none" opacity="1" data-shade="paint-h"/>
+    <use href="#sliding-gate-g2" fill="#9aa5af" data-mat="steel"/>
+    <use href="#sliding-gate-g2" fill="url(#sliding-gate-metal-v)" stroke="none" opacity="1" data-shade="metal-v"/>
+  </g>
+  <g id="body" data-layer="part" data-mat="steel-dark" fill="#4a545d" stroke="#1c2329" stroke-width="1" stroke-linejoin="round">
+    <use href="#sliding-gate-g3"/>
+    <use href="#sliding-gate-g3" fill="url(#sliding-gate-dark-v)" stroke="none" opacity="1" data-shade="dark-v"/>
+    <use href="#sliding-gate-g4"/>
+    <use href="#sliding-gate-g4" fill="url(#sliding-gate-dark-v)" stroke="none" opacity="1" data-shade="dark-v"/>
+    <use href="#sliding-gate-g5"/>
+    <use href="#sliding-gate-g5" fill="url(#sliding-gate-dark-h)" stroke="none" opacity="1" data-shade="dark-h"/>
+    <use href="#sliding-gate-g6"/>
+    <use href="#sliding-gate-g6" fill="url(#sliding-gate-dark-h)" stroke="none" opacity="1" data-shade="dark-h"/>
+    <use href="#sliding-gate-g7"/>
+    <use href="#sliding-gate-g7" fill="url(#sliding-gate-dark-h)" stroke="none" opacity="1" data-shade="dark-h"/>
+    <use href="#sliding-gate-g8"/>
+    <use href="#sliding-gate-g8" fill="url(#sliding-gate-dark-h)" stroke="none" opacity="1" data-shade="dark-h"/>
+    <use href="#sliding-gate-g9"/>
+    <use href="#sliding-gate-g9" fill="url(#sliding-gate-dark-h)" stroke="none" opacity="1" data-shade="dark-h"/>
+    <use href="#sliding-gate-g10"/>
+    <use href="#sliding-gate-g10" fill="url(#sliding-gate-dark-h)" stroke="none" opacity="1" data-shade="dark-h"/>
+    <use href="#sliding-gate-g11"/>
+    <use href="#sliding-gate-g11" fill="url(#sliding-gate-dark-h)" stroke="none" opacity="1" data-shade="dark-h"/>
+    <use href="#sliding-gate-g12"/>
+    <use href="#sliding-gate-g12" fill="url(#sliding-gate-dark-h)" stroke="none" opacity="1" data-shade="dark-h"/>
+    <use href="#sliding-gate-g13"/>
+    <use href="#sliding-gate-g13" fill="url(#sliding-gate-dark-h)" stroke="none" opacity="1" data-shade="dark-h"/>
+    <use href="#sliding-gate-g14"/>
+    <use href="#sliding-gate-g14" fill="url(#sliding-gate-dark-h)" stroke="none" opacity="1" data-shade="dark-h"/>
+    <use href="#sliding-gate-g15"/>
+    <use href="#sliding-gate-g15" fill="url(#sliding-gate-dark-h)" stroke="none" opacity="1" data-shade="dark-h"/>
+  </g>
+  <g id="layer-1" data-layer="static" stroke="#1c2329" stroke-width="1" stroke-linejoin="round">
+    <use href="#sliding-gate-g16" fill="#e3a51a" data-mat="safety-yellow"/>
+    <use href="#sliding-gate-g16" fill="url(#sliding-gate-paint-v)" stroke="none" opacity="1" data-shade="paint-v"/>
+  </g>
+  <g id="lamp" data-layer="part" stroke="#1c2329" stroke-width="1" stroke-linejoin="round">
+    <use href="#sliding-gate-g17" fill="#e0a91b" data-mat="lamp-amber"/>
+    <use href="#sliding-gate-g17" fill="url(#sliding-gate-glass-r)" stroke="none" opacity="1" data-shade="glass-r"/>
+  </g>
+</svg>

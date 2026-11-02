@@ -147,6 +147,13 @@ ETICHETTE_TIPO = {
     "signalling": ("Segnalazione", "Signalling"),
     "hvac": ("HVAC", "HVAC"),
     "building": ("Edificio", "Building"),
+    # La casa (02-11-2026): elettrodomestici e casa connessa, per CasaDomotica.
+    "living": ("Soggiorno", "Living room"),
+    "kitchen": ("Cucina", "Kitchen"),
+    "laundry": ("Lavanderia e bagno", "Laundry and bathroom"),
+    "smart-home": ("Casa connessa", "Smart home"),
+    "security": ("Sicurezza e accessi", "Security and access"),
+    "outdoor": ("Esterno", "Outdoor"),
 }
 TIPI_PARTE = ("level", "rotor", "needle", "lever", "lamp")
 

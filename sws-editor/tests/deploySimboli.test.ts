@@ -14,8 +14,11 @@ describe("avviso dei simboli mancanti", () => {
     expect(t).toContain("2");
   });
 
-  it("un pannello senza libreria ha il suo testo", () => {
-    expect(testoSimboliMancanti(["lib:x/y"], true)).not.toBe(testoSimboliMancanti(["lib:x/y"], false));
+  // 02-11-2026: il testo diceva «senza la libreria di simboli», ed era falso.
+  it("un pannello che non dice quali simboli ha: il suo testo, con la versione", () => {
+    const t = testoSimboliMancanti(["lib:x/y"], true, "2.23.7");
+    expect(t).not.toBe(testoSimboliMancanti(["lib:x/y"], false));
+    expect(t).toContain("2.23.7");
   });
 
   it("la conferma arriva al server come confirm_missing_symbols", async () => {

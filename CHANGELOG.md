@@ -13,6 +13,12 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 
 ### Changed
 
+- **Le parti vive dei simboli fra i tag principali** (02-11-2026): lancette, leve e spie si legano in
+  «Collegamenti», con lo stato e il comando, invece che in una sezione dentro «Parametri» («una funzione molto utile
+  e un po' troppo nascosta»). Inserendo il tag di stato, la leva a due posizioni lo prende come suo se non ne ha uno
+  scelto apposta (`conLevaDalloStato`): un interruttore a levetta mostra on e off senza altro. Le parti senza tag
+  restano ferme, e un avviso lo dice. `lib:building/wall-switch` ha ora il bilanciere come leva.
+
 - **La ricerca in testa a ogni colonna** (Stile VS Code, 02-11-2026): era una voce della barra a sé («cerca») e dalle
   altre non si vedeva; ora sta sopra ogni voce, e scrivendo i risultati prendono il posto della colonna. La barra
   passa a dodici voci. Nei risultati le etichette e i nomi di pagina della tabella lingue si leggono tradotti (prima
@@ -34,6 +40,17 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 
 ### Added
 
+- **Quaranta simboli della casa** (`lib:building/*`, 02-11-2026, chiesti dal maintainer per CasaDomotica: «sono
+  praticamente tutti anche presenti nella mia abitazione»). Sei tipologie nuove nella famiglia Edificio: Soggiorno
+  (televisione, cassa audio, climatizzatore, deumidificatore, purificatore, stufa a pellet, camino), Cucina
+  (frigorifero, congelatore, forno, piano a induzione, cappa, microonde, lavastoviglie, macchina del caffè),
+  Lavanderia e bagno (lavatrice, asciugatrice, scaldabagno, scaldasalviette, addolcitore), Casa connessa (presa smart,
+  interruttore, lampada, robot aspirapolvere, router), Sicurezza e accessi (porta, serratura, videocitofono,
+  telecamera, sensori di movimento/porta/fumo/allagamento, centralina, cancello), Esterno (pompa della piscina,
+  irrigatore, lampione, unità esterna del clima, solare termico). Disegnati in `scripts/simboli/disegni_casa.py`:
+  ogni utenza elettrica ha una bocca in alto per il tubo dell'energia, schermi e luci sono una parte `lamp`, le
+  ventole un `rotor`. 195 simboli nella libreria, tutti disegnati anche da LVGL (`check_simboli_lvgl.sh`).
+
 - **Template «Slider — stili e modi»** (`examples/templates/demo-slider`, 02-11-2026): la demo del collaudo dello
   slider, che il maintainer ha chiesto di dare a tutti, più una quinta pagina con le opzioni che il collaudo non
   mostrava — le otto icone della piastra, un'immagine dietro lo slider in trasparenza, minimo/massimo/unità dal tag,
@@ -42,6 +59,26 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
   escono dal debito.
 
 ### Fixed
+
+- **Il deploy non dice più «il pannello non ha la libreria dei simboli»** (02-11-2026, a ogni deploy sul TC620): il
+  manifesto si chiedeva come file statico alla porta di gestione, che con `--no-admin` non serve file. Ora c'è
+  `GET /api/simboli-lib`; un pannello di prima sulla stessa versione dell'IDE non viene interrogato oltre, su
+  un'altra versione l'avviso dice che non si sa, con la versione.
+- L'aiuto della polilinea («clic per aggiungere punti…») compariva su ogni miniatura dell'albero delle pagine: ora
+  solo sul canvas che si modifica.
+- Su un tubo selezionato compariva un pallino azzurro che non si muoveva: l'editor dei punti della polilinea, esteso
+  ai tubi il 20-10, disegnava i capi dove li diceva il file e non dove il tubo è agganciato, e le sue maniglie si
+  sovrapponevano a quelle gialle. Sul tubo restano le maniglie gialle (con la calamita); dell'editor azzurro restano
+  i segmenti, per dividerli, sui capi veri.
+- I nomi di pagina della tabella lingue (`{{t0072}}`, come nel template degli slider) si leggono tradotti anche
+  nell'albero delle pagine, nelle linguette e nel navigatore (`useNomePagina`).
+- **L'Editor di OpenPLC trova il pannello con «Search»**: il runtime risponde alla ricerca sulla 33333/udp, che il
+  container non pubblicava. L'installer la pubblica, dà al container il nome della macchina, e ricrea un container
+  OpenPLC fatto prima (il programma va ricaricato dall'Editor).
+- **Device → Container**: nel cloud spiega che lì non c'è niente da gestire e dove si trovano i comandi del pannello
+  collegato (prima «Stato» girava sul container del VPS e stampava `podman: not found`); il log ha le sezioni con un
+  nome, i comandi mancanti detti a parole, l'avviso «su questa macchina non c'è podman», e va a capo dentro il
+  riquadro, che segue la larghezza dell'IDE (`LogGestione`).
 
 - **«Abbina un pannello» dal cloud con un pannello che ha già utenti** (02-11-2026, WP630 dopo un'installazione
   pulita): il pannello rispondeva 401 `credenziali_admin`, ma il client buttava il corpo di ogni 401 e mostrava solo

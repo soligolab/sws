@@ -355,7 +355,7 @@ export function RuntimeConnectionTab() {
       // chi guarda lo schermo, non del codice.
       const d428 = res.status === 428 ? await res.clone().json().catch(() => ({} as any)) : null;
       if (d428?.conferma === "simboli-mancanti" && !simboliConfermati) {
-        if (!window.confirm(testoSimboliMancanti(d428.simboli ?? [], !!d428.senza_libreria))) {
+        if (!window.confirm(testoSimboliMancanti(d428.simboli ?? [], !!d428.non_verificabile, d428.versione_pannello))) {
           setDeployLog((l) => [...l, "✗ " + t("cfg.deployAnnullato")]);
           return;
         }

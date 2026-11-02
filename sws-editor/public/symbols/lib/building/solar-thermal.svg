@@ -1,0 +1,85 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="140" height="90" viewBox="0 0 140 90">
+  <defs>
+    <linearGradient id="solar-thermal-metal-v" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#000" stop-opacity="0.42"/>
+      <stop offset="0.18" stop-color="#fff" stop-opacity="0.85"/>
+      <stop offset="0.45" stop-color="#fff" stop-opacity="0.25"/>
+      <stop offset="0.8" stop-color="#000" stop-opacity="0.19"/>
+      <stop offset="1" stop-color="#000" stop-opacity="0.49"/>
+    </linearGradient>
+    <linearGradient id="solar-thermal-metal-h" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#000" stop-opacity="0.42"/>
+      <stop offset="0.18" stop-color="#fff" stop-opacity="0.85"/>
+      <stop offset="0.45" stop-color="#fff" stop-opacity="0.25"/>
+      <stop offset="0.8" stop-color="#000" stop-opacity="0.19"/>
+      <stop offset="1" stop-color="#000" stop-opacity="0.49"/>
+    </linearGradient>
+    <radialGradient id="solar-thermal-glass-r" cx="0.35" cy="0.3" r="0.7">
+      <stop offset="0" stop-color="#fff" stop-opacity="0.9"/>
+      <stop offset="0.3" stop-color="#fff" stop-opacity="0.25"/>
+      <stop offset="1" stop-color="#fff" stop-opacity="0"/>
+    </radialGradient>
+    <rect id="solar-thermal-g1" x="0" y="18" width="12" height="8"/>
+    <rect id="solar-thermal-g2" x="0" y="14" width="4" height="16" rx="0.8"/>
+    <rect id="solar-thermal-g3" x="128" y="66" width="12" height="8"/>
+    <rect id="solar-thermal-g4" x="136" y="62" width="4" height="16" rx="0.8"/>
+    <rect id="solar-thermal-g5" x="10" y="8" width="120" height="74" rx="3"/>
+    <rect id="solar-thermal-g6" x="22" y="18" width="4" height="54" rx="2"/>
+    <rect id="solar-thermal-g7" x="30" y="18" width="4" height="54" rx="2"/>
+    <rect id="solar-thermal-g8" x="38" y="18" width="4" height="54" rx="2"/>
+    <rect id="solar-thermal-g9" x="46" y="18" width="4" height="54" rx="2"/>
+    <rect id="solar-thermal-g10" x="54" y="18" width="4" height="54" rx="2"/>
+    <rect id="solar-thermal-g11" x="62" y="18" width="4" height="54" rx="2"/>
+    <rect id="solar-thermal-g12" x="70" y="18" width="4" height="54" rx="2"/>
+    <rect id="solar-thermal-g13" x="78" y="18" width="4" height="54" rx="2"/>
+    <rect id="solar-thermal-g14" x="86" y="18" width="4" height="54" rx="2"/>
+    <rect id="solar-thermal-g15" x="94" y="18" width="4" height="54" rx="2"/>
+    <rect id="solar-thermal-g16" x="102" y="18" width="4" height="54" rx="2"/>
+    <rect id="solar-thermal-g17" x="110" y="18" width="4" height="54" rx="2"/>
+    <rect id="solar-thermal-g18" x="118" y="18" width="4" height="54" rx="2"/>
+  </defs>
+  <g id="layer-0" data-layer="static" stroke="#1c2329" stroke-width="1" stroke-linejoin="round">
+    <use href="#solar-thermal-g1" fill="#9aa5af" data-mat="steel"/>
+    <use href="#solar-thermal-g1" fill="url(#solar-thermal-metal-v)" stroke="none" opacity="1" data-shade="metal-v"/>
+    <use href="#solar-thermal-g2" fill="#9aa5af" data-mat="steel"/>
+    <use href="#solar-thermal-g2" fill="url(#solar-thermal-metal-h)" stroke="none" opacity="1" data-shade="metal-h"/>
+    <use href="#solar-thermal-g3" fill="#9aa5af" data-mat="steel"/>
+    <use href="#solar-thermal-g3" fill="url(#solar-thermal-metal-v)" stroke="none" opacity="1" data-shade="metal-v"/>
+    <use href="#solar-thermal-g4" fill="#9aa5af" data-mat="steel"/>
+    <use href="#solar-thermal-g4" fill="url(#solar-thermal-metal-h)" stroke="none" opacity="1" data-shade="metal-h"/>
+  </g>
+  <g id="body" data-layer="part" data-mat="steel" fill="#9aa5af" stroke="#1c2329" stroke-width="1" stroke-linejoin="round">
+    <use href="#solar-thermal-g5"/>
+    <use href="#solar-thermal-g5" fill="url(#solar-thermal-metal-v)" stroke="none" opacity="1" data-shade="metal-v"/>
+  </g>
+  <g id="layer-1" data-layer="static" stroke="#1c2329" stroke-width="1" stroke-linejoin="round">
+    <rect x="16" y="14" width="108" height="62" rx="2" fill="#1f3a5f" data-mat="pv-cell"/>
+    <use href="#solar-thermal-g6" fill="#b87333" data-mat="copper"/>
+    <use href="#solar-thermal-g6" fill="url(#solar-thermal-metal-h)" stroke="none" opacity="1" data-shade="metal-h"/>
+    <use href="#solar-thermal-g7" fill="#b87333" data-mat="copper"/>
+    <use href="#solar-thermal-g7" fill="url(#solar-thermal-metal-h)" stroke="none" opacity="1" data-shade="metal-h"/>
+    <use href="#solar-thermal-g8" fill="#b87333" data-mat="copper"/>
+    <use href="#solar-thermal-g8" fill="url(#solar-thermal-metal-h)" stroke="none" opacity="1" data-shade="metal-h"/>
+    <use href="#solar-thermal-g9" fill="#b87333" data-mat="copper"/>
+    <use href="#solar-thermal-g9" fill="url(#solar-thermal-metal-h)" stroke="none" opacity="1" data-shade="metal-h"/>
+    <use href="#solar-thermal-g10" fill="#b87333" data-mat="copper"/>
+    <use href="#solar-thermal-g10" fill="url(#solar-thermal-metal-h)" stroke="none" opacity="1" data-shade="metal-h"/>
+    <use href="#solar-thermal-g11" fill="#b87333" data-mat="copper"/>
+    <use href="#solar-thermal-g11" fill="url(#solar-thermal-metal-h)" stroke="none" opacity="1" data-shade="metal-h"/>
+    <use href="#solar-thermal-g12" fill="#b87333" data-mat="copper"/>
+    <use href="#solar-thermal-g12" fill="url(#solar-thermal-metal-h)" stroke="none" opacity="1" data-shade="metal-h"/>
+    <use href="#solar-thermal-g13" fill="#b87333" data-mat="copper"/>
+    <use href="#solar-thermal-g13" fill="url(#solar-thermal-metal-h)" stroke="none" opacity="1" data-shade="metal-h"/>
+    <use href="#solar-thermal-g14" fill="#b87333" data-mat="copper"/>
+    <use href="#solar-thermal-g14" fill="url(#solar-thermal-metal-h)" stroke="none" opacity="1" data-shade="metal-h"/>
+    <use href="#solar-thermal-g15" fill="#b87333" data-mat="copper"/>
+    <use href="#solar-thermal-g15" fill="url(#solar-thermal-metal-h)" stroke="none" opacity="1" data-shade="metal-h"/>
+    <use href="#solar-thermal-g16" fill="#b87333" data-mat="copper"/>
+    <use href="#solar-thermal-g16" fill="url(#solar-thermal-metal-h)" stroke="none" opacity="1" data-shade="metal-h"/>
+    <use href="#solar-thermal-g17" fill="#b87333" data-mat="copper"/>
+    <use href="#solar-thermal-g17" fill="url(#solar-thermal-metal-h)" stroke="none" opacity="1" data-shade="metal-h"/>
+    <use href="#solar-thermal-g18" fill="#b87333" data-mat="copper"/>
+    <use href="#solar-thermal-g18" fill="url(#solar-thermal-metal-h)" stroke="none" opacity="1" data-shade="metal-h"/>
+    <rect x="16" y="14" width="108" height="62" rx="2" fill="url(#solar-thermal-glass-r)" fill-opacity="0.35" stroke="none" opacity="1" data-shade="glass-r"/>
+  </g>
+</svg>

@@ -1,0 +1,50 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="60" height="90" viewBox="0 0 60 90">
+  <defs>
+    <linearGradient id="speaker-dark-v" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#fff" stop-opacity="0.1"/>
+      <stop offset="0.2" stop-color="#fff" stop-opacity="0.37"/>
+      <stop offset="0.6" stop-color="#000" stop-opacity="0.17"/>
+      <stop offset="1" stop-color="#000" stop-opacity="0.48"/>
+    </linearGradient>
+    <radialGradient id="speaker-rubber-r" cx="0.4" cy="0.35" r="0.7">
+      <stop offset="0" stop-color="#fff" stop-opacity="0.23"/>
+      <stop offset="0.7" stop-color="#fff" stop-opacity="0"/>
+      <stop offset="1" stop-color="#000" stop-opacity="0.52"/>
+    </radialGradient>
+    <radialGradient id="speaker-metal-r" cx="0.35" cy="0.3" r="0.8">
+      <stop offset="0" stop-color="#fff" stop-opacity="0.9"/>
+      <stop offset="0.5" stop-color="#fff" stop-opacity="0.13"/>
+      <stop offset="1" stop-color="#000" stop-opacity="0.46"/>
+    </radialGradient>
+    <radialGradient id="speaker-glass-r" cx="0.35" cy="0.3" r="0.7">
+      <stop offset="0" stop-color="#fff" stop-opacity="0.9"/>
+      <stop offset="0.3" stop-color="#fff" stop-opacity="0.25"/>
+      <stop offset="1" stop-color="#fff" stop-opacity="0"/>
+    </radialGradient>
+    <rect id="speaker-g1" x="6" y="4" width="48" height="82" rx="4"/>
+    <circle id="speaker-g2" cx="30" cy="24" r="9"/>
+    <circle id="speaker-g3" cx="30" cy="24" r="3"/>
+    <circle id="speaker-g4" cx="30" cy="58" r="17"/>
+    <circle id="speaker-g5" cx="30" cy="58" r="6"/>
+    <circle id="speaker-g6" cx="30" cy="80" r="1.6"/>
+  </defs>
+  <g id="body" data-layer="part" data-mat="steel-dark" fill="#4a545d" stroke="#1c2329" stroke-width="1" stroke-linejoin="round">
+    <use href="#speaker-g1"/>
+    <use href="#speaker-g1" fill="url(#speaker-dark-v)" stroke="none" opacity="1" data-shade="dark-v"/>
+  </g>
+  <g id="layer-1" data-layer="static" stroke="#1c2329" stroke-width="1" stroke-linejoin="round">
+    <use href="#speaker-g2" fill="#2a2d31" data-mat="rubber"/>
+    <use href="#speaker-g2" fill="url(#speaker-rubber-r)" stroke="none" opacity="1" data-shade="rubber-r"/>
+    <use href="#speaker-g3" fill="#9aa5af" data-mat="steel"/>
+    <use href="#speaker-g3" fill="url(#speaker-metal-r)" stroke="none" opacity="1" data-shade="metal-r"/>
+    <use href="#speaker-g4" fill="#2a2d31" data-mat="rubber"/>
+    <use href="#speaker-g4" fill="url(#speaker-rubber-r)" stroke="none" opacity="1" data-shade="rubber-r"/>
+    <use href="#speaker-g5" fill="#9aa5af" data-mat="steel"/>
+    <use href="#speaker-g5" fill="url(#speaker-metal-r)" stroke="none" opacity="1" data-shade="metal-r"/>
+    <circle cx="30" cy="80" r="1.6" fill="#2f5a39" data-mat="lamp-green-off"/>
+  </g>
+  <g id="lamp" data-layer="part" stroke="#1c2329" stroke-width="1" stroke-linejoin="round">
+    <use href="#speaker-g6" fill="#3fb950" data-mat="lamp-green"/>
+    <use href="#speaker-g6" fill="url(#speaker-glass-r)" stroke="none" opacity="1" data-shade="glass-r"/>
+  </g>
+</svg>

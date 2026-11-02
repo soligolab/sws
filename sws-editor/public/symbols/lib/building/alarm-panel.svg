@@ -1,0 +1,74 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="70" height="90" viewBox="0 0 70 90">
+  <defs>
+    <linearGradient id="alarm-panel-paint-h" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#000" stop-opacity="0.25"/>
+      <stop offset="0.2" stop-color="#fff" stop-opacity="0.5"/>
+      <stop offset="0.45" stop-color="#fff" stop-opacity="0.08"/>
+      <stop offset="0.75" stop-color="#000" stop-opacity="0.12"/>
+      <stop offset="1" stop-color="#000" stop-opacity="0.45"/>
+    </linearGradient>
+    <radialGradient id="alarm-panel-glass-r" cx="0.35" cy="0.3" r="0.7">
+      <stop offset="0" stop-color="#fff" stop-opacity="0.9"/>
+      <stop offset="0.3" stop-color="#fff" stop-opacity="0.25"/>
+      <stop offset="1" stop-color="#fff" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="alarm-panel-metal-v" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#000" stop-opacity="0.42"/>
+      <stop offset="0.18" stop-color="#fff" stop-opacity="0.85"/>
+      <stop offset="0.45" stop-color="#fff" stop-opacity="0.25"/>
+      <stop offset="0.8" stop-color="#000" stop-opacity="0.19"/>
+      <stop offset="1" stop-color="#000" stop-opacity="0.49"/>
+    </linearGradient>
+    <rect id="alarm-panel-g1" x="6" y="4" width="58" height="82" rx="5"/>
+    <rect id="alarm-panel-g2" x="12" y="10" width="46" height="18" rx="2"/>
+    <rect id="alarm-panel-g3" x="16" y="34" width="10" height="8" rx="2"/>
+    <rect id="alarm-panel-g4" x="30" y="34" width="10" height="8" rx="2"/>
+    <rect id="alarm-panel-g5" x="44" y="34" width="10" height="8" rx="2"/>
+    <rect id="alarm-panel-g6" x="16" y="46" width="10" height="8" rx="2"/>
+    <rect id="alarm-panel-g7" x="30" y="46" width="10" height="8" rx="2"/>
+    <rect id="alarm-panel-g8" x="44" y="46" width="10" height="8" rx="2"/>
+    <rect id="alarm-panel-g9" x="16" y="58" width="10" height="8" rx="2"/>
+    <rect id="alarm-panel-g10" x="30" y="58" width="10" height="8" rx="2"/>
+    <rect id="alarm-panel-g11" x="44" y="58" width="10" height="8" rx="2"/>
+    <rect id="alarm-panel-g12" x="16" y="70" width="10" height="8" rx="2"/>
+    <rect id="alarm-panel-g13" x="30" y="70" width="10" height="8" rx="2"/>
+    <rect id="alarm-panel-g14" x="44" y="70" width="10" height="8" rx="2"/>
+  </defs>
+  <g id="body" data-layer="part" data-mat="appliance" fill="#e2e6ea" stroke="#1c2329" stroke-width="1" stroke-linejoin="round">
+    <use href="#alarm-panel-g1"/>
+    <use href="#alarm-panel-g1" fill="url(#alarm-panel-paint-h)" stroke="none" opacity="1" data-shade="paint-h"/>
+  </g>
+  <g id="layer-1" data-layer="static" stroke="#1c2329" stroke-width="1" stroke-linejoin="round">
+    <rect x="12" y="10" width="46" height="18" rx="2" fill="#1d2a35" data-mat="glass-dark"/>
+  </g>
+  <g id="lamp" data-layer="part" stroke="#1c2329" stroke-width="1" stroke-linejoin="round">
+    <use href="#alarm-panel-g2" fill="#d13c32" data-mat="lamp-red" fill-opacity="0.85"/>
+    <use href="#alarm-panel-g2" fill="url(#alarm-panel-glass-r)" stroke="none" opacity="1" data-shade="glass-r"/>
+  </g>
+  <g id="layer-2" data-layer="static" stroke="#1c2329" stroke-width="1" stroke-linejoin="round">
+    <use href="#alarm-panel-g3" fill="#9aa5af" data-mat="steel"/>
+    <use href="#alarm-panel-g3" fill="url(#alarm-panel-metal-v)" stroke="none" opacity="1" data-shade="metal-v"/>
+    <use href="#alarm-panel-g4" fill="#9aa5af" data-mat="steel"/>
+    <use href="#alarm-panel-g4" fill="url(#alarm-panel-metal-v)" stroke="none" opacity="1" data-shade="metal-v"/>
+    <use href="#alarm-panel-g5" fill="#9aa5af" data-mat="steel"/>
+    <use href="#alarm-panel-g5" fill="url(#alarm-panel-metal-v)" stroke="none" opacity="1" data-shade="metal-v"/>
+    <use href="#alarm-panel-g6" fill="#9aa5af" data-mat="steel"/>
+    <use href="#alarm-panel-g6" fill="url(#alarm-panel-metal-v)" stroke="none" opacity="1" data-shade="metal-v"/>
+    <use href="#alarm-panel-g7" fill="#9aa5af" data-mat="steel"/>
+    <use href="#alarm-panel-g7" fill="url(#alarm-panel-metal-v)" stroke="none" opacity="1" data-shade="metal-v"/>
+    <use href="#alarm-panel-g8" fill="#9aa5af" data-mat="steel"/>
+    <use href="#alarm-panel-g8" fill="url(#alarm-panel-metal-v)" stroke="none" opacity="1" data-shade="metal-v"/>
+    <use href="#alarm-panel-g9" fill="#9aa5af" data-mat="steel"/>
+    <use href="#alarm-panel-g9" fill="url(#alarm-panel-metal-v)" stroke="none" opacity="1" data-shade="metal-v"/>
+    <use href="#alarm-panel-g10" fill="#9aa5af" data-mat="steel"/>
+    <use href="#alarm-panel-g10" fill="url(#alarm-panel-metal-v)" stroke="none" opacity="1" data-shade="metal-v"/>
+    <use href="#alarm-panel-g11" fill="#9aa5af" data-mat="steel"/>
+    <use href="#alarm-panel-g11" fill="url(#alarm-panel-metal-v)" stroke="none" opacity="1" data-shade="metal-v"/>
+    <use href="#alarm-panel-g12" fill="#9aa5af" data-mat="steel"/>
+    <use href="#alarm-panel-g12" fill="url(#alarm-panel-metal-v)" stroke="none" opacity="1" data-shade="metal-v"/>
+    <use href="#alarm-panel-g13" fill="#9aa5af" data-mat="steel"/>
+    <use href="#alarm-panel-g13" fill="url(#alarm-panel-metal-v)" stroke="none" opacity="1" data-shade="metal-v"/>
+    <use href="#alarm-panel-g14" fill="#9aa5af" data-mat="steel"/>
+    <use href="#alarm-panel-g14" fill="url(#alarm-panel-metal-v)" stroke="none" opacity="1" data-shade="metal-v"/>
+  </g>
+</svg>

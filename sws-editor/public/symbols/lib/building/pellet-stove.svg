@@ -1,0 +1,57 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="80" height="110" viewBox="0 0 80 110">
+  <defs>
+    <linearGradient id="pellet-stove-metal-h" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#000" stop-opacity="0.42"/>
+      <stop offset="0.18" stop-color="#fff" stop-opacity="0.85"/>
+      <stop offset="0.45" stop-color="#fff" stop-opacity="0.25"/>
+      <stop offset="0.8" stop-color="#000" stop-opacity="0.19"/>
+      <stop offset="1" stop-color="#000" stop-opacity="0.49"/>
+    </linearGradient>
+    <linearGradient id="pellet-stove-dark-h" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#fff" stop-opacity="0.1"/>
+      <stop offset="0.2" stop-color="#fff" stop-opacity="0.37"/>
+      <stop offset="0.6" stop-color="#000" stop-opacity="0.17"/>
+      <stop offset="1" stop-color="#000" stop-opacity="0.48"/>
+    </linearGradient>
+    <linearGradient id="pellet-stove-metal-v" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#000" stop-opacity="0.42"/>
+      <stop offset="0.18" stop-color="#fff" stop-opacity="0.85"/>
+      <stop offset="0.45" stop-color="#fff" stop-opacity="0.25"/>
+      <stop offset="0.8" stop-color="#000" stop-opacity="0.19"/>
+      <stop offset="1" stop-color="#000" stop-opacity="0.49"/>
+    </linearGradient>
+    <radialGradient id="pellet-stove-glass-r" cx="0.35" cy="0.3" r="0.7">
+      <stop offset="0" stop-color="#fff" stop-opacity="0.9"/>
+      <stop offset="0.3" stop-color="#fff" stop-opacity="0.25"/>
+      <stop offset="1" stop-color="#fff" stop-opacity="0"/>
+    </radialGradient>
+    <rect id="pellet-stove-g1" x="14" y="0" width="12" height="12" rx="1"/>
+    <rect id="pellet-stove-g2" x="6" y="10" width="68" height="92" rx="4"/>
+    <rect id="pellet-stove-g3" x="14" y="34" width="52" height="44" rx="4"/>
+    <path id="pellet-stove-g4" d="M26 72 Q24 56 34 48 Q32 58 40 62 Q42 50 50 44 Q56 58 54 72 Z"/>
+    <rect id="pellet-stove-g5" x="10" y="102" width="60" height="6" rx="1"/>
+  </defs>
+  <g id="layer-0" data-layer="static" stroke="#1c2329" stroke-width="1" stroke-linejoin="round">
+    <use href="#pellet-stove-g1" fill="#9aa5af" data-mat="steel"/>
+    <use href="#pellet-stove-g1" fill="url(#pellet-stove-metal-h)" stroke="none" opacity="1" data-shade="metal-h"/>
+  </g>
+  <g id="body" data-layer="part" data-mat="steel-dark" fill="#4a545d" stroke="#1c2329" stroke-width="1" stroke-linejoin="round">
+    <use href="#pellet-stove-g2"/>
+    <use href="#pellet-stove-g2" fill="url(#pellet-stove-dark-h)" stroke="none" opacity="1" data-shade="dark-h"/>
+  </g>
+  <g id="layer-1" data-layer="static" stroke="#1c2329" stroke-width="1" stroke-linejoin="round">
+    <use href="#pellet-stove-g3" fill="#9aa5af" data-mat="steel"/>
+    <use href="#pellet-stove-g3" fill="url(#pellet-stove-metal-v)" stroke="none" opacity="1" data-shade="metal-v"/>
+    <rect x="19" y="39" width="42" height="34" rx="3" fill="#1d2a35" data-mat="glass-dark"/>
+  </g>
+  <g id="lamp" data-layer="part" stroke="#1c2329" stroke-width="1" stroke-linejoin="round">
+    <use href="#pellet-stove-g4" fill="#ff8c1a" data-mat="flame"/>
+    <use href="#pellet-stove-g4" fill="url(#pellet-stove-glass-r)" stroke="none" opacity="1" data-shade="glass-r"/>
+    <path d="M33 72 Q34 62 40 58 Q46 64 46 72 Z" fill="#ffd34d" data-mat="flame-core"/>
+  </g>
+  <g id="layer-2" data-layer="static" stroke="#1c2329" stroke-width="1" stroke-linejoin="round">
+    <rect x="52" y="16" width="16" height="8" rx="1.5" fill="#1d2a35" data-mat="glass-dark"/>
+    <use href="#pellet-stove-g5" fill="#9aa5af" data-mat="steel"/>
+    <use href="#pellet-stove-g5" fill="url(#pellet-stove-metal-v)" stroke="none" opacity="1" data-shade="metal-v"/>
+  </g>
+</svg>

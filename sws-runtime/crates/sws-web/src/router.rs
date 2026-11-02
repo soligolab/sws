@@ -708,6 +708,7 @@ pub fn build(
         .route("/api/sources/ha/browse", post(ha_browse_handler))
         // Stato delle sorgenti e dei loro dispositivi (04-10-2026).
         .route("/api/sources/stato", get(stato_sorgenti_handler))
+        .route("/api/simboli-lib", get(simboli_lib_noti))
         .route("/api/system", get(crate::system::get_system_status))
         .route_layer(middleware::from_fn(require_operator));
 
@@ -1602,6 +1603,11 @@ fn deploy_only_app(state: AppState) -> Router<AppState> {
         // ── Stato, che l'IDE legge per dire com'è il dispositivo ───────────
         .route("/api/project", get(get_project))
         .route("/api/system", get(crate::system::get_system_status))
+        // I simboli di libreria che questa immagine sa disegnare (02-11-2026):
+        // il deploy li confronta con quelli del progetto. Lo leggeva come file
+        // statico, che questa porta non serve — e ogni deploy diceva «il pannello
+        // non ha la libreria dei simboli».
+        .route("/api/simboli-lib", get(simboli_lib_noti))
         // Cosa c'è su QUESTA macchina — zone termiche, mount, interfacce — per
         // il campo «parametro» della sorgente Host. L'editor lo chiede al
         // dispositivo connesso (`/api/remote/host/catalog`), perché le zone
@@ -4190,6 +4196,22 @@ async fn quadlet_aggiorna(
         }
     });
     (StatusCode::ACCEPTED, Json(st)).into_response()
+}
+
+/// `GET /api/simboli-lib` — gli id dei simboli di libreria che questa immagine
+/// porta, dal manifesto della SPA (`<www>/symbols/lib/manifest.json`). 404 se
+/// non c'è una SPA: allora il deploy non può dire niente, e lo dice così.
+async fn simboli_lib_noti(State(s): State<AppState>) -> Response {
+    let Some(dir) = s.www_dir.as_ref() else {
+        return StatusCode::NOT_FOUND.into_response();
+    };
+    let Ok(testo) = tokio::fs::read_to_string(dir.join("symbols/lib/manifest.json")).await else {
+        return StatusCode::NOT_FOUND.into_response();
+    };
+    match serde_json::from_str::<sws_core::simboli_lib::ManifestLib>(&testo) {
+        Ok(m) => Json(m.symbols.into_iter().map(|x| x.id).collect::<Vec<_>>()).into_response(),
+        Err(_) => StatusCode::NOT_FOUND.into_response(),
+    }
 }
 
 /// `POST /api/openplc/installa` — installa OpenPLC su un pannello che ha già
