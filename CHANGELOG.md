@@ -16,6 +16,10 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
   `f64`, che su un holding legge 4 registri e dà un valore quasi zero (`soglia_alta` = 900 letta 0 da OpenPLC).
   Ora il tipo segue la riga: `bool` per coil, discrete input e bit; il formato sul filo se c'è (`f64` se la scala
   lo rende decimale); altrimenti `i16`. `tipoSuggeritoModbus` in `config/sorgenti/modbusRegistri.ts`.
+- **`verifica_mappa` si ricollega** (Appunti, 02-11-2026): dopo un guasto di trasporto («Connection reset», la
+  chiavetta che chiude) riapre la connessione al giro dopo, come la sorgente vera, invece di registrare solo errori
+  fino alla fine della prova; con i tentativi accesi rimanda una lettura muta come il runtime, e il riepilogo conta
+  i ricollegamenti.
 
 ## [2.24.1] — 2026-11-02
 

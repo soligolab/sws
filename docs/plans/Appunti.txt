@@ -171,9 +171,8 @@ Annoto di seguito, uno per punto, le cose che devono essere verificate e trasfor
     bit come i faults_1..5. Da verificare su un documento Sofar prima di cambiarlo;
   * «Dal catalogo» crea la variabile con lo storico spento: per un inverter i punti main andrebbero storicizzati
     (in CasaDomotica acceso a mano). Proposta da decidere: un campo «storico» per gruppo nel catalogo;
-  * verifica_mappa non si ricollega: dopo un «Connection reset» registra solo errori. Il 02-11 alle 05:53 la
-    chiavetta ha chiuso la connessione dopo tre minuti di timeout a raffica: vale la pena guardare in CasaDomotica
-    i contatori <sorgente>.diagnostics.* nei primi giorni;
+  * la chiavetta il 02-11 alle 05:53 ha chiuso la connessione dopo tre minuti di timeout a raffica: vale la pena
+    guardare in CasaDomotica i contatori <sorgente>.diagnostics.* nei primi giorni;
 
 - Slider nuovo in CasaDomotica (fase 7 del piano archiviato docs/archive/2026-10-30-revisione-slider.md, 03-11-2026):
   luci e tapparelle con lo stile «piastra» (con icona), un termostato con lo slider che mostra anche il valore

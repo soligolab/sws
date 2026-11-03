@@ -14,17 +14,41 @@
 //!     [--giri 1] [--ogni 10] [--diagnostica] [--traccia grid_power,battery_power]
 //! ```
 //!
+//! Dopo un guasto di trasporto («Connection reset», la chiavetta che chiude) si
+//! ricollega da sé al giro dopo, come la sorgente vera (02-11-2026: prima
+//! registrava solo errori fino alla fine della prova), e alla fine conta i
+//! ricollegamenti.
+//!
 //! **Un client alla volta**: le chiavette Solarman non reggono due lettori. Prima
 //! di lanciarlo, chi altro legge la chiavetta (Home Assistant) va fermato.
 
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::Arc;
 use std::time::Duration;
 
 use serde_json::Value;
 use sws_core::{AreaModbus, ModoTesti, OrdineModbus, TagValue, TestiRegistro, TipoScalare};
 use sws_plugin_modbus::trasporti::{ClientSolarman, Ritmato};
-use sws_plugin_modbus::{codec, testo_di, Dispositivo, Letti};
+use sws_plugin_modbus::{codec, e_trasporto, testo_di, Dispositivo, Letti};
+use tokio::net::TcpStream;
+
+type Client = Ritmato<ClientSolarman<TcpStream>>;
+
+/// Apre la connessione e il client come la sorgente vera (`lib.rs`, ramo
+/// Solarman): pausa, tentativi e, con i tentativi accesi, la lettura muta
+/// rimandata a metà del timeout. Ridà anche il contatore dei pacchetti scartati.
+async fn collega(host: &str, porta: u16, seriale: u32, unita: u8, mb: &Value, timeout: Duration) -> std::io::Result<(Client, Arc<AtomicU64>)> {
+    let s = TcpStream::connect((host, porta)).await?;
+    let tentativi = mb["tentativi"].as_u64().unwrap_or(2) as u8;
+    let mut client = ClientSolarman::nuovo(s, seriale, unita);
+    if tentativi > 0 {
+        client = client.con_ripetizione(timeout / 2);
+    }
+    let scartati = client.scartati.clone();
+    Ok((Ritmato::nuovo(client, mb["pausa_ms"].as_u64().unwrap_or(200), tentativi), scartati))
+}
 
 fn arg(nome: &str) -> Option<String> {
     let a: Vec<String> = std::env::args().collect();
@@ -97,17 +121,33 @@ async fn main() {
         .map(|b| (area(b["area"].as_str()), b["da"].as_u64().unwrap() as u16, b["a"].as_u64().unwrap() as u16))
         .collect();
 
-    let s = tokio::net::TcpStream::connect((host.as_str(), porta as u16)).await.expect("connessione alla chiavetta");
-    let client = ClientSolarman::nuovo(s, seriale, unita);
-    let scartati = client.scartati.clone();
-    let mut dev = Ritmato::nuovo(client, mb["pausa_ms"].as_u64().unwrap_or(200), mb["tentativi"].as_u64().unwrap_or(2) as u8);
+    let (client, mut scartati_ora) = collega(&host, porta as u16, seriale, unita, mb, timeout).await.expect("connessione alla chiavetta");
+    let mut dev: Option<Client> = Some(client);
+    // Gli scartati delle connessioni chiuse: ogni client ha il suo contatore.
+    let mut scartati_prima = 0u64;
     println!("{} {} — {host}:{porta}, seriale {seriale}, unità {unita}, {} registri, {} blocchi\n", m["marca"], m["modello"], regs.len(), blocchi.len());
 
     let (mut timeout_n, mut rotte, mut fuori, mut ok) = (0u32, 0u32, 0u32, 0u32);
+    let (mut ricollegati, mut non_ricollegati) = (0u32, 0u32);
     for giro in 0..giri {
         let mut letti: HashMap<(AreaModbus, u16), u16> = HashMap::new();
+        if dev.is_none() {
+            match collega(&host, porta as u16, seriale, unita, mb, timeout).await {
+                Ok((c, sc)) => {
+                    ricollegati += 1;
+                    eprintln!("giro {giro}: ricollegato");
+                    dev = Some(c);
+                    scartati_ora = sc;
+                }
+                Err(e) => {
+                    non_ricollegati += 1;
+                    eprintln!("giro {giro}: ricollegamento non riuscito: {e}");
+                }
+            }
+        }
         for &(a, da, fino) in &blocchi {
-            match tokio::time::timeout(timeout, dev.leggi(a, da, fino - da + 1)).await {
+            let Some(d) = dev.as_mut() else { break };
+            match tokio::time::timeout(timeout, d.leggi(a, da, fino - da + 1)).await {
                 Ok(Ok(Letti::Registri(r))) => {
                     ok += 1;
                     for (i, v) in r.into_iter().enumerate() {
@@ -120,6 +160,12 @@ async fn main() {
                         rotte += 1;
                     }
                     eprintln!("giro {giro}: blocco 0x{da:04X}..0x{fino:04X}: {e}");
+                    if e_trasporto(&e) {
+                        // La connessione non c'è più: si chiude e si riapre al giro dopo.
+                        scartati_prima += scartati_ora.load(Ordering::Relaxed);
+                        scartati_ora = Arc::default();
+                        dev = None;
+                    }
                 }
                 Err(_) => {
                     timeout_n += 1;
@@ -207,7 +253,7 @@ async fn main() {
         }
     }
     println!(
-        "\nrichieste di blocco riuscite {ok}, timeout {timeout_n}, risposte rotte {rotte}, pacchetti scartati {}, punti fuori limiti (primo e ultimo giro) {fuori}",
-        scartati.load(std::sync::atomic::Ordering::Relaxed)
+        "\nrichieste di blocco riuscite {ok}, timeout {timeout_n}, risposte rotte {rotte}, pacchetti scartati {}, ricollegamenti {ricollegati} (non riusciti {non_ricollegati}), punti fuori limiti (primo e ultimo giro) {fuori}",
+        scartati_prima + scartati_ora.load(Ordering::Relaxed)
     );
 }
