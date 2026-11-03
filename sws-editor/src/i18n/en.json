@@ -3270,6 +3270,16 @@
     "nonDaQui": "This panel cannot install by itself: reinstall it from Install with «Also install OpenPLC».",
     "guida": "Also install OpenPLC (the panel also works as a PLC, about 1 GB more)"
   },
+  "logicaPlc": {
+    "titolo": "Project PLC logic",
+    "aiuto": "The project's openplc/ folder, to open with the OpenPLC Editor on your PC. It travels with the project and reaches the panel on deploy.",
+    "scarica": "Download (zip)",
+    "carica": "Upload zip…",
+    "nessuna": "This project has no PLC logic yet: upload one from the OpenPLC project's zip.",
+    "conferma": "Upload «{{nome}}» as the project's PLC logic?\n\nIt replaces the openplc/ folder: files the zip does not carry are removed. It reaches the panel on the next deploy.",
+    "caricata": "PLC logic uploaded: it reaches the panel on the next deploy.",
+    "nonCaricata": "Upload failed: {{motivo}}"
+  },
   "confermaAggiornamento": {
     "titolo": "After the update",
     "carico": "Reading state from the device…",

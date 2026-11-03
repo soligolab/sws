@@ -901,7 +901,11 @@ pub fn build(
         // un'applicazione desktop — non raggiunge i file sul VPS.
         .route(
             "/api/project/logica-plc",
-            get(crate::logica_plc::scarica).put(crate::logica_plc::carica),
+            get(crate::logica_plc::scarica)
+                .put(crate::logica_plc::carica)
+                // Il tetto della cartella, non i 2 MB di axum: senza, `carica`
+                // non vedeva mai uno zip oltre i 2 MB per dire quanto è troppo.
+                .layer(DefaultBodyLimit::max(crate::logica_plc::TETTO_BYTE as usize)),
         )
         // Pagine di boot (T-72): documenti a sé in `boot/`, mai visti dai viewer.
         .route(

@@ -1525,6 +1525,34 @@ export const api = {
     segnalaCambioProgettoNostro();
   },
 
+  /** La logica PLC del progetto (`<progetto>/openplc/`, 23-10-2026) come zip
+   *  nudo, da aprire con l'Editor di OpenPLC. `null` se il progetto non ne ha. */
+  scaricaLogicaPlc: async (): Promise<Blob | null> => {
+    const percorso = "/api/project/logica-plc";
+    const headers = new Headers();
+    if (getAuthToken()) headers.set("Authorization", `Bearer ${getAuthToken()}`);
+    const res = await fetch(getBaseUrl() + percorso, { headers });
+    if (res.status === 401) throw new AuthError();
+    if (res.status === 404) return null;
+    if (!res.ok) throw new Error(`API ${percorso}: ${res.status} ${res.statusText}`);
+    return res.blob();
+  },
+
+  /** Rimette la logica PLC da uno zip: **sostituisce** la cartella. */
+  caricaLogicaPlc: async (file: Blob): Promise<void> => {
+    const percorso = "/api/project/logica-plc";
+    const headers = new Headers({ "Content-Type": "application/zip" });
+    if (getAuthToken()) headers.set("Authorization", `Bearer ${getAuthToken()}`);
+    const res = await fetch(getBaseUrl() + percorso, { method: "PUT", headers, body: file });
+    if (res.status === 401) throw new AuthError();
+    if (!res.ok) {
+      let body = "";
+      try { body = await res.text(); } catch { /* ignore */ }
+      throw new Error(body || `API ${percorso}: ${res.status} ${res.statusText}`);
+    }
+    segnalaCambioProgettoNostro();
+  },
+
   // Synoptics
   listSynoptics: () =>
     request<string[]>("/api/synoptics"),

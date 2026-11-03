@@ -1925,9 +1925,16 @@ In **`<progetto>/openplc/`**, cioè dentro il progetto SWS. Da lì:
 - e **l'Editor di OpenPLC la apre direttamente**, perché è una cartella normale:
   `~/sws_projects/<nome>/openplc/`.
 
-Con l'IDE **nel cloud** l'Editor non raggiunge quei file, che stanno sul VPS. Per quel caso ci sono
-due rotte: `GET /api/project/logica-plc` scarica la cartella come zip, `PUT` la rimette
-sostituendola.
+Con l'IDE **nel cloud**, o con l'Editor di OpenPLC su un altro PC (Windows, il caso tipico),
+l'Editor non raggiunge quei file. Per quel caso c'è il riquadro **Configurazione → Istanza →
+Connessione → «Logica PLC del progetto»**, visibile anche senza pannello collegato:
+
+- **Scarica (zip)** dà la cartella come `openplc.zip`, da scompattare e aprire con l'Editor;
+- **Carica zip…** la rimette, **sostituendola** (i file che lo zip non porta vengono tolti), dopo
+  una conferma. Va bene anche lo zip fatto comprimendo la cartella del progetto OpenPLC: la cartella
+  in testa si toglie da sola. Al pannello arriva col deploy successivo.
+
+Sotto ci sono due rotte, `GET` e `PUT /api/project/logica-plc`, con un tetto di 32 MiB.
 
 ### Quello che non c'è, e conviene sapere prima
 

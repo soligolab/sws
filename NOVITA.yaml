@@ -33,6 +33,12 @@
 # successivo.
 
 versioni:
+  - versione: "Unreleased"
+    voci:
+      - it: "OpenPLC: la logica PLC del progetto si scarica e si ricarica come zip dalla Connessione, anche con l'Editor di OpenPLC su un altro PC."
+        en: "OpenPLC: the project's PLC logic downloads and uploads as a zip from Connection, even with the OpenPLC Editor on another PC."
+      - it: "Modbus: il «＋» di una riga crea il tag col tipo giusto per l'area (bool per coil e ingressi digitali, i16 per i registri), non più sempre f64."
+        en: "Modbus: a row's «＋» creates the tag with the right type for the area (bool for coils and discrete inputs, i16 for registers), no longer always f64."
   - versione: "2.24.1"
     voci:
       - it: "Quaranta simboli nuovi per la casa: elettrodomestici, climatizzatore, sicurezza, cancello, piscina e giardino, con le luci e gli schermi che si accendono."

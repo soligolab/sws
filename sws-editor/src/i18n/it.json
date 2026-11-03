@@ -3270,6 +3270,16 @@
     "nonDaQui": "Questo pannello non sa installare da sé: reinstallalo da Installazione con «Installa anche OpenPLC».",
     "guida": "Installa anche OpenPLC (il pannello fa anche da PLC, circa 1 GB in più)"
   },
+  "logicaPlc": {
+    "titolo": "Logica PLC del progetto",
+    "aiuto": "La cartella openplc/ del progetto, da aprire con l'Editor di OpenPLC sul tuo PC. Viaggia col progetto e arriva al pannello col deploy.",
+    "scarica": "Scarica (zip)",
+    "carica": "Carica zip…",
+    "nessuna": "Questo progetto non ha ancora una logica PLC: caricane una dallo zip del progetto OpenPLC.",
+    "conferma": "Caricare «{{nome}}» come logica PLC del progetto?\n\nSostituisce la cartella openplc/: i file che lo zip non porta vengono tolti. Al pannello arriva col prossimo deploy.",
+    "caricata": "Logica PLC caricata: arriva al pannello col prossimo deploy.",
+    "nonCaricata": "Caricamento non riuscito: {{motivo}}"
+  },
   "confermaAggiornamento": {
     "titolo": "Dopo l'aggiornamento",
     "carico": "Leggo lo stato dal dispositivo…",

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { api, type StatoOpenplc } from "@/api/client";
 
@@ -91,6 +91,79 @@ export function OpenplcSulPannello() {
         <div style={{ fontSize: 12, color: "var(--brand-text-subtle, #64748b)", marginTop: 4 }}>{t("openplc.nonDaQui")}</div>
       )}
       {errore && <div style={{ fontSize: 12, color: "var(--brand-danger, #ef4444)", marginTop: 4 }}>{errore}</div>}
+    </section>
+  );
+}
+
+/** La logica PLC **del progetto** (Appunti, 30-10-2026): la cartella `openplc/`
+ *  scaricata come zip per aprirla con l'Editor di OpenPLC sul proprio PC, e
+ *  rimandata su. Le rotte c'erano dal 23-10; mancavano i bottoni, e con l'Editor
+ *  su un PC Windows la logica non entrava nel progetto se non a mano. Sta qui
+ *  accanto a «OpenPLC sul pannello» ma non dipende dal pannello collegato: la
+ *  logica vive nel progetto e al pannello arriva col deploy. */
+export function LogicaPlcDelProgetto() {
+  const { t } = useTranslation();
+  const file = useRef<HTMLInputElement>(null);
+  const [msg, setMsg] = useState<{ ok: boolean; testo: string } | null>(null);
+  const [inCorso, setInCorso] = useState(false);
+
+  const scarica = async () => {
+    setMsg(null);
+    setInCorso(true);
+    try {
+      const blob = await api.scaricaLogicaPlc();
+      if (!blob) { setMsg({ ok: true, testo: t("logicaPlc.nessuna") }); return; }
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "openplc.zip";
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      setMsg({ ok: false, testo: e instanceof Error ? e.message : String(e) });
+    } finally {
+      setInCorso(false);
+    }
+  };
+
+  const carica = async (f: File) => {
+    if (!window.confirm(t("logicaPlc.conferma", { nome: f.name }))) return;
+    setMsg(null);
+    setInCorso(true);
+    try {
+      await api.caricaLogicaPlc(f);
+      setMsg({ ok: true, testo: t("logicaPlc.caricata") });
+    } catch (e) {
+      setMsg({ ok: false, testo: t("logicaPlc.nonCaricata", { motivo: e instanceof Error ? e.message : String(e) }) });
+    } finally {
+      setInCorso(false);
+    }
+  };
+
+  return (
+    <section data-testid="logica-plc">
+      <div style={{ fontSize: 13, fontWeight: 600, color: "var(--brand-text-muted, #94a3b8)", marginBottom: 8, textTransform: "uppercase", letterSpacing: 1 }}>
+        {t("logicaPlc.titolo")}
+      </div>
+      <div style={{ fontSize: 12, color: "var(--brand-text-subtle, #64748b)", marginBottom: 6 }}>{t("logicaPlc.aiuto")}</div>
+      <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+        <button type="button" disabled={inCorso} onClick={() => void scarica()}>{t("logicaPlc.scarica")}</button>
+        <button type="button" disabled={inCorso} onClick={() => file.current?.click()}>{t("logicaPlc.carica")}</button>
+        <input ref={file} type="file" accept=".zip,application/zip" style={{ display: "none" }}
+          data-testid="logica-plc-file"
+          onChange={(e) => {
+            const f = e.target.files?.[0];
+            e.target.value = "";
+            if (f) void carica(f);
+          }} />
+      </div>
+      {msg && (
+        <div style={{ fontSize: 12, marginTop: 4, color: msg.ok ? "var(--brand-success-soft, #4ade80)" : "var(--brand-danger, #ef4444)" }}>
+          {msg.testo}
+        </div>
+      )}
     </section>
   );
 }

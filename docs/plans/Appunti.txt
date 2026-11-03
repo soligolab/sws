@@ -145,14 +145,6 @@ Annoto di seguito, uno per punto, le cose che devono essere verificate e trasfor
   (nel quadlet `$$!` al posto di `$!`) e `StopTimeout=30`: lo stop diventa un SIGINT al runtime, che
   ferma il PLC e porta le uscite nello stato sicuro.
 
-- La logica di OpenPLC dentro il progetto SWS, dall'IDE. La cartella `<progetto>/openplc/` viaggia col deploy, col
-  backup e col git, e le rotte per scaricarla e ricaricarla come zip ci sono (GET/PUT /api/project/logica-plc in
-  sws-web/src/logica_plc.rs). Mancano i due bottoni nell'IDE: con l'Editor di OpenPLC su un PC Windows (il caso
-  vero, collaudo del 30-10-2026) la logica non entra nel progetto SWS se non a mano, quindi il punto 22 della
-  sezione F di COLLAUDI_IN_SOSPESO non si e' potuto provare. Dove metterli e' da decidere (vicino al riquadro
-  «OpenPLC sul pannello» della Connessione, o nell'albero del progetto). Piano archiviato:
-  docs/archive/2026-10-20-openplc-sul-dispositivo.md.
-
 - Disposizione «Stile VS Code» dell'IDE (piano docs/archive/2026-10-31-ide-stile-vscode.md), cose lasciate fuori il
   31-10-2026: chat e log come voci della barra di attività (in VS Code stanno in fondo alla barra e nel pannello in
   basso; da noi sono cassetti in App.tsx e funzionano), una barra di stato in basso, e altre disposizioni oltre a

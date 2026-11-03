@@ -11,7 +11,17 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 
 ## [Unreleased]
 
+### Added
+- **La logica PLC del progetto dall'IDE** (Appunti, 30-10-2026): in Configurazione → Istanza → Connessione il
+  riquadro «Logica PLC del progetto», anche senza pannello collegato, con «Scarica (zip)» e «Carica zip…» sulle
+  rotte `GET`/`PUT /api/project/logica-plc` del 23-10. Con l'Editor di OpenPLC su un PC Windows la logica non
+  entrava nel progetto se non a mano. `LogicaPlcDelProgetto` in `boot/OpenplcSulPannello.tsx`.
+
 ### Fixed
+- **Caricare la logica PLC oltre i 2 MB**: la rotta `PUT /api/project/logica-plc` aveva il limite di corpo di axum
+  (2 MB) invece del tetto della cartella (32 MiB); e uno zip fatto comprimendo la cartella del progetto OpenPLC
+  (`mio-plc/project.json`) finiva in `openplc/mio-plc/`: la cartella in testa ora si toglie
+  (`cartella_in_testa` in `logica_plc.rs`).
 - **Il «＋» della tabella dei registri Modbus propone il tipo giusto** (Appunti, 30-10-2026): prima creava sempre un
   `f64`, che su un holding legge 4 registri e dà un valore quasi zero (`soglia_alta` = 900 letta 0 da OpenPLC).
   Ora il tipo segue la riga: `bool` per coil, discrete input e bit; il formato sul filo se c'è (`f64` se la scala

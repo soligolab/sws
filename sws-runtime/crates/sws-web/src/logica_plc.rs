@@ -306,6 +306,21 @@ pub async fn scarica(State(s): State<crate::router::AppState>) -> Response {
         .into_response()
 }
 
+/// La cartella in testa a tutti i file dello zip, se ce n'è una sola.
+///
+/// Chi comprime la cartella del progetto OpenPLC col sistema («Comprimi»,
+/// «Invia a → cartella compressa») ottiene `mio-plc/project.json`, non
+/// `project.json`: senza toglierla, la logica finirebbe in `openplc/mio-plc/` e
+/// l'Editor non la troverebbe più dove la cerca. Si toglie solo quando **ogni**
+/// file sta lì sotto: un file in radice dice che lo zip è già la cartella nuda.
+pub fn cartella_in_testa(nomi: &[String]) -> Option<String> {
+    let mut file = nomi.iter().filter(|n| !n.ends_with('/'));
+    let primo = file.next()?;
+    let (testa, _) = primo.split_once('/')?;
+    let prefisso = format!("{testa}/");
+    file.all(|n| n.starts_with(&prefisso)).then_some(prefisso)
+}
+
 /// `PUT /api/project/logica-plc` — rimette la cartella da uno zip.
 ///
 /// **Sostituisce**: quello che lo zip non porta viene tolto, come già fanno
@@ -332,13 +347,14 @@ pub async fn carica(State(s): State<crate::router::AppState>, body: axum::body::
     // codice passando la radice come destinazione e aggiungendo il prefisso ai
     // nomi — così la regola dei percorsi sicuri resta una sola.
     let nomi: Vec<String> = archivio.file_names().map(|s| s.to_string()).collect();
+    let testa = cartella_in_testa(&nomi).unwrap_or_default();
     let mut tenuti = std::collections::HashSet::<PathBuf>::new();
     let destinazione = dir_at(&dir);
     for nome in &nomi {
         if nome.ends_with('/') {
             continue; // una voce di cartella non è un file
         }
-        let Some(sicuro) = percorso_sicuro(nome) else {
+        let Some(sicuro) = percorso_sicuro(nome.strip_prefix(testa.as_str()).unwrap_or(nome)) else {
             return (StatusCode::BAD_REQUEST, format!("percorso non ammesso: {nome}")).into_response();
         };
         let mut buf = Vec::new();
@@ -382,6 +398,18 @@ mod prove {
         assert!(percorso_sicuro("").is_none());
         assert!(percorso_sicuro("pous//main.st").is_none(), "un pezzo vuoto non è un nome");
         assert!(percorso_sicuro("pous\\main.st").is_none(), "il separatore di Windows no");
+    }
+
+    #[test]
+    fn la_cartella_in_testa_si_toglie_solo_se_c_e_per_tutti() {
+        let v = |n: &[&str]| n.iter().map(|s| s.to_string()).collect::<Vec<_>>();
+        assert_eq!(
+            cartella_in_testa(&v(&["mio-plc/", "mio-plc/project.json", "mio-plc/pous/main.st"])).as_deref(),
+            Some("mio-plc/")
+        );
+        assert_eq!(cartella_in_testa(&v(&["project.json", "pous/main.st"])), None, "già nuda");
+        assert_eq!(cartella_in_testa(&v(&["a/project.json", "b/main.st"])), None, "due cartelle");
+        assert_eq!(cartella_in_testa(&v(&[])), None);
     }
 
     #[tokio::test]
