@@ -49,6 +49,13 @@ export function suggerimentiPer<T extends { id: string }>(
   return tags.filter((x) => x.id !== v && x.id.toLowerCase().startsWith(low)).slice(0, max);
 }
 
+/** Un tag che il runtime scrive da sé per una sorgente — `<id>.disponibile` e
+ *  `<id>.diagnostics.*` — esiste senza essere dichiarato: offrirne la creazione
+ *  col «＋» diceva il falso (tutorial T07, 03-11-2026). */
+export function eTagImplicito(id: string, sorgenti: readonly string[]): boolean {
+  return sorgenti.some((s) => id === `${s}.disponibile` || id.startsWith(`${s}.diagnostics.`));
+}
+
 export function statoTag(
   id: string,
   dichiarati: ReadonlySet<string>,
@@ -56,11 +63,14 @@ export function statoTag(
   /** Le radici composite: un percorso dentro una di queste è dichiarato
    *  quanto il suo id (Fase 1b), e non va offerto per la creazione. */
   radici: readonly string[] = [],
+  /** Gli id delle sorgenti: i loro tag impliciti non sono «nuovi». */
+  sorgenti: readonly string[] = [],
 ): StatoTag {
   const t = id.trim();
   if (t === "" || eSegnaposto(t)) return null;
   if (dichiarati.has(t)) return "dichiarato";
   if (ePercorsoDiUnaRadice(t, radici)) return "dichiarato";
+  if (eTagImplicito(t, sorgenti)) return "dichiarato";
   if (inAttesa.has(t)) return "in-attesa";
   return "nuovo";
 }
@@ -94,7 +104,8 @@ export function TagInput({ value, onChange, placeholder, style, tipoSuggerito }:
     () => (project?.tags ?? []).filter((x) => x.type_ref || x.array).map((x) => x.id),
     [project],
   );
-  const stato = statoTag(value, dichiarati, idsInAttesa, radiciComposite);
+  const idSorgenti = useMemo(() => (project?.sources ?? []).map((x) => x.id), [project]);
+  const stato = statoTag(value, dichiarati, idsInAttesa, radiciComposite, idSorgenti);
   const [definisci, setDefinisci] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
   const inputRef     = useRef<HTMLInputElement>(null);
@@ -150,10 +161,14 @@ export function TagInput({ value, onChange, placeholder, style, tipoSuggerito }:
       return;
     }
     if (e.key === "ArrowDown")      { e.preventDefault(); setEvidenziato((i) => (i + 1) % suggerimenti.length); }
-    else if (e.key === "ArrowUp")   { e.preventDefault(); setEvidenziato((i) => (i - 1 + suggerimenti.length) % suggerimenti.length); }
+    else if (e.key === "ArrowUp")   { e.preventDefault(); setEvidenziato((i) => (i <= 0 ? suggerimenti.length : i) - 1); }
     else if (e.key === "Enter" || e.key === "Tab") {
+      // Con un id già esatto e nessuna freccia premuta (evidenziato = -1) si
+      // tiene quello scritto: prima `livello` + Tab diventava `livello_opcua`,
+      // il primo suggerimento (tutorial T08, 03-11-2026).
       const scelto = suggerimenti[evidenziato];
       if (scelto) { e.preventDefault(); select(scelto.id); }
+      else setDigita(false);
     } else if (e.key === "Escape")  { e.preventDefault(); setDigita(false); }
   };
 
@@ -165,7 +180,7 @@ export function TagInput({ value, onChange, placeholder, style, tipoSuggerito }:
         style={{ ...style, flex: 1, minWidth: 0 }}
         placeholder={placeholder}
         value={value}
-        onChange={(e) => { onChange(e.target.value); setDigita(true); setEvidenziato(0); }}
+        onChange={(e) => { onChange(e.target.value); setDigita(true); setEvidenziato(tags.some((x) => x.id === e.target.value.trim()) ? -1 : 0); }}
         onKeyDown={tasti}
         onBlur={() => setDigita(false)}
         spellCheck={false}

@@ -66,7 +66,10 @@ describe("la scheda Stile", () => {
   });
 });
 
-describe("pannello proprietà", () => {
+// Il pannello intero, con tutte le sezioni aperte una per una: dal 02-11-2026
+// Collegamenti porta anche le parti vive, e il primo caso (che paga anche il
+// caricamento) stava a 5,2-5,6 s contro i 5 s di default — rosso a giorni alterni.
+describe("pannello proprietà", { timeout: 20_000 }, () => {
   const pannello = (obj: SynopticObject) => {
     render(<GruppoAttivo.Provider value="tutti"><ObjectProps obj={obj} pages={[]} functions={[]} onChange={() => {}} onDelete={() => {}} /></GruppoAttivo.Provider>);
     for (let g = 0; g < 8; g++) { const c = screen.queryAllByRole("button", { expanded: false }); if (!c.length) break; c.forEach((b) => fireEvent.click(b)); }

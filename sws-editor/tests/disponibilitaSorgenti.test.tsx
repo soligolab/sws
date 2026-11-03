@@ -89,6 +89,16 @@ describe("dal pulsante alla scheda Allarmi", () => {
     expect(useAppStore.getState().pendingSections["alarms"]).toBeTruthy();
   });
 
+  // 03-11-2026 (tutorial T09): la condizione `bool_false` si legge come
+  // bool_equals / false, non «above» accanto a una soglia «false».
+  it("la condizione preparata si mostra come bool_equals", async () => {
+    useAppStore.setState({ allarmeInAttesa: allarmeDisponibilita("mqtt-garage", "giù"), configTab: "alarms" } as never);
+    const { container } = render(<AlarmsTab />);
+    await waitFor(() => expect(useAppStore.getState().allarmeInAttesa).toBeNull());
+    const menu = [...container.querySelectorAll("select")].find((s) => [...s.options].some((o) => o.value === "bool_equals"))!;
+    expect(menu.value).toBe("bool_equals");
+  });
+
   it("se sul tag c'è già un allarme, non se ne fa un secondo", async () => {
     const esistente = { ...allarmeDisponibilita("mqtt-garage", "già c'è"), id: "vecchio" };
     useAppStore.setState({

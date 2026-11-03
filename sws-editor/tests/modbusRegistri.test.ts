@@ -35,6 +35,14 @@ describe("registri di una mappatura Modbus", () => {
   });
 });
 
+describe("un nome storico su un'area a bit", () => {
+  it("si legge un bit, ed è un bool: niente «u16 (come prima)»", () => {
+    const p = { types: [], tags: [{ id: "allarme", description: "", data_type: "bool" as const }] };
+    expect(registriMappatura("allarme", "coil", p)).toEqual({ n: 1, dettaglio: "bool", storico: false });
+    expect(registriMappatura("allarme", "holding", p).storico).toBe(true);
+  });
+});
+
 describe("tipoSuggeritoModbus — il tipo del «＋» segue l'area", () => {
   it("bit e aree a bit → bool", () => {
     expect(tipoSuggeritoModbus("coil")).toBe("bool");

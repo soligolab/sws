@@ -275,8 +275,11 @@ pub async fn scarica(State(s): State<crate::router::AppState>) -> Response {
     let mut cursore = Cursor::new(Vec::<u8>::new());
     {
         let mut z = zip::ZipWriter::new(&mut cursore);
+        // Compresso (03-11-2026): un progetto OpenPLC porta i sorgenti C++
+        // della build, e `Stored` faceva uno zip di 368 KB da uno caricato di
+        // 107 KB, con gli stessi 39 file — sembrava un'altra cosa.
         let opts = zip::write::SimpleFileOptions::default()
-            .compression_method(zip::CompressionMethod::Stored);
+            .compression_method(zip::CompressionMethod::Deflated);
         // Qui **senza** il prefisso `openplc/`: chi scarica vuole il progetto
         // OpenPLC, non una cartella dentro un'altra. Il prefisso serve dentro
         // un bundle di progetto, dove convive con synoptics/ e images/.

@@ -1,4 +1,6 @@
 import { PageNavigatorView } from "./PageNavigatorView";
+import { htmlStabile } from "@/canvas/htmlStabile";
+import { frazioneLivello } from "@/canvas/livello";
 import { ImmagineSvg } from "@/canvas/ImmagineSvg";
 import { defaultObjectSubtleColor, defaultObjectTextColor } from "@/theme";
 import { coloreEffettivo, predefinito } from "@/coloriPredefiniti";
@@ -540,6 +542,17 @@ function transitionStyle(obj: SynopticObject): React.CSSProperties | undefined {
  *  TagDef diventano i default del widget; i campi impostati sull'oggetto
  *  restano override locali. Un solo punto d'innesto: tutti i branch di
  *  rendering continuano a leggere obj.unit/min/max/soglie come prima. */
+/** Il cerchio del LED dentro il suo riquadro (03-11-2026): diametro = lato
+ *  minore, centrato. Prima il web disegnava un cerchio di diametro W (con W=200
+ *  H=40 usciva dalla pagina) e il pannello un'ellisse W×H. Gemello di
+ *  `geometria_led` in lvgl_render.rs. */
+export function geometriaLed(obj: Pick<SynopticObject, "x" | "y" | "width" | "height">): { x: number; y: number; d: number } {
+  const w = obj.width ?? 24;
+  const h = obj.height ?? w;
+  const d = Math.min(w, h);
+  return { x: obj.x + (w - d) / 2, y: obj.y + (h - d) / 2, d };
+}
+
 function applyTagDefaults(obj: SynopticObject, def: DescrizioneTag | undefined): SynopticObject {
   if (!def) return obj;
   const merged = { ...obj } as Record<string, unknown>;
@@ -4197,9 +4210,7 @@ function SvgObjectCorpo(p: ObjProps) {
     // Fill level
     const flTag = obj.fill_level_tag ? tagValues[obj.fill_level_tag] : undefined;
     const rawLevel = flTag
-      ? ((obj.fill_level_scale ?? "0-100") === "0-100"
-          ? Number(flTag.value) / 100
-          : Number(flTag.value))
+      ? frazioneLivello(Number(flTag.value), obj, descrizioni?.get(obj.fill_level_tag!))
       : (obj.fill_level ?? 0);
     const fillLevel = clamp(rawLevel, 0, 1);
     const fillColor = coloreEffettivo(obj, "fill_color");
@@ -4266,7 +4277,7 @@ function SvgObjectCorpo(p: ObjProps) {
           )}
         </defs>
 
-        {stileNuovo && <g style={{ pointerEvents: "none", ...transitionStyle(obj) }} dangerouslySetInnerHTML={{ __html: svgNuovo }} />}
+        {stileNuovo && <g style={{ pointerEvents: "none", ...transitionStyle(obj) }} dangerouslySetInnerHTML={htmlStabile(svgNuovo)} />}
 
         {/* Outer shadow for tube style */}
         {!stileNuovo && pipeStyle === "tube" && (
@@ -4637,8 +4648,9 @@ function SvgObjectCorpo(p: ObjProps) {
   // ── LED INDICATOR ───────────────────────────────────────────────────────────
 
   if (obj.type === "led") {
-    const r = (obj.width ?? 24) / 2;
-    const cx = obj.x + r; const cy = obj.y + r;
+    const { x: lx, y: ly, d } = geometriaLed(obj);
+    const r = d / 2;
+    const cx = lx + r; const cy = ly + r;
     const tv = obj.tag ? tagValues[obj.tag] : undefined;
     const onVal = obj.on_value ?? true;
     const isOn = tv != null && (
@@ -4658,9 +4670,9 @@ function SvgObjectCorpo(p: ObjProps) {
          style={{ cursor: editCursor }}>
         {selected && ((obj.led_shape ?? "circle") === "circle"
           ? <circle cx={cx} cy={cy} r={r + 4} fill="none" stroke="#facc15" strokeWidth={1} />
-          : selRect(obj.x, obj.y, r * 2, r * 2))}
+          : selRect(lx, ly, r * 2, r * 2))}
         {applyTransform(obj, ledW, ledW, <>
-          {bgLayer(obj.x, obj.y, ledW, ledW, 4)}
+          {bgLayer(lx, ly, ledW, ledW, 4)}
           {/* F7.6 — forma del led: cerchio (default), quadrato o triangolo. Il
               glow e il riflesso seguono la forma scelta. */}
           {(() => {
@@ -4692,7 +4704,7 @@ function SvgObjectCorpo(p: ObjProps) {
           })()}
           {/* Label */}
           {obj.label && (
-            <text x={cx} y={obj.y + r * 2 + 14} textAnchor="middle" fill="#94a3b8" fontSize={obj.font_size ?? 11}
+            <text x={cx} y={ly + r * 2 + 14} textAnchor="middle" fill="#94a3b8" fontSize={obj.font_size ?? 11}
               style={{ pointerEvents: "none" }}>
               {obj.label}
             </text>
@@ -6304,7 +6316,7 @@ function SvgObjectCorpo(p: ObjProps) {
     let level: number | undefined;
     if (obj.fill_level_tag) {
       const lv = Number(tagValues[obj.fill_level_tag]?.value);
-      if (Number.isFinite(lv)) level = (obj.fill_level_scale ?? "0-100") === "0-100" ? lv / 100 : lv;
+      if (Number.isFinite(lv)) level = frazioneLivello(lv, obj, descrizioni?.get(obj.fill_level_tag));
     } else if (obj.fill_level !== undefined) {
       level = (obj.fill_level_scale ?? "0-100") === "0-100" ? obj.fill_level / 100 : obj.fill_level;
     }
@@ -6373,7 +6385,7 @@ function SvgObjectCorpo(p: ObjProps) {
                 <svg x={obj.x} y={obj.y} width={w} height={h} viewBox={viewBox}
                   preserveAspectRatio="xMidYMid meet" style={{ pointerEvents: "none" }}
                   data-anim={spinActive ? "1" : undefined}>
-                  <g style={spinStyle} dangerouslySetInnerHTML={{ __html: colored }} />
+                  <g style={spinStyle} dangerouslySetInnerHTML={htmlStabile(colored)} />
                 </svg>
               );
             })()

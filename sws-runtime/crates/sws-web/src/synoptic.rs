@@ -750,6 +750,14 @@ pub struct SynopticObject {
     pub command_tag: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub fill_level_scale: Option<String>,
+    /// L'intervallo del livello (03-11-2026): la frazione è
+    /// (valore − min) / (max − min), e vince su `fill_level_scale`. Senza scala
+    /// e senza questi due, `applica_predefiniti_tag` li prende da `range_lo` e
+    /// `range_hi` del tag di livello, per il pannello LVGL.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub fill_level_min: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub fill_level_max: Option<f64>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub fill_color: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -905,29 +913,42 @@ pub fn applica_predefiniti_tag(
     types: &[sws_core::TypeDef],
 ) {
     let mut foglie: std::collections::HashMap<String, Predefiniti> = std::collections::HashMap::new();
+    // Gli id da risolvere: il tag dell'oggetto e, per serbatoi e tubi, quello
+    // del livello (03-11-2026).
+    let ids = |o: &SynopticObject| [o.tag.clone(), o.fill_level_tag.clone()].into_iter().flatten().collect::<Vec<_>>();
     for o in objects.iter() {
-        let Some(id) = o.tag.as_deref() else { continue };
-        if foglie.contains_key(id) || tags.iter().any(|t| t.id == id) {
-            continue;
-        }
-        let radice = id.split(['.', '[']).next().unwrap_or(id);
-        let Some(t) = tags.iter().find(|t| t.id == radice) else { continue };
-        let Ok(Some(forma)) = sws_core::Forma::da_tag(t, types) else { continue };
-        for f in forma.foglie(&t.id, types) {
-            if let Some(m) = f.membro {
-                foglie.entry(f.percorso).or_insert(Predefiniti::da_membro(&m));
+        for id in ids(o) {
+            if foglie.contains_key(&id) || tags.iter().any(|t| t.id == id) {
+                continue;
+            }
+            let radice = id.split(['.', '[']).next().unwrap_or(&id);
+            let Some(t) = tags.iter().find(|t| t.id == radice) else { continue };
+            let Ok(Some(forma)) = sws_core::Forma::da_tag(t, types) else { continue };
+            for f in forma.foglie(&t.id, types) {
+                if let Some(m) = f.membro {
+                    foglie.entry(f.percorso).or_insert(Predefiniti::da_membro(&m));
+                }
             }
         }
     }
+    let def_di = |id: &str| match tags.iter().find(|t| t.id == id) {
+        Some(t) => Some(Predefiniti::da_tag(t)),
+        None => foglie.get(id).cloned(),
+    };
     for o in objects {
-        let Some(id) = o.tag.as_deref() else { continue };
-        let def = match tags.iter().find(|t| t.id == id) {
-            Some(t) => Predefiniti::da_tag(t),
-            None => match foglie.get(id) {
-                Some(p) => p.clone(),
-                None => continue,
-            },
-        };
+        // Il livello: senza una scala scelta e senza un intervallo scritto,
+        // quello del tag — lo stesso che il web calcola in `canvas/livello.ts`.
+        if o.fill_level_scale.is_none() && o.fill_level_min.is_none() && o.fill_level_max.is_none() {
+            if let Some(d) = o.fill_level_tag.as_deref().and_then(def_di) {
+                if let (Some(lo), Some(hi)) = (d.range_lo, d.range_hi) {
+                    if hi > lo {
+                        o.fill_level_min = Some(lo);
+                        o.fill_level_max = Some(hi);
+                    }
+                }
+            }
+        }
+        let Some(def) = o.tag.as_deref().and_then(def_di) else { continue };
         o.unit = o.unit.take().or(def.unit);
         o.decimals = o.decimals.or(def.decimals);
         o.min = o.min.or(def.range_lo);
@@ -1142,5 +1163,26 @@ mod tests_predefiniti_tag {
         assert_eq!(objs[1].unit.as_deref(), Some("kV"), "quello scritto sull'oggetto vince");
         assert_eq!((objs[1].decimals, objs[1].max), (Some(1), Some(600.0)));
         assert_eq!(objs[2].unit, None);
+    }
+
+    /// Il livello di un serbatoio prende l'intervallo del tag di livello
+    /// (03-11-2026, tutorial T08): `livello` 0–1000 mm riempiva tutto a 100.
+    /// Una scala scelta o un intervallo scritto vincono.
+    #[test]
+    fn il_livello_prende_l_intervallo_del_tag() {
+        let tags: Vec<sws_core::TagDef> =
+            serde_yaml::from_str("- { id: livello, range_lo: 0, range_hi: 1000 }\n- { id: pct }").unwrap();
+        let mut objs: Vec<SynopticObject> = serde_yaml::from_str(concat!(
+            "- { id: a, type: symbol, x: 0, y: 0, fill_level_tag: livello }\n",
+            "- { id: b, type: symbol, x: 0, y: 0, fill_level_tag: livello, fill_level_scale: '0-100' }\n",
+            "- { id: c, type: pipe, x: 0, y: 0, fill_level_tag: livello, fill_level_min: 100, fill_level_max: 900 }\n",
+            "- { id: d, type: symbol, x: 0, y: 0, fill_level_tag: pct }\n",
+        ))
+        .unwrap();
+        applica_predefiniti_tag(&mut objs, &tags, &[]);
+        assert_eq!((objs[0].fill_level_min, objs[0].fill_level_max), (Some(0.0), Some(1000.0)));
+        assert_eq!(objs[1].fill_level_min, None, "la scala scelta vince");
+        assert_eq!((objs[2].fill_level_min, objs[2].fill_level_max), (Some(100.0), Some(900.0)));
+        assert_eq!(objs[3].fill_level_min, None, "senza intervallo resta 0–100");
     }
 }

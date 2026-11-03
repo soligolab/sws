@@ -84,7 +84,45 @@ describe("sul canvas", () => {
     const rect = container.querySelector("clipPath rect")!;
     expect(Number(rect.getAttribute("height"))).toBeCloseTo(parte.h * 0.25);
     expect(Number(rect.getAttribute("y"))).toBeCloseTo(parte.y + parte.h * 0.75);
-    expect(container.querySelector('[data-strato="level"]')!.getAttribute("clip-path")).toMatch(/^url\(#sl-s1-clip-level\)$/);
+    expect(container.querySelector('[data-strato="level"]')!.getAttribute("clip-path")).toMatch(/^url\(#sl-s1-[\w-]+-clip-level\)$/);
+  });
+
+  // 03-11-2026 (tutorial T08): la miniatura della pagina e il canvas disegnano lo
+  // stesso oggetto; con lo stesso id di clipPath, `url(#…)` prendeva quello della
+  // miniatura e il livello sul canvas restava pieno.
+  // 03-11-2026: React 19 riscrive `dangerouslySetInnerHTML` se l'oggetto è nuovo,
+  // anche con la stessa stringa; a ogni aggiornamento dei tag i simboli
+  // ricreavano tutto il loro contenuto.
+  it("un nuovo render con gli stessi dati non ricrea il contenuto del simbolo", () => {
+    const o = simbolo("lib:process/vertical-tank", { fill_level_tag: "liv" });
+    const el = (v: number) => (
+      <svg><SvgObject obj={o} objects={[o]} tagValues={{ liv: { value: v } as never }} selected={false} isEditMode={false} customSymbols={[]} faceplates={[]} /></svg>
+    );
+    const { container, rerender } = render(el(25));
+    const prima = container.querySelector('[data-strato="body"]')!.firstElementChild;
+    const gradPrima = container.querySelector("defs linearGradient");
+    rerender(el(30));
+    expect(container.querySelector('[data-strato="body"]')!.firstElementChild).toBe(prima);
+    expect(container.querySelector("defs linearGradient")).toBe(gradPrima);
+  });
+
+  it("lo stesso oggetto disegnato due volte ha due ritagli, ognuno col suo", () => {
+    const o = simbolo("lib:process/vertical-tank", { fill_level_tag: "liv" });
+    const { container } = render(
+      <svg>
+        <SvgObject obj={o} objects={[o]} tagValues={{}} selected={false} isEditMode={false} customSymbols={[]} faceplates={[]} />
+        <SvgObject obj={o} objects={[o]} tagValues={{ liv: { value: 25 } as never }} selected={false} isEditMode={false} customSymbols={[]} faceplates={[]} />
+      </svg>,
+    );
+    const ids = [...container.querySelectorAll("[id]")].map((e) => e.id);
+    expect(new Set(ids).size).toBe(ids.length);
+    const strati = [...container.querySelectorAll('[data-strato="level"]')];
+    expect(strati).toHaveLength(2);
+    const altezza = (g: Element) => {
+      const id = g.getAttribute("clip-path")!.slice(5, -1);
+      return Number(container.querySelector(`[id="${id}"] rect`)!.getAttribute("height"));
+    };
+    expect(altezza(strati[1])).toBeLessThan(altezza(strati[0]));
   });
 
   it("il rotore gira attorno al centro del manifesto, il resto sta fermo", () => {

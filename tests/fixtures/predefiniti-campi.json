@@ -16,7 +16,8 @@
     "  nessuna          — non si mostra nessuna etichetta;",
     "  codice_lingua    — si mostra il codice della lingua di destinazione;",
     "  tacche_predefinite — tacche disegnate dal widget a passo fisso;",
-    "  dal_passo        — decimali calcolati dal passo (step < 1 → 2, se no 0).",
+    "  dal_passo        — decimali calcolati dal passo (step < 1 → 2, se no 0);",
+    "  dal_tag          — i decimali del tag (o del membro) collegato, se no 1.",
     "",
     "I valori sono quelli che il WEB disegnava il 30-09-2026 (è il riferimento",
     "WYSIWYG): scriverli nel file non cambia l'aspetto di nessun oggetto sul web, e",
@@ -24,7 +25,7 @@
     "`sws-editor/tests/predefinitiCampi.test.ts` (confronto col modulo",
     "`src/predefinitiCampi.ts`) e la guardia `scripts/check_predefiniti.sh`."
   ],
-  "motivi": ["adatta", "nome_tag", "nessuna", "codice_lingua", "tacche_predefinite", "dal_passo"],
+  "motivi": ["adatta", "nome_tag", "nessuna", "codice_lingua", "tacche_predefinite", "dal_passo", "dal_tag"],
   "campi": {
     "text":       { "font_size": { "valore": 14 } },
     "text_list":  { "font_size": { "valore": 16 } },
@@ -39,14 +40,14 @@
     "led":        { "label": { "vuoto": "nessuna" }, "font_size": { "valore": 11 } },
     "gauge": { "font_size": { "valore": 20 }, "label_font_size": { "valore": 11 }, "unit_font_size": { "valore": 11 },
       "label": { "vuoto": "nessuna" },
-      "min": { "valore": 0 }, "max": { "valore": 100 }, "decimals": { "valore": 1 },
+      "min": { "valore": 0 }, "max": { "valore": 100 }, "decimals": { "vuoto": "dal_tag" },
       "gauge_start_angle": { "valore": -135 }, "gauge_end_angle": { "valore": 135 },
       "gauge_ticks": { "vuoto": "tacche_predefinite" }
     },
     "progress_bar": {
       "label": { "vuoto": "nessuna" },
       "font_size": { "valore": 11 }, "label_font_size": { "valore": 11 },
-      "min": { "valore": 0 }, "max": { "valore": 100 }, "decimals": { "valore": 1 }
+      "min": { "valore": 0 }, "max": { "valore": 100 }, "decimals": { "vuoto": "dal_tag" }
     },
     "slider": {
       "label": { "vuoto": "nessuna" },
@@ -57,11 +58,11 @@
     "setpoint": {
       "label": { "vuoto": "nessuna" },
       "font_size": { "valore": 12 }, "label_font_size": { "valore": 11 }, "button_font_size": { "valore": 12 },
-      "decimals": { "valore": 1 }, "step": { "valore": 1 }
+      "decimals": { "vuoto": "dal_tag" }, "step": { "valore": 1 }
     },
     "kpi_tile": { "font_size": { "valore": 26 }, "label_font_size": { "valore": 11 }, "unit_font_size": { "valore": 12 },
       "label": { "vuoto": "nome_tag" },
-      "spark_window_s": { "valore": 3600 }, "decimals": { "valore": 1 }
+      "spark_window_s": { "valore": 3600 }, "decimals": { "vuoto": "dal_tag" }
     },
     "data_log": { "font_size": { "valore": 11 }, "label_font_size": { "valore": 11 },
       "label": { "vuoto": "nessuna" },

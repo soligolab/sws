@@ -4616,18 +4616,29 @@ fn led_state(
     (is_on, bad_quality, color_hex)
 }
 
+/// Il cerchio del LED dentro il suo riquadro (03-11-2026, decisione del
+/// maintainer): diametro = lato minore, centrato. Prima il pannello disegnava
+/// un'ellisse W×H e il web un cerchio di diametro W, che con W=200 H=40 usciva
+/// dalla pagina. Gemello di `geometriaLed` in `SvgCanvas.tsx`. Ridà (x, y, d).
+fn geometria_led(obj: &SynopticObject) -> (f64, f64, f64) {
+    let w = obj.width.unwrap_or(24.0);
+    let h = obj.height.unwrap_or(w);
+    let d = w.min(h);
+    (obj.x.unwrap_or(0.0) + (w - d) / 2.0, obj.y.unwrap_or(0.0) + (h - d) / 2.0, d)
+}
+
 fn render_led(
     screen: &mut lvgl::Obj,
     obj: &SynopticObject,
     tags: &TagSnapshot,
 ) -> anyhow::Result<LiveBinding> {
     let mut led = Led::create(screen).map_err(|e| anyhow::anyhow!("Led::create: {e:?}"))?;
-    let d = obj.width.unwrap_or(24.0);
-    set_pos_size(&mut led, obj, d, d)?;
+    let (x, y, d) = geometria_led(obj);
+    led.set_pos(x.round() as i16, y.round() as i16).map_err(|e| anyhow::anyhow!("set_pos: {e:?}"))?;
+    led.set_size(d.round() as i16, d.round() as i16).map_err(|e| anyhow::anyhow!("set_size: {e:?}"))?;
     if let Some(l) = obj.label.as_deref().filter(|l| !l.is_empty()) {
         // Sotto il LED, centrata: `y + 2r + 14` come sul web. Una larghezza
         // abbondante perché un'etichetta più larga del LED resti centrata.
-        let (x, y) = (obj.x.unwrap_or(0.0), obj.y.unwrap_or(0.0));
         // Il corpo dall'oggetto (21-10-2026): prima era 11 fisso qui e 11
         // cablato sul web, e scrivere `font_size` su un led non produceva nulla.
         let corpo = obj.font_size.map(|v| v.round().clamp(1.0, 1000.0) as u16).unwrap_or(11);
@@ -10424,6 +10435,7 @@ fn render_pipe(
             .fill_level_scale
             .clone()
             .unwrap_or_else(|| "0-100".to_string()),
+        intervallo: intervallo_livello(obj),
         from_start: obj.fill_direction.as_deref().unwrap_or("start-to-end") == "start-to-end",
     };
     let mut buf: Vec<lvgl_sys::lv_point_t> = Vec::new();
@@ -11032,6 +11044,8 @@ pub struct PipeFill {
     tag: Option<String>,
     statico: Option<f64>,
     scale: String,
+    /// `fill_level_min`/`fill_level_max`, se validi (03-11-2026).
+    intervallo: Option<(f64, f64)>,
     from_start: bool,
 }
 
@@ -11043,9 +11057,28 @@ impl PipeFill {
             None => self.statico,
         };
         let v = grezzo.unwrap_or(0.0);
-        let frazione = if self.scale == "0-1" { v } else { v / 100.0 };
+        let frazione = match (self.tag.is_some(), self.intervallo) {
+            (true, Some(i)) => frazione_su(v, i),
+            _ if self.scale == "0-1" => v,
+            _ => v / 100.0,
+        };
         frazione.clamp(0.0, 1.0)
     }
+}
+
+/// L'intervallo del livello di un oggetto, se `fill_level_min` < `fill_level_max`
+/// (03-11-2026). Gemello di `canvas/livello.ts`: il server ce lo scrive dal
+/// `range_lo`/`range_hi` del tag di livello (`applica_predefiniti_tag`).
+fn intervallo_livello(obj: &SynopticObject) -> Option<(f64, f64)> {
+    match (obj.fill_level_min, obj.fill_level_max) {
+        (Some(lo), Some(hi)) if lo.is_finite() && hi.is_finite() && hi > lo => Some((lo, hi)),
+        _ => None,
+    }
+}
+
+/// La frazione (non tagliata) di `v` in un intervallo.
+fn frazione_su(v: f64, (lo, hi): (f64, f64)) -> f64 {
+    (v - lo) / (hi - lo)
 }
 
 /// Ridisegna la linea di riempimento al livello dato.
@@ -11958,6 +11991,7 @@ pub struct VivoLib {
     fill_level: Option<f64>,
     fill_level_tag: Option<String>,
     scala_0_100: bool,
+    intervallo: Option<(f64, f64)>,
     spin: Option<String>,
     spin_tag: Option<String>,
     spin_s: f64,
@@ -12155,6 +12189,7 @@ fn render_simbolo_lib(
         fill_level: obj.fill_level,
         fill_level_tag: obj.fill_level_tag.clone(),
         scala_0_100: obj.fill_level_scale.as_deref().unwrap_or("0-100") == "0-100",
+        intervallo: intervallo_livello(obj),
         spin: obj.symbol_spin.clone(),
         spin_tag: obj.symbol_spin_tag.clone(),
         spin_s: periodo_predefinito(obj.symbol_spin_s, progetto.as_deref()),
@@ -12287,13 +12322,18 @@ fn aggiorna_simbolo_lib(v: &mut VivoLib, tags: &TagSnapshot) {
     // Livello: come il web, dal tag o dal valore fisso; senza nessuno dei due
     // il disegno com'è (pieno).
     if let Some(l) = v.livello.as_mut() {
-        let grezzo = match v.fill_level_tag.as_deref().filter(|t| !t.is_empty()) {
+        let dal_tag = v.fill_level_tag.as_deref().filter(|t| !t.is_empty());
+        let grezzo = match dal_tag {
             Some(t) => tags.get(t).map(|tv| tag_value_as_f64(&tv.value)),
             None => v.fill_level,
         };
         let frazione = grezzo
             .filter(|x| x.is_finite())
-            .map(|x| if v.scala_0_100 { x / 100.0 } else { x })
+            .map(|x| match (dal_tag, v.intervallo) {
+                (Some(_), Some(i)) => frazione_su(x, i),
+                _ if v.scala_0_100 => x / 100.0,
+                _ => x,
+            })
             .unwrap_or(1.0)
             .clamp(0.0, 1.0);
         let bersaglio = (l.finestra.h as f64 * frazione).round() as i32;
@@ -15357,6 +15397,27 @@ mod binding_tests {
             let atteso = v["campi"][tipo][campo]["valore"].as_f64();
             assert_eq!(atteso, Some(*valore), "{tipo}.{campo}: pannello {valore}, tabella {atteso:?}");
         }
+    }
+
+    /// Il livello dall'intervallo (03-11-2026): gemello di `canvas/livello.ts`.
+    #[test]
+    fn il_livello_usa_l_intervallo_dell_oggetto() {
+        let o = |extra: &str| -> SynopticObject {
+            serde_json::from_str(&format!(r#"{{"id":"s","type":"symbol","x":0,"y":0{extra}}}"#)).unwrap()
+        };
+        assert_eq!(super::intervallo_livello(&o(r#","fill_level_min":0,"fill_level_max":1000"#)), Some((0.0, 1000.0)));
+        assert_eq!(super::intervallo_livello(&o(r#","fill_level_min":5,"fill_level_max":5"#)), None);
+        assert_eq!(super::intervallo_livello(&o("")), None);
+        assert!((super::frazione_su(250.0, (0.0, 1000.0)) - 0.25).abs() < 1e-9);
+    }
+
+    #[test]
+    fn il_led_e_un_cerchio_sul_lato_minore() {
+        let o: SynopticObject =
+            serde_json::from_str(r#"{"id":"l","type":"led","x":860,"y":600,"width":200,"height":40}"#).unwrap();
+        assert_eq!(super::geometria_led(&o), (940.0, 600.0, 40.0));
+        let q: SynopticObject = serde_json::from_str(r#"{"id":"l","type":"led","x":10,"y":20,"width":24}"#).unwrap();
+        assert_eq!(super::geometria_led(&q), (10.0, 20.0, 24.0));
     }
 
     #[test]

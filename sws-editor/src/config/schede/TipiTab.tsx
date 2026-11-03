@@ -80,8 +80,16 @@ export function TipiTab({ incorporata = false, onIstanzaCreata, variabiliToccate
   // «Apri il tipo» dal dettaglio di una variabile strutturata (02-11-2026).
   const configTab = useAppStore((s) => s.configTab);
   const configFocus = useAppStore((s) => s.configFocus);
+  // Anche `tipo#membro` (03-11-2026): dal ruolo di una foglia in Tag si arriva
+  // al membro con le sue impostazioni avanzate già aperte.
   useEffect(() => {
-    if (configTab === "types" && configFocus && types.some((x) => x.id === configFocus)) setScelto(configFocus);
+    if (configTab !== "types" || !configFocus) return;
+    const [tipo, membro] = configFocus.split("#");
+    const td = types.find((x) => x.id === tipo);
+    if (!td) return;
+    setScelto(tipo);
+    const i = membro ? td.members.findIndex((m) => m.name === membro) : -1;
+    if (i >= 0) setAvanzate(new Set([i]));
   }, [configTab, configFocus, types]);
   const corrente = types.find((x) => x.id === scelto) ?? null;
 

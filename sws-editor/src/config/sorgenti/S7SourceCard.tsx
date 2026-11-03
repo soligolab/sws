@@ -16,7 +16,6 @@ export function S7SourceCard({
   source,
   onChange,
   onDelete,
-  onCreateTag,
 }: {
   source: S7Source;
   onChange: (s: S7Source) => void;
@@ -85,6 +84,7 @@ export function S7SourceCard({
           <div key={idx} style={{ display: "flex", gap: 6, alignItems: "center", marginBottom: 6, flexWrap: "wrap" }}>
             <TagInput
               value={tm.tag}
+              tipoSuggerito={tipoDaS7(tm.data_type)}
               onChange={(v) => updateTag(idx, { tag: v })}
               placeholder={t("cfg.tagIdPh")}
               style={{ ...S.inputSm, width: 160 }}
@@ -143,11 +143,6 @@ export function S7SourceCard({
               />
               Write
             </label>
-            <button
-              style={S.btnXs}
-              onClick={() => { if (tm.tag) onCreateTag({ id: tm.tag, data_type: tipoDaS7(tm.data_type), description: "", history: false }); }}
-              title={t("cfg.createTag")}
-            >+var</button>
             <button style={S.btnXs} onClick={() => removeTag(idx)}>✕</button>
           </div>
         ))}

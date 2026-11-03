@@ -126,6 +126,21 @@ impl SourceSupervisor {
         let mut scritti: HashMap<String, bool> = HashMap::new();
         loop {
             tick.tick().await;
+            // Un salvataggio del progetto ricostruisce l'archivio dei tag, e
+            // questi — che nessuno dichiara — spariscono. «Già scritto» vale
+            // solo se il tag c'è ancora: senza questo controllo restavano
+            // assenti fino al cambio di stato successivo, e con loro gli
+            // allarmi di disponibilità e la disponibilità pubblicata su MQTT
+            // (trovato col tutorial del manuale, T07, 03-11-2026).
+            let mut spariti = Vec::new();
+            for id in scritti.keys() {
+                if self.db.get(&sws_core::tag_disponibilita(id)).await.is_none() {
+                    spariti.push(id.clone());
+                }
+            }
+            for id in spariti {
+                scritti.remove(&id);
+            }
             for (tag, vivo) in disponibilita_da_scrivere(&self.stato.istantanea(), &mut scritti) {
                 self.db.set(tag, sws_core::TagValue::Bool(vivo), sws_core::TagQuality::Good).await;
             }

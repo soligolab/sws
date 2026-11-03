@@ -384,7 +384,7 @@ async fn run_session(
             source = %cfg.id, righe = senza_filtro,
             "MQTT: {senza_filtro} riga/e senza topic, ignorate. Sottoscriverle farebbe \
              chiudere la connessione al broker (filtro a lunghezza zero: errore di \
-             protocollo) e morirebbe l'intera sorgente. Toglile in Configurazione → Sorgenti."
+             protocollo) e morirebbe l'intera sorgente. Toglile nell'IDE, in Comunicazione."
         );
     }
     for topic in cfg.topics.iter().filter(|t| sottoscrivibile(&t.topic)) {
@@ -484,6 +484,13 @@ async fn run_session(
         .map(|p| (p.intervallo_ms > 0).then(|| tokio::time::Instant::now() + Duration::from_millis(p.intervallo_ms)))
         .collect();
     let mut disponibilita_mandata: Vec<Option<String>> = vec![None; cfg.pubblica.len()];
+    // L'ultimo stato mandato (03-11-2026): un giro di lettura riscrive i tag
+    // anche quando non cambiano, e ogni riscrittura arriva qui come un cambio.
+    // Senza confronto lo stato usciva a ogni giro (una volta al secondo col
+    // Modbus del tutorial) anche con «Ogni (s)» a 0, cioè «solo ai cambi».
+    // Le pubblicazioni periodiche escono comunque: è quello che chiedono.
+    let mut stato_mandato: Vec<Option<String>> = vec![None; cfg.pubblica.len()];
+    let mut periodica_scaduta = vec![false; cfg.pubblica.len()];
     const RACCOLTA: Duration = Duration::from_millis(500);
 
     loop {
@@ -514,6 +521,7 @@ async fn run_session(
                 for (i, per) in periodiche.iter_mut().enumerate() {
                     if per.is_some_and(|t| t <= adesso) {
                         sporche[i] = true;
+                        periodica_scaduta[i] = true;
                         *per = Some(adesso + Duration::from_millis(cfg.pubblica[i].intervallo_ms));
                     }
                 }
@@ -523,9 +531,14 @@ async fn run_session(
                         if !std::mem::take(&mut sporche[i]) {
                             continue;
                         }
+                        let forzata = std::mem::take(&mut periodica_scaduta[i]);
                         if let Some(payload) = pubblica::stato(&db, p).await {
-                            if let Err(e) = client.publish(&p.topic, source_qos, p.retain, payload.into_bytes()).await {
-                                warn!(source = %cfg.id, topic = %p.topic, "MQTT: pubblicazione non riuscita: {e}");
+                            if forzata || stato_mandato[i].as_deref() != Some(payload.as_str()) {
+                                if let Err(e) = client.publish(&p.topic, source_qos, p.retain, payload.clone().into_bytes()).await {
+                                    warn!(source = %cfg.id, topic = %p.topic, "MQTT: pubblicazione non riuscita: {e}");
+                                } else {
+                                    stato_mandato[i] = Some(payload);
+                                }
                             }
                         }
                         if let Some((topic, payload)) = pubblica::disponibilita(&db, p).await {

@@ -11,11 +11,13 @@ import { impostaCornicePredefinita } from "@/cornici/predefinita";
 import { PropostaCornice } from "../src/cornici/PropostaCornice";
 import { pagineCornice, idCornice } from "../src/cornici/modello";
 import { useAppStore } from "../src/store";
+import { api } from "../src/api/client";
 
 beforeAll(async () => { await i18n.changeLanguage("it"); });
 beforeEach(() => {
   localStorage.clear();
   vi.mocked(impostaCornicePredefinita).mockClear();
+  vi.restoreAllMocks();
   useAppStore.setState({
     pages: [{ id: "p1", name: "Home", width: 1280, height: 800, objects: [] }] as never,
     currentPageId: "p1",
@@ -23,12 +25,17 @@ beforeEach(() => {
 });
 
 describe("proposta di una cornice", () => {
-  it("un modello crea la cornice e la rende la predefinita", async () => {
+  it("un modello crea la cornice, la salva, e solo dopo la rende la predefinita", async () => {
+    const ordine: string[] = [];
+    vi.spyOn(api, "saveCornice").mockImplementation(async () => { ordine.push("file"); });
+    vi.mocked(impostaCornicePredefinita).mockImplementation(async () => { ordine.push("predefinita"); });
     render(<PropostaCornice progetto="Casa" />);
     fireEvent.click(screen.getByTestId("proposta-cornice-testata_piede"));
     const cornici = pagineCornice(useAppStore.getState().pages);
     expect(cornici).toHaveLength(1);
     await waitFor(() => expect(impostaCornicePredefinita).toHaveBeenCalledWith(idCornice(cornici[0])));
+    // 03-11-2026: la predefinita non punta mai a una cornice che non c'è su disco.
+    expect(ordine).toEqual(["file", "predefinita"]);
   });
 
   it("«No, grazie» la nasconde e se lo ricorda per quel progetto", () => {

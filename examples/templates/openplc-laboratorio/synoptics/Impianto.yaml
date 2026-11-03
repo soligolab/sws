@@ -1,0 +1,135 @@
+id: page-1a19f19beef1
+name: Impianto
+objects:
+- id: mw04yyocbmcde
+  type: symbol
+  x: 840.0
+  y: 170.0
+  width: 200.0
+  height: 400.0
+  symbol_spin_s: 2.0
+  label_font_size: 11.0
+  symbol_id: lib:process/vertical-tank
+  fill_level_tag: livello
+- id: mw059bwl30zpa
+  type: symbol
+  x: 400.0
+  y: 440.0
+  width: 140.0
+  height: 140.0
+  symbol_spin: on_state
+  symbol_spin_s: 2.0
+  label_font_size: 11.0
+  symbol_id: lib:process/centrifugal-pump
+  state_tag: pompa1.in_marcia
+- id: mw05e7sh0xn70
+  type: pipe
+  x: 487.5
+  y: 440.0
+  pipe_flow: true
+  pipe_flow_tag: pompa1.portata
+  font_size: 12.0
+  state_alarm_color: '#ef4444'
+  state_tag: pompa1.in_marcia
+  points:
+  - x: 487.5
+    y: 440
+  - x: 490
+    y: 130
+  - x: 940
+    y: 130
+  - x: 940
+    y: 170
+  routing: orthogonal
+  pipe_style: metallo
+  fill_color: '#3b82f6'
+  from_obj_id: mw059bwl30zpa
+  from_port: n-top
+  to_obj_id: mw04yyocbmcde
+  to_port: n-top
+- id: mw05hidt8e7wx
+  type: button
+  x: 400.0
+  y: 640.0
+  width: 180.0
+  height: 56.0
+  fill: '#3b82f6'
+  tag: pompa1.comando
+  label: '{{t0001}}'
+  write_value: true
+  button_mode: toggle
+  require_confirm: true
+  font_size: 14.0
+  color: '#ffffff'
+- id: mw05rkfbn5131
+  type: led
+  x: 880.0
+  y: 600.0
+  width: 48.0
+  height: 48.0
+  tag: allarme_livello
+  label: '{{t0002}}'
+  on_value: true
+  on_color: '#22c55e'
+  off_color: '#374151'
+  font_size: 11.0
+- id: mw05uw5zf42dh
+  type: kpi_tile
+  x: 60.0
+  y: 170.0
+  width: 260.0
+  height: 110.0
+  bg_color: '#1e293b'
+  tag: livello
+  label: '{{t0003}}'
+  decimals: 0
+  font_size: 26.0
+  label_font_size: 11.0
+  unit_font_size: 12.0
+  spark_window_s: 3600.0
+- id: mw05y4arnsch5
+  type: kpi_tile
+  x: 60.0
+  y: 300.0
+  width: 260.0
+  height: 110.0
+  bg_color: '#1e293b'
+  tag: pompa1.portata
+  label: '{{t0004}}'
+  decimals: 0
+  font_size: 26.0
+  label_font_size: 11.0
+  unit_font_size: 12.0
+  spark_window_s: 3600.0
+- id: mw061ch17uwpm
+  type: kpi_tile
+  x: 60.0
+  y: 430.0
+  width: 260.0
+  height: 110.0
+  bg_color: '#1e293b'
+  tag: temperatura_esterna
+  label: '{{t0005}}'
+  decimals: 1
+  font_size: 26.0
+  label_font_size: 11.0
+  unit_font_size: 12.0
+  spark_window_s: 3600.0
+- id: mw080tueu48io
+  type: button
+  x: 620.0
+  y: 640.0
+  width: 180.0
+  height: 56.0
+  fill: '#3b82f6'
+  label: '{{t0009}}'
+  write_value: true
+  font_size: 14.0
+  color: '#ffffff'
+  button_action:
+    page: mw06f05d9xqy2
+    params: {}
+    type: open_popup
+width: 1280.0
+height: 800.0
+locked: false

@@ -7,7 +7,8 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useAppStore } from "@/store";
-import { MODELLI_CORNICE, idCornice, type ModelloCornice } from "./modello";
+import { api } from "@/api/client";
+import { MODELLI_CORNICE, idCornice, paginaACornice, type ModelloCornice } from "./modello";
 import { impostaCornicePredefinita } from "./predefinita";
 
 const CHIAVE = (progetto: string) => `sws.cornice.proposta.${progetto}`;
@@ -29,7 +30,13 @@ export function PropostaCornice({ progetto }: { progetto: string }) {
     const st = useAppStore.getState();
     const nuova = st.pages.find((p) => p.id === st.currentPageId);
     if (!nuova) return;
-    impostaCornicePredefinita(idCornice(nuova)).catch((e) => setErrore(e?.message ?? String(e)));
+    // Prima il file della cornice, poi la predefinita (03-11-2026): la
+    // predefinita va subito su `project.yaml`, e la cornice nasceva solo col
+    // «Salva». Chi usciva senza salvare restava con un progetto che puntava a
+    // una cornice inesistente, e la proposta non tornava più.
+    api.saveCornice(paginaACornice(nuova))
+      .then(() => impostaCornicePredefinita(idCornice(nuova)))
+      .catch((e) => setErrore(e?.message ?? String(e)));
   };
   const rifiuta = () => {
     try { localStorage.setItem(CHIAVE(progetto), "no"); } catch { /* niente memoria: si richiederà */ }

@@ -169,3 +169,35 @@ Annoto di seguito, uno per punto, le cose che devono essere verificate e trasfor
 - Slider nuovo in CasaDomotica (fase 7 del piano archiviato docs/archive/2026-10-30-revisione-slider.md, 03-11-2026):
   luci e tapparelle con lo stile «piastra» (con icona), un termostato con lo slider che mostra anche il valore
   misurato (PV). Le fasi 1-6 sono in main dalla 2.23.8. Il progetto sta sul VPS: si fa dal cloud, col maintainer.
+
+- Il certificato client OPC UA di SWS (`opcua-pki/<sorgente>/own/cert.der`) si presenta come «C=IE, ST=Dublin,
+  O=SWS Runtime»: sono i valori di esempio di async-opcua (`DEFAULT_COUNTRY`/`DEFAULT_STATE` in async-opcua-crypto,
+  x509.rs), usati da `create_sample_keypair(true)`. Per avere dati veri (paese, organizzazione, magari il nome del
+  pannello) bisogna generare noi la coppia di chiavi con un `X509Data` nostro e scriverla nella PKI prima di creare il
+  client. Visto col tutorial T05 il 03-11-2026; solo estetica, ma è quello che legge chi deve fidarsi di SWS sul server.
+
+
+- Le credenziali di OpenPLC sul pannello (03-11-2026, WP630): ricreando il container l'utente dell'Editor NON si
+  perde (sta in /data/user/openplc/restapi.db, tabella `users`, accanto a `bootstrap_marker`), ma l'installer dice lo
+  stesso «Crea subito il suo utente: finché non ne ha, il primo che si collega lo crea», e così il testo `openplc.porte`
+  dell'IDE. Il maintainer non ricordava la password del 30-10 e SWS non offriva niente: «non è così scontato».
+  Due cose: (1) installer e IDE dicono se un utente c'è già («OpenPLC ha già l'utente admin: le credenziali restano
+  quelle»); (2) nel riquadro OpenPLC del pannello un'azione «Azzera le credenziali di OpenPLC», solo Admin, con
+  conferma, fatta dal pannello con un servizio transitorio come l'installazione (`sws-web/src/openplc.rs`): ferma il
+  container, svuota `users` (verificare cosa fa OpenPLC v4 con `bootstrap_marker`), riavvia; il programma non si tocca.
+  Il maintainer, lo stesso giorno: «segna l'opzione 2, l'idea è di avere una finestra dedicata a OpenPLC». Cioè non un
+  bottone in più nel riquadro di Connessione, ma un posto suo nell'IDE che raccolga tutto quello che oggi è sparso:
+  stato e installazione (`OpenplcSulPannello`, Connessione), la logica del progetto (Scarica/Carica zip,
+  `LogicaPlcDelProgetto`), le credenziali (dire se c'è un utente, azzerarle), porte e indirizzo per l'Editor, e magari
+  il programma in esecuzione (nome e data, che la discovery UDP 33333 già dà: `project_name`, `project_timestamp`).
+  Da chiarire col maintainer prima di scrivere codice: dove sta nella barra (una voce sua o una scheda di Dispositivo),
+  e se vale anche senza pannello collegato (la logica del progetto sì, il resto no).
+
+- Il ruolo di scrittura per una sola istanza di un tipo (03-11-2026, confermato dal maintainer: «serve»). Oggi il ruolo di
+  una foglia (`pompa1.comando`) sta solo nel membro del tipo (`write_min_role` in Tipi), quindi vale per tutte le
+  istanze: aprire `.comando` a tutti su `pompa1` lo apre anche su `pompa2`. Il `write_min_role` messo sulla variabile
+  `pompa1` vale solo per la radice, non per le foglie (`build_tag_write_roles` in `sws-web/src/projects.rs` mette la
+  radice e i ruoli dei membri, nient'altro). Da decidere prima del codice: dove si scrive l'eccezione (una mappa
+  `percorso → ruolo` sulla variabile? una riga della foglia modificabile in Tag, che oggi è in sola lettura per la
+  regola «una sezione per dato»?), chi vince fra membro e istanza, e lo stesso per LVGL, che legge i ruoli dal server.
+  Dal 03-11 la riga della foglia in Tag mostra il ruolo e apre il tipo sul membro.

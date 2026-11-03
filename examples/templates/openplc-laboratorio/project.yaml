@@ -1,0 +1,258 @@
+meta:
+  name: impianto-lab
+  version: 0.1.0
+types:
+- id: pompa
+  description: Pompa con comando, stato di marcia e portata
+  members:
+  - name: comando
+    data_type: bool
+    history: true
+  - name: in_marcia
+    data_type: bool
+    history: true
+  - name: portata
+    data_type: i16
+    unit: l/min
+    history: true
+tags:
+- id: pompa1
+  description: Pompa di riempimento del serbatoio
+  data_type: float
+  history: true
+  type_ref: pompa
+- id: livello
+  description: Livello del serbatoio
+  data_type: i16
+  history: true
+  unit: mm
+  decimals: 0
+  range_lo: 0.0
+  range_hi: 1000.0
+- id: soglia_alta
+  description: Soglia di livello alto
+  data_type: i16
+  history: false
+- id: allarme_livello
+  description: Livello oltre la soglia alta
+  data_type: bool
+  history: false
+- id: livello_opcua
+  description: Livello letto in OPC UA
+  data_type: i16
+  history: false
+  unit: mm
+- id: livello_s7
+  description: Livello letto in S7
+  data_type: i16
+  history: false
+- id: temperatura_esterna
+  description: Temperatura esterna, dal broker MQTT
+  data_type: f64
+  history: true
+  unit: °C
+- id: openplc.disponibile
+  description: Vero quando la sorgente «openplc» ha qualcuno dall'altra parte (scritto dal runtime)
+  data_type: bool
+  history: false
+sources:
+- kind: modbus_tcp
+  id: openplc
+  host: 127.0.0.1
+  port: 1502
+  poll_interval_ms: 1000
+  devices:
+  - unit_id: 1
+    nome: impianto
+    registers:
+    - tag: pompa1.comando
+      address: 0
+      scale: 1.0
+      area: coil
+    - tag: pompa1.in_marcia
+      address: 1
+      scale: 1.0
+      area: coil
+    - tag: allarme_livello
+      address: 2
+      scale: 1.0
+      area: coil
+    - tag: livello
+      address: 0
+      scale: 1.0
+    - tag: soglia_alta
+      address: 1
+      scale: 1.0
+    - tag: pompa1.portata
+      address: 2
+      scale: 1.0
+- kind: opcua_client
+  id: openplc-opcua
+  endpoint_url: opc.tcp://127.0.0.1:14840/openplc/opcua
+  security_policy: Basic256Sha256
+  auth:
+    kind: username_password
+    username: sws
+  subscription_interval_ms: 500
+  nodes:
+  - tag: livello_opcua
+    node_id: ns=2;s=impianto.livello
+    description: livello
+  trust_all_certs: false
+- kind: s7
+  id: openplc-s7
+  ip: 127.0.0.1
+  port: 10102
+  rack: 0
+  slot: 1
+  poll_interval_ms: 500
+  tags:
+  - tag: livello_s7
+    area: db
+    db_num: 1
+    byte_offset: 0
+    bit_offset: 0
+    data_type: int
+    writable: false
+- kind: mqtt
+  id: broker-lab
+  host: 127.0.0.1
+  port: 11883
+  client_id: sws-mw036dzumy5o8
+  topics:
+  - tag: temperatura_esterna
+    topic: lab/meteo
+    json_path: temperatura
+  random_client_id:
+    enabled: true
+    position: suffix
+  pubblica:
+  - topic: impianto/pompa1/state
+    tags:
+    - pompa1
+    disponibilita:
+      topic: impianto/disponibile
+      tag: openplc.disponibile
+alarms:
+- id: livello_alto
+  tag: allarme_livello
+  levels:
+  - condition:
+      kind: bool_equals
+      value: true
+    severity: Critical
+    message: '{{t0010}}'
+- id: disponibilita-openplc
+  tag: openplc.disponibile
+  levels:
+  - condition:
+      kind: bool_false
+    severity: Warning
+    message: La sorgente «openplc» non risponde da un minuto
+  on_delay_s: 60.0
+functions: []
+custom_symbols: []
+datastores:
+- id: default
+  label: Storico locale
+  backend:
+    kind: sqlite
+    path: history/historian.db
+global_scripts: []
+languages:
+  default: it
+  langs:
+  - it
+  - en
+  - es
+  entries:
+  - key: t0001
+    values:
+      en: Run/Stop
+      es: Marcha / Paro
+      it: Marcia / Arresto
+    auto:
+    - en
+    - es
+  - key: t0002
+    values:
+      en: High level
+      es: Nivel alto
+      it: Livello alto
+    auto:
+    - en
+    - es
+  - key: t0003
+    values:
+      en: Level
+      es: Nivel
+      it: Livello
+    auto:
+    - en
+    - es
+  - key: t0004
+    values:
+      en: Flow rate
+      es: Caudal
+      it: Portata
+    auto:
+    - en
+    - es
+  - key: t0005
+    values:
+      en: Outdoor temperature
+      es: Temperatura exterior
+      it: Temperatura esterna
+    auto:
+    - en
+    - es
+  - key: t0006
+    values:
+      en: High Level Threshold
+      es: Umbral de nivel alto
+      it: Soglia di livello alto
+    auto:
+    - en
+    - es
+  - key: t0007
+    values:
+      en: mm
+      es: mm
+      it: mm
+    auto:
+    - en
+    - es
+  - key: t0008
+    values:
+      en: Close
+      es: Cerrar
+      it: Chiudi
+    auto:
+    - en
+    - es
+  - key: t0009
+    values:
+      en: Parameters…
+      es: Parámetros…
+      it: Parametri…
+    auto:
+    - en
+    - es
+  - key: t0010
+    values:
+      en: Tank level above high threshold
+      es: Nivel del depósito por encima del umbral alto
+      it: Livello del serbatoio oltre la soglia alta
+    auto:
+    - es
+    - en
+page_layout:
+  home_page_id: page-1a19f19beef1
+  size_mode: fixed
+  default_width: 1280.0
+  default_height: 800.0
+  page_tree:
+  - id: page-1a19f19beef1
+  - id: mw06f05d9xqy2
+  - id: mw0g08zp68mnv
+  cornice_predefinita: cornice

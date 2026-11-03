@@ -59,6 +59,91 @@ fn security_mode_for(policy: SecurityPolicy) -> MessageSecurityMode {
     }
 }
 
+/// L'endpoint a cui collegarsi, **col certificato del server** dentro.
+///
+/// Fino al 03-11-2026 l'endpoint si costruiva a mano da URL, policy e modalità,
+/// e `connect_to_endpoint_directly` partiva senza il certificato del server: con
+/// una policy diversa da `None` — `Basic256Sha256` è il default — la connessione
+/// cadeva sempre con `BadCertificateInvalid: Missing server certificate`, e la
+/// fiducia al primo contatto non scattava mai, perché il certificato non arrivava.
+/// Trovato eseguendo il tutorial del manuale (T05) contro OpenPLC.
+///
+/// Con una policy sicura si chiede al server l'elenco degli endpoint
+/// (GetEndpoints, senza cifratura) e si prende quello con policy e modalità
+/// giuste. Non si usa `connect_to_matching_endpoint` di async-opcua perché
+/// confronta anche la porta: un server in un container annuncia la sua (4840)
+/// e si raggiunge da un'altra (14840 su un pannello con OpenPLC). L'URL resta
+/// quello configurato.
+async fn endpoint_per(
+    client: &opcua::client::Client,
+    url: &str,
+    policy: SecurityPolicy,
+) -> anyhow::Result<opcua::types::EndpointDescription> {
+    let mode = security_mode_for(policy);
+    if policy == SecurityPolicy::None {
+        return Ok((url, policy.to_uri(), mode, UserTokenPolicy::anonymous()).into());
+    }
+    // Con un tetto: dietro una porta aperta può non rispondere nessuno (il
+    // port forwarding di un container col server fermo), e senza la sorgente
+    // resterebbe appesa qui, senza riconnessione.
+    let offerti = tokio::time::timeout(Duration::from_secs(15), client.get_server_endpoints_from_url(url))
+        .await
+        .map_err(|_| anyhow::anyhow!("opcua: {url} non ha dato l'elenco degli endpoint in 15 s"))?
+        .map_err(|e| anyhow::anyhow!("opcua: elenco degli endpoint da {url}: {e}"))?;
+    scegli_endpoint(&offerti, url, policy, mode)
+}
+
+/// Fra gli endpoint offerti, quello con policy e modalità chieste, con l'URL
+/// configurato al posto di quello annunciato. Se non c'è, l'errore dice cosa
+/// il server offre: è la prima cosa che serve per scegliere la policy giusta.
+fn scegli_endpoint(
+    offerti: &[opcua::types::EndpointDescription],
+    url: &str,
+    policy: SecurityPolicy,
+    mode: MessageSecurityMode,
+) -> anyhow::Result<opcua::types::EndpointDescription> {
+    let mut e = offerti
+        .iter()
+        .find(|e| e.security_mode == mode && SecurityPolicy::from_uri(e.security_policy_uri.as_ref()) == policy)
+        .cloned()
+        .ok_or_else(|| {
+            let offre: Vec<String> = offerti
+                .iter()
+                .map(|e| format!("{} {:?}", SecurityPolicy::from_uri(e.security_policy_uri.as_ref()), e.security_mode))
+                .collect();
+            anyhow::anyhow!(
+                "il server non offre {policy} con {mode:?}; offre: {}",
+                if offre.is_empty() { "niente".to_string() } else { offre.join(", ") }
+            )
+        })?;
+    e.endpoint_url = url.into();
+    Ok(e)
+}
+
+/// Aspetta che la sessione sia collegata, **o** che l'event loop finisca.
+///
+/// `wait_for_connection` da sola non ritorna mai se l'event loop termina (lo
+/// dice la documentazione di async-opcua), e con `session_retry_limit(0)` il
+/// loop termina al primo tentativo fallito. Fino al 03-11-2026 una connessione
+/// rifiutata — un certificato sconosciuto, ma anche un server spento — lasciava
+/// la sorgente appesa per sempre: nessuna riconnessione, e la fiducia al primo
+/// contatto, che parte dall'errore, non partiva mai.
+async fn collegato(
+    session: &opcua::client::Session,
+    event_loop: &mut tokio::task::JoinHandle<StatusCode>,
+) -> anyhow::Result<()> {
+    tokio::select! {
+        _ = session.wait_for_connection() => Ok(()),
+        esito = event_loop => Err(anyhow::anyhow!(
+            "opcua: connessione non riuscita ({})",
+            match esito {
+                Ok(s) => s.to_string(),
+                Err(e) => e.to_string(),
+            }
+        )),
+    }
+}
+
 /// Build the ClientBuilder common to subscription + browse. The PKI dir is
 /// where async-opcua persists the runtime's self-signed cert + private
 /// key. For long-lived sessions the supervisor passes the project-scoped
@@ -241,18 +326,10 @@ async fn run_once(
             SecurityPolicy::None
         }
     };
-    let security_mode = security_mode_for(security_policy);
 
-    // EndpointDescription from (url, security_policy_uri, security_mode,
-    // user_token_policy). The anonymous user token policy is the common
-    // default for unauthenticated industrial servers.
-    let endpoint: opcua::types::EndpointDescription = (
-        cfg.endpoint_url.as_str(),
-        security_policy.to_uri(),
-        security_mode,
-        UserTokenPolicy::anonymous(),
-    )
-        .into();
+    // Con una policy sicura l'endpoint viene dal server, certificato compreso
+    // (vedi `endpoint_per`); con `None` si costruisce come prima.
+    let endpoint = endpoint_per(&client, &cfg.endpoint_url, security_policy).await?;
 
     // Resolve credentials. password_env wins over password so secrets can
     // stay out of project.yaml.
@@ -278,8 +355,8 @@ async fn run_once(
 
     info!(source = %cfg.id, endpoint = %cfg.endpoint_url, "opcua: connecting");
 
-    let handle = event_loop.spawn();
-    session.wait_for_connection().await;
+    let mut handle = event_loop.spawn();
+    collegato(&session, &mut handle).await?;
     info!(source = %cfg.id, "opcua: connected, creating subscription");
 
     // node_id → tag id, used by the callback to route DataValue updates.
@@ -671,15 +748,8 @@ pub async fn read_history(
 
     let security_policy =
         parse_security_policy(&cfg.security_policy).unwrap_or(SecurityPolicy::None);
-    let security_mode = security_mode_for(security_policy);
 
-    let endpoint: opcua::types::EndpointDescription = (
-        cfg.endpoint_url.as_str(),
-        security_policy.to_uri(),
-        security_mode,
-        UserTokenPolicy::anonymous(),
-    )
-        .into();
+    let endpoint = endpoint_per(&client, &cfg.endpoint_url, security_policy).await?;
 
     let identity = match &cfg.auth {
         OpcUaAuth::Anonymous => IdentityToken::Anonymous,
@@ -700,8 +770,8 @@ pub async fn read_history(
     let (session, event_loop) = client
         .connect_to_endpoint_directly(endpoint, identity)
         .map_err(|e| anyhow::anyhow!("opcua connect: {e}"))?;
-    let loop_handle = event_loop.spawn();
-    session.wait_for_connection().await;
+    let mut loop_handle = event_loop.spawn();
+    collegato(&session, &mut loop_handle).await?;
 
     let node_to_read = HistoryReadValueId {
         node_id: nid,
@@ -863,15 +933,8 @@ pub async fn browse_one_level(
 
     let security_policy =
         parse_security_policy(&cfg.security_policy).unwrap_or(SecurityPolicy::None);
-    let security_mode = security_mode_for(security_policy);
 
-    let endpoint: opcua::types::EndpointDescription = (
-        cfg.endpoint_url.as_str(),
-        security_policy.to_uri(),
-        security_mode,
-        UserTokenPolicy::anonymous(),
-    )
-        .into();
+    let endpoint = endpoint_per(&client, &cfg.endpoint_url, security_policy).await?;
 
     let identity = match &cfg.auth {
         OpcUaAuth::Anonymous => IdentityToken::Anonymous,
@@ -892,8 +955,8 @@ pub async fn browse_one_level(
     let (session, event_loop) = client
         .connect_to_endpoint_directly(endpoint, identity)
         .map_err(|e| anyhow::anyhow!("opcua connect: {e}"))?;
-    let loop_handle = event_loop.spawn();
-    session.wait_for_connection().await;
+    let mut loop_handle = event_loop.spawn();
+    collegato(&session, &mut loop_handle).await?;
     info!(endpoint = %cfg.endpoint_url, "sfoglia opcua: collegato");
 
     let parent = match parent_node_id {
@@ -1142,14 +1205,7 @@ pub async fn detect_euromap(cfg: &OpcUaClientConfig) -> anyhow::Result<EuromapDe
 
     let security_policy =
         parse_security_policy(&cfg.security_policy).unwrap_or(SecurityPolicy::None);
-    let security_mode = security_mode_for(security_policy);
-    let endpoint: opcua::types::EndpointDescription = (
-        cfg.endpoint_url.as_str(),
-        security_policy.to_uri(),
-        security_mode,
-        UserTokenPolicy::anonymous(),
-    )
-        .into();
+    let endpoint = endpoint_per(&client, &cfg.endpoint_url, security_policy).await?;
     let identity = match &cfg.auth {
         OpcUaAuth::Anonymous => IdentityToken::Anonymous,
         OpcUaAuth::UsernamePassword {
@@ -1168,8 +1224,8 @@ pub async fn detect_euromap(cfg: &OpcUaClientConfig) -> anyhow::Result<EuromapDe
     let (session, event_loop) = client
         .connect_to_endpoint_directly(endpoint, identity)
         .map_err(|e| anyhow::anyhow!("opcua connect: {e}"))?;
-    let loop_handle = event_loop.spawn();
-    session.wait_for_connection().await;
+    let mut loop_handle = event_loop.spawn();
+    collegato(&session, &mut loop_handle).await?;
 
     // Look up table for fast match.
     let lookup: HashMap<String, &(&str, &str, &str, &str)> = EUROMAP_VARIABLES
@@ -2705,6 +2761,32 @@ mod tests {
             security_mode_for(SecurityPolicy::Basic256Sha256),
             MessageSecurityMode::SignAndEncrypt,
         );
+    }
+
+    /// Il server annuncia la porta di dentro il container: si sceglie per
+    /// policy e modalità, e l'URL resta quello configurato (03-11-2026).
+    #[test]
+    fn l_endpoint_si_sceglie_per_policy_e_tiene_l_url_configurato() {
+        let annunciato = |policy: SecurityPolicy, mode: MessageSecurityMode| {
+            let mut e: opcua::types::EndpointDescription =
+                ("opc.tcp://0.0.0.0:4840/openplc/opcua", policy.to_uri(), mode, UserTokenPolicy::anonymous()).into();
+            e.server_certificate = opcua::types::ByteString::from(vec![1u8, 2, 3]);
+            e
+        };
+        let offerti = vec![
+            annunciato(SecurityPolicy::None, MessageSecurityMode::None),
+            annunciato(SecurityPolicy::Basic256Sha256, MessageSecurityMode::SignAndEncrypt),
+        ];
+        let url = "opc.tcp://127.0.0.1:14840/openplc/opcua";
+        let e = scegli_endpoint(&offerti, url, SecurityPolicy::Basic256Sha256, MessageSecurityMode::SignAndEncrypt)
+            .unwrap();
+        assert_eq!(e.endpoint_url.as_ref(), url);
+        assert_eq!(e.server_certificate.as_ref(), &[1u8, 2, 3], "il certificato del server viaggia con l'endpoint");
+
+        let err = scegli_endpoint(&offerti, url, SecurityPolicy::Aes256Sha256RsaPss, MessageSecurityMode::SignAndEncrypt)
+            .unwrap_err()
+            .to_string();
+        assert!(err.contains("offre:") && err.contains("Basic256Sha256"), "l'errore dice cosa offre: {err}");
     }
 
     #[test]

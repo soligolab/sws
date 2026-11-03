@@ -5574,8 +5574,9 @@ export function ObjectProps({
             <div>
               <div style={LABEL}>{t("props.tagScale")}</div>
               <select style={{ ...INPUT, cursor: "pointer" }}
-                value={obj.fill_level_scale ?? "0-100"}
-                onChange={(e) => onChange({ fill_level_scale: e.target.value as "0-1" | "0-100" })}>
+                value={obj.fill_level_scale ?? ""}
+                onChange={(e) => onChange({ fill_level_scale: (e.target.value || undefined) as "0-1" | "0-100" | undefined })}>
+                <option value="">{t("props.tagScaleAuto")}</option>
                 <option value="0-100">0 – 100</option>
                 <option value="0-1">0.0 – 1.0</option>
               </select>

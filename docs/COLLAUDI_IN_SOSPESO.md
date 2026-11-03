@@ -374,7 +374,9 @@ SWS (`soglia_alta` = 900). Il riavvio (24) l'ha fatto Claude via SSH, col progra
 21. [x] L'Editor di OpenPLC **dal PC Windows**, sulla stessa rete, si collega alla 8443 del pannello
         senza tunnel, crea l'utente e carica un programma. La logica sta in `<progetto>/openplc/`.
 22. [ ] La logica viaggia col progetto: backup, export e deploy la portano; `git` la prende da sé.
-22b. [ ] **Dall'IDE** (03-11-2026): Connessione → «Logica PLC del progetto» → «Scarica (zip)», aprirla
+22b. [x] **Dall'IDE** (03-11-2026; fatto lo stesso giorno sul WP630 2.24.1: zip di 39 file caricato, riscaricato
+        uguale e arrivato col deploy, `program.st` identico; trovati e corretti la codifica dei nomi nel deploy e lo zip
+        non compresso): Connessione → «Logica PLC del progetto» → «Scarica (zip)», aprirla
         con l'Editor di OpenPLC sul PC Windows, modificarla, comprimere la cartella e «Carica zip…»;
         poi deploy e, sul pannello, il programma nuovo in `<progetto>/openplc/`.
 23. [x] Modbus di OpenPLC risponde su `127.0.0.1:1502` e una sorgente Modbus di SWS puntata lì legge

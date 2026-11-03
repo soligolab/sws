@@ -11,13 +11,84 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 
 ## [Unreleased]
 
+### Changed
+- **In Tag la riga di una foglia dice chi la può scrivere** (03-11-2026, `pompa1.comando` nel template OpenPLC): «scrive:
+  Viewer», o «Operator (predef.)» se il membro non lo dice; il clic apre Tipi su quel membro con le impostazioni
+  avanzate aperte (focus `tipo#membro`), anche quando il membro sta in un tipo annidato. Il ruolo resta nel tipo.
+- **Il livello di serbatoi e tubi prende l'intervallo del tag** (decisione del maintainer, 03-11-2026): senza una scala
+  scelta, il riempimento va da `range_lo` a `range_hi` del tag di livello (o del membro); prima era sempre 0–100, e un
+  `livello` in mm riempiva tutto già a 100. Nuovi `fill_level_min`/`fill_level_max` sull'oggetto, che il server scrive
+  dal tag per il pannello LVGL (`applica_predefiniti_tag`); regola in `canvas/livello.ts` e `intervallo_livello` in
+  `lvgl_render.rs`. Il menu «Scala tag» ha la voce «Automatica».
+- **I decimali di gauge, progress, setpoint e «Valore in evidenza» vengono dal tag** se l'oggetto non li scrive: la
+  palette non scrive più `decimals: 1` alla creazione (`{ vuoto: "dal_tag" }` nella tabella dei predefiniti). Gli
+  oggetti esistenti non cambiano.
+- **Il LED è un cerchio sul lato minore del suo riquadro**, centrato, sul web e su LVGL: prima il web disegnava un
+  cerchio di diametro W e il pannello un'ellisse W×H.
+- **S7 ed EtherNet/IP creano la variabile come le altre schede**: via «+var», che la creava in silenzio; resta il «＋»
+  del campo tag, con la finestra (tipo proposto dal tipo del PLC, unità, storico).
+
 ### Added
-- **La logica PLC del progetto dall'IDE** (Appunti, 30-10-2026): in Configurazione → Istanza → Connessione il
+- **Template «OpenPLC — impianto di prova»** (`examples/templates/openplc-laboratorio`, richiesta del maintainer del
+  03-11-2026): il progetto del tutorial, pronto da provare col laboratorio di `examples/laboratorio/` — pompa e
+  serbatoio su OpenPLC v4 letti in Modbus, OPC UA e S7, un sensore e la pubblicazione su MQTT, allarmi, storico, una
+  finestra per la soglia, in italiano, inglese e spagnolo.
+- **Il laboratorio del tutorial** (`examples/laboratorio/`): OpenPLC Runtime v4 con l'impianto di prova e un broker
+  MQTT in due container, uno script per avviarli, caricare il programma, guardarne lo stato, ascoltare e pubblicare.
+- **La logica PLC del progetto dall'IDE** (Appunti, 30-10-2026): in Dispositivo → Connessione il
   riquadro «Logica PLC del progetto», anche senza pannello collegato, con «Scarica (zip)» e «Carica zip…» sulle
   rotte `GET`/`PUT /api/project/logica-plc` del 23-10. Con l'Editor di OpenPLC su un PC Windows la logica non
   entrava nel progetto se non a mano. `LogicaPlcDelProgetto` in `boot/OpenplcSulPannello.tsx`.
 
 ### Fixed
+- **Il deploy dice quando le sorgenti non partiranno sul pannello** (collaudo del 03-11-2026 sul WP630): un progetto
+  nato da un template ha gli indirizzi da confermare (`sorgenti_da_rivedere`), e sul pannello le sorgenti restavano
+  spente dicendolo solo nel suo log. Ora il log del deploy ha la riga «⚠ Le N sorgenti NON partiranno…» con cosa fare.
+- **Il secondo deploy di un progetto con un nome non ASCII si fermava su «Delete fallito: 404»** (collaudo del
+  03-11-2026 sul WP630, progetto «OpenPLC — impianto di prova»): `pct_encode` in `remote.rs` codificava il code point
+  («—» → `%2014`) invece dei byte UTF-8 (`%E2%80%94`), quindi il pannello non trovava il progetto da sostituire.
+- **«Scarica (zip)» della logica PLC ora è compresso**: lo zip usciva `Stored`, 368 KB contro i 107 KB caricati con
+  gli stessi 39 file, e sembrava un'altra cosa.
+- **Il cambio password obbligatorio sul pannello** (tutorial T11, 03-11-2026): un operatore creato con «Forza cambio
+  password al primo accesso» entrava nel viewer e comandava senza mai vederlo — la schermata c'era solo nell'IDE, e il
+  socket dei tag non guardava `must_change_password` (le API REST sì). Ora il viewer mostra il cambio password dopo il
+  login, e il socket tratta da Viewer chi non l'ha ancora cambiata (`ruolo_adesso`).
+- **Allarmi: l'allarme di disponibilità mostrava «above» accanto a «false»**: la condizione `bool_false` (o
+  `bool_true`) non era fra le voci del menu Condizione, che ricadeva sulla prima. Ora si legge come `bool_equals`.
+- **I simboli del canvas si ricreavano a ogni aggiornamento dei tag** (misurato col tutorial T08, 03-11-2026): React
+  19 riscrive l'`innerHTML` di un `dangerouslySetInnerHTML` quando l'oggetto è nuovo, anche con la stessa stringa, e i
+  simboli `lib:`, i simboli personalizzati, il corpo dei tubi e le icone degli slider ne passavano uno nuovo a ogni
+  render: con un serbatoio e una pompa, ~1100 nodi buttati e ricreati al secondo; ora qualche unità. Oggetti
+  memoizzati in `SimboloLib` e la cache `canvas/htmlStabile.ts` per le funzioni di disegno.
+- **Il campo tag teneva il primo suggerimento anche davanti a un id esatto** (tutorial T08): `livello` + Tab diventava
+  `livello_opcua`, e nella pubblicazione MQTT `pompa1` + Invio diventava `pompa1.comando`. Con un id già esatto e
+  nessuna freccia premuta, Invio e Tab tengono quello scritto. E `<sorgente>.disponibile` e
+  `<sorgente>.diagnostics.*`, che il runtime scrive da sé, non hanno più il «＋» che invita a crearli.
+- **Una cornice proposta e non salvata lasciava il progetto a puntare nel vuoto**: «Testata con titolo…» scriveva
+  subito la cornice predefinita in `project.yaml`, mentre il file della cornice nasceva solo col salvataggio. Ora la
+  proposta salva prima il file.
+- **Modbus, colonna Registri**: un tag `bool` su una coil o un discrete input diceva «1 bit · u16 (come prima)»; si
+  legge un bit e il valore è un booleano, e ora lo dice.
+- **Il livello di un serbatoio non si vedeva nell'editor** (trovato col tutorial T08, 03-11-2026): la miniatura della
+  pagina nell'albero e il canvas disegnano lo stesso simbolo con lo stesso id di `clipPath`, e `url(#…)` prende il
+  primo del documento — quello della miniatura, sempre pieno. Gli id degli strati di un simbolo `lib:` ora sono unici
+  per istanza (`useId` in `OggettoLib`); lo stesso vale per un oggetto in una finestra sopra il suo sinottico.
+- **I tag `<sorgente>.disponibile` spariscono dopo un salvataggio** (trovato col tutorial T07, 03-11-2026): il
+  salvataggio ricostruisce l'archivio dei tag, e il ciclo che li scrive «solo ai cambi» credeva di averli già
+  scritti, quindi restavano assenti fino al cambio di stato successivo — e con loro gli allarmi di disponibilità e la
+  disponibilità pubblicata su MQTT, che usciva `offline` con la sorgente che rispondeva. Ora un tag che non c'è più si
+  riscrive al giro dopo (`disponibilita_loop` in `source_supervisor.rs`).
+- **La pubblicazione MQTT «ai cambiamenti» usciva a ogni giro di lettura**: un giro riscrive i tag anche invariati, e
+  ogni riscrittura contava come un cambio (è il seme `docs/plans/2026-10-17-tag-uguali-ritrasmessi.md`). Ora lo stato
+  esce solo se diverso dall'ultimo mandato; le pubblicazioni periodiche escono comunque.
+- **OPC UA client con una policy di sicurezza** (trovato eseguendo il tutorial T05 contro OpenPLC, 03-11-2026): con
+  qualunque policy diversa da `None` — `Basic256Sha256` è il default — la sorgente non si collegava mai. Tre difetti
+  in fila in `sws-plugin-opcua`: l'endpoint si costruiva a mano senza il certificato del server
+  (`BadCertificateInvalid: Missing server certificate`), ora si chiede al server con GetEndpoints e si sceglie per
+  policy e modalità, tenendo l'URL configurato (un server in container annuncia la sua porta, non quella da cui lo si
+  raggiunge); `wait_for_connection` non ritorna mai se l'event loop finisce, quindi una connessione rifiutata — anche
+  un server spento — lasciava la sorgente appesa per sempre, senza riconnessione e senza fiducia al primo contatto
+  (`collegato`); e la richiesta degli endpoint ha un tetto di 15 s.
 - **Caricare la logica PLC oltre i 2 MB**: la rotta `PUT /api/project/logica-plc` aveva il limite di corpo di axum
   (2 MB) invece del tetto della cartella (32 MiB); e uno zip fatto comprimendo la cartella del progetto OpenPLC
   (`mio-plc/project.json`) finiva in `openplc/mio-plc/`: la cartella in testa ora si toglie

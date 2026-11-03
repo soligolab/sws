@@ -1,0 +1,3 @@
+id: openplc-laboratorio
+label: "OpenPLC — impianto di prova"
+description: "Il progetto del tutorial del manuale: una pompa che riempie un serbatoio, letta da OpenPLC Runtime v4 in Modbus TCP, OPC UA e S7, con un sensore e la pubblicazione su MQTT, allarmi, storico e una finestra per la soglia. Si prova col laboratorio di examples/laboratorio/ (./laboratorio.sh avvia && ./laboratorio.sh carica)."

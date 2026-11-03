@@ -912,6 +912,7 @@
     "colorBorders": "Colore bordi",
     "path": "Percorso",
     "tagScale": "Scala tag",
+    "tagScaleAuto": "Automatica (intervallo del tag, se no 0 – 100)",
     "direction": "Direzione",
     "markerStart": "Marker inizio",
     "markerEnd": "Marker fine",
@@ -1159,7 +1160,8 @@
       "nessuna": "nessuna etichetta",
       "codice_lingua": "codice lingua",
       "tacche_predefinite": "tacche predefinite",
-      "dal_passo": "dal passo"
+      "dal_passo": "dal passo",
+      "dal_tag": "dal tag"
     },
     "vuotoHint": {
       "adatta": "Vuoto: la scala si adatta ai dati. Scrivi un valore per fissarla.",
@@ -1167,7 +1169,8 @@
       "nessuna": "Vuoto: non si mostra nessuna etichetta. Scrivi un testo per farla comparire.",
       "codice_lingua": "Vuoto: si mostra il codice della lingua di destinazione (es. IT).",
       "tacche_predefinite": "Vuoto: il widget disegna le sue tacche a passo fisso. Scrivi un numero per sceglierle.",
-      "dal_passo": "Vuoto: 2 decimali se il passo è minore di 1, altrimenti 0."
+      "dal_passo": "Vuoto: 2 decimali se il passo è minore di 1, altrimenti 0.",
+      "dal_tag": "Vuoto: i decimali del tag collegato (o del suo membro); senza, 1."
     },
     "mixedValues": "(vari)",
     "appuntaRamo": "Appunta: resta aperto anche aprendo un altro ramo",
@@ -1895,6 +1898,9 @@
     "tagEspandi": "Mostra i {{n}} membri",
     "tagComprimi": "Nascondi i membri",
     "tagFogliaDecimali": "{{n}} dec.",
+    "tagFogliaScrive": "scrive: {{ruolo}}",
+    "tagFogliaScrivePredefinito": "scrive: Operator (predef.)",
+    "tagFogliaApriMembro": "Il ruolo di scrittura sta nel membro del tipo: apri il tipo su questo membro",
     "tagStrutturaMeta": "È una variabile strutturata: unità, decimali, scala e limiti stanno nei membri del tipo «{{tipo}}», e valgono per ogni variabile di quel tipo.",
     "tagApriTipo": "Apri il tipo",
     "deploySimboliNonVerificabili": "Il pannello (versione {{versione}}) non dice quali simboli di libreria sa disegnare. Se fra questi\n{{elenco}}\n\nce n'è qualcuno più nuovo della sua versione, comparirà come segnaposto finché non aggiorni SWS sul pannello. Procedere con il deploy?",

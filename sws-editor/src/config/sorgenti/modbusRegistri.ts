@@ -53,6 +53,9 @@ export function registriMappatura(
   const foglia = radice ? undefined : foglieDelProgetto(tags, types).find((f) => f.percorso === id);
   const tipo = foglia?.tipo ?? radice?.data_type;
   if (!foglia && STORICI.includes((tipo ?? "").trim().toLowerCase())) {
+    // Su coil e discrete input si legge comunque un bit, e il valore è un
+    // booleano: «u16 (come prima)» lì non era vero (tutorial T04, 03-11-2026).
+    if (aBit) return { n: 1, dettaglio: "bool", storico: false };
     return { n: 1, dettaglio: "u16", storico: true };
   }
   return { n: aBit ? 1 : registriDiTipo(tipo), dettaglio: tipo ?? "?", storico: false };

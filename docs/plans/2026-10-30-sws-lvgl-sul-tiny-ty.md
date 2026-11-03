@@ -88,7 +88,8 @@ core, prima che LVGL disegni e prima del runtime e del PLC. Qui il rimedio non �
    non ha disegnato, niente copia e un sonno più lungo. Atteso: CPU quasi a zero a pagina ferma.
    Ne guadagnano anche il WP630 e gli altri pannelli LVGL. Misurare sul TY570 con CasaDomotica.
 
-3. **Installare con systemd, senza container.** Partire da `deploy/generic-linux/install.sh`,
+3. **Installare con systemd, senza container.** (03-11-2026: il «come un file solo» è il seme
+   [runtime eseguibile unico](2026-11-03-runtime-eseguibile-unico.md).) Partire da `deploy/generic-linux/install.sh`,
    adattato ad armhf. Podman di Ubuntu 22.04 (3.4) non ha i quadlet e costerebbe RAM. Nelle unit:
    **il PLC deve vincere** — `CPUWeight` e `Nice` più bassi del PLC, `OOMScoreAdjust` più alto per
    SWS (sotto pressione si sacrifica SWS, non CODESYS), un `MemoryMax` per runtime e viewer.

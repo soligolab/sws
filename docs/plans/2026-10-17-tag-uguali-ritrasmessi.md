@@ -59,3 +59,8 @@ e per ogni pannello LVGL.
 **Quindi non è «sei righe»**: prima va deciso che cosa fa di nuovo scattare `evaluate`, e come lo
 stale continua a funzionare. Le due domande in fondo restano, e ne va aggiunta una terza: lo
 scarto è sempre attivo o è un interruttore per progetto?
+
+> **03-11-2026, un effetto misurato.** La pubblicazione MQTT «ai cambiamenti» usciva a ogni giro di lettura del
+> Modbus (una al secondo, valori invariati), visto col tutorial del manuale (T07). Rimedio locale nel plugin MQTT:
+> lo stato si confronta con l'ultimo mandato. La causa — `TagDb::set` che ritrasmette — resta qui.
+

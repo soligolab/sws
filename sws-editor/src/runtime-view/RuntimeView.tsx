@@ -10,6 +10,7 @@ import { pagineNavigabili } from "@/boot/tipi";
 import { viewerFitScale, effectiveSizeMode } from "@/pageLayout";
 import { sfondoPagina } from "@/theme";
 import { LoginScreen } from "@/components/LoginScreen";
+import { ChangePasswordScreen } from "@/components/ChangePasswordScreen";
 import { RecipePanel } from "@/components/RecipePanel";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { UiLangSelect } from "@/components/UiLangSelect";
@@ -151,6 +152,7 @@ export function RuntimeView() {
   const clearAuth                   = useAppStore((s) => s.clearAuth);
   const setAuth                     = useAppStore((s) => s.setAuth);
   const authToken                   = useAppStore((s) => s.authToken);
+  const mustChangePassword          = useAppStore((s) => s.mustChangePassword);
 
   // Kiosk auto-rotate: advance to the next non-skipped page on a fixed interval.
   useEffect(() => {
@@ -560,6 +562,17 @@ export function RuntimeView() {
       {loginOpen && (
         <div style={{ position: "fixed", inset: 0, zIndex: 9600, background: "var(--brand-bg, #0f172a)" }}>
           <LoginScreen onCancel={() => setLoginOpen(false)} />
+        </div>
+      )}
+
+      {/* Il cambio password obbligatorio anche sul pannello (03-11-2026,
+          tutorial T11): un operatore creato con «Forza cambio password» entrava
+          e comandava senza mai vederlo, perché questa schermata c'era solo
+          nell'IDE. Ora il socket dei tag lo tratta da Viewer finché non la
+          cambia, e qui la cambia. */}
+      {authToken && authToken !== "no-auth" && mustChangePassword && (
+        <div data-testid="cambio-password-pannello" style={{ position: "fixed", inset: 0, zIndex: 9700, background: "var(--brand-bg, #0f172a)" }}>
+          <ChangePasswordScreen />
         </div>
       )}
     </div>

@@ -658,7 +658,26 @@ export function TagsTab({ scheda }: { scheda: IdScheda }) {
                     <td style={{ ...S.td, textAlign: "center" }}>
                       {v != null ? `${String(v.value)}${m?.unit ? ` ${m.unit}` : ""}` : "—"}
                     </td>
-                    <td style={S.td} />
+                    <td style={S.td}>
+                      {/* Il ruolo di scrittura della foglia (03-11-2026): sta nel
+                          membro del tipo, e da qui non si vedeva — sembrava che
+                          l'opzione mancasse. Il clic apre il tipo su quel membro,
+                          anche quando il membro sta in un tipo annidato. */}
+                      {m && (
+                        <button type="button" data-testid={`ruolo-${f.percorso}`}
+                          title={t("cfg.tagFogliaApriMembro")}
+                          onClick={() => {
+                            const tipo = (storeProject?.types ?? []).find((td) => td.members.includes(m))?.id ?? tag.type_ref;
+                            if (tipo) navigateToConfig("types", `${tipo}#${m.name}`);
+                          }}
+                          style={{ ...S.btn("ghost"), fontSize: 11, padding: "2px 6px",
+                            color: m.write_min_role ? "var(--brand-text-2, #cbd5e1)" : "var(--brand-text-subtle, #94a3b8)" }}>
+                          {m.write_min_role
+                            ? t("cfg.tagFogliaScrive", { ruolo: m.write_min_role })
+                            : t("cfg.tagFogliaScrivePredefinito")}
+                        </button>
+                      )}
+                    </td>
                   </tr>
                 );
               })}

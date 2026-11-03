@@ -1580,8 +1580,8 @@ pub async fn apply_loaded_project(
             progetto = %project.meta.name,
             sorgenti = quante,
             "sorgenti NON avviate: il progetto viene da un template e gli indirizzi \
-             non li ha ancora confermati nessuno — Configurazione → Sorgenti → «Ho \
-             controllato gli indirizzi»"
+             non li ha ancora confermati nessuno — nell'IDE, Comunicazione: controllarli, \
+             «Salva», e deploy"
         );
     } else {
         supervisor.reload(project.sources).await;

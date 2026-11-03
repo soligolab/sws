@@ -30,7 +30,6 @@ export function EnIpSourceCard({
   source,
   onChange,
   onDelete,
-  onCreateTag,
 }: {
   source: EnIpSource;
   onChange: (s: EnIpSource) => void;
@@ -83,6 +82,7 @@ export function EnIpSourceCard({
           <div key={idx} style={{ display: "flex", gap: 6, alignItems: "center", marginBottom: 6, flexWrap: "wrap" }}>
             <TagInput
               value={tm.tag} onChange={(v) => updateTag(idx, { tag: v })}
+              tipoSuggerito={tipoDaEnIp(tm.data_type)}
               placeholder={t("cfg.swsTagIdPh")}
               style={{ ...S.inputSm, width: 150 }}
             />
@@ -107,11 +107,6 @@ export function EnIpSourceCard({
               <input type="checkbox" checked={tm.writable} onChange={(e) => updateTag(idx, { writable: e.target.checked })} />
               Write
             </label>
-            <button
-              style={S.btnXs}
-              onClick={() => { if (tm.tag) onCreateTag({ id: tm.tag, data_type: tipoDaEnIp(tm.data_type), description: "", history: false }); }}
-              title={t("cfg.createTag")}
-            >+var</button>
             <button style={S.btnXs} onClick={() => upd({ tags: source.tags.filter((_, i) => i !== idx) })}>✕</button>
           </div>
         ))}

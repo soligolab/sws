@@ -316,7 +316,10 @@ export function AlarmsTab() {
                     return (
                       <select
                         style={{ ...S.inputSm, cursor: "pointer" }}
-                        value={l0.condition.kind}
+                        // `bool_true`/`bool_false` (l'allarme di disponibilità li
+                        // scrive così) sono un `bool_equals`: senza questo il menu
+                        // mostrava «above» accanto a una soglia «false» (03-11-2026).
+                        value={l0.condition.kind === "bool_true" || l0.condition.kind === "bool_false" ? "bool_equals" : l0.condition.kind}
                         onChange={(e) => {
                           const kind = e.target.value as AlarmCondition["kind"];
                           if (kind === "above" || kind === "below") {

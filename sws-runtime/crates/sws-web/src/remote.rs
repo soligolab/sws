@@ -2461,11 +2461,29 @@ pub async fn remote_cert(
     }
 }
 
+/// Un progetto nato da un template arriva sul pannello con le sorgenti spente,
+/// finché nell'IDE nessuno ne conferma gli indirizzi (`sorgenti_da_rivedere`).
+/// Il deploy lo dice (collaudo del 03-11-2026 sul WP630): prima lo diceva solo
+/// il log del pannello, e dall'IDE si vedevano solo valori che non arrivavano.
+fn avviso_sorgenti_da_rivedere(p: &sws_core::Project) -> Option<String> {
+    (p.sorgenti_da_rivedere && !p.sources.is_empty()).then(|| {
+        format!(
+            "⚠ Le {} sorgenti NON partiranno sul pannello: il progetto viene da un template e nessuno \
+             ne ha confermato gli indirizzi. In Comunicazione controllali, premi «Salva» e rifai il deploy.",
+            p.sources.len()
+        )
+    })
+}
+
+/// Byte per byte dell'UTF-8 (03-11-2026). Prima codificava il code point:
+/// «—» (U+2014) diventava `%2014` invece di `%E2%80%94`, e un progetto di nome
+/// «OpenPLC — impianto di prova» sul pannello non si cancellava più (404), così
+/// il secondo deploy si fermava su «Delete fallito».
 fn pct_encode(s: &str) -> String {
-    s.chars()
-        .map(|c| match c {
-            'A'..='Z' | 'a'..='z' | '0'..='9' | '-' | '_' | '.' | '~' => c.to_string(),
-            _ => format!("%{:02X}", c as u32),
+    s.bytes()
+        .map(|b| match b {
+            b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'-' | b'_' | b'.' | b'~' => (b as char).to_string(),
+            _ => format!("%{b:02X}"),
         })
         .collect()
 }
@@ -2876,6 +2894,10 @@ pub async fn remote_deploy(
             "✓ Esportato ({:.1} KB)",
             zip.len() as f64 / 1024.0
         ));
+
+        if let Some(avviso) = sws_core::Project::load(&proj_dir).ok().as_ref().and_then(avviso_sorgenti_da_rivedere) {
+            send(&avviso);
+        }
 
         // Il caso misurato sul WP630 il 23-09-2026: un pannello anteriore al
         // Passo 2 riceveva `secrets.yaml`, non lo leggeva, e le notifiche si
@@ -3583,6 +3605,26 @@ sources:
             serde_json::from_str(r#"{"replace_users":false,"con_segreti":false}"#).unwrap();
         assert!(!progetto.con_segreti && !progetto.replace_users);
         assert!(DeployBody::default().con_segreti);
+    }
+
+    #[test]
+    fn il_deploy_avvisa_delle_sorgenti_da_confermare() {
+        let mut p: sws_core::Project = serde_yaml::from_str(
+            "meta:\n  name: x\n  version: '1'\nsources:\n- kind: modbus_tcp\n  id: plc\n  host: 127.0.0.1\n  port: 502\n",
+        )
+        .unwrap();
+        assert!(avviso_sorgenti_da_rivedere(&p).is_none(), "confermate: niente avviso");
+        p.sorgenti_da_rivedere = true;
+        assert!(avviso_sorgenti_da_rivedere(&p).unwrap().contains("Comunicazione"));
+        p.sources.clear();
+        assert!(avviso_sorgenti_da_rivedere(&p).is_none(), "senza sorgenti non c'è niente da confermare");
+    }
+
+    #[test]
+    fn un_nome_con_spazi_e_lineette_si_codifica_in_utf8() {
+        assert_eq!(pct_encode("OpenPLC — impianto di prova"), "OpenPLC%20%E2%80%94%20impianto%20di%20prova");
+        assert_eq!(pct_encode("caffè"), "caff%C3%A8");
+        assert_eq!(pct_encode("a-b_c.d~e"), "a-b_c.d~e");
     }
 
     #[test]

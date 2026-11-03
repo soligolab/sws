@@ -912,6 +912,7 @@
     "colorBorders": "Border color",
     "path": "Path",
     "tagScale": "Tag scale",
+    "tagScaleAuto": "Automatic (tag range, otherwise 0 – 100)",
     "direction": "Direction",
     "markerStart": "Start marker",
     "markerEnd": "End marker",
@@ -1159,7 +1160,8 @@
       "nessuna": "no label",
       "codice_lingua": "language code",
       "tacche_predefinite": "default ticks",
-      "dal_passo": "from step"
+      "dal_passo": "from step",
+      "dal_tag": "from tag"
     },
     "vuotoHint": {
       "adatta": "Empty: the scale fits the data. Type a value to fix it.",
@@ -1167,7 +1169,8 @@
       "nessuna": "Empty: no label is shown. Type a text to make it appear.",
       "codice_lingua": "Empty: the target language code is shown (e.g. EN).",
       "tacche_predefinite": "Empty: the widget draws its ticks at a fixed step. Type a number to choose them.",
-      "dal_passo": "Empty: 2 decimals if the step is below 1, otherwise 0."
+      "dal_passo": "Empty: 2 decimals if the step is below 1, otherwise 0.",
+      "dal_tag": "Empty: the linked tag's (or member's) decimals; otherwise 1."
     },
     "mixedValues": "(mixed)",
     "appuntaRamo": "Pin: stays open when another branch is opened",
@@ -1895,6 +1898,9 @@
     "tagEspandi": "Show the {{n}} members",
     "tagComprimi": "Hide the members",
     "tagFogliaDecimali": "{{n}} dec.",
+    "tagFogliaScrive": "writes: {{ruolo}}",
+    "tagFogliaScrivePredefinito": "writes: Operator (default)",
+    "tagFogliaApriMembro": "The write role lives in the type member: open the type on this member",
     "tagStrutturaMeta": "This is a structured variable: unit, decimals, scaling and limits live in the members of the type «{{tipo}}», and apply to every variable of that type.",
     "tagApriTipo": "Open the type",
     "deploySimboliNonVerificabili": "The panel (version {{versione}}) does not say which library symbols it can draw. If any of these\n{{elenco}}\n\nis newer than its version, it will show as a placeholder until you update SWS on the panel. Deploy anyway?",

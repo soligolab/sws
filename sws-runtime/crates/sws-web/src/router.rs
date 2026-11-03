@@ -8469,6 +8469,10 @@ async fn ruolo_adesso(s: &AppState, token: Option<&String>, handshake: Role) -> 
         return handshake;
     };
     match valida_utente_dispositivo(s, tok).await {
+        // Chi deve ancora cambiare la password vede ma non comanda (03-11-2026,
+        // tutorial T11): le API REST lo fermano con `require_password_changed`,
+        // ma il socket dei tag lasciava scrivere un Operator al primo accesso.
+        Some(u) if u.must_change_password => Role::Viewer,
         Some(u) => u.role,
         // Token non più valido: anonimo, come fa `optional_auth` sulle rotte
         // HTTP. Non è un errore di protocollo, è una sessione finita.
@@ -13196,6 +13200,18 @@ mod prove_socket_riconvalida {
             Role::Viewer,
             "il ruolo dell'handshake non deve sopravvivere al token"
         );
+
+        // Chi deve cambiare la password è Viewer finché non la cambia (03-11-2026).
+        let ok = s
+            .auth
+            .login(&sws_auth::Credentials { username: "operatore".into(), password: "segreto-di-prova".into() })
+            .await
+            .unwrap_or_else(|_| panic!("login di prova fallito"));
+        s.auth
+            .update_user("operatore", sws_auth::UserPatch { must_change_password: Some(true), ..Default::default() })
+            .await
+            .unwrap();
+        assert_eq!(ruolo_adesso(&s, Some(&ok.token), Role::Operator).await, Role::Viewer, "prima il cambio password");
 
         // Senza token (runtime senza utenti) resta quello dell'handshake.
         assert_eq!(ruolo_adesso(&s, None, Role::Admin).await, Role::Admin);

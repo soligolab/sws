@@ -1,0 +1,38 @@
+id: mw06f05d9xqy2
+name: Parametri
+objects:
+- id: mw079f4tr99th
+  type: setpoint
+  x: 40.0
+  y: 80.0
+  width: 400.0
+  height: 90.0
+  fill: '#3b82f6'
+  tag: soglia_alta
+  label: '{{t0006}}'
+  min_role: Supervisor
+  min: 100.0
+  max: 1000.0
+  unit: '{{t0007}}'
+  decimals: 0
+  step: 10.0
+  font_size: 12.0
+  label_font_size: 11.0
+  button_font_size: 12.0
+- id: mw07cuutyws3j
+  type: button
+  x: 300.0
+  y: 200.0
+  width: 140.0
+  height: 48.0
+  fill: '#3b82f6'
+  label: '{{t0008}}'
+  write_value: true
+  font_size: 14.0
+  color: '#ffffff'
+  button_action:
+    type: close_popup
+width: 480.0
+height: 272.0
+finestra:
+  modale: true

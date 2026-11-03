@@ -20,10 +20,10 @@ import type { SynopticObject, GridCell, SubCellEntry } from "@/types";
 import { PREDEFINITI, daProgetto } from "@/coloriPredefiniti";
 
 export type MotivoVuoto =
-  | "adatta" | "nome_tag" | "nessuna" | "codice_lingua" | "tacche_predefinite" | "dal_passo";
+  | "adatta" | "nome_tag" | "nessuna" | "codice_lingua" | "tacche_predefinite" | "dal_passo" | "dal_tag";
 export type RegolaCampo = { valore: number | string | boolean } | { vuoto: MotivoVuoto };
 
-export const MOTIVI: MotivoVuoto[] = ["adatta", "nome_tag", "nessuna", "codice_lingua", "tacche_predefinite", "dal_passo"];
+export const MOTIVI: MotivoVuoto[] = ["adatta", "nome_tag", "nessuna", "codice_lingua", "tacche_predefinite", "dal_passo", "dal_tag"];
 
 export const CAMPI: Record<string, Record<string, RegolaCampo>> = {
   text:       { font_size: { valore: 14 } },
@@ -41,14 +41,14 @@ export const CAMPI: Record<string, Record<string, RegolaCampo>> = {
   led:        { label: { vuoto: "nessuna" }, font_size: { valore: 11 } },
   gauge: { font_size: { valore: 20 }, label_font_size: { valore: 11 }, unit_font_size: { valore: 11 },
     label: { vuoto: "nessuna" },
-    min: { valore: 0 }, max: { valore: 100 }, decimals: { valore: 1 },
+    min: { valore: 0 }, max: { valore: 100 }, decimals: { vuoto: "dal_tag" },
     gauge_start_angle: { valore: -135 }, gauge_end_angle: { valore: 135 },
     gauge_ticks: { vuoto: "tacche_predefinite" },
   },
   progress_bar: {
     label: { vuoto: "nessuna" },
     font_size: { valore: 11 }, label_font_size: { valore: 11 },
-    min: { valore: 0 }, max: { valore: 100 }, decimals: { valore: 1 },
+    min: { valore: 0 }, max: { valore: 100 }, decimals: { vuoto: "dal_tag" },
   },
   slider: {
     label: { vuoto: "nessuna" },
@@ -62,11 +62,11 @@ export const CAMPI: Record<string, Record<string, RegolaCampo>> = {
     // punti sotto, la riga «Attuale:»; `button_font_size` i due pulsantini —
     // il ⌨ era 13 e passa a 12, l'unico pixel che cambia in tutto il giro.
     font_size: { valore: 12 }, label_font_size: { valore: 11 }, button_font_size: { valore: 12 },
-    decimals: { valore: 1 }, step: { valore: 1 },
+    decimals: { vuoto: "dal_tag" }, step: { valore: 1 },
   },
   kpi_tile: { font_size: { valore: 26 }, label_font_size: { valore: 11 }, unit_font_size: { valore: 12 },
     label: { vuoto: "nome_tag" },
-    spark_window_s: { valore: 3600 }, decimals: { valore: 1 },
+    spark_window_s: { valore: 3600 }, decimals: { vuoto: "dal_tag" },
   },
   data_log: { font_size: { valore: 11 }, label_font_size: { valore: 11 },
     label: { vuoto: "nessuna" },

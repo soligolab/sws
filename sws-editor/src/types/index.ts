@@ -739,6 +739,11 @@ export interface SynopticObject {
   fill_level_tag?: string;
   /** How to interpret the fill tag value. Default "0-100". */
   fill_level_scale?: "0-1" | "0-100";
+  /** L'intervallo del livello (03-11-2026): con questi due la frazione è
+   *  (valore − min) / (max − min). Il server li scrive dal tag di livello per
+   *  il pannello LVGL; vince su `fill_level_scale`. Vedi `canvas/livello.ts`. */
+  fill_level_min?: number;
+  fill_level_max?: number;
   /** Colour of the fluid fill overlay. Default "#3b82f6". */
   fill_color?: string;
   /** Which end the fluid rises from. Default "start-to-end". */

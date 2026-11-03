@@ -5,7 +5,7 @@
 // contenuto) e un cambio di colore del corpo riscrive solo lo strato `body`.
 // È la stessa divisione che il pannello LVGL fa con un'immagine per strato.
 
-import { useMemo, type CSSProperties } from "react";
+import { useId, useMemo, type CSSProperties } from "react";
 import type React from "react";
 import type { SimboloLib } from "./manifest";
 import { angoliLeva, preparaSimbolo, prefissoIstanza, stileDelDisegno, useSimboloLib, valoriParti, type SimboloPreparato, type ValoreParte } from "./libreria";
@@ -48,12 +48,22 @@ export function SimboloLibSvg({ sim, svg, manifesto, prefisso, x, y, w, h, valor
     [svg, prefisso, manifesto, sim.body, valori.corpo, progetto, ov.symbol_body_color, ov.symbol_content_color,
       ov.symbol_volume, ov.symbol_outline_color, ov.symbol_outline_width],
   );
+  // Gli oggetti `{ __html }` con la stessa identità finché il disegno non
+  // cambia: React 19 confronta l'oggetto, non la stringa, e un oggetto nuovo a
+  // ogni render riscriveva l'`innerHTML` di defs e strati decine di volte al
+  // secondo per ogni simbolo — misurato col tutorial T08, 03-11-2026: ~1100
+  // nodi rimossi al secondo per un serbatoio e una pompa, e campi dell'editor
+  // che si staccavano dal DOM mentre ci si scriveva.
+  const html = useMemo(
+    () => ({ defs: { __html: prep.defs }, strati: prep.strati.map((s) => ({ __html: s.markup })) }),
+    [prep],
+  );
   const livello = valori.livello === undefined ? 1 : Math.max(0, Math.min(1, valori.livello));
   const idClip = (pid: string) => `${prefisso}-clip-${pid}`;
   return (
     <svg x={x} y={y} width={w} height={h} viewBox={prep.viewBox} preserveAspectRatio="xMidYMid meet"
       style={{ pointerEvents: "none" }} data-anim={dataAnim ? "1" : undefined} data-simbolo-lib={sim.id}>
-      <defs dangerouslySetInnerHTML={{ __html: prep.defs }} />
+      <defs dangerouslySetInnerHTML={html.defs} />
       <defs>
         {sim.parts.map((p) => p.kind === "level" && (
           <clipPath key={p.id} id={idClip(p.id)}>
@@ -62,7 +72,7 @@ export function SimboloLibSvg({ sim, svg, manifesto, prefisso, x, y, w, h, valor
           </clipPath>
         ))}
       </defs>
-      {prep.strati.map((s) => {
+      {prep.strati.map((s, i) => {
         const parte = sim.parts.find((p) => p.id === s.id);
         const gira = parte?.kind === "rotor" && valori.gira;
         const v = valori.parti?.[s.id];
@@ -90,7 +100,7 @@ export function SimboloLibSvg({ sim, svg, manifesto, prefisso, x, y, w, h, valor
         return (
           <g key={s.id} data-strato={s.id} style={style} data-anim={gira ? "1" : undefined} opacity={opacita}
             clipPath={parte?.kind === "level" ? `url(#${idClip(parte.id)})` : undefined}
-            dangerouslySetInnerHTML={{ __html: s.markup }} />
+            dangerouslySetInnerHTML={html.strati[i]} />
         );
       })}
     </svg>
@@ -117,12 +127,19 @@ export function OggettoLib({ symbolId, objId, x, y, w, h, valori, legami, valore
 }) {
   const { sim, svg, manifesto } = useSimboloLib(symbolId);
   const progetto = useStileProgetto();
+  // Lo stesso oggetto si disegna più volte nella stessa pagina HTML — la
+  // miniatura della pagina nell'albero e il canvas, una finestra sopra il suo
+  // sinottico — e gli id dei `clipPath` e dei gradienti devono essere unici:
+  // `url(#…)` prende il **primo** del documento. Col solo id dell'oggetto il
+  // livello del serbatoio sul canvas seguiva il ritaglio della miniatura, e
+  // restava pieno (03-11-2026, tutorial T08).
+  const istanza = useId().replace(/[^A-Za-z0-9_-]/g, "");
   if (ripiego !== undefined && (!manifesto || !sim)) return <>{ripiego}</>;
   if (manifesto && !sim) return <>{segnaposto}</>;
   if (!sim || !svg || !manifesto) return null;
   const parti = valoriParti(sim.parts, legami, valoreTag);
   return (
-    <SimboloLibSvg sim={sim} svg={svg} manifesto={manifesto} prefisso={prefissoIstanza(objId)}
+    <SimboloLibSvg sim={sim} svg={svg} manifesto={manifesto} prefisso={`${prefissoIstanza(objId)}-${istanza}`}
       x={x} y={y} w={w} h={h} valori={{ ...valori, parti }} dataAnim={dataAnim}
       progetto={progetto} sovrascritture={sovrascritture} />
   );

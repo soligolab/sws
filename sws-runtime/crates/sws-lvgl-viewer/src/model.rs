@@ -359,6 +359,9 @@ pub struct SynopticObject {
     pub fill_level: Option<f64>,
     pub fill_level_tag: Option<String>,
     pub fill_level_scale: Option<String>,
+    /// L'intervallo del livello (03-11-2026); il server lo scrive dal tag.
+    pub fill_level_min: Option<f64>,
+    pub fill_level_max: Option<f64>,
     pub fill_color: Option<String>,
 
     // ── alarm_bell ── (badge conteggio + un solo pannello "attivi", niente

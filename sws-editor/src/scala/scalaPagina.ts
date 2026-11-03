@@ -48,7 +48,7 @@ export const CAMPI_POSIZIONE = ["x", "y", "x2", "y2", "points", "motion_path", "
 export const CAMPI_FISSI = [
   "alarm_bell_sound_repeat_s", "alarm_high", "alarm_low", "bg_image_opacity", "slider_track_opacity", "slider_tick_major", "slider_tick_minor", "slider_origin", "slider_rest_value", "alarm_shelve_minutes", "alarm_viewer_max_rows",
   "bar_gap", "bar_ticks", "blink_fade_depth", "blink_rate_ms", "brightness", "datalog_page_size", "decimals",
-  "fill_level", "gauge_end_angle", "gauge_start_angle", "gauge_ticks", "grid_cols", "grid_rows", "line_height",
+  "fill_level", "fill_level_min", "fill_level_max", "gauge_end_angle", "gauge_start_angle", "gauge_ticks", "grid_cols", "grid_rows", "line_height",
   "marker_size", "max", "min", "motion_max", "motion_min", "opacity", "pan_step_s", "pie_group_below_pct",
   "pie_inner_ratio", "rotation", "sides", "spark_fill_opacity", "spark_window_s", "stale_after_s", "star_inner",
   "step", "symbol_blink_ms", "symbol_level_transition_ms", "symbol_spin_s", "symbol_volume",

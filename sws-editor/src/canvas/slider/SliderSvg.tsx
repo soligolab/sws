@@ -9,6 +9,7 @@
  *  Il componente tiene lo stato del gesto — la bozza mentre si trascina, il
  *  valore in attesa dopo una scrittura — e chiama `scrivi` per scrivere: le
  *  regole di sicurezza (conferma, password) restano a `guardedWrite`. */
+import { htmlStabile } from "@/canvas/htmlStabile";
 import { useEffect, useRef, useState } from "react";
 import { useTrascinamento } from "@/canvas/puntatore";
 import { altezzaValore } from "@/canvas/geometriaTesto";
@@ -299,7 +300,7 @@ export function SliderSvg(p: PropsSlider) {
         <g transform={`translate(${g.icona.cx - g.icona.lato / 2} ${g.icona.cy - g.icona.lato / 2}) scale(${g.icona.lato / 24})`}
           fill="none" stroke="var(--synoptic-text, var(--brand-text, #e2e8f0))" strokeWidth={2}
           strokeLinecap="round" strokeLinejoin="round" pointerEvents="none" data-slider-icona=""
-          dangerouslySetInnerHTML={{ __html: icona.replace(/currentColor/g, "") }} />
+          dangerouslySetInnerHTML={htmlStabile(icona.replace(/currentColor/g, ""))} />
       )}
       {aspetto.cursore === "rettangolo" ? (
         <rect x={c.cx - g.cursore.w / 2} y={c.cy - g.cursore.h / 2} width={g.cursore.w} height={g.cursore.h} rx={2}
