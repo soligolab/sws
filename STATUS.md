@@ -12,7 +12,53 @@
 > resta in «Storico». Qui vive solo ciò che serve a riprendere il lavoro.
 
 
-## ▶ Riprendere da qui — manuale Parte II (tutorial T01–T11) e template OpenPLC, su quattro rami annidati (2026-11-03)
+## ▶ Riprendere da qui — catena del manuale collaudata e mergiata, WP630 su 2.24.1 (2026-11-03 pomeriggio, theobroma)
+
+**Si riparte da `main`, nessun ramo aperto** né qui né su origin: i quattro rami della catena sono stati collaudati sul
+WP630, squash-mergiati in ordine e cancellati.
+
+| Squash | Cosa |
+|---|---|
+| `cf6abae5` | il «＋» della tabella Modbus propone il tipo dall'area |
+| `0d328c65` | `verifica_mappa` si ricollega dopo un guasto di trasporto |
+| `4413126f` | la logica PLC del progetto si scarica e si ricarica dall'IDE |
+| `54b812ae` | manuale T01–T11, template «OpenPLC — impianto di prova» e le correzioni trovate collaudando |
+
+**Corretto oggi collaudando** (tutto dentro `54b812ae`, ognuno col suo test):
+- deploy: i nomi di progetto con caratteri non ASCII («—») si codificano in UTF-8 — prima il DELETE dava 404;
+- la logica PLC si scarica compressa (Deflated), non più 3× più grande di quella caricata;
+- il deploy avvisa nel log quando le sorgenti di un progetto da template non partiranno sul pannello
+  (`sorgenti_da_rivedere`: si confermano in Comunicazione con «Salva», poi si rifà il deploy);
+- i messaggi di log rimandano a «Comunicazione», non al vecchio «Configurazione → Sorgenti»;
+- **Tag**: la riga di una foglia (▸ su `pompa1`) dice chi la può scrivere («scrive: Operator (predef.)») e un clic apre
+  Tipi sul membro, con le impostazioni avanzate aperte. Il ruolo di scrittura di un membro sta nel tipo, non nell'istanza.
+
+**WP630** su **2.24.1** con OpenPLC v4 e discovery UDP 33333 (verificato da theobroma e dall'Editor su Windows).
+Collaudi passati: discovery e deploy dall'Editor, 22b (logica nel progetto, `program.st` identico), «＋» su coil,
+cambio password obbligatorio sul viewer. Sul WP630 la logica e le credenziali di OpenPLC stanno in `/data/user/openplc/`.
+
+**Piani nuovi su `main`**:
+- `docs/plans/2026-11-03-manuale-pubblico.md` — **piano d'esecuzione**, il prossimo lavoro naturale: manuale su
+  `sws.soligo.net/manuale/`, crawler IA bloccati, letture contate in console, link nel login e menù Aiuto nell'IDE;
+- `docs/plans/2026-11-03-assistente-genera-simboli-e-sinottici.md` — seme: l'assistente IA che disegna i simboli del
+  progetto e compone una pagina;
+- semi del ramo del manuale: LVGL 9.3 e runtime come eseguibile unico.
+
+**In Appunti**: una finestra dedicata a OpenPLC nell'IDE (con le credenziali, oggi non si vedono né si azzerano);
+il ruolo di scrittura per una sola istanza.
+
+**Ancora aperto, senza risposta del maintainer:**
+1. il lucchetto «serve Supervisor» sugli oggetti disabilitati dal ruolo (oggi solo opacità 0,45: il form «Parametri»
+   del template sembra illeggibile) — subito o in Appunti?
+2. il ▸ delle variabili strutturate in Tag poco visibile;
+3. TC620 di casa da aggiornare alla 2.24.1 («Aggiorna ora»);
+4. dal manuale: T12 cloud, T13 aggiornamento, T14 EtherNet/IP (OpenPLC v4 non lo ha), schermate in stile VS Code,
+   i rilievi in `tmp/tutorial/RILIEVI.md` (solo su theobroma); mancano T12–T14 e l'indice della Parte II in `MAIN.md`.
+
+**Nessuna immagine nuova**: tutto questo è in `[Unreleased]`. La prossima release porta le voci di `NOVITA.yaml`
+scritte oggi (tag solo quando si costruisce).
+
+## Sessione precedente — manuale Parte II (tutorial T01–T11) e template OpenPLC, su quattro rami annidati (2026-11-03 mattina)
 
 **Quattro rami aperti, annidati in catena e tutti su origin** (scelta del maintainer: «push di tutti e quattro»).
 Nessuno è mergiato, perché aspettano il collaudo. Dall'altra macchina: `./scripts/session_start.sh`, poi
