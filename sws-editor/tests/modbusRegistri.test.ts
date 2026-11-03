@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { registriDiTipo, registriMappatura } from "../src/config/sorgenti/modbusRegistri";
+import { registriDiTipo, registriMappatura, tipoSuggeritoModbus } from "../src/config/sorgenti/modbusRegistri";
 
 const project = {
   types: [{ id: "motore", description: "", members: [
@@ -32,5 +32,25 @@ describe("registri di una mappatura Modbus", () => {
   it("tipi ricchi e testo", () => {
     expect(registriMappatura("t", undefined, project).n).toBe(1);
     expect(registriMappatura("nome", "holding", project).n).toBe(5);
+  });
+});
+
+describe("tipoSuggeritoModbus — il tipo del «＋» segue l'area", () => {
+  it("bit e aree a bit → bool", () => {
+    expect(tipoSuggeritoModbus("coil")).toBe("bool");
+    expect(tipoSuggeritoModbus("discrete")).toBe("bool");
+    expect(tipoSuggeritoModbus("holding", { bit: 3 })).toBe("bool");
+  });
+  it("registri senza formato → i16, mai f64", () => {
+    expect(tipoSuggeritoModbus("holding")).toBe("i16");
+    expect(tipoSuggeritoModbus("input")).toBe("i16");
+    expect(tipoSuggeritoModbus(undefined)).toBe("i16");
+    expect(registriDiTipo(tipoSuggeritoModbus("holding"))).toBe(1);
+  });
+  it("il formato sul filo decide, la scala lo fa decimale", () => {
+    expect(tipoSuggeritoModbus("holding", { formato: "u32", scale: 1 })).toBe("u32");
+    expect(tipoSuggeritoModbus("input", { formato: "i16", scale: 0.1 })).toBe("f64");
+    expect(tipoSuggeritoModbus("holding", { formato: "F32" })).toBe("f32");
+    expect(tipoSuggeritoModbus("holding", { formato: "sconosciuto" })).toBe("i16");
   });
 });

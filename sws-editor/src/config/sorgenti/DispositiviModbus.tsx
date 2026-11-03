@@ -13,6 +13,7 @@ import {
   type BusModbus, conDispositivi, dispositiviDi, eBusModbus, etichettaDispositivo, focusDispositivo, nuovoDispositivo,
   TIMEOUT_MODBUS_MS,
 } from "@/config/sorgenti/modbusDispositivi";
+import { tipoSuggeritoModbus } from "@/config/sorgenti/modbusRegistri";
 import {
   COLORI_STATO, coloreStato, statoDispositivo, useStatoSorgenti,
 } from "@/config/sorgenti/statoSorgenti";
@@ -350,6 +351,10 @@ export function DispositivoModbusCard<B extends BusModbus>({ bus, unit, onChange
       {quickCreate !== null && (
         <QuickCreateTagModal
           initialId={quickCreate.prefill}
+          tipoSuggerito={(() => {
+            const r = d.registers[quickCreate.rowIdx];
+            return tipoSuggeritoModbus(r?.area, r);
+          })()}
           onConfirm={(tag) => {
             onCreateTag(tag);
             setRegister(quickCreate.rowIdx, { tag: tag.id });

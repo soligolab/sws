@@ -153,12 +153,6 @@ Annoto di seguito, uno per punto, le cose che devono essere verificate e trasfor
   «OpenPLC sul pannello» della Connessione, o nell'albero del progetto). Piano archiviato:
   docs/archive/2026-10-20-openplc-sul-dispositivo.md.
 
-- Il «＋» accanto al tag nella tabella dei registri Modbus crea il tag di tipo f64 qualunque sia l'area. Su una riga
-  holding la lettura diventa di 4 registri (`4 x 16 bit · f64`) e il valore e' sbagliato, quasi zero: visto il
-  30-10-2026 leggendo OpenPLC, `soglia_alta` = 900 si vedeva 0 finche' il tipo non e' passato a i16. Il tipo
-  dovrebbe seguire l'area: bool per coil e discrete input, i16 per holding e input register. Il codice:
-  config/sorgenti/TabellaRegistriModbus.tsx (onQuickCreate) e registriMappatura in modbusRegistri.ts.
-
 - Disposizione «Stile VS Code» dell'IDE (piano docs/archive/2026-10-31-ide-stile-vscode.md), cose lasciate fuori il
   31-10-2026: chat e log come voci della barra di attività (in VS Code stanno in fondo alla barra e nel pannello in
   basso; da noi sono cassetti in App.tsx e funzionano), una barra di stato in basso, e altre disposizioni oltre a

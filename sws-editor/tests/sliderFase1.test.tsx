@@ -1,5 +1,5 @@
 /** Lo slider web, fase 1 della revisione (30-10-2026, piano
- *  docs/plans/2026-10-30-revisione-slider.md): dopo la scrittura il cursore
+ *  docs/archive/2026-10-30-revisione-slider.md): dopo la scrittura il cursore
  *  resta dov'è col bordo tratteggiato finché il tag non risponde o per 3 s;
  *  una conferma annullata non lascia niente in attesa; un valore non numerico
  *  si scrive «—». */

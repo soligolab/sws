@@ -1,5 +1,5 @@
 /** La geometria dello slider, senza DOM (revisione dello slider, fase 2,
- *  30-10-2026 — `docs/plans/2026-10-30-revisione-slider.md`).
+ *  30-10-2026 — `docs/archive/2026-10-30-revisione-slider.md`).
  *
  *  **Gemella di `geometria_slider` in `sws-lvgl-viewer/src/lvgl_render.rs`**: i
  *  due motori impilano gli stessi pezzi con gli stessi numeri, così uno slider

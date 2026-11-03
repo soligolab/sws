@@ -4,9 +4,9 @@
  *  dal tipo dichiarato del tag, o dalle foglie di un'istanza lette come blocco.
  *  Un nome di tipo storico (`float`, `int`, `bool`, `string`, nessuno) legge un
  *  registro `u16` come prima della Fase 3. */
-import type { ProjectInfo } from "@/types";
+import type { ProjectInfo, TagDataType } from "@/types";
 import { foglieDelProgetto, foglieDiTolleranti } from "@/tag/forma";
-import { tipoDi } from "@/tag/tipiScalari";
+import { normalizzaTipo, tipoDi } from "@/tag/tipiScalari";
 
 export type AreaModbus = "holding" | "input" | "coil" | "discrete";
 
@@ -56,4 +56,21 @@ export function registriMappatura(
     return { n: 1, dettaglio: "u16", storico: true };
   }
   return { n: aBit ? 1 : registriDiTipo(tipo), dettaglio: tipo ?? "?", storico: false };
+}
+
+/** Il tipo da proporre al «＋» di una riga (Appunti, 30-10-2026): prima era
+ *  sempre `f64`, che su un holding legge 4 registri e dà un valore sbagliato.
+ *  Un bit, una coil o un discrete input → `bool`; un formato sul filo → quel
+ *  tipo, o `f64` se la scala lo rende decimale; altrimenti un registro `i16`. */
+export function tipoSuggeritoModbus(
+  area: AreaModbus | undefined,
+  filo?: { formato?: string; bit?: number; scale?: number },
+): TagDataType {
+  if (filo?.bit !== undefined || area === "coil" || area === "discrete") return "bool";
+  if (filo?.formato) {
+    const scala = filo.scale ?? 1;
+    if (scala !== 1) return "f64";
+    return (normalizzaTipo(filo.formato) as TagDataType | undefined) ?? "i16";
+  }
+  return "i16";
 }

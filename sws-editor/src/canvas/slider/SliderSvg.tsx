@@ -1,5 +1,5 @@
 /** Lo slider disegnato in SVG (revisione dello slider, fase 2, 30-10-2026 —
- *  `docs/plans/2026-10-30-revisione-slider.md`). Sostituisce l'input nativo, che
+ *  `docs/archive/2026-10-30-revisione-slider.md`). Sostituisce l'input nativo, che
  *  accettava un colore solo e decideva da sé spessore e cursore.
  *
  *  Lo stile «classico» è quello del pannello LVGL: traccia di 16 px arrotondata,

@@ -1,7 +1,7 @@
 {
   "_perche": [
     "Le otto icone della piastra dello slider (revisione dello slider, fase 3,",
-    "30-10-2026, decisione 8 del piano docs/plans/2026-10-30-revisione-slider.md):",
+    "30-10-2026, decisione 8 del piano docs/archive/2026-10-30-revisione-slider.md):",
     "uguali sui due motori, quindi in un posto solo. Ogni voce è il contenuto di un",
     "SVG 24×24 a tratto, con `currentColor`: il web lo disegna così, il pannello LVGL",
     "sostituisce `currentColor` col colore del testo e lo rasterizza una volta con",
