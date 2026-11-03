@@ -12,6 +12,56 @@
 > resta in «Storico». Qui vive solo ciò che serve a riprendere il lavoro.
 
 
+## ▶ Riprendere da qui — manuale Parte II (tutorial T01–T11) e template OpenPLC, su quattro rami annidati (2026-11-03)
+
+**Quattro rami aperti, annidati in catena e tutti su origin** (scelta del maintainer: «push di tutti e quattro»).
+Nessuno è mergiato, perché aspettano il collaudo. Dall'altra macchina: `./scripts/session_start.sh`, poi
+`git checkout docs/manuale-tutorial` (contiene tutta la catena).
+
+| Ramo | Cosa | Collaudo |
+|---|---|---|
+| `fix/quick-create-tipo-dall-area` | il «＋» della tabella Modbus propone il tipo dall'area (bool su coil/discrete/bit, il formato del filo, f64 solo con una scala) | crea un registro su un coil |
+| `fix/verifica-mappa-si-ricollega` | `examples/verifica_mappa.rs` si ricollega dopo un guasto di trasporto e conta le riconnessioni | — |
+| `feat/logica-plc-dall-ide` | Scarica/Carica della logica OpenPLC del progetto dall'IDE (`LogicaPlcDelProgetto`) | `COLLAUDI_IN_SOSPESO` 22b |
+| `docs/manuale-tutorial` | `docs/manual/T01…T11`, eseguiti e fotografati contro il laboratorio `examples/laboratorio/`, il template `openplc-laboratorio` (`a7094c6c`) e le correzioni trovate strada facendo | sotto |
+
+**Le correzioni sul ramo del manuale**, ognuna col suo test:
+- OPC UA cifrato: l'endpoint si sceglie da GetEndpoints (`b9100349`);
+- le variabili di disponibilità non si perdono più al salvataggio, e MQTT non ripubblica a ogni lettura (`c0650c7c`);
+- clipPath unici nei simboli (`533d25e5`), e l'editor non ridisegna più di continuo (`7692f27a`);
+- TagInput: Invio/Tab tengono il testo esatto; la cornice proposta si salva prima di diventare predefinita
+  (`a5031799`);
+- livello e decimali dal tag, il LED è un cerchio sul lato minore, la card S7/EnIP come le altre (`a46dd176`);
+- il menu della condizione allarme legge `bool_true`/`bool_false` (`e9fa7d50`);
+- **sicurezza**: un utente con cambio password obbligatorio non comanda dal pannello finché non la cambia
+  (`416bd4f5`).
+
+**Due semi nuovi su `docs/manuale-tutorial`**: LVGL 9.3 e il runtime come eseguibile unico per i TY.
+
+**Definition of done**: tutto verde sull'ultimo commit (cargo check e test, pnpm build, vitest 2009, 52 guardie).
+Manca la conferma del maintainer.
+
+**Domande aperte, fatte al maintainer il 03-11 e ancora senza risposta:**
+1. **T12, il cloud**: abbinare un runtime di prova al VPS di produzione, o scrivere il capitolo senza eseguirlo?
+2. **T13, l'aggiornamento**: usare il TC620 di prova (serve l'SSH), o descriverlo senza eseguirlo?
+3. **T14, EtherNet/IP**: OpenPLC v4 non lo ha. Toglierlo o sostituirlo (per esempio con script o variabili calcolate)?
+4. **Schermate in stile VS Code**: rifare quelle del tutorial alla fine del tutorial, e quelle dei capitoli 01–18 in
+   un ramo a parte?
+5. **Rilievi aperti** (`tmp/tutorial/RILIEVI.md`, solo su questa macchina):
+   - un'istanza prende `data_type: float`;
+   - una variabile sconosciuta viene creata in automatico come f64;
+   - il pannello chiede conferma prima del login;
+   - le parti fisse del pannello sono in inglese («Change password», «Confirm the command?»).
+
+**Mancano ancora**: T12–T14, l'indice della Parte II in `MAIN.md`, lo stato del piano
+`docs/plans/2026-10-19-manuale-rifatto.md`.
+
+**Per rieseguire i tutorial**, gli script Playwright sono in `tmp/tutorial/` (`passo.cjs`, `viewer.cjs`,
+`pubblica.py`) e restano solo su questa macchina. Il laboratorio si rialza con `examples/laboratorio/laboratorio.sh
+avvia && … carica`. A fine sessione sono stati fermati IDE di prova, pannello e container.
+
+**Da prima, ancora da fare**: aggiornare WP630 e TC620 di casa alla 2.24.1 (vedi il blocco sotto).
+
 ## ▶ Riprendere da qui — rilasciata la 2.24.1 (2026-11-02 sera, theobroma)
 
 **Si riparte da `main`, nessun ramo aperto** (né qui né su origin: tolti anche `fix/zip-compresso` e `fix/colore-fluido`).
