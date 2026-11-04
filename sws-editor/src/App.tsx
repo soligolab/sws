@@ -56,6 +56,7 @@ import { ordinaPagine } from "@/pageTree";
 import { useLogStream } from "@/ws/logStream";
 import { useRemoteLogStream } from "@/ws/remoteLogStream";
 import { useTagStream } from "@/ws/tagStream";
+import { registraComandiChat } from "@/ai/comandiChat";
 import { chiudiAiStream } from "@/ws/aiStream";
 import { useProjectWatcher } from "@/ws/projectWatcher";
 import { useBuildWatcher } from "@/ws/buildWatcher";
@@ -138,17 +139,10 @@ export function App() {
   };
 
   // Chat dell'assistente (T-50): cassetto laterale, stesso schema del log —
-  // stato qui, interruttore nel menu ☰, scelta ricordata in localStorage.
+  // stato qui, comandi nel menù IA (`ai/comandiChat.ts`), scelta ricordata in localStorage.
   const [chatOpen, setChatOpen] = useState<boolean>(() => {
     try { return localStorage.getItem(CHAT_PANEL_KEY) === "1"; } catch { return false; }
   });
-  const toggleChat = () => {
-    setChatOpen((prev) => {
-      const next = !prev;
-      try { localStorage.setItem(CHAT_PANEL_KEY, next ? "1" : "0"); } catch { /* ignore */ }
-      return next;
-    });
-  };
 
   // I log staccati in una finestra propria. L'handle si tiene per **riusare**
   // la finestra invece di riaprirla: `window.open` sullo stesso URL ricarica il
@@ -247,7 +241,7 @@ export function App() {
     };
   }, [ponte]);
 
-  const staccaChat = () => {
+  const staccaChatQui = () => {
     const esito = apriFinestra(`/index-chat.html#e=${encodeURIComponent(ponte.mio)}`,
                                "sws-chat", { larghezza: 460, altezza: 760,
                                              handle: finestraChat.current });
@@ -271,6 +265,22 @@ export function App() {
     try { localStorage.setItem(CHAT_PANEL_KEY, "0"); } catch { /* ignore */ }
     setChatStaccata(true);
   };
+
+  // I comandi della chat per il menù IA del pannello laterale (04-11-2026),
+  // che da oggi è l'unico posto da cui si apre.
+  useEffect(() => {
+    registraComandiChat({
+      apri: () => {
+        if (chatStaccata) { finestraChat.current?.focus(); return; }
+        setChatOpen(true);
+        try { localStorage.setItem(CHAT_PANEL_KEY, "1"); } catch { /* ignore */ }
+      },
+      stacca: staccaChatQui,
+      aperta: chatOpen,
+      staccata: chatStaccata,
+    });
+  });
+  useEffect(() => () => registraComandiChat(null), []);
 
   // Stream runtime logs and tag values whenever the user is authenticated.
   useLogStream();
@@ -1003,10 +1013,6 @@ export function App() {
           onCloseProject={handleCloseProject}
           logOpen={logOpen}
           onToggleLog={toggleLog}
-          chatOpen={chatOpen}
-          onToggleChat={toggleChat}
-          chatStaccata={chatStaccata}
-          onStaccaChat={staccaChat}
           onStaccaLog={staccaLog}
         />
       </header>

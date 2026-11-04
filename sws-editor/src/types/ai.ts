@@ -33,11 +33,19 @@ export type MsgIn =
       impronta?: string | null; giudizio: Giudizio;
       /** I simboli disegnati che la proposta porta nel progetto, già compilati:
        *  il diff ne mostra la miniatura. */
-      simboli?: { slug: string; it: string; en: string; svg: string }[] }
+      simboli?: { slug: string; it: string; en: string; svg: string }[];
+      /** Gli sfondi generati che le pagine della proposta usano (F6): JPEG in
+       *  base64, da scrivere in images/ del progetto quando si applica. */
+      sfondi?: { file: string; jpg: string }[] }
   /** Una bozza di simbolo appena disegnata dall'assistente. */
   | { t: "simbolo"; slug: string; it: string; en: string; svg: string }
   /** Un'istantanea del pannello che l'assistente ha scattato: la vede anche chi chatta. */
   | { t: "immagine"; png: string; testo?: string }
+  /** Uno sfondo generato (F6): una base candidata, o una variante di luce. */
+  | { t: "sfondo"; id: string; base: boolean; luce?: string | null; approvata: boolean; jpg: string }
+  | { t: "sfondo_approvato"; id: string; ok: boolean }
+  /** La spesa di un altro modello (quello dei simboli) dentro la conversazione. */
+  | { t: "risorse_extra"; costo: number; speso: number; chi: string }
   | { t: "errore"; messaggio: string }
   | { t: "risorse"; input: number; output: number; cache_lettura: number; cache_scrittura: number;
       /** Dollari del giro, della conversazione finora, e il tetto. */
@@ -47,7 +55,7 @@ export type MsgIn =
   | { t: "fine" };
 
 /** Quello che si manda. */
-export type MsgOut = { t: "chiedi"; testo: string };
+export type MsgOut = { t: "chiedi"; testo: string } | { t: "approva_sfondo"; id: string };
 
 /** Una voce del diff leggibile: `+` aggiunto, `-` tolto, `~` modificato. */
 export interface VoceDiff {
@@ -72,6 +80,7 @@ export type Riga =
   | { tipo: "utente"; testo: string }
   | { tipo: "assistente"; testo: string }
   | { tipo: "strumento"; nome: string; stato: string; messaggio?: string }
+  | { tipo: "sfondo"; id: string; base: boolean; luce?: string | null; approvata: boolean; jpg: string }
   | { tipo: "proposta"; msg: Extract<MsgIn, { t: "proposta" }>;
       /** Il diff calcolato quando la proposta è arrivata, e congelato lì:
        *  ricalcolarlo dopo l'applicazione lo farebbe sparire.

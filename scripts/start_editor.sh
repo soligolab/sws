@@ -159,6 +159,15 @@ echo "[editor] build (cargo build -p sws-runtime -j 1)…"
 echo "[editor]  (in attesa del file lock se un altro build è in corso)"
 (cd "$REPO_ROOT/sws-runtime" && cargo build -p sws-runtime -j 1)
 
+# Il viewer LVGL accanto al runtime: l'assistente lo usa per le istantanee
+# (`sws-web/src/istantanea.rs`), che altrimenti girano con un viewer vecchio.
+# Il 04-11-2026 era del 30-10, più vecchio dei simboli del progetto, e le
+# istantanee uscivano senza simboli né foto. Un viewer che non compila (manca
+# una dipendenza di sistema) non deve fermare l'IDE: l'assistente lo dirà.
+echo "[editor] build (cargo build -p sws-lvgl-viewer -j 1)…"
+(cd "$REPO_ROOT/sws-runtime" && cargo build -p sws-lvgl-viewer -j 1) || \
+  echo "[editor] ATTENZIONE: il viewer LVGL non compila: le istantanee dell'assistente non funzioneranno"
+
 # ── La SPA, con lo stesso criterio del backend ───────────────────────────────
 #
 # Qui c'era `ensure_frontend_built`, duplicata in entrambi gli script start_*,

@@ -12,6 +12,7 @@ import { TagsTab } from "@/config/schede/TagsTab";
 import { ProtocolsTab } from "@/config/schede/ProtocolsTab";
 import { AlarmsTab } from "@/config/schede/AlarmsTab";
 import { IdePreferencesTab } from "@/config/schede/IdePreferencesTab";
+import { IaAssistenteTab, IaFornitoriTab, IaRegoleTab, IaScopiTab } from "@/config/schede/IaTab";
 import { SystemTab } from "@/config/schede/SystemTab";
 import { UsersTab } from "@/config/schede/UsersTab";
 import { ResourcesTab } from "@/config/schede/ResourcesTab";
@@ -58,6 +59,10 @@ const COMPONENTI: Record<IdConComponente, React.ComponentType<{ scheda: IdScheda
   install: InstallTab,
   container: ContainerTab,
   devpackage: DevPackageTab,
+  ia_assistente: IaAssistenteTab,
+  ia_fornitori: IaFornitoriTab,
+  ia_scopi: IaScopiTab,
+  ia_regole: IaRegoleTab,
   ide: IdePreferencesTab,
 };
 

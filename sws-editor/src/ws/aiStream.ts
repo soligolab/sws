@@ -35,10 +35,25 @@ export function chiudiAiStream(): void {
   currentToken = null;
 }
 
+/** Una conversazione nuova con la configurazione nuova (chiavi, scopi), senza
+ *  staccare chi ascolta: il pannello della chat aperto riceve il «pronto» del
+ *  socket nuovo. Senza un socket aperto non fa niente: il prossimo lo leggerà. */
+export function riapriAiStream(): void {
+  if (rws && currentToken === getAuthToken()) rws.riapri();
+  else chiudiAiStream();
+}
+
 /** `false` se il socket non è pronto: il chiamante lo dice all'utente invece
  *  di perdere il messaggio in silenzio. */
 export function chiedi(testo: string): boolean {
   const msg: MsgOut = { t: "chiedi", testo };
+  return aiStream().send(JSON.stringify(msg));
+}
+
+/** «Usa come base» sotto la miniatura di uno sfondo: l'approvazione la dà la
+ *  persona, e il server la segna; senza, `varia_sfondo` rifiuta. */
+export function approvaSfondo(id: string): boolean {
+  const msg: MsgOut = { t: "approva_sfondo", id };
   return aiStream().send(JSON.stringify(msg));
 }
 

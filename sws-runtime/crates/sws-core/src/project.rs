@@ -2281,6 +2281,13 @@ pub struct Project {
     /// predefinito, cioè l'aspetto che i simboli avevano prima che esistesse.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub symbol_style: Option<StileSimboliProgetto>,
+    /// Le regole di contesto per l'IA (04-11-2026, piano
+    /// `docs/archive/2026-11-04-un-modello-per-ogni-scopo.md`): che impianto è, e
+    /// cosa ogni scopo deve sapere. Stanno **nel progetto** perché descrivono
+    /// l'impianto e viaggiano con lui; le chiavi e la scelta dei modelli no,
+    /// quelle sono dell'installazione.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub ai: Option<RegoleIa>,
     /// Target di rendering del progetto: `None` = legacy/default = Web (ogni
     /// progetto creato prima di questo campo è implicitamente web). Guida
     /// il wizard di creazione progetto e il filtro della palette oggetti
@@ -2361,6 +2368,100 @@ pub struct PageTreeNode {
     pub id: String,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub children: Vec<PageTreeNode>,
+}
+
+/// Le regole di contesto dell'IA, nel progetto (`project.yaml`, `ai`).
+///
+/// Testo libero, mandato al modello **dopo** il prompt del prodotto e sotto la
+/// regola che non lo scavalca: un progetto può arrivare da chiunque.
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct RegoleIa {
+    /// Che impianto è, in una riga.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub impianto: Option<String>,
+    #[serde(default, skip_serializing_if = "RegoleIaPerScopo::vuote")]
+    pub regole: RegoleIaPerScopo,
+}
+
+/// Una regola per ogni scopo, più quelle che valgono per tutti.
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct RegoleIaPerScopo {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub generali: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub assistente: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub simboli: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub traduzione: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub sfondi: Option<String>,
+}
+
+impl RegoleIaPerScopo {
+    pub fn vuote(&self) -> bool {
+        *self == Self::default()
+    }
+
+    /// La regola di uno scopo per nome (`assistente`, `simboli`, …).
+    pub fn di(&self, scopo: &str) -> Option<&str> {
+        match scopo {
+            "generali" => self.generali.as_deref(),
+            "assistente" => self.assistente.as_deref(),
+            "simboli" => self.simboli.as_deref(),
+            "traduzione" => self.traduzione.as_deref(),
+            "sfondi" => self.sfondi.as_deref(),
+            _ => None,
+        }
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+    }
+}
+
+/// Il tetto di lunghezza di ogni campo delle regole IA: entrano in ogni
+/// chiamata, e costano.
+pub const REGOLE_IA_MAX: usize = 4000;
+
+impl RegoleIa {
+    /// Il testo da dare al modello per uno scopo: impianto, regole generali e
+    /// quelle dello scopo. `None` se non c'è niente da dire.
+    pub fn per_scopo(&self, scopo: &str) -> Option<String> {
+        let mut pezzi = Vec::new();
+        if let Some(i) = self
+            .impianto
+            .as_deref()
+            .map(str::trim)
+            .filter(|s| !s.is_empty())
+        {
+            pezzi.push(format!("Impianto: {i}"));
+        }
+        if let Some(g) = self.regole.di("generali") {
+            pezzi.push(g.to_string());
+        }
+        if let Some(r) = self.regole.di(scopo) {
+            pezzi.push(r.to_string());
+        }
+        (!pezzi.is_empty()).then(|| pezzi.join("\n\n"))
+    }
+
+    /// I campi troppo lunghi, con la loro lunghezza in caratteri.
+    pub fn troppo_lunghi(&self) -> Vec<(&'static str, usize)> {
+        let r = &self.regole;
+        [
+            ("impianto", self.impianto.as_deref()),
+            ("generali", r.generali.as_deref()),
+            ("assistente", r.assistente.as_deref()),
+            ("simboli", r.simboli.as_deref()),
+            ("traduzione", r.traduzione.as_deref()),
+            ("sfondi", r.sfondi.as_deref()),
+        ]
+        .into_iter()
+        .filter_map(|(k, v)| v.map(|v| (k, v.chars().count())))
+        .filter(|(_, n)| *n > REGOLE_IA_MAX)
+        .collect()
+    }
 }
 
 /// Lo stile dei simboli a livello di progetto (`project.yaml`, `symbol_style`).
@@ -2949,5 +3050,48 @@ mod prove_disponibilita {
         let con = "id: m\nhost: h\ntopics: []\ndisponibilita:\n  topic: zigbee2mqtt/bridge/state\n  json_path: state\n  vivo: online\n";
         let c: MqttConfig = serde_yaml::from_str(con).unwrap();
         assert_eq!(c.disponibilita.unwrap().vivo, "online");
+    }
+}
+
+#[cfg(test)]
+mod tests_regole_ia {
+    use super::*;
+
+    #[test]
+    fn ogni_scopo_riceve_impianto_generali_e_le_sue() {
+        let r: RegoleIa = serde_yaml::from_str(
+            "impianto: Fotovoltaico in montagna\nregole:\n  generali: Unità SI.\n  traduzione: marcia = run\n",
+        )
+        .unwrap();
+        let t = r.per_scopo("traduzione").unwrap();
+        assert!(
+            t.contains("Impianto: Fotovoltaico")
+                && t.contains("Unità SI.")
+                && t.contains("marcia = run")
+        );
+        let a = r.per_scopo("assistente").unwrap();
+        assert!(
+            !a.contains("marcia = run"),
+            "le regole di uno scopo non vanno agli altri"
+        );
+        assert_eq!(RegoleIa::default().per_scopo("assistente"), None);
+    }
+
+    #[test]
+    fn un_campo_troppo_lungo_si_vede_e_uno_sconosciuto_non_passa() {
+        let mut r = RegoleIa::default();
+        r.regole.simboli = Some("x".repeat(REGOLE_IA_MAX + 1));
+        assert_eq!(r.troppo_lunghi(), vec![("simboli", REGOLE_IA_MAX + 1)]);
+        assert!(serde_yaml::from_str::<RegoleIa>("regole:\n  chiave: segreta\n").is_err());
+    }
+
+    #[test]
+    fn un_progetto_senza_regole_non_scrive_la_voce() {
+        let r = RegoleIa {
+            impianto: Some("Casa".into()),
+            ..Default::default()
+        };
+        let y = serde_yaml::to_string(&r).unwrap();
+        assert!(!y.contains("regole"), "{y}");
     }
 }

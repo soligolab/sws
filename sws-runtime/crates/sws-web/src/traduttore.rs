@@ -205,12 +205,15 @@ pub async fn traduci(
     testo: &str,
     da: &str,
     a: &str,
+    // Le regole IA del progetto per la traduzione (`project.ai`, 04-11-2026):
+    // un glossario, il registro. Le legge solo il fornitore IA.
+    regole: Option<&str>,
 ) -> anyhow::Result<String> {
     match cfg.fornitore {
         Fornitore::MyMemory => mymemory(client, testo, da, a).await,
         Fornitore::LibreTranslate => libretranslate(client, cfg, testo, da, a).await,
         Fornitore::Google => google(client, cfg, testo, da, a).await,
-        Fornitore::Ia => ia(client, config_dir, testo, da, a).await,
+        Fornitore::Ia => ia(client, config_dir, testo, da, a, regole).await,
     }
 }
 
@@ -289,13 +292,17 @@ async fn ia(
     testo: &str,
     da: &str,
     a: &str,
+    regole: Option<&str>,
 ) -> anyhow::Result<String> {
-    let scelta = crate::ai::client::carica(config_dir).ok_or_else(|| {
-        anyhow::anyhow!(
-            "nessun fornitore IA configurato: impostalo in Configurazione → IDE, oppure usa \
-             la modalità semplice"
-        )
-    })?;
+    // Lo scopo «traduzione» (04-11-2026): un modello suo, di solito piccolo ed
+    // economico; senza, quello dell'assistente come prima.
+    let scelta = crate::ai::scopi::carica_per(config_dir, crate::ai::scopi::Scopo::Traduzione)
+        .ok_or_else(|| {
+            anyhow::anyhow!(
+                "nessun fornitore IA configurato: impostalo nel menù IA → Scopi, oppure usa \
+                 la modalità semplice"
+            )
+        })?;
     let istruzioni = format!(
         "Traduci dal {da} al {a} il testo dell'interfaccia di un sistema SCADA industriale \
          (etichette di pulsanti, unità di misura, messaggi di allarme). \
@@ -304,6 +311,10 @@ async fn ia(
          riportali IDENTICI, uno per uno, nella posizione giusta per la lingua di \
          arrivo. Non tradurli, non spaziarli, non sostituirli."
     );
+    let istruzioni = match regole {
+        Some(r) => format!("{istruzioni}\n\n{}", crate::ai::prompt::blocco_regole(r)),
+        None => istruzioni,
+    };
     crate::ai::client::chiedi_una_volta(client, &scelta, &istruzioni, testo, 1024).await
 }
 
@@ -515,6 +526,7 @@ pub async fn traduci_progetto(
     }
 
     let cfg = risolvi_config(&s.config_dir, req.config.clone());
+    let regole = progetto.ai.as_ref().and_then(|r| r.per_scopo("traduzione"));
     let lavoro = da_tradurre(&progetto.languages, &da, &req.a, req.sovrascrivi);
     let saltate = progetto.languages.entries.len() - lavoro.len();
 
@@ -554,7 +566,17 @@ pub async fn traduci_progetto(
                     // restituiscono la frase ripulita, e «Soggiorno caldo: »
                     // tornerebbe senza lo spazio, incollata al numero.
                     let (prima, dentro, dopo) = bordi(t);
-                    match traduci(&client, &cfg, &s.config_dir, dentro, &da, &req.a).await {
+                    match traduci(
+                        &client,
+                        &cfg,
+                        &s.config_dir,
+                        dentro,
+                        &da,
+                        &req.a,
+                        regole.as_deref(),
+                    )
+                    .await
+                    {
                         Ok(tradotto) => {
                             composto.push_str(prima);
                             composto.push_str(tradotto.trim());

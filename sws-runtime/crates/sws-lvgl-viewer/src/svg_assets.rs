@@ -67,10 +67,13 @@ pub fn source_for(obj: &SynopticObject, custom: &[CustomSymbol]) -> Option<SvgSo
         }
         "image" => {
             let src = obj.src.as_deref()?.trim();
-            // Un `src` che non è un SVG (png/jpg) non è un difetto da
-            // segnalare qui: semplicemente non è roba per questo modulo, e
-            // chi chiama disegnerà il proprio segnaposto.
-            if src.is_empty() || !src.to_ascii_lowercase().contains(".svg") {
+            // Un SVG, o dal 04-11-2026 anche un raster (png, jpg, gif, webp):
+            // `render_svg_raster` lo avvolge in un SVG come fa lo sfondo di un
+            // rettangolo. Prima un JPEG tornava `None` e restava il segnaposto:
+            // le foto del template «Montagna» non si vedevano sul pannello né
+            // nelle istantanee dell'assistente.
+            let svg = src.to_ascii_lowercase().contains(".svg");
+            if src.is_empty() || !(svg || tipo_raster(src).is_some()) {
                 return None;
             }
             Some(SvgSource::Url(src.to_string()))
@@ -287,18 +290,24 @@ mod tests {
     }
 
     #[test]
-    fn limmagine_passa_solo_se_e_un_svg() {
+    fn limmagine_passa_se_e_un_svg_o_un_raster() {
         let mut o = obj("image");
         o.src = Some("/images/equinor/cat.svg".into());
         assert_eq!(
             source_for(&o, &[]),
             Some(SvgSource::Url("/images/equinor/cat.svg".into()))
         );
+        // Dal 04-11-2026 anche un raster: lo avvolge `render_svg_raster`.
         o.src = Some("/images/foto.png".into());
         assert_eq!(
             source_for(&o, &[]),
+            Some(SvgSource::Url("/images/foto.png".into()))
+        );
+        o.src = Some("/images/documento.pdf".into());
+        assert_eq!(
+            source_for(&o, &[]),
             None,
-            "un png non è roba per il rasterizzatore SVG"
+            "un formato che non sappiamo decodificare no"
         );
         o.src = Some("   ".into());
         assert_eq!(source_for(&o, &[]), None);
@@ -371,18 +380,57 @@ pub fn tipo_raster(src: &str) -> Option<&'static str> {
     }
 }
 
+/// Il tipo di un'immagine dai suoi primi byte, o `None` se non è un formato che
+/// sappiamo decodificare.
+pub fn tipo_dai_byte(b: &[u8]) -> Option<&'static str> {
+    if b.starts_with(&[0xFF, 0xD8, 0xFF]) {
+        Some("image/jpeg")
+    } else if b.starts_with(b"\x89PNG\r\n\x1a\n") {
+        Some("image/png")
+    } else if b.starts_with(b"GIF87a") || b.starts_with(b"GIF89a") {
+        Some("image/gif")
+    } else if b.len() >= 12 && &b[..4] == b"RIFF" && &b[8..12] == b"WEBP" {
+        Some("image/webp")
+    } else {
+        None
+    }
+}
+
 /// L'SVG che avvolge un'immagine raster, grande `w`×`h`.
 ///
 /// `xMidYMid slice` e' «copri»: la stessa parola che il web scrive sul suo
 /// `<image>` per lo sfondo di un oggetto (`SvgCanvas.tsx`), quindi i due motori
 /// ritagliano allo stesso modo invece di deformare in due modi diversi.
 pub fn svg_attorno_al_raster(byte: &[u8], mime: &str, w: u32, h: u32) -> Vec<u8> {
+    svg_attorno_al_raster_adattato(byte, mime, w, h, "xMidYMid slice")
+}
+
+/// Come [`svg_attorno_al_raster`], con l'adattamento scelto: è `image_fit`
+/// dell'oggetto `image` tradotto come lo traduce il web (`SvgCanvas.tsx`):
+/// `cover` → `xMidYMid slice`, `contain` → `xMidYMid meet`, `stretch` (o niente)
+/// → `none`.
+pub fn svg_attorno_al_raster_adattato(
+    byte: &[u8],
+    mime: &str,
+    w: u32,
+    h: u32,
+    adatta: &str,
+) -> Vec<u8> {
     use base64::Engine as _;
     let dati = base64::engine::general_purpose::STANDARD.encode(byte);
     format!(
-        r#"<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="{w}" height="{h}" viewBox="0 0 {w} {h}"><image x="0" y="0" width="{w}" height="{h}" preserveAspectRatio="xMidYMid slice" xlink:href="data:{mime};base64,{dati}"/></svg>"#
+        r#"<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="{w}" height="{h}" viewBox="0 0 {w} {h}"><image x="0" y="0" width="{w}" height="{h}" preserveAspectRatio="{adatta}" xlink:href="data:{mime};base64,{dati}"/></svg>"#
     )
     .into_bytes()
+}
+
+/// `image_fit` → `preserveAspectRatio`, come sul web.
+pub fn adattamento(image_fit: Option<&str>) -> &'static str {
+    match image_fit {
+        Some("cover") => "xMidYMid slice",
+        Some("contain") => "xMidYMid meet",
+        _ => "none",
+    }
 }
 
 #[cfg(test)]
@@ -413,5 +461,34 @@ mod prove_raster {
         assert!(svg.contains(r#"width="1280""#) && svg.contains(r#"height="800""#));
         assert!(svg.contains("xMidYMid slice"), "«copri», come sul web");
         assert!(svg.contains("data:image/png;base64,"));
+    }
+
+    #[test]
+    fn un_image_con_una_foto_ha_una_sorgente() {
+        let o = |src: &str| SynopticObject {
+            obj_type: Some("image".into()),
+            src: Some(src.into()),
+            ..Default::default()
+        };
+        assert!(source_for(&o("/api/project/images/sera.jpg"), &[]).is_some());
+        assert!(source_for(&o("/api/project/images/logo.svg"), &[]).is_some());
+        assert!(source_for(&o("/api/project/images/documento.pdf"), &[]).is_none());
+    }
+
+    #[test]
+    fn il_tipo_di_una_foto_si_legge_dai_byte() {
+        assert_eq!(tipo_dai_byte(&[0xFF, 0xD8, 0xFF, 0xE0]), Some("image/jpeg"));
+        assert_eq!(tipo_dai_byte(b"\x89PNG\r\n\x1a\n...."), Some("image/png"));
+        assert_eq!(tipo_dai_byte(b"GIF89a.."), Some("image/gif"));
+        assert_eq!(tipo_dai_byte(b"RIFF\0\0\0\0WEBPVP8 "), Some("image/webp"));
+        assert_eq!(tipo_dai_byte(b"<!doctype html>"), None);
+    }
+
+    #[test]
+    fn image_fit_si_traduce_come_sul_web() {
+        assert_eq!(adattamento(Some("cover")), "xMidYMid slice");
+        assert_eq!(adattamento(Some("contain")), "xMidYMid meet");
+        assert_eq!(adattamento(Some("stretch")), "none");
+        assert_eq!(adattamento(None), "none");
     }
 }

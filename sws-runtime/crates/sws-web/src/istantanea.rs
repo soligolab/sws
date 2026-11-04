@@ -81,6 +81,11 @@ pub struct Richiesta {
     /// con dei simboli mostrava riquadri vuoti (l'ha notato l'assistente
     /// stesso, componendo la «Linea tubi»).
     pub www: Option<PathBuf>,
+    /// Immagini da mettere in `images/` della copia (nome del file, byte): gli
+    /// sfondi che l'assistente ha generato e non sono ancora nel progetto
+    /// (04-11-2026). Senza, la pagina composta sopra uno sfondo si fotografa
+    /// sul colore di fondo.
+    pub immagini: Vec<(String, Vec<u8>)>,
 }
 
 /// Lo scatto.
@@ -118,6 +123,17 @@ pub async fn scatta(r: Richiesta) -> Result<Scatto, String> {
         .unwrap_or_else(|| "progetto".into());
     let copia = radice.join(&nome);
     copia_progetto(&r.progetto, &copia).await?;
+    if !r.immagini.is_empty() {
+        let dir = copia.join("images");
+        tokio::fs::create_dir_all(&dir)
+            .await
+            .map_err(|e| format!("non riesco a creare images/ nella copia: {e}"))?;
+        for (nome, byte) in &r.immagini {
+            tokio::fs::write(dir.join(crate::synoptic::safe_filename(nome)), byte)
+                .await
+                .map_err(|e| format!("non riesco a scrivere {nome} nella copia: {e}"))?;
+        }
+    }
     ritocca(&copia, &r.simboli, &r.pagine).await?;
 
     let porta = porta_libera()?;
@@ -608,6 +624,7 @@ mod tests {
             simboli: vec![],
             pagine: vec![],
             www: None,
+            immagini: vec![],
         })
         .await
         .expect("lo scatto deve riuscire");
@@ -670,6 +687,7 @@ mod tests {
             simboli: vec![gabbia],
             pagine: vec![pagina],
             www: Some(www),
+            immagini: vec![],
         })
         .await
         .expect("lo scatto deve riuscire");
@@ -879,6 +897,53 @@ navigazione richiesta: pagina 'demo_p2'\n\
                     "il messaggio deve dire dell'immagine: {e}"
                 );
                 eprintln!("(salto: {e})");
+            }
+        }
+    }
+}
+
+/// La pagina «Lago» del template montagna-rinnovabile nei due stati della luce,
+/// fotografata dal viewer LVGL vero (04-11-2026): i JPEG 1536×1024 di F6 con
+/// `image_fit: cover`. `cargo test -p sws-web --lib lago_nei_due_stati -- --ignored`;
+/// le foto finiscono in `tmp/verifica-lago/`.
+#[cfg(test)]
+mod tests_lago {
+    use super::*;
+
+    #[tokio::test]
+    #[ignore = "avvia sws-runtime e sws-lvgl-viewer veri"]
+    async fn lago_nei_due_stati() {
+        let radice = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../..");
+        let tpl = radice.join("examples/templates/montagna-rinnovabile");
+        let testo =
+            std::fs::read_to_string(tpl.join("synoptics/Lago — sfondi in due passi.yaml")).unwrap();
+        let pagina: serde_json::Value = serde_yaml::from_str(&testo).unwrap();
+        let out = radice.join("tmp/verifica-lago");
+        std::fs::create_dir_all(&out).unwrap();
+        for (nome, opacita) in [("giorno", 1.0), ("sera", 0.0)] {
+            let mut p = pagina.clone();
+            for o in p["objects"].as_array_mut().unwrap() {
+                if o["id"] == "lago_giorno" {
+                    o.as_object_mut().unwrap().remove("bindings");
+                    o["opacity"] = serde_json::json!(opacita);
+                }
+            }
+            let scatto = scatta(Richiesta {
+                progetto: tpl.clone(),
+                pagina: Some(p["name"].as_str().unwrap().to_string()),
+                tocca: None,
+                ms: Some(1500),
+                simboli: vec![],
+                pagine: vec![p],
+                www: Some(radice.join("sws-editor/dist")),
+                immagini: vec![],
+            })
+            .await
+            .expect("lo scatto deve riuscire");
+            assert_eq!((scatto.larghezza, scatto.altezza), (1280, 800));
+            std::fs::write(out.join(format!("lvgl-{nome}.png")), &scatto.png).unwrap();
+            for n in &scatto.note {
+                eprintln!("{nome}: {n}");
             }
         }
     }

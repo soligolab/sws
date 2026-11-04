@@ -550,10 +550,22 @@ costerebbe circa **0,14 $**.
 | `claude-opus-5` | 5 $/Mtok | 0,50 $ | 25 $/Mtok |
 | `kimi-k3` | 3 $/Mtok | 0,30 $ | 15 $/Mtok |
 
-**Dal 2026-09-01 la si può mettere dall'IDE**: Configurazione → IDE → **Preferenze IDE** → «Assistente IA»,
-dove si scelgono fornitore, modello e chiave. La chiave finisce in
-`<config_dir>/<fornitore>.key` con permessi `600`, e fornitore/modello in
-`<config_dir>/ai.yaml`. Due avvertenze che il pannello dice da sé:
+**Dal 04-11-2026 tutto sta nel menù IA** (✨ nel pannello laterale, solo Admin; nello stile VS Code è
+l'icona viola in fondo alla barra di attività). Prima c'era una sezione nelle Preferenze IDE e due
+voci nel menu ☰: non ci sono più.
+
+| Voce | Cosa si fa | Dove finisce |
+|---|---|---|
+| **Assistente** | si apre la chat accanto all'editor, o in una finestra | — |
+| **Fornitori e chiavi** | Anthropic, Kimi, OpenAI: chiave, «Prova la chiave» (l'elenco dei modelli, gratis), cancella | `<config_dir>/<fornitore>.key`, permessi `600` |
+| **Un modello per scopo** | Assistente, Disegno dei simboli, Traduzione, Sfondi: fornitore, modello, tetto | `<config_dir>/ai.yaml`, sotto `scopi:` |
+| **Regole del progetto** | il tipo di impianto e cosa ogni modello deve sapere | **nel progetto** (`project.yaml`, `ai:`) |
+
+Le chiavi e gli scopi sono dell'**installazione**: non viaggiano con export, deploy o template. Le
+regole invece sono del **progetto**, e chi lo riceve le eredita. Simboli e traduzione senza un
+modello loro usano quello dell'assistente; gli sfondi vogliono la chiave OpenAI (gpt-image-2). Un
+`ai.yaml` del formato di prima (un fornitore solo) vale ancora come scelta dell'assistente, e si
+riscrive nel formato nuovo al primo salvataggio. Due avvertenze che il pannello dice da sé:
 
 - **le variabili d'ambiente scavalcano** quella configurazione, e se ce n'è una impostata il
   pannello lo segnala invece di lasciar credere che il salvataggio non funzioni;
@@ -588,14 +600,16 @@ chi guarda una proposta ha diritto di sapere chi l'ha scritta.
 in alto nella chat dice quanto è costata finora (`0.42 $ / 10 $`; con `≈` davanti se il modello
 non è nella tabella dei prezzi e il conto è stimato). Raggiunto il tetto, l'assistente non parte
 per il giro successivo e chiede di aprire una conversazione nuova. Il tetto si cambia in
-Preferenze → Assistente IA, o con `SWS_AI_TETTO_USD=25` nell'ambiente, che vince sul file.
+IA → Un modello per scopo, o con `SWS_AI_TETTO_USD=25` nell'ambiente, che vince sul file. Anche
+la spesa del modello dei simboli e degli sfondi entra nel tetto della conversazione; gli sfondi
+hanno in più un tetto loro (1 $ di default), contato **a stima** per qualità (bassa, media, alta).
 
 Per misurare una prova, `SWS_AI_MISURE=tmp/ai-misure` scrive un resoconto per conversazione
 (giri, token per voce, costo, minuti, strumenti chiamati, correzioni).
 
 ### Usarla
 
-Menu ☰ → **Assistente IA** (solo Admin). Si scrive cosa serve, in italiano:
+IA → **Assistente** → «Apri accanto all'editor» (solo Admin). Si scrive cosa serve, in italiano:
 
 > aggiungi alla pagina Indicatori un bottone che accende e spegne la luce del salotto — è su
 > MQTT, broker 192.168.1.50, topic `casa/salotto/luce`
@@ -609,6 +623,36 @@ diff: tre elenchi — tag, sorgenti, oggetti in pagina — e due pulsanti.
 
 Se il progetto è cambiato da quando l'assistente l'ha letto — un'altra scheda, un deploy — la
 proposta viene **scartata** e il pannello lo dice: va richiesta di nuovo.
+
+### Le regole del progetto
+
+IA → **Regole del progetto**: una riga col tipo di impianto («impianto fotovoltaico e
+idroelettrico in montagna») e un testo per le regole generali e per ciascuno scopo. Esempi che
+servono davvero: un glossario per la traduzione («marcia = run»), uno stile per i simboli («grigi,
+colore solo per lo stato»), come disporre i valori per l'assistente. Entrano in ogni chiamata,
+quindi **brevi**: al massimo 4000 caratteri per campo, e il validatore lo controlla.
+
+Il modello le riceve **dopo** le regole di SWS, con la frase che non le scavalcano: «proponi, non
+scrivere» e i due passi degli sfondi valgono comunque. Attenzione però: un progetto ricevuto da
+altri porta le sue regole, che sono testo che va dritto nel prompt. Leggile prima di usare
+l'assistente su un progetto che non hai scritto tu.
+
+### Gli sfondi, in due passi
+
+Con la chiave OpenAI l'assistente sa fare le foto di sfondo di una pagina. La regola è del
+prodotto, e lo strumento la impone:
+
+1. **la base**: l'assistente genera una o più candidate e si ferma; sotto ogni miniatura in chat
+   c'è **«Usa come base»**, e la base la sceglie la persona, non il modello;
+2. **le varianti** (giorno, alba, tramonto, sera, notte) si fanno **modificando la base scelta**:
+   stessa inquadratura, stessi oggetti negli stessi punti, cambia solo la luce. Generarle da capo
+   sposterebbe gli oggetti, e la dissolvenza fra loro li mostrerebbe doppi.
+
+In pagina le foto sono oggetti `image` sovrapposti a tutta pagina, con `image_fit: cover`; la
+dissolvenza è l'opacità legata a un tag (`bindings.opacity`, con la scala `in_min`/`in_max` →
+0..1). Il template **Montagna — fotovoltaico e idroelettrico** ne ha due esempi: tre foto che
+seguono l'ora simulata, e una pagina *Lago* con un cursore giorno/notte. Le foto arrivano con la
+proposta e si scrivono in `images/` al **Salva**: fra «Applica» e Salva la pagina si vede senza.
 
 ### Provarla senza spendere token
 

@@ -63,7 +63,7 @@ pub fn definizioni() -> Vec<Value> {
              l'oggetto aggiunto.",
             json!({ "type": "object", "required": ["nome"], "additionalProperties": false,
                     "properties": { "nome": { "type": "string",
-                        "description": "Il nome della pagina, come da elenca_pagine." } } }),
+                        "description": "Il nome o l'id della pagina, come da elenca_pagine." } } }),
         ),
         strumento(
             "leggi_progetto",
@@ -254,6 +254,80 @@ pub fn definizioni() -> Vec<Value> {
     ]
 }
 
+/// Cosa la conversazione ha in più, deciso all'apertura del socket dagli scopi
+/// configurati (`ai/scopi.rs`). L'elenco degli strumenti non cambia dopo: la
+/// cache è un confronto di prefisso.
+#[derive(Debug, Clone, Copy, Default)]
+pub struct Opzioni {
+    /// Lo scopo «simboli» ha un modello suo: `disegna_simbolo` al posto di
+    /// `bozza_simbolo`.
+    pub disegna_simboli: bool,
+    /// C'è un fornitore di immagini: `genera_sfondo` e `varia_sfondo`.
+    pub sfondi: bool,
+}
+
+/// Gli strumenti di questa conversazione: quelli di sempre, più quelli degli
+/// scopi configurati **in coda** (per non spostare il prefisso in cache).
+pub fn definizioni_per(o: Opzioni) -> Vec<Value> {
+    let mut v = definizioni();
+    if o.disegna_simboli {
+        v.retain(|d| d["name"] != "bozza_simbolo");
+        v.push(strumento(
+            "disegna_simbolo",
+            "Fa disegnare un simbolo nuovo dal MODELLO DEI SIMBOLI di questa installazione (un \
+             modello diverso da te, scelto per disegnare). Tu dici cosa disegnare, a parole: \
+             la macchina, la forma, dove stanno le bocche dei tubi, le parti vive (rotore, \
+             livello, lancetta, leva, spia), la proporzione. Lui scrive la descrizione, SWS la \
+             compila e la tiene come BOZZA di questa conversazione, come faceva bozza_simbolo. \
+             Restituisce l'id (prj:<slug>), le bocche e le parti. Ridisegnarlo = richiamarlo con \
+             lo stesso slug e cosa cambiare. Dopo le bozze fermati e fai scegliere la persona.",
+            json!({ "type": "object", "required": ["slug", "it", "en", "cosa"],
+                    "additionalProperties": false,
+                    "properties": {
+                        "slug": { "type": "string", "description": "a-z, 0-9 e «-», 3–40 caratteri" },
+                        "it": { "type": "string", "description": "etichetta italiana" },
+                        "en": { "type": "string", "description": "etichetta inglese" },
+                        "w": { "type": "integer", "description": "larghezza del disegno, multiplo di 10 (tipico 60–160)" },
+                        "h": { "type": "integer", "description": "altezza del disegno, multiplo di 10" },
+                        "cosa": { "type": "string", "description": "cosa disegnare, a parole, con bocche e parti vive" } } }),
+        ));
+    }
+    if o.sfondi {
+        v.push(strumento(
+            "genera_sfondo",
+            "Genera una o più BASI candidate per lo sfondo fotografico di una pagina \
+             (gpt-image-2, 1536×1024: in pagina va come oggetto image a tutta pagina con \
+             image_fit «cover»). Scrivi la descrizione della scena IN INGLESE: cosa c'è, dove sta \
+             (sinistra, centro, destra), il punto di vista. Le basi restano in questa \
+             conversazione; la persona le vede in chat. REGOLA: dopo genera_sfondo FERMATI. La \
+             base la sceglie la persona col bottone «Usa come base» sotto la miniatura, non tu. \
+             Le varianti di luce (giorno, tramonto, sera…) non si generano MAI da capo: si fanno \
+             con varia_sfondo dalla base approvata, altrimenti gli oggetti si spostano.",
+            json!({ "type": "object", "required": ["descrizione"], "additionalProperties": false,
+                    "properties": {
+                        "descrizione": { "type": "string", "description": "la scena, in inglese" },
+                        "quante": { "type": "integer", "minimum": 1, "maximum": 3,
+                                    "description": "quante candidate (default 1); ognuna costa" } } }),
+        ));
+        v.push(strumento(
+            "varia_sfondo",
+            "Crea le varianti di luce di una base APPROVATA dalla persona, modificandola: stessa \
+             inquadratura, stessi oggetti negli stessi punti, cambia solo la luce. Così le \
+             coordinate che misuri sulla base valgono per tutte le varianti, e la dissolvenza fra \
+             loro è pulita. Rifiuta una base non approvata. Per la dissolvenza: le varianti sono \
+             oggetti image sovrapposti a tutta pagina, il primo sempre pieno, gli altri con \
+             bindings.opacity scalato su un tag di luce (in_min/in_max → 0..1, clamp). Il src di \
+             ognuno è quello che ti restituisce questo strumento.",
+            json!({ "type": "object", "required": ["base", "luci"], "additionalProperties": false,
+                    "properties": {
+                        "base": { "type": "string", "description": "l'id della base approvata (sfondo-N)" },
+                        "luci": { "type": "array", "minItems": 1, "maxItems": 5, "items": { "type": "string" },
+                                  "description": "giorno, alba, tramonto, sera, notte, o una luce a parole" } } }),
+        ));
+    }
+    v
+}
+
 fn strumento(nome: &str, descrizione: &str, schema: Value) -> Value {
     json!({ "name": nome, "description": descrizione, "input_schema": schema })
 }
@@ -294,7 +368,16 @@ pub const SOLA_LETTURA: [&str; 13] = [
 ///
 /// `bozza_simbolo` scrive nel **banco della conversazione**, che vive nel ciclo
 /// della chat e non altrove: fuori da lì una bozza non avrebbe dove stare.
-pub const FUORI_DA_ESEGUI: [&str; 3] = ["proponi_modifica", "istantanea_pagina", "bozza_simbolo"];
+pub const FUORI_DA_ESEGUI: [&str; 6] = [
+    "proponi_modifica",
+    "istantanea_pagina",
+    "bozza_simbolo",
+    // Gli strumenti degli scopi (04-11-2026): scrivono nel banco e chiamano un
+    // secondo modello, quindi vivono nel ciclo come bozza_simbolo.
+    "disegna_simbolo",
+    "genera_sfondo",
+    "varia_sfondo",
+];
 
 /// Le definizioni dei soli strumenti di sola lettura.
 pub fn definizioni_sola_lettura() -> Vec<Value> {
@@ -389,13 +472,19 @@ async fn elenca_pagine(s: &AppState) -> Esito {
 
 async fn leggi_pagina(s: &AppState, nome: &str) -> Esito {
     let pagine = carica_pagine(s).await?;
-    match pagine.iter().find(|p| p.name == nome) {
+    // Per nome o per id: un nome tradotto (`{{t0001}}`) non dice niente al
+    // modello, l'id sì — e il 04-11-2026 Kimi ha chiesto `p_impianto`.
+    match pagine
+        .iter()
+        .find(|p| p.name == nome)
+        .or_else(|| pagine.iter().find(|p| p.id == nome))
+    {
         Some(p) => serde_json::to_value(p).map_err(|e| e.to_string()),
         None => Err(format!(
-            "la pagina `{nome}` non esiste. Ci sono: {}",
+            "la pagina `{nome}` non esiste. Ci sono (nome — id): {}",
             pagine
                 .iter()
-                .map(|p| p.name.as_str())
+                .map(|p| format!("{} — {}", p.name, p.id))
                 .collect::<Vec<_>>()
                 .join(", ")
         )),
@@ -1124,10 +1213,19 @@ mod tests {
     /// rosso questo test e costringere a scegliere.
     #[test]
     fn nessuno_strumento_sfugge_alla_classificazione() {
-        let tutti: std::collections::BTreeSet<String> = definizioni()
+        let mut tutti: std::collections::BTreeSet<String> = definizioni()
             .iter()
             .map(|d| d["name"].as_str().unwrap().to_string())
             .collect();
+        // Con tutti gli scopi accesi compaiono gli strumenti in più.
+        tutti.extend(
+            definizioni_per(Opzioni {
+                disegna_simboli: true,
+                sfondi: true,
+            })
+            .iter()
+            .map(|d| d["name"].as_str().unwrap().to_string()),
+        );
         let classificati: std::collections::BTreeSet<String> = SOLA_LETTURA
             .iter()
             .chain(FUORI_DA_ESEGUI.iter())
@@ -1523,5 +1621,37 @@ mod tests {
                 "manca `{atteso}`: {nomi:?}"
             );
         }
+    }
+}
+
+#[cfg(test)]
+mod tests_opzioni {
+    use super::*;
+
+    fn nomi(o: Opzioni) -> Vec<String> {
+        definizioni_per(o)
+            .iter()
+            .map(|d| d["name"].as_str().unwrap().to_string())
+            .collect()
+    }
+
+    #[test]
+    fn senza_scopi_gli_strumenti_sono_quelli_di_sempre() {
+        assert_eq!(definizioni_per(Opzioni::default()), definizioni());
+    }
+
+    #[test]
+    fn gli_strumenti_in_piu_vanno_in_coda_e_bozza_cede_a_disegna() {
+        let base = nomi(Opzioni::default());
+        let tutti = nomi(Opzioni {
+            disegna_simboli: true,
+            sfondi: true,
+        });
+        assert!(!tutti.contains(&"bozza_simbolo".to_string()));
+        let fine = &tutti[tutti.len() - 3..];
+        assert_eq!(fine, ["disegna_simbolo", "genera_sfondo", "varia_sfondo"]);
+        // Il prefisso resta quello di sempre (tolto bozza_simbolo, che è l'ultimo).
+        assert_eq!(base.last().map(String::as_str), Some("bozza_simbolo"));
+        assert_eq!(&tutti[..base.len() - 1], &base[..base.len() - 1]);
     }
 }

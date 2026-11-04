@@ -243,11 +243,27 @@ pub async fn chiedi_una_volta(
     domanda: &str,
     max_tokens: u32,
 ) -> anyhow::Result<String> {
+    let messaggi = [serde_json::json!({ "role": "user", "content": domanda })];
+    chiedi_con_uso(client, scelta, istruzioni, &messaggi, max_tokens)
+        .await
+        .map(|(testo, _)| testo)
+}
+
+/// Come [`chiedi_una_volta`], con una conversazione intera e l'`usage` della
+/// risposta: serve a chi deve contare quanto costa (il disegno dei simboli col
+/// suo modello, 04-11-2026, entra nel tetto della conversazione).
+pub async fn chiedi_con_uso(
+    client: &reqwest::Client,
+    scelta: &Scelta,
+    istruzioni: &str,
+    messaggi: &[serde_json::Value],
+    max_tokens: u32,
+) -> anyhow::Result<(String, serde_json::Value)> {
     let corpo = serde_json::json!({
         "model": scelta.modello,
         "max_tokens": max_tokens,
         "system": istruzioni,
-        "messages": [{ "role": "user", "content": domanda }],
+        "messages": messaggi,
     });
     let mut req = client.post(scelta.fornitore.endpoint()).json(&corpo);
     req = if scelta.fornitore.bearer() {
@@ -272,17 +288,20 @@ pub async fn chiedi_una_volta(
     {
         anyhow::bail!("{} ha rifiutato ({stato}): {err}", scelta.fornitore.nome());
     }
-    v.get("content")
+    let testo = v
+        .get("content")
         .and_then(|c| c.as_array())
         .and_then(|a| {
             a.iter()
+                .filter(|b| b.get("type").and_then(|t| t.as_str()) == Some("text"))
                 .find_map(|b| b.get("text"))
                 .and_then(|t| t.as_str())
         })
         .map(|s| s.trim().to_string())
         .ok_or_else(|| {
             anyhow::anyhow!("nessun testo nella risposta di {}", scelta.fornitore.nome())
-        })
+        })?;
+    Ok((testo, v.get("usage").cloned().unwrap_or_default()))
 }
 
 /// Quanto può scrivere il modello in un turno. Alto perché una proposta con
@@ -319,7 +338,7 @@ pub fn percorsi_chiave(config_dir: &Path) -> Vec<PathBuf> {
     v
 }
 
-fn chiave_di(config_dir: &Path, f: Fornitore) -> Option<String> {
+pub(crate) fn chiave_di(config_dir: &Path, f: Fornitore) -> Option<String> {
     for nome in f.env_chiave() {
         if let Ok(k) = std::env::var(nome) {
             let k = k.trim().to_string();
@@ -377,7 +396,7 @@ pub fn cancella_chiave(config_dir: &Path, f: Fornitore) -> std::io::Result<bool>
 /// modo prevedibile invece di dipendere dall'ordine di lettura dei file, e chi
 /// vuole l'altro lo scrive: `SWS_AI_FORNITORE=kimi`.
 pub fn carica(config_dir: &Path) -> Option<Scelta> {
-    let salvata = Impostazioni::carica(config_dir);
+    let salvata = Impostazioni::carica(config_dir).assistente();
 
     // L'ambiente vince sul file, e la UI lo dice quando trova una variabile
     // impostata: senza quell'avviso, si configura dall'IDE, non cambia niente,
@@ -444,6 +463,10 @@ pub fn carica(config_dir: &Path) -> Option<Scelta> {
 /// impostazioni che qualcuno potrebbe voler leggere.
 #[derive(Debug, Clone, Default, serde::Serialize, serde::Deserialize)]
 pub struct Impostazioni {
+    /// Il formato di prima del 04-11-2026: un fornitore solo, quello
+    /// dell'assistente. Si legge ancora (è la configurazione di
+    /// un'installazione, e chi ce l'ha non deve rifarla); si scrive sempre
+    /// sotto `scopi`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub fornitore: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -451,6 +474,10 @@ pub struct Impostazioni {
     /// Il tetto di spesa per conversazione, in dollari. Assente = il default.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub tetto_usd: Option<f64>,
+    /// Uno per scopo: `assistente`, `simboli`, `traduzione`, `sfondi`
+    /// (`ai/scopi.rs`). Uno scopo assente ricade sull'assistente.
+    #[serde(default, skip_serializing_if = "std::collections::BTreeMap::is_empty")]
+    pub scopi: std::collections::BTreeMap<String, crate::ai::scopi::ScopoCfg>,
 }
 
 impl Impostazioni {
@@ -990,6 +1017,7 @@ mod tests {
             fornitore: Some("kimi".into()),
             modello: Some("kimi-k3".into()),
             tetto_usd: Some(4.5),
+            ..Default::default()
         };
         i.salva(d.path()).unwrap();
         let letta = Impostazioni::carica(d.path());

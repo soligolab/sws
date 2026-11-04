@@ -170,9 +170,6 @@
     "logPanel": "Log panel",
     "saveCopyToPc": "💾 Save a copy to my PC…",
     "openFromPc": "📂 Replace from a copy on my PC…",
-    "chatPanel": "AI assistant",
-    "chatDetach": "Detach chat",
-    "chatDetachHint": "Opens the chat in its own window. The conversation restarts: the runtime cannot transfer it.",
     "chatDetachedHint": "The chat is in a separate window. Close that window to bring it back here.",
     "salvaCome": "Save as…",
     "salvaComeTitle": "Make a copy of this project under a new name and keep working on the copy",
@@ -219,7 +216,11 @@
       "certificati": "Certificates",
       "reports": "Reports",
       "telefono": "Phone (SMS and voice)",
-      "prestazioni": "Performance"
+      "prestazioni": "Performance",
+      "ia_assistente": "Assistant",
+      "ia_fornitori": "Providers and keys",
+      "ia_scopi": "A model per purpose",
+      "ia_regole": "Project rules"
     },
     "sottorami": {
       "device": "Device",
@@ -231,7 +232,8 @@
       "dati": "Data",
       "sicurezza": "Security",
       "istanza": "Instance",
-      "ide": "IDE"
+      "ide": "IDE",
+      "ia": "AI"
     }
   },
   "editor": {
@@ -425,7 +427,12 @@
     "bozzaSimbolo": "symbol draft",
     "istantanea": "Panel snapshot",
     "conversationTokens": "conversation tokens",
-    "accountBalanceWithTheProvider": "account balance with the provider"
+    "accountBalanceWithTheProvider": "account balance with the provider",
+    "sfondoScelto": "I use background {{id}} as the base. Go on with the light variants you need.",
+    "sfondoBase": "Candidate base · {{id}}",
+    "sfondoVariante": "«{{luce}}» variant · {{id}}",
+    "sfondoApprovato": "base chosen",
+    "usaComeBase": "Use as base"
   },
   "viewer": {
     "maintenance": "Maintenance",
@@ -1951,7 +1958,7 @@
       "my_memory": "MyMemory — free, no key",
       "libre_translate": "LibreTranslate — libre / self-hosted",
       "google": "Google Translate — pay per use",
-      "ia": "AI assistant — uses the IDE key"
+      "ia": "AI — the «Translation» model of the AI menu"
     },
     "chiaveApi": "API key",
     "chiaveApiFacoltativa": "API key (optional)",
@@ -1996,7 +2003,7 @@
     "noAuth": "Sign in from the editor window",
     "noAuthHint": "This window shares the IDE session. Log in there, then reload here.",
     "reload": "Reload",
-    "noTarget": "Open this window from the IDE (Menu → Detach chat): on its own it does not know which editor to talk to.",
+    "noTarget": "Open this window from the IDE (AI → Assistant → «Open in a window»): on its own it does not know which editor to talk to.",
     "binding": "binding to the editor…",
     "boundTo": "bound to the editor — project «{{progetto}}»",
     "unbound": "editor not bound",
@@ -2191,7 +2198,9 @@
       "progetto": "Project",
       "progettoNota": "The rest of the project: style, languages, versions (git) and data stores.",
       "preferenze": "Preferences",
-      "preferenzeNota": "This editor's preferences: theme, language, layout, icons."
+      "preferenzeNota": "This editor's preferences: theme, language, layout, icons.",
+      "ia": "AI",
+      "iaNota": "The AI assistant and its models: chat, providers and keys, one model per purpose."
     },
     "tagModifica": "Edit the tag"
   },
@@ -4470,5 +4479,62 @@
     "generataEUsata": "Saved as «{{nome}}» and set as the background of «{{pagina}}».",
     "inquadra": "Fit",
     "inquadraTitolo": "Fits the floor plan to the page frame, looking from the same direction as now."
+  },
+  "ia": {
+    "chat": {
+      "titolo": "The assistant chat",
+      "spiega": "Describe what you need: the assistant reads the project, proposes a change and you decide whether to apply it.",
+      "attiva": "On: {{fornitore}} · {{modello}}",
+      "spenta": "Off: a key is missing. Add it in «Providers and keys».",
+      "apri": "Open next to the editor",
+      "stacca": "Open in a window"
+    },
+    "fornitori": {
+      "spiega": "Keys live in this installation, one per provider, and never enter the project: they do not travel with export, deploy or a template.",
+      "conChiave": "key saved",
+      "senzaChiave": "no key",
+      "serve": "used for: {{scopi}}",
+      "salvata": "Key saved. The chat uses it from the next message.",
+      "prova": "Test the key",
+      "provaOk": "The key works: the provider offers {{n}} models.",
+      "provaKo": "The key does not work: {{errore}}",
+      "confermaCancella": "Yes, delete the key"
+    },
+    "scopi": {
+      "spiega": "Each purpose can use a different model: the strongest to compose pages, a small cheap one to translate, an image model for backgrounds.",
+      "nome": {
+        "assistente": "Assistant",
+        "simboli": "Symbol drawing",
+        "traduzione": "Translation",
+        "sfondi": "Backgrounds"
+      },
+      "spiega_assistente": "The chat: reads the project, composes pages and proposes changes.",
+      "spiega_simboli": "Draws the project's new symbols when the assistant asks for one.",
+      "spiega_traduzione": "The «AI» option of automatic translation, in Languages.",
+      "spiega_sfondi": "Page background photos: first a base to approve, then the light variants as edits of it.",
+      "comeAssistente": "same as the assistant",
+      "qualita": "Quality",
+      "qualita_low": "low (cheapest)",
+      "qualita_medium": "medium",
+      "qualita_high": "high (about 4 times the cost)",
+      "tetto": "Spending cap per conversation ($)",
+      "usa": "Will use {{fornitore}} · {{modello}}",
+      "usaAssistente": "Same as the assistant: {{fornitore}} · {{modello}}",
+      "spento": "Off: the provider has no key.",
+      "salvati": "Saved. The chat uses the new models from the next message."
+    },
+    "regole": {
+      "spiega": "What the models must know about this plant. These rules live in the project: they travel with export, deploy and a template, and whoever receives the project inherits them. They go into every call, so keep them short.",
+      "impianto": "Plant type, in one line",
+      "impiantoEsempio": "e.g. solar and hydroelectric plant in the mountains, serving a village",
+      "generali": "Rules for all models",
+      "esempio_generali": "e.g. SI units; machine names are the ones on the nameplate",
+      "esempio_assistente": "e.g. values on dark translucent panels; flow from left to right; no solid rectangles over the photo",
+      "esempio_simboli": "e.g. ISA-101 style: greys, colour only for state",
+      "esempio_traduzione": "e.g. glossary: marcia = run, arresto = stop; formal register",
+      "esempio_sfondi": "e.g. realistic photos, soft light, no writing",
+      "lunghezza": "{{n}} / {{max}} characters",
+      "nonScavalcano": "Project rules never override SWS's own: a model never applies a change by itself, and backgrounds are always made in two steps."
+    }
   }
 }

@@ -860,6 +860,7 @@ pub fn semantic(project: &Project, pages: &[SynopticPage]) -> Vec<Finding> {
     out.extend(rilievi_solarman(project));
     out.extend(rilievi_blocchi(project));
     out.extend(rilievi_pubblicazioni(project));
+    out.extend(rilievi_regole_ia(project));
     let tipi: HashSet<&str> = OBJECT_TYPES.iter().copied().collect();
     let enums: HashMap<&str, &[&str]> = FIELD_ENUMS.iter().copied().collect();
 
@@ -1540,6 +1541,27 @@ pub fn semantic(project: &Project, pages: &[SynopticPage]) -> Vec<Finding> {
 /// I report programmati (P3, 26-10-2026): id unici e sicuri (diventano una
 /// cartella), cron leggibile, tag che esistono, formati conosciuti, qualcosa
 /// da riportare.
+/// Le regole IA del progetto troppo lunghe (04-11-2026): entrano in ogni
+/// chiamata al modello, e un testo di pagine intere costa a ogni messaggio.
+pub fn rilievi_regole_ia(project: &Project) -> Vec<Finding> {
+    let Some(r) = project.ai.as_ref() else {
+        return Vec::new();
+    };
+    r.troppo_lunghi()
+        .into_iter()
+        .map(|(campo, n)| {
+            Finding::err(
+                format!("ai.{campo}"),
+                format!(
+                    "la regola IA «{campo}» è lunga {n} caratteri: il massimo è {}",
+                    sws_core::project::REGOLE_IA_MAX
+                ),
+                "accorciala: entra in ogni chiamata al modello, e costa a ogni messaggio",
+            )
+        })
+        .collect()
+}
+
 pub fn rilievi_report(project: &Project) -> Vec<Finding> {
     let mut out = Vec::new();
     let tag: HashSet<&str> = project.tags.iter().map(|t| t.id.as_str()).collect();

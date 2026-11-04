@@ -18,24 +18,14 @@ export function MainMenu({
   onCloseProject,
   logOpen,
   onToggleLog,
-  chatOpen,
-  onToggleChat,
   onStaccaLog,
-  chatStaccata,
-  onStaccaChat,
 }: {
   onLogout: () => void;
   onCloseProject: () => void;
   logOpen: boolean;
   onToggleLog: () => void;
-  chatOpen: boolean;
-  onToggleChat: () => void;
   /** Apre i log in una finestra propria. Gestisce il popup bloccato. */
   onStaccaLog: () => void;
-  /** La chat vive in una finestra separata: il cassetto qui non si apre. */
-  chatStaccata: boolean;
-  /** Consegna la chat a una finestra propria. */
-  onStaccaChat: () => void;
 }) {
   const { t } = useTranslation();
   const [open, setOpen]       = useState(false);
@@ -321,32 +311,8 @@ export function MainMenu({
             {t("logWindow.open")}
             <span style={{ float: "right", opacity: 0.7 }}>↗</span>
           </button>
-          {canConfigureProject(authRole) && (
-            <>
-              {/* Con la chat staccata la voce resta visibile ma disabilitata,
-                  col motivo nel titolo: farla sparire lascerebbe credere che la
-                  funzione non esista. Si riabilita da sé quando quella finestra
-                  si chiude — lo dice lei sul ponte. */}
-              <button
-                style={{ ...DROP_ITEM, opacity: chatStaccata ? 0.5 : 1 }}
-                disabled={chatStaccata}
-                title={chatStaccata ? t("menu.chatDetachedHint") : undefined}
-                onClick={() => { onToggleChat(); setOpen(false); }}
-              >
-                {t("menu.chatPanel")}
-                <span style={{ float: "right", opacity: 0.7 }}>{chatOpen && !chatStaccata ? "✓" : ""}</span>
-              </button>
-              <button
-                style={{ ...DROP_ITEM, opacity: chatStaccata ? 0.5 : 1 }}
-                disabled={chatStaccata}
-                title={t("menu.chatDetachHint")}
-                onClick={() => { onStaccaChat(); setOpen(false); }}
-              >
-                {t("menu.chatDetach")}
-                <span style={{ float: "right", opacity: 0.7 }}>↗</span>
-              </button>
-            </>
-          )}
+          {/* La chat dell'assistente si apre dal menù IA del pannello laterale
+              (04-11-2026, richiesta del maintainer): qui non c'è più. */}
           {canConfigureProject(authRole) && (
             <button
               style={{ ...DROP_ITEM, opacity: rebooting ? 0.6 : 1 }}

@@ -78,6 +78,8 @@ export class ReconnectingWs {
 
     ws.addEventListener("close", (ev: CloseEvent) => {
       if (this.destroyed) return;
+      // Un socket già sostituito da `riapri()` non deve far ripartire niente.
+      if (this.ws !== ws) return;
       // Il server ha risposto e ha rifiutato per un motivo che non cambia:
       // ritentare produrrebbe solo rumore.
       if (CHIUSURE_DEFINITIVE.has(ev.code)) {
@@ -149,6 +151,23 @@ export class ReconnectingWs {
     } catch {
       return false;
     }
+  }
+
+  /** Chiude il socket di adesso e ne apre subito uno nuovo, **con gli stessi
+   *  ascoltatori** (04-11-2026). Serve quando il server legge la configurazione
+   *  all'apertura — la chat dell'assistente dopo un cambio di chiave o di
+   *  modello: `destroy()` lasciava chi ascoltava attaccato a un'istanza morta. */
+  riapri(): void {
+    if (this.destroyed) return;
+    if (this.timer !== null) {
+      clearTimeout(this.timer);
+      this.timer = null;
+    }
+    const vecchio = this.ws;
+    this.ws = null;
+    try { vecchio?.close(); } catch { /* ignore */ }
+    this.delay = INITIAL_DELAY_MS;
+    this.open();
   }
 
   /** Permanently close. Cancels any pending reconnect timer. */

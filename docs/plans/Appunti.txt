@@ -206,3 +206,24 @@ Annoto di seguito, uno per punto, le cose che devono essere verificate e trasfor
   sull'estrazione (RUSTSEC-2026-0367/0368/0369/0429) sono ignorati in `sws-runtime/.cargo/audit.toml` perché SWS non
   chiama mai `extract()`; la 9.0 cambia l'API (ZipWriter/SimpleFileOptions/ZipArchive in logica_plc.rs, boot.rs,
   remote.rs, sws-banco). A salita fatta, togliere le quattro righe dall'audit.toml.
+
+- (04-11-2026, dal piano «un modello per ogni scopo», archiviato) **Le regole del progetto in CasaDomotica.** La regola
+  del progetto di riferimento chiede di metterci le funzioni visibili; CasaDomotica vive sul VPS ed è l'impianto vero di
+  casa del maintainer, quindi va fatto insieme a lui. Proposta: impianto «casa unifamiliare con fotovoltaico, pompa di
+  calore e domotica Home Assistant»; generali «nomi delle stanze come in casa (soggiorno, camera, taverna); unità SI»;
+  traduzione «tapparella = shutter, taverna = basement».
+- (04-11-2026) **Una conversazione intera con gli sfondi**, provata dall'IDE: genera_sfondo → «Usa come base» → varia_sfondo
+  → proposta → Applica → Salva → le foto in images/. Provati a pezzi (API vera di gpt-image-2, test del flusso, la pagina
+  Lago su web e LVGL), non tutti insieme in chat con un modello vero.
+- (04-11-2026) **Il testo grande sul web sta più in alto del suo riquadro che su LVGL** (titolo «Lago alpino»: a cavallo
+  del bordo del pannello sul web, dentro su LVGL). Da misurare con le istantanee dei due motori prima di toccare niente.
+- (04-11-2026) **Un template salvato la prima volta rinomina i file delle pagine col nome tradotto**: `Impianto.yaml`
+  (name `{{t0001}}`) diventa `{{t0001}}.yaml`. Estetico; la correzione provata (il file col testo del token) cancellava
+  pagine nei rinomini e dava 409 falsi, ed è stata tolta. Se serve, va pensata con `list_synoptics` e le versioni Q30.
+- (04-11-2026) **OpenAI (o altri) come fornitore di testo** per l'assistente: oggi solo Anthropic e Kimi, che parlano la
+  stessa API Messages. Vuole un secondo protocollo di chiamata e di strumenti.
+- (04-11-2026) **Altri fornitori di immagini** (FLUX.2 Pro, Imagen 4) accanto a gpt-image-2, e **una storia della spesa**
+  per scopo e per mese (oggi c'è solo il tetto per conversazione).
+- (04-11-2026) **Il prezzo di kimi-k3.1-pro** non è in `prezzi()` (`ai/client.rs`): la spesa mostrata è una stima per
+  eccesso (≈). Da aggiungere quando si conosce il listino.
+

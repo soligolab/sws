@@ -28,6 +28,8 @@ export const ICONE_ATTIVITA: Record<string, string> = {
   utenti: '<circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0"/><path d="M16 4.6a3.5 3.5 0 0 1 0 6.8M18 13.8a6.5 6.5 0 0 1 3.5 6.2"/>',
   dispositivo: '<rect x="3" y="4" width="18" height="12" rx="1.5"/><path d="M8 20h8M12 16v4"/>',
   progetto: '<path d="M3 6.5h6.5l2 2H21V19H3z"/>',
+  // Una scintilla grande e una piccola: l'assistente IA.
+  ia: '<path d="M10 3.5l1.9 5.1 5.1 1.9-5.1 1.9L10 17.5l-1.9-5.1L3 10.5l5.1-1.9z"/><path d="M18 14.5l.9 2.1 2.1.9-2.1.9-.9 2.1-.9-2.1-2.1-.9 2.1-.9z"/>',
   preferenze: '<circle cx="12" cy="12" r="3"/><path d="M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3M5.3 5.3l2.1 2.1M16.6 16.6l2.1 2.1M5.3 18.7l2.1-2.1M16.6 7.4l2.1-2.1"/>',
   // ── destra: i rami del pannello proprietà (tre dal 01-11-2026) ──
   funzione: '<path d="M5 4v16M12 4v16M19 4v16"/><circle cx="5" cy="9" r="2" fill="var(--sws-att-fondo)"/><circle cx="12" cy="15" r="2" fill="var(--sws-att-fondo)"/><circle cx="19" cy="7" r="2" fill="var(--sws-att-fondo)"/>',
@@ -51,6 +53,7 @@ export const COLORI_ATTIVITA: Record<string, readonly [string, string]> = {
   utenti: ["#f472b6", "#be185d"],
   dispositivo: ["#2dd4bf", "#0f766e"],
   progetto: ["#818cf8", "#4338ca"],
+  ia: ["#e879f9", "#a21caf"],
   preferenze: ["#94a3b8", "#475569"],
   funzione: ["#fb923c", "#c2410c"],
   aspetto: ["#f472b6", "#be185d"],

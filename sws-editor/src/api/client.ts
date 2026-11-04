@@ -58,6 +58,8 @@ import type {
   TagDef,
   TemplateEntry,
   AiConfig,
+  ScopoIa,
+  ScopoIaCfg,
   ConfigTraduzione,
   TypeDef,
 } from "@/types";
@@ -729,7 +731,7 @@ const PATH_VERSIONATI = [
   "/api/project/datastores", "/api/project/global-scripts", "/api/project/reports",
   "/api/project/notifications", "/api/project/page-layout", "/api/project/target", "/api/project/symbol-style",
   "/api/project/backup-config", "/api/project/retention-time", "/api/project/tags/import-csv",
-  "/api/project/simboli",
+  "/api/project/simboli", "/api/project/ai",
 ];
 
 /** L'header `If-Match` da mettere su un salvataggio di sezione, se sappiamo su
@@ -2263,17 +2265,30 @@ export const api = {
   // che serve un impianto rispondono 404, e il pannello lo tratta come «qui non
   // si configura», non come un errore.
   getAiConfig: () => request<AiConfig>("/api/ai/config"),
-  putAiConfig: (fornitore: string, modello?: string, chiave?: string, tetto_usd?: number) =>
-    request<{ ok: boolean; configurato: boolean; riconnetti: boolean }>("/api/ai/config", {
+  /** Gli scopi da cambiare: `null` toglie la scelta (simboli e traduzione
+   *  tornano all'assistente). Le chiavi hanno la loro rotta. */
+  putAiScopi: (scopi: Partial<Record<ScopoIa, ScopoIaCfg | null>>) =>
+    request<{ ok: boolean; riconnetti: boolean }>("/api/ai/config", {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
-      // `chiave` si omette per lasciare quella salvata: la sentinella la
-      // conosce anche il server, ma non mandare il campo è più chiaro.
-      body: JSON.stringify({ fornitore, modello, chiave, tetto_usd }),
+      body: JSON.stringify({ scopi }),
     }),
-  deleteAiKey: (fornitore: string) =>
-    request<{ ok: boolean; cera: boolean }>("/api/ai/config", {
+  putAiChiave: (fornitore: string, chiave: string) =>
+    request<{ ok: boolean; cambiata: boolean }>("/api/ai/chiavi", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ fornitore, chiave }),
+    }),
+  deleteAiChiave: (fornitore: string) =>
+    request<{ ok: boolean; cera: boolean }>("/api/ai/chiavi", {
       method: "DELETE",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ fornitore }),
+    }),
+  /** «Prova la chiave»: l'elenco dei modelli del fornitore, gratis. */
+  provaAiChiave: (fornitore: string) =>
+    request<{ ok: boolean; modelli?: string[]; errore?: string }>("/api/ai/chiavi/prova", {
+      method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ fornitore }),
     }),
@@ -2575,6 +2590,13 @@ export const api = {
     }),
 
   /** Lo stile dei simboli del progetto; `null` = tutto predefinito. */
+  /** Le regole IA del progetto; `null` = nessuna. */
+  updateProjectAi: (regole: import("@/types").RegoleIa | null) =>
+    request<void>("/api/project/ai", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json", ...seVersionato("/api/project/ai") },
+      body: JSON.stringify(regole),
+    }),
   updateSymbolStyle: (stile: import("@/symbols/stileProgetto").StileSimboliProgetto | null) =>
     request<void>("/api/project/symbol-style", {
       method: "PUT",

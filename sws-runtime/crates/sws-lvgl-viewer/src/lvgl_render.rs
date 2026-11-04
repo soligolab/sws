@@ -13317,6 +13317,65 @@ fn render_svg_raster(
     base_url: &str,
     rt_handle: &tokio::runtime::Handle,
 ) -> anyhow::Result<LiveBinding> {
+    let (x, y) = (
+        obj.x.unwrap_or(0.0).round() as i16,
+        obj.y.unwrap_or(0.0).round() as i16,
+    );
+    let (flip_h, flip_v) = (obj.flip_h == Some(true), obj.flip_v == Some(true));
+    // Un `image` con un PNG o un JPEG (04-11-2026). Qui arrivavano solo SVG: i
+    // byte di una foto finivano al rasterizzatore SVG, che li rifiutava, e al
+    // posto della foto restava il segnaposto — tagliato a 500×500. Il template
+    // «Montagna» ha tre foto a tutta pagina, e sul pannello (e nelle istantanee
+    // dell'assistente, che fotografano col viewer LVGL) non se ne vedeva
+    // nessuna. Ora un raster passa per la strada dello sfondo di un rettangolo
+    // (`sfondo_del_rect`), con il tetto di una pagina e l'`image_fit` del web.
+    if obj.obj_type.as_deref() == Some("image") {
+        if let crate::svg_assets::SvgSource::Url(u) = src {
+            if crate::svg_assets::tipo_raster(u).is_some() {
+                // Ruotato, resta il tetto di 500: LVGL 8.3 disegna un oggetto
+                // ruotato in un livello intero preso dal pool da 1 MB, e una foto
+                // a tutta pagina ruotata ne chiederebbe 3 — il viewer cadrebbe
+                // (revisione del 04-11-2026). Dritto, il tetto è quello di una
+                // pagina, come lo sfondo di un rettangolo.
+                let ruotato = obj
+                    .rotation
+                    .is_some_and(|r| r.rem_euclid(360.0).abs() > 0.01);
+                let lato = if ruotato {
+                    500.0
+                } else {
+                    crate::svg_raster::MAX_SIDE_SFONDO as f64
+                };
+                let w = obj.width.unwrap_or(80.0).round().clamp(8.0, lato) as i16;
+                let h = obj.height.unwrap_or(80.0).round().clamp(8.0, lato) as i16;
+                let byte = crate::svg_assets::bytes_for(base_url, rt_handle, src)
+                    .ok_or_else(|| anyhow::anyhow!("immagine {u} non disponibile"))?;
+                // Il tipo dai byte, non dall'estensione: un PNG chiamato .jpg il
+                // browser lo mostra, e resvg con il tipo sbagliato non disegnava
+                // niente senza dirlo. Byte che non sono un'immagine nota → il
+                // segnaposto, che almeno dice «qui c'era qualcosa».
+                let mime = crate::svg_assets::tipo_dai_byte(&byte)
+                    .ok_or_else(|| anyhow::anyhow!("{u}: non è un PNG, JPEG, GIF o WebP"))?;
+                let svg = crate::svg_assets::svg_attorno_al_raster_adattato(
+                    &byte,
+                    mime,
+                    w as u32,
+                    h as u32,
+                    crate::svg_assets::adattamento(obj.image_fit.as_deref()),
+                );
+                return disegna_svg_byte(
+                    screen,
+                    x,
+                    y,
+                    w,
+                    h,
+                    &svg,
+                    flip_h,
+                    flip_v,
+                    crate::svg_raster::MAX_SIDE_SFONDO,
+                );
+            }
+        }
+    }
     let w = obj.width.unwrap_or(80.0).round().clamp(8.0, 500.0) as i16;
     let h = obj.height.unwrap_or(80.0).round().clamp(8.0, 500.0) as i16;
     disegna_svg(

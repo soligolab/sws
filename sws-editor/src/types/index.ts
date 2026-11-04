@@ -2071,6 +2071,8 @@ export interface ProjectInfo {
   page_layout?: PageLayoutConfig;
   /** Lo stile dei simboli del progetto (Fase 4 del piano dei simboli di libreria). */
   symbol_style?: import("@/symbols/stileProgetto").StileSimboliProgetto;
+  /** Le regole di contesto dell'IA (04-11-2026): viaggiano col progetto. */
+  ai?: RegoleIa;
   target?: ProjectTarget;
   /** Override per-progetto dell'intervallo di auto-backup (minuti). `undefined`
    *  = eredita il default di processo (`--auto-backup-interval-minutes`). */
@@ -2532,17 +2534,37 @@ export interface ConfigTraduzione {
   ha_chiave: boolean;
 }
 
+/** Uno degli scopi del menù IA (piano 2026-11-04-un-modello-per-ogni-scopo). */
+export type ScopoIa = "assistente" | "simboli" | "traduzione" | "sfondi";
+
+/** La scelta salvata per uno scopo: tutto facoltativo, assente = default. */
+export interface ScopoIaCfg {
+  fornitore?: string;
+  modello?: string;
+  tetto_usd?: number;
+  /** Solo sfondi: low | medium | high. */
+  qualita?: string;
+}
+
+/** Le regole IA del progetto (`project.ai`): che impianto è, e cosa sa ogni scopo. */
+export interface RegoleIa {
+  impianto?: string;
+  regole?: Partial<Record<"generali" | ScopoIa, string>>;
+}
+
 export interface AiConfig {
-  configurato: boolean;
-  fornitore: string | null;
-  modello: string | null;
-  chiavi: Record<string, boolean>;
-  modelli_default: Record<string, string>;
+  fornitori: { id: string; nome: string; scopi: ScopoIa[]; chiave: boolean; modello_default: string }[];
+  scopi: Record<ScopoIa, {
+    salvato: ScopoIaCfg | null;
+    /** C'è un modello pronto per questo scopo (con la sua chiave). */
+    attivo: boolean;
+    /** Cosa userà davvero, ricadute comprese. */
+    effettivo: { fornitore: string | null; modello: string | null; tetto_usd: number | null };
+    /** Simboli e traduzione senza scelta propria: sono l'assistente. */
+    eredita: boolean;
+  }>;
   /** Variabili d'ambiente impostate, che **scavalcano** questa configurazione. */
   da_ambiente: string[];
-  percorsi: string[];
-  /** Il tetto di spesa per conversazione: effettivo, salvato, di default (dollari). */
-  tetto_usd: number;
-  tetto_usd_salvato: number | null;
   tetto_usd_default: number;
+  tetto_sfondi_default: number;
 }

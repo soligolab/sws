@@ -1,6 +1,6 @@
 # Un modello IA per ogni scopo, e il menù IA dell'IDE — piano d'esecuzione
 
-> **Stato: piano d'esecuzione — da approvare.** Nato come seme il 04-11-2026 da una domanda del maintainer, mentre si
+> **Stato: fatto, archiviato il 04-11-2026** (mergiato per la 2.25.0). Era: piano d'esecuzione approvato il 04-11-2026. Nato come seme il 04-11-2026 da una domanda del maintainer, mentre si
 > preparava il confronto Opus 5.5 / Kimi sul sinottico «impianto in montagna»: «non so se ha senso integrare in SWS
 > la possibilità di usare più modelli, distinti per scopo». Diventato piano lo stesso giorno, su richiesta: «implementa
 > già nell'IDE quello che ora è il seme … Organizza tutte le informazioni in un menù chiaro dove inserire tutto quello
@@ -149,3 +149,38 @@ Ogni fase chiude con la definition of done (`cargo check`, `cargo test`, `pnpm b
 - OpenAI (e altri) come fornitori di testo: un secondo protocollo di chiamata e di strumenti.
 - Altri fornitori di immagini (FLUX.2 Pro, Imagen 4).
 - Una storia della spesa per scopo e per mese.
+
+## Avanzamento
+
+- **Difetti del confronto** (`42b4bba5`, `338cd776`): pagina trovata per file, nome o id; file col testo del token;
+  avviso del viewer vecchio e `start_editor.sh` che ricostruisce il viewer; proposta rifiutata nel turno delle bozze;
+  la tabella lingue della proposta arriva al disco. Template `montagna-rinnovabile` con le due pagine.
+- **F1–F2** (`382f0e3d`): `ai.yaml` a scopi con lettura del formato vecchio, `ai/scopi.rs`, rotte `/api/ai/config`
+  e `/api/ai/chiavi` (+ `/prova`), il ramo IA (albero e barra stile VS Code) con Assistente, Fornitori e chiavi,
+  Un modello per scopo; via le voci dal menu ☰ e la sezione dalle Preferenze IDE.
+- **F3–F4**: `project.ai` (`RegoleIa` in `sws-core`, tetto di 4000 caratteri per campo nel validatore e nella rotta
+  `PUT /api/project/ai`), la scheda Regole del progetto, il blocco «Regole del progetto» dopo il prompt fisso
+  dell'assistente (il testo fisso resta identico, la cache regge), la traduzione IA con il suo scopo e le regole
+  `traduzione`. Manca la prova vera di una traduzione con un modello piccolo.
+- **F5–F6**: `disegna_simbolo` (il modello dei simboli scrive la descrizione, SWS la compila, fino a 3 tentativi con
+  gli errori; la spesa entra nel tetto della conversazione) al posto di `bozza_simbolo` quando lo scopo simboli ha una
+  scelta propria; `genera_sfondo` (solo basi) e `varia_sfondo` (solo da una base approvata, prompt fisso «stessa
+  scena, cambia la luce») quando c'è la chiave OpenAI; «Usa come base» in chat (`approva_sfondo` sul socket); la
+  proposta nello stesso turno di una base o di una bozza si rifiuta; gli sfondi usati dalle pagine viaggiano con la
+  proposta e si scrivono in `images/` al Salva; l'istantanea li vede. JPEG 1536×1024 con `image_fit: cover`, senza
+  ritaglio (il viewer LVGL avvolge i raster in `xMidYMid slice`). Prova vera a pagamento (`prova_vera_openai`,
+  `#[ignore]`): base e variante sera, composizione identica. Manca la prova di una conversazione intera.
+- **Lago e LVGL** (`d48e91d1`): la pagina *Lago* del template con le foto della prova vera e un cursore giorno/notte,
+  provata sul web (trascinamento) e su LVGL (0/50/100 %); trovato e corretto che su LVGL un oggetto `image` non
+  disegnava i raster (causa vera delle istantanee senza foto).
+- **F7**: capitolo 7 di `docs/HOWTO.md` riscritto sul menù IA (scopi, regole del progetto, sfondi in due passi);
+  `NOVITA.yaml` e `CHANGELOG.md`. Le regole del progetto in **CasaDomotica** restano da mettere insieme al maintainer:
+  CasaDomotica vive sul VPS ed è l'impianto vero di casa sua (proposta in `STATUS.md`).
+- **Revisione** (`d5daa85b`): cinque revisori e due verifiche avversarie per rilievo; 19 rilievi confermati e corretti
+  (id degli sfondi unici nel progetto, tetto dei simboli, nome del file delle pagine tornato al nome, DELETE per nome
+  stretto, chat che resta collegata, LVGL ruotato a 500 px e tipo dell'immagine dai byte, e gli altri in
+  `CHANGELOG.md`).
+- **Chiuso** il 04-11-2026; in `Appunti.txt`: le regole del progetto in CasaDomotica, la prova di una conversazione
+  intera con gli sfondi, la parità del testo web/LVGL, il nome di file `{{t0001}}.yaml`, OpenAI come fornitore di testo,
+  altri fornitori di immagini, la storia della spesa, il prezzo di kimi-k3.1-pro.
+

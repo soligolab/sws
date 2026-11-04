@@ -1,0 +1,1213 @@
+meta:
+  name: Montagna — fotovoltaico e idroelettrico
+  version: 0.1.0
+  description: Un parcheggio in montagna con le pensiline fotovoltaiche, una piccola centrale idroelettrica e il villaggio
+    che usano la loro energia, su tre foto della valle che si danno il cambio in dissolvenza con l'ora simulata. Due pagine
+    dello stesso impianto, composte dall'assistente IA con due modelli diversi.
+tags:
+- id: s.ora
+  description: Ora del giorno simulata (una giornata dura 10 minuti)
+  data_type: float
+  unit: h
+  range_lo: 0.0
+  range_hi: 24.0
+  decimals: 1
+  generator:
+    shape: ramp
+    period_ms: 600000
+    min: 0.0
+    max: 24.0
+    enabled: true
+- id: s.luce
+  description: Luce del giorno simulata (0 a mezzanotte, 1 a mezzogiorno); comanda la dissolvenza dei tre sfondi
+  data_type: float
+  range_lo: 0.0
+  range_hi: 1.0
+  decimals: 2
+  generator:
+    shape: triangle
+    period_ms: 600000
+    min: 0.0
+    max: 1.0
+    enabled: true
+- id: s.fv_irraggiamento
+  description: Irraggiamento sulle pensiline
+  data_type: float
+  unit: W/m²
+  range_lo: 0.0
+  range_hi: 1000.0
+  decimals: 0
+- id: s.fv_potenza
+  description: Potenza delle pensiline fotovoltaiche del parcheggio (lato continua)
+  data_type: float
+  unit: kW
+  range_lo: 0.0
+  range_hi: 120.0
+  decimals: 1
+- id: s.inverter_potenza
+  description: Potenza in uscita dall'inverter (lato alternata)
+  data_type: float
+  unit: kW
+  range_lo: 0.0
+  range_hi: 120.0
+  decimals: 1
+- id: s.inverter_temperatura
+  description: Temperatura dell'inverter
+  data_type: float
+  unit: °C
+  range_lo: 0.0
+  range_hi: 80.0
+  decimals: 1
+  generator:
+    shape: triangle
+    period_ms: 180000
+    min: 28.0
+    max: 61.0
+    enabled: true
+- id: s.idro_portata
+  description: Portata d'acqua nella condotta forzata
+  data_type: float
+  unit: l/s
+  range_lo: 0.0
+  range_hi: 200.0
+  decimals: 0
+- id: s.condotta_pressione
+  description: Pressione alla base della condotta forzata
+  data_type: float
+  unit: bar
+  range_lo: 0.0
+  range_hi: 30.0
+  decimals: 1
+  generator:
+    shape: triangle
+    period_ms: 240000
+    min: 19.0
+    max: 23.5
+    enabled: true
+- id: s.turbina_giri
+  description: Velocità della turbina
+  data_type: float
+  unit: rpm
+  range_lo: 0.0
+  range_hi: 1200.0
+  decimals: 0
+- id: s.turbina_potenza
+  description: Potenza elettrica della centrale idroelettrica
+  data_type: float
+  unit: kW
+  range_lo: 0.0
+  range_hi: 300.0
+  decimals: 1
+- id: s.villaggio_consumo
+  description: Potenza consumata dal villaggio
+  data_type: float
+  unit: kW
+  range_lo: 0.0
+  range_hi: 400.0
+  decimals: 1
+  generator:
+    shape: triangle
+    period_ms: 90000
+    min: 110.0
+    max: 330.0
+    enabled: true
+- id: s.rete_scambio
+  description: Scambio con la rete (positivo = energia ceduta alla rete)
+  data_type: float
+  unit: kW
+  range_lo: -150.0
+  range_hi: 150.0
+  decimals: 1
+  generator:
+    shape: triangle
+    period_ms: 150000
+    min: -60.0
+    max: 90.0
+    enabled: true
+- id: s.energia_oggi
+  description: Energia rinnovabile prodotta oggi (fotovoltaico + idroelettrico)
+  data_type: float
+  unit: kWh
+  range_lo: 0.0
+  range_hi: 6000.0
+  decimals: 0
+  generator:
+    shape: ramp
+    period_ms: 600000
+    min: 0.0
+    max: 5200.0
+    enabled: true
+- id: c.turbina_marcia
+  description: Comando di marcia della turbina
+  data_type: bool
+- id: c.illuminazione_villaggio
+  description: Illuminazione pubblica del villaggio
+  data_type: bool
+- id: c.giorno_notte
+  description: 'Cursore della pagina Lago: 0 = notte, 100 = giorno'
+  data_type: float
+  unit: '%'
+  range_lo: 0.0
+  range_hi: 100.0
+  decimals: 0
+  write_min_role: Viewer
+sources: []
+alarms: []
+functions: []
+global_scripts:
+- id: giornata
+  enabled: true
+  trigger:
+    kind: interval
+    interval_s: 1
+  code: "# Il fotovoltaico segue l'ora simulata (s.ora): zero dalle 18 alle 6, il massimo a\n# mezzogiorno. Una parabola invece\
+    \ di un seno, perché nel runtime `import` non c'è.\nh = tags.read(\"s.ora\")\nh = 0.0 if h is None else float(h)\ns =\
+    \ (h - 6.0) / 12.0\nsole = 4.0 * s * (1.0 - s) if 0.0 < s < 1.0 else 0.0\ntags.write(\"s.fv_irraggiamento\", round(950.0\
+    \ * sole, 0))\ntags.write(\"s.fv_potenza\", round(112.0 * sole, 1))\ntags.write(\"s.inverter_potenza\", round(112.0 *\
+    \ 0.965 * sole, 1))\n# La turbina gira solo col comando di marcia. Ferma: portata, giri e potenza a zero.\n# In marcia\
+    \ la portata va e viene in 6 ore simulate (un triangolo: abs() c'è, sin() no).\nif tags.read(\"c.turbina_marcia\"):\n\
+    \    f = abs((h / 6.0) % 2.0 - 1.0)\n    portata = 80.0 + 100.0 * f\n    tags.write(\"s.idro_portata\", round(portata,\
+    \ 0))\n    tags.write(\"s.turbina_giri\", round(995.0 + 10.0 * f, 0))\n    tags.write(\"s.turbina_potenza\", round(portata\
+    \ * 1.45, 1))\nelse:\n    tags.write(\"s.idro_portata\", 0.0)\n    tags.write(\"s.turbina_giri\", 0.0)\n    tags.write(\"\
+    s.turbina_potenza\", 0.0)\n"
+page_layout:
+  size_mode: fixed
+  default_width: 1280.0
+  default_height: 800.0
+  home_page_id: p_impianto_opus
+languages:
+  default: it
+  langs:
+  - it
+  - en
+  - es
+  entries:
+  - key: t0001
+    values:
+      it: Impianto — Opus 5.5
+      en: Plant — Opus 5.5
+      es: Planta — Opus 5.5
+  - key: t0002
+    values:
+      it: Energia rinnovabile in montagna
+      en: Renewable energy in the mountains
+      es: Energía renovable en la montaña
+  - key: t0003
+    values:
+      it: Pensiline fotovoltaiche del parcheggio e centrale idroelettrica
+      en: Car park solar carports and hydroelectric plant
+      es: Marquesinas fotovoltaicas del aparcamiento y central hidroeléctrica
+  - key: t0004
+    values:
+      it: Bilancio di oggi
+      en: Today's balance
+      es: Balance de hoy
+  - key: t0005
+    values:
+      it: Ora simulata
+      en: Simulated time
+      es: Hora simulada
+  - key: t0006
+    values:
+      it: Rinnovabile prodotta oggi
+      en: Renewable produced today
+      es: Renovable producida hoy
+  - key: t0007
+    values:
+      it: Scambio rete (+ ceduta)
+      en: Grid exchange (+ exported)
+      es: Intercambio con la red (+ cedida)
+  - key: t0008
+    values:
+      it: Pensiline fotovoltaiche
+      en: Solar carports
+      es: Marquesinas fotovoltaicas
+  - key: t0009
+    values:
+      it: Irraggiamento
+      en: Irradiance
+      es: Irradiancia
+  - key: t0010
+    values:
+      it: Potenza FV
+      en: PV power
+      es: Potencia FV
+  - key: t0011
+    values:
+      it: Notte — pensiline a zero
+      en: Night — carports at zero
+      es: Noche — marquesinas a cero
+  - key: t0012
+    values:
+      it: In produzione
+      en: Producing
+      es: Produciendo
+  - key: t0013
+    values:
+      it: Inverter
+      en: Inverter
+      es: Inversor
+  - key: t0014
+    values:
+      it: Potenza in uscita
+      en: Output power
+      es: Potencia de salida
+  - key: t0015
+    values:
+      it: Temperatura
+      en: Temperature
+      es: Temperatura
+  - key: t0016
+    values:
+      it: Centrale idroelettrica
+      en: Hydroelectric plant
+      es: Central hidroeléctrica
+  - key: t0017
+    values:
+      it: Marcia turbina
+      en: Turbine run
+      es: Marcha turbina
+  - key: t0018
+    values:
+      it: Cambiare lo stato di marcia della turbina?
+      en: Change the turbine run state?
+      es: ¿Cambiar el estado de marcha de la turbina?
+  - key: t0019
+    values:
+      it: Portata
+      en: Flow rate
+      es: Caudal
+  - key: t0020
+    values:
+      it: Pressione base
+      en: Base pressure
+      es: Presión en la base
+  - key: t0021
+    values:
+      it: Giri turbina
+      en: Turbine speed
+      es: Velocidad turbina
+  - key: t0022
+    values:
+      it: Potenza idro
+      en: Hydro power
+      es: Potencia hidro
+  - key: t0023
+    values:
+      it: Villaggio
+      en: Village
+      es: Pueblo
+  - key: t0024
+    values:
+      it: Consumo
+      en: Consumption
+      es: Consumo
+  - key: t0025
+    values:
+      it: Illuminazione
+      en: Lighting
+      es: Iluminación
+  - key: t0101
+    values:
+      it: Impianto — Kimi K3.1 Pro
+      en: Plant — Kimi K3.1 Pro
+      es: Planta — Kimi K3.1 Pro
+  - key: t0102
+    values:
+      it: Energia della valle
+      en: Valley energy
+      es: Energía del valle
+  - key: t0103
+    values:
+      it: Fotovoltaico e idroelettrico per il villaggio
+      en: Solar and hydro power for the village
+      es: Energía solar e hidroeléctrica para el pueblo
+  - key: t0104
+    values:
+      it: Ora simulata
+      en: Simulated time
+      es: Hora simulada
+  - key: t0105
+    values:
+      it: Energia rinnovabile prodotta oggi
+      en: Renewable energy today
+      es: Energía renovable de hoy
+  - key: t0106
+    values:
+      it: Scambio con la rete
+      en: Grid exchange
+      es: Intercambio con la red
+  - key: t0107
+    values:
+      it: Positivo = ceduta alla rete
+      en: Positive = exported to grid
+      es: Positivo = energía cedida a la red
+  - key: t0108
+    values:
+      it: Pensiline fotovoltaiche
+      en: Carport photovoltaics
+      es: Fotovoltaica de las marquesinas
+  - key: t0109
+    values:
+      it: Irraggiamento
+      en: Irradiance
+      es: Irradiancia
+  - key: t0110
+    values:
+      it: Potenza FV
+      en: PV power
+      es: Potencia FV
+  - key: t0111
+    values:
+      it: Inverter
+      en: Inverter
+      es: Inversor
+  - key: t0112
+    values:
+      it: Potenza in uscita
+      en: Output power
+      es: Potencia de salida
+  - key: t0113
+    values:
+      it: Temperatura
+      en: Temperature
+      es: Temperatura
+  - key: t0114
+    values:
+      it: Centrale idroelettrica
+      en: Hydroelectric plant
+      es: Central hidroeléctrica
+  - key: t0115
+    values:
+      it: Portata
+      en: Flow rate
+      es: Caudal
+  - key: t0116
+    values:
+      it: Pressione alla base
+      en: Base pressure
+      es: Presión en la base
+  - key: t0117
+    values:
+      it: Giri turbina
+      en: Turbine speed
+      es: Velocidad turbina
+  - key: t0118
+    values:
+      it: Potenza turbina
+      en: Turbine power
+      es: Potencia turbina
+  - key: t0119
+    values:
+      it: Marcia turbina
+      en: Turbine run
+      es: Marcha turbina
+  - key: t0120
+    values:
+      it: Villaggio
+      en: Village
+      es: Pueblo
+  - key: t0121
+    values:
+      it: Consumo
+      en: Consumption
+      es: Consumo
+  - key: t0122
+    values:
+      it: Illuminazione
+      en: Lighting
+      es: Iluminación
+  - key: t0123
+    values:
+      it: In marcia
+      en: Running
+      es: En marcha
+  - key: t0124
+    values:
+      it: Ferma
+      en: Stopped
+      es: Parada
+  - key: t0125
+    values:
+      it: Illuminazione attiva
+      en: Lights on
+      es: Alumbrado encendido
+  - key: t0126
+    values:
+      it: Illuminazione spenta
+      en: Lights off
+      es: Alumbrado apagado
+  - key: t0127
+    values:
+      it: Vuoi cambiare lo stato di marcia della turbina?
+      en: Do you want to change the turbine run state?
+      es: ¿Quieres cambiar el estado de marcha de la turbina?
+  - key: t0201
+    values:
+      it: Lago — sfondi in due passi
+      en: Lake — two-step backgrounds
+      es: Lago — fondos en dos pasos
+  - key: t0202
+    values:
+      it: Lago alpino
+      en: Alpine lake
+      es: Lago alpino
+  - key: t0203
+    values:
+      it: 'Sposta il cursore: la foto della sera è una modifica di quella del giorno, e il rifugio resta nello stesso punto.'
+      en: 'Move the slider: the evening photo is an edit of the daytime one, and the hut stays in the same place.'
+      es: 'Mueve el cursor: la foto de la tarde es una modificación de la del día, y el refugio queda en el mismo sitio.'
+  - key: t0204
+    values:
+      it: Notte → giorno
+      en: Night → day
+      es: Noche → día
+simboli:
+- slug: lampione-stradale
+  w: 40
+  h: 120
+  tipo: lighting
+  body: steel-dark
+  it: Lampione stradale
+  en: Street light
+  ops:
+  - op: corpo
+  - op: forma
+    tag: rect
+    geo:
+    - - x
+      - 8.0
+    - - y
+      - 16.0
+    - - width
+      - 4.0
+    - - height
+      - 94.0
+    mat: null
+    velo: paint-h
+    extra: []
+  - op: forma
+    tag: path
+    geo:
+    - - d
+      - M8 18 Q8 9 18 9 L26 9 L26 12 L18 12 Q12 12 12 18 Z
+    mat: null
+    velo: null
+    extra: []
+  - op: forma
+    tag: path
+    geo:
+    - - d
+      - M22 8 L38 8 Q38 13 35 16.5 L25 16.5 Q22 13 22 8 Z
+    mat: null
+    velo: paint-v
+    extra: []
+  - op: statico
+  - op: forma
+    tag: rect
+    geo:
+    - - x
+      - 4.0
+    - - y
+      - 106.0
+    - - width
+      - 12.0
+    - - height
+      - 14.0
+    - - rx
+      - 1.5
+    mat: steel-dark
+    velo: dark-h
+    extra: []
+  - op: forma
+    tag: rect
+    geo:
+    - - x
+      - 7.0
+    - - y
+      - 109.0
+    - - width
+      - 6.0
+    - - height
+      - 7.0
+    - - rx
+      - 0.8
+    mat: steel
+    velo: null
+    extra:
+    - - stroke_opacity
+      - 0.4
+  - op: riflesso
+    tag: rect
+    geo:
+    - - x
+      - 8.6
+    - - y
+      - 18.0
+    - - width
+      - 1.0
+    - - height
+      - 88.0
+    opacita: 0.18
+  - op: forma
+    tag: ellipse
+    geo:
+    - - cx
+      - 30.0
+    - - cy
+      - 17.0
+    - - rx
+      - 5.0
+    - - ry
+      - 1.8
+    mat: lamp-amber-off
+    velo: null
+    extra: []
+  - op: parte
+    id: lamp
+    kind: lamp
+    geo: {}
+  - op: forma
+    tag: path
+    geo:
+    - - d
+      - M25.5 18 L34.5 18 L40 66 L18 66 Z
+    mat: lamp-amber
+    velo: null
+    extra:
+    - - fill_opacity
+      - 0.22
+    - - stroke
+      - none
+  - op: forma
+    tag: ellipse
+    geo:
+    - - cx
+      - 30.0
+    - - cy
+      - 17.0
+    - - rx
+      - 5.0
+    - - ry
+      - 1.8
+    mat: lamp-amber
+    velo: null
+    extra: []
+  - op: luce
+    tag: ellipse
+    geo:
+    - - cx
+      - 29.0
+    - - cy
+      - 16.6
+    - - rx
+      - 3.0
+    - - ry
+      - 0.8
+    velo: glass-r
+    opacita: 0.5
+- slug: turbina-idro
+  w: 100
+  h: 100
+  tipo: generation
+  body: body-pump
+  it: Turbina idroelettrica
+  en: Hydro turbine
+  ops:
+  - op: tubo_v
+    x: 25.0
+    y: 4.0
+    h: 16.0
+    w: 10.0
+  - op: flangia_o
+    x: 22.0
+    y: 0.0
+    w: 16.0
+    h: 4.0
+  - op: tubo_v
+    x: 35.0
+    y: 82.0
+    h: 14.0
+    w: 10.0
+  - op: flangia_o
+    x: 32.0
+    y: 96.0
+    w: 16.0
+    h: 4.0
+  - op: forma
+    tag: rect
+    geo:
+    - - x
+      - 64.0
+    - - y
+      - 53.0
+    - - width
+      - 12.0
+    - - height
+      - 10.0
+    mat: steel
+    velo: metal-v
+    extra: []
+  - op: forma
+    tag: rect
+    geo:
+    - - x
+      - 70.0
+    - - y
+      - 80.0
+    - - width
+      - 28.0
+    - - height
+      - 6.0
+    - - rx
+      - 1.0
+    mat: steel-dark
+    velo: dark-v
+    extra: []
+  - op: forma
+    tag: rect
+    geo:
+    - - x
+      - 74.0
+    - - y
+      - 36.0
+    - - width
+      - 22.0
+    - - height
+      - 46.0
+    - - rx
+      - 4.0
+    mat: body-motor
+    velo: paint-h
+    extra: []
+  - op: tratto
+    d: M79 40 L79 78
+    mat: steel-dark
+    extra:
+    - - stroke_width
+      - 1.2
+  - op: tratto
+    d: M85 40 L85 78
+    mat: steel-dark
+    extra:
+    - - stroke_width
+      - 1.2
+  - op: tratto
+    d: M91 40 L91 78
+    mat: steel-dark
+    extra:
+    - - stroke_width
+      - 1.2
+  - op: forma
+    tag: rect
+    geo:
+    - - x
+      - 72.0
+    - - y
+      - 33.0
+    - - width
+      - 26.0
+    - - height
+      - 5.0
+    - - rx
+      - 1.5
+    mat: steel
+    velo: metal-v
+    extra: []
+  - op: corpo
+  - op: forma
+    tag: path
+    geo:
+    - - d
+      - M25 18 L35 18 L35 31 Q66 33 66 58 Q66 84 40 84 Q14 84 14 58 Q14 40 25 34 Z
+    mat: null
+    velo: paint-r
+    extra: []
+  - op: statico
+  - op: tratto
+    d: M35 31 Q58 36 58 58 Q58 77 40 77 Q22 77 22 58 Q22 46 30 40
+    mat: null
+    extra:
+    - - stroke_opacity
+      - 0.35
+    - - stroke_width
+      - 1.2
+  - op: forma
+    tag: circle
+    geo:
+    - - cx
+      - 40.0
+    - - cy
+      - 58.0
+    - - r
+      - 15.0
+    mat: glass-dark
+    velo: null
+    extra: []
+  - op: parte
+    id: rotor
+    kind: rotor
+    geo:
+      cx: 40
+      cy: 58
+      symmetry: 45
+  - op: forma
+    tag: circle
+    geo:
+    - - cx
+      - 40.0
+    - - cy
+      - 58.0
+    - - r
+      - 13.0
+    mat: impeller
+    velo: null
+    extra: []
+  - op: tratto
+    d: M44 58 Q47 63 45 68
+    mat: impeller-vane
+    extra:
+    - - stroke_linecap
+      - round
+    - - stroke_width
+      - 1.4
+  - op: tratto
+    d: M42.8 60.8 Q41.4 66.6 36.9 68.3
+    mat: impeller-vane
+    extra:
+    - - stroke_linecap
+      - round
+    - - stroke_width
+      - 1.4
+  - op: tratto
+    d: M40 62 Q35 65 30 63
+    mat: impeller-vane
+    extra:
+    - - stroke_linecap
+      - round
+    - - stroke_width
+      - 1.4
+  - op: tratto
+    d: M37.2 60.8 Q31.4 59.4 29.7 54.9
+    mat: impeller-vane
+    extra:
+    - - stroke_linecap
+      - round
+    - - stroke_width
+      - 1.4
+  - op: tratto
+    d: M36 58 Q33 53 35 48
+    mat: impeller-vane
+    extra:
+    - - stroke_linecap
+      - round
+    - - stroke_width
+      - 1.4
+  - op: tratto
+    d: M37.2 55.2 Q38.6 49.4 43.1 47.7
+    mat: impeller-vane
+    extra:
+    - - stroke_linecap
+      - round
+    - - stroke_width
+      - 1.4
+  - op: tratto
+    d: M40 54 Q45 51 50 53
+    mat: impeller-vane
+    extra:
+    - - stroke_linecap
+      - round
+    - - stroke_width
+      - 1.4
+  - op: tratto
+    d: M42.8 55.2 Q48.6 56.6 50.3 61.1
+    mat: impeller-vane
+    extra:
+    - - stroke_linecap
+      - round
+    - - stroke_width
+      - 1.4
+  - op: forma
+    tag: circle
+    geo:
+    - - cx
+      - 40.0
+    - - cy
+      - 58.0
+    - - r
+      - 3.5
+    mat: steel
+    velo: metal-r
+    extra: []
+  - op: statico
+  - op: luce
+    tag: circle
+    geo:
+    - - cx
+      - 40.0
+    - - cy
+      - 58.0
+    - - r
+      - 15.0
+    velo: glass-r
+    opacita: 0.15
+  - op: forma
+    tag: circle
+    geo:
+    - - cx
+      - 20.0
+    - - cy
+      - 46.0
+    - - r
+      - 1.1
+    mat: steel-dark
+    velo: null
+    extra:
+    - - stroke
+      - none
+  - op: forma
+    tag: circle
+    geo:
+    - - cx
+      - 60.0
+    - - cy
+      - 46.0
+    - - r
+      - 1.1
+    mat: steel-dark
+    velo: null
+    extra:
+    - - stroke
+      - none
+  - op: forma
+    tag: circle
+    geo:
+    - - cx
+      - 20.0
+    - - cy
+      - 72.0
+    - - r
+      - 1.1
+    mat: steel-dark
+    velo: null
+    extra:
+    - - stroke
+      - none
+  - op: forma
+    tag: circle
+    geo:
+    - - cx
+      - 60.0
+    - - cy
+      - 72.0
+    - - r
+      - 1.1
+    mat: steel-dark
+    velo: null
+    extra:
+    - - stroke
+      - none
+- slug: turbina-pelton
+  w: 100
+  h: 100
+  tipo: machines
+  body: body-motor
+  it: Turbina Pelton
+  en: Pelton turbine
+  ops:
+  - op: forma
+    tag: rect
+    geo:
+    - - x
+      - 15.0
+    - - y
+      - 90.0
+    - - width
+      - 70.0
+    - - height
+      - 8.0
+    - - rx
+      - 2.0
+    mat: steel-dark
+    velo: dark-v
+    extra: []
+  - op: forma
+    tag: rect
+    geo:
+    - - x
+      - 25.0
+    - - y
+      - 80.0
+    - - width
+      - 10.0
+    - - height
+      - 12.0
+    - - rx
+      - 2.0
+    mat: steel-dark
+    velo: dark-h
+    extra: []
+  - op: forma
+    tag: rect
+    geo:
+    - - x
+      - 65.0
+    - - y
+      - 80.0
+    - - width
+      - 10.0
+    - - height
+      - 12.0
+    - - rx
+      - 2.0
+    mat: steel-dark
+    velo: dark-h
+    extra: []
+  - op: tubo_o
+    x: 4.0
+    y: 45.0
+    w: 18.0
+    h: 10.0
+  - op: flangia_v
+    x: 0.0
+    y: 42.0
+    w: 4.0
+    h: 16.0
+  - op: corpo
+  - op: forma
+    tag: circle
+    geo:
+    - - cx
+      - 52.0
+    - - cy
+      - 50.0
+    - - r
+      - 42.0
+    mat: null
+    velo: paint-r
+    extra: []
+  - op: statico
+  - op: forma
+    tag: circle
+    geo:
+    - - cx
+      - 52.0
+    - - cy
+      - 50.0
+    - - r
+      - 34.0
+    mat: glass-dark
+    velo: glass-r
+    extra: []
+  - op: forma
+    tag: circle
+    geo:
+    - - cx
+      - 52.0
+    - - cy
+      - 50.0
+    - - r
+      - 30.0
+    mat: steel-dark
+    velo: metal-r
+    extra: []
+  - op: parte
+    id: rotor
+    kind: rotor
+    geo:
+      cx: 52
+      cy: 50
+      symmetry: 45
+  - op: forma
+    tag: circle
+    geo:
+    - - cx
+      - 52.0
+    - - cy
+      - 50.0
+    - - r
+      - 26.0
+    mat: impeller
+    velo: metal-r
+    extra: []
+  - op: tratto
+    d: M52 27 Q58 34 52 41
+    mat: impeller-vane
+    extra:
+    - - stroke_linecap
+      - round
+    - - stroke_width
+      - 4.0
+  - op: tratto
+    d: M68.4 33.6 Q69.5 42.5 61.8 45.2
+    mat: impeller-vane
+    extra:
+    - - stroke_linecap
+      - round
+    - - stroke_width
+      - 4.0
+  - op: tratto
+    d: M75 50 Q68 56 61 50
+    mat: impeller-vane
+    extra:
+    - - stroke_linecap
+      - round
+    - - stroke_width
+      - 4.0
+  - op: tratto
+    d: M68.4 66.4 Q59.5 67.5 58.8 58.8
+    mat: impeller-vane
+    extra:
+    - - stroke_linecap
+      - round
+    - - stroke_width
+      - 4.0
+  - op: tratto
+    d: M52 73 Q46 66 52 59
+    mat: impeller-vane
+    extra:
+    - - stroke_linecap
+      - round
+    - - stroke_width
+      - 4.0
+  - op: tratto
+    d: M35.6 66.4 Q34.5 57.5 42.2 54.8
+    mat: impeller-vane
+    extra:
+    - - stroke_linecap
+      - round
+    - - stroke_width
+      - 4.0
+  - op: tratto
+    d: M29 50 Q36 44 43 50
+    mat: impeller-vane
+    extra:
+    - - stroke_linecap
+      - round
+    - - stroke_width
+      - 4.0
+  - op: tratto
+    d: M35.6 33.6 Q44.5 32.5 45.2 41.2
+    mat: impeller-vane
+    extra:
+    - - stroke_linecap
+      - round
+    - - stroke_width
+      - 4.0
+  - op: statico
+  - op: forma
+    tag: circle
+    geo:
+    - - cx
+      - 52.0
+    - - cy
+      - 50.0
+    - - r
+      - 8.0
+    mat: steel
+    velo: metal-r
+    extra: []
+  - op: forma
+    tag: circle
+    geo:
+    - - cx
+      - 52.0
+    - - cy
+      - 50.0
+    - - r
+      - 3.0
+    mat: steel-dark
+    velo: metal-r
+    extra: []
+  - op: tratto
+    d: M20 50 L31 50
+    mat: liquid
+    extra:
+    - - stroke_linecap
+      - round
+    - - stroke_width
+      - 5.0
+  - op: forma
+    tag: circle
+    geo:
+    - - cx
+      - 52.0
+    - - cy
+      - 12.0
+    - - r
+      - 1.8
+    mat: stainless
+    velo: null
+    extra:
+    - - stroke
+      - none
+  - op: forma
+    tag: circle
+    geo:
+    - - cx
+      - 85.0
+    - - cy
+      - 33.0
+    - - r
+      - 1.8
+    mat: stainless
+    velo: null
+    extra:
+    - - stroke
+      - none
+  - op: forma
+    tag: circle
+    geo:
+    - - cx
+      - 85.0
+    - - cy
+      - 67.0
+    - - r
+      - 1.8
+    mat: stainless
+    velo: null
+    extra:
+    - - stroke
+      - none
+  - op: forma
+    tag: circle
+    geo:
+    - - cx
+      - 52.0
+    - - cy
+      - 88.0
+    - - r
+      - 1.8
+    mat: stainless
+    velo: null
+    extra:
+    - - stroke
+      - none
+  - op: forma
+    tag: circle
+    geo:
+    - - cx
+      - 19.0
+    - - cy
+      - 67.0
+    - - r
+      - 1.8
+    mat: stainless
+    velo: null
+    extra:
+    - - stroke
+      - none
+  - op: forma
+    tag: circle
+    geo:
+    - - cx
+      - 19.0
+    - - cy
+      - 33.0
+    - - r
+      - 1.8
+    mat: stainless
+    velo: null
+    extra:
+    - - stroke
+      - none

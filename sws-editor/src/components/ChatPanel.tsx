@@ -3,7 +3,7 @@ import { useTranslation } from "react-i18next";
 import i18n from "i18next";
 import { editorLocale, NESSUNA_CONFERMA, type EditorAi } from "@/ai/editor";
 import { useAppStore } from "@/store";
-import { ascolta, chiedi } from "@/ws/aiStream";
+import { approvaSfondo, ascolta, chiedi } from "@/ws/aiStream";
 import type { MsgIn, Riga } from "@/types/ai";
 
 /**
@@ -161,6 +161,17 @@ export function ChatPanel({ open, onClose, editor = editorLocale, avviso, blocca
         case "immagine":
           setRighe((r) => [...r, { tipo: "immagine", png: m.png, testo: m.testo }]);
           break;
+        case "sfondo":
+          // Una variante rifatta con la stessa luce prende il posto della vecchia.
+          setRighe((r) => [...r.filter((x) => !(x.tipo === "sfondo" && x.id === m.id)),
+            { tipo: "sfondo", id: m.id, base: m.base, luce: m.luce, approvata: m.approvata, jpg: m.jpg }]);
+          break;
+        case "sfondo_approvato":
+          if (m.ok) setRighe((r) => r.map((x) => x.tipo === "sfondo" && x.id === m.id ? { ...x, approvata: true } : x));
+          break;
+        case "risorse_extra":
+          setSpesa((s) => s ? { ...s, speso: m.speso } : s);
+          break;
         case "fine":
           setAttesa(false);
           break;
@@ -195,6 +206,7 @@ export function ChatPanel({ open, onClose, editor = editorLocale, avviso, blocca
       project: riga.msg.project,
       pages: riga.msg.pages,
       impronta: riga.msg.impronta,
+      sfondi: riga.msg.sfondi,
     });
     setRighe((r) => r.map((x, i) => i !== indice || x.tipo !== "proposta" ? x : {
       ...x,
@@ -314,6 +326,39 @@ export function ChatPanel({ open, onClose, editor = editorLocale, avviso, blocca
                   <div style={{ fontSize: 10, color: "var(--brand-text-subtle, #64748b)" }}>
                     {t("chat.bozzaSimbolo")} · prj:{r.slug}
                   </div>
+                </div>
+              </div>
+            );
+          }
+          if (r.tipo === "sfondo") {
+            // Uno sfondo generato. Sotto una base c'è «Usa come base»: è la
+            // persona che sceglie, e senza la sua scelta le varianti di luce non
+            // partono (regola dei due passi, 04-11-2026).
+            const src = `data:image/jpeg;base64,${r.jpg}`;
+            const usa = () => {
+              if (!approvaSfondo(r.id)) {
+                setRighe((x) => [...x, { tipo: "errore", testo: t("chat.noConnection") }]);
+                return;
+              }
+              const testo = t("chat.sfondoScelto", { id: r.id });
+              if (chiedi(testo)) {
+                setRighe((x) => [...x, { tipo: "utente", testo }]);
+                setAttesa(true);
+              }
+            };
+            return (
+              <div key={i} style={{ margin: "4px 10px" }} data-testid={`sfondo-${r.id}`}>
+                <a href={src} target="_blank" rel="noreferrer">
+                  <img src={src} alt={r.id}
+                       style={{ width: "100%", borderRadius: 4, border: "1px solid var(--brand-surface-2, #1e293b)" }} />
+                </a>
+                <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 11,
+                              color: "var(--brand-text-subtle, #64748b)" }}>
+                  <span>{r.base ? t("chat.sfondoBase", { id: r.id }) : t("chat.sfondoVariante", { id: r.id, luce: r.luce ?? "" })}</span>
+                  {r.base && (r.approvata
+                    ? <span style={{ color: "var(--brand-success, #22c55e)" }}>✓ {t("chat.sfondoApprovato")}</span>
+                    : <button style={BOTTONE_PICCOLO} disabled={attesa} onClick={usa}
+                              data-testid={`usa-base-${r.id}`}>{t("chat.usaComeBase")}</button>)}
                 </div>
               </div>
             );
@@ -575,6 +620,7 @@ const BTN: React.CSSProperties = {
 };
 
 const BTN_PRIMARIO: React.CSSProperties = { ...BTN, background: "#1d4ed8", color: "#fff" };
+const BOTTONE_PICCOLO: React.CSSProperties = { ...BTN_PRIMARIO, padding: "2px 8px", fontSize: 11, marginLeft: "auto" };
 
 const BOLLA_UTENTE: React.CSSProperties = {
   alignSelf: "flex-end", maxWidth: "88%", background: "var(--brand-surface, #1e293b)",

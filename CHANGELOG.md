@@ -29,6 +29,23 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
   del campo tag, con la finestra (tipo proposto dal tipo del PLC, unità, storico).
 
 ### Added
+- **Il menù IA e un modello per ogni scopo** (04-11-2026, piano `docs/archive/2026-11-04-un-modello-per-ogni-scopo.md`):
+  ramo «IA» nel pannello laterale (Assistente, Fornitori e chiavi, Un modello per scopo, Regole del progetto); `ai.yaml`
+  a scopi (assistente, simboli, traduzione, sfondi) con lettura del formato vecchio (`ai/scopi.rs`); rotte
+  `/api/ai/config`, `/api/ai/chiavi`, `/api/ai/chiavi/prova`; via le voci della chat dal menu ☰ e la sezione dalle
+  Preferenze IDE (`ai/comandiChat.ts`).
+- **Le regole di contesto nel progetto** (`project.ai`, `RegoleIa` in `sws-core`): tipo di impianto e una regola per
+  generali e per scopo, al più 4000 caratteri per campo (validatore e `PUT /api/project/ai`); l'assistente le riceve in un
+  blocco dopo il prompt fisso, che dice di non scavalcarlo; la traduzione IA usa il suo scopo e le sue regole.
+- **`disegna_simbolo`**: con un modello dei simboli suo, l'assistente descrive a parole e quel modello scrive la
+  descrizione, rimandata con gli errori fino a 3 volte; la spesa entra nel tetto (`ai/strumenti_scopi.rs`).
+- **Sfondi in due passi** (`ai/immagini.rs`): `genera_sfondo` crea solo basi (gpt-image-2, JPEG 1536×1024), la persona
+  ne sceglie una con «Usa come base» in chat (`approva_sfondo`), `varia_sfondo` cambia solo la luce di una base
+  approvata; gli sfondi usati (solo basi approvate e varianti) viaggiano con la proposta e si scrivono in `images/` al
+  Salva, con un nome unico nel progetto (`ai-sfondo-<sigla>.jpg`); l'istantanea li vede.
+- **Template «Montagna — fotovoltaico e idroelettrico»** (`examples/templates/montagna-rinnovabile`): due pagine dello
+  stesso impianto composte da Opus 5.5 e Kimi K3.1 Pro sulla stessa richiesta, tre foto con la dissolvenza sull'ora
+  simulata, e la pagina *Lago* con un cursore giorno/notte.
 - **La chat dell'assistente mostra quello che l'assistente guarda**: le miniature dei simboli che disegna e le
   istantanee del pannello che scatta (un clic le apre intere). Il diff di una proposta ha le voci dei tipi e dei
   simboli, con le miniature, e il Salva li scrive — i tipi prima delle variabili che li usano.
@@ -62,6 +79,20 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
   entrava nel progetto se non a mano. `LogicaPlcDelProgetto` in `boot/OpenplcSulPannello.tsx`.
 
 ### Fixed
+- **Le foto negli oggetti `image` non si disegnavano su LVGL** (04-11-2026): `source_for` accettava solo `.svg`, e un
+  JPEG restava il segnaposto tagliato a 500×500, sul pannello e nelle istantanee dell'assistente. Ora un raster passa
+  per l'involucro SVG dello sfondo, col tetto di una pagina e `image_fit` come sul web.
+- **Pagine col nome tradotto** (`name: '{{t0001}}'` in `Impianto.yaml`, come nei template): si trovano per file, nome o
+  id (GET, export, istantanea, `leggi_pagina`); DELETE vuole che dentro il file ci sia proprio quella pagina, e il
+  Salva non sovrascrive più un file che contiene un'altra pagina (409 invece di perderla). Il nome del file al Salva
+  resta il nome della pagina: la versione con il testo del token, provata in questo ramo, cancellava pagine nei
+  rinomini e dava 409 falsi (revisione del 04-11-2026).
+- **Il Salva perdeva la tabella lingue di una proposta dell'assistente**: le pagine usavano `{{t0002}}`… e le voci non
+  arrivavano al disco (`applyAiProposal` non registrava `ai:languages`).
+- **L'assistente arrivava alla proposta senza fermarsi alle bozze** (visto con kimi-k3.1-pro): `proponi_modifica` nello
+  stesso turno di una `bozza_simbolo` (o di `genera_sfondo`) si rifiuta.
+- **`start_editor.sh` ricostruisce anche il viewer LVGL**: le istantanee dell'assistente girano col viewer accanto al
+  runtime, che restava vecchio (il 04-11 era del 30-10, più vecchio dei simboli del progetto).
 - **Un simbolo disegnato con un attributo ripetuto è un errore, non un SVG rotto.** Una forma col materiale e in più
   `fill: none` negli extra produceva un SVG non valido: miniatura rotta in chat e simbolo assente sul pannello. Ora il
   compilatore lo rifiuta e il modello si corregge.

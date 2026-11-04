@@ -1062,6 +1062,73 @@ pub fn safe_filename(name: &str) -> String {
         .collect()
 }
 
+/// Il file di una pagina chiamata per nome del file, per nome **o per id**.
+///
+/// Il nome del file non coincide sempre col nome della pagina: un template ha
+/// `Impianto.yaml` con dentro `name: '{{t0001}}'`. Chi chiedeva `{{t0001}}` — l'editor
+/// che cancella, l'istantanea dell'assistente, il viewer con `--page` — o
+/// `p_impianto` prendeva un 404 (misurato il 04-11-2026).
+///
+/// `Come::Leggere` accetta il nome del file così com'è (è quello che
+/// `GET /api/synoptics` elenca), poi il nome della pagina, poi l'id.
+/// `Come::Cancellare` vuole che **dentro** il file ci sia proprio quella pagina:
+/// un file che si chiama come lei ma contiene un'altra pagina non si tocca, e
+/// l'id non basta (revisione del 04-11-2026: una cancellazione per nome poteva
+/// togliere la pagina sbagliata).
+pub async fn trova_file_pagina(
+    dir: &std::path::Path,
+    name: &str,
+    come: Come,
+) -> Option<std::path::PathBuf> {
+    #[derive(Deserialize)]
+    struct Chi {
+        #[serde(default)]
+        id: String,
+        #[serde(default)]
+        name: String,
+    }
+    let leggi = |p: std::path::PathBuf| async move {
+        let testo = tokio::fs::read_to_string(&p).await.ok()?;
+        serde_yaml::from_str::<Chi>(&testo).ok()
+    };
+    let diretto = dir.join(format!("{}.yaml", safe_filename(name)));
+    if tokio::fs::try_exists(&diretto).await.unwrap_or(false) {
+        match come {
+            Come::Leggere => return Some(diretto),
+            Come::Cancellare => {
+                if leggi(diretto.clone()).await.is_some_and(|c| c.name == name) {
+                    return Some(diretto);
+                }
+            }
+        }
+    }
+    let mut voci = tokio::fs::read_dir(dir).await.ok()?;
+    let mut per_id = None;
+    while let Ok(Some(v)) = voci.next_entry().await {
+        let p = v.path();
+        if p.extension().and_then(|e| e.to_str()) != Some("yaml") || p == diretto {
+            continue;
+        }
+        let Some(chi) = leggi(p.clone()).await else {
+            continue;
+        };
+        if chi.name == name {
+            return Some(p);
+        }
+        if come == Come::Leggere && per_id.is_none() && !chi.id.is_empty() && chi.id == name {
+            per_id = Some(p);
+        }
+    }
+    per_id
+}
+
+/// Per che cosa si cerca il file di una pagina: vedi [`trova_file_pagina`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Come {
+    Leggere,
+    Cancellare,
+}
+
 #[cfg(test)]
 mod tests_fuori_pagina {
     use super::*;
@@ -1220,5 +1287,66 @@ mod tests_predefiniti_tag {
             (Some(100.0), Some(900.0))
         );
         assert_eq!(objs[3].fill_level_min, None, "senza intervallo resta 0–100");
+    }
+}
+
+/// La ricerca di una pagina col nome tradotto (rilievi del confronto Opus/Kimi
+/// e revisione del 04-11-2026).
+#[cfg(test)]
+mod tests_file_pagina {
+    use super::*;
+
+    fn scrivi(d: &std::path::Path, file: &str, id: &str, name: &str) {
+        std::fs::write(
+            d.join(file),
+            format!("id: {id}\nname: '{name}'\nobjects: []\n"),
+        )
+        .unwrap();
+    }
+
+    #[tokio::test]
+    async fn la_pagina_si_trova_per_file_per_nome_e_per_id() {
+        let d = tempfile::tempdir().unwrap();
+        scrivi(d.path(), "Impianto.yaml", "p_impianto", "{{t0001}}");
+        let atteso = Some(d.path().join("Impianto.yaml"));
+        assert_eq!(
+            trova_file_pagina(d.path(), "Impianto", Come::Leggere).await,
+            atteso
+        );
+        assert_eq!(
+            trova_file_pagina(d.path(), "{{t0001}}", Come::Leggere).await,
+            atteso
+        );
+        assert_eq!(
+            trova_file_pagina(d.path(), "p_impianto", Come::Leggere).await,
+            atteso
+        );
+        assert_eq!(
+            trova_file_pagina(d.path(), "Altro", Come::Leggere).await,
+            None
+        );
+    }
+
+    #[tokio::test]
+    async fn per_cancellare_dentro_il_file_ci_deve_essere_quella_pagina() {
+        let d = tempfile::tempdir().unwrap();
+        // A, col nome tradotto, sta nel file «Impianto.yaml»; B si chiama
+        // davvero «Impianto» e sta altrove.
+        scrivi(d.path(), "Impianto.yaml", "p_a", "{{t0001}}");
+        scrivi(d.path(), "Impianto (copia).yaml", "p_b", "Impianto");
+        assert_eq!(
+            trova_file_pagina(d.path(), "Impianto", Come::Cancellare).await,
+            Some(d.path().join("Impianto (copia).yaml")),
+            "cancellare «Impianto» tocca B, non il file di A"
+        );
+        assert_eq!(
+            trova_file_pagina(d.path(), "{{t0001}}", Come::Cancellare).await,
+            Some(d.path().join("Impianto.yaml"))
+        );
+        // L'id non basta per cancellare.
+        assert_eq!(
+            trova_file_pagina(d.path(), "p_a", Come::Cancellare).await,
+            None
+        );
     }
 }

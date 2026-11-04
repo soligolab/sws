@@ -170,9 +170,6 @@
     "logPanel": "Pannello log",
     "saveCopyToPc": "💾 Salva copia sul PC…",
     "openFromPc": "📂 Sostituisci da copia sul PC…",
-    "chatPanel": "Assistente IA",
-    "chatDetach": "Stacca la chat",
-    "chatDetachHint": "Apre la chat in una finestra propria. La conversazione riparte da zero: il runtime non sa trasferirla.",
     "chatDetachedHint": "La chat è in una finestra separata. Chiudi quella finestra per riportarla qui.",
     "salvaCome": "Salva come…",
     "salvaComeTitle": "Crea una copia di questo progetto con un nome nuovo e continua a lavorare sulla copia",
@@ -219,7 +216,11 @@
       "certificati": "Certificati",
       "reports": "Report",
       "telefono": "Telefono (SMS e voce)",
-      "prestazioni": "Prestazioni"
+      "prestazioni": "Prestazioni",
+      "ia_assistente": "Assistente",
+      "ia_fornitori": "Fornitori e chiavi",
+      "ia_scopi": "Un modello per scopo",
+      "ia_regole": "Regole del progetto"
     },
     "sottorami": {
       "device": "Device",
@@ -231,7 +232,8 @@
       "dati": "Dati",
       "sicurezza": "Sicurezza",
       "istanza": "Istanza",
-      "ide": "IDE"
+      "ide": "IDE",
+      "ia": "IA"
     }
   },
   "editor": {
@@ -425,7 +427,12 @@
     "bozzaSimbolo": "bozza di simbolo",
     "istantanea": "Istantanea del pannello",
     "conversationTokens": "token della conversazione",
-    "accountBalanceWithTheProvider": "saldo dell'account presso il fornitore"
+    "accountBalanceWithTheProvider": "saldo dell'account presso il fornitore",
+    "sfondoScelto": "Uso come base lo sfondo {{id}}. Procedi con le varianti di luce che servono.",
+    "sfondoBase": "Base candidata · {{id}}",
+    "sfondoVariante": "Variante «{{luce}}» · {{id}}",
+    "sfondoApprovato": "base scelta",
+    "usaComeBase": "Usa come base"
   },
   "viewer": {
     "maintenance": "Manutenzione",
@@ -1951,7 +1958,7 @@
       "my_memory": "MyMemory — gratuito, senza chiave",
       "libre_translate": "LibreTranslate — libero / in casa",
       "google": "Google Translate — a consumo",
-      "ia": "Assistente IA — usa la chiave dell'IDE"
+      "ia": "IA — il modello «Traduzione» del menù IA"
     },
     "chiaveApi": "chiave API",
     "chiaveApiFacoltativa": "chiave API (facoltativa)",
@@ -1996,7 +2003,7 @@
     "noAuth": "Accedi nella finestra dell'editor",
     "noAuthHint": "Questa finestra usa la stessa sessione dell'IDE. Fai il login là, poi ricarica qui.",
     "reload": "Ricarica",
-    "noTarget": "Questa finestra va aperta dall'IDE (Menu → Stacca la chat): da sola non sa a quale editor parlare.",
+    "noTarget": "Questa finestra va aperta dall'IDE (IA → Assistente → «Apri in una finestra»): da sola non sa a quale editor parlare.",
     "binding": "collegamento all'editor…",
     "boundTo": "collegata all'editor — progetto «{{progetto}}»",
     "unbound": "editor non collegato",
@@ -2191,7 +2198,9 @@
       "progetto": "Progetto",
       "progettoNota": "Il resto del progetto: stile, lingue, versioni (git) e archivi dati.",
       "preferenze": "Preferenze",
-      "preferenzeNota": "Le preferenze di questo editor: tema, lingua, disposizione, icone."
+      "preferenzeNota": "Le preferenze di questo editor: tema, lingua, disposizione, icone.",
+      "ia": "IA",
+      "iaNota": "L'assistente IA e i modelli: chat, fornitori e chiavi, un modello per ogni scopo."
     },
     "tagModifica": "Modifica il tag"
   },
@@ -4470,5 +4479,62 @@
     "generataEUsata": "Salvata come «{{nome}}» e messa come sfondo di «{{pagina}}».",
     "inquadra": "Inquadra",
     "inquadraTitolo": "Mette la pianta a filo della cornice della pagina, guardando dalla stessa direzione di adesso."
+  },
+  "ia": {
+    "chat": {
+      "titolo": "La chat dell'assistente",
+      "spiega": "Descrivi cosa ti serve: l'assistente legge il progetto, propone una modifica e decidi tu se applicarla.",
+      "attiva": "Attiva: {{fornitore}} · {{modello}}",
+      "spenta": "Spenta: manca una chiave. Mettila in «Fornitori e chiavi».",
+      "apri": "Apri accanto all'editor",
+      "stacca": "Apri in una finestra"
+    },
+    "fornitori": {
+      "spiega": "Le chiavi stanno in questa installazione, una per fornitore, e non entrano mai nel progetto: non viaggiano con l'export, il deploy o un template.",
+      "conChiave": "chiave salvata",
+      "senzaChiave": "nessuna chiave",
+      "serve": "serve per: {{scopi}}",
+      "salvata": "Chiave salvata. La chat la usa dal prossimo messaggio.",
+      "prova": "Prova la chiave",
+      "provaOk": "La chiave funziona: il fornitore offre {{n}} modelli.",
+      "provaKo": "La chiave non funziona: {{errore}}",
+      "confermaCancella": "Sì, cancella la chiave"
+    },
+    "scopi": {
+      "spiega": "Ogni scopo può usare un modello diverso: il più forte per comporre le pagine, uno piccolo ed economico per tradurre, un modello di immagini per gli sfondi.",
+      "nome": {
+        "assistente": "Assistente",
+        "simboli": "Disegno dei simboli",
+        "traduzione": "Traduzione",
+        "sfondi": "Sfondi"
+      },
+      "spiega_assistente": "La chat: legge il progetto, compone le pagine e propone le modifiche.",
+      "spiega_simboli": "Disegna i simboli nuovi del progetto quando l'assistente gliene chiede uno.",
+      "spiega_traduzione": "L'opzione «IA» della traduzione automatica, in Lingue.",
+      "spiega_sfondi": "Le foto di sfondo delle pagine: prima una base da approvare, poi le varianti di luce come sue modifiche.",
+      "comeAssistente": "come l'assistente",
+      "qualita": "Qualità",
+      "qualita_low": "bassa (la più economica)",
+      "qualita_medium": "media",
+      "qualita_high": "alta (circa 4 volte il costo)",
+      "tetto": "Tetto di spesa per conversazione ($)",
+      "usa": "Userà {{fornitore}} · {{modello}}",
+      "usaAssistente": "Come l'assistente: {{fornitore}} · {{modello}}",
+      "spento": "Spento: il fornitore non ha una chiave.",
+      "salvati": "Salvato. La chat usa i modelli nuovi dal prossimo messaggio."
+    },
+    "regole": {
+      "spiega": "Cosa devono sapere i modelli di questo impianto. Queste regole stanno nel progetto: viaggiano con l'export, il deploy e un template, e chi riceve il progetto le eredita. Entrano in ogni chiamata, quindi brevi.",
+      "impianto": "Tipo di impianto, in una riga",
+      "impiantoEsempio": "es. impianto fotovoltaico e idroelettrico in montagna, con un villaggio servito",
+      "generali": "Regole per tutti i modelli",
+      "esempio_generali": "es. unità del Sistema Internazionale; i nomi delle macchine sono quelli della targa",
+      "esempio_assistente": "es. i valori su pannelli scuri semitrasparenti; il flusso da sinistra a destra; niente rettangoli pieni sopra la foto",
+      "esempio_simboli": "es. stile ISA-101: grigi, colore solo per lo stato",
+      "esempio_traduzione": "es. glossario: marcia = run, arresto = stop; registro formale",
+      "esempio_sfondi": "es. foto realistiche, luce morbida, nessuna scritta",
+      "lunghezza": "{{n}} / {{max}} caratteri",
+      "nonScavalcano": "Le regole del progetto non scavalcano quelle di SWS: un modello non applica mai una modifica da solo, e gli sfondi si fanno sempre in due passi."
+    }
   }
 }

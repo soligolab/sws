@@ -332,10 +332,11 @@ describe("pannello sinistro — stile VS Code", () => {
   });
   const voci = () => screen.getAllByRole("tab").map((b) => b.getAttribute("data-testid")!.replace("attivita-", ""));
 
-  it("dodici voci all'Admin, nell'ordine; si parte dalle pagine", () => {
+  it("tredici voci all'Admin, nell'ordine; si parte dalle pagine", () => {
     monta();
+    // «ia» dal 04-11-2026: il menù IA, con la chat e i modelli.
     expect(voci()).toEqual(["pagine", "strumenti", "oggetti", "tag", "comunicazione", "allarmi", "logica",
-      "report", "utenti", "dispositivo", "progetto", "preferenze"]);
+      "report", "utenti", "dispositivo", "progetto", "ia", "preferenze"]);
     expect(screen.getByTestId("albero-pagine")).toBeTruthy();
   });
 

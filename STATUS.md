@@ -12,7 +12,36 @@
 > resta in «Storico». Qui vive solo ciò che serve a riprendere il lavoro.
 
 
-## ▶ Riprendere da qui — CI verde in locale, su due rami annidati (2026-11-04, ufficio)
+## ▶ Riprendere da qui — menù IA, sfondi in due passi, template «Montagna»; catena mergiata (2026-11-04 pomeriggio, theobroma)
+
+**Su `main`, squash-mergiati in ordine** su richiesta del maintainer («finito fai il merge con squash e pubblichi le
+immagini»): `feat/assistente-sinottici` (l'assistente che disegna i simboli e compone il sinottico, F0–F4),
+`fix/ci-verde` (la CI verde) e `feat/ia-un-modello-per-scopo`. I rami locali sono cancellati; **su origin restano
+`feat/assistente-sinottici` e `fix/ci-verde`** e `main` non è pushato: il push non era fra le richieste.
+
+**Cosa c'è di nuovo** (piano archiviato `docs/archive/2026-11-04-un-modello-per-ogni-scopo.md`):
+- **menù IA** nel pannello laterale (✨; stile VS Code: icona viola in fondo): Assistente (chat accanto o in una
+  finestra), Fornitori e chiavi (Anthropic, Kimi, OpenAI, «Prova la chiave»), Un modello per scopo (assistente, disegno
+  dei simboli, traduzione, sfondi), Regole del progetto (`project.ai`). Via le voci della chat dal menu ☰;
+- **sfondi in due passi** con gpt-image-2: `genera_sfondo` fa solo basi, la persona sceglie con «Usa come base» in
+  chat, `varia_sfondo` cambia solo la luce. Le foto entrano in `images/` al Salva;
+- **LVGL**: le foto negli oggetti `image` ora si vedono (prima segnaposto 500×500, anche nelle istantanee
+  dell'assistente: era la causa vera delle «foto invisibili»);
+- **template «Montagna — fotovoltaico e idroelettrico»**: le pagine composte da Opus 5.5 e da Kimi K3.1 Pro sulla stessa
+  richiesta (confronto: Opus 1,62 $ e più pulito, si ferma a chiedere; Kimi ≈1,27 $, non si ferma mai — ora lo strumento
+  lo impone), tre foto in dissolvenza sull'ora simulata, e la pagina *Lago* con le due foto della prova vera e un
+  **cursore giorno/notte**, provato sul web e su LVGL (`tmp/verifica-lago/`, solo su theobroma);
+- **difetti trovati provando**, tutti corretti: tabella lingue persa al Salva di una proposta, pagine col nome tradotto
+  (404 dell'istantanea), viewer LVGL vecchio nelle istantanee, Kimi che non si ferma alle bozze; e i **19 rilievi
+  della revisione** (`d5daa85b`).
+
+**Semi nuovi**: `2026-11-04-stile-sobrio.md`, `2026-11-04-finestra-di-avviso.md`,
+`2026-11-04-impostazione-iniziale-del-progetto.md`, `2026-11-04-logica-unificata.md`.
+
+**Da fare col maintainer**: il collaudo sull'immagine; le regole del progetto in CasaDomotica (proposta in
+`docs/plans/Appunti.txt`); il push di `main` e la pulizia dei due rami su origin.
+
+## Sessione precedente — CI verde in locale, su due rami annidati (2026-11-04, ufficio)
 
 **Si riparte da `fix/ci-verde`** (su origin), che sta sopra `feat/assistente-sinottici` e contiene tutto:
 `./scripts/session_start.sh`, poi `git checkout fix/ci-verde`. Scelta del maintainer: **annidato**, quindi `main` resta

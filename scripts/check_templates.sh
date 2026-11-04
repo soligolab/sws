@@ -327,7 +327,12 @@ for nome in nomi:
                 if isinstance(v, float) and v != int(v):
                     problema(f"{nome}/{base}: `{campo}: {v}` ha decimali su un campo intero")
             s = o.get("src")
-            if isinstance(s, str) and s.startswith("/") and not os.path.exists(PUB + s):
+            # `/api/project/images/x` è un'immagine del progetto: sta nella
+            # cartella `images/` del template, non fra i file pubblici della SPA.
+            if isinstance(s, str) and s.startswith("/api/project/images/"):
+                if not os.path.exists(f"{d}/images/{s[len('/api/project/images/'):]}"):
+                    problema(f"{nome}/{base}: `src: {s}` non c'è in images/ — l'immagine resta vuota")
+            elif isinstance(s, str) and s.startswith("/") and not os.path.exists(PUB + s):
                 problema(f"{nome}/{base}: `src: {s}` non esiste — l'immagine resta vuota")
             for k, v in o.items():
                 if k.endswith("tag") and isinstance(v, str) and v:

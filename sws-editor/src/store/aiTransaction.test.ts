@@ -28,6 +28,8 @@ vi.mock("@/api/client", () => ({
     updateCustomSymbols: vi.fn(async () => {}),
     updateTypes: vi.fn(async () => {}),
     updateSimboli: vi.fn(async () => {}),
+    updateLanguages: vi.fn(async () => {}),
+    uploadProjectImage: vi.fn(async (name: string) => ({ name, url: `/api/project/images/${name}` })),
     compilaSimboli: vi.fn(async () => []),
     deleteSynoptic: vi.fn(async () => {}),
   },
@@ -392,10 +394,56 @@ describe("gli script del progetto non si perdono per strada", () => {
     expect(vi.mocked(api.updateSimboli).mock.calls[0][0][0].slug).toBe("gabbia");
   });
 
+  // Il confronto Opus/Kimi del 04-11-2026: la pagina usava `{{t0002}}`… e al
+  // reload le voci non c'erano, perché il Salva non scriveva la tabella lingue.
+  it("le voci nuove della tabella lingue arrivano al disco", async () => {
+    const p = proposta();
+    p.project = {
+      ...p.project!,
+      languages: { default: "it", langs: ["it", "en"],
+                   entries: [{ key: "t0002", values: { it: "Luce", en: "Light" } }] },
+    } as unknown as ProjectInfo;
+    await useAppStore.getState().applyAiProposal(p);
+    expect(api.updateLanguages).not.toHaveBeenCalled();
+    await useAppStore.getState().saveAll();
+    expect(vi.mocked(api.updateLanguages).mock.calls[0][0].entries[0].key).toBe("t0002");
+  });
+
+  // F6, 04-11-2026: gli sfondi generati arrivano con la proposta e si scrivono
+  // in images/ al Salva, non prima.
+  it("gli sfondi della proposta si scrivono nelle immagini al Salva", async () => {
+    const p = proposta();
+    p.sfondi = [{ file: "ai-sfondo-1.jpg", jpg: btoa("JPEG") }];
+    await useAppStore.getState().applyAiProposal(p);
+    expect(api.uploadProjectImage).not.toHaveBeenCalled();
+    await useAppStore.getState().saveAll();
+    const [nome, blob] = vi.mocked(api.uploadProjectImage).mock.calls[0];
+    expect(nome).toBe("ai-sfondo-1.jpg");
+    expect((blob as Blob).type).toBe("image/jpeg");
+    expect((blob as Blob).size).toBe(4);
+  });
+
+  it("due proposte con i loro sfondi, applicate prima del Salva, li scrivono tutti", async () => {
+    const a = proposta();
+    a.id = "pa";
+    a.sfondi = [{ file: "ai-sfondo-aaaaaa.jpg", jpg: btoa("A") }];
+    await useAppStore.getState().applyAiProposal(a);
+    const b = proposta();
+    b.id = "pb";
+    b.impronta = null;
+    b.sfondi = [{ file: "ai-sfondo-bbbbbb.jpg", jpg: btoa("B") }];
+    await useAppStore.getState().applyAiProposal(b);
+    await useAppStore.getState().saveAll();
+    const nomi = vi.mocked(api.uploadProjectImage).mock.calls.map((c) => c[0]).sort();
+    expect(nomi).toEqual(["ai-sfondo-aaaaaa.jpg", "ai-sfondo-bbbbbb.jpg"]);
+  });
+
   it("una proposta senza simboli non li riscrive", async () => {
     await useAppStore.getState().applyAiProposal(proposta());
     await useAppStore.getState().saveAll();
     expect(api.updateSimboli).not.toHaveBeenCalled();
     expect(api.updateTypes).not.toHaveBeenCalled();
+    expect(api.updateLanguages).not.toHaveBeenCalled();
+    expect(api.uploadProjectImage).not.toHaveBeenCalled();
   });
 });

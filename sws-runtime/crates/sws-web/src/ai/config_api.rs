@@ -49,6 +49,7 @@ use serde::Deserialize;
 use serde_json::json;
 
 use crate::ai::client::{self, Fornitore, Impostazioni};
+use crate::ai::scopi::{self, Scopo, ScopoCfg};
 use crate::router::{AppState, AuthUser, MASKED_PASSWORD};
 
 /// Le rotte esistono solo dove hanno senso. Vedi il commento in testa.
@@ -70,21 +71,17 @@ fn solo_ide(s: &AppState) -> Result<(), Response> {
     }
 }
 
-/// `GET /api/ai/config` — Admin, solo IDE.
-///
-/// Non restituisce **niente** della chiave, nemmeno mascherata: al pannello
-/// serve sapere *se* è configurata, non com'è fatta.
+/// `GET /api/ai/config` — Admin, solo IDE. Tutto quello che il menù IA mostra:
+/// i fornitori con le loro chiavi (se ci sono, mai quali), gli scopi con la
+/// scelta salvata e quella **effettiva** (cosa userà davvero), le variabili
+/// d'ambiente che scavalcano il file. Non restituisce **niente** della chiave,
+/// nemmeno mascherata: al pannello serve sapere *se* è configurata.
 pub async fn get_ai_config(State(s): State<AppState>) -> Response {
     if let Err(r) = solo_ide(&s) {
         return r;
     }
 
     let imp = Impostazioni::carica(&s.config_dir);
-    let scelta = client::carica(&s.config_dir);
-
-    // Quale variabile d'ambiente sta scavalcando il file, se ce n'è una. Serve
-    // al pannello per dirlo: senza, si configura dall'IDE, non cambia niente, e
-    // sembra un difetto nostro.
     let ambiente: Vec<&str> = [
         "SWS_AI_FORNITORE",
         "SWS_AI_MODELLO",
@@ -92,6 +89,7 @@ pub async fn get_ai_config(State(s): State<AppState>) -> Response {
         "ANTHROPIC_API_KEY",
         "MOONSHOT_API_KEY",
         "KIMI_API_KEY",
+        "OPENAI_API_KEY",
     ]
     .into_iter()
     .filter(|v| {
@@ -101,30 +99,64 @@ pub async fn get_ai_config(State(s): State<AppState>) -> Response {
     })
     .collect();
 
+    let fornitori: Vec<_> = scopi::FORNITORI
+        .iter()
+        .map(|(id, nome, sa)| {
+            json!({
+                "id": id,
+                "nome": nome,
+                "scopi": sa,
+                "chiave": scopi::ha_chiave(&s.config_dir, id),
+                "modello_default": match *id {
+                    "openai" => scopi::MODELLO_SFONDI,
+                    f => Fornitore::da_nome(f).map(|f| f.modello_default()).unwrap_or(""),
+                },
+            })
+        })
+        .collect();
+
+    let mut per_scopo = serde_json::Map::new();
+    for sc in Scopo::TUTTI {
+        let (attivo, fornitore, modello, tetto) = if sc.immagini() {
+            match scopi::carica_sfondi(&s.config_dir) {
+                Some(x) => (
+                    true,
+                    Some("openai".to_string()),
+                    Some(x.modello),
+                    Some(x.tetto_usd),
+                ),
+                None => (false, None, None, None),
+            }
+        } else {
+            match scopi::carica_per(&s.config_dir, sc) {
+                Some(x) => (
+                    true,
+                    Some(x.fornitore.nome().to_string()),
+                    Some(x.modello),
+                    Some(x.tetto_usd),
+                ),
+                None => (false, None, None, None),
+            }
+        };
+        per_scopo.insert(
+            sc.nome().to_string(),
+            json!({
+                "salvato": imp.scopo(sc),
+                "attivo": attivo,
+                "effettivo": { "fornitore": fornitore, "modello": modello, "tetto_usd": tetto },
+                // Simboli e traduzione senza scelta propria sono l'assistente.
+                "eredita": !matches!(sc, Scopo::Assistente | Scopo::Sfondi)
+                    && !scopi::ha_scelta_propria(&s.config_dir, sc),
+            }),
+        );
+    }
+
     Json(json!({
-        "configurato": scelta.is_some(),
-        // Il fornitore *effettivo* se c'è una chiave, altrimenti quello scelto.
-        "fornitore": scelta.as_ref().map(|x| x.fornitore.nome().to_string())
-            .or_else(|| imp.fornitore.clone()),
-        "modello": scelta.as_ref().map(|x| x.modello.clone()).or_else(|| imp.modello.clone()),
-        // Con quale chiave, per fornitore: permette al pannello di dire «Kimi
-        // configurato, Anthropic no» invece di un solo pallino.
-        "chiavi": json!({
-            "anthropic": client::ha_chiave(&s.config_dir, Fornitore::Anthropic),
-            "kimi": client::ha_chiave(&s.config_dir, Fornitore::Kimi),
-        }),
-        "modelli_default": json!({
-            "anthropic": Fornitore::Anthropic.modello_default(),
-            "kimi": Fornitore::Kimi.modello_default(),
-        }),
+        "fornitori": fornitori,
+        "scopi": per_scopo,
         "da_ambiente": ambiente,
-        // Il tetto effettivo (ambiente, file o default) e quello salvato: il
-        // pannello mostra il primo e scrive il secondo.
-        "tetto_usd": client::tetto_usd(imp.tetto_usd),
-        "tetto_usd_salvato": imp.tetto_usd,
         "tetto_usd_default": client::TETTO_DEFAULT_USD,
-        "percorsi": client::percorsi_chiave(&s.config_dir).iter()
-            .map(|p| p.display().to_string()).collect::<Vec<_>>(),
+        "tetto_sfondi_default": scopi::TETTO_SFONDI_USD,
     }))
     .into_response()
 }
@@ -132,22 +164,13 @@ pub async fn get_ai_config(State(s): State<AppState>) -> Response {
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct AiConfigBody {
-    pub fornitore: String,
-    #[serde(default)]
-    pub modello: Option<String>,
-    /// La chiave. Assente **o** uguale alla sentinella `********` significa
-    /// «tieni quella che c'è» — la stessa convenzione delle password MQTT, SMTP
-    /// e del token Telegram (`router.rs`). Senza, un giro GET → cambio del
-    /// modello → PUT cancellerebbe la chiave che l'utente non può vedere.
-    #[serde(default)]
-    pub chiave: Option<String>,
-    /// Il tetto di spesa per conversazione, in dollari. Assente = tieni quello
-    /// che c'è; un valore non positivo = torna al default.
-    #[serde(default)]
-    pub tetto_usd: Option<f64>,
+    /// Uno scopo → la sua scelta, o `null` per toglierla (simboli e traduzione
+    /// tornano all'assistente). Gli scopi non nominati non si toccano.
+    pub scopi: std::collections::BTreeMap<String, Option<ScopoCfg>>,
 }
 
-/// `PUT /api/ai/config` — Admin, solo IDE.
+/// `PUT /api/ai/config` — Admin, solo IDE. Gli scopi; le chiavi hanno la loro
+/// rotta, perché il segreto non viaggi insieme a un'impostazione qualunque.
 pub async fn put_ai_config(
     State(s): State<AppState>,
     Extension(user): Extension<AuthUser>,
@@ -156,144 +179,149 @@ pub async fn put_ai_config(
     if let Err(r) = solo_ide(&s) {
         return r;
     }
-
-    let Some(f) = Fornitore::da_nome(&body.fornitore) else {
-        return (
-            StatusCode::BAD_REQUEST,
-            Json(json!({
-                "errore": format!("fornitore `{}` sconosciuto: sono `anthropic` o `kimi`",
-                                  body.fornitore),
-            })),
-        )
-            .into_response();
-    };
-
-    // ── La chiave, se ne è arrivata una nuova ────────────────────────────────
-    let nuova = body
-        .chiave
-        .as_deref()
-        .map(str::trim)
-        .filter(|k| !k.is_empty() && *k != MASKED_PASSWORD);
-
-    if let Some(k) = nuova {
-        // Validazione minima e non «intelligente»: nessun controllo sul prefisso
-        // (`sk-ant-`, `sk-`), perché i fornitori li cambiano e un controllo che
-        // rifiuta una chiave valida è peggio di nessun controllo. Si rifiuta
-        // solo ciò che non può essere una chiave.
-        if k.len() < 16 || k.split_whitespace().count() > 1 {
-            return (
+    let mut imp = Impostazioni::carica(&s.config_dir);
+    for (nome, cfg) in body.scopi {
+        let Some(sc) = Scopo::da_nome(&nome) else {
+            return errore(
                 StatusCode::BAD_REQUEST,
-                Json(json!({
-                    "errore": "la chiave non sembra una chiave: deve essere una sola parola \
-                               di almeno 16 caratteri",
-                })),
-            )
-                .into_response();
+                format!("scopo `{nome}` sconosciuto"),
+            );
+        };
+        let cfg = cfg.map(|mut c| {
+            c.fornitore = c
+                .fornitore
+                .map(|f| f.trim().to_ascii_lowercase())
+                .filter(|f| !f.is_empty());
+            c.modello = c
+                .modello
+                .map(|m| m.trim().to_string())
+                .filter(|m| !m.is_empty());
+            c.tetto_usd = c.tetto_usd.filter(|t| t.is_finite() && *t > 0.0);
+            c
+        });
+        if let Some(f) = cfg.as_ref().and_then(|c| c.fornitore.as_deref()) {
+            let adatto = scopi::FORNITORI
+                .iter()
+                .any(|(id, _, sa)| *id == f && sa.contains(&sc.nome()));
+            if !adatto {
+                return errore(
+                    StatusCode::BAD_REQUEST,
+                    format!("il fornitore `{f}` non serve per lo scopo `{nome}`"),
+                );
+            }
         }
-        if let Err(e) = client::salva_chiave(&s.config_dir, f, k) {
-            return (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(json!({
-                    "errore": format!("la chiave non si è potuta scrivere: {e}"),
-                })),
-            )
-                .into_response();
-        }
-        // Solo metadati nel registro, mai la chiave — come `script.exec`, che
-        // registra quanti byte di codice e non il codice.
-        s.audit.log(
-            "ai.key_set",
-            Some(user.username.clone()),
-            json!({ "fornitore": f.nome() }),
-        );
+        imp.imposta(sc, cfg);
     }
-
-    // ── Fornitore e modello ─────────────────────────────────────────────────
-    let modello = body
-        .modello
-        .as_deref()
-        .map(str::trim)
-        .filter(|m| !m.is_empty());
-    let tetto_usd = match body.tetto_usd {
-        Some(t) if t.is_finite() && t > 0.0 => Some(t),
-        Some(_) => None,
-        None => Impostazioni::carica(&s.config_dir).tetto_usd,
-    };
-    let imp = Impostazioni {
-        fornitore: Some(f.nome().to_string()),
-        modello: modello.map(str::to_string),
-        tetto_usd,
-    };
     if let Err(e) = imp.salva(&s.config_dir) {
-        return (
+        return errore(
             StatusCode::INTERNAL_SERVER_ERROR,
-            Json(json!({
-                "errore": format!("le impostazioni non si sono potute scrivere: {e}"),
-            })),
-        )
-            .into_response();
+            format!("le impostazioni non si sono potute scrivere: {e}"),
+        );
     }
     s.audit.log(
         "ai.config_changed",
         Some(user.username),
-        json!({ "fornitore": f.nome(), "modello": modello }),
+        json!({ "scopi": imp.scopi.keys().collect::<Vec<_>>() }),
     );
-
-    Json(json!({
-        "ok": true,
-        "configurato": client::ha_chiave(&s.config_dir, f),
-        // Il pannello deve riaprire il socket: la chiave si legge all'apertura
-        // della sessione, non a ogni turno.
-        "riconnetti": true,
-    }))
-    .into_response()
+    // La scelta si legge all'apertura del socket della chat: il pannello deve
+    // riconnettersi per vederla.
+    Json(json!({ "ok": true, "riconnetti": true })).into_response()
 }
 
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
-pub struct AiDeleteBody {
+pub struct ChiaveBody {
     pub fornitore: String,
+    #[serde(default)]
+    pub chiave: Option<String>,
 }
 
-/// `DELETE /api/ai/config` — Admin, solo IDE. Cancella la chiave di un
-/// fornitore; le impostazioni restano, così si può rimettere la chiave senza
-/// riscegliere il modello.
-pub async fn delete_ai_config(
+/// `PUT /api/ai/chiavi` — Admin, solo IDE. Scrive la chiave di un fornitore
+/// (0600, `config_dir/<fornitore>.key`).
+pub async fn put_chiave(
     State(s): State<AppState>,
     Extension(user): Extension<AuthUser>,
-    Json(body): Json<AiDeleteBody>,
+    Json(body): Json<ChiaveBody>,
 ) -> Response {
     if let Err(r) = solo_ide(&s) {
         return r;
     }
-
-    let Some(f) = Fornitore::da_nome(&body.fornitore) else {
-        return (
+    let Some(file) = scopi::file_chiave(&body.fornitore) else {
+        return errore(
             StatusCode::BAD_REQUEST,
-            Json(json!({
-                "errore": format!("fornitore `{}` sconosciuto", body.fornitore),
-            })),
-        )
-            .into_response();
+            format!("fornitore `{}` sconosciuto", body.fornitore),
+        );
     };
+    let k = body.chiave.as_deref().map(str::trim).unwrap_or("");
+    if k == MASKED_PASSWORD || k.is_empty() {
+        return Json(json!({ "ok": true, "cambiata": false })).into_response();
+    }
+    if k.len() < 16 || k.split_whitespace().count() > 1 {
+        return errore(
+            StatusCode::BAD_REQUEST,
+            "la chiave non sembra una chiave: deve essere una sola parola di almeno 16 caratteri"
+                .to_string(),
+        );
+    }
+    if let Err(e) = crate::segreti::scrivi_chiave(&s.config_dir, file, k) {
+        return errore(
+            StatusCode::INTERNAL_SERVER_ERROR,
+            format!("la chiave non si è potuta scrivere: {e}"),
+        );
+    }
+    s.audit.log(
+        "ai.key_set",
+        Some(user.username),
+        json!({ "fornitore": body.fornitore }),
+    );
+    Json(json!({ "ok": true, "cambiata": true, "riconnetti": true })).into_response()
+}
 
-    match client::cancella_chiave(&s.config_dir, f) {
+/// `DELETE /api/ai/chiavi` — Admin, solo IDE.
+pub async fn delete_chiave(
+    State(s): State<AppState>,
+    Extension(user): Extension<AuthUser>,
+    Json(body): Json<ChiaveBody>,
+) -> Response {
+    if let Err(r) = solo_ide(&s) {
+        return r;
+    }
+    let Some(file) = scopi::file_chiave(&body.fornitore) else {
+        return errore(
+            StatusCode::BAD_REQUEST,
+            format!("fornitore `{}` sconosciuto", body.fornitore),
+        );
+    };
+    match crate::segreti::cancella_chiave(&s.config_dir, file) {
         Ok(cera) => {
             if cera {
                 s.audit.log(
                     "ai.key_removed",
                     Some(user.username),
-                    json!({ "fornitore": f.nome() }),
+                    json!({ "fornitore": body.fornitore }),
                 );
             }
             Json(json!({ "ok": true, "cera": cera, "riconnetti": true })).into_response()
         }
-        Err(e) => (
+        Err(e) => errore(
             StatusCode::INTERNAL_SERVER_ERROR,
-            Json(json!({
-                "errore": format!("la chiave non si è potuta cancellare: {e}"),
-            })),
-        )
-            .into_response(),
+            format!("la chiave non si è potuta cancellare: {e}"),
+        ),
     }
+}
+
+/// `POST /api/ai/chiavi/prova` — Admin, solo IDE. «Prova la chiave»: l'elenco
+/// dei modelli del fornitore, che non costa niente.
+pub async fn prova_chiave(State(s): State<AppState>, Json(body): Json<ChiaveBody>) -> Response {
+    if let Err(r) = solo_ide(&s) {
+        return r;
+    }
+    match scopi::prova_chiave(&s.config_dir, &body.fornitore).await {
+        Ok(modelli) => Json(json!({ "ok": true, "modelli": modelli })).into_response(),
+        Err(e) => Json(json!({ "ok": false, "errore": e })).into_response(),
+    }
+}
+
+fn errore(codice: StatusCode, msg: String) -> Response {
+    (codice, Json(json!({ "errore": msg }))).into_response()
 }

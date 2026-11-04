@@ -78,3 +78,32 @@ describe("ReconnectingWs — quando smettere", () => {
     expect(FintoWs.aperti).toBeGreaterThan(dopoIlBuono);   // ha ripreso a provare
   });
 });
+
+// La chat dell'assistente dopo un cambio di chiave o di modello (revisione del
+// 04-11-2026): `destroy()` lasciava il pannello ad ascoltare un'istanza morta.
+describe("ReconnectingWs — riapri", () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    FintoWs.aperti = 0; FintoWs.ultimo = null;
+    vi.stubGlobal("WebSocket", FintoWs as unknown as typeof WebSocket);
+  });
+
+  it("apre subito un socket nuovo con gli stessi ascoltatori, e la chiusura del vecchio non ne apre un terzo", () => {
+    const r = new ReconnectingWs(() => "ws://x/ws/ai");
+    const ricevuti: unknown[] = [];
+    r.on("message", (ev) => ricevuti.push(ev));
+    const vecchio = FintoWs.ultimo!;
+    r.riapri();
+    const nuovo = FintoWs.ultimo!;
+    expect(nuovo).not.toBe(vecchio);
+    expect(FintoWs.aperti).toBe(2);
+    // L'ascoltatore registrato prima è sul socket nuovo.
+    (nuovo as unknown as { listeners: Map<string, Set<(e: unknown) => void>> }).listeners
+      .get("message")!.forEach((h) => h({ data: "pronto" }));
+    expect(ricevuti).toHaveLength(1);
+    // Il «close» tardivo del vecchio non programma un altro tentativo.
+    vecchio.fallisci(1000);
+    vi.advanceTimersByTime(60_000);
+    expect(FintoWs.aperti).toBe(2);
+  });
+});

@@ -19,7 +19,7 @@
  *  modulo di sole dichiarazioni non può creare cicli.
  */
 
-export type RamoConfig = "progetto" | "dati" | "sicurezza" | "istanza" | "ide";
+export type RamoConfig = "progetto" | "dati" | "sicurezza" | "istanza" | "ia" | "ide";
 
 /** Un raggruppamento **dentro** un ramo (25-09-2026). Nasce perché il ramo
  *  Istanza aveva cinque foglie piatte di cui tre parlavano tutte del
@@ -103,6 +103,14 @@ export const SCHEDE = [
   { id: "install",       ramo: "istanza",   icona: "⬇", soloAdmin: true,  portaBozza: false, richiedeProgetto: false, sottoRamo: "device" },
   { id: "container",     ramo: "istanza",   icona: "🧱", soloAdmin: true,  portaBozza: false, richiedeProgetto: false, sottoRamo: "device" },
   { id: "devpackage",    ramo: "istanza",   icona: "🏗", soloAdmin: true,  portaBozza: false, richiedeProgetto: false, sottoRamo: "sviluppatore", richiedeRepo: true },
+  // Il menù IA (04-11-2026, piano 2026-11-04-un-modello-per-ogni-scopo): la
+  // chat, i fornitori con le chiavi, un modello per scopo. Le chiavi e gli scopi
+  // sono dell'installazione, non del progetto.
+  { id: "ia_assistente", ramo: "ia",        icona: "💬", soloAdmin: true,  portaBozza: false, richiedeProgetto: false },
+  { id: "ia_fornitori",  ramo: "ia",        icona: "🔑", soloAdmin: true,  portaBozza: false, richiedeProgetto: false },
+  { id: "ia_scopi",      ramo: "ia",        icona: "🎯", soloAdmin: true,  portaBozza: false, richiedeProgetto: false },
+  // Le regole stanno nel progetto, non nell'installazione (decisione del maintainer).
+  { id: "ia_regole",     ramo: "ia",        icona: "📜", soloAdmin: true,  portaBozza: true,  richiedeProgetto: true, sezione: "ai" },
   { id: "ide",           ramo: "ide",       icona: "🎛", soloAdmin: false, portaBozza: false, richiedeProgetto: false },
 ] as const satisfies readonly SchedaConfig[];
 
@@ -148,5 +156,6 @@ export const RAMI: readonly { id: RamoConfig; icona: string }[] = [
   { id: "dati",      icona: "🗃" },
   { id: "sicurezza", icona: "🔐" },
   { id: "istanza",   icona: "🖥" },
+  { id: "ia",        icona: "✨" },
   { id: "ide",       icona: "🛠" },
 ];

@@ -505,6 +505,8 @@ pub fn build(
             "/api/project/symbol-style",
             put(update_project_symbol_style),
         )
+        // Le regole IA del progetto (04-11-2026, piano un-modello-per-ogni-scopo).
+        .route("/api/project/ai", put(update_project_ai))
         // T-58 — il motore di rendering del progetto. Fino all'11-09-2026 si
         // sceglieva solo alla creazione e poi si cambiava editando
         // `project.yaml` a mano, con una trappola: il runtime riscrive il file
@@ -815,9 +817,15 @@ pub fn build(
         // configurazione del runtime, come il TLS, e non del progetto.
         .route(
             "/api/ai/config",
-            get(crate::ai::config_api::get_ai_config)
-                .put(crate::ai::config_api::put_ai_config)
-                .delete(crate::ai::config_api::delete_ai_config),
+            get(crate::ai::config_api::get_ai_config).put(crate::ai::config_api::put_ai_config),
+        )
+        .route(
+            "/api/ai/chiavi",
+            put(crate::ai::config_api::put_chiave).delete(crate::ai::config_api::delete_chiave),
+        )
+        .route(
+            "/api/ai/chiavi/prova",
+            post(crate::ai::config_api::prova_chiave),
         )
         // Stesso principio, per il fornitore di traduzione automatica (F5 del
         // piano multilingua-chiusura, 18/19-09-2026): il gate è dentro
@@ -5417,6 +5425,7 @@ where
             languages: Default::default(),
             page_layout: None,
             symbol_style: None,
+            ai: None,
             target: None,
             auto_backup_interval_minutes: None,
             auto_backup_retention: None,
@@ -7713,7 +7722,10 @@ async fn get_synoptic(
         Ok(d) => d,
         Err(c) => return c.into_response(),
     };
-    let path = synoptics_dir_at(&project_dir).join(format!("{}.yaml", safe_filename(&name)));
+    let dir = synoptics_dir_at(&project_dir);
+    let path = crate::synoptic::trova_file_pagina(&dir, &name, crate::synoptic::Come::Leggere)
+        .await
+        .unwrap_or_else(|| dir.join(format!("{}.yaml", safe_filename(&name))));
     match tokio::fs::read_to_string(&path).await {
         Ok(text) => match serde_yaml::from_str::<SynopticPage>(&text) {
             Ok(mut page) => {
@@ -7776,11 +7788,16 @@ async fn export_synoptic_yaml(State(s): State<AppState>, Path(name): Path<String
         Ok(d) => d,
         Err(c) => return c.into_response(),
     };
-    let safe = safe_filename(&name);
-    let path = synoptics_dir_at(&project_dir).join(format!("{}.yaml", safe));
+    let dir = synoptics_dir_at(&project_dir);
+    let path = crate::synoptic::trova_file_pagina(&dir, &name, crate::synoptic::Come::Leggere)
+        .await
+        .unwrap_or_else(|| dir.join(format!("{}.yaml", safe_filename(&name))));
     match tokio::fs::read(&path).await {
         Ok(bytes) => {
-            let filename = format!("{}.yaml", safe);
+            let filename = path
+                .file_name()
+                .map(|f| f.to_string_lossy().into_owned())
+                .unwrap_or_default();
             (
                 StatusCode::OK,
                 [
@@ -7897,6 +7914,16 @@ async fn import_synoptic_yaml(State(s): State<AppState>, body: Bytes) -> Respons
     .into_response()
 }
 
+/// L'`id` della pagina scritta in un file, se il file c'è e si legge.
+async fn id_nel_file(path: &std::path::Path) -> Option<String> {
+    #[derive(serde::Deserialize)]
+    struct IdOnly {
+        id: String,
+    }
+    let testo = tokio::fs::read_to_string(path).await.ok()?;
+    serde_yaml::from_str::<IdOnly>(&testo).ok().map(|p| p.id)
+}
+
 async fn save_synoptic(
     State(s): State<AppState>,
     Path(name): Path<String>,
@@ -7928,6 +7955,22 @@ async fn save_synoptic(
     }
     let new_filename = format!("{}.yaml", safe_filename(&name));
     let path = dir.join(&new_filename);
+    // Un file con quel nome che contiene **un'altra** pagina non si sovrascrive
+    // (04-11-2026): succede con un template, dove `Impianto.yaml` contiene la
+    // pagina `{{t0001}}`, e una seconda pagina chiamata davvero «Impianto»
+    // l'avrebbe cancellata salvando. Meglio un 409 che si legge.
+    if let Some(altro) = id_nel_file(&path).await {
+        if altro != page.id {
+            return (
+                StatusCode::CONFLICT,
+                format!(
+                    "il file {new_filename} contiene un'altra pagina (id {altro}): rinomina questa \
+                     pagina, o salva prima l'altra"
+                ),
+            )
+                .into_response();
+        }
+    }
 
     // Q30 per i sinottici: se la pagina su disco è cambiata da quando chi
     // salva l'ha caricata, non si sovrascrive. Una pagina che ancora non esiste
@@ -8002,7 +8045,15 @@ async fn delete_synoptic(State(s): State<AppState>, Path(name): Path<String>) ->
         Ok(d) => d,
         Err(c) => return c,
     };
-    let path = synoptics_dir_at(&project_dir).join(format!("{}.yaml", safe_filename(&name)));
+    let Some(path) = crate::synoptic::trova_file_pagina(
+        &synoptics_dir_at(&project_dir),
+        &name,
+        crate::synoptic::Come::Cancellare,
+    )
+    .await
+    else {
+        return StatusCode::NOT_FOUND;
+    };
     match tokio::fs::remove_file(&path).await {
         Ok(()) => StatusCode::NO_CONTENT,
         Err(_) => StatusCode::NOT_FOUND,
@@ -11353,6 +11404,49 @@ async fn update_project_page_layout(
         // deve ricaricare niente per questo.
         let config_dir = s.config_dir.clone();
         crate::boot_image::publish(&config_dir, &dir, crate::boot_image::Occasione::Modifica).await;
+    }
+    res
+}
+
+/// `PUT /api/project/ai` — le regole di contesto dell'IA del progetto. Corpo
+/// `null` (o tutto vuoto) = nessuna regola. Un campo oltre il tetto di
+/// lunghezza è un 400, come nel validatore.
+async fn update_project_ai(
+    State(s): State<AppState>,
+    Extension(user): Extension<AuthUser>,
+    headers: axum::http::HeaderMap,
+    Json(regole): Json<Option<sws_core::project::RegoleIa>>,
+) -> Response {
+    let regole = regole.filter(|r| *r != sws_core::project::RegoleIa::default());
+    if let Some((campo, n)) = regole
+        .as_ref()
+        .and_then(|r| r.troppo_lunghi().into_iter().next())
+    {
+        return (
+            StatusCode::BAD_REQUEST,
+            Json(serde_json::json!({ "error": format!(
+                "la regola IA «{campo}» è lunga {n} caratteri: il massimo è {}",
+                sws_core::project::REGOLE_IA_MAX) })),
+        )
+            .into_response();
+    }
+    let dir = match active_dir(&s).await {
+        Ok(d) => d,
+        Err(c) => return c.into_response(),
+    };
+    let res = patch_project_se(
+        &s.project_write_lock,
+        &dir,
+        versione_attesa(&headers),
+        |p| p.ai = regole,
+    )
+    .await;
+    if res.status() == StatusCode::NO_CONTENT {
+        s.audit.log(
+            "project.change",
+            Some(user.username),
+            serde_json::json!({"what": "ai"}),
+        );
     }
     res
 }

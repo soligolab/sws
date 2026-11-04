@@ -110,6 +110,9 @@ export interface AiProposta {
   pages?: SynopticPage[] | null;
   /** Impronta del progetto su disco quando l'assistente ha cominciato. */
   impronta?: string | null;
+  /** Gli sfondi generati che le pagine usano (JPEG base64): si scrivono in
+   *  images/ del progetto al Salva, come le altre sezioni dell'assistente. */
+  sfondi?: { file: string; jpg: string }[] | null;
 }
 
 /** Esito di `applyAiProposal`. `avviso` non blocca: informa. */
@@ -2620,6 +2623,11 @@ export const useAppStore = create<AppState>((set, get) => {
         // reload sparivano, come gli script globali prima del 2026-09-02.
         types:   !uguale(prima.types   ?? [], dopo.types   ?? []),
         simboli: !uguale(prima.simboli ?? [], dopo.simboli ?? []),
+        // I testi della pagina (04-11-2026): l'assistente scrive `{{t0002}}`
+        // negli oggetti e le voci nella tabella lingue. Senza questa voce le
+        // voci restavano in memoria e il Salva scriveva solo le pagine: al
+        // reload, 40 oggetti mostravano il token nudo. Visto su Opus e su Kimi.
+        languages: !uguale(prima.languages, dopo.languages),
       };
 
       // Le pagine proposte si sovrappongono per nome; le altre restano.
@@ -2713,6 +2721,24 @@ export const useAppStore = create<AppState>((set, get) => {
       }
       if (tocca.simboli) {
         registra("ai:simboli", async () => { await api.updateSimboli(get().project?.simboli ?? []); });
+      }
+      if (p.sfondi?.length) {
+        const sfondi = p.sfondi;
+        // Una voce per proposta: le foto stanno solo qui (sul server erano nel
+        // banco di quella conversazione), e una seconda proposta applicata prima
+        // del Salva non deve cancellare la prima.
+        registra(`ai:sfondi:${p.id}`, async () => {
+          for (const f of sfondi) {
+            const byte = Uint8Array.from(atob(f.jpg), (c) => c.charCodeAt(0));
+            await api.uploadProjectImage(f.file, new Blob([byte], { type: "image/jpeg" }));
+          }
+        });
+      }
+      if (tocca.languages && dopo.languages) {
+        registra("ai:languages", async () => {
+          const l = get().project?.languages;
+          if (l) await api.updateLanguages(l);
+        });
       }
       if (tocca.sources) {
         registra("ai:sources", async () => { await api.updateSources(get().project?.sources ?? []); });

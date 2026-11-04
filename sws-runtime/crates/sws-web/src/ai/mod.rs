@@ -25,7 +25,10 @@
 
 pub mod client;
 pub mod config_api;
+pub mod immagini;
 pub mod prompt;
+pub mod scopi;
+mod strumenti_scopi;
 pub mod tools;
 
 use axum::extract::ws::{Message, WebSocket, WebSocketUpgrade};
@@ -142,6 +145,9 @@ async fn sessione(socket: WebSocket, s: AppState) {
     let mut messaggi: Vec<Value> = Vec::new();
     let mut misure = Misure::nuove();
     let mut banco = Banco::default();
+    // Gli scopi configurati decidono gli strumenti in più: una volta, qui, così
+    // l'elenco resta lo stesso per tutta la conversazione (la cache regge).
+    let ctx = strumenti_scopi::Contesto::da(&s.config_dir);
 
     while let Some(Ok(msg)) = ws_rx.next().await {
         let Message::Text(testo) = msg else { continue };
@@ -152,6 +158,14 @@ async fn sessione(socket: WebSocket, s: AppState) {
             );
             continue;
         };
+        // «Usa come base» sotto la miniatura di uno sfondo (F6): l'approvazione
+        // la dà la persona, e passa da qui, non dal modello.
+        if v.get("t").and_then(Value::as_str) == Some("approva_sfondo") {
+            let id = v.get("id").and_then(Value::as_str).unwrap_or("");
+            let ok = strumenti_scopi::approva(&mut banco, id);
+            invia(&tx, json!({ "t": "sfondo_approvato", "id": id, "ok": ok }));
+            continue;
+        }
         if v.get("t").and_then(Value::as_str) != Some("chiedi") {
             continue;
         }
@@ -170,7 +184,8 @@ async fn sessione(socket: WebSocket, s: AppState) {
             Some(f) => finto_giro(&s, &tx, f, &mut banco).await,
             None => match &scelta {
                 Some(sc) => {
-                    let r = vero_giro(&s, &tx, sc, &mut messaggi, &mut misure, &mut banco).await;
+                    let r =
+                        vero_giro(&s, &tx, sc, &ctx, &mut messaggi, &mut misure, &mut banco).await;
                     misure.scrivi(sc);
                     r
                 }
@@ -282,19 +297,33 @@ async fn impronta(s: &AppState) -> Option<String> {
 // Il ciclo vero
 // ─────────────────────────────────────────────────────────────────────────────
 
+/// Le regole di contesto del progetto aperto per uno scopo (`project.ai`).
+pub(crate) async fn regole_del_progetto(s: &AppState, scopo: &str) -> Option<String> {
+    let dir = crate::router::active_dir(s).await.ok()?;
+    sws_core::Project::load(&dir).ok()?.ai?.per_scopo(scopo)
+}
+
 async fn vero_giro(
     s: &AppState,
     tx: &mpsc::UnboundedSender<String>,
     scelta: &client::Scelta,
+    ctx: &strumenti_scopi::Contesto,
     messaggi: &mut Vec<Value>,
     misure: &mut Misure,
     banco: &mut Banco,
 ) -> Result<(), String> {
     let cliente = client::Cliente::new(scelta.clone());
-    let strumenti = tools::definizioni();
-    let sistema = prompt::sistema();
+    let strumenti = tools::definizioni_per(ctx.opzioni);
+    let sistema = prompt::sistema_con(regole_del_progetto(s, "assistente").await.as_deref());
     let impronta_iniziale = impronta(s).await;
     let mut correzioni = 0usize;
+    // Dopo una bozza di simbolo il giro si ferma e la persona guarda la tavola
+    // (prompt, «Quando ti chiedono un sinottico intero», punto 3). Il prompt lo
+    // dice due volte, e il 04-11-2026 kimi-k3.1-pro è arrivato lo stesso alla
+    // proposta nello stesso turno, senza mai fermarsi: qui lo strumento lo impone.
+    let mut bozze_in_questo_turno = false;
+    // Lo stesso per gli sfondi: le candidate le sceglie la persona.
+    let mut sfondi_in_questo_turno = false;
 
     let mut giro = 0usize;
     loop {
@@ -376,6 +405,33 @@ async fn vero_giro(
         let mut risultati: Vec<Value> = Vec::new();
         for (id, nome, input) in usi {
             *misure.strumenti.entry(nome.to_string()).or_insert(0) += 1;
+            if nome == "proponi_modifica" && bozze_in_questo_turno {
+                risultati.push(risultato(
+                    id,
+                    &json!({
+                        "inviata": false,
+                        "motivo": "in questo turno hai disegnato delle bozze di simbolo: fermati. \
+                                   Fotografa la tavola delle bozze (istantanea_pagina senza nome), \
+                                   chiedi alla persona quali rifare e aspetta che risponda. \
+                                   La proposta si manda in un turno successivo.",
+                    }),
+                    true,
+                ));
+                continue;
+            }
+            if nome == "proponi_modifica" && sfondi_in_questo_turno {
+                risultati.push(risultato(
+                    id,
+                    &json!({
+                        "inviata": false,
+                        "motivo": "in questo turno hai generato delle basi di sfondo: fermati. La \
+                                   persona ne sceglie una col bottone «Usa come base»; la proposta \
+                                   si manda in un turno successivo.",
+                    }),
+                    true,
+                ));
+                continue;
+            }
             if nome == "proponi_modifica" {
                 match proponi(
                     s,
@@ -384,6 +440,7 @@ async fn vero_giro(
                     impronta_iniziale.as_deref(),
                     correzioni,
                     &banco.simboli,
+                    &banco.sfondi,
                 )
                 .await
                 {
@@ -443,7 +500,43 @@ async fn vero_giro(
             // Le bozze di simbolo vivono qui, nel banco della conversazione:
             // `bozza_simbolo` ci scrive, e `valida` le deve vedere.
             let esito = match nome {
-                "bozza_simbolo" => bozza(tx, banco, input),
+                "bozza_simbolo" => {
+                    let e = bozza(tx, banco, input);
+                    bozze_in_questo_turno |= e.is_ok();
+                    e
+                }
+                "disegna_simbolo" => {
+                    let e = strumenti_scopi::disegna(
+                        s,
+                        tx,
+                        banco,
+                        misure,
+                        ctx,
+                        scelta.tetto_usd,
+                        input,
+                    )
+                    .await;
+                    bozze_in_questo_turno |= e.is_ok();
+                    e
+                }
+                "genera_sfondo" => {
+                    let e = strumenti_scopi::genera_sfondi(
+                        s,
+                        tx,
+                        banco,
+                        misure,
+                        ctx,
+                        scelta.tetto_usd,
+                        input,
+                    )
+                    .await;
+                    sfondi_in_questo_turno |= e.is_ok();
+                    e
+                }
+                "varia_sfondo" => {
+                    strumenti_scopi::varia_sfondi(tx, banco, misure, ctx, scelta.tetto_usd, input)
+                        .await
+                }
                 "valida" => tools::valida_interna(s, input, &banco.simboli, false)
                     .await
                     .map(|(g, _)| g),
@@ -516,6 +609,11 @@ async fn istantanea_per_il_modello(
             .and_then(Value::as_str)
             .map(str::to_string),
         ms: input.get("ms").and_then(Value::as_u64),
+        immagini: banco
+            .sfondi
+            .iter()
+            .map(|f| (f.file(), f.jpg.clone()))
+            .collect(),
     })
     .await?;
     Ok(blocchi_istantanea(&scatto))
@@ -582,6 +680,7 @@ async fn proponi(
     impronta_iniziale: Option<&str>,
     correzioni: usize,
     bozze: &[sws_core::simboli_prj::Descrizione],
+    sfondi: &[immagini::Sfondo],
 ) -> Proposta {
     // `valida_interna` e non `valida`: quello che si spedisce al browser deve
     // essere il progetto **ricomposto**, cioè quello che è stato davvero
@@ -618,6 +717,9 @@ async fn proponi(
             "impronta": impronta_iniziale,
             "giudizio": giudizio,
             "simboli": simboli_della_proposta(input, bozze),
+            // Gli sfondi generati che le pagine usano: il browser li scrive in
+            // images/ del progetto quando la proposta si applica (F6).
+            "sfondi": strumenti_scopi::sfondi_della_proposta(input, sfondi),
         }),
     );
     Proposta::Inviata
@@ -651,11 +753,17 @@ fn simboli_della_proposta(input: &Value, bozze: &[sws_core::simboli_prj::Descriz
 #[derive(Default)]
 pub(crate) struct Banco {
     pub simboli: Vec<sws_core::simboli_prj::Descrizione>,
+    /// Gli sfondi generati in questa conversazione, basi e varianti (F6).
+    pub sfondi: Vec<immagini::Sfondo>,
+    /// Quanto è costata la generazione degli sfondi (stima), per il loro tetto.
+    pub spesa_sfondi: f64,
+    /// Quanto è costato il modello dei simboli, per il tetto del suo scopo.
+    pub spesa_simboli: f64,
 }
 
 impl Banco {
     /// Una bozza nuova, o al posto di quella con lo stesso slug.
-    fn metti(&mut self, d: sws_core::simboli_prj::Descrizione) {
+    pub(crate) fn metti(&mut self, d: sws_core::simboli_prj::Descrizione) {
         match self.simboli.iter().position(|x| x.slug == d.slug) {
             Some(i) => self.simboli[i] = d,
             None => self.simboli.push(d),
@@ -714,7 +822,7 @@ fn tavola_delle_bozze(bozze: &[sws_core::simboli_prj::Descrizione]) -> Value {
             "cornice": null, "objects": oggetti })
 }
 
-fn uuid_breve() -> String {
+pub(crate) fn uuid_breve() -> String {
     use std::time::{SystemTime, UNIX_EPOCH};
     let n = SystemTime::now()
         .duration_since(UNIX_EPOCH)
@@ -785,6 +893,7 @@ async fn finto_giro(
                     impronta_iniziale.as_deref(),
                     MAX_CORREZIONI,
                     &banco.simboli,
+                    &banco.sfondi,
                 )
                 .await
                 {
