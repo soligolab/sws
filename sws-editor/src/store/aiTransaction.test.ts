@@ -26,6 +26,9 @@ vi.mock("@/api/client", () => ({
     updateFunctions: vi.fn(async () => {}),
     saveGlobalScripts: vi.fn(async () => {}),
     updateCustomSymbols: vi.fn(async () => {}),
+    updateTypes: vi.fn(async () => {}),
+    updateSimboli: vi.fn(async () => {}),
+    compilaSimboli: vi.fn(async () => []),
     deleteSynoptic: vi.fn(async () => {}),
   },
   setAuthToken: vi.fn(),
@@ -364,5 +367,35 @@ describe("gli script del progetto non si perdono per strada", () => {
     await useAppStore.getState().applyAiProposal(p);
     await useAppStore.getState().saveAll();
     expect(api.saveGlobalScripts).not.toHaveBeenCalled();
+  });
+
+  // Un sinottico intero dell'assistente (03-11-2026): un tipo nuovo, la sua
+  // istanza, e il simbolo disegnato per la macchina.
+  it("tipi e simboli nuovi arrivano al disco, i tipi prima delle variabili", async () => {
+    const ordine: string[] = [];
+    vi.mocked(api.updateTypes).mockImplementation(async () => { ordine.push("types"); });
+    vi.mocked(api.updateTags).mockImplementation(async () => { ordine.push("tags"); });
+    vi.mocked(api.updateSimboli).mockImplementation(async () => { ordine.push("simboli"); });
+    const p = proposta();
+    p.project = {
+      ...p.project!,
+      types: [{ id: "laminatoio", members: [{ name: "marcia", data_type: "bool" }] }],
+      tags: [...p.project!.tags, { id: "laminatoio1", data_type: "float", type_ref: "laminatoio", description: "" }],
+      simboli: [{ slug: "gabbia", w: 120, h: 100, body: "steel", it: "Gabbia", en: "Stand", ops: [] }],
+    } as unknown as ProjectInfo;
+
+    await useAppStore.getState().applyAiProposal(p);
+    expect(api.updateTypes).not.toHaveBeenCalled();
+    await useAppStore.getState().saveAll();
+    expect(ordine.indexOf("types")).toBeGreaterThanOrEqual(0);
+    expect(ordine.indexOf("types")).toBeLessThan(ordine.indexOf("tags"));
+    expect(vi.mocked(api.updateSimboli).mock.calls[0][0][0].slug).toBe("gabbia");
+  });
+
+  it("una proposta senza simboli non li riscrive", async () => {
+    await useAppStore.getState().applyAiProposal(proposta());
+    await useAppStore.getState().saveAll();
+    expect(api.updateSimboli).not.toHaveBeenCalled();
+    expect(api.updateTypes).not.toHaveBeenCalled();
   });
 });

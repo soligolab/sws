@@ -67,6 +67,20 @@ pub struct Richiesta {
     pub tocca: Option<String>,
     /// Millisecondi di rendering prima dello scatto.
     pub ms: Option<u64>,
+    /// Simboli del progetto da aggiungere alla copia (descrizioni, al posto di
+    /// quelle con lo stesso slug): le bozze dell'assistente, che si devono
+    /// vedere prima di essere proposte.
+    pub simboli: Vec<serde_json::Value>,
+    /// Pagine intere da scrivere nella copia, al posto di quelle con lo stesso
+    /// nome: una pagina che l'assistente sta componendo.
+    pub pagine: Vec<serde_json::Value>,
+    /// La cartella della SPA del runtime che chiama (`--www`). Serve perché il
+    /// banco di prova serva `/symbols/lib/`: senza, il viewer non trova il
+    /// manifesto della libreria e **nessun simbolo** si disegna — né di
+    /// libreria né del progetto. Fino al 03-11-2026 mancava, e ogni istantanea
+    /// con dei simboli mostrava riquadri vuoti (l'ha notato l'assistente
+    /// stesso, componendo la «Linea tubi»).
+    pub www: Option<PathBuf>,
 }
 
 /// Lo scatto.
@@ -104,6 +118,7 @@ pub async fn scatta(r: Richiesta) -> Result<Scatto, String> {
         .unwrap_or_else(|| "progetto".into());
     let copia = radice.join(&nome);
     copia_progetto(&r.progetto, &copia).await?;
+    ritocca(&copia, &r.simboli, &r.pagine).await?;
 
     let porta = porta_libera()?;
     abbina_banco(&tmp.path().join("config"))?;
@@ -124,6 +139,7 @@ pub async fn scatta(r: Richiesta) -> Result<Scatto, String> {
         // ha chiamato, e il banco di prova non deve rubargliela.
         .arg("--admin-port")
         .arg(porta_libera()?.to_string())
+        .args(r.www.iter().flat_map(|w| [std::ffi::OsString::from("--www"), w.clone().into_os_string()]))
         .env("RUST_LOG", "warn")
         .stdout(std::process::Stdio::null())
         .stderr(std::process::Stdio::piped())
@@ -313,6 +329,42 @@ async fn copia_progetto(da: &Path, a: &Path) -> Result<(), String> {
     tokio::fs::write(&yaml, sterilizza(&testo)?)
         .await
         .map_err(|e| format!("non riesco a scrivere la copia sterilizzata: {e}"))?;
+    Ok(())
+}
+
+/// Scrive nella copia quello che non è ancora sul disco: bozze di simboli e
+/// pagine in composizione. L'originale non si tocca mai.
+async fn ritocca(copia: &Path, simboli: &[serde_json::Value], pagine: &[serde_json::Value]) -> Result<(), String> {
+    if !simboli.is_empty() {
+        let yaml = copia.join("project.yaml");
+        let testo = tokio::fs::read_to_string(&yaml).await.map_err(|e| format!("project.yaml della copia: {e}"))?;
+        let mut v: serde_yaml::Value = serde_yaml::from_str(&testo).map_err(|e| format!("project.yaml della copia: {e}"))?;
+        let mappa = v.as_mapping_mut().ok_or("project.yaml della copia non è una mappa")?;
+        let chiave = serde_yaml::Value::from("simboli");
+        let mut elenco: Vec<serde_yaml::Value> = mappa
+            .get(&chiave)
+            .and_then(|x| x.as_sequence().cloned())
+            .unwrap_or_default();
+        for s in simboli {
+            let nuovo: serde_yaml::Value = serde_yaml::to_value(s).map_err(|e| e.to_string())?;
+            let slug = s.get("slug").and_then(|x| x.as_str()).unwrap_or("");
+            match elenco.iter().position(|x| x.get("slug").and_then(|y| y.as_str()) == Some(slug)) {
+                Some(i) => elenco[i] = nuovo,
+                None => elenco.push(nuovo),
+            }
+        }
+        mappa.insert(chiave, serde_yaml::Value::Sequence(elenco));
+        let testo = serde_yaml::to_string(&v).map_err(|e| e.to_string())?;
+        tokio::fs::write(&yaml, testo).await.map_err(|e| format!("project.yaml della copia: {e}"))?;
+    }
+    for p in pagine {
+        let nome = p.get("name").and_then(|x| x.as_str()).ok_or("una pagina da fotografare vuole `name`")?;
+        let dir = crate::router::synoptics_dir_at(copia);
+        tokio::fs::create_dir_all(&dir).await.map_err(|e| e.to_string())?;
+        let file = dir.join(format!("{}.yaml", crate::synoptic::safe_filename(nome)));
+        let testo = serde_yaml::to_string(p).map_err(|e| e.to_string())?;
+        tokio::fs::write(&file, testo).await.map_err(|e| format!("pagina {nome} nella copia: {e}"))?;
+    }
     Ok(())
 }
 
@@ -527,6 +579,9 @@ mod tests {
             pagina: Some("Prova".into()),
             tocca: None,
             ms: Some(600),
+            simboli: vec![],
+            pagine: vec![],
+            www: None,
         })
         .await
         .expect("lo scatto deve riuscire");
@@ -556,6 +611,54 @@ mod tests {
             "il rettangolo non c'è nell'immagine: solo {vicini} pixel del suo colore. \
              Il rendering non è avvenuto, o la pagina non è stata caricata."
         );
+    }
+
+    /// I simboli si disegnano anche nel banco di prova: una pompa di libreria
+    /// e una bozza del progetto, con `www` e una pagina non ancora proposta.
+    /// Fino al 03-11-2026 il banco partiva senza `--www`, non trovava il
+    /// manifesto della libreria e lasciava i riquadri dei simboli vuoti.
+    #[tokio::test]
+    #[ignore = "avvia sws-runtime e sws-lvgl-viewer veri: ./scripts/check_istantanea.sh"]
+    async fn nel_banco_di_prova_i_simboli_si_disegnano() {
+        let dir = tempfile::tempdir().unwrap();
+        let p = dir.path();
+        std::fs::write(p.join("project.yaml"), "meta:\n  name: occhi\n  version: \"1\"\ntags: []\nsources: []\n").unwrap();
+        let gabbia: serde_json::Value =
+            serde_json::from_str(include_str!("../../../../tests/fixtures/simboli-prj/gabbia-laminazione.json")).unwrap();
+        let pagina = serde_json::json!({ "id": "pv", "name": "Prova", "width": 480, "height": 272,
+            "background": "#ffffff", "objects": [
+                { "id": "p", "type": "symbol", "symbol_id": "lib:process/centrifugal-pump", "x": 20, "y": 40, "width": 200, "height": 200 },
+                { "id": "g", "type": "symbol", "symbol_id": "prj:gabbia-laminazione", "x": 250, "y": 40, "width": 220, "height": 180 } ] });
+        let www = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../sws-editor/dist");
+        let scatto = scatta(Richiesta {
+            progetto: p.to_path_buf(),
+            pagina: Some("Prova".into()),
+            tocca: None,
+            ms: Some(800),
+            simboli: vec![gabbia],
+            pagine: vec![pagina],
+            www: Some(www),
+        })
+        .await
+        .expect("lo scatto deve riuscire");
+        let dec = png::Decoder::new(std::io::Cursor::new(&scatto.png));
+        let mut lettore = dec.read_info().unwrap();
+        let mut buf = vec![0; lettore.output_buffer_size()];
+        let info = lettore.next_frame(&mut buf).unwrap();
+        let px = &buf[..info.buffer_size()];
+        // Pixel non bianchi dentro ciascun riquadro: un simbolo disegnato ne ha
+        // migliaia, un riquadro vuoto nessuno.
+        let pieni = |x0: usize, y0: usize, w: usize, h: usize| {
+            (y0..y0 + h)
+                .flat_map(|y| (x0..x0 + w).map(move |x| (x, y)))
+                .filter(|(x, y)| {
+                    let i = (y * 480 + x) * 3;
+                    px[i] < 200 || px[i + 1] < 200 || px[i + 2] < 200
+                })
+                .count()
+        };
+        assert!(pieni(20, 40, 200, 200) > 3000, "la pompa di libreria non c'è");
+        assert!(pieni(250, 40, 220, 180) > 3000, "la bozza prj: non c'è");
     }
 
     /// **Il test che protegge l'impianto.** Il progetto del banco di prova non

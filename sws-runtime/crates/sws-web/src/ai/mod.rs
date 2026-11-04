@@ -41,6 +41,10 @@ use crate::synoptic_schema as sch;
 /// Quanti giri strumento→risultato prima di fermarsi. Un tetto serve: un
 /// modello che gira a vuoto brucia contesto e denaro senza dirlo.
 const MAX_GIRI: usize = 14;
+/// Con delle bozze di simbolo sul banco la conversazione sta componendo una
+/// pagina intera: piano, simboli, pagina, istantanee e correzioni non stanno in
+/// quattordici giri. Il limite vero, lì, è il tetto di spesa.
+const MAX_GIRI_CON_BOZZE: usize = 40;
 /// Quante volte una proposta può tornare indietro per correzione prima di
 /// arrivare comunque all'umano. Meglio una proposta imperfetta guardata da una
 /// persona che un ciclo infinito.
@@ -134,8 +138,10 @@ async fn sessione(socket: WebSocket, s: AppState) {
         });
     }
 
-    // La conversazione vive quanto il socket.
+    // La conversazione vive quanto il socket, e con lei quanto è costata.
     let mut messaggi: Vec<Value> = Vec::new();
+    let mut misure = Misure::nuove();
+    let mut banco = Banco::default();
 
     while let Some(Ok(msg)) = ws_rx.next().await {
         let Message::Text(testo) = msg else { continue };
@@ -161,9 +167,13 @@ async fn sessione(socket: WebSocket, s: AppState) {
         messaggi.push(json!({ "role": "user", "content": domanda }));
 
         let esito = match &finto {
-            Some(f) => finto_giro(&s, &tx, f).await,
+            Some(f) => finto_giro(&s, &tx, f, &mut banco).await,
             None => match &scelta {
-                Some(sc) => vero_giro(&s, &tx, sc, &mut messaggi).await,
+                Some(sc) => {
+                    let r = vero_giro(&s, &tx, sc, &mut messaggi, &mut misure, &mut banco).await;
+                    misure.scrivi(sc);
+                    r
+                }
                 None => Err("nessuna chiave API configurata".to_string()),
             },
         };
@@ -175,6 +185,82 @@ async fn sessione(socket: WebSocket, s: AppState) {
 
     drop(tx);
     let _ = inoltro.await;
+}
+
+/// Quanto costa una conversazione, giro per giro. Serve al tetto sempre, e con
+/// `SWS_AI_MISURE=<cartella>` finisce anche in un file: è il resoconto delle
+/// prove col modello vero (piano `2026-11-03-assistente-genera-simboli-e-sinottici`),
+/// senza il quale «una pagina costa 3–6 $» resterebbe una stima.
+pub(crate) struct Misure {
+    nome: String,
+    inizio: std::time::Instant,
+    pub costo_usd: f64,
+    giri: Vec<Value>,
+    pub strumenti: std::collections::BTreeMap<String, u32>,
+    pub correzioni: u32,
+}
+
+impl Misure {
+    pub fn nuove() -> Self {
+        let ora = chrono::Local::now().format("%Y-%m-%d-%H%M%S");
+        Misure {
+            nome: format!("{ora}-{}", std::process::id()),
+            inizio: std::time::Instant::now(),
+            costo_usd: 0.0,
+            giri: Vec::new(),
+            strumenti: Default::default(),
+            correzioni: 0,
+        }
+    }
+
+    pub fn giro(&mut self, usage: &Value, costo: f64, secondi: f64) {
+        self.costo_usd += costo;
+        self.giri.push(json!({ "usage": usage, "costo_usd": costo, "secondi": secondi }));
+    }
+
+    pub fn resoconto(&self, scelta: &client::Scelta) -> Value {
+        let somma = |c: &str| -> u64 {
+            self.giri
+                .iter()
+                .filter_map(|g| g["usage"].get(c).and_then(Value::as_u64))
+                .sum()
+        };
+        json!({
+            "modello": scelta.modello,
+            "fornitore": scelta.fornitore.nome(),
+            "prezzi_noti": client::prezzi(&scelta.modello).1,
+            "tetto_usd": scelta.tetto_usd,
+            "costo_usd": self.costo_usd,
+            "minuti": self.inizio.elapsed().as_secs_f64() / 60.0,
+            "giri": self.giri.len(),
+            "token": {
+                "ingresso": somma("input_tokens"),
+                "uscita": somma("output_tokens"),
+                "cache_lettura": somma("cache_read_input_tokens"),
+                "cache_scrittura": somma("cache_creation_input_tokens"),
+            },
+            "strumenti": self.strumenti,
+            "correzioni": self.correzioni,
+            "per_giro": self.giri,
+        })
+    }
+
+    /// Scrive il resoconto se `SWS_AI_MISURE` lo chiede. Un errore di
+    /// scrittura va nel log e basta: la misura non deve mai rompere la chat.
+    pub fn scrivi(&self, scelta: &client::Scelta) {
+        let Some(dir) = std::env::var_os("SWS_AI_MISURE") else { return };
+        let dir = std::path::PathBuf::from(dir);
+        let p = dir.join(format!("{}.json", self.nome));
+        let esito = std::fs::create_dir_all(&dir).and_then(|_| {
+            std::fs::write(
+                &p,
+                serde_json::to_string_pretty(&self.resoconto(scelta)).unwrap_or_default(),
+            )
+        });
+        if let Err(e) = esito {
+            tracing::warn!(path = %p.display(), errore = %e, "resoconto AI non scritto");
+        }
+    }
 }
 
 fn invia(tx: &mpsc::UnboundedSender<String>, v: Value) {
@@ -198,6 +284,8 @@ async fn vero_giro(
     tx: &mpsc::UnboundedSender<String>,
     scelta: &client::Scelta,
     messaggi: &mut Vec<Value>,
+    misure: &mut Misure,
+    banco: &mut Banco,
 ) -> Result<(), String> {
     let cliente = client::Cliente::new(scelta.clone());
     let strumenti = tools::definizioni();
@@ -205,7 +293,30 @@ async fn vero_giro(
     let impronta_iniziale = impronta(s).await;
     let mut correzioni = 0usize;
 
-    for giro in 0..MAX_GIRI {
+    let mut giro = 0usize;
+    loop {
+        let limite = if banco.simboli.is_empty() { MAX_GIRI } else { MAX_GIRI_CON_BOZZE };
+        if giro >= limite {
+            return Err(format!(
+                "l'assistente ha fatto {limite} giri senza concludere: la richiesta \
+                 probabilmente va spezzata in due"
+            ));
+        }
+        giro += 1;
+        // Il tetto si guarda PRIMA del giro: un giro partito si paga comunque.
+        if misure.costo_usd >= scelta.tetto_usd {
+            invia(
+                tx,
+                json!({ "t": "tetto", "speso": misure.costo_usd, "tetto": scelta.tetto_usd }),
+            );
+            return Err(format!(
+                "tetto di spesa raggiunto: questa conversazione è costata {:.2} $ \
+                 su {:.2} $. Apri una conversazione nuova, o alza il tetto nelle \
+                 preferenze dell'IDE",
+                misure.costo_usd, scelta.tetto_usd
+            ));
+        }
+        let inizio_giro = std::time::Instant::now();
         let tx2 = tx.clone();
         let risposta = cliente
             .turno(sistema.clone(), messaggi, &strumenti, move |e| match e {
@@ -234,12 +345,16 @@ async fn vero_giro(
                 .and_then(Value::as_u64)
                 .unwrap_or(0)
         };
+        let costo = client::costo_usd(&scelta.modello, &risposta.usage);
+        misure.giro(&risposta.usage, costo, inizio_giro.elapsed().as_secs_f64());
         invia(
             tx,
             json!({ "t": "risorse",
             "input": tok("input_tokens"), "output": tok("output_tokens"),
             "cache_lettura": tok("cache_read_input_tokens"),
-            "cache_scrittura": tok("cache_creation_input_tokens") }),
+            "cache_scrittura": tok("cache_creation_input_tokens"),
+            "costo": costo, "speso": misure.costo_usd, "tetto": scelta.tetto_usd,
+            "prezzi_noti": client::prezzi(&scelta.modello).1 }),
         );
 
         messaggi.push(json!({ "role": "assistant", "content": risposta.content }));
@@ -253,11 +368,13 @@ async fn vero_giro(
         // modello a non chiamare più strumenti in parallelo.
         let mut risultati: Vec<Value> = Vec::new();
         for (id, nome, input) in usi {
+            *misure.strumenti.entry(nome.to_string()).or_insert(0) += 1;
             if nome == "proponi_modifica" {
-                match proponi(s, tx, input, impronta_iniziale.as_deref(), correzioni).await {
+                match proponi(s, tx, input, impronta_iniziale.as_deref(), correzioni, &banco.simboli).await {
                     Proposta::Inviata => return Ok(()),
                     Proposta::Correggi(rilievi) => {
                         correzioni += 1;
+                        misure.correzioni += 1;
                         risultati.push(risultato(id, &rilievi, true));
                     }
                 }
@@ -274,11 +391,19 @@ async fn vero_giro(
                     tx,
                     json!({ "t": "strumento", "nome": nome, "stato": "eseguo" }),
                 );
-                match istantanea_per_il_modello(s, input).await {
+                match istantanea_per_il_modello(s, input, banco).await {
                     Ok(blocchi) => {
                         invia(
                             tx,
                             json!({ "t": "strumento", "nome": nome, "stato": "fatto" }),
+                        );
+                        // Quello che il modello guarda lo guarda anche chi
+                        // chatta: senza, la chat diceva solo «✓ istantanea_pagina»
+                        // e la persona doveva fidarsi del giudizio del modello.
+                        invia(
+                            tx,
+                            json!({ "t": "immagine", "png": blocchi[0]["source"]["data"],
+                                    "testo": blocchi[1]["text"] }),
                         );
                         risultati.push(json!({
                             "type": "tool_result", "tool_use_id": id, "content": blocchi,
@@ -299,7 +424,14 @@ async fn vero_giro(
                 tx,
                 json!({ "t": "strumento", "nome": nome, "stato": "eseguo" }),
             );
-            match tools::esegui(s, nome, input).await {
+            // Le bozze di simbolo vivono qui, nel banco della conversazione:
+            // `bozza_simbolo` ci scrive, e `valida` le deve vedere.
+            let esito = match nome {
+                "bozza_simbolo" => bozza(tx, banco, input),
+                "valida" => tools::valida_interna(s, input, &banco.simboli, false).await.map(|(g, _)| g),
+                _ => tools::esegui(s, nome, input).await,
+            };
+            match esito {
                 Ok(v) => {
                     invia(
                         tx,
@@ -319,11 +451,6 @@ async fn vero_giro(
         }
         messaggi.push(json!({ "role": "user", "content": risultati }));
     }
-
-    Err(format!(
-        "l'assistente ha fatto {MAX_GIRI} giri senza concludere: la richiesta \
-                 probabilmente va spezzata in due"
-    ))
 }
 
 /// Scatta e impacchetta per il modello: il blocco immagine più una riga di
@@ -333,16 +460,28 @@ async fn vero_giro(
 /// finestra giusta e poi scrive il valore sbagliato, **in una fotografia,
 /// sembrerebbe funzionare**. Le righe «comando prodotto: …» del viewer sono
 /// l'unica prova di cosa il tocco ha fatto davvero.
-async fn istantanea_per_il_modello(s: &AppState, input: &Value) -> Result<Value, String> {
+async fn istantanea_per_il_modello(s: &AppState, input: &Value, banco: &Banco) -> Result<Value, String> {
     let dir = crate::router::active_dir(s)
         .await
         .map_err(|_| "nessun progetto aperto: non c'è niente da fotografare".to_string())?;
+    // Una pagina in composizione si fotografa al posto di quella col suo nome;
+    // senza pagina né nome, con delle bozze, si fotografa la loro tavola.
+    let mut nome = input.get("nome").and_then(Value::as_str).map(str::to_string);
+    let mut pagine = Vec::new();
+    if let Some(p) = input.get("pagina").filter(|p| p.is_object()) {
+        nome = p.get("name").and_then(Value::as_str).map(str::to_string);
+        pagine.push(p.clone());
+    } else if nome.is_none() && !banco.simboli.is_empty() {
+        let t = tavola_delle_bozze(&banco.simboli);
+        nome = t.get("name").and_then(Value::as_str).map(str::to_string);
+        pagine.push(t);
+    }
     let scatto = crate::istantanea::scatta(crate::istantanea::Richiesta {
         progetto: dir,
-        pagina: input
-            .get("nome")
-            .and_then(Value::as_str)
-            .map(str::to_string),
+        simboli: banco.simboli.iter().filter_map(|d| serde_json::to_value(d).ok()).collect(),
+        pagine,
+        www: s.www_dir.as_deref().cloned(),
+        pagina: nome,
         tocca: input
             .get("tocca")
             .and_then(Value::as_str)
@@ -413,12 +552,13 @@ async fn proponi(
     input: &Value,
     impronta_iniziale: Option<&str>,
     correzioni: usize,
+    bozze: &[sws_core::simboli_prj::Descrizione],
 ) -> Proposta {
     // `valida_interna` e non `valida`: quello che si spedisce al browser deve
     // essere il progetto **ricomposto**, cioè quello che è stato davvero
     // validato. Con il grezzo, una proposta che ometteva `functions` passava la
     // validazione e arrivava all'editor senza funzioni: il Salva le cancellava.
-    let (giudizio, normalizzato) = tools::valida_interna(s, input).await.unwrap_or_else(|e| {
+    let (giudizio, normalizzato) = tools::valida_interna(s, input, bozze, true).await.unwrap_or_else(|e| {
         (
             json!({ "ok": false, "errori_nuovi": 1,
                                      "rilievi": [{ "severity": "error", "path": "proposta",
@@ -446,9 +586,86 @@ async fn proponi(
             "pages": input.get("pages"),
             "impronta": impronta_iniziale,
             "giudizio": giudizio,
+            "simboli": simboli_della_proposta(input, bozze),
         }),
     );
     Proposta::Inviata
+}
+
+/// I simboli che la proposta porta nel progetto, compilati: la chat ne mostra
+/// la miniatura nel diff senza dover chiedere niente al server.
+fn simboli_della_proposta(input: &Value, bozze: &[sws_core::simboli_prj::Descrizione]) -> Value {
+    let pagine: Vec<Value> = input.get("pages").and_then(Value::as_array).cloned().unwrap_or_default();
+    let usate = tools::bozze_da_portare(input, &pagine, bozze, true).unwrap_or_default();
+    Value::Array(
+        usate
+            .iter()
+            .filter_map(|d| {
+                let c = sws_core::simboli_prj::compila_e_controlla(d).ok()?;
+                Some(json!({ "slug": d.slug, "it": d.it, "en": d.en, "svg": c.svg, "voce": c.voce }))
+            })
+            .collect(),
+    )
+}
+
+/// Le bozze di simbolo della conversazione: disegnate con `bozza_simbolo`,
+/// viste da `valida` e `istantanea_pagina`, portate nel progetto da
+/// `proponi_modifica`. Vivono quanto il socket, come la conversazione.
+#[derive(Default)]
+pub(crate) struct Banco {
+    pub simboli: Vec<sws_core::simboli_prj::Descrizione>,
+}
+
+impl Banco {
+    /// Una bozza nuova, o al posto di quella con lo stesso slug.
+    fn metti(&mut self, d: sws_core::simboli_prj::Descrizione) {
+        match self.simboli.iter().position(|x| x.slug == d.slug) {
+            Some(i) => self.simboli[i] = d,
+            None => self.simboli.push(d),
+        }
+    }
+}
+
+/// `bozza_simbolo`: compila, mette sul banco, e manda la miniatura alla chat.
+fn bozza(tx: &mpsc::UnboundedSender<String>, banco: &mut Banco, input: &Value) -> Result<Value, String> {
+    match tools::compila_bozza(input) {
+        Ok((d, c)) => {
+            invia(tx, json!({ "t": "simbolo", "slug": d.slug, "it": d.it, "en": d.en, "svg": c.svg }));
+            let esito = tools::esito_bozza(&c);
+            banco.metti(d);
+            Ok(esito)
+        }
+        Err(errori) => Err(json!({ "ok": false, "errori": errori,
+                                   "nota": "correggi e richiama bozza_simbolo con lo stesso slug" })
+            .to_string()),
+    }
+}
+
+/// Una pagina con tutte le bozze in fila, ognuna col suo nome sotto: è quello
+/// che `istantanea_pagina` fotografa quando il modello vuole guardare i
+/// simboli che ha disegnato.
+fn tavola_delle_bozze(bozze: &[sws_core::simboli_prj::Descrizione]) -> Value {
+    const COLONNE: usize = 5;
+    const CELLA_W: f64 = 250.0;
+    const CELLA_H: f64 = 230.0;
+    const DISEGNO: f64 = 170.0;
+    let mut oggetti = Vec::new();
+    for (i, d) in bozze.iter().enumerate() {
+        let (col, riga) = ((i % COLONNE) as f64, (i / COLONNE) as f64);
+        let scala = DISEGNO / (d.w.max(d.h) as f64);
+        let (w, h) = ((d.w as f64 * scala).round(), (d.h as f64 * scala).round());
+        let x0 = 15.0 + col * CELLA_W;
+        let y0 = 20.0 + riga * CELLA_H;
+        oggetti.push(json!({ "id": format!("s{i}"), "type": "symbol", "symbol_id": format!("prj:{}", d.slug),
+            "x": x0 + (CELLA_W - w) / 2.0, "y": y0 + (DISEGNO - h) / 2.0, "width": w, "height": h }));
+        oggetti.push(json!({ "id": format!("t{i}"), "type": "text", "text": d.slug,
+            "x": x0, "y": y0 + DISEGNO + 8.0, "width": CELLA_W, "height": 24, "font_size": 15,
+            "text_anchor": "middle", "color": "#1e293b" }));
+    }
+    let righe = bozze.len().div_ceil(COLONNE).max(1) as f64;
+    json!({ "id": "tavola-bozze", "name": "Tavola delle bozze", "width": 1280,
+            "height": (40.0 + righe * CELLA_H) as i64, "background": "#e2e8f0",
+            "cornice": null, "objects": oggetti })
 }
 
 fn uuid_breve() -> String {
@@ -476,6 +693,7 @@ async fn finto_giro(
     s: &AppState,
     tx: &mpsc::UnboundedSender<String>,
     percorso: &str,
+    banco: &mut Banco,
 ) -> Result<(), String> {
     let testo =
         std::fs::read_to_string(percorso).map_err(|e| format!("copione {percorso}: {e}"))?;
@@ -514,7 +732,7 @@ async fn finto_giro(
                     Some(patch) => componi_da_patch(s, &input, patch).await?,
                     None => input,
                 };
-                match proponi(s, tx, &input, impronta_iniziale.as_deref(), MAX_CORREZIONI).await {
+                match proponi(s, tx, &input, impronta_iniziale.as_deref(), MAX_CORREZIONI, &banco.simboli).await {
                     Proposta::Inviata => return Ok(()),
                     Proposta::Correggi(v) => {
                         return Err(format!("il copione propone una modifica non valida: {v}"))
@@ -525,7 +743,12 @@ async fn finto_giro(
                 tx,
                 json!({ "t": "strumento", "nome": nome, "stato": "eseguo" }),
             );
-            match tools::esegui(s, nome, &input).await {
+            let esito = match nome {
+                "bozza_simbolo" => bozza(tx, banco, &input),
+                "valida" => tools::valida_interna(s, &input, &banco.simboli, false).await.map(|(g, _)| g),
+                _ => tools::esegui(s, nome, &input).await,
+            };
+            match esito {
                 Ok(_) => invia(
                     tx,
                     json!({ "t": "strumento", "nome": nome, "stato": "fatto" }),
@@ -549,9 +772,11 @@ async fn finto_giro(
 ///
 /// Riconosce tre mosse, che sono quelle del bersaglio di T-50:
 /// `sorgenti_aggiunte`, `tag_aggiunti`, `oggetti_aggiunti`
-/// (`{pagina, oggetto}`). Non è un motore di patch generale e non deve
-/// diventarlo: se un copione ha bisogno di più di così, il caso è da provare
-/// col modello vero.
+/// (`{pagina, oggetto}`); e dal 03-11-2026 le due del sinottico intero:
+/// `tipi_aggiunti` e `pagine_intere` (pagine nuove o rifatte, intere). I
+/// simboli no: sono le bozze del banco, che `proponi` porta da sé. Non è un
+/// motore di patch generale e non deve diventarlo: se un copione ha bisogno di
+/// più di così, il caso è da provare col modello vero.
 async fn componi_da_patch(s: &AppState, input: &Value, patch: &Value) -> Result<Value, String> {
     use sws_core::Project;
     let dir = active_dir(s)
@@ -566,6 +791,15 @@ async fn componi_da_patch(s: &AppState, input: &Value, patch: &Value) -> Result<
             .as_array_mut()
             .ok_or("il progetto non ha `sources`")?;
         elenco.extend(nuove.iter().cloned());
+    }
+    if let Some(nuovi) = patch.get("tipi_aggiunti").and_then(Value::as_array) {
+        if progetto.get("types").is_none() {
+            progetto["types"] = json!([]);
+        }
+        let elenco = progetto["types"]
+            .as_array_mut()
+            .ok_or("il progetto ha `types` che non è un elenco")?;
+        elenco.extend(nuovi.iter().cloned());
     }
     if let Some(nuovi) = patch.get("tag_aggiunti").and_then(Value::as_array) {
         let elenco = progetto["tags"]
@@ -609,8 +843,15 @@ async fn componi_da_patch(s: &AppState, input: &Value, patch: &Value) -> Result<
         }
     }
 
+    if let Some(intere) = patch.get("pagine_intere").and_then(Value::as_array) {
+        pagine_toccate.extend(intere.iter().cloned());
+    }
+
     let mut out = json!({ "motivo": input.get("motivo").cloned().unwrap_or(json!("modifica")) });
     out["project"] = progetto;
+    if let Some(simboli) = input.get("simboli") {
+        out["simboli"] = simboli.clone();
+    }
     if !pagine_toccate.is_empty() {
         out["pages"] = Value::Array(pagine_toccate);
     }
@@ -667,5 +908,67 @@ mod tests_istantanea {
         let b = blocchi_istantanea(&scatto(vec![]));
         let t = b[1]["text"].as_str().unwrap();
         assert!(t.contains("non ha segnalato nulla"), "{t}");
+    }
+}
+
+#[cfg(test)]
+mod tests_bozze {
+    use serde_json::{json, Value};
+
+    fn bozza_di_prova(slug: &str) -> sws_core::simboli_prj::Descrizione {
+        let mut v: Value = serde_json::from_str(include_str!(
+            "../../../../../tests/fixtures/simboli-prj/gabbia-laminazione.json"
+        ))
+        .unwrap();
+        v["slug"] = json!(slug);
+        serde_json::from_value(v).unwrap()
+    }
+
+    /// Ridisegnare una bozza la sostituisce: due «gabbia» sul banco
+    /// sarebbero due simboli con lo stesso id.
+    #[test]
+    fn il_banco_tiene_una_bozza_per_slug() {
+        let mut b = super::Banco::default();
+        b.metti(bozza_di_prova("gabbia"));
+        b.metti(bozza_di_prova("rulliera"));
+        let mut nuova = bozza_di_prova("gabbia");
+        nuova.it = "Gabbia rifatta".into();
+        b.metti(nuova);
+        assert_eq!(b.simboli.len(), 2);
+        assert_eq!(b.simboli[0].it, "Gabbia rifatta");
+    }
+
+    /// `bozza_simbolo` manda la miniatura alla chat e risponde al modello con
+    /// l'id da usare; se sbaglia, gli errori tornano a lui e il banco non cambia.
+    #[test]
+    fn una_bozza_va_sul_banco_e_in_chat() {
+        let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel();
+        let mut b = super::Banco::default();
+        let ok = super::bozza(&tx, &mut b, &json!({ "descrizione": bozza_di_prova("gabbia") })).unwrap();
+        assert_eq!(ok["symbol_id"], "prj:gabbia");
+        let frame: Value = serde_json::from_str(&rx.try_recv().unwrap()).unwrap();
+        assert_eq!(frame["t"], "simbolo");
+        assert!(frame["svg"].as_str().unwrap().starts_with("<svg"));
+        assert_eq!(b.simboli.len(), 1);
+        let male = super::bozza(&tx, &mut b, &json!({ "descrizione": { "slug": "rotta" } })).unwrap_err();
+        assert!(male.contains("errori"), "{male}");
+        assert_eq!(b.simboli.len(), 1);
+    }
+
+    /// La tavola delle bozze: un simbolo e il suo nome per bozza, nelle
+    /// proporzioni del disegno, dentro la pagina.
+    #[test]
+    fn la_tavola_mette_ogni_bozza_al_suo_posto() {
+        let bozze: Vec<_> = (0..7).map(|i| bozza_di_prova(&format!("bozza-{i}"))).collect();
+        let t = super::tavola_delle_bozze(&bozze);
+        let oggetti = t["objects"].as_array().unwrap();
+        assert_eq!(oggetti.len(), 14);
+        let h = t["height"].as_f64().unwrap();
+        for o in oggetti.iter().filter(|o| o["type"] == "symbol") {
+            let (w, hh) = (o["width"].as_f64().unwrap(), o["height"].as_f64().unwrap());
+            assert!((w / hh - 1.2).abs() < 0.02, "proporzioni del disegno 120×100: {w}×{hh}");
+            assert!(o["x"].as_f64().unwrap() + w <= 1280.0 && o["y"].as_f64().unwrap() + hh <= h);
+        }
+        assert!(t.get("cornice").is_some_and(Value::is_null), "senza cornice");
     }
 }

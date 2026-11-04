@@ -1,5 +1,6 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type CSSProperties } from "react";
 import { useTranslation } from "react-i18next";
+import i18n from "i18next";
 import { editorLocale, NESSUNA_CONFERMA, type EditorAi } from "@/ai/editor";
 import { useAppStore } from "@/store";
 import { ascolta, chiedi } from "@/ws/aiStream";
@@ -72,6 +73,9 @@ export function ChatPanel({ open, onClose, editor = editorLocale, avviso, blocca
   // «nascondi» per-utente nel browser (è una preferenza di chi guarda, non
   // una decisione del progetto — scheda, domanda 5).
   const [risorse, setRisorse] = useState({ input: 0, output: 0, cache: 0 });
+  // La spesa della conversazione la somma il server (è lui che fa scattare il
+  // tetto): qui si mostra l'ultimo valore che ha mandato.
+  const [spesa, setSpesa] = useState<{ speso: number; tetto: number; stimata: boolean } | null>(null);
   const [saldo, setSaldo]     = useState<number | null>(null);
   const [mostraRisorse, setMostraRisorse] = useState(() => {
     try { return localStorage.getItem("sws.chat.risorse") !== "no"; } catch { return true; }
@@ -91,6 +95,7 @@ export function ChatPanel({ open, onClose, editor = editorLocale, avviso, blocca
           // Socket nuovo = conversazione nuova: i contatori ripartono (il
           // server dice «la conversazione vive quanto il socket»).
           setRisorse({ input: 0, output: 0, cache: 0 });
+          setSpesa(null);
           break;
         case "risorse":
           setRisorse((r) => ({
@@ -98,6 +103,12 @@ export function ChatPanel({ open, onClose, editor = editorLocale, avviso, blocca
             output: r.output + m.output,
             cache: r.cache + m.cache_lettura + m.cache_scrittura,
           }));
+          if (m.speso !== undefined && m.tetto !== undefined) {
+            setSpesa({ speso: m.speso, tetto: m.tetto, stimata: m.prezzi_noti === false });
+          }
+          break;
+        case "tetto":
+          setSpesa({ speso: m.speso, tetto: m.tetto, stimata: false });
           break;
         case "saldo":
           setSaldo(m.disponibile);
@@ -140,6 +151,15 @@ export function ChatPanel({ open, onClose, editor = editorLocale, avviso, blocca
         }
         case "errore":
           setRighe((r) => [...r, { tipo: "errore", testo: m.messaggio }]);
+          break;
+        case "simbolo":
+          // Ridisegnato con lo stesso slug: la miniatura nuova prende il posto
+          // della vecchia, così la chat non diventa un album di prove.
+          setRighe((r) => [...r.filter((x) => !(x.tipo === "simbolo" && x.slug === m.slug)),
+            { tipo: "simbolo", slug: m.slug, nome: (i18n.language ?? "it").startsWith("it") ? m.it : m.en, svg: m.svg }]);
+          break;
+        case "immagine":
+          setRighe((r) => [...r, { tipo: "immagine", png: m.png, testo: m.testo }]);
           break;
         case "fine":
           setAttesa(false);
@@ -224,6 +244,12 @@ export function ChatPanel({ open, onClose, editor = editorLocale, avviso, blocca
             ◔ {kTok(risorse.input)} {t("chat.risorseIn")} · {kTok(risorse.output)} {t("chat.risorseOut")}
             {risorse.cache > 0 && <> · {kTok(risorse.cache)} {t("chat.risorseCache")}</>}
           </span>
+          {spesa && (
+            <span title={t("chat.risorseSpesaTitolo")}
+                  style={spesa.speso >= spesa.tetto ? { color: "var(--brand-danger, #ef4444)" } : undefined}>
+              {spesa.stimata ? "≈ " : ""}{spesa.speso.toFixed(2)} $ / {spesa.tetto.toFixed(0)} $
+            </span>
+          )}
           <div style={{ flex: 1 }} />
           {saldo !== null && (
             <span title={t("chat.accountBalanceWithTheProvider")}>
@@ -278,6 +304,31 @@ export function ChatPanel({ open, onClose, editor = editorLocale, avviso, blocca
           }
           if (r.tipo === "errore") {
             return <div key={i} style={BOLLA_ERRORE}>{r.testo}</div>;
+          }
+          if (r.tipo === "simbolo") {
+            return (
+              <div key={i} style={CARTA_SIMBOLO} title={`prj:${r.slug}`}>
+                <img src={svgComeImmagine(r.svg)} alt="" style={{ width: 72, height: 60, objectFit: "contain" }} />
+                <div>
+                  <div style={{ fontSize: 12, color: "var(--brand-text, #e2e8f0)" }}>{r.nome}</div>
+                  <div style={{ fontSize: 10, color: "var(--brand-text-subtle, #64748b)" }}>
+                    {t("chat.bozzaSimbolo")} · prj:{r.slug}
+                  </div>
+                </div>
+              </div>
+            );
+          }
+          if (r.tipo === "immagine") {
+            // L'istantanea che il modello sta guardando: un clic la apre a
+            // grandezza piena.
+            const src = `data:image/png;base64,${r.png}`;
+            return (
+              <a key={i} href={src} target="_blank" rel="noreferrer" title={r.testo ?? ""}
+                 style={{ display: "block", margin: "4px 10px" }}>
+                <img src={src} alt={t("chat.istantanea")}
+                     style={{ width: "100%", borderRadius: 4, border: "1px solid var(--brand-surface-2, #1e293b)" }} />
+              </a>
+            );
           }
           if (r.tipo === "strumento") {
             const icona = r.stato === "errore" ? "✗" : r.stato === "fatto" ? "✓" : "…";
@@ -339,6 +390,19 @@ function Proposta({ riga, bloccato, onApplica, onScarta }: {
       <div style={{ fontSize: 12, fontWeight: 600, color: "var(--brand-text, #e2e8f0)", marginBottom: 6 }}>
         {riga.msg.motivo}
       </div>
+
+      {/* I simboli disegnati che entrano nel progetto: si giudicano guardandoli. */}
+      {(riga.msg.simboli?.length ?? 0) > 0 && (
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 8 }}>
+          {riga.msg.simboli!.map((s) => (
+            <div key={s.slug} title={`prj:${s.slug}`} style={{ textAlign: "center", width: 76 }}>
+              <img src={svgComeImmagine(s.svg)} alt="" style={{ width: 72, height: 56, objectFit: "contain" }} />
+              <div style={{ fontSize: 10, color: "var(--brand-text-subtle, #64748b)", overflow: "hidden",
+                            textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{s.it}</div>
+            </div>
+          ))}
+        </div>
+      )}
 
       {/* Tre casi, e tenerli distinti è il punto: `null` senza errore = si sta
           calcolando; `null` con errore = **non lo sappiamo**; `[]` = nessuna
@@ -434,6 +498,17 @@ function Proposta({ riga, bloccato, onApplica, onScarta }: {
 // passare per un componente React. Vedi `@/ai/editor`.
 
 // ─────────────────────────────────────────────────────────────────────────────
+
+/** Un SVG compilato dal runtime come `src` di un'immagine: dentro un `<img>`
+ *  non esegue niente, e i gradienti e i `<use>` funzionano. */
+function svgComeImmagine(svg: string): string {
+  return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
+}
+
+const CARTA_SIMBOLO: CSSProperties = {
+  display: "flex", gap: 10, alignItems: "center", margin: "4px 10px", padding: "6px 8px",
+  borderRadius: 6, background: "var(--brand-surface-2, #1e293b)",
+};
 
 function appendiTesto(righe: Riga[], delta: string): Riga[] {
   const ultima = righe[righe.length - 1];

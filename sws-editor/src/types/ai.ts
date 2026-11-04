@@ -30,9 +30,19 @@ export type MsgIn =
   | { t: "strumento"; nome: string; stato: "inizio" | "eseguo" | "fatto" | "errore"; messaggio?: string }
   | { t: "proposta"; id: string; motivo: string;
       project?: ProjectInfo | null; pages?: SynopticPage[] | null;
-      impronta?: string | null; giudizio: Giudizio }
+      impronta?: string | null; giudizio: Giudizio;
+      /** I simboli disegnati che la proposta porta nel progetto, già compilati:
+       *  il diff ne mostra la miniatura. */
+      simboli?: { slug: string; it: string; en: string; svg: string }[] }
+  /** Una bozza di simbolo appena disegnata dall'assistente. */
+  | { t: "simbolo"; slug: string; it: string; en: string; svg: string }
+  /** Un'istantanea del pannello che l'assistente ha scattato: la vede anche chi chatta. */
+  | { t: "immagine"; png: string; testo?: string }
   | { t: "errore"; messaggio: string }
-  | { t: "risorse"; input: number; output: number; cache_lettura: number; cache_scrittura: number }
+  | { t: "risorse"; input: number; output: number; cache_lettura: number; cache_scrittura: number;
+      /** Dollari del giro, della conversazione finora, e il tetto. */
+      costo?: number; speso?: number; tetto?: number; prezzi_noti?: boolean }
+  | { t: "tetto"; speso: number; tetto: number }
   | { t: "saldo"; disponibile: number }
   | { t: "fine" };
 
@@ -77,4 +87,6 @@ export type Riga =
        *  concluso; finché è assente e `diff` è `null`, si sta calcolando. */
       diffErrore?: string;
       esito?: "applicata" | "scartata" | "rifiutata"; nota?: string }
-  | { tipo: "errore"; testo: string };
+  | { tipo: "errore"; testo: string }
+  | { tipo: "simbolo"; slug: string; nome: string; svg: string }
+  | { tipo: "immagine"; png: string; testo?: string };

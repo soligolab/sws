@@ -15,10 +15,19 @@ import { percorsoPubblico } from "@/api/prefisso";
 // `percorsoPubblico`: sullo schermo di un pannello aperto dal cloud la
 // libreria è quella del pannello (29-10-2026).
 export const BASE_LIB = percorsoPubblico("/symbols/lib/");
+/** I simboli disegnati nel progetto (`prj:<slug>`): stessa forma della
+ *  libreria, compilati dal runtime a partire dalle descrizioni del progetto
+ *  (piano 2026-11-03-assistente-genera-simboli-e-sinottici, F2). */
+export const BASE_PRJ = percorsoPubblico("/api/project/simboli/");
 export const CONTORNO_PREDEFINITO = "#1c2329";
 
 let manifesto: ManifestLib | null = null;
 let richiesto = false;
+// Lo strato del progetto, sopra la libreria. Lo riempie il server (viewer) o
+// l'editor con i simboli che ha in memoria (`impostaSimboliProgetto`): una
+// proposta applicata e non salvata deve già disegnarsi.
+let progetto: { version: string; symbols: SimboloLib[] } = { version: "", symbols: [] };
+let progettoRichiesto = false;
 const svgs = new Map<string, string>();
 const inCorso = new Set<string>();
 const ascoltatori = new Set<() => void>();
@@ -34,7 +43,56 @@ function iscrivi(a: () => void) {
   return () => { ascoltatori.delete(a); };
 }
 
+function caricaManifestoProgetto() {
+  if (progettoRichiesto || typeof fetch === "undefined") return;
+  progettoRichiesto = true;
+  fetch(`${BASE_PRJ}manifest.json`, { cache: "no-cache", credentials: "same-origin" })
+    .then((r) => (r.ok ? r.json() : null))
+    .then((m: { version: string; symbols: SimboloLib[] } | null) => {
+      if (m?.symbols) impostaProgetto(m.version, m.symbols, {});
+    })
+    .catch(() => { /* senza manifesto del progetto i `prj:` restano segnaposto */ });
+}
+
+function impostaProgetto(version: string, symbols: SimboloLib[], file: Record<string, string>) {
+  for (const id of [...svgs.keys()]) if (id.startsWith("prj:")) svgs.delete(id);
+  progetto = { version, symbols };
+  for (const s of symbols) if (file[s.id]) svgs.set(s.id, file[s.id]);
+  avvisa();
+}
+
+/** I simboli del progetto già compilati (dall'editor): voce e SVG insieme, così
+ *  si disegnano senza un giro dal server. */
+export function impostaSimboliProgetto(compilati: readonly { voce: SimboloLib; svg: string }[]) {
+  progettoRichiesto = true;
+  const file: Record<string, string> = {};
+  for (const c of compilati) file[c.voce.id] = c.svg;
+  impostaProgetto(compilati.map((c) => c.voce.id + c.svg.length).join(","), compilati.map((c) => c.voce), file);
+}
+
+/** Rilegge dal server i simboli del progetto (un altro progetto aperto, un
+ *  salvataggio arrivato da fuori). */
+export function ricaricaSimboliProgetto() {
+  progettoRichiesto = false;
+  caricaManifestoProgetto();
+}
+
+/** I simboli del progetto, per la palette. */
+export function useSimboliProgetto(): readonly SimboloLib[] {
+  caricaManifestoProgetto();
+  useSyncExternalStore(iscrivi, () => giro, () => giro);
+  return progetto.symbols;
+}
+
+/** Un simbolo del progetto non ha una chiave i18n: le etichette viaggiano con
+ *  lui. Per la libreria `label` è la chiave da tradurre. */
+export function etichettaSimbolo(s: SimboloLib, t: (k: string) => string, lingua: string): string {
+  if (s.labels) return (lingua.startsWith("it") ? s.labels.it : s.labels.en) || s.labels.it || s.label;
+  return t(s.label);
+}
+
 function caricaManifesto() {
+  caricaManifestoProgetto();
   if (richiesto || typeof fetch === "undefined") return;
   richiesto = true;
   fetch(`${BASE_LIB}manifest.json`, { cache: "no-cache" })
@@ -46,7 +104,10 @@ function caricaManifesto() {
 function caricaSvg(s: SimboloLib) {
   if (svgs.has(s.id) || inCorso.has(s.id) || !manifesto || typeof fetch === "undefined") return;
   inCorso.add(s.id);
-  fetch(`${BASE_LIB}${s.file}?v=${manifesto.version}`)
+  const url = s.file.startsWith("prj/")
+    ? `${BASE_PRJ}${s.file.slice(4)}?v=${encodeURIComponent(progetto.version)}`
+    : `${BASE_LIB}${s.file}?v=${manifesto.version}`;
+  fetch(url, { credentials: "same-origin" })
     .then((r) => (r.ok ? r.text() : ""))
     .then((t) => { if (t.startsWith("<svg")) { svgs.set(s.id, t); avvisa(); } })
     .catch(() => { /* resta il segnaposto */ })
@@ -72,13 +133,16 @@ export function useSimboloLib(id: string | undefined): { sim?: SimboloLib; svg?:
 export function impostaLibreriaPerTest(m: ManifestLib | null, file: Record<string, string> = {}) {
   manifesto = m;
   richiesto = true;
+  progettoRichiesto = true;
+  progetto = { version: "", symbols: [] };
   svgs.clear();
   if (m) for (const s of m.symbols) if (file[s.file]) svgs.set(s.id, file[s.file]);
   avvisa();
 }
 
+/** Un simbolo disegnato a strati: della libreria o del progetto. */
 export function isLib(symbolId: string | undefined): boolean {
-  return !!symbolId && symbolId.startsWith("lib:");
+  return !!symbolId && (symbolId.startsWith("lib:") || symbolId.startsWith("prj:"));
 }
 
 // ── preparazione ───────────────────────────────────────────────────────────
@@ -132,6 +196,7 @@ export function prefissoIstanza(objId: string): string {
  *  un disegno della libreria sostituisce (`replaces`, M3 del piano). Così i
  *  progetti esistenti non cambiano e prendono il disegno nuovo. */
 export function cercaSimbolo(m: ManifestLib, id: string): SimboloLib | undefined {
+  if (id.startsWith("prj:")) return progetto.symbols.find((s) => s.id === id);
   return m.symbols.find((s) => s.id === id) ?? m.symbols.find((s) => s.replaces === id);
 }
 

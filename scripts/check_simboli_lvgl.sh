@@ -22,8 +22,22 @@
 #   cargo build -p sws-runtime -p sws-lvgl-viewer
 #   cd sws-editor && pnpm build
 #   ./scripts/check_simboli_lvgl.sh
+#   ./scripts/check_simboli_lvgl.sh --simboli <file>   # i simboli disegnati in un progetto
+#
+# Con `--simboli` la prova passa sui simboli `prj:` invece che sulla libreria
+# (piano docs/plans/2026-11-03-assistente-genera-simboli-e-sinottici.md, F2): il
+# file è un `project.yaml` con la sua sezione `simboli`, oppure un JSON con una
+# descrizione o un elenco di descrizioni (come tests/fixtures/simboli-prj/).
+# Sono disegni nati fuori dal generatore — scritti dall'assistente — ed è lì che
+# un blocco del pannello è più probabile.
 set -uo pipefail
 cd "$(dirname "$0")/.."
+
+SIMBOLI_FILE=""
+if [ "${1:-}" = "--simboli" ]; then
+  SIMBOLI_FILE="${2:?--simboli vuole un file}"
+  [ -f "$SIMBOLI_FILE" ] || { echo "manca $SIMBOLI_FILE" >&2; exit 1; }
+fi
 
 BIN="sws-runtime/target/debug/sws-runtime"
 LVGL="sws-runtime/target/debug/sws-lvgl-viewer"
@@ -67,8 +81,29 @@ curl -sf -X POST "$API/projects/simboli/open" > /dev/null
 # L'elenco viene dal manifesto della libreria: gli id builtin storici (alias,
 # `replaces`) e i simboli `lib:` — la stessa fonte del picker e del validatore.
 # Dalla Fase 6b il pannello disegna gli uni e gli altri con la libreria.
-mapfile -t SIMBOLI < <(python3 -c 'import json; m=json.load(open("sws-editor/public/symbols/lib/manifest.json"))["symbols"]; [print(s["replaces"]) for s in m if s.get("replaces")]; [print(s["id"]) for s in m]')
-if [ "${#SIMBOLI[@]}" -lt 10 ]; then
+if [ -n "$SIMBOLI_FILE" ]; then
+  # I simboli del progetto: si caricano nel progetto di prova, e l'elenco sono
+  # i loro id `prj:`.
+  python3 - "$SIMBOLI_FILE" > "$WORK/simboli.json" <<'PY'
+import json, sys
+t = open(sys.argv[1], encoding="utf-8").read()
+try:
+    v = json.loads(t)
+except ValueError:
+    import yaml
+    v = (yaml.safe_load(t) or {}).get("simboli", [])
+print(json.dumps(v if isinstance(v, list) else [v]))
+PY
+  if ! curl -sf -X PUT "$API/project/simboli" -H 'Content-Type: application/json' --data @"$WORK/simboli.json" > "$WORK/put.log" 2>&1; then
+    echo "✗ il runtime rifiuta i simboli di $SIMBOLI_FILE:" >&2
+    curl -s -X PUT "$API/project/simboli" -H 'Content-Type: application/json' --data @"$WORK/simboli.json" >&2; echo >&2
+    exit 1
+  fi
+  mapfile -t SIMBOLI < <(python3 -c 'import json,sys; [print("prj:" + d["slug"]) for d in json.load(open(sys.argv[1]))]' "$WORK/simboli.json")
+else
+  mapfile -t SIMBOLI < <(python3 -c 'import json; m=json.load(open("sws-editor/public/symbols/lib/manifest.json"))["symbols"]; [print(s["replaces"]) for s in m if s.get("replaces")]; [print(s["id"]) for s in m]')
+fi
+if [ -z "$SIMBOLI_FILE" ] && [ "${#SIMBOLI[@]}" -lt 10 ]; then
   echo "✗ letti solo ${#SIMBOLI[@]} simboli dal manifesto della libreria" >&2
   echo "  La forma delle voci è cambiata: questo controllo non sta più guardando niente." >&2
   exit 1

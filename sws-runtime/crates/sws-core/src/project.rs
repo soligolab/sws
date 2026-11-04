@@ -2178,6 +2178,12 @@ pub struct Project {
     pub functions: Vec<FunctionDef>,
     #[serde(default)]
     pub custom_symbols: Vec<CustomSymbol>,
+    /// I simboli disegnati nel progetto (`prj:<slug>`): una descrizione che
+    /// `simboli_prj::compila` trasforma nello stesso SVG a strati della
+    /// libreria, con bocche, parti vive e stile del progetto. L'SVG non si
+    /// salva: si ricompila, e così resta sempre conforme a chi lo legge.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub simboli: Vec<crate::simboli_prj::Descrizione>,
     /// Named persistent storage backends for tag history. When empty, the
     /// runtime falls back to a built-in SQLite file under `<project>/history/`.
     #[serde(default)]

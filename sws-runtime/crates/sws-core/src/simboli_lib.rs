@@ -103,6 +103,11 @@ pub struct SimboloLib {
 #[derive(Debug, Clone, Deserialize)]
 pub struct ManifestLib {
     pub version: String,
+    /// La versione del manifesto dei simboli **del progetto** (`prj:`), quando
+    /// il pannello li ha uniti a quelli della libreria: va negli URL dei loro
+    /// SVG come `version` va in quelli della libreria. Non sta nel file.
+    #[serde(default)]
+    pub versione_progetto: String,
     pub materials: BTreeMap<String, String>,
     pub symbols: Vec<SimboloLib>,
 }

@@ -1147,6 +1147,7 @@ pub async fn create_project(
                 alarms: vec![],
                 functions: vec![],
                 custom_symbols: vec![],
+                simboli: vec![],
                 datastores: vec![default_datastore()],
                 global_scripts: vec![],
                 notifications: None,

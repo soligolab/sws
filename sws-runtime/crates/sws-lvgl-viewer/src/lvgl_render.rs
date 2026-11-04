@@ -12119,8 +12119,13 @@ fn render_simbolo_lib(
         .clone();
     let svg = lib::svg_simbolo(base_url, rt_handle, &manifesto, &sim)
         .ok_or_else(|| anyhow::anyhow!("{id}: SVG non scaricato"))?;
-    let w = obj.width.unwrap_or(sim.view_box[0]).round().clamp(8.0, 500.0) as i16;
-    let h = obj.height.unwrap_or(sim.view_box[1]).round().clamp(8.0, 500.0) as i16;
+    // La misura dell'oggetto, fino al tetto dei simboli. Oltre si riduce **in
+    // proporzione**: tagliare ogni lato per conto suo (era `clamp(8, 500)`)
+    // deformava il riquadro e il disegno finiva rimpicciolito in un angolo.
+    let (w0, h0) = (obj.width.unwrap_or(sim.view_box[0]).max(8.0), obj.height.unwrap_or(sim.view_box[1]).max(8.0));
+    let riduci = (crate::svg_raster::MAX_SIDE_SIMBOLO as f64 / w0.max(h0)).min(1.0);
+    let w = (w0 * riduci).round() as i16;
+    let h = (h0 * riduci).round() as i16;
     let q = Quadro { w: w as u32, h: h as u32, flip_h: obj.flip_h == Some(true), flip_v: obj.flip_v == Some(true) };
     // Lo stile: oggetto → progetto → disegno (Fase 4, `stile-effettivo.json`).
     let progetto = lib::stile_progetto(base_url, rt_handle);
@@ -13027,7 +13032,7 @@ fn dispatch_render(
         // Un simbolo è o una forma builtin disegnata con le primitive
         // (ricolorabile per stato), o un SVG da rasterizzare. `source_for`
         // distingue i due casi; lo stesso ramo serve il widget `image`.
-        "symbol" if obj.symbol_id.as_deref().is_some_and(|i| i.starts_with("lib:")) => {
+        "symbol" if obj.symbol_id.as_deref().is_some_and(|i| i.starts_with("lib:") || i.starts_with("prj:")) => {
             match render_simbolo_lib(screen, obj, tags, base_url, rt_handle) {
                 Ok(b) => {
                     live.push(b);

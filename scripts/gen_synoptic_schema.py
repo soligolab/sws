@@ -215,6 +215,86 @@ def field_enums():
     return out
 
 
+# ── Il catalogo dei simboli e gli esempi di descrizione ──────────────────────
+
+I18N = {l: f"{ROOT}/sws-editor/src/i18n/{l}.json" for l in ("it", "en")}
+DESCRIZIONI = f"{ROOT}/tests/fixtures/simboli-descrizioni.json"
+# Gli esempi per `schema_simbolo`: una macchina con bocche e rotore, un
+# serbatoio col livello, una valvola con la leva. Coprono le parti vive più usate.
+ESEMPI = ("centrifugal-pump", "vertical-tank", "ball-valve")
+
+
+def catalogo_simboli(voci):
+    lingue = {l: json.load(open(f, encoding="utf-8")) for l, f in I18N.items()}
+
+    def etichetta(l, chiave):
+        d = lingue[l]
+        for k in chiave.split("."):
+            d = d.get(k, {}) if isinstance(d, dict) else {}
+        return d if isinstance(d, str) else ""
+
+    out = []
+    for v in voci:
+        e = {"id": v["id"], "famiglia": v["family"], "tipo": v["kind"],
+             "it": etichetta("it", v["label"]), "en": etichetta("en", v["label"]),
+             "w": v["viewBox"][0], "h": v["viewBox"][1],
+             "parti": [f'{x["id"]}:{x["kind"]}' for x in v.get("parts", [])],
+             "bocche": [f'{b["id"]}@{b["side"]}' for b in v.get("ports", [])]}
+        if v.get("replaces"):
+            e["alias"] = v["replaces"]
+        out.append(e)
+    return out
+
+
+def zucchero(d):
+    """Una descrizione di `genera.py --descrizioni` nella forma corta che scrive
+    l'assistente: attributi come oggetti, valori di default omessi, e le
+    coppie forma+flangia / forma+tronchetto come `flangia_v`, `tubo_o`…"""
+    ops, out, i = d["ops"], [], 0
+    while i < len(ops):
+        o, dopo = ops[i], ops[i + 1] if i + 1 < len(ops) else {}
+        if o["op"] == "forma" and dopo.get("op") in ("flangia", "tronchetto") and o["tag"] == "rect" \
+                and o["mat"] == "steel" and not o["extra"]:
+            g = dict(o["geo"])
+            x, y, w, h = dopo["rect"]
+            if dopo["op"] == "flangia" and g.get("rx") == 0.8:
+                v = o["velo"] == "metal-h"
+                e = {"op": "flangia_v" if v else "flangia_o", "x": x, "y": y}
+                if (w, h) != ((4, 16) if v else (16, 4)):
+                    e |= {"w": w, "h": h}
+                out.append(e); i += 2; continue
+            if dopo["op"] == "tronchetto" and "rx" not in g:
+                if o["velo"] == "metal-v":
+                    e = {"op": "tubo_o", "x": x, "y": y, "w": w} | ({} if h == 10 else {"h": h})
+                else:
+                    e = {"op": "tubo_v", "x": x, "y": y, "h": h} | ({} if w == 10 else {"w": w})
+                out.append(e); i += 2; continue
+        e = {k: v for k, v in o.items()}
+        if "geo" in e and isinstance(e["geo"], list):
+            e["geo"] = dict(e["geo"])
+        if "extra" in e:
+            if e["extra"]:
+                e["extra"] = dict(e["extra"])
+            else:
+                del e["extra"]
+        for k, default in (("mat", None), ("velo", None), ("id", None)):
+            if k in e and e[k] == default:
+                del e[k]
+        if e["op"] == "luce":
+            if e.get("velo") == "glass-r": del e["velo"]
+            if e.get("opacita") == 1: del e["opacita"]
+        if e["op"] == "riflesso" and e.get("opacita") == 0.18:
+            del e["opacita"]
+        out.append(e); i += 1
+    return {"slug": d["slug"], "w": d["w"], "h": d["h"], "tipo": d["tipo"], "body": d["body"],
+            "it": d["it"], "en": d["en"], "ops": out}
+
+
+def esempi_simboli():
+    tutte = {d["slug"]: d for d in json.load(open(DESCRIZIONI, encoding="utf-8"))["simboli"]}
+    return [zucchero(tutte[s]) for s in ESEMPI]
+
+
 # ── Sorgenti ──────────────────────────────────────────────────────────────────
 
 def source_kinds():
@@ -462,6 +542,21 @@ def main():
         vals = ", ".join(lit(x) for x in bocche[k])
         p.append(f"    ({lit(k)}, &[{vals}]),")
     p.append("];")
+    p.append("")
+
+    # Il catalogo dei simboli per l'assistente (03-11-2026, piano
+    # 2026-11-03-assistente-genera-simboli-e-sinottici): `cerca_simboli` ci cerca
+    # dentro per etichetta, tipologia, parti e bocche. Un JSON per riga, così il
+    # diff dice quale simbolo è cambiato.
+    p.append("/// Il catalogo della libreria per `cerca_simboli`: un oggetto JSON per simbolo.")
+    p.append('pub const SYMBOL_CATALOG_JSON: &str = r##"[')
+    p.append(",\n".join(json.dumps(e, ensure_ascii=False) for e in catalogo_simboli(voci)))
+    p.append(']"##;')
+    p.append("")
+    p.append("/// Tre descrizioni della libreria nella forma che l'assistente scrive (`schema_simbolo`).")
+    p.append('pub const SYMBOL_EXAMPLES_JSON: &str = r##"[')
+    p.append(",\n".join(json.dumps(e, ensure_ascii=False) for e in esempi_simboli()))
+    p.append(']"##;')
     p.append("")
 
     p.append("/// I `kind` di sorgente e i campi di ciascuna configurazione.")

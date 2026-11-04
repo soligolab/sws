@@ -29,6 +29,27 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
   del campo tag, con la finestra (tipo proposto dal tipo del PLC, unità, storico).
 
 ### Added
+- **La chat dell'assistente mostra quello che l'assistente guarda**: le miniature dei simboli che disegna e le
+  istantanee del pannello che scatta (un clic le apre intere). Il diff di una proposta ha le voci dei tipi e dei
+  simboli, con le miniature, e il Salva li scrive — i tipi prima delle variabili che li usano.
+- **L'assistente IA compone sinottici interi e disegna i simboli che mancano**: strumenti nuovi `cerca_simboli`
+  (catalogo della libreria e del progetto, per etichetta, parti vive e bocche), `schema_simbolo` (formato, materiali,
+  veli, regole e tre esempi della libreria) e `bozza_simbolo` (compila una descrizione e la tiene come bozza della
+  conversazione, con la miniatura in chat). Il modello Anthropic di default passa a `claude-opus-5-5`. Le bozze le vedono `valida` e `istantanea_pagina`, che ora fotografa anche
+  una pagina non ancora proposta o la tavola delle bozze; `proponi_modifica` le porta nel progetto. Il prompt ha il
+  giro del sinottico intero (inventario, piano da confermare, simboli, pagina, una proposta). Con delle bozze i giri
+  salgono a 40. Il validatore avvisa di due simboli che si coprono.
+- **Simboli disegnati nel progetto** (`prj:<slug>`): una descrizione nel progetto (`project.yaml`, sezione
+  `simboli`) che il runtime compila nello stesso SVG a strati della libreria — bocche per i tubi, parti vive, stile del
+  progetto, pannello LVGL. Il compilatore Rust (`sws-core/src/simboli_prj.rs`) rifà byte per byte i 195 simboli di
+  `genera.py`. Rotte `/api/project/simboli/…` (manifesto e disegni, anche al viewer), `POST /api/simboli/compila`,
+  `PUT /api/project/simboli`; il validatore conosce i `prj:` e le loro bocche; il deploy avvisa se il pannello è
+  troppo vecchio per servirli; `check_simboli_lvgl.sh --simboli <file>` li prova sul pannello. Li scriverà l'assistente
+  (piano `2026-11-03-assistente-genera-simboli-e-sinottici`).
+- **Tetto di spesa dell'assistente IA**: ogni conversazione ha un tetto in dollari (10 $ di default, da Preferenze →
+  Assistente IA o `SWS_AI_TETTO_USD`), la chat mostra quanto è costata finora, e raggiunto il tetto l'assistente si
+  ferma. Con `SWS_AI_MISURE=<cartella>` scrive un resoconto per conversazione. Su Anthropic la cache copre ora
+  tutta la conversazione e non solo il prompt di sistema, e un turno può scrivere fino a 64000 token (era 16000).
 - **Template «OpenPLC — impianto di prova»** (`examples/templates/openplc-laboratorio`, richiesta del maintainer del
   03-11-2026): il progetto del tutorial, pronto da provare col laboratorio di `examples/laboratorio/` — pompa e
   serbatoio su OpenPLC v4 letti in Modbus, OPC UA e S7, un sensore e la pubblicazione su MQTT, allarmi, storico, una
@@ -41,6 +62,15 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
   entrava nel progetto se non a mano. `LogicaPlcDelProgetto` in `boot/OpenplcSulPannello.tsx`.
 
 ### Fixed
+- **Un simbolo disegnato con un attributo ripetuto è un errore, non un SVG rotto.** Una forma col materiale e in più
+  `fill: none` negli extra produceva un SVG non valido: miniatura rotta in chat e simbolo assente sul pannello. Ora il
+  compilatore lo rifiuta e il modello si corregge.
+- **Le istantanee dell'assistente disegnano i simboli.** Il runtime di prova di `istantanea_pagina` partiva senza
+  `--www`: non trovava il manifesto della libreria e ogni simbolo, di libreria o del progetto, usciva come riquadro
+  vuoto. L'ha notato l'assistente stesso componendo un sinottico. Test vero in `check_istantanea.sh`.
+- **Pannello LVGL: i simboli grandi si disegnano interi.** Ogni lato di un simbolo di libreria era tagliato a 500 px:
+  un simbolo grande mezzo schermo usciva rimpicciolito e attaccato in alto a sinistra, mentre il browser lo mostrava
+  intero. Ora il tetto è 2048 px (ridotto in proporzione oltre), e i fotogrammi del rotore hanno un budget di memoria.
 - **Il deploy dice quando le sorgenti non partiranno sul pannello** (collaudo del 03-11-2026 sul WP630): un progetto
   nato da un template ha gli indirizzi da confermare (`sorgenti_da_rivedere`), e sul pannello le sorgenti restavano
   spente dicendolo solo nel suo log. Ora il log del deploy ha la riga «⚠ Le N sorgenti NON partiranno…» con cosa fare.

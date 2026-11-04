@@ -49,6 +49,7 @@ const ConfigView = lazy(() =>
   import("@/config/ConfigView").then((m) => ({ default: m.ConfigView })));
 import { getBrand } from "@/branding";
 import { selectIsDirty, useAppStore } from "@/store";
+import { avviaSincroniaSimboli } from "@/symbols/lib/simboliDelProgetto";
 import { eSchedaValida } from "@/config/schede";
 import { pickInitialPageId } from "@/pageLayout";
 import { ordinaPagine } from "@/pageTree";
@@ -104,6 +105,9 @@ export function App() {
   const configFocus      = useAppStore((s) => s.configFocus);
   const navigateToConfig = useAppStore((s) => s.navigateToConfig);
   const setRemoteAutenticato = useAppStore((s) => s.setRemoteAutenticato);
+  // I simboli disegnati nel progetto: ricompilati quando cambiano le loro
+  // descrizioni, così una proposta applicata si disegna prima del Salva.
+  useEffect(() => avviaSincroniaSimboli(), []);
   // Log drawer: state stays here (App owns <LogPanel>), the toggle moved into
   // the ☰ menu — it is a diagnostic, not a per-minute control.
   //

@@ -7,6 +7,8 @@ import type {
   AuditVerifyReport,
   BrowseDirsResponse,
   CustomSymbol,
+  DescrizioneSimbolo,
+  SimboloCompilato,
   DatastoreConfig,
   DatastoreStats,
   StatoRitenzione,
@@ -727,6 +729,7 @@ const PATH_VERSIONATI = [
   "/api/project/datastores", "/api/project/global-scripts", "/api/project/reports",
   "/api/project/notifications", "/api/project/page-layout", "/api/project/target", "/api/project/symbol-style",
   "/api/project/backup-config", "/api/project/retention-time", "/api/project/tags/import-csv",
+  "/api/project/simboli",
 ];
 
 /** L'header `If-Match` da mettere su un salvataggio di sezione, se sappiamo su
@@ -1473,6 +1476,23 @@ export const api = {
       method: "PUT",
       headers: { "Content-Type": "application/json", ...seVersionato("/api/project/functions") },
       body: JSON.stringify(functions),
+    }),
+
+  /** POST /api/simboli/compila — compila senza salvare: l'editor disegna i
+   *  simboli del progetto che ha in memoria. */
+  compilaSimboli: (descrizioni: DescrizioneSimbolo[]) =>
+    request<SimboloCompilato[]>("/api/simboli/compila", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(descrizioni),
+    }),
+
+  /** PUT /api/project/simboli — i simboli disegnati nel progetto, tutti. */
+  updateSimboli: (simboli: DescrizioneSimbolo[]) =>
+    request<void>("/api/project/simboli", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json", ...seVersionato("/api/project/simboli") },
+      body: JSON.stringify(simboli),
     }),
 
   updateCustomSymbols: (symbols: CustomSymbol[]) =>
@@ -2243,13 +2263,13 @@ export const api = {
   // che serve un impianto rispondono 404, e il pannello lo tratta come «qui non
   // si configura», non come un errore.
   getAiConfig: () => request<AiConfig>("/api/ai/config"),
-  putAiConfig: (fornitore: string, modello?: string, chiave?: string) =>
+  putAiConfig: (fornitore: string, modello?: string, chiave?: string, tetto_usd?: number) =>
     request<{ ok: boolean; configurato: boolean; riconnetti: boolean }>("/api/ai/config", {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       // `chiave` si omette per lasciare quella salvata: la sentinella la
       // conosce anche il server, ma non mandare il campo è più chiaro.
-      body: JSON.stringify({ fornitore, modello, chiave }),
+      body: JSON.stringify({ fornitore, modello, chiave, tetto_usd }),
     }),
   deleteAiKey: (fornitore: string) =>
     request<{ ok: boolean; cera: boolean }>("/api/ai/config", {

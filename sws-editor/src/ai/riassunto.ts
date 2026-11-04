@@ -36,6 +36,13 @@ export function riassumi(
       ["tag",      perId(project.tags),    perId(propProject.tags)],
       ["sorgente", perId(project.sources as { id: string }[]), perId(propProject.sources as { id: string }[])],
       ["allarme",  perId(project.alarms),  perId(propProject.alarms)],
+      // I tipi e i simboli disegnati nel progetto (03-11-2026): un sinottico
+      // intero dell'assistente porta macchine nuove, con il loro tipo e il loro
+      // simbolo. Prima il diff non li vedeva, e nemmeno il Salva.
+      ["tipo",     perId(project.types),   perId(propProject.types)],
+      ...(propProject.simboli !== undefined
+        ? [["simbolo", perSlug(project.simboli), perSlug(propProject.simboli)]]
+        : []),
     ] as [string, Map<string, unknown>, Map<string, unknown>][]) {
       for (const [id, v] of dopo) {
         if (!prima.has(id)) out.push({ verso: "+", testo: `${etichetta} \`${id}\`` });
@@ -119,6 +126,8 @@ export function riassumi(
 }
 
 const righe = (code: string) => code.split("\n").length;
+
+const perSlug = (v: { slug: string }[] | undefined) => new Map((v ?? []).map((x) => [x.slug, x]));
 
 /** Una voce del diff che riguarda del codice: porta con sé il diff per righe. */
 function voceCodice(testo: string, prima: string, dopo: string): VoceDiff {

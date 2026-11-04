@@ -2026,6 +2026,29 @@ export interface ProjectTarget {
   framebuffer_device?: string;
 }
 
+/** Un simbolo disegnato nel progetto: la descrizione, cioè le chiamate del
+ *  disegno (forma, velo, parte, flangia…). La forma esatta delle operazioni la
+ *  conosce il runtime; qui viaggia com'è. */
+export interface DescrizioneSimbolo {
+  slug: string;
+  w: number;
+  h: number;
+  tipo?: string;
+  body: string;
+  it: string;
+  en: string;
+  ops: Record<string, unknown>[];
+}
+
+/** Una descrizione compilata dal runtime (`POST /api/simboli/compila`). */
+export interface SimboloCompilato {
+  slug: string;
+  ok: boolean;
+  svg?: string;
+  voce?: import("@/symbols/lib/manifest").SimboloLib;
+  errori: string[];
+}
+
 export interface ProjectInfo {
   meta: { name: string; version: string };
   /** I tipi struttura riusabili (Fase 1b). Assente nei progetti che non ne hanno. */
@@ -2035,6 +2058,10 @@ export interface ProjectInfo {
   alarms?: AlarmDef[];
   functions?: FunctionDef[];
   custom_symbols?: CustomSymbol[];
+  /** I simboli disegnati nel progetto (`prj:<slug>`): descrizioni che il
+   *  runtime compila nello stesso SVG a strati della libreria
+   *  (`sws-core/src/simboli_prj.rs`). Assente nei progetti che non ne hanno. */
+  simboli?: DescrizioneSimbolo[];
   datastores?: DatastoreConfig[];
   global_scripts?: GlobalScriptDef[];
   /** I report programmati (P3, 26-10-2026). */
@@ -2514,4 +2541,8 @@ export interface AiConfig {
   /** Variabili d'ambiente impostate, che **scavalcano** questa configurazione. */
   da_ambiente: string[];
   percorsi: string[];
+  /** Il tetto di spesa per conversazione: effettivo, salvato, di default (dollari). */
+  tetto_usd: number;
+  tetto_usd_salvato: number | null;
+  tetto_usd_default: number;
 }

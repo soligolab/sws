@@ -125,7 +125,11 @@ pub fn definizioni() -> Vec<Value> {
                         "project": { "type": "object",
                             "description": "Il progetto intero, modificato. Ometti se non lo tocchi." },
                         "pages": { "type": "array", "items": { "type": "object" },
-                            "description": "Le pagine intere, modificate." } } }),
+                            "description": "Le pagine intere, modificate." },
+                        "simboli": { "type": "array", "items": { "type": "string" },
+                            "description": "Gli slug delle bozze di simbolo (bozza_simbolo) da \
+                                            portare nel progetto. Se manca: quelle che le pagine \
+                                            proposte usano (symbol_id prj:<slug>)." } } }),
         ),
         // In coda, e non in mezzo: l'ordine entra nel prefisso della cache.
         strumento(
@@ -188,7 +192,13 @@ pub fn definizioni() -> Vec<Value> {
                                     comando, un pulsante premuto. Con i tocchi alza `ms`." },
                 "ms": { "type": "integer",
                     "description": "Millisecondi di rendering prima dello scatto (default 500). \
-                                    Con i tocchi 800-1500." } } }),
+                                    Con i tocchi 800-1500." },
+                "pagina": { "type": "object",
+                    "description": "Una pagina INTERA non ancora proposta: si fotografa questa al \
+                                    posto di quella sul disco con lo stesso nome. Le bozze di \
+                                    simbolo della conversazione ci sono sempre. Senza `nome` e \
+                                    senza `pagina`, con delle bozze, fotografa la TAVOLA delle \
+                                    bozze: è il modo di guardare i simboli che hai disegnato." } } }),
         ),
         strumento(
             "controlla_python",
@@ -200,6 +210,46 @@ pub fn definizioni() -> Vec<Value> {
             json!({ "type": "object", "required": ["codice"], "additionalProperties": false,
                     "properties": { "codice": { "type": "string",
                         "description": "Il corpo Python, come lo metteresti in `code`." } } }),
+        ),
+        // ── Simboli e sinottici interi (03-11-2026). In coda, per la cache. ──
+        strumento(
+            "cerca_simboli",
+            "Cerca fra i simboli disponibili: i 195 della libreria e quelli disegnati nel \
+             progetto (prj:). Per ognuno: id da mettere in symbol_id, etichetta, tipologia, \
+             dimensioni del disegno (w×h), parti vive (rotor, level, needle, lever, lamp) e \
+             bocche per i tubi. CHIAMALO prima di disegnare un simbolo nuovo: se la libreria \
+             ha già la macchina, si usa quella.",
+            json!({ "type": "object", "additionalProperties": false, "properties": {
+                "testo": { "type": "string",
+                    "description": "Parole da cercare in etichetta (it/en), id e tipologia: \
+                                    «pompa», «valve», «tank»…" },
+                "famiglia": { "type": "string",
+                    "description": "controls, process, electrical, machines, building, project" },
+                "tipo": { "type": "string", "description": "La tipologia: pumps, valves, tanks, kitchen…" },
+                "con_parti": { "type": "string",
+                    "description": "Solo i simboli con una parte di questo tipo: rotor, level, needle, lever, lamp" },
+                "con_bocche": { "type": "boolean", "description": "Solo i simboli con bocche per i tubi" } } }),
+        ),
+        strumento(
+            "schema_simbolo",
+            "Come si DISEGNA un simbolo del progetto: il formato della descrizione (forme, \
+             materiali, veli, parti vive, flange e tronchetti che diventano bocche), le regole \
+             di disegno della libreria e tre esempi veri. CHIAMALO prima di bozza_simbolo: un \
+             simbolo non si scrive in SVG, si descrive, e SWS lo compila come quelli di libreria.",
+            json!({ "type": "object", "properties": {}, "additionalProperties": false }),
+        ),
+        strumento(
+            "bozza_simbolo",
+            "Compila la descrizione di un simbolo nuovo e la tiene come BOZZA di questa \
+             conversazione: non tocca il progetto. Restituisce l'id (prj:<slug>), le bocche e le \
+             parti, oppure gli errori da correggere. La persona vede la miniatura. Da lì in avanti \
+             il simbolo si usa nelle pagine (valida e istantanea_pagina lo vedono), e entra nel \
+             progetto con proponi_modifica. Ridisegnarlo = richiamarla con lo stesso slug. Puoi \
+             chiamarla più volte nello stesso giro, una per simbolo.",
+            json!({ "type": "object", "required": ["descrizione"], "additionalProperties": false,
+                    "properties": { "descrizione": { "type": "object",
+                        "description": "La descrizione: slug, w, h, tipo, body, it, en, ops \
+                                        (vedi schema_simbolo)." } } }),
         ),
     ]
 }
@@ -216,7 +266,7 @@ fn strumento(nome: &str, descrizione: &str, schema: Value) -> Value {
 /// `match`. Il test `nessuno_strumento_sfugge_alla_classificazione` tiene i due
 /// elenchi uguali all'insieme di `definizioni()`: aggiungere uno strumento
 /// senza decidere da che parte sta fa diventare rosso quel test, che è il punto.
-pub const SOLA_LETTURA: [&str; 11] = [
+pub const SOLA_LETTURA: [&str; 13] = [
     "elenca_pagine",
     "leggi_pagina",
     "leggi_progetto",
@@ -228,6 +278,8 @@ pub const SOLA_LETTURA: [&str; 11] = [
     "leggi_script",
     "schema_python",
     "controlla_python",
+    "cerca_simboli",
+    "schema_simbolo",
 ];
 
 /// I due che **non** passano da `esegui`, e perché.
@@ -239,7 +291,10 @@ pub const SOLA_LETTURA: [&str; 11] = [
 /// `istantanea_pagina` copia il progetto in una cartella temporanea e avvia un
 /// secondo runtime per fotografarlo col motore LVGL vero: il ciclo la intercetta
 /// perché il suo risultato è un blocco immagine, non un testo.
-pub const FUORI_DA_ESEGUI: [&str; 2] = ["proponi_modifica", "istantanea_pagina"];
+///
+/// `bozza_simbolo` scrive nel **banco della conversazione**, che vive nel ciclo
+/// della chat e non altrove: fuori da lì una bozza non avrebbe dove stare.
+pub const FUORI_DA_ESEGUI: [&str; 3] = ["proponi_modifica", "istantanea_pagina", "bozza_simbolo"];
 
 /// Le definizioni dei soli strumenti di sola lettura.
 pub fn definizioni_sola_lettura() -> Vec<Value> {
@@ -271,6 +326,8 @@ pub async fn esegui(s: &AppState, nome: &str, input: &Value) -> Esito {
         "leggi_script" => leggi_script(s, input).await,
         "schema_python" => schema_python(s.py.is_sandboxed()),
         "controlla_python" => controlla_python(s, arg_str(input, "codice")?).await,
+        "cerca_simboli" => cerca_simboli(s, input).await,
+        "schema_simbolo" => schema_simbolo(),
         // `proponi_modifica` non passa di qui: la intercetta il ciclo, perché
         // è l'unica che non produce un risultato da rimandare al modello ma
         // chiude il turno verso il browser.
@@ -350,6 +407,12 @@ async fn leggi_progetto(s: &AppState) -> Esito {
     // Non ereditata dall'handler HTTP: qui si entra da dentro.
     mask_project_secrets(&mut p);
     let mut v = serde_json::to_value(&p).map_err(|e| e.to_string())?;
+    // I simboli disegnati nel progetto sono descrizioni lunghe: li elenca
+    // `cerca_simboli`, e `proponi_modifica` li rimette da sé quando il
+    // progetto torna indietro senza (vedi `valida_interna`).
+    if let Some(o) = v.as_object_mut() {
+        o.remove("simboli");
+    }
     // Le funzioni portano il corpo Python: lungo, e quasi mai utile per
     // disegnare. Restano i nomi, che è ciò che serve per agganciare un evento.
     if let Some(f) = v.get_mut("functions").and_then(Value::as_array_mut) {
@@ -516,7 +579,36 @@ fn campo(f: &sch::Field) -> Value {
 /// Il giudizio su una proposta. Stessa logica dell'endpoint HTTP, chiamata da
 /// dentro — e con la stessa distinzione fra rilievi nuovi e preesistenti.
 pub async fn valida(s: &AppState, input: &Value) -> Esito {
-    valida_interna(s, input).await.map(|(giudizio, _)| giudizio)
+    valida_interna(s, input, &[], false).await.map(|(giudizio, _)| giudizio)
+}
+
+/// Le bozze di simbolo che una proposta porta nel progetto: quelle elencate in
+/// `simboli`, oppure — con `solo_usate` — quelle che le pagine proposte usano;
+/// senza, tutte (è `valida`, che deve vedere quello che il modello sta
+/// costruendo).
+pub fn bozze_da_portare<'a>(
+    input: &Value,
+    raw_pages: &[Value],
+    bozze: &'a [sws_core::simboli_prj::Descrizione],
+    solo_usate: bool,
+) -> Result<Vec<&'a sws_core::simboli_prj::Descrizione>, String> {
+    if let Some(elenco) = input.get("simboli").and_then(Value::as_array) {
+        let mut out = Vec::new();
+        for x in elenco {
+            let slug = x.as_str().unwrap_or("").trim_start_matches("prj:");
+            let d = bozze.iter().find(|d| d.slug == slug).ok_or_else(|| {
+                format!("`simboli` nomina «{slug}», che non è una bozza di questa conversazione: \
+                         disegnala prima con bozza_simbolo")
+            })?;
+            out.push(d);
+        }
+        return Ok(out);
+    }
+    if !solo_usate {
+        return Ok(bozze.iter().collect());
+    }
+    let testo = serde_json::to_string(raw_pages).unwrap_or_default();
+    Ok(bozze.iter().filter(|d| testo.contains(&format!("\"prj:{}\"", d.slug))).collect())
 }
 
 /// Come [`valida`], ma restituisce anche il progetto **ricomposto**.
@@ -528,13 +620,26 @@ pub async fn valida(s: &AppState, input: &Value) -> Esito {
 ///
 /// `None` significa «la proposta non toccava il progetto»: si è validato quello
 /// del disco e non c'è niente da spedire.
-pub async fn valida_interna(s: &AppState, input: &Value) -> Result<(Value, Option<Value>), String> {
+pub async fn valida_interna(
+    s: &AppState,
+    input: &Value,
+    bozze: &[sws_core::simboli_prj::Descrizione],
+    solo_usate: bool,
+) -> Result<(Value, Option<Value>), String> {
     let dir = dir_progetto(s).await?;
     let raw_pages: Vec<Value> = input
         .get("pages")
         .and_then(Value::as_array)
         .cloned()
         .unwrap_or_default();
+    let usate = bozze_da_portare(input, &raw_pages, bozze, solo_usate)?;
+    // Con delle bozze da portare il progetto cambia anche se il modello non lo
+    // ha mandato: si parte da quello che `leggi_progetto` gli avrebbe dato.
+    let progetto_in: Option<Value> = match input.get("project") {
+        Some(v) => Some(v.clone()),
+        None if !usate.is_empty() => Some(leggi_progetto(s).await?),
+        None => None,
+    };
 
     // Sul grezzo **originale**, prima di ricomporre: dopo, un `codice:` scritto
     // male non si distinguerebbe più da un corpo che il modello non ha mandato.
@@ -543,7 +648,7 @@ pub async fn valida_interna(s: &AppState, input: &Value) -> Result<(Value, Optio
     let disco =
         Project::load(&dir).map_err(|e| format!("il progetto sul disco non si carica: {e:#}"))?;
 
-    let (project, normalizzato): (Project, Option<Value>) = match input.get("project") {
+    let (project, normalizzato): (Project, Option<Value>) = match progetto_in.as_ref() {
         // Ricaricato invece di clonato: `Project` non è `Clone`, e `disco`
         // serve ancora sotto per i rilievi preesistenti.
         None => (
@@ -553,6 +658,20 @@ pub async fn valida_interna(s: &AppState, input: &Value) -> Result<(Value, Optio
         Some(v) => {
             let mut grezzo = v.clone();
             findings.extend(crate::validate::ricomponi_script(&mut grezzo, &disco));
+            // I simboli del progetto non passano dal modello (`leggi_progetto`
+            // li toglie): tornano quelli del disco, più le bozze, al loro posto
+            // se lo slug c'è già.
+            if grezzo.get("simboli").is_none() {
+                grezzo["simboli"] = serde_json::to_value(&disco.simboli).unwrap_or(json!([]));
+            }
+            for d in &usate {
+                let nuovo = serde_json::to_value(d).map_err(|e| e.to_string())?;
+                let elenco = grezzo["simboli"].as_array_mut().ok_or("`simboli` del progetto non è un elenco")?;
+                match elenco.iter().position(|x| x["slug"] == d.slug.as_str()) {
+                    Some(i) => elenco[i] = nuovo,
+                    None => elenco.push(nuovo),
+                }
+            }
             let p = serde_json::from_value(grezzo.clone()).map_err(|e| {
                 format!(
                     "il progetto proposto non si legge: {e}. Deve essere il \
@@ -623,6 +742,164 @@ pub async fn valida_interna(s: &AppState, input: &Value) -> Result<(Value, Optio
         }),
         normalizzato,
     ))
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Simboli (piano 2026-11-03-assistente-genera-simboli-e-sinottici)
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// Il catalogo della libreria, letto una volta dallo schema generato.
+fn catalogo_libreria() -> &'static [Value] {
+    static C: std::sync::OnceLock<Vec<Value>> = std::sync::OnceLock::new();
+    C.get_or_init(|| serde_json::from_str(sch::SYMBOL_CATALOG_JSON).unwrap_or_default())
+}
+
+/// La voce di catalogo di un simbolo compilato (del progetto o in bozza).
+pub fn voce_catalogo(c: &sws_core::simboli_prj::Compilato) -> Value {
+    let v = &c.voce;
+    let lista = |k: &str, f: &dyn Fn(&Value) -> String| -> Vec<String> {
+        v[k].as_array().map(|a| a.iter().map(f).collect()).unwrap_or_default()
+    };
+    json!({
+        "id": v["id"], "famiglia": "project", "tipo": v["kind"],
+        "it": v["labels"]["it"], "en": v["labels"]["en"],
+        "w": v["viewBox"][0], "h": v["viewBox"][1],
+        "parti": lista("parts", &|p| format!("{}:{}", p["id"].as_str().unwrap_or(""), p["kind"].as_str().unwrap_or(""))),
+        "bocche": lista("ports", &|b| format!("{}@{}", b["id"].as_str().unwrap_or(""), b["side"].as_str().unwrap_or(""))),
+    })
+}
+
+/// Il filtro di `cerca_simboli`, separato per poterlo provare.
+pub fn filtra_simboli<'a>(voci: &'a [Value], input: &Value) -> Vec<&'a Value> {
+    let testo = input.get("testo").and_then(Value::as_str).unwrap_or("").to_lowercase();
+    let parole: Vec<&str> = testo.split_whitespace().collect();
+    let campo = |k: &str| input.get(k).and_then(Value::as_str).filter(|x| !x.is_empty());
+    voci.iter()
+        .filter(|v| {
+            let fieno = format!(
+                "{} {} {} {} {}",
+                v["id"].as_str().unwrap_or(""),
+                v["it"].as_str().unwrap_or(""),
+                v["en"].as_str().unwrap_or(""),
+                v["tipo"].as_str().unwrap_or(""),
+                v["alias"].as_str().unwrap_or("")
+            )
+            .to_lowercase();
+            parole.iter().all(|p| fieno.contains(p))
+                && campo("famiglia").is_none_or(|f| v["famiglia"] == f)
+                && campo("tipo").is_none_or(|t| v["tipo"] == t)
+                && campo("con_parti").is_none_or(|k| {
+                    v["parti"].as_array().is_some_and(|a| a.iter().any(|p| p.as_str().is_some_and(|p| p.ends_with(&format!(":{k}")))))
+                })
+                && (input.get("con_bocche").and_then(Value::as_bool) != Some(true)
+                    || v["bocche"].as_array().is_some_and(|a| !a.is_empty()))
+        })
+        .collect()
+}
+
+async fn cerca_simboli(s: &AppState, input: &Value) -> Esito {
+    let mut voci: Vec<Value> = catalogo_libreria().to_vec();
+    if let Ok(p) = carica_progetto(s).await {
+        for d in &p.simboli {
+            if let Ok(c) = sws_core::simboli_prj::compila_e_controlla(d) {
+                voci.push(voce_catalogo(&c));
+            }
+        }
+    }
+    let trovati = filtra_simboli(&voci, input);
+    const MASSIMO: usize = 40;
+    Ok(json!({
+        "trovati": trovati.len(),
+        "simboli": trovati.iter().take(MASSIMO).collect::<Vec<_>>(),
+        "nota": if trovati.len() > MASSIMO {
+            format!("mostrati i primi {MASSIMO}: restringi con testo, famiglia o tipo")
+        } else {
+            "w×h è il disegno: l'oggetto in pagina può avere un'altra misura, ma con le stesse \
+             proporzioni il simbolo non si deforma. Le bocche (id@lato) vanno in from_port/to_port \
+             di un tubo agganciato con from_obj_id/to_obj_id.".to_string()
+        },
+    }))
+}
+
+/// Come si disegna un simbolo: formato, materiali, veli, regole ed esempi.
+pub fn schema_simbolo() -> Esito {
+    use sws_core::simboli_prj::{MATERIALI, VELI};
+    let esempi: Value = serde_json::from_str(sch::SYMBOL_EXAMPLES_JSON).unwrap_or(Value::Null);
+    Ok(json!({
+        "descrizione": {
+            "slug": "id del simbolo: a-z, 0-9 e «-», da 3 a 40 caratteri. In pagina diventa symbol_id \"prj:<slug>\"",
+            "w": "larghezza del disegno, multiplo di 10, al più 512 (tipico 60–160)",
+            "h": "altezza del disegno, come w",
+            "tipo": "la tipologia, in inglese: machines, pumps, tanks, conveyors, kitchen, lighting…",
+            "body": "il materiale del corpo: è il colore delle forme dello strato «corpo» finché lo stato non lo cambia",
+            "it": "etichetta italiana", "en": "etichetta inglese",
+            "ops": "le operazioni, nell'ordine in cui si disegnano: prima ciò che sta dietro",
+        },
+        "operazioni": {
+            "corpo": "{op:\"corpo\"}: apre lo strato che prende il COLORE DI STATO. Le forme qui dentro vanno SENZA mat. Ogni simbolo ne ha uno",
+            "statico": "{op:\"statico\"}: apre uno strato fermo sopra i precedenti (dettagli, bulloni, vetri)",
+            "forma": "{op:\"forma\", tag: rect|circle|ellipse|path, geo:{x,y,width,height,rx} | {cx,cy,r} | {cx,cy,rx,ry} | {d}, mat?, velo?, extra?}",
+            "luce": "{op:\"luce\", tag, geo, velo?=glass-r, opacita?}: un riflesso di vetro senza forma piena sotto",
+            "riflesso": "{op:\"riflesso\", tag, geo, opacita?=0.18}: un lampo di bianco",
+            "tratto": "{op:\"tratto\", d, mat?, extra?}: una linea; senza mat prende il contorno dello strato",
+            "parte": "{op:\"parte\", id, kind, geo}: apre uno strato VIVO; le forme dopo, fino al prossimo strato, sono la parte",
+            "flangia_v": "{op:\"flangia_v\", x, y, w?=4, h?=16}: piastra di un tubo orizzontale. A filo del bordo sinistro o destro diventa una BOCCA",
+            "flangia_o": "{op:\"flangia_o\", x, y, w?=16, h?=4}: piastra di un tubo verticale; a filo del bordo alto o basso è una bocca",
+            "tubo_o": "{op:\"tubo_o\", x, y, w, h?=10}: tronchetto orizzontale, dalla flangia al corpo",
+            "tubo_v": "{op:\"tubo_v\", x, y, h, w?=10}: tronchetto verticale",
+            "bocca": "{op:\"bocca\", x, y, side: left|top|right|bottom, d, id?}: una bocca dichiarata a mano, dove non c'è una flangia",
+        },
+        "parti_vive": {
+            "rotor": "geo {cx, cy, symmetry}: gira attorno a (cx,cy); symmetry = gradi dopo cui il disegno si ripete (6 pale = 60). Si accende con symbol_spin",
+            "level": "geo {x, y, w, h}: la finestra del contenuto. Disegna il liquido PIENO (mat liquid): il motore ne mostra la parte bassa secondo fill_level_tag",
+            "needle": "geo {cx, cy, a0, a1}: lancetta disegnata a metà scala, ruota da a0 (minimo) ad a1 (massimo) in gradi orari. Si lega in symbol_parts",
+            "lever": "geo {cx, cy, open, closed}: leva disegnata nella posizione aperta; closed è la sua rotazione. Si lega in symbol_parts",
+            "lamp": "geo {}: id «lamp» o «lamp-…». Disegna la lente SPENTA in uno strato statico (mat lamp-*-off) e la lente ACCESA nella parte (mat lamp-*). Si lega in symbol_parts",
+        },
+        "materiali": MATERIALI.iter().map(|(n, c)| json!({ "nome": n, "colore": c })).collect::<Vec<_>>(),
+        "veli": VELI.iter().map(|v| v.nome).collect::<Vec<_>>(),
+        "veli_come": "un velo dà volume a una forma piena. -v per superfici allungate in orizzontale (tubi orizzontali), -h per quelle verticali, -r per forme tonde, -d diagonale. paint-* sulle vernici, metal-* sui metalli, dark-* sulle parti scure, rubber-r sulla gomma, dial-r sui quadranti, glass-r (con luce) sul vetro. Senza velo la forma è piatta",
+        "attributi_extra": "stroke_width (0–20), stroke_opacity e fill_opacity (0–1), stroke_linecap (butt|round|square), stroke_linejoin, stroke_dasharray (\"3 2\"), stroke e fill solo «none». Nessun colore libero: i colori vengono SOLO dai materiali",
+        "regole": [
+            "vista ortogonale di fronte, luce dall'alto a sinistra, lo stesso livello di dettaglio della libreria (gli esempi): la macchina si deve riconoscere dalle sue parti, e leggere a 60–120 px",
+            "niente testo nel disegno: il pannello non ha font. Le scritte si mettono in pagina come oggetti text",
+            "il contorno lo mette lo strato: stroke «none» solo sui dettagli che non lo vogliono",
+            "i tubi della libreria hanno diametro 8 in pagina: tronchetto 10, flangia 4×16 a filo del bordo, con l'asse su un multiplo di 10. Ingresso a sinistra, uscita a destra o in alto",
+            "una flangia a filo del bordo diventa una bocca da sé: l'id è n-left, n-right, n-top, n-bottom (n-left-2… se ce ne sono due sullo stesso lato)",
+            "il corpo è la parte che cambia colore con lo stato: mettici la carcassa della macchina, non i tubi",
+            "un simbolo descrive UNA macchina; le scritte, i valori e i tubi fra macchine stanno in pagina",
+        ],
+        "esempi": esempi,
+    }))
+}
+
+/// Compila una descrizione arrivata dal modello: o la descrizione con il suo
+/// compilato, o gli errori da rimandargli.
+pub fn compila_bozza(input: &Value) -> Result<(sws_core::simboli_prj::Descrizione, sws_core::simboli_prj::Compilato), Vec<String>> {
+    let v = input.get("descrizione").ok_or_else(|| vec!["manca `descrizione`".to_string()])?;
+    if v.to_string().len() > 32 * 1024 {
+        return Err(vec!["descrizione oltre i 32 KB: semplifica il disegno".into()]);
+    }
+    let mut d: sws_core::simboli_prj::Descrizione = serde_json::from_value(v.clone())
+        .map_err(|e| vec![format!("la descrizione non si legge: {e}. Vedi schema_simbolo")])?;
+    // Un simbolo del progetto non ha famiglia: quella la dà solo la libreria.
+    d.family = None;
+    let c = sws_core::simboli_prj::compila_e_controlla(&d)?;
+    Ok((d, c))
+}
+
+/// Quello che il modello riceve da una bozza riuscita.
+pub fn esito_bozza(c: &sws_core::simboli_prj::Compilato) -> Value {
+    json!({
+        "ok": true,
+        "symbol_id": c.voce["id"],
+        "viewBox": c.voce["viewBox"],
+        "bocche": c.voce.get("ports").cloned().unwrap_or(json!([])),
+        "parti": c.voce["parts"],
+        "nota": "è una bozza: si vede in valida e istantanea_pagina, ed entra nel progetto con \
+                 proponi_modifica. In pagina: type symbol, symbol_id come sopra, con le stesse \
+                 proporzioni del viewBox. Per guardarla: istantanea_pagina senza nome.",
+    })
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -959,6 +1236,104 @@ mod tests {
         assert!(nota.contains("type_ref"), "{nota}");
         assert!(nota.contains("array"), "{nota}");
         assert!(nota.contains("motore1.velocita"), "{nota}");
+    }
+
+    /// `cerca_simboli` trova per parola (italiano o inglese), per parte viva e
+    /// per bocche, e il catalogo generato copre tutta la libreria.
+    #[test]
+    fn il_catalogo_dei_simboli_si_cerca() {
+        let voci = catalogo_libreria();
+        assert!(voci.len() >= 195, "catalogo di {} voci", voci.len());
+        let ids = |v: Vec<&Value>| v.iter().map(|x| x["id"].as_str().unwrap().to_string()).collect::<Vec<_>>();
+        let pompe = ids(filtra_simboli(voci, &json!({ "testo": "pompa centrifuga" })));
+        assert!(pompe.contains(&"lib:process/centrifugal-pump".to_string()), "{pompe:?}");
+        let pompe_en = ids(filtra_simboli(voci, &json!({ "testo": "centrifugal" })));
+        assert!(pompe_en.contains(&"lib:process/centrifugal-pump".to_string()));
+        // Per parte viva: ogni risultato ha un livello.
+        let livelli = filtra_simboli(voci, &json!({ "con_parti": "level" }));
+        assert!(!livelli.is_empty());
+        assert!(livelli.iter().all(|v| v["parti"].to_string().contains(":level")));
+        // Per bocche e famiglia insieme.
+        let tubi = filtra_simboli(voci, &json!({ "famiglia": "process", "con_bocche": true }));
+        assert!(tubi.iter().all(|v| v["famiglia"] == "process" && !v["bocche"].as_array().unwrap().is_empty()));
+        // Un alias storico si trova anche col suo nome.
+        assert!(!filtra_simboli(voci, &json!({ "testo": "boiler" })).is_empty());
+    }
+
+    /// Gli esempi di `schema_simbolo` sono descrizioni vere, nella forma corta:
+    /// compilate, danno la stessa voce del simbolo di libreria da cui vengono.
+    #[test]
+    fn gli_esempi_di_schema_simbolo_compilano_come_la_libreria() {
+        let schema = schema_simbolo().unwrap();
+        let esempi = schema["esempi"].as_array().unwrap();
+        assert_eq!(esempi.len(), 3);
+        let manifesto: Value = serde_json::from_str(include_str!(
+            "../../../../../sws-editor/public/symbols/lib/manifest.json"
+        ))
+        .unwrap();
+        for e in esempi {
+            let (d, c) = compila_bozza(&json!({ "descrizione": e })).unwrap_or_else(|m| panic!("{m:?}"));
+            let lib = manifesto["symbols"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .find(|v| v["id"].as_str().unwrap().ends_with(&format!("/{}", d.slug)))
+                .unwrap();
+            assert_eq!(c.voce["parts"], lib["parts"], "{}", d.slug);
+            assert_eq!(
+                c.voce["ports"].as_array().map(|a| a.len()),
+                lib["ports"].as_array().map(|a| a.len()),
+                "{}",
+                d.slug
+            );
+            assert_eq!(c.voce["materials"], lib["materials"], "{}", d.slug);
+        }
+    }
+
+    /// Quali bozze una proposta porta nel progetto.
+    #[test]
+    fn le_bozze_della_proposta_sono_quelle_usate_o_elencate() {
+        let d = |slug: &str| -> sws_core::simboli_prj::Descrizione {
+            let mut v: Value = serde_json::from_str(include_str!(
+                "../../../../../tests/fixtures/simboli-prj/gabbia-laminazione.json"
+            ))
+            .unwrap();
+            v["slug"] = json!(slug);
+            serde_json::from_value(v).unwrap()
+        };
+        let bozze = vec![d("gabbia-a"), d("gabbia-b")];
+        let pagine = vec![json!({ "name": "P", "objects": [{ "symbol_id": "prj:gabbia-b" }] })];
+        let slug = |v: Vec<&sws_core::simboli_prj::Descrizione>| v.iter().map(|d| d.slug.clone()).collect::<Vec<_>>();
+        assert_eq!(slug(bozze_da_portare(&json!({}), &pagine, &bozze, true).unwrap()), ["gabbia-b"]);
+        assert_eq!(slug(bozze_da_portare(&json!({}), &pagine, &bozze, false).unwrap()), ["gabbia-a", "gabbia-b"]);
+        assert_eq!(
+            slug(bozze_da_portare(&json!({ "simboli": ["prj:gabbia-a"] }), &pagine, &bozze, true).unwrap()),
+            ["gabbia-a"]
+        );
+        assert!(bozze_da_portare(&json!({ "simboli": ["nessuna"] }), &pagine, &bozze, true).is_err());
+    }
+
+    /// Una bozza sbagliata torna indietro con gli errori, non come SVG.
+    #[test]
+    fn una_bozza_sbagliata_dice_perche() {
+        let e = compila_bozza(&json!({ "descrizione": { "slug": "x" } })).unwrap_err();
+        assert!(e[0].contains("schema_simbolo"), "{e:?}");
+        let mut v: Value = serde_json::from_str(include_str!(
+            "../../../../../tests/fixtures/simboli-prj/gabbia-laminazione.json"
+        ))
+        .unwrap();
+        v["body"] = json!("oro");
+        assert!(compila_bozza(&json!({ "descrizione": v })).is_err());
+        // Una famiglia scritta dal modello non lo trasforma in un `lib:`.
+        let mut v: Value = serde_json::from_str(include_str!(
+            "../../../../../tests/fixtures/simboli-prj/gabbia-laminazione.json"
+        ))
+        .unwrap();
+        v["family"] = json!("process");
+        let (d, c) = compila_bozza(&json!({ "descrizione": v })).unwrap();
+        assert!(d.family.is_none());
+        assert_eq!(c.voce["id"], "prj:gabbia-laminazione");
+        assert_eq!(esito_bozza(&c)["symbol_id"], "prj:gabbia-laminazione");
     }
 
     /// L'ordine degli strumenti entra nel prefisso della cache: uno strumento

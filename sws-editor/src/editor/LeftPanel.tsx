@@ -16,7 +16,7 @@ import { BarraAttivita, useAttivita, type VoceAttivita } from "./BarraAttivita";
 import { trascinaBordo } from "./bordoPannello";
 import { IconaStrumento } from "./IconaStrumento";
 import { AnteprimaLib } from "@/symbols/lib/AnteprimaLib";
-import { useManifestoLib } from "@/symbols/lib/libreria";
+import { etichettaSimbolo, useManifestoLib, useSimboliProgetto } from "@/symbols/lib/libreria";
 import type { SimboloLib } from "@/symbols/lib/manifest";
 import { canConfigureProject, canEditProject } from "@/auth/permissions";
 import { IntestazioneSezione, PREFISSO_MEMORIA, TitoloVista, useSezioneAperta, colonneGuide, guideAlbero } from "./stilePannelli";
@@ -1050,8 +1050,9 @@ function RamoSimboli({ ultimoGruppo }: { ultimoGruppo: boolean }) {
   const { t } = useTranslation();
   const manifesto = useManifestoLib();
   const custom = useAppStore((s) => s.customSymbols);
+  const disegnati = useSimboliProgetto();
   const famiglie = famiglieSimboli(manifesto?.symbols ?? []);
-  const voci = [...famiglie.map((f) => f.famiglia), ...(custom.length ? ["__progetto"] : [])];
+  const voci = [...famiglie.map((f) => f.famiglia), ...(custom.length || disegnati.length ? ["__progetto"] : [])];
   return (
     <>
       {voci.map((f, i) => (
@@ -1079,11 +1080,15 @@ export function famiglieSimboli(simboli: readonly SimboloLib[]): { famiglia: str
 function FamigliaSimboli({ famiglia, tipologie, titolo, ultima, ultimoGruppo }: {
   famiglia: string; tipologie: { tipo: string; simboli: SimboloLib[] }[]; titolo: string; ultima: boolean; ultimoGruppo: boolean;
 }) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const [aperta, commuta] = useSezioneAperta(`strumenti.simboli.${famiglia}`, false);
   const custom = useAppStore((s) => s.customSymbols);
+  // I simboli disegnati nel progetto (`prj:`), dopo quelli importati: si
+  // comportano come quelli di libreria, bocche e parti vive comprese.
+  const disegnati = useSimboliProgetto();
   const px = useAppStore((s) => s.misuraIcone);
   const esterne = ultimoGruppo ? [] : [13];
+  const nProgetto = custom.length + disegnati.length;
   return (
     <div>
       <IntestazioneGruppo testo={titolo} aperto={aperta} commuta={commuta} rientro={36}
@@ -1092,7 +1097,13 @@ function FamigliaSimboli({ famiglia, tipologie, titolo, ultima, ultimoGruppo }: 
         <RigaStrumento key={c.id} testid={`simbolo-custom:${c.id}`} rientro={52} titolo={t("leftPanel.strumentoAggiungi")}
           icona={<ImgProgetto src={c.url} alt="" draggable={false} style={{ width: px, height: px, objectFit: "contain", flexShrink: 0 }} />}
           nome={c.label} onClick={() => aggiungiOggetto("symbol", { symbol_id: `custom:${c.id}` })}
-          guide={guideAlbero(ultima ? esterne : [...esterne, 27], { x: 43, finoA: 50, ultimo: i === custom.length - 1 })} />
+          guide={guideAlbero(ultima ? esterne : [...esterne, 27], { x: 43, finoA: 50, ultimo: i === nProgetto - 1 })} />
+      ))}
+      {aperta && famiglia === "__progetto" && disegnati.map((s, i) => (
+        <RigaStrumento key={s.id} testid={`simbolo-${s.id}`} rientro={52} titolo={t("leftPanel.strumentoAggiungi")}
+          icona={<AnteprimaLib sim={s} w={Math.round(px * 1.15)} h={px} />}
+          nome={etichettaSimbolo(s, t, i18n.language)} onClick={() => aggiungiOggetto("symbol", { symbol_id: s.id })}
+          guide={guideAlbero(ultima ? esterne : [...esterne, 27], { x: 43, finoA: 50, ultimo: custom.length + i === nProgetto - 1 })} />
       ))}
       {aperta && tipologie.map((k, i) => (
         <TipologiaSimboli key={k.tipo} famiglia={famiglia} tipo={k.tipo} simboli={k.simboli}

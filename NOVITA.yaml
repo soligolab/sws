@@ -35,6 +35,10 @@
 versioni:
   - versione: "Unreleased"
     voci:
+      - it: "L'assistente IA disegna i simboli che mancano e compone un sinottico intero da una richiesta semplice."
+        en: "The AI assistant draws the missing symbols and builds a whole synoptic page from a simple request."
+      - it: "Assistente IA: tetto di spesa per conversazione, con la spesa sempre in vista nella chat."
+        en: "AI assistant: a spending cap per conversation, with the cost always visible in the chat."
       - it: "Tag: nelle variabili strutturate ogni membro dice chi lo può scrivere, e un clic apre il tipo dove si cambia."
         en: "Tags: in structured variables every member shows who can write it, and one click opens the type where it is changed."
       - it: "Deploy: un progetto col nome con trattini lunghi o lettere accentate si ridistribuisce senza fermarsi su «Delete fallito: 404»."

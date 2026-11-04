@@ -2615,6 +2615,11 @@ export const useAppStore = create<AppState>((set, get) => {
         alarms:  !uguale(prima.alarms,  dopo.alarms),
         functions:      !uguale(prima.functions      ?? [], dopo.functions      ?? []),
         global_scripts: !uguale(prima.global_scripts ?? [], dopo.global_scripts ?? []),
+        // Un sinottico intero dell'assistente porta tipi e simboli nuovi
+        // (03-11-2026): senza queste due voci si vedevano nel canvas e al
+        // reload sparivano, come gli script globali prima del 2026-09-02.
+        types:   !uguale(prima.types   ?? [], dopo.types   ?? []),
+        simboli: !uguale(prima.simboli ?? [], dopo.simboli ?? []),
       };
 
       // Le pagine proposte si sovrappongono per nome; le altre restano.
@@ -2693,8 +2698,21 @@ export const useAppStore = create<AppState>((set, get) => {
           get().registerPendingSection(chiave, null);
         });
 
-      if (tocca.tags) {
+      // I tipi PRIMA delle variabili: un'istanza nuova (`laminatoio1`) nomina
+      // un tipo nuovo (`laminatoio`), e il runtime la rifiuterebbe se il tipo
+      // non c'è ancora. Le sezioni si scrivono nell'ordine in cui si registrano.
+      // Se un'altra proposta non salvata aveva già registrato le variabili, la
+      // sua voce starebbe davanti ai tipi: la si toglie e si rimette dopo.
+      const tagGiaInSospeso = "ai:tags" in get().pendingSections;
+      if (tocca.types) {
+        if (tagGiaInSospeso) get().registerPendingSection("ai:tags", null);
+        registra("ai:types", async () => { await api.updateTypes(get().project?.types ?? []); });
+      }
+      if (tocca.tags || (tocca.types && tagGiaInSospeso)) {
         registra("ai:tags", async () => { await api.updateTags(get().project?.tags ?? []); });
+      }
+      if (tocca.simboli) {
+        registra("ai:simboli", async () => { await api.updateSimboli(get().project?.simboli ?? []); });
       }
       if (tocca.sources) {
         registra("ai:sources", async () => { await api.updateSources(get().project?.sources ?? []); });

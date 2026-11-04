@@ -88,6 +88,7 @@ pub async fn get_ai_config(State(s): State<AppState>) -> Response {
     let ambiente: Vec<&str> = [
         "SWS_AI_FORNITORE",
         "SWS_AI_MODELLO",
+        "SWS_AI_TETTO_USD",
         "ANTHROPIC_API_KEY",
         "MOONSHOT_API_KEY",
         "KIMI_API_KEY",
@@ -117,6 +118,11 @@ pub async fn get_ai_config(State(s): State<AppState>) -> Response {
             "kimi": Fornitore::Kimi.modello_default(),
         }),
         "da_ambiente": ambiente,
+        // Il tetto effettivo (ambiente, file o default) e quello salvato: il
+        // pannello mostra il primo e scrive il secondo.
+        "tetto_usd": client::tetto_usd(imp.tetto_usd),
+        "tetto_usd_salvato": imp.tetto_usd,
+        "tetto_usd_default": client::TETTO_DEFAULT_USD,
         "percorsi": client::percorsi_chiave(&s.config_dir).iter()
             .map(|p| p.display().to_string()).collect::<Vec<_>>(),
     }))
@@ -135,6 +141,10 @@ pub struct AiConfigBody {
     /// modello → PUT cancellerebbe la chiave che l'utente non può vedere.
     #[serde(default)]
     pub chiave: Option<String>,
+    /// Il tetto di spesa per conversazione, in dollari. Assente = tieni quello
+    /// che c'è; un valore non positivo = torna al default.
+    #[serde(default)]
+    pub tetto_usd: Option<f64>,
 }
 
 /// `PUT /api/ai/config` — Admin, solo IDE.
@@ -204,9 +214,15 @@ pub async fn put_ai_config(
         .as_deref()
         .map(str::trim)
         .filter(|m| !m.is_empty());
+    let tetto_usd = match body.tetto_usd {
+        Some(t) if t.is_finite() && t > 0.0 => Some(t),
+        Some(_) => None,
+        None => Impostazioni::carica(&s.config_dir).tetto_usd,
+    };
     let imp = Impostazioni {
         fornitore: Some(f.nome().to_string()),
         modello: modello.map(str::to_string),
+        tetto_usd,
     };
     if let Err(e) = imp.salva(&s.config_dir) {
         return (

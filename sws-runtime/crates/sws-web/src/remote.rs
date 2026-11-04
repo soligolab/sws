@@ -2540,13 +2540,14 @@ async fn simboli_lib_usati(dir: &std::path::Path) -> Vec<String> {
     usati.into_iter().collect()
 }
 
-/// Ogni `symbol_id: lib:…`, a qualunque profondità (celle di griglia, figli).
+/// Ogni `symbol_id: lib:…` (e `prj:…`, i simboli disegnati nel progetto), a
+/// qualunque profondità (celle di griglia, figli).
 pub(crate) fn raccogli_simboli_lib(v: &serde_yaml::Value, out: &mut std::collections::BTreeSet<String>) {
     match v {
         serde_yaml::Value::Mapping(m) => {
             for (k, x) in m {
                 if k.as_str() == Some("symbol_id") {
-                    if let Some(id) = x.as_str().filter(|i| i.starts_with("lib:")) {
+                    if let Some(id) = x.as_str().filter(|i| i.starts_with("lib:") || i.starts_with("prj:")) {
                         out.insert(id.to_string());
                     }
                 }
@@ -2583,6 +2584,21 @@ async fn leggi_manifesto_pannello(client: &reqwest::Client, base: &str, auth_hdr
     }
     let m: sws_core::simboli_lib::ManifestLib = r.json().await.ok()?;
     Some(m.symbols.into_iter().map(|s| s.id).collect())
+}
+
+/// Il pannello sa servire i simboli disegnati nel progetto? Sì se risponde
+/// alla rotta del loro manifesto (anche vuoto).
+async fn pannello_ha_simboli_progetto(client: &reqwest::Client, base: &str, auth_hdr: &Option<String>) -> bool {
+    let mut r = client.get(format!("{base}/api/project/simboli/manifest.json"));
+    if let Some(h) = auth_hdr {
+        r = r.header("Authorization", h);
+    }
+    match r.send().await {
+        Ok(resp) if resp.status().is_success() => {
+            resp.json::<serde_json::Value>().await.is_ok_and(|v| v.get("symbols").is_some())
+        }
+        _ => false,
+    }
 }
 
 /// La versione del runtime del pannello, da `/api/system`.
@@ -2851,7 +2867,14 @@ pub async fn remote_deploy(
             // non «il pannello non ha la libreria», che era falso.
             let versione = if noti.is_none() { versione_pannello(&client, &base, &auth_hdr).await } else { None };
             let stessa = versione.as_deref() == Some(crate::aggiornamento::VERSIONE);
-            let mancanti = if stessa { Vec::new() } else { simboli_mancanti(&usati, noti.as_ref()) };
+            // I simboli disegnati nel progetto viaggiano col progetto: basta che
+            // il pannello sappia servirli (un runtime di prima del 03-11-2026 non
+            // ha `/api/project/simboli` e li mostrerebbe come segnaposto).
+            let (prj, lib): (Vec<String>, Vec<String>) = usati.iter().cloned().partition(|u| u.starts_with("prj:"));
+            let mut mancanti = if stessa { Vec::new() } else { simboli_mancanti(&lib, noti.as_ref()) };
+            if !prj.is_empty() && !stessa && !pannello_ha_simboli_progetto(&client, &base, &auth_hdr).await {
+                mancanti.extend(prj);
+            }
             if !mancanti.is_empty() {
                 return (
                     StatusCode::PRECONDITION_REQUIRED,

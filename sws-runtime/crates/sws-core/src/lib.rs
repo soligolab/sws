@@ -12,6 +12,7 @@ pub mod riconnessione;
 pub mod segreti;
 pub mod geometria_testo;
 pub mod simboli_lib;
+pub mod simboli_prj;
 pub mod stato_sorgenti;
 pub mod stile_simboli;
 pub mod stili_tubo;

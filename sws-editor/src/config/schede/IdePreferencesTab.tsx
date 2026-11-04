@@ -40,6 +40,7 @@ export function AssistenteSection() {
   const [fornitore, setFornitore] = useState("kimi");
   const [modello, setModello] = useState("");
   const [chiave, setChiave] = useState("");
+  const [tetto, setTetto] = useState("");
   const [busy, setBusy] = useState(false);
   const [esito, setEsito] = useState<string | null>(null);
   const [errore, setErrore] = useState<string | null>(null);
@@ -51,6 +52,7 @@ export function AssistenteSection() {
         setAssente(false);
         if (c.fornitore) setFornitore(c.fornitore);
         setModello(c.modello ?? "");
+        setTetto(c.tetto_usd_salvato != null ? String(c.tetto_usd_salvato) : "");
       })
       .catch(() => setAssente(true));
   };
@@ -81,8 +83,11 @@ export function AssistenteSection() {
       // La chiave si manda solo se l'utente ne ha scritta una: omettendola, il
       // server tiene quella salvata. È la convenzione della sentinella, e senza
       // di essa cambiare il modello cancellerebbe la chiave.
+      // Il tetto vuoto torna al default: il server lo legge come «non positivo».
+      const tettoNum = tetto.trim() === "" ? 0 : Number(tetto.replace(",", "."));
       const r = await api.putAiConfig(fornitore, modello.trim() || undefined,
-                                     chiave.trim() || undefined);
+                                     chiave.trim() || undefined,
+                                     Number.isFinite(tettoNum) ? tettoNum : 0);
       setChiave("");
       carica();
       if (r.riconnetti) {
@@ -181,6 +186,22 @@ export function AssistenteSection() {
           />
           <span style={{ display: "block", marginTop: 2 }}>
             {t("cfgUi.itNeverEntersTheProject")}
+          </span>
+        </label>
+
+        <label style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)" }}>
+          {t("cfgUi.tettoSpesa")}
+          <input
+            inputMode="decimal"
+            value={tetto}
+            placeholder={String(cfg.tetto_usd_default)}
+            onChange={(e) => setTetto(e.target.value)}
+            style={{ ...campoIA, marginTop: 4 }}
+          />
+          <span style={{ display: "block", marginTop: 2 }}>
+            {cfg.da_ambiente.includes("SWS_AI_TETTO_USD")
+              ? t("cfgUi.tettoDaAmbiente", { tetto: cfg.tetto_usd })
+              : t("cfgUi.tettoSpiegazione", { default: cfg.tetto_usd_default })}
           </span>
         </label>
       </div>

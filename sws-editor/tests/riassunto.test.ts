@@ -118,3 +118,24 @@ describe("il diff per righe", () => {
     expect(d.nota).toContain("righe");
   });
 });
+
+// Un sinottico intero dell'assistente porta tipi e simboli disegnati: il diff
+// li deve nominare, o chi approva non sa che entrano nel progetto.
+describe("tipi e simboli", () => {
+  it("un tipo nuovo e un simbolo nuovo compaiono nel diff", () => {
+    const prima = base();
+    const dopo = base({
+      types: [{ id: "laminatoio", members: [] }] as unknown as ProjectInfo["types"],
+      simboli: [{ slug: "gabbia", w: 120, h: 100, body: "steel", it: "Gabbia", en: "Stand", ops: [] }],
+    });
+    const d = riassumi(dopo, null, prima, []).map((v) => `${v.verso} ${v.testo}`);
+    expect(d).toContain("+ tipo `laminatoio`");
+    expect(d).toContain("+ simbolo `gabbia`");
+  });
+
+  it("una proposta che non nomina i simboli non li toglie", () => {
+    const prima = base({ simboli: [{ slug: "gabbia", w: 120, h: 100, body: "steel", it: "G", en: "G", ops: [] }] });
+    const d = riassumi(base(), null, prima, []);
+    expect(d.some((v) => v.testo.includes("gabbia"))).toBe(false);
+  });
+});

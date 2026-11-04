@@ -171,8 +171,35 @@ def attrs(d: dict) -> str:
     return "".join(f' {k.replace("_", "-")}="{fmt(v)}"' for k, v in d.items() if v is not None)
 
 
+def _coppie(d: dict) -> list:
+    """Attributi come elenco di coppie, nell'ordine di inserimento e senza i
+    `None` (che `attrs` salta): in JSON un oggetto non tiene l'ordine, e
+    l'ordine decide i byte dell'SVG."""
+    return [[k, v] for k, v in d.items() if v is not None]
+
+
+class _Registro(list):
+    """L'elenco delle flange (o dei tronchetti) che annota anche nella traccia
+    del simbolo: `flangia_v` & co. ci fanno `append` dopo la `forma`."""
+
+    def __init__(self, simbolo, op):
+        super().__init__()
+        self._s, self._op = simbolo, op
+
+    def append(self, r):
+        super().append(r)
+        self._s.ops.append({"op": self._op, "rect": list(r)})
+
+
 class Simbolo:
-    """Un simbolo in costruzione. I metodi aggiungono elementi allo strato corrente."""
+    """Un simbolo in costruzione. I metodi aggiungono elementi allo strato corrente.
+
+    Ogni chiamata finisce anche in `ops`: la **descrizione** del simbolo, la stessa
+    che il compilatore Rust (`sws-core/src/simboli_prj.rs`) trasforma negli stessi
+    byte. `--descrizioni` la scrive in `tests/fixtures/simboli-descrizioni.json`, e
+    il test Rust ricompila tutta la libreria da lì (piano
+    `docs/plans/2026-11-03-assistente-genera-simboli-e-sinottici.md`).
+    """
 
     def __init__(self, family, slug, w, h, *, tipo, body, it, en, replaces=None):
         assert family in FAMIGLIE, family
@@ -185,24 +212,32 @@ class Simbolo:
         # Bocche (15-10-2026, piano docs/archive/2026-10-15-tubazioni-bocche-e-stili.md):
         # tronchetti e flange disegnati, da cui `porte()` ricava dove si aggancia
         # una tubazione; più quelle dichiarate a mano dove l'inferenza non basta.
-        self.tronchetti: list[tuple[float, float, float, float]] = []
-        self.flange: list[tuple[float, float, float, float]] = []
+        self.ops: list[dict] = []
+        self.tronchetti: list[tuple[float, float, float, float]] = _Registro(self, "tronchetto")
+        self.flange: list[tuple[float, float, float, float]] = _Registro(self, "flangia")
         self.bocche_dichiarate: list[dict] = []
         self.n = 0
-        self.statico()
+        # Il primo strato statico c'è sempre: non è una chiamata del disegno.
+        self._statico()
 
     # ── strati ──────────────────────────────────────────────────────────────
     def statico(self):
+        self.ops.append({"op": "statico"})
+        self._statico()
+
+    def _statico(self):
         nome = f"layer-{sum(1 for s in self.strati if s[0].startswith('layer-'))}"
         self.strati.append((nome, {"data-layer": "static"}, []))
 
     def corpo(self):
         """Lo strato `body`: il colore lo dà il gruppo (materiale o stato)."""
+        self.ops.append({"op": "corpo"})
         self.strati.append(("body", {"data-layer": "part", "data-mat": self.body_mat,
                                      "fill": MATERIALI[self.body_mat]}, []))
 
     def parte(self, pid, tipo, **geo):
         assert tipo in TIPI_PARTE, tipo
+        self.ops.append({"op": "parte", "id": pid, "kind": tipo, "geo": geo})
         self.parti.append({"id": pid, "kind": tipo, **geo})
         self.strati.append((pid, {"data-layer": "part"}, []))
 
@@ -219,6 +254,8 @@ class Simbolo:
 
     def forma(self, tag, geo: dict, mat=None, velo=None, **extra):
         """Forma piena. `mat=None` eredita il colore dal gruppo (dentro `body`)."""
+        self.ops.append({"op": "forma", "tag": tag, "geo": _coppie(geo), "mat": mat, "velo": velo,
+                         "extra": _coppie(extra)})
         a = {}
         if mat:
             a = {"fill": MATERIALI[mat], "data-mat": mat}
@@ -233,15 +270,18 @@ class Simbolo:
 
     def luce(self, tag, geo: dict, velo="glass-r", opacita=1):
         """Riflesso (vetro, lente): un velo senza forma piena sotto."""
+        self.ops.append({"op": "luce", "tag": tag, "geo": _coppie(geo), "velo": velo, "opacita": opacita})
         # L'intensità propria va in fill-opacity: `opacity` dei veli è del volume.
         fo = "" if opacita == 1 else f' fill-opacity="{fmt(opacita)}"'
         self._qui().append(f'<{tag}{attrs(geo)} fill="{self._velo(velo)}"{fo} stroke="none" opacity="1" data-shade="{velo}"/>')
 
     def riflesso(self, tag, geo: dict, opacita=.18):
+        self.ops.append({"op": "riflesso", "tag": tag, "geo": _coppie(geo), "opacita": opacita})
         self._qui().append(f'<{tag}{attrs(geo)} fill="#fff" fill-opacity="{fmt(opacita)}" stroke="none" opacity="1" data-shade="highlight"/>')
 
     def tratto(self, d, mat=None, **extra):
         """Linea senza riempimento: col contorno dello strato o col colore di un materiale."""
+        self.ops.append({"op": "tratto", "d": d, "mat": mat, "extra": _coppie(extra)})
         a = {"fill": "none"}
         if mat:
             a.update({"stroke": MATERIALI[mat], "data-mat-stroke": mat})
@@ -251,6 +291,7 @@ class Simbolo:
     def bocca(self, x, y, side, d, pid=None):
         """Una bocca dichiarata a mano: (x, y) sul bordo, `side` il lato d'uscita."""
         assert side in LATI, side
+        self.ops.append({"op": "bocca", "x": x, "y": y, "side": side, "d": d, "id": pid})
         self.bocche_dichiarate.append({"id": pid, "x": x, "y": y, "side": side, "d": d})
 
     def porte(self) -> list[dict]:
@@ -317,6 +358,12 @@ class Simbolo:
             righe.append("  </g>")
         righe.append("</svg>")
         return "\n".join(righe) + "\n"
+
+    def descrizione(self) -> dict:
+        """La descrizione: chi è, e la traccia delle chiamate."""
+        return {"family": self.family, "slug": self.slug, "w": self.w, "h": self.h,
+                "tipo": self.tipo, "body": self.body_mat, "it": self.it, "en": self.en,
+                "replaces": self.replaces, "ops": self.ops}
 
     def voce(self) -> dict:
         v = {"id": f"lib:{self.family}/{self.slug}", "file": f"{self.family}/{self.slug}.svg",
@@ -492,6 +539,17 @@ def regole(simboli) -> list[str]:
     return male
 
 
+DESCRIZIONI = os.path.join(RADICE, "tests", "fixtures", "simboli-descrizioni.json")
+
+
+def testo_descrizioni(simboli) -> str:
+    """Una riga per simbolo: il file resta leggibile con un diff, e il test Rust
+    lo legge come un JSON qualunque."""
+    righe = ",\n".join(json.dumps(s.descrizione(), ensure_ascii=False, separators=(",", ":")) for s in simboli)
+    return '{"_comment":"Generato da scripts/simboli/genera.py --descrizioni: la traccia di ogni simbolo, ' \
+           'che sws-core/src/simboli_prj.rs ricompila negli stessi byte.","simboli":[\n' + righe + "\n]}\n"
+
+
 def confronta(a: str, b: str) -> list[str]:
     diff = []
     def elenco(d):
@@ -514,8 +572,16 @@ def confronta(a: str, b: str) -> list[str]:
 def main(argv):
     sys.path.insert(0, QUI)
     simboli = costruisci()
+    if "--descrizioni" in argv:
+        with open(DESCRIZIONI, "w", encoding="utf-8") as f:
+            f.write(testo_descrizioni(simboli))
+        print(f"{len(simboli)} descrizioni in {os.path.relpath(DESCRIZIONI, RADICE)}")
+        return 0
     if "--controlla" in argv:
         male = regole(simboli)
+        if not os.path.isfile(DESCRIZIONI) or open(DESCRIZIONI, encoding="utf-8").read() != testo_descrizioni(simboli):
+            male.append(f"{os.path.relpath(DESCRIZIONI, RADICE)} non è allineato: "
+                        "python3 scripts/simboli/genera.py --descrizioni")
         with tempfile.TemporaryDirectory() as tmp:
             scrivi(os.path.join(tmp, "lib"), simboli)
             if not os.path.isdir(USCITA):
@@ -531,6 +597,8 @@ def main(argv):
         return 0
     male = regole(simboli)
     scrivi(USCITA, simboli)
+    with open(DESCRIZIONI, "w", encoding="utf-8") as f:
+        f.write(testo_descrizioni(simboli))
     print(f"{len(simboli)} simboli in {os.path.relpath(USCITA, RADICE)}")
     for m in male:
         print(f"  attenzione: {m}")

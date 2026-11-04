@@ -1055,6 +1055,19 @@ pub fn semantic(project: &Project, pages: &[SynopticPage]) -> Vec<Finding> {
     // Sorgenti: id univoci, e i tag mappati devono esistere.
     let mut visti_src: HashSet<String> = HashSet::new();
     // Per ogni tag: se una sorgente MQTT lo mappa, sa anche scriverlo?
+    // Le bocche dei simboli del progetto, compilate una volta per chiamata: lo
+    // schema conosce solo quelle della libreria (`SYMBOL_PORTS`).
+    let bocche_prj: HashMap<String, Vec<String>> = project
+        .simboli
+        .iter()
+        .filter_map(|d| {
+            let c = sws_core::simboli_prj::compila_e_controlla(d).ok()?;
+            let porte = c.voce["ports"].as_array().map(|a| {
+                a.iter().filter_map(|p| p["id"].as_str().map(str::to_string)).collect()
+            });
+            Some((d.id(), porte.unwrap_or_default()))
+        })
+        .collect();
     let mut mqtt_per_tag: HashMap<&str, bool> = HashMap::new();
     // Porta seriale → la prima sorgente RTU che la usa (bus e dispositivi).
     let mut porte_rtu: HashMap<&str, &str> = HashMap::new();
@@ -1398,8 +1411,10 @@ pub fn semantic(project: &Project, pages: &[SynopticPage]) -> Vec<Finding> {
                 &nomi_pagina,
                 &funzioni,
                 &mqtt_per_tag,
+                &bocche_prj,
             );
         }
+        simboli_sovrapposti(&mut out, p);
         // Lo sfondo da variabile (11-10-2026): la variabile esiste ed è un colore.
         if let Some(tag) = p.background_tag.as_deref().filter(|t| !t.trim().is_empty()) {
             match per_id.get(tag) {
@@ -1559,6 +1574,42 @@ fn font_conosciuto(ff: &str) -> bool {
     ids.contains(&primo) || alias.contains(&primo)
 }
 
+/// Due simboli che si coprono per più di un quarto del più piccolo
+/// (03-11-2026, piano 2026-11-03-assistente-genera-simboli-e-sinottici).
+///
+/// Nessun motore lo impedisce, e su una pagina composta da un assistente è il
+/// difetto più probabile: le coordinate sono assolute, e il modello le scrive
+/// senza vedere. Un avviso, non un errore: un simbolo sopra un altro può
+/// essere voluto (una spia sopra un quadro), ma va guardato.
+fn simboli_sovrapposti(out: &mut Vec<Finding>, page: &SynopticPage) {
+    let simboli: Vec<&SynopticObject> = page
+        .objects
+        .iter()
+        .filter(|o| o.obj_type == "symbol" && !o.is_off_page(page))
+        .collect();
+    let riquadro = |o: &SynopticObject| (o.x, o.y, o.width.unwrap_or(80.0), o.height.unwrap_or(80.0));
+    for (i, a) in simboli.iter().enumerate() {
+        for b in &simboli[i + 1..] {
+            let (ax, ay, aw, ah) = riquadro(a);
+            let (bx, by, bw, bh) = riquadro(b);
+            let w = (ax + aw).min(bx + bw) - ax.max(bx);
+            let h = (ay + ah).min(by + bh) - ay.max(by);
+            if w <= 0.0 || h <= 0.0 {
+                continue;
+            }
+            let minore = (aw * ah).min(bw * bh);
+            if minore > 0.0 && w * h > minore * 0.25 {
+                out.push(Finding::warn(
+                    format!("pages[{}].objects[{}]", page.name, b.id),
+                    format!("il simbolo `{}` copre `{}` per il {:.0}%", b.id, a.id, 100.0 * w * h / minore),
+                    "spostane uno: due macchine una sopra l'altra non si leggono",
+                ));
+            }
+        }
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
 fn controlla_oggetto(
     out: &mut Vec<Finding>,
     page: &SynopticPage,
@@ -1571,6 +1622,7 @@ fn controlla_oggetto(
     nomi_pagine: &HashSet<&str>,
     funzioni: &HashSet<&str>,
     mqtt_scrivibile: &HashMap<&str, bool>,
+    bocche_prj: &HashMap<String, Vec<String>>,
 ) {
     let base = format!("pages[{}].objects[{}]", page.name, o.id);
     let t = o.obj_type.as_str();
@@ -1650,6 +1702,17 @@ fn controlla_oggetto(
             // dichiara il progetto, non lo schema): fino al 14-10-2026 ogni
             // `custom:` era segnalato come valore non ammesso.
             if k == "symbol_id" && s.starts_with("custom:") {
+                continue;
+            }
+            // Un simbolo disegnato nel progetto: deve esserci, e compilare.
+            if k == "symbol_id" && s.starts_with("prj:") {
+                if !bocche_prj.contains_key(s) {
+                    out.push(Finding::err(
+                        format!("{base}.{k}"),
+                        format!("il simbolo del progetto `{s}` non c'è (o non compila)"),
+                        "i simboli `prj:` stanno in project.simboli: il disegno resterebbe un segnaposto",
+                    ));
+                }
                 continue;
             }
             if !validi.contains(&s) {
@@ -1941,12 +2004,18 @@ fn controlla_oggetto(
         }
         let rif = if campo_obj == "from_obj_id" { &o.from_obj_id } else { &o.to_obj_id };
         let bersaglio = rif.as_deref().and_then(|id| page.objects.iter().find(|x| x.id == id));
-        let bocche: &[&str] = bersaglio
-            .filter(|b| b.obj_type == "symbol")
-            .and_then(|b| b.symbol_id.as_deref())
-            .and_then(|sid| SYMBOL_PORTS.iter().find(|(k, _)| *k == sid))
-            .map(|(_, v)| *v)
-            .unwrap_or(&[]);
+        let sid = bersaglio.filter(|b| b.obj_type == "symbol").and_then(|b| b.symbol_id.as_deref());
+        let bocche: Vec<&str> = match sid {
+            Some(sid) if sid.starts_with("prj:") => {
+                bocche_prj.get(sid).map(|v| v.iter().map(String::as_str).collect()).unwrap_or_default()
+            }
+            Some(sid) => SYMBOL_PORTS
+                .iter()
+                .find(|(k, _)| *k == sid)
+                .map(|(_, v)| v.to_vec())
+                .unwrap_or_default(),
+            None => Vec::new(),
+        };
         if !bocche.contains(&porta) {
             let valide = if bocche.is_empty() {
                 "top, bottom, left, right, center".to_string()
@@ -2022,6 +2091,7 @@ fn controlla_oggetto(
                 nomi_pagine,
                 funzioni,
                 mqtt_scrivibile,
+                bocche_prj,
             );
         }
     }
@@ -2044,6 +2114,7 @@ fn controlla_cella(
     nomi_pagine: &HashSet<&str>,
     funzioni: &HashSet<&str>,
     mqtt_scrivibile: &HashMap<&str, bool>,
+    bocche_prj: &HashMap<String, Vec<String>>,
 ) {
     let Some(cm) = cella.as_object() else { return };
 
@@ -2072,6 +2143,7 @@ fn controlla_cella(
                 nomi_pagine,
                 funzioni,
                 mqtt_scrivibile,
+                bocche_prj,
             ),
             Err(e) => out.push(Finding::warn(
                 format!("{path}.child"),
@@ -2097,6 +2169,7 @@ fn controlla_cella(
                     nomi_pagine,
                     funzioni,
                     mqtt_scrivibile,
+                    bocche_prj,
                 );
             }
         }
@@ -3339,6 +3412,48 @@ alarms: []
         let f = rs.iter().find(|f| f.path.ends_with(".from_port")).expect("avviso");
         assert!(matches!(f.severity, Severity::Warning));
         assert!(f.hint.as_deref().unwrap().contains("n-left"), "{f:?}");
+    }
+
+    /// I simboli disegnati nel progetto (`prj:`): ci devono essere, e le loro
+    /// bocche sono quelle compilate dalla descrizione.
+    #[test]
+    fn un_simbolo_del_progetto_deve_esistere_e_ha_le_sue_bocche() {
+        let gabbia: serde_json::Value = serde_json::from_str(include_str!(
+            "../../../../tests/fixtures/simboli-prj/gabbia-laminazione.json"
+        ))
+        .unwrap();
+        let mut p: Project = serde_yaml::from_str(PROGETTO).unwrap();
+        p.simboli = vec![serde_json::from_value(gabbia).unwrap()];
+        let pagina_con = |sid: &str, porta: &str| -> SynopticPage {
+            serde_yaml::from_str(&pagina(&format!(
+                "- {{ id: g, type: symbol, x: 0, y: 0, width: 120, height: 100, symbol_id: \"{sid}\" }}\n\
+                 - {{ id: t, type: pipe, x: 0, y: 0, from_obj_id: g, from_port: {porta}, points: [{{x: 0, y: 0}}, {{x: 100, y: 0}}] }}"
+            )))
+            .unwrap()
+        };
+        let rs = semantic(&p, &[pagina_con("prj:gabbia-laminazione", "n-right")]);
+        assert!(errori(&rs).is_empty(), "{rs:?}");
+        assert!(!rs.iter().any(|f| f.path.ends_with(".from_port")), "n-right è una bocca: {rs:?}");
+        let rs = semantic(&p, &[pagina_con("prj:gabbia-laminazione", "n-top")]);
+        let f = rs.iter().find(|f| f.path.ends_with(".from_port")).expect("n-top non c'è");
+        assert!(f.hint.as_deref().unwrap().contains("n-left"), "{f:?}");
+        // Uno che il progetto non ha è un errore, non un valore fuori enum.
+        let rs = semantic(&p, &[pagina_con("prj:non-esiste", "left")]);
+        let e = errori(&rs);
+        assert!(e.iter().any(|f| f.message.contains("prj:non-esiste")), "{rs:?}");
+    }
+
+    #[test]
+    fn due_simboli_uno_sopra_l_altro_sono_un_avviso() {
+        let pagina_con = |x2: i32| pagina(&format!(
+            "- {{ id: a, type: symbol, x: 0, y: 0, width: 100, height: 100, symbol_id: pump }}\n\
+             - {{ id: b, type: symbol, x: {x2}, y: 0, width: 100, height: 100, symbol_id: pump }}"));
+        let copre = |rs: &[Finding]| rs.iter().any(|f| f.message.contains("copre"));
+        assert!(copre(&rilievi(PROGETTO, &pagina_con(50))), "metà sopra: avviso");
+        assert!(!copre(&rilievi(PROGETTO, &pagina_con(90))), "un bordo che si tocca non conta");
+        assert!(!copre(&rilievi(PROGETTO, &pagina_con(200))));
+        let rs = rilievi(PROGETTO, &pagina_con(50));
+        assert!(rs.iter().filter(|f| f.message.contains("copre")).all(|f| matches!(f.severity, Severity::Warning)));
     }
 
     #[test]

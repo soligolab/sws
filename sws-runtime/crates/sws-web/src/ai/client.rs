@@ -24,8 +24,10 @@ use serde::Serialize;
 use serde_json::{json, Value};
 use std::path::{Path, PathBuf};
 
-/// Il modello di riferimento. Opus 5: contesto da 1M, pensiero acceso di default.
-pub const MODEL: &str = "claude-opus-5";
+/// Il modello di riferimento. Opus 5.5 (03-11-2026, era Opus 5): contesto da 1M,
+/// pensiero sempre acceso, e costa meno (4 $ e 20 $ per Mtok contro 5 e 25). Il
+/// suo `effort` di default è `medium`: qui lo si manda sempre esplicito, `high`.
+pub const MODEL: &str = "claude-opus-5-5";
 const VERSIONE: &str = "2023-06-01";
 
 /// Chi serve il modello.
@@ -152,6 +154,79 @@ pub struct Scelta {
     pub fornitore: Fornitore,
     pub chiave: String,
     pub modello: String,
+    /// Quanto può spendere una conversazione, in dollari, prima che il giro
+    /// successivo si rifiuti di partire. Vedi [`tetto_usd`].
+    pub tetto_usd: f64,
+}
+
+/// Il tetto di default di una conversazione. Una pagina intera generata con i
+/// suoi simboli è stimata fra 3 e 6 $; 10 lascia il margine per una correzione
+/// e ferma un modello che gira a vuoto prima che costi davvero.
+pub const TETTO_DEFAULT_USD: f64 = 10.0;
+
+/// Il tetto effettivo: `SWS_AI_TETTO_USD`, poi `ai.yaml`, poi il default.
+/// Un valore non positivo o illeggibile vale come assente: un tetto a zero
+/// spegnerebbe la chat senza dire perché.
+pub fn tetto_usd(salvato: Option<f64>) -> f64 {
+    std::env::var("SWS_AI_TETTO_USD")
+        .ok()
+        .and_then(|v| v.trim().parse::<f64>().ok())
+        .or(salvato)
+        .filter(|v| v.is_finite() && *v > 0.0)
+        .unwrap_or(TETTO_DEFAULT_USD)
+}
+
+/// Prezzi in dollari per milione di token: ingresso, uscita, lettura e
+/// scrittura della cache (5 minuti).
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct Prezzi {
+    pub ingresso: f64,
+    pub uscita: f64,
+    pub cache_lettura: f64,
+    pub cache_scrittura: f64,
+}
+
+/// I prezzi di un modello, e se sono noti o stimati. Un modello che la tabella
+/// non conosce si conta ai prezzi di Opus 5: meglio un tetto che scatta un po'
+/// prima che uno che non scatta mai.
+pub fn prezzi(modello: &str) -> (Prezzi, bool) {
+    let p = |i: f64, u: f64, l: f64| Prezzi {
+        ingresso: i,
+        uscita: u,
+        cache_lettura: l,
+        cache_scrittura: i * 1.25,
+    };
+    let m = modello.trim().to_ascii_lowercase();
+    let noto = match m.as_str() {
+        "claude-opus-5-5" => Some(p(4.0, 20.0, 0.20)),
+        "claude-opus-5" | "claude-opus-4-8" | "claude-opus-4-7" | "claude-opus-4-6" => {
+            Some(p(5.0, 25.0, 0.50))
+        }
+        "claude-sonnet-5-5" | "claude-sonnet-5" => Some(p(2.0, 10.0, 0.20)),
+        "claude-fable-5-1" | "claude-fable-5" => Some(p(10.0, 50.0, 0.25)),
+        "claude-haiku-5-5" => Some(p(0.10, 0.50, 0.01)),
+        // Kimi K3: 3 $ e 15 $ (vedi `Fornitore`); la cache a un decimo, come
+        // gli altri, finché non ne sappiamo di più.
+        "kimi-k3" => Some(p(3.0, 15.0, 0.30)),
+        _ => None,
+    };
+    match noto {
+        Some(x) => (x, true),
+        None => (p(5.0, 25.0, 0.50), false),
+    }
+}
+
+/// Quanto è costato un turno, dall'`usage` della risposta. I token di cache
+/// hanno il loro prezzo: contarli come ingresso pieno gonfierebbe il costo di
+/// dieci volte proprio quando la cache funziona.
+pub fn costo_usd(modello: &str, usage: &Value) -> f64 {
+    let (p, _) = prezzi(modello);
+    let tok = |c: &str| usage.get(c).and_then(Value::as_u64).unwrap_or(0) as f64;
+    (tok("input_tokens") * p.ingresso
+        + tok("output_tokens") * p.uscita
+        + tok("cache_read_input_tokens") * p.cache_lettura
+        + tok("cache_creation_input_tokens") * p.cache_scrittura)
+        / 1_000_000.0
 }
 
 /// Una domanda sola, senza streaming e senza strumenti.
@@ -211,8 +286,9 @@ pub async fn chiedi_una_volta(
 }
 
 /// Quanto può scrivere il modello in un turno. Alto perché una proposta con
-/// due pagine intere è lunga; con lo streaming non rischia il timeout HTTP.
-const MAX_TOKENS: u32 = 16000;
+/// una pagina intera, i suoi simboli e il pensiero è lunga: a 16000 una pagina
+/// da sessanta oggetti si troncava. Con lo streaming non rischia il timeout HTTP.
+const MAX_TOKENS: u32 = 64000;
 
 /// Il cliente verso il fornitore. Si chiamava `Anthropic`: ora che può parlare
 /// anche con Kimi, quel nome sarebbe una bugia.
@@ -346,6 +422,7 @@ pub fn carica(config_dir: &Path) -> Option<Scelta> {
                 fornitore: f,
                 chiave,
                 modello,
+                tetto_usd: tetto_usd(salvata.tetto_usd),
             });
         }
     }
@@ -371,6 +448,9 @@ pub struct Impostazioni {
     pub fornitore: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub modello: Option<String>,
+    /// Il tetto di spesa per conversazione, in dollari. Assente = il default.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub tetto_usd: Option<f64>,
 }
 
 impl Impostazioni {
@@ -485,6 +565,12 @@ fn corpo_richiesta(
         // default è omesso, e senza si vedrebbe solo una lunga pausa prima
         // della risposta.
         b["thinking"] = json!({ "type": "adaptive", "display": "summarized" });
+        // La cache automatica della conversazione: il punto di cache segue
+        // l'ultimo blocco e avanza col dialogo. Senza, solo il prompt di
+        // sistema era in cache e ogni giro pagava per intero tutto quello che
+        // c'era prima — su una pagina da venticinque giri, la voce più cara.
+        // Solo Anthropic: Kimi non lo dichiara.
+        b["cache_control"] = json!({ "type": "ephemeral" });
     }
     b
 }
@@ -812,7 +898,7 @@ mod tests {
             &[json!({"name":"x"})],
         );
 
-        assert_eq!(b["model"], "claude-opus-5");
+        assert_eq!(b["model"], "claude-opus-5-5");
         assert_eq!(b["stream"], true);
         assert_eq!(b["thinking"]["type"], "adaptive");
         // `budget_tokens` è rimosso su Opus 5: mandarlo è un 400 secco.
@@ -834,6 +920,50 @@ mod tests {
     fn il_prompt_di_sistema_e_in_cache() {
         let b = corpo_richiesta(&scelta(Fornitore::Anthropic), prompt_finto(), &[], &[]);
         assert_eq!(b["system"][0]["cache_control"]["type"], "ephemeral");
+    }
+
+    /// E la conversazione: senza la cache automatica ogni giro ripagava per
+    /// intero tutto il dialogo precedente. A Kimi non si manda, perché non la
+    /// dichiara.
+    #[test]
+    fn la_conversazione_e_in_cache_solo_su_anthropic() {
+        let a = corpo_richiesta(&scelta(Fornitore::Anthropic), prompt_finto(), &[], &[]);
+        assert_eq!(a["cache_control"]["type"], "ephemeral");
+        let k = corpo_richiesta(&scelta(Fornitore::Kimi), prompt_finto(), &[], &[]);
+        assert!(k.get("cache_control").is_none(), "corpo: {k}");
+    }
+
+    /// Il costo di un turno conta la cache al suo prezzo, non come ingresso
+    /// pieno: è la differenza fra un tetto che scatta al momento giusto e uno
+    /// che scatta dieci volte prima.
+    #[test]
+    fn il_costo_conta_la_cache_al_suo_prezzo() {
+        let u = json!({ "input_tokens": 1_000_000, "output_tokens": 100_000,
+                        "cache_read_input_tokens": 2_000_000,
+                        "cache_creation_input_tokens": 400_000 });
+        // Opus 5.5: 4 + 2 (uscita) + 0,4 (lettura) + 2 (scrittura a 1,25×).
+        let c = costo_usd("claude-opus-5-5", &u);
+        assert!((c - 8.4).abs() < 1e-9, "costo {c}");
+        // Un modello sconosciuto si conta come Opus 5, e lo si dice.
+        let (p, noto) = prezzi("modello-del-futuro");
+        assert!(!noto);
+        assert_eq!(p, prezzi("claude-opus-5").0);
+        assert!(prezzi("claude-opus-5").1);
+    }
+
+    /// Il tetto: l'ambiente vince sul file, e un valore assurdo vale come
+    /// assente invece di spegnere la chat.
+    #[test]
+    fn il_tetto_viene_dal_file_o_dal_default() {
+        // Un test solo tocca SWS_AI_TETTO_USD, quindi nessuna gara fra test.
+        std::env::remove_var("SWS_AI_TETTO_USD");
+        assert_eq!(tetto_usd(None), TETTO_DEFAULT_USD);
+        assert_eq!(tetto_usd(Some(3.0)), 3.0);
+        assert_eq!(tetto_usd(Some(0.0)), TETTO_DEFAULT_USD);
+        assert_eq!(tetto_usd(Some(-2.0)), TETTO_DEFAULT_USD);
+        std::env::set_var("SWS_AI_TETTO_USD", "25");
+        assert_eq!(tetto_usd(Some(3.0)), 25.0);
+        std::env::remove_var("SWS_AI_TETTO_USD");
     }
 
     /// Assente e malformato non sono errori: significano «nessuna preferenza»,
@@ -859,11 +989,13 @@ mod tests {
         let i = Impostazioni {
             fornitore: Some("kimi".into()),
             modello: Some("kimi-k3".into()),
+            tetto_usd: Some(4.5),
         };
         i.salva(d.path()).unwrap();
         let letta = Impostazioni::carica(d.path());
         assert_eq!(letta.fornitore.as_deref(), Some("kimi"));
         assert_eq!(letta.modello.as_deref(), Some("kimi-k3"));
+        assert_eq!(letta.tetto_usd, Some(4.5));
     }
 
     /// La chiave si scrive con permessi 0600. È la prima volta in questo runtime
@@ -918,6 +1050,7 @@ mod tests {
             fornitore: f,
             chiave: "k".into(),
             modello: f.modello_default().into(),
+            tetto_usd: TETTO_DEFAULT_USD,
         }
     }
 

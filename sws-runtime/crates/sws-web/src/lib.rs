@@ -56,6 +56,7 @@ pub mod sonda;
 pub mod source_supervisor;
 pub mod synoptic;
 pub mod synoptic_schema;
+pub mod simboli_progetto;
 pub mod system;
 pub mod telegram;
 pub mod templates;

@@ -100,6 +100,18 @@ pub const MAX_SIDE: u32 = 512;
 /// schermo 4K, e un pannello così ha la RAM per reggerla.
 pub const MAX_SIDE_SFONDO: u32 = 4096;
 
+/// Il tetto per un **simbolo a strati** (03-11-2026).
+///
+/// Era `MAX_SIDE`, e il viewer tagliava ogni lato a 500: un simbolo grande
+/// mezzo schermo HD si disegnava a 500×500, rimpicciolito e attaccato
+/// all'angolo in alto a sinistra, mentre il browser lo mostrava intero. Un
+/// sinottico con poche macchine grandi è un caso vero (il maintainer, il
+/// 03-11-2026), e la misura la decide chi disegna la pagina, non l'SVG: il
+/// tetto è quello di uno schermo 2K. La memoria resta proporzionata perché gli
+/// strati si rasterizzano **ritagliati sul loro contenuto**, e i fotogrammi del
+/// rotore hanno il loro budget (`simbolo_lib::fotogrammi_entro`).
+pub const MAX_SIDE_SIMBOLO: u32 = 2048;
+
 /// `base` con lo specchio applicato **dopo**, attorno al riquadro `w`×`h`.
 ///
 /// # Perché lo specchio sta qui e non sui pixel
@@ -236,7 +248,7 @@ pub fn ritaglio_di(pts: &[resvg::tiny_skia::Point], w: u32, h: u32) -> Option<Ri
 /// Rasterizza solo il riquadro `r` di quello che [`rasterize`] disegnerebbe a
 /// `w`×`h`: stessa scala, stessa centratura, stesso specchio.
 pub fn rasterize_ritaglio(svg: &[u8], w: u32, h: u32, flip_h: bool, flip_v: bool, r: Ritaglio) -> Option<Raster> {
-    if w == 0 || h == 0 || w > MAX_SIDE || h > MAX_SIDE || r.w == 0 || r.h == 0 {
+    if w == 0 || h == 0 || w > MAX_SIDE_SIMBOLO || h > MAX_SIDE_SIMBOLO || r.w == 0 || r.h == 0 {
         return None;
     }
     let tree = resvg::usvg::Tree::from_data(svg, &resvg::usvg::Options::default()).ok()?;

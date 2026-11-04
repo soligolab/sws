@@ -4,7 +4,7 @@
 // forma. La stessa forma è in Rust (`sws-core/src/simboli_lib.rs`), che la usano
 // il validatore e il pannello LVGL. Piano: docs/archive/2026-10-14-motore-simboli-lib.md.
 
-export type FamigliaLib = "controls" | "process" | "electrical" | "machines" | "building";
+export type FamigliaLib = "controls" | "process" | "electrical" | "machines" | "building" | "project";
 
 /** Una parte viva: la geometria è in unità del viewBox del simbolo. */
 export type ParteLib =
@@ -59,6 +59,8 @@ export interface SimboloLib {
   ports?: PortaLib[];
   /** Il builtin che questo disegno sostituisce (alias, fase 6 del piano). */
   replaces?: string;
+  /** Solo i simboli del progetto (`prj:`): le etichette, che non sono in it.json. */
+  labels?: { it: string; en: string };
 }
 
 export interface ManifestLib {

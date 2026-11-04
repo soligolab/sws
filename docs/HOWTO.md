@@ -546,6 +546,7 @@ costerebbe circa **0,14 $**.
 
 | | ingresso | ingresso da cache | uscita |
 |---|---|---|---|
+| `claude-opus-5-5` (default dal 03-11-2026) | 4 $/Mtok | 0,20 $ | 20 $/Mtok |
 | `claude-opus-5` | 5 $/Mtok | 0,50 $ | 25 $/Mtok |
 | `kimi-k3` | 3 $/Mtok | 0,30 $ | 15 $/Mtok |
 
@@ -582,6 +583,15 @@ SWS_AI_FORNITORE=kimi ./scripts/start_editor.sh --instance 3
 modello si cambia con `SWS_AI_MODELLO` (per esempio `kimi-k2.6`, più economico, o
 `claude-sonnet-5`), e il pannello dice sempre **fornitore e modello** con cui sta parlando:
 chi guarda una proposta ha diritto di sapere chi l'ha scritta.
+
+**Quanto può spendere**: ogni conversazione ha un **tetto di spesa**, 10 $ di default. La riga
+in alto nella chat dice quanto è costata finora (`0.42 $ / 10 $`; con `≈` davanti se il modello
+non è nella tabella dei prezzi e il conto è stimato). Raggiunto il tetto, l'assistente non parte
+per il giro successivo e chiede di aprire una conversazione nuova. Il tetto si cambia in
+Preferenze → Assistente IA, o con `SWS_AI_TETTO_USD=25` nell'ambiente, che vince sul file.
+
+Per misurare una prova, `SWS_AI_MISURE=tmp/ai-misure` scrive un resoconto per conversazione
+(giri, token per voce, costo, minuti, strumenti chiamati, correzioni).
 
 ### Usarla
 

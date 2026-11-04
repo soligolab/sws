@@ -474,6 +474,9 @@ pub fn build(
             "/api/project/custom-symbols",
             put(update_project_custom_symbols),
         )
+        // I simboli disegnati nel progetto (piano 2026-11-03-assistente-genera-simboli-e-sinottici).
+        .route("/api/project/simboli", put(crate::simboli_progetto::salva))
+        .route("/api/simboli/compila", post(crate::simboli_progetto::compila))
         .route("/api/project/datastores", put(update_project_datastores))
         .route(
             "/api/project/global-scripts",
@@ -984,6 +987,8 @@ pub fn build(
         // Immagini di progetto (letture — servite anche al viewer, vedi sotto)
         .route("/api/project/images", get(list_project_images))
         .route("/api/project/images/:name", get(get_project_image))
+        // I simboli del progetto: manifesto e disegni, come le immagini anche al viewer.
+        .route("/api/project/simboli/:file", get(crate::simboli_progetto::file))
         // Per-page export — raw YAML download. Same shape as the file on disk,
         // small enough to skip the ZIP wrapper used by the bulk export.
         .route("/api/synoptics/:name/export", get(export_synoptic_yaml))
@@ -1612,6 +1617,9 @@ fn deploy_only_app(state: AppState) -> Router<AppState> {
         // statico, che questa porta non serve — e ogni deploy diceva «il pannello
         // non ha la libreria dei simboli».
         .route("/api/simboli-lib", get(simboli_lib_noti))
+        // I simboli disegnati nel progetto: il deploy chiede il manifesto per sapere
+        // se il pannello li sa servire (un runtime più vecchio risponde 404).
+        .route("/api/project/simboli/manifest.json", get(crate::simboli_progetto::solo_manifesto))
         // Cosa c'è su QUESTA macchina — zone termiche, mount, interfacce — per
         // il campo «parametro» della sorgente Host. L'editor lo chiede al
         // dispositivo connesso (`/api/remote/host/catalog`), perché le zone
@@ -1814,6 +1822,8 @@ fn build_runtime_inner(state: AppState, www_dir: Option<PathBuf>) -> Router {
         .route("/api/synoptics/:name", get(get_synoptic))
         .route("/api/project/images", get(list_project_images))
         .route("/api/project/images/:name", get(get_project_image))
+        // I simboli del progetto: manifesto e disegni, come le immagini anche al viewer.
+        .route("/api/project/simboli/:file", get(crate::simboli_progetto::file))
         .route("/api/faceplates", get(list_faceplates))
         .route("/api/faceplates/:id", get(get_faceplate))
         .route("/api/cornici", get(list_cornici))
@@ -4984,6 +4994,7 @@ where
             alarms: vec![],
             functions: vec![],
             custom_symbols: vec![],
+            simboli: vec![],
             datastores: vec![],
             global_scripts: vec![],
             notifications: None,

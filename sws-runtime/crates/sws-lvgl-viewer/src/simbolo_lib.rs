@@ -85,7 +85,11 @@ pub fn stile_progetto(base_url: &str, rt: &tokio::runtime::Handle) -> Option<Arc
     letto
 }
 
-/// Il manifesto del runtime da cui si è presa la pagina, scaricato una volta.
+/// Il manifesto del runtime da cui si è presa la pagina, scaricato una volta:
+/// quello della libreria più quello dei simboli disegnati nel progetto
+/// (`prj:`, piano 2026-11-03-assistente-genera-simboli-e-sinottici), uniti.
+/// Da lì in avanti un `prj:` è un simbolo come gli altri: strati, parti vive,
+/// bocche dei tubi.
 pub fn manifesto(base_url: &str, rt: &tokio::runtime::Handle) -> Option<Arc<ManifestLib>> {
     let mut g = stato_manifesto().lock().unwrap_or_else(|e| e.into_inner());
     if let Some(m) = g.as_ref() {
@@ -93,20 +97,48 @@ pub fn manifesto(base_url: &str, rt: &tokio::runtime::Handle) -> Option<Arc<Mani
     }
     let letto = svg_assets::bytes_for(base_url, rt, &SvgSource::Url("/symbols/lib/manifest.json".into()))
         .and_then(|b| match serde_json::from_slice::<ManifestLib>(&b) {
-            Ok(m) => Some(Arc::new(m)),
+            Ok(m) => Some(m),
             Err(e) => {
                 eprintln!("[simboli-lib] manifest.json illeggibile: {e}");
                 None
             }
+        })
+        .map(|mut m| {
+            if let Some(p) = manifesto_progetto(base_url, rt) {
+                unisci(&mut m, p);
+            }
+            Arc::new(m)
         });
     *g = Some(letto.clone());
     letto
 }
 
+/// I simboli del progetto. Un runtime più vecchio della funzione risponde 404:
+/// allora non ce ne sono, e i `prj:` restano segnaposto.
+fn manifesto_progetto(base_url: &str, rt: &tokio::runtime::Handle) -> Option<ManifestLib> {
+    let b = svg_assets::bytes_for(base_url, rt, &SvgSource::Url("/api/project/simboli/manifest.json".into()))?;
+    match serde_json::from_slice::<ManifestLib>(&b) {
+        Ok(m) => Some(m),
+        Err(e) => {
+            eprintln!("[simboli-lib] manifesto dei simboli del progetto illeggibile: {e}");
+            None
+        }
+    }
+}
+
+/// Aggiunge al manifesto della libreria i simboli del progetto.
+pub fn unisci(lib: &mut ManifestLib, progetto: ManifestLib) {
+    lib.versione_progetto = progetto.version;
+    lib.symbols.extend(progetto.symbols.into_iter().filter(|s| s.id.starts_with("prj:")));
+}
+
 /// L'SVG di un simbolo, con la versione del manifesto nell'URL (`/symbols` è
 /// servito senza Cache-Control: è lo stesso motivo del web).
 pub fn svg_simbolo(base_url: &str, rt: &tokio::runtime::Handle, m: &ManifestLib, s: &SimboloLib) -> Option<String> {
-    let url = format!("/symbols/lib/{}?v={}", s.file, m.version);
+    let url = match s.file.strip_prefix("prj/") {
+        Some(f) => format!("/api/project/simboli/{f}?v={}", m.versione_progetto),
+        None => format!("/symbols/lib/{}?v={}", s.file, m.version),
+    };
     svg_assets::bytes_for(base_url, rt, &SvgSource::Url(url)).and_then(|b| String::from_utf8(b).ok())
 }
 
@@ -229,6 +261,19 @@ pub fn finestra_livello(view_box: [f64; 2], q: Quadro, x: f64, y: f64, w: f64, h
 /// tutti (il disegno ruotato esce dal riquadro di quello fermo).
 pub fn fotogrammi_rotore(symmetry: f64) -> usize {
     ((symmetry / PASSO_ROTORE).round() as usize).clamp(1, 120)
+}
+
+/// Quanta memoria possono prendere i fotogrammi di un rotore: su un simbolo
+/// grande mezzo schermo una girante a simmetria piena (120 fotogrammi di
+/// 300×300) sarebbe una trentina di MB. Oltre il budget i fotogrammi calano
+/// e il rotore gira a scatti più larghi, ma gira; sui simboli di misura
+/// normale il budget non scatta mai.
+pub const BUDGET_ROTORE_BYTE: usize = 8 * 1024 * 1024;
+
+/// I fotogrammi di un rotore entro il budget, dato il riquadro che li contiene.
+pub fn fotogrammi_entro(symmetry: f64, dove: Ritaglio) -> usize {
+    let per_fotogramma = (dove.w as usize * dove.h as usize * 3).max(1);
+    fotogrammi_rotore(symmetry).min((BUDGET_ROTORE_BYTE / per_fotogramma).max(4))
 }
 
 pub fn riquadro_rotore(fermo: Ritaglio, centro: (f32, f32), q: Quadro) -> Ritaglio {
@@ -394,7 +439,7 @@ pub fn prepara(s: &SimboloLib, svg: &str, q: Quadro, stile: &StileSimbolo) -> Pr
             Some(ParteLib::Rotor { cx, cy, symmetry, .. }) => {
                 let Some(fermo) = svg_raster::ingombro(svg1.as_bytes(), q.w, q.h, q.flip_h, q.flip_v) else { continue };
                 let dove = riquadro_rotore(fermo, in_pixel(s.view_box, q, *cx, *cy), q);
-                let n = fotogrammi_rotore(*symmetry);
+                let n = fotogrammi_entro(*symmetry, dove);
                 let fotogrammi: Vec<Vec<u8>> = (0..n)
                     .filter_map(|k| {
                         let a = *symmetry * k as f64 / n as f64;
@@ -459,6 +504,34 @@ mod tests {
     const POMPA: &str = include_str!("../../../../sws-editor/public/symbols/lib/process/centrifugal-pump.svg");
     const SERBATOIO: &str = include_str!("../../../../sws-editor/public/symbols/lib/process/vertical-tank.svg");
 
+    /// Un simbolo disegnato nel progetto (`prj:`) passa dalla stessa strada di
+    /// uno di libreria: si divide negli strati, il rotore ha i suoi fotogrammi,
+    /// e il manifesto unito lo trova per id.
+    #[test]
+    fn un_simbolo_del_progetto_si_prepara_come_uno_di_libreria() {
+        let d: sws_core::simboli_prj::Descrizione =
+            serde_json::from_str(include_str!("../../../../tests/fixtures/simboli-prj/gabbia-laminazione.json")).unwrap();
+        let c = sws_core::simboli_prj::compila_e_controlla(&d).unwrap();
+        let ids: Vec<String> = dividi(&c.svg).strati.into_iter().map(|(i, _, _)| i).collect();
+        assert_eq!(ids, ["layer-0", "body", "layer-1", "rotor", "layer-2", "lamp"]);
+
+        let mut m = manifesto_incluso();
+        let progetto = ManifestLib {
+            version: "abc".into(),
+            versione_progetto: String::new(),
+            materials: m.materials.clone(),
+            symbols: vec![c.simbolo().unwrap()],
+        };
+        unisci(&mut m, progetto);
+        assert_eq!(m.versione_progetto, "abc");
+        let s = m.simbolo("prj:gabbia-laminazione").expect("il manifesto unito lo trova");
+        assert_eq!(s.ports.len(), 2);
+        let p = prepara(s, &c.svg, Quadro { w: 120, h: 100, flip_h: false, flip_v: false }, &stile_del_disegno(&m, None));
+        let PezzoStrato::Rotore { fotogrammi, symmetry, .. } = &p.strati[3] else { panic!("il quarto strato è il rotore") };
+        assert_eq!(*symmetry, 90.0);
+        assert!(fotogrammi.len() > 1);
+    }
+
     #[test]
     fn la_pompa_si_divide_negli_strati_del_web() {
         let d = dividi(POMPA);
@@ -506,6 +579,18 @@ mod tests {
         // Il riquadro è centrato sul centro del manifesto (40, 50).
         let (cx, cy) = (dove.x as f32 + dove.w as f32 / 2.0, dove.y as f32 + dove.h as f32 / 2.0);
         assert!((cx - 40.0).abs() <= 1.0 && (cy - 50.0).abs() <= 1.0, "centro {cx},{cy}");
+    }
+
+    /// Su un simbolo grande i fotogrammi del rotore stanno nel budget; su uno
+    /// di misura normale sono quelli della simmetria.
+    #[test]
+    fn i_fotogrammi_del_rotore_stanno_nel_budget() {
+        let piccolo = Ritaglio { x: 0, y: 0, w: 60, h: 60 };
+        assert_eq!(fotogrammi_entro(60.0, piccolo), 20);
+        let grande = Ritaglio { x: 0, y: 0, w: 400, h: 400 };
+        let n = fotogrammi_entro(360.0, grande);
+        assert!(n < 120 && n * 400 * 400 * 3 <= BUDGET_ROTORE_BYTE, "{n}");
+        assert!(fotogrammi_entro(360.0, Ritaglio { x: 0, y: 0, w: 2048, h: 2048 }) >= 4, "gira comunque");
     }
 
     #[test]
