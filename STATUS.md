@@ -12,7 +12,47 @@
 > resta in «Storico». Qui vive solo ciò che serve a riprendere il lavoro.
 
 
-## ▶ Riprendere da qui — catena del manuale collaudata e mergiata, WP630 su 2.24.1 (2026-11-03 pomeriggio, theobroma)
+## ▶ Riprendere da qui — l'assistente disegna i simboli e compone il sinottico, ramo a metà (2026-11-04, ufficio)
+
+**Un ramo aperto, su origin: `feat/assistente-sinottici`** (scelta del maintainer: «push del ramo, niente merge»).
+Dall'altra macchina: `./scripts/session_start.sh`, poi `git checkout feat/assistente-sinottici`. Il piano è
+[`docs/plans/2026-11-03-assistente-genera-simboli-e-sinottici.md`](docs/plans/2026-11-03-assistente-genera-simboli-e-sinottici.md)
+(la sezione «Avanzamento» in fondo dice fase per fase cosa c'è).
+
+**Fatto** (definition of done verde su ogni commit, nessun collaudo del maintainer ancora):
+- **F0** `6a702496`: tetto di spesa per conversazione (10 $, Preferenze o `SWS_AI_TETTO_USD`), spesa in chat, cache su
+  tutta la conversazione, 64000 token per turno, resoconti `SWS_AI_MISURE`;
+- **F1** `8c74764e`: la descrizione di un simbolo e il compilatore Rust `sws-core/src/simboli_prj.rs`, identico byte per
+  byte a `genera.py` sui 195 simboli (fixture `tests/fixtures/simboli-descrizioni.json`);
+- **F2** `3f67d3d2`: i simboli `prj:` nel progetto (`Project.simboli`), rotte `/api/project/simboli/…`, web, LVGL,
+  validatore, avviso al deploy, `check_simboli_lvgl.sh --simboli`;
+- **F3** `aef482bd`: strumenti `cerca_simboli`, `schema_simbolo`, `bozza_simbolo`, banco delle bozze, istantanea di una
+  pagina non proposta e tavola delle bozze, prompt del sinottico intero;
+- **F4** `0a48a5bb`: la chat mostra miniature e istantanee; tipi e simboli nel diff e nel Salva;
+- correzioni trovate provando: simboli grandi tagliati a 500 px sul pannello LVGL (`e4842c02`), istantanee senza
+  simboli perché il banco di prova partiva senza `--www` (`b8ca799e`), attributo ripetuto = SVG non valido
+  (`e3368fcd`); default Anthropic `claude-opus-5-5`.
+
+**Revisione col maintainer delle prime bozze** (decisioni, nel piano): 1) alzare la libreria → seme
+`docs/plans/2026-11-03-libreria-simboli-piu-ricca.md` (anche per simboli grandi mezzo schermo HD); 2) banco con
+`kimi-k3.1-pro`; 3) vocabolario più largo (nel seme) **e** SVG libero (F7, ora richiesta); 4) dopo la tavola delle bozze
+l'assistente si ferma e la persona dice quali rifare.
+
+**Misure del banco «tubi d'acciaio»** (IDE di prova :8761, solo Kimi su questa macchina): `kimi-k3` 15 min, 1,01 $,
+9 simboli, pagina da 37 oggetti; `kimi-k3.1-pro` 19 min, ≈2 $, 7 simboli + 3 di libreria, pagina da 56 oggetti. Le
+pagine composte **non le ha ancora viste nessuno** (le istantanee erano vuote per il difetto `--www`, ora corretto).
+
+**Blocco**: Kimi risponde 429 «exceeded the consumption budget» — il progetto Moonshot ha raggiunto il suo tetto di
+consumo; il maintainer lo alza nella console Moonshot. Senza, niente prove vere.
+
+**Prossimo passo**: rifare il banco (vedere la pagina vera in chat), poi F5 (copione dell'agente finto
+`tests/ai/sinottico-tubi.json` + e2e), F6 (planimetria e banco casa), F7 (SVG libero).
+
+**Solo su questa macchina (`ufficio`)**, in `tmp/ai-sinottici/`: `ide.sh` (IDE di prova :8761 con la chiave Kimi di
+`.run-editor` copiata), `conversa.cjs` (guida una conversazione intera da un file di coda, con foto), `scatta.sh`
+(foto LVGL di una pagina con simboli), le foto delle prove; i resoconti in `tmp/ai-misure/`.
+
+## Sessione precedente — catena del manuale collaudata e mergiata, WP630 su 2.24.1 (2026-11-03 pomeriggio, theobroma)
 
 **Si riparte da `main`, nessun ramo aperto** né qui né su origin: i quattro rami della catena sono stati collaudati sul
 WP630, squash-mergiati in ordine e cancellati.
