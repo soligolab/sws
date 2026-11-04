@@ -33,7 +33,7 @@
 # successivo.
 
 versioni:
-  - versione: "Unreleased"
+  - versione: "2.25.0"
     voci:
       - it: "L'assistente IA disegna i simboli che mancano e compone un sinottico intero, con un tetto di spesa sempre in vista nella chat."
         en: "The AI assistant draws the missing symbols and builds a whole synoptic page, with a spending cap always visible in the chat."

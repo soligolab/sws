@@ -11,6 +11,8 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 
 ## [Unreleased]
 
+## [2.25.0] — 2026-11-04
+
 ### Changed
 - **In Tag la riga di una foglia dice chi la può scrivere** (03-11-2026, `pompa1.comando` nel template OpenPLC): «scrive:
   Viewer», o «Operator (predef.)» se il membro non lo dice; il clic apre Tipi su quel membro con le impostazioni
