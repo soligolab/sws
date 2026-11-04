@@ -12,7 +12,7 @@ import { useAppStore } from "@/store";
 import { etichettaDispositivo } from "@/ws/remoteLogStream";
 
 /** Il nome del pannello collegato, o `null` se non ce n'è uno. */
-export function usaPannelloCollegato(): string | null {
+export function usePannelloCollegato(): string | null {
   const remoteConnected = useAppStore((s) => s.remoteConnected);
   const remoteUrl = useAppStore((s) => s.remoteUrl);
   if (!remoteConnected) return null;

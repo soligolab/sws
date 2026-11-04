@@ -42,7 +42,16 @@ pub async fn run(
         &cfg.id,
         &stato,
         cancel.clone(),
-        || async { session(&cfg, &db, &mut *write_rx.lock().await, cancel.clone(), &stato).await },
+        || async {
+            session(
+                &cfg,
+                &db,
+                &mut *write_rx.lock().await,
+                cancel.clone(),
+                &stato,
+            )
+            .await
+        },
         || async {
             for tm in &cfg.tags {
                 db.marca_qualita(&tm.tag, TagQuality::Bad).await;

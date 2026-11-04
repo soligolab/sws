@@ -150,23 +150,58 @@ mod tests_ritenzione {
         let adesso = now_ms();
         // "a": 30 righe vecchie (40 giorni fa) e 70 recenti; "b": 40 recenti.
         for i in 0..30 {
-            b.record("a", &Sample { ts_ms: adesso - 40 * giorno + i, value: TagValue::Int(i as i64), quality: TagQuality::Good }).await;
+            b.record(
+                "a",
+                &Sample {
+                    ts_ms: adesso - 40 * giorno + i,
+                    value: TagValue::Int(i as i64),
+                    quality: TagQuality::Good,
+                },
+            )
+            .await;
         }
         for i in 0..70 {
-            b.record("a", &Sample { ts_ms: adesso - giorno + i, value: TagValue::Int(i as i64), quality: TagQuality::Good }).await;
+            b.record(
+                "a",
+                &Sample {
+                    ts_ms: adesso - giorno + i,
+                    value: TagValue::Int(i as i64),
+                    quality: TagQuality::Good,
+                },
+            )
+            .await;
         }
         for i in 0..40 {
-            b.record("b", &Sample { ts_ms: adesso - giorno + i, value: TagValue::Float(i as f64), quality: TagQuality::Good }).await;
+            b.record(
+                "b",
+                &Sample {
+                    ts_ms: adesso - giorno + i,
+                    value: TagValue::Float(i as f64),
+                    quality: TagQuality::Good,
+                },
+            )
+            .await;
         }
 
         b.svuota().await;
 
         let a = b.anteprima(Some(50), Some(30)).await.unwrap();
-        assert_eq!((a.righe_per_eta, a.righe_per_numero, a.righe_totali), (30, 20, 140));
+        assert_eq!(
+            (a.righe_per_eta, a.righe_per_numero, a.righe_totali),
+            (30, 20, 140)
+        );
         assert!(a.byte_stimati.is_some());
 
         let cancellate = b.purge(Some(50), Some(30)).await.unwrap();
-        assert_eq!(cancellate, a.righe(), "l'anteprima e la pulizia devono coincidere");
-        assert_eq!(b.anteprima(Some(50), Some(30)).await.unwrap().righe(), 0, "dopo la pulizia non resta niente da togliere");
+        assert_eq!(
+            cancellate,
+            a.righe(),
+            "l'anteprima e la pulizia devono coincidere"
+        );
+        assert_eq!(
+            b.anteprima(Some(50), Some(30)).await.unwrap().righe(),
+            0,
+            "dopo la pulizia non resta niente da togliere"
+        );
     }
 }

@@ -467,17 +467,28 @@ async fn main() -> anyhow::Result<()> {
     // chiede dall'IDE (`sws_core::logbus::richiedi_debug`). Le librerie (hyper,
     // rustls…) restano al livello di base: il loro DEBUG nel tunnel è rumore.
     // `reload` ricalcola da sé la cache dei punti di log a ogni cambio.
-    use tracing_subscriber::{filter::{LevelFilter, Targets}, reload, Layer};
+    use tracing_subscriber::{
+        filter::{LevelFilter, Targets},
+        reload, Layer,
+    };
     let base = env_filter.max_level_hint().unwrap_or(LevelFilter::INFO);
     let filtro_bus = move |alzato: bool| {
         let t = Targets::new().with_default(base);
-        if alzato && base < LevelFilter::DEBUG { t.with_target("sws", LevelFilter::DEBUG) } else { t }
+        if alzato && base < LevelFilter::DEBUG {
+            t.with_target("sws", LevelFilter::DEBUG)
+        } else {
+            t
+        }
     };
     let (bus_livello, bus_handle) = reload::Layer::new(filtro_bus(false));
     // Con `--mcp` stdout porta il protocollo: i log vanno su stderr, o il
     // JSON di `tracing` finisce in mezzo a quello di JSON-RPC.
     let strato_fmt = if args.mcp {
-        fmt::layer().json().with_writer(std::io::stderr).with_filter(env_filter).boxed()
+        fmt::layer()
+            .json()
+            .with_writer(std::io::stderr)
+            .with_filter(env_filter)
+            .boxed()
     } else {
         fmt::layer().json().with_filter(env_filter).boxed()
     };
@@ -542,10 +553,15 @@ async fn main() -> anyhow::Result<()> {
     // dispositivo. Quella strada è stata ritirata: la chiave che le serviva è
     // dichiarata un errore da chi fa PixsysOS.
     if !args.config.join("tls.crt").exists()
-        && args.config.join(sws_web::system::FILE_FIDUCIA_BROWSER).exists()
+        && args
+            .config
+            .join(sws_web::system::FILE_FIDUCIA_BROWSER)
+            .exists()
     {
         match sws_web::system::genera_certificato(&args.config) {
-            Ok(()) => info!("primo avvio con la fiducia del browser: certificato generato, HTTPS acceso"),
+            Ok(()) => {
+                info!("primo avvio con la fiducia del browser: certificato generato, HTTPS acceso")
+            }
             Err(e) => warn!("non sono riuscito a generare il certificato ({e}): resto in chiaro"),
         }
     }
@@ -819,79 +835,82 @@ async fn main() -> anyhow::Result<()> {
         let cli_retention = args.auto_backup_retention as usize;
         // Thread suo e priorità bassa (27-10-2026): un backup copia file e può
         // aspettare. `sws-backup` in `htop`.
-        sws_core::motori::motore("sws-backup", sws_core::motori::GENTILEZZA_FONDO).spawn(async move {
-            let mut tick = tokio::time::interval(std::time::Duration::from_secs(60));
-            tick.tick().await; // skip the immediate first tick
-            let mut last_fired: Option<(PathBuf, std::time::Instant)> = None;
-            loop {
-                tick.tick().await;
-                let dir_opt = dir_handle.read().await.clone();
-                let Some(dir) = dir_opt else {
-                    last_fired = None;
-                    continue;
-                }; // no project open
+        sws_core::motori::motore("sws-backup", sws_core::motori::GENTILEZZA_FONDO).spawn(
+            async move {
+                let mut tick = tokio::time::interval(std::time::Duration::from_secs(60));
+                tick.tick().await; // skip the immediate first tick
+                let mut last_fired: Option<(PathBuf, std::time::Instant)> = None;
+                loop {
+                    tick.tick().await;
+                    let dir_opt = dir_handle.read().await.clone();
+                    let Some(dir) = dir_opt else {
+                        last_fired = None;
+                        continue;
+                    }; // no project open
 
-                let dir_for_load = dir.clone();
-                let project = tokio::task::spawn_blocking(move || {
-                    sws_core::Project::load(&dir_for_load).ok()
-                })
-                .await
-                .unwrap_or(None);
-                let interval_min = project
-                    .as_ref()
-                    .and_then(|p| p.auto_backup_interval_minutes)
-                    .unwrap_or(cli_interval_min);
-                if interval_min == 0 {
-                    last_fired = None;
-                    continue;
-                } // disabled for this project
-                let retention = project
-                    .as_ref()
-                    .and_then(|p| p.auto_backup_retention)
-                    .map(|v| v as usize)
-                    .unwrap_or(cli_retention);
+                    let dir_for_load = dir.clone();
+                    let project = tokio::task::spawn_blocking(move || {
+                        sws_core::Project::load(&dir_for_load).ok()
+                    })
+                    .await
+                    .unwrap_or(None);
+                    let interval_min = project
+                        .as_ref()
+                        .and_then(|p| p.auto_backup_interval_minutes)
+                        .unwrap_or(cli_interval_min);
+                    if interval_min == 0 {
+                        last_fired = None;
+                        continue;
+                    } // disabled for this project
+                    let retention = project
+                        .as_ref()
+                        .and_then(|p| p.auto_backup_retention)
+                        .map(|v| v as usize)
+                        .unwrap_or(cli_retention);
 
-                let due = match &last_fired {
-                    Some((last_dir, at)) if *last_dir == dir => {
-                        at.elapsed() >= std::time::Duration::from_secs(interval_min * 60)
-                    }
-                    // Project just became active (or first tick since open):
-                    // start the clock now rather than firing immediately, same
-                    // "don't snapshot the moment it starts" spirit as before.
-                    _ => {
-                        last_fired = Some((dir.clone(), std::time::Instant::now()));
-                        false
-                    }
-                };
-                if !due {
-                    continue;
-                }
-
-                let dir2 = dir.clone();
-                let result =
-                    tokio::task::spawn_blocking(move || sws_web::backups::backup_now(&dir2)).await;
-                last_fired = Some((dir.clone(), std::time::Instant::now()));
-                match result {
-                    Ok(Ok(path)) => {
-                        let name = path
-                            .file_name()
-                            .and_then(|n| n.to_str())
-                            .unwrap_or("?")
-                            .to_string();
-                        info!(backup = %name, interval_min, retention, "auto-backup created");
-                        if retention > 0 {
-                            let dir3 = dir.clone();
-                            let _ = tokio::task::spawn_blocking(move || {
-                                sws_web::backups::prune_backups(&dir3, retention);
-                            })
-                            .await;
+                    let due = match &last_fired {
+                        Some((last_dir, at)) if *last_dir == dir => {
+                            at.elapsed() >= std::time::Duration::from_secs(interval_min * 60)
                         }
+                        // Project just became active (or first tick since open):
+                        // start the clock now rather than firing immediately, same
+                        // "don't snapshot the moment it starts" spirit as before.
+                        _ => {
+                            last_fired = Some((dir.clone(), std::time::Instant::now()));
+                            false
+                        }
+                    };
+                    if !due {
+                        continue;
                     }
-                    Ok(Err(e)) => warn!("auto-backup failed: {e}"),
-                    Err(e) => warn!("auto-backup task panicked: {e}"),
+
+                    let dir2 = dir.clone();
+                    let result =
+                        tokio::task::spawn_blocking(move || sws_web::backups::backup_now(&dir2))
+                            .await;
+                    last_fired = Some((dir.clone(), std::time::Instant::now()));
+                    match result {
+                        Ok(Ok(path)) => {
+                            let name = path
+                                .file_name()
+                                .and_then(|n| n.to_str())
+                                .unwrap_or("?")
+                                .to_string();
+                            info!(backup = %name, interval_min, retention, "auto-backup created");
+                            if retention > 0 {
+                                let dir3 = dir.clone();
+                                let _ = tokio::task::spawn_blocking(move || {
+                                    sws_web::backups::prune_backups(&dir3, retention);
+                                })
+                                .await;
+                            }
+                        }
+                        Ok(Err(e)) => warn!("auto-backup failed: {e}"),
+                        Err(e) => warn!("auto-backup task panicked: {e}"),
+                    }
                 }
-            }
-        });
+            },
+        );
         info!(
             cli_interval_min = args.auto_backup_interval_minutes,
             cli_retention = args.auto_backup_retention,
@@ -1197,22 +1216,27 @@ async fn main() -> anyhow::Result<()> {
         let audit = audit.clone();
         // Thread suo e priorità bassa (27-10-2026): la ritenzione cancella
         // righe una volta al giorno. `sws-ritenzione` in `htop`.
-        sws_core::motori::motore("sws-ritenzione", sws_core::motori::GENTILEZZA_FONDO).spawn(async move {
-            let mut tick = tokio::time::interval(std::time::Duration::from_secs(60));
-            tick.tick().await; // non all'avvio: il progetto si sta ancora aprendo
-            loop {
-                tick.tick().await;
-                let Some(dir) = dir_handle.read().await.clone() else { continue };
-                sws_web::ritenzione::giro_se_dovuto(&dir, &reg, &audit).await;
-            }
-        });
+        sws_core::motori::motore("sws-ritenzione", sws_core::motori::GENTILEZZA_FONDO).spawn(
+            async move {
+                let mut tick = tokio::time::interval(std::time::Duration::from_secs(60));
+                tick.tick().await; // non all'avvio: il progetto si sta ancora aprendo
+                loop {
+                    tick.tick().await;
+                    let Some(dir) = dir_handle.read().await.clone() else {
+                        continue;
+                    };
+                    sws_web::ritenzione::giro_se_dovuto(&dir, &reg, &audit).await;
+                }
+            },
+        );
     }
 
     // Known-projects registry (recent projects list + custom-path projects
     // outside projects_root). Borrows config_dir; build() below takes it by
     // value afterward, so this must load first.
-    let known_projects =
-        Arc::new(sws_web::project_registry::ProjectRegistry::load(&config_dir, &args.projects_root).await);
+    let known_projects = Arc::new(
+        sws_web::project_registry::ProjectRegistry::load(&config_dir, &args.projects_root).await,
+    );
 
     // ── L'autenticazione delegata non parte senza il suo segreto ───────────
     //
@@ -1222,7 +1246,10 @@ async fn main() -> anyhow::Result<()> {
     // **rifiuta di partire** invece di accettare chiunque dica di essere
     // chiunque — fallire chiuso e il punto di tutta la riga.
     let segreto_gateway = if args.auth_delegata {
-        match std::env::var("SWS_SEGRETO_GATEWAY").ok().filter(|v| v.len() >= 16) {
+        match std::env::var("SWS_SEGRETO_GATEWAY")
+            .ok()
+            .filter(|v| v.len() >= 16)
+        {
             Some(v) => Some(v),
             None => {
                 error!(
@@ -1343,7 +1370,9 @@ async fn main() -> anyhow::Result<()> {
             come,
             segreto,
         )
-        .con_fermo_dopo(std::time::Duration::from_secs(args.gateway_fermo_minuti * 60))
+        .con_fermo_dopo(std::time::Duration::from_secs(
+            args.gateway_fermo_minuti * 60,
+        ))
         .con_massimo_container(args.gateway_max_container)
         .con_registrazione(args.gateway_registrazione);
         let r = Arc::new(r);
@@ -1484,12 +1513,16 @@ async fn main() -> anyhow::Result<()> {
     // solo su un dispositivo. Un'istanza IDE non si aggiorna da sé, e il task
     // non avrebbe niente da far scattare.
     if !ide_only {
-        tokio::spawn(sws_web::aggiornamento_finestra::esegui(app_state.config_dir.as_ref().clone()));
+        tokio::spawn(sws_web::aggiornamento_finestra::esegui(
+            app_state.config_dir.as_ref().clone(),
+        ));
         // Fase 3: se questo avvio viene da un aggiornamento, com'è andato.
         tokio::spawn(sws_web::aggiornamento_esito::all_avvio(app_state.clone()));
         // Il quadlet che viaggia (02-10-2026): com'è andato un aggiornamento dei
         // quadlet chiesto prima di questo riavvio.
-        tokio::spawn(sws_web::quadlet::all_avvio(app_state.config_dir.as_ref().clone()));
+        tokio::spawn(sws_web::quadlet::all_avvio(
+            app_state.config_dir.as_ref().clone(),
+        ));
         // Dopo un aggiornamento (03-10-2026): confermare, rimandare, tornare
         // indietro. Le cartelle dei dati servono all'istantanea presa prima di
         // ogni aggiornamento.
@@ -1497,18 +1530,32 @@ async fn main() -> anyhow::Result<()> {
             app_state.config_dir.as_ref().clone(),
             app_state.projects_root.as_ref().clone(),
         );
-        tokio::spawn(sws_web::conferma_aggiornamento::all_avvio(app_state.config_dir.as_ref().clone()));
+        tokio::spawn(sws_web::conferma_aggiornamento::all_avvio(
+            app_state.config_dir.as_ref().clone(),
+        ));
         // E la versione nuova, una volta per versione, sui canali scelti.
-        tokio::spawn(sws_web::aggiornamento_esito::versione_nuova_all_avvio(app_state.clone()));
+        tokio::spawn(sws_web::aggiornamento_esito::versione_nuova_all_avvio(
+            app_state.clone(),
+        ));
     }
 
     if let Ok(dir) = sws_web::router::active_dir(&app_state).await {
         if !ide_only {
-            sws_web::display_target::publish(&app_state.config_dir, &dir, sws_web::display_target::Motivo::Avvio).await;
+            sws_web::display_target::publish(
+                &app_state.config_dir,
+                &dir,
+                sws_web::display_target::Motivo::Avvio,
+            )
+            .await;
         }
         // T-72 F5: e l'immagine di boot abilitata, per lo stesso motivo — ma
         // come «avvio»: un ripristino di fabbrica resta fino al prossimo deploy.
-        sws_web::boot_image::publish(&app_state.config_dir, &dir, sws_web::boot_image::Occasione::Avvio).await;
+        sws_web::boot_image::publish(
+            &app_state.config_dir,
+            &dir,
+            sws_web::boot_image::Occasione::Avvio,
+        )
+        .await;
     }
 
     // `--mcp`: da qui in poi non si apre nessuna porta. Il bivio sta **dopo**
@@ -1582,9 +1629,24 @@ async fn main() -> anyhow::Result<()> {
     // li dà il gateway quando qualcuno abbina il pannello col codice; fino ad
     // allora il pannello si presenta in attesa. Un indirizzo vuoto spegne il
     // tunnel: è il modo di dire «questo pannello non chiama fuori».
-    let tunnel_url = args.tunnel.as_deref().map(str::trim).filter(|u| !u.is_empty()).map(str::to_string);
-    let tunnel_nome = args.tunnel_nome.as_deref().map(str::trim).filter(|u| !u.is_empty()).map(str::to_string);
-    let tunnel_token = args.tunnel_token.as_deref().map(str::trim).filter(|u| !u.is_empty()).map(str::to_string);
+    let tunnel_url = args
+        .tunnel
+        .as_deref()
+        .map(str::trim)
+        .filter(|u| !u.is_empty())
+        .map(str::to_string);
+    let tunnel_nome = args
+        .tunnel_nome
+        .as_deref()
+        .map(str::trim)
+        .filter(|u| !u.is_empty())
+        .map(str::to_string);
+    let tunnel_token = args
+        .tunnel_token
+        .as_deref()
+        .map(str::trim)
+        .filter(|u| !u.is_empty())
+        .map(str::to_string);
     match (&tunnel_url, &tunnel_nome, &tunnel_token) {
         (None, None, None) => {}
         (Some(url), None, None) => {
@@ -1597,7 +1659,9 @@ async fn main() -> anyhow::Result<()> {
                     .filter(|h| !h.is_empty())
                     .unwrap_or_else(|| "pannello".to_string());
                 match app_state.abbinamento.tunnel() {
-                    Some((nome, _)) => info!(%url, pannello = %nome, "tunnel: chiamo il gateway (abbinato)"),
+                    Some((nome, _)) => {
+                        info!(%url, pannello = %nome, "tunnel: chiamo il gateway (abbinato)")
+                    }
                     None => info!(
                         %url,
                         codice = ?app_state.abbinamento.codice(),

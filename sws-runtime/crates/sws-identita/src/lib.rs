@@ -220,7 +220,9 @@ pub struct Accesso {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Rifiuto {
     CredenzialiErrate,
-    Bloccato { riprova_fra: Duration },
+    Bloccato {
+        riprova_fra: Duration,
+    },
     UtenteDisattivato,
     /// Si e registrato da solo e non ha ancora confermato l'indirizzo
     /// (30-10-2026, ramo C di `docs/plans/2026-10-26-aprire-sws-soligo-net.md`).
@@ -235,7 +237,11 @@ impl std::fmt::Display for Rifiuto {
         match self {
             Rifiuto::CredenzialiErrate => write!(f, "credenziali errate"),
             Rifiuto::Bloccato { riprova_fra } => {
-                write!(f, "troppi tentativi, riprova fra {}s", riprova_fra.as_secs())
+                write!(
+                    f,
+                    "troppi tentativi, riprova fra {}s",
+                    riprova_fra.as_secs()
+                )
             }
             Rifiuto::UtenteDisattivato => write!(f, "utente disattivato"),
             Rifiuto::DaConfermare => write!(f, "indirizzo non ancora confermato"),
@@ -318,7 +324,11 @@ pub fn verifica_password(password: &str, hash: &str) -> bool {
 /// nasconderebbe anche gli errori veri. Si guarda invece l'elenco delle
 /// colonne, che e una domanda diretta con una risposta chiara.
 fn colonna_presente(conn: &Connection, tabella: &str, sql_alter: &str) -> bool {
-    let Some(nome) = sql_alter.split("ADD COLUMN ").nth(1).and_then(|r| r.split(' ').next()) else {
+    let Some(nome) = sql_alter
+        .split("ADD COLUMN ")
+        .nth(1)
+        .and_then(|r| r.split(' ').next())
+    else {
         return true; // non so cosa aggiungere: meglio non provarci
     };
     ha_colonna(conn, tabella, nome)
@@ -463,9 +473,10 @@ const COLONNE_V2: &[(&str, &str)] = &[
         "ALTER TABLE aziende ADD COLUMN cartella TEXT NOT NULL DEFAULT ''",
     ),
     (
-    "utenti",
-    "ALTER TABLE utenti ADD COLUMN amministratore_piattaforma INTEGER NOT NULL DEFAULT 0",
-)];
+        "utenti",
+        "ALTER TABLE utenti ADD COLUMN amministratore_piattaforma INTEGER NOT NULL DEFAULT 0",
+    ),
+];
 
 /// Schema 4 (28-10-2026): l'azienda personale e il tetto sui progetti in tutto.
 ///
@@ -497,14 +508,26 @@ const COLONNE_V4: &[(&str, &str)] = &[
 ///   accettato e quando — lo chiede l'informativa (`docs/legale/LEGGIMI.md`).
 /// - `utenti.ultimo_accesso_ms`: la base dell'avviso di inattivita a 12 mesi.
 const COLONNE_V5: &[(&str, &str)] = &[
-    ("sessioni", "ALTER TABLE sessioni ADD COLUMN durata_ms INTEGER"),
+    (
+        "sessioni",
+        "ALTER TABLE sessioni ADD COLUMN durata_ms INTEGER",
+    ),
     (
         "utenti",
         "ALTER TABLE utenti ADD COLUMN da_confermare INTEGER NOT NULL DEFAULT 0",
     ),
-    ("utenti", "ALTER TABLE utenti ADD COLUMN condizioni_versione TEXT"),
-    ("utenti", "ALTER TABLE utenti ADD COLUMN condizioni_ms INTEGER"),
-    ("utenti", "ALTER TABLE utenti ADD COLUMN ultimo_accesso_ms INTEGER"),
+    (
+        "utenti",
+        "ALTER TABLE utenti ADD COLUMN condizioni_versione TEXT",
+    ),
+    (
+        "utenti",
+        "ALTER TABLE utenti ADD COLUMN condizioni_ms INTEGER",
+    ),
+    (
+        "utenti",
+        "ALTER TABLE utenti ADD COLUMN ultimo_accesso_ms INTEGER",
+    ),
 ];
 
 /// Schema 6 (30-10-2026): il ciclo di vita degli account che si registrano da
@@ -521,8 +544,14 @@ const COLONNE_V5: &[(&str, &str)] = &[
 ///   disattivato; 30 giorni dopo si cancella, salvo una riattivazione dalla
 ///   console, che azzera questa colonna.
 const COLONNE_V6: &[(&str, &str)] = &[
-    ("utenti", "ALTER TABLE utenti ADD COLUMN da_se INTEGER NOT NULL DEFAULT 0"),
-    ("utenti", "ALTER TABLE utenti ADD COLUMN avviso_inattivita_ms INTEGER"),
+    (
+        "utenti",
+        "ALTER TABLE utenti ADD COLUMN da_se INTEGER NOT NULL DEFAULT 0",
+    ),
+    (
+        "utenti",
+        "ALTER TABLE utenti ADD COLUMN avviso_inattivita_ms INTEGER",
+    ),
     ("utenti", "ALTER TABLE utenti ADD COLUMN chiuso_ms INTEGER"),
 ];
 
@@ -583,7 +612,10 @@ impl Identita {
                 if !colonna_presente(&conn, tabella, sql) {
                     conn.execute(sql, [])?;
                     if sql.contains(" da_se ") {
-                        conn.execute("UPDATE utenti SET da_se = 1 WHERE condizioni_versione IS NOT NULL", [])?;
+                        conn.execute(
+                            "UPDATE utenti SET da_se = 1 WHERE condizioni_versione IS NOT NULL",
+                            [],
+                        )?;
                     }
                 }
             }
@@ -713,7 +745,9 @@ impl Identita {
         let chiave = email.trim().to_lowercase();
 
         if let Some(attesa) = self.blocco_residuo(&chiave) {
-            return Err(Rifiuto::Bloccato { riprova_fra: attesa });
+            return Err(Rifiuto::Bloccato {
+                riprova_fra: attesa,
+            });
         }
 
         let conn = self.conn.clone();
@@ -816,7 +850,11 @@ impl Identita {
         })
         .await??;
         info!(email = %utente.email, "accesso riuscito");
-        Ok(Accesso { token, utente, scade_ms })
+        Ok(Accesso {
+            token,
+            utente,
+            scade_ms,
+        })
     }
 
     async fn ruolo_di(&self, id: i64) -> anyhow::Result<Ruolo> {
@@ -824,7 +862,9 @@ impl Identita {
         task::spawn_blocking(move || -> anyhow::Result<Ruolo> {
             let c = conn.lock().unwrap();
             let s: String =
-                c.query_row("SELECT ruolo FROM utenti WHERE id = ?1", params![id], |r| r.get(0))?;
+                c.query_row("SELECT ruolo FROM utenti WHERE id = ?1", params![id], |r| {
+                    r.get(0)
+                })?;
             Ruolo::da_testo(&s)
         })
         .await?
@@ -886,13 +926,19 @@ impl Identita {
                 durata_ms,
             ) = riga;
             if scade_ms <= adesso {
-                let _ = c.execute("DELETE FROM sessioni WHERE impronta_token = ?1", params![imp]);
+                let _ = c.execute(
+                    "DELETE FROM sessioni WHERE impronta_token = ?1",
+                    params![imp],
+                );
                 return None;
             }
             // Un utente disattivato perde la sessione subito, senza aspettarne la scadenza:
             // altrimenti una revoca non arriverebbe a destinazione per ore.
             if !attivo {
-                let _ = c.execute("DELETE FROM sessioni WHERE impronta_token = ?1", params![imp]);
+                let _ = c.execute(
+                    "DELETE FROM sessioni WHERE impronta_token = ?1",
+                    params![imp],
+                );
                 return None;
             }
             // La durata e quella con cui la sessione e nata: una sessione
@@ -930,7 +976,10 @@ impl Identita {
         let conn = self.conn.clone();
         task::spawn_blocking(move || -> anyhow::Result<()> {
             let c = conn.lock().unwrap();
-            c.execute("DELETE FROM sessioni WHERE impronta_token = ?1", params![imp])?;
+            c.execute(
+                "DELETE FROM sessioni WHERE impronta_token = ?1",
+                params![imp],
+            )?;
             Ok(())
         })
         .await?
@@ -1106,11 +1155,17 @@ impl Identita {
             if n == 0 {
                 anyhow::bail!("nessun utente con id {utente_id}");
             }
-            c.execute("DELETE FROM sessioni WHERE utente_id = ?1", params![utente_id])?;
+            c.execute(
+                "DELETE FROM sessioni WHERE utente_id = ?1",
+                params![utente_id],
+            )?;
             Ok(())
         })
         .await??;
-        info!(utente = utente_id, "password reimpostata dall'amministrazione");
+        info!(
+            utente = utente_id,
+            "password reimpostata dall'amministrazione"
+        );
         Ok(())
     }
 
@@ -1178,7 +1233,10 @@ impl Identita {
                 "UPDATE utenti SET attivo = 0, aggiornato_ms = ?1 WHERE id = ?2",
                 params![ora_ms() as i64, utente_id],
             )?;
-            c.execute("DELETE FROM sessioni WHERE utente_id = ?1", params![utente_id])?;
+            c.execute(
+                "DELETE FROM sessioni WHERE utente_id = ?1",
+                params![utente_id],
+            )?;
             Ok(())
         })
         .await?
@@ -1213,8 +1271,9 @@ impl Identita {
         let sistemate = task::spawn_blocking(move || -> anyhow::Result<Vec<String>> {
             let c = conn.lock().unwrap();
             let senza: Vec<(i64, String)> = {
-                let mut q = c
-                    .prepare("SELECT id, nome FROM aziende WHERE implicita = 0 AND cartella = ''")?;
+                let mut q = c.prepare(
+                    "SELECT id, nome FROM aziende WHERE implicita = 0 AND cartella = ''",
+                )?;
                 let righe = q
                     .query_map([], |r| Ok((r.get::<_, i64>(0)?, r.get::<_, String>(1)?)))?
                     .collect::<Result<Vec<_>, _>>()?;
@@ -1285,7 +1344,10 @@ impl Identita {
         })
         .await??;
         if let Some(id) = creata {
-            info!(azienda = id, "azienda implicita creata e popolata con gli utenti esistenti");
+            info!(
+                azienda = id,
+                "azienda implicita creata e popolata con gli utenti esistenti"
+            );
         }
         Ok(creata)
     }
@@ -1577,9 +1639,11 @@ impl Identita {
         task::spawn_blocking(move || -> anyhow::Result<()> {
             let c = conn.lock().unwrap();
             let implicita: i64 = c
-                .query_row("SELECT implicita FROM aziende WHERE id = ?1", params![id], |r| {
-                    r.get(0)
-                })
+                .query_row(
+                    "SELECT implicita FROM aziende WHERE id = ?1",
+                    params![id],
+                    |r| r.get(0),
+                )
                 .map_err(|_| anyhow::anyhow!("nessuna azienda con id {id}"))?;
             if implicita != 0 && m.nome.is_some() {
                 // Rinominarla non serve a nessuno: non si vede da nessuna parte.
@@ -1624,7 +1688,10 @@ impl Identita {
                         );
                     }
                 }
-                c.execute("UPDATE aziende SET marchio = ?1 WHERE id = ?2", params![v, id])?;
+                c.execute(
+                    "UPDATE aziende SET marchio = ?1 WHERE id = ?2",
+                    params![v, id],
+                )?;
             }
             if let Some(v) = m.versione_predefinita {
                 c.execute(
@@ -1710,7 +1777,10 @@ impl Identita {
         task::spawn_blocking(move || -> anyhow::Result<()> {
             let mut c = conn.lock().unwrap();
             let tx = c.transaction()?;
-            tx.execute("DELETE FROM membri WHERE utente_id = ?1", params![utente_id])?;
+            tx.execute(
+                "DELETE FROM membri WHERE utente_id = ?1",
+                params![utente_id],
+            )?;
             for (azienda_id, ruolo) in &volute {
                 // L'azienda deve esistere: una chiave straniera che punta nel
                 // vuoto renderebbe l'utente membro di niente, e l'elenco delle
@@ -1736,7 +1806,12 @@ impl Identita {
         .await?
     }
 
-    pub async fn iscrivi(&self, azienda_id: i64, utente_id: i64, ruolo: Ruolo) -> anyhow::Result<()> {
+    pub async fn iscrivi(
+        &self,
+        azienda_id: i64,
+        utente_id: i64,
+        ruolo: Ruolo,
+    ) -> anyhow::Result<()> {
         let conn = self.conn.clone();
         task::spawn_blocking(move || -> anyhow::Result<()> {
             let c = conn.lock().unwrap();
@@ -1774,8 +1849,7 @@ impl Identita {
         let conn = self.conn.clone();
         task::spawn_blocking(move || -> anyhow::Result<Vec<(i64, Ruolo)>> {
             let c = conn.lock().unwrap();
-            let mut q =
-                c.prepare("SELECT azienda_id, ruolo FROM membri WHERE utente_id = ?1")?;
+            let mut q = c.prepare("SELECT azienda_id, ruolo FROM membri WHERE utente_id = ?1")?;
             let righe = q
                 .query_map(params![utente_id], |r| {
                     Ok((r.get::<_, i64>(0)?, r.get::<_, String>(1)?))
@@ -1860,7 +1934,9 @@ mod test {
 
     async fn archivio() -> (Identita, tempfile::TempDir) {
         let dir = tempfile::tempdir().unwrap();
-        let id = Identita::apri(dir.path().join("identita.db")).await.unwrap();
+        let id = Identita::apri(dir.path().join("identita.db"))
+            .await
+            .unwrap();
         (id, dir)
     }
 
@@ -1874,7 +1950,13 @@ mod test {
     async fn crea_e_accede() {
         let (id, _d) = archivio().await;
         let u = id
-            .crea_utente("m@soligo.net", "Mauro", "unapassword", Ruolo::Amministratore, false)
+            .crea_utente(
+                "m@soligo.net",
+                "Mauro",
+                "unapassword",
+                Ruolo::Amministratore,
+                false,
+            )
             .await
             .unwrap();
         assert!(id.ha_utenti().await.unwrap());
@@ -1887,14 +1969,26 @@ mod test {
     #[tokio::test]
     async fn email_non_distingue_maiuscole() {
         let (id, _d) = archivio().await;
-        id.crea_utente("M@Soligo.net", "Mauro", "unapassword", Ruolo::Sviluppatore, false)
-            .await
-            .unwrap();
+        id.crea_utente(
+            "M@Soligo.net",
+            "Mauro",
+            "unapassword",
+            Ruolo::Sviluppatore,
+            false,
+        )
+        .await
+        .unwrap();
         // Chi si registra con la maiuscola e accede con la minuscola è la stessa persona.
         assert!(id.accedi("m@soligo.net", "unapassword").await.is_ok());
         // E non deve poterne nascere un secondo che sembra diverso.
         let doppio = id
-            .crea_utente("m@SOLIGO.NET", "Altro", "unapassword", Ruolo::Sviluppatore, false)
+            .crea_utente(
+                "m@SOLIGO.NET",
+                "Altro",
+                "unapassword",
+                Ruolo::Sviluppatore,
+                false,
+            )
             .await;
         assert!(doppio.is_err(), "due utenti con lo stesso indirizzo");
     }
@@ -1902,15 +1996,23 @@ mod test {
     #[tokio::test]
     async fn password_sbagliata_e_utente_inesistente_danno_lo_stesso_esito() {
         let (id, _d) = archivio().await;
-        id.crea_utente("m@soligo.net", "Mauro", "unapassword", Ruolo::Sviluppatore, false)
-            .await
-            .unwrap();
+        id.crea_utente(
+            "m@soligo.net",
+            "Mauro",
+            "unapassword",
+            Ruolo::Sviluppatore,
+            false,
+        )
+        .await
+        .unwrap();
         assert_eq!(
             id.accedi("m@soligo.net", "sbagliata").await.unwrap_err(),
             Rifiuto::CredenzialiErrate
         );
         assert_eq!(
-            id.accedi("nessuno@soligo.net", "unapassword").await.unwrap_err(),
+            id.accedi("nessuno@soligo.net", "unapassword")
+                .await
+                .unwrap_err(),
             Rifiuto::CredenzialiErrate
         );
     }
@@ -1923,9 +2025,15 @@ mod test {
         // se il token fosse stato salvato in chiaro. Ora si guardano TUTTI i file del database, e
         // si verifica anche il verso positivo: che l'impronta ci sia davvero.
         let (id, _d) = archivio().await;
-        id.crea_utente("m@soligo.net", "Mauro", "unapassword", Ruolo::Sviluppatore, false)
-            .await
-            .unwrap();
+        id.crea_utente(
+            "m@soligo.net",
+            "Mauro",
+            "unapassword",
+            Ruolo::Sviluppatore,
+            false,
+        )
+        .await
+        .unwrap();
         let a = id.accedi("m@soligo.net", "unapassword").await.unwrap();
 
         let base = id.percorso().to_path_buf();
@@ -1958,10 +2066,19 @@ mod test {
         let percorso = dir.path().join("identita.db");
         let token = {
             let id = Identita::apri(&percorso).await.unwrap();
-            id.crea_utente("m@soligo.net", "Mauro", "unapassword", Ruolo::Sviluppatore, false)
+            id.crea_utente(
+                "m@soligo.net",
+                "Mauro",
+                "unapassword",
+                Ruolo::Sviluppatore,
+                false,
+            )
+            .await
+            .unwrap();
+            id.accedi("m@soligo.net", "unapassword")
                 .await
-                .unwrap();
-            id.accedi("m@soligo.net", "unapassword").await.unwrap().token
+                .unwrap()
+                .token
         };
         let id2 = Identita::apri(&percorso).await.unwrap();
         assert!(
@@ -2010,9 +2127,13 @@ mod test {
 
         let versione: i64 = {
             let c = id.conn.lock().unwrap();
-            c.query_row("PRAGMA user_version", [], |r| r.get(0)).unwrap()
+            c.query_row("PRAGMA user_version", [], |r| r.get(0))
+                .unwrap()
         };
-        assert_eq!(versione, 6, "lo schema 6: il ciclo di vita degli account registrati (30-10-2026)");
+        assert_eq!(
+            versione, 6,
+            "lo schema 6: il ciclo di vita degli account registrati (30-10-2026)"
+        );
 
         // E le colonne dello schema 4 ci sono, con i valori che lasciano
         // l'archivio com'era: nessuna azienda di prima e personale, e nessuna
@@ -2027,7 +2148,13 @@ mod test {
     async fn chi_si_registra_nasce_con_un_azienda_sua() {
         let (id, _d) = archivio().await;
         let u = id
-            .crea_utente("mario@tizio.it", "Mario", "unapassword", Ruolo::Sviluppatore, false)
+            .crea_utente(
+                "mario@tizio.it",
+                "Mario",
+                "unapassword",
+                Ruolo::Sviluppatore,
+                false,
+            )
             .await
             .unwrap();
         let a = id
@@ -2035,9 +2162,19 @@ mod test {
             .await
             .unwrap();
 
-        assert!(a.personale, "e questo che la distingue da un cliente in console");
-        assert!(!a.implicita, "`implicita` e un'altra cosa: l'azienda unica di un'installazione");
-        assert_eq!(a.cartella, format!("u{}", a.id), "la cartella e l'id, non il nome");
+        assert!(
+            a.personale,
+            "e questo che la distingue da un cliente in console"
+        );
+        assert!(
+            !a.implicita,
+            "`implicita` e un'altra cosa: l'azienda unica di un'installazione"
+        );
+        assert_eq!(
+            a.cartella,
+            format!("u{}", a.id),
+            "la cartella e l'id, non il nome"
+        );
         assert_eq!(a.max_progetti_totali, Some(3));
         assert_eq!(
             id.aziende_di(u.id).await.unwrap(),
@@ -2069,13 +2206,40 @@ mod test {
     #[tokio::test]
     async fn due_aziende_personali_non_condividono_la_cartella() {
         let (id, _d) = archivio().await;
-        let a = id.crea_utente("mario@tizio.it", "M", "unapassword", Ruolo::Sviluppatore, false).await.unwrap();
-        let b = id.crea_utente("mario@caio.it", "M", "unapassword", Ruolo::Sviluppatore, false).await.unwrap();
-        let aa = id.crea_azienda_personale("mario@tizio.it", a.id, Some(3)).await.unwrap();
-        let bb = id.crea_azienda_personale("mario@caio.it", b.id, Some(3)).await.unwrap();
+        let a = id
+            .crea_utente(
+                "mario@tizio.it",
+                "M",
+                "unapassword",
+                Ruolo::Sviluppatore,
+                false,
+            )
+            .await
+            .unwrap();
+        let b = id
+            .crea_utente(
+                "mario@caio.it",
+                "M",
+                "unapassword",
+                Ruolo::Sviluppatore,
+                false,
+            )
+            .await
+            .unwrap();
+        let aa = id
+            .crea_azienda_personale("mario@tizio.it", a.id, Some(3))
+            .await
+            .unwrap();
+        let bb = id
+            .crea_azienda_personale("mario@caio.it", b.id, Some(3))
+            .await
+            .unwrap();
         assert_ne!(aa.cartella, bb.cartella);
         assert_ne!(aa.cartella, "");
-        assert_ne!(bb.cartella, "", "la radice e dell'azienda implicita, di nessun altro");
+        assert_ne!(
+            bb.cartella, "",
+            "la radice e dell'azienda implicita, di nessun altro"
+        );
     }
 
     /// Un marchio e di una sola azienda: assegnarlo a una seconda si rifiuta.
@@ -2093,7 +2257,9 @@ mod test {
             ..Default::default()
         };
 
-        id.aggiorna_azienda(a.id, con_marchio(Some("pixsys"))).await.unwrap();
+        id.aggiorna_azienda(a.id, con_marchio(Some("pixsys")))
+            .await
+            .unwrap();
 
         let e = id
             .aggiorna_azienda(b.id, con_marchio(Some("pixsys")))
@@ -2103,14 +2269,18 @@ mod test {
         assert!(e.contains("pixsys") && e.contains("Acme"), "{e}");
 
         // Riassegnarlo a chi ce l'ha gia non e un conflitto con se stessa.
-        id.aggiorna_azienda(a.id, con_marchio(Some("pixsys"))).await.unwrap();
+        id.aggiorna_azienda(a.id, con_marchio(Some("pixsys")))
+            .await
+            .unwrap();
 
         // Il marchio standard — nessun marchio — resta di tutte.
         id.aggiorna_azienda(a.id, con_marchio(None)).await.unwrap();
         id.aggiorna_azienda(b.id, con_marchio(None)).await.unwrap();
 
         // E liberato, si puo dare a un'altra.
-        id.aggiorna_azienda(b.id, con_marchio(Some("pixsys"))).await.unwrap();
+        id.aggiorna_azienda(b.id, con_marchio(Some("pixsys")))
+            .await
+            .unwrap();
     }
 
     /// Un'azienda nata prima della colonna `cartella` ne riceve una
@@ -2124,9 +2294,15 @@ mod test {
         let (id, _d) = archivio().await;
         // Prima l'azienda implicita, che nasce solo se un utente esiste: serve
         // per provare che la migrazione NON la tocca.
-        id.crea_utente("m@soligo.net", "Mauro", "unapassword", Ruolo::Amministratore, false)
-            .await
-            .unwrap();
+        id.crea_utente(
+            "m@soligo.net",
+            "Mauro",
+            "unapassword",
+            Ruolo::Amministratore,
+            false,
+        )
+        .await
+        .unwrap();
         assert!(id.assicura_azienda_implicita().await.unwrap().is_some());
         let a = id.crea_azienda("Pixsys").await.unwrap();
         let b = id.crea_azienda("Acme").await.unwrap();
@@ -2134,8 +2310,11 @@ mod test {
         // il valore predefinito della colonna appena aggiunta.
         {
             let c = id.conn.lock().unwrap();
-            c.execute("UPDATE aziende SET cartella = '' WHERE id IN (?1, ?2)", params![a.id, b.id])
-                .unwrap();
+            c.execute(
+                "UPDATE aziende SET cartella = '' WHERE id IN (?1, ?2)",
+                params![a.id, b.id],
+            )
+            .unwrap();
         }
 
         let sistemate = id.assicura_cartelle_aziende().await.unwrap();
@@ -2143,11 +2322,19 @@ mod test {
 
         let dopo = id.elenca_aziende().await.unwrap();
         for x in dopo.iter().filter(|x| !x.implicita) {
-            assert!(!x.cartella.is_empty(), "«{}» e rimasta senza cartella", x.nome);
+            assert!(
+                !x.cartella.is_empty(),
+                "«{}» e rimasta senza cartella",
+                x.nome
+            );
         }
         // E restano distinte: due aziende nella stessa cartella mescolerebbero
         // i progetti, che e il guasto da cui nasce tutto questo.
-        let mut cartelle: Vec<_> = dopo.iter().filter(|x| !x.implicita).map(|x| x.cartella.clone()).collect();
+        let mut cartelle: Vec<_> = dopo
+            .iter()
+            .filter(|x| !x.implicita)
+            .map(|x| x.cartella.clone())
+            .collect();
         cartelle.sort();
         cartelle.dedup();
         assert_eq!(cartelle.len(), 2, "due aziende hanno la stessa cartella");
@@ -2161,9 +2348,15 @@ mod test {
     #[tokio::test]
     async fn uscire_invalida_il_token() {
         let (id, _d) = archivio().await;
-        id.crea_utente("m@soligo.net", "Mauro", "unapassword", Ruolo::Sviluppatore, false)
-            .await
-            .unwrap();
+        id.crea_utente(
+            "m@soligo.net",
+            "Mauro",
+            "unapassword",
+            Ruolo::Sviluppatore,
+            false,
+        )
+        .await
+        .unwrap();
         let a = id.accedi("m@soligo.net", "unapassword").await.unwrap();
         id.esci(&a.token).await.unwrap();
         assert!(id.valida(&a.token).await.is_none());
@@ -2173,7 +2366,13 @@ mod test {
     async fn cambiare_password_chiude_le_sessioni() {
         let (id, _d) = archivio().await;
         let u = id
-            .crea_utente("m@soligo.net", "Mauro", "unapassword", Ruolo::Sviluppatore, false)
+            .crea_utente(
+                "m@soligo.net",
+                "Mauro",
+                "unapassword",
+                Ruolo::Sviluppatore,
+                false,
+            )
             .await
             .unwrap();
         let a = id.accedi("m@soligo.net", "unapassword").await.unwrap();
@@ -2196,9 +2395,15 @@ mod test {
     #[tokio::test]
     async fn cambiare_la_propria_password_non_butta_fuori_chi_la_cambia() {
         let (id, _d) = archivio().await;
-        id.crea_utente("m@soligo.net", "Mauro", "unapassword", Ruolo::Sviluppatore, false)
-            .await
-            .unwrap();
+        id.crea_utente(
+            "m@soligo.net",
+            "Mauro",
+            "unapassword",
+            Ruolo::Sviluppatore,
+            false,
+        )
+        .await
+        .unwrap();
         let mia = id.accedi("m@soligo.net", "unapassword").await.unwrap();
         let altrove = id.accedi("m@soligo.net", "unapassword").await.unwrap();
 
@@ -2232,7 +2437,13 @@ mod test {
     async fn reimpostare_chiude_anche_la_sessione_dell_interessato() {
         let (id, _d) = archivio().await;
         let u = id
-            .crea_utente("m@soligo.net", "Mauro", "unapassword", Ruolo::Sviluppatore, false)
+            .crea_utente(
+                "m@soligo.net",
+                "Mauro",
+                "unapassword",
+                Ruolo::Sviluppatore,
+                false,
+            )
             .await
             .unwrap();
         let a = id.accedi("m@soligo.net", "unapassword").await.unwrap();
@@ -2247,14 +2458,28 @@ mod test {
         // permessa: dal 07-10-2026 non ci si puo disattivare restando
         // l'ultimo. Questo test guarda la REVOCA, non quella regola.
         let u = id
-            .crea_utente("m@soligo.net", "Mauro", "unapassword", Ruolo::Sviluppatore, false)
+            .crea_utente(
+                "m@soligo.net",
+                "Mauro",
+                "unapassword",
+                Ruolo::Sviluppatore,
+                false,
+            )
             .await
             .unwrap();
         let altro = id
-            .crea_utente("capo@soligo.net", "Capo", "unapassword", Ruolo::Amministratore, false)
+            .crea_utente(
+                "capo@soligo.net",
+                "Capo",
+                "unapassword",
+                Ruolo::Amministratore,
+                false,
+            )
             .await
             .unwrap();
-        id.imposta_amministratore_piattaforma(altro.id, true).await.unwrap();
+        id.imposta_amministratore_piattaforma(altro.id, true)
+            .await
+            .unwrap();
         let a = id.accedi("m@soligo.net", "unapassword").await.unwrap();
         id.disattiva(u.id).await.unwrap();
         assert!(id.valida(&a.token).await.is_none(), "revoca non arrivata");
@@ -2267,9 +2492,15 @@ mod test {
     #[tokio::test]
     async fn troppi_tentativi_bloccano() {
         let (id, _d) = archivio().await;
-        id.crea_utente("m@soligo.net", "Mauro", "unapassword", Ruolo::Sviluppatore, false)
-            .await
-            .unwrap();
+        id.crea_utente(
+            "m@soligo.net",
+            "Mauro",
+            "unapassword",
+            Ruolo::Sviluppatore,
+            false,
+        )
+        .await
+        .unwrap();
         for _ in 0..TENTATIVI_MAX {
             let _ = id.accedi("m@soligo.net", "sbagliata").await;
         }
@@ -2294,12 +2525,27 @@ mod test {
     async fn il_primo_utente_e_amministratore_di_piattaforma() {
         let (id, _d) = archivio().await;
         let primo = id
-            .crea_utente("a@soligo.net", "A", "unapassword", Ruolo::Amministratore, false)
+            .crea_utente(
+                "a@soligo.net",
+                "A",
+                "unapassword",
+                Ruolo::Amministratore,
+                false,
+            )
             .await
             .unwrap();
-        assert!(primo.amministratore_piattaforma, "il primo non puo approvare nessuno");
+        assert!(
+            primo.amministratore_piattaforma,
+            "il primo non puo approvare nessuno"
+        );
         let secondo = id
-            .crea_utente("b@soligo.net", "B", "unapassword", Ruolo::Amministratore, false)
+            .crea_utente(
+                "b@soligo.net",
+                "B",
+                "unapassword",
+                Ruolo::Amministratore,
+                false,
+            )
             .await
             .unwrap();
         assert!(
@@ -2317,9 +2563,15 @@ mod test {
         let percorso = dir.path().join("identita.db");
         {
             let id = Identita::apri(&percorso).await.unwrap();
-            id.crea_utente("m@soligo.net", "Mauro", "unapassword", Ruolo::Amministratore, false)
-                .await
-                .unwrap();
+            id.crea_utente(
+                "m@soligo.net",
+                "Mauro",
+                "unapassword",
+                Ruolo::Amministratore,
+                false,
+            )
+            .await
+            .unwrap();
             // Qui l'azienda non c'è ancora: è nata prima dell'utente.
             assert!(id.elenca_aziende().await.unwrap().is_empty());
         }
@@ -2335,7 +2587,11 @@ mod test {
             1,
             "l'utente che c'era già non è stato iscritto all'azienda implicita"
         );
-        assert_eq!(appartenenze[0].1, Ruolo::Amministratore, "il ruolo non è stato conservato");
+        assert_eq!(
+            appartenenze[0].1,
+            Ruolo::Amministratore,
+            "il ruolo non è stato conservato"
+        );
     }
 
     #[tokio::test]
@@ -2344,9 +2600,15 @@ mod test {
         let percorso = dir.path().join("identita.db");
         {
             let id = Identita::apri(&percorso).await.unwrap();
-            id.crea_utente("m@soligo.net", "M", "unapassword", Ruolo::Sviluppatore, false)
-                .await
-                .unwrap();
+            id.crea_utente(
+                "m@soligo.net",
+                "M",
+                "unapassword",
+                Ruolo::Sviluppatore,
+                false,
+            )
+            .await
+            .unwrap();
         }
         for _ in 0..3 {
             let id = Identita::apri(&percorso).await.unwrap();
@@ -2365,13 +2627,22 @@ mod test {
         {
             let id = Identita::apri(&percorso).await.unwrap();
             let u = id
-                .crea_utente("m@soligo.net", "M", "unapassword", Ruolo::Amministratore, false)
+                .crea_utente(
+                    "m@soligo.net",
+                    "M",
+                    "unapassword",
+                    Ruolo::Amministratore,
+                    false,
+                )
                 .await
                 .unwrap();
             // Si simula lo stato di allora: il flag a zero.
-            id.imposta_amministratore_piattaforma(u.id, false).await.ok();
+            id.imposta_amministratore_piattaforma(u.id, false)
+                .await
+                .ok();
             let c = id.conn.lock().unwrap();
-            c.execute("UPDATE utenti SET amministratore_piattaforma = 0", []).unwrap();
+            c.execute("UPDATE utenti SET amministratore_piattaforma = 0", [])
+                .unwrap();
         }
         let id2 = Identita::apri(&percorso).await.unwrap();
         let utenti = id2.elenca().await.unwrap();
@@ -2391,7 +2662,13 @@ mod test {
         // impossibilitato a farlo.
         let (id, _d) = archivio().await;
         let u = id
-            .crea_utente("edp@pixsys.net", "E", "unapassword", Ruolo::Sviluppatore, false)
+            .crea_utente(
+                "edp@pixsys.net",
+                "E",
+                "unapassword",
+                Ruolo::Sviluppatore,
+                false,
+            )
             .await
             .unwrap();
         id.reimposta_password(u.id, "dataDaAltri").await.unwrap();
@@ -2421,7 +2698,13 @@ mod test {
     async fn il_reset_chiude_le_sessioni_e_obbliga_a_cambiarla() {
         let (id, _d) = archivio().await;
         let u = id
-            .crea_utente("m@soligo.net", "M", "unapassword", Ruolo::Sviluppatore, false)
+            .crea_utente(
+                "m@soligo.net",
+                "M",
+                "unapassword",
+                Ruolo::Sviluppatore,
+                false,
+            )
             .await
             .unwrap();
         let a = id.accedi("m@soligo.net", "unapassword").await.unwrap();
@@ -2432,7 +2715,10 @@ mod test {
         // Chi era dentro esce: un reset che lascia dentro chi era collegato
         // non è un reset, e serve proprio quando si teme che la password sia
         // nota a qualcun altro.
-        assert!(id.valida(&a.token).await.is_none(), "sessione sopravvissuta al reset");
+        assert!(
+            id.valida(&a.token).await.is_none(),
+            "sessione sopravvissuta al reset"
+        );
         assert!(id.accedi("m@soligo.net", "unapassword").await.is_err());
 
         // E chi entra deve sceglierne una sua: questa la conoscono in due.
@@ -2450,7 +2736,13 @@ mod test {
         // su «disattiva», cioe su una delle due strade per lo stesso esito.
         let (id, _d) = archivio().await;
         let solo = id
-            .crea_utente("m@soligo.net", "M", "unapassword", Ruolo::Amministratore, false)
+            .crea_utente(
+                "m@soligo.net",
+                "M",
+                "unapassword",
+                Ruolo::Amministratore,
+                false,
+            )
             .await
             .unwrap();
         assert!(
@@ -2459,10 +2751,18 @@ mod test {
         );
         // Con un secondo amministratore il primo si puo disattivare.
         let due = id
-            .crea_utente("b@soligo.net", "B", "unapassword", Ruolo::Amministratore, false)
+            .crea_utente(
+                "b@soligo.net",
+                "B",
+                "unapassword",
+                Ruolo::Amministratore,
+                false,
+            )
             .await
             .unwrap();
-        id.imposta_amministratore_piattaforma(due.id, true).await.unwrap();
+        id.imposta_amministratore_piattaforma(due.id, true)
+            .await
+            .unwrap();
         id.disattiva(solo.id).await.unwrap();
     }
 
@@ -2475,16 +2775,24 @@ mod test {
         let percorso = dir.path().join("identita.db");
         {
             let id = Identita::apri(&percorso).await.unwrap();
-            id.crea_utente("m@soligo.net", "M", "unapassword", Ruolo::Amministratore, false)
-                .await
-                .unwrap();
+            id.crea_utente(
+                "m@soligo.net",
+                "M",
+                "unapassword",
+                Ruolo::Amministratore,
+                false,
+            )
+            .await
+            .unwrap();
             let c = id.conn.lock().unwrap();
             c.execute("UPDATE utenti SET attivo = 0", []).unwrap();
         }
         let id2 = Identita::apri(&percorso).await.unwrap();
         let utenti = id2.elenca().await.unwrap();
         assert!(
-            utenti.iter().any(|u| u.attivo && u.amministratore_piattaforma),
+            utenti
+                .iter()
+                .any(|u| u.attivo && u.amministratore_piattaforma),
             "riaperto senza nessuno che possa entrare: installazione murata"
         );
     }
@@ -2493,17 +2801,42 @@ mod test {
     async fn chi_amministra_gia_non_viene_sostituito() {
         let (id, _d) = archivio().await;
         let primo = id
-            .crea_utente("a@soligo.net", "A", "unapassword", Ruolo::Amministratore, false)
+            .crea_utente(
+                "a@soligo.net",
+                "A",
+                "unapassword",
+                Ruolo::Amministratore,
+                false,
+            )
             .await
             .unwrap();
-        id.crea_utente("b@soligo.net", "B", "unapassword", Ruolo::Amministratore, false)
+        id.crea_utente(
+            "b@soligo.net",
+            "B",
+            "unapassword",
+            Ruolo::Amministratore,
+            false,
+        )
+        .await
+        .unwrap();
+        assert!(id
+            .assicura_amministratore_piattaforma()
             .await
-            .unwrap();
-        assert!(id.assicura_amministratore_piattaforma().await.unwrap().is_none());
+            .unwrap()
+            .is_none());
         let utenti = id.elenca().await.unwrap();
-        let quanti = utenti.iter().filter(|u| u.amministratore_piattaforma).count();
+        let quanti = utenti
+            .iter()
+            .filter(|u| u.amministratore_piattaforma)
+            .count();
         assert_eq!(quanti, 1, "promosso qualcuno che non serviva");
-        assert!(utenti.iter().find(|u| u.id == primo.id).unwrap().amministratore_piattaforma);
+        assert!(
+            utenti
+                .iter()
+                .find(|u| u.id == primo.id)
+                .unwrap()
+                .amministratore_piattaforma
+        );
     }
 
     #[test]
@@ -2542,9 +2875,15 @@ mod test {
         let percorso = dir.path().join("identita.db");
         {
             let id = Identita::apri(&percorso).await.unwrap();
-            id.crea_utente("m@soligo.net", "M", "unapassword", Ruolo::Amministratore, false)
-                .await
-                .unwrap();
+            id.crea_utente(
+                "m@soligo.net",
+                "M",
+                "unapassword",
+                Ruolo::Amministratore,
+                false,
+            )
+            .await
+            .unwrap();
         }
         let id2 = Identita::apri(&percorso).await.unwrap();
         let a = &id2.elenca_aziende().await.unwrap()[0];
@@ -2556,7 +2895,10 @@ mod test {
     async fn due_aziende_non_possono_chiamarsi_uguale() {
         let (id, _d) = archivio().await;
         id.crea_azienda("Acme").await.unwrap();
-        assert!(id.crea_azienda("acme").await.is_err(), "nome duplicato accettato");
+        assert!(
+            id.crea_azienda("acme").await.is_err(),
+            "nome duplicato accettato"
+        );
     }
 
     #[tokio::test]
@@ -2587,17 +2929,31 @@ mod test {
         let a = id.crea_azienda("Acme").await.unwrap();
         id.aggiorna_azienda(
             a.id,
-            ModificaAzienda { marchio: Some(Some("pixsys".into())), ..Default::default() },
+            ModificaAzienda {
+                marchio: Some(Some("pixsys".into())),
+                ..Default::default()
+            },
         )
         .await
         .unwrap();
         // `None` non tocca…
-        id.aggiorna_azienda(a.id, ModificaAzienda::default()).await.unwrap();
-        assert_eq!(id.elenca_aziende().await.unwrap()[0].marchio.as_deref(), Some("pixsys"));
-        // …`Some(None)` svuota.
-        id.aggiorna_azienda(a.id, ModificaAzienda { marchio: Some(None), ..Default::default() })
+        id.aggiorna_azienda(a.id, ModificaAzienda::default())
             .await
             .unwrap();
+        assert_eq!(
+            id.elenca_aziende().await.unwrap()[0].marchio.as_deref(),
+            Some("pixsys")
+        );
+        // …`Some(None)` svuota.
+        id.aggiorna_azienda(
+            a.id,
+            ModificaAzienda {
+                marchio: Some(None),
+                ..Default::default()
+            },
+        )
+        .await
+        .unwrap();
         assert!(id.elenca_aziende().await.unwrap()[0].marchio.is_none());
     }
 
@@ -2609,7 +2965,10 @@ mod test {
         // `Option<Option<T>>` le due cose coincidono, e la seconda non si può
         // esprimere affatto.
         let assente: ModificaAzienda = serde_json::from_str(r#"{"stato":"approvata"}"#).unwrap();
-        assert!(assente.marchio.is_none(), "un campo assente non deve toccare nulla");
+        assert!(
+            assente.marchio.is_none(),
+            "un campo assente non deve toccare nulla"
+        );
 
         let vuoto: ModificaAzienda = serde_json::from_str(r#"{"marchio":null}"#).unwrap();
         assert_eq!(vuoto.marchio, Some(None), "`null` deve voler dire «svuota»");
@@ -2622,20 +2981,38 @@ mod test {
     async fn non_si_resta_senza_amministratori_di_piattaforma() {
         let (id, _d) = archivio().await;
         let primo = id
-            .crea_utente("a@soligo.net", "A", "unapassword", Ruolo::Amministratore, false)
+            .crea_utente(
+                "a@soligo.net",
+                "A",
+                "unapassword",
+                Ruolo::Amministratore,
+                false,
+            )
             .await
             .unwrap();
         assert!(
-            id.imposta_amministratore_piattaforma(primo.id, false).await.is_err(),
+            id.imposta_amministratore_piattaforma(primo.id, false)
+                .await
+                .is_err(),
             "tolto l'ultimo: nessuno potrebbe più approvare un'azienda"
         );
         let secondo = id
-            .crea_utente("b@soligo.net", "B", "unapassword", Ruolo::Amministratore, false)
+            .crea_utente(
+                "b@soligo.net",
+                "B",
+                "unapassword",
+                Ruolo::Amministratore,
+                false,
+            )
             .await
             .unwrap();
-        id.imposta_amministratore_piattaforma(secondo.id, true).await.unwrap();
+        id.imposta_amministratore_piattaforma(secondo.id, true)
+            .await
+            .unwrap();
         // Ora che sono due, il primo si può togliere.
-        id.imposta_amministratore_piattaforma(primo.id, false).await.unwrap();
+        id.imposta_amministratore_piattaforma(primo.id, false)
+            .await
+            .unwrap();
     }
 
     #[tokio::test]

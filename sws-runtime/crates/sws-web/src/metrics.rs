@@ -46,7 +46,9 @@ pub async fn get_metrics(State(state): State<AppState>) -> impl IntoResponse {
     // banco di prova, leggendo una volta al secondo, avrebbe aggiunto al runtime
     // che stava misurando. Ora si aggiornano solo CPU, memoria e il nostro processo.
     let (cpu, mem_usata, mem_totale, proc_cpu, proc_rss) = {
-        let mut sys = SISTEMA.get_or_init(|| std::sync::Mutex::new(System::new())).lock()
+        let mut sys = SISTEMA
+            .get_or_init(|| std::sync::Mutex::new(System::new()))
+            .lock()
             .unwrap_or_else(|e| e.into_inner());
         sys.refresh_cpu_usage();
         sys.refresh_memory();

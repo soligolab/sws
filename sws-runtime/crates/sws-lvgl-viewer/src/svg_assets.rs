@@ -17,7 +17,6 @@ use std::collections::HashMap;
 
 use crate::model::{CustomSymbol, SynopticObject};
 
-
 /// Da dove prendere i byte dell'SVG di un oggetto.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum SvgSource {
@@ -358,7 +357,11 @@ mod tests {
 /// sappiamo decodificare. L'SVG non e' qui: quello ha la sua strada.
 pub fn tipo_raster(src: &str) -> Option<&'static str> {
     // Un URL puo' portarsi dietro una query (`?v=3`): si guarda il percorso.
-    let percorso = src.split(['?', '#']).next().unwrap_or(src).to_ascii_lowercase();
+    let percorso = src
+        .split(['?', '#'])
+        .next()
+        .unwrap_or(src)
+        .to_ascii_lowercase();
     match percorso.rsplit('.').next()? {
         "png" => Some("image/png"),
         "jpg" | "jpeg" => Some("image/jpeg"),
@@ -388,8 +391,14 @@ mod prove_raster {
 
     #[test]
     fn il_tipo_viene_dall_estensione_non_dal_resto() {
-        assert_eq!(tipo_raster("/api/project/images/default.jpg"), Some("image/jpeg"));
-        assert_eq!(tipo_raster("/api/project/images/CARINA.JPEG"), Some("image/jpeg"));
+        assert_eq!(
+            tipo_raster("/api/project/images/default.jpg"),
+            Some("image/jpeg")
+        );
+        assert_eq!(
+            tipo_raster("/api/project/images/CARINA.JPEG"),
+            Some("image/jpeg")
+        );
         assert_eq!(tipo_raster("/images/mdi/casa.png?v=3"), Some("image/png"));
         assert_eq!(tipo_raster("/a/b.webp#x"), Some("image/webp"));
         // L'SVG ha la sua strada, non questa.
@@ -399,7 +408,8 @@ mod prove_raster {
 
     #[test]
     fn l_involucro_e_un_svg_che_copre_il_riquadro() {
-        let svg = String::from_utf8(svg_attorno_al_raster(b"\x89PNG", "image/png", 1280, 800)).unwrap();
+        let svg =
+            String::from_utf8(svg_attorno_al_raster(b"\x89PNG", "image/png", 1280, 800)).unwrap();
         assert!(svg.contains(r#"width="1280""#) && svg.contains(r#"height="800""#));
         assert!(svg.contains("xMidYMid slice"), "«copri», come sul web");
         assert!(svg.contains("data:image/png;base64,"));

@@ -172,7 +172,9 @@ impl Config {
         }
     }
     fn passo_pan_ms(&self) -> u64 {
-        (self.passo_pan_s.unwrap_or(self.finestra_s * 0.25) * 1000.0).round().max(1000.0) as u64
+        (self.passo_pan_s.unwrap_or(self.finestra_s * 0.25) * 1000.0)
+            .round()
+            .max(1000.0) as u64
     }
 }
 
@@ -218,7 +220,11 @@ pub enum Vista {
     /// Spostata indietro coi pulsanti ◀/▶: l'intervallo è fisso.
     Spostata { indietro_ms: u64, da: u64, a: u64 },
     /// Selezionata col dito: tempo, e se la selezione era alta anche Y.
-    Zoom { da: u64, a: u64, y: Option<(f64, f64)> },
+    Zoom {
+        da: u64,
+        a: u64,
+        y: Option<(f64, f64)>,
+    },
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -301,12 +307,21 @@ impl Stato {
     /// **trascinare legge** (il gesto che serve di più su un pannello), e
     /// **tenere fermo mezzo secondo e poi trascinare seleziona uno zoom**.
     pub fn premi(&mut self, x: f32, y: f32, ora_ms: u64) {
-        self.pressione = Some(Pressione { x0: x, y0: y, x, y, dal_ms: ora_ms, seleziona: false });
+        self.pressione = Some(Pressione {
+            x0: x,
+            y0: y,
+            x,
+            y,
+            dal_ms: ora_ms,
+            seleziona: false,
+        });
     }
 
     /// Il dito si muove. `true` se c'è da ridisegnare.
     pub fn trascina(&mut self, x: f32, y: f32, ora_ms: u64) -> bool {
-        let Some(p) = self.pressione.as_mut() else { return false };
+        let Some(p) = self.pressione.as_mut() else {
+            return false;
+        };
         let fermo = (x - p.x0).abs() <= SOGLIA_PX && (y - p.y0).abs() <= SOGLIA_PX;
         if !p.seleziona && fermo && ora_ms.saturating_sub(p.dal_ms) >= TENUTA_MS {
             p.seleziona = true;
@@ -319,7 +334,9 @@ impl Stato {
 
     /// Il dito si alza. Dice cosa è cambiato.
     pub fn rilascia(&mut self, cfg: &Config, scena: &Scena, ora_ms: u64) -> Esito {
-        let Some(p) = self.pressione.take() else { return Esito::Niente };
+        let Some(p) = self.pressione.take() else {
+            return Esito::Niente;
+        };
         let dx = (p.x - p.x0).abs();
         let dy = (p.y - p.y0).abs();
         if dx <= SOGLIA_PX && dy <= SOGLIA_PX {
@@ -329,7 +346,9 @@ impl Stato {
             // Era una lettura dei valori: finisce col dito.
             return Esito::Ridisegna;
         }
-        let Some(d) = scena.dominio else { return Esito::Ridisegna };
+        let Some(d) = scena.dominio else {
+            return Esito::Ridisegna;
+        };
         let ts = |x: f32| {
             let f = ((x - d.sx) / d.plot_w).clamp(0.0, 1.0) as f64;
             d.t_min as f64 + f * d.t_span as f64
@@ -340,9 +359,8 @@ impl Stato {
             return Esito::Ridisegna;
         }
         let y = if dy > SOGLIA_PX && d.y_invertibile {
-            let inv = |py: f32| {
-                d.y_lo + ((d.alto + d.plot_h - py) / d.plot_h) as f64 * (d.y_hi - d.y_lo)
-            };
+            let inv =
+                |py: f32| d.y_lo + ((d.alto + d.plot_h - py) / d.plot_h) as f64 * (d.y_hi - d.y_lo);
             let (v1, v2) = (inv(p.y0), inv(p.y));
             Some((v1.min(v2), v1.max(v2)))
         } else {
@@ -393,14 +411,20 @@ impl Stato {
                 }
                 (Vista::Diretta, Pulsante::Indietro) => passo,
                 (Vista::Spostata { indietro_ms, .. }, Pulsante::Indietro) => indietro_ms + passo,
-                (Vista::Spostata { indietro_ms, .. }, Pulsante::Avanti) => indietro_ms.saturating_sub(passo),
+                (Vista::Spostata { indietro_ms, .. }, Pulsante::Avanti) => {
+                    indietro_ms.saturating_sub(passo)
+                }
                 _ => return Esito::Niente,
             };
             self.vista = if indietro == 0 {
                 Vista::Diretta
             } else {
                 let a = ora_ms.saturating_sub(indietro);
-                Vista::Spostata { indietro_ms: indietro, da: a.saturating_sub(finestra), a }
+                Vista::Spostata {
+                    indietro_ms: indietro,
+                    da: a.saturating_sub(finestra),
+                    a,
+                }
             };
             return Esito::NuovoIntervallo;
         }
@@ -577,14 +601,26 @@ pub fn fmt_data_ora(o: OraLocale, span_ms: u64, f: &FormatoOra) -> (String, Opti
     } else {
         (format!("{:02}", o.ora), "")
     };
-    let sec = if f.secondi { format!(":{:02}", o.secondo) } else { String::new() };
+    let sec = if f.secondi {
+        format!(":{:02}", o.secondo)
+    } else {
+        String::new()
+    };
     let ora = format!("{ore}:{:02}{sec}{suffisso}", o.minuto);
     if !(f.sempre_data || span_ms > 86_400_000) {
         return (ora, None);
     }
-    let (g, m, a) = (format!("{:02}", o.giorno), format!("{:02}", o.mese), o.anno.to_string());
+    let (g, m, a) = (
+        format!("{:02}", o.giorno),
+        format!("{:02}", o.mese),
+        o.anno.to_string(),
+    );
     // «ymd» senza anno non ha senso: diventa «mdy», come sul web.
-    let ordine = if !f.anno && f.ordine == OrdineData::Amg { OrdineData::Mga } else { f.ordine };
+    let ordine = if !f.anno && f.ordine == OrdineData::Amg {
+        OrdineData::Mga
+    } else {
+        f.ordine
+    };
     let campi: Vec<&str> = match (ordine, f.anno) {
         (OrdineData::Amg, _) => vec![&a, &m, &g],
         (OrdineData::Gma, true) => vec![&g, &m, &a],
@@ -635,7 +671,10 @@ impl Scala {
     /// Il valore della tacca `i` di 0..=4, dall'alto.
     fn tacca(&self, i: usize) -> f64 {
         if self.log {
-            let (l_lo, l_span) = (self.lo.log10(), (self.hi.log10() - self.lo.log10()).max(1e-9));
+            let (l_lo, l_span) = (
+                self.lo.log10(),
+                (self.hi.log10() - self.lo.log10()).max(1e-9),
+            );
             10f64.powf(l_lo + l_span * (4 - i) as f64 / 4.0)
         } else {
             self.hi - (self.hi - self.lo) * i as f64 / 4.0
@@ -672,13 +711,18 @@ fn colore(c: Rgb, a: f32) -> Paint<'static> {
 }
 
 fn tratto(w: f32, schema: Option<Vec<f32>>) -> Stroke {
-    let mut s = Stroke { width: w, line_join: LineJoin::Round, ..Default::default() };
+    let mut s = Stroke {
+        width: w,
+        line_join: LineJoin::Round,
+        ..Default::default()
+    };
     if let Some(d) = schema {
         s.dash = StrokeDash::new(d, 0.0);
     }
     s
 }
 
+#[allow(clippy::too_many_arguments)]
 fn linea(px: &mut Pixmap, x0: f32, y0: f32, x1: f32, y1: f32, c: Rgb, a: f32, st: &Stroke) {
     let mut pb = PathBuilder::new();
     pb.move_to(x0, y0);
@@ -697,7 +741,13 @@ fn rett_pieno(px: &mut Pixmap, r: Rett, c: Rgb, a: f32) {
 fn rett_bordo(px: &mut Pixmap, r: Rett, c: Rgb, a: f32) {
     if let Some(rr) = Rect::from_xywh(r.x, r.y, r.w, r.h) {
         let p = PathBuilder::from_rect(rr);
-        px.stroke_path(&p, &colore(c, a), &tratto(1.0, None), Transform::identity(), None);
+        px.stroke_path(
+            &p,
+            &colore(c, a),
+            &tratto(1.0, None),
+            Transform::identity(),
+            None,
+        );
     }
 }
 
@@ -722,7 +772,11 @@ fn traccia_punti(pb: &mut PathBuilder, pts: &[(f32, f32)], smussa: bool) {
 
 /// Spezza una serie in tratti continui, alzando la penna sui campioni che non
 /// sono numeri (`buildRuns`).
-fn tratti(punti: &[Campione], x_at: impl Fn(u64) -> f32, y_at: impl Fn(f64) -> f32) -> Vec<Vec<(f32, f32)>> {
+fn tratti(
+    punti: &[Campione],
+    x_at: impl Fn(u64) -> f32,
+    y_at: impl Fn(f64) -> f32,
+) -> Vec<Vec<(f32, f32)>> {
     let mut out = Vec::new();
     let mut cur = Vec::new();
     for c in punti {
@@ -760,15 +814,45 @@ pub fn disegna(
     let (w, h) = (cfg.w as f32, cfg.h as f32);
     let mut sc = Scena::default();
     let testo = |sc: &mut Scena, x: f32, y: f32, t: String, c: Rgb, px_: u16, o: Orizz, v: Vert| {
-        sc.testi.push(Testo { x, y, testo: t, colore: c, px: px_, orizz: o, vert: v })
+        sc.testi.push(Testo {
+            x,
+            y,
+            testo: t,
+            colore: c,
+            px: px_,
+            orizz: o,
+            vert: v,
+        })
     };
 
     // Sfondo e cornice.
-    px.fill(tiny_skia::Color::from_rgba8(cfg.sfondo.0, cfg.sfondo.1, cfg.sfondo.2, 255));
+    px.fill(tiny_skia::Color::from_rgba8(
+        cfg.sfondo.0,
+        cfg.sfondo.1,
+        cfg.sfondo.2,
+        255,
+    ));
     if let Some(img) = sfondo_img {
-        px.draw_pixmap(0, 0, img.as_ref(), &PixmapPaint::default(), Transform::identity(), None);
+        px.draw_pixmap(
+            0,
+            0,
+            img.as_ref(),
+            &PixmapPaint::default(),
+            Transform::identity(),
+            None,
+        );
     }
-    rett_bordo(px, Rett { x: 0.5, y: 0.5, w: w - 1.0, h: h - 1.0 }, cfg.assi.unwrap_or(CORNICE), 1.0);
+    rett_bordo(
+        px,
+        Rett {
+            x: 0.5,
+            y: 0.5,
+            w: w - 1.0,
+            h: h - 1.0,
+        },
+        cfg.assi.unwrap_or(CORNICE),
+        1.0,
+    );
 
     let pan = !matches!(stato.vista, Vista::Zoom { .. });
     let n = cfg.n();
@@ -807,7 +891,9 @@ pub fn disegna(
     }
 
     // Scala condivisa: solo le tracce visibili senza scala propria.
-    let condivise: Vec<usize> = (0..n).filter(|i| !proprie.contains(i) && !stato.nascoste.contains(i)).collect();
+    let condivise: Vec<usize> = (0..n)
+        .filter(|i| !proprie.contains(i) && !stato.nascoste.contains(i))
+        .collect();
     let zoom_y = match stato.vista {
         Vista::Zoom { y, .. } => y,
         _ => None,
@@ -816,14 +902,22 @@ pub fn disegna(
         Some((lo, hi)) => Scala::da_estremi(lo, hi),
         None => {
             let (lo, hi) = estremi(
-                condivise.iter().flat_map(|i| dati.serie.get(*i).into_iter().flatten()),
-                condivise.iter().flat_map(|i| dati.bande.get(*i).into_iter().flatten()),
+                condivise
+                    .iter()
+                    .flat_map(|i| dati.serie.get(*i).into_iter().flatten()),
+                condivise
+                    .iter()
+                    .flat_map(|i| dati.bande.get(*i).into_iter().flatten()),
             );
             Scala::da_estremi(lo, hi)
         }
     };
     let usa_log = cfg.log && y_lo > 0.0 && y_hi > y_lo;
-    let condivisa = Scala { lo: y_lo, hi: y_hi, log: usa_log };
+    let condivisa = Scala {
+        lo: y_lo,
+        hi: y_hi,
+        log: usa_log,
+    };
     let scale_proprie: Vec<(usize, Scala)> = proprie
         .iter()
         .map(|i| {
@@ -835,14 +929,25 @@ pub fn disegna(
             (*i, Scala { lo, hi, log: false })
         })
         .collect();
-    let scala_di = |i: usize| scale_proprie.iter().find(|(j, _)| *j == i).map(|(_, s)| *s).unwrap_or(condivisa);
+    let scala_di = |i: usize| {
+        scale_proprie
+            .iter()
+            .find(|(j, _)| *j == i)
+            .map(|(_, s)| *s)
+            .unwrap_or(condivisa)
+    };
 
     let mostra_data = cfg.formato.sempre_data || t_span > 86_400_000;
     // La seconda riga dell'etichetta del tempo: un corpo piu' uno di respiro.
     // Col 10 di prima fa gli 11 di prima (22-10-2026) — ma a corpo 20 la data
     // non finisce piu' sopra l'ora.
     let riga_h = cfg.corpo as f32 + 1.0;
-    let basso = basso_base + if mostra_data && cfg.formato.due_righe { riga_h } else { 0.0 };
+    let basso = basso_base
+        + if mostra_data && cfg.formato.due_righe {
+            riga_h
+        } else {
+            0.0
+        };
     let plot_h = h - alto - basso;
     let x_at = |ts: u64| sx + ((ts as f64 - t_min as f64) / t_span as f64) as f32 * plot_w;
     let y_con = |s: Scala| move |v: f64| alto + plot_h - s.frazione(v) as f32 * plot_h;
@@ -878,7 +983,16 @@ pub fn disegna(
                     t = format!("{t} {u}");
                 }
             }
-            testo(&mut sc, sx + plot_w + 4.0, y, t, col_assi, cfg.corpo, Orizz::Sx, Vert::Mezzo);
+            testo(
+                &mut sc,
+                sx + plot_w + 4.0,
+                y,
+                t,
+                col_assi,
+                cfg.corpo,
+                Orizz::Sx,
+                Vert::Mezzo,
+            );
         }
     }
     // Una colonna a sinistra per ogni traccia con scala propria, nel suo colore.
@@ -886,7 +1000,16 @@ pub fn disegna(
         let x_dx = 6.0 + (col as f32 + 1.0) * COL_W - 4.0;
         for k in 0..=4 {
             let y = alto + plot_h * k as f32 / 4.0;
-            testo(&mut sc, x_dx, y, fmt_valore(s.tacca(k)), cfg.tracce[*i].colore, cfg.corpo, Orizz::Dx, Vert::Mezzo);
+            testo(
+                &mut sc,
+                x_dx,
+                y,
+                fmt_valore(s.tacca(k)),
+                cfg.tracce[*i].colore,
+                cfg.corpo,
+                Orizz::Dx,
+                Vert::Mezzo,
+            );
         }
     }
     // Asse dei tempi.
@@ -899,9 +1022,27 @@ pub fn disegna(
             _ => Orizz::Centro,
         };
         let (r1, r2) = fmt_data_ora(fuso(ts), t_span, &cfg.formato);
-        testo(&mut sc, x, alto + plot_h + 3.0, r1, col_assi, cfg.corpo, o, Vert::Alto);
+        testo(
+            &mut sc,
+            x,
+            alto + plot_h + 3.0,
+            r1,
+            col_assi,
+            cfg.corpo,
+            o,
+            Vert::Alto,
+        );
         if let Some(r2) = r2 {
-            testo(&mut sc, x, alto + plot_h + 3.0 + riga_h, r2, col_assi, cfg.corpo, o, Vert::Alto);
+            testo(
+                &mut sc,
+                x,
+                alto + plot_h + 3.0 + riga_h,
+                r2,
+                col_assi,
+                cfg.corpo,
+                o,
+                Vert::Alto,
+            );
         }
     }
 
@@ -928,8 +1069,16 @@ pub fn disegna(
     // campione appena fuori finestra non deve sporcare gli assi.
     let maschera = {
         let mut m = tiny_skia::Mask::new(cfg.w, cfg.h);
-        if let (Some(m), Some(r)) = (m.as_mut(), Rect::from_xywh(sx, alto, plot_w.max(1.0), plot_h.max(1.0))) {
-            m.fill_path(&PathBuilder::from_rect(r), FillRule::Winding, true, Transform::identity());
+        if let (Some(m), Some(r)) = (
+            m.as_mut(),
+            Rect::from_xywh(sx, alto, plot_w.max(1.0), plot_h.max(1.0)),
+        ) {
+            m.fill_path(
+                &PathBuilder::from_rect(r),
+                FillRule::Winding,
+                true,
+                Transform::identity(),
+            );
         }
         m
     };
@@ -951,7 +1100,13 @@ pub fn disegna(
         }
         pb.close();
         if let Some(p) = pb.finish() {
-            px.fill_path(&p, &colore(cfg.tracce[i].colore, 0.16), FillRule::Winding, Transform::identity(), maschera);
+            px.fill_path(
+                &p,
+                &colore(cfg.tracce[i].colore, 0.16),
+                FillRule::Winding,
+                Transform::identity(),
+                maschera,
+            );
         }
     }
 
@@ -970,7 +1125,13 @@ pub fn disegna(
                 pb.line_to(run[0].0, alto + plot_h);
                 pb.close();
                 if let Some(p) = pb.finish() {
-                    px.fill_path(&p, &colore(tr.colore, tr.opacita_riempimento), FillRule::Winding, Transform::identity(), maschera);
+                    px.fill_path(
+                        &p,
+                        &colore(tr.colore, tr.opacita_riempimento),
+                        FillRule::Winding,
+                        Transform::identity(),
+                        maschera,
+                    );
                 }
             }
         }
@@ -979,7 +1140,13 @@ pub fn disegna(
             let mut pb = PathBuilder::new();
             traccia_punti(&mut pb, run, tr.smussa);
             if let Some(p) = pb.finish() {
-                px.stroke_path(&p, &colore(tr.colore, 1.0), &st, Transform::identity(), maschera);
+                px.stroke_path(
+                    &p,
+                    &colore(tr.colore, 1.0),
+                    &st,
+                    Transform::identity(),
+                    maschera,
+                );
             }
         }
     }
@@ -999,7 +1166,13 @@ pub fn disegna(
             pb.line_to(x, alto + 6.0);
             pb.close();
             if let Some(p) = pb.finish() {
-                px.fill_path(&p, &colore(m.colore, 1.0), FillRule::Winding, Transform::identity(), None);
+                px.fill_path(
+                    &p,
+                    &colore(m.colore, 1.0),
+                    FillRule::Winding,
+                    Transform::identity(),
+                    None,
+                );
             }
         }
     }
@@ -1010,9 +1183,32 @@ pub fn disegna(
         let cy = alto - 8.0;
         for (i, tr) in cfg.tracce.iter().enumerate() {
             let nascosta = stato.nascoste.contains(&i);
-            rett_pieno(px, Rett { x: cx, y: cy - 4.0, w: 8.0, h: 8.0 }, if nascosta { CORNICE } else { tr.colore }, 1.0);
-            let c = if nascosta { (0x47, 0x55, 0x69) } else { (0xcb, 0xd5, 0xe1) };
-            testo(&mut sc, cx + 12.0, cy, tr.nome.clone(), c, cfg.corpo, Orizz::Sx, Vert::Mezzo);
+            rett_pieno(
+                px,
+                Rett {
+                    x: cx,
+                    y: cy - 4.0,
+                    w: 8.0,
+                    h: 8.0,
+                },
+                if nascosta { CORNICE } else { tr.colore },
+                1.0,
+            );
+            let c = if nascosta {
+                (0x47, 0x55, 0x69)
+            } else {
+                (0xcb, 0xd5, 0xe1)
+            };
+            testo(
+                &mut sc,
+                cx + 12.0,
+                cy,
+                tr.nome.clone(),
+                c,
+                cfg.corpo,
+                Orizz::Sx,
+                Vert::Mezzo,
+            );
             // Misurato col corpo con cui e' stato DISEGNATO (22-10-2026): da
             // questa larghezza dipendono sia l'avanzamento fra una voce e
             // l'altra sia il rettangolo che riceve il dito. Era rimasta a 10
@@ -1020,7 +1216,15 @@ pub fn disegna(
             // sovrapponevano e il tocco finiva sulla traccia sbagliata.
             let lw = misura(&tr.nome, cfg.corpo);
             let riga = 14.0_f32.max(cfg.corpo as f32 + 3.0);
-            sc.legenda.push((Rett { x: cx, y: cy - riga / 2.0, w: 12.0 + lw, h: riga }, i));
+            sc.legenda.push((
+                Rett {
+                    x: cx,
+                    y: cy - riga / 2.0,
+                    w: 12.0 + lw,
+                    h: riga,
+                },
+                i,
+            ));
             cx += 12.0 + lw + 12.0;
         }
     }
@@ -1033,19 +1237,49 @@ pub fn disegna(
         let (ry0, ry1) = (p.y0.min(p.y), p.y0.max(p.y));
         let alta = ry1 - ry0 > SOGLIA_PX;
         let y0 = if alta { alto.max(ry0) } else { alto };
-        let y1 = if alta { (alto + plot_h).min(ry1) } else { alto + plot_h };
+        let y1 = if alta {
+            (alto + plot_h).min(ry1)
+        } else {
+            alto + plot_h
+        };
         if x1 > x0 && y1 > y0 {
-            let r = Rett { x: x0, y: y0, w: x1 - x0, h: y1 - y0 };
+            let r = Rett {
+                x: x0,
+                y: y0,
+                w: x1 - x0,
+                h: y1 - y0,
+            };
             rett_pieno(px, r, BLU, 0.18);
-            rett_bordo(px, Rett { x: x0 + 0.5, y: y0 + 0.5, w: r.w - 1.0, h: r.h - 1.0 }, BLU, 1.0);
+            rett_bordo(
+                px,
+                Rett {
+                    x: x0 + 0.5,
+                    y: y0 + 0.5,
+                    w: r.w - 1.0,
+                    h: r.h - 1.0,
+                },
+                BLU,
+                1.0,
+            );
         }
     }
     if let Some(p) = lettura.filter(|p| p.x >= sx && p.x <= sx + plot_w) {
-        leggi(cfg, dati, stato, px, &mut sc, p.x, t_min, t_span, x_at, &scala_di, y_con, misura, fuso);
+        leggi(
+            cfg, dati, stato, px, &mut sc, p.x, t_min, t_span, x_at, &scala_di, y_con, misura, fuso,
+        );
     } else if stato.pressione.is_none() && n == 1 {
         // Il valore corrente in alto a destra, con una traccia sola.
         if let Some(v) = dati.serie.first().and_then(|s| s.last()).and_then(|c| c.v) {
-            testo(&mut sc, sx + plot_w - 4.0, alto + 4.0, fmt_valore(v), (0x94, 0xa3, 0xb8), cfg.corpo + 1, Orizz::Dx, Vert::Alto);
+            testo(
+                &mut sc,
+                sx + plot_w - 4.0,
+                alto + 4.0,
+                fmt_valore(v),
+                (0x94, 0xa3, 0xb8),
+                cfg.corpo + 1,
+                Orizz::Dx,
+                Vert::Alto,
+            );
         }
     }
     sc
@@ -1070,7 +1304,16 @@ fn leggi<Y: Fn(f64) -> f32>(
     fuso: &dyn Fn(u64) -> OraLocale,
 ) {
     let Some(d) = sc.dominio else { return };
-    linea(px, x, d.alto, x, d.alto + d.plot_h, (0x47, 0x55, 0x69), 1.0, &tratto(1.0, Some(vec![3.0, 3.0])));
+    linea(
+        px,
+        x,
+        d.alto,
+        x,
+        d.alto + d.plot_h,
+        (0x47, 0x55, 0x69),
+        1.0,
+        &tratto(1.0, Some(vec![3.0, 3.0])),
+    );
     let ts = t_min as f64 + ((x - d.sx) / d.plot_w) as f64 * t_span as f64;
     let mut righe: Vec<(String, Rgb)> = Vec::new();
     let (r1, r2) = fmt_data_ora(fuso(ts.max(0.0) as u64), t_span, &cfg.formato);
@@ -1084,7 +1327,10 @@ fn leggi<Y: Fn(f64) -> f32>(
             continue;
         }
         let Some(best) = punti.iter().min_by(|a, b| {
-            (a.ts as f64 - ts).abs().partial_cmp(&(b.ts as f64 - ts).abs()).unwrap_or(std::cmp::Ordering::Equal)
+            (a.ts as f64 - ts)
+                .abs()
+                .partial_cmp(&(b.ts as f64 - ts).abs())
+                .unwrap_or(std::cmp::Ordering::Equal)
         }) else {
             continue;
         };
@@ -1092,7 +1338,13 @@ fn leggi<Y: Fn(f64) -> f32>(
         let tr = &cfg.tracce[i];
         let y = y_con(scala_di(i))(v);
         if let Some(c) = PathBuilder::from_circle(x_at(best.ts), y, 3.0) {
-            px.fill_path(&c, &colore(tr.colore, 1.0), FillRule::Winding, Transform::identity(), None);
+            px.fill_path(
+                &c,
+                &colore(tr.colore, 1.0),
+                FillRule::Winding,
+                Transform::identity(),
+                None,
+            );
         }
         righe.push((format!("{}: {}", tr.nome, fmt_valore(v)), tr.colore));
         colpi += 1;
@@ -1109,15 +1361,41 @@ fn leggi<Y: Fn(f64) -> f32>(
     }
     let riga = 14.0;
     let corpo = cfg.corpo + 1;
-    let bw = righe.iter().map(|(t, _)| misura(t, corpo)).fold(0.0, f32::max) + 16.0;
+    let bw = righe
+        .iter()
+        .map(|(t, _)| misura(t, corpo))
+        .fold(0.0, f32::max)
+        + 16.0;
     let bh = righe.len() as f32 * riga + 8.0;
     let mut bx = x + 8.0;
     if bx + bw > d.sx + d.plot_w {
         bx = x - bw - 8.0;
     }
-    let by = (d.alto + 8.0).min(d.alto + d.plot_h - bh - 2.0).max(d.alto + 2.0);
-    rett_pieno(px, Rett { x: bx, y: by, w: bw, h: bh }, (0x0f, 0x17, 0x2a), 0xee as f32 / 255.0);
-    rett_bordo(px, Rett { x: bx + 0.5, y: by + 0.5, w: bw - 1.0, h: bh - 1.0 }, CORNICE, 1.0);
+    let by = (d.alto + 8.0)
+        .min(d.alto + d.plot_h - bh - 2.0)
+        .max(d.alto + 2.0);
+    rett_pieno(
+        px,
+        Rett {
+            x: bx,
+            y: by,
+            w: bw,
+            h: bh,
+        },
+        (0x0f, 0x17, 0x2a),
+        0xee as f32 / 255.0,
+    );
+    rett_bordo(
+        px,
+        Rett {
+            x: bx + 0.5,
+            y: by + 0.5,
+            w: bw - 1.0,
+            h: bh - 1.0,
+        },
+        CORNICE,
+        1.0,
+    );
     for (k, (t, c)) in righe.into_iter().enumerate() {
         sc.testi.push(Testo {
             x: bx + 8.0,
@@ -1133,13 +1411,31 @@ fn leggi<Y: Fn(f64) -> f32>(
 
 /// ◀ ▶ e lo scostamento in basso, ⟲ in alto quando c'è uno zoom: gli stessi
 /// posti e colori dei pulsanti del web.
-fn pulsanti(cfg: &Config, stato: &Stato, px: &mut Pixmap, sc: &mut Scena, w: f32, h: f32, pan: bool) {
+fn pulsanti(
+    cfg: &Config,
+    stato: &Stato,
+    px: &mut Pixmap,
+    sc: &mut Scena,
+    w: f32,
+    h: f32,
+    pan: bool,
+) {
     let (bg, bordo, fg) = ((0x1e, 0x29, 0x3b), CORNICE, (0x64, 0x74, 0x8b));
     let (bw, bh) = (18.0, 16.0);
     let tasto = |px: &mut Pixmap, r: Rett, attivo: bool| {
         let a = if attivo { 0.7 } else { 0.4 };
         rett_pieno(px, r, bg, a);
-        rett_bordo(px, Rett { x: r.x + 0.5, y: r.y + 0.5, w: r.w - 1.0, h: r.h - 1.0 }, bordo, a);
+        rett_bordo(
+            px,
+            Rett {
+                x: r.x + 0.5,
+                y: r.y + 0.5,
+                w: r.w - 1.0,
+                h: r.h - 1.0,
+            },
+            bordo,
+            a,
+        );
     };
     let freccia = |px: &mut Pixmap, r: Rett, verso: f32, c: Rgb, a: f32| {
         let (cx, cy) = (r.x + r.w / 2.0, r.y + r.h / 2.0);
@@ -1149,27 +1445,62 @@ fn pulsanti(cfg: &Config, stato: &Stato, px: &mut Pixmap, sc: &mut Scena, w: f32
         pb.line_to(cx + 3.0 * verso, cy + 4.0);
         pb.close();
         if let Some(p) = pb.finish() {
-            px.fill_path(&p, &colore(c, a), FillRule::Winding, Transform::identity(), None);
+            px.fill_path(
+                &p,
+                &colore(c, a),
+                FillRule::Winding,
+                Transform::identity(),
+                None,
+            );
         }
     };
     // ⤢ in alto a destra, sempre: quattro angoli disegnati (il glifo non è in
     // tutti i font). Da espanso gli angoli puntano verso il centro.
-    let espandi = Rett { x: w - 4.0 - bw, y: 4.0, w: bw, h: bh };
+    let espandi = Rett {
+        x: w - 4.0 - bw,
+        y: 4.0,
+        w: bw,
+        h: bh,
+    };
     tasto(px, espandi, true);
     {
-        let (x0, y0, x1, y1) = (espandi.x + 4.0, espandi.y + 3.5, espandi.x + espandi.w - 4.0, espandi.y + espandi.h - 3.5);
+        let (x0, y0, x1, y1) = (
+            espandi.x + 4.0,
+            espandi.y + 3.5,
+            espandi.x + espandi.w - 4.0,
+            espandi.y + espandi.h - 3.5,
+        );
         let l = 3.5;
         let dentro = stato.espanso;
         let mut pb = PathBuilder::new();
-        for (cx, cy, sx, sy) in [(x0, y0, 1.0, 1.0), (x1, y0, -1.0, 1.0), (x0, y1, 1.0, -1.0), (x1, y1, -1.0, -1.0)] {
-            let (cx, cy) = if dentro { (cx + sx * l, cy + sy * l) } else { (cx, cy) };
-            let (dx, dy) = if dentro { (-sx * l, -sy * l) } else { (sx * l, sy * l) };
+        for (cx, cy, sx, sy) in [
+            (x0, y0, 1.0, 1.0),
+            (x1, y0, -1.0, 1.0),
+            (x0, y1, 1.0, -1.0),
+            (x1, y1, -1.0, -1.0),
+        ] {
+            let (cx, cy) = if dentro {
+                (cx + sx * l, cy + sy * l)
+            } else {
+                (cx, cy)
+            };
+            let (dx, dy) = if dentro {
+                (-sx * l, -sy * l)
+            } else {
+                (sx * l, sy * l)
+            };
             pb.move_to(cx + dx, cy);
             pb.line_to(cx, cy);
             pb.line_to(cx, cy + dy);
         }
         if let Some(p) = pb.finish() {
-            px.stroke_path(&p, &colore(fg, 1.0), &tratto(1.4, None), Transform::identity(), None);
+            px.stroke_path(
+                &p,
+                &colore(fg, 1.0),
+                &tratto(1.4, None),
+                Transform::identity(),
+                None,
+            );
         }
     }
     sc.pulsanti.push((espandi, Pulsante::Espandi));
@@ -1177,19 +1508,38 @@ fn pulsanti(cfg: &Config, stato: &Stato, px: &mut Pixmap, sc: &mut Scena, w: f32
     // I preset, solo a schermo intero: in basso al centro, fra ◀ e ▶.
     if stato.espanso {
         let en = cfg.lingua.starts_with("en");
-        let nomi: [&str; 5] = if en { ["Live", "1h", "8h", "24h", "7d"] } else { ["Diretta", "1h", "8h", "24h", "7g"] };
+        let nomi: [&str; 5] = if en {
+            ["Live", "1h", "8h", "24h", "7d"]
+        } else {
+            ["Diretta", "1h", "8h", "24h", "7g"]
+        };
         let (pw, gap) = (44.0, 4.0);
         let tot = PRESET_S.len() as f32 * pw + (PRESET_S.len() - 1) as f32 * gap;
         let mut x = (w - tot) / 2.0;
         for (i, s) in PRESET_S.iter().enumerate() {
-            let r = Rett { x, y: h - 4.0 - bh, w: pw, h: bh };
+            let r = Rett {
+                x,
+                y: h - 4.0 - bh,
+                w: pw,
+                h: bh,
+            };
             let scelto = match stato.preset_s {
                 None => *s == 0,
                 Some(p) => (p - *s as f64).abs() < 0.5,
             } && stato.vista == Vista::Diretta;
             if scelto {
                 rett_pieno(px, r, (0x1e, 0x3a, 0x5f), 1.0);
-                rett_bordo(px, Rett { x: r.x + 0.5, y: r.y + 0.5, w: r.w - 1.0, h: r.h - 1.0 }, (0x3b, 0x82, 0xf6), 1.0);
+                rett_bordo(
+                    px,
+                    Rett {
+                        x: r.x + 0.5,
+                        y: r.y + 0.5,
+                        w: r.w - 1.0,
+                        h: r.h - 1.0,
+                    },
+                    (0x3b, 0x82, 0xf6),
+                    1.0,
+                );
             } else {
                 tasto(px, r, true);
             }
@@ -1208,7 +1558,12 @@ fn pulsanti(cfg: &Config, stato: &Stato, px: &mut Pixmap, sc: &mut Scena, w: f32
     }
 
     if pan {
-        let indietro = Rett { x: 4.0, y: h - 4.0 - bh, w: bw, h: bh };
+        let indietro = Rett {
+            x: 4.0,
+            y: h - 4.0 - bh,
+            w: bw,
+            h: bh,
+        };
         tasto(px, indietro, true);
         freccia(px, indietro, 1.0, fg, 1.0);
         sc.pulsanti.push((indietro, Pulsante::Indietro));
@@ -1216,9 +1571,20 @@ fn pulsanti(cfg: &Config, stato: &Stato, px: &mut Pixmap, sc: &mut Scena, w: f32
             Vista::Spostata { indietro_ms, .. } => Some(indietro_ms),
             _ => None,
         };
-        let avanti = Rett { x: w - 4.0 - bw, y: h - 4.0 - bh, w: bw, h: bh };
+        let avanti = Rett {
+            x: w - 4.0 - bw,
+            y: h - 4.0 - bh,
+            w: bw,
+            h: bh,
+        };
         tasto(px, avanti, spostato.is_some());
-        freccia(px, avanti, -1.0, if spostato.is_some() { fg } else { CORNICE }, 1.0);
+        freccia(
+            px,
+            avanti,
+            -1.0,
+            if spostato.is_some() { fg } else { CORNICE },
+            1.0,
+        );
         sc.pulsanti.push((avanti, Pulsante::Avanti));
         if let Some(ms) = spostato.filter(|_| !stato.espanso) {
             sc.testi.push(Testo {
@@ -1234,7 +1600,12 @@ fn pulsanti(cfg: &Config, stato: &Stato, px: &mut Pixmap, sc: &mut Scena, w: f32
     } else {
         // ⟲: un arco con la punta, disegnato — il glifo non è in tutti i font.
         // A sinistra di ⤢, che sta sempre nell'angolo.
-        let r = Rett { x: w - 8.0 - 2.0 * bw, y: 4.0, w: bw, h: bh };
+        let r = Rett {
+            x: w - 8.0 - 2.0 * bw,
+            y: 4.0,
+            w: bw,
+            h: bh,
+        };
         tasto(px, r, true);
         let (cx, cy, rr) = (r.x + r.w / 2.0, r.y + r.h / 2.0, 4.5);
         let mut pb = PathBuilder::new();
@@ -1249,7 +1620,13 @@ fn pulsanti(cfg: &Config, stato: &Stato, px: &mut Pixmap, sc: &mut Scena, w: f32
             }
         }
         if let Some(p) = pb.finish() {
-            px.stroke_path(&p, &colore(fg, 1.0), &tratto(1.4, None), Transform::identity(), None);
+            px.stroke_path(
+                &p,
+                &colore(fg, 1.0),
+                &tratto(1.4, None),
+                Transform::identity(),
+                None,
+            );
         }
         let a = std::f32::consts::PI * 0.35;
         let (x, y) = (cx + rr * a.cos(), cy - rr * a.sin());
@@ -1258,7 +1635,13 @@ fn pulsanti(cfg: &Config, stato: &Stato, px: &mut Pixmap, sc: &mut Scena, w: f32
         pb.line_to(x, y);
         pb.line_to(x - 2.5, y - 2.5);
         if let Some(p) = pb.finish() {
-            px.stroke_path(&p, &colore(fg, 1.0), &tratto(1.4, None), Transform::identity(), None);
+            px.stroke_path(
+                &p,
+                &colore(fg, 1.0),
+                &tratto(1.4, None),
+                Transform::identity(),
+                None,
+            );
         }
         sc.pulsanti.push((r, Pulsante::Ripristina));
     }
@@ -1328,7 +1711,12 @@ mod tests {
     }
 
     fn rampa(da: u64, n: u64, passo: u64, v0: f64) -> Vec<Campione> {
-        (0..n).map(|i| Campione { ts: da + i * passo, v: Some(v0 + i as f64) }).collect()
+        (0..n)
+            .map(|i| Campione {
+                ts: da + i * passo,
+                v: Some(v0 + i as f64),
+            })
+            .collect()
     }
 
     fn pixel(px: &Pixmap, x: u32, y: u32) -> (u8, u8, u8) {
@@ -1357,16 +1745,42 @@ mod tests {
 
     #[test]
     fn data_e_ora_seguono_la_configurazione() {
-        let o = OraLocale { anno: 2026, mese: 9, giorno: 3, ora: 14, minuto: 5, secondo: 9 };
+        let o = OraLocale {
+            anno: 2026,
+            mese: 9,
+            giorno: 3,
+            ora: 14,
+            minuto: 5,
+            secondo: 9,
+        };
         let f = FormatoOra::default();
         // Finestra corta: solo l'ora.
         assert_eq!(fmt_data_ora(o, 60_000, &f), ("14:05".into(), None));
         // Oltre le 24 ore compare la data, sopra l'ora.
-        assert_eq!(fmt_data_ora(o, 90_000_000, &f), ("03/09".into(), Some("14:05".into())));
-        let f2 = FormatoOra { h12: true, secondi: true, anno: true, due_righe: false, sempre_data: true, ordine: OrdineData::Amg, separatore: "-".into() };
-        assert_eq!(fmt_data_ora(o, 60_000, &f2), ("2026-09-03 2:05:09 PM".into(), None));
+        assert_eq!(
+            fmt_data_ora(o, 90_000_000, &f),
+            ("03/09".into(), Some("14:05".into()))
+        );
+        let f2 = FormatoOra {
+            h12: true,
+            secondi: true,
+            anno: true,
+            due_righe: false,
+            sempre_data: true,
+            ordine: OrdineData::Amg,
+            separatore: "-".into(),
+        };
+        assert_eq!(
+            fmt_data_ora(o, 60_000, &f2),
+            ("2026-09-03 2:05:09 PM".into(), None)
+        );
         // «ymd» senza anno diventa «mdy», come sul web.
-        let f3 = FormatoOra { ordine: OrdineData::Amg, sempre_data: true, due_righe: false, ..FormatoOra::default() };
+        let f3 = FormatoOra {
+            ordine: OrdineData::Amg,
+            sempre_data: true,
+            due_righe: false,
+            ..FormatoOra::default()
+        };
         assert_eq!(fmt_data_ora(o, 60_000, &f3).0, "09/03 14:05");
     }
 
@@ -1384,43 +1798,103 @@ mod tests {
             st.rilascia(&c, sc, ORA)
         };
         let sc = disegna(&c, &Dati::default(), &st, ORA, None, &mut px, &misura, &utc);
-        assert!(!sc.pulsanti.iter().any(|(_, p)| matches!(p, Pulsante::Preset(_))));
+        assert!(!sc
+            .pulsanti
+            .iter()
+            .any(|(_, p)| matches!(p, Pulsante::Preset(_))));
         assert_eq!(tocca(&mut st, &sc, Pulsante::Espandi), Esito::Espandi);
         assert!(st.espanso);
 
         let sc = disegna(&c, &Dati::default(), &st, ORA, None, &mut px, &misura, &utc);
-        assert_eq!(sc.pulsanti.iter().filter(|(_, p)| matches!(p, Pulsante::Preset(_))).count(), PRESET_S.len());
-        assert_eq!(tocca(&mut st, &sc, Pulsante::Preset(8 * 3_600)), Esito::NuovoIntervallo);
+        assert_eq!(
+            sc.pulsanti
+                .iter()
+                .filter(|(_, p)| matches!(p, Pulsante::Preset(_)))
+                .count(),
+            PRESET_S.len()
+        );
+        assert_eq!(
+            tocca(&mut st, &sc, Pulsante::Preset(8 * 3_600)),
+            Esito::NuovoIntervallo
+        );
         assert_eq!(st.intervallo(&c, ORA), (ORA - 8 * 3_600_000, ORA));
 
         let sc = disegna(&c, &Dati::default(), &st, ORA, None, &mut px, &misura, &utc);
         assert_eq!(tocca(&mut st, &sc, Pulsante::Espandi), Esito::Espandi);
         assert!(!st.espanso);
         assert_eq!(st.preset_s, None);
-        assert_eq!(st.intervallo(&c, ORA), (ORA - (c.finestra_s * 1000.0) as u64, ORA));
+        assert_eq!(
+            st.intervallo(&c, ORA),
+            (ORA - (c.finestra_s * 1000.0) as u64, ORA)
+        );
     }
 
     #[test]
     fn senza_tracce_o_senza_dati_lo_dice() {
         let mut px = Pixmap::new(360, 180).unwrap();
         let c = cfg(vec![]);
-        let sc = disegna(&c, &Dati::default(), &Stato::nuovo(&c), ORA, None, &mut px, &misura, &utc);
+        let sc = disegna(
+            &c,
+            &Dati::default(),
+            &Stato::nuovo(&c),
+            ORA,
+            None,
+            &mut px,
+            &misura,
+            &utc,
+        );
         assert!(sc.testi.iter().any(|t| t.testo == "Tag non configurato"));
         let c = cfg(vec![traccia("a", BLU)]);
-        let sc = disegna(&c, &Dati { serie: vec![vec![]], ..Default::default() }, &Stato::nuovo(&c), ORA, None, &mut px, &misura, &utc);
+        let sc = disegna(
+            &c,
+            &Dati {
+                serie: vec![vec![]],
+                ..Default::default()
+            },
+            &Stato::nuovo(&c),
+            ORA,
+            None,
+            &mut px,
+            &misura,
+            &utc,
+        );
         assert!(sc.testi.iter().any(|t| t.testo.starts_with("In attesa")));
     }
 
     #[test]
     fn lo_sfondo_e_la_linea_hanno_i_colori_del_progetto() {
         // Il difetto del WP630: sfondo e stile della linea non cambiavano.
-        let mut c = cfg(vec![Traccia { spessore: 4.0, ..traccia("a", (255, 0, 0)) }]);
+        let mut c = cfg(vec![Traccia {
+            spessore: 4.0,
+            ..traccia("a", (255, 0, 0))
+        }]);
         c.sfondo = (0x20, 0x40, 0x10);
         c.y_min = Some(0.0);
         c.y_max = Some(100.0);
-        let dati = Dati { serie: vec![vec![Campione { ts: ORA - 60_000, v: Some(50.0) }, Campione { ts: ORA, v: Some(50.0) }]], ..Default::default() };
+        let dati = Dati {
+            serie: vec![vec![
+                Campione {
+                    ts: ORA - 60_000,
+                    v: Some(50.0),
+                },
+                Campione {
+                    ts: ORA,
+                    v: Some(50.0),
+                },
+            ]],
+            ..Default::default()
+        };
         let mut px = Pixmap::new(360, 180).unwrap();
-        let sc = disegna(&c, &dati, &Stato::nuovo(&c), ORA, None, &mut px, &misura, &utc);
+        let sc = disegna(
+            &c,
+            &dati,
+            &Stato::nuovo(&c),
+            ORA,
+            None,
+            &mut px,
+            &misura,
+            &utc,
+        );
         assert_eq!(pixel(&px, 150, 30), (0x20, 0x40, 0x10));
         let d = sc.dominio.unwrap();
         let y = (d.alto + d.plot_h / 2.0) as u32;
@@ -1430,15 +1904,42 @@ mod tests {
     #[test]
     fn il_tratteggio_lascia_buchi_e_il_pieno_no() {
         let conta = |t: Tratto| {
-            let mut c = cfg(vec![Traccia { tratto: t, spessore: 2.0, ..traccia("a", (255, 0, 0)) }]);
+            let mut c = cfg(vec![Traccia {
+                tratto: t,
+                spessore: 2.0,
+                ..traccia("a", (255, 0, 0))
+            }]);
             c.y_min = Some(0.0);
             c.y_max = Some(100.0);
-            let dati = Dati { serie: vec![vec![Campione { ts: ORA - 60_000, v: Some(50.0) }, Campione { ts: ORA, v: Some(50.0) }]], ..Default::default() };
+            let dati = Dati {
+                serie: vec![vec![
+                    Campione {
+                        ts: ORA - 60_000,
+                        v: Some(50.0),
+                    },
+                    Campione {
+                        ts: ORA,
+                        v: Some(50.0),
+                    },
+                ]],
+                ..Default::default()
+            };
             let mut px = Pixmap::new(360, 180).unwrap();
-            let sc = disegna(&c, &dati, &Stato::nuovo(&c), ORA, None, &mut px, &misura, &utc);
+            let sc = disegna(
+                &c,
+                &dati,
+                &Stato::nuovo(&c),
+                ORA,
+                None,
+                &mut px,
+                &misura,
+                &utc,
+            );
             let d = sc.dominio.unwrap();
             let y = (d.alto + d.plot_h / 2.0) as u32;
-            (d.sx as u32 + 2..(d.sx + d.plot_w) as u32 - 2).filter(|x| pixel(&px, *x, y).0 > 200).count() as f32
+            (d.sx as u32 + 2..(d.sx + d.plot_w) as u32 - 2)
+                .filter(|x| pixel(&px, *x, y).0 > 200)
+                .count() as f32
                 / (d.plot_w - 4.0)
         };
         assert!(conta(Tratto::Pieno) > 0.95);
@@ -1449,12 +1950,37 @@ mod tests {
 
     #[test]
     fn il_riempimento_colora_sotto_la_curva() {
-        let mut c = cfg(vec![Traccia { riempi: true, opacita_riempimento: 1.0, ..traccia("a", (255, 0, 0)) }]);
+        let mut c = cfg(vec![Traccia {
+            riempi: true,
+            opacita_riempimento: 1.0,
+            ..traccia("a", (255, 0, 0))
+        }]);
         c.y_min = Some(0.0);
         c.y_max = Some(100.0);
-        let dati = Dati { serie: vec![vec![Campione { ts: ORA - 60_000, v: Some(50.0) }, Campione { ts: ORA, v: Some(50.0) }]], ..Default::default() };
+        let dati = Dati {
+            serie: vec![vec![
+                Campione {
+                    ts: ORA - 60_000,
+                    v: Some(50.0),
+                },
+                Campione {
+                    ts: ORA,
+                    v: Some(50.0),
+                },
+            ]],
+            ..Default::default()
+        };
         let mut px = Pixmap::new(360, 180).unwrap();
-        let sc = disegna(&c, &dati, &Stato::nuovo(&c), ORA, None, &mut px, &misura, &utc);
+        let sc = disegna(
+            &c,
+            &dati,
+            &Stato::nuovo(&c),
+            ORA,
+            None,
+            &mut px,
+            &misura,
+            &utc,
+        );
         let d = sc.dominio.unwrap();
         let sotto = (d.alto + d.plot_h * 0.8) as u32;
         let sopra = (d.alto + d.plot_h * 0.2) as u32;
@@ -1466,9 +1992,30 @@ mod tests {
     fn i_valori_decimali_non_si_arrotondano_all_intero() {
         // `lv_chart` aveva coordinate i16: 0,2 e 0,8 finivano entrambi a 0 o 1.
         let c = cfg(vec![traccia("a", BLU)]);
-        let dati = Dati { serie: vec![vec![Campione { ts: ORA - 60_000, v: Some(0.2) }, Campione { ts: ORA, v: Some(0.8) }]], ..Default::default() };
+        let dati = Dati {
+            serie: vec![vec![
+                Campione {
+                    ts: ORA - 60_000,
+                    v: Some(0.2),
+                },
+                Campione {
+                    ts: ORA,
+                    v: Some(0.8),
+                },
+            ]],
+            ..Default::default()
+        };
         let mut px = Pixmap::new(360, 180).unwrap();
-        let sc = disegna(&c, &dati, &Stato::nuovo(&c), ORA, None, &mut px, &misura, &utc);
+        let sc = disegna(
+            &c,
+            &dati,
+            &Stato::nuovo(&c),
+            ORA,
+            None,
+            &mut px,
+            &misura,
+            &utc,
+        );
         let d = sc.dominio.unwrap();
         assert_eq!((d.y_lo, d.y_hi), (0.2, 0.8));
         assert!(sc.testi.iter().any(|t| t.testo == "0.80"));
@@ -1476,21 +2023,51 @@ mod tests {
 
     #[test]
     fn scala_propria_ha_la_sua_colonna_e_l_unita_sta_in_cima() {
-        let mut c = cfg(vec![traccia("a", BLU), Traccia { scala_propria: true, ..traccia("b", (255, 0, 0)) }]);
+        let mut c = cfg(vec![
+            traccia("a", BLU),
+            Traccia {
+                scala_propria: true,
+                ..traccia("b", (255, 0, 0))
+            },
+        ]);
         c.unita = Some("°C".into());
-        let dati = Dati { serie: vec![rampa(ORA - 50_000, 10, 5000, 0.0), rampa(ORA - 50_000, 10, 5000, 200.0)], ..Default::default() };
+        let dati = Dati {
+            serie: vec![
+                rampa(ORA - 50_000, 10, 5000, 0.0),
+                rampa(ORA - 50_000, 10, 5000, 200.0),
+            ],
+            ..Default::default()
+        };
         let mut px = Pixmap::new(360, 180).unwrap();
-        let sc = disegna(&c, &dati, &Stato::nuovo(&c), ORA, None, &mut px, &misura, &utc);
+        let sc = disegna(
+            &c,
+            &dati,
+            &Stato::nuovo(&c),
+            ORA,
+            None,
+            &mut px,
+            &misura,
+            &utc,
+        );
         assert_eq!(sc.dominio.unwrap().sx, 46.0);
         assert!(sc.testi.iter().any(|t| t.testo == "9 °C"));
-        assert!(sc.testi.iter().any(|t| t.testo == "209" && t.colore == (255, 0, 0)));
+        assert!(sc
+            .testi
+            .iter()
+            .any(|t| t.testo == "209" && t.colore == (255, 0, 0)));
     }
 
     #[test]
     fn la_legenda_si_tocca_e_nasconde_la_traccia() {
         let c = cfg(vec![traccia("a", BLU), traccia("b", (255, 0, 0))]);
         let mut st = Stato::nuovo(&c);
-        let dati = Dati { serie: vec![rampa(ORA - 50_000, 10, 5000, 0.0), rampa(ORA - 50_000, 10, 5000, 100.0)], ..Default::default() };
+        let dati = Dati {
+            serie: vec![
+                rampa(ORA - 50_000, 10, 5000, 0.0),
+                rampa(ORA - 50_000, 10, 5000, 100.0),
+            ],
+            ..Default::default()
+        };
         let mut px = Pixmap::new(360, 180).unwrap();
         let sc = disegna(&c, &dati, &st, ORA, None, &mut px, &misura, &utc);
         let (r, i) = sc.legenda[1];
@@ -1505,7 +2082,13 @@ mod tests {
 
     #[test]
     fn la_visibilita_di_partenza_viene_dal_progetto() {
-        let c = cfg(vec![traccia("a", BLU), Traccia { nascosta: true, ..traccia("b", BLU) }]);
+        let c = cfg(vec![
+            traccia("a", BLU),
+            Traccia {
+                nascosta: true,
+                ..traccia("b", BLU)
+            },
+        ]);
         assert!(Stato::nuovo(&c).nascoste.contains(&1));
     }
 
@@ -1515,14 +2098,25 @@ mod tests {
         let mut st = Stato::nuovo(&c);
         let mut px = Pixmap::new(360, 180).unwrap();
         let sc = disegna(&c, &Dati::default(), &st, ORA, None, &mut px, &misura, &utc);
-        let (ind, _) = sc.pulsanti.iter().find(|(_, p)| *p == Pulsante::Indietro).unwrap();
+        let (ind, _) = sc
+            .pulsanti
+            .iter()
+            .find(|(_, p)| *p == Pulsante::Indietro)
+            .unwrap();
         st.premi(ind.x + 2.0, ind.y + 2.0, ORA);
         assert_eq!(st.rilascia(&c, &sc, ORA), Esito::NuovoIntervallo);
         // Il passo di default è un quarto della finestra.
-        assert_eq!(st.intervallo(&c, ORA), (ORA - 15_000 - 60_000, ORA - 15_000));
+        assert_eq!(
+            st.intervallo(&c, ORA),
+            (ORA - 15_000 - 60_000, ORA - 15_000)
+        );
         let sc = disegna(&c, &Dati::default(), &st, ORA, None, &mut px, &misura, &utc);
         assert!(sc.testi.iter().any(|t| t.testo == "-15s"));
-        let (av, _) = sc.pulsanti.iter().find(|(_, p)| *p == Pulsante::Avanti).unwrap();
+        let (av, _) = sc
+            .pulsanti
+            .iter()
+            .find(|(_, p)| *p == Pulsante::Avanti)
+            .unwrap();
         st.premi(av.x + 2.0, av.y + 2.0, ORA);
         st.rilascia(&c, &sc, ORA);
         assert!(st.in_diretta());
@@ -1532,12 +2126,19 @@ mod tests {
     fn trascinare_legge_i_valori_e_non_zooma() {
         let c = cfg(vec![traccia("a", BLU)]);
         let mut st = Stato::nuovo(&c);
-        let dati = Dati { serie: vec![rampa(ORA - 55_000, 12, 5000, 0.0)], ..Default::default() };
+        let dati = Dati {
+            serie: vec![rampa(ORA - 55_000, 12, 5000, 0.0)],
+            ..Default::default()
+        };
         let mut px = Pixmap::new(360, 180).unwrap();
         st.premi(100.0, 80.0, ORA);
         st.trascina(160.0, 80.0, ORA + 50);
         let sc = disegna(&c, &dati, &st, ORA, None, &mut px, &misura, &utc);
-        assert!(sc.testi.iter().any(|t| t.testo.starts_with("a: ")), "{:?}", sc.testi);
+        assert!(
+            sc.testi.iter().any(|t| t.testo.starts_with("a: ")),
+            "{:?}",
+            sc.testi
+        );
         assert_eq!(st.rilascia(&c, &sc, ORA), Esito::Ridisegna);
         assert!(st.in_diretta());
     }
@@ -1546,7 +2147,10 @@ mod tests {
     fn tenere_fermo_e_poi_trascinare_fa_lo_zoom() {
         let c = cfg(vec![traccia("a", BLU)]);
         let mut st = Stato::nuovo(&c);
-        let dati = Dati { serie: vec![rampa(ORA - 55_000, 12, 5000, 0.0)], ..Default::default() };
+        let dati = Dati {
+            serie: vec![rampa(ORA - 55_000, 12, 5000, 0.0)],
+            ..Default::default()
+        };
         let mut px = Pixmap::new(360, 180).unwrap();
         let sc = disegna(&c, &dati, &st, ORA, None, &mut px, &misura, &utc);
         let d = sc.dominio.unwrap();
@@ -1563,7 +2167,11 @@ mod tests {
         }
         // Con lo zoom: niente ◀/▶, c'è ⟲ che torna in diretta.
         let sc = disegna(&c, &dati, &st, ORA, None, &mut px, &misura, &utc);
-        let (r, _) = sc.pulsanti.iter().find(|(_, p)| *p == Pulsante::Ripristina).unwrap();
+        let (r, _) = sc
+            .pulsanti
+            .iter()
+            .find(|(_, p)| *p == Pulsante::Ripristina)
+            .unwrap();
         st.premi(r.x + 1.0, r.y + 1.0, ORA);
         assert_eq!(st.rilascia(&c, &sc, ORA), Esito::NuovoIntervallo);
         assert!(st.in_diretta());
@@ -1575,9 +2183,21 @@ mod tests {
         c.log = true;
         c.y_min = Some(1.0);
         c.y_max = Some(10000.0);
-        let dati = Dati { serie: vec![rampa(ORA - 50_000, 10, 5000, 1.0)], ..Default::default() };
+        let dati = Dati {
+            serie: vec![rampa(ORA - 50_000, 10, 5000, 1.0)],
+            ..Default::default()
+        };
         let mut px = Pixmap::new(360, 180).unwrap();
-        let sc = disegna(&c, &dati, &Stato::nuovo(&c), ORA, None, &mut px, &misura, &utc);
+        let sc = disegna(
+            &c,
+            &dati,
+            &Stato::nuovo(&c),
+            ORA,
+            None,
+            &mut px,
+            &misura,
+            &utc,
+        );
         for v in ["10000", "1000", "100", "10", "1"] {
             assert!(sc.testi.iter().any(|t| t.testo == v), "{v}: {:?}", sc.testi);
         }
@@ -1590,9 +2210,30 @@ mod tests {
         c.alarm_high = Some(75.0);
         c.y_min = Some(0.0);
         c.y_max = Some(100.0);
-        let dati = Dati { serie: vec![vec![Campione { ts: ORA - 60_000, v: Some(10.0) }, Campione { ts: ORA, v: Some(10.0) }]], ..Default::default() };
+        let dati = Dati {
+            serie: vec![vec![
+                Campione {
+                    ts: ORA - 60_000,
+                    v: Some(10.0),
+                },
+                Campione {
+                    ts: ORA,
+                    v: Some(10.0),
+                },
+            ]],
+            ..Default::default()
+        };
         let mut px = Pixmap::new(360, 180).unwrap();
-        let sc = disegna(&c, &dati, &Stato::nuovo(&c), ORA, None, &mut px, &misura, &utc);
+        let sc = disegna(
+            &c,
+            &dati,
+            &Stato::nuovo(&c),
+            ORA,
+            None,
+            &mut px,
+            &misura,
+            &utc,
+        );
         let d = sc.dominio.unwrap();
         // Una linea da 1 px su una coordinata intera si divide fra due righe
         // (antialiasing, come nel canvas del web): si guardano entrambe.

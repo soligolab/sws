@@ -143,7 +143,13 @@ pub async fn ripristina() -> Esito {
         Err(e) => return Esito::Errore(format!("bus di sistema non raggiungibile: {e}")),
     };
     if let Err(e) = conn
-        .call_method(Some(SERVIZIO), OGGETTO, Some(INTERFACCIA), "ResetBackgroundImage", &())
+        .call_method(
+            Some(SERVIZIO),
+            OGGETTO,
+            Some(INTERFACCIA),
+            "ResetBackgroundImage",
+            &(),
+        )
         .await
     {
         let testo = e.to_string();
@@ -153,12 +159,22 @@ pub async fn ripristina() -> Esito {
         return Esito::Errore(format!("ResetBackgroundImage: {testo}"));
     }
     match conn
-        .call_method(Some(SERVIZIO), OGGETTO, Some(INTERFACCIA), "GetBackgroundImage", &())
+        .call_method(
+            Some(SERVIZIO),
+            OGGETTO,
+            Some(INTERFACCIA),
+            "GetBackgroundImage",
+            &(),
+        )
         .await
         .and_then(|m| m.body().deserialize::<String>())
     {
-        Ok(letto) if letto == "Default" => Esito::Applicata { percorso_assoluto: false },
-        Ok(letto) => Esito::Errore(format!("dopo il ripristino il launcher risponde «{letto}» invece di Default")),
+        Ok(letto) if letto == "Default" => Esito::Applicata {
+            percorso_assoluto: false,
+        },
+        Ok(letto) => Esito::Errore(format!(
+            "dopo il ripristino il launcher risponde «{letto}» invece di Default"
+        )),
         Err(e) => Esito::Errore(format!("GetBackgroundImage: {e}")),
     }
 }

@@ -303,7 +303,8 @@ fn e_navigazione(h: &axum::http::HeaderMap, percorso: &str) -> bool {
         // versione» non compariva più dal 28-10. Le richieste incorporate
         // (`no-cors`: script, immagini) restano fuori: non sono una pagina.
         return m.eq_ignore_ascii_case("navigate")
-            || ((m.eq_ignore_ascii_case("cors") || m.eq_ignore_ascii_case("same-origin")) && chiede_html);
+            || ((m.eq_ignore_ascii_case("cors") || m.eq_ignore_ascii_case("same-origin"))
+                && chiede_html);
     }
     // 2. `Accept: text/html` — il ripiego per i browser vecchi.
     if chiede_html {
@@ -337,6 +338,7 @@ async fn ripiego_spa(
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 pub fn build(
     db: Arc<TagDb>,
     bus: Arc<TagWriteBus>,
@@ -394,7 +396,9 @@ pub fn build(
         identita,
         senza_auth_sviluppo,
         token_primo_accesso,
-        ritorno: Arc::new(crate::gateway::ritorno::Ritorno::dall_ambiente(segreto_gateway.is_some())),
+        ritorno: Arc::new(crate::gateway::ritorno::Ritorno::dall_ambiente(
+            segreto_gateway.is_some(),
+        )),
         limiti: Arc::new(crate::limiti::Limiti::dall_ambiente()),
         // Un pannello è ciò che non è né IDE, né gateway, né container dietro
         // il gateway: solo lì esistono abbinamento e Admin del dispositivo.
@@ -402,13 +406,18 @@ pub fn build(
             &config_dir,
             !ide_only && regia.is_none() && segreto_gateway.is_none(),
         )),
-        auth_dispositivo: utenti_dispositivo(&config_dir, !ide_only && regia.is_none() && segreto_gateway.is_none()),
+        auth_dispositivo: utenti_dispositivo(
+            &config_dir,
+            !ide_only && regia.is_none() && segreto_gateway.is_none(),
+        ),
         segreto_gateway: segreto_gateway.map(Arc::new),
         tunnel: regia.is_some().then(crate::tunnel::gateway::registro_nuovo),
         pannelli_abbinati: regia
             .is_some()
             .then(|| Arc::new(crate::tunnel::abbinati::Abbinati::apri(&config_dir))),
-        pannelli_in_attesa: regia.is_some().then(|| Arc::new(crate::tunnel::abbinati::InAttesa::default())),
+        pannelli_in_attesa: regia
+            .is_some()
+            .then(|| Arc::new(crate::tunnel::abbinati::InAttesa::default())),
         pannelli_ammessi,
         regia,
         db,
@@ -476,7 +485,10 @@ pub fn build(
         )
         // I simboli disegnati nel progetto (piano 2026-11-03-assistente-genera-simboli-e-sinottici).
         .route("/api/project/simboli", put(crate::simboli_progetto::salva))
-        .route("/api/simboli/compila", post(crate::simboli_progetto::compila))
+        .route(
+            "/api/simboli/compila",
+            post(crate::simboli_progetto::compila),
+        )
         .route("/api/project/datastores", put(update_project_datastores))
         .route(
             "/api/project/global-scripts",
@@ -489,7 +501,10 @@ pub fn build(
         )
         .route("/api/project/page-layout", put(update_project_page_layout))
         // Lo stile dei simboli del progetto (Fase 4 del piano dei simboli di libreria).
-        .route("/api/project/symbol-style", put(update_project_symbol_style))
+        .route(
+            "/api/project/symbol-style",
+            put(update_project_symbol_style),
+        )
         // T-58 — il motore di rendering del progetto. Fino all'11-09-2026 si
         // sceglieva solo alla creazione e poi si cambiava editando
         // `project.yaml` a mano, con una trappola: il runtime riscrive il file
@@ -557,8 +572,14 @@ pub fn build(
         // I report programmati (P3, 26-10-2026): l'elenco coi file, lo
         // scaricamento, «Genera ora».
         .route("/api/reports", get(crate::report::elenco_handler))
-        .route("/api/reports/:id/:file", get(crate::report::scarica_handler))
-        .route("/api/reports/:id/genera", post(crate::report::genera_handler))
+        .route(
+            "/api/reports/:id/:file",
+            get(crate::report::scarica_handler),
+        )
+        .route(
+            "/api/reports/:id/genera",
+            post(crate::report::genera_handler),
+        )
         .route("/api/auth/users", get(list_users).post(create_user))
         // Lato ricevente di "Aggiorna utenti sul dispositivo".
         .route(
@@ -587,7 +608,10 @@ pub fn build(
         .route("/api/project/git/ssh-key", put(set_git_ssh_key))
         // La chiave del progetto (15-10-2026, git nel cloud): leggerne la
         // pubblica, generarla. La privata non esce mai dal runtime.
-        .route("/api/project/git/ssh-key/progetto", get(get_chiave_progetto).post(genera_chiave_progetto))
+        .route(
+            "/api/project/git/ssh-key/progetto",
+            get(get_chiave_progetto).post(genera_chiave_progetto),
+        )
         // Chi firma i commit del progetto (user.name/user.email locali).
         .route("/api/project/git/identity", put(set_git_identity))
         // Push/elimina un tag — stessa classe di rischio di push/rollback.
@@ -720,7 +744,10 @@ pub fn build(
         // Ripristino dell'immagine di fabbrica del pannello (27-09-2026): un
         // comando sul dispositivo, non sul progetto, quindi Admin.
         .route("/api/boot-image/reset", post(boot_image_reset))
-        .route("/api/remote/boot-image/reset", post(crate::remote::remote_boot_image_reset))
+        .route(
+            "/api/remote/boot-image/reset",
+            post(crate::remote::remote_boot_image_reset),
+        )
         // Aggiornamento del runtime (27-09-2026): lo stato del canale e
         // «Aggiorna ora». Admin: riavvia il servizio.
         .route("/api/update/status", get(aggiornamento_stato))
@@ -729,20 +756,56 @@ pub fn build(
         // OpenPLC dall'IDE (30-10-2026): Admin, come i quadlet.
         .route("/api/openplc/installa", post(openplc_installa))
         .route("/api/aggiornamento/conferma", post(conferma_aggiornamento))
-        .route("/api/aggiornamento/istantanea", post(istantanea_dati_prendi))
-        .route("/api/update/schedule", get(finestra_leggi).put(finestra_scrivi))
+        .route(
+            "/api/aggiornamento/istantanea",
+            post(istantanea_dati_prendi),
+        )
+        .route(
+            "/api/update/schedule",
+            get(finestra_leggi).put(finestra_scrivi),
+        )
         // Le origini che possono mostrare SWS in un iframe (C6, 17-10-2026).
-        .route("/api/security/frame-origins", get(sicurezza_leggi).put(sicurezza_scrivi))
-        .route("/api/remote/security/frame-origins", get(crate::remote::remote_sicurezza_leggi).put(crate::remote::remote_sicurezza_scrivi))
-        .route("/api/remote/update/schedule", get(crate::remote::remote_finestra_leggi).put(crate::remote::remote_finestra_scrivi))
+        .route(
+            "/api/security/frame-origins",
+            get(sicurezza_leggi).put(sicurezza_scrivi),
+        )
+        .route(
+            "/api/remote/security/frame-origins",
+            get(crate::remote::remote_sicurezza_leggi).put(crate::remote::remote_sicurezza_scrivi),
+        )
+        .route(
+            "/api/remote/update/schedule",
+            get(crate::remote::remote_finestra_leggi).put(crate::remote::remote_finestra_scrivi),
+        )
         // Lo storico del dispositivo collegato, in CSV (18-10-2026).
-        .route("/api/remote/history/export", get(crate::remote::remote_history_export))
-        .route("/api/remote/update/status", get(crate::remote::remote_update_status))
-        .route("/api/remote/update/apply", post(crate::remote::remote_update_apply))
-        .route("/api/remote/quadlet/aggiorna", post(crate::remote::remote_quadlet_aggiorna))
-        .route("/api/remote/openplc/installa", post(crate::remote::remote_openplc_installa))
-        .route("/api/remote/aggiornamento/conferma", post(crate::remote::remote_conferma_aggiornamento))
-        .route("/api/remote/aggiornamento/istantanea", post(crate::remote::remote_istantanea_dati))
+        .route(
+            "/api/remote/history/export",
+            get(crate::remote::remote_history_export),
+        )
+        .route(
+            "/api/remote/update/status",
+            get(crate::remote::remote_update_status),
+        )
+        .route(
+            "/api/remote/update/apply",
+            post(crate::remote::remote_update_apply),
+        )
+        .route(
+            "/api/remote/quadlet/aggiorna",
+            post(crate::remote::remote_quadlet_aggiorna),
+        )
+        .route(
+            "/api/remote/openplc/installa",
+            post(crate::remote::remote_openplc_installa),
+        )
+        .route(
+            "/api/remote/aggiornamento/conferma",
+            post(crate::remote::remote_conferma_aggiornamento),
+        )
+        .route(
+            "/api/remote/aggiornamento/istantanea",
+            post(crate::remote::remote_istantanea_dati),
+        )
         .route("/api/system/stop", post(crate::system::system_stop))
         .route("/api/system/start", post(crate::system::system_start))
         .route("/api/system/reboot", post(crate::system::system_reboot))
@@ -780,18 +843,36 @@ pub fn build(
         // delle impronte — anche delle righe morte delle porte vecchie.
         .route("/api/certificati", get(certificati_elenco))
         .route("/api/certificati/dimentica", post(certificati_dimentica))
-        .route("/api/remote/certificati", get(crate::remote::remote_certificati))
-        .route("/api/remote/certificati/dimentica", post(crate::remote::remote_certificati_dimentica))
+        .route(
+            "/api/remote/certificati",
+            get(crate::remote::remote_certificati),
+        )
+        .route(
+            "/api/remote/certificati/dimentica",
+            post(crate::remote::remote_certificati_dimentica),
+        )
         // Le stesse quattro **sul dispositivo connesso** (decisione 2 del piano
         // dei certificati, 23-10-2026). Senza di loro la card «Certificato TLS»
         // della scheda Device leggeva e scriveva il PC dell'editor mentre tutto
         // il resto della scheda parlava col pannello. Il piano le chiama «il
         // presupposto di C4»: accendere il TLS di default sul pannello vuol
         // dire poterlo governare da qui.
-        .route("/api/remote/system/tls", get(crate::remote::remote_tls_stato))
-        .route("/api/remote/system/tls/generate", post(crate::remote::remote_tls_genera))
-        .route("/api/remote/system/tls", put(crate::remote::remote_tls_carica))
-        .route("/api/remote/system/tls", delete(crate::remote::remote_tls_rimuovi))
+        .route(
+            "/api/remote/system/tls",
+            get(crate::remote::remote_tls_stato),
+        )
+        .route(
+            "/api/remote/system/tls/generate",
+            post(crate::remote::remote_tls_genera),
+        )
+        .route(
+            "/api/remote/system/tls",
+            put(crate::remote::remote_tls_carica),
+        )
+        .route(
+            "/api/remote/system/tls",
+            delete(crate::remote::remote_tls_rimuovi),
+        )
         // Remote runtime bridge: connect/disconnect/status + WS relay
         .route(
             "/api/remote/connect",
@@ -799,9 +880,18 @@ pub fn build(
         )
         // L'abbinamento col codice dal cloud (11-10-2026, fetta D).
         .route("/api/remote/cloud", get(crate::remote::cloud))
-        .route("/api/remote/abbina-cloud", post(crate::remote::abbina_cloud))
-        .route("/api/remote/pannello-cloud/:nome", get(crate::remote::pannello_cloud))
-        .route("/api/remote/pannello-cloud/:nome/rinomina", post(crate::remote::rinomina_cloud))
+        .route(
+            "/api/remote/abbina-cloud",
+            post(crate::remote::abbina_cloud),
+        )
+        .route(
+            "/api/remote/pannello-cloud/:nome",
+            get(crate::remote::pannello_cloud),
+        )
+        .route(
+            "/api/remote/pannello-cloud/:nome/rinomina",
+            post(crate::remote::rinomina_cloud),
+        )
         .route("/api/remote/status", get(crate::remote::remote_status))
         // Il catalogo Host (zone termiche, mount, interfacce) del dispositivo
         // connesso: è lì che il progetto girerà, non su questa macchina.
@@ -809,18 +899,48 @@ pub fn build(
             "/api/remote/host/catalog",
             get(crate::remote::remote_host_catalog),
         )
-        .route("/api/remote/host/seriali", get(crate::remote::remote_porte_seriali))
+        .route(
+            "/api/remote/host/seriali",
+            get(crate::remote::remote_porte_seriali),
+        )
         // L'impianto lo tocca il dispositivo (25-10-2026): le scoperte e le
         // prove di collegamento sul pannello collegato.
-        .route("/api/remote/sources/mqtt/browse", post(crate::remote::remote_mqtt_browse))
-        .route("/api/remote/sources/opcua/browse", post(crate::remote::remote_opcua_browse))
-        .route("/api/remote/sources/opcua/detect-euromap", post(crate::remote::remote_opcua_euromap))
-        .route("/api/remote/sources/ha/browse", post(crate::remote::remote_ha_browse))
-        .route("/api/remote/sources/:id/opcua/certs", get(crate::remote::remote_opcua_certs))
-        .route("/api/remote/sources/:id/opcua/certs/:filename/trust", post(crate::remote::remote_opcua_trust))
-        .route("/api/remote/sources/:id/opcua/certs/:filename", delete(crate::remote::remote_opcua_delete_cert))
-        .route("/api/remote/datastores/:id/test", post(crate::remote::remote_datastore_test))
-        .route("/api/remote/sources/stato", get(crate::remote::remote_stato_sorgenti))
+        .route(
+            "/api/remote/sources/mqtt/browse",
+            post(crate::remote::remote_mqtt_browse),
+        )
+        .route(
+            "/api/remote/sources/opcua/browse",
+            post(crate::remote::remote_opcua_browse),
+        )
+        .route(
+            "/api/remote/sources/opcua/detect-euromap",
+            post(crate::remote::remote_opcua_euromap),
+        )
+        .route(
+            "/api/remote/sources/ha/browse",
+            post(crate::remote::remote_ha_browse),
+        )
+        .route(
+            "/api/remote/sources/:id/opcua/certs",
+            get(crate::remote::remote_opcua_certs),
+        )
+        .route(
+            "/api/remote/sources/:id/opcua/certs/:filename/trust",
+            post(crate::remote::remote_opcua_trust),
+        )
+        .route(
+            "/api/remote/sources/:id/opcua/certs/:filename",
+            delete(crate::remote::remote_opcua_delete_cert),
+        )
+        .route(
+            "/api/remote/datastores/:id/test",
+            post(crate::remote::remote_datastore_test),
+        )
+        .route(
+            "/api/remote/sources/stato",
+            get(crate::remote::remote_stato_sorgenti),
+        )
         .route("/api/remote/deploy", post(crate::remote::remote_deploy))
         .route(
             "/api/remote/project/delete",
@@ -857,7 +977,10 @@ pub fn build(
             "/api/remote/database/:id/clean-history",
             post(crate::remote::remote_pulisci_storico),
         )
-        .route("/api/remote/datastores/retention", get(crate::remote::remote_ritenzione))
+        .route(
+            "/api/remote/datastores/retention",
+            get(crate::remote::remote_ritenzione),
+        )
         .route(
             "/api/remote/datastores/:id/retention/confirm",
             post(crate::remote::remote_conferma_ritenzione),
@@ -872,8 +995,14 @@ pub fn build(
             get(crate::remote::remote_download_backup),
         )
         .route("/api/remote/reports", get(crate::remote::remote_reports))
-        .route("/api/remote/reports/:id/:file", get(crate::remote::remote_scarica_report))
-        .route("/api/remote/reports/:id/genera", post(crate::remote::remote_genera_report))
+        .route(
+            "/api/remote/reports/:id/:file",
+            get(crate::remote::remote_scarica_report),
+        )
+        .route(
+            "/api/remote/reports/:id/genera",
+            post(crate::remote::remote_genera_report),
+        )
         .route(
             "/api/remote/backups/:name/restore",
             post(crate::remote::remote_restore_backup),
@@ -908,7 +1037,9 @@ pub fn build(
                 .put(crate::logica_plc::carica)
                 // Il tetto della cartella, non i 2 MB di axum: senza, `carica`
                 // non vedeva mai uno zip oltre i 2 MB per dire quanto è troppo.
-                .layer(DefaultBodyLimit::max(crate::logica_plc::TETTO_BYTE as usize)),
+                .layer(DefaultBodyLimit::max(
+                    crate::logica_plc::TETTO_BYTE as usize,
+                )),
         )
         // Pagine di boot (T-72): documenti a sé in `boot/`, mai visti dai viewer.
         .route(
@@ -938,7 +1069,10 @@ pub fn build(
         // Dove se ne va il tempo (26-10-2026): i lavori di questa istanza e del
         // suo viewer, e gli stessi del pannello collegato.
         .route("/api/prestazioni", get(crate::prestazioni::leggi))
-        .route("/api/remote/prestazioni", get(crate::remote::remote_prestazioni))
+        .route(
+            "/api/remote/prestazioni",
+            get(crate::remote::remote_prestazioni),
+        )
         // Upload/rimozione immagini di progetto (le letture stanno nei tier
         // read-only di entrambe le porte).
         .route(
@@ -988,7 +1122,10 @@ pub fn build(
         .route("/api/project/images", get(list_project_images))
         .route("/api/project/images/:name", get(get_project_image))
         // I simboli del progetto: manifesto e disegni, come le immagini anche al viewer.
-        .route("/api/project/simboli/:file", get(crate::simboli_progetto::file))
+        .route(
+            "/api/project/simboli/:file",
+            get(crate::simboli_progetto::file),
+        )
         // Per-page export — raw YAML download. Same shape as the file on disk,
         // small enough to skip the ZIP wrapper used by the bulk export.
         .route("/api/synoptics/:name/export", get(export_synoptic_yaml))
@@ -1125,8 +1262,14 @@ pub fn build(
     let self_service = Router::new()
         .route("/api/auth/whoami", get(whoami))
         .route("/api/auth/logout", post(logout))
-        .route("/api/identita/account", get(crate::ciclo_account::stato_account))
-        .route("/api/identita/chiudi-account", post(crate::ciclo_account::chiudi_account))
+        .route(
+            "/api/identita/account",
+            get(crate::ciclo_account::stato_account),
+        )
+        .route(
+            "/api/identita/chiudi-account",
+            post(crate::ciclo_account::chiudi_account),
+        )
         .route("/api/auth/change-password", post(change_password))
         .route("/api/auth/verify-password", post(verify_password_handler))
         .route("/api/auth/refresh", post(refresh_session))
@@ -1199,10 +1342,19 @@ pub fn build(
         // non apribile, ma conta nella quota di spazio. **Gli stessi permessi di
         // eliminare** (decisione del maintainer): è meno distruttivo, non deve
         // chiedere di più. Vedi `archivio.rs`.
-        .route("/api/projects/:azienda/:nome/archive", post(crate::archivio::archivia))
+        .route(
+            "/api/projects/:azienda/:nome/archive",
+            post(crate::archivio::archivia),
+        )
         // La miniatura nell'elenco dei progetti (29-10-2026).
-        .route("/api/projects/:azienda/:nome/anteprima", get(crate::anteprima::leggi))
-        .route("/api/projects/:azienda/:nome/unarchive", post(crate::archivio::ripristina))
+        .route(
+            "/api/projects/:azienda/:nome/anteprima",
+            get(crate::anteprima::leggi),
+        )
+        .route(
+            "/api/projects/:azienda/:nome/unarchive",
+            post(crate::archivio::ripristina),
+        )
         .route(
             "/api/projects/:nome",
             delete(crate::projects::delete_project_implicito),
@@ -1217,8 +1369,14 @@ pub fn build(
         // Il catalogo dei dispositivi noti (04-10-2026): dati di prodotto come i
         // template, e pre-auth per lo stesso motivo — più uno: le icone si
         // caricano con un <img>, che non può portare il token.
-        .route("/api/catalogo/dispositivi", get(crate::catalogo::elenco_handler))
-        .route("/api/catalogo/dispositivi/:marca/:nome", get(crate::catalogo::voce_handler))
+        .route(
+            "/api/catalogo/dispositivi",
+            get(crate::catalogo::elenco_handler),
+        )
+        .route(
+            "/api/catalogo/dispositivi/:marca/:nome",
+            get(crate::catalogo::voce_handler),
+        )
         // Mini directory browser backing the "choose a destination folder"
         // picker in the New Project dialog. Pre-auth like the rest of this
         // group — no session exists yet when creating the first project.
@@ -1249,8 +1407,8 @@ pub fn build(
     // Always-open routes: liveness probes + login + cert download + project lifecycle.
     // Il gruppo prende il livello di autenticazione qui, accanto alla propria
     // definizione: il «chi può chiamarle» sta dove si legge cosa sono.
-    let project_lifecycle = project_lifecycle
-        .route_layer(middleware::from_fn_with_state(state.clone(), require_auth));
+    let project_lifecycle =
+        project_lifecycle.route_layer(middleware::from_fn_with_state(state.clone(), require_auth));
     let protected = protected.merge(project_lifecycle);
 
     // ── La console di amministrazione ───────────────────────────────────────
@@ -1275,19 +1433,18 @@ pub fn build(
     // dal ricordarsene.
     let amministrazione = crate::amministrazione::rotte_di_piattaforma()
         .route_layer(middleware::from_fn(require_amministratore_piattaforma))
-        .merge(
-            crate::amministrazione::rotte_di_azienda()
-                .route_layer(middleware::from_fn_with_state(
-                    state.clone(),
-                    require_console,
-                )),
-        )
+        .merge(crate::amministrazione::rotte_di_azienda().route_layer(
+            middleware::from_fn_with_state(state.clone(), require_console),
+        ))
         .route_layer(middleware::from_fn_with_state(state.clone(), require_auth));
     let protected = protected.merge(amministrazione);
 
     let open = Router::new()
         .route("/health", get(|| async { "ok" }))
-        .route("/.well-known/security.txt", get(crate::security_txt::get_security_txt))
+        .route(
+            "/.well-known/security.txt",
+            get(crate::security_txt::get_security_txt),
+        )
         .route("/cert", get(get_cert))
         .route("/sw.js", sw_unregister)
         // La conferma dal telefono (P4, 26-10-2026): la chiama Twilio, che non
@@ -1299,7 +1456,10 @@ pub fn build(
         // Il codice di abbinamento (11-10-2026): pre-auth per costruzione — un
         // pannello in attesa non ha nessuna credenziale da chiedere.
         .route("/api/abbinamento", get(crate::abbinamento::stato))
-        .route("/api/abbinamento/rivendica", post(crate::abbinamento::rivendica))
+        .route(
+            "/api/abbinamento/rivendica",
+            post(crate::abbinamento::rivendica),
+        )
         // La Rinomina dal cloud (fetta E): fuori da `require_auth` perché la
         // protegge la firma del gateway, che solo lui e il pannello conoscono.
         .route("/api/abbinamento/nome", post(crate::abbinamento::rinomina))
@@ -1313,13 +1473,19 @@ pub fn build(
         // un codice monouso per posta, 10 minuti, 5 tentativi per indirizzo
         // contati insieme alla password; e rispondono uguale per chi e
         // iscritto e chi no. Vedi `registrazione.rs`.
-        .route("/api/identita/registrazione", post(crate::registrazione::registra))
+        .route(
+            "/api/identita/registrazione",
+            post(crate::registrazione::registra),
+        )
         .route(
             "/api/identita/registrazione/conferma",
             post(crate::registrazione::conferma),
         )
         .route("/api/auth/pin", post(crate::registrazione::chiedi_pin))
-        .route("/api/auth/pin/accesso", post(crate::registrazione::accedi_con_pin))
+        .route(
+            "/api/auth/pin/accesso",
+            post(crate::registrazione::accedi_con_pin),
+        )
         .route("/condizioni", get(crate::registrazione::condizioni))
         .route("/privacy", get(crate::registrazione::privacy))
         // I file dei marchi: logo, favicon, brand.json. **Pre-auth perché la
@@ -1379,7 +1545,10 @@ pub fn build(
                 .route("/tunnel/v1", get(crate::tunnel::gateway::accetta))
                 // Twilio che richiama un pannello (P4, 26-10-2026): pre-auth, e
                 // solo verso `/api/telefono/…`; la firma la verifica il pannello.
-                .route("/telefono/:pannello/:tipo", post(crate::tunnel::gateway::inoltra_telefono))
+                .route(
+                    "/telefono/:pannello/:tipo",
+                    post(crate::tunnel::gateway::inoltra_telefono),
+                )
                 // Lo schermo del pannello (29-10-2026, `schermo.rs`): senza
                 // `require_auth` perché una scheda nuova e un websocket non
                 // portano il gettone. Lo protegge il cookie che il biglietto
@@ -1389,14 +1558,26 @@ pub fn build(
                 .route("/schermo/:pannello/", any(crate::schermo::schermo))
                 .route("/schermo/:pannello/*resto", any(crate::schermo::schermo)),
             Router::new()
-                .route("/dev/:pannello/*resto", any(crate::tunnel::gateway::inoltra))
+                .route(
+                    "/dev/:pannello/*resto",
+                    any(crate::tunnel::gateway::inoltra),
+                )
                 .route("/api/pannelli", get(crate::tunnel::gateway::collegati))
                 // L'abbinamento col codice (11-10-2026): dall'IDE di un progetto
                 // (chiave di ritorno → l'azienda del progetto) o dalla piattaforma.
                 .route("/api/pannelli/abbina", post(crate::tunnel::gateway::abbina))
-                .route("/api/pannelli/:nome/rinomina", post(crate::tunnel::gateway::rinomina))
-                .route("/api/pannelli/:nome/schermo", post(crate::schermo::biglietto))
-                .route_layer(middleware::from_fn_with_state(state.clone(), auth_utente_o_figlio))
+                .route(
+                    "/api/pannelli/:nome/rinomina",
+                    post(crate::tunnel::gateway::rinomina),
+                )
+                .route(
+                    "/api/pannelli/:nome/schermo",
+                    post(crate::schermo::biglietto),
+                )
+                .route_layer(middleware::from_fn_with_state(
+                    state.clone(),
+                    auth_utente_o_figlio,
+                ))
                 // Elenco e ban: solo chi amministra la piattaforma.
                 .merge(
                     Router::new()
@@ -1506,7 +1687,10 @@ pub fn build(
 
     // Una prova git in corso blocca ogni salvataggio del progetto, qualunque
     // handler lo faccia: un punto solo, davanti a tutte le rotte.
-    app = app.layer(middleware::from_fn_with_state(state.clone(), blocca_in_prova));
+    app = app.layer(middleware::from_fn_with_state(
+        state.clone(),
+        blocca_in_prova,
+    ));
 
     // HTTP request counter — applied to every route, identifies the matched
     // route template (not the raw URI) so cardinality stays bounded.
@@ -1521,7 +1705,10 @@ pub fn build(
     // HSTS solo in HTTPS. Vedi `sicurezza_http.rs`.
     // I limiti per indirizzo (C6, seconda metà): dentro le intestazioni di
     // sicurezza, così anche un 429 le porta. Vedi `limiti.rs`.
-    app = app.layer(middleware::from_fn_with_state(state.clone(), crate::limiti::limita));
+    app = app.layer(middleware::from_fn_with_state(
+        state.clone(),
+        crate::limiti::limita,
+    ));
     crate::sicurezza_http::carica(&state.config_dir);
     app = app.layer(middleware::from_fn(crate::sicurezza_http::intestazioni));
 
@@ -1619,7 +1806,10 @@ fn deploy_only_app(state: AppState) -> Router<AppState> {
         .route("/api/simboli-lib", get(simboli_lib_noti))
         // I simboli disegnati nel progetto: il deploy chiede il manifesto per sapere
         // se il pannello li sa servire (un runtime più vecchio risponde 404).
-        .route("/api/project/simboli/manifest.json", get(crate::simboli_progetto::solo_manifesto))
+        .route(
+            "/api/project/simboli/manifest.json",
+            get(crate::simboli_progetto::solo_manifesto),
+        )
         // Cosa c'è su QUESTA macchina — zone termiche, mount, interfacce — per
         // il campo «parametro» della sorgente Host. L'editor lo chiede al
         // dispositivo connesso (`/api/remote/host/catalog`), perché le zone
@@ -1641,12 +1831,21 @@ fn deploy_only_app(state: AppState) -> Router<AppState> {
         // `docs/archive/2026-10-25-impianto-dal-dispositivo.md`.
         .route("/api/sources/mqtt/browse", post(mqtt_browse_handler))
         .route("/api/sources/opcua/browse", post(opcua_browse_handler))
-        .route("/api/sources/opcua/detect-euromap", post(opcua_detect_euromap_handler))
+        .route(
+            "/api/sources/opcua/detect-euromap",
+            post(opcua_detect_euromap_handler),
+        )
         .route("/api/sources/ha/browse", post(ha_browse_handler))
         // I certificati OPC-UA del pannello: è lui che li rifiuta e li usa.
         .route("/api/sources/:id/opcua/certs", get(opcua_list_certs))
-        .route("/api/sources/:id/opcua/certs/:filename/trust", post(opcua_trust_cert))
-        .route("/api/sources/:id/opcua/certs/:filename", delete(opcua_delete_cert))
+        .route(
+            "/api/sources/:id/opcua/certs/:filename/trust",
+            post(opcua_trust_cert),
+        )
+        .route(
+            "/api/sources/:id/opcua/certs/:filename",
+            delete(opcua_delete_cert),
+        )
         // La prova del datastore distribuito: quello che lavora davvero.
         .route("/api/datastores/:id/test", post(datastore_test))
         // Il log del dispositivo nell'IDE collegato (18-10-2026, decisione del
@@ -1676,8 +1875,14 @@ fn deploy_only_app(state: AppState) -> Router<AppState> {
         )
         // I report del pannello, letti e generati dall'IDE collegato (26-10-2026).
         .route("/api/reports", get(crate::report::elenco_handler))
-        .route("/api/reports/:id/:file", get(crate::report::scarica_handler))
-        .route("/api/reports/:id/genera", post(crate::report::genera_handler))
+        .route(
+            "/api/reports/:id/:file",
+            get(crate::report::scarica_handler),
+        )
+        .route(
+            "/api/reports/:id/genera",
+            post(crate::report::genera_handler),
+        )
         .route(
             "/api/backups/:name/restore",
             post(crate::backups::restore_backup_handler),
@@ -1693,11 +1898,20 @@ fn deploy_only_app(state: AppState) -> Router<AppState> {
         // provata solo sullo stack di sviluppo, dove la porta admin serve il
         // router completo, sul TC620 rispondeva 404 (27-09). Il test
         // `ogni_chiamata_dell_ide_ha_la_sua_rotta_sul_dispositivo` ora lo vede.
-        .route("/api/datastores/:id/clean-history", post(datastore_pulisci_storico))
+        .route(
+            "/api/datastores/:id/clean-history",
+            post(datastore_pulisci_storico),
+        )
         // La ritenzione del pannello la conferma l'IDE collegato, coi numeri del
         // pannello e non con quelli del PC (20-10-2026).
-        .route("/api/datastores/retention", get(crate::ritenzione::get_ritenzione))
-        .route("/api/datastores/:id/retention/confirm", post(crate::ritenzione::conferma_ritenzione))
+        .route(
+            "/api/datastores/retention",
+            get(crate::ritenzione::get_ritenzione),
+        )
+        .route(
+            "/api/datastores/:id/retention/confirm",
+            post(crate::ritenzione::conferma_ritenzione),
+        )
         .route("/api/boot-image/reset", post(boot_image_reset))
         // Aggiornamento del runtime (27-09-2026): chiamato dall'IDE collegato.
         .route("/api/update/status", get(aggiornamento_stato))
@@ -1706,9 +1920,18 @@ fn deploy_only_app(state: AppState) -> Router<AppState> {
         // OpenPLC dall'IDE (30-10-2026): Admin, come i quadlet.
         .route("/api/openplc/installa", post(openplc_installa))
         .route("/api/aggiornamento/conferma", post(conferma_aggiornamento))
-        .route("/api/aggiornamento/istantanea", post(istantanea_dati_prendi))
-        .route("/api/update/schedule", get(finestra_leggi).put(finestra_scrivi))
-        .route("/api/security/frame-origins", get(sicurezza_leggi).put(sicurezza_scrivi))
+        .route(
+            "/api/aggiornamento/istantanea",
+            post(istantanea_dati_prendi),
+        )
+        .route(
+            "/api/update/schedule",
+            get(finestra_leggi).put(finestra_scrivi),
+        )
+        .route(
+            "/api/security/frame-origins",
+            get(sicurezza_leggi).put(sicurezza_scrivi),
+        )
         // ── Il certificato TLS del dispositivo ─────────────────────────────
         //
         // Non c'erano (23-10-2026): la porta di gestione il TLS non lo nominava
@@ -1717,7 +1940,10 @@ fn deploy_only_app(state: AppState) -> Router<AppState> {
         // postura di `/api/boot-image/reset` e `/api/update/apply`, che sono
         // operazioni più grosse di questa.
         .route("/api/system/tls", get(crate::system::get_tls_status))
-        .route("/api/system/tls/generate", post(crate::system::generate_tls_cert))
+        .route(
+            "/api/system/tls/generate",
+            post(crate::system::generate_tls_cert),
+        )
         .route("/api/system/tls", put(crate::system::upload_tls_cert))
         .route("/api/system/tls", delete(crate::system::remove_tls_cert))
         // La vista dei certificati del pannello, letta dall'IDE collegato (25-10-2026).
@@ -1757,11 +1983,17 @@ fn deploy_only_app(state: AppState) -> Router<AppState> {
 
     let aperte = Router::new()
         .route("/health", get(|| async { "ok" }))
-        .route("/.well-known/security.txt", get(crate::security_txt::get_security_txt))
+        .route(
+            "/.well-known/security.txt",
+            get(crate::security_txt::get_security_txt),
+        )
         .route("/cert", get(get_cert))
         .route("/api/auth/login", post(login))
         .route("/api/abbinamento", get(crate::abbinamento::stato))
-        .route("/api/abbinamento/rivendica", post(crate::abbinamento::rivendica))
+        .route(
+            "/api/abbinamento/rivendica",
+            post(crate::abbinamento::rivendica),
+        )
         // La Rinomina dal cloud arriva qui sui pannelli con `--no-admin`: il
         // tunnel gira gli stream sulla porta di gestione (fetta E).
         .route("/api/abbinamento/nome", post(crate::abbinamento::rinomina))
@@ -1774,7 +2006,11 @@ fn deploy_only_app(state: AppState) -> Router<AppState> {
     // Lo stato **non** si applica qui: lo fa il chiamante alla fine, insieme al
     // CORS e al contatore HTTP. Applicarlo due volte non compila, e applicarlo
     // qui salterebbe quel tratto comune.
-    aperte.merge(gestione).merge(flussi).merge(metriche(&state)).merge(schermo_dal_gateway())
+    aperte
+        .merge(gestione)
+        .merge(flussi)
+        .merge(metriche(&state))
+        .merge(schermo_dal_gateway())
 }
 
 /// Le rotte dello schermo remoto sul pannello (29-10-2026): la pagina operatore
@@ -1823,7 +2059,10 @@ fn build_runtime_inner(state: AppState, www_dir: Option<PathBuf>) -> Router {
         .route("/api/project/images", get(list_project_images))
         .route("/api/project/images/:name", get(get_project_image))
         // I simboli del progetto: manifesto e disegni, come le immagini anche al viewer.
-        .route("/api/project/simboli/:file", get(crate::simboli_progetto::file))
+        .route(
+            "/api/project/simboli/:file",
+            get(crate::simboli_progetto::file),
+        )
         .route("/api/faceplates", get(list_faceplates))
         .route("/api/faceplates/:id", get(get_faceplate))
         .route("/api/cornici", get(list_cornici))
@@ -1844,7 +2083,10 @@ fn build_runtime_inner(state: AppState, www_dir: Option<PathBuf>) -> Router {
         // «Chiudi» sull'esito dell'ultimo aggiornamento (24-10-2026): lo ricorda il
         // runtime, perché il kiosk in incognito dimentica il `localStorage` a ogni
         // avvio. Aperta come le letture: chiude un messaggio, non cambia l'impianto.
-        .route("/api/update/esito/:id/visto", post(aggiornamento_esito_visto))
+        .route(
+            "/api/update/esito/:id/visto",
+            post(aggiornamento_esito_visto),
+        )
         .route("/ws/tags", get(ws_tags_handler))
         .route("/ws/alarms", get(ws_alarms_handler));
 
@@ -1869,7 +2111,10 @@ fn build_runtime_inner(state: AppState, www_dir: Option<PathBuf>) -> Router {
         .route("/api/update/ignora", post(aggiornamento_ignora))
         .route("/api/quadlet/aggiorna", post(quadlet_aggiorna))
         .route("/api/aggiornamento/conferma", post(conferma_aggiornamento))
-        .route("/api/aggiornamento/istantanea", post(istantanea_dati_prendi))
+        .route(
+            "/api/aggiornamento/istantanea",
+            post(istantanea_dati_prendi),
+        )
         .route_layer(middleware::from_fn(require_admin));
 
     // Wrap all gated routes with optional_auth so every request has AuthUser.
@@ -1883,15 +2128,24 @@ fn build_runtime_inner(state: AppState, www_dir: Option<PathBuf>) -> Router {
     // is exposed on the runtime port — project management routes live on 7444 only.
     let open = Router::new()
         .route("/health", get(|| async { "ok" }))
-        .route("/.well-known/security.txt", get(crate::security_txt::get_security_txt))
+        .route(
+            "/.well-known/security.txt",
+            get(crate::security_txt::get_security_txt),
+        )
         .route("/cert", get(get_cert))
         .route("/api/auth/login", post(login))
         .route("/api/abbinamento", get(crate::abbinamento::stato))
-        .route("/api/abbinamento/rivendica", post(crate::abbinamento::rivendica))
+        .route(
+            "/api/abbinamento/rivendica",
+            post(crate::abbinamento::rivendica),
+        )
         // Le due del viewer LVGL (piano «dove se ne va il tempo»), sulla porta
         // con cui il viewer parla: senza sessione, innocue per costruzione —
         // vedi `prestazioni.rs`.
-        .route("/api/prestazioni/richiesta", get(crate::prestazioni::richiesta))
+        .route(
+            "/api/prestazioni/richiesta",
+            get(crate::prestazioni::richiesta),
+        )
         .route(
             "/api/prestazioni/viewer",
             post(crate::prestazioni::dal_viewer).layer(DefaultBodyLimit::max(16 * 1024)),
@@ -1904,9 +2158,7 @@ fn build_runtime_inner(state: AppState, www_dir: Option<PathBuf>) -> Router {
         .allow_headers(Any);
 
     let limiti = middleware::from_fn_with_state(state.clone(), crate::limiti::limita);
-    let mut router = open.merge(metriche(&state))
-        .merge(gated)
-        .with_state(state);
+    let mut router = open.merge(metriche(&state)).merge(gated).with_state(state);
 
     if let Some(dir) = www_dir {
         // Stessa ragione del router di amministrazione: una rotta del client
@@ -1997,12 +2249,12 @@ pub fn fonte_autenticazione(
     }
     if ide_only {
         // Un IDE senza archivio delle identità non esiste: `main.rs` lo apre
-        // sempre. Se mancasse, meglio chiudere che aprire.
-        return if ha_identita {
-            FonteAutenticazione::Installazione
-        } else {
-            FonteAutenticazione::Installazione
-        };
+        // sempre. Se mancasse, `Installazione` è già chiusa: senza archivio
+        // nessun token si valida (`s.identita` è `None` → nessun utente),
+        // quindi «meglio chiudere che aprire» non vuole un ramo suo. Fino al
+        // 04-11-2026 ce n'era uno, identico all'altro (clippy, `if_same_then_else`).
+        let _ = ha_identita;
+        return FonteAutenticazione::Installazione;
     }
     if ha_utenti_progetto {
         FonteAutenticazione::Progetto
@@ -2065,11 +2317,15 @@ async fn mie_aziende(State(s): State<AppState>, req: Request) -> Response {
 /// e si eviterebbe comunque di pesare le cartelle per nulla.
 async fn spazio_mio(State(s): State<AppState>, req: Request) -> Response {
     let vuoto = || Json(Vec::<serde_json::Value>::new()).into_response();
-    let Some(id) = s.identita.as_ref() else { return vuoto() };
+    let Some(id) = s.identita.as_ref() else {
+        return vuoto();
+    };
     let Some(utente) = req.extensions().get::<AuthUser>().cloned() else {
         return StatusCode::UNAUTHORIZED.into_response();
     };
-    let Ok(utenti) = id.elenca().await else { return vuoto() };
+    let Ok(utenti) = id.elenca().await else {
+        return vuoto();
+    };
     let Some(io) = utenti.iter().find(|u| u.email == utente.username) else {
         return vuoto();
     };
@@ -2216,7 +2472,11 @@ async fn identita_primo_amministratore(
     Json(req): Json<PrimoAmministratore>,
 ) -> Response {
     let Some(id) = s.identita.as_ref() else {
-        return (StatusCode::SERVICE_UNAVAILABLE, "nessun archivio delle identità").into_response();
+        return (
+            StatusCode::SERVICE_UNAVAILABLE,
+            "nessun archivio delle identità",
+        )
+            .into_response();
     };
     match id.ha_utenti().await {
         Ok(true) => {
@@ -2316,7 +2576,13 @@ fn utente_dal_gateway(req: &Request, atteso: &str) -> Option<AuthUser> {
     if !confronto_costante(dato.as_bytes(), atteso.as_bytes()) {
         return None;
     }
-    let email = req.headers().get("x-sws-utente")?.to_str().ok()?.trim().to_string();
+    let email = req
+        .headers()
+        .get("x-sws-utente")?
+        .to_str()
+        .ok()?
+        .trim()
+        .to_string();
     if email.is_empty() {
         return None;
     }
@@ -2383,14 +2649,20 @@ pub(crate) fn token_della_richiesta(req: &Request) -> Option<String> {
 /// le due fonti che hanno gettoni: le altre si decidono prima di cercarne uno.
 /// La usa anche lo schermo remoto (29-10-2026), che lega il suo cookie alla
 /// sessione cloud di chi l'ha aperto.
-pub(crate) async fn utente_del_gettone(s: &AppState, fonte: FonteAutenticazione, token: &str) -> Option<AuthUser> {
+pub(crate) async fn utente_del_gettone(
+    s: &AppState,
+    fonte: FonteAutenticazione,
+    token: &str,
+) -> Option<AuthUser> {
     match fonte {
         FonteAutenticazione::Progetto => valida_utente_dispositivo(s, token).await,
         FonteAutenticazione::Installazione => match s.identita.as_ref() {
             Some(id) => id.valida(token).await.map(auth_user_da_identita),
             None => None,
         },
-        FonteAutenticazione::Nessuna | FonteAutenticazione::Delegata | FonteAutenticazione::InAttesa => None,
+        FonteAutenticazione::Nessuna
+        | FonteAutenticazione::Delegata
+        | FonteAutenticazione::InAttesa => None,
     }
 }
 
@@ -2449,7 +2721,13 @@ fn utenti_dispositivo(config_dir: &std::path::Path, pannello: bool) -> Arc<AuthS
     let ttl = std::time::Duration::from_secs(8 * 3600);
     let finestra = std::time::Duration::from_secs(300);
     if pannello {
-        match AuthState::new_persistent(config_dir.join("utenti_dispositivo.yaml"), vec![], ttl, 5, finestra) {
+        match AuthState::new_persistent(
+            config_dir.join("utenti_dispositivo.yaml"),
+            vec![],
+            ttl,
+            5,
+            finestra,
+        ) {
             Ok(a) => return a,
             Err(e) => tracing::error!("utenti del dispositivo illeggibili: {e}"),
         }
@@ -2499,11 +2777,16 @@ async fn auth_utente_o_figlio(State(s): State<AppState>, mut req: Request, next:
         .and_then(|v| v.to_str().ok())
         .map(str::to_string);
     if let Some(dato) = dato {
-        let segreto = s.regia.as_ref().map(|r| r.segreto().to_string()).unwrap_or_default();
+        let segreto = s
+            .regia
+            .as_ref()
+            .map(|r| r.segreto().to_string())
+            .unwrap_or_default();
         let Some(chiamante) = crate::gateway::ritorno::verifica(&segreto, &dato) else {
             return StatusCode::UNAUTHORIZED.into_response();
         };
-        req.headers_mut().remove(crate::gateway::ritorno::INTESTAZIONE);
+        req.headers_mut()
+            .remove(crate::gateway::ritorno::INTESTAZIONE);
         req.extensions_mut().insert(chiamante);
         return next.run(req).await;
     }
@@ -2517,7 +2800,10 @@ async fn auth_utente_o_figlio(State(s): State<AppState>, mut req: Request, next:
 fn metriche(state: &AppState) -> Router<AppState> {
     Router::new()
         .route("/metrics", get(crate::metrics::get_metrics))
-        .route_layer(middleware::from_fn_with_state(state.clone(), accesso_metriche))
+        .route_layer(middleware::from_fn_with_state(
+            state.clone(),
+            accesso_metriche,
+        ))
 }
 
 async fn accesso_metriche(State(s): State<AppState>, req: Request, next: Next) -> Response {
@@ -2534,7 +2820,11 @@ pub(crate) fn token_metriche_valido(h: &axum::http::HeaderMap, atteso: &str) -> 
     if atteso.is_empty() {
         return false;
     }
-    let Some(dato) = h.get(axum::http::header::AUTHORIZATION).and_then(|v| v.to_str().ok()).and_then(|v| v.strip_prefix("Bearer ")) else {
+    let Some(dato) = h
+        .get(axum::http::header::AUTHORIZATION)
+        .and_then(|v| v.to_str().ok())
+        .and_then(|v| v.strip_prefix("Bearer "))
+    else {
         return false;
     };
     let (a, b) = (dato.as_bytes(), atteso.as_bytes());
@@ -2569,7 +2859,11 @@ async fn require_auth(State(s): State<AppState>, mut req: Request, next: Next) -
             return StatusCode::UNAUTHORIZED.into_response();
         };
         // Il segreto è giusto, quindi anche l'origine viene dal gateway.
-        if let Some(o) = req.headers().get("x-sws-origine").and_then(|v| v.to_str().ok()) {
+        if let Some(o) = req
+            .headers()
+            .get("x-sws-origine")
+            .and_then(|v| v.to_str().ok())
+        {
             s.ritorno.ricorda_origine(o);
         }
         req.extensions_mut().insert(utente);
@@ -2849,7 +3143,12 @@ struct CredenzialiLogin {
 /// sono diventate tre: la chiusura del progetto aperto e la forma della
 /// risposta devono essere le stesse per tutte, o la prima che diverge apre
 /// un buco (il progetto ereditato di un'altra azienda, sotto).
-pub(crate) async fn entra(s: &AppState, a: sws_identita::Accesso, via: &str, riautentica: bool) -> Response {
+pub(crate) async fn entra(
+    s: &AppState,
+    a: sws_identita::Accesso,
+    via: &str,
+    riautentica: bool,
+) -> Response {
     // **Entrare chiude il progetto aperto.**
     //
     // Il progetto attivo e uno stato globale dell'istanza, non di
@@ -2915,7 +3214,10 @@ async fn login(
 ) -> Response {
     let ricordami = richiesta.ricordami;
     let riautentica = richiesta.riautentica;
-    let creds = Credentials { username: richiesta.username, password: richiesta.password };
+    let creds = Credentials {
+        username: richiesta.username,
+        password: richiesta.password,
+    };
     // IP allowlist check — only enforced when SWS_IP_ALLOWLIST is set.
     if !s.ip_allowlist.is_empty() {
         let peer_ip: Option<std::net::IpAddr> = peer
@@ -2944,7 +3246,10 @@ async fn login(
             return StatusCode::SERVICE_UNAVAILABLE.into_response();
         };
         let durata = ricordami.then_some(sws_identita::DURATA_RICORDAMI);
-        return match id.accedi_per(&creds.username, &creds.password, durata).await {
+        return match id
+            .accedi_per(&creds.username, &creds.password, durata)
+            .await
+        {
             Ok(a) => entra(&s, a, "password", riautentica).await,
             // La password era giusta: dirlo non rivela niente a chi non la sa,
             // e a chi la sa serve sapere che manca solo il codice per posta.
@@ -3221,7 +3526,9 @@ async fn verify_password_handler(
     if s.auth
         .verify_user_password(&user.username, &body.password)
         .await
-        || s.auth_dispositivo.verify_user_password(&user.username, &body.password).await
+        || s.auth_dispositivo
+            .verify_user_password(&user.username, &body.password)
+            .await
     {
         s.audit.log(
             "auth.reverify",
@@ -3298,7 +3605,13 @@ async fn change_password(State(s): State<AppState>, req: Request) -> Response {
 
     // L'Admin del dispositivo non sta nel progetto: la stessa regola dell'IDE
     // qui sopra, applicata anche a lui.
-    let archivio = if s.auth.list_users().await.iter().any(|u| u.username == user.username) {
+    let archivio = if s
+        .auth
+        .list_users()
+        .await
+        .iter()
+        .any(|u| u.username == user.username)
+    {
         &s.auth
     } else {
         &s.auth_dispositivo
@@ -3570,11 +3883,15 @@ async fn get_history(
         // Nessun campione registrato prima: vale il valore corrente, se è
         // più vecchio della finestra (un tag mai cambiato dall'avvio).
         if prima.is_none() {
-            prima = s.db.get(&tag).await.filter(|t| t.timestamp_ms <= da).map(|t| sws_historian::Sample {
-                ts_ms: t.timestamp_ms,
-                value: t.value,
-                quality: t.quality,
-            });
+            prima =
+                s.db.get(&tag)
+                    .await
+                    .filter(|t| t.timestamp_ms <= da)
+                    .map(|t| sws_historian::Sample {
+                        ts_ms: t.timestamp_ms,
+                        value: t.value,
+                        quality: t.quality,
+                    });
         }
         samples = sws_historian::ancora(samples, prima, da, a);
     }
@@ -4134,7 +4451,11 @@ async fn aggiornamento_ignora(
     Extension(user): Extension<AuthUser>,
     Json(b): Json<IgnoraBody>,
 ) -> Response {
-    s.audit.log("update.ignora", Some(user.username), serde_json::json!({ "versione": b.versione }));
+    s.audit.log(
+        "update.ignora",
+        Some(user.username),
+        serde_json::json!({ "versione": b.versione }),
+    );
     match crate::aggiornamento::ignora_versione(&s.config_dir, b.versione).await {
         Ok(()) => StatusCode::NO_CONTENT.into_response(),
         Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response(),
@@ -4171,11 +4492,14 @@ async fn aggiornamento_avvia(
     if let Err(e) = crate::istantanea_dati::prendi(&st.versione).await {
         return (StatusCode::CONFLICT, e).into_response();
     }
-    crate::aggiornamento_esito::segna_in_corso(&s.config_dir, &st.versione, st.disponibile.clone()).await;
+    crate::aggiornamento_esito::segna_in_corso(&s.config_dir, &st.versione, st.disponibile.clone())
+        .await;
     tokio::spawn(async {
         tokio::time::sleep(std::time::Duration::from_millis(800)).await;
         match crate::aggiornamento::avvia().await {
-            Ok(()) => tracing::info!("aggiornamento del runtime avviato (podman-auto-update.service)"),
+            Ok(()) => {
+                tracing::info!("aggiornamento del runtime avviato (podman-auto-update.service)")
+            }
             Err(e) => tracing::warn!("aggiornamento del runtime non avviato: {e}"),
         }
     });
@@ -4191,7 +4515,11 @@ async fn quadlet_aggiorna(
 ) -> Response {
     let st = crate::quadlet::stato(&s.config_dir).await;
     if !st.da_aggiornare {
-        return (StatusCode::CONFLICT, "La configurazione del servizio è già aggiornata.").into_response();
+        return (
+            StatusCode::CONFLICT,
+            "La configurazione del servizio è già aggiornata.",
+        )
+            .into_response();
     }
     if !st.si_puo_aggiornare {
         return (StatusCode::CONFLICT, st.motivo.clone().unwrap_or_default()).into_response();
@@ -4231,10 +4559,21 @@ async fn simboli_lib_noti(State(s): State<AppState>) -> Response {
 /// `POST /api/openplc/installa` — installa OpenPLC su un pannello che ha già
 /// SWS (30-10-2026). Torna subito: il download dura minuti, e l'esito si legge
 /// in `/api/system` (`openplc`).
-async fn openplc_installa(State(s): State<AppState>, Extension(user): Extension<AuthUser>) -> Response {
-    s.audit.log("openplc.installa", Some(user.username), serde_json::json!({}));
+async fn openplc_installa(
+    State(s): State<AppState>,
+    Extension(user): Extension<AuthUser>,
+) -> Response {
+    s.audit.log(
+        "openplc.installa",
+        Some(user.username),
+        serde_json::json!({}),
+    );
     match crate::openplc::installa(&s.config_dir).await {
-        Ok(()) => (StatusCode::ACCEPTED, Json(serde_json::json!({ "avviata": true }))).into_response(),
+        Ok(()) => (
+            StatusCode::ACCEPTED,
+            Json(serde_json::json!({ "avviata": true })),
+        )
+            .into_response(),
         Err(e) => (StatusCode::CONFLICT, e).into_response(),
     }
 }
@@ -4251,8 +4590,15 @@ async fn conferma_aggiornamento(
     Extension(user): Extension<AuthUser>,
     Json(r): Json<SceltaConferma>,
 ) -> Response {
-    if !matches!(r.scelta.as_str(), "pulisci" | "dopo_riavvio" | "piu_tardi" | "ritorna") {
-        return (StatusCode::BAD_REQUEST, format!("scelta sconosciuta: {}", r.scelta)).into_response();
+    if !matches!(
+        r.scelta.as_str(),
+        "pulisci" | "dopo_riavvio" | "piu_tardi" | "ritorna"
+    ) {
+        return (
+            StatusCode::BAD_REQUEST,
+            format!("scelta sconosciuta: {}", r.scelta),
+        )
+            .into_response();
     }
     let st = crate::conferma_aggiornamento::stato(&s.config_dir).await;
     let Some(d) = st.domanda else {
@@ -4273,7 +4619,11 @@ async fn conferma_aggiornamento(
                     tracing::warn!("ritorno alla versione precedente non avviato: {e}");
                 }
             });
-            (StatusCode::ACCEPTED, Json(serde_json::json!({ "scelta": "ritorna" }))).into_response()
+            (
+                StatusCode::ACCEPTED,
+                Json(serde_json::json!({ "scelta": "ritorna" })),
+            )
+                .into_response()
         }
         // La pulizia può durare: parte, e l'esito arriva in /api/system.
         "pulisci" => {
@@ -4283,7 +4633,11 @@ async fn conferma_aggiornamento(
                     tracing::warn!("pulizia delle immagini non riuscita: {e}");
                 }
             });
-            (StatusCode::ACCEPTED, Json(serde_json::json!({ "scelta": "pulisci" }))).into_response()
+            (
+                StatusCode::ACCEPTED,
+                Json(serde_json::json!({ "scelta": "pulisci" })),
+            )
+                .into_response()
         }
         altra => match crate::conferma_aggiornamento::scegli(&s.config_dir, altra).await {
             Ok(()) => Json(serde_json::json!({ "scelta": altra })).into_response(),
@@ -4294,14 +4648,25 @@ async fn conferma_aggiornamento(
 
 /// `POST /api/aggiornamento/istantanea` — l'istantanea dei dati prima di un
 /// aggiornamento da archivio: la chiede l'IDE prima del deploy (03-10-2026).
-async fn istantanea_dati_prendi(State(s): State<AppState>, Extension(user): Extension<AuthUser>) -> Response {
+async fn istantanea_dati_prendi(
+    State(s): State<AppState>,
+    Extension(user): Extension<AuthUser>,
+) -> Response {
     let _scrittura = s.project_write_lock.lock().await;
     match crate::istantanea_dati::prendi(crate::aggiornamento::VERSIONE).await {
         Ok(Some(info)) => {
-            s.audit.log("update.istantanea", Some(user.username), serde_json::json!({ "byte": info.byte }));
+            s.audit.log(
+                "update.istantanea",
+                Some(user.username),
+                serde_json::json!({ "byte": info.byte }),
+            );
             Json(info).into_response()
         }
-        Ok(None) => (StatusCode::CONFLICT, "Non è un dispositivo: niente istantanea.").into_response(),
+        Ok(None) => (
+            StatusCode::CONFLICT,
+            "Non è un dispositivo: niente istantanea.",
+        )
+            .into_response(),
         Err(e) => (StatusCode::CONFLICT, e).into_response(),
     }
 }
@@ -4309,7 +4674,10 @@ async fn istantanea_dati_prendi(State(s): State<AppState>, Extension(user): Exte
 /// `GET /api/update/schedule` — la finestra dell'aggiornamento e l'orologio del pannello.
 /// `GET /api/security/frame-origins` — le origini ammesse in `frame-ancestors`.
 async fn sicurezza_leggi() -> Response {
-    Json(crate::sicurezza_http::Impostazioni { origini_iframe: crate::sicurezza_http::origini() }).into_response()
+    Json(crate::sicurezza_http::Impostazioni {
+        origini_iframe: crate::sicurezza_http::origini(),
+    })
+    .into_response()
 }
 
 /// `PUT /api/security/frame-origins` — le salva in `<config>/sicurezza.yaml` e le
@@ -4320,18 +4688,36 @@ async fn sicurezza_scrivi(
     Json(r): Json<crate::sicurezza_http::Impostazioni>,
 ) -> Response {
     use crate::sicurezza_http as sh;
-    let origini: Vec<String> = r.origini_iframe.iter()
-        .map(|o| o.trim().trim_end_matches('/').to_string()).filter(|o| !o.is_empty()).collect();
+    let origini: Vec<String> = r
+        .origini_iframe
+        .iter()
+        .map(|o| o.trim().trim_end_matches('/').to_string())
+        .filter(|o| !o.is_empty())
+        .collect();
     if let Some(cattiva) = origini.iter().find(|o| !sh::origine_valida(o)) {
-        return (StatusCode::BAD_REQUEST, format!("origine non valida: {cattiva} (es. https://casa.example:8123)")).into_response();
+        return (
+            StatusCode::BAD_REQUEST,
+            format!("origine non valida: {cattiva} (es. https://casa.example:8123)"),
+        )
+            .into_response();
     }
-    let imp = sh::Impostazioni { origini_iframe: origini };
+    let imp = sh::Impostazioni {
+        origini_iframe: origini,
+    };
     let testo = serde_yaml::to_string(&imp).unwrap_or_default();
     if let Err(e) = tokio::fs::write(s.config_dir.join(sh::FILE), testo).await {
-        return (StatusCode::INTERNAL_SERVER_ERROR, format!("non salvate: {e}")).into_response();
+        return (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            format!("non salvate: {e}"),
+        )
+            .into_response();
     }
     sh::imposta(&imp.origini_iframe);
-    s.audit.log("security.frame_origins", Some(user.username), serde_json::to_value(&imp).unwrap_or_default());
+    s.audit.log(
+        "security.frame_origins",
+        Some(user.username),
+        serde_json::to_value(&imp).unwrap_or_default(),
+    );
     Json(imp).into_response()
 }
 
@@ -4349,14 +4735,26 @@ async fn finestra_scrivi(
     let attuale = f::carica(&s.config_dir).await;
     // Solo se si programma una versione nuova serve sapere cosa offre il canale.
     let serve_stato = matches!(r.approvazione, Some(f::ApprovazioneRichiesta::Nuova { .. }));
-    let disponibile = if serve_stato { crate::aggiornamento::stato().await.disponibile } else { None };
+    let disponibile = if serve_stato {
+        crate::aggiornamento::stato().await.disponibile
+    } else {
+        None
+    };
     match f::applica(&attuale, r, disponibile.as_deref(), &chrono::Local::now()) {
         Ok(p) => {
             if let Err(e) = f::salva(&s.config_dir, &p).await {
-                return (StatusCode::INTERNAL_SERVER_ERROR, format!("non salvata: {e}")).into_response();
+                return (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    format!("non salvata: {e}"),
+                )
+                    .into_response();
             }
             f::sveglia();
-            s.audit.log("update.schedule", Some(user.username), serde_json::to_value(&p).unwrap_or_default());
+            s.audit.log(
+                "update.schedule",
+                Some(user.username),
+                serde_json::to_value(&p).unwrap_or_default(),
+            );
             Json(f::vista(&s.config_dir).await).into_response()
         }
         Err(e) => (StatusCode::BAD_REQUEST, e).into_response(),
@@ -4369,7 +4767,11 @@ async fn boot_image_reset(
     State(s): State<AppState>,
     Extension(user): Extension<AuthUser>,
 ) -> Response {
-    s.audit.log("boot_image.reset", Some(user.username), serde_json::json!({}));
+    s.audit.log(
+        "boot_image.reset",
+        Some(user.username),
+        serde_json::json!({}),
+    );
     match crate::boot_image::ripristina_fabbrica(&s.config_dir).await {
         Ok(stato) => Json(stato).into_response(),
         Err(e) => (StatusCode::CONFLICT, e).into_response(),
@@ -4395,12 +4797,20 @@ async fn datastore_pulisci_storico(
     // Resta finché qualcuno non la cancella — è un file grande quanto
     // l'originale, e il messaggio lo dice.
     let Some(percorso) = reg.backend_db_path(&id) else {
-        return (StatusCode::BAD_REQUEST, "la pulizia dello storico vale solo per SQLite").into_response();
+        return (
+            StatusCode::BAD_REQUEST,
+            "la pulizia dello storico vale solo per SQLite",
+        )
+            .into_response();
     };
     let quando = crate::backups::timestamp_name();
     let copia = percorso.with_file_name(format!("historian-prima-della-pulizia-{quando}.db"));
     if let Err(e) = reg.download_backend(&id, &copia).await {
-        return (StatusCode::INTERNAL_SERVER_ERROR, format!("copia di sicurezza non riuscita, niente toccato: {e}")).into_response();
+        return (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            format!("copia di sicurezza non riuscita, niente toccato: {e}"),
+        )
+            .into_response();
     }
     s.audit.log(
         "datastore.pulisci_storico",
@@ -4420,7 +4830,11 @@ async fn datastore_pulisci_storico(
             "bytes_after": dopo,
         }))
         .into_response(),
-        Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, format!("pulito, ma la compattazione è fallita: {e}")).into_response(),
+        Err(e) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            format!("pulito, ma la compattazione è fallita: {e}"),
+        )
+            .into_response(),
     }
 }
 
@@ -6362,7 +6776,11 @@ async fn export_project_zip(
         Ok(v) => v,
         Err(e) => {
             warn!("export: cannot read synoptics: {e}");
-            return (StatusCode::INTERNAL_SERVER_ERROR, format!("cannot read synoptics: {e}")).into_response();
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                format!("cannot read synoptics: {e}"),
+            )
+                .into_response();
         }
     };
     let faceplates = read_yaml_dir(&faceplates_dir_at(&dir)).await;
@@ -6870,11 +7288,8 @@ async fn import_project_zip(
         return (StatusCode::INTERNAL_SERVER_ERROR, "sync recipes").into_response();
     }
     if let Err(e) =
-        crate::logica_plc::sincronizza_da_zip(
-            &mut archive,
-            &crate::logica_plc::dir_at(project_dir),
-        )
-        .await
+        crate::logica_plc::sincronizza_da_zip(&mut archive, &crate::logica_plc::dir_at(project_dir))
+            .await
     {
         warn!("import: sync logica PLC: {e}");
         return (StatusCode::INTERNAL_SERVER_ERROR, "sync logica PLC").into_response();
@@ -7312,11 +7727,16 @@ async fn get_synoptic(
                         .and_then(|p| p.page_layout.as_ref())
                         .and_then(|l| l.cornice_predefinita.clone());
                     let mut cornice = None;
-                    if let Some(id) = crate::cornici::cornice_della_pagina(&page, predefinita.as_deref()) {
+                    if let Some(id) =
+                        crate::cornici::cornice_della_pagina(&page, predefinita.as_deref())
+                    {
                         // Una cornice che non c'è non rompe la pagina: si mostra
                         // senza, e il validatore lo dice.
                         if let Some(c) = leggi_cornice(&project_dir, &id).await {
-                            let nome = progetto.as_ref().map(|p| p.meta.name.clone()).unwrap_or_default();
+                            let nome = progetto
+                                .as_ref()
+                                .map(|p| p.meta.name.clone())
+                                .unwrap_or_default();
                             crate::cornici::componi(&mut page, &c, &nome);
                             cornice = Some(c);
                         }
@@ -7326,7 +7746,11 @@ async fn get_synoptic(
                     // I predefiniti dei tag (30-10-2026): il web li applica da
                     // sé, il pannello LVGL no. Un viewer li riceve già messi.
                     if let Some(p) = &progetto {
-                        crate::synoptic::applica_predefiniti_tag(&mut page.objects, &p.tags, &p.types);
+                        crate::synoptic::applica_predefiniti_tag(
+                            &mut page.objects,
+                            &p.tags,
+                            &p.types,
+                        );
                     }
                 }
                 // Q30: la versione di **questa** pagina. Le pagine sono file
@@ -7482,7 +7906,8 @@ async fn save_synoptic(
     // Gli oggetti di una cornice composta non sono della pagina: se una pagina
     // letta con `?cornice=1` tornasse indietro, la cornice si raddoppierebbe a
     // ogni salvataggio. Si tolgono qui, dove nessun client può dimenticarlo.
-    page.objects.retain(|o| !o.id.starts_with(crate::cornici::PREFISSO_ID));
+    page.objects
+        .retain(|o| !o.id.starts_with(crate::cornici::PREFISSO_ID));
     // Una pagina di boot vive in `boot/`, non qui: lasciarla passare la
     // farebbe vedere ai viewer, che leggono solo `synoptics/`.
     if crate::boot::e_pagina_di_boot(&page) {
@@ -7812,7 +8237,11 @@ fn elenco_faceplate(su_disco: &std::collections::HashSet<String>) -> Vec<Facepla
         .map(|id| {
             let predefinito = testo_builtin_faceplate(&id).is_some();
             let personalizzato = predefinito && su_disco.contains(&id);
-            FaceplateInElenco { id, predefinito, personalizzato }
+            FaceplateInElenco {
+                id,
+                predefinito,
+                personalizzato,
+            }
         })
         .collect()
 }
@@ -7846,7 +8275,10 @@ async fn list_faceplates(
 
 /// Il testo di un faceplate builtin, se `id` è uno di loro.
 fn testo_builtin_faceplate(id: &str) -> Option<&'static str> {
-    BUILTIN_FACEPLATES.iter().find(|(bid, _)| *bid == id).map(|(_, yaml)| *yaml)
+    BUILTIN_FACEPLATES
+        .iter()
+        .find(|(bid, _)| *bid == id)
+        .map(|(_, yaml)| *yaml)
 }
 
 async fn get_faceplate(State(s): State<AppState>, Path(id): Path<String>) -> Response {
@@ -7968,7 +8400,9 @@ async fn list_cornici(State(s): State<AppState>) -> Response {
             if path.extension().and_then(|e| e.to_str()) != Some("yaml") {
                 continue;
             }
-            let Ok(text) = tokio::fs::read_to_string(&path).await else { continue };
+            let Ok(text) = tokio::fs::read_to_string(&path).await else {
+                continue;
+            };
             match serde_yaml::from_str::<crate::cornici::Cornice>(&text) {
                 Ok(c) => out.push(serde_json::json!({
                     "id": c.id, "nome": c.nome, "larghezza": c.larghezza, "altezza": c.altezza,
@@ -8017,7 +8451,8 @@ async fn save_cornice(
     c.id = id.clone();
     // Un oggetto con il prefisso è il riflesso di una composizione finito in un
     // salvataggio: non appartiene alla cornice, toglierlo evita il raddoppio.
-    c.oggetti.retain(|o| !o.id.starts_with(crate::cornici::PREFISSO_ID));
+    c.oggetti
+        .retain(|o| !o.id.starts_with(crate::cornici::PREFISSO_ID));
     let path = dir.join(format!("{}.yaml", safe_filename(&id)));
     let su_disco = tokio::fs::read_to_string(&path).await.ok();
     if let Some(r) = conflitto_di_versione(
@@ -8429,7 +8864,12 @@ pub fn signal_project_changed(s: &AppState, what: &str) {
                     crate::display_target::publish(&config_dir, &dir, motivo).await;
                 }
                 // T-72 F5: anche l'immagine di boot abilitata dal progetto.
-                crate::boot_image::publish(&config_dir, &dir, crate::boot_image::Occasione::Modifica).await;
+                crate::boot_image::publish(
+                    &config_dir,
+                    &dir,
+                    crate::boot_image::Occasione::Modifica,
+                )
+                .await;
             }
             // Non un `if let` muto: senza questa riga il caso «nessun progetto
             // attivo» era indistinguibile da «pubblicato correttamente», ed è
@@ -8886,7 +9326,9 @@ async fn ws_logs_dispositivo(
     State(s): State<AppState>,
     Query(q): Query<std::collections::HashMap<String, String>>,
 ) -> impl IntoResponse {
-    let solo_info = !q.get("livello").is_some_and(|l| l.eq_ignore_ascii_case("debug"));
+    let solo_info = !q
+        .get("livello")
+        .is_some_and(|l| l.eq_ignore_ascii_case("debug"));
     ws.on_upgrade(move |socket| handle_logs_ws(socket, s.logs, solo_info))
 }
 
@@ -9341,7 +9783,11 @@ async fn certificati_dimentica(
         "dispositivi" => crate::certificati::store_dispositivi(&s.config_dir).dimentica(&b.chiave),
         "mqtt" => s.supervisor.mqtt_certificati.dimentica(&b.chiave),
         altro => {
-            return (StatusCode::BAD_REQUEST, format!("archivio «{altro}» sconosciuto o in sola lettura")).into_response()
+            return (
+                StatusCode::BAD_REQUEST,
+                format!("archivio «{altro}» sconosciuto o in sola lettura"),
+            )
+                .into_response()
         }
     };
     match esito {
@@ -9504,7 +9950,9 @@ async fn ha_browse_handler(
     Json(req): Json<HaBrowseRequest>,
 ) -> Response {
     let espliciti = match (req.url.as_deref(), req.token.as_deref()) {
-        (Some(u), Some(t)) if !u.trim().is_empty() && !t.is_empty() => Some((u.to_string(), t.to_string())),
+        (Some(u), Some(t)) if !u.trim().is_empty() && !t.is_empty() => {
+            Some((u.to_string(), t.to_string()))
+        }
         _ => None,
     };
     let (url, token) = match espliciti {
@@ -9518,7 +9966,10 @@ async fn ha_browse_handler(
 }
 
 /// URL e token della sorgente HA `source_id` dal progetto aperto.
-async fn ha_url_token_dal_progetto(s: &AppState, source_id: &str) -> Result<(String, String), Response> {
+async fn ha_url_token_dal_progetto(
+    s: &AppState,
+    source_id: &str,
+) -> Result<(String, String), Response> {
     let dir = match active_dir(s).await {
         Ok(d) => d,
         Err(_) => return Err((StatusCode::BAD_REQUEST, "no project open").into_response()),
@@ -9550,7 +10001,9 @@ async fn ha_url_token_dal_progetto(s: &AppState, source_id: &str) -> Result<(Str
             };
             (url, tok)
         }
-        None => return Err((StatusCode::NOT_FOUND, "HomeAssistant source not found").into_response()),
+        None => {
+            return Err((StatusCode::NOT_FOUND, "HomeAssistant source not found").into_response())
+        }
     };
 
     if token.is_empty() {
@@ -9696,12 +10149,22 @@ async fn update_project_reports(
     headers: axum::http::HeaderMap,
     Json(reports): Json<Vec<sws_core::ReportDef>>,
 ) -> Response {
-    s.audit.log("project.change", Some(user.username), serde_json::json!({"what": "reports", "count": reports.len()}));
+    s.audit.log(
+        "project.change",
+        Some(user.username),
+        serde_json::json!({"what": "reports", "count": reports.len()}),
+    );
     let dir = match active_dir(&s).await {
         Ok(d) => d,
         Err(c) => return c.into_response(),
     };
-    patch_project_se(&s.project_write_lock, &dir, versione_attesa(&headers), |p| p.reports = reports.clone()).await
+    patch_project_se(
+        &s.project_write_lock,
+        &dir,
+        versione_attesa(&headers),
+        |p| p.reports = reports.clone(),
+    )
+    .await
 }
 
 // ── T-24 Project fingerprint ─────────────────────────────────────────────────
@@ -9893,7 +10356,10 @@ struct GitDiffQuery {
 }
 
 /// `GET /api/project/git/changes?from&to` — i file cambiati.
-async fn get_git_changes(State(s): State<AppState>, Query(q): Query<GitDiffQuery>) -> impl IntoResponse {
+async fn get_git_changes(
+    State(s): State<AppState>,
+    Query(q): Query<GitDiffQuery>,
+) -> impl IntoResponse {
     let dir = match active_dir(&s).await {
         Ok(d) => d,
         Err(c) => return c.into_response(),
@@ -9902,7 +10368,9 @@ async fn get_git_changes(State(s): State<AppState>, Query(q): Query<GitDiffQuery
     if !gd.is_git_repo() {
         return StatusCode::NOT_FOUND.into_response();
     }
-    match tokio::task::spawn_blocking(move || gd.file_cambiati(q.from.as_deref(), q.to.as_deref())).await {
+    match tokio::task::spawn_blocking(move || gd.file_cambiati(q.from.as_deref(), q.to.as_deref()))
+        .await
+    {
         Ok(Ok(v)) => Json(v).into_response(),
         Ok(Err(e)) => (StatusCode::BAD_REQUEST, e.to_string()).into_response(),
         Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response(),
@@ -9910,7 +10378,10 @@ async fn get_git_changes(State(s): State<AppState>, Query(q): Query<GitDiffQuery
 }
 
 /// `GET /api/project/git/diff?from&to&path` — il diff unificato, in testo.
-async fn get_git_diff(State(s): State<AppState>, Query(q): Query<GitDiffQuery>) -> impl IntoResponse {
+async fn get_git_diff(
+    State(s): State<AppState>,
+    Query(q): Query<GitDiffQuery>,
+) -> impl IntoResponse {
     let dir = match active_dir(&s).await {
         Ok(d) => d,
         Err(c) => return c.into_response(),
@@ -10260,7 +10731,10 @@ async fn list_git_ssh_keys(State(s): State<AppState>) -> impl IntoResponse {
     match tokio::task::spawn_blocking(move || {
         let mut nomi = Vec::new();
         if let Some(d) = progetto {
-            if crate::git_deploy::GitDeploy::new(d).chiave_pubblica_progetto().is_some() {
+            if crate::git_deploy::GitDeploy::new(d)
+                .chiave_pubblica_progetto()
+                .is_some()
+            {
                 nomi.push(crate::git_deploy::CHIAVE_PROGETTO.to_string());
             }
         }
@@ -10287,7 +10761,10 @@ async fn get_chiave_progetto(State(s): State<AppState>) -> impl IntoResponse {
         Err(c) => return c.into_response(),
     };
     let gd = crate::git_deploy::GitDeploy::new(dir);
-    Json(ChiaveProgetto { pubblica: gd.chiave_pubblica_progetto() }).into_response()
+    Json(ChiaveProgetto {
+        pubblica: gd.chiave_pubblica_progetto(),
+    })
+    .into_response()
 }
 
 /// `POST /api/project/git/ssh-key/progetto` — genera la chiave del progetto (se
@@ -10503,7 +10980,10 @@ async fn soft_reload_project(s: &AppState, dir: &std::path::Path) {
 /// si tiene **solo se la chiave è la stessa**. Il segreto di una chiave vecchia
 /// non apre quella nuova, e rimetterlo direbbe «a posto» a una configurazione
 /// che non lo è.
-fn ripristina_token_twilio(cfg: &mut sws_core::NotificationConfig, salvata: Option<&sws_core::NotificationConfig>) {
+fn ripristina_token_twilio(
+    cfg: &mut sws_core::NotificationConfig,
+    salvata: Option<&sws_core::NotificationConfig>,
+) {
     if let Some(tw) = cfg.twilio.as_mut() {
         let prima = salvata.and_then(|n| n.twilio.as_ref());
         if tw.auth_token == MASKED_PASSWORD || tw.auth_token.is_empty() {
@@ -10521,7 +11001,8 @@ fn ripristina_token_twilio(cfg: &mut sws_core::NotificationConfig, salvata: Opti
 /// Il segreto della chiave API è tornato mascherato, o vuoto accanto a un SID
 /// di chiave: vuol dire «tieni quello salvato».
 fn segreto_chiave_da_ripristinare(tw: &sws_core::TwilioConfig) -> bool {
-    tw.api_key_secret == MASKED_PASSWORD || (tw.api_key_secret.is_empty() && !tw.api_key_sid.is_empty())
+    tw.api_key_secret == MASKED_PASSWORD
+        || (tw.api_key_secret.is_empty() && !tw.api_key_sid.is_empty())
 }
 
 #[cfg(test)]
@@ -10531,19 +11012,41 @@ mod prove_token_twilio {
     #[test]
     fn il_token_mascherato_o_vuoto_resta_quello_salvato() {
         let salvata = sws_core::NotificationConfig {
-            twilio: Some(sws_core::TwilioConfig { account_sid: "AC".into(), auth_token: "vero".into(), api_key_sid: String::new(), api_key_secret: String::new(), numero: "+39".into() }),
+            twilio: Some(sws_core::TwilioConfig {
+                account_sid: "AC".into(),
+                auth_token: "vero".into(),
+                api_key_sid: String::new(),
+                api_key_secret: String::new(),
+                numero: "+39".into(),
+            }),
             ..Default::default()
         };
         for arriva in [MASKED_PASSWORD, ""] {
             let mut c = sws_core::NotificationConfig {
-                twilio: Some(sws_core::TwilioConfig { account_sid: "AC".into(), auth_token: arriva.into(), api_key_sid: String::new(), api_key_secret: String::new(), numero: "+39".into() }),
+                twilio: Some(sws_core::TwilioConfig {
+                    account_sid: "AC".into(),
+                    auth_token: arriva.into(),
+                    api_key_sid: String::new(),
+                    api_key_secret: String::new(),
+                    numero: "+39".into(),
+                }),
                 ..Default::default()
             };
             ripristina_token_twilio(&mut c, Some(&salvata));
-            assert_eq!(c.twilio.unwrap().auth_token, "vero", "«{arriva}» non deve cancellare il token");
+            assert_eq!(
+                c.twilio.unwrap().auth_token,
+                "vero",
+                "«{arriva}» non deve cancellare il token"
+            );
         }
         let mut nuovo = sws_core::NotificationConfig {
-            twilio: Some(sws_core::TwilioConfig { account_sid: "AC".into(), auth_token: "nuovo".into(), api_key_sid: String::new(), api_key_secret: String::new(), numero: "+39".into() }),
+            twilio: Some(sws_core::TwilioConfig {
+                account_sid: "AC".into(),
+                auth_token: "nuovo".into(),
+                api_key_sid: String::new(),
+                api_key_secret: String::new(),
+                numero: "+39".into(),
+            }),
             ..Default::default()
         };
         ripristina_token_twilio(&mut nuovo, Some(&salvata));
@@ -10555,8 +11058,11 @@ mod prove_token_twilio {
     fn il_segreto_della_chiave_mascherato_resta_quello_salvato_se_la_chiave_e_la_stessa() {
         let tw = |sid: &str, segreto: &str| sws_core::NotificationConfig {
             twilio: Some(sws_core::TwilioConfig {
-                account_sid: "AC".into(), auth_token: "tok".into(),
-                api_key_sid: sid.into(), api_key_secret: segreto.into(), numero: "+39".into(),
+                account_sid: "AC".into(),
+                auth_token: "tok".into(),
+                api_key_sid: sid.into(),
+                api_key_secret: segreto.into(),
+                numero: "+39".into(),
             }),
             ..Default::default()
         };
@@ -10564,7 +11070,11 @@ mod prove_token_twilio {
         for arriva in [MASKED_PASSWORD, ""] {
             let mut c = tw("SK1", arriva);
             ripristina_token_twilio(&mut c, Some(&salvata));
-            assert_eq!(c.twilio.unwrap().api_key_secret, "vero", "«{arriva}» con la stessa chiave");
+            assert_eq!(
+                c.twilio.unwrap().api_key_secret,
+                "vero",
+                "«{arriva}» con la stessa chiave"
+            );
         }
         // Una chiave nuova col segreto mascherato: niente segreto, non quello della vecchia.
         let mut altra = tw("SK2", MASKED_PASSWORD);
@@ -10641,7 +11151,11 @@ async fn update_project_notifications(
         let needs_tw = cfg
             .twilio
             .as_ref()
-            .map(|t| t.auth_token == MASKED_PASSWORD || t.auth_token.is_empty() || segreto_chiave_da_ripristinare(t))
+            .map(|t| {
+                t.auth_token == MASKED_PASSWORD
+                    || t.auth_token.is_empty()
+                    || segreto_chiave_da_ripristinare(t)
+            })
             .unwrap_or(false);
         if needs_smtp || needs_tg || needs_tw {
             if let Ok(existing) = Project::load(&dir) {
@@ -10855,15 +11369,31 @@ async fn update_project_symbol_style(
 ) -> Response {
     let stile = match stile.map(StileSimboliBody::valida).transpose() {
         Ok(v) => v.filter(|x| *x != sws_core::project::StileSimboliProgetto::default()),
-        Err(e) => return (StatusCode::BAD_REQUEST, Json(serde_json::json!({ "error": e }))).into_response(),
+        Err(e) => {
+            return (
+                StatusCode::BAD_REQUEST,
+                Json(serde_json::json!({ "error": e })),
+            )
+                .into_response()
+        }
     };
     let dir = match active_dir(&s).await {
         Ok(d) => d,
         Err(c) => return c.into_response(),
     };
-    let res = patch_project_se(&s.project_write_lock, &dir, versione_attesa(&headers), |p| p.symbol_style = stile).await;
+    let res = patch_project_se(
+        &s.project_write_lock,
+        &dir,
+        versione_attesa(&headers),
+        |p| p.symbol_style = stile,
+    )
+    .await;
     if res.status() == StatusCode::NO_CONTENT {
-        s.audit.log("project.change", Some(user.username), serde_json::json!({"what": "symbol_style"}));
+        s.audit.log(
+            "project.change",
+            Some(user.username),
+            serde_json::json!({"what": "symbol_style"}),
+        );
         // I viewer aperti devono ridisegnare i simboli con lo stile nuovo.
         signal_project_changed(&s, "symbol_style");
     }
@@ -10898,9 +11428,18 @@ struct StileSimboliBody {
 impl StileSimboliBody {
     fn valida(self) -> Result<sws_core::project::StileSimboliProgetto, String> {
         let hex = |nome: &str, v: Option<String>| -> Result<Option<String>, String> {
-            match v.map(|x| x.trim().to_ascii_lowercase()).filter(|x| !x.is_empty()) {
+            match v
+                .map(|x| x.trim().to_ascii_lowercase())
+                .filter(|x| !x.is_empty())
+            {
                 None => Ok(None),
-                Some(x) if x.len() == 7 && x.starts_with('#') && x[1..].chars().all(|c| c.is_ascii_hexdigit()) => Ok(Some(x)),
+                Some(x)
+                    if x.len() == 7
+                        && x.starts_with('#')
+                        && x[1..].chars().all(|c| c.is_ascii_hexdigit()) =>
+                {
+                    Ok(Some(x))
+                }
                 Some(x) => Err(format!("{nome}: «{x}» non è un colore #rrggbb")),
             }
         };
@@ -10912,7 +11451,9 @@ impl StileSimboliBody {
         }
         let fra = |nome: &str, v: Option<f64>, min: f64, max: f64| -> Result<Option<f64>, String> {
             match v {
-                Some(x) if !x.is_finite() || x < min || x > max => Err(format!("{nome}: {x} fuori da {min}..{max}")),
+                Some(x) if !x.is_finite() || x < min || x > max => {
+                    Err(format!("{nome}: {x} fuori da {min}..{max}"))
+                }
                 v => Ok(v),
             }
         };
@@ -10926,7 +11467,12 @@ impl StileSimboliBody {
             outline_width: fra("outline_width", self.outline_width, 0.0, 10.0)?,
             spin_s: fra("spin_s", self.spin_s, 0.05, 3600.0)?,
             blink_ms: fra("blink_ms", self.blink_ms, 50.0, 60000.0)?,
-            level_transition_ms: fra("level_transition_ms", self.level_transition_ms, 0.0, 60000.0)?,
+            level_transition_ms: fra(
+                "level_transition_ms",
+                self.level_transition_ms,
+                0.0,
+                60000.0,
+            )?,
         })
     }
 }
@@ -10997,7 +11543,12 @@ async fn update_project_target(
         // senza effetto fino a una modifica qualsiasi.
         if !s.ide_only {
             let config_dir = s.config_dir.clone();
-            crate::display_target::publish(&config_dir, &dir, crate::display_target::Motivo::Modifica).await;
+            crate::display_target::publish(
+                &config_dir,
+                &dir,
+                crate::display_target::Motivo::Modifica,
+            )
+            .await;
         }
     }
     res
@@ -11066,10 +11617,17 @@ async fn update_ritenzione_ora(
     headers: axum::http::HeaderMap,
     Json(body): Json<RitenzioneOraBody>,
 ) -> Response {
-    let ora = body.ora.map(|o| o.trim().to_string()).filter(|o| !o.is_empty());
+    let ora = body
+        .ora
+        .map(|o| o.trim().to_string())
+        .filter(|o| !o.is_empty());
     if let Some(o) = &ora {
         if sws_historian::ritenzione::leggi_ora(o).is_none() {
-            return (StatusCode::BAD_REQUEST, format!("ora non valida: «{o}» (serve HH:MM)")).into_response();
+            return (
+                StatusCode::BAD_REQUEST,
+                format!("ora non valida: «{o}» (serve HH:MM)"),
+            )
+                .into_response();
         }
     }
     let dir = match active_dir(&s).await {
@@ -11077,9 +11635,14 @@ async fn update_ritenzione_ora(
         Err(c) => return c.into_response(),
     };
     let nuova = ora.clone();
-    let res = patch_project_se(&s.project_write_lock, &dir, versione_attesa(&headers), move |p| {
-        p.ritenzione_ora = nuova.clone();
-    })
+    let res = patch_project_se(
+        &s.project_write_lock,
+        &dir,
+        versione_attesa(&headers),
+        move |p| {
+            p.ritenzione_ora = nuova.clone();
+        },
+    )
     .await;
     if res.status() == StatusCode::NO_CONTENT {
         s.audit.log(
@@ -11502,9 +12065,30 @@ notifications:
             ["tank_level".to_string(), "pompa".to_string()].into();
         let elenco = elenco_faceplate(&su_disco);
         let di = |id: &str| elenco.iter().find(|f| f.id == id).expect(id);
-        assert_eq!(di("tank_level"), &FaceplateInElenco { id: "tank_level".into(), predefinito: true, personalizzato: true });
-        assert_eq!(di("motor_basic"), &FaceplateInElenco { id: "motor_basic".into(), predefinito: true, personalizzato: false });
-        assert_eq!(di("pompa"), &FaceplateInElenco { id: "pompa".into(), predefinito: false, personalizzato: false });
+        assert_eq!(
+            di("tank_level"),
+            &FaceplateInElenco {
+                id: "tank_level".into(),
+                predefinito: true,
+                personalizzato: true
+            }
+        );
+        assert_eq!(
+            di("motor_basic"),
+            &FaceplateInElenco {
+                id: "motor_basic".into(),
+                predefinito: true,
+                personalizzato: false
+            }
+        );
+        assert_eq!(
+            di("pompa"),
+            &FaceplateInElenco {
+                id: "pompa".into(),
+                predefinito: false,
+                personalizzato: false
+            }
+        );
         let ids: Vec<&str> = elenco.iter().map(|f| f.id.as_str()).collect();
         let mut ordinati = ids.clone();
         ordinati.sort();
@@ -11519,12 +12103,20 @@ notifications:
             serde_yaml::from_str("id: f\nlabel: F\nwidth: 240\nheight: 160\n").unwrap();
         assert_eq!((fp.width, fp.height), (Some(240.0), Some(160.0)));
         let testo = serde_yaml::to_string(&fp).unwrap();
-        assert!(testo.lines().any(|l| l == "width: 240.0" || l == "width: 240"), "{testo}");
+        assert!(
+            testo
+                .lines()
+                .any(|l| l == "width: 240.0" || l == "width: 240"),
+            "{testo}"
+        );
         for (_, yaml) in BUILTIN_FACEPLATES {
             let b: crate::synoptic::FaceplateDef = serde_yaml::from_str(yaml).unwrap();
             assert_eq!((b.width, b.height), (None, None));
             let testo = serde_yaml::to_string(&b).unwrap();
-            assert!(!testo.lines().any(|l| l.starts_with("width:")), "nessuna misura inventata");
+            assert!(
+                !testo.lines().any(|l| l.starts_with("width:")),
+                "nessuna misura inventata"
+            );
         }
     }
 
@@ -11538,12 +12130,20 @@ notifications:
         std::fs::write(d.join("project.yaml"), "meta: { name: p, version: '1' }\n").unwrap();
         let base = calcola_impronta(d).unwrap();
         std::fs::create_dir(d.join("faceplates")).unwrap();
-        assert_eq!(calcola_impronta(d).unwrap(), base, "una cartella vuota non cambia l'impronta");
+        assert_eq!(
+            calcola_impronta(d).unwrap(),
+            base,
+            "una cartella vuota non cambia l'impronta"
+        );
         std::fs::write(d.join("faceplates/motore.yaml"), "id: motore\n").unwrap();
         let con_fp = calcola_impronta(d).unwrap();
         assert_ne!(con_fp, base);
         std::fs::write(d.join("faceplates/motore.yaml"), "id: motore\nlabel: M\n").unwrap();
-        assert_ne!(calcola_impronta(d).unwrap(), con_fp, "un faceplate cambiato cambia l'impronta");
+        assert_ne!(
+            calcola_impronta(d).unwrap(),
+            con_fp,
+            "un faceplate cambiato cambia l'impronta"
+        );
         std::fs::create_dir(d.join("images")).unwrap();
         std::fs::write(d.join("images/logo.png"), [1u8, 2, 3]).unwrap();
         assert_ne!(calcola_impronta(d).unwrap(), base);
@@ -11559,8 +12159,16 @@ notifications:
         std::fs::write(d.join("project.yaml"), "meta: { name: p, version: '1' }\n").unwrap();
         let base = calcola_impronta(d).unwrap();
         std::fs::create_dir(d.join(crate::planimetrie::CARTELLA)).unwrap();
-        std::fs::write(d.join("planimetrie/casa.yaml"), "id: casa\nnome: Casa\nmuri: []\n").unwrap();
-        assert_ne!(calcola_impronta(d).unwrap(), base, "una planimetria nuova cambia l'impronta");
+        std::fs::write(
+            d.join("planimetrie/casa.yaml"),
+            "id: casa\nnome: Casa\nmuri: []\n",
+        )
+        .unwrap();
+        assert_ne!(
+            calcola_impronta(d).unwrap(),
+            base,
+            "una planimetria nuova cambia l'impronta"
+        );
         let zip = build_project_zip(d, false).await.expect("build zip");
         assert!(zip_entry(&zip, "planimetrie/casa.yaml").contains("nome: Casa"));
     }
@@ -11643,8 +12251,21 @@ notifications:
             exported_at_ms: 0,
             secrets_masked: true,
         };
-        let zip = build_export_zip(&manifest, &project, &[], None, &[], &[], &[], &[], &[], &[], &[], None)
-            .expect("build zip senza segreti");
+        let zip = build_export_zip(
+            &manifest,
+            &project,
+            &[],
+            None,
+            &[],
+            &[],
+            &[],
+            &[],
+            &[],
+            &[],
+            &[],
+            None,
+        )
+        .expect("build zip senza segreti");
 
         let mut a = zip::ZipArchive::new(Cursor::new(zip.clone())).unwrap();
         assert!(
@@ -12401,7 +13022,10 @@ mod primo_utente_tests {
             }
         }
         // E senza delega niente cambia rispetto a prima.
-        assert_eq!(fonte_autenticazione(true, true, true, false, false), F::Installazione);
+        assert_eq!(
+            fonte_autenticazione(true, true, true, false, false),
+            F::Installazione
+        );
     }
 
     /// Il segreto si confronta a tempo costante, e uno sbagliato non passa.
@@ -12412,7 +13036,10 @@ mod primo_utente_tests {
     #[test]
     fn il_segreto_del_gateway_si_confronta_tutto() {
         assert!(confronto_costante(b"abcdef0123456789", b"abcdef0123456789"));
-        assert!(!confronto_costante(b"abcdef0123456789", b"abcdef012345678X"));
+        assert!(!confronto_costante(
+            b"abcdef0123456789",
+            b"abcdef012345678X"
+        ));
         // Lunghezze diverse: no, e senza leggere oltre.
         assert!(!confronto_costante(b"abc", b"abcd"));
         assert!(!confronto_costante(b"", b"x"));
@@ -12428,27 +13055,45 @@ mod primo_utente_tests {
         // raggiungibile in rete senza password. Il guasto che quella scelta
         // curava — scrivere `users.yaml` e chiudersi fuori dal proprio editor —
         // resta curato, perché l'IDE non guarda più quell'elenco.
-        assert_eq!(fonte_autenticazione(true, true, true, false, false), F::Installazione);
-        assert_eq!(fonte_autenticazione(true, false, true, false, false), F::Installazione);
+        assert_eq!(
+            fonte_autenticazione(true, true, true, false, false),
+            F::Installazione
+        );
+        assert_eq!(
+            fonte_autenticazione(true, false, true, false, false),
+            F::Installazione
+        );
     }
 
     #[test]
     fn un_ide_non_torna_aperto_se_l_archivio_manca() {
         // Se per qualunque ragione l'archivio delle identità non c'è, si chiude
         // invece di aprire: un guasto non deve diventare una porta.
-        assert_eq!(fonte_autenticazione(true, true, false, false, false), F::Installazione);
+        assert_eq!(
+            fonte_autenticazione(true, true, false, false, false),
+            F::Installazione
+        );
     }
 
     #[test]
     fn la_scorciatoia_di_sviluppo_vince_su_tutto() {
         // `--senza-autenticazione`, che `main.rs` accetta solo su loopback.
-        assert_eq!(fonte_autenticazione(true, true, true, true, false), F::Nessuna);
-        assert_eq!(fonte_autenticazione(false, true, false, true, false), F::Nessuna);
+        assert_eq!(
+            fonte_autenticazione(true, true, true, true, false),
+            F::Nessuna
+        );
+        assert_eq!(
+            fonte_autenticazione(false, true, false, true, false),
+            F::Nessuna
+        );
     }
 
     #[test]
     fn un_dispositivo_con_utenti_usa_quelli_del_progetto() {
-        assert_eq!(fonte_autenticazione(false, true, false, false, false), F::Progetto);
+        assert_eq!(
+            fonte_autenticazione(false, true, false, false, false),
+            F::Progetto
+        );
     }
 
     #[test]
@@ -12456,9 +13101,15 @@ mod primo_utente_tests {
         // Dall'11-10-2026 (decisione CRA 4): fino al giorno prima qui c'era
         // `Nessuna`, cioè un pannello appena installato aperto a tutti da
         // Admin. Ora è chiuso e mostra il codice di abbinamento.
-        assert_eq!(fonte_autenticazione(false, false, false, false, false), F::InAttesa);
+        assert_eq!(
+            fonte_autenticazione(false, false, false, false, false),
+            F::InAttesa
+        );
         // La scorciatoia di sviluppo resta la sola via per un Admin sintetico.
-        assert_eq!(fonte_autenticazione(false, false, false, true, false), F::Nessuna);
+        assert_eq!(
+            fonte_autenticazione(false, false, false, true, false),
+            F::Nessuna
+        );
     }
 
     #[test]
@@ -12854,7 +13505,10 @@ mod rotte_del_dispositivo {
     fn rotte_di_gestione() -> Vec<String> {
         let src = include_str!("router.rs");
         let inizio = src.find("fn deploy_only_app(").expect("deploy_only_app");
-        let fine = inizio + src[inizio..].find("\nfn ").expect("fine di deploy_only_app");
+        let fine = inizio
+            + src[inizio..]
+                .find("\nfn ")
+                .expect("fine di deploy_only_app");
         src[inizio..fine]
             .split('"')
             .filter(|p| p.starts_with("/api/"))
@@ -12873,20 +13527,33 @@ mod rotte_del_dispositivo {
     #[test]
     fn l_avviso_del_viewer_ha_le_sue_rotte_sulla_porta_del_viewer() {
         let src = include_str!("router.rs");
-        let inizio = src.find("fn build_runtime_inner(").expect("build_runtime_inner");
-        let fine = inizio + src[inizio..].find("\nfn ").expect("fine di build_runtime_inner");
+        let inizio = src
+            .find("fn build_runtime_inner(")
+            .expect("build_runtime_inner");
+        let fine = inizio
+            + src[inizio..]
+                .find("\nfn ")
+                .expect("fine di build_runtime_inner");
         let corpo = &src[inizio..fine];
         for rotta in ["\"/api/update/status\"", "\"/api/update/apply\""] {
-            assert!(corpo.contains(rotta), "la porta del viewer non ha {rotta}: l'avviso sul pannello prende 404");
+            assert!(
+                corpo.contains(rotta),
+                "la porta del viewer non ha {rotta}: l'avviso sul pannello prende 404"
+            );
         }
-        let avviso = include_str!("../../../../sws-editor/src/runtime-view/AvvisoAggiornamento.tsx");
-        assert!(avviso.contains("statoAggiornamento") && avviso.contains("avviaAggiornamento"),
-            "l'avviso non usa più queste chiamate: aggiornare il test");
+        let avviso =
+            include_str!("../../../../sws-editor/src/runtime-view/AvvisoAggiornamento.tsx");
+        assert!(
+            avviso.contains("statoAggiornamento") && avviso.contains("avviaAggiornamento"),
+            "l'avviso non usa più queste chiamate: aggiornare il test"
+        );
     }
 
     fn blocco<'a>(src: &'a str, da: &str, a: &str) -> &'a str {
         let i = src.find(da).unwrap_or_else(|| panic!("non trovo {da}"));
-        let j = i + src[i..].find(a).unwrap_or_else(|| panic!("non trovo {a} dopo {da}"));
+        let j = i + src[i..]
+            .find(a)
+            .unwrap_or_else(|| panic!("non trovo {a} dopo {da}"));
         &src[i..j]
     }
 
@@ -12904,14 +13571,30 @@ mod rotte_del_dispositivo {
         let src = include_str!("router.rs");
         let viewer = blocco(src, "fn build_runtime_inner(", "\nfn ");
         let operatore = blocco(viewer, "let operator_routes", ";\n");
-        assert!(!operatore.contains("put(write_tag)"), "la PUT del tag è tornata sotto require_operator sul viewer");
+        assert!(
+            !operatore.contains("put(write_tag)"),
+            "la PUT del tag è tornata sotto require_operator sul viewer"
+        );
         let letture = blocco(viewer, "let read_routes", ";\n");
-        assert!(letture.contains("get(get_tag).put(write_tag)"), "la PUT del tag non sta con le letture del viewer");
+        assert!(
+            letture.contains("get(get_tag).put(write_tag)"),
+            "la PUT del tag non sta con le letture del viewer"
+        );
         let ide = blocco(src, "pub fn build(", "\nfn ");
         let operatore = blocco(ide, "let operator_routes", ";\n");
-        assert!(!operatore.contains("put(write_tag)"), "la PUT del tag è tornata sotto require_operator sull'IDE");
-        let ws = blocco(src, "InboundMsg::Write { tag, value, req_id } => {", "coerce_for_write");
-        assert!(!ws.contains("Role::Operator"), "il WebSocket ha di nuovo un blocco Operator prima della soglia del tag");
+        assert!(
+            !operatore.contains("put(write_tag)"),
+            "la PUT del tag è tornata sotto require_operator sull'IDE"
+        );
+        let ws = blocco(
+            src,
+            "InboundMsg::Write { tag, value, req_id } => {",
+            "coerce_for_write",
+        );
+        assert!(
+            !ws.contains("Role::Operator"),
+            "il WebSocket ha di nuovo un blocco Operator prima della soglia del tag"
+        );
         assert!(ws.contains("tag_write_allowed"));
     }
 
@@ -12925,8 +13608,14 @@ mod rotte_del_dispositivo {
             ("forno".to_string(), "Supervisor".to_string()),
         ]))
         .await;
-        assert!(super::tag_write_allowed(&db, "luce_stanza", sws_auth::Role::Viewer).await, "Chiunque: anche l'anonimo");
-        assert!(!super::tag_write_allowed(&db, "pompa", sws_auth::Role::Viewer).await, "senza soglia: Operator, l'anonimo no");
+        assert!(
+            super::tag_write_allowed(&db, "luce_stanza", sws_auth::Role::Viewer).await,
+            "Chiunque: anche l'anonimo"
+        );
+        assert!(
+            !super::tag_write_allowed(&db, "pompa", sws_auth::Role::Viewer).await,
+            "senza soglia: Operator, l'anonimo no"
+        );
         assert!(super::tag_write_allowed(&db, "pompa", sws_auth::Role::Operator).await);
         assert!(!super::tag_write_allowed(&db, "forno", sws_auth::Role::Operator).await);
         assert!(super::tag_write_allowed(&db, "forno", sws_auth::Role::Supervisor).await);
@@ -12944,12 +13633,26 @@ mod rotte_del_dispositivo {
             "\"/api/aggiornamento/istantanea\"",
             "\"/api/update/ignora\"",
         ] {
-            assert!(scritture.contains(rotta), "{rotta} non sta più nel gruppo require_admin del viewer");
-            assert_eq!(viewer.matches(rotta).count(), 1, "{rotta} compare due volte sul viewer");
+            assert!(
+                scritture.contains(rotta),
+                "{rotta} non sta più nel gruppo require_admin del viewer"
+            );
+            assert_eq!(
+                viewer.matches(rotta).count(),
+                1,
+                "{rotta} compare due volte sul viewer"
+            );
         }
         let letture = blocco(viewer, "let read_routes", ";\n");
-        for rotta in ["\"/api/system\"", "\"/api/update/status\"", "\"/api/update/esito/:id/visto\""] {
-            assert!(letture.contains(rotta), "{rotta} deve stare fra le letture del viewer");
+        for rotta in [
+            "\"/api/system\"",
+            "\"/api/update/status\"",
+            "\"/api/update/esito/:id/visto\"",
+        ] {
+            assert!(
+                letture.contains(rotta),
+                "{rotta} deve stare fra le letture del viewer"
+            );
         }
         assert!(!scritture.contains("\"/api/update/status\""));
     }
@@ -12973,7 +13676,9 @@ mod rotte_del_dispositivo {
             ("api.removeTlsCert()", "api.remoteRemoveTlsCert()"),
         ] {
             assert!(card.contains(remota), "la card non chiama più {remota}: con un pannello connesso governa il PC dell'editor");
-            let i = card.find(locale).unwrap_or_else(|| panic!("{locale} sparita: aggiornare il test"));
+            let i = card
+                .find(locale)
+                .unwrap_or_else(|| panic!("{locale} sparita: aggiornare il test"));
             let riga_prima = &card[i.saturating_sub(200)..i];
             assert!(
                 riga_prima.contains("remoteConnected"),
@@ -12982,9 +13687,18 @@ mod rotte_del_dispositivo {
         }
         // E le quattro rotte remote devono esistere davvero su questo router,
         // altrimenti la card chiama 404 e l'errore sembra del dispositivo.
-        let src = include_str!("router.rs");
-        for r in ["/api/remote/system/tls\", get(", "/api/remote/system/tls/generate\", post(",
-                  "/api/remote/system/tls\", put(", "/api/remote/system/tls\", delete("] {
+        // Senza spazi né a capo: rustfmt spezza una `.route(...)` lunga su più
+        // righe, e il test deve guardare le rotte, non l'impaginazione.
+        let src: String = include_str!("router.rs")
+            .chars()
+            .filter(|c| !c.is_whitespace())
+            .collect();
+        for r in [
+            "/api/remote/system/tls\",get(",
+            "/api/remote/system/tls/generate\",post(",
+            "/api/remote/system/tls\",put(",
+            "/api/remote/system/tls\",delete(",
+        ] {
             assert!(src.contains(r), "manca la rotta: {r}");
         }
     }
@@ -12992,7 +13706,10 @@ mod rotte_del_dispositivo {
     #[test]
     fn ogni_chiamata_dell_ide_ha_la_sua_rotta_sul_dispositivo() {
         let chiamate = chiamate_dell_ide();
-        assert!(chiamate.len() >= 10, "lettura di remote.rs fallita: {chiamate:?}");
+        assert!(
+            chiamate.len() >= 10,
+            "lettura di remote.rs fallita: {chiamate:?}"
+        );
         let rotte = rotte_di_gestione();
         let mancanti: Vec<_> = chiamate.iter().filter(|c| !rotte.contains(c)).collect();
         assert!(
@@ -13041,11 +13758,23 @@ mod tests_metriche {
 
     #[test]
     fn il_token_delle_metriche_vale_solo_se_configurato_e_uguale() {
-        assert!(token_metriche_valido(&con("Bearer segreto-lungo"), "segreto-lungo"));
-        assert!(!token_metriche_valido(&con("Bearer segreto-lung"), "segreto-lungo"));
-        assert!(!token_metriche_valido(&con("Bearer "), ""), "non configurato: mai valido");
+        assert!(token_metriche_valido(
+            &con("Bearer segreto-lungo"),
+            "segreto-lungo"
+        ));
+        assert!(!token_metriche_valido(
+            &con("Bearer segreto-lung"),
+            "segreto-lungo"
+        ));
+        assert!(
+            !token_metriche_valido(&con("Bearer "), ""),
+            "non configurato: mai valido"
+        );
         assert!(!token_metriche_valido(&HeaderMap::new(), "segreto-lungo"));
-        assert!(!token_metriche_valido(&con("Basic segreto-lungo"), "segreto-lungo"));
+        assert!(!token_metriche_valido(
+            &con("Basic segreto-lungo"),
+            "segreto-lungo"
+        ));
     }
 }
 
@@ -13084,7 +13813,10 @@ mod tests_ripiego_spa {
     fn una_fetch_che_chiede_html_vuole_la_pagina() {
         let mut watcher = HeaderMap::new();
         watcher.insert("sec-fetch-mode", HeaderValue::from_static("cors"));
-        watcher.insert(axum::http::header::ACCEPT, HeaderValue::from_static("text/html"));
+        watcher.insert(
+            axum::http::header::ACCEPT,
+            HeaderValue::from_static("text/html"),
+        );
         assert!(super::e_navigazione(&watcher, "/"));
         assert!(super::e_navigazione(&watcher, "/p/-/CasaDomotica/"));
 
@@ -13095,8 +13827,14 @@ mod tests_ripiego_spa {
 
         let mut immagine = HeaderMap::new();
         immagine.insert("sec-fetch-mode", HeaderValue::from_static("no-cors"));
-        immagine.insert(axum::http::header::ACCEPT, HeaderValue::from_static("text/html,*/*"));
-        assert!(!super::e_navigazione(&immagine, "/"), "incorporata: non è una pagina anche se accetta HTML");
+        immagine.insert(
+            axum::http::header::ACCEPT,
+            HeaderValue::from_static("text/html,*/*"),
+        );
+        assert!(
+            !super::e_navigazione(&immagine, "/"),
+            "incorporata: non è una pagina anche se accetta HTML"
+        );
     }
 
     /// Browser vecchi e sonde: nessun `Sec-Fetch-Mode`.
@@ -13107,7 +13845,10 @@ mod tests_ripiego_spa {
             axum::http::header::ACCEPT,
             HeaderValue::from_static("text/html,application/xhtml+xml"),
         );
-        assert!(super::e_navigazione(&html, "/qualunque/cosa.js"), "lo ha chiesto come pagina");
+        assert!(
+            super::e_navigazione(&html, "/qualunque/cosa.js"),
+            "lo ha chiesto come pagina"
+        );
 
         // `curl https://sws.soligo.net/` — Accept: */*, nessuna estensione.
         // E' il caso che ha fatto nascere la correzione: un controllo di
@@ -13135,7 +13876,10 @@ mod tests_ripiego_spa {
 pub(crate) async fn stato_di_prova(dir: &std::path::Path) -> AppState {
     let db = Arc::new(TagDb::new(64));
     let bus = Arc::new(TagWriteBus::new());
-    let certificati = Arc::new(sws_core::pin_tls::ImprontaStore::in_config(dir, "mqtt_broker_conosciuti.yaml"));
+    let certificati = Arc::new(sws_core::pin_tls::ImprontaStore::in_config(
+        dir,
+        "mqtt_broker_conosciuti.yaml",
+    ));
     let supervisor = SourceSupervisor::new(db.clone(), bus.clone(), certificati);
     let (_, _, stato) = build(
         db.clone(),
@@ -13144,7 +13888,11 @@ pub(crate) async fn stato_di_prova(dir: &std::path::Path) -> AppState {
         Arc::new(Historian::new(100)),
         Arc::new(tokio::sync::RwLock::new(None)),
         PyEngine::new(db, bus),
-        sws_auth::AuthState::empty(std::time::Duration::from_secs(3600), 100, std::time::Duration::from_secs(60)),
+        sws_auth::AuthState::empty(
+            std::time::Duration::from_secs(3600),
+            100,
+            std::time::Duration::from_secs(60),
+        ),
         supervisor,
         Arc::new(tokio::sync::RwLock::new(None)),
         Arc::new(tokio::sync::RwLock::new(std::collections::HashMap::new())),
@@ -13190,18 +13938,31 @@ mod prove_socket_riconvalida {
         std::fs::create_dir_all(&dir).unwrap();
         let s = stato_di_prova(&dir).await;
         s.auth
-            .swap_store(dir.join("users.yaml"), vec![("operatore".into(), Role::Operator, "segreto-di-prova".into())])
+            .swap_store(
+                dir.join("users.yaml"),
+                vec![(
+                    "operatore".into(),
+                    Role::Operator,
+                    "segreto-di-prova".into(),
+                )],
+            )
             .await
             .unwrap();
         let ok = s
             .auth
-            .login(&sws_auth::Credentials { username: "operatore".into(), password: "segreto-di-prova".into() })
+            .login(&sws_auth::Credentials {
+                username: "operatore".into(),
+                password: "segreto-di-prova".into(),
+            })
             .await
             .unwrap_or_else(|_| panic!("login di prova fallito"));
         let token = ok.token.clone();
 
         // Con la sessione viva vale il ruolo vero, qualunque fosse all'handshake.
-        assert_eq!(ruolo_adesso(&s, Some(&token), Role::Viewer).await, Role::Operator);
+        assert_eq!(
+            ruolo_adesso(&s, Some(&token), Role::Viewer).await,
+            Role::Operator
+        );
 
         // La sessione finisce (logout, o un deploy che cambia gli utenti): il
         // socket è ancora aperto, ma da qui il ruolo è quello di un anonimo.
@@ -13215,14 +13976,27 @@ mod prove_socket_riconvalida {
         // Chi deve cambiare la password è Viewer finché non la cambia (03-11-2026).
         let ok = s
             .auth
-            .login(&sws_auth::Credentials { username: "operatore".into(), password: "segreto-di-prova".into() })
+            .login(&sws_auth::Credentials {
+                username: "operatore".into(),
+                password: "segreto-di-prova".into(),
+            })
             .await
             .unwrap_or_else(|_| panic!("login di prova fallito"));
         s.auth
-            .update_user("operatore", sws_auth::UserPatch { must_change_password: Some(true), ..Default::default() })
+            .update_user(
+                "operatore",
+                sws_auth::UserPatch {
+                    must_change_password: Some(true),
+                    ..Default::default()
+                },
+            )
             .await
             .unwrap();
-        assert_eq!(ruolo_adesso(&s, Some(&ok.token), Role::Operator).await, Role::Viewer, "prima il cambio password");
+        assert_eq!(
+            ruolo_adesso(&s, Some(&ok.token), Role::Operator).await,
+            Role::Viewer,
+            "prima il cambio password"
+        );
 
         // Senza token (runtime senza utenti) resta quello dell'handshake.
         assert_eq!(ruolo_adesso(&s, None, Role::Admin).await, Role::Admin);
@@ -13243,11 +14017,19 @@ mod prove_sessione_ide {
         let _ = std::fs::remove_dir_all(&dir);
         std::fs::create_dir_all(&dir).unwrap();
         let mut s = stato_di_prova(&dir).await;
-        let id = sws_identita::Identita::apri(dir.join("identita.db")).await.unwrap();
+        let id = sws_identita::Identita::apri(dir.join("identita.db"))
+            .await
+            .unwrap();
         for email in ["anna@sws.it", "bruno@sws.it"] {
-            id.crea_utente(email, email, "password-lunga", sws_identita::Ruolo::Amministratore, false)
-                .await
-                .unwrap();
+            id.crea_utente(
+                email,
+                email,
+                "password-lunga",
+                sws_identita::Ruolo::Amministratore,
+                false,
+            )
+            .await
+            .unwrap();
         }
         s.identita = Some(id);
         (s, dir)
@@ -13270,7 +14052,10 @@ mod prove_sessione_ide {
     }
 
     fn ora() -> u64 {
-        std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_millis() as u64
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_millis() as u64
     }
 
     #[tokio::test]
@@ -13281,15 +14066,25 @@ mod prove_sessione_ide {
         let (codice, ms) = rinnova(&s, &normale.token).await;
         assert_eq!(codice, StatusCode::OK);
         let ms = ms.expect("la scadenza nuova");
-        assert!(ms > ora() + 7 * 3600 * 1000 && ms <= ora() + 8 * 3600 * 1000 + 1000, "8 ore: {ms}");
+        assert!(
+            ms > ora() + 7 * 3600 * 1000 && ms <= ora() + 8 * 3600 * 1000 + 1000,
+            "8 ore: {ms}"
+        );
 
         let lunga = id
-            .accedi_per("anna@sws.it", "password-lunga", Some(sws_identita::DURATA_RICORDAMI))
+            .accedi_per(
+                "anna@sws.it",
+                "password-lunga",
+                Some(sws_identita::DURATA_RICORDAMI),
+            )
             .await
             .unwrap();
         let (codice, ms) = rinnova(&s, &lunga.token).await;
         assert_eq!(codice, StatusCode::OK);
-        assert!(ms.unwrap() > ora() + 29 * 24 * 3600 * 1000, "«ricordami» resta di 30 giorni");
+        assert!(
+            ms.unwrap() > ora() + 29 * 24 * 3600 * 1000,
+            "«ricordami» resta di 30 giorni"
+        );
 
         let (codice, _) = rinnova(&s, "inventato").await;
         assert_eq!(codice, StatusCode::UNAUTHORIZED);
@@ -13312,19 +14107,28 @@ mod prove_sessione_ide {
         apri_come(&s, &dir, "anna@sws.it").await;
         let a = id.accedi("anna@sws.it", "password-lunga").await.unwrap();
         let _ = entra(&s, a, "password", true).await;
-        assert!(s.project_dir.read().await.is_some(), "chi l'ha aperto lo ritrova");
+        assert!(
+            s.project_dir.read().await.is_some(),
+            "chi l'ha aperto lo ritrova"
+        );
 
         // Dal modale, un'altra persona: si chiude, come sempre.
         let b = id.accedi("bruno@sws.it", "password-lunga").await.unwrap();
         let _ = entra(&s, b, "password", true).await;
-        assert!(s.project_dir.read().await.is_none(), "un altro non eredita il progetto");
+        assert!(
+            s.project_dir.read().await.is_none(),
+            "un altro non eredita il progetto"
+        );
         assert!(s.aperto_da.lock().unwrap().is_none());
 
         // Dalla schermata d'accesso, anche la stessa persona: si chiude.
         apri_come(&s, &dir, "anna@sws.it").await;
         let a = id.accedi("anna@sws.it", "password-lunga").await.unwrap();
         let _ = entra(&s, a, "password", false).await;
-        assert!(s.project_dir.read().await.is_none(), "il login normale chiude, come dal 07-10");
+        assert!(
+            s.project_dir.read().await.is_none(),
+            "il login normale chiude, come dal 07-10"
+        );
         let _ = std::fs::remove_dir_all(dir);
     }
 }

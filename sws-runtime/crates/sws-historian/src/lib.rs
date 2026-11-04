@@ -192,7 +192,12 @@ impl Historian {
     /// datastore e rada. La decimazione è **per indice**: sfoltisce quasi solo
     /// la parte densa, e ogni secchio di quella parte faceva la media di pochi
     /// campioni presi a passo fisso. Il confine si vedeva dove comincia l'anello.
-    pub async fn query_interi(&self, tag: &str, from_ms: Option<u64>, to_ms: Option<u64>) -> Vec<Sample> {
+    pub async fn query_interi(
+        &self,
+        tag: &str,
+        from_ms: Option<u64>,
+        to_ms: Option<u64>,
+    ) -> Vec<Sample> {
         let buf = self.buffers.read().await;
 
         // Collect in-memory samples and note the oldest timestamp in the ring.
@@ -237,7 +242,10 @@ impl Historian {
     pub async fn ultimo_prima(&self, tag: &str, ts_ms: u64) -> Option<Sample> {
         {
             let buf = self.buffers.read().await;
-            if let Some(s) = buf.get(tag).and_then(|q| q.iter().rev().find(|s| s.ts_ms < ts_ms)) {
+            if let Some(s) = buf
+                .get(tag)
+                .and_then(|q| q.iter().rev().find(|s| s.ts_ms < ts_ms))
+            {
                 return Some(s.clone());
             }
         }
@@ -311,13 +319,20 @@ mod test_ancora {
     use super::*;
 
     fn s(ts: u64, v: f64) -> Sample {
-        Sample { ts_ms: ts, value: TagValue::Float(v), quality: TagQuality::Good }
+        Sample {
+            ts_ms: ts,
+            value: TagValue::Float(v),
+            quality: TagQuality::Good,
+        }
     }
 
     #[test]
     fn un_valore_fermo_da_ore_si_disegna_su_tutta_la_finestra() {
         let r = ancora(vec![], Some(s(10, 5.0)), 1000, 2000);
-        assert_eq!(r.iter().map(|x| x.ts_ms).collect::<Vec<_>>(), vec![1000, 2000]);
+        assert_eq!(
+            r.iter().map(|x| x.ts_ms).collect::<Vec<_>>(),
+            vec![1000, 2000]
+        );
         assert!(r.iter().all(|x| x.value == TagValue::Float(5.0)));
     }
 
@@ -325,15 +340,26 @@ mod test_ancora {
     fn coi_campioni_nella_finestra_si_aggiungono_solo_i_bordi() {
         let r = ancora(vec![s(1500, 7.0)], Some(s(900, 5.0)), 1000, 2000);
         assert_eq!(
-            r.iter().map(|x| (x.ts_ms, x.value.clone())).collect::<Vec<_>>(),
-            vec![(1000, TagValue::Float(5.0)), (1500, TagValue::Float(7.0)), (2000, TagValue::Float(7.0))]
+            r.iter()
+                .map(|x| (x.ts_ms, x.value.clone()))
+                .collect::<Vec<_>>(),
+            vec![
+                (1000, TagValue::Float(5.0)),
+                (1500, TagValue::Float(7.0)),
+                (2000, TagValue::Float(7.0))
+            ]
         );
     }
 
     #[test]
     fn niente_storia_niente_invenzioni_e_niente_doppioni() {
         assert!(ancora(vec![], None, 1000, 2000).is_empty());
-        let r = ancora(vec![s(1000, 1.0), s(2000, 2.0)], Some(s(500, 0.0)), 1000, 2000);
+        let r = ancora(
+            vec![s(1000, 1.0), s(2000, 2.0)],
+            Some(s(500, 0.0)),
+            1000,
+            2000,
+        );
         assert_eq!(r.len(), 2);
     }
 }
@@ -355,7 +381,9 @@ mod tests {
     #[tokio::test]
     async fn record_non_scrive_su_disco() {
         let dir = tempfile::tempdir().unwrap();
-        let store = crate::sqlite::SqliteStore::open(dir.path().join("h.db")).await.unwrap();
+        let store = crate::sqlite::SqliteStore::open(dir.path().join("h.db"))
+            .await
+            .unwrap();
         let h = Historian::new(100);
         h.swap_store(Some(store.clone())).await;
         h.record("t", &st(10, 1.0)).await;
@@ -384,12 +412,17 @@ mod tests {
     async fn i_secchi_si_calcolano_sui_campioni_interi() {
         let h = Historian::new(10_000);
         for i in 0..3_000u64 {
-            h.record("t", &st(i * 100, if i % 2 == 0 { 0.0 } else { 100.0 })).await;
+            h.record("t", &st(i * 100, if i % 2 == 0 { 0.0 } else { 100.0 }))
+                .await;
         }
         let interi = h.query_interi("t", None, None).await;
         assert_eq!(interi.len(), 3_000);
         let secchi = aggregate_samples(&interi, 10_000);
-        assert!(secchi.iter().all(|b| (b.avg - 50.0).abs() < 1e-9), "{:?}", secchi.iter().map(|b| b.avg).collect::<Vec<_>>());
+        assert!(
+            secchi.iter().all(|b| (b.avg - 50.0).abs() < 1e-9),
+            "{:?}",
+            secchi.iter().map(|b| b.avg).collect::<Vec<_>>()
+        );
         // La query normale resta decimata, come prima.
         assert_eq!(h.query("t", None, None).await.len(), DECIMATION_THRESHOLD);
     }
@@ -426,7 +459,14 @@ mod tests {
         for i in 0..6u64 {
             let s = st(i * 10, i as f64);
             store
-                .append("t", &Sample { ts_ms: s.timestamp_ms, value: s.value.clone(), quality: s.quality.clone() })
+                .append(
+                    "t",
+                    &Sample {
+                        ts_ms: s.timestamp_ms,
+                        value: s.value.clone(),
+                        quality: s.quality.clone(),
+                    },
+                )
                 .await;
             h.record("t", &s).await;
         }

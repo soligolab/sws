@@ -15,7 +15,8 @@ static TEMPI: Mutex<Option<Accumulatore>> = Mutex::new(None);
 
 pub fn registra(nome: &'static str, d: Duration) {
     let mut g = TEMPI.lock().unwrap_or_else(|e| e.into_inner());
-    g.get_or_insert_with(Accumulatore::default).registra(nome, d);
+    g.get_or_insert_with(Accumulatore::default)
+        .registra(nome, d);
 }
 
 /// Misura `f` sotto il nome `nome`.
@@ -36,34 +37,47 @@ const MANDA: Duration = Duration::from_secs(2);
 /// `net_worker` né il disegno. Quando nessuno guarda i contatori si svuotano
 /// lo stesso, così il primo riassunto mandato parla degli ultimi secondi.
 pub fn avvia(base_url: String) {
-    let _ = std::thread::Builder::new().name("sws-tempi".into()).spawn(move || {
-        let Ok(rt) = tokio::runtime::Builder::new_current_thread().enable_all().build() else {
-            eprintln!("[tempi] runtime non avviabile: le prestazioni non escono");
-            return;
-        };
-        loop {
-            let attiva = rt
-                .block_on(async {
-                    tokio::time::timeout(Duration::from_secs(5), crate::client::prestazioni_richiesta(&base_url)).await
-                })
-                .ok()
-                .and_then(|r| r.ok())
-                .unwrap_or(false);
-            if !attiva {
-                riassunto_e_azzera();
-                std::thread::sleep(CHIEDI);
-                continue;
+    let _ = std::thread::Builder::new()
+        .name("sws-tempi".into())
+        .spawn(move || {
+            let Ok(rt) = tokio::runtime::Builder::new_current_thread()
+                .enable_all()
+                .build()
+            else {
+                eprintln!("[tempi] runtime non avviabile: le prestazioni non escono");
+                return;
+            };
+            loop {
+                let attiva = rt
+                    .block_on(async {
+                        tokio::time::timeout(
+                            Duration::from_secs(5),
+                            crate::client::prestazioni_richiesta(&base_url),
+                        )
+                        .await
+                    })
+                    .ok()
+                    .and_then(|r| r.ok())
+                    .unwrap_or(false);
+                if !attiva {
+                    riassunto_e_azzera();
+                    std::thread::sleep(CHIEDI);
+                    continue;
+                }
+                let fine = Instant::now() + CHIEDI;
+                while Instant::now() < fine {
+                    std::thread::sleep(MANDA);
+                    let r = riassunto_e_azzera();
+                    let _ = rt.block_on(async {
+                        tokio::time::timeout(
+                            Duration::from_secs(5),
+                            crate::client::invia_prestazioni(&base_url, &r),
+                        )
+                        .await
+                    });
+                }
             }
-            let fine = Instant::now() + CHIEDI;
-            while Instant::now() < fine {
-                std::thread::sleep(MANDA);
-                let r = riassunto_e_azzera();
-                let _ = rt.block_on(async {
-                    tokio::time::timeout(Duration::from_secs(5), crate::client::invia_prestazioni(&base_url, &r)).await
-                });
-            }
-        }
-    });
+        });
 }
 
 /// Il riassunto da quando si è cominciato, e si riparte da zero.

@@ -134,7 +134,12 @@ impl SourceSupervisor {
             // (trovato col tutorial del manuale, T07, 03-11-2026).
             let mut spariti = Vec::new();
             for id in scritti.keys() {
-                if self.db.get(&sws_core::tag_disponibilita(id)).await.is_none() {
+                if self
+                    .db
+                    .get(&sws_core::tag_disponibilita(id))
+                    .await
+                    .is_none()
+                {
                     spariti.push(id.clone());
                 }
             }
@@ -142,7 +147,13 @@ impl SourceSupervisor {
                 scritti.remove(&id);
             }
             for (tag, vivo) in disponibilita_da_scrivere(&self.stato.istantanea(), &mut scritti) {
-                self.db.set(tag, sws_core::TagValue::Bool(vivo), sws_core::TagQuality::Good).await;
+                self.db
+                    .set(
+                        tag,
+                        sws_core::TagValue::Bool(vivo),
+                        sws_core::TagQuality::Good,
+                    )
+                    .await;
             }
         }
     }
@@ -244,7 +255,8 @@ impl SourceSupervisor {
     /// le sorgenti non partono (vedi il campo `nel_cloud`). Si chiama una volta
     /// all'avvio da `main.rs`.
     pub fn imposta_nel_cloud(&self, v: bool) {
-        self.nel_cloud.store(v, std::sync::atomic::Ordering::Relaxed);
+        self.nel_cloud
+            .store(v, std::sync::atomic::Ordering::Relaxed);
     }
 
     pub fn e_nel_cloud(&self) -> bool {
@@ -412,7 +424,8 @@ impl SourceSupervisor {
                 info!(source = %id_for_log, "starting MQTT task");
                 let mqtt_certificati = self.mqtt_certificati.clone();
                 motore.spawn(async move {
-                    sws_plugin_mqtt::run(cfg, db, bus, cancel_for_task, mqtt_certificati, stato).await;
+                    sws_plugin_mqtt::run(cfg, db, bus, cancel_for_task, mqtt_certificati, stato)
+                        .await;
                 })
             }
             SourceDef::OpcUaServer(cfg) => {
@@ -544,8 +557,16 @@ fn max_silence_of(s: &SourceDef) -> Option<Duration> {
 
 fn tags_of(s: &SourceDef) -> Vec<String> {
     match s {
-        SourceDef::ModbusTcp(c) => c.dispositivi().iter().flat_map(|d| d.registers.iter().map(|r| r.tag.clone())).collect(),
-        SourceDef::ModbusRtu(c) => c.dispositivi().iter().flat_map(|d| d.registers.iter().map(|r| r.tag.clone())).collect(),
+        SourceDef::ModbusTcp(c) => c
+            .dispositivi()
+            .iter()
+            .flat_map(|d| d.registers.iter().map(|r| r.tag.clone()))
+            .collect(),
+        SourceDef::ModbusRtu(c) => c
+            .dispositivi()
+            .iter()
+            .flat_map(|d| d.registers.iter().map(|r| r.tag.clone()))
+            .collect(),
         SourceDef::OpcUaServer(c) => c.nodes.iter().map(|n| n.tag.clone()).collect(),
         SourceDef::Mqtt(c) => c.topics.iter().map(|t| t.tag.clone()).collect(),
         SourceDef::OpcUaClient(c) => c.nodes.iter().map(|n| n.tag.clone()).collect(),
@@ -597,12 +618,27 @@ mod prove_disponibilita {
         st.registra("mqtt-garage", []);
         let mut scritti = HashMap::new();
         // Appena registrata non ha mai risposto: falso, una volta.
-        assert_eq!(disponibilita_da_scrivere(&st.istantanea(), &mut scritti), vec![("mqtt-garage.disponibile".to_string(), false)]);
-        assert!(disponibilita_da_scrivere(&st.istantanea(), &mut scritti).is_empty(), "niente di nuovo, niente da scrivere");
+        assert_eq!(
+            disponibilita_da_scrivere(&st.istantanea(), &mut scritti),
+            vec![("mqtt-garage.disponibile".to_string(), false)]
+        );
+        assert!(
+            disponibilita_da_scrivere(&st.istantanea(), &mut scritti).is_empty(),
+            "niente di nuovo, niente da scrivere"
+        );
         st.bus("mqtt-garage", Collegamento::Ok, None);
-        assert_eq!(disponibilita_da_scrivere(&st.istantanea(), &mut scritti), vec![("mqtt-garage.disponibile".to_string(), true)]);
-        st.caduta("mqtt-garage", "zigbee2mqtt/bridge/state dice offline".into());
-        assert_eq!(disponibilita_da_scrivere(&st.istantanea(), &mut scritti), vec![("mqtt-garage.disponibile".to_string(), false)]);
+        assert_eq!(
+            disponibilita_da_scrivere(&st.istantanea(), &mut scritti),
+            vec![("mqtt-garage.disponibile".to_string(), true)]
+        );
+        st.caduta(
+            "mqtt-garage",
+            "zigbee2mqtt/bridge/state dice offline".into(),
+        );
+        assert_eq!(
+            disponibilita_da_scrivere(&st.istantanea(), &mut scritti),
+            vec![("mqtt-garage.disponibile".to_string(), false)]
+        );
     }
 
     #[test]
@@ -617,7 +653,11 @@ mod prove_disponibilita {
         assert!(scritti.is_empty());
         st.registra("s7", []);
         st.bus("s7", Collegamento::Ok, None);
-        assert_eq!(disponibilita_da_scrivere(&st.istantanea(), &mut scritti).len(), 1, "tornata, si riscrive");
+        assert_eq!(
+            disponibilita_da_scrivere(&st.istantanea(), &mut scritti).len(),
+            1,
+            "tornata, si riscrive"
+        );
     }
 }
 
@@ -764,9 +804,16 @@ mod tests_q33 {
     #[test]
     fn nel_cloud_il_flag_precede_l_apertura_del_progetto() {
         let main = include_str!("../../sws-runtime/src/main.rs");
-        let flag = main.find("supervisor.imposta_nel_cloud(").expect("imposta_nel_cloud sparita da main.rs");
-        let apertura = main.find("Project::load(&project_path)").expect("apertura al boot sparita: aggiornare il test");
-        assert!(flag < apertura, "in main.rs il progetto si apre prima di dire al supervisore che è nel cloud");
+        let flag = main
+            .find("supervisor.imposta_nel_cloud(")
+            .expect("imposta_nel_cloud sparita da main.rs");
+        let apertura = main
+            .find("Project::load(&project_path)")
+            .expect("apertura al boot sparita: aggiornare il test");
+        assert!(
+            flag < apertura,
+            "in main.rs il progetto si apre prima di dire al supervisore che è nel cloud"
+        );
     }
 
     /// Fermare resta possibile da fermi: `reload(vec![])` a impianto disarmato

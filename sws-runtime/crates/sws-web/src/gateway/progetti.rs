@@ -50,16 +50,16 @@ pub const MEMORIA_PREDEFINITA: &str = "256m";
 /// l'unica difesa che non costa niente.
 pub const PROCESSI_MASSIMI: i64 = 512;
 
-/// Quanti container di progetto possono stare accesi **insieme**, in tutto.
-///
-/// Diverso da `max_progetti_aperti`, che e' per azienda: venti aziende da un
-/// progetto ciascuna non si fermano a vicenda, e sul VPS venti container
-/// insieme sono gia' troppi. `None` = nessun tetto globale, che e' il caso di
-/// un'installazione a un cliente.
-///
-/// **Rifiuta, non spegne il piu' vecchio** — stessa scelta della regola 1 qui
-/// sopra, e per la stessa ragione: chi sta lavorando non deve ritrovarsi il
-/// progetto chiuso perche' e' arrivato qualcun altro.
+// Quanti container di progetto possono stare accesi **insieme**, in tutto.
+//
+// Diverso da `max_progetti_aperti`, che e' per azienda: venti aziende da un
+// progetto ciascuna non si fermano a vicenda, e sul VPS venti container
+// insieme sono gia' troppi. `None` = nessun tetto globale, che e' il caso di
+// un'installazione a un cliente.
+//
+// **Rifiuta, non spegne il piu' vecchio** — stessa scelta della regola 1 qui
+// sopra, e per la stessa ragione: chi sta lavorando non deve ritrovarsi il
+// progetto chiuso perche' e' arrivato qualcun altro.
 
 /// Da `256m` ai byte che vuole l'API di podman.
 ///
@@ -248,7 +248,6 @@ impl Regia {
     pub fn segreto(&self) -> &str {
         &self.segreto
     }
-
 }
 
 /// Un container acceso si adotta solo se gira **la nostra** immagine
@@ -291,7 +290,9 @@ impl Regia {
                 );
                 continue;
             };
-            let Some((az, nome)) = rif.split_once('/').map(|(a, n)| (a.to_string(), n.to_string()))
+            let Some((az, nome)) = rif
+                .split_once('/')
+                .map(|(a, n)| (a.to_string(), n.to_string()))
             else {
                 continue;
             };
@@ -354,7 +355,10 @@ impl Regia {
             quanti += 1;
         }
         if quanti > 0 {
-            tracing::info!(quanti, "container ripresi in carico dopo un riavvio del gateway");
+            tracing::info!(
+                quanti,
+                "container ripresi in carico dopo un riavvio del gateway"
+            );
         }
         Ok(quanti)
     }
@@ -377,7 +381,11 @@ impl Regia {
                 })
             }
             ComeRaggiungere::PortaPubblicata => {
-                let porta = self.podman.porta_pubblicata(contenitore, PORTA_FIGLIO).await.ok()??;
+                let porta = self
+                    .podman
+                    .porta_pubblicata(contenitore, PORTA_FIGLIO)
+                    .await
+                    .ok()??;
                 Some(format!("http://127.0.0.1:{porta}"))
             }
         }
@@ -389,7 +397,12 @@ impl Regia {
 
     /// Quanti progetti di quell'azienda sono aperti adesso.
     pub async fn aperti_di(&self, azienda: &str) -> usize {
-        self.aperti.read().await.values().filter(|a| a.azienda == azienda).count()
+        self.aperti
+            .read()
+            .await
+            .values()
+            .filter(|a| a.azienda == azienda)
+            .count()
     }
 
     /// Una finestra si è collegata a quel progetto.
@@ -414,7 +427,11 @@ impl Regia {
     pub async fn spegni_i_fermi(&self) -> Vec<String> {
         let scaduti: Vec<Aperto> = {
             let aperti = self.aperti.read().await;
-            aperti.values().filter(|a| a.scaduto(self.fermo_dopo)).cloned().collect()
+            aperti
+                .values()
+                .filter(|a| a.scaduto(self.fermo_dopo))
+                .cloned()
+                .collect()
         };
         let mut spenti = Vec::new();
         for a in scaduti {
@@ -507,7 +524,8 @@ impl Regia {
                 #[cfg(unix)]
                 {
                     use std::os::unix::fs::PermissionsExt as _;
-                    let _ = std::fs::set_permissions(&config, std::fs::Permissions::from_mode(0o700));
+                    let _ =
+                        std::fs::set_permissions(&config, std::fs::Permissions::from_mode(0o700));
                 }
                 true
             }
@@ -567,12 +585,15 @@ impl Regia {
             ],
         });
         if config_ok {
-            spec["mounts"].as_array_mut().expect("mounts è un elenco").push(serde_json::json!({
-                "type": "bind",
-                "source": config.to_string_lossy(),
-                "destination": "/var/sws/config",
-                "options": ["rw"],
-            }));
+            spec["mounts"]
+                .as_array_mut()
+                .expect("mounts è un elenco")
+                .push(serde_json::json!({
+                    "type": "bind",
+                    "source": config.to_string_lossy(),
+                    "destination": "/var/sws/config",
+                    "options": ["rw"],
+                }));
         }
 
         match &self.come {
@@ -608,7 +629,10 @@ impl Regia {
             }
         }
 
-        self.podman.crea(spec).await.map_err(|e| Apertura::Podman(e.to_string()))?;
+        self.podman
+            .crea(spec)
+            .await
+            .map_err(|e| Apertura::Podman(e.to_string()))?;
         self.podman
             .avvia(&contenitore)
             .await
@@ -617,7 +641,9 @@ impl Regia {
         let Some(indirizzo) = self.indirizzo_di(&contenitore).await else {
             let _ = self.podman.ferma(&contenitore, 5).await;
             let _ = self.podman.rimuovi(&contenitore).await;
-            return Err(Apertura::Podman("avviato ma non so come raggiungerlo".into()));
+            return Err(Apertura::Podman(
+                "avviato ma non so come raggiungerlo".into(),
+            ));
         };
 
         // **Si aspetta che risponda**, prima di dire che e' aperto.
@@ -648,7 +674,10 @@ impl Regia {
             // non deve restare acceso per sempre.
             fermo_da: Some(Instant::now()),
         };
-        self.aperti.write().await.insert(riferimento, aperto.clone());
+        self.aperti
+            .write()
+            .await
+            .insert(riferimento, aperto.clone());
         tracing::info!(progetto = %aperto.riferimento, indirizzo = %aperto.indirizzo, "progetto aperto");
         Ok(aperto)
     }
@@ -666,7 +695,9 @@ impl Regia {
             return false;
         };
         let vivo = match self.podman.elenca_nostri().await {
-            Ok(tutti) => tutti.iter().any(|c| c.nome == a.contenitore && c.stato == "running"),
+            Ok(tutti) => tutti
+                .iter()
+                .any(|c| c.nome == a.contenitore && c.stato == "running"),
             // Podman non risponde: non si decide niente, si lascia com'è.
             Err(e) => {
                 tracing::warn!(%riferimento, "verifica del container non riuscita: {e}");
@@ -700,11 +731,17 @@ impl Regia {
 #[derive(Debug)]
 pub enum Apertura {
     /// L'azienda ha gia' aperti tutti i progetti che le spettano.
-    TettoPieno { ora: i64, max: i64 },
+    TettoPieno {
+        ora: i64,
+        max: i64,
+    },
     /// La **macchina** e' piena: il tetto globale di container accesi.
     /// Diverso da `TettoPieno`, e il messaggio lo dice: qui non c'e' niente
     /// che chi legge possa chiudere, perche' i progetti aperti sono di altri.
-    MacchinaPiena { ora: usize, max: usize },
+    MacchinaPiena {
+        ora: usize,
+        max: usize,
+    },
     /// Sul disco quella cartella non c'e'.
     NonTrovato,
     Podman(String),
@@ -733,17 +770,31 @@ impl std::fmt::Display for Apertura {
 /// `<radice>/.sws-config/<azienda>/<progetto>`. Il punto la tiene fuori
 /// dall'elenco dei progetti (`list_projects` salta le cartelle nascoste); l'azienda
 /// implicita, che ha la cartella vuota, va sotto `_`.
-pub(crate) fn cartella_config(radice: &std::path::Path, cartella_azienda: &str, nome: &str) -> std::path::PathBuf {
-    let azienda = if cartella_azienda.is_empty() { "_" } else { cartella_azienda };
+pub(crate) fn cartella_config(
+    radice: &std::path::Path,
+    cartella_azienda: &str,
+    nome: &str,
+) -> std::path::PathBuf {
+    let azienda = if cartella_azienda.is_empty() {
+        "_"
+    } else {
+        cartella_azienda
+    };
     radice.join(".sws-config").join(azienda).join(nome)
 }
 
 /// La cartella di configurazione persistente di un progetto, dalla sua cartella
 /// sotto la radice (`<radice>/<azienda>/<nome>` o `<radice>/<nome>`). `None` se la
 /// cartella non sta sotto la radice.
-pub(crate) fn config_di_progetto(radice: &std::path::Path, dir: &std::path::Path) -> Option<std::path::PathBuf> {
+pub(crate) fn config_di_progetto(
+    radice: &std::path::Path,
+    dir: &std::path::Path,
+) -> Option<std::path::PathBuf> {
     let rel = dir.strip_prefix(radice).ok()?;
-    let parti: Vec<_> = rel.components().map(|c| c.as_os_str().to_string_lossy().to_string()).collect();
+    let parti: Vec<_> = rel
+        .components()
+        .map(|c| c.as_os_str().to_string_lossy().to_string())
+        .collect();
     match parti.as_slice() {
         [nome] => Some(cartella_config(radice, "", nome)),
         [azienda, nome] => Some(cartella_config(radice, azienda, nome)),
@@ -755,8 +806,17 @@ pub(crate) fn config_di_progetto(radice: &std::path::Path, dir: &std::path::Path
 /// lo segue — la chiave dell'IA e il pannello ricordato restavano col nome
 /// vecchio, e il progetto rinominato ripartiva senza. Niente da fare se non
 /// c'era (un progetto mai aperto nel cloud).
-pub(crate) async fn segui_rinomina(radice: &std::path::Path, vecchia: &std::path::Path, nuova: &std::path::Path) {
-    let (Some(da), Some(a)) = (config_di_progetto(radice, vecchia), config_di_progetto(radice, nuova)) else { return };
+pub(crate) async fn segui_rinomina(
+    radice: &std::path::Path,
+    vecchia: &std::path::Path,
+    nuova: &std::path::Path,
+) {
+    let (Some(da), Some(a)) = (
+        config_di_progetto(radice, vecchia),
+        config_di_progetto(radice, nuova),
+    ) else {
+        return;
+    };
     if !tokio::fs::try_exists(&da).await.unwrap_or(false) {
         return;
     }
@@ -771,9 +831,20 @@ pub(crate) async fn segui_rinomina(radice: &std::path::Path, vecchia: &std::path
 /// Il progetto è stato duplicato: la copia eredita le **chiavi** (`*.key`, la
 /// chiave dell'IA), non il pannello ricordato. Una copia di prova non deve
 /// collegarsi da sola all'impianto vero.
-pub(crate) async fn segui_duplicazione(radice: &std::path::Path, origine: &std::path::Path, copia: &std::path::Path) {
-    let (Some(da), Some(a)) = (config_di_progetto(radice, origine), config_di_progetto(radice, copia)) else { return };
-    let Ok(mut voci) = tokio::fs::read_dir(&da).await else { return };
+pub(crate) async fn segui_duplicazione(
+    radice: &std::path::Path,
+    origine: &std::path::Path,
+    copia: &std::path::Path,
+) {
+    let (Some(da), Some(a)) = (
+        config_di_progetto(radice, origine),
+        config_di_progetto(radice, copia),
+    ) else {
+        return;
+    };
+    let Ok(mut voci) = tokio::fs::read_dir(&da).await else {
+        return;
+    };
     while let Ok(Some(v)) = voci.next_entry().await {
         let nome = v.file_name().to_string_lossy().to_string();
         if !nome.ends_with(".key") {
@@ -798,7 +869,10 @@ pub(crate) async fn segui_duplicazione(radice: &std::path::Path, origine: &std::
 /// vanno: il punto lo spezzerebbe in due etichette. Diventano `-`. `None` se non
 /// sta in un'etichetta sola (63 caratteri): allora si usa l'IP.
 fn alias_dns(contenitore: &str) -> Option<String> {
-    let a: String = contenitore.chars().map(|c| if c == '.' || c == '_' { '-' } else { c }).collect();
+    let a: String = contenitore
+        .chars()
+        .map(|c| if c == '.' || c == '_' { '-' } else { c })
+        .collect();
     (a.len() <= 63).then_some(a)
 }
 
@@ -850,25 +924,47 @@ mod tests {
         let nuovo = radice.join("acme").join("impianto2");
         segui_rinomina(radice, &vecchio, &nuovo).await;
         let cfg2 = cartella_config(radice, "acme", "impianto2");
-        assert!(cfg2.join("anthropic.key").exists(), "la chiave segue il nome nuovo");
+        assert!(
+            cfg2.join("anthropic.key").exists(),
+            "la chiave segue il nome nuovo"
+        );
         assert!(!cfg.exists());
 
         let copia = radice.join("acme").join("prova");
         segui_duplicazione(radice, &nuovo, &copia).await;
         let cfg3 = cartella_config(radice, "acme", "prova");
-        assert!(cfg3.join("anthropic.key").exists(), "la copia ha la chiave dell'IA");
-        assert!(!cfg3.join("dispositivo.yaml").exists(), "ma non si collega da sola all'impianto");
+        assert!(
+            cfg3.join("anthropic.key").exists(),
+            "la copia ha la chiave dell'IA"
+        );
+        assert!(
+            !cfg3.join("dispositivo.yaml").exists(),
+            "ma non si collega da sola all'impianto"
+        );
 
         // L'azienda implicita: `<radice>/<nome>` → `.sws-config/_/<nome>`.
-        assert_eq!(config_di_progetto(radice, &radice.join("casa")), Some(cartella_config(radice, "", "casa")));
+        assert_eq!(
+            config_di_progetto(radice, &radice.join("casa")),
+            Some(cartella_config(radice, "", "casa"))
+        );
     }
 
     /// Un riavvio del container cambia l'IP, non il nome (25-10-2026).
     #[test]
     fn in_rete_il_progetto_si_raggiunge_per_nome() {
-        assert_eq!(alias_dns("sws-p---CasaDomotica").as_deref(), Some("sws-p---CasaDomotica"));
-        assert_eq!(alias_dns("sws-p-acme-impianto.v2_b").as_deref(), Some("sws-p-acme-impianto-v2-b"));
-        assert_eq!(alias_dns(&format!("sws-p-{}", "x".repeat(60))), None, "oltre un'etichetta DNS: IP");
+        assert_eq!(
+            alias_dns("sws-p---CasaDomotica").as_deref(),
+            Some("sws-p---CasaDomotica")
+        );
+        assert_eq!(
+            alias_dns("sws-p-acme-impianto.v2_b").as_deref(),
+            Some("sws-p-acme-impianto-v2-b")
+        );
+        assert_eq!(
+            alias_dns(&format!("sws-p-{}", "x".repeat(60))),
+            None,
+            "oltre un'etichetta DNS: IP"
+        );
     }
 
     /// La chiave dell'IA di un progetto del cloud sopravvive alla riapertura
@@ -877,7 +973,10 @@ mod tests {
     #[test]
     fn la_configurazione_del_progetto_sta_fuori_dal_progetto_e_nascosta() {
         let r = std::path::Path::new("/srv/progetti");
-        assert_eq!(cartella_config(r, "acme", "impianto"), r.join(".sws-config/acme/impianto"));
+        assert_eq!(
+            cartella_config(r, "acme", "impianto"),
+            r.join(".sws-config/acme/impianto")
+        );
         assert_eq!(cartella_config(r, "", "casa"), r.join(".sws-config/_/casa"));
         assert!(!cartella_config(r, "acme", "impianto").starts_with(r.join("acme/impianto")));
     }
@@ -931,7 +1030,10 @@ mod tests {
     #[test]
     fn senza_nessuno_scade_quando_passa_il_tempo() {
         let limite = Duration::from_secs(60);
-        assert!(!aperto(0, Some(10)).scaduto(limite), "dieci secondi non bastano");
+        assert!(
+            !aperto(0, Some(10)).scaduto(limite),
+            "dieci secondi non bastano"
+        );
         assert!(!aperto(0, Some(59)).scaduto(limite));
         assert!(aperto(0, Some(60)).scaduto(limite));
         assert!(aperto(0, Some(600)).scaduto(limite));
@@ -988,7 +1090,11 @@ mod tests {
             Ok(a) => a,
             Err(e) => panic!("apertura fallita: {e}"),
         };
-        assert!(aperto.indirizzo.starts_with("http://127.0.0.1:"), "{}", aperto.indirizzo);
+        assert!(
+            aperto.indirizzo.starts_with("http://127.0.0.1:"),
+            "{}",
+            aperto.indirizzo
+        );
 
         // Il figlio deve rispondere. Qualche secondo per partire.
         let mut vivo = false;
@@ -1001,11 +1107,19 @@ mod tests {
                 }
             }
         }
-        assert!(vivo, "il container e partito ma non risponde su {}", aperto.indirizzo);
+        assert!(
+            vivo,
+            "il container e partito ma non risponde su {}",
+            aperto.indirizzo
+        );
 
         // E pretende il segreto: senza, 401.
         let cl = reqwest::Client::new();
-        let senza = cl.get(format!("{}/api/system", aperto.indirizzo)).send().await.unwrap();
+        let senza = cl
+            .get(format!("{}/api/system", aperto.indirizzo))
+            .send()
+            .await
+            .unwrap();
         assert_eq!(senza.status(), 401, "il figlio si fida di chiunque");
         let con = cl
             .get(format!("{}/api/system", aperto.indirizzo))
@@ -1017,7 +1131,10 @@ mod tests {
         assert_eq!(con.status(), 200, "col segreto giusto doveva rispondere");
 
         // Riaprire non crea un secondo container.
-        let di_nuovo = regia.apri("acme", "impianto", "acme", Some(3)).await.unwrap();
+        let di_nuovo = regia
+            .apri("acme", "impianto", "acme", Some(3))
+            .await
+            .unwrap();
         assert_eq!(di_nuovo.contenitore, aperto.contenitore);
         assert_eq!(regia.aperti_di("acme").await, 1);
 
@@ -1033,7 +1150,9 @@ mod tests {
     #[tokio::test]
     #[ignore]
     async fn un_container_sparito_si_dimentica_e_si_riapre() {
-        let Some(podman) = Podman::predefinito() else { return };
+        let Some(podman) = Podman::predefinito() else {
+            return;
+        };
         if !podman.raggiungibile().await {
             return;
         }
@@ -1043,11 +1162,24 @@ mod tests {
         let _ = std::fs::remove_dir_all(&temp);
         let dentro = temp.join("acme").join("impianto");
         std::fs::create_dir_all(&dentro).unwrap();
-        std::fs::write(dentro.join("project.yaml"), "version: 1\nmeta:\n  name: impianto\n").unwrap();
-        let regia = Regia::nuova(podman, immagine, &temp, ComeRaggiungere::PortaPubblicata, "segretolungoabbastanza0123");
+        std::fs::write(
+            dentro.join("project.yaml"),
+            "version: 1\nmeta:\n  name: impianto\n",
+        )
+        .unwrap();
+        let regia = Regia::nuova(
+            podman,
+            immagine,
+            &temp,
+            ComeRaggiungere::PortaPubblicata,
+            "segretolungoabbastanza0123",
+        );
 
         let primo = regia.apri("acme", "impianto", "acme", None).await.unwrap();
-        assert!(regia.verifica_vivo(&primo.riferimento).await, "appena aperto è vivo");
+        assert!(
+            regia.verifica_vivo(&primo.riferimento).await,
+            "appena aperto è vivo"
+        );
 
         // Qualcuno lo toglie da fuori (Portainer, un `podman rm`, un OOM).
         regia.podman.ferma(&primo.contenitore, 1).await.unwrap();
@@ -1060,12 +1192,19 @@ mod tests {
         let mut risponde = false;
         for _ in 0..40 {
             tokio::time::sleep(Duration::from_millis(500)).await;
-            if reqwest::get(format!("{}/health", secondo.indirizzo)).await.is_ok_and(|r| r.status().is_success()) {
+            if reqwest::get(format!("{}/health", secondo.indirizzo))
+                .await
+                .is_ok_and(|r| r.status().is_success())
+            {
                 risponde = true;
                 break;
             }
         }
-        assert!(risponde, "riaperto ma non risponde su {}", secondo.indirizzo);
+        assert!(
+            risponde,
+            "riaperto ma non risponde su {}",
+            secondo.indirizzo
+        );
         regia.chiudi(&secondo.riferimento).await.unwrap();
         let _ = std::fs::remove_dir_all(&temp);
     }

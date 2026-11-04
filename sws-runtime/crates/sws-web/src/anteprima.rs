@@ -46,7 +46,11 @@ pub fn motivo_rifiuto(bytes: &[u8]) -> Option<(StatusCode, String)> {
     if bytes.len() > MAX_BYTES {
         return Some((
             StatusCode::PAYLOAD_TOO_LARGE,
-            format!("miniatura troppo grande ({} KB, max {} KB)", bytes.len() / 1024, MAX_BYTES / 1024),
+            format!(
+                "miniatura troppo grande ({} KB, max {} KB)",
+                bytes.len() / 1024,
+                MAX_BYTES / 1024
+            ),
         ));
     }
     if bytes.len() < PNG_MAGIC.len() || bytes[..PNG_MAGIC.len()] != PNG_MAGIC {
@@ -58,8 +62,13 @@ pub fn motivo_rifiuto(bytes: &[u8]) -> Option<(StatusCode, String)> {
 /// Quando è stata scritta la miniatura di un progetto, in millisecondi: va
 /// nell'elenco dei progetti, così l'IDE sa se ce n'è una e quando richiederla.
 pub fn scritta_ms(dir: &Path) -> Option<u64> {
-    let m = std::fs::metadata(dir.join(NOME_FILE)).ok()?.modified().ok()?;
-    m.duration_since(std::time::UNIX_EPOCH).ok().map(|d| d.as_millis() as u64)
+    let m = std::fs::metadata(dir.join(NOME_FILE))
+        .ok()?
+        .modified()
+        .ok()?;
+    m.duration_since(std::time::UNIX_EPOCH)
+        .ok()
+        .map(|d| d.as_millis() as u64)
 }
 
 /// `PUT /api/project/anteprima` — la miniatura del progetto **aperto**, corpo
@@ -90,7 +99,9 @@ pub async fn leggi(
     chi: Option<Extension<AuthUser>>,
     UrlPath((azienda, nome)): UrlPath<(String, String)>,
 ) -> Response {
-    let p = match crate::projects::risolvi_progetto(&s, chi.as_ref().map(|e| &e.0), &azienda, &nome).await {
+    let p = match crate::projects::risolvi_progetto(&s, chi.as_ref().map(|e| &e.0), &azienda, &nome)
+        .await
+    {
         Ok(p) => p,
         Err(r) => return r,
     };
@@ -116,11 +127,20 @@ mod tests {
         let mut png = PNG_MAGIC.to_vec();
         png.extend_from_slice(&[0u8; 100]);
         assert!(motivo_rifiuto(&png).is_none());
-        assert_eq!(motivo_rifiuto(&[]).map(|m| m.0), Some(StatusCode::BAD_REQUEST));
-        assert_eq!(motivo_rifiuto(b"<svg/>").map(|m| m.0), Some(StatusCode::BAD_REQUEST));
+        assert_eq!(
+            motivo_rifiuto(&[]).map(|m| m.0),
+            Some(StatusCode::BAD_REQUEST)
+        );
+        assert_eq!(
+            motivo_rifiuto(b"<svg/>").map(|m| m.0),
+            Some(StatusCode::BAD_REQUEST)
+        );
         let mut grande = PNG_MAGIC.to_vec();
         grande.resize(MAX_BYTES + 1, 0);
-        assert_eq!(motivo_rifiuto(&grande).map(|m| m.0), Some(StatusCode::PAYLOAD_TOO_LARGE));
+        assert_eq!(
+            motivo_rifiuto(&grande).map(|m| m.0),
+            Some(StatusCode::PAYLOAD_TOO_LARGE)
+        );
     }
 
     #[test]

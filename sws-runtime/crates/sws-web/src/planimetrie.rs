@@ -21,7 +21,10 @@ use axum::Json;
 use serde::{Deserialize, Serialize};
 use tracing::warn;
 
-use crate::router::{active_dir, con_versione, conflitto_di_versione, scrivi_atomico, signal_project_changed, versione_attesa, AppState};
+use crate::router::{
+    active_dir, con_versione, conflitto_di_versione, scrivi_atomico, signal_project_changed,
+    versione_attesa, AppState,
+};
 use crate::synoptic::safe_filename;
 
 /// Il nome della cartella dentro il progetto.
@@ -58,7 +61,9 @@ pub async fn elenco(State(s): State<AppState>) -> Response {
             if p.extension().and_then(|e| e.to_str()) != Some("yaml") {
                 continue;
             }
-            let Ok(text) = tokio::fs::read_to_string(&p).await else { continue };
+            let Ok(text) = tokio::fs::read_to_string(&p).await else {
+                continue;
+            };
             match serde_yaml::from_str::<Planimetria>(&text) {
                 Ok(pl) => out.push(serde_json::json!({ "id": pl.id, "nome": pl.nome })),
                 Err(e) => warn!("planimetria {} illeggibile: {e}", p.display()),
@@ -105,7 +110,11 @@ pub async fn scrivi(
     pl.id = id.clone();
     let path = percorso(&dir, &id);
     let su_disco = tokio::fs::read_to_string(&path).await.ok();
-    if let Some(r) = conflitto_di_versione(versione_attesa(&headers).as_deref(), su_disco.as_deref(), "Questa planimetria") {
+    if let Some(r) = conflitto_di_versione(
+        versione_attesa(&headers).as_deref(),
+        su_disco.as_deref(),
+        "Questa planimetria",
+    ) {
         return r;
     }
     let yaml = match serde_yaml::to_string(&pl) {
@@ -163,7 +172,10 @@ mod tests {
         let pl: Planimetria = serde_json::from_value(json.clone()).unwrap();
         assert_eq!(pl.nome, "Casa — piano terra");
         let yaml = serde_yaml::to_string(&pl).unwrap();
-        assert!(yaml.contains("muri:"), "il YAML porta i muri in chiaro:\n{yaml}");
+        assert!(
+            yaml.contains("muri:"),
+            "il YAML porta i muri in chiaro:\n{yaml}"
+        );
         let di_nuovo: Planimetria = serde_yaml::from_str(&yaml).unwrap();
         assert_eq!(di_nuovo, pl);
         assert_eq!(serde_json::to_value(&di_nuovo).unwrap(), json);

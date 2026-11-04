@@ -36,14 +36,24 @@ impl Dispositivo for Finto {
             return Err(io::Error::new(io::ErrorKind::BrokenPipe, "chiuso"));
         }
         if self.eccezioni.contains(&addr) {
-            return Err(io::Error::new(io::ErrorKind::Other, "Illegal data address"));
+            return Err(io::Error::other("Illegal data address"));
         }
         Ok(if area.a_bit() {
-            Letti::Bit((addr..addr + n).map(|a| *self.bit.get(&a).unwrap_or(&false)).collect())
+            Letti::Bit(
+                (addr..addr + n)
+                    .map(|a| *self.bit.get(&a).unwrap_or(&false))
+                    .collect(),
+            )
         } else {
             Letti::Registri(
                 (addr..addr + n)
-                    .map(|a| *self.per_unita.get(&(self.unita, a)).or(self.registri.get(&a)).unwrap_or(&0))
+                    .map(|a| {
+                        *self
+                            .per_unita
+                            .get(&(self.unita, a))
+                            .or(self.registri.get(&a))
+                            .unwrap_or(&0)
+                    })
                     .collect(),
             )
         })
@@ -71,7 +81,18 @@ impl Dispositivo for Finto {
 }
 
 fn mappa(tag: &str, address: u16, area: AreaModbus) -> RegisterMapping {
-    RegisterMapping { tag: tag.into(), address, scale: 1.0, area, formato: None, bit: None, sola_lettura: false, min: None, max: None, testi: None }
+    RegisterMapping {
+        tag: tag.into(),
+        address,
+        scale: 1.0,
+        area,
+        formato: None,
+        bit: None,
+        sola_lettura: false,
+        min: None,
+        max: None,
+        testi: None,
+    }
 }
 
 fn membro(nome: &str, tipo: &str) -> Membro {
@@ -89,7 +110,8 @@ async fn db_con(tags: &[TagDef], types: &[TypeDef]) -> TagDb {
                 for fo in f.foglie(&t.id, types) {
                     tipi.insert(fo.percorso.clone(), fo.tipo.nome());
                 }
-                db.set(t.id.clone(), f.valore_iniziale(), TagQuality::Uncertain).await;
+                db.set(t.id.clone(), f.valore_iniziale(), TagQuality::Uncertain)
+                    .await;
                 forme.insert(t.id.clone(), f);
             }
             None => {
@@ -114,13 +136,22 @@ fn tipo_motore() -> TypeDef {
     TypeDef {
         id: "motore".into(),
         description: String::new(),
-        members: vec![membro("marcia", "bool"), membro("velocita", "f32"), membro("ore", "u32")],
+        members: vec![
+            membro("marcia", "bool"),
+            membro("velocita", "f32"),
+            membro("ore", "u32"),
+        ],
     }
 }
 
 const T: Duration = Duration::from_secs(3);
 
-async fn giro(dev: &mut Finto, db: &TagDb, regs: &[RegisterMapping], ordine: OrdineModbus) -> anyhow::Result<EsitoGiro> {
+async fn giro(
+    dev: &mut Finto,
+    db: &TagDb,
+    regs: &[RegisterMapping],
+    ordine: OrdineModbus,
+) -> anyhow::Result<EsitoGiro> {
     let m = prepara(db, regs).await;
     leggi_giro(dev, db, &m, ordine, T, &mut HashSet::new(), "prova", &[], 0).await
 }
@@ -132,7 +163,16 @@ async fn val(db: &TagDb, id: &str) -> (TagValue, TagQuality) {
 
 #[tokio::test]
 async fn ogni_tag_si_legge_col_suo_tipo() {
-    let db = db_con(&[tag("t", "i16"), tag("vecchio", "float"), tag("f", "f32"), tag("allarme", "i32")], &[]).await;
+    let db = db_con(
+        &[
+            tag("t", "i16"),
+            tag("vecchio", "float"),
+            tag("f", "f32"),
+            tag("allarme", "i32"),
+        ],
+        &[],
+    )
+    .await;
     let mut dev = Finto::default();
     dev.registri.insert(0, 0xFFFE); // -2 come i16
     dev.registri.insert(1, 0xFFFE); // il tag «float» storico: un u16
@@ -141,18 +181,27 @@ async fn ogni_tag_si_legge_col_suo_tipo() {
     dev.bit.insert(5, true);
     let regs = [
         mappa("t", 0, AreaModbus::Holding),
-        RegisterMapping { scale: 0.1, ..mappa("vecchio", 1, AreaModbus::Holding) },
+        RegisterMapping {
+            scale: 0.1,
+            ..mappa("vecchio", 1, AreaModbus::Holding)
+        },
         mappa("f", 10, AreaModbus::Input),
         mappa("allarme", 5, AreaModbus::Coil),
     ];
-    giro(&mut dev, &db, &regs, OrdineModbus::Cdab).await.unwrap();
+    giro(&mut dev, &db, &regs, OrdineModbus::Cdab)
+        .await
+        .unwrap();
     assert_eq!(val(&db, "t").await.0, TagValue::Int(-2), "i16 con segno");
     assert!(
         matches!(val(&db, "vecchio").await.0, TagValue::Float(f) if (f - 65534.0 * 0.1).abs() < 1e-9),
         "nome storico: u16 × scala, come prima"
     );
     assert_eq!(val(&db, "f").await.0, TagValue::Float(1.5));
-    assert_eq!(val(&db, "allarme").await.0, TagValue::Int(1), "coil su un intero: 0/1");
+    assert_eq!(
+        val(&db, "allarme").await.0,
+        TagValue::Int(1),
+        "coil su un intero: 0/1"
+    );
 }
 
 #[tokio::test]
@@ -164,8 +213,18 @@ async fn una_struttura_si_legge_a_blocco() {
     dev.registri.insert(102, 0x0000);
     dev.registri.insert(103, 0x0001); // ore u32 = 65536 + 2
     dev.registri.insert(104, 0x0002);
-    giro(&mut dev, &db, &[mappa("m1", 100, AreaModbus::Holding)], OrdineModbus::Abcd).await.unwrap();
-    assert_eq!(val(&db, "m1.marcia").await, (TagValue::Bool(true), TagQuality::Good));
+    giro(
+        &mut dev,
+        &db,
+        &[mappa("m1", 100, AreaModbus::Holding)],
+        OrdineModbus::Abcd,
+    )
+    .await
+    .unwrap();
+    assert_eq!(
+        val(&db, "m1.marcia").await,
+        (TagValue::Bool(true), TagQuality::Good)
+    );
     assert_eq!(val(&db, "m1.velocita").await.0, TagValue::Float(50.0));
     assert_eq!(val(&db, "m1.ore").await.0, TagValue::Int(65538));
 }
@@ -176,10 +235,19 @@ async fn un_registro_in_errore_non_ferma_gli_altri() {
     let mut dev = Finto::default();
     dev.registri.insert(1, 7);
     dev.eccezioni.insert(0);
-    let regs = [mappa("a", 0, AreaModbus::Holding), mappa("b", 1, AreaModbus::Holding)];
+    let regs = [
+        mappa("a", 0, AreaModbus::Holding),
+        mappa("b", 1, AreaModbus::Holding),
+    ];
     db.set("a".into(), TagValue::Int(3), TagQuality::Good).await;
-    giro(&mut dev, &db, &regs, OrdineModbus::Abcd).await.expect("un'eccezione non chiude la sessione");
-    assert_eq!(val(&db, "a").await, (TagValue::Int(3), TagQuality::Bad), "resta l'ultimo valore, Bad");
+    giro(&mut dev, &db, &regs, OrdineModbus::Abcd)
+        .await
+        .expect("un'eccezione non chiude la sessione");
+    assert_eq!(
+        val(&db, "a").await,
+        (TagValue::Int(3), TagQuality::Bad),
+        "resta l'ultimo valore, Bad"
+    );
     assert_eq!(val(&db, "b").await, (TagValue::Int(7), TagQuality::Good));
 }
 
@@ -187,12 +255,19 @@ async fn un_registro_in_errore_non_ferma_gli_altri() {
 async fn un_guasto_di_trasporto_chiude_la_sessione() {
     let db = db_con(&[tag("a", "u16")], &[]).await;
     let regs = [mappa("a", 0, AreaModbus::Holding)];
-    let mut dev = Finto { caduto: true, ..Default::default() };
-    assert!(giro(&mut dev, &db, &regs, OrdineModbus::Abcd).await.is_err());
+    let mut dev = Finto {
+        caduto: true,
+        ..Default::default()
+    };
+    assert!(giro(&mut dev, &db, &regs, OrdineModbus::Abcd)
+        .await
+        .is_err());
     // Un'eccezione invece è una risposta del dispositivo: il giro va avanti.
     let mut dev = Finto::default();
     dev.eccezioni.insert(0);
-    let e = giro(&mut dev, &db, &regs, OrdineModbus::Abcd).await.unwrap();
+    let e = giro(&mut dev, &db, &regs, OrdineModbus::Abcd)
+        .await
+        .unwrap();
     assert_eq!(e.risposte, 0);
     assert!(e.errore.unwrap().contains("Illegal data address"));
 }
@@ -203,23 +278,53 @@ async fn una_scrittura_su_una_foglia_tocca_solo_i_suoi_registri() {
     let mut dev = Finto::default();
     let regs = [mappa("m1", 100, AreaModbus::Holding)];
     let m = prepara(&db, &regs).await;
-    scrivi(&mut dev, &db, &m, OrdineModbus::Abcd, ("m1".into(), Some(".velocita".into()), TagValue::Float(50.0)), "p")
-        .await
-        .unwrap();
-    assert_eq!(dev.scritture, vec![(101, vec![0x4248, 0x0000])], "solo i due registri della velocità");
-    assert_eq!(val(&db, "m1.velocita").await.0, TagValue::Float(50.0), "l'eco");
+    scrivi(
+        &mut dev,
+        &db,
+        &m,
+        OrdineModbus::Abcd,
+        ("m1".into(), Some(".velocita".into()), TagValue::Float(50.0)),
+        "p",
+    )
+    .await
+    .unwrap();
+    assert_eq!(
+        dev.scritture,
+        vec![(101, vec![0x4248, 0x0000])],
+        "solo i due registri della velocità"
+    );
+    assert_eq!(
+        val(&db, "m1.velocita").await.0,
+        TagValue::Float(50.0),
+        "l'eco"
+    );
 }
 
 #[tokio::test]
 async fn una_scrittura_sul_tag_storico_usa_la_scala_una_volta() {
     let db = db_con(&[tag("v", "float")], &[]).await;
     let mut dev = Finto::default();
-    let regs = [RegisterMapping { scale: 0.1, ..mappa("v", 3, AreaModbus::Holding) }];
+    let regs = [RegisterMapping {
+        scale: 0.1,
+        ..mappa("v", 3, AreaModbus::Holding)
+    }];
     let m = prepara(&db, &regs).await;
-    scrivi(&mut dev, &db, &m, OrdineModbus::Abcd, ("v".into(), None, TagValue::Float(12.3)), "p").await.unwrap();
+    scrivi(
+        &mut dev,
+        &db,
+        &m,
+        OrdineModbus::Abcd,
+        ("v".into(), None, TagValue::Float(12.3)),
+        "p",
+    )
+    .await
+    .unwrap();
     assert_eq!(dev.registri.get(&3), Some(&123));
     let (v, _) = val(&db, "v").await;
-    assert!(matches!(v, TagValue::Float(f) if (f - 12.3).abs() < 1e-9), "eco 12.3, non 1.23 né 123: {v:?}");
+    assert!(
+        matches!(v, TagValue::Float(f) if (f - 12.3).abs() < 1e-9),
+        "eco 12.3, non 1.23 né 123: {v:?}"
+    );
 }
 
 #[tokio::test]
@@ -227,7 +332,16 @@ async fn sulle_aree_di_sola_lettura_non_si_scrive() {
     let db = db_con(&[tag("i", "u16")], &[]).await;
     let mut dev = Finto::default();
     let m = prepara(&db, &[mappa("i", 0, AreaModbus::Input)]).await;
-    scrivi(&mut dev, &db, &m, OrdineModbus::Abcd, ("i".into(), None, TagValue::Int(5)), "p").await.unwrap();
+    scrivi(
+        &mut dev,
+        &db,
+        &m,
+        OrdineModbus::Abcd,
+        ("i".into(), None, TagValue::Int(5)),
+        "p",
+    )
+    .await
+    .unwrap();
     assert!(dev.scritture.is_empty());
 }
 
@@ -276,13 +390,27 @@ async fn due_dispositivi_sullo_stesso_bus_ognuno_col_suo_ordine() {
     dev.per_unita.insert((1, 1), 0x0000);
     dev.per_unita.insert((2, 0), 0x0000);
     dev.per_unita.insert((2, 1), 0x3FC0);
-    let d2 = DispositivoModbus { ordine: OrdineModbus::Cdab, ..disp(2, vec![mappa("b", 0, AreaModbus::Holding)]) };
-    let mut unita = vec![Unita::da(&disp(1, vec![mappa("a", 0, AreaModbus::Holding)]), 1000), Unita::da(&d2, 1000)];
+    let d2 = DispositivoModbus {
+        ordine: OrdineModbus::Cdab,
+        ..disp(2, vec![mappa("b", 0, AreaModbus::Holding)])
+    };
+    let mut unita = vec![
+        Unita::da(&disp(1, vec![mappa("a", 0, AreaModbus::Holding)]), 1000),
+        Unita::da(&d2, 1000),
+    ];
     let stato = StatoSorgenti::new();
     let (_tx, rx) = mpsc::channel(4);
-    sessione_per(dev, &db, &mut unita, &stato, rx, Duration::from_millis(100)).await.unwrap();
-    assert_eq!(val(&db, "a").await, (TagValue::Float(1.5), TagQuality::Good));
-    assert_eq!(val(&db, "b").await, (TagValue::Float(1.5), TagQuality::Good));
+    sessione_per(dev, &db, &mut unita, &stato, rx, Duration::from_millis(100))
+        .await
+        .unwrap();
+    assert_eq!(
+        val(&db, "a").await,
+        (TagValue::Float(1.5), TagQuality::Good)
+    );
+    assert_eq!(
+        val(&db, "b").await,
+        (TagValue::Float(1.5), TagQuality::Good)
+    );
     let s = stato.istantanea();
     assert_eq!(s["bus"].dispositivi[&1].stato, Collegamento::Ok);
     assert_eq!(s["bus"].dispositivi[&2].stato, Collegamento::Ok);
@@ -294,7 +422,8 @@ async fn uno_slave_muto_non_ferma_il_bus_tutti_muti_si() {
     let mut dev = Finto::default();
     dev.registri.insert(0, 7);
     dev.mute.insert(2);
-    db.set("b".into(), TagValue::Int(0), TagQuality::Uncertain).await;
+    db.set("b".into(), TagValue::Int(0), TagQuality::Uncertain)
+        .await;
     let mut unita = vec![
         Unita::da(&disp(1, vec![mappa("a", 0, AreaModbus::Holding)]), 1000),
         Unita::da(&disp(2, vec![mappa("b", 0, AreaModbus::Holding)]), 1000),
@@ -302,33 +431,54 @@ async fn uno_slave_muto_non_ferma_il_bus_tutti_muti_si() {
     let stato = StatoSorgenti::new();
     let (_tx, rx) = mpsc::channel(4);
     // Dieci giri: lo slave 2 tace sempre, la sessione regge.
-    sessione_per(dev, &db, &mut unita, &stato, rx, Duration::from_secs(10)).await.expect("il bus resta su");
+    sessione_per(dev, &db, &mut unita, &stato, rx, Duration::from_secs(10))
+        .await
+        .expect("il bus resta su");
     assert_eq!(val(&db, "a").await, (TagValue::Int(7), TagQuality::Good));
     assert_eq!(val(&db, "b").await.1, TagQuality::Bad);
     let s = stato.istantanea();
     assert_eq!(s["bus"].dispositivi[&1].stato, Collegamento::Ok);
     assert_eq!(s["bus"].dispositivi[&2].stato, Collegamento::NonRisponde);
-    assert!(s["bus"].dispositivi[&2].errore.as_deref().unwrap().contains("500 ms"));
+    assert!(s["bus"].dispositivi[&2]
+        .errore
+        .as_deref()
+        .unwrap()
+        .contains("500 ms"));
 
     // Tutti muti: al terzo giro la sessione esce per riconnettere.
     let mut dev = Finto::default();
     dev.mute.extend([1, 2]);
     let (_tx, rx) = mpsc::channel(4);
     let r = sessione_per(dev, &db, &mut unita, &stato, rx, Duration::from_secs(60)).await;
-    assert!(r.unwrap_err().to_string().contains("nessun dispositivo risponde"));
+    assert!(r
+        .unwrap_err()
+        .to_string()
+        .contains("nessun dispositivo risponde"));
 }
 
 #[tokio::test(start_paused = true)]
 async fn ogni_dispositivo_col_suo_intervallo() {
     let db = db_con(&[tag("a", "u16"), tag("b", "u16")], &[]).await;
     let dev = Finto::default();
-    let veloce = DispositivoModbus { poll_interval_ms: Some(100), ..disp(1, vec![mappa("a", 0, AreaModbus::Holding)]) };
-    let mut unita = vec![Unita::da(&veloce, 1000), Unita::da(&disp(2, vec![mappa("b", 0, AreaModbus::Holding)]), 1000)];
+    let veloce = DispositivoModbus {
+        poll_interval_ms: Some(100),
+        ..disp(1, vec![mappa("a", 0, AreaModbus::Holding)])
+    };
+    let mut unita = vec![
+        Unita::da(&veloce, 1000),
+        Unita::da(&disp(2, vec![mappa("b", 0, AreaModbus::Holding)]), 1000),
+    ];
     assert_eq!(unita[0].intervallo, Duration::from_millis(100));
-    assert_eq!(unita[1].intervallo, Duration::from_millis(1000), "vuoto = quello del bus");
+    assert_eq!(
+        unita[1].intervallo,
+        Duration::from_millis(1000),
+        "vuoto = quello del bus"
+    );
     let stato = StatoSorgenti::new();
     let (_tx, rx) = mpsc::channel(4);
-    sessione_per(dev, &db, &mut unita, &stato, rx, Duration::from_millis(50)).await.unwrap();
+    sessione_per(dev, &db, &mut unita, &stato, rx, Duration::from_millis(50))
+        .await
+        .unwrap();
 }
 
 #[tokio::test(start_paused = true)]
@@ -341,7 +491,9 @@ async fn una_scrittura_va_allo_slave_che_mappa_il_tag() {
     ];
     let stato = StatoSorgenti::new();
     let (tx, rx) = mpsc::channel(4);
-    tx.send(("b".into(), None, TagValue::Int(42))).await.unwrap();
+    tx.send(("b".into(), None, TagValue::Int(42)))
+        .await
+        .unwrap();
     let cancel = CancellationToken::new();
     let rx = Mutex::new(rx);
     let c = cancel.clone();
@@ -352,9 +504,16 @@ async fn una_scrittura_va_allo_slave_che_mappa_il_tag() {
         c.cancel();
     };
     dev.imposta_unita(1);
-    let (r, ()) = tokio::join!(sessione(dev, "bus", &mut unita, &db, &stato, &rx, &cancel), fermo);
+    let (r, ()) = tokio::join!(
+        sessione(dev, "bus", &mut unita, &db, &stato, &rx, &cancel),
+        fermo
+    );
     r.unwrap();
-    assert_eq!(val(&db, "b").await, (TagValue::Int(42), TagQuality::Good), "eco della scrittura");
+    assert_eq!(
+        val(&db, "b").await,
+        (TagValue::Int(42), TagQuality::Good),
+        "eco della scrittura"
+    );
 }
 
 #[tokio::test]
@@ -365,7 +524,16 @@ async fn la_scrittura_seleziona_l_unita_giusta() {
     let u = Unita::da(&disp(5, vec![mappa("b", 9, AreaModbus::Holding)]), 1000);
     dev.imposta_unita(u.unit_id);
     let m = prepara(&db, &u.registri).await;
-    scrivi(&mut dev, &db, &m, u.ordine, ("b".into(), None, TagValue::Int(42)), "p").await.unwrap();
+    scrivi(
+        &mut dev,
+        &db,
+        &m,
+        u.ordine,
+        ("b".into(), None, TagValue::Int(42)),
+        "p",
+    )
+    .await
+    .unwrap();
     assert_eq!(dev.scritture_a, vec![5]);
     assert_eq!(dev.scritture, vec![(9, vec![42])]);
 }
@@ -390,17 +558,31 @@ async fn formato_e_scala_portano_il_segno_e_i_decimali_in_un_f32() {
     });
     giro(&mut dev, &db, &[r], OrdineModbus::Abcd).await.unwrap();
     let (v, q) = val(&db, "pv").await;
-    assert!(matches!(v, TagValue::Float(f) if (f + 12.5).abs() < 1e-6), "{v:?}");
+    assert!(
+        matches!(v, TagValue::Float(f) if (f + 12.5).abs() < 1e-6),
+        "{v:?}"
+    );
     assert_eq!(q, TagQuality::Good);
 }
 
 #[tokio::test]
 async fn i_bit_della_stessa_word_sono_una_lettura_sola() {
-    let db = db_con(&[tag("a1", "bool"), tag("a2", "bool"), tag("man", "bool")], &[]).await;
+    let db = db_con(
+        &[tag("a1", "bool"), tag("a2", "bool"), tag("man", "bool")],
+        &[],
+    )
+    .await;
     let mut dev = Finto::default();
     dev.registri.insert(1004, 0b10_0000_0001); // bit 0 e bit 9
     let bit = |t: &str, b: u8| con(mappa(t, 1004, AreaModbus::Holding), |r| r.bit = Some(b));
-    giro(&mut dev, &db, &[bit("a1", 0), bit("a2", 1), bit("man", 9)], OrdineModbus::Abcd).await.unwrap();
+    giro(
+        &mut dev,
+        &db,
+        &[bit("a1", 0), bit("a2", 1), bit("man", 9)],
+        OrdineModbus::Abcd,
+    )
+    .await
+    .unwrap();
     assert_eq!(val(&db, "a1").await.0, TagValue::Bool(true));
     assert_eq!(val(&db, "a2").await.0, TagValue::Bool(false));
     assert_eq!(val(&db, "man").await.0, TagValue::Bool(true));
@@ -412,10 +594,34 @@ async fn scrivere_un_bit_cambia_solo_quel_bit() {
     let db = db_con(&[tag("do3", "bool")], &[]).await;
     let mut dev = Finto::default();
     dev.registri.insert(20, 0b0001);
-    let m = prepara(&db, &[con(mappa("do3", 20, AreaModbus::Holding), |r| r.bit = Some(3))]).await;
-    scrivi(&mut dev, &db, &m, OrdineModbus::Abcd, ("do3".into(), None, TagValue::Bool(true)), "p").await.unwrap();
+    let m = prepara(
+        &db,
+        &[con(mappa("do3", 20, AreaModbus::Holding), |r| {
+            r.bit = Some(3)
+        })],
+    )
+    .await;
+    scrivi(
+        &mut dev,
+        &db,
+        &m,
+        OrdineModbus::Abcd,
+        ("do3".into(), None, TagValue::Bool(true)),
+        "p",
+    )
+    .await
+    .unwrap();
     assert_eq!(dev.registri[&20], 0b1001, "bit 0 intatto, bit 3 acceso");
-    scrivi(&mut dev, &db, &m, OrdineModbus::Abcd, ("do3".into(), None, TagValue::Bool(false)), "p").await.unwrap();
+    scrivi(
+        &mut dev,
+        &db,
+        &m,
+        OrdineModbus::Abcd,
+        ("do3".into(), None, TagValue::Bool(false)),
+        "p",
+    )
+    .await
+    .unwrap();
     assert_eq!(dev.registri[&20], 0b0001);
     assert_eq!(val(&db, "do3").await.0, TagValue::Bool(false), "l'eco");
 }
@@ -424,12 +630,24 @@ async fn scrivere_un_bit_cambia_solo_quel_bit() {
 async fn una_scrittura_con_formato_divide_per_la_scala() {
     let db = db_con(&[tag("sp1", "f32")], &[]).await;
     let mut dev = Finto::default();
-    let m = prepara(&db, &[con(mappa("sp1", 2000, AreaModbus::Holding), |r| {
-        r.formato = Some("i16".into());
-        r.scale = 0.1;
-    })])
+    let m = prepara(
+        &db,
+        &[con(mappa("sp1", 2000, AreaModbus::Holding), |r| {
+            r.formato = Some("i16".into());
+            r.scale = 0.1;
+        })],
+    )
     .await;
-    scrivi(&mut dev, &db, &m, OrdineModbus::Abcd, ("sp1".into(), None, TagValue::Float(-5.5)), "p").await.unwrap();
+    scrivi(
+        &mut dev,
+        &db,
+        &m,
+        OrdineModbus::Abcd,
+        ("sp1".into(), None, TagValue::Float(-5.5)),
+        "p",
+    )
+    .await
+    .unwrap();
     assert_eq!(dev.scritture, vec![(2000, vec![(-55i16) as u16])]);
 }
 
@@ -437,8 +655,23 @@ async fn una_scrittura_con_formato_divide_per_la_scala() {
 async fn sola_lettura_rifiuta_anche_su_holding() {
     let db = db_con(&[tag("pv", "u16")], &[]).await;
     let mut dev = Finto::default();
-    let m = prepara(&db, &[con(mappa("pv", 1000, AreaModbus::Holding), |r| r.sola_lettura = true)]).await;
-    scrivi(&mut dev, &db, &m, OrdineModbus::Abcd, ("pv".into(), None, TagValue::Int(1)), "p").await.unwrap();
+    let m = prepara(
+        &db,
+        &[con(mappa("pv", 1000, AreaModbus::Holding), |r| {
+            r.sola_lettura = true
+        })],
+    )
+    .await;
+    scrivi(
+        &mut dev,
+        &db,
+        &m,
+        OrdineModbus::Abcd,
+        ("pv".into(), None, TagValue::Int(1)),
+        "p",
+    )
+    .await
+    .unwrap();
     assert!(dev.scritture.is_empty());
 }
 
@@ -448,16 +681,33 @@ async fn una_word_muta_si_aspetta_una_volta_sola_per_giro() {
     let tags: Vec<TagDef> = (0..16).map(|i| tag(&format!("b{i}"), "bool")).collect();
     let db = db_con(&tags, &[]).await;
     for i in 0..16 {
-        db.set(format!("b{i}"), TagValue::Bool(false), TagQuality::Uncertain).await;
+        db.set(
+            format!("b{i}"),
+            TagValue::Bool(false),
+            TagQuality::Uncertain,
+        )
+        .await;
     }
     let mut dev = Finto::default();
     dev.mute.insert(0);
-    let regs: Vec<RegisterMapping> = (0..16).map(|i| con(mappa(&format!("b{i}"), 10, AreaModbus::Holding), |r| r.bit = Some(i))).collect();
+    let regs: Vec<RegisterMapping> = (0..16)
+        .map(|i| {
+            con(mappa(&format!("b{i}"), 10, AreaModbus::Holding), |r| {
+                r.bit = Some(i)
+            })
+        })
+        .collect();
     let prima = tokio::time::Instant::now();
-    let e = giro(&mut dev, &db, &regs, OrdineModbus::Abcd).await.unwrap();
+    let e = giro(&mut dev, &db, &regs, OrdineModbus::Abcd)
+        .await
+        .unwrap();
     assert_eq!(e.risposte, 0);
     assert_eq!(dev.letture, 1, "una sola richiesta per la word muta");
-    assert!(prima.elapsed() < Duration::from_secs(4), "un timeout, non sedici: {:?}", prima.elapsed());
+    assert!(
+        prima.elapsed() < Duration::from_secs(4),
+        "un timeout, non sedici: {:?}",
+        prima.elapsed()
+    );
     assert_eq!(val(&db, "b15").await.1, TagQuality::Bad);
 }
 
@@ -471,29 +721,51 @@ async fn le_foglie_annidate_si_leggono_come_le_altre() {
         description: String::new(),
         members: vec![membro("di1", "bool"), membro("ai1", "f32")],
     };
-    let top: TypeDef = serde_yaml::from_str("id: m\nmembers:\n  - {name: ingressi, type_ref: m__ingressi}\n").unwrap();
+    let top: TypeDef =
+        serde_yaml::from_str("id: m\nmembers:\n  - {name: ingressi, type_ref: m__ingressi}\n")
+            .unwrap();
     let db = db_con(&[istanza("io", "m")], &[top, ingressi]).await;
     let mut dev = Finto::default();
     dev.registri.insert(1000, 0b1);
     dev.registri.insert(1001, (-125i16) as u16);
     let regs = [
-        con(mappa("io.ingressi.di1", 1000, AreaModbus::Holding), |r| r.bit = Some(0)),
+        con(mappa("io.ingressi.di1", 1000, AreaModbus::Holding), |r| {
+            r.bit = Some(0)
+        }),
         con(mappa("io.ingressi.ai1", 1001, AreaModbus::Holding), |r| {
             r.formato = Some("i16".into());
             r.scale = 0.1;
         }),
     ];
-    giro(&mut dev, &db, &regs, OrdineModbus::Abcd).await.unwrap();
-    assert_eq!(val(&db, "io.ingressi.di1").await, (TagValue::Bool(true), TagQuality::Good));
+    giro(&mut dev, &db, &regs, OrdineModbus::Abcd)
+        .await
+        .unwrap();
+    assert_eq!(
+        val(&db, "io.ingressi.di1").await,
+        (TagValue::Bool(true), TagQuality::Good)
+    );
     let (v, q) = val(&db, "io.ingressi.ai1").await;
-    assert!(matches!(v, TagValue::Float(f) if (f + 12.5).abs() < 1e-6), "{v:?}");
+    assert!(
+        matches!(v, TagValue::Float(f) if (f + 12.5).abs() < 1e-6),
+        "{v:?}"
+    );
     assert_eq!(q, TagQuality::Good);
 }
 
 // ── Il configuratore dei moduli (25-10-2026) ───────────────────────────────
 
-fn param(nome: &str, indirizzo: u16, valore: i64, scrittura: Option<u16>) -> sws_core::ParametroSetup {
-    sws_core::ParametroSetup { nome: nome.into(), indirizzo, valore, indirizzo_scrittura: scrittura }
+fn param(
+    nome: &str,
+    indirizzo: u16,
+    valore: i64,
+    scrittura: Option<u16>,
+) -> sws_core::ParametroSetup {
+    sws_core::ParametroSetup {
+        nome: nome.into(),
+        indirizzo,
+        valore,
+        indirizzo_scrittura: scrittura,
+    }
 }
 
 /// Il caso del 5AD del 04-10-2026: AI1 uscito di fabbrica «disabilitato» (0) e
@@ -515,7 +787,10 @@ async fn il_setup_scrive_solo_le_differenze_e_nell_area_ritardata() {
         param("compatibilita_mcm260", 3, 1, None),
     ];
     let u = Unita::da(&d, 1000);
-    assert!(applica_setup(&mut dev, &u, "bus").await.unwrap(), "fatto, anche col parametro che non si legge");
+    assert!(
+        applica_setup(&mut dev, &u, "bus").await.unwrap(),
+        "fatto, anche col parametro che non si legge"
+    );
     assert_eq!(dev.scritture, vec![(4021, vec![12])]);
 }
 
@@ -531,44 +806,92 @@ async fn il_setup_si_applica_una_volta_per_sessione() {
     let mut d = disp(1, vec![mappa("a", 0, AreaModbus::Holding)]);
     d.setup = vec![param("tipo_sensore_ai1", 2021, 12, None)];
     let mut u = Unita::da(&d, 1000);
-    giro_unita(&mut dev, &db, &mut u, &stato, "bus").await.unwrap();
-    giro_unita(&mut dev, &db, &mut u, &stato, "bus").await.unwrap();
-    assert_eq!(dev.scritture, vec![(2021, vec![12])], "una scrittura sola in due giri");
+    giro_unita(&mut dev, &db, &mut u, &stato, "bus")
+        .await
+        .unwrap();
+    giro_unita(&mut dev, &db, &mut u, &stato, "bus")
+        .await
+        .unwrap();
+    assert_eq!(
+        dev.scritture,
+        vec![(2021, vec![12])],
+        "una scrittura sola in due giri"
+    );
 
     let mut muto = Finto::default();
     muto.mute.insert(1);
     muto.imposta_unita(1); // come fa `giro_unita` prima del setup
     let mut u2 = Unita::da(&disp(1, vec![]), 1000);
     u2.setup = vec![param("x", 10, 1, None)];
-    assert!(!applica_setup(&mut muto, &u2, "bus").await.unwrap(), "senza risposta si riprova");
+    assert!(
+        !applica_setup(&mut muto, &u2, "bus").await.unwrap(),
+        "senza risposta si riprova"
+    );
 }
 
 // ── Blocchi, plausibilità, testi, diagnostica (01-11-2026, piano
 //    docs/archive/2026-11-01-inverter-solarman.md, fase 3) ───────────────────
 
 fn blocco(da: u16, a: u16, ogni: u32) -> BloccoModbus {
-    BloccoModbus { area: AreaModbus::Holding, da, a, ogni }
+    BloccoModbus {
+        area: AreaModbus::Holding,
+        da,
+        a,
+        ogni,
+    }
 }
 
-async fn giro_con_blocchi(dev: &mut Finto, db: &TagDb, regs: &[RegisterMapping], blocchi: &[BloccoModbus], n: u64) -> EsitoGiro {
+async fn giro_con_blocchi(
+    dev: &mut Finto,
+    db: &TagDb,
+    regs: &[RegisterMapping],
+    blocchi: &[BloccoModbus],
+    n: u64,
+) -> EsitoGiro {
     let m = prepara(db, regs).await;
-    leggi_giro(dev, db, &m, OrdineModbus::Abcd, T, &mut HashSet::new(), "prova", blocchi, n).await.unwrap()
+    leggi_giro(
+        dev,
+        db,
+        &m,
+        OrdineModbus::Abcd,
+        T,
+        &mut HashSet::new(),
+        "prova",
+        blocchi,
+        n,
+    )
+    .await
+    .unwrap()
 }
 
 #[tokio::test]
 async fn le_mappature_dentro_un_blocco_costano_una_richiesta() {
-    let db = db_con(&[tag("soc", "u16"), tag("v", "u16"), tag("fuori", "u16")], &[]).await;
+    let db = db_con(
+        &[tag("soc", "u16"), tag("v", "u16"), tag("fuori", "u16")],
+        &[],
+    )
+    .await;
     let mut dev = Finto::default();
     dev.registri.insert(0x0210, 17);
     dev.registri.insert(0x020E, 489);
     dev.registri.insert(0x0300, 5);
-    let regs = [mappa("soc", 0x0210, AreaModbus::Holding), mappa("v", 0x020E, AreaModbus::Holding), mappa("fuori", 0x0300, AreaModbus::Holding)];
+    let regs = [
+        mappa("soc", 0x0210, AreaModbus::Holding),
+        mappa("v", 0x020E, AreaModbus::Holding),
+        mappa("fuori", 0x0300, AreaModbus::Holding),
+    ];
     let esito = giro_con_blocchi(&mut dev, &db, &regs, &[blocco(0x0200, 0x0255, 1)], 0).await;
-    assert_eq!(dev.letture, 2, "il blocco più la mappatura che ne sta fuori");
+    assert_eq!(
+        dev.letture, 2,
+        "il blocco più la mappatura che ne sta fuori"
+    );
     assert_eq!(esito.risposte, 3);
     assert_eq!(val(&db, "soc").await, (TagValue::Int(17), TagQuality::Good));
     assert_eq!(val(&db, "v").await, (TagValue::Int(489), TagQuality::Good));
-    assert_eq!(val(&db, "fuori").await, (TagValue::Int(5), TagQuality::Good));
+    assert_eq!(
+        val(&db, "fuori").await,
+        (TagValue::Int(5), TagQuality::Good)
+    );
 }
 
 #[tokio::test]
@@ -582,8 +905,16 @@ async fn un_blocco_lento_si_legge_un_giro_su_n() {
     assert_eq!((dev.letture, primo.chieste), (1, 1));
     dev.registri.insert(0x10B0, 2);
     let secondo = giro_con_blocchi(&mut dev, &db, &regs, &b, 1).await;
-    assert_eq!((dev.letture, secondo.chieste, secondo.risposte), (1, 0, 0), "il giro 1 non tocca al blocco");
-    assert_eq!(val(&db, "e").await, (TagValue::Int(1), TagQuality::Good), "resta il valore di prima, buono");
+    assert_eq!(
+        (dev.letture, secondo.chieste, secondo.risposte),
+        (1, 0, 0),
+        "il giro 1 non tocca al blocco"
+    );
+    assert_eq!(
+        val(&db, "e").await,
+        (TagValue::Int(1), TagQuality::Good),
+        "resta il valore di prima, buono"
+    );
     giro_con_blocchi(&mut dev, &db, &regs, &b, 6).await;
     assert_eq!(val(&db, "e").await, (TagValue::Int(2), TagQuality::Good));
 }
@@ -595,7 +926,10 @@ async fn un_blocco_che_risponde_con_un_eccezione_marca_bad_i_suoi_tag() {
     let mut dev = Finto::default();
     dev.eccezioni.insert(0x0200);
     dev.registri.insert(0x0400, 3);
-    let regs = [mappa("a", 0x0201, AreaModbus::Holding), mappa("b", 0x0400, AreaModbus::Holding)];
+    let regs = [
+        mappa("a", 0x0201, AreaModbus::Holding),
+        mappa("b", 0x0400, AreaModbus::Holding),
+    ];
     let esito = giro_con_blocchi(&mut dev, &db, &regs, &[blocco(0x0200, 0x0210, 1)], 0).await;
     assert_eq!(val(&db, "a").await.1, TagQuality::Bad);
     assert_eq!(val(&db, "b").await, (TagValue::Int(3), TagQuality::Good));
@@ -606,37 +940,84 @@ async fn un_blocco_che_risponde_con_un_eccezione_marca_bad_i_suoi_tag() {
 async fn fuori_dai_limiti_e_bad_e_si_conta() {
     let db = db_con(&[tag("buck", "f32"), tag("soc", "f32")], &[]).await;
     // Come nel runtime, dove ogni tag dichiarato parte col suo valore iniziale.
-    db.set("buck".into(), TagValue::Float(0.0), TagQuality::Uncertain).await;
+    db.set("buck".into(), TagValue::Float(0.0), TagQuality::Uncertain)
+        .await;
     let mut dev = Finto::default();
     dev.registri.insert(0x022F, 65100); // 651 A: impossibile
     dev.registri.insert(0x0210, 17);
     let regs = [
-        RegisterMapping { formato: Some("u16".into()), scale: 0.01, max: Some(100.0), ..mappa("buck", 0x022F, AreaModbus::Holding) },
-        RegisterMapping { formato: Some("u16".into()), min: Some(0.0), max: Some(100.0), ..mappa("soc", 0x0210, AreaModbus::Holding) },
+        RegisterMapping {
+            formato: Some("u16".into()),
+            scale: 0.01,
+            max: Some(100.0),
+            ..mappa("buck", 0x022F, AreaModbus::Holding)
+        },
+        RegisterMapping {
+            formato: Some("u16".into()),
+            min: Some(0.0),
+            max: Some(100.0),
+            ..mappa("soc", 0x0210, AreaModbus::Holding)
+        },
     ];
     let esito = giro_con_blocchi(&mut dev, &db, &regs, &[], 0).await;
     assert_eq!(val(&db, "buck").await.1, TagQuality::Bad);
-    assert_eq!(val(&db, "soc").await, (TagValue::Float(17.0), TagQuality::Good));
+    assert_eq!(
+        val(&db, "soc").await,
+        (TagValue::Float(17.0), TagQuality::Good)
+    );
     assert_eq!(esito.diagnostica.non_plausibili, 1);
 }
 
 #[tokio::test]
 async fn un_enum_e_una_maschera_di_bit_diventano_testo() {
-    let db = db_con(&[tag("stato", "string"), tag("guasti", "string"), tag("nessuno", "string")], &[]).await;
+    let db = db_con(
+        &[
+            tag("stato", "string"),
+            tag("guasti", "string"),
+            tag("nessuno", "string"),
+        ],
+        &[],
+    )
+    .await;
     let mut dev = Finto::default();
     dev.registri.insert(0x0200, 2);
     dev.registri.insert(0x0201, 0b101);
-    let stati = TestiRegistro { modo: ModoTesti::Valore, voci: [(0, "Stand-by".into()), (2, "Normal".into())].into() };
-    let bit = TestiRegistro { modo: ModoTesti::Bit, voci: [(0, "ID01 Grid Over Voltage".into()), (2, "ID03".into())].into() };
+    let stati = TestiRegistro {
+        modo: ModoTesti::Valore,
+        voci: [(0, "Stand-by".into()), (2, "Normal".into())].into(),
+    };
+    let bit = TestiRegistro {
+        modo: ModoTesti::Bit,
+        voci: [(0, "ID01 Grid Over Voltage".into()), (2, "ID03".into())].into(),
+    };
     let regs = [
-        RegisterMapping { formato: Some("u16".into()), testi: Some(stati), ..mappa("stato", 0x0200, AreaModbus::Holding) },
-        RegisterMapping { formato: Some("u16".into()), testi: Some(bit.clone()), ..mappa("guasti", 0x0201, AreaModbus::Holding) },
-        RegisterMapping { formato: Some("u16".into()), testi: Some(bit), ..mappa("nessuno", 0x0202, AreaModbus::Holding) },
+        RegisterMapping {
+            formato: Some("u16".into()),
+            testi: Some(stati),
+            ..mappa("stato", 0x0200, AreaModbus::Holding)
+        },
+        RegisterMapping {
+            formato: Some("u16".into()),
+            testi: Some(bit.clone()),
+            ..mappa("guasti", 0x0201, AreaModbus::Holding)
+        },
+        RegisterMapping {
+            formato: Some("u16".into()),
+            testi: Some(bit),
+            ..mappa("nessuno", 0x0202, AreaModbus::Holding)
+        },
     ];
     giro_con_blocchi(&mut dev, &db, &regs, &[], 0).await;
     assert_eq!(val(&db, "stato").await.0, TagValue::Str("Normal".into()));
-    assert_eq!(val(&db, "guasti").await.0, TagValue::Str("ID01 Grid Over Voltage; ID03".into()));
-    assert_eq!(val(&db, "nessuno").await.0, TagValue::Str(String::new()), "nessun bit acceso = nessun guasto");
+    assert_eq!(
+        val(&db, "guasti").await.0,
+        TagValue::Str("ID01 Grid Over Voltage; ID03".into())
+    );
+    assert_eq!(
+        val(&db, "nessuno").await.0,
+        TagValue::Str(String::new()),
+        "nessun bit acceso = nessun guasto"
+    );
 }
 
 #[tokio::test(start_paused = true)]
@@ -644,19 +1025,47 @@ async fn la_diagnostica_si_pubblica_solo_se_chiesta() {
     let db = db_con(&[tag("a", "u16")], &[]).await;
     let mut dev = Finto::default();
     dev.registri.insert(0, 500);
-    let regs = vec![RegisterMapping { max: Some(100.0), ..mappa("a", 0, AreaModbus::Holding) }];
-    let mut unita = vec![Unita { pubblica_diagnostica: true, ..Unita::da(&disp(1, regs.clone()), 1000) }];
+    let regs = vec![RegisterMapping {
+        max: Some(100.0),
+        ..mappa("a", 0, AreaModbus::Holding)
+    }];
+    let mut unita = vec![Unita {
+        pubblica_diagnostica: true,
+        ..Unita::da(&disp(1, regs.clone()), 1000)
+    }];
     let stato = StatoSorgenti::new();
     let (_tx, rx) = mpsc::channel(4);
-    sessione_per(dev, &db, &mut unita, &stato, rx, Duration::from_millis(2500)).await.unwrap();
+    sessione_per(
+        dev,
+        &db,
+        &mut unita,
+        &stato,
+        rx,
+        Duration::from_millis(2500),
+    )
+    .await
+    .unwrap();
     let [timeout, rotte, plausibili] = tag_diagnostica("bus");
-    assert_eq!(val(&db, &plausibili).await.0, TagValue::Int(3), "tre giri in 2,5 s");
+    assert_eq!(
+        val(&db, &plausibili).await.0,
+        TagValue::Int(3),
+        "tre giri in 2,5 s"
+    );
     assert_eq!(val(&db, &timeout).await.0, TagValue::Int(0));
     assert_eq!(val(&db, &rotte).await.0, TagValue::Int(0));
 
     let db2 = db_con(&[tag("a", "u16")], &[]).await;
     let mut unita = vec![Unita::da(&disp(1, regs), 1000)];
     let (_tx, rx) = mpsc::channel(4);
-    sessione_per(Finto::default(), &db2, &mut unita, &stato, rx, Duration::from_millis(100)).await.unwrap();
+    sessione_per(
+        Finto::default(),
+        &db2,
+        &mut unita,
+        &stato,
+        rx,
+        Duration::from_millis(100),
+    )
+    .await
+    .unwrap();
     assert!(db2.get(&tag_diagnostica("bus")[0]).await.is_none());
 }

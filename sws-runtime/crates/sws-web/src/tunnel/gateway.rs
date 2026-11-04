@@ -121,7 +121,10 @@ pub async fn accetta(
     // **Un pannello in attesa di abbinamento** (11-10-2026): si presenta col
     // codice e l'identità hardware. Entra in una sala d'attesa in memoria, per
     // codice, da cui nessuna rotta lo raggiunge finché qualcuno non lo abbina.
-    if let Some(codice) = intestazioni.get("x-sws-attesa").and_then(|v| v.to_str().ok()) {
+    if let Some(codice) = intestazioni
+        .get("x-sws-attesa")
+        .and_then(|v| v.to_str().ok())
+    {
         return accetta_in_attesa(&s, ws, codice, &intestazioni).await;
     }
 
@@ -213,10 +216,19 @@ mod prove_silenzio {
     #[test]
     fn muto_solo_dopo_il_silenzio_e_solo_chi_ha_battuto() {
         let t = Instant::now();
-        assert!(!muto(None, t + Duration::from_secs(3600)), "chi non ha mai battuto non è muto");
-        assert!(!muto(Some(t), t + Duration::from_secs(60)), "un battito saltato non basta");
+        assert!(
+            !muto(None, t + Duration::from_secs(3600)),
+            "chi non ha mai battuto non è muto"
+        );
+        assert!(
+            !muto(Some(t), t + Duration::from_secs(60)),
+            "un battito saltato non basta"
+        );
         assert!(muto(Some(t), t + SILENZIO_MASSIMO + Duration::from_secs(1)));
-        assert!(SILENZIO_MASSIMO > 3 * Duration::from_secs(30), "almeno tre battiti del pannello");
+        assert!(
+            SILENZIO_MASSIMO > 3 * Duration::from_secs(30),
+            "almeno tre battiti del pannello"
+        );
     }
 }
 
@@ -227,8 +239,15 @@ fn riconosci_abbinato(
     intestazioni: &HeaderMap,
 ) -> Result<String, crate::tunnel::abbinati::Rifiuto> {
     use crate::tunnel::abbinati::Rifiuto;
-    let abbinati = s.pannelli_abbinati.as_ref().ok_or(Rifiuto::NonRiconosciuto)?;
-    let segreto = s.regia.as_ref().map(|r| r.segreto().to_string()).ok_or(Rifiuto::NonRiconosciuto)?;
+    let abbinati = s
+        .pannelli_abbinati
+        .as_ref()
+        .ok_or(Rifiuto::NonRiconosciuto)?;
+    let segreto = s
+        .regia
+        .as_ref()
+        .map(|r| r.segreto().to_string())
+        .ok_or(Rifiuto::NonRiconosciuto)?;
     let nome = intestazioni
         .get("x-sws-pannello")
         .and_then(|v| v.to_str().ok())
@@ -250,7 +269,9 @@ async fn accetta_in_attesa(
     codice: &str,
     intestazioni: &HeaderMap,
 ) -> Response {
-    let (Some(attesa), Some(abbinati)) = (s.pannelli_in_attesa.clone(), s.pannelli_abbinati.clone()) else {
+    let (Some(attesa), Some(abbinati)) =
+        (s.pannelli_in_attesa.clone(), s.pannelli_abbinati.clone())
+    else {
         return (StatusCode::NOT_FOUND, "questo processo non abbina pannelli").into_response();
     };
     let Some(codice) = crate::abbinamento::normalizza(codice) else {
@@ -274,7 +295,11 @@ async fn accetta_in_attesa(
         let filo = Filo::nuovo(socket);
         let (maniglia, in_arrivo) = avvia(filo, Verso::Chiama);
         drop(in_arrivo);
-        let voce = crate::tunnel::abbinati::Attesa { maniglia: maniglia.clone(), hw: hw.clone(), nome_proposto };
+        let voce = crate::tunnel::abbinati::Attesa {
+            maniglia: maniglia.clone(),
+            hw: hw.clone(),
+            nome_proposto,
+        };
         if !attesa.entra(&codice, voce).await {
             tracing::warn!("troppi pannelli in attesa: rifiuto");
             return;
@@ -289,10 +314,16 @@ async fn accetta_in_attesa(
 
 /// L'azienda di un pannello: dichiarato a mano o abbinato col codice.
 pub fn azienda_del_pannello(s: &crate::router::AppState, pannello: &str) -> Option<String> {
-    if let Some(a) = s.pannelli_ammessi.as_ref().and_then(|a| a.azienda_di(pannello)) {
+    if let Some(a) = s
+        .pannelli_ammessi
+        .as_ref()
+        .and_then(|a| a.azienda_di(pannello))
+    {
         return Some(a.to_string());
     }
-    s.pannelli_abbinati.as_ref().and_then(|a| a.azienda_di(pannello))
+    s.pannelli_abbinati
+        .as_ref()
+        .and_then(|a| a.azienda_di(pannello))
 }
 
 /// Chi guarda può parlare con quel pannello?
@@ -335,7 +366,10 @@ pub async fn collegati(State(s): State<crate::router::AppState>, req: Request<Bo
         return axum::Json(Vec::<String>::new()).into_response();
     };
     let chi = req.extensions().get::<crate::router::AuthUser>().cloned();
-    let figlio = req.extensions().get::<crate::gateway::ritorno::Chiamante>().cloned();
+    let figlio = req
+        .extensions()
+        .get::<crate::gateway::ritorno::Chiamante>()
+        .cloned();
     // L'elenco mostra solo i propri, con lo stesso criterio con cui
     // l'inoltro li lascia passare: un elenco che dice più di quanto si può
     // toccare è un elenco che insegna i nomi degli altri.
@@ -363,7 +397,8 @@ pub async fn inoltra_telefono(
     Path((pannello, tipo)): Path<(String, String)>,
     mut req: Request<Body>,
 ) -> Response {
-    req.headers_mut().remove(crate::abbinamento::INTESTAZIONE_GATEWAY);
+    req.headers_mut()
+        .remove(crate::abbinamento::INTESTAZIONE_GATEWAY);
     if tipo != "voce" && tipo != "sms" {
         return StatusCode::NOT_FOUND.into_response();
     }
@@ -374,16 +409,35 @@ pub async fn inoltra_telefono(
         return (StatusCode::SERVICE_UNAVAILABLE, "pannello non collegato").into_response();
     };
     let h = req.headers();
-    let host = h.get("x-forwarded-host").or_else(|| h.get("host")).and_then(|v| v.to_str().ok()).unwrap_or("").to_string();
-    let proto = h.get("x-forwarded-proto").and_then(|v| v.to_str().ok()).filter(|p| *p == "http" || *p == "https").unwrap_or("https").to_string();
-    let query = req.uri().query().map(|q| format!("?{q}")).unwrap_or_default();
+    let host = h
+        .get("x-forwarded-host")
+        .or_else(|| h.get("host"))
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("")
+        .to_string();
+    let proto = h
+        .get("x-forwarded-proto")
+        .and_then(|v| v.to_str().ok())
+        .filter(|p| *p == "http" || *p == "https")
+        .unwrap_or("https")
+        .to_string();
+    let query = req
+        .uri()
+        .query()
+        .map(|q| format!("?{q}"))
+        .unwrap_or_default();
     let pubblico = format!("{proto}://{host}{}{query}", req.uri().path());
     if let Ok(v) = pubblico.parse() {
-        req.headers_mut().insert(crate::telefono::INTESTAZIONE_URL, v);
+        req.headers_mut()
+            .insert(crate::telefono::INTESTAZIONE_URL, v);
     }
     match attraverso(&maniglia, &format!("/api/telefono/{tipo}"), &query, req).await {
         Ok(r) => r,
-        Err(e) => (StatusCode::BAD_GATEWAY, format!("il pannello non risponde: {e}")).into_response(),
+        Err(e) => (
+            StatusCode::BAD_GATEWAY,
+            format!("il pannello non risponde: {e}"),
+        )
+            .into_response(),
     }
 }
 
@@ -396,7 +450,8 @@ pub async fn inoltra(
     // **La firma del gateway** (fetta E, 11-10-2026): chi chiama non deve
     // poterla portare da fuori — si toglie sempre, e si rimette sotto, solo
     // verso un pannello abbinato e solo dopo i controlli di sempre.
-    req.headers_mut().remove(crate::abbinamento::INTESTAZIONE_GATEWAY);
+    req.headers_mut()
+        .remove(crate::abbinamento::INTESTAZIONE_GATEWAY);
     let Some(registro) = s.tunnel.as_ref() else {
         return (StatusCode::NOT_FOUND, "questo processo non ha tunnel").into_response();
     };
@@ -433,7 +488,8 @@ pub async fn inoltra(
 
     if let Some(firma) = firma_per(&s, &pannello) {
         if let Ok(v) = firma.parse() {
-            req.headers_mut().insert(crate::abbinamento::INTESTAZIONE_GATEWAY, v);
+            req.headers_mut()
+                .insert(crate::abbinamento::INTESTAZIONE_GATEWAY, v);
         }
     }
 
@@ -443,13 +499,21 @@ pub async fn inoltra(
         .and_then(|r| r.split_once('/'))
         .map(|(_, resto)| format!("/{resto}"))
         .unwrap_or_else(|| "/".to_string());
-    let query = req.uri().query().map(|q| format!("?{q}")).unwrap_or_default();
+    let query = req
+        .uri()
+        .query()
+        .map(|q| format!("?{q}"))
+        .unwrap_or_default();
 
     match attraverso(&maniglia, &dentro, &query, req).await {
         Ok(r) => r,
         Err(e) => {
             tracing::warn!(%pannello, "richiesta nel tunnel fallita: {e}");
-            (StatusCode::BAD_GATEWAY, format!("il pannello non risponde: {e}")).into_response()
+            (
+                StatusCode::BAD_GATEWAY,
+                format!("il pannello non risponde: {e}"),
+            )
+                .into_response()
         }
     }
 }
@@ -493,15 +557,28 @@ pub struct Abbina {
 /// pannello si tiene token e nome e si ricollega da abbinato.
 pub async fn abbina(State(s): State<crate::router::AppState>, req: Request<Body>) -> Response {
     let errore = |stato: StatusCode, testo: &str| {
-        (stato, axum::Json(serde_json::json!({ "error": "abbinamento", "detail": testo }))).into_response()
+        (
+            stato,
+            axum::Json(serde_json::json!({ "error": "abbinamento", "detail": testo })),
+        )
+            .into_response()
     };
-    let (Some(abbinati), Some(attesa), Some(registro)) =
-        (s.pannelli_abbinati.clone(), s.pannelli_in_attesa.clone(), s.tunnel.clone())
-    else {
+    let (Some(abbinati), Some(attesa), Some(registro)) = (
+        s.pannelli_abbinati.clone(),
+        s.pannelli_in_attesa.clone(),
+        s.tunnel.clone(),
+    ) else {
         return errore(StatusCode::NOT_FOUND, "questo processo non abbina pannelli");
     };
-    let segreto = s.regia.as_ref().map(|r| r.segreto().to_string()).unwrap_or_default();
-    let figlio = req.extensions().get::<crate::gateway::ritorno::Chiamante>().cloned();
+    let segreto = s
+        .regia
+        .as_ref()
+        .map(|r| r.segreto().to_string())
+        .unwrap_or_default();
+    let figlio = req
+        .extensions()
+        .get::<crate::gateway::ritorno::Chiamante>()
+        .cloned();
     let chi = req.extensions().get::<crate::router::AuthUser>().cloned();
     let origine = crate::gateway::ritorno::origine_della_richiesta(req.headers());
     let corpo = match axum::body::to_bytes(req.into_body(), 16 * 1024).await {
@@ -526,7 +603,10 @@ pub async fn abbina(State(s): State<crate::router::AppState>, req: Request<Body>
         }
     };
     let Some(codice) = crate::abbinamento::normalizza(&r.codice) else {
-        return errore(StatusCode::BAD_REQUEST, "il codice ha la forma XXXX-XXXX-XXXX-XXXX");
+        return errore(
+            StatusCode::BAD_REQUEST,
+            "il codice ha la forma XXXX-XXXX-XXXX-XXXX",
+        );
     };
     let Some(in_attesa) = attesa.di(&codice).await else {
         return errore(
@@ -583,15 +663,28 @@ pub async fn abbina(State(s): State<crate::router::AppState>, req: Request<Body>
         Ok(q) => q,
         Err(e) => return errore(StatusCode::INTERNAL_SERVER_ERROR, &e.to_string()),
     };
-    let risposta = match attraverso(&in_attesa.maniglia, "/api/abbinamento/rivendica", "", richiesta).await {
+    let risposta = match attraverso(
+        &in_attesa.maniglia,
+        "/api/abbinamento/rivendica",
+        "",
+        richiesta,
+    )
+    .await
+    {
         Ok(x) => x,
-        Err(e) => return errore(StatusCode::BAD_GATEWAY, &format!("il pannello non risponde: {e}")),
+        Err(e) => {
+            return errore(
+                StatusCode::BAD_GATEWAY,
+                &format!("il pannello non risponde: {e}"),
+            )
+        }
     };
     let stato = risposta.status();
-    let dal_pannello: serde_json::Value = match axum::body::to_bytes(risposta.into_body(), 64 * 1024).await {
-        Ok(b) => serde_json::from_slice(&b).unwrap_or_default(),
-        Err(_) => serde_json::Value::Null,
-    };
+    let dal_pannello: serde_json::Value =
+        match axum::body::to_bytes(risposta.into_body(), 64 * 1024).await {
+            Ok(b) => serde_json::from_slice(&b).unwrap_or_default(),
+            Err(_) => serde_json::Value::Null,
+        };
     if !stato.is_success() {
         let motivo = dal_pannello
             .get("detail")
@@ -601,7 +694,10 @@ pub async fn abbina(State(s): State<crate::router::AppState>, req: Request<Body>
     }
     let nome = pannello.nome.clone();
     if let Err(e) = abbinati.salva(pannello) {
-        return errore(StatusCode::INTERNAL_SERVER_ERROR, &format!("pannello abbinato ma non salvato: {e}"));
+        return errore(
+            StatusCode::INTERNAL_SERVER_ERROR,
+            &format!("pannello abbinato ma non salvato: {e}"),
+        );
     }
     s.audit.log(
         "pannello.abbinato",
@@ -658,18 +754,18 @@ pub async fn elenco_amministrazione(State(s): State<crate::router::AppState>) ->
         .pannelli_ammessi
         .as_ref()
         .map(|a| {
-            let mut v: Vec<_> = a
-                .0
-                .iter()
-                .map(|(n, d)| {
-                    let c = collegati.contains(n);
-                    let mut v = serde_json::json!({ "nome": n, "azienda": d.azienda, "collegato": c });
-                    if let Some(ms) = spento_il(n).filter(|_| !c) {
-                        v["spento_ms"] = ms.into();
-                    }
-                    v
-                })
-                .collect();
+            let mut v: Vec<_> =
+                a.0.iter()
+                    .map(|(n, d)| {
+                        let c = collegati.contains(n);
+                        let mut v =
+                            serde_json::json!({ "nome": n, "azienda": d.azienda, "collegato": c });
+                        if let Some(ms) = spento_il(n).filter(|_| !c) {
+                            v["spento_ms"] = ms.into();
+                        }
+                        v
+                    })
+                    .collect();
             v.sort_by(|x, y| x["nome"].as_str().cmp(&y["nome"].as_str()));
             v
         })
@@ -705,7 +801,11 @@ pub async fn imposta_stato(
                     r.stacca(&nome).await;
                 }
             }
-            s.audit.log("pannello.stato", None, serde_json::json!({ "pannello": nome, "stato": n.stato }));
+            s.audit.log(
+                "pannello.stato",
+                None,
+                serde_json::json!({ "pannello": nome, "stato": n.stato }),
+            );
             StatusCode::NO_CONTENT.into_response()
         }
         Ok(false) => StatusCode::NOT_FOUND.into_response(),
@@ -732,7 +832,11 @@ pub async fn imposta_schermo(
     };
     match a.imposta_schermo(&nome, b.acceso) {
         Ok(true) => {
-            s.audit.log("pannello.schermo_remoto", None, serde_json::json!({ "pannello": nome, "acceso": b.acceso }));
+            s.audit.log(
+                "pannello.schermo_remoto",
+                None,
+                serde_json::json!({ "pannello": nome, "acceso": b.acceso }),
+            );
             StatusCode::NO_CONTENT.into_response()
         }
         Ok(false) => StatusCode::NOT_FOUND.into_response(),
@@ -776,11 +880,19 @@ pub async fn sposta_azienda(
             None => vec![],
         };
         let esiste = nota.iter().any(|x| {
-            let seg = if x.implicita { crate::project_registry::AZIENDA_IMPLICITA } else { x.cartella.as_str() };
+            let seg = if x.implicita {
+                crate::project_registry::AZIENDA_IMPLICITA
+            } else {
+                x.cartella.as_str()
+            };
             seg == segmento
         });
         if !esiste {
-            return (StatusCode::BAD_REQUEST, "nessuna azienda con questo segmento").into_response();
+            return (
+                StatusCode::BAD_REQUEST,
+                "nessuna azienda con questo segmento",
+            )
+                .into_response();
         }
     }
     match a.sposta(&nome, &segmento) {
@@ -827,7 +939,11 @@ pub async fn rinomina(
     req: Request<Body>,
 ) -> Response {
     let errore = |stato: StatusCode, testo: &str| {
-        (stato, axum::Json(serde_json::json!({ "error": "rinomina", "detail": testo }))).into_response()
+        (
+            stato,
+            axum::Json(serde_json::json!({ "error": "rinomina", "detail": testo })),
+        )
+            .into_response()
     };
     let (Some(abbinati), Some(registro)) = (s.pannelli_abbinati.clone(), s.tunnel.clone()) else {
         return errore(StatusCode::NOT_FOUND, "questo processo non ha pannelli");
@@ -835,7 +951,10 @@ pub async fn rinomina(
     let Some(riga) = abbinati.per_nome(&nome) else {
         return errore(StatusCode::NOT_FOUND, "pannello non trovato");
     };
-    let figlio = req.extensions().get::<crate::gateway::ritorno::Chiamante>().cloned();
+    let figlio = req
+        .extensions()
+        .get::<crate::gateway::ritorno::Chiamante>()
+        .cloned();
     let chi = req.extensions().get::<crate::router::AuthUser>().cloned();
     let ammesso = match (&figlio, &chi) {
         (Some(f), _) => f.azienda == riga.azienda,
@@ -854,16 +973,24 @@ pub async fn rinomina(
         Err(e) => return errore(StatusCode::BAD_REQUEST, &format!("json: {e}")),
     };
     let Some(nuovo) = crate::tunnel::abbinati::normalizza_nome(&r.nuovo) else {
-        return errore(StatusCode::BAD_REQUEST, "nome non valido: lettere, cifre e trattini");
+        return errore(
+            StatusCode::BAD_REQUEST,
+            "nome non valido: lettere, cifre e trattini",
+        );
     };
     if nuovo == nome {
         return axum::Json(serde_json::json!({ "nome": nome })).into_response();
     }
     let occupato = registro.collegati().await.contains(&nuovo)
-        || s.pannelli_ammessi.as_ref().is_some_and(|a| a.0.contains_key(&nuovo))
+        || s.pannelli_ammessi
+            .as_ref()
+            .is_some_and(|a| a.0.contains_key(&nuovo))
         || abbinati.per_nome(&nuovo).is_some();
     if occupato {
-        return errore(StatusCode::CONFLICT, &format!("il nome «{nuovo}» è già usato da un altro pannello"));
+        return errore(
+            StatusCode::CONFLICT,
+            &format!("il nome «{nuovo}» è già usato da un altro pannello"),
+        );
     }
     let Some(maniglia) = registro.di(&nome).await else {
         return errore(
@@ -872,7 +999,10 @@ pub async fn rinomina(
         );
     };
     let Some(firma) = firma_per(&s, &nome) else {
-        return errore(StatusCode::INTERNAL_SERVER_ERROR, "firma del gateway non disponibile");
+        return errore(
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "firma del gateway non disponibile",
+        );
     };
     let richiesta = match Request::builder()
         .method("POST")
@@ -886,13 +1016,30 @@ pub async fn rinomina(
     };
     match attraverso(&maniglia, "/api/abbinamento/nome", "", richiesta).await {
         Ok(r) if r.status().is_success() => {}
-        Ok(r) => return errore(StatusCode::BAD_GATEWAY, &format!("il pannello ha rifiutato ({})", r.status())),
-        Err(e) => return errore(StatusCode::BAD_GATEWAY, &format!("il pannello non risponde: {e}")),
+        Ok(r) => {
+            return errore(
+                StatusCode::BAD_GATEWAY,
+                &format!("il pannello ha rifiutato ({})", r.status()),
+            )
+        }
+        Err(e) => {
+            return errore(
+                StatusCode::BAD_GATEWAY,
+                &format!("il pannello non risponde: {e}"),
+            )
+        }
     }
     if let Err(e) = abbinati.rinomina(&nome, &nuovo) {
-        return errore(StatusCode::INTERNAL_SERVER_ERROR, &format!("pannello rinominato ma riga non salvata: {e}"));
+        return errore(
+            StatusCode::INTERNAL_SERVER_ERROR,
+            &format!("pannello rinominato ma riga non salvata: {e}"),
+        );
     }
-    s.audit.log("pannello.rinominato", None, serde_json::json!({ "da": nome, "a": nuovo }));
+    s.audit.log(
+        "pannello.rinominato",
+        None,
+        serde_json::json!({ "da": nome, "a": nuovo }),
+    );
     tracing::info!(da = %nome, a = %nuovo, "pannello rinominato");
     axum::Json(serde_json::json!({ "nome": nuovo })).into_response()
 }
@@ -936,7 +1083,11 @@ mod tests {
         let (_tieni, mut in_arrivo) = avvia(b.compat(), Verso::Risponde);
         tokio::spawn(async move {
             while let Some(st) = in_arrivo.recv().await {
-                tokio::spawn(super::super::pannello::gira_alla_porta(st, porta_pannello, false));
+                tokio::spawn(super::super::pannello::gira_alla_porta(
+                    st,
+                    porta_pannello,
+                    false,
+                ));
             }
         });
 
@@ -944,7 +1095,11 @@ mod tests {
         let gw = axum::Router::new().fallback(move |req: Request<Body>| {
             let m = maniglia.clone();
             async move {
-                let q = req.uri().query().map(|q| format!("?{q}")).unwrap_or_default();
+                let q = req
+                    .uri()
+                    .query()
+                    .map(|q| format!("?{q}"))
+                    .unwrap_or_default();
                 let p = req.uri().path().to_string();
                 attraverso(&m, &p, &q, req).await.unwrap()
             }
@@ -953,9 +1108,10 @@ mod tests {
         let porta_gw = l.local_addr().unwrap().port();
         tokio::spawn(async move { axum::serve(l, gw).await.unwrap() });
 
-        let (mut ws, _) = tokio_tungstenite::connect_async(format!("ws://127.0.0.1:{porta_gw}/ws/eco"))
-            .await
-            .expect("upgrade attraverso il tunnel");
+        let (mut ws, _) =
+            tokio_tungstenite::connect_async(format!("ws://127.0.0.1:{porta_gw}/ws/eco"))
+                .await
+                .expect("upgrade attraverso il tunnel");
         use tokio_tungstenite::tungstenite::Message as T;
         ws.send(T::Text("ciao".into())).await.unwrap();
         let r = tokio::time::timeout(std::time::Duration::from_secs(5), ws.next())
@@ -974,7 +1130,9 @@ mod tests {
 
         let pannello = axum::Router::new().route(
             "/api/update/schedule",
-            axum::routing::put(|axum::Json(v): axum::Json<serde_json::Value>| async move { axum::Json(v) }),
+            axum::routing::put(|axum::Json(v): axum::Json<serde_json::Value>| async move {
+                axum::Json(v)
+            }),
         );
         let l = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
         let porta_pannello = l.local_addr().unwrap().port();
@@ -985,7 +1143,11 @@ mod tests {
         let (_tieni, mut in_arrivo) = avvia(b.compat(), Verso::Risponde);
         tokio::spawn(async move {
             while let Some(st) = in_arrivo.recv().await {
-                tokio::spawn(super::super::pannello::gira_alla_porta(st, porta_pannello, false));
+                tokio::spawn(super::super::pannello::gira_alla_porta(
+                    st,
+                    porta_pannello,
+                    false,
+                ));
             }
         });
         let gw = axum::Router::new().fallback(move |req: Request<Body>| {
@@ -1012,7 +1174,10 @@ mod tests {
         let codice = r.status();
         let testo = r.text().await.unwrap();
         assert_eq!(codice, StatusCode::OK, "{testo}");
-        assert_eq!(serde_json::from_str::<serde_json::Value>(&testo).unwrap(), corpo);
+        assert_eq!(
+            serde_json::from_str::<serde_json::Value>(&testo).unwrap(),
+            corpo
+        );
     }
 
     /// Il pannello in TLS (24-10-2026): dalla 2.20.0 la porta di gestione di un
@@ -1026,12 +1191,14 @@ mod tests {
 
         let cert = rcgen::generate_simple_self_signed(vec!["localhost".into()]).unwrap();
         let chiave = rustls::pki_types::PrivateKeyDer::Pkcs8(cert.key_pair.serialize_der().into());
-        let cfg = rustls::ServerConfig::builder_with_provider(Arc::new(rustls::crypto::ring::default_provider()))
-            .with_safe_default_protocol_versions()
-            .unwrap()
-            .with_no_client_auth()
-            .with_single_cert(vec![cert.cert.der().clone()], chiave)
-            .unwrap();
+        let cfg = rustls::ServerConfig::builder_with_provider(Arc::new(
+            rustls::crypto::ring::default_provider(),
+        ))
+        .with_safe_default_protocol_versions()
+        .unwrap()
+        .with_no_client_auth()
+        .with_single_cert(vec![cert.cert.der().clone()], chiave)
+        .unwrap();
         let accettore = tokio_rustls::TlsAcceptor::from(Arc::new(cfg));
         let l = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
         let porta_pannello = l.local_addr().unwrap().port();
@@ -1041,15 +1208,23 @@ mod tests {
                 tokio::spawn(async move {
                     // Se l'handshake fallisce (HTTP in chiaro), il pannello chiude:
                     // è quello che faceva il runtime vero.
-                    let Ok(mut s) = accettore.accept(tcp).await else { return };
+                    let Ok(mut s) = accettore.accept(tcp).await else {
+                        return;
+                    };
                     let mut buf = Vec::new();
                     let mut pezzo = [0u8; 1024];
                     while !buf.windows(4).any(|w| w == b"\r\n\r\n") {
                         let n = s.read(&mut pezzo).await.unwrap();
-                        if n == 0 { return; }
+                        if n == 0 {
+                            return;
+                        }
                         buf.extend_from_slice(&pezzo[..n]);
                     }
-                    let _ = s.write_all(b"HTTP/1.1 200 OK\r\ncontent-length: 2\r\nconnection: close\r\n\r\nok").await;
+                    let _ = s
+                        .write_all(
+                            b"HTTP/1.1 200 OK\r\ncontent-length: 2\r\nconnection: close\r\n\r\nok",
+                        )
+                        .await;
                     let _ = s.shutdown().await;
                 });
             }
@@ -1060,7 +1235,11 @@ mod tests {
         let (_tieni, mut in_arrivo) = avvia(b.compat(), Verso::Risponde);
         tokio::spawn(async move {
             while let Some(st) = in_arrivo.recv().await {
-                tokio::spawn(super::super::pannello::gira_alla_porta(st, porta_pannello, true));
+                tokio::spawn(super::super::pannello::gira_alla_porta(
+                    st,
+                    porta_pannello,
+                    true,
+                ));
             }
         });
         let gw = axum::Router::new().fallback(move |req: Request<Body>| {
@@ -1077,7 +1256,9 @@ mod tests {
         let porta_gw = l.local_addr().unwrap().port();
         tokio::spawn(async move { axum::serve(l, gw).await.unwrap() });
 
-        let r = reqwest::get(format!("http://127.0.0.1:{porta_gw}/health")).await.unwrap();
+        let r = reqwest::get(format!("http://127.0.0.1:{porta_gw}/health"))
+            .await
+            .unwrap();
         let codice = r.status();
         let testo = r.text().await.unwrap();
         assert_eq!(codice, StatusCode::OK, "{testo}");
@@ -1118,13 +1299,19 @@ mod tests {
     fn non_entra_nessun_altro() {
         let a = ammessi();
         assert_eq!(a.riconosci(&intestazioni("tc620", "sbagliato")), None);
-        assert_eq!(a.riconosci(&intestazioni("altro", "un-token-lungo-abbastanza")), None);
+        assert_eq!(
+            a.riconosci(&intestazioni("altro", "un-token-lungo-abbastanza")),
+            None
+        );
         assert_eq!(a.riconosci(&HeaderMap::new()), None);
         // Senza il prefisso `Bearer ` non si passa: un token nudo
         // nell'intestazione e' un client che non sa cosa sta facendo.
         let mut h = HeaderMap::new();
         h.insert("x-sws-pannello", "tc620".parse().unwrap());
-        h.insert("authorization", "un-token-lungo-abbastanza".parse().unwrap());
+        h.insert(
+            "authorization",
+            "un-token-lungo-abbastanza".parse().unwrap(),
+        );
         assert_eq!(a.riconosci(&h), None);
     }
 
@@ -1141,7 +1328,10 @@ mod tests {
         .unwrap();
         let a = Ammessi::da_file(&f);
         assert!(a.0.contains_key("serio"));
-        assert!(!a.0.contains_key("sciocco"), "un token di quattro caratteri non e' un token");
+        assert!(
+            !a.0.contains_key("sciocco"),
+            "un token di quattro caratteri non e' un token"
+        );
         assert!(
             !a.0.contains_key("orfano"),
             "un pannello senza azienda non si sa a chi mostrarlo, e «a tutti» non e' una risposta"
@@ -1157,9 +1347,18 @@ mod tests {
         // no. Senza questo passaggio `cartelle` non conterrebbe mai `-` e il
         // pannello sarebbe invisibile a tutti tranne che alla piattaforma.
         let segmento = (AZIENDA_IMPLICITA != AZIENDA_IMPLICITA).then_some(AZIENDA_IMPLICITA);
-        assert!(visibilita(segmento, &[], true, false).is_some(), "membro della radice");
-        assert!(visibilita(segmento, &[], false, false).is_none(), "estraneo alla radice");
-        assert!(visibilita(segmento, &[], false, true).is_some(), "piattaforma");
+        assert!(
+            visibilita(segmento, &[], true, false).is_some(),
+            "membro della radice"
+        );
+        assert!(
+            visibilita(segmento, &[], false, false).is_none(),
+            "estraneo alla radice"
+        );
+        assert!(
+            visibilita(segmento, &[], false, true).is_some(),
+            "piattaforma"
+        );
     }
 
     #[test]

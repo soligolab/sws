@@ -32,4 +32,21 @@ ignore = [
     "RUSTSEC-2026-0099",
     "RUSTSEC-2026-0049",
     "RUSTSEC-2026-0104",
+    # Stesso crate e stessa strada (04-11-2026): intermedi revocati accettati
+    # nella verifica. Vale quanto sopra: la catena del broker MQTT oggi non la
+    # valida webpki.
+    "RUSTSEC-2026-0382",
+
+    # zip 2.4 — quattro avvisi sull'ESTRAZIONE (bit SUID/SGID conservati, link
+    # simbolici creati o che abortiscono il processo, permessi Unix applicati):
+    # tutti in `ZipArchive::extract` / `ZipStreamReader::extract`. SWS non le
+    # chiama mai — legge le voci per nome e ne scrive il contenuto da sé
+    # (`logica_plc.rs`, `boot.rs`, `remote.rs`, verificato il 04-11-2026). La
+    # correzione è solo nella 9.0, sette versioni maggiori più avanti con
+    # un'API diversa: si fa con un aggiornamento dedicato, non per spegnere un
+    # job. Da togliere quando zip sale.
+    "RUSTSEC-2026-0367",
+    "RUSTSEC-2026-0368",
+    "RUSTSEC-2026-0369",
+    "RUSTSEC-2026-0429",
 ]

@@ -42,7 +42,9 @@ impl Maniglia {
             .send(dimmi)
             .await
             .map_err(|_| "il tunnel non c'è più".to_string())?;
-        saprai.await.map_err(|_| "il tunnel è caduto mentre aprivo".to_string())?
+        saprai
+            .await
+            .map_err(|_| "il tunnel è caduto mentre aprivo".to_string())?
     }
 
     /// Chiude la connessione da questo capo, anche se l'altro tace.
@@ -125,7 +127,13 @@ where
         tracing::debug!("tunnel: il compito che lo guida è finito");
     });
 
-    (Maniglia { richieste: chiedi, basta }, in_arrivo)
+    (
+        Maniglia {
+            richieste: chiedi,
+            basta,
+        },
+        in_arrivo,
+    )
 }
 
 /// Le maniglie dei pannelli collegati, per nome.
@@ -152,7 +160,10 @@ impl Registro {
     /// scade, cioè proprio quando serve.
     pub async fn entra(&self, pannello: &str, m: Maniglia) {
         self.dentro.write().await.insert(pannello.to_string(), m);
-        self.spenti.lock().unwrap_or_else(|e| e.into_inner()).remove(pannello);
+        self.spenti
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .remove(pannello);
     }
 
     /// Toglie il pannello **solo se la maniglia è ancora la sua**. La
@@ -178,12 +189,19 @@ impl Registro {
 
     /// Il pannello ha annunciato lo spegnimento prima di chiudere.
     pub fn spento(&self, pannello: &str, ms: u64) {
-        self.spenti.lock().unwrap_or_else(|e| e.into_inner()).insert(pannello.to_string(), ms);
+        self.spenti
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .insert(pannello.to_string(), ms);
     }
 
     /// Quando si è annunciato spento, se dopo non è più tornato.
     pub fn spento_il(&self, pannello: &str) -> Option<u64> {
-        self.spenti.lock().unwrap_or_else(|e| e.into_inner()).get(pannello).copied()
+        self.spenti
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .get(pannello)
+            .copied()
     }
 
     pub async fn di(&self, pannello: &str) -> Option<Maniglia> {
@@ -193,7 +211,11 @@ impl Registro {
 
     pub async fn collegati(&self) -> Vec<String> {
         let d = self.dentro.read().await;
-        let mut v: Vec<String> = d.iter().filter(|(_, m)| m.vivo()).map(|(k, _)| k.clone()).collect();
+        let mut v: Vec<String> = d
+            .iter()
+            .filter(|(_, m)| m.vivo())
+            .map(|(k, _)| k.clone())
+            .collect();
         v.sort();
         v
     }
@@ -250,12 +272,9 @@ mod tests {
             s.write_all(b"\0").await.unwrap();
             s.close().await.unwrap();
         });
-        let arrivato = tokio::time::timeout(
-            std::time::Duration::from_secs(5),
-            al_gateway.recv(),
-        )
-        .await
-        .expect("il battito non e' arrivato entro 5 s");
+        let arrivato = tokio::time::timeout(std::time::Duration::from_secs(5), al_gateway.recv())
+            .await
+            .expect("il battito non e' arrivato entro 5 s");
         assert!(arrivato.is_some(), "nessuno stream dall'altra parte");
         battito.await.unwrap();
     }
@@ -293,7 +312,10 @@ mod tests {
         r.entra("p", vecchia.clone()).await;
         r.entra("p", nuova.clone()).await;
         r.esce("p", &vecchia).await;
-        assert!(r.di("p").await.is_some_and(|m| m.stessa(&nuova)), "la nuova deve restare");
+        assert!(
+            r.di("p").await.is_some_and(|m| m.stessa(&nuova)),
+            "la nuova deve restare"
+        );
         r.esce("p", &nuova).await;
         assert!(r.di("p").await.is_none());
     }
@@ -319,7 +341,9 @@ mod tests {
         let r = Registro::default();
         r.spento("p", 42);
         assert_eq!(r.spento_il("p"), Some(42));
-        let rt = tokio::runtime::Builder::new_current_thread().build().unwrap();
+        let rt = tokio::runtime::Builder::new_current_thread()
+            .build()
+            .unwrap();
         rt.block_on(async {
             use tokio_util::compat::TokioAsyncReadCompatExt as _;
             let (a, _b) = tokio::io::duplex(1024);

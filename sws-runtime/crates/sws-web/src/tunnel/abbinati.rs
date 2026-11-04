@@ -56,7 +56,10 @@ pub struct Pannello {
 
 /// Il token di un pannello: ripetibile, mai memorizzato.
 pub fn token_per(segreto: &str, hw: &str) -> String {
-    crate::gateway::ritorno::hmac_sha256_hex(segreto.as_bytes(), format!("pannello:{hw}").as_bytes())
+    crate::gateway::ritorno::hmac_sha256_hex(
+        segreto.as_bytes(),
+        format!("pannello:{hw}").as_bytes(),
+    )
 }
 
 #[derive(Debug, PartialEq)]
@@ -93,7 +96,10 @@ impl Abbinati {
                 }
             })
             .unwrap_or_default();
-        Self { percorso, righe: Mutex::new(righe) }
+        Self {
+            percorso,
+            righe: Mutex::new(righe),
+        }
     }
 
     fn scrivi(&self, righe: &[Pannello]) -> anyhow::Result<()> {
@@ -125,7 +131,9 @@ impl Abbinati {
     /// Cambia il nome di una riga. `false` se `vecchio` non c'è.
     pub fn rinomina(&self, vecchio: &str, nuovo: &str) -> anyhow::Result<bool> {
         let mut righe = self.g();
-        let Some(p) = righe.iter_mut().find(|p| p.nome == vecchio) else { return Ok(false) };
+        let Some(p) = righe.iter_mut().find(|p| p.nome == vecchio) else {
+            return Ok(false);
+        };
         p.nome = nuovo.to_string();
         righe.sort_by(|a, b| a.nome.cmp(&b.nome));
         self.scrivi(&righe)?;
@@ -142,7 +150,12 @@ impl Abbinati {
     /// Chi è il pannello che si presenta con `nome` e `token`. Lo stato prima
     /// del token.
     pub fn riconosci(&self, segreto: &str, nome: &str, token: &str) -> Result<Pannello, Rifiuto> {
-        let p = self.g().iter().find(|p| p.nome == nome).cloned().ok_or(Rifiuto::NonRiconosciuto)?;
+        let p = self
+            .g()
+            .iter()
+            .find(|p| p.nome == nome)
+            .cloned()
+            .ok_or(Rifiuto::NonRiconosciuto)?;
         if p.stato != StatoPannello::Attivo {
             return Err(Rifiuto::NonAmmesso);
         }
@@ -156,7 +169,9 @@ impl Abbinati {
 
     /// La scatola `hw` è bandita? Vale anche per chi si presenta in attesa.
     pub fn bandito(&self, hw: &str) -> bool {
-        self.g().iter().any(|p| p.hw == hw && p.stato == StatoPannello::Bandito)
+        self.g()
+            .iter()
+            .any(|p| p.hw == hw && p.stato == StatoPannello::Bandito)
     }
 
     /// Prepara l'abbinamento di `hw` all'azienda: la riga com'è dopo, e il
@@ -194,7 +209,10 @@ impl Abbinati {
         }
         let base = match nome_voluto.map(str::trim).filter(|n| !n.is_empty()) {
             Some(n) => n.to_string(),
-            None => esistente.as_ref().map(|p| p.nome.clone()).unwrap_or_else(|| nome_proposto.to_string()),
+            None => esistente
+                .as_ref()
+                .map(|p| p.nome.clone())
+                .unwrap_or_else(|| nome_proposto.to_string()),
         };
         let base = normalizza_nome(&base).ok_or(ErroreAbbina::NomeNonValido)?;
         let occupato = |n: &str| {
@@ -236,7 +254,9 @@ impl Abbinati {
     /// di `prepara` prometteva dall'11-10-2026 senza che esistesse.
     pub fn sposta(&self, nome: &str, azienda: &str) -> anyhow::Result<bool> {
         let mut righe = self.g();
-        let Some(p) = righe.iter_mut().find(|p| p.nome == nome) else { return Ok(false) };
+        let Some(p) = righe.iter_mut().find(|p| p.nome == nome) else {
+            return Ok(false);
+        };
         p.azienda = azienda.to_string();
         self.scrivi(&righe)?;
         Ok(true)
@@ -248,13 +268,18 @@ impl Abbinati {
     pub fn conta_di(&self, segmento: &str, collegati: &[String]) -> (usize, usize) {
         let righe = self.g();
         let suoi: Vec<&Pannello> = righe.iter().filter(|p| p.azienda == segmento).collect();
-        let accesi = suoi.iter().filter(|p| collegati.iter().any(|c| c == &p.nome)).count();
+        let accesi = suoi
+            .iter()
+            .filter(|p| collegati.iter().any(|c| c == &p.nome))
+            .count();
         (suoi.len(), accesi)
     }
 
     pub fn imposta_stato(&self, nome: &str, stato: StatoPannello) -> anyhow::Result<bool> {
         let mut righe = self.g();
-        let Some(p) = righe.iter_mut().find(|p| p.nome == nome) else { return Ok(false) };
+        let Some(p) = righe.iter_mut().find(|p| p.nome == nome) else {
+            return Ok(false);
+        };
         p.stato = stato;
         self.scrivi(&righe)?;
         Ok(true)
@@ -263,7 +288,9 @@ impl Abbinati {
     /// Accende o spegne lo schermo remoto di un pannello.
     pub fn imposta_schermo(&self, nome: &str, acceso: bool) -> anyhow::Result<bool> {
         let mut righe = self.g();
-        let Some(p) = righe.iter_mut().find(|p| p.nome == nome) else { return Ok(false) };
+        let Some(p) = righe.iter_mut().find(|p| p.nome == nome) else {
+            return Ok(false);
+        };
         p.schermo_spento = !acceso;
         self.scrivi(&righe)?;
         Ok(true)
@@ -299,7 +326,13 @@ pub fn normalizza_nome(n: &str) -> Option<String> {
         .trim()
         .to_lowercase()
         .chars()
-        .map(|c| if c.is_ascii_alphanumeric() || c == '-' { c } else { '-' })
+        .map(|c| {
+            if c.is_ascii_alphanumeric() || c == '-' {
+                c
+            } else {
+                '-'
+            }
+        })
         .collect();
     let s = s.trim_matches('-').to_string();
     (!s.is_empty() && s.len() <= 48).then_some(s)
@@ -355,14 +388,25 @@ impl InAttesa {
     }
 
     pub async fn quanti(&self) -> usize {
-        self.per_codice.read().await.values().filter(|a| a.maniglia.vivo()).count()
+        self.per_codice
+            .read()
+            .await
+            .values()
+            .filter(|a| a.maniglia.vivo())
+            .count()
     }
 
     /// L'hardware di chi aspetta adesso. Serve alla console: un pannello già
     /// abbinato che richiama **in attesa** ha perso le credenziali del cloud
     /// (installazione pulita, reset), e va solo riabbinato col codice.
     pub async fn hw_collegati(&self) -> std::collections::HashSet<String> {
-        self.per_codice.read().await.values().filter(|a| a.maniglia.vivo()).map(|a| a.hw.clone()).collect()
+        self.per_codice
+            .read()
+            .await
+            .values()
+            .filter(|a| a.maniglia.vivo())
+            .map(|a| a.hw.clone())
+            .collect()
     }
 }
 
@@ -381,31 +425,54 @@ mod tests {
     fn abbinare_riconoscere_e_ritrovare_dopo_un_reset() {
         let d = tempfile::tempdir().unwrap();
         let a = Abbinati::apri(d.path());
-        let (p, token) = a.prepara("seg", "seriale:P05", "acme", None, "TC620-A-P3", &[]).unwrap();
+        let (p, token) = a
+            .prepara("seg", "seriale:P05", "acme", None, "TC620-A-P3", &[])
+            .unwrap();
         assert_eq!(p.nome, "tc620-a-p3");
         a.salva(p).unwrap();
-        assert_eq!(a.riconosci("seg", "tc620-a-p3", &token).unwrap().azienda, "acme");
-        assert_eq!(a.riconosci("seg", "tc620-a-p3", "sbagliato").unwrap_err(), Rifiuto::NonRiconosciuto);
+        assert_eq!(
+            a.riconosci("seg", "tc620-a-p3", &token).unwrap().azienda,
+            "acme"
+        );
+        assert_eq!(
+            a.riconosci("seg", "tc620-a-p3", "sbagliato").unwrap_err(),
+            Rifiuto::NonRiconosciuto
+        );
         // Riaperto da disco, e dopo un reset la stessa scatola torna sulla stessa riga.
         let b = Abbinati::apri(d.path());
-        let (p2, token2) = b.prepara("seg", "seriale:P05", "acme", None, "altro-nome", &[]).unwrap();
+        let (p2, token2) = b
+            .prepara("seg", "seriale:P05", "acme", None, "altro-nome", &[])
+            .unwrap();
         assert_eq!(p2.nome, "tc620-a-p3", "riconosciuto: stesso nome");
         assert_eq!(token2, token);
         // Un'altra azienda non se lo prende.
-        assert_eq!(b.prepara("seg", "seriale:P05", "rossi", None, "x", &[]).unwrap_err(), ErroreAbbina::DiUnAltraAzienda);
+        assert_eq!(
+            b.prepara("seg", "seriale:P05", "rossi", None, "x", &[])
+                .unwrap_err(),
+            ErroreAbbina::DiUnAltraAzienda
+        );
     }
 
     #[test]
     fn il_ban_vince_sul_token_e_sul_reset() {
         let d = tempfile::tempdir().unwrap();
         let a = Abbinati::apri(d.path());
-        let (p, token) = a.prepara("seg", "mac:aa", "acme", Some("linea 1"), "x", &[]).unwrap();
+        let (p, token) = a
+            .prepara("seg", "mac:aa", "acme", Some("linea 1"), "x", &[])
+            .unwrap();
         assert_eq!(p.nome, "linea-1");
         a.salva(p).unwrap();
         a.imposta_stato("linea-1", StatoPannello::Bandito).unwrap();
-        assert_eq!(a.riconosci("seg", "linea-1", &token).unwrap_err(), Rifiuto::NonAmmesso);
+        assert_eq!(
+            a.riconosci("seg", "linea-1", &token).unwrap_err(),
+            Rifiuto::NonAmmesso
+        );
         assert!(a.bandito("mac:aa"));
-        assert_eq!(a.prepara("seg", "mac:aa", "acme", None, "x", &[]).unwrap_err(), ErroreAbbina::Bandito);
+        assert_eq!(
+            a.prepara("seg", "mac:aa", "acme", None, "x", &[])
+                .unwrap_err(),
+            ErroreAbbina::Bandito
+        );
         assert_eq!(a.azienda_di("linea-1"), None, "un bandito non si raggiunge");
     }
 
@@ -413,24 +480,42 @@ mod tests {
     fn l_ultimo_collegamento_resta_dopo_un_riavvio() {
         let d = tempfile::tempdir().unwrap();
         let a = Abbinati::apri(d.path());
-        let (mut p, _) = a.prepara("s", "seriale:X", "-", Some("wp630"), "x", &[]).unwrap();
+        let (mut p, _) = a
+            .prepara("s", "seriale:X", "-", Some("wp630"), "x", &[])
+            .unwrap();
         p.ultimo_ms = 1;
         a.salva(p).unwrap();
         a.visto("wp630");
-        assert!(Abbinati::apri(d.path()).per_nome("wp630").unwrap().ultimo_ms > 1, "su disco, non solo in memoria");
+        assert!(
+            Abbinati::apri(d.path())
+                .per_nome("wp630")
+                .unwrap()
+                .ultimo_ms
+                > 1,
+            "su disco, non solo in memoria"
+        );
     }
 
     #[test]
     fn rinominare_cambia_la_riga_e_il_token_resta() {
         let d = tempfile::tempdir().unwrap();
         let a = Abbinati::apri(d.path());
-        let (p, token) = a.prepara("s", "seriale:X", "-", Some("tc620-casa-2"), "x", &[]).unwrap();
+        let (p, token) = a
+            .prepara("s", "seriale:X", "-", Some("tc620-casa-2"), "x", &[])
+            .unwrap();
         a.salva(p).unwrap();
         assert!(a.rinomina("tc620-casa-2", "tc620-casa").unwrap());
         assert!(a.per_nome("tc620-casa-2").is_none());
-        assert_eq!(a.riconosci("s", "tc620-casa", &token).unwrap().hw, "seriale:X");
+        assert_eq!(
+            a.riconosci("s", "tc620-casa", &token).unwrap().hw,
+            "seriale:X"
+        );
         assert!(!a.rinomina("non-c-e", "x").unwrap());
-        assert_eq!(Abbinati::apri(d.path()).per_nome("tc620-casa").unwrap().hw, "seriale:X", "su disco");
+        assert_eq!(
+            Abbinati::apri(d.path()).per_nome("tc620-casa").unwrap().hw,
+            "seriale:X",
+            "su disco"
+        );
     }
 
     #[test]
@@ -440,16 +525,21 @@ mod tests {
         // chiunque avesse il codice se lo portasse via.
         let d = tempfile::tempdir().unwrap();
         let a = Abbinati::apri(d.path());
-        let (p, _) = a.prepara("s", "seriale:P05", "acme", None, "tc620", &[]).unwrap();
+        let (p, _) = a
+            .prepara("s", "seriale:P05", "acme", None, "tc620", &[])
+            .unwrap();
         a.salva(p).unwrap();
         a.imposta_stato("tc620", StatoPannello::Sospeso).unwrap();
         assert_eq!(
-            a.prepara("s", "seriale:P05", "rossi", None, "x", &[]).unwrap_err(),
+            a.prepara("s", "seriale:P05", "rossi", None, "x", &[])
+                .unwrap_err(),
             ErroreAbbina::DiUnAltraAzienda,
         );
         // La **sua** azienda invece lo ritrova: un pannello sospeso che si
         // riabbina torna attivo, ed è il modo di rimetterlo in servizio.
-        assert!(a.prepara("s", "seriale:P05", "acme", None, "x", &[]).is_ok());
+        assert!(a
+            .prepara("s", "seriale:P05", "acme", None, "x", &[])
+            .is_ok());
     }
 
     #[test]
@@ -460,7 +550,11 @@ mod tests {
             let (p, _) = a.prepara("s", hw, "acme", Some(nome), "x", &[]).unwrap();
             a.salva(p).unwrap();
         }
-        assert_eq!(a.conta_di("acme", &["uno".into()]), (2, 1), "due abbinati, uno collegato");
+        assert_eq!(
+            a.conta_di("acme", &["uno".into()]),
+            (2, 1),
+            "due abbinati, uno collegato"
+        );
         assert_eq!(a.conta_di("rossi", &[]), (0, 0));
 
         assert!(a.sposta("due", "rossi").unwrap());
@@ -473,19 +567,30 @@ mod tests {
             a.prepara("s", "hw2", "acme", None, "x", &[]).unwrap_err(),
             ErroreAbbina::DiUnAltraAzienda,
         );
-        assert_eq!(Abbinati::apri(d.path()).per_nome("due").unwrap().azienda, "rossi", "su disco");
+        assert_eq!(
+            Abbinati::apri(d.path()).per_nome("due").unwrap().azienda,
+            "rossi",
+            "su disco"
+        );
     }
 
     #[test]
     fn i_nomi_occupati_prendono_un_suffisso() {
         let d = tempfile::tempdir().unwrap();
         let a = Abbinati::apri(d.path());
-        let (p, _) = a.prepara("s", "hw1", "acme", None, "tc620", &["tc620".into()]).unwrap();
+        let (p, _) = a
+            .prepara("s", "hw1", "acme", None, "tc620", &["tc620".into()])
+            .unwrap();
         assert_eq!(p.nome, "tc620-2");
         a.salva(p).unwrap();
-        let (q, _) = a.prepara("s", "hw2", "acme", None, "tc620", &["tc620".into()]).unwrap();
+        let (q, _) = a
+            .prepara("s", "hw2", "acme", None, "tc620", &["tc620".into()])
+            .unwrap();
         assert_eq!(q.nome, "tc620-3");
         assert_eq!(normalizza_nome("  "), None);
-        assert_eq!(normalizza_nome("Linea Nord/2").as_deref(), Some("linea-nord-2"));
+        assert_eq!(
+            normalizza_nome("Linea Nord/2").as_deref(),
+            Some("linea-nord-2")
+        );
     }
 }

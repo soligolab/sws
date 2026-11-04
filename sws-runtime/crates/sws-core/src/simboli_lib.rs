@@ -14,11 +14,28 @@ use serde::Deserialize;
 #[serde(tag = "kind", rename_all = "lowercase")]
 pub enum ParteLib {
     /// Finestra del contenuto: il disegno è pieno, si mostra la parte bassa.
-    Level { id: String, x: f64, y: f64, w: f64, h: f64 },
+    Level {
+        id: String,
+        x: f64,
+        y: f64,
+        w: f64,
+        h: f64,
+    },
     /// Gira attorno a (cx, cy); `symmetry` = gradi dopo cui il disegno si ripete.
-    Rotor { id: String, cx: f64, cy: f64, symmetry: f64 },
+    Rotor {
+        id: String,
+        cx: f64,
+        cy: f64,
+        symmetry: f64,
+    },
     /// Disegnata a metà scala; ruota da `a0` (minimo) a `a1` (massimo), in gradi orari.
-    Needle { id: String, cx: f64, cy: f64, a0: f64, a1: f64 },
+    Needle {
+        id: String,
+        cx: f64,
+        cy: f64,
+        a0: f64,
+        a1: f64,
+    },
     /// Disegnata in posizione `open`; `closed` è la rotazione della chiusa.
     ///
     /// `angoli` (21-10-2026) la estende a **N posizioni**: l'elenco degli
@@ -45,8 +62,17 @@ impl ParteLib {
     /// `sws-editor/src/symbols/lib/libreria.ts`.
     pub fn angoli_leva(&self) -> Vec<f64> {
         match self {
-            ParteLib::Lever { open, closed, angoli, .. } => {
-                if angoli.len() >= 3 { angoli.clone() } else { vec![*open, *closed] }
+            ParteLib::Lever {
+                open,
+                closed,
+                angoli,
+                ..
+            } => {
+                if angoli.len() >= 3 {
+                    angoli.clone()
+                } else {
+                    vec![*open, *closed]
+                }
             }
             _ => Vec::new(),
         }
@@ -120,7 +146,11 @@ impl ManifestLib {
     /// Per id `lib:…`, oppure per **alias**: il disegno che sostituisce il
     /// builtin `id` (`replaces`, M3 del piano). Come `cercaSimbolo` sul web.
     pub fn simbolo_o_alias(&self, id: &str) -> Option<&SimboloLib> {
-        self.simbolo(id).or_else(|| self.symbols.iter().find(|s| s.replaces.as_deref() == Some(id)))
+        self.simbolo(id).or_else(|| {
+            self.symbols
+                .iter()
+                .find(|s| s.replaces.as_deref() == Some(id))
+        })
     }
 }
 
@@ -128,7 +158,10 @@ impl ManifestLib {
 /// generato abbia la forma che il codice Rust si aspetta.
 #[cfg(test)]
 pub(crate) fn manifesto_incluso() -> ManifestLib {
-    serde_json::from_str(include_str!("../../../../sws-editor/public/symbols/lib/manifest.json")).unwrap()
+    serde_json::from_str(include_str!(
+        "../../../../sws-editor/public/symbols/lib/manifest.json"
+    ))
+    .unwrap()
 }
 
 #[cfg(test)]
@@ -139,16 +172,33 @@ mod tests {
     fn il_manifesto_generato_si_legge_e_dichiara_le_parti() {
         let m = manifesto_incluso();
         assert!(m.version.len() >= 8);
-        let pompa = m.simbolo("lib:process/centrifugal-pump").expect("la pompa c'è");
+        let pompa = m
+            .simbolo("lib:process/centrifugal-pump")
+            .expect("la pompa c'è");
         assert_eq!(pompa.replaces.as_deref(), Some("pump"));
-        assert_eq!(m.simbolo_o_alias("pump").map(|s| s.id.as_str()), Some("lib:process/centrifugal-pump"));
+        assert_eq!(
+            m.simbolo_o_alias("pump").map(|s| s.id.as_str()),
+            Some("lib:process/centrifugal-pump")
+        );
         assert!(m.simbolo_o_alias("non-esiste").is_none());
-        assert!(matches!(pompa.parts.as_slice(), [ParteLib::Rotor { symmetry, .. }] if *symmetry == 60.0));
-        let serbatoio = m.simbolo("lib:process/vertical-tank").expect("il serbatoio c'è");
-        assert!(serbatoio.parts.iter().any(|p| matches!(p, ParteLib::Level { .. })));
+        assert!(
+            matches!(pompa.parts.as_slice(), [ParteLib::Rotor { symmetry, .. }] if *symmetry == 60.0)
+        );
+        let serbatoio = m
+            .simbolo("lib:process/vertical-tank")
+            .expect("il serbatoio c'è");
+        assert!(serbatoio
+            .parts
+            .iter()
+            .any(|p| matches!(p, ParteLib::Level { .. })));
         for s in &m.symbols {
             assert!(s.id.starts_with("lib:"), "{}", s.id);
-            assert!(m.materials.contains_key(&s.body), "{}: corpo {}", s.id, s.body);
+            assert!(
+                m.materials.contains_key(&s.body),
+                "{}: corpo {}",
+                s.id,
+                s.body
+            );
             for mat in &s.materials {
                 assert!(m.materials.contains_key(mat), "{}: materiale {mat}", s.id);
             }

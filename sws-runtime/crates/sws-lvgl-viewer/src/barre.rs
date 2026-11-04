@@ -59,7 +59,11 @@ struct Scala {
 
 impl Scala {
     fn frazione(&self, v: f64) -> f64 {
-        let span = if self.hi - self.lo == 0.0 { 1.0 } else { self.hi - self.lo };
+        let span = if self.hi - self.lo == 0.0 {
+            1.0
+        } else {
+            self.hi - self.lo
+        };
         ((v - self.lo) / span).clamp(0.0, 1.0)
     }
 }
@@ -73,7 +77,11 @@ const SU_BARRA: Rgb = (0x0f, 0x17, 0x2a);
 
 fn scala_serie(s: &Serie) -> Scala {
     let (lo, hi) = (s.min.unwrap_or(0.0), s.max.unwrap_or(100.0));
-    if hi > lo { Scala { lo, hi } } else { Scala { lo: 0.0, hi: 100.0 } }
+    if hi > lo {
+        Scala { lo, hi }
+    } else {
+        Scala { lo: 0.0, hi: 100.0 }
+    }
 }
 
 fn fisso(v: f64, d: usize) -> String {
@@ -111,15 +119,32 @@ fn rett(px: &mut Pixmap, x: f64, y: f64, w: f64, h: f64, c: Rgb, raggio: f32) {
     pb.quad_to(x, y, x + r, y);
     pb.close();
     if let Some(p) = pb.finish() {
-        px.fill_path(&p, &paint(c, 1.0), FillRule::Winding, Transform::identity(), None);
+        px.fill_path(
+            &p,
+            &paint(c, 1.0),
+            FillRule::Winding,
+            Transform::identity(),
+            None,
+        );
     }
 }
 
-fn linea(px: &mut Pixmap, x0: f64, y0: f64, x1: f64, y1: f64, c: Rgb, tratteggio: Option<Vec<f32>>) {
+fn linea(
+    px: &mut Pixmap,
+    x0: f64,
+    y0: f64,
+    x1: f64,
+    y1: f64,
+    c: Rgb,
+    tratteggio: Option<Vec<f32>>,
+) {
     let mut pb = PathBuilder::new();
     pb.move_to(x0 as f32, y0 as f32);
     pb.line_to(x1 as f32, y1 as f32);
-    let mut st = Stroke { width: 1.0, ..Default::default() };
+    let mut st = Stroke {
+        width: 1.0,
+        ..Default::default()
+    };
     if let Some(d) = tratteggio {
         st.dash = StrokeDash::new(d, 0.0);
     }
@@ -130,7 +155,15 @@ fn linea(px: &mut Pixmap, x0: f64, y0: f64, x1: f64, y1: f64, c: Rgb, tratteggio
 
 fn testo(sc: &mut Vec<Testo>, x: f64, y_base: f64, t: String, c: Rgb, px: u16, o: Orizz) {
     // Il web dà la linea di base; qui ci si aggancia al fondo della riga.
-    sc.push(Testo { x: x as f32, y: (y_base + 2.0) as f32, testo: t, colore: c, px, orizz: o, vert: Vert::Basso });
+    sc.push(Testo {
+        x: x as f32,
+        y: (y_base + 2.0) as f32,
+        testo: t,
+        colore: c,
+        px,
+        orizz: o,
+        vert: Vert::Basso,
+    });
 }
 
 /// Disegna il grafico in `px` (`cfg.w`×`cfg.h`, origine = angolo dell'oggetto)
@@ -148,7 +181,13 @@ pub fn disegna(cfg: &Config, valori: &[f64], px: &mut Pixmap) -> Vec<Testo> {
     // che usa il web).
     let minore = sws_core::geometria_testo::corpo_secondario(cfg.corpo as f64) as u16;
     let n_serie = cfg.serie.len();
-    let val = |i: usize| valori.get(i).copied().filter(|v| v.is_finite()).unwrap_or(0.0);
+    let val = |i: usize| {
+        valori
+            .get(i)
+            .copied()
+            .filter(|v| v.is_finite())
+            .unwrap_or(0.0)
+    };
     let totale: f64 = (0..n_serie).map(val).sum();
     let dati_lo = (0..n_serie).map(val).fold(0.0_f64, f64::min);
     let impilata = Scala {
@@ -161,7 +200,10 @@ pub fn disegna(cfg: &Config, valori: &[f64], px: &mut Pixmap) -> Vec<Testo> {
         None
     } else {
         let prima = scala_serie(&cfg.serie[0]);
-        cfg.serie.iter().all(|s| scala_serie(s) == prima).then_some(prima)
+        cfg.serie
+            .iter()
+            .all(|s| scala_serie(s) == prima)
+            .then_some(prima)
     };
 
     // Le bande che contengono il testo seguono il corpo (22-10-2026): erano
@@ -173,9 +215,20 @@ pub fn disegna(cfg: &Config, valori: &[f64], px: &mut Pixmap) -> Vec<Testo> {
     let legenda_h = righe_legenda as f64 * riga_legenda + if cfg.legenda { 4.0 } else { 0.0 };
     let tacche_visibili = cfg.tacche > 1 && comune.is_some();
     let pad_t = 20.0;
-    let pad_b = (if !cfg.orizzontale && cfg.etichette { 18.0 + cfg.corpo as f64 } else { 8.0 }) + legenda_h;
-    let pad_l = (if !cfg.orizzontale && tacche_visibili { 25.0 + minore as f64 } else { 8.0 })
-        + if cfg.orizzontale && cfg.etichette { 42.0 } else { 0.0 };
+    let pad_b = (if !cfg.orizzontale && cfg.etichette {
+        18.0 + cfg.corpo as f64
+    } else {
+        8.0
+    }) + legenda_h;
+    let pad_l = (if !cfg.orizzontale && tacche_visibili {
+        25.0 + minore as f64
+    } else {
+        8.0
+    }) + if cfg.orizzontale && cfg.etichette {
+        42.0
+    } else {
+        0.0
+    };
     let plot_w = (w - pad_l - 8.0).max(10.0);
     let plot_h = (h - pad_t - pad_b).max(10.0);
     let n = n_serie.max(1) as f64;
@@ -206,7 +259,15 @@ pub fn disegna(cfg: &Config, valori: &[f64], px: &mut Pixmap) -> Vec<Testo> {
             if cfg.orizzontale {
                 let tx = bx0 + plot_w * f;
                 linea(px, tx, by0, tx, asse_y + 3.0, GRIGLIA, None);
-                testo(&mut out, tx, asse_y + minore as f64 + 3.0, t, TACCA, minore, Orizz::Centro);
+                testo(
+                    &mut out,
+                    tx,
+                    asse_y + minore as f64 + 3.0,
+                    t,
+                    TACCA,
+                    minore,
+                    Orizz::Centro,
+                );
             } else {
                 let ty = asse_y - plot_h * f;
                 linea(px, bx0 - 3.0, ty, bx0 + plot_w, ty, GRIGLIA, None);
@@ -228,7 +289,15 @@ pub fn disegna(cfg: &Config, valori: &[f64], px: &mut Pixmap) -> Vec<Testo> {
                 let by = by0 + (plot_h - barra) / 2.0;
                 rett(px, x0, by, sw, barra, colore, 0.0);
                 if cfg.valori && sw > 26.0 {
-                    testo(&mut out, x0 + sw / 2.0, by + barra / 2.0 + 4.0, vt, SU_BARRA, cfg.corpo, Orizz::Centro);
+                    testo(
+                        &mut out,
+                        x0 + sw / 2.0,
+                        by + barra / 2.0 + 4.0,
+                        vt,
+                        SU_BARRA,
+                        cfg.corpo,
+                        Orizz::Centro,
+                    );
                 }
             } else {
                 let y0 = asse_y - plot_h * f0.max(f1);
@@ -236,7 +305,15 @@ pub fn disegna(cfg: &Config, valori: &[f64], px: &mut Pixmap) -> Vec<Testo> {
                 let bx = bx0 + (plot_w - barra) / 2.0;
                 rett(px, bx, y0, barra, sh, colore, 0.0);
                 if cfg.valori && sh > 12.0 {
-                    testo(&mut out, bx + barra / 2.0, y0 + sh / 2.0 + 4.0, vt, SU_BARRA, cfg.corpo, Orizz::Centro);
+                    testo(
+                        &mut out,
+                        bx + barra / 2.0,
+                        y0 + sh / 2.0 + 4.0,
+                        vt,
+                        SU_BARRA,
+                        cfg.corpo,
+                        Orizz::Centro,
+                    );
                 }
             }
             continue;
@@ -249,11 +326,31 @@ pub fn disegna(cfg: &Config, valori: &[f64], px: &mut Pixmap) -> Vec<Testo> {
             let by = by0 + i as f64 * slot + (slot - barra) / 2.0;
             rett(px, bx, by, bw, barra, colore, 2.0);
             if cfg.valori {
-                let (x, o) = if v < 0.0 { (bx - 3.0, Orizz::Dx) } else { (bx + bw + 3.0, Orizz::Sx) };
-                testo(&mut out, x, by + barra / 2.0 + 4.0, vt, VALORE, cfg.corpo, o);
+                let (x, o) = if v < 0.0 {
+                    (bx - 3.0, Orizz::Dx)
+                } else {
+                    (bx + bw + 3.0, Orizz::Sx)
+                };
+                testo(
+                    &mut out,
+                    x,
+                    by + barra / 2.0 + 4.0,
+                    vt,
+                    VALORE,
+                    cfg.corpo,
+                    o,
+                );
             }
             if cfg.etichette {
-                testo(&mut out, 4.0, by + barra / 2.0 + 4.0, s.etichetta.clone(), ETICHETTA, cfg.corpo, Orizz::Sx);
+                testo(
+                    &mut out,
+                    4.0,
+                    by + barra / 2.0 + 4.0,
+                    s.etichetta.clone(),
+                    ETICHETTA,
+                    cfg.corpo,
+                    Orizz::Sx,
+                );
             }
         } else {
             let bx = bx0 + i as f64 * slot + (slot - barra) / 2.0;
@@ -261,11 +358,31 @@ pub fn disegna(cfg: &Config, valori: &[f64], px: &mut Pixmap) -> Vec<Testo> {
             let (by, bh) = (vy.min(zy), (vy - zy).abs());
             rett(px, bx, by, barra, bh, colore, 2.0);
             if cfg.valori {
-                let y = if v < 0.0 { by + bh + 11.0 } else { (by - 3.0).max(by0 + 10.0) };
-                testo(&mut out, bx + barra / 2.0, y, vt, VALORE, cfg.corpo, Orizz::Centro);
+                let y = if v < 0.0 {
+                    by + bh + 11.0
+                } else {
+                    (by - 3.0).max(by0 + 10.0)
+                };
+                testo(
+                    &mut out,
+                    bx + barra / 2.0,
+                    y,
+                    vt,
+                    VALORE,
+                    cfg.corpo,
+                    Orizz::Centro,
+                );
             }
             if cfg.etichette {
-                testo(&mut out, bx + barra / 2.0, asse_y + cfg.corpo as f64 + 4.0, s.etichetta.clone(), ETICHETTA, cfg.corpo, Orizz::Centro);
+                testo(
+                    &mut out,
+                    bx + barra / 2.0,
+                    asse_y + cfg.corpo as f64 + 4.0,
+                    s.etichetta.clone(),
+                    ETICHETTA,
+                    cfg.corpo,
+                    Orizz::Centro,
+                );
             }
         }
     }
@@ -278,7 +395,9 @@ pub fn disegna(cfg: &Config, valori: &[f64], px: &mut Pixmap) -> Vec<Testo> {
             (cfg.warn_low, (0xf5, 0x9e, 0x0b)),
             (cfg.alarm_low, (0xef, 0x44, 0x44)),
         ] {
-            let Some(v) = v.filter(|v| *v > sc.lo && *v < sc.hi) else { continue };
+            let Some(v) = v.filter(|v| *v > sc.lo && *v < sc.hi) else {
+                continue;
+            };
             let f = sc.frazione(v);
             let tr = Some(vec![4.0, 2.0]);
             if cfg.orizzontale {
@@ -296,8 +415,24 @@ pub fn disegna(cfg: &Config, valori: &[f64], px: &mut Pixmap) -> Vec<Testo> {
         for (i, s) in cfg.serie.iter().enumerate() {
             let lx = 6.0 + (i % 2) as f64 * (w / 2.0);
             let ly = h - legenda_h + 2.0 + (i / 2) as f64 * 13.0;
-            rett(px, lx, ly, 8.0, 8.0, s.colore.unwrap_or(TAVOLOZZA[i % TAVOLOZZA.len()]), 1.0);
-            testo(&mut out, lx + 12.0, ly + 7.0, s.etichetta.clone(), ETICHETTA, minore, Orizz::Sx);
+            rett(
+                px,
+                lx,
+                ly,
+                8.0,
+                8.0,
+                s.colore.unwrap_or(TAVOLOZZA[i % TAVOLOZZA.len()]),
+                1.0,
+            );
+            testo(
+                &mut out,
+                lx + 12.0,
+                ly + 7.0,
+                s.etichetta.clone(),
+                ETICHETTA,
+                minore,
+                Orizz::Sx,
+            );
         }
     }
 
@@ -311,7 +446,11 @@ pub fn centro_titolo(cfg: &Config) -> (f32, f32) {
     let n = cfg.serie.len();
     let righe_legenda = if cfg.legenda { n.div_ceil(2) } else { 0 };
     let legenda_h = righe_legenda as f64 * 13.0 + if cfg.legenda { 4.0 } else { 0.0 };
-    let pad_b = (if !cfg.orizzontale && cfg.etichette { 28.0 } else { 8.0 }) + legenda_h;
+    let pad_b = (if !cfg.orizzontale && cfg.etichette {
+        28.0
+    } else {
+        8.0
+    }) + legenda_h;
     let plot_h = (cfg.h as f64 - 20.0 - pad_b).max(10.0);
     (10.0, (20.0 + plot_h / 2.0) as f32)
 }
@@ -321,7 +460,12 @@ mod tests {
     use super::*;
 
     fn serie(e: &str) -> Serie {
-        Serie { etichetta: e.into(), colore: Some((255, 0, 0)), min: None, max: None }
+        Serie {
+            etichetta: e.into(),
+            colore: Some((255, 0, 0)),
+            min: None,
+            max: None,
+        }
     }
 
     fn cfg() -> Config {

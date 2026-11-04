@@ -55,8 +55,14 @@ const SALTO_PER_SALTO: &[&str] = &[
 /// descriverebbe un corpo che non esiste più. Verso un container sulla stessa
 /// macchina comprimere non guadagna niente, quindi si chiede identity e il
 /// problema non si pone.
-const DA_TOGLIERE_ANDANDO: &[&str] =
-    &["x-sws-gateway", "x-sws-utente", "x-sws-origine", "x-sws-figlio", "x-sws-dal-gateway", "accept-encoding"];
+const DA_TOGLIERE_ANDANDO: &[&str] = &[
+    "x-sws-gateway",
+    "x-sws-utente",
+    "x-sws-origine",
+    "x-sws-figlio",
+    "x-sws-dal-gateway",
+    "accept-encoding",
+];
 
 /// Spezza `/p/<azienda>/<progetto>/<resto>` nelle sue tre parti.
 ///
@@ -129,7 +135,10 @@ fn identita(segreto: &str, utente: &str) -> Option<[(HeaderName, HeaderValue); 2
 
 fn da_saltare(nome: &str, andando: bool) -> bool {
     SALTO_PER_SALTO.iter().any(|x| nome.eq_ignore_ascii_case(x))
-        || (andando && DA_TOGLIERE_ANDANDO.iter().any(|x| nome.eq_ignore_ascii_case(x)))
+        || (andando
+            && DA_TOGLIERE_ANDANDO
+                .iter()
+                .any(|x| nome.eq_ignore_ascii_case(x)))
 }
 
 /// Inoltra una richiesta HTTP al container e restituisce la sua risposta.
@@ -150,7 +159,11 @@ pub async fn inoltra_http(
     req: Request<Body>,
 ) -> Response {
     let (parti, corpo) = req.into_parts();
-    let query = parti.uri.query().map(|q| format!("?{q}")).unwrap_or_default();
+    let query = parti
+        .uri
+        .query()
+        .map(|q| format!("?{q}"))
+        .unwrap_or_default();
     let url = format!("{indirizzo}{resto}{query}");
 
     let mut verso = cliente.request(parti.method.clone(), &url);
@@ -201,12 +214,10 @@ pub async fn inoltra_http(
         }
     }
     let indietro = risposta.bytes_stream();
-    fuori
-        .body(Body::from_stream(indietro))
-        .unwrap_or_else(|e| {
-            tracing::error!("risposta del progetto non ricostruibile: {e}");
-            StatusCode::BAD_GATEWAY.into_response()
-        })
+    fuori.body(Body::from_stream(indietro)).unwrap_or_else(|e| {
+        tracing::error!("risposta del progetto non ricostruibile: {e}");
+        StatusCode::BAD_GATEWAY.into_response()
+    })
 }
 
 /// Inoltra un WebSocket al container.
@@ -396,7 +407,13 @@ mod tests {
 
     #[test]
     fn le_intestazioni_del_salto_non_passano_mai() {
-        for h in ["Connection", "upgrade", "Transfer-Encoding", "host", "content-length"] {
+        for h in [
+            "Connection",
+            "upgrade",
+            "Transfer-Encoding",
+            "host",
+            "content-length",
+        ] {
             assert!(da_saltare(h, true), "{h} andando");
             assert!(da_saltare(h, false), "{h} tornando");
         }

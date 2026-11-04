@@ -12,7 +12,30 @@
 > resta in «Storico». Qui vive solo ciò che serve a riprendere il lavoro.
 
 
-## ▶ Riprendere da qui — l'assistente disegna i simboli e compone il sinottico, ramo a metà (2026-11-04, ufficio)
+## ▶ Riprendere da qui — CI verde in locale, su due rami annidati (2026-11-04, ufficio)
+
+**Si riparte da `fix/ci-verde`** (su origin), che sta sopra `feat/assistente-sinottici` e contiene tutto:
+`./scripts/session_start.sh`, poi `git checkout fix/ci-verde`. Scelta del maintainer: **annidato**, quindi `main` resta
+rosso in CI finché il ramo dell'assistente non viene mergiato (la CI gira solo su `main`). `main` su origin ha lo STATUS
+del mattino (`f53b1b1a`), che indica ancora `feat/assistente-sinottici`: vale questo blocco.
+
+**La mail della CI** (04-11-2026, tre job rossi da settimane) — corretto su `fix/ci-verde`:
+- TS lint: due hook rinominati `use…` (`f81c1a01`);
+- Rust lint: `cargo fmt` su tutto il workspace, commit solo di formattazione (`68267a0c`; `synoptic_schema.rs` è
+  `#[rustfmt::skip]` perché generato), clippy `-D warnings` (`b463d53f`: correzioni meccaniche, `allow` motivati, un
+  commento orfano e due rami identici in `fonte_autenticazione`);
+- Rust audit: aggiornati rustls, quinn-proto, webpki-roots, ctutils, rustls-webpki 0.103 (`c1f50fd9`); ignorati col
+  motivo zip 2.4 (mai `extract()`) e rustls-webpki 0.102 di rumqttc. La salita a zip 9 è negli Appunti;
+- la skill `/finalizza-giornata` ora fa gli stessi controlli della CI prima del push (`852a4f72`, passo 3b).
+
+**Il lavoro dell'assistente** è quello del blocco qui sotto (F0–F4 su `feat/assistente-sinottici`), con in più due
+correzioni del 04-11: le istantanee del banco di prova ora disegnano i simboli (`b8ca799e`, il runtime di prova partiva
+senza `--www`) e un attributo ripetuto in una descrizione è un errore invece di un SVG non valido (`e3368fcd`).
+
+**Prossimo passo**: invariato — rifare il banco «tubi d'acciaio» quando il budget del progetto Moonshot è alzato (oggi
+Kimi risponde 429), poi F5–F7 del piano. Per avere `main` verde in CI: il collaudo del maintainer e il merge della catena.
+
+## Sessione precedente — l'assistente disegna i simboli e compone il sinottico, ramo a metà (2026-11-04, ufficio)
 
 **Un ramo aperto, su origin: `feat/assistente-sinottici`** (scelta del maintainer: «push del ramo, niente merge»).
 Dall'altra macchina: `./scripts/session_start.sh`, poi `git checkout feat/assistente-sinottici`. Il piano è

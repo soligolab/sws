@@ -62,7 +62,10 @@ fn finestra_runtime() -> Riassunto {
 
 /// `GET /api/prestazioni`
 pub async fn leggi() -> Response {
-    RICHIESTA_FINO_MS.store(ora_ms() + DURATA_RICHIESTA.as_millis() as u64, Ordering::Relaxed);
+    RICHIESTA_FINO_MS.store(
+        ora_ms() + DURATA_RICHIESTA.as_millis() as u64,
+        Ordering::Relaxed,
+    );
     let viewer = VIEWER
         .lock()
         .unwrap_or_else(|e| e.into_inner())
@@ -120,9 +123,16 @@ pub fn testo_prometheus() -> String {
                 .get(i)
                 .map(|ms| format!("{}", ms / 1000.0))
                 .unwrap_or_else(|| "+Inf".into());
-            let _ = writeln!(s, "sws_lavoro_secondi_bucket{{lavoro=\"{nome}\",le=\"{le}\"}} {cumulato}");
+            let _ = writeln!(
+                s,
+                "sws_lavoro_secondi_bucket{{lavoro=\"{nome}\",le=\"{le}\"}} {cumulato}"
+            );
         }
-        let _ = writeln!(s, "sws_lavoro_secondi_sum{{lavoro=\"{nome}\"}} {}", v.somma_ms / 1000.0);
+        let _ = writeln!(
+            s,
+            "sws_lavoro_secondi_sum{{lavoro=\"{nome}\"}} {}",
+            v.somma_ms / 1000.0
+        );
         let _ = writeln!(s, "sws_lavoro_secondi_count{{lavoro=\"{nome}\"}} {}", v.n);
     }
     s
@@ -136,7 +146,13 @@ mod tests {
         Riassunto {
             intervallo_s: 2.0,
             voci: (0..voci)
-                .map(|i| sws_core::prestazioni::Voce { nome: format!("v{i}"), n: 1, somma_ms: 1.0, max_ms: 1.0, secchi: vec![1, 0, 0, 0, 0, 0, 0, 0] })
+                .map(|i| sws_core::prestazioni::Voce {
+                    nome: format!("v{i}"),
+                    n: 1,
+                    somma_ms: 1.0,
+                    max_ms: 1.0,
+                    secchi: vec![1, 0, 0, 0, 0, 0, 0, 0],
+                })
                 .collect(),
         }
     }
@@ -148,7 +164,10 @@ mod tests {
         *VIEWER.lock().unwrap() = None;
         let r = dal_viewer(Json(riassunto(3))).await;
         assert_eq!(r.status(), StatusCode::NO_CONTENT);
-        assert!(VIEWER.lock().unwrap().is_none(), "nessuno guarda: niente si tiene");
+        assert!(
+            VIEWER.lock().unwrap().is_none(),
+            "nessuno guarda: niente si tiene"
+        );
 
         let _ = leggi().await; // la pagina dell'IDE accende la richiesta
         assert!(attiva());
@@ -157,7 +176,11 @@ mod tests {
         assert!(VIEWER.lock().unwrap().is_some());
 
         let r = dal_viewer(Json(riassunto(MASSIMO_VOCI + 1))).await;
-        assert_eq!(r.status(), StatusCode::BAD_REQUEST, "un riassunto enorme si rifiuta");
+        assert_eq!(
+            r.status(),
+            StatusCode::BAD_REQUEST,
+            "un riassunto enorme si rifiuta"
+        );
     }
 
     #[test]

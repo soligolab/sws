@@ -55,6 +55,33 @@ origin/main` dice subito se su origin è successo qualcosa che non hai fatto tu.
 è già stato verificato passo per passo durante il ciclo per-task, questo è un ricontrollo, non una
 sorpresa attesa.
 
+## 3b. I controlli della CI, prima che li faccia lei (richiesta del maintainer, 04-11-2026)
+
+La CI di GitHub (`.github/workflows/ci.yml`) gira sui push a `main` e fa cose che la definition of done non fa.
+Il 04-11-2026 è arrivata la mail con tre job rossi — Rust lint, TS lint, Rust audit — rossi da settimane senza che
+nessuno lo sapesse da qui: `cargo fmt --check` non era mai passato (2506 blocchi), clippy con `-D warnings` aveva
+una ventina di errori, eslint quattro, e `cargo audit` sedici avvisi nuovi. Parole del maintainer: «queste
+operazioni nelle operazioni di fine giornata».
+
+Quindi, prima del push, gli stessi comandi della CI:
+
+```
+cd sws-runtime && cargo fmt --check && cargo clippy -- -D warnings && cargo audit
+cd sws-editor  && pnpm lint && pnpm type-check
+```
+
+- **`cargo fmt --check` rosso**: `cargo fmt`, e il risultato in un commit a parte (solo formattazione), sul ramo di
+  lavoro — mai direttamente su `main`.
+- **clippy rosso**: si corregge; un `#[allow(...)]` solo col perché scritto accanto (vedi quelli del 04-11-2026).
+- **`cargo audit` rosso**: prima `cargo update -p <crate>@<versione>` per le correzioni compatibili; un avviso si
+  aggiunge a `sws-runtime/.cargo/audit.toml` solo se non ci tocca o la correzione non dipende da noi, **con il
+  motivo** — mai per far diventare verde il job. Se `cargo audit` non c'è: `cargo install cargo-audit --version
+  0.22.2 --locked` (la versione della CI).
+- **eslint o type-check rossi**: si correggono.
+
+Se qualcosa resta rosso, **dillo e non pushare `main`**, come per la definition of done. Un ramo di lavoro si può
+pushare lo stesso (la CI non gira sui rami), ma lo stato va scritto in STATUS.md.
+
 ## 4. Il riepilogo in STATUS.md
 
 Scrivi (o aggiorna) in cima a `STATUS.md` una sezione nello stesso stile già in uso:

@@ -83,7 +83,11 @@ pub fn altezza_minima_setpoint(
     corpo_pulsanti: f64,
     con_etichetta: bool,
 ) -> f64 {
-    let testata = if con_etichetta { riga(corpo_etichetta) + 3.0 } else { 0.0 };
+    let testata = if con_etichetta {
+        riga(corpo_etichetta) + 3.0
+    } else {
+        0.0
+    };
     let attuale = riga(corpo_annotazione(corpo)) + 3.0;
     let campo = riga(corpo.max(corpo_pulsanti)) + 8.0;
     8.0 + testata + attuale + campo
@@ -114,40 +118,81 @@ mod prove {
     /// altezze diverse.
     #[test]
     fn le_misure_sono_quelle_del_web() {
-        let f: Fixture =
-            serde_json::from_str(include_str!("../../../../tests/fixtures/geometria-testo.json"))
-                .expect("fixture leggibile");
+        let f: Fixture = serde_json::from_str(include_str!(
+            "../../../../tests/fixtures/geometria-testo.json"
+        ))
+        .expect("fixture leggibile");
         for c in &f.passo_riga {
             assert_eq!(passo_riga(c.corpo), c.atteso, "passo_riga({})", c.corpo);
         }
         for c in &f.altezza_etichetta {
-            assert_eq!(altezza_etichetta(c.corpo), c.atteso, "altezza_etichetta({})", c.corpo);
+            assert_eq!(
+                altezza_etichetta(c.corpo),
+                c.atteso,
+                "altezza_etichetta({})",
+                c.corpo
+            );
         }
         for c in &f.altezza_valore {
-            assert_eq!(altezza_valore(c.corpo), c.atteso, "altezza_valore({})", c.corpo);
+            assert_eq!(
+                altezza_valore(c.corpo),
+                c.atteso,
+                "altezza_valore({})",
+                c.corpo
+            );
         }
         for c in &f.corpo_secondario {
-            assert_eq!(corpo_secondario(c.corpo), c.atteso, "corpo_secondario({})", c.corpo);
+            assert_eq!(
+                corpo_secondario(c.corpo),
+                c.atteso,
+                "corpo_secondario({})",
+                c.corpo
+            );
         }
         for c in &f.corpo_annotazione {
-            assert_eq!(corpo_annotazione(c.corpo), c.atteso, "corpo_annotazione({})", c.corpo);
+            assert_eq!(
+                corpo_annotazione(c.corpo),
+                c.atteso,
+                "corpo_annotazione({})",
+                c.corpo
+            );
         }
     }
 
     /// Il vincolo dichiarato: col corpo di prima, i numeri di prima.
     #[test]
     fn col_corpo_di_oggi_niente_si_muove() {
-        assert_eq!(passo_riga(13.0), 28.0, "il passo fra le opzioni di un radio");
+        assert_eq!(
+            passo_riga(13.0),
+            28.0,
+            "il passo fra le opzioni di un radio"
+        );
         assert_eq!(altezza_etichetta(11.0), 20.0, "lo spazio dell'etichetta");
-        assert_eq!(altezza_valore(12.0), 18.0, "la riga del valore di uno slider");
-        assert_eq!(corpo_secondario(10.0), 9.0, "le tacche di un grafico a barre");
-        assert_eq!(corpo_annotazione(12.0), 10.0, "la riga «Attuale:» di un setpoint");
+        assert_eq!(
+            altezza_valore(12.0),
+            18.0,
+            "la riga del valore di uno slider"
+        );
+        assert_eq!(
+            corpo_secondario(10.0),
+            9.0,
+            "le tacche di un grafico a barre"
+        );
+        assert_eq!(
+            corpo_annotazione(12.0),
+            10.0,
+            "la riga «Attuale:» di un setpoint"
+        );
         // Il setpoint predefinito (etichetta 11, testo 12, pulsanti 12) chiede
         // 61 px e oggi ne ha 56: e' l'allargamento che il maintainer ha scelto
         // sapendo che succede. Misurati il 22-10-2026: i sette setpoint che
         // esistono fra template e progetti veri stanno tutti a 48 e crescono
         // tutti di 13.
         assert_eq!(altezza_minima_setpoint(11.0, 12.0, 12.0, true), 61.0);
-        assert_eq!(altezza_minima_setpoint(11.0, 12.0, 12.0, false), 45.0, "senza etichetta");
+        assert_eq!(
+            altezza_minima_setpoint(11.0, 12.0, 12.0, false),
+            45.0,
+            "senza etichetta"
+        );
     }
 }

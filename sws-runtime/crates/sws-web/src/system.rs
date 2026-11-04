@@ -561,7 +561,10 @@ pub async fn get_system_status(
     status.openplc = crate::openplc::stato(&state.config_dir).await;
     // La ritenzione automatica che aspetta la conferma (20-10-2026): solo all'Admin,
     // che è chi può confermarla (decisione del maintainer).
-    if utente.as_ref().is_some_and(|u| u.0.role == sws_auth::Role::Admin) {
+    if utente
+        .as_ref()
+        .is_some_and(|u| u.0.role == sws_auth::Role::Admin)
+    {
         // Il percorso dal guard già preso in testa: una seconda `read()` sullo stesso
         // RwLock, con uno scrittore in coda, si bloccherebbe.
         if let Some(dir) = (*dir_guard).clone() {
@@ -580,7 +583,8 @@ pub async fn get_system_status(
         }
     }
     if crate::conferma_aggiornamento::disponibile() {
-        status.conferma_aggiornamento = Some(crate::conferma_aggiornamento::stato(&state.config_dir).await);
+        status.conferma_aggiornamento =
+            Some(crate::conferma_aggiornamento::stato(&state.config_dir).await);
     }
     Json(status)
 }
@@ -624,7 +628,9 @@ pub async fn get_system_status_viewer(
     utente: Option<axum::Extension<crate::router::AuthUser>>,
 ) -> axum::response::Response {
     use axum::response::IntoResponse;
-    let operatore = utente.as_ref().is_some_and(|u| u.0.role >= sws_auth::Role::Operator);
+    let operatore = utente
+        .as_ref()
+        .is_some_and(|u| u.0.role >= sws_auth::Role::Operator);
     let Json(pieno) = get_system_status(State(state), utente).await;
     if operatore {
         Json(pieno).into_response()
@@ -858,8 +864,13 @@ pub struct PorteSeriali {
 /// I nomi di file che sono porte seriali: le UART (`ttyS`, `ttyAMA`, `ttymxc`),
 /// gli adattatori USB (`ttyUSB`, `ttyACM`) e i nomi delle prese Pixsys (`ttyCOM`).
 pub fn e_nome_seriale(nome: &str) -> bool {
-    ["ttyS", "ttyUSB", "ttyACM", "ttyAMA", "ttymxc", "ttyCOM", "ttyLP", "ttySC"].iter().any(|p| {
-        nome.strip_prefix(p).is_some_and(|r| !r.is_empty() && r.chars().all(|c| c.is_ascii_digit()))
+    [
+        "ttyS", "ttyUSB", "ttyACM", "ttyAMA", "ttymxc", "ttyCOM", "ttyLP", "ttySC",
+    ]
+    .iter()
+    .any(|p| {
+        nome.strip_prefix(p)
+            .is_some_and(|r| !r.is_empty() && r.chars().all(|c| c.is_ascii_digit()))
     })
 }
 
@@ -870,7 +881,12 @@ fn accesso_porta(p: &std::path::Path) -> &'static str {
     use std::os::unix::fs::OpenOptionsExt;
     // O_NOCTTY | O_NONBLOCK su Linux (uguali su x86_64 e aarch64).
     const FLAG: i32 = 0o400 | 0o4000;
-    match std::fs::OpenOptions::new().read(true).write(true).custom_flags(FLAG).open(p) {
+    match std::fs::OpenOptions::new()
+        .read(true)
+        .write(true)
+        .custom_flags(FLAG)
+        .open(p)
+    {
         Ok(_) => "ok",
         Err(e) if e.kind() == std::io::ErrorKind::PermissionDenied => "permesso",
         Err(e) if e.raw_os_error() == Some(16) => "occupata", // EBUSY: TIOCEXCL di chi la usa
@@ -880,7 +896,9 @@ fn accesso_porta(p: &std::path::Path) -> &'static str {
 
 /// Le porte seriali in una cartella (di solito `/dev`), in ordine di nome.
 pub fn porte_seriali_in(dev: &std::path::Path) -> Vec<PortaSeriale> {
-    let Ok(rd) = std::fs::read_dir(dev) else { return Vec::new() };
+    let Ok(rd) = std::fs::read_dir(dev) else {
+        return Vec::new();
+    };
     let mut out: Vec<PortaSeriale> = rd
         .flatten()
         .filter_map(|e| {
@@ -889,8 +907,14 @@ pub fn porte_seriali_in(dev: &std::path::Path) -> Vec<PortaSeriale> {
                 return None;
             }
             let p = e.path();
-            let collegamento = std::fs::read_link(&p).ok().map(|l| l.to_string_lossy().to_string());
-            Some(PortaSeriale { percorso: p.to_string_lossy().to_string(), collegamento, accesso: accesso_porta(&p) })
+            let collegamento = std::fs::read_link(&p)
+                .ok()
+                .map(|l| l.to_string_lossy().to_string());
+            Some(PortaSeriale {
+                percorso: p.to_string_lossy().to_string(),
+                collegamento,
+                accesso: accesso_porta(&p),
+            })
         })
         .collect();
     // I nomi delle prese (collegamenti) prima: sono quelli da scegliere.
@@ -910,8 +934,13 @@ pub fn porte_seriali_in(dev: &std::path::Path) -> Vec<PortaSeriale> {
 /// del 04-10 aveva `/dev/ttyCOM1` scritto a mano, giusto sul pannello ma
 /// invisibile dal container, e niente lo diceva.
 pub async fn get_porte_seriali() -> Json<PorteSeriali> {
-    let porte = tokio::task::spawn_blocking(|| porte_seriali_in(std::path::Path::new("/dev"))).await.unwrap_or_default();
-    Json(PorteSeriali { porte, container: std::path::Path::new("/run/.containerenv").exists() })
+    let porte = tokio::task::spawn_blocking(|| porte_seriali_in(std::path::Path::new("/dev")))
+        .await
+        .unwrap_or_default();
+    Json(PorteSeriali {
+        porte,
+        container: std::path::Path::new("/run/.containerenv").exists(),
+    })
 }
 
 /// `GET /api/system/tls` — se il TLS è acceso, e se **il browser del pannello
@@ -924,10 +953,14 @@ pub async fn get_porte_seriali() -> Json<PorteSeriali> {
 pub async fn get_tls_status(State(s): State<AppState>) -> Json<TlsStatus> {
     let enabled = s.config_dir.join("tls.crt").exists();
     let dir = (*s.config_dir).clone();
-    let fiducia_browser = tokio::task::spawn_blocking(move || dir.join(FILE_FIDUCIA_BROWSER).exists())
-        .await
-        .unwrap_or(false);
-    Json(TlsStatus { enabled, fiducia_browser })
+    let fiducia_browser =
+        tokio::task::spawn_blocking(move || dir.join(FILE_FIDUCIA_BROWSER).exists())
+            .await
+            .unwrap_or(false);
+    Json(TlsStatus {
+        enabled,
+        fiducia_browser,
+    })
 }
 
 /// `POST /api/system/tls/generate` — generate a self-signed cert, write to config dir,
@@ -940,8 +973,12 @@ pub async fn get_tls_status(State(s): State<AppState>) -> Json<TlsStatus> {
 /// invece di restare aperto nel fascicolo. La voce si scrive **prima** della
 /// scrittura, perché il riavvio porta via il processo subito dopo e un log
 /// scritto «dopo» sarebbe quello che non c'è proprio quando serve.
-pub async fn generate_tls_cert(State(s): State<AppState>, Extension(user): Extension<AuthUser>) -> StatusCode {
-    s.audit.log("tls.generate", Some(user.username), serde_json::json!({}));
+pub async fn generate_tls_cert(
+    State(s): State<AppState>,
+    Extension(user): Extension<AuthUser>,
+) -> StatusCode {
+    s.audit
+        .log("tls.generate", Some(user.username), serde_json::json!({}));
     let config_dir = (*s.config_dir).clone();
     match tokio::task::spawn_blocking(move || genera_certificato(&config_dir)).await {
         Ok(Ok(())) => {}
@@ -960,8 +997,12 @@ pub async fn generate_tls_cert(State(s): State<AppState>, Extension(user): Exten
 
 /// `DELETE /api/system/tls` — remove the TLS cert files and reboot into plain HTTP.
 /// Nell'audit: vedi `generate_tls_cert`.
-pub async fn remove_tls_cert(State(s): State<AppState>, Extension(user): Extension<AuthUser>) -> StatusCode {
-    s.audit.log("tls.remove", Some(user.username), serde_json::json!({}));
+pub async fn remove_tls_cert(
+    State(s): State<AppState>,
+    Extension(user): Extension<AuthUser>,
+) -> StatusCode {
+    s.audit
+        .log("tls.remove", Some(user.username), serde_json::json!({}));
     let cert_path = s.config_dir.join("tls.crt");
     let key_path = s.config_dir.join("tls.key");
     for path in [&cert_path, &key_path] {
@@ -1007,7 +1048,8 @@ pub async fn upload_tls_cert(
             .into_response();
     }
 
-    s.audit.log("tls.upload", Some(user.username), serde_json::json!({}));
+    s.audit
+        .log("tls.upload", Some(user.username), serde_json::json!({}));
     let config_dir = (*s.config_dir).clone();
     let cert = body.cert_pem;
     let key = body.key_pem;
@@ -1179,12 +1221,18 @@ mod prove_nomi_certificato {
     #[test]
     fn il_soggetto_e_il_nome_del_pannello() {
         let qui = include_str!("system.rs");
-        let gen = &qui[qui.find("pub fn genera_certificato").expect("genera_certificato")..];
+        let gen = &qui[qui
+            .find("pub fn genera_certificato")
+            .expect("genera_certificato")..];
         let gen = &gen[..gen.find("\n}\n").expect("fine di genera_certificato")];
-        assert!(gen.contains("crate::abbinamento::nome_proposto()"),
-            "il soggetto non viene più dal nome del pannello: tornerebbe il default di rcgen");
-        assert!(gen.contains("DnType::CommonName"),
-            "nessun CommonName impostato: rcgen rimetterebbe il suo");
+        assert!(
+            gen.contains("crate::abbinamento::nome_proposto()"),
+            "il soggetto non viene più dal nome del pannello: tornerebbe il default di rcgen"
+        );
+        assert!(
+            gen.contains("DnType::CommonName"),
+            "nessun CommonName impostato: rcgen rimetterebbe il suo"
+        );
     }
 
     /// Il caso vero di un pannello: `localhost` perché il suo browser chiede
@@ -1196,7 +1244,11 @@ mod prove_nomi_certificato {
     fn il_pannello_si_chiama_in_tre_modi() {
         assert_eq!(
             nomi_del_certificato("tc620-a-p3-c6-07aff9"),
-            vec!["localhost", "tc620-a-p3-c6-07aff9", "tc620-a-p3-c6-07aff9.local"]
+            vec![
+                "localhost",
+                "tc620-a-p3-c6-07aff9",
+                "tc620-a-p3-c6-07aff9.local"
+            ]
         );
     }
 
@@ -1246,7 +1298,13 @@ mod tests_viewer {
         chiavi.sort();
         assert_eq!(
             chiavi,
-            ["auth_required", "conferma_aggiornamento", "quadlet", "runtime_version", "uptime_s"]
+            [
+                "auth_required",
+                "conferma_aggiornamento",
+                "quadlet",
+                "runtime_version",
+                "uptime_s"
+            ]
         );
     }
 }
@@ -1296,8 +1354,8 @@ mod tests {
             started,
             false,
             false,
-        Path::new("/tmp"),
-        None,
+            Path::new("/tmp"),
+            None,
         )
         .await;
 
@@ -1325,8 +1383,8 @@ mod tests {
             Instant::now(),
             false,
             false,
-        Path::new("/tmp"),
-        None,
+            Path::new("/tmp"),
+            None,
         )
         .await;
         assert!(status.active_project.is_none());
@@ -1357,8 +1415,8 @@ mod tests {
             Instant::now(),
             true,
             false,
-        Path::new("/tmp"),
-        None,
+            Path::new("/tmp"),
+            None,
         )
         .await;
         assert_eq!(ide.mode, "ide", "senza viewer l'istanza è un IDE");
@@ -1372,8 +1430,8 @@ mod tests {
             Instant::now(),
             false,
             false,
-        Path::new("/tmp"),
-        None,
+            Path::new("/tmp"),
+            None,
         )
         .await;
         assert_eq!(
@@ -1439,8 +1497,8 @@ mod tests {
             Instant::now(),
             false,
             false,
-        Path::new("/tmp"),
-        None,
+            Path::new("/tmp"),
+            None,
         )
         .await;
         assert_eq!(status.alarm_active_count, 1);
@@ -1650,10 +1708,20 @@ mod porte_seriali_tests {
 
     #[test]
     fn i_nomi_delle_seriali() {
-        for n in ["ttyS0", "ttyS12", "ttyUSB0", "ttyACM1", "ttyCOM1", "ttymxc3", "ttyAMA0"] {
+        for n in [
+            "ttyS0", "ttyS12", "ttyUSB0", "ttyACM1", "ttyCOM1", "ttymxc3", "ttyAMA0",
+        ] {
             assert!(e_nome_seriale(n), "{n}");
         }
-        for n in ["tty", "tty0", "ttyS", "ttySx", "ttyprintk", "console", "ttyCOM1.bak"] {
+        for n in [
+            "tty",
+            "tty0",
+            "ttyS",
+            "ttySx",
+            "ttyprintk",
+            "console",
+            "ttyCOM1.bak",
+        ] {
             assert!(!e_nome_seriale(n), "{n}");
         }
     }
@@ -1667,7 +1735,10 @@ mod porte_seriali_tests {
         std::fs::write(d.path().join("null"), b"").unwrap();
         std::os::unix::fs::symlink("ttyS2", d.path().join("ttyCOM1")).unwrap();
         let p = porte_seriali_in(d.path());
-        let nomi: Vec<_> = p.iter().map(|x| x.percorso.rsplit('/').next().unwrap().to_string()).collect();
+        let nomi: Vec<_> = p
+            .iter()
+            .map(|x| x.percorso.rsplit('/').next().unwrap().to_string())
+            .collect();
         assert_eq!(nomi, vec!["ttyCOM1", "ttyS0", "ttyS2", "ttyS10"]);
         assert_eq!(p[0].collegamento.as_deref(), Some("ttyS2"));
         assert_eq!(p[0].accesso, "ok", "un file normale si apre");

@@ -37,43 +37,81 @@ pub struct Archiviato {
 /// comunque «archiviato»: chi l'ha messo voleva il progetto fuori dai piedi.
 pub fn leggi(dir: &Path) -> Option<Archiviato> {
     let testo = std::fs::read_to_string(dir.join(SEGNO)).ok()?;
-    Some(serde_json::from_str(&testo).unwrap_or(Archiviato { quando_ms: 0, da: String::new() }))
+    Some(serde_json::from_str(&testo).unwrap_or(Archiviato {
+        quando_ms: 0,
+        da: String::new(),
+    }))
 }
 
 pub fn e_archiviato(dir: &Path) -> bool {
     dir.join(SEGNO).exists()
 }
 
-async fn archivia_o_ripristina(s: &AppState, user: Option<&AuthUser>, azienda: &str, nome: &str, archivia: bool) -> Response {
+async fn archivia_o_ripristina(
+    s: &AppState,
+    user: Option<&AuthUser>,
+    azienda: &str,
+    nome: &str,
+    archivia: bool,
+) -> Response {
     let _switch = s.project_switch_lock.lock().await;
     let chi = user.map(|u| u.username.clone());
     let p = match crate::projects::risolvi_progetto(s, user, azienda, nome).await {
         Ok(p) => p,
         Err(r) => return r,
     };
-    if !tokio::fs::metadata(&p.dir).await.map(|m| m.is_dir()).unwrap_or(false) {
+    if !tokio::fs::metadata(&p.dir)
+        .await
+        .map(|m| m.is_dir())
+        .unwrap_or(false)
+    {
         return (StatusCode::NOT_FOUND, "progetto non trovato").into_response();
     }
     if archivia {
         if let Ok(attivo) = crate::router::active_dir(s).await {
             if attivo == p.dir {
-                return (StatusCode::CONFLICT, "il progetto è aperto: chiudilo prima di archiviarlo").into_response();
+                return (
+                    StatusCode::CONFLICT,
+                    "il progetto è aperto: chiudilo prima di archiviarlo",
+                )
+                    .into_response();
             }
         }
-        let segno = Archiviato { quando_ms: sws_core::now_ms(), da: chi.clone().unwrap_or_default() };
+        let segno = Archiviato {
+            quando_ms: sws_core::now_ms(),
+            da: chi.clone().unwrap_or_default(),
+        };
         let testo = serde_json::to_string_pretty(&segno).unwrap_or_default();
         if let Err(e) = tokio::fs::write(p.dir.join(SEGNO), testo).await {
-            return (StatusCode::INTERNAL_SERVER_ERROR, format!("non archiviato: {e}")).into_response();
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                format!("non archiviato: {e}"),
+            )
+                .into_response();
         }
-        s.audit.log("project.archive", chi, serde_json::json!({ "progetto": p.chiave }));
+        s.audit.log(
+            "project.archive",
+            chi,
+            serde_json::json!({ "progetto": p.chiave }),
+        );
         Json(serde_json::json!({ "archiviato": segno })).into_response()
     } else {
         match tokio::fs::remove_file(p.dir.join(SEGNO)).await {
             Ok(()) => {}
             Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
-            Err(e) => return (StatusCode::INTERNAL_SERVER_ERROR, format!("non ripristinato: {e}")).into_response(),
+            Err(e) => {
+                return (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    format!("non ripristinato: {e}"),
+                )
+                    .into_response()
+            }
         }
-        s.audit.log("project.unarchive", chi, serde_json::json!({ "progetto": p.chiave }));
+        s.audit.log(
+            "project.unarchive",
+            chi,
+            serde_json::json!({ "progetto": p.chiave }),
+        );
         Json(serde_json::json!({ "archiviato": null })).into_response()
     }
 }
@@ -106,7 +144,13 @@ mod tests {
         std::fs::create_dir_all(&d).unwrap();
         assert!(leggi(&d).is_none() && !e_archiviato(&d));
         std::fs::write(d.join(SEGNO), r#"{"quando_ms":5,"da":"mauro"}"#).unwrap();
-        assert_eq!(leggi(&d), Some(Archiviato { quando_ms: 5, da: "mauro".into() }));
+        assert_eq!(
+            leggi(&d),
+            Some(Archiviato {
+                quando_ms: 5,
+                da: "mauro".into()
+            })
+        );
         std::fs::write(d.join(SEGNO), "rovinato").unwrap();
         assert!(e_archiviato(&d) && leggi(&d).is_some());
         std::fs::remove_dir_all(&d).ok();

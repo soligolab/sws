@@ -147,7 +147,9 @@ impl TagDb {
             write_roles: Arc::new(RwLock::new(HashMap::new())),
             data_types: Arc::new(RwLock::new(HashMap::new())),
             computed_tags: Arc::new(RwLock::new(std::collections::HashSet::new())),
-            conversione_segnalata: Arc::new(std::sync::Mutex::new(std::collections::HashSet::new())),
+            conversione_segnalata: Arc::new(
+                std::sync::Mutex::new(std::collections::HashSet::new()),
+            ),
             forme: Arc::new(RwLock::new(HashMap::new())),
             tipi_struttura: Arc::new(RwLock::new(HashMap::new())),
             qualita_foglie: Arc::new(RwLock::new(HashMap::new())),
@@ -361,9 +363,17 @@ impl TagDb {
             crate::tipo::Lettura::Ok(v) => self.set(id, v, quality).await,
             crate::tipo::Lettura::Saturato(v) => {
                 self.segnala_conversione(&id, || {
-                    format!("il tag «{id}» è dichiarato {nome}: {} saturato a {}", crate::tipo::descrivi(&scaled), crate::tipo::descrivi(&v))
+                    format!(
+                        "il tag «{id}» è dichiarato {nome}: {} saturato a {}",
+                        crate::tipo::descrivi(&scaled),
+                        crate::tipo::descrivi(&v)
+                    )
                 });
-                let q = if quality == TagQuality::Bad { TagQuality::Bad } else { TagQuality::Uncertain };
+                let q = if quality == TagQuality::Bad {
+                    TagQuality::Bad
+                } else {
+                    TagQuality::Uncertain
+                };
                 self.set(id, v, q).await;
             }
             crate::tipo::Lettura::Rifiutato(ricevuto) => {
@@ -1045,8 +1055,12 @@ mod tests {
         )
         .await;
 
-        db.set_tipizzato("rampa".into(), TagValue::Float(41.333_333_333_333_336), TagQuality::Good)
-            .await;
+        db.set_tipizzato(
+            "rampa".into(),
+            TagValue::Float(41.333_333_333_333_336),
+            TagQuality::Good,
+        )
+        .await;
         assert_eq!(
             db.get("rampa").await.map(|v| v.value),
             Some(TagValue::Int(41)),
@@ -1056,13 +1070,19 @@ mod tests {
         // Un tag che il decimale lo vuole davvero non si tocca.
         db.set_tipizzato("libero".into(), TagValue::Float(41.5), TagQuality::Good)
             .await;
-        assert_eq!(db.get("libero").await.map(|v| v.value), Some(TagValue::Float(41.5)));
+        assert_eq!(
+            db.get("libero").await.map(|v| v.value),
+            Some(TagValue::Float(41.5))
+        );
 
         // Un tag senza tipo dichiarato passa com'era: creato al volo, nessun
         // contratto da rispettare.
         db.set_tipizzato("ignoto".into(), TagValue::Float(0.25), TagQuality::Good)
             .await;
-        assert_eq!(db.get("ignoto").await.map(|v| v.value), Some(TagValue::Float(0.25)));
+        assert_eq!(
+            db.get("ignoto").await.map(|v| v.value),
+            Some(TagValue::Float(0.25))
+        );
     }
 
     /// `set_tipizzato` NON applica la scala raw→eng, `ingest` sì.
@@ -1075,15 +1095,31 @@ mod tests {
         let db = TagDb::new(16);
         db.set_data_types([("t".to_string(), "f64".to_string())].into())
             .await;
-        db.set_scales([("t".to_string(), LinearScale { raw_min: 0.0, raw_max: 100.0, eng_min: 0.0, eng_max: 200.0 })].into())
-            .await;
+        db.set_scales(
+            [(
+                "t".to_string(),
+                LinearScale {
+                    raw_min: 0.0,
+                    raw_max: 100.0,
+                    eng_min: 0.0,
+                    eng_max: 200.0,
+                },
+            )]
+            .into(),
+        )
+        .await;
 
         // Dal campo: 50 raw diventa 100 ingegneristici.
-        db.ingest("t".into(), TagValue::Float(50.0), TagQuality::Good).await;
-        assert_eq!(db.get("t").await.map(|v| v.value), Some(TagValue::Float(100.0)));
+        db.ingest("t".into(), TagValue::Float(50.0), TagQuality::Good)
+            .await;
+        assert_eq!(
+            db.get("t").await.map(|v| v.value),
+            Some(TagValue::Float(100.0))
+        );
 
         // Prodotto in casa: 50 resta 50.
-        db.set_tipizzato("t".into(), TagValue::Float(50.0), TagQuality::Good).await;
+        db.set_tipizzato("t".into(), TagValue::Float(50.0), TagQuality::Good)
+            .await;
         assert_eq!(
             db.get("t").await.map(|v| v.value),
             Some(TagValue::Float(50.0)),
@@ -1220,30 +1256,51 @@ mod tests {
             .into(),
         )
         .await;
-        db.ingest("temp".into(), TagValue::Float(29.8), TagQuality::Good).await;
-        assert_eq!(db.get("temp").await.unwrap().value, TagValue::Int(30), "reale su intero: arrotondato");
-        db.ingest("uptime".into(), TagValue::Float(237593.0), TagQuality::Good).await;
+        db.ingest("temp".into(), TagValue::Float(29.8), TagQuality::Good)
+            .await;
+        assert_eq!(
+            db.get("temp").await.unwrap().value,
+            TagValue::Int(30),
+            "reale su intero: arrotondato"
+        );
+        db.ingest("uptime".into(), TagValue::Float(237593.0), TagQuality::Good)
+            .await;
         assert_eq!(db.get("uptime").await.unwrap().value, TagValue::Int(237593));
 
         // Fuori intervallo: saturato e Uncertain.
-        db.ingest("reg".into(), TagValue::Int(-5), TagQuality::Good).await;
+        db.ingest("reg".into(), TagValue::Int(-5), TagQuality::Good)
+            .await;
         let r = db.get("reg").await.unwrap();
-        assert_eq!((r.value, r.quality), (TagValue::Int(0), TagQuality::Uncertain));
-        db.ingest("reg".into(), TagValue::Int(70_000), TagQuality::Good).await;
+        assert_eq!(
+            (r.value, r.quality),
+            (TagValue::Int(0), TagQuality::Uncertain)
+        );
+        db.ingest("reg".into(), TagValue::Int(70_000), TagQuality::Good)
+            .await;
         assert_eq!(db.get("reg").await.unwrap().value, TagValue::Int(65_535));
 
         // Non convertibile: resta l'ultimo valore, marcato Bad.
-        db.ingest("mqtt".into(), TagValue::Float(1.5), TagQuality::Good).await;
-        db.ingest("mqtt".into(), TagValue::Bool(true), TagQuality::Good).await;
+        db.ingest("mqtt".into(), TagValue::Float(1.5), TagQuality::Good)
+            .await;
+        db.ingest("mqtt".into(), TagValue::Bool(true), TagQuality::Good)
+            .await;
         let m = db.get("mqtt").await.unwrap();
-        assert_eq!((m.value, m.quality), (TagValue::Float(1.5), TagQuality::Bad));
+        assert_eq!(
+            (m.value, m.quality),
+            (TagValue::Float(1.5), TagQuality::Bad)
+        );
 
         // Un numero su un testo: convertito.
-        db.ingest("nome".into(), TagValue::Int(7), TagQuality::Good).await;
-        assert_eq!(db.get("nome").await.unwrap().value, TagValue::Str("7".into()));
+        db.ingest("nome".into(), TagValue::Int(7), TagQuality::Good)
+            .await;
+        assert_eq!(
+            db.get("nome").await.unwrap().value,
+            TagValue::Str("7".into())
+        );
 
         // Un tag senza tipo dichiarato passa com'era.
-        db.ingest("libero".into(), TagValue::Float(29.8), TagQuality::Good).await;
+        db.ingest("libero".into(), TagValue::Float(29.8), TagQuality::Good)
+            .await;
         assert_eq!(db.get("libero").await.unwrap().value, TagValue::Float(29.8));
     }
 }

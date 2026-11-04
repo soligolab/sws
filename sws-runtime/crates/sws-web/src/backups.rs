@@ -479,12 +479,25 @@ mod tests {
         write(d, "faceplates/motore.yaml", "id: motore\n");
         write(d, "cornici/base.yaml", "id: base\n");
         write(d, "planimetrie/casa.yaml", "id: casa\n");
-        let nome = backup_now(d).unwrap().file_name().unwrap().to_string_lossy().into_owned();
-        for f in ["faceplates/motore.yaml", "cornici/base.yaml", "planimetrie/casa.yaml"] {
+        let nome = backup_now(d)
+            .unwrap()
+            .file_name()
+            .unwrap()
+            .to_string_lossy()
+            .into_owned();
+        for f in [
+            "faceplates/motore.yaml",
+            "cornici/base.yaml",
+            "planimetrie/casa.yaml",
+        ] {
             std::fs::remove_file(d.join(f)).unwrap();
         }
         restore_backup(d, &nome).unwrap();
-        for f in ["faceplates/motore.yaml", "cornici/base.yaml", "planimetrie/casa.yaml"] {
+        for f in [
+            "faceplates/motore.yaml",
+            "cornici/base.yaml",
+            "planimetrie/casa.yaml",
+        ] {
             assert!(d.join(f).exists(), "{f} non è tornato col ripristino");
         }
     }
@@ -539,8 +552,14 @@ mod tests {
         write(project, "history/historian.db", "storico di adesso");
         write(project, "project.yaml", "name: cambiato\n");
         restore_backup(project, &snap.file_name().unwrap().to_string_lossy()).unwrap();
-        assert_eq!(std::fs::read_to_string(project.join("project.yaml")).unwrap(), "name: test\n");
-        assert_eq!(std::fs::read_to_string(project.join("history/historian.db")).unwrap(), "storico di adesso");
+        assert_eq!(
+            std::fs::read_to_string(project.join("project.yaml")).unwrap(),
+            "name: test\n"
+        );
+        assert_eq!(
+            std::fs::read_to_string(project.join("history/historian.db")).unwrap(),
+            "storico di adesso"
+        );
     }
 
     #[test]
@@ -555,7 +574,11 @@ mod tests {
         std::fs::write(&db_path, [0u8, 159, 146, 150, 1, 2, 3]).unwrap();
         // Quelle che un backup non deve portare.
         std::fs::write(project.join("history/historian.db-wal"), "wal").unwrap();
-        std::fs::write(project.join("history/historian-prima-della-pulizia-x.db"), "grande").unwrap();
+        std::fs::write(
+            project.join("history/historian-prima-della-pulizia-x.db"),
+            "grande",
+        )
+        .unwrap();
 
         let snap = backup_now_con(project, true).unwrap();
         let zip_bytes = zip_directory(&snap).unwrap();

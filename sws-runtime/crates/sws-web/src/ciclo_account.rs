@@ -49,7 +49,11 @@ pub fn avvia(s: AppState) {
 
 /// Un giro, col tempo che arriva da fuori.
 pub async fn giro(s: &AppState, adesso_ms: u64) {
-    match s.audit.pota(adesso_ms.saturating_sub(CONSERVAZIONE_REGISTRO.as_millis() as u64)).await {
+    match s
+        .audit
+        .pota(adesso_ms.saturating_sub(CONSERVAZIONE_REGISTRO.as_millis() as u64))
+        .await
+    {
         Ok(0) => {}
         Ok(n) => {
             info!("registro delle attività: tolte {n} voci più vecchie di 12 mesi");
@@ -57,7 +61,9 @@ pub async fn giro(s: &AppState, adesso_ms: u64) {
         }
         Err(e) => warn!("registro delle attività non potato: {e:#}"),
     }
-    let Some(identita) = s.identita.as_ref() else { return };
+    let Some(identita) = s.identita.as_ref() else {
+        return;
+    };
 
     if let Some(cfg) = crate::amministrazione::leggi_smtp(s).await {
         match identita.da_avvisare(adesso_ms).await {
@@ -76,9 +82,15 @@ pub async fn giro(s: &AppState, adesso_ms: u64) {
                                 warn!(utente = a.id, "avviso spedito ma non segnato: {e:#}");
                                 continue;
                             }
-                            s.audit.log("account.avviso_inattivita", None, json!({ "utente_id": a.id }));
+                            s.audit.log(
+                                "account.avviso_inattivita",
+                                None,
+                                json!({ "utente_id": a.id }),
+                            );
                         }
-                        Ok(Err(e)) => warn!(utente = a.id, "avviso d'inattività non partito: {e:#}"),
+                        Ok(Err(e)) => {
+                            warn!(utente = a.id, "avviso d'inattività non partito: {e:#}")
+                        }
                         Err(e) => warn!(utente = a.id, "avviso d'inattività non partito: {e}"),
                     }
                 }
@@ -114,7 +126,11 @@ pub async fn giro(s: &AppState, adesso_ms: u64) {
             Motivo::NonConfermato => "non_confermato",
         };
         info!(utente = c.id, motivo, "account cancellato");
-        s.audit.log("account.cancellato", None, json!({ "utente_id": c.id, "motivo": motivo }));
+        s.audit.log(
+            "account.cancellato",
+            None,
+            json!({ "utente_id": c.id, "motivo": motivo }),
+        );
     }
 }
 
@@ -149,12 +165,20 @@ pub async fn chiudi_account(
     let Some(id) = s.identita.as_ref() else {
         return StatusCode::NOT_FOUND.into_response();
     };
-    match id.chiudi_account(&user.username, &b.password, ora_ms()).await {
+    match id
+        .chiudi_account(&user.username, &b.password, ora_ms())
+        .await
+    {
         Ok(()) => {
-            s.audit.log("account.chiuso", Some(user.username.clone()), json!({}));
+            s.audit
+                .log("account.chiuso", Some(user.username.clone()), json!({}));
             StatusCode::NO_CONTENT.into_response()
         }
-        Err(e) => (StatusCode::UNPROCESSABLE_ENTITY, axum::Json(json!({ "error": e.to_string() }))).into_response(),
+        Err(e) => (
+            StatusCode::UNPROCESSABLE_ENTITY,
+            axum::Json(json!({ "error": e.to_string() })),
+        )
+            .into_response(),
     }
 }
 
@@ -221,21 +245,34 @@ mod test {
         let _ = std::fs::remove_dir_all(&dir);
         std::fs::create_dir_all(&dir).unwrap();
         let mut s = crate::router::stato_di_prova(&dir).await;
-        let id = sws_identita::Identita::apri(dir.join("identita.db")).await.unwrap();
-        let sws_identita::Registrato::Codice(codice) = id.registra("mario@tizio.it", "password-lunga").await.unwrap()
+        let id = sws_identita::Identita::apri(dir.join("identita.db"))
+            .await
+            .unwrap();
+        let sws_identita::Registrato::Codice(codice) = id
+            .registra("mario@tizio.it", "password-lunga")
+            .await
+            .unwrap()
         else {
             panic!("registrazione rifiutata")
         };
-        let (_, azienda) = id.conferma_registrazione("mario@tizio.it", &codice).await.unwrap();
+        let (_, azienda) = id
+            .conferma_registrazione("mario@tizio.it", &codice)
+            .await
+            .unwrap();
         let cartella = s.projects_root.join(&azienda.cartella);
         std::fs::create_dir_all(cartella.join("impianto")).unwrap();
-        id.chiudi_account("mario@tizio.it", "password-lunga", ora_ms()).await.unwrap();
+        id.chiudi_account("mario@tizio.it", "password-lunga", ora_ms())
+            .await
+            .unwrap();
         s.identita = Some(id);
 
         giro(&s, ora_ms()).await;
         assert!(cartella.exists(), "non prima dei 30 giorni");
         giro(&s, ora_ms() + 31 * 24 * 3600 * 1000).await;
-        assert!(!cartella.exists(), "la cartella dell'azienda personale se ne va con l'account");
+        assert!(
+            !cartella.exists(),
+            "la cartella dell'azienda personale se ne va con l'account"
+        );
         assert!(s.projects_root.exists());
         let _ = std::fs::remove_dir_all(&dir);
     }

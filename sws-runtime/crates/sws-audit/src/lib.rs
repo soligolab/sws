@@ -140,11 +140,17 @@ impl AuditLog {
         };
         let righe: Vec<&str> = content.lines().filter(|l| !l.trim().is_empty()).collect();
         let vecchia = |l: &str| {
-            serde_json::from_str::<AuditEntry>(l).map(|e| e.ts_ms < prima_di_ms).unwrap_or(false)
+            serde_json::from_str::<AuditEntry>(l)
+                .map(|e| e.ts_ms < prima_di_ms)
+                .unwrap_or(false)
         };
         // Solo le voci in testa: quello che viene dopo la prima recente resta comunque, perché
         // un buco in mezzo spezzerebbe la catena.
-        let tolte = righe.iter().take(righe.len().saturating_sub(1)).take_while(|l| vecchia(l)).count();
+        let tolte = righe
+            .iter()
+            .take(righe.len().saturating_sub(1))
+            .take_while(|l| vecchia(l))
+            .count();
         if tolte == 0 {
             return Ok(0);
         }
@@ -315,15 +321,27 @@ mod tests {
         }
         // Le date a mano: le prime due «vecchie». Riscritte con la catena rifatta.
         let mut prev = GENESIS_HASH.to_string();
-        let righe: Vec<String> = std::fs::read_to_string(&path).unwrap().lines().enumerate().map(|(i, l)| {
-            let mut e: AuditEntry = serde_json::from_str(l).unwrap();
-            e.ts_ms = if i < 2 { 1_000 } else { 5_000 };
-            e.prev_hash = prev.clone();
-            e.hash = chain::entry_hash(e.seq, e.ts_ms, e.actor.as_deref(), &e.action, &e.detail, &e.prev_hash);
-            e.sig = Some(chain::hmac_sign(b"k", &e.hash));
-            prev = e.hash.clone();
-            serde_json::to_string(&e).unwrap()
-        }).collect();
+        let righe: Vec<String> = std::fs::read_to_string(&path)
+            .unwrap()
+            .lines()
+            .enumerate()
+            .map(|(i, l)| {
+                let mut e: AuditEntry = serde_json::from_str(l).unwrap();
+                e.ts_ms = if i < 2 { 1_000 } else { 5_000 };
+                e.prev_hash = prev.clone();
+                e.hash = chain::entry_hash(
+                    e.seq,
+                    e.ts_ms,
+                    e.actor.as_deref(),
+                    &e.action,
+                    &e.detail,
+                    &e.prev_hash,
+                );
+                e.sig = Some(chain::hmac_sign(b"k", &e.hash));
+                prev = e.hash.clone();
+                serde_json::to_string(&e).unwrap()
+            })
+            .collect();
         std::fs::write(&path, righe.join("\n") + "\n").unwrap();
         // Riaperto: la catena riscritta a mano non è quella che il log ha in memoria.
         let log = Arc::new(AuditLog::open(path.clone(), Some(b"k".to_vec())));

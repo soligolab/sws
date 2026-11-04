@@ -77,7 +77,11 @@ pub fn stile_effettivo(
     if let Some(c) = &oggetto.content_color {
         materials.insert(MATERIALE_CONTENUTO.to_string(), c.clone());
     }
-    let volume = oggetto.volume.or(progetto.and_then(|p| p.volume)).unwrap_or(100.0).clamp(0.0, 100.0);
+    let volume = oggetto
+        .volume
+        .or(progetto.and_then(|p| p.volume))
+        .unwrap_or(100.0)
+        .clamp(0.0, 100.0);
     StileSimbolo {
         materials,
         volume,
@@ -87,7 +91,10 @@ pub fn stile_effettivo(
                 .clone()
                 .or_else(|| progetto.and_then(|p| p.outline_color.clone()))
                 .unwrap_or_else(|| CONTORNO_DISEGNO.to_string()),
-            width: oggetto.outline_width.or(progetto.and_then(|p| p.outline_width)).unwrap_or(1.0),
+            width: oggetto
+                .outline_width
+                .or(progetto.and_then(|p| p.outline_width))
+                .unwrap_or(1.0),
         },
         body: corpo_stato,
     }
@@ -136,8 +143,26 @@ fn leggi_tag(s: &str) -> Option<(Tag<'_>, usize)> {
             return None;
         }
         match b[i] {
-            b'>' => return Some((Tag { nome, attr, chiuso: false }, i + 1)),
-            b'/' if b.get(i + 1) == Some(&b'>') => return Some((Tag { nome, attr, chiuso: true }, i + 2)),
+            b'>' => {
+                return Some((
+                    Tag {
+                        nome,
+                        attr,
+                        chiuso: false,
+                    },
+                    i + 1,
+                ))
+            }
+            b'/' if b.get(i + 1) == Some(&b'>') => {
+                return Some((
+                    Tag {
+                        nome,
+                        attr,
+                        chiuso: true,
+                    },
+                    i + 2,
+                ))
+            }
             _ => {}
         }
         if i == inizio_spazi {
@@ -171,14 +196,16 @@ pub fn applica_stile(svg: &str, stile: &StileSimbolo) -> String {
             continue;
         };
         let val = |t: &Tag, k: &str| t.attr.iter().find(|(n, _)| n == k).map(|(_, v)| v.clone());
-        let metti = |t: &mut Tag, k: &str, v: String| match t.attr.iter_mut().find(|(n, _)| n == k) {
+        let metti = |t: &mut Tag, k: &str, v: String| match t.attr.iter_mut().find(|(n, _)| n == k)
+        {
             Some(slot) => slot.1 = v,
             None => t.attr.push((k.to_string(), v)),
         };
         if let Some(c) = val(&tag, "data-mat").and_then(|m| stile.materials.get(&m).cloned()) {
             metti(&mut tag, "fill", c);
         }
-        if let Some(c) = val(&tag, "data-mat-stroke").and_then(|m| stile.materials.get(&m).cloned()) {
+        if let Some(c) = val(&tag, "data-mat-stroke").and_then(|m| stile.materials.get(&m).cloned())
+        {
             metti(&mut tag, "stroke", c);
         }
         if val(&tag, "data-shade").is_some() {
@@ -188,7 +215,11 @@ pub fn applica_stile(svg: &str, stile: &StileSimbolo) -> String {
             metti(&mut tag, "stroke", stile.outline.color.clone());
         }
         if let Some(sw) = val(&tag, "stroke-width").and_then(|v| v.parse::<f64>().ok()) {
-            metti(&mut tag, "stroke-width", numero_stile(sw * stile.outline.width));
+            metti(
+                &mut tag,
+                "stroke-width",
+                numero_stile(sw * stile.outline.width),
+            );
         }
         if val(&tag, "id").as_deref() == Some("body") {
             if let Some(c) = &stile.body {
@@ -230,10 +261,18 @@ mod tests {
     /// I casi sono quelli del test web (`sws-editor/tests/stileSimboli.test.ts`).
     #[test]
     fn i_casi_condivisi_col_web() {
-        let f: Fixture = serde_json::from_str(include_str!("../../../../tests/fixtures/stile-simboli.json")).unwrap();
+        let f: Fixture = serde_json::from_str(include_str!(
+            "../../../../tests/fixtures/stile-simboli.json"
+        ))
+        .unwrap();
         assert!(f.casi.len() >= 3);
         for c in &f.casi {
-            assert_eq!(applica_stile(&c.svg, &c.stile), c.atteso, "caso «{}»", c.nome);
+            assert_eq!(
+                applica_stile(&c.svg, &c.stile),
+                c.atteso,
+                "caso «{}»",
+                c.nome
+            );
         }
     }
 
@@ -254,9 +293,18 @@ mod tests {
             materiale_corpo: String,
             casi: Vec<C>,
         }
-        let f: F = serde_json::from_str(include_str!("../../../../tests/fixtures/stile-effettivo.json")).unwrap();
+        let f: F = serde_json::from_str(include_str!(
+            "../../../../tests/fixtures/stile-effettivo.json"
+        ))
+        .unwrap();
         for c in f.casi {
-            let s = stile_effettivo(&f.materiali_disegno, &f.materiale_corpo, c.progetto.as_ref(), &c.oggetto, c.corpo_stato);
+            let s = stile_effettivo(
+                &f.materiali_disegno,
+                &f.materiale_corpo,
+                c.progetto.as_ref(),
+                &c.oggetto,
+                c.corpo_stato,
+            );
             assert_eq!(s, c.atteso, "caso «{}»", c.nome);
         }
     }
@@ -264,8 +312,16 @@ mod tests {
     #[test]
     fn i_numeri_si_scrivono_come_in_typescript() {
         for (x, atteso) in [
-            (1.0, "1"), (1.5, "1.5"), (0.7 * 1.5, "1.05"), (0.7 * 0.6667, "0.467"), (2.0 / 3.0, "0.667"),
-            (0.0, "0"), (0.0004, "0"), (0.0005, "0.001"), (12.3456, "12.346"), (-0.25, "-0.25"),
+            (1.0, "1"),
+            (1.5, "1.5"),
+            (0.7 * 1.5, "1.05"),
+            (0.7 * 0.6667, "0.467"),
+            (2.0 / 3.0, "0.667"),
+            (0.0, "0"),
+            (0.0004, "0"),
+            (0.0005, "0.001"),
+            (12.3456, "12.346"),
+            (-0.25, "-0.25"),
         ] {
             assert_eq!(numero_stile(x), atteso, "{x}");
         }
@@ -277,17 +333,35 @@ mod tests {
         let neutro = StileSimbolo {
             materials: m.materials.clone(),
             volume: 100.0,
-            outline: Contorno { color: "#1c2329".into(), width: 1.0 },
+            outline: Contorno {
+                color: "#1c2329".into(),
+                width: 1.0,
+            },
             body: None,
         };
-        let svg = include_str!("../../../../sws-editor/public/symbols/lib/process/centrifugal-pump.svg");
+        let svg =
+            include_str!("../../../../sws-editor/public/symbols/lib/process/centrifugal-pump.svg");
         assert_eq!(applica_stile(svg, &neutro), svg);
     }
 
     #[test]
     fn un_testo_che_non_e_un_tag_passa_com_e() {
-        let s = StileSimbolo { materials: BTreeMap::new(), volume: 50.0, outline: Contorno { color: "#fff".into(), width: 2.0 }, body: None };
-        for t in ["a < b", "<!-- x -->", "<?xml version=\"1.0\"?>", "</g>", "<g id=\"x\" broken>"] {
+        let s = StileSimbolo {
+            materials: BTreeMap::new(),
+            volume: 50.0,
+            outline: Contorno {
+                color: "#fff".into(),
+                width: 2.0,
+            },
+            body: None,
+        };
+        for t in [
+            "a < b",
+            "<!-- x -->",
+            "<?xml version=\"1.0\"?>",
+            "</g>",
+            "<g id=\"x\" broken>",
+        ] {
             assert_eq!(applica_stile(t, &s), t, "{t}");
         }
     }

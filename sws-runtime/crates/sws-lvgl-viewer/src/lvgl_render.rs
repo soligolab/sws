@@ -776,9 +776,18 @@ pub(crate) enum Comando {
     /// `toggle`: scrive il contrario del valore corrente.
     Commuta { tag: String },
     /// `increment`/`decrement`: `passo` ha già il segno; il risultato resta fra `min` e `max`.
-    Passo { tag: String, passo: f64, min: Option<f64>, max: Option<f64> },
+    Passo {
+        tag: String,
+        passo: f64,
+        min: Option<f64>,
+        max: Option<f64>,
+    },
     /// `momentary`: `premi` alla pressione, `rilascia` al rilascio o quando il dito scivola via.
-    Momentaneo { tag: String, premi: TagValue, rilascia: TagValue },
+    Momentaneo {
+        tag: String,
+        premi: TagValue,
+        rilascia: TagValue,
+    },
 }
 
 /// Chi deve chiedere conferma, e con quale messaggio d'autore.
@@ -836,9 +845,15 @@ pub enum Navigazione {
     /// Vai a questa pagina, a schermo pieno, come sempre.
     Pagina(String),
     /// Apri una pagina come finestra modale, coi suoi parametri.
-    ApriFinestra { pagina: String, parametri: std::collections::HashMap<String, String> },
+    ApriFinestra {
+        pagina: String,
+        parametri: std::collections::HashMap<String, String>,
+    },
     /// Apri un faceplate come finestra modale, coi suoi parametri.
-    ApriFaceplate { faceplate: String, parametri: std::collections::HashMap<String, String> },
+    ApriFaceplate {
+        faceplate: String,
+        parametri: std::collections::HashMap<String, String>,
+    },
     /// Chiudi la finestra aperta, se c'è.
     ChiudiFinestra,
     /// Il bottone «Accedi» del progetto (29-10-2026): apre il pannellino
@@ -905,7 +920,12 @@ unsafe extern "C" fn sws_button_clicked_cb(e: *mut lvgl_sys::lv_event_t) {
             // peggiore dei due esiti possibili.
             eprintln!(
                 "[conferma] impossibile creare la finestra per '{}': comando non eseguito",
-                ctx.in_attesa.borrow().iter().map(|(t, _)| t.as_str()).collect::<Vec<_>>().join(", ")
+                ctx.in_attesa
+                    .borrow()
+                    .iter()
+                    .map(|(t, _)| t.as_str())
+                    .collect::<Vec<_>>()
+                    .join(", ")
             );
             return;
         }
@@ -971,7 +991,10 @@ unsafe extern "C" fn sws_conferma_cb(e: *mut lvgl_sys::lv_event_t) {
 /// è un comando a sé sul canale, come nel web).
 fn manda_scritture(tx: &mpsc::Sender<TagCommand>, scritture: &[(String, TagValue)]) {
     for (tag, value) in scritture {
-        let _ = tx.send(TagCommand { tag: tag.clone(), value: value.clone() });
+        let _ = tx.send(TagCommand {
+            tag: tag.clone(),
+            value: value.clone(),
+        });
     }
 }
 
@@ -986,14 +1009,26 @@ unsafe extern "C" fn sws_button_momentaneo_cb(e: *mut lvgl_sys::lv_event_t) {
         return;
     }
     let ctx = unsafe { &*(user_data as *const ButtonClickCtx) };
-    let Comando::Momentaneo { tag, premi, rilascia } = &ctx.comando else { return };
+    let Comando::Momentaneo {
+        tag,
+        premi,
+        rilascia,
+    } = &ctx.comando
+    else {
+        return;
+    };
     let code = unsafe { lvgl_sys::lv_event_get_code(e) };
-    let valore = if code == lvgl_sys::lv_event_code_t_LV_EVENT_PRESSED { premi } else { rilascia };
+    let valore = if code == lvgl_sys::lv_event_code_t_LV_EVENT_PRESSED {
+        premi
+    } else {
+        rilascia
+    };
     manda_scritture(&ctx.tx, &[(tag.clone(), valore.clone())]);
 }
 
 fn valore_json(v: &Option<serde_json::Value>) -> Option<TagValue> {
-    v.clone().and_then(|v| serde_json::from_value::<TagValue>(v).ok())
+    v.clone()
+        .and_then(|v| serde_json::from_value::<TagValue>(v).ok())
 }
 
 /// Il comando di un bottone: le assegnazioni se ci sono (qualunque sia la
@@ -1004,7 +1039,11 @@ pub(crate) fn comando_del_bottone(obj: &SynopticObject) -> Option<Comando> {
         let fisse: Vec<_> = a
             .iter()
             .filter(|x| !x.tag.trim().is_empty())
-            .filter_map(|x| serde_json::from_value::<TagValue>(x.valore.clone()).ok().map(|v| (x.tag.clone(), v)))
+            .filter_map(|x| {
+                serde_json::from_value::<TagValue>(x.valore.clone())
+                    .ok()
+                    .map(|v| (x.tag.clone(), v))
+            })
             .collect();
         return (!fisse.is_empty()).then_some(Comando::Fisse(fisse));
     }
@@ -1015,9 +1054,23 @@ pub(crate) fn comando_del_bottone(obj: &SynopticObject) -> Option<Comando> {
     Some(match obj.button_mode.as_deref().unwrap_or("write") {
         "toggle" => Comando::Commuta { tag },
         "reset" => Comando::Fisse(vec![(tag, rilascia)]),
-        "increment" => Comando::Passo { tag, passo, min: obj.min, max: obj.max },
-        "decrement" => Comando::Passo { tag, passo: -passo, min: obj.min, max: obj.max },
-        "momentary" => Comando::Momentaneo { tag, premi: scrivi, rilascia },
+        "increment" => Comando::Passo {
+            tag,
+            passo,
+            min: obj.min,
+            max: obj.max,
+        },
+        "decrement" => Comando::Passo {
+            tag,
+            passo: -passo,
+            min: obj.min,
+            max: obj.max,
+        },
+        "momentary" => Comando::Momentaneo {
+            tag,
+            premi: scrivi,
+            rilascia,
+        },
         // `write`, `set` e una modalità sconosciuta: il valore fisso, come il web.
         _ => Comando::Fisse(vec![(tag, scrivi)]),
     })
@@ -1025,7 +1078,10 @@ pub(crate) fn comando_del_bottone(obj: &SynopticObject) -> Option<Comando> {
 
 /// Le scritture di un clic, dato il valore corrente del tag. Il momentaneo
 /// non scrive al clic: scrive alla pressione e al rilascio.
-pub(crate) fn scritture_al_clic(c: &Comando, corrente: Option<&TagValue>) -> Vec<(String, TagValue)> {
+pub(crate) fn scritture_al_clic(
+    c: &Comando,
+    corrente: Option<&TagValue>,
+) -> Vec<(String, TagValue)> {
     match c {
         Comando::Fisse(v) => v.clone(),
         Comando::Commuta { tag } => {
@@ -1039,20 +1095,40 @@ pub(crate) fn scritture_al_clic(c: &Comando, corrente: Option<&TagValue>) -> Vec
             };
             vec![(tag.clone(), TagValue::Bool(!acceso))]
         }
-        Comando::Passo { tag, passo, min, max } => {
+        Comando::Passo {
+            tag,
+            passo,
+            min,
+            max,
+        } => {
             let base = match corrente {
                 Some(TagValue::Int(n)) => *n as f64,
                 Some(TagValue::Float(f)) if f.is_finite() => *f,
                 Some(TagValue::Bool(b)) => f64::from(u8::from(*b)),
-                Some(TagValue::Str(s)) => s.trim().parse::<f64>().ok().filter(|f| f.is_finite()).unwrap_or(0.0),
+                Some(TagValue::Str(s)) => s
+                    .trim()
+                    .parse::<f64>()
+                    .ok()
+                    .filter(|f| f.is_finite())
+                    .unwrap_or(0.0),
                 _ => 0.0,
             };
             let mut prossimo = base + passo;
-            if let Some(m) = min { prossimo = prossimo.max(*m); }
-            if let Some(m) = max { prossimo = prossimo.min(*m); }
+            if let Some(m) = min {
+                prossimo = prossimo.max(*m);
+            }
+            if let Some(m) = max {
+                prossimo = prossimo.min(*m);
+            }
             // Un intero resta intero: un contatore `u16` non deve ricevere 3.0.
-            let intero = !matches!(corrente, Some(TagValue::Float(_))) && prossimo.fract() == 0.0 && prossimo.abs() < 9.0e15;
-            let v = if intero { TagValue::Int(prossimo as i64) } else { TagValue::Float(prossimo) };
+            let intero = !matches!(corrente, Some(TagValue::Float(_)))
+                && prossimo.fract() == 0.0
+                && prossimo.abs() < 9.0e15;
+            let v = if intero {
+                TagValue::Int(prossimo as i64)
+            } else {
+                TagValue::Float(prossimo)
+            };
             vec![(tag.clone(), v)]
         }
         Comando::Momentaneo { .. } => vec![],
@@ -1210,7 +1286,10 @@ impl Fumetto {
 impl SliderCtx {
     /// Il cursore aspetta il tag per al massimo 3 s.
     fn attendi(&self, v: f64) {
-        self.attesa.set(Some((v, std::time::Instant::now() + std::time::Duration::from_secs(3))));
+        self.attesa.set(Some((
+            v,
+            std::time::Instant::now() + std::time::Duration::from_secs(3),
+        )));
     }
 
     fn valore(&self, target: *mut lvgl_sys::lv_obj_t) -> TagValue {
@@ -1246,11 +1325,19 @@ impl SliderCtx {
                 false,
             );
             if mbox.is_null() {
-                eprintln!("[conferma] impossibile creare la finestra per '{}': non scritto", self.tag);
+                eprintln!(
+                    "[conferma] impossibile creare la finestra per '{}': non scritto",
+                    self.tag
+                );
                 self.in_attesa.borrow_mut().take();
                 return;
             }
-            lvgl_sys::lv_obj_align(mbox, lvgl_sys::LV_ALIGN_CENTER as lvgl_sys::lv_align_t, 0, 0);
+            lvgl_sys::lv_obj_align(
+                mbox,
+                lvgl_sys::LV_ALIGN_CENTER as lvgl_sys::lv_align_t,
+                0,
+                0,
+            );
             lvgl_sys::lv_obj_add_event_cb(
                 mbox,
                 Some(sws_slider_conferma_cb),
@@ -1287,7 +1374,11 @@ unsafe extern "C" fn sws_slider_changed_cb(e: *mut lvgl_sys::lv_event_t) {
     if ctx.molla.is_some() {
         // La molla: mentre si tiene, una scrittura ogni 200 ms al massimo.
         let ora = std::time::Instant::now();
-        if ctx.ultima_molla.get().is_none_or(|t| ora.duration_since(t) >= std::time::Duration::from_millis(200)) {
+        if ctx
+            .ultima_molla
+            .get()
+            .is_none_or(|t| ora.duration_since(t) >= std::time::Duration::from_millis(200))
+        {
             ctx.ultima_molla.set(Some(ora));
             manda_scritture(&ctx.tx, &[(ctx.tag.clone(), valore)]);
         }
@@ -1317,11 +1408,20 @@ unsafe extern "C" fn sws_slider_rilasciato_cb(e: *mut lvgl_sys::lv_event_t) {
         let i = indice_slider(riposo, ctx.min, ctx.passo, n);
         unsafe {
             lvgl_sys::lv_obj_set_style_anim_time(ctx.ptr.as_ptr(), 150, 0);
-            lvgl_sys::lv_bar_set_value(ctx.ptr.as_ptr(), i - ctx.scarto, lvgl::Animation::ON.into());
+            lvgl_sys::lv_bar_set_value(
+                ctx.ptr.as_ptr(),
+                i - ctx.scarto,
+                lvgl::Animation::ON.into(),
+            );
         }
         let valore = valore_slider(i, ctx.min, ctx.passo);
         if let Some((p, decimali, unita)) = &ctx.etichetta {
-            let testo = testo_valore_slider(tag_value_as_f64(&valore), *decimali, unita, ctx.pv.as_ref().map(|c| c.get()));
+            let testo = testo_valore_slider(
+                tag_value_as_f64(&valore),
+                *decimali,
+                unita,
+                ctx.pv.as_ref().map(|c| c.get()),
+            );
             unsafe { lvgl_sys::lv_label_set_text(p.as_ptr(), text_cstring(&testo).as_ptr()) };
         }
         ctx.attendi(tag_value_as_f64(&valore));
@@ -1423,7 +1523,13 @@ pub fn tracce_trend(obj: &SynopticObject) -> Vec<crate::trend::Traccia> {
                 .color
                 .as_deref()
                 .and_then(parse_hex_color)
-                .or_else(|| if i == 0 { obj.line_color.as_deref().and_then(parse_hex_color) } else { None })
+                .or_else(|| {
+                    if i == 0 {
+                        obj.line_color.as_deref().and_then(parse_hex_color)
+                    } else {
+                        None
+                    }
+                })
                 .unwrap_or(crate::trend::TAVOLOZZA[i % crate::trend::TAVOLOZZA.len()]);
             crate::trend::Traccia {
                 nome: t.label.clone().unwrap_or_else(|| t.tag.clone()),
@@ -1476,9 +1582,11 @@ pub fn config_trend(obj: &SynopticObject, w: u32, h: u32) -> crate::trend::Confi
         unita: obj.unit.clone(),
         sfondo: colore_campo(obj.bg_color.as_deref(), "trend", "bg_color"),
         assi: colore(&obj.axis_color),
-        assi_predefinito: parse_hex_color(predefinito_lvgl("trend", "axis_color")).unwrap_or((0x64, 0x74, 0x8b)),
-        griglia: colore(&obj.grid_color)
-            .unwrap_or_else(|| parse_hex_color(predefinito_lvgl("trend", "grid_color")).unwrap_or((0x1e, 0x29, 0x3b))),
+        assi_predefinito: parse_hex_color(predefinito_lvgl("trend", "axis_color"))
+            .unwrap_or((0x64, 0x74, 0x8b)),
+        griglia: colore(&obj.grid_color).unwrap_or_else(|| {
+            parse_hex_color(predefinito_lvgl("trend", "grid_color")).unwrap_or((0x1e, 0x29, 0x3b))
+        }),
         passo_pan_s: obj.pan_step_s,
         lingua: "it".into(),
         // Un campo solo per tutto il testo del grafico (21-10-2026).
@@ -1552,7 +1660,6 @@ unsafe fn chart_add_series(
     )
 }
 
-
 /// Porta `SEV_COLOR` di `alarmSeverity.ts` (i valori di fallback — questo
 /// motore non ha un tema CSS da risolvere, quindi solo l'hex conta).
 fn severity_color(sev: &str) -> (u8, u8, u8) {
@@ -1608,7 +1715,8 @@ fn apply_bg_color<W: Widget<Part = Part>>(
 /// distinguerlo da un colore scritto male — per quello serve guardare la
 /// parola prima di interpretarla.
 fn senza_riempimento(v: Option<&str>) -> bool {
-    v.map(str::trim).is_some_and(|s| s.eq_ignore_ascii_case("none"))
+    v.map(str::trim)
+        .is_some_and(|s| s.eq_ignore_ascii_case("none"))
 }
 
 fn colore_campo(v: Option<&str>, tipo: &str, campo: &str) -> (u8, u8, u8) {
@@ -1676,7 +1784,11 @@ mod stile {
     /// La sfumatura del web (`fill_gradient`): dal colore chiaro in alto/a
     /// sinistra allo scuro. LVGL 8.3 non ha la radiale: diventa verticale.
     pub unsafe fn sfumatura(p: P, verso: &str, chiaro: (u8, u8, u8), scuro: (u8, u8, u8)) {
-        let dir = if verso == "horizontal" { lvgl_sys::LV_GRAD_DIR_HOR } else { lvgl_sys::LV_GRAD_DIR_VER };
+        let dir = if verso == "horizontal" {
+            lvgl_sys::LV_GRAD_DIR_HOR
+        } else {
+            lvgl_sys::LV_GRAD_DIR_VER
+        };
         lvgl_sys::lv_obj_set_style_bg_color(p, Color::from_rgb(chiaro).into(), 0);
         lvgl_sys::lv_obj_set_style_bg_grad_color(p, Color::from_rgb(scuro).into(), 0);
         lvgl_sys::lv_obj_set_style_bg_grad_dir(p, dir as u8, 0);
@@ -1687,7 +1799,11 @@ mod stile {
 /// bianco del 45 % o verso il nero del 40 %, per gli estremi di una sfumatura
 /// non dichiarati.
 fn schiarisci((r, g, b): (u8, u8, u8), verso_bianco: bool) -> (u8, u8, u8) {
-    let (dest, t) = if verso_bianco { (255.0, 0.45) } else { (0.0, 0.40) };
+    let (dest, t) = if verso_bianco {
+        (255.0, 0.45)
+    } else {
+        (0.0, 0.40)
+    };
     let f = |c: u8| (c as f64 + (dest - c as f64) * t).round() as u8;
     (f(r), f(g), f(b))
 }
@@ -1707,10 +1823,17 @@ fn riquadro(
     set_pos_size(&mut o, obj, predef.0, predef.1)?;
     let p = o.raw().map_err(|e| anyhow::anyhow!("raw: {e:?}"))?.as_ptr();
     unsafe {
-        stile::sfondo(p, colore_campo(obj.bg_color.as_deref(), tipo, "bg_color"), stile::MAIN);
+        stile::sfondo(
+            p,
+            colore_campo(obj.bg_color.as_deref(), tipo, "bg_color"),
+            stile::MAIN,
+        );
         stile::bordo(p, bordo, 1.0, stile::MAIN);
         stile::raggio(p, raggio, stile::MAIN);
-        lvgl_sys::lv_obj_clear_flag(p, lvgl_sys::LV_OBJ_FLAG_CLICKABLE | lvgl_sys::LV_OBJ_FLAG_SCROLLABLE);
+        lvgl_sys::lv_obj_clear_flag(
+            p,
+            lvgl_sys::LV_OBJ_FLAG_CLICKABLE | lvgl_sys::LV_OBJ_FLAG_SCROLLABLE,
+        );
     }
     Ok(())
 }
@@ -1728,7 +1851,8 @@ fn etichetta_piccola_corpo(
     corpo: u16,
 ) -> anyhow::Result<()> {
     let mut l = Label::create(screen).map_err(|e| anyhow::anyhow!("Label::create: {e:?}"))?;
-    l.set_text(&text_cstring(testo)).map_err(|e| anyhow::anyhow!("set_text: {e:?}"))?;
+    l.set_text(&text_cstring(testo))
+        .map_err(|e| anyhow::anyhow!("set_text: {e:?}"))?;
     let p = l.raw().map_err(|e| anyhow::anyhow!("raw: {e:?}"))?.as_ptr();
     unsafe {
         stile::font(p, corpo, stile::MAIN);
@@ -1742,7 +1866,11 @@ fn etichetta_piccola_corpo(
         // La base del testo SVG sta un corpo sotto il bordo alto della riga.
         // Era `- 11.0` fisso: col corpo a 11 e' lo stesso numero, ma un'etichetta
         // piu' grande finiva addosso a cio' che ha sopra (21-10-2026).
-        lvgl_sys::lv_obj_set_pos(p, x.round() as lvgl_sys::lv_coord_t, (y_base - corpo as f64).round() as lvgl_sys::lv_coord_t);
+        lvgl_sys::lv_obj_set_pos(
+            p,
+            x.round() as lvgl_sys::lv_coord_t,
+            (y_base - corpo as f64).round() as lvgl_sys::lv_coord_t,
+        );
     }
     Ok(())
 }
@@ -1750,7 +1878,8 @@ fn etichetta_piccola_corpo(
 /// Le icone della piastra, dalla tabella condivisa col web
 /// (`tests/fixtures/icone-slider.json`).
 fn icona_slider(nome: &str) -> Option<&'static str> {
-    static TABELLA: std::sync::OnceLock<std::collections::HashMap<String, String>> = std::sync::OnceLock::new();
+    static TABELLA: std::sync::OnceLock<std::collections::HashMap<String, String>> =
+        std::sync::OnceLock::new();
     let t = TABELLA.get_or_init(|| {
         #[derive(serde::Deserialize)]
         struct F {
@@ -1776,7 +1905,8 @@ fn etichetta_posata(
     corpo: u16,
 ) -> anyhow::Result<()> {
     let mut l = Label::create(screen).map_err(|e| anyhow::anyhow!("Label::create: {e:?}"))?;
-    l.set_text(&text_cstring(testo)).map_err(|e| anyhow::anyhow!("set_text: {e:?}"))?;
+    l.set_text(&text_cstring(testo))
+        .map_err(|e| anyhow::anyhow!("set_text: {e:?}"))?;
     let p = l.raw().map_err(|e| anyhow::anyhow!("raw: {e:?}"))?.as_ptr();
     unsafe {
         stile::font(p, corpo, stile::MAIN);
@@ -1785,7 +1915,11 @@ fn etichetta_posata(
         let w = lvgl_sys::lv_obj_get_width(p) as f64;
         let h = lvgl_sys::lv_obj_get_height(p) as f64;
         let x = if a_sinistra { cx } else { cx - w / 2.0 };
-        lvgl_sys::lv_obj_set_pos(p, x.round() as lvgl_sys::lv_coord_t, (cy - h / 2.0).round() as lvgl_sys::lv_coord_t);
+        lvgl_sys::lv_obj_set_pos(
+            p,
+            x.round() as lvgl_sys::lv_coord_t,
+            (cy - h / 2.0).round() as lvgl_sys::lv_coord_t,
+        );
     }
     Ok(())
 }
@@ -2398,7 +2532,6 @@ fn match_text_list_entry<'a>(
     })
 }
 
-
 /// Porta la parte rilevante di `isVisible()`: `visible_tag` (truthy live)
 /// prevale su `visible` statico, che a sua volta prevale sul default "true".
 /// Nota: valutata solo alla creazione — un oggetto che diventa visibile/
@@ -2572,7 +2705,9 @@ const TIPI_RUOTABILI: &[&str] = &[
 /// `rotation` in gradi → decimi di grado 0…3599 per `transform_angle`; 0 se
 /// assente, non finita o multipla di 360.
 pub fn angolo_statico(rotation: Option<f64>) -> i16 {
-    let Some(r) = rotation.filter(|v| v.is_finite()) else { return 0 };
+    let Some(r) = rotation.filter(|v| v.is_finite()) else {
+        return 0;
+    };
     ((r * 10.0).round() as i64).rem_euclid(3600) as i16
 }
 
@@ -2587,7 +2722,13 @@ pub fn angolo_statico(rotation: Option<f64>) -> i16 {
 /// # Safety
 /// `screen_ptr` deve essere uno schermo LVGL vivo; si chiama nel ciclo di
 /// render, dove lo è per costruzione.
-unsafe fn apply_rotation_from(screen_ptr: *mut lvgl_sys::lv_obj_t, da: u32, angolo: i16, cx: f64, cy: f64) {
+unsafe fn apply_rotation_from(
+    screen_ptr: *mut lvgl_sys::lv_obj_t,
+    da: u32,
+    angolo: i16,
+    cx: f64,
+    cy: f64,
+) {
     let dopo = lvgl_sys::lv_obj_get_child_cnt(screen_ptr);
     for i in da..dopo {
         let figlio = lvgl_sys::lv_obj_get_child(screen_ptr, i as i32);
@@ -2599,8 +2740,16 @@ unsafe fn apply_rotation_from(screen_ptr: *mut lvgl_sys::lv_obj_t, da: u32, ango
         lvgl_sys::lv_obj_update_layout(figlio);
         let fx = lvgl_sys::lv_obj_get_x(figlio) as f64;
         let fy = lvgl_sys::lv_obj_get_y(figlio) as f64;
-        lvgl_sys::lv_obj_set_style_transform_pivot_x(figlio, (cx - fx).round() as lvgl_sys::lv_coord_t, 0);
-        lvgl_sys::lv_obj_set_style_transform_pivot_y(figlio, (cy - fy).round() as lvgl_sys::lv_coord_t, 0);
+        lvgl_sys::lv_obj_set_style_transform_pivot_x(
+            figlio,
+            (cx - fx).round() as lvgl_sys::lv_coord_t,
+            0,
+        );
+        lvgl_sys::lv_obj_set_style_transform_pivot_y(
+            figlio,
+            (cy - fy).round() as lvgl_sys::lv_coord_t,
+            0,
+        );
         lvgl_sys::lv_obj_set_style_transform_angle(figlio, angolo, 0);
     }
 }
@@ -2612,14 +2761,26 @@ unsafe fn apply_rotation_from(screen_ptr: *mut lvgl_sys::lv_obj_t, da: u32, ango
 /// speciale della `line`, che ha `points` e non un riquadro: larghezza e
 /// altezza valgono zero, quindi tutte le porte cadono sulla sua origine. Una
 /// porta sconosciuta vale `center`, come sul web.
-fn ancora_di(obj: &SynopticObject, porta: Option<&str>, m: Option<&sws_core::simboli_lib::ManifestLib>) -> sws_core::tubazioni::Aggancio {
+fn ancora_di(
+    obj: &SynopticObject,
+    porta: Option<&str>,
+    m: Option<&sws_core::simboli_lib::ManifestLib>,
+) -> sws_core::tubazioni::Aggancio {
     use sws_core::tubazioni::{aggancio_bocca, aggancio_riquadro, Riquadro};
     let e_linea = obj.obj_type.as_deref() == Some("line");
     let r = Riquadro {
         x: obj.x.unwrap_or(0.0),
         y: obj.y.unwrap_or(0.0),
-        w: if e_linea { 0.0 } else { obj.width.unwrap_or(80.0) },
-        h: if e_linea { 0.0 } else { obj.height.unwrap_or(80.0) },
+        w: if e_linea {
+            0.0
+        } else {
+            obj.width.unwrap_or(80.0)
+        },
+        h: if e_linea {
+            0.0
+        } else {
+            obj.height.unwrap_or(80.0)
+        },
         rotazione: obj.rotation.unwrap_or(0.0),
         flip_h: obj.flip_h == Some(true),
         flip_v: obj.flip_v == Some(true),
@@ -2627,8 +2788,17 @@ fn ancora_di(obj: &SynopticObject, porta: Option<&str>, m: Option<&sws_core::sim
     let simbolo = obj.obj_type.as_deref() == Some("symbol");
     // 15-10-2026: la bocca vera del disegno, se il simbolo ce l'ha (`tubazioni.rs`).
     if simbolo {
-        let sim = m.and_then(|m| obj.symbol_id.as_deref().and_then(|id| m.simbolo_o_alias(id)));
-        if let Some((sim, p)) = sim.and_then(|s| s.ports.iter().find(|p| Some(p.id.as_str()) == porta).map(|p| (s, p))) {
+        let sim = m.and_then(|m| {
+            obj.symbol_id
+                .as_deref()
+                .and_then(|id| m.simbolo_o_alias(id))
+        });
+        if let Some((sim, p)) = sim.and_then(|s| {
+            s.ports
+                .iter()
+                .find(|p| Some(p.id.as_str()) == porta)
+                .map(|p| (s, p))
+        }) {
             return aggancio_bocca(sim.view_box, p, &r);
         }
     }
@@ -2698,7 +2868,10 @@ fn applica_movimento(obj: &SynopticObject, tags: &TagSnapshot) -> Option<Synopti
     let (ax, ay) = if obj.motion_anchor.as_deref() == Some("top_left") {
         (x, y)
     } else {
-        (x + obj.width.unwrap_or(80.0) / 2.0, y + obj.height.unwrap_or(80.0) / 2.0)
+        (
+            x + obj.width.unwrap_or(80.0) / 2.0,
+            y + obj.height.unwrap_or(80.0) / 2.0,
+        )
     };
     let mut r = obj.clone();
     r.x = Some(x + (px - ax).round());
@@ -2749,7 +2922,18 @@ fn percorso_tubo(
         // Nessun punto esplicito: con entrambi i capi agganciati la pipe è
         // comunque disegnabile — due estremi bastano a fare un segmento.
         if pipe.from_obj_id.is_some() && pipe.to_obj_id.is_some() {
-            punti = vec![PipePoint { x: 0.0, y: 0.0, dritto: false }, PipePoint { x: 0.0, y: 0.0, dritto: false }];
+            punti = vec![
+                PipePoint {
+                    x: 0.0,
+                    y: 0.0,
+                    dritto: false,
+                },
+                PipePoint {
+                    x: 0.0,
+                    y: 0.0,
+                    dritto: false,
+                },
+            ];
         } else {
             return None;
         }
@@ -2757,35 +2941,64 @@ fn percorso_tubo(
     if instradato && punti.len() < 2 {
         return None;
     }
-    let da = src.as_deref().map(|o| ancora_di(o, pipe.from_port.as_deref(), m));
-    let a = dst.as_deref().map(|o| ancora_di(o, pipe.to_port.as_deref(), m));
+    let da = src
+        .as_deref()
+        .map(|o| ancora_di(o, pipe.from_port.as_deref(), m));
+    let a = dst
+        .as_deref()
+        .map(|o| ancora_di(o, pipe.to_port.as_deref(), m));
     if instradato {
         let punto = |p: &PipePoint| Punto { x: p.x, y: p.y };
         let ultimo = punti.len() - 1;
         let inter: Vec<Tappa> = punti[1..ultimo]
             .iter()
-            .map(|p| Tappa { punto: punto(p), dritto: p.dritto })
+            .map(|p| Tappa {
+                punto: punto(p),
+                dritto: p.dritto,
+            })
             .collect();
         // Il `dritto` dell'ultimo punto dice come arrivarci, non dove: vale
         // anche quando il capo è agganciato a una bocca.
-        let mut capo_a = a
-            .map(Capo::from)
-            .unwrap_or(Capo { punto: punto(&punti[ultimo]), dir: None, dritto: false });
+        let mut capo_a = a.map(Capo::from).unwrap_or(Capo {
+            punto: punto(&punti[ultimo]),
+            dir: None,
+            dritto: false,
+        });
         capo_a.dritto = punti[ultimo].dritto;
         let p = instrada(
-            da.map(Capo::from).unwrap_or(Capo { punto: punto(&punti[0]), dir: None, dritto: false }),
+            da.map(Capo::from).unwrap_or(Capo {
+                punto: punto(&punti[0]),
+                dir: None,
+                dritto: false,
+            }),
             capo_a,
             &inter,
             routing == "diagonal",
         );
-        return Some(p.into_iter().map(|q| PipePoint { x: q.x, y: q.y, dritto: false }).collect());
+        return Some(
+            p.into_iter()
+                .map(|q| PipePoint {
+                    x: q.x,
+                    y: q.y,
+                    dritto: false,
+                })
+                .collect(),
+        );
     }
     if let Some(d) = da {
-        punti[0] = PipePoint { x: d.x, y: d.y, dritto: punti[0].dritto };
+        punti[0] = PipePoint {
+            x: d.x,
+            y: d.y,
+            dritto: punti[0].dritto,
+        };
     }
     if let Some(d) = a {
         let ultimo = punti.len() - 1;
-        punti[ultimo] = PipePoint { x: d.x, y: d.y, dritto: punti[ultimo].dritto };
+        punti[ultimo] = PipePoint {
+            x: d.x,
+            y: d.y,
+            dritto: punti[ultimo].dritto,
+        };
     }
     Some(punti)
 }
@@ -2887,7 +3100,11 @@ fn crea_effetti(
     let legame_luce = legame("brightness");
     let vuole_luce = legame_opacita.is_some()
         || legame_luce.is_some()
-        || obj.brightness.map(effects::luminosita_valida).unwrap_or(0.0) != 0.0;
+        || obj
+            .brightness
+            .map(effects::luminosita_valida)
+            .unwrap_or(0.0)
+            != 0.0;
     if lampeggio == effects::Lampeggio::Mai
         && !vuole_bordo
         && !vuole_pallino
@@ -3142,7 +3359,11 @@ fn sfondo_del_rect(
     base_url: &str,
     rt_handle: &tokio::runtime::Handle,
 ) -> Option<LiveBinding> {
-    let src = obj.bg_image.as_deref().map(str::trim).filter(|s| !s.is_empty())?;
+    let src = obj
+        .bg_image
+        .as_deref()
+        .map(str::trim)
+        .filter(|s| !s.is_empty())?;
     // Niente il tetto di 500 px di `render_svg_raster`: uno sfondo di pagina è
     // grande quanto la pagina. A 1280×800 il buffer del canvas è 4 MB, e vive
     // quanto la pagina — uno solo, perché gli sfondi sono uno per pagina.
@@ -3173,7 +3394,11 @@ fn sfondo_del_rect(
                     unsafe {
                         let figlio = lvgl_sys::lv_obj_get_child(padre.as_ptr(), -1);
                         if !figlio.is_null() {
-                            lvgl_sys::lv_obj_set_style_opa(figlio, (o.max(0.0) * 2.55).round() as u8, 0);
+                            lvgl_sys::lv_obj_set_style_opa(
+                                figlio,
+                                (o.max(0.0) * 2.55).round() as u8,
+                                0,
+                            );
                         }
                     }
                 }
@@ -3219,7 +3444,12 @@ fn render_rect(
             stile::sfondo(p, base, stile::MAIN);
         }
         stile::raggio(p, obj.corner_radius.unwrap_or(0.0), stile::MAIN);
-        stile::bordo(p, obj.stroke.as_deref().and_then(parse_hex_color), obj.stroke_width.unwrap_or(0.0), stile::MAIN);
+        stile::bordo(
+            p,
+            obj.stroke.as_deref().and_then(parse_hex_color),
+            obj.stroke_width.unwrap_or(0.0),
+            stile::MAIN,
+        );
         // Niente sfumatura su ciò che non ha riempimento: sarebbe un colore
         // dipinto sopra il nulla.
         if let Some(verso) = obj
@@ -3227,8 +3457,16 @@ fn render_rect(
             .as_deref()
             .filter(|v| !v.is_empty() && !senza_riempimento(riempimento))
         {
-            let chiaro = obj.gradient_light_color.as_deref().and_then(parse_hex_color).unwrap_or_else(|| schiarisci(base, true));
-            let scuro = obj.gradient_dark_color.as_deref().and_then(parse_hex_color).unwrap_or_else(|| schiarisci(base, false));
+            let chiaro = obj
+                .gradient_light_color
+                .as_deref()
+                .and_then(parse_hex_color)
+                .unwrap_or_else(|| schiarisci(base, true));
+            let scuro = obj
+                .gradient_dark_color
+                .as_deref()
+                .and_then(parse_hex_color)
+                .unwrap_or_else(|| schiarisci(base, false));
             stile::sfumatura(p, verso, chiaro, scuro);
         }
     }
@@ -3657,13 +3895,24 @@ fn apply_font_size(widget: &impl NativeObject, obj: &SynopticObject) -> anyhow::
 /// li confronta con la fixture: un numero cambiato da una parte sola è il
 /// guasto che la tabella condivisa esiste per impedire.
 const CORPI_PREDEFINITI: &[(&str, &str, f64)] = &[
-    ("gauge", "font_size", 20.0), ("gauge", "unit_font_size", 11.0), ("gauge", "label_font_size", 11.0),
-    ("kpi_tile", "font_size", 26.0), ("kpi_tile", "unit_font_size", 12.0), ("kpi_tile", "label_font_size", 11.0),
-    ("data_log", "font_size", 11.0), ("data_log", "label_font_size", 11.0),
-    ("sparkline", "font_size", 9.0), ("symbol", "label_font_size", 11.0), ("lang_selector", "font_size", 13.0),
-    ("alarm_viewer", "font_size", 11.0), ("alarm_banner", "font_size", 13.0), ("alarm_bell", "font_size", 12.0),
-    ("alarm_history", "font_size", 11.0), ("recipe_panel", "font_size", 11.0),
-    ("clock", "font_size", 16.0), ("page_navigator", "font_size", 13.0),
+    ("gauge", "font_size", 20.0),
+    ("gauge", "unit_font_size", 11.0),
+    ("gauge", "label_font_size", 11.0),
+    ("kpi_tile", "font_size", 26.0),
+    ("kpi_tile", "unit_font_size", 12.0),
+    ("kpi_tile", "label_font_size", 11.0),
+    ("data_log", "font_size", 11.0),
+    ("data_log", "label_font_size", 11.0),
+    ("sparkline", "font_size", 9.0),
+    ("symbol", "label_font_size", 11.0),
+    ("lang_selector", "font_size", 13.0),
+    ("alarm_viewer", "font_size", 11.0),
+    ("alarm_banner", "font_size", 13.0),
+    ("alarm_bell", "font_size", 12.0),
+    ("alarm_history", "font_size", 11.0),
+    ("recipe_panel", "font_size", 11.0),
+    ("clock", "font_size", 16.0),
+    ("page_navigator", "font_size", 13.0),
 ];
 
 /// Il corpo predefinito di `campo` per `tipo`, dalla tabella qui sopra; 14,
@@ -3817,7 +4066,10 @@ fn render_clock(
     lingua: &str,
 ) -> anyhow::Result<LiveBinding> {
     let mut riquadro = create_child_obj(screen)?;
-    let rp = riquadro.raw().map_err(|e| anyhow::anyhow!("raw: {e:?}"))?.as_ptr();
+    let rp = riquadro
+        .raw()
+        .map_err(|e| anyhow::anyhow!("raw: {e:?}"))?
+        .as_ptr();
     unsafe {
         // Come il testo a capo: il contenitore non è un elemento d'interfaccia,
         // via lo stile del tema prima di posizione e misura.
@@ -3826,7 +4078,10 @@ fn render_clock(
             core::ptr::null_mut(),
             (lvgl_sys::LV_PART_ANY | lvgl_sys::LV_STATE_ANY) as lvgl_sys::lv_style_selector_t,
         );
-        lvgl_sys::lv_obj_clear_flag(rp, lvgl_sys::LV_OBJ_FLAG_CLICKABLE | lvgl_sys::LV_OBJ_FLAG_SCROLLABLE);
+        lvgl_sys::lv_obj_clear_flag(
+            rp,
+            lvgl_sys::LV_OBJ_FLAG_CLICKABLE | lvgl_sys::LV_OBJ_FLAG_SCROLLABLE,
+        );
     }
     set_pos_size(&mut riquadro, obj, 180.0, 36.0)?;
     if let Some(rgb) = obj.bg_color.as_deref().and_then(parse_hex_color) {
@@ -3835,9 +4090,13 @@ fn render_clock(
             stile::raggio(rp, 3.0, stile::MAIN);
         }
     }
-    let label = Label::create(&mut riquadro).map_err(|e| anyhow::anyhow!("Label::create: {e:?}"))?;
+    let label =
+        Label::create(&mut riquadro).map_err(|e| anyhow::anyhow!("Label::create: {e:?}"))?;
     apply_font_size_con_ripiego(&label, obj, Some(corpo_predefinito("clock", "font_size")))?; // il ripiego del web (25-10-2026)
-    let lp = label.raw().map_err(|e| anyhow::anyhow!("raw: {e:?}"))?.as_ptr();
+    let lp = label
+        .raw()
+        .map_err(|e| anyhow::anyhow!("raw: {e:?}"))?
+        .as_ptr();
     let (allinea, dx) = match obj.text_anchor.as_deref() {
         Some("start") => (lvgl_sys::LV_ALIGN_LEFT_MID, PAD_OROLOGIO),
         Some("end") => (lvgl_sys::LV_ALIGN_RIGHT_MID, -PAD_OROLOGIO),
@@ -3887,7 +4146,12 @@ fn regola_conferma(obj: &SynopticObject) -> Option<RegolaConferma> {
     }
     Some(RegolaConferma {
         critico,
-        messaggio: obj.confirm_message.as_deref().map(str::trim).filter(|m| !m.is_empty()).map(str::to_string),
+        messaggio: obj
+            .confirm_message
+            .as_deref()
+            .map(str::trim)
+            .filter(|m| !m.is_empty())
+            .map(str::to_string),
     })
 }
 
@@ -3932,7 +4196,10 @@ fn collega_comando(
     let corrente = Rc::new(RefCell::new(None));
     if let Some(tag) = tag_da_seguire(&comando) {
         live.push(LiveBinding {
-            kind: LiveKind::ValoreComando { tag: tag.to_string(), corrente: Rc::clone(&corrente) },
+            kind: LiveKind::ValoreComando {
+                tag: tag.to_string(),
+                corrente: Rc::clone(&corrente),
+            },
         });
     }
     let momentaneo = matches!(comando, Comando::Momentaneo { .. });
@@ -3950,7 +4217,12 @@ fn collega_comando(
                 lvgl_sys::lv_event_code_t_LV_EVENT_RELEASED,
                 lvgl_sys::lv_event_code_t_LV_EVENT_PRESS_LOST,
             ] {
-                lvgl_sys::lv_obj_add_event_cb(ptr.as_ptr(), Some(sws_button_momentaneo_cb), code, ctx);
+                lvgl_sys::lv_obj_add_event_cb(
+                    ptr.as_ptr(),
+                    Some(sws_button_momentaneo_cb),
+                    code,
+                    ctx,
+                );
             }
         } else {
             lvgl_sys::lv_obj_add_event_cb(
@@ -3989,8 +4261,16 @@ fn area_comando(
         .ok_or_else(|| anyhow::anyhow!("lv_obj_create: memoria esaurita"))?;
     unsafe {
         let p = ptr.as_ptr();
-        lvgl_sys::lv_obj_set_pos(p, obj.x.unwrap_or(0.0).round() as i16, obj.y.unwrap_or(0.0).round() as i16);
-        lvgl_sys::lv_obj_set_size(p, obj.width.unwrap_or(80.0).round() as i16, obj.height.unwrap_or(80.0).round() as i16);
+        lvgl_sys::lv_obj_set_pos(
+            p,
+            obj.x.unwrap_or(0.0).round() as i16,
+            obj.y.unwrap_or(0.0).round() as i16,
+        );
+        lvgl_sys::lv_obj_set_size(
+            p,
+            obj.width.unwrap_or(80.0).round() as i16,
+            obj.height.unwrap_or(80.0).round() as i16,
+        );
         lvgl_sys::lv_obj_set_style_bg_opa(p, lvgl_sys::LV_OPA_TRANSP as u8, 0);
         lvgl_sys::lv_obj_set_style_border_width(p, 0, 0);
         lvgl_sys::lv_obj_set_style_outline_width(p, 0, 0);
@@ -4024,7 +4304,10 @@ fn azione_del_bottone(obj: &SynopticObject) -> Option<Navigazione> {
             .unwrap_or_default()
     };
     let testo = |chiave: &str| -> Option<String> {
-        a.get(chiave).and_then(|p| p.as_str()).filter(|p| !p.is_empty()).map(str::to_owned)
+        a.get(chiave)
+            .and_then(|p| p.as_str())
+            .filter(|p| !p.is_empty())
+            .map(str::to_owned)
     };
     match a.get("type").and_then(|t| t.as_str())? {
         "open_popup" => Some(Navigazione::ApriFinestra {
@@ -4205,7 +4488,12 @@ pub fn apri_finestra(
                     lvgl_sys::lv_label_set_text(l, cross.as_ptr());
                     stile::testo(l, (0x94, 0xa3, 0xb8), stile::MAIN);
                     stile::font(l, 13, stile::MAIN);
-                    lvgl_sys::lv_obj_align(l, lvgl_sys::LV_ALIGN_CENTER as lvgl_sys::lv_align_t, 0, 0);
+                    lvgl_sys::lv_obj_align(
+                        l,
+                        lvgl_sys::LV_ALIGN_CENTER as lvgl_sys::lv_align_t,
+                        0,
+                        0,
+                    );
                 }
                 let ctx = leak_ctx(NavClickCtx {
                     target_page: Navigazione::ChiudiFinestra,
@@ -4244,8 +4532,15 @@ pub fn apri_finestra(
         }
         <lvgl::Obj as Widget>::from_raw(nn)
     };
-    lvgl_font::apply_to(area.raw().map_err(|e| anyhow::anyhow!("raw: {e:?}"))?.as_ptr());
-    let area_ptr = area.raw().map_err(|e| anyhow::anyhow!("raw: {e:?}"))?.as_ptr();
+    lvgl_font::apply_to(
+        area.raw()
+            .map_err(|e| anyhow::anyhow!("raw: {e:?}"))?
+            .as_ptr(),
+    );
+    let area_ptr = area
+        .raw()
+        .map_err(|e| anyhow::anyhow!("raw: {e:?}"))?
+        .as_ptr();
 
     let viewer_role: Option<Role> = shared_session
         .lock()
@@ -4275,7 +4570,15 @@ pub fn apri_finestra(
         &mut live,
     );
 
-    Ok((FinestraViva { velo, live, _styles: styles, contesti }, summary))
+    Ok((
+        FinestraViva {
+            velo,
+            live,
+            _styles: styles,
+            contesti,
+        },
+        summary,
+    ))
 }
 
 fn render_button(
@@ -4306,7 +4609,10 @@ fn render_button(
     // Centrata come sul web (`textAnchor="middle"`). Senza, LVGL la lascia in
     // alto a sinistra dentro il bottone: visto sul TC620 il 15-10-2026.
     unsafe {
-        let l = lbl.raw().map_err(|e| anyhow::anyhow!("raw: {e:?}"))?.as_ptr();
+        let l = lbl
+            .raw()
+            .map_err(|e| anyhow::anyhow!("raw: {e:?}"))?
+            .as_ptr();
         lvgl_sys::lv_obj_align(l, lvgl_sys::LV_ALIGN_CENTER as lvgl_sys::lv_align_t, 0, 0);
     }
     // L'etichetta: `color` dell'oggetto, altrimenti bianca come sul web. Prima
@@ -4326,7 +4632,10 @@ fn render_button(
 
     let ptr = btn.raw().map_err(|e| anyhow::anyhow!("raw: {e:?}"))?;
     if let Some(azione) = azione_del_bottone(obj) {
-        let ctx = leak_ctx(NavClickCtx { target_page: azione, tx: nav_tx.clone() });
+        let ctx = leak_ctx(NavClickCtx {
+            target_page: azione,
+            tx: nav_tx.clone(),
+        });
         unsafe {
             lvgl_sys::lv_obj_add_event_cb(
                 ptr.as_ptr(),
@@ -4365,27 +4674,69 @@ fn render_navbutton(
     )?;
     // Fase 2 (30-09-2026): il bordo del web (`stroke`, 1.5 px, angoli 4).
     unsafe {
-        let p = btn.raw().map_err(|e| anyhow::anyhow!("raw: {e:?}"))?.as_ptr();
-        stile::bordo(p, Some(colore_campo(obj.stroke.as_deref(), "navbutton", "stroke")), obj.stroke_width.unwrap_or(1.5), stile::MAIN);
+        let p = btn
+            .raw()
+            .map_err(|e| anyhow::anyhow!("raw: {e:?}"))?
+            .as_ptr();
+        stile::bordo(
+            p,
+            Some(colore_campo(obj.stroke.as_deref(), "navbutton", "stroke")),
+            obj.stroke_width.unwrap_or(1.5),
+            stile::MAIN,
+        );
         stile::raggio(p, obj.corner_radius.unwrap_or(4.0), stile::MAIN);
     }
     // Fase 3 (30-09-2026): come il web — un ▶ nel colore `color` (o il blu
     // primario) a 10 px dal bordo, e l'etichetta a 28 px nel colore del testo.
     // Prima era «> etichetta» tutto insieme.
-    let mut freccia = Label::create(&mut btn).map_err(|e| anyhow::anyhow!("Label::create: {e:?}"))?;
-    freccia.set_text(&text_cstring("▶")).map_err(|e| anyhow::anyhow!("set_text: {e:?}"))?;
+    let mut freccia =
+        Label::create(&mut btn).map_err(|e| anyhow::anyhow!("Label::create: {e:?}"))?;
+    freccia
+        .set_text(&text_cstring("▶"))
+        .map_err(|e| anyhow::anyhow!("set_text: {e:?}"))?;
     let mut lbl = Label::create(&mut btn).map_err(|e| anyhow::anyhow!("Label::create: {e:?}"))?;
     lbl.set_text(&text_cstring(obj.label.as_deref().unwrap_or("Go to page")))
         .map_err(|e| anyhow::anyhow!("set_text: {e:?}"))?;
     unsafe {
-        let f = freccia.raw().map_err(|e| anyhow::anyhow!("raw: {e:?}"))?.as_ptr();
-        let l = lbl.raw().map_err(|e| anyhow::anyhow!("raw: {e:?}"))?.as_ptr();
-        let bp = btn.raw().map_err(|e| anyhow::anyhow!("raw: {e:?}"))?.as_ptr();
+        let f = freccia
+            .raw()
+            .map_err(|e| anyhow::anyhow!("raw: {e:?}"))?
+            .as_ptr();
+        let l = lbl
+            .raw()
+            .map_err(|e| anyhow::anyhow!("raw: {e:?}"))?
+            .as_ptr();
+        let bp = btn
+            .raw()
+            .map_err(|e| anyhow::anyhow!("raw: {e:?}"))?
+            .as_ptr();
         stile::margini(bp, 0, 0, stile::MAIN);
-        lvgl_sys::lv_obj_align(f, lvgl_sys::LV_ALIGN_LEFT_MID as lvgl_sys::lv_align_t, 10, 0);
-        lvgl_sys::lv_obj_align(l, lvgl_sys::LV_ALIGN_LEFT_MID as lvgl_sys::lv_align_t, 28, 0);
-        stile::testo(f, obj.color.as_deref().and_then(parse_hex_color).unwrap_or((0x3b, 0x82, 0xf6)), stile::MAIN);
-        if let Some(c) = obj.color.as_deref().and_then(parse_hex_color).or_else(colori_predefiniti::testo_pagina) {
+        lvgl_sys::lv_obj_align(
+            f,
+            lvgl_sys::LV_ALIGN_LEFT_MID as lvgl_sys::lv_align_t,
+            10,
+            0,
+        );
+        lvgl_sys::lv_obj_align(
+            l,
+            lvgl_sys::LV_ALIGN_LEFT_MID as lvgl_sys::lv_align_t,
+            28,
+            0,
+        );
+        stile::testo(
+            f,
+            obj.color
+                .as_deref()
+                .and_then(parse_hex_color)
+                .unwrap_or((0x3b, 0x82, 0xf6)),
+            stile::MAIN,
+        );
+        if let Some(c) = obj
+            .color
+            .as_deref()
+            .and_then(parse_hex_color)
+            .or_else(colori_predefiniti::testo_pagina)
+        {
             stile::testo(l, c, stile::MAIN);
         }
         stile::font(f, 14, stile::MAIN);
@@ -4393,7 +4744,13 @@ fn render_navbutton(
         // come ripiego: un progetto deployato prima di oggi non ha il campo, e
         // deve continuare a disegnarsi identico. La freccia resta 14: non è
         // testo dell'utente, è il segno che dice «porta altrove».
-        stile::font(l, obj.font_size.map(|v| v.round().clamp(1.0, 1000.0) as u16).unwrap_or(13), stile::MAIN);
+        stile::font(
+            l,
+            obj.font_size
+                .map(|v| v.round().clamp(1.0, 1000.0) as u16)
+                .unwrap_or(13),
+            stile::MAIN,
+        );
     }
 
     if let Some(target_page) = &obj.target_page {
@@ -4545,7 +4902,11 @@ fn render_page_navigator(
                 .map_err(|e| anyhow::anyhow!("add_style: {e:?}"))?;
             styles.push(style);
         }
-        apply_font_size_con_ripiego(&lbl, obj, Some(corpo_predefinito("page_navigator", "font_size")))?; // il ripiego del web (25-10-2026)
+        apply_font_size_con_ripiego(
+            &lbl,
+            obj,
+            Some(corpo_predefinito("page_navigator", "font_size")),
+        )?; // il ripiego del web (25-10-2026)
         let lbl_ptr = lbl.raw().map_err(|e| anyhow::anyhow!("raw: {e:?}"))?;
         let btn_ptr = btn.raw().map_err(|e| anyhow::anyhow!("raw: {e:?}"))?;
         unsafe {
@@ -4624,7 +4985,11 @@ fn geometria_led(obj: &SynopticObject) -> (f64, f64, f64) {
     let w = obj.width.unwrap_or(24.0);
     let h = obj.height.unwrap_or(w);
     let d = w.min(h);
-    (obj.x.unwrap_or(0.0) + (w - d) / 2.0, obj.y.unwrap_or(0.0) + (h - d) / 2.0, d)
+    (
+        obj.x.unwrap_or(0.0) + (w - d) / 2.0,
+        obj.y.unwrap_or(0.0) + (h - d) / 2.0,
+        d,
+    )
 }
 
 fn render_led(
@@ -4634,15 +4999,28 @@ fn render_led(
 ) -> anyhow::Result<LiveBinding> {
     let mut led = Led::create(screen).map_err(|e| anyhow::anyhow!("Led::create: {e:?}"))?;
     let (x, y, d) = geometria_led(obj);
-    led.set_pos(x.round() as i16, y.round() as i16).map_err(|e| anyhow::anyhow!("set_pos: {e:?}"))?;
-    led.set_size(d.round() as i16, d.round() as i16).map_err(|e| anyhow::anyhow!("set_size: {e:?}"))?;
+    led.set_pos(x.round() as i16, y.round() as i16)
+        .map_err(|e| anyhow::anyhow!("set_pos: {e:?}"))?;
+    led.set_size(d.round() as i16, d.round() as i16)
+        .map_err(|e| anyhow::anyhow!("set_size: {e:?}"))?;
     if let Some(l) = obj.label.as_deref().filter(|l| !l.is_empty()) {
         // Sotto il LED, centrata: `y + 2r + 14` come sul web. Una larghezza
         // abbondante perché un'etichetta più larga del LED resti centrata.
         // Il corpo dall'oggetto (21-10-2026): prima era 11 fisso qui e 11
         // cablato sul web, e scrivere `font_size` su un led non produceva nulla.
-        let corpo = obj.font_size.map(|v| v.round().clamp(1.0, 1000.0) as u16).unwrap_or(11);
-        etichetta_piccola_corpo(screen, l, x + d / 2.0 - 100.0, y + d + 14.0, Some(200.0), GRIGIO_ETICHETTA, corpo)?;
+        let corpo = obj
+            .font_size
+            .map(|v| v.round().clamp(1.0, 1000.0) as u16)
+            .unwrap_or(11);
+        etichetta_piccola_corpo(
+            screen,
+            l,
+            x + d / 2.0 - 100.0,
+            y + d + 14.0,
+            Some(200.0),
+            GRIGIO_ETICHETTA,
+            corpo,
+        )?;
     }
 
     let on_value = obj.on_value.clone().unwrap_or(OnValue::Bool(true));
@@ -4756,9 +5134,30 @@ pub(crate) struct AspettoStile {
 
 pub(crate) fn aspetto_stile(stile: &str) -> AspettoStile {
     match stile {
-        "pillola" => AspettoStile { spessore: 28.0, cursore: "dentro", pad_asse: -3.0, pad_traverso: -3.0, raggio_traccia: None, posizione: "sotto" },
-        "piastra" => AspettoStile { spessore: 0.0, cursore: "nessuno", pad_asse: 0.0, pad_traverso: 0.0, raggio_traccia: Some(12.0), posizione: "dentro" },
-        "isa" => AspettoStile { spessore: 6.0, cursore: "rettangolo", pad_asse: 2.0, pad_traverso: 7.0, raggio_traccia: Some(1.0), posizione: "sotto" },
+        "pillola" => AspettoStile {
+            spessore: 28.0,
+            cursore: "dentro",
+            pad_asse: -3.0,
+            pad_traverso: -3.0,
+            raggio_traccia: None,
+            posizione: "sotto",
+        },
+        "piastra" => AspettoStile {
+            spessore: 0.0,
+            cursore: "nessuno",
+            pad_asse: 0.0,
+            pad_traverso: 0.0,
+            raggio_traccia: Some(12.0),
+            posizione: "dentro",
+        },
+        "isa" => AspettoStile {
+            spessore: 6.0,
+            cursore: "rettangolo",
+            pad_asse: 2.0,
+            pad_traverso: 7.0,
+            raggio_traccia: Some(1.0),
+            posizione: "sotto",
+        },
         _ => AspettoStile {
             spessore: SPESSORE_TRACCIA,
             cursore: "tondo",
@@ -4789,7 +5188,18 @@ pub(crate) fn geometria_slider(
     spessore: f64,
     posizione: &str,
 ) -> GeometriaSlider {
-    geometria_slider_stile(verticale, box_w, box_h, alto_etichetta, alto_valore, Some(spessore), Some(posizione), "classico", false, 0.0)
+    geometria_slider_stile(
+        verticale,
+        box_w,
+        box_h,
+        alto_etichetta,
+        alto_valore,
+        Some(spessore),
+        Some(posizione),
+        "classico",
+        false,
+        0.0,
+    )
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -4807,7 +5217,16 @@ pub(crate) fn geometria_slider_stile(
 ) -> GeometriaSlider {
     let a = aspetto_stile(stile);
     if stile == "piastra" {
-        return geometria_piastra(verticale, box_w, box_h, alto_etichetta, alto_valore, posizione, con_icona, a);
+        return geometria_piastra(
+            verticale,
+            box_w,
+            box_h,
+            alto_etichetta,
+            alto_valore,
+            posizione,
+            con_icona,
+            a,
+        );
     }
     let posizione = posizione.unwrap_or(a.posizione);
     let spessore = spessore.unwrap_or(a.spessore);
@@ -4818,17 +5237,38 @@ pub(crate) fn geometria_slider_stile(
         }
         let lungo = t + 2.0 * a.pad_asse;
         let traverso = t + 2.0 * a.pad_traverso;
-        let (w, h) = if verticale { (traverso, lungo) } else { (lungo, traverso) };
+        let (w, h) = if verticale {
+            (traverso, lungo)
+        } else {
+            (lungo, traverso)
+        };
         (traverso / 2.0, w, h)
     };
-    let riga_valore = if matches!(posizione, "sotto" | "sopra") { alto_valore } else { 0.0 };
+    let riga_valore = if matches!(posizione, "sotto" | "sopra") {
+        alto_valore
+    } else {
+        0.0
+    };
     let senza_valore = posizione == "cursore" || alto_valore == 0.0;
     if verticale {
         let t = spessore.min(box_w);
-        let sopra = if posizione == "sopra" { riga_valore } else { 0.0 };
-        let sotto = if posizione == "sotto" { riga_valore } else { 0.0 };
+        let sopra = if posizione == "sopra" {
+            riga_valore
+        } else {
+            0.0
+        };
+        let sotto = if posizione == "sotto" {
+            riga_valore
+        } else {
+            0.0
+        };
         let lunghezza = (box_h - alto_etichetta - riga_valore - 8.0).max(24.0);
-        let traccia = ((box_w - t) / 2.0, alto_etichetta + sopra + 4.0, t, lunghezza);
+        let traccia = (
+            (box_w - t) / 2.0,
+            alto_etichetta + sopra + 4.0,
+            t,
+            lunghezza,
+        );
         let valore = if senza_valore {
             None
         } else {
@@ -4878,7 +5318,9 @@ pub(crate) fn geometria_slider_stile(
         y += alto + 2.0;
     }
     let c = |nome: &str| centri.iter().find(|(n, _)| *n == nome).map(|(_, v)| *v);
-    let y_traccia = (c("traccia").unwrap_or(box_h / 2.0) - t / 2.0).min(box_h - t).max(0.0);
+    let y_traccia = (c("traccia").unwrap_or(box_h / 2.0) - t / 2.0)
+        .min(box_h - t)
+        .max(0.0);
     let valore = if senza_valore {
         None
     } else if posizione == "dentro" {
@@ -4916,7 +5358,11 @@ fn geometria_piastra(
 ) -> GeometriaSlider {
     let m = 12.0;
     let con_valore = alto_valore > 0.0 && posizione != Some("cursore");
-    let raggio = a.raggio_traccia.unwrap_or(12.0).min(box_w / 2.0).min(box_h / 2.0);
+    let raggio = a
+        .raggio_traccia
+        .unwrap_or(12.0)
+        .min(box_w / 2.0)
+        .min(box_h / 2.0);
     let base = GeometriaSlider {
         verticale,
         traccia: (0.0, 0.0, box_w, box_h),
@@ -4930,16 +5376,26 @@ fn geometria_piastra(
         valore: None,
     };
     if verticale {
-        let lato = if con_icona { 28.0_f64.min(box_w - 2.0 * m) } else { 0.0 };
+        let lato = if con_icona {
+            28.0_f64.min(box_w - 2.0 * m)
+        } else {
+            0.0
+        };
         return GeometriaSlider {
             icona: (lato > 0.0).then_some((box_w / 2.0, m + lato / 2.0, lato)),
-            etichetta: (alto_etichetta > 0.0)
-                .then_some((box_w / 2.0, m + lato + if lato > 0.0 { 8.0 } else { 0.0 } + alto_etichetta / 2.0)),
+            etichetta: (alto_etichetta > 0.0).then_some((
+                box_w / 2.0,
+                m + lato + if lato > 0.0 { 8.0 } else { 0.0 } + alto_etichetta / 2.0,
+            )),
             valore: con_valore.then_some((box_w / 2.0, box_h - m - alto_valore / 2.0)),
             ..base
         };
     }
-    let lato = if con_icona { 28.0_f64.min(box_h - 16.0) } else { 0.0 };
+    let lato = if con_icona {
+        28.0_f64.min(box_h - 16.0)
+    } else {
+        0.0
+    };
     let x_testo = m + if lato > 0.0 { lato + 10.0 } else { 0.0 };
     let righe = alto_etichetta + if con_valore { alto_valore } else { 0.0 };
     let cima = (box_h - righe) / 2.0;
@@ -4958,9 +5414,15 @@ fn geometria_piastra(
 pub(crate) fn fumetto_cursore(g: &GeometriaSlider, f: f64, alto_valore: f64) -> (f64, f64) {
     let (tx, ty, tw, th) = g.traccia;
     if g.verticale {
-        (tx + tw / 2.0 + g.raggio_cursore + 4.0 + alto_valore, ty + th * (1.0 - f))
+        (
+            tx + tw / 2.0 + g.raggio_cursore + 4.0 + alto_valore,
+            ty + th * (1.0 - f),
+        )
     } else {
-        (tx + tw * f, ty + th / 2.0 - g.raggio_cursore - 4.0 - alto_valore / 2.0)
+        (
+            tx + tw * f,
+            ty + th / 2.0 - g.raggio_cursore - 4.0 - alto_valore / 2.0,
+        )
     }
 }
 
@@ -4983,7 +5445,12 @@ pub(crate) struct Tacca {
     pub testo: Option<String>,
 }
 
-pub(crate) fn altezza_zona_tacche(con_tacche: bool, con_numeri: bool, con_bande: bool, corpo_numeri: f64) -> f64 {
+pub(crate) fn altezza_zona_tacche(
+    con_tacche: bool,
+    con_numeri: bool,
+    con_bande: bool,
+    corpo_numeri: f64,
+) -> f64 {
     let mut h = 0.0;
     if con_bande {
         h += STRISCIA_BANDE + 1.0;
@@ -4998,17 +5465,30 @@ pub(crate) fn altezza_zona_tacche(con_tacche: bool, con_numeri: bool, con_bande:
 }
 
 pub(crate) fn decimali_del_passo(passo: f64) -> usize {
-    (0..=6).find(|d| {
-        let x = passo * 10f64.powi(*d as i32);
-        (x.round() - x).abs() < 1e-9
-    }).unwrap_or(6)
+    (0..=6)
+        .find(|d| {
+            let x = passo * 10f64.powi(*d as i32);
+            (x.round() - x).abs() < 1e-9
+        })
+        .unwrap_or(6)
 }
 
-pub(crate) fn tacche(min: f64, max: f64, maggiore: Option<f64>, minore: Option<f64>, con_numeri: bool) -> Vec<Tacca> {
+pub(crate) fn tacche(
+    min: f64,
+    max: f64,
+    maggiore: Option<f64>,
+    minore: Option<f64>,
+    con_numeri: bool,
+) -> Vec<Tacca> {
+    // `!(max > min)` e non `max <= min`: è vero anche con un NaN, e un
+    // intervallo che non si confronta non disegna niente.
+    #[allow(clippy::neg_cmp_op_on_partial_ord)]
     if !(max > min) {
         return Vec::new();
     }
-    let valido = |p: Option<f64>| p.filter(|p| p.is_finite() && *p > 0.0 && (max - min) / p <= MASSIMO_TACCHE);
+    let valido = |p: Option<f64>| {
+        p.filter(|p| p.is_finite() && *p > 0.0 && (max - min) / p <= MASSIMO_TACCHE)
+    };
     let mut mappa: std::collections::BTreeMap<i64, Tacca> = std::collections::BTreeMap::new();
     let mut aggiungi = |p: f64, marcata: bool| {
         let mut k = (min / p - 1e-9).ceil() as i64;
@@ -5017,11 +5497,14 @@ pub(crate) fn tacche(min: f64, max: f64, maggiore: Option<f64>, minore: Option<f
             let chiave = (v * 1e6).round() as i64;
             if !mappa.get(&chiave).is_some_and(|t| t.maggiore) {
                 let d = decimali_del_passo(p);
-                mappa.insert(chiave, Tacca {
-                    f: (v - min) / (max - min),
-                    maggiore: marcata,
-                    testo: (marcata && con_numeri).then(|| format!("{v:.d$}")),
-                });
+                mappa.insert(
+                    chiave,
+                    Tacca {
+                        f: (v - min) / (max - min),
+                        maggiore: marcata,
+                        testo: (marcata && con_numeri).then(|| format!("{v:.d$}")),
+                    },
+                );
             }
             k += 1;
         }
@@ -5037,6 +5520,9 @@ pub(crate) fn tacche(min: f64, max: f64, maggiore: Option<f64>, minore: Option<f
 
 /// Le bande: `(da, a, allarme?)` come frazioni.
 pub(crate) fn bande(min: f64, max: f64, l: &LimitiSlider) -> Vec<(f64, f64, bool)> {
+    // `!(max > min)` e non `max <= min`: è vero anche con un NaN, e un
+    // intervallo che non si confronta non disegna niente.
+    #[allow(clippy::neg_cmp_op_on_partial_ord)]
     if !(max > min) {
         return Vec::new();
     }
@@ -5063,19 +5549,35 @@ pub(crate) fn bande(min: f64, max: f64, l: &LimitiSlider) -> Vec<(f64, f64, bool
 
 pub(crate) fn fuori_dai_limiti(v: f64, l: &LimitiSlider) -> bool {
     let [al, wl, wh, ah] = *l;
-    ah.is_some_and(|x| v >= x) || al.is_some_and(|x| v <= x) || wh.is_some_and(|x| v >= x) || wl.is_some_and(|x| v <= x)
+    ah.is_some_and(|x| v >= x)
+        || al.is_some_and(|x| v <= x)
+        || wh.is_some_and(|x| v >= x)
+        || wl.is_some_and(|x| v <= x)
 }
 
-pub(crate) fn passo_effettivo(step: Option<f64>, aggancia: bool, maggiore: Option<f64>, minore: Option<f64>) -> Option<f64> {
+pub(crate) fn passo_effettivo(
+    step: Option<f64>,
+    aggancia: bool,
+    maggiore: Option<f64>,
+    minore: Option<f64>,
+) -> Option<f64> {
     if !aggancia {
         return step;
     }
-    minore.filter(|m| *m > 0.0).or(maggiore.filter(|m| *m > 0.0)).or(step)
+    minore
+        .filter(|m| *m > 0.0)
+        .or(maggiore.filter(|m| *m > 0.0))
+        .or(step)
 }
 
 /// Il testo del valore, col PV accanto se c'è: «62 % · PV 58 %», come il web.
 /// `pv`: `None` = nessun PV; `Some(None)` = PV non numerico.
-pub(crate) fn testo_valore_slider(v: f64, decimali: u8, unita: &str, pv: Option<Option<f64>>) -> String {
+pub(crate) fn testo_valore_slider(
+    v: f64,
+    decimali: u8,
+    unita: &str,
+    pv: Option<Option<f64>>,
+) -> String {
     let d = decimali as usize;
     match pv {
         None => format!("{v:.d$}{unita}"),
@@ -5112,7 +5614,11 @@ fn passo_valido(step: Option<f64>) -> f64 {
 /// La posizione sulla traccia di un valore del tag.
 pub(crate) fn indice_slider(v: f64, min: f64, step: Option<f64>, passi: i32) -> i32 {
     let i = ((v - min) / passo_valido(step)).round();
-    if i.is_finite() { i.clamp(0.0, passi as f64) as i32 } else { 0 }
+    if i.is_finite() {
+        i.clamp(0.0, passi as f64) as i32
+    } else {
+        0
+    }
 }
 
 /// Il valore da scrivere per una posizione: intero se intervallo e passo lo
@@ -5149,10 +5655,18 @@ fn render_slider(
     // Lo sfondo universale (fase 1, 30-10-2026), prima di tutto il resto:
     // LVGL disegna nell'ordine di creazione. Il colore come il `bgLayer` del
     // web (angoli di 4), l'immagine col pezzo degli sfondi di pagina.
-    if obj.bg_color.as_deref().is_some_and(|c| !c.trim().is_empty()) {
+    if obj
+        .bg_color
+        .as_deref()
+        .is_some_and(|c| !c.trim().is_empty())
+    {
         riquadro(screen, obj, "slider", (200.0, 50.0), None, 4.0)?;
     }
-    if obj.bg_image.as_deref().is_some_and(|c| !c.trim().is_empty()) {
+    if obj
+        .bg_image
+        .as_deref()
+        .is_some_and(|c| !c.trim().is_empty())
+    {
         let mut misurato = obj.clone();
         misurato.width = Some(obj.width.unwrap_or(200.0));
         misurato.height = Some(obj.height.unwrap_or(50.0));
@@ -5182,24 +5696,31 @@ fn render_slider(
     let verticale = obj.orientation.as_deref() == Some("vertical");
     let box_w = obj.width.unwrap_or(200.0);
     let box_h = obj.height.unwrap_or(50.0);
-    let corpo_etichetta = obj.label_font_size.unwrap_or(11.0).round().clamp(6.0, 200.0);
+    let corpo_etichetta = obj
+        .label_font_size
+        .unwrap_or(11.0)
+        .round()
+        .clamp(6.0, 200.0);
     let corpo_valore = corpo_valore_barra(obj, false);
     let alto_etichetta = match obj.label.as_deref() {
         Some(l) if !l.is_empty() => altezza_valore(corpo_etichetta),
         _ => 0.0,
     };
-    let alto_valore = if obj.show_value != Some(false) { altezza_valore(corpo_valore) } else { 0.0 };
-    let stile = match obj.slider_style.as_deref() {
-        Some(s @ ("pillola" | "piastra" | "isa")) => s,
-        _ => "classico",
+    let alto_valore = if obj.show_value != Some(false) {
+        altezza_valore(corpo_valore)
+    } else {
+        0.0
     };
+    let stile = obj.slider_style.as_deref().unwrap_or("classico");
     let aspetto = aspetto_stile(stile);
     let posizione_scritta = match obj.slider_value_position.as_deref() {
         Some(p @ ("sotto" | "sopra" | "dentro" | "cursore")) => Some(p),
         _ => None,
     };
     let posizione = posizione_scritta.unwrap_or(aspetto.posizione);
-    let spessore_scritto = obj.slider_track_thickness.filter(|t| t.is_finite() && *t > 0.0);
+    let spessore_scritto = obj
+        .slider_track_thickness
+        .filter(|t| t.is_finite() && *t > 0.0);
     let spessore = spessore_scritto.unwrap_or(aspetto.spessore);
     let icona = (stile == "piastra")
         .then(|| obj.slider_icon.as_deref().and_then(icona_slider))
@@ -5207,17 +5728,39 @@ fn render_slider(
     // Fase 4: tacche e bande, mai sulla piastra. Le bande tengono il loro posto
     // anche quando «in allarme» non le mostra: la traccia non deve saltare.
     let piastra = stile == "piastra";
-    let con_tacche = !piastra && (obj.slider_tick_major.is_some_and(|t| t > 0.0) || obj.slider_tick_minor.is_some_and(|t| t > 0.0));
-    let con_numeri = con_tacche && obj.slider_tick_labels.unwrap_or(obj.slider_tick_major.is_some_and(|t| t > 0.0));
+    let con_tacche = !piastra
+        && (obj.slider_tick_major.is_some_and(|t| t > 0.0)
+            || obj.slider_tick_minor.is_some_and(|t| t > 0.0));
+    let con_numeri = con_tacche
+        && obj
+            .slider_tick_labels
+            .unwrap_or(obj.slider_tick_major.is_some_and(|t| t > 0.0));
     let modo_bande = obj.slider_bands.as_deref().unwrap_or("mai");
     let limiti: LimitiSlider = [obj.alarm_low, obj.warn_low, obj.warn_high, obj.alarm_high];
     let min_v = obj.min.unwrap_or(0.0);
     let max_v = obj.max.unwrap_or(100.0);
-    let lista_bande = if !piastra && matches!(modo_bande, "sempre" | "in_allarme") { bande(min_v, max_v, &limiti) } else { Vec::new() };
+    let lista_bande = if !piastra && matches!(modo_bande, "sempre" | "in_allarme") {
+        bande(min_v, max_v, &limiti)
+    } else {
+        Vec::new()
+    };
     let corpo_numeri = (corpo_valore - 1.0).max(6.0);
-    let alto_tacche = altezza_zona_tacche(con_tacche, con_numeri, !lista_bande.is_empty(), corpo_numeri);
+    let alto_tacche = altezza_zona_tacche(
+        con_tacche,
+        con_numeri,
+        !lista_bande.is_empty(),
+        corpo_numeri,
+    );
     let g = geometria_slider_stile(
-        verticale, box_w, box_h, alto_etichetta, alto_valore, spessore_scritto, posizione_scritta, stile, icona.is_some(),
+        verticale,
+        box_w,
+        box_h,
+        alto_etichetta,
+        alto_valore,
+        spessore_scritto,
+        posizione_scritta,
+        stile,
+        icona.is_some(),
         alto_tacche,
     );
     let (gx, gy, gw, gh) = g.traccia;
@@ -5227,7 +5770,12 @@ fn render_slider(
     let estensione = if stile == "piastra" {
         0.0
     } else {
-        if verticale { gx.max(box_w - gx - gw) } else { gy.max(box_h - gy - gh) }.max((44.0 - spessore) / 2.0)
+        if verticale {
+            gx.max(box_w - gx - gw)
+        } else {
+            gy.max(box_h - gy - gh)
+        }
+        .max((44.0 - spessore) / 2.0)
     };
     slider
         .set_pos((x0 + gx).round() as i16, (y0 + gy).round() as i16)
@@ -5237,7 +5785,10 @@ fn render_slider(
         .map_err(|e| anyhow::anyhow!("set_size (slider sottile): {e:?}"))?;
     let ptr = slider.raw().map_err(|e| anyhow::anyhow!("raw: {e:?}"))?;
     unsafe {
-        lvgl_sys::lv_obj_set_ext_click_area(ptr.as_ptr(), estensione.round() as lvgl_sys::lv_coord_t);
+        lvgl_sys::lv_obj_set_ext_click_area(
+            ptr.as_ptr(),
+            estensione.round() as lvgl_sys::lv_coord_t,
+        );
     }
     // I colori sono nostri, non del tema (fase 2): indicatore e cursore col
     // riempimento; la traccia vuota col suo colore, o — «auto» — col
@@ -5250,7 +5801,10 @@ fn render_slider(
         let c = colore_campo(obj.fill.as_deref(), "slider", "fill");
         let isa = stile == "isa";
         let opacita_vuota = obj.slider_track_opacity.unwrap_or(100.0).clamp(0.0, 100.0) / 100.0;
-        let (traccia, opa) = match (isa, obj.slider_track_color.as_deref().and_then(parse_hex_color)) {
+        let (traccia, opa) = match (
+            isa,
+            obj.slider_track_color.as_deref().and_then(parse_hex_color),
+        ) {
             (true, _) => (ISA_TRACCIA, 255.0),
             (false, Some(t)) => (t, 255.0),
             (false, None) => (c, 51.0),
@@ -5270,13 +5824,29 @@ fn render_slider(
                 stile::raggio(p, 2.0, stile::MANOPOLA);
             }
             altro => {
-                stile::sfondo(p, if altro == "dentro" { CURSORE_PILLOLA } else { c }, stile::MANOPOLA);
+                stile::sfondo(
+                    p,
+                    if altro == "dentro" {
+                        CURSORE_PILLOLA
+                    } else {
+                        c
+                    },
+                    stile::MANOPOLA,
+                );
                 stile::raggio(p, lvgl_sys::LV_RADIUS_CIRCLE as f64, stile::MANOPOLA);
             }
         }
         // I pad del cursore: lungo l'asse e di traverso, scambiati nel verticale.
-        let (orizz, vert) = if verticale { (aspetto.pad_traverso, aspetto.pad_asse) } else { (aspetto.pad_asse, aspetto.pad_traverso) };
-        let (orizz, vert) = if aspetto.cursore == "nessuno" { (0.0, 0.0) } else { (orizz, vert) };
+        let (orizz, vert) = if verticale {
+            (aspetto.pad_traverso, aspetto.pad_asse)
+        } else {
+            (aspetto.pad_asse, aspetto.pad_traverso)
+        };
+        let (orizz, vert) = if aspetto.cursore == "nessuno" {
+            (0.0, 0.0)
+        } else {
+            (orizz, vert)
+        };
         lvgl_sys::lv_obj_set_style_pad_top(p, vert as lvgl_sys::lv_coord_t, stile::MANOPOLA);
         lvgl_sys::lv_obj_set_style_pad_bottom(p, vert as lvgl_sys::lv_coord_t, stile::MANOPOLA);
         lvgl_sys::lv_obj_set_style_pad_left(p, orizz as lvgl_sys::lv_coord_t, stile::MANOPOLA);
@@ -5292,43 +5862,86 @@ fn render_slider(
         for (da, a, allarme) in &lista_bande {
             let mut o = create_child_obj(screen)?;
             let (bx, by, bw, bh) = if verticale {
-                (x0 + zona, ty0 + gh * (1.0 - a), STRISCIA_BANDE, gh * (a - da))
+                (
+                    x0 + zona,
+                    ty0 + gh * (1.0 - a),
+                    STRISCIA_BANDE,
+                    gh * (a - da),
+                )
             } else {
                 (tx0 + gw * da, y0 + zona, gw * (a - da), STRISCIA_BANDE)
             };
-            o.set_pos(bx.round() as i16, by.round() as i16).map_err(|e| anyhow::anyhow!("set_pos banda: {e:?}"))?;
-            o.set_size(bw.round().max(1.0) as i16, bh.round().max(1.0) as i16).map_err(|e| anyhow::anyhow!("set_size banda: {e:?}"))?;
+            o.set_pos(bx.round() as i16, by.round() as i16)
+                .map_err(|e| anyhow::anyhow!("set_pos banda: {e:?}"))?;
+            o.set_size(bw.round().max(1.0) as i16, bh.round().max(1.0) as i16)
+                .map_err(|e| anyhow::anyhow!("set_size banda: {e:?}"))?;
             let p = o.raw().map_err(|e| anyhow::anyhow!("raw: {e:?}"))?;
             unsafe {
-                stile::sfondo(p.as_ptr(), if *allarme { BANDA_ALLARME } else { BANDA_AVVISO }, stile::MAIN);
+                stile::sfondo(
+                    p.as_ptr(),
+                    if *allarme {
+                        BANDA_ALLARME
+                    } else {
+                        BANDA_AVVISO
+                    },
+                    stile::MAIN,
+                );
                 stile::bordo(p.as_ptr(), None, 0.0, stile::MAIN);
                 stile::raggio(p.as_ptr(), 0.0, stile::MAIN);
-                lvgl_sys::lv_obj_clear_flag(p.as_ptr(), lvgl_sys::LV_OBJ_FLAG_CLICKABLE | lvgl_sys::LV_OBJ_FLAG_SCROLLABLE);
+                lvgl_sys::lv_obj_clear_flag(
+                    p.as_ptr(),
+                    lvgl_sys::LV_OBJ_FLAG_CLICKABLE | lvgl_sys::LV_OBJ_FLAG_SCROLLABLE,
+                );
             }
             oggetti_bande.push(p);
         }
         if modo_bande == "in_allarme" && !oggetti_bande.is_empty() {
-            let fuori = lookup(tags, &obj.tag).is_some_and(|t| fuori_dai_limiti(tag_value_as_f64(&t.value), &limiti));
+            let fuori = lookup(tags, &obj.tag)
+                .is_some_and(|t| fuori_dai_limiti(tag_value_as_f64(&t.value), &limiti));
             if !fuori {
                 for o in &oggetti_bande {
                     unsafe { lvgl_sys::lv_obj_add_flag(o.as_ptr(), lvgl_sys::LV_OBJ_FLAG_HIDDEN) };
                 }
             }
             live.push(LiveBinding {
-                kind: LiveKind::BandeSlider { oggetti: oggetti_bande, tag: obj.tag.clone(), limiti, visibili: fuori },
+                kind: LiveKind::BandeSlider {
+                    oggetti: oggetti_bande,
+                    tag: obj.tag.clone(),
+                    limiti,
+                    visibili: fuori,
+                },
             });
         }
         if con_tacche {
-            let elenco = tacche(min_v, max_v, obj.slider_tick_major, obj.slider_tick_minor, con_numeri);
-            let inizio = zona + if lista_bande.is_empty() { 0.0 } else { STRISCIA_BANDE + 1.0 };
+            let elenco = tacche(
+                min_v,
+                max_v,
+                obj.slider_tick_major,
+                obj.slider_tick_minor,
+                con_numeri,
+            );
+            let inizio = zona
+                + if lista_bande.is_empty() {
+                    0.0
+                } else {
+                    STRISCIA_BANDE + 1.0
+                };
             let (r, gg, b) = colori_predefiniti::sottile_pagina();
             let hex = format!("#{r:02x}{gg:02x}{b:02x}");
             // L'immagine delle tacche: larga quanto la traccia (+1 per l'ultima
             // linea), alta quanto la tacca più lunga.
-            let (iw, ih) = if verticale { (TACCA_MAGGIORE + 1.0, gh + 1.0) } else { (gw + 1.0, TACCA_MAGGIORE + 1.0) };
+            let (iw, ih) = if verticale {
+                (TACCA_MAGGIORE + 1.0, gh + 1.0)
+            } else {
+                (gw + 1.0, TACCA_MAGGIORE + 1.0)
+            };
             let mut linee = String::new();
             for t in &elenco {
-                let lungo = if t.maggiore { TACCA_MAGGIORE } else { TACCA_MINORE };
+                let lungo = if t.maggiore {
+                    TACCA_MAGGIORE
+                } else {
+                    TACCA_MINORE
+                };
                 if verticale {
                     let y = (gh * (1.0 - t.f)).round() + 0.5;
                     linee.push_str(&format!("<line x1='0' x2='{lungo}' y1='{y}' y2='{y}'/>"));
@@ -5340,10 +5953,21 @@ fn render_slider(
             let doc = format!(
                 "<svg xmlns='http://www.w3.org/2000/svg' width='{iw}' height='{ih}' viewBox='0 0 {iw} {ih}' stroke='{hex}' stroke-width='1'>{linee}</svg>"
             );
-            let (ix, iy) = if verticale { (x0 + inizio, ty0) } else { (tx0, y0 + inizio) };
+            let (ix, iy) = if verticale {
+                (x0 + inizio, ty0)
+            } else {
+                (tx0, y0 + inizio)
+            };
             match disegna_svg_byte(
-                screen, ix.round() as i16, iy.round() as i16, iw.round() as i16, ih.round() as i16,
-                doc.as_bytes(), false, false, crate::svg_raster::MAX_SIDE_SFONDO,
+                screen,
+                ix.round() as i16,
+                iy.round() as i16,
+                iw.round() as i16,
+                ih.round() as i16,
+                doc.as_bytes(),
+                false,
+                false,
+                crate::svg_raster::MAX_SIDE_SFONDO,
             ) {
                 Ok(b) => live.push(b),
                 Err(e) => eprintln!("[slider] tacche: {e}"),
@@ -5352,10 +5976,26 @@ fn render_slider(
                 let testo = t.testo.as_deref().unwrap_or_default();
                 if verticale {
                     let cy = ty0 + gh * (1.0 - t.f);
-                    etichetta_posata(screen, testo, x0 + inizio + TACCA_MAGGIORE + 3.0, cy, true, (r, gg, b), corpo_numeri as u16)?;
+                    etichetta_posata(
+                        screen,
+                        testo,
+                        x0 + inizio + TACCA_MAGGIORE + 3.0,
+                        cy,
+                        true,
+                        (r, gg, b),
+                        corpo_numeri as u16,
+                    )?;
                 } else {
                     let cy = y0 + inizio + TACCA_MAGGIORE + 1.0 + (corpo_numeri * 1.3).ceil() / 2.0;
-                    etichetta_posata(screen, testo, tx0 + gw * t.f, cy, false, (r, gg, b), corpo_numeri as u16)?;
+                    etichetta_posata(
+                        screen,
+                        testo,
+                        tx0 + gw * t.f,
+                        cy,
+                        false,
+                        (r, gg, b),
+                        corpo_numeri as u16,
+                    )?;
                 }
             }
         }
@@ -5367,10 +6007,19 @@ fn render_slider(
     } else {
         GRIGIO_ETICHETTA
     };
-    if let (Some(l), Some((cx, cy))) = (obj.label.as_deref().filter(|l| !l.is_empty()), g.etichetta) {
+    if let (Some(l), Some((cx, cy))) = (obj.label.as_deref().filter(|l| !l.is_empty()), g.etichetta)
+    {
         // L'etichetta ha il suo campo dal 21-10-2026 (`label_font_size`):
         // `font_size` governa il valore, in `init_bar_like`.
-        etichetta_posata(screen, l, x0 + cx, y0 + cy, g.a_sinistra, colore_etichetta, corpo_etichetta as u16)?;
+        etichetta_posata(
+            screen,
+            l,
+            x0 + cx,
+            y0 + cy,
+            g.a_sinistra,
+            colore_etichetta,
+            corpo_etichetta as u16,
+        )?;
     }
     // Il valore: centrato sul suo punto. Col fumetto parte nascosto, e lo
     // mostra il trascinamento.
@@ -5382,9 +6031,18 @@ fn render_slider(
         }
     });
     let fumetto = posizione == "cursore" && alto_valore > 0.0;
-    let valore_in = if fumetto { Some((x0, y0, box_w)) } else { centro_valore };
+    let valore_in = if fumetto {
+        Some((x0, y0, box_w))
+    } else {
+        centro_valore
+    };
     // L'aggancio alle tacche cambia il passo del cursore (fase 4).
-    let passo = passo_effettivo(obj.step, obj.slider_snap_ticks == Some(true) && con_tacche, obj.slider_tick_major, obj.slider_tick_minor);
+    let passo = passo_effettivo(
+        obj.step,
+        obj.slider_snap_ticks == Some(true) && con_tacche,
+        obj.slider_tick_major,
+        obj.slider_tick_minor,
+    );
     let binding = if obj.show_value != Some(false) && valore_in.is_none() {
         // Nessun posto per il valore (non dovrebbe succedere): senza etichetta.
         let mut senza = obj.clone();
@@ -5393,7 +6051,18 @@ fn render_slider(
     } else {
         init_bar_like(screen, ptr, obj, tags, false, valore_in, Some(passo))?
     };
-    let LiveKind::BarLike { min, max, value_ptr, decimals, ref unit, scarto, ref pv, ref attesa, .. } = binding.kind else {
+    let LiveKind::BarLike {
+        min,
+        max,
+        value_ptr,
+        decimals,
+        ref unit,
+        scarto,
+        ref pv,
+        ref attesa,
+        ..
+    } = binding.kind
+    else {
         unreachable!("init_bar_like dà sempre un BarLike")
     };
     let unita = unit.clone();
@@ -5405,36 +6074,71 @@ fn render_slider(
         let fo = (o - min) / (max - min);
         let mut l = create_child_obj(screen)?;
         let (lx, ly, lw, lh) = if verticale {
-            (x0 + gx - 3.0, y0 + gy + gh * (1.0 - fo) - 1.0, gw + 6.0, 2.0)
+            (
+                x0 + gx - 3.0,
+                y0 + gy + gh * (1.0 - fo) - 1.0,
+                gw + 6.0,
+                2.0,
+            )
         } else {
             (x0 + gx + gw * fo - 1.0, y0 + gy - 3.0, 2.0, gh + 6.0)
         };
-        l.set_pos(lx.round() as i16, ly.round() as i16).map_err(|e| anyhow::anyhow!("set_pos origine: {e:?}"))?;
-        l.set_size(lw.round() as i16, lh.round() as i16).map_err(|e| anyhow::anyhow!("set_size origine: {e:?}"))?;
+        l.set_pos(lx.round() as i16, ly.round() as i16)
+            .map_err(|e| anyhow::anyhow!("set_pos origine: {e:?}"))?;
+        l.set_size(lw.round() as i16, lh.round() as i16)
+            .map_err(|e| anyhow::anyhow!("set_size origine: {e:?}"))?;
         let p = l.raw().map_err(|e| anyhow::anyhow!("raw: {e:?}"))?;
         unsafe {
-            stile::sfondo(p.as_ptr(), colori_predefiniti::testo_pagina().unwrap_or((0xe2, 0xe8, 0xf0)), stile::MAIN);
+            stile::sfondo(
+                p.as_ptr(),
+                colori_predefiniti::testo_pagina().unwrap_or((0xe2, 0xe8, 0xf0)),
+                stile::MAIN,
+            );
             lvgl_sys::lv_obj_set_style_bg_opa(p.as_ptr(), 153, stile::MAIN);
             stile::bordo(p.as_ptr(), None, 0.0, stile::MAIN);
             stile::raggio(p.as_ptr(), 0.0, stile::MAIN);
-            lvgl_sys::lv_obj_clear_flag(p.as_ptr(), lvgl_sys::LV_OBJ_FLAG_CLICKABLE | lvgl_sys::LV_OBJ_FLAG_SCROLLABLE);
+            lvgl_sys::lv_obj_clear_flag(
+                p.as_ptr(),
+                lvgl_sys::LV_OBJ_FLAG_CLICKABLE | lvgl_sys::LV_OBJ_FLAG_SCROLLABLE,
+            );
             // Sotto lo slider, non sopra: creata dopo, passerebbe sopra il
             // cursore. Si vede ai due capi e attraverso la traccia vuota.
-            lvgl_sys::lv_obj_move_to_index(p.as_ptr(), lvgl_sys::lv_obj_get_index(ptr.as_ptr()) as i32);
+            lvgl_sys::lv_obj_move_to_index(
+                p.as_ptr(),
+                lvgl_sys::lv_obj_get_index(ptr.as_ptr()) as i32,
+            );
         }
     }
     if let Some(pv_tag) = obj.slider_pv_tag.as_deref().filter(|t| !t.is_empty()) {
-        let colore = obj.slider_pv_color.as_deref().and_then(parse_hex_color)
+        let colore = obj
+            .slider_pv_color
+            .as_deref()
+            .and_then(parse_hex_color)
             .or_else(colori_predefiniti::testo_pagina)
             .unwrap_or((0xe2, 0xe8, 0xf0));
         let hex = format!("#{:02x}{:02x}{:02x}", colore.0, colore.1, colore.2);
-        let (iw, ih, punti) = if verticale { (7, 10, "0,0 0,10 7,5") } else { (10, 7, "0,0 10,0 5,7") };
+        let (iw, ih, punti) = if verticale {
+            (7, 10, "0,0 0,10 7,5")
+        } else {
+            (10, 7, "0,0 10,0 5,7")
+        };
         let doc = format!("<svg xmlns='http://www.w3.org/2000/svg' width='{iw}' height='{ih}'><polygon points='{punti}' fill='{hex}'/></svg>");
-        let pv0 = lookup(tags, &Some(pv_tag.to_string())).map(|t| tag_value_as_f64(&t.value)).filter(|v| v.is_finite());
-        let f = pv0.map(|v| ((v - min) / (max - min)).clamp(0.0, 1.0)).unwrap_or(0.0);
+        let pv0 = lookup(tags, &Some(pv_tag.to_string()))
+            .map(|t| tag_value_as_f64(&t.value))
+            .filter(|v| v.is_finite());
+        let f = pv0
+            .map(|v| ((v - min) / (max - min)).clamp(0.0, 1.0))
+            .unwrap_or(0.0);
         let (ax, ay) = angolo_pv(verticale, g.traccia, f);
         let b = disegna_svg_byte(
-            screen, (x0 + ax).round() as i16, (y0 + ay).round() as i16, iw, ih, doc.as_bytes(), false, false,
+            screen,
+            (x0 + ax).round() as i16,
+            (y0 + ay).round() as i16,
+            iw,
+            ih,
+            doc.as_bytes(),
+            false,
+            false,
             crate::svg_raster::MAX_SIDE,
         )?;
         live.push(b);
@@ -5465,9 +6169,16 @@ fn render_slider(
                 // A sinistra non si allarga: si torna al punto e alla larghezza della piastra.
                 if let Some((cx, _)) = g.valore {
                     lvgl_sys::lv_obj_set_x(vp.as_ptr(), (x0 + cx).round() as lvgl_sys::lv_coord_t);
-                    lvgl_sys::lv_obj_set_width(vp.as_ptr(), (box_w - cx - 12.0).max(10.0).round() as lvgl_sys::lv_coord_t);
+                    lvgl_sys::lv_obj_set_width(
+                        vp.as_ptr(),
+                        (box_w - cx - 12.0).max(10.0).round() as lvgl_sys::lv_coord_t,
+                    );
                 }
-                lvgl_sys::lv_obj_set_style_text_align(vp.as_ptr(), lvgl_sys::LV_TEXT_ALIGN_LEFT as lvgl_sys::lv_text_align_t, 0);
+                lvgl_sys::lv_obj_set_style_text_align(
+                    vp.as_ptr(),
+                    lvgl_sys::LV_TEXT_ALIGN_LEFT as lvgl_sys::lv_text_align_t,
+                    0,
+                );
             }
             stile::font_grassetto(vp.as_ptr(), corpo_valore as u16, stile::MAIN);
         }
@@ -5484,8 +6195,15 @@ fn render_slider(
         );
         let l = lato.round() as i16;
         match disegna_svg_byte(
-            screen, (x0 + cx - lato / 2.0).round() as i16, (y0 + cy - lato / 2.0).round() as i16, l, l,
-            doc.as_bytes(), false, false, crate::svg_raster::MAX_SIDE,
+            screen,
+            (x0 + cx - lato / 2.0).round() as i16,
+            (y0 + cy - lato / 2.0).round() as i16,
+            l,
+            l,
+            doc.as_bytes(),
+            false,
+            false,
+            crate::svg_raster::MAX_SIDE,
         ) {
             Ok(b) => live.push(b),
             Err(e) => eprintln!("[slider] icona {:?}: {e}", obj.slider_icon),
@@ -5497,12 +6215,23 @@ fn render_slider(
                 let p = vp.as_ptr();
                 lvgl_sys::lv_obj_set_width(p, LV_SIZE_CONTENT);
                 stile::sfondo(p, (0x1e, 0x29, 0x3b), stile::MAIN);
-                stile::bordo(p, Some(colore_campo(obj.fill.as_deref(), "slider", "fill")), 1.0, stile::MAIN);
+                stile::bordo(
+                    p,
+                    Some(colore_campo(obj.fill.as_deref(), "slider", "fill")),
+                    1.0,
+                    stile::MAIN,
+                );
                 stile::raggio(p, 4.0, stile::MAIN);
                 stile::margini(p, 1, 6, stile::MAIN);
                 lvgl_sys::lv_obj_add_flag(p, lvgl_sys::LV_OBJ_FLAG_HIDDEN);
             }
-            Some(Fumetto { ptr: vp, x0, y0, geometria: g.clone(), alto: alto_valore })
+            Some(Fumetto {
+                ptr: vp,
+                x0,
+                y0,
+                geometria: g.clone(),
+                alto: alto_valore,
+            })
         }
         _ => None,
     };
@@ -5552,12 +6281,23 @@ fn render_slider(
             lvgl_sys::lv_event_code_t_LV_EVENT_VALUE_CHANGED,
             ctx,
         );
-        if al_rilascio || (*(ctx as *const SliderCtx)).fumetto.is_some() || obj.slider_rest_value.is_some() {
+        if al_rilascio
+            || (*(ctx as *const SliderCtx)).fumetto.is_some()
+            || obj.slider_rest_value.is_some()
+        {
             // `PRESS_LOST` anche: il dito che scivola fuori dal riquadro non
             // manda `RELEASED`, e il valore scelto resterebbe senza scrittura.
             // Il rilascio nasconde anche il fumetto.
-            for code in [lvgl_sys::lv_event_code_t_LV_EVENT_RELEASED, lvgl_sys::lv_event_code_t_LV_EVENT_PRESS_LOST] {
-                lvgl_sys::lv_obj_add_event_cb(ptr.as_ptr(), Some(sws_slider_rilasciato_cb), code, ctx);
+            for code in [
+                lvgl_sys::lv_event_code_t_LV_EVENT_RELEASED,
+                lvgl_sys::lv_event_code_t_LV_EVENT_PRESS_LOST,
+            ] {
+                lvgl_sys::lv_obj_add_event_cb(
+                    ptr.as_ptr(),
+                    Some(sws_slider_rilasciato_cb),
+                    code,
+                    ctx,
+                );
             }
         }
     }
@@ -5574,14 +6314,30 @@ fn render_progress_bar(
     let ptr = bar.raw().map_err(|e| anyhow::anyhow!("raw: {e:?}"))?;
     if let Some(l) = obj.label.as_deref().filter(|l| !l.is_empty()) {
         etichetta_piccola_corpo(
-            screen, l, obj.x.unwrap_or(0.0), obj.y.unwrap_or(0.0) - 4.0, None, GRIGIO_ETICHETTA,
-            obj.label_font_size.unwrap_or(11.0).round().clamp(6.0, 200.0) as u16,
+            screen,
+            l,
+            obj.x.unwrap_or(0.0),
+            obj.y.unwrap_or(0.0) - 4.0,
+            None,
+            GRIGIO_ETICHETTA,
+            obj.label_font_size
+                .unwrap_or(11.0)
+                .round()
+                .clamp(6.0, 200.0) as u16,
         )?;
     }
     // Fase 2 (30-09-2026): traccia e riempimento del web, non quelli del tema.
     unsafe {
-        stile::sfondo(ptr.as_ptr(), colore_campo(obj.bg_color.as_deref(), "progress_bar", "bg_color"), stile::MAIN);
-        stile::sfondo(ptr.as_ptr(), colore_campo(obj.fill.as_deref(), "progress_bar", "fill"), stile::INDICATORE);
+        stile::sfondo(
+            ptr.as_ptr(),
+            colore_campo(obj.bg_color.as_deref(), "progress_bar", "bg_color"),
+            stile::MAIN,
+        );
+        stile::sfondo(
+            ptr.as_ptr(),
+            colore_campo(obj.fill.as_deref(), "progress_bar", "fill"),
+            stile::INDICATORE,
+        );
         stile::raggio(ptr.as_ptr(), 4.0, stile::MAIN);
         stile::raggio(ptr.as_ptr(), 4.0, stile::INDICATORE);
         // Lo specchio di una barra è il verso in cui si riempie, e LVGL lo sa
@@ -5608,8 +6364,19 @@ fn render_progress_bar(
 /// la barra 1 decimale, il cursore 0 (2 con un passo sotto l'unità); l'unità
 /// separata da uno spazio. Prima erano 1 decimale per tutti e l'unità attaccata.
 pub(crate) fn formato_valore_barra(obj: &SynopticObject, barra: bool) -> (u8, String) {
-    let predefiniti = if barra { 1 } else if obj.step.is_some_and(|s| s < 1.0) { 2 } else { 0 };
-    let unita = obj.unit.as_deref().filter(|u| !u.is_empty()).map(|u| format!(" {u}")).unwrap_or_default();
+    let predefiniti = if barra {
+        1
+    } else if obj.step.is_some_and(|s| s < 1.0) {
+        2
+    } else {
+        0
+    };
+    let unita = obj
+        .unit
+        .as_deref()
+        .filter(|u| !u.is_empty())
+        .map(|u| format!(" {u}"))
+        .unwrap_or_default();
     (obj.decimals.unwrap_or(predefiniti), unita)
 }
 
@@ -5637,7 +6404,9 @@ fn init_bar_like(
     // riempie dallo zero del suo intervallo: si sposta l'intervallo in passi in
     // modo che lo zero cada sull'origine, `(−io, N − io)`.
     let scarto = match (passo, obj.slider_origin) {
-        (Some(step), Some(o)) if o > min && o < max => indice_slider(o, min, step, passi_slider(min, max, step)),
+        (Some(step), Some(o)) if o > min && o < max => {
+            indice_slider(o, min, step, passi_slider(min, max, step))
+        }
         _ => 0,
     };
     unsafe {
@@ -5645,14 +6414,25 @@ fn init_bar_like(
             Some(step) => {
                 let n = passi_slider(min, max, step);
                 if scarto != 0 {
-                    lvgl_sys::lv_bar_set_mode(ptr.as_ptr(), lvgl_sys::LV_BAR_MODE_SYMMETRICAL as lvgl_sys::lv_bar_mode_t);
+                    lvgl_sys::lv_bar_set_mode(
+                        ptr.as_ptr(),
+                        lvgl_sys::LV_BAR_MODE_SYMMETRICAL as lvgl_sys::lv_bar_mode_t,
+                    );
                 }
                 lvgl_sys::lv_bar_set_range(ptr.as_ptr(), -scarto, n - scarto);
-                lvgl_sys::lv_bar_set_value(ptr.as_ptr(), indice_slider(raw, min, step, n) - scarto, lvgl::Animation::OFF.into());
+                lvgl_sys::lv_bar_set_value(
+                    ptr.as_ptr(),
+                    indice_slider(raw, min, step, n) - scarto,
+                    lvgl::Animation::OFF.into(),
+                );
             }
             None => {
                 lvgl_sys::lv_bar_set_range(ptr.as_ptr(), min.round() as i32, max.round() as i32);
-                lvgl_sys::lv_bar_set_value(ptr.as_ptr(), raw.round() as i32, lvgl::Animation::OFF.into());
+                lvgl_sys::lv_bar_set_value(
+                    ptr.as_ptr(),
+                    raw.round() as i32,
+                    lvgl::Animation::OFF.into(),
+                );
             }
         }
     }
@@ -5674,22 +6454,34 @@ fn init_bar_like(
                 .ok_or_else(|| anyhow::anyhow!("lv_label_create: memoria esaurita"))?;
             unsafe {
                 lvgl_sys::lv_label_set_text(l.as_ptr(), testo.as_ptr());
-                lvgl_sys::lv_obj_align(l.as_ptr(), lvgl_sys::LV_ALIGN_CENTER as lvgl_sys::lv_align_t, 0, 0);
+                lvgl_sys::lv_obj_align(
+                    l.as_ptr(),
+                    lvgl_sys::LV_ALIGN_CENTER as lvgl_sys::lv_align_t,
+                    0,
+                    0,
+                );
                 stile::testo(l.as_ptr(), (0xe2, 0xe8, 0xf0), stile::MAIN);
                 stile::font(l.as_ptr(), corpo_valore as u16, stile::MAIN);
             }
             Some(l)
         } else {
-            let mut lbl = Label::create(screen).map_err(|e| anyhow::anyhow!("Label::create: {e:?}"))?;
+            let mut lbl =
+                Label::create(screen).map_err(|e| anyhow::anyhow!("Label::create: {e:?}"))?;
             // Lo scostamento sopra la traccia era `- 16.0` fisso: col corpo a 12
             // e' lo stesso numero, ma a corpo 24 il valore finiva sulla traccia.
             // `valore_in` dà il **centro** verticale della riga (fase 2 dello
             // slider): l'altezza vera dell'etichetta si sa dopo il font.
-            lbl.set_text(&testo).map_err(|e| anyhow::anyhow!("set_text: {e:?}"))?;
+            lbl.set_text(&testo)
+                .map_err(|e| anyhow::anyhow!("set_text: {e:?}"))?;
             let p = lbl.raw().map_err(|e| anyhow::anyhow!("raw: {e:?}"))?;
             unsafe { stile::font(p.as_ptr(), corpo_valore as u16, stile::MAIN) };
             let (vx, vy) = valore_in.map_or_else(
-                || (obj.x.unwrap_or(0.0), obj.y.unwrap_or(0.0) - (corpo_valore + 4.0)),
+                || {
+                    (
+                        obj.x.unwrap_or(0.0),
+                        obj.y.unwrap_or(0.0) - (corpo_valore + 4.0),
+                    )
+                },
                 |(x, cy, _)| {
                     let h = unsafe {
                         lvgl_sys::lv_obj_update_layout(p.as_ptr());
@@ -5709,7 +6501,10 @@ fn init_bar_like(
                 // stretto non va a capo — sul web sborda, qui farebbe due righe.
                 let largo = w.max(240.0);
                 unsafe {
-                    lvgl_sys::lv_obj_set_x(p.as_ptr(), (vx - (largo - w) / 2.0).round() as lvgl_sys::lv_coord_t);
+                    lvgl_sys::lv_obj_set_x(
+                        p.as_ptr(),
+                        (vx - (largo - w) / 2.0).round() as lvgl_sys::lv_coord_t,
+                    );
                     lvgl_sys::lv_obj_set_width(p.as_ptr(), largo.round() as lvgl_sys::lv_coord_t);
                     lvgl_sys::lv_obj_set_style_text_align(
                         p.as_ptr(),
@@ -5734,7 +6529,11 @@ fn init_bar_like(
             max,
             passo,
             scarto,
-            pv: obj.slider_pv_tag.clone().filter(|t| !t.is_empty()).map(|t| (t, Rc::new(std::cell::Cell::new(None)))),
+            pv: obj
+                .slider_pv_tag
+                .clone()
+                .filter(|t| !t.is_empty())
+                .map(|t| (t, Rc::new(std::cell::Cell::new(None)))),
             attesa: Rc::new(std::cell::Cell::new(None)),
         },
     })
@@ -5803,21 +6602,30 @@ fn render_bar_chart(
     if let Some(t) = cfg.titolo_y.as_deref().filter(|t| !t.is_empty()) {
         let (cx, cy) = crate::barre::centro_titolo(&cfg);
         let mut l = Label::create(screen).map_err(|e| anyhow::anyhow!("Label::create: {e:?}"))?;
-        l.set_text(&text_cstring(t)).map_err(|e| anyhow::anyhow!("set_text: {e:?}"))?;
+        l.set_text(&text_cstring(t))
+            .map_err(|e| anyhow::anyhow!("set_text: {e:?}"))?;
         let p = l.raw().map_err(|e| anyhow::anyhow!("raw: {e:?}"))?.as_ptr();
         unsafe {
             stile::font(p, cfg.corpo, stile::MAIN);
             stile::testo(p, GRIGIO_ETICHETTA, stile::MAIN);
             let lw = larghezza_testo(p);
             let lh = lvgl_sys::lv_obj_get_height(p) as f64;
-            let (ax, ay) = (obj.x.unwrap_or(0.0) + cx as f64, obj.y.unwrap_or(0.0) + cy as f64);
-            lvgl_sys::lv_obj_set_pos(p, (ax - lw / 2.0).round() as i16, (ay - lh / 2.0).round() as i16);
+            let (ax, ay) = (
+                obj.x.unwrap_or(0.0) + cx as f64,
+                obj.y.unwrap_or(0.0) + cy as f64,
+            );
+            lvgl_sys::lv_obj_set_pos(
+                p,
+                (ax - lw / 2.0).round() as i16,
+                (ay - lh / 2.0).round() as i16,
+            );
             lvgl_sys::lv_obj_set_style_transform_pivot_x(p, (lw / 2.0).round() as i16, 0);
             lvgl_sys::lv_obj_set_style_transform_pivot_y(p, (lh / 2.0).round() as i16, 0);
             lvgl_sys::lv_obj_set_style_transform_angle(p, 2700, 0);
         }
     }
-    let pixmap = resvg::tiny_skia::Pixmap::new(w, h).ok_or_else(|| anyhow::anyhow!("pixmap {w}x{h}"))?;
+    let pixmap =
+        resvg::tiny_skia::Pixmap::new(w, h).ok_or_else(|| anyhow::anyhow!("pixmap {w}x{h}"))?;
     let mut vive = Box::new(BarreVive {
         canvas,
         buf,
@@ -5828,7 +6636,9 @@ fn render_bar_chart(
         etichette: Vec::new(),
     });
     aggiorna_barre(&mut vive, tags);
-    Ok(LiveBinding { kind: LiveKind::Barre(vive) })
+    Ok(LiveBinding {
+        kind: LiveKind::Barre(vive),
+    })
 }
 
 /// Ridisegna le barre se un valore è cambiato. Un tag assente o non numerico
@@ -5847,7 +6657,9 @@ fn aggiorna_barre(b: &mut BarreVive, tags: &TagSnapshot) {
     if valori == b.ultimi {
         return;
     }
-    let testi = crate::tempi::misura("canvas.barre", || crate::barre::disegna(&b.cfg, &valori, &mut b.pixmap));
+    let testi = crate::tempi::misura("canvas.barre", || {
+        crate::barre::disegna(&b.cfg, &valori, &mut b.pixmap)
+    });
     b.ultimi = valori;
     pixmap_in_buffer_alfa(&b.pixmap, &mut b.buf);
     unsafe { lvgl_sys::lv_obj_invalidate(b.canvas.as_ptr()) };
@@ -5864,9 +6676,19 @@ fn canvas_alfa(
 ) -> anyhow::Result<(core::ptr::NonNull<lvgl_sys::lv_obj_t>, Vec<u8>)> {
     let mut buf = vec![0u8; 3 * w as usize * h as usize];
     unsafe {
-        let p = lvgl_sys::lv_canvas_create(screen.raw().map_err(|e| anyhow::anyhow!("raw: {e:?}"))?.as_ptr());
-        let nn = core::ptr::NonNull::new(p).ok_or_else(|| anyhow::anyhow!("lv_canvas_create ha restituito null"))?;
-        lvgl_sys::lv_obj_set_pos(nn.as_ptr(), obj.x.unwrap_or(0.0).round() as i16, obj.y.unwrap_or(0.0).round() as i16);
+        let p = lvgl_sys::lv_canvas_create(
+            screen
+                .raw()
+                .map_err(|e| anyhow::anyhow!("raw: {e:?}"))?
+                .as_ptr(),
+        );
+        let nn = core::ptr::NonNull::new(p)
+            .ok_or_else(|| anyhow::anyhow!("lv_canvas_create ha restituito null"))?;
+        lvgl_sys::lv_obj_set_pos(
+            nn.as_ptr(),
+            obj.x.unwrap_or(0.0).round() as i16,
+            obj.y.unwrap_or(0.0).round() as i16,
+        );
         lvgl_sys::lv_canvas_set_buffer(
             nn.as_ptr(),
             buf.as_mut_ptr() as *mut std::ffi::c_void,
@@ -5883,7 +6705,13 @@ fn canvas_alfa(
 fn pixmap_in_buffer_alfa(px: &resvg::tiny_skia::Pixmap, buf: &mut [u8]) {
     for (o, p) in buf.chunks_exact_mut(3).zip(px.data().chunks_exact(4)) {
         let a = p[3];
-        let un = |c: u8| if a == 0 || a == 255 { c } else { ((c as u16 * 255) / a as u16).min(255) as u8 };
+        let un = |c: u8| {
+            if a == 0 || a == 255 {
+                c
+            } else {
+                ((c as u16 * 255) / a as u16).min(255) as u8
+            }
+        };
         let (r, g, b) = (un(p[0]), un(p[1]), un(p[2]));
         let v: u16 = ((r as u16 & 0xF8) << 8) | ((g as u16 & 0xFC) << 3) | (b as u16 >> 3);
         o[0] = (v & 0xFF) as u8;
@@ -5934,7 +6762,10 @@ fn render_checkbox(
     // esiste.
     apply_font_size_con_ripiego(&cb, obj, Some(13.0))?;
     let ptr = cb.raw().map_err(|e| anyhow::anyhow!("raw: {e:?}"))?;
-    colora_spunta(ptr.as_ptr(), colore_campo(obj.fill.as_deref(), "checkbox", "fill"));
+    colora_spunta(
+        ptr.as_ptr(),
+        colore_campo(obj.fill.as_deref(), "checkbox", "fill"),
+    );
 
     // Stessa semantica di SvgCanvas.tsx: checked_value/unchecked_value
     // default a true/false ma possono essere qualunque scalare (es. stringhe
@@ -6022,7 +6853,9 @@ fn render_radio(
             .map_err(|e| anyhow::anyhow!("set_text: {e:?}"))?;
         unsafe {
             stile::font(
-                hdr.raw().map_err(|e| anyhow::anyhow!("raw: {e:?}"))?.as_ptr(),
+                hdr.raw()
+                    .map_err(|e| anyhow::anyhow!("raw: {e:?}"))?
+                    .as_ptr(),
                 corpo_etichetta.round().clamp(6.0, 200.0) as u16,
                 stile::MAIN,
             );
@@ -6058,7 +6891,10 @@ fn render_radio(
         // mentre il passo era già quello del 13, e l'intestazione lo prendeva.
         apply_font_size_con_ripiego(&cb, obj, Some(corpo))?;
         let ptr = cb.raw().map_err(|e| anyhow::anyhow!("raw: {e:?}"))?;
-        colora_spunta(ptr.as_ptr(), colore_campo(obj.fill.as_deref(), "radio", "fill"));
+        colora_spunta(
+            ptr.as_ptr(),
+            colore_campo(obj.fill.as_deref(), "radio", "fill"),
+        );
         apply_checked_state(ptr, checkbox_is_checked(lookup(tags, &obj.tag), &opt.value));
         ptrs.push(ptr);
     }
@@ -6140,7 +6976,12 @@ fn render_ellipse(
     // Fase 2 (30-09-2026): il contorno, che il web disegna e qui mancava.
     let p = o.raw().map_err(|e| anyhow::anyhow!("raw: {e:?}"))?.as_ptr();
     unsafe {
-        stile::bordo(p, obj.stroke.as_deref().and_then(parse_hex_color), obj.stroke_width.unwrap_or(0.0), stile::MAIN);
+        stile::bordo(
+            p,
+            obj.stroke.as_deref().and_then(parse_hex_color),
+            obj.stroke_width.unwrap_or(0.0),
+            stile::MAIN,
+        );
     }
     Ok(())
 }
@@ -6207,13 +7048,19 @@ pub fn svg_forma(obj: &SynopticObject) -> Option<FormaSvg> {
     // Tratto: la polilinea ne ha sempre uno (automatico = tono testo della
     // pagina, come la linea); il poligono solo se dichiarato, come il rect.
     let tratto = obj.stroke.as_deref().and_then(parse_hex_color).or_else(|| {
-        (tipo == "polyline").then(colori_predefiniti::testo_pagina).flatten()
+        (tipo == "polyline")
+            .then(colori_predefiniti::testo_pagina)
+            .flatten()
     });
     let spessore = obj
         .stroke_width
         .filter(|v| v.is_finite() && *v >= 0.0)
         .unwrap_or(if tipo == "polyline" { 2.0 } else { 0.0 });
-    let margine = if tratto.is_some() { spessore / 2.0 + 1.0 } else { 1.0 };
+    let margine = if tratto.is_some() {
+        spessore / 2.0 + 1.0
+    } else {
+        1.0
+    };
     let (mut x1, mut y1, mut x2, mut y2) = (f64::MAX, f64::MAX, f64::MIN, f64::MIN);
     for (px, py) in &punti {
         x1 = x1.min(*px);
@@ -6244,7 +7091,10 @@ pub fn svg_forma(obj: &SynopticObject) -> Option<FormaSvg> {
             let trattini = obj
                 .stroke_dasharray
                 .as_deref()
-                .filter(|d| d.chars().all(|c| c.is_ascii_digit() || c == ' ' || c == '.' || c == ','))
+                .filter(|d| {
+                    d.chars()
+                        .all(|c| c.is_ascii_digit() || c == ' ' || c == '.' || c == ',')
+                })
                 .map(|d| format!(r#" stroke-dasharray="{d}""#))
                 .unwrap_or_default();
             format!(
@@ -6342,13 +7192,32 @@ fn render_gauge(
     // valore, unità ed etichetta hanno un campo ciascuno; tacche e min/max
     // seguono l'etichetta. Prima qui erano 11 per l'etichetta e 14 ereditati
     // per tutto il resto, contro 20/11/9/10 del web.
-    let corpo_valore = obj.font_size.unwrap_or(corpo_predefinito("gauge", "font_size")).round().clamp(6.0, 200.0);
-    let corpo_unita = obj.unit_font_size.unwrap_or(corpo_predefinito("gauge", "unit_font_size")).round().clamp(6.0, 200.0);
-    let corpo_etichetta = obj.label_font_size.unwrap_or(corpo_predefinito("gauge", "label_font_size")).round().clamp(6.0, 200.0);
+    let corpo_valore = obj
+        .font_size
+        .unwrap_or(corpo_predefinito("gauge", "font_size"))
+        .round()
+        .clamp(6.0, 200.0);
+    let corpo_unita = obj
+        .unit_font_size
+        .unwrap_or(corpo_predefinito("gauge", "unit_font_size"))
+        .round()
+        .clamp(6.0, 200.0);
+    let corpo_etichetta = obj
+        .label_font_size
+        .unwrap_or(corpo_predefinito("gauge", "label_font_size"))
+        .round()
+        .clamp(6.0, 200.0);
     if let Some(l) = obj.label.as_deref().filter(|l| !l.is_empty()) {
         etichetta_piccola_corpo(
-            screen, l, obj.x.unwrap_or(0.0), obj.y.unwrap_or(0.0) + corpo_etichetta + 3.0, Some(obj.width.unwrap_or(180.0)),
-            obj.color.as_deref().and_then(parse_hex_color).unwrap_or(GRIGIO_ETICHETTA),
+            screen,
+            l,
+            obj.x.unwrap_or(0.0),
+            obj.y.unwrap_or(0.0) + corpo_etichetta + 3.0,
+            Some(obj.width.unwrap_or(180.0)),
+            obj.color
+                .as_deref()
+                .and_then(parse_hex_color)
+                .unwrap_or(GRIGIO_ETICHETTA),
             corpo_etichetta as u16,
         )?;
     }
@@ -6356,7 +7225,10 @@ fn render_gauge(
     // Fase 2 (30-09-2026): il web non ha un disco dietro il quadrante; il
     // tema di LVGL lo disegnava bianco, con i numeri scuri sopra.
     unsafe {
-        let p = meter.raw().map_err(|e| anyhow::anyhow!("raw: {e:?}"))?.as_ptr();
+        let p = meter
+            .raw()
+            .map_err(|e| anyhow::anyhow!("raw: {e:?}"))?
+            .as_ptr();
         stile::trasparente(p, stile::MAIN);
         stile::bordo(p, None, 0.0, stile::MAIN);
         stile::testo(p, (0x94, 0xa3, 0xb8), stile::MAIN);
@@ -6501,10 +7373,17 @@ fn render_gauge(
                 ptr.as_ptr(),
                 scala,
                 2,
-                Color::from_rgb(colore_campo(obj.gauge_sp_color.as_deref(), "gauge", "gauge_sp_color")).into(),
+                Color::from_rgb(colore_campo(
+                    obj.gauge_sp_color.as_deref(),
+                    "gauge",
+                    "gauge_sp_color",
+                ))
+                .into(),
                 0,
             );
-            let v = lookup(tags, &Some(t.to_string())).map(|x| tag_value_as_f64(&x.value)).unwrap_or(min);
+            let v = lookup(tags, &Some(t.to_string()))
+                .map(|x| tag_value_as_f64(&x.value))
+                .unwrap_or(min);
             lvgl_sys::lv_meter_set_indicator_value(ptr.as_ptr(), ind, v.round() as i32);
             Some((ind, t.to_string()))
         },
@@ -6554,8 +7433,13 @@ fn render_gauge(
     if let Some(u) = obj.unit.as_deref().filter(|u| !u.is_empty()) {
         let mut unit_label =
             Label::create(&mut meter).map_err(|e| anyhow::anyhow!("Label::create: {e:?}"))?;
-        unit_label.set_text(&text_cstring(u)).map_err(|e| anyhow::anyhow!("set_text: {e:?}"))?;
-        let up = unit_label.raw().map_err(|e| anyhow::anyhow!("raw: {e:?}"))?.as_ptr();
+        unit_label
+            .set_text(&text_cstring(u))
+            .map_err(|e| anyhow::anyhow!("set_text: {e:?}"))?;
+        let up = unit_label
+            .raw()
+            .map_err(|e| anyhow::anyhow!("raw: {e:?}"))?
+            .as_ptr();
         unsafe {
             stile::font(up, corpo_unita as u16, stile::MAIN);
             // Sotto il valore: la sua altezza di riga più un respiro.
@@ -6608,7 +7492,12 @@ fn render_gauge(
 /// verso lo decide l'ordine di `min`/`max` passati a
 /// `lv_meter_set_scale_range`, e per questo la funzione dice **anche** se gli
 /// estremi vanno scambiati.
-fn angoli_gauge(inizio: Option<f64>, fine: Option<f64>, flip_h: bool, flip_v: bool) -> (u32, u32, bool) {
+fn angoli_gauge(
+    inizio: Option<f64>,
+    fine: Option<f64>,
+    flip_h: bool,
+    flip_v: bool,
+) -> (u32, u32, bool) {
     let (mut a, mut b) = (inizio.unwrap_or(-135.0), fine.unwrap_or(135.0));
     if flip_h {
         a = -a;
@@ -6726,7 +7615,11 @@ fn colore_text_list(
             .or(colore_oggetto)
             .and_then(parse_hex_color)
             .or_else(colori_predefiniti::testo_pagina),
-        None => Some(colore_campo(ripiego, "text_list", "text_list_default_color")),
+        None => Some(colore_campo(
+            ripiego,
+            "text_list",
+            "text_list_default_color",
+        )),
     }
 }
 
@@ -6772,7 +7665,11 @@ fn render_text_list(
     let tv = lookup(tags, &obj.tag);
     let entry = match_text_list_entry(&entries, tv);
     let label_text = testo_text_list(entry, obj.text_list_default.as_deref(), tv, "it");
-    let colore = colore_text_list(entry, obj.color.as_deref(), obj.text_list_default_color.as_deref());
+    let colore = colore_text_list(
+        entry,
+        obj.color.as_deref(),
+        obj.text_list_default_color.as_deref(),
+    );
 
     // Fase 3 (30-09-2026): il testo sta nel riquadro come sul web — largo quanto
     // l'oggetto, allineato secondo `text_anchor` (al centro di default), a metà
@@ -6789,9 +7686,16 @@ fn render_text_list(
         )
         .map_err(|e| anyhow::anyhow!("set_pos: {e:?}"))?;
     unsafe {
-        let lp = label.raw().map_err(|e| anyhow::anyhow!("raw: {e:?}"))?.as_ptr();
+        let lp = label
+            .raw()
+            .map_err(|e| anyhow::anyhow!("raw: {e:?}"))?
+            .as_ptr();
         lvgl_sys::lv_obj_set_width(lp, w.round() as lvgl_sys::lv_coord_t);
-        lvgl_sys::lv_obj_set_style_text_align(lp, allineamento_righe(Some(obj.text_anchor.as_deref().unwrap_or("middle"))), 0);
+        lvgl_sys::lv_obj_set_style_text_align(
+            lp,
+            allineamento_righe(Some(obj.text_anchor.as_deref().unwrap_or("middle"))),
+            0,
+        );
         stile::font(lp, corpo as u16, stile::MAIN);
     }
     label
@@ -6831,7 +7735,10 @@ pub enum ColTab {
 
 enum SorgenteTabella {
     /// `table`: righe dal progetto, celle ricalcolate dai tag.
-    Righe { rows: Vec<TableRow>, colonne: Vec<ColTab> },
+    Righe {
+        rows: Vec<TableRow>,
+        colonne: Vec<ColTab>,
+    },
     /// `data_log`: righe fisse, lette una volta dallo storico.
     Fisse,
 }
@@ -6872,7 +7779,12 @@ fn colonne_tabella(v: Option<&serde_json::Value>) -> Vec<ColTab> {
     };
     let c: Vec<ColTab> = v
         .and_then(|v| v.as_array())
-        .map(|a| a.iter().filter_map(|x| x.as_str()).filter_map(dalle).collect())
+        .map(|a| {
+            a.iter()
+                .filter_map(|x| x.as_str())
+                .filter_map(dalle)
+                .collect()
+        })
         .unwrap_or_default();
     if c.is_empty() {
         vec![ColTab::Etichetta, ColTab::Valore, ColTab::Qualita]
@@ -6908,26 +7820,34 @@ fn riga_tabella(r: &TableRow, colonne: &[ColTab], tags: &TagSnapshot) -> crate::
     let con_unita = colonne.contains(&ColTab::Unita);
     let testo_valore = match tv {
         None => "—".to_string(),
-        Some(t) => match (&r.format, num, r.decimals) {
-            (Some(f), _, _) => format_value(&t.value, Some(f)),
-            (None, Some(n), Some(d)) => crate::trend::to_fixed(n, d as usize),
-            _ => match &t.value {
-                // `String(v)` del web: 63.5 → «63.5», non «63.50».
-                TagValue::Float(f) => fmt_numero_js(*f),
-                v => format_value(v, Some("{value}")),
-            },
+        Some(t) => {
+            match (&r.format, num, r.decimals) {
+                (Some(f), _, _) => format_value(&t.value, Some(f)),
+                (None, Some(n), Some(d)) => crate::trend::to_fixed(n, d as usize),
+                _ => match &t.value {
+                    // `String(v)` del web: 63.5 → «63.5», non «63.50».
+                    TagValue::Float(f) => fmt_numero_js(*f),
+                    v => format_value(v, Some("{value}")),
+                },
+            }
+            .to_string()
+                + &if con_unita || r.format.is_some() {
+                    String::new()
+                } else {
+                    r.unit
+                        .as_deref()
+                        .filter(|u| !u.is_empty())
+                        .map(|u| format!(" {u}"))
+                        .unwrap_or_default()
+                }
         }
-        .to_string()
-            + &if con_unita || r.format.is_some() {
-                String::new()
-            } else {
-                r.unit.as_deref().filter(|u| !u.is_empty()).map(|u| format!(" {u}")).unwrap_or_default()
-            },
     };
     let colore_valore = num
         .and_then(|n| threshold_color(n, r.alarm_low, r.warn_low, r.warn_high, r.alarm_high))
         .unwrap_or_else(|| match tv.map(|t| &t.quality) {
-            Some(TagQuality::Good) => colori_predefiniti::testo_pagina().unwrap_or((0xe2, 0xe8, 0xf0)),
+            Some(TagQuality::Good) => {
+                colori_predefiniti::testo_pagina().unwrap_or((0xe2, 0xe8, 0xf0))
+            }
             Some(TagQuality::Bad) => (0xef, 0x44, 0x44),
             Some(_) => (0xea, 0xb3, 0x08),
             None => (0x47, 0x55, 0x69),
@@ -6936,10 +7856,20 @@ fn riga_tabella(r: &TableRow, colonne: &[ColTab], tags: &TagSnapshot) -> crate::
     let celle = colonne
         .iter()
         .map(|c| match c {
-            ColTab::Etichetta => Cella { testo: r.label.clone(), colore: testo2, punto: None, chiave: Chiave::Testo(r.label.clone()) },
+            ColTab::Etichetta => Cella {
+                testo: r.label.clone(),
+                colore: testo2,
+                punto: None,
+                chiave: Chiave::Testo(r.label.clone()),
+            },
             ColTab::Unita => {
                 let u = r.unit.clone().unwrap_or_default();
-                Cella { testo: u.clone(), colore: testo2, punto: None, chiave: Chiave::Testo(u) }
+                Cella {
+                    testo: u.clone(),
+                    colore: testo2,
+                    punto: None,
+                    chiave: Chiave::Testo(u),
+                }
             }
             ColTab::Qualita => Cella {
                 testo: String::new(),
@@ -6960,11 +7890,15 @@ fn riga_tabella(r: &TableRow, colonne: &[ColTab], tags: &TagSnapshot) -> crate::
                 testo: testo_valore.clone(),
                 colore: colore_valore,
                 punto: None,
-                chiave: num.map(Chiave::Numero).unwrap_or(Chiave::Testo(testo_valore.clone())),
+                chiave: num
+                    .map(Chiave::Numero)
+                    .unwrap_or(Chiave::Testo(testo_valore.clone())),
             },
         })
         .collect();
-    let scrivibile = (r.writable == Some(true)).then(|| colonne.iter().position(|c| *c == ColTab::Valore)).flatten();
+    let scrivibile = (r.writable == Some(true))
+        .then(|| colonne.iter().position(|c| *c == ColTab::Valore))
+        .flatten();
     crate::tabella::Riga { celle, scrivibile }
 }
 
@@ -6984,7 +7918,11 @@ fn render_table(
     let colonne = colonne_tabella(obj.table_columns.as_ref());
     let ordinabile = obj.table_sortable != Some(false);
     let w = obj.width.unwrap_or(300.0).round().clamp(40.0, 2048.0) as u32;
-    let h = obj.height.unwrap_or(26.0 + rows.len() as f64 * 24.0 + 2.0).round().clamp(30.0, 2048.0) as u32;
+    let h = obj
+        .height
+        .unwrap_or(26.0 + rows.len() as f64 * 24.0 + 2.0)
+        .round()
+        .clamp(30.0, 2048.0) as u32;
     let cfg = crate::tabella::Config {
         w,
         h,
@@ -6993,29 +7931,69 @@ fn render_table(
             .map(|c| {
                 let (intestazione, larghezza, allinea, filtrabile) = match c {
                     ColTab::Etichetta => (
-                        obj.table_label_header.clone().unwrap_or_else(|| testo(Testo::Dati, lingua).to_uppercase()),
+                        obj.table_label_header
+                            .clone()
+                            .unwrap_or_else(|| testo(Testo::Dati, lingua).to_uppercase()),
                         None,
                         Orizz::Sx,
                         true,
                     ),
-                    ColTab::Unita => (testo(Testo::Unita, lingua).to_string(), Some(52.0), Orizz::Sx, false),
+                    ColTab::Unita => (
+                        testo(Testo::Unita, lingua).to_string(),
+                        Some(52.0),
+                        Orizz::Sx,
+                        false,
+                    ),
                     ColTab::Qualita => ("Q".to_string(), Some(28.0), Orizz::Centro, false),
-                    ColTab::Ora => (testo(Testo::Ora, lingua).to_string(), Some(72.0), Orizz::Sx, false),
-                    ColTab::Valore => (testo(Testo::Valore, lingua).to_uppercase(), None, Orizz::Dx, false),
+                    ColTab::Ora => (
+                        testo(Testo::Ora, lingua).to_string(),
+                        Some(72.0),
+                        Orizz::Sx,
+                        false,
+                    ),
+                    ColTab::Valore => (
+                        testo(Testo::Valore, lingua).to_uppercase(),
+                        None,
+                        Orizz::Dx,
+                        false,
+                    ),
                 };
-                crate::tabella::Colonna { intestazione, larghezza, allinea, ordinabile, filtrabile }
+                crate::tabella::Colonna {
+                    intestazione,
+                    larghezza,
+                    allinea,
+                    ordinabile,
+                    filtrabile,
+                }
             })
             .collect(),
         // `font_size` per tutti dal 21-10-2026; `table_font_size` resta il
         // ripiego per i progetti che ce l'hanno già scritto dentro.
-        corpo_px: obj.font_size.or(obj.table_font_size).unwrap_or(11.0).round().clamp(6.0, 40.0) as u16,
+        corpo_px: obj
+            .font_size
+            .or(obj.table_font_size)
+            .unwrap_or(11.0)
+            .round()
+            .clamp(6.0, 40.0) as u16,
         sfondo: colore_campo(obj.bg_color.as_deref(), "table", "bg_color"),
         filtri: obj.table_filterable == Some(true),
         vuoto: "—".into(),
     };
-    let righe = rows.iter().map(|r| riga_tabella(r, &colonne, tags)).collect();
-    let viva = crea_tabella_viva(screen, obj, cfg, righe, SorgenteTabella::Righe { rows, colonne }, Some(tag_tx.clone()))?;
-    Ok(LiveBinding { kind: LiveKind::Tabella(viva) })
+    let righe = rows
+        .iter()
+        .map(|r| riga_tabella(r, &colonne, tags))
+        .collect();
+    let viva = crea_tabella_viva(
+        screen,
+        obj,
+        cfg,
+        righe,
+        SorgenteTabella::Righe { rows, colonne },
+        Some(tag_tx.clone()),
+    )?;
+    Ok(LiveBinding {
+        kind: LiveKind::Tabella(viva),
+    })
 }
 
 /// Canvas, tocchi e primo disegno di una tabella (table e data_log).
@@ -7043,14 +8021,20 @@ fn crea_tabella_viva(
             lvgl_sys::lv_event_code_t_LV_EVENT_RELEASED,
             lvgl_sys::lv_event_code_t_LV_EVENT_PRESS_LOST,
         ] {
-            lvgl_sys::lv_obj_add_event_cb(canvas.as_ptr(), Some(sws_trend_tocco_cb), code, ctx as *const CodaTocchi as *mut std::ffi::c_void);
+            lvgl_sys::lv_obj_add_event_cb(
+                canvas.as_ptr(),
+                Some(sws_trend_tocco_cb),
+                code,
+                ctx as *const CodaTocchi as *mut std::ffi::c_void,
+            );
         }
     }
     let stato = crate::tabella::Stato::nuovo(&cfg);
     let mut t = Box::new(TabellaViva {
         canvas,
         buf,
-        pixmap: resvg::tiny_skia::Pixmap::new(w, h).ok_or_else(|| anyhow::anyhow!("pixmap {w}x{h}"))?,
+        pixmap: resvg::tiny_skia::Pixmap::new(w, h)
+            .ok_or_else(|| anyhow::anyhow!("pixmap {w}x{h}"))?,
         cfg,
         stato,
         scena: Default::default(),
@@ -7068,7 +8052,9 @@ fn crea_tabella_viva(
 
 fn ridisegna_tabella(t: &mut TabellaViva) {
     let misura = |s: &str, px: u16| misura_trend(s, px).0;
-    let scena = crate::tempi::misura("canvas.tabella", || crate::tabella::disegna(&t.cfg, &t.righe, &t.stato, &mut t.pixmap, &misura));
+    let scena = crate::tempi::misura("canvas.tabella", || {
+        crate::tabella::disegna(&t.cfg, &t.righe, &t.stato, &mut t.pixmap, &misura)
+    });
     pixmap_in_buffer_alfa(&t.pixmap, &mut t.buf);
     unsafe { lvgl_sys::lv_obj_invalidate(t.canvas.as_ptr()) };
     scrivi_testi(t.canvas, &mut t.etichette, &scena.testi);
@@ -7080,7 +8066,10 @@ fn ridisegna_tabella(t: &mut TabellaViva) {
 fn aggiorna_tabella(t: &mut TabellaViva, tags: &TagSnapshot) {
     use crate::tabella::Esito;
     if let SorgenteTabella::Righe { rows, colonne } = &t.sorgente {
-        let nuove: Vec<_> = rows.iter().map(|r| riga_tabella(r, colonne, tags)).collect();
+        let nuove: Vec<_> = rows
+            .iter()
+            .map(|r| riga_tabella(r, colonne, tags))
+            .collect();
         if nuove != t.righe {
             t.righe = nuove;
             t.sporco = true;
@@ -7109,7 +8098,11 @@ fn aggiorna_tabella(t: &mut TabellaViva, tags: &TagSnapshot) {
                             .position(|c| *c == ColTab::Valore)
                             .and_then(|c| t.righe.get(i).map(|r| r.celle[c].testo.clone()))
                             .unwrap_or_default();
-                        let iniziale = iniziale.split_whitespace().next().unwrap_or("").replace('—', "");
+                        let iniziale = iniziale
+                            .split_whitespace()
+                            .next()
+                            .unwrap_or("")
+                            .replace('—', "");
                         if let Some(es) = apri_tastiera(true, false, &iniziale) {
                             t.tastiera = Some((es, AzioneTastiera::Scrivi(tag)));
                         }
@@ -7118,7 +8111,10 @@ fn aggiorna_tabella(t: &mut TabellaViva, tags: &TagSnapshot) {
             },
         }
     }
-    let chiuso = t.tastiera.as_ref().and_then(|(k, _)| k.esito.borrow_mut().take());
+    let chiuso = t
+        .tastiera
+        .as_ref()
+        .and_then(|(k, _)| k.esito.borrow_mut().take());
     if let Some(risultato) = chiuso {
         if let Some((_, azione)) = t.tastiera.take() {
             match (azione, risultato) {
@@ -7156,7 +8152,11 @@ fn risoluzione() -> (i16, i16) {
             lvgl_sys::lv_disp_get_hor_res(core::ptr::null_mut()),
             lvgl_sys::lv_disp_get_ver_res(core::ptr::null_mut()),
         );
-        if w > 0 && h > 0 { (w, h) } else { (HOR_RES as i16, VER_RES as i16) }
+        if w > 0 && h > 0 {
+            (w, h)
+        } else {
+            (HOR_RES as i16, VER_RES as i16)
+        }
     }
 }
 
@@ -7218,7 +8218,11 @@ pub(crate) fn apri_tastiera(numerica: bool, password: bool, iniziale: &str) -> O
         lvgl_sys::lv_keyboard_set_textarea(kb.as_ptr(), ta.as_ptr());
         lvgl_sys::lv_keyboard_set_mode(
             kb.as_ptr(),
-            if numerica { lvgl_sys::LV_KEYBOARD_MODE_NUMBER } else { lvgl_sys::LV_KEYBOARD_MODE_TEXT_LOWER } as lvgl_sys::lv_keyboard_mode_t,
+            if numerica {
+                lvgl_sys::LV_KEYBOARD_MODE_NUMBER
+            } else {
+                lvgl_sys::LV_KEYBOARD_MODE_TEXT_LOWER
+            } as lvgl_sys::lv_keyboard_mode_t,
         );
         crate::lvgl_font::restore_symbols_on(kb.as_ptr());
         // Senza stile la tastiera eredita il tema, che su questo fondo scuro
@@ -7237,9 +8241,21 @@ pub(crate) fn apri_tastiera(numerica: bool, password: bool, iniziale: &str) -> O
         stile::testo(ta.as_ptr(), (226, 232, 240), stile::MAIN);
         stile::bordo(ta.as_ptr(), Some((100, 116, 139)), 1.0, stile::MAIN);
         let esito: EsitoTastiera = Default::default();
-        let ctx: &'static TastieraCtx = Box::leak(Box::new(TastieraCtx { overlay: ov, textarea: ta, esito: esito.clone() }));
-        for code in [lvgl_sys::lv_event_code_t_LV_EVENT_READY, lvgl_sys::lv_event_code_t_LV_EVENT_CANCEL] {
-            lvgl_sys::lv_obj_add_event_cb(kb.as_ptr(), Some(sws_tastiera_cb), code, ctx as *const TastieraCtx as *mut std::ffi::c_void);
+        let ctx: &'static TastieraCtx = Box::leak(Box::new(TastieraCtx {
+            overlay: ov,
+            textarea: ta,
+            esito: esito.clone(),
+        }));
+        for code in [
+            lvgl_sys::lv_event_code_t_LV_EVENT_READY,
+            lvgl_sys::lv_event_code_t_LV_EVENT_CANCEL,
+        ] {
+            lvgl_sys::lv_obj_add_event_cb(
+                kb.as_ptr(),
+                Some(sws_tastiera_cb),
+                code,
+                ctx as *const TastieraCtx as *mut std::ffi::c_void,
+            );
         }
         Some(Tastiera { esito })
     }
@@ -7391,18 +8407,17 @@ pub(crate) fn apri_credenziali(testi: TestiAccesso<'_>) -> Option<Credenziali> {
             if !l.is_null() {
                 lvgl_sys::lv_obj_set_pos(l, x0, y);
                 lvgl_sys::lv_label_set_text(l, text_cstring(testo).as_ptr());
-                lvgl_sys::lv_obj_set_style_text_color(
-                    l,
-                    lvgl_sys::lv_color_t { full: 0 },
-                    0,
-                );
+                lvgl_sys::lv_obj_set_style_text_color(l, lvgl_sys::lv_color_t { full: 0 }, 0);
                 stile::testo(l, (148, 163, 184), stile::MAIN);
                 if let Some(f) = crate::lvgl_font::at_size(16) {
                     lvgl_sys::lv_obj_set_style_text_font(l, f, 0);
                 }
             }
         };
-        let campo = |y: i16, password: bool, iniziale: &str| -> Option<core::ptr::NonNull<lvgl_sys::lv_obj_t>> {
+        let campo = |y: i16,
+                     password: bool,
+                     iniziale: &str|
+         -> Option<core::ptr::NonNull<lvgl_sys::lv_obj_t>> {
             let ta = core::ptr::NonNull::new(lvgl_sys::lv_textarea_create(ov.as_ptr()))?;
             lvgl_sys::lv_obj_set_pos(ta.as_ptr(), x0, y);
             lvgl_sys::lv_obj_set_size(ta.as_ptr(), w_col, h_campo);
@@ -7432,9 +8447,13 @@ pub(crate) fn apri_credenziali(testi: TestiAccesso<'_>) -> Option<Credenziali> {
         // prima quanto è alto tutto, e lo si centra.
         let h_blocco = (alto + 8)
             + if testi.errore.is_some() { alto + 4 } else { 0 }
-            + (alto + 4) + h_campo + alto
-            + (alto + 4) + h_campo
-            + alto + h_btn;
+            + (alto + 4)
+            + h_campo
+            + alto
+            + (alto + 4)
+            + h_campo
+            + alto
+            + h_btn;
         let mut y = ((meta - h_blocco) / 2).max(alto);
         {
             let l = lvgl_sys::lv_label_create(ov.as_ptr());
@@ -7486,9 +8505,17 @@ pub(crate) fn apri_credenziali(testi: TestiAccesso<'_>) -> Option<Credenziali> {
 
         // **Da dove si parte.** Col nome già noto, la password: è l'unica cosa
         // che quella persona deve ancora digitare. Altrimenti l'utente.
-        let parti_da = if utente_iniziale.trim().is_empty() { ta_utente } else { ta_password };
+        let parti_da = if utente_iniziale.trim().is_empty() {
+            ta_utente
+        } else {
+            ta_password
+        };
         lvgl_sys::lv_keyboard_set_textarea(kb.as_ptr(), parti_da.as_ptr());
-        let spento = if parti_da == ta_utente { ta_password } else { ta_utente };
+        let spento = if parti_da == ta_utente {
+            ta_password
+        } else {
+            ta_utente
+        };
         evidenzia_campo(parti_da.as_ptr(), spento.as_ptr());
 
         // **I due pulsanti, ai due capi della colonna.** «Annulla» c'era già:
@@ -7499,15 +8526,35 @@ pub(crate) fn apri_credenziali(testi: TestiAccesso<'_>) -> Option<Credenziali> {
         // saperlo — l'unico pulsante visibile era quello che ti butta fuori.
         y += h_campo + alto;
         let w_btn = ((w_col - 16) / 2).clamp(110, 240);
-        let pulsante = |x: i16, testo: &str, primario: bool| -> Option<core::ptr::NonNull<lvgl_sys::lv_obj_t>> {
+        let pulsante = |x: i16,
+                        testo: &str,
+                        primario: bool|
+         -> Option<core::ptr::NonNull<lvgl_sys::lv_obj_t>> {
             let b = core::ptr::NonNull::new(lvgl_sys::lv_btn_create(ov.as_ptr()))?;
             lvgl_sys::lv_obj_set_size(b.as_ptr(), w_btn, h_btn);
             lvgl_sys::lv_obj_set_pos(b.as_ptr(), x, y);
             // Il blu è quello di «Aggiorna ora» (`lvgl_avviso.rs`), non un
             // secondo blu: due accenti diversi nella stessa schermata si
             // leggono come due cose diverse.
-            stile::sfondo(b.as_ptr(), if primario { (29, 78, 216) } else { (51, 65, 85) }, stile::MAIN);
-            stile::bordo(b.as_ptr(), Some(if primario { (29, 78, 216) } else { (100, 116, 139) }), 1.0, stile::MAIN);
+            stile::sfondo(
+                b.as_ptr(),
+                if primario {
+                    (29, 78, 216)
+                } else {
+                    (51, 65, 85)
+                },
+                stile::MAIN,
+            );
+            stile::bordo(
+                b.as_ptr(),
+                Some(if primario {
+                    (29, 78, 216)
+                } else {
+                    (100, 116, 139)
+                }),
+                1.0,
+                stile::MAIN,
+            );
             stile::raggio(b.as_ptr(), 6.0, stile::MAIN);
             let l = lvgl_sys::lv_label_create(b.as_ptr());
             if !l.is_null() {
@@ -7532,7 +8579,10 @@ pub(crate) fn apri_credenziali(testi: TestiAccesso<'_>) -> Option<Credenziali> {
             esito: esito.clone(),
         }));
         let dato = ctx as *const CredenzialiCtx as *mut std::ffi::c_void;
-        for code in [lvgl_sys::lv_event_code_t_LV_EVENT_READY, lvgl_sys::lv_event_code_t_LV_EVENT_CANCEL] {
+        for code in [
+            lvgl_sys::lv_event_code_t_LV_EVENT_READY,
+            lvgl_sys::lv_event_code_t_LV_EVENT_CANCEL,
+        ] {
             lvgl_sys::lv_obj_add_event_cb(kb.as_ptr(), Some(sws_credenziali_kb_cb), code, dato);
         }
         lvgl_sys::lv_obj_add_event_cb(
@@ -7573,7 +8623,11 @@ unsafe extern "C" fn sws_credenziali_campo_cb(e: *mut lvgl_sys::lv_event_t) {
         return;
     }
     lvgl_sys::lv_keyboard_set_textarea(ctx.tastiera.as_ptr(), toccato);
-    let altro = if toccato == ctx.utente.as_ptr() { ctx.password } else { ctx.utente };
+    let altro = if toccato == ctx.utente.as_ptr() {
+        ctx.password
+    } else {
+        ctx.utente
+    };
     evidenzia_campo(toccato, altro.as_ptr());
 }
 
@@ -7626,7 +8680,11 @@ unsafe extern "C" fn sws_tastiera_cb(e: *mut lvgl_sys::lv_event_t) {
     let ctx = &*(lvgl_sys::lv_event_get_user_data(e) as *const TastieraCtx);
     let risultato = if lvgl_sys::lv_event_get_code(e) == lvgl_sys::lv_event_code_t_LV_EVENT_READY {
         let c = lvgl_sys::lv_textarea_get_text(ctx.textarea.as_ptr());
-        Some(if c.is_null() { String::new() } else { std::ffi::CStr::from_ptr(c).to_string_lossy().into_owned() })
+        Some(if c.is_null() {
+            String::new()
+        } else {
+            std::ffi::CStr::from_ptr(c).to_string_lossy().into_owned()
+        })
     } else {
         None
     };
@@ -7652,19 +8710,29 @@ fn render_trend(
     let cfg = config_trend(obj, w, h);
 
     let mut canvas = unsafe {
-        let ptr = lvgl_sys::lv_canvas_create(screen.raw().map_err(|e| anyhow::anyhow!("raw: {e:?}"))?.as_ptr());
-        let nn = core::ptr::NonNull::new(ptr).ok_or_else(|| anyhow::anyhow!("lv_canvas_create ha restituito null"))?;
+        let ptr = lvgl_sys::lv_canvas_create(
+            screen
+                .raw()
+                .map_err(|e| anyhow::anyhow!("raw: {e:?}"))?
+                .as_ptr(),
+        );
+        let nn = core::ptr::NonNull::new(ptr)
+            .ok_or_else(|| anyhow::anyhow!("lv_canvas_create ha restituito null"))?;
         <lvgl::Obj as Widget>::from_raw(nn)
     };
     canvas
-        .set_pos(obj.x.unwrap_or(0.0).round() as i16, obj.y.unwrap_or(0.0).round() as i16)
+        .set_pos(
+            obj.x.unwrap_or(0.0).round() as i16,
+            obj.y.unwrap_or(0.0).round() as i16,
+        )
         .map_err(|e| anyhow::anyhow!("set_pos: {e:?}"))?;
     let canvas_ptr = canvas.raw().map_err(|e| anyhow::anyhow!("raw: {e:?}"))?;
 
     // Opaco (RGB565, 2 byte per pixel): lo sfondo del trend copre sempre tutto
     // il riquadro, come sul web — l'alfa costerebbe un byte in più a pixel.
     let mut buf = vec![0u8; 2 * w as usize * h as usize];
-    let pixmap = resvg::tiny_skia::Pixmap::new(w, h).ok_or_else(|| anyhow::anyhow!("pixmap {w}x{h}"))?;
+    let pixmap =
+        resvg::tiny_skia::Pixmap::new(w, h).ok_or_else(|| anyhow::anyhow!("pixmap {w}x{h}"))?;
     let tocchi: CodaTocchi = Default::default();
     unsafe {
         lvgl_sys::lv_canvas_set_buffer(
@@ -7705,7 +8773,11 @@ fn render_trend(
         .map(str::trim)
         .filter(|s| !s.is_empty() && s.to_ascii_lowercase().contains(".svg"))
         .and_then(|src| {
-            crate::svg_assets::bytes_for(base_url, rt_handle, &crate::svg_assets::SvgSource::Url(src.to_string()))
+            crate::svg_assets::bytes_for(
+                base_url,
+                rt_handle,
+                &crate::svg_assets::SvgSource::Url(src.to_string()),
+            )
         })
         .and_then(|b| crate::svg_raster::rasterize_stretch(&b, w, h));
 
@@ -7734,7 +8806,12 @@ fn render_trend(
             etichette: Vec::new(),
             tocchi,
             sporco: true,
-            riquadro: (obj.x.unwrap_or(0.0).round() as i16, obj.y.unwrap_or(0.0).round() as i16, w, h),
+            riquadro: (
+                obj.x.unwrap_or(0.0).round() as i16,
+                obj.y.unwrap_or(0.0).round() as i16,
+                w,
+                h,
+            ),
         })),
     })
 }
@@ -7750,7 +8827,9 @@ fn ridimensiona_trend(t: &mut TrendVivo) {
     } else {
         t.riquadro
     };
-    let Some(pixmap) = resvg::tiny_skia::Pixmap::new(w, h) else { return };
+    let Some(pixmap) = resvg::tiny_skia::Pixmap::new(w, h) else {
+        return;
+    };
     let mut buf = vec![0u8; 2 * w as usize * h as usize];
     unsafe {
         lvgl_sys::lv_canvas_set_buffer(
@@ -7791,7 +8870,12 @@ unsafe extern "C" fn sws_trend_tocco_cb(e: *mut lvgl_sys::lv_event_t) {
             }
             let mut p = lvgl_sys::lv_point_t { x: 0, y: 0 };
             lvgl_sys::lv_indev_get_point(indev, &mut p);
-            let mut a = lvgl_sys::lv_area_t { x1: 0, y1: 0, x2: 0, y2: 0 };
+            let mut a = lvgl_sys::lv_area_t {
+                x1: 0,
+                y1: 0,
+                x2: 0,
+                y2: 0,
+            };
             lvgl_sys::lv_obj_get_coords(lvgl_sys::lv_event_get_current_target(e), &mut a);
             let (x, y) = ((p.x - a.x1) as f32, (p.y - a.y1) as f32);
             if code == lvgl_sys::lv_event_code_t_LV_EVENT_PRESSED {
@@ -7820,17 +8904,46 @@ fn valore_trend(v: &TagValue) -> Option<f64> {
 /// Dalla risposta del poller ai dati che `trend.rs` disegna. I dati a secchi
 /// si disegnano come sul web: la linea sulla media al centro del secchio, la
 /// banda min/max al suo inizio.
-fn dati_trend(r: &client::TrendRisposta, lingua: &str, table: &LanguageTable) -> crate::trend::Dati {
+fn dati_trend(
+    r: &client::TrendRisposta,
+    lingua: &str,
+    table: &LanguageTable,
+) -> crate::trend::Dati {
     use crate::trend::{Campione, Marcatore, Secchio};
     let mut d = crate::trend::Dati::default();
     for (i, grezzi) in r.serie.iter().enumerate() {
         match r.secchi.get(i).and_then(|s| s.as_ref()) {
             Some((b, secchi)) => {
-                d.serie.push(secchi.iter().map(|s| Campione { ts: s.ts_ms + b / 2, v: Some(s.avg) }).collect());
-                d.bande.push(secchi.iter().map(|s| Secchio { ts: s.ts_ms, min: s.min, max: s.max }).collect());
+                d.serie.push(
+                    secchi
+                        .iter()
+                        .map(|s| Campione {
+                            ts: s.ts_ms + b / 2,
+                            v: Some(s.avg),
+                        })
+                        .collect(),
+                );
+                d.bande.push(
+                    secchi
+                        .iter()
+                        .map(|s| Secchio {
+                            ts: s.ts_ms,
+                            min: s.min,
+                            max: s.max,
+                        })
+                        .collect(),
+                );
             }
             None => {
-                d.serie.push(grezzi.iter().map(|s| Campione { ts: s.ts_ms, v: valore_trend(&s.value) }).collect());
+                d.serie.push(
+                    grezzi
+                        .iter()
+                        .map(|s| Campione {
+                            ts: s.ts_ms,
+                            v: valore_trend(&s.value),
+                        })
+                        .collect(),
+                );
                 d.bande.push(Vec::new());
             }
         }
@@ -7910,7 +9023,11 @@ fn scrivi_testi(
             lvgl_sys::lv_label_set_text(lp, text_cstring(&tx.testo).as_ptr());
             lvgl_sys::lv_obj_set_style_text_font(lp, font_trend(tx.px), 0);
             lvgl_sys::lv_obj_set_style_text_color(lp, Color::from_rgb(tx.colore).into(), 0);
-            lvgl_sys::lv_obj_set_pos(lp, x.round() as lvgl_sys::lv_coord_t, y.round() as lvgl_sys::lv_coord_t);
+            lvgl_sys::lv_obj_set_pos(
+                lp,
+                x.round() as lvgl_sys::lv_coord_t,
+                y.round() as lvgl_sys::lv_coord_t,
+            );
             lvgl_sys::lv_obj_clear_flag(lp, lvgl_sys::LV_OBJ_FLAG_HIDDEN);
         }
     }
@@ -7997,7 +9114,11 @@ fn aggiorna_trend(t: &mut TrendVivo, lingua: &str, table: &LanguageTable) {
         )
     });
     // RGBA premoltiplicato ma opaco (lo sfondo copre tutto) → RGB565.
-    for (o, p) in t.buf.chunks_exact_mut(2).zip(t.pixmap.data().chunks_exact(4)) {
+    for (o, p) in t
+        .buf
+        .chunks_exact_mut(2)
+        .zip(t.pixmap.data().chunks_exact(4))
+    {
         let v: u16 = ((p[0] as u16 & 0xF8) << 8) | ((p[1] as u16 & 0xFC) << 3) | (p[2] as u16 >> 3);
         o[0] = (v & 0xFF) as u8;
         o[1] = (v >> 8) as u8;
@@ -8082,13 +9203,22 @@ fn render_sparkline(
     // L'ultimo valore (25-10-2026), corpo `font_size` (9 sul web), del colore
     // della linea, in alto a destra.
     let ultimo = if obj.spark_show_last == Some(true) {
-        let corpo = obj.font_size.unwrap_or(corpo_predefinito("sparkline", "font_size")).round().clamp(6.0, 200.0);
+        let corpo = obj
+            .font_size
+            .unwrap_or(corpo_predefinito("sparkline", "font_size"))
+            .round()
+            .clamp(6.0, 200.0);
         unsafe {
             let l = lvgl_sys::lv_label_create(ptr.as_ptr());
             lvgl_sys::lv_label_set_text(l, text_cstring("").as_ptr());
             stile::font(l, corpo as u16, stile::MAIN);
             stile::testo(l, rgb, stile::MAIN);
-            lvgl_sys::lv_obj_align(l, lvgl_sys::LV_ALIGN_TOP_RIGHT as lvgl_sys::lv_align_t, -2, 0);
+            lvgl_sys::lv_obj_align(
+                l,
+                lvgl_sys::LV_ALIGN_TOP_RIGHT as lvgl_sys::lv_align_t,
+                -2,
+                0,
+            );
             core::ptr::NonNull::new(l)
         }
     } else {
@@ -8136,14 +9266,21 @@ fn render_alarm_viewer(
         let mut come_banner = obj.clone();
         come_banner.alarm_banner_id_prefix = obj.alarm_viewer_id_prefix.clone();
         come_banner.alarm_banner_severities = obj.alarm_viewer_severities.clone();
-        come_banner.bg_color = obj.alarm_viewer_bg_color.clone().or_else(|| obj.bg_color.clone());
+        come_banner.bg_color = obj
+            .alarm_viewer_bg_color
+            .clone()
+            .or_else(|| obj.bg_color.clone());
         if come_banner.font_size.is_none() {
             come_banner.font_size = Some(11.0);
         }
         return render_alarm_banner(screen, &come_banner, styles, shared_alarms, ack_tx);
     }
     // Il corpo del web (25-10-2026): 11, e 9 l'ACK (`corpo_annotazione`).
-    let corpo = obj.font_size.unwrap_or(corpo_predefinito("alarm_viewer", "font_size")).round().clamp(6.0, 200.0);
+    let corpo = obj
+        .font_size
+        .unwrap_or(corpo_predefinito("alarm_viewer", "font_size"))
+        .round()
+        .clamp(6.0, 200.0);
     let corpo_ack = sws_core::geometria_testo::corpo_annotazione(corpo);
 
     let width = obj.width.unwrap_or(360.0);
@@ -8314,7 +9451,10 @@ fn render_alarm_viewer(
             lbl.set_text(&text_cstring("ACK"))
                 .map_err(|e| anyhow::anyhow!("set_text: {e:?}"))?;
             unsafe {
-                let lp = lbl.raw().map_err(|e| anyhow::anyhow!("raw: {e:?}"))?.as_ptr();
+                let lp = lbl
+                    .raw()
+                    .map_err(|e| anyhow::anyhow!("raw: {e:?}"))?
+                    .as_ptr();
                 stile::font(lp, corpo_ack as u16, stile::MAIN);
             }
             let ptr = btn.raw().map_err(|e| anyhow::anyhow!("raw: {e:?}"))?;
@@ -8385,7 +9525,11 @@ fn render_alarm_banner(
     let prefix = obj.alarm_banner_id_prefix.clone().unwrap_or_default();
     let allowed_sev = obj.alarm_banner_severities.clone();
     // Il corpo del web (25-10-2026): 13 la riga, 11 la pillola, 12 l'ACK.
-    let corpo = obj.font_size.unwrap_or(corpo_predefinito("alarm_banner", "font_size")).round().clamp(6.0, 200.0);
+    let corpo = obj
+        .font_size
+        .unwrap_or(corpo_predefinito("alarm_banner", "font_size"))
+        .round()
+        .clamp(6.0, 200.0);
     let corpo_pillola = sws_core::geometria_testo::corpo_annotazione(corpo);
     let corpo_ack = sws_core::geometria_testo::corpo_secondario(corpo);
 
@@ -8394,10 +9538,37 @@ fn render_alarm_banner(
     // Fase 2 (30-09-2026): il web lo lascia trasparente se `bg_color` manca;
     // qui era sempre #1e293b.
     match obj.bg_color.as_deref().and_then(parse_hex_color) {
-        Some(c) => unsafe { stile::sfondo(container.raw().map_err(|e| anyhow::anyhow!("raw: {e:?}"))?.as_ptr(), c, stile::MAIN) },
-        None => unsafe { stile::trasparente(container.raw().map_err(|e| anyhow::anyhow!("raw: {e:?}"))?.as_ptr(), stile::MAIN) },
+        Some(c) => unsafe {
+            stile::sfondo(
+                container
+                    .raw()
+                    .map_err(|e| anyhow::anyhow!("raw: {e:?}"))?
+                    .as_ptr(),
+                c,
+                stile::MAIN,
+            )
+        },
+        None => unsafe {
+            stile::trasparente(
+                container
+                    .raw()
+                    .map_err(|e| anyhow::anyhow!("raw: {e:?}"))?
+                    .as_ptr(),
+                stile::MAIN,
+            )
+        },
     }
-    unsafe { stile::bordo(container.raw().map_err(|e| anyhow::anyhow!("raw: {e:?}"))?.as_ptr(), None, 0.0, stile::MAIN) };
+    unsafe {
+        stile::bordo(
+            container
+                .raw()
+                .map_err(|e| anyhow::anyhow!("raw: {e:?}"))?
+                .as_ptr(),
+            None,
+            0.0,
+            stile::MAIN,
+        )
+    };
     let container_ptr = container.raw().map_err(|e| anyhow::anyhow!("raw: {e:?}"))?;
     unsafe {
         lvgl_sys::lv_obj_clear_flag(
@@ -8429,24 +9600,37 @@ fn render_alarm_banner(
 
     // La pillola dello stato ISA, come il web (25-10-2026): il pallino resta
     // nascosto, la pillola ne prende il posto e il colore della severità.
-    let mut pill = Label::create(&mut container).map_err(|e| anyhow::anyhow!("Label::create: {e:?}"))?;
-    pill.set_text(&text_cstring("")).map_err(|e| anyhow::anyhow!("set_text: {e:?}"))?;
+    let mut pill =
+        Label::create(&mut container).map_err(|e| anyhow::anyhow!("Label::create: {e:?}"))?;
+    pill.set_text(&text_cstring(""))
+        .map_err(|e| anyhow::anyhow!("set_text: {e:?}"))?;
     let pill_ptr = pill.raw().map_err(|e| anyhow::anyhow!("raw: {e:?}"))?;
     unsafe {
         let pp = pill_ptr.as_ptr();
         stile::font(pp, corpo_pillola as u16, stile::MAIN);
         stile::raggio(pp, 10.0, stile::MAIN);
         stile::margini(pp, 1, 8, stile::MAIN);
-        lvgl_sys::lv_obj_align(pp, lvgl_sys::LV_ALIGN_LEFT_MID as lvgl_sys::lv_align_t, 0, 0);
+        lvgl_sys::lv_obj_align(
+            pp,
+            lvgl_sys::LV_ALIGN_LEFT_MID as lvgl_sys::lv_align_t,
+            0,
+            0,
+        );
         lvgl_sys::lv_obj_add_flag(pp, lvgl_sys::LV_OBJ_FLAG_HIDDEN as lvgl_sys::lv_obj_flag_t);
     }
     // L'ACK della riga, a destra.
     let ack_w = (corpo_ack * 4.0).round().max(40.0);
     let mut ack = Btn::create(&mut container).map_err(|e| anyhow::anyhow!("Btn::create: {e:?}"))?;
-    ack.set_size(ack_w as i16, (height - 6.0).clamp(16.0, corpo * 2.0).round() as i16)
-        .map_err(|e| anyhow::anyhow!("set_size: {e:?}"))?;
-    let mut ack_lbl = Label::create(&mut ack).map_err(|e| anyhow::anyhow!("Label::create: {e:?}"))?;
-    ack_lbl.set_text(&text_cstring("ACK")).map_err(|e| anyhow::anyhow!("set_text: {e:?}"))?;
+    ack.set_size(
+        ack_w as i16,
+        (height - 6.0).clamp(16.0, corpo * 2.0).round() as i16,
+    )
+    .map_err(|e| anyhow::anyhow!("set_size: {e:?}"))?;
+    let mut ack_lbl =
+        Label::create(&mut ack).map_err(|e| anyhow::anyhow!("Label::create: {e:?}"))?;
+    ack_lbl
+        .set_text(&text_cstring("ACK"))
+        .map_err(|e| anyhow::anyhow!("set_text: {e:?}"))?;
     let ack_ptr = ack.raw().map_err(|e| anyhow::anyhow!("raw: {e:?}"))?;
     let ack_ctx: &'static AlarmAckCtx = Box::leak(Box::new(AlarmAckCtx {
         current_id: RefCell::new(String::new()),
@@ -8454,8 +9638,16 @@ fn render_alarm_banner(
     }));
     unsafe {
         let ap = ack_ptr.as_ptr();
-        lvgl_sys::lv_obj_align(ap, lvgl_sys::LV_ALIGN_RIGHT_MID as lvgl_sys::lv_align_t, 0, 0);
-        let lp = ack_lbl.raw().map_err(|e| anyhow::anyhow!("raw: {e:?}"))?.as_ptr();
+        lvgl_sys::lv_obj_align(
+            ap,
+            lvgl_sys::LV_ALIGN_RIGHT_MID as lvgl_sys::lv_align_t,
+            0,
+            0,
+        );
+        let lp = ack_lbl
+            .raw()
+            .map_err(|e| anyhow::anyhow!("raw: {e:?}"))?
+            .as_ptr();
         stile::font(lp, corpo_ack as u16, stile::MAIN);
         lvgl_sys::lv_obj_align(lp, lvgl_sys::LV_ALIGN_CENTER as lvgl_sys::lv_align_t, 0, 0);
         lvgl_sys::lv_obj_add_event_cb(
@@ -8475,7 +9667,10 @@ fn render_alarm_banner(
         .set_pos(18, ((height - corpo * 1.25) / 2.0).round() as i16)
         .map_err(|e| anyhow::anyhow!("set_pos: {e:?}"))?;
     msg_lbl
-        .set_size((width - 26.0 - ack_w - 8.0).max(20.0) as i16, (corpo * 1.25).round() as i16)
+        .set_size(
+            (width - 26.0 - ack_w - 8.0).max(20.0) as i16,
+            (corpo * 1.25).round() as i16,
+        )
         .map_err(|e| anyhow::anyhow!("set_size: {e:?}"))?;
     msg_lbl
         .set_text(&text_cstring(""))
@@ -8560,7 +9755,11 @@ fn render_xy_plot(
     // Fase 2 (30-09-2026): lo sfondo scuro e il bordo del web, niente griglia
     // (qui era il grafico bianco del tema).
     unsafe {
-        stile::sfondo(ptr.as_ptr(), colore_campo(obj.bg_color.as_deref(), "xy_plot", "bg_color"), stile::MAIN);
+        stile::sfondo(
+            ptr.as_ptr(),
+            colore_campo(obj.bg_color.as_deref(), "xy_plot", "bg_color"),
+            stile::MAIN,
+        );
         stile::bordo(ptr.as_ptr(), Some((0x33, 0x41, 0x55)), 1.0, stile::MAIN);
         stile::raggio(ptr.as_ptr(), 0.0, stile::MAIN);
     }
@@ -8768,7 +9967,14 @@ fn render_pie_chart(
     let inner_ratio = obj.pie_inner_ratio.unwrap_or(0.5).clamp(0.1, 0.9);
     let slices = obj.pie_slices.clone().unwrap_or_default();
     // Fase 2 (30-09-2026): il riquadro del web dietro la torta.
-    riquadro(screen, obj, "pie_chart", (200.0, 200.0), Some((0x1e, 0x29, 0x3b)), 4.0)?;
+    riquadro(
+        screen,
+        obj,
+        "pie_chart",
+        (200.0, 200.0),
+        Some((0x1e, 0x29, 0x3b)),
+        4.0,
+    )?;
 
     let mut canvas = unsafe {
         let ptr = lvgl_sys::lv_canvas_create(
@@ -9108,7 +10314,12 @@ unsafe extern "C" fn sws_setpoint_ready_cb(e: *mut lvgl_sys::lv_event_t) {
                     );
                     // Il bordo diventa quello del comando: si vede a colpo
                     // d'occhio che quel numero non è ancora andato.
-                    stile::bordo(ctx.value_ptr.as_ptr(), Some((0x3b, 0x82, 0xf6)), 1.0, stile::MAIN);
+                    stile::bordo(
+                        ctx.value_ptr.as_ptr(),
+                        Some((0x3b, 0x82, 0xf6)),
+                        1.0,
+                        stile::MAIN,
+                    );
                     lvgl_sys::lv_obj_add_flag(
                         ctx.overlay_ptr.as_ptr(),
                         lvgl_sys::LV_OBJ_FLAG_HIDDEN as lvgl_sys::lv_obj_flag_t,
@@ -9140,7 +10351,12 @@ unsafe extern "C" fn sws_setpoint_conferma_cb(e: *mut lvgl_sys::lv_event_t) {
     // Il bordo torna normale: la bozza non c'è più, e il vivo riprende a
     // scrivere nel campo da `update_bindings`.
     unsafe {
-        stile::bordo(ctx.value_ptr.as_ptr(), Some((0x33, 0x41, 0x55)), 1.0, stile::MAIN);
+        stile::bordo(
+            ctx.value_ptr.as_ptr(),
+            Some((0x33, 0x41, 0x55)),
+            1.0,
+            stile::MAIN,
+        );
     }
 }
 
@@ -9309,14 +10525,26 @@ fn render_setpoint(
         .map_err(|e| anyhow::anyhow!("set_pos: {e:?}"))?;
     let corpo_attuale = sws_core::geometria_testo::corpo_annotazione(corpo_testo);
     unsafe {
-        let p = attuale_lbl.raw().map_err(|e| anyhow::anyhow!("raw: {e:?}"))?.as_ptr();
+        let p = attuale_lbl
+            .raw()
+            .map_err(|e| anyhow::anyhow!("raw: {e:?}"))?
+            .as_ptr();
         stile::testo(p, (0x64, 0x74, 0x8b), stile::MAIN);
-        stile::font(p, corpo_attuale.round().clamp(6.0, 200.0) as u16, stile::MAIN);
+        stile::font(
+            p,
+            corpo_attuale.round().clamp(6.0, 200.0) as u16,
+            stile::MAIN,
+        );
     }
-    let attuale_ptr = attuale_lbl.raw().map_err(|e| anyhow::anyhow!("raw: {e:?}"))?;
+    let attuale_ptr = attuale_lbl
+        .raw()
+        .map_err(|e| anyhow::anyhow!("raw: {e:?}"))?;
     let attuale_testo = crate::testi_sistema::testo(
         crate::testi_sistema::Testo::SpAttuale,
-        &shared_lang.lock().unwrap_or_else(|e: std::sync::PoisonError<_>| e.into_inner()).clone(),
+        &shared_lang
+            .lock()
+            .unwrap_or_else(|e: std::sync::PoisonError<_>| e.into_inner())
+            .clone(),
     )
     .to_string();
     y_cursor += (corpo_attuale * 1.2).round() as i16 + 3;
@@ -9501,7 +10729,10 @@ fn render_setpoint(
             .set_text(&text_cstring("✓"))
             .map_err(|e| anyhow::anyhow!("set_text: {e:?}"))?;
         unsafe {
-            let l = ok_lbl.raw().map_err(|e| anyhow::anyhow!("raw: {e:?}"))?.as_ptr();
+            let l = ok_lbl
+                .raw()
+                .map_err(|e| anyhow::anyhow!("raw: {e:?}"))?
+                .as_ptr();
             lvgl_sys::lv_obj_align(l, lvgl_sys::LV_ALIGN_CENTER as lvgl_sys::lv_align_t, 0, 0);
             if let Some(f) = lvgl_font::at_size(corpo_pulsanti.round().clamp(6.0, 200.0) as u16) {
                 lvgl_sys::lv_obj_set_style_text_font(l, f, 0);
@@ -9509,7 +10740,10 @@ fn render_setpoint(
         }
         unsafe {
             lvgl_sys::lv_obj_add_event_cb(
-                ok_btn.raw().map_err(|e| anyhow::anyhow!("raw: {e:?}"))?.as_ptr(),
+                ok_btn
+                    .raw()
+                    .map_err(|e| anyhow::anyhow!("raw: {e:?}"))?
+                    .as_ptr(),
                 Some(sws_setpoint_conferma_cb),
                 lvgl_sys::lv_event_code_t_LV_EVENT_CLICKED,
                 ctx as *const SetpointCtx as *mut std::ffi::c_void,
@@ -9585,28 +10819,50 @@ fn render_alarm_bell(
         .map_err(|e| anyhow::anyhow!("set_text: {e:?}"))?;
     // Il corpo del web (25-10-2026): 12 il pulsante e le righe, 11 badge e
     // messaggi (`corpo_secondario`).
-    let corpo = obj.font_size.unwrap_or(corpo_predefinito("alarm_bell", "font_size")).round().clamp(6.0, 200.0);
+    let corpo = obj
+        .font_size
+        .unwrap_or(corpo_predefinito("alarm_bell", "font_size"))
+        .round()
+        .clamp(6.0, 200.0);
     let corpo_minore = sws_core::geometria_testo::corpo_secondario(corpo);
     unsafe {
-        let bp = bell_lbl.raw().map_err(|e| anyhow::anyhow!("raw: {e:?}"))?.as_ptr();
+        let bp = bell_lbl
+            .raw()
+            .map_err(|e| anyhow::anyhow!("raw: {e:?}"))?
+            .as_ptr();
         stile::font(bp, corpo as u16, stile::MAIN);
     }
     // La campana del web (🔔): DejaVu non ha né l'emoji né i simboli di LVGL,
     // quindi l'icona sta in un'etichetta sua col Montserrat compilato, quello
     // che disegna `LV_SYMBOL_BELL` (stessa ragione di `restore_symbols_on`).
     {
-        let mut icona = Label::create(&mut btn).map_err(|e| anyhow::anyhow!("Label::create: {e:?}"))?;
-        icona.set_text(&text_cstring("\u{F0F3}")).map_err(|e| anyhow::anyhow!("set_text: {e:?}"))?;
-        let ip = icona.raw().map_err(|e| anyhow::anyhow!("raw: {e:?}"))?.as_ptr();
+        let mut icona =
+            Label::create(&mut btn).map_err(|e| anyhow::anyhow!("Label::create: {e:?}"))?;
+        icona
+            .set_text(&text_cstring("\u{F0F3}"))
+            .map_err(|e| anyhow::anyhow!("set_text: {e:?}"))?;
+        let ip = icona
+            .raw()
+            .map_err(|e| anyhow::anyhow!("raw: {e:?}"))?
+            .as_ptr();
         crate::lvgl_font::restore_symbols_on(ip);
         unsafe {
-            lvgl_sys::lv_obj_align(ip, lvgl_sys::LV_ALIGN_LEFT_MID as lvgl_sys::lv_align_t, 2, 0);
+            lvgl_sys::lv_obj_align(
+                ip,
+                lvgl_sys::LV_ALIGN_LEFT_MID as lvgl_sys::lv_align_t,
+                2,
+                0,
+            );
         }
     }
     let btn_ptr = btn.raw().map_err(|e| anyhow::anyhow!("raw: {e:?}"))?;
     // Fase 2 (30-09-2026): `fill` o #1e293b come il web, non il blu del tema.
     unsafe {
-        stile::sfondo(btn_ptr.as_ptr(), colore_campo(obj.fill.as_deref(), "alarm_bell", "fill"), stile::MAIN);
+        stile::sfondo(
+            btn_ptr.as_ptr(),
+            colore_campo(obj.fill.as_deref(), "alarm_bell", "fill"),
+            stile::MAIN,
+        );
     }
 
     let mut badge = create_child_obj(&mut btn)?;
@@ -9629,7 +10885,10 @@ fn render_alarm_bell(
         .set_text(&text_cstring("0"))
         .map_err(|e| anyhow::anyhow!("set_text: {e:?}"))?;
     unsafe {
-        let cp = count_lbl.raw().map_err(|e| anyhow::anyhow!("raw: {e:?}"))?.as_ptr();
+        let cp = count_lbl
+            .raw()
+            .map_err(|e| anyhow::anyhow!("raw: {e:?}"))?
+            .as_ptr();
         stile::font(cp, corpo_minore as u16, stile::MAIN);
     }
     let badge_ptr = badge.raw().map_err(|e| anyhow::anyhow!("raw: {e:?}"))?;
@@ -9807,7 +11066,11 @@ fn render_alarm_history(
     use crate::testi_sistema::{testo as sistema, Testo};
     use crate::trend::Orizz;
     // Il corpo del web (25-10-2026): titolo, tabella e righe a 11.
-    let corpo = obj.font_size.unwrap_or(corpo_predefinito("alarm_history", "font_size")).round().clamp(6.0, 200.0);
+    let corpo = obj
+        .font_size
+        .unwrap_or(corpo_predefinito("alarm_history", "font_size"))
+        .round()
+        .clamp(6.0, 200.0);
     let (ox, oy) = (obj.x.unwrap_or(0.0), obj.y.unwrap_or(0.0));
     let (ow, oh) = (obj.width.unwrap_or(420.0), obj.height.unwrap_or(220.0));
 
@@ -9817,8 +11080,10 @@ fn render_alarm_history(
         None => "STORICO ALLARMI".to_string(),
     };
     let mut t = Label::create(screen).map_err(|e| anyhow::anyhow!("Label::create: {e:?}"))?;
-    t.set_pos(ox.round() as i16, oy.round() as i16).map_err(|e| anyhow::anyhow!("set_pos: {e:?}"))?;
-    t.set_text(&text_cstring(&titolo)).map_err(|e| anyhow::anyhow!("set_text: {e:?}"))?;
+    t.set_pos(ox.round() as i16, oy.round() as i16)
+        .map_err(|e| anyhow::anyhow!("set_pos: {e:?}"))?;
+    t.set_text(&text_cstring(&titolo))
+        .map_err(|e| anyhow::anyhow!("set_text: {e:?}"))?;
     unsafe {
         let tp = t.raw().map_err(|e| anyhow::anyhow!("raw: {e:?}"))?.as_ptr();
         stile::font_grassetto(tp, corpo as u16, stile::MAIN);
@@ -9831,7 +11096,11 @@ fn render_alarm_history(
     // nelle pagine successive. Prima era una `lv_table` tagliata alle righe
     // visibili, senza modo di vedere le altre.
     let eventi = rt_handle
-        .block_on(client::fetch_alarm_history(base_url, obj.alarm_history_id.as_deref(), 200))
+        .block_on(client::fetch_alarm_history(
+            base_url,
+            obj.alarm_history_id.as_deref(),
+            200,
+        ))
         .unwrap_or_else(|e| {
             eprintln!("[alarm_history] storico non disponibile ({e})");
             Vec::new()
@@ -9848,26 +11117,64 @@ fn render_alarm_history(
                 resolve_msg(&e.alarm_message, lingua, lang_table)
             };
             let o = crate::trend::ora_locale(e.ts_activated_ms);
-            let quando = format!("{:02}/{:02}, {:02}:{:02}:{:02}", o.giorno, o.mese, o.ora, o.minuto, o.secondo);
+            let quando = format!(
+                "{:02}/{:02}, {:02}:{:02}:{:02}",
+                o.giorno, o.mese, o.ora, o.minuto, o.secondo
+            );
             Riga {
                 celle: vec![
-                    Cella { testo: quando, colore: testo2, punto: None, chiave: Chiave::Numero(e.ts_activated_ms as f64) },
-                    Cella { testo: messaggio, colore: testo2, punto: None, chiave: Chiave::Testo(String::new()) },
-                    Cella { testo: sistema(e.stato(), lingua).to_string(), colore: testo2, punto: None, chiave: Chiave::Testo(String::new()) },
+                    Cella {
+                        testo: quando,
+                        colore: testo2,
+                        punto: None,
+                        chiave: Chiave::Numero(e.ts_activated_ms as f64),
+                    },
+                    Cella {
+                        testo: messaggio,
+                        colore: testo2,
+                        punto: None,
+                        chiave: Chiave::Testo(String::new()),
+                    },
+                    Cella {
+                        testo: sistema(e.stato(), lingua).to_string(),
+                        colore: testo2,
+                        punto: None,
+                        chiave: Chiave::Testo(String::new()),
+                    },
                 ],
                 scrivibile: None,
             }
         })
         .collect();
-    let dentro = SynopticObject { x: Some(ox), y: Some(oy + sopra), width: Some(ow), height: Some((oh - sopra).max(30.0)), ..obj.clone() };
-    let col = |i: String, l: Option<f32>, a: Orizz| Colonna { intestazione: i, larghezza: l, allinea: a, ordinabile: false, filtrabile: false };
+    let dentro = SynopticObject {
+        x: Some(ox),
+        y: Some(oy + sopra),
+        width: Some(ow),
+        height: Some((oh - sopra).max(30.0)),
+        ..obj.clone()
+    };
+    let col = |i: String, l: Option<f32>, a: Orizz| Colonna {
+        intestazione: i,
+        larghezza: l,
+        allinea: a,
+        ordinabile: false,
+        filtrabile: false,
+    };
     let cfg = crate::tabella::Config {
         w: ow.round().clamp(40.0, 2048.0) as u32,
         h: (oh - sopra).round().clamp(30.0, 2048.0) as u32,
         colonne: vec![
-            col(sistema(Testo::Ora, lingua).to_string(), Some((ow / 4.0) as f32), Orizz::Sx),
+            col(
+                sistema(Testo::Ora, lingua).to_string(),
+                Some((ow / 4.0) as f32),
+                Orizz::Sx,
+            ),
             col(sistema(Testo::Allarme, lingua).to_string(), None, Orizz::Sx),
-            col(sistema(Testo::Stato, lingua).to_string(), Some((ow / 5.0) as f32), Orizz::Sx),
+            col(
+                sistema(Testo::Stato, lingua).to_string(),
+                Some((ow / 5.0) as f32),
+                Orizz::Sx,
+            ),
         ],
         corpo_px: corpo as u16,
         sfondo: colore_campo(obj.bg_color.as_deref(), "alarm_history", "bg_color"),
@@ -9875,7 +11182,9 @@ fn render_alarm_history(
         vuoto: "—".into(),
     };
     let viva = crea_tabella_viva(screen, &dentro, cfg, righe, SorgenteTabella::Fisse, None)?;
-    Ok(LiveBinding { kind: LiveKind::Tabella(viva) })
+    Ok(LiveBinding {
+        kind: LiveKind::Tabella(viva),
+    })
 }
 
 /// `data_log`: tabella dei campioni storici di un tag, i più recenti in alto.
@@ -9909,8 +11218,16 @@ fn render_data_log(
     // `datalog_page_size`, e gli altri non si potevano raggiungere.
     let righe_max = 2000usize;
     // I corpi del web: la tabella e l'etichetta (11 e 11).
-    let corpo = obj.font_size.unwrap_or(corpo_predefinito("data_log", "font_size")).round().clamp(6.0, 200.0);
-    let corpo_etichetta = obj.label_font_size.unwrap_or(corpo_predefinito("data_log", "label_font_size")).round().clamp(6.0, 200.0);
+    let corpo = obj
+        .font_size
+        .unwrap_or(corpo_predefinito("data_log", "font_size"))
+        .round()
+        .clamp(6.0, 200.0);
+    let corpo_etichetta = obj
+        .label_font_size
+        .unwrap_or(corpo_predefinito("data_log", "label_font_size"))
+        .round()
+        .clamp(6.0, 200.0);
     let finestra_s = obj.window_s.unwrap_or(3600.0).max(1.0);
     let decimali = obj.decimals.unwrap_or(1) as usize;
     let unita = obj
@@ -9936,12 +11253,33 @@ fn render_data_log(
     let (ow, oh) = (obj.width.unwrap_or(380.0), obj.height.unwrap_or(240.0));
     let etichetta = obj.label.as_deref().filter(|l| !l.is_empty());
     if let Some(l) = etichetta {
-        riquadro(screen, obj, "data_log", (380.0, 240.0), Some((0x33, 0x41, 0x55)), 4.0)?;
-        etichetta_piccola_corpo(screen, l, ox + 6.0, oy + corpo_etichetta + 3.0, None, GRIGIO_ETICHETTA, corpo_etichetta as u16)?;
+        riquadro(
+            screen,
+            obj,
+            "data_log",
+            (380.0, 240.0),
+            Some((0x33, 0x41, 0x55)),
+            4.0,
+        )?;
+        etichetta_piccola_corpo(
+            screen,
+            l,
+            ox + 6.0,
+            oy + corpo_etichetta + 3.0,
+            None,
+            GRIGIO_ETICHETTA,
+            corpo_etichetta as u16,
+        )?;
     }
     let sopra = corpo_etichetta + 7.0;
     let dentro = if etichetta.is_some() {
-        SynopticObject { x: Some(ox + 4.0), y: Some(oy + sopra), width: Some(ow - 8.0), height: Some(oh - sopra - 4.0), ..obj.clone() }
+        SynopticObject {
+            x: Some(ox + 4.0),
+            y: Some(oy + sopra),
+            width: Some(ow - 8.0),
+            height: Some(oh - sopra - 4.0),
+            ..obj.clone()
+        }
     } else {
         obj.clone()
     };
@@ -9956,25 +11294,44 @@ fn render_data_log(
         .take(righe_max)
         .map(|c| {
             let o = crate::trend::ora_locale(c.ts_ms);
-            let quando = format!("{:02}/{:02}, {:02}:{:02}:{:02}", o.giorno, o.mese, o.ora, o.minuto, o.secondo);
+            let quando = format!(
+                "{:02}/{:02}, {:02}:{:02}:{:02}",
+                o.giorno, o.mese, o.ora, o.minuto, o.secondo
+            );
             let v = tag_value_as_f64(&c.value);
             let q = c.quality.clone().unwrap_or(TagQuality::Good);
             Riga {
                 celle: vec![
-                    Cella { testo: quando, colore: testo2, punto: None, chiave: Chiave::Numero(c.ts_ms as f64) },
+                    Cella {
+                        testo: quando,
+                        colore: testo2,
+                        punto: None,
+                        chiave: Chiave::Numero(c.ts_ms as f64),
+                    },
                     Cella {
                         testo: format!("{}{unita}", crate::trend::to_fixed(v, decimali)),
                         colore: testo2,
                         punto: None,
                         chiave: Chiave::Numero(v),
                     },
-                    Cella { testo: String::new(), colore: testo2, punto: Some(colore_qualita(&q)), chiave: Chiave::Testo(String::new()) },
+                    Cella {
+                        testo: String::new(),
+                        colore: testo2,
+                        punto: Some(colore_qualita(&q)),
+                        chiave: Chiave::Testo(String::new()),
+                    },
                 ],
                 scrivibile: None,
             }
         })
         .collect();
-    let col = |i: String, l: Option<f32>, a: Orizz| Colonna { intestazione: i, larghezza: l, allinea: a, ordinabile: false, filtrabile: false };
+    let col = |i: String, l: Option<f32>, a: Orizz| Colonna {
+        intestazione: i,
+        larghezza: l,
+        allinea: a,
+        ordinabile: false,
+        filtrabile: false,
+    };
     let cfg = crate::tabella::Config {
         w: dentro.width.unwrap_or(380.0).round().clamp(40.0, 2048.0) as u32,
         h: dentro.height.unwrap_or(240.0).round().clamp(30.0, 2048.0) as u32,
@@ -9989,10 +11346,10 @@ fn render_data_log(
         vuoto: "—".into(),
     };
     let viva = crea_tabella_viva(screen, &dentro, cfg, righe, SorgenteTabella::Fisse, None)?;
-    Ok(LiveBinding { kind: LiveKind::Tabella(viva) })
+    Ok(LiveBinding {
+        kind: LiveKind::Tabella(viva),
+    })
 }
-
-
 
 /// `kpi_tile`: pannello con etichetta, valore grande, unità e sparkline.
 ///
@@ -10036,8 +11393,15 @@ fn render_kpi_tile(
     // Fase 2 (30-09-2026): #1e293b come il web, dalla tabella condivisa
     // (qui era #0f172a).
     unsafe {
-        let p = sfondo.raw().map_err(|e| anyhow::anyhow!("raw: {e:?}"))?.as_ptr();
-        stile::sfondo(p, colore_campo(obj.bg_color.as_deref(), "kpi_tile", "bg_color"), stile::MAIN);
+        let p = sfondo
+            .raw()
+            .map_err(|e| anyhow::anyhow!("raw: {e:?}"))?
+            .as_ptr();
+        stile::sfondo(
+            p,
+            colore_campo(obj.bg_color.as_deref(), "kpi_tile", "bg_color"),
+            stile::MAIN,
+        );
         stile::bordo(p, Some((0x33, 0x41, 0x55)), 1.0, stile::MAIN);
         stile::raggio(p, 6.0, stile::MAIN);
     }
@@ -10045,9 +11409,21 @@ fn render_kpi_tile(
     // I tre corpi del web (25-10-2026, piano corpi-e-parita-lvgl): etichetta
     // (e delta), valore, unità. Prima: 11 / 26 cablati, e l'unità a 26 dentro
     // l'etichetta del valore.
-    let corpo_etichetta = obj.label_font_size.unwrap_or(corpo_predefinito("kpi_tile", "label_font_size")).round().clamp(6.0, 200.0);
-    let corpo_valore = obj.font_size.unwrap_or(corpo_predefinito("kpi_tile", "font_size")).round().clamp(6.0, 200.0);
-    let corpo_unita = obj.unit_font_size.unwrap_or(corpo_predefinito("kpi_tile", "unit_font_size")).round().clamp(6.0, 200.0);
+    let corpo_etichetta = obj
+        .label_font_size
+        .unwrap_or(corpo_predefinito("kpi_tile", "label_font_size"))
+        .round()
+        .clamp(6.0, 200.0);
+    let corpo_valore = obj
+        .font_size
+        .unwrap_or(corpo_predefinito("kpi_tile", "font_size"))
+        .round()
+        .clamp(6.0, 200.0);
+    let corpo_unita = obj
+        .unit_font_size
+        .unwrap_or(corpo_predefinito("kpi_tile", "unit_font_size"))
+        .round()
+        .clamp(6.0, 200.0);
 
     // Etichetta: il nome del KPI, non un valore. `text` statico, nessun tag —
     // altrimenti `render_text` mostrerebbe il valore anche qui.
@@ -10085,7 +11461,11 @@ fn render_kpi_tile(
         font_weight: Some(serde_json::json!(700)),
         tag: obj.tag.clone(),
         text: Some("—".into()),
-        format: Some(obj.format.clone().unwrap_or_else(|| format!("{{value:.{decimali}f}}"))),
+        format: Some(
+            obj.format
+                .clone()
+                .unwrap_or_else(|| format!("{{value:.{decimali}f}}")),
+        ),
         text_color_by_threshold: Some(true),
         alarm_low: obj.alarm_low,
         warn_low: obj.warn_low,
@@ -10098,17 +11478,28 @@ fn render_kpi_tile(
     // valore qualunque sia la sua larghezza, come il `<tspan>` del web, e ha
     // il suo corpo. La riga sta dove stava il valore: con 11 e 26, y+22.
     let mut riga = create_child_obj(screen)?;
-    let top_valore = corpo_etichetta + 5.0 + (corpo_valore * 1.08).round() - (corpo_valore * 0.85).round();
+    let top_valore =
+        corpo_etichetta + 5.0 + (corpo_valore * 1.08).round() - (corpo_valore * 0.85).round();
     riga.set_pos((x + 10.0).round() as i16, (y + top_valore).round() as i16)
         .map_err(|e| anyhow::anyhow!("set_pos: {e:?}"))?;
-    riga.set_size((w - 20.0).max(10.0).round() as i16, (corpo_valore * 1.4).round() as i16)
-        .map_err(|e| anyhow::anyhow!("set_size: {e:?}"))?;
+    riga.set_size(
+        (w - 20.0).max(10.0).round() as i16,
+        (corpo_valore * 1.4).round() as i16,
+    )
+    .map_err(|e| anyhow::anyhow!("set_size: {e:?}"))?;
     unsafe {
-        let rp = riga.raw().map_err(|e| anyhow::anyhow!("raw: {e:?}"))?.as_ptr();
+        let rp = riga
+            .raw()
+            .map_err(|e| anyhow::anyhow!("raw: {e:?}"))?
+            .as_ptr();
         stile::trasparente(rp, stile::MAIN);
         stile::bordo(rp, None, 0.0, stile::MAIN);
         stile::margini(rp, 0, 0, stile::MAIN);
-        lvgl_sys::lv_obj_clear_flag(rp, (lvgl_sys::LV_OBJ_FLAG_SCROLLABLE | lvgl_sys::LV_OBJ_FLAG_CLICKABLE) as lvgl_sys::lv_obj_flag_t);
+        lvgl_sys::lv_obj_clear_flag(
+            rp,
+            (lvgl_sys::LV_OBJ_FLAG_SCROLLABLE | lvgl_sys::LV_OBJ_FLAG_CLICKABLE)
+                as lvgl_sys::lv_obj_flag_t,
+        );
         lvgl_sys::lv_obj_set_flex_flow(rp, lvgl_sys::lv_flex_flow_t_LV_FLEX_FLOW_ROW);
         lvgl_sys::lv_obj_set_flex_align(
             rp,
@@ -10122,9 +11513,14 @@ fn render_kpi_tile(
         &mut riga, &valore, styles, tags, lingua, lang_table,
     )?);
     if let Some(u) = obj.unit.as_deref().filter(|u| !u.is_empty()) {
-        let mut ul = Label::create(&mut riga).map_err(|e| anyhow::anyhow!("Label::create: {e:?}"))?;
-        ul.set_text(&text_cstring(u)).map_err(|e| anyhow::anyhow!("set_text: {e:?}"))?;
-        let up = ul.raw().map_err(|e| anyhow::anyhow!("raw: {e:?}"))?.as_ptr();
+        let mut ul =
+            Label::create(&mut riga).map_err(|e| anyhow::anyhow!("Label::create: {e:?}"))?;
+        ul.set_text(&text_cstring(u))
+            .map_err(|e| anyhow::anyhow!("set_text: {e:?}"))?;
+        let up = ul
+            .raw()
+            .map_err(|e| anyhow::anyhow!("raw: {e:?}"))?
+            .as_ptr();
         unsafe {
             stile::font(up, corpo_unita as u16, stile::MAIN);
             stile::testo(up, (0x64, 0x74, 0x8b), stile::MAIN);
@@ -10135,12 +11531,24 @@ fn render_kpi_tile(
     // 1-10-2026): ▲ verde o ▼ rosso, media contro la finestra precedente.
     if let Some(t) = obj.tag.clone().filter(|t| !t.is_empty()) {
         let mut l = Label::create(screen).map_err(|e| anyhow::anyhow!("Label::create: {e:?}"))?;
-        l.set_text(&text_cstring("")).map_err(|e| anyhow::anyhow!("set_text: {e:?}"))?;
+        l.set_text(&text_cstring(""))
+            .map_err(|e| anyhow::anyhow!("set_text: {e:?}"))?;
         let lp = l.raw().map_err(|e| anyhow::anyhow!("raw: {e:?}"))?;
         unsafe { stile::font(lp.as_ptr(), corpo_etichetta as u16, stile::MAIN) };
-        let shared = client::spawn_kpi_delta(rt_handle, base_url.to_string(), t, obj.spark_window_s.unwrap_or(3600.0));
+        let shared = client::spawn_kpi_delta(
+            rt_handle,
+            base_url.to_string(),
+            t,
+            obj.spark_window_s.unwrap_or(3600.0),
+        );
         live.push(LiveBinding {
-            kind: LiveKind::KpiDelta { label: lp, shared, mostrato: None, destra: x + w - 6.0, y: y + 6.0 },
+            kind: LiveKind::KpiDelta {
+                label: lp,
+                shared,
+                mostrato: None,
+                destra: x + w - 6.0,
+                y: y + 6.0,
+            },
         });
     }
 
@@ -10302,7 +11710,9 @@ fn render_pipe(
     // Gli stili 2.5D (15-10-2026): corpo ed estremità dal disegno condiviso col
     // web (`sws_core::stili_tubo`), rasterizzato con resvg su un canvas.
     let stile_nuovo = sws_core::stili_tubo::stile(obj.pipe_style.as_deref().unwrap_or("flat"));
-    let bocche = BOCCHE_TUBO.with(|b| b.borrow().get(obj.id.as_deref().unwrap_or("")).copied()).unwrap_or([None, None]);
+    let bocche = BOCCHE_TUBO
+        .with(|b| b.borrow().get(obj.id.as_deref().unwrap_or("")).copied())
+        .unwrap_or([None, None]);
     let d_tubo = obj.stroke_width.or(bocche[0]).or(bocche[1]).unwrap_or(8.0);
     // 8 come sul web (qui era 6).
     let sw = match stile_nuovo {
@@ -10348,11 +11758,18 @@ fn render_pipe(
         base,
         acceso: obj.state_on_color.as_deref().and_then(parse_hex_color),
         spento: obj.state_off_color.as_deref().and_then(parse_hex_color),
-        allarme: colore_campo(obj.state_alarm_color.as_deref(), "pipe", "state_alarm_color"),
+        allarme: colore_campo(
+            obj.state_alarm_color.as_deref(),
+            "pipe",
+            "state_alarm_color",
+        ),
         ha_stato: obj.state_tag.as_deref().is_some_and(|t| !t.is_empty()),
     };
     let colore0 = colori.scegli(lookup(tags, &obj.alarm_tag), lookup(tags, &obj.state_tag));
-    let chiaro_fisso = obj.gradient_light_color.as_deref().and_then(parse_hex_color);
+    let chiaro_fisso = obj
+        .gradient_light_color
+        .as_deref()
+        .and_then(parse_hex_color);
     let scuro_fisso = obj.gradient_dark_color.as_deref().and_then(parse_hex_color);
     let sw_f = sw as f64;
     let wire_sw = (sw_f / 4.0).round().max(2.0);
@@ -10360,15 +11777,26 @@ fn render_pipe(
     let tratteggio = obj
         .stroke_dasharray
         .as_deref()
-        .or(if stile_tubo == "wire" { Some("6,3") } else { None })
+        .or(if stile_tubo == "wire" {
+            Some("6,3")
+        } else {
+            None
+        })
         .and_then(schema_tratteggio);
     let mut linee = Vec::new();
-    let mut nuova_linea = |screen: &mut lvgl::Obj, ruolo: RuoloLinea, larghezza: f64| -> anyhow::Result<()> {
+    let mut nuova_linea = |screen: &mut lvgl::Obj,
+                           ruolo: RuoloLinea,
+                           larghezza: f64|
+     -> anyhow::Result<()> {
         let l = Line::create(screen).map_err(|e| anyhow::anyhow!("Line::create: {e:?}"))?;
         let p = l.raw().map_err(|e| anyhow::anyhow!("raw: {e:?}"))?;
         unsafe {
             lvgl_sys::lv_obj_set_pos(p.as_ptr(), ox.round() as i16, oy.round() as i16);
-            lvgl_sys::lv_line_set_points(p.as_ptr(), punti_corpo.as_ptr(), punti_corpo.len() as u16);
+            lvgl_sys::lv_line_set_points(
+                p.as_ptr(),
+                punti_corpo.as_ptr(),
+                punti_corpo.len() as u16,
+            );
             lvgl_sys::lv_obj_set_style_line_width(p.as_ptr(), larghezza.round().max(1.0) as i16, 0);
             lvgl_sys::lv_obj_set_style_line_rounded(p.as_ptr(), true, 0);
             if ruolo == RuoloLinea::Corpo {
@@ -10385,7 +11813,9 @@ fn render_pipe(
         Ok(())
     };
     let svg_corpo = match stile_nuovo {
-        Some(st) => Some(CorpoSvg::nuovo(screen, obj, st, d_tubo, bocche, &assoluti, base_url, rt_handle)?),
+        Some(st) => Some(CorpoSvg::nuovo(
+            screen, obj, st, d_tubo, bocche, &assoluti, base_url, rt_handle,
+        )?),
         None => {
             if stile_tubo == "tube" {
                 nuova_linea(screen, RuoloLinea::Ombra, sw_f + 2.0)?;
@@ -10420,7 +11850,11 @@ fn render_pipe(
     }
     // Più sottile del corpo, come sul web (`innerSw = sw - 2`): così il tubo
     // resta visibile attorno al liquido invece di essere coperto del tutto.
-    fill_style.set_line_width(if stile_nuovo.is_some() { ((sw as f64) * 0.55).round().max(1.0) as i16 } else { (sw - 2).max(1) });
+    fill_style.set_line_width(if stile_nuovo.is_some() {
+        ((sw as f64) * 0.55).round().max(1.0) as i16
+    } else {
+        (sw - 2).max(1)
+    });
     fill_style.set_line_rounded(true);
     fill.add_style(Part::Main, &mut fill_style)
         .map_err(|e| anyhow::anyhow!("add_style: {e:?}"))?;
@@ -10445,24 +11879,43 @@ fn render_pipe(
     // L'etichetta al punto di mezzo, sopra di `pipe_label_offset` (10): dal
     // tag col suo formato, o il testo fisso (Fase 3; su LVGL non c'era).
     let meta = spec.waypoints[(spec.waypoints.len() - 1) / 2];
-    let formato = obj.pipe_label_format.clone().unwrap_or_else(|| "{value}".into());
+    let formato = obj
+        .pipe_label_format
+        .clone()
+        .unwrap_or_else(|| "{value}".into());
     let etichetta_tag = obj.pipe_label_tag.clone().filter(|t| !t.is_empty());
-    let fisso = obj.pipe_label.clone().or_else(|| obj.label.clone()).filter(|t| !t.is_empty());
+    let fisso = obj
+        .pipe_label
+        .clone()
+        .or_else(|| obj.label.clone())
+        .filter(|t| !t.is_empty());
     let etichetta = if etichetta_tag.is_some() || fisso.is_some() {
         let mut l = Label::create(screen).map_err(|e| anyhow::anyhow!("Label::create: {e:?}"))?;
         let testo = match lookup(tags, &etichetta_tag) {
             Some(t) => format_value(&t.value, Some(&formato)),
             None => fisso.clone().unwrap_or_default(),
         };
-        l.set_text(&text_cstring(&testo)).map_err(|e| anyhow::anyhow!("set_text: {e:?}"))?;
+        l.set_text(&text_cstring(&testo))
+            .map_err(|e| anyhow::anyhow!("set_text: {e:?}"))?;
         let p = l.raw().map_err(|e| anyhow::anyhow!("raw: {e:?}"))?;
         let corpo_px = obj.font_size.unwrap_or(12.0).round().clamp(6.0, 200.0);
         unsafe {
             stile::font(p.as_ptr(), corpo_px as u16, stile::MAIN);
-            stile::testo(p.as_ptr(), obj.color.as_deref().and_then(parse_hex_color).unwrap_or((0xe2, 0xe8, 0xf0)), stile::MAIN);
+            stile::testo(
+                p.as_ptr(),
+                obj.color
+                    .as_deref()
+                    .and_then(parse_hex_color)
+                    .unwrap_or((0xe2, 0xe8, 0xf0)),
+                stile::MAIN,
+            );
             let base_y = meta.1 - obj.pipe_label_offset.unwrap_or(10.0);
             let lw = larghezza_testo(p.as_ptr());
-            lvgl_sys::lv_obj_set_pos(p.as_ptr(), (meta.0 - lw / 2.0).round() as i16, (base_y - corpo_px).round() as i16);
+            lvgl_sys::lv_obj_set_pos(
+                p.as_ptr(),
+                (meta.0 - lw / 2.0).round() as i16,
+                (base_y - corpo_px).round() as i16,
+            );
         }
         Some(p)
     } else {
@@ -10472,8 +11925,16 @@ fn render_pipe(
     // Estremità e flusso animato (1-10-2026): un canvas sopra il tubo, solo
     // se servono — un tubo semplice resta fatto di sole linee.
     // Con gli stili nuovi le estremità stanno nel disegno condiviso.
-    let inizio = if stile_nuovo.is_some() { None } else { crate::tubo::Estremita::da(obj.start_marker.as_deref()) };
-    let fine = if stile_nuovo.is_some() { None } else { crate::tubo::Estremita::da(obj.end_marker.as_deref()) };
+    let inizio = if stile_nuovo.is_some() {
+        None
+    } else {
+        crate::tubo::Estremita::da(obj.start_marker.as_deref())
+    };
+    let fine = if stile_nuovo.is_some() {
+        None
+    } else {
+        crate::tubo::Estremita::da(obj.end_marker.as_deref())
+    };
     let flusso = (obj.pipe_flow == Some(true)).then(|| obj.pipe_flow_tag.clone());
     let extra = if inizio.is_some() || fine.is_some() || flusso.is_some() {
         let mut ex = crate::tubo::Extra {
@@ -10483,22 +11944,38 @@ fn render_pipe(
             inizio,
             fine,
             dimensione: obj.marker_size.unwrap_or(1.0) as f32,
-            colore_flusso: obj.fill_color.as_deref().and_then(parse_hex_color).unwrap_or((0xe2, 0xe8, 0xf0)),
+            colore_flusso: obj
+                .fill_color
+                .as_deref()
+                .and_then(parse_hex_color)
+                .unwrap_or((0xe2, 0xe8, 0xf0)),
         };
         let pts = &spec.waypoints;
         // Il lato delle frecce vale solo se ci sono: un tubo che ha soltanto il
         // flusso, vicino al bordo, faceva uscire il canvas dalla pagina e
         // rendeva scorrevole lo schermo (visto il 15-10-2026).
-        let lato = if ex.inizio.is_some() || ex.fine.is_some() { ex.lato() as f64 } else { 0.0 };
+        let lato = if ex.inizio.is_some() || ex.fine.is_some() {
+            ex.lato() as f64
+        } else {
+            0.0
+        };
         let margine = lato.max(sw_f) + 4.0;
-        let (bx, by, w, h) = riquadro_extra(&pts, margine);
-        ex.punti = pts.iter().map(|p| ((p.0 - bx) as f32, (p.1 - by) as f32)).collect();
-        let riquadro_obj = SynopticObject { x: Some(bx), y: Some(by), ..Default::default() };
+        let (bx, by, w, h) = riquadro_extra(pts, margine);
+        ex.punti = pts
+            .iter()
+            .map(|p| ((p.0 - bx) as f32, (p.1 - by) as f32))
+            .collect();
+        let riquadro_obj = SynopticObject {
+            x: Some(bx),
+            y: Some(by),
+            ..Default::default()
+        };
         let (canvas, buf) = canvas_alfa(screen, &riquadro_obj, w, h)?;
         Some(ExtraTubo {
             canvas,
             buf,
-            pixmap: resvg::tiny_skia::Pixmap::new(w, h).ok_or_else(|| anyhow::anyhow!("pixmap {w}x{h}"))?,
+            pixmap: resvg::tiny_skia::Pixmap::new(w, h)
+                .ok_or_else(|| anyhow::anyhow!("pixmap {w}x{h}"))?,
             extra: ex,
             flusso,
             disegnato: None,
@@ -10574,7 +12051,11 @@ fn vero_js(v: &TagValue) -> bool {
 }
 
 impl ColoriTubo {
-    fn scegli(&self, allarme: Option<&TagSnapshotValue>, stato: Option<&TagSnapshotValue>) -> (u8, u8, u8) {
+    fn scegli(
+        &self,
+        allarme: Option<&TagSnapshotValue>,
+        stato: Option<&TagSnapshotValue>,
+    ) -> (u8, u8, u8) {
         if allarme.is_some_and(|t| vero_js(&t.value)) {
             return self.allarme;
         }
@@ -10633,7 +12114,9 @@ impl ExtraTubo {
     fn riposiziona(&mut self, assoluti: &[(f64, f64)]) {
         let (bx, by, w, h) = riquadro_extra(assoluti, self.margine);
         if (w, h) != (self.pixmap.width(), self.pixmap.height()) {
-            let Some(px) = resvg::tiny_skia::Pixmap::new(w, h) else { return };
+            let Some(px) = resvg::tiny_skia::Pixmap::new(w, h) else {
+                return;
+            };
             self.pixmap = px;
             self.buf = vec![0u8; 3 * w as usize * h as usize];
             unsafe {
@@ -10646,8 +12129,13 @@ impl ExtraTubo {
                 );
             }
         }
-        self.extra.punti = assoluti.iter().map(|p| ((p.0 - bx) as f32, (p.1 - by) as f32)).collect();
-        unsafe { lvgl_sys::lv_obj_set_pos(self.canvas.as_ptr(), bx.round() as i16, by.round() as i16) };
+        self.extra.punti = assoluti
+            .iter()
+            .map(|p| ((p.0 - bx) as f32, (p.1 - by) as f32))
+            .collect();
+        unsafe {
+            lvgl_sys::lv_obj_set_pos(self.canvas.as_ptr(), bx.round() as i16, by.round() as i16)
+        };
         self.disegnato = None;
     }
 
@@ -10674,7 +12162,8 @@ impl ExtraTubo {
             if !vero_js(&v.value) {
                 return None;
             }
-            indietro = matches!(v.value, TagValue::Int(i) if i < 0) || matches!(v.value, TagValue::Float(f) if f < 0.0);
+            indietro = matches!(v.value, TagValue::Int(i) if i < 0)
+                || matches!(v.value, TagValue::Float(f) if f < 0.0);
         }
         Some(crate::tubo::scostamento(client::now_unix_ms(), indietro))
     }
@@ -10759,7 +12248,10 @@ fn diametri_capi(
         };
         Some(sws_core::tubazioni::diametro_bocca(sim.view_box, p, &r))
     };
-    [uno(pipe.from_obj_id.as_deref(), pipe.from_port.as_deref()), uno(pipe.to_obj_id.as_deref(), pipe.to_port.as_deref())]
+    [
+        uno(pipe.from_obj_id.as_deref(), pipe.from_port.as_deref()),
+        uno(pipe.to_obj_id.as_deref(), pipe.to_port.as_deref()),
+    ]
 }
 
 /// Il corpo di un tubo 2.5D: il disegno condiviso col web, rasterizzato su un
@@ -10792,8 +12284,12 @@ pub struct CorpoSvg {
 /// sarebbe un tubo disegnato bene appena nato e tagliato dopo il primo
 /// spostamento.
 fn riquadro_corpo(assoluti: &[(f64, f64)], margine: f64) -> (f64, f64, u32, u32) {
-    let (minx, maxx) = assoluti.iter().fold((f64::MAX, f64::MIN), |(a, b), p| (a.min(p.0), b.max(p.0)));
-    let (miny, maxy) = assoluti.iter().fold((f64::MAX, f64::MIN), |(a, b), p| (a.min(p.1), b.max(p.1)));
+    let (minx, maxx) = assoluti
+        .iter()
+        .fold((f64::MAX, f64::MIN), |(a, b), p| (a.min(p.0), b.max(p.0)));
+    let (miny, maxy) = assoluti
+        .iter()
+        .fold((f64::MAX, f64::MIN), |(a, b), p| (a.min(p.1), b.max(p.1)));
     let (bx, by) = ((minx - margine).floor(), (miny - margine).floor());
     (
         bx,
@@ -10808,8 +12304,12 @@ fn riquadro_corpo(assoluti: &[(f64, f64)], margine: f64) -> (f64, f64, u32, u32)
 /// sull'estensione, non sul riquadro già spostato. Due funzioni e non una, per
 /// non far finta che siano la stessa cosa.
 fn riquadro_extra(assoluti: &[(f64, f64)], margine: f64) -> (f64, f64, u32, u32) {
-    let (minx, maxx) = assoluti.iter().fold((f64::MAX, f64::MIN), |(a, b), p| (a.min(p.0), b.max(p.0)));
-    let (miny, maxy) = assoluti.iter().fold((f64::MAX, f64::MIN), |(a, b), p| (a.min(p.1), b.max(p.1)));
+    let (minx, maxx) = assoluti
+        .iter()
+        .fold((f64::MAX, f64::MIN), |(a, b), p| (a.min(p.0), b.max(p.0)));
+    let (miny, maxy) = assoluti
+        .iter()
+        .fold((f64::MAX, f64::MIN), |(a, b), p| (a.min(p.1), b.max(p.1)));
     (
         minx - margine,
         miny - margine,
@@ -10831,22 +12331,40 @@ impl CorpoSvg {
         rt_handle: &tokio::runtime::Handle,
     ) -> anyhow::Result<CorpoSvg> {
         let (bx, by, w, h) = riquadro_corpo(assoluti, sws_core::stili_tubo::margine(stile, d));
-        let riquadro = SynopticObject { x: Some(bx), y: Some(by), ..Default::default() };
+        let riquadro = SynopticObject {
+            x: Some(bx),
+            y: Some(by),
+            ..Default::default()
+        };
         let (canvas, buf) = canvas_alfa(screen, &riquadro, w, h)?;
         let prog = crate::simbolo_lib::stile_progetto(base_url, rt_handle);
         Ok(CorpoSvg {
             canvas,
             buf,
-            pixmap: resvg::tiny_skia::Pixmap::new(w, h).ok_or_else(|| anyhow::anyhow!("pixmap {w}x{h}"))?,
+            pixmap: resvg::tiny_skia::Pixmap::new(w, h)
+                .ok_or_else(|| anyhow::anyhow!("pixmap {w}x{h}"))?,
             origine: (bx, by),
-            punti: assoluti.iter().map(|(x, y)| sws_core::tubazioni::Punto { x: *x, y: *y }).collect(),
+            punti: assoluti
+                .iter()
+                .map(|(x, y)| sws_core::tubazioni::Punto { x: *x, y: *y })
+                .collect(),
             stile,
             d,
             stroke: obj.stroke.clone(),
-            materiali: prog.as_ref().map(|p| p.materials.clone()).unwrap_or_default(),
-            volume: prog.as_ref().and_then(|p| p.volume).unwrap_or(100.0).clamp(0.0, 100.0) / 100.0,
+            materiali: prog
+                .as_ref()
+                .map(|p| p.materials.clone())
+                .unwrap_or_default(),
+            volume: prog
+                .as_ref()
+                .and_then(|p| p.volume)
+                .unwrap_or(100.0)
+                .clamp(0.0, 100.0)
+                / 100.0,
             contorno: (
-                prog.as_ref().and_then(|p| p.outline_color.clone()).unwrap_or_else(|| "#1c2329".into()),
+                prog.as_ref()
+                    .and_then(|p| p.outline_color.clone())
+                    .unwrap_or_else(|| "#1c2329".into()),
                 prog.as_ref().and_then(|p| p.outline_width).unwrap_or(1.0),
             ),
             estremita: [obj.start_marker.clone(), obj.end_marker.clone()],
@@ -10854,7 +12372,10 @@ impl CorpoSvg {
             ha_stato: obj.state_tag.as_deref().is_some_and(|t| !t.is_empty()),
             acceso: obj.state_on_color.clone(),
             spento: obj.state_off_color.clone(),
-            colore_allarme: obj.state_alarm_color.clone().unwrap_or_else(|| "#ef4444".into()),
+            colore_allarme: obj
+                .state_alarm_color
+                .clone()
+                .unwrap_or_else(|| "#ef4444".into()),
             disegnato: None,
         })
     }
@@ -10869,7 +12390,8 @@ impl CorpoSvg {
     /// buffer hanno la misura della creazione**: se un capo esce dal riquadro,
     /// il disegno viene tagliato. Per questo qui si rialloca.
     fn riposiziona(&mut self, assoluti: &[(f64, f64)]) {
-        let (bx, by, w, h) = riquadro_corpo(assoluti, sws_core::stili_tubo::margine(self.stile, self.d));
+        let (bx, by, w, h) =
+            riquadro_corpo(assoluti, sws_core::stili_tubo::margine(self.stile, self.d));
         if (w, h) != (self.pixmap.width(), self.pixmap.height()) {
             let Some(px) = resvg::tiny_skia::Pixmap::new(w, h) else {
                 // Misura impossibile: meglio un tubo che resta dov'era di un
@@ -10889,8 +12411,13 @@ impl CorpoSvg {
             }
         }
         self.origine = (bx, by);
-        self.punti = assoluti.iter().map(|(x, y)| sws_core::tubazioni::Punto { x: *x, y: *y }).collect();
-        unsafe { lvgl_sys::lv_obj_set_pos(self.canvas.as_ptr(), bx.round() as i16, by.round() as i16) };
+        self.punti = assoluti
+            .iter()
+            .map(|(x, y)| sws_core::tubazioni::Punto { x: *x, y: *y })
+            .collect();
+        unsafe {
+            lvgl_sys::lv_obj_set_pos(self.canvas.as_ptr(), bx.round() as i16, by.round() as i16)
+        };
         self.disegnato = None;
     }
 
@@ -10920,8 +12447,14 @@ impl CorpoSvg {
             self.origine.0, self.origine.1
         );
         self.pixmap.fill(resvg::tiny_skia::Color::TRANSPARENT);
-        if let Ok(tree) = resvg::usvg::Tree::from_data(svg.as_bytes(), &resvg::usvg::Options::default()) {
-            resvg::render(&tree, resvg::tiny_skia::Transform::identity(), &mut self.pixmap.as_mut());
+        if let Ok(tree) =
+            resvg::usvg::Tree::from_data(svg.as_bytes(), &resvg::usvg::Options::default())
+        {
+            resvg::render(
+                &tree,
+                resvg::tiny_skia::Transform::identity(),
+                &mut self.pixmap.as_mut(),
+            );
         }
         pixmap_in_buffer_alfa(&self.pixmap, &mut self.buf);
         crate::tempi::registra("canvas.tubo.corpo", t0.elapsed());
@@ -10944,7 +12477,9 @@ impl PipeCorpo {
                 RuoloLinea::Ombra => self.scuro_fisso.unwrap_or_else(|| schiarisci(c, false)),
                 RuoloLinea::Riflesso => self.chiaro_fisso.unwrap_or_else(|| schiarisci(c, true)),
             };
-            unsafe { lvgl_sys::lv_obj_set_style_line_color(p.as_ptr(), Color::from_rgb(rgb).into(), 0) };
+            unsafe {
+                lvgl_sys::lv_obj_set_style_line_color(p.as_ptr(), Color::from_rgb(rgb).into(), 0)
+            };
         }
     }
 
@@ -10955,10 +12490,11 @@ impl PipeCorpo {
     fn riposiziona(&mut self, assoluti: &[(f64, f64)]) {
         let (ox, oy) = origine_polilinea(assoluti);
         self.punti_corpo.clear();
-        self.punti_corpo.extend(assoluti.iter().map(|(x, y)| lvgl_sys::lv_point_t {
-            x: (x - ox).round() as i16,
-            y: (y - oy).round() as i16,
-        }));
+        self.punti_corpo
+            .extend(assoluti.iter().map(|(x, y)| lvgl_sys::lv_point_t {
+                x: (x - ox).round() as i16,
+                y: (y - oy).round() as i16,
+            }));
         // `clear()` + `extend()` possono riallocare: il puntatore che LVGL si
         // teneva può non valere più, quindi si ri-chiama `set_points` sempre,
         // non solo quando cambia il numero di punti.
@@ -10993,7 +12529,10 @@ impl PipeCorpo {
     }
 
     fn aggiorna(&mut self, tags: &TagSnapshot) {
-        let c = self.colori.scegli(lookup(tags, &self.allarme_tag), lookup(tags, &self.stato_tag));
+        let c = self.colori.scegli(
+            lookup(tags, &self.allarme_tag),
+            lookup(tags, &self.stato_tag),
+        );
         self.colora(c);
         if let Some(sv) = self.svg_corpo.as_mut() {
             // Come il web: allarme → il suo colore; con uno stato → acceso o
@@ -11002,7 +12541,11 @@ impl PipeCorpo {
             let stato = if allarme {
                 Some(sv.colore_allarme.clone())
             } else if sv.ha_stato {
-                if lookup(tags, &self.stato_tag).is_some_and(|t| vero_js(&t.value)) { sv.acceso.clone() } else { sv.spento.clone() }
+                if lookup(tags, &self.stato_tag).is_some_and(|t| vero_js(&t.value)) {
+                    sv.acceso.clone()
+                } else {
+                    sv.spento.clone()
+                }
             } else {
                 None
             };
@@ -11509,7 +13052,10 @@ fn render_recipe_panel(
     // Fase 2 (30-09-2026): `bg_color` del progetto, che qui era ignorato.
     unsafe {
         stile::sfondo(
-            container.raw().map_err(|e| anyhow::anyhow!("raw: {e:?}"))?.as_ptr(),
+            container
+                .raw()
+                .map_err(|e| anyhow::anyhow!("raw: {e:?}"))?
+                .as_ptr(),
             colore_campo(obj.bg_color.as_deref(), "recipe_panel", "bg_color"),
             stile::MAIN,
         );
@@ -11524,27 +13070,50 @@ fn render_recipe_panel(
     }
 
     // Il corpo del web (25-10-2026): 11 i nomi, 10 pulsante ed esito.
-    let corpo = obj.font_size.unwrap_or(corpo_predefinito("recipe_panel", "font_size")).round().clamp(6.0, 200.0);
+    let corpo = obj
+        .font_size
+        .unwrap_or(corpo_predefinito("recipe_panel", "font_size"))
+        .round()
+        .clamp(6.0, 200.0);
     let corpo_minore = sws_core::geometria_testo::corpo_secondario(corpo);
     // Lo stato vuoto e la riga d'esito, che qui mancavano (25-10-2026).
     if filtered.is_empty() {
-        let mut vuoto = Label::create(&mut container).map_err(|e| anyhow::anyhow!("Label::create: {e:?}"))?;
-        vuoto.set_pos(4, 4).map_err(|e| anyhow::anyhow!("set_pos: {e:?}"))?;
-        vuoto.set_text(&text_cstring("Nessuna ricetta disponibile")).map_err(|e| anyhow::anyhow!("set_text: {e:?}"))?;
-        let vp = vuoto.raw().map_err(|e| anyhow::anyhow!("raw: {e:?}"))?.as_ptr();
+        let mut vuoto =
+            Label::create(&mut container).map_err(|e| anyhow::anyhow!("Label::create: {e:?}"))?;
+        vuoto
+            .set_pos(4, 4)
+            .map_err(|e| anyhow::anyhow!("set_pos: {e:?}"))?;
+        vuoto
+            .set_text(&text_cstring("Nessuna ricetta disponibile"))
+            .map_err(|e| anyhow::anyhow!("set_text: {e:?}"))?;
+        let vp = vuoto
+            .raw()
+            .map_err(|e| anyhow::anyhow!("raw: {e:?}"))?
+            .as_ptr();
         unsafe {
             stile::font(vp, corpo as u16, stile::MAIN);
             stile::testo(vp, (0x64, 0x74, 0x8b), stile::MAIN);
         }
     }
     let esito: crate::net_worker::EsitoRicetta = Default::default();
-    let mut riga_esito = Label::create(&mut container).map_err(|e| anyhow::anyhow!("Label::create: {e:?}"))?;
-    riga_esito.set_pos(4, (h - corpo_minore - 10.0).max(0.0).round() as i16).map_err(|e| anyhow::anyhow!("set_pos: {e:?}"))?;
-    riga_esito.set_text(&text_cstring("")).map_err(|e| anyhow::anyhow!("set_text: {e:?}"))?;
-    let esito_ptr = riga_esito.raw().map_err(|e| anyhow::anyhow!("raw: {e:?}"))?;
+    let mut riga_esito =
+        Label::create(&mut container).map_err(|e| anyhow::anyhow!("Label::create: {e:?}"))?;
+    riga_esito
+        .set_pos(4, (h - corpo_minore - 10.0).max(0.0).round() as i16)
+        .map_err(|e| anyhow::anyhow!("set_pos: {e:?}"))?;
+    riga_esito
+        .set_text(&text_cstring(""))
+        .map_err(|e| anyhow::anyhow!("set_text: {e:?}"))?;
+    let esito_ptr = riga_esito
+        .raw()
+        .map_err(|e| anyhow::anyhow!("raw: {e:?}"))?;
     unsafe { stile::font(esito_ptr.as_ptr(), corpo_minore as u16, stile::MAIN) };
     live.push(LiveBinding {
-        kind: LiveKind::EsitoRicetta { label: esito_ptr, shared: esito.clone(), mostrato: None },
+        kind: LiveKind::EsitoRicetta {
+            label: esito_ptr,
+            shared: esito.clone(),
+            mostrato: None,
+        },
     });
 
     // Una riga in meno per l'esito, che sta in fondo.
@@ -11585,7 +13154,10 @@ fn render_recipe_panel(
             .set_text(&text_cstring("Applica"))
             .map_err(|e| anyhow::anyhow!("set_text: {e:?}"))?;
         unsafe {
-            let ap = apply_lbl.raw().map_err(|e| anyhow::anyhow!("raw: {e:?}"))?.as_ptr();
+            let ap = apply_lbl
+                .raw()
+                .map_err(|e| anyhow::anyhow!("raw: {e:?}"))?
+                .as_ptr();
             stile::font(ap, corpo_minore as u16, stile::MAIN);
         }
         let apply_ptr = apply_btn.raw().map_err(|e| anyhow::anyhow!("raw: {e:?}"))?;
@@ -11701,7 +13273,8 @@ fn stato_simbolo(
     alarm_tag: &Option<String>,
     stati: &[TextListEntry],
 ) -> (SymbolState, Option<usize>) {
-    let vero = |tag: &Option<String>| lookup(tags, tag).is_some_and(|t| tag_value_as_bool(&t.value));
+    let vero =
+        |tag: &Option<String>| lookup(tags, tag).is_some_and(|t| tag_value_as_bool(&t.value));
     let voce = if stati.is_empty() {
         None
     } else {
@@ -11717,7 +13290,6 @@ fn stato_simbolo(
     };
     (stato, voce)
 }
-
 
 /// Disegna un SVG rasterizzato dentro un `lv_canvas` (D2, Q15 residuo + Q16).
 ///
@@ -11789,12 +13361,23 @@ fn disegna_svg(
 ) -> anyhow::Result<LiveBinding> {
     let svg = crate::svg_assets::bytes_for(base_url, rt_handle, src)
         .ok_or_else(|| anyhow::anyhow!("SVG non disponibile"))?;
-    disegna_svg_byte(genitore, x, y, w, h, &svg, flip_h, flip_v, crate::svg_raster::MAX_SIDE)
+    disegna_svg_byte(
+        genitore,
+        x,
+        y,
+        w,
+        h,
+        &svg,
+        flip_h,
+        flip_v,
+        crate::svg_raster::MAX_SIDE,
+    )
 }
 
 /// La seconda metà di `disegna_svg`: dai byte di un SVG al canvas. Separata il
 /// 26-09-2026 per polilinea e poligono, il cui SVG nasce in memoria
 /// (`svg_forma`) invece che da un file o da un simbolo.
+#[allow(clippy::too_many_arguments)]
 fn disegna_svg_byte(
     genitore: &mut impl NativeObject,
     x: i16,
@@ -12008,7 +13591,11 @@ impl VivoLib {
         self.fermi.iter().map(Vec::len).sum::<usize>()
             + self.corpo.as_ref().map_or(0, |c| c.materiale.len())
             + self.livello.as_ref().map_or(0, |l| l._buf.len())
-            + self.rotori.iter().map(|r| r.fotogrammi.iter().map(Vec::len).sum::<usize>()).sum::<usize>()
+            + self
+                .rotori
+                .iter()
+                .map(|r| r.fotogrammi.iter().map(Vec::len).sum::<usize>())
+                .sum::<usize>()
             + self.perni.iter().map(|p| p._buf.len()).sum::<usize>()
             + self.spie.iter().map(|p| p._buf.len()).sum::<usize>()
     }
@@ -12023,9 +13610,17 @@ unsafe fn contenitore_lib(
     h: i16,
 ) -> anyhow::Result<core::ptr::NonNull<lvgl_sys::lv_obj_t>> {
     let p = lvgl_sys::lv_obj_create(genitore);
-    let nn = core::ptr::NonNull::new(p).ok_or_else(|| anyhow::anyhow!("lv_obj_create ha restituito null"))?;
-    lvgl_sys::lv_obj_remove_style(p, core::ptr::null_mut(), lvgl_sys::LV_PART_ANY | lvgl_sys::LV_STATE_ANY);
-    lvgl_sys::lv_obj_clear_flag(p, lvgl_sys::LV_OBJ_FLAG_CLICKABLE | lvgl_sys::LV_OBJ_FLAG_SCROLLABLE);
+    let nn = core::ptr::NonNull::new(p)
+        .ok_or_else(|| anyhow::anyhow!("lv_obj_create ha restituito null"))?;
+    lvgl_sys::lv_obj_remove_style(
+        p,
+        core::ptr::null_mut(),
+        lvgl_sys::LV_PART_ANY | lvgl_sys::LV_STATE_ANY,
+    );
+    lvgl_sys::lv_obj_clear_flag(
+        p,
+        lvgl_sys::LV_OBJ_FLAG_CLICKABLE | lvgl_sys::LV_OBJ_FLAG_SCROLLABLE,
+    );
     lvgl_sys::lv_obj_set_pos(p, x, y);
     lvgl_sys::lv_obj_set_size(p, w, h);
     Ok(nn)
@@ -12040,7 +13635,8 @@ unsafe fn tela_lib(
     buf: &mut [u8],
 ) -> anyhow::Result<core::ptr::NonNull<lvgl_sys::lv_obj_t>> {
     let p = lvgl_sys::lv_canvas_create(genitore);
-    let nn = core::ptr::NonNull::new(p).ok_or_else(|| anyhow::anyhow!("lv_canvas_create ha restituito null"))?;
+    let nn = core::ptr::NonNull::new(p)
+        .ok_or_else(|| anyhow::anyhow!("lv_canvas_create ha restituito null"))?;
     lvgl_sys::lv_canvas_set_buffer(
         p,
         buf.as_mut_ptr() as *mut std::ffi::c_void,
@@ -12052,7 +13648,11 @@ unsafe fn tela_lib(
     Ok(nn)
 }
 
-unsafe fn cambia_buffer(canvas: core::ptr::NonNull<lvgl_sys::lv_obj_t>, r: crate::svg_raster::Ritaglio, buf: &mut [u8]) {
+unsafe fn cambia_buffer(
+    canvas: core::ptr::NonNull<lvgl_sys::lv_obj_t>,
+    r: crate::svg_raster::Ritaglio,
+    buf: &mut [u8],
+) {
     lvgl_sys::lv_canvas_set_buffer(
         canvas.as_ptr(),
         buf.as_mut_ptr() as *mut std::ffi::c_void,
@@ -12067,21 +13667,34 @@ unsafe fn cambia_buffer(canvas: core::ptr::NonNull<lvgl_sys::lv_obj_t>, r: crate
 fn periodo_legato(legame: Option<&serde_json::Value>, tags: &TagSnapshot) -> Option<f64> {
     legame
         .and_then(|l| resolve_binding_value(l, tags))
-        .and_then(|x| x.as_f64().or_else(|| x.as_str().and_then(|s| s.trim().parse().ok())))
+        .and_then(|x| {
+            x.as_f64()
+                .or_else(|| x.as_str().and_then(|s| s.trim().parse().ok()))
+        })
         .filter(|s| s.is_finite() && *s > 0.0)
 }
 
 /// L'opacità del lampeggio per voce (`img_opa`): 255 fermo, altrimenti 38 (il
 /// 15 % del web) per metà degli 800 ms e 255 per l'altra metà.
 fn lampeggio_voce(stati: &[TextListEntry], voce: Option<usize>, ms: u64, periodo_ms: f64) -> u8 {
-    let lampeggia = voce.and_then(|i| stati.get(i)).is_some_and(|e| e.blink == Some(true));
+    let lampeggia = voce
+        .and_then(|i| stati.get(i))
+        .is_some_and(|e| e.blink == Some(true));
     let periodo = (periodo_ms.max(50.0)) as u64;
-    if lampeggia && ms % periodo < periodo / 2 { 38 } else { 255 }
+    if lampeggia && ms % periodo < periodo / 2 {
+        38
+    } else {
+        255
+    }
 }
 
 /// Il colore di stato di un simbolo: oggetto → stile del progetto → tabella
 /// condivisa (`da_progetto` di `colori-predefiniti.json`, Fase 4).
-fn colore_di_stato(oggetto: Option<&str>, progetto: Option<&sws_core::project::StileSimboliProgetto>, campo: &str) -> String {
+fn colore_di_stato(
+    oggetto: Option<&str>,
+    progetto: Option<&sws_core::project::StileSimboliProgetto>,
+    campo: &str,
+) -> String {
     let dal_progetto = progetto.and_then(|p| match campo {
         "state_off_color" => p.state_off_color.clone(),
         "state_on_color" => p.state_on_color.clone(),
@@ -12095,7 +13708,10 @@ fn colore_di_stato(oggetto: Option<&str>, progetto: Option<&sws_core::project::S
 }
 
 /// Secondi per giro: oggetto → stile del progetto → 2, come sul web.
-fn periodo_predefinito(oggetto: Option<f64>, progetto: Option<&sws_core::project::StileSimboliProgetto>) -> f64 {
+fn periodo_predefinito(
+    oggetto: Option<f64>,
+    progetto: Option<&sws_core::project::StileSimboliProgetto>,
+) -> f64 {
     oggetto
         .filter(|v| *v > 0.0)
         .or(progetto.and_then(|p| p.spin_s).filter(|v| *v > 0.0))
@@ -12122,11 +13738,19 @@ fn render_simbolo_lib(
     // La misura dell'oggetto, fino al tetto dei simboli. Oltre si riduce **in
     // proporzione**: tagliare ogni lato per conto suo (era `clamp(8, 500)`)
     // deformava il riquadro e il disegno finiva rimpicciolito in un angolo.
-    let (w0, h0) = (obj.width.unwrap_or(sim.view_box[0]).max(8.0), obj.height.unwrap_or(sim.view_box[1]).max(8.0));
+    let (w0, h0) = (
+        obj.width.unwrap_or(sim.view_box[0]).max(8.0),
+        obj.height.unwrap_or(sim.view_box[1]).max(8.0),
+    );
     let riduci = (crate::svg_raster::MAX_SIDE_SIMBOLO as f64 / w0.max(h0)).min(1.0);
     let w = (w0 * riduci).round() as i16;
     let h = (h0 * riduci).round() as i16;
-    let q = Quadro { w: w as u32, h: h as u32, flip_h: obj.flip_h == Some(true), flip_v: obj.flip_v == Some(true) };
+    let q = Quadro {
+        w: w as u32,
+        h: h as u32,
+        flip_h: obj.flip_h == Some(true),
+        flip_v: obj.flip_v == Some(true),
+    };
     // Lo stile: oggetto → progetto → disegno (Fase 4, `stile-effettivo.json`).
     let progetto = lib::stile_progetto(base_url, rt_handle);
     let sovrascritture = sws_core::stile_simboli::SovrascrittureSimbolo {
@@ -12136,23 +13760,49 @@ fn render_simbolo_lib(
         outline_color: obj.symbol_outline_color.clone(),
         outline_width: obj.symbol_outline_width,
     };
-    let stile = sws_core::stile_simboli::stile_effettivo(&manifesto.materials, &sim.body, progetto.as_deref(), &sovrascritture, None);
+    let stile = sws_core::stile_simboli::stile_effettivo(
+        &manifesto.materials,
+        &sim.body,
+        progetto.as_deref(),
+        &sovrascritture,
+        None,
+    );
     let t0 = std::time::Instant::now();
     let prep = lib::prepara(&sim, &svg, q, &stile);
     if std::env::var("SWS_MISURA_SIMBOLI").is_ok() {
-        eprintln!("[simboli-lib misura] {id} {w}x{h}: strati pronti in {:.1} ms", t0.elapsed().as_secs_f64() * 1e3);
+        eprintln!(
+            "[simboli-lib misura] {id} {w}x{h}: strati pronti in {:.1} ms",
+            t0.elapsed().as_secs_f64() * 1e3
+        );
     }
 
-    let genitore = screen.raw().map_err(|e| anyhow::anyhow!("raw: {e:?}"))?.as_ptr();
+    let genitore = screen
+        .raw()
+        .map_err(|e| anyhow::anyhow!("raw: {e:?}"))?
+        .as_ptr();
     let scatola = unsafe {
-        contenitore_lib(genitore, obj.x.unwrap_or(0.0).round() as i16, obj.y.unwrap_or(0.0).round() as i16, w, h)?
+        contenitore_lib(
+            genitore,
+            obj.x.unwrap_or(0.0).round() as i16,
+            obj.y.unwrap_or(0.0).round() as i16,
+            w,
+            h,
+        )?
     };
     // L'etichetta dello stato, sotto il simbolo: nascosta finché uno stato con
     // un'etichetta non è attivo. Corpo `label_font_size` (11 sul web).
     let etichetta = unsafe {
         let l = lvgl_sys::lv_label_create(genitore);
-        let nn = core::ptr::NonNull::new(l).ok_or_else(|| anyhow::anyhow!("lv_label_create ha restituito null"))?;
-        stile::font_grassetto(l, obj.label_font_size.unwrap_or(corpo_predefinito("symbol", "label_font_size")).round().clamp(6.0, 200.0) as u16, stile::MAIN);
+        let nn = core::ptr::NonNull::new(l)
+            .ok_or_else(|| anyhow::anyhow!("lv_label_create ha restituito null"))?;
+        stile::font_grassetto(
+            l,
+            obj.label_font_size
+                .unwrap_or(corpo_predefinito("symbol", "label_font_size"))
+                .round()
+                .clamp(6.0, 200.0) as u16,
+            stile::MAIN,
+        );
         lvgl_sys::lv_obj_add_flag(l, lvgl_sys::LV_OBJ_FLAG_HIDDEN as lvgl_sys::lv_obj_flag_t);
         nn
     };
@@ -12170,8 +13820,16 @@ fn render_simbolo_lib(
         spie: Vec::new(),
         parti: sim.parts.clone(),
         legami: obj.symbol_parts.clone(),
-        verso: if (obj.flip_h == Some(true)) != (obj.flip_v == Some(true)) { -1.0 } else { 1.0 },
-        spin_s_legame: obj.bindings.as_ref().and_then(|b| b.get("symbol_spin_s")).cloned(),
+        verso: if (obj.flip_h == Some(true)) != (obj.flip_v == Some(true)) {
+            -1.0
+        } else {
+            1.0
+        },
+        spin_s_legame: obj
+            .bindings
+            .as_ref()
+            .and_then(|b| b.get("symbol_spin_s"))
+            .cloned(),
         ultimo_lampo: 255,
         livello: None,
         rotori: Vec::new(),
@@ -12179,7 +13837,11 @@ fn render_simbolo_lib(
         svg,
         stile,
         q,
-        lampo_ms: obj.symbol_blink_ms.or(progetto.as_deref().and_then(|p| p.blink_ms)).filter(|v| *v > 0.0).unwrap_or(800.0),
+        lampo_ms: obj
+            .symbol_blink_ms
+            .or(progetto.as_deref().and_then(|p| p.blink_ms))
+            .filter(|v| *v > 0.0)
+            .unwrap_or(800.0),
         state_tag: obj.state_tag.clone(),
         alarm_tag: obj.alarm_tag.clone(),
         stati: obj
@@ -12187,9 +13849,21 @@ fn render_simbolo_lib(
             .clone()
             .and_then(|v| serde_json::from_value::<Vec<TextListEntry>>(v).ok())
             .unwrap_or_default(),
-        off_color: colore_di_stato(obj.state_off_color.as_deref(), progetto.as_deref(), "state_off_color"),
-        on_color: colore_di_stato(obj.state_on_color.as_deref(), progetto.as_deref(), "state_on_color"),
-        alarm_color: colore_di_stato(obj.state_alarm_color.as_deref(), progetto.as_deref(), "state_alarm_color"),
+        off_color: colore_di_stato(
+            obj.state_off_color.as_deref(),
+            progetto.as_deref(),
+            "state_off_color",
+        ),
+        on_color: colore_di_stato(
+            obj.state_on_color.as_deref(),
+            progetto.as_deref(),
+            "state_on_color",
+        ),
+        alarm_color: colore_di_stato(
+            obj.state_alarm_color.as_deref(),
+            progetto.as_deref(),
+            "state_alarm_color",
+        ),
         legato: false,
         fill_level: obj.fill_level,
         fill_level_tag: obj.fill_level_tag.clone(),
@@ -12204,15 +13878,43 @@ fn render_simbolo_lib(
         unsafe {
             match pezzo {
                 PezzoStrato::Fermo(mut b) => {
-                    tela_lib(scatola.as_ptr(), b.dove.x as i32, b.dove.y as i32, b.dove, &mut b.buf)?;
+                    tela_lib(
+                        scatola.as_ptr(),
+                        b.dove.x as i32,
+                        b.dove.y as i32,
+                        b.dove,
+                        &mut b.buf,
+                    )?;
                     vivo.fermi.push(b.buf);
                 }
                 PezzoStrato::Corpo { mut bitmap } => {
-                    let canvas = tela_lib(scatola.as_ptr(), bitmap.dove.x as i32, bitmap.dove.y as i32, bitmap.dove, &mut bitmap.buf)?;
-                    vivo.corpo = Some(CorpoLib { canvas, dove: bitmap.dove, materiale: bitmap.buf, cache: Default::default(), colore: None });
+                    let canvas = tela_lib(
+                        scatola.as_ptr(),
+                        bitmap.dove.x as i32,
+                        bitmap.dove.y as i32,
+                        bitmap.dove,
+                        &mut bitmap.buf,
+                    )?;
+                    vivo.corpo = Some(CorpoLib {
+                        canvas,
+                        dove: bitmap.dove,
+                        materiale: bitmap.buf,
+                        cache: Default::default(),
+                        colore: None,
+                    });
                 }
-                PezzoStrato::Livello { mut bitmap, finestra, dal_basso } => {
-                    let sc = contenitore_lib(scatola.as_ptr(), finestra.x as i16, finestra.y as i16, finestra.w as i16, finestra.h as i16)?;
+                PezzoStrato::Livello {
+                    mut bitmap,
+                    finestra,
+                    dal_basso,
+                } => {
+                    let sc = contenitore_lib(
+                        scatola.as_ptr(),
+                        finestra.x as i16,
+                        finestra.y as i16,
+                        finestra.w as i16,
+                        finestra.h as i16,
+                    )?;
                     let canvas = tela_lib(
                         sc.as_ptr(),
                         bitmap.dove.x as i32 - finestra.x as i32,
@@ -12221,32 +13923,95 @@ fn render_simbolo_lib(
                         &mut bitmap.buf,
                     )?;
                     vivo.livello = Some(LivelloLib {
-                        ms: obj.symbol_level_transition_ms.or(progetto.as_deref().and_then(|p| p.level_transition_ms)).unwrap_or(0.0).max(0.0),
-                        da_px: -1.0, a_px: -1, t0: 0,
-                        scatola: sc, canvas, finestra, dove: bitmap.dove, dal_basso, _buf: bitmap.buf, ultimo_px: -1,
+                        ms: obj
+                            .symbol_level_transition_ms
+                            .or(progetto.as_deref().and_then(|p| p.level_transition_ms))
+                            .unwrap_or(0.0)
+                            .max(0.0),
+                        da_px: -1.0,
+                        a_px: -1,
+                        t0: 0,
+                        scatola: sc,
+                        canvas,
+                        finestra,
+                        dove: bitmap.dove,
+                        dal_basso,
+                        _buf: bitmap.buf,
+                        ultimo_px: -1,
                     });
                 }
-                PezzoStrato::Perno { id, mut bitmap, perno } => {
-                    let canvas = tela_lib(scatola.as_ptr(), bitmap.dove.x as i32, bitmap.dove.y as i32, bitmap.dove, &mut bitmap.buf)?;
+                PezzoStrato::Perno {
+                    id,
+                    mut bitmap,
+                    perno,
+                } => {
+                    let canvas = tela_lib(
+                        scatola.as_ptr(),
+                        bitmap.dove.x as i32,
+                        bitmap.dove.y as i32,
+                        bitmap.dove,
+                        &mut bitmap.buf,
+                    )?;
                     lvgl_sys::lv_obj_set_style_transform_pivot_x(canvas.as_ptr(), perno.0, 0);
                     lvgl_sys::lv_obj_set_style_transform_pivot_y(canvas.as_ptr(), perno.1, 0);
-                    vivo.perni.push(PernoLib { canvas, id, _buf: bitmap.buf, ultimo: 0 });
+                    vivo.perni.push(PernoLib {
+                        canvas,
+                        id,
+                        _buf: bitmap.buf,
+                        ultimo: 0,
+                    });
                 }
                 PezzoStrato::Spia { id, mut bitmap } => {
-                    let canvas = tela_lib(scatola.as_ptr(), bitmap.dove.x as i32, bitmap.dove.y as i32, bitmap.dove, &mut bitmap.buf)?;
-                    vivo.spie.push(SpiaLib { canvas, id, _buf: bitmap.buf, accesa: true });
+                    let canvas = tela_lib(
+                        scatola.as_ptr(),
+                        bitmap.dove.x as i32,
+                        bitmap.dove.y as i32,
+                        bitmap.dove,
+                        &mut bitmap.buf,
+                    )?;
+                    vivo.spie.push(SpiaLib {
+                        canvas,
+                        id,
+                        _buf: bitmap.buf,
+                        accesa: true,
+                    });
                 }
-                PezzoStrato::Rotore { mut fotogrammi, dove, symmetry } => {
+                PezzoStrato::Rotore {
+                    mut fotogrammi,
+                    dove,
+                    symmetry,
+                } => {
                     let angolo = rotore_ad_angolo();
                     if angolo {
                         fotogrammi.truncate(1);
                     }
-                    let canvas = tela_lib(scatola.as_ptr(), dove.x as i32, dove.y as i32, dove, &mut fotogrammi[0])?;
+                    let canvas = tela_lib(
+                        scatola.as_ptr(),
+                        dove.x as i32,
+                        dove.y as i32,
+                        dove,
+                        &mut fotogrammi[0],
+                    )?;
                     if angolo {
-                        lvgl_sys::lv_obj_set_style_transform_pivot_x(canvas.as_ptr(), (dove.w / 2) as i16, 0);
-                        lvgl_sys::lv_obj_set_style_transform_pivot_y(canvas.as_ptr(), (dove.h / 2) as i16, 0);
+                        lvgl_sys::lv_obj_set_style_transform_pivot_x(
+                            canvas.as_ptr(),
+                            (dove.w / 2) as i16,
+                            0,
+                        );
+                        lvgl_sys::lv_obj_set_style_transform_pivot_y(
+                            canvas.as_ptr(),
+                            (dove.h / 2) as i16,
+                            0,
+                        );
                     }
-                    vivo.rotori.push(RotoreLib { canvas, fotogrammi, dove, symmetry, ultimo: 0, angolo });
+                    vivo.rotori.push(RotoreLib {
+                        canvas,
+                        fotogrammi,
+                        dove,
+                        symmetry,
+                        ultimo: 0,
+                        angolo,
+                    });
                 }
             }
         }
@@ -12260,7 +14025,9 @@ fn render_simbolo_lib(
             lvgl_sys::lv_obj_set_style_transform_angle(scatola.as_ptr(), angolo, 0);
         }
     }
-    let mut b = LiveBinding { kind: LiveKind::SimboloLib(Box::new(vivo)) };
+    let mut b = LiveBinding {
+        kind: LiveKind::SimboloLib(Box::new(vivo)),
+    };
     if let LiveKind::SimboloLib(v) = &mut b.kind {
         aggiorna_simbolo_lib(v, tags);
     }
@@ -12271,12 +14038,27 @@ fn aggiorna_simbolo_lib(v: &mut VivoLib, tags: &TagSnapshot) {
     let (stato, voce) = stato_simbolo(tags, &v.state_tag, &v.alarm_tag, &v.stati);
     // L'etichetta dello stato attivo (25-10-2026): il colore della voce, o
     // quello di stato del simbolo come il `badgeColor` del web.
-    let voluta = voce.and_then(|i| v.stati.get(i)).filter(|e| !e.label.is_empty()).map(|e| {
-        let rgb = e.color.as_deref().and_then(parse_hex_color).unwrap_or_else(|| {
-            colore_simbolo(stato, &v.stati, tags, &v.state_tag, &v.off_color, &v.on_color, &v.alarm_color)
+    let voluta = voce
+        .and_then(|i| v.stati.get(i))
+        .filter(|e| !e.label.is_empty())
+        .map(|e| {
+            let rgb = e
+                .color
+                .as_deref()
+                .and_then(parse_hex_color)
+                .unwrap_or_else(|| {
+                    colore_simbolo(
+                        stato,
+                        &v.stati,
+                        tags,
+                        &v.state_tag,
+                        &v.off_color,
+                        &v.on_color,
+                        &v.alarm_color,
+                    )
+                });
+            (e.label.clone(), rgb)
         });
-        (e.label.clone(), rgb)
-    });
     if voluta != v.etichetta_mostrata {
         let l = v.etichetta.as_ptr();
         unsafe {
@@ -12290,16 +14072,30 @@ fn aggiorna_simbolo_lib(v: &mut VivoLib, tags: &TagSnapshot) {
                         (v.etichetta_dove.0 - lw / 2.0).round() as lvgl_sys::lv_coord_t,
                         v.etichetta_dove.1.round() as lvgl_sys::lv_coord_t,
                     );
-                    lvgl_sys::lv_obj_clear_flag(l, lvgl_sys::LV_OBJ_FLAG_HIDDEN as lvgl_sys::lv_obj_flag_t);
+                    lvgl_sys::lv_obj_clear_flag(
+                        l,
+                        lvgl_sys::LV_OBJ_FLAG_HIDDEN as lvgl_sys::lv_obj_flag_t,
+                    );
                 }
-                None => lvgl_sys::lv_obj_add_flag(l, lvgl_sys::LV_OBJ_FLAG_HIDDEN as lvgl_sys::lv_obj_flag_t),
+                None => lvgl_sys::lv_obj_add_flag(
+                    l,
+                    lvgl_sys::LV_OBJ_FLAG_HIDDEN as lvgl_sys::lv_obj_flag_t,
+                ),
             }
         }
         v.etichetta_mostrata = voluta;
     }
     // Corpo: colore di stato solo se lo stato è legato.
     let colore = v.legato.then(|| {
-        colore_simbolo(stato, &v.stati, tags, &v.state_tag, &v.off_color, &v.on_color, &v.alarm_color)
+        colore_simbolo(
+            stato,
+            &v.stati,
+            tags,
+            &v.state_tag,
+            &v.off_color,
+            &v.on_color,
+            &v.alarm_color,
+        )
     });
     if let Some(c) = v.corpo.as_mut() {
         if c.colore != colore {
@@ -12310,11 +14106,16 @@ fn aggiorna_simbolo_lib(v: &mut VivoLib, tags: &TagSnapshot) {
                     if c.cache.prendi(rgb).is_some() {
                         c.cache.prendi(rgb)
                     } else {
-                        crate::simbolo_lib::corpo_colorato(&v.svg, v.q, dove, &sws_core::stile_simboli::StileSimbolo {
-                            body: Some(crate::simbolo_lib::esadecimale(rgb)),
-                            ..v.stile.clone()
-                        })
-                            .map(|nuovo| c.cache.metti(rgb, nuovo, c.colore))
+                        crate::simbolo_lib::corpo_colorato(
+                            &v.svg,
+                            v.q,
+                            dove,
+                            &sws_core::stile_simboli::StileSimbolo {
+                                body: Some(crate::simbolo_lib::esadecimale(rgb)),
+                                ..v.stile.clone()
+                            },
+                        )
+                        .map(|nuovo| c.cache.metti(rgb, nuovo, c.colore))
                     }
                 }
             };
@@ -12345,7 +14146,11 @@ fn aggiorna_simbolo_lib(v: &mut VivoLib, tags: &TagSnapshot) {
         let ora = unsafe { lvgl_sys::lv_tick_get() } as u64;
         if bersaglio != l.a_px {
             // Riparte dal punto in cui è adesso, non da dove era diretto.
-            l.da_px = if l.ultimo_px < 0 { bersaglio as f64 } else { l.ultimo_px as f64 };
+            l.da_px = if l.ultimo_px < 0 {
+                bersaglio as f64
+            } else {
+                l.ultimo_px as f64
+            };
             l.a_px = bersaglio;
             l.t0 = ora;
         }
@@ -12356,7 +14161,11 @@ fn aggiorna_simbolo_lib(v: &mut VivoLib, tags: &TagSnapshot) {
             l.a_px
         };
         if px != l.ultimo_px {
-            let y_box = if l.dal_basso { l.finestra.y as i32 + l.finestra.h as i32 - px } else { l.finestra.y as i32 };
+            let y_box = if l.dal_basso {
+                l.finestra.y as i32 + l.finestra.h as i32 - px
+            } else {
+                l.finestra.y as i32
+            };
             unsafe {
                 lvgl_sys::lv_obj_set_y(l.scatola.as_ptr(), y_box as lvgl_sys::lv_coord_t);
                 lvgl_sys::lv_obj_set_height(l.scatola.as_ptr(), px.max(0) as lvgl_sys::lv_coord_t);
@@ -12372,16 +14181,32 @@ fn aggiorna_simbolo_lib(v: &mut VivoLib, tags: &TagSnapshot) {
     // Lancetta, leva, spie (Fase 3): la regola di `simbolo_lib::valori_parti`.
     if !v.perni.is_empty() || !v.spie.is_empty() {
         use crate::simbolo_lib::ValoreParte;
-        let valori = crate::simbolo_lib::valori_parti(&v.parti, v.legami.as_ref(), |t| tags.get(t).map(|tv| &tv.value));
+        let valori = crate::simbolo_lib::valori_parti(&v.parti, v.legami.as_ref(), |t| {
+            tags.get(t).map(|tv| &tv.value)
+        });
         for p in &mut v.perni {
-            let gradi = match (v.parti.iter().find(|x| x.id() == p.id), valori.iter().find(|(i, _)| *i == p.id).map(|(_, x)| *x)) {
-                (Some(sws_core::simboli_lib::ParteLib::Needle { a0, a1, .. }), Some(ValoreParte::Frazione(Some(f)))) => a0 + (a1 - a0) * f,
-                (Some(sws_core::simboli_lib::ParteLib::Lever { open, closed, .. }), Some(ValoreParte::Aperta(Some(a)))) => {
-                    if a { *open } else { *closed }
+            let gradi = match (
+                v.parti.iter().find(|x| x.id() == p.id),
+                valori.iter().find(|(i, _)| *i == p.id).map(|(_, x)| *x),
+            ) {
+                (
+                    Some(sws_core::simboli_lib::ParteLib::Needle { a0, a1, .. }),
+                    Some(ValoreParte::Frazione(Some(f))),
+                ) => a0 + (a1 - a0) * f,
+                (
+                    Some(sws_core::simboli_lib::ParteLib::Lever { open, closed, .. }),
+                    Some(ValoreParte::Aperta(Some(a))),
+                ) => {
+                    if a {
+                        *open
+                    } else {
+                        *closed
+                    }
                 }
-                (Some(parte @ sws_core::simboli_lib::ParteLib::Lever { .. }), Some(ValoreParte::Posizione(Some(i)))) => {
-                    parte.angoli_leva().get(i).copied().unwrap_or(0.0)
-                }
+                (
+                    Some(parte @ sws_core::simboli_lib::ParteLib::Lever { .. }),
+                    Some(ValoreParte::Posizione(Some(i))),
+                ) => parte.angoli_leva().get(i).copied().unwrap_or(0.0),
                 _ => 0.0,
             };
             let decimi = ((gradi * v.verso * 10.0).round() as i64).rem_euclid(3600) as i16;
@@ -12391,11 +14216,17 @@ fn aggiorna_simbolo_lib(v: &mut VivoLib, tags: &TagSnapshot) {
             }
         }
         for sp in &mut v.spie {
-            let accesa = !matches!(valori.iter().find(|(i, _)| *i == sp.id).map(|(_, x)| *x), Some(ValoreParte::Accesa(Some(false))));
+            let accesa = !matches!(
+                valori.iter().find(|(i, _)| *i == sp.id).map(|(_, x)| *x),
+                Some(ValoreParte::Accesa(Some(false)))
+            );
             if accesa != sp.accesa {
                 unsafe {
                     if accesa {
-                        lvgl_sys::lv_obj_clear_flag(sp.canvas.as_ptr(), lvgl_sys::LV_OBJ_FLAG_HIDDEN);
+                        lvgl_sys::lv_obj_clear_flag(
+                            sp.canvas.as_ptr(),
+                            lvgl_sys::LV_OBJ_FLAG_HIDDEN,
+                        );
                     } else {
                         lvgl_sys::lv_obj_add_flag(sp.canvas.as_ptr(), lvgl_sys::LV_OBJ_FLAG_HIDDEN);
                     }
@@ -12419,7 +14250,11 @@ fn aggiorna_simbolo_lib(v: &mut VivoLib, tags: &TagSnapshot) {
                 lvgl_sys::lv_obj_set_style_img_opa(f, lampo, 0);
                 // Il livello è un canvas dentro un sotto-contenitore.
                 for j in 0..lvgl_sys::lv_obj_get_child_cnt(f) {
-                    lvgl_sys::lv_obj_set_style_img_opa(lvgl_sys::lv_obj_get_child(f, j as i32), lampo, 0);
+                    lvgl_sys::lv_obj_set_style_img_opa(
+                        lvgl_sys::lv_obj_get_child(f, j as i32),
+                        lampo,
+                        0,
+                    );
                 }
             }
         }
@@ -12427,14 +14262,24 @@ fn aggiorna_simbolo_lib(v: &mut VivoLib, tags: &TagSnapshot) {
     }
     for r in &mut v.rotori {
         if r.angolo {
-            let a = if gira { angolo_rotazione(ms, spin_s) as usize } else { 0 };
+            let a = if gira {
+                angolo_rotazione(ms, spin_s) as usize
+            } else {
+                0
+            };
             if a != r.ultimo {
-                unsafe { lvgl_sys::lv_obj_set_style_transform_angle(r.canvas.as_ptr(), a as i16, 0) };
+                unsafe {
+                    lvgl_sys::lv_obj_set_style_transform_angle(r.canvas.as_ptr(), a as i16, 0)
+                };
                 r.ultimo = a;
             }
             continue;
         }
-        let k = if gira { crate::simbolo_lib::fotogramma(ms, spin_s, r.symmetry, r.fotogrammi.len()) } else { 0 };
+        let k = if gira {
+            crate::simbolo_lib::fotogramma(ms, spin_s, r.symmetry, r.fotogrammi.len())
+        } else {
+            0
+        };
         if k != r.ultimo {
             let dove = r.dove;
             unsafe { cambia_buffer(r.canvas, dove, &mut r.fotogrammi[k]) };
@@ -12676,7 +14521,9 @@ unsafe extern "C" fn sws_lang_button_clicked_cb(e: *mut lvgl_sys::lv_event_t) {
     // Registrata su disco: il pannello riparte a ogni riavvio del dispositivo,
     // e senza questo l'operatore ritrova la lingua del progettista.
     crate::client::salva_lingua(&ctx.target_lang);
-    let _ = ctx.nav_tx.send(Navigazione::Pagina(ctx.own_page_id.clone()));
+    let _ = ctx
+        .nav_tx
+        .send(Navigazione::Pagina(ctx.own_page_id.clone()));
 }
 
 /// `lang_button`: bottone "attivo" (evidenziato) se `target_lang` combacia
@@ -12754,13 +14601,14 @@ fn render_lang_button(
             ),
         }
     }
-    let label_text = obj
-        .label
-        .clone()
-        .unwrap_or_else(|| {
-            // Senza lingua di destinazione il web scrive «LANG» (Fase 3).
-            if target_lang.is_empty() { "LANG".to_string() } else { target_lang.to_uppercase() }
-        });
+    let label_text = obj.label.clone().unwrap_or_else(|| {
+        // Senza lingua di destinazione il web scrive «LANG» (Fase 3).
+        if target_lang.is_empty() {
+            "LANG".to_string()
+        } else {
+            target_lang.to_uppercase()
+        }
+    });
     let mut lbl = Label::create(&mut btn).map_err(|e| anyhow::anyhow!("Label::create: {e:?}"))?;
     lbl.set_text(&text_cstring(&label_text))
         .map_err(|e| anyhow::anyhow!("set_text: {e:?}"))?;
@@ -12816,7 +14664,9 @@ unsafe extern "C" fn sws_lang_selector_changed_cb(e: *mut lvgl_sys::lv_event_t) 
     };
     crate::client::salva_lingua(code);
     *ctx.shared_lang.lock().unwrap_or_else(|e| e.into_inner()) = code.clone();
-    let _ = ctx.nav_tx.send(Navigazione::Pagina(ctx.own_page_id.clone()));
+    let _ = ctx
+        .nav_tx
+        .send(Navigazione::Pagina(ctx.own_page_id.clone()));
 }
 
 /// `lang_selector`: `lv_dropdown` con `languages.langs` come opzioni
@@ -12865,7 +14715,12 @@ fn render_lang_selector(
         lvgl_sys::lv_dropdown_set_options(dd_ptr.as_ptr(), options.as_ptr());
         lvgl_sys::lv_dropdown_set_selected(dd_ptr.as_ptr(), selected as u16);
         // Il corpo del web (25-10-2026): 13 senza `font_size`.
-        if let Some(f) = crate::lvgl_font::at_size(obj.font_size.unwrap_or(corpo_predefinito("lang_selector", "font_size")).round().clamp(6.0, 200.0) as u16) {
+        if let Some(f) = crate::lvgl_font::at_size(
+            obj.font_size
+                .unwrap_or(corpo_predefinito("lang_selector", "font_size"))
+                .round()
+                .clamp(6.0, 200.0) as u16,
+        ) {
             lvgl_sys::lv_obj_set_style_text_font(dd_ptr.as_ptr(), f, 0);
         }
     }
@@ -12972,7 +14827,18 @@ fn dispatch_render(
         // su un poligono concavo — una stella, una polilinea chiusa qualunque
         // — non ritorna mai (schermo nero, il caso della fiamma del `boiler`).
         "polyline" | "polygon" => match svg_forma(obj) {
-            Some(f) => disegna_svg_byte(screen, f.x, f.y, f.w, f.h, f.svg.as_bytes(), false, false, crate::svg_raster::MAX_SIDE).map(|b| live.push(b)),
+            Some(f) => disegna_svg_byte(
+                screen,
+                f.x,
+                f.y,
+                f.w,
+                f.h,
+                f.svg.as_bytes(),
+                false,
+                false,
+                crate::svg_raster::MAX_SIDE,
+            )
+            .map(|b| live.push(b)),
             None => Ok(()),
         },
         "button" => render_button(screen, obj, styles, tag_tx, nav_tx, live),
@@ -13032,7 +14898,12 @@ fn dispatch_render(
         // Un simbolo è o una forma builtin disegnata con le primitive
         // (ricolorabile per stato), o un SVG da rasterizzare. `source_for`
         // distingue i due casi; lo stesso ramo serve il widget `image`.
-        "symbol" if obj.symbol_id.as_deref().is_some_and(|i| i.starts_with("lib:") || i.starts_with("prj:")) => {
+        "symbol"
+            if obj
+                .symbol_id
+                .as_deref()
+                .is_some_and(|i| i.starts_with("lib:") || i.starts_with("prj:")) =>
+        {
             match render_simbolo_lib(screen, obj, tags, base_url, rt_handle) {
                 Ok(b) => {
                     live.push(b);
@@ -13061,7 +14932,8 @@ fn dispatch_render(
                 // Fase 6 (M3): un builtin che la libreria sostituisce si disegna
                 // col disegno nuovo (alias).
                 let alias = obj.symbol_id.as_deref().is_some_and(|id| {
-                    crate::simbolo_lib::manifesto(base_url, rt_handle).is_some_and(|m| m.simbolo_o_alias(id).is_some())
+                    crate::simbolo_lib::manifesto(base_url, rt_handle)
+                        .is_some_and(|m| m.simbolo_o_alias(id).is_some())
                 });
                 // Dalla 6b i builtin disegnati a mano non ci sono più: senza un
                 // disegno della libreria resta il segnaposto, e il registro dice perché.
@@ -13071,7 +14943,10 @@ fn dispatch_render(
                         Ok(())
                     }
                     Some(Err(e)) => {
-                        eprintln!("[simboli-lib] alias {}: {e}", obj.symbol_id.as_deref().unwrap_or("?"));
+                        eprintln!(
+                            "[simboli-lib] alias {}: {e}",
+                            obj.symbol_id.as_deref().unwrap_or("?")
+                        );
                         render_svg_placeholder(screen, obj, styles)
                     }
                     None => {
@@ -13114,15 +14989,26 @@ fn dispatch_render(
             &current_lang,
             lang_table,
         ),
-        "data_log" => render_data_log(screen, obj, base_url, rt_handle, &current_lang).map(|b| live.push(b)),
+        "data_log" => {
+            render_data_log(screen, obj, base_url, rt_handle, &current_lang).map(|b| live.push(b))
+        }
         "alarm_history" => {
-            render_alarm_history(screen, obj, base_url, rt_handle, &current_lang, lang_table).map(|b| live.push(b))
+            render_alarm_history(screen, obj, base_url, rt_handle, &current_lang, lang_table)
+                .map(|b| live.push(b))
         }
         "alarm_bell" => render_alarm_bell(screen, obj, styles, shared_alarms).map(|b| live.push(b)),
-        "recipe_panel" => {
-            render_recipe_panel(screen, obj, styles, base_url, rt_handle, shared_session, live)
+        "recipe_panel" => render_recipe_panel(
+            screen,
+            obj,
+            styles,
+            base_url,
+            rt_handle,
+            shared_session,
+            live,
+        ),
+        "setpoint" => {
+            render_setpoint(screen, obj, styles, tags, tag_tx, shared_lang).map(|b| live.push(b))
         }
-        "setpoint" => render_setpoint(screen, obj, styles, tags, tag_tx, shared_lang).map(|b| live.push(b)),
         "xy_plot" => render_xy_plot(screen, obj, styles, base_url, rt_handle).map(|b| live.push(b)),
         "pie_chart" => render_pie_chart(screen, obj, tags).map(|b| live.push(b)),
         "lang_button" => render_lang_button(
@@ -13530,7 +15416,11 @@ fn rendi_oggetti_in(
         // pagina, non sui punti scritti nel file. Va fatto qui e non dentro
         // `render_pipe`, che vede solo il proprio oggetto — la lista completa
         // ce l'ha solo il ciclo.
-        let manifesto = if obj_type == "pipe" { crate::simbolo_lib::manifesto(base_url, rt_handle) } else { None };
+        let manifesto = if obj_type == "pipe" {
+            crate::simbolo_lib::manifesto(base_url, rt_handle)
+        } else {
+            None
+        };
         if obj_type == "pipe" {
             let d = diametri_capi(obj, &page.objects, manifesto.as_deref(), tags);
             BOCCHE_TUBO.with(|b| b.borrow_mut().insert(obj.id.clone().unwrap_or_default(), d));
@@ -13559,7 +15449,9 @@ fn rendi_oggetti_in(
                 .cloned()
                 .collect();
             let si_muove = oggetti.iter().any(|o| {
-                o.bindings.as_ref().is_some_and(|m| m.keys().any(|k| GEOM_KEYS.contains(&k.as_str())))
+                o.bindings
+                    .as_ref()
+                    .is_some_and(|m| m.keys().any(|k| GEOM_KEYS.contains(&k.as_str())))
                     || o.motion_tag.as_deref().is_some_and(|t| !t.is_empty())
             });
             if si_muove {
@@ -13697,7 +15589,10 @@ pub fn render_page_objects(
     // (che nasce alla misura del display). Alla prima pagina è già giusto.
     let (w, h) = resolve_resolution(page);
     if crate::lvgl_display::ridimensiona(w, h)? {
-        eprintln!("[display] pagina '{}' {w}x{h}: display ridimensionato", page.name);
+        eprintln!(
+            "[display] pagina '{}' {w}x{h}: display ridimensionato",
+            page.name
+        );
     }
 
     // Schermo precedente (se c'è già un display registrato — non c'è al
@@ -13744,7 +15639,11 @@ pub fn render_page_objects(
     }
     // Lo sfondo da variabile (11-10-2026): vince su `background` finché la
     // variabile ha un colore valido.
-    if let Some(tag) = page.background_tag.as_ref().filter(|t| !t.trim().is_empty()) {
+    if let Some(tag) = page
+        .background_tag
+        .as_ref()
+        .filter(|t| !t.trim().is_empty())
+    {
         if let Ok(p) = screen.raw() {
             live.push(LiveBinding {
                 kind: LiveKind::SfondoPagina {
@@ -13903,8 +15802,13 @@ fn update_effects(
             .and_then(|v| v.as_f64())
             .or(statico)
     };
-    let opa_base = combined_opa(dal_vivo(luce.legame_opacita, luce.opacita), luce.role_factor).unwrap_or(255);
-    let luminosita = effects::luminosita_valida(dal_vivo(luce.legame_luce, luce.luminosita).unwrap_or(0.0));
+    let opa_base = combined_opa(
+        dal_vivo(luce.legame_opacita, luce.opacita),
+        luce.role_factor,
+    )
+    .unwrap_or(255);
+    let luminosita =
+        effects::luminosita_valida(dal_vivo(luce.legame_luce, luce.luminosita).unwrap_or(0.0));
 
     // ── lampeggio e attenuazione ──────────────────────────────────────────
     let lampeggia = effects::deve_lampeggiare(lampeggio, tag.as_deref(), tags, &allarmi);
@@ -13931,7 +15835,11 @@ fn update_effects(
     // Il filtro colore: grigio, luminosità e respiro insieme. Si confronta su
     // valori arrotondati — il respiro cambia a ogni frame, ma sotto il
     // millesimo non si vede, e ridipingere costa.
-    let stato = (attenuato, (luminosita * 10.0).round() as i32, (respiro * 1000.0).round() as i32);
+    let stato = (
+        attenuato,
+        (luminosita * 10.0).round() as i32,
+        (respiro * 1000.0).round() as i32,
+    );
     if Some(stato) != ultimo.filtro {
         let prima_attivo = luce.filtro.attivo();
         luce.filtro.grigio = attenuato;
@@ -13953,7 +15861,11 @@ fn update_effects(
                 if attivo != prima_attivo || ultimo.filtro.is_none() {
                     // A spegnere il filtro è l'opacità a zero: così LVGL non
                     // chiama nemmeno il callback per gli oggetti fermi.
-                    lvgl_sys::lv_obj_set_style_color_filter_opa(*f, if attivo { 255 } else { 0 }, 0);
+                    lvgl_sys::lv_obj_set_style_color_filter_opa(
+                        *f,
+                        if attivo { 255 } else { 0 },
+                        0,
+                    );
                 }
                 match recolor {
                     Some((rgb, opa)) => {
@@ -14071,12 +15983,26 @@ pub fn update_bindings(
         if let LiveKind::ValoreComando { tag, corrente } = &b.kind {
             *corrente.borrow_mut() = tags.get(tag.as_str()).map(|tv| tv.value.clone());
         }
-        if let LiveKind::SfondoPagina { schermo, tag, fisso, applicato } = &mut b.kind {
+        if let LiveKind::SfondoPagina {
+            schermo,
+            tag,
+            fisso,
+            applicato,
+        } = &mut b.kind
+        {
             let voluto = sfondo_da_variabile(tags.get(tag.as_str()).map(|tv| &tv.value)).or(*fisso);
             if let Some(rgb) = voluto.filter(|v| Some(*v) != *applicato) {
                 unsafe {
-                    lvgl_sys::lv_obj_set_style_bg_color(schermo.as_ptr(), Color::from_rgb(rgb).into(), 0);
-                    lvgl_sys::lv_obj_set_style_bg_opa(schermo.as_ptr(), lvgl_sys::LV_OPA_COVER as u8, 0);
+                    lvgl_sys::lv_obj_set_style_bg_color(
+                        schermo.as_ptr(),
+                        Color::from_rgb(rgb).into(),
+                        0,
+                    );
+                    lvgl_sys::lv_obj_set_style_bg_opa(
+                        schermo.as_ptr(),
+                        lvgl_sys::LV_OPA_COVER as u8,
+                        0,
+                    );
                     lvgl_sys::lv_obj_invalidate(schermo.as_ptr());
                 }
                 *applicato = Some(rgb);
@@ -14143,12 +16069,26 @@ pub fn update_bindings(
             // Trattato dal giro dedicato in testa a `update_bindings`.
             LiveKind::SfondoPagina { .. } => {}
             LiveKind::ValoreComando { .. } => {}
-            LiveKind::SegnoPv { ptr, tag, min, max, origine, verticale, traccia } => {
-                let v = lookup(tags, &Some(tag.clone())).map(|t| tag_value_as_f64(&t.value)).filter(|v| v.is_finite());
+            LiveKind::SegnoPv {
+                ptr,
+                tag,
+                min,
+                max,
+                origine,
+                verticale,
+                traccia,
+            } => {
+                let v = lookup(tags, &Some(tag.clone()))
+                    .map(|t| tag_value_as_f64(&t.value))
+                    .filter(|v| v.is_finite());
                 unsafe {
                     match v {
                         Some(v) => {
-                            let f = if max > min { ((v - *min) / (*max - *min)).clamp(0.0, 1.0) } else { 0.0 };
+                            let f = if max > min {
+                                ((v - *min) / (*max - *min)).clamp(0.0, 1.0)
+                            } else {
+                                0.0
+                            };
                             let (ax, ay) = angolo_pv(*verticale, *traccia, f);
                             lvgl_sys::lv_obj_clear_flag(ptr.as_ptr(), lvgl_sys::LV_OBJ_FLAG_HIDDEN);
                             lvgl_sys::lv_obj_set_pos(
@@ -14157,18 +16097,29 @@ pub fn update_bindings(
                                 (origine.1 + ay).round() as lvgl_sys::lv_coord_t,
                             );
                         }
-                        None => lvgl_sys::lv_obj_add_flag(ptr.as_ptr(), lvgl_sys::LV_OBJ_FLAG_HIDDEN),
+                        None => {
+                            lvgl_sys::lv_obj_add_flag(ptr.as_ptr(), lvgl_sys::LV_OBJ_FLAG_HIDDEN)
+                        }
                     }
                 }
             }
-            LiveKind::BandeSlider { oggetti, tag, limiti, visibili } => {
-                let fuori = lookup(tags, tag).is_some_and(|t| fuori_dai_limiti(tag_value_as_f64(&t.value), limiti));
+            LiveKind::BandeSlider {
+                oggetti,
+                tag,
+                limiti,
+                visibili,
+            } => {
+                let fuori = lookup(tags, tag)
+                    .is_some_and(|t| fuori_dai_limiti(tag_value_as_f64(&t.value), limiti));
                 if fuori != *visibili {
                     *visibili = fuori;
                     for o in oggetti.iter() {
                         unsafe {
                             if fuori {
-                                lvgl_sys::lv_obj_clear_flag(o.as_ptr(), lvgl_sys::LV_OBJ_FLAG_HIDDEN);
+                                lvgl_sys::lv_obj_clear_flag(
+                                    o.as_ptr(),
+                                    lvgl_sys::LV_OBJ_FLAG_HIDDEN,
+                                );
                             } else {
                                 lvgl_sys::lv_obj_add_flag(o.as_ptr(), lvgl_sys::LV_OBJ_FLAG_HIDDEN);
                             }
@@ -14227,7 +16178,11 @@ pub fn update_bindings(
                     spec.origin = (ox, oy);
                     spec.waypoints = punti;
                     unsafe {
-                        lvgl_sys::lv_obj_set_pos(fill_ptr.as_ptr(), ox.round() as i16, oy.round() as i16)
+                        lvgl_sys::lv_obj_set_pos(
+                            fill_ptr.as_ptr(),
+                            ox.round() as i16,
+                            oy.round() as i16,
+                        )
                     };
                     // Il riempimento va rifatto anche se il livello non è
                     // cambiato: i suoi punti si misurano sul percorso nuovo.
@@ -14299,7 +16254,9 @@ pub fn update_bindings(
                     )
                 };
                 let valore_pv = pv.as_ref().map(|(t, cella)| {
-                    let v = lookup(tags, &Some(t.clone())).map(|x| tag_value_as_f64(&x.value)).filter(|v| v.is_finite());
+                    let v = lookup(tags, &Some(t.clone()))
+                        .map(|x| tag_value_as_f64(&x.value))
+                        .filter(|v| v.is_finite());
                     cella.set(v);
                     v
                 });
@@ -14321,15 +16278,22 @@ pub fn update_bindings(
                     attesa.set(None);
                 }
                 let posizione = match passo {
-                    Some(step) => indice_slider(raw, *min, *step, passi_slider(*min, *max, *step)) - *scarto,
+                    Some(step) => {
+                        indice_slider(raw, *min, *step, passi_slider(*min, *max, *step)) - *scarto
+                    }
                     None => raw.round() as i32,
                 };
                 unsafe {
-                    lvgl_sys::lv_bar_set_value(ptr.as_ptr(), posizione, lvgl::Animation::OFF.into());
+                    lvgl_sys::lv_bar_set_value(
+                        ptr.as_ptr(),
+                        posizione,
+                        lvgl::Animation::OFF.into(),
+                    );
                     if let Some(vp) = value_ptr {
                         lvgl_sys::lv_label_set_text(
                             vp.as_ptr(),
-                            text_cstring(&testo_valore_slider(raw, *decimals, unit, valore_pv)).as_ptr(),
+                            text_cstring(&testo_valore_slider(raw, *decimals, unit, valore_pv))
+                                .as_ptr(),
                         );
                     }
                 }
@@ -14347,12 +16311,27 @@ pub fn update_bindings(
                     apply_checked_state(*ptr, checkbox_is_checked(tv, value));
                 }
             }
-            LiveKind::Orologio { ptr, formato, secondi, modello, ultimo } => {
+            LiveKind::Orologio {
+                ptr,
+                formato,
+                secondi,
+                modello,
+                ultimo,
+            } => {
                 let ora = chrono::Local::now();
                 let istante = ora.timestamp();
                 // Una lingua cambiata riscrive subito, senza aspettare il secondo dopo.
-                if ultimo.as_ref().map_or(true, |(t, l)| *t != istante || *l != lingua) {
-                    let testo = testo_orologio_locale(&ora, formato.as_deref(), *secondi, modello.as_deref(), &lingua);
+                if ultimo
+                    .as_ref()
+                    .is_none_or(|(t, l)| *t != istante || *l != lingua)
+                {
+                    let testo = testo_orologio_locale(
+                        &ora,
+                        formato.as_deref(),
+                        *secondi,
+                        modello.as_deref(),
+                        &lingua,
+                    );
                     unsafe {
                         lvgl_sys::lv_label_set_text(ptr.as_ptr(), text_cstring(&testo).as_ptr());
                     }
@@ -14463,7 +16442,11 @@ pub fn update_bindings(
                     );
                     if let Some((ind, t)) = sp {
                         if let Some(v) = tags.get(t.as_str()).map(|x| tag_value_as_f64(&x.value)) {
-                            lvgl_sys::lv_meter_set_indicator_value(ptr.as_ptr(), *ind, v.round() as i32);
+                            lvgl_sys::lv_meter_set_indicator_value(
+                                ptr.as_ptr(),
+                                *ind,
+                                v.round() as i32,
+                            );
                         }
                     }
                 }
@@ -14551,7 +16534,8 @@ pub fn update_bindings(
                 let tv = lookup(tags, tag);
                 let entry = match_text_list_entry(entries, tv);
                 let label_text = testo_text_list(entry, default_label.as_deref(), tv, &lingua);
-                let colore = colore_text_list(entry, colore_testo.as_deref(), default_color.as_deref());
+                let colore =
+                    colore_text_list(entry, colore_testo.as_deref(), default_color.as_deref());
                 unsafe {
                     lvgl_sys::lv_label_set_text(
                         label_ptr.as_ptr(),
@@ -14568,32 +16552,63 @@ pub fn update_bindings(
                 }
             }
             LiveKind::Barre(b) => aggiorna_barre(b, tags),
-            LiveKind::EsitoRicetta { label, shared, mostrato } => {
+            LiveKind::EsitoRicetta {
+                label,
+                shared,
+                mostrato,
+            } => {
                 let ora = shared.lock().unwrap_or_else(|e| e.into_inner()).clone();
                 if ora.is_some() && *mostrato != ora {
                     *mostrato = ora.clone();
                     if let Some((ok, testo)) = ora {
                         unsafe {
-                            lvgl_sys::lv_label_set_text(label.as_ptr(), text_cstring(&testo).as_ptr());
-                            stile::testo(label.as_ptr(), if ok { (0x22, 0xc5, 0x5e) } else { (0xef, 0x44, 0x44) }, stile::MAIN);
+                            lvgl_sys::lv_label_set_text(
+                                label.as_ptr(),
+                                text_cstring(&testo).as_ptr(),
+                            );
+                            stile::testo(
+                                label.as_ptr(),
+                                if ok {
+                                    (0x22, 0xc5, 0x5e)
+                                } else {
+                                    (0xef, 0x44, 0x44)
+                                },
+                                stile::MAIN,
+                            );
                         }
                     }
                 }
             }
-            LiveKind::KpiDelta { label, shared, mostrato, destra, y } => {
+            LiveKind::KpiDelta {
+                label,
+                shared,
+                mostrato,
+                destra,
+                y,
+            } => {
                 let d = *shared.lock().unwrap_or_else(|e| e.into_inner());
                 if *mostrato != Some(d) {
                     *mostrato = Some(d);
                     let (testo, colore) = match d {
-                        Some(v) if v >= 0.0 => (format!("▲ {}%", crate::trend::to_fixed(v.abs(), 1)), (0x22, 0xc5, 0x5e)),
-                        Some(v) => (format!("▼ {}%", crate::trend::to_fixed(v.abs(), 1)), (0xef, 0x44, 0x44)),
+                        Some(v) if v >= 0.0 => (
+                            format!("▲ {}%", crate::trend::to_fixed(v.abs(), 1)),
+                            (0x22, 0xc5, 0x5e),
+                        ),
+                        Some(v) => (
+                            format!("▼ {}%", crate::trend::to_fixed(v.abs(), 1)),
+                            (0xef, 0x44, 0x44),
+                        ),
                         None => (String::new(), (0, 0, 0)),
                     };
                     unsafe {
                         lvgl_sys::lv_label_set_text(label.as_ptr(), text_cstring(&testo).as_ptr());
                         stile::testo(label.as_ptr(), colore, stile::MAIN);
                         let lw = larghezza_testo(label.as_ptr());
-                        lvgl_sys::lv_obj_set_pos(label.as_ptr(), (*destra - lw).round() as i16, y.round() as i16);
+                        lvgl_sys::lv_obj_set_pos(
+                            label.as_ptr(),
+                            (*destra - lw).round() as i16,
+                            y.round() as i16,
+                        );
                     }
                 }
             }
@@ -14619,7 +16634,10 @@ pub fn update_bindings(
                     if let Some(c) = last_samples.last() {
                         let v = tag_value_as_f64(&c.value);
                         unsafe {
-                            lvgl_sys::lv_label_set_text(l.as_ptr(), text_cstring(&crate::trend::to_fixed(v, 1)).as_ptr());
+                            lvgl_sys::lv_label_set_text(
+                                l.as_ptr(),
+                                text_cstring(&crate::trend::to_fixed(v, 1)).as_ptr(),
+                            );
                         }
                     }
                 }
@@ -15278,7 +17296,6 @@ fn update_sparkline(
     }
 }
 
-
 /// Chi finisce nella barra allarmi: gli allarmi **da confermare**, cioè attivi
 /// non confermati *e* rientrati non confermati (ISA-18.2). Diverge di proposito
 /// da `alarm_bell` e `alarm_viewer`, che contano gli allarmi **attivi**: la
@@ -15323,6 +17340,7 @@ fn testo_isa(stato: &str, lingua: &str) -> &'static str {
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 fn update_alarm_banner(
     shared: &SharedAlarms,
     dot_ptr: core::ptr::NonNull<lvgl_sys::lv_obj_t>,
@@ -15333,7 +17351,11 @@ fn update_alarm_banner(
     allowed_sev: Option<&[String]>,
     lingua: &str,
     lang_table: &LanguageTable,
-    (pill_ptr, ack_ptr, ack_ctx): (core::ptr::NonNull<lvgl_sys::lv_obj_t>, core::ptr::NonNull<lvgl_sys::lv_obj_t>, &AlarmAckCtx),
+    (pill_ptr, ack_ptr, ack_ctx): (
+        core::ptr::NonNull<lvgl_sys::lv_obj_t>,
+        core::ptr::NonNull<lvgl_sys::lv_obj_t>,
+        &AlarmAckCtx,
+    ),
 ) {
     let top: Option<AlarmStateLite> = {
         let map = shared.lock().unwrap_or_else(|e| e.into_inner());
@@ -15355,7 +17377,10 @@ fn update_alarm_banner(
                 // vuota col bordo per il rientrato (come `isaStyle` del web).
                 let pp = pill_ptr.as_ptr();
                 let attivo = a.isa_state == "active_unacked";
-                lvgl_sys::lv_label_set_text(pp, text_cstring(testo_isa(&a.isa_state, lingua)).as_ptr());
+                lvgl_sys::lv_label_set_text(
+                    pp,
+                    text_cstring(testo_isa(&a.isa_state, lingua)).as_ptr(),
+                );
                 if attivo {
                     stile::sfondo(pp, rgb, stile::MAIN);
                     stile::testo(pp, (0x0f, 0x17, 0x2a), stile::MAIN);
@@ -15371,7 +17396,12 @@ fn update_alarm_banner(
                 lvgl_sys::lv_obj_set_x(msg_ptr.as_ptr(), px);
                 lvgl_sys::lv_label_set_text(
                     msg_ptr.as_ptr(),
-                    text_cstring(&format!("{} — {}", a.def.id, resolve_msg(&a.messaggio(), lingua, lang_table))).as_ptr(),
+                    text_cstring(&format!(
+                        "{} — {}",
+                        a.def.id,
+                        resolve_msg(&a.messaggio(), lingua, lang_table)
+                    ))
+                    .as_ptr(),
                 );
                 lvgl_sys::lv_obj_clear_flag(msg_ptr.as_ptr(), hidden);
                 lvgl_sys::lv_obj_add_flag(empty_ptr.as_ptr(), hidden);
@@ -15396,11 +17426,17 @@ mod binding_tests {
     /// I corpi del pannello sono quelli della tabella condivisa (25-10-2026).
     #[test]
     fn i_corpi_del_pannello_sono_quelli_della_tabella() {
-        let v: serde_json::Value =
-            serde_json::from_str(include_str!("../../../../tests/fixtures/predefiniti-campi.json")).unwrap();
+        let v: serde_json::Value = serde_json::from_str(include_str!(
+            "../../../../tests/fixtures/predefiniti-campi.json"
+        ))
+        .unwrap();
         for (tipo, campo, valore) in super::CORPI_PREDEFINITI {
             let atteso = v["campi"][tipo][campo]["valore"].as_f64();
-            assert_eq!(atteso, Some(*valore), "{tipo}.{campo}: pannello {valore}, tabella {atteso:?}");
+            assert_eq!(
+                atteso,
+                Some(*valore),
+                "{tipo}.{campo}: pannello {valore}, tabella {atteso:?}"
+            );
         }
     }
 
@@ -15408,27 +17444,45 @@ mod binding_tests {
     #[test]
     fn il_livello_usa_l_intervallo_dell_oggetto() {
         let o = |extra: &str| -> SynopticObject {
-            serde_json::from_str(&format!(r#"{{"id":"s","type":"symbol","x":0,"y":0{extra}}}"#)).unwrap()
+            serde_json::from_str(&format!(
+                r#"{{"id":"s","type":"symbol","x":0,"y":0{extra}}}"#
+            ))
+            .unwrap()
         };
-        assert_eq!(super::intervallo_livello(&o(r#","fill_level_min":0,"fill_level_max":1000"#)), Some((0.0, 1000.0)));
-        assert_eq!(super::intervallo_livello(&o(r#","fill_level_min":5,"fill_level_max":5"#)), None);
+        assert_eq!(
+            super::intervallo_livello(&o(r#","fill_level_min":0,"fill_level_max":1000"#)),
+            Some((0.0, 1000.0))
+        );
+        assert_eq!(
+            super::intervallo_livello(&o(r#","fill_level_min":5,"fill_level_max":5"#)),
+            None
+        );
         assert_eq!(super::intervallo_livello(&o("")), None);
         assert!((super::frazione_su(250.0, (0.0, 1000.0)) - 0.25).abs() < 1e-9);
     }
 
     #[test]
     fn il_led_e_un_cerchio_sul_lato_minore() {
-        let o: SynopticObject =
-            serde_json::from_str(r#"{"id":"l","type":"led","x":860,"y":600,"width":200,"height":40}"#).unwrap();
+        let o: SynopticObject = serde_json::from_str(
+            r#"{"id":"l","type":"led","x":860,"y":600,"width":200,"height":40}"#,
+        )
+        .unwrap();
         assert_eq!(super::geometria_led(&o), (940.0, 600.0, 40.0));
-        let q: SynopticObject = serde_json::from_str(r#"{"id":"l","type":"led","x":10,"y":20,"width":24}"#).unwrap();
+        let q: SynopticObject =
+            serde_json::from_str(r#"{"id":"l","type":"led","x":10,"y":20,"width":24}"#).unwrap();
         assert_eq!(super::geometria_led(&q), (10.0, 20.0, 24.0));
     }
 
     #[test]
     fn la_pillola_del_banner_dice_lo_stato_isa() {
-        assert_eq!(super::testo_isa("active_unacked", "it"), "Attivo · Non confermato");
-        assert_eq!(super::testo_isa("normal_unacked", "en"), "Returned · Unacknowledged");
+        assert_eq!(
+            super::testo_isa("active_unacked", "it"),
+            "Attivo · Non confermato"
+        );
+        assert_eq!(
+            super::testo_isa("normal_unacked", "en"),
+            "Returned · Unacknowledged"
+        );
     }
 
     /// Le tre azioni di finestra che un bottone puo' chiedere (22-10-2026).
@@ -15439,10 +17493,15 @@ mod binding_tests {
     fn le_tre_azioni_di_finestra_di_un_bottone() {
         use super::Navigazione;
         let b = |a: &str| -> SynopticObject {
-            serde_json::from_str(&format!(r#"{{"id":"b","type":"button","x":0,"y":0,"button_action":{a}}}"#)).unwrap()
+            serde_json::from_str(&format!(
+                r#"{{"id":"b","type":"button","x":0,"y":0,"button_action":{a}}}"#
+            ))
+            .unwrap()
         };
         assert_eq!(
-            super::azione_del_bottone(&b(r#"{"type":"open_popup","page":"pompa","params":{"p":"p1"}}"#)),
+            super::azione_del_bottone(&b(
+                r#"{"type":"open_popup","page":"pompa","params":{"p":"p1"}}"#
+            )),
             Some(Navigazione::ApriFinestra {
                 pagina: "pompa".into(),
                 parametri: [("p".to_string(), "p1".to_string())].into_iter().collect(),
@@ -15450,7 +17509,10 @@ mod binding_tests {
         );
         assert_eq!(
             super::azione_del_bottone(&b(r#"{"type":"open_faceplate","faceplate_id":"fp1"}"#)),
-            Some(Navigazione::ApriFaceplate { faceplate: "fp1".into(), parametri: Default::default() })
+            Some(Navigazione::ApriFaceplate {
+                faceplate: "fp1".into(),
+                parametri: Default::default()
+            })
         );
         assert_eq!(
             super::azione_del_bottone(&b(r#"{"type":"close_popup"}"#)),
@@ -15458,23 +17520,41 @@ mod binding_tests {
             "e' il difetto da cui e' partito tutto: prima non lo ascoltava nessuno"
         );
         // Senza pagina non si apre niente.
-        assert_eq!(super::azione_del_bottone(&b(r#"{"type":"open_popup","page":""}"#)), None);
+        assert_eq!(
+            super::azione_del_bottone(&b(r#"{"type":"open_popup","page":""}"#)),
+            None
+        );
         // Login e logout dal bottone, come sul web (29-10-2026): prima il
         // viewer li ignorava e aggiungeva un controllo suo a ogni pagina.
-        assert_eq!(super::azione_del_bottone(&b(r#"{"type":"login"}"#)), Some(Navigazione::Accedi));
-        assert_eq!(super::azione_del_bottone(&b(r#"{"type":"logout"}"#)), Some(Navigazione::Esci));
+        assert_eq!(
+            super::azione_del_bottone(&b(r#"{"type":"login"}"#)),
+            Some(Navigazione::Accedi)
+        );
+        assert_eq!(
+            super::azione_del_bottone(&b(r#"{"type":"logout"}"#)),
+            Some(Navigazione::Esci)
+        );
     }
 
     /// La schermata d'accesso entra sopra la tastiera (29-10-2026): sulle
     /// pagine da 800×480 i pulsanti finivano sulla tastiera.
     #[test]
     fn l_accesso_entra_sopra_la_tastiera() {
-        for (meta, errore) in [(240, false), (240, true), (300, false), (400, false), (400, true)] {
+        for (meta, errore) in [
+            (240, false),
+            (240, true),
+            (300, false),
+            (400, false),
+            (400, true),
+        ] {
             let (alto, h, hb) = super::misure_accesso(meta, errore);
             let blocco = 5 * alto + 16 + 2 * h + hb + if errore { alto + 4 } else { 0 };
             // Come lo dispone `apri_credenziali`: parte da `alto` al minimo.
             let fine = ((meta - blocco) / 2).max(alto) + blocco;
-            assert!(fine <= meta - 4, "meta {meta}, errore {errore}: finisce a {fine}");
+            assert!(
+                fine <= meta - 4,
+                "meta {meta}, errore {errore}: finisce a {fine}"
+            );
         }
         // Su un vetro alto le misure restano quelle di prima.
         assert_eq!(super::misure_accesso(400, false), (24, 64, 48));
@@ -15483,8 +17563,15 @@ mod binding_tests {
     #[test]
     fn lo_sfondo_da_variabile_vuole_un_colore() {
         let v = |x: &str| TagValue::Str(x.into());
-        assert_eq!(sfondo_da_variabile(Some(&v("#7f1d1d"))), Some((0x7f, 0x1d, 0x1d)));
-        assert_eq!(sfondo_da_variabile(Some(&v("#7f1d1d80"))), Some((0x7f, 0x1d, 0x1d)), "la trasparenza si ignora");
+        assert_eq!(
+            sfondo_da_variabile(Some(&v("#7f1d1d"))),
+            Some((0x7f, 0x1d, 0x1d))
+        );
+        assert_eq!(
+            sfondo_da_variabile(Some(&v("#7f1d1d80"))),
+            Some((0x7f, 0x1d, 0x1d)),
+            "la trasparenza si ignora"
+        );
         assert_eq!(sfondo_da_variabile(Some(&v("rosso"))), None);
         assert_eq!(sfondo_da_variabile(Some(&TagValue::Int(3))), None);
         assert_eq!(sfondo_da_variabile(None), None);
@@ -15495,10 +17582,17 @@ mod binding_tests {
         // 11-10-2026: con le assegnazioni, quelle in ordine; senza, `write_value`
         // sul `tag` come prima; senza niente, il bottone non scrive.
         let o = |v: serde_json::Value| -> SynopticObject { serde_json::from_value(v).unwrap() };
-        let clic = |v: serde_json::Value| scritture_al_clic(&comando_del_bottone(&o(v)).unwrap(), None);
-        let s = clic(serde_json::json!({ "type": "button", "tag": "proprio", "button_mode": "toggle", "assegnazioni": [
-            { "tag": "sfondo", "valore": "#7f1d1d" }, { "tag": "modo", "valore": 2 }, { "tag": "", "valore": 1 } ] }));
-        assert_eq!(s.len(), 2, "la riga senza variabile si salta, e le assegnazioni vincono sulla modalità");
+        let clic =
+            |v: serde_json::Value| scritture_al_clic(&comando_del_bottone(&o(v)).unwrap(), None);
+        let s = clic(
+            serde_json::json!({ "type": "button", "tag": "proprio", "button_mode": "toggle", "assegnazioni": [
+            { "tag": "sfondo", "valore": "#7f1d1d" }, { "tag": "modo", "valore": 2 }, { "tag": "", "valore": 1 } ] }),
+        );
+        assert_eq!(
+            s.len(),
+            2,
+            "la riga senza variabile si salta, e le assegnazioni vincono sulla modalità"
+        );
         assert_eq!(s[0].0, "sfondo");
         assert!(matches!(&s[0].1, TagValue::Str(c) if c == "#7f1d1d"));
         assert_eq!(s[1].0, "modo");
@@ -15511,29 +17605,67 @@ mod binding_tests {
     fn il_simbolo_comanda_solo_se_ha_un_comando_e_scrive_il_suo_command_tag() {
         let o = |v: serde_json::Value| -> SynopticObject { serde_json::from_value(v).unwrap() };
         // `tag` sul simbolo è la qualità: non basta a farlo comandare.
-        let fermo = o(serde_json::json!({ "type": "symbol", "symbol_id": "pump", "tag": "qualita" }));
+        let fermo =
+            o(serde_json::json!({ "type": "symbol", "symbol_id": "pump", "tag": "qualita" }));
         assert!(!simbolo_comanda(&fermo));
-        let levetta = o(serde_json::json!({ "type": "symbol", "symbol_id": "pump", "tag": "qualita",
-            "state_tag": "marcia", "command_tag": "start", "button_mode": "toggle" }));
+        let levetta = o(
+            serde_json::json!({ "type": "symbol", "symbol_id": "pump", "tag": "qualita",
+            "state_tag": "marcia", "command_tag": "start", "button_mode": "toggle" }),
+        );
         assert!(simbolo_comanda(&levetta));
-        assert_eq!(comando_del_simbolo(&levetta), Some(Comando::Commuta { tag: "start".into() }));
+        assert_eq!(
+            comando_del_simbolo(&levetta),
+            Some(Comando::Commuta {
+                tag: "start".into()
+            })
+        );
         // Acceso ma senza variabile: comanda, e non scrive niente.
         let vuoto = o(serde_json::json!({ "type": "symbol", "command_tag": "" }));
         assert!(simbolo_comanda(&vuoto));
         assert_eq!(comando_del_simbolo(&vuoto), None);
-        let assegna = o(serde_json::json!({ "type": "symbol", "assegnazioni": [{ "tag": "modo", "valore": 2 }] }));
+        let assegna = o(
+            serde_json::json!({ "type": "symbol", "assegnazioni": [{ "tag": "modo", "valore": 2 }] }),
+        );
         assert!(simbolo_comanda(&assegna));
-        assert_eq!(comando_del_simbolo(&assegna), Some(Comando::Fisse(vec![("modo".into(), TagValue::Int(2))])));
+        assert_eq!(
+            comando_del_simbolo(&assegna),
+            Some(Comando::Fisse(vec![("modo".into(), TagValue::Int(2))]))
+        );
     }
 
     #[test]
     fn il_valore_di_barre_e_cursori_ha_il_formato_del_web() {
         let o = |v: serde_json::Value| -> SynopticObject { serde_json::from_value(v).unwrap() };
-        assert_eq!(formato_valore_barra(&o(serde_json::json!({ "type": "progress_bar" })), true), (1, String::new()));
-        assert_eq!(formato_valore_barra(&o(serde_json::json!({ "type": "progress_bar", "unit": "%" })), true), (1, " %".into()));
-        assert_eq!(formato_valore_barra(&o(serde_json::json!({ "type": "slider" })), false), (0, String::new()));
-        assert_eq!(formato_valore_barra(&o(serde_json::json!({ "type": "slider", "step": 0.5, "unit": "bar" })), false), (2, " bar".into()));
-        assert_eq!(formato_valore_barra(&o(serde_json::json!({ "type": "slider", "decimals": 1 })), false).0, 1);
+        assert_eq!(
+            formato_valore_barra(&o(serde_json::json!({ "type": "progress_bar" })), true),
+            (1, String::new())
+        );
+        assert_eq!(
+            formato_valore_barra(
+                &o(serde_json::json!({ "type": "progress_bar", "unit": "%" })),
+                true
+            ),
+            (1, " %".into())
+        );
+        assert_eq!(
+            formato_valore_barra(&o(serde_json::json!({ "type": "slider" })), false),
+            (0, String::new())
+        );
+        assert_eq!(
+            formato_valore_barra(
+                &o(serde_json::json!({ "type": "slider", "step": 0.5, "unit": "bar" })),
+                false
+            ),
+            (2, " bar".into())
+        );
+        assert_eq!(
+            formato_valore_barra(
+                &o(serde_json::json!({ "type": "slider", "decimals": 1 })),
+                false
+            )
+            .0,
+            1
+        );
     }
 
     #[test]
@@ -15543,35 +17675,78 @@ mod binding_tests {
         let o = |v: serde_json::Value| -> SynopticObject { serde_json::from_value(v).unwrap() };
         let c = |modo: &str, extra: serde_json::Value| {
             let mut v = serde_json::json!({ "type": "button", "tag": "t", "button_mode": modo });
-            v.as_object_mut().unwrap().extend(extra.as_object().unwrap().clone());
+            v.as_object_mut()
+                .unwrap()
+                .extend(extra.as_object().unwrap().clone());
             comando_del_bottone(&o(v)).unwrap()
         };
-        let uno = |cmd: &Comando, cur: Option<TagValue>| scritture_al_clic(cmd, cur.as_ref()).remove(0).1;
+        let uno =
+            |cmd: &Comando, cur: Option<TagValue>| scritture_al_clic(cmd, cur.as_ref()).remove(0).1;
         let vuoto = serde_json::json!({});
 
         assert_eq!(uno(&c("write", vuoto.clone()), None), TagValue::Bool(true));
-        assert_eq!(uno(&c("set", serde_json::json!({ "write_value": 7 })), None), TagValue::Int(7));
+        assert_eq!(
+            uno(&c("set", serde_json::json!({ "write_value": 7 })), None),
+            TagValue::Int(7)
+        );
         assert_eq!(uno(&c("reset", vuoto.clone()), None), TagValue::Bool(false));
-        assert_eq!(uno(&c("reset", serde_json::json!({ "release_value": 0 })), None), TagValue::Int(0));
+        assert_eq!(
+            uno(&c("reset", serde_json::json!({ "release_value": 0 })), None),
+            TagValue::Int(0)
+        );
 
         let commuta = c("toggle", vuoto.clone());
-        assert_eq!(uno(&commuta, Some(TagValue::Bool(true))), TagValue::Bool(false));
+        assert_eq!(
+            uno(&commuta, Some(TagValue::Bool(true))),
+            TagValue::Bool(false)
+        );
         assert_eq!(uno(&commuta, Some(TagValue::Int(0))), TagValue::Bool(true));
-        assert_eq!(uno(&commuta, Some(TagValue::Str("x".into()))), TagValue::Bool(false));
-        assert_eq!(uno(&commuta, None), TagValue::Bool(true), "senza valore si accende");
+        assert_eq!(
+            uno(&commuta, Some(TagValue::Str("x".into()))),
+            TagValue::Bool(false)
+        );
+        assert_eq!(
+            uno(&commuta, None),
+            TagValue::Bool(true),
+            "senza valore si accende"
+        );
 
         let piu = c("increment", serde_json::json!({ "step": 2, "max": 5 }));
         assert_eq!(uno(&piu, Some(TagValue::Int(1))), TagValue::Int(3));
-        assert_eq!(uno(&piu, Some(TagValue::Int(4))), TagValue::Int(5), "fermo al massimo");
+        assert_eq!(
+            uno(&piu, Some(TagValue::Int(4))),
+            TagValue::Int(5),
+            "fermo al massimo"
+        );
         assert_eq!(uno(&piu, None), TagValue::Int(2));
         assert_eq!(uno(&piu, Some(TagValue::Float(1.5))), TagValue::Float(3.5));
         let meno = c("decrement", serde_json::json!({ "min": 0 }));
-        assert_eq!(uno(&meno, Some(TagValue::Int(0))), TagValue::Int(0), "fermo al minimo");
-        assert_eq!(uno(&meno, Some(TagValue::Str("10".into()))), TagValue::Int(9));
+        assert_eq!(
+            uno(&meno, Some(TagValue::Int(0))),
+            TagValue::Int(0),
+            "fermo al minimo"
+        );
+        assert_eq!(
+            uno(&meno, Some(TagValue::Str("10".into()))),
+            TagValue::Int(9)
+        );
 
-        let mom = c("momentary", serde_json::json!({ "write_value": 1, "release_value": 0 }));
-        assert!(scritture_al_clic(&mom, None).is_empty(), "il momentaneo non scrive al clic");
-        assert_eq!(mom, Comando::Momentaneo { tag: "t".into(), premi: TagValue::Int(1), rilascia: TagValue::Int(0) });
+        let mom = c(
+            "momentary",
+            serde_json::json!({ "write_value": 1, "release_value": 0 }),
+        );
+        assert!(
+            scritture_al_clic(&mom, None).is_empty(),
+            "il momentaneo non scrive al clic"
+        );
+        assert_eq!(
+            mom,
+            Comando::Momentaneo {
+                tag: "t".into(),
+                premi: TagValue::Int(1),
+                rilascia: TagValue::Int(0)
+            }
+        );
 
         assert_eq!(tag_da_seguire(&commuta), Some("t"));
         assert_eq!(tag_da_seguire(&mom), None);
@@ -15988,11 +18163,23 @@ mod binding_tests {
 
     #[test]
     fn un_colore_mancante_prende_il_predefinito_della_tabella() {
-        assert_eq!(colore_campo(None, "data_log", "bg_color"), (0x0f, 0x17, 0x2a));
-        assert_eq!(colore_campo(None, "kpi_tile", "bg_color"), (0x1e, 0x29, 0x3b));
-        assert_eq!(colore_campo(Some("#ff0000"), "kpi_tile", "bg_color"), (255, 0, 0));
+        assert_eq!(
+            colore_campo(None, "data_log", "bg_color"),
+            (0x0f, 0x17, 0x2a)
+        );
+        assert_eq!(
+            colore_campo(None, "kpi_tile", "bg_color"),
+            (0x1e, 0x29, 0x3b)
+        );
+        assert_eq!(
+            colore_campo(Some("#ff0000"), "kpi_tile", "bg_color"),
+            (255, 0, 0)
+        );
         // Un valore illeggibile non lascia il tema di LVGL: vale il predefinito.
-        assert_eq!(colore_campo(Some("rosso"), "data_log", "bg_color"), (0x0f, 0x17, 0x2a));
+        assert_eq!(
+            colore_campo(Some("rosso"), "data_log", "bg_color"),
+            (0x0f, 0x17, 0x2a)
+        );
     }
 
     #[test]
@@ -16006,7 +18193,10 @@ mod binding_tests {
     fn il_text_list_senza_voce_usa_il_grigio_del_web() {
         // Era #f1f5f9 qui e #94a3b8 sul web.
         assert_eq!(colore_text_list(None, None, None), Some((0x94, 0xa3, 0xb8)));
-        assert_eq!(colore_text_list(None, None, Some("#ef4444")), Some((0xef, 0x44, 0x44)));
+        assert_eq!(
+            colore_text_list(None, None, Some("#ef4444")),
+            Some((0xef, 0x44, 0x44))
+        );
         let voce = TextListEntry {
             value: json!(1),
             label: "x".into(),
@@ -16015,9 +18205,18 @@ mod binding_tests {
             value_min: None,
             value_max: None,
         };
-        assert_eq!(colore_text_list(Some(&voce), None, None), Some((0x22, 0xc5, 0x5e)));
-        let senza = TextListEntry { color: None, ..voce };
-        assert_eq!(colore_text_list(Some(&senza), Some("#123456"), None), Some((0x12, 0x34, 0x56)));
+        assert_eq!(
+            colore_text_list(Some(&voce), None, None),
+            Some((0x22, 0xc5, 0x5e))
+        );
+        let senza = TextListEntry {
+            color: None,
+            ..voce
+        };
+        assert_eq!(
+            colore_text_list(Some(&senza), Some("#123456"), None),
+            Some((0x12, 0x34, 0x56))
+        );
     }
 
     // ── `none` non è un colore (27-10-2026) ─────────────────────────────────
@@ -16025,15 +18224,24 @@ mod binding_tests {
     #[test]
     fn none_vuol_dire_niente_riempimento() {
         assert!(senza_riempimento(Some("none")));
-        assert!(senza_riempimento(Some(" None ")), "spazi e maiuscole come sul web");
+        assert!(
+            senza_riempimento(Some(" None ")),
+            "spazi e maiuscole come sul web"
+        );
         assert!(!senza_riempimento(Some("#4a90d9")));
-        assert!(!senza_riempimento(None), "campo assente = predefinito, non trasparente");
+        assert!(
+            !senza_riempimento(None),
+            "campo assente = predefinito, non trasparente"
+        );
         // La trappola che il difetto ha scoperto: per `parse_hex_color` «none»
         // e una stringa scritta male sono la stessa cosa, e `colore_campo`
         // ripiega sul predefinito. Senza guardare la parola, un rettangolo
         // senza riempimento si disegna pieno.
         assert_eq!(parse_hex_color("none"), None);
-        assert_eq!(colore_campo(Some("none"), "rect", "fill"), colore_campo(None, "rect", "fill"));
+        assert_eq!(
+            colore_campo(Some("none"), "rect", "fill"),
+            colore_campo(None, "rect", "fill")
+        );
     }
 
     // ── Orientamento dello slider (27-10-2026) ──────────────────────────────
@@ -16045,10 +18253,16 @@ mod binding_tests {
         // esistesse.
         // Gli stessi casi di `tests/sliderGeometria.test.ts` (fase 2).
         let g = |w, h, et, va, pos| geometria_slider(false, w, h, et, va, SPESSORE_TRACCIA, pos);
-        assert_eq!(g(200.0, 50.0, 18.0, 18.0, "sotto").traccia, (0.0, 17.0, 200.0, 16.0));
+        assert_eq!(
+            g(200.0, 50.0, 18.0, 18.0, "sotto").traccia,
+            (0.0, 17.0, 200.0, 16.0)
+        );
         // Un riquadro più basso dello spessore: la traccia si stringe su di lui
         // e non sborda.
-        assert_eq!(g(200.0, 10.0, 0.0, 0.0, "sotto").traccia, (0.0, 0.0, 200.0, 10.0));
+        assert_eq!(
+            g(200.0, 10.0, 0.0, 0.0, "sotto").traccia,
+            (0.0, 0.0, 200.0, 10.0)
+        );
         // Senza etichetta (30-10-2026): traccia e valore impilati e centrati
         // come nella colonna del web, quindi la traccia sale: 50 − (16+2+18) = 14,
         // metà sopra.
@@ -16059,7 +18273,10 @@ mod binding_tests {
         let dentro = geometria_slider(false, 200.0, 60.0, 0.0, 18.0, 28.0, "dentro");
         assert_eq!((dentro.traccia.1, dentro.valore.unwrap().1), (16.0, 30.0));
         assert_eq!(g(200.0, 60.0, 0.0, 18.0, "cursore").valore, None);
-        assert_eq!(fumetto_cursore(&g(200.0, 60.0, 0.0, 18.0, "cursore"), 0.5, 18.0), (100.0, 30.0 - 13.0 - 4.0 - 9.0));
+        assert_eq!(
+            fumetto_cursore(&g(200.0, 60.0, 0.0, 18.0, "cursore"), 0.5, 18.0),
+            (100.0, 30.0 - 13.0 - 4.0 - 9.0)
+        );
     }
 
     // ── I passi dello slider (fase 1 della revisione, 30-10-2026) ──────────
@@ -16085,7 +18302,10 @@ mod binding_tests {
 
     #[test]
     fn la_deadband_dello_slider_come_sul_web() {
-        assert!(supera_deadband(5.0, None, Some(2.0)), "la prima scrittura passa sempre");
+        assert!(
+            supera_deadband(5.0, None, Some(2.0)),
+            "la prima scrittura passa sempre"
+        );
         assert!(!supera_deadband(5.5, Some(5.0), Some(2.0)));
         assert!(supera_deadband(7.0, Some(5.0), Some(2.0)));
         assert!(supera_deadband(5.1, Some(5.0), None));
@@ -16094,18 +18314,35 @@ mod binding_tests {
     #[test]
     fn gli_stili_dello_slider_come_sul_web() {
         // Gli stessi casi di `tests/sliderGeometria.test.ts` (fase 3).
-        let pillola = geometria_slider_stile(false, 200.0, 60.0, 0.0, 18.0, None, None, "pillola", false, 0.0);
+        let pillola = geometria_slider_stile(
+            false, 200.0, 60.0, 0.0, 18.0, None, None, "pillola", false, 0.0,
+        );
         assert_eq!((pillola.traccia.3, pillola.raggio_cursore), (28.0, 11.0));
-        let isa = geometria_slider_stile(false, 200.0, 50.0, 0.0, 18.0, None, None, "isa", false, 0.0);
-        assert_eq!((isa.traccia.3, isa.cursore, isa.raggio_traccia), (6.0, (10.0, 20.0), 1.0));
-        let isa_v = geometria_slider_stile(true, 50.0, 200.0, 0.0, 18.0, None, None, "isa", false, 0.0);
+        let isa =
+            geometria_slider_stile(false, 200.0, 50.0, 0.0, 18.0, None, None, "isa", false, 0.0);
+        assert_eq!(
+            (isa.traccia.3, isa.cursore, isa.raggio_traccia),
+            (6.0, (10.0, 20.0), 1.0)
+        );
+        let isa_v =
+            geometria_slider_stile(true, 50.0, 200.0, 0.0, 18.0, None, None, "isa", false, 0.0);
         assert_eq!(isa_v.cursore, (20.0, 10.0));
-        let piastra = geometria_slider_stile(false, 240.0, 64.0, 18.0, 18.0, None, None, "piastra", true, 0.0);
-        assert_eq!((piastra.traccia, piastra.cursore, piastra.raggio_traccia), ((0.0, 0.0, 240.0, 64.0), (0.0, 0.0), 12.0));
+        let piastra = geometria_slider_stile(
+            false, 240.0, 64.0, 18.0, 18.0, None, None, "piastra", true, 0.0,
+        );
+        assert_eq!(
+            (piastra.traccia, piastra.cursore, piastra.raggio_traccia),
+            ((0.0, 0.0, 240.0, 64.0), (0.0, 0.0), 12.0)
+        );
         assert_eq!(piastra.icona, Some((26.0, 32.0, 28.0)));
         assert!(piastra.a_sinistra);
-        assert_eq!((piastra.etichetta, piastra.valore), (Some((50.0, 23.0)), Some((50.0, 41.0))));
-        let tapparella = geometria_slider_stile(true, 80.0, 200.0, 18.0, 18.0, None, None, "piastra", true, 0.0);
+        assert_eq!(
+            (piastra.etichetta, piastra.valore),
+            (Some((50.0, 23.0)), Some((50.0, 41.0)))
+        );
+        let tapparella = geometria_slider_stile(
+            true, 80.0, 200.0, 18.0, 18.0, None, None, "piastra", true, 0.0,
+        );
         assert_eq!(tapparella.icona, Some((40.0, 26.0, 28.0)));
         assert_eq!(tapparella.valore, Some((40.0, 179.0)));
         assert!(icona_slider("lampadina").is_some() && icona_slider("drago").is_none());
@@ -16117,33 +18354,82 @@ mod binding_tests {
         let t = tacche(0.0, 100.0, Some(10.0), Some(2.0), true);
         assert_eq!(t.len(), 51);
         let numeri: Vec<_> = t.iter().filter_map(|x| x.testo.clone()).collect();
-        assert_eq!(numeri, ["0", "10", "20", "30", "40", "50", "60", "70", "80", "90", "100"]);
-        assert_eq!(t[1], Tacca { f: 0.02, maggiore: false, testo: None });
-        let termostato: Vec<_> = tacche(15.0, 30.0, Some(5.0), None, true).into_iter().filter_map(|x| x.testo).collect();
+        assert_eq!(
+            numeri,
+            ["0", "10", "20", "30", "40", "50", "60", "70", "80", "90", "100"]
+        );
+        assert_eq!(
+            t[1],
+            Tacca {
+                f: 0.02,
+                maggiore: false,
+                testo: None
+            }
+        );
+        let termostato: Vec<_> = tacche(15.0, 30.0, Some(5.0), None, true)
+            .into_iter()
+            .filter_map(|x| x.testo)
+            .collect();
         assert_eq!(termostato, ["15", "20", "25", "30"]);
-        let quarti: Vec<_> = tacche(0.0, 1.0, Some(0.25), None, true).into_iter().filter_map(|x| x.testo).collect();
+        let quarti: Vec<_> = tacche(0.0, 1.0, Some(0.25), None, true)
+            .into_iter()
+            .filter_map(|x| x.testo)
+            .collect();
         assert_eq!(quarti, ["0.00", "0.25", "0.50", "0.75", "1.00"]);
         assert!(tacche(0.0, 100.0, Some(0.001), None, true).is_empty());
         assert_eq!(
-            bande(0.0, 100.0, &[Some(10.0), Some(20.0), Some(80.0), Some(90.0)]),
-            vec![(0.0, 0.1, true), (0.1, 0.2, false), (0.8, 0.9, false), (0.9, 1.0, true)]
+            bande(
+                0.0,
+                100.0,
+                &[Some(10.0), Some(20.0), Some(80.0), Some(90.0)]
+            ),
+            vec![
+                (0.0, 0.1, true),
+                (0.1, 0.2, false),
+                (0.8, 0.9, false),
+                (0.9, 1.0, true)
+            ]
         );
-        assert_eq!(bande(0.0, 100.0, &[None, None, Some(70.0), None]), vec![(0.7, 1.0, false)]);
+        assert_eq!(
+            bande(0.0, 100.0, &[None, None, Some(70.0), None]),
+            vec![(0.7, 1.0, false)]
+        );
         assert!(fuori_dai_limiti(75.0, &[None, None, Some(70.0), None]));
         assert!(!fuori_dai_limiti(50.0, &[None, None, Some(70.0), None]));
-        assert_eq!(passo_effettivo(Some(1.0), true, Some(10.0), Some(2.0)), Some(2.0));
-        assert_eq!(passo_effettivo(Some(1.0), false, Some(10.0), Some(2.0)), Some(1.0));
-        assert_eq!(altezza_zona_tacche(true, true, true, 11.0), 5.0 + 7.0 + 15.0);
+        assert_eq!(
+            passo_effettivo(Some(1.0), true, Some(10.0), Some(2.0)),
+            Some(2.0)
+        );
+        assert_eq!(
+            passo_effettivo(Some(1.0), false, Some(10.0), Some(2.0)),
+            Some(1.0)
+        );
+        assert_eq!(
+            altezza_zona_tacche(true, true, true, 11.0),
+            5.0 + 7.0 + 15.0
+        );
     }
 
     #[test]
     fn il_pv_e_l_origine_come_sul_web() {
         // Fase 5: lo stesso testo e lo stesso triangolino del web.
         assert_eq!(testo_valore_slider(62.0, 0, " %", None), "62 %");
-        assert_eq!(testo_valore_slider(62.0, 0, " %", Some(Some(58.0))), "62 % · PV 58 %");
-        assert_eq!(testo_valore_slider(21.5, 1, " °C", Some(None)), "21.5 °C · PV —");
-        assert_eq!(angolo_pv(false, (0.0, 20.0, 200.0, 16.0), 0.5), (95.0, 11.0));
-        assert_eq!(angolo_pv(true, (20.0, 0.0, 16.0, 200.0), 0.25), (11.0, 145.0));
+        assert_eq!(
+            testo_valore_slider(62.0, 0, " %", Some(Some(58.0))),
+            "62 % · PV 58 %"
+        );
+        assert_eq!(
+            testo_valore_slider(21.5, 1, " °C", Some(None)),
+            "21.5 °C · PV —"
+        );
+        assert_eq!(
+            angolo_pv(false, (0.0, 20.0, 200.0, 16.0), 0.5),
+            (95.0, 11.0)
+        );
+        assert_eq!(
+            angolo_pv(true, (20.0, 0.0, 16.0, 200.0), 0.25),
+            (11.0, 145.0)
+        );
     }
 
     #[test]
@@ -16157,7 +18443,10 @@ mod binding_tests {
         // **È questo che fa il verso**: `lv_bar` disegna verticale solo se è
         // più alto che largo. Senza, lo slider tornerebbe orizzontale senza
         // che niente lo dica.
-        assert!(h > w, "una traccia verticale deve essere più alta che larga");
+        assert!(
+            h > w,
+            "una traccia verticale deve essere più alta che larga"
+        );
     }
 
     #[test]
@@ -16175,9 +18464,15 @@ mod binding_tests {
         // Il predefinito dà il 270/135 che era cablato.
         assert_eq!(angoli_gauge(None, None, false, false), (270, 135, false));
         // Mezzo quadrante in alto: da −90 (ore 9) a 90 (ore 3).
-        assert_eq!(angoli_gauge(Some(-90.0), Some(90.0), false, false), (180, 180, false));
+        assert_eq!(
+            angoli_gauge(Some(-90.0), Some(90.0), false, false),
+            (180, 180, false)
+        );
         // Cerchio intero da mezzogiorno.
-        assert_eq!(angoli_gauge(Some(0.0), Some(360.0), false, false), (360, 270, false));
+        assert_eq!(
+            angoli_gauge(Some(0.0), Some(360.0), false, false),
+            (360, 270, false)
+        );
     }
 
     #[test]
@@ -16189,22 +18484,34 @@ mod binding_tests {
         // qualcuno vuole quando specchia uno strumento.
         let (amp, rot, scambia) = angoli_gauge(None, None, true, false);
         assert_eq!((amp, rot), (270, 135), "un arco simmetrico non si sposta");
-        assert!(scambia, "ma gli estremi sì: il minimo passa dall'altra parte");
+        assert!(
+            scambia,
+            "ma gli estremi sì: il minimo passa dall'altra parte"
+        );
     }
 
     #[test]
     fn un_quadrante_asimmetrico_si_sposta_davvero() {
         // Da mezzogiorno a ore 3 (0…90): specchiato in orizzontale diventa da
         // ore 9 a mezzogiorno (−90…0), cioè rotazione 180 invece di 270.
-        assert_eq!(angoli_gauge(Some(0.0), Some(90.0), false, false), (90, 270, false));
-        assert_eq!(angoli_gauge(Some(0.0), Some(90.0), true, false), (90, 180, true));
+        assert_eq!(
+            angoli_gauge(Some(0.0), Some(90.0), false, false),
+            (90, 270, false)
+        );
+        assert_eq!(
+            angoli_gauge(Some(0.0), Some(90.0), true, false),
+            (90, 180, true)
+        );
     }
 
     #[test]
     fn lo_specchio_verticale_ribalta_attorno_allorizzontale() {
         // 0…90 (da mezzogiorno a ore 3) diventa 180…90, cioè il quadrante in
         // basso a destra: `180 − θ`.
-        assert_eq!(angoli_gauge(Some(0.0), Some(90.0), false, true), (90, 0, true));
+        assert_eq!(
+            angoli_gauge(Some(0.0), Some(90.0), false, true),
+            (90, 0, true)
+        );
     }
 
     #[test]
@@ -16216,15 +18523,28 @@ mod binding_tests {
     }
 
     fn valore(v: TagValue) -> TagSnapshotValue {
-        TagSnapshotValue { value: v, quality: TagQuality::Good, ts: 0 }
+        TagSnapshotValue {
+            value: v,
+            quality: TagQuality::Good,
+            ts: 0,
+        }
     }
 
     #[test]
     fn il_text_list_senza_voce_mostra_ripiego_valore_o_nd() {
         assert_eq!(testo_text_list(None, Some("Fermo"), None, "it"), "Fermo");
-        assert_eq!(testo_text_list(None, None, Some(&valore(TagValue::Int(7))), "it"), "7");
-        assert_eq!(testo_text_list(None, None, Some(&valore(TagValue::Float(2.0))), "it"), "2");
-        assert_eq!(testo_text_list(None, None, Some(&valore(TagValue::Float(2.5))), "it"), "2.5");
+        assert_eq!(
+            testo_text_list(None, None, Some(&valore(TagValue::Int(7))), "it"),
+            "7"
+        );
+        assert_eq!(
+            testo_text_list(None, None, Some(&valore(TagValue::Float(2.0))), "it"),
+            "2"
+        );
+        assert_eq!(
+            testo_text_list(None, None, Some(&valore(TagValue::Float(2.5))), "it"),
+            "2.5"
+        );
         assert_eq!(testo_text_list(None, None, None, "it"), "N/D");
     }
 
@@ -16273,8 +18593,14 @@ mod binding_tests {
 
     #[test]
     fn le_colonne_della_tabella_vengono_dal_progetto() {
-        assert_eq!(colonne_tabella(None), vec![ColTab::Etichetta, ColTab::Valore, ColTab::Qualita]);
-        assert_eq!(colonne_tabella(Some(&json!(["value", "unit", "boh"]))), vec![ColTab::Valore, ColTab::Unita]);
+        assert_eq!(
+            colonne_tabella(None),
+            vec![ColTab::Etichetta, ColTab::Valore, ColTab::Qualita]
+        );
+        assert_eq!(
+            colonne_tabella(Some(&json!(["value", "unit", "boh"]))),
+            vec![ColTab::Valore, ColTab::Unita]
+        );
     }
 
     #[test]
@@ -16293,7 +18619,10 @@ mod binding_tests {
         assert_eq!(r.celle[1].testo, "bar");
         // Senza valore: il trattino e il grigio del web.
         // Senza decimali: come `String(v)` del web.
-        let senza = TableRow { decimals: None, ..riga("q") };
+        let senza = TableRow {
+            decimals: None,
+            ..riga("q")
+        };
         let t2 = snapshot(&[("q", TagValue::Float(63.5))]);
         assert_eq!(riga_tabella(&senza, &cols, &t2).celle[1].testo, "63.5 bar");
         let r = riga_tabella(&riga("assente"), &cols, &t);
@@ -16321,7 +18650,10 @@ mod binding_tests {
     #[test]
     fn il_formato_nuovo_viene_letto() {
         let obj = SynopticObject {
-            trend_tags: Some(vec![traccia("t1", None, Some("#ff0000")), traccia("t2", None, None)]),
+            trend_tags: Some(vec![
+                traccia("t1", None, Some("#ff0000")),
+                traccia("t2", None, None),
+            ]),
             ..Default::default()
         };
         let r = tracce_trend(&obj);
@@ -16366,7 +18698,10 @@ mod binding_tests {
             line_color: Some("#00ff00".into()),
             trend_series_styles: Some(vec![
                 Default::default(),
-                crate::model::TrendSeriesStyle { dash: Some("dotted".into()), ..Default::default() },
+                crate::model::TrendSeriesStyle {
+                    dash: Some("dotted".into()),
+                    ..Default::default()
+                },
             ]),
             ..Default::default()
         };
@@ -16380,7 +18715,10 @@ mod binding_tests {
     #[test]
     fn le_tracce_nascoste_partono_spente_ma_ci_sono() {
         let obj = SynopticObject {
-            trend_tags: Some(vec![traccia("visibile", Some(false), None), traccia("nascosta", Some(true), None)]),
+            trend_tags: Some(vec![
+                traccia("visibile", Some(false), None),
+                traccia("nascosta", Some(true), None),
+            ]),
             ..Default::default()
         };
         let r = tracce_trend(&obj);
@@ -16392,14 +18730,21 @@ mod binding_tests {
     /// vecchio": ripiegare qui farebbe ricomparire tag che l'utente ha tolto.
     #[test]
     fn elenco_vuoto_non_fa_ripiegare_sul_formato_vecchio() {
-        let obj = SynopticObject { trend_tags: Some(vec![]), tag: Some("vecchio".into()), ..Default::default() };
+        let obj = SynopticObject {
+            trend_tags: Some(vec![]),
+            tag: Some("vecchio".into()),
+            ..Default::default()
+        };
         assert!(tracce_trend(&obj).is_empty());
     }
 
     #[test]
     fn i_tag_vuoti_vengono_scartati_in_entrambi_i_formati() {
         let nuovo = SynopticObject {
-            trend_tags: Some(vec![traccia("  ", None, None), traccia("buono", None, None)]),
+            trend_tags: Some(vec![
+                traccia("  ", None, None),
+                traccia("buono", None, None),
+            ]),
             ..Default::default()
         };
         assert_eq!(tag_di(&tracce_trend(&nuovo)), vec!["buono"]);
@@ -16660,11 +19005,17 @@ mod binding_tests {
         .unwrap();
         let o = |v: serde_json::Value| -> SynopticObject { serde_json::from_value(v).unwrap() };
         let oggetti = vec![
-            o(serde_json::json!({ "id": "p", "type": "symbol", "symbol_id": "lib:process/centrifugal-pump", "x": 100, "y": 200, "width": 80, "height": 80 })),
-            o(serde_json::json!({ "id": "v", "type": "symbol", "symbol_id": "lib:process/ball-valve", "x": 300, "y": 100, "width": 60, "height": 70 })),
+            o(
+                serde_json::json!({ "id": "p", "type": "symbol", "symbol_id": "lib:process/centrifugal-pump", "x": 100, "y": 200, "width": 80, "height": 80 }),
+            ),
+            o(
+                serde_json::json!({ "id": "v", "type": "symbol", "symbol_id": "lib:process/ball-valve", "x": 300, "y": 100, "width": 60, "height": 70 }),
+            ),
         ];
-        let t = o(serde_json::json!({ "id": "t", "type": "pipe", "routing": "orthogonal",
-            "from_obj_id": "p", "from_port": "n-top", "to_obj_id": "v", "to_port": "n-left", "points": [] }));
+        let t = o(
+            serde_json::json!({ "id": "t", "type": "pipe", "routing": "orthogonal",
+            "from_obj_id": "p", "from_port": "n-top", "to_obj_id": "v", "to_port": "n-left", "points": [] }),
+        );
         let p = percorso_tubo(&t, &oggetti, Some(&m), &TagSnapshot::default()).expect("agganciato");
         let xy: Vec<(f64, f64)> = p.iter().map(|q| (q.x, q.y)).collect();
         // Mandata della pompa (150, 200), su fino all'altezza dell'ingresso
@@ -16696,8 +19047,10 @@ mod binding_tests {
             "x": 100, "y": 200, "width": 80, "height": 80,
             "bindings": { "x": "carrello.x" }
         }))];
-        let t = o(serde_json::json!({ "id": "t", "type": "pipe", "from_obj_id": "p",
-            "from_port": "n-top", "points": [{ "x": 0, "y": 0 }, { "x": 900, "y": 600 }] }));
+        let t = o(
+            serde_json::json!({ "id": "t", "type": "pipe", "from_obj_id": "p",
+            "from_port": "n-top", "points": [{ "x": 0, "y": 0 }, { "x": 900, "y": 600 }] }),
+        );
 
         // Tag assente: resta la geometria del file — la mandata è a (150, 200).
         let ferma = percorso_tubo(&t, &oggetti, Some(&m), &TagSnapshot::default()).unwrap();
@@ -16719,8 +19072,16 @@ mod binding_tests {
         );
 
         // E il diametro della bocca si legge sullo stesso riquadro vivo.
-        let d = diametri_capi(&t, &oggetti, Some(&m), &snapshot(&[("carrello.x", TagValue::Int(500))]));
-        assert!(d[0].is_some(), "la bocca non è stata trovata sull'oggetto risolto");
+        let d = diametri_capi(
+            &t,
+            &oggetti,
+            Some(&m),
+            &snapshot(&[("carrello.x", TagValue::Int(500))]),
+        );
+        assert!(
+            d[0].is_some(),
+            "la bocca non è stata trovata sull'oggetto risolto"
+        );
     }
 
     /// **Il capo segue anche un oggetto in moto su percorso** (Fase 3,
@@ -16747,15 +19108,29 @@ mod binding_tests {
             "motion_tag": "corsa", "motion_min": 0, "motion_max": 100,
             "motion_path": [{ "x": 100, "y": 240 }, { "x": 500, "y": 240 }]
         }))];
-        let t = o(serde_json::json!({ "id": "t", "type": "pipe", "from_obj_id": "p",
-            "from_port": "n-top", "points": [{ "x": 0, "y": 0 }, { "x": 900, "y": 600 }] }));
+        let t = o(
+            serde_json::json!({ "id": "t", "type": "pipe", "from_obj_id": "p",
+            "from_port": "n-top", "points": [{ "x": 0, "y": 0 }, { "x": 900, "y": 600 }] }),
+        );
 
         // A 0 il centro va a (100, 240), cioe' 40 a sinistra di dov'era.
-        let inizio = percorso_tubo(&t, &oggetti, Some(&m), &snapshot(&[("corsa", TagValue::Int(0))])).unwrap();
+        let inizio = percorso_tubo(
+            &t,
+            &oggetti,
+            Some(&m),
+            &snapshot(&[("corsa", TagValue::Int(0))]),
+        )
+        .unwrap();
         assert_eq!((inizio[0].x, inizio[0].y), (110.0, 200.0));
 
         // A meta': 300 - 140 = 160 di scostamento, mandata 150 + 160 = 310.
-        let meta = percorso_tubo(&t, &oggetti, Some(&m), &snapshot(&[("corsa", TagValue::Int(50))])).unwrap();
+        let meta = percorso_tubo(
+            &t,
+            &oggetti,
+            Some(&m),
+            &snapshot(&[("corsa", TagValue::Int(50))]),
+        )
+        .unwrap();
         assert_eq!(
             (meta[0].x, meta[0].y),
             (310.0, 200.0),
@@ -16783,7 +19158,12 @@ mod binding_tests {
     }
 
     fn ancore_di_prova(pipe: SynopticObject, ancora: SynopticObject) -> AncoreTubo {
-        AncoreTubo { pipe, oggetti: vec![ancora], manifesto: None, ultimo: Vec::new() }
+        AncoreTubo {
+            pipe,
+            oggetti: vec![ancora],
+            manifesto: None,
+            ultimo: Vec::new(),
+        }
     }
 
     /// `mosso` risponde solo quando il percorso si è spostato davvero.
@@ -16796,28 +19176,44 @@ mod binding_tests {
     fn un_tubo_fermo_non_si_ridisegna() {
         let o = |v: serde_json::Value| -> SynopticObject { serde_json::from_value(v).unwrap() };
         let mut a = ancore_di_prova(
-            o(serde_json::json!({ "id": "t", "type": "pipe", "from_obj_id": "b",
-                "from_port": "left", "points": [{ "x": 0, "y": 0 }, { "x": 900, "y": 230 }] })),
-            o(serde_json::json!({ "id": "b", "type": "rect", "x": 100, "y": 200,
-                "width": 60, "height": 60, "bindings": { "x": "mov" } })),
+            o(
+                serde_json::json!({ "id": "t", "type": "pipe", "from_obj_id": "b",
+                "from_port": "left", "points": [{ "x": 0, "y": 0 }, { "x": 900, "y": 230 }] }),
+            ),
+            o(
+                serde_json::json!({ "id": "b", "type": "rect", "x": 100, "y": 200,
+                "width": 60, "height": 60, "bindings": { "x": "mov" } }),
+            ),
         );
         let a_100 = snapshot(&[("mov", TagValue::Int(100))]);
 
         // Primo giro: `ultimo` è vuoto, quindi si muove per forza.
-        let primo = a.mosso(&a_100).expect("il primo giro deve dare il percorso");
-        assert_eq!(primo[0], (100.0, 230.0), "il capo è sul lato sinistro del blocco");
+        let primo = a
+            .mosso(&a_100)
+            .expect("il primo giro deve dare il percorso");
+        assert_eq!(
+            primo[0],
+            (100.0, 230.0),
+            "il capo è sul lato sinistro del blocco"
+        );
 
         // Stesso valore: fermo.
-        assert!(a.mosso(&a_100).is_none(), "fermo e si è ridisegnato lo stesso");
+        assert!(
+            a.mosso(&a_100).is_none(),
+            "fermo e si è ridisegnato lo stesso"
+        );
 
         // Mezzo pixel non si vede: `round()` darebbe la stessa coordinata.
         assert!(
-            a.mosso(&snapshot(&[("mov", TagValue::Float(100.3))])).is_none(),
+            a.mosso(&snapshot(&[("mov", TagValue::Float(100.3))]))
+                .is_none(),
             "tre decimi di pixel non valgono un ridisegno"
         );
 
         // Uno spostamento vero sì.
-        let dopo = a.mosso(&snapshot(&[("mov", TagValue::Int(600))])).expect("spostato");
+        let dopo = a
+            .mosso(&snapshot(&[("mov", TagValue::Int(600))]))
+            .expect("spostato");
         assert_eq!(dopo[0], (600.0, 230.0));
     }
 
@@ -16832,18 +19228,34 @@ mod binding_tests {
     fn un_tubo_instradato_si_ricalcola_dall_originale() {
         let o = |v: serde_json::Value| -> SynopticObject { serde_json::from_value(v).unwrap() };
         let mut a = ancore_di_prova(
-            o(serde_json::json!({ "id": "t", "type": "pipe", "routing": "orthogonal",
+            o(
+                serde_json::json!({ "id": "t", "type": "pipe", "routing": "orthogonal",
                 "from_obj_id": "b", "from_port": "left",
-                "points": [{ "x": 0, "y": 0 }, { "x": 20, "y": 400 }] })),
-            o(serde_json::json!({ "id": "b", "type": "rect", "x": 100, "y": 200,
-                "width": 60, "height": 60, "bindings": { "x": "mov" } })),
+                "points": [{ "x": 0, "y": 0 }, { "x": 20, "y": 400 }] }),
+            ),
+            o(
+                serde_json::json!({ "id": "b", "type": "rect", "x": 100, "y": 200,
+                "width": 60, "height": 60, "bindings": { "x": "mov" } }),
+            ),
         );
-        let primo = a.mosso(&snapshot(&[("mov", TagValue::Int(100))])).expect("primo");
-        let dopo = a.mosso(&snapshot(&[("mov", TagValue::Int(600))])).expect("spostato");
+        let primo = a
+            .mosso(&snapshot(&[("mov", TagValue::Int(100))]))
+            .expect("primo");
+        let dopo = a
+            .mosso(&snapshot(&[("mov", TagValue::Int(600))]))
+            .expect("spostato");
         assert_eq!(primo[0], (100.0, 230.0));
         assert_eq!(dopo[0], (600.0, 230.0));
-        assert_eq!(*dopo.last().unwrap(), (20.0, 400.0), "l'arrivo libero non si muove");
-        assert_eq!(primo.len(), dopo.len(), "stesso instradamento, non uno in più a ogni giro");
+        assert_eq!(
+            *dopo.last().unwrap(),
+            (20.0, 400.0),
+            "l'arrivo libero non si muove"
+        );
+        assert_eq!(
+            primo.len(),
+            dopo.len(),
+            "stesso instradamento, non uno in più a ogni giro"
+        );
     }
 
     /// Il riquadro del canvas 2.5D cresce col percorso.
@@ -16863,7 +19275,10 @@ mod binding_tests {
         // Lo stesso per il canvas delle estremità, che ha un conto suo.
         let (_, _, we0, _) = riquadro_extra(&corto, 12.0);
         let (_, _, we1, _) = riquadro_extra(&lungo, 12.0);
-        assert!(we1 > we0 + 400, "riquadro extra non cresciuto: {we0} -> {we1}");
+        assert!(
+            we1 > we0 + 400,
+            "riquadro extra non cresciuto: {we0} -> {we1}"
+        );
     }
 
     fn tubo(
@@ -16880,7 +19295,15 @@ mod binding_tests {
             from_port: fp.map(String::from),
             to_obj_id: to.map(String::from),
             to_port: tp.map(String::from),
-            points: punti.map(|v| v.into_iter().map(|(x, y)| PipePoint { x, y, dritto: false }).collect()),
+            points: punti.map(|v| {
+                v.into_iter()
+                    .map(|(x, y)| PipePoint {
+                        x,
+                        y,
+                        dritto: false,
+                    })
+                    .collect()
+            }),
             ..Default::default()
         }
     }
@@ -16889,7 +19312,10 @@ mod binding_tests {
     fn le_porte_cadono_sui_lati_del_riquadro() {
         let o = scatola("a", "rect", 100.0, 200.0, 60.0, 40.0);
         assert_eq!(
-            (ancora_di(&o, Some("top"), None).x, ancora_di(&o, Some("top"), None).y),
+            (
+                ancora_di(&o, Some("top"), None).x,
+                ancora_di(&o, Some("top"), None).y
+            ),
             (130.0, 200.0)
         );
         assert_eq!(
@@ -16900,7 +19326,10 @@ mod binding_tests {
             (130.0, 240.0)
         );
         assert_eq!(
-            (ancora_di(&o, Some("left"), None).x, ancora_di(&o, Some("left"), None).y),
+            (
+                ancora_di(&o, Some("left"), None).x,
+                ancora_di(&o, Some("left"), None).y
+            ),
             (100.0, 220.0)
         );
         assert_eq!(
@@ -17506,21 +19935,41 @@ mod stato_simbolo_tests {
         struct F {
             casi: Vec<Caso>,
         }
-        let f: F = serde_json::from_str(include_str!("../../../../tests/fixtures/stato-simbolo.json")).unwrap();
+        let f: F = serde_json::from_str(include_str!(
+            "../../../../tests/fixtures/stato-simbolo.json"
+        ))
+        .unwrap();
         assert!(f.casi.len() >= 10);
         for c in f.casi {
             let mut tags = TagSnapshot::new();
             for (k, v) in &c.tag {
                 let value: TagValue = serde_json::from_value(v.clone()).unwrap();
-                tags.insert(k.clone(), TagSnapshotValue { value, quality: TagQuality::Good, ts: 0 });
+                tags.insert(
+                    k.clone(),
+                    TagSnapshotValue {
+                        value,
+                        quality: TagQuality::Good,
+                        ts: 0,
+                    },
+                );
             }
-            let (stato, voce) = stato_simbolo(&tags, &Some("stato".into()), &Some("allarme".into()), &c.stati);
+            let (stato, voce) = stato_simbolo(
+                &tags,
+                &Some("stato".into()),
+                &Some("allarme".into()),
+                &c.stati,
+            );
             let nome = match stato {
                 SymbolState::Off => "off",
                 SymbolState::On => "on",
                 SymbolState::Alarm => "alarm",
             };
-            assert_eq!((nome, voce), (c.atteso.stato.as_str(), c.atteso.voce), "caso «{}»", c.nome);
+            assert_eq!(
+                (nome, voce),
+                (c.atteso.stato.as_str(), c.atteso.voce),
+                "caso «{}»",
+                c.nome
+            );
         }
     }
 }
@@ -17573,7 +20022,10 @@ mod colori_predefiniti_tests {
     fn ogni_coppia_chiesta_dal_codice_sta_in_tabella() {
         let sorgente = include_str!("lvgl_render.rs");
         let mut mancanti = Vec::new();
-        for (i, _) in sorgente.match_indices("predefinito_lvgl(\"").chain(sorgente.match_indices("colore_campo(")) {
+        for (i, _) in sorgente
+            .match_indices("predefinito_lvgl(\"")
+            .chain(sorgente.match_indices("colore_campo("))
+        {
             let inizio_riga = sorgente[..i].rfind('\n').map_or(0, |n| n + 1);
             if sorgente[inizio_riga..i].trim_start().starts_with("//") {
                 continue;
@@ -17595,7 +20047,10 @@ mod colori_predefiniti_tests {
         }
         mancanti.sort();
         mancanti.dedup();
-        assert!(mancanti.is_empty(), "coppie usate dal codice ma assenti da TABELLA: {mancanti:?}");
+        assert!(
+            mancanti.is_empty(),
+            "coppie usate dal codice ma assenti da TABELLA: {mancanti:?}"
+        );
     }
 
     #[test]
@@ -17878,7 +20333,11 @@ mod forme_svg_tests {
         assert_eq!((f.x, f.y), (105, 49), "margine di un pixel senza bordo");
         assert!(f.svg.contains("<polygon"), "{}", f.svg);
         assert!(f.svg.contains(r##"fill="#ff0000""##), "{}", f.svg);
-        assert!(!f.svg.contains("stroke="), "senza bordo dichiarato: {}", f.svg);
+        assert!(
+            !f.svg.contains("stroke="),
+            "senza bordo dichiarato: {}",
+            f.svg
+        );
     }
 
     #[test]
@@ -17887,14 +20346,27 @@ mod forme_svg_tests {
             "type": "polygon", "x": 0, "y": 0, "width": 50, "height": 50, "sides": 5, "star": true
         })))
         .unwrap();
-        let n = s.svg.split("points=\"").nth(1).unwrap().split('"').next().unwrap().split(' ').count();
+        let n = s
+            .svg
+            .split("points=\"")
+            .nth(1)
+            .unwrap()
+            .split('"')
+            .next()
+            .unwrap()
+            .split(' ')
+            .count();
         assert_eq!(n, 10);
         let c = svg_forma(&oggetto(serde_json::json!({
             "type": "polyline", "x": 0, "y": 0, "closed": true,
             "points": [{"x": 0, "y": 0}, {"x": 40, "y": 0}, {"x": 20, "y": 30}, {"x": 20, "y": 10}]
         })))
         .unwrap();
-        assert!(c.svg.contains("<polygon") && c.svg.contains("#4a90d9"), "{}", c.svg);
+        assert!(
+            c.svg.contains("<polygon") && c.svg.contains("#4a90d9"),
+            "{}",
+            c.svg
+        );
     }
 
     #[test]
@@ -17904,7 +20376,11 @@ mod forme_svg_tests {
             "points": [{"x": 10, "y": 10}, {"x": 60, "y": 30}]
         })))
         .unwrap();
-        assert!(o.svg.contains("<polyline") && o.svg.contains(r#"fill="none""#), "{}", o.svg);
+        assert!(
+            o.svg.contains("<polyline") && o.svg.contains(r#"fill="none""#),
+            "{}",
+            o.svg
+        );
         assert!(!o.svg.contains("onload"), "{}", o.svg);
         let una = svg_forma(&oggetto(serde_json::json!({
             "type": "polyline", "x": 0, "y": 0, "points": [{"x": 1, "y": 1}]

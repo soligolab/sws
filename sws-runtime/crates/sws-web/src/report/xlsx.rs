@@ -38,8 +38,16 @@ fn colonna(mut i: usize) -> String {
 
 /// Il nome di un foglio: al massimo 31 caratteri, senza `[]:*?/\`, unico.
 fn nome_foglio(t: &str, usati: &mut Vec<String>) -> String {
-    let base: String = t.chars().filter(|c| !"[]:*?/\\".contains(*c)).take(28).collect();
-    let base = if base.trim().is_empty() { "Foglio".to_string() } else { base };
+    let base: String = t
+        .chars()
+        .filter(|c| !"[]:*?/\\".contains(*c))
+        .take(28)
+        .collect();
+    let base = if base.trim().is_empty() {
+        "Foglio".to_string()
+    } else {
+        base
+    };
     let mut n = base.clone();
     let mut k = 2;
     while usati.contains(&n) {
@@ -56,13 +64,19 @@ fn stile(d: u8) -> usize {
 }
 
 fn foglio(intestazione: &[String], righe: &[Vec<Cella>], prima: &[String]) -> String {
-    let mut x = String::from(r#"<?xml version="1.0" encoding="UTF-8" standalone="yes"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetData>"#);
+    let mut x = String::from(
+        r#"<?xml version="1.0" encoding="UTF-8" standalone="yes"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetData>"#,
+    );
     let mut r = 1;
     let riga_testo = |x: &mut String, r: usize, celle: &[String], grassetto: bool| {
         x.push_str(&format!(r#"<row r="{r}">"#));
         for (i, c) in celle.iter().enumerate() {
             let s = if grassetto { r#" s="8""# } else { "" };
-            x.push_str(&format!(r#"<c r="{}{r}" t="inlineStr"{s}><is><t xml:space="preserve">{}</t></is></c>"#, colonna(i), esc(c)));
+            x.push_str(&format!(
+                r#"<c r="{}{r}" t="inlineStr"{s}><is><t xml:space="preserve">{}</t></is></c>"#,
+                colonna(i),
+                esc(c)
+            ));
         }
         x.push_str("</row>");
     };
@@ -80,8 +94,13 @@ fn foglio(intestazione: &[String], righe: &[Vec<Cella>], prima: &[String]) -> St
         for (i, c) in riga.iter().enumerate() {
             let rif = format!("{}{r}", colonna(i));
             match c {
-                Cella::Testo(s) => x.push_str(&format!(r#"<c r="{rif}" t="inlineStr"><is><t xml:space="preserve">{}</t></is></c>"#, esc(s))),
-                Cella::Numero(v, d) if v.is_finite() => x.push_str(&format!(r#"<c r="{rif}" s="{}"><v>{v}</v></c>"#, stile(*d))),
+                Cella::Testo(s) => x.push_str(&format!(
+                    r#"<c r="{rif}" t="inlineStr"><is><t xml:space="preserve">{}</t></is></c>"#,
+                    esc(s)
+                )),
+                Cella::Numero(v, d) if v.is_finite() => {
+                    x.push_str(&format!(r#"<c r="{rif}" s="{}"><v>{v}</v></c>"#, stile(*d)))
+                }
                 _ => {}
             }
         }
@@ -97,7 +116,11 @@ const STILI: &str = r#"<?xml version="1.0" encoding="UTF-8" standalone="yes"?><s
 /// Il file intero.
 pub fn scrivi(d: &DatiReport) -> anyhow::Result<Vec<u8>> {
     let mut usati = Vec::new();
-    let nomi: Vec<String> = d.tabelle.iter().map(|t| nome_foglio(&t.titolo, &mut usati)).collect();
+    let nomi: Vec<String> = d
+        .tabelle
+        .iter()
+        .map(|t| nome_foglio(&t.titolo, &mut usati))
+        .collect();
     let mut buf = Cursor::new(Vec::new());
     {
         let mut z = zip::ZipWriter::new(&mut buf);
@@ -110,20 +133,57 @@ pub fn scrivi(d: &DatiReport) -> anyhow::Result<Vec<u8>> {
         let fogli_ct: String = (1..=nomi.len())
             .map(|i| format!(r#"<Override PartName="/xl/worksheets/sheet{i}.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>"#))
             .collect();
-        parte("[Content_Types].xml", &format!(r#"<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/>{fogli_ct}</Types>"#))?;
-        parte("_rels/.rels", r#"<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>"#)?;
-        let fogli: String = nomi.iter().enumerate().map(|(i, n)| format!(r#"<sheet name="{}" sheetId="{}" r:id="rId{}"/>"#, esc(n), i + 1, i + 1)).collect();
-        parte("xl/workbook.xml", &format!(r#"<?xml version="1.0" encoding="UTF-8" standalone="yes"?><workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets>{fogli}</sheets></workbook>"#))?;
+        parte(
+            "[Content_Types].xml",
+            &format!(
+                r#"<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/>{fogli_ct}</Types>"#
+            ),
+        )?;
+        parte(
+            "_rels/.rels",
+            r#"<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>"#,
+        )?;
+        let fogli: String = nomi
+            .iter()
+            .enumerate()
+            .map(|(i, n)| {
+                format!(
+                    r#"<sheet name="{}" sheetId="{}" r:id="rId{}"/>"#,
+                    esc(n),
+                    i + 1,
+                    i + 1
+                )
+            })
+            .collect();
+        parte(
+            "xl/workbook.xml",
+            &format!(
+                r#"<?xml version="1.0" encoding="UTF-8" standalone="yes"?><workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets>{fogli}</sheets></workbook>"#
+            ),
+        )?;
         let rel: String = (1..=nomi.len())
             .map(|i| format!(r#"<Relationship Id="rId{i}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet{i}.xml"/>"#))
             .collect();
-        parte("xl/_rels/workbook.xml.rels", &format!(r#"<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">{rel}<Relationship Id="rId{}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/></Relationships>"#, nomi.len() + 1))?;
+        parte(
+            "xl/_rels/workbook.xml.rels",
+            &format!(
+                r#"<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">{rel}<Relationship Id="rId{}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/></Relationships>"#,
+                nomi.len() + 1
+            ),
+        )?;
         parte("xl/styles.xml", STILI)?;
         for (i, t) in d.tabelle.iter().enumerate() {
             // Il primo foglio porta titolo, progetto e periodo: un file aperto
             // da solo deve dire cos'è.
-            let prima = if i == 0 { vec![d.titolo.clone(), d.progetto.clone(), d.periodo.clone()] } else { Vec::new() };
-            parte(&format!("xl/worksheets/sheet{}.xml", i + 1), &foglio(&t.colonne, &t.righe, &prima))?;
+            let prima = if i == 0 {
+                vec![d.titolo.clone(), d.progetto.clone(), d.periodo.clone()]
+            } else {
+                Vec::new()
+            };
+            parte(
+                &format!("xl/worksheets/sheet{}.xml", i + 1),
+                &foglio(&t.colonne, &t.righe, &prima),
+            )?;
         }
         z.finish()?;
     }
@@ -144,28 +204,58 @@ mod tests {
             periodo: "x".into(),
             generato: "y".into(),
             tabelle: vec![
-                Tabella { titolo: "Riepilogo".into(), colonne: vec!["Tag".into(), "Media".into()], righe: vec![vec![Cella::Testo("t<1>".into()), Cella::Numero(21.5, 1)]] },
-                Tabella { titolo: "Riepilogo".into(), colonne: vec!["A".into()], righe: vec![] },
+                Tabella {
+                    titolo: "Riepilogo".into(),
+                    colonne: vec!["Tag".into(), "Media".into()],
+                    righe: vec![vec![Cella::Testo("t<1>".into()), Cella::Numero(21.5, 1)]],
+                },
+                Tabella {
+                    titolo: "Riepilogo".into(),
+                    colonne: vec!["A".into()],
+                    righe: vec![],
+                },
             ],
             virgola: true,
             parole_pagina: "Pagina",
         };
         let b = scrivi(&d).unwrap();
         let mut z = zip::ZipArchive::new(Cursor::new(b)).unwrap();
-        for p in ["[Content_Types].xml", "_rels/.rels", "xl/workbook.xml", "xl/_rels/workbook.xml.rels", "xl/styles.xml", "xl/worksheets/sheet2.xml"] {
+        for p in [
+            "[Content_Types].xml",
+            "_rels/.rels",
+            "xl/workbook.xml",
+            "xl/_rels/workbook.xml.rels",
+            "xl/styles.xml",
+            "xl/worksheets/sheet2.xml",
+        ] {
             assert!(z.by_name(p).is_ok(), "manca {p}");
         }
         let mut wb = String::new();
-        z.by_name("xl/workbook.xml").unwrap().read_to_string(&mut wb).unwrap();
-        assert!(wb.contains(r#"name="Riepilogo""#) && wb.contains(r#"name="Riepilogo 2""#), "nomi dei fogli unici: {wb}");
+        z.by_name("xl/workbook.xml")
+            .unwrap()
+            .read_to_string(&mut wb)
+            .unwrap();
+        assert!(
+            wb.contains(r#"name="Riepilogo""#) && wb.contains(r#"name="Riepilogo 2""#),
+            "nomi dei fogli unici: {wb}"
+        );
         let mut f = String::new();
-        z.by_name("xl/worksheets/sheet1.xml").unwrap().read_to_string(&mut f).unwrap();
-        assert!(f.contains("<v>21.5</v>") && f.contains(r#"s="2""#), "un numero con un decimale: {f}");
+        z.by_name("xl/worksheets/sheet1.xml")
+            .unwrap()
+            .read_to_string(&mut f)
+            .unwrap();
+        assert!(
+            f.contains("<v>21.5</v>") && f.contains(r#"s="2""#),
+            "un numero con un decimale: {f}"
+        );
         assert!(f.contains("t&lt;1&gt;") && f.contains("Turno &amp; co"));
     }
 
     #[test]
     fn i_nomi_delle_colonne() {
-        assert_eq!([0, 25, 26, 27, 51, 52].map(colonna), ["A", "Z", "AA", "AB", "AZ", "BA"]);
+        assert_eq!(
+            [0, 25, 26, 27, 51, 52].map(colonna),
+            ["A", "Z", "AA", "AB", "AZ", "BA"]
+        );
     }
 }

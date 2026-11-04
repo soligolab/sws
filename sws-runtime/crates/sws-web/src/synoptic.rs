@@ -912,21 +912,33 @@ pub fn applica_predefiniti_tag(
     tags: &[sws_core::TagDef],
     types: &[sws_core::TypeDef],
 ) {
-    let mut foglie: std::collections::HashMap<String, Predefiniti> = std::collections::HashMap::new();
+    let mut foglie: std::collections::HashMap<String, Predefiniti> =
+        std::collections::HashMap::new();
     // Gli id da risolvere: il tag dell'oggetto e, per serbatoi e tubi, quello
     // del livello (03-11-2026).
-    let ids = |o: &SynopticObject| [o.tag.clone(), o.fill_level_tag.clone()].into_iter().flatten().collect::<Vec<_>>();
+    let ids = |o: &SynopticObject| {
+        [o.tag.clone(), o.fill_level_tag.clone()]
+            .into_iter()
+            .flatten()
+            .collect::<Vec<_>>()
+    };
     for o in objects.iter() {
         for id in ids(o) {
             if foglie.contains_key(&id) || tags.iter().any(|t| t.id == id) {
                 continue;
             }
             let radice = id.split(['.', '[']).next().unwrap_or(&id);
-            let Some(t) = tags.iter().find(|t| t.id == radice) else { continue };
-            let Ok(Some(forma)) = sws_core::Forma::da_tag(t, types) else { continue };
+            let Some(t) = tags.iter().find(|t| t.id == radice) else {
+                continue;
+            };
+            let Ok(Some(forma)) = sws_core::Forma::da_tag(t, types) else {
+                continue;
+            };
             for f in forma.foglie(&t.id, types) {
                 if let Some(m) = f.membro {
-                    foglie.entry(f.percorso).or_insert(Predefiniti::da_membro(&m));
+                    foglie
+                        .entry(f.percorso)
+                        .or_insert(Predefiniti::da_membro(&m));
                 }
             }
         }
@@ -938,7 +950,8 @@ pub fn applica_predefiniti_tag(
     for o in objects {
         // Il livello: senza una scala scelta e senza un intervallo scritto,
         // quello del tag — lo stesso che il web calcola in `canvas/livello.ts`.
-        if o.fill_level_scale.is_none() && o.fill_level_min.is_none() && o.fill_level_max.is_none() {
+        if o.fill_level_scale.is_none() && o.fill_level_min.is_none() && o.fill_level_max.is_none()
+        {
             if let Some(d) = o.fill_level_tag.as_deref().and_then(def_di) {
                 if let (Some(lo), Some(hi)) = (d.range_lo, d.range_hi) {
                     if hi > lo {
@@ -948,7 +961,9 @@ pub fn applica_predefiniti_tag(
                 }
             }
         }
-        let Some(def) = o.tag.as_deref().and_then(def_di) else { continue };
+        let Some(def) = o.tag.as_deref().and_then(def_di) else {
+            continue;
+        };
         o.unit = o.unit.take().or(def.unit);
         o.decimals = o.decimals.or(def.decimals);
         o.min = o.min.or(def.range_lo);
@@ -1135,9 +1150,15 @@ mod tests_predefiniti_tag {
         .unwrap();
         applica_predefiniti_tag(&mut objs, &tags, &[]);
         let a = &objs[0];
-        assert_eq!((a.min, a.max, a.decimals), (Some(15.0), Some(25.0), Some(1)));
+        assert_eq!(
+            (a.min, a.max, a.decimals),
+            (Some(15.0), Some(25.0), Some(1))
+        );
         assert_eq!(a.unit.as_deref(), Some("°C"));
-        assert_eq!((a.warn_high, a.alarm_high, a.warn_low), (Some(26.0), Some(28.0), None));
+        assert_eq!(
+            (a.warn_high, a.alarm_high, a.warn_low),
+            (Some(26.0), Some(28.0), None)
+        );
         assert_eq!((objs[1].min, objs[1].unit.as_deref()), (None, None));
     }
 
@@ -1145,7 +1166,8 @@ mod tests_predefiniti_tag {
     /// (02-11-2026, l'inverter dal catalogo): sul pannello LVGL non li aveva.
     #[test]
     fn una_foglia_prende_unita_e_decimali_dal_membro() {
-        let tags: Vec<sws_core::TagDef> = serde_yaml::from_str("- { id: inverter, type_ref: inv }").unwrap();
+        let tags: Vec<sws_core::TagDef> =
+            serde_yaml::from_str("- { id: inverter, type_ref: inv }").unwrap();
         let types: Vec<sws_core::TypeDef> = serde_yaml::from_str(
             "- { id: inv, members: [ { name: grid_power, data_type: i32, unit: W, decimals: 0 }, \
                { name: pv, type_ref: mppt } ] }\n\
@@ -1159,8 +1181,15 @@ mod tests_predefiniti_tag {
         )
         .unwrap();
         applica_predefiniti_tag(&mut objs, &tags, &types);
-        assert_eq!((objs[0].unit.as_deref(), objs[0].decimals), (Some("W"), Some(0)));
-        assert_eq!(objs[1].unit.as_deref(), Some("kV"), "quello scritto sull'oggetto vince");
+        assert_eq!(
+            (objs[0].unit.as_deref(), objs[0].decimals),
+            (Some("W"), Some(0))
+        );
+        assert_eq!(
+            objs[1].unit.as_deref(),
+            Some("kV"),
+            "quello scritto sull'oggetto vince"
+        );
         assert_eq!((objs[1].decimals, objs[1].max), (Some(1), Some(600.0)));
         assert_eq!(objs[2].unit, None);
     }
@@ -1171,7 +1200,8 @@ mod tests_predefiniti_tag {
     #[test]
     fn il_livello_prende_l_intervallo_del_tag() {
         let tags: Vec<sws_core::TagDef> =
-            serde_yaml::from_str("- { id: livello, range_lo: 0, range_hi: 1000 }\n- { id: pct }").unwrap();
+            serde_yaml::from_str("- { id: livello, range_lo: 0, range_hi: 1000 }\n- { id: pct }")
+                .unwrap();
         let mut objs: Vec<SynopticObject> = serde_yaml::from_str(concat!(
             "- { id: a, type: symbol, x: 0, y: 0, fill_level_tag: livello }\n",
             "- { id: b, type: symbol, x: 0, y: 0, fill_level_tag: livello, fill_level_scale: '0-100' }\n",
@@ -1180,9 +1210,15 @@ mod tests_predefiniti_tag {
         ))
         .unwrap();
         applica_predefiniti_tag(&mut objs, &tags, &[]);
-        assert_eq!((objs[0].fill_level_min, objs[0].fill_level_max), (Some(0.0), Some(1000.0)));
+        assert_eq!(
+            (objs[0].fill_level_min, objs[0].fill_level_max),
+            (Some(0.0), Some(1000.0))
+        );
         assert_eq!(objs[1].fill_level_min, None, "la scala scelta vince");
-        assert_eq!((objs[2].fill_level_min, objs[2].fill_level_max), (Some(100.0), Some(900.0)));
+        assert_eq!(
+            (objs[2].fill_level_min, objs[2].fill_level_max),
+            (Some(100.0), Some(900.0))
+        );
         assert_eq!(objs[3].fill_level_min, None, "senza intervallo resta 0–100");
     }
 }

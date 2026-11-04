@@ -35,7 +35,10 @@ pub fn da_data_value(dv: &DataValue) -> (Option<TagValue>, TagQuality) {
 
 /// Come [`da_data_value`], con l'albero dei tipi del server: serve a leggere le
 /// strutture (`ExtensionObject`). Senza albero una struttura resta `Bad`.
-pub fn da_data_value_con(dv: &DataValue, albero: Option<&DataTypeTree>) -> (Option<TagValue>, TagQuality) {
+pub fn da_data_value_con(
+    dv: &DataValue,
+    albero: Option<&DataTypeTree>,
+) -> (Option<TagValue>, TagQuality) {
     let qualita = match dv.status {
         Some(s) if s == StatusCode::Good => TagQuality::Good,
         Some(_) => TagQuality::Bad,
@@ -80,7 +83,8 @@ pub fn da_variant_con(v: &Variant, albero: Option<&DataTypeTree>) -> Option<TagV
         Variant::String(s) => TagValue::Str(s.as_ref().to_string()),
         Variant::LocalizedText(t) => TagValue::Str(t.text.as_ref().to_string()),
         Variant::Array(a) => {
-            let piatti: Option<Vec<TagValue>> = a.values.iter().map(|x| da_variant_con(x, albero)).collect();
+            let piatti: Option<Vec<TagValue>> =
+                a.values.iter().map(|x| da_variant_con(x, albero)).collect();
             annida(piatti?, a.dimensions.as_deref())?
         }
         Variant::ExtensionObject(eo) => da_struttura(eo.inner_as::<DynamicStructure>()?, albero?)?,
@@ -104,7 +108,10 @@ pub fn da_variant_con(v: &Variant, albero: Option<&DataTypeTree>) -> Option<TagV
 fn da_struttura(s: &DynamicStructure, albero: &DataTypeTree) -> Option<TagValue> {
     let id = s.full_data_type_id().node_id;
     let info = albero.get_struct_type(&id)?;
-    if !matches!(info.structure_type, StructureType::Structure | StructureType::StructureWithOptionalFields) {
+    if !matches!(
+        info.structure_type,
+        StructureType::Structure | StructureType::StructureWithOptionalFields
+    ) {
         return None;
     }
     let mut campi = std::collections::BTreeMap::new();
@@ -131,7 +138,9 @@ fn annida(piatti: Vec<TagValue>, dimensioni: Option<&[u32]>) -> Option<TagValue>
     let Some(dims) = dimensioni.filter(|d| d.len() > 1) else {
         return Some(TagValue::Array(piatti));
     };
-    let attesi: usize = dims.iter().try_fold(1usize, |a, d| a.checked_mul(*d as usize))?;
+    let attesi: usize = dims
+        .iter()
+        .try_fold(1usize, |a, d| a.checked_mul(*d as usize))?;
     if attesi != piatti.len() {
         return None;
     }
@@ -197,15 +206,21 @@ pub fn variant_per_tipo(tipo: Option<&str>, v: &TagValue) -> Option<Variant> {
             if v.is_empty() {
                 return None;
             }
-            let dentro: Option<Vec<Variant>> = v.iter().map(|x| variant_per_tipo(tipo, x)).collect();
+            let dentro: Option<Vec<Variant>> =
+                v.iter().map(|x| variant_per_tipo(tipo, x)).collect();
             let dentro = dentro?;
             let tipo_elementi = dentro.first().map(tipo_scalare_del_variant)??;
             // Elementi di tipo diverso non fanno un array OPC-UA.
-            if dentro.iter().any(|x| tipo_scalare_del_variant(x) != Some(tipo_elementi)) {
+            if dentro
+                .iter()
+                .any(|x| tipo_scalare_del_variant(x) != Some(tipo_elementi))
+            {
                 return None;
             }
             let _ = t;
-            Variant::Array(Box::new(opcua::types::Array::new(tipo_elementi, dentro).ok()?))
+            Variant::Array(Box::new(
+                opcua::types::Array::new(tipo_elementi, dentro).ok()?,
+            ))
         }
         // Le strutture no: vogliono il `DataTypeTree` del server e un type
         // loader, ed è la parte della Fase 4 che aspetta un server con
@@ -300,7 +315,9 @@ pub fn definizione_struttura(
     use opcua::types::{
         DataTypeDefinition, DataTypeId, StructureDefinition, StructureField, StructureType,
     };
-    let Forma::Struttura(membri) = forma else { return None };
+    let Forma::Struttura(membri) = forma else {
+        return None;
+    };
     if membri.is_empty() {
         return None;
     }
@@ -345,7 +362,9 @@ pub fn tipo_sws(data_type: &opcua::types::NodeId) -> Option<&'static str> {
     if data_type.namespace != 0 {
         return None;
     }
-    let Identifier::Numeric(n) = data_type.identifier else { return None };
+    let Identifier::Numeric(n) = data_type.identifier else {
+        return None;
+    };
     Some(match n {
         x if x == D::Boolean as u32 => "bool",
         x if x == D::SByte as u32 => "i8",
@@ -369,7 +388,11 @@ mod prove {
     use opcua::types::Array;
 
     fn dv(v: Variant) -> DataValue {
-        DataValue { value: Some(v), status: Some(StatusCode::Good), ..Default::default() }
+        DataValue {
+            value: Some(v),
+            status: Some(StatusCode::Good),
+            ..Default::default()
+        }
     }
 
     /// Il difetto principale: un valore che non si sa leggere non diventa zero.
@@ -382,18 +405,38 @@ mod prove {
         assert_eq!(q, TagQuality::Bad);
 
         // Un valore **assente** invece no: non sappiamo ancora.
-        let vuoto = DataValue { value: None, status: Some(StatusCode::Good), ..Default::default() };
+        let vuoto = DataValue {
+            value: None,
+            status: Some(StatusCode::Good),
+            ..Default::default()
+        };
         let (v, q) = da_data_value(&vuoto);
         assert!(v.is_none());
-        assert_eq!(q, TagQuality::Uncertain, "assente e illeggibile non sono la stessa cosa");
+        assert_eq!(
+            q,
+            TagQuality::Uncertain,
+            "assente e illeggibile non sono la stessa cosa"
+        );
     }
 
     #[test]
     fn gli_scalari_si_leggono_come_prima() {
-        assert_eq!(da_data_value(&dv(Variant::Boolean(true))).0, Some(TagValue::Bool(true)));
-        assert_eq!(da_data_value(&dv(Variant::UInt16(65535))).0, Some(TagValue::Int(65535)));
-        assert_eq!(da_data_value(&dv(Variant::Int16(-2))).0, Some(TagValue::Int(-2)));
-        assert_eq!(da_data_value(&dv(Variant::Float(1.5))).0, Some(TagValue::Float(1.5)));
+        assert_eq!(
+            da_data_value(&dv(Variant::Boolean(true))).0,
+            Some(TagValue::Bool(true))
+        );
+        assert_eq!(
+            da_data_value(&dv(Variant::UInt16(65535))).0,
+            Some(TagValue::Int(65535))
+        );
+        assert_eq!(
+            da_data_value(&dv(Variant::Int16(-2))).0,
+            Some(TagValue::Int(-2))
+        );
+        assert_eq!(
+            da_data_value(&dv(Variant::Float(1.5))).0,
+            Some(TagValue::Float(1.5))
+        );
         let (_, q) = da_data_value(&DataValue {
             value: Some(Variant::Double(1.0)),
             status: Some(StatusCode::BadNodeIdUnknown),
@@ -414,7 +457,11 @@ mod prove {
         assert_eq!(q, TagQuality::Good);
         assert_eq!(
             v,
-            Some(TagValue::Array(vec![TagValue::Int(1), TagValue::Int(2), TagValue::Int(3)]))
+            Some(TagValue::Array(vec![
+                TagValue::Int(1),
+                TagValue::Int(2),
+                TagValue::Int(3)
+            ]))
         );
     }
 
@@ -423,7 +470,8 @@ mod prove {
     #[test]
     fn un_array_a_due_dimensioni_si_annida() {
         let valori: Vec<Variant> = (1..=6).map(Variant::Int32).collect();
-        let a = Array::new_multi(opcua::types::VariantScalarTypeId::Int32, valori, vec![2, 3]).unwrap();
+        let a =
+            Array::new_multi(opcua::types::VariantScalarTypeId::Int32, valori, vec![2, 3]).unwrap();
         let (v, _) = da_data_value(&dv(Variant::Array(Box::new(a))));
         assert_eq!(
             v,
@@ -443,7 +491,10 @@ mod prove {
             values: valori,
             dimensions: Some(vec![2, 3]),
         };
-        assert!(da_variant(&Variant::Array(Box::new(a))).is_none(), "5 valori in 2x3");
+        assert!(
+            da_variant(&Variant::Array(Box::new(a))).is_none(),
+            "5 valori in 2x3"
+        );
     }
 
     /// Il secondo difetto: scrivere su un nodo `UInt16` mandava un `Int64`.
@@ -470,7 +521,10 @@ mod prove {
         assert_eq!(variant_per_tipo(Some("i64"), &n), Some(Variant::Int64(7)));
         let f = TagValue::Float(1.5);
         assert_eq!(variant_per_tipo(None, &f), Some(Variant::Double(1.5)));
-        assert_eq!(variant_per_tipo(Some("float"), &f), Some(Variant::Double(1.5)));
+        assert_eq!(
+            variant_per_tipo(Some("float"), &f),
+            Some(Variant::Double(1.5))
+        );
         assert_eq!(
             variant_per_tipo(Some("bool"), &TagValue::Bool(true)),
             Some(Variant::Boolean(true))
@@ -499,7 +553,10 @@ mod prove {
     fn un_array_vuoto_o_misto_non_si_traduce() {
         assert!(variant_per_tipo(Some("u16"), &TagValue::Array(vec![])).is_none());
         let misto = TagValue::Array(vec![TagValue::Int(1), TagValue::Str("x".into())]);
-        assert!(variant_per_tipo(None, &misto).is_none(), "tipi diversi non fanno un array OPC-UA");
+        assert!(
+            variant_per_tipo(None, &misto).is_none(),
+            "tipi diversi non fanno un array OPC-UA"
+        );
     }
 
     #[test]
@@ -554,7 +611,9 @@ mod prove_definizione_struttura {
     }
 
     fn campi(def: &DataTypeDefinition) -> Vec<(String, NodeId, i32)> {
-        let DataTypeDefinition::Structure(sd) = def else { panic!("non è una struttura") };
+        let DataTypeDefinition::Structure(sd) = def else {
+            panic!("non è una struttura")
+        };
         sd.fields
             .as_ref()
             .expect("campi")
@@ -579,7 +638,10 @@ mod prove_definizione_struttura {
         ]);
         let def = definizione_struttura(&forma, &enc()).expect("si pubblica");
         let c = campi(&def);
-        assert_eq!(c[0].0, "zeta", "l'ordine dichiarato viene prima dell'alfabetico");
+        assert_eq!(
+            c[0].0, "zeta",
+            "l'ordine dichiarato viene prima dell'alfabetico"
+        );
         assert_eq!(c[1].0, "alfa");
         assert_eq!(c[0].1, NodeId::from(DataTypeId::Float));
         assert_eq!(c[1].1, NodeId::from(DataTypeId::Boolean));
@@ -594,9 +656,14 @@ mod prove_definizione_struttura {
     fn l_id_di_encoding_e_quello_passato_non_nullo() {
         let forma = Forma::Struttura(vec![("x".into(), scal("f32"))]);
         let def = definizione_struttura(&forma, &enc()).expect("si pubblica");
-        let DataTypeDefinition::Structure(sd) = &def else { panic!() };
+        let DataTypeDefinition::Structure(sd) = &def else {
+            panic!()
+        };
         assert_eq!(sd.default_encoding_id, enc());
-        assert!(!sd.default_encoding_id.is_null(), "un id nullo confonde due tipi");
+        assert!(
+            !sd.default_encoding_id.is_null(),
+            "un id nullo confonde due tipi"
+        );
     }
 
     /// Il difetto che `tipo_opcua` aveva: `color` dichiarava `Double` e sul filo
@@ -635,15 +702,24 @@ mod prove_definizione_struttura {
             "pid".into(),
             Forma::Struttura(vec![("kp".into(), scal("f32"))]),
         )]);
-        assert!(definizione_struttura(&annidata, &enc()).is_none(), "struttura annidata");
+        assert!(
+            definizione_struttura(&annidata, &enc()).is_none(),
+            "struttura annidata"
+        );
 
         let array_annidato = Forma::Struttura(vec![(
             "matrice".into(),
             Forma::Array(2, Box::new(Forma::Array(3, Box::new(scal("u16"))))),
         )]);
-        assert!(definizione_struttura(&array_annidato, &enc()).is_none(), "array annidato");
+        assert!(
+            definizione_struttura(&array_annidato, &enc()).is_none(),
+            "array annidato"
+        );
 
-        assert!(definizione_struttura(&scal("f32"), &enc()).is_none(), "uno scalare non è una struttura");
+        assert!(
+            definizione_struttura(&scal("f32"), &enc()).is_none(),
+            "uno scalare non è una struttura"
+        );
         assert!(
             definizione_struttura(&Forma::Array(4, Box::new(scal("u16"))), &enc()).is_none(),
             "un array di scalari è una radice, ma non una struttura"

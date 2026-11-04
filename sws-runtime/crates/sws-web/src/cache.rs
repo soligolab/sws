@@ -77,8 +77,18 @@ pub fn politica(percorso: &str, tipo: Option<&str>, gia_dichiarata: bool) -> Opt
     // versione vecchia anche con i file giusti sul disco. `no-cache`, non
     // `no-store`: si tengono, ma si rivalidano (le rotte hanno già l'ETag, Q30).
     // Solo questi: le altre API restano come sono, non le si è misurate.
-    const DI_PROGETTO: &[&str] = &["/api/synoptics", "/api/cornici", "/api/planimetrie", "/api/faceplates", "/api/pages/nav"];
-    if percorso == "/api/project" || DI_PROGETTO.iter().any(|p| percorso == *p || percorso.starts_with(&format!("{p}/"))) {
+    const DI_PROGETTO: &[&str] = &[
+        "/api/synoptics",
+        "/api/cornici",
+        "/api/planimetrie",
+        "/api/faceplates",
+        "/api/pages/nav",
+    ];
+    if percorso == "/api/project"
+        || DI_PROGETTO
+            .iter()
+            .any(|p| percorso == *p || percorso.starts_with(&format!("{p}/")))
+    {
         return Some(RIVALIDA);
     }
     None
@@ -105,9 +115,26 @@ mod tests {
 
     #[test]
     fn la_libreria_di_simboli_rivalida() {
-        assert_eq!(politica("/symbols/lib/manifest.json", Some("application/json"), false), Some(RIVALIDA));
-        assert_eq!(politica("/symbols/lib/process/centrifugal-pump.svg", Some("image/svg+xml"), false), Some(RIVALIDA));
-        assert_eq!(politica("/symbols/altro.svg", Some("image/svg+xml"), false), None);
+        assert_eq!(
+            politica(
+                "/symbols/lib/manifest.json",
+                Some("application/json"),
+                false
+            ),
+            Some(RIVALIDA)
+        );
+        assert_eq!(
+            politica(
+                "/symbols/lib/process/centrifugal-pump.svg",
+                Some("image/svg+xml"),
+                false
+            ),
+            Some(RIVALIDA)
+        );
+        assert_eq!(
+            politica("/symbols/altro.svg", Some("image/svg+xml"), false),
+            None
+        );
     }
 
     use super::*;
@@ -142,28 +169,51 @@ mod tests {
     /// Le API non si toccano: questo strato esiste per la SPA…
     #[test]
     fn le_api_restano_come_sono() {
-        assert_eq!(politica("/api/system", Some("application/json"), false), None);
-        assert_eq!(politica("/api/synopticsx", Some("application/json"), false), None);
+        assert_eq!(
+            politica("/api/system", Some("application/json"), false),
+            None
+        );
+        assert_eq!(
+            politica("/api/synopticsx", Some("application/json"), false),
+            None
+        );
     }
 
     /// …tranne i file di progetto che i viewer rileggono dopo un deploy.
     #[test]
     fn i_file_di_progetto_si_rivalidano() {
-        for p in ["/api/synoptics/Home", "/api/synoptics", "/api/cornici/base", "/api/faceplates/x", "/api/project", "/api/pages/nav"] {
-            assert_eq!(politica(p, Some("application/json"), false), Some(RIVALIDA), "{p}");
+        for p in [
+            "/api/synoptics/Home",
+            "/api/synoptics",
+            "/api/cornici/base",
+            "/api/faceplates/x",
+            "/api/project",
+            "/api/pages/nav",
+        ] {
+            assert_eq!(
+                politica(p, Some("application/json"), false),
+                Some(RIVALIDA),
+                "{p}"
+            );
         }
     }
 
     /// E nemmeno i marchi, che hanno gia' le loro intestazioni di sicurezza.
     #[test]
     fn i_marchi_restano_come_sono() {
-        assert_eq!(politica("/branding/pixsys/logo.svg", Some("image/svg+xml"), false), None);
+        assert_eq!(
+            politica("/branding/pixsys/logo.svg", Some("image/svg+xml"), false),
+            None
+        );
     }
 
     /// Chi ha gia' dichiarato una politica ne sa di piu'.
     #[test]
     fn una_politica_gia_dichiarata_non_si_sovrascrive() {
         assert_eq!(politica("/index-admin.html", HTML, true), None);
-        assert_eq!(politica("/assets/x-ABC.js", Some("text/javascript"), true), None);
+        assert_eq!(
+            politica("/assets/x-ABC.js", Some("text/javascript"), true),
+            None
+        );
     }
 }

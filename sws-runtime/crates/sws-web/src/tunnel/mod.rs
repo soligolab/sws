@@ -4,7 +4,7 @@
 
 pub mod abbinati;
 pub mod filo;
-pub mod multiplex;
-pub mod pannello;
 pub mod gateway;
 pub(crate) mod http;
+pub mod multiplex;
+pub mod pannello;

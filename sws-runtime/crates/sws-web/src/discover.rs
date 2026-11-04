@@ -140,7 +140,9 @@ async fn pannelli_del_tunnel(s: &crate::router::AppState, origine: &str) -> Vec<
             return vec![];
         }
     };
-    nomi.into_iter().map(|n| voce_del_tunnel(origine, &n)).collect()
+    nomi.into_iter()
+        .map(|n| voce_del_tunnel(origine, &n))
+        .collect()
 }
 
 fn voce_del_tunnel(origine: &str, pannello: &str) -> DiscoveredRuntime {
@@ -647,7 +649,11 @@ mod tests_dispositivi {
 mod tunnel_tests {
     #[test]
     fn un_pannello_del_tunnel_si_raggiunge_dal_gateway() {
-        let v = serde_json::to_value(super::voce_del_tunnel("https://sws.soligo.net", "tc620-casa")).unwrap();
+        let v = serde_json::to_value(super::voce_del_tunnel(
+            "https://sws.soligo.net",
+            "tc620-casa",
+        ))
+        .unwrap();
         assert_eq!(v["admin_url"], "https://sws.soligo.net/dev/tc620-casa");
         assert_eq!(v["hostname"], "");
         assert_eq!(v["tunnel"], true);

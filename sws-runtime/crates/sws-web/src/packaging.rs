@@ -778,7 +778,12 @@ fn cmd_togli_archivio(remote_dir: &str, image: &ImageSpec) -> Option<String> {
 /// Build the remote `install-container.sh` invocation. Split out from
 /// `deploy_device_container` so it's unit-testable without an actual SSH
 /// round-trip — mirrors `resolve_dist_file`/`parse_image_tarball` above.
-fn build_install_cmd(remote_dir: &str, image: &ImageSpec, data_path: &str, con_openplc: bool) -> String {
+fn build_install_cmd(
+    remote_dir: &str,
+    image: &ImageSpec,
+    data_path: &str,
+    con_openplc: bool,
+) -> String {
     let mut cmd = install_sh(remote_dir);
     match image {
         ImageSpec::Archive(f) => cmd.push_str(&format!(" --image {f}")),
@@ -1369,7 +1374,12 @@ pub async fn deploy_device_container(
         send(
             "==> Installazione (install-container.sh, podman rootless — nessun sudo richiesto)...",
         );
-        let install_cmd = build_install_cmd(&req.remote_dir, &image_spec, &req.data_path, req.con_openplc);
+        let install_cmd = build_install_cmd(
+            &req.remote_dir,
+            &image_spec,
+            &req.data_path,
+            req.con_openplc,
+        );
         let ok = run_ssh_cmd(
             use_sshpass,
             &req.password,
@@ -1423,7 +1433,14 @@ pub async fn deploy_device_container(
                 use_sshpass,
                 &req.password,
                 "ssh",
-                &["-p", &port_str, "-o", "StrictHostKeyChecking=accept-new", &host_str, &cmd],
+                &[
+                    "-p",
+                    &port_str,
+                    "-o",
+                    "StrictHostKeyChecking=accept-new",
+                    &host_str,
+                    &cmd,
+                ],
                 &send,
             )
             .await;
@@ -1589,7 +1606,11 @@ fn build_manage_cmd(
                  podman rm -f {name} >/dev/null 2>&1 || true"
             );
             if purge {
-                let data = if data_path.is_empty() { "/data/user/sws" } else { data_path };
+                let data = if data_path.is_empty() {
+                    "/data/user/sws"
+                } else {
+                    data_path
+                };
                 if !validate_remote_path(data) {
                     return Err(
                         "data_path non valido: deve essere un percorso assoluto senza '..' né caratteri speciali"
@@ -2122,13 +2143,23 @@ mod tests {
     /// più passare `--www`, che l'installer ora rifiuta con un errore esplicito.
     #[test]
     fn build_install_cmd_never_passes_www() {
-        let cmd = build_install_cmd("/tmp/sws-deploy", &archive("img.tar.gz"), "/opt/sws-data", false);
+        let cmd = build_install_cmd(
+            "/tmp/sws-deploy",
+            &archive("img.tar.gz"),
+            "/opt/sws-data",
+            false,
+        );
         assert!(!cmd.contains("--www"), "comando inatteso: {cmd}");
     }
 
     #[test]
     fn build_install_cmd_appends_data_flag_when_present() {
-        let cmd = build_install_cmd("/tmp/sws-deploy", &archive("img.tar.gz"), "/opt/sws-data", false);
+        let cmd = build_install_cmd(
+            "/tmp/sws-deploy",
+            &archive("img.tar.gz"),
+            "/opt/sws-data",
+            false,
+        );
         assert_eq!(
             cmd,
             "cd /tmp/sws-deploy && chmod +x install-container.sh && \
@@ -2170,7 +2201,10 @@ mod tests {
         let senza = build_install_cmd("/tmp/d", &registry(""), "/data/user/sws", false);
         assert!(!senza.contains("openplc"));
         let con = build_install_cmd("/tmp/d", &registry(""), "/data/user/sws", true);
-        assert!(con.ends_with("--data /data/user/sws --con-openplc"), "{con}");
+        assert!(
+            con.ends_with("--data /data/user/sws --con-openplc"),
+            "{con}"
+        );
     }
 
     /// L'installer rifiuta `--pull` e `--image` insieme: l'enum deve renderlo
@@ -2345,10 +2379,16 @@ mod tests {
     #[test]
     fn l_archivio_si_toglie_solo_da_archivio() {
         assert_eq!(
-            cmd_togli_archivio("/tmp/sws-deploy", &ImageSpec::Archive("sws-runtime-2.12.0-rc.18-aarch64-image.tar.gz".into())).as_deref(),
+            cmd_togli_archivio(
+                "/tmp/sws-deploy",
+                &ImageSpec::Archive("sws-runtime-2.12.0-rc.18-aarch64-image.tar.gz".into())
+            )
+            .as_deref(),
             Some("cd /tmp/sws-deploy && rm -f -- sws-runtime-2.12.0-rc.18-aarch64-image.tar.gz")
         );
-        assert!(cmd_togli_archivio("/tmp/sws-deploy", &ImageSpec::Registry(String::new())).is_none());
+        assert!(
+            cmd_togli_archivio("/tmp/sws-deploy", &ImageSpec::Registry(String::new())).is_none()
+        );
     }
 
     #[test]

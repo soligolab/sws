@@ -50,7 +50,13 @@ pub const NOME_PREFISSO: &str = "sws-p-";
 pub fn nome_container(azienda: &str, progetto: &str) -> String {
     let pulisci = |s: &str| {
         s.chars()
-            .map(|c| if c.is_ascii_alphanumeric() || c == '.' || c == '_' { c } else { '-' })
+            .map(|c| {
+                if c.is_ascii_alphanumeric() || c == '.' || c == '_' {
+                    c
+                } else {
+                    '-'
+                }
+            })
             .collect::<String>()
     };
     format!("{NOME_PREFISSO}{}-{}", pulisci(azienda), pulisci(progetto))
@@ -104,7 +110,10 @@ pub const ETICHETTE_DA_SVUOTARE: [&str; 6] = [
 /// progetto, e le pesanti dell'immagine azzerate.
 pub fn etichette_container(riferimento: &str) -> serde_json::Map<String, serde_json::Value> {
     let mut m = serde_json::Map::new();
-    m.insert(ETICHETTA_RIFERIMENTO.into(), serde_json::Value::String(riferimento.into()));
+    m.insert(
+        ETICHETTA_RIFERIMENTO.into(),
+        serde_json::Value::String(riferimento.into()),
+    );
     for e in ETICHETTE_DA_SVUOTARE {
         m.insert(e.into(), serde_json::Value::String(String::new()));
     }
@@ -132,7 +141,9 @@ pub struct Podman {
 
 impl Podman {
     pub fn nuovo(socket: impl Into<PathBuf>) -> Self {
-        Self { socket: socket.into() }
+        Self {
+            socket: socket.into(),
+        }
     }
 
     /// Il socket rootless dell'utente corrente, se c'è.
@@ -143,7 +154,9 @@ impl Podman {
         let da_env = std::env::var("XDG_RUNTIME_DIR")
             .ok()
             .map(|d| PathBuf::from(d).join("podman/podman.sock"));
-        let da_uid = PathBuf::from(format!("/run/user/{}/podman/podman.sock", unsafe { libc_getuid() }));
+        let da_uid = PathBuf::from(format!("/run/user/{}/podman/podman.sock", unsafe {
+            libc_getuid()
+        }));
         for p in [da_env, Some(da_uid)].into_iter().flatten() {
             if p.exists() {
                 return Some(Self::nuovo(p));
@@ -162,9 +175,9 @@ impl Podman {
         percorso: &str,
         corpo: Option<serde_json::Value>,
     ) -> anyhow::Result<(u16, String)> {
-        let stream = tokio::net::UnixStream::connect(&self.socket).await.map_err(|e| {
-            anyhow::anyhow!("socket di podman {}: {e}", self.socket.display())
-        })?;
+        let stream = tokio::net::UnixStream::connect(&self.socket)
+            .await
+            .map_err(|e| anyhow::anyhow!("socket di podman {}: {e}", self.socket.display()))?;
         let io = hyper_util::rt::TokioIo::new(stream);
         let (mut mittente, connessione) = hyper::client::conn::http1::handshake(io).await?;
         // La connessione va fatta girare: senza, `send_request` resta appesa.
@@ -188,8 +201,8 @@ impl Podman {
 
         let risposta = mittente.send_request(richiesta).await?;
         let stato = risposta.status().as_u16();
-        let testo = String::from_utf8_lossy(&risposta.into_body().collect().await?.to_bytes())
-            .into_owned();
+        let testo =
+            String::from_utf8_lossy(&risposta.into_body().collect().await?.to_bytes()).into_owned();
         Ok((stato, testo))
     }
 
@@ -203,7 +216,9 @@ impl Podman {
     /// ritrovato, altrimenti il tentativo di ricrearlo fallisce con «esiste
     /// già» e il progetto non si apre più.
     pub async fn elenca_nostri(&self) -> anyhow::Result<Vec<Contenitore>> {
-        let (stato, corpo) = self.chiama("GET", "/containers/json?all=true", None).await?;
+        let (stato, corpo) = self
+            .chiama("GET", "/containers/json?all=true", None)
+            .await?;
         if stato != 200 {
             anyhow::bail!("elenco container: HTTP {stato} — {corpo}");
         }
@@ -222,7 +237,11 @@ impl Podman {
                     return None;
                 }
                 Some(Contenitore {
-                    id: c.get("Id").and_then(|v| v.as_str()).unwrap_or_default().to_string(),
+                    id: c
+                        .get("Id")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or_default()
+                        .to_string(),
                     riferimento: c
                         .get("Labels")
                         .and_then(|l| l.get(ETICHETTA_RIFERIMENTO))
@@ -259,7 +278,9 @@ impl Podman {
         nome: &str,
         porta_interna: u16,
     ) -> anyhow::Result<Option<u16>> {
-        let (stato, corpo) = self.chiama("GET", &format!("/containers/{nome}/json"), None).await?;
+        let (stato, corpo) = self
+            .chiama("GET", &format!("/containers/{nome}/json"), None)
+            .await?;
         if stato != 200 {
             anyhow::bail!("stato di {nome}: HTTP {stato} — {corpo}");
         }
@@ -291,7 +312,9 @@ impl Podman {
     /// Cambia a ogni avvio del container, quindi si legge quando serve e non
     /// si memorizza oltre la vita dell'apertura.
     pub async fn ip_sulla_rete(&self, nome: &str, rete: &str) -> anyhow::Result<Option<String>> {
-        let (stato, corpo) = self.chiama("GET", &format!("/containers/{nome}/json"), None).await?;
+        let (stato, corpo) = self
+            .chiama("GET", &format!("/containers/{nome}/json"), None)
+            .await?;
         if stato != 200 {
             anyhow::bail!("stato di {nome}: HTTP {stato} — {corpo}");
         }
@@ -306,16 +329,23 @@ impl Podman {
     }
 
     pub async fn crea(&self, spec: serde_json::Value) -> anyhow::Result<String> {
-        let (stato, corpo) = self.chiama("POST", "/containers/create", Some(spec)).await?;
+        let (stato, corpo) = self
+            .chiama("POST", "/containers/create", Some(spec))
+            .await?;
         if stato != 200 && stato != 201 {
             anyhow::bail!("creazione container: HTTP {stato} — {corpo}");
         }
         let v: serde_json::Value = serde_json::from_str(&corpo)?;
-        Ok(v.get("Id").and_then(|x| x.as_str()).unwrap_or_default().to_string())
+        Ok(v.get("Id")
+            .and_then(|x| x.as_str())
+            .unwrap_or_default()
+            .to_string())
     }
 
     pub async fn avvia(&self, nome: &str) -> anyhow::Result<()> {
-        let (stato, corpo) = self.chiama("POST", &format!("/containers/{nome}/start"), None).await?;
+        let (stato, corpo) = self
+            .chiama("POST", &format!("/containers/{nome}/start"), None)
+            .await?;
         // 204 avviato, 304 era già avviato: tutti e due vanno bene.
         if stato != 204 && stato != 304 {
             anyhow::bail!("avvio di {nome}: HTTP {stato} — {corpo}");
@@ -327,7 +357,11 @@ impl Podman {
     /// terminarlo. 204 fermato, 304 era già fermo, 404 non c'è più.
     pub async fn ferma(&self, nome: &str, attesa_s: u32) -> anyhow::Result<()> {
         let (stato, corpo) = self
-            .chiama("POST", &format!("/containers/{nome}/stop?timeout={attesa_s}"), None)
+            .chiama(
+                "POST",
+                &format!("/containers/{nome}/stop?timeout={attesa_s}"),
+                None,
+            )
             .await?;
         if !matches!(stato, 204 | 304 | 404) {
             anyhow::bail!("arresto di {nome}: HTTP {stato} — {corpo}");
@@ -413,7 +447,10 @@ mod tests {
         p.avvia(&nome).await.expect("avvio");
 
         let nostri = p.elenca_nostri().await.expect("elenco");
-        let mio = nostri.iter().find(|c| c.nome == nome).expect("non lo ritrovo");
+        let mio = nostri
+            .iter()
+            .find(|c| c.nome == nome)
+            .expect("non lo ritrovo");
         assert_eq!(
             mio.riferimento.as_deref(),
             Some("prova/giro"),
@@ -425,7 +462,10 @@ mod tests {
         p.rimuovi(&nome).await.expect("rimozione");
 
         let dopo = p.elenca_nostri().await.expect("elenco finale");
-        assert!(!dopo.iter().any(|c| c.nome == nome), "rimasto li dopo la rimozione");
+        assert!(
+            !dopo.iter().any(|c| c.nome == nome),
+            "rimasto li dopo la rimozione"
+        );
     }
 
     /// Riconoscere i propri e' cio' che permette di riadottarli dopo un

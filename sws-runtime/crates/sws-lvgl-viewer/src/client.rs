@@ -31,12 +31,21 @@ pub type SharedLang = Arc<Mutex<String>>;
 /// economica per sapere se un runtime è davvero in ascolto a quell'indirizzo.
 /// La usa [`crate::base_url_viva`] prima di decidere con chi parlare.
 pub async fn risponde(base_url: &str, timeout: std::time::Duration) -> bool {
-    let Ok(mut url) = reqwest::Url::parse(base_url) else { return false };
-    let Ok(mut seg) = url.path_segments_mut() else { return false };
+    let Ok(mut url) = reqwest::Url::parse(base_url) else {
+        return false;
+    };
+    let Ok(mut seg) = url.path_segments_mut() else {
+        return false;
+    };
     seg.push("health");
     drop(seg);
-    let Ok(tls) = pinned_client_config(base_url) else { return false };
-    let Ok(client) = reqwest::Client::builder().use_preconfigured_tls(tls).timeout(timeout).build()
+    let Ok(tls) = pinned_client_config(base_url) else {
+        return false;
+    };
+    let Ok(client) = reqwest::Client::builder()
+        .use_preconfigured_tls(tls)
+        .timeout(timeout)
+        .build()
     else {
         return false;
     };
@@ -45,16 +54,32 @@ pub async fn risponde(base_url: &str, timeout: std::time::Duration) -> bool {
 
 /// `GET /api/prestazioni/richiesta` — qualcuno sta guardando le prestazioni?
 pub async fn prestazioni_richiesta(base_url: &str) -> anyhow::Result<bool> {
-    let url = format!("{}/api/prestazioni/richiesta", base_url.trim_end_matches('/'));
-    let client = reqwest::Client::builder().use_preconfigured_tls(pinned_client_config(base_url)?).build()?;
-    let v: serde_json::Value = client.get(url).send().await?.error_for_status()?.json().await?;
+    let url = format!(
+        "{}/api/prestazioni/richiesta",
+        base_url.trim_end_matches('/')
+    );
+    let client = reqwest::Client::builder()
+        .use_preconfigured_tls(pinned_client_config(base_url)?)
+        .build()?;
+    let v: serde_json::Value = client
+        .get(url)
+        .send()
+        .await?
+        .error_for_status()?
+        .json()
+        .await?;
     Ok(v["attiva"].as_bool().unwrap_or(false))
 }
 
 /// `POST /api/prestazioni/viewer` — il riassunto delle fasi del fotogramma.
-pub async fn invia_prestazioni(base_url: &str, r: &sws_core::prestazioni::Riassunto) -> anyhow::Result<()> {
+pub async fn invia_prestazioni(
+    base_url: &str,
+    r: &sws_core::prestazioni::Riassunto,
+) -> anyhow::Result<()> {
     let url = format!("{}/api/prestazioni/viewer", base_url.trim_end_matches('/'));
-    let client = reqwest::Client::builder().use_preconfigured_tls(pinned_client_config(base_url)?).build()?;
+    let client = reqwest::Client::builder()
+        .use_preconfigured_tls(pinned_client_config(base_url)?)
+        .build()?;
     client.post(url).json(r).send().await?.error_for_status()?;
     Ok(())
 }
@@ -107,7 +132,10 @@ pub async fn whoami(base_url: &str, token: &str) -> anyhow::Result<String> {
         .await?
         .error_for_status()?;
     let v = resp.json::<serde_json::Value>().await?;
-    Ok(v.get("username").and_then(|u| u.as_str()).unwrap_or("").to_string())
+    Ok(v.get("username")
+        .and_then(|u| u.as_str())
+        .unwrap_or("")
+        .to_string())
 }
 
 /// Come [`fetch_page`], ma restituisce il JSON **grezzo** (22-10-2026).
@@ -448,7 +476,11 @@ pub async fn aggiorna_quadlet(base_url: &str, token: Option<&str>) -> anyhow::Re
 
 /// `POST /api/aggiornamento/conferma` (03-10-2026): la risposta alla domanda
 /// dopo un aggiornamento — `pulisci`, `dopo_riavvio`, `piu_tardi`, `ritorna`.
-pub async fn conferma_aggiornamento(base_url: &str, token: Option<&str>, scelta: &str) -> anyhow::Result<()> {
+pub async fn conferma_aggiornamento(
+    base_url: &str,
+    token: Option<&str>,
+    scelta: &str,
+) -> anyhow::Result<()> {
     let mut url = reqwest::Url::parse(base_url)?;
     url.path_segments_mut()
         .map_err(|_| anyhow::anyhow!("base URL non può avere path segments (cannot-be-a-base)"))?
@@ -456,7 +488,9 @@ pub async fn conferma_aggiornamento(base_url: &str, token: Option<&str>, scelta:
     let client = reqwest::Client::builder()
         .use_preconfigured_tls(pinned_client_config(base_url)?)
         .build()?;
-    let mut req = client.post(url).json(&serde_json::json!({ "scelta": scelta }));
+    let mut req = client
+        .post(url)
+        .json(&serde_json::json!({ "scelta": scelta }));
     if let Some(t) = token {
         req = req.header("Authorization", format!("Bearer {t}"));
     }
@@ -1052,7 +1086,10 @@ pub fn spawn_history_poller(
                 }
                 Err(e) => {
                     if let Some(n) = voce.errore(std::time::Instant::now()) {
-                        eprintln!("[trend] storico di '{tag}' fallito: {e} — riprovo al prossimo poll{}", taciuti(n));
+                        eprintln!(
+                            "[trend] storico di '{tag}' fallito: {e} — riprovo al prossimo poll{}",
+                            taciuti(n)
+                        );
                     }
                 }
             }
@@ -1130,7 +1167,10 @@ pub fn spawn_trend_poller(
     allarmi: bool,
 ) -> SharedTrend {
     let feed: SharedTrend = Arc::new(TrendFeed {
-        richiesta: Mutex::new(TrendRichiesta { diretta: true, ..Default::default() }),
+        richiesta: Mutex::new(TrendRichiesta {
+            diretta: true,
+            ..Default::default()
+        }),
         risposta: Mutex::new(TrendRisposta::default()),
         sveglia: tokio::sync::Notify::new(),
     });
@@ -1143,7 +1183,11 @@ pub fn spawn_trend_poller(
             if Arc::strong_count(&bg) == 1 {
                 break;
             }
-            let req = bg.richiesta.lock().unwrap_or_else(|e| e.into_inner()).clone();
+            let req = bg
+                .richiesta
+                .lock()
+                .unwrap_or_else(|e| e.into_inner())
+                .clone();
             if req.diretta || gen_servita != Some(req.gen) {
                 let (da, a) = if req.diretta {
                     let ora = now_unix_ms();
@@ -1153,7 +1197,11 @@ pub fn spawn_trend_poller(
                     (req.da, req.a)
                 };
                 let span = a.saturating_sub(da);
-                let larghezza = if req.larghezza_px > 0 { req.larghezza_px } else { larghezza_px };
+                let larghezza = if req.larghezza_px > 0 {
+                    req.larghezza_px
+                } else {
+                    larghezza_px
+                };
                 let secchio = (span > SECCHI_OLTRE_MS).then(|| {
                     let colonne = (larghezza as f64 - 60.0).max(200.0);
                     ((span as f64 / colonne).round() as u64).max(1000)
@@ -1164,18 +1212,23 @@ pub fn spawn_trend_poller(
                 let mut ok = true;
                 for tag in &tags {
                     match secchio {
-                        Some(b) => match fetch_history_buckets(&base_url, tag, da, a, b, bf).await {
-                            Ok(v) => {
-                                serie.push(Vec::new());
-                                secchi.push(Some((b, v)));
-                            }
-                            Err(e) => {
-                                if let Some(n) = voce.errore(std::time::Instant::now()) {
-                                    eprintln!("[trend] storico a secchi di '{tag}' fallito: {e}{}", taciuti(n));
+                        Some(b) => {
+                            match fetch_history_buckets(&base_url, tag, da, a, b, bf).await {
+                                Ok(v) => {
+                                    serie.push(Vec::new());
+                                    secchi.push(Some((b, v)));
                                 }
-                                ok = false;
+                                Err(e) => {
+                                    if let Some(n) = voce.errore(std::time::Instant::now()) {
+                                        eprintln!(
+                                            "[trend] storico a secchi di '{tag}' fallito: {e}{}",
+                                            taciuti(n)
+                                        );
+                                    }
+                                    ok = false;
+                                }
                             }
-                        },
+                        }
                         None => match fetch_history_con(&base_url, tag, da, a, bf, true).await {
                             Ok(v) => {
                                 serie.push(v);
@@ -1183,7 +1236,10 @@ pub fn spawn_trend_poller(
                             }
                             Err(e) => {
                                 if let Some(n) = voce.errore(std::time::Instant::now()) {
-                                    eprintln!("[trend] storico di '{tag}' fallito: {e}{}", taciuti(n));
+                                    eprintln!(
+                                        "[trend] storico di '{tag}' fallito: {e}{}",
+                                        taciuti(n)
+                                    );
                                 }
                                 ok = false;
                             }
@@ -1191,7 +1247,9 @@ pub fn spawn_trend_poller(
                     }
                 }
                 let eventi = if allarmi {
-                    fetch_alarm_history_range(&base_url, da, a, 200).await.unwrap_or_default()
+                    fetch_alarm_history_range(&base_url, da, a, 200)
+                        .await
+                        .unwrap_or_default()
                 } else {
                     Vec::new()
                 };
@@ -1224,7 +1282,12 @@ struct StatisticheStorico {
     avg: f64,
 }
 
-async fn fetch_media(base_url: &str, tag: &str, da: u64, a: u64) -> anyhow::Result<StatisticheStorico> {
+async fn fetch_media(
+    base_url: &str,
+    tag: &str,
+    da: u64,
+    a: u64,
+) -> anyhow::Result<StatisticheStorico> {
     let mut url = reqwest::Url::parse(base_url)?;
     url.path_segments_mut()
         .map_err(|_| anyhow::anyhow!("base URL non può avere path segments (cannot-be-a-base)"))?
@@ -1238,7 +1301,13 @@ async fn fetch_media(base_url: &str, tag: &str, da: u64, a: u64) -> anyhow::Resu
     let client = reqwest::Client::builder()
         .use_preconfigured_tls(pinned_client_config(base_url)?)
         .build()?;
-    Ok(client.get(url).send().await?.error_for_status()?.json().await?)
+    Ok(client
+        .get(url)
+        .send()
+        .await?
+        .error_for_status()?
+        .json()
+        .await?)
 }
 
 /// La variazione percentuale del `kpi_tile` (`KpiDelta` sul web): la media
@@ -1247,7 +1316,12 @@ async fn fetch_media(base_url: &str, tag: &str, da: u64, a: u64) -> anyhow::Resu
 /// se ne va, come il poller del trend.
 pub type SharedDelta = Arc<Mutex<Option<f64>>>;
 
-pub fn spawn_kpi_delta(rt_handle: &tokio::runtime::Handle, base_url: String, tag: String, finestra_s: f64) -> SharedDelta {
+pub fn spawn_kpi_delta(
+    rt_handle: &tokio::runtime::Handle,
+    base_url: String,
+    tag: String,
+    finestra_s: f64,
+) -> SharedDelta {
     let shared: SharedDelta = Arc::new(Mutex::new(None));
     let bg = shared.clone();
     rt_handle.spawn(async move {
@@ -1258,9 +1332,17 @@ pub fn spawn_kpi_delta(rt_handle: &tokio::runtime::Handle, base_url: String, tag
             let ora = now_unix_ms();
             let w = (finestra_s * 1000.0) as u64;
             let cur = fetch_media(&base_url, &tag, ora.saturating_sub(w), ora).await;
-            let prev = fetch_media(&base_url, &tag, ora.saturating_sub(2 * w), ora.saturating_sub(w)).await;
+            let prev = fetch_media(
+                &base_url,
+                &tag,
+                ora.saturating_sub(2 * w),
+                ora.saturating_sub(w),
+            )
+            .await;
             let delta = match (cur, prev) {
-                (Ok(c), Ok(p)) if c.count > 0 && p.count > 0 && p.avg != 0.0 => Some((c.avg - p.avg) / p.avg.abs() * 100.0),
+                (Ok(c), Ok(p)) if c.count > 0 && p.count > 0 && p.avg != 0.0 => {
+                    Some((c.avg - p.avg) / p.avg.abs() * 100.0)
+                }
                 _ => None,
             };
             *bg.lock().unwrap_or_else(|e| e.into_inner()) = delta;
@@ -1467,7 +1549,11 @@ struct VoceAttenuata {
 
 impl VoceAttenuata {
     fn nuova() -> Self {
-        Self { taciuti: 0, prossima: None, attesa: ATTESA_MIN }
+        Self {
+            taciuti: 0,
+            prossima: None,
+            attesa: ATTESA_MIN,
+        }
     }
 
     /// Un errore: `Some(taciuti prima)` se va scritto, `None` se si tace.
@@ -1494,7 +1580,11 @@ impl VoceAttenuata {
 }
 
 fn taciuti(n: u32) -> String {
-    if n == 0 { String::new() } else { format!(" ({n} errori uguali taciuti)") }
+    if n == 0 {
+        String::new()
+    } else {
+        format!(" ({n} errori uguali taciuti)")
+    }
 }
 
 type FlussoWs =
@@ -1922,7 +2012,11 @@ mod tests_riconnessione {
         assert!(scritte < 3_000, "{scritte}");
         assert!(v.riuscito(), "tornato: si dice");
         assert!(!v.riuscito(), "ma una volta sola");
-        assert_eq!(v.errore(s(100_000_000)), Some(0), "un guasto nuovo si scrive subito");
+        assert_eq!(
+            v.errore(s(100_000_000)),
+            Some(0),
+            "un guasto nuovo si scrive subito"
+        );
     }
 
     #[test]

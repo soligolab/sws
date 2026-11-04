@@ -1,7 +1,7 @@
 import { useTranslation } from "react-i18next";
 import { useAppStore } from "@/store";
 import { HDR_BTN } from "@/components/headerStyles";
-import { usaPannelloCollegato } from "@/pannelloCollegato";
+import { usePannelloCollegato } from "@/pannelloCollegato";
 
 /** Il nome del pannello collegato, in barra accanto a «Deploy» (28-10-2026).
  *
@@ -29,7 +29,7 @@ export function DispositivoCollegato() {
   const { t } = useTranslation();
   const navigateToConfig = useAppStore((s) => s.navigateToConfig);
   const autenticato = useAppStore((s) => s.remoteAutenticato);
-  const nome = usaPannelloCollegato();
+  const nome = usePannelloCollegato();
   if (!nome) return null;
   const colori = autenticato
     ? {

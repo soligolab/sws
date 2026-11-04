@@ -242,7 +242,12 @@ mod tests {
         }
     }
 
-    fn filo(msg: Vec<Result<TMsg, String>>) -> (Filo<Finto, TMsg>, std::sync::Arc<std::sync::Mutex<Vec<Vec<u8>>>>) {
+    fn filo(
+        msg: Vec<Result<TMsg, String>>,
+    ) -> (
+        Filo<Finto, TMsg>,
+        std::sync::Arc<std::sync::Mutex<Vec<Vec<u8>>>>,
+    ) {
         let spediti = std::sync::Arc::new(std::sync::Mutex::new(Vec::new()));
         let f = Filo::nuovo(Finto {
             in_arrivo: msg.into_iter().collect(),

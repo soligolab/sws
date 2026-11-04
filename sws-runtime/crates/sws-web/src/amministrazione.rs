@@ -37,6 +37,9 @@ use crate::router::AppState;
 /// Su un dispositivo non c'è: lì gli utenti sono quelli del progetto. Un 503
 /// con una frase è meglio di un 500 muto, perché dice *perché* e non solo che
 /// è andata male.
+// `result_large_err`: l'errore è la risposta HTTP già pronta, ed è il modo in
+// cui tutti gli handler di questo modulo escono con `?`.
+#[allow(clippy::result_large_err)]
 fn identita(s: &AppState) -> Result<&Identita, Response> {
     s.identita.as_ref().ok_or_else(|| {
         (
@@ -73,7 +76,11 @@ async fn confine(s: &AppState, chi: &AuthUser) -> Option<Vec<i64>> {
     if chi.amministratore_piattaforma {
         return None;
     }
-    Some(crate::projects::appartenenze_di(s, Some(chi)).await.amministrate)
+    Some(
+        crate::projects::appartenenze_di(s, Some(chi))
+            .await
+            .amministrate,
+    )
 }
 
 /// Il segmento dell'URL con cui il gateway nomina un'azienda: `-` per l'implicita,
@@ -106,7 +113,10 @@ async fn aziende_visibili(
 /// `GET /api/amministrazione/progetti-aperti` — i container di progetto accesi
 /// adesso, con quante finestre ci sono collegate. Confinato: un amministratore
 /// d'azienda vede solo i suoi.
-async fn progetti_aperti(State(s): State<AppState>, Extension(chi): Extension<AuthUser>) -> Response {
+async fn progetti_aperti(
+    State(s): State<AppState>,
+    Extension(chi): Extension<AuthUser>,
+) -> Response {
     let Some(regia) = s.regia.clone() else {
         return Json(serde_json::json!({ "si_applica": false, "progetti": [] })).into_response();
     };
@@ -154,7 +164,11 @@ async fn chiudi_progetto_aperto(
     axum::extract::Query(q): axum::extract::Query<ChiudiQuery>,
 ) -> Response {
     let Some(regia) = s.regia.clone() else {
-        return (StatusCode::NOT_FOUND, "nessun gateway: qui non ci sono progetti aperti da chiudere").into_response();
+        return (
+            StatusCode::NOT_FOUND,
+            "nessun gateway: qui non ci sono progetti aperti da chiudere",
+        )
+            .into_response();
     };
     let visibili = match aziende_visibili(&s, &chi).await {
         Ok(v) => v,
@@ -165,7 +179,12 @@ async fn chiudi_progetto_aperto(
         return (StatusCode::NOT_FOUND, "progetto non aperto").into_response();
     }
     let riferimento = format!("{azienda}/{nome}");
-    let Some(aperto) = regia.elenco().await.into_iter().find(|a| a.riferimento == riferimento) else {
+    let Some(aperto) = regia
+        .elenco()
+        .await
+        .into_iter()
+        .find(|a| a.riferimento == riferimento)
+    else {
         return (StatusCode::NOT_FOUND, "progetto non aperto").into_response();
     };
     if aperto.collegati > 0 && !q.anche_con_collegati {
@@ -306,10 +325,7 @@ async fn modifica_azienda(
 /// aggiungere — senza mai dire a cosa. Il 07-10-2026 il maintainer ha
 /// giustamente cercato un pulsante che non c'era: il difetto non era il
 /// pulsante, era che la pagina non sapeva cosa mostrare.
-async fn elenca_utenti(
-    State(s): State<AppState>,
-    Extension(chi): Extension<AuthUser>,
-) -> Response {
+async fn elenca_utenti(State(s): State<AppState>, Extension(chi): Extension<AuthUser>) -> Response {
     let id = match identita(&s) {
         Ok(i) => i,
         Err(r) => return r,
@@ -407,7 +423,10 @@ async fn crea_utente(
             }
         }
     }
-    match id.crea_utente(&req.email, &req.nome, &req.password, ruolo, true).await {
+    match id
+        .crea_utente(&req.email, &req.nome, &req.password, ruolo, true)
+        .await
+    {
         Ok(u) => {
             if let Some(a) = req.azienda_id {
                 if let Err(e) = id.iscrivi(a, u.id, ruolo).await {
@@ -504,7 +523,10 @@ async fn modifica_utente(
                 .into_response()
         }
     };
-    if let Err(e) = id.aggiorna_utente(utente_id, m.nome.as_deref(), ruolo_nuovo).await {
+    if let Err(e) = id
+        .aggiorna_utente(utente_id, m.nome.as_deref(), ruolo_nuovo)
+        .await
+    {
         return errore(e);
     }
     match m.attivo {
@@ -544,7 +566,11 @@ async fn modifica_utente(
             .map(|a| {
                 (
                     a.azienda_id,
-                    if a.amministratore { Ruolo::Amministratore } else { Ruolo::Sviluppatore },
+                    if a.amministratore {
+                        Ruolo::Amministratore
+                    } else {
+                        Ruolo::Sviluppatore
+                    },
                 )
             })
             .collect();
@@ -679,7 +705,11 @@ async fn prova_posta(
     Json(req): Json<Prova>,
 ) -> Response {
     let Some(cfg) = leggi_smtp(&s).await else {
-        return (StatusCode::PRECONDITION_FAILED, "la posta non è configurata").into_response();
+        return (
+            StatusCode::PRECONDITION_FAILED,
+            "la posta non è configurata",
+        )
+            .into_response();
     };
     let destinatari = vec![req.a.clone()];
     let esito = tokio::task::spawn_blocking(move || {
@@ -752,7 +782,10 @@ pub fn rotte_di_azienda() -> Router<AppState> {
 /// accetta un cliente nuovo.
 pub fn rotte_di_piattaforma() -> Router<AppState> {
     Router::new()
-        .route("/api/amministrazione/aziende", axum::routing::post(crea_azienda))
+        .route(
+            "/api/amministrazione/aziende",
+            axum::routing::post(crea_azienda),
+        )
         .route(
             "/api/amministrazione/smtp",
             get(leggi_posta).put(scrivi_posta),
@@ -824,8 +857,7 @@ async fn risorse(State(s): State<AppState>, Extension(chi): Extension<AuthUser>)
                 // una seconda copia: un cruscotto che conta in un modo e un
                 // rifiuto che conta in un altro si contraddicono, e chi li
                 // guarda non sa a quale credere.
-                let (progetti, storico) =
-                    crate::projects::spazio_di_azienda(&radice, a, &aziende);
+                let (progetti, storico) = crate::projects::spazio_di_azienda(&radice, a, &aziende);
                 righe.push(serde_json::json!({
                     "id": a.id,
                     "nome": a.nome,
@@ -874,7 +906,10 @@ async fn risorse(State(s): State<AppState>, Extension(chi): Extension<AuthUser>)
             "ram_usata_byte": sys.used_memory(),
             "cpu_percento": sys.global_cpu_info().cpu_usage(),
         });
-        *cache = Some((adesso, serde_json::json!({"aziende": misurato, "macchina": macchina})));
+        *cache = Some((
+            adesso,
+            serde_json::json!({"aziende": misurato, "macchina": macchina}),
+        ));
     }
 
     let (quando, dati) = cache.clone().unwrap_or((adesso, serde_json::json!({})));
@@ -886,7 +921,11 @@ async fn risorse(State(s): State<AppState>, Extension(chi): Extension<AuthUser>)
         .cloned()
         .unwrap_or_default();
     if let Some(ids) = &mie {
-        aziende.retain(|a| a.get("id").and_then(|x| x.as_i64()).is_some_and(|x| ids.contains(&x)));
+        aziende.retain(|a| {
+            a.get("id")
+                .and_then(|x| x.as_i64())
+                .is_some_and(|x| ids.contains(&x))
+        });
     }
 
     // Quanti progetti sono aperti **adesso**. Sul gateway li conta la regia, per
@@ -898,7 +937,11 @@ async fn risorse(State(s): State<AppState>, Extension(chi): Extension<AuthUser>)
         Some(regia) => {
             let mut totale = 0usize;
             for a in aziende.iter_mut() {
-                let seg = a.get("segmento").and_then(|v| v.as_str()).unwrap_or("").to_string();
+                let seg = a
+                    .get("segmento")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("")
+                    .to_string();
                 let n = regia.aperti_di(&seg).await;
                 totale += n;
                 if let Some(o) = a.as_object_mut() {
@@ -921,7 +964,11 @@ async fn risorse(State(s): State<AppState>, Extension(chi): Extension<AuthUser>)
             None => vec![],
         };
         for a in aziende.iter_mut() {
-            let seg = a.get("segmento").and_then(|v| v.as_str()).unwrap_or("").to_string();
+            let seg = a
+                .get("segmento")
+                .and_then(|v| v.as_str())
+                .unwrap_or("")
+                .to_string();
             let (quanti, accesi) = abbinati.conta_di(&seg, &collegati);
             if let Some(o) = a.as_object_mut() {
                 o.insert("pannelli".into(), serde_json::json!(quanti));

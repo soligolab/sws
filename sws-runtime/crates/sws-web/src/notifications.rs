@@ -22,9 +22,8 @@ use std::{
 };
 use sws_core::now_ms;
 use sws_core::{
-    AlarmEmailMode, Destinatario,
-    AlarmDb, AlarmState, IsaState, LanguageTable, NotificationConfig, SmtpConfig, TagValue,
-    TelegramRouting,
+    AlarmDb, AlarmEmailMode, AlarmState, Destinatario, IsaState, LanguageTable, NotificationConfig,
+    SmtpConfig, TagValue, TelegramRouting,
 };
 use tokio::sync::{broadcast, mpsc, RwLock};
 use tokio_util::sync::CancellationToken;
@@ -286,7 +285,10 @@ fn send_telegram(tx: &mpsc::UnboundedSender<TelegramMessage>, state: &AlarmState
 /// A chi va l'email di un allarme (29-09-2026): il modo dell'allarme, come
 /// per Telegram. `Progetto` → i destinatari di progetto; `Propri` → i suoi
 /// `notify_email`; `Off` → nessuno.
-fn destinatari_allarme(def: &sws_core::AlarmDef, di_progetto: &[Destinatario]) -> Vec<Destinatario> {
+fn destinatari_allarme(
+    def: &sws_core::AlarmDef,
+    di_progetto: &[Destinatario],
+) -> Vec<Destinatario> {
     match def.modo_email() {
         AlarmEmailMode::Progetto => di_progetto.to_vec(),
         AlarmEmailMode::Propri => def.notify_email.clone().unwrap_or_default(),
@@ -303,8 +305,14 @@ fn per_lingua(destinatari: &[Destinatario], lingua_canale: &str) -> BTreeMap<Str
         if indirizzo.is_empty() {
             continue;
         }
-        let lingua = d.lingua.clone().unwrap_or_else(|| lingua_canale.to_string());
-        gruppi.entry(lingua).or_default().push(indirizzo.to_string());
+        let lingua = d
+            .lingua
+            .clone()
+            .unwrap_or_else(|| lingua_canale.to_string());
+        gruppi
+            .entry(lingua)
+            .or_default()
+            .push(indirizzo.to_string());
     }
     gruppi
 }
@@ -323,7 +331,9 @@ fn spedisci_email(
         let smtp = Arc::clone(smtp);
         let cosa = cosa.to_string();
         tokio::spawn(async move {
-            match tokio::task::spawn_blocking(move || send_email_sync(&smtp, &to, &subject, &body)).await {
+            match tokio::task::spawn_blocking(move || send_email_sync(&smtp, &to, &subject, &body))
+                .await
+            {
                 Ok(Ok(())) => info!(%cosa, %lingua, "email sent"),
                 Ok(Err(e)) => warn!(%cosa, "email failed: {e}"),
                 Err(e) => warn!("email task panicked: {e}"),
@@ -364,9 +374,15 @@ pub async fn invia_sistema(
     evento: EventoSistema,
     testo: impl Fn(&str) -> String,
 ) -> bool {
-    let Ok(dir) = crate::router::active_dir(s).await else { return false };
-    let Ok(project) = sws_core::project::Project::load(&dir) else { return false };
-    let Some(cfg) = project.notifications.clone() else { return false };
+    let Ok(dir) = crate::router::active_dir(s).await else {
+        return false;
+    };
+    let Ok(project) = sws_core::project::Project::load(&dir) else {
+        return false;
+    };
+    let Some(cfg) = project.notifications.clone() else {
+        return false;
+    };
     let tabella = cfg.tabella();
     let riga = match evento {
         EventoSistema::EsitoAggiornamento => tabella.esito_aggiornamento,
@@ -377,16 +393,25 @@ pub async fn invia_sistema(
     if riga.telegram {
         if let Some(t) = s.telegram_sender.read().await.as_ref() {
             let lingua = cfg.lingua_per(sws_core::CanaleNotifica::Telegram, &ripiego);
-            partito |= t.message_sender().send(TelegramMessage::global(testo(&lingua))).is_ok();
+            partito |= t
+                .message_sender()
+                .send(TelegramMessage::global(testo(&lingua)))
+                .is_ok();
         }
     }
     if riga.email && !cfg.destinatari_email.is_empty() {
         if let Some(smtp) = cfg.smtp.clone().map(Arc::new) {
             let lingua = cfg.lingua_per(sws_core::CanaleNotifica::Email, &ripiego);
-            spedisci_email(&smtp, &cfg.destinatari_email, &lingua, "evento di sistema", |l| {
-                let t = testo(l);
-                (format!("[SWS] {t}"), t)
-            });
+            spedisci_email(
+                &smtp,
+                &cfg.destinatari_email,
+                &lingua,
+                "evento di sistema",
+                |l| {
+                    let t = testo(l);
+                    (format!("[SWS] {t}"), t)
+                },
+            );
             partito = true;
         }
     }
@@ -424,7 +449,8 @@ impl NotificationSupervisor {
         let languages = std::sync::Arc::new(languages);
         let cancel = CancellationToken::new();
         let cancel_clone = cancel.clone();
-        let destinatari_progetto: Arc<Vec<Destinatario>> = Arc::new(config.destinatari_email.clone());
+        let destinatari_progetto: Arc<Vec<Destinatario>> =
+            Arc::new(config.destinatari_email.clone());
         let tabella = config.tabella();
         let smtp: Option<Arc<SmtpConfig>> = config.smtp.map(Arc::new);
         let telegram = telegram_tx;
@@ -774,7 +800,10 @@ mod destinatari_tests {
     use super::*;
 
     fn d(i: &str, l: Option<&str>) -> Destinatario {
-        Destinatario { indirizzo: i.into(), lingua: l.map(Into::into) }
+        Destinatario {
+            indirizzo: i.into(),
+            lingua: l.map(Into::into),
+        }
     }
     fn allarme(yaml: &str) -> sws_core::AlarmDef {
         serde_yaml::from_str(&format!("id: a\ntag: t\n{yaml}")).unwrap()
@@ -788,7 +817,10 @@ mod destinatari_tests {
         assert_eq!(destinatari_allarme(&allarme(""), &progetto), progetto);
         // Un allarme vecchio con i suoi indirizzi: solo quelli, come prima.
         let vecchio = allarme("notify_email: [turno@x.it]\n");
-        assert_eq!(destinatari_allarme(&vecchio, &progetto), vec![d("turno@x.it", None)]);
+        assert_eq!(
+            destinatari_allarme(&vecchio, &progetto),
+            vec![d("turno@x.it", None)]
+        );
         // Spento: nessuno.
         assert!(destinatari_allarme(&allarme("email_mode: off\n"), &progetto).is_empty());
     }
@@ -797,12 +829,19 @@ mod destinatari_tests {
     #[test]
     fn un_messaggio_per_lingua_non_uno_per_indirizzo() {
         let g = per_lingua(
-            &[d("a@x.it", None), d("hans@y.de", Some("de")), d("b@x.it", None), d("  ", None)],
+            &[
+                d("a@x.it", None),
+                d("hans@y.de", Some("de")),
+                d("b@x.it", None),
+                d("  ", None),
+            ],
             "it",
         );
-        assert_eq!(g.get("it").unwrap(), &vec!["a@x.it".to_string(), "b@x.it".to_string()]);
+        assert_eq!(
+            g.get("it").unwrap(),
+            &vec!["a@x.it".to_string(), "b@x.it".to_string()]
+        );
         assert_eq!(g.get("de").unwrap(), &vec!["hans@y.de".to_string()]);
         assert_eq!(g.len(), 2, "un indirizzo vuoto non è un destinatario");
     }
 }
-

@@ -85,7 +85,12 @@ pub struct Stato {
 }
 
 /// La decisione, senza D-Bus né file.
-pub fn decidi(installata: Option<u32>, attesa: Option<u32>, bus: bool, host_config: bool) -> (bool, bool, Option<String>) {
+pub fn decidi(
+    installata: Option<u32>,
+    attesa: Option<u32>,
+    bus: bool,
+    host_config: bool,
+) -> (bool, bool, Option<String>) {
     let Some(attesa) = attesa else {
         return (false, false, None);
     };
@@ -118,7 +123,9 @@ fn file_esito(config_dir: &Path) -> PathBuf {
 }
 
 async fn leggi_esito(config_dir: &Path) -> Option<Esito> {
-    let t = tokio::fs::read_to_string(file_esito(config_dir)).await.ok()?;
+    let t = tokio::fs::read_to_string(file_esito(config_dir))
+        .await
+        .ok()?;
     serde_json::from_str(&t).ok()
 }
 
@@ -153,7 +160,9 @@ pub struct UnitaScelte {
 }
 
 async fn leggi_unita(config_dir: &Path) -> Option<UnitaScelte> {
-    let t = tokio::fs::read_to_string(config_dir.join(FILE_UNITA)).await.ok()?;
+    let t = tokio::fs::read_to_string(config_dir.join(FILE_UNITA))
+        .await
+        .ok()?;
     serde_json::from_str(&t).ok()
 }
 
@@ -164,7 +173,11 @@ async fn leggi_unita(config_dir: &Path) -> Option<UnitaScelte> {
 ///
 /// `altre` sono le unità diverse dal runtime, con la versione letta dal bus:
 /// `None` = non caricata.
-fn minimo_installato(scelte: Option<&[String]>, runtime: u32, altre: &[(&str, Option<u32>)]) -> u32 {
+fn minimo_installato(
+    scelte: Option<&[String]>,
+    runtime: u32,
+    altre: &[(&str, Option<u32>)],
+) -> u32 {
     let conta = |u: &str| match scelte {
         // Nessun segno: si contano tutte, come si è sempre fatto.
         None => true,
@@ -184,7 +197,9 @@ pub async fn versione_attesa() -> Option<u32> {
 }
 
 async fn attesa() -> Option<u32> {
-    let t = tokio::fs::read_to_string(Path::new(DIR_IMMAGINE).join("sws-runtime.container")).await.ok()?;
+    let t = tokio::fs::read_to_string(Path::new(DIR_IMMAGINE).join("sws-runtime.container"))
+        .await
+        .ok()?;
     versione_template(&t)
 }
 
@@ -211,24 +226,45 @@ async fn installata(c: &zbus::Connection, config_dir: &Path) -> Option<u32> {
         altre.push((u, v));
     }
     let scelte = leggi_unita(config_dir).await;
-    Some(minimo_installato(scelte.as_ref().map(|s| s.unita.as_slice()), vr, &altre))
+    Some(minimo_installato(
+        scelte.as_ref().map(|s| s.unita.as_slice()),
+        vr,
+        &altre,
+    ))
 }
 
 /// La cartella config **vista dall'host** (il servizio transitorio gira lì).
 pub(crate) fn host_config() -> Option<String> {
-    std::env::var("SWS_HOST_CONFIG_DIR").ok().filter(|s| !s.trim().is_empty())
+    std::env::var("SWS_HOST_CONFIG_DIR")
+        .ok()
+        .filter(|s| !s.trim().is_empty())
 }
 
 pub async fn stato(config_dir: &Path) -> Stato {
     let attesa = attesa().await;
-    let utente = if attesa.is_some() { zbus::Connection::session().await.ok() } else { None };
+    let utente = if attesa.is_some() {
+        zbus::Connection::session().await.ok()
+    } else {
+        None
+    };
     let installata = match &utente {
         Some(c) => installata(c, config_dir).await,
         None => None,
     };
-    let (da_aggiornare, si_puo_aggiornare, motivo) =
-        decidi(installata, attesa, utente.is_some(), host_config().is_some());
-    Stato { installata, attesa, da_aggiornare, si_puo_aggiornare, motivo, ultimo_esito: leggi_esito(config_dir).await }
+    let (da_aggiornare, si_puo_aggiornare, motivo) = decidi(
+        installata,
+        attesa,
+        utente.is_some(),
+        host_config().is_some(),
+    );
+    Stato {
+        installata,
+        attesa,
+        da_aggiornare,
+        si_puo_aggiornare,
+        motivo,
+        ultimo_esito: leggi_esito(config_dir).await,
+    }
 }
 
 /// Riscrive i quadlet dai template dell'immagine. Torna appena il servizio
@@ -239,18 +275,28 @@ pub async fn aggiorna(config_dir: &Path) -> Result<(), String> {
         return Err("La configurazione del servizio è già aggiornata.".into());
     }
     if !st.si_puo_aggiornare {
-        return Err(st.motivo.unwrap_or_else(|| "Non si può aggiornare da qui.".into()));
+        return Err(st
+            .motivo
+            .unwrap_or_else(|| "Non si può aggiornare da qui.".into()));
     }
     let host = host_config().ok_or("SWS_HOST_CONFIG_DIR assente")?;
     // I file nella cartella config: il container la scrive, l'host la vede.
     let copia = config_dir.join(DIR_COPIA);
-    tokio::fs::create_dir_all(&copia).await.map_err(|e| format!("{}: {e}", copia.display()))?;
-    for f in ["install-container.sh", "sws-runtime.container", "sws-lvgl-viewer.container"] {
+    tokio::fs::create_dir_all(&copia)
+        .await
+        .map_err(|e| format!("{}: {e}", copia.display()))?;
+    for f in [
+        "install-container.sh",
+        "sws-runtime.container",
+        "sws-lvgl-viewer.container",
+    ] {
         tokio::fs::copy(Path::new(DIR_IMMAGINE).join(f), copia.join(f))
             .await
             .map_err(|e| format!("copia di {f}: {e}"))?;
     }
-    let utente = zbus::Connection::session().await.map_err(|e| format!("bus utente: {e}"))?;
+    let utente = zbus::Connection::session()
+        .await
+        .map_err(|e| format!("bus utente: {e}"))?;
     scrivi_esito(
         config_dir,
         &Esito {
@@ -262,20 +308,35 @@ pub async fn aggiorna(config_dir: &Path) -> Result<(), String> {
     )
     .await;
     let argv = comando(&host);
-    let nome = format!("sws-quadlet-aggiorna-{}.service", chrono::Utc::now().timestamp());
-    crate::display_target::bus::avvia_transitorio(&utente, &nome, "SWS: aggiornamento dei quadlet", &argv).await
+    let nome = format!(
+        "sws-quadlet-aggiorna-{}.service",
+        chrono::Utc::now().timestamp()
+    );
+    crate::display_target::bus::avvia_transitorio(
+        &utente,
+        &nome,
+        "SWS: aggiornamento dei quadlet",
+        &argv,
+    )
+    .await
 }
 
 /// Il comando del servizio transitorio, con i percorsi dell'host.
 pub fn comando(host_config: &str) -> Vec<String> {
     let dir = format!("{}/{DIR_COPIA}", host_config.trim_end_matches('/'));
-    vec!["/bin/bash".into(), format!("{dir}/install-container.sh"), "--solo-unita".into()]
+    vec![
+        "/bin/bash".into(),
+        format!("{dir}/install-container.sh"),
+        "--solo-unita".into(),
+    ]
 }
 
 /// All'avvio: se c'era un aggiornamento dei quadlet in corso, decide com'è
 /// andato misurando le versioni installate adesso.
 pub async fn all_avvio(config_dir: PathBuf) {
-    let Some(mut e) = leggi_esito(&config_dir).await else { return };
+    let Some(mut e) = leggi_esito(&config_dir).await else {
+        return;
+    };
     if e.esito != "in_corso" {
         return;
     }
@@ -283,21 +344,22 @@ pub async fn all_avvio(config_dir: PathBuf) {
     tokio::time::sleep(std::time::Duration::from_secs(10)).await;
     let st = stato(&config_dir).await;
     let adesso = chrono::Utc::now().timestamp_millis();
-    match decidi_esito(st.installata, e.a, adesso - e.quando_ms) {
-        Some(esito) => {
-            e.esito = esito.into();
-            tracing::info!(esito = %e.esito, da = e.da, a = e.a, "quadlet: aggiornamento concluso");
-            scrivi_esito(&config_dir, &e).await;
-            crate::system::quadlet_svuota_cache().await;
-        }
-        None => {}
+    if let Some(esito) = decidi_esito(st.installata, e.a, adesso - e.quando_ms) {
+        e.esito = esito.into();
+        tracing::info!(esito = %e.esito, da = e.da, a = e.a, "quadlet: aggiornamento concluso");
+        scrivi_esito(&config_dir, &e).await;
+        crate::system::quadlet_svuota_cache().await;
     }
 }
 
 /// L'esito di un aggiornamento in corso: riuscito se la versione installata ha
 /// raggiunto quella voluta; non riuscito se non l'ha raggiunta e il tempo è
 /// scaduto; `None` = ancora presto per dirlo.
-pub fn decidi_esito(installata: Option<u32>, voluta: u32, trascorsi_ms: i64) -> Option<&'static str> {
+pub fn decidi_esito(
+    installata: Option<u32>,
+    voluta: u32,
+    trascorsi_ms: i64,
+) -> Option<&'static str> {
     if installata.is_some_and(|v| v >= voluta) {
         Some("riuscito")
     } else if trascorsi_ms > SCADENZA_MS {
@@ -325,7 +387,11 @@ mod tests {
     fn senza_il_segno_un_unita_assente_vale_zero() {
         assert_eq!(minimo_installato(None, 6, &[(VIEWER, None)]), 0);
         assert_eq!(minimo_installato(None, 6, &[(VIEWER, Some(6))]), 6);
-        assert_eq!(minimo_installato(None, 6, &[(VIEWER, Some(5))]), 5, "vince la più bassa");
+        assert_eq!(
+            minimo_installato(None, 6, &[(VIEWER, Some(5))]),
+            5,
+            "vince la più bassa"
+        );
     }
 
     /// Col segno, un'unità **non scelta** non si conta: è il caso che il
@@ -335,10 +401,16 @@ mod tests {
     #[test]
     fn un_unita_non_scelta_non_trascina_giu_il_minimo() {
         let solo_runtime = scelte(&[RUNTIME]);
-        assert_eq!(minimo_installato(Some(&solo_runtime), 6, &[(VIEWER, None)]), 6);
+        assert_eq!(
+            minimo_installato(Some(&solo_runtime), 6, &[(VIEWER, None)]),
+            6
+        );
         // E se per qualche motivo c'è lo stesso, continua a non contare:
         // quello che decide è la scelta, non la presenza.
-        assert_eq!(minimo_installato(Some(&solo_runtime), 6, &[(VIEWER, Some(3))]), 6);
+        assert_eq!(
+            minimo_installato(Some(&solo_runtime), 6, &[(VIEWER, Some(3))]),
+            6
+        );
     }
 
     /// Un'unità **scelta** che non è caricata vale 0, e deve: quella sì che è
@@ -356,21 +428,32 @@ mod tests {
     #[test]
     fn un_unita_che_il_motore_non_conosce_non_rompe() {
         let con_openplc = scelte(&[RUNTIME, VIEWER, "openplc-runtime.service"]);
-        assert_eq!(minimo_installato(Some(&con_openplc), 6, &[(VIEWER, Some(6))]), 6);
+        assert_eq!(
+            minimo_installato(Some(&con_openplc), 6, &[(VIEWER, Some(6))]),
+            6
+        );
     }
 
     /// Il segno si legge come lo scrive l'installer.
     #[test]
     fn il_segno_si_legge_come_lo_scrive_linstaller() {
-        let u: UnitaScelte =
-            serde_json::from_str(r#"{"unita": ["sws-runtime.service", "sws-lvgl-viewer.service"]}"#).unwrap();
+        let u: UnitaScelte = serde_json::from_str(
+            r#"{"unita": ["sws-runtime.service", "sws-lvgl-viewer.service"]}"#,
+        )
+        .unwrap();
         assert_eq!(u.unita, vec![RUNTIME.to_string(), VIEWER.to_string()]);
     }
 
     #[test]
     fn la_versione_si_legge_dalla_description() {
-        assert_eq!(versione_da_descrizione("SWS runtime (container podman) [quadlet 3]"), Some(3));
-        assert_eq!(versione_da_descrizione("SWS runtime (container podman)"), None);
+        assert_eq!(
+            versione_da_descrizione("SWS runtime (container podman) [quadlet 3]"),
+            Some(3)
+        );
+        assert_eq!(
+            versione_da_descrizione("SWS runtime (container podman)"),
+            None
+        );
         assert_eq!(versione_da_descrizione("x [quadlet ]"), None);
         let t = "[Unit]\n# commento\nDescription=SWS viewer LVGL [quadlet 12]\n[Service]\n";
         assert_eq!(versione_template(t), Some(12));
@@ -389,7 +472,7 @@ mod tests {
         // Fuori da un container: niente da dire.
         assert_eq!(decidi(Some(0), None, true, true), (false, false, None));
         // Aggiornata.
-        assert_eq!(decidi(Some(2), Some(2), true, true).0, false);
+        assert!(!decidi(Some(2), Some(2), true, true).0);
         // Vecchia, e si può aggiornare da qui.
         assert_eq!(decidi(Some(0), Some(1), true, true), (true, true, None));
         // Vecchia ma senza la cartella dell'host: si reinstalla.
@@ -404,7 +487,10 @@ mod tests {
     fn l_esito() {
         assert_eq!(decidi_esito(Some(2), 2, 0), Some("riuscito"));
         assert_eq!(decidi_esito(Some(1), 2, 1000), None);
-        assert_eq!(decidi_esito(Some(1), 2, SCADENZA_MS + 1), Some("non_riuscito"));
+        assert_eq!(
+            decidi_esito(Some(1), 2, SCADENZA_MS + 1),
+            Some("non_riuscito")
+        );
         assert_eq!(decidi_esito(None, 2, SCADENZA_MS + 1), Some("non_riuscito"));
     }
 
@@ -412,7 +498,11 @@ mod tests {
     fn il_comando_usa_i_percorsi_dell_host() {
         assert_eq!(
             comando("/data/user/sws/config/"),
-            vec!["/bin/bash", "/data/user/sws/config/quadlet-nuovo/install-container.sh", "--solo-unita"]
+            vec![
+                "/bin/bash",
+                "/data/user/sws/config/quadlet-nuovo/install-container.sh",
+                "--solo-unita"
+            ]
         );
     }
 }

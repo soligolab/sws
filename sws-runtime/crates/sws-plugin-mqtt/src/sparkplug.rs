@@ -202,7 +202,12 @@ async fn session(
 
     // Publish SCADA Host online STATE.
     client
-        .publish(&state_topic, QoS::AtLeastOnce, true, stato_host(true, istante))
+        .publish(
+            &state_topic,
+            QoS::AtLeastOnce,
+            true,
+            stato_host(true, istante),
+        )
         .await
         .map_err(|e| anyhow::anyhow!("publish STATE ONLINE: {e}"))?;
 
@@ -333,7 +338,12 @@ struct Stato {
 impl Stato {
     fn nuovo(spb: &SparkplugConfig) -> Self {
         Self {
-            per_nome: spb.metrics.iter().enumerate().map(|(i, m)| (m.metric_name.clone(), i)).collect(),
+            per_nome: spb
+                .metrics
+                .iter()
+                .enumerate()
+                .map(|(i, m)| (m.metric_name.clone(), i))
+                .collect(),
             alias: HashMap::new(),
             origine: vec![None; spb.metrics.len()],
         }
@@ -600,7 +610,10 @@ mod prove_sparkplug {
         let pl = Payload::decode(&payload(vec![m])[..]).expect("il payload deve decodificarsi");
         assert_eq!(pl.metrics.len(), 1);
         assert_eq!(pl.metrics[0].name.as_deref(), Some("Pump/Speed"));
-        assert_eq!(metric_to_tagvalue(&pl.metrics[0]), Some(TagValue::Float(21.5)));
+        assert_eq!(
+            metric_to_tagvalue(&pl.metrics[0]),
+            Some(TagValue::Float(21.5))
+        );
     }
 
     /// Il caso che prima **buttava via l'intero messaggio**: `int_value` è il
@@ -613,7 +626,8 @@ mod prove_sparkplug {
         specifica::vint(DATATYPE, 3, &mut m); // Int32
         specifica::vint(INT_VALUE, 42, &mut m);
 
-        let pl = Payload::decode(&payload(vec![m])[..]).expect("un intero non deve far cadere il payload");
+        let pl = Payload::decode(&payload(vec![m])[..])
+            .expect("un intero non deve far cadere il payload");
         assert_eq!(metric_to_tagvalue(&pl.metrics[0]), Some(TagValue::Int(42)));
     }
 
@@ -628,7 +642,10 @@ mod prove_sparkplug {
         specifica::vint(LONG_VALUE, 123_456_789, &mut m);
 
         let pl = Payload::decode(&payload(vec![m])[..]).unwrap();
-        assert_eq!(metric_to_tagvalue(&pl.metrics[0]), Some(TagValue::Int(123_456_789)));
+        assert_eq!(
+            metric_to_tagvalue(&pl.metrics[0]),
+            Some(TagValue::Int(123_456_789))
+        );
     }
 
     #[test]
@@ -645,14 +662,21 @@ mod prove_sparkplug {
                 _ => specifica::vint(campo, 1, &mut m),
             }
             let pl = Payload::decode(&payload(vec![m])[..]).unwrap();
-            assert_eq!(metric_to_tagvalue(&pl.metrics[0]), Some(atteso), "campo {campo}");
+            assert_eq!(
+                metric_to_tagvalue(&pl.metrics[0]),
+                Some(atteso),
+                "campo {campo}"
+            );
         }
         let mut m = Vec::new();
         specifica::stringa(NOME, "x", &mut m);
         specifica::vint(DATATYPE, 12, &mut m);
         specifica::stringa(STRING_VALUE, "ciao", &mut m);
         let pl = Payload::decode(&payload(vec![m])[..]).unwrap();
-        assert_eq!(metric_to_tagvalue(&pl.metrics[0]), Some(TagValue::Str("ciao".into())));
+        assert_eq!(
+            metric_to_tagvalue(&pl.metrics[0]),
+            Some(TagValue::Str("ciao".into()))
+        );
     }
 
     /// I tipi con segno viaggiano dentro campi **senza** segno: un −1 arriva
@@ -661,10 +685,10 @@ mod prove_sparkplug {
     #[test]
     fn i_tipi_con_segno_si_rileggono_col_tipo_dichiarato() {
         for (dt, grezzo, atteso) in [
-            (1u64, 0xFFu64, -1i64),         // Int8
-            (2, 0xFFFF, -1),                // Int16
-            (3, 0xFFFF_FFFF, -1),           // Int32
-            (3, 0xFFFF_FFFE, -2),           // Int32
+            (1u64, 0xFFu64, -1i64),          // Int8
+            (2, 0xFFFF, -1),                 // Int16
+            (3, 0xFFFF_FFFF, -1),            // Int32
+            (3, 0xFFFF_FFFE, -2),            // Int32
             (7, 0xFFFF_FFFF, 4_294_967_295), // UInt32: resta positivo
         ] {
             let mut m = Vec::new();
@@ -719,7 +743,10 @@ mod prove_sparkplug {
 
         let pl = Payload::decode(&payload(vec![m])[..])
             .expect("i campi che non usiamo non devono far cadere il payload");
-        assert_eq!(metric_to_tagvalue(&pl.metrics[0]), Some(TagValue::Float(3.25)));
+        assert_eq!(
+            metric_to_tagvalue(&pl.metrics[0]),
+            Some(TagValue::Float(3.25))
+        );
     }
 
     // ── L'alias, dall'ingresso al TagDb ────────────────────────────────────
@@ -757,9 +784,15 @@ mod prove_sparkplug {
         handle_message(
             "spBv1.0/plant-a/NBIRTH/edge1",
             &payload(vec![nascita]),
-            &db, &spb, &mut stato,
-        ).await;
-        assert_eq!(valore(&db, "pompa.velocita").await, Some(TagValue::Float(10.0)));
+            &db,
+            &spb,
+            &mut stato,
+        )
+        .await;
+        assert_eq!(
+            valore(&db, "pompa.velocita").await,
+            Some(TagValue::Float(10.0))
+        );
 
         let mut dato = Vec::new();
         specifica::vint(ALIAS, 7, &mut dato); // solo l'alias, nessun nome
@@ -767,9 +800,15 @@ mod prove_sparkplug {
         handle_message(
             "spBv1.0/plant-a/NDATA/edge1",
             &payload(vec![dato]),
-            &db, &spb, &mut stato,
-        ).await;
-        assert_eq!(valore(&db, "pompa.velocita").await, Some(TagValue::Float(42.0)));
+            &db,
+            &spb,
+            &mut stato,
+        )
+        .await;
+        assert_eq!(
+            valore(&db, "pompa.velocita").await,
+            Some(TagValue::Float(42.0))
+        );
     }
 
     /// Due nodi possono usare lo stesso numero per metriche diverse: l'alias
@@ -786,12 +825,26 @@ mod prove_sparkplug {
         specifica::vint(ALIAS, 7, &mut nascita);
         specifica::vint(DATATYPE, 10, &mut nascita);
         specifica::fisso64(DOUBLE_VALUE, 1.0, &mut nascita);
-        handle_message("spBv1.0/plant-a/NBIRTH/edge1", &payload(vec![nascita]), &db, &spb, &mut stato).await;
+        handle_message(
+            "spBv1.0/plant-a/NBIRTH/edge1",
+            &payload(vec![nascita]),
+            &db,
+            &spb,
+            &mut stato,
+        )
+        .await;
 
         let mut dato = Vec::new();
         specifica::vint(ALIAS, 7, &mut dato);
         specifica::fisso64(DOUBLE_VALUE, 99.0, &mut dato);
-        handle_message("spBv1.0/plant-a/NDATA/edge2", &payload(vec![dato]), &db, &spb, &mut stato).await;
+        handle_message(
+            "spBv1.0/plant-a/NDATA/edge2",
+            &payload(vec![dato]),
+            &db,
+            &spb,
+            &mut stato,
+        )
+        .await;
 
         assert_eq!(
             valore(&db, "pompa.velocita").await,
@@ -814,7 +867,14 @@ mod prove_sparkplug {
         specifica::vint(ALIAS, 7, &mut prima);
         specifica::vint(DATATYPE, 10, &mut prima);
         specifica::fisso64(DOUBLE_VALUE, 1.0, &mut prima);
-        handle_message("spBv1.0/plant-a/NBIRTH/edge1", &payload(vec![prima]), &db, &spb, &mut stato).await;
+        handle_message(
+            "spBv1.0/plant-a/NBIRTH/edge1",
+            &payload(vec![prima]),
+            &db,
+            &spb,
+            &mut stato,
+        )
+        .await;
 
         // Rinasce, e stavolta Pump/Speed ha l'alias 9.
         let mut dopo = Vec::new();
@@ -822,21 +882,48 @@ mod prove_sparkplug {
         specifica::vint(ALIAS, 9, &mut dopo);
         specifica::vint(DATATYPE, 10, &mut dopo);
         specifica::fisso64(DOUBLE_VALUE, 2.0, &mut dopo);
-        handle_message("spBv1.0/plant-a/NBIRTH/edge1", &payload(vec![dopo]), &db, &spb, &mut stato).await;
+        handle_message(
+            "spBv1.0/plant-a/NBIRTH/edge1",
+            &payload(vec![dopo]),
+            &db,
+            &spb,
+            &mut stato,
+        )
+        .await;
 
         // Il 7 non vuol più dire niente: un dato che lo usa si scarta.
         let mut vecchio = Vec::new();
         specifica::vint(ALIAS, 7, &mut vecchio);
         specifica::fisso64(DOUBLE_VALUE, 777.0, &mut vecchio);
-        handle_message("spBv1.0/plant-a/NDATA/edge1", &payload(vec![vecchio]), &db, &spb, &mut stato).await;
-        assert_eq!(valore(&db, "pompa.velocita").await, Some(TagValue::Float(2.0)));
+        handle_message(
+            "spBv1.0/plant-a/NDATA/edge1",
+            &payload(vec![vecchio]),
+            &db,
+            &spb,
+            &mut stato,
+        )
+        .await;
+        assert_eq!(
+            valore(&db, "pompa.velocita").await,
+            Some(TagValue::Float(2.0))
+        );
 
         // Il 9 sì.
         let mut nuovo = Vec::new();
         specifica::vint(ALIAS, 9, &mut nuovo);
         specifica::fisso64(DOUBLE_VALUE, 3.0, &mut nuovo);
-        handle_message("spBv1.0/plant-a/NDATA/edge1", &payload(vec![nuovo]), &db, &spb, &mut stato).await;
-        assert_eq!(valore(&db, "pompa.velocita").await, Some(TagValue::Float(3.0)));
+        handle_message(
+            "spBv1.0/plant-a/NDATA/edge1",
+            &payload(vec![nuovo]),
+            &db,
+            &spb,
+            &mut stato,
+        )
+        .await;
+        assert_eq!(
+            valore(&db, "pompa.velocita").await,
+            Some(TagValue::Float(3.0))
+        );
     }
 
     /// Una metrica nulla non riscrive il valore: lo tiene e dice che non è più
@@ -851,13 +938,27 @@ mod prove_sparkplug {
         specifica::stringa(NOME, "Pump/Speed", &mut buono);
         specifica::vint(DATATYPE, 10, &mut buono);
         specifica::fisso64(DOUBLE_VALUE, 12.5, &mut buono);
-        handle_message("spBv1.0/plant-a/NDATA/edge1", &payload(vec![buono]), &db, &spb, &mut stato).await;
+        handle_message(
+            "spBv1.0/plant-a/NDATA/edge1",
+            &payload(vec![buono]),
+            &db,
+            &spb,
+            &mut stato,
+        )
+        .await;
 
         let mut nullo = Vec::new();
         specifica::stringa(NOME, "Pump/Speed", &mut nullo);
         specifica::vint(DATATYPE, 10, &mut nullo);
         specifica::vint(IS_NULL, 1, &mut nullo);
-        handle_message("spBv1.0/plant-a/NDATA/edge1", &payload(vec![nullo]), &db, &spb, &mut stato).await;
+        handle_message(
+            "spBv1.0/plant-a/NDATA/edge1",
+            &payload(vec![nullo]),
+            &db,
+            &spb,
+            &mut stato,
+        )
+        .await;
 
         let st = db.get("pompa.velocita").await.expect("il tag esiste");
         assert_eq!(st.value, TagValue::Float(12.5), "il valore buono resta");
@@ -872,7 +973,10 @@ mod prove_sparkplug {
         let pl = Payload::decode(&byte[..]).unwrap();
         assert_eq!(pl.metrics[0].name.as_deref(), Some("Pump/Setpoint"));
         assert_eq!(pl.metrics[0].datatype, Some(10), "Double");
-        assert_eq!(metric_to_tagvalue(&pl.metrics[0]), Some(TagValue::Float(7.5)));
+        assert_eq!(
+            metric_to_tagvalue(&pl.metrics[0]),
+            Some(TagValue::Float(7.5))
+        );
 
         // E il campo usato è davvero il 13: lo si cerca nei byte grezzi.
         let mut chiave = Vec::new();
@@ -890,8 +994,16 @@ mod prove_sparkplug {
             group_id: "plant-a".into(),
             host_id: "SWS-SCADA".into(),
             metrics: vec![
-                SparkplugMetricMapping { metric_name: "Pump/Speed".into(), tag: "pompa.velocita".into(), writable: true },
-                SparkplugMetricMapping { metric_name: "Valve/Open".into(), tag: "valvola.aperta".into(), writable: true },
+                SparkplugMetricMapping {
+                    metric_name: "Pump/Speed".into(),
+                    tag: "pompa.velocita".into(),
+                    writable: true,
+                },
+                SparkplugMetricMapping {
+                    metric_name: "Valve/Open".into(),
+                    tag: "valvola.aperta".into(),
+                    writable: true,
+                },
             ],
         }
     }
@@ -916,13 +1028,37 @@ mod prove_sparkplug {
         let db = TagDb::new(16);
         let spb = due_metriche();
         let mut stato = Stato::nuovo(&spb);
-        assert_eq!(stato.comando("plant-a", 0), None, "prima della nascita non si sa a chi");
+        assert_eq!(
+            stato.comando("plant-a", 0),
+            None,
+            "prima della nascita non si sa a chi"
+        );
 
-        handle_message("spBv1.0/plant-a/NBIRTH/edge1", &payload(vec![metrica("Pump/Speed", 1.0)]), &db, &spb, &mut stato).await;
-        handle_message("spBv1.0/plant-a/DBIRTH/edge1/pump3", &payload(vec![metrica("Valve/Open", 0.0)]), &db, &spb, &mut stato).await;
+        handle_message(
+            "spBv1.0/plant-a/NBIRTH/edge1",
+            &payload(vec![metrica("Pump/Speed", 1.0)]),
+            &db,
+            &spb,
+            &mut stato,
+        )
+        .await;
+        handle_message(
+            "spBv1.0/plant-a/DBIRTH/edge1/pump3",
+            &payload(vec![metrica("Valve/Open", 0.0)]),
+            &db,
+            &spb,
+            &mut stato,
+        )
+        .await;
 
-        assert_eq!(stato.comando("plant-a", 0), Some(("spBv1.0/plant-a/NCMD/edge1".into(), true)));
-        assert_eq!(stato.comando("plant-a", 1), Some(("spBv1.0/plant-a/DCMD/edge1/pump3".into(), true)));
+        assert_eq!(
+            stato.comando("plant-a", 0),
+            Some(("spBv1.0/plant-a/NCMD/edge1".into(), true))
+        );
+        assert_eq!(
+            stato.comando("plant-a", 1),
+            Some(("spBv1.0/plant-a/DCMD/edge1/pump3".into(), true))
+        );
     }
 
     /// La morte di un nodo marcava `Bad` i tag di tutto il gruppo.
@@ -931,14 +1067,43 @@ mod prove_sparkplug {
         let db = TagDb::new(16);
         let spb = due_metriche();
         let mut stato = Stato::nuovo(&spb);
-        handle_message("spBv1.0/plant-a/NBIRTH/edge1", &payload(vec![metrica("Pump/Speed", 1.0)]), &db, &spb, &mut stato).await;
-        handle_message("spBv1.0/plant-a/NBIRTH/edge2", &payload(vec![metrica("Valve/Open", 1.0)]), &db, &spb, &mut stato).await;
+        handle_message(
+            "spBv1.0/plant-a/NBIRTH/edge1",
+            &payload(vec![metrica("Pump/Speed", 1.0)]),
+            &db,
+            &spb,
+            &mut stato,
+        )
+        .await;
+        handle_message(
+            "spBv1.0/plant-a/NBIRTH/edge2",
+            &payload(vec![metrica("Valve/Open", 1.0)]),
+            &db,
+            &spb,
+            &mut stato,
+        )
+        .await;
 
-        handle_message("spBv1.0/plant-a/NDEATH/edge1", &payload(vec![]), &db, &spb, &mut stato).await;
+        handle_message(
+            "spBv1.0/plant-a/NDEATH/edge1",
+            &payload(vec![]),
+            &db,
+            &spb,
+            &mut stato,
+        )
+        .await;
 
         assert_eq!(qualita(&db, "pompa.velocita").await, TagQuality::Bad);
-        assert_eq!(qualita(&db, "valvola.aperta").await, TagQuality::Good, "edge2 è vivo");
-        assert_eq!(stato.comando("plant-a", 0).map(|(_, v)| v), Some(false), "il comando parte, ma il nodo è morto");
+        assert_eq!(
+            qualita(&db, "valvola.aperta").await,
+            TagQuality::Good,
+            "edge2 è vivo"
+        );
+        assert_eq!(
+            stato.comando("plant-a", 0).map(|(_, v)| v),
+            Some(false),
+            "il comando parte, ma il nodo è morto"
+        );
     }
 
     /// Un dispositivo che muore non si porta via il nodo; il nodo che muore
@@ -948,16 +1113,55 @@ mod prove_sparkplug {
         let db = TagDb::new(16);
         let spb = due_metriche();
         let mut stato = Stato::nuovo(&spb);
-        handle_message("spBv1.0/plant-a/NBIRTH/edge1", &payload(vec![metrica("Pump/Speed", 1.0)]), &db, &spb, &mut stato).await;
-        handle_message("spBv1.0/plant-a/DBIRTH/edge1/pump3", &payload(vec![metrica("Valve/Open", 1.0)]), &db, &spb, &mut stato).await;
+        handle_message(
+            "spBv1.0/plant-a/NBIRTH/edge1",
+            &payload(vec![metrica("Pump/Speed", 1.0)]),
+            &db,
+            &spb,
+            &mut stato,
+        )
+        .await;
+        handle_message(
+            "spBv1.0/plant-a/DBIRTH/edge1/pump3",
+            &payload(vec![metrica("Valve/Open", 1.0)]),
+            &db,
+            &spb,
+            &mut stato,
+        )
+        .await;
 
-        handle_message("spBv1.0/plant-a/DDEATH/edge1/pump3", &payload(vec![]), &db, &spb, &mut stato).await;
+        handle_message(
+            "spBv1.0/plant-a/DDEATH/edge1/pump3",
+            &payload(vec![]),
+            &db,
+            &spb,
+            &mut stato,
+        )
+        .await;
         assert_eq!(qualita(&db, "valvola.aperta").await, TagQuality::Bad);
         assert_eq!(qualita(&db, "pompa.velocita").await, TagQuality::Good);
 
-        handle_message("spBv1.0/plant-a/DBIRTH/edge1/pump3", &payload(vec![metrica("Valve/Open", 2.0)]), &db, &spb, &mut stato).await;
-        handle_message("spBv1.0/plant-a/NDEATH/edge1", &payload(vec![]), &db, &spb, &mut stato).await;
-        assert_eq!(qualita(&db, "valvola.aperta").await, TagQuality::Bad, "il dispositivo muore col suo nodo");
+        handle_message(
+            "spBv1.0/plant-a/DBIRTH/edge1/pump3",
+            &payload(vec![metrica("Valve/Open", 2.0)]),
+            &db,
+            &spb,
+            &mut stato,
+        )
+        .await;
+        handle_message(
+            "spBv1.0/plant-a/NDEATH/edge1",
+            &payload(vec![]),
+            &db,
+            &spb,
+            &mut stato,
+        )
+        .await;
+        assert_eq!(
+            qualita(&db, "valvola.aperta").await,
+            TagQuality::Bad,
+            "il dispositivo muore col suo nodo"
+        );
         assert_eq!(qualita(&db, "pompa.velocita").await, TagQuality::Bad);
     }
 
@@ -966,8 +1170,10 @@ mod prove_sparkplug {
     #[test]
     fn lo_stato_dell_host_e_quello_della_3_0() {
         assert_eq!(topic_stato_host("SWS-SCADA"), "spBv1.0/STATE/SWS-SCADA");
-        let nascita: serde_json::Value = serde_json::from_str(&stato_host(true, 1_700_000_000_123)).unwrap();
-        let morte: serde_json::Value = serde_json::from_str(&stato_host(false, 1_700_000_000_123)).unwrap();
+        let nascita: serde_json::Value =
+            serde_json::from_str(&stato_host(true, 1_700_000_000_123)).unwrap();
+        let morte: serde_json::Value =
+            serde_json::from_str(&stato_host(false, 1_700_000_000_123)).unwrap();
         assert_eq!(nascita["online"], serde_json::json!(true));
         assert_eq!(morte["online"], serde_json::json!(false));
         assert_eq!(nascita["timestamp"], morte["timestamp"]);

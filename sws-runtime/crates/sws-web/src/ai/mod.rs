@@ -215,7 +215,8 @@ impl Misure {
 
     pub fn giro(&mut self, usage: &Value, costo: f64, secondi: f64) {
         self.costo_usd += costo;
-        self.giri.push(json!({ "usage": usage, "costo_usd": costo, "secondi": secondi }));
+        self.giri
+            .push(json!({ "usage": usage, "costo_usd": costo, "secondi": secondi }));
     }
 
     pub fn resoconto(&self, scelta: &client::Scelta) -> Value {
@@ -248,7 +249,9 @@ impl Misure {
     /// Scrive il resoconto se `SWS_AI_MISURE` lo chiede. Un errore di
     /// scrittura va nel log e basta: la misura non deve mai rompere la chat.
     pub fn scrivi(&self, scelta: &client::Scelta) {
-        let Some(dir) = std::env::var_os("SWS_AI_MISURE") else { return };
+        let Some(dir) = std::env::var_os("SWS_AI_MISURE") else {
+            return;
+        };
         let dir = std::path::PathBuf::from(dir);
         let p = dir.join(format!("{}.json", self.nome));
         let esito = std::fs::create_dir_all(&dir).and_then(|_| {
@@ -295,7 +298,11 @@ async fn vero_giro(
 
     let mut giro = 0usize;
     loop {
-        let limite = if banco.simboli.is_empty() { MAX_GIRI } else { MAX_GIRI_CON_BOZZE };
+        let limite = if banco.simboli.is_empty() {
+            MAX_GIRI
+        } else {
+            MAX_GIRI_CON_BOZZE
+        };
         if giro >= limite {
             return Err(format!(
                 "l'assistente ha fatto {limite} giri senza concludere: la richiesta \
@@ -370,7 +377,16 @@ async fn vero_giro(
         for (id, nome, input) in usi {
             *misure.strumenti.entry(nome.to_string()).or_insert(0) += 1;
             if nome == "proponi_modifica" {
-                match proponi(s, tx, input, impronta_iniziale.as_deref(), correzioni, &banco.simboli).await {
+                match proponi(
+                    s,
+                    tx,
+                    input,
+                    impronta_iniziale.as_deref(),
+                    correzioni,
+                    &banco.simboli,
+                )
+                .await
+                {
                     Proposta::Inviata => return Ok(()),
                     Proposta::Correggi(rilievi) => {
                         correzioni += 1;
@@ -428,7 +444,9 @@ async fn vero_giro(
             // `bozza_simbolo` ci scrive, e `valida` le deve vedere.
             let esito = match nome {
                 "bozza_simbolo" => bozza(tx, banco, input),
-                "valida" => tools::valida_interna(s, input, &banco.simboli, false).await.map(|(g, _)| g),
+                "valida" => tools::valida_interna(s, input, &banco.simboli, false)
+                    .await
+                    .map(|(g, _)| g),
                 _ => tools::esegui(s, nome, input).await,
             };
             match esito {
@@ -460,13 +478,20 @@ async fn vero_giro(
 /// finestra giusta e poi scrive il valore sbagliato, **in una fotografia,
 /// sembrerebbe funzionare**. Le righe «comando prodotto: …» del viewer sono
 /// l'unica prova di cosa il tocco ha fatto davvero.
-async fn istantanea_per_il_modello(s: &AppState, input: &Value, banco: &Banco) -> Result<Value, String> {
+async fn istantanea_per_il_modello(
+    s: &AppState,
+    input: &Value,
+    banco: &Banco,
+) -> Result<Value, String> {
     let dir = crate::router::active_dir(s)
         .await
         .map_err(|_| "nessun progetto aperto: non c'è niente da fotografare".to_string())?;
     // Una pagina in composizione si fotografa al posto di quella col suo nome;
     // senza pagina né nome, con delle bozze, si fotografa la loro tavola.
-    let mut nome = input.get("nome").and_then(Value::as_str).map(str::to_string);
+    let mut nome = input
+        .get("nome")
+        .and_then(Value::as_str)
+        .map(str::to_string);
     let mut pagine = Vec::new();
     if let Some(p) = input.get("pagina").filter(|p| p.is_object()) {
         nome = p.get("name").and_then(Value::as_str).map(str::to_string);
@@ -478,7 +503,11 @@ async fn istantanea_per_il_modello(s: &AppState, input: &Value, banco: &Banco) -
     }
     let scatto = crate::istantanea::scatta(crate::istantanea::Richiesta {
         progetto: dir,
-        simboli: banco.simboli.iter().filter_map(|d| serde_json::to_value(d).ok()).collect(),
+        simboli: banco
+            .simboli
+            .iter()
+            .filter_map(|d| serde_json::to_value(d).ok())
+            .collect(),
         pagine,
         www: s.www_dir.as_deref().cloned(),
         pagina: nome,
@@ -558,14 +587,16 @@ async fn proponi(
     // essere il progetto **ricomposto**, cioè quello che è stato davvero
     // validato. Con il grezzo, una proposta che ometteva `functions` passava la
     // validazione e arrivava all'editor senza funzioni: il Salva le cancellava.
-    let (giudizio, normalizzato) = tools::valida_interna(s, input, bozze, true).await.unwrap_or_else(|e| {
-        (
-            json!({ "ok": false, "errori_nuovi": 1,
+    let (giudizio, normalizzato) = tools::valida_interna(s, input, bozze, true)
+        .await
+        .unwrap_or_else(|e| {
+            (
+                json!({ "ok": false, "errori_nuovi": 1,
                                      "rilievi": [{ "severity": "error", "path": "proposta",
                                                    "message": e }] }),
-            None,
-        )
-    });
+                None,
+            )
+        });
     let ok = giudizio.get("ok").and_then(Value::as_bool).unwrap_or(false);
 
     if !ok && correzioni < MAX_CORREZIONI {
@@ -595,14 +626,20 @@ async fn proponi(
 /// I simboli che la proposta porta nel progetto, compilati: la chat ne mostra
 /// la miniatura nel diff senza dover chiedere niente al server.
 fn simboli_della_proposta(input: &Value, bozze: &[sws_core::simboli_prj::Descrizione]) -> Value {
-    let pagine: Vec<Value> = input.get("pages").and_then(Value::as_array).cloned().unwrap_or_default();
+    let pagine: Vec<Value> = input
+        .get("pages")
+        .and_then(Value::as_array)
+        .cloned()
+        .unwrap_or_default();
     let usate = tools::bozze_da_portare(input, &pagine, bozze, true).unwrap_or_default();
     Value::Array(
         usate
             .iter()
             .filter_map(|d| {
                 let c = sws_core::simboli_prj::compila_e_controlla(d).ok()?;
-                Some(json!({ "slug": d.slug, "it": d.it, "en": d.en, "svg": c.svg, "voce": c.voce }))
+                Some(
+                    json!({ "slug": d.slug, "it": d.it, "en": d.en, "svg": c.svg, "voce": c.voce }),
+                )
             })
             .collect(),
     )
@@ -627,17 +664,24 @@ impl Banco {
 }
 
 /// `bozza_simbolo`: compila, mette sul banco, e manda la miniatura alla chat.
-fn bozza(tx: &mpsc::UnboundedSender<String>, banco: &mut Banco, input: &Value) -> Result<Value, String> {
+fn bozza(
+    tx: &mpsc::UnboundedSender<String>,
+    banco: &mut Banco,
+    input: &Value,
+) -> Result<Value, String> {
     match tools::compila_bozza(input) {
         Ok((d, c)) => {
-            invia(tx, json!({ "t": "simbolo", "slug": d.slug, "it": d.it, "en": d.en, "svg": c.svg }));
+            invia(
+                tx,
+                json!({ "t": "simbolo", "slug": d.slug, "it": d.it, "en": d.en, "svg": c.svg }),
+            );
             let esito = tools::esito_bozza(&c);
             banco.metti(d);
             Ok(esito)
         }
         Err(errori) => Err(json!({ "ok": false, "errori": errori,
                                    "nota": "correggi e richiama bozza_simbolo con lo stesso slug" })
-            .to_string()),
+        .to_string()),
     }
 }
 
@@ -658,9 +702,11 @@ fn tavola_delle_bozze(bozze: &[sws_core::simboli_prj::Descrizione]) -> Value {
         let y0 = 20.0 + riga * CELLA_H;
         oggetti.push(json!({ "id": format!("s{i}"), "type": "symbol", "symbol_id": format!("prj:{}", d.slug),
             "x": x0 + (CELLA_W - w) / 2.0, "y": y0 + (DISEGNO - h) / 2.0, "width": w, "height": h }));
-        oggetti.push(json!({ "id": format!("t{i}"), "type": "text", "text": d.slug,
+        oggetti.push(
+            json!({ "id": format!("t{i}"), "type": "text", "text": d.slug,
             "x": x0, "y": y0 + DISEGNO + 8.0, "width": CELLA_W, "height": 24, "font_size": 15,
-            "text_anchor": "middle", "color": "#1e293b" }));
+            "text_anchor": "middle", "color": "#1e293b" }),
+        );
     }
     let righe = bozze.len().div_ceil(COLONNE).max(1) as f64;
     json!({ "id": "tavola-bozze", "name": "Tavola delle bozze", "width": 1280,
@@ -732,7 +778,16 @@ async fn finto_giro(
                     Some(patch) => componi_da_patch(s, &input, patch).await?,
                     None => input,
                 };
-                match proponi(s, tx, &input, impronta_iniziale.as_deref(), MAX_CORREZIONI, &banco.simboli).await {
+                match proponi(
+                    s,
+                    tx,
+                    &input,
+                    impronta_iniziale.as_deref(),
+                    MAX_CORREZIONI,
+                    &banco.simboli,
+                )
+                .await
+                {
                     Proposta::Inviata => return Ok(()),
                     Proposta::Correggi(v) => {
                         return Err(format!("il copione propone una modifica non valida: {v}"))
@@ -745,7 +800,9 @@ async fn finto_giro(
             );
             let esito = match nome {
                 "bozza_simbolo" => bozza(tx, banco, &input),
-                "valida" => tools::valida_interna(s, &input, &banco.simboli, false).await.map(|(g, _)| g),
+                "valida" => tools::valida_interna(s, &input, &banco.simboli, false)
+                    .await
+                    .map(|(g, _)| g),
                 _ => tools::esegui(s, nome, &input).await,
             };
             match esito {
@@ -944,13 +1001,19 @@ mod tests_bozze {
     fn una_bozza_va_sul_banco_e_in_chat() {
         let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel();
         let mut b = super::Banco::default();
-        let ok = super::bozza(&tx, &mut b, &json!({ "descrizione": bozza_di_prova("gabbia") })).unwrap();
+        let ok = super::bozza(
+            &tx,
+            &mut b,
+            &json!({ "descrizione": bozza_di_prova("gabbia") }),
+        )
+        .unwrap();
         assert_eq!(ok["symbol_id"], "prj:gabbia");
         let frame: Value = serde_json::from_str(&rx.try_recv().unwrap()).unwrap();
         assert_eq!(frame["t"], "simbolo");
         assert!(frame["svg"].as_str().unwrap().starts_with("<svg"));
         assert_eq!(b.simboli.len(), 1);
-        let male = super::bozza(&tx, &mut b, &json!({ "descrizione": { "slug": "rotta" } })).unwrap_err();
+        let male =
+            super::bozza(&tx, &mut b, &json!({ "descrizione": { "slug": "rotta" } })).unwrap_err();
         assert!(male.contains("errori"), "{male}");
         assert_eq!(b.simboli.len(), 1);
     }
@@ -959,16 +1022,24 @@ mod tests_bozze {
     /// proporzioni del disegno, dentro la pagina.
     #[test]
     fn la_tavola_mette_ogni_bozza_al_suo_posto() {
-        let bozze: Vec<_> = (0..7).map(|i| bozza_di_prova(&format!("bozza-{i}"))).collect();
+        let bozze: Vec<_> = (0..7)
+            .map(|i| bozza_di_prova(&format!("bozza-{i}")))
+            .collect();
         let t = super::tavola_delle_bozze(&bozze);
         let oggetti = t["objects"].as_array().unwrap();
         assert_eq!(oggetti.len(), 14);
         let h = t["height"].as_f64().unwrap();
         for o in oggetti.iter().filter(|o| o["type"] == "symbol") {
             let (w, hh) = (o["width"].as_f64().unwrap(), o["height"].as_f64().unwrap());
-            assert!((w / hh - 1.2).abs() < 0.02, "proporzioni del disegno 120×100: {w}×{hh}");
+            assert!(
+                (w / hh - 1.2).abs() < 0.02,
+                "proporzioni del disegno 120×100: {w}×{hh}"
+            );
             assert!(o["x"].as_f64().unwrap() + w <= 1280.0 && o["y"].as_f64().unwrap() + hh <= h);
         }
-        assert!(t.get("cornice").is_some_and(Value::is_null), "senza cornice");
+        assert!(
+            t.get("cornice").is_some_and(Value::is_null),
+            "senza cornice"
+        );
     }
 }

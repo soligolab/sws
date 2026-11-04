@@ -166,7 +166,14 @@ pub fn rasterize(svg: &[u8], w: u32, h: u32, flip_h: bool, flip_v: bool) -> Opti
 
 /// Come [`rasterize`], ma col tetto dichiarato da chi chiama: serve allo
 /// sfondo di una pagina, dove la misura è la pagina e non una scelta dell'SVG.
-pub fn rasterize_entro(svg: &[u8], w: u32, h: u32, flip_h: bool, flip_v: bool, tetto: u32) -> Option<Raster> {
+pub fn rasterize_entro(
+    svg: &[u8],
+    w: u32,
+    h: u32,
+    flip_h: bool,
+    flip_v: bool,
+    tetto: u32,
+) -> Option<Raster> {
     if w == 0 || h == 0 || w > tetto || h > tetto {
         return None;
     }
@@ -202,7 +209,13 @@ pub struct Ritaglio {
 /// centrato in `w`×`h`, con lo specchio. Esposta per i simboli di libreria, che
 /// disegnano uno strato alla volta e devono mettere ogni strato **esattamente**
 /// dove `rasterize` metterebbe il disegno intero.
-pub fn trasformazione(size: (f32, f32), w: u32, h: u32, flip_h: bool, flip_v: bool) -> resvg::tiny_skia::Transform {
+pub fn trasformazione(
+    size: (f32, f32),
+    w: u32,
+    h: u32,
+    flip_h: bool,
+    flip_v: bool,
+) -> resvg::tiny_skia::Transform {
     let scale = (w as f32 / size.0).min(h as f32 / size.1);
     let dx = (w as f32 - size.0 * scale) / 2.0;
     let dy = (h as f32 - size.1 * scale) / 2.0;
@@ -223,7 +236,13 @@ pub fn ingombro(svg: &[u8], w: u32, h: u32, flip_h: bool, flip_v: bool) -> Optio
     if b.width() <= 0.0 || b.height() <= 0.0 {
         return None;
     }
-    let t = trasformazione((tree.size().width(), tree.size().height()), w, h, flip_h, flip_v);
+    let t = trasformazione(
+        (tree.size().width(), tree.size().height()),
+        w,
+        h,
+        flip_h,
+        flip_v,
+    );
     let mut pts = [
         resvg::tiny_skia::Point::from_xy(b.left(), b.top()),
         resvg::tiny_skia::Point::from_xy(b.right(), b.top()),
@@ -236,27 +255,70 @@ pub fn ingombro(svg: &[u8], w: u32, h: u32, flip_h: bool, flip_v: bool) -> Optio
 
 /// Il riquadro, dentro `w`×`h`, che contiene i punti dati (già in pixel).
 pub fn ritaglio_di(pts: &[resvg::tiny_skia::Point], w: u32, h: u32) -> Option<Ritaglio> {
-    let x0 = pts.iter().map(|p| p.x).fold(f32::INFINITY, f32::min).floor() - 1.0;
-    let y0 = pts.iter().map(|p| p.y).fold(f32::INFINITY, f32::min).floor() - 1.0;
-    let x1 = pts.iter().map(|p| p.x).fold(f32::NEG_INFINITY, f32::max).ceil() + 1.0;
-    let y1 = pts.iter().map(|p| p.y).fold(f32::NEG_INFINITY, f32::max).ceil() + 1.0;
+    let x0 = pts
+        .iter()
+        .map(|p| p.x)
+        .fold(f32::INFINITY, f32::min)
+        .floor()
+        - 1.0;
+    let y0 = pts
+        .iter()
+        .map(|p| p.y)
+        .fold(f32::INFINITY, f32::min)
+        .floor()
+        - 1.0;
+    let x1 = pts
+        .iter()
+        .map(|p| p.x)
+        .fold(f32::NEG_INFINITY, f32::max)
+        .ceil()
+        + 1.0;
+    let y1 = pts
+        .iter()
+        .map(|p| p.y)
+        .fold(f32::NEG_INFINITY, f32::max)
+        .ceil()
+        + 1.0;
     let (x0, y0) = (x0.max(0.0) as u32, y0.max(0.0) as u32);
     let (x1, y1) = ((x1.max(0.0) as u32).min(w), (y1.max(0.0) as u32).min(h));
-    (x1 > x0 && y1 > y0).then_some(Ritaglio { x: x0, y: y0, w: x1 - x0, h: y1 - y0 })
+    (x1 > x0 && y1 > y0).then_some(Ritaglio {
+        x: x0,
+        y: y0,
+        w: x1 - x0,
+        h: y1 - y0,
+    })
 }
 
 /// Rasterizza solo il riquadro `r` di quello che [`rasterize`] disegnerebbe a
 /// `w`×`h`: stessa scala, stessa centratura, stesso specchio.
-pub fn rasterize_ritaglio(svg: &[u8], w: u32, h: u32, flip_h: bool, flip_v: bool, r: Ritaglio) -> Option<Raster> {
+pub fn rasterize_ritaglio(
+    svg: &[u8],
+    w: u32,
+    h: u32,
+    flip_h: bool,
+    flip_v: bool,
+    r: Ritaglio,
+) -> Option<Raster> {
     if w == 0 || h == 0 || w > MAX_SIDE_SIMBOLO || h > MAX_SIDE_SIMBOLO || r.w == 0 || r.h == 0 {
         return None;
     }
     let tree = resvg::usvg::Tree::from_data(svg, &resvg::usvg::Options::default()).ok()?;
     let mut pixmap = resvg::tiny_skia::Pixmap::new(r.w, r.h)?;
-    let t = resvg::tiny_skia::Transform::from_translate(-(r.x as f32), -(r.y as f32))
-        .pre_concat(trasformazione((tree.size().width(), tree.size().height()), w, h, flip_h, flip_v));
+    let t = resvg::tiny_skia::Transform::from_translate(-(r.x as f32), -(r.y as f32)).pre_concat(
+        trasformazione(
+            (tree.size().width(), tree.size().height()),
+            w,
+            h,
+            flip_h,
+            flip_v,
+        ),
+    );
     resvg::render(&tree, t, &mut pixmap.as_mut());
-    Some(Raster { width: r.w, height: r.h, pixels: pixmap.take() })
+    Some(Raster {
+        width: r.w,
+        height: r.h,
+        pixels: pixmap.take(),
+    })
 }
 
 /// Rasterizza `svg` **stirato** a `w`×`h`, senza tenere le proporzioni: è lo
@@ -269,7 +331,8 @@ pub fn rasterize_stretch(svg: &[u8], w: u32, h: u32) -> Option<resvg::tiny_skia:
     let tree = resvg::usvg::Tree::from_data(svg, &resvg::usvg::Options::default()).ok()?;
     let mut pixmap = resvg::tiny_skia::Pixmap::new(w, h)?;
     let size = tree.size();
-    let t = resvg::tiny_skia::Transform::from_scale(w as f32 / size.width(), h as f32 / size.height());
+    let t =
+        resvg::tiny_skia::Transform::from_scale(w as f32 / size.width(), h as f32 / size.height());
     resvg::render(&tree, t, &mut pixmap.as_mut());
     Some(pixmap)
 }
@@ -295,8 +358,12 @@ mod tests {
             for x in 0..r.width as usize {
                 let i = (y * r.width as usize + x) * 4;
                 if r.pixels[i + 3] > 128 {
-                    if x < r.width as usize / 2 { sinistra += 1; }
-                    if y < r.height as usize / 2 { alto += 1; }
+                    if x < r.width as usize / 2 {
+                        sinistra += 1;
+                    }
+                    if y < r.height as usize / 2 {
+                        alto += 1;
+                    }
                 }
             }
         }
@@ -315,7 +382,11 @@ mod tests {
         assert!(s_dritto > s_girato, "la freccia punta a destra: dritta pesa di più a sinistra ({s_dritto} contro {s_girato})");
         // E lo specchio non perde né aggiunge inchiostro: è la stessa forma.
         let acceso = |r: &Raster| r.pixels.chunks_exact(4).filter(|p| p[3] > 128).count();
-        assert_eq!(acceso(&dritto), acceso(&girato), "lo specchio non deve cambiare l'area disegnata");
+        assert_eq!(
+            acceso(&dritto),
+            acceso(&girato),
+            "lo specchio non deve cambiare l'area disegnata"
+        );
     }
 
     #[test]
@@ -324,7 +395,10 @@ mod tests {
         let girato = rasterize(FRECCIA, 64, 64, false, true).unwrap();
         let (_, a_dritto) = peso(&dritto);
         let (_, a_girato) = peso(&girato);
-        assert!(a_dritto > a_girato, "la freccia sta in alto: dritta pesa di più in alto ({a_dritto} contro {a_girato})");
+        assert!(
+            a_dritto > a_girato,
+            "la freccia sta in alto: dritta pesa di più in alto ({a_dritto} contro {a_girato})"
+        );
     }
 
     #[test]
@@ -334,7 +408,10 @@ mod tests {
         let doppio = rasterize(FRECCIA, 64, 64, true, true).unwrap();
         let (s_d, a_d) = peso(&dritto);
         let (s_x, a_x) = peso(&doppio);
-        assert!(s_d > s_x && a_d > a_x, "con tutti e due gli specchi la forma passa nell'angolo opposto");
+        assert!(
+            s_d > s_x && a_d > a_x,
+            "con tutti e due gli specchi la forma passa nell'angolo opposto"
+        );
     }
 
     #[test]
@@ -450,16 +527,24 @@ mod tests {
     /// che dal 13-09-2026 girava su una tabella vuota.
     #[test]
     fn i_simboli_della_libreria_si_disegnano() {
-        let radice = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../sws-editor/public/symbols/lib");
+        let radice = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../../sws-editor/public/symbols/lib");
         let m: sws_core::simboli_lib::ManifestLib =
             serde_json::from_slice(&std::fs::read(radice.join("manifest.json")).unwrap()).unwrap();
         assert!(m.symbols.len() >= 40);
         for s in &m.symbols {
-            let svg = std::fs::read(radice.join(&s.file)).unwrap_or_else(|e| panic!("{}: {e}", s.id));
-            let r = rasterize(&svg, 96, 96, false, false).unwrap_or_else(|| panic!("{}: resvg non lo interpreta", s.id));
+            let svg =
+                std::fs::read(radice.join(&s.file)).unwrap_or_else(|e| panic!("{}: {e}", s.id));
+            let r = rasterize(&svg, 96, 96, false, false)
+                .unwrap_or_else(|| panic!("{}: resvg non lo interpreta", s.id));
             let pieni = r.pixels.chunks_exact(4).filter(|p| p[3] > 16).count();
             // Un disegno sottile (il traliccio, la curva) sta sopra il 5 %.
-            assert!(pieni > 96 * 96 / 20, "{}: quasi vuoto ({pieni} pixel su {})", s.id, 96 * 96);
+            assert!(
+                pieni > 96 * 96 / 20,
+                "{}: quasi vuoto ({pieni} pixel su {})",
+                s.id,
+                96 * 96
+            );
         }
     }
 }
@@ -494,7 +579,9 @@ mod prove_raster_q16 {
             );
         }
         // Il tetto però esiste: oltre, si rinuncia invece di allocare a caso.
-        assert!(super::rasterize_entro(svg, 5000, 100, false, false, super::MAX_SIDE_SFONDO).is_none());
+        assert!(
+            super::rasterize_entro(svg, 5000, 100, false, false, super::MAX_SIDE_SFONDO).is_none()
+        );
     }
 
     #[test]
@@ -508,7 +595,8 @@ mod prove_raster_q16 {
             Err(_) => return,
         };
         let svg = crate::svg_assets::svg_attorno_al_raster(&byte, "image/jpeg", 64, 48);
-        let r = super::rasterize(&svg, 64, 48, false, false).expect("il JPEG non si e' rasterizzato");
+        let r =
+            super::rasterize(&svg, 64, 48, false, false).expect("il JPEG non si e' rasterizzato");
         assert_eq!((r.width, r.height), (64, 48));
         let opachi = r.pixels.chunks_exact(4).filter(|px| px[3] > 0).count();
         assert!(

@@ -525,13 +525,28 @@ datastores:
             store.total_samples().await.unwrap()
         };
 
-        db.set("piatto".into(), sws_core::TagValue::Float(1.0), sws_core::TagQuality::Good).await;
+        db.set(
+            "piatto".into(),
+            sws_core::TagValue::Float(1.0),
+            sws_core::TagQuality::Good,
+        )
+        .await;
         tokio::time::sleep(std::time::Duration::from_millis(150)).await;
         assert_eq!(conta().await, 1, "un campione, non due");
 
         reg.chiudi();
-        db.set("piatto".into(), sws_core::TagValue::Float(50.0), sws_core::TagQuality::Good).await;
-        db.set("piatto".into(), sws_core::TagValue::Float(90.0), sws_core::TagQuality::Good).await;
+        db.set(
+            "piatto".into(),
+            sws_core::TagValue::Float(50.0),
+            sws_core::TagQuality::Good,
+        )
+        .await;
+        db.set(
+            "piatto".into(),
+            sws_core::TagValue::Float(90.0),
+            sws_core::TagQuality::Good,
+        )
+        .await;
         tokio::time::sleep(std::time::Duration::from_millis(150)).await;
         assert_eq!(conta().await, 1, "chiuso: non registra più");
     }

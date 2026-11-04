@@ -102,7 +102,10 @@ pub fn codifica(v: &TagValue) -> (i64, rusqlite::types::Value) {
         TagValue::Int(i) => (T_INT, V::Integer(*i)),
         TagValue::Float(f) => (T_FLOAT, V::Real(*f)),
         TagValue::Str(s) => (T_TESTO, V::Text(s.clone())),
-        altro => (T_JSON, V::Text(serde_json::to_string(altro).unwrap_or_else(|_| "null".into()))),
+        altro => (
+            T_JSON,
+            V::Text(serde_json::to_string(altro).unwrap_or_else(|_| "null".into())),
+        ),
     }
 }
 
@@ -149,8 +152,10 @@ fn campione(r: &rusqlite::Row<'_>) -> rusqlite::Result<Sample> {
 
 /// L'id di un tag, creandolo se è nuovo.
 fn id_tag(c: &Connection, nome: &str) -> rusqlite::Result<i64> {
-    c.prepare_cached("INSERT OR IGNORE INTO tag_storico(nome) VALUES (?1)")?.execute(params![nome])?;
-    c.prepare_cached("SELECT id FROM tag_storico WHERE nome = ?1")?.query_row(params![nome], |r| r.get(0))
+    c.prepare_cached("INSERT OR IGNORE INTO tag_storico(nome) VALUES (?1)")?
+        .execute(params![nome])?;
+    c.prepare_cached("SELECT id FROM tag_storico WHERE nome = ?1")?
+        .query_row(params![nome], |r| r.get(0))
 }
 
 /// Prepara la migrazione dal formato di prima (la **tabella** `samples`), con
@@ -166,13 +171,16 @@ fn id_tag(c: &Connection, nome: &str) -> rusqlite::Result<i64> {
 /// il giro dopo sarebbe ripartito da capo — per sempre.
 fn prepara_migrazione(c: &mut Connection) -> rusqlite::Result<bool> {
     let tabella = |c: &Connection, nome: &str| -> rusqlite::Result<bool> {
-        c.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?1")?.exists(params![nome])
+        c.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?1")?
+            .exists(params![nome])
     };
     if tabella(c, "samples")? {
         let tx = c.transaction()?;
         // L'indice sul tempo serviva alla tabella vecchia; senza, i DELETE dei
         // lotti costano la metà.
-        tx.execute_batch("DROP INDEX IF EXISTS idx_samples_ts; ALTER TABLE samples RENAME TO samples_vecchi;")?;
+        tx.execute_batch(
+            "DROP INDEX IF EXISTS idx_samples_ts; ALTER TABLE samples RENAME TO samples_vecchi;",
+        )?;
         tx.commit()?;
     }
     c.execute_batch(SCHEMA_CAMPIONI)?;
@@ -233,7 +241,8 @@ pub fn migra_a_lotti(path: &std::path::Path) -> rusqlite::Result<u64> {
                 let valore = match r.get_ref(2)? {
                     rusqlite::types::ValueRef::Text(t) => {
                         let t = String::from_utf8_lossy(t);
-                        serde_json::from_str::<TagValue>(&t).unwrap_or_else(|_| TagValue::Str(t.into_owned()))
+                        serde_json::from_str::<TagValue>(&t)
+                            .unwrap_or_else(|_| TagValue::Str(t.into_owned()))
                     }
                     rusqlite::types::ValueRef::Integer(i) => TagValue::Int(i),
                     rusqlite::types::ValueRef::Real(f) => TagValue::Float(f),
@@ -341,7 +350,10 @@ fn scrivi_riga(c: &Connection, ev: &AlarmEvent) -> rusqlite::Result<()> {
 pub fn copia_coerente(sorgente: &std::path::Path, dest: &std::path::Path) -> rusqlite::Result<()> {
     let c = Connection::open_with_flags(sorgente, rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY)?;
     c.busy_timeout(std::time::Duration::from_secs(10))?;
-    c.execute("VACUUM INTO ?1", params![dest.to_string_lossy().into_owned()])?;
+    c.execute(
+        "VACUUM INTO ?1",
+        params![dest.to_string_lossy().into_owned()],
+    )?;
     Ok(())
 }
 
@@ -404,12 +416,16 @@ fn avvia_svuotamento(conn: &Arc<Mutex<Connection>>, coda: &Arc<CodaScrittura>) {
     let motore = sws_core::motori::motore("sws-storico", sws_core::motori::GENTILEZZA_FONDO);
     motore.spawn(async move {
         loop {
-            let Some(coda) = coda_debole.upgrade() else { break };
+            let Some(coda) = coda_debole.upgrade() else {
+                break;
+            };
             tokio::select! {
                 _ = tokio::time::sleep(INTERVALLO_SVUOTAMENTO) => {}
                 _ = coda.sveglia.notified() => {}
             }
-            let Some(conn) = conn_debole.upgrade() else { break };
+            let Some(conn) = conn_debole.upgrade() else {
+                break;
+            };
             svuota_coda(&conn, &coda).await;
         }
     });
@@ -465,11 +481,17 @@ async fn svuota_coda(conn: &Arc<Mutex<Connection>>, coda: &Arc<CodaScrittura>) -
             quanti
         }
         Ok(Err(e)) => {
-            warn!(campioni = quanti, "historian: lotto non scritto su sqlite: {e}");
+            warn!(
+                campioni = quanti,
+                "historian: lotto non scritto su sqlite: {e}"
+            );
             0
         }
         Err(e) => {
-            warn!(campioni = quanti, "historian: lo scrittore sqlite e' morto: {e}");
+            warn!(
+                campioni = quanti,
+                "historian: lo scrittore sqlite e' morto: {e}"
+            );
             0
         }
     }
@@ -582,7 +604,11 @@ impl SqliteStore {
 
     /// Quanti campioni aspettano: serve alle prove e alla diagnosi.
     pub fn in_coda(&self) -> usize {
-        self.coda.campioni.lock().unwrap_or_else(|e| e.into_inner()).len()
+        self.coda
+            .campioni
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .len()
     }
 
     /// Load up to `limit` most-recent samples per tag from SQLite.
@@ -736,7 +762,11 @@ impl SqliteStore {
                 .optional()?
                 .flatten();
             let tag_count: i64 = c
-                .query_row(&format!("SELECT COUNT(*) FROM ({SQL_TAG_DISTINTI})"), [], |r| r.get(0))
+                .query_row(
+                    &format!("SELECT COUNT(*) FROM ({SQL_TAG_DISTINTI})"),
+                    [],
+                    |r| r.get(0),
+                )
                 .optional()?
                 .unwrap_or(0);
             let size_bytes = std::fs::metadata(&path).ok().map(|m| m.len());
@@ -784,7 +814,10 @@ impl SqliteStore {
     pub async fn chiudi_eventi_interrotti(&self, ora_ms: u64, vive: &[(String, u64)]) -> usize {
         let conn = self.conn.clone();
         let ora = ora_ms as i64;
-        let vive: Vec<(String, i64)> = vive.iter().map(|(id, ts)| (id.clone(), *ts as i64)).collect();
+        let vive: Vec<(String, i64)> = vive
+            .iter()
+            .map(|(id, ts)| (id.clone(), *ts as i64))
+            .collect();
         let res = task::spawn_blocking(move || -> rusqlite::Result<usize> {
             let mut c = conn.blocking_lock();
             let tx = c.transaction()?;
@@ -924,7 +957,11 @@ impl SqliteStore {
     ///
     /// Con `anteprima` conta e basta. Tutto in una transazione; lo spazio si
     /// recupera dopo, con `vacuum()`.
-    pub async fn pulisci_storico(&self, tenere: Vec<String>, anteprima: bool) -> anyhow::Result<EsitoPulizia> {
+    pub async fn pulisci_storico(
+        &self,
+        tenere: Vec<String>,
+        anteprima: bool,
+    ) -> anyhow::Result<EsitoPulizia> {
         let conn = self.conn.clone();
         task::spawn_blocking(move || -> anyhow::Result<EsitoPulizia> {
             let mut c = conn.blocking_lock();
@@ -1184,7 +1221,10 @@ mod tests {
         assert_eq!(righe.len(), 1);
         assert!(!righe[0].interrotto);
         store.upsert_alarm_event(&riga("a1", 1000)).await;
-        assert_eq!(store.query_alarm_events(None, None, None, 10).await.len(), 2);
+        assert_eq!(
+            store.query_alarm_events(None, None, None, 10).await.len(),
+            2
+        );
     }
 
     /// Le righe aperte da un giro precedente (una caduta) si chiudono come
@@ -1205,14 +1245,20 @@ mod tests {
         store.upsert_alarm_event(&riga("ripresa", 1500)).await;
         let vive = vec![("ripresa".to_string(), 1500)];
         assert_eq!(store.chiudi_eventi_interrotti(11_000, &vive).await, 1);
-        let ripresa = &store.query_alarm_events(Some("ripresa"), None, None, 1).await[0];
+        let ripresa = &store
+            .query_alarm_events(Some("ripresa"), None, None, 1)
+            .await[0];
         assert!(!ripresa.interrotto);
         assert_eq!(ripresa.ts_normalized_ms, None);
-        let aperta = &store.query_alarm_events(Some("aperta"), None, None, 1).await[0];
+        let aperta = &store
+            .query_alarm_events(Some("aperta"), None, None, 1)
+            .await[0];
         assert!(aperta.interrotto);
         assert_eq!(aperta.ts_normalized_ms, Some(11_000));
         assert_eq!(aperta.duration_s, Some(10.0));
-        let completa_letta = &store.query_alarm_events(Some("completa"), None, None, 1).await[0];
+        let completa_letta = &store
+            .query_alarm_events(Some("completa"), None, None, 1)
+            .await[0];
         assert_eq!(completa_letta, &completa);
     }
     /// Dal 27-10-2026 `append` **accoda**: il disco lo tocca `svuota`, una
@@ -1223,14 +1269,31 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let store = SqliteStore::open(dir.path().join("h.db")).await.unwrap();
         for ts in 1..=3u64 {
-            store.append("t", &Sample { ts_ms: ts, value: TagValue::Float(ts as f64), quality: TagQuality::Good }).await;
+            store
+                .append(
+                    "t",
+                    &Sample {
+                        ts_ms: ts,
+                        value: TagValue::Float(ts as f64),
+                        quality: TagQuality::Good,
+                    },
+                )
+                .await;
         }
         assert_eq!(store.in_coda(), 3, "aspettano in coda");
-        assert_eq!(store.total_samples().await.unwrap(), 0, "sul disco non c'è ancora niente");
+        assert_eq!(
+            store.total_samples().await.unwrap(),
+            0,
+            "sul disco non c'è ancora niente"
+        );
 
         assert_eq!(store.svuota().await, 3, "il lotto scritto");
         assert_eq!(store.in_coda(), 0, "la coda è vuota");
-        assert_eq!(store.total_samples().await.unwrap(), 3, "e ora sono sul disco");
+        assert_eq!(
+            store.total_samples().await.unwrap(),
+            3,
+            "e ora sono sul disco"
+        );
         assert_eq!(store.query_range("t", 0, 10).await.len(), 3);
 
         // Svuotare a vuoto non costa una transazione: è il caso normale fra
@@ -1245,15 +1308,32 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let store = SqliteStore::open(dir.path().join("h.db")).await.unwrap();
         for ts in 1..=10u64 {
-            store.append("a", &Sample { ts_ms: ts, value: TagValue::Int(ts as i64), quality: TagQuality::Good }).await;
-            store.append("b", &Sample { ts_ms: ts, value: TagValue::Float(0.5), quality: TagQuality::Bad }).await;
+            store
+                .append(
+                    "a",
+                    &Sample {
+                        ts_ms: ts,
+                        value: TagValue::Int(ts as i64),
+                        quality: TagQuality::Good,
+                    },
+                )
+                .await;
+            store
+                .append(
+                    "b",
+                    &Sample {
+                        ts_ms: ts,
+                        value: TagValue::Float(0.5),
+                        quality: TagQuality::Bad,
+                    },
+                )
+                .await;
         }
         assert_eq!(store.svuota().await, 20);
         assert_eq!(store.query_range("a", 0, 100).await.len(), 10);
         assert_eq!(store.query_range("b", 0, 100).await.len(), 10);
         assert_eq!(store.distinct_tags().await.unwrap(), ["a", "b"]);
     }
-
 
     #[tokio::test]
     async fn vacuum_into_produces_a_consistent_copy() {
@@ -1341,11 +1421,18 @@ mod tests {
                 ("rotto", 10, "non è json", "Good"),
             ];
             for (t, ts, v, q) in righe {
-                c.execute("INSERT INTO samples VALUES (?1, ?2, ?3, ?4)", params![t, ts, v, q]).unwrap();
+                c.execute(
+                    "INSERT INTO samples VALUES (?1, ?2, ?3, ?4)",
+                    params![t, ts, v, q],
+                )
+                .unwrap();
             }
             for i in 0..2000 {
-                c.execute("INSERT INTO samples VALUES ('carico.lungo.nome.del.tag', ?1, ?2, 'Good')", params![1000 + i, format!("{}.5", i)])
-                    .unwrap();
+                c.execute(
+                    "INSERT INTO samples VALUES ('carico.lungo.nome.del.tag', ?1, ?2, 'Good')",
+                    params![1000 + i, format!("{}.5", i)],
+                )
+                .unwrap();
             }
         }
         let store = SqliteStore::open(&path).await.unwrap();
@@ -1355,22 +1442,51 @@ mod tests {
             let s = store.clone();
             async move { s.query_range(t, 0, 10_000).await }
         };
-        assert_eq!(q("finestra.cucina").await.iter().map(|s| s.value.clone()).collect::<Vec<_>>(), vec![TagValue::Bool(true), TagValue::Bool(false)]);
+        assert_eq!(
+            q("finestra.cucina")
+                .await
+                .iter()
+                .map(|s| s.value.clone())
+                .collect::<Vec<_>>(),
+            vec![TagValue::Bool(true), TagValue::Bool(false)]
+        );
         assert_eq!(q("finestra.cucina").await[1].quality, TagQuality::Bad);
-        assert_eq!(q("contatore").await[0].value, TagValue::Int(9_007_199_254_740_993));
+        assert_eq!(
+            q("contatore").await[0].value,
+            TagValue::Int(9_007_199_254_740_993)
+        );
         assert_eq!(q("temperatura").await[1].value, TagValue::Float(22.0));
         assert_eq!(q("temperatura").await[0].quality, TagQuality::Uncertain);
-        assert_eq!(q("stato.nome").await[0].value, TagValue::Str("Soggiorno".into()));
-        assert_eq!(q("array").await[0].value, TagValue::Array(vec![TagValue::Int(1), TagValue::Float(2.5)]));
-        assert_eq!(q("rotto").await[0].value, TagValue::Str("non è json".into()));
+        assert_eq!(
+            q("stato.nome").await[0].value,
+            TagValue::Str("Soggiorno".into())
+        );
+        assert_eq!(
+            q("array").await[0].value,
+            TagValue::Array(vec![TagValue::Int(1), TagValue::Float(2.5)])
+        );
+        assert_eq!(
+            q("rotto").await[0].value,
+            TagValue::Str("non è json".into())
+        );
         assert_eq!(store.distinct_tags().await.unwrap().len(), 7);
         // La vista per chi legge il file a mano.
         let c = Connection::open(&path).unwrap();
         let (v, qq): (String, String) = c
-            .query_row("SELECT value, quality FROM samples WHERE tag = 'temperatura' AND ts_ms = 10", [], |r| Ok((r.get(0)?, r.get(1)?)))
+            .query_row(
+                "SELECT value, quality FROM samples WHERE tag = 'temperatura' AND ts_ms = 10",
+                [],
+                |r| Ok((r.get(0)?, r.get(1)?)),
+            )
             .unwrap();
         assert_eq!((v.as_str(), qq.as_str()), ("21.5", "Uncertain"));
-        let tipo: String = c.query_row("SELECT type FROM sqlite_master WHERE name = 'samples'", [], |r| r.get(0)).unwrap();
+        let tipo: String = c
+            .query_row(
+                "SELECT type FROM sqlite_master WHERE name = 'samples'",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap();
         assert_eq!(tipo, "view");
         // Una seconda apertura non rifà niente.
         drop(store);
@@ -1393,32 +1509,62 @@ mod tests {
             .unwrap();
             let tx = c.transaction().unwrap();
             for i in 0..12_000i64 {
-                tx.execute("INSERT INTO samples VALUES ('a', ?1, ?2, 'Good')", params![i, format!("{i}.25")]).unwrap();
+                tx.execute(
+                    "INSERT INTO samples VALUES ('a', ?1, ?2, 'Good')",
+                    params![i, format!("{i}.25")],
+                )
+                .unwrap();
             }
             tx.commit().unwrap();
             // Il primo pezzo, come se un processo si fosse fermato dopo un lotto.
             assert!(prepara_migrazione(&mut c).unwrap());
             let id = id_tag(&c, "a").unwrap();
             for i in 0..5_000i64 {
-                c.execute("INSERT INTO campioni VALUES (?1, ?2, 2, ?3, 0)", params![id, i, i as f64 + 0.25]).unwrap();
+                c.execute(
+                    "INSERT INTO campioni VALUES (?1, ?2, 2, ?3, 0)",
+                    params![id, i, i as f64 + 0.25],
+                )
+                .unwrap();
             }
-            c.execute("DELETE FROM samples_vecchi WHERE ts_ms < 5000", []).unwrap();
+            c.execute("DELETE FROM samples_vecchi WHERE ts_ms < 5000", [])
+                .unwrap();
         }
         let store = SqliteStore::open(&path).await.unwrap();
         // Il vivo scrive anche a migrazione in corso. Dal 27-10-2026 `append`
         // accoda e `svuota` scrive: qui si chiede la scrittura subito, perché
         // è proprio quella che deve convivere con la migrazione.
-        store.append("b", &Sample { ts_ms: 99_999, value: TagValue::Int(7), quality: TagQuality::Good }).await;
+        store
+            .append(
+                "b",
+                &Sample {
+                    ts_ms: 99_999,
+                    value: TagValue::Int(7),
+                    quality: TagQuality::Good,
+                },
+            )
+            .await;
         store.svuota().await;
         store.attendi_migrazione().await;
         assert_eq!(store.total_samples().await.unwrap(), 12_001);
         let a = store.query_range("a", 0, 20_000).await;
         assert_eq!(a.len(), 12_000);
         assert_eq!(a[11_999].value, TagValue::Float(11_999.25));
-        assert_eq!(store.query_range("b", 0, 200_000).await[0].value, TagValue::Int(7));
+        assert_eq!(
+            store.query_range("b", 0, 200_000).await[0].value,
+            TagValue::Int(7)
+        );
         let c = Connection::open(&path).unwrap();
-        let resta: i64 = c.query_row("SELECT COUNT(*) FROM sqlite_master WHERE name = 'samples_vecchi'", [], |r| r.get(0)).unwrap();
-        assert_eq!(resta, 0, "a migrazione finita la tabella vecchia non c'è più");
+        let resta: i64 = c
+            .query_row(
+                "SELECT COUNT(*) FROM sqlite_master WHERE name = 'samples_vecchi'",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap();
+        assert_eq!(
+            resta, 0,
+            "a migrazione finita la tabella vecchia non c'è più"
+        );
     }
 
     /// La registrazione dal vivo che scrive di continuo durante la migrazione
@@ -1437,8 +1583,11 @@ mod tests {
             .unwrap();
             let tx = c.transaction().unwrap();
             for i in 0..40_000i64 {
-                tx.execute("INSERT INTO samples VALUES (?1, ?2, ?3, 'Good')", params![format!("t{}", i % 20), i, format!("{i}.5")])
-                    .unwrap();
+                tx.execute(
+                    "INSERT INTO samples VALUES (?1, ?2, ?3, 'Good')",
+                    params![format!("t{}", i % 20), i, format!("{i}.5")],
+                )
+                .unwrap();
             }
             tx.commit().unwrap();
         }
@@ -1446,7 +1595,16 @@ mod tests {
         let mut scritti = 0u64;
         let mut ts = 1_000_000u64;
         while store.migrazione_in_corso() {
-            store.append("vivo", &Sample { ts_ms: ts, value: TagValue::Float(1.0), quality: TagQuality::Good }).await;
+            store
+                .append(
+                    "vivo",
+                    &Sample {
+                        ts_ms: ts,
+                        value: TagValue::Float(1.0),
+                        quality: TagQuality::Good,
+                    },
+                )
+                .await;
             // Scrittura subito, non fra dieci secondi: il punto della prova è
             // che il vivo e la migrazione si contendano lo stesso file.
             store.svuota().await;
@@ -1454,11 +1612,23 @@ mod tests {
             scritti += 1;
             tokio::time::sleep(std::time::Duration::from_millis(1)).await;
         }
-        assert!(scritti > 0, "la migrazione è durata zero: il test non prova niente");
+        assert!(
+            scritti > 0,
+            "la migrazione è durata zero: il test non prova niente"
+        );
         let c = Connection::open(&path).unwrap();
-        let resta: i64 = c.query_row("SELECT COUNT(*) FROM sqlite_master WHERE name = 'samples_vecchi'", [], |r| r.get(0)).unwrap();
+        let resta: i64 = c
+            .query_row(
+                "SELECT COUNT(*) FROM sqlite_master WHERE name = 'samples_vecchi'",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap();
         assert_eq!(resta, 0, "la migrazione si è fermata a metà");
-        assert_eq!(store.total_samples().await.unwrap() as u64, 40_000 + scritti);
+        assert_eq!(
+            store.total_samples().await.unwrap() as u64,
+            40_000 + scritti
+        );
     }
 
     /// La migrazione su un database vero, su una **copia**: conteggi per tag
@@ -1467,17 +1637,31 @@ mod tests {
     #[tokio::test]
     #[ignore]
     async fn migrazione_su_un_database_vero() {
-        let Ok(orig) = std::env::var("SWS_STORICO_PROVA") else { return };
+        let Ok(orig) = std::env::var("SWS_STORICO_PROVA") else {
+            return;
+        };
         let dir = tempfile::tempdir().unwrap();
         let path = dir.path().join("historian.db");
         copia_coerente(std::path::Path::new(&orig), &path).unwrap();
         let prima_byte = std::fs::metadata(&path).unwrap().len();
         let (conti, campione): (Vec<(String, i64)>, Vec<(String, i64, String, String)>) = {
             let c = Connection::open(&path).unwrap();
-            let conti = c.prepare("SELECT tag, COUNT(*) FROM samples GROUP BY tag ORDER BY tag").unwrap()
-                .query_map([], |r| Ok((r.get(0)?, r.get(1)?))).unwrap().map(|r| r.unwrap()).collect();
-            let campione = c.prepare("SELECT tag, ts_ms, value, quality FROM samples ORDER BY ts_ms DESC LIMIT 200").unwrap()
-                .query_map([], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?))).unwrap().map(|r| r.unwrap()).collect();
+            let conti = c
+                .prepare("SELECT tag, COUNT(*) FROM samples GROUP BY tag ORDER BY tag")
+                .unwrap()
+                .query_map([], |r| Ok((r.get(0)?, r.get(1)?)))
+                .unwrap()
+                .map(|r| r.unwrap())
+                .collect();
+            let campione = c
+                .prepare(
+                    "SELECT tag, ts_ms, value, quality FROM samples ORDER BY ts_ms DESC LIMIT 200",
+                )
+                .unwrap()
+                .query_map([], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?)))
+                .unwrap()
+                .map(|r| r.unwrap())
+                .collect();
             (conti, campione)
         };
         let t0 = std::time::Instant::now();
@@ -1487,8 +1671,13 @@ mod tests {
         let tempo = t0.elapsed();
         let dopo_byte = std::fs::metadata(&path).unwrap().len();
         let c = Connection::open(&path).unwrap();
-        let conti_dopo: Vec<(String, i64)> = c.prepare("SELECT tag, COUNT(*) FROM samples GROUP BY tag ORDER BY tag").unwrap()
-            .query_map([], |r| Ok((r.get(0)?, r.get(1)?))).unwrap().map(|r| r.unwrap()).collect();
+        let conti_dopo: Vec<(String, i64)> = c
+            .prepare("SELECT tag, COUNT(*) FROM samples GROUP BY tag ORDER BY tag")
+            .unwrap()
+            .query_map([], |r| Ok((r.get(0)?, r.get(1)?)))
+            .unwrap()
+            .map(|r| r.unwrap())
+            .collect();
         assert_eq!(conti, conti_dopo, "stessi campioni per tag");
         for (tag, ts, v, q) in &campione {
             let s = store.query_range(tag, *ts as u64, *ts as u64).await;
@@ -1509,9 +1698,18 @@ mod tests {
     async fn tag_distinti_a_salti_come_distinct() {
         let dir = tempfile::tempdir().unwrap();
         let store = SqliteStore::open(dir.path().join("s.db")).await.unwrap();
-        for (tag, n) in [("b.tag", 3u64), ("a.tag", 5), ("c.tag", 1), ("a.tag.figlio", 2)] {
+        for (tag, n) in [
+            ("b.tag", 3u64),
+            ("a.tag", 5),
+            ("c.tag", 1),
+            ("a.tag.figlio", 2),
+        ] {
             for i in 0..n {
-                let s = Sample { ts_ms: 1_000 + i, value: TagValue::Float(i as f64), quality: TagQuality::Good };
+                let s = Sample {
+                    ts_ms: 1_000 + i,
+                    value: TagValue::Float(i as f64),
+                    quality: TagQuality::Good,
+                };
                 store.append(tag, &s).await;
             }
         }
@@ -1520,8 +1718,14 @@ mod tests {
         assert_eq!(a_salti, ["a.tag", "a.tag.figlio", "b.tag", "c.tag"]);
         {
             let c = store.conn.lock().await;
-            let mut st = c.prepare("SELECT DISTINCT tag FROM samples ORDER BY tag").unwrap();
-            let vecchio: Vec<String> = st.query_map([], |r| r.get(0)).unwrap().map(|r| r.unwrap()).collect();
+            let mut st = c
+                .prepare("SELECT DISTINCT tag FROM samples ORDER BY tag")
+                .unwrap();
+            let vecchio: Vec<String> = st
+                .query_map([], |r| r.get(0))
+                .unwrap()
+                .map(|r| r.unwrap())
+                .collect();
             assert_eq!(a_salti, vecchio);
         }
         let ricaricati = store.restore_recent(2).await.unwrap();
@@ -1540,24 +1744,62 @@ mod tests {
     async fn pulisci_storico_toglie_il_superfluo() {
         let dir = tempfile::tempdir().unwrap();
         let store = SqliteStore::open(dir.path().join("p.db")).await.unwrap();
-        let campione = |ts: u64, v: f64, q: TagQuality| Sample { ts_ms: ts, value: TagValue::Float(v), quality: q };
+        let campione = |ts: u64, v: f64, q: TagQuality| Sample {
+            ts_ms: ts,
+            value: TagValue::Float(v),
+            quality: q,
+        };
         // storicizzato: 1 1 1 2 2 (Bad) 2 2 → restano 1(ts1) 2(ts4) 2Bad(ts5) 2(ts6) 2(ts7 ultimo)
-        let serie = [(1, 1.0, TagQuality::Good), (2, 1.0, TagQuality::Good), (3, 1.0, TagQuality::Good),
-                     (4, 2.0, TagQuality::Good), (5, 2.0, TagQuality::Bad), (6, 2.0, TagQuality::Good),
-                     (7, 2.0, TagQuality::Good)];
-        for (ts, v, q) in serie { store.append("tenuto", &campione(ts, v, q)).await; }
-        for ts in 1..=5 { store.append("scartato", &campione(ts, 0.0, TagQuality::Good)).await; }
+        let serie = [
+            (1, 1.0, TagQuality::Good),
+            (2, 1.0, TagQuality::Good),
+            (3, 1.0, TagQuality::Good),
+            (4, 2.0, TagQuality::Good),
+            (5, 2.0, TagQuality::Bad),
+            (6, 2.0, TagQuality::Good),
+            (7, 2.0, TagQuality::Good),
+        ];
+        for (ts, v, q) in serie {
+            store.append("tenuto", &campione(ts, v, q)).await;
+        }
+        for ts in 1..=5 {
+            store
+                .append("scartato", &campione(ts, 0.0, TagQuality::Good))
+                .await;
+        }
         store.append("", &campione(1, 0.0, TagQuality::Bad)).await;
         store.svuota().await;
 
-        let prova = store.pulisci_storico(vec!["tenuto".into()], true).await.unwrap();
-        assert_eq!(prova, EsitoPulizia { non_storicizzati: 6, ripetuti: 2, restanti: 5 });
-        assert_eq!(store.total_samples().await.unwrap(), 13, "l'anteprima non cancella");
+        let prova = store
+            .pulisci_storico(vec!["tenuto".into()], true)
+            .await
+            .unwrap();
+        assert_eq!(
+            prova,
+            EsitoPulizia {
+                non_storicizzati: 6,
+                ripetuti: 2,
+                restanti: 5
+            }
+        );
+        assert_eq!(
+            store.total_samples().await.unwrap(),
+            13,
+            "l'anteprima non cancella"
+        );
 
-        let fatto = store.pulisci_storico(vec!["tenuto".into()], false).await.unwrap();
+        let fatto = store
+            .pulisci_storico(vec!["tenuto".into()], false)
+            .await
+            .unwrap();
         assert_eq!(fatto, prova);
         assert_eq!(store.distinct_tags().await.unwrap(), ["tenuto"]);
-        let ts: Vec<u64> = store.query_range("tenuto", 0, 100).await.iter().map(|s| s.ts_ms).collect();
+        let ts: Vec<u64> = store
+            .query_range("tenuto", 0, 100)
+            .await
+            .iter()
+            .map(|s| s.ts_ms)
+            .collect();
         assert_eq!(ts, [1, 4, 5, 6, 7]);
     }
 }

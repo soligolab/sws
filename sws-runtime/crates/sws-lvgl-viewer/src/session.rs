@@ -144,7 +144,10 @@ impl SessionState {
             // pannello, che col nome gia scritto parte dalla password invece
             // di farla ridigitare a chi sta davanti a un impianto. Un nome
             // utente non apre niente — e' quello che fa anche un browser.
-            SessionState { username: s.username, ..SessionState::default() }
+            SessionState {
+                username: s.username,
+                ..SessionState::default()
+            }
         } else {
             s
         }

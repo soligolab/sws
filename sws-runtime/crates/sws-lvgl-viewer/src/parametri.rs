@@ -114,7 +114,10 @@ pub fn effettivi(
 ) -> HashMap<String, String> {
     let mut out = HashMap::new();
     for p in dichiarati {
-        match passati.and_then(|m| m.get(&p.name)).filter(|v| !v.is_empty()) {
+        match passati
+            .and_then(|m| m.get(&p.name))
+            .filter(|v| !v.is_empty())
+        {
             Some(v) => {
                 out.insert(p.name.clone(), v.clone());
             }
@@ -142,9 +145,10 @@ pub fn dichiarati_da_faceplate(v: Option<&serde_json::Value>) -> Vec<ParametroFi
     };
     a.iter()
         .filter_map(|p| match p {
-            serde_json::Value::String(s) => {
-                Some(ParametroFinestra { name: s.clone(), default: None })
-            }
+            serde_json::Value::String(s) => Some(ParametroFinestra {
+                name: s.clone(),
+                default: None,
+            }),
             serde_json::Value::Object(_) => serde_json::from_value(p.clone()).ok(),
             _ => None,
         })
@@ -169,7 +173,10 @@ mod prove {
     use super::*;
 
     fn p(coppie: &[(&str, &str)]) -> HashMap<String, String> {
-        coppie.iter().map(|(k, v)| (k.to_string(), v.to_string())).collect()
+        coppie
+            .iter()
+            .map(|(k, v)| (k.to_string(), v.to_string()))
+            .collect()
     }
 
     #[test]
@@ -185,7 +192,10 @@ mod prove {
         });
         sostituisci(&mut v, &p(&[("p", "pompa1")]));
         assert_eq!(v["tag"], "pompa1.running");
-        assert_eq!(v["state_tag"], "pompa1.alarm", "era il caso che su questo motore non funzionava");
+        assert_eq!(
+            v["state_tag"], "pompa1.alarm",
+            "era il caso che su questo motore non funzionava"
+        );
         assert_eq!(v["bindings"]["x"], "pompa1.pos");
         assert_eq!(v["grid_cells"][0]["child"]["tag"], "pompa1.sub");
         assert_eq!(v["width"], 100);
@@ -206,16 +216,30 @@ mod prove {
     fn un_segnaposto_senza_valore_resta_scritto() {
         assert_eq!(sostituisci_testo("{a}/{b}", &p(&[("a", "1")])), "1/{b}");
         assert_eq!(sostituisci_testo("niente", &p(&[("a", "1")])), "niente");
-        assert_eq!(sostituisci_testo("graffa aperta {a", &p(&[("a", "1")])), "graffa aperta {a");
-        assert_eq!(sostituisci_testo("{ }", &p(&[("a", "1")])), "{ }", "non e' una chiave");
+        assert_eq!(
+            sostituisci_testo("graffa aperta {a", &p(&[("a", "1")])),
+            "graffa aperta {a"
+        );
+        assert_eq!(
+            sostituisci_testo("{ }", &p(&[("a", "1")])),
+            "{ }",
+            "non e' una chiave"
+        );
     }
 
     #[test]
     fn il_titolo_segue_quello_del_web() {
         let v = p(&[("n", "Pompa 1")]);
-        assert_eq!(titolo_finestra(Some("Dettaglio {n}"), "pagina", &v), "Dettaglio Pompa 1");
+        assert_eq!(
+            titolo_finestra(Some("Dettaglio {n}"), "pagina", &v),
+            "Dettaglio Pompa 1"
+        );
         assert_eq!(titolo_finestra(None, "pagina", &v), "pagina");
-        assert_eq!(titolo_finestra(Some("   "), "pagina", &v), "pagina", "vuoto = non dichiarato");
+        assert_eq!(
+            titolo_finestra(Some("   "), "pagina", &v),
+            "pagina",
+            "vuoto = non dichiarato"
+        );
     }
 
     #[test]
@@ -231,8 +255,14 @@ mod prove {
     #[test]
     fn i_valori_effettivi_seguono_la_precedenza_del_web() {
         let dich = vec![
-            ParametroFinestra { name: "p".into(), default: Some("pompa0".into()) },
-            ParametroFinestra { name: "q".into(), default: None },
+            ParametroFinestra {
+                name: "p".into(),
+                default: Some("pompa0".into()),
+            },
+            ParametroFinestra {
+                name: "q".into(),
+                default: None,
+            },
         ];
         // Passato vince sul default.
         let e = effettivi(&dich, Some(&p(&[("p", "pompa7")])));

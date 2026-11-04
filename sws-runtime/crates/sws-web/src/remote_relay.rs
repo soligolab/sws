@@ -43,7 +43,8 @@ pub async fn ws_relay_handler(
     // l'amministratore di piattaforma. Il controllo sta qui, nel relay, perché è
     // qui che si sa chi chiede; il dispositivo vede solo l'IDE, che è suo Admin.
     let debug = sub == "logs"
-        && q.get("livello").is_some_and(|l| l.eq_ignore_ascii_case("debug"))
+        && q.get("livello")
+            .is_some_and(|l| l.eq_ignore_ascii_case("debug"))
         && chi.as_ref().is_some_and(|c| c.0.amministratore_piattaforma);
     // Tre e solo tre: sono i canali che mostrano lo stato **del dispositivo**.
     //
@@ -169,7 +170,7 @@ fn url_remoto(ws_scheme: &str, host_path: &str, sub: &str, token: &str, debug: b
 ///
 /// 502 e 504 stanno con lui: sono il proxy che non ha raggiunto il pannello.
 fn e_transitorio(stato: u16) -> bool {
-    matches!(stato, 502 | 503 | 504)
+    matches!(stato, 502..=504)
 }
 
 fn motivo_rifiuto(sub: &str, stato: u16) -> (bool, String, String) {
@@ -293,9 +294,8 @@ async fn fallito(
 }
 
 /// Il canale verso il pannello, aperto una volta.
-type Remoto = tokio_tungstenite::WebSocketStream<
-    tokio_tungstenite::MaybeTlsStream<tokio::net::TcpStream>,
->;
+type Remoto =
+    tokio_tungstenite::WebSocketStream<tokio_tungstenite::MaybeTlsStream<tokio::net::TcpStream>>;
 
 /// Apre il canale verso il pannello. Estratta da `run_relay` il 28-10-2026
 /// perché ora si chiama **due volte**: la seconda col token rinnovato.
@@ -312,7 +312,9 @@ async fn apri_verso_il_pannello(
     // cui arriva il lavoro (`gateway/ritorno.rs`).
     let mut richiesta = remote_url.into_client_request()?;
     if let Some(v) = chiave_ritorno.and_then(|c| c.parse().ok()) {
-        richiesta.headers_mut().insert(crate::gateway::ritorno::INTESTAZIONE, v);
+        richiesta
+            .headers_mut()
+            .insert(crate::gateway::ritorno::INTESTAZIONE, v);
     }
     // Q49: per wss:// la fiducia è per impronta, la stessa che ha memorizzato
     // «Connetti» — non «accetta tutto» come fino al 2026-09-09.
@@ -508,15 +510,27 @@ mod tests {
 
     #[test]
     fn l_indirizzo_porta_il_debug_solo_se_chiesto() {
-        assert_eq!(url_remoto("ws", "h:1", "logs", "", false), "ws://h:1/ws/logs");
-        assert_eq!(url_remoto("ws", "h:1", "logs", "t", true), "ws://h:1/ws/logs?token=t&livello=debug");
-        assert_eq!(url_remoto("wss", "h:1", "tags", "t", false), "wss://h:1/ws/tags?token=t");
+        assert_eq!(
+            url_remoto("ws", "h:1", "logs", "", false),
+            "ws://h:1/ws/logs"
+        );
+        assert_eq!(
+            url_remoto("ws", "h:1", "logs", "t", true),
+            "ws://h:1/ws/logs?token=t&livello=debug"
+        );
+        assert_eq!(
+            url_remoto("wss", "h:1", "tags", "t", false),
+            "wss://h:1/ws/tags?token=t"
+        );
     }
 
     #[test]
     fn i_log_assenti_non_sono_un_guasto() {
         let (guasto, _breve, lungo) = motivo_rifiuto("logs", 404);
-        assert!(!guasto, "un pannello vecchio non è un guasto: non deve essere un WARN");
+        assert!(
+            !guasto,
+            "un pannello vecchio non è un guasto: non deve essere un WARN"
+        );
         // Dal 18-10-2026 il dispositivo i log li manda: un 404 è un pannello da aggiornare.
         assert!(lungo.contains("aggiornalo"), "{lungo}");
     }
@@ -602,8 +616,14 @@ mod tests {
     #[test]
     fn il_401_nomina_il_rimedio() {
         let (guasto, breve, lungo) = motivo_rifiuto("tags", 401);
-        assert!(guasto, "una sessione morta è un difetto da segnalare, non un INFO");
-        assert!(breve.contains("Connetti"), "il frame deve dire cosa fare: {breve}");
+        assert!(
+            guasto,
+            "una sessione morta è un difetto da segnalare, non un INFO"
+        );
+        assert!(
+            breve.contains("Connetti"),
+            "il frame deve dire cosa fare: {breve}"
+        );
         assert!(lungo.contains("401"));
         assert!(
             !breve.contains("rotta"),
@@ -633,12 +653,18 @@ mod tests {
         for stato in [502u16, 503, 504] {
             assert!(super::e_transitorio(stato), "{stato}");
             let (guasto, breve, lungo) = motivo_rifiuto("tags", stato);
-            assert!(!guasto, "{stato}: un pannello spento non è un guasto da segnalare");
+            assert!(
+                !guasto,
+                "{stato}: un pannello spento non è un guasto da segnalare"
+            );
             assert!(
                 !breve.contains("non ritento") && !lungo.contains("non ritento"),
                 "{stato}: {breve} / {lungo}"
             );
-            assert!(lungo.contains("si riapre da solo"), "deve dire che tornerà: {lungo}");
+            assert!(
+                lungo.contains("si riapre da solo"),
+                "deve dire che tornerà: {lungo}"
+            );
         }
     }
 

@@ -68,7 +68,7 @@ fn chiave_datastore(id: &str, campo: &str) -> String {
 /// tutti pieni.
 pub const CAMPI_COPERTI: [&str; 9] = [
     "TelegramConfig.bot_token",
-    "TwilioConfig.auth_token", // P4, 26-10-2026
+    "TwilioConfig.auth_token",     // P4, 26-10-2026
     "TwilioConfig.api_key_secret", // 28-10-2026: Twilio lo mostra una volta sola
     "SmtpConfig.password",
     "MqttConfig.password",
@@ -124,10 +124,16 @@ fn estrai_notifiche(notifiche: Option<&mut crate::project::NotificationConfig>) 
     }
     if let Some(t) = n.twilio.as_mut() {
         if !t.auth_token.is_empty() {
-            out.insert("notifications.twilio.auth_token".into(), std::mem::take(&mut t.auth_token));
+            out.insert(
+                "notifications.twilio.auth_token".into(),
+                std::mem::take(&mut t.auth_token),
+            );
         }
         if !t.api_key_secret.is_empty() {
-            out.insert("notifications.twilio.api_key_secret".into(), std::mem::take(&mut t.api_key_secret));
+            out.insert(
+                "notifications.twilio.api_key_secret".into(),
+                std::mem::take(&mut t.api_key_secret),
+            );
         }
     }
     out

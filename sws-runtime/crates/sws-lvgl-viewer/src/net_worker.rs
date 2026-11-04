@@ -103,8 +103,12 @@ impl Comando {
             Comando::AckAlarm { alarm_id, .. } => format!("ack dell'allarme '{alarm_id}'"),
             Comando::ApplyRecipe { id, .. } => format!("applicazione della ricetta '{id}'"),
             Comando::AvviaAggiornamento { .. } => "avvio dell'aggiornamento".to_string(),
-            Comando::AggiornaQuadlet { .. } => "aggiornamento della configurazione del servizio".to_string(),
-            Comando::ConfermaAggiornamento { scelta, .. } => format!("risposta «{scelta}» alla conferma dell'aggiornamento"),
+            Comando::AggiornaQuadlet { .. } => {
+                "aggiornamento della configurazione del servizio".to_string()
+            }
+            Comando::ConfermaAggiornamento { scelta, .. } => {
+                format!("risposta «{scelta}» alla conferma dell'aggiornamento")
+            }
             Comando::Accedi { utente, .. } => format!("accesso come '{utente}'"),
         }
     }
@@ -146,10 +150,18 @@ async fn esegui(cmd: Comando) -> anyhow::Result<()> {
         Comando::AggiornaQuadlet { base_url, token } => {
             client::aggiorna_quadlet(&base_url, token.as_deref()).await
         }
-        Comando::ConfermaAggiornamento { base_url, token, scelta } => {
-            client::conferma_aggiornamento(&base_url, token.as_deref(), &scelta).await
-        }
-        Comando::Accedi { base_url, utente, password, sessione, avviso } => {
+        Comando::ConfermaAggiornamento {
+            base_url,
+            token,
+            scelta,
+        } => client::conferma_aggiornamento(&base_url, token.as_deref(), &scelta).await,
+        Comando::Accedi {
+            base_url,
+            utente,
+            password,
+            sessione,
+            avviso,
+        } => {
             match client::login(&base_url, &utente, &password).await {
                 Ok(ok) => {
                     let token = ok.token.clone();
@@ -166,7 +178,11 @@ async fn esegui(cmd: Comando) -> anyhow::Result<()> {
                         let dopo = match a {
                             A::Aggiorna => Some(Comando::AvviaAggiornamento { base_url, token }),
                             A::Quadlet => Some(Comando::AggiornaQuadlet { base_url, token }),
-                            A::Conferma(scelta) => Some(Comando::ConfermaAggiornamento { base_url, token, scelta }),
+                            A::Conferma(scelta) => Some(Comando::ConfermaAggiornamento {
+                                base_url,
+                                token,
+                                scelta,
+                            }),
                             // Il comando della pagina lo ripete chi sta davanti.
                             A::Comando => None,
                             // Si voleva solo entrare.

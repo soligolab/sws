@@ -90,14 +90,22 @@ fn elenco(s: &str) -> Vec<usize> {
 }
 
 fn ws_url(base: &str, token: Option<&str>) -> String {
-    let b = base.trim_end_matches('/').replacen("https://", "wss://", 1).replacen("http://", "ws://", 1);
+    let b = base
+        .trim_end_matches('/')
+        .replacen("https://", "wss://", 1)
+        .replacen("http://", "ws://", 1);
     match token {
         Some(t) => format!("{b}/ws/tags?token={t}"),
         None => format!("{b}/ws/tags"),
     }
 }
 
-async fn accedi(http: &reqwest::Client, base: &str, utente: &str, password: &str) -> Result<String> {
+async fn accedi(
+    http: &reqwest::Client,
+    base: &str,
+    utente: &str,
+    password: &str,
+) -> Result<String> {
     let r: Value = http
         .post(format!("{base}/api/auth/login"))
         .json(&json!({ "username": utente, "password": password }))
@@ -106,7 +114,10 @@ async fn accedi(http: &reqwest::Client, base: &str, utente: &str, password: &str
         .error_for_status()?
         .json()
         .await?;
-    r["token"].as_str().map(str::to_owned).context("nessun token nella risposta del login")
+    r["token"]
+        .as_str()
+        .map(str::to_owned)
+        .context("nessun token nella risposta del login")
 }
 
 /// Lo ZIP di un progetto senza utenti con N tag float e l'eco, come lo carica un
@@ -117,7 +128,8 @@ async fn accedi(http: &reqwest::Client, base: &str, utente: &str, password: &str
 /// 17-10-2026, con il pannello rimasto sul progetto di prova).
 fn zip_progetto(ids: &[String], utente: Option<(&str, &str)>) -> Result<Vec<u8>> {
     use std::io::Write;
-    let mut yaml = format!("meta: {{ name: {PROGETTO}, version: '1' }}\nsources: []\nalarms: []\ntags:\n");
+    let mut yaml =
+        format!("meta: {{ name: {PROGETTO}, version: '1' }}\nsources: []\nalarms: []\ntags:\n");
     for id in ids {
         yaml.push_str(&format!("  - {{ id: {id}, data_type: float }}\n"));
     }
@@ -125,7 +137,8 @@ fn zip_progetto(ids: &[String], utente: Option<(&str, &str)>) -> Result<Vec<u8>>
     let mut buf = std::io::Cursor::new(Vec::new());
     {
         let mut z = zip::ZipWriter::new(&mut buf);
-        let o = zip::write::SimpleFileOptions::default().compression_method(zip::CompressionMethod::Stored);
+        let o = zip::write::SimpleFileOptions::default()
+            .compression_method(zip::CompressionMethod::Stored);
         z.start_file("manifest.json", o)?;
         z.write_all(json!({ "format_version": "1", "name": PROGETTO, "exported_at_ms": 0, "secrets_masked": true }).to_string().as_bytes())?;
         z.start_file("project.yaml", o)?;
@@ -133,7 +146,10 @@ fn zip_progetto(ids: &[String], utente: Option<(&str, &str)>) -> Result<Vec<u8>>
         if let Some((u, p)) = utente {
             let hash = sws_auth::hash_password(p)?;
             z.start_file("users.yaml", o)?;
-            z.write_all(format!("users:\n- username: {u}\n  password_hash: '{hash}'\n  role: Admin\n").as_bytes())?;
+            z.write_all(
+                format!("users:\n- username: {u}\n  password_hash: '{hash}'\n  role: Admin\n")
+                    .as_bytes(),
+            )?;
         }
         z.finish()?;
     }
@@ -143,7 +159,10 @@ fn zip_progetto(ids: &[String], utente: Option<(&str, &str)>) -> Result<Vec<u8>>
 /// Apre un progetto: l'indirizzo con l'azienda (`/api/projects/-/<nome>/open`, il
 /// solo che un pannello conosce), oppure quello breve del runtime di sviluppo.
 async fn apri(http: &reqwest::Client, base: &str, token: Option<&str>, nome: &str) -> Result<()> {
-    for url in [format!("{base}/api/projects/-/{nome}/open"), format!("{base}/api/projects/{nome}/open")] {
+    for url in [
+        format!("{base}/api/projects/-/{nome}/open"),
+        format!("{base}/api/projects/{nome}/open"),
+    ] {
         let mut r = http.post(&url);
         if let Some(t) = token {
             r = r.bearer_auth(t);
@@ -152,7 +171,9 @@ async fn apri(http: &reqwest::Client, base: &str, token: Option<&str>, nome: &st
         if risp.status().is_success() {
             return Ok(());
         }
-        if risp.status() != reqwest::StatusCode::NOT_FOUND && risp.status() != reqwest::StatusCode::METHOD_NOT_ALLOWED {
+        if risp.status() != reqwest::StatusCode::NOT_FOUND
+            && risp.status() != reqwest::StatusCode::METHOD_NOT_ALLOWED
+        {
             anyhow::bail!("aprire «{nome}»: {}", risp.status());
         }
     }
@@ -160,15 +181,25 @@ async fn apri(http: &reqwest::Client, base: &str, token: Option<&str>, nome: &st
 }
 
 /// Carica (crea o sostituisce) e apre il progetto del banco con N tag.
-async fn prepara(http: &reqwest::Client, base: &str, token: Option<&str>, n: usize, utente: Option<(&str, &str)>) -> Result<Vec<String>> {
+async fn prepara(
+    http: &reqwest::Client,
+    base: &str,
+    token: Option<&str>,
+    n: usize,
+    utente: Option<(&str, &str)>,
+) -> Result<Vec<String>> {
     let ids: Vec<String> = (0..n).map(|i| format!("banco.t{i:05}")).collect();
     let corpo = zip_progetto(&ids, utente)?;
     // La prima volta lo crea; se c'è già, lo sostituisce come fa la seconda metà di un deploy.
     for extra in ["", "&deploy=true"] {
         // `replace_users`: il deploy di solito tiene gli utenti del dispositivo;
         // qui il banco porta il suo e deve valere.
-        let mut r = http.post(format!("{base}/api/projects/upload?name={PROGETTO}{extra}&replace_users=true"))
-            .header("Content-Type", "application/zip").body(corpo.clone());
+        let mut r = http
+            .post(format!(
+                "{base}/api/projects/upload?name={PROGETTO}{extra}&replace_users=true"
+            ))
+            .header("Content-Type", "application/zip")
+            .body(corpo.clone());
         if let Some(t) = token {
             r = r.bearer_auth(t);
         }
@@ -180,7 +211,10 @@ async fn prepara(http: &reqwest::Client, base: &str, token: Option<&str>, n: usi
         }
         if risp.status() != reqwest::StatusCode::CONFLICT {
             let st = risp.status();
-            anyhow::bail!("caricare il progetto del banco: {st} {}", risp.text().await.unwrap_or_default());
+            anyhow::bail!(
+                "caricare il progetto del banco: {st} {}",
+                risp.text().await.unwrap_or_default()
+            );
         }
     }
     anyhow::bail!("caricare il progetto del banco: c'è già e non si sostituisce")
@@ -196,8 +230,11 @@ async fn campione(http: &reqwest::Client, base: &str, token: Option<&str>) -> Op
     }
     let testo = r.send().await.ok()?.text().await.ok()?;
     let valore = |nome: &str| {
-        testo.lines().find(|l| l.starts_with(nome) && !l.starts_with('#'))
-            .and_then(|l| l.split_whitespace().last()).and_then(|v| v.parse::<f64>().ok())
+        testo
+            .lines()
+            .find(|l| l.starts_with(nome) && !l.starts_with('#'))
+            .and_then(|l| l.split_whitespace().last())
+            .and_then(|v| v.parse::<f64>().ok())
     };
     let cpu = valore("sws_process_cpu_pct").or_else(|| valore("sws_cpu_usage_pct"))?;
     let mem = valore("sws_process_rss_bytes").or_else(|| valore("sws_memory_used_bytes"))?;
@@ -213,26 +250,49 @@ fn percentile(v: &mut [f64], p: f64) -> Option<f64> {
     Some(v[i])
 }
 
-async fn misura(args: &Args, http: &reqwest::Client, token: Option<&str>, ids: &[String], k: usize) -> Result<Casella> {
+async fn misura(
+    args: &Args,
+    http: &reqwest::Client,
+    token: Option<&str>,
+    ids: &[String],
+    k: usize,
+) -> Result<Casella> {
     let viewer = args.viewer.clone().unwrap_or_else(|| args.gestione.clone());
     let fine = Arc::new(AtomicBool::new(false));
     let inviati: Arc<Mutex<HashMap<i64, Instant>>> = Arc::default();
     let latenze: Arc<Mutex<Vec<f64>>> = Arc::default();
-    let echi_visti: Arc<Mutex<Vec<std::collections::HashSet<i64>>>> = Arc::new(Mutex::new(vec![Default::default(); k]));
+    let echi_visti: Arc<Mutex<Vec<std::collections::HashSet<i64>>>> =
+        Arc::new(Mutex::new(vec![Default::default(); k]));
     let contatori: Vec<Arc<AtomicU64>> = (0..k).map(|_| Arc::new(AtomicU64::new(0))).collect();
 
     // I client: contano le voci di ogni delta, e registrano l'arrivo dell'eco.
     let mut compiti = Vec::new();
-    for c in 0..k {
+    for (c, conta) in contatori.iter().enumerate() {
         let url = ws_url(&viewer, token);
-        let (fine, inviati, latenze, echi_visti, conta) =
-            (fine.clone(), inviati.clone(), latenze.clone(), echi_visti.clone(), contatori[c].clone());
+        let (fine, inviati, latenze, echi_visti, conta) = (
+            fine.clone(),
+            inviati.clone(),
+            latenze.clone(),
+            echi_visti.clone(),
+            conta.clone(),
+        );
         compiti.push(tokio::spawn(async move {
-            let (mut ws, _) = tokio_tungstenite::connect_async(&url).await.context("client: connessione")?;
-            ws.send(Message::Text(json!({ "type": "subscribe", "tags": ["*"] }).to_string())).await?;
+            let (mut ws, _) = tokio_tungstenite::connect_async(&url)
+                .await
+                .context("client: connessione")?;
+            ws.send(Message::Text(
+                json!({ "type": "subscribe", "tags": ["*"] }).to_string(),
+            ))
+            .await?;
             while !fine.load(Ordering::Relaxed) {
-                let Ok(Some(Ok(Message::Text(t)))) = tokio::time::timeout(Duration::from_millis(500), ws.next()).await else { continue };
-                let Ok(v) = serde_json::from_str::<Value>(&t) else { continue };
+                let Ok(Some(Ok(Message::Text(t)))) =
+                    tokio::time::timeout(Duration::from_millis(500), ws.next()).await
+                else {
+                    continue;
+                };
+                let Ok(v) = serde_json::from_str::<Value>(&t) else {
+                    continue;
+                };
                 if v["type"] != "delta" {
                     continue;
                 }
@@ -242,7 +302,10 @@ async fn misura(args: &Args, http: &reqwest::Client, token: Option<&str>, ids: &
                         if let Some(n) = e["value"].as_i64() {
                             if echi_visti.lock().unwrap()[c].insert(n) {
                                 if let Some(t0) = inviati.lock().unwrap().get(&n) {
-                                    latenze.lock().unwrap().push(adesso.duration_since(*t0).as_secs_f64() * 1000.0);
+                                    latenze
+                                        .lock()
+                                        .unwrap()
+                                        .push(adesso.duration_since(*t0).as_secs_f64() * 1000.0);
                                 }
                             }
                         }
@@ -261,9 +324,12 @@ async fn misura(args: &Args, http: &reqwest::Client, token: Option<&str>, ids: &
     let errori = Arc::new(AtomicU64::new(0));
     let produttore = {
         let url = ws_url(&args.gestione, token);
-        let (ids, fine, inviati, errori) = (ids.to_vec(), fine.clone(), inviati.clone(), errori.clone());
+        let (ids, fine, inviati, errori) =
+            (ids.to_vec(), fine.clone(), inviati.clone(), errori.clone());
         tokio::spawn(async move {
-            let (ws, _) = tokio_tungstenite::connect_async(&url).await.context("produttore: connessione")?;
+            let (ws, _) = tokio_tungstenite::connect_async(&url)
+                .await
+                .context("produttore: connessione")?;
             let (mut tx, mut rx) = ws.split();
             let errori2 = errori.clone();
             let lettore = tokio::spawn(async move {
@@ -279,10 +345,16 @@ async fn misura(args: &Args, http: &reqwest::Client, token: Option<&str>, ids: &
                 battito.tick().await;
                 giro += 1;
                 inviati.lock().unwrap().insert(giro, Instant::now());
-                tx.send(Message::Text(json!({ "type": "write", "tag": ECO, "value": giro }).to_string())).await?;
+                tx.send(Message::Text(
+                    json!({ "type": "write", "tag": ECO, "value": giro }).to_string(),
+                ))
+                .await?;
                 for (i, id) in ids.iter().enumerate() {
                     let v = ((giro as f64) + i as f64 * 0.001) % 100.0;
-                    tx.send(Message::Text(json!({ "type": "write", "tag": id, "value": v }).to_string())).await?;
+                    tx.send(Message::Text(
+                        json!({ "type": "write", "tag": id, "value": v }).to_string(),
+                    ))
+                    .await?;
                 }
             }
             lettore.abort();
@@ -309,12 +381,19 @@ async fn misura(args: &Args, http: &reqwest::Client, token: Option<&str>, ids: &
         let _ = c.await;
     }
 
-    let per_client: Vec<f64> = contatori.iter().map(|c| c.load(Ordering::Relaxed) as f64 / secondi).collect();
+    let per_client: Vec<f64> = contatori
+        .iter()
+        .map(|c| c.load(Ordering::Relaxed) as f64 / secondi)
+        .collect();
     let mut lat = latenze.lock().unwrap().clone();
     let scritti = inviati.lock().unwrap().len();
     let visti: usize = echi_visti.lock().unwrap().iter().map(|s| s.len()).sum();
     let media = |v: &[f64]| (!v.is_empty()).then(|| v.iter().sum::<f64>() / v.len() as f64);
-    let massimo = |v: &[f64]| v.iter().cloned().fold(None, |m: Option<f64>, x| Some(m.map_or(x, |m| m.max(x))));
+    let massimo = |v: &[f64]| {
+        v.iter()
+            .cloned()
+            .fold(None, |m: Option<f64>, x| Some(m.map_or(x, |m| m.max(x))))
+    };
     Ok(Casella {
         tag: ids.len(),
         client: k,
@@ -337,15 +416,25 @@ fn riga(c: &Casella) -> String {
     let f = |v: Option<f64>| v.map(|x| format!("{x:.0}")).unwrap_or_else(|| "—".into());
     format!(
         "| {} | {} | {:.0} | {:.0} | {:.0} | {} | {} | {} | {} | {} |",
-        c.tag, c.client, c.attesi_al_s, c.arrivati_al_s, c.arrivati_min_al_s,
-        f(c.latenza_mediana_ms), f(c.latenza_p95_ms), f(c.cpu_media_pct), f(c.cpu_max_pct), f(c.memoria_max_mb),
+        c.tag,
+        c.client,
+        c.attesi_al_s,
+        c.arrivati_al_s,
+        c.arrivati_min_al_s,
+        f(c.latenza_mediana_ms),
+        f(c.latenza_p95_ms),
+        f(c.cpu_media_pct),
+        f(c.cpu_max_pct),
+        f(c.memoria_max_mb),
     )
 }
 
 #[tokio::main]
 async fn main() -> Result<()> {
     let args = Args::parse();
-    let http = reqwest::Client::builder().timeout(Duration::from_secs(30)).build()?;
+    let http = reqwest::Client::builder()
+        .timeout(Duration::from_secs(30))
+        .build()?;
     let token = match (&args.utente, &args.password) {
         (Some(u), Some(p)) => Some(accedi(&http, &args.gestione, u, p).await?),
         _ => None,
@@ -358,7 +447,14 @@ async fn main() -> Result<()> {
     // Il ripristino si fa **sempre**, anche se la misura è fallita: un errore a
     // metà lasciava il pannello sul progetto del banco.
     if let Some(p) = &args.ripristina {
-        match apri(&http, &args.gestione, token_banco.as_deref().or(token.as_deref()), p).await {
+        match apri(
+            &http,
+            &args.gestione,
+            token_banco.as_deref().or(token.as_deref()),
+            p,
+        )
+        .await
+        {
             Ok(()) => println!("\nriaperto il progetto «{p}»"),
             Err(e) => eprintln!("\nATTENZIONE: non sono riuscito a riaprire «{p}»: {e:#}"),
         }
@@ -372,20 +468,35 @@ async fn main() -> Result<()> {
     Ok(())
 }
 
-async fn griglia(args: &Args, http: &reqwest::Client, token: &mut Option<String>, utente: Option<(&str, &str)>) -> Result<Vec<Casella>> {
+async fn griglia(
+    args: &Args,
+    http: &reqwest::Client,
+    token: &mut Option<String>,
+    utente: Option<(&str, &str)>,
+) -> Result<Vec<Casella>> {
     let mut risultati = Vec::new();
-    println!("Banco di prova — {} ({}), {} s per casella\n", args.macchina, args.gestione, args.durata);
+    println!(
+        "Banco di prova — {} ({}), {} s per casella\n",
+        args.macchina, args.gestione, args.durata
+    );
     println!("| tag | client | attesi/s | arrivati/s | il più lento/s | latenza mediana ms | latenza p95 ms | CPU runtime media % | CPU runtime max % | memoria runtime max MB |");
     println!("|---|---|---|---|---|---|---|---|---|---|");
     for n in elenco(&args.tag) {
         let ids = prepara(http, &args.gestione, token.as_deref(), n, utente).await?;
         // Con il progetto del banco aperto valgono i suoi utenti: si rientra.
         if let Some((u, p)) = utente {
-            *token = Some(accedi(http, &args.gestione, u, p).await.context("entrare nel progetto del banco")?);
+            *token = Some(
+                accedi(http, &args.gestione, u, p)
+                    .await
+                    .context("entrare nel progetto del banco")?,
+            );
         }
         for k in elenco(&args.client) {
             let c = misura(args, http, token.as_deref(), &ids, k).await?;
-            anyhow::ensure!(c.arrivati_al_s > 0.0, "nessun aggiornamento arrivato ai client: misura non valida");
+            anyhow::ensure!(
+                c.arrivati_al_s > 0.0,
+                "nessun aggiornamento arrivato ai client: misura non valida"
+            );
             println!("{}", riga(&c));
             risultati.push(c);
         }

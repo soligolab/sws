@@ -40,11 +40,16 @@ static ORIGINI: RwLock<Vec<String>> = RwLock::new(Vec::new());
 /// Una origine scritta bene: schema http(s), host, porta facoltativa, niente
 /// percorso. Il resto finirebbe dentro la CSP così com'è.
 pub fn origine_valida(o: &str) -> bool {
-    let Some(resto) = o.strip_prefix("https://").or_else(|| o.strip_prefix("http://")) else {
+    let Some(resto) = o
+        .strip_prefix("https://")
+        .or_else(|| o.strip_prefix("http://"))
+    else {
         return false;
     };
     !resto.is_empty()
-        && resto.chars().all(|c| c.is_ascii_alphanumeric() || matches!(c, '.' | '-' | ':' | '*'))
+        && resto
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || matches!(c, '.' | '-' | ':' | '*'))
         && !resto.starts_with(':')
 }
 
@@ -58,8 +63,11 @@ pub fn carica(config_dir: &Path) {
 }
 
 pub fn imposta(origini: &[String]) {
-    let buone: Vec<String> = origini.iter().map(|o| o.trim().trim_end_matches('/').to_string())
-        .filter(|o| origine_valida(o)).collect();
+    let buone: Vec<String> = origini
+        .iter()
+        .map(|o| o.trim().trim_end_matches('/').to_string())
+        .filter(|o| origine_valida(o))
+        .collect();
     if let Ok(mut g) = ORIGINI.write() {
         *g = buone;
     }
@@ -109,10 +117,19 @@ pub async fn intestazioni(req: Request, next: Next) -> Response {
             h.insert(header::CONTENT_SECURITY_POLICY, v);
         }
     }
-    h.insert(header::X_CONTENT_TYPE_OPTIONS, HeaderValue::from_static("nosniff"));
-    h.insert(header::REFERRER_POLICY, HeaderValue::from_static("same-origin"));
+    h.insert(
+        header::X_CONTENT_TYPE_OPTIONS,
+        HeaderValue::from_static("nosniff"),
+    );
+    h.insert(
+        header::REFERRER_POLICY,
+        HeaderValue::from_static("same-origin"),
+    );
     if https {
-        h.insert(header::STRICT_TRANSPORT_SECURITY, HeaderValue::from_static("max-age=31536000"));
+        h.insert(
+            header::STRICT_TRANSPORT_SECURITY,
+            HeaderValue::from_static("max-age=31536000"),
+        );
     }
     res
 }
@@ -133,10 +150,21 @@ mod tests {
 
     #[test]
     fn solo_origini_scritte_bene() {
-        for buona in ["https://casa.example:8123", "http://192.168.1.10", "https://*.example.com"] {
+        for buona in [
+            "https://casa.example:8123",
+            "http://192.168.1.10",
+            "https://*.example.com",
+        ] {
             assert!(origine_valida(buona), "{buona}");
         }
-        for cattiva in ["casa.example", "https://", "https://a.b/percorso", "javascript:alert(1)", "https://a; script-src *", "https://:80"] {
+        for cattiva in [
+            "casa.example",
+            "https://",
+            "https://a.b/percorso",
+            "javascript:alert(1)",
+            "https://a; script-src *",
+            "https://:80",
+        ] {
             assert!(!origine_valida(cattiva), "{cattiva}");
         }
     }

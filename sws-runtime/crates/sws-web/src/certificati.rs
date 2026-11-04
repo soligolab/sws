@@ -129,7 +129,11 @@ pub fn archivio_impronte(file: &Path, disponibile: bool) -> ArchivioImpronte {
     let righe = ImprontaStore::new(file.to_path_buf())
         .elenco()
         .into_iter()
-        .map(|(chiave, v)| RigaImpronta { chiave, impronta: v.impronta, visto_il_ms: v.visto_il_ms })
+        .map(|(chiave, v)| RigaImpronta {
+            chiave,
+            impronta: v.impronta,
+            visto_il_ms: v.visto_il_ms,
+        })
         .collect();
     ArchivioImpronte { disponibile, righe }
 }
@@ -146,10 +150,16 @@ pub struct CertificatoFile {
 pub fn certificati_pki(radice: &Path) -> Vec<CertificatoFile> {
     let mut out = Vec::new();
     if let Ok(der) = std::fs::read(radice.join("own").join("cert.der")) {
-        out.push(CertificatoFile { file: "own/cert.der".into(), stato: "own".into(), dettagli: leggi_certificato(&der) });
+        out.push(CertificatoFile {
+            file: "own/cert.der".into(),
+            stato: "own".into(),
+            dettagli: leggi_certificato(&der),
+        });
     }
     for stato in ["trusted", "rejected"] {
-        let Ok(voci) = std::fs::read_dir(radice.join(stato)) else { continue };
+        let Ok(voci) = std::fs::read_dir(radice.join(stato)) else {
+            continue;
+        };
         let mut nomi: Vec<_> = voci.flatten().filter(|v| v.path().is_file()).collect();
         nomi.sort_by_key(|v| v.file_name());
         for v in nomi {
@@ -190,14 +200,23 @@ pub fn ssh(home: Option<&Path>, progetto: Option<&Path>) -> Ssh {
                     let mut p = l.split_whitespace();
                     let host = p.next().unwrap_or("");
                     let tipo = p.next().unwrap_or("");
-                    let host = if host.starts_with("|1|") { "(nascosto)" } else { host };
+                    let host = if host.starts_with("|1|") {
+                        "(nascosto)"
+                    } else {
+                        host
+                    };
                     format!("{host} {tipo}")
                 })
                 .collect()
         })
         .unwrap_or_default();
     let chiave_progetto = progetto
-        .and_then(|p| std::fs::read_to_string(crate::git_deploy::cartella_chiave_progetto(p).join("id_ed25519.pub")).ok())
+        .and_then(|p| {
+            std::fs::read_to_string(
+                crate::git_deploy::cartella_chiave_progetto(p).join("id_ed25519.pub"),
+            )
+            .ok()
+        })
         .map(|t| {
             let mut p = t.split_whitespace();
             let tipo = p.next().unwrap_or("").to_string();
@@ -205,7 +224,10 @@ pub fn ssh(home: Option<&Path>, progetto: Option<&Path>) -> Ssh {
             let commento: Vec<&str> = p.collect();
             format!("{tipo} {}", commento.join(" ")).trim().to_string()
         });
-    Ssh { known_hosts, chiave_progetto }
+    Ssh {
+        known_hosts,
+        chiave_progetto,
+    }
 }
 
 /// Tutti gli archivi di un'istanza.
@@ -233,12 +255,17 @@ pub struct Cartelle<'a> {
 }
 
 pub fn inventario(c: &Cartelle) -> Inventario {
-    let tls = std::fs::read(c.config.join("tls.crt")).ok().and_then(|p| leggi_pem(&p));
+    let tls = std::fs::read(c.config.join("tls.crt"))
+        .ok()
+        .and_then(|p| leggi_pem(&p));
     let opcua_client = match c.progetto {
         Some(p) => c
             .sorgenti_opcua
             .iter()
-            .map(|id| PkiSorgente { sorgente: id.clone(), certificati: certificati_pki(&p.join("opcua-pki").join(id)) })
+            .map(|id| PkiSorgente {
+                sorgente: id.clone(),
+                certificati: certificati_pki(&p.join("opcua-pki").join(id)),
+            })
             .collect(),
         None => Vec::new(),
     };
@@ -267,13 +294,21 @@ mod tests {
     /// finte; le righe morte del pinning comprese.
     #[test]
     fn l_inventario_legge_tutti_gli_archivi() {
-        let mut p = rcgen::CertificateParams::new(vec!["tc620.local".to_string(), "127.0.0.1".to_string()]).unwrap();
-        p.distinguished_name.push(rcgen::DnType::CommonName, "tc620-garage");
+        let mut p =
+            rcgen::CertificateParams::new(vec!["tc620.local".to_string(), "127.0.0.1".to_string()])
+                .unwrap();
+        p.distinguished_name
+            .push(rcgen::DnType::CommonName, "tc620-garage");
         let k = rcgen::KeyPair::generate().unwrap();
         let cert = p.self_signed(&k).unwrap();
         let d = leggi_certificato(cert.der()).expect("si legge");
         assert!(d.soggetto.contains("tc620-garage"), "{}", d.soggetto);
-        assert!(d.nomi.contains(&"tc620.local".to_string()) && d.nomi.contains(&"127.0.0.1".to_string()), "{:?}", d.nomi);
+        assert!(
+            d.nomi.contains(&"tc620.local".to_string())
+                && d.nomi.contains(&"127.0.0.1".to_string()),
+            "{:?}",
+            d.nomi
+        );
         assert!(d.valido_al_ms > d.valido_dal_ms);
         assert!(d.impronta.starts_with("sha256:"));
 
@@ -297,10 +332,20 @@ mod tests {
             pki_server: &t.path().join("pki-assente"),
             home: None,
         });
-        assert_eq!(inv.tls.as_ref().map(|d| d.impronta.clone()), Some(d.impronta.clone()));
-        assert_eq!(inv.dispositivi.righe.len(), 2, "le righe morte si vedono (decisione 8)");
+        assert_eq!(
+            inv.tls.as_ref().map(|d| d.impronta.clone()),
+            Some(d.impronta.clone())
+        );
+        assert_eq!(
+            inv.dispositivi.righe.len(),
+            2,
+            "le righe morte si vedono (decisione 8)"
+        );
         assert!(inv.mqtt.righe.is_empty());
-        assert!(!inv.viewer_lvgl.disponibile, "senza la cartella del viewer: non disponibile, non vuoto");
+        assert!(
+            !inv.viewer_lvgl.disponibile,
+            "senza la cartella del viewer: non disponibile, non vuoto"
+        );
         assert_eq!(inv.opcua_client[0].certificati[0].stato, "rejected");
         assert!(inv.opcua_client[0].certificati[0].dettagli.is_some());
         assert_eq!(inv.opcua_server, None);

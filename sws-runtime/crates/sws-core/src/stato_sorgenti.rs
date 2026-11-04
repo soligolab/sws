@@ -43,7 +43,10 @@ pub struct StatoSorgenti {
 }
 
 fn adesso_ms() -> u64 {
-    SystemTime::now().duration_since(UNIX_EPOCH).map(|d| d.as_millis() as u64).unwrap_or(0)
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|d| d.as_millis() as u64)
+        .unwrap_or(0)
 }
 
 /// Cambia `s` se lo stato o l'errore sono diversi; vero se è cambiato.
@@ -67,22 +70,42 @@ impl StatoSorgenti {
     /// Una sorgente che parte: il bus e i dispositivi dichiarati, mai collegati.
     pub fn registra(&self, sorgente: &str, dispositivi: impl IntoIterator<Item = u8>) {
         let da_ms = adesso_ms();
-        let nuovo = Stato { stato: Collegamento::MaiConnesso, errore: None, da_ms };
+        let nuovo = Stato {
+            stato: Collegamento::MaiConnesso,
+            errore: None,
+            da_ms,
+        };
         let s = StatoSorgente {
             bus: nuovo.clone(),
-            dispositivi: dispositivi.into_iter().map(|u| (u, nuovo.clone())).collect(),
+            dispositivi: dispositivi
+                .into_iter()
+                .map(|u| (u, nuovo.clone()))
+                .collect(),
         };
-        self.inner.write().unwrap_or_else(|e| e.into_inner()).insert(sorgente.to_string(), s);
+        self.inner
+            .write()
+            .unwrap_or_else(|e| e.into_inner())
+            .insert(sorgente.to_string(), s);
     }
 
     /// Lo stato del bus (la connessione). Vero se è cambiato.
     pub fn bus(&self, sorgente: &str, stato: Collegamento, errore: Option<String>) -> bool {
         let mut m = self.inner.write().unwrap_or_else(|e| e.into_inner());
-        aggiorna(&mut m.entry(sorgente.to_string()).or_default().bus, stato, errore)
+        aggiorna(
+            &mut m.entry(sorgente.to_string()).or_default().bus,
+            stato,
+            errore,
+        )
     }
 
     /// Lo stato di un dispositivo del bus. Vero se è cambiato.
-    pub fn dispositivo(&self, sorgente: &str, unita: u8, stato: Collegamento, errore: Option<String>) -> bool {
+    pub fn dispositivo(
+        &self,
+        sorgente: &str,
+        unita: u8,
+        stato: Collegamento,
+        errore: Option<String>,
+    ) -> bool {
         let mut m = self.inner.write().unwrap_or_else(|e| e.into_inner());
         let s = m.entry(sorgente.to_string()).or_default();
         aggiorna(s.dispositivi.entry(unita).or_default(), stato, errore)
@@ -101,11 +124,19 @@ impl StatoSorgenti {
     }
 
     pub fn rimuovi(&self, sorgente: &str) {
-        self.inner.write().unwrap_or_else(|e| e.into_inner()).remove(sorgente);
+        self.inner
+            .write()
+            .unwrap_or_else(|e| e.into_inner())
+            .remove(sorgente);
     }
 
     pub fn istantanea(&self) -> BTreeMap<String, StatoSorgente> {
-        self.inner.read().unwrap_or_else(|e| e.into_inner()).iter().map(|(k, v)| (k.clone(), v.clone())).collect()
+        self.inner
+            .read()
+            .unwrap_or_else(|e| e.into_inner())
+            .iter()
+            .map(|(k, v)| (k.clone(), v.clone()))
+            .collect()
     }
 }
 
@@ -118,14 +149,21 @@ mod tests {
         let s = StatoSorgenti::new();
         s.registra("linea", [1, 2]);
         assert!(s.bus("linea", Collegamento::Ok, None));
-        assert!(!s.bus("linea", Collegamento::Ok, None), "stesso stato: nessun cambio");
+        assert!(
+            !s.bus("linea", Collegamento::Ok, None),
+            "stesso stato: nessun cambio"
+        );
         assert!(s.dispositivo("linea", 1, Collegamento::Ok, None));
         s.caduta("linea", "porta chiusa".into());
         let i = s.istantanea();
         let l = &i["linea"];
         assert_eq!(l.bus.stato, Collegamento::NonRisponde);
         assert_eq!(l.dispositivi[&1].stato, Collegamento::NonRisponde);
-        assert_eq!(l.dispositivi[&2].stato, Collegamento::MaiConnesso, "mai collegato resta tale");
+        assert_eq!(
+            l.dispositivi[&2].stato,
+            Collegamento::MaiConnesso,
+            "mai collegato resta tale"
+        );
         let j = serde_json::to_value(l).unwrap();
         assert_eq!(j["stato"], "non_risponde");
         assert_eq!(j["dispositivi"]["1"]["errore"], "porta chiusa");

@@ -36,17 +36,80 @@ pub fn modello_di(formato: &str, secondi: bool) -> Option<&'static str> {
 
 fn giorni(lingua: &str) -> [&'static str; 7] {
     match lingua {
-        "it" => ["domenica", "lunedì", "martedì", "mercoledì", "giovedì", "venerdì", "sabato"],
-        "es" => ["domingo", "lunes", "martes", "miércoles", "jueves", "viernes", "sábado"],
-        _ => ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"],
+        "it" => [
+            "domenica",
+            "lunedì",
+            "martedì",
+            "mercoledì",
+            "giovedì",
+            "venerdì",
+            "sabato",
+        ],
+        "es" => [
+            "domingo",
+            "lunes",
+            "martes",
+            "miércoles",
+            "jueves",
+            "viernes",
+            "sábado",
+        ],
+        _ => [
+            "Sunday",
+            "Monday",
+            "Tuesday",
+            "Wednesday",
+            "Thursday",
+            "Friday",
+            "Saturday",
+        ],
     }
 }
 
 fn mesi(lingua: &str) -> [&'static str; 12] {
     match lingua {
-        "it" => ["gennaio", "febbraio", "marzo", "aprile", "maggio", "giugno", "luglio", "agosto", "settembre", "ottobre", "novembre", "dicembre"],
-        "es" => ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"],
-        _ => ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"],
+        "it" => [
+            "gennaio",
+            "febbraio",
+            "marzo",
+            "aprile",
+            "maggio",
+            "giugno",
+            "luglio",
+            "agosto",
+            "settembre",
+            "ottobre",
+            "novembre",
+            "dicembre",
+        ],
+        "es" => [
+            "enero",
+            "febrero",
+            "marzo",
+            "abril",
+            "mayo",
+            "junio",
+            "julio",
+            "agosto",
+            "septiembre",
+            "octubre",
+            "noviembre",
+            "diciembre",
+        ],
+        _ => [
+            "January",
+            "February",
+            "March",
+            "April",
+            "May",
+            "June",
+            "July",
+            "August",
+            "September",
+            "October",
+            "November",
+            "December",
+        ],
     }
 }
 
@@ -91,7 +154,13 @@ pub fn formatta(c: &Componenti, modello: &str, lingua: &str) -> String {
 }
 
 /// Il testo di un oggetto `clock`: formato pronto o modello personalizzato.
-pub fn testo_orologio(c: &Componenti, formato: Option<&str>, secondi: bool, modello: Option<&str>, lingua: &str) -> String {
+pub fn testo_orologio(
+    c: &Componenti,
+    formato: Option<&str>,
+    secondi: bool,
+    modello: Option<&str>,
+    lingua: &str,
+) -> String {
     let f = formato.unwrap_or("ora");
     let m = if f == "personalizzato" {
         modello.filter(|m| !m.is_empty()).unwrap_or("%H:%M")
@@ -123,12 +192,27 @@ mod tests {
 
     #[test]
     fn i_casi_della_fixture() {
-        let casi: Vec<Caso> = serde_json::from_str(include_str!("../../../../tests/fixtures/data-ora.json")).unwrap();
+        let casi: Vec<Caso> =
+            serde_json::from_str(include_str!("../../../../tests/fixtures/data-ora.json")).unwrap();
         for k in casi {
             let [mese, giorno, ore, minuti, secondi, gs] = k.componenti;
-            let c = Componenti { anno: k.anno, mese, giorno, ore, minuti, secondi, giorno_settimana: gs };
+            let c = Componenti {
+                anno: k.anno,
+                mese,
+                giorno,
+                ore,
+                minuti,
+                secondi,
+                giorno_settimana: gs,
+            };
             assert_eq!(
-                testo_orologio(&c, k.formato.as_deref(), k.secondi, k.modello.as_deref(), &k.lingua),
+                testo_orologio(
+                    &c,
+                    k.formato.as_deref(),
+                    k.secondi,
+                    k.modello.as_deref(),
+                    &k.lingua
+                ),
                 k.atteso,
                 "{}",
                 k.nome

@@ -29,7 +29,9 @@ use std::time::Duration;
 
 use serde::{Deserialize, Serialize};
 
-use crate::client::{self, DomandaSistema, EventoAggiornamento, NovitaVersione, QuadletSistema, StatoAggiornamento};
+use crate::client::{
+    self, DomandaSistema, EventoAggiornamento, NovitaVersione, QuadletSistema, StatoAggiornamento,
+};
 
 /// Ogni quanto si guarda se il runtime è ripartito. Gemello di
 /// `CONTROLLO_RIAVVIO_MS` nel web.
@@ -117,10 +119,7 @@ pub enum Avviso {
     },
     /// La configurazione del servizio è più vecchia di quella della versione
     /// che gira, e il pannello la sa aggiornare (02-10-2026).
-    Quadlet {
-        da: String,
-        a: String,
-    },
+    Quadlet { da: String, a: String },
     /// Dopo un aggiornamento: confermarlo, rimandare o tornare alla versione
     /// di prima (03-10-2026). `ritorno_chiesto`: si è premuto «Torna», e si
     /// chiede se davvero.
@@ -167,11 +166,7 @@ pub enum Avviso {
 /// che è appunto quello che «fino al prossimo avvio» significa. `visto.ignorata`
 /// invece sopravvive — altrimenti non sarebbe un ignorare, sarebbe un
 /// rimandare (decisione 44).
-pub fn da_mostrare(
-    stato: Option<&StatoAggiornamento>,
-    rimandato: bool,
-    visto: &Visto,
-) -> Avviso {
+pub fn da_mostrare(stato: Option<&StatoAggiornamento>, rimandato: bool, visto: &Visto) -> Avviso {
     let Some(st) = stato else {
         return Avviso::Niente;
     };
@@ -216,15 +211,25 @@ pub fn da_mostrare_tutto(
     match quadlet {
         Some(q) if q.da_aggiornare && q.si_puo_aggiornare && !quadlet_rimandato => {
             return Avviso::Quadlet {
-                da: q.installata.map(|v| v.to_string()).unwrap_or_else(|| "?".into()),
-                a: q.attesa.map(|v| v.to_string()).unwrap_or_else(|| "?".into()),
+                da: q
+                    .installata
+                    .map(|v| v.to_string())
+                    .unwrap_or_else(|| "?".into()),
+                a: q.attesa
+                    .map(|v| v.to_string())
+                    .unwrap_or_else(|| "?".into()),
             }
         }
         _ => {}
     }
     // Poi la domanda dopo un aggiornamento, come sul web (03-10-2026).
     match conferma {
-        Some(d) => Avviso::Conferma { da: d.da.clone(), a: d.a.clone(), istantanea: d.istantanea, ritorno_chiesto },
+        Some(d) => Avviso::Conferma {
+            da: d.da.clone(),
+            a: d.a.clone(),
+            istantanea: d.istantanea,
+            ritorno_chiesto,
+        },
         None => base,
     }
 }
@@ -330,7 +335,11 @@ impl StatoAvviso {
             &self.visto,
             self.quadlet.as_ref(),
             self.quadlet_rimandato,
-            if self.conferma_chiusa { None } else { self.conferma.as_ref() },
+            if self.conferma_chiusa {
+                None
+            } else {
+                self.conferma.as_ref()
+            },
             self.ritorno_chiesto,
         )
     }
@@ -339,7 +348,10 @@ impl StatoAvviso {
 /// Serve un Admin: si apre il pannellino e si ricorda cosa fare dopo.
 pub fn chiedi_accesso(s: &SharedAvviso, azione: AzioneRichiesta) {
     if let Ok(mut g) = s.lock() {
-        g.accesso = Some(Accesso { azione: Some(azione), ..Default::default() });
+        g.accesso = Some(Accesso {
+            azione: Some(azione),
+            ..Default::default()
+        });
         g.cambiato();
     }
 }
@@ -349,7 +361,11 @@ pub fn chiedi_accesso(s: &SharedAvviso, azione: AzioneRichiesta) {
 /// che non basta, e allora lo si dice — entrando con un altro si riprova.
 pub fn chiedi_accesso_per_comando(s: &SharedAvviso, motivo: Option<String>) {
     if let Ok(mut g) = s.lock() {
-        g.accesso = Some(Accesso { azione: Some(AzioneRichiesta::Comando), errore: motivo, in_corso: false });
+        g.accesso = Some(Accesso {
+            azione: Some(AzioneRichiesta::Comando),
+            errore: motivo,
+            in_corso: false,
+        });
         g.cambiato();
     }
 }
@@ -490,7 +506,11 @@ pub fn avvia(s: &SharedAvviso, base_url: &str, token: Option<String>) {
 /// (Q55): il loop di rendering non aspetta mai la rete. Qui in più il ciclo è
 /// lento — un minuto — quindi anche una richiesta che non torna non costa
 /// nulla a nessuno.
-pub fn avvia_controllo(stato: SharedAvviso, base_url: String, sessione: crate::session::SharedSession) {
+pub fn avvia_controllo(
+    stato: SharedAvviso,
+    base_url: String,
+    sessione: crate::session::SharedSession,
+) {
     std::thread::Builder::new()
         .name("sws-aggiorna".into())
         .spawn(move || {
@@ -552,7 +572,10 @@ async fn giro(
             g.quadlet = sys.quadlet.clone();
             g.cambiato();
         }
-        let domanda = sys.conferma_aggiornamento.as_ref().and_then(|c| c.domanda.clone());
+        let domanda = sys
+            .conferma_aggiornamento
+            .as_ref()
+            .and_then(|c| c.domanda.clone());
         if g.conferma != domanda {
             g.conferma = domanda;
             g.cambiato();
@@ -613,12 +636,14 @@ async fn giro(
 /// nessuno.
 pub fn stato_di_prova(quale: &str) -> Option<StatoAggiornamento> {
     use crate::client::EsitoAggiornamento;
-    let novita = |v: &str| NovitaVersione {
+    let novita = |v: &str| {
+        NovitaVersione {
         versione: v.to_string(),
         testo: "Avviso di aggiornamento anche sul pannello LVGL.\nStorico allarmi dallo scatto della riga.".into(),
         compatibilita: "I progetti salvati con la 2.11 vanno riaperti una volta.".into(),
         testo_en: "Update notice on the LVGL panel too.\nAlarm history from when the row starts.".into(),
         compatibilita_en: "Projects saved with 2.11 must be reopened once.".into(),
+    }
     };
     let base = StatoAggiornamento {
         versione: env!("CARGO_PKG_VERSION").to_string(),
@@ -663,7 +688,11 @@ mod tests {
         let s: SharedAvviso = Default::default();
         chiedi_accesso_per_comando(&s, None);
         match s.lock().unwrap().avviso() {
-            Avviso::Accesso { motivo, errore, in_corso } => {
+            Avviso::Accesso {
+                motivo,
+                errore,
+                in_corso,
+            } => {
                 assert_eq!(motivo, "cmd_serve_accesso");
                 assert_eq!(errore, None, "anonimi: il titolo basta");
                 assert!(!in_corso);
@@ -672,7 +701,13 @@ mod tests {
         }
         assert_eq!(accesso_riuscito(&s), Some(AzioneRichiesta::Comando));
         chiedi_accesso_per_comando(&s, Some("403".into()));
-        assert!(matches!(s.lock().unwrap().avviso(), Avviso::Accesso { errore: Some(_), .. }));
+        assert!(matches!(
+            s.lock().unwrap().avviso(),
+            Avviso::Accesso {
+                errore: Some(_),
+                ..
+            }
+        ));
     }
 
     use super::*;
@@ -785,10 +820,7 @@ mod tests {
             ignorata: Some("2.12.0-rc.10".into()),
             ..Default::default()
         };
-        assert_eq!(
-            da_mostrare(Some(&st), false, &ignorata),
-            Avviso::Niente
-        );
+        assert_eq!(da_mostrare(Some(&st), false, &ignorata), Avviso::Niente);
     }
 
     #[test]
@@ -807,7 +839,12 @@ mod tests {
     }
 
     fn q(da: u32, a: u32, si_puo: bool) -> QuadletSistema {
-        QuadletSistema { installata: Some(da), attesa: Some(a), da_aggiornare: da < a, si_puo_aggiornare: si_puo }
+        QuadletSistema {
+            installata: Some(da),
+            attesa: Some(a),
+            da_aggiornare: da < a,
+            si_puo_aggiornare: si_puo,
+        }
     }
 
     #[test]
@@ -816,26 +853,63 @@ mod tests {
         let quad = q(0, 1, true);
         // Prima della versione nuova.
         assert_eq!(
-            da_mostrare_tutto(Some(&con_nuova()), false, &v, Some(&quad), false, None, false),
-            Avviso::Quadlet { da: "0".into(), a: "1".into() }
+            da_mostrare_tutto(
+                Some(&con_nuova()),
+                false,
+                &v,
+                Some(&quad),
+                false,
+                None,
+                false
+            ),
+            Avviso::Quadlet {
+                da: "0".into(),
+                a: "1".into()
+            }
         );
         // L'esito viene prima di tutto.
         let mut st = con_nuova();
         st.evento = Some(evento(7));
-        assert!(matches!(da_mostrare_tutto(Some(&st), false, &v, Some(&quad), false, None, false), Avviso::Esito { .. }));
+        assert!(matches!(
+            da_mostrare_tutto(Some(&st), false, &v, Some(&quad), false, None, false),
+            Avviso::Esito { .. }
+        ));
         // Anche senza stato dell'aggiornamento (registry irraggiungibile).
-        assert!(matches!(da_mostrare_tutto(None, false, &v, Some(&quad), false, None, false), Avviso::Quadlet { .. }));
+        assert!(matches!(
+            da_mostrare_tutto(None, false, &v, Some(&quad), false, None, false),
+            Avviso::Quadlet { .. }
+        ));
     }
 
     #[test]
     fn la_domanda_dopo_l_aggiornamento_viene_dopo_il_quadlet_e_prima_della_versione_nuova() {
         let v = Visto::default();
-        let d = DomandaSistema { da: "2.12.0-rc.17".into(), a: "2.12.0-rc.18".into(), istantanea: true };
-        let attesa = Avviso::Conferma { da: d.da.clone(), a: d.a.clone(), istantanea: true, ritorno_chiesto: false };
-        assert_eq!(da_mostrare_tutto(Some(&con_nuova()), false, &v, None, false, Some(&d), false), attesa);
+        let d = DomandaSistema {
+            da: "2.12.0-rc.17".into(),
+            a: "2.12.0-rc.18".into(),
+            istantanea: true,
+        };
+        let attesa = Avviso::Conferma {
+            da: d.da.clone(),
+            a: d.a.clone(),
+            istantanea: true,
+            ritorno_chiesto: false,
+        };
+        assert_eq!(
+            da_mostrare_tutto(Some(&con_nuova()), false, &v, None, false, Some(&d), false),
+            attesa
+        );
         // Il quadlet da aggiornare viene prima.
         assert!(matches!(
-            da_mostrare_tutto(None, false, &v, Some(&q(0, 1, true)), false, Some(&d), false),
+            da_mostrare_tutto(
+                None,
+                false,
+                &v,
+                Some(&q(0, 1, true)),
+                false,
+                Some(&d),
+                false
+            ),
             Avviso::Quadlet { .. }
         ));
         // Anche senza niente altro in campo, la domanda si fa: fino al
@@ -847,7 +921,10 @@ mod tests {
         // Il secondo passo del ritorno.
         assert!(matches!(
             da_mostrare_tutto(None, false, &v, None, false, Some(&d), true),
-            Avviso::Conferma { ritorno_chiesto: true, .. }
+            Avviso::Conferma {
+                ritorno_chiesto: true,
+                ..
+            }
         ));
     }
 
@@ -859,9 +936,18 @@ mod tests {
             da_mostrare_tutto(None, false, &v, Some(&q(0, 1, true)), false, None, false),
             Avviso::Quadlet { .. }
         ));
-        assert_eq!(da_mostrare_tutto(None, false, &v, Some(&q(0, 1, true)), true, None, false), Avviso::Niente);
-        assert_eq!(da_mostrare_tutto(None, false, &v, Some(&q(0, 1, false)), false, None, false), Avviso::Niente);
-        assert_eq!(da_mostrare_tutto(None, false, &v, Some(&q(1, 1, true)), false, None, false), Avviso::Niente);
+        assert_eq!(
+            da_mostrare_tutto(None, false, &v, Some(&q(0, 1, true)), true, None, false),
+            Avviso::Niente
+        );
+        assert_eq!(
+            da_mostrare_tutto(None, false, &v, Some(&q(0, 1, false)), false, None, false),
+            Avviso::Niente
+        );
+        assert_eq!(
+            da_mostrare_tutto(None, false, &v, Some(&q(1, 1, true)), false, None, false),
+            Avviso::Niente
+        );
     }
 
     #[test]
@@ -874,10 +960,7 @@ mod tests {
             da_mostrare(Some(&st), false, &Visto::default()),
             Avviso::Niente
         );
-        assert_eq!(
-            da_mostrare(None, false, &Visto::default()),
-            Avviso::Niente
-        );
+        assert_eq!(da_mostrare(None, false, &Visto::default()), Avviso::Niente);
     }
 
     #[test]

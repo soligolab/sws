@@ -176,7 +176,14 @@ async fn applica_col_launcher(config_dir: &Path, png: &Path, sha: &str) {
         crate::launcher_dbus::Esito::Applicata { percorso_assoluto } => BootImageStato {
             esito: "installato".into(),
             sha256: Some(sha.to_string()),
-            percorso: Some(if *percorso_assoluto { "assoluto" } else { "relativo" }.into()),
+            percorso: Some(
+                if *percorso_assoluto {
+                    "assoluto"
+                } else {
+                    "relativo"
+                }
+                .into(),
+            ),
             ..Default::default()
         },
         crate::launcher_dbus::Esito::NonSupportato => BootImageStato {
@@ -186,7 +193,9 @@ async fn applica_col_launcher(config_dir: &Path, png: &Path, sha: &str) {
         },
         crate::launcher_dbus::Esito::PercorsoHostIgnoto => BootImageStato {
             esito: "errore".into(),
-            messaggio: Some("manca SWS_HOST_CONFIG_DIR: il container non sa il percorso sull'host".into()),
+            messaggio: Some(
+                "manca SWS_HOST_CONFIG_DIR: il container non sa il percorso sull'host".into(),
+            ),
             ..Default::default()
         },
         crate::launcher_dbus::Esito::Errore(e) => BootImageStato {
@@ -298,7 +307,11 @@ pub fn parse_stato(testo: &str) -> Option<BootImageStato> {
 }
 
 async fn leggi_file_stato(config_dir: &Path) -> Option<BootImageStato> {
-    parse_stato(&tokio::fs::read_to_string(dir_at(config_dir).join(STATO)).await.ok()?)
+    parse_stato(
+        &tokio::fs::read_to_string(dir_at(config_dir).join(STATO))
+            .await
+            .ok()?,
+    )
 }
 
 /// Lo stato per `/api/system`. `None` = nessun dato (il runtime non ha ancora
@@ -351,7 +364,10 @@ mod tests {
         progetto(prj.path(), Some("b1"));
         pagina_con_png(prj.path(), "Splash", "b1", Some(PNG_FINTO)).await;
         publish(cfg.path(), prj.path(), Occasione::Modifica).await;
-        assert_eq!(std::fs::read(dir_at(cfg.path()).join(PNG)).unwrap(), PNG_FINTO);
+        assert_eq!(
+            std::fs::read(dir_at(cfg.path()).join(PNG)).unwrap(),
+            PNG_FINTO
+        );
         // Il file del meccanismo vecchio non si scrive più.
         assert!(!dir_at(cfg.path()).join(TRIGGER_VECCHIO).exists());
     }
@@ -372,7 +388,10 @@ mod tests {
         let (prj, cfg) = (tempfile::tempdir().unwrap(), tempfile::tempdir().unwrap());
         progetto(prj.path(), None);
         publish(cfg.path(), prj.path(), Occasione::Modifica).await;
-        assert_eq!(stato(cfg.path()).as_deref(), Some("esito=nessuna_immagine\n"));
+        assert_eq!(
+            stato(cfg.path()).as_deref(),
+            Some("esito=nessuna_immagine\n")
+        );
         assert!(!dir_at(cfg.path()).join(PNG).exists());
     }
 
@@ -395,7 +414,11 @@ mod tests {
     }
 
     fn st(esito: &str, sha: Option<&str>) -> BootImageStato {
-        BootImageStato { esito: esito.into(), sha256: sha.map(Into::into), ..Default::default() }
+        BootImageStato {
+            esito: esito.into(),
+            sha256: sha.map(Into::into),
+            ..Default::default()
+        }
     }
 
     /// Il difetto del TC620 (27-09): PNG pubblicato il 20-09, mai applicato,
@@ -406,14 +429,39 @@ mod tests {
         // PNG già al suo posto, nessuno stato: si chiama.
         assert!(serve_applicare(None, "aaa", false, M));
         // L'ultima volta è andata male, o c'è stato un ripristino: si chiama.
-        assert!(serve_applicare(Some(&st("errore", Some("aaa"))), "aaa", false, M));
-        assert!(serve_applicare(Some(&st("fabbrica", None)), "aaa", false, M));
+        assert!(serve_applicare(
+            Some(&st("errore", Some("aaa"))),
+            "aaa",
+            false,
+            M
+        ));
+        assert!(serve_applicare(
+            Some(&st("fabbrica", None)),
+            "aaa",
+            false,
+            M
+        ));
         // Installato un PNG diverso: si chiama.
-        assert!(serve_applicare(Some(&st("installato", Some("bbb"))), "aaa", false, M));
+        assert!(serve_applicare(
+            Some(&st("installato", Some("bbb"))),
+            "aaa",
+            false,
+            M
+        ));
         // Installato proprio questo: non si richiama a ogni salvataggio.
-        assert!(!serve_applicare(Some(&st("installato", Some("aaa"))), "aaa", false, M));
+        assert!(!serve_applicare(
+            Some(&st("installato", Some("aaa"))),
+            "aaa",
+            false,
+            M
+        ));
         // PNG cambiato: si chiama sempre.
-        assert!(serve_applicare(Some(&st("installato", Some("aaa"))), "aaa", true, M));
+        assert!(serve_applicare(
+            Some(&st("installato", Some("aaa"))),
+            "aaa",
+            true,
+            M
+        ));
     }
 
     /// Il secondo difetto del TC620 (27-09): ripristino di fabbrica, riavvio,
@@ -421,10 +469,25 @@ mod tests {
     #[test]
     fn un_ripristino_di_fabbrica_resiste_al_riavvio_ma_non_al_deploy() {
         let fabbrica = st("fabbrica", None);
-        assert!(!serve_applicare(Some(&fabbrica), "aaa", false, Occasione::Avvio));
-        assert!(serve_applicare(Some(&fabbrica), "aaa", false, Occasione::Modifica));
+        assert!(!serve_applicare(
+            Some(&fabbrica),
+            "aaa",
+            false,
+            Occasione::Avvio
+        ));
+        assert!(serve_applicare(
+            Some(&fabbrica),
+            "aaa",
+            false,
+            Occasione::Modifica
+        ));
         // All'avvio un PNG davvero nuovo si applica comunque.
-        assert!(serve_applicare(Some(&fabbrica), "aaa", true, Occasione::Avvio));
+        assert!(serve_applicare(
+            Some(&fabbrica),
+            "aaa",
+            true,
+            Occasione::Avvio
+        ));
         // E all'avvio un pannello mai applicato recupera (il primo difetto).
         assert!(serve_applicare(None, "aaa", false, Occasione::Avvio));
     }

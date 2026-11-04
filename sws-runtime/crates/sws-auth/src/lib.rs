@@ -536,7 +536,11 @@ impl AuthState {
         let prima = sessions.len();
         sessions.retain(|_, sess| invariato(&sess.username));
         if prima > 0 {
-            info!(tenute = sessions.len(), cadute = prima - sessions.len(), "auth: utenti ricaricati");
+            info!(
+                tenute = sessions.len(),
+                cadute = prima - sessions.len(),
+                "auth: utenti ricaricati"
+            );
         }
         drop(sessions);
         *users = new_users;
@@ -1029,27 +1033,42 @@ mod tests {
         let p = users_yaml_con(d.path(), "admin");
         let a = stato(p.clone(), vec![]);
         let ok = a
-            .login(&Credentials { username: "admin".into(), password: "x".into() })
+            .login(&Credentials {
+                username: "admin".into(),
+                password: "x".into(),
+            })
             .await
             .unwrap();
         // Stesso file: la sessione resta.
         a.swap_store(p.clone(), vec![]).await.unwrap();
-        assert!(a.validate(&ok.token).await.is_some(), "utente invariato: sessione tenuta");
+        assert!(
+            a.validate(&ok.token).await.is_some(),
+            "utente invariato: sessione tenuta"
+        );
         // Password cambiata nel progetto distribuito: la sessione cade.
         let altro = d.path().join("b");
         std::fs::create_dir_all(&altro).unwrap();
         let pb = users_yaml_con(&altro, "admin"); // hash nuovo (sale diverso)
         a.swap_store(pb, vec![]).await.unwrap();
-        assert!(a.validate(&ok.token).await.is_none(), "password cambiata: sessione caduta");
+        assert!(
+            a.validate(&ok.token).await.is_none(),
+            "password cambiata: sessione caduta"
+        );
         // Utente tolto: cade anche quella.
         let ok2 = a
-            .login(&Credentials { username: "admin".into(), password: "x".into() })
+            .login(&Credentials {
+                username: "admin".into(),
+                password: "x".into(),
+            })
             .await
             .unwrap();
         std::fs::create_dir_all(d.path().join("c")).unwrap();
         let pc = users_yaml_con(&d.path().join("c"), "operatore");
         a.swap_store(pc, vec![]).await.unwrap();
-        assert!(a.validate(&ok2.token).await.is_none(), "utente tolto: sessione caduta");
+        assert!(
+            a.validate(&ok2.token).await.is_none(),
+            "utente tolto: sessione caduta"
+        );
     }
 
     /// **Il caso del deploy**, che prima non aveva nessun test: ogni deploy
@@ -1063,18 +1082,27 @@ mod tests {
         let p = users_yaml_con(d.path(), "admin");
         let a = stato(p.clone(), vec![]);
         let ok = a
-            .login(&Credentials { username: "admin".into(), password: "x".into() })
+            .login(&Credentials {
+                username: "admin".into(),
+                password: "x".into(),
+            })
             .await
             .unwrap();
 
         a.chiudi().await;
         // A progetto chiuso **non vale niente**: è il punto su cui la
         // sicurezza non doveva cambiare di un millimetro rispetto a `clear()`.
-        assert!(a.validate(&ok.token).await.is_none(), "a progetto chiuso nessun token vale");
         assert!(
-            a.login(&Credentials { username: "admin".into(), password: "x".into() })
-                .await
-                .is_err(),
+            a.validate(&ok.token).await.is_none(),
+            "a progetto chiuso nessun token vale"
+        );
+        assert!(
+            a.login(&Credentials {
+                username: "admin".into(),
+                password: "x".into()
+            })
+            .await
+            .is_err(),
             "a progetto chiuso nessun login riesce"
         );
 
@@ -1093,7 +1121,10 @@ mod tests {
         let p = users_yaml_con(d.path(), "admin");
         let a = stato(p, vec![]);
         let ok = a
-            .login(&Credentials { username: "admin".into(), password: "x".into() })
+            .login(&Credentials {
+                username: "admin".into(),
+                password: "x".into(),
+            })
             .await
             .unwrap();
         a.chiudi().await;
@@ -1115,7 +1146,10 @@ mod tests {
         let p = users_yaml_con(d.path(), "admin");
         let a = stato(p.clone(), vec![]);
         let ok = a
-            .login(&Credentials { username: "admin".into(), password: "x".into() })
+            .login(&Credentials {
+                username: "admin".into(),
+                password: "x".into(),
+            })
             .await
             .unwrap();
         a.chiudi().await;
@@ -1123,7 +1157,10 @@ mod tests {
         // quindi un `users.yaml` prodotto altrove differisce sempre.
         let _ = users_yaml_con(d.path(), "admin");
         a.swap_store(p, vec![]).await.unwrap();
-        assert!(a.validate(&ok.token).await.is_none(), "password cambiata: sessione caduta");
+        assert!(
+            a.validate(&ok.token).await.is_none(),
+            "password cambiata: sessione caduta"
+        );
     }
 
     /// Senza il seed non c'è niente da scrivere, e il file non si tocca. Prima

@@ -123,7 +123,9 @@ pub fn classifica(t: &[u8], seriale: u32, ora_unix: u32) -> Arrivato {
         r.extend_from_slice(&0x0100u16.to_le_bytes());
         r.extend_from_slice(&ora_unix.to_le_bytes());
         r.extend_from_slice(&0u32.to_le_bytes());
-        return Arrivato::Servizio { risposta: chiudi(r) };
+        return Arrivato::Servizio {
+            risposta: chiudi(r),
+        };
     }
     if controllo != RISPOSTA {
         return Arrivato::Scarto(format!("codice di controllo 0x{controllo:02X} sconosciuto"));
@@ -161,8 +163,14 @@ mod tests {
         let rtu = rtu::richiesta_lettura(1, 3, 0x0200, 0x56);
         let t = incapsula(SERIALE, 0x12, &rtu);
         assert_eq!(t.len(), 13 + 15 + rtu.len());
-        assert_eq!(&t[..11], &[0xA5, 23, 0, 0x10, 0x45, 0x12, 0, 0xF2, 0x68, 0x75, 0x6A]);
-        assert_eq!(&t[11..26], &[0x02, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]);
+        assert_eq!(
+            &t[..11],
+            &[0xA5, 23, 0, 0x10, 0x45, 0x12, 0, 0xF2, 0x68, 0x75, 0x6A]
+        );
+        assert_eq!(
+            &t[11..26],
+            &[0x02, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+        );
         assert_eq!(&t[26..34], &rtu[..]);
         assert_eq!(t[t.len() - 2], checksum(&t[1..t.len() - 2]));
         assert_eq!(t[t.len() - 1], 0x15);
@@ -172,7 +180,10 @@ mod tests {
     fn una_risposta_si_riconosce() {
         let rtu = vec![1, 3, 2, 0x00, 0x11, 0x78, 0x48];
         let t = risposta(0x12, &rtu);
-        assert_eq!(classifica(&t, SERIALE, 0), Arrivato::Risposta { seq: 0x12, rtu });
+        assert_eq!(
+            classifica(&t, SERIALE, 0),
+            Arrivato::Risposta { seq: 0x12, rtu }
+        );
     }
 
     #[test]
@@ -182,7 +193,10 @@ mod tests {
         t[n - 2] ^= 1;
         assert!(matches!(classifica(&t, SERIALE, 0), Arrivato::Scarto(_)));
         let t = risposta(1, &[1, 3, 2, 0, 1, 0, 0]);
-        assert!(matches!(classifica(&t, SERIALE + 1, 0), Arrivato::Scarto(_)));
+        assert!(matches!(
+            classifica(&t, SERIALE + 1, 0),
+            Arrivato::Scarto(_)
+        ));
     }
 
     #[test]
@@ -190,8 +204,13 @@ mod tests {
         let mut b = intestazione(1, 0x47, [0x07, 0x01], SERIALE);
         b.push(0);
         let b = chiudi(b);
-        let Arrivato::Servizio { risposta } = classifica(&b, SERIALE, 0x6543_2100) else { panic!() };
-        assert_eq!(&risposta[..11], &[0xA5, 10, 0, 0x10, 0x17, 0x08, 0x01, 0xF2, 0x68, 0x75, 0x6A]);
+        let Arrivato::Servizio { risposta } = classifica(&b, SERIALE, 0x6543_2100) else {
+            panic!()
+        };
+        assert_eq!(
+            &risposta[..11],
+            &[0xA5, 10, 0, 0x10, 0x17, 0x08, 0x01, 0xF2, 0x68, 0x75, 0x6A]
+        );
         assert_eq!(&risposta[11..13], &[0x00, 0x01]);
         assert_eq!(&risposta[13..17], &0x6543_2100u32.to_le_bytes());
         assert_eq!(risposta.len(), 13 + 10);

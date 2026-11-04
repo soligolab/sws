@@ -93,10 +93,12 @@ fn istante_di_oggi_ms(minuti: u32) -> u64 {
     let locale = adesso.date_naive().and_time(ora);
     let t = match chrono::Local.from_local_datetime(&locale) {
         chrono::LocalResult::Single(t) | chrono::LocalResult::Ambiguous(t, _) => t,
-        chrono::LocalResult::None => match chrono::Local.from_local_datetime(&(locale + Duration::hours(1))) {
-            chrono::LocalResult::Single(t) | chrono::LocalResult::Ambiguous(t, _) => t,
-            chrono::LocalResult::None => adesso,
-        },
+        chrono::LocalResult::None => {
+            match chrono::Local.from_local_datetime(&(locale + Duration::hours(1))) {
+                chrono::LocalResult::Single(t) | chrono::LocalResult::Ambiguous(t, _) => t,
+                chrono::LocalResult::None => adesso,
+            }
+        }
     };
     t.timestamp_millis().max(0) as u64
 }
@@ -123,7 +125,9 @@ async fn carica_progetto(dir: &Path) -> Option<sws_core::Project> {
 /// in silenzio — li mostra l'IDE. Il giro si segna fatto comunque: senza, un progetto
 /// senza conferme lo rifarebbe a ogni minuto dopo l'ora.
 pub async fn giro_se_dovuto(dir: &Path, registry: &RegistryCell, audit: &Arc<sws_audit::AuditLog>) {
-    let Some(project) = carica_progetto(dir).await else { return };
+    let Some(project) = carica_progetto(dir).await else {
+        return;
+    };
     let ora = ora_del_progetto(&project);
     let adesso = adesso_ms();
     let st = leggi(dir);
@@ -141,21 +145,32 @@ pub async fn giro_se_dovuto(dir: &Path, registry: &RegistryCell, audit: &Arc<sws
     if !ritenzione::dovuto(adesso, istante_di_oggi_ms(ora), ultimo) {
         return;
     }
-    let Some(reg) = registry.read().await.as_ref().map(Arc::clone) else { return };
+    let Some(reg) = registry.read().await.as_ref().map(Arc::clone) else {
+        return;
+    };
 
     for ds in &project.datastores {
         if ds.retention_rows.is_none() && ds.retention_days.is_none() {
             continue;
         }
-        let Some(c) = st.conferme.get(&ds.id) else { continue };
+        let Some(c) = st.conferme.get(&ds.id) else {
+            continue;
+        };
         if !ritenzione::conferma_vale(
             (c.retention_rows, c.retention_days),
             (ds.retention_rows, ds.retention_days),
         ) {
             continue;
         }
-        let prima = reg.backend_stats(&ds.id).await.map(|s| s.sample_count).unwrap_or(0);
-        match reg.purge_backend(&ds.id, ds.retention_rows, ds.retention_days).await {
+        let prima = reg
+            .backend_stats(&ds.id)
+            .await
+            .map(|s| s.sample_count)
+            .unwrap_or(0);
+        match reg
+            .purge_backend(&ds.id, ds.retention_rows, ds.retention_days)
+            .await
+        {
             Ok(cancellate) => {
                 let vacuum = if ritenzione::serve_vacuum(cancellate, prima) {
                     reg.vacuum_backend(&ds.id).await.ok()
@@ -190,7 +205,9 @@ pub async fn giro_se_dovuto(dir: &Path, registry: &RegistryCell, audit: &Arc<sws
 /// chiede `/api/system`, che l'IDE interroga ogni pochi secondi, per l'avviso in testata.
 /// I numeri li dà `GET /api/datastores/retention`, quando l'Admin apre la scheda.
 pub async fn da_confermare(dir: &Path) -> Vec<String> {
-    let Some(project) = carica_progetto(dir).await else { return Vec::new() };
+    let Some(project) = carica_progetto(dir).await else {
+        return Vec::new();
+    };
     let st = leggi(dir);
     project
         .datastores
@@ -204,7 +221,13 @@ pub async fn da_confermare(dir: &Path) -> Vec<String> {
                 )
             })
         })
-        .map(|ds| if ds.label.is_empty() { ds.id.clone() } else { format!("{} ({})", ds.label, ds.id) })
+        .map(|ds| {
+            if ds.label.is_empty() {
+                ds.id.clone()
+            } else {
+                format!("{} ({})", ds.label, ds.id)
+            }
+        })
         .collect()
 }
 
@@ -252,7 +275,10 @@ pub async fn calcola_stato(dir: &Path, registry: &RegistryCell) -> Option<StatoR
         };
         let (anteprima, errore) = if stato == "da_confermare" {
             match &reg {
-                Some(r) => match r.anteprima_backend(&ds.id, ds.retention_rows, ds.retention_days).await {
+                Some(r) => match r
+                    .anteprima_backend(&ds.id, ds.retention_rows, ds.retention_days)
+                    .await
+                {
                     Ok(a) => (Some(a), None),
                     Err(e) => (None, Some(format!("{e:#}"))),
                 },
@@ -307,13 +333,24 @@ pub async fn conferma_ritenzione(
         return (StatusCode::NOT_FOUND, "progetto non leggibile").into_response();
     };
     let Some(ds) = project.datastores.iter().find(|d| d.id == id) else {
-        return (StatusCode::NOT_FOUND, format!("datastore '{id}' non trovato")).into_response();
+        return (
+            StatusCode::NOT_FOUND,
+            format!("datastore '{id}' non trovato"),
+        )
+            .into_response();
     };
     if ds.retention_rows.is_none() && ds.retention_days.is_none() {
-        return (StatusCode::BAD_REQUEST, "questo datastore non ha limiti di ritenzione").into_response();
+        return (
+            StatusCode::BAD_REQUEST,
+            "questo datastore non ha limiti di ritenzione",
+        )
+            .into_response();
     }
     let anteprima = match s.registry.read().await.as_ref().map(Arc::clone) {
-        Some(r) => r.anteprima_backend(&id, ds.retention_rows, ds.retention_days).await.ok(),
+        Some(r) => r
+            .anteprima_backend(&id, ds.retention_rows, ds.retention_days)
+            .await
+            .ok(),
         None => None,
     };
     {
@@ -329,7 +366,11 @@ pub async fn conferma_ritenzione(
             },
         );
         if let Err(e) = scrivi(&dir, &st) {
-            return (StatusCode::INTERNAL_SERVER_ERROR, format!("stato non scritto: {e}")).into_response();
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                format!("stato non scritto: {e}"),
+            )
+                .into_response();
         }
     }
     s.audit.log(
@@ -355,12 +396,20 @@ mod tests {
     #[test]
     fn lo_stato_si_scrive_e_si_rilegge() {
         let d = tempfile::tempdir().unwrap();
-        assert!(leggi(d.path()).ultimo_giro_ms.is_none(), "senza file: stato vuoto");
+        assert!(
+            leggi(d.path()).ultimo_giro_ms.is_none(),
+            "senza file: stato vuoto"
+        );
         let mut st = StatoFile::default();
         st.ultimo_giro_ms = Some(42);
         st.conferme.insert(
             "default".into(),
-            Conferma { retention_rows: None, retention_days: Some(365), da: Some("admin".into()), il_ms: 7 },
+            Conferma {
+                retention_rows: None,
+                retention_days: Some(365),
+                da: Some("admin".into()),
+                il_ms: 7,
+            },
         );
         scrivi(d.path(), &st).unwrap();
         let r = leggi(d.path());
@@ -375,6 +424,9 @@ mod tests {
         std::fs::create_dir_all(d.path().join("history")).unwrap();
         std::fs::write(d.path().join("history/ritenzione.json"), b"{rotto").unwrap();
         let st = leggi(d.path());
-        assert!(st.conferme.is_empty(), "nessuna conferma inventata da un file rotto");
+        assert!(
+            st.conferme.is_empty(),
+            "nessuna conferma inventata da un file rotto"
+        );
     }
 }

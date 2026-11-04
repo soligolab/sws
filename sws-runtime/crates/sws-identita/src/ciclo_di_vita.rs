@@ -74,7 +74,11 @@ impl Identita {
                  ORDER BY id",
             )?;
             let righe = q.query_map(params![soglia], |r| {
-                Ok(DaAvvisare { id: r.get(0)?, email: r.get(1)?, ultimo_accesso_ms: r.get::<_, i64>(2)? as u64 })
+                Ok(DaAvvisare {
+                    id: r.get(0)?,
+                    email: r.get(1)?,
+                    ultimo_accesso_ms: r.get::<_, i64>(2)? as u64,
+                })
             })?;
             Ok(righe.collect::<Result<_, _>>()?)
         })
@@ -98,7 +102,12 @@ impl Identita {
     /// Chiude l'account di chi lo chiede, con la sua password: da subito non
     /// entra più e le sessioni cadono; fra 30 giorni [`Identita::cancella_scaduti`]
     /// lo toglie. Solo per chi si è registrato da sé.
-    pub async fn chiudi_account(&self, email: &str, password: &str, adesso_ms: u64) -> anyhow::Result<()> {
+    pub async fn chiudi_account(
+        &self,
+        email: &str,
+        password: &str,
+        adesso_ms: u64,
+    ) -> anyhow::Result<()> {
         let conn = self.conn.clone();
         let chiave = email.trim().to_lowercase();
         let trovato: Option<(i64, String)> = {
@@ -127,7 +136,10 @@ impl Identita {
                 "UPDATE utenti SET attivo = 0, chiuso_ms = ?1, aggiornato_ms = ?1 WHERE id = ?2",
                 params![adesso_ms as i64, utente_id],
             )?;
-            c.execute("DELETE FROM sessioni WHERE utente_id = ?1", params![utente_id])?;
+            c.execute(
+                "DELETE FROM sessioni WHERE utente_id = ?1",
+                params![utente_id],
+            )?;
             Ok(())
         })
         .await?
@@ -230,7 +242,8 @@ mod test {
         // stesso millisecondo si sarebbero presi lo stesso archivio.
         static N: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
         let n = N.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-        let dir = std::env::temp_dir().join(format!("sws-ciclo-{}-{}-{n}", std::process::id(), ora_ms()));
+        let dir =
+            std::env::temp_dir().join(format!("sws-ciclo-{}-{}-{n}", std::process::id(), ora_ms()));
         let id = Identita::apri(dir.join("identita.db")).await.unwrap();
         (id, dir)
     }
@@ -262,14 +275,24 @@ mod test {
         let avvisi = id.da_avvisare(adesso).await.unwrap();
         assert_eq!(avvisi.iter().map(|a| a.id).collect::<Vec<_>>(), vec![u]);
         id.segna_avvisato(u, adesso - 31 * GIORNO).await.unwrap();
-        assert!(id.da_avvisare(adesso).await.unwrap().is_empty(), "un avviso solo");
+        assert!(
+            id.da_avvisare(adesso).await.unwrap().is_empty(),
+            "un avviso solo"
+        );
 
         let via = id.cancella_scaduti(adesso).await.unwrap();
         assert_eq!(via.len(), 1);
         assert_eq!(via[0].motivo, Motivo::Inattivo);
         assert_eq!(via[0].cartelle.len(), 1);
         assert!(via[0].cartelle[0].starts_with('u'), "{:?}", via[0].cartelle);
-        assert!(id.elenca_aziende().await.unwrap().iter().all(|a| !a.personale), "l'azienda personale se ne va");
+        assert!(
+            id.elenca_aziende()
+                .await
+                .unwrap()
+                .iter()
+                .all(|a| !a.personale),
+            "l'azienda personale se ne va"
+        );
         let _ = std::fs::remove_dir_all(dir);
     }
 
@@ -290,13 +313,27 @@ mod test {
         let (id, dir) = archivio().await;
         registrato(&id, "mario@tizio.it").await;
         assert!(id.chiudibile("Mario@Tizio.it").await);
-        assert!(id.chiudi_account("mario@tizio.it", "sbagliata", ora_ms()).await.is_err());
-        id.chiudi_account("mario@tizio.it", "password-lunga", ora_ms()).await.unwrap();
+        assert!(id
+            .chiudi_account("mario@tizio.it", "sbagliata", ora_ms())
+            .await
+            .is_err());
+        id.chiudi_account("mario@tizio.it", "password-lunga", ora_ms())
+            .await
+            .unwrap();
         assert!(!id.chiudibile("mario@tizio.it").await);
-        assert!(id.accedi("mario@tizio.it", "password-lunga").await.is_err(), "fuori da subito");
-        assert!(id.cancella_scaduti(ora_ms()).await.unwrap().is_empty(), "non prima dei 30 giorni");
+        assert!(
+            id.accedi("mario@tizio.it", "password-lunga").await.is_err(),
+            "fuori da subito"
+        );
+        assert!(
+            id.cancella_scaduti(ora_ms()).await.unwrap().is_empty(),
+            "non prima dei 30 giorni"
+        );
         let via = id.cancella_scaduti(ora_ms() + 31 * GIORNO).await.unwrap();
-        assert_eq!(via.iter().map(|c| c.motivo).collect::<Vec<_>>(), vec![Motivo::Chiuso]);
+        assert_eq!(
+            via.iter().map(|c| c.motivo).collect::<Vec<_>>(),
+            vec![Motivo::Chiuso]
+        );
         let _ = std::fs::remove_dir_all(dir);
     }
 
@@ -304,20 +341,39 @@ mod test {
     async fn riattivare_entro_trenta_giorni_annulla_la_chiusura() {
         let (id, dir) = archivio().await;
         let u = registrato(&id, "mario@tizio.it").await;
-        id.chiudi_account("mario@tizio.it", "password-lunga", ora_ms()).await.unwrap();
+        id.chiudi_account("mario@tizio.it", "password-lunga", ora_ms())
+            .await
+            .unwrap();
         id.riattiva(u).await.unwrap();
-        assert!(id.cancella_scaduti(ora_ms() + 31 * GIORNO).await.unwrap().is_empty());
+        assert!(id
+            .cancella_scaduti(ora_ms() + 31 * GIORNO)
+            .await
+            .unwrap()
+            .is_empty());
         let _ = std::fs::remove_dir_all(dir);
     }
 
     #[tokio::test]
     async fn gli_utenti_creati_dall_azienda_non_si_toccano() {
         let (id, dir) = archivio().await;
-        let u = id.crea_utente("anna@azienda.it", "Anna", "password-lunga", Ruolo::Sviluppatore, false).await.unwrap().id;
+        let u = id
+            .crea_utente(
+                "anna@azienda.it",
+                "Anna",
+                "password-lunga",
+                Ruolo::Sviluppatore,
+                false,
+            )
+            .await
+            .unwrap()
+            .id;
         invecchia(&id, u, "creato_ms", 1).await;
         assert!(id.da_avvisare(ora_ms()).await.unwrap().is_empty());
         assert!(!id.chiudibile("anna@azienda.it").await);
-        assert!(id.chiudi_account("anna@azienda.it", "password-lunga", ora_ms()).await.is_err());
+        assert!(id
+            .chiudi_account("anna@azienda.it", "password-lunga", ora_ms())
+            .await
+            .is_err());
         invecchia(&id, u, "avviso_inattivita_ms", 1).await;
         assert!(id.cancella_scaduti(ora_ms()).await.unwrap().is_empty());
         let _ = std::fs::remove_dir_all(dir);
@@ -326,11 +382,16 @@ mod test {
     #[tokio::test]
     async fn una_registrazione_mai_confermata_sparisce_dopo_trenta_giorni() {
         let (id, dir) = archivio().await;
-        id.registra("ombra@tizio.it", "password-lunga").await.unwrap();
+        id.registra("ombra@tizio.it", "password-lunga")
+            .await
+            .unwrap();
         assert!(id.cancella_scaduti(ora_ms()).await.unwrap().is_empty());
         let via = id.cancella_scaduti(ora_ms() + 31 * GIORNO).await.unwrap();
         assert_eq!(via.len(), 1);
-        assert_eq!((via[0].motivo, via[0].cartelle.len()), (Motivo::NonConfermato, 0));
+        assert_eq!(
+            (via[0].motivo, via[0].cartelle.len()),
+            (Motivo::NonConfermato, 0)
+        );
         let _ = std::fs::remove_dir_all(dir);
     }
 }

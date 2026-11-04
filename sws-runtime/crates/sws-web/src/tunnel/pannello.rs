@@ -44,14 +44,19 @@ static APERTO: std::sync::Mutex<Option<Maniglia>> = std::sync::Mutex::new(None);
 /// spento invece che perso. Un byte `S` su uno stream, come il battito; al
 /// più due secondi, perché lo spegnimento non deve aspettare il cloud.
 pub async fn annuncia_spegnimento() {
-    let Some(m) = APERTO.lock().unwrap_or_else(|e| e.into_inner()).clone() else { return };
+    let Some(m) = APERTO.lock().unwrap_or_else(|e| e.into_inner()).clone() else {
+        return;
+    };
     let annuncio = async {
         use futures_util::io::AsyncWriteExt as _;
         let mut s = m.apri().await.ok()?;
         s.write_all(b"S").await.ok()?;
         s.close().await.ok()
     };
-    if tokio::time::timeout(Duration::from_secs(2), annuncio).await.is_ok() {
+    if tokio::time::timeout(Duration::from_secs(2), annuncio)
+        .await
+        .is_ok()
+    {
         tracing::info!("tunnel: spegnimento annunciato al gateway");
     }
 }
@@ -119,7 +124,10 @@ pub fn tieni_aperto_abbinabile(
             let intestazioni = match abbinamento.tunnel() {
                 Some((nome, token)) => {
                     crate::telefono::registra_pubblico(&url, &nome);
-                    vec![("authorization", format!("Bearer {token}")), ("x-sws-pannello", nome)]
+                    vec![
+                        ("authorization", format!("Bearer {token}")),
+                        ("x-sws-pannello", nome),
+                    ]
                 }
                 None => match (abbinamento.codice(), abbinamento.hw()) {
                     (Some(codice), Some(hw)) => vec![
@@ -133,7 +141,15 @@ pub fn tieni_aperto_abbinabile(
                     }
                 },
             };
-            match un_giro(&url, &intestazioni, porta_gestione, tls, Some(abbinamento.cambiato())).await {
+            match un_giro(
+                &url,
+                &intestazioni,
+                porta_gestione,
+                tls,
+                Some(abbinamento.cambiato()),
+            )
+            .await
+            {
                 Ok(()) => attesa = ATTESA_MINIMA,
                 Err(e) => {
                     tracing::warn!(%url, "tunnel non aperto: {e} — riprovo fra {}s", attesa.as_secs());
@@ -264,7 +280,11 @@ async fn un_giro(
 /// tunnel ci copiava l'HTTP del gateway in chiaro: il runtime rifiutava
 /// l'handshake, il gateway riceveva spazzatura e rispondeva 502 — ogni pannello
 /// abbinato perdeva l'accesso dal cloud, aggiornamento remoto compreso.
-pub(crate) async fn gira_alla_porta(stream: yamux::Stream, porta: u16, tls: bool) -> std::io::Result<()> {
+pub(crate) async fn gira_alla_porta(
+    stream: yamux::Stream,
+    porta: u16,
+    tls: bool,
+) -> std::io::Result<()> {
     let tcp = tokio::net::TcpStream::connect(("127.0.0.1", porta)).await?;
     // Lo stream di yamux parla i tratti di `futures`, la socket TCP quelli di
     // tokio: si traduce il primo invece del secondo, perché `copy_bidirectional`
@@ -272,11 +292,17 @@ pub(crate) async fn gira_alla_porta(stream: yamux::Stream, porta: u16, tls: bool
     let mut stream = stream.compat();
     if tls {
         let nome = rustls::pki_types::ServerName::IpAddress(std::net::Ipv4Addr::LOCALHOST.into());
-        let mut locale = tokio_rustls::TlsConnector::from(config_loopback()).connect(nome, tcp).await?;
-        tokio::io::copy_bidirectional(&mut stream, &mut locale).await.map(|_| ())
+        let mut locale = tokio_rustls::TlsConnector::from(config_loopback())
+            .connect(nome, tcp)
+            .await?;
+        tokio::io::copy_bidirectional(&mut stream, &mut locale)
+            .await
+            .map(|_| ())
     } else {
         let mut locale = tcp;
-        tokio::io::copy_bidirectional(&mut stream, &mut locale).await.map(|_| ())
+        tokio::io::copy_bidirectional(&mut stream, &mut locale)
+            .await
+            .map(|_| ())
     }
 }
 
@@ -322,7 +348,12 @@ impl rustls::client::danger::ServerCertVerifier for SeStesso {
         cert: &rustls::pki_types::CertificateDer<'_>,
         dss: &rustls::DigitallySignedStruct,
     ) -> Result<rustls::client::danger::HandshakeSignatureValid, rustls::Error> {
-        rustls::crypto::verify_tls12_signature(message, cert, dss, &self.provider.signature_verification_algorithms)
+        rustls::crypto::verify_tls12_signature(
+            message,
+            cert,
+            dss,
+            &self.provider.signature_verification_algorithms,
+        )
     }
 
     fn verify_tls13_signature(
@@ -331,11 +362,18 @@ impl rustls::client::danger::ServerCertVerifier for SeStesso {
         cert: &rustls::pki_types::CertificateDer<'_>,
         dss: &rustls::DigitallySignedStruct,
     ) -> Result<rustls::client::danger::HandshakeSignatureValid, rustls::Error> {
-        rustls::crypto::verify_tls13_signature(message, cert, dss, &self.provider.signature_verification_algorithms)
+        rustls::crypto::verify_tls13_signature(
+            message,
+            cert,
+            dss,
+            &self.provider.signature_verification_algorithms,
+        )
     }
 
     fn supported_verify_schemes(&self) -> Vec<rustls::SignatureScheme> {
-        self.provider.signature_verification_algorithms.supported_schemes()
+        self.provider
+            .signature_verification_algorithms
+            .supported_schemes()
     }
 }
 

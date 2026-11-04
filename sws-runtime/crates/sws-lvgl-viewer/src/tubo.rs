@@ -62,7 +62,11 @@ impl Extra {
 pub fn scostamento(ms: u64, indietro: bool) -> f32 {
     let f = (ms % 800) as f32 / 800.0 * 20.0;
     let f = f.floor();
-    if indietro { f } else { -f }
+    if indietro {
+        f
+    } else {
+        -f
+    }
 }
 
 fn paint(c: Rgb, a: f32) -> Paint<'static> {
@@ -123,7 +127,13 @@ pub fn disegna(x: &Extra, colore: Rgb, flusso: Option<f32>, px: &mut Pixmap) {
                 dash: StrokeDash::new(vec![6.0, 14.0], off),
                 ..Default::default()
             };
-            px.stroke_path(&path, &paint(x.colore_flusso, 0.9), &st, Transform::identity(), None);
+            px.stroke_path(
+                &path,
+                &paint(x.colore_flusso, 0.9),
+                &st,
+                Transform::identity(),
+                None,
+            );
         }
     }
     let lato = x.lato();
@@ -169,7 +179,12 @@ mod tests {
     #[test]
     fn la_freccia_finale_punta_avanti_e_quella_iniziale_indietro() {
         let mut px = Pixmap::new(200, 100).unwrap();
-        disegna(&extra(Some(Estremita::Freccia), Some(Estremita::Freccia)), (255, 0, 0), None, &mut px);
+        disegna(
+            &extra(Some(Estremita::Freccia), Some(Estremita::Freccia)),
+            (255, 0, 0),
+            None,
+            &mut px,
+        );
         // Fine (160,50): la punta è a destra, la base a sinistra.
         assert!(rosso(&px, 163, 50));
         assert!(rosso(&px, 157, 47));

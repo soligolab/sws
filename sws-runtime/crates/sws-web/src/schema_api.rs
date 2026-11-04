@@ -260,10 +260,20 @@ pub async fn project_findings(State(s): State<AppState>) -> Json<Vec<Finding>> {
         return Json(Vec::new());
     };
     let mut out = semantic(&project, &pages);
-    out.extend(crate::validate::rilievi_cornici(&project, &pages, &carica_cornici(&dir).await));
+    out.extend(crate::validate::rilievi_cornici(
+        &project,
+        &pages,
+        &carica_cornici(&dir).await,
+    ));
     out.extend(crate::validate::rilievi_finestre(&project, &pages));
-    out.extend(crate::validate::rilievi_faceplate(&project, &carica_faceplate(&dir).await));
-    out.extend(crate::validate::rilievi_trasporto(&project, &trasporti_catalogo(&s).await));
+    out.extend(crate::validate::rilievi_faceplate(
+        &project,
+        &carica_faceplate(&dir).await,
+    ));
+    out.extend(crate::validate::rilievi_trasporto(
+        &project,
+        &trasporti_catalogo(&s).await,
+    ));
     Json(out)
 }
 
@@ -271,7 +281,11 @@ pub async fn project_findings(State(s): State<AppState>) -> Json<Vec<Finding>> {
 async fn trasporti_catalogo(s: &AppState) -> std::collections::HashMap<String, String> {
     let r = crate::catalogo::Radici::da(s);
     tokio::task::spawn_blocking(move || {
-        crate::catalogo::elenco(&r).voci.into_iter().filter_map(|v| Some((v.id, v.trasporto?))).collect()
+        crate::catalogo::elenco(&r)
+            .voci
+            .into_iter()
+            .filter_map(|v| Some((v.id, v.trasporto?)))
+            .collect()
     })
     .await
     .unwrap_or_default()

@@ -62,8 +62,8 @@ fn mappata(tag: &str) -> bool {
     !tag.trim().is_empty()
 }
 
-mod sparkplug;
 pub mod pubblica;
+mod sparkplug;
 
 /// Verifica del certificato del broker **disattivata**, per `insecure_skip_verify`.
 ///
@@ -283,6 +283,7 @@ pub async fn run(
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 async fn run_session(
     // Quanti tentativi falliti ci sono già stati: serve solo a decidere se
     // scrivere la riga di avvio. Il «subscribing» sta dentro questa funzione,
@@ -399,12 +400,20 @@ async fn run_session(
     // sottoscrive come gli altri. Finché non dice «vivo» la sorgente non
     // risponde — il testamento di Zigbee2MQTT e dei suoi simili è conservato,
     // quindi arriva subito dopo la SUBSCRIBE.
-    if let Some(d) = cfg.disponibilita.as_ref().filter(|d| sottoscrivibile(&d.topic)) {
+    if let Some(d) = cfg
+        .disponibilita
+        .as_ref()
+        .filter(|d| sottoscrivibile(&d.topic))
+    {
         client
             .subscribe(&d.topic, source_qos)
             .await
             .map_err(|e| anyhow::anyhow!("subscribe '{}': {e}", d.topic))?;
-        stato.bus(&cfg.id, Collegamento::NonRisponde, Some(format!("nessun messaggio su «{}»", d.topic)));
+        stato.bus(
+            &cfg.id,
+            Collegamento::NonRisponde,
+            Some(format!("nessun messaggio su «{}»", d.topic)),
+        );
     } else {
         stato.bus(&cfg.id, Collegamento::Ok, None);
     }
@@ -481,7 +490,10 @@ async fn run_session(
     let mut periodiche: Vec<Option<tokio::time::Instant>> = cfg
         .pubblica
         .iter()
-        .map(|p| (p.intervallo_ms > 0).then(|| tokio::time::Instant::now() + Duration::from_millis(p.intervallo_ms)))
+        .map(|p| {
+            (p.intervallo_ms > 0)
+                .then(|| tokio::time::Instant::now() + Duration::from_millis(p.intervallo_ms))
+        })
         .collect();
     let mut disponibilita_mandata: Vec<Option<String>> = vec![None; cfg.pubblica.len()];
     // L'ultimo stato mandato (03-11-2026): un giro di lettura riscrive i tag
@@ -494,7 +506,10 @@ async fn run_session(
     const RACCOLTA: Duration = Duration::from_millis(500);
 
     loop {
-        let prossima = scadenza.into_iter().chain(periodiche.iter().flatten().copied()).min();
+        let prossima = scadenza
+            .into_iter()
+            .chain(periodiche.iter().flatten().copied())
+            .min();
         tokio::select! {
             _ = cancel.cancelled() => return Ok(()),
 
@@ -532,7 +547,7 @@ async fn run_session(
                             continue;
                         }
                         let forzata = std::mem::take(&mut periodica_scaduta[i]);
-                        if let Some(payload) = pubblica::stato(&db, p).await {
+                        if let Some(payload) = pubblica::stato(db, p).await {
                             if forzata || stato_mandato[i].as_deref() != Some(payload.as_str()) {
                                 if let Err(e) = client.publish(&p.topic, source_qos, p.retain, payload.clone().into_bytes()).await {
                                     warn!(source = %cfg.id, topic = %p.topic, "MQTT: pubblicazione non riuscita: {e}");
@@ -541,7 +556,7 @@ async fn run_session(
                                 }
                             }
                         }
-                        if let Some((topic, payload)) = pubblica::disponibilita(&db, p).await {
+                        if let Some((topic, payload)) = pubblica::disponibilita(db, p).await {
                             if disponibilita_mandata[i].as_deref() != Some(payload.as_str()) {
                                 if let Err(e) = client.publish(&topic, source_qos, true, payload.clone().into_bytes()).await {
                                     warn!(source = %cfg.id, %topic, "MQTT: disponibilità non pubblicata: {e}");
@@ -902,7 +917,10 @@ mod tests_righe {
             json_path: None,
             publish_topic: None,
             qos: None,
-            richiesta_stato: richiesta.map(|(t, p)| RichiestaStato { topic: t.into(), payload: p.into() }),
+            richiesta_stato: richiesta.map(|(t, p)| RichiestaStato {
+                topic: t.into(),
+                payload: p.into(),
+            }),
         }
     }
 
@@ -914,10 +932,22 @@ mod tests_righe {
     #[test]
     fn le_richieste_di_stato_del_garage() {
         let righe = vec![
-            riga("zigbee2mqtt/garage", Some(("zigbee2mqtt/garage/get", r#"{"state_l1":""}"#))),
-            riga("zigbee2mqtt/garage", Some(("zigbee2mqtt/garage/get", r#"{"state_l2":""}"#))),
-            riga("zigbee2mqtt/garage", Some(("zigbee2mqtt/garage/get", r#"{"state_l3":""}"#))),
-            riga("zigbee2mqtt/garage", Some(("zigbee2mqtt/garage/get", r#"{"state_l3":""}"#))),
+            riga(
+                "zigbee2mqtt/garage",
+                Some(("zigbee2mqtt/garage/get", r#"{"state_l1":""}"#)),
+            ),
+            riga(
+                "zigbee2mqtt/garage",
+                Some(("zigbee2mqtt/garage/get", r#"{"state_l2":""}"#)),
+            ),
+            riga(
+                "zigbee2mqtt/garage",
+                Some(("zigbee2mqtt/garage/get", r#"{"state_l3":""}"#)),
+            ),
+            riga(
+                "zigbee2mqtt/garage",
+                Some(("zigbee2mqtt/garage/get", r#"{"state_l3":""}"#)),
+            ),
             riga("casa/luce", None),
             riga("casa/x", Some(("casa/+/get", ""))),
             riga("casa/y", Some(("  ", "{}"))),
@@ -953,10 +983,16 @@ mod prova_sfoglia_dal_vivo {
             insecure_skip_verify: false,
             ca_cert_path: None,
             duration_secs: 10,
-            certificati: std::sync::Arc::new(sws_core::pin_tls::ImprontaStore::new(std::env::temp_dir().join("sws-prova-impronte.json"))),
+            certificati: std::sync::Arc::new(sws_core::pin_tls::ImprontaStore::new(
+                std::env::temp_dir().join("sws-prova-impronte.json"),
+            )),
         })
         .await;
-        println!("--- {host}: {} topic in {:?} ---", topics.len(), t0.elapsed());
+        println!(
+            "--- {host}: {} topic in {:?} ---",
+            topics.len(),
+            t0.elapsed()
+        );
         for t in &topics {
             println!("    {}  =  {}", t.topic, t.sample_payload);
         }

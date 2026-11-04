@@ -531,8 +531,14 @@ mod tests {
         }
         // In lettura un colore che arriva da MQTT si normalizza; il resto non entra.
         let t = TipoScalare::Colore;
-        assert_eq!(t.converti_lettura(TagValue::Str("#ABC".into())), Lettura::Ok(TagValue::Str("#aabbcc".into())));
-        assert!(matches!(t.converti_lettura(TagValue::Int(1)), Lettura::Rifiutato(_)));
+        assert_eq!(
+            t.converti_lettura(TagValue::Str("#ABC".into())),
+            Lettura::Ok(TagValue::Str("#aabbcc".into()))
+        );
+        assert!(matches!(
+            t.converti_lettura(TagValue::Int(1)),
+            Lettura::Rifiutato(_)
+        ));
     }
 
     #[test]
@@ -598,23 +604,51 @@ mod tests {
         use TagValue::*;
         let t = |n: &str| TipoScalare::parse(n).unwrap();
         assert_eq!(t("i32").converti_lettura(Float(29.8)), Ok(Int(30)));
-        assert_eq!(t("i32").converti_lettura(Float(-2.5)), Ok(Int(-3)), "arrotondamento lontano dallo zero, come f64::round");
+        assert_eq!(
+            t("i32").converti_lettura(Float(-2.5)),
+            Ok(Int(-3)),
+            "arrotondamento lontano dallo zero, come f64::round"
+        );
         assert_eq!(t("u8").converti_lettura(Int(300)), Saturato(Int(255)));
         assert_eq!(t("u16").converti_lettura(Float(-0.4)), Ok(Int(0)));
         assert_eq!(t("u16").converti_lettura(Float(-0.6)), Saturato(Int(0)));
         assert_eq!(t("i64").converti_lettura(Str(" 42 ".into())), Ok(Int(42)));
         assert_eq!(t("i64").converti_lettura(Str("4.6".into())), Ok(Int(5)));
-        assert!(matches!(t("i64").converti_lettura(Str("abc".into())), Rifiutato(_)));
-        assert!(matches!(t("i64").converti_lettura(Bool(true)), Rifiutato(_)));
-        assert!(matches!(t("f64").converti_lettura(Bool(true)), Rifiutato(_)));
-        assert!(matches!(t("f64").converti_lettura(Float(f64::NAN)), Rifiutato(_)));
+        assert!(matches!(
+            t("i64").converti_lettura(Str("abc".into())),
+            Rifiutato(_)
+        ));
+        assert!(matches!(
+            t("i64").converti_lettura(Bool(true)),
+            Rifiutato(_)
+        ));
+        assert!(matches!(
+            t("f64").converti_lettura(Bool(true)),
+            Rifiutato(_)
+        ));
+        assert!(matches!(
+            t("f64").converti_lettura(Float(f64::NAN)),
+            Rifiutato(_)
+        ));
         assert_eq!(t("f64").converti_lettura(Int(3)), Ok(Float(3.0)));
-        assert_eq!(t("f32").converti_lettura(Float(1e300)), Saturato(Float(f32::MAX as f64)));
+        assert_eq!(
+            t("f32").converti_lettura(Float(1e300)),
+            Saturato(Float(f32::MAX as f64))
+        );
         assert_eq!(t("bool").converti_lettura(Str("1".into())), Ok(Bool(true)));
         assert!(matches!(t("bool").converti_lettura(Int(1)), Rifiutato(_)));
-        assert_eq!(t("string").converti_lettura(Float(2.5)), Ok(Str("2.5".into())));
-        assert_eq!(t("string(3)").converti_lettura(Str("abcdef".into())), Saturato(Str("abc".into())));
-        assert!(matches!(t("f64").converti_lettura(Array(vec![])), Rifiutato(_)));
+        assert_eq!(
+            t("string").converti_lettura(Float(2.5)),
+            Ok(Str("2.5".into()))
+        );
+        assert_eq!(
+            t("string(3)").converti_lettura(Str("abcdef".into())),
+            Saturato(Str("abc".into()))
+        );
+        assert!(matches!(
+            t("f64").converti_lettura(Array(vec![])),
+            Rifiutato(_)
+        ));
         assert_eq!(t("datetime").converti_lettura(Float(1.5)), Ok(Int(2)));
     }
 }

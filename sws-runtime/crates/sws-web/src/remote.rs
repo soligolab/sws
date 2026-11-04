@@ -133,7 +133,10 @@ fn spiegazione_del_pannello(url: &str, corpo: &str) -> Option<String> {
     ))
 }
 
-fn impronta_da_mostrare(prima: Option<&str>, adesso: Option<String>) -> (Option<String>, Option<bool>) {
+fn impronta_da_mostrare(
+    prima: Option<&str>,
+    adesso: Option<String>,
+) -> (Option<String>, Option<bool>) {
     match adesso {
         None => (None, None),
         Some(i) => {
@@ -207,7 +210,10 @@ pub async fn connect_remote(
     let stato = stato_abbinamento(&client, &url).await;
     let cloud_senza_utenti = stato
         .as_ref()
-        .and_then(|v| v.get("abbinato_cloud_senza_utenti").and_then(|b| b.as_bool()))
+        .and_then(|v| {
+            v.get("abbinato_cloud_senza_utenti")
+                .and_then(|b| b.as_bool())
+        })
         .unwrap_or(false);
     if cloud_senza_utenti {
         nota = Some(format!(
@@ -519,7 +525,9 @@ pub async fn connect_remote(
     // mostra niente.
     let (impronta, impronta_nuova) = impronta_da_mostrare(
         impronta_prima.as_deref(),
-        chiave_impronta.as_deref().and_then(|k| s.certificati.impronta_di(k)),
+        chiave_impronta
+            .as_deref()
+            .and_then(|k| s.certificati.impronta_di(k)),
     );
 
     (
@@ -563,13 +571,20 @@ pub async fn abbina_cloud(
     let Some(origine) = s.ritorno.origine_se_dietro_al_gateway() else {
         return (
             StatusCode::CONFLICT,
-            Json(serde_json::json!({ "error": "non_cloud", "detail": "questo IDE non gira nel cloud: un pannello in LAN si abbina con «Connetti» e il codice" })),
+            Json(
+                serde_json::json!({ "error": "non_cloud", "detail": "questo IDE non gira nel cloud: un pannello in LAN si abbina con «Connetti» e il codice" }),
+            ),
         );
     };
     let url = format!("{origine}/api/pannelli/abbina");
     let client = match costruisci_client(&s, &url, 30) {
         Ok(c) => c,
-        Err(e) => return (StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({ "detail": e.to_string() }))),
+        Err(e) => {
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(serde_json::json!({ "detail": e.to_string() })),
+            )
+        }
     };
     let r = match client
         .post(&url)
@@ -600,19 +615,28 @@ pub async fn pannello_cloud(
     axum::extract::Path(nome): axum::extract::Path<String>,
 ) -> (StatusCode, Json<serde_json::Value>) {
     let Some(origine) = s.ritorno.origine_se_dietro_al_gateway() else {
-        return (StatusCode::CONFLICT, Json(serde_json::json!({ "detail": "questo IDE non gira nel cloud" })));
+        return (
+            StatusCode::CONFLICT,
+            Json(serde_json::json!({ "detail": "questo IDE non gira nel cloud" })),
+        );
     };
     let base = format!("{origine}/dev/{nome}");
     let client = match costruisci_client(&s, &base, 15) {
         Ok(c) => c,
-        Err(e) => return (StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({ "detail": e.to_string() }))),
+        Err(e) => {
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(serde_json::json!({ "detail": e.to_string() })),
+            )
+        }
     };
     let abbinamento = stato_abbinamento(&client, &base).await;
     let collegato = abbinamento.is_some();
-    let sistema: Option<serde_json::Value> = match client.get(format!("{base}/api/system")).send().await {
-        Ok(r) if r.status().is_success() => r.json().await.ok(),
-        _ => None,
-    };
+    let sistema: Option<serde_json::Value> =
+        match client.get(format!("{base}/api/system")).send().await {
+            Ok(r) if r.status().is_success() => r.json().await.ok(),
+            _ => None,
+        };
     let campo = |v: &Option<serde_json::Value>, k: &str| v.as_ref().and_then(|x| x.get(k)).cloned();
     (
         StatusCode::OK,
@@ -643,19 +667,36 @@ pub async fn rinomina_cloud(
     Json(b): Json<RinominaCloud>,
 ) -> (StatusCode, Json<serde_json::Value>) {
     let Some(origine) = s.ritorno.origine_se_dietro_al_gateway() else {
-        return (StatusCode::CONFLICT, Json(serde_json::json!({ "detail": "questo IDE non gira nel cloud" })));
+        return (
+            StatusCode::CONFLICT,
+            Json(serde_json::json!({ "detail": "questo IDE non gira nel cloud" })),
+        );
     };
     let url = format!("{origine}/api/pannelli/{nome}/rinomina");
     let client = match costruisci_client(&s, &url, 30) {
         Ok(c) => c,
-        Err(e) => return (StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({ "detail": e.to_string() }))),
+        Err(e) => {
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(serde_json::json!({ "detail": e.to_string() })),
+            )
+        }
     };
-    match client.post(&url).json(&serde_json::json!({ "nuovo": b.nuovo })).send().await {
+    match client
+        .post(&url)
+        .json(&serde_json::json!({ "nuovo": b.nuovo }))
+        .send()
+        .await
+    {
         Ok(r) => {
-            let stato = StatusCode::from_u16(r.status().as_u16()).unwrap_or(StatusCode::BAD_GATEWAY);
+            let stato =
+                StatusCode::from_u16(r.status().as_u16()).unwrap_or(StatusCode::BAD_GATEWAY);
             (stato, Json(r.json().await.unwrap_or_default()))
         }
-        Err(e) => (StatusCode::BAD_GATEWAY, Json(serde_json::json!({ "detail": format!("il gateway non risponde: {e}") }))),
+        Err(e) => (
+            StatusCode::BAD_GATEWAY,
+            Json(serde_json::json!({ "detail": format!("il gateway non risponde: {e}") })),
+        ),
     }
 }
 
@@ -664,7 +705,11 @@ pub const AZIONE_ABBINAMENTO: &str = "abbinamento-richiesto";
 
 /// `GET /api/abbinamento` del target, se ce l'ha.
 async fn stato_abbinamento(client: &reqwest::Client, url: &str) -> Option<serde_json::Value> {
-    let r = client.get(format!("{url}/api/abbinamento")).send().await.ok()?;
+    let r = client
+        .get(format!("{url}/api/abbinamento"))
+        .send()
+        .await
+        .ok()?;
     if !r.status().is_success() {
         return None;
     }
@@ -767,7 +812,10 @@ pub(crate) struct DispositivoRicordato {
 
 const FILE_DISPOSITIVO: &str = "dispositivo.yaml";
 
-pub(crate) fn ricorda_dispositivo(config_dir: &std::path::Path, d: &DispositivoRicordato) -> std::io::Result<()> {
+pub(crate) fn ricorda_dispositivo(
+    config_dir: &std::path::Path,
+    d: &DispositivoRicordato,
+) -> std::io::Result<()> {
     let testo = serde_yaml::to_string(d).map_err(std::io::Error::other)?;
     crate::segreti::scrivi_chiave(config_dir, FILE_DISPOSITIVO, &testo).map(|_| ())
 }
@@ -798,11 +846,18 @@ pub(crate) async fn ripristina_se_serve(s: &AppState) {
     if !s.supervisor.e_nel_cloud() || s.remote_target.read().await.is_some() {
         return;
     }
-    let Some(d) = dispositivo_ricordato(&s.config_dir) else { return };
-    let ora = SystemTime::now().duration_since(UNIX_EPOCH).unwrap_or_default().as_millis() as u64;
+    let Some(d) = dispositivo_ricordato(&s.config_dir) else {
+        return;
+    };
+    let ora = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_millis() as u64;
     let prima = ULTIMO_TENTATIVO_MS.load(Ordering::Relaxed);
     if ora.saturating_sub(prima) < 30_000
-        || ULTIMO_TENTATIVO_MS.compare_exchange(prima, ora, Ordering::Relaxed, Ordering::Relaxed).is_err()
+        || ULTIMO_TENTATIVO_MS
+            .compare_exchange(prima, ora, Ordering::Relaxed, Ordering::Relaxed)
+            .is_err()
     {
         return;
     }
@@ -842,7 +897,10 @@ fn mascherata(v: &serde_json::Value) -> bool {
 
 /// Sfoglia MQTT: la password mascherata diventa quella della sorgente
 /// `source_id` del progetto dell'IDE. Pura, per il test.
-pub(crate) fn risolvi_mqtt(mut b: serde_json::Value, p: Option<&sws_core::project::Project>) -> serde_json::Value {
+pub(crate) fn risolvi_mqtt(
+    mut b: serde_json::Value,
+    p: Option<&sws_core::project::Project>,
+) -> serde_json::Value {
     if b.get("password").is_some_and(mascherata) {
         let sid = b.get("source_id").and_then(|v| v.as_str()).unwrap_or("");
         let vera = p.and_then(|p| {
@@ -851,15 +909,24 @@ pub(crate) fn risolvi_mqtt(mut b: serde_json::Value, p: Option<&sws_core::projec
                 _ => None,
             })
         });
-        b["password"] = vera.map(serde_json::Value::String).unwrap_or(serde_json::Value::Null);
+        b["password"] = vera
+            .map(serde_json::Value::String)
+            .unwrap_or(serde_json::Value::Null);
     }
     b
 }
 
 /// Sfoglia OPC-UA ed Euromap: come MQTT, dentro `auth.password`.
-pub(crate) fn risolvi_opcua(mut b: serde_json::Value, p: Option<&sws_core::project::Project>) -> serde_json::Value {
+pub(crate) fn risolvi_opcua(
+    mut b: serde_json::Value,
+    p: Option<&sws_core::project::Project>,
+) -> serde_json::Value {
     if b.pointer("/auth/password").is_some_and(mascherata) {
-        let sid = b.get("source_id").and_then(|v| v.as_str()).unwrap_or("").to_string();
+        let sid = b
+            .get("source_id")
+            .and_then(|v| v.as_str())
+            .unwrap_or("")
+            .to_string();
         let vera = p.and_then(|p| {
             p.sources.iter().find_map(|src| match src {
                 sws_core::project::SourceDef::OpcUaClient(c) if c.id == sid => match &c.auth {
@@ -869,7 +936,9 @@ pub(crate) fn risolvi_opcua(mut b: serde_json::Value, p: Option<&sws_core::proje
                 _ => None,
             })
         });
-        b["auth"]["password"] = vera.map(serde_json::Value::String).unwrap_or(serde_json::Value::Null);
+        b["auth"]["password"] = vera
+            .map(serde_json::Value::String)
+            .unwrap_or(serde_json::Value::Null);
     }
     b
 }
@@ -877,11 +946,20 @@ pub(crate) fn risolvi_opcua(mut b: serde_json::Value, p: Option<&sws_core::proje
 /// Sfoglia HA: URL e token della sorgente `source_id`, dal progetto dell'IDE.
 /// `token_env` si lascia al pannello: nel cloud l'ambiente del container non è
 /// quello dell'impianto, e se il token vive in una variabile d'ambiente vive là.
-pub(crate) fn risolvi_ha(mut b: serde_json::Value, p: Option<&sws_core::project::Project>) -> serde_json::Value {
-    let sid = b.get("source_id").and_then(|v| v.as_str()).unwrap_or("").to_string();
+pub(crate) fn risolvi_ha(
+    mut b: serde_json::Value,
+    p: Option<&sws_core::project::Project>,
+) -> serde_json::Value {
+    let sid = b
+        .get("source_id")
+        .and_then(|v| v.as_str())
+        .unwrap_or("")
+        .to_string();
     let trovata = p.and_then(|p| {
         p.sources.iter().find_map(|src| match src {
-            sws_core::project::SourceDef::HomeAssistant(c) if c.id == sid && c.token_env.is_none() => {
+            sws_core::project::SourceDef::HomeAssistant(c)
+                if c.id == sid && c.token_env.is_none() =>
+            {
                 Some((c.url.clone(), c.token.clone().unwrap_or_default()))
             }
             _ => None,
@@ -932,7 +1010,10 @@ async fn inoltra_al_pannello(
         Ok(c) => c,
         Err(e) => return (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response(),
     };
-    let mut req = client.request(metodo, format!("{}{percorso}", target.url.trim_end_matches('/')));
+    let mut req = client.request(
+        metodo,
+        format!("{}{percorso}", target.url.trim_end_matches('/')),
+    );
     if let Some(c) = corpo {
         req = req.json(&c);
     }
@@ -965,28 +1046,76 @@ async fn inoltra_al_pannello(
 }
 
 /// `POST /api/remote/sources/mqtt/browse` → `"{base}/api/sources/mqtt/browse"`.
-pub async fn remote_mqtt_browse(State(s): State<AppState>, Json(b): Json<serde_json::Value>) -> Response {
-    let durata = b.get("duration_secs").and_then(|v| v.as_u64()).unwrap_or(30).min(120);
+pub async fn remote_mqtt_browse(
+    State(s): State<AppState>,
+    Json(b): Json<serde_json::Value>,
+) -> Response {
+    let durata = b
+        .get("duration_secs")
+        .and_then(|v| v.as_u64())
+        .unwrap_or(30)
+        .min(120);
     let b = risolvi_mqtt(b, progetto_ide(&s).await.as_ref());
-    inoltra_al_pannello(&s, None, reqwest::Method::POST, "/api/sources/mqtt/browse", Some(b), durata + 30).await
+    inoltra_al_pannello(
+        &s,
+        None,
+        reqwest::Method::POST,
+        "/api/sources/mqtt/browse",
+        Some(b),
+        durata + 30,
+    )
+    .await
 }
 
 /// `POST /api/remote/sources/opcua/browse` → `"{base}/api/sources/opcua/browse"`.
-pub async fn remote_opcua_browse(State(s): State<AppState>, Json(b): Json<serde_json::Value>) -> Response {
+pub async fn remote_opcua_browse(
+    State(s): State<AppState>,
+    Json(b): Json<serde_json::Value>,
+) -> Response {
     let b = risolvi_opcua(b, progetto_ide(&s).await.as_ref());
-    inoltra_al_pannello(&s, None, reqwest::Method::POST, "/api/sources/opcua/browse", Some(b), 60).await
+    inoltra_al_pannello(
+        &s,
+        None,
+        reqwest::Method::POST,
+        "/api/sources/opcua/browse",
+        Some(b),
+        60,
+    )
+    .await
 }
 
 /// `POST /api/remote/sources/opcua/detect-euromap` → `"{base}/api/sources/opcua/detect-euromap"`.
-pub async fn remote_opcua_euromap(State(s): State<AppState>, Json(b): Json<serde_json::Value>) -> Response {
+pub async fn remote_opcua_euromap(
+    State(s): State<AppState>,
+    Json(b): Json<serde_json::Value>,
+) -> Response {
     let b = risolvi_opcua(b, progetto_ide(&s).await.as_ref());
-    inoltra_al_pannello(&s, None, reqwest::Method::POST, "/api/sources/opcua/detect-euromap", Some(b), 60).await
+    inoltra_al_pannello(
+        &s,
+        None,
+        reqwest::Method::POST,
+        "/api/sources/opcua/detect-euromap",
+        Some(b),
+        60,
+    )
+    .await
 }
 
 /// `POST /api/remote/sources/ha/browse` → `"{base}/api/sources/ha/browse"`.
-pub async fn remote_ha_browse(State(s): State<AppState>, Json(b): Json<serde_json::Value>) -> Response {
+pub async fn remote_ha_browse(
+    State(s): State<AppState>,
+    Json(b): Json<serde_json::Value>,
+) -> Response {
     let b = risolvi_ha(b, progetto_ide(&s).await.as_ref());
-    inoltra_al_pannello(&s, None, reqwest::Method::POST, "/api/sources/ha/browse", Some(b), 30).await
+    inoltra_al_pannello(
+        &s,
+        None,
+        reqwest::Method::POST,
+        "/api/sources/ha/browse",
+        Some(b),
+        30,
+    )
+    .await
 }
 
 /// `GET /api/remote/sources/:id/opcua/certs` → `"{base}/api/sources/{}/opcua/certs"`.
@@ -1002,7 +1131,11 @@ pub async fn remote_opcua_trust(
     Extension(user): Extension<AuthUser>,
     Path((id, file)): Path<(String, String)>,
 ) -> Response {
-    let p = format!("/api/sources/{}/opcua/certs/{}/trust", segmento(&id), segmento(&file));
+    let p = format!(
+        "/api/sources/{}/opcua/certs/{}/trust",
+        segmento(&id),
+        segmento(&file)
+    );
     inoltra_al_pannello(&s, Some(&user), reqwest::Method::POST, &p, None, 30).await
 }
 
@@ -1013,7 +1146,11 @@ pub async fn remote_opcua_delete_cert(
     Extension(user): Extension<AuthUser>,
     Path((id, file)): Path<(String, String)>,
 ) -> Response {
-    let p = format!("/api/sources/{}/opcua/certs/{}", segmento(&id), segmento(&file));
+    let p = format!(
+        "/api/sources/{}/opcua/certs/{}",
+        segmento(&id),
+        segmento(&file)
+    );
     inoltra_al_pannello(&s, Some(&user), reqwest::Method::DELETE, &p, None, 30).await
 }
 
@@ -1042,7 +1179,15 @@ pub async fn remote_certificati_dimentica(
     Extension(user): Extension<AuthUser>,
     Json(b): Json<serde_json::Value>,
 ) -> Response {
-    inoltra_al_pannello(&s, Some(&user), reqwest::Method::POST, "/api/certificati/dimentica", Some(b), 30).await
+    inoltra_al_pannello(
+        &s,
+        Some(&user),
+        reqwest::Method::POST,
+        "/api/certificati/dimentica",
+        Some(b),
+        30,
+    )
+    .await
 }
 
 /// `DELETE /api/remote/connect` — clear the remote target state.
@@ -1510,7 +1655,11 @@ async fn inoltra_aggiornamento(
         None => return (StatusCode::BAD_REQUEST, "No remote runtime connected").into_response(),
     };
     if metodo != reqwest::Method::GET {
-        s.audit.log("remote.update", Some(user.username.clone()), serde_json::json!({ "url": target.url, "metodo": metodo.as_str() }));
+        s.audit.log(
+            "remote.update",
+            Some(user.username.clone()),
+            serde_json::json!({ "url": target.url, "metodo": metodo.as_str() }),
+        );
     }
     let client = make_remote_client(s, &target.url);
     let base = target.url.trim_end_matches('/');
@@ -1551,8 +1700,14 @@ async fn inoltra_aggiornamento(
 }
 
 /// `GET /api/remote/update/schedule`
-pub async fn remote_finestra_leggi(State(s): State<AppState>, Extension(user): Extension<AuthUser>) -> Response {
-    inoltra_aggiornamento(&s, &user, reqwest::Method::GET, None, |base| format!("{base}/api/update/schedule")).await
+pub async fn remote_finestra_leggi(
+    State(s): State<AppState>,
+    Extension(user): Extension<AuthUser>,
+) -> Response {
+    inoltra_aggiornamento(&s, &user, reqwest::Method::GET, None, |base| {
+        format!("{base}/api/update/schedule")
+    })
+    .await
 }
 
 /// `PUT /api/remote/update/schedule`
@@ -1561,7 +1716,10 @@ pub async fn remote_finestra_scrivi(
     Extension(user): Extension<AuthUser>,
     Json(corpo): Json<serde_json::Value>,
 ) -> Response {
-    inoltra_aggiornamento(&s, &user, reqwest::Method::PUT, Some(corpo), |base| format!("{base}/api/update/schedule")).await
+    inoltra_aggiornamento(&s, &user, reqwest::Method::PUT, Some(corpo), |base| {
+        format!("{base}/api/update/schedule")
+    })
+    .await
 }
 
 /// `GET /api/remote/history/export?tags=&from_ms=&to_ms=` (18-10-2026): il CSV
@@ -1577,7 +1735,11 @@ pub async fn remote_history_export(
         None => return (StatusCode::BAD_REQUEST, "No remote runtime connected").into_response(),
     };
     let q = q.unwrap_or_default();
-    s.audit.log("remote.history_export", Some(user.username), serde_json::json!({ "url": target.url, "query": q }));
+    s.audit.log(
+        "remote.history_export",
+        Some(user.username),
+        serde_json::json!({ "url": target.url, "query": q }),
+    );
     let client = make_remote_client(&s, &target.url);
     let base = target.url.trim_end_matches('/');
     let mut req = client.get(format!("{base}/api/history/export?{q}"));
@@ -1589,22 +1751,43 @@ pub async fn remote_history_export(
             Ok(b) => Response::builder()
                 .status(StatusCode::OK)
                 .header("Content-Type", "text/csv; charset=utf-8")
-                .header("Content-Disposition", "attachment; filename=\"storico.csv\"")
+                .header(
+                    "Content-Disposition",
+                    "attachment; filename=\"storico.csv\"",
+                )
                 .body(axum::body::Body::from(b))
                 .unwrap_or_else(|_| StatusCode::INTERNAL_SERVER_ERROR.into_response()),
-            Err(e) => (StatusCode::BAD_GATEWAY, format!("Lettura della risposta dal dispositivo fallita: {e}")).into_response(),
+            Err(e) => (
+                StatusCode::BAD_GATEWAY,
+                format!("Lettura della risposta dal dispositivo fallita: {e}"),
+            )
+                .into_response(),
         },
         Ok(r) => {
             let st = r.status();
-            (StatusCode::BAD_GATEWAY, format!("il dispositivo ha risposto {st}")).into_response()
+            (
+                StatusCode::BAD_GATEWAY,
+                format!("il dispositivo ha risposto {st}"),
+            )
+                .into_response()
         }
-        Err(e) => (StatusCode::BAD_GATEWAY, format!("dispositivo non raggiungibile: {e}")).into_response(),
+        Err(e) => (
+            StatusCode::BAD_GATEWAY,
+            format!("dispositivo non raggiungibile: {e}"),
+        )
+            .into_response(),
     }
 }
 
 /// `GET /api/remote/security/frame-origins` (C6, 17-10-2026)
-pub async fn remote_sicurezza_leggi(State(s): State<AppState>, Extension(user): Extension<AuthUser>) -> Response {
-    inoltra_aggiornamento(&s, &user, reqwest::Method::GET, None, |base| format!("{base}/api/security/frame-origins")).await
+pub async fn remote_sicurezza_leggi(
+    State(s): State<AppState>,
+    Extension(user): Extension<AuthUser>,
+) -> Response {
+    inoltra_aggiornamento(&s, &user, reqwest::Method::GET, None, |base| {
+        format!("{base}/api/security/frame-origins")
+    })
+    .await
 }
 
 /// `PUT /api/remote/security/frame-origins`
@@ -1613,23 +1796,44 @@ pub async fn remote_sicurezza_scrivi(
     Extension(user): Extension<AuthUser>,
     Json(corpo): Json<serde_json::Value>,
 ) -> Response {
-    inoltra_aggiornamento(&s, &user, reqwest::Method::PUT, Some(corpo), |base| format!("{base}/api/security/frame-origins")).await
+    inoltra_aggiornamento(&s, &user, reqwest::Method::PUT, Some(corpo), |base| {
+        format!("{base}/api/security/frame-origins")
+    })
+    .await
 }
 
 /// `GET /api/remote/update/status`
-pub async fn remote_update_status(State(s): State<AppState>, Extension(user): Extension<AuthUser>) -> Response {
-    inoltra_aggiornamento(&s, &user, reqwest::Method::GET, None, |base| format!("{base}/api/update/status")).await
+pub async fn remote_update_status(
+    State(s): State<AppState>,
+    Extension(user): Extension<AuthUser>,
+) -> Response {
+    inoltra_aggiornamento(&s, &user, reqwest::Method::GET, None, |base| {
+        format!("{base}/api/update/status")
+    })
+    .await
 }
 
 /// `POST /api/remote/quadlet/aggiorna` (02-10-2026): riscrive i quadlet del
 /// pannello dai template della sua immagine — il quadlet che viaggia.
-pub async fn remote_quadlet_aggiorna(State(s): State<AppState>, Extension(user): Extension<AuthUser>) -> Response {
-    inoltra_aggiornamento(&s, &user, reqwest::Method::POST, None, |base| format!("{base}/api/quadlet/aggiorna")).await
+pub async fn remote_quadlet_aggiorna(
+    State(s): State<AppState>,
+    Extension(user): Extension<AuthUser>,
+) -> Response {
+    inoltra_aggiornamento(&s, &user, reqwest::Method::POST, None, |base| {
+        format!("{base}/api/quadlet/aggiorna")
+    })
+    .await
 }
 
 /// `POST /api/remote/openplc/installa` — OpenPLC sul pannello collegato (30-10-2026).
-pub async fn remote_openplc_installa(State(s): State<AppState>, Extension(user): Extension<AuthUser>) -> Response {
-    inoltra_aggiornamento(&s, &user, reqwest::Method::POST, None, |base| format!("{base}/api/openplc/installa")).await
+pub async fn remote_openplc_installa(
+    State(s): State<AppState>,
+    Extension(user): Extension<AuthUser>,
+) -> Response {
+    inoltra_aggiornamento(&s, &user, reqwest::Method::POST, None, |base| {
+        format!("{base}/api/openplc/installa")
+    })
+    .await
 }
 
 /// `POST /api/remote/aggiornamento/conferma` — la risposta alla domanda dopo un aggiornamento.
@@ -1638,18 +1842,33 @@ pub async fn remote_conferma_aggiornamento(
     Extension(user): Extension<AuthUser>,
     Json(corpo): Json<serde_json::Value>,
 ) -> Response {
-    inoltra_aggiornamento(&s, &user, reqwest::Method::POST, Some(corpo), |base| format!("{base}/api/aggiornamento/conferma")).await
+    inoltra_aggiornamento(&s, &user, reqwest::Method::POST, Some(corpo), |base| {
+        format!("{base}/api/aggiornamento/conferma")
+    })
+    .await
 }
 
 /// `POST /api/remote/aggiornamento/istantanea` — l'istantanea dei dati prima di
 /// un deploy da archivio.
-pub async fn remote_istantanea_dati(State(s): State<AppState>, Extension(user): Extension<AuthUser>) -> Response {
-    inoltra_aggiornamento(&s, &user, reqwest::Method::POST, None, |base| format!("{base}/api/aggiornamento/istantanea")).await
+pub async fn remote_istantanea_dati(
+    State(s): State<AppState>,
+    Extension(user): Extension<AuthUser>,
+) -> Response {
+    inoltra_aggiornamento(&s, &user, reqwest::Method::POST, None, |base| {
+        format!("{base}/api/aggiornamento/istantanea")
+    })
+    .await
 }
 
 /// `POST /api/remote/update/apply`
-pub async fn remote_update_apply(State(s): State<AppState>, Extension(user): Extension<AuthUser>) -> Response {
-    inoltra_aggiornamento(&s, &user, reqwest::Method::POST, None, |base| format!("{base}/api/update/apply")).await
+pub async fn remote_update_apply(
+    State(s): State<AppState>,
+    Extension(user): Extension<AuthUser>,
+) -> Response {
+    inoltra_aggiornamento(&s, &user, reqwest::Method::POST, None, |base| {
+        format!("{base}/api/update/apply")
+    })
+    .await
 }
 
 /// `POST /api/remote/boot-image/reset` — il ripristino dell'immagine di
@@ -1718,7 +1937,10 @@ pub async fn remote_pulisci_storico(
     let client = make_remote_client(&s, &target.url);
     let base = target.url.trim_end_matches('/');
     let mut req = client
-        .post(format!("{base}/api/datastores/{}/clean-history", pct_encode(&id)))
+        .post(format!(
+            "{base}/api/datastores/{}/clean-history",
+            pct_encode(&id)
+        ))
         .json(&body);
     if !target.token.is_empty() {
         req = req.header("Authorization", format!("Bearer {}", target.token));
@@ -2115,13 +2337,18 @@ async fn inoltra_tls(
     }
     match req.send().await {
         Ok(r) if r.status().is_success() => StatusCode::NO_CONTENT.into_response(),
-        Ok(r) if r.status() == StatusCode::NOT_FOUND || r.status() == StatusCode::METHOD_NOT_ALLOWED => (
-            StatusCode::BAD_GATEWAY,
-            "Il dispositivo non sa gestire il proprio certificato TLS da remoto: è precedente \
+        Ok(r)
+            if r.status() == StatusCode::NOT_FOUND
+                || r.status() == StatusCode::METHOD_NOT_ALLOWED =>
+        {
+            (
+                StatusCode::BAD_GATEWAY,
+                "Il dispositivo non sa gestire il proprio certificato TLS da remoto: è precedente \
              alla 2.20.0, va aggiornato una volta dall'Installazione."
-                .to_string(),
-        )
-            .into_response(),
+                    .to_string(),
+            )
+                .into_response()
+        }
         Ok(r) if r.status() == StatusCode::UNAUTHORIZED || r.status() == StatusCode::FORBIDDEN => (
             StatusCode::BAD_GATEWAY,
             "Il dispositivo ha rifiutato la richiesta (non autorizzato). Riconnettiti con \
@@ -2132,7 +2359,11 @@ async fn inoltra_tls(
         Ok(r) => {
             let code = r.status();
             let testo = r.text().await.unwrap_or_default();
-            (StatusCode::BAD_GATEWAY, format!("Il dispositivo ha risposto {code}: {testo}")).into_response()
+            (
+                StatusCode::BAD_GATEWAY,
+                format!("Il dispositivo ha risposto {code}: {testo}"),
+            )
+                .into_response()
         }
         Err(e) => (
             StatusCode::BAD_GATEWAY,
@@ -2147,9 +2378,20 @@ async fn inoltra_tls(
 
 /// `POST /api/remote/system/tls/generate` — genera un autofirmato **sul
 /// dispositivo** e lo fa ripartire in HTTPS.
-pub async fn remote_tls_genera(State(s): State<AppState>, Extension(user): Extension<AuthUser>) -> Response {
+pub async fn remote_tls_genera(
+    State(s): State<AppState>,
+    Extension(user): Extension<AuthUser>,
+) -> Response {
     // Per il test delle rotte del dispositivo: "{base}/api/system/tls/generate".
-    inoltra_tls(&s, &user, "remote.tls_generate", reqwest::Method::POST, "/api/system/tls/generate", None).await
+    inoltra_tls(
+        &s,
+        &user,
+        "remote.tls_generate",
+        reqwest::Method::POST,
+        "/api/system/tls/generate",
+        None,
+    )
+    .await
 }
 
 /// `PUT /api/remote/system/tls` — carica sul dispositivo un certificato e una
@@ -2175,9 +2417,20 @@ pub async fn remote_tls_carica(
 
 /// `DELETE /api/remote/system/tls` — toglie il certificato del dispositivo e lo
 /// fa ripartire in chiaro.
-pub async fn remote_tls_rimuovi(State(s): State<AppState>, Extension(user): Extension<AuthUser>) -> Response {
+pub async fn remote_tls_rimuovi(
+    State(s): State<AppState>,
+    Extension(user): Extension<AuthUser>,
+) -> Response {
     // "{base}/api/system/tls".
-    inoltra_tls(&s, &user, "remote.tls_remove", reqwest::Method::DELETE, "/api/system/tls", None).await
+    inoltra_tls(
+        &s,
+        &user,
+        "remote.tls_remove",
+        reqwest::Method::DELETE,
+        "/api/system/tls",
+        None,
+    )
+    .await
 }
 
 /// Una GET al dispositivo connesso, con la sua sessione, e il JSON com'è.
@@ -2482,7 +2735,9 @@ fn avviso_sorgenti_da_rivedere(p: &sws_core::Project) -> Option<String> {
 fn pct_encode(s: &str) -> String {
     s.bytes()
         .map(|b| match b {
-            b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'-' | b'_' | b'.' | b'~' => (b as char).to_string(),
+            b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'-' | b'_' | b'.' | b'~' => {
+                (b as char).to_string()
+            }
             _ => format!("%{b:02X}"),
         })
         .collect()
@@ -2526,9 +2781,14 @@ pub struct DeployBody {
 async fn simboli_lib_usati(dir: &std::path::Path) -> Vec<String> {
     let mut usati = std::collections::BTreeSet::new();
     for cartella in ["synoptics", "faceplates", "cornici"] {
-        let Ok(mut rd) = tokio::fs::read_dir(dir.join(cartella)).await else { continue };
+        let Ok(mut rd) = tokio::fs::read_dir(dir.join(cartella)).await else {
+            continue;
+        };
         while let Ok(Some(e)) = rd.next_entry().await {
-            if e.path().extension().is_some_and(|x| x == "yaml" || x == "yml") {
+            if e.path()
+                .extension()
+                .is_some_and(|x| x == "yaml" || x == "yml")
+            {
                 if let Ok(testo) = tokio::fs::read_to_string(e.path()).await {
                     if let Ok(v) = serde_yaml::from_str::<serde_yaml::Value>(&testo) {
                         raccogli_simboli_lib(&v, &mut usati);
@@ -2542,12 +2802,18 @@ async fn simboli_lib_usati(dir: &std::path::Path) -> Vec<String> {
 
 /// Ogni `symbol_id: lib:…` (e `prj:…`, i simboli disegnati nel progetto), a
 /// qualunque profondità (celle di griglia, figli).
-pub(crate) fn raccogli_simboli_lib(v: &serde_yaml::Value, out: &mut std::collections::BTreeSet<String>) {
+pub(crate) fn raccogli_simboli_lib(
+    v: &serde_yaml::Value,
+    out: &mut std::collections::BTreeSet<String>,
+) {
     match v {
         serde_yaml::Value::Mapping(m) => {
             for (k, x) in m {
                 if k.as_str() == Some("symbol_id") {
-                    if let Some(id) = x.as_str().filter(|i| i.starts_with("lib:") || i.starts_with("prj:")) {
+                    if let Some(id) = x
+                        .as_str()
+                        .filter(|i| i.starts_with("lib:") || i.starts_with("prj:"))
+                    {
                         out.insert(id.to_string());
                     }
                 }
@@ -2561,7 +2827,11 @@ pub(crate) fn raccogli_simboli_lib(v: &serde_yaml::Value, out: &mut std::collect
 
 /// Gli id del manifesto della libreria del pannello; `None` se non ne ha uno
 /// (un runtime di prima della libreria risponde 404 o con la SPA).
-async fn leggi_manifesto_pannello(client: &reqwest::Client, base: &str, auth_hdr: &Option<String>) -> Option<Vec<String>> {
+async fn leggi_manifesto_pannello(
+    client: &reqwest::Client,
+    base: &str,
+    auth_hdr: &Option<String>,
+) -> Option<Vec<String>> {
     // La rotta di gestione (02-11-2026): su un pannello con `--no-admin` la
     // porta di gestione non serve file statici, e il manifesto chiesto come
     // file rispondeva 404 — ogni deploy diceva «il pannello non ha la
@@ -2578,7 +2848,11 @@ async fn leggi_manifesto_pannello(client: &reqwest::Client, base: &str, auth_hdr
         }
     }
     // La strada di prima: il router completo (IDE, sviluppo) serve la SPA.
-    let r = client.get(format!("{base}/symbols/lib/manifest.json")).send().await.ok()?;
+    let r = client
+        .get(format!("{base}/symbols/lib/manifest.json"))
+        .send()
+        .await
+        .ok()?;
     if !r.status().is_success() {
         return None;
     }
@@ -2588,32 +2862,47 @@ async fn leggi_manifesto_pannello(client: &reqwest::Client, base: &str, auth_hdr
 
 /// Il pannello sa servire i simboli disegnati nel progetto? Sì se risponde
 /// alla rotta del loro manifesto (anche vuoto).
-async fn pannello_ha_simboli_progetto(client: &reqwest::Client, base: &str, auth_hdr: &Option<String>) -> bool {
+async fn pannello_ha_simboli_progetto(
+    client: &reqwest::Client,
+    base: &str,
+    auth_hdr: &Option<String>,
+) -> bool {
     let mut r = client.get(format!("{base}/api/project/simboli/manifest.json"));
     if let Some(h) = auth_hdr {
         r = r.header("Authorization", h);
     }
     match r.send().await {
-        Ok(resp) if resp.status().is_success() => {
-            resp.json::<serde_json::Value>().await.is_ok_and(|v| v.get("symbols").is_some())
-        }
+        Ok(resp) if resp.status().is_success() => resp
+            .json::<serde_json::Value>()
+            .await
+            .is_ok_and(|v| v.get("symbols").is_some()),
         _ => false,
     }
 }
 
 /// La versione del runtime del pannello, da `/api/system`.
-async fn versione_pannello(client: &reqwest::Client, base: &str, auth_hdr: &Option<String>) -> Option<String> {
+async fn versione_pannello(
+    client: &reqwest::Client,
+    base: &str,
+    auth_hdr: &Option<String>,
+) -> Option<String> {
     let mut r = client.get(format!("{base}/api/system"));
     if let Some(h) = auth_hdr {
         r = r.header("Authorization", h);
     }
     let v: serde_json::Value = r.send().await.ok()?.json().await.ok()?;
-    v.get("runtime_version").and_then(|x| x.as_str()).map(str::to_string)
+    v.get("runtime_version")
+        .and_then(|x| x.as_str())
+        .map(str::to_string)
 }
 
 /// Gli usati che il pannello non conosce; senza manifesto, tutti.
 pub(crate) fn simboli_mancanti(usati: &[String], noti: Option<&Vec<String>>) -> Vec<String> {
-    usati.iter().filter(|u| !noti.is_some_and(|n| n.contains(u))).cloned().collect()
+    usati
+        .iter()
+        .filter(|u| !noti.is_some_and(|n| n.contains(u)))
+        .cloned()
+        .collect()
 }
 
 /// Un progetto sul pannello che il deploy cancellerebbe.
@@ -2628,8 +2917,15 @@ pub(crate) struct DaSostituire {
 /// tutti quelli con un altro nome (lo stesso nome si ridistribuisce conservando
 /// database e backup). Senza nome — manifest illeggibile — li cancellerebbe
 /// tutti, ed è così che va detto. Pura.
-pub(crate) fn progetti_da_sostituire(sul_pannello: &[DaSostituire], nome: Option<&str>) -> Vec<DaSostituire> {
-    sul_pannello.iter().filter(|p| Some(p.nome.as_str()) != nome).cloned().collect()
+pub(crate) fn progetti_da_sostituire(
+    sul_pannello: &[DaSostituire],
+    nome: Option<&str>,
+) -> Vec<DaSostituire> {
+    sul_pannello
+        .iter()
+        .filter(|p| Some(p.nome.as_str()) != nome)
+        .cloned()
+        .collect()
 }
 
 /// L'elenco dei progetti del pannello, col peso dello storico. Vuoto se non si
@@ -2644,7 +2940,9 @@ async fn leggi_progetti_dispositivo(
     if let Some(h) = auth_hdr {
         r = r.header("Authorization", h);
     }
-    let Ok(resp) = r.send().await else { return Vec::new() };
+    let Ok(resp) = r.send().await else {
+        return Vec::new();
+    };
     if !resp.status().is_success() {
         return Vec::new();
     }
@@ -2653,7 +2951,10 @@ async fn leggi_progetti_dispositivo(
         .map(|a| {
             a.iter()
                 .filter_map(|p| {
-                    Some(DaSostituire { nome: p["name"].as_str()?.to_string(), storico_byte: p["storico_byte"].as_u64() })
+                    Some(DaSostituire {
+                        nome: p["name"].as_str()?.to_string(),
+                        storico_byte: p["storico_byte"].as_u64(),
+                    })
                 })
                 .collect()
         })
@@ -2764,10 +3065,11 @@ pub async fn remote_deploy(
     // colpa al dispositivo («non sa leggere secrets.yaml: aggiorna il
     // runtime»), e il guasto vero compariva solo alla fine come «Upload
     // fallito: 401».
-    let utenti_dispositivo = match assicura_sessione(&s, &client, &base, &mut auth_hdr).await {
-        Ok(u) => u,
-        Err(esito) => {
-            let motivo = match esito {
+    let utenti_dispositivo =
+        match assicura_sessione(&s, &client, &base, &mut auth_hdr).await {
+            Ok(u) => u,
+            Err(esito) => {
+                let motivo = match esito {
                 Esito::ServonoCredenziali =>
                     "la sessione col dispositivo è scaduta e non ho le credenziali per rientrare \
                      (si perdono al riavvio del servizio): rifai «Connetti» con utente e password.",
@@ -2775,10 +3077,10 @@ pub async fn remote_deploy(
                     "la sessione col dispositivo è scaduta e le credenziali di prima non valgono \
                      più: rifai «Connetti» con utente e password dell'Admin del progetto.",
             };
-            tracing::warn!(remote = %base, "deploy non avviato: {motivo}");
-            return (StatusCode::UNAUTHORIZED, motivo).into_response();
-        }
-    };
+                tracing::warn!(remote = %base, "deploy non avviato: {motivo}");
+                return (StatusCode::UNAUTHORIZED, motivo).into_response();
+            }
+        };
     // Come il precedente, va letta ORA: dopo `open_project` sul target ogni
     // sessione è decaduta e la GET risponderebbe 401.
     let target_legge_i_segreti = dispositivo_legge_i_segreti(&client, &base, &auth_hdr).await;
@@ -2798,7 +3100,9 @@ pub async fn remote_deploy(
         .and_then(|v| v.get("in_attesa").and_then(|b| b.as_bool()))
         .unwrap_or(false);
     let progetto_ha_admin = ha_admin(
-        &tokio::fs::read_to_string(proj_dir.join("users.yaml")).await.unwrap_or_default(),
+        &tokio::fs::read_to_string(proj_dir.join("users.yaml"))
+            .await
+            .unwrap_or_default(),
     );
     if serve_admin(pannello_in_attesa, opz.replace_users, progetto_ha_admin) {
         return (
@@ -2865,14 +3169,26 @@ pub async fn remote_deploy(
             // di questo runtime ha la stessa libreria, e non c'è niente da
             // chiedere. Su un'altra versione non si sa, e lo si dice così —
             // non «il pannello non ha la libreria», che era falso.
-            let versione = if noti.is_none() { versione_pannello(&client, &base, &auth_hdr).await } else { None };
+            let versione = if noti.is_none() {
+                versione_pannello(&client, &base, &auth_hdr).await
+            } else {
+                None
+            };
             let stessa = versione.as_deref() == Some(crate::aggiornamento::VERSIONE);
             // I simboli disegnati nel progetto viaggiano col progetto: basta che
             // il pannello sappia servirli (un runtime di prima del 03-11-2026 non
             // ha `/api/project/simboli` e li mostrerebbe come segnaposto).
-            let (prj, lib): (Vec<String>, Vec<String>) = usati.iter().cloned().partition(|u| u.starts_with("prj:"));
-            let mut mancanti = if stessa { Vec::new() } else { simboli_mancanti(&lib, noti.as_ref()) };
-            if !prj.is_empty() && !stessa && !pannello_ha_simboli_progetto(&client, &base, &auth_hdr).await {
+            let (prj, lib): (Vec<String>, Vec<String>) =
+                usati.iter().cloned().partition(|u| u.starts_with("prj:"));
+            let mut mancanti = if stessa {
+                Vec::new()
+            } else {
+                simboli_mancanti(&lib, noti.as_ref())
+            };
+            if !prj.is_empty()
+                && !stessa
+                && !pannello_ha_simboli_progetto(&client, &base, &auth_hdr).await
+            {
                 mancanti.extend(prj);
             }
             if !mancanti.is_empty() {
@@ -2906,7 +3222,12 @@ pub async fn remote_deploy(
         };
 
         send("Esportazione progetto locale…");
-        let zip = match crate::router::build_project_zip(&proj_dir, target_legge_i_segreti && opz.con_segreti).await {
+        let zip = match crate::router::build_project_zip(
+            &proj_dir,
+            target_legge_i_segreti && opz.con_segreti,
+        )
+        .await
+        {
             Ok(z) => z,
             Err(e) => {
                 send(&format!("✗ {e}"));
@@ -2918,7 +3239,11 @@ pub async fn remote_deploy(
             zip.len() as f64 / 1024.0
         ));
 
-        if let Some(avviso) = sws_core::Project::load(&proj_dir).ok().as_ref().and_then(avviso_sorgenti_da_rivedere) {
+        if let Some(avviso) = sws_core::Project::load(&proj_dir)
+            .ok()
+            .as_ref()
+            .and_then(avviso_sorgenti_da_rivedere)
+        {
             send(&avviso);
         }
 
@@ -3059,7 +3384,10 @@ pub async fn remote_deploy(
             // Lo stesso nome è lo stesso progetto ridistribuito: si tolgono solo i
             // file di disegno, database e backup restano (04-10-2026 — prima qui si
             // cancellava tutto, storico compreso).
-            let mut r = client.delete(format!("{base}/api/projects/{}?preserve_state=true", pct_encode(&existing)));
+            let mut r = client.delete(format!(
+                "{base}/api/projects/{}?preserve_state=true",
+                pct_encode(&existing)
+            ));
             if let Some(h) = &auth_hdr {
                 r = r.header("Authorization", h);
             }
@@ -3074,7 +3402,9 @@ pub async fn remote_deploy(
                 send(&format!("✗ Delete fallito: {}", del.status()));
                 return;
             }
-            send(&format!("✓ \"{existing}\": pagine sostituite, database e backup conservati"));
+            send(&format!(
+                "✓ \"{existing}\": pagine sostituite, database e backup conservati"
+            ));
 
             // Ritentativo: la cartella è rimasta (svuotata dei soli file di
             // disegno), quindi `deploy=true` col suo nome — e `replace_users`,
@@ -3298,12 +3628,20 @@ pub(crate) async fn assicura_sessione(
             match rientra(s, client, base, true).await {
                 Esito::Rientrato => {
                     // Il token è cambiato: l'intestazione di chi chiama no.
-                    let nuovo = s.remote_target.read().await.as_ref().map(|t| t.token.clone());
+                    let nuovo = s
+                        .remote_target
+                        .read()
+                        .await
+                        .as_ref()
+                        .map(|t| t.token.clone());
                     *auth_hdr = nuovo
                         .filter(|t| !t.is_empty())
                         .map(|t| format!("Bearer {t}"));
                     tracing::info!(remote = %base, "sessione remota rinnovata");
-                    Ok(utenti_dispositivo_o_401(client, base, auth_hdr).await.ok().flatten())
+                    Ok(utenti_dispositivo_o_401(client, base, auth_hdr)
+                        .await
+                        .ok()
+                        .flatten())
                 }
                 altro => Err(altro),
             }
@@ -3316,12 +3654,7 @@ pub(crate) async fn assicura_sessione(
 ///
 /// `forza` salta la deduzione «il token muore se e solo se gli utenti sono
 /// stati sostituiti»: chi ha già visto un 401 non ha bisogno di dedurre niente.
-async fn rientra(
-    s: &AppState,
-    client: &reqwest::Client,
-    base: &str,
-    forza: bool,
-) -> Esito {
+async fn rientra(s: &AppState, client: &reqwest::Client, base: &str, forza: bool) -> Esito {
     let Some(t) = s.remote_target.read().await.clone() else {
         return Esito::NienteDaFare;
     };
@@ -3388,7 +3721,12 @@ pub(crate) async fn rinnova_sessione(s: &AppState) -> Option<String> {
     let client = make_remote_client(s, &target.url);
     let base = target.url.trim_end_matches('/').to_string();
     match rientra(s, &client, &base, true).await {
-        Esito::Rientrato => s.remote_target.read().await.as_ref().map(|t| t.token.clone()),
+        Esito::Rientrato => s
+            .remote_target
+            .read()
+            .await
+            .as_ref()
+            .map(|t| t.token.clone()),
         altro => {
             tracing::warn!(remote = %base, esito = ?altro,
                 "rientro nel pannello non riuscito: serve un «Connetti» a mano");
@@ -3488,12 +3826,27 @@ sources:
     fn i_segreti_si_risolvono_dal_progetto_dell_ide() {
         let p = progetto_con_segreti();
         let m = crate::router::MASKED_PASSWORD;
-        let b = risolvi_mqtt(serde_json::json!({"source_id": "casa", "password": m}), Some(&p));
+        let b = risolvi_mqtt(
+            serde_json::json!({"source_id": "casa", "password": m}),
+            Some(&p),
+        );
         assert_eq!(b["password"], "vera-mqtt");
-        let b = risolvi_mqtt(serde_json::json!({"source_id": "casa", "password": "digitata"}), Some(&p));
-        assert_eq!(b["password"], "digitata", "una password scritta adesso non si tocca");
-        let b = risolvi_mqtt(serde_json::json!({"source_id": "altra", "password": m}), Some(&p));
-        assert!(b["password"].is_null(), "il segnaposto non deve mai arrivare al broker");
+        let b = risolvi_mqtt(
+            serde_json::json!({"source_id": "casa", "password": "digitata"}),
+            Some(&p),
+        );
+        assert_eq!(
+            b["password"], "digitata",
+            "una password scritta adesso non si tocca"
+        );
+        let b = risolvi_mqtt(
+            serde_json::json!({"source_id": "altra", "password": m}),
+            Some(&p),
+        );
+        assert!(
+            b["password"].is_null(),
+            "il segnaposto non deve mai arrivare al broker"
+        );
 
         let b = risolvi_opcua(
             serde_json::json!({"source_id": "pressa", "auth": {"kind": "username_password", "username": "op", "password": m}}),
@@ -3505,7 +3858,10 @@ sources:
         assert_eq!(b["url"], "http://ha.local:8123");
         assert_eq!(b["token"], "vero-token");
         let b = risolvi_ha(serde_json::json!({"source_id": "nessuna"}), Some(&p));
-        assert!(b.get("token").is_none(), "senza sorgente decide il pannello");
+        assert!(
+            b.get("token").is_none(),
+            "senza sorgente decide il pannello"
+        );
     }
 
     /// Il pannello del progetto (25-10-2026): si scrive in 0600, si rilegge
@@ -3524,8 +3880,15 @@ sources:
         #[cfg(unix)]
         {
             use std::os::unix::fs::PermissionsExt;
-            let m = std::fs::metadata(d.path().join(FILE_DISPOSITIVO)).unwrap().permissions().mode();
-            assert_eq!(m & 0o777, 0o600, "le credenziali del pannello non devono essere leggibili da altri");
+            let m = std::fs::metadata(d.path().join(FILE_DISPOSITIVO))
+                .unwrap()
+                .permissions()
+                .mode();
+            assert_eq!(
+                m & 0o777,
+                0o600,
+                "le credenziali del pannello non devono essere leggibili da altri"
+            );
         }
         dimentica_dispositivo(d.path());
         assert_eq!(dispositivo_ricordato(d.path()), None);
@@ -3548,7 +3911,10 @@ sources:
             autenticato: false,
         })
         .unwrap();
-        assert!(j.contains("\"autenticato\":false"), "il campo non c'e': {j}");
+        assert!(
+            j.contains("\"autenticato\":false"),
+            "il campo non c'e': {j}"
+        );
     }
 
     /// Un dispositivo che non conosce la domanda non sa la risposta.
@@ -3593,10 +3959,21 @@ sources:
         let mut usati = std::collections::BTreeSet::new();
         raccogli_simboli_lib(&pagina, &mut usati);
         let usati: Vec<String> = usati.into_iter().collect();
-        assert_eq!(usati, ["lib:process/centrifugal-pump", "lib:process/vertical-tank"], "i builtin non contano, le celle sì");
+        assert_eq!(
+            usati,
+            ["lib:process/centrifugal-pump", "lib:process/vertical-tank"],
+            "i builtin non contano, le celle sì"
+        );
         let noti = vec!["lib:process/centrifugal-pump".to_string()];
-        assert_eq!(simboli_mancanti(&usati, Some(&noti)), ["lib:process/vertical-tank"]);
-        assert_eq!(simboli_mancanti(&usati, None), usati, "senza manifesto mancano tutti");
+        assert_eq!(
+            simboli_mancanti(&usati, Some(&noti)),
+            ["lib:process/vertical-tank"]
+        );
+        assert_eq!(
+            simboli_mancanti(&usati, None),
+            usati,
+            "senza manifesto mancano tutti"
+        );
         assert!(simboli_mancanti(&usati, Some(&usati.clone())).is_empty());
     }
 
@@ -3636,16 +4013,27 @@ sources:
             "meta:\n  name: x\n  version: '1'\nsources:\n- kind: modbus_tcp\n  id: plc\n  host: 127.0.0.1\n  port: 502\n",
         )
         .unwrap();
-        assert!(avviso_sorgenti_da_rivedere(&p).is_none(), "confermate: niente avviso");
+        assert!(
+            avviso_sorgenti_da_rivedere(&p).is_none(),
+            "confermate: niente avviso"
+        );
         p.sorgenti_da_rivedere = true;
-        assert!(avviso_sorgenti_da_rivedere(&p).unwrap().contains("Comunicazione"));
+        assert!(avviso_sorgenti_da_rivedere(&p)
+            .unwrap()
+            .contains("Comunicazione"));
         p.sources.clear();
-        assert!(avviso_sorgenti_da_rivedere(&p).is_none(), "senza sorgenti non c'è niente da confermare");
+        assert!(
+            avviso_sorgenti_da_rivedere(&p).is_none(),
+            "senza sorgenti non c'è niente da confermare"
+        );
     }
 
     #[test]
     fn un_nome_con_spazi_e_lineette_si_codifica_in_utf8() {
-        assert_eq!(pct_encode("OpenPLC — impianto di prova"), "OpenPLC%20%E2%80%94%20impianto%20di%20prova");
+        assert_eq!(
+            pct_encode("OpenPLC — impianto di prova"),
+            "OpenPLC%20%E2%80%94%20impianto%20di%20prova"
+        );
         assert_eq!(pct_encode("caffè"), "caff%C3%A8");
         assert_eq!(pct_encode("a-b_c.d~e"), "a-b_c.d~e");
     }
@@ -3685,12 +4073,27 @@ sources:
     /// diversa da quella dichiarata.
     #[test]
     fn il_deploy_sostituisce_solo_i_progetti_con_un_altro_nome() {
-        let p = |n: &str, b: Option<u64>| DaSostituire { nome: n.into(), storico_byte: b };
-        let pannello = vec![p("rc14_lvgl", Some(51_000_000)), p("tc620-sistema", Some(1_000))];
-        assert_eq!(progetti_da_sostituire(&pannello, Some("tc620-sistema")), vec![p("rc14_lvgl", Some(51_000_000))]);
-        assert!(progetti_da_sostituire(&[p("tc620-sistema", None)], Some("tc620-sistema")).is_empty());
+        let p = |n: &str, b: Option<u64>| DaSostituire {
+            nome: n.into(),
+            storico_byte: b,
+        };
+        let pannello = vec![
+            p("rc14_lvgl", Some(51_000_000)),
+            p("tc620-sistema", Some(1_000)),
+        ];
+        assert_eq!(
+            progetti_da_sostituire(&pannello, Some("tc620-sistema")),
+            vec![p("rc14_lvgl", Some(51_000_000))]
+        );
+        assert!(
+            progetti_da_sostituire(&[p("tc620-sistema", None)], Some("tc620-sistema")).is_empty()
+        );
         assert!(progetti_da_sostituire(&[], Some("x")).is_empty());
-        assert_eq!(progetti_da_sostituire(&pannello, None).len(), 2, "senza nome li cancellerebbe tutti");
+        assert_eq!(
+            progetti_da_sostituire(&pannello, None).len(),
+            2,
+            "senza nome li cancellerebbe tutti"
+        );
         let d: DeployBody = serde_json::from_str(r#"{"confirm_replace": true}"#).unwrap();
         assert!(d.confirm_replace);
         let d: DeployBody = serde_json::from_str("{}").unwrap();
@@ -3892,7 +4295,10 @@ mod tests_serve_admin {
         assert!(serve_admin(true, true, false), "progetto senza Admin");
         assert!(serve_admin(true, false, true), "utenti che non viaggiano");
         assert!(!serve_admin(true, true, true));
-        assert!(!serve_admin(false, true, false), "pannello che ha già utenti: regole di prima");
+        assert!(
+            !serve_admin(false, true, false),
+            "pannello che ha già utenti: regole di prima"
+        );
     }
 
     #[test]
@@ -3923,11 +4329,17 @@ async fn inoltra_ritenzione(s: &AppState, metodo: reqwest::Method, percorso: &st
             let corpo: serde_json::Value = r.json().await.unwrap_or_default();
             (StatusCode::OK, Json(corpo)).into_response()
         }
-        Ok(r) if r.status() == StatusCode::NOT_FOUND || r.status() == StatusCode::METHOD_NOT_ALLOWED => (
-            StatusCode::BAD_GATEWAY,
-            "Il dispositivo non conosce la ritenzione automatica: aggiorna il suo runtime.".to_string(),
-        )
-            .into_response(),
+        Ok(r)
+            if r.status() == StatusCode::NOT_FOUND
+                || r.status() == StatusCode::METHOD_NOT_ALLOWED =>
+        {
+            (
+                StatusCode::BAD_GATEWAY,
+                "Il dispositivo non conosce la ritenzione automatica: aggiorna il suo runtime."
+                    .to_string(),
+            )
+                .into_response()
+        }
         Ok(r) if r.status() == StatusCode::UNAUTHORIZED || r.status() == StatusCode::FORBIDDEN => (
             StatusCode::BAD_GATEWAY,
             "Il dispositivo ha rifiutato la richiesta (non autorizzato). Riconnettiti con \
@@ -3938,9 +4350,17 @@ async fn inoltra_ritenzione(s: &AppState, metodo: reqwest::Method, percorso: &st
         Ok(r) => {
             let code = r.status();
             let testo = r.text().await.unwrap_or_default();
-            (StatusCode::BAD_GATEWAY, format!("Il dispositivo ha risposto {code}: {testo}")).into_response()
+            (
+                StatusCode::BAD_GATEWAY,
+                format!("Il dispositivo ha risposto {code}: {testo}"),
+            )
+                .into_response()
         }
-        Err(e) => (StatusCode::BAD_GATEWAY, format!("Dispositivo non raggiungibile: {e}")).into_response(),
+        Err(e) => (
+            StatusCode::BAD_GATEWAY,
+            format!("Dispositivo non raggiungibile: {e}"),
+        )
+            .into_response(),
     }
 }
 
@@ -3974,7 +4394,6 @@ pub async fn remote_conferma_ritenzione(
     .await
 }
 
-
 /// `GET /api/remote/reports` — i report **del dispositivo connesso** coi loro
 /// file (P3, 26-10-2026): nell'IDE e nel cloud i report li genera il pannello.
 pub async fn remote_reports(State(s): State<AppState>) -> Response {
@@ -3983,13 +4402,28 @@ pub async fn remote_reports(State(s): State<AppState>) -> Response {
 }
 
 /// `POST /api/remote/reports/:id/genera` — «Genera ora» sul pannello.
-pub async fn remote_genera_report(State(s): State<AppState>, Extension(user): Extension<AuthUser>, Path(id): Path<String>) -> Response {
+pub async fn remote_genera_report(
+    State(s): State<AppState>,
+    Extension(user): Extension<AuthUser>,
+    Path(id): Path<String>,
+) -> Response {
     // "{base}/api/reports/{}/genera".
-    inoltra_al_pannello(&s, Some(&user), reqwest::Method::POST, &format!("/api/reports/{}/genera", pct_encode(&id)), None, 120).await
+    inoltra_al_pannello(
+        &s,
+        Some(&user),
+        reqwest::Method::POST,
+        &format!("/api/reports/{}/genera", pct_encode(&id)),
+        None,
+        120,
+    )
+    .await
 }
 
 /// `GET /api/remote/reports/:id/:file` — scarica un report dal pannello.
-pub async fn remote_scarica_report(State(s): State<AppState>, Path((id, nome)): Path<(String, String)>) -> Response {
+pub async fn remote_scarica_report(
+    State(s): State<AppState>,
+    Path((id, nome)): Path<(String, String)>,
+) -> Response {
     let target = match s.remote_target.read().await.clone() {
         Some(t) => t,
         None => return (StatusCode::BAD_REQUEST, "No remote runtime connected").into_response(),
@@ -3997,23 +4431,47 @@ pub async fn remote_scarica_report(State(s): State<AppState>, Path((id, nome)): 
     let client = make_remote_client(&s, &target.url);
     let base = target.url.trim_end_matches('/');
     // "{base}/api/reports/{}/{}".
-    let mut req = client.get(format!("{base}/api/reports/{}/{}", pct_encode(&id), pct_encode(&nome)));
+    let mut req = client.get(format!(
+        "{base}/api/reports/{}/{}",
+        pct_encode(&id),
+        pct_encode(&nome)
+    ));
     if !target.token.is_empty() {
         req = req.header("Authorization", format!("Bearer {}", target.token));
     }
     match req.send().await {
         Ok(r) if r.status().is_success() => {
-            let tipo = r.headers().get("content-type").and_then(|v| v.to_str().ok()).unwrap_or("application/octet-stream").to_string();
+            let tipo = r
+                .headers()
+                .get("content-type")
+                .and_then(|v| v.to_str().ok())
+                .unwrap_or("application/octet-stream")
+                .to_string();
             match r.bytes().await {
                 Ok(b) => Response::builder()
                     .header("Content-Type", tipo)
-                    .header("Content-Disposition", format!("attachment; filename=\"{nome}\""))
+                    .header(
+                        "Content-Disposition",
+                        format!("attachment; filename=\"{nome}\""),
+                    )
                     .body(Body::from(b))
                     .unwrap_or_else(|_| StatusCode::INTERNAL_SERVER_ERROR.into_response()),
-                Err(e) => (StatusCode::BAD_GATEWAY, format!("Lettura della risposta dal dispositivo fallita: {e}")).into_response(),
+                Err(e) => (
+                    StatusCode::BAD_GATEWAY,
+                    format!("Lettura della risposta dal dispositivo fallita: {e}"),
+                )
+                    .into_response(),
             }
         }
-        Ok(r) => (StatusCode::BAD_GATEWAY, format!("Il dispositivo ha risposto {}", r.status())).into_response(),
-        Err(e) => (StatusCode::BAD_GATEWAY, format!("Il dispositivo non ha risposto: {e}")).into_response(),
+        Ok(r) => (
+            StatusCode::BAD_GATEWAY,
+            format!("Il dispositivo ha risposto {}", r.status()),
+        )
+            .into_response(),
+        Err(e) => (
+            StatusCode::BAD_GATEWAY,
+            format!("Il dispositivo non ha risposto: {e}"),
+        )
+            .into_response(),
     }
 }

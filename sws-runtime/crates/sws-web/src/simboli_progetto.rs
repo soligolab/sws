@@ -23,7 +23,9 @@ use serde_json::{json, Value};
 use sws_core::simboli_prj::{self, Descrizione};
 use sws_core::Project;
 
-use crate::router::{active_dir, patch_project_se, signal_project_changed, versione_attesa, AppState, AuthUser};
+use crate::router::{
+    active_dir, patch_project_se, signal_project_changed, versione_attesa, AppState, AuthUser,
+};
 
 async fn simboli_su_disco(s: &AppState) -> Result<Vec<Descrizione>, Response> {
     let dir = active_dir(s).await.map_err(IntoResponse::into_response)?;
@@ -73,7 +75,10 @@ async fn svg(State(s): State<AppState>, file: String) -> Response {
     };
     match simboli_prj::compila_e_controlla(d) {
         Ok(c) => (
-            [(header::CONTENT_TYPE, "image/svg+xml"), (header::CACHE_CONTROL, "max-age=60")],
+            [
+                (header::CONTENT_TYPE, "image/svg+xml"),
+                (header::CACHE_CONTROL, "max-age=60"),
+            ],
             c.svg,
         )
             .into_response(),
@@ -101,7 +106,11 @@ pub fn esito(v: &Value) -> Value {
 /// memoria (una proposta applicata e non ancora salvata, un annulla).
 pub async fn compila(Json(descrizioni): Json<Vec<Value>>) -> Response {
     if descrizioni.len() > 200 {
-        return (StatusCode::PAYLOAD_TOO_LARGE, "al più 200 simboli per volta").into_response();
+        return (
+            StatusCode::PAYLOAD_TOO_LARGE,
+            "al più 200 simboli per volta",
+        )
+            .into_response();
     }
     Json(descrizioni.iter().map(esito).collect::<Vec<_>>()).into_response()
 }
@@ -111,7 +120,10 @@ pub fn problemi(simboli: &[Descrizione]) -> Vec<String> {
     let mut male = Vec::new();
     for (i, d) in simboli.iter().enumerate() {
         if d.family.is_some() {
-            male.push(format!("{}: un simbolo del progetto non ha famiglia", d.slug));
+            male.push(format!(
+                "{}: un simbolo del progetto non ha famiglia",
+                d.slug
+            ));
         }
         if simboli[..i].iter().any(|x| x.slug == d.slug) {
             male.push(format!("{}: slug ripetuto", d.slug));
@@ -133,16 +145,30 @@ pub async fn salva(
 ) -> Response {
     let male = problemi(&simboli);
     if !male.is_empty() {
-        return (StatusCode::BAD_REQUEST, Json(json!({ "error": male.join("\n"), "errori": male }))).into_response();
+        return (
+            StatusCode::BAD_REQUEST,
+            Json(json!({ "error": male.join("\n"), "errori": male })),
+        )
+            .into_response();
     }
     let dir = match active_dir(&s).await {
         Ok(d) => d,
         Err(c) => return c.into_response(),
     };
     let n = simboli.len();
-    let res = patch_project_se(&s.project_write_lock, &dir, versione_attesa(&headers), |p| p.simboli = simboli).await;
+    let res = patch_project_se(
+        &s.project_write_lock,
+        &dir,
+        versione_attesa(&headers),
+        |p| p.simboli = simboli,
+    )
+    .await;
     if res.status() == StatusCode::NO_CONTENT {
-        s.audit.log("project.change", Some(user.username), json!({ "what": "simboli", "n": n }));
+        s.audit.log(
+            "project.change",
+            Some(user.username),
+            json!({ "what": "simboli", "n": n }),
+        );
         // I viewer aperti devono rileggere il manifesto dei simboli.
         signal_project_changed(&s, "simboli");
     }
@@ -154,7 +180,10 @@ mod tests {
     use super::*;
 
     fn gabbia() -> Descrizione {
-        serde_json::from_str(include_str!("../../../../tests/fixtures/simboli-prj/gabbia-laminazione.json")).unwrap()
+        serde_json::from_str(include_str!(
+            "../../../../tests/fixtures/simboli-prj/gabbia-laminazione.json"
+        ))
+        .unwrap()
     }
 
     #[test]

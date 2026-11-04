@@ -18,8 +18,8 @@ use std::time::Duration;
 
 use serde::Deserialize;
 
-use crate::tls::pinned_client_config;
 use crate::model::SynopticPage;
+use crate::tls::pinned_client_config;
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct StatoAbbinamento {
@@ -68,9 +68,14 @@ pub fn da_mostrare(s: &Option<StatoAbbinamento>) -> Option<Schermata> {
         return None;
     }
     if s.abbinato_cloud_senza_utenti {
-        return Some(Schermata::PrimoProgetto { cloud: s.cloud.clone().unwrap_or_else(|| s.nome.clone()) });
+        return Some(Schermata::PrimoProgetto {
+            cloud: s.cloud.clone().unwrap_or_else(|| s.nome.clone()),
+        });
     }
-    Some(Schermata::Codice { codice: s.codice.clone()?, nome: s.nome.clone() })
+    Some(Schermata::Codice {
+        codice: s.codice.clone()?,
+        nome: s.nome.clone(),
+    })
 }
 
 /// La pagina della schermata, 800×480 come la pagina predefinita del viewer.
@@ -144,7 +149,13 @@ pub fn avvia_attesa(rt: tokio::runtime::Handle, base_url: String, mostrata: Sche
     std::thread::spawn(move || loop {
         std::thread::sleep(Duration::from_secs(5));
         let s = rt.block_on(stato(&base_url));
-        if matches!(s, Some(StatoAbbinamento { in_attesa: false, .. })) {
+        if matches!(
+            s,
+            Some(StatoAbbinamento {
+                in_attesa: false,
+                ..
+            })
+        ) {
             eprintln!("[abbinamento] pannello abbinato: riparto sulla pagina del progetto");
             riavvia();
         }
@@ -158,7 +169,9 @@ pub fn avvia_attesa(rt: tokio::runtime::Handle, base_url: String, mostrata: Sche
 fn riavvia() -> ! {
     use std::os::unix::process::CommandExt as _;
     let exe = std::env::current_exe().unwrap_or_else(|_| "sws-lvgl-viewer".into());
-    let errore = std::process::Command::new(exe).args(std::env::args_os().skip(1)).exec();
+    let errore = std::process::Command::new(exe)
+        .args(std::env::args_os().skip(1))
+        .exec();
     // `exec` torna solo se fallisce: si esce, e ci pensa systemd a ripartire.
     eprintln!("[abbinamento] riavvio fallito ({errore}): esco");
     std::process::exit(75);
@@ -172,24 +185,36 @@ mod tests {
     fn la_pagina_porta_il_codice() {
         let p = pagina("7KQ2-M9XD-3HWP-T4BZ", "tc620").unwrap();
         assert_eq!(p.width, Some(800.0));
-        let codice = p.objects.iter().find(|o| o.id.as_deref() == Some("codice")).unwrap();
+        let codice = p
+            .objects
+            .iter()
+            .find(|o| o.id.as_deref() == Some("codice"))
+            .unwrap();
         assert_eq!(codice.text.as_deref(), Some("7KQ2-M9XD-3HWP-T4BZ"));
-        assert!(p.objects.iter().any(|o| o.text.as_deref().is_some_and(|t| t.contains("tc620"))));
+        assert!(p
+            .objects
+            .iter()
+            .any(|o| o.text.as_deref().is_some_and(|t| t.contains("tc620"))));
     }
 
     #[test]
     fn si_mostra_solo_in_attesa_e_con_un_codice() {
-        let s = |a: bool, c: Option<&str>| Some(StatoAbbinamento {
-            in_attesa: a,
-            codice: c.map(Into::into),
-            nome: "x".into(),
-            cloud: None,
-            abbinato_cloud_senza_utenti: false,
-        });
+        let s = |a: bool, c: Option<&str>| {
+            Some(StatoAbbinamento {
+                in_attesa: a,
+                codice: c.map(Into::into),
+                nome: "x".into(),
+                cloud: None,
+                abbinato_cloud_senza_utenti: false,
+            })
+        };
         assert!(da_mostrare(&s(true, Some("A"))).is_some());
         assert!(da_mostrare(&s(false, Some("A"))).is_none());
         assert!(da_mostrare(&s(true, None)).is_none());
-        assert!(da_mostrare(&None).is_none(), "runtime vecchio: si va avanti");
+        assert!(
+            da_mostrare(&None).is_none(),
+            "runtime vecchio: si va avanti"
+        );
         let cloud = Some(StatoAbbinamento {
             in_attesa: true,
             codice: None,
@@ -197,7 +222,15 @@ mod tests {
             cloud: Some("tc620-casa".into()),
             abbinato_cloud_senza_utenti: true,
         });
-        assert_eq!(da_mostrare(&cloud), Some(Schermata::PrimoProgetto { cloud: "tc620-casa".into() }));
-        assert!(pagina_per(&Schermata::PrimoProgetto { cloud: "tc620-casa".into() }).is_ok());
+        assert_eq!(
+            da_mostrare(&cloud),
+            Some(Schermata::PrimoProgetto {
+                cloud: "tc620-casa".into()
+            })
+        );
+        assert!(pagina_per(&Schermata::PrimoProgetto {
+            cloud: "tc620-casa".into()
+        })
+        .is_ok());
     }
 }

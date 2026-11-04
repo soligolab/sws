@@ -93,24 +93,52 @@ pub struct Velo {
     pub stop: &'static [(f64, &'static str, f64)],
 }
 
-const LUCE_VERNICE: &[(f64, &str, f64)] =
-    &[(0.0, "#000", 0.25), (0.2, "#fff", 0.5), (0.45, "#fff", 0.08), (0.75, "#000", 0.12), (1.0, "#000", 0.45)];
-const LUCE_METALLO: &[(f64, &str, f64)] =
-    &[(0.0, "#000", 0.42), (0.18, "#fff", 0.85), (0.45, "#fff", 0.25), (0.8, "#000", 0.19), (1.0, "#000", 0.49)];
-const LUCE_SCURO: &[(f64, &str, f64)] =
-    &[(0.0, "#fff", 0.1), (0.2, "#fff", 0.37), (0.6, "#000", 0.17), (1.0, "#000", 0.48)];
+const LUCE_VERNICE: &[(f64, &str, f64)] = &[
+    (0.0, "#000", 0.25),
+    (0.2, "#fff", 0.5),
+    (0.45, "#fff", 0.08),
+    (0.75, "#000", 0.12),
+    (1.0, "#000", 0.45),
+];
+const LUCE_METALLO: &[(f64, &str, f64)] = &[
+    (0.0, "#000", 0.42),
+    (0.18, "#fff", 0.85),
+    (0.45, "#fff", 0.25),
+    (0.8, "#000", 0.19),
+    (1.0, "#000", 0.49),
+];
+const LUCE_SCURO: &[(f64, &str, f64)] = &[
+    (0.0, "#fff", 0.1),
+    (0.2, "#fff", 0.37),
+    (0.6, "#000", 0.17),
+    (1.0, "#000", 0.48),
+];
 const VERTICALE: &[(&str, f64)] = &[("x1", 0.0), ("y1", 0.0), ("x2", 0.0), ("y2", 1.0)];
 const ORIZZONTALE: &[(&str, f64)] = &[("x1", 0.0), ("y1", 0.0), ("x2", 1.0), ("y2", 0.0)];
 
 /// I veli, nell'ordine di `VELI` in `genera.py`.
 pub const VELI: &[Velo] = &[
-    Velo { nome: "paint-v", tipo: "linear", geo: VERTICALE, stop: LUCE_VERNICE },
-    Velo { nome: "paint-h", tipo: "linear", geo: ORIZZONTALE, stop: LUCE_VERNICE },
+    Velo {
+        nome: "paint-v",
+        tipo: "linear",
+        geo: VERTICALE,
+        stop: LUCE_VERNICE,
+    },
+    Velo {
+        nome: "paint-h",
+        tipo: "linear",
+        geo: ORIZZONTALE,
+        stop: LUCE_VERNICE,
+    },
     Velo {
         nome: "paint-r",
         tipo: "radial",
         geo: &[("cx", 0.36), ("cy", 0.3), ("r", 0.75)],
-        stop: &[(0.0, "#fff", 0.55), (0.5, "#fff", 0.05), (1.0, "#000", 0.45)],
+        stop: &[
+            (0.0, "#fff", 0.55),
+            (0.5, "#fff", 0.05),
+            (1.0, "#000", 0.45),
+        ],
     },
     Velo {
         nome: "paint-d",
@@ -118,16 +146,36 @@ pub const VELI: &[Velo] = &[
         geo: &[("x1", 0.0), ("y1", 0.0), ("x2", 1.0), ("y2", 1.0)],
         stop: &[(0.0, "#fff", 0.35), (0.5, "#fff", 0.0), (1.0, "#000", 0.3)],
     },
-    Velo { nome: "metal-v", tipo: "linear", geo: VERTICALE, stop: LUCE_METALLO },
-    Velo { nome: "metal-h", tipo: "linear", geo: ORIZZONTALE, stop: LUCE_METALLO },
+    Velo {
+        nome: "metal-v",
+        tipo: "linear",
+        geo: VERTICALE,
+        stop: LUCE_METALLO,
+    },
+    Velo {
+        nome: "metal-h",
+        tipo: "linear",
+        geo: ORIZZONTALE,
+        stop: LUCE_METALLO,
+    },
     Velo {
         nome: "metal-r",
         tipo: "radial",
         geo: &[("cx", 0.35), ("cy", 0.3), ("r", 0.8)],
         stop: &[(0.0, "#fff", 0.9), (0.5, "#fff", 0.13), (1.0, "#000", 0.46)],
     },
-    Velo { nome: "dark-v", tipo: "linear", geo: VERTICALE, stop: LUCE_SCURO },
-    Velo { nome: "dark-h", tipo: "linear", geo: ORIZZONTALE, stop: LUCE_SCURO },
+    Velo {
+        nome: "dark-v",
+        tipo: "linear",
+        geo: VERTICALE,
+        stop: LUCE_SCURO,
+    },
+    Velo {
+        nome: "dark-h",
+        tipo: "linear",
+        geo: ORIZZONTALE,
+        stop: LUCE_SCURO,
+    },
     Velo {
         nome: "rubber-r",
         tipo: "radial",
@@ -195,7 +243,9 @@ pub enum Valore {
 #[derive(Debug, Clone, PartialEq, Default, Serialize)]
 pub struct Attributi(pub Vec<(String, Valore)>);
 
-const ORDINE_CANONICO: &[&str] = &["x", "y", "width", "height", "cx", "cy", "r", "rx", "ry", "d"];
+const ORDINE_CANONICO: &[&str] = &[
+    "x", "y", "width", "height", "cx", "cy", "r", "rx", "ry", "d",
+];
 
 impl<'de> Deserialize<'de> for Attributi {
     fn deserialize<D: Deserializer<'de>>(de: D) -> Result<Self, D::Error> {
@@ -209,7 +259,12 @@ impl<'de> Deserialize<'de> for Attributi {
             Forma::Coppie(v) => Attributi(v),
             Forma::Oggetto(m) => {
                 let mut v: Vec<(String, Valore)> = m.into_iter().collect();
-                let rango = |k: &str| ORDINE_CANONICO.iter().position(|c| *c == k).unwrap_or(usize::MAX);
+                let rango = |k: &str| {
+                    ORDINE_CANONICO
+                        .iter()
+                        .position(|c| *c == k)
+                        .unwrap_or(usize::MAX)
+                };
                 v.sort_by(|a, b| rango(&a.0).cmp(&rango(&b.0)).then_with(|| a.0.cmp(&b.0)));
                 Attributi(v)
             }
@@ -463,19 +518,27 @@ pub fn espandi(ops: &[Op]) -> Vec<Op> {
         match op {
             Op::FlangiaV { x, y, w, h } => {
                 out.push(forma(rect(*x, *y, *w, *h, Some(0.8)), "metal-h"));
-                out.push(Op::Flangia { rect: [*x, *y, *w, *h] });
+                out.push(Op::Flangia {
+                    rect: [*x, *y, *w, *h],
+                });
             }
             Op::FlangiaO { x, y, w, h } => {
                 out.push(forma(rect(*x, *y, *w, *h, Some(0.8)), "metal-v"));
-                out.push(Op::Flangia { rect: [*x, *y, *w, *h] });
+                out.push(Op::Flangia {
+                    rect: [*x, *y, *w, *h],
+                });
             }
             Op::TuboO { x, y, w, h } => {
                 out.push(forma(rect(*x, *y, *w, *h, None), "metal-v"));
-                out.push(Op::Tronchetto { rect: [*x, *y, *w, *h] });
+                out.push(Op::Tronchetto {
+                    rect: [*x, *y, *w, *h],
+                });
             }
             Op::TuboV { x, y, h, w } => {
                 out.push(forma(rect(*x, *y, *w, *h, None), "metal-h"));
-                out.push(Op::Tronchetto { rect: [*x, *y, *w, *h] });
+                out.push(Op::Tronchetto {
+                    rect: [*x, *y, *w, *h],
+                });
             }
             altro => out.push(altro.clone()),
         }
@@ -527,7 +590,11 @@ impl<'a> Costruzione<'a> {
     }
 
     fn statico(&mut self) {
-        let n = self.strati.iter().filter(|s| s.nome.starts_with("layer-")).count();
+        let n = self
+            .strati
+            .iter()
+            .filter(|s| s.nome.starts_with("layer-"))
+            .count();
         self.strati.push(Strato {
             nome: format!("layer-{n}"),
             attributi: vec![testo("data-layer", "static")],
@@ -570,7 +637,10 @@ impl<'a> Costruzione<'a> {
             }
             Op::Parte { id, kind, geo } => {
                 if !TIPI_PARTE.contains(&kind.as_str()) {
-                    return Err(format!("parte «{id}»: tipo «{kind}» sconosciuto (sono {})", TIPI_PARTE.join(", ")));
+                    return Err(format!(
+                        "parte «{id}»: tipo «{kind}» sconosciuto (sono {})",
+                        TIPI_PARTE.join(", ")
+                    ));
                 }
                 let mut p = serde_json::Map::new();
                 p.insert("id".into(), json!(id));
@@ -585,22 +655,31 @@ impl<'a> Costruzione<'a> {
                     corpo: vec![],
                 });
             }
-            Op::Forma { tag, geo, mat, velo, extra } => {
+            Op::Forma {
+                tag,
+                geo,
+                mat,
+                velo,
+                extra,
+            } => {
                 let a = match mat {
                     Some(m) => Self::materiale(m)?,
                     None => vec![],
                 };
                 match velo {
                     None => {
-                        let e = format!("<{tag}{}{}{}/>", attrs(&geo.0), attrs(&a), attrs(&extra.0));
+                        let e =
+                            format!("<{tag}{}{}{}/>", attrs(&geo.0), attrs(&a), attrs(&extra.0));
                         self.qui().push(e);
                     }
                     Some(v) => {
                         let url = self.velo(v)?;
                         self.n += 1;
                         let rif = format!("{}-g{}", self.d.slug, self.n);
-                        self.defs.push(format!("<{tag} id=\"{rif}\"{}/>", attrs(&geo.0)));
-                        let pieno = format!("<use href=\"#{rif}\"{}{}/>", attrs(&a), attrs(&extra.0));
+                        self.defs
+                            .push(format!("<{tag} id=\"{rif}\"{}/>", attrs(&geo.0)));
+                        let pieno =
+                            format!("<use href=\"#{rif}\"{}{}/>", attrs(&a), attrs(&extra.0));
                         let ombra = format!(
                             "<use href=\"#{rif}\" fill=\"{url}\" stroke=\"none\" opacity=\"1\" data-shade=\"{v}\"/>"
                         );
@@ -609,9 +688,18 @@ impl<'a> Costruzione<'a> {
                     }
                 }
             }
-            Op::Luce { tag, geo, velo, opacita } => {
+            Op::Luce {
+                tag,
+                geo,
+                velo,
+                opacita,
+            } => {
                 let url = self.velo(velo)?;
-                let fo = if *opacita == 1.0 { String::new() } else { format!(" fill-opacity=\"{}\"", fmt(*opacita)) };
+                let fo = if *opacita == 1.0 {
+                    String::new()
+                } else {
+                    format!(" fill-opacity=\"{}\"", fmt(*opacita))
+                };
                 let e = format!(
                     "<{tag}{} fill=\"{url}\"{fo} stroke=\"none\" opacity=\"1\" data-shade=\"{velo}\"/>",
                     attrs(&geo.0)
@@ -629,7 +717,8 @@ impl<'a> Costruzione<'a> {
             Op::Tratto { d, mat, extra } => {
                 let mut a = vec![testo("fill", "none")];
                 if let Some(m) = mat {
-                    let c = colore_materiale(m).ok_or_else(|| format!("materiale sconosciuto «{m}»"))?;
+                    let c = colore_materiale(m)
+                        .ok_or_else(|| format!("materiale sconosciuto «{m}»"))?;
                     a.push(testo("stroke", c));
                     a.push(testo("data-mat-stroke", m));
                 }
@@ -638,9 +727,18 @@ impl<'a> Costruzione<'a> {
             }
             Op::Bocca { x, y, side, d, id } => {
                 if !LATI.contains(&side.as_str()) {
-                    return Err(format!("bocca: lato «{side}» sconosciuto (sono {})", LATI.join(", ")));
+                    return Err(format!(
+                        "bocca: lato «{side}» sconosciuto (sono {})",
+                        LATI.join(", ")
+                    ));
                 }
-                self.bocche.push(BoccaDichiarata { id: id.clone(), x: *x, y: *y, side: side.clone(), d: *d });
+                self.bocche.push(BoccaDichiarata {
+                    id: id.clone(),
+                    x: *x,
+                    y: *y,
+                    side: side.clone(),
+                    d: *d,
+                });
             }
             Op::Flangia { rect } => self.flange.push(*rect),
             Op::Tronchetto { rect } => self.tronchetti.push(*rect),
@@ -664,10 +762,17 @@ impl<'a> Costruzione<'a> {
         }
         let mut trovate: Vec<B> = Vec::new();
         for &[x, y, w, h] in &self.flange {
-            let dist: [(&'static str, f64); 2] =
-                if h >= w { [("left", x), ("right", sw - (x + w))] } else { [("top", y), ("bottom", sh - (y + h))] };
+            let dist: [(&'static str, f64); 2] = if h >= w {
+                [("left", x), ("right", sw - (x + w))]
+            } else {
+                [("top", y), ("bottom", sh - (y + h))]
+            };
             // `min` di Python: a parità vince il primo.
-            let (side, distanza) = if dist[1].1 < dist[0].1 { dist[1] } else { dist[0] };
+            let (side, distanza) = if dist[1].1 < dist[0].1 {
+                dist[1]
+            } else {
+                dist[0]
+            };
             if distanza > TOLLERANZA_BORDO {
                 continue;
             }
@@ -678,7 +783,9 @@ impl<'a> Costruzione<'a> {
                     && tw > th
                     && ty >= y - 0.5
                     && ty + th <= y + h + 0.5
-                    && ((tx - (x + w)).abs() < 1.0 || (tx + tw - x).abs() < 1.0 || (tx <= x && x <= tx + tw))
+                    && ((tx - (x + w)).abs() < 1.0
+                        || (tx + tw - x).abs() < 1.0
+                        || (tx <= x && x <= tx + tw))
                 {
                     tubo = Some([tx, ty, tw, th]);
                 }
@@ -686,7 +793,9 @@ impl<'a> Costruzione<'a> {
                     && th >= tw
                     && tx >= x - 0.5
                     && tx + tw <= x + w + 0.5
-                    && ((ty - (y + h)).abs() < 1.0 || (ty + th - y).abs() < 1.0 || (ty <= y && y <= ty + th))
+                    && ((ty - (y + h)).abs() < 1.0
+                        || (ty + th - y).abs() < 1.0
+                        || (ty <= y && y <= ty + th))
                 {
                     tubo = Some([tx, ty, tw, th]);
                 }
@@ -697,23 +806,48 @@ impl<'a> Costruzione<'a> {
                     None => (y + h / 2.0, h - 6.0),
                 };
                 let px = if side == "left" { 0.0 } else { sw };
-                trovate.push(B { x: px, y: round2(cy), side, d, id: None });
+                trovate.push(B {
+                    x: px,
+                    y: round2(cy),
+                    side,
+                    d,
+                    id: None,
+                });
             } else {
                 let (cx, d) = match tubo {
                     Some(t) => (t[0] + t[2] / 2.0, t[2]),
                     None => (x + w / 2.0, w - 6.0),
                 };
                 let py = if side == "top" { 0.0 } else { sh };
-                trovate.push(B { x: round2(cx), y: py, side, d, id: None });
+                trovate.push(B {
+                    x: round2(cx),
+                    y: py,
+                    side,
+                    d,
+                    id: None,
+                });
             }
         }
         for b in &self.bocche {
-            let side = LATI.iter().find(|l| **l == b.side).copied().unwrap_or("left");
-            trovate.push(B { x: b.x, y: b.y, side, d: b.d, id: b.id.clone() });
+            let side = LATI
+                .iter()
+                .find(|l| **l == b.side)
+                .copied()
+                .unwrap_or("left");
+            trovate.push(B {
+                x: b.x,
+                y: b.y,
+                side,
+                d: b.d,
+                id: b.id.clone(),
+            });
         }
         let mut uniche: Vec<B> = Vec::new();
         for b in trovate {
-            if !uniche.iter().any(|u| u.side == b.side && (u.x - b.x).abs() < 1.0 && (u.y - b.y).abs() < 1.0) {
+            if !uniche
+                .iter()
+                .any(|u| u.side == b.side && (u.x - b.x).abs() < 1.0 && (u.y - b.y).abs() < 1.0)
+            {
                 uniche.push(b);
             }
         }
@@ -746,8 +880,17 @@ impl<'a> Costruzione<'a> {
         )];
         r.push("  <defs>".into());
         for v in &self.veli_usati {
-            let geo: Vec<(String, Valore)> = v.geo.iter().map(|(k, n)| (k.to_string(), Valore::Num(*n))).collect();
-            r.push(format!("    <{}Gradient id=\"{slug}-{}\"{}>", v.tipo, v.nome, attrs(&geo)));
+            let geo: Vec<(String, Valore)> = v
+                .geo
+                .iter()
+                .map(|(k, n)| (k.to_string(), Valore::Num(*n)))
+                .collect();
+            r.push(format!(
+                "    <{}Gradient id=\"{slug}-{}\"{}>",
+                v.tipo,
+                v.nome,
+                attrs(&geo)
+            ));
             for (o, c, a) in v.stop {
                 r.push(format!(
                     "      <stop offset=\"{}\" stop-color=\"{c}\" stop-opacity=\"{}\"/>",
@@ -801,7 +944,12 @@ impl<'a> Costruzione<'a> {
                 f.clone(),
                 format!("symbols.lib.{f}.{}", d.slug),
             ),
-            None => (format!("prj:{}", d.slug), format!("prj/{}.svg", d.slug), "project".to_string(), d.it.clone()),
+            None => (
+                format!("prj:{}", d.slug),
+                format!("prj/{}.svg", d.slug),
+                "project".to_string(),
+                d.it.clone(),
+            ),
         };
         let mut v = json!({
             "id": id, "file": file, "family": family, "kind": d.tipo, "label": label,
@@ -863,7 +1011,11 @@ fn extra_ammesso(k: &str, v: &Valore) -> Result<(), String> {
         "stroke_linejoin" => fra(v, &["round", "miter", "bevel"]),
         "stroke" | "fill" => fra(v, &["none"]),
         "stroke_dasharray" => match v {
-            Valore::Testo(t) if !t.is_empty() && t.split_whitespace().all(|p| p.parse::<f64>().is_ok()) => Ok(()),
+            Valore::Testo(t)
+                if !t.is_empty() && t.split_whitespace().all(|p| p.parse::<f64>().is_ok()) =>
+            {
+                Ok(())
+            }
             Valore::Num(n) if *n > 0.0 => Ok(()),
             _ => Err(format!("«{k}» vuole numeri separati da spazi")),
         },
@@ -884,7 +1036,9 @@ fn attributo_ripetuto(op: &Op) -> Option<String> {
     let chiave = |k: &String| k.replace('_', "-");
     let mut nomi: Vec<String> = Vec::new();
     match op {
-        Op::Forma { geo, mat, extra, .. } => {
+        Op::Forma {
+            geo, mat, extra, ..
+        } => {
             nomi.extend(geo.0.iter().map(|(k, _)| chiave(k)));
             if mat.is_some() {
                 nomi.extend(["fill".into(), "data-mat".into()]);
@@ -898,29 +1052,40 @@ fn attributo_ripetuto(op: &Op) -> Option<String> {
             }
             nomi.extend(extra.0.iter().map(|(k, _)| chiave(k)));
         }
-        Op::Luce { geo, .. } | Op::Riflesso { geo, .. } => nomi.extend(geo.0.iter().map(|(k, _)| chiave(k))),
+        Op::Luce { geo, .. } | Op::Riflesso { geo, .. } => {
+            nomi.extend(geo.0.iter().map(|(k, _)| chiave(k)))
+        }
         _ => return None,
     }
-    nomi.iter().enumerate().find(|(i, n)| nomi[..*i].contains(n)).map(|(_, n)| n.clone())
+    nomi.iter()
+        .enumerate()
+        .find(|(i, n)| nomi[..*i].contains(n))
+        .map(|(_, n)| n.clone())
 }
 
 /// La `d` di un path: solo comandi SVG e numeri.
 fn path_ammesso(d: &str) -> bool {
     !d.trim().is_empty()
         && d.len() <= 4000
-        && d.chars().all(|c| "MmLlHhVvCcSsQqTtAaZz0123456789.,-+eE ".contains(c))
+        && d.chars()
+            .all(|c| "MmLlHhVvCcSsQqTtAaZz0123456789.,-+eE ".contains(c))
 }
 
 fn numero_o_testo_numerico(v: &Valore) -> bool {
     match v {
         Valore::Num(n) => n.is_finite(),
-        Valore::Testo(t) => t.trim().parse::<f64>().map(|n| n.is_finite()).unwrap_or(false),
+        Valore::Testo(t) => t
+            .trim()
+            .parse::<f64>()
+            .map(|n| n.is_finite())
+            .unwrap_or(false),
     }
 }
 
 fn nome_ammesso(s: &str, min: usize, max: usize) -> bool {
     (min..=max).contains(&s.len())
-        && s.chars().all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '-')
+        && s.chars()
+            .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '-')
         && !s.starts_with('-')
         && !s.ends_with('-')
 }
@@ -928,13 +1093,23 @@ fn nome_ammesso(s: &str, min: usize, max: usize) -> bool {
 /// Il riquadro di una forma, se la forma ne ha uno semplice.
 fn riquadro(tag: &str, geo: &Attributi) -> Option<(f64, f64, f64, f64)> {
     match tag {
-        "rect" => Some((geo.num("x")?, geo.num("y")?, geo.num("width")?, geo.num("height")?)),
+        "rect" => Some((
+            geo.num("x")?,
+            geo.num("y")?,
+            geo.num("width")?,
+            geo.num("height")?,
+        )),
         "circle" => {
             let (cx, cy, r) = (geo.num("cx")?, geo.num("cy")?, geo.num("r")?);
             Some((cx - r, cy - r, 2.0 * r, 2.0 * r))
         }
         "ellipse" => {
-            let (cx, cy, rx, ry) = (geo.num("cx")?, geo.num("cy")?, geo.num("rx")?, geo.num("ry")?);
+            let (cx, cy, rx, ry) = (
+                geo.num("cx")?,
+                geo.num("cy")?,
+                geo.num("rx")?,
+                geo.num("ry")?,
+            );
             Some((cx - rx, cy - ry, 2.0 * rx, 2.0 * ry))
         }
         _ => None,
@@ -951,27 +1126,41 @@ pub fn regole(d: &Descrizione, c: &Compilato) -> Vec<String> {
 
     // ── chi è ──
     if !nome_ammesso(&d.slug, 3, 40) {
-        male.push(format!("slug «{}»: da 3 a 40 caratteri fra a-z, 0-9 e «-»", d.slug));
+        male.push(format!(
+            "slug «{}»: da 3 a 40 caratteri fra a-z, 0-9 e «-»",
+            d.slug
+        ));
     }
     if !nome_ammesso(&d.tipo, 2, 30) {
-        male.push(format!("tipo «{}»: da 2 a 30 caratteri fra a-z, 0-9 e «-»", d.tipo));
+        male.push(format!(
+            "tipo «{}»: da 2 a 30 caratteri fra a-z, 0-9 e «-»",
+            d.tipo
+        ));
     }
     for (l, t) in [("it", &d.it), ("en", &d.en)] {
         if t.trim().is_empty() || t.chars().count() > 60 || t.chars().any(|c| "<>\"&".contains(c)) {
-            male.push(format!("etichetta {l} «{t}»: da 1 a 60 caratteri, senza < > \" &"));
+            male.push(format!(
+                "etichetta {l} «{t}»: da 1 a 60 caratteri, senza < > \" &"
+            ));
         }
     }
     if colore_materiale(&d.body).is_none() {
         male.push(format!("materiale del corpo «{}» sconosciuto", d.body));
     }
     if d.w.max(d.h) > MAX_LATO {
-        male.push(format!("viewBox {}×{} oltre i {MAX_LATO} del pannello", d.w, d.h));
+        male.push(format!(
+            "viewBox {}×{} oltre i {MAX_LATO} del pannello",
+            d.w, d.h
+        ));
     }
     if d.w < 10 || d.h < 10 || !d.w.is_multiple_of(10) || !d.h.is_multiple_of(10) {
         male.push(format!("viewBox {}×{} non multiplo di 10", d.w, d.h));
     }
     if d.ops.len() > MAX_OPERAZIONI {
-        male.push(format!("{} operazioni: al più {MAX_OPERAZIONI}", d.ops.len()));
+        male.push(format!(
+            "{} operazioni: al più {MAX_OPERAZIONI}",
+            d.ops.len()
+        ));
     }
 
     // ── le operazioni ──
@@ -979,7 +1168,9 @@ pub fn regole(d: &Descrizione, c: &Compilato) -> Vec<String> {
     // due casi storici (una forma che sborda di qualche decimo, due lampade
     // con lo stesso id nella macchina del caffè) che i motori reggono.
     let del_progetto = d.family.is_none();
-    let fuori = |x: f64, y: f64, ww: f64, hh: f64| x < -1.0 || y < -1.0 || x + ww > w + 1.0 || y + hh > h + 1.0;
+    let fuori = |x: f64, y: f64, ww: f64, hh: f64| {
+        x < -1.0 || y < -1.0 || x + ww > w + 1.0 || y + hh > h + 1.0
+    };
     let mut ids_parti: Vec<&str> = Vec::new();
     for (i, op) in espandi(&d.ops).iter().enumerate() {
         let dove = format!("operazione {}", i + 1);
@@ -991,7 +1182,10 @@ pub fn regole(d: &Descrizione, c: &Compilato) -> Vec<String> {
         }
         let controlla_forma = |tag: &str, geo: &Attributi, male: &mut Vec<String>| {
             if !FORME.contains(&tag) {
-                male.push(format!("{dove}: forma «{tag}» non ammessa (sono {})", FORME.join(", ")));
+                male.push(format!(
+                    "{dove}: forma «{tag}» non ammessa (sono {})",
+                    FORME.join(", ")
+                ));
                 return;
             }
             for (k, v) in &geo.0 {
@@ -1013,7 +1207,13 @@ pub fn regole(d: &Descrizione, c: &Compilato) -> Vec<String> {
             }
         };
         match op {
-            Op::Forma { tag, geo, mat, velo: v, extra } => {
+            Op::Forma {
+                tag,
+                geo,
+                mat,
+                velo: v,
+                extra,
+            } => {
                 controlla_forma(tag, geo, &mut male);
                 if let Some(m) = mat {
                     if colore_materiale(m).is_none() {
@@ -1031,7 +1231,12 @@ pub fn regole(d: &Descrizione, c: &Compilato) -> Vec<String> {
                     }
                 }
             }
-            Op::Luce { tag, geo, velo: v, opacita } => {
+            Op::Luce {
+                tag,
+                geo,
+                velo: v,
+                opacita,
+            } => {
                 controlla_forma(tag, geo, &mut male);
                 if velo(v).is_none() {
                     male.push(format!("{dove}: velo «{v}» sconosciuto"));
@@ -1048,7 +1253,9 @@ pub fn regole(d: &Descrizione, c: &Compilato) -> Vec<String> {
             }
             Op::Tratto { d: dd, mat, extra } => {
                 if !path_ammesso(dd) {
-                    male.push(format!("{dove}: la «d» del tratto ammette solo comandi SVG e numeri"));
+                    male.push(format!(
+                        "{dove}: la «d» del tratto ammette solo comandi SVG e numeri"
+                    ));
                 }
                 if let Some(m) = mat {
                     if colore_materiale(m).is_none() {
@@ -1086,10 +1293,14 @@ pub fn regole(d: &Descrizione, c: &Compilato) -> Vec<String> {
     for p in &parti {
         let id = p["id"].as_str().unwrap_or("");
         if !svg.contains(&format!("<g id=\"{id}\"")) {
-            male.push(format!("la parte {id} non ha forme: lo strato resterebbe vuoto"));
+            male.push(format!(
+                "la parte {id} non ha forme: lo strato resterebbe vuoto"
+            ));
         }
         if let Err(e) = serde_json::from_value::<crate::simboli_lib::ParteLib>(p.clone()) {
-            male.push(format!("la parte {id} non ha la geometria del suo tipo: {e}"));
+            male.push(format!(
+                "la parte {id} non ha la geometria del suo tipo: {e}"
+            ));
             continue;
         }
         // La geometria delle parti sta nel disegno.
@@ -1110,9 +1321,16 @@ pub fn regole(d: &Descrizione, c: &Compilato) -> Vec<String> {
             male.push("due bocche con lo stesso id".into());
         }
         visti.push(id);
-        let (x, y, dd) = (p["x"].as_f64().unwrap_or(-1.0), p["y"].as_f64().unwrap_or(-1.0), p["d"].as_f64().unwrap_or(0.0));
+        let (x, y, dd) = (
+            p["x"].as_f64().unwrap_or(-1.0),
+            p["y"].as_f64().unwrap_or(-1.0),
+            p["d"].as_f64().unwrap_or(0.0),
+        );
         let side = p["side"].as_str().unwrap_or("");
-        let dichiarata = d.ops.iter().any(|o| matches!(o, Op::Bocca { x: bx, y: by, .. } if *bx == x && *by == y));
+        let dichiarata = d
+            .ops
+            .iter()
+            .any(|o| matches!(o, Op::Bocca { x: bx, y: by, .. } if *bx == x && *by == y));
         if dichiarata {
             if !(0.0..=w).contains(&x) || !(0.0..=h).contains(&y) {
                 male.push(format!("la bocca {id} sta fuori dal disegno ({x}, {y})"));
@@ -1159,16 +1377,26 @@ pub fn manifesto(simboli: &[Descrizione]) -> (Value, BTreeMap<String, String>) {
         // Un simbolo che non compila più (una descrizione scritta a mano nel
         // file) si salta: meglio un segnaposto sul disegno che un manifesto
         // che non si legge.
-        let Ok(c) = compila_e_controlla(d) else { continue };
+        let Ok(c) = compila_e_controlla(d) else {
+            continue;
+        };
         let nome = format!("prj/{}.svg", d.slug);
         h.update(nome.as_bytes());
         h.update(c.svg.as_bytes());
         file.insert(nome, c.svg);
         voci.push(c.voce);
     }
-    let versione: String = h.finalize().iter().take(6).map(|b| format!("{b:02x}")).collect();
+    let versione: String = h
+        .finalize()
+        .iter()
+        .take(6)
+        .map(|b| format!("{b:02x}"))
+        .collect();
     let materiali: BTreeMap<&str, &str> = MATERIALI.iter().copied().collect();
-    (json!({ "version": versione, "materials": materiali, "symbols": voci }), file)
+    (
+        json!({ "version": versione, "materials": materiali, "symbols": voci }),
+        file,
+    )
 }
 
 #[cfg(test)]
@@ -1182,7 +1410,9 @@ mod tests {
         struct File {
             simboli: Vec<Descrizione>,
         }
-        let testo = std::fs::read_to_string(format!("{RADICE}/tests/fixtures/simboli-descrizioni.json")).unwrap();
+        let testo =
+            std::fs::read_to_string(format!("{RADICE}/tests/fixtures/simboli-descrizioni.json"))
+                .unwrap();
         serde_json::from_str::<File>(&testo).unwrap().simboli
     }
 
@@ -1190,10 +1420,16 @@ mod tests {
     /// manifesto di Python scrive `50.0` dove qui esce `50`.
     fn uguali(a: &Value, b: &Value) -> bool {
         match (a, b) {
-            (Value::Number(x), Value::Number(y)) => (x.as_f64().unwrap() - y.as_f64().unwrap()).abs() < 1e-9,
-            (Value::Array(x), Value::Array(y)) => x.len() == y.len() && x.iter().zip(y).all(|(p, q)| uguali(p, q)),
+            (Value::Number(x), Value::Number(y)) => {
+                (x.as_f64().unwrap() - y.as_f64().unwrap()).abs() < 1e-9
+            }
+            (Value::Array(x), Value::Array(y)) => {
+                x.len() == y.len() && x.iter().zip(y).all(|(p, q)| uguali(p, q))
+            }
             (Value::Object(x), Value::Object(y)) => {
-                x.len() == y.len() && x.iter().all(|(k, v)| y.get(k).is_some_and(|w| uguali(v, w)))
+                x.len() == y.len()
+                    && x.iter()
+                        .all(|(k, v)| y.get(k).is_some_and(|w| uguali(v, w)))
             }
             _ => a == b,
         }
@@ -1206,7 +1442,10 @@ mod tests {
     #[test]
     fn compila_come_genera_py() {
         let manifesto: Value = serde_json::from_str(
-            &std::fs::read_to_string(format!("{RADICE}/sws-editor/public/symbols/lib/manifest.json")).unwrap(),
+            &std::fs::read_to_string(format!(
+                "{RADICE}/sws-editor/public/symbols/lib/manifest.json"
+            ))
+            .unwrap(),
         )
         .unwrap();
         let voci = manifesto["symbols"].as_array().unwrap();
@@ -1223,14 +1462,28 @@ mod tests {
             .unwrap();
             if c.svg != atteso {
                 let riga = c.svg.lines().zip(atteso.lines()).find(|(a, b)| a != b);
-                diversi.push(format!("{fam}/{}: SVG diverso, prima riga: {riga:?}", d.slug));
+                diversi.push(format!(
+                    "{fam}/{}: SVG diverso, prima riga: {riga:?}",
+                    d.slug
+                ));
             }
-            let voce = voci.iter().find(|v| v["id"] == d.id()).expect("voce nel manifesto");
+            let voce = voci
+                .iter()
+                .find(|v| v["id"] == d.id())
+                .expect("voce nel manifesto");
             if !uguali(&c.voce, voce) {
-                diversi.push(format!("{fam}/{}: voce diversa\n  qui:   {}\n  python: {}", d.slug, c.voce, voce));
+                diversi.push(format!(
+                    "{fam}/{}: voce diversa\n  qui:   {}\n  python: {}",
+                    d.slug, c.voce, voce
+                ));
             }
         }
-        assert!(diversi.is_empty(), "{} simboli diversi:\n{}", diversi.len(), diversi.join("\n"));
+        assert!(
+            diversi.is_empty(),
+            "{} simboli diversi:\n{}",
+            diversi.len(),
+            diversi.join("\n")
+        );
     }
 
     /// Le regole valgono anche per la libreria: nessun simbolo le viola.
@@ -1249,7 +1502,10 @@ mod tests {
     #[test]
     fn materiali_e_veli_come_il_manifesto() {
         let manifesto: Value = serde_json::from_str(
-            &std::fs::read_to_string(format!("{RADICE}/sws-editor/public/symbols/lib/manifest.json")).unwrap(),
+            &std::fs::read_to_string(format!(
+                "{RADICE}/sws-editor/public/symbols/lib/manifest.json"
+            ))
+            .unwrap(),
         )
         .unwrap();
         let m = manifesto["materials"].as_object().unwrap();
@@ -1261,7 +1517,15 @@ mod tests {
 
     #[test]
     fn fmt_come_python() {
-        for (v, atteso) in [(0.0, "0"), (-0.001, "0"), (1.5, "1.5"), (0.8, "0.8"), (40.0, "40"), (12.345, "12.35"), (-3.1, "-3.1")] {
+        for (v, atteso) in [
+            (0.0, "0"),
+            (-0.001, "0"),
+            (1.5, "1.5"),
+            (0.8, "0.8"),
+            (40.0, "40"),
+            (12.345, "12.35"),
+            (-3.1, "-3.1"),
+        ] {
             assert_eq!(fmt(v), atteso, "fmt({v})");
         }
     }
@@ -1294,11 +1558,16 @@ mod tests {
         assert_eq!(c.voce["file"], "prj/gabbia-laminazione.svg");
         assert_eq!(c.voce["labels"]["en"], "Rolling stand");
         let s = c.simbolo().unwrap();
-        assert_eq!(s.ports.iter().map(|p| p.id.as_str()).collect::<Vec<_>>(), ["n-left", "n-right"]);
+        assert_eq!(
+            s.ports.iter().map(|p| p.id.as_str()).collect::<Vec<_>>(),
+            ["n-left", "n-right"]
+        );
         assert_eq!(s.ports[0].y, 50.0);
         assert_eq!(s.parts.len(), 1);
         // Il formato a strati che i motori dividono.
-        assert!(c.svg.contains("\n  <g id=\"body\" data-layer=\"part\" data-mat=\"body-motor\""));
+        assert!(c
+            .svg
+            .contains("\n  <g id=\"body\" data-layer=\"part\" data-mat=\"body-motor\""));
         assert!(c.svg.contains("\n  <g id=\"rotor\" data-layer=\"part\""));
     }
 

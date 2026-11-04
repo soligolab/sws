@@ -20,7 +20,11 @@ pub fn crc16(dati: &[u8]) -> u16 {
     for b in dati {
         crc ^= *b as u16;
         for _ in 0..8 {
-            crc = if crc & 1 != 0 { (crc >> 1) ^ 0xA001 } else { crc >> 1 };
+            crc = if crc & 1 != 0 {
+                (crc >> 1) ^ 0xA001
+            } else {
+                crc >> 1
+            };
         }
     }
     crc
@@ -93,20 +97,32 @@ fn rotta(msg: impl Into<String>) -> io::Error {
 /// funzione e il CRC. Un'eccezione (funzione | 0x80) è `ErrorKind::Other`.
 pub fn corpo_risposta(unita: u8, fc: u8, t: &[u8]) -> io::Result<&[u8]> {
     if t.len() < 5 {
-        return Err(rotta(format!("risposta RTU troppo corta: {} byte", t.len())));
+        return Err(rotta(format!(
+            "risposta RTU troppo corta: {} byte",
+            t.len()
+        )));
     }
     let (dati, crc) = t.split_at(t.len() - 2);
     if crc16(dati).to_le_bytes() != [crc[0], crc[1]] {
         return Err(rotta("CRC RTU sbagliato"));
     }
     if dati[0] != unita {
-        return Err(rotta(format!("risposta dall'unità {} invece che {unita}", dati[0])));
+        return Err(rotta(format!(
+            "risposta dall'unità {} invece che {unita}",
+            dati[0]
+        )));
     }
     if dati[1] == fc | 0x80 {
-        return Err(io::Error::other(format!("eccezione Modbus {} sulla funzione {fc}", dati[2])));
+        return Err(io::Error::other(format!(
+            "eccezione Modbus {} sulla funzione {fc}",
+            dati[2]
+        )));
     }
     if dati[1] != fc {
-        return Err(rotta(format!("risposta alla funzione {} invece che {fc}", dati[1])));
+        return Err(rotta(format!(
+            "risposta alla funzione {} invece che {fc}",
+            dati[1]
+        )));
     }
     Ok(&dati[2..])
 }
@@ -116,9 +132,15 @@ pub fn registri_letti(unita: u8, fc: u8, n: u16, t: &[u8]) -> io::Result<Vec<u16
     let c = corpo_risposta(unita, fc, t)?;
     let attesi = n as usize * 2;
     if c.first().map(|b| *b as usize) != Some(attesi) || c.len() != attesi + 1 {
-        return Err(rotta(format!("attesi {n} registri, arrivati {} byte", c.len().saturating_sub(1))));
+        return Err(rotta(format!(
+            "attesi {n} registri, arrivati {} byte",
+            c.len().saturating_sub(1)
+        )));
     }
-    Ok(c[1..].chunks_exact(2).map(|w| u16::from_be_bytes([w[0], w[1]])).collect())
+    Ok(c[1..]
+        .chunks_exact(2)
+        .map(|w| u16::from_be_bytes([w[0], w[1]]))
+        .collect())
 }
 
 /// I bit di una risposta a FC1/FC2, il primo nel bit meno significativo.
@@ -126,9 +148,14 @@ pub fn bit_letti(unita: u8, fc: u8, n: u16, t: &[u8]) -> io::Result<Vec<bool>> {
     let c = corpo_risposta(unita, fc, t)?;
     let attesi = (n as usize).div_ceil(8);
     if c.first().map(|b| *b as usize) != Some(attesi) || c.len() != attesi + 1 {
-        return Err(rotta(format!("attesi {n} bit, arrivati {} byte", c.len().saturating_sub(1))));
+        return Err(rotta(format!(
+            "attesi {n} bit, arrivati {} byte",
+            c.len().saturating_sub(1)
+        )));
     }
-    Ok((0..n as usize).map(|i| c[1 + i / 8] & (1 << (i % 8)) != 0).collect())
+    Ok((0..n as usize)
+        .map(|i| c[1 + i / 8] & (1 << (i % 8)) != 0)
+        .collect())
 }
 
 /// La conferma di una scrittura: l'eco di indirizzo e quantità (o valore).
@@ -148,7 +175,10 @@ mod tests {
     fn crc_della_letteratura() {
         // L'esempio classico delle specifiche Modbus: unità 1, FC3, 0x0000, 10
         // registri → CRC `C5 CD` sul filo.
-        assert_eq!(richiesta_lettura(1, 3, 0, 10), [0x01, 0x03, 0x00, 0x00, 0x00, 0x0A, 0xC5, 0xCD]);
+        assert_eq!(
+            richiesta_lettura(1, 3, 0, 10),
+            [0x01, 0x03, 0x00, 0x00, 0x00, 0x0A, 0xC5, 0xCD]
+        );
     }
 
     #[test]
@@ -173,8 +203,14 @@ mod tests {
 
         let mut rotta = con_crc(vec![1, 3, 2, 0, 1]);
         rotta[3] ^= 0xFF;
-        assert_eq!(registri_letti(1, 3, 1, &rotta).unwrap_err().kind(), io::ErrorKind::InvalidData);
-        assert_eq!(registri_letti(1, 3, 1, &[1, 3]).unwrap_err().kind(), io::ErrorKind::InvalidData);
+        assert_eq!(
+            registri_letti(1, 3, 1, &rotta).unwrap_err().kind(),
+            io::ErrorKind::InvalidData
+        );
+        assert_eq!(
+            registri_letti(1, 3, 1, &[1, 3]).unwrap_err().kind(),
+            io::ErrorKind::InvalidData
+        );
         // Due registri chiesti, uno arrivato.
         assert!(registri_letti(1, 3, 2, &con_crc(vec![1, 3, 2, 0, 1])).is_err());
         // Un'altra unità.
@@ -184,12 +220,27 @@ mod tests {
     #[test]
     fn bit_e_scritture() {
         let t = con_crc(vec![1, 1, 2, 0b0000_0101, 0b0000_0001]);
-        assert_eq!(bit_letti(1, 1, 9, &t).unwrap(), vec![true, false, true, false, false, false, false, false, true]);
+        assert_eq!(
+            bit_letti(1, 1, 9, &t).unwrap(),
+            vec![true, false, true, false, false, false, false, false, true]
+        );
 
-        assert_eq!(&richiesta_scrittura_registri(1, 0x10, &[7])[..6], &[1, 6, 0, 0x10, 0, 7]);
-        assert_eq!(&richiesta_scrittura_registri(1, 0x10, &[7, 8])[..11], &[1, 16, 0, 0x10, 0, 2, 4, 0, 7, 0, 8]);
-        assert_eq!(&richiesta_scrittura_bit(1, 3, &[true])[..6], &[1, 5, 0, 3, 0xFF, 0]);
-        assert_eq!(&richiesta_scrittura_bit(1, 3, &[true, false, true])[..7], &[1, 15, 0, 3, 0, 3, 1]);
+        assert_eq!(
+            &richiesta_scrittura_registri(1, 0x10, &[7])[..6],
+            &[1, 6, 0, 0x10, 0, 7]
+        );
+        assert_eq!(
+            &richiesta_scrittura_registri(1, 0x10, &[7, 8])[..11],
+            &[1, 16, 0, 0x10, 0, 2, 4, 0, 7, 0, 8]
+        );
+        assert_eq!(
+            &richiesta_scrittura_bit(1, 3, &[true])[..6],
+            &[1, 5, 0, 3, 0xFF, 0]
+        );
+        assert_eq!(
+            &richiesta_scrittura_bit(1, 3, &[true, false, true])[..7],
+            &[1, 15, 0, 3, 0, 3, 1]
+        );
 
         let eco = con_crc(vec![1, 6, 0, 0x10, 0, 7]);
         assert!(scrittura_confermata(1, 6, &eco).is_ok());

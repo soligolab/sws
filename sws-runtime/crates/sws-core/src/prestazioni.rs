@@ -51,7 +51,11 @@ impl Voce {
         for (i, c) in self.secchi.iter().enumerate() {
             visti += c;
             if visti >= soglia {
-                return SOGLIE_MS.get(i).copied().unwrap_or(self.max_ms).min(self.max_ms);
+                return SOGLIE_MS
+                    .get(i)
+                    .copied()
+                    .unwrap_or(self.max_ms)
+                    .min(self.max_ms);
             }
         }
         self.max_ms
@@ -140,7 +144,8 @@ impl Accumulatore {
 /// **totale** che non si azzera mai, per `/metrics` (Prometheus vuole
 /// contatori che crescono). Lo usano le sorgenti, lo storico, gli allarmi,
 /// gli script — chiunque abbia un lavoro che vale la pena di contare.
-static GLOBALE: std::sync::Mutex<Option<(Accumulatore, Accumulatore)>> = std::sync::Mutex::new(None);
+static GLOBALE: std::sync::Mutex<Option<(Accumulatore, Accumulatore)>> =
+    std::sync::Mutex::new(None);
 
 /// Registra `d` sotto `nome` nel registro del processo.
 pub fn registra(nome: &str, d: Duration) {
@@ -160,7 +165,10 @@ pub struct Misura {
 
 impl Misura {
     pub fn nuova(nome: impl Into<String>) -> Self {
-        Self { nome: nome.into(), da: std::time::Instant::now() }
+        Self {
+            nome: nome.into(),
+            da: std::time::Instant::now(),
+        }
     }
 }
 
@@ -173,7 +181,9 @@ impl Drop for Misura {
 /// La finestra del registro del processo, e la si azzera.
 pub fn finestra_e_azzera() -> Riassunto {
     let mut g = GLOBALE.lock().unwrap_or_else(|e| e.into_inner());
-    g.get_or_insert_with(Default::default).0.riassunto_e_azzera()
+    g.get_or_insert_with(Default::default)
+        .0
+        .riassunto_e_azzera()
 }
 
 /// Il totale del registro del processo, dall'avvio.
@@ -188,7 +198,10 @@ fn aggiungi(g: &mut Grezza, d: Duration) {
     g.somma_us += us;
     g.max_us = g.max_us.max(us);
     let ms = us as f64 / 1000.0;
-    let i = SOGLIE_MS.iter().position(|s| ms <= *s).unwrap_or(SOGLIE_MS.len());
+    let i = SOGLIE_MS
+        .iter()
+        .position(|s| ms <= *s)
+        .unwrap_or(SOGLIE_MS.len());
     g.secchi[i] += 1;
 }
 

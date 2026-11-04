@@ -126,7 +126,9 @@ fn registra(voluto: &str, esito: &str, messaggio: Option<String>, codesys: Optio
         esito: esito.into(),
         messaggio: messaggio.clone(),
         codesys_url_override: codesys,
-        quando: chrono::Utc::now().format("%Y-%m-%d %H:%M:%S UTC").to_string(),
+        quando: chrono::Utc::now()
+            .format("%Y-%m-%d %H:%M:%S UTC")
+            .to_string(),
     };
     tracing::info!(voluto, esito, messaggio = ?messaggio, codesys = ?codesys, "display: commutazione");
     if let Ok(mut g) = STATO.write() {
@@ -145,7 +147,11 @@ const GIRO_SORVEGLIANZA_S: u64 = 30;
 
 /// La decisione della sorveglianza, senza D-Bus: quante volte di fila il viewer
 /// è stato visto spento con il motore LVGL applicato, e se va riavviato.
-pub fn sorveglia_passo(applicato: Option<&str>, viewer_attivo: bool, spento_prima: u32) -> (u32, bool) {
+pub fn sorveglia_passo(
+    applicato: Option<&str>,
+    viewer_attivo: bool,
+    spento_prima: u32,
+) -> (u32, bool) {
     if applicato != Some(LVGL) || viewer_attivo {
         return (0, false);
     }
@@ -167,7 +173,9 @@ pub fn sorveglia_viewer() {
         let mut spento = 0;
         loop {
             tokio::time::sleep(std::time::Duration::from_secs(GIRO_SORVEGLIANZA_S)).await;
-            let Ok(utente) = zbus::Connection::session().await else { continue };
+            let Ok(utente) = zbus::Connection::session().await else {
+                continue;
+            };
             let applicato = *APPLICATO.lock().await;
             let attivo = bus::unit_attiva(&utente, VIEWER).await;
             let (n, riavvia) = sorveglia_passo(applicato, attivo, spento);
@@ -178,7 +186,10 @@ pub fn sorveglia_viewer() {
                     LVGL,
                     if r.is_ok() { LVGL } else { "errore" },
                     Some(match r {
-                        Ok(()) => "il viewer LVGL era spento: riavviato dalla sorveglianza del runtime".into(),
+                        Ok(()) => {
+                            "il viewer LVGL era spento: riavviato dalla sorveglianza del runtime"
+                                .into()
+                        }
                         Err(e) => format!("il viewer LVGL è spento e non riparte: {e}"),
                     }),
                     None,
@@ -209,7 +220,11 @@ pub async fn publish(config_dir: &Path, project_dir: &Path, motivo: Motivo) {
     // dell'IDE mette lì apposta — mandava il browser contro una porta che parla
     // TLS, e lo schermo restava su una pagina di errore senza che niente lo
     // collegasse al pulsante premuto.
-    let schema = if config_dir.join("tls.crt").exists() { "https" } else { "http" };
+    let schema = if config_dir.join("tls.crt").exists() {
+        "https"
+    } else {
+        "http"
+    };
     tokio::spawn(async move {
         let mut applicato = APPLICATO.lock().await;
         match decidi(*applicato, voluto, motivo) {
@@ -236,13 +251,23 @@ pub(crate) mod bus {
     const PX_IFACE: &str = "net.pixsys.Config1.WebBrowser";
 
     pub async fn unit_attiva(c: &Connection, unit: &str) -> bool {
-        let Ok(m) = c.call_method(Some(SD), SD_PATH, Some(SD_IFACE), "GetUnit", &(unit)).await else {
+        let Ok(m) = c
+            .call_method(Some(SD), SD_PATH, Some(SD_IFACE), "GetUnit", &(unit))
+            .await
+        else {
             return false; // NoSuchUnit: una unit non caricata non è attiva
         };
-        let Ok(path) = m.body().deserialize::<zbus::zvariant::OwnedObjectPath>() else { return false };
+        let Ok(path) = m.body().deserialize::<zbus::zvariant::OwnedObjectPath>() else {
+            return false;
+        };
         let Ok(r) = c
-            .call_method(Some(SD), path.as_str(), Some("org.freedesktop.DBus.Properties"), "Get",
-                &("org.freedesktop.systemd1.Unit", "ActiveState"))
+            .call_method(
+                Some(SD),
+                path.as_str(),
+                Some("org.freedesktop.DBus.Properties"),
+                "Get",
+                &("org.freedesktop.systemd1.Unit", "ActiveState"),
+            )
             .await
         else {
             return false;
@@ -259,21 +284,40 @@ pub(crate) mod bus {
     /// caricandola se serve: `GetUnit` fallisce per un'unità mai avviata, come il
     /// viewer su un progetto web, `LoadUnit` no.
     pub async fn proprieta_unita(c: &Connection, unit: &str, proprieta: &str) -> Option<String> {
-        let m = c.call_method(Some(SD), SD_PATH, Some(SD_IFACE), "LoadUnit", &(unit)).await.ok()?;
-        let path = m.body().deserialize::<zbus::zvariant::OwnedObjectPath>().ok()?;
-        let r = c
-            .call_method(Some(SD), path.as_str(), Some("org.freedesktop.DBus.Properties"), "Get",
-                &("org.freedesktop.systemd1.Unit", proprieta))
+        let m = c
+            .call_method(Some(SD), SD_PATH, Some(SD_IFACE), "LoadUnit", &(unit))
             .await
             .ok()?;
-        r.body().deserialize::<OwnedValue>().ok().and_then(|v| String::try_from(v).ok())
+        let path = m
+            .body()
+            .deserialize::<zbus::zvariant::OwnedObjectPath>()
+            .ok()?;
+        let r = c
+            .call_method(
+                Some(SD),
+                path.as_str(),
+                Some("org.freedesktop.DBus.Properties"),
+                "Get",
+                &("org.freedesktop.systemd1.Unit", proprieta),
+            )
+            .await
+            .ok()?;
+        r.body()
+            .deserialize::<OwnedValue>()
+            .ok()
+            .and_then(|v| String::try_from(v).ok())
     }
 
     /// Un servizio **transitorio** dell'utente che esegue `argv` sull'host
     /// (02-10-2026, il quadlet che viaggia): sopravvive al riavvio del runtime
     /// che provoca, perché lo tiene systemd e non questo processo. Si toglie da
     /// sé quando finisce, anche se fallisce (`CollectMode`).
-    pub async fn avvia_transitorio(c: &Connection, nome: &str, descrizione: &str, argv: &[String]) -> Result<(), String> {
+    pub async fn avvia_transitorio(
+        c: &Connection,
+        nome: &str,
+        descrizione: &str,
+        argv: &[String],
+    ) -> Result<(), String> {
         use zbus::zvariant::Value;
         let exec: Vec<(String, Vec<String>, bool)> = vec![(argv[0].clone(), argv.to_vec(), false)];
         let proprieta: Vec<(&str, Value)> = vec![
@@ -282,23 +326,37 @@ pub(crate) mod bus {
             ("CollectMode", Value::from("inactive-or-failed")),
         ];
         let aux: Vec<(&str, Vec<(&str, Value)>)> = Vec::new();
-        c.call_method(Some(SD), SD_PATH, Some(SD_IFACE), "StartTransientUnit", &(nome, "replace", proprieta, aux))
-            .await
-            .map(|_| ())
-            .map_err(|e| format!("StartTransientUnit {nome}: {e}"))
+        c.call_method(
+            Some(SD),
+            SD_PATH,
+            Some(SD_IFACE),
+            "StartTransientUnit",
+            &(nome, "replace", proprieta, aux),
+        )
+        .await
+        .map(|_| ())
+        .map_err(|e| format!("StartTransientUnit {nome}: {e}"))
     }
 
     pub async fn unit(c: &Connection, metodo: &str, unit: &str) -> Result<(), String> {
-        c.call_method(Some(SD), SD_PATH, Some(SD_IFACE), metodo, &(unit, "replace"))
-            .await
-            .map(|_| ())
-            .map_err(|e| format!("{metodo} {unit}: {e}"))
+        c.call_method(
+            Some(SD),
+            SD_PATH,
+            Some(SD_IFACE),
+            metodo,
+            &(unit, "replace"),
+        )
+        .await
+        .map(|_| ())
+        .map_err(|e| format!("{metodo} {unit}: {e}"))
     }
 
     /// `GetEnabled`: una lettura, per sapere se il launcher è un Pixsys ≥ 2.1
     /// senza scoprirlo scrivendo.
     pub async fn launcher_supportato(c: &Connection) -> bool {
-        c.call_method(Some(PX), PX_BROWSER, Some(PX_IFACE), "GetEnabled", &()).await.is_ok()
+        c.call_method(Some(PX), PX_BROWSER, Some(PX_IFACE), "GetEnabled", &())
+            .await
+            .is_ok()
     }
 
     pub async fn browser_abilitato(c: &Connection, si: bool) -> Result<(), String> {
@@ -316,12 +374,24 @@ pub(crate) mod bus {
     }
 
     pub async fn browser_url_attuale(c: &Connection) -> Option<String> {
-        let m = c.call_method(Some(PX), PX_BROWSER, Some(PX_IFACE), "GetUrl", &()).await.ok()?;
+        let m = c
+            .call_method(Some(PX), PX_BROWSER, Some(PX_IFACE), "GetUrl", &())
+            .await
+            .ok()?;
         m.body().deserialize::<String>().ok()
     }
 
     pub async fn codesys_override(c: &Connection) -> Option<bool> {
-        let m = c.call_method(Some(PX), PX_BROWSER, Some(PX_IFACE), "GetCodesysAllowUrlOverride", &()).await.ok()?;
+        let m = c
+            .call_method(
+                Some(PX),
+                PX_BROWSER,
+                Some(PX_IFACE),
+                "GetCodesysAllowUrlOverride",
+                &(),
+            )
+            .await
+            .ok()?;
         m.body().deserialize::<bool>().ok()
     }
 }
@@ -330,7 +400,12 @@ pub(crate) mod bus {
 /// toccato lo schermo (configurazione, launcher indeciso, non supportato).
 async fn commuta(voluto: &'static str, azione: Azione, schema: &str) -> Option<&'static str> {
     let Ok(sistema) = zbus::Connection::system().await else {
-        registra(voluto, "non_supportato", Some("bus di sistema non raggiungibile".into()), None);
+        registra(
+            voluto,
+            "non_supportato",
+            Some("bus di sistema non raggiungibile".into()),
+            None,
+        );
         return None;
     };
     if !bus::launcher_supportato(&sistema).await {
@@ -396,7 +471,12 @@ async fn commuta(voluto: &'static str, azione: Azione, schema: &str) -> Option<&
         }
         return match bus::unit(&utente, "RestartUnit", VIEWER).await {
             Ok(()) => {
-                registra(voluto, LVGL, (!note.is_empty()).then(|| note.join("; ")), codesys);
+                registra(
+                    voluto,
+                    LVGL,
+                    (!note.is_empty()).then(|| note.join("; ")),
+                    codesys,
+                );
                 Some(LVGL)
             }
             Err(e) => {
@@ -409,7 +489,8 @@ async fn commuta(voluto: &'static str, azione: Azione, schema: &str) -> Option<&
     // Web.
     let mut note = Vec::new();
     let _ = bus::unit(&utente, "StopUnit", VIEWER).await; // se non gira, niente da fermare
-    let url = std::env::var("SWS_VIEWER_URL").unwrap_or_else(|_| format!("{schema}://127.0.0.1:7443"));
+    let url =
+        std::env::var("SWS_VIEWER_URL").unwrap_or_else(|_| format!("{schema}://127.0.0.1:7443"));
     // Prima l'URL: il browser lo rilegge a ogni avvio.
     let url_prima = bus::browser_url_attuale(&sistema).await;
     if let Err(e) = bus::browser_url(&sistema, &url).await {
@@ -426,7 +507,11 @@ async fn commuta(voluto: &'static str, azione: Azione, schema: &str) -> Option<&
     // a schermo con la configurazione già giusta. Si riavvia, come fa
     // l'installer (regola polkit 17-chromium.rules).
     let gia_attivo = bus::unit_attiva(&sistema, BROWSER).await;
-    let metodo = if browser_da_riavviare(gia_attivo, url_prima.as_deref(), &url) { "RestartUnit" } else { "StartUnit" };
+    let metodo = if browser_da_riavviare(gia_attivo, url_prima.as_deref(), &url) {
+        "RestartUnit"
+    } else {
+        "StartUnit"
+    };
     if let Err(e) = bus::unit(&sistema, metodo, BROWSER).await {
         note.push(e);
     }
@@ -442,7 +527,12 @@ async fn commuta(voluto: &'static str, azione: Azione, schema: &str) -> Option<&
     if codesys == Some(true) {
         note.push("CODESYS può cambiare l'URL del browser (allow_url_override): all'avvio potrebbe riprendersi lo schermo".into());
     }
-    registra(voluto, WEB, (!note.is_empty()).then(|| note.join("; ")), codesys);
+    registra(
+        voluto,
+        WEB,
+        (!note.is_empty()).then(|| note.join("; ")),
+        codesys,
+    );
     Some(WEB)
 }
 
@@ -458,10 +548,22 @@ mod tests {
     #[test]
     fn il_browser_si_riavvia_solo_se_mostra_un_altro_url() {
         let sws = "http://127.0.0.1:8443";
-        assert!(browser_da_riavviare(true, Some("http://127.0.0.1:9443"), sws), "Cockpit a schermo");
-        assert!(!browser_da_riavviare(true, Some(sws), sws), "già giusto: niente lampeggio");
-        assert!(!browser_da_riavviare(false, Some("http://127.0.0.1:9443"), sws), "spento: basta avviarlo");
-        assert!(browser_da_riavviare(true, None, sws), "URL illeggibile: meglio riavviare");
+        assert!(
+            browser_da_riavviare(true, Some("http://127.0.0.1:9443"), sws),
+            "Cockpit a schermo"
+        );
+        assert!(
+            !browser_da_riavviare(true, Some(sws), sws),
+            "già giusto: niente lampeggio"
+        );
+        assert!(
+            !browser_da_riavviare(false, Some("http://127.0.0.1:9443"), sws),
+            "spento: basta avviarlo"
+        );
+        assert!(
+            browser_da_riavviare(true, None, sws),
+            "URL illeggibile: meglio riavviare"
+        );
     }
 
     #[test]
@@ -530,7 +632,10 @@ mod tests {
         assert_eq!(decidi(Some(LVGL), LVGL, Motivo::Modifica), Azione::Niente);
         // Stesso motore LVGL ma progetto nuovo (deploy): il viewer va riavviato,
         // o resta sul progetto di prima (WP630, 08-09-2026).
-        assert_eq!(decidi(Some(LVGL), LVGL, Motivo::Progetto), Azione::RiavviaViewer);
+        assert_eq!(
+            decidi(Some(LVGL), LVGL, Motivo::Progetto),
+            Azione::RiavviaViewer
+        );
         // Il web si ricarica da sé quando cambia il progetto.
         assert_eq!(decidi(Some(WEB), WEB, Motivo::Progetto), Azione::Niente);
     }

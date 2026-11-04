@@ -357,7 +357,12 @@ fn canale_con_luminosita(c: u8, b: f64) -> u8 {
 /// un solo callback che li combina, nello stesso ordine del web: il grigio del
 /// dato vecchio (`filter` sul `<g>` esterno), la luminosità di progetto (il
 /// filtro dell'involucro interno) e il respiro del lampeggio sfumato.
-pub fn colore_filtrato(rgb: (u8, u8, u8), grigio: bool, luminosita: f64, respiro: f64) -> (u8, u8, u8) {
+pub fn colore_filtrato(
+    rgb: (u8, u8, u8),
+    grigio: bool,
+    luminosita: f64,
+    respiro: f64,
+) -> (u8, u8, u8) {
     let (mut r, mut g, mut b) = rgb;
     if grigio {
         let lum = ((3 * r as u32 + b as u32 + 4 * g as u32) / 8).min(255);
@@ -660,10 +665,22 @@ mod tests {
 
     #[test]
     fn colore_filtrato_scurisce_schiarisce_e_respira() {
-        assert_eq!(colore_filtrato((200, 100, 0), false, 0.0, 1.0), (200, 100, 0));
-        assert_eq!(colore_filtrato((200, 100, 0), false, -50.0, 1.0), (100, 50, 0));
-        assert_eq!(colore_filtrato((0, 0, 0), false, 100.0, 1.0), (255, 255, 255));
-        assert_eq!(colore_filtrato((200, 100, 0), false, 0.0, 0.5), (100, 50, 0));
+        assert_eq!(
+            colore_filtrato((200, 100, 0), false, 0.0, 1.0),
+            (200, 100, 0)
+        );
+        assert_eq!(
+            colore_filtrato((200, 100, 0), false, -50.0, 1.0),
+            (100, 50, 0)
+        );
+        assert_eq!(
+            colore_filtrato((0, 0, 0), false, 100.0, 1.0),
+            (255, 255, 255)
+        );
+        assert_eq!(
+            colore_filtrato((200, 100, 0), false, 0.0, 0.5),
+            (100, 50, 0)
+        );
         // Il grigio viene prima: un rosso puro scolora verso la sua luminanza.
         let (r, g, b) = colore_filtrato((255, 0, 0), true, 0.0, 1.0);
         assert!(r < 255 && g > 0 && b > 0, "{r} {g} {b}");
@@ -692,7 +709,11 @@ mod tests {
                 (((orig as u32 * (255 - a as u32)) + rec as u32 * a as u32) / 255) as u8
             };
             let avuto = (mix(c.0, r), mix(c.1, g), mix(c.2, b));
-            for (x, y) in [(avuto.0, atteso.0), (avuto.1, atteso.1), (avuto.2, atteso.2)] {
+            for (x, y) in [
+                (avuto.0, atteso.0),
+                (avuto.1, atteso.1),
+                (avuto.2, atteso.2),
+            ] {
                 assert!(
                     (x as i32 - y as i32).abs() <= 1,
                     "recolor {avuto:?} contro filtro {atteso:?} su {c:?}"
@@ -737,5 +758,4 @@ mod tests {
         let ((_, _, _), a) = recolor_per(false, -50.0, 0.5).unwrap();
         assert_eq!(a, 191, "1 − 0,25 = 0,75 → 191");
     }
-
 }

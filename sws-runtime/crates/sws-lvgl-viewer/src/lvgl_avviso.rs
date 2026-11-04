@@ -94,12 +94,16 @@ unsafe extern "C" fn sws_avviso_cb(e: *mut lvgl_sys::lv_event_t) {
     match &ctx.azione {
         Azione::Aggiorna => match token() {
             Some(t) => aggiornamento::avvia(&ctx.stato, &ctx.base_url, Some(t)),
-            None => aggiornamento::chiedi_accesso(&ctx.stato, aggiornamento::AzioneRichiesta::Aggiorna),
+            None => {
+                aggiornamento::chiedi_accesso(&ctx.stato, aggiornamento::AzioneRichiesta::Aggiorna)
+            }
         },
         Azione::PiuTardi => aggiornamento::rimanda(&ctx.stato),
         Azione::AggiornaQuadlet => match token() {
             Some(t) => aggiornamento::aggiorna_quadlet(&ctx.stato, &ctx.base_url, Some(t)),
-            None => aggiornamento::chiedi_accesso(&ctx.stato, aggiornamento::AzioneRichiesta::Quadlet),
+            None => {
+                aggiornamento::chiedi_accesso(&ctx.stato, aggiornamento::AzioneRichiesta::Quadlet)
+            }
         },
         Azione::PiuTardiQuadlet => aggiornamento::rimanda_quadlet(&ctx.stato),
         Azione::Conferma(scelta) => match token() {
@@ -139,8 +143,12 @@ pub struct Overlay {
     accesso: Option<crate::lvgl_render::Credenziali>,
     /// La generazione di [`crate::aggiornamento::StatoAvviso`] già disegnata.
     disegnata: Option<u64>,
-    /// Vivi quanto la radice: LVGL ne tiene i puntatori.
+    /// Vivi quanto la radice: LVGL ne tiene i puntatori. Il `Box` è voluto
+    /// (clippy `vec_box` qui sbaglia): senza, il vettore che cresce sposterebbe
+    /// gli elementi e LVGL resterebbe con puntatori a memoria vecchia.
+    #[allow(clippy::vec_box)]
     contesti: Vec<Box<CtxAvviso>>,
+    #[allow(clippy::vec_box)]
     stili: Vec<Box<Style>>,
 }
 
@@ -187,7 +195,13 @@ impl Overlay {
         //
         // Con `in_corso: true` invece la card serve ancora: la schermata si è
         // chiusa e quella riga è l'unica cosa che dice che si sta aspettando.
-        if matches!(avviso, Avviso::Accesso { in_corso: false, .. }) {
+        if matches!(
+            avviso,
+            Avviso::Accesso {
+                in_corso: false,
+                ..
+            }
+        ) {
             return;
         }
         if let Err(e) = self.costruisci(
@@ -214,7 +228,13 @@ impl Overlay {
         base_url: &str,
         sessione: &SharedSession,
     ) {
-        let in_accesso = matches!(avviso, Avviso::Accesso { in_corso: false, .. });
+        let in_accesso = matches!(
+            avviso,
+            Avviso::Accesso {
+                in_corso: false,
+                ..
+            }
+        );
         if !in_accesso {
             // Annullato, riuscito, o un avviso diverso: la tastiera non serve
             // più, e **va chiusa qui**.
@@ -248,22 +268,17 @@ impl Overlay {
                     Avviso::Accesso { motivo, errore, .. } => (motivo.as_str(), errore.clone()),
                     _ => ("", None),
                 };
-                let titolo = format!(
-                    "🔑 {}",
-                    testo(
-                        titolo_accesso(motivo),
-                        lingua,
-                    )
-                );
-                self.accesso = crate::lvgl_render::apri_credenziali(crate::lvgl_render::TestiAccesso {
-                    titolo: &titolo,
-                    errore: errore.as_deref(),
-                    utente: &ultimo,
-                    annulla: testo(Testo::ConfAnnulla, lingua),
-                    accedi: testo(Testo::ConfAccedi, lingua),
-                    utente_etichetta: testo(Testo::ConfUtente, lingua),
-                    password_etichetta: testo(Testo::ConfPassword, lingua),
-                });
+                let titolo = format!("🔑 {}", testo(titolo_accesso(motivo), lingua,));
+                self.accesso =
+                    crate::lvgl_render::apri_credenziali(crate::lvgl_render::TestiAccesso {
+                        titolo: &titolo,
+                        errore: errore.as_deref(),
+                        utente: &ultimo,
+                        annulla: testo(Testo::ConfAnnulla, lingua),
+                        accedi: testo(Testo::ConfAccedi, lingua),
+                        utente_etichetta: testo(Testo::ConfUtente, lingua),
+                        password_etichetta: testo(Testo::ConfPassword, lingua),
+                    });
                 if self.accesso.is_none() {
                     aggiornamento::accesso_fallito(stato, "tastiera non disponibile".into());
                 }
@@ -331,7 +346,10 @@ impl Overlay {
         // schermo c'è la tastiera, che è anch'essa a schermo intero.
         if matches!(avviso, Avviso::Accesso { .. }) {
             unsafe {
-                lvgl_sys::lv_obj_clear_flag(radice, lvgl_sys::LV_OBJ_FLAG_CLICKABLE as lvgl_sys::lv_obj_flag_t)
+                lvgl_sys::lv_obj_clear_flag(
+                    radice,
+                    lvgl_sys::LV_OBJ_FLAG_CLICKABLE as lvgl_sys::lv_obj_flag_t,
+                )
             };
         }
         // **L'esito non copre l'impianto** (decisione del maintainer,
@@ -362,7 +380,11 @@ impl Overlay {
             // motivo vero per cui il 23-10-2026 sembrava che la tastiera non
             // ci fosse: c'era, sotto una tenda. La tastiera ha un fondo suo a
             // schermo intero, quindi togliere il velo non scopre niente.
-            let velo = if matches!(avviso, Avviso::Accesso { .. }) { 0 } else { 220 };
+            let velo = if matches!(avviso, Avviso::Accesso { .. }) {
+                0
+            } else {
+                220
+            };
             lvgl_sys::lv_obj_set_style_bg_opa(radice, velo, 0);
             lvgl_sys::lv_obj_set_style_border_width(radice, 0, 0);
             lvgl_sys::lv_obj_set_style_radius(radice, 0, 0);
@@ -370,10 +392,10 @@ impl Overlay {
             lvgl_sys::lv_obj_clear_flag(radice, lvgl_sys::LV_OBJ_FLAG_SCROLLABLE);
         }
 
-        let card_w = (hor_res as i16 - 32).min(560).max(200);
+        let card_w = (hor_res as i16 - 32).clamp(200, 560);
         // La card sta dentro la radice, che per l'esito è alta un terzo: se
         // si misurasse ancora su `ver_res` sborderebbe dalla striscia.
-        let card_h = (altezza - 24).min(340).max(100);
+        let card_h = (altezza - 24).clamp(100, 340);
         let rosso = matches!(
             avviso,
             Avviso::Esito { evento, .. } if evento.esito == EsitoAggiornamento::NonRiuscito
@@ -389,9 +411,19 @@ impl Overlay {
             // fila di tasti (visto all'istantanea, 20-10-2026). Si sposta in
             // alto, nello spazio fra il campo di testo della tastiera e i tasti.
             if matches!(avviso, Avviso::Accesso { .. }) {
-                lvgl_sys::lv_obj_align(card, lvgl_sys::LV_ALIGN_TOP_MID as lvgl_sys::lv_align_t, 0, 96);
+                lvgl_sys::lv_obj_align(
+                    card,
+                    lvgl_sys::LV_ALIGN_TOP_MID as lvgl_sys::lv_align_t,
+                    0,
+                    96,
+                );
             } else {
-                lvgl_sys::lv_obj_align(card, lvgl_sys::LV_ALIGN_CENTER as lvgl_sys::lv_align_t, 0, 0);
+                lvgl_sys::lv_obj_align(
+                    card,
+                    lvgl_sys::LV_ALIGN_CENTER as lvgl_sys::lv_align_t,
+                    0,
+                    0,
+                );
             }
             lvgl_sys::lv_obj_set_style_bg_color(card, colore(30, 41, 59), 0);
             lvgl_sys::lv_obj_set_style_bg_opa(card, lvgl_sys::LV_OPA_COVER as u8, 0);
@@ -492,9 +524,19 @@ impl Overlay {
             // centro. (È il secondo allineamento della stessa card: spostare
             // solo il primo non produce nulla — provato.)
             if matches!(avviso, Avviso::Accesso { .. }) {
-                lvgl_sys::lv_obj_align(card, lvgl_sys::LV_ALIGN_TOP_MID as lvgl_sys::lv_align_t, 0, 96);
+                lvgl_sys::lv_obj_align(
+                    card,
+                    lvgl_sys::LV_ALIGN_TOP_MID as lvgl_sys::lv_align_t,
+                    0,
+                    96,
+                );
             } else {
-                lvgl_sys::lv_obj_align(card, lvgl_sys::LV_ALIGN_CENTER as lvgl_sys::lv_align_t, 0, 0);
+                lvgl_sys::lv_obj_align(
+                    card,
+                    lvgl_sys::LV_ALIGN_CENTER as lvgl_sys::lv_align_t,
+                    0,
+                    0,
+                );
             }
         }
 
@@ -586,7 +628,11 @@ impl Overlay {
                         .map(|n| aggiornamento::novita_nella_lingua(n, lingua))
                         .unwrap_or_default();
                     (
-                        testo_con(Testo::EsitoVersioni, lingua, &[("da", &evento.da), ("a", &a)]),
+                        testo_con(
+                            Testo::EsitoVersioni,
+                            lingua,
+                            &[("da", &evento.da), ("a", &a)],
+                        ),
                         if n.1.is_empty() {
                             String::new()
                         } else {
@@ -616,19 +662,28 @@ impl Overlay {
                     )],
                 }
             }
-            Avviso::Accesso { motivo, errore, in_corso } => Contenuto {
+            Avviso::Accesso {
+                motivo,
+                errore,
+                in_corso,
+            } => Contenuto {
                 // Da un comando rifiutato il titolo è suo: «per aggiornare serve
                 // un amministratore» lì sarebbe falso (25-10-2026).
-                titolo: format!(
-                    "🔑 {}",
-                    testo(titolo_accesso(motivo), lingua)
-                ),
+                titolo: format!("🔑 {}", testo(titolo_accesso(motivo), lingua)),
                 sotto: String::new(),
                 // Un rifiuto si legge qui, in rosso, e il pannellino resta
                 // aperto: riprovare non deve voler dire ricominciare.
                 compatibilita: errore.clone().map(|e| format!("⚠ {e}")).unwrap_or_default(),
-                corpo: if *in_corso { testo(Testo::AggInCorso, lingua).to_string() } else { String::new() },
-                pulsanti: vec![(testo(Testo::ConfAnnulla, lingua).to_string(), Azione::AnnullaAccesso, false)],
+                corpo: if *in_corso {
+                    testo(Testo::AggInCorso, lingua).to_string()
+                } else {
+                    String::new()
+                },
+                pulsanti: vec![(
+                    testo(Testo::ConfAnnulla, lingua).to_string(),
+                    Azione::AnnullaAccesso,
+                    false,
+                )],
             },
             Avviso::Quadlet { da, a } => Contenuto {
                 titolo: format!("⚙ {}", testo(Testo::QuadletTitolo, lingua)),
@@ -636,36 +691,81 @@ impl Overlay {
                 compatibilita: String::new(),
                 corpo: testo_con(Testo::QuadletSpiega, lingua, &[("da", da), ("a", a)]),
                 pulsanti: vec![
-                    (testo(Testo::AggPiuTardi, lingua).to_string(), Azione::PiuTardiQuadlet, false),
                     (
-                        testo(if avvio_chiesto { Testo::AggInCorso } else { Testo::AggAggiorna }, lingua).to_string(),
+                        testo(Testo::AggPiuTardi, lingua).to_string(),
+                        Azione::PiuTardiQuadlet,
+                        false,
+                    ),
+                    (
+                        testo(
+                            if avvio_chiesto {
+                                Testo::AggInCorso
+                            } else {
+                                Testo::AggAggiorna
+                            },
+                            lingua,
+                        )
+                        .to_string(),
                         Azione::AggiornaQuadlet,
                         true,
                     ),
                 ],
             },
-            Avviso::Conferma { da, a, istantanea, ritorno_chiesto } => {
+            Avviso::Conferma {
+                da,
+                a,
+                istantanea,
+                ritorno_chiesto,
+            } => {
                 let v = [("da", da.as_str()), ("a", a.as_str())];
                 let corpo = if *istantanea {
-                    format!("{}\n\n{}", testo_con(Testo::ConfSpiega, lingua, &v), testo(Testo::ConfDati, lingua))
+                    format!(
+                        "{}\n\n{}",
+                        testo_con(Testo::ConfSpiega, lingua, &v),
+                        testo(Testo::ConfDati, lingua)
+                    )
                 } else {
                     testo_con(Testo::ConfSpiega, lingua, &v)
                 };
                 let pulsanti = if *ritorno_chiesto {
                     vec![
-                        (testo(Testo::ConfAnnulla, lingua).to_string(), Azione::ChiediRitorno(false), false),
                         (
-                            if avvio_chiesto { testo(Testo::AggInCorso, lingua).to_string() } else { testo_con(Testo::ConfRitorna, lingua, &v) },
+                            testo(Testo::ConfAnnulla, lingua).to_string(),
+                            Azione::ChiediRitorno(false),
+                            false,
+                        ),
+                        (
+                            if avvio_chiesto {
+                                testo(Testo::AggInCorso, lingua).to_string()
+                            } else {
+                                testo_con(Testo::ConfRitorna, lingua, &v)
+                            },
                             Azione::Conferma("ritorna"),
                             true,
                         ),
                     ]
                 } else {
                     vec![
-                        (testo_con(Testo::ConfRitorna, lingua, &v), Azione::ChiediRitorno(true), false),
-                        (testo(Testo::AggPiuTardi, lingua).to_string(), Azione::Conferma("piu_tardi"), false),
-                        (testo(Testo::ConfDopoRiavvio, lingua).to_string(), Azione::Conferma("dopo_riavvio"), false),
-                        (testo(Testo::ConfPulisci, lingua).to_string(), Azione::Conferma("pulisci"), true),
+                        (
+                            testo_con(Testo::ConfRitorna, lingua, &v),
+                            Azione::ChiediRitorno(true),
+                            false,
+                        ),
+                        (
+                            testo(Testo::AggPiuTardi, lingua).to_string(),
+                            Azione::Conferma("piu_tardi"),
+                            false,
+                        ),
+                        (
+                            testo(Testo::ConfDopoRiavvio, lingua).to_string(),
+                            Azione::Conferma("dopo_riavvio"),
+                            false,
+                        ),
+                        (
+                            testo(Testo::ConfPulisci, lingua).to_string(),
+                            Azione::Conferma("pulisci"),
+                            true,
+                        ),
                     ]
                 };
                 Contenuto {
@@ -673,7 +773,11 @@ impl Overlay {
                     // Il secondo passo del ritorno lo dice in rosso, dove stanno
                     // gli avvisi di compatibilità.
                     sotto: String::new(),
-                    compatibilita: if *ritorno_chiesto { format!("⚠ {}", testo_con(Testo::ConfRitornaSicuro, lingua, &v)) } else { String::new() },
+                    compatibilita: if *ritorno_chiesto {
+                        format!("⚠ {}", testo_con(Testo::ConfRitornaSicuro, lingua, &v))
+                    } else {
+                        String::new()
+                    },
                     corpo,
                     pulsanti,
                 }
@@ -808,7 +912,15 @@ fn etichetta_centrata(
     larghezza: i16,
     font_px: u16,
 ) -> anyhow::Result<()> {
-    let l = etichetta(parent, testo, 0, 0, larghezza, font_px, colore(226, 232, 240))?;
+    let l = etichetta(
+        parent,
+        testo,
+        0,
+        0,
+        larghezza,
+        font_px,
+        colore(226, 232, 240),
+    )?;
     unsafe {
         lvgl_sys::lv_obj_set_style_text_align(l, lvgl_sys::LV_TEXT_ALIGN_CENTER as u8, 0);
         lvgl_sys::lv_obj_align(l, lvgl_sys::LV_ALIGN_CENTER as lvgl_sys::lv_align_t, 0, 0);

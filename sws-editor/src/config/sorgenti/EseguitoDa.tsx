@@ -11,10 +11,10 @@
  *  `docs/archive/2026-10-25-impianto-dal-dispositivo.md`), quindi il nome del
  *  pannello è metà della risposta: va scritto dove si legge il risultato. */
 import { useTranslation } from "react-i18next";
-import { usaPannelloCollegato } from "@/pannelloCollegato";
+import { usePannelloCollegato } from "@/pannelloCollegato";
 
 /** Il nome del pannello collegato, o `null` se le scoperte le fa l'IDE. */
-export const usaChiEsegue = usaPannelloCollegato;
+export const usaChiEsegue = usePannelloCollegato;
 
 /** La riga «eseguito da …», da mettere accanto al titolo di una scoperta. */
 export function EseguitoDa() {

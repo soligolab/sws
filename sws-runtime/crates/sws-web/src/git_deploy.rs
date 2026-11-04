@@ -19,7 +19,10 @@
 //!   POST   /api/project/git/tags/:name/push   — push a single tag
 //!   DELETE /api/project/git/tags/:name    — delete a tag (local + remote)
 
-use std::{path::{Path, PathBuf}, process::Command};
+use std::{
+    path::{Path, PathBuf},
+    process::Command,
+};
 use tracing::{info, warn};
 
 #[derive(Debug, Clone, serde::Serialize)]
@@ -177,8 +180,12 @@ impl GitDeploy {
             last_deploy_ms: None,
             unpushed_commits,
             ssh_key: self.chiave_ssh(),
-            author_name: git_out(&dir, &["config", "user.name"]).ok().filter(|s| !s.is_empty()),
-            author_email: git_out(&dir, &["config", "user.email"]).ok().filter(|s| !s.is_empty()),
+            author_name: git_out(&dir, &["config", "user.name"])
+                .ok()
+                .filter(|s| !s.is_empty()),
+            author_email: git_out(&dir, &["config", "user.email"])
+                .ok()
+                .filter(|s| !s.is_empty()),
             identita_locale: git_out(&dir, &["config", "--local", "user.name"]).is_ok()
                 || git_out(&dir, &["config", "--local", "user.email"]).is_ok(),
             prova: self.prova(),
@@ -306,7 +313,11 @@ impl GitDeploy {
                 "commit fermato: {} troppo grand{} per un repository git (oltre {} MB): {}. \
                  Aggiungil{} al .gitignore del progetto, oppure spostal{} fuori dalla cartella, e \
                  riprova.",
-                if grossi.len() == 1 { "un file è" } else { "alcuni file sono" },
+                if grossi.len() == 1 {
+                    "un file è"
+                } else {
+                    "alcuni file sono"
+                },
                 if grossi.len() == 1 { "e" } else { "i" },
                 LIMITE_FILE_MB,
                 grossi
@@ -363,7 +374,8 @@ impl GitDeploy {
         // dall'IDE non c'era modo di dargli `--set-upstream`. Allora lo si fa
         // qui, verso `origin`, con il nome del ramo corrente.
         let dir = self.project_dir.to_string_lossy().to_string();
-        let senza_upstream = git_out(&dir, &["rev-parse", "--verify", "-q", "@{upstream}"]).is_err();
+        let senza_upstream =
+            git_out(&dir, &["rev-parse", "--verify", "-q", "@{upstream}"]).is_err();
         let mut args = vec!["-C", dir.as_str(), "push"];
         if senza_upstream {
             args.extend(["--set-upstream", "origin", "HEAD"]);
@@ -432,11 +444,17 @@ impl GitDeploy {
     /// distrugge la history se il progetto è già un repo) e, se `remote_url`
     /// è fornito, imposta/sostituisce `origin`. Copre sia un progetto mai
     /// versionato sia uno già inizializzato localmente senza remote.
-    pub fn init_remote(&self, remote_url: Option<&str>, ssh_key: Option<&str>) -> anyhow::Result<()> {
+    pub fn init_remote(
+        &self,
+        remote_url: Option<&str>,
+        ssh_key: Option<&str>,
+    ) -> anyhow::Result<()> {
         let dir = self.project_dir.to_string_lossy().to_string();
         // La chiave si valida prima di `git init`: un nome sbagliato non deve
         // lasciare dietro di sé un repository mezzo agganciato.
-        let comando_ssh = ssh_key.map(|k| comando_ssh_per(k, &self.project_dir)).transpose()?;
+        let comando_ssh = ssh_key
+            .map(|k| comando_ssh_per(k, &self.project_dir))
+            .transpose()?;
         if let (Some(_), Some(url)) = (ssh_key, remote_url) {
             controlla_url_per_ssh(url)?;
         }
@@ -545,17 +563,30 @@ impl GitDeploy {
             use std::os::unix::fs::PermissionsExt;
             std::fs::set_permissions(&cartella, std::fs::Permissions::from_mode(0o700))?;
         }
-        let nome = self.project_dir.file_name().map(|n| n.to_string_lossy().to_string()).unwrap_or_default();
-        let commento = format!("sws:{}", nome.chars().filter(|c| c.is_ascii_alphanumeric() || matches!(c, '-' | '_' | '.')).collect::<String>());
+        let nome = self
+            .project_dir
+            .file_name()
+            .map(|n| n.to_string_lossy().to_string())
+            .unwrap_or_default();
+        let commento = format!(
+            "sws:{}",
+            nome.chars()
+                .filter(|c| c.is_ascii_alphanumeric() || matches!(c, '-' | '_' | '.'))
+                .collect::<String>()
+        );
         let out = Command::new("ssh-keygen")
             .args(["-q", "-t", "ed25519", "-N", "", "-C", &commento, "-f"])
             .arg(cartella.join("id_ed25519"))
             .output()
             .map_err(|e| anyhow::anyhow!("ssh-keygen non disponibile: {e}"))?;
         if !out.status.success() {
-            anyhow::bail!("ssh-keygen: {}", String::from_utf8_lossy(&out.stderr).trim());
+            anyhow::bail!(
+                "ssh-keygen: {}",
+                String::from_utf8_lossy(&out.stderr).trim()
+            );
         }
-        self.chiave_pubblica_progetto().ok_or_else(|| anyhow::anyhow!("chiave generata ma non leggibile"))
+        self.chiave_pubblica_progetto()
+            .ok_or_else(|| anyhow::anyhow!("chiave generata ma non leggibile"))
     }
 
     /// La chiave impostata: il nome del file se il comando è quello scritto
@@ -571,7 +602,10 @@ impl GitDeploy {
         }
         Some(
             cmd.strip_prefix("ssh -i '")
-                .and_then(|r| r.strip_suffix(SUFFISSO_SSH).or_else(|| r.strip_suffix(SUFFISSO_SSH_STORICO)))
+                .and_then(|r| {
+                    r.strip_suffix(SUFFISSO_SSH)
+                        .or_else(|| r.strip_suffix(SUFFISSO_SSH_STORICO))
+                })
                 .and_then(|p| std::path::Path::new(p).file_name())
                 .map(|n| n.to_string_lossy().to_string())
                 .unwrap_or(cmd),
@@ -640,12 +674,18 @@ impl GitDeploy {
             if !Self::ref_sicuro(rev) {
                 anyhow::bail!("revisione non valida: «{rev}»");
             }
-            git_out(&dir, &["rev-parse", "--verify", "-q", &format!("{rev}^{{commit}}")])
-                .map_err(|_| anyhow::anyhow!("commit sconosciuto: «{rev}»"))
+            git_out(
+                &dir,
+                &["rev-parse", "--verify", "-q", &format!("{rev}^{{commit}}")],
+            )
+            .map_err(|_| anyhow::anyhow!("commit sconosciuto: «{rev}»"))
         };
         match (from, to) {
-            (None, None) => Ok(vec![git_out(&dir, &["rev-parse", "--verify", "-q", "HEAD"])
-                .unwrap_or_else(|_| ALBERO_VUOTO.to_string())]),
+            (None, None) => Ok(vec![git_out(
+                &dir,
+                &["rev-parse", "--verify", "-q", "HEAD"],
+            )
+            .unwrap_or_else(|_| ALBERO_VUOTO.to_string())]),
             (None, Some(t)) => {
                 let t = verifica(t)?;
                 let genitore = git_out(&dir, &["rev-parse", "--verify", "-q", &format!("{t}^")])
@@ -659,7 +699,11 @@ impl GitDeploy {
 
     /// I file cambiati fra due versioni (vedi [`Self::estremi`]). Per le
     /// modifiche non committate ci sono anche i file nuovi mai aggiunti.
-    pub fn file_cambiati(&self, from: Option<&str>, to: Option<&str>) -> anyhow::Result<Vec<FileCambiato>> {
+    pub fn file_cambiati(
+        &self,
+        from: Option<&str>,
+        to: Option<&str>,
+    ) -> anyhow::Result<Vec<FileCambiato>> {
         let dir = self.project_dir.to_string_lossy().to_string();
         let estremi = self.estremi(from, to)?;
         let mut args = vec!["diff", "--name-status", "-z", "--no-renames"];
@@ -669,13 +713,19 @@ impl GitDeploy {
         let mut out: Vec<FileCambiato> = campi
             .chunks(2)
             .filter(|c| c.len() == 2)
-            .map(|c| FileCambiato { status: c[0].clone(), path: c[1].clone() })
+            .map(|c| FileCambiato {
+                status: c[0].clone(),
+                path: c[1].clone(),
+            })
             .collect();
         if from.is_none() && to.is_none() {
             out.extend(
                 percorsi_z(&dir, &["ls-files", "--others", "--exclude-standard", "-z"])
                     .into_iter()
-                    .map(|path| FileCambiato { path, status: "?".into() }),
+                    .map(|path| FileCambiato {
+                        path,
+                        status: "?".into(),
+                    }),
             );
         }
         out.sort_by(|a, b| a.path.cmp(&b.path));
@@ -685,7 +735,12 @@ impl GitDeploy {
     /// Il diff unificato fra due versioni (vedi [`Self::estremi`]), di un file
     /// o di tutto il progetto. Un file nuovo non tracciato si confronta con
     /// il nulla, come farebbe il commit che lo aggiunge.
-    pub fn diff(&self, from: Option<&str>, to: Option<&str>, path: Option<&str>) -> anyhow::Result<String> {
+    pub fn diff(
+        &self,
+        from: Option<&str>,
+        to: Option<&str>,
+        path: Option<&str>,
+    ) -> anyhow::Result<String> {
         let dir = self.project_dir.to_string_lossy().to_string();
         if let Some(p) = path {
             if !percorso_sicuro(p) {
@@ -732,7 +787,9 @@ impl GitDeploy {
     pub fn prova(&self) -> Option<ProvaInfo> {
         let sha = prova_in_corso(&self.project_dir)?;
         let dir = self.project_dir.to_string_lossy().to_string();
-        let campo = |f: &str| git_out(&dir, &["log", "-1", &format!("--format={f}"), &sha]).unwrap_or_default();
+        let campo = |f: &str| {
+            git_out(&dir, &["log", "-1", &format!("--format={f}"), &sha]).unwrap_or_default()
+        };
         Some(ProvaInfo {
             short: campo("%h"),
             date: campo("%cI"),
@@ -762,13 +819,18 @@ impl GitDeploy {
     pub fn entra_in_prova(&self, sha: &str) -> anyhow::Result<ProvaInfo> {
         let dir = self.project_dir.to_string_lossy().to_string();
         if prova_in_corso(&self.project_dir).is_some() {
-            anyhow::bail!("c'è già una prova in corso: torna all'ultima versione prima di provarne un'altra");
+            anyhow::bail!(
+                "c'è già una prova in corso: torna all'ultima versione prima di provarne un'altra"
+            );
         }
         if !Self::ref_sicuro(sha) {
             anyhow::bail!("revisione non valida: «{sha}»");
         }
-        let sha = git_out(&dir, &["rev-parse", "--verify", "-q", &format!("{sha}^{{commit}}")])
-            .map_err(|_| anyhow::anyhow!("commit sconosciuto: «{sha}»"))?;
+        let sha = git_out(
+            &dir,
+            &["rev-parse", "--verify", "-q", &format!("{sha}^{{commit}}")],
+        )
+        .map_err(|_| anyhow::anyhow!("commit sconosciuto: «{sha}»"))?;
         let sporco = git_out(&dir, &["status", "--porcelain"])?;
         if !sporco.is_empty() {
             anyhow::bail!(
@@ -784,7 +846,8 @@ impl GitDeploy {
             return Err(e);
         }
         info!(dir = %self.project_dir.display(), %sha, %ramo, "git: prova di un commit vecchio");
-        self.prova().ok_or_else(|| anyhow::anyhow!("prova non riconosciuta dopo il checkout"))
+        self.prova()
+            .ok_or_else(|| anyhow::anyhow!("prova non riconosciuta dopo il checkout"))
     }
 
     /// Torna al ramo da cui la prova era partita, all'ultima versione.
@@ -816,10 +879,20 @@ impl GitDeploy {
         // .` lascerebbe dove sono.
         run_git(
             &dir,
-            &["restore", &format!("--source={}", prova.sha), "--staged", "--worktree", "--", ":/"],
+            &[
+                "restore",
+                &format!("--source={}", prova.sha),
+                "--staged",
+                "--worktree",
+                "--",
+                ":/",
+            ],
         )?;
         if git_out(&dir, &["status", "--porcelain"])?.is_empty() {
-            return Ok(format!("la versione {} è già l'ultima: niente da ripristinare", prova.short));
+            return Ok(format!(
+                "la versione {} è già l'ultima: niente da ripristinare",
+                prova.short
+            ));
         }
         let giorno = prova.date.get(..10).unwrap_or(&prova.date);
         self.commit(&format!(
@@ -843,13 +916,21 @@ impl GitDeploy {
     ///   Storico e backup non si copiano mai.
     ///
     /// Se qualcosa fallisce a metà, `dst` si cancella: niente progetti mezzi fatti.
-    pub fn fork_in(&self, dst: &std::path::Path, sha: &str, copia_segreti: bool) -> anyhow::Result<()> {
+    pub fn fork_in(
+        &self,
+        dst: &std::path::Path,
+        sha: &str,
+        copia_segreti: bool,
+    ) -> anyhow::Result<()> {
         let dir = self.project_dir.to_string_lossy().to_string();
         if !Self::ref_sicuro(sha) {
             anyhow::bail!("revisione non valida: «{sha}»");
         }
-        let sha = git_out(&dir, &["rev-parse", "--verify", "-q", &format!("{sha}^{{commit}}")])
-            .map_err(|_| anyhow::anyhow!("commit sconosciuto: «{sha}»"))?;
+        let sha = git_out(
+            &dir,
+            &["rev-parse", "--verify", "-q", &format!("{sha}^{{commit}}")],
+        )
+        .map_err(|_| anyhow::anyhow!("commit sconosciuto: «{sha}»"))?;
         if dst.exists() {
             anyhow::bail!("la cartella {} esiste già", dst.display());
         }
@@ -981,8 +1062,15 @@ pub fn prova_in_corso(project_dir: &std::path::Path) -> Option<String> {
 pub fn rotta_bloccata_in_prova(path: &str) -> bool {
     // Il fork crea un progetto **nuovo** e non tocca questo: si può fare
     // anche dalla versione che si sta provando.
-    const APERTE: &[&str] = &["/api/project/git/prova", "/api/project/git/fork", "/api/project/validate"];
-    if APERTE.iter().any(|a| path == *a || path.starts_with(&format!("{a}/"))) {
+    const APERTE: &[&str] = &[
+        "/api/project/git/prova",
+        "/api/project/git/fork",
+        "/api/project/validate",
+    ];
+    if APERTE
+        .iter()
+        .any(|a| path == *a || path.starts_with(&format!("{a}/")))
+    {
         return false;
     }
     if path.starts_with("/api/recipes/") && path.ends_with("/apply") {
@@ -1046,13 +1134,16 @@ fn file_di_dati_tracciati(dir: &str) -> Vec<String> {
 /// I file in staging più grandi di [`LIMITE_FILE_MB`], con la loro misura. Si
 /// misura il file sul disco: subito dopo `git add -A` è quello che è in staging.
 fn file_in_staging_troppo_grandi(dir: &str, base: &std::path::Path) -> Vec<(String, u64)> {
-    percorsi_z(dir, &["diff", "--cached", "--name-only", "--diff-filter=AM", "-z"])
-        .into_iter()
-        .filter_map(|p| {
-            let b = std::fs::metadata(base.join(&p)).ok()?.len();
-            (b > LIMITE_FILE_MB * 1024 * 1024).then_some((p, b))
-        })
-        .collect()
+    percorsi_z(
+        dir,
+        &["diff", "--cached", "--name-only", "--diff-filter=AM", "-z"],
+    )
+    .into_iter()
+    .filter_map(|p| {
+        let b = std::fs::metadata(base.join(&p)).ok()?.len();
+        (b > LIMITE_FILE_MB * 1024 * 1024).then_some((p, b))
+    })
+    .collect()
 }
 
 /// I blob oltre [`LIMITE_PUSH_MB`] nei commit che il push manderebbe: quelli
@@ -1068,12 +1159,14 @@ fn blob_enormi_da_pubblicare(dir: &str) -> Vec<(String, u64)> {
         return Vec::new();
     };
     // `sha percorso` per ogni blob e albero; i commit non hanno percorso.
-    let voci: Vec<(&str, &str)> = oggetti
-        .lines()
-        .filter_map(|r| r.split_once(' '))
-        .collect();
+    let voci: Vec<(&str, &str)> = oggetti.lines().filter_map(|r| r.split_once(' ')).collect();
     let Ok(mut figlio) = Command::new("git")
-        .args(["-C", dir, "cat-file", "--batch-check=%(objecttype) %(objectsize)"])
+        .args([
+            "-C",
+            dir,
+            "cat-file",
+            "--batch-check=%(objecttype) %(objectsize)",
+        ])
         .stdin(std::process::Stdio::piped())
         .stdout(std::process::Stdio::piped())
         .spawn()
@@ -1123,7 +1216,10 @@ fn git_out_grezzo(dir: &str, args: &[&str]) -> anyhow::Result<String> {
     if output.status.success() {
         Ok(String::from_utf8_lossy(&output.stdout).into_owned())
     } else {
-        Err(anyhow::anyhow!("{}", String::from_utf8_lossy(&output.stderr).trim()))
+        Err(anyhow::anyhow!(
+            "{}",
+            String::from_utf8_lossy(&output.stderr).trim()
+        ))
     }
 }
 
@@ -1143,7 +1239,8 @@ const SUFFISSO_SSH_STORICO: &str = "' -o IdentitiesOnly=yes";
 /// visto. GitHub, GitLab e Bitbucket arrivano già fidati dall'immagine
 /// (`/etc/ssh/ssh_known_hosts`); un server git aziendale si memorizza alla prima
 /// connessione, e se poi cambia ssh rifiuta — come MQTT e OPC UA.
-const SUFFISSO_SSH: &str = "' -o IdentitiesOnly=yes -o BatchMode=yes -o StrictHostKeyChecking=accept-new";
+const SUFFISSO_SSH: &str =
+    "' -o IdentitiesOnly=yes -o BatchMode=yes -o StrictHostKeyChecking=accept-new";
 
 /// Il nome con cui l'IDE indica la **chiave del progetto** (15-10-2026). Non è
 /// un file di `~/.ssh`: vive in `.git/sws-ssh/` del progetto, quindi non entra
@@ -1164,13 +1261,20 @@ fn comando_ssh_progetto(project_dir: &Path) -> anyhow::Result<String> {
     let d = cartella_chiave_progetto(project_dir);
     let chiave = d.join("id_ed25519");
     if !chiave.is_file() {
-        anyhow::bail!("la chiave del progetto non c'è ancora: generala dall'IDE (Git → Chiave del progetto)");
+        anyhow::bail!(
+            "la chiave del progetto non c'è ancora: generala dall'IDE (Git → Chiave del progetto)"
+        );
     }
-    let (k, h) = (chiave.to_string_lossy().to_string(), d.join("known_hosts").to_string_lossy().to_string());
+    let (k, h) = (
+        chiave.to_string_lossy().to_string(),
+        d.join("known_hosts").to_string_lossy().to_string(),
+    );
     if k.contains('\'') || h.contains('\'') {
         anyhow::bail!("percorso del progetto non utilizzabile in un comando ssh: {k}");
     }
-    Ok(format!("ssh -i '{k}{SUFFISSO_SSH} -o UserKnownHostsFile='{h}'"))
+    Ok(format!(
+        "ssh -i '{k}{SUFFISSO_SSH} -o UserKnownHostsFile='{h}'"
+    ))
 }
 
 /// Una chiave SSH con un URL `http(s)://` non serve a niente: git parla HTTPS,
@@ -1556,7 +1660,15 @@ mod tests {
     fn nome_chiave_sicuro_rifiuta_quello_che_la_shell_leggerebbe() {
         assert!(nome_chiave_sicuro("id_ed25519_sws_domotica"));
         assert!(nome_chiave_sicuro("id-rsa.work"));
-        for cattivo in ["", ".ssh", "../id_rsa", "a b", "x'; rm -rf ~; '", "a/b", "k$(id)"] {
+        for cattivo in [
+            "",
+            ".ssh",
+            "../id_rsa",
+            "a b",
+            "x'; rm -rf ~; '",
+            "a/b",
+            "k$(id)",
+        ] {
             assert!(!nome_chiave_sicuro(cattivo), "{cattivo}");
         }
     }
@@ -1567,7 +1679,9 @@ mod tests {
     fn init_remote_con_chiave_inesistente_non_crea_il_repo() {
         let tmp = tempfile::tempdir().unwrap();
         let gd = GitDeploy::new(tmp.path().to_path_buf());
-        assert!(gd.init_remote(None, Some("chiave_che_non_esiste_xyz")).is_err());
+        assert!(gd
+            .init_remote(None, Some("chiave_che_non_esiste_xyz"))
+            .is_err());
         assert!(!tmp.path().join(".git").exists());
     }
 
@@ -1588,10 +1702,23 @@ mod tests {
         assert_eq!(gd.genera_chiave_progetto().unwrap(), p1, "non si rigenera");
         gd.imposta_chiave_ssh(Some(CHIAVE_PROGETTO)).unwrap();
         assert_eq!(gd.chiave_ssh().as_deref(), Some(CHIAVE_PROGETTO));
-        let cmd = git_out(&tmp.path().to_string_lossy(), &["config", "--get", "core.sshCommand"]).unwrap();
-        assert!(cmd.contains("StrictHostKeyChecking=accept-new") && cmd.contains("BatchMode=yes") && cmd.contains("UserKnownHostsFile="), "{cmd}");
+        let cmd = git_out(
+            &tmp.path().to_string_lossy(),
+            &["config", "--get", "core.sshCommand"],
+        )
+        .unwrap();
+        assert!(
+            cmd.contains("StrictHostKeyChecking=accept-new")
+                && cmd.contains("BatchMode=yes")
+                && cmd.contains("UserKnownHostsFile="),
+            "{cmd}"
+        );
         // Un .gitignore che tiene fuori i segreti c'è, e la chiave non è fra i file tracciabili.
-        let stato = git_out(&tmp.path().to_string_lossy(), &["status", "--porcelain", "--untracked-files=all"]).unwrap();
+        let stato = git_out(
+            &tmp.path().to_string_lossy(),
+            &["status", "--porcelain", "--untracked-files=all"],
+        )
+        .unwrap();
         assert!(!stato.contains("sws-ssh"), "{stato}");
     }
 
@@ -1602,7 +1729,15 @@ mod tests {
         let gd = GitDeploy::new(tmp.path().to_path_buf());
         assert_eq!(gd.chiave_ssh(), None);
 
-        run_git(&dir, &["config", "core.sshCommand", "ssh -i '/k/id_x' -o IdentitiesOnly=yes"]).unwrap();
+        run_git(
+            &dir,
+            &[
+                "config",
+                "core.sshCommand",
+                "ssh -i '/k/id_x' -o IdentitiesOnly=yes",
+            ],
+        )
+        .unwrap();
         assert_eq!(gd.chiave_ssh().as_deref(), Some("id_x"));
 
         run_git(&dir, &["config", "core.sshCommand", "ssh -p 2222"]).unwrap();
@@ -1617,7 +1752,11 @@ mod tests {
     #[test]
     fn url_https_con_chiave_suggerisce_la_forma_ssh() {
         let e = controlla_url_per_ssh("https://github.com/soligolab/sws_domotica").unwrap_err();
-        assert!(e.to_string().contains("git@github.com:soligolab/sws_domotica.git"), "{e}");
+        assert!(
+            e.to_string()
+                .contains("git@github.com:soligolab/sws_domotica.git"),
+            "{e}"
+        );
         let e = controlla_url_per_ssh("https://github.com/a/b.git").unwrap_err();
         assert!(e.to_string().contains("git@github.com:a/b.git"), "{e}");
         assert!(controlla_url_per_ssh("git@github.com:a/b.git").is_ok());
@@ -1631,7 +1770,11 @@ mod tests {
         let tmp = repo_di_prova();
         let st = GitDeploy::new(tmp.path().to_path_buf()).status().unwrap();
         assert!(st.sha.is_empty());
-        assert!(!st.branch.is_empty() && st.branch != "unknown", "{}", st.branch);
+        assert!(
+            !st.branch.is_empty() && st.branch != "unknown",
+            "{}",
+            st.branch
+        );
     }
 
     /// Lo storico e i backup non entrano nel commit; il progetto sì.
@@ -1669,7 +1812,10 @@ mod tests {
         assert!(msg.contains("file di dati"), "{msg}");
         let tracciati = git_out(&dir, &["ls-files"]).unwrap();
         assert!(!tracciati.contains("historian.db"), "{tracciati}");
-        assert!(p.join("history/historian.db").exists(), "il file resta sul disco");
+        assert!(
+            p.join("history/historian.db").exists(),
+            "il file resta sul disco"
+        );
     }
 
     /// Un file oltre il limite, che nessuna riga del `.gitignore` conosce: il
@@ -1685,7 +1831,10 @@ mod tests {
 
         let e = GitDeploy::new(p.to_path_buf()).commit("primo").unwrap_err();
         assert!(e.to_string().contains("export.bin"), "{e}");
-        assert!(git_out(&dir, &["rev-parse", "--verify", "-q", "HEAD"]).is_err(), "nessun commit");
+        assert!(
+            git_out(&dir, &["rev-parse", "--verify", "-q", "HEAD"]).is_err(),
+            "nessun commit"
+        );
         let staging = git_out(&dir, &["diff", "--cached", "--name-only"]).unwrap();
         assert!(!staging.contains("export.bin"), "{staging}");
     }
@@ -1708,8 +1857,12 @@ mod tests {
         run_git(&dir, &["init", "-q"]).unwrap();
         let gd = GitDeploy::new(tmp.path().to_path_buf());
 
-        gd.imposta_identita(Some("Mauro Soligo"), Some("mauro@example.org")).unwrap();
-        assert_eq!(git_out(&dir, &["config", "--local", "user.name"]).unwrap(), "Mauro Soligo");
+        gd.imposta_identita(Some("Mauro Soligo"), Some("mauro@example.org"))
+            .unwrap();
+        assert_eq!(
+            git_out(&dir, &["config", "--local", "user.name"]).unwrap(),
+            "Mauro Soligo"
+        );
         let st = gd.status().unwrap();
         assert_eq!(st.author_email.as_deref(), Some("mauro@example.org"));
         assert!(st.identita_locale);
@@ -1750,7 +1903,10 @@ mod tests {
         let gd = GitDeploy::new(tmp.path().to_path_buf());
         gd.init_remote(None, None).unwrap();
         let dir = tmp.path().to_string_lossy().to_string();
-        assert_eq!(git_out(&dir, &["symbolic-ref", "--short", "HEAD"]).unwrap(), "main");
+        assert_eq!(
+            git_out(&dir, &["symbolic-ref", "--short", "HEAD"]).unwrap(),
+            "main"
+        );
     }
 
     /// Primo push di un ramo senza upstream: va, e da lì l'upstream c'è.
@@ -1797,7 +1953,10 @@ mod tests {
     fn log_elenca_i_commit_dal_piu_recente() {
         let (_tmp, gd) = repo_con_storia();
         let log = gd.log(50, 0).unwrap();
-        assert_eq!(log.iter().map(|c| c.message.as_str()).collect::<Vec<_>>(), ["secondo", "primo"]);
+        assert_eq!(
+            log.iter().map(|c| c.message.as_str()).collect::<Vec<_>>(),
+            ["secondo", "primo"]
+        );
         assert_eq!(log[0].files, 2);
         assert_eq!(log[1].files, 1);
         assert_eq!(gd.log(1, 1).unwrap()[0].message, "primo");
@@ -1806,24 +1965,42 @@ mod tests {
     #[test]
     fn log_di_un_repo_senza_commit_e_vuoto() {
         let tmp = repo_di_prova();
-        assert!(GitDeploy::new(tmp.path().to_path_buf()).log(50, 0).unwrap().is_empty());
+        assert!(GitDeploy::new(tmp.path().to_path_buf())
+            .log(50, 0)
+            .unwrap()
+            .is_empty());
     }
 
     #[test]
     fn file_cambiati_nei_tre_modi() {
         let (_tmp, gd) = repo_con_storia();
         let log = gd.log(50, 0).unwrap();
-        let fc = |v: Vec<FileCambiato>| v.into_iter().map(|f| format!("{} {}", f.status, f.path)).collect::<Vec<_>>();
+        let fc = |v: Vec<FileCambiato>| {
+            v.into_iter()
+                .map(|f| format!("{} {}", f.status, f.path))
+                .collect::<Vec<_>>()
+        };
 
         // non committate: il modificato e il nuovo mai aggiunto
-        assert_eq!(fc(gd.file_cambiati(None, None).unwrap()), ["? nuovo.yaml", "M project.yaml"]);
+        assert_eq!(
+            fc(gd.file_cambiati(None, None).unwrap()),
+            ["? nuovo.yaml", "M project.yaml"]
+        );
         // un commit contro il genitore
-        assert_eq!(fc(gd.file_cambiati(None, Some(&log[0].sha)).unwrap()), ["A pagina.yaml", "M project.yaml"]);
+        assert_eq!(
+            fc(gd.file_cambiati(None, Some(&log[0].sha)).unwrap()),
+            ["A pagina.yaml", "M project.yaml"]
+        );
         // il primo commit contro l'albero vuoto
-        assert_eq!(fc(gd.file_cambiati(None, Some(&log[1].sha)).unwrap()), ["A project.yaml"]);
+        assert_eq!(
+            fc(gd.file_cambiati(None, Some(&log[1].sha)).unwrap()),
+            ["A project.yaml"]
+        );
         // due commit qualsiasi
         assert_eq!(
-            fc(gd.file_cambiati(Some(&log[1].sha), Some(&log[0].sha)).unwrap()),
+            fc(gd
+                .file_cambiati(Some(&log[1].sha), Some(&log[0].sha))
+                .unwrap()),
             ["A pagina.yaml", "M project.yaml"]
         );
     }
@@ -1834,7 +2011,9 @@ mod tests {
         let log = gd.log(50, 0).unwrap();
         let d = gd.diff(None, None, Some("project.yaml")).unwrap();
         assert!(d.contains("-uno: 2") && d.contains("+uno: 3"), "{d}");
-        let d = gd.diff(None, Some(&log[0].sha), Some("project.yaml")).unwrap();
+        let d = gd
+            .diff(None, Some(&log[0].sha), Some("project.yaml"))
+            .unwrap();
         assert!(d.contains("-uno: 1") && d.contains("+uno: 2"), "{d}");
         let d = gd.diff(Some(&log[1].sha), Some(&log[0].sha), None).unwrap();
         assert!(d.contains("pagina.yaml") && d.contains("+uno: 2"), "{d}");
@@ -1862,21 +2041,37 @@ mod tests {
         let log = gd.log(50, 0).unwrap();
 
         // Con modifiche non committate non si entra.
-        assert!(gd.entra_in_prova(&log[1].sha).unwrap_err().to_string().contains("non committate"));
+        assert!(gd
+            .entra_in_prova(&log[1].sha)
+            .unwrap_err()
+            .to_string()
+            .contains("non committate"));
         run_git(&dir, &["add", "-A"]).unwrap();
         run_git(&dir, &["commit", "-q", "-m", "terzo"]).unwrap();
 
         let prova = gd.entra_in_prova(&log[1].sha).unwrap();
         assert_eq!(prova.message, "primo");
-        assert_eq!(prova.ramo, git_out(&dir, &["rev-parse", "--abbrev-ref", "@{-1}"]).unwrap());
+        assert_eq!(
+            prova.ramo,
+            git_out(&dir, &["rev-parse", "--abbrev-ref", "@{-1}"]).unwrap()
+        );
         assert!(gd.status().unwrap().prova.is_some());
-        assert_eq!(std::fs::read_to_string(p.join("project.yaml")).unwrap(), "meta: {name: p}\nuno: 1\n");
+        assert_eq!(
+            std::fs::read_to_string(p.join("project.yaml")).unwrap(),
+            "meta: {name: p}\nuno: 1\n"
+        );
         assert!(!p.join("pagina.yaml").exists());
-        assert!(gd.entra_in_prova(&log[0].sha).is_err(), "una prova alla volta");
+        assert!(
+            gd.entra_in_prova(&log[0].sha).is_err(),
+            "una prova alla volta"
+        );
 
         gd.esci_dalla_prova().unwrap();
         assert!(gd.status().unwrap().prova.is_none());
-        assert_eq!(std::fs::read_to_string(p.join("project.yaml")).unwrap(), "meta: {name: p}\nuno: 3\n");
+        assert_eq!(
+            std::fs::read_to_string(p.join("project.yaml")).unwrap(),
+            "meta: {name: p}\nuno: 3\n"
+        );
         assert!(p.join("pagina.yaml").exists());
     }
 
@@ -1895,9 +2090,14 @@ mod tests {
         assert!(gd.status().unwrap().prova.is_none());
         let dopo = gd.log(50, 0).unwrap();
         assert_eq!(dopo.len(), log.len() + 1, "{msg}");
-        assert!(dopo[0].message.starts_with(&format!("Ripristinata la versione {}", primo.short)));
+        assert!(dopo[0]
+            .message
+            .starts_with(&format!("Ripristinata la versione {}", primo.short)));
         // I file sono quelli del primo commit: anche quelli nati dopo spariscono.
-        assert_eq!(std::fs::read_to_string(p.join("project.yaml")).unwrap(), "meta: {name: p}\nuno: 1\n");
+        assert_eq!(
+            std::fs::read_to_string(p.join("project.yaml")).unwrap(),
+            "meta: {name: p}\nuno: 1\n"
+        );
         assert!(!p.join("pagina.yaml").exists());
         assert!(!p.join("nuovo.yaml").exists());
     }
@@ -1942,9 +2142,25 @@ mod tests {
         let dir = p.to_string_lossy().to_string();
         run_git(&dir, &["add", "-A"]).unwrap();
         run_git(&dir, &["commit", "-q", "-m", "terzo"]).unwrap();
-        run_git(&dir, &["remote", "add", "origin", "git@example.org:a/b.git"]).unwrap();
-        run_git(&dir, &["config", "core.sshCommand", "ssh -i '/k/x' -o IdentitiesOnly=yes"]).unwrap();
-        std::fs::write(p.join("secrets.yaml"), "notifications.telegram.bot_token: x\n").unwrap();
+        run_git(
+            &dir,
+            &["remote", "add", "origin", "git@example.org:a/b.git"],
+        )
+        .unwrap();
+        run_git(
+            &dir,
+            &[
+                "config",
+                "core.sshCommand",
+                "ssh -i '/k/x' -o IdentitiesOnly=yes",
+            ],
+        )
+        .unwrap();
+        std::fs::write(
+            p.join("secrets.yaml"),
+            "notifications.telegram.bot_token: x\n",
+        )
+        .unwrap();
         let log = gd.log(50, 0).unwrap();
         let secondo = &log[1];
 
@@ -1953,21 +2169,50 @@ mod tests {
         gd.fork_in(&dst, &secondo.sha, false).unwrap();
         let d = dst.to_string_lossy().to_string();
 
-        assert_eq!(git_out(&d, &["symbolic-ref", "--short", "HEAD"]).unwrap(), "main");
+        assert_eq!(
+            git_out(&d, &["symbolic-ref", "--short", "HEAD"]).unwrap(),
+            "main"
+        );
         assert_eq!(git_out(&d, &["rev-parse", "HEAD"]).unwrap(), secondo.sha);
-        assert_eq!(GitDeploy::new(dst.clone()).log(50, 0).unwrap().len(), 2, "storia fino al commit scelto");
-        assert!(git_out(&d, &["remote"]).unwrap().is_empty(), "niente origin");
-        assert!(git_out(&d, &["config", "--local", "core.sshCommand"]).is_err(), "niente chiave");
-        assert_eq!(git_out(&d, &["config", "--local", "user.name"]).unwrap(), "Prova");
-        assert!(!dst.join("secrets.yaml").exists(), "segreti solo a richiesta");
-        assert!(std::fs::read_to_string(dst.join(".gitignore")).unwrap().contains("*.db"));
-        assert_eq!(std::fs::read_to_string(dst.join("project.yaml")).unwrap(), "meta: {name: p}\nuno: 2\n");
+        assert_eq!(
+            GitDeploy::new(dst.clone()).log(50, 0).unwrap().len(),
+            2,
+            "storia fino al commit scelto"
+        );
+        assert!(
+            git_out(&d, &["remote"]).unwrap().is_empty(),
+            "niente origin"
+        );
+        assert!(
+            git_out(&d, &["config", "--local", "core.sshCommand"]).is_err(),
+            "niente chiave"
+        );
+        assert_eq!(
+            git_out(&d, &["config", "--local", "user.name"]).unwrap(),
+            "Prova"
+        );
+        assert!(
+            !dst.join("secrets.yaml").exists(),
+            "segreti solo a richiesta"
+        );
+        assert!(std::fs::read_to_string(dst.join(".gitignore"))
+            .unwrap()
+            .contains("*.db"));
+        assert_eq!(
+            std::fs::read_to_string(dst.join("project.yaml")).unwrap(),
+            "meta: {name: p}\nuno: 2\n"
+        );
 
         let dst2 = altrove.path().join("ConSegreti");
         gd.fork_in(&dst2, &log[0].sha, true).unwrap();
         assert!(dst2.join("secrets.yaml").exists());
-        assert!(gd.fork_in(&dst2, &log[0].sha, true).is_err(), "cartella già esistente");
-        assert!(gd.fork_in(&altrove.path().join("X"), "--upload-pack=x", false).is_err());
+        assert!(
+            gd.fork_in(&dst2, &log[0].sha, true).is_err(),
+            "cartella già esistente"
+        );
+        assert!(gd
+            .fork_in(&altrove.path().join("X"), "--upload-pack=x", false)
+            .is_err());
         assert!(!altrove.path().join("X").exists());
     }
 }

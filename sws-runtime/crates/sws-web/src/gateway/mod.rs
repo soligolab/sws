@@ -7,8 +7,8 @@
 pub mod inoltro;
 pub mod podman;
 pub mod progetti;
-pub mod rotte;
 pub mod ritorno;
+pub mod rotte;
 
 /// Il segreto con cui il gateway si fa riconoscere dai container dei progetti.
 ///
@@ -59,7 +59,10 @@ mod tests {
         let d = tempfile::tempdir().unwrap();
         let a = super::segreto_persistente(d.path()).unwrap();
         let b = super::segreto_persistente(d.path()).unwrap();
-        assert_eq!(a, b, "un segreto nuovo a ogni avvio scollega i container riadottati");
+        assert_eq!(
+            a, b,
+            "un segreto nuovo a ogni avvio scollega i container riadottati"
+        );
         assert!(a.len() >= 16);
     }
 

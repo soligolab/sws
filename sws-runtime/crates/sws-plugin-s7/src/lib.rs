@@ -26,7 +26,13 @@ const GIRI_MUTI_PER_RICONNETTERE: u32 = 3;
 /// (`sws_core::riconnessione`, 04-10-2026: before, the first error ended the task
 /// and the log said «stopped (save config to retry)», which was not true — the
 /// supervisor's watchdog restarted it every 30 s).
-pub async fn run(cfg: S7Config, db: Arc<TagDb>, bus: Arc<TagWriteBus>, cancel: CancellationToken, stato: Arc<sws_core::stato_sorgenti::StatoSorgenti>) {
+pub async fn run(
+    cfg: S7Config,
+    db: Arc<TagDb>,
+    bus: Arc<TagWriteBus>,
+    cancel: CancellationToken,
+    stato: Arc<sws_core::stato_sorgenti::StatoSorgenti>,
+) {
     // Register writable tags on the write bus.
     let (write_tx, write_rx) = mpsc::channel::<WriteRequest>(32);
     for tm in cfg.tags.iter().filter(|t| t.writable) {
@@ -39,7 +45,16 @@ pub async fn run(cfg: S7Config, db: Arc<TagDb>, bus: Arc<TagWriteBus>, cancel: C
         &cfg.id,
         &stato,
         cancel.clone(),
-        || async { session(&cfg, &db, &mut *write_rx.lock().await, cancel.clone(), &stato).await },
+        || async {
+            session(
+                &cfg,
+                &db,
+                &mut *write_rx.lock().await,
+                cancel.clone(),
+                &stato,
+            )
+            .await
+        },
         || async {
             for tm in &cfg.tags {
                 db.marca_qualita(&tm.tag, TagQuality::Bad).await;
@@ -424,7 +439,8 @@ mod tests {
     use super::*;
 
     fn mappatura() -> S7TagMapping {
-        serde_yaml::from_str("tag: t\narea: db\ndb_num: 1\nbyte_offset: 0\ndata_type: int\n").unwrap()
+        serde_yaml::from_str("tag: t\narea: db\ndb_num: 1\nbyte_offset: 0\ndata_type: int\n")
+            .unwrap()
     }
 
     /// Il PLC che rifiuta un tag non è la connessione persa (04-10-2026): solo
@@ -440,7 +456,10 @@ mod tests {
             // poi il worker se ne va
         });
         let tm = mappatura();
-        assert_eq!(read_tag(&req_tx, &resp_rx, &tm), Err(ErroreLettura::Plc("address out of range".into())));
+        assert_eq!(
+            read_tag(&req_tx, &resp_rx, &tm),
+            Err(ErroreLettura::Plc("address out of range".into()))
+        );
         h.join().unwrap();
         assert_eq!(read_tag(&req_tx, &resp_rx, &tm), Err(ErroreLettura::Worker));
     }

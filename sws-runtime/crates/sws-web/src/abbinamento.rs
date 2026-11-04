@@ -59,9 +59,14 @@ pub fn genera_codice() -> anyhow::Result<String> {
     let mut buf = [0u8; LUNGHEZZA];
     std::fs::File::open("/dev/urandom")
         .and_then(|mut f| f.read_exact(&mut buf))
-        .map_err(|e| anyhow::anyhow!("nessuna sorgente casuale per il codice di abbinamento: {e}"))?;
+        .map_err(|e| {
+            anyhow::anyhow!("nessuna sorgente casuale per il codice di abbinamento: {e}")
+        })?;
     // 256 è multiplo di 32: il modulo non pende verso nessun simbolo.
-    let grezzo: String = buf.iter().map(|b| ALFABETO[(*b % 32) as usize] as char).collect();
+    let grezzo: String = buf
+        .iter()
+        .map(|b| ALFABETO[(*b % 32) as usize] as char)
+        .collect();
     Ok(a_gruppi(&grezzo))
 }
 
@@ -106,7 +111,12 @@ pub fn identita_hardware() -> Option<String> {
     let seriale = std::fs::read("/host/devicetree/serial-number")
         .or_else(|_| std::fs::read("/sys/firmware/devicetree/base/serial-number"))
         .ok()
-        .map(|b| String::from_utf8_lossy(&b).trim_matches(char::from(0)).trim().to_string())
+        .map(|b| {
+            String::from_utf8_lossy(&b)
+                .trim_matches(char::from(0))
+                .trim()
+                .to_string()
+        })
         .filter(|s| !s.is_empty());
     if let Some(s) = seriale {
         return Some(format!("seriale:{s}"));
@@ -221,12 +231,20 @@ impl Abbinamento {
 
     /// Il codice attuale, se questo pannello ne ha uno.
     pub fn codice(&self) -> Option<String> {
-        self.archivio.lock().unwrap_or_else(|e| e.into_inner()).as_ref().map(|a| a.codice.clone())
+        self.archivio
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .as_ref()
+            .map(|a| a.codice.clone())
     }
 
     /// L'identità hardware (`seriale:…`, `mac:…`, `casuale:…`).
     pub fn hw(&self) -> Option<String> {
-        self.archivio.lock().unwrap_or_else(|e| e.into_inner()).as_ref().map(|a| a.hw.clone())
+        self.archivio
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .as_ref()
+            .map(|a| a.hw.clone())
     }
 
     /// Nome e token nel tunnel, se il pannello è abbinato al cloud.
@@ -238,8 +256,13 @@ impl Abbinamento {
 
     /// La richiesta porta la firma del gateway di questo pannello?
     pub fn firma_valida(&self, intestazioni: &axum::http::HeaderMap) -> bool {
-        let Some((_, token)) = self.tunnel() else { return false };
-        let Some(dato) = intestazioni.get(INTESTAZIONE_GATEWAY).and_then(|v| v.to_str().ok()) else {
+        let Some((_, token)) = self.tunnel() else {
+            return false;
+        };
+        let Some(dato) = intestazioni
+            .get(INTESTAZIONE_GATEWAY)
+            .and_then(|v| v.to_str().ok())
+        else {
             return false;
         };
         crate::router::confronto_costante(dato.as_bytes(), firma_gateway(&token).as_bytes())
@@ -248,7 +271,9 @@ impl Abbinamento {
     /// Cambia il nome nel tunnel (Rinomina dal cloud), token invariato.
     fn imposta_nome(&self, nome: &str) -> anyhow::Result<()> {
         let mut g = self.archivio.lock().unwrap_or_else(|e| e.into_inner());
-        let Some(a) = g.as_mut() else { anyhow::bail!("nessun archivio di abbinamento") };
+        let Some(a) = g.as_mut() else {
+            anyhow::bail!("nessun archivio di abbinamento")
+        };
         if a.tunnel_token.is_none() {
             anyhow::bail!("il pannello non è abbinato al cloud");
         }
@@ -266,7 +291,9 @@ impl Abbinamento {
 
     fn imposta_tunnel(&self, nome: &str, token: &str) -> anyhow::Result<()> {
         let mut g = self.archivio.lock().unwrap_or_else(|e| e.into_inner());
-        let Some(a) = g.as_mut() else { anyhow::bail!("nessun archivio di abbinamento") };
+        let Some(a) = g.as_mut() else {
+            anyhow::bail!("nessun archivio di abbinamento")
+        };
         a.tunnel_nome = Some(nome.to_string());
         a.tunnel_token = Some(token.to_string());
         Self::scrivi(&self.percorso, a)
@@ -287,9 +314,8 @@ impl Abbinamento {
             }
         }
         let atteso = self.codice().ok_or(Rifiuto::NonDisponibile)?;
-        let ok = normalizza(scritto).is_some_and(|n| {
-            crate::router::confronto_costante(n.as_bytes(), atteso.as_bytes())
-        });
+        let ok = normalizza(scritto)
+            .is_some_and(|n| crate::router::confronto_costante(n.as_bytes(), atteso.as_bytes()));
         if ok {
             return Ok(());
         }
@@ -350,13 +376,17 @@ pub(crate) fn nome_proposto() -> String {
 /// qualsiasi non serve più a entrare, e mostrarlo vorrebbe dire lasciare in
 /// giro una chiave che domani (abbinamento al cloud) potrebbe aprire altro.
 pub async fn stato(State(s): State<crate::router::AppState>) -> Response {
-    let in_attesa =
-        crate::router::fonte_auth_corrente(&s).await == crate::router::FonteAutenticazione::InAttesa;
+    let in_attesa = crate::router::fonte_auth_corrente(&s).await
+        == crate::router::FonteAutenticazione::InAttesa;
     let cloud = s.abbinamento.tunnel().map(|(n, _)| n);
     // Il codice si mostra anche a un pannello che ha già utenti ma non è
     // ancora abbinato al cloud: lì da solo non apre niente — per abbinare un
     // pannello con utenti servono anche le credenziali di un suo Admin.
-    let codice = if in_attesa || cloud.is_none() { s.abbinamento.codice() } else { None };
+    let codice = if in_attesa || cloud.is_none() {
+        s.abbinamento.codice()
+    } else {
+        None
+    };
     // Abbinato al cloud ma ancora senza utenti (fetta E): chiuso in LAN, aperto
     // al gateway, in attesa del primo progetto. Il codice non c'è più.
     let codice = if cloud.is_some() { None } else { codice };
@@ -406,10 +436,14 @@ pub async fn rivendica(
     Json(r): Json<Rivendica>,
 ) -> Response {
     let errore = |stato: StatusCode, codice: &str, testo: &str| {
-        (stato, Json(serde_json::json!({ "error": codice, "detail": testo }))).into_response()
+        (
+            stato,
+            Json(serde_json::json!({ "error": codice, "detail": testo })),
+        )
+            .into_response()
     };
-    let in_attesa =
-        crate::router::fonte_auth_corrente(&s).await == crate::router::FonteAutenticazione::InAttesa;
+    let in_attesa = crate::router::fonte_auth_corrente(&s).await
+        == crate::router::FonteAutenticazione::InAttesa;
     if !in_attesa && r.tunnel.is_none() {
         return errore(
             StatusCode::CONFLICT,
@@ -434,8 +468,13 @@ pub async fn rivendica(
             )
         }
         Err(Rifiuto::CodiceSbagliato) => {
-            s.audit.log("abbinamento.codice_sbagliato", None, serde_json::json!({}));
-            return errore(StatusCode::UNAUTHORIZED, "codice_sbagliato", "codice sbagliato");
+            s.audit
+                .log("abbinamento.codice_sbagliato", None, serde_json::json!({}));
+            return errore(
+                StatusCode::UNAUTHORIZED,
+                "codice_sbagliato",
+                "codice sbagliato",
+            );
         }
     }
     let username = r.username.as_deref().unwrap_or("").trim().to_string();
@@ -444,10 +483,20 @@ pub async fn rivendica(
     // non basta — chi l'ha letto sullo schermo non deve potersi portare il
     // pannello nella sua azienda. Servono anche le credenziali di un suo Admin.
     if !in_attesa {
-        let admin = s.auth.list_users().await.into_iter().chain(s.auth_dispositivo.list_users().await)
+        let admin = s
+            .auth
+            .list_users()
+            .await
+            .into_iter()
+            .chain(s.auth_dispositivo.list_users().await)
             .any(|u| u.username == username && u.role == sws_auth::Role::Admin);
-        let password_giusta = s.auth.verify_user_password(&username, r.password.as_deref().unwrap_or("")).await
-            || s.auth_dispositivo.verify_user_password(&username, r.password.as_deref().unwrap_or("")).await;
+        let password_giusta = s
+            .auth
+            .verify_user_password(&username, r.password.as_deref().unwrap_or(""))
+            .await
+            || s.auth_dispositivo
+                .verify_user_password(&username, r.password.as_deref().unwrap_or(""))
+                .await;
         if !admin || !password_giusta {
             return errore(
                 StatusCode::UNAUTHORIZED,
@@ -455,13 +504,23 @@ pub async fn rivendica(
                 "questo pannello ha già utenti: per abbinarlo al cloud servono utente e password di un suo amministratore",
             );
         }
-        let Some(t) = r.tunnel.as_ref() else { unreachable!("controllato sopra") };
+        let Some(t) = r.tunnel.as_ref() else {
+            unreachable!("controllato sopra")
+        };
         return match salva_tunnel(&s, t) {
             Ok(()) => {
-                s.audit.log("abbinamento.cloud", Some(username), serde_json::json!({ "pannello": t.nome }));
+                s.audit.log(
+                    "abbinamento.cloud",
+                    Some(username),
+                    serde_json::json!({ "pannello": t.nome }),
+                );
                 Json(serde_json::json!({ "ok": true, "nome": t.nome })).into_response()
             }
-            Err(e) => errore(StatusCode::INTERNAL_SERVER_ERROR, "salvataggio", &e.to_string()),
+            Err(e) => errore(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "salvataggio",
+                &e.to_string(),
+            ),
         };
     }
 
@@ -472,13 +531,25 @@ pub async fn rivendica(
         if let Some(t) = r.tunnel.as_ref() {
             return match salva_tunnel(&s, t) {
                 Ok(()) => {
-                    s.audit.log("abbinamento.cloud", None, serde_json::json!({ "pannello": t.nome, "utenti": false }));
+                    s.audit.log(
+                        "abbinamento.cloud",
+                        None,
+                        serde_json::json!({ "pannello": t.nome, "utenti": false }),
+                    );
                     Json(serde_json::json!({ "ok": true, "nome": t.nome })).into_response()
                 }
-                Err(e) => errore(StatusCode::INTERNAL_SERVER_ERROR, "salvataggio", &e.to_string()),
+                Err(e) => errore(
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    "salvataggio",
+                    &e.to_string(),
+                ),
             };
         }
-        return errore(StatusCode::BAD_REQUEST, "utente_vuoto", "serve un nome utente");
+        return errore(
+            StatusCode::BAD_REQUEST,
+            "utente_vuoto",
+            "serve un nome utente",
+        );
     }
     if r.password.as_deref().unwrap_or("").chars().count() < PASSWORD_MINIMA {
         return errore(
@@ -498,7 +569,11 @@ pub async fn rivendica(
         })
         .await
     {
-        return errore(StatusCode::INTERNAL_SERVER_ERROR, "salvataggio", &format!("{e:?}"));
+        return errore(
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "salvataggio",
+            &format!("{e:?}"),
+        );
     }
     // `salva_tunnel` consuma già il codice: consumarlo due volte farebbe
     // ricollegare il tunnel due volte.
@@ -528,7 +603,10 @@ pub async fn rivendica(
     tracing::info!(utente = %username, "pannello abbinato: nato l'Admin del dispositivo");
     match s
         .auth_dispositivo
-        .login(&sws_auth::Credentials { username, password: r.password.unwrap_or_default() })
+        .login(&sws_auth::Credentials {
+            username,
+            password: r.password.unwrap_or_default(),
+        })
         .await
     {
         Ok(ok) => Json(ok).into_response(),
@@ -561,7 +639,11 @@ pub async fn rinomina(
     match s.abbinamento.imposta_nome(&n.nome) {
         Ok(()) => {
             tracing::info!(pannello = %n.nome, "rinominato dal cloud: mi ricollego col nome nuovo");
-            s.audit.log("abbinamento.rinominato", None, serde_json::json!({ "pannello": n.nome }));
+            s.audit.log(
+                "abbinamento.rinominato",
+                None,
+                serde_json::json!({ "pannello": n.nome }),
+            );
             Json(serde_json::json!({ "ok": true, "nome": n.nome })).into_response()
         }
         Err(e) => (StatusCode::CONFLICT, e.to_string()).into_response(),
@@ -571,7 +653,9 @@ pub async fn rinomina(
 /// Nome e token del tunnel dal gateway: salvati, codice consumato, e il
 /// tunnel si ricollega da abbinato.
 fn salva_tunnel(s: &crate::router::AppState, t: &CredenzialiTunnel) -> anyhow::Result<()> {
-    if t.token.len() < 16 || crate::tunnel::abbinati::normalizza_nome(&t.nome).as_deref() != Some(t.nome.as_str()) {
+    if t.token.len() < 16
+        || crate::tunnel::abbinati::normalizza_nome(&t.nome).as_deref() != Some(t.nome.as_str())
+    {
         anyhow::bail!("credenziali del tunnel non valide");
     }
     s.abbinamento.imposta_tunnel(&t.nome, &t.token)?;
@@ -592,7 +676,9 @@ mod tests {
             let gruppi: Vec<_> = c.split('-').collect();
             assert_eq!(gruppi.len(), 4);
             assert!(gruppi.iter().all(|g| g.len() == 4));
-            assert!(c.chars().all(|x| x == '-' || (x.is_ascii_uppercase() || x.is_ascii_digit())));
+            assert!(c
+                .chars()
+                .all(|x| x == '-' || (x.is_ascii_uppercase() || x.is_ascii_digit())));
             assert!(!c.contains(['I', 'L', 'O', 'U']), "{c}");
             assert_eq!(normalizza(&c).as_deref(), Some(c.as_str()));
         }
@@ -600,10 +686,19 @@ mod tests {
 
     #[test]
     fn si_perdona_come_lo_scrive_una_persona() {
-        assert_eq!(normalizza("7kq2 m9xd 3hwp t4bz").as_deref(), Some("7KQ2-M9XD-3HWP-T4BZ"));
-        assert_eq!(normalizza("7KQ2M9XD3HWPT4BZ").as_deref(), Some("7KQ2-M9XD-3HWP-T4BZ"));
+        assert_eq!(
+            normalizza("7kq2 m9xd 3hwp t4bz").as_deref(),
+            Some("7KQ2-M9XD-3HWP-T4BZ")
+        );
+        assert_eq!(
+            normalizza("7KQ2M9XD3HWPT4BZ").as_deref(),
+            Some("7KQ2-M9XD-3HWP-T4BZ")
+        );
         // O → 0, I e L → 1.
-        assert_eq!(normalizza("OOOO-IIII-LLLL-0000").as_deref(), Some("0000-1111-1111-0000"));
+        assert_eq!(
+            normalizza("OOOO-IIII-LLLL-0000").as_deref(),
+            Some("0000-1111-1111-0000")
+        );
         assert_eq!(normalizza("7KQ2-M9XD-3HWP"), None, "corto");
         assert_eq!(normalizza("7KQ2-M9XD-3HWP-T4BZ-X"), None, "lungo");
         assert_eq!(normalizza("UUUU-M9XD-3HWP-T4BZ"), None, "U non c'è");
@@ -623,7 +718,11 @@ mod tests {
         b.consuma().unwrap();
         let nuovo = b.codice().unwrap();
         assert_ne!(nuovo, c);
-        assert_eq!(b.verifica(&c), Err(Rifiuto::CodiceSbagliato), "il vecchio non vale più");
+        assert_eq!(
+            b.verifica(&c),
+            Err(Rifiuto::CodiceSbagliato),
+            "il vecchio non vale più"
+        );
         // Anche su disco.
         assert_eq!(Abbinamento::apri(d.path(), true).codice().unwrap(), nuovo);
     }
@@ -633,7 +732,10 @@ mod tests {
         let d = tempfile::tempdir().unwrap();
         let a = Abbinamento::apri(d.path(), true);
         for _ in 0..TENTATIVI {
-            assert_eq!(a.verifica("0000-0000-0000-0000"), Err(Rifiuto::CodiceSbagliato));
+            assert_eq!(
+                a.verifica("0000-0000-0000-0000"),
+                Err(Rifiuto::CodiceSbagliato)
+            );
         }
         let giusto = a.codice().unwrap();
         assert_eq!(a.verifica(&giusto), Err(Rifiuto::TroppiTentativi));
@@ -644,12 +746,22 @@ mod tests {
         let d = tempfile::tempdir().unwrap();
         let a = Abbinamento::apri(d.path(), true);
         let mut h = axum::http::HeaderMap::new();
-        h.insert(INTESTAZIONE_GATEWAY, firma_gateway("token-del-pannello-lungo").parse().unwrap());
-        assert!(!a.firma_valida(&h), "non abbinato al cloud: nessuna firma vale");
-        a.imposta_tunnel("tc620", "token-del-pannello-lungo").unwrap();
+        h.insert(
+            INTESTAZIONE_GATEWAY,
+            firma_gateway("token-del-pannello-lungo").parse().unwrap(),
+        );
+        assert!(
+            !a.firma_valida(&h),
+            "non abbinato al cloud: nessuna firma vale"
+        );
+        a.imposta_tunnel("tc620", "token-del-pannello-lungo")
+            .unwrap();
         assert!(a.firma_valida(&h));
         let mut sbagliata = axum::http::HeaderMap::new();
-        sbagliata.insert(INTESTAZIONE_GATEWAY, firma_gateway("altro-token").parse().unwrap());
+        sbagliata.insert(
+            INTESTAZIONE_GATEWAY,
+            firma_gateway("altro-token").parse().unwrap(),
+        );
         assert!(!a.firma_valida(&sbagliata));
         assert!(!a.firma_valida(&axum::http::HeaderMap::new()));
         // Rinominato: il token resta, la firma vale ancora.

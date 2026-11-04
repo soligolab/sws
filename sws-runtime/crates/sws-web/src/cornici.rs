@@ -136,12 +136,20 @@ pub const ID_SFONDO_AREA: &str = "sfondo:area";
 /// viewer web lo riceve come un oggetto qualunque. Va chiamata **dopo**
 /// `componi`, così finisce in fondo all'elenco anche rispetto alla cornice.
 pub fn sfondo_area(pagina: &mut SynopticPage, cornice: Option<&Cornice>) {
-    let Some(src) = pagina.sfondo_immagine.as_deref().map(str::trim).filter(|s| !s.is_empty()) else {
+    let Some(src) = pagina
+        .sfondo_immagine
+        .as_deref()
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+    else {
         return;
     };
     let (w, h) = match cornice {
         Some(c) => (c.larghezza, c.altezza),
-        None => (pagina.width.unwrap_or(1280.0), pagina.height.unwrap_or(800.0)),
+        None => (
+            pagina.width.unwrap_or(1280.0),
+            pagina.height.unwrap_or(800.0),
+        ),
     };
     let (alto, basso) = cornice
         .map(|c| (c.testata.altezza.max(0.0), c.piede.altezza.max(0.0)))
@@ -184,9 +192,13 @@ pub fn componi(pagina: &mut SynopticPage, cornice: &Cornice, progetto_nome: &str
         cornice.altezza - cornice.piede.altezza,
     ));
     for o in &cornice.oggetti {
-        let Ok(mut v) = serde_json::to_value(o) else { continue };
+        let Ok(mut v) = serde_json::to_value(o) else {
+            continue;
+        };
         risolvi_in(&mut v, &sp);
-        let Ok(mut o) = serde_json::from_value::<SynopticObject>(v) else { continue };
+        let Ok(mut o) = serde_json::from_value::<SynopticObject>(v) else {
+            continue;
+        };
         // Un tubo agganciato a un oggetto della cornice segue il nuovo id.
         for capo in [&mut o.from_obj_id, &mut o.to_obj_id] {
             if let Some(id) = capo.as_mut().filter(|id| propri.contains(id.as_str())) {
@@ -227,7 +239,10 @@ fn si_coprono(a: (f64, f64, f64, f64), b: (f64, f64, f64, f64)) -> bool {
 /// pagina accanto all'orologio della testata) è legittimo e non si segnala
 /// (affinato il 17-10-2026: prima bastava entrare nella fascia).
 pub fn oggetti_nelle_fasce<'a>(pagina: &'a SynopticPage, cornice: &Cornice) -> Vec<&'a str> {
-    let (t, p) = (cornice.testata.altezza.max(0.0), cornice.piede.altezza.max(0.0));
+    let (t, p) = (
+        cornice.testata.altezza.max(0.0),
+        cornice.piede.altezza.max(0.0),
+    );
     let inizio_piede = cornice.altezza - p;
     let suoi: Vec<_> = cornice.oggetti.iter().map(riquadro).collect();
     pagina
@@ -253,7 +268,7 @@ pub fn oggetti_fuori_dalle_fasce(cornice: &Cornice) -> Vec<&str> {
             let (y0, y1) = (o.y, o.y + o.height.unwrap_or(0.0));
             let in_testata = y1 <= t;
             let nel_piede = y0 >= inizio_piede && cornice.piede.altezza > 0.0;
-            !(in_testata && t > 0.0) && !nel_piede
+            !(nel_piede || (in_testata && t > 0.0))
         })
         .map(|o| o.id.as_str())
         .collect()
@@ -279,8 +294,14 @@ mod tests {
         componi(&mut p, &c, "Casa");
         sfondo_area(&mut p, Some(&c));
         let s = &p.objects[0];
-        assert_eq!(s.id, ID_SFONDO_AREA, "sotto tutto, anche sotto i fondi delle fasce");
-        assert_eq!((s.x, s.y, s.width, s.height), (0.0, 56.0, Some(1280.0), Some(684.0)));
+        assert_eq!(
+            s.id, ID_SFONDO_AREA,
+            "sotto tutto, anche sotto i fondi delle fasce"
+        );
+        assert_eq!(
+            (s.x, s.y, s.width, s.height),
+            (0.0, 56.0, Some(1280.0), Some(684.0))
+        );
         assert_eq!(s.bg_image.as_deref(), Some("images/garage.jpg"));
 
         let mut senza: SynopticPage = serde_json::from_value(serde_json::json!({
@@ -288,9 +309,14 @@ mod tests {
         }))
         .unwrap();
         sfondo_area(&mut senza, None);
-        assert_eq!((senza.objects[0].y, senza.objects[0].height), (0.0, Some(600.0)));
+        assert_eq!(
+            (senza.objects[0].y, senza.objects[0].height),
+            (0.0, Some(600.0))
+        );
 
-        let mut niente: SynopticPage = serde_json::from_value(serde_json::json!({ "id": "n", "name": "N", "objects": [] })).unwrap();
+        let mut niente: SynopticPage =
+            serde_json::from_value(serde_json::json!({ "id": "n", "name": "N", "objects": [] }))
+                .unwrap();
         sfondo_area(&mut niente, None);
         assert!(niente.objects.is_empty());
     }
@@ -347,10 +373,16 @@ oggetti:
         let assente = pagina("id: p\nname: P\n");
         let nessuna = pagina("id: p\nname: P\ncornice: null\n");
         let scelta = pagina("id: p\nname: P\ncornice: altra\n");
-        assert_eq!(cornice_della_pagina(&assente, Some("base")).as_deref(), Some("base"));
+        assert_eq!(
+            cornice_della_pagina(&assente, Some("base")).as_deref(),
+            Some("base")
+        );
         assert_eq!(cornice_della_pagina(&assente, None), None);
         assert_eq!(cornice_della_pagina(&nessuna, Some("base")), None);
-        assert_eq!(cornice_della_pagina(&scelta, Some("base")).as_deref(), Some("altra"));
+        assert_eq!(
+            cornice_della_pagina(&scelta, Some("base")).as_deref(),
+            Some("altra")
+        );
         let boot = pagina("id: p\nname: P\nkind: boot\ncornice: altra\n");
         assert_eq!(cornice_della_pagina(&boot, Some("base")), None);
         let finestra = pagina("id: p\nname: P\nfinestra: { modale: true }\n");
@@ -360,14 +392,17 @@ oggetti:
     #[test]
     fn null_resta_null_sul_file() {
         let nessuna = pagina("id: p\nname: P\ncornice: null\n");
-        assert!(serde_yaml::to_string(&nessuna).unwrap().contains("cornice: null"));
+        assert!(serde_yaml::to_string(&nessuna)
+            .unwrap()
+            .contains("cornice: null"));
         let assente = pagina("id: p\nname: P\n");
         assert!(!serde_yaml::to_string(&assente).unwrap().contains("cornice"));
     }
 
     #[test]
     fn la_composizione_mette_la_cornice_sotto_con_segnaposti_e_prefissi() {
-        let mut p = pagina("id: pg1\nname: Cucina\nobjects:\n- { id: a, type: rect, x: 100, y: 100 }\n");
+        let mut p =
+            pagina("id: pg1\nname: Cucina\nobjects:\n- { id: a, type: rect, x: 100, y: 100 }\n");
         componi(&mut p, &cornice(), "Casa");
         let ids: Vec<&str> = p.objects.iter().map(|o| o.id.as_str()).collect();
         assert_eq!(
@@ -383,7 +418,10 @@ oggetti:
         );
         assert_eq!(p.objects[0].fill.as_deref(), Some("#1e293b"));
         assert_eq!(p.objects[0].height, Some(56.0));
-        assert_eq!(p.objects[1].text.as_deref(), Some("Cucina · Casa · {{t0001}}"));
+        assert_eq!(
+            p.objects[1].text.as_deref(),
+            Some("Cucina · Casa · {{t0001}}")
+        );
         assert_eq!(p.objects[3].label.as_deref(), Some("pg1"));
         // il capo agganciato a un oggetto della cornice segue il prefisso,
         // quello agganciato a qualcosa che la cornice non ha resta com'era
@@ -397,7 +435,10 @@ oggetti:
         c.testata.sfondo = None;
         let mut p = pagina("id: p\nname: P\n");
         componi(&mut p, &c, "X");
-        assert!(p.objects.iter().all(|o| !o.id.starts_with("cornice:base:_")));
+        assert!(p
+            .objects
+            .iter()
+            .all(|o| !o.id.starts_with("cornice:base:_")));
     }
 
     #[test]
@@ -410,7 +451,9 @@ oggetti:
         let c = cornice();
         assert_eq!(oggetti_nelle_fasce(&p, &c), ["alto", "basso"]);
         let mut c2 = cornice();
-        c2.oggetti.push(serde_yaml::from_str("{ id: mezzo, type: rect, x: 0, y: 300, height: 20 }").unwrap());
+        c2.oggetti.push(
+            serde_yaml::from_str("{ id: mezzo, type: rect, x: 0, y: 300, height: 20 }").unwrap(),
+        );
         assert_eq!(oggetti_fuori_dalle_fasce(&c2), ["mezzo"]);
     }
 }

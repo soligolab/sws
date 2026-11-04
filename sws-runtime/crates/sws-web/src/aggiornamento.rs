@@ -48,7 +48,11 @@ pub fn scomponi(rif: &str) -> Option<Riferimento> {
         return None; // era la porta di un host, non un tag
     }
     let (host, repo) = nome.split_once('/')?;
-    Some(Riferimento { host: host.into(), repo: repo.into(), tag: tag.into() })
+    Some(Riferimento {
+        host: host.into(),
+        repo: repo.into(),
+        tag: tag.into(),
+    })
 }
 
 /// Canale e architettura (il suffisso dei tag: `arm64`, `amd64`, `arm64-generic`).
@@ -105,12 +109,14 @@ impl Ord for Versione {
     /// Semver: a parità di numeri una release viene **dopo** ogni sua
     /// pre-release, e `dev` < `rc` (quindi `2.12.0-dev.5` < `2.12.0-rc.1`).
     fn cmp(&self, o: &Self) -> Ordering {
-        self.numeri.cmp(&o.numeri).then_with(|| match (&self.pre, &o.pre) {
-            (None, None) => Ordering::Equal,
-            (None, Some(_)) => Ordering::Greater,
-            (Some(_), None) => Ordering::Less,
-            (Some(a), Some(b)) => a.cmp(b),
-        })
+        self.numeri
+            .cmp(&o.numeri)
+            .then_with(|| match (&self.pre, &o.pre) {
+                (None, None) => Ordering::Equal,
+                (None, Some(_)) => Ordering::Greater,
+                (Some(_), None) => Ordering::Less,
+                (Some(a), Some(b)) => a.cmp(b),
+            })
     }
 }
 impl PartialOrd for Versione {
@@ -144,7 +150,12 @@ pub fn migliore_nel_canale(tags: &[String], canale: &Canale, arch: &str) -> Opti
 /// Saltando da una 2.12.0 a una 2.12.3 le novità — e soprattutto gli avvisi di
 /// compatibilità — delle due versioni in mezzo sono quelle che nessuno
 /// leggerebbe mai, ed è esattamente il caso in cui servono (decisione 42).
-pub fn versioni_dopo(tags: &[String], canale: &Canale, arch: &str, questa: Option<&Versione>) -> Vec<Versione> {
+pub fn versioni_dopo(
+    tags: &[String],
+    canale: &Canale,
+    arch: &str,
+    questa: Option<&Versione>,
+) -> Vec<Versione> {
     let suffisso = format!("-{arch}");
     let mut v: Vec<Versione> = tags
         .iter()
@@ -223,9 +234,15 @@ pub fn novita_da_etichette(
 ) -> Option<NovitaVersione> {
     let leggi = |k: &str| e.get(k).cloned().unwrap_or_default();
     let (testo, compatibilita) = if e.contains_key("net.soligo.sws.novita.it") {
-        (leggi("net.soligo.sws.novita.it"), leggi("net.soligo.sws.compat.it"))
+        (
+            leggi("net.soligo.sws.novita.it"),
+            leggi("net.soligo.sws.compat.it"),
+        )
     } else {
-        (leggi("net.soligo.sws.changelog"), leggi("net.soligo.sws.compat"))
+        (
+            leggi("net.soligo.sws.changelog"),
+            leggi("net.soligo.sws.compat"),
+        )
     };
     let n = NovitaVersione {
         versione: versione.to_string(),
@@ -244,7 +261,9 @@ pub fn senza_ripetizioni(voci: Vec<NovitaVersione>) -> Vec<NovitaVersione> {
     let mut fuori: Vec<NovitaVersione> = Vec::new();
     for n in voci {
         match fuori.last_mut() {
-            Some(prec) if prec.testo == n.testo && prec.compatibilita == n.compatibilita => *prec = n,
+            Some(prec) if prec.testo == n.testo && prec.compatibilita == n.compatibilita => {
+                *prec = n
+            }
             _ => fuori.push(n),
         }
     }
@@ -265,7 +284,11 @@ fn formatta(v: &Versione) -> String {
 /// Sta in una funzione sua perché i chiamanti sono due — l'elenco dei tag e le
 /// etichette di un'immagine — e la danza del 401 è la parte che si sbaglia:
 /// scritta due volte, la seconda copia non riceve le correzioni della prima.
-async fn get_registry(r: &Riferimento, percorso: &str, accept: Option<&str>) -> Result<reqwest::Response, String> {
+async fn get_registry(
+    r: &Riferimento,
+    percorso: &str,
+    accept: Option<&str>,
+) -> Result<reqwest::Response, String> {
     let client = reqwest::Client::builder()
         .timeout(std::time::Duration::from_secs(10))
         .build()
@@ -290,7 +313,7 @@ async fn get_registry(r: &Riferimento, percorso: &str, accept: Option<&str>) -> 
         .to_string();
     let campo = |k: &str| {
         sfida
-            .split(|c| c == ',' || c == ' ')
+            .split([',', ' '])
             .find_map(|p| p.strip_prefix(&format!("{k}=")))
             .map(|v| v.trim_matches('"').to_string())
     };
@@ -329,7 +352,11 @@ async fn tag_del_registry(r: &Riferimento) -> Result<Vec<String>, String> {
     let corpo: serde_json::Value = risposta.json().await.map_err(|e| e.to_string())?;
     Ok(corpo["tags"]
         .as_array()
-        .map(|a| a.iter().filter_map(|t| t.as_str().map(String::from)).collect())
+        .map(|a| {
+            a.iter()
+                .filter_map(|t| t.as_str().map(String::from))
+                .collect()
+        })
         .unwrap_or_default())
 }
 
@@ -347,10 +374,16 @@ application/vnd.docker.distribution.manifest.list.v2+json";
 /// nomina: due richieste e pochi KB, contro le centinaia di MB di un pull.
 /// È così che il runtime legge le novità di una versione prima di installarla
 /// (decisione 42, 28-09-2026).
-async fn etichette(r: &Riferimento, tag: &str) -> Result<std::collections::HashMap<String, String>, String> {
+async fn etichette(
+    r: &Riferimento,
+    tag: &str,
+) -> Result<std::collections::HashMap<String, String>, String> {
     let risposta = get_registry(r, &format!("manifests/{tag}"), Some(ACCETTA_MANIFEST)).await?;
     if !risposta.status().is_success() {
-        return Err(format!("manifest {tag}: il registry ha risposto {}", risposta.status()));
+        return Err(format!(
+            "manifest {tag}: il registry ha risposto {}",
+            risposta.status()
+        ));
     }
     let manifest: serde_json::Value = risposta.json().await.map_err(|e| e.to_string())?;
     let digest = manifest["config"]["digest"]
@@ -359,7 +392,10 @@ async fn etichette(r: &Riferimento, tag: &str) -> Result<std::collections::HashM
         .to_string();
     let blob = get_registry(r, &format!("blobs/{digest}"), None).await?;
     if !blob.status().is_success() {
-        return Err(format!("config blob: il registry ha risposto {}", blob.status()));
+        return Err(format!(
+            "config blob: il registry ha risposto {}",
+            blob.status()
+        ));
     }
     let config: serde_json::Value = blob.json().await.map_err(|e| e.to_string())?;
     let mappa = config["config"]["Labels"]
@@ -398,7 +434,8 @@ pub async fn stato() -> StatoAggiornamento {
             if let Some(m) = migliore_nel_canale(&tags, &canale, &arch) {
                 if questa.as_ref().map(|q| &m > q).unwrap_or(true) {
                     st.disponibile = Some(formatta(&m));
-                    st.novita = novita_da_attraversare(&r, &tags, &canale, &arch, questa.as_ref()).await;
+                    st.novita =
+                        novita_da_attraversare(&r, &tags, &canale, &arch, questa.as_ref()).await;
                 }
             }
         }
@@ -442,7 +479,10 @@ pub async fn segna_esito_visto(config_dir: &std::path::Path, id: i64) -> std::io
 }
 
 /// Ricorda la versione ignorata dallo schermo (rotta `POST /api/update/ignora`).
-pub async fn ignora_versione(config_dir: &std::path::Path, versione: Option<String>) -> std::io::Result<()> {
+pub async fn ignora_versione(
+    config_dir: &std::path::Path,
+    versione: Option<String>,
+) -> std::io::Result<()> {
     let mut p = crate::aggiornamento_finestra::carica(config_dir).await;
     if p.versione_ignorata != versione {
         p.versione_ignorata = versione;
@@ -515,8 +555,13 @@ async fn novita_da_attraversare(
     let mut quadlet_nuovo: Option<(String, u32)> = None;
     for v in da_leggere {
         let nome = formatta(&v);
-        let Ok(e) = etichette(r, &format!("{nome}-{arch}")).await else { continue };
-        if let Some(q) = e.get("net.soligo.sws.quadlet").and_then(|q| q.trim().parse::<u32>().ok()) {
+        let Ok(e) = etichette(r, &format!("{nome}-{arch}")).await else {
+            continue;
+        };
+        if let Some(q) = e
+            .get("net.soligo.sws.quadlet")
+            .and_then(|q| q.trim().parse::<u32>().ok())
+        {
             if quadlet_nuovo.as_ref().is_none_or(|(_, n)| q >= *n) {
                 quadlet_nuovo = Some((nome.clone(), q));
             }
@@ -561,7 +606,10 @@ fn aggiungi_riga(testo: &mut String, riga: &str) {
 /// La riga di compatibilità quando la versione in arrivo porta quadlet più
 /// recenti di quelli che questa immagine si aspetta. Senza un numero attuale
 /// (fuori da un container) non si dice niente.
-pub fn nota_quadlet(attesa_adesso: Option<u32>, nuova: u32) -> Option<(&'static str, &'static str)> {
+pub fn nota_quadlet(
+    attesa_adesso: Option<u32>,
+    nuova: u32,
+) -> Option<(&'static str, &'static str)> {
     (attesa_adesso? < nuova).then_some((
         "Dopo l'aggiornamento la configurazione del servizio va aggiornata: Device → \
          Connessione → «Configurazione del servizio» → Aggiorna (il pannello si riavvia una seconda volta).",
@@ -576,7 +624,11 @@ pub fn nota_quadlet(attesa_adesso: Option<u32>, nuova: u32) -> Option<(&'static 
 /// non parte — senza, «Torna alla versione precedente» riporterebbe l'immagine
 /// ma non i dati, e una versione che ha cambiato il formato dei dati lascerebbe
 /// quella vecchia senza poterli leggere.
-pub async fn prepara_e_avvia(config_dir: &std::path::Path, da: &str, a: Option<String>) -> Result<(), String> {
+pub async fn prepara_e_avvia(
+    config_dir: &std::path::Path,
+    da: &str,
+    a: Option<String>,
+) -> Result<(), String> {
     crate::istantanea_dati::prendi(da).await?;
     crate::aggiornamento_esito::segna_in_corso(config_dir, da, a).await;
     avvia().await
@@ -620,12 +672,23 @@ mod tests {
     /// nessuno leggerebbe mai (decisione 42, 28-09-2026).
     #[test]
     fn le_versioni_da_attraversare_sono_quelle_in_mezzo() {
-        let tags: Vec<String> = ["2.12.0-arm64", "2.12.1-arm64", "2.12.2-arm64",
-                                 "2.11.0-arm64", "2.12.1-amd64"]
-            .iter().map(|s| s.to_string()).collect();
+        let tags: Vec<String> = [
+            "2.12.0-arm64",
+            "2.12.1-arm64",
+            "2.12.2-arm64",
+            "2.11.0-arm64",
+            "2.12.1-amd64",
+        ]
+        .iter()
+        .map(|s| s.to_string())
+        .collect();
         let dopo = versioni_dopo(&tags, &Canale::Stabile, "arm64", Some(&v("2.12.0")));
         let nomi: Vec<String> = dopo.iter().map(formatta).collect();
-        assert_eq!(nomi, vec!["2.12.1", "2.12.2"], "dalla più vecchia alla più nuova, e senza l'installata");
+        assert_eq!(
+            nomi,
+            vec!["2.12.1", "2.12.2"],
+            "dalla più vecchia alla più nuova, e senza l'installata"
+        );
 
         // L'architettura sbagliata non entra: `2.12.1-amd64` c'era apposta.
         assert!(!nomi.iter().any(|n| n.contains("amd")));
@@ -634,9 +697,14 @@ mod tests {
     #[test]
     fn il_canale_stabile_non_attraversa_le_rc() {
         let tags: Vec<String> = ["2.12.1-rc.1-arm64", "2.12.1-arm64"]
-            .iter().map(|s| s.to_string()).collect();
+            .iter()
+            .map(|s| s.to_string())
+            .collect();
         let stabile = versioni_dopo(&tags, &Canale::Stabile, "arm64", Some(&v("2.12.0")));
-        assert_eq!(stabile.iter().map(formatta).collect::<Vec<_>>(), vec!["2.12.1"]);
+        assert_eq!(
+            stabile.iter().map(formatta).collect::<Vec<_>>(),
+            vec!["2.12.1"]
+        );
         let prova = versioni_dopo(&tags, &Canale::Prova, "arm64", Some(&v("2.12.0")));
         assert_eq!(prova.len(), 2, "il canale di prova attraversa anche le rc");
     }
@@ -646,18 +714,32 @@ mod tests {
     #[test]
     fn la_numerazione_a_calendario_non_si_attraversa() {
         let tags: Vec<String> = ["2026.7.0-arm64", "2.12.1-arm64"]
-            .iter().map(|s| s.to_string()).collect();
+            .iter()
+            .map(|s| s.to_string())
+            .collect();
         let dopo = versioni_dopo(&tags, &Canale::Stabile, "arm64", Some(&v("2.12.0")));
-        assert_eq!(dopo.iter().map(formatta).collect::<Vec<_>>(), vec!["2.12.1"]);
+        assert_eq!(
+            dopo.iter().map(formatta).collect::<Vec<_>>(),
+            vec!["2.12.1"]
+        );
     }
 
     #[test]
     fn le_versioni_si_ordinano_come_semver() {
         assert!(v("2.12.0") > v("2.12.0-rc.9"));
-        assert!(v("2.12.0-rc.1") > v("2.12.0-dev.5"), "rc viene dopo dev: si riparte da rc.1");
-        assert!(v("2.12.0-rc.10") > v("2.12.0-rc.9"), "numerico, non alfabetico");
+        assert!(
+            v("2.12.0-rc.1") > v("2.12.0-dev.5"),
+            "rc viene dopo dev: si riparte da rc.1"
+        );
+        assert!(
+            v("2.12.0-rc.10") > v("2.12.0-rc.9"),
+            "numerico, non alfabetico"
+        );
         assert!(v("2.12.1-rc.1") > v("2.12.0"));
-        assert!(v("2.10.0") > v("2.9.9"), "numerico anche nei numeri di versione");
+        assert!(
+            v("2.10.0") > v("2.9.9"),
+            "numerico anche nei numeri di versione"
+        );
         assert_eq!(Versione::leggi("latest"), None);
         assert_eq!(Versione::leggi("2.12"), None);
         assert_eq!(Versione::leggi("a360500"), None);
@@ -666,32 +748,66 @@ mod tests {
     #[test]
     fn il_canale_viene_dal_tag() {
         let c = |s: &str| canale(Some(s));
-        assert_eq!(c("ghcr.io/soligolab/sws-runtime:latest-arm64"), (Canale::Stabile, Some("arm64".into())));
-        assert_eq!(c("ghcr.io/soligolab/sws-runtime:rc-amd64"), (Canale::Prova, Some("amd64".into())));
-        assert_eq!(c("ghcr.io/soligolab/sws-runtime:2.11.0-arm64").0, Canale::Fissata);
-        assert_eq!(c("localhost/sws-runtime:2.12.0-dev.5-arm64").0, Canale::Archivio);
+        assert_eq!(
+            c("ghcr.io/soligolab/sws-runtime:latest-arm64"),
+            (Canale::Stabile, Some("arm64".into()))
+        );
+        assert_eq!(
+            c("ghcr.io/soligolab/sws-runtime:rc-amd64"),
+            (Canale::Prova, Some("amd64".into()))
+        );
+        assert_eq!(
+            c("ghcr.io/soligolab/sws-runtime:2.11.0-arm64").0,
+            Canale::Fissata
+        );
+        assert_eq!(
+            c("localhost/sws-runtime:2.12.0-dev.5-arm64").0,
+            Canale::Archivio
+        );
         assert_eq!(canale(None).0, Canale::Sconosciuto);
         // Un host con la porta non va scambiato per un tag.
         assert_eq!(scomponi("registro:5000/sws-runtime"), None);
-        assert_eq!(scomponi("registro:5000/sws-runtime:rc-arm64").unwrap().host, "registro:5000");
+        assert_eq!(
+            scomponi("registro:5000/sws-runtime:rc-arm64").unwrap().host,
+            "registro:5000"
+        );
     }
 
     #[test]
     fn ogni_canale_prende_solo_cio_che_gli_spetta() {
         let tags: Vec<String> = [
-            "2.11.0-arm64", "2.12.0-rc.2-arm64", "2.12.0-rc.2-amd64", "2.13.0-dev.1-arm64",
-            "2.11.0-arm64-generic", "latest-arm64", "rc-arm64", "a360500-arm64", "2.12.0-rc.1-arm64",
+            "2.11.0-arm64",
+            "2.12.0-rc.2-arm64",
+            "2.12.0-rc.2-amd64",
+            "2.13.0-dev.1-arm64",
+            "2.11.0-arm64-generic",
+            "latest-arm64",
+            "rc-arm64",
+            "a360500-arm64",
+            "2.12.0-rc.1-arm64",
         ]
         .map(String::from)
         .to_vec();
-        assert_eq!(migliore_nel_canale(&tags, &Canale::Stabile, "arm64"), Some(v("2.11.0")));
+        assert_eq!(
+            migliore_nel_canale(&tags, &Canale::Stabile, "arm64"),
+            Some(v("2.11.0"))
+        );
         // La prova vede le rc, non le vecchie dev.
-        assert_eq!(migliore_nel_canale(&tags, &Canale::Prova, "arm64"), Some(v("2.12.0-rc.2")));
+        assert_eq!(
+            migliore_nel_canale(&tags, &Canale::Prova, "arm64"),
+            Some(v("2.12.0-rc.2"))
+        );
         assert_eq!(migliore_nel_canale(&tags, &Canale::Archivio, "arm64"), None);
         // La numerazione a calendario di luglio non è «più nuova».
-        let con_calendario: Vec<String> =
-            tags.iter().cloned().chain(["2026.7.0-arm64".to_string()]).collect();
-        assert_eq!(migliore_nel_canale(&con_calendario, &Canale::Stabile, "arm64"), Some(v("2.11.0")));
+        let con_calendario: Vec<String> = tags
+            .iter()
+            .cloned()
+            .chain(["2026.7.0-arm64".to_string()])
+            .collect();
+        assert_eq!(
+            migliore_nel_canale(&con_calendario, &Canale::Stabile, "arm64"),
+            Some(v("2.11.0"))
+        );
         // L'architettura conta: niente amd64 per un pannello arm64.
         assert_eq!(migliore_nel_canale(&tags, &Canale::Stabile, "amd64"), None);
     }
@@ -702,32 +818,62 @@ mod tests {
     async fn il_registry_pubblico_elenca_i_tag_senza_credenziali() {
         let r = scomponi("ghcr.io/soligolab/sws-runtime:latest-arm64").unwrap();
         let tags = tag_del_registry(&r).await.unwrap();
-        assert!(tags.len() > 100, "con ?n=1000 non ci si ferma a 100: {}", tags.len());
+        assert!(
+            tags.len() > 100,
+            "con ?n=1000 non ci si ferma a 100: {}",
+            tags.len()
+        );
         assert!(migliore_nel_canale(&tags, &Canale::Stabile, "arm64").is_some());
     }
 
     #[test]
     fn le_novita_brevi_prima_e_il_changelog_come_ripiego() {
         use std::collections::HashMap;
-        let e = |c: &[(&str, &str)]| c.iter().map(|(k, v)| (k.to_string(), v.to_string())).collect::<HashMap<_, _>>();
-        let nuove = novita_da_etichette("2.12.0-rc.9", &e(&[
-            ("net.soligo.sws.novita.it", "- breve"), ("net.soligo.sws.novita.en", "- short"),
-            ("net.soligo.sws.changelog", "63 000 caratteri"),
-        ])).unwrap();
-        assert_eq!((nuove.testo.as_str(), nuove.testo_en.as_str()), ("- breve", "- short"));
+        let e = |c: &[(&str, &str)]| {
+            c.iter()
+                .map(|(k, v)| (k.to_string(), v.to_string()))
+                .collect::<HashMap<_, _>>()
+        };
+        let nuove = novita_da_etichette(
+            "2.12.0-rc.9",
+            &e(&[
+                ("net.soligo.sws.novita.it", "- breve"),
+                ("net.soligo.sws.novita.en", "- short"),
+                ("net.soligo.sws.changelog", "63 000 caratteri"),
+            ]),
+        )
+        .unwrap();
+        assert_eq!(
+            (nuove.testo.as_str(), nuove.testo_en.as_str()),
+            ("- breve", "- short")
+        );
         // Un'immagine del 28-09 (rc.3-rc.8): solo la sezione del CHANGELOG.
-        let vecchia = novita_da_etichette("2.12.0-rc.5", &e(&[("net.soligo.sws.changelog", "- lungo")])).unwrap();
-        assert_eq!((vecchia.testo.as_str(), vecchia.testo_en.as_str()), ("- lungo", ""));
+        let vecchia = novita_da_etichette(
+            "2.12.0-rc.5",
+            &e(&[("net.soligo.sws.changelog", "- lungo")]),
+        )
+        .unwrap();
+        assert_eq!(
+            (vecchia.testo.as_str(), vecchia.testo_en.as_str()),
+            ("- lungo", "")
+        );
         assert!(novita_da_etichette("2.12.0-rc.2", &e(&[])).is_none());
     }
 
     #[test]
     fn le_rc_con_le_stesse_novita_si_leggono_una_volta() {
         let n = |v: &str, t: &str| NovitaVersione {
-            versione: v.into(), testo: t.into(), compatibilita: String::new(),
-            testo_en: String::new(), compatibilita_en: String::new(),
+            versione: v.into(),
+            testo: t.into(),
+            compatibilita: String::new(),
+            testo_en: String::new(),
+            compatibilita_en: String::new(),
         };
-        let fuori = senza_ripetizioni(vec![n("2.12.0-rc.9", "A"), n("2.12.0-rc.10", "A"), n("2.12.0", "B")]);
+        let fuori = senza_ripetizioni(vec![
+            n("2.12.0-rc.9", "A"),
+            n("2.12.0-rc.10", "A"),
+            n("2.12.0", "B"),
+        ]);
         let nomi: Vec<_> = fuori.iter().map(|x| x.versione.as_str()).collect();
         assert_eq!(nomi, ["2.12.0-rc.10", "2.12.0"]);
     }
@@ -737,10 +883,21 @@ mod tests {
     #[test]
     fn un_esito_chiuso_non_si_ripropone_ma_uno_nuovo_si() {
         use crate::aggiornamento_esito::{Esito, Evento};
-        let e = Evento { id: 7, da: "2.19.0".into(), a: Some("2.20.0".into()), esito: Esito::Riuscito };
+        let e = Evento {
+            id: 7,
+            da: "2.19.0".into(),
+            a: Some("2.20.0".into()),
+            esito: Esito::Riuscito,
+        };
         assert!(!esito_gia_visto(&e, None), "mai chiuso: si mostra");
-        assert!(esito_gia_visto(&e, Some(7)), "chiuso: non si ripropone a ogni avvio del kiosk");
-        assert!(!esito_gia_visto(&e, Some(6)), "chiuso quello di prima: questo è nuovo");
+        assert!(
+            esito_gia_visto(&e, Some(7)),
+            "chiuso: non si ripropone a ogni avvio del kiosk"
+        );
+        assert!(
+            !esito_gia_visto(&e, Some(6)),
+            "chiuso quello di prima: questo è nuovo"
+        );
     }
 
     #[test]
@@ -776,5 +933,4 @@ mod tests {
         assert!(riguarda_questa_versione(&fallito, "2.12.0-rc.12"));
         assert!(!riguarda_questa_versione(&fallito, "2.13.0"));
     }
-
 }

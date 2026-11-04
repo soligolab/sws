@@ -112,7 +112,11 @@ pub fn messaggio(host: &str, e: &Evento, lingua: &str) -> String {
 /// Scrive `in_corso` prima di chiedere l'aggiornamento.
 pub async fn segna_in_corso(config_dir: &Path, da: &str, a: Option<String>) {
     let mut p = carica(config_dir).await;
-    p.in_corso = Some(InCorso { da: da.to_string(), a, quando_ms: chrono::Utc::now().timestamp_millis() });
+    p.in_corso = Some(InCorso {
+        da: da.to_string(),
+        a,
+        quando_ms: chrono::Utc::now().timestamp_millis(),
+    });
     if let Err(e) = salva(config_dir, &p).await {
         tracing::warn!("aggiornamento: in_corso non salvato: {e}");
     }
@@ -135,7 +139,9 @@ pub async fn segna_in_corso(config_dir: &Path, da: &str, a: Option<String>) {
 /// corso, ne decide l'esito, lo scrive e lo manda sui canali del progetto.
 pub async fn all_avvio(s: crate::router::AppState) {
     let dir = s.config_dir.as_ref().clone();
-    let Some(ic) = carica(&dir).await.in_corso else { return };
+    let Some(ic) = carica(&dir).await.in_corso else {
+        return;
+    };
     let versione = crate::aggiornamento::VERSIONE;
     let esito = match decidi(&ic, versione, chrono::Utc::now().timestamp_millis()) {
         Decisione::Scaduto => {
@@ -147,13 +153,23 @@ pub async fn all_avvio(s: crate::router::AppState) {
         Decisione::NonRiuscito => {
             // Un momento, perché le notifiche del progetto partano.
             tokio::time::sleep(std::time::Duration::from_secs(30)).await;
-            Evento { id: ic.quando_ms, da: ic.da.clone(), a: ic.a.clone(), esito: Esito::NonRiuscito }
+            Evento {
+                id: ic.quando_ms,
+                da: ic.da.clone(),
+                a: ic.a.clone(),
+                esito: Esito::NonRiuscito,
+            }
         }
         Decisione::ConfermaDopo => {
             // Se in questo tempo la versione nuova viene sostituita dal ritorno
             // indietro, questo task muore con lei, e l'esito lo scrive la vecchia.
             tokio::time::sleep(std::time::Duration::from_secs(CONFERMA_S)).await;
-            Evento { id: ic.quando_ms, da: ic.da.clone(), a: Some(versione.to_string()), esito: Esito::Riuscito }
+            Evento {
+                id: ic.quando_ms,
+                da: ic.da.clone(),
+                a: Some(versione.to_string()),
+                esito: Esito::Riuscito,
+            }
         }
     };
     let mut p = carica(&dir).await;
@@ -166,9 +182,11 @@ pub async fn all_avvio(s: crate::router::AppState) {
     tracing::info!(esito = ?esito.esito, "{}", messaggio(&host, &esito, "it"));
     // Sui canali che la tabella eventi × canali sceglie per l'esito (29-09-2026:
     // anche l'email, ai destinatari di progetto), ognuno nella sua lingua.
-    crate::notifications::invia_sistema(&s, crate::notifications::EventoSistema::EsitoAggiornamento, |l| {
-        messaggio(&host, &esito, l)
-    })
+    crate::notifications::invia_sistema(
+        &s,
+        crate::notifications::EventoSistema::EsitoAggiornamento,
+        |l| messaggio(&host, &esito, l),
+    )
     .await;
 }
 
@@ -186,12 +204,20 @@ pub async fn versione_nuova_all_avvio(s: crate::router::AppState) {
         return;
     }
     let host = hostname();
-    let partito = crate::notifications::invia_sistema(&s, crate::notifications::EventoSistema::VersioneNuova, |l| {
-        format!(
-            "🆕 {host}: {}",
-            sws_core::testi_sistema::testo_con(sws_core::testi_sistema::Testo::AggTitolo, l, &[("a", &nuova)])
-        )
-    })
+    let partito = crate::notifications::invia_sistema(
+        &s,
+        crate::notifications::EventoSistema::VersioneNuova,
+        |l| {
+            format!(
+                "🆕 {host}: {}",
+                sws_core::testi_sistema::testo_con(
+                    sws_core::testi_sistema::Testo::AggTitolo,
+                    l,
+                    &[("a", &nuova)]
+                )
+            )
+        },
+    )
     .await;
     if partito {
         let mut p = carica(&dir).await;
@@ -202,7 +228,9 @@ pub async fn versione_nuova_all_avvio(s: crate::router::AppState) {
 }
 
 fn hostname() -> String {
-    std::fs::read_to_string("/etc/hostname").map(|h| h.trim().to_string()).unwrap_or_else(|_| "pannello".into())
+    std::fs::read_to_string("/etc/hostname")
+        .map(|h| h.trim().to_string())
+        .unwrap_or_else(|_| "pannello".into())
 }
 
 #[cfg(test)]
@@ -210,29 +238,69 @@ mod tests {
     use super::*;
 
     fn ic(da: &str, quando_ms: i64) -> InCorso {
-        InCorso { da: da.into(), a: Some("2.12.0-rc.9".into()), quando_ms }
+        InCorso {
+            da: da.into(),
+            a: Some("2.12.0-rc.9".into()),
+            quando_ms,
+        }
     }
 
     #[test]
     fn l_esito_lo_decide_la_versione_che_gira_davvero() {
         // Gira la nuova: si conferma dopo un po', se nessuno la sostituisce.
-        assert_eq!(decidi(&ic("2.12.0-rc.8", 0), "2.12.0-rc.9", 10_000), Decisione::ConfermaDopo);
+        assert_eq!(
+            decidi(&ic("2.12.0-rc.8", 0), "2.12.0-rc.9", 10_000),
+            Decisione::ConfermaDopo
+        );
         // Il pilota non fissa la versione: basta che sia diversa da prima.
-        assert_eq!(decidi(&InCorso { a: None, ..ic("2.12.0-rc.8", 0) }, "2.12.0-rc.10", 10_000), Decisione::ConfermaDopo);
+        assert_eq!(
+            decidi(
+                &InCorso {
+                    a: None,
+                    ..ic("2.12.0-rc.8", 0)
+                },
+                "2.12.0-rc.10",
+                10_000
+            ),
+            Decisione::ConfermaDopo
+        );
         // Gira ancora la vecchia poco dopo: ritorno indietro.
-        assert_eq!(decidi(&ic("2.12.0-rc.8", 0), "2.12.0-rc.8", 150_000), Decisione::NonRiuscito);
+        assert_eq!(
+            decidi(&ic("2.12.0-rc.8", 0), "2.12.0-rc.8", 150_000),
+            Decisione::NonRiuscito
+        );
         // Gira la vecchia molto dopo: la richiesta non ha portato a niente.
-        assert_eq!(decidi(&ic("2.12.0-rc.8", 0), "2.12.0-rc.8", (SCADENZA_S as i64 + 1) * 1000), Decisione::Scaduto);
+        assert_eq!(
+            decidi(
+                &ic("2.12.0-rc.8", 0),
+                "2.12.0-rc.8",
+                (SCADENZA_S as i64 + 1) * 1000
+            ),
+            Decisione::Scaduto
+        );
     }
 
     #[test]
     fn i_messaggi_dicono_da_dove_a_dove() {
-        let ok = Evento { id: 1, da: "2.12.0-rc.8".into(), a: Some("2.12.0-rc.9".into()), esito: Esito::Riuscito };
+        let ok = Evento {
+            id: 1,
+            da: "2.12.0-rc.8".into(),
+            a: Some("2.12.0-rc.9".into()),
+            esito: Esito::Riuscito,
+        };
         let it = messaggio("tc620", &ok, "it");
-        assert!(it.starts_with("✅ tc620: ") && it.contains("2.12.0-rc.8") && it.contains("2.12.0-rc.9"), "{it}");
+        assert!(
+            it.starts_with("✅ tc620: ")
+                && it.contains("2.12.0-rc.8")
+                && it.contains("2.12.0-rc.9"),
+            "{it}"
+        );
         // Nella lingua del destinatario, non cablato in italiano.
         assert_ne!(messaggio("tc620", &ok, "en"), it);
-        let ko = Evento { esito: Esito::NonRiuscito, ..ok };
+        let ko = Evento {
+            esito: Esito::NonRiuscito,
+            ..ok
+        };
         let k = messaggio("tc620", &ko, "it");
         assert!(k.starts_with("⚠️") && k.contains("2.12.0-rc.8"), "{k}");
     }

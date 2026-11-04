@@ -65,22 +65,40 @@ pub async fn dal_gateway(State(s): State<AppState>, mut req: Request<Body>) -> R
         return StatusCode::NOT_FOUND.into_response();
     }
     let Some(&(porta, tls)) = PAGINA.get() else {
-        return (StatusCode::NOT_FOUND, "questo runtime non ha una pagina operatore").into_response();
+        return (
+            StatusCode::NOT_FOUND,
+            "questo runtime non ha una pagina operatore",
+        )
+            .into_response();
     };
     req.headers_mut().remove(INTESTAZIONE_GATEWAY);
     req.headers_mut().remove(header::COOKIE);
     let percorso = percorso_della_pagina(req.uri().path());
-    let query = req.uri().query().map(|q| format!("?{q}")).unwrap_or_default();
+    let query = req
+        .uri()
+        .query()
+        .map(|q| format!("?{q}"))
+        .unwrap_or_default();
     match verso_la_pagina(porta, tls, &percorso, &query, req).await {
         Ok(r) => r,
         Err(e) => {
             tracing::warn!("schermo remoto: la pagina operatore non risponde: {e}");
-            (StatusCode::BAD_GATEWAY, format!("la pagina operatore non risponde: {e}")).into_response()
+            (
+                StatusCode::BAD_GATEWAY,
+                format!("la pagina operatore non risponde: {e}"),
+            )
+                .into_response()
         }
     }
 }
 
-async fn verso_la_pagina(porta: u16, tls: bool, percorso: &str, query: &str, req: Request<Body>) -> anyhow::Result<Response> {
+async fn verso_la_pagina(
+    porta: u16,
+    tls: bool,
+    percorso: &str,
+    query: &str,
+    req: Request<Body>,
+) -> anyhow::Result<Response> {
     let tcp = tokio::net::TcpStream::connect(("127.0.0.1", porta)).await?;
     if tls {
         let nome = rustls::pki_types::ServerName::IpAddress(std::net::Ipv4Addr::LOCALHOST.into());
@@ -121,13 +139,26 @@ fn casuale() -> String {
     b.iter().map(|x| format!("{x:02x}")).collect()
 }
 
-fn metti(dove: &Mutex<Option<HashMap<String, Voce>>>, pannello: &str, (utente, gettone): Apertura, durata: Duration) -> String {
+fn metti(
+    dove: &Mutex<Option<HashMap<String, Voce>>>,
+    pannello: &str,
+    (utente, gettone): Apertura,
+    durata: Duration,
+) -> String {
     let codice = casuale();
     let mut g = dove.lock().unwrap_or_else(|e| e.into_inner());
     let m = g.get_or_insert_with(HashMap::new);
     let adesso = Instant::now();
     m.retain(|_, v| v.scade > adesso);
-    m.insert(codice.clone(), Voce { pannello: pannello.to_string(), utente, gettone, scade: adesso + durata });
+    m.insert(
+        codice.clone(),
+        Voce {
+            pannello: pannello.to_string(),
+            utente,
+            gettone,
+            scade: adesso + durata,
+        },
+    );
     codice
 }
 
@@ -151,7 +182,8 @@ pub fn apri_sessione(pannello: &str, chi: Apertura) -> String {
 pub fn sessione(id: &str, pannello: &str) -> Option<Apertura> {
     let g = SESSIONI.lock().unwrap_or_else(|e| e.into_inner());
     let v = g.as_ref()?.get(id)?;
-    (v.pannello == pannello && v.scade > Instant::now()).then(|| (v.utente.clone(), v.gettone.clone()))
+    (v.pannello == pannello && v.scade > Instant::now())
+        .then(|| (v.utente.clone(), v.gettone.clone()))
 }
 
 /// Chi apre lo schermo **adesso**: la sessione cloud del gettone, se vale ancora.
@@ -161,7 +193,9 @@ async fn chi_adesso(s: &AppState, gettone: Option<&str>) -> Option<AuthUser> {
     let fonte = crate::router::fonte_auth_corrente(s).await;
     match gettone {
         Some(g) => crate::router::utente_del_gettone(s, fonte, g).await,
-        None if fonte == crate::router::FonteAutenticazione::Nessuna => Some(crate::router::admin_sintetico()),
+        None if fonte == crate::router::FonteAutenticazione::Nessuna => {
+            Some(crate::router::admin_sintetico())
+        }
         None => None,
     }
 }
@@ -200,10 +234,18 @@ fn biglietto_nella_query(query: Option<&str>) -> Option<String> {
 ///
 /// Solo una **persona**: il container di un progetto parla coi pannelli della
 /// sua azienda, ma uno schermo lo apre qualcuno, e il registro deve dire chi.
-pub async fn biglietto(State(s): State<AppState>, Path(nome): Path<String>, req: Request<Body>) -> Response {
+pub async fn biglietto(
+    State(s): State<AppState>,
+    Path(nome): Path<String>,
+    req: Request<Body>,
+) -> Response {
     let gettone = crate::router::token_della_richiesta(&req);
     let Some(chi) = req.extensions().get::<AuthUser>().cloned() else {
-        return (StatusCode::FORBIDDEN, "lo schermo lo apre una persona, dall'IDE o dalla console").into_response();
+        return (
+            StatusCode::FORBIDDEN,
+            "lo schermo lo apre una persona, dall'IDE o dalla console",
+        )
+            .into_response();
     };
     if !crate::tunnel::gateway::puo_parlargli(&s, Some(&chi), &nome).await {
         return (StatusCode::NOT_FOUND, "pannello non trovato").into_response();
@@ -213,21 +255,38 @@ pub async fn biglietto(State(s): State<AppState>, Path(nome): Path<String>, req:
     };
     if abbinati.per_nome(&nome).is_none() {
         // I pannelli dichiarati a mano non conoscono la firma del gateway.
-        return (StatusCode::CONFLICT, "lo schermo remoto c'è solo per i pannelli abbinati col codice").into_response();
+        return (
+            StatusCode::CONFLICT,
+            "lo schermo remoto c'è solo per i pannelli abbinati col codice",
+        )
+            .into_response();
     }
     if !abbinati.schermo_acceso(&nome) {
-        return (StatusCode::FORBIDDEN, "lo schermo remoto di questo pannello è spento (console → Pannelli)").into_response();
+        return (
+            StatusCode::FORBIDDEN,
+            "lo schermo remoto di questo pannello è spento (console → Pannelli)",
+        )
+            .into_response();
     }
     let collegato = match s.tunnel.as_ref() {
         Some(r) => r.di(&nome).await.is_some(),
         None => false,
     };
     if !collegato {
-        return (StatusCode::SERVICE_UNAVAILABLE, format!("il pannello «{nome}» non è collegato")).into_response();
+        return (
+            StatusCode::SERVICE_UNAVAILABLE,
+            format!("il pannello «{nome}» non è collegato"),
+        )
+            .into_response();
     }
     let codice = emetti_biglietto(&nome, (chi.username.clone(), gettone));
-    s.audit.log("pannello.schermo", Some(chi.username.clone()), serde_json::json!({ "pannello": nome }));
-    axum::Json(serde_json::json!({ "url": format!("/schermo/{nome}/?biglietto={codice}") })).into_response()
+    s.audit.log(
+        "pannello.schermo",
+        Some(chi.username.clone()),
+        serde_json::json!({ "pannello": nome }),
+    );
+    axum::Json(serde_json::json!({ "url": format!("/schermo/{nome}/?biglietto={codice}") }))
+        .into_response()
 }
 
 fn non_valido() -> Response {
@@ -243,44 +302,77 @@ fn non_valido() -> Response {
 /// `/schermo/:pannello` e `/schermo/:pannello/*` sul gateway.
 pub async fn schermo(State(s): State<AppState>, mut req: Request<Body>) -> Response {
     let percorso = req.uri().path().to_string();
-    let Some(resto) = percorso.strip_prefix("/schermo/") else { return StatusCode::NOT_FOUND.into_response() };
+    let Some(resto) = percorso.strip_prefix("/schermo/") else {
+        return StatusCode::NOT_FOUND.into_response();
+    };
     let (pannello, dentro) = match resto.split_once('/') {
         Some((p, d)) => (p.to_string(), format!("/{d}")),
         None => {
             // Senza la barra finale gli indirizzi relativi della pagina
             // salirebbero di un livello: si rimanda alla forma giusta.
-            let query = req.uri().query().map(|q| format!("?{q}")).unwrap_or_default();
-            return (StatusCode::PERMANENT_REDIRECT, [(header::LOCATION, format!("/schermo/{resto}/{query}"))]).into_response();
+            let query = req
+                .uri()
+                .query()
+                .map(|q| format!("?{q}"))
+                .unwrap_or_default();
+            return (
+                StatusCode::PERMANENT_REDIRECT,
+                [(header::LOCATION, format!("/schermo/{resto}/{query}"))],
+            )
+                .into_response();
         }
     };
 
     // Il biglietto si scambia col cookie, e si torna alla pagina senza.
     if let Some(codice) = biglietto_nella_query(req.uri().query()) {
-        let Some(chi) = consuma_biglietto(&codice, &pannello) else { return non_valido() };
+        let Some(chi) = consuma_biglietto(&codice, &pannello) else {
+            return non_valido();
+        };
         let id = apri_sessione(&pannello, chi);
         return (
             StatusCode::SEE_OTHER,
-            [(header::SET_COOKIE, posa_cookie(&pannello, &id)), (header::LOCATION, format!("/schermo/{pannello}/"))],
+            [
+                (header::SET_COOKIE, posa_cookie(&pannello, &id)),
+                (header::LOCATION, format!("/schermo/{pannello}/")),
+            ],
         )
             .into_response();
     }
 
-    let Some(id) = cookie_di(req.headers()) else { return non_valido() };
-    let Some((_, gettone)) = sessione(&id, &pannello) else { return non_valido() };
-    let Some(chi) = chi_adesso(&s, gettone.as_deref()).await else { return non_valido() };
+    let Some(id) = cookie_di(req.headers()) else {
+        return non_valido();
+    };
+    let Some((_, gettone)) = sessione(&id, &pannello) else {
+        return non_valido();
+    };
+    let Some(chi) = chi_adesso(&s, gettone.as_deref()).await else {
+        return non_valido();
+    };
     // Come il tunnel: un pannello che non è della tua azienda non esiste.
     if !crate::tunnel::gateway::puo_parlargli(&s, Some(&chi), &pannello).await {
         return StatusCode::NOT_FOUND.into_response();
     }
     // Spento dalla console mentre era aperto: si chiude subito.
-    if !s.pannelli_abbinati.as_ref().is_some_and(|a| a.schermo_acceso(&pannello)) {
-        return (StatusCode::FORBIDDEN, "lo schermo remoto di questo pannello è spento").into_response();
+    if !s
+        .pannelli_abbinati
+        .as_ref()
+        .is_some_and(|a| a.schermo_acceso(&pannello))
+    {
+        return (
+            StatusCode::FORBIDDEN,
+            "lo schermo remoto di questo pannello è spento",
+        )
+            .into_response();
     }
     let Some(maniglia) = (match s.tunnel.as_ref() {
         Some(r) => r.di(&pannello).await,
         None => None,
     }) else {
-        return (StatusCode::SERVICE_UNAVAILABLE, format!("il pannello «{pannello}» non è collegato")).into_response();
+        return (
+            StatusCode::SERVICE_UNAVAILABLE,
+            format!("il pannello «{pannello}» non è collegato"),
+        )
+            .into_response();
     };
 
     // Le credenziali del cloud non entrano nel tunnel; la firma sì.
@@ -291,8 +383,14 @@ pub async fn schermo(State(s): State<AppState>, mut req: Request<Body>) -> Respo
             req.headers_mut().insert(INTESTAZIONE_GATEWAY, v);
         }
     }
-    let query = req.uri().query().map(|q| format!("?{q}")).unwrap_or_default();
-    match crate::tunnel::gateway::attraverso(&maniglia, &format!("/schermo{dentro}"), &query, req).await {
+    let query = req
+        .uri()
+        .query()
+        .map(|q| format!("?{q}"))
+        .unwrap_or_default();
+    match crate::tunnel::gateway::attraverso(&maniglia, &format!("/schermo{dentro}"), &query, req)
+        .await
+    {
         // Un pannello di una versione che non conosce lo schermo risponde 404
         // alla radice: lo si dice, invece di una pagina bianca.
         Ok(r) if r.status() == StatusCode::NOT_FOUND && dentro == "/" => (
@@ -305,7 +403,11 @@ pub async fn schermo(State(s): State<AppState>, mut req: Request<Body>) -> Respo
         Ok(r) => r,
         Err(e) => {
             tracing::warn!(%pannello, "schermo remoto: richiesta nel tunnel fallita: {e}");
-            (StatusCode::BAD_GATEWAY, format!("il pannello non risponde: {e}")).into_response()
+            (
+                StatusCode::BAD_GATEWAY,
+                format!("il pannello non risponde: {e}"),
+            )
+                .into_response()
         }
     }
 }
@@ -318,26 +420,52 @@ mod tests {
     fn il_percorso_della_pagina_toglie_il_prefisso() {
         assert_eq!(percorso_della_pagina("/schermo"), "/");
         assert_eq!(percorso_della_pagina("/schermo/"), "/");
-        assert_eq!(percorso_della_pagina("/schermo/assets/main.js"), "/assets/main.js");
+        assert_eq!(
+            percorso_della_pagina("/schermo/assets/main.js"),
+            "/assets/main.js"
+        );
         assert_eq!(percorso_della_pagina("/schermo/ws/tags"), "/ws/tags");
-        assert_eq!(percorso_della_pagina("/schermofuori"), "/", "non è sotto /schermo");
+        assert_eq!(
+            percorso_della_pagina("/schermofuori"),
+            "/",
+            "non è sotto /schermo"
+        );
     }
 
     #[test]
     fn il_biglietto_vale_una_volta_e_solo_per_il_suo_pannello() {
         let chi = || ("mauro@example.com".to_string(), Some("gettone".to_string()));
         let b = emetti_biglietto("tc620-garage", chi());
-        assert_eq!(consuma_biglietto(&b, "altro-pannello"), None, "per un altro pannello no");
-        assert_eq!(consuma_biglietto(&b, "tc620-garage"), None, "consumato anche dal tentativo sbagliato");
+        assert_eq!(
+            consuma_biglietto(&b, "altro-pannello"),
+            None,
+            "per un altro pannello no"
+        );
+        assert_eq!(
+            consuma_biglietto(&b, "tc620-garage"),
+            None,
+            "consumato anche dal tentativo sbagliato"
+        );
         let b = emetti_biglietto("tc620-garage", chi());
-        assert_eq!(consuma_biglietto(&b, "tc620-garage"), Some(chi()), "chi e il suo gettone passano alla sessione");
-        assert_eq!(consuma_biglietto(&b, "tc620-garage"), None, "una volta sola");
+        assert_eq!(
+            consuma_biglietto(&b, "tc620-garage"),
+            Some(chi()),
+            "chi e il suo gettone passano alla sessione"
+        );
+        assert_eq!(
+            consuma_biglietto(&b, "tc620-garage"),
+            None,
+            "una volta sola"
+        );
     }
 
     #[test]
     fn la_sessione_vale_solo_per_il_suo_pannello() {
         let id = apri_sessione("tc620-garage", ("mauro@example.com".to_string(), None));
-        assert_eq!(sessione(&id, "tc620-garage").map(|(u, _)| u).as_deref(), Some("mauro@example.com"));
+        assert_eq!(
+            sessione(&id, "tc620-garage").map(|(u, _)| u).as_deref(),
+            Some("mauro@example.com")
+        );
         assert_eq!(sessione(&id, "wp630"), None);
         assert_eq!(sessione("inventato", "tc620-garage"), None);
     }
@@ -345,11 +473,20 @@ mod tests {
     #[test]
     fn il_cookie_si_legge_fra_gli_altri_e_si_posa_ristretto() {
         let mut h = HeaderMap::new();
-        h.insert(header::COOKIE, "altro=1; sws_schermo=abc123; terzo=x".parse().unwrap());
+        h.insert(
+            header::COOKIE,
+            "altro=1; sws_schermo=abc123; terzo=x".parse().unwrap(),
+        );
         assert_eq!(cookie_di(&h).as_deref(), Some("abc123"));
         assert_eq!(cookie_di(&HeaderMap::new()), None);
         let c = posa_cookie("tc620-garage", "abc");
-        for pezzo in ["sws_schermo=abc", "Path=/schermo/tc620-garage/", "HttpOnly", "Secure", "SameSite=Strict"] {
+        for pezzo in [
+            "sws_schermo=abc",
+            "Path=/schermo/tc620-garage/",
+            "HttpOnly",
+            "Secure",
+            "SameSite=Strict",
+        ] {
             assert!(c.contains(pezzo), "{c} senza {pezzo}");
         }
     }
@@ -381,28 +518,47 @@ mod tests {
         // Il giro del pannello, senza la firma (la verifica `dal_gateway`).
         let giro = axum::Router::new().fallback(move |req: Request<Body>| async move {
             let p = percorso_della_pagina(req.uri().path());
-            verso_la_pagina(porta_pagina, false, &p, "", req).await.unwrap()
+            verso_la_pagina(porta_pagina, false, &p, "", req)
+                .await
+                .unwrap()
         });
         let l = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
         let porta_giro = l.local_addr().unwrap().port();
         tokio::spawn(async move { axum::serve(l, giro).await.unwrap() });
 
-        let testo = reqwest::get(format!("http://127.0.0.1:{porta_giro}/schermo/")).await.unwrap().text().await.unwrap();
+        let testo = reqwest::get(format!("http://127.0.0.1:{porta_giro}/schermo/"))
+            .await
+            .unwrap()
+            .text()
+            .await
+            .unwrap();
         assert_eq!(testo, "pagina operatore");
 
-        let (mut ws, _) = tokio_tungstenite::connect_async(format!("ws://127.0.0.1:{porta_giro}/schermo/ws/tags"))
-            .await
-            .expect("upgrade attraverso il giro");
+        let (mut ws, _) = tokio_tungstenite::connect_async(format!(
+            "ws://127.0.0.1:{porta_giro}/schermo/ws/tags"
+        ))
+        .await
+        .expect("upgrade attraverso il giro");
         use tokio_tungstenite::tungstenite::Message as T;
         ws.send(T::Text("caldaia".into())).await.unwrap();
-        let r = tokio::time::timeout(Duration::from_secs(5), ws.next()).await.expect("entro 5 s").unwrap().unwrap();
+        let r = tokio::time::timeout(Duration::from_secs(5), ws.next())
+            .await
+            .expect("entro 5 s")
+            .unwrap()
+            .unwrap();
         assert_eq!(r.into_text().unwrap(), "tag: caldaia");
     }
 
     #[test]
     fn il_biglietto_si_trova_nella_query() {
-        assert_eq!(biglietto_nella_query(Some("biglietto=xyz")).as_deref(), Some("xyz"));
-        assert_eq!(biglietto_nella_query(Some("a=1&biglietto=xyz")).as_deref(), Some("xyz"));
+        assert_eq!(
+            biglietto_nella_query(Some("biglietto=xyz")).as_deref(),
+            Some("xyz")
+        );
+        assert_eq!(
+            biglietto_nella_query(Some("a=1&biglietto=xyz")).as_deref(),
+            Some("xyz")
+        );
         assert_eq!(biglietto_nella_query(Some("a=1")), None);
         assert_eq!(biglietto_nella_query(None), None);
     }

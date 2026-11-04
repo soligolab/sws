@@ -47,7 +47,9 @@ fn inglese(lingua: &str) -> bool {
 fn spedisci(s: &AppState, a: String, oggetto: String, corpo: String) {
     let s = s.clone();
     tokio::spawn(async move {
-        let Some(cfg) = crate::amministrazione::leggi_smtp(&s).await else { return };
+        let Some(cfg) = crate::amministrazione::leggi_smtp(&s).await else {
+            return;
+        };
         let dest = vec![a.clone()];
         let esito = tokio::task::spawn_blocking(move || {
             crate::notifications::invia_una_prova(&cfg, &dest, &oggetto, &corpo)
@@ -64,7 +66,10 @@ fn spedisci(s: &AppState, a: String, oggetto: String, corpo: String) {
 fn bloccato(riprova_fra: std::time::Duration) -> Response {
     (
         StatusCode::TOO_MANY_REQUESTS,
-        [(axum::http::header::RETRY_AFTER, riprova_fra.as_secs().to_string())],
+        [(
+            axum::http::header::RETRY_AFTER,
+            riprova_fra.as_secs().to_string(),
+        )],
     )
         .into_response()
 }
@@ -91,13 +96,23 @@ pub async fn registra(State(s): State<AppState>, Json(r): Json<Registrazione>) -
         return StatusCode::NOT_FOUND.into_response();
     }
     if !r.condizioni || !r.clausole {
-        return (StatusCode::BAD_REQUEST, "servono tutte e due le accettazioni").into_response();
+        return (
+            StatusCode::BAD_REQUEST,
+            "servono tutte e due le accettazioni",
+        )
+            .into_response();
     }
-    let Some(id) = s.identita.as_ref() else { return StatusCode::NOT_FOUND.into_response() };
+    let Some(id) = s.identita.as_ref() else {
+        return StatusCode::NOT_FOUND.into_response();
+    };
     let en = inglese(&r.lingua);
     match id.registra(&r.email, &r.password).await {
         Ok(Registrato::Codice(codice)) => {
-            s.audit.log("auth.registrazione", Some(r.email.trim().to_string()), serde_json::json!({}));
+            s.audit.log(
+                "auth.registrazione",
+                Some(r.email.trim().to_string()),
+                serde_json::json!({}),
+            );
             let (oggetto, corpo) = if en {
                 (
                     format!("SWS — your confirmation code {codice}"),
@@ -158,7 +173,9 @@ pub async fn conferma(State(s): State<AppState>, Json(r): Json<Conferma>) -> Res
     if !registrazione_aperta(&s).await {
         return StatusCode::NOT_FOUND.into_response();
     }
-    let Some(id) = s.identita.as_ref() else { return StatusCode::NOT_FOUND.into_response() };
+    let Some(id) = s.identita.as_ref() else {
+        return StatusCode::NOT_FOUND.into_response();
+    };
     match id.conferma_registrazione(&r.email, &r.codice).await {
         Ok((accesso, azienda)) => {
             s.audit.log(
@@ -186,7 +203,9 @@ pub async fn chiedi_pin(State(s): State<AppState>, Json(r): Json<ChiediPin>) -> 
     if !pin_disponibile(&s).await {
         return StatusCode::NOT_FOUND.into_response();
     }
-    let Some(id) = s.identita.as_ref() else { return StatusCode::NOT_FOUND.into_response() };
+    let Some(id) = s.identita.as_ref() else {
+        return StatusCode::NOT_FOUND.into_response();
+    };
     if let Some(pin) = id.chiedi_pin(&r.email).await {
         let (oggetto, corpo) = if inglese(&r.lingua) {
             (
@@ -228,7 +247,9 @@ pub async fn accedi_con_pin(State(s): State<AppState>, Json(r): Json<AccessoPin>
     if !pin_disponibile(&s).await {
         return StatusCode::NOT_FOUND.into_response();
     }
-    let Some(id) = s.identita.as_ref() else { return StatusCode::NOT_FOUND.into_response() };
+    let Some(id) = s.identita.as_ref() else {
+        return StatusCode::NOT_FOUND.into_response();
+    };
     let durata = r.ricordami.then_some(sws_identita::DURATA_RICORDAMI);
     match id.accedi_con_pin(&r.email, &r.pin, durata).await {
         Ok(a) => crate::router::entra(&s, a, "pin", r.riautentica).await,
@@ -266,7 +287,14 @@ async fn testo_legale(s: &AppState, testo: &'static str) -> Response {
     if !registrazione_aperta(s).await {
         return StatusCode::NOT_FOUND.into_response();
     }
-    ([(axum::http::header::CONTENT_TYPE, "text/plain; charset=utf-8")], testo).into_response()
+    (
+        [(
+            axum::http::header::CONTENT_TYPE,
+            "text/plain; charset=utf-8",
+        )],
+        testo,
+    )
+        .into_response()
 }
 
 #[cfg(test)]
@@ -279,15 +307,27 @@ mod test {
         let _ = std::fs::remove_dir_all(&dir);
         std::fs::create_dir_all(&dir).unwrap();
         let mut s = crate::router::stato_di_prova(&dir).await;
-        let id = sws_identita::Identita::apri(dir.join("identita.db")).await.unwrap();
-        id.crea_utente("admin@sws.it", "Admin", "password-lunga", sws_identita::Ruolo::Amministratore, false)
+        let id = sws_identita::Identita::apri(dir.join("identita.db"))
             .await
             .unwrap();
+        id.crea_utente(
+            "admin@sws.it",
+            "Admin",
+            "password-lunga",
+            sws_identita::Ruolo::Amministratore,
+            false,
+        )
+        .await
+        .unwrap();
         s.identita = Some(id);
         if con_posta {
             // Un server che non risponde: la posta parte dopo la risposta, e
             // il suo fallimento finisce nel log, non qui.
-            std::fs::write(s.config_dir.join("smtp.yaml"), "host: 127.0.0.1\nport: 9\nfrom: sws@prova.it\n").unwrap();
+            std::fs::write(
+                s.config_dir.join("smtp.yaml"),
+                "host: 127.0.0.1\nport: 9\nfrom: sws@prova.it\n",
+            )
+            .unwrap();
         }
         (s, dir)
     }
@@ -307,7 +347,14 @@ mod test {
         )
         .await;
         assert_eq!(r.status(), StatusCode::NOT_FOUND);
-        let r = conferma(State(s), Json(Conferma { email: "nuovo@sws.it".into(), codice: "AAAA-AAAA".into() })).await;
+        let r = conferma(
+            State(s),
+            Json(Conferma {
+                email: "nuovo@sws.it".into(),
+                codice: "AAAA-AAAA".into(),
+            }),
+        )
+        .await;
         assert_eq!(r.status(), StatusCode::NOT_FOUND);
         let _ = std::fs::remove_dir_all(&dir);
     }
@@ -315,19 +362,46 @@ mod test {
     #[tokio::test]
     async fn il_pin_risponde_uguale_per_tutti_e_vuole_la_posta() {
         let (s, dir) = stato("pin-senza-posta", false).await;
-        let r = chiedi_pin(State(s), Json(ChiediPin { email: "admin@sws.it".into(), lingua: "it".into() })).await;
-        assert_eq!(r.status(), StatusCode::NOT_FOUND, "senza posta il PIN non c'e");
+        let r = chiedi_pin(
+            State(s),
+            Json(ChiediPin {
+                email: "admin@sws.it".into(),
+                lingua: "it".into(),
+            }),
+        )
+        .await;
+        assert_eq!(
+            r.status(),
+            StatusCode::NOT_FOUND,
+            "senza posta il PIN non c'e"
+        );
         let _ = std::fs::remove_dir_all(&dir);
 
         let (s, dir) = stato("pin-con-posta", true).await;
         for email in ["admin@sws.it", "nessuno@sws.it", "non-un-indirizzo"] {
-            let r = chiedi_pin(State(s.clone()), Json(ChiediPin { email: email.into(), lingua: "en".into() })).await;
-            assert_eq!(r.status(), StatusCode::NO_CONTENT, "{email}: la risposta non dice chi e iscritto");
+            let r = chiedi_pin(
+                State(s.clone()),
+                Json(ChiediPin {
+                    email: email.into(),
+                    lingua: "en".into(),
+                }),
+            )
+            .await;
+            assert_eq!(
+                r.status(),
+                StatusCode::NO_CONTENT,
+                "{email}: la risposta non dice chi e iscritto"
+            );
             assert!(to_bytes(r.into_body(), 1024).await.unwrap().is_empty());
         }
         let r = accedi_con_pin(
             State(s),
-            Json(AccessoPin { email: "admin@sws.it".into(), pin: "AAAA-AAAA".into(), ricordami: false, riautentica: false }),
+            Json(AccessoPin {
+                email: "admin@sws.it".into(),
+                pin: "AAAA-AAAA".into(),
+                ricordami: false,
+                riautentica: false,
+            }),
         )
         .await;
         assert_eq!(r.status(), StatusCode::UNAUTHORIZED);

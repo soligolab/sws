@@ -54,25 +54,43 @@ pub fn di_turno(r: &Reperibile, giorno: u8, adesso: u32) -> bool {
 
 /// I reperibili di turno, nell'ordine dell'elenco (l'ordine di escalation).
 pub fn reperibili_di_turno(tutti: &[Reperibile], giorno: u8, adesso: u32) -> Vec<&Reperibile> {
-    tutti.iter().filter(|r| di_turno(r, giorno, adesso)).collect()
+    tutti
+        .iter()
+        .filter(|r| di_turno(r, giorno, adesso))
+        .collect()
 }
 
 // ── Twilio ──────────────────────────────────────────────────────────────────
 
 fn xml(s: &str) -> String {
-    s.replace('&', "&amp;").replace('<', "&lt;").replace('>', "&gt;").replace('"', "&quot;")
+    s.replace('&', "&amp;")
+        .replace('<', "&lt;")
+        .replace('>', "&gt;")
+        .replace('"', "&quot;")
 }
 
 fn voce_di(lingua: &str) -> &'static str {
-    if lingua.starts_with("en") { "en-US" } else { "it-IT" }
+    if lingua.starts_with("en") {
+        "en-US"
+    } else {
+        "it-IT"
+    }
 }
 
 /// Le parole della chiamata e degli SMS.
 fn parole(lingua: &str) -> (&'static str, &'static str, &'static str) {
     if lingua.starts_with("en") {
-        ("Press 1 to acknowledge the alarm.", "Alarm acknowledged. Thank you.", "Reply OK to acknowledge.")
+        (
+            "Press 1 to acknowledge the alarm.",
+            "Alarm acknowledged. Thank you.",
+            "Reply OK to acknowledge.",
+        )
     } else {
-        ("Premi 1 per riconoscere l'allarme.", "Allarme riconosciuto. Grazie.", "Rispondi OK per riconoscerlo.")
+        (
+            "Premi 1 per riconoscere l'allarme.",
+            "Allarme riconosciuto. Grazie.",
+            "Rispondi OK per riconoscerlo.",
+        )
     }
 }
 
@@ -87,7 +105,9 @@ pub fn twiml_chiamata(testo: &str, lingua: &str, conferma: Option<&str>) -> Stri
             xml(url),
             xml(parole(lingua).0)
         ),
-        None => format!(r#"<Response><Say language="{v}">{t}</Say><Pause length="1"/><Say language="{v}">{t}</Say></Response>"#),
+        None => format!(
+            r#"<Response><Say language="{v}">{t}</Say><Pause length="1"/><Say language="{v}">{t}</Say></Response>"#
+        ),
     }
 }
 
@@ -102,20 +122,33 @@ pub fn firma(token: &str, url: &str, parametri: &HashMap<String, String>) -> Str
         dati.push_str(k);
         dati.push_str(&parametri[k]);
     }
-    let mut m = Hmac::<sha1::Sha1>::new_from_slice(token.as_bytes()).expect("HMAC accetta chiavi di ogni lunghezza");
+    let mut m = Hmac::<sha1::Sha1>::new_from_slice(token.as_bytes())
+        .expect("HMAC accetta chiavi di ogni lunghezza");
     m.update(dati.as_bytes());
     base64::engine::general_purpose::STANDARD.encode(m.finalize().into_bytes())
 }
 
 /// La firma ricevuta combacia? Confronto a tempo costante.
-pub fn firma_valida(token: &str, url: &str, parametri: &HashMap<String, String>, ricevuta: &str) -> bool {
+pub fn firma_valida(
+    token: &str,
+    url: &str,
+    parametri: &HashMap<String, String>,
+    ricevuta: &str,
+) -> bool {
     let attesa = firma(token, url, parametri);
-    attesa.len() == ricevuta.len() && attesa.bytes().zip(ricevuta.bytes()).fold(0u8, |acc, (a, b)| acc | (a ^ b)) == 0
+    attesa.len() == ricevuta.len()
+        && attesa
+            .bytes()
+            .zip(ricevuta.bytes())
+            .fold(0u8, |acc, (a, b)| acc | (a ^ b))
+            == 0
 }
 
 /// Un numero in formato internazionale: `+` e da 8 a 15 cifre (E.164).
 fn e164(n: &str) -> bool {
-    let Some(cifre) = n.strip_prefix('+') else { return false };
+    let Some(cifre) = n.strip_prefix('+') else {
+        return false;
+    };
     (8..=15).contains(&cifre.len()) && cifre.bytes().all(|b| b.is_ascii_digit())
 }
 
@@ -158,9 +191,14 @@ pub fn controlla(cfg: &TwilioConfig) -> Result<(), String> {
     match (cfg.api_key_sid.is_empty(), cfg.api_key_secret.is_empty()) {
         (false, true) => return Err(
             "c'è il SID della chiave API ma non il suo segreto. Twilio lo mostra una volta sola, \
-             quando la chiave viene creata: se è perduto, crea una chiave nuova.".into()),
-        (true, false) => return Err(
-            "c'è il segreto della chiave API ma non il suo SID (comincia per SK).".into()),
+             quando la chiave viene creata: se è perduto, crea una chiave nuova."
+                .into(),
+        ),
+        (true, false) => {
+            return Err(
+                "c'è il segreto della chiave API ma non il suo SID (comincia per SK).".into(),
+            )
+        }
         _ => {}
     }
     if cfg.api_key_sid.is_empty() && cfg.auth_token.is_empty() {
@@ -192,7 +230,11 @@ fn motivo_twilio(corpo: &str) -> String {
     let Ok(v) = serde_json::from_str::<serde_json::Value>(corpo) else {
         return corpo.trim().to_string();
     };
-    let messaggio = v.get("message").and_then(|m| m.as_str()).unwrap_or("").trim();
+    let messaggio = v
+        .get("message")
+        .and_then(|m| m.as_str())
+        .unwrap_or("")
+        .trim();
     if messaggio.is_empty() {
         return corpo.trim().to_string();
     }
@@ -232,7 +274,10 @@ async fn twilio(cfg: &TwilioConfig, risorsa: &str, campi: &[(&str, &str)]) -> an
     controlla(cfg).map_err(|e| anyhow::anyhow!("{e}"))?;
     // **Nell'URL ci va sempre il SID dell'account**, anche autenticandosi con
     // una chiave API: la chiave dice chi sei, non su quale account lavori.
-    let url = format!("https://api.twilio.com/2010-04-01/Accounts/{}/{risorsa}.json", cfg.account_sid);
+    let url = format!(
+        "https://api.twilio.com/2010-04-01/Accounts/{}/{risorsa}.json",
+        cfg.account_sid
+    );
     let (utente, password) = cfg.credenziali();
     let r = reqwest::Client::new()
         .post(url)
@@ -250,11 +295,21 @@ async fn twilio(cfg: &TwilioConfig, risorsa: &str, campi: &[(&str, &str)]) -> an
 }
 
 pub async fn manda_sms(cfg: &TwilioConfig, a: &str, testo: &str) -> anyhow::Result<()> {
-    twilio(cfg, "Messages", &[("To", a), ("From", &cfg.numero), ("Body", testo)]).await
+    twilio(
+        cfg,
+        "Messages",
+        &[("To", a), ("From", &cfg.numero), ("Body", testo)],
+    )
+    .await
 }
 
 pub async fn chiama(cfg: &TwilioConfig, a: &str, twiml: &str) -> anyhow::Result<()> {
-    twilio(cfg, "Calls", &[("To", a), ("From", &cfg.numero), ("Twiml", twiml)]).await
+    twilio(
+        cfg,
+        "Calls",
+        &[("To", a), ("From", &cfg.numero), ("Twiml", twiml)],
+    )
+    .await
 }
 
 // ── L'indirizzo pubblico e i gettoni ────────────────────────────────────────
@@ -267,7 +322,12 @@ pub fn registra_pubblico(url_tunnel: &str, nome: &str) {
     let base = url_tunnel
         .replacen("wss://", "https://", 1)
         .replacen("ws://", "http://", 1);
-    let base = base.split("/tunnel").next().unwrap_or(&base).trim_end_matches('/').to_string();
+    let base = base
+        .split("/tunnel")
+        .next()
+        .unwrap_or(&base)
+        .trim_end_matches('/')
+        .to_string();
     *PUBBLICO.lock().expect("PUBBLICO") = Some(format!("{base}/telefono/{nome}"));
 }
 
@@ -276,7 +336,8 @@ fn pubblico() -> Option<String> {
 }
 
 /// Gettone → (allarme, telefono, scadenza). Monouso, e scade dopo un'ora.
-static GETTONI: Mutex<Option<HashMap<String, (String, String, u64)>>> = Mutex::new(None);
+type Gettoni = HashMap<String, (String, String, u64)>;
+static GETTONI: Mutex<Option<Gettoni>> = Mutex::new(None);
 /// L'ultimo allarme mandato a ogni numero, per la risposta «OK» a un SMS.
 static ULTIMO: Mutex<Option<HashMap<String, String>>> = Mutex::new(None);
 
@@ -292,7 +353,14 @@ fn gettone_nuovo(allarme: &str, telefono: &str) -> String {
     let m = m.get_or_insert_with(HashMap::new);
     let adesso = sws_core::now_ms();
     m.retain(|_, (_, _, scade)| *scade > adesso);
-    m.insert(g.clone(), (allarme.to_string(), telefono.to_string(), adesso + 3_600_000));
+    m.insert(
+        g.clone(),
+        (
+            allarme.to_string(),
+            telefono.to_string(),
+            adesso + 3_600_000,
+        ),
+    );
     g
 }
 
@@ -304,7 +372,8 @@ fn usa_gettone(g: &str) -> Option<(String, String)> {
 
 fn ricorda_ultimo(telefono: &str, allarme: &str) {
     if let Ok(mut m) = ULTIMO.lock() {
-        m.get_or_insert_with(HashMap::new).insert(telefono.to_string(), allarme.to_string());
+        m.get_or_insert_with(HashMap::new)
+            .insert(telefono.to_string(), allarme.to_string());
     }
 }
 
@@ -319,17 +388,36 @@ struct Catena {
 static CATENE: Mutex<Option<HashMap<String, Catena>>> = Mutex::new(None);
 
 /// Avvisa un reperibile di un allarme, coi canali della riga della tabella.
-async fn avvisa(cfg: &TwilioConfig, r: &Reperibile, allarme: &str, testo: &str, lingua: &str, sms: bool, voce: bool) {
+async fn avvisa(
+    cfg: &TwilioConfig,
+    r: &Reperibile,
+    allarme: &str,
+    testo: &str,
+    lingua: &str,
+    sms: bool,
+    voce: bool,
+) {
     if sms {
-        let corpo = if pubblico().is_some() { format!("{testo} {}", parole(lingua).2) } else { testo.to_string() };
+        let corpo = if pubblico().is_some() {
+            format!("{testo} {}", parole(lingua).2)
+        } else {
+            testo.to_string()
+        };
         match manda_sms(cfg, &r.telefono, &corpo).await {
             Ok(()) => info!(allarme, reperibile = %r.nome, "telefono: SMS mandato"),
             Err(e) => warn!(allarme, reperibile = %r.nome, "telefono: SMS non mandato: {e}"),
         }
     }
     if voce {
-        let conferma = pubblico().map(|b| format!("{b}/voce?g={}", gettone_nuovo(allarme, &r.telefono)));
-        match chiama(cfg, &r.telefono, &twiml_chiamata(testo, lingua, conferma.as_deref())).await {
+        let conferma =
+            pubblico().map(|b| format!("{b}/voce?g={}", gettone_nuovo(allarme, &r.telefono)));
+        match chiama(
+            cfg,
+            &r.telefono,
+            &twiml_chiamata(testo, lingua, conferma.as_deref()),
+        )
+        .await
+        {
             Ok(()) => info!(allarme, reperibile = %r.nome, "telefono: chiamata partita"),
             Err(e) => warn!(allarme, reperibile = %r.nome, "telefono: chiamata non partita: {e}"),
         }
@@ -362,15 +450,32 @@ pub fn avvia_una_volta(s: &AppState) {
 }
 
 async fn giro(s: &AppState) {
-    let Ok(dir) = crate::router::active_dir(s).await else { return };
+    let Ok(dir) = crate::router::active_dir(s).await else {
+        return;
+    };
     let Ok(p) = Project::load(&dir) else { return };
-    let Some(n) = p.notifications.as_ref() else { return };
-    let Some(cfg) = n.twilio.as_ref().filter(|t| !t.account_sid.is_empty() && !t.auth_token.is_empty()) else { return };
+    let Some(n) = p.notifications.as_ref() else {
+        return;
+    };
+    let Some(cfg) = n
+        .twilio
+        .as_ref()
+        .filter(|t| !t.account_sid.is_empty() && !t.auth_token.is_empty())
+    else {
+        return;
+    };
     let tabella = n.tabella();
     if !tabella.scatto.telefono() && !tabella.escalation.telefono() {
         return;
     }
-    let lingua = n.lingua_per(sws_core::CanaleNotifica::Voce, if p.languages.default.is_empty() { "it" } else { &p.languages.default });
+    let lingua = n.lingua_per(
+        sws_core::CanaleNotifica::Voce,
+        if p.languages.default.is_empty() {
+            "it"
+        } else {
+            &p.languages.default
+        },
+    );
     let attesa_ms = n.telefono_attesa_min.unwrap_or(10).max(1) as u64 * 60_000;
     let adesso = sws_core::now_ms();
     let locale = chrono::Local::now();
@@ -384,25 +489,42 @@ async fn giro(s: &AppState) {
         let mut catene = CATENE.lock().expect("CATENE");
         let catene = catene.get_or_insert_with(HashMap::new);
         // Una catena finisce quando l'allarme è riconosciuto o rientrato.
-        catene.retain(|id, _| stati.iter().any(|st| &st.def.id == id && st.active && !st.acknowledged));
+        catene.retain(|id, _| {
+            stati
+                .iter()
+                .any(|st| &st.def.id == id && st.active && !st.acknowledged)
+        });
         for st in stati.iter().filter(|st| st.active && !st.acknowledged) {
-            let eta_s = st.activated_at_ms.map(|t| adesso.saturating_sub(t) / 1000).unwrap_or(0) as f64;
+            let eta_s = st
+                .activated_at_ms
+                .map(|t| adesso.saturating_sub(t) / 1000)
+                .unwrap_or(0) as f64;
             let (riga, parte) = if tabella.scatto.telefono() {
                 (tabella.scatto, true)
             } else {
-                (tabella.escalation, st.def.escalate_after_s.is_some_and(|e| eta_s >= e))
+                (
+                    tabella.escalation,
+                    st.def.escalate_after_s.is_some_and(|e| eta_s >= e),
+                )
             };
             if !parte {
                 continue;
             }
-            let c = catene.entry(st.def.id.clone()).or_insert(Catena { passo: 0, prossimo_ms: adesso });
+            let c = catene.entry(st.def.id.clone()).or_insert(Catena {
+                passo: 0,
+                prossimo_ms: adesso,
+            });
             if c.prossimo_ms > adesso {
                 continue;
             }
             let turno = reperibili_di_turno(&n.reperibili, giorno, minuti_ora);
             match turno.get(c.passo) {
                 Some(r) => {
-                    let testo = format!("{} — {}", st.def.id, sws_core::project::resolve_msg(&st.message, &lingua, &p.languages));
+                    let testo = format!(
+                        "{} — {}",
+                        st.def.id,
+                        sws_core::project::resolve_msg(&st.message, &lingua, &p.languages)
+                    );
                     da_avvisare.push(((*r).clone(), st.def.id.clone(), testo, riga));
                     c.passo += 1;
                     c.prossimo_ms = adesso + attesa_ms;
@@ -435,7 +557,11 @@ fn twiml(s: String) -> Response {
 }
 
 /// Twilio è davvero lui? Firma valida col token del progetto aperto.
-async fn verifica(s: &AppState, h: &HeaderMap, campi: &HashMap<String, String>) -> Option<(TwilioConfig, String, Project)> {
+async fn verifica(
+    s: &AppState,
+    h: &HeaderMap,
+    campi: &HashMap<String, String>,
+) -> Option<(TwilioConfig, String, Project)> {
     let dir = crate::router::active_dir(s).await.ok()?;
     let p = Project::load(&dir).ok()?;
     let n = p.notifications.as_ref()?;
@@ -446,40 +572,101 @@ async fn verifica(s: &AppState, h: &HeaderMap, campi: &HashMap<String, String>) 
         warn!("telefono: richiesta con una firma Twilio non valida, ignorata");
         return None;
     }
-    let lingua = n.lingua_per(sws_core::CanaleNotifica::Voce, if p.languages.default.is_empty() { "it" } else { &p.languages.default });
+    let lingua = n.lingua_per(
+        sws_core::CanaleNotifica::Voce,
+        if p.languages.default.is_empty() {
+            "it"
+        } else {
+            &p.languages.default
+        },
+    );
     Some((cfg, lingua, p))
 }
 
 /// `POST /api/telefono/voce?g=<gettone>` — il tasto premuto durante la chiamata.
-pub async fn voce(State(s): State<AppState>, Query(q): Query<HashMap<String, String>>, h: HeaderMap, Form(campi): Form<HashMap<String, String>>) -> Response {
-    let Some((_, lingua, p)) = verifica(&s, &h, &campi).await else { return StatusCode::FORBIDDEN.into_response() };
+pub async fn voce(
+    State(s): State<AppState>,
+    Query(q): Query<HashMap<String, String>>,
+    h: HeaderMap,
+    Form(campi): Form<HashMap<String, String>>,
+) -> Response {
+    let Some((_, lingua, p)) = verifica(&s, &h, &campi).await else {
+        return StatusCode::FORBIDDEN.into_response();
+    };
     if campi.get("Digits").map(String::as_str) != Some("1") {
         return twiml("<Response/>".into());
     }
-    let Some((allarme, telefono)) = q.get("g").and_then(|g| usa_gettone(g)) else { return twiml("<Response/>".into()) };
-    let chi = p.notifications.as_ref().and_then(|n| n.reperibili.iter().find(|r| r.telefono == telefono)).map(|r| r.nome.clone()).unwrap_or(telefono);
-    s.alarms.ack(&allarme, Some(format!("telefono: {chi}"))).await;
-    s.audit.log("alarm.ack", Some(format!("telefono: {chi}")), serde_json::json!({ "id": allarme, "via": "voce" }));
+    let Some((allarme, telefono)) = q.get("g").and_then(|g| usa_gettone(g)) else {
+        return twiml("<Response/>".into());
+    };
+    let chi = p
+        .notifications
+        .as_ref()
+        .and_then(|n| n.reperibili.iter().find(|r| r.telefono == telefono))
+        .map(|r| r.nome.clone())
+        .unwrap_or(telefono);
+    s.alarms
+        .ack(&allarme, Some(format!("telefono: {chi}")))
+        .await;
+    s.audit.log(
+        "alarm.ack",
+        Some(format!("telefono: {chi}")),
+        serde_json::json!({ "id": allarme, "via": "voce" }),
+    );
     info!(%allarme, %chi, "telefono: allarme riconosciuto dalla chiamata");
-    twiml(format!(r#"<Response><Say language="{}">{}</Say></Response>"#, voce_di(&lingua), xml(parole(&lingua).1)))
+    twiml(format!(
+        r#"<Response><Say language="{}">{}</Say></Response>"#,
+        voce_di(&lingua),
+        xml(parole(&lingua).1)
+    ))
 }
 
 /// `POST /api/telefono/sms` — la risposta a un SMS («OK», «1», «SI»): riconosce
 /// l'ultimo allarme mandato a quel numero. Il webhook va impostato sul numero
 /// nella console di Twilio.
-pub async fn sms(State(s): State<AppState>, h: HeaderMap, Form(campi): Form<HashMap<String, String>>) -> Response {
-    let Some((_, lingua, p)) = verifica(&s, &h, &campi).await else { return StatusCode::FORBIDDEN.into_response() };
-    let corpo = campi.get("Body").map(|b| b.trim().to_uppercase()).unwrap_or_default();
-    let Some(da) = campi.get("From") else { return twiml("<Response/>".into()) };
+pub async fn sms(
+    State(s): State<AppState>,
+    h: HeaderMap,
+    Form(campi): Form<HashMap<String, String>>,
+) -> Response {
+    let Some((_, lingua, p)) = verifica(&s, &h, &campi).await else {
+        return StatusCode::FORBIDDEN.into_response();
+    };
+    let corpo = campi
+        .get("Body")
+        .map(|b| b.trim().to_uppercase())
+        .unwrap_or_default();
+    let Some(da) = campi.get("From") else {
+        return twiml("<Response/>".into());
+    };
     if !["OK", "1", "SI", "SÌ", "YES"].contains(&corpo.as_str()) {
         return twiml("<Response/>".into());
     }
-    let allarme = ULTIMO.lock().ok().and_then(|m| m.as_ref().and_then(|m| m.get(da).cloned()));
-    let Some(allarme) = allarme else { return twiml("<Response/>".into()) };
-    let chi = p.notifications.as_ref().and_then(|n| n.reperibili.iter().find(|r| &r.telefono == da)).map(|r| r.nome.clone()).unwrap_or(da.clone());
-    s.alarms.ack(&allarme, Some(format!("telefono: {chi}"))).await;
-    s.audit.log("alarm.ack", Some(format!("telefono: {chi}")), serde_json::json!({ "id": allarme, "via": "sms" }));
-    twiml(format!("<Response><Message>{}</Message></Response>", xml(parole(&lingua).1)))
+    let allarme = ULTIMO
+        .lock()
+        .ok()
+        .and_then(|m| m.as_ref().and_then(|m| m.get(da).cloned()));
+    let Some(allarme) = allarme else {
+        return twiml("<Response/>".into());
+    };
+    let chi = p
+        .notifications
+        .as_ref()
+        .and_then(|n| n.reperibili.iter().find(|r| &r.telefono == da))
+        .map(|r| r.nome.clone())
+        .unwrap_or(da.clone());
+    s.alarms
+        .ack(&allarme, Some(format!("telefono: {chi}")))
+        .await;
+    s.audit.log(
+        "alarm.ack",
+        Some(format!("telefono: {chi}")),
+        serde_json::json!({ "id": allarme, "via": "sms" }),
+    );
+    twiml(format!(
+        "<Response><Message>{}</Message></Response>",
+        xml(parole(&lingua).1)
+    ))
 }
 
 /// `POST /api/telefono/prova` — un SMS di prova al numero dato (Admin).
@@ -494,16 +681,29 @@ pub async fn prova(
     axum::Extension(user): axum::Extension<crate::router::AuthUser>,
     axum::Json(b): axum::Json<Prova>,
 ) -> Response {
-    s.audit.log("notifications.test_sms", Some(user.username), serde_json::json!({ "numero": b.numero }));
-    let Ok(dir) = crate::router::active_dir(&s).await else { return (StatusCode::CONFLICT, "nessun progetto aperto").into_response() };
-    let Some(cfg) = Project::load(&dir).ok().and_then(|p| p.notifications).and_then(|n| n.twilio) else {
+    s.audit.log(
+        "notifications.test_sms",
+        Some(user.username),
+        serde_json::json!({ "numero": b.numero }),
+    );
+    let Ok(dir) = crate::router::active_dir(&s).await else {
+        return (StatusCode::CONFLICT, "nessun progetto aperto").into_response();
+    };
+    let Some(cfg) = Project::load(&dir)
+        .ok()
+        .and_then(|p| p.notifications)
+        .and_then(|n| n.twilio)
+    else {
         return (StatusCode::BAD_REQUEST, "Twilio non configurato").into_response();
     };
     if !e164(&b.numero) {
         return (
             StatusCode::BAD_REQUEST,
-            format!("il numero di destinazione va in formato internazionale — «+» e da 8 a 15 \
-                     cifre, senza spazi: «{}» non lo è.", b.numero),
+            format!(
+                "il numero di destinazione va in formato internazionale — «+» e da 8 a 15 \
+                     cifre, senza spazi: «{}» non lo è.",
+                b.numero
+            ),
         )
             .into_response();
     }
@@ -524,7 +724,13 @@ mod tests {
     use super::*;
 
     fn rep(giorni: &[u8], dalle: &str, alle: &str) -> Reperibile {
-        Reperibile { nome: "x".into(), telefono: "+39".into(), giorni: giorni.to_vec(), dalle: dalle.into(), alle: alle.into() }
+        Reperibile {
+            nome: "x".into(),
+            telefono: "+39".into(),
+            giorni: giorni.to_vec(),
+            dalle: dalle.into(),
+            alle: alle.into(),
+        }
     }
 
     #[test]
@@ -535,12 +741,22 @@ mod tests {
         assert!(!di_turno(&giorno, 6, 10 * 60), "il sabato no");
         let notte = rep(&[1], "22:00", "06:00");
         assert!(di_turno(&notte, 1, 23 * 60), "lunedì sera");
-        assert!(di_turno(&notte, 2, 5 * 60), "martedì all'alba è ancora il turno del lunedì");
-        assert!(!di_turno(&notte, 1, 5 * 60), "lunedì all'alba è il turno della domenica, che non c'è");
+        assert!(
+            di_turno(&notte, 2, 5 * 60),
+            "martedì all'alba è ancora il turno del lunedì"
+        );
+        assert!(
+            !di_turno(&notte, 1, 5 * 60),
+            "lunedì all'alba è il turno della domenica, che non c'è"
+        );
         let sempre = rep(&[], "", "");
         assert!(di_turno(&sempre, 7, 3 * 60));
         let tutti = [giorno.clone(), notte.clone(), sempre.clone()];
-        assert_eq!(reperibili_di_turno(&tutti, 1, 23 * 60).len(), 2, "l'ordine dell'elenco resta");
+        assert_eq!(
+            reperibili_di_turno(&tutti, 1, 23 * 60).len(),
+            2,
+            "l'ordine dell'elenco resta"
+        );
     }
 
     /// Il collaudo fallito del 28-10-2026, in cinque righe.
@@ -559,7 +775,10 @@ mod tests {
         };
         let e = controlla(&chiave_al_posto_dell_account).expect_err("un SK come account non va");
         assert!(e.contains("chiave API"), "{e}");
-        assert!(e.contains("SID chiave API"), "deve nominare il campo giusto: {e}");
+        assert!(
+            e.contains("SID chiave API"),
+            "deve nominare il campo giusto: {e}"
+        );
 
         // Il secondo errore — `+39` davanti a un numero tedesco — passa i
         // controlli, e **deve passarli**: quindici cifre sono un numero E.164
@@ -573,10 +792,16 @@ mod tests {
             api_key_secret: String::new(),
             numero: "+390049123456789".into(),
         };
-        assert!(controlla(&prefisso_doppio).is_ok(), "un E.164 valido non si rifiuta qui");
+        assert!(
+            controlla(&prefisso_doppio).is_ok(),
+            "un E.164 valido non si rifiuta qui"
+        );
         let risposta = r#"{"code":21606,"message":"The From phone number +390049123456789 is not a valid, SMS-capable inbound phone number or short code for your account.","status":400}"#;
         let m = motivo_twilio(risposta);
-        assert!(m.contains("+390049123456789"), "la frase nomina il numero: {m}");
+        assert!(
+            m.contains("+390049123456789"),
+            "la frase nomina il numero: {m}"
+        );
         assert!(m.contains("21606"), "{m}");
     }
 
@@ -594,8 +819,15 @@ mod tests {
         };
         assert_eq!(cfg.credenziali(), ("AC1", "token"));
         cfg.api_key_sid = "SK1".into();
-        assert_eq!(cfg.credenziali(), ("AC1", "token"), "mezza chiave non è una credenziale");
-        assert!(controlla(&cfg).is_err(), "e si deve dire, invece di provarci");
+        assert_eq!(
+            cfg.credenziali(),
+            ("AC1", "token"),
+            "mezza chiave non è una credenziale"
+        );
+        assert!(
+            controlla(&cfg).is_err(),
+            "e si deve dire, invece di provarci"
+        );
         cfg.api_key_secret = "segreto".into();
         assert_eq!(cfg.credenziali(), ("SK1", "segreto"));
         assert!(controlla(&cfg).is_ok());
@@ -619,20 +851,32 @@ mod tests {
     fn il_limite_dell_account_di_prova_si_spiega() {
         let corpo = r#"{"code":572006,"message":"Invalid template name. Trial accounts can only use predefined SMS templates.","status":400}"#;
         let m = motivo_twilio(corpo);
-        assert!(m.contains("572006") && m.contains("account di prova") && m.contains("a pagamento"), "{m}");
+        assert!(
+            m.contains("572006") && m.contains("account di prova") && m.contains("a pagamento"),
+            "{m}"
+        );
         let ignoto = motivo_twilio(r#"{"code":99999,"message":"Qualcosa","status":400}"#);
-        assert_eq!(ignoto, "Qualcosa (codice Twilio 99999)", "un codice che non conosciamo non si spiega");
+        assert_eq!(
+            ignoto, "Qualcosa (codice Twilio 99999)",
+            "un codice che non conosciamo non si spiega"
+        );
     }
 
     #[test]
     fn e164_accetta_quello_che_accetta_twilio() {
         assert!(e164("+49123456789"));
         assert!(e164("+393470000000"));
-        assert!(e164("+390049123456789"), "quindici cifre sono il massimo di E.164, non oltre");
+        assert!(
+            e164("+390049123456789"),
+            "quindici cifre sono il massimo di E.164, non oltre"
+        );
         assert!(!e164("+3900491234567891"), "sedici cifre: oltre il massimo");
         assert!(!e164("+39346"), "sotto le otto cifre");
         assert!(!e164("3470000000"), "senza +");
-        assert!(!e164("+39 347 0000000"), "con gli spazi Twilio non lo accetta");
+        assert!(
+            !e164("+39 347 0000000"),
+            "con gli spazi Twilio non lo accetta"
+        );
         assert!(!e164("+39abc4567"));
     }
 
@@ -652,15 +896,37 @@ mod tests {
         .map(|(k, v)| (k.to_string(), v.to_string()))
         .collect();
         let url = "https://mycompany.com/myapp.php?foo=1&bar=2";
-        assert_eq!(firma("12345", url, &parametri), "0/KCTR6DLpKmkAf8muzZqo1nDgQ=");
-        assert!(firma_valida("12345", url, &parametri, "0/KCTR6DLpKmkAf8muzZqo1nDgQ="));
-        assert!(!firma_valida("altro", url, &parametri, "0/KCTR6DLpKmkAf8muzZqo1nDgQ="));
+        assert_eq!(
+            firma("12345", url, &parametri),
+            "0/KCTR6DLpKmkAf8muzZqo1nDgQ="
+        );
+        assert!(firma_valida(
+            "12345",
+            url,
+            &parametri,
+            "0/KCTR6DLpKmkAf8muzZqo1nDgQ="
+        ));
+        assert!(!firma_valida(
+            "altro",
+            url,
+            &parametri,
+            "0/KCTR6DLpKmkAf8muzZqo1nDgQ="
+        ));
     }
 
     #[test]
     fn il_twiml_della_chiamata() {
-        let con = twiml_chiamata("Pompa ferma <P1>", "it", Some("https://g/telefono/tc620/voce?g=ab&x=1"));
-        assert!(con.contains(r#"<Gather numDigits="1" action="https://g/telefono/tc620/voce?g=ab&amp;x=1""#), "{con}");
+        let con = twiml_chiamata(
+            "Pompa ferma <P1>",
+            "it",
+            Some("https://g/telefono/tc620/voce?g=ab&x=1"),
+        );
+        assert!(
+            con.contains(
+                r#"<Gather numDigits="1" action="https://g/telefono/tc620/voce?g=ab&amp;x=1""#
+            ),
+            "{con}"
+        );
         assert!(con.contains("Pompa ferma &lt;P1&gt;") && con.contains("Premi 1"));
         let senza = twiml_chiamata("Pompa ferma", "en", None);
         assert!(!senza.contains("Gather") && senza.contains(r#"language="en-US""#));
@@ -669,7 +935,10 @@ mod tests {
     #[test]
     fn l_indirizzo_pubblico_dal_tunnel() {
         registra_pubblico("wss://sws.soligo.net/tunnel/v1", "tc620");
-        assert_eq!(pubblico().as_deref(), Some("https://sws.soligo.net/telefono/tc620"));
+        assert_eq!(
+            pubblico().as_deref(),
+            Some("https://sws.soligo.net/telefono/tc620")
+        );
     }
 
     #[test]

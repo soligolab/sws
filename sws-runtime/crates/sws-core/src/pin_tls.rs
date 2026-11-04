@@ -198,7 +198,9 @@ impl ServerCertVerifier for VerificatorePin {
         now: UnixTime,
     ) -> Result<ServerCertVerified, rustls::Error> {
         if let Some(p) = &self.pubblico {
-            if p.verify_server_cert(end_entity, intermediates, server_name, ocsp, now).is_ok() {
+            if p.verify_server_cert(end_entity, intermediates, server_name, ocsp, now)
+                .is_ok()
+            {
                 return Ok(ServerCertVerified::assertion());
             }
         }
@@ -328,9 +330,19 @@ mod tests {
         (radici, foglia(nome), foglia(nome))
     }
 
-    fn verifica_nome(v: &VerificatorePin, nome: &str, der: &[u8]) -> Result<ServerCertVerified, rustls::Error> {
+    fn verifica_nome(
+        v: &VerificatorePin,
+        nome: &str,
+        der: &[u8],
+    ) -> Result<ServerCertVerified, rustls::Error> {
         let sn = ServerName::try_from(nome.to_string()).unwrap();
-        v.verify_server_cert(&CertificateDer::from(der.to_vec()), &[], &sn, &[], UnixTime::now())
+        v.verify_server_cert(
+            &CertificateDer::from(der.to_vec()),
+            &[],
+            &sn,
+            &[],
+            UnixTime::now(),
+        )
     }
 
     #[test]
@@ -345,10 +357,19 @@ mod tests {
             provider,
         };
         // Un'impronta vecchia memorizzata (il caso del 10-10-2026) non conta.
-        store.memorizza("sws.soligo.net:443", "sha256:vecchia").unwrap();
+        store
+            .memorizza("sws.soligo.net:443", "sha256:vecchia")
+            .unwrap();
         assert!(verifica_nome(&v, "sws.soligo.net", &primo).is_ok());
-        assert!(verifica_nome(&v, "sws.soligo.net", &rinnovato).is_ok(), "il rinnovo passa");
-        assert_eq!(store.impronta_di("sws.soligo.net:443").as_deref(), Some("sha256:vecchia"), "e non si tocca l'archivio");
+        assert!(
+            verifica_nome(&v, "sws.soligo.net", &rinnovato).is_ok(),
+            "il rinnovo passa"
+        );
+        assert_eq!(
+            store.impronta_di("sws.soligo.net:443").as_deref(),
+            Some("sha256:vecchia"),
+            "e non si tocca l'archivio"
+        );
         // Lo stesso certificato per un altro nome non è pubblico per quel
         // nome: si torna all'impronta, che qui non c'è → primo contatto.
         let (_d2, store2) = store_prova();
@@ -361,7 +382,10 @@ mod tests {
             provider,
         };
         assert!(verifica_nome(&v2, "evil.example", &altro).is_ok());
-        assert!(store2.impronta_di("evil.example:443").is_some(), "è passato per l'impronta");
+        assert!(
+            store2.impronta_di("evil.example:443").is_some(),
+            "è passato per l'impronta"
+        );
     }
 
     #[test]
@@ -369,7 +393,10 @@ mod tests {
         let (_d, store) = store_prova();
         let v = verificatore(store);
         let (_, a, b) = ca_e_foglia("pannello.local");
-        assert!(verifica_nome(&v, "pannello.local", &a).is_ok(), "primo contatto");
+        assert!(
+            verifica_nome(&v, "pannello.local", &a).is_ok(),
+            "primo contatto"
+        );
         let e = verifica_nome(&v, "pannello.local", &b).unwrap_err();
         assert!(e_certificato_cambiato(&e.to_string()));
     }

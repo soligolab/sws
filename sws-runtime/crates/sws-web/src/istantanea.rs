@@ -139,7 +139,12 @@ pub async fn scatta(r: Richiesta) -> Result<Scatto, String> {
         // ha chiamato, e il banco di prova non deve rubargliela.
         .arg("--admin-port")
         .arg(porta_libera()?.to_string())
-        .args(r.www.iter().flat_map(|w| [std::ffi::OsString::from("--www"), w.clone().into_os_string()]))
+        .args(r.www.iter().flat_map(|w| {
+            [
+                std::ffi::OsString::from("--www"),
+                w.clone().into_os_string(),
+            ]
+        }))
         .env("RUST_LOG", "warn")
         .stdout(std::process::Stdio::null())
         .stderr(std::process::Stdio::piped())
@@ -334,12 +339,21 @@ async fn copia_progetto(da: &Path, a: &Path) -> Result<(), String> {
 
 /// Scrive nella copia quello che non è ancora sul disco: bozze di simboli e
 /// pagine in composizione. L'originale non si tocca mai.
-async fn ritocca(copia: &Path, simboli: &[serde_json::Value], pagine: &[serde_json::Value]) -> Result<(), String> {
+async fn ritocca(
+    copia: &Path,
+    simboli: &[serde_json::Value],
+    pagine: &[serde_json::Value],
+) -> Result<(), String> {
     if !simboli.is_empty() {
         let yaml = copia.join("project.yaml");
-        let testo = tokio::fs::read_to_string(&yaml).await.map_err(|e| format!("project.yaml della copia: {e}"))?;
-        let mut v: serde_yaml::Value = serde_yaml::from_str(&testo).map_err(|e| format!("project.yaml della copia: {e}"))?;
-        let mappa = v.as_mapping_mut().ok_or("project.yaml della copia non è una mappa")?;
+        let testo = tokio::fs::read_to_string(&yaml)
+            .await
+            .map_err(|e| format!("project.yaml della copia: {e}"))?;
+        let mut v: serde_yaml::Value =
+            serde_yaml::from_str(&testo).map_err(|e| format!("project.yaml della copia: {e}"))?;
+        let mappa = v
+            .as_mapping_mut()
+            .ok_or("project.yaml della copia non è una mappa")?;
         let chiave = serde_yaml::Value::from("simboli");
         let mut elenco: Vec<serde_yaml::Value> = mappa
             .get(&chiave)
@@ -348,22 +362,34 @@ async fn ritocca(copia: &Path, simboli: &[serde_json::Value], pagine: &[serde_js
         for s in simboli {
             let nuovo: serde_yaml::Value = serde_yaml::to_value(s).map_err(|e| e.to_string())?;
             let slug = s.get("slug").and_then(|x| x.as_str()).unwrap_or("");
-            match elenco.iter().position(|x| x.get("slug").and_then(|y| y.as_str()) == Some(slug)) {
+            match elenco
+                .iter()
+                .position(|x| x.get("slug").and_then(|y| y.as_str()) == Some(slug))
+            {
                 Some(i) => elenco[i] = nuovo,
                 None => elenco.push(nuovo),
             }
         }
         mappa.insert(chiave, serde_yaml::Value::Sequence(elenco));
         let testo = serde_yaml::to_string(&v).map_err(|e| e.to_string())?;
-        tokio::fs::write(&yaml, testo).await.map_err(|e| format!("project.yaml della copia: {e}"))?;
+        tokio::fs::write(&yaml, testo)
+            .await
+            .map_err(|e| format!("project.yaml della copia: {e}"))?;
     }
     for p in pagine {
-        let nome = p.get("name").and_then(|x| x.as_str()).ok_or("una pagina da fotografare vuole `name`")?;
+        let nome = p
+            .get("name")
+            .and_then(|x| x.as_str())
+            .ok_or("una pagina da fotografare vuole `name`")?;
         let dir = crate::router::synoptics_dir_at(copia);
-        tokio::fs::create_dir_all(&dir).await.map_err(|e| e.to_string())?;
+        tokio::fs::create_dir_all(&dir)
+            .await
+            .map_err(|e| e.to_string())?;
         let file = dir.join(format!("{}.yaml", crate::synoptic::safe_filename(nome)));
         let testo = serde_yaml::to_string(p).map_err(|e| e.to_string())?;
-        tokio::fs::write(&file, testo).await.map_err(|e| format!("pagina {nome} nella copia: {e}"))?;
+        tokio::fs::write(&file, testo)
+            .await
+            .map_err(|e| format!("pagina {nome} nella copia: {e}"))?;
     }
     Ok(())
 }
@@ -622,9 +648,15 @@ mod tests {
     async fn nel_banco_di_prova_i_simboli_si_disegnano() {
         let dir = tempfile::tempdir().unwrap();
         let p = dir.path();
-        std::fs::write(p.join("project.yaml"), "meta:\n  name: occhi\n  version: \"1\"\ntags: []\nsources: []\n").unwrap();
-        let gabbia: serde_json::Value =
-            serde_json::from_str(include_str!("../../../../tests/fixtures/simboli-prj/gabbia-laminazione.json")).unwrap();
+        std::fs::write(
+            p.join("project.yaml"),
+            "meta:\n  name: occhi\n  version: \"1\"\ntags: []\nsources: []\n",
+        )
+        .unwrap();
+        let gabbia: serde_json::Value = serde_json::from_str(include_str!(
+            "../../../../tests/fixtures/simboli-prj/gabbia-laminazione.json"
+        ))
+        .unwrap();
         let pagina = serde_json::json!({ "id": "pv", "name": "Prova", "width": 480, "height": 272,
             "background": "#ffffff", "objects": [
                 { "id": "p", "type": "symbol", "symbol_id": "lib:process/centrifugal-pump", "x": 20, "y": 40, "width": 200, "height": 200 },
@@ -657,7 +689,10 @@ mod tests {
                 })
                 .count()
         };
-        assert!(pieni(20, 40, 200, 200) > 3000, "la pompa di libreria non c'è");
+        assert!(
+            pieni(20, 40, 200, 200) > 3000,
+            "la pompa di libreria non c'è"
+        );
         assert!(pieni(250, 40, 220, 180) > 3000, "la bozza prj: non c'è");
     }
 

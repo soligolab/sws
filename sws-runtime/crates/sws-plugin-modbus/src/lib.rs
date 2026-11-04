@@ -23,8 +23,8 @@
 //! until third-party plugin support is needed (OPEN_QUESTIONS Q3).
 
 pub mod codec;
-pub mod trama_rtu;
 pub mod solarman;
+pub mod trama_rtu;
 pub mod trasporti;
 
 use std::{
@@ -35,11 +35,12 @@ use std::{
 };
 use sws_core::stato_sorgenti::{Collegamento, StatoSorgenti};
 use sws_core::{
-    AreaModbus, DispositivoModbus, ModbusRtuConfig, ModbusTcpConfig, OrdineModbus, RegisterMapping, TagDb,
-    BloccoModbus, ModoTesti, TagQuality, TagValue, TagWriteBus, TestiRegistro, TrasportoTcp, WriteRequest,
+    AreaModbus, BloccoModbus, DispositivoModbus, ModbusRtuConfig, ModbusTcpConfig, ModoTesti,
+    OrdineModbus, RegisterMapping, TagDb, TagQuality, TagValue, TagWriteBus, TestiRegistro,
+    TrasportoTcp, WriteRequest,
 };
-use tokio::time::Instant;
 use tokio::sync::{mpsc, Mutex};
+use tokio::time::Instant;
 use tokio_modbus::prelude::*;
 use tokio_serial::{DataBits, Parity, SerialPortBuilderExt, StopBits};
 use tokio_util::sync::CancellationToken;
@@ -101,7 +102,12 @@ pub fn e_trasporto(e: &io::Error) -> bool {
     use io::ErrorKind::*;
     matches!(
         e.kind(),
-        BrokenPipe | ConnectionReset | ConnectionAborted | NotConnected | UnexpectedEof | ConnectionRefused
+        BrokenPipe
+            | ConnectionReset
+            | ConnectionAborted
+            | NotConnected
+            | UnexpectedEof
+            | ConnectionRefused
     )
 }
 
@@ -134,14 +140,23 @@ pub async fn prepara(db: &TagDb, registri: &[RegisterMapping]) -> Vec<Mappatura>
         // formato) letto così, qualunque sia il tipo del tag.
         let formato = r.formato.as_deref().and_then(sws_core::TipoScalare::parse);
         if r.bit.is_some() || formato.is_some() {
-            let tipo = if r.bit.is_some() { sws_core::TipoScalare::U16 } else { formato.clone().unwrap() };
+            let tipo = if r.bit.is_some() {
+                sws_core::TipoScalare::U16
+            } else {
+                formato.clone().unwrap()
+            };
             let n = tipo.registri();
             out.push(Mappatura {
                 tag: r.tag.clone(),
                 area: r.area,
                 address: r.address,
                 scale: r.scale,
-                slots: vec![Slot { percorso: r.tag.clone(), tipo: Some(tipo), offset: 0, n }],
+                slots: vec![Slot {
+                    percorso: r.tag.clone(),
+                    tipo: Some(tipo),
+                    offset: 0,
+                    n,
+                }],
                 formato: if r.bit.is_some() { None } else { formato },
                 bit: r.bit,
                 sola_lettura: r.sola_lettura,
@@ -152,7 +167,11 @@ pub async fn prepara(db: &TagDb, registri: &[RegisterMapping]) -> Vec<Mappatura>
             continue;
         }
         let foglie: Vec<(String, sws_core::TipoScalare)> = match db.forma(&r.tag).await {
-            Some(f) => f.foglie(&r.tag, &[]).into_iter().map(|f| (f.percorso, f.tipo)).collect(),
+            Some(f) => f
+                .foglie(&r.tag, &[])
+                .into_iter()
+                .map(|f| (f.percorso, f.tipo))
+                .collect(),
             None => Vec::new(),
         };
         let tipo_piatto = if foglie.is_empty() {
@@ -220,7 +239,9 @@ impl Diagnostica {
 /// Il blocco che contiene per intero `n` registri da `addr` nell'area `area`.
 fn blocco_di(blocchi: &[BloccoModbus], area: AreaModbus, addr: u16, n: u16) -> Option<usize> {
     let fine = addr as u32 + n.max(1) as u32 - 1;
-    blocchi.iter().position(|b| b.area == area && addr >= b.da && fine <= b.a as u32)
+    blocchi
+        .iter()
+        .position(|b| b.area == area && addr >= b.da && fine <= b.a as u32)
 }
 
 /// Il pezzo di un blocco letto che serve a una mappatura.
@@ -255,7 +276,13 @@ pub fn testo_di(testi: &TestiRegistro, v: &TagValue) -> TagValue {
         ModoTesti::Valore => testi.voci.get(&n).cloned().unwrap_or_else(|| n.to_string()),
         ModoTesti::Bit => (0..32)
             .filter(|b| n & (1 << b) != 0)
-            .map(|b| testi.voci.get(&b).cloned().unwrap_or_else(|| format!("bit {b}")))
+            .map(|b| {
+                testi
+                    .voci
+                    .get(&b)
+                    .cloned()
+                    .unwrap_or_else(|| format!("bit {b}"))
+            })
             .collect::<Vec<_>>()
             .join("; "),
     })
@@ -294,7 +321,7 @@ pub async fn leggi_giro<D: Dispositivo>(
     // chiesto e non risposto.
     let mut letti_blocchi: Vec<Option<Option<Letti>>> = Vec::with_capacity(blocchi.len());
     for b in blocchi {
-        if giro % b.ogni.max(1) as u64 != 0 {
+        if !giro.is_multiple_of(b.ogni.max(1) as u64) {
             letti_blocchi.push(None);
             continue;
         }
@@ -322,7 +349,11 @@ pub async fn leggi_giro<D: Dispositivo>(
                 None
             }
         }));
-        if letti_blocchi.last().is_some_and(|l| l.as_ref().is_some_and(Option::is_some)) && in_errore.remove(&format!("blocco@{}", b.da)) {
+        if letti_blocchi
+            .last()
+            .is_some_and(|l| l.as_ref().is_some_and(Option::is_some))
+            && in_errore.remove(&format!("blocco@{}", b.da))
+        {
             info!(source = %sorgente, da = b.da, "Modbus: il blocco risponde di nuovo");
         }
     }
@@ -377,7 +408,9 @@ pub async fn leggi_giro<D: Dispositivo>(
                     if in_errore.insert(m.tag.clone()) {
                         warn!(source = %sorgente, tag = %m.tag, address = m.address, "Modbus: il dispositivo risponde con un errore: {e} — tag Bad, gli altri continuano");
                     }
-                    esito_giro.errore.get_or_insert_with(|| format!("{} @{}: {e}", m.tag, m.address));
+                    esito_giro
+                        .errore
+                        .get_or_insert_with(|| format!("{} @{}: {e}", m.tag, m.address));
                     marca_bad(db, m).await;
                     continue;
                 }
@@ -386,7 +419,9 @@ pub async fn leggi_giro<D: Dispositivo>(
                     if in_errore.insert(m.tag.clone()) {
                         warn!(source = %sorgente, tag = %m.tag, address = m.address, "Modbus: nessuna risposta in {} ms — tag Bad", timeout.as_millis());
                     }
-                    esito_giro.errore.get_or_insert_with(|| format!("nessuna risposta in {} ms", timeout.as_millis()));
+                    esito_giro.errore.get_or_insert_with(|| {
+                        format!("nessuna risposta in {} ms", timeout.as_millis())
+                    });
                     marca_bad(db, m).await;
                     continue;
                 }
@@ -403,10 +438,19 @@ pub async fn leggi_giro<D: Dispositivo>(
                     Ok(TagValue::Bool(codec::estrai_bit(r[a], m.bit.unwrap_or(0))))
                 }
                 Letti::Registri(r) if r.len() >= b && m.formato.is_some() => {
-                    codec::decodifica_formato(m.formato.as_ref().unwrap(), &r[a..b], ordine, m.scale)
+                    codec::decodifica_formato(
+                        m.formato.as_ref().unwrap(),
+                        &r[a..b],
+                        ordine,
+                        m.scale,
+                    )
                 }
-                Letti::Registri(r) if r.len() >= b => codec::decodifica(s.tipo.as_ref(), &r[a..b], ordine, m.scale),
-                Letti::Bit(bit) if bit.len() > a => Ok(codec::decodifica_bit(s.tipo.as_ref(), bit[a])),
+                Letti::Registri(r) if r.len() >= b => {
+                    codec::decodifica(s.tipo.as_ref(), &r[a..b], ordine, m.scale)
+                }
+                Letti::Bit(bit) if bit.len() > a => {
+                    Ok(codec::decodifica_bit(s.tipo.as_ref(), bit[a]))
+                }
                 _ => Err("risposta più corta del blocco".into()),
             };
             match valore {
@@ -438,7 +482,11 @@ pub async fn leggi_giro<D: Dispositivo>(
 
 /// Gli slot da scrivere per una richiesta del bus, con il valore di ciascuno.
 /// `percorso` è ciò che il bus aggiunge alla radice (`.velocita`, `[2]`).
-pub fn da_scrivere(m: &Mappatura, percorso: Option<&str>, valore: &TagValue) -> Result<Vec<(Slot, TagValue)>, String> {
+pub fn da_scrivere(
+    m: &Mappatura,
+    percorso: Option<&str>,
+    valore: &TagValue,
+) -> Result<Vec<(Slot, TagValue)>, String> {
     match percorso {
         Some(p) => {
             let pieno = format!("{}{p}", m.tag);
@@ -474,7 +522,9 @@ pub async fn scrivi<D: Dispositivo>(
     sorgente: &str,
 ) -> anyhow::Result<()> {
     let (tag, percorso, valore) = req;
-    let Some(m) = mappature.iter().find(|m| m.tag == tag) else { return Ok(()) };
+    let Some(m) = mappature.iter().find(|m| m.tag == tag) else {
+        return Ok(());
+    };
     if !m.area.scrivibile() || m.sola_lettura {
         warn!(source = %sorgente, %tag, area = ?m.area, "Modbus: scrittura rifiutata, registro di sola lettura");
         return Ok(());
@@ -493,7 +543,10 @@ pub async fn scrivi<D: Dispositivo>(
         let addr = m.address + slot.offset;
         let (esito, eco) = if m.area.a_bit() {
             match codec::codifica_bit(&v) {
-                Ok(b) => (dev.scrivi_bit(addr, &[b]).await, Ok(codec::decodifica_bit(slot.tipo.as_ref(), b))),
+                Ok(b) => (
+                    dev.scrivi_bit(addr, &[b]).await,
+                    Ok(codec::decodifica_bit(slot.tipo.as_ref(), b)),
+                ),
                 Err(e) => {
                     warn!(source = %sorgente, tag = %slot.percorso, "Modbus: scrittura rifiutata: {e}");
                     continue;
@@ -527,8 +580,15 @@ pub async fn scrivi<D: Dispositivo>(
                 }
                 info!(source = %sorgente, tag = %slot.percorso, addr, "Modbus: scrittura OK");
             }
-            Err(e) if e_trasporto(&e) => return Err(anyhow::anyhow!("scrittura di {} @{addr}: {e}", slot.percorso)),
-            Err(e) => warn!(source = %sorgente, tag = %slot.percorso, addr, "Modbus: il dispositivo rifiuta la scrittura: {e}"),
+            Err(e) if e_trasporto(&e) => {
+                return Err(anyhow::anyhow!(
+                    "scrittura di {} @{addr}: {e}",
+                    slot.percorso
+                ))
+            }
+            Err(e) => {
+                warn!(source = %sorgente, tag = %slot.percorso, addr, "Modbus: il dispositivo rifiuta la scrittura: {e}")
+            }
         }
     }
     Ok(())
@@ -556,7 +616,9 @@ async fn scrivi_bit_di_registro<D: Dispositivo>(
     let prima = match dev.leggi(m.area, m.address, 1).await {
         Ok(Letti::Registri(r)) if !r.is_empty() => r[0],
         Ok(_) => return Ok(()),
-        Err(e) if e_trasporto(&e) => return Err(anyhow::anyhow!("lettura di {} @{}: {e}", m.tag, m.address)),
+        Err(e) if e_trasporto(&e) => {
+            return Err(anyhow::anyhow!("lettura di {} @{}: {e}", m.tag, m.address))
+        }
         Err(e) => {
             warn!(source = %sorgente, tag = %m.tag, "Modbus: il dispositivo rifiuta la lettura prima della scrittura del bit: {e}");
             return Ok(());
@@ -565,11 +627,16 @@ async fn scrivi_bit_di_registro<D: Dispositivo>(
     let dopo = codec::imposta_bit(prima, bit, acceso);
     match dev.scrivi_registri(m.address, &[dopo]).await {
         Ok(()) => {
-            db.ingest(m.tag.clone(), TagValue::Bool(acceso), TagQuality::Good).await;
+            db.ingest(m.tag.clone(), TagValue::Bool(acceso), TagQuality::Good)
+                .await;
             info!(source = %sorgente, tag = %m.tag, addr = m.address, bit, "Modbus: scrittura del bit OK");
             Ok(())
         }
-        Err(e) if e_trasporto(&e) => Err(anyhow::anyhow!("scrittura di {} @{}: {e}", m.tag, m.address)),
+        Err(e) if e_trasporto(&e) => Err(anyhow::anyhow!(
+            "scrittura di {} @{}: {e}",
+            m.tag,
+            m.address
+        )),
         Err(e) => {
             warn!(source = %sorgente, tag = %m.tag, "Modbus: il dispositivo rifiuta la scrittura del bit: {e}");
             Ok(())
@@ -646,7 +713,18 @@ pub async fn giro_unita<D: Dispositivo>(
     dev.imposta_unita(u.unit_id);
     let _giro = sws_core::prestazioni::Misura::nuova(format!("sorgente.modbus.{sorgente}"));
     let m = prepara(db, &u.registri).await;
-    let esito = leggi_giro(dev, db, &m, u.ordine, u.timeout, &mut u.in_errore, sorgente, &u.blocchi, u.giro).await?;
+    let esito = leggi_giro(
+        dev,
+        db,
+        &m,
+        u.ordine,
+        u.timeout,
+        &mut u.in_errore,
+        sorgente,
+        &u.blocchi,
+        u.giro,
+    )
+    .await?;
     u.giro += 1;
     u.diagnostica.somma(esito.diagnostica);
     // Il setup alla prima risposta della sessione. Un dispositivo senza
@@ -683,12 +761,21 @@ pub async fn giro_unita<D: Dispositivo>(
 /// `Ok(true)` = fatto (anche con parametri rifiutati, che si dicono e non si
 /// ritentano a ogni giro); `Ok(false)` = il dispositivo non ha risposto, si
 /// riprova al prossimo giro; `Err` = la connessione è caduta.
-pub async fn applica_setup<D: Dispositivo>(dev: &mut D, u: &Unita, sorgente: &str) -> anyhow::Result<bool> {
+pub async fn applica_setup<D: Dispositivo>(
+    dev: &mut D,
+    u: &Unita,
+    sorgente: &str,
+) -> anyhow::Result<bool> {
     let mut cambiati = 0;
     let mut rifiutati = 0;
     for p in &u.setup {
         let voluto = p.valore as u16;
-        let letto = match tokio::time::timeout(u.timeout, dev.leggi(AreaModbus::Holding, p.indirizzo, 1)).await {
+        let letto = match tokio::time::timeout(
+            u.timeout,
+            dev.leggi(AreaModbus::Holding, p.indirizzo, 1),
+        )
+        .await
+        {
             Err(_) => return Ok(false),
             Ok(Err(e)) if e_trasporto(&e) => return Err(e.into()),
             Ok(Err(e)) => {
@@ -746,7 +833,11 @@ pub async fn sessione<D: Dispositivo>(
         u.setup_fatto = false;
     }
     loop {
-        let prossimo = unita.iter().map(|u| u.prossimo).min().unwrap_or_else(|| Instant::now() + Duration::from_secs(3600));
+        let prossimo = unita
+            .iter()
+            .map(|u| u.prossimo)
+            .min()
+            .unwrap_or_else(|| Instant::now() + Duration::from_secs(3600));
         tokio::select! {
             _ = cancel.cancelled() => return Ok(()),
             _ = tokio::time::sleep_until(prossimo) => {
@@ -786,18 +877,25 @@ pub fn tag_diagnostica(sorgente: &str) -> [String; 3] {
 async fn pubblica_diagnostica(db: &TagDb, sorgente: &str, d: Diagnostica) {
     let [t, r, p] = tag_diagnostica(sorgente);
     for (id, v) in [(t, d.timeout), (r, d.risposte_rotte), (p, d.non_plausibili)] {
-        db.set_tipizzato(id, TagValue::Int(v as i64), TagQuality::Good).await;
+        db.set_tipizzato(id, TagValue::Int(v as i64), TagQuality::Good)
+            .await;
     }
 }
 
 /// Tutte le mappature del bus, di tutti i dispositivi.
 fn tutti_i_registri(dispositivi: &[DispositivoModbus]) -> Vec<RegisterMapping> {
-    dispositivi.iter().flat_map(|d| d.registers.iter().cloned()).collect()
+    dispositivi
+        .iter()
+        .flat_map(|d| d.registers.iter().cloned())
+        .collect()
 }
 
 /// Registra le mappature sul bus: la radice basta, una scrittura su una foglia
 /// arriva come radice più percorso.
-async fn registra(bus: &TagWriteBus, registri: &[RegisterMapping]) -> Mutex<mpsc::Receiver<WriteRequest>> {
+async fn registra(
+    bus: &TagWriteBus,
+    registri: &[RegisterMapping],
+) -> Mutex<mpsc::Receiver<WriteRequest>> {
     let (tx, rx) = mpsc::channel::<WriteRequest>(32);
     for r in registri {
         bus.register(r.tag.clone(), tx.clone()).await;
@@ -812,7 +910,11 @@ async fn tutti_bad(db: &TagDb, registri: &[RegisterMapping]) {
 }
 
 /// Esegue una sessione e ne riporta l'esito nello stato del bus.
-async fn con_stato(stato: &StatoSorgenti, sorgente: &str, r: anyhow::Result<()>) -> anyhow::Result<()> {
+async fn con_stato(
+    stato: &StatoSorgenti,
+    sorgente: &str,
+    r: anyhow::Result<()>,
+) -> anyhow::Result<()> {
     if let Err(e) = &r {
         stato.caduta(sorgente, e.to_string());
     }
@@ -826,7 +928,13 @@ async fn con_stato(stato: &StatoSorgenti, sorgente: &str, r: anyhow::Result<()>)
 /// nuda, o la trama RTU in un pacchetto Solarman V5 ([`trasporti`]). L'indirizzo
 /// si risolve a ogni connessione, così un nome (`inverter.casa.lan`) va bene
 /// quanto un IP.
-pub async fn run(cfg: ModbusTcpConfig, db: Arc<TagDb>, bus: Arc<TagWriteBus>, stato: Arc<StatoSorgenti>, cancel: CancellationToken) {
+pub async fn run(
+    cfg: ModbusTcpConfig,
+    db: Arc<TagDb>,
+    bus: Arc<TagWriteBus>,
+    stato: Arc<StatoSorgenti>,
+    cancel: CancellationToken,
+) {
     let dispositivi = cfg.dispositivi();
     let registri = tutti_i_registri(&dispositivi);
     stato.registra(&cfg.id, dispositivi.iter().map(|d| d.unit_id));
@@ -834,13 +942,19 @@ pub async fn run(cfg: ModbusTcpConfig, db: Arc<TagDb>, bus: Arc<TagWriteBus>, st
     let indirizzo = format!("{}:{}", cfg.host, cfg.port);
     if cfg.trasporto == TrasportoTcp::SolarmanV5 && cfg.seriale_logger.is_none() {
         warn!(source = %cfg.id, "Modbus: Solarman V5 senza il numero di serie della chiavetta — ferma finché non si corregge la configurazione");
-        stato.caduta(&cfg.id, "manca il numero di serie della chiavetta Solarman".into());
+        stato.caduta(
+            &cfg.id,
+            "manca il numero di serie della chiavetta Solarman".into(),
+        );
         tutti_bad(&db, &registri).await;
         return;
     }
     let mut unita: Vec<Unita> = dispositivi
         .iter()
-        .map(|d| Unita { pubblica_diagnostica: cfg.diagnostica, ..Unita::da(d, cfg.poll_interval_ms) })
+        .map(|d| Unita {
+            pubblica_diagnostica: cfg.diagnostica,
+            ..Unita::da(d, cfg.poll_interval_ms)
+        })
         .collect();
     let primo = unita.first().map(|u| u.unit_id).unwrap_or(cfg.unit_id);
     let unita = Mutex::new(&mut unita);
@@ -905,7 +1019,13 @@ pub async fn run(cfg: ModbusTcpConfig, db: Arc<TagDb>, bus: Arc<TagWriteBus>, st
 
 /// Modbus RTU (seriale): la porta si apre una volta per tutto il bus, gli
 /// slave si interrogano a turno.
-pub async fn run_rtu(cfg: ModbusRtuConfig, db: Arc<TagDb>, bus: Arc<TagWriteBus>, stato: Arc<StatoSorgenti>, cancel: CancellationToken) {
+pub async fn run_rtu(
+    cfg: ModbusRtuConfig,
+    db: Arc<TagDb>,
+    bus: Arc<TagWriteBus>,
+    stato: Arc<StatoSorgenti>,
+    cancel: CancellationToken,
+) {
     let dispositivi = cfg.dispositivi();
     let registri = tutti_i_registri(&dispositivi);
     stato.registra(&cfg.id, dispositivi.iter().map(|d| d.unit_id));
@@ -915,9 +1035,20 @@ pub async fn run_rtu(cfg: ModbusRtuConfig, db: Arc<TagDb>, bus: Arc<TagWriteBus>
         "O" => Parity::Odd,
         _ => Parity::None,
     };
-    let data_bits = if cfg.data_bits == 7 { DataBits::Seven } else { DataBits::Eight };
-    let stop_bits = if cfg.stop_bits == 2 { StopBits::Two } else { StopBits::One };
-    let mut unita: Vec<Unita> = dispositivi.iter().map(|d| Unita::da(d, cfg.poll_interval_ms)).collect();
+    let data_bits = if cfg.data_bits == 7 {
+        DataBits::Seven
+    } else {
+        DataBits::Eight
+    };
+    let stop_bits = if cfg.stop_bits == 2 {
+        StopBits::Two
+    } else {
+        StopBits::One
+    };
+    let mut unita: Vec<Unita> = dispositivi
+        .iter()
+        .map(|d| Unita::da(d, cfg.poll_interval_ms))
+        .collect();
     let primo = unita.first().map(|u| u.unit_id).unwrap_or(cfg.unit_id);
     let unita = Mutex::new(&mut unita);
     sws_core::riconnessione::con_attesa(

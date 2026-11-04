@@ -201,3 +201,8 @@ Annoto di seguito, uno per punto, le cose che devono essere verificate e trasfor
   `percorso → ruolo` sulla variabile? una riga della foglia modificabile in Tag, che oggi è in sola lettura per la
   regola «una sezione per dato»?), chi vince fra membro e istanza, e lo stesso per LVGL, che legge i ruoli dal server.
   Dal 03-11 la riga della foglia in Tag mostra il ruolo e apre il tipo sul membro.
+
+- (04-11-2026) Aggiornare `zip` da 2.4 a 9.x in sws-runtime (sws-web, sws-banco). Quattro avvisi RustSec
+  sull'estrazione (RUSTSEC-2026-0367/0368/0369/0429) sono ignorati in `sws-runtime/.cargo/audit.toml` perché SWS non
+  chiama mai `extract()`; la 9.0 cambia l'API (ZipWriter/SimpleFileOptions/ZipArchive in logica_plc.rs, boot.rs,
+  remote.rs, sws-banco). A salita fatta, togliere le quattro righe dall'audit.toml.

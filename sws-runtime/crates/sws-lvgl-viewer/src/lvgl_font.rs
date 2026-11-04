@@ -289,23 +289,38 @@ fn elenco() -> &'static Elenco {
 /// CSS (`"system-ui, sans-serif"`). `None` per un nome sconosciuto.
 pub fn famiglia_di(font_family: &str) -> Option<&'static str> {
     let e = elenco();
-    let primo = font_family.split(',').next().unwrap_or("").trim().trim_matches(|c| c == '\'' || c == '"');
+    let primo = font_family
+        .split(',')
+        .next()
+        .unwrap_or("")
+        .trim()
+        .trim_matches(|c| c == '\'' || c == '"');
     let chiave = primo.to_lowercase();
     if let Some(f) = e.famiglie.iter().find(|f| f.id == chiave) {
         return Some(f.id.as_str());
     }
     let id = e.alias.get(&chiave)?;
-    e.famiglie.iter().find(|f| &f.id == id).map(|f| f.id.as_str())
+    e.famiglie
+        .iter()
+        .find(|f| &f.id == id)
+        .map(|f| f.id.as_str())
 }
 
 fn candidati_file(nome: &str, sistema: bool) -> Vec<String> {
     let mut v = Vec::new();
     if sistema {
-        for d in ["/usr/share/fonts/truetype/dejavu", "/usr/share/fonts/truetype", "/usr/share/fonts/TTF"] {
+        for d in [
+            "/usr/share/fonts/truetype/dejavu",
+            "/usr/share/fonts/truetype",
+            "/usr/share/fonts/TTF",
+        ] {
             v.push(format!("{d}/{nome}.ttf"));
         }
     }
-    v.push(format!("{}/assets/fonts/{nome}.ttf", env!("CARGO_MANIFEST_DIR")));
+    v.push(format!(
+        "{}/assets/fonts/{nome}.ttf",
+        env!("CARGO_MANIFEST_DIR")
+    ));
     v.push(format!("/etc/sws/fonts/{nome}.ttf"));
     v.push(format!("/usr/share/fonts/truetype/sws/{nome}.ttf"));
     v
@@ -323,9 +338,15 @@ static PER_FILE: std::sync::Mutex<Option<std::collections::HashMap<(String, u16)
 /// segmenti non ha si vedono in Sans invece di sparire. Una famiglia senza
 /// grassetto usa il regolare; un file che manca ripiega su Sans, e lo dice una
 /// volta.
-pub fn per(font_family: Option<&str>, grassetto: bool, px: u16) -> Option<*const lvgl_sys::lv_font_t> {
+pub fn per(
+    font_family: Option<&str>,
+    grassetto: bool,
+    px: u16,
+) -> Option<*const lvgl_sys::lv_font_t> {
     let e = elenco();
-    let id = font_family.and_then(famiglia_di).unwrap_or(e.predefinita.as_str());
+    let id = font_family
+        .and_then(famiglia_di)
+        .unwrap_or(e.predefinita.as_str());
     let fam = e.famiglie.iter().find(|f| f.id == id)?;
     let file = match (&fam.file.grassetto, grassetto) {
         (Some(g), true) => g.as_str(),
@@ -344,7 +365,10 @@ pub fn per(font_family: Option<&str>, grassetto: bool, px: u16) -> Option<*const
     if let Some(&addr) = cache.get(&(file.to_string(), px)) {
         return Some(addr as *const lvgl_sys::lv_font_t);
     }
-    let Some(path) = candidati_file(file, fam.sistema).into_iter().find(|p| std::path::Path::new(p).exists()) else {
+    let Some(path) = candidati_file(file, fam.sistema)
+        .into_iter()
+        .find(|p| std::path::Path::new(p).exists())
+    else {
         eprintln!("[font] '{file}.ttf' non trovato: la famiglia '{id}' esce in Sans");
         if let Some(r) = riserva {
             cache.insert((file.to_string(), px), r as usize);
@@ -415,7 +439,10 @@ mod tests {
         assert_eq!(famiglia_di("segmenti7"), Some("segmenti7"));
         assert_eq!(famiglia_di("monospace"), Some("mono"));
         assert_eq!(famiglia_di("Courier New"), Some("mono"));
-        assert_eq!(famiglia_di("system-ui, sans-serif, 'SWS Emoji'"), Some("sans"));
+        assert_eq!(
+            famiglia_di("system-ui, sans-serif, 'SWS Emoji'"),
+            Some("sans")
+        );
         assert_eq!(famiglia_di("'Times New Roman', serif"), Some("serif"));
         assert_eq!(famiglia_di("Comic Sans MS"), None);
     }

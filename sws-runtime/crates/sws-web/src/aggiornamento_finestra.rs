@@ -154,7 +154,11 @@ pub fn prossimo<T: TimeZone>(
 }
 
 /// Giorno + ora scelti nell'IDE → l'istante UTC dell'approvazione.
-pub fn risolvi<T: TimeZone>(adesso: &DateTime<T>, giorno: Giorno, ora: NaiveTime) -> Option<DateTime<Utc>> {
+pub fn risolvi<T: TimeZone>(
+    adesso: &DateTime<T>,
+    giorno: Giorno,
+    ora: NaiveTime,
+) -> Option<DateTime<Utc>> {
     let oggi = adesso.date_naive().weekday().num_days_from_sunday() as u8;
     match giorno {
         // «oggi alle 3» quando sono già le 10 non è la settimana prossima: è un errore.
@@ -169,7 +173,9 @@ pub fn risolvi<T: TimeZone>(adesso: &DateTime<T>, giorno: Giorno, ora: NaiveTime
 /// Il prossimo scatto del pilota automatico.
 pub fn prossimo_pilota<T: TimeZone>(adesso: &DateTime<T>, p: &Pilota) -> Option<DateTime<Utc>> {
     let ora = leggi_ora(&p.ora)?;
-    prossimo(adesso, ora, |g| p.giorni.is_empty() || p.giorni.contains(&g))
+    prossimo(adesso, ora, |g| {
+        p.giorni.is_empty() || p.giorni.contains(&g)
+    })
 }
 
 /// Cosa fare quando una finestra scatta.
@@ -264,7 +270,10 @@ pub async fn esegui(config_dir: PathBuf) {
         let p = carica(&config_dir).await;
         let adesso = Local::now();
         let ms = adesso.timestamp_millis();
-        let prossimo_pilota = p.pilota.as_ref().and_then(|pl| prossimo_pilota(&adesso, pl));
+        let prossimo_pilota = p
+            .pilota
+            .as_ref()
+            .and_then(|pl| prossimo_pilota(&adesso, pl));
         let scadenze = [
             p.approvazione.as_ref().map(|a| a.quando_ms),
             prossimo_pilota.map(|t| t.timestamp_millis()),
@@ -277,7 +286,10 @@ pub async fn esegui(config_dir: PathBuf) {
             continue;
         }
 
-        let attesa_ms = prima.map(|t| (t - ms).max(1_000)).unwrap_or(3_600_000).min(3_600_000);
+        let attesa_ms = prima
+            .map(|t| (t - ms).max(1_000))
+            .unwrap_or(3_600_000)
+            .min(3_600_000);
         tokio::select! {
             _ = tokio::time::sleep(std::time::Duration::from_millis(attesa_ms as u64)) => {}
             // Programmazione cambiata: si ricomincia dal giro, con quella nuova.
@@ -295,7 +307,11 @@ pub async fn esegui(config_dir: PathBuf) {
 
 async fn scatta_approvazione(config_dir: &Path, mut p: Programma, a: Approvazione) {
     let st = crate::aggiornamento::stato().await;
-    let mut azione = decidi_approvazione(&a, st.disponibile.as_deref(), Local::now().timestamp_millis());
+    let mut azione = decidi_approvazione(
+        &a,
+        st.disponibile.as_deref(),
+        Local::now().timestamp_millis(),
+    );
     if azione == Azione::Aggiorna && e_scartata(&p, st.disponibile.as_deref()) {
         azione = Azione::Niente(format!(
             "la {} è stata scartata con un ritorno alla versione precedente: non si aggiorna da sola (usa «Aggiorna ora»)",
@@ -306,7 +322,11 @@ async fn scatta_approvazione(config_dir: &Path, mut p: Programma, a: Approvazion
     // riesce, questo processo viene sostituito e non tornerebbe a toglierla.
     p.approvazione = None;
     p.ultimo_esito = Some(match &azione {
-        Azione::Aggiorna => format!("{}: finestra scattata, aggiornamento alla {} avviato", ora_breve(), a.versione),
+        Azione::Aggiorna => format!(
+            "{}: finestra scattata, aggiornamento alla {} avviato",
+            ora_breve(),
+            a.versione
+        ),
         Azione::Niente(m) => format!("{}: {m}", ora_breve()),
     });
     if let Err(e) = salva(config_dir, &p).await {
@@ -314,7 +334,13 @@ async fn scatta_approvazione(config_dir: &Path, mut p: Programma, a: Approvazion
     }
     tracing::info!(esito = ?p.ultimo_esito, "finestra dell'aggiornamento (approvazione)");
     if azione == Azione::Aggiorna {
-        if let Err(e) = crate::aggiornamento::prepara_e_avvia(config_dir, &st.versione, Some(a.versione.clone())).await {
+        if let Err(e) = crate::aggiornamento::prepara_e_avvia(
+            config_dir,
+            &st.versione,
+            Some(a.versione.clone()),
+        )
+        .await
+        {
             tracing::warn!("finestra dell'aggiornamento: avvio non riuscito: {e}");
             let mut p = carica(config_dir).await;
             p.ultimo_esito = Some(format!("{}: aggiornamento non avviato: {e}", ora_breve()));
@@ -340,7 +366,10 @@ async fn scatta_pilota(config_dir: &Path) {
     let _ = salva(config_dir, &p).await;
     tracing::info!(esito = ?p.ultimo_esito, "finestra dell'aggiornamento (pilota)");
     if st.disponibile.is_some() && !scartata {
-        if let Err(e) = crate::aggiornamento::prepara_e_avvia(config_dir, &st.versione, st.disponibile.clone()).await {
+        if let Err(e) =
+            crate::aggiornamento::prepara_e_avvia(config_dir, &st.versione, st.disponibile.clone())
+                .await
+        {
             tracing::warn!("pilota automatico: avvio non riuscito: {e}");
             let mut p = carica(config_dir).await;
             p.ultimo_esito = Some(format!("{}: aggiornamento non avviato: {e}", ora_breve()));
@@ -351,7 +380,11 @@ async fn scatta_pilota(config_dir: &Path) {
 
 fn ora_breve() -> String {
     let l = Local::now();
-    format!("{} ({} UTC)", l.format("%Y-%m-%d %H:%M"), l.with_timezone(&Utc).format("%H:%M"))
+    format!(
+        "{} ({} UTC)",
+        l.format("%Y-%m-%d %H:%M"),
+        l.with_timezone(&Utc).format("%H:%M")
+    )
 }
 
 #[cfg(test)]
@@ -375,7 +408,10 @@ mod tests {
         assert!(!e_scartata(&p, Some("2.12.0-rc.18")));
         p.versione_scartata = Some("2.12.0-rc.18".into());
         assert!(e_scartata(&p, Some("2.12.0-rc.18")));
-        assert!(!e_scartata(&p, Some("2.12.0-rc.19")), "una versione più nuova sì");
+        assert!(
+            !e_scartata(&p, Some("2.12.0-rc.19")),
+            "una versione più nuova sì"
+        );
         assert!(!e_scartata(&p, None));
     }
 
@@ -396,7 +432,10 @@ mod tests {
     #[test]
     fn oggi_a_un_ora_gia_passata_non_diventa_la_settimana_prossima() {
         let adesso = t("2026-09-28T19:33:00+02:00");
-        assert_eq!(risolvi(&adesso, Giorno::Nome(GiornoRelativo::Oggi), ora("03:00")), None);
+        assert_eq!(
+            risolvi(&adesso, Giorno::Nome(GiornoRelativo::Oggi), ora("03:00")),
+            None
+        );
         // Lo stesso giorno della settimana a un'ora passata è invece la settimana prossima.
         let lun = risolvi(&adesso, Giorno::Settimana(1), ora("03:00")).unwrap();
         assert_eq!(lun.to_rfc3339(), "2026-10-05T01:00:00+00:00");
@@ -406,37 +445,83 @@ mod tests {
     #[test]
     fn il_pilota_scatta_nel_primo_giorno_ammesso() {
         let adesso = t("2026-09-28T19:33:00+02:00"); // lunedì
-        let ogni_giorno = Pilota { giorni: vec![], ora: "03:00".into() };
-        assert_eq!(prossimo_pilota(&adesso, &ogni_giorno).unwrap().to_rfc3339(), "2026-09-29T01:00:00+00:00");
-        let sab_dom = Pilota { giorni: vec![6, 0], ora: "03:00".into() };
-        assert_eq!(prossimo_pilota(&adesso, &sab_dom).unwrap().to_rfc3339(), "2026-10-03T01:00:00+00:00");
-        assert_eq!(prossimo_pilota(&adesso, &Pilota { giorni: vec![], ora: "25:00".into() }), None);
+        let ogni_giorno = Pilota {
+            giorni: vec![],
+            ora: "03:00".into(),
+        };
+        assert_eq!(
+            prossimo_pilota(&adesso, &ogni_giorno).unwrap().to_rfc3339(),
+            "2026-09-29T01:00:00+00:00"
+        );
+        let sab_dom = Pilota {
+            giorni: vec![6, 0],
+            ora: "03:00".into(),
+        };
+        assert_eq!(
+            prossimo_pilota(&adesso, &sab_dom).unwrap().to_rfc3339(),
+            "2026-10-03T01:00:00+00:00"
+        );
+        assert_eq!(
+            prossimo_pilota(
+                &adesso,
+                &Pilota {
+                    giorni: vec![],
+                    ora: "25:00".into()
+                }
+            ),
+            None
+        );
     }
 
     /// Il punto delicato: podman installa la testa del canale, non una versione.
     #[test]
     fn un_approvazione_non_installa_una_versione_che_nessuno_ha_letto() {
-        let a = Approvazione { versione: "2.12.1".into(), quando_ms: 1_000 };
-        assert_eq!(decidi_approvazione(&a, Some("2.12.1"), 2_000), Azione::Aggiorna);
-        assert!(matches!(decidi_approvazione(&a, Some("2.12.2"), 2_000), Azione::Niente(m) if m.contains("2.12.2")));
-        assert!(matches!(decidi_approvazione(&a, None, 2_000), Azione::Niente(_)));
+        let a = Approvazione {
+            versione: "2.12.1".into(),
+            quando_ms: 1_000,
+        };
+        assert_eq!(
+            decidi_approvazione(&a, Some("2.12.1"), 2_000),
+            Azione::Aggiorna
+        );
+        assert!(
+            matches!(decidi_approvazione(&a, Some("2.12.2"), 2_000), Azione::Niente(m) if m.contains("2.12.2"))
+        );
+        assert!(matches!(
+            decidi_approvazione(&a, None, 2_000),
+            Azione::Niente(_)
+        ));
         // Finestra mancata di più di un'ora (pannello spento): non si recupera.
         let tardi = 1_000 + TOLLERANZA_MS + 1;
-        assert!(matches!(decidi_approvazione(&a, Some("2.12.1"), tardi), Azione::Niente(m) if m.contains("mancata")));
+        assert!(
+            matches!(decidi_approvazione(&a, Some("2.12.1"), tardi), Azione::Niente(m) if m.contains("mancata"))
+        );
     }
 
     #[test]
     fn il_programma_si_salva_e_si_rilegge() {
         let p = Programma {
-            approvazione: Some(Approvazione { versione: "2.12.1".into(), quando_ms: 42 }),
-            pilota: Some(Pilota { giorni: vec![0], ora: "03:00".into() }),
+            approvazione: Some(Approvazione {
+                versione: "2.12.1".into(),
+                quando_ms: 42,
+            }),
+            pilota: Some(Pilota {
+                giorni: vec![0],
+                ora: "03:00".into(),
+            }),
             ..Default::default()
         };
         let y = serde_yaml::to_string(&p).unwrap();
         assert_eq!(serde_yaml::from_str::<Programma>(&y).unwrap(), p);
         // Il giorno arriva dall'IDE come "oggi"/"domani" o come numero.
-        assert_eq!(serde_json::from_str::<Giorno>("\"domani\"").unwrap(), Giorno::Nome(GiornoRelativo::Domani));
-        assert_eq!(serde_json::from_str::<Giorno>("0").unwrap(), Giorno::Settimana(0));
+        assert_eq!(
+            serde_json::from_str::<Giorno>("\"domani\"").unwrap(),
+            Giorno::Nome(GiornoRelativo::Domani)
+        );
+        assert_eq!(
+            serde_json::from_str::<Giorno>("0").unwrap(),
+            Giorno::Settimana(0)
+        );
     }
 }
 
@@ -451,7 +536,11 @@ pub struct Richiesta {
 #[serde(untagged)]
 pub enum ApprovazioneRichiesta {
     /// Nuova: giorno + ora del pannello.
-    Nuova { versione: String, giorno: Giorno, ora: String },
+    Nuova {
+        versione: String,
+        giorno: Giorno,
+        ora: String,
+    },
     /// Già programmata, rimandata com'era.
     Esistente(Approvazione),
 }
@@ -471,7 +560,10 @@ pub async fn vista(config_dir: &Path) -> Vista {
     let programma = carica(config_dir).await;
     let adesso = Local::now();
     Vista {
-        approvazione_alle: programma.approvazione.as_ref().and_then(|a| come_orologio(a.quando_ms)),
+        approvazione_alle: programma
+            .approvazione
+            .as_ref()
+            .and_then(|a| come_orologio(a.quando_ms)),
         pilota_alle: programma
             .pilota
             .as_ref()
@@ -494,7 +586,11 @@ pub fn applica<T: TimeZone>(
     p.approvazione = match r.approvazione {
         None => None,
         Some(ApprovazioneRichiesta::Esistente(a)) => Some(a),
-        Some(ApprovazioneRichiesta::Nuova { versione, giorno, ora }) => {
+        Some(ApprovazioneRichiesta::Nuova {
+            versione,
+            giorno,
+            ora,
+        }) => {
             if disponibile != Some(versione.as_str()) {
                 return Err(format!(
                     "si può programmare solo la versione offerta dal canale adesso ({}), non la {versione}",
@@ -502,9 +598,12 @@ pub fn applica<T: TimeZone>(
                 ));
             }
             let ora = leggi_ora(&ora).ok_or("ora non valida: serve HH:MM")?;
-            let quando = risolvi(adesso, giorno, ora)
-                .ok_or("quel giorno a quell'ora è già passato")?;
-            Some(Approvazione { versione, quando_ms: quando.timestamp_millis() })
+            let quando =
+                risolvi(adesso, giorno, ora).ok_or("quel giorno a quell'ora è già passato")?;
+            Some(Approvazione {
+                versione,
+                quando_ms: quando.timestamp_millis(),
+            })
         }
     };
     if let Some(pl) = &r.pilota {
@@ -556,13 +655,24 @@ mod richieste {
         assert!(applica(&Programma::default(), r("2.12.1"), Some("2.12.2"), &adesso).is_err());
         assert!(applica(&Programma::default(), r("2.12.1"), None, &adesso).is_err());
         // Annullare: approvazione assente nella richiesta.
-        let vuota = Richiesta { approvazione: None, pilota: None };
-        assert_eq!(applica(&ok_programma(), vuota, None, &adesso).unwrap().approvazione, None);
+        let vuota = Richiesta {
+            approvazione: None,
+            pilota: None,
+        };
+        assert_eq!(
+            applica(&ok_programma(), vuota, None, &adesso)
+                .unwrap()
+                .approvazione,
+            None
+        );
     }
 
     fn ok_programma() -> Programma {
         Programma {
-            approvazione: Some(Approvazione { versione: "2.12.1".into(), quando_ms: 1 }),
+            approvazione: Some(Approvazione {
+                versione: "2.12.1".into(),
+                quando_ms: 1,
+            }),
             ..Default::default()
         }
     }
@@ -570,7 +680,13 @@ mod richieste {
     #[test]
     fn un_pilota_sbagliato_e_rifiutato() {
         let adesso = DateTime::parse_from_rfc3339("2026-09-28T19:33:00+02:00").unwrap();
-        let r = Richiesta { approvazione: None, pilota: Some(Pilota { giorni: vec![7], ora: "03:00".into() }) };
+        let r = Richiesta {
+            approvazione: None,
+            pilota: Some(Pilota {
+                giorni: vec![7],
+                ora: "03:00".into(),
+            }),
+        };
         assert!(applica(&Programma::default(), r, None, &adesso).is_err());
     }
 }

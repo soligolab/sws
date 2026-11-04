@@ -399,13 +399,18 @@ const PORTE_NOTE: [(u16, u16); 2] = [(8443, 7443), (7443, 8443)];
 /// una sonda e non una riconfigurazione — una richiesta allo schema sbagliato
 /// fallisce subito, e il costo è quello.
 fn ripieghi_di(configurata: &str) -> Vec<String> {
-    let Ok(url) = reqwest::Url::parse(configurata) else { return Vec::new() };
+    let Ok(url) = reqwest::Url::parse(configurata) else {
+        return Vec::new();
+    };
     let altro_schema = match url.scheme() {
         "http" => "https",
         "https" => "http",
         _ => return Vec::new(),
     };
-    let porta_alt = PORTE_NOTE.iter().find(|(da, _)| Some(*da) == url.port()).map(|(_, a)| *a);
+    let porta_alt = PORTE_NOTE
+        .iter()
+        .find(|(da, _)| Some(*da) == url.port())
+        .map(|(_, a)| *a);
     let scrivi = |schema: &str, porta: Option<u16>| -> Option<String> {
         let mut u = url.clone();
         u.set_scheme(schema).ok()?;
@@ -691,15 +696,21 @@ fn main() -> anyhow::Result<()> {
             // dell'aggiornamento, solo il quadlet vecchio.
             // La domanda dopo un aggiornamento (03-10-2026): `conferma`, e
             // `ritorno` per il secondo passo di «Torna alla …».
-            let conferma = matches!(quale, "conferma" | "ritorno").then(|| client::DomandaSistema {
-                da: "2.12.0-rc.17".into(),
-                a: "2.12.0-rc.18".into(),
-                istantanea: true,
-            });
+            let conferma =
+                matches!(quale, "conferma" | "ritorno").then(|| client::DomandaSistema {
+                    da: "2.12.0-rc.17".into(),
+                    a: "2.12.0-rc.18".into(),
+                    istantanea: true,
+                });
             let (finto, quadlet) = if quale == "quadlet" {
                 (
                     None,
-                    Some(client::QuadletSistema { installata: Some(0), attesa: Some(1), da_aggiornare: true, si_puo_aggiornare: true }),
+                    Some(client::QuadletSistema {
+                        installata: Some(0),
+                        attesa: Some(1),
+                        da_aggiornare: true,
+                        si_puo_aggiornare: true,
+                    }),
                 )
             } else if conferma.is_some() {
                 (None, None)
@@ -731,7 +742,10 @@ fn main() -> anyhow::Result<()> {
         let mut _stili_poi = Vec::new();
         if let Some(nome) = args.poi.as_deref() {
             let arrivo = rt.block_on(client::fetch_page(&args.base_url, nome))?;
-            let tags = shared_tags.lock().unwrap_or_else(|e| e.into_inner()).clone();
+            let tags = shared_tags
+                .lock()
+                .unwrap_or_else(|e| e.into_inner())
+                .clone();
             let (s, st, live) = lvgl_render::render_page_objects(
                 &arrivo,
                 &tags,
@@ -745,7 +759,11 @@ fn main() -> anyhow::Result<()> {
                 &shared_lang,
                 &shared_session,
             )?;
-            eprintln!("--poi: aperta '{}' ({} oggetti)", arrivo.name, s.rendered.len());
+            eprintln!(
+                "--poi: aperta '{}' ({} oggetti)",
+                arrivo.name,
+                s.rendered.len()
+            );
             _stili_poi = st;
             live_bindings = live;
         }
@@ -1029,7 +1047,10 @@ fn servi_finestra(
                 }
             }
         }
-        Navigazione::ApriFaceplate { faceplate, parametri } => {
+        Navigazione::ApriFaceplate {
+            faceplate,
+            parametri,
+        } => {
             match rt_handle.block_on(client::fetch_faceplate(base_url, faceplate)) {
                 Ok(d) => {
                     // Un faceplate non è una pagina: se ne costruisce una
@@ -1046,7 +1067,11 @@ fn servi_finestra(
                             .map(|p| serde_json::json!({ "name": p.name, "default": p.default }))
                             .collect::<Vec<_>>(),
                     });
-                    (v, parametri.clone(), d.label.unwrap_or_else(|| faceplate.clone()))
+                    (
+                        v,
+                        parametri.clone(),
+                        d.label.unwrap_or_else(|| faceplate.clone()),
+                    )
                 }
                 Err(e) => {
                     eprintln!("[finestra] faceplate '{faceplate}' non letto: {e}");
@@ -1055,14 +1080,21 @@ fn servi_finestra(
             }
         }
         // Accedi ed Esci non sono finestre: le serve il giro di disegno prima di arrivare qui.
-        Navigazione::Pagina(_) | Navigazione::ChiudiFinestra | Navigazione::Accedi | Navigazione::Esci => return None,
+        Navigazione::Pagina(_)
+        | Navigazione::ChiudiFinestra
+        | Navigazione::Accedi
+        | Navigazione::Esci => return None,
     };
 
     // I valori effettivi: quelli passati da chi apre, poi i default dichiarati
     // dalla pagina — stessa precedenza del web.
-    let dichiarati: Vec<model::ParametroFinestra> =
-        serde_json::from_value(grezzo.get("finestra_parametri").cloned().unwrap_or(serde_json::Value::Null))
-            .unwrap_or_default();
+    let dichiarati: Vec<model::ParametroFinestra> = serde_json::from_value(
+        grezzo
+            .get("finestra_parametri")
+            .cloned()
+            .unwrap_or(serde_json::Value::Null),
+    )
+    .unwrap_or_default();
     let effettivi = parametri::effettivi(&dichiarati, Some(&passati));
     parametri::sostituisci(&mut grezzo, &effettivi);
 
@@ -1075,7 +1107,11 @@ fn servi_finestra(
     };
     let titolo = parametri::titolo_finestra(
         pagina.finestra.as_ref().and_then(|f| f.titolo.as_deref()),
-        if pagina.name.is_empty() { &nome_di_ripiego } else { &pagina.name },
+        if pagina.name.is_empty() {
+            &nome_di_ripiego
+        } else {
+            &pagina.name
+        },
         &effettivi,
     );
 
@@ -1126,6 +1162,7 @@ fn valore_di_prova(s: &str) -> sws_core::tag::TagValue {
     sws_core::tag::TagValue::Str(s.to_string())
 }
 
+#[allow(clippy::too_many_arguments)]
 fn scrivi_istantanea(
     percorso: &str,
     hor_res: u32,
@@ -1184,7 +1221,9 @@ fn scrivi_istantanea(
             .filter(|p| !p.trim().is_empty())
             .map(|p| {
                 let (nome, valore) = p.split_once('=').ok_or_else(|| {
-                    anyhow::anyhow!("--cambia-tag vuole coppie `nome=valore` separate da `;`, non '{p}'")
+                    anyhow::anyhow!(
+                        "--cambia-tag vuole coppie `nome=valore` separate da `;`, non '{p}'"
+                    )
                 })?;
                 Ok((nome.trim().to_string(), valore_di_prova(valore.trim())))
             })
@@ -1263,12 +1302,18 @@ fn scrivi_istantanea(
                     lvgl_render::Navigazione::Accedi => {
                         eprintln!("  accesso richiesto");
                         comandi_nav += 1;
-                        aggiornamento::chiedi_accesso(avviso, aggiornamento::AzioneRichiesta::Accesso);
+                        aggiornamento::chiedi_accesso(
+                            avviso,
+                            aggiornamento::AzioneRichiesta::Accesso,
+                        );
                     }
                     lvgl_render::Navigazione::Esci => {
                         eprintln!("  uscita richiesta");
                         comandi_nav += 1;
-                        shared_session.lock().unwrap_or_else(|e| e.into_inner()).clear();
+                        shared_session
+                            .lock()
+                            .unwrap_or_else(|e| e.into_inner())
+                            .clear();
                     }
                     a => {
                         match a {
@@ -1314,7 +1359,11 @@ fn scrivi_istantanea(
         lvgl::tick_inc(Duration::from_millis(PASSO_MS));
         if giro + 1 >= ultimo_giro {
             if ultimo_giro < giri {
-                eprintln!("  foto al giro {} ({} dopo il cambio)", giro + 1, giro + 1 - giro_cambio);
+                eprintln!(
+                    "  foto al giro {} ({} dopo il cambio)",
+                    giro + 1,
+                    giro + 1 - giro_cambio
+                );
             }
             break;
         }
@@ -1561,9 +1610,14 @@ fn run_drm(
         let richiesta = nav_rx.try_recv().ok();
         // Accedi ed Esci dai bottoni del progetto (29-10-2026), come sul web.
         match richiesta.as_ref() {
-            Some(lvgl_render::Navigazione::Accedi) => aggiornamento::chiedi_accesso(&avviso, aggiornamento::AzioneRichiesta::Accesso),
+            Some(lvgl_render::Navigazione::Accedi) => {
+                aggiornamento::chiedi_accesso(&avviso, aggiornamento::AzioneRichiesta::Accesso)
+            }
             Some(lvgl_render::Navigazione::Esci) => {
-                shared_session.lock().unwrap_or_else(|e| e.into_inner()).clear();
+                shared_session
+                    .lock()
+                    .unwrap_or_else(|e| e.into_inner())
+                    .clear();
                 session::chiedi_ridisegno();
             }
             _ => {}
@@ -1571,11 +1625,16 @@ fn run_drm(
         // Le tre richieste di finestra si servono qui e non toccano la pagina
         // sotto: resta viva, coi suoi widget e i suoi collegamenti, e ricompare
         // da sé quando la finestra si chiude.
-        if let Some(a @ (lvgl_render::Navigazione::ApriFinestra { .. }
-        | lvgl_render::Navigazione::ApriFaceplate { .. }
-        | lvgl_render::Navigazione::ChiudiFinestra)) = richiesta.as_ref()
+        if let Some(
+            a @ (lvgl_render::Navigazione::ApriFinestra { .. }
+            | lvgl_render::Navigazione::ApriFaceplate { .. }
+            | lvgl_render::Navigazione::ChiudiFinestra),
+        ) = richiesta.as_ref()
         {
-            let tags_ora = shared_tags.lock().unwrap_or_else(|e| e.into_inner()).clone();
+            let tags_ora = shared_tags
+                .lock()
+                .unwrap_or_else(|e| e.into_inner())
+                .clone();
             finestra = servi_finestra(
                 a,
                 finestra.take(),
@@ -1941,9 +2000,14 @@ fn run_window(
         let richiesta = nav_rx.try_recv().ok();
         // Accedi ed Esci dai bottoni del progetto (29-10-2026), come sul web.
         match richiesta.as_ref() {
-            Some(lvgl_render::Navigazione::Accedi) => aggiornamento::chiedi_accesso(&avviso, aggiornamento::AzioneRichiesta::Accesso),
+            Some(lvgl_render::Navigazione::Accedi) => {
+                aggiornamento::chiedi_accesso(&avviso, aggiornamento::AzioneRichiesta::Accesso)
+            }
             Some(lvgl_render::Navigazione::Esci) => {
-                shared_session.lock().unwrap_or_else(|e| e.into_inner()).clear();
+                shared_session
+                    .lock()
+                    .unwrap_or_else(|e| e.into_inner())
+                    .clear();
                 session::chiedi_ridisegno();
             }
             _ => {}
@@ -1951,11 +2015,16 @@ fn run_window(
         // Le tre richieste di finestra si servono qui e non toccano la pagina
         // sotto: resta viva, coi suoi widget e i suoi collegamenti, e ricompare
         // da sé quando la finestra si chiude.
-        if let Some(a @ (lvgl_render::Navigazione::ApriFinestra { .. }
-        | lvgl_render::Navigazione::ApriFaceplate { .. }
-        | lvgl_render::Navigazione::ChiudiFinestra)) = richiesta.as_ref()
+        if let Some(
+            a @ (lvgl_render::Navigazione::ApriFinestra { .. }
+            | lvgl_render::Navigazione::ApriFaceplate { .. }
+            | lvgl_render::Navigazione::ChiudiFinestra),
+        ) = richiesta.as_ref()
         {
-            let tags_ora = shared_tags.lock().unwrap_or_else(|e| e.into_inner()).clone();
+            let tags_ora = shared_tags
+                .lock()
+                .unwrap_or_else(|e| e.into_inner())
+                .clone();
             finestra = servi_finestra(
                 a,
                 finestra.take(),
@@ -2377,7 +2446,9 @@ mod prove_base_url {
     #[test]
     fn la_porta_vecchia_propone_quella_nuova_e_viceversa() {
         assert!(ripieghi_di("http://127.0.0.1:8443").contains(&"http://127.0.0.1:7443".to_string()));
-        assert!(ripieghi_di("https://127.0.0.1:7443").contains(&"https://127.0.0.1:8443".to_string()));
+        assert!(
+            ripieghi_di("https://127.0.0.1:7443").contains(&"https://127.0.0.1:8443".to_string())
+        );
     }
 
     /// Il ripiego che ripara un pannello su cui qualcuno ha acceso il TLS dalla
@@ -2386,18 +2457,33 @@ mod prove_base_url {
     /// l'aggiornamento dei quadlet. È il **primo** da provare.
     #[test]
     fn lo_schema_si_prova_per_primo() {
-        assert_eq!(ripieghi_di("http://127.0.0.1:7443")[0], "https://127.0.0.1:7443");
-        assert_eq!(ripieghi_di("https://127.0.0.1:7443")[0], "http://127.0.0.1:7443");
+        assert_eq!(
+            ripieghi_di("http://127.0.0.1:7443")[0],
+            "https://127.0.0.1:7443"
+        );
+        assert_eq!(
+            ripieghi_di("https://127.0.0.1:7443")[0],
+            "http://127.0.0.1:7443"
+        );
     }
 
     #[test]
     fn una_porta_scelta_da_chi_installa_non_si_tocca() {
         // Chi ha messo una porta sua sa quello che fa: la porta non si sposta.
         // Lo schema sì — è una sonda, e non riconfigura niente.
-        assert_eq!(ripieghi_di("http://127.0.0.1:9443"), vec!["https://127.0.0.1:9443"]);
-        assert_eq!(ripieghi_di("http://pannello.local"), vec!["https://pannello.local"]);
+        assert_eq!(
+            ripieghi_di("http://127.0.0.1:9443"),
+            vec!["https://127.0.0.1:9443"]
+        );
+        assert_eq!(
+            ripieghi_di("http://pannello.local"),
+            vec!["https://pannello.local"]
+        );
         assert!(ripieghi_di("non-un-url").is_empty());
-        assert!(ripieghi_di("ftp://127.0.0.1:7443").is_empty(), "schema che non conosciamo");
+        assert!(
+            ripieghi_di("ftp://127.0.0.1:7443").is_empty(),
+            "schema che non conosciamo"
+        );
     }
 
     #[test]

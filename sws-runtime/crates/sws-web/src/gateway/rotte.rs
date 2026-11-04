@@ -25,7 +25,7 @@ use axum::response::{IntoResponse, Response};
 use std::sync::OnceLock;
 
 use super::inoltro;
-use super::progetti::{Apertura, Aperto};
+use super::progetti::{Aperto, Apertura};
 use crate::router::{AppState, AuthUser};
 
 /// Il client HTTP verso i container, uno solo per tutto il processo.
@@ -55,7 +55,11 @@ pub fn e_il_guscio(resto: &str) -> bool {
 /// Il documento HTML dell'IDE, preso dalla cartella `--www` del gateway.
 async fn guscio(s: &AppState) -> Response {
     let Some(dir) = s.www_dir.as_ref() else {
-        return (StatusCode::NOT_FOUND, "nessuna SPA servita da questo processo").into_response();
+        return (
+            StatusCode::NOT_FOUND,
+            "nessuna SPA servita da questo processo",
+        )
+            .into_response();
     };
     let file = dir.join("index-admin.html");
     match tokio::fs::read(&file).await {
@@ -76,7 +80,10 @@ async fn guscio(s: &AppState) -> Response {
 /// Il tetto si legge **adesso** e non alla creazione dell'azienda: cambiarlo
 /// dalla console deve valere alla prossima apertura, non al prossimo riavvio.
 async fn assicura_aperto(s: &AppState, azienda: &str, progetto: &str) -> Result<Aperto, Response> {
-    let regia = s.regia.as_ref().expect("chiamata solo con il gateway acceso");
+    let regia = s
+        .regia
+        .as_ref()
+        .expect("chiamata solo con il gateway acceso");
 
     // `cartella` vuota = azienda implicita, cioè i progetti in radice.
     let (cartella, tetto) = if azienda == crate::project_registry::AZIENDA_IMPLICITA {
@@ -123,7 +130,8 @@ async fn assicura_aperto(s: &AppState, azienda: &str, progetto: &str) -> Result<
         // diagnosi per un 404 che bastava scrivere.
         Err(Apertura::NonTrovato) => {
             tracing::warn!(
-                azienda, progetto,
+                azienda,
+                progetto,
                 "apertura rifiutata: nessuna cartella con questo nome sotto la radice dei progetti"
             );
             Err((StatusCode::NOT_FOUND, "progetto non trovato").into_response())
@@ -196,14 +204,20 @@ pub async fn inoltra_al_progetto(
         );
     }
 
-    let risposta = inoltro::inoltra_http(cliente(), &aperto.indirizzo, &segreto, &utente, &resto, req).await;
-    if risposta.headers().contains_key(inoltro::INTESTAZIONE_NON_RAGGIUNTO)
+    let risposta =
+        inoltro::inoltra_http(cliente(), &aperto.indirizzo, &segreto, &utente, &resto, req).await;
+    if risposta
+        .headers()
+        .contains_key(inoltro::INTESTAZIONE_NON_RAGGIUNTO)
         && !regia.verifica_vivo(&aperto.riferimento).await
     {
         // Il corpo della richiesta è già consumato: non si può ripetere qui.
         // L'IDE riprova da solo (l'impronta del progetto ogni pochi secondi), e
         // quella richiesta trova il progetto chiuso e lo riapre.
-        return (StatusCode::SERVICE_UNAVAILABLE, "il progetto si sta riaprendo: riprova fra qualche secondo")
+        return (
+            StatusCode::SERVICE_UNAVAILABLE,
+            "il progetto si sta riaprendo: riprova fra qualche secondo",
+        )
             .into_response();
     }
     risposta

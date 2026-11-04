@@ -60,8 +60,14 @@ pub struct Tetto {
 /// Più client dietro lo stesso indirizzo (un ufficio dietro un NAT, verso il
 /// cloud) dividono lo stesso secchio: per quel caso `SWS_LIMITE_LETTURE` e
 /// `SWS_LIMITE_SCRITTURE` (`<raffica>/<al secondo>`, `0` per spegnere).
-pub const LETTURE: Tetto = Tetto { capienza: 500.0, al_secondo: 75.0 };
-pub const SCRITTURE: Tetto = Tetto { capienza: 100.0, al_secondo: 25.0 };
+pub const LETTURE: Tetto = Tetto {
+    capienza: 500.0,
+    al_secondo: 75.0,
+};
+pub const SCRITTURE: Tetto = Tetto {
+    capienza: 100.0,
+    al_secondo: 25.0,
+};
 
 #[derive(Debug, Clone, Copy)]
 struct Secchio {
@@ -71,7 +77,10 @@ struct Secchio {
 
 impl Secchio {
     fn pieno(t: &Tetto, ora: Instant) -> Self {
-        Secchio { gettoni: t.capienza, ultimo: ora }
+        Secchio {
+            gettoni: t.capienza,
+            ultimo: ora,
+        }
     }
 
     /// Prende un gettone. `Err` con l'attesa fino al prossimo se non ce n'è.
@@ -89,7 +98,8 @@ impl Secchio {
 
     /// Tornato pieno: si può dimenticare senza cambiare niente.
     fn e_tornato_pieno(&self, t: &Tetto, ora: Instant) -> bool {
-        self.gettoni + ora.saturating_duration_since(self.ultimo).as_secs_f64() * t.al_secondo >= t.capienza
+        self.gettoni + ora.saturating_duration_since(self.ultimo).as_secs_f64() * t.al_secondo
+            >= t.capienza
     }
 }
 
@@ -106,7 +116,12 @@ pub struct Limiti {
 
 impl Limiti {
     pub fn nuovi(letture: Option<Tetto>, scritture: Option<Tetto>) -> Self {
-        Limiti { letture, scritture, secchi: Mutex::new(HashMap::new()), rifiuti: AtomicU64::new(0) }
+        Limiti {
+            letture,
+            scritture,
+            secchi: Mutex::new(HashMap::new()),
+            rifiuti: AtomicU64::new(0),
+        }
     }
 
     /// I tetti predefiniti, salvo `SWS_LIMITE_LETTURE`/`SWS_LIMITE_SCRITTURE`.
@@ -115,21 +130,34 @@ impl Limiti {
             Ok(v) => match tetto_da_testo(&v) {
                 Ok(t) => t,
                 Err(e) => {
-                    tracing::warn!("{nome}={v:?} non valido ({e}): uso {}/{}", base.capienza, base.al_secondo);
+                    tracing::warn!(
+                        "{nome}={v:?} non valido ({e}): uso {}/{}",
+                        base.capienza,
+                        base.al_secondo
+                    );
                     Some(base)
                 }
             },
             Err(_) => Some(base),
         };
-        Self::nuovi(leggi("SWS_LIMITE_LETTURE", LETTURE), leggi("SWS_LIMITE_SCRITTURE", SCRITTURE))
+        Self::nuovi(
+            leggi("SWS_LIMITE_LETTURE", LETTURE),
+            leggi("SWS_LIMITE_SCRITTURE", SCRITTURE),
+        )
     }
 
     /// `Err(attesa)` se `ip` ha finito i gettoni del suo secchio.
     pub fn prendi(&self, ip: IpAddr, scrittura: bool, ora: Instant) -> Result<(), Duration> {
-        let Some(t) = (if scrittura { self.scritture } else { self.letture }) else {
+        let Some(t) = (if scrittura {
+            self.scritture
+        } else {
+            self.letture
+        }) else {
             return Ok(());
         };
-        let Ok(mut secchi) = self.secchi.lock() else { return Ok(()) };
+        let Ok(mut secchi) = self.secchi.lock() else {
+            return Ok(());
+        };
         if secchi.len() >= DA_PULIRE {
             let (l, s) = (self.letture, self.scritture);
             secchi.retain(|(_, scr), b| {
@@ -137,7 +165,10 @@ impl Limiti {
                 t.is_some_and(|t| !b.e_tornato_pieno(&t, ora))
             });
         }
-        secchi.entry((ip, scrittura)).or_insert_with(|| Secchio::pieno(&t, ora)).prendi(&t, ora)
+        secchi
+            .entry((ip, scrittura))
+            .or_insert_with(|| Secchio::pieno(&t, ora))
+            .prendi(&t, ora)
     }
 }
 
@@ -147,13 +178,18 @@ pub fn tetto_da_testo(v: &str) -> Result<Option<Tetto>, String> {
     if v == "0" {
         return Ok(None);
     }
-    let (c, r) = v.split_once('/').ok_or("atteso <raffica>/<al secondo>, o 0")?;
+    let (c, r) = v
+        .split_once('/')
+        .ok_or("atteso <raffica>/<al secondo>, o 0")?;
     let capienza: f64 = c.trim().parse().map_err(|_| "raffica non numerica")?;
     let al_secondo: f64 = r.trim().parse().map_err(|_| "ritorno non numerico")?;
     if !(capienza >= 1.0 && al_secondo > 0.0 && capienza.is_finite() && al_secondo.is_finite()) {
         return Err("servono raffica ≥ 1 e ritorno > 0".into());
     }
-    Ok(Some(Tetto { capienza, al_secondo }))
+    Ok(Some(Tetto {
+        capienza,
+        al_secondo,
+    }))
 }
 
 fn privato(ip: IpAddr) -> bool {
@@ -250,7 +286,10 @@ pub async fn limita(State(s): State<AppState>, req: Request, next: Next) -> Resp
 mod tests {
     use super::*;
 
-    const T: Tetto = Tetto { capienza: 3.0, al_secondo: 2.0 };
+    const T: Tetto = Tetto {
+        capienza: 3.0,
+        al_secondo: 2.0,
+    };
 
     #[test]
     fn il_secchio_lascia_la_raffica_e_poi_il_ritorno() {
@@ -283,7 +322,13 @@ mod tests {
 
     #[test]
     fn i_tetti_da_testo() {
-        assert_eq!(tetto_da_testo("500/75").unwrap(), Some(Tetto { capienza: 500.0, al_secondo: 75.0 }));
+        assert_eq!(
+            tetto_da_testo("500/75").unwrap(),
+            Some(Tetto {
+                capienza: 500.0,
+                al_secondo: 75.0
+            })
+        );
         assert_eq!(tetto_da_testo(" 0 ").unwrap(), None);
         for no in ["500", "a/1", "0/5", "5/0", "-1/2", "inf/1"] {
             assert!(tetto_da_testo(no).is_err(), "{no}");
@@ -303,30 +348,48 @@ mod tests {
         let traefik: SocketAddr = "10.89.0.2:5000".parse().unwrap();
         // Il client ha scritto «1.2.3.4» da sé, Traefik ha aggiunto l'indirizzo vero.
         let h = intestazioni(&["1.2.3.4, 203.0.113.9"]);
-        assert_eq!(indirizzo(Some(traefik), &h, true), Some("203.0.113.9".parse().unwrap()));
+        assert_eq!(
+            indirizzo(Some(traefik), &h, true),
+            Some("203.0.113.9".parse().unwrap())
+        );
         let h2 = intestazioni(&["1.2.3.4", "203.0.113.9"]);
-        assert_eq!(indirizzo(Some(traefik), &h2, true), Some("203.0.113.9".parse().unwrap()));
+        assert_eq!(
+            indirizzo(Some(traefik), &h2, true),
+            Some("203.0.113.9".parse().unwrap())
+        );
     }
 
     #[test]
     fn sul_pannello_x_forwarded_for_non_conta() {
         let vicino: SocketAddr = "192.168.1.77:40000".parse().unwrap();
         let h = intestazioni(&["8.8.8.8"]);
-        assert_eq!(indirizzo(Some(vicino), &h, false), Some("192.168.1.77".parse().unwrap()));
+        assert_eq!(
+            indirizzo(Some(vicino), &h, false),
+            Some("192.168.1.77".parse().unwrap())
+        );
         // Né sul gateway, se la connessione non viene da un proxy privato.
         let fuori: SocketAddr = "198.51.100.4:1234".parse().unwrap();
-        assert_eq!(indirizzo(Some(fuori), &h, true), Some("198.51.100.4".parse().unwrap()));
+        assert_eq!(
+            indirizzo(Some(fuori), &h, true),
+            Some("198.51.100.4".parse().unwrap())
+        );
     }
 
     #[test]
     fn sul_gateway_un_indirizzo_privato_non_si_conta() {
         // Com'è oggi il VPS: Traefik vede tutti come l'indirizzo di rootlessport.
         let traefik: SocketAddr = "10.89.0.3:5000".parse().unwrap();
-        assert_eq!(indirizzo(Some(traefik), &intestazioni(&["10.89.0.89"]), true), None);
+        assert_eq!(
+            indirizzo(Some(traefik), &intestazioni(&["10.89.0.89"]), true),
+            None
+        );
         assert_eq!(indirizzo(Some(traefik), &HeaderMap::new(), true), None);
         // Sul pannello un vicino in LAN si conta, privato o no.
         let vicino: SocketAddr = "10.89.0.3:5000".parse().unwrap();
-        assert_eq!(indirizzo(Some(vicino), &HeaderMap::new(), false), Some("10.89.0.3".parse().unwrap()));
+        assert_eq!(
+            indirizzo(Some(vicino), &HeaderMap::new(), false),
+            Some("10.89.0.3".parse().unwrap())
+        );
     }
 
     #[test]

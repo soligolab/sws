@@ -63,7 +63,11 @@ fn taglia(s: &str, max: f64, corpo: f64) -> String {
 
 pub fn numero(v: f64, decimali: u8, virgola: bool) -> String {
     let s = format!("{:.*}", decimali as usize, v);
-    if virgola { s.replace('.', ",") } else { s }
+    if virgola {
+        s.replace('.', ",")
+    } else {
+        s
+    }
 }
 
 fn testo_cella(c: &Cella, virgola: bool) -> String {
@@ -83,7 +87,11 @@ fn larghezze(t: &Tabella, utile: f64, virgola: bool) -> Vec<f64> {
     let mut w: Vec<f64> = (0..n)
         .map(|i| {
             let intest = larghezza(&t.colonne[i], CORPO) + 8.0;
-            let celle = t.righe.iter().filter_map(|r| r.get(i)).map(|c| larghezza(&testo_cella(c, virgola), CORPO) + 8.0);
+            let celle = t
+                .righe
+                .iter()
+                .filter_map(|r| r.get(i))
+                .map(|c| larghezza(&testo_cella(c, virgola), CORPO) + 8.0);
             celle.fold(intest, f64::max).clamp(40.0, 260.0)
         })
         .collect();
@@ -104,11 +112,19 @@ fn dividi(t: &Tabella) -> Vec<Tabella> {
         .chunks(COLONNE_MAX - 1)
         .map(|gruppo| Tabella {
             titolo: t.titolo.clone(),
-            colonne: std::iter::once(0).chain(gruppo.iter().copied()).map(|i| t.colonne[i].clone()).collect(),
+            colonne: std::iter::once(0)
+                .chain(gruppo.iter().copied())
+                .map(|i| t.colonne[i].clone())
+                .collect(),
             righe: t
                 .righe
                 .iter()
-                .map(|r| std::iter::once(0).chain(gruppo.iter().copied()).map(|i| r.get(i).cloned().unwrap_or(Cella::Vuota)).collect())
+                .map(|r| {
+                    std::iter::once(0)
+                        .chain(gruppo.iter().copied())
+                        .map(|i| r.get(i).cloned().unwrap_or(Cella::Vuota))
+                        .collect()
+                })
                 .collect(),
         })
         .collect()
@@ -142,11 +158,20 @@ impl Pagine {
 
 /// Il PDF intero.
 pub fn scrivi(d: &DatiReport) -> Vec<u8> {
-    let mut p = Pagine { pagine: Vec::new(), y: 0.0 };
+    let mut p = Pagine {
+        pagine: Vec::new(),
+        y: 0.0,
+    };
     p.nuova();
     let y = p.y;
     p.testo(MARGINE, y - 16.0, 16.0, true, &d.titolo);
-    p.testo(MARGINE, y - 34.0, 10.0, false, &format!("{} — {}", d.progetto, d.periodo));
+    p.testo(
+        MARGINE,
+        y - 34.0,
+        10.0,
+        false,
+        &format!("{} — {}", d.progetto, d.periodo),
+    );
     p.y -= 56.0;
 
     let utile = LARGHEZZA - 2.0 * MARGINE;
@@ -158,12 +183,25 @@ pub fn scrivi(d: &DatiReport) -> Vec<u8> {
         p.testo(MARGINE, y - 12.0, 12.0, true, &tab.titolo);
         p.y -= 22.0;
         let w = larghezze(&tab, utile, d.virgola);
-        let x0: Vec<f64> = w.iter().scan(MARGINE, |x, l| { let a = *x; *x += l; Some(a) }).collect();
+        let x0: Vec<f64> = w
+            .iter()
+            .scan(MARGINE, |x, l| {
+                let a = *x;
+                *x += l;
+                Some(a)
+            })
+            .collect();
         let intestazione = |p: &mut Pagine| {
             let y = p.y;
             p.rettangolo(MARGINE, y - RIGA + 3.0, utile, RIGA, 0.85);
             for (i, c) in tab.colonne.iter().enumerate() {
-                p.testo(x0[i] + 2.0, y - RIGA + 6.0, CORPO, true, &taglia(c, w[i] - 4.0, CORPO));
+                p.testo(
+                    x0[i] + 2.0,
+                    y - RIGA + 6.0,
+                    CORPO,
+                    true,
+                    &taglia(c, w[i] - 4.0, CORPO),
+                );
             }
             p.y -= RIGA;
         };
@@ -194,7 +232,14 @@ pub fn scrivi(d: &DatiReport) -> Vec<u8> {
     // Il piè di pagina, ora che si sa quante sono.
     let totale = p.pagine.len();
     for (i, pg) in p.pagine.iter_mut().enumerate() {
-        let piede = format!("{} — {} {} {} / {}", d.progetto, d.generato, d.parole_pagina, i + 1, totale);
+        let piede = format!(
+            "{} — {} {} {} / {}",
+            d.progetto,
+            d.generato,
+            d.parole_pagina,
+            i + 1,
+            totale
+        );
         let mut op = format!("BT /F1 8 Tf {MARGINE:.1} 20 Td ").into_bytes();
         op.extend(stringa_pdf(&piede));
         op.extend(b" Tj ET\n");
@@ -211,8 +256,14 @@ fn componi(contenuti: &[Vec<u8>]) -> Vec<u8> {
     oggetti.push(b"<< /Type /Catalog /Pages 2 0 R >>".to_vec());
     let figli: Vec<String> = (0..n).map(|i| format!("{} 0 R", 5 + 2 * i)).collect();
     oggetti.push(format!("<< /Type /Pages /Kids [{}] /Count {n} >>", figli.join(" ")).into_bytes());
-    oggetti.push(b"<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>".to_vec());
-    oggetti.push(b"<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding >>".to_vec());
+    oggetti.push(
+        b"<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>"
+            .to_vec(),
+    );
+    oggetti.push(
+        b"<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding >>"
+            .to_vec(),
+    );
     for (i, c) in contenuti.iter().enumerate() {
         oggetti.push(
             format!(
@@ -239,7 +290,13 @@ fn componi(contenuti: &[Vec<u8>]) -> Vec<u8> {
     for p in posizioni {
         out.extend(format!("{p:010} 00000 n \n").into_bytes());
     }
-    out.extend(format!("trailer\n<< /Size {} /Root 1 0 R >>\nstartxref\n{xref}\n%%EOF\n", oggetti.len() + 1).into_bytes());
+    out.extend(
+        format!(
+            "trailer\n<< /Size {} /Root 1 0 R >>\nstartxref\n{xref}\n%%EOF\n",
+            oggetti.len() + 1
+        )
+        .into_bytes(),
+    );
     out
 }
 
@@ -256,7 +313,19 @@ mod tests {
             tabelle: vec![Tabella {
                 titolo: "Andamento".into(),
                 colonne: (0..colonne).map(|i| format!("c{i}")).collect(),
-                righe: (0..righe).map(|r| (0..colonne).map(|c| if c == 0 { Cella::Testo(format!("r{r}")) } else { Cella::Numero(r as f64 + 0.25, 2) }).collect()).collect(),
+                righe: (0..righe)
+                    .map(|r| {
+                        (0..colonne)
+                            .map(|c| {
+                                if c == 0 {
+                                    Cella::Testo(format!("r{r}"))
+                                } else {
+                                    Cella::Numero(r as f64 + 0.25, 2)
+                                }
+                            })
+                            .collect()
+                    })
+                    .collect(),
             }],
             virgola: true,
             parole_pagina: "Pagina",
@@ -274,25 +343,48 @@ mod tests {
         // «lossy» sposterebbe tutto).
         assert!(pdf.starts_with(b"%PDF-1.4") && pdf.ends_with(b"%%EOF\n"));
         let coda = String::from_utf8_lossy(&pdf[pdf.len() - 40..]).to_string();
-        let pos: usize = coda[coda.rfind("startxref\n").unwrap() + 10..].lines().next().unwrap().parse().unwrap();
+        let pos: usize = coda[coda.rfind("startxref\n").unwrap() + 10..]
+            .lines()
+            .next()
+            .unwrap()
+            .parse()
+            .unwrap();
         assert!(pdf[pos..].starts_with(b"xref"));
         let xref = String::from_utf8_lossy(&pdf[pos..]).to_string();
-        let righe: Vec<&str> = xref.lines().skip(3).take_while(|l| l.ends_with(" n ")).collect();
+        let righe: Vec<&str> = xref
+            .lines()
+            .skip(3)
+            .take_while(|l| l.ends_with(" n "))
+            .collect();
         for (i, r) in righe.iter().enumerate() {
             let off: usize = r[..10].parse().unwrap();
-            assert!(pdf[off..].starts_with(format!("{} 0 obj", i + 1).as_bytes()), "oggetto {} fuori posto", i + 1);
+            assert!(
+                pdf[off..].starts_with(format!("{} 0 obj", i + 1).as_bytes()),
+                "oggetto {} fuori posto",
+                i + 1
+            );
         }
         let testo = String::from_utf8_lossy(&pdf).to_string();
         assert!(testo.matches("/Type /Page ").count() >= 3, "più pagine");
-        assert!(testo.contains("(Caseificio \\(linea 2\\)"), "le parentesi protette");
+        assert!(
+            testo.contains("(Caseificio \\(linea 2\\)"),
+            "le parentesi protette"
+        );
         assert!(testo.contains("(1,25)"), "la virgola decimale in italiano");
-        assert!(testo.contains("(c0)") && testo.contains("(c19)"), "la tabella divisa tiene tutte le colonne");
+        assert!(
+            testo.contains("(c0)") && testo.contains("(c19)"),
+            "la tabella divisa tiene tutte le colonne"
+        );
     }
 
     #[test]
     fn i_caratteri_italiani_viaggiano_in_winansi() {
         assert_eq!(stringa_pdf("Unità °C"), b"(Unit\xE0 \xB0C)".to_vec());
         assert_eq!(stringa_pdf("漢"), b"(?)".to_vec());
-        assert_eq!(stringa_pdf("…"), b"(\x85)".to_vec(), "il troncamento non diventa un punto di domanda");
+        assert_eq!(
+            stringa_pdf("…"),
+            b"(\x85)".to_vec(),
+            "il troncamento non diventa un punto di domanda"
+        );
     }
 }

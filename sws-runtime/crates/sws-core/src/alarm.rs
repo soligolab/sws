@@ -259,7 +259,9 @@ impl AlarmDef {
     pub fn modo_email(&self) -> AlarmEmailMode {
         match self.email_mode {
             Some(m) => m,
-            None if self.notify_email.as_ref().is_some_and(|v| !v.is_empty()) => AlarmEmailMode::Propri,
+            None if self.notify_email.as_ref().is_some_and(|v| !v.is_empty()) => {
+                AlarmEmailMode::Propri
+            }
             None => AlarmEmailMode::Progetto,
         }
     }
@@ -343,7 +345,10 @@ enum DestinatarioLetto {
 impl From<DestinatarioLetto> for Destinatario {
     fn from(d: DestinatarioLetto) -> Self {
         match d {
-            DestinatarioLetto::Nudo(indirizzo) => Destinatario { indirizzo, lingua: None },
+            DestinatarioLetto::Nudo(indirizzo) => Destinatario {
+                indirizzo,
+                lingua: None,
+            },
             DestinatarioLetto::Pieno { indirizzo, lingua } => Destinatario {
                 indirizzo,
                 // Una lingua vuota è «come il canale», non una lingua.
@@ -612,7 +617,9 @@ impl AlarmDb {
     /// chiudono lì come interrotte. Senza progetto aperto non fa niente — così
     /// una seconda chiusura non cancella la prima memoria.
     pub async fn chiudi(&self) {
-        let Some(dir) = self.progetto.write().await.take() else { return };
+        let Some(dir) = self.progetto.write().await.take() else {
+            return;
+        };
         let memoria = MemoriaAllarmi {
             progetto: dir,
             stati: std::mem::take(&mut *self.states.write().await),
@@ -668,13 +675,22 @@ impl AlarmDb {
         let tenuti: HashSet<String> = match &vecchi {
             Some(v) => defs
                 .iter()
-                .filter(|d| v.stati.get(&d.id).is_some_and(|st| firma(&st.def) == firma(d)))
+                .filter(|d| {
+                    v.stati
+                        .get(&d.id)
+                        .is_some_and(|st| firma(&st.def) == firma(d))
+                })
                 .map(|d| d.id.clone())
                 .collect(),
             None => HashSet::new(),
         };
         if let Some(v) = vecchi.as_mut() {
-            let via: Vec<String> = v.aperte.keys().filter(|id| !tenuti.contains(*id)).cloned().collect();
+            let via: Vec<String> = v
+                .aperte
+                .keys()
+                .filter(|id| !tenuti.contains(*id))
+                .cloned()
+                .collect();
             for id in via {
                 if let Some(ev) = v.aperte.remove(&id) {
                     interrotte.push(ev);
@@ -720,7 +736,10 @@ impl AlarmDb {
                     .or_default()
                     .push(def.id.clone());
             }
-            let ripreso = tenuti.contains(&def.id).then(|| vecchi.as_mut()).flatten();
+            let ripreso = tenuti
+                .contains(&def.id)
+                .then_some(vecchi.as_mut())
+                .flatten();
             match ripreso {
                 Some(v) => {
                     let id = def.id.clone();
@@ -796,9 +815,9 @@ impl AlarmDb {
         let j = self.journal.read().await;
         let mut v: Vec<AlarmEvent> = j
             .iter()
-            .filter(|e| alarm_id.map_or(true, |a| e.alarm_id == a))
-            .filter(|e| from_ms.map_or(true, |f| e.ts_activated_ms >= f))
-            .filter(|e| to_ms.map_or(true, |t| e.ts_activated_ms <= t))
+            .filter(|e| alarm_id.is_none_or(|a| e.alarm_id == a))
+            .filter(|e| from_ms.is_none_or(|f| e.ts_activated_ms >= f))
+            .filter(|e| to_ms.is_none_or(|t| e.ts_activated_ms <= t))
             .cloned()
             .collect();
         v.sort_by(|a, b| b.ts_activated_ms.cmp(&a.ts_activated_ms));
@@ -1344,14 +1363,21 @@ mod tests {
         db.evaluate("tag", &ts(TagValue::Float(91.0))).await;
         let st = &db.snapshot().await[0];
         assert!(st.active && st.acknowledged, "resta attivo e riconosciuto");
-        assert!(rx.try_recv().is_err(), "nessuna transizione: nessuna notifica");
-        assert!(db.journal_snapshot(10).await.iter().all(|e| !e.interrotto), "nessuna riga interrotta");
+        assert!(
+            rx.try_recv().is_err(),
+            "nessuna transizione: nessuna notifica"
+        );
+        assert!(
+            db.journal_snapshot(10).await.iter().all(|e| !e.interrotto),
+            "nessuna riga interrotta"
+        );
     }
 
     #[tokio::test]
     async fn un_deploy_chiudi_e_riapri_riprende_lo_stato() {
         let db = attivo_riconosciuto().await;
-        db.shelve("t", "manutenzione".into(), 3_600_000, "op".into()).await;
+        db.shelve("t", "manutenzione".into(), 3_600_000, "op".into())
+            .await;
         db.chiudi().await;
         db.chiudi().await; // la seconda chiusura non cancella la memoria
         db.carica(vec![soglia()], dir("a")).await;
@@ -1367,15 +1393,30 @@ mod tests {
         // giustamente non ha quelle di «a».
         let scritte = Arc::new(std::sync::Mutex::new(Vec::<AlarmEvent>::new()));
         let s2 = scritte.clone();
-        db.set_journal_callback(move |ev| s2.lock().unwrap().push(ev)).await;
+        db.set_journal_callback(move |ev| s2.lock().unwrap().push(ev))
+            .await;
         db.chiudi().await;
         db.carica(vec![soglia()], dir("b")).await;
-        assert!(!db.snapshot().await[0].active, "progetto diverso: niente eredità");
-        assert!(scritte.lock().unwrap().iter().any(|e| e.interrotto), "la riga di «a» chiusa come interrotta");
+        assert!(
+            !db.snapshot().await[0].active,
+            "progetto diverso: niente eredità"
+        );
+        assert!(
+            scritte.lock().unwrap().iter().any(|e| e.interrotto),
+            "la riga di «a» chiusa come interrotta"
+        );
 
         let db = attivo_riconosciuto().await;
-        db.load(vec![def("t", "tag", AlarmCondition::Above { threshold: 50.0 })]).await;
-        assert!(!db.snapshot().await[0].active, "soglia cambiata: si rivaluta da zero");
+        db.load(vec![def(
+            "t",
+            "tag",
+            AlarmCondition::Above { threshold: 50.0 },
+        )])
+        .await;
+        assert!(
+            !db.snapshot().await[0].active,
+            "soglia cambiata: si rivaluta da zero"
+        );
     }
 
     #[tokio::test]
@@ -1730,7 +1771,10 @@ mod tests {
         db.load(vec![tre_livelli()]).await;
         db.evaluate("t", &ts(TagValue::Float(75.0))).await;
         db.ack("a1", Some("mario".into())).await;
-        assert_eq!(db.journal_snapshot(10).await[0].acked_by.as_deref(), Some("mario"));
+        assert_eq!(
+            db.journal_snapshot(10).await[0].acked_by.as_deref(),
+            Some("mario")
+        );
 
         db.evaluate("t", &ts(TagValue::Float(85.0))).await;
         let j = db.journal_snapshot(10).await;
@@ -1779,7 +1823,8 @@ mod tests {
         db.load(vec![tre_livelli()]).await;
         let viste = Arc::new(std::sync::Mutex::new(Vec::<AlarmEvent>::new()));
         let v2 = viste.clone();
-        db.set_journal_callback(move |ev| v2.lock().unwrap().push(ev)).await;
+        db.set_journal_callback(move |ev| v2.lock().unwrap().push(ev))
+            .await;
         db.evaluate("t", &ts(TagValue::Float(75.0))).await;
         db.load(vec![tre_livelli()]).await;
         let viste = viste.lock().unwrap();
@@ -1799,7 +1844,10 @@ mod tests {
         db.load(vec![tre_livelli(), b]).await;
         db.evaluate("t", &ts(TagValue::Float(75.0))).await;
         db.evaluate("u", &ts(TagValue::Float(75.0))).await;
-        assert_eq!(db.journal_filtrato(Some("b1"), None, None, 10).await.len(), 1);
+        assert_eq!(
+            db.journal_filtrato(Some("b1"), None, None, 10).await.len(),
+            1
+        );
         assert_eq!(db.journal_snapshot(10).await.len(), 2);
     }
 
@@ -2049,7 +2097,13 @@ mod destinatari_email {
             "- mario@x.it\n- {indirizzo: hans@y.de, lingua: de}\n- {indirizzo: ana@z.es, lingua: ''}\n",
         )
         .unwrap();
-        assert_eq!(v[0], Destinatario { indirizzo: "mario@x.it".into(), lingua: None });
+        assert_eq!(
+            v[0],
+            Destinatario {
+                indirizzo: "mario@x.it".into(),
+                lingua: None
+            }
+        );
         assert_eq!(v[1].lingua.as_deref(), Some("de"));
         assert_eq!(v[2].lingua, None, "una lingua vuota è «come il canale»");
         // Si scrive sempre la forma nuova.
@@ -2064,9 +2118,18 @@ mod destinatari_email {
     /// Un allarme vecchio con i suoi indirizzi continua a mandare solo a quelli.
     #[test]
     fn il_modo_email_riproduce_il_comportamento_di_prima() {
-        assert_eq!(allarme("notify_email: [mario@x.it]\n").modo_email(), AlarmEmailMode::Propri);
+        assert_eq!(
+            allarme("notify_email: [mario@x.it]\n").modo_email(),
+            AlarmEmailMode::Propri
+        );
         assert_eq!(allarme("").modo_email(), AlarmEmailMode::Progetto);
-        assert_eq!(allarme("notify_email: [mario@x.it]\nemail_mode: off\n").modo_email(), AlarmEmailMode::Off);
-        assert_eq!(allarme("email_mode: progetto\nnotify_email: [a@b.c]\n").modo_email(), AlarmEmailMode::Progetto);
+        assert_eq!(
+            allarme("notify_email: [mario@x.it]\nemail_mode: off\n").modo_email(),
+            AlarmEmailMode::Off
+        );
+        assert_eq!(
+            allarme("email_mode: progetto\nnotify_email: [a@b.c]\n").modo_email(),
+            AlarmEmailMode::Progetto
+        );
     }
 }

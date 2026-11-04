@@ -28,7 +28,10 @@ pub fn testo(ora: DateTime<Utc>) -> String {
 }
 
 pub async fn get_security_txt() -> impl IntoResponse {
-    ([(header::CONTENT_TYPE, "text/plain; charset=utf-8")], testo(Utc::now()))
+    (
+        [(header::CONTENT_TYPE, "text/plain; charset=utf-8")],
+        testo(Utc::now()),
+    )
 }
 
 #[cfg(test)]
@@ -42,6 +45,9 @@ mod tests {
         let t = testo(ora);
         assert!(t.contains("Contact: mailto:security@soligo.net\n"), "{t}");
         assert!(t.contains("Expires: 2027-04-15T12:00:00Z\n"), "{t}");
-        assert!(t.lines().all(|l| l.contains(": ")), "una riga per campo: {t}");
+        assert!(
+            t.lines().all(|l| l.contains(": ")),
+            "una riga per campo: {t}"
+        );
     }
 }

@@ -94,7 +94,15 @@ fn nome_sicuro(s: &str) -> bool {
 /// (30-10-2026) è il logo per il tema chiaro, che la schermata d'accesso
 /// disegna su fondo bianco.
 pub const CAMPI_PUBBLICI: &[&str] = &[
-    "id", "name", "shortName", "logo", "logo_chiaro", "favicon", "colors", "neutrals_dark", "neutrals_light",
+    "id",
+    "name",
+    "shortName",
+    "logo",
+    "logo_chiaro",
+    "favicon",
+    "colors",
+    "neutrals_dark",
+    "neutrals_light",
 ];
 
 /// Solo i campi pubblici di un `brand.json`.
@@ -293,7 +301,11 @@ pub async fn elenca(
             .filter(|a| mie.contains(&a.id))
             .filter_map(|a| a.marchio.clone())
             .collect();
-        trovati.retain(|m| m["id"].as_str().is_some_and(|id| suoi.iter().any(|x| x == id)));
+        trovati.retain(|m| {
+            m["id"]
+                .as_str()
+                .is_some_and(|id| suoi.iter().any(|x| x == id))
+        });
     }
     Json(trovati).into_response()
 }
@@ -447,9 +459,15 @@ mod tests {
         });
         let p = super::solo_pubblici(&v);
         assert_eq!(p["name"], "Pixsys");
-        assert_eq!(p["logo_chiaro"], "logo-chiaro.svg", "il logo del tema chiaro serve alla schermata d'accesso");
+        assert_eq!(
+            p["logo_chiaro"], "logo-chiaro.svg",
+            "il logo del tema chiaro serve alla schermata d'accesso"
+        );
         assert!(p.get("device_presets").is_none());
-        assert!(p.get("qualsiasi").is_none(), "un campo nuovo resta privato per costruzione");
+        assert!(
+            p.get("qualsiasi").is_none(),
+            "un campo nuovo resta privato per costruzione"
+        );
         let q = super::solo_privati(&v);
         assert!(q.get("device_presets").is_some() && q.get("qualsiasi").is_some());
         assert!(q.get("logo").is_none());

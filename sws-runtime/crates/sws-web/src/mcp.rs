@@ -50,7 +50,10 @@ const VERSIONI: [&str; 3] = ["2025-06-18", "2025-03-26", "2024-11-05"];
 pub async fn servi_stdio(s: AppState) -> anyhow::Result<()> {
     use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 
-    tracing::info!("server MCP in sola lettura su stdio: {} strumenti", tools::SOLA_LETTURA.len());
+    tracing::info!(
+        "server MCP in sola lettura su stdio: {} strumenti",
+        tools::SOLA_LETTURA.len()
+    );
     let mut righe = BufReader::new(tokio::io::stdin()).lines();
     let mut out = tokio::io::stdout();
     while let Some(riga) = righe.next_line().await? {
@@ -74,9 +77,19 @@ async fn rispondi(s: &AppState, riga: &str) -> Option<Value> {
         Ok(v) => v,
         // Senza `id` non si può rispondere a nessuno in particolare: la
         // specifica vuole `id: null`.
-        Err(e) => return Some(errore(Value::Null, -32700, &format!("JSON non valido: {e}"))),
+        Err(e) => {
+            return Some(errore(
+                Value::Null,
+                -32700,
+                &format!("JSON non valido: {e}"),
+            ))
+        }
     };
-    let metodo = msg.get("method").and_then(Value::as_str).unwrap_or("").to_string();
+    let metodo = msg
+        .get("method")
+        .and_then(Value::as_str)
+        .unwrap_or("")
+        .to_string();
     // Una notifica non ha `id` e non vuole risposta: `notifications/initialized`
     // arriva subito dopo l'handshake, e rispondergli è un errore di protocollo.
     let id = msg.get("id").cloned()?;
@@ -95,7 +108,11 @@ fn senza_stato(metodo: &str, id: Value, params: Option<&Value>) -> Value {
                 .and_then(|p| p.get("protocolVersion"))
                 .and_then(Value::as_str)
                 .unwrap_or("");
-            let versione = if VERSIONI.contains(&chiesta) { chiesta } else { VERSIONI[0] };
+            let versione = if VERSIONI.contains(&chiesta) {
+                chiesta
+            } else {
+                VERSIONI[0]
+            };
             esito(
                 id,
                 json!({
@@ -137,7 +154,10 @@ fn elenco() -> Vec<Value> {
 }
 
 async fn chiama(s: &AppState, id: Value, params: Option<&Value>) -> Value {
-    let nome = params.and_then(|p| p.get("name")).and_then(Value::as_str).unwrap_or("");
+    let nome = params
+        .and_then(|p| p.get("name"))
+        .and_then(Value::as_str)
+        .unwrap_or("");
     if !tools::SOLA_LETTURA.contains(&nome) {
         // Nome sconosciuto o strumento non esposto: è un errore di protocollo
         // (parametri sbagliati), non il risultato di uno strumento.
@@ -196,7 +216,11 @@ mod prove {
 
     #[test]
     fn lhandshake_risponde_con_la_versione_chiesta_se_la_conosce() {
-        let r = senza_stato("initialize", json!(1), Some(&json!({ "protocolVersion": "2024-11-05" })));
+        let r = senza_stato(
+            "initialize",
+            json!(1),
+            Some(&json!({ "protocolVersion": "2024-11-05" })),
+        );
         assert_eq!(r["result"]["protocolVersion"], "2024-11-05");
         assert_eq!(r["id"], 1);
         assert!(r["result"]["capabilities"]["tools"].is_object());
@@ -204,7 +228,11 @@ mod prove {
 
     #[test]
     fn a_una_versione_che_non_conosce_risponde_con_la_sua() {
-        let r = senza_stato("initialize", json!(1), Some(&json!({ "protocolVersion": "1999-01-01" })));
+        let r = senza_stato(
+            "initialize",
+            json!(1),
+            Some(&json!({ "protocolVersion": "1999-01-01" })),
+        );
         assert_eq!(r["result"]["protocolVersion"], VERSIONI[0]);
         // E anche se il client non la dichiara affatto.
         let r = senza_stato("initialize", json!(1), None);
@@ -217,11 +245,22 @@ mod prove {
         let t = r["result"]["tools"].as_array().unwrap();
         assert_eq!(t.len(), tools::SOLA_LETTURA.len());
         for s in t {
-            assert!(s.get("inputSchema").is_some(), "{} senza inputSchema", s["name"]);
-            assert!(s.get("input_schema").is_none(), "{} ha ancora il nome vecchio", s["name"]);
+            assert!(
+                s.get("inputSchema").is_some(),
+                "{} senza inputSchema",
+                s["name"]
+            );
+            assert!(
+                s.get("input_schema").is_none(),
+                "{} ha ancora il nome vecchio",
+                s["name"]
+            );
             assert_eq!(s["inputSchema"]["type"], "object");
             let n = s["name"].as_str().unwrap();
-            assert!(!tools::FUORI_DA_ESEGUI.contains(&n), "{n} non doveva uscire");
+            assert!(
+                !tools::FUORI_DA_ESEGUI.contains(&n),
+                "{n} non doveva uscire"
+            );
         }
     }
 
@@ -239,15 +278,23 @@ mod prove {
         let m = motivo_non_esposto("proponi_modifica");
         assert!(m.contains("sola lettura"), "{m}");
         assert!(m.contains("editor"), "{m}");
-        assert_eq!(motivo_non_esposto("pippo"), "strumento sconosciuto: `pippo`");
+        assert_eq!(
+            motivo_non_esposto("pippo"),
+            "strumento sconosciuto: `pippo`"
+        );
     }
 
     #[tokio::test]
     async fn una_notifica_non_riceve_risposta() {
         // `rispondi` vuole uno `AppState`, ma una notifica esce prima di
         // toccarlo: il percorso si prova sulla sola analisi del messaggio.
-        let msg: Value = serde_json::from_str(r#"{"jsonrpc":"2.0","method":"notifications/initialized"}"#).unwrap();
-        assert!(msg.get("id").is_none(), "una notifica non ha id, ed è l'unica cosa che conta qui");
+        let msg: Value =
+            serde_json::from_str(r#"{"jsonrpc":"2.0","method":"notifications/initialized"}"#)
+                .unwrap();
+        assert!(
+            msg.get("id").is_none(),
+            "una notifica non ha id, ed è l'unica cosa che conta qui"
+        );
     }
 
     #[test]
@@ -261,6 +308,9 @@ mod prove {
     fn il_testo_di_un_risultato_e_json_leggibile() {
         assert_eq!(testo(&json!("ciao")), "ciao");
         let t = testo(&json!({ "a": 1 }));
-        assert!(t.contains('\n'), "un oggetto su una riga sola non si legge: {t}");
+        assert!(
+            t.contains('\n'),
+            "un oggetto su una riga sola non si legge: {t}"
+        );
     }
 }

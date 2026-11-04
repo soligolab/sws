@@ -80,7 +80,10 @@ fn genera() -> String {
     let mut buf = [0u8; SIMBOLI];
     OsRng.fill_bytes(&mut buf);
     // 256 e multiplo di 32: il modulo non pende verso nessun simbolo.
-    let grezzo: String = buf.iter().map(|b| ALFABETO[(*b % 32) as usize] as char).collect();
+    let grezzo: String = buf
+        .iter()
+        .map(|b| ALFABETO[(*b % 32) as usize] as char)
+        .collect();
     format!("{}-{}", &grezzo[..4], &grezzo[4..])
 }
 
@@ -118,11 +121,20 @@ impl Identita {
         let adesso = Instant::now();
         mappa.retain(|_, v| adesso.duration_since(v.nato) < VITA_CODICE);
         let k = (chiave(email), scopo);
-        if mappa.get(&k).is_some_and(|v| adesso.duration_since(v.nato) < INTERVALLO_INVII) {
+        if mappa
+            .get(&k)
+            .is_some_and(|v| adesso.duration_since(v.nato) < INTERVALLO_INVII)
+        {
             return None;
         }
         let codice = genera();
-        mappa.insert(k, InVolo { codice: codice.clone(), nato: adesso });
+        mappa.insert(
+            k,
+            InVolo {
+                codice: codice.clone(),
+                nato: adesso,
+            },
+        );
         Some(codice)
     }
 
@@ -131,7 +143,9 @@ impl Identita {
     fn consuma(&self, email: &str, scopo: Scopo, scritto: &str) -> Result<(), Rifiuto> {
         let k = chiave(email);
         if let Some(attesa) = self.blocco_residuo(&k) {
-            return Err(Rifiuto::Bloccato { riprova_fra: attesa });
+            return Err(Rifiuto::Bloccato {
+                riprova_fra: attesa,
+            });
         }
         let mut mappa = self.codici.lock().unwrap();
         let chiave_mappa = (k.clone(), scopo);
@@ -222,7 +236,10 @@ impl Identita {
                     // codice valido: `normalizza` non produce mai la stringa vuota.
                     self.codici.lock().unwrap().insert(
                         (chiave(&email), Scopo::Registrazione),
-                        InVolo { codice: String::new(), nato: Instant::now() },
+                        InVolo {
+                            codice: String::new(),
+                            nato: Instant::now(),
+                        },
                     );
                     Registrato::GiaIscritto
                 }
@@ -273,10 +290,17 @@ impl Identita {
         // Il nome dell'azienda e l'indirizzo, che e unico fra gli utenti ma non
         // per forza fra le aziende: una creata a mano dalla console puo
         // chiamarsi cosi. In quel caso si aggiunge l'id, che non collide mai.
-        let azienda = match self.crea_azienda_personale(email_pulita, id, Some(PROGETTI_PERSONALI)).await {
+        let azienda = match self
+            .crea_azienda_personale(email_pulita, id, Some(PROGETTI_PERSONALI))
+            .await
+        {
             Ok(a) => a,
             Err(_) => self
-                .crea_azienda_personale(&format!("{email_pulita} ({id})"), id, Some(PROGETTI_PERSONALI))
+                .crea_azienda_personale(
+                    &format!("{email_pulita} ({id})"),
+                    id,
+                    Some(PROGETTI_PERSONALI),
+                )
                 .await
                 .map_err(|e| {
                     warn!(email = %email_pulita, "azienda personale non creata: {e:#}");
@@ -363,11 +387,19 @@ mod test {
 
     async fn archivio() -> (Identita, tempfile::TempDir) {
         let dir = tempfile::tempdir().unwrap();
-        let id = Identita::apri(dir.path().join("identita.db")).await.unwrap();
-        // Il primo utente e il maintainer: la registrazione arriva dopo.
-        id.crea_utente("admin@sws.it", "Admin", "password-lunga", Ruolo::Amministratore, false)
+        let id = Identita::apri(dir.path().join("identita.db"))
             .await
             .unwrap();
+        // Il primo utente e il maintainer: la registrazione arriva dopo.
+        id.crea_utente(
+            "admin@sws.it",
+            "Admin",
+            "password-lunga",
+            Ruolo::Amministratore,
+            false,
+        )
+        .await
+        .unwrap();
         (id, dir)
     }
 
@@ -376,7 +408,11 @@ mod test {
         assert_eq!(normalizza("abcd efgh").as_deref(), Some("ABCD-EFGH"));
         assert_eq!(normalizza("0ilo-1234").as_deref(), Some("0110-1234"));
         assert_eq!(normalizza("ABCD-EFG"), None);
-        assert_eq!(normalizza("ABCD-EFGU"), None, "U non e nell'alfabeto Crockford");
+        assert_eq!(
+            normalizza("ABCD-EFGU"),
+            None,
+            "U non e nell'alfabeto Crockford"
+        );
         let c = genera();
         assert_eq!(normalizza(&c).as_deref(), Some(c.as_str()));
     }
@@ -384,14 +420,28 @@ mod test {
     #[tokio::test]
     async fn registrazione_conferma_e_azienda_personale() {
         let (id, _d) = archivio().await;
-        let Registrato::Codice(codice) = id.registra("Mario@Tizio.it", "password-lunga").await.unwrap()
+        let Registrato::Codice(codice) = id
+            .registra("Mario@Tizio.it", "password-lunga")
+            .await
+            .unwrap()
         else {
             panic!("serviva un codice");
         };
         // Prima della conferma non si entra, e lo si dice solo a password giusta.
-        assert_eq!(id.accedi("mario@tizio.it", "sbagliata!").await.unwrap_err(), Rifiuto::CredenzialiErrate);
-        assert_eq!(id.accedi("mario@tizio.it", "password-lunga").await.unwrap_err(), Rifiuto::DaConfermare);
-        assert!(id.chiedi_pin("mario@tizio.it").await.is_none(), "niente PIN a chi non ha confermato");
+        assert_eq!(
+            id.accedi("mario@tizio.it", "sbagliata!").await.unwrap_err(),
+            Rifiuto::CredenzialiErrate
+        );
+        assert_eq!(
+            id.accedi("mario@tizio.it", "password-lunga")
+                .await
+                .unwrap_err(),
+            Rifiuto::DaConfermare
+        );
+        assert!(
+            id.chiedi_pin("mario@tizio.it").await.is_none(),
+            "niente PIN a chi non ha confermato"
+        );
 
         let (accesso, azienda) = id
             .conferma_registrazione("mario@tizio.it", &codice.to_lowercase())
@@ -401,20 +451,32 @@ mod test {
         assert!(azienda.personale);
         assert_eq!(azienda.max_progetti_totali, Some(PROGETTI_PERSONALI));
         assert_eq!(azienda.cartella, format!("u{}", azienda.id));
-        assert_eq!(id.valida(&accesso.token).await.unwrap().email, "Mario@Tizio.it");
+        assert_eq!(
+            id.valida(&accesso.token).await.unwrap().email,
+            "Mario@Tizio.it"
+        );
         // Il codice e monouso.
-        assert!(id.conferma_registrazione("mario@tizio.it", &codice).await.is_err());
+        assert!(id
+            .conferma_registrazione("mario@tizio.it", &codice)
+            .await
+            .is_err());
         assert!(id.accedi("mario@tizio.it", "password-lunga").await.is_ok());
     }
 
     #[tokio::test]
     async fn un_iscritto_non_si_riregistra_e_non_si_capisce_da_fuori() {
         let (id, _d) = archivio().await;
-        assert_eq!(id.registra("admin@sws.it", "altra-password").await.unwrap(), Registrato::GiaIscritto);
+        assert_eq!(
+            id.registra("admin@sws.it", "altra-password").await.unwrap(),
+            Registrato::GiaIscritto
+        );
         // La password dell'iscritto non e cambiata.
         assert!(id.accedi("admin@sws.it", "password-lunga").await.is_ok());
         // E una seconda prova subito dopo non manda un'altra e-mail.
-        assert_eq!(id.registra("admin@sws.it", "altra-password").await.unwrap(), Registrato::TroppoPresto);
+        assert_eq!(
+            id.registra("admin@sws.it", "altra-password").await.unwrap(),
+            Registrato::TroppoPresto
+        );
     }
 
     #[tokio::test]
@@ -422,19 +484,35 @@ mod test {
         let (id, _d) = archivio().await;
         assert!(id.chiedi_pin("nessuno@sws.it").await.is_none());
         let pin = id.chiedi_pin("ADMIN@sws.it").await.unwrap();
-        assert!(id.chiedi_pin("admin@sws.it").await.is_none(), "uno al minuto");
-        let a = id.accedi_con_pin("admin@sws.it", &pin, Some(DURATA_RICORDAMI)).await.unwrap();
+        assert!(
+            id.chiedi_pin("admin@sws.it").await.is_none(),
+            "uno al minuto"
+        );
+        let a = id
+            .accedi_con_pin("admin@sws.it", &pin, Some(DURATA_RICORDAMI))
+            .await
+            .unwrap();
         // «Ricordami» dura 30 giorni e resta 30 giorni anche dopo il rinnovo.
         let trenta = DURATA_RICORDAMI.as_millis() as u64;
         assert!(a.scade_ms > ora_ms() + trenta - 60_000);
         id.valida(&a.token).await.unwrap();
         let c = id.conn.lock().unwrap();
         let scade: i64 = c
-            .query_row("SELECT scade_ms FROM sessioni WHERE impronta_token = ?1", params![impronta(&a.token)], |r| r.get(0))
+            .query_row(
+                "SELECT scade_ms FROM sessioni WHERE impronta_token = ?1",
+                params![impronta(&a.token)],
+                |r| r.get(0),
+            )
             .unwrap();
-        assert!(scade as u64 > ora_ms() + trenta - 60_000, "il rinnovo non deve tornare a 8 ore");
+        assert!(
+            scade as u64 > ora_ms() + trenta - 60_000,
+            "il rinnovo non deve tornare a 8 ore"
+        );
         drop(c);
-        assert!(id.accedi_con_pin("admin@sws.it", &pin, None).await.is_err(), "monouso");
+        assert!(
+            id.accedi_con_pin("admin@sws.it", &pin, None).await.is_err(),
+            "monouso"
+        );
     }
 
     #[tokio::test]
@@ -450,7 +528,13 @@ mod test {
             id.accedi_con_pin("admin@sws.it", &pin, None).await,
             Err(Rifiuto::Bloccato { .. })
         ));
-        assert!(id.codice_in_volo("admin@sws.it", Scopo::Accesso).is_none(), "il PIN e stato buttato");
-        assert!(id.chiedi_pin("admin@sws.it").await.is_none(), "niente PIN nuovi mentre si e bloccati");
+        assert!(
+            id.codice_in_volo("admin@sws.it", Scopo::Accesso).is_none(),
+            "il PIN e stato buttato"
+        );
+        assert!(
+            id.chiedi_pin("admin@sws.it").await.is_none(),
+            "niente PIN nuovi mentre si e bloccati"
+        );
     }
 }

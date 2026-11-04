@@ -272,13 +272,19 @@ fn scheda_tecnica(progetto: &StdPath) -> (Option<String>, Option<String>) {
         None | Some("web") => Some("web".to_string()),
         Some(_) => Some("lvgl".to_string()),
     };
-    let risoluzione = sch.page_layout.and_then(|l| match (l.default_width, l.default_height) {
-        (Some(w), Some(h)) if w > 0.0 && h > 0.0 => Some(format!("{}×{}", w.round() as i64, h.round() as i64)),
-        // Niente pixel: se il progetto ragiona per proporzione, quella è la
-        // sua misura. Le pagine fluide non ne hanno, ed è giusto che la
-        // casella resti vuota invece di inventare un numero.
-        _ => (l.size_mode.as_deref() == Some("ratio")).then(|| l.aspect_ratio).flatten(),
-    });
+    let risoluzione = sch
+        .page_layout
+        .and_then(|l| match (l.default_width, l.default_height) {
+            (Some(w), Some(h)) if w > 0.0 && h > 0.0 => {
+                Some(format!("{}×{}", w.round() as i64, h.round() as i64))
+            }
+            // Niente pixel: se il progetto ragiona per proporzione, quella è la
+            // sua misura. Le pagine fluide non ne hanno, ed è giusto che la
+            // casella resti vuota invece di inventare un numero.
+            _ => (l.size_mode.as_deref() == Some("ratio"))
+                .then_some(l.aspect_ratio)
+                .flatten(),
+        });
     (motore, risoluzione)
 }
 
@@ -286,7 +292,13 @@ fn scheda_tecnica(progetto: &StdPath) -> (Option<String>, Option<String>) {
 /// database e le loro copie). `None` se la cartella non c'è.
 fn peso_storico(progetto: &StdPath) -> Option<u64> {
     let rd = std::fs::read_dir(progetto.join("history")).ok()?;
-    Some(rd.flatten().filter_map(|e| e.metadata().ok()).filter(|m| m.is_file()).map(|m| m.len()).sum())
+    Some(
+        rd.flatten()
+            .filter_map(|e| e.metadata().ok())
+            .filter(|m| m.is_file())
+            .map(|m| m.len())
+            .sum(),
+    )
 }
 
 #[derive(Deserialize)]
@@ -505,11 +517,16 @@ pub async fn list_projects(
                 if name.starts_with('.') {
                     continue;
                 }
-                let Ok(meta) = tokio::fs::metadata(&path).await else { continue };
+                let Ok(meta) = tokio::fs::metadata(&path).await else {
+                    continue;
+                };
                 if !meta.is_dir() {
                     continue;
                 }
-                if !tokio::fs::try_exists(path.join("project.yaml")).await.unwrap_or(false) {
+                if !tokio::fs::try_exists(path.join("project.yaml"))
+                    .await
+                    .unwrap_or(false)
+                {
                     continue;
                 }
                 let last_modified_ms = meta
@@ -517,8 +534,7 @@ pub async fn list_projects(
                     .ok()
                     .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
                     .map(|d| d.as_millis() as u64);
-                let riferimento =
-                    crate::project_registry::riferimento(&azienda.cartella, &name);
+                let riferimento = crate::project_registry::riferimento(&azienda.cartella, &name);
                 per_riferimento.insert(
                     riferimento.clone(),
                     ProjectListEntry {
@@ -706,11 +722,16 @@ pub struct Appartenenze {
 }
 
 pub async fn appartenenze_di(s: &AppState, chi: Option<&crate::router::AuthUser>) -> Appartenenze {
-    let fuori = Appartenenze { fuori_dal_modello: true, ..Default::default() };
+    let fuori = Appartenenze {
+        fuori_dal_modello: true,
+        ..Default::default()
+    };
     let (Some(identita), Some(chi)) = (s.identita.as_ref(), chi) else {
         return fuori;
     };
-    let Ok(utenti) = identita.elenca().await else { return fuori };
+    let Ok(utenti) = identita.elenca().await else {
+        return fuori;
+    };
     let Some(io) = utenti.iter().find(|u| u.email == chi.username) else {
         return fuori;
     };
@@ -758,8 +779,7 @@ pub async fn risolvi_progetto(
     azienda: &str,
     nome: &str,
 ) -> Result<Progetto, Response> {
-    let nome = safe_project_name(nome)
-        .map_err(|m| (StatusCode::BAD_REQUEST, m).into_response())?;
+    let nome = safe_project_name(nome).map_err(|m| (StatusCode::BAD_REQUEST, m).into_response())?;
     // Il segmento dell'azienda passa dallo stesso setaccio del nome: è un
     // pezzo di percorso quanto l'altro, e `..` qui varrebbe `..` lì.
     if azienda != crate::project_registry::AZIENDA_IMPLICITA {
@@ -1033,7 +1053,13 @@ pub async fn create_project(
         let scelta = (segmento_azienda != crate::project_registry::AZIENDA_IMPLICITA)
             .then_some(segmento_azienda.as_str());
         let piattaforma = chi.as_ref().is_some_and(|c| c.amministratore_piattaforma);
-        if visibilita(scelta, &appartenenze.cartelle, appartenenze.implicita, piattaforma).is_none()
+        if visibilita(
+            scelta,
+            &appartenenze.cartelle,
+            appartenenze.implicita,
+            piattaforma,
+        )
+        .is_none()
         {
             return (StatusCode::NOT_FOUND, "project not found").into_response();
         }
@@ -1404,7 +1430,8 @@ pub async fn apply_tags(
     // composito, e `set` deve già sapere che `motore1` è una radice.
     let forme = build_forme(tags, types);
     db.set_forme(forme.clone()).await;
-    db.set_tipi_struttura(build_tipi_struttura(tags, types)).await;
+    db.set_tipi_struttura(build_tipi_struttura(tags, types))
+        .await;
     let mut seminati = 0;
     for t in tags.iter().filter(|t| !attuali.contains(&t.id)) {
         let iniziale = match forme.get(&t.id) {
@@ -1493,7 +1520,10 @@ pub async fn apply_loaded_project(
         // stiamo lasciando, e dopo non la guarda più nessuno.
         let quanti = vecchio.svuota().await;
         if quanti > 0 {
-            info!(campioni = quanti, "storico: coda scritta prima di cambiare progetto");
+            info!(
+                campioni = quanti,
+                "storico: coda scritta prima di cambiare progetto"
+            );
         }
         vecchio.chiudi();
     }
@@ -1529,7 +1559,9 @@ pub async fn apply_loaded_project(
     // `load` chiude come interrotte le righe ancora aperte e le passa al
     // callback attuale, cioè allo store del progetto a cui appartenevano: va
     // chiamato **prima** di agganciare quello nuovo.
-    alarms.carica(project.alarms, Some(project_dir.to_path_buf())).await;
+    alarms
+        .carica(project.alarms, Some(project_dir.to_path_buf()))
+        .await;
     // Lo storico allarmi → SQLite, se c'è uno store.
     //
     // **Uno scrittore solo** (25-09-2026): dalla stessa data ogni scatto
@@ -1547,9 +1579,14 @@ pub async fn apply_loaded_project(
         // prima che gli allarmi di questo giro comincino a scrivere — tranne
         // gli scatti che `carica` ha appena ripreso, ancora in corso.
         let vive = alarms.eventi_aperti().await;
-        let chiuse = store.chiudi_eventi_interrotti(sws_core::now_ms(), &vive).await;
+        let chiuse = store
+            .chiudi_eventi_interrotti(sws_core::now_ms(), &vive)
+            .await;
         if chiuse > 0 {
-            info!(chiuse, "storico allarmi: righe rimaste aperte chiuse come interrotte");
+            info!(
+                chiuse,
+                "storico allarmi: righe rimaste aperte chiuse come interrotte"
+            );
         }
         let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel::<sws_core::AlarmEvent>();
         tokio::spawn(async move {
@@ -1612,7 +1649,11 @@ pub async fn open_project(
         return (StatusCode::NOT_FOUND, "project not found").into_response();
     }
     if crate::archivio::e_archiviato(&project_dir) {
-        return (StatusCode::CONFLICT, "il progetto è archiviato: ripristinalo per aprirlo").into_response();
+        return (
+            StatusCode::CONFLICT,
+            "il progetto è archiviato: ripristinalo per aprirlo",
+        )
+            .into_response();
     }
     {
         // Q30: la migrazione riscrive project.yaml (il percorso SQLite di
@@ -1739,7 +1780,10 @@ pub async fn open_project(
         warn!("open_project: could not write .active-project marker: {e}");
     }
     *s.project_dir.write().await = Some(project_dir.clone());
-    *s.aperto_da.lock().unwrap() = chi.as_ref().map(|e| e.0.username.clone()).filter(|u| !u.is_empty());
+    *s.aperto_da.lock().unwrap() = chi
+        .as_ref()
+        .map(|e| e.0.username.clone())
+        .filter(|u| !u.is_empty());
 
     // Progetto diverso da quello di prima: chi ne sta disegnando una pagina
     // deve ricominciare da capo (Q20).
@@ -1826,8 +1870,8 @@ pub async fn close_project(State(s): State<AppState>) -> Response {
     // Nessun tag: azzera scale, ruoli, tipi, calcolati, derivati e generatori.
     apply_tags(&s.db, &s.derived_tags, &s.generator_tags, &[], &[]).await;
     s.historian.swap_store(None).await; // RAM-only between projects
-    // Messo da parte, non buttato: se si riapre lo stesso progetto (un deploy
-    // fa chiudi → sostituisci → riapri) gli allarmi riprendono il loro stato.
+                                        // Messo da parte, non buttato: se si riapre lo stesso progetto (un deploy
+                                        // fa chiudi → sostituisci → riapri) gli allarmi riprendono il loro stato.
     s.alarms.chiudi().await;
     s.functions.write().await.clear();
     s.recipe_log.write().await.clear();
@@ -1950,7 +1994,10 @@ pub fn spazio_di_azienda(
             continue;
         }
         let nome = e.file_name().to_string_lossy().to_string();
-        if tutte.iter().any(|x| !x.cartella.is_empty() && x.cartella == nome) {
+        if tutte
+            .iter()
+            .any(|x| !x.cartella.is_empty() && x.cartella == nome)
+        {
             continue;
         }
         let (pp, ss) = pesa_cartella(&e.path());
@@ -1974,7 +2021,9 @@ pub fn quanti_progetti(
     tutte: &[sws_identita::Azienda],
 ) -> usize {
     let conta = |dir: &StdPath, salta_aziende: bool| {
-        let Ok(rd) = std::fs::read_dir(dir) else { return 0usize };
+        let Ok(rd) = std::fs::read_dir(dir) else {
+            return 0usize;
+        };
         rd.flatten()
             .filter(|e| e.file_type().map(|t| t.is_dir()).unwrap_or(false))
             .filter(|e| {
@@ -1982,7 +2031,9 @@ pub fn quanti_progetti(
                     return true;
                 }
                 let nome = e.file_name().to_string_lossy().to_string();
-                !tutte.iter().any(|x| !x.cartella.is_empty() && x.cartella == nome)
+                !tutte
+                    .iter()
+                    .any(|x| !x.cartella.is_empty() && x.cartella == nome)
             })
             .count()
     };
@@ -2056,12 +2107,14 @@ pub async fn quota_spazio(s: &AppState, azienda_id: Option<i64>) -> Option<Stato
     massimo?;
     let radice = s.projects_root.as_ref().clone();
     let tutte2 = tutte.clone();
-    let (p, st) = tokio::task::spawn_blocking(move || {
-        spazio_di_azienda(&radice, &azienda, &tutte2)
+    let (p, st) =
+        tokio::task::spawn_blocking(move || spazio_di_azienda(&radice, &azienda, &tutte2))
+            .await
+            .ok()?;
+    Some(StatoQuota {
+        usato: p + st,
+        massimo,
     })
-    .await
-    .ok()?;
-    Some(StatoQuota { usato: p + st, massimo })
 }
 
 /// Il rifiuto, se la quota è piena. `None` = si può procedere.
@@ -2121,7 +2174,9 @@ pub async fn rifiuta_se_piena(s: &AppState, azienda_id: Option<i64>) -> Option<R
 /// appartiene alla cartella che lo contiene. Il percorso è il fatto.
 pub fn segmento_da_percorso(radice: &StdPath, dir: &StdPath) -> String {
     let implicita = crate::project_registry::AZIENDA_IMPLICITA.to_string();
-    let Some(genitore) = dir.parent() else { return implicita };
+    let Some(genitore) = dir.parent() else {
+        return implicita;
+    };
     if genitore == radice {
         return implicita;
     }
@@ -2211,13 +2266,13 @@ async fn azienda_di_destinazione(s: &AppState, parent: Option<&str>) -> Option<i
     }
     let identita = s.identita.as_ref()?;
     let aziende = identita.elenca_aziende().await.ok()?;
-    aziende.iter().find(|a| a.cartella == segmento).map(|a| a.id)
+    aziende
+        .iter()
+        .find(|a| a.cartella == segmento)
+        .map(|a| a.id)
 }
 
-async fn cartella_dell_azienda(
-    s: &AppState,
-    azienda_id: Option<i64>,
-) -> Result<PathBuf, String> {
+async fn cartella_dell_azienda(s: &AppState, azienda_id: Option<i64>) -> Result<PathBuf, String> {
     let radice = s.projects_root.as_ref().clone();
     let (Some(id), Some(identita)) = (azienda_id, s.identita.as_ref()) else {
         return Ok(radice);
@@ -2321,7 +2376,9 @@ pub(crate) fn deve_svuotare_utenti(replace_users: Option<bool>, bundle_ha_utenti
 /// Silenziosa di proposito: su un'installazione locale non c'e nessuna regia,
 /// e un progetto non aperto non e un errore da riportare a chi sta cancellando.
 async fn spegni_container(s: &AppState, chiave: &str) {
-    let Some(regia) = s.regia.as_ref() else { return };
+    let Some(regia) = s.regia.as_ref() else {
+        return;
+    };
     if let Err(e) = regia.chiudi(chiave).await {
         // Vale la pena saperlo: se il container resta su, la cartella nuova
         // non la vedra. Ma non ferma la cancellazione — il progetto se ne va
@@ -2489,7 +2546,9 @@ pub async fn rename_project(
             )
                 .into_response();
         }
-        s.known_projects.rename_key(&chiave_vecchia, &chiave_nuova).await;
+        s.known_projects
+            .rename_key(&chiave_vecchia, &chiave_nuova)
+            .await;
         info!(old = %old_name, new = %new_name, path = %old_dir.display(), "external project renamed (folder unchanged)");
         return Json(serde_json::json!({ "name": new_name })).into_response();
     }
@@ -3517,7 +3576,9 @@ fn ha_sorgenti_con_indirizzi(doc: &serde_yaml::Value) -> bool {
         .and_then(|s| s.as_sequence())
         .is_some_and(|v| {
             v.iter().any(|s| {
-                s.get("kind").and_then(|k| k.as_str()).is_none_or(|k| !SORGENTI_LOCALI.contains(&k))
+                s.get("kind")
+                    .and_then(|k| k.as_str())
+                    .is_none_or(|k| !SORGENTI_LOCALI.contains(&k))
             })
         })
 }
@@ -3794,7 +3855,10 @@ mod tests {
         ];
         apply_tags(&db, &derived, &generators, &tags, &tipi).await;
 
-        assert_eq!(db.tipo_struttura("motore1").await.as_deref(), Some("Motore"));
+        assert_eq!(
+            db.tipo_struttura("motore1").await.as_deref(),
+            Some("Motore")
+        );
         assert_eq!(
             db.tipo_struttura("motore2").await.as_deref(),
             Some("Motore"),
@@ -3805,7 +3869,11 @@ mod tests {
             None,
             "un array di scalari è una radice, ma non è una struttura da pubblicare"
         );
-        assert_eq!(db.tipo_struttura("temperatura").await, None, "uno scalare non ha un tipo struttura");
+        assert_eq!(
+            db.tipo_struttura("temperatura").await,
+            None,
+            "uno scalare non ha un tipo struttura"
+        );
         assert_eq!(
             db.tipo_struttura("rotto").await,
             None,
@@ -3915,10 +3983,16 @@ mod tests {
     #[test]
     fn solo_le_sorgenti_con_indirizzi_vanno_rivedute() {
         let y = |t: &str| serde_yaml::from_str::<serde_yaml::Value>(t).unwrap();
-        assert!(!ha_sorgenti_con_indirizzi(&y("sources:\n- kind: host\n  id: h\n")));
+        assert!(!ha_sorgenti_con_indirizzi(&y(
+            "sources:\n- kind: host\n  id: h\n"
+        )));
         assert!(!ha_sorgenti_con_indirizzi(&y("meta: {name: x}\n")));
-        assert!(ha_sorgenti_con_indirizzi(&y("sources:\n- kind: host\n  id: h\n- kind: modbus\n  id: m\n")));
-        assert!(ha_sorgenti_con_indirizzi(&y("sources:\n- id: senza_kind\n")));
+        assert!(ha_sorgenti_con_indirizzi(&y(
+            "sources:\n- kind: host\n  id: h\n- kind: modbus\n  id: m\n"
+        )));
+        assert!(ha_sorgenti_con_indirizzi(&y(
+            "sources:\n- id: senza_kind\n"
+        )));
     }
 
     #[tokio::test]
@@ -3964,13 +4038,19 @@ mod tests {
             let opts = zip::write::SimpleFileOptions::default()
                 .compression_method(zip::CompressionMethod::Deflated);
             z.start_file("project.yaml", opts).unwrap();
-            z.write_all("meta:\n  name: compresso\n".repeat(20).as_bytes()).unwrap();
+            z.write_all("meta:\n  name: compresso\n".repeat(20).as_bytes())
+                .unwrap();
             z.finish().unwrap();
         }
         let mut a = zip::ZipArchive::new(Cursor::new(buf.as_slice())).unwrap();
-        assert_eq!(a.by_index(0).unwrap().compression(), zip::CompressionMethod::Deflated);
+        assert_eq!(
+            a.by_index(0).unwrap().compression(),
+            zip::CompressionMethod::Deflated
+        );
         let letto = read_zip_entry(&mut a, "project.yaml").unwrap().unwrap();
-        assert!(String::from_utf8(letto).unwrap().starts_with("meta:\n  name: compresso"));
+        assert!(String::from_utf8(letto)
+            .unwrap()
+            .starts_with("meta:\n  name: compresso"));
     }
 
     // ── Chi decide di `users.yaml` in un upload (2026-09-11) ────────────────
@@ -4266,9 +4346,15 @@ datastores:
         let implicita = crate::project_registry::AZIENDA_IMPLICITA;
 
         // Nella radice: azienda implicita.
-        assert_eq!(segmento_da_percorso(radice, std::path::Path::new("/p/impianto")), implicita);
+        assert_eq!(
+            segmento_da_percorso(radice, std::path::Path::new("/p/impianto")),
+            implicita
+        );
         // Dentro la cartella di un'azienda: quella.
-        assert_eq!(segmento_da_percorso(radice, std::path::Path::new("/p/acme/impianto")), "acme");
+        assert_eq!(
+            segmento_da_percorso(radice, std::path::Path::new("/p/acme/impianto")),
+            "acme"
+        );
         // **Il caso del difetto**: un `parent_path` che punta a un'altra
         // azienda non può più passare per implicito. Prima il codice forzava
         // `-` qui, e nasceva il disallineamento.
@@ -4277,7 +4363,10 @@ datastores:
             implicita,
             "il percorso dice «altra»: chiamarlo implicito e' il difetto"
         );
-        assert_eq!(segmento_da_percorso(radice, std::path::Path::new("/p/altra/impianto")), "altra");
+        assert_eq!(
+            segmento_da_percorso(radice, std::path::Path::new("/p/altra/impianto")),
+            "altra"
+        );
         // Più di un livello non è una cartella d'azienda.
         assert_eq!(
             segmento_da_percorso(radice, std::path::Path::new("/p/acme/sotto/impianto")),
@@ -4383,11 +4472,17 @@ datastores:
         // `-` nell'indirizzo = azienda implicita = `None` qui.
         assert_eq!(visibilita(None, &mie_cartelle, true, false), Some(false));
         assert_eq!(visibilita(None, &mie_cartelle, false, false), None);
-        assert_eq!(visibilita(Some("sws"), &mie_cartelle, false, false), Some(false));
+        assert_eq!(
+            visibilita(Some("sws"), &mie_cartelle, false, false),
+            Some(false)
+        );
         // Un'azienda che non e tua: 404, perche `None` qui diventa 404 la.
         assert_eq!(visibilita(Some("pixsys"), &mie_cartelle, true, false), None);
         // L'amministratore di piattaforma passa, come nell'elenco.
-        assert_eq!(visibilita(Some("pixsys"), &mie_cartelle, true, true), Some(true));
+        assert_eq!(
+            visibilita(Some("pixsys"), &mie_cartelle, true, true),
+            Some(true)
+        );
     }
 
     /// Il segmento dell'azienda si ricava da **dove sta** il progetto.
@@ -4396,15 +4491,27 @@ datastores:
         use super::segmento_da_percorso;
         let radice = StdPath::new("/progetti");
         // Subito sotto la radice: azienda implicita.
-        assert_eq!(segmento_da_percorso(radice, StdPath::new("/progetti/impianto")), "-");
+        assert_eq!(
+            segmento_da_percorso(radice, StdPath::new("/progetti/impianto")),
+            "-"
+        );
         // Un livello piu sotto: la cartella e l'azienda.
-        assert_eq!(segmento_da_percorso(radice, StdPath::new("/progetti/acme/impianto")), "acme");
+        assert_eq!(
+            segmento_da_percorso(radice, StdPath::new("/progetti/acme/impianto")),
+            "acme"
+        );
         // Fuori dalla radice — un progetto «esterno» — non sta in nessuna
         // azienda: implicita, come e sempre stato.
-        assert_eq!(segmento_da_percorso(radice, StdPath::new("/altrove/impianto")), "-");
+        assert_eq!(
+            segmento_da_percorso(radice, StdPath::new("/altrove/impianto")),
+            "-"
+        );
         // Due livelli sotto non e una cartella d'azienda: non si inventa
         // un'azienda da un percorso che non ha quella forma.
-        assert_eq!(segmento_da_percorso(radice, StdPath::new("/progetti/a/b/impianto")), "-");
+        assert_eq!(
+            segmento_da_percorso(radice, StdPath::new("/progetti/a/b/impianto")),
+            "-"
+        );
     }
 
     /// Chi non e di quell'azienda non vede quei progetti; l'amministratore di
@@ -4418,7 +4525,10 @@ datastores:
         let mie = vec!["Soligonet".to_string()];
 
         // I propri: visibili e non contrassegnati.
-        assert_eq!(visibilita(Some("Soligonet"), &mie, false, false), Some(false));
+        assert_eq!(
+            visibilita(Some("Soligonet"), &mie, false, false),
+            Some(false)
+        );
         // Quelli dell'azienda implicita, se ne fai parte.
         assert_eq!(visibilita(None, &mie, true, false), Some(false));
         assert_eq!(visibilita(None, &mie, false, false), None);

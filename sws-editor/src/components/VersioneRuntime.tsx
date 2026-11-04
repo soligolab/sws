@@ -1,5 +1,5 @@
 import { useTranslation } from "react-i18next";
-import { usaVersioneRuntime } from "@/versioneRuntime";
+import { useVersioneRuntime } from "@/versioneRuntime";
 
 /** La versione del runtime in uso, scritta piccola accanto al marchio.
  *
@@ -12,7 +12,7 @@ import { usaVersioneRuntime } from "@/versioneRuntime";
  *  meglio niente che una versione falsa. */
 export function VersioneRuntime() {
   const { t } = useTranslation();
-  const versione = usaVersioneRuntime();
+  const versione = useVersioneRuntime();
   if (!versione) return null;
   return (
     <span

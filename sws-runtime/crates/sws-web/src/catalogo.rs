@@ -48,7 +48,10 @@ pub struct Radici {
 
 impl Radici {
     pub fn da(s: &AppState) -> Self {
-        Self { utente: s.config_dir.join(CARTELLA_UTENTE), prodotto: (*s.catalog_root).clone() }
+        Self {
+            utente: s.config_dir.join(CARTELLA_UTENTE),
+            prodotto: (*s.catalog_root).clone(),
+        }
     }
 
     /// Il file `<marca>/<nome>` e da dove viene: l'utente vince.
@@ -70,7 +73,8 @@ impl Radici {
 fn nome_sicuro(s: &str) -> bool {
     !s.is_empty()
         && !s.starts_with('.')
-        && s.chars().all(|c| c.is_ascii_alphanumeric() || matches!(c, '_' | '-' | '.'))
+        && s.chars()
+            .all(|c| c.is_ascii_alphanumeric() || matches!(c, '_' | '-' | '.'))
         && !s.contains("..")
 }
 
@@ -129,21 +133,39 @@ pub fn elenco(r: &Radici) -> Elenco {
     let mut voci: Vec<VoceElenco> = Vec::new();
     let mut errori = Vec::new();
     let mut visti: HashSet<String> = HashSet::new();
-    for (radice, origine) in [(&r.utente, Origine::Utente), (&r.prodotto, Origine::Prodotto)] {
-        let Ok(marche) = std::fs::read_dir(radice) else { continue };
-        let mut marche: Vec<_> = marche.flatten().map(|e| e.path()).filter(|p| p.is_dir()).collect();
+    for (radice, origine) in [
+        (&r.utente, Origine::Utente),
+        (&r.prodotto, Origine::Prodotto),
+    ] {
+        let Ok(marche) = std::fs::read_dir(radice) else {
+            continue;
+        };
+        let mut marche: Vec<_> = marche
+            .flatten()
+            .map(|e| e.path())
+            .filter(|p| p.is_dir())
+            .collect();
         marche.sort();
         for dir in marche {
-            let Some(marca) = dir.file_name().and_then(|n| n.to_str()).map(str::to_string) else { continue };
+            let Some(marca) = dir.file_name().and_then(|n| n.to_str()).map(str::to_string) else {
+                continue;
+            };
             if !nome_sicuro(&marca) {
                 continue;
             }
-            let Ok(files) = std::fs::read_dir(&dir) else { continue };
+            let Ok(files) = std::fs::read_dir(&dir) else {
+                continue;
+            };
             let mut files: Vec<_> = files.flatten().map(|e| e.path()).collect();
             files.sort();
             for f in files {
-                let Some(stem) = f.file_stem().and_then(|n| n.to_str()).map(str::to_string) else { continue };
-                if f.extension().and_then(|e| e.to_str()) != Some("json") || stem.starts_with('_') || stem.starts_with('.') {
+                let Some(stem) = f.file_stem().and_then(|n| n.to_str()).map(str::to_string) else {
+                    continue;
+                };
+                if f.extension().and_then(|e| e.to_str()) != Some("json")
+                    || stem.starts_with('_')
+                    || stem.starts_with('.')
+                {
                     continue;
                 }
                 let id = format!("{marca}/{stem}");
@@ -157,48 +179,82 @@ pub fn elenco(r: &Radici) -> Elenco {
                         famiglia: testo(&m, "famiglia"),
                         descrizione: m.get("descrizione").cloned(),
                         immagine: testo(&m, "immagine"),
-                        trasporto: m.get("modbus").and_then(|x| x.get("trasporto")).and_then(Value::as_str).map(str::to_string),
+                        trasporto: m
+                            .get("modbus")
+                            .and_then(|x| x.get("trasporto"))
+                            .and_then(Value::as_str)
+                            .map(str::to_string),
                         id,
                         origine,
                     }),
-                    Err(e) => errori.push(ErroreFile { file: format!("{id}.json ({origine:?})"), errore: e }),
+                    Err(e) => errori.push(ErroreFile {
+                        file: format!("{id}.json ({origine:?})"),
+                        errore: e,
+                    }),
                 }
             }
         }
     }
-    voci.sort_by(|a, b| (a.marca.as_str(), a.famiglia.as_deref(), a.modello.as_str()).cmp(&(b.marca.as_str(), b.famiglia.as_deref(), b.modello.as_str())));
+    voci.sort_by(|a, b| {
+        (a.marca.as_str(), a.famiglia.as_deref(), a.modello.as_str()).cmp(&(
+            b.marca.as_str(),
+            b.famiglia.as_deref(),
+            b.modello.as_str(),
+        ))
+    });
     Elenco { voci, errori }
 }
 
 /// I registri di un file con i suoi `includi` risolti, in ordine: prima gli
 /// inclusi, poi i propri; un nome ripetuto sostituisce il precedente al suo posto.
-fn registri_risolti(r: &Radici, id: &str, aperti: &mut Vec<String>) -> Result<(Map<String, Value>, Vec<Value>), String> {
+fn registri_risolti(
+    r: &Radici,
+    id: &str,
+    aperti: &mut Vec<String>,
+) -> Result<(Map<String, Value>, Vec<Value>), String> {
     if aperti.iter().any(|x| x == id) {
         return Err(format!("include circolare: {} → {id}", aperti.join(" → ")));
     }
     if aperti.len() > 8 {
         return Err("include troppo annidati".into());
     }
-    let (marca, nome) = id.split_once('/').ok_or_else(|| format!("id «{id}» senza marca"))?;
-    let (p, _) = r.trova(marca, &format!("{nome}.json")).ok_or_else(|| format!("«{id}» non trovato"))?;
+    let (marca, nome) = id
+        .split_once('/')
+        .ok_or_else(|| format!("id «{id}» senza marca"))?;
+    let (p, _) = r
+        .trova(marca, &format!("{nome}.json"))
+        .ok_or_else(|| format!("«{id}» non trovato"))?;
     let m = leggi_json(&p).map_err(|e| format!("{id}: {e}"))?;
     aperti.push(id.to_string());
     let mut out: Vec<Value> = Vec::new();
     let unisci = |out: &mut Vec<Value>, reg: Value| {
         let nome = reg.get("nome").and_then(Value::as_str).map(str::to_string);
-        match nome.and_then(|n| out.iter().position(|x| x.get("nome").and_then(Value::as_str) == Some(n.as_str()))) {
+        match nome.and_then(|n| {
+            out.iter()
+                .position(|x| x.get("nome").and_then(Value::as_str) == Some(n.as_str()))
+        }) {
             Some(i) => out[i] = reg,
             None => out.push(reg),
         }
     };
-    for inc in m.get("includi").and_then(Value::as_array).cloned().unwrap_or_default() {
+    for inc in m
+        .get("includi")
+        .and_then(Value::as_array)
+        .cloned()
+        .unwrap_or_default()
+    {
         let inc = inc.as_str().ok_or("«includi» vuole stringhe")?.to_string();
         let (_, regs) = registri_risolti(r, &inc, aperti)?;
         for reg in regs {
             unisci(&mut out, reg);
         }
     }
-    for reg in m.get("registri").and_then(Value::as_array).cloned().unwrap_or_default() {
+    for reg in m
+        .get("registri")
+        .and_then(Value::as_array)
+        .cloned()
+        .unwrap_or_default()
+    {
         unisci(&mut out, reg);
     }
     aperti.pop();
@@ -211,11 +267,15 @@ pub fn voce(r: &Radici, marca: &str, nome: &str) -> Result<Value, (StatusCode, S
     let (_, origine) = r
         .trova(marca, &format!("{nome}.json"))
         .ok_or((StatusCode::NOT_FOUND, format!("«{id}» non è nel catalogo")))?;
-    let (mut m, registri) = registri_risolti(r, &id, &mut Vec::new()).map_err(|e| (StatusCode::UNPROCESSABLE_ENTITY, e))?;
+    let (mut m, registri) = registri_risolti(r, &id, &mut Vec::new())
+        .map_err(|e| (StatusCode::UNPROCESSABLE_ENTITY, e))?;
     m.remove("includi");
     m.insert("id".into(), Value::String(id));
     m.insert("registri".into(), Value::Array(registri));
-    m.insert("origine".into(), serde_json::to_value(origine).unwrap_or(Value::Null));
+    m.insert(
+        "origine".into(),
+        serde_json::to_value(origine).unwrap_or(Value::Null),
+    );
     Ok(Value::Object(m))
 }
 
@@ -230,16 +290,32 @@ pub async fn elenco_handler(State(s): State<AppState>) -> Response {
 
 /// `GET /api/catalogo/dispositivi/:marca/:nome` — un modello (`atr244`) o un
 /// file accanto (`atr244.png`, l'icona).
-pub async fn voce_handler(State(s): State<AppState>, PathEx((marca, nome)): PathEx<(String, String)>) -> Response {
+pub async fn voce_handler(
+    State(s): State<AppState>,
+    PathEx((marca, nome)): PathEx<(String, String)>,
+) -> Response {
     let r = Radici::da(&s);
-    let ext = Path::new(&nome).extension().and_then(|e| e.to_str()).map(str::to_ascii_lowercase);
-    if let Some((_, mime)) = ext.as_deref().and_then(|e| IMMAGINI.iter().find(|(x, _)| *x == e)) {
+    let ext = Path::new(&nome)
+        .extension()
+        .and_then(|e| e.to_str())
+        .map(str::to_ascii_lowercase);
+    if let Some((_, mime)) = ext
+        .as_deref()
+        .and_then(|e| IMMAGINI.iter().find(|(x, _)| *x == e))
+    {
         let mime = *mime;
         let Some((p, _)) = r.trova(&marca, &nome) else {
             return (StatusCode::NOT_FOUND, "immagine non trovata").into_response();
         };
         return match tokio::fs::read(&p).await {
-            Ok(b) => ([(header::CONTENT_TYPE, mime), (header::CACHE_CONTROL, "max-age=300")], b).into_response(),
+            Ok(b) => (
+                [
+                    (header::CONTENT_TYPE, mime),
+                    (header::CACHE_CONTROL, "max-age=300"),
+                ],
+                b,
+            )
+                .into_response(),
             Err(e) => (StatusCode::NOT_FOUND, e.to_string()).into_response(),
         };
     }
@@ -262,14 +338,21 @@ mod tests {
 
     fn radici() -> (tempfile::TempDir, Radici) {
         let t = tempfile::tempdir().unwrap();
-        let r = Radici { utente: t.path().join("utente"), prodotto: t.path().join("prodotto") };
+        let r = Radici {
+            utente: t.path().join("utente"),
+            prodotto: t.path().join("prodotto"),
+        };
         (t, r)
     }
 
     #[test]
     fn include_risolti_e_un_nome_ripetuto_sostituisce() {
         let (_t, r) = radici();
-        scrivi(&r.prodotto, "acme/_comuni.json", r#"{"registri":[{"nome":"fw","indirizzo":1},{"nome":"pv","indirizzo":9}]}"#);
+        scrivi(
+            &r.prodotto,
+            "acme/_comuni.json",
+            r#"{"registri":[{"nome":"fw","indirizzo":1},{"nome":"pv","indirizzo":9}]}"#,
+        );
         scrivi(
             &r.prodotto,
             "acme/x1.json",
@@ -280,29 +363,57 @@ mod tests {
             .as_array()
             .unwrap()
             .iter()
-            .map(|x| (x["nome"].as_str().unwrap().to_string(), x["indirizzo"].as_u64().unwrap()))
+            .map(|x| {
+                (
+                    x["nome"].as_str().unwrap().to_string(),
+                    x["indirizzo"].as_u64().unwrap(),
+                )
+            })
             .collect();
-        assert_eq!(regs, vec![("fw".into(), 1), ("pv".into(), 1000), ("sp".into(), 2000)]);
+        assert_eq!(
+            regs,
+            vec![("fw".into(), 1), ("pv".into(), 1000), ("sp".into(), 2000)]
+        );
         assert_eq!(v["id"], "acme/x1");
         assert!(v.get("includi").is_none());
         // I frammenti non sono nell'elenco.
         let e = elenco(&r);
-        assert_eq!(e.voci.iter().map(|v| v.id.as_str()).collect::<Vec<_>>(), vec!["acme/x1"]);
+        assert_eq!(
+            e.voci.iter().map(|v| v.id.as_str()).collect::<Vec<_>>(),
+            vec!["acme/x1"]
+        );
     }
 
     #[test]
     fn l_utente_vince_e_un_file_rotto_si_dice_senza_rompere_il_resto() {
         let (_t, r) = radici();
-        scrivi(&r.prodotto, "acme/x1.json", r#"{"modello":"X1","registri":[{"nome":"a","indirizzo":1}]}"#);
+        scrivi(
+            &r.prodotto,
+            "acme/x1.json",
+            r#"{"modello":"X1","registri":[{"nome":"a","indirizzo":1}]}"#,
+        );
         scrivi(&r.prodotto, "acme/x2.json", r#"{"modello":"X2"}"#);
-        scrivi(&r.utente, "acme/x1.json", r#"{"modello":"X1 corretto","registri":[{"nome":"a","indirizzo":5}]}"#);
+        scrivi(
+            &r.utente,
+            "acme/x1.json",
+            r#"{"modello":"X1 corretto","registri":[{"nome":"a","indirizzo":5}]}"#,
+        );
         scrivi(&r.utente, "acme/rotto.json", "{ non è json");
         let e = elenco(&r);
         let x1 = e.voci.iter().find(|v| v.id == "acme/x1").unwrap();
-        assert_eq!((x1.modello.as_str(), x1.origine), ("X1 corretto", Origine::Utente));
-        assert!(e.voci.iter().any(|v| v.id == "acme/x2" && v.origine == Origine::Prodotto));
+        assert_eq!(
+            (x1.modello.as_str(), x1.origine),
+            ("X1 corretto", Origine::Utente)
+        );
+        assert!(e
+            .voci
+            .iter()
+            .any(|v| v.id == "acme/x2" && v.origine == Origine::Prodotto));
         assert_eq!(e.errori.len(), 1, "{:?}", e.errori);
-        assert_eq!(voce(&r, "acme", "x1").unwrap()["registri"][0]["indirizzo"], 5);
+        assert_eq!(
+            voce(&r, "acme", "x1").unwrap()["registri"][0]["indirizzo"],
+            5
+        );
     }
 
     #[test]
@@ -324,13 +435,20 @@ mod tests {
     #[test]
     fn il_catalogo_del_prodotto_si_legge() {
         let prodotto = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../catalogo/dispositivi");
-        let r = Radici { utente: PathBuf::from("/nessuna"), prodotto };
+        let r = Radici {
+            utente: PathBuf::from("/nessuna"),
+            prodotto,
+        };
         let e = elenco(&r);
         assert!(e.errori.is_empty(), "{:?}", e.errori);
         for v in &e.voci {
             let (m, n) = v.id.split_once('/').unwrap();
             let voce = voce(&r, m, n).unwrap_or_else(|e| panic!("{}: {}", v.id, e.1));
-            assert!(!voce["registri"].as_array().unwrap().is_empty(), "{} senza registri", v.id);
+            assert!(
+                !voce["registri"].as_array().unwrap().is_empty(),
+                "{} senza registri",
+                v.id
+            );
         }
     }
 }

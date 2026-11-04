@@ -43,14 +43,102 @@ pub struct Stile {
 /// La tabella degli stili nuovi. `flat`, `tube` e `wire` non sono qui: restano
 /// disegnati come prima, dai loro motori.
 pub const STILI: &[Stile] = &[
-    Stile { id: "metallo", materiale: Some("steel"), colore: "#9aa5af", larghezza: 1.0, velo: "metal", contorno: true, giunzione: "round", decoro: None, tratteggio: None, estremita: "flange" },
-    Stile { id: "inox", materiale: Some("stainless"), colore: "#b4bec7", larghezza: 1.0, velo: "metal", contorno: true, giunzione: "round", decoro: None, tratteggio: None, estremita: "welded" },
-    Stile { id: "coibentato", materiale: Some("stainless"), colore: "#b4bec7", larghezza: 1.35, velo: "paint", contorno: true, giunzione: "round", decoro: Some((2.0, 36.0, "#000", 0.3)), tratteggio: None, estremita: "flange" },
-    Stile { id: "pvc", materiale: None, colore: "#8e9ba6", larghezza: 1.0, velo: "paint", contorno: true, giunzione: "round", decoro: None, tratteggio: None, estremita: "union" },
-    Stile { id: "flessibile", materiale: Some("rubber"), colore: "#2a2d31", larghezza: 0.9, velo: "dark", contorno: true, giunzione: "round", decoro: Some((1.6, 2.4, "#fff", 0.16)), tratteggio: None, estremita: "quick" },
-    Stile { id: "canale", materiale: Some("stainless"), colore: "#b4bec7", larghezza: 1.6, velo: "paint", contorno: true, giunzione: "miter", decoro: Some((2.0, 58.0, "#000", 0.25)), tratteggio: None, estremita: "collar" },
-    Stile { id: "cavo", materiale: None, colore: "#2a2d31", larghezza: 0.55, velo: "dark", contorno: true, giunzione: "round", decoro: None, tratteggio: None, estremita: "gland" },
-    Stile { id: "segnale", materiale: None, colore: "#94a3b8", larghezza: 0.2, velo: "", contorno: false, giunzione: "round", decoro: None, tratteggio: Some((6.0, 4.0)), estremita: "none" },
+    Stile {
+        id: "metallo",
+        materiale: Some("steel"),
+        colore: "#9aa5af",
+        larghezza: 1.0,
+        velo: "metal",
+        contorno: true,
+        giunzione: "round",
+        decoro: None,
+        tratteggio: None,
+        estremita: "flange",
+    },
+    Stile {
+        id: "inox",
+        materiale: Some("stainless"),
+        colore: "#b4bec7",
+        larghezza: 1.0,
+        velo: "metal",
+        contorno: true,
+        giunzione: "round",
+        decoro: None,
+        tratteggio: None,
+        estremita: "welded",
+    },
+    Stile {
+        id: "coibentato",
+        materiale: Some("stainless"),
+        colore: "#b4bec7",
+        larghezza: 1.35,
+        velo: "paint",
+        contorno: true,
+        giunzione: "round",
+        decoro: Some((2.0, 36.0, "#000", 0.3)),
+        tratteggio: None,
+        estremita: "flange",
+    },
+    Stile {
+        id: "pvc",
+        materiale: None,
+        colore: "#8e9ba6",
+        larghezza: 1.0,
+        velo: "paint",
+        contorno: true,
+        giunzione: "round",
+        decoro: None,
+        tratteggio: None,
+        estremita: "union",
+    },
+    Stile {
+        id: "flessibile",
+        materiale: Some("rubber"),
+        colore: "#2a2d31",
+        larghezza: 0.9,
+        velo: "dark",
+        contorno: true,
+        giunzione: "round",
+        decoro: Some((1.6, 2.4, "#fff", 0.16)),
+        tratteggio: None,
+        estremita: "quick",
+    },
+    Stile {
+        id: "canale",
+        materiale: Some("stainless"),
+        colore: "#b4bec7",
+        larghezza: 1.6,
+        velo: "paint",
+        contorno: true,
+        giunzione: "miter",
+        decoro: Some((2.0, 58.0, "#000", 0.25)),
+        tratteggio: None,
+        estremita: "collar",
+    },
+    Stile {
+        id: "cavo",
+        materiale: None,
+        colore: "#2a2d31",
+        larghezza: 0.55,
+        velo: "dark",
+        contorno: true,
+        giunzione: "round",
+        decoro: None,
+        tratteggio: None,
+        estremita: "gland",
+    },
+    Stile {
+        id: "segnale",
+        materiale: None,
+        colore: "#94a3b8",
+        larghezza: 0.2,
+        velo: "",
+        contorno: false,
+        giunzione: "round",
+        decoro: None,
+        tratteggio: Some((6.0, 4.0)),
+        estremita: "none",
+    },
 ];
 
 pub fn stile(id: &str) -> Option<&'static Stile> {
@@ -70,9 +158,26 @@ pub const MATERIALI_TUBO: &[(&str, &str)] = &[
 /// Le velature della libreria (`VELI` del generatore): (posizione, colore, opacità).
 fn velo(nome: &str) -> &'static [(f64, &'static str, f64)] {
     match nome {
-        "metal" => &[(0.0, "#000", 0.42), (0.18, "#fff", 0.85), (0.45, "#fff", 0.25), (0.8, "#000", 0.19), (1.0, "#000", 0.49)],
-        "paint" => &[(0.0, "#000", 0.25), (0.2, "#fff", 0.5), (0.45, "#fff", 0.08), (0.75, "#000", 0.12), (1.0, "#000", 0.45)],
-        "dark" => &[(0.0, "#fff", 0.1), (0.2, "#fff", 0.37), (0.6, "#000", 0.17), (1.0, "#000", 0.48)],
+        "metal" => &[
+            (0.0, "#000", 0.42),
+            (0.18, "#fff", 0.85),
+            (0.45, "#fff", 0.25),
+            (0.8, "#000", 0.19),
+            (1.0, "#000", 0.49),
+        ],
+        "paint" => &[
+            (0.0, "#000", 0.25),
+            (0.2, "#fff", 0.5),
+            (0.45, "#fff", 0.08),
+            (0.75, "#000", 0.12),
+            (1.0, "#000", 0.45),
+        ],
+        "dark" => &[
+            (0.0, "#fff", 0.1),
+            (0.2, "#fff", 0.37),
+            (0.6, "#000", 0.17),
+            (1.0, "#000", 0.48),
+        ],
         _ => &[],
     }
 }
@@ -110,11 +215,16 @@ pub struct Tubo<'a> {
     pub bocche: [Option<f64>; 2],
 }
 
-fn materiale<'a>(t: &'a Tubo, nome: &str) -> String {
+fn materiale(t: &Tubo, nome: &str) -> String {
     t.materiali
         .get(nome)
         .cloned()
-        .or_else(|| MATERIALI_TUBO.iter().find(|(k, _)| *k == nome).map(|(_, v)| v.to_string()))
+        .or_else(|| {
+            MATERIALI_TUBO
+                .iter()
+                .find(|(k, _)| *k == nome)
+                .map(|(_, v)| v.to_string())
+        })
         .unwrap_or_else(|| "#9aa5af".to_string())
 }
 
@@ -137,9 +247,16 @@ pub fn larghezza(stile: &Stile, d: f64) -> f64 {
 /// L'estremità che si disegna davvero su un capo: `auto` su una bocca è la
 /// consigliata dallo stile, o la riduzione se tubo e bocca hanno misure diverse;
 /// `auto` su un capo libero è nessuna.
-pub fn estremita_effettiva(stile: &Stile, richiesta: Option<&str>, bocca: Option<f64>, w: f64) -> &'static str {
+pub fn estremita_effettiva(
+    stile: &Stile,
+    richiesta: Option<&str>,
+    bocca: Option<f64>,
+    w: f64,
+) -> &'static str {
     let r = richiesta.unwrap_or("auto");
-    let nomi = ["flange", "welded", "union", "quick", "reducer", "gland", "collar", "arrow", "dot"];
+    let nomi = [
+        "flange", "welded", "union", "quick", "reducer", "gland", "collar", "arrow", "dot",
+    ];
     if let Some(n) = nomi.iter().find(|n| **n == r) {
         return n;
     }
@@ -156,7 +273,13 @@ pub fn estremita_effettiva(stile: &Stile, richiesta: Option<&str>, bocca: Option
 fn polilinea(p: &[Punto]) -> String {
     let mut d = String::new();
     for (i, q) in p.iter().enumerate() {
-        let _ = write!(d, "{}{} {}", if i == 0 { "M" } else { " L" }, num(q.x), num(q.y));
+        let _ = write!(
+            d,
+            "{}{} {}",
+            if i == 0 { "M" } else { " L" },
+            num(q.x),
+            num(q.y)
+        );
     }
     d
 }
@@ -165,10 +288,18 @@ fn gradiente(out: &mut String, id: &str, nome: &str, volume: f64, da: (f64, f64)
     let _ = write!(
         out,
         r#"<linearGradient id="{id}" gradientUnits="userSpaceOnUse" x1="{}" y1="{}" x2="{}" y2="{}">"#,
-        num(da.0), num(da.1), num(a.0), num(a.1)
+        num(da.0),
+        num(da.1),
+        num(a.0),
+        num(a.1)
     );
     for (o, c, op) in velo(nome) {
-        let _ = write!(out, r#"<stop offset="{}" stop-color="{c}" stop-opacity="{}"/>"#, num(*o), num(op * volume));
+        let _ = write!(
+            out,
+            r#"<stop offset="{}" stop-color="{c}" stop-opacity="{}"/>"#,
+            num(*o),
+            num(op * volume)
+        );
     }
     out.push_str("</linearGradient>");
 }
@@ -197,7 +328,10 @@ pub fn raccorda(p: &[Punto], r: f64) -> Vec<Punto> {
             out.push(b);
             continue;
         }
-        let (u1, u2) = (((b.x - a.x) / l1, (b.y - a.y) / l1), ((c.x - b.x) / l2, (c.y - b.y) / l2));
+        let (u1, u2) = (
+            ((b.x - a.x) / l1, (b.y - a.y) / l1),
+            ((c.x - b.x) / l2, (c.y - b.y) / l2),
+        );
         let coseno = (u1.0 * u2.0 + u1.1 * u2.1).clamp(-1.0, 1.0);
         let angolo = coseno.acos();
         if angolo < 1e-6 {
@@ -206,15 +340,26 @@ pub fn raccorda(p: &[Punto], r: f64) -> Vec<Punto> {
         }
         // Quanto si arretra dallo spigolo lungo i due tratti.
         let arretra = (r * (angolo / 2.0).tan()).min(l1 / 2.0).min(l2 / 2.0);
-        let p1 = Punto { x: b.x - u1.0 * arretra, y: b.y - u1.1 * arretra };
-        let p2 = Punto { x: b.x + u2.0 * arretra, y: b.y + u2.1 * arretra };
+        let p1 = Punto {
+            x: b.x - u1.0 * arretra,
+            y: b.y - u1.1 * arretra,
+        };
+        let p2 = Punto {
+            x: b.x + u2.0 * arretra,
+            y: b.y + u2.1 * arretra,
+        };
         // Bézier quadratica con lo spigolo come controllo: per un raccordo
         // visivo basta, e si calcola uguale nei due motori.
-        let n = ((angolo / std::f64::consts::FRAC_PI_2) * TRATTI_CURVA as f64).ceil().max(2.0) as usize;
+        let n = ((angolo / std::f64::consts::FRAC_PI_2) * TRATTI_CURVA as f64)
+            .ceil()
+            .max(2.0) as usize;
         for k in 0..=n {
             let t = k as f64 / n as f64;
             let (m1, m2, m3) = ((1.0 - t) * (1.0 - t), 2.0 * (1.0 - t) * t, t * t);
-            out.push(Punto { x: m1 * p1.x + m2 * b.x + m3 * p2.x, y: m1 * p1.y + m2 * b.y + m3 * p2.y });
+            out.push(Punto {
+                x: m1 * p1.x + m2 * b.x + m3 * p2.x,
+                y: m1 * p1.y + m2 * b.y + m3 * p2.y,
+            });
         }
     }
     out.push(p[p.len() - 1]);
@@ -240,14 +385,25 @@ pub fn svg(t: &Tubo) -> String {
             let l = (b.x - a.x).hypot(b.y - a.y);
             let accorcia = (1.1 * w.max(6.0) - 1.0).min(l * 0.9);
             if l > 0.0 {
-                base[i] = Punto { x: a.x + (b.x - a.x) / l * accorcia, y: a.y + (b.y - a.y) / l * accorcia };
+                base[i] = Punto {
+                    x: a.x + (b.x - a.x) / l * accorcia,
+                    y: a.y + (b.y - a.y) / l * accorcia,
+                };
             }
         }
     }
     // Il corpo segue la spezzata raccordata; le estremità, sotto, i punti veri.
-    let curva = if s.giunzione == "round" { raccorda(&base, w) } else { base };
+    let curva = if s.giunzione == "round" {
+        raccorda(&base, w)
+    } else {
+        base
+    };
     let d = polilinea(&curva);
-    let (join, cap) = if s.giunzione == "miter" { ("miter", "butt") } else { ("round", "butt") };
+    let (join, cap) = if s.giunzione == "miter" {
+        ("miter", "butt")
+    } else {
+        ("round", "butt")
+    };
     let mut defs = String::new();
     let mut corpo_svg = String::new();
 
@@ -259,7 +415,10 @@ pub fn svg(t: &Tubo) -> String {
             num(w + 2.0 * t.contorno.1)
         );
     }
-    let tratto = s.tratteggio.map(|(a, b)| format!(r#" stroke-dasharray="{} {}""#, num(a), num(b))).unwrap_or_default();
+    let tratto = s
+        .tratteggio
+        .map(|(a, b)| format!(r#" stroke-dasharray="{} {}""#, num(a), num(b)))
+        .unwrap_or_default();
     let _ = write!(
         corpo_svg,
         r#"<path d="{d}" fill="none" stroke="{corpo}" stroke-width="{}" stroke-linejoin="{join}" stroke-linecap="{cap}"{tratto}/>"#,
@@ -275,11 +434,22 @@ pub fn svg(t: &Tubo) -> String {
             let (nx, ny) = normale(dx / l, dy / l);
             let (mx, my) = ((q[0].x + q[1].x) / 2.0, (q[0].y + q[1].y) / 2.0);
             let gid = format!("{}-v{i}", t.id);
-            gradiente(&mut defs, &gid, s.velo, t.volume, (mx - nx * w / 2.0, my - ny * w / 2.0), (mx + nx * w / 2.0, my + ny * w / 2.0));
+            gradiente(
+                &mut defs,
+                &gid,
+                s.velo,
+                t.volume,
+                (mx - nx * w / 2.0, my - ny * w / 2.0),
+                (mx + nx * w / 2.0, my + ny * w / 2.0),
+            );
             let _ = write!(
                 corpo_svg,
                 r#"<line x1="{}" y1="{}" x2="{}" y2="{}" stroke="url(#{gid})" stroke-width="{}" stroke-linecap="butt"/>"#,
-                num(q[0].x), num(q[0].y), num(q[1].x), num(q[1].y), num(w)
+                num(q[0].x),
+                num(q[0].y),
+                num(q[1].x),
+                num(q[1].y),
+                num(w)
             );
         }
     }
@@ -308,48 +478,152 @@ pub fn svg(t: &Tubo) -> String {
         // Un punto nel riferimento del capo: `a` lungo il tubo (0 = il capo,
         // negativo = dentro il tubo), `b` di traverso.
         let at = |a: f64, b: f64| (punto.x + ux * a + nx * b, punto.y + uy * a + ny * b);
-        let poligono = |pts: &[(f64, f64)]| pts.iter().map(|(x, y)| format!("{},{}", num(*x), num(*y))).collect::<Vec<_>>().join(" ");
-        let pezzo = |out: &mut String, defs: &mut String, idx: usize, a0: f64, a1: f64, b: f64, mat: &str| {
+        let poligono = |pts: &[(f64, f64)]| {
+            pts.iter()
+                .map(|(x, y)| format!("{},{}", num(*x), num(*y)))
+                .collect::<Vec<_>>()
+                .join(" ")
+        };
+        let pezzo = |out: &mut String,
+                     defs: &mut String,
+                     idx: usize,
+                     a0: f64,
+                     a1: f64,
+                     b: f64,
+                     mat: &str| {
             let colore = materiale(t, mat);
             let gid = format!("{}-e{k}{idx}", t.id);
             let (lx, ly) = normale(ux, uy);
             let (cx, cy) = at((a0 + a1) / 2.0, 0.0);
-            gradiente(defs, &gid, "metal", t.volume, (cx - lx * b, cy - ly * b), (cx + lx * b, cy + ly * b));
+            gradiente(
+                defs,
+                &gid,
+                "metal",
+                t.volume,
+                (cx - lx * b, cy - ly * b),
+                (cx + lx * b, cy + ly * b),
+            );
             let pts = poligono(&[at(a0, -b), at(a1, -b), at(a1, b), at(a0, b)]);
             let bordo = if t.contorno.1 > 0.0 {
-                format!(r#" stroke="{}" stroke-width="{}" stroke-linejoin="round""#, t.contorno.0, num(t.contorno.1))
+                format!(
+                    r#" stroke="{}" stroke-width="{}" stroke-linejoin="round""#,
+                    t.contorno.0,
+                    num(t.contorno.1)
+                )
             } else {
                 String::new()
             };
-            let _ = write!(out, r#"<polygon points="{pts}" fill="{colore}"{bordo}/><polygon points="{pts}" fill="url(#{gid})"/>"#);
+            let _ = write!(
+                out,
+                r#"<polygon points="{pts}" fill="{colore}"{bordo}/><polygon points="{pts}" fill="url(#{gid})"/>"#
+            );
         };
         match e {
-            "flange" => pezzo(&mut corpo_svg, &mut defs, 0, -0.32 * w, 0.0, 0.82 * w, "steel"),
-            "welded" => pezzo(&mut corpo_svg, &mut defs, 0, -0.14 * w, 0.0, 0.56 * w, "steel-dark"),
+            "flange" => pezzo(
+                &mut corpo_svg,
+                &mut defs,
+                0,
+                -0.32 * w,
+                0.0,
+                0.82 * w,
+                "steel",
+            ),
+            "welded" => pezzo(
+                &mut corpo_svg,
+                &mut defs,
+                0,
+                -0.14 * w,
+                0.0,
+                0.56 * w,
+                "steel-dark",
+            ),
             "union" => {
-                pezzo(&mut corpo_svg, &mut defs, 0, -0.95 * w, -0.15 * w, 0.72 * w, "steel");
-                pezzo(&mut corpo_svg, &mut defs, 1, -0.15 * w, 0.0, 0.6 * w, "steel");
+                pezzo(
+                    &mut corpo_svg,
+                    &mut defs,
+                    0,
+                    -0.95 * w,
+                    -0.15 * w,
+                    0.72 * w,
+                    "steel",
+                );
+                pezzo(
+                    &mut corpo_svg,
+                    &mut defs,
+                    1,
+                    -0.15 * w,
+                    0.0,
+                    0.6 * w,
+                    "steel",
+                );
             }
             "quick" => {
-                pezzo(&mut corpo_svg, &mut defs, 0, -1.0 * w, -0.45 * w, 0.66 * w, "steel");
-                pezzo(&mut corpo_svg, &mut defs, 1, -0.45 * w, 0.0, 0.52 * w, "stainless");
+                pezzo(
+                    &mut corpo_svg,
+                    &mut defs,
+                    0,
+                    -w,
+                    -0.45 * w,
+                    0.66 * w,
+                    "steel",
+                );
+                pezzo(
+                    &mut corpo_svg,
+                    &mut defs,
+                    1,
+                    -0.45 * w,
+                    0.0,
+                    0.52 * w,
+                    "stainless",
+                );
             }
-            "gland" => pezzo(&mut corpo_svg, &mut defs, 0, -0.8 * w, 0.0, 0.7 * w, "steel-dark"),
-            "collar" => pezzo(&mut corpo_svg, &mut defs, 0, -0.42 * w, 0.0, 0.6 * w, "stainless"),
+            "gland" => pezzo(
+                &mut corpo_svg,
+                &mut defs,
+                0,
+                -0.8 * w,
+                0.0,
+                0.7 * w,
+                "steel-dark",
+            ),
+            "collar" => pezzo(
+                &mut corpo_svg,
+                &mut defs,
+                0,
+                -0.42 * w,
+                0.0,
+                0.6 * w,
+                "stainless",
+            ),
             "reducer" => {
                 let dp = t.bocche[k].unwrap_or(w);
-                let pts = poligono(&[at(-w, -w / 2.0), at(0.0, -dp / 2.0), at(0.0, dp / 2.0), at(-w, w / 2.0)]);
+                let pts = poligono(&[
+                    at(-w, -w / 2.0),
+                    at(0.0, -dp / 2.0),
+                    at(0.0, dp / 2.0),
+                    at(-w, w / 2.0),
+                ]);
                 let _ = write!(corpo_svg, r#"<polygon points="{pts}" fill="{corpo}"/>"#);
             }
             // Freccia e pallino hanno una misura minima: su una linea di segnale
             // larga 2 px sarebbero invisibili.
             "arrow" => {
                 let m = w.max(6.0);
-                let pts = poligono(&[at(0.0, 0.0), at(-1.1 * m, -0.85 * m), at(-1.1 * m, 0.85 * m)]);
+                let pts = poligono(&[
+                    at(0.0, 0.0),
+                    at(-1.1 * m, -0.85 * m),
+                    at(-1.1 * m, 0.85 * m),
+                ]);
                 let _ = write!(corpo_svg, r#"<polygon points="{pts}" fill="{corpo}"/>"#);
             }
             "dot" => {
-                let _ = write!(corpo_svg, r#"<circle cx="{}" cy="{}" r="{}" fill="{corpo}"/>"#, num(punto.x), num(punto.y), num(0.7 * w.max(6.0)));
+                let _ = write!(
+                    corpo_svg,
+                    r#"<circle cx="{}" cy="{}" r="{}" fill="{corpo}"/>"#,
+                    num(punto.x),
+                    num(punto.y),
+                    num(0.7 * w.max(6.0))
+                );
             }
             _ => {}
         }
@@ -403,7 +677,11 @@ mod tests {
     }
 
     pub(crate) fn esegui(c: &Caso) -> String {
-        let punti: Vec<Punto> = c.punti.iter().map(|[x, y]| Punto { x: *x, y: *y }).collect();
+        let punti: Vec<Punto> = c
+            .punti
+            .iter()
+            .map(|[x, y]| Punto { x: *x, y: *y })
+            .collect();
         svg(&Tubo {
             id: "t",
             punti: &punti,
@@ -447,12 +725,21 @@ mod tests {
     fn auto_mette_la_riduzione_solo_quando_le_misure_non_tornano() {
         let m = stile("metallo").unwrap();
         assert_eq!(estremita_effettiva(m, None, Some(10.0), 10.0), "flange");
-        assert_eq!(estremita_effettiva(m, Some("auto"), Some(6.0), 10.0), "reducer");
+        assert_eq!(
+            estremita_effettiva(m, Some("auto"), Some(6.0), 10.0),
+            "reducer"
+        );
         assert_eq!(estremita_effettiva(m, None, None, 10.0), "none");
         assert_eq!(estremita_effettiva(m, Some("dot"), None, 10.0), "dot");
-        assert_eq!(estremita_effettiva(m, Some("sconosciuta"), Some(10.0), 10.0), "none");
+        assert_eq!(
+            estremita_effettiva(m, Some("sconosciuta"), Some(10.0), 10.0),
+            "none"
+        );
         // Il canale è rettangolare: niente riduzione, il suo collare.
-        assert_eq!(estremita_effettiva(stile("canale").unwrap(), None, Some(4.0), 16.0), "collar");
+        assert_eq!(
+            estremita_effettiva(stile("canale").unwrap(), None, Some(4.0), 16.0),
+            "collar"
+        );
     }
 
     #[test]

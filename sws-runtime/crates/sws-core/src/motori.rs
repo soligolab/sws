@@ -71,7 +71,10 @@ pub fn motore(nome: &str, gentilezza: i32) -> tokio::runtime::Handle {
             h
         }
         None => {
-            warn!(nome, "motore non creato: il lavoro resta sul runtime condiviso");
+            warn!(
+                nome,
+                "motore non creato: il lavoro resta sul runtime condiviso"
+            );
             tokio::runtime::Handle::current()
         }
     }
@@ -159,7 +162,10 @@ mod tests {
     async fn il_motore_esegue_e_non_e_quello_di_chi_chiama() {
         let m = motore("sws-prova2", GENTILEZZA_FONDO);
         let qui = tokio::runtime::Handle::current().id();
-        let la = m.spawn(async { tokio::runtime::Handle::current().id() }).await.unwrap();
+        let la = m
+            .spawn(async { tokio::runtime::Handle::current().id() })
+            .await
+            .unwrap();
         assert_ne!(qui, la, "il task gira sul motore, non qui");
     }
 

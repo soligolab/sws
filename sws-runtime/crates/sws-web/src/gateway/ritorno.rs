@@ -38,15 +38,24 @@ pub(crate) fn hmac_sha256_hex(chiave: &[u8], messaggio: &[u8]) -> String {
         ipad[i] ^= k[i];
         opad[i] ^= k[i];
     }
-    let interno = Sha256::new().chain_update(ipad).chain_update(messaggio).finalize();
-    let esterno = Sha256::new().chain_update(opad).chain_update(interno).finalize();
+    let interno = Sha256::new()
+        .chain_update(ipad)
+        .chain_update(messaggio)
+        .finalize();
+    let esterno = Sha256::new()
+        .chain_update(opad)
+        .chain_update(interno)
+        .finalize();
     esterno.iter().map(|b| format!("{b:02x}")).collect()
 }
 
 /// La chiave del container del progetto `riferimento` (`<azienda>/<nome>`),
 /// nella forma che il container rimanda.
 pub fn chiave_per(segreto: &str, riferimento: &str) -> String {
-    format!("{riferimento}:{}", hmac_sha256_hex(segreto.as_bytes(), riferimento.as_bytes()))
+    format!(
+        "{riferimento}:{}",
+        hmac_sha256_hex(segreto.as_bytes(), riferimento.as_bytes())
+    )
 }
 
 /// Il container che ha mandato `valore`, se la chiave è giusta: l'azienda e il
@@ -61,7 +70,10 @@ pub fn verifica(segreto: &str, valore: &str) -> Option<Chiamante> {
     if !crate::router::confronto_costante(firma.as_bytes(), attesa.as_bytes()) {
         return None;
     }
-    Some(Chiamante { azienda: azienda.to_string(), riferimento: riferimento.to_string() })
+    Some(Chiamante {
+        azienda: azienda.to_string(),
+        riferimento: riferimento.to_string(),
+    })
 }
 
 /// Un container di progetto che chiama il gateway, riconosciuto dalla chiave.
@@ -78,7 +90,12 @@ pub fn origine_della_richiesta(h: &axum::http::HeaderMap) -> Option<String> {
     // `Host` prima: dietro Traefik deve combaciare con la regola del router
     // (`sws.soligo.net`), mentre `X-Forwarded-Host` un client può provare a
     // scriverlo lui. Il secondo serve solo dove `Host` manca.
-    let host = h.get("host").or_else(|| h.get("x-forwarded-host"))?.to_str().ok()?.trim();
+    let host = h
+        .get("host")
+        .or_else(|| h.get("x-forwarded-host"))?
+        .to_str()
+        .ok()?
+        .trim();
     if host.is_empty() || host.contains(['/', ' ']) {
         return None;
     }
@@ -94,13 +111,12 @@ pub fn origine_della_richiesta(h: &axum::http::HeaderMap) -> Option<String> {
 /// La chiave va aggiunta a una chiamata verso `url`? Solo verso il gateway da
 /// cui arriva il lavoro, e solo sui pannelli (`/dev/…`) o sul loro elenco.
 pub fn va_aggiunta(url: &str, origine: &str) -> bool {
-    url.strip_prefix(origine)
-        .is_some_and(|resto| {
-            resto.starts_with("/dev/")
-                || resto == "/api/pannelli"
-                || resto == "/api/pannelli/abbina"
-                || (resto.starts_with("/api/pannelli/") && resto.ends_with("/rinomina"))
-        })
+    url.strip_prefix(origine).is_some_and(|resto| {
+        resto.starts_with("/dev/")
+            || resto == "/api/pannelli"
+            || resto == "/api/pannelli/abbina"
+            || (resto.starts_with("/api/pannelli/") && resto.ends_with("/rinomina"))
+    })
 }
 
 /// Il lato del container: la sua chiave (dall'ambiente) e l'origine pubblica
@@ -118,7 +134,10 @@ impl Ritorno {
             .then(|| std::env::var("SWS_CHIAVE_RITORNO").ok())
             .flatten()
             .filter(|c| !c.trim().is_empty());
-        Ritorno { chiave, origine: Default::default() }
+        Ritorno {
+            chiave,
+            origine: Default::default(),
+        }
     }
 
     pub fn ricorda_origine(&self, origine: &str) {
@@ -136,7 +155,10 @@ impl Ritorno {
     /// imparata: vuol dire «l'IDE gira nel cloud, dietro il gateway».
     pub fn origine_se_dietro_al_gateway(&self) -> Option<String> {
         self.chiave.as_ref()?;
-        self.origine.read().unwrap_or_else(|e| e.into_inner()).clone()
+        self.origine
+            .read()
+            .unwrap_or_else(|e| e.into_inner())
+            .clone()
     }
 
     /// La chiave da mandare con una chiamata verso `url`, se ci va.
@@ -166,11 +188,17 @@ mod tests {
         assert!(k.starts_with("acme/impianto:"));
         assert_eq!(
             verifica("segretodelgateway", &k),
-            Some(Chiamante { azienda: "acme".into(), riferimento: "acme/impianto".into() })
+            Some(Chiamante {
+                azienda: "acme".into(),
+                riferimento: "acme/impianto".into()
+            })
         );
         // Un altro riferimento con la stessa firma: no.
         let firma = k.rsplit_once(':').unwrap().1;
-        assert_eq!(verifica("segretodelgateway", &format!("rossi/impianto:{firma}")), None);
+        assert_eq!(
+            verifica("segretodelgateway", &format!("rossi/impianto:{firma}")),
+            None
+        );
         // Un altro segreto: no. Niente forma: no.
         assert_eq!(verifica("altro", &k), None);
         assert_eq!(verifica("segretodelgateway", "acme/impianto"), None);
@@ -183,22 +211,39 @@ mod tests {
     #[test]
     fn la_chiave_parte_solo_verso_il_gateway_e_sui_pannelli() {
         let o = "https://sws.soligo.net";
-        assert!(va_aggiunta("https://sws.soligo.net/dev/tc620-casa/api/projects", o));
+        assert!(va_aggiunta(
+            "https://sws.soligo.net/dev/tc620-casa/api/projects",
+            o
+        ));
         assert!(!va_aggiunta("https://sws.soligo.net/p/acme/x/api", o));
         assert!(va_aggiunta("https://sws.soligo.net/api/pannelli", o));
         assert!(!va_aggiunta("https://sws.soligo.net/api/pannelli/x", o));
         assert!(va_aggiunta("https://sws.soligo.net/api/pannelli/abbina", o));
-        assert!(va_aggiunta("https://sws.soligo.net/api/pannelli/tc620/rinomina", o));
+        assert!(va_aggiunta(
+            "https://sws.soligo.net/api/pannelli/tc620/rinomina",
+            o
+        ));
         assert!(!va_aggiunta("https://sws.soligo.net.evil.com/dev/x", o));
         assert!(!va_aggiunta("https://192.168.1.10:8444/dev/x", o));
     }
 
     #[test]
     fn il_container_manda_la_chiave_solo_all_origine_imparata() {
-        let r = Ritorno { chiave: Some("acme/x:ab".into()), origine: Default::default() };
-        assert_eq!(r.per("https://sws.soligo.net/dev/p/api/projects"), None, "origine non ancora nota");
+        let r = Ritorno {
+            chiave: Some("acme/x:ab".into()),
+            origine: Default::default(),
+        };
+        assert_eq!(
+            r.per("https://sws.soligo.net/dev/p/api/projects"),
+            None,
+            "origine non ancora nota"
+        );
         r.ricorda_origine("https://sws.soligo.net/");
-        assert_eq!(r.per("https://sws.soligo.net/dev/p/api/projects").as_deref(), Some("acme/x:ab"));
+        assert_eq!(
+            r.per("https://sws.soligo.net/dev/p/api/projects")
+                .as_deref(),
+            Some("acme/x:ab")
+        );
         assert_eq!(r.per("https://192.168.1.10:8444/api/projects"), None);
         let senza = Ritorno::default();
         senza.ricorda_origine("https://sws.soligo.net");
@@ -209,12 +254,22 @@ mod tests {
     fn origine_dalle_intestazioni() {
         let mut h = axum::http::HeaderMap::new();
         h.insert("host", "sws.soligo.net".parse().unwrap());
-        assert_eq!(origine_della_richiesta(&h).as_deref(), Some("https://sws.soligo.net"));
+        assert_eq!(
+            origine_della_richiesta(&h).as_deref(),
+            Some("https://sws.soligo.net")
+        );
         h.insert("x-forwarded-host", "evil.com".parse().unwrap());
-        assert_eq!(origine_della_richiesta(&h).as_deref(), Some("https://sws.soligo.net"), "Host vince");
+        assert_eq!(
+            origine_della_richiesta(&h).as_deref(),
+            Some("https://sws.soligo.net"),
+            "Host vince"
+        );
         h.insert("x-forwarded-proto", "http".parse().unwrap());
         h.insert("host", "localhost:8460".parse().unwrap());
-        assert_eq!(origine_della_richiesta(&h).as_deref(), Some("http://localhost:8460"));
+        assert_eq!(
+            origine_della_richiesta(&h).as_deref(),
+            Some("http://localhost:8460")
+        );
         h.insert("host", "a/b".parse().unwrap());
         assert_eq!(origine_della_richiesta(&h), None);
     }

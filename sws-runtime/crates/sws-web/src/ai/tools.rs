@@ -579,7 +579,9 @@ fn campo(f: &sch::Field) -> Value {
 /// Il giudizio su una proposta. Stessa logica dell'endpoint HTTP, chiamata da
 /// dentro — e con la stessa distinzione fra rilievi nuovi e preesistenti.
 pub async fn valida(s: &AppState, input: &Value) -> Esito {
-    valida_interna(s, input, &[], false).await.map(|(giudizio, _)| giudizio)
+    valida_interna(s, input, &[], false)
+        .await
+        .map(|(giudizio, _)| giudizio)
 }
 
 /// Le bozze di simbolo che una proposta porta nel progetto: quelle elencate in
@@ -597,8 +599,10 @@ pub fn bozze_da_portare<'a>(
         for x in elenco {
             let slug = x.as_str().unwrap_or("").trim_start_matches("prj:");
             let d = bozze.iter().find(|d| d.slug == slug).ok_or_else(|| {
-                format!("`simboli` nomina «{slug}», che non è una bozza di questa conversazione: \
-                         disegnala prima con bozza_simbolo")
+                format!(
+                    "`simboli` nomina «{slug}», che non è una bozza di questa conversazione: \
+                         disegnala prima con bozza_simbolo"
+                )
             })?;
             out.push(d);
         }
@@ -608,7 +612,10 @@ pub fn bozze_da_portare<'a>(
         return Ok(bozze.iter().collect());
     }
     let testo = serde_json::to_string(raw_pages).unwrap_or_default();
-    Ok(bozze.iter().filter(|d| testo.contains(&format!("\"prj:{}\"", d.slug))).collect())
+    Ok(bozze
+        .iter()
+        .filter(|d| testo.contains(&format!("\"prj:{}\"", d.slug)))
+        .collect())
 }
 
 /// Come [`valida`], ma restituisce anche il progetto **ricomposto**.
@@ -666,7 +673,9 @@ pub async fn valida_interna(
             }
             for d in &usate {
                 let nuovo = serde_json::to_value(d).map_err(|e| e.to_string())?;
-                let elenco = grezzo["simboli"].as_array_mut().ok_or("`simboli` del progetto non è un elenco")?;
+                let elenco = grezzo["simboli"]
+                    .as_array_mut()
+                    .ok_or("`simboli` del progetto non è un elenco")?;
                 match elenco.iter().position(|x| x["slug"] == d.slug.as_str()) {
                     Some(i) => elenco[i] = nuovo,
                     None => elenco.push(nuovo),
@@ -758,7 +767,9 @@ fn catalogo_libreria() -> &'static [Value] {
 pub fn voce_catalogo(c: &sws_core::simboli_prj::Compilato) -> Value {
     let v = &c.voce;
     let lista = |k: &str, f: &dyn Fn(&Value) -> String| -> Vec<String> {
-        v[k].as_array().map(|a| a.iter().map(f).collect()).unwrap_or_default()
+        v[k].as_array()
+            .map(|a| a.iter().map(f).collect())
+            .unwrap_or_default()
     };
     json!({
         "id": v["id"], "famiglia": "project", "tipo": v["kind"],
@@ -771,9 +782,18 @@ pub fn voce_catalogo(c: &sws_core::simboli_prj::Compilato) -> Value {
 
 /// Il filtro di `cerca_simboli`, separato per poterlo provare.
 pub fn filtra_simboli<'a>(voci: &'a [Value], input: &Value) -> Vec<&'a Value> {
-    let testo = input.get("testo").and_then(Value::as_str).unwrap_or("").to_lowercase();
+    let testo = input
+        .get("testo")
+        .and_then(Value::as_str)
+        .unwrap_or("")
+        .to_lowercase();
     let parole: Vec<&str> = testo.split_whitespace().collect();
-    let campo = |k: &str| input.get(k).and_then(Value::as_str).filter(|x| !x.is_empty());
+    let campo = |k: &str| {
+        input
+            .get(k)
+            .and_then(Value::as_str)
+            .filter(|x| !x.is_empty())
+    };
     voci.iter()
         .filter(|v| {
             let fieno = format!(
@@ -789,7 +809,10 @@ pub fn filtra_simboli<'a>(voci: &'a [Value], input: &Value) -> Vec<&'a Value> {
                 && campo("famiglia").is_none_or(|f| v["famiglia"] == f)
                 && campo("tipo").is_none_or(|t| v["tipo"] == t)
                 && campo("con_parti").is_none_or(|k| {
-                    v["parti"].as_array().is_some_and(|a| a.iter().any(|p| p.as_str().is_some_and(|p| p.ends_with(&format!(":{k}")))))
+                    v["parti"].as_array().is_some_and(|a| {
+                        a.iter()
+                            .any(|p| p.as_str().is_some_and(|p| p.ends_with(&format!(":{k}"))))
+                    })
                 })
                 && (input.get("con_bocche").and_then(Value::as_bool) != Some(true)
                     || v["bocche"].as_array().is_some_and(|a| !a.is_empty()))
@@ -875,13 +898,29 @@ pub fn schema_simbolo() -> Esito {
 
 /// Compila una descrizione arrivata dal modello: o la descrizione con il suo
 /// compilato, o gli errori da rimandargli.
-pub fn compila_bozza(input: &Value) -> Result<(sws_core::simboli_prj::Descrizione, sws_core::simboli_prj::Compilato), Vec<String>> {
-    let v = input.get("descrizione").ok_or_else(|| vec!["manca `descrizione`".to_string()])?;
+pub fn compila_bozza(
+    input: &Value,
+) -> Result<
+    (
+        sws_core::simboli_prj::Descrizione,
+        sws_core::simboli_prj::Compilato,
+    ),
+    Vec<String>,
+> {
+    let v = input
+        .get("descrizione")
+        .ok_or_else(|| vec!["manca `descrizione`".to_string()])?;
     if v.to_string().len() > 32 * 1024 {
-        return Err(vec!["descrizione oltre i 32 KB: semplifica il disegno".into()]);
+        return Err(vec![
+            "descrizione oltre i 32 KB: semplifica il disegno".into()
+        ]);
     }
-    let mut d: sws_core::simboli_prj::Descrizione = serde_json::from_value(v.clone())
-        .map_err(|e| vec![format!("la descrizione non si legge: {e}. Vedi schema_simbolo")])?;
+    let mut d: sws_core::simboli_prj::Descrizione =
+        serde_json::from_value(v.clone()).map_err(|e| {
+            vec![format!(
+                "la descrizione non si legge: {e}. Vedi schema_simbolo"
+            )]
+        })?;
     // Un simbolo del progetto non ha famiglia: quella la dà solo la libreria.
     d.family = None;
     let c = sws_core::simboli_prj::compila_e_controlla(&d)?;
@@ -1094,7 +1133,10 @@ mod tests {
             .chain(FUORI_DA_ESEGUI.iter())
             .map(|s| s.to_string())
             .collect();
-        assert_eq!(tutti, classificati, "elenchi disallineati: chi manca va deciso, non dimenticato");
+        assert_eq!(
+            tutti, classificati,
+            "elenchi disallineati: chi manca va deciso, non dimenticato"
+        );
         assert_eq!(definizioni_sola_lettura().len(), SOLA_LETTURA.len());
         for d in definizioni_sola_lettura() {
             assert!(!FUORI_DA_ESEGUI.contains(&d["name"].as_str().unwrap()));
@@ -1244,18 +1286,32 @@ mod tests {
     fn il_catalogo_dei_simboli_si_cerca() {
         let voci = catalogo_libreria();
         assert!(voci.len() >= 195, "catalogo di {} voci", voci.len());
-        let ids = |v: Vec<&Value>| v.iter().map(|x| x["id"].as_str().unwrap().to_string()).collect::<Vec<_>>();
-        let pompe = ids(filtra_simboli(voci, &json!({ "testo": "pompa centrifuga" })));
-        assert!(pompe.contains(&"lib:process/centrifugal-pump".to_string()), "{pompe:?}");
+        let ids = |v: Vec<&Value>| {
+            v.iter()
+                .map(|x| x["id"].as_str().unwrap().to_string())
+                .collect::<Vec<_>>()
+        };
+        let pompe = ids(filtra_simboli(
+            voci,
+            &json!({ "testo": "pompa centrifuga" }),
+        ));
+        assert!(
+            pompe.contains(&"lib:process/centrifugal-pump".to_string()),
+            "{pompe:?}"
+        );
         let pompe_en = ids(filtra_simboli(voci, &json!({ "testo": "centrifugal" })));
         assert!(pompe_en.contains(&"lib:process/centrifugal-pump".to_string()));
         // Per parte viva: ogni risultato ha un livello.
         let livelli = filtra_simboli(voci, &json!({ "con_parti": "level" }));
         assert!(!livelli.is_empty());
-        assert!(livelli.iter().all(|v| v["parti"].to_string().contains(":level")));
+        assert!(livelli
+            .iter()
+            .all(|v| v["parti"].to_string().contains(":level")));
         // Per bocche e famiglia insieme.
         let tubi = filtra_simboli(voci, &json!({ "famiglia": "process", "con_bocche": true }));
-        assert!(tubi.iter().all(|v| v["famiglia"] == "process" && !v["bocche"].as_array().unwrap().is_empty()));
+        assert!(tubi
+            .iter()
+            .all(|v| v["famiglia"] == "process" && !v["bocche"].as_array().unwrap().is_empty()));
         // Un alias storico si trova anche col suo nome.
         assert!(!filtra_simboli(voci, &json!({ "testo": "boiler" })).is_empty());
     }
@@ -1272,7 +1328,8 @@ mod tests {
         ))
         .unwrap();
         for e in esempi {
-            let (d, c) = compila_bozza(&json!({ "descrizione": e })).unwrap_or_else(|m| panic!("{m:?}"));
+            let (d, c) =
+                compila_bozza(&json!({ "descrizione": e })).unwrap_or_else(|m| panic!("{m:?}"));
             let lib = manifesto["symbols"]
                 .as_array()
                 .unwrap()
@@ -1303,14 +1360,32 @@ mod tests {
         };
         let bozze = vec![d("gabbia-a"), d("gabbia-b")];
         let pagine = vec![json!({ "name": "P", "objects": [{ "symbol_id": "prj:gabbia-b" }] })];
-        let slug = |v: Vec<&sws_core::simboli_prj::Descrizione>| v.iter().map(|d| d.slug.clone()).collect::<Vec<_>>();
-        assert_eq!(slug(bozze_da_portare(&json!({}), &pagine, &bozze, true).unwrap()), ["gabbia-b"]);
-        assert_eq!(slug(bozze_da_portare(&json!({}), &pagine, &bozze, false).unwrap()), ["gabbia-a", "gabbia-b"]);
+        let slug = |v: Vec<&sws_core::simboli_prj::Descrizione>| {
+            v.iter().map(|d| d.slug.clone()).collect::<Vec<_>>()
+        };
         assert_eq!(
-            slug(bozze_da_portare(&json!({ "simboli": ["prj:gabbia-a"] }), &pagine, &bozze, true).unwrap()),
+            slug(bozze_da_portare(&json!({}), &pagine, &bozze, true).unwrap()),
+            ["gabbia-b"]
+        );
+        assert_eq!(
+            slug(bozze_da_portare(&json!({}), &pagine, &bozze, false).unwrap()),
+            ["gabbia-a", "gabbia-b"]
+        );
+        assert_eq!(
+            slug(
+                bozze_da_portare(
+                    &json!({ "simboli": ["prj:gabbia-a"] }),
+                    &pagine,
+                    &bozze,
+                    true
+                )
+                .unwrap()
+            ),
             ["gabbia-a"]
         );
-        assert!(bozze_da_portare(&json!({ "simboli": ["nessuna"] }), &pagine, &bozze, true).is_err());
+        assert!(
+            bozze_da_portare(&json!({ "simboli": ["nessuna"] }), &pagine, &bozze, true).is_err()
+        );
     }
 
     /// Una bozza sbagliata torna indietro con gli errori, non come SVG.

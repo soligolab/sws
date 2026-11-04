@@ -651,7 +651,8 @@ pub fn sandbox_obbligatoria() -> bool {
 }
 
 /// Il messaggio quando uno script non parte perché la sandbox manca.
-pub const MOTIVO_SENZA_SANDBOX: &str = "script non eseguito: RestrictedPython non è installato, e senza sandbox \
+pub const MOTIVO_SENZA_SANDBOX: &str =
+    "script non eseguito: RestrictedPython non è installato, e senza sandbox \
 uno script avrebbe pieni privilegi sul dispositivo. L'immagine ufficiale lo contiene; \
 per lo sviluppo si può derogare con SWS_SCRIPT_SENZA_SANDBOX=1";
 
@@ -1871,9 +1872,10 @@ mod tests_sandbox_obbligatoria {
             return; // su una macchina con RestrictedPython la regola non scatta
         }
         imposta_sandbox_obbligatoria(true);
-        let r = e.execute_with_args("print(1)".into(), Default::default(), "test").await;
+        let r = e
+            .execute_with_args("print(1)".into(), Default::default(), "test")
+            .await;
         imposta_sandbox_obbligatoria(false);
         assert_eq!(r.unwrap_err(), MOTIVO_SENZA_SANDBOX);
     }
 }
-

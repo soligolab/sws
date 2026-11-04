@@ -94,17 +94,25 @@ pub async fn leggi_per_bundle(project_dir: &FsPath) -> Vec<(String, Vec<u8>)> {
     // incapsulata in un `Box`, e qui non serve.
     let mut da_visitare = vec![(radice.clone(), String::new())];
     while let Some((dir, prefisso)) = da_visitare.pop() {
-        let Ok(mut rd) = tokio::fs::read_dir(&dir).await else { continue };
+        let Ok(mut rd) = tokio::fs::read_dir(&dir).await else {
+            continue;
+        };
         while let Ok(Some(e)) = rd.next_entry().await {
             let nome = e.file_name().to_string_lossy().into_owned();
             if nome.starts_with('.') {
                 continue; // `.git`, e qualunque cosa l'editor lasci indietro
             }
-            let rel = if prefisso.is_empty() { nome.clone() } else { format!("{prefisso}/{nome}") };
+            let rel = if prefisso.is_empty() {
+                nome.clone()
+            } else {
+                format!("{prefisso}/{nome}")
+            };
             match e.file_type().await {
                 Ok(t) if t.is_dir() => da_visitare.push((e.path(), rel)),
                 Ok(t) if t.is_file() => {
-                    let Ok(b) = tokio::fs::read(e.path()).await else { continue };
+                    let Ok(b) = tokio::fs::read(e.path()).await else {
+                        continue;
+                    };
                     totale += b.len() as u64;
                     if totale > TETTO_BYTE {
                         tracing::warn!(
@@ -158,8 +166,12 @@ pub async fn sincronizza_da_zip(
     }
     let mut tenuti = std::collections::HashSet::<PathBuf>::new();
     for nome in &nomi {
-        let Some(rel) = nome.strip_prefix(&prefisso) else { continue };
-        let Some(sicuro) = percorso_sicuro(rel) else { continue };
+        let Some(rel) = nome.strip_prefix(&prefisso) else {
+            continue;
+        };
+        let Some(sicuro) = percorso_sicuro(rel) else {
+            continue;
+        };
         let mut buf = Vec::new();
         {
             let mut f = archive.by_name(nome)?;
@@ -181,7 +193,9 @@ async fn pota(radice: &FsPath, _dir: &FsPath, tenuti: &std::collections::HashSet
     let mut da_visitare = vec![radice.to_path_buf()];
     let mut viste = Vec::new();
     while let Some(d) = da_visitare.pop() {
-        let Ok(mut rd) = tokio::fs::read_dir(&d).await else { continue };
+        let Ok(mut rd) = tokio::fs::read_dir(&d).await else {
+            continue;
+        };
         while let Ok(Some(e)) = rd.next_entry().await {
             let p = e.path();
             match e.file_type().await {
@@ -223,13 +237,19 @@ pub fn aggiungi_all_impronta(hasher: &mut sha2::Sha256, project_dir: &FsPath) {
     let mut file: Vec<(String, PathBuf)> = Vec::new();
     let mut da_visitare = vec![(radice.clone(), String::new())];
     while let Some((dir, prefisso)) = da_visitare.pop() {
-        let Ok(rd) = std::fs::read_dir(&dir) else { continue };
+        let Ok(rd) = std::fs::read_dir(&dir) else {
+            continue;
+        };
         for e in rd.flatten() {
             let nome = e.file_name().to_string_lossy().into_owned();
             if nome.starts_with('.') {
                 continue;
             }
-            let rel = if prefisso.is_empty() { nome.clone() } else { format!("{prefisso}/{nome}") };
+            let rel = if prefisso.is_empty() {
+                nome.clone()
+            } else {
+                format!("{prefisso}/{nome}")
+            };
             match e.file_type() {
                 Ok(t) if t.is_dir() => da_visitare.push((e.path(), rel)),
                 Ok(t) if t.is_file() => file.push((rel, e.path())),
@@ -270,7 +290,11 @@ pub async fn scarica(State(s): State<crate::router::AppState>) -> Response {
     };
     let file = leggi_per_bundle(&dir).await;
     if file.is_empty() {
-        return (StatusCode::NOT_FOUND, "questo progetto non ha una logica PLC").into_response();
+        return (
+            StatusCode::NOT_FOUND,
+            "questo progetto non ha una logica PLC",
+        )
+            .into_response();
     }
     let mut cursore = Cursor::new(Vec::<u8>::new());
     {
@@ -285,12 +309,23 @@ pub async fn scarica(State(s): State<crate::router::AppState>) -> Response {
         // un bundle di progetto, dove convive con synoptics/ e images/.
         for (rel, bytes) in &file {
             use std::io::Write;
-            if z.start_file(rel.clone(), opts).and_then(|_| z.write_all(bytes).map_err(Into::into)).is_err() {
-                return (StatusCode::INTERNAL_SERVER_ERROR, "non riesco a comporre lo zip").into_response();
+            if z.start_file(rel.clone(), opts)
+                .and_then(|_| z.write_all(bytes).map_err(Into::into))
+                .is_err()
+            {
+                return (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    "non riesco a comporre lo zip",
+                )
+                    .into_response();
             }
         }
         if z.finish().is_err() {
-            return (StatusCode::INTERNAL_SERVER_ERROR, "non riesco a chiudere lo zip").into_response();
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "non riesco a chiudere lo zip",
+            )
+                .into_response();
         }
     }
     let buf = cursore.into_inner();
@@ -343,7 +378,13 @@ pub async fn carica(State(s): State<crate::router::AppState>, body: axum::body::
     }
     let mut archivio = match zip::ZipArchive::new(Cursor::new(body.as_ref())) {
         Ok(a) => a,
-        Err(e) => return (StatusCode::BAD_REQUEST, format!("non è uno zip leggibile: {e}")).into_response(),
+        Err(e) => {
+            return (
+                StatusCode::BAD_REQUEST,
+                format!("non è uno zip leggibile: {e}"),
+            )
+                .into_response()
+        }
     };
     // `sincronizza_da_zip` vuole il prefisso `openplc/`, perché nasce per i
     // bundle di progetto; qui lo zip è la cartella nuda. Si riusa lo stesso
@@ -357,25 +398,42 @@ pub async fn carica(State(s): State<crate::router::AppState>, body: axum::body::
         if nome.ends_with('/') {
             continue; // una voce di cartella non è un file
         }
-        let Some(sicuro) = percorso_sicuro(nome.strip_prefix(testa.as_str()).unwrap_or(nome)) else {
-            return (StatusCode::BAD_REQUEST, format!("percorso non ammesso: {nome}")).into_response();
+        let Some(sicuro) = percorso_sicuro(nome.strip_prefix(testa.as_str()).unwrap_or(nome))
+        else {
+            return (
+                StatusCode::BAD_REQUEST,
+                format!("percorso non ammesso: {nome}"),
+            )
+                .into_response();
         };
         let mut buf = Vec::new();
         let letto = archivio
             .by_name(nome)
             .map_err(|e| e.to_string())
-            .and_then(|mut f| std::io::copy(&mut f, &mut buf).map(|_| ()).map_err(|e| e.to_string()));
+            .and_then(|mut f| {
+                std::io::copy(&mut f, &mut buf)
+                    .map(|_| ())
+                    .map_err(|e| e.to_string())
+            });
         if let Err(e) = letto {
             return (StatusCode::BAD_REQUEST, format!("{nome}: {e}")).into_response();
         }
         let dest = destinazione.join(&sicuro);
         if let Some(p) = dest.parent() {
             if tokio::fs::create_dir_all(p).await.is_err() {
-                return (StatusCode::INTERNAL_SERVER_ERROR, "non riesco a creare la cartella").into_response();
+                return (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    "non riesco a creare la cartella",
+                )
+                    .into_response();
             }
         }
         if tokio::fs::write(&dest, &buf).await.is_err() {
-            return (StatusCode::INTERNAL_SERVER_ERROR, format!("non riesco a scrivere {nome}")).into_response();
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                format!("non riesco a scrivere {nome}"),
+            )
+                .into_response();
         }
         tenuti.insert(sicuro);
     }
@@ -399,19 +457,38 @@ mod prove {
         assert!(percorso_sicuro("pous/../../fuori").is_none());
         assert!(percorso_sicuro("/etc/passwd").is_none());
         assert!(percorso_sicuro("").is_none());
-        assert!(percorso_sicuro("pous//main.st").is_none(), "un pezzo vuoto non è un nome");
-        assert!(percorso_sicuro("pous\\main.st").is_none(), "il separatore di Windows no");
+        assert!(
+            percorso_sicuro("pous//main.st").is_none(),
+            "un pezzo vuoto non è un nome"
+        );
+        assert!(
+            percorso_sicuro("pous\\main.st").is_none(),
+            "il separatore di Windows no"
+        );
     }
 
     #[test]
     fn la_cartella_in_testa_si_toglie_solo_se_c_e_per_tutti() {
         let v = |n: &[&str]| n.iter().map(|s| s.to_string()).collect::<Vec<_>>();
         assert_eq!(
-            cartella_in_testa(&v(&["mio-plc/", "mio-plc/project.json", "mio-plc/pous/main.st"])).as_deref(),
+            cartella_in_testa(&v(&[
+                "mio-plc/",
+                "mio-plc/project.json",
+                "mio-plc/pous/main.st"
+            ]))
+            .as_deref(),
             Some("mio-plc/")
         );
-        assert_eq!(cartella_in_testa(&v(&["project.json", "pous/main.st"])), None, "già nuda");
-        assert_eq!(cartella_in_testa(&v(&["a/project.json", "b/main.st"])), None, "due cartelle");
+        assert_eq!(
+            cartella_in_testa(&v(&["project.json", "pous/main.st"])),
+            None,
+            "già nuda"
+        );
+        assert_eq!(
+            cartella_in_testa(&v(&["a/project.json", "b/main.st"])),
+            None,
+            "due cartelle"
+        );
         assert_eq!(cartella_in_testa(&v(&[])), None);
     }
 
@@ -419,9 +496,15 @@ mod prove {
     async fn legge_l_albero_annidato_coi_percorsi_relativi() {
         let t = tempfile::tempdir().unwrap();
         let d = dir_at(t.path());
-        tokio::fs::create_dir_all(d.join("pous/programs")).await.unwrap();
-        tokio::fs::write(d.join("project.json"), b"{}").await.unwrap();
-        tokio::fs::write(d.join("pous/programs/main.st"), b"PROGRAM main").await.unwrap();
+        tokio::fs::create_dir_all(d.join("pous/programs"))
+            .await
+            .unwrap();
+        tokio::fs::write(d.join("project.json"), b"{}")
+            .await
+            .unwrap();
+        tokio::fs::write(d.join("pous/programs/main.st"), b"PROGRAM main")
+            .await
+            .unwrap();
         // Quello che l'editor lascia indietro non entra.
         tokio::fs::create_dir_all(d.join(".git")).await.unwrap();
         tokio::fs::write(d.join(".git/HEAD"), b"ref").await.unwrap();
@@ -451,11 +534,17 @@ mod prove {
         use sha2::Digest;
         let t = tempfile::tempdir().unwrap();
         let d = dir_at(t.path());
-        tokio::fs::create_dir_all(d.join("pous/programs")).await.unwrap();
-        tokio::fs::write(d.join("pous/programs/main.st"), b"PROGRAM a").await.unwrap();
+        tokio::fs::create_dir_all(d.join("pous/programs"))
+            .await
+            .unwrap();
+        tokio::fs::write(d.join("pous/programs/main.st"), b"PROGRAM a")
+            .await
+            .unwrap();
         let mut h1 = sha2::Sha256::new();
         aggiungi_all_impronta(&mut h1, t.path());
-        tokio::fs::write(d.join("pous/programs/main.st"), b"PROGRAM b").await.unwrap();
+        tokio::fs::write(d.join("pous/programs/main.st"), b"PROGRAM b")
+            .await
+            .unwrap();
         let mut h2 = sha2::Sha256::new();
         aggiungi_all_impronta(&mut h2, t.path());
         assert_ne!(h1.finalize(), h2.finalize());
@@ -472,9 +561,15 @@ mod prove {
         let t = tempfile::tempdir().unwrap();
         let d = dir_at(t.path());
         tokio::fs::create_dir_all(d.join("pous")).await.unwrap();
-        tokio::fs::write(d.join("project.json"), b"{\"v\":1}").await.unwrap();
-        tokio::fs::write(d.join("pous/main.st"), b"PROGRAM main").await.unwrap();
-        tokio::fs::write(d.join("vecchio.st"), b"da togliere").await.unwrap();
+        tokio::fs::write(d.join("project.json"), b"{\"v\":1}")
+            .await
+            .unwrap();
+        tokio::fs::write(d.join("pous/main.st"), b"PROGRAM main")
+            .await
+            .unwrap();
+        tokio::fs::write(d.join("vecchio.st"), b"da togliere")
+            .await
+            .unwrap();
 
         // Lo zip come lo compone `scarica`: percorsi nudi, niente prefisso.
         let letti = leggi_per_bundle(t.path()).await;
@@ -505,7 +600,9 @@ mod prove {
                 std::io::copy(&mut f, &mut buf).unwrap();
             }
             let dest = d.join(&sicuro);
-            tokio::fs::create_dir_all(dest.parent().unwrap()).await.unwrap();
+            tokio::fs::create_dir_all(dest.parent().unwrap())
+                .await
+                .unwrap();
             tokio::fs::write(&dest, &buf).await.unwrap();
             tenuti.insert(sicuro);
         }
@@ -513,7 +610,10 @@ mod prove {
 
         assert!(d.join("project.json").exists());
         assert!(d.join("pous/main.st").exists());
-        assert!(!d.join("vecchio.st").exists(), "la sostituzione non ha tolto il file di prima");
+        assert!(
+            !d.join("vecchio.st").exists(),
+            "la sostituzione non ha tolto il file di prima"
+        );
     }
 
     /// La potatura toglie anche le cartelle rimaste vuote: un `pous/` vuoto
@@ -522,9 +622,15 @@ mod prove {
     async fn la_potatura_porta_via_anche_le_cartelle_vuote() {
         let t = tempfile::tempdir().unwrap();
         let d = dir_at(t.path());
-        tokio::fs::create_dir_all(d.join("pous/programs")).await.unwrap();
-        tokio::fs::write(d.join("pous/programs/main.st"), b"x").await.unwrap();
-        tokio::fs::write(d.join("project.json"), b"{}").await.unwrap();
+        tokio::fs::create_dir_all(d.join("pous/programs"))
+            .await
+            .unwrap();
+        tokio::fs::write(d.join("pous/programs/main.st"), b"x")
+            .await
+            .unwrap();
+        tokio::fs::write(d.join("project.json"), b"{}")
+            .await
+            .unwrap();
         let mut tenuti = std::collections::HashSet::<PathBuf>::new();
         tenuti.insert(PathBuf::from("project.json"));
         pota(&d, &d, &tenuti).await;
@@ -537,7 +643,9 @@ mod prove {
         let t = tempfile::tempdir().unwrap();
         let d = dir_at(t.path());
         tokio::fs::create_dir_all(&d).await.unwrap();
-        tokio::fs::write(d.join("grosso.bin"), vec![0u8; (TETTO_BYTE + 1) as usize]).await.unwrap();
+        tokio::fs::write(d.join("grosso.bin"), vec![0u8; (TETTO_BYTE + 1) as usize])
+            .await
+            .unwrap();
         assert!(leggi_per_bundle(t.path()).await.is_empty());
     }
 }

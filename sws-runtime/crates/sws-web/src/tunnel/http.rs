@@ -12,7 +12,12 @@ use http_body_util::BodyExt as _;
 
 /// Manda `req` su `io` come `percorso` + `query`, e torna la risposta. Un 101
 /// (websocket) cuce le due socket e le lascia girare da sole.
-pub(crate) async fn http_su<T>(io: T, percorso: &str, query: &str, req: Request<Body>) -> anyhow::Result<Response>
+pub(crate) async fn http_su<T>(
+    io: T,
+    percorso: &str,
+    query: &str,
+    req: Request<Body>,
+) -> anyhow::Result<Response>
 where
     T: tokio::io::AsyncRead + tokio::io::AsyncWrite + Unpin + Send + 'static,
 {

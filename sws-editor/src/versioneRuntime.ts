@@ -24,7 +24,7 @@ export function dimenticaVersione(): void {
   inVolo = null;
 }
 
-export function usaVersioneRuntime(): string | null {
+export function useVersioneRuntime(): string | null {
   const [versione, setVersione] = useState<string | null>(ricordata);
   useEffect(() => {
     if (ricordata !== null) {

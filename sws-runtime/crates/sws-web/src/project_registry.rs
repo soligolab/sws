@@ -209,13 +209,19 @@ mod tests {
         ] {
             vecchie.insert(
                 nome.to_string(),
-                KnownProjectEntry { path: PathBuf::from(percorso), last_opened_ms: 1 },
+                KnownProjectEntry {
+                    path: PathBuf::from(percorso),
+                    last_opened_ms: 1,
+                },
             );
         }
         // Una chiave gia nella forma nuova non si tocca.
         vecchie.insert(
             "acme/forno".to_string(),
-            KnownProjectEntry { path: PathBuf::from("/progetti/acme/forno"), last_opened_ms: 2 },
+            KnownProjectEntry {
+                path: PathBuf::from("/progetti/acme/forno"),
+                last_opened_ms: 2,
+            },
         );
 
         let nuove = migra_chiavi(vecchie, radice);
@@ -226,7 +232,10 @@ mod tests {
             vec!["-/f0b", "-/impianto", "acme/forno", "pixsys/LVGL"],
             "chiavi migrate male"
         );
-        assert_eq!(nuove["pixsys/LVGL"].path, PathBuf::from("/progetti/pixsys/LVGL"));
+        assert_eq!(
+            nuove["pixsys/LVGL"].path,
+            PathBuf::from("/progetti/pixsys/LVGL")
+        );
     }
 
     fn cartella(nome: &str) -> PathBuf {

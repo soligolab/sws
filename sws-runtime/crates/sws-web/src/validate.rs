@@ -38,7 +38,9 @@ use sws_core::project::ProjectTargetKind;
 use sws_core::{Project, SourceDef, TopicMapping};
 
 use crate::synoptic::{SynopticObject, SynopticPage};
-use crate::synoptic_schema::{FIELD_ENUMS, OBJECT_FIELDS, OBJECT_TYPES, PAGE_FIELDS, SYMBOL_PORTS, TAG_FIELDS};
+use crate::synoptic_schema::{
+    FIELD_ENUMS, OBJECT_FIELDS, OBJECT_TYPES, PAGE_FIELDS, SYMBOL_PORTS, TAG_FIELDS,
+};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "lowercase")]
@@ -478,11 +480,21 @@ fn motivo_senza_barra(project: &Project) -> Option<(&'static str, &'static str)>
         project.target.as_ref().map(|t| t.kind),
         Some(ProjectTargetKind::LvglFramebuffer | ProjectTargetKind::LvglWayland)
     );
-    let pieno = project.page_layout.as_ref().and_then(|l| l.hide_viewer_chrome) == Some(true);
+    let pieno = project
+        .page_layout
+        .as_ref()
+        .and_then(|l| l.hide_viewer_chrome)
+        == Some(true);
     if lvgl {
-        Some(("il progetto è per LVGL", "il viewer LVGL non ha una barra propria"))
+        Some((
+            "il progetto è per LVGL",
+            "il viewer LVGL non ha una barra propria",
+        ))
     } else if pieno {
-        Some(("il progetto è a schermo pieno", "a schermo pieno il viewer non mostra la sua barra"))
+        Some((
+            "il progetto è a schermo pieno",
+            "a schermo pieno il viewer non mostra la sua barra",
+        ))
     } else {
         None
     }
@@ -502,7 +514,8 @@ fn pagine_da_navigare(pages: &[SynopticPage]) -> usize {
 }
 
 fn ha_uscita(objs: &[crate::synoptic::SynopticObject]) -> bool {
-    objs.iter().any(|o| matches!(o.obj_type.as_str(), "page_navigator" | "navbutton"))
+    objs.iter()
+        .any(|o| matches!(o.obj_type.as_str(), "page_navigator" | "navbutton"))
 }
 
 // La rotazione automatica non salva il caso: porta via dalla pagina da sola, ma
@@ -511,7 +524,10 @@ fn ha_uscita(objs: &[crate::synoptic::SynopticObject]) -> bool {
 fn senza_uscita(pg: &SynopticPage, perche: &str, spiegazione: &str) -> Finding {
     Finding::warn(
         format!("pages[{}].objects", pg.name),
-        format!("«{}» non ha né navigatore né navbutton, e {perche}", pg.name),
+        format!(
+            "«{}» non ha né navigatore né navbutton, e {perche}",
+            pg.name
+        ),
         format!(
             "{spiegazione}: da questa pagina non si esce. Mettici un `page_navigator`, un \
              `navbutton` (anche nella cornice), oppure lasciala nella rotazione automatica"
@@ -553,7 +569,9 @@ pub fn rilievi_cornici(
     // pagine senza cornice le guarda `semantic`.
     let motivo = motivo_senza_barra(project).filter(|_| pagine_da_navigare(pages) > 1);
     for p in pages {
-        let Some(id) = crate::cornici::cornice_della_pagina(p, predefinita) else { continue };
+        let Some(id) = crate::cornici::cornice_della_pagina(p, predefinita) else {
+            continue;
+        };
         let Some(c) = per_id.get(id.as_str()) else {
             if let Some((perche, spiegazione)) = motivo {
                 if !ha_uscita(&p.objects) {
@@ -594,7 +612,10 @@ pub fn rilievi_cornici(
         for o in crate::cornici::oggetti_nelle_fasce(p, c) {
             out.push(Finding::warn(
                 format!("pages[{}].objects[{o}]", p.name),
-                format!("l'oggetto `{o}` entra in una fascia della cornice `{}`", c.id),
+                format!(
+                    "l'oggetto `{o}` entra in una fascia della cornice `{}`",
+                    c.id
+                ),
                 "la cornice ci sta sotto: spostalo nella parte libera della pagina",
             ));
         }
@@ -631,9 +652,13 @@ pub fn rilievi_trasporto(project: &Project, trasporti: &HashMap<String, String>)
             _ => continue,
         };
         for (i, d) in devices.iter().enumerate() {
-            let Some(modello) = d.modello.as_deref() else { continue };
+            let Some(modello) = d.modello.as_deref() else {
+                continue;
+            };
             let voce = modello.split('@').next().unwrap_or(modello);
-            let Some(t) = trasporti.get(voce) else { continue };
+            let Some(t) = trasporti.get(voce) else {
+                continue;
+            };
             if t != "entrambi" && t != bus {
                 out.push(Finding::err(
                     format!("project.sources[{id}].devices[{i}].modello"),
@@ -689,7 +714,10 @@ pub fn rilievi_blocchi(project: &Project) -> Vec<Finding> {
                 let problema = if b.a < b.da {
                     Some(format!("finisce ({}) prima di cominciare ({})", b.a, b.da))
                 } else if (b.a - b.da) as u32 + 1 > massimo {
-                    Some(format!("è lungo {} e una richiesta ne porta al massimo {massimo}", b.a - b.da + 1))
+                    Some(format!(
+                        "è lungo {} e una richiesta ne porta al massimo {massimo}",
+                        b.a - b.da + 1
+                    ))
                 } else {
                     None
                 };
@@ -731,7 +759,11 @@ pub fn rilievi_pubblicazioni(project: &Project) -> Vec<Finding> {
                 topic(&d.topic, "disponibilita.topic");
             }
             if p.tags.iter().all(|t| t.trim().is_empty()) {
-                out.push(Finding::err(format!("{dove}.tags"), "una pubblicazione senza tag", "scegli almeno un tag, una variabile o un suo ramo"));
+                out.push(Finding::err(
+                    format!("{dove}.tags"),
+                    "una pubblicazione senza tag",
+                    "scegli almeno un tag, una variabile o un suo ramo",
+                ));
             } else if p.formato == sws_core::FormatoPubblicazione::Valore && p.tags.len() > 1 {
                 out.push(Finding::err(
                     format!("{dove}.formato"),
@@ -749,7 +781,10 @@ pub fn rilievi_pubblicazioni(project: &Project) -> Vec<Finding> {
 /// rifiutano — ma un progetto nato prima, o scritto a mano, può averlo. Il
 /// web lo disegna e non ha una guardia di ciclo; il pannello lo salta. Non
 /// blocca il salvataggio: rifiutarlo romperebbe i progetti che lo hanno già.
-pub fn rilievi_faceplate(project: &Project, faceplates: &[crate::synoptic::FaceplateDef]) -> Vec<Finding> {
+pub fn rilievi_faceplate(
+    project: &Project,
+    faceplates: &[crate::synoptic::FaceplateDef],
+) -> Vec<Finding> {
     let lvgl = matches!(
         project.target.as_ref().map(|t| t.kind),
         Some(ProjectTargetKind::LvglFramebuffer | ProjectTargetKind::LvglWayland)
@@ -786,7 +821,9 @@ pub fn rilievi_finestre(project: &Project, pages: &[SynopticPage]) -> Vec<Findin
     );
     for p in pages {
         for o in &p.objects {
-            let Some(a) = o.button_action.as_ref() else { continue };
+            let Some(a) = o.button_action.as_ref() else {
+                continue;
+            };
             if a.get("type").and_then(Value::as_str) != Some("open_popup") {
                 continue;
             }
@@ -876,7 +913,11 @@ pub fn semantic(project: &Project, pages: &[SynopticPage]) -> Vec<Finding> {
     );
     if let Some(modo) = project.page_layout.as_ref().map(|l| l.size_mode) {
         if lvgl && modo != sws_core::project::PageSizeMode::Fixed {
-            let nome = if modo == sws_core::project::PageSizeMode::Ratio { "ratio" } else { "fluid" };
+            let nome = if modo == sws_core::project::PageSizeMode::Ratio {
+                "ratio"
+            } else {
+                "fluid"
+            };
             out.push(Finding::warn(
                 "page_layout.size_mode",
                 format!("il progetto è per LVGL e la dimensione delle pagine è `{nome}`"),
@@ -1063,7 +1104,9 @@ pub fn semantic(project: &Project, pages: &[SynopticPage]) -> Vec<Finding> {
         .filter_map(|d| {
             let c = sws_core::simboli_prj::compila_e_controlla(d).ok()?;
             let porte = c.voce["ports"].as_array().map(|a| {
-                a.iter().filter_map(|p| p["id"].as_str().map(str::to_string)).collect()
+                a.iter()
+                    .filter_map(|p| p["id"].as_str().map(str::to_string))
+                    .collect()
             });
             Some((d.id(), porte.unwrap_or_default()))
         })
@@ -1129,7 +1172,10 @@ pub fn semantic(project: &Project, pages: &[SynopticPage]) -> Vec<Finding> {
                 if !sws_plugin_mqtt::pubblicabile(&r.topic) {
                     out.push(Finding::err(
                         format!("project.sources[{id}].topics[{i}].richiesta_stato.topic"),
-                        format!("richiesta di stato su un topic non pubblicabile: `{}`", r.topic),
+                        format!(
+                            "richiesta di stato su un topic non pubblicabile: `{}`",
+                            r.topic
+                        ),
                         "scrivi un topic senza `+` né `#` (per Zigbee2MQTT è `<topic>/get`), \
                          oppure togli la richiesta: il runtime non la manda",
                     ));
@@ -1149,12 +1195,17 @@ pub fn semantic(project: &Project, pages: &[SynopticPage]) -> Vec<Finding> {
             // testo, su un registro o un nodo di un PLC non ha un posto.
             if !matches!(src, SourceDef::Mqtt(_))
                 && per_id.get(tag).is_some_and(|t| {
-                    matches!(sws_core::TipoScalare::parse(&t.data_type), Some(sws_core::TipoScalare::Colore))
+                    matches!(
+                        sws_core::TipoScalare::parse(&t.data_type),
+                        Some(sws_core::TipoScalare::Colore)
+                    )
                 })
             {
                 out.push(Finding::err(
                     format!("project.sources[{id}].{percorso}"),
-                    format!("la variabile `{tag}` è un colore: non si mappa su un protocollo di campo"),
+                    format!(
+                        "la variabile `{tag}` è un colore: non si mappa su un protocollo di campo"
+                    ),
                     "un colore vive nelle variabili interne (o in MQTT, come testo): \
                      togli la mappatura o cambia il tipo della variabile",
                 ));
@@ -1231,10 +1282,7 @@ pub fn semantic(project: &Project, pages: &[SynopticPage]) -> Vec<Finding> {
         for (sev, n) in ripetute.into_iter().filter(|(_, n)| *n > 1) {
             out.push(Finding::warn(
                 format!("project.alarms[{}].levels", a.id),
-                format!(
-                    "l'allarme `{}` ha {n} livelli con severità {sev:?}",
-                    a.id
-                ),
+                format!("l'allarme `{}` ha {n} livelli con severità {sev:?}", a.id),
                 "due soglie con la stessa gravità sono di solito un refuso: sul pannello si \
                  leggono uguali, e chi guarda non si accorge di essere passato alla peggiore. \
                  Dai al livello più alto una severità più alta. Se invece le vuoi così, quando \
@@ -1499,34 +1547,57 @@ pub fn rilievi_report(project: &Project) -> Vec<Finding> {
     for r in &project.reports {
         let base = format!("project.reports[{}]", r.id);
         if !crate::report::file_sicuro(&r.id) || r.id.trim().is_empty() {
-            out.push(Finding::err(format!("{base}.id"), format!("id di report non valido: `{}`", r.id),
-                "l'id diventa il nome di una cartella: lettere, cifre, `-` e `_`"));
+            out.push(Finding::err(
+                format!("{base}.id"),
+                format!("id di report non valido: `{}`", r.id),
+                "l'id diventa il nome di una cartella: lettere, cifre, `-` e `_`",
+            ));
         }
         if !visti.insert(r.id.as_str()) {
-            out.push(Finding::err(format!("{base}.id"), format!("report `{}` ripetuto", r.id),
-                "due report con lo stesso id scriverebbero nella stessa cartella"));
+            out.push(Finding::err(
+                format!("{base}.id"),
+                format!("report `{}` ripetuto", r.id),
+                "due report con lo stesso id scriverebbero nella stessa cartella",
+            ));
         }
         let (_, problemi) = crate::cron::analizza(r.cron());
         for p in problemi {
             match p.gravita {
-                crate::cron::Gravita::Errore => out.push(Finding::err(format!("{base}.quando"),
-                    format!("{} — il report NON partirebbe", p.messaggio), p.suggerimento)),
-                crate::cron::Gravita::Avviso => out.push(Finding::warn(format!("{base}.quando"), p.messaggio, p.suggerimento)),
+                crate::cron::Gravita::Errore => out.push(Finding::err(
+                    format!("{base}.quando"),
+                    format!("{} — il report NON partirebbe", p.messaggio),
+                    p.suggerimento,
+                )),
+                crate::cron::Gravita::Avviso => out.push(Finding::warn(
+                    format!("{base}.quando"),
+                    p.messaggio,
+                    p.suggerimento,
+                )),
             }
         }
         if r.tags.is_empty() && !r.allarmi {
-            out.push(Finding::warn(format!("{base}.tags"), "il report non ha né tag né allarmi",
-                "senza niente da riportare, partirebbe un file vuoto"));
+            out.push(Finding::warn(
+                format!("{base}.tags"),
+                "il report non ha né tag né allarmi",
+                "senza niente da riportare, partirebbe un file vuoto",
+            ));
         }
         for (i, t) in r.tags.iter().enumerate() {
             if !tag.contains(t.as_str()) {
-                out.push(Finding::err(format!("{base}.tags[{i}]"), format!("il tag `{t}` non è dichiarato"),
-                    "nel report resterebbe una riga vuota: correggi il riferimento o toglilo"));
+                out.push(Finding::err(
+                    format!("{base}.tags[{i}]"),
+                    format!("il tag `{t}` non è dichiarato"),
+                    "nel report resterebbe una riga vuota: correggi il riferimento o toglilo",
+                ));
             }
         }
         for f in &r.formati {
             if f != "pdf" && f != "xlsx" {
-                out.push(Finding::err(format!("{base}.formati"), format!("formato `{f}` sconosciuto"), "i formati sono `pdf` e `xlsx`"));
+                out.push(Finding::err(
+                    format!("{base}.formati"),
+                    format!("formato `{f}` sconosciuto"),
+                    "i formati sono `pdf` e `xlsx`",
+                ));
             }
         }
     }
@@ -1561,16 +1632,32 @@ fn cron_rilievi(base: &str, schedule: &str) -> Vec<Finding> {
 /// pila CSS che lo è (`tests/fixtures/font.json`, la stessa tabella del browser e
 /// del pannello).
 fn font_conosciuto(ff: &str) -> bool {
-    static ELENCO: std::sync::OnceLock<(HashSet<String>, HashSet<String>)> = std::sync::OnceLock::new();
+    static ELENCO: std::sync::OnceLock<(HashSet<String>, HashSet<String>)> =
+        std::sync::OnceLock::new();
     let (ids, alias) = ELENCO.get_or_init(|| {
         let v: Value = serde_json::from_str(include_str!("../../../../tests/fixtures/font.json"))
             .expect("tests/fixtures/font.json non si legge");
-        let ids = v["famiglie"].as_array().into_iter().flatten()
-            .filter_map(|f| f["id"].as_str().map(str::to_owned)).collect();
-        let alias = v["alias"].as_object().into_iter().flatten().map(|(k, _)| k.clone()).collect();
+        let ids = v["famiglie"]
+            .as_array()
+            .into_iter()
+            .flatten()
+            .filter_map(|f| f["id"].as_str().map(str::to_owned))
+            .collect();
+        let alias = v["alias"]
+            .as_object()
+            .into_iter()
+            .flatten()
+            .map(|(k, _)| k.clone())
+            .collect();
         (ids, alias)
     });
-    let primo = ff.split(',').next().unwrap_or("").trim().trim_matches(|c| c == '\'' || c == '"').to_lowercase();
+    let primo = ff
+        .split(',')
+        .next()
+        .unwrap_or("")
+        .trim()
+        .trim_matches(|c| c == '\'' || c == '"')
+        .to_lowercase();
     ids.contains(&primo) || alias.contains(&primo)
 }
 
@@ -1587,7 +1674,8 @@ fn simboli_sovrapposti(out: &mut Vec<Finding>, page: &SynopticPage) {
         .iter()
         .filter(|o| o.obj_type == "symbol" && !o.is_off_page(page))
         .collect();
-    let riquadro = |o: &SynopticObject| (o.x, o.y, o.width.unwrap_or(80.0), o.height.unwrap_or(80.0));
+    let riquadro =
+        |o: &SynopticObject| (o.x, o.y, o.width.unwrap_or(80.0), o.height.unwrap_or(80.0));
     for (i, a) in simboli.iter().enumerate() {
         for b in &simboli[i + 1..] {
             let (ax, ay, aw, ah) = riquadro(a);
@@ -1601,7 +1689,12 @@ fn simboli_sovrapposti(out: &mut Vec<Finding>, page: &SynopticPage) {
             if minore > 0.0 && w * h > minore * 0.25 {
                 out.push(Finding::warn(
                     format!("pages[{}].objects[{}]", page.name, b.id),
-                    format!("il simbolo `{}` copre `{}` per il {:.0}%", b.id, a.id, 100.0 * w * h / minore),
+                    format!(
+                        "il simbolo `{}` copre `{}` per il {:.0}%",
+                        b.id,
+                        a.id,
+                        100.0 * w * h / minore
+                    ),
                     "spostane uno: due macchine una sopra l'altra non si leggono",
                 ));
             }
@@ -1657,7 +1750,9 @@ fn controlla_oggetto(
         }
         // La molla (fase 6) scrive di continuo mentre si tiene: con una
         // conferma o una password a ogni scrittura la leva non si usa.
-        if o.slider_rest_value.is_some() && (o.require_confirm == Some(true) || o.critical == Some(true)) {
+        if o.slider_rest_value.is_some()
+            && (o.require_confirm == Some(true) || o.critical == Some(true))
+        {
             out.push(Finding::err(
                 format!("{base}.slider_rest_value"),
                 "uno slider a molla non può chiedere conferma: la chiederebbe a ogni scrittura mentre lo si tiene",
@@ -1815,7 +1910,8 @@ fn controlla_oggetto(
     let tag_def = o.tag.as_deref().and_then(|id| tags.get(id)).copied();
     // Un simbolo che comanda scrive `command_tag`, non `tag` (che sul simbolo è
     // la qualità): i valori da scrivere si misurano su quello.
-    let simbolo_comanda = t == "symbol" && (o.command_tag.is_some() || o.assegnazioni.as_ref().is_some_and(|a| !a.is_empty()));
+    let simbolo_comanda = t == "symbol"
+        && (o.command_tag.is_some() || o.assegnazioni.as_ref().is_some_and(|a| !a.is_empty()));
     let (campo_scritto, tag_scritto) = if t == "symbol" {
         ("command_tag", o.command_tag.as_deref())
     } else {
@@ -1868,7 +1964,10 @@ fn controlla_oggetto(
         if let Some(msg) = incompatibile(&a.valore, tipo_scrittura) {
             out.push(Finding::err(
                 format!("{dove}.valore"),
-                format!("{msg} ma la variabile `{}` è dichiarata `{}`", td.id, tipo_scrittura),
+                format!(
+                    "{msg} ma la variabile `{}` è dichiarata `{}`",
+                    td.id, tipo_scrittura
+                ),
                 atteso_per(tipo_scrittura),
             ));
         }
@@ -1929,11 +2028,14 @@ fn controlla_oggetto(
             // faceplate) fa già qualcosa: il tag non gli serve (18-10-2026).
             None if tag_scritto.unwrap_or("").is_empty()
                 && !ha_assegnazioni
-                && !(t == "button" && o.button_action.is_some()) => out.push(Finding::warn(
-                format!("{base}.{campo_scritto}"),
-                format!("un `{t}` senza tag non comanda niente"),
-                "indica il tag su cui scrivere",
-            )),
+                && !(t == "button" && o.button_action.is_some()) =>
+            {
+                out.push(Finding::warn(
+                    format!("{base}.{campo_scritto}"),
+                    format!("un `{t}` senza tag non comanda niente"),
+                    "indica il tag su cui scrivere",
+                ))
+            }
             _ => {}
         }
         // Il bersaglio: un comando MQTT senza canale di ritorno.
@@ -1997,18 +2099,32 @@ fn controlla_oggetto(
     // La bocca a cui si aggancia un capo (15-10-2026): uno dei cinque punti del
     // riquadro, oppure una bocca che il simbolo ha davvero. Avviso, non errore:
     // un nome sconosciuto ricade sul centro, e il tubo si vede comunque.
-    for (campo_obj, campo, porta) in [("from_obj_id", "from_port", &o.from_port), ("to_obj_id", "to_port", &o.to_port)] {
-        let Some(porta) = porta.as_deref().filter(|p| !p.is_empty()) else { continue };
+    for (campo_obj, campo, porta) in [
+        ("from_obj_id", "from_port", &o.from_port),
+        ("to_obj_id", "to_port", &o.to_port),
+    ] {
+        let Some(porta) = porta.as_deref().filter(|p| !p.is_empty()) else {
+            continue;
+        };
         if ["top", "bottom", "left", "right", "center"].contains(&porta) {
             continue;
         }
-        let rif = if campo_obj == "from_obj_id" { &o.from_obj_id } else { &o.to_obj_id };
-        let bersaglio = rif.as_deref().and_then(|id| page.objects.iter().find(|x| x.id == id));
-        let sid = bersaglio.filter(|b| b.obj_type == "symbol").and_then(|b| b.symbol_id.as_deref());
+        let rif = if campo_obj == "from_obj_id" {
+            &o.from_obj_id
+        } else {
+            &o.to_obj_id
+        };
+        let bersaglio = rif
+            .as_deref()
+            .and_then(|id| page.objects.iter().find(|x| x.id == id));
+        let sid = bersaglio
+            .filter(|b| b.obj_type == "symbol")
+            .and_then(|b| b.symbol_id.as_deref());
         let bocche: Vec<&str> = match sid {
-            Some(sid) if sid.starts_with("prj:") => {
-                bocche_prj.get(sid).map(|v| v.iter().map(String::as_str).collect()).unwrap_or_default()
-            }
+            Some(sid) if sid.starts_with("prj:") => bocche_prj
+                .get(sid)
+                .map(|v| v.iter().map(String::as_str).collect())
+                .unwrap_or_default(),
             Some(sid) => SYMBOL_PORTS
                 .iter()
                 .find(|(k, _)| *k == sid)
@@ -2020,7 +2136,10 @@ fn controlla_oggetto(
             let valide = if bocche.is_empty() {
                 "top, bottom, left, right, center".to_string()
             } else {
-                format!("{}, oppure top, bottom, left, right, center", bocche.join(", "))
+                format!(
+                    "{}, oppure top, bottom, left, right, center",
+                    bocche.join(", ")
+                )
             };
             out.push(Finding::warn(
                 format!("{base}.{campo}"),
@@ -2043,7 +2162,13 @@ fn controlla_oggetto(
 
     // Una polilinea con meno di due punti non si vede su nessun motore, e
     // non si riprende col mouse: è quasi sempre un disegno interrotto.
-    if t == "polyline" && o.points.as_ref().and_then(|p| p.as_array()).map_or(0, |a| a.len()) < 2 {
+    if t == "polyline"
+        && o.points
+            .as_ref()
+            .and_then(|p| p.as_array())
+            .map_or(0, |a| a.len())
+            < 2
+    {
         out.push(Finding::warn(
             format!("{base}.points"),
             "una `polyline` con meno di due punti non si disegna",
@@ -2195,7 +2320,9 @@ fn incompatibile(v: &Value, data_type: &str) -> Option<String> {
         Some(Categoria::Intero) | Some(Categoria::Tempo) => v.as_i64().is_some(),
         Some(Categoria::Reale) => v.is_number(),
         Some(Categoria::Testo) => v.is_string(),
-        Some(Categoria::Colore) => v.as_str().is_some_and(|c| sws_core::tipo::normalizza_colore(c).is_some()),
+        Some(Categoria::Colore) => v
+            .as_str()
+            .is_some_and(|c| sws_core::tipo::normalizza_colore(c).is_some()),
         None => true,
     };
     if ok {
@@ -2251,7 +2378,12 @@ fn mappature_modbus<'a>(
 
 /// Bus e dispositivi Modbus (04-10-2026): unit id unici nel bus, formato di
 /// prima non mescolato al nuovo, una porta seriale aperta da un bus solo.
-fn controlli_modbus<'a>(src: &'a SourceDef, id: &'a str, porte_rtu: &mut HashMap<&'a str, &'a str>, out: &mut Vec<Finding>) {
+fn controlli_modbus<'a>(
+    src: &'a SourceDef,
+    id: &'a str,
+    porte_rtu: &mut HashMap<&'a str, &'a str>,
+    out: &mut Vec<Finding>,
+) {
     let (devices, registers) = match src {
         SourceDef::ModbusTcp(c) => (&c.devices, &c.registers),
         SourceDef::ModbusRtu(c) => {
@@ -2275,8 +2407,14 @@ fn controlli_modbus<'a>(src: &'a SourceDef, id: &'a str, porte_rtu: &mut HashMap
         for (i, p) in dev.setup.iter().enumerate() {
             let dove = format!("project.sources[{id}].devices[{d}].setup[{i}]");
             if !(-32768..=65535).contains(&p.valore) {
-                out.push(Finding::err(dove.clone(), format!("`{}` = {}: non sta in un registro a 16 bit", p.nome, p.valore),
-                    "un parametro di configurazione è un registro holding: da -32768 a 65535"));
+                out.push(Finding::err(
+                    dove.clone(),
+                    format!(
+                        "`{}` = {}: non sta in un registro a 16 bit",
+                        p.nome, p.valore
+                    ),
+                    "un parametro di configurazione è un registro holding: da -32768 a 65535",
+                ));
             }
             if !visti.insert(p.nome.as_str()) {
                 out.push(Finding::err(dove, format!("`{}` compare due volte nel setup", p.nome),
@@ -2295,15 +2433,29 @@ fn controlli_modbus<'a>(src: &'a SourceDef, id: &'a str, porte_rtu: &mut HashMap
     // Formato sul filo e bit (catalogo dei dispositivi, 04-10-2026).
     let mut righe: Vec<(String, &sws_core::RegisterMapping)> = Vec::new();
     if devices.is_empty() {
-        righe.extend(registers.iter().enumerate().map(|(i, r)| (format!("registers[{i}]"), r)));
+        righe.extend(
+            registers
+                .iter()
+                .enumerate()
+                .map(|(i, r)| (format!("registers[{i}]"), r)),
+        );
     }
     for (d, dev) in devices.iter().enumerate() {
-        righe.extend(dev.registers.iter().enumerate().map(|(i, r)| (format!("devices[{d}].registers[{i}]"), r)));
+        righe.extend(
+            dev.registers
+                .iter()
+                .enumerate()
+                .map(|(i, r)| (format!("devices[{d}].registers[{i}]"), r)),
+        );
     }
     for (dove, r) in righe {
-        let formato = r.formato.as_deref().map(|f| (f, sws_core::TipoScalare::parse(f)));
+        let formato = r
+            .formato
+            .as_deref()
+            .map(|f| (f, sws_core::TipoScalare::parse(f)));
         if let Some((f, t)) = &formato {
-            if !matches!(t, Some(t) if !matches!(t, sws_core::TipoScalare::Stringa { .. } | sws_core::TipoScalare::DateTime | sws_core::TipoScalare::Colore)) {
+            if !matches!(t, Some(t) if !matches!(t, sws_core::TipoScalare::Stringa { .. } | sws_core::TipoScalare::DateTime | sws_core::TipoScalare::Colore))
+            {
                 out.push(Finding::err(
                     format!("project.sources[{id}].{dove}.formato"),
                     format!("formato `{f}` non è un tipo numerico"),
@@ -2404,12 +2556,17 @@ fn mappature_tag(src: &SourceDef) -> Vec<(String, &str)> {
 /// direbbe «non risponde» per sempre.
 fn controlli_disponibilita(src: &SourceDef, id: &str, out: &mut Vec<Finding>) {
     let SourceDef::Mqtt(c) = src else { return };
-    let Some(d) = c.disponibilita.as_ref() else { return };
+    let Some(d) = c.disponibilita.as_ref() else {
+        return;
+    };
     let campo = format!("project.sources[{id}].disponibilita");
     if d.topic.contains("{nome}") {
         out.push(Finding::warn(
             &campo,
-            format!("il topic di disponibilità `{}` contiene ancora `{{nome}}`", d.topic),
+            format!(
+                "il topic di disponibilità `{}` contiene ancora `{{nome}}`",
+                d.topic
+            ),
             "sostituisci `{nome}` col nome del dispositivo: così com'è nessuno ci pubblica, e la \
              sorgente risulterebbe sempre non disponibile",
         ));
@@ -2540,7 +2697,11 @@ pub fn blocco_salvataggio(project: &Project) -> Option<String> {
 /// gli allarmi: una frase, con il numero e il posto dove si sistema. Il testo
 /// intero di [`blocco_salvataggio`] va solo a chi salva la scheda Allarmi.
 pub fn blocco_salvataggio_altrove(project: &Project) -> String {
-    let vecchi = project.alarms.iter().filter(|a| a.formato_vecchio()).count();
+    let vecchi = project
+        .alarms
+        .iter()
+        .filter(|a| a.formato_vecchio())
+        .count();
     let mut tag = std::collections::HashMap::<&str, usize>::new();
     for a in project.alarms.iter().filter(|a| !a.tag.is_empty()) {
         *tag.entry(a.tag.as_str()).or_default() += 1;
@@ -3004,7 +3165,10 @@ alarms: []
         )
         .unwrap();
         let rs = semantic(&p, &[pagina]);
-        let font: Vec<_> = rs.iter().filter(|f| f.path.ends_with(".font_family")).collect();
+        let font: Vec<_> = rs
+            .iter()
+            .filter(|f| f.path.ends_with(".font_family"))
+            .collect();
         assert_eq!(font.len(), 1, "{rs:?}");
         assert!(font[0].path.contains("objects[c]"));
     }
@@ -3018,8 +3182,15 @@ alarms: []
         )
         .unwrap();
         let rs = semantic(&p, &[pagina]);
-        let di = |id: &str, campo: &str| rs.iter().any(|f| f.path.contains(&format!("objects[{id}].{campo}")));
-        assert!(!rs.iter().any(|f| f.path.contains("objects[buono]") && f.path.ends_with("max")), "{rs:?}");
+        let di = |id: &str, campo: &str| {
+            rs.iter()
+                .any(|f| f.path.contains(&format!("objects[{id}].{campo}")))
+        };
+        assert!(
+            !rs.iter()
+                .any(|f| f.path.contains("objects[buono]") && f.path.ends_with("max")),
+            "{rs:?}"
+        );
         assert!(di("rovescio", "max"), "{rs:?}");
         assert!(di("fermo", "step"), "{rs:?}");
         assert!(di("fermo", "write_deadband"), "{rs:?}");
@@ -3028,7 +3199,11 @@ alarms: []
         )
         .unwrap();
         let rs = semantic(&p, &[molla]);
-        assert!(rs.iter().any(|f| f.path.contains("objects[leva].slider_rest_value")), "{rs:?}");
+        assert!(
+            rs.iter()
+                .any(|f| f.path.contains("objects[leva].slider_rest_value")),
+            "{rs:?}"
+        );
         // In sola lettura su un tag calcolato non è un comando rifiutato.
         let prog = "meta: { name: p, version: '1' }\ntags:\n- { id: rampa, data_type: float, generator: { shape: ramp, period_ms: 1000, min: 0, max: 1 } }\nsources: []\nalarms: []\n";
         let p2: Project = serde_yaml::from_str(prog).unwrap();
@@ -3038,7 +3213,10 @@ alarms: []
         .unwrap();
         let rs = semantic(&p2, &[pagina]);
         assert!(!rs.iter().any(|f| f.path.contains("objects[ro]")), "{rs:?}");
-        assert!(rs.iter().any(|f| f.path.contains("objects[rw].tag")), "{rs:?}");
+        assert!(
+            rs.iter().any(|f| f.path.contains("objects[rw].tag")),
+            "{rs:?}"
+        );
     }
 
     /// LVGL disegna 1:1: in `ratio` e `fluid` la pagina non riempie lo schermo
@@ -3054,10 +3232,18 @@ alarms: []
         };
         for modo in ["ratio", "fluid"] {
             let rs = fa(modo, "lvgl_wayland");
-            assert!(rs.iter().any(|f| f.path == "page_layout.size_mode" && f.message.contains(modo)), "{modo}: {rs:?}");
+            assert!(
+                rs.iter()
+                    .any(|f| f.path == "page_layout.size_mode" && f.message.contains(modo)),
+                "{modo}: {rs:?}"
+            );
         }
-        assert!(!fa("fixed", "lvgl_wayland").iter().any(|f| f.path == "page_layout.size_mode"));
-        assert!(!fa("ratio", "web").iter().any(|f| f.path == "page_layout.size_mode"));
+        assert!(!fa("fixed", "lvgl_wayland")
+            .iter()
+            .any(|f| f.path == "page_layout.size_mode"));
+        assert!(!fa("ratio", "web")
+            .iter()
+            .any(|f| f.path == "page_layout.size_mode"));
     }
 
     /// CasaDomotica, 18-10-2026: il navigatore sta nel piede della cornice, la
@@ -3072,7 +3258,8 @@ alarms: []
         )
         .unwrap();
         let altra: SynopticPage =
-            serde_yaml::from_str("id: a\nname: Altra\nwidth: 1280\nheight: 800\nobjects: []").unwrap();
+            serde_yaml::from_str("id: a\nname: Altra\nwidth: 1280\nheight: 800\nobjects: []")
+                .unwrap();
         let info: SynopticPage = serde_yaml::from_str(
             "id: i\nname: Info\nfinestra: { modale: true }\nobjects:\n- { id: c, type: button, x: 10, y: 10, width: 100, height: 40, button_action: { type: close_popup } }",
         )
@@ -3088,9 +3275,18 @@ alarms: []
         assert!(!cita(&rs, "senza tag"), "{rs:?}");
 
         // Senza navigatore nella cornice, l'avviso torna, una volta per pagina.
-        let vuota = crate::cornici::Cornice { oggetti: vec![], ..cornice };
+        let vuota = crate::cornici::Cornice {
+            oggetti: vec![],
+            ..cornice
+        };
         let rs2 = rilievi_cornici(&p, &pagine, &[vuota]);
-        assert_eq!(rs2.iter().filter(|f| f.hint.as_deref().unwrap_or("").contains("non si esce")).count(), 2, "{rs2:?}");
+        assert_eq!(
+            rs2.iter()
+                .filter(|f| f.hint.as_deref().unwrap_or("").contains("non si esce"))
+                .count(),
+            2,
+            "{rs2:?}"
+        );
         assert!(!cita(&rs2, "«Info»"), "{rs2:?}");
     }
 
@@ -3117,23 +3313,37 @@ alarms: []
         )
         .unwrap();
         let fin = |modale: &str| -> SynopticPage {
-            serde_yaml::from_str(&format!("id: i\nname: Info\nfinestra: {{ modale: {modale} }}\nobjects: []"))
-                .unwrap()
+            serde_yaml::from_str(&format!(
+                "id: i\nname: Info\nfinestra: {{ modale: {modale} }}\nobjects: []"
+            ))
+            .unwrap()
         };
 
         // Modale su LVGL: niente da dire, si comporta come nel browser.
         let rs = rilievi_finestre(&lvgl, &[home.clone(), fin("true")]);
-        assert!(rs.is_empty(), "una finestra modale su LVGL non ha niente di diverso: {rs:?}");
+        assert!(
+            rs.is_empty(),
+            "una finestra modale su LVGL non ha niente di diverso: {rs:?}"
+        );
 
         // La vecchia bugia non deve poter tornare.
         let rs = rilievi_finestre(&lvgl, &[home.clone(), fin("false")]);
-        assert!(!cita(&rs, "non ci sono ancora"), "l'avviso vecchio e' falso dal 22-10-2026: {rs:?}");
+        assert!(
+            !cita(&rs, "non ci sono ancora"),
+            "l'avviso vecchio e' falso dal 22-10-2026: {rs:?}"
+        );
         assert!(!cita(&rs, "pagina intera"), "{rs:?}");
-        assert!(cita(&rs, "modale"), "la differenza che resta va detta: {rs:?}");
+        assert!(
+            cita(&rs, "modale"),
+            "la differenza che resta va detta: {rs:?}"
+        );
 
         // Nel browser «non modale» vuol dire davvero non modale: nessun avviso.
         let rs = rilievi_finestre(&web, &[home, fin("false")]);
-        assert!(rs.is_empty(), "sul web non c'e' nessuna differenza da segnalare: {rs:?}");
+        assert!(
+            rs.is_empty(),
+            "sul web non c'e' nessuna differenza da segnalare: {rs:?}"
+        );
     }
 
     /// Su LVGL la barra del viewer **non esiste**, e non solo quando la si
@@ -3334,18 +3544,30 @@ alarms: []
             "id: pompa\nlabel: Pompa\nobjects:\n- { id: m, type: faceplate, x: 0, y: 0, faceplate_id: motor_basic }\n- { id: r, type: rect, x: 0, y: 0 }",
         )
         .unwrap();
-        let liscio: crate::synoptic::FaceplateDef =
-            serde_yaml::from_str("id: liscio\nlabel: L\nobjects:\n- { id: r, type: rect, x: 0, y: 0 }").unwrap();
-        let web: Project = serde_yaml::from_str("meta: { name: p, version: '1' }\ntags: []\nsources: []\nalarms: []\n").unwrap();
+        let liscio: crate::synoptic::FaceplateDef = serde_yaml::from_str(
+            "id: liscio\nlabel: L\nobjects:\n- { id: r, type: rect, x: 0, y: 0 }",
+        )
+        .unwrap();
+        let web: Project = serde_yaml::from_str(
+            "meta: { name: p, version: '1' }\ntags: []\nsources: []\nalarms: []\n",
+        )
+        .unwrap();
         let rs = rilievi_faceplate(&web, &[fp.clone(), liscio]);
         assert_eq!(rs.len(), 1, "{rs:?}");
         assert!(rs[0].message.contains("Pompa"));
-        assert!(rs.iter().all(|f| f.severity == Severity::Warning), "un avviso, non un blocco");
+        assert!(
+            rs.iter().all(|f| f.severity == Severity::Warning),
+            "un avviso, non un blocco"
+        );
         let pannello: Project = serde_yaml::from_str(
             "meta: { name: p, version: '1' }\ntarget: { kind: lvgl_framebuffer }\ntags: []\nsources: []\nalarms: []\n",
         )
         .unwrap();
-        assert!(rilievi_faceplate(&pannello, &[fp]).iter().any(|f| f.hint.as_deref().unwrap_or("").contains("non comparirà")));
+        assert!(rilievi_faceplate(&pannello, &[fp]).iter().any(|f| f
+            .hint
+            .as_deref()
+            .unwrap_or("")
+            .contains("non comparirà")));
     }
 
     #[test]
@@ -3391,10 +3613,19 @@ alarms: []
             "- { id: s, type: symbol, x: 0, y: 0, symbol_id: pump, command_tag: luce.salotto, button_mode: toggle }"));
         assert!(errori(&rs).is_empty(), "{rs:?}");
         // Un simbolo senza comando non è un comando: nessun avviso sul tag vuoto.
-        let rs = rilievi(PROGETTO, &pagina("- { id: s, type: symbol, x: 0, y: 0, symbol_id: pump }"));
-        assert!(!rs.iter().any(|f| f.path.ends_with("command_tag")), "{rs:?}");
+        let rs = rilievi(
+            PROGETTO,
+            &pagina("- { id: s, type: symbol, x: 0, y: 0, symbol_id: pump }"),
+        );
+        assert!(
+            !rs.iter().any(|f| f.path.ends_with("command_tag")),
+            "{rs:?}"
+        );
         // Con il comando acceso e la variabile vuota, sì.
-        let rs = rilievi(PROGETTO, &pagina("- { id: s, type: symbol, x: 0, y: 0, symbol_id: pump, command_tag: '' }"));
+        let rs = rilievi(
+            PROGETTO,
+            &pagina("- { id: s, type: symbol, x: 0, y: 0, symbol_id: pump, command_tag: '' }"),
+        );
         assert!(rs.iter().any(|f| f.path.ends_with("command_tag")), "{rs:?}");
     }
 
@@ -3402,14 +3633,20 @@ alarms: []
     /// del simbolo passano, un nome inventato è un avviso con l'elenco giusto.
     #[test]
     fn la_bocca_di_un_tubo_deve_esistere_sul_simbolo() {
-        let pagina_con = |porta: &str| pagina(&format!(
+        let pagina_con = |porta: &str| {
+            pagina(&format!(
             "- {{ id: pompa, type: symbol, x: 0, y: 0, width: 80, height: 80, symbol_id: \"lib:process/centrifugal-pump\" }}\n\
-             - {{ id: t, type: pipe, x: 0, y: 0, from_obj_id: pompa, from_port: {porta}, points: [{{x: 0, y: 0}}, {{x: 100, y: 0}}] }}"));
-        let sul_capo = |rs: &[Finding]| rs.iter().filter(|f| f.path.ends_with(".from_port")).count();
+             - {{ id: t, type: pipe, x: 0, y: 0, from_obj_id: pompa, from_port: {porta}, points: [{{x: 0, y: 0}}, {{x: 100, y: 0}}] }}"))
+        };
+        let sul_capo =
+            |rs: &[Finding]| rs.iter().filter(|f| f.path.ends_with(".from_port")).count();
         assert_eq!(sul_capo(&rilievi(PROGETTO, &pagina_con("n-top"))), 0);
         assert_eq!(sul_capo(&rilievi(PROGETTO, &pagina_con("left"))), 0);
         let rs = rilievi(PROGETTO, &pagina_con("n-bottom"));
-        let f = rs.iter().find(|f| f.path.ends_with(".from_port")).expect("avviso");
+        let f = rs
+            .iter()
+            .find(|f| f.path.ends_with(".from_port"))
+            .expect("avviso");
         assert!(matches!(f.severity, Severity::Warning));
         assert!(f.hint.as_deref().unwrap().contains("n-left"), "{f:?}");
     }
@@ -3433,27 +3670,49 @@ alarms: []
         };
         let rs = semantic(&p, &[pagina_con("prj:gabbia-laminazione", "n-right")]);
         assert!(errori(&rs).is_empty(), "{rs:?}");
-        assert!(!rs.iter().any(|f| f.path.ends_with(".from_port")), "n-right è una bocca: {rs:?}");
+        assert!(
+            !rs.iter().any(|f| f.path.ends_with(".from_port")),
+            "n-right è una bocca: {rs:?}"
+        );
         let rs = semantic(&p, &[pagina_con("prj:gabbia-laminazione", "n-top")]);
-        let f = rs.iter().find(|f| f.path.ends_with(".from_port")).expect("n-top non c'è");
+        let f = rs
+            .iter()
+            .find(|f| f.path.ends_with(".from_port"))
+            .expect("n-top non c'è");
         assert!(f.hint.as_deref().unwrap().contains("n-left"), "{f:?}");
         // Uno che il progetto non ha è un errore, non un valore fuori enum.
         let rs = semantic(&p, &[pagina_con("prj:non-esiste", "left")]);
         let e = errori(&rs);
-        assert!(e.iter().any(|f| f.message.contains("prj:non-esiste")), "{rs:?}");
+        assert!(
+            e.iter().any(|f| f.message.contains("prj:non-esiste")),
+            "{rs:?}"
+        );
     }
 
     #[test]
     fn due_simboli_uno_sopra_l_altro_sono_un_avviso() {
-        let pagina_con = |x2: i32| pagina(&format!(
+        let pagina_con = |x2: i32| {
+            pagina(
+                &format!(
             "- {{ id: a, type: symbol, x: 0, y: 0, width: 100, height: 100, symbol_id: pump }}\n\
-             - {{ id: b, type: symbol, x: {x2}, y: 0, width: 100, height: 100, symbol_id: pump }}"));
+             - {{ id: b, type: symbol, x: {x2}, y: 0, width: 100, height: 100, symbol_id: pump }}"),
+            )
+        };
         let copre = |rs: &[Finding]| rs.iter().any(|f| f.message.contains("copre"));
-        assert!(copre(&rilievi(PROGETTO, &pagina_con(50))), "metà sopra: avviso");
-        assert!(!copre(&rilievi(PROGETTO, &pagina_con(90))), "un bordo che si tocca non conta");
+        assert!(
+            copre(&rilievi(PROGETTO, &pagina_con(50))),
+            "metà sopra: avviso"
+        );
+        assert!(
+            !copre(&rilievi(PROGETTO, &pagina_con(90))),
+            "un bordo che si tocca non conta"
+        );
         assert!(!copre(&rilievi(PROGETTO, &pagina_con(200))));
         let rs = rilievi(PROGETTO, &pagina_con(50));
-        assert!(rs.iter().filter(|f| f.message.contains("copre")).all(|f| matches!(f.severity, Severity::Warning)));
+        assert!(rs
+            .iter()
+            .filter(|f| f.message.contains("copre"))
+            .all(|f| matches!(f.severity, Severity::Warning)));
     }
 
     #[test]
@@ -3838,7 +4097,10 @@ alarms:
         assert!(cita(&rs, "Critical"), "{rs:?}");
         assert!(cita(&rs, "al"), "{rs:?}");
         // Avviso, non errore: il progetto si salva lo stesso.
-        assert!(errori(&rs).iter().all(|f| !f.message.contains("Critical")), "{rs:?}");
+        assert!(
+            errori(&rs).iter().all(|f| !f.message.contains("Critical")),
+            "{rs:?}"
+        );
 
         // Severità diverse: nessun rilievo. È il caso normale.
         let ok = prog.replace(
@@ -3926,10 +4188,22 @@ alarms: []
             )
         };
         let p = pagina("- { id: x, type: rect, x: 0, y: 0 }");
-        assert!(!cita(&errori(&rilievi(&prog("{ da: 512, a: 597 }"), &p)), "blocchi"));
-        assert!(cita(&errori(&rilievi(&prog("{ da: 0, a: 125 }"), &p)), "blocchi[0]"));
-        assert!(cita(&errori(&rilievi(&prog("{ da: 10, a: 5 }"), &p)), "blocchi[0]"));
-        assert!(!cita(&errori(&rilievi(&prog("{ area: coil, da: 0, a: 999 }"), &p)), "blocchi"));
+        assert!(!cita(
+            &errori(&rilievi(&prog("{ da: 512, a: 597 }"), &p)),
+            "blocchi"
+        ));
+        assert!(cita(
+            &errori(&rilievi(&prog("{ da: 0, a: 125 }"), &p)),
+            "blocchi[0]"
+        ));
+        assert!(cita(
+            &errori(&rilievi(&prog("{ da: 10, a: 5 }"), &p)),
+            "blocchi[0]"
+        ));
+        assert!(!cita(
+            &errori(&rilievi(&prog("{ area: coil, da: 0, a: 999 }"), &p)),
+            "blocchi"
+        ));
     }
 
     #[test]
@@ -3940,11 +4214,38 @@ alarms: []
             )
         };
         let p = pagina("- { id: x, type: rect, x: 0, y: 0 }");
-        assert!(!cita(&errori(&rilievi(&prog("{ topic: inverter/zcs/state, tags: [inverter.main] }"), &p)), "pubblica"));
-        assert!(cita(&errori(&rilievi(&prog("{ topic: inverter/+/state, tags: [inverter] }"), &p)), "pubblica[0].topic"));
-        assert!(cita(&errori(&rilievi(&prog("{ topic: a, tags: [] }"), &p)), "pubblica[0].tags"));
-        assert!(cita(&errori(&rilievi(&prog("{ topic: a, tags: [x, y], formato: valore }"), &p)), "pubblica[0].formato"));
-        assert!(cita(&errori(&rilievi(&prog("{ topic: a, tags: [x], disponibilita: { topic: '', tag: d } }"), &p)), "disponibilita.topic"));
+        assert!(!cita(
+            &errori(&rilievi(
+                &prog("{ topic: inverter/zcs/state, tags: [inverter.main] }"),
+                &p
+            )),
+            "pubblica"
+        ));
+        assert!(cita(
+            &errori(&rilievi(
+                &prog("{ topic: inverter/+/state, tags: [inverter] }"),
+                &p
+            )),
+            "pubblica[0].topic"
+        ));
+        assert!(cita(
+            &errori(&rilievi(&prog("{ topic: a, tags: [] }"), &p)),
+            "pubblica[0].tags"
+        ));
+        assert!(cita(
+            &errori(&rilievi(
+                &prog("{ topic: a, tags: [x, y], formato: valore }"),
+                &p
+            )),
+            "pubblica[0].formato"
+        ));
+        assert!(cita(
+            &errori(&rilievi(
+                &prog("{ topic: a, tags: [x], disponibilita: { topic: '', tag: d } }"),
+                &p
+            )),
+            "disponibilita.topic"
+        ));
     }
 
     /// Solarman V5 senza il seriale della chiavetta: errore; col seriale, e
@@ -3957,9 +4258,21 @@ alarms: []
             )
         };
         let p = pagina("- { id: x, type: rect, x: 0, y: 0 }");
-        assert!(cita(&errori(&rilievi(&prog(", trasporto: solarman_v5"), &p)), "seriale_logger"));
-        assert!(!cita(&errori(&rilievi(&prog(", trasporto: solarman_v5, seriale_logger: 1786079474"), &p)), "seriale_logger"));
-        assert!(!cita(&errori(&rilievi(&prog(", trasporto: rtu_su_tcp"), &p)), "seriale_logger"));
+        assert!(cita(
+            &errori(&rilievi(&prog(", trasporto: solarman_v5"), &p)),
+            "seriale_logger"
+        ));
+        assert!(!cita(
+            &errori(&rilievi(
+                &prog(", trasporto: solarman_v5, seriale_logger: 1786079474"),
+                &p
+            )),
+            "seriale_logger"
+        ));
+        assert!(!cita(
+            &errori(&rilievi(&prog(", trasporto: rtu_su_tcp"), &p)),
+            "seriale_logger"
+        ));
     }
 
     /// Fase 0d: il controllo «il tag mappato esiste» valeva solo per MQTT.
@@ -4017,13 +4330,24 @@ alarms: []
 "#;
         let rs = rilievi(prog, &pagina("- { id: x, type: rect, x: 0, y: 0 }"));
         assert!(
-            errori(&rs).iter().any(|f| f.path == "project.sources[linea].devices[1].unit_id"),
+            errori(&rs)
+                .iter()
+                .any(|f| f.path == "project.sources[linea].devices[1].unit_id"),
             "unit id doppio: {rs:?}"
         );
-        assert!(rs.iter().any(|f| f.path == "project.sources[linea].registers"), "formati mescolati: {rs:?}");
-        assert!(rs.iter().any(|f| f.path == "project.sources[linea2].device" && f.message.contains("linea")), "porta doppia: {rs:?}");
         assert!(
-            rs.iter().any(|f| f.path == "project.sources[linea].devices[0].registers[1].tag"),
+            rs.iter()
+                .any(|f| f.path == "project.sources[linea].registers"),
+            "formati mescolati: {rs:?}"
+        );
+        assert!(
+            rs.iter()
+                .any(|f| f.path == "project.sources[linea2].device" && f.message.contains("linea")),
+            "porta doppia: {rs:?}"
+        );
+        assert!(
+            rs.iter()
+                .any(|f| f.path == "project.sources[linea].devices[0].registers[1].tag"),
             "il tag non dichiarato dentro un dispositivo: {rs:?}"
         );
     }
@@ -4072,7 +4396,10 @@ alarms: []
 "#;
         let rs = rilievi(prog, &pagina("- { id: x, type: rect, x: 0, y: 0 }"));
         let e = errori(&rs);
-        let su = |p: &str| e.iter().any(|f| f.path == format!("project.sources[plc].devices[0].{p}"));
+        let su = |p: &str| {
+            e.iter()
+                .any(|f| f.path == format!("project.sources[plc].devices[0].{p}"))
+        };
         assert!(!su("registers[0].formato"), "i16 va bene: {rs:?}");
         assert!(su("registers[1].formato"), "{rs:?}");
         assert!(su("registers[2].bit"), "{rs:?}");
@@ -4140,8 +4467,20 @@ reports:
         .unwrap();
         let rs = rilievi_report(&prog);
         let e = errori(&rs);
-        assert!(cita(&e, "ripetuto") && cita(&e, "`manca`") && cita(&e, "NON partirebbe") && cita(&e, "`doc`"), "{rs:?}");
-        assert_eq!(rs.iter().filter(|f| f.path.starts_with("project.reports[giorno].tags[0]")).count(), 1, "solo il secondo ha il tag sbagliato");
+        assert!(
+            cita(&e, "ripetuto")
+                && cita(&e, "`manca`")
+                && cita(&e, "NON partirebbe")
+                && cita(&e, "`doc`"),
+            "{rs:?}"
+        );
+        assert_eq!(
+            rs.iter()
+                .filter(|f| f.path.starts_with("project.reports[giorno].tags[0]"))
+                .count(),
+            1,
+            "solo il secondo ha il tag sbagliato"
+        );
     }
 
     /// Il setup del modulo: un valore fuori dai 16 bit e un parametro ripetuto
@@ -4167,9 +4506,15 @@ alarms: []
         let pagina0 = pagina("- { id: x, type: rect, x: 0, y: 0 }");
         let giusto = rilievi(&prog("[{ nome: tipo_sensore_ai1, indirizzo: 2021, valore: 12, indirizzo_scrittura: 4021 }]"), &pagina0);
         assert!(errori(&giusto).is_empty(), "{giusto:?}");
-        let fuori = rilievi(&prog("[{ nome: a, indirizzo: 1, valore: 70000 }]"), &pagina0);
+        let fuori = rilievi(
+            &prog("[{ nome: a, indirizzo: 1, valore: 70000 }]"),
+            &pagina0,
+        );
         assert!(cita(&errori(&fuori), "16 bit"), "{fuori:?}");
-        let doppio = rilievi(&prog("[{ nome: a, indirizzo: 1, valore: 1 }, { nome: a, indirizzo: 1, valore: 2 }]"), &pagina0);
+        let doppio = rilievi(
+            &prog("[{ nome: a, indirizzo: 1, valore: 1 }, { nome: a, indirizzo: 1, valore: 2 }]"),
+            &pagina0,
+        );
         assert!(cita(&errori(&doppio), "due volte"), "{doppio:?}");
     }
 
@@ -4200,10 +4545,16 @@ alarms: []
         )
         .unwrap();
         let trasporti: HashMap<String, String> =
-            [("pixsys/mcm280x", "tcp"), ("pixsys/atr121", "rtu")].iter().map(|(a, b)| (a.to_string(), b.to_string())).collect();
+            [("pixsys/mcm280x", "tcp"), ("pixsys/atr121", "rtu")]
+                .iter()
+                .map(|(a, b)| (a.to_string(), b.to_string()))
+                .collect();
         let rs = rilievi_trasporto(&prog, &trasporti);
         assert_eq!(rs.len(), 1, "{rs:?}");
-        assert!(rs[0].path.contains("rs485") && rs[0].message.contains("mcm280x"), "{rs:?}");
+        assert!(
+            rs[0].path.contains("rs485") && rs[0].message.contains("mcm280x"),
+            "{rs:?}"
+        );
     }
 
     /// La richiesta di stato su un topic con caratteri jolly è un errore: il
@@ -4228,9 +4579,15 @@ alarms: []
 "#
             )
         };
-        let rs = rilievi(&prog("zigbee2mqtt/+/get"), &pagina("- { id: x, type: rect, x: 0, y: 0 }"));
+        let rs = rilievi(
+            &prog("zigbee2mqtt/+/get"),
+            &pagina("- { id: x, type: rect, x: 0, y: 0 }"),
+        );
         assert!(cita(&errori(&rs), "richiesta di stato"), "{rs:?}");
-        let rs = rilievi(&prog("zigbee2mqtt/garage/get"), &pagina("- { id: x, type: rect, x: 0, y: 0 }"));
+        let rs = rilievi(
+            &prog("zigbee2mqtt/garage/get"),
+            &pagina("- { id: x, type: rect, x: 0, y: 0 }"),
+        );
         assert!(errori(&rs).is_empty(), "{rs:?}");
     }
 

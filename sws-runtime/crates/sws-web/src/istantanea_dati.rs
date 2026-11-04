@@ -26,7 +26,15 @@ const FILE_INFO: &str = "istantanea.json";
 
 /// Nella cartella config: file e cartelle di questo meccanismo e dei suoi
 /// vicini, che non hanno senso dentro l'istantanea (e alcuni la conterrebbero).
-const ESCLUSI_CONFIG: &[&str] = &[DIR, DIR_TMP, "quadlet-nuovo", "pulizia", "immagini.stato", "immagini.json", "ritorno.json"];
+const ESCLUSI_CONFIG: &[&str] = &[
+    DIR,
+    DIR_TMP,
+    "quadlet-nuovo",
+    "pulizia",
+    "immagini.stato",
+    "immagini.json",
+    "ritorno.json",
+];
 /// In ogni progetto, a qualunque profondità.
 const ESCLUSI_PROGETTO: &[&str] = &["backups", "logs", ".run"];
 
@@ -58,7 +66,9 @@ pub fn escluso(nome: &str, nella_config: bool) -> bool {
 
 /// Si prende solo su un dispositivo: lì c'è la cartella config dell'host.
 pub fn su_dispositivo() -> bool {
-    std::env::var("SWS_HOST_CONFIG_DIR").map(|s| !s.trim().is_empty()).unwrap_or(false)
+    std::env::var("SWS_HOST_CONFIG_DIR")
+        .map(|s| !s.trim().is_empty())
+        .unwrap_or(false)
 }
 
 /// Lo spazio che serve: l'istantanea stimata più metà di margine. Pura.
@@ -67,7 +77,9 @@ pub fn spazio_basta(stima: u64, libero: u64) -> bool {
 }
 
 fn dimensione(p: &Path, nella_config: bool) -> u64 {
-    let Ok(m) = std::fs::symlink_metadata(p) else { return 0 };
+    let Ok(m) = std::fs::symlink_metadata(p) else {
+        return 0;
+    };
     if m.is_file() {
         return m.len();
     }
@@ -171,8 +183,16 @@ pub fn prendi_in(config: &Path, progetti: &Path, versione: &str) -> Result<Info,
     if progetti.is_dir() {
         copia(progetti, &tmp.join("projects"), false).map_err(err)?;
     }
-    let info = Info { versione: versione.into(), quando_ms: chrono::Utc::now().timestamp_millis(), byte: dimensione(&tmp, false) };
-    std::fs::write(tmp.join(FILE_INFO), serde_json::to_vec_pretty(&info).unwrap_or_default()).map_err(err)?;
+    let info = Info {
+        versione: versione.into(),
+        quando_ms: chrono::Utc::now().timestamp_millis(),
+        byte: dimensione(&tmp, false),
+    };
+    std::fs::write(
+        tmp.join(FILE_INFO),
+        serde_json::to_vec_pretty(&info).unwrap_or_default(),
+    )
+    .map_err(err)?;
     // Al posto di quella vecchia solo quando la nuova è completa.
     let dir = config.join(DIR);
     let _ = std::fs::remove_dir_all(&dir);
@@ -198,9 +218,15 @@ mod tests {
     #[test]
     fn cosa_resta_fuori() {
         assert!(escluso("istantanea", true));
-        assert!(!escluso("istantanea", false), "fuori dalla config è un nome come un altro");
+        assert!(
+            !escluso("istantanea", false),
+            "fuori dalla config è un nome come un altro"
+        );
         assert!(escluso("backups", false));
-        assert!(escluso("historian-prima-della-pulizia-2026-09-26.db", false));
+        assert!(escluso(
+            "historian-prima-della-pulizia-2026-09-26.db",
+            false
+        ));
         assert!(escluso("historian.db-wal", false));
         assert!(!escluso("historian.db", false));
         assert!(!escluso("project.yaml", false));
@@ -226,12 +252,17 @@ mod tests {
         std::fs::create_dir_all(p.join("backups/2026")).unwrap();
         std::fs::write(p.join("project.yaml"), "name: casa\n").unwrap();
         std::fs::write(p.join("backups/2026/project.yaml"), "vecchio").unwrap();
-        std::fs::write(p.join("history/historian-prima-della-pulizia-x.db"), "grande").unwrap();
+        std::fs::write(
+            p.join("history/historian-prima-della-pulizia-x.db"),
+            "grande",
+        )
+        .unwrap();
         // Un database in WAL con una scrittura ancora nel -wal.
         let db = p.join("history/historian.db");
         let c = rusqlite::Connection::open(&db).unwrap();
         c.pragma_update(None, "journal_mode", "WAL").unwrap();
-        c.execute_batch("CREATE TABLE t(x); INSERT INTO t VALUES (1),(2),(3);").unwrap();
+        c.execute_batch("CREATE TABLE t(x); INSERT INTO t VALUES (1),(2),(3);")
+            .unwrap();
 
         let info = prendi_in(&config, &progetti, "2.12.0-rc.17").unwrap();
         assert_eq!(info.versione, "2.12.0-rc.17");
@@ -241,10 +272,15 @@ mod tests {
         assert!(!ist.join("config/istantanea.tmp").exists());
         assert!(ist.join("projects/casa/project.yaml").is_file());
         assert!(!ist.join("projects/casa/backups").exists());
-        assert!(!ist.join("projects/casa/history/historian-prima-della-pulizia-x.db").exists());
+        assert!(!ist
+            .join("projects/casa/history/historian-prima-della-pulizia-x.db")
+            .exists());
         assert!(!ist.join("projects/casa/history/historian.db-wal").exists());
-        let copia = rusqlite::Connection::open(ist.join("projects/casa/history/historian.db")).unwrap();
-        let n: i64 = copia.query_row("SELECT COUNT(*) FROM t", [], |r| r.get(0)).unwrap();
+        let copia =
+            rusqlite::Connection::open(ist.join("projects/casa/history/historian.db")).unwrap();
+        let n: i64 = copia
+            .query_row("SELECT COUNT(*) FROM t", [], |r| r.get(0))
+            .unwrap();
         assert_eq!(n, 3, "la copia contiene anche ciò che stava nel WAL");
         assert_eq!(super::info(&config), Some(info));
 

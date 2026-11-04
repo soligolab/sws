@@ -26,9 +26,7 @@ use opcua::types::{
     Variant, WriteValue,
 };
 use serde::{Deserialize, Serialize};
-use sws_core::{
-    Forma, OpcUaAuth, OpcUaClientConfig, TagDb, TagQuality, TagWriteBus, WriteRequest,
-};
+use sws_core::{Forma, OpcUaAuth, OpcUaClientConfig, TagDb, TagQuality, TagWriteBus, WriteRequest};
 use tokio::sync::mpsc;
 use tracing::{info, warn};
 
@@ -86,10 +84,13 @@ async fn endpoint_per(
     // Con un tetto: dietro una porta aperta può non rispondere nessuno (il
     // port forwarding di un container col server fermo), e senza la sorgente
     // resterebbe appesa qui, senza riconnessione.
-    let offerti = tokio::time::timeout(Duration::from_secs(15), client.get_server_endpoints_from_url(url))
-        .await
-        .map_err(|_| anyhow::anyhow!("opcua: {url} non ha dato l'elenco degli endpoint in 15 s"))?
-        .map_err(|e| anyhow::anyhow!("opcua: elenco degli endpoint da {url}: {e}"))?;
+    let offerti = tokio::time::timeout(
+        Duration::from_secs(15),
+        client.get_server_endpoints_from_url(url),
+    )
+    .await
+    .map_err(|_| anyhow::anyhow!("opcua: {url} non ha dato l'elenco degli endpoint in 15 s"))?
+    .map_err(|e| anyhow::anyhow!("opcua: elenco degli endpoint da {url}: {e}"))?;
     scegli_endpoint(&offerti, url, policy, mode)
 }
 
@@ -104,16 +105,29 @@ fn scegli_endpoint(
 ) -> anyhow::Result<opcua::types::EndpointDescription> {
     let mut e = offerti
         .iter()
-        .find(|e| e.security_mode == mode && SecurityPolicy::from_uri(e.security_policy_uri.as_ref()) == policy)
+        .find(|e| {
+            e.security_mode == mode
+                && SecurityPolicy::from_uri(e.security_policy_uri.as_ref()) == policy
+        })
         .cloned()
         .ok_or_else(|| {
             let offre: Vec<String> = offerti
                 .iter()
-                .map(|e| format!("{} {:?}", SecurityPolicy::from_uri(e.security_policy_uri.as_ref()), e.security_mode))
+                .map(|e| {
+                    format!(
+                        "{} {:?}",
+                        SecurityPolicy::from_uri(e.security_policy_uri.as_ref()),
+                        e.security_mode
+                    )
+                })
                 .collect();
             anyhow::anyhow!(
                 "il server non offre {policy} con {mode:?}; offre: {}",
-                if offre.is_empty() { "niente".to_string() } else { offre.join(", ") }
+                if offre.is_empty() {
+                    "niente".to_string()
+                } else {
+                    offre.join(", ")
+                }
             )
         })?;
     e.endpoint_url = url.into();
@@ -266,7 +280,11 @@ pub enum Fiducia {
 
 fn certificati_in(dir: &Path) -> Vec<PathBuf> {
     let mut v: Vec<PathBuf> = std::fs::read_dir(dir)
-        .map(|r| r.filter_map(|e| e.ok().map(|e| e.path())).filter(|p| p.is_file()).collect())
+        .map(|r| {
+            r.filter_map(|e| e.ok().map(|e| e.path()))
+                .filter(|p| p.is_file())
+                .collect()
+        })
         .unwrap_or_default();
     v.sort();
     v
@@ -282,10 +300,16 @@ fn certificati_in(dir: &Path) -> Vec<PathBuf> {
 pub fn fiducia_al_primo_contatto(pki: &Path) -> Fiducia {
     let fidati = certificati_in(&pki.join(DIR_FIDATI));
     let rifiutati = certificati_in(&pki.join(DIR_RIFIUTATI));
-    let nome = |p: &Path| p.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
+    let nome = |p: &Path| {
+        p.file_name()
+            .map(|n| n.to_string_lossy().into_owned())
+            .unwrap_or_default()
+    };
     match (fidati.is_empty(), rifiutati.as_slice()) {
         (true, [unico]) => {
-            let dest = pki.join(DIR_FIDATI).join(unico.file_name().unwrap_or_default());
+            let dest = pki
+                .join(DIR_FIDATI)
+                .join(unico.file_name().unwrap_or_default());
             match std::fs::rename(unico, &dest) {
                 Ok(()) => Fiducia::Memorizzato(nome(unico)),
                 Err(e) => {
@@ -383,15 +407,21 @@ async fn run_once(
     // installati per percorso (`apply_tags`), non per radice. È la stessa
     // strada di Modbus (`prepara`), e il motivo per cui qui non serve sapere
     // niente dei tipi: basta il percorso.
-    let mut foglie_per_tag: HashMap<String, Vec<(String, Vec<sws_core::Segmento>)>> = HashMap::new();
+    let mut foglie_per_tag: HashMap<String, Vec<(String, Vec<sws_core::Segmento>)>> =
+        HashMap::new();
     for mapping in &cfg.nodes {
-        let Some(forma) = db.forma(&mapping.tag).await else { continue };
+        let Some(forma) = db.forma(&mapping.tag).await else {
+            continue;
+        };
         let foglie: Vec<(String, Vec<sws_core::Segmento>)> = forma
             .foglie(&mapping.tag, &[])
             .into_iter()
             .filter_map(|f| {
                 let resto = f.percorso.strip_prefix(mapping.tag.as_str())?;
-                Some((f.percorso.clone(), sws_core::percorso::parse_segmenti(resto)?))
+                Some((
+                    f.percorso.clone(),
+                    sws_core::percorso::parse_segmenti(resto)?,
+                ))
             })
             .collect();
         if !foglie.is_empty() {
@@ -421,8 +451,9 @@ async fn run_once(
         {
             Ok(t) => {
                 let t = Arc::new(t);
-                session.add_type_loader(Arc::new(opcua::types::custom::DynamicTypeLoader::new(t.clone()))
-                    as Arc<dyn opcua::types::TypeLoader>);
+                session.add_type_loader(Arc::new(opcua::types::custom::DynamicTypeLoader::new(
+                    t.clone(),
+                )) as Arc<dyn opcua::types::TypeLoader>);
                 Some(t)
             }
             Err(e) => {
@@ -447,8 +478,12 @@ async fn run_once(
     // resta rifiutata — con un messaggio che adesso dice **perché**.
     let mut figli: HashMap<String, NodeId> = HashMap::new();
     for mapping in &cfg.nodes {
-        let Some(foglie) = foglie_per_tag.get(&mapping.tag) else { continue };
-        let Some(radice) = tag_to_node.get(&mapping.tag).cloned() else { continue };
+        let Some(foglie) = foglie_per_tag.get(&mapping.tag) else {
+            continue;
+        };
+        let Some(radice) = tag_to_node.get(&mapping.tag).cloned() else {
+            continue;
+        };
         let req = BrowseDescription {
             node_id: radice,
             browse_direction: BrowseDirection::Forward,
@@ -457,7 +492,9 @@ async fn run_once(
             node_class_mask: 0,
             result_mask: 0x3f,
         };
-        let Ok(risultati) = session.browse(&[req], 200, None).await else { continue };
+        let Ok(risultati) = session.browse(&[req], 200, None).await else {
+            continue;
+        };
         for r in risultati {
             let Some(refs) = r.references else { continue };
             for rd in refs {
@@ -539,7 +576,14 @@ async fn run_once(
             let Some(tag_id) = routing_clone.get(&node_id) else {
                 continue;
             };
-            consegna(&db_clone, tag_id, foglie_clone.get(tag_id.as_str()), &dv, albero_clone.as_deref()).await;
+            consegna(
+                &db_clone,
+                tag_id,
+                foglie_clone.get(tag_id.as_str()),
+                &dv,
+                albero_clone.as_deref(),
+            )
+            .await;
             tracing::trace!(source = %source_id, tag = %tag_id, "opcua: tag update");
         }
     });
@@ -676,7 +720,10 @@ pub(crate) async fn consegna(
     };
     for (percorso, segmenti) in foglie {
         match sws_core::percorso::leggi(&value, segmenti) {
-            Some(v) => db.ingest(percorso.clone(), v.clone(), quality.clone()).await,
+            Some(v) => {
+                db.ingest(percorso.clone(), v.clone(), quality.clone())
+                    .await
+            }
             // Una foglia che il valore non contiene — un array più corto di
             // quello dichiarato — non si inventa: si marca Bad.
             None => db.marca_qualita(percorso, TagQuality::Bad).await,
@@ -1026,7 +1073,11 @@ pub async fn browse_one_level(
         use opcua::types::{AttributeId, ReadValueId, TimestampsToReturn};
         let mut da_leggere = Vec::with_capacity(nodi_variabile.len() * 3);
         for (_, nid) in &nodi_variabile {
-            for a in [AttributeId::DataType, AttributeId::ValueRank, AttributeId::ArrayDimensions] {
+            for a in [
+                AttributeId::DataType,
+                AttributeId::ValueRank,
+                AttributeId::ArrayDimensions,
+            ] {
                 da_leggere.push(ReadValueId {
                     node_id: nid.clone(),
                     attribute_id: a as u32,
@@ -1462,7 +1513,9 @@ pub(crate) async fn tipi_pubblicati(
         if tipi.iter().any(|t| t.nome == nome) {
             continue;
         }
-        let Forma::Struttura(membri) = &forma else { continue };
+        let Forma::Struttura(membri) = &forma else {
+            continue;
+        };
         let campi = membri
             .iter()
             .filter_map(|(n, f)| match f {
@@ -1474,7 +1527,13 @@ pub(crate) async fn tipi_pubblicati(
                 Forma::Struttura(_) => None,
             })
             .collect();
-        tipi.push(TipoPubblicato { nome, tipo_id, enc_id, definizione, campi });
+        tipi.push(TipoPubblicato {
+            nome,
+            tipo_id,
+            enc_id,
+            definizione,
+            campi,
+        });
     }
     (tipi, per_radice)
 }
@@ -1655,13 +1714,18 @@ pub(crate) async fn run_server_con(
             match TypeInfo::from_type_definition(
                 t.definizione.clone(),
                 t.nome.clone(),
-                Some(EncodingIds { binary_id: t.enc_id.clone(), ..Default::default() }),
+                Some(EncodingIds {
+                    binary_id: t.enc_id.clone(),
+                    ..Default::default()
+                }),
                 false,
                 &t.tipo_id,
                 &pids,
             ) {
                 Ok(info) => infos.push((t.tipo_id.clone(), info)),
-                Err(e) => warn!(source = %cfg.id, tipo = %t.nome, "OPC-UA: tipo non pubblicabile: {e}"),
+                Err(e) => {
+                    warn!(source = %cfg.id, tipo = %t.nome, "OPC-UA: tipo non pubblicabile: {e}")
+                }
             }
         }
         let mut albero = DataTypeTree::new(pids);
@@ -1671,9 +1735,12 @@ pub(crate) async fn run_server_con(
         Arc::new(albero)
     };
     if !tipi.is_empty() {
-        handle.info().add_type_loader(Arc::new(
-            opcua::types::custom::DynamicTypeLoader::new(albero.clone()),
-        ) as Arc<dyn opcua::types::TypeLoader>);
+        handle
+            .info()
+            .add_type_loader(
+                Arc::new(opcua::types::custom::DynamicTypeLoader::new(albero.clone()))
+                    as Arc<dyn opcua::types::TypeLoader>,
+            );
     }
 
     // **Tutto quello che serve chiedere al `TagDb` si chiede PRIMA del lock.**
@@ -1687,7 +1754,10 @@ pub(crate) async fn run_server_con(
     let mut tipi_scalari: HashMap<String, Option<String>> = HashMap::new();
     for mapping in &cfg.nodes {
         let esterno = mapping.effective_node_id();
-        match tipo_di_radice.get(esterno).and_then(|n| tipi.iter().find(|t| &t.nome == n)) {
+        match tipo_di_radice
+            .get(esterno)
+            .and_then(|n| tipi.iter().find(|t| &t.nome == n))
+        {
             Some(t) => {
                 if let Some(st) = db.get(&mapping.tag).await {
                     match variant_struttura(t, &albero, &st.value) {
@@ -1931,8 +2001,10 @@ pub(crate) async fn run_server_con(
     let node_mgr_for_update = node_mgr.clone();
     // Gli **esposti**, non le mappature: l'aggiornamento di una foglia arriva
     // col suo percorso, che una mappatura non nomina.
-    let esposti_per_update: Vec<(String, String)> =
-        esposti.iter().map(|n| (n.id_nodo.clone(), n.tag.clone())).collect();
+    let esposti_per_update: Vec<(String, String)> = esposti
+        .iter()
+        .map(|n| (n.id_nodo.clone(), n.tag.clone()))
+        .collect();
     let ns_for_update = ns;
     // Le radici che sono una **struttura pubblicata**: tag del `TagDb`,
     // identificatore del nodo, e il tipo. L'aggiornamento arriva col tag, il
@@ -1965,8 +2037,9 @@ pub(crate) async fn run_server_con(
                     // dà solo le foglie: senza questo pezzo il nodo struttura
                     // non si aggiornerebbe mai — lo stesso difetto che la 4c
                     // ha trovato al contrario sui nodi figli.
-                    if let Some((_, id_nodo, i)) =
-                        radici_struttura.iter().find(|(tag, _, _)| *tag == update.id)
+                    if let Some((_, id_nodo, i)) = radici_struttura
+                        .iter()
+                        .find(|(tag, _, _)| *tag == update.id)
                     {
                         let t = &tipi_per_update[*i];
                         match variant_struttura(t, &albero_per_update, &update.state.value) {
@@ -2000,17 +2073,17 @@ pub(crate) async fn run_server_con(
                     //
                     // Per uno scalare torna il tag stesso, quindi il caso
                     // normale non cambia.
-                    let mut da_specchiare: Vec<(String, sws_core::TagValue)> =
-                        db_tipi.espandi_foglie(&update).await
-                            .into_iter()
-                            .map(|(id, st)| (id, st.value))
-                            .collect();
+                    let mut da_specchiare: Vec<(String, sws_core::TagValue)> = db_tipi
+                        .espandi_foglie(&update)
+                        .await
+                        .into_iter()
+                        .map(|(id, st)| (id, st.value))
+                        .collect();
                     if da_specchiare.is_empty() {
                         da_specchiare.push((update.id.clone(), update.state.value.clone()));
                     }
                     for (id, valore_tag) in da_specchiare {
-                        let Some((id_nodo, _)) =
-                            esposti_per_update.iter().find(|(_, t)| *t == id)
+                        let Some((id_nodo, _)) = esposti_per_update.iter().find(|(_, t)| *t == id)
                         else {
                             continue;
                         };
@@ -2086,8 +2159,8 @@ mod tests {
     // parte che cambia davvero — la scala, il tipo, le foglie — si poteva
     // provare solo con un server davanti, cioè mai.
 
-    use sws_core::{Forma, TagValue, TypeDef};
     use std::collections::HashMap as Mappa;
+    use sws_core::{Forma, TagValue, TypeDef};
 
     /// Un `TagDb` coi metadati installati come fa `apply_tags`. Gemello di
     /// `db_con` nei test di Modbus.
@@ -2097,11 +2170,18 @@ mod tests {
         for t in tags {
             // Come `build_tag_scales`: la scala c'è solo se ci sono tutti e
             // quattro gli estremi e i due raw non coincidono.
-            if let (Some(rm), Some(rx), Some(em), Some(ex)) = (t.raw_min, t.raw_max, t.eng_min, t.eng_max) {
+            if let (Some(rm), Some(rx), Some(em), Some(ex)) =
+                (t.raw_min, t.raw_max, t.eng_min, t.eng_max)
+            {
                 if rx != rm {
                     scale.insert(
                         t.id.clone(),
-                        sws_core::LinearScale { raw_min: rm, raw_max: rx, eng_min: em, eng_max: ex },
+                        sws_core::LinearScale {
+                            raw_min: rm,
+                            raw_max: rx,
+                            eng_min: em,
+                            eng_max: ex,
+                        },
                     );
                 }
             }
@@ -2110,7 +2190,8 @@ mod tests {
                     for fo in f.foglie(&t.id, types) {
                         tipi.insert(fo.percorso.clone(), fo.tipo.nome());
                     }
-                    db.set(t.id.clone(), f.valore_iniziale(), TagQuality::Uncertain).await;
+                    db.set(t.id.clone(), f.valore_iniziale(), TagQuality::Uncertain)
+                        .await;
                     forme.insert(t.id.clone(), f);
                 }
                 None => {
@@ -2139,13 +2220,20 @@ mod tests {
         serde_yaml::from_str(y).unwrap()
     }
 
-    fn foglie_di(forma: &Forma, radice: &str, types: &[TypeDef]) -> Vec<(String, Vec<sws_core::Segmento>)> {
+    fn foglie_di(
+        forma: &Forma,
+        radice: &str,
+        types: &[TypeDef],
+    ) -> Vec<(String, Vec<sws_core::Segmento>)> {
         forma
             .foglie(radice, types)
             .into_iter()
             .filter_map(|f| {
                 let resto = f.percorso.strip_prefix(radice)?;
-                Some((f.percorso.clone(), sws_core::percorso::parse_segmenti(resto)?))
+                Some((
+                    f.percorso.clone(),
+                    sws_core::percorso::parse_segmenti(resto)?,
+                ))
             })
             .collect()
     }
@@ -2154,18 +2242,38 @@ mod tests {
     /// la scala **e** la conversione al tipo dichiarato.
     #[tokio::test]
     async fn il_valore_letto_viene_scalato_e_convertito() {
-        let t = tag_yaml("id: pressione\ndata_type: f64\nraw_min: 0\nraw_max: 1000\neng_min: 0\neng_max: 10\n");
+        let t = tag_yaml(
+            "id: pressione\ndata_type: f64\nraw_min: 0\nraw_max: 1000\neng_min: 0\neng_max: 10\n",
+        );
         let db = db_con(&[t], &[]).await;
-        consegna(&db, "pressione", None, &dv(Some(Variant::Int32(500)), Some(StatusCode::Good)), None).await;
+        consegna(
+            &db,
+            "pressione",
+            None,
+            &dv(Some(Variant::Int32(500)), Some(StatusCode::Good)),
+            None,
+        )
+        .await;
         let st = db.get("pressione").await.expect("il tag c'è");
-        assert_eq!(st.value, TagValue::Float(5.0), "500 su 0-1000 scalato a 0-10 fa 5");
+        assert_eq!(
+            st.value,
+            TagValue::Float(5.0),
+            "500 su 0-1000 scalato a 0-10 fa 5"
+        );
     }
 
     /// E la conversione al tipo dichiarato: un `u16` non tiene un decimale.
     #[tokio::test]
     async fn il_valore_letto_segue_il_tipo_dichiarato() {
         let db = db_con(&[tag_yaml("id: giri\ndata_type: u16\n")], &[]).await;
-        consegna(&db, "giri", None, &dv(Some(Variant::Double(29.8)), Some(StatusCode::Good)), None).await;
+        consegna(
+            &db,
+            "giri",
+            None,
+            &dv(Some(Variant::Double(29.8)), Some(StatusCode::Good)),
+            None,
+        )
+        .await;
         assert_eq!(db.get("giri").await.unwrap().value, TagValue::Int(30));
     }
 
@@ -2174,12 +2282,33 @@ mod tests {
     #[tokio::test]
     async fn un_valore_illeggibile_non_cancella_lultima_lettura() {
         let db = db_con(&[tag_yaml("id: t\ndata_type: f64\n")], &[]).await;
-        consegna(&db, "t", None, &dv(Some(Variant::Double(42.0)), Some(StatusCode::Good)), None).await;
+        consegna(
+            &db,
+            "t",
+            None,
+            &dv(Some(Variant::Double(42.0)), Some(StatusCode::Good)),
+            None,
+        )
+        .await;
         assert_eq!(db.get("t").await.unwrap().value, TagValue::Float(42.0));
 
-        consegna(&db, "t", None, &dv(Some(Variant::Guid(Default::default())), Some(StatusCode::Good)), None).await;
+        consegna(
+            &db,
+            "t",
+            None,
+            &dv(
+                Some(Variant::Guid(Default::default())),
+                Some(StatusCode::Good),
+            ),
+            None,
+        )
+        .await;
         let st = db.get("t").await.unwrap();
-        assert_eq!(st.value, TagValue::Float(42.0), "ha scritto uno zero inventato al posto del dato");
+        assert_eq!(
+            st.value,
+            TagValue::Float(42.0),
+            "ha scritto uno zero inventato al posto del dato"
+        );
         // Dal 23-10-2026 `Bad` e non `Uncertain`: il dato c'è e non lo
         // sappiamo leggere, quindi va visto invece che ingrigito.
         assert_eq!(st.quality, TagQuality::Bad);
@@ -2249,10 +2378,20 @@ mod tests {
         let mut m = std::collections::BTreeMap::new();
         m.insert("velocita".to_string(), sws_core::TagValue::Float(12.5));
         m.insert("marcia".to_string(), sws_core::TagValue::Bool(true));
-        db.set("motore1".into(), sws_core::TagValue::Struct(m), TagQuality::Good).await;
+        db.set(
+            "motore1".into(),
+            sws_core::TagValue::Struct(m),
+            TagQuality::Good,
+        )
+        .await;
         let mut m2 = std::collections::BTreeMap::new();
         m2.insert("livello".to_string(), sws_core::TagValue::Float(73.25));
-        db.set("serbatoio1".into(), sws_core::TagValue::Struct(m2), TagQuality::Good).await;
+        db.set(
+            "serbatoio1".into(),
+            sws_core::TagValue::Struct(m2),
+            TagQuality::Good,
+        )
+        .await;
 
         let ascoltatore = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
         let porta = ascoltatore.local_addr().unwrap().port();
@@ -2302,7 +2441,9 @@ mod tests {
                 .await
                 .expect("l'albero dei tipi si costruisce dal browse"),
         );
-        session.add_type_loader(Arc::new(DynamicTypeLoader::new(albero.clone())) as Arc<dyn TypeLoader>);
+        session.add_type_loader(
+            Arc::new(DynamicTypeLoader::new(albero.clone())) as Arc<dyn TypeLoader>
+        );
 
         let ns = 2;
         let letti = session
@@ -2318,8 +2459,12 @@ mod tests {
             .expect("read");
 
         let campo = |dv: &DataValue, nome: &str| -> Option<Variant> {
-            let Some(Variant::ExtensionObject(eo)) = dv.value.clone() else { return None };
-            eo.into_inner_as::<DynamicStructure>()?.get_field_by_name(nome).cloned()
+            let Some(Variant::ExtensionObject(eo)) = dv.value.clone() else {
+                return None;
+            };
+            eo.into_inner_as::<DynamicStructure>()?
+                .get_field_by_name(nome)
+                .cloned()
         };
 
         assert_eq!(
@@ -2341,12 +2486,21 @@ mod tests {
         let mut m3 = std::collections::BTreeMap::new();
         m3.insert("velocita".to_string(), sws_core::TagValue::Float(99.0));
         m3.insert("marcia".to_string(), sws_core::TagValue::Bool(false));
-        db.set("motore1".into(), sws_core::TagValue::Struct(m3), TagQuality::Good).await;
+        db.set(
+            "motore1".into(),
+            sws_core::TagValue::Struct(m3),
+            TagQuality::Good,
+        )
+        .await;
         let mut visto = None;
         for _ in 0..50 {
             tokio::time::sleep(Duration::from_millis(20)).await;
             let r = session
-                .read(&[ReadValueId::new_value(NodeId::new(ns, "motore1"))], TimestampsToReturn::Both, 0.0)
+                .read(
+                    &[ReadValueId::new_value(NodeId::new(ns, "motore1"))],
+                    TimestampsToReturn::Both,
+                    0.0,
+                )
                 .await
                 .expect("read");
             if let Some(v) = campo(&r[0], "velocita") {
@@ -2356,7 +2510,11 @@ mod tests {
                 }
             }
         }
-        assert_eq!(visto, Some(Variant::Float(99.0)), "il nodo struttura si aggiorna");
+        assert_eq!(
+            visto,
+            Some(Variant::Float(99.0)),
+            "il nodo struttura si aggiorna"
+        );
 
         cancel.cancel();
         let _ = tokio::time::timeout(Duration::from_secs(5), server).await;
@@ -2376,19 +2534,38 @@ mod tests {
         ))
         .unwrap();
         let db_s = Arc::new(
-            db_con(&[tag_yaml("id: motore1\ntype_ref: Motore\n"), tag_yaml("id: serbatoio1\ntype_ref: Serbatoio\n")], &tipi_def)
-                .await,
+            db_con(
+                &[
+                    tag_yaml("id: motore1\ntype_ref: Motore\n"),
+                    tag_yaml("id: serbatoio1\ntype_ref: Serbatoio\n"),
+                ],
+                &tipi_def,
+            )
+            .await,
         );
         let struttura = |coppie: &[(&str, sws_core::TagValue)]| {
-            sws_core::TagValue::Struct(coppie.iter().map(|(k, v)| (k.to_string(), v.clone())).collect())
+            sws_core::TagValue::Struct(
+                coppie
+                    .iter()
+                    .map(|(k, v)| (k.to_string(), v.clone()))
+                    .collect(),
+            )
         };
         db_s.set(
             "motore1".into(),
-            struttura(&[("velocita", sws_core::TagValue::Float(12.5)), ("marcia", sws_core::TagValue::Bool(true))]),
+            struttura(&[
+                ("velocita", sws_core::TagValue::Float(12.5)),
+                ("marcia", sws_core::TagValue::Bool(true)),
+            ]),
             TagQuality::Good,
         )
         .await;
-        db_s.set("serbatoio1".into(), struttura(&[("livello", sws_core::TagValue::Float(73.25))]), TagQuality::Good).await;
+        db_s.set(
+            "serbatoio1".into(),
+            struttura(&[("livello", sws_core::TagValue::Float(73.25))]),
+            TagQuality::Good,
+        )
+        .await;
 
         let ascoltatore = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
         let porta = ascoltatore.local_addr().unwrap().port();
@@ -2411,7 +2588,14 @@ mod tests {
         // Il client: tag dello stesso tipo, nomi diversi, così si vede che
         // arriva dal filo e non dal db del server.
         let db_c = Arc::new(
-            db_con(&[tag_yaml("id: m\ntype_ref: Motore\n"), tag_yaml("id: s\ntype_ref: Serbatoio\n")], &tipi_def).await,
+            db_con(
+                &[
+                    tag_yaml("id: m\ntype_ref: Motore\n"),
+                    tag_yaml("id: s\ntype_ref: Serbatoio\n"),
+                ],
+                &tipi_def,
+            )
+            .await,
         );
         let cfg_c: OpcUaClientConfig = serde_yaml::from_str(&format!(
             "id: c\nendpoint_url: opc.tcp://127.0.0.1:{porta}/\nsecurity_policy: None\ntrust_all_certs: true\n\
@@ -2441,7 +2625,10 @@ mod tests {
                 false
             }
         };
-        assert!(attendi("m.velocita", sws_core::TagValue::Float(12.5)).await, "la prima struttura arriva foglia per foglia");
+        assert!(
+            attendi("m.velocita", sws_core::TagValue::Float(12.5)).await,
+            "la prima struttura arriva foglia per foglia"
+        );
         assert!(attendi("m.marcia", sws_core::TagValue::Bool(true)).await);
         assert!(
             attendi("s.livello", sws_core::TagValue::Float(73.25)).await,
@@ -2450,11 +2637,17 @@ mod tests {
 
         db_s.set(
             "motore1".into(),
-            struttura(&[("velocita", sws_core::TagValue::Float(99.0)), ("marcia", sws_core::TagValue::Bool(false))]),
+            struttura(&[
+                ("velocita", sws_core::TagValue::Float(99.0)),
+                ("marcia", sws_core::TagValue::Bool(false)),
+            ]),
             TagQuality::Good,
         )
         .await;
-        assert!(attendi("m.velocita", sws_core::TagValue::Float(99.0)).await, "la sottoscrizione segue la struttura");
+        assert!(
+            attendi("m.velocita", sws_core::TagValue::Float(99.0)).await,
+            "la sottoscrizione segue la struttura"
+        );
         assert!(attendi("m.marcia", sws_core::TagValue::Bool(false)).await);
 
         cancel.cancel();
@@ -2491,8 +2684,14 @@ mod tests {
         let (tipi, per_radice) = tipi_pubblicati(&db, &m, 2).await;
         assert_eq!(tipi.len(), 1, "un tipo solo, non uno per istanza");
         assert_eq!(tipi[0].nome, "Motore");
-        assert_eq!(per_radice.get("motore1").map(String::as_str), Some("Motore"));
-        assert_eq!(per_radice.get("motore2").map(String::as_str), Some("Motore"));
+        assert_eq!(
+            per_radice.get("motore1").map(String::as_str),
+            Some("Motore")
+        );
+        assert_eq!(
+            per_radice.get("motore2").map(String::as_str),
+            Some("Motore")
+        );
         // Gli id a stringa, nel nostro namespace: stabili fra due avvii per
         // costruzione, mentre un contatore cambierebbe appena si aggiunge un
         // tipo. E un namespace sbagliato non è un errore ma un panic.
@@ -2501,7 +2700,10 @@ mod tests {
         // I campi, nell'ordine dichiarato: è l'ordine con cui si riempiono.
         assert_eq!(
             tipi[0].campi,
-            vec![("velocita".to_string(), "f32".to_string()), ("marcia".to_string(), "bool".to_string())]
+            vec![
+                ("velocita".to_string(), "f32".to_string()),
+                ("marcia".to_string(), "bool".to_string())
+            ]
         );
     }
 
@@ -2517,8 +2719,14 @@ mod tests {
         let m: Vec<sws_core::OpcUaServerNodeMapping> = serde_yaml::from_str("- tag: g1\n").unwrap();
 
         let (tipi, per_radice) = tipi_pubblicati(&db, &m, 2).await;
-        assert!(tipi.is_empty(), "una struttura annidata non si pubblica in questo giro");
-        assert!(per_radice.is_empty(), "e la radice non deve credersi una struttura");
+        assert!(
+            tipi.is_empty(),
+            "una struttura annidata non si pubblica in questo giro"
+        );
+        assert!(
+            per_radice.is_empty(),
+            "e la radice non deve credersi una struttura"
+        );
         // Ma le foglie ci sono lo stesso: il tag resta usabile.
         assert!(!nodi_esposti(&db, &m).await.is_empty());
     }
@@ -2547,7 +2755,10 @@ mod tests {
             .collect();
         assert_eq!(di_uno, vec!["motore1.velocita", "motore1.marcia"]);
         assert_eq!(
-            esposti.iter().filter(|n| n.radice.as_deref() == Some("motore10")).count(),
+            esposti
+                .iter()
+                .filter(|n| n.radice.as_deref() == Some("motore10"))
+                .count(),
             2
         );
     }
@@ -2565,7 +2776,10 @@ mod tests {
         let esposti = nodi_esposti(&db, &m).await;
 
         assert_eq!(
-            esposti.iter().map(|n| n.id_nodo.as_str()).collect::<Vec<_>>(),
+            esposti
+                .iter()
+                .map(|n| n.id_nodo.as_str())
+                .collect::<Vec<_>>(),
             vec!["M1.velocita", "M1.marcia"]
         );
         assert_eq!(
@@ -2600,7 +2814,10 @@ mod tests {
         let info = TypeInfo::from_type_definition(
             t.definizione.clone(),
             t.nome.clone(),
-            Some(EncodingIds { binary_id: t.enc_id.clone(), ..Default::default() }),
+            Some(EncodingIds {
+                binary_id: t.enc_id.clone(),
+                ..Default::default()
+            }),
             false,
             &t.tipo_id,
             &pids,
@@ -2621,12 +2838,20 @@ mod tests {
 
         let v = variant_struttura(t, &albero, &sws_core::TagValue::Struct(mappa))
             .expect("la struttura si costruisce");
-        let opcua::types::Variant::ExtensionObject(eo) = v else { panic!("non è un ExtensionObject") };
+        let opcua::types::Variant::ExtensionObject(eo) = v else {
+            panic!("non è un ExtensionObject")
+        };
         let ds = eo
             .inner_as::<opcua::types::custom::DynamicStructure>()
             .expect("DynamicStructure");
-        assert_eq!(ds.get_field_by_name("zeta"), Some(&opcua::types::Variant::Float(2.0)));
-        assert_eq!(ds.get_field_by_name("alfa"), Some(&opcua::types::Variant::Float(1.0)));
+        assert_eq!(
+            ds.get_field_by_name("zeta"),
+            Some(&opcua::types::Variant::Float(2.0))
+        );
+        assert_eq!(
+            ds.get_field_by_name("alfa"),
+            Some(&opcua::types::Variant::Float(1.0))
+        );
     }
 
     /// Un campo che manca non produce una struttura mezza vuota: produce un
@@ -2636,7 +2861,8 @@ mod tests {
     async fn una_struttura_incompleta_dice_perche() {
         let tipi_def = tipi_motore();
         let db = db_con(&[tag_yaml("id: motore1\ntype_ref: Motore\n")], &tipi_def).await;
-        let m: Vec<sws_core::OpcUaServerNodeMapping> = serde_yaml::from_str("- tag: motore1\n").unwrap();
+        let m: Vec<sws_core::OpcUaServerNodeMapping> =
+            serde_yaml::from_str("- tag: motore1\n").unwrap();
         let (tipi, _) = tipi_pubblicati(&db, &m, 2).await;
         let albero = Arc::new(opcua::types::custom::DataTypeTree::new(
             opcua::types::custom::ParentIds::new(),
@@ -2656,13 +2882,20 @@ mod tests {
         assert_eq!(esposti.len(), 1);
         assert_eq!(esposti[0].tag, "pressione");
         assert_eq!(esposti[0].tipo.as_deref(), Some("u16"));
-        assert_eq!(esposti[0].radice, None, "uno scalare non è figlio di niente");
+        assert_eq!(
+            esposti[0].radice, None,
+            "uno scalare non è figlio di niente"
+        );
     }
 
     /// Un array dà un nodo per elemento, con lo stesso criterio.
     #[tokio::test]
     async fn un_array_da_un_nodo_per_elemento() {
-        let db = db_con(&[tag_yaml("id: livelli\ndata_type: i32\narray: [3]\n")], &[]).await;
+        let db = db_con(
+            &[tag_yaml("id: livelli\ndata_type: i32\narray: [3]\n")],
+            &[],
+        )
+        .await;
         let m: Vec<sws_core::OpcUaServerNodeMapping> =
             serde_yaml::from_str("- tag: livelli\n").unwrap();
         let esposti = nodi_esposti(&db, &m).await;
@@ -2687,7 +2920,14 @@ mod tests {
             vec![3],
         )
         .unwrap();
-        consegna(&db, "livelli", Some(&foglie), &dv(Some(Variant::Array(Box::new(a))), Some(StatusCode::Good)), None).await;
+        consegna(
+            &db,
+            "livelli",
+            Some(&foglie),
+            &dv(Some(Variant::Array(Box::new(a))), Some(StatusCode::Good)),
+            None,
+        )
+        .await;
 
         assert_eq!(db.get("livelli[0]").await.unwrap().value, TagValue::Int(10));
         assert_eq!(db.get("livelli[2]").await.unwrap().value, TagValue::Int(30));
@@ -2708,7 +2948,14 @@ mod tests {
             vec![1],
         )
         .unwrap();
-        consegna(&db, "livelli", Some(&foglie), &dv(Some(Variant::Array(Box::new(a))), Some(StatusCode::Good)), None).await;
+        consegna(
+            &db,
+            "livelli",
+            Some(&foglie),
+            &dv(Some(Variant::Array(Box::new(a))), Some(StatusCode::Good)),
+            None,
+        )
+        .await;
 
         assert_eq!(db.get("livelli[0]").await.unwrap().value, TagValue::Int(10));
         assert_eq!(db.get("livelli[2]").await.unwrap().quality, TagQuality::Bad);
@@ -2768,25 +3015,50 @@ mod tests {
     #[test]
     fn l_endpoint_si_sceglie_per_policy_e_tiene_l_url_configurato() {
         let annunciato = |policy: SecurityPolicy, mode: MessageSecurityMode| {
-            let mut e: opcua::types::EndpointDescription =
-                ("opc.tcp://0.0.0.0:4840/openplc/opcua", policy.to_uri(), mode, UserTokenPolicy::anonymous()).into();
+            let mut e: opcua::types::EndpointDescription = (
+                "opc.tcp://0.0.0.0:4840/openplc/opcua",
+                policy.to_uri(),
+                mode,
+                UserTokenPolicy::anonymous(),
+            )
+                .into();
             e.server_certificate = opcua::types::ByteString::from(vec![1u8, 2, 3]);
             e
         };
         let offerti = vec![
             annunciato(SecurityPolicy::None, MessageSecurityMode::None),
-            annunciato(SecurityPolicy::Basic256Sha256, MessageSecurityMode::SignAndEncrypt),
+            annunciato(
+                SecurityPolicy::Basic256Sha256,
+                MessageSecurityMode::SignAndEncrypt,
+            ),
         ];
         let url = "opc.tcp://127.0.0.1:14840/openplc/opcua";
-        let e = scegli_endpoint(&offerti, url, SecurityPolicy::Basic256Sha256, MessageSecurityMode::SignAndEncrypt)
-            .unwrap();
+        let e = scegli_endpoint(
+            &offerti,
+            url,
+            SecurityPolicy::Basic256Sha256,
+            MessageSecurityMode::SignAndEncrypt,
+        )
+        .unwrap();
         assert_eq!(e.endpoint_url.as_ref(), url);
-        assert_eq!(e.server_certificate.as_ref(), &[1u8, 2, 3], "il certificato del server viaggia con l'endpoint");
+        assert_eq!(
+            e.server_certificate.as_ref(),
+            &[1u8, 2, 3],
+            "il certificato del server viaggia con l'endpoint"
+        );
 
-        let err = scegli_endpoint(&offerti, url, SecurityPolicy::Aes256Sha256RsaPss, MessageSecurityMode::SignAndEncrypt)
-            .unwrap_err()
-            .to_string();
-        assert!(err.contains("offre:") && err.contains("Basic256Sha256"), "l'errore dice cosa offre: {err}");
+        let err = scegli_endpoint(
+            &offerti,
+            url,
+            SecurityPolicy::Aes256Sha256RsaPss,
+            MessageSecurityMode::SignAndEncrypt,
+        )
+        .unwrap_err()
+        .to_string();
+        assert!(
+            err.contains("offre:") && err.contains("Basic256Sha256"),
+            "l'errore dice cosa offre: {err}"
+        );
     }
 
     #[test]
@@ -2807,7 +3079,6 @@ mod tests {
             );
         }
     }
-
 }
 
 #[cfg(test)]
@@ -2826,7 +3097,10 @@ mod tests_fiducia {
     fn al_primo_contatto_il_certificato_diventa_fidato() {
         let d = pki("primo");
         std::fs::write(d.join("rejected/server.der"), b"x").unwrap();
-        assert_eq!(fiducia_al_primo_contatto(&d), Fiducia::Memorizzato("server.der".into()));
+        assert_eq!(
+            fiducia_al_primo_contatto(&d),
+            Fiducia::Memorizzato("server.der".into())
+        );
         assert!(d.join("trusted/server.der").exists());
         assert!(!d.join("rejected/server.der").exists());
         // Le volte dopo non c'è niente da fare.
@@ -2838,8 +3112,14 @@ mod tests_fiducia {
         let d = pki("cambiato");
         std::fs::write(d.join("trusted/vecchio.der"), b"x").unwrap();
         std::fs::write(d.join("rejected/nuovo.der"), b"y").unwrap();
-        assert_eq!(fiducia_al_primo_contatto(&d), Fiducia::Cambiato("nuovo.der".into()));
-        assert!(d.join("rejected/nuovo.der").exists(), "resta fra i rifiutati");
+        assert_eq!(
+            fiducia_al_primo_contatto(&d),
+            Fiducia::Cambiato("nuovo.der".into())
+        );
+        assert!(
+            d.join("rejected/nuovo.der").exists(),
+            "resta fra i rifiutati"
+        );
     }
 
     #[test]

@@ -497,6 +497,12 @@ mod generator_tests {
 }
 
 /// Discriminated union of all supported data source types.
+///
+/// `large_enum_variant`: la variante MQTT pesa ~450 byte, le altre meno della
+/// metà. È configurazione — poche copie per progetto, mai in un ciclo caldo —
+/// e inscatolarla vorrebbe dire cambiare ogni `match` sulle sorgenti per un
+/// risparmio che non si misura.
+#[allow(clippy::large_enum_variant)]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "kind")]
 pub enum SourceDef {
@@ -564,7 +570,10 @@ pub struct ModbusTcpConfig {
     pub port: u16,
     /// Formato di prima del 04-10-2026 (un dispositivo per sorgente): vale solo
     /// se `devices` è vuoto. Vedi [`ModbusTcpConfig::dispositivi`].
-    #[serde(default = "default_unit_id", skip_serializing_if = "e_unit_id_predefinito")]
+    #[serde(
+        default = "default_unit_id",
+        skip_serializing_if = "e_unit_id_predefinito"
+    )]
     pub unit_id: u8,
     /// Intervallo di lettura predefinito dei dispositivi del bus, in ms.
     #[serde(default = "default_poll_interval_ms")]
@@ -651,7 +660,10 @@ pub struct ModbusRtuConfig {
     #[serde(default = "default_stop_bits")]
     pub stop_bits: u8,
     /// Formato di prima (un dispositivo per sorgente), come in TCP.
-    #[serde(default = "default_unit_id", skip_serializing_if = "e_unit_id_predefinito")]
+    #[serde(
+        default = "default_unit_id",
+        skip_serializing_if = "e_unit_id_predefinito"
+    )]
     pub unit_id: u8,
     #[serde(default = "default_poll_interval_ms")]
     pub poll_interval_ms: u64,
@@ -685,7 +697,10 @@ pub struct DispositivoModbus {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub poll_interval_ms: Option<u64>,
     /// Attesa massima di una risposta, in ms.
-    #[serde(default = "default_timeout_modbus_ms", skip_serializing_if = "e_timeout_modbus_predefinito")]
+    #[serde(
+        default = "default_timeout_modbus_ms",
+        skip_serializing_if = "e_timeout_modbus_predefinito"
+    )]
     pub timeout_ms: u64,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub registers: Vec<RegisterMapping>,
@@ -742,7 +757,9 @@ pub struct TestiRegistro {
 /// (02-11-2026). Il JSON non ha chiavi numeriche, e uno YAML scritto a mano o
 /// da uno script le mette spesso fra virgolette (`'0': standby`): prima la
 /// sorgente intera veniva scartata per una virgoletta.
-fn voci_con_chiavi_tolleranti<'de, D>(d: D) -> Result<std::collections::BTreeMap<u32, String>, D::Error>
+fn voci_con_chiavi_tolleranti<'de, D>(
+    d: D,
+) -> Result<std::collections::BTreeMap<u32, String>, D::Error>
 where
     D: serde::Deserializer<'de>,
 {
@@ -766,11 +783,11 @@ where
         .into_iter()
         .map(|(k, v)| match k {
             Chiave::Numero(n) => Ok((n, v)),
-            Chiave::Testo(t) => t
-                .trim()
-                .parse::<u32>()
-                .map(|n| (n, v))
-                .map_err(|_| serde::de::Error::custom(format!("voce dei testi «{t}»: la chiave deve essere un numero"))),
+            Chiave::Testo(t) => t.trim().parse::<u32>().map(|n| (n, v)).map_err(|_| {
+                serde::de::Error::custom(format!(
+                    "voce dei testi «{t}»: la chiave deve essere un numero"
+                ))
+            }),
         })
         .collect()
 }
@@ -826,7 +843,12 @@ fn e_timeout_modbus_predefinito(v: &u64) -> bool {
 
 /// Il formato di prima del 04-10-2026 letto come un bus con un dispositivo:
 /// l'**unico** punto in cui quel formato viene interpretato.
-fn dispositivi_modbus(devices: &[DispositivoModbus], unit_id: u8, ordine: OrdineModbus, registers: &[RegisterMapping]) -> Vec<DispositivoModbus> {
+fn dispositivi_modbus(
+    devices: &[DispositivoModbus],
+    unit_id: u8,
+    ordine: OrdineModbus,
+    registers: &[RegisterMapping],
+) -> Vec<DispositivoModbus> {
     if !devices.is_empty() {
         return devices.to_vec();
     }
@@ -1119,7 +1141,10 @@ impl DisponibilitaMqtt {
     /// Il messaggio arrivato sul topic dice che l'altro capo è vivo?
     pub fn e_vivo(&self, payload: &[u8]) -> bool {
         let testo = String::from_utf8_lossy(payload);
-        let letto = match (self.json_path.as_deref().filter(|p| !p.is_empty()), serde_json::from_str::<serde_json::Value>(&testo)) {
+        let letto = match (
+            self.json_path.as_deref().filter(|p| !p.is_empty()),
+            serde_json::from_str::<serde_json::Value>(&testo),
+        ) {
             (Some(percorso), Ok(json)) => {
                 let mut v = &json;
                 for parte in percorso.split('.') {
@@ -1697,7 +1722,11 @@ where
             .and_then(|k| k.as_str())
             .unwrap_or("?")
             .to_string();
-        let id = val.get("id").and_then(|k| k.as_str()).unwrap_or("?").to_string();
+        let id = val
+            .get("id")
+            .and_then(|k| k.as_str())
+            .unwrap_or("?")
+            .to_string();
         match serde_yaml::from_value::<SourceDef>(val) {
             Ok(src) => out.push(src),
             // Il motivo vero, non «tipo non riconosciuto»: il 02-11-2026 una
@@ -1761,12 +1790,16 @@ mod testi_registro_tests {
     #[test]
     fn le_chiavi_dei_testi_si_leggono_anche_fra_virgolette() {
         let numeri: TestiRegistro = serde_yaml::from_str("voci: {0: standby, 2: running}").unwrap();
-        let virgolette: TestiRegistro = serde_yaml::from_str("voci: {'0': standby, '2': running}").unwrap();
-        let json: TestiRegistro = serde_json::from_str(r#"{"voci": {"0": "standby", "2": "running"}}"#).unwrap();
+        let virgolette: TestiRegistro =
+            serde_yaml::from_str("voci: {'0': standby, '2': running}").unwrap();
+        let json: TestiRegistro =
+            serde_json::from_str(r#"{"voci": {"0": "standby", "2": "running"}}"#).unwrap();
         assert_eq!(numeri, virgolette);
         assert_eq!(numeri, json);
         assert_eq!(numeri.voci[&2], "running");
-        let e = serde_yaml::from_str::<TestiRegistro>("voci: {acceso: x}").unwrap_err().to_string();
+        let e = serde_yaml::from_str::<TestiRegistro>("voci: {acceso: x}")
+            .unwrap_err()
+            .to_string();
         assert!(e.contains("acceso"), "{e}");
     }
 }
@@ -1978,7 +2011,12 @@ pub struct CanaliEvento {
 
 impl CanaliEvento {
     pub const fn di(email: bool, telegram: bool) -> Self {
-        Self { email, telegram, sms: false, voce: false }
+        Self {
+            email,
+            telegram,
+            sms: false,
+            voce: false,
+        }
     }
     pub fn per(&self, canale: CanaleNotifica) -> bool {
         match canale {
@@ -2782,16 +2820,22 @@ mod tabella_eventi_tests {
     /// La stessa tabella che l'editor considera predefinita: una fixture sola.
     #[test]
     fn i_default_sono_quelli_della_fixture_condivisa() {
-        let f: serde_json::Value =
-            serde_json::from_str(include_str!("../../../../tests/fixtures/tabella-eventi-predefinita.json")).unwrap();
+        let f: serde_json::Value = serde_json::from_str(include_str!(
+            "../../../../tests/fixtures/tabella-eventi-predefinita.json"
+        ))
+        .unwrap();
         let attesa: TabellaEventi = serde_json::from_value(f["tabella"].clone()).unwrap();
         assert_eq!(TabellaEventi::default(), attesa);
         // Una riga assente prende il suo default, non «spento».
-        let parziale: TabellaEventi = serde_json::from_str(r#"{"rientro":{"email":true,"telegram":false}}"#).unwrap();
-        assert!(parziale.scatto.telegram && parziale.esito_aggiornamento.telegram && parziale.rientro.email);
+        let parziale: TabellaEventi =
+            serde_json::from_str(r#"{"rientro":{"email":true,"telegram":false}}"#).unwrap();
+        assert!(
+            parziale.scatto.telegram
+                && parziale.esito_aggiornamento.telegram
+                && parziale.rientro.email
+        );
     }
 }
-
 
 #[cfg(test)]
 mod dispositivi_modbus_tests {
@@ -2806,7 +2850,10 @@ mod dispositivi_modbus_tests {
         let c = rtu("id: l\ndevice: /dev/ttyS1\nunit_id: 4\nordine: cdab\nregisters: [{tag: a, address: 1}]\n");
         let d = c.dispositivi();
         assert_eq!(d.len(), 1);
-        assert_eq!((d[0].unit_id, d[0].ordine, d[0].timeout_ms), (4, OrdineModbus::Cdab, TIMEOUT_MODBUS_MS));
+        assert_eq!(
+            (d[0].unit_id, d[0].ordine, d[0].timeout_ms),
+            (4, OrdineModbus::Cdab, TIMEOUT_MODBUS_MS)
+        );
         assert_eq!(d[0].registers[0].tag, "a");
     }
 
@@ -2819,7 +2866,9 @@ mod dispositivi_modbus_tests {
         assert_eq!(d.iter().map(|x| x.unit_id).collect::<Vec<_>>(), vec![2, 3]);
         assert_eq!(d[1].poll_interval_ms, Some(500));
         assert_eq!(d[1].modello.as_deref(), Some("x/y@1"));
-        assert!(d.iter().all(|x| x.registers.iter().all(|r| r.tag != "vecchio")));
+        assert!(d
+            .iter()
+            .all(|x| x.registers.iter().all(|r| r.tag != "vecchio")));
     }
 
     #[test]
@@ -2830,7 +2879,11 @@ mod dispositivi_modbus_tests {
         let y = serde_yaml::to_string(&c).unwrap();
         assert!(!y.contains("registers: []"), "{y}");
         assert!(!y.contains("timeout_ms"), "predefinito omesso: {y}");
-        assert_eq!(y.matches("unit_id").count(), 1, "solo quello del dispositivo: {y}");
+        assert_eq!(
+            y.matches("unit_id").count(),
+            1,
+            "solo quello del dispositivo: {y}"
+        );
     }
 }
 
@@ -2839,7 +2892,11 @@ mod prove_disponibilita {
     use super::*;
 
     fn d(topic: &str, json_path: Option<&str>, vivo: &str) -> DisponibilitaMqtt {
-        DisponibilitaMqtt { topic: topic.into(), json_path: json_path.map(Into::into), vivo: vivo.into() }
+        DisponibilitaMqtt {
+            topic: topic.into(),
+            json_path: json_path.map(Into::into),
+            vivo: vivo.into(),
+        }
     }
 
     #[test]
@@ -2855,11 +2912,17 @@ mod prove_disponibilita {
 
     #[test]
     fn tasmota_shelly_esphome() {
-        assert!(d("tele/x/LWT", None, "online").e_vivo(b"Online"), "maiuscole ignorate");
+        assert!(
+            d("tele/x/LWT", None, "online").e_vivo(b"Online"),
+            "maiuscole ignorate"
+        );
         assert!(!d("tele/x/LWT", None, "online").e_vivo(b"Offline"));
         assert!(d("shelly/online", None, "true").e_vivo(b"true"));
         assert!(!d("shelly/online", None, "true").e_vivo(b"false"));
-        assert!(d("esp/status", None, "online").e_vivo(b"\"online\""), "una stringa JSON si legge senza virgolette");
+        assert!(
+            d("esp/status", None, "online").e_vivo(b"\"online\""),
+            "una stringa JSON si legge senza virgolette"
+        );
     }
 
     #[test]
@@ -2871,7 +2934,10 @@ mod prove_disponibilita {
 
     #[test]
     fn il_nome_del_tag_si_compone_in_un_punto_solo() {
-        assert_eq!(tag_disponibilita("mqtt-switch-garage"), "mqtt-switch-garage.disponibile");
+        assert_eq!(
+            tag_disponibilita("mqtt-switch-garage"),
+            "mqtt-switch-garage.disponibile"
+        );
     }
 
     #[test]

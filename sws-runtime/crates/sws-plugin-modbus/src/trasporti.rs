@@ -70,7 +70,15 @@ impl<S: AsyncRead + AsyncWrite + Unpin> ClientSolarman<S> {
             .map(|d| d.subsec_nanos())
             .unwrap_or(0)
             & 0xFF) as u8;
-        Self { flusso, seriale, seq, unita, buf: Vec::new(), scartati: Arc::default(), ripeti_dopo: None }
+        Self {
+            flusso,
+            seriale,
+            seq,
+            unita,
+            buf: Vec::new(),
+            scartati: Arc::default(),
+            ripeti_dopo: None,
+        }
     }
 
     /// Rimanda una lettura rimasta senza risposta dopo `d` (vedi `ripeti_dopo`).
@@ -88,7 +96,11 @@ impl<S: AsyncRead + AsyncWrite + Unpin> ClientSolarman<S> {
             match tokio::time::timeout(d, self.ricevi()).await {
                 Ok(r) => return r,
                 Err(_) => {
-                    debug!(seq = self.seq, "Solarman V5: nessuna risposta in {} ms, rimando la lettura", d.as_millis());
+                    debug!(
+                        seq = self.seq,
+                        "Solarman V5: nessuna risposta in {} ms, rimando la lettura",
+                        d.as_millis()
+                    );
                     self.manda(richiesta).await?;
                 }
             }
@@ -98,7 +110,9 @@ impl<S: AsyncRead + AsyncWrite + Unpin> ClientSolarman<S> {
 
     async fn manda(&mut self, richiesta: &[u8]) -> io::Result<()> {
         self.seq = self.seq.wrapping_add(1);
-        self.flusso.write_all(&solarman::incapsula(self.seriale, self.seq, richiesta)).await
+        self.flusso
+            .write_all(&solarman::incapsula(self.seriale, self.seq, richiesta))
+            .await
     }
 
     /// La risposta alla sequenza corrente; intanto risponde ai pacchetti di
@@ -110,21 +124,31 @@ impl<S: AsyncRead + AsyncWrite + Unpin> ClientSolarman<S> {
                     Arrivato::Risposta { seq, rtu } if seq == self.seq => return Ok(rtu),
                     Arrivato::Risposta { seq, .. } => {
                         self.scartati.fetch_add(1, Ordering::Relaxed);
-                        debug!(seq, attesa = self.seq, "Solarman V5: risposta a una richiesta vecchia, scartata");
+                        debug!(
+                            seq,
+                            attesa = self.seq,
+                            "Solarman V5: risposta a una richiesta vecchia, scartata"
+                        );
                     }
                     Arrivato::Servizio { risposta } => self.flusso.write_all(&risposta).await?,
                     Arrivato::Scarto(perche) => {
                         // Poteva essere la nostra risposta, rovinata: si dice
                         // subito, e `Ritmato` decide se riprovare.
                         self.scartati.fetch_add(1, Ordering::Relaxed);
-                        return Err(io::Error::new(io::ErrorKind::InvalidData, format!("Solarman V5: {perche}")));
+                        return Err(io::Error::new(
+                            io::ErrorKind::InvalidData,
+                            format!("Solarman V5: {perche}"),
+                        ));
                     }
                 }
             }
             let mut pezzo = [0u8; 1024];
             let n = self.flusso.read(&mut pezzo).await?;
             if n == 0 {
-                return Err(io::Error::new(io::ErrorKind::UnexpectedEof, "la chiavetta ha chiuso la connessione"));
+                return Err(io::Error::new(
+                    io::ErrorKind::UnexpectedEof,
+                    "la chiavetta ha chiuso la connessione",
+                ));
             }
             self.buf.extend_from_slice(&pezzo[..n]);
         }
@@ -134,7 +158,9 @@ impl<S: AsyncRead + AsyncWrite + Unpin> ClientSolarman<S> {
 impl<S: AsyncRead + AsyncWrite + Unpin> Dispositivo for ClientSolarman<S> {
     async fn leggi(&mut self, area: AreaModbus, addr: u16, n: u16) -> io::Result<Letti> {
         let fc = codice(area);
-        let t = self.scambia(&rtu::richiesta_lettura(self.unita, fc, addr, n), true).await?;
+        let t = self
+            .scambia(&rtu::richiesta_lettura(self.unita, fc, addr, n), true)
+            .await?;
         Ok(if area.a_bit() {
             Letti::Bit(rtu::bit_letti(self.unita, fc, n, &t)?)
         } else {
@@ -143,12 +169,19 @@ impl<S: AsyncRead + AsyncWrite + Unpin> Dispositivo for ClientSolarman<S> {
     }
     async fn scrivi_registri(&mut self, addr: u16, regs: &[u16]) -> io::Result<()> {
         let fc = if regs.len() == 1 { 6 } else { 16 };
-        let t = self.scambia(&rtu::richiesta_scrittura_registri(self.unita, addr, regs), false).await?;
+        let t = self
+            .scambia(
+                &rtu::richiesta_scrittura_registri(self.unita, addr, regs),
+                false,
+            )
+            .await?;
         rtu::scrittura_confermata(self.unita, fc, &t)
     }
     async fn scrivi_bit(&mut self, addr: u16, bit: &[bool]) -> io::Result<()> {
         let fc = if bit.len() == 1 { 5 } else { 15 };
-        let t = self.scambia(&rtu::richiesta_scrittura_bit(self.unita, addr, bit), false).await?;
+        let t = self
+            .scambia(&rtu::richiesta_scrittura_bit(self.unita, addr, bit), false)
+            .await?;
         rtu::scrittura_confermata(self.unita, fc, &t)
     }
     fn imposta_unita(&mut self, unita: u8) {
@@ -168,7 +201,12 @@ pub struct Ritmato<D> {
 
 impl<D: Dispositivo> Ritmato<D> {
     pub fn nuovo(dev: D, pausa_ms: u64, tentativi: u8) -> Self {
-        Self { dev, pausa: Duration::from_millis(pausa_ms), tentativi, ultima: None }
+        Self {
+            dev,
+            pausa: Duration::from_millis(pausa_ms),
+            tentativi,
+            ultima: None,
+        }
     }
 
     async fn aspetta(&mut self) {
@@ -188,7 +226,12 @@ impl<D: Dispositivo> Dispositivo for Ritmato<D> {
             match r {
                 Err(e) if e.kind() == io::ErrorKind::InvalidData && fatti < self.tentativi => {
                     fatti += 1;
-                    debug!(addr, n, tentativo = fatti, "Modbus: risposta rotta, riprovo: {e}");
+                    debug!(
+                        addr,
+                        n,
+                        tentativo = fatti,
+                        "Modbus: risposta rotta, riprovo: {e}"
+                    );
                 }
                 r => return r,
             }
@@ -220,7 +263,10 @@ mod tests {
 
     /// Una chiavetta finta: legge un pacchetto, risponde con quello che le dice
     /// `rispondi` (zero o più pacchetti, anche rotti o d'altri).
-    async fn chiavetta(mut lato: tokio::io::DuplexStream, rispondi: impl Fn(u8, &[u8]) -> Vec<Vec<u8>>) {
+    async fn chiavetta(
+        mut lato: tokio::io::DuplexStream,
+        rispondi: impl Fn(u8, &[u8]) -> Vec<Vec<u8>>,
+    ) {
         let mut buf = Vec::new();
         let mut pezzo = [0u8; 512];
         loop {
@@ -278,9 +324,9 @@ mod tests {
         tokio::spawn(chiavetta(b, |seq, rtu_rich| {
             assert_eq!(&rtu_rich[..6], &[1, 3, 0x02, 0x10, 0, 2]);
             vec![
-                pacchetto(0x47, 9, &[0]),                    // un battito
+                pacchetto(0x47, 9, &[0]),                             // un battito
                 risposta(seq.wrapping_sub(1), &registri(1, &[9, 9])), // una risposta vecchia
-                risposta(seq, &registri(1, &[17, 489])),     // la nostra
+                risposta(seq, &registri(1, &[17, 489])),              // la nostra
             ]
         }));
         let mut c = ClientSolarman::nuovo(a, SERIALE, 1);
@@ -318,7 +364,10 @@ mod tests {
             vec![r]
         }));
         let mut c = Ritmato::nuovo(ClientSolarman::nuovo(a, SERIALE, 1), 0, 2);
-        assert_eq!(c.leggi(AreaModbus::Holding, 0, 1).await.unwrap(), Letti::Registri(vec![5]));
+        assert_eq!(
+            c.leggi(AreaModbus::Holding, 0, 1).await.unwrap(),
+            Letti::Registri(vec![5])
+        );
         assert_eq!(volte.load(Ordering::Relaxed), 2);
     }
 
@@ -339,10 +388,18 @@ mod tests {
         let volte = Arc::new(AtomicU64::new(0));
         let v = volte.clone();
         tokio::spawn(chiavetta(b, move |seq, _| {
-            if v.fetch_add(1, Ordering::Relaxed) == 0 { vec![] } else { vec![risposta(seq, &registri(1, &[7]))] }
+            if v.fetch_add(1, Ordering::Relaxed) == 0 {
+                vec![]
+            } else {
+                vec![risposta(seq, &registri(1, &[7]))]
+            }
         }));
-        let mut c = ClientSolarman::nuovo(a, SERIALE, 1).con_ripetizione(Duration::from_millis(2500));
-        let l = tokio::time::timeout(Duration::from_secs(5), c.leggi(AreaModbus::Holding, 0, 1)).await.unwrap().unwrap();
+        let mut c =
+            ClientSolarman::nuovo(a, SERIALE, 1).con_ripetizione(Duration::from_millis(2500));
+        let l = tokio::time::timeout(Duration::from_secs(5), c.leggi(AreaModbus::Holding, 0, 1))
+            .await
+            .unwrap()
+            .unwrap();
         assert_eq!(l, Letti::Registri(vec![7]));
         assert_eq!(volte.load(Ordering::Relaxed), 2);
     }
@@ -358,8 +415,13 @@ mod tests {
             v.fetch_add(1, Ordering::Relaxed);
             vec![]
         }));
-        let mut c = ClientSolarman::nuovo(a, SERIALE, 1).con_ripetizione(Duration::from_millis(2500));
-        assert!(tokio::time::timeout(Duration::from_secs(5), c.scrivi_registri(0, &[1])).await.is_err());
+        let mut c =
+            ClientSolarman::nuovo(a, SERIALE, 1).con_ripetizione(Duration::from_millis(2500));
+        assert!(
+            tokio::time::timeout(Duration::from_secs(5), c.scrivi_registri(0, &[1]))
+                .await
+                .is_err()
+        );
         assert_eq!(volte.load(Ordering::Relaxed), 1);
     }
 

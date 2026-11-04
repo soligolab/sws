@@ -75,19 +75,55 @@ pub struct Parole {
 pub fn parole(lingua: &str) -> Parole {
     if lingua.starts_with("en") {
         Parole {
-            riepilogo: "Summary", andamento: "Trend", allarmi: "Alarms", tag: "Tag", descrizione: "Description",
-            unita: "Unit", min: "Min", max: "Max", media: "Average", campioni: "Samples", inizio: "From",
-            allarme: "Alarm", messaggio: "Message", gravita: "Severity", attivato: "Activated", rientrato: "Cleared",
-            riconosciuto: "Acknowledged by", nessuno: "None in the period", dal: "from", al: "to",
-            generato: "Generated", progetto: "Project", pagina: "Page",
+            riepilogo: "Summary",
+            andamento: "Trend",
+            allarmi: "Alarms",
+            tag: "Tag",
+            descrizione: "Description",
+            unita: "Unit",
+            min: "Min",
+            max: "Max",
+            media: "Average",
+            campioni: "Samples",
+            inizio: "From",
+            allarme: "Alarm",
+            messaggio: "Message",
+            gravita: "Severity",
+            attivato: "Activated",
+            rientrato: "Cleared",
+            riconosciuto: "Acknowledged by",
+            nessuno: "None in the period",
+            dal: "from",
+            al: "to",
+            generato: "Generated",
+            progetto: "Project",
+            pagina: "Page",
         }
     } else {
         Parole {
-            riepilogo: "Riepilogo", andamento: "Andamento", allarmi: "Allarmi", tag: "Tag", descrizione: "Descrizione",
-            unita: "Unità", min: "Min", max: "Max", media: "Media", campioni: "Campioni", inizio: "Dalle",
-            allarme: "Allarme", messaggio: "Messaggio", gravita: "Gravità", attivato: "Attivato", rientrato: "Rientrato",
-            riconosciuto: "Riconosciuto da", nessuno: "Nessuno nel periodo", dal: "dal", al: "al",
-            generato: "Generato", progetto: "Progetto", pagina: "Pagina",
+            riepilogo: "Riepilogo",
+            andamento: "Andamento",
+            allarmi: "Allarmi",
+            tag: "Tag",
+            descrizione: "Descrizione",
+            unita: "Unità",
+            min: "Min",
+            max: "Max",
+            media: "Media",
+            campioni: "Campioni",
+            inizio: "Dalle",
+            allarme: "Allarme",
+            messaggio: "Messaggio",
+            gravita: "Gravità",
+            attivato: "Attivato",
+            rientrato: "Rientrato",
+            riconosciuto: "Riconosciuto da",
+            nessuno: "Nessuno nel periodo",
+            dal: "dal",
+            al: "al",
+            generato: "Generato",
+            progetto: "Progetto",
+            pagina: "Pagina",
         }
     }
 }
@@ -107,7 +143,12 @@ fn statistiche<'a>(campioni: impl Iterator<Item = &'a Sample>) -> Option<(f64, f
     for v in campioni.filter_map(|s| numero(&s.value)) {
         acc = Some(match acc {
             None => (v, v, v, 1),
-            Some((mi, ma, me, n)) => (mi.min(v), ma.max(v), me + (v - me) / (n as f64 + 1.0), n + 1),
+            Some((mi, ma, me, n)) => (
+                mi.min(v),
+                ma.max(v),
+                me + (v - me) / (n as f64 + 1.0),
+                n + 1,
+            ),
         });
     }
     acc
@@ -132,17 +173,37 @@ pub fn componi(
 ) -> DatiReport {
     let p = parole(lingua);
     let vuoti: Vec<Sample> = Vec::new();
-    let nel_periodo = |t: &str| campioni.get(t).unwrap_or(&vuoti).iter().filter(move |s| s.ts_ms >= da_ms && s.ts_ms < a_ms);
+    let nel_periodo = |t: &str| {
+        campioni
+            .get(t)
+            .unwrap_or(&vuoti)
+            .iter()
+            .filter(move |s| s.ts_ms >= da_ms && s.ts_ms < a_ms)
+    };
 
     // Il riepilogo: una riga per tag.
     let mut riepilogo = Tabella {
         titolo: p.riepilogo.into(),
-        colonne: [p.tag, p.descrizione, p.unita, p.min, p.max, p.media, p.campioni].map(String::from).to_vec(),
+        colonne: [
+            p.tag,
+            p.descrizione,
+            p.unita,
+            p.min,
+            p.max,
+            p.media,
+            p.campioni,
+        ]
+        .map(String::from)
+        .to_vec(),
         righe: Vec::new(),
     };
     for t in tags {
         let i = info.get(t).cloned().unwrap_or_default();
-        let mut riga = vec![Cella::Testo(t.clone()), Cella::Testo(i.descrizione.clone()), Cella::Testo(i.unita.clone())];
+        let mut riga = vec![
+            Cella::Testo(t.clone()),
+            Cella::Testo(i.descrizione.clone()),
+            Cella::Testo(i.unita.clone()),
+        ];
         match statistiche(nel_periodo(t)) {
             Some((mi, ma, me, n)) => riga.extend([
                 Cella::Numero(mi, i.decimali),
@@ -150,7 +211,12 @@ pub fn componi(
                 Cella::Numero(me, i.decimali),
                 Cella::Numero(n as f64, 0),
             ]),
-            None => riga.extend([Cella::Vuota, Cella::Vuota, Cella::Vuota, Cella::Numero(0.0, 0)]),
+            None => riga.extend([
+                Cella::Vuota,
+                Cella::Vuota,
+                Cella::Vuota,
+                Cella::Numero(0.0, 0),
+            ]),
         }
         riepilogo.righe.push(riga);
     }
@@ -159,7 +225,9 @@ pub fn componi(
     // (non all'epoca: un report «ora per ora» parte dall'ora del turno).
     let mut andamento = Tabella {
         titolo: p.andamento.into(),
-        colonne: std::iter::once(p.inizio.to_string()).chain(tags.iter().cloned()).collect(),
+        colonne: std::iter::once(p.inizio.to_string())
+            .chain(tags.iter().cloned())
+            .collect(),
         righe: Vec::new(),
     };
     let passo = passo_ms.max(60_000);
@@ -169,7 +237,11 @@ pub fn componi(
         let mut riga = vec![Cella::Testo(ora(inizio))];
         for t in tags {
             let dec = info.get(t).map(|i| i.decimali).unwrap_or(2);
-            let s = campioni.get(t).unwrap_or(&vuoti).iter().filter(|s| s.ts_ms >= inizio && s.ts_ms < fine);
+            let s = campioni
+                .get(t)
+                .unwrap_or(&vuoti)
+                .iter()
+                .filter(|s| s.ts_ms >= inizio && s.ts_ms < fine);
             riga.push(match statistiche(s) {
                 Some((_, _, me, _)) => Cella::Numero(me, dec),
                 None => Cella::Vuota,
@@ -183,10 +255,22 @@ pub fn componi(
     if let Some(eventi) = allarmi {
         let mut t = Tabella {
             titolo: p.allarmi.into(),
-            colonne: [p.attivato, p.allarme, p.messaggio, p.gravita, p.rientrato, p.riconosciuto].map(String::from).to_vec(),
+            colonne: [
+                p.attivato,
+                p.allarme,
+                p.messaggio,
+                p.gravita,
+                p.rientrato,
+                p.riconosciuto,
+            ]
+            .map(String::from)
+            .to_vec(),
             righe: Vec::new(),
         };
-        let mut ordinati: Vec<&AlarmEvent> = eventi.iter().filter(|e| e.ts_activated_ms >= da_ms && e.ts_activated_ms < a_ms).collect();
+        let mut ordinati: Vec<&AlarmEvent> = eventi
+            .iter()
+            .filter(|e| e.ts_activated_ms >= da_ms && e.ts_activated_ms < a_ms)
+            .collect();
         ordinati.sort_by_key(|e| e.ts_activated_ms);
         for e in ordinati {
             t.righe.push(vec![
@@ -194,7 +278,9 @@ pub fn componi(
                 Cella::Testo(e.alarm_id.clone()),
                 Cella::Testo(e.alarm_message.clone()),
                 Cella::Testo(format!("{:?}", e.severity).to_lowercase()),
-                e.ts_normalized_ms.map(|x| Cella::Testo(ora(x))).unwrap_or(Cella::Vuota),
+                e.ts_normalized_ms
+                    .map(|x| Cella::Testo(ora(x)))
+                    .unwrap_or(Cella::Vuota),
                 e.acked_by.clone().map(Cella::Testo).unwrap_or(Cella::Vuota),
             ]);
         }
@@ -221,7 +307,11 @@ mod tests {
     use sws_core::{AlarmSeverity, TagQuality};
 
     fn s(ts: u64, v: f64) -> Sample {
-        Sample { ts_ms: ts, value: TagValue::Float(v), quality: TagQuality::Good }
+        Sample {
+            ts_ms: ts,
+            value: TagValue::Float(v),
+            quality: TagQuality::Good,
+        }
     }
 
     /// Un turno di due ore a passo di un'ora: riepilogo sull'intero periodo,
@@ -233,11 +323,24 @@ mod tests {
         let da = 10 * h;
         let campioni: HashMap<String, Vec<Sample>> = [(
             "temp".to_string(),
-            vec![s(da - 1, 999.0), s(da, 20.0), s(da + h / 2, 22.0), s(da + h, 30.0), s(da + 2 * h, 999.0)],
+            vec![
+                s(da - 1, 999.0),
+                s(da, 20.0),
+                s(da + h / 2, 22.0),
+                s(da + h, 30.0),
+                s(da + 2 * h, 999.0),
+            ],
         )]
         .into();
-        let info: HashMap<String, InfoTag> =
-            [("temp".to_string(), InfoTag { descrizione: "Caldaia".into(), unita: "°C".into(), decimali: 1 })].into();
+        let info: HashMap<String, InfoTag> = [(
+            "temp".to_string(),
+            InfoTag {
+                descrizione: "Caldaia".into(),
+                unita: "°C".into(),
+                decimali: 1,
+            },
+        )]
+        .into();
         let eventi = vec![AlarmEvent {
             alarm_id: "alta".into(),
             alarm_message: "Temperatura alta".into(),
@@ -250,14 +353,42 @@ mod tests {
             interrotto: false,
         }];
         let ora = |ms: u64| format!("h{}", ms / h);
-        let r = componi("Turno", "Casa", &["temp".into(), "vuoto".into()], &info, &campioni, Some(&eventi), da, da + 2 * h, h, da + 2 * h, "it", &ora);
+        let r = componi(
+            "Turno",
+            "Casa",
+            &["temp".into(), "vuoto".into()],
+            &info,
+            &campioni,
+            Some(&eventi),
+            da,
+            da + 2 * h,
+            h,
+            da + 2 * h,
+            "it",
+            &ora,
+        );
         assert_eq!(r.periodo, "dal h10 al h12");
         let riep = &r.tabelle[0];
-        assert_eq!(riep.righe[0][3..], [Cella::Numero(20.0, 1), Cella::Numero(30.0, 1), Cella::Numero(24.0, 1), Cella::Numero(3.0, 0)]);
-        assert_eq!(riep.righe[1][3], Cella::Vuota, "un tag senza dati non inventa uno zero");
+        assert_eq!(
+            riep.righe[0][3..],
+            [
+                Cella::Numero(20.0, 1),
+                Cella::Numero(30.0, 1),
+                Cella::Numero(24.0, 1),
+                Cella::Numero(3.0, 0)
+            ]
+        );
+        assert_eq!(
+            riep.righe[1][3],
+            Cella::Vuota,
+            "un tag senza dati non inventa uno zero"
+        );
         let and = &r.tabelle[1];
         assert_eq!(and.righe.len(), 2);
-        assert_eq!(and.righe[0][..2], [Cella::Testo("h10".into()), Cella::Numero(21.0, 1)]);
+        assert_eq!(
+            and.righe[0][..2],
+            [Cella::Testo("h10".into()), Cella::Numero(21.0, 1)]
+        );
         assert_eq!(and.righe[1][1], Cella::Numero(30.0, 1));
         assert_eq!(r.tabelle[2].righe[0][1], Cella::Testo("alta".into()));
     }

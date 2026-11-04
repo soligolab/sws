@@ -131,7 +131,12 @@ impl Config {
     fn colonne_x(&self) -> Vec<(f32, f32)> {
         let interno = self.w as f32 - 2.0;
         let fisse: f32 = self.colonne.iter().filter_map(|c| c.larghezza).sum();
-        let libere = self.colonne.iter().filter(|c| c.larghezza.is_none()).count().max(1) as f32;
+        let libere = self
+            .colonne
+            .iter()
+            .filter(|c| c.larghezza.is_none())
+            .count()
+            .max(1) as f32;
         let quota = ((interno - fisse) / libere).max(20.0);
         let mut x = 1.0;
         self.colonne
@@ -148,7 +153,10 @@ impl Config {
 
 impl Stato {
     pub fn nuovo(cfg: &Config) -> Stato {
-        Stato { filtri: vec![String::new(); cfg.colonne.len()], ..Default::default() }
+        Stato {
+            filtri: vec![String::new(); cfg.colonne.len()],
+            ..Default::default()
+        }
     }
 
     /// Le righe da mostrare, filtrate e ordinate: indici nelle righe date.
@@ -166,15 +174,28 @@ impl Stato {
             .collect();
         if let Some((c, cresc)) = self.ordina {
             v.sort_by(|a, b| {
-                let (ka, kb) = (righe[*a].celle.get(c).map(|x| &x.chiave), righe[*b].celle.get(c).map(|x| &x.chiave));
+                let (ka, kb) = (
+                    righe[*a].celle.get(c).map(|x| &x.chiave),
+                    righe[*b].celle.get(c).map(|x| &x.chiave),
+                );
                 let o = match (ka, kb) {
-                    (Some(Chiave::Numero(x)), Some(Chiave::Numero(y))) => x.partial_cmp(y).unwrap_or(std::cmp::Ordering::Equal),
+                    (Some(Chiave::Numero(x)), Some(Chiave::Numero(y))) => {
+                        x.partial_cmp(y).unwrap_or(std::cmp::Ordering::Equal)
+                    }
                     (Some(Chiave::Numero(_)), Some(Chiave::Testo(_))) => std::cmp::Ordering::Less,
-                    (Some(Chiave::Testo(_)), Some(Chiave::Numero(_))) => std::cmp::Ordering::Greater,
-                    (Some(Chiave::Testo(x)), Some(Chiave::Testo(y))) => x.to_lowercase().cmp(&y.to_lowercase()),
+                    (Some(Chiave::Testo(_)), Some(Chiave::Numero(_))) => {
+                        std::cmp::Ordering::Greater
+                    }
+                    (Some(Chiave::Testo(x)), Some(Chiave::Testo(y))) => {
+                        x.to_lowercase().cmp(&y.to_lowercase())
+                    }
                     _ => std::cmp::Ordering::Equal,
                 };
-                if cresc { o } else { o.reverse() }
+                if cresc {
+                    o
+                } else {
+                    o.reverse()
+                }
             });
         }
         v
@@ -196,12 +217,19 @@ impl Stato {
     }
 
     pub fn premi(&mut self, x: f32, y: f32) {
-        self.pressione = Some(Pressione { x0: x, y0: y, y, scorri0: self.scorri });
+        self.pressione = Some(Pressione {
+            x0: x,
+            y0: y,
+            y,
+            scorri0: self.scorri,
+        });
     }
 
     /// Il dito si muove: la tabella scorre (l'intestazione resta ferma).
     pub fn trascina(&mut self, y: f32, scorri_max: f32) -> bool {
-        let Some(p) = self.pressione.as_mut() else { return false };
+        let Some(p) = self.pressione.as_mut() else {
+            return false;
+        };
         p.y = y;
         if (y - p.y0).abs() <= SOGLIA_PX {
             return false;
@@ -213,7 +241,9 @@ impl Stato {
     }
 
     pub fn rilascia(&mut self, scena: &Scena) -> Esito {
-        let Some(p) = self.pressione.take() else { return Esito::Niente };
+        let Some(p) = self.pressione.take() else {
+            return Esito::Niente;
+        };
         if (p.y - p.y0).abs() > SOGLIA_PX {
             return Esito::Niente;
         }
@@ -260,13 +290,25 @@ fn arrotondato(px: &mut Pixmap, x: f32, y: f32, w: f32, h: f32, r: f32, c: Rgb) 
     pb.quad_to(x, y, x + r, y);
     pb.close();
     if let Some(p) = pb.finish() {
-        px.fill_path(&p, &paint(c), FillRule::Winding, Transform::identity(), None);
+        px.fill_path(
+            &p,
+            &paint(c),
+            FillRule::Winding,
+            Transform::identity(),
+            None,
+        );
     }
 }
 
 /// Disegna la tabella in `px` e dice cosa scrivere e dove si può toccare.
 /// `misura(testo, px)` serve a tagliare un testo che non entra nella colonna.
-pub fn disegna(cfg: &Config, righe: &[Riga], stato: &Stato, px: &mut Pixmap, misura: &dyn Fn(&str, u16) -> f32) -> Scena {
+pub fn disegna(
+    cfg: &Config,
+    righe: &[Riga],
+    stato: &Stato,
+    px: &mut Pixmap,
+    misura: &dyn Fn(&str, u16) -> f32,
+) -> Scena {
     let (w, h) = (cfg.w as f32, cfg.h as f32);
     let mut sc = Scena::default();
     px.fill(resvg::tiny_skia::Color::TRANSPARENT);
@@ -296,7 +338,15 @@ pub fn disegna(cfg: &Config, righe: &[Riga], stato: &Stato, px: &mut Pixmap, mis
             Orizz::Centro => (x + cw / 2.0, Orizz::Centro),
             Orizz::Dx => (x + cw - PAD_O, Orizz::Dx),
         };
-        sc.testi.push(Testo { x: ax, y: y_mezzo, testo: taglia(t, larg), colore, px: corpo, orizz: o, vert: Vert::Mezzo });
+        sc.testi.push(Testo {
+            x: ax,
+            y: y_mezzo,
+            testo: taglia(t, larg),
+            colore,
+            px: corpo,
+            orizz: o,
+            vert: Vert::Mezzo,
+        });
     };
 
     // Il corpo, ritagliato sotto l'intestazione.
@@ -335,7 +385,13 @@ pub fn disegna(cfg: &Config, righe: &[Riga], stato: &Stato, px: &mut Pixmap, mis
                 Some(col) => {
                     let (x, cw) = cx[c];
                     if let Some(p) = PathBuilder::from_circle(x + cw / 2.0, ym, 4.0) {
-                        px.fill_path(&p, &paint(col), FillRule::Winding, Transform::identity(), None);
+                        px.fill_path(
+                            &p,
+                            &paint(col),
+                            FillRule::Winding,
+                            Transform::identity(),
+                            None,
+                        );
                     }
                 }
                 None => testo_in(&mut sc, c, ym, &cel.testo, cel.colore),
@@ -343,7 +399,8 @@ pub fn disegna(cfg: &Config, righe: &[Riga], stato: &Stato, px: &mut Pixmap, mis
         }
         if let Some(c) = righe[i].scrivibile {
             let (x, cw) = cx[c];
-            sc.bersagli.push((Rett { x, y, w: cw, h: rh }, Bersaglio::Valore(i)));
+            sc.bersagli
+                .push((Rett { x, y, w: cw, h: rh }, Bersaglio::Valore(i)));
         }
     }
 
@@ -356,10 +413,24 @@ pub fn disegna(cfg: &Config, righe: &[Riga], stato: &Stato, px: &mut Pixmap, mis
             Some((k, false)) if k == c => " ▼",
             _ => "",
         };
-        testo_in(&mut sc, c, 1.0 + rh / 2.0, &format!("{}{freccia}", col.intestazione), TESTO_INT);
+        testo_in(
+            &mut sc,
+            c,
+            1.0 + rh / 2.0,
+            &format!("{}{freccia}", col.intestazione),
+            TESTO_INT,
+        );
         if col.ordinabile {
             let (x, cw) = cx[c];
-            sc.bersagli.push((Rett { x, y: 1.0, w: cw, h: rh }, Bersaglio::Intestazione(c)));
+            sc.bersagli.push((
+                Rett {
+                    x,
+                    y: 1.0,
+                    w: cw,
+                    h: rh,
+                },
+                Bersaglio::Intestazione(c),
+            ));
         }
     }
     if fh > 0.0 {
@@ -371,9 +442,22 @@ pub fn disegna(cfg: &Config, righe: &[Riga], stato: &Stato, px: &mut Pixmap, mis
                 continue;
             }
             let (x, cw) = cx[c];
-            let r = Rett { x: x + 4.0, y: y0 + 2.0, w: cw - 8.0, h: fh - 4.0 };
+            let r = Rett {
+                x: x + 4.0,
+                y: y0 + 2.0,
+                w: cw - 8.0,
+                h: fh - 4.0,
+            };
             arrotondato(px, r.x, r.y, r.w, r.h, 3.0, BORDO);
-            arrotondato(px, r.x + 1.0, r.y + 1.0, r.w - 2.0, r.h - 2.0, 2.0, INTESTAZIONE_BG);
+            arrotondato(
+                px,
+                r.x + 1.0,
+                r.y + 1.0,
+                r.w - 2.0,
+                r.h - 2.0,
+                2.0,
+                INTESTAZIONE_BG,
+            );
             let f = stato.filtri.get(c).cloned().unwrap_or_default();
             if !f.is_empty() {
                 sc.testi.push(Testo {
@@ -397,7 +481,13 @@ mod tests {
     use super::*;
 
     fn col(n: &str, filtrabile: bool) -> Colonna {
-        Colonna { intestazione: n.into(), larghezza: None, allinea: Orizz::Sx, ordinabile: true, filtrabile }
+        Colonna {
+            intestazione: n.into(),
+            larghezza: None,
+            allinea: Orizz::Sx,
+            ordinabile: true,
+            filtrabile,
+        }
     }
 
     fn cella(t: &str, n: Option<f64>) -> Cella {
@@ -423,9 +513,18 @@ mod tests {
 
     fn righe() -> Vec<Riga> {
         vec![
-            Riga { celle: vec![cella("Pompa", None), cella("10", Some(10.0))], scrivibile: Some(1) },
-            Riga { celle: vec![cella("Valvola", None), cella("2", Some(2.0))], scrivibile: None },
-            Riga { celle: vec![cella("pompa due", None), cella("30", Some(30.0))], scrivibile: None },
+            Riga {
+                celle: vec![cella("Pompa", None), cella("10", Some(10.0))],
+                scrivibile: Some(1),
+            },
+            Riga {
+                celle: vec![cella("Valvola", None), cella("2", Some(2.0))],
+                scrivibile: None,
+            },
+            Riga {
+                celle: vec![cella("pompa due", None), cella("30", Some(30.0))],
+                scrivibile: None,
+            },
         ]
     }
 
@@ -461,14 +560,26 @@ mod tests {
         let r = righe();
         let mut px = Pixmap::new(300, 200).unwrap();
         let sc = disegna(&c, &r, &s, &mut px, &misura);
-        let (ri, _) = sc.bersagli.iter().find(|(_, b)| *b == Bersaglio::Intestazione(1)).unwrap();
+        let (ri, _) = sc
+            .bersagli
+            .iter()
+            .find(|(_, b)| *b == Bersaglio::Intestazione(1))
+            .unwrap();
         s.premi(ri.x + 5.0, ri.y + 5.0);
         assert_eq!(s.rilascia(&sc), Esito::Ridisegna);
         assert_eq!(s.ordina, Some((1, true)));
-        let (rv, _) = sc.bersagli.iter().find(|(_, b)| *b == Bersaglio::Valore(0)).unwrap();
+        let (rv, _) = sc
+            .bersagli
+            .iter()
+            .find(|(_, b)| *b == Bersaglio::Valore(0))
+            .unwrap();
         s.premi(rv.x + 5.0, rv.y + 5.0);
         assert_eq!(s.rilascia(&sc), Esito::Scrivi(0));
-        let (rf, _) = sc.bersagli.iter().find(|(_, b)| *b == Bersaglio::Filtro(0)).unwrap();
+        let (rf, _) = sc
+            .bersagli
+            .iter()
+            .find(|(_, b)| *b == Bersaglio::Filtro(0))
+            .unwrap();
         s.premi(rf.x + 5.0, rf.y + 5.0);
         assert_eq!(s.rilascia(&sc), Esito::Filtro(0));
         // Solo le colonne filtrabili hanno la casella del filtro.
@@ -479,7 +590,12 @@ mod tests {
     fn trascinare_scorre_e_non_tocca() {
         let mut c = cfg(false);
         c.h = 60;
-        let r: Vec<Riga> = (0..20).map(|i| Riga { celle: vec![cella(&format!("r{i}"), None), cella("1", Some(1.0))], scrivibile: None }).collect();
+        let r: Vec<Riga> = (0..20)
+            .map(|i| Riga {
+                celle: vec![cella(&format!("r{i}"), None), cella("1", Some(1.0))],
+                scrivibile: None,
+            })
+            .collect();
         let mut s = Stato::nuovo(&c);
         let mut px = Pixmap::new(300, 60).unwrap();
         let sc = disegna(&c, &r, &s, &mut px, &misura);
@@ -498,10 +614,20 @@ mod tests {
     fn un_testo_troppo_lungo_si_taglia_coi_puntini() {
         let mut c = cfg(false);
         c.w = 80;
-        let r = vec![Riga { celle: vec![cella("Una etichetta lunghissima", None), cella("1", Some(1.0))], scrivibile: None }];
+        let r = vec![Riga {
+            celle: vec![
+                cella("Una etichetta lunghissima", None),
+                cella("1", Some(1.0)),
+            ],
+            scrivibile: None,
+        }];
         let mut px = Pixmap::new(80, 200).unwrap();
         let sc = disegna(&c, &r, &Stato::nuovo(&c), &mut px, &misura);
-        assert!(sc.testi.iter().any(|t| t.testo.ends_with('…')), "{:?}", sc.testi);
+        assert!(
+            sc.testi.iter().any(|t| t.testo.ends_with('…')),
+            "{:?}",
+            sc.testi
+        );
     }
 
     #[test]

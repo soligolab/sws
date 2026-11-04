@@ -56,7 +56,9 @@ pub fn normalizza(mut e: Esito, adesso_ms: i64) -> Esito {
 }
 
 async fn leggi_esito(config_dir: &Path) -> Option<Esito> {
-    let t = tokio::fs::read_to_string(config_dir.join(FILE_ESITO)).await.ok()?;
+    let t = tokio::fs::read_to_string(config_dir.join(FILE_ESITO))
+        .await
+        .ok()?;
     let e: Esito = serde_json::from_str(&t).ok()?;
     Some(normalizza(e, chrono::Utc::now().timestamp_millis()))
 }
@@ -69,7 +71,10 @@ async fn scrivi_esito(config_dir: &Path, e: &Esito) {
 
 async fn risponde() -> bool {
     let c = tokio::net::TcpStream::connect(("127.0.0.1", PORTA_API));
-    matches!(tokio::time::timeout(std::time::Duration::from_millis(500), c).await, Ok(Ok(_)))
+    matches!(
+        tokio::time::timeout(std::time::Duration::from_millis(500), c).await,
+        Ok(Ok(_))
+    )
 }
 
 /// `None` fuori da un pannello in container: niente da installare.
@@ -88,10 +93,16 @@ pub async fn stato(config_dir: &Path) -> Option<Stato> {
 /// OpenPLC accanto (`/data/user/openplc`).
 pub fn comando(host_config: &str) -> Vec<String> {
     let config = host_config.trim_end_matches('/');
-    let dati = Path::new(config).parent().map(|p| p.display().to_string()).unwrap_or_else(|| "/data/user/sws".into());
+    let dati = Path::new(config)
+        .parent()
+        .map(|p| p.display().to_string())
+        .unwrap_or_else(|| "/data/user/sws".into());
     vec![
         "/bin/bash".into(),
-        format!("{config}/{}/install-container.sh", crate::quadlet::DIR_COPIA),
+        format!(
+            "{config}/{}/install-container.sh",
+            crate::quadlet::DIR_COPIA
+        ),
         "--solo-openplc".into(),
         "--data".into(),
         dati,
@@ -100,36 +111,65 @@ pub fn comando(host_config: &str) -> Vec<String> {
 
 /// Lancia l'installazione e torna subito: il download dura minuti.
 pub async fn installa(config_dir: &Path) -> Result<(), String> {
-    let st = stato(config_dir).await.ok_or("Non è un pannello: OpenPLC si installa solo sul dispositivo.")?;
+    let st = stato(config_dir)
+        .await
+        .ok_or("Non è un pannello: OpenPLC si installa solo sul dispositivo.")?;
     if !st.si_puo_installare {
-        return Err("Questo pannello non sa installare da sé: serve la reinstallazione dall'IDE \
+        return Err(
+            "Questo pannello non sa installare da sé: serve la reinstallazione dall'IDE \
                     (Device → Installazione, «Installa anche OpenPLC»)."
-            .into());
+                .into(),
+        );
     }
-    if st.ultimo_esito.as_ref().is_some_and(|e| e.esito == "in_corso") {
+    if st
+        .ultimo_esito
+        .as_ref()
+        .is_some_and(|e| e.esito == "in_corso")
+    {
         return Err("Un'installazione di OpenPLC è già in corso.".into());
     }
     let host = crate::quadlet::host_config().ok_or("SWS_HOST_CONFIG_DIR assente")?;
     let copia = config_dir.join(crate::quadlet::DIR_COPIA);
-    tokio::fs::create_dir_all(&copia).await.map_err(|e| format!("{}: {e}", copia.display()))?;
+    tokio::fs::create_dir_all(&copia)
+        .await
+        .map_err(|e| format!("{}: {e}", copia.display()))?;
     tokio::fs::copy(
         Path::new(crate::quadlet::DIR_IMMAGINE).join("install-container.sh"),
         copia.join("install-container.sh"),
     )
     .await
     .map_err(|e| format!("copia dell'installer: {e}"))?;
-    let utente = zbus::Connection::session().await.map_err(|e| format!("bus utente: {e}"))?;
+    let utente = zbus::Connection::session()
+        .await
+        .map_err(|e| format!("bus utente: {e}"))?;
     let adesso = chrono::Utc::now().timestamp_millis();
     scrivi_esito(
         config_dir,
-        &Esito { esito: "in_corso".into(), messaggio: "Scarico e avvio OpenPLC Runtime".into(), quando_ms: adesso },
+        &Esito {
+            esito: "in_corso".into(),
+            messaggio: "Scarico e avvio OpenPLC Runtime".into(),
+            quando_ms: adesso,
+        },
     )
     .await;
     let nome = format!("sws-openplc-installa-{}.service", adesso / 1000);
-    let r = crate::display_target::bus::avvia_transitorio(&utente, &nome, "SWS: installazione di OpenPLC", &comando(&host))
-        .await;
+    let r = crate::display_target::bus::avvia_transitorio(
+        &utente,
+        &nome,
+        "SWS: installazione di OpenPLC",
+        &comando(&host),
+    )
+    .await;
     if let Err(e) = &r {
-        scrivi_esito(config_dir, &Esito { esito: "non_riuscito".into(), messaggio: e.clone(), quando_ms: adesso }).await;
+        scrivi_esito(
+            config_dir,
+            &Esito {
+                esito: "non_riuscito".into(),
+                messaggio: e.clone(),
+                quando_ms: adesso,
+            },
+        )
+        .await;
     }
     r
 }
@@ -141,13 +181,20 @@ mod tests {
     #[test]
     fn il_comando_passa_la_cartella_dati_dell_host() {
         let c = comando("/data/user/sws/config/");
-        assert_eq!(c[1], "/data/user/sws/config/quadlet-nuovo/install-container.sh");
+        assert_eq!(
+            c[1],
+            "/data/user/sws/config/quadlet-nuovo/install-container.sh"
+        );
         assert_eq!(&c[2..], ["--solo-openplc", "--data", "/data/user/sws"]);
     }
 
     #[test]
     fn un_in_corso_scaduto_diventa_non_riuscito() {
-        let e = Esito { esito: "in_corso".into(), messaggio: String::new(), quando_ms: 0 };
+        let e = Esito {
+            esito: "in_corso".into(),
+            messaggio: String::new(),
+            quando_ms: 0,
+        };
         assert_eq!(normalizza(e.clone(), 60_000).esito, "in_corso");
         assert_eq!(normalizza(e, SCADENZA_MS + 1).esito, "non_riuscito");
     }
@@ -155,11 +202,19 @@ mod tests {
     /// L'esito si legge come lo scrive l'installer, che lo compone a mano.
     #[test]
     fn l_esito_si_legge_come_lo_scrive_l_installer() {
-        let e: Esito =
-            serde_json::from_str(r#"{"esito": "riuscito", "messaggio": "", "quando_ms": 1793370652000}"#).unwrap();
+        let e: Esito = serde_json::from_str(
+            r#"{"esito": "riuscito", "messaggio": "", "quando_ms": 1793370652000}"#,
+        )
+        .unwrap();
         assert_eq!(e.esito, "riuscito");
         let inst = include_str!("../../../../deploy/container/install-container.sh");
-        assert!(inst.contains(FILE_ESITO), "l'installer non scrive più {FILE_ESITO}");
-        assert!(inst.contains("--solo-openplc)"), "l'installer non accetta più --solo-openplc");
+        assert!(
+            inst.contains(FILE_ESITO),
+            "l'installer non scrive più {FILE_ESITO}"
+        );
+        assert!(
+            inst.contains("--solo-openplc)"),
+            "l'installer non accetta più --solo-openplc"
+        );
     }
 }

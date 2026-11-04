@@ -36,7 +36,11 @@ impl Anteprima {
 /// Sta qui, e non nelle query dei backend, perché è la parte che deve **coincidere**
 /// con quello che `purge` cancella davvero: prima i giorni, poi su ciò che resta le
 /// righe oltre `retention_rows` per tag. Una SQL per backend la deve solo riempire.
-pub fn conta(per_tag: &[(u64, u64)], retention_rows: Option<u64>, size_bytes: Option<u64>) -> Anteprima {
+pub fn conta(
+    per_tag: &[(u64, u64)],
+    retention_rows: Option<u64>,
+    size_bytes: Option<u64>,
+) -> Anteprima {
     let mut a = Anteprima::default();
     for &(totali, vecchie) in per_tag {
         a.righe_totali += totali;
@@ -171,7 +175,11 @@ mod tests {
         // All'ora, con l'ultimo giro di ieri: sì.
         assert!(dovuto(oggi_0300, oggi_0300, ieri_0310));
         // Giro fatto stanotte alle 03:05: alle 20 non si ripete.
-        assert!(!dovuto(oggi_0300 + 17 * h, oggi_0300, oggi_0300 + 5 * 60_000));
+        assert!(!dovuto(
+            oggi_0300 + 17 * h,
+            oggi_0300,
+            oggi_0300 + 5 * 60_000
+        ));
     }
 
     #[test]
@@ -181,9 +189,15 @@ mod tests {
         let h = 3_600_000u64;
         let oggi_0330 = 100 * 24 * h + 3 * h + 30 * 60_000;
         let oggi_2000 = 100 * 24 * h + 20 * h;
-        assert!(!dovuto(oggi_2000 + 5 * 60_000, oggi_0330, oggi_2000), "non subito dopo la conferma");
+        assert!(
+            !dovuto(oggi_2000 + 5 * 60_000, oggi_0330, oggi_2000),
+            "non subito dopo la conferma"
+        );
         let domani_0330 = oggi_0330 + 24 * h;
-        assert!(dovuto(domani_0330, domani_0330, oggi_2000), "stanotte, all'ora del progetto");
+        assert!(
+            dovuto(domani_0330, domani_0330, oggi_2000),
+            "stanotte, all'ora del progetto"
+        );
     }
 
     #[test]
@@ -191,7 +205,10 @@ mod tests {
         let h = 3_600_000u64;
         let oggi_0300 = 100 * 24 * h + 3 * h;
         let ieri_0302 = oggi_0300 - 24 * h + 2 * 60_000;
-        assert!(dovuto(oggi_0300 + 5 * h, oggi_0300, ieri_0302), "acceso alle 08: recupera");
+        assert!(
+            dovuto(oggi_0300 + 5 * h, oggi_0300, ieri_0302),
+            "acceso alle 08: recupera"
+        );
     }
 
     #[test]
@@ -207,9 +224,18 @@ mod tests {
     fn la_conferma_decade_solo_se_i_limiti_si_stringono() {
         let c = (Some(1_000_000), Some(365));
         assert!(conferma_vale(c, (Some(1_000_000), Some(365))));
-        assert!(conferma_vale(c, (Some(2_000_000), Some(400))), "allargati: vale");
+        assert!(
+            conferma_vale(c, (Some(2_000_000), Some(400))),
+            "allargati: vale"
+        );
         assert!(conferma_vale(c, (None, Some(365))), "tolto un limite: vale");
-        assert!(!conferma_vale(c, (Some(1_000_000), Some(30))), "365 → 30: decade");
-        assert!(!conferma_vale((None, Some(365)), (Some(10), Some(365))), "un limite nuovo: decade");
+        assert!(
+            !conferma_vale(c, (Some(1_000_000), Some(30))),
+            "365 → 30: decade"
+        );
+        assert!(
+            !conferma_vale((None, Some(365)), (Some(10), Some(365))),
+            "un limite nuovo: decade"
+        );
     }
 }
