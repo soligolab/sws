@@ -168,7 +168,15 @@ con la pagina dentro, perché `ServeDir` serviva il guscio della SPA come rispos
 Ora una rotta della SPA (una richiesta di navigazione) ha 200, mentre un file davvero mancante
 resta 404: così un bundle che manca non torna come HTML con stato 200.
 
-**Versione in esecuzione: `2.24.1-amd64`** dal 02-11-2026 sera: la release di correzioni dopo la 2.24.0. Quadlet di prima
+**Versione in esecuzione: `2.25.0-amd64`** dal 04-11-2026, 16:50: l'assistente IA che disegna i simboli e compone il
+sinottico, il menù IA con un modello per scopo, gli sfondi in due passi, le foto negli `image` anche su LVGL, il template
+«Montagna — fotovoltaico e idroelettrico». Quadlet, `identita.db` e `audit.jsonl` di prima in
+`~/sws-vps/backup-prima-di-2.25.0/`; immagine scaricata prima del riavvio. Verificato: gateway `healthy` sulla 2.25.0
+(log «SWS runtime starting, version 2.25.0»), radice, `/health` e `/api/identita/stato` 200, tunnel di `wp630-ufficio` e
+`tc620-garage` riaperti da soli, `montagna-rinnovabile` fra i template del container. Tenuta come ripiego la
+`2.24.1-amd64`, tolta la `2.24.0-amd64`; disco a 8,9 GB usati.
+
+Prima: **Versione in esecuzione: `2.24.1-amd64`** dal 02-11-2026 sera: la release di correzioni dopo la 2.24.0. Quadlet di prima
 in `~/sws-vps/backup-prima-di-2.24.1/`; verificato: radice e /health 200, gateway healthy, CasaDomotica rifatto sulla
 nuova immagine. Tenuta come ripiego la `2.24.0-amd64`; tolte tutte le altre immagini di SWS (le commit del 02-11 e le
 release fino alla 2.23.8), il disco è passato da 11 a 9,1 GB usati.
