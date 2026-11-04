@@ -1,0 +1,39 @@
+Misura delle risorse del runtime — WP630, 04-11-2026, ore 14:30 circa
+Fonte per il rapporto docs/rapporti/runtime-risorse.html (SWS-RT-01 rev. 1). Solo letture, nessuna modifica.
+
+Dispositivo   wp630-a-p3-07a077 — WP630-A-P3, Pixsys OS 2.1.4, kernel 6.12.19 PREEMPT_RT, aarch64, 6 core
+Memoria       1979 MB totali, swap 986 MB (zram), 1115 MB disponibili (free -m)
+eMMC          14,6 GB. / = 1,6 GB in sola lettura (pieno per costruzione).
+              /data, /home, /var/lib… = overlay su /dev/mmcblk0p8: 11 GB, 2,2 GB usati, 7,4 GB liberi
+SWS           immagine ghcr.io/soligolab/sws-runtime:rc-arm64, etichetta di versione 2.24.1 (costruita 02-11-2026)
+              container avviato 04-11-2026 08:39, uptime ~6 h, healthy; nessun limite di memoria o CPU
+Progetto      Slider_WP630 aperto (20 tag, 0 allarmi), schermo in Chromium kiosk (Weston)
+Accanto       OpenPLC runtime v4.3.1 in un altro container (immagine 1,02 GB)
+
+--- Disco
+podman system df: 2 immagini, 1,58 GB (SWS 562 MB + OpenPLC 1,02 GB)
+storage podman    /mnt/data/state/user/containers/storage   2,2 GB (du)
+/data/user/sws/config     252 KB
+/data/user/sws/logs       404 KB   (4 giorni: 40–180 KB al giorno)
+/data/user/sws/projects   2,9 MB
+  OpenPLC — impianto di prova   2,6 MB (history/historian.db 2,0 MB, openplc/ 480 KB)
+  Slider_WP630                  244 KB
+/data/user/sws/viewer     12 KB
+
+--- Memoria (PSS da /proc/<pid>/smaps_rollup, somma per gruppo di processi)
+sws-runtime            165 MB PSS   (VmRSS 161 MB = VmHWM; cgroup: anon 128 MB, file 71 MB; 26 thread)
+chromium (kiosk)       391 MB PSS   (9 processi)
+weston                  44 MB PSS
+OpenPLC plc_main       124 MB PSS
+OpenPLC webserver       59 MB PSS
+
+--- CPU
+sws-runtime: 27 tick in 20 s (HZ 100) = 0,27 s → 1,4 % di un core, a riposo con 20 tag
+podman stats: sws-runtime 1,9 %, openplc-runtime 3,4 %
+load average 3,64 3,38 3,36 (6 core)
+
+--- Immagini nel registry (manifest, dimensioni compresse = download)
+2.24.1-arm64   191 MB  (strati: 30,8 Ubuntu · 130,5 pacchetti · 25,5 binari · 2,9 interfaccia · resto < 1,5)
+2.24.1-amd64   101 MB  (31,7 · 43,3 · 22,7 binario · 2,9 interfaccia · resto < 0,2)
+Strati base riusati fra versioni: sì fra 2.22.0 e 2.23.0 (stesso Ubuntu e pacchetti), no fra 2.23.0, 2.24.0
+e 2.24.1 (ricostruiti). Un aggiornamento scarica quindi da ~30 MB a ~190 MB.

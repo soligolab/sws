@@ -1,0 +1,357 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<!-- Letti da stampa.mjs per l'intestazione di pagina. Si aggiornano a mano, a ogni revisione. -->
+<meta name="sws-titolo" content="Runtime SWS — struttura, file, risorse, comunicazione">
+<meta name="sws-codice" content="SWS-RT-01">
+<meta name="sws-revisione" content="1">
+<meta name="sws-versione" content="2.24.1">
+<meta name="sws-data" content="04-11-2026">
+<title>Runtime SWS — risorse</title>
+<style>
+  :root {
+    --testo: #1f1f1f;
+    --tenue: #5c5c5c;
+    --riga: #c9c9c9;
+    --fondo: #f4f2ee;
+    --accento: #dd5d21;
+  }
+  @page { size: A4; }
+  * { box-sizing: border-box; }
+  html { background: #fff; }
+  body {
+    margin: 0 auto; max-width: 180mm; padding: 0 16px;
+    font: 9.6pt/1.42 "DejaVu Sans", "Segoe UI", Arial, sans-serif;
+    color: var(--testo); background: #fff;
+  }
+  @media print { body { padding: 0; max-width: none; } }
+  h1 { font-size: 17pt; margin: 0 0 2mm; line-height: 1.2; }
+  h2 {
+    font-size: 12pt; margin: 7mm 0 2mm; padding-bottom: 1mm;
+    border-bottom: 1.5px solid var(--accento); break-after: avoid;
+  }
+  h3 { font-size: 10pt; margin: 4mm 0 1.5mm; break-after: avoid; }
+  p { margin: 0 0 2mm; }
+  ul { margin: 0 0 2mm; padding-left: 5mm; }
+  li { margin: 0 0 .8mm; }
+  code { font: 8.6pt "DejaVu Sans Mono", Consolas, monospace; }
+  table { width: 100%; border-collapse: collapse; margin: 1mm 0 3mm; break-inside: avoid; }
+  th, td { text-align: left; vertical-align: top; padding: 1.1mm 1.6mm; border-bottom: .6px solid var(--riga); }
+  th { background: var(--fondo); font-weight: 600; border-bottom: 1px solid #999; }
+  td.n, th.n { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
+  .nota { color: var(--tenue); font-size: 8.4pt; }
+  .fonte { color: var(--tenue); font-size: 8pt; margin-top: -2mm; margin-bottom: 3mm; }
+  .cartiglio td:first-child { width: 38mm; color: var(--tenue); }
+  .sintesi { display: grid; grid-template-columns: repeat(3, 1fr); gap: 2.5mm; margin: 2mm 0 3mm; break-inside: avoid; }
+  .sintesi div { border: .8px solid var(--riga); border-left: 3px solid var(--accento); padding: 2mm 2.5mm; }
+  .sintesi b { display: block; font-size: 13pt; line-height: 1.15; }
+  .sintesi span { color: var(--tenue); font-size: 8.2pt; }
+  .avviso { border: .8px solid var(--accento); background: #fdf3ee; padding: 2mm 3mm; margin: 2mm 0 3mm; break-inside: avoid; }
+  .intera { break-inside: avoid; }
+  figure { margin: 2mm 0 4mm; break-inside: avoid; }
+  figcaption { color: var(--tenue); font-size: 8.2pt; margin-top: 1mm; }
+  svg text { font-family: "DejaVu Sans", Arial, sans-serif; }
+  @media (max-width: 640px) { .sintesi { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+
+<h1>Runtime SWS — struttura, file, risorse, comunicazione</h1>
+<p class="nota">Documento tecnico ad uso interno. Riassume cosa serve al runtime per girare: disco, memoria, CPU, rete.</p>
+
+<table class="cartiglio">
+  <tr><td>Codice</td><td>SWS-RT-01</td></tr>
+  <tr><td>Revisione</td><td>1 — 04-11-2026</td></tr>
+  <tr><td>Versione SWS</td><td><b>2.24.1</b> (immagine <code>ghcr.io/soligolab/sws-runtime</code>)</td></tr>
+  <tr><td>Misure</td><td>WP630, 04-11-2026 (questa revisione); banco TC620 e x86, 17-10-2026 (versione 2.14)</td></tr>
+  <tr><td>Fonti</td><td>manuale cap. 08, 16, 18; <code>docs/prestazioni/</code>; codice citato nelle sezioni</td></tr>
+</table>
+
+<h2>1. In sintesi</h2>
+<div class="sintesi">
+  <div><b>562 MB</b><span>immagine su disco (arm64, con LVGL). 191 MB da scaricare. x86_64: 280 / 101 MB</span></div>
+  <div><b>≈ 165 MB</b><span>RAM del runtime a riposo (WP630, 20 tag). Sotto carico: fino a ~170 MB a 5.000 tag</span></div>
+  <div><b>1–2 % di un core</b><span>CPU a riposo. 1.000 tag/s verso 20 browser: ¼ di core (TC620)</span></div>
+  <div><b>≈ 390 MB</b><span>RAM di Chromium kiosk, lo schermo web. Il runtime non la conta</span></div>
+  <div><b>≈ 32 byte</b><span>per campione di storico. Lo storico è la voce che decide il disco</span></div>
+  <div><b>1 immagine + 1 copia dei dati</b><span>spazio libero da tenere per aggiornare e poter tornare indietro</span></div>
+</div>
+
+<h2>2. Struttura</h2>
+<p><b>Un'immagine sola, un binario principale.</b> L'immagine contiene Ubuntu 24.04, il binario <code>sws-runtime</code>,
+l'interfaccia web già compilata e, su arm64, il viewer LVGL. Lo stesso binario fa mestieri diversi secondo gli argomenti:</p>
+<table>
+  <tr><th>Ruolo</th><th>Dove gira</th><th>Cosa fa</th></tr>
+  <tr><td><b>Runtime del pannello</b></td><td>TC620, WP630, PC di reparto</td><td>acquisisce dal campo, calcola allarmi e storico, serve le pagine (7443) e la gestione per l'IDE (7444)</td></tr>
+  <tr><td><b>Viewer LVGL</b></td><td>pannello, secondo container, stessa immagine</td><td>disegna le pagine sullo schermo senza browser; legge dati dal runtime su 127.0.0.1</td></tr>
+  <tr><td><b>Gateway del cloud</b></td><td>VPS</td><td>login, console, tunnel dei pannelli; apre e chiude i container di progetto</td></tr>
+  <tr><td><b>Container di progetto</b></td><td>VPS, uno per progetto aperto</td><td>l'IDE di un progetto nel cloud</td></tr>
+</table>
+<p>Il codice è un workspace Rust di 18 crate. I principali:</p>
+<table>
+  <tr><th>Crate</th><th>Compito</th></tr>
+  <tr><td><code>sws-runtime</code></td><td>avvio, argomenti, porte, mDNS, log</td></tr>
+  <tr><td><code>sws-web</code></td><td>server HTTP/WebSocket, API, gateway, tunnel, aggiornamento, backup</td></tr>
+  <tr><td><code>sws-core</code></td><td>modello del progetto, tag, allarmi, motore dei dati</td></tr>
+  <tr><td><code>sws-historian</code></td><td>storico (SQLite o PostgreSQL), ritenzione</td></tr>
+  <tr><td><code>sws-plugin-*</code></td><td>protocolli: Modbus, OPC UA, MQTT, S7, EtherNet/IP, Home Assistant, host</td></tr>
+  <tr><td><code>sws-pyscript</code></td><td>script Python in sandbox (RestrictedPython)</td></tr>
+  <tr><td><code>sws-auth</code>, <code>sws-identita</code>, <code>sws-audit</code></td><td>utenti, ruoli, registro delle attività</td></tr>
+  <tr><td><code>sws-lvgl-viewer</code></td><td>il viewer LVGL (binario separato)</td></tr>
+</table>
+
+<h2>3. File</h2>
+<h3>3.1 Dentro l'immagine (sola lettura)</h3>
+<table>
+  <tr><th>Percorso</th><th>Contenuto</th><th class="n">Dimensione</th></tr>
+  <tr><td><code>/</code> (base)</td><td>Ubuntu 24.04</td><td class="n">103 MB</td></tr>
+  <tr><td><code>/usr/…</code></td><td>pacchetti: Python + RestrictedPython, git, ssh, curl; su arm64 SDL2, Mesa, EGL/GLES, DRM, FreeType</td><td class="n">388 MB<br><span class="nota">x86_64: 131 MB</span></td></tr>
+  <tr><td><code>/usr/local/bin/</code></td><td><code>sws-runtime</code>, <code>sws-lvgl-viewer</code></td><td class="n">60 MB</td></tr>
+  <tr><td><code>/var/sws/www/</code></td><td>interfaccia web (viewer e IDE)</td><td class="n">7,6 MB</td></tr>
+  <tr><td><code>/etc/sws/fonts/</code></td><td>font extra (solo con LVGL)</td><td class="n">2,2 MB</td></tr>
+  <tr><td><code>/var/sws/templates/</code>, <code>/var/sws/catalogo/</code></td><td>modelli di progetto, catalogo dispositivi</td><td class="n">0,8 MB</td></tr>
+  <tr><td><code>/usr/share/sws/quadlet/</code></td><td>quadlet e installer della stessa versione</td><td class="n">0,1 MB</td></tr>
+</table>
+<p class="fonte">Fonte: <code>podman history</code> delle immagini 2.24.1; <code>deploy/container/Containerfile.aarch64</code>.</p>
+
+<h3>3.2 Sull'host (pannello PixsysOS)</h3>
+<table>
+  <tr><th>Sull'host</th><th>Nel container</th><th>Contenuto</th><th class="n">WP630</th></tr>
+  <tr><td><code>/data/user/sws/config</code></td><td><code>/var/sws/config</code></td><td>certificati TLS, utenti del dispositivo, registro attività, stato aggiornamenti; durante un aggiornamento anche <code>istantanea/</code></td><td class="n">252 KB</td></tr>
+  <tr><td><code>/data/user/sws/projects</code></td><td><code>/var/sws/projects</code></td><td>i progetti, uno per cartella, con storico e backup</td><td class="n">2,9 MB</td></tr>
+  <tr><td><code>/data/user/sws/logs</code></td><td><code>/var/sws/logs</code></td><td>log JSONL, un file al giorno, 7 giorni</td><td class="n">404 KB</td></tr>
+  <tr><td><code>/data/user/sws/viewer</code></td><td><code>/var/sws/viewer</code> (ro)</td><td>impronte dei certificati del viewer LVGL</td><td class="n">12 KB</td></tr>
+  <tr><td><code>~/.config/containers/systemd/</code></td><td>—</td><td>quadlet <code>sws-runtime.container</code>, <code>sws-lvgl-viewer.container</code></td><td class="n">&lt; 50 KB</td></tr>
+  <tr><td>storage di podman</td><td>—</td><td>le immagini (PixsysOS: <code>/mnt/data/state/user/containers/storage</code>)</td><td class="n">vedi § 4</td></tr>
+  <tr><td><code>/run/dbus/…</code>, <code>/run/user/1000/bus</code></td><td>uguale</td><td>bus D-Bus: commutare lo schermo, avviare l'aggiornamento</td><td class="n">socket</td></tr>
+  <tr><td><code>/dev/ttyS*</code>, <code>ttyUSB*</code>, …</td><td>uguale</td><td>porte seriali per Modbus RTU, se esistono</td><td class="n">—</td></tr>
+</table>
+<p class="nota">Nel cloud i volumi stanno in <code>~/sws-vps/</code>; un container di progetto monta solo la cartella del suo progetto.</p>
+
+<h3>3.3 Dentro un progetto</h3>
+<table>
+  <tr><th>File</th><th>Contenuto</th><th>Peso tipico</th></tr>
+  <tr><td><code>project.yaml</code>, <code>synoptics/</code>, <code>users.yaml</code>, <code>recipes/</code>, <code>images/</code></td><td>la progettazione: tag, sorgenti, pagine, utenti, ricette, immagini</td><td>da KB a pochi MB</td></tr>
+  <tr><td><code>history/historian.db</code></td><td>lo storico (SQLite)</td><td><b>cresce nel tempo</b> — § 4.2</td></tr>
+  <tr><td><code>backups/&lt;data&gt;/</code></td><td>backup del progetto</td><td>§ 4.3</td></tr>
+</table>
+
+<h2>4. Disco</h2>
+<h3>4.1 L'immagine</h3>
+<table>
+  <tr><th></th><th class="n">Su disco</th><th class="n">Da scaricare</th></tr>
+  <tr><td>arm64 con LVGL (pannelli)</td><td class="n">562 MB</td><td class="n">191 MB</td></tr>
+  <tr><td>x86_64 (server, cloud)</td><td class="n">280 MB</td><td class="n">101 MB</td></tr>
+</table>
+<ul>
+  <li><b>L'87 % dell'immagine arm64 è sistema operativo e librerie</b> (491 MB su 562). SWS vero e proprio: ~70 MB.</li>
+  <li><b>Un aggiornamento scarica da ~30 a ~190 MB</b>: ~30 MB quando Ubuntu e pacchetti non cambiano (succede fra 2.22.0 e 2.23.0), l'immagine intera quando sono ricostruiti (fra 2.23.0, 2.24.0 e 2.24.1).</li>
+  <li><b>Sul pannello restano due immagini</b>: quella che gira e la precedente, per poter tornare indietro (<code>immagini.sh</code>). Le altre si tolgono da sole. Quindi a regime fino a <b>1,1 GB</b>.</li>
+  <li>Il viewer LVGL usa la stessa immagine: non occupa disco in più.</li>
+</ul>
+
+<h3>4.2 Lo storico</h3>
+<p><b>≈ 32 byte per campione</b> (7 milioni di righe = 227 MB). Si campiona a ogni variazione, o con banda morta e intervallo minimo. Esempi, a frequenza media costante:</p>
+<table>
+  <tr><th>Tag storicizzati</th><th class="n">1 campione/min · 30 giorni</th><th class="n">1 campione/min · 1 anno</th><th class="n">1 campione/10 s · 30 giorni</th><th class="n">1 campione/10 s · 1 anno</th></tr>
+  <tr><td>100</td><td class="n">0,14 GB</td><td class="n">1,7 GB</td><td class="n">0,8 GB</td><td class="n">10 GB</td></tr>
+  <tr><td>1.000</td><td class="n">1,4 GB</td><td class="n">17 GB</td><td class="n">8,3 GB</td><td class="n">101 GB</td></tr>
+  <tr><td>5.000</td><td class="n">6,9 GB</td><td class="n">84 GB</td><td class="n">41 GB</td><td class="n">505 GB</td></tr>
+</table>
+<p class="fonte">Calcolo: tag × campioni al giorno × giorni × 32 B. Fonte del fattore: manuale cap. 08.</p>
+<div class="avviso"><b>Senza ritenzione, lo storico cresce senza fine.</b> <code>retention_days</code> e <code>retention_rows</code> non hanno un valore
+predefinito: vanno impostati nel progetto. La pulizia gira ogni notte. In alternativa lo storico può stare su PostgreSQL, fuori dal pannello.</div>
+
+<h3>4.3 Il resto dei dati</h3>
+<table>
+  <tr><th>Voce</th><th>Regola</th><th>Peso</th></tr>
+  <tr><td>Configurazione</td><td>—</td><td>&lt; 1 MB</td></tr>
+  <tr><td>Log</td><td>7 giorni (<code>SWS_LOG_RETENTION_DAYS</code>)</td><td>40–180 KB al giorno a livello INFO (WP630)</td></tr>
+  <tr><td>Backup automatici</td><td>spenti di default; se accesi tengono gli ultimi 20</td><td>senza storico: pochi MB l'uno</td></tr>
+  <tr><td>Backup manuali («Crea backup»)</td><td>stesso tetto di 20</td><td><b>contengono lo storico</b>: 20 backup di un progetto con 1 GB di storico = 20 GB</td></tr>
+  <tr><td>Istantanea di aggiornamento</td><td>presa prima di ogni aggiornamento, tolta alla conferma</td><td>config + progetti <b>con lo storico</b></td></tr>
+</table>
+
+<h3>4.4 Quanto disco serve</h3>
+<p><b>Disco per SWS ≈ 2 × immagine + 2 × dati dei progetti + backup manuali + margine.</b>
+Il «2 × dati» è il picco di un aggiornamento: istantanea accanto all'originale.</p>
+<table>
+  <tr><th>Impianto</th><th>Esempio</th><th class="n">Storico</th><th class="n">Disco da prevedere</th></tr>
+  <tr><td>Piccolo</td><td>100 tag, 1 campione/min, 1 anno</td><td class="n">1,7 GB</td><td class="n">≈ 5 GB</td></tr>
+  <tr><td>Medio</td><td>1.000 tag, 1 campione/min, 30 giorni</td><td class="n">1,4 GB</td><td class="n">≈ 4,5 GB</td></tr>
+  <tr><td>Grande</td><td>1.000 tag, 1 campione/min, 1 anno</td><td class="n">17 GB</td><td class="n">≈ 42 GB — meglio lo storico su PostgreSQL</td></tr>
+</table>
+<p class="fonte">Calcolo: 1,1 GB di immagini + 2 × storico + 20 % di margine, senza backup manuali. Il WP630 misurato ha 7,4 GB liberi sulla partizione dati (eMMC da 14,6 GB).</p>
+
+<h2>5. Memoria e CPU</h2>
+<h3>5.1 A riposo, sul pannello (misura del 04-11-2026)</h3>
+<p>WP630: 6 core, 2 GB di RAM, PixsysOS 2.1.4. SWS 2.24.1 con un progetto di 20 tag, schermo in Chromium. Sullo stesso pannello gira anche OpenPLC.</p>
+<table>
+  <tr><th>Processo</th><th class="n">RAM (PSS)</th><th class="n">CPU</th></tr>
+  <tr><td><code>sws-runtime</code></td><td class="n">165 MB</td><td class="n">1,4 % di un core</td></tr>
+  <tr><td>Chromium kiosk (9 processi)</td><td class="n">391 MB</td><td class="n">—</td></tr>
+  <tr><td>Weston (compositor)</td><td class="n">44 MB</td><td class="n">—</td></tr>
+  <tr><td><i>OpenPLC (runtime + web), per confronto</i></td><td class="n">183 MB</td><td class="n">3,4 %</td></tr>
+  <tr><td><b>Memoria disponibile del pannello</b></td><td class="n"><b>1.115 MB</b> su 1.979</td><td class="n">—</td></tr>
+</table>
+<p class="fonte">Fonte: <code>docs/prestazioni/2026-11-04-wp630-risorse.txt</code>. Nessun limite di memoria o CPU è impostato sul container.</p>
+
+<h3>5.2 Sotto carico (banco del 17-10-2026, TC620)</h3>
+<p>N tag scritti una volta al secondo, K browser collegati, 60 s per caso. Nessun aggiornamento perso.</p>
+<table>
+  <tr><th class="n">Tag/s</th><th class="n">Browser</th><th class="n">CPU media / max</th><th class="n">RAM max</th><th class="n">Latenza 95°</th></tr>
+  <tr><td class="n">100</td><td class="n">20</td><td class="n">5 / 6 %</td><td class="n">67 MB</td><td class="n">53 ms</td></tr>
+  <tr><td class="n">1.000</td><td class="n">20</td><td class="n">24 / 29 %</td><td class="n">104 MB</td><td class="n">28 ms</td></tr>
+  <tr><td class="n">5.000</td><td class="n">5</td><td class="n">57 / 65 %</td><td class="n">146 MB</td><td class="n">18 ms</td></tr>
+  <tr><td class="n">5.000</td><td class="n">20</td><td class="n">100 / 140 %</td><td class="n">165 MB</td><td class="n">49 ms</td></tr>
+</table>
+<p class="fonte">CPU in % di un core. Fonte: manuale cap. 16, <code>docs/prestazioni/2026-10-17-tc620.json</code>.</p>
+<div class="avviso"><b>Da verificare.</b> Il banco girava sulla 2.14 e misurava 65 MB a 100 tag. Oggi, sulla 2.24.1, il runtime a riposo con 20 tag
+ne usa 165. La differenza (~100 MB) non è spiegata in questa revisione: va rifatto il banco sulla 2.24.1 prima di usare
+la tabella 5.2 per dimensionare.</div>
+
+<h3>5.3 Lo schermo</h3>
+<ul>
+  <li><b>Chromium kiosk</b>: ~390 MB, più del runtime stesso. È il costo principale in RAM di un pannello web.</li>
+  <li><b>Viewer LVGL</b>: non misurato in questa revisione. È l'alternativa per i pannelli con poca RAM.</li>
+</ul>
+
+<h2>6. Comunicazione</h2>
+<figure>
+<svg viewBox="0 0 700 296" width="100%" role="img" aria-label="Schema della comunicazione fra pannello, host, campo e cloud">
+  <defs>
+    <marker id="fr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#444"/>
+    </marker>
+  </defs>
+  <g fill="none" stroke="#444" stroke-width="1">
+    <rect x="6" y="6" width="410" height="284" rx="6" stroke-dasharray="4 3"/>
+  </g>
+  <text x="16" y="22" font-size="11" font-weight="600" fill="#1f1f1f">Pannello — PixsysOS + podman</text>
+
+  <g stroke="#444" fill="#f4f2ee">
+    <rect x="18" y="40" width="140" height="44" rx="4"/>
+    <rect x="18" y="104" width="140" height="44" rx="4"/>
+    <rect x="18" y="168" width="140" height="44" rx="4"/>
+    <rect x="210" y="244" width="200" height="36" rx="4"/>
+  </g>
+  <rect x="210" y="30" width="200" height="196" rx="5" fill="#fdf3ee" stroke="#dd5d21" stroke-width="1.6"/>
+
+  <g font-size="10" fill="#1f1f1f">
+    <text x="26" y="58" font-weight="600">Chromium kiosk</text>
+    <text x="26" y="74" fill="#5c5c5c">schermo web</text>
+    <text x="26" y="122" font-weight="600">Viewer LVGL</text>
+    <text x="26" y="138" fill="#5c5c5c">container separato</text>
+    <text x="26" y="186" font-weight="600">systemd utente</text>
+    <text x="26" y="202" fill="#5c5c5c">D-Bus · podman</text>
+
+    <text x="220" y="50" font-weight="600" font-size="11">sws-runtime (container)</text>
+    <text x="220" y="70">:7443  pagine operatore</text>
+    <text x="220" y="86">:7444  gestione per l'IDE</text>
+    <text x="220" y="106" fill="#5c5c5c">acquisizione dal campo</text>
+    <text x="220" y="122" fill="#5c5c5c">allarmi · storico · script</text>
+    <text x="220" y="138" fill="#5c5c5c">tunnel uscente verso il cloud</text>
+    <text x="220" y="154" fill="#5c5c5c">mDNS 5353/udp</text>
+
+    <text x="220" y="259" font-weight="600">/data/user/sws</text>
+    <text x="220" y="273" fill="#5c5c5c">config · projects · logs</text>
+  </g>
+
+  <g stroke="#444" fill="#fff">
+    <rect x="490" y="26" width="204" height="36" rx="4"/>
+    <rect x="490" y="70" width="204" height="36" rx="4"/>
+    <rect x="490" y="114" width="204" height="36" rx="4"/>
+    <rect x="490" y="158" width="204" height="36" rx="4"/>
+    <rect x="490" y="202" width="204" height="36" rx="4"/>
+  </g>
+  <g font-size="10" fill="#1f1f1f">
+    <text x="498" y="48" font-weight="600">Browser operatore in LAN</text>
+    <text x="498" y="92" font-weight="600">IDE in LAN</text>
+    <text x="498" y="130" font-weight="600">Cloud: Traefik → gateway</text>
+    <text x="498" y="143" fill="#5c5c5c">tunnel.soligo.net</text>
+    <text x="498" y="174" font-weight="600">Registry ghcr.io</text>
+    <text x="498" y="187" fill="#5c5c5c">aggiornamenti</text>
+    <text x="498" y="218" font-weight="600">Campo</text>
+    <text x="498" y="231" fill="#5c5c5c">Modbus · OPC UA · MQTT · S7 …</text>
+  </g>
+
+  <g stroke="#444" stroke-width="1.1" fill="none">
+    <line x1="158" y1="62" x2="208" y2="62" marker-end="url(#fr)"/>
+    <line x1="158" y1="126" x2="208" y2="126" marker-end="url(#fr)"/>
+    <line x1="210" y1="190" x2="160" y2="190" marker-end="url(#fr)"/>
+    <line x1="310" y1="228" x2="310" y2="242" marker-end="url(#fr)" marker-start="url(#fr)"/>
+    <line x1="488" y1="44" x2="412" y2="44" marker-end="url(#fr)"/>
+    <line x1="488" y1="88" x2="412" y2="88" marker-end="url(#fr)"/>
+    <line x1="412" y1="132" x2="488" y2="132" marker-end="url(#fr)"/>
+    <line x1="412" y1="176" x2="488" y2="176" marker-end="url(#fr)"/>
+    <line x1="412" y1="220" x2="488" y2="220" marker-end="url(#fr)" marker-start="url(#fr)"/>
+  </g>
+  <g font-size="8.5" fill="#5c5c5c">
+    <text x="422" y="40">7443</text>
+    <text x="422" y="84">7444</text>
+    <text x="422" y="128">WSS 443</text>
+    <text x="422" y="172">HTTPS 443</text>
+    <text x="422" y="216">TCP, seriale</text>
+    <text x="160" y="57">127.0.0.1</text>
+    <text x="160" y="121">127.0.0.1</text>
+    <text x="168" y="185">D-Bus</text>
+  </g>
+</svg>
+<figcaption>Le frecce partono da chi apre la connessione. Il pannello non riceve niente da Internet: il tunnel e gli aggiornamenti li apre lui.</figcaption>
+</figure>
+
+<h3>6.1 Chi parla con chi</h3>
+<table>
+  <tr><th>Da → a</th><th>Come</th><th>Per cosa</th></tr>
+  <tr><td>Chromium, viewer LVGL → runtime</td><td>HTTP + WebSocket su 127.0.0.1:7443</td><td>pagine, dati vivi (variazioni ogni 50 ms), comandi</td></tr>
+  <tr><td>Browser in LAN → runtime</td><td>HTTP(S) + WebSocket su 7443</td><td>come sopra, da un PC</td></tr>
+  <tr><td>IDE in LAN → runtime</td><td>HTTPS su 7444, tramite il runtime dell'IDE</td><td>deploy (ZIP), utenti, backup, storico, log, aggiornamento</td></tr>
+  <tr><td>Runtime → cloud</td><td>WebSocket TLS uscente su 443 (yamux dentro)</td><td>raggiungere il pannello dall'IDE nel cloud, senza aprire porte</td></tr>
+  <tr><td>Runtime → host</td><td>D-Bus (bus di sistema e bus utente)</td><td>commutare lo schermo web/LVGL, avviare <code>podman auto-update</code>, script dell'host</td></tr>
+  <tr><td>Runtime → registry</td><td>HTTPS 443, anonimo</td><td>sapere se c'è una versione nuova; scaricarla</td></tr>
+  <tr><td>Runtime ↔ campo</td><td>Modbus TCP 502, RTU seriale, OPC UA 4840, MQTT 1883/8883, S7 102, EtherNet/IP 44818, Home Assistant 8123</td><td>acquisizione e comandi</td></tr>
+  <tr><td>IDE → pannello (scoperta)</td><td>mDNS 5353/udp</td><td>«Cerca» trova i pannelli nella stessa LAN</td></tr>
+</table>
+<p><b>Firewall d'impianto.</b> In entrata: 7443 (operatori), 7444 (IDE in LAN), 8080 solo con il TLS del pannello. In uscita: 443 verso
+<code>tunnel.soligo.net</code> e <code>ghcr.io</code>. Il traffico verso i dispositivi di campo resta nella LAN.</p>
+<p class="nota">Dettaglio completo di flussi, token e intestazioni: manuale cap. 18.</p>
+
+<section class="intera">
+<h2>7. Requisiti consigliati</h2>
+<p class="nota">Derivati dalle misure di questo documento. Non sono requisiti certificati.</p>
+<table>
+  <tr><th>Risorsa</th><th>Solo runtime</th><th>Runtime + schermo web</th></tr>
+  <tr><td>RAM</td><td>≥ 512 MB (runtime ~150–250 MB)</td><td>≥ 1 GB; 2 GB se gira altro (es. OpenPLC)</td></tr>
+  <tr><td>CPU</td><td>¼ di core a 1.000 tag/s con 20 browser; 1 core a 5.000 tag/s con 20</td><td>2+ core: Chromium usa i suoi</td></tr>
+  <tr><td>Disco per SWS</td><td colspan="2">≥ 2 GB senza storico; con storico vedi § 4.4. Partizione dati scrivibile e persistente</td></tr>
+  <tr><td>Software</td><td colspan="2">Linux con podman e systemd utente; D-Bus per schermo e aggiornamenti</td></tr>
+</table>
+
+</section>
+
+<h2>8. Come rimisurare</h2>
+<table>
+  <tr><th>Cosa</th><th>Come</th></tr>
+  <tr><td>Carico (CPU, RAM, latenza)</td><td><code>./scripts/banco_prestazioni.sh tc620 &lt;host&gt; &lt;progetto&gt;</code> (manuale cap. 16)</td></tr>
+  <tr><td>Dove va il tempo</td><td>IDE → Configurazione → Istanza → Prestazioni; <code>/metrics</code> per Prometheus</td></tr>
+  <tr><td>Disco sul pannello</td><td><code>df -h /data</code>, <code>du -sh /data/user/sws/*</code>, <code>podman system df</code></td></tr>
+  <tr><td>RAM per processo</td><td>PSS da <code>/proc/&lt;pid&gt;/smaps_rollup</code> (RSS conta due volte le pagine condivise di Chromium)</td></tr>
+  <tr><td>Immagine</td><td><code>podman history</code> (su disco), <code>podman manifest inspect</code> (da scaricare)</td></tr>
+</table>
+<h3>Prossima revisione</h3>
+<ul>
+  <li>Banco di carico sulla 2.24.1 e spiegazione dei ~100 MB in più a riposo (§ 5.2).</li>
+  <li>RAM del viewer LVGL a confronto con Chromium (§ 5.3).</li>
+  <li>Runtime senza container per i dispositivi piccoli: seme <code>docs/plans/2026-11-03-runtime-eseguibile-unico.md</code>, toglierebbe gran parte dei 491 MB di sistema.</li>
+</ul>
+
+<h2>Revisioni</h2>
+<table>
+  <tr><th>Rev.</th><th>Data</th><th>Versione SWS</th><th>Modifiche</th></tr>
+  <tr><td>1</td><td>04-11-2026</td><td>2.24.1</td><td>Prima emissione</td></tr>
+</table>
+
+</body>
+</html>
