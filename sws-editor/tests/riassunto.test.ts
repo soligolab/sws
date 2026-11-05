@@ -139,3 +139,16 @@ describe("tipi e simboli", () => {
     expect(d.some((v) => v.testo.includes("gabbia"))).toBe(false);
   });
 });
+
+/** Nei template i nomi delle pagine sono token (04-11-2026): il diff mostra il
+ *  nome come lo legge chi approva, non `{{t0069}}`. */
+describe("il diff nomina la pagina per come si legge", () => {
+  it("un nome tradotto si risolve nella lingua del progetto", () => {
+    const lingue = { default: "it", langs: ["it", "en"], entries: [{ key: "t0069", values: { it: "Indicatori", en: "Indicators" } }] };
+    const progetto = base({ languages: lingue } as never);
+    const pagina = { id: "demo_p2", name: "{{t0069}}", objects: [] } as never;
+    const proposta = { id: "demo_p2", name: "{{t0069}}", objects: [{ id: "b1", type: "button", x: 0, y: 0 }] } as never;
+    const d = riassumi(progetto, [proposta], progetto, [pagina]);
+    expect(d.map((v) => v.testo)).toContain("button `b1` in «Indicatori»");
+  });
+});

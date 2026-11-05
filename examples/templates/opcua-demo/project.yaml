@@ -80,21 +80,16 @@ languages:
   default: it
   langs: [it, en, es]
   entries:
-    - key: t0001
-      values:
-        it: "🔌  OPC-UA — Live"
-        en: "🔌  OPC-UA — Live"
-        es: "🔌  OPC-UA — Live"
     - key: t0002
       values:
-        it: "5 nodi sottoscritti via subscription_interval_ms=500"
-        en: "5 nodes subscribed via subscription_interval_ms=500"
-        es: "5 nodos suscritos vía subscription_interval_ms=500"
+        it: "Client OPC UA — 5 nodi sottoscritti via subscription_interval_ms=500"
+        en: "OPC UA client — 5 nodes subscribed via subscription_interval_ms=500"
+        es: "Cliente OPC UA — 5 nodos suscritos vía subscription_interval_ms=500"
     - key: t0003
       values:
-        it: "Tabella nodi ▶"
-        en: "Node table ▶"
-        es: "Tabla de nodos ▶"
+        it: "Tabella nodi"
+        en: "Node table"
+        es: "Tabla de nodos"
     - key: t0004
       values:
         it: "Temperatura (°C)"
@@ -130,16 +125,11 @@ languages:
         it: "▸ Endpoint: opc.tcp://localhost:4840 — security_policy: None — vedere SETUP.md per Basic256Sha256"
         en: "▸ Endpoint: opc.tcp://localhost:4840 — security_policy: None — see SETUP.md for Basic256Sha256"
         es: "▸ Endpoint: opc.tcp://localhost:4840 — security_policy: None — ver SETUP.md para Basic256Sha256"
-    - key: t0011
-      values:
-        it: "🔌  OPC-UA — Tabella nodi"
-        en: "🔌  OPC-UA — Node table"
-        es: "🔌  OPC-UA — Tabla de nodos"
     - key: t0012
       values:
-        it: "◀ Live"
-        en: "◀ Live"
-        es: "◀ Live"
+        it: "Live"
+        en: "Live"
+        es: "En vivo"
     - key: t0013
       values:
         it: "Mapping NodeId → Tag corrente (live)"
@@ -200,11 +190,6 @@ languages:
         it: "ns=2;s=MachineReady → sim.machine_ready"
         en: "ns=2;s=MachineReady → sim.machine_ready"
         es: "ns=2;s=MachineReady → sim.machine_ready"
-    - key: t0025
-      values:
-        it: "s (Euromap 77)"
-        en: "s (Euromap 77)"
-        es: "s (Euromap 77)"
     - key: t0026
       values:
         it: "string"
@@ -222,6 +207,15 @@ languages:
 # quasi mai è quella giusta: qui sarebbe "Live" solo per fortuna, e
 # cambierebbe al primo rinomino. Il viewer LVGL la usa dal 2026-08-28, quando
 # `--page` è diventato opzionale.
+#
+# Le due pagine nella cornice (04-11-2026, regola R6): `page_tree` mette Live per
+# prima anche nel navigatore del piede.
 page_layout:
   size_mode: fixed
+  default_width: 1280.0
+  default_height: 800.0
   home_page_id: opc_page1   # Live
+  page_tree:
+  - id: opc_page1
+  - id: opc_page2
+  cornice_predefinita: cornice

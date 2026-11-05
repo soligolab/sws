@@ -1,0 +1,64 @@
+# Un punto di montaggio (R8, 04-11-2026): lo spazio usato nell'indicatore, lo
+# spazio libero in GB e la barra. `d` è un membro di tipo `disco` del pannello
+# (`tc620.disco_sistema`, `tc620.disco_progetti`).
+id: disco
+label: Disco
+width: 590
+height: 210
+params:
+- name: d
+  type: istanza
+  type_ref: disco
+  default: tc620.disco_sistema
+  required: true
+- name: titolo
+  type: string
+  default: '{{t0041}}'
+objects:
+- id: indicatore
+  type: gauge
+  x: 0
+  y: 0
+  width: 300
+  height: 210
+  tag: '{d}.usato_pct'
+  min: 0.0
+  max: 100.0
+  label: '{titolo}'
+  unit: '%'
+  warn_high: 80.0
+  alarm_high: 95.0
+- id: libero_l
+  type: text
+  x: 330
+  y: 36
+  width: 260
+  height: 20
+  text_wrap: true
+  text_valign: middle
+  text: '{{t0043}}'
+  font_size: 12
+  text_anchor: start
+  color: '#94a3b8'
+- id: libero_v
+  type: text
+  x: 330
+  y: 58
+  width: 260
+  height: 38
+  text_wrap: true
+  text_valign: middle
+  tag: '{d}.libero_gb'
+  format: '{{t0044}}'
+  font_size: 26
+  text_anchor: start
+  color: '#e2e8f0'
+- id: barra
+  type: progress_bar
+  x: 330
+  y: 120
+  width: 260
+  height: 24
+  tag: '{d}.usato_pct'
+  min: 0.0
+  max: 100.0

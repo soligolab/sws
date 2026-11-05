@@ -16,6 +16,10 @@ assegnazioni.
   **non** comanda: mostra solo lo stato, ed è il caso di sempre.
 - **Assegnazioni**: «Spento», «Manuale» e «Automatico» scrivono più variabili con un tocco; il faro
   ferma tutto, dopo una conferma.
+- **Senza accedere** (regola R7): le cinque variabili che i comandi scrivono hanno
+  `write_min_role: Viewer`, quindi ogni bottone, simbolo e assegnazione si prova senza login.
+- **La cornice** (`cornici/cornice.yaml`, regola R6): in testata il nome della pagina, tradotto, con
+  la data e l'ora. Una pagina sola, quindi niente piede di navigazione.
 
 Tutte le variabili sono **interne**: il template si prova senza nessun impianto. Per usarlo davvero
 si legano a un dispositivo — `pompa.marcia` e `pompa.prova` alle uscite del PLC o del relè,

@@ -86,7 +86,8 @@ test("dalla chat al bottone MQTT sul disco", async ({ page, request }) => {
 
   const suDisco = async () => {
     const pr = await (await request.get(`${BASE}api/project`, { headers })).json();
-    const pg = await (await request.get(`${BASE}api/synoptics/Indicatori`, { headers })).json();
+    // Per id: dal 04-11-2026 il nome della pagina nel template è un token.
+    const pg = await (await request.get(`${BASE}api/synoptics/demo_p2`, { headers })).json();
     return {
       tag: (pr.tags ?? []).some((t: { id: string }) => t.id === "luce.salotto"),
       sorgente: (pr.sources ?? []).some((x: { id: string }) => x.id === "broker-casa"),

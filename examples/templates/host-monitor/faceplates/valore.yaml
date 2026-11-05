@@ -1,0 +1,44 @@
+# Un valore dell'host con la sua etichetta sopra (R8, 04-11-2026): il nome di
+# rete, il numero di serie, il modello e il carico. Il tag è un parametro
+# perché le risorse sono variabili piatte, una per metrica della sorgente.
+id: valore
+label: Valore con etichetta
+width: 290
+height: 52
+params:
+- name: etichetta
+  type: string
+  default: '{{t0008}}'
+- name: tag
+  type: tag
+  default: host.hostname
+  required: true
+- name: formato
+  type: string
+  default: '{value}'
+objects:
+- id: etichetta
+  type: text
+  x: 0
+  y: 0
+  width: 290
+  height: 18
+  text_wrap: true
+  text_valign: middle
+  text: '{etichetta}'
+  font_size: 12
+  text_anchor: start
+  color: '#94a3b8'
+- id: valore
+  type: text
+  x: 0
+  y: 20
+  width: 290
+  height: 32
+  text_wrap: true
+  text_valign: middle
+  tag: '{tag}'
+  format: '{formato}'
+  font_size: 18
+  text_anchor: start
+  color: '#e2e8f0'

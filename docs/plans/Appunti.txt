@@ -260,3 +260,13 @@ Annoto di seguito, uno per punto, le cose che devono essere verificate e trasfor
   W (gauge 0–5000); in `homeassistant-pro` restano gli entity_id `person.mauro2` e `switch.lampada_cancelletto_mauro`;
   in `demo-slider` `s.rampa` ha `write_min_role: Viewer` solo perché la guardia contava anche gli slider `read_only`
   (corretto il 04-11: si può togliere).
+- (04-11-2026, T2) **La finestra di un faceplate o di una pagina-finestra mostra i segnaposto**: in `demo-items-*` la
+  «Finestra pompa» si apre col titolo `{{t0105}}` non tradotto e il testo «Dettaglio di {nome}»: il predefinito di
+  `finestra_parametri` non si applica, sul web e su LVGL. Da misurare aprendola dal bottone, coi parametri e senza.
+- (04-11-2026, T2) **Altri difetti LVGL visti nelle foto dei template**, preesistenti: `recipe_panel` con i nomi delle
+  ricette scuri su fondo scuro e i bottoni «Applica» tagliati a destra; `kpi_tile` col valore quasi invisibile; `led`
+  senza dato quasi nero anche con `off_color`; `gauge` senza arco (solo la lancetta). I faceplate di sistema
+  `motor_basic` e `tank_level` hanno le scritte in inglese fisse («Speed:», «Fault:»), che la tabella lingue non vede.
+- (04-11-2026, T2) **Due scelte lasciate al maintainer** dai template: `nebulizzatore-sandokan` non ha comandi, anche se
+  la sorgente MQTT sa scrivere lo stato della presa (un bottone accendi/spegni?); «Stato:» resta vuoto finché non arriva
+  un dato (un testo d'attesa?).

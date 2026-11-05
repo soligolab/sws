@@ -1,57 +1,39 @@
+# La pagina Tabella nodi (04-11-2026, regola R6 dei template): il nome della
+# pagina, la lingua, l'ora e la navigazione li porta la cornice
+# (`cornici/cornice.yaml`), quindi il titolo e il bottone «◀ Live» che stavano
+# qui non ci sono più. Il contenuto sta fra le due fasce, da y 56 a 740.
 id: opc_page2
-name: "Tabella nodi"
+name: '{{t0003}}'
 background: "#0f172a"
 width: 1280
 height: 800
 objects:
-
-# ══════════════════════════════════════════════════════════════════
-# HEADER
-# ══════════════════════════════════════════════════════════════════
-- id: o2_title
-  type: text
-  x: 640
-  y: 33
-  text: "{{t0011}}"
-  font_size: 28
-  font_weight: bold
-  text_anchor: middle
-  color: "#38bdf8"
-  group_id: g_nav
-  locked: true
-
-- id: o2_nav_back
-  type: navbutton
-  x: 61
-  y: 19
-  width: 248
-  height: 41
-  label: "{{t0012}}"
-  target_page: opc_page1
-  group_id: g_nav
-  locked: true
-
 - id: o2_subtitle
   type: text
-  x: 640
-  y: 69
+  x: 74
+  y: 70
+  width: 1117
+  height: 28
+  text_wrap: true
+  text_valign: middle
   text: "{{t0013}}"
   font_size: 15
   text_anchor: middle
-  color: "#475569"
+  color: "#64748b"
 
 # ══════════════════════════════════════════════════════════════════
 # TABELLA NODI — un widget `table` invece di 24 `text` posizionati a mano
 # (revisione template, 15-09-2026): stesso mapping NodeId → tag → valore →
 # unità, la colonna NodeId è nel label perché il widget non ne ha una a
 # parte — vedi il README del template per il ruolo di questa pagina.
+# Alta quanto le cinque righe (04-11-2026): a 241 restava mezza vuota.
 # ══════════════════════════════════════════════════════════════════
 - id: o2_table
   type: table
   x: 74
   y: 110
   width: 1117
-  height: 241
+  height: 170
   table_label_header: "{{t0019}}"
   table_columns: ["label", "value", "unit"]
   table_rows:
@@ -63,7 +45,7 @@ objects:
       unit: "kPa"
     - label: "{{t0022}}"
       tag: sim.cycle_time
-      unit: "{{t0025}}"
+      unit: "s"
     - label: "{{t0023}}"
       tag: sim.machine_state
       unit: "{{t0026}}"
@@ -71,11 +53,16 @@ objects:
       tag: sim.machine_ready
       unit: "{{t0027}}"
 
-# Hint Euromap detect
+# Hint Euromap detect. Testi in un riquadro, alto due righe il primo: in
+# spagnolo non sta in una.
 - id: o2_hint
   type: text
   x: 74
-  y: 400
+  y: 300
+  width: 1117
+  height: 44
+  text_wrap: true
+  text_valign: middle
   text: "{{t0014}}"
   font_size: 15
   color: "#94a3b8"
@@ -83,23 +70,27 @@ objects:
 - id: o2_hint2
   type: text
   x: 74
-  y: 430
+  y: 348
+  width: 1117
+  height: 26
+  text_wrap: true
+  text_valign: middle
   text: "{{t0015}}"
   font_size: 15
   color: "#94a3b8"
 
 # ══════════════════════════════════════════════════════════════════
-# FOOTER
+# NOTA — sopra il piede della cornice
 # ══════════════════════════════════════════════════════════════════
 - id: o2_footer
   type: text
-  x: 640
-  y: 745
+  x: 74
+  y: 704
+  width: 1117
+  height: 24
+  text_wrap: true
+  text_valign: middle
   text: "{{t0016}}"
   font_size: 12
   text_anchor: middle
-  color: "#334155"
-
-groups:
-- id: g_nav
-  name: Navigazione
+  color: "#64748b"

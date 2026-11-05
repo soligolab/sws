@@ -1,83 +1,74 @@
 id: page1
-name: "Sandokan"
+# Il nome è il titolo che la cornice mostra in testata (R6, 04-11-2026): un
+# token, così cambia con la lingua. Fino a quel giorno il titolo era un testo
+# della pagina e il nome un letterale, «Sandokan».
+name: '{{t0003}}'
 background: "#0f172a"
 width: 1280
 height: 800
 
+# La testata con il titolo e l'ora la dà la cornice (`cornici/cornice.yaml`):
+# la pagina parte da y 56. Sopra tre riquadri — l'impianto, le letture, la
+# potenza a lancetta —, in mezzo i tre trend, in fondo gli allarmi.
+#
+# I testi sono riquadri (`width`, `height`, `text_valign`): un testo senza
+# misure ha `y` sulla linea di base sul web e in alto su LVGL, e i due motori
+# lo metterebbero a una riga di distanza.
 objects:
-- id: s_title
+
+# ── Impianto: serbatoio → pompa (T-53, revisione template 15-09-2026): un
+#    percorso a più waypoint con il flusso animato solo quando la pompa lavora
+#    davvero. Il tubo parte dal serbatoio e finisce sulla bocca d'aspirazione
+#    della pompa (`to_port: n-left`), che lo tiene agganciato se la si sposta. ──
+- id: s_box_impianto
+  type: rect
+  x: 20
+  y: 68
+  width: 400
+  height: 228
+  fill: "#1e293b"
+  stroke: "#334155"
+  stroke_width: 1
+  rx: 6
+
+- id: s_tank
+  type: rect
+  x: 60
+  y: 104
+  width: 90
+  height: 110
+  fill: "#1e3a8a"
+  stroke: "#334155"
+  stroke_width: 2
+  rx: 4
+- id: s_tank_lbl
   type: text
-  x: 640
-  y: 114
-  text: "{{t0003}}"
-  font_size: 18
-  font_weight: bold
+  x: 45
+  y: 222
+  width: 120
+  height: 22
+  text: "{{t0005}}"
+  font_size: 12
   text_anchor: middle
-  color: "#e2e8f0"
-
-# Due oggetti, non un format con testo attorno a {value}: il motore
-# riconosce solo {value:.Nf} con una specifica numerica esplicita — un
-# {value} nudo in mezzo a del testo (bug pre-esistente, trovato nella
-# revisione template del 15-09-2026) fa sparire il testo e mostra solo
-# il valore grezzo. sandokan.state è una stringa: nessuna specifica
-# .Nf può salvarlo, quindi l'etichetta va in un oggetto a sé.
-- id: s_state_lbl
-  type: text
-  x: 600
-  y: 136
-  text: "{{t0004}}"
-  font_size: 12
-  text_anchor: end
-  color: "#64748b"
-- id: s_state_val
-  type: text
-  x: 610
-  y: 136
-  tag: sandokan.state
-  font_size: 12
-  font_weight: 600
-  text_anchor: start
+  text_wrap: true
+  text_valign: middle
   color: "#94a3b8"
-
-- id: sand1_alarm_bell
-  type: alarm_bell
-  x: 1120.0
-  y: 108.0
-  width: 140.0
-  height: 28.0
-  alarm_bell_show_history: true
-  alarm_bell_show_shelve: true
-
-# ── Serbatoio → pompa (T-53, revisione template 15-09-2026): un percorso
-#    a più waypoint con il flusso animato solo quando la pompa lavora
-#    davvero — zero template su undici usavano i waypoint. ──
-- id: s_pump
-  name: Pompa
-  type: symbol
-  x: 30
-  y: 158
-  width: 85
-  height: 85
-  symbol_id: pump
-  state_tag: sandokan.running
-  state_off_color: "#64748b"
-  state_on_color: "#22c55e"
-  state_alarm_color: "#ef4444"
-  transition_duration_ms: 300
 
 - id: s_pipe
   type: pipe
-  x: 115
-  y: 160
-  width: 115
-  height: 70
+  x: 0
+  y: 0
   points:
-    - x: 115
-      y: 100
-    - x: 170
-      y: 128
-    - x: 230
-      y: 92
+    - x: 150
+      y: 200
+    - x: 205
+      y: 200
+    - x: 205
+      y: 171
+    - x: 260
+      y: 171
+  to_obj_id: s_pump
+  to_port: n-left
   routing: straight
   pipe_style: tube
   stroke: "#475569"
@@ -85,143 +76,206 @@ objects:
   pipe_flow: true
   pipe_flow_tag: sandokan.running
 
-- id: s_tank
-  type: rect
-  x: 230
-  y: 162
-  width: 60
-  height: 50
-  fill: "#1e3a8a"
-  stroke: "#334155"
-  stroke_width: 2
-- id: s_tank_lbl
-  type: text
+- id: s_pump
+  name: Pompa
+  type: symbol
   x: 260
-  y: 228
-  text: "{{t0005}}"
-  font_size: 10
-  text_anchor: middle
-  color: "#94a3b8"
+  y: 106
+  width: 104
+  height: 104
+  symbol_id: lib:process/centrifugal-pump
+  state_tag: sandokan.running
+  symbol_spin: on_state
+  state_off_color: "#64748b"
+  state_on_color: "#22c55e"
+  state_alarm_color: "#ef4444"
+  transition_duration_ms: 300
+
+# Due oggetti, non un format con testo attorno a {value}: sandokan.state è
+# una stringa, e nessuna specifica .Nf la può formattare (revisione template
+# del 15-09-2026), quindi l'etichetta va in un oggetto a sé.
+- id: s_state_lbl
+  type: text
+  x: 200
+  y: 244
+  width: 106
+  height: 28
+  text: "{{t0004}}"
+  font_size: 14
+  text_anchor: end
+  text_wrap: true
+  text_valign: middle
+  color: "#64748b"
+- id: s_state_val
+  type: text
+  x: 312
+  y: 244
+  width: 96
+  height: 28
+  tag: sandokan.state
+  font_size: 14
+  font_weight: 600
+  text_anchor: start
+  text_wrap: true
+  text_valign: middle
+  color: "#e2e8f0"
+
+# ── Le letture della presa, dallo stesso topic MQTT con json_path diversi ──
+- id: s_box_letture
+  type: rect
+  x: 440
+  y: 68
+  width: 400
+  height: 228
+  fill: "#1e293b"
+  stroke: "#334155"
+  stroke_width: 1
+  rx: 6
 
 - id: s_power
   type: text
-  x: 340
-  y: 162
+  x: 464
+  y: 82
+  width: 352
+  height: 34
   tag: sandokan.power
   format: "{{t0006}}"
-  font_size: 14
+  font_size: 20
   font_weight: 600
+  text_wrap: true
+  text_valign: middle
   color: "#f59e0b"
 
 - id: s_current
   type: text
-  x: 340
-  y: 184
+  x: 464
+  y: 120
+  width: 352
+  height: 34
   tag: sandokan.current
   format: "{{t0007}}"
-  font_size: 14
+  font_size: 20
   font_weight: 600
+  text_wrap: true
+  text_valign: middle
   color: "#3b82f6"
 
 - id: s_voltage
   type: text
-  x: 340
-  y: 206
+  x: 464
+  y: 158
+  width: 352
+  height: 34
   tag: sandokan.voltage
   format: "{{t0008}}"
-  font_size: 14
+  font_size: 20
   font_weight: 600
+  text_wrap: true
+  text_valign: middle
   color: "#a855f7"
 
 - id: s_energy
   type: text
-  x: 340
-  y: 228
+  x: 464
+  y: 204
+  width: 352
+  height: 28
   tag: sandokan.energy
   format: "{{t0009}}"
-  font_size: 12
+  font_size: 15
+  text_wrap: true
+  text_valign: middle
   color: "#94a3b8"
 
 - id: s_linkquality
   type: text
-  x: 340
-  y: 248
+  x: 464
+  y: 240
+  width: 352
+  height: 28
   tag: sandokan.linkquality
   format: "{{t0010}}"
-  font_size: 11
+  font_size: 13
+  text_wrap: true
+  text_valign: middle
   color: "#64748b"
+
+# ── La potenza a lancetta ──
+- id: s_box_potenza
+  type: rect
+  x: 860
+  y: 68
+  width: 400
+  height: 228
+  fill: "#1e293b"
+  stroke: "#334155"
+  stroke_width: 1
+  rx: 6
 
 - id: s_gauge_power
   type: gauge
-  x: 560
-  y: 155
-  width: 160
-  height: 140
+  x: 950
+  y: 80
+  width: 220
+  height: 204
   label: "{{t0011}}"
   tag: sandokan.power
   min: 0
   max: 50
   transition_duration_ms: 200
 
-# ── Tre trend affiancati invece che impilati (revisione template
-#    15-09-2026: layout 1280×600, non più 900×920). ──
-- id: s_trend1_label
-  type: text
-  x: 20
-  y: 302
-  text: "{{t0012}}"
-  font_size: 11
-  color: "#94a3b8"
-
+# ── Tre trend affiancati (revisione template 15-09-2026), ognuno col suo
+#    titolo nel faceplate `trend_ora` (R8, 04-11-2026). ──
 - id: s_trend_power
-  type: trend
+  type: faceplate
+  faceplate_id: trend_ora
+  faceplate_params:
+    titolo: "{{t0012}}"
+    variabile: sandokan.power
+    colore: "#f59e0b"
   x: 20
-  y: 320
+  y: 312
   width: 400
-  height: 320
-  tag: sandokan.power
-  line_color: "#f59e0b"
-  window_s: 3600
-
-- id: s_trend2_label
-  type: text
-  x: 440
-  y: 302
-  text: "{{t0013}}"
-  font_size: 11
-  color: "#94a3b8"
+  height: 400
 
 - id: s_trend_current
-  type: trend
+  type: faceplate
+  faceplate_id: trend_ora
+  faceplate_params:
+    titolo: "{{t0013}}"
+    variabile: sandokan.current
+    colore: "#3b82f6"
   x: 440
-  y: 320
+  y: 312
   width: 400
-  height: 320
-  tag: sandokan.current
-  line_color: "#3b82f6"
-  window_s: 3600
-
-- id: s_trend3_label
-  type: text
-  x: 860
-  y: 302
-  text: "{{t0014}}"
-  font_size: 11
-  color: "#94a3b8"
+  height: 400
 
 - id: s_trend_voltage
-  type: trend
+  type: faceplate
+  faceplate_id: trend_ora
+  faceplate_params:
+    titolo: "{{t0014}}"
+    variabile: sandokan.voltage
+    colore: "#a855f7"
   x: 860
-  y: 320
+  y: 312
   width: 400
-  height: 320
-  tag: sandokan.voltage
-  line_color: "#a855f7"
-  window_s: 3600
+  height: 400
+
+# ── Gli allarmi: la campanella, con lo storico e la sospensione, e la
+#    striscia dell'ultimo allarme attivo ──
+- id: sand1_alarm_bell
+  type: alarm_bell
+  x: 20
+  y: 732
+  width: 150
+  height: 44
+  alarm_bell_show_history: true
+  alarm_bell_show_shelve: true
 
 - id: sand1_alarm_banner
   type: alarm_banner
-  x: 20.0
-  y: 652.0
-  width: 1240.0
-  height: 40.0
+  x: 186
+  y: 728
+  width: 1074
+  height: 52

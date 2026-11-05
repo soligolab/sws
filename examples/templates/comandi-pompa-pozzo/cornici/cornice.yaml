@@ -1,0 +1,41 @@
+# La cornice del quadro (R6, 04-11-2026): la testata con il nome della pagina,
+# tradotto, e data e ora. Una pagina sola, quindi niente piede: la navigazione
+# non avrebbe dove portare. Modello: `openplc-laboratorio/cornici/cornice.yaml`,
+# coi colori di questo template — fondo #0f172a, testata #1e293b.
+#
+# La cornice si disegna **sotto** la pagina: il contenuto del quadro sta da
+# y 56 in giù, così niente copre la testata.
+id: cornice
+nome: Cornice
+larghezza: 1280.0
+altezza: 800.0
+testata:
+  altezza: 56.0
+  sfondo: '#1e293b'
+oggetti:
+# Il titolo è un riquadro alto quanto la testata, centrato in verticale: un
+# testo senza misure ha `y` sulla linea di base sul web e in alto su LVGL, e
+# su LVGL uscirebbe dalla fascia.
+- id: titolo
+  type: text
+  x: 24.0
+  y: 0.0
+  width: 700.0
+  height: 56.0
+  text_wrap: true
+  text_valign: middle
+  text: '{{pagina.nome}}'
+  font_size: 20.0
+  font_weight: bold
+  text_anchor: start
+  color: '#e2e8f0'
+- id: data_ora
+  type: clock
+  x: 1060.0
+  y: 10.0
+  width: 200.0
+  height: 36.0
+  font_size: 18.0
+  text_anchor: end
+  color: '#e2e8f0'
+  clock_formato: data_ora

@@ -53,7 +53,9 @@ pub fn definizioni() -> Vec<Value> {
         strumento(
             "elenca_pagine",
             "Le pagine sinottiche del progetto: id, nome, dimensioni, quanti oggetti. \
-             Da chiamare per prima: senza, non sai su quale pagina lavorare.",
+             Un nome tradotto è un token (`{{t0021}}`): allora `titolo` dice come si legge, e \
+             per indicare la pagina usa l'id. Da chiamare per prima: senza, non sai su quale \
+             pagina lavorare.",
             json!({ "type": "object", "properties": {}, "additionalProperties": false }),
         ),
         strumento(
@@ -460,13 +462,31 @@ pub async fn carica_pagine(s: &AppState) -> Result<Vec<SynopticPage>, String> {
 
 async fn elenca_pagine(s: &AppState) -> Esito {
     let pagine = carica_pagine(s).await?;
+    // Il nome di una pagina può essere un token (`{{t0021}}`): dai template
+    // del 04-11-2026 lo sono tutti, perché la cornice lo mostra tradotto. Al
+    // modello serve anche quello che legge una persona, nella lingua
+    // principale del progetto.
+    let lingue = carica_progetto(s)
+        .await
+        .map(|p| p.languages)
+        .unwrap_or_default();
     Ok(json!(pagine
         .iter()
-        .map(|p| json!({
-            "id": p.id, "nome": p.name,
-            "width": p.width, "height": p.height,
-            "oggetti": p.objects.len(),
-        }))
+        .map(|p| {
+            let mut v = json!({
+                "id": p.id, "nome": p.name,
+                "width": p.width, "height": p.height,
+                "oggetti": p.objects.len(),
+            });
+            if p.name.contains("{{") {
+                v["titolo"] = json!(sws_core::project::resolve_msg(
+                    &p.name,
+                    &lingue.default,
+                    &lingue
+                ));
+            }
+            v
+        })
         .collect::<Vec<_>>()))
 }
 

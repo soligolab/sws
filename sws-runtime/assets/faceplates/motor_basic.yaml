@@ -41,7 +41,7 @@ objects:
     x: 44
     y: 44
     tag: "{tag_prefix}.speed"
-    format: "%.0f rpm"
+    format: "{value:.0f} rpm"
     font_size: 11
     color: "#22d3ee"
   - id: motor-fault-label

@@ -11,9 +11,11 @@
 # Host di un TC620 riporta: su un altro dispositivo si leggono da Configurazione
 # → Sorgenti → Host, e una foglia senza parametro valido resta Bad.
 #
-# L'orologio in testata è un'espressione Python (`time.strftime`) in ora locale
-# del pannello; si ricalcola a ogni aggiornamento di un tag, cioè ogni secondo
-# col polling Host a 1000 ms.
+# La cornice (`cornici/testata.yaml`) porta su tutte le pagine l'ora e la data
+# del pannello — oggetti «Data e ora», nel fuso del pannello —, la sua identità,
+# il nome della pagina e il navigatore. I gruppi che si ripetono (le due
+# interfacce, i due dischi, i tre carichi, i valori in MB) sono faceplate in
+# `faceplates/`, con il membro dell'istanza come parametro.
 meta:
   name: tc620-sistema
   version: 1.0.0
@@ -176,18 +178,6 @@ tags:
   description: Il pannello stesso, letto dal protocollo Host
   type_ref: host
   history: true
-- id: orologio.ora
-  data_type: string
-  description: Ora locale del pannello (HH:MM:SS)
-  expression: 'import time
-
-    time.strftime(''%H:%M:%S'')'
-- id: orologio.data
-  data_type: string
-  description: Data locale del pannello (GG/MM/AAAA)
-  expression: 'import time
-
-    time.strftime(''%d/%m/%Y'')'
 sources:
 - kind: host
   id: host-tc620
@@ -298,6 +288,7 @@ alarms:
 page_layout:
   size_mode: fixed
   # La cornice delle pagine (17-10-2026): testata e piede comuni, in cornici/testata.yaml.
+  # Il navigatore del piede segue `page_tree`.
   cornice_predefinita: testata
   home_page_id: tc620_panoramica
   page_tree:

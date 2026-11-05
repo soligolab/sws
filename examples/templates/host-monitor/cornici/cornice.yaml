@@ -1,0 +1,36 @@
+# La cornice della pagina (R6, 04-11-2026): il nome della pagina a sinistra e
+# la data con l'ora a destra, nella testata. Il template ha una pagina sola,
+# quindi niente piede e niente navigatore. Prende il posto della fascia e del
+# titolo che la pagina disegnava da sé.
+id: cornice
+nome: Cornice
+larghezza: 1280.0
+altezza: 800.0
+testata:
+  altezza: 56.0
+  sfondo: '#1e293b'
+piede:
+  altezza: 0.0
+oggetti:
+- id: titolo
+  type: text
+  x: 24.0
+  y: 0.0
+  width: 700.0
+  height: 56.0
+  text_wrap: true
+  text_valign: middle
+  text: '{{pagina.nome}}'
+  font_size: 20.0
+  text_anchor: start
+  color: '#e2e8f0'
+- id: data_ora
+  type: clock
+  x: 1056.0
+  y: 10.0
+  width: 200.0
+  height: 36.0
+  font_size: 18.0
+  text_anchor: end
+  color: '#e2e8f0'
+  clock_formato: data_ora

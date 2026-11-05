@@ -143,7 +143,7 @@ template peggiora, la guardia diventa rossa; se migliora, chiede di abbassare il
 `./scripts/check_templates.sh` stampa il totale a ogni giro. Erano **30** quando le regole sono
 nate, la mattina del 17-09-2026; dopo il Passo 5 della revisione — lo stesso giorno — erano **6**;
 dal 18-09, con `casa-locale` uscito dal parco, sono **4**. Le regole R6–R8 le hanno riportate a **25**
-il 04-11-2026, e la sessione T1 a **15**.
+il 04-11-2026, la sessione T1 a **15** e la T2 a **0**: oggi il parco non ha debiti dichiarati.
 
 **R1, R2 e R5 sono a zero**: ogni pagina è 1280×800, ogni testo visibile di ogni template passa dalla tabella lingue, ogni
 template dichiara `it/en/es` con tutte e tre le colonne piene, e nessuno porta l'indirizzo o le
@@ -155,9 +155,8 @@ indietro.
 di R8 sono scese a 38 e a 60: il gruppo che si ripete conta un oggetto solo.
 
 **R6, R7 e R8** sono nate il 04-11-2026 con un debito per template, in `R678_DEBITO`: tre numeri, uno per regola, che
-possono solo scendere. La sessione T1 della [serie coordinata](../../docs/plans/README.md) ne ha portati a zero sei
-(`demo-slider`, `grid-playground`, `homeassistant-demo`, `homeassistant-pro`, `montagna-rinnovabile`,
-`openplc-laboratorio`); la T2 fa gli altri dieci.
+possono solo scendere. Le sessioni T1 e T2 della [serie coordinata](../../docs/plans/README.md) li hanno portati
+**tutti a zero lo stesso giorno**: `R678_DEBITO` è vuoto. Restano solo le due eccezioni dei permessi, in `R7_PERMESSI`.
 `SWS_TEMPLATE_MISURA=1 ./scripts/check_templates.sh` stampa i numeri di oggi, e
 `SWS_TEMPLATE_SOLO=<nome> SWS_TEMPLATE_SENZA_DEBITO=1 ./scripts/check_templates.sh` dice se un template è a zero, con
 l'elenco di quello che manca.

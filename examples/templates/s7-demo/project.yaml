@@ -35,13 +35,17 @@ sources:
         data_type: int
 
 tags:
+  # I due tag scritti dai comandi della Panoramica: si usano col ruolo Viewer
+  # (regola R7 dei template, 04-11-2026), senza accedere.
   - id: pump1.speed
     data_type: float
     description: "Velocità pompa 1 [rpm]"
     history: true
+    write_min_role: Viewer
   - id: valve1.open
     data_type: bool
     description: "Valvola 1 aperta"
+    write_min_role: Viewer
   - id: process.temperature
     data_type: float
     description: "Temperatura processo [°C]"
@@ -72,6 +76,18 @@ alarms:
           threshold: 5000
         severity: Warning
         message: '{{t0002}}'
+
+# La pagina sola, e la sua cornice (04-11-2026, regola R6): testata col nome
+# della pagina e l'ora, niente piede.
+page_layout:
+  size_mode: fixed
+  default_width: 1280.0
+  default_height: 800.0
+  home_page_id: s7_page1
+  page_tree:
+  - id: s7_page1
+  cornice_predefinita: cornice
+
 languages:
   default: it
   langs: [it, en, es]
@@ -136,3 +152,8 @@ languages:
         it: "Apri valvola 1"
         en: "Open valve 1"
         es: "Abrir válvula 1"
+    - key: t0013
+      values:
+        it: "Panoramica"
+        en: "Overview"
+        es: "Resumen"

@@ -1,0 +1,52 @@
+# Una riga «etichetta + valore» della Panoramica (04-11-2026, regola R8): un
+# tag letto dal PLC, col suo nome a sinistra e il numero a destra. Una istanza
+# per tag; il tag e il formato sono parametri perché le letture sono variabili
+# piatte, ognuna col suo indirizzo CIP. Le spie (un BOOL) hanno «riga_spia».
+id: riga_valore
+label: Riga con valore
+width: 580
+height: 36
+params:
+- name: etichetta
+  type: string
+  default: '{{t0005}}'
+- name: tag
+  type: tag
+  default: pump.speed
+  required: true
+- name: formato
+  type: string
+  default: '{value:.1f}'
+objects:
+- id: etichetta
+  type: text
+  x: 0
+  y: 0
+  width: 400
+  height: 36
+  text_wrap: true
+  text_valign: middle
+  text: '{etichetta}'
+  font_size: 14
+  text_anchor: start
+  color: '#94a3b8'
+- id: valore
+  type: text
+  x: 400
+  y: 0
+  width: 180
+  height: 36
+  text_wrap: true
+  text_valign: middle
+  tag: '{tag}'
+  format: '{formato}'
+  font_size: 16
+  text_anchor: end
+  color: '#e2e8f0'
+- id: linea
+  type: rect
+  x: 0
+  y: 35
+  width: 580
+  height: 1
+  fill: '#1e293b'

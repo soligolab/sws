@@ -1,30 +1,14 @@
 id: tc620_memoria
-name: Memoria
+name: '{{t0037}}'
 width: 1280.0
 height: 800.0
 background: '#0f172a'
+# I tre valori in MB sono istanze del faceplate «valore» (R8).
 objects:
-- id: hdr_pagina
-  type: text
-  x: 1000.0
-  y: 30.0
-  text: '{{t0037}}'
-  font_size: 24.0
-  color: '#e2e8f0'
-- id: nav
-  type: page_navigator
-  x: 20.0
-  y: 102.0
-  width: 1240.0
-  height: 40.0
-  nav_orientation: horizontal
-  nav_fill: true
-  nav_gap: 6
-  locked: true
 - id: g_ram
   type: gauge
   x: 20.0
-  y: 160.0
+  y: 104.0
   width: 290.0
   height: 210.0
   tag: tc620.ram_usata_pct
@@ -37,7 +21,7 @@ objects:
 - id: g_swap
   type: gauge
   x: 335.0
-  y: 160.0
+  y: 104.0
   width: 290.0
   height: 210.0
   tag: tc620.swap_usata_pct
@@ -47,78 +31,71 @@ objects:
   unit: '%'
   warn_high: 50.0
   alarm_high: 80.0
-- id: mem_l0
-  type: text
+- id: mem_0
+  type: faceplate
+  faceplate_id: valore
+  faceplate_params:
+    etichetta: '{{t0002}}'
+    tag: tc620.ram_usata_mb
   x: 680.0
-  y: 170.0
+  y: 114.0
+  width: 260.0
+  height: 54.0
+- id: mem_1
+  type: faceplate
+  faceplate_id: valore
+  faceplate_params:
+    etichetta: '{{t0033}}'
+    tag: tc620.ram_disponibile_mb
+  x: 680.0
+  y: 180.0
+  width: 260.0
+  height: 54.0
+- id: mem_2
+  type: faceplate
+  faceplate_id: valore
+  faceplate_params:
+    etichetta: '{{t0034}}'
+    tag: tc620.ram_totale_mb
+  x: 680.0
+  y: 246.0
+  width: 260.0
+  height: 54.0
+- id: mem_bar_t
+  type: text
+  x: 960.0
+  y: 114.0
+  width: 300.0
+  height: 22.0
+  text_wrap: true
+  text_valign: middle
   text: '{{t0002}}'
-  font_size: 12.0
+  font_size: 13.0
   color: '#94a3b8'
-- id: mem_v0
-  type: text
-  x: 680.0
-  y: 188.0
-  tag: tc620.ram_usata_mb
-  format: '{{t0035}}'
-  font_size: 24.0
-  color: '#e2e8f0'
-- id: mem_l1
-  type: text
-  x: 680.0
-  y: 236.0
-  text: '{{t0033}}'
-  font_size: 12.0
-  color: '#94a3b8'
-- id: mem_v1
-  type: text
-  x: 680.0
-  y: 254.0
-  tag: tc620.ram_disponibile_mb
-  format: '{{t0035}}'
-  font_size: 24.0
-  color: '#e2e8f0'
-- id: mem_l2
-  type: text
-  x: 680.0
-  y: 302.0
-  text: '{{t0034}}'
-  font_size: 12.0
-  color: '#94a3b8'
-- id: mem_v2
-  type: text
-  x: 680.0
-  y: 320.0
-  tag: tc620.ram_totale_mb
-  format: '{{t0035}}'
-  font_size: 24.0
-  color: '#e2e8f0'
 - id: mem_bar
   type: progress_bar
   x: 960.0
-  y: 224.0
+  y: 168.0
   width: 300.0
   height: 28.0
   tag: tc620.ram_usata_pct
   min: 0.0
   max: 100.0
-- id: mem_bar_t
-  type: text
-  x: 960.0
-  y: 174.0
-  text: '{{t0002}}'
-  font_size: 13.0
-  color: '#94a3b8'
 - id: tr_t
   type: text
   x: 20.0
-  y: 392.0
+  y: 332.0
+  width: 1240.0
+  height: 22.0
+  text_wrap: true
+  text_valign: middle
   text: '{{t0036}}'
   font_size: 13.0
   color: '#94a3b8'
 - id: tr_mem
   type: trend
   x: 20.0
-  y: 412.0
+  y: 356.0
   width: 1240.0
   height: 370.0
   window_s: 600.0

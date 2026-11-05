@@ -18,8 +18,9 @@ target:
 #
 # È il banco di prova dei due motori di rendering. Esiste in due varianti
 # gemelle, `demo-items-web` e `demo-items-lvgl`, con le STESSE pagine, gli
-# STESSI id e le STESSE coordinate: la variante LVGL omette soltanto i quattro
-# tipi che LVGL non disegna (`image`, `kpi_tile`, `alarm_history`, `data_log`).
+# STESSI id, le STESSE coordinate e gli STESSI tipi: dal 27-08-2026 LVGL
+# disegna tutti quelli della palette, anche `image`, `kpi_tile`,
+# `alarm_history` e `data_log`, che prima la variante LVGL ometteva.
 #
 # Serve a poter aprire la stessa pagina sul browser e sul pannello e
 # confrontarle a colpo d'occhio. Qualunque differenza è un difetto di parità
@@ -116,24 +117,34 @@ tags:
     data_type: bool
 
   # ── comandi: li scrivono i widget, lo script non li tocca ──
+  #
+  # Tutti a `write_min_role: Viewer` (04-11-2026, regola R7 dei template): chi
+  # apre la demo la prova senza accedere, e un comando che chiede il login, in
+  # una demo, sembra un difetto.
   - id: demo.cmd.slider
     description: "Scritto trascinando lo slider. Con un binding sposta l'ellisse della pagina 1: è la prova del movimento degli oggetti."
     data_type: float
+    write_min_role: Viewer
   - id: demo.cmd.frazione
     description: "Scritto dallo slider frazionario (0..1, passo 0,05): il pannello deve scrivere un numero con la virgola, non un intero."
     data_type: float
+    write_min_role: Viewer
   - id: demo.cmd.setpoint
     description: "Scritto dal widget setpoint (+/-)."
     data_type: float
+    write_min_role: Viewer
   - id: demo.cmd.enable
     description: "Scritto dalla checkbox."
     data_type: bool
+    write_min_role: Viewer
   - id: demo.cmd.select
     description: "Scritto dai radio button."
     data_type: string
+    write_min_role: Viewer
   - id: demo.cmd.button
     description: "Scritto dal pulsante (write_value). Torna a false da solo dopo un secondo, così il pulsante si può ripremere."
     data_type: bool
+    write_min_role: Viewer
 
 sources: []
 
@@ -320,29 +331,9 @@ languages:
         es: "Fallo de motor simulado"
     - key: t0007
       values:
-        it: "Demo Items — 4. Allarmi e composizione"
-        en: "Demo Items — 4. Alarms and composition"
-        es: "Demo Items — 4. Alarmas y composición"
-    - key: t0008
-      values:
-        it: "1. Base"
-        en: "1. Basics"
-        es: "1. Básico"
-    - key: t0009
-      values:
-        it: "2. Indicatori"
-        en: "2. Indicators"
-        es: "2. Indicadores"
-    - key: t0010
-      values:
-        it: "3. Grafici"
-        en: "3. Charts"
-        es: "3. Gráficos"
-    - key: t0011
-      values:
-        it: "4. Allarmi"
-        en: "4. Alarms"
-        es: "4. Alarmas"
+        it: "Allarmi e composizione"
+        en: "Alarms and composition"
+        es: "Alarmas y composición"
     - key: t0012
       values:
         it: "alarm_banner — l'allarme attivo più grave"
@@ -360,9 +351,9 @@ languages:
         es: "alarm_history"
     - key: t0015
       values:
-        it: "faceplate — istanza di motor_basic"
-        en: "faceplate — instance of motor_basic"
-        es: "faceplate — instancia de motor_basic"
+        it: "faceplate — motor_basic, di sistema"
+        en: "faceplate — motor_basic, built-in"
+        es: "faceplate — motor_basic, de sistema"
     - key: t0016
       values:
         it: "Motore demo"
@@ -375,9 +366,9 @@ languages:
         es: "recipe_panel — recetas del proyecto"
     - key: t0018
       values:
-        it: "text_wrap — testo a capo nel riquadro"
-        en: "text_wrap — text wrapping inside the box"
-        es: "text_wrap — texto ajustado dentro del recuadro"
+        it: "text_wrap — a capo nel riquadro"
+        en: "text_wrap — wraps inside its box"
+        es: "text_wrap — ajuste en el recuadro"
     - key: t0019
       values:
         it: "Questo testo è più lungo del suo riquadro e va a capo da solo, restando centrato."
@@ -390,9 +381,9 @@ languages:
         es: "motion_* — el objeto sigue un recorrido, guiado por un tag"
     - key: t0021
       values:
-        it: "Demo Items — 1. Base e comandi"
-        en: "Demo Items — 1. Basics and commands"
-        es: "Demo Items — 1. Básico y comandos"
+        it: "Base e comandi"
+        en: "Basics and commands"
+        es: "Básico y comandos"
     - key: t0022
       values:
         it: "rect — riempimento e bordo"
@@ -480,9 +471,9 @@ languages:
         es: "slider — demo.cmd.slider, mueve la elipse de arriba"
     - key: t0039
       values:
-        it: "symbol (builtin + vendored) — colore dallo stato di marcia"
-        en: "symbol (builtin + vendored) — colour from the running state"
-        es: "symbol (builtin + vendored) — color según el estado de marcha"
+        it: "symbol — colore dallo stato di marcia"
+        en: "symbol — colour from the running state"
+        es: "symbol — color según el estado de marcha"
     - key: t0040
       values:
         it: "automatico"
@@ -520,9 +511,9 @@ languages:
         es: "z_index y opacity — superposición y transparencia"
     - key: t0047
       values:
-        it: "Demo Items — 3. Grafici e tabelle"
-        en: "Demo Items — 3. Charts and tables"
-        es: "Demo Items — 3. Gráficos y tablas"
+        it: "Grafici e tabelle"
+        en: "Charts and tables"
+        es: "Gráficos y tablas"
     - key: t0048
       values:
         it: "trend — due tracce, storico dal datastore"
@@ -630,9 +621,9 @@ languages:
         es: "F"
     - key: t0069
       values:
-        it: "Demo Items — 2. Indicatori"
-        en: "Demo Items — 2. Indicators"
-        es: "Demo Items — 2. Indicadores"
+        it: "Indicatori"
+        en: "Indicators"
+        es: "Indicadores"
     - key: t0070
       values:
         it: "led — acceso quando in marcia"
@@ -828,6 +819,21 @@ languages:
         it: "Sola lettura"
         en: "Read only"
         es: "Solo lectura"
+    - key: t0109
+      values:
+        it: "navbutton — porta a un'altra pagina"
+        en: "navbutton — goes to another page"
+        es: "navbutton — lleva a otra página"
+    - key: t0110
+      values:
+        it: "page_navigator — un bottone per pagina, come quello del piede"
+        en: "page_navigator — one button per page, like the one in the footer"
+        es: "page_navigator — un botón por página, como el del pie"
+    - key: t0111
+      values:
+        it: "faceplate del progetto — parametri e predefiniti"
+        en: "project faceplate — parameters and defaults"
+        es: "faceplate del proyecto — parámetros y predefinidos"
 
 # ── Pagina iniziale ──────────────────────────────────────────────────────────
 #
@@ -837,4 +843,19 @@ languages:
 # `--page` è diventato opzionale.
 page_layout:
   size_mode: fixed
+  default_width: 1280.0
+  default_height: 800.0
   home_page_id: demo_p1   # Base e comandi
+  # L'ordine delle pagine (04-11-2026): senza albero sarebbe quello alfabetico
+  # dei nomi, e il navigatore della cornice metterebbe «Allarmi» per prima. La
+  # finestra della pompa sta in fondo e il navigatore la salta da sé.
+  page_tree:
+  - id: demo_p1
+  - id: demo_p2
+  - id: demo_p3
+  - id: demo_p4
+  - id: demo_fin
+  # La cornice di tutte le pagine (regola R6): in testata il nome della pagina
+  # e la data con l'ora, nel piede un bottone per pagina. Il contenuto sta fra
+  # le due fasce, da y 56 a 740. La finestra della pompa non ne ha.
+  cornice_predefinita: cornice

@@ -1,0 +1,47 @@
+# La cornice della pagina (04-11-2026, regola R6 dei template), dal modello di
+# `openplc-laboratorio` con i colori di questo template: in testata il nome della
+# pagina (tradotto, perché il nome è un token), la lingua, la data con l'ora. Il
+# piede no: con una pagina sola non c'è niente da navigare. Il contenuto sta da
+# y 56 in giù. Uguale nei quattro banchi di protocollo (enip, s7, sparkplug,
+# opcua), che così si riconoscono come una famiglia.
+id: cornice
+nome: Cornice
+larghezza: 1280.0
+altezza: 800.0
+testata:
+  altezza: 56.0
+  sfondo: '#1e293b'
+piede:
+  altezza: 0.0
+oggetti:
+# Il titolo in un riquadro alto quanto la testata e centrato in verticale: un testo
+# senza riquadro ha `y` sulla linea di base sul web e in cima sul pannello.
+- id: titolo
+  type: text
+  x: 20.0
+  y: 0.0
+  width: 700.0
+  height: 56.0
+  text_wrap: true
+  text_valign: middle
+  text: '{{pagina.nome}}'
+  font_size: 22.0
+  font_weight: bold
+  text_anchor: start
+  color: '#e2e8f0'
+- id: lingua
+  type: lang_selector
+  x: 924.0
+  y: 11.0
+  width: 116.0
+  height: 34.0
+- id: data_ora
+  type: clock
+  x: 1060.0
+  y: 10.0
+  width: 200.0
+  height: 36.0
+  font_size: 18.0
+  text_anchor: end
+  color: '#e2e8f0'
+  clock_formato: data_ora

@@ -151,20 +151,9 @@ R3_DEBITO = {
 # Il debito porta i numeri di oggi, come R3: un tetto per regola che può solo
 # scendere. Le sessioni T1 e T2 del piano lo portano a zero.
 R678_DEBITO = {
-    # nome: (R6, R7, R8), misurati il 04-11-2026 con SWS_TEMPLATE_MISURA=1.
-    # R6 vale 1 per un template senza cornice predefinita: le pagine si
-    # contano solo quando la cornice c'è. A zero con la sessione T1:
-    # demo-slider, grid-playground, homeassistant-demo, montagna-rinnovabile
-    # (homeassistant-pro e openplc-laboratorio non erano in debito per R6).
-    "comandi-pompa-pozzo":    (1, 17, 0),
-    "demo-items-lvgl":        (1, 7, 0),
-    "demo-items-web":         (1, 7, 0),
-    "enip-demo":              (1, 2, 0),
-    "host-monitor":           (1, 0, 0),
-    "nebulizzatore-sandokan": (1, 0, 0),
-    "opcua-demo":             (1, 0, 0),
-    "s7-demo":                (1, 2, 0),
-    "sparkplug-demo":         (1, 2, 0),
+    # Vuoto dal 04-11-2026: le sessioni T1 e T2 hanno portato tutti e sedici i
+    # template a zero su R6, R7 e R8. Se ricompare una riga, è un template
+    # tornato indietro — va sistemato, non dichiarato.
 }
 
 # I due template che mostrano la gestione dei permessi: qui qualche comando

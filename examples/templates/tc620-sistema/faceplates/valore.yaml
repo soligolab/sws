@@ -1,0 +1,43 @@
+# Un valore con la sua etichetta sopra (R8, 04-11-2026): la RAM usata,
+# disponibile e totale nella pagina Memoria. Tag e formato sono parametri.
+id: valore
+label: Valore con etichetta
+width: 260
+height: 54
+params:
+- name: etichetta
+  type: string
+  default: '{{t0002}}'
+- name: tag
+  type: tag
+  default: tc620.ram_usata_mb
+  required: true
+- name: formato
+  type: string
+  default: '{{t0035}}'
+objects:
+- id: etichetta
+  type: text
+  x: 0
+  y: 0
+  width: 260
+  height: 18
+  text_wrap: true
+  text_valign: middle
+  text: '{etichetta}'
+  font_size: 12
+  text_anchor: start
+  color: '#94a3b8'
+- id: valore
+  type: text
+  x: 0
+  y: 18
+  width: 260
+  height: 36
+  text_wrap: true
+  text_valign: middle
+  tag: '{tag}'
+  format: '{formato}'
+  font_size: 24
+  text_anchor: start
+  color: '#e2e8f0'

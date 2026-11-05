@@ -12,14 +12,15 @@
 > resta in «Storico». Qui vive solo ciò che serve a riprendere il lavoro.
 
 
-## ▶ Riprendere da qui — la serie coordinata: C0 pronta, T1 fatta (2026-11-04 sera, theobroma)
+## ▶ Riprendere da qui — la serie coordinata: C0 pronta, T1 e T2 fatte (2026-11-04 sera, theobroma)
 
-**Due rami annidati, nessuno mergiato né pushato** (aspettano il collaudo del maintainer):
+**Tre rami annidati, nessuno mergiato né pushato** (aspettano il collaudo del maintainer):
 
 | Ramo | Cosa | Stato |
 |---|---|---|
 | `fix/collaudo-2-25-0` | **C0**: le anomalie 1, 2, 4 del collaudo 2.25.0 (chat e registro staccati nel cloud, menù di pagina col token, «Montagna» lenta sul WP630) e le note della 2.25.1 | DoD verde; **manca la conferma**, poi squash, release **2.25.1** (tag alla build, immagini da un worktree, VPS) e rimisura del WP630 |
 | `feat/template-regole` (figlio del primo) | **T1**: regole R6/R7/R8 nella guardia e nel README dei template, sei template a zero, il **lucchetto** col ruolo (forma A, scelta dal maintainer) sul web e su LVGL, cinque difetti del prodotto trovati per strada | DoD verde; da collaudare |
+| `feat/template-regole-2` (figlio del secondo) | **T2**: gli altri dieci template a zero, `R678_DEBITO` vuoto; l'assistente IA con le pagine dal nome tradotto (`titolo`, id nelle proposte, diff leggibile); il selettore dell'istanza annidata; i formati dei faceplate di sistema | DoD verde; da collaudare. **Immagine** quando la catena è mergiata |
 
 `main` ha un commit non pushato (`43fb7dab`, documentazione del VPS sulla 2.25.0).
 
@@ -39,7 +40,14 @@ proposta che vale se il maintainer non dice altro). Misure in `tmp/piani-misure/
   Sicurezza di `homeassistant-pro`, «🔒 Operator» sul cancelletto e «🔒 Supervisor» sulla tapparella del garage. Sul web
   lo provano i test di render (`tests/lucchettoRuolo.test.tsx`); da guardare in un viewer vero con utenti.
 
-**Prossima sessione**: T2, gli altri dieci template (`R678_DEBITO` in `scripts/check_templates.sh`), con immagine.
+**T2** (risultati in `tmp/c0/t2-risultati.txt`): i gemelli `demo-items-*` restano gemelli (`check_demo_templates.sh`
+verde), i banchi di protocollo hanno righe di valore e spia in faceplate, `tc620-sistema` ha ora e data dai `clock` della
+cornice e i nomi di pagina tradotti. Un test vitest (`avvisoAggiornamento`) è caduto una volta sotto carico e passa da
+solo e nell'intera suite: da tenere d'occhio.
+
+**Dopo il collaudo**: squash in ordine C0 → T1 → T2, release 2.25.1 (con le voci di T1 e T2 se il maintainer le vuole
+nella stessa immagine, altrimenti C0 da sola), VPS, rimisura del WP630. **Prossima sessione della serie**: F1, la
+Finestra di avviso.
 Residui in `docs/plans/Appunti.txt` (voci del 04-11, T1): testo libero web/LVGL (y di base contro y in alto), difetti
 LVGL visti nelle foto, l'assistente che propone faceplate, allarmi e ricette a Operator nei template, dubbi dei
 template HA. Il manuale T09–T11 non torna più con `openplc-laboratorio` (pompa per Viewer): è nella lista di M5.

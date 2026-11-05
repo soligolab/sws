@@ -25,6 +25,23 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 - **`ogni_pagina_del_template`** (`sws-web/src/istantanea.rs`, ignorato): ogni pagina di un template fotografata dal
   viewer LVGL vero, in `tmp/verifica-template/<template>/`.
 
+### Aggiunto — regole R6, R7, R8: gli altri dieci template (sessione T2)
+- **Tutto il parco a zero, `R678_DEBITO` vuoto**: `demo-items-web` e `demo-items-lvgl` (gemelli, con un faceplate del
+  progetto `riquadro_valore` accanto a `motor_basic`), i quattro banchi di protocollo `enip-demo`, `s7-demo`,
+  `sparkplug-demo`, `opcua-demo` (righe di valore e di spia in faceplate), `host-monitor` e `tc620-sistema` (valori,
+  andamenti, carichi, dischi e interfacce in faceplate; ora e data dai `clock` della cornice al posto di due tag con
+  `import time`), `comandi-pompa-pozzo`, `nebulizzatore-sandokan` (tre andamenti in un faceplate). I nomi delle pagine
+  sono token: la cornice li mostra tradotti.
+
+### Corretto — trovato in T2
+- **Assistente IA e pagine col nome tradotto**: `elenca_pagine` dà anche il `titolo` leggibile di un nome-token,
+  `oggetti_aggiunti` accetta l'id della pagina come `leggi_pagina`, e il diff della chat nomina la pagina tradotta
+  (`riassunto.ts`) invece di `{{t0069}}`. Il copione `luce-mqtt.json` e `e2e/chat-ai.spec.ts` usano l'id `demo_p2`.
+- **Il selettore dell'istanza di un faceplate** (`SceltaIstanza`) elenca anche le istanze dentro un'istanza
+  (`tc620.ethernet0`): prima il faceplate di un'interfaccia non aveva niente da scegliere.
+- **I faceplate di sistema** `motor_basic` e `tank_level` avevano un formato alla printf (`%.0f rpm`) che nessuno dei
+  due motori legge: ora `{value:.0f} rpm` e `{value:.1f} %`.
+
 ### Corretto — trovato portando i template a tipi e faceplate
 - **Viewer web**: la soglia di scrittura del membro di un tipo non contava (`sogliaScritturaTag`), e un membro aperto
   a Viewer apriva lo stesso l'accesso. La regola sta ora in `sws_core::soglie_di_scrittura`, una per tutti.

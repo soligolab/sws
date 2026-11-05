@@ -1,0 +1,53 @@
+# Una riga del carico medio (R8, 04-11-2026): l'etichetta, il valore e
+# l'andamento degli ultimi 10 minuti. Il tag è un parametro perché i tre
+# carichi (1, 5 e 15 minuti) sono membri semplici del tipo `host`.
+id: carico
+label: Carico medio
+width: 300
+height: 56
+params:
+- name: etichetta
+  type: string
+  default: '{{t0021}}'
+- name: tag
+  type: tag
+  default: tc620.carico_1m
+  required: true
+- name: colore
+  type: color
+  default: '#38bdf8'
+objects:
+- id: etichetta
+  type: text
+  x: 0
+  y: 0
+  width: 100
+  height: 18
+  text_wrap: true
+  text_valign: middle
+  text: '{etichetta}'
+  font_size: 12
+  text_anchor: start
+  color: '#94a3b8'
+- id: valore
+  type: text
+  x: 0
+  y: 18
+  width: 100
+  height: 32
+  text_wrap: true
+  text_valign: middle
+  tag: '{tag}'
+  format: '{value:.2f}'
+  font_size: 22
+  text_anchor: start
+  color: '#e2e8f0'
+- id: andamento
+  type: sparkline
+  x: 100
+  y: 10
+  width: 200
+  height: 46
+  tag: '{tag}'
+  spark_color: '{colore}'
+  spark_window_s: 600.0

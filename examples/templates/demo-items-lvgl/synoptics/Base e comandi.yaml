@@ -1,70 +1,9 @@
 id: demo_p1
-name: Base e comandi
+name: '{{t0021}}'
 width: 1280.0
 height: 800.0
 background: '#0f172a'
 objects:
-- id: hdr_bg
-  type: rect
-  x: 0.0
-  y: 0.0
-  width: 1280.0
-  height: 56.0
-  fill: '#1e293b'
-- id: hdr_title
-  type: text
-  x: 20.0
-  y: 20.0
-  width: 620.0
-  height: 24.0
-  text: "{{t0021}}"
-  font_size: 19.0
-  font_weight: bold
-  color: '#e2e8f0'
-- id: nav1
-  type: navbutton
-  x: 660.0
-  y: 12.0
-  width: 144.0
-  height: 32.0
-  label: "{{t0008}}"
-  target_page: demo_p1
-  fill: '#2563eb'
-  group_id: nav
-  locked: true
-- id: nav2
-  type: navbutton
-  x: 812.0
-  y: 12.0
-  width: 144.0
-  height: 32.0
-  label: "{{t0009}}"
-  target_page: demo_p2
-  fill: '#334155'
-  group_id: nav
-  locked: true
-- id: nav3
-  type: navbutton
-  x: 964.0
-  y: 12.0
-  width: 144.0
-  height: 32.0
-  label: "{{t0010}}"
-  target_page: demo_p3
-  fill: '#334155'
-  group_id: nav
-  locked: true
-- id: nav4
-  type: navbutton
-  x: 1116.0
-  y: 12.0
-  width: 144.0
-  height: 32.0
-  label: "{{t0011}}"
-  target_page: demo_p4
-  fill: '#334155'
-  group_id: nav
-  locked: true
 - id: c_rect
   type: text
   x: 30.0
@@ -353,6 +292,8 @@ objects:
   text: "{{t0043}}"
   font_size: 12.0
   color: '#94a3b8'
+  text_wrap: true
+  text_valign: middle
 - id: o_image
   type: image
   x: 960.0
@@ -442,7 +383,7 @@ objects:
   x: 760.0
   y: 592.0
   width: 260.0
-  height: 150.0
+  height: 144.0
   fill: '#e2e8f0'
   stroke: '#94a3b8'
   stroke_width: 2.0
@@ -485,16 +426,6 @@ objects:
     y: 730.0
   stroke: '#22c55e'
   stroke_width: 3.0
-- id: o_page_navigator
-  type: page_navigator
-  x: 24.0
-  y: 752.0
-  width: 1232.0
-  height: 40.0
-  nav_orientation: horizontal
-  nav_fill: true
-  nav_gap: 6
-  locked: true
 - id: o_apri_finestra
   type: button
   x: 960.0

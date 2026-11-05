@@ -37,7 +37,7 @@ objects:
     x: 36
     y: 60
     tag: "{tag_prefix}.level"
-    format: "%.1f %%"
+    format: "{value:.1f} %"
     font_size: 12
     color: "#3b82f6"
   - id: tank-alarm-led

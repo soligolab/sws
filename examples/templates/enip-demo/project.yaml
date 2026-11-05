@@ -28,14 +28,18 @@ sources:
         writable: false
 
 tags:
+  # I due tag scritti dai comandi della Panoramica: si usano col ruolo Viewer
+  # (regola R7 dei template, 04-11-2026), senza accedere.
   - id: pump.speed
     data_type: float
     description: "Velocità pompa (rpm)"
     history: true
+    write_min_role: Viewer
   - id: valve.open
     data_type: bool
     description: "Valvola aperta"
     history: true
+    write_min_role: Viewer
   - id: sensor.temp
     data_type: float
     description: "Temperatura °C"
@@ -72,6 +76,17 @@ alarms:
 # `synoptics/*.yaml`. Era quindi contenuto morto — modificabile, invisibile,
 # e ingannevole per chi ci avesse messo mano. Rimossa il 2026-08-28, quando
 # al template è stata aggiunta una vera pagina di partenza.
+
+# La pagina sola, e la sua cornice (04-11-2026, regola R6): testata col nome
+# della pagina e l'ora, niente piede.
+page_layout:
+  size_mode: fixed
+  default_width: 1280.0
+  default_height: 800.0
+  home_page_id: enip_page1
+  page_tree:
+  - id: enip_page1
+  cornice_predefinita: cornice
 
 languages:
   default: it
@@ -137,3 +152,8 @@ languages:
         it: "Apri valvola"
         en: "Open valve"
         es: "Abrir válvula"
+    - key: t0013
+      values:
+        it: "Panoramica"
+        en: "Overview"
+        es: "Resumen"

@@ -119,7 +119,9 @@ login si servono solo i campi del marchio in `CAMPI_PUBBLICI` (`marchi.rs:96-106
   di L3 e una sezione sull'assistente IA.
 - Le regole dei template (T1, 04-11): il tutorial T09–T11 è stato eseguito con `openplc-laboratorio` quando la pompa
   chiedeva Operator; ora Marcia / Arresto si comanda da Viewer e solo la soglia della finestra Parametri resta a
-  Supervisor. La tabella delle voci per template in 15:150-165 è del 20-10. Le pagine dei template hanno le cornici.
+  Supervisor. La tabella delle voci per template in 15:150-165 è del 20-10. Le pagine dei template hanno le cornici, e
+  i nomi delle pagine sono token: 04:465-466 dice che il nome della pagina non si traduce e cita `tc620-sistema` come
+  esempio del titolo tenuto sulla pagina, e dal 04-11 è il contrario.
 - I timbri di data in testa ai capitoli.
 - Il piano si archivia.
 

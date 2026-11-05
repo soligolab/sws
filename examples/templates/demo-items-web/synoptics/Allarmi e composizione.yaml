@@ -1,70 +1,9 @@
 id: demo_p4
-name: Allarmi e composizione
+name: '{{t0007}}'
 width: 1280.0
 height: 800.0
 background: '#0f172a'
 objects:
-- id: hdr_bg
-  type: rect
-  x: 0.0
-  y: 0.0
-  width: 1280.0
-  height: 56.0
-  fill: '#1e293b'
-- id: hdr_title
-  type: text
-  x: 20.0
-  y: 20.0
-  width: 620.0
-  height: 24.0
-  text: "{{t0007}}"
-  font_size: 19.0
-  font_weight: bold
-  color: '#e2e8f0'
-- id: nav1
-  type: navbutton
-  x: 660.0
-  y: 12.0
-  width: 144.0
-  height: 32.0
-  label: "{{t0008}}"
-  target_page: demo_p1
-  fill: '#334155'
-  group_id: nav
-  locked: true
-- id: nav2
-  type: navbutton
-  x: 812.0
-  y: 12.0
-  width: 144.0
-  height: 32.0
-  label: "{{t0009}}"
-  target_page: demo_p2
-  fill: '#334155'
-  group_id: nav
-  locked: true
-- id: nav3
-  type: navbutton
-  x: 964.0
-  y: 12.0
-  width: 144.0
-  height: 32.0
-  label: "{{t0010}}"
-  target_page: demo_p3
-  fill: '#334155'
-  group_id: nav
-  locked: true
-- id: nav4
-  type: navbutton
-  x: 1116.0
-  y: 12.0
-  width: 144.0
-  height: 32.0
-  label: "{{t0011}}"
-  target_page: demo_p4
-  fill: '#2563eb'
-  group_id: nav
-  locked: true
 - id: c_banner
   type: text
   x: 30.0
@@ -126,8 +65,8 @@ objects:
   type: faceplate
   x: 30.0
   y: 474.0
-  width: 290.0
-  height: 150.0
+  width: 140.0
+  height: 80.0
   faceplate_id: motor_basic
   faceplate_params:
     tag_prefix: demo.sim.motor
@@ -151,7 +90,7 @@ objects:
   type: text
   x: 30.0
   y: 590.0
-  width: 290.0
+  width: 210.0
   height: 16.0
   text: "{{t0018}}"
   font_size: 11.0
@@ -213,3 +152,39 @@ objects:
     y: 505.0
   - x: 600.0
     y: 560.0
+# Un faceplate del progetto accanto a quello di sistema (04-11-2026, R8): due
+# istanze di `riquadro_valore`, e la seconda non dà il colore, quindi prende il
+# predefinito. È la prova di parità dei parametri: tag, formato e colori sono
+# tutti campi sostituiti, sul web e sul pannello.
+- id: c_fp_progetto
+  type: text
+  x: 250.0
+  y: 590.0
+  width: 380.0
+  height: 16.0
+  text: "{{t0111}}"
+  font_size: 11.0
+  color: '#94a3b8'
+- id: o_fp_pressione
+  type: faceplate
+  x: 250.0
+  y: 612.0
+  width: 180.0
+  height: 110.0
+  faceplate_id: riquadro_valore
+  faceplate_params:
+    etichetta: "{{t0045}}"
+    tag: demo.sim.pressure
+    formato: '{value:.1f} bar'
+    colore: '#f87171'
+- id: o_fp_portata
+  type: faceplate
+  x: 450.0
+  y: 612.0
+  width: 180.0
+  height: 110.0
+  faceplate_id: riquadro_valore
+  faceplate_params:
+    etichetta: "{{t0063}}"
+    tag: demo.sim.flow
+    formato: '{value:.1f} l/m'

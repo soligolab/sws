@@ -1,147 +1,50 @@
 id: tc620_rete
-name: Rete
+name: '{{t0057}}'
 width: 1280.0
 height: 800.0
 background: '#0f172a'
+# Le due interfacce sono istanze del faceplate «interfaccia» (R8): nome, byte
+# al secondo ricevuti e trasmessi con il loro andamento breve.
 objects:
-- id: hdr_pagina
-  type: text
-  x: 1000.0
-  y: 30.0
-  text: '{{t0057}}'
-  font_size: 24.0
-  color: '#e2e8f0'
-- id: nav
-  type: page_navigator
+- id: if_0
+  type: faceplate
+  faceplate_id: interfaccia
+  faceplate_params:
+    i: tc620.ethernet0
+    nome: '{{t0047}}'
+    colore_rx: '#38bdf8'
+    colore_tx: '#f59e0b'
   x: 20.0
-  y: 102.0
-  width: 1240.0
-  height: 40.0
-  nav_orientation: horizontal
-  nav_fill: true
-  nav_gap: 6
-  locked: true
-- id: if_n0
-  type: text
-  x: 20.0
-  y: 160.0
-  text: '{{t0047}}'
-  font_size: 18.0
-  color: '#e2e8f0'
-- id: if_l00
-  type: text
-  x: 20.0
-  y: 200.0
-  text: '{{t0048}}'
-  font_size: 12.0
-  color: '#94a3b8'
-- id: if_v00
-  type: text
-  x: 20.0
-  y: 218.0
-  tag: tc620.ethernet0.rx_bps
-  format: '{{t0050}}'
-  font_size: 24.0
-  color: '#e2e8f0'
-- id: if_s00
-  type: sparkline
-  x: 280.0
-  y: 204.0
-  width: 340.0
-  height: 60.0
-  tag: tc620.ethernet0.rx_bps
-  spark_color: '#38bdf8'
-  spark_window_s: 600.0
-- id: if_l01
-  type: text
-  x: 20.0
-  y: 290.0
-  text: '{{t0049}}'
-  font_size: 12.0
-  color: '#94a3b8'
-- id: if_v01
-  type: text
-  x: 20.0
-  y: 308.0
-  tag: tc620.ethernet0.tx_bps
-  format: '{{t0050}}'
-  font_size: 24.0
-  color: '#e2e8f0'
-- id: if_s01
-  type: sparkline
-  x: 280.0
-  y: 294.0
-  width: 340.0
-  height: 60.0
-  tag: tc620.ethernet0.tx_bps
-  spark_color: '#f59e0b'
-  spark_window_s: 600.0
-- id: if_n1
-  type: text
+  y: 104.0
+  width: 600.0
+  height: 200.0
+- id: if_1
+  type: faceplate
+  faceplate_id: interfaccia
+  faceplate_params:
+    i: tc620.ethernet1
+    nome: '{{t0051}}'
+    colore_rx: '#2dd4bf'
+    colore_tx: '#f472b6'
   x: 650.0
-  y: 160.0
-  text: '{{t0051}}'
-  font_size: 18.0
-  color: '#e2e8f0'
-- id: if_l10
-  type: text
-  x: 650.0
-  y: 200.0
-  text: '{{t0048}}'
-  font_size: 12.0
-  color: '#94a3b8'
-- id: if_v10
-  type: text
-  x: 650.0
-  y: 218.0
-  tag: tc620.ethernet1.rx_bps
-  format: '{{t0050}}'
-  font_size: 24.0
-  color: '#e2e8f0'
-- id: if_s10
-  type: sparkline
-  x: 910.0
-  y: 204.0
-  width: 340.0
-  height: 60.0
-  tag: tc620.ethernet1.rx_bps
-  spark_color: '#2dd4bf'
-  spark_window_s: 600.0
-- id: if_l11
-  type: text
-  x: 650.0
-  y: 290.0
-  text: '{{t0049}}'
-  font_size: 12.0
-  color: '#94a3b8'
-- id: if_v11
-  type: text
-  x: 650.0
-  y: 308.0
-  tag: tc620.ethernet1.tx_bps
-  format: '{{t0050}}'
-  font_size: 24.0
-  color: '#e2e8f0'
-- id: if_s11
-  type: sparkline
-  x: 910.0
-  y: 294.0
-  width: 340.0
-  height: 60.0
-  tag: tc620.ethernet1.tx_bps
-  spark_color: '#f472b6'
-  spark_window_s: 600.0
+  y: 104.0
+  width: 600.0
+  height: 200.0
 - id: tr_t
   type: text
   x: 20.0
-  y: 392.0
+  y: 332.0
+  width: 1240.0
+  height: 22.0
+  text_wrap: true
+  text_valign: middle
   text: '{{t0052}}'
   font_size: 13.0
   color: '#94a3b8'
 - id: tr_net
   type: trend
   x: 20.0
-  y: 412.0
+  y: 356.0
   width: 1240.0
   height: 370.0
   window_s: 600.0

@@ -25,7 +25,7 @@
 |---|---|---|---|---|
 | C0 | `fix/collaudo-2-25-0` | questa tabella, §Collaudo | chat e registro staccati nel cloud parlano col progetto; i menù di pagina mostrano i nomi; «Montagna» leggera sul WP630 — **fatta il 04-11, DoD verde, attende il collaudo** | **2.25.1** |
 | T1 | `feat/template-regole` | questa tabella, §Regole dei template | il lucchetto «🔒 Supervisor» sui comandi che il ruolo non può usare (web e LVGL); R6–R8 nella guardia; i primi sei template a posto — **fatta il 04-11, annidata su C0, DoD verde, attende il collaudo** | — |
-| T2 | `feat/template-regole-2` | idem | gli altri dieci template; la guardia a zero | sì |
+| T2 | `feat/template-regole-2` | idem | gli altri dieci template; la guardia a zero — **fatta il 04-11, annidata su T1, DoD verde, attende il collaudo** | sì |
 | F1 | `feat/finestra-avviso` | [Finestra di avviso](2026-11-04-finestra-di-avviso.md) | il componente; Backup, configurazione, menu ☰ senza pop-up del browser | — |
 | L0 | `fix/sandbox-python` | [Logica unificata](2026-11-04-logica-unificata.md) | `print`, `for`, `+=` negli script; i default dei parametri applicati | sì |
 | M1 | `feat/manuale-sito` | [Manuale pubblico](2026-11-03-manuale-pubblico.md) | il sito generato in `sws/tmp/manuale-sito/`, nessun link rotto | — |

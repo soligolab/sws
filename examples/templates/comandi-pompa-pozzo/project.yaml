@@ -3,12 +3,27 @@ meta:
   version: "0.1.0"
   description: "Il quadro di comando della pompa di un pozzo domestico: le modalità del bottone, i simboli che comandano e le assegnazioni, su variabili interne."
 
+# R7 (04-11-2026): ogni comando si usa senza accedere. Le cinque variabili sono
+# quelle che bottoni, simboli e assegnazioni scrivono, e chiedono il ruolo
+# Viewer: senza, il predefinito è Operator e chi apre il template vede un
+# lucchetto su ogni comando.
 tags:
-  - { id: pompa.marcia, data_type: bool, description: "Pompa in marcia" }
-  - { id: pompa.prova, data_type: bool, description: "Prova in corso" }
-  - { id: valvola.aperta, data_type: bool, description: "Valvola aperta" }
-  - { id: pompa.velocita, data_type: int, description: "Velocità pompa (%)" }
-  - { id: impianto.modo, data_type: int, description: "Modo impianto (0 spento, 1 manuale, 2 automatico)" }
+  - { id: pompa.marcia, data_type: bool, description: "Pompa in marcia", write_min_role: Viewer }
+  - { id: pompa.prova, data_type: bool, description: "Prova in corso", write_min_role: Viewer }
+  - { id: valvola.aperta, data_type: bool, description: "Valvola aperta", write_min_role: Viewer }
+  - { id: pompa.velocita, data_type: int, description: "Velocità pompa (%)", write_min_role: Viewer }
+  - { id: impianto.modo, data_type: int, description: "Modo impianto (0 spento, 1 manuale, 2 automatico)", write_min_role: Viewer }
+
+page_layout:
+  home_page_id: quadro
+  size_mode: fixed
+  default_width: 1280.0
+  default_height: 800.0
+  page_tree:
+  - id: quadro
+  # R6: la cornice della pagina — `cornici/cornice.yaml`. Una pagina sola,
+  # quindi solo la testata: il piede con la navigazione non servirebbe.
+  cornice_predefinita: cornice
 
 languages:
   default: it

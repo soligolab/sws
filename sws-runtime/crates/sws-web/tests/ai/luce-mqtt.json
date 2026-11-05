@@ -14,7 +14,7 @@
       "strumenti": [
         { "nome": "schema_sorgente", "input": { "kind": "mqtt" } },
         { "nome": "schema_oggetto", "input": { "tipo": "button" } },
-        { "nome": "leggi_pagina", "input": { "nome": "Indicatori" } }
+        { "nome": "leggi_pagina", "input": { "nome": "demo_p2" } }
       ]
     },
     {
@@ -46,7 +46,7 @@
               ],
               "oggetti_aggiunti": [
                 {
-                  "pagina": "Indicatori",
+                  "pagina": "demo_p2",
                   "oggetto": {
                     "id": "btn_luce_salotto",
                     "type": "button",

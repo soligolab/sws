@@ -1,126 +1,102 @@
+# La Panoramica (04-11-2026, regole R6–R8 dei template). Il titolo e l'ora li
+# porta la cornice (`cornici/cornice.yaml`), quindi qui si parte da y 56. Le
+# letture sono istanze dei faceplate «riga_valore» e «riga_spia», una per
+# metrica; i comandi scrivono tag con `write_min_role: Viewer`, e si usano
+# senza accedere.
 id: spb_page1
-name: Panoramica
+name: '{{t0013}}'
 width: 1280.0
 height: 800.0
 background: '#0f172a'
 objects:
-- id: hdr_bg
-  type: rect
-  x: 0.0
-  y: 0.0
-  width: 1280.0
-  height: 56.0
-  fill: '#1e293b'
-- id: hdr_title
+- id: sorgente
   type: text
-  x: 24.0
-  y: 16.0
-  text: "{{t0003}}"
-  font_size: 20.0
-  color: '#e2e8f0'
+  x: 40.0
+  y: 72.0
+  width: 1200.0
+  height: 28.0
+  text_wrap: true
+  text_valign: middle
+  text: '{{t0003}}'
+  font_size: 18.0
+  font_weight: bold
+  color: '#38bdf8'
 - id: nota
   type: text
-  x: 24.0
-  y: 74.0
-  width: 1000.0
-  height: 18.0
-  text: "{{t0004}}"
-  font_size: 12.0
-  color: '#94a3b8'
-- id: lbl_0
-  type: text
   x: 40.0
-  y: 120.0
-  text: "{{t0005}}"
-  font_size: 14.0
+  y: 100.0
+  width: 1200.0
+  height: 24.0
+  text_wrap: true
+  text_valign: middle
+  text: '{{t0004}}'
+  font_size: 13.0
   color: '#94a3b8'
-- id: val_0
-  type: text
-  x: 620.0
-  y: 120.0
-  tag: pump.speed
-  format: '{value:.1f}'
-  font_size: 16.0
-  color: '#e2e8f0'
-  text_anchor: end
-- id: lbl_1
-  type: text
+- id: riga_velocita
+  type: faceplate
+  faceplate_id: riga_valore
   x: 40.0
-  y: 154.0
-  text: "{{t0006}}"
-  font_size: 14.0
-  color: '#94a3b8'
-- id: val_1
-  type: led
-  x: 520.0
-  y: 152.0
-  width: 18.0
-  height: 18.0
-  tag: pump.running
-- id: lbl_2
-  type: text
+  y: 136.0
+  width: 580.0
+  height: 36.0
+  faceplate_params:
+    etichetta: '{{t0005}}'
+    tag: pump.speed
+    formato: '{value:.1f}'
+- id: riga_marcia
+  type: faceplate
+  faceplate_id: riga_spia
   x: 40.0
-  y: 188.0
-  text: "{{t0007}}"
-  font_size: 14.0
-  color: '#94a3b8'
-- id: val_2
-  type: text
-  x: 620.0
-  y: 188.0
-  tag: temp.inlet
-  format: '{value:.1f}'
-  font_size: 16.0
-  color: '#e2e8f0'
-  text_anchor: end
-- id: lbl_3
-  type: text
+  y: 176.0
+  width: 580.0
+  height: 36.0
+  faceplate_params:
+    etichetta: '{{t0006}}'
+    tag: pump.running
+- id: riga_ingresso
+  type: faceplate
+  faceplate_id: riga_valore
   x: 40.0
-  y: 222.0
-  text: "{{t0008}}"
-  font_size: 14.0
-  color: '#94a3b8'
-- id: val_3
-  type: text
-  x: 620.0
-  y: 222.0
-  tag: temp.outlet
-  format: '{value:.1f}'
-  font_size: 16.0
-  color: '#e2e8f0'
-  text_anchor: end
-- id: lbl_4
-  type: text
+  y: 216.0
+  width: 580.0
+  height: 36.0
+  faceplate_params:
+    etichetta: '{{t0007}}'
+    tag: temp.inlet
+    formato: '{value:.1f}'
+- id: riga_uscita
+  type: faceplate
+  faceplate_id: riga_valore
   x: 40.0
   y: 256.0
-  text: "{{t0009}}"
-  font_size: 14.0
-  color: '#94a3b8'
-- id: val_4
-  type: text
-  x: 620.0
-  y: 256.0
-  tag: flow.total
-  format: '{value:.1f}'
-  font_size: 16.0
-  color: '#e2e8f0'
-  text_anchor: end
-- id: lbl_5
-  type: text
+  width: 580.0
+  height: 36.0
+  faceplate_params:
+    etichetta: '{{t0008}}'
+    tag: temp.outlet
+    formato: '{value:.1f}'
+- id: riga_portata
+  type: faceplate
+  faceplate_id: riga_valore
   x: 40.0
-  y: 290.0
-  text: "{{t0010}}"
-  font_size: 14.0
-  color: '#94a3b8'
-- id: val_5
-  type: text
-  x: 620.0
-  y: 290.0
-  tag: temp.delta
-  format: '{value:.1f}'
-  font_size: 16.0
-  color: '#e2e8f0'
-  text_anchor: end
+  y: 296.0
+  width: 580.0
+  height: 36.0
+  faceplate_params:
+    etichetta: '{{t0009}}'
+    tag: flow.total
+    formato: '{value:.1f}'
+- id: riga_delta
+  type: faceplate
+  faceplate_id: riga_valore
+  x: 40.0
+  y: 336.0
+  width: 580.0
+  height: 36.0
+  faceplate_params:
+    etichetta: '{{t0010}}'
+    tag: temp.delta
+    formato: '{value:.1f}'
 # ── Write-back — pump.speed/pump.running sono writable: true alla
 #    sorgente ma nessun controllo li scriveva (revisione template,
 #    15-09-2026): coerenza con enip-demo/s7-demo, corretti per lo stesso
@@ -128,18 +104,22 @@ objects:
 - id: lbl_comandi
   type: text
   x: 40.0
-  y: 354.0
-  text: "{{t0011}}"
+  y: 396.0
+  width: 580.0
+  height: 24.0
+  text_wrap: true
+  text_valign: middle
+  text: '{{t0011}}'
   font_size: 12.0
   font_weight: bold
   color: '#38bdf8'
 - id: cmd_speed
   type: setpoint
   x: 40.0
-  y: 384.0
+  y: 428.0
   width: 290.0
   height: 48.0
-  label: "{{t0012}}"
+  label: '{{t0012}}'
   tag: pump.speed
   min: 0.0
   max: 3000.0
@@ -147,8 +127,8 @@ objects:
 - id: cmd_running
   type: checkbox
   x: 360.0
-  y: 392.0
-  width: 250.0
+  y: 436.0
+  width: 260.0
   height: 32.0
-  label: "{{t0006}}"
+  label: '{{t0006}}'
   tag: pump.running

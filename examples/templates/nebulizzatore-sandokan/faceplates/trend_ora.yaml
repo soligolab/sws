@@ -1,0 +1,44 @@
+# Il riquadro di un trend dell'ultima ora (R8, 04-11-2026): il titolo e il
+# grafico di una grandezza della presa. La pagina ne ha tre — potenza, corrente,
+# tensione — che fino a oggi erano sei oggetti sciolti, un titolo e un trend
+# ciascuno: spostandone uno nell'IDE, il titolo restava indietro.
+#
+# Parametri: il titolo (un token della tabella lingue), la variabile e il
+# colore della linea. La finestra di un'ora è la stessa per tutte e tre.
+id: trend_ora
+label: Trend dell'ultima ora
+width: 400
+height: 400
+params:
+- name: titolo
+  type: string
+  default: '{{t0012}}'
+- name: variabile
+  type: tag
+  default: sandokan.power
+  required: true
+- name: colore
+  type: color
+  default: '#f59e0b'
+objects:
+- id: titolo
+  type: text
+  x: 0
+  y: 0
+  width: 400
+  height: 24
+  text: '{titolo}'
+  font_size: 12
+  text_anchor: start
+  text_wrap: true
+  text_valign: middle
+  color: '#94a3b8'
+- id: grafico
+  type: trend
+  x: 0
+  y: 28
+  width: 400
+  height: 372
+  tag: '{variabile}'
+  line_color: '{colore}'
+  window_s: 3600

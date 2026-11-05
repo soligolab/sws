@@ -5,8 +5,8 @@ meta:
 # target esplicito (revisione template, 15-09-2026): un solo template su
 # undici lo dichiarava (demo-items-lvgl). Web è il motore di sempre per
 # questo template — nessun cambio di comportamento, solo lo si rende
-# esplicito invece di implicito. Tutti e otto i tipi usati sarebbero già
-# disegnabili da LVGL (layout 1280×600, pensato per un pannello), ma LVGL
+# esplicito invece di implicito. Tutti e dieci i tipi usati sarebbero già
+# disegnabili da LVGL (pagina 1280×800, pensata per un pannello), ma LVGL
 # non è mai stato collaudato dal vivo dopo l'ultimo merge — passare un
 # template reale a lvgl_wayland resta una decisione da prendere con calma,
 # non da questa revisione.
@@ -93,6 +93,17 @@ alarms:
         message: '{{t0002}}'
 functions: []
 custom_symbols: []
+
+page_layout:
+  home_page_id: page1
+  size_mode: fixed
+  default_width: 1280.0
+  default_height: 800.0
+  page_tree:
+  - id: page1
+  # R6: la cornice della pagina — `cornici/cornice.yaml`. Una pagina sola,
+  # quindi solo la testata: il piede con la navigazione non servirebbe.
+  cornice_predefinita: cornice
 
 datastores:
 - id: default

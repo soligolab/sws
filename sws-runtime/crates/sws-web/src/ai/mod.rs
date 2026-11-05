@@ -988,15 +988,19 @@ async fn componi_da_patch(s: &AppState, input: &Value, patch: &Value) -> Result<
                 .ok_or("ogni voce di `oggetti_aggiunti` vuole `oggetto`")?;
             // Se la pagina è già fra quelle toccate si continua su quella, così
             // due oggetti sulla stessa pagina non si cancellano a vicenda.
-            let gia = pagine_toccate
-                .iter()
-                .position(|p| p.get("name").and_then(Value::as_str) == Some(nome));
+            // Per nome o per id, come `leggi_pagina`: il nome di una pagina dei
+            // template è un token (`{{t0069}}`), e il modello usa l'id.
+            let gia = pagine_toccate.iter().position(|p| {
+                p.get("name").and_then(Value::as_str) == Some(nome)
+                    || p.get("id").and_then(Value::as_str) == Some(nome)
+            });
             let mut pagina = match gia {
                 Some(i) => pagine_toccate.remove(i),
                 None => {
                     let p = tutte
                         .iter()
                         .find(|p| p.name == nome)
+                        .or_else(|| tutte.iter().find(|p| p.id == nome))
                         .ok_or_else(|| format!("la pagina `{nome}` non esiste"))?;
                     serde_json::to_value(p).map_err(|e| e.to_string())?
                 }

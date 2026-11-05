@@ -14,6 +14,7 @@ import { diffRighe } from "@/ai/diffRighe";
 import type { VoceDiff } from "@/types/ai";
 import type { ProjectInfo, SynopticPage } from "@/types";
 import i18n from "i18next";
+import { effectiveProjectLang, localizePageName } from "@/i18n/projectI18n";
 
 export function riassumi(
   propProject: ProjectInfo | null,
@@ -106,20 +107,25 @@ export function riassumi(
     }
   }
 
+  // Il nome come lo legge una persona (04-11-2026): nei template i nomi delle
+  // pagine sono token (`{{t0069}}`), e il diff mostrava la chiave.
+  const lingue = (propProject ?? project)?.languages;
+  const leggibile = (n: string) => (n.includes("{{") ? localizePageName(n, effectiveProjectLang(lingue), lingue) : n);
   for (const pg of propPages ?? []) {
     const attuale = pages.find((p) => !p.kind && p.name === pg.name);
+    const nome = leggibile(pg.name);
     if (!attuale) {
-      out.push({ verso: "+", testo: i18n.t("riassunto.page", { name: pg.name, count: pg.objects.length }) });
+      out.push({ verso: "+", testo: i18n.t("riassunto.page", { name: nome, count: pg.objects.length }) });
       continue;
     }
     const prima = new Map(attuale.objects.map((o) => [o.id, o]));
     const dopo  = new Map(pg.objects.map((o) => [o.id, o]));
     for (const [id, o] of dopo) {
-      if (!prima.has(id)) out.push({ verso: "+", testo: `${o.type} \`${id}\` in «${pg.name}»` });
-      else if (!stessa(prima.get(id), o)) out.push({ verso: "~", testo: `${o.type} \`${id}\` in «${pg.name}»` });
+      if (!prima.has(id)) out.push({ verso: "+", testo: `${o.type} \`${id}\` in «${nome}»` });
+      else if (!stessa(prima.get(id), o)) out.push({ verso: "~", testo: `${o.type} \`${id}\` in «${nome}»` });
     }
     for (const [id, o] of prima) {
-      if (!dopo.has(id)) out.push({ verso: "-", testo: `${o.type} \`${id}\` da «${pg.name}»` });
+      if (!dopo.has(id)) out.push({ verso: "-", testo: `${o.type} \`${id}\` da «${nome}»` });
     }
   }
   return out;

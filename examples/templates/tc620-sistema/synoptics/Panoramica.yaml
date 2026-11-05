@@ -1,30 +1,15 @@
 id: tc620_panoramica
-name: Panoramica
+name: '{{t0008}}'
 width: 1280.0
 height: 800.0
 background: '#0f172a'
+# Titolo, ora e navigatore stanno nella cornice (cornici/testata.yaml): l'area
+# della pagina va da 92 (sotto la testata) a 740 (sopra il piede).
 objects:
-- id: hdr_pagina
-  type: text
-  x: 1000.0
-  y: 30.0
-  text: '{{t0008}}'
-  font_size: 24.0
-  color: '#e2e8f0'
-- id: nav
-  type: page_navigator
-  x: 20.0
-  y: 102.0
-  width: 1240.0
-  height: 40.0
-  nav_orientation: horizontal
-  nav_fill: true
-  nav_gap: 6
-  locked: true
 - id: g_cpu
   type: gauge
   x: 20.0
-  y: 160.0
+  y: 104.0
   width: 290.0
   height: 210.0
   tag: tc620.cpu_pct
@@ -37,7 +22,7 @@ objects:
 - id: g_ram
   type: gauge
   x: 335.0
-  y: 160.0
+  y: 104.0
   width: 290.0
   height: 210.0
   tag: tc620.ram_usata_pct
@@ -50,7 +35,7 @@ objects:
 - id: g_temp
   type: gauge
   x: 650.0
-  y: 160.0
+  y: 104.0
   width: 290.0
   height: 210.0
   tag: tc620.temperatura_cpu
@@ -63,7 +48,7 @@ objects:
 - id: g_disco
   type: gauge
   x: 965.0
-  y: 160.0
+  y: 104.0
   width: 290.0
   height: 210.0
   tag: tc620.disco_progetti.usato_pct
@@ -76,14 +61,18 @@ objects:
 - id: tr1_t
   type: text
   x: 20.0
-  y: 392.0
+  y: 332.0
+  width: 610.0
+  height: 22.0
+  text_wrap: true
+  text_valign: middle
   text: '{{t0005}}'
   font_size: 13.0
   color: '#94a3b8'
 - id: tr1
   type: trend
   x: 20.0
-  y: 412.0
+  y: 356.0
   width: 610.0
   height: 370.0
   window_s: 600.0
@@ -97,14 +86,18 @@ objects:
 - id: tr2_t
   type: text
   x: 650.0
-  y: 392.0
+  y: 332.0
+  width: 610.0
+  height: 22.0
+  text_wrap: true
+  text_valign: middle
   text: '{{t0006}}'
   font_size: 13.0
   color: '#94a3b8'
 - id: tr2
   type: trend
   x: 650.0
-  y: 412.0
+  y: 356.0
   width: 610.0
   height: 370.0
   window_s: 600.0

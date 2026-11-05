@@ -70,7 +70,7 @@ import { NavigatorProperties } from "./NavigatorProperties";
 import { CampoTestoTradotto } from "@/editor/CampoTestoTradotto";
 import { CampoFormato } from "@/components/CampoFormato";
 import type { AlignMode } from "@/store";
-import type { AlarmSeverity, ButtonAction, FunctionDef, GridCell, PageLayoutConfig, PageSizeMode, ProjectTargetKind, RadioOption, SubCellEntry, SubGrid, SynopticObject, TableRow, TextListEntry, TrendTrace, XySeries } from "@/types";
+import type { AlarmSeverity, ButtonAction, FunctionDef, GridCell, PageLayoutConfig, PageSizeMode, ProjectTargetKind, RadioOption, SubCellEntry, SubGrid, SynopticObject, TableRow, TagDef, TypeDef, TextListEntry, TrendTrace, XySeries } from "@/types";
 import { eBoot, paginePerNavigazione } from "@/boot/tipi";
 import { aggiornaPagina, applicaPredefinito, salvaLayout } from "@/formatoProgettoAzioni";
 import { dalTag, descrizioniDeiTag } from "@/tag/forma";
@@ -3089,11 +3089,36 @@ function CrossTypeProps({
  *  scriveva il prefisso a mano in un campo di testo e lo si ricordava a
  *  memoria; qui si sceglie fra le variabili composite del progetto, ristrette
  *  al tipo quando la definizione lo dichiara (`p:istanza(Motore)`). */
+/** I membri di tipo struttura dentro le istanze del progetto, con il loro
+ *  percorso (`tc620.ethernet0`), a ogni profondità. Gli array restano fuori:
+ *  un parametro d'istanza punta a una struttura, non a un elenco. */
+function istanzeAnnidate(tags: readonly TagDef[], tipi: readonly TypeDef[]): Pick<TagDef, "id" | "type_ref" | "array">[] {
+  const perId = new Map(tipi.map((t) => [t.id, t]));
+  const out: Pick<TagDef, "id" | "type_ref" | "array">[] = [];
+  const scendi = (percorso: string, tipo: string | undefined, profondita: number) => {
+    const def = tipo ? perId.get(tipo) : undefined;
+    if (!def || profondita > 8) return;
+    for (const m of def.members ?? []) {
+      if (!m.type_ref || m.array?.length) continue;
+      const p = `${percorso}.${m.name}`;
+      out.push({ id: p, type_ref: m.type_ref });
+      scendi(p, m.type_ref, profondita + 1);
+    }
+  };
+  for (const t of tags) if (t.type_ref && !t.array?.length) scendi(t.id, t.type_ref, 0);
+  return out;
+}
+
 function SceltaIstanza({
   valore, tipo, onChange, style,
 }: { valore: string; tipo?: string; onChange: (v: string) => void; style: React.CSSProperties }) {
   const { t } = useTranslation();
-  const istanze = useAppStore((st) => st.project?.tags) ?? [];
+  const tags = useAppStore((st) => st.project?.tags);
+  const tipi = useAppStore((st) => st.project?.types);
+  // Anche le istanze **dentro** un'istanza (04-11-2026): in `tc620-sistema`
+  // le interfacce di rete sono membri del tipo `host` (`tc620.ethernet0`), e
+  // il faceplate di un'interfaccia non trovava niente da scegliere.
+  const istanze: Pick<TagDef, "id" | "type_ref" | "array">[] = [...(tags ?? []), ...istanzeAnnidate(tags ?? [], tipi ?? [])];
   const scelte = istanze.filter((x) => (tipo ? x.type_ref === tipo : !!x.type_ref || !!x.array));
   // Un valore che non è (più) fra le scelte resta selezionabile: un tipo
   // rinominato non deve cancellare in silenzio il legame dell'istanza.

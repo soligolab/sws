@@ -1,0 +1,39 @@
+# Un trend dell'ultima ora con il suo titolo sopra (R8, 04-11-2026): la CPU e
+# la temperatura. Tag e colore della linea sono parametri.
+id: andamento
+label: Andamento dell'ultima ora
+width: 610
+height: 390
+params:
+- name: titolo
+  type: string
+  default: '{{t0011}}'
+- name: tag
+  type: tag
+  default: host.cpu_pct
+  required: true
+- name: colore
+  type: color
+  default: '#f59e0b'
+objects:
+- id: titolo
+  type: text
+  x: 0
+  y: 0
+  width: 610
+  height: 22
+  text_wrap: true
+  text_valign: middle
+  text: '{titolo}'
+  font_size: 12
+  text_anchor: start
+  color: '#94a3b8'
+- id: trend
+  type: trend
+  x: 0
+  y: 26
+  width: 610
+  height: 364
+  tag: '{tag}'
+  line_color: '{colore}'
+  window_s: 3600

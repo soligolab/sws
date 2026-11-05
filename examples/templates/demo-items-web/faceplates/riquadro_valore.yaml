@@ -1,0 +1,77 @@
+# Il riquadro di un valore (04-11-2026, regola R8): titolo, valore formattato e
+# una barra, con il colore del bordo, del titolo e della barra scelto
+# dall'istanza. Sta in «Allarmi e composizione» accanto a `motor_basic`, che è
+# un faceplate di sistema: questo è del progetto, e mostra i parametri con
+# tipo, obbligo e valore predefinito.
+#
+# Ogni campo con `{…}` è un parametro, compresi formato e colori: dal
+# 04-11-2026 il pannello LVGL li sostituisce in ogni campo di testo come il
+# web, e applica i predefiniti. `{value:.1f}` invece non è un parametro: è il
+# segnaposto del valore, e resta com'è.
+id: riquadro_valore
+label: Riquadro valore
+width: 180
+height: 110
+params:
+- name: etichetta
+  type: string
+  required: true
+- name: tag
+  type: tag
+  required: true
+- name: formato
+  type: string
+  default: '{value:.1f}'
+- name: colore
+  type: color
+  default: '#38bdf8'
+objects:
+- id: fondo
+  type: rect
+  x: 0
+  y: 0
+  width: 180
+  height: 110
+  fill: '#1e293b'
+  stroke: '{colore}'
+  stroke_width: 2
+  corner_radius: 8
+- id: titolo
+  type: text
+  x: 10
+  y: 6
+  width: 160
+  height: 22
+  text: '{etichetta}'
+  font_size: 12
+  font_weight: bold
+  text_anchor: middle
+  text_wrap: true
+  text_valign: middle
+  color: '{colore}'
+- id: valore
+  type: text
+  x: 10
+  y: 30
+  width: 160
+  height: 44
+  tag: '{tag}'
+  format: '{formato}'
+  font_size: 24
+  font_weight: bold
+  text_anchor: middle
+  text_wrap: true
+  text_valign: middle
+  color: '#e2e8f0'
+- id: barra
+  type: progress_bar
+  x: 14
+  y: 82
+  width: 152
+  height: 14
+  tag: '{tag}'
+  min: 0
+  max: 120
+  show_value: false
+  fill: '{colore}'
+  bg_color: '#0f172a'

@@ -13,8 +13,14 @@ foglie, una tipologia per pagina:
 | Dischi | `/` e `/var/sws/projects`: usato %, libero GB, trend |
 | Rete | `ethernet0` ed `ethernet1`: byte/s ricevuti e trasmessi, trend |
 
-Su tutte le pagine la testata porta l'orologio (ora locale del pannello) in alto a sinistra,
-modello, numero di serie, nome di rete e tempo di accensione, e il navigatore delle pagine.
+Su tutte le pagine la cornice (`cornici/testata.yaml`) porta in testata l'ora e la data del
+pannello in alto a sinistra, modello, numero di serie, nome di rete, tempo di accensione e il
+nome della pagina; nel piede il navigatore delle pagine.
+
+I gruppi che si ripetono sono faceplate (`faceplates/`): `interfaccia` e `disco` prendono come
+parametro un membro della struttura (`tc620.ethernet1`, `tc620.disco_progetti`), `carico` e
+`valore` un tag. Un'interfaccia in più è un membro in più nel tipo `host`, le sue due
+mappature nella sorgente e un'istanza in più del faceplate.
 
 ## Il metro con cui giudicarlo
 

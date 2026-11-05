@@ -1,0 +1,105 @@
+# Un'interfaccia di rete (R8, 04-11-2026): il nome, poi byte al secondo
+# ricevuti e trasmessi, ognuno col suo andamento breve. `i` è un membro di
+# tipo `interfaccia_rete` del pannello (`tc620.ethernet0`, `tc620.ethernet1`):
+# per una terza interfaccia basta un membro in più nel tipo `host` e
+# un'istanza in più di questo faceplate.
+id: interfaccia
+label: Interfaccia di rete
+width: 600
+height: 200
+params:
+- name: i
+  type: istanza
+  type_ref: interfaccia_rete
+  default: tc620.ethernet0
+  required: true
+- name: nome
+  type: string
+  default: '{{t0047}}'
+- name: colore_rx
+  type: color
+  default: '#38bdf8'
+- name: colore_tx
+  type: color
+  default: '#f59e0b'
+objects:
+- id: nome
+  type: text
+  x: 0
+  y: 0
+  width: 600
+  height: 28
+  text_wrap: true
+  text_valign: middle
+  text: '{nome}'
+  font_size: 18
+  text_anchor: start
+  color: '#e2e8f0'
+- id: rx_l
+  type: text
+  x: 0
+  y: 38
+  width: 250
+  height: 18
+  text_wrap: true
+  text_valign: middle
+  text: '{{t0048}}'
+  font_size: 12
+  text_anchor: start
+  color: '#94a3b8'
+- id: rx_v
+  type: text
+  x: 0
+  y: 56
+  width: 250
+  height: 34
+  text_wrap: true
+  text_valign: middle
+  tag: '{i}.rx_bps'
+  format: '{{t0050}}'
+  font_size: 24
+  text_anchor: start
+  color: '#e2e8f0'
+- id: rx_s
+  type: sparkline
+  x: 260
+  y: 40
+  width: 340
+  height: 60
+  tag: '{i}.rx_bps'
+  spark_color: '{colore_rx}'
+  spark_window_s: 600.0
+- id: tx_l
+  type: text
+  x: 0
+  y: 128
+  width: 250
+  height: 18
+  text_wrap: true
+  text_valign: middle
+  text: '{{t0049}}'
+  font_size: 12
+  text_anchor: start
+  color: '#94a3b8'
+- id: tx_v
+  type: text
+  x: 0
+  y: 146
+  width: 250
+  height: 34
+  text_wrap: true
+  text_valign: middle
+  tag: '{i}.tx_bps'
+  format: '{{t0050}}'
+  font_size: 24
+  text_anchor: start
+  color: '#e2e8f0'
+- id: tx_s
+  type: sparkline
+  x: 260
+  y: 130
+  width: 340
+  height: 60
+  tag: '{i}.tx_bps'
+  spark_color: '{colore_tx}'
+  spark_window_s: 600.0

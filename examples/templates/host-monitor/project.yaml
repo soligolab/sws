@@ -61,6 +61,14 @@ alarms:
           threshold: 80.0
         severity: Warning
         message: '{{t0013}}'
+page_layout:
+  size_mode: fixed
+  home_page_id: host_page1
+  page_tree:
+  - id: host_page1
+  # La cornice della pagina (R6, 04-11-2026): il nome della pagina e la data
+  # con l'ora in testata, in cornici/cornice.yaml. Una pagina sola: niente piede.
+  cornice_predefinita: cornice
 languages:
   default: it
   langs:
