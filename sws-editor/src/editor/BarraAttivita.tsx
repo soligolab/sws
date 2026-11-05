@@ -5,6 +5,7 @@
 // da tastiera, un riquadro accanto dice cosa c'è dietro: un `title` arriva
 // tardi e col tocco non si vede.
 import { useRef, useState } from "react";
+import { useAppStore } from "@/store";
 import { ICONE_ATTIVITA, varAttivita } from "./iconeAttivita";
 
 export interface VoceAttivita {
@@ -19,8 +20,13 @@ export interface VoceAttivita {
   inFondo?: boolean;
 }
 
-/** Larghezza della barra, in px. */
-export const LARGHEZZA_BARRA = 48;
+/** Larghezza della barra, in px: il doppio dell'icona. Le icone seguono la
+ *  «Dimensione icone» delle preferenze (16–28 px, predefinita 24 → barra da 48):
+ *  prima erano fisse a 24, e su un monitor touch o ad alta risoluzione non
+ *  crescevano (collaudo della 2.25.1, 05-11-2026). */
+export const larghezzaBarra = (icona: number) => icona * 2;
+/** Altezza di una voce: l'icona più il margine (44 con l'icona da 24). */
+const altezzaVoce = (icona: number) => icona + 20;
 /** Quanto aspetta il pop-up col mouse: passando sopra la barra non lampeggia. */
 const ATTESA_POPUP_MS = 250;
 
@@ -35,6 +41,8 @@ export function BarraAttivita({ voci, attiva, aperta, lato, onScegli, etichetta 
   onScegli: (id: string) => void;
   etichetta: string;
 }) {
+  const icona = useAppStore((s) => s.misuraIcone);
+  const larghezza = larghezzaBarra(icona);
   const [popup, setPopup] = useState<{ voce: VoceAttivita; y: number; x: number } | null>(null);
   const attesa = useRef<ReturnType<typeof setTimeout> | null>(null);
   const bottoni = useRef<(HTMLButtonElement | null)[]>([]);
@@ -63,7 +71,7 @@ export function BarraAttivita({ voci, attiva, aperta, lato, onScegli, etichetta 
   return (
     <nav aria-label={etichetta} data-barra-attivita={lato}
       style={{
-        width: LARGHEZZA_BARRA, flexShrink: 0, display: "flex", flexDirection: "column", alignItems: "center",
+        width: larghezza, flexShrink: 0, display: "flex", flexDirection: "column", alignItems: "center",
         gap: 2, paddingTop: 6, background: "var(--brand-bg, #0f172a)",
         [lato === "left" ? "borderRight" : "borderLeft"]: "1px solid var(--brand-surface-2, #334155)",
       }}>
@@ -71,7 +79,7 @@ export function BarraAttivita({ voci, attiva, aperta, lato, onScegli, etichetta 
         style={{ display: "flex", flexDirection: "column", gap: 2, flex: 1, paddingBottom: 6 }}>
         {voci.map((v, i) => {
           const scelta = v.id === attiva;
-          const icona = v.icona ?? v.id;
+          const chiave = v.icona ?? v.id;
           const prima = voci[i - 1];
           // In fondo: uno spazio che spinge giù il resto. Altrimenti, al cambio
           // di gruppo, una riga sottile.
@@ -93,9 +101,9 @@ export function BarraAttivita({ voci, attiva, aperta, lato, onScegli, etichetta 
               onFocus={(e) => mostra(v, e.currentTarget, true)}
               onBlur={nascondi}
               style={{
-                position: "relative", width: LARGHEZZA_BARRA, height: 44, display: "flex", alignItems: "center",
+                position: "relative", width: larghezza, height: altezzaVoce(icona), display: "flex", alignItems: "center",
                 justifyContent: "center", background: "transparent", border: "none", cursor: "pointer", padding: 0,
-                color: `var(${varAttivita(icona)}, var(--brand-text, #e2e8f0))`,
+                color: `var(${varAttivita(chiave)}, var(--brand-text, #e2e8f0))`,
                 opacity: scelta && aperta ? 1 : 0.7,
               }}>
               {scelta && aperta && (
@@ -110,11 +118,11 @@ export function BarraAttivita({ voci, attiva, aperta, lato, onScegli, etichetta 
                   dell'SVG, e il `mouseup` finiva su un elemento nuovo: il
                   browser non genera il click. Il primo clic andava perso
                   (visto dal vivo il 31-10-2026; `fireEvent` non lo vede). */}
-              <svg aria-hidden="true" width={24} height={24} viewBox="0 0 24 24" fill="none" stroke="currentColor"
+              <svg aria-hidden="true" width={icona} height={icona} viewBox="0 0 24 24" fill="none" stroke="currentColor"
                 style={{ pointerEvents: "none" }}
                 strokeWidth={scelta && aperta ? 2 : 1.75} strokeLinecap="round" strokeLinejoin="round"
                 // Contenuto nostro, costante: nessun dato dell'utente passa di qui.
-                dangerouslySetInnerHTML={{ __html: ICONE_ATTIVITA[icona] ?? "" }} />
+                dangerouslySetInnerHTML={{ __html: ICONE_ATTIVITA[chiave] ?? "" }} />
             </button>,
           ];
         })}

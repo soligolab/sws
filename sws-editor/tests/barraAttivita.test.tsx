@@ -5,6 +5,7 @@ import { describe, it, expect, vi, afterEach, beforeEach } from "vitest";
 import { BarraAttivita, useAttivita, type VoceAttivita } from "../src/editor/BarraAttivita";
 import { COLORI_ATTIVITA, ICONE_ATTIVITA } from "../src/editor/iconeAttivita";
 import { relativeLuminance } from "../src/theme";
+import { useAppStore } from "../src/store";
 
 const voci: VoceAttivita[] = [
   { id: "pagine", titolo: "Pagine", spiegazione: "Le pagine del progetto" },
@@ -22,7 +23,7 @@ function Prova() {
   );
 }
 
-beforeEach(() => localStorage.clear());
+beforeEach(() => { localStorage.clear(); useAppStore.getState().setMisuraIcone(24); });
 afterEach(() => vi.useRealTimers());
 
 describe("BarraAttivita", () => {
@@ -65,6 +66,19 @@ describe("BarraAttivita", () => {
     for (const svg of document.querySelectorAll('[role="tab"] svg')) {
       expect((svg as SVGElement).style.pointerEvents).toBe("none");
     }
+  });
+
+  it("icone e barra seguono la dimensione delle icone delle preferenze", () => {
+    const { container, rerender } = render(<Prova />);
+    const barra = () => container.querySelector("[data-barra-attivita]") as HTMLElement;
+    const icona = () => screen.getByTestId("attivita-pagine").querySelector("svg")!;
+    expect(barra().style.width).toBe("48px");
+    expect(icona().getAttribute("width")).toBe("24");
+    act(() => useAppStore.getState().setMisuraIcone(28));
+    rerender(<Prova />);
+    expect(barra().style.width).toBe("56px");
+    expect(icona().getAttribute("width")).toBe("28");
+    expect(screen.getByTestId("attivita-pagine").style.height).toBe("48px");
   });
 
   it("le frecce spostano il fuoco fra le voci, in giro", () => {

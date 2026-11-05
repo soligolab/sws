@@ -18,7 +18,8 @@ import { IconaStrumento } from "@/editor/IconaStrumento";
 
 
 /** La misura delle icone di Strumenti (14-10-2026): sono vettoriali, quindi
- *  quattro gradini bastano per adattarle al monitor — richiesta del maintainer. */
+ *  quattro gradini bastano per adattarle al monitor — richiesta del maintainer.
+ *  Dal 05-11-2026 la seguono anche le due barre dello stile VS Code. */
 function MisuraIconeSection() {
   const { t } = useTranslation();
   const misura = useAppStore((s) => s.misuraIcone);

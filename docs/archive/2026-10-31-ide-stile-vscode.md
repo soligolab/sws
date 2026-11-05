@@ -162,3 +162,13 @@ Le proprietà sono `voci: { id, icona, colore, titolo, spiegazione, badge? }[]`,
   - il ritorno a «Classica» identico a prima.
 - **Manuale:** il capitolo dell'IDE (`docs/manual/`) con le due disposizioni. CHANGELOG, e NOVITA se c'è posto
   (il blocco 2.23.8 è pieno: la voce va nel blocco successivo).
+
+## Completamento (05-11-2026)
+
+Collaudando la 2.25.1 il maintainer ha visto che la «Dimensione icone» delle preferenze non cambiava le due barre di
+attività: le icone erano fisse a 24 px in una barra da 48. Ora le barre la seguono: icona della misura scelta (16, 20,
+24 o 28), barra larga il doppio, voce alta l'icona più 20 (`larghezzaBarra` in `editor/BarraAttivita.tsx`); alla
+misura predefinita, 24, la barra resta di 48 px come prima. La frase della preferenza dice che vale anche per le barre.
+Prova in `tests/barraAttivita.test.tsx`. Ramo `fix/misura-icone-vscode`; la voce stava nel seme dello
+[stile sobrio](../plans/2026-11-04-stile-sobrio.md), che ora non la porta più.
+

@@ -11,6 +11,11 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 
 ## [Unreleased]
 
+### Corretto
+- **Le barre dello stile VS Code seguono la «Dimensione icone»** delle preferenze (vista collaudando la 2.25.1): le
+  icone erano fisse a 24 px. Icona della misura scelta, barra larga il doppio (`larghezzaBarra`,
+  `editor/BarraAttivita.tsx`); alla misura predefinita non cambia niente.
+
 ## [2.25.2] — 2026-11-05
 
 Registrata come versione (tag e push) **senza costruire l'immagine**, per scelta del maintainer: sui pannelli

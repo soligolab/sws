@@ -38,6 +38,8 @@ versioni:
   # 05-11-2026, quindi non stanno nell'etichetta di nessuna immagine. Le vedrà la prossima.
   - versione: "Unreleased"
     voci:
+      - it: "Nello stile VS Code le due barre di icone crescono con la dimensione delle icone scelta nelle preferenze."
+        en: "In the VS Code style, the two icon bars grow with the icon size chosen in the preferences."
       - it: "Nel cloud la chat e il registro in una finestra a parte si aprono davvero: nella 2.25.1 davano l'errore 401."
         en: "In the cloud, the chat and the log in a separate window really open: in 2.25.1 they gave a 401 error."
       - it: "Sul pannello lo slider segue il dito fino in fondo, non cambia più pagina e al tocco non mostra un riquadro grigio."

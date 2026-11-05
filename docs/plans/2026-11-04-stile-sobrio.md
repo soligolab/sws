@@ -34,21 +34,8 @@ scala di grigi, come chiede ISA-101 / High Performance HMI.
 Domande per la sessione di plan: chi l'ha contestata guardava l'IDE, i sinottici o tutti e due? Lo stile sobrio è del
 progetto (viaggia col deploy) o della persona (preferenza dell'IDE)? Le emoji spariscono o restano nello stile di oggi?
 
-## Da correggere nello stesso lavoro: la misura delle icone non vale nello stile VS Code
+## La misura delle icone nello stile VS Code — fatta
 
-Visto dal maintainer il 05-11-2026, collaudando la 2.25.1: la preferenza «Icon size — Icons in the Tools menu and
-symbol previews: larger on high-resolution or touch monitors» (Configurazione → IDE) non cambia le icone della
-disposizione «Stile VS Code» (piano archiviato [`2026-10-31-ide-stile-vscode.md`](../archive/2026-10-31-ide-stile-vscode.md)).
-
-Misurato nel codice lo stesso giorno:
-- la preferenza è `misuraIcone` nello store (16, 20, 24 o 28 px, predefinita 24; `store/index.ts:266-277`, chiave
-  `sws.ide.misuraIcone`), e la leggono **solo** i tre punti della palette in `editor/LeftPanel.tsx` (1023, 1089,
-  1121: i gruppi di Strumenti e le anteprime dei simboli di libreria);
-- le due barre di attività dello stile VS Code hanno le icone **fisse a 24 px** (`editor/BarraAttivita.tsx:113`) in
-  una barra larga 48 (`LARGHEZZA_BARRA`, riga 23), a sinistra e a destra. Su un monitor touch o ad alta risoluzione
-  non crescono.
-
-La correzione proposta: le barre seguono `misuraIcone` (icona della misura scelta, barra e voci in proporzione), e la
-frase della preferenza dice che vale anche per le barre. Da verificare all'inizio col maintainer quali icone intendeva:
-le due barre, le icone dei rami del pannello destro, o anche le voci di Configurazione. Sta qui perché lo stile sobrio
-rifà comunque le icone dell'IDE (monocrome al posto delle emoji): conviene che la misura entri nello stesso giro.
+Vista dal maintainer il 05-11-2026 e corretta lo stesso giorno: le due barre dello stile VS Code seguono la
+«Dimensione icone». Il dettaglio è nel [piano archiviato dello stile VS Code](../archive/2026-10-31-ide-stile-vscode.md),
+sezione «Completamento». Quando lo stile sobrio rifarà le icone dell'IDE, la misura c'è già.
