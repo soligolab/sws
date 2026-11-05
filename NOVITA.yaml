@@ -33,7 +33,18 @@
 # successivo.
 
 versioni:
+  # Le voci qui sotto sono quelle della 2.25.2, riportate in avanti: la 2.25.2 è stata
+  # registrata (tag e push) senza costruire l'immagine, per scelta del maintainer il
+  # 05-11-2026, quindi non stanno nell'etichetta di nessuna immagine. Le vedrà la prossima.
   - versione: "Unreleased"
+    voci:
+      - it: "Nel cloud la chat e il registro in una finestra a parte si aprono davvero: nella 2.25.1 davano l'errore 401."
+        en: "In the cloud, the chat and the log in a separate window really open: in 2.25.1 they gave a 401 error."
+      - it: "Sul pannello lo slider segue il dito fino in fondo, non cambia più pagina e al tocco non mostra un riquadro grigio."
+        en: "On the panel the slider follows your finger all the way, no longer changes page and shows no grey box when touched."
+      - it: "Una foto che cambia trasparenza con uno slider segue il cursore senza scatti e senza lampi."
+        en: "A photo whose transparency follows a slider tracks it smoothly, without jumps or flashes."
+  - versione: "2.25.2"
     voci:
       - it: "Nel cloud la chat e il registro in una finestra a parte si aprono davvero: nella 2.25.1 davano l'errore 401."
         en: "In the cloud, the chat and the log in a separate window really open: in 2.25.1 they gave a 401 error."

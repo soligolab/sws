@@ -11,6 +11,11 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 
 ## [Unreleased]
 
+## [2.25.2] — 2026-11-05
+
+Registrata come versione (tag e push) **senza costruire l'immagine**, per scelta del maintainer: sui pannelli
+e sul VPS resta la 2.25.1. Le sue voci di `NOVITA.yaml` sono riportate in «Unreleased» per la prossima immagine.
+
 ### Corretto — collaudo della 2.25.1
 - **Chat e registro in una finestra, nel cloud: 401.** Dalla 2.25.1 si aprono sotto il prefisso del progetto
   (`/p/<azienda>/<progetto>/index-chat.html`), ma lì era pubblica solo la radice: il resto passa da `require_auth`, e
