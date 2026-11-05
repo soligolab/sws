@@ -37,6 +37,15 @@ export const ICONE_ATTIVITA: Record<string, string> = {
   comportamento: '<path d="M12 3l1.8 4.7L18.5 9.5l-4.7 1.8L12 16l-1.8-4.7L5.5 9.5l4.7-1.8z"/><path d="M18.5 15l.8 2 2 .8-2 .8-.8 2-.8-2-2-.8 2-.8z"/>',
   pagina: '<rect x="4" y="3" width="16" height="18" rx="1.5"/><path d="M8 8h8M8 12h8M8 16h5"/>',
   selezione: '<rect x="4" y="4" width="16" height="16" rx="1" stroke-dasharray="3 2.6"/><path d="M9 9h6v6H9z"/>',
+  // ── destra: i rami della pagina senza selezione (05-11-2026) ──
+  // Un paesaggio in un riquadro: lo sfondo.
+  sfondo: '<rect x="3" y="5" width="18" height="14" rx="1.5"/><path d="M3 16l5-5 4 4 3-3 6 6"/><circle cx="16" cy="9" r="1.5"/>',
+  // Una finestra con la sua barra: la pagina aperta come finestra.
+  finestra: '<rect x="3" y="4" width="18" height="16" rx="1.5"/><path d="M3 8.5h18"/><path d="M6 6.25h.01M8.5 6.25h.01"/>',
+  // Testata e piede: la cornice.
+  cornice: '<rect x="3" y="3" width="18" height="18" rx="1.5"/><path d="M3 7.5h18M3 16.5h18"/>',
+  // Quattro tessere: un faceplate, cioè oggetti messi insieme.
+  faceplate: '<rect x="3.5" y="3.5" width="7.5" height="7.5" rx="1"/><rect x="13" y="3.5" width="7.5" height="7.5" rx="1"/><rect x="3.5" y="13" width="7.5" height="7.5" rx="1"/><rect x="13" y="13" width="7.5" height="7.5" rx="1"/>',
 };
 
 /** Il colore di ogni voce: [tema scuro, tema chiaro]. */
@@ -60,6 +69,10 @@ export const COLORI_ATTIVITA: Record<string, readonly [string, string]> = {
   comportamento: ["#fde047", "#a16207"],
   pagina: ["#60a5fa", "#1d4ed8"],
   selezione: ["#a78bfa", "#6d28d9"],
+  sfondo: ["#4ade80", "#15803d"],
+  finestra: ["#38bdf8", "#0369a1"],
+  cornice: ["#fbbf24", "#b45309"],
+  faceplate: ["#c084fc", "#7e22ce"],
 };
 
 /** Il nome della variabile CSS del colore di una voce. */

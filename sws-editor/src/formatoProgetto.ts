@@ -102,6 +102,52 @@ export function patchDaPredefinito(
   return out;
 }
 
+/** Che genere di pagina è, per «Applica a tutte le pagine» (05-11-2026). */
+export type GenerePagina = "pagina" | "finestra" | "cornice" | "faceplate" | "boot";
+
+/** Le pagine già spuntate in «Applica a tutte le pagine»: le pagine normali,
+ *  le cornici e l'immagine di boot. Una finestra ha di proposito una misura sua,
+ *  più piccola della pagina; un faceplate non segue mai il progetto. */
+export const SPUNTATA_DI_PARTENZA: Readonly<Record<GenerePagina, boolean>> = {
+  pagina: true, cornice: true, boot: true, finestra: false, faceplate: false,
+};
+
+/** «Applica a tutte le pagine» (05-11-2026, richiesta del maintainer): il
+ *  formato del progetto **sopra** quello delle pagine scelte, anche dove ne
+ *  avevano uno loro. Al contrario di `patchDaPredefinito`, qui il valore della
+ *  pagina non conta: conta cosa si è scelto di applicare.
+ *
+ *  - la misura vale con il dimensionamento fisso, e sul boot sempre (come sopra);
+ *  - gli sfondi non toccano cornici e faceplate, che uno sfondo loro non ce
+ *    l'hanno; sul boot c'è il solo sfondo chiaro;
+ *  - lo sfondo scuro del progetto vuoto toglie quello della pagina: «come lo
+ *    chiaro», lo stesso che vale per il progetto.
+ *
+ *  Gli oggetti non si spostano: per riscalarli c'è «Cambia risoluzione». */
+export function patchSovrascrittura(
+  pages: readonly { pagina: SynopticPage; genere: GenerePagina }[],
+  layout: Layout | undefined | null,
+  scelta: { misura: boolean; sfondi: boolean },
+): { id: string; patch: FormatoPagina }[] {
+  if (!layout) return [];
+  const fisso = effectiveSizeMode(layout) === "fixed";
+  const out: { id: string; patch: FormatoPagina }[] = [];
+  for (const { pagina: p, genere } of pages) {
+    const patch: FormatoPagina = {};
+    if (scelta.misura && pieno(layout.default_width) && pieno(layout.default_height) && (fisso || genere === "boot")) {
+      if (p.width !== layout.default_width) patch.width = layout.default_width;
+      if (p.height !== layout.default_height) patch.height = layout.default_height;
+    }
+    if (scelta.sfondi && testo(layout.default_background) && genere !== "cornice" && genere !== "faceplate") {
+      if (p.background !== layout.default_background) patch.background = layout.default_background;
+      const scuro = testo(layout.default_background_dark) ? layout.default_background_dark : undefined;
+      if (genere !== "boot" && p.background_dark !== scuro) patch.background_dark = scuro;
+    }
+    if (Object.keys(patch).length > 0) out.push({ id: p.id, patch });
+  }
+  return out;
+}
+
 /** Una pagina segue il predefinito di progetto? (per la riga «— predefinito di
  *  progetto» nel pannello: vale finché le misure coincidono con quelle del
  *  progetto, cioè finché nessuno le ha sovrascritte a mano.) */

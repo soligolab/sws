@@ -13,6 +13,7 @@ import { applyAppearance, getStoredMode, initThemeStorageListener, initThemeSyst
 import { dimenticaPasswordLegacy } from "@/passwordNelBrowser";
 import { useAppStore } from "@/store";
 import { CancelloAbbinamento } from "@/components/AbbinamentoScreen";
+import { FinestraAvviso } from "@/finestraAvviso/FinestraAvviso";
 
 export async function avvia(Radice: React.ComponentType, opzioni: { apiLocale?: boolean } = {}): Promise<void> {
   // Le pagine dell'IDE parlano sempre con il runtime che le serve, anche se
@@ -32,6 +33,10 @@ export async function avvia(Radice: React.ComponentType, opzioni: { apiLocale?: 
       <CancelloAbbinamento>
         <Radice />
       </CancelloAbbinamento>
+      {/* La Finestra di avviso al posto dei pop-up del browser (05-11-2026):
+          un host solo, fuori dal cancello, così vale anche sul pannello in
+          attesa di abbinamento. */}
+      <FinestraAvviso />
     </React.StrictMode>,
   );
 }

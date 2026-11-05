@@ -38,6 +38,12 @@ versioni:
   # 05-11-2026, quindi non stanno nell'etichetta di nessuna immagine. Le vedrà la prossima.
   - versione: "Unreleased"
     voci:
+      - it: "Il pannello di destra della pagina ha una voce per gruppo: Pagina, Sfondo, Come finestra, Cornice."
+        en: "The page's right panel has one entry per group: Page, Background, As a window, Frame."
+      - it: "Le impostazioni del progetto stanno in una finestra a parte, «Impostazioni progetto», e si salvano subito."
+        en: "Project settings live in their own window, «Project settings», and are saved at once."
+      - it: "«Applica a tutte le pagine…» porta misura e sfondi del progetto sulle pagine che scegli, anche dove ne avevano di propri."
+        en: "«Apply to all pages…» brings the project size and backgrounds to the pages you choose, even where they had their own."
       - it: "Nello stile VS Code le due barre di icone crescono con la dimensione delle icone scelta nelle preferenze."
         en: "In the VS Code style, the two icon bars grow with the icon size chosen in the preferences."
       - it: "Nel cloud la chat e il registro in una finestra a parte si aprono davvero: nella 2.25.1 davano l'errore 401."

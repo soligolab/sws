@@ -1,15 +1,34 @@
 import { api } from "@/api/client";
-import { patchDaPredefinito, primaImpostazione, type FormatoPagina } from "@/formatoProgetto";
+import { patchDaPredefinito, patchSovrascrittura, primaImpostazione, type FormatoPagina, type GenerePagina } from "@/formatoProgetto";
+import { eBoot } from "@/boot/tipi";
+import { eCornice } from "@/cornici/modello";
+import { eFaceplateDef } from "@/faceplate/modello";
 import { useAppStore } from "@/store";
 import type { PageLayoutConfig, SynopticPage } from "@/types";
 
+/** Le scritture di `page_layout`, una dopo l'altra (05-11-2026). Ogni `PUT` è
+ *  versionata: due modifiche ravvicinate nella finestra «Impostazioni
+ *  progetto» partivano dalla stessa versione, la seconda prendeva un 409
+ *  «modificato da qualcun altro» e si perdeva. */
+let inCoda: Promise<unknown> = Promise.resolve();
+
 /** Scrive `page_layout` sul server e nello store. Una modifica nostra a
  *  `project.yaml` fuori da «Salva»: l'evento rifissa la baseline del watcher, o
- *  comparirebbe «il progetto sul runtime è cambiato». */
-export async function salvaLayout(cfg: PageLayoutConfig): Promise<void> {
-  await api.updatePageLayout(cfg);
-  useAppStore.getState().updateProjectPageLayout(cfg);
-  try { window.dispatchEvent(new CustomEvent("sws:project-switched")); } catch { /* test */ }
+ *  comparirebbe «il progetto sul runtime è cambiato». Con una funzione, il
+ *  `page_layout` si calcola quando tocca a lui, da quello lasciato dalla
+ *  scrittura prima: il server lo sostituisce intero. Restituisce quello scritto. */
+export function salvaLayout(
+  cfg: PageLayoutConfig | ((attuale: PageLayoutConfig | undefined) => PageLayoutConfig),
+): Promise<PageLayoutConfig> {
+  const giro = inCoda.catch(() => undefined).then(async () => {
+    const nuovo = typeof cfg === "function" ? cfg(useAppStore.getState().project?.page_layout) : cfg;
+    await api.updatePageLayout(nuovo);
+    useAppStore.getState().updateProjectPageLayout(nuovo);
+    try { window.dispatchEvent(new CustomEvent("sws:project-switched")); } catch { /* test */ }
+    return nuovo;
+  });
+  inCoda = giro;
+  return giro;
 }
 
 /** Modifica le proprietà di una pagina applicando la regola «la prima pagina
@@ -43,5 +62,25 @@ export function applicaPredefinito(layout: PageLayoutConfig): number {
   const st = useAppStore.getState();
   const patches = patchDaPredefinito(st.pages, layout);
   st.updatePagesProps(patches);
+  return patches.length;
+}
+
+/** Il genere di una pagina, per «Applica a tutte le pagine». */
+export function generePagina(p: SynopticPage): GenerePagina {
+  if (eBoot(p)) return "boot";
+  if (eCornice(p)) return "cornice";
+  if (eFaceplateDef(p)) return "faceplate";
+  return p.finestra ? "finestra" : "pagina";
+}
+
+/** «Applica a tutte le pagine» (05-11-2026): il formato del progetto sopra
+ *  quello delle pagine `ids`, in un passo solo di cronologia. Le pagine si
+ *  salvano col Salva, come ogni modifica del canvas. Restituisce quante ne ha
+ *  cambiate. */
+export function applicaATutte(ids: readonly string[], scelta: { misura: boolean; sfondi: boolean }): number {
+  const st = useAppStore.getState();
+  const scelte = st.pages.filter((p) => ids.includes(p.id)).map((pagina) => ({ pagina, genere: generePagina(pagina) }));
+  const patches = patchSovrascrittura(scelte, st.project?.page_layout, scelta);
+  if (patches.length > 0) st.updatePagesProps(patches);
   return patches.length;
 }

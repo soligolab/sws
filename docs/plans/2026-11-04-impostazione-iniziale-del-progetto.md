@@ -58,6 +58,29 @@ progetti via API non lo vedono), spento alla conferma o alla chiusura della fine
 **Le scritture**, con le `PUT` esistenti già versionate, in quest'ordine: motore → `page_layout` → applicazione alle pagine
 («Page 1» e il boot) → cornice → lingue → IA.
 
+## Anticipata il 05-11-2026: il pannello della pagina e la finestra (parte di I2)
+
+Il maintainer, collaudando la 2.25.1 nello stile VS Code: «il menù a destra per gli oggetti della voce PAGES (PAGES,
+FRAMES, FACEPLATES e BOOT IMAGES) è un menù unico e ingarbugliato, non si capisce nemmeno cosa è relativo alla pagina e
+cosa generale per il progetto, rivediamolo subito». Due decisioni, lo stesso giorno:
+
+- **Le impostazioni del progetto in una finestra «Impostazioni progetto»** (un `modulo` della Finestra di avviso,
+  `apriImpostazioniProgetto`): motore, formato predefinito, dimensionamento, pagina iniziale, tutto schermo. Nel pannello
+  resta una riga di riepilogo con il bottone che la apre; ogni campo si salva subito e la finestra lo dice (la
+  proposta I2.2). Il dimensionamento non tiene più una copia presa al montaggio né un bottone suo: legge dal negozio e
+  scrive il `page_layout` intero partendo da quello attuale.
+- **I campi della pagina, una voce per gruppo nella barra di destra**: Pagina (nome, misura, navigazione, boot),
+  Sfondo (colori, immagine), Come finestra, Cornice (la scelta, o le fasce di una cornice), Faceplate. Nello stile
+  classico sono i rami a fisarmonica, come per gli oggetti (`GRUPPI_PAGINA` in `EditorShell.tsx`).
+
+Strada facendo: la coda della Finestra di avviso mette **sopra** un modulo la richiesta aperta da dentro di lui (la
+conferma del passaggio a LVGL), e il modulo resta montato sotto. Ramo `feat/pannello-pagina`, annidato su
+`feat/finestra-avviso` (F1, che dà il `modulo`).
+
+Restano per I2: il secondo ingresso (la foglia Progetto → Impostazioni), una funzione sola per tutti gli scrittori di
+`page_layout` (oggi la usa la finestra; gli altri cinque no), `PropostaCornice` sostituita dal campo Cornice della
+finestra. I1 resta com'è (la finestra che si apre da sola per un progetto vuoto).
+
 ## Le sessioni
 
 **I1 — `feat/impostazione-iniziale`.**

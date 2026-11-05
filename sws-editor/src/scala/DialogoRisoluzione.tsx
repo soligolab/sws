@@ -3,6 +3,7 @@
 // convertire, mostra il fattore e la fascia libera, converte con un annulla solo.
 
 import { useMemo, useState } from "react";
+import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { useAppStore } from "@/store";
 import { getDevicePresets, STANDARD_DEVICE_PRESETS } from "@/pageLayout";
@@ -26,7 +27,10 @@ const BOTTONE: React.CSSProperties = {
 
 const uguale = (a: Misura | null, w?: number, h?: number) => !!a && a.width === w && a.height === h;
 
-export function DialogoRisoluzione({ onClose }: { onClose: () => void }) {
+/** `inModulo` (05-11-2026): aperto come `modulo` della Finestra di avviso, sopra
+ *  la finestra «Impostazioni progetto». Lì velo, titolo, Esc e Tab li dà la
+ *  finestra: qui resta solo il contenuto. */
+export function DialogoRisoluzione({ onClose, inModulo = false }: { onClose: () => void; inModulo?: boolean }) {
   const { t } = useTranslation();
   // I faceplate non si scalano col progetto (29-10-2026): le istanze li
   // scalano già, e cambiare la loro misura sposterebbe ogni istanza.
@@ -68,9 +72,8 @@ export function DialogoRisoluzione({ onClose }: { onClose: () => void }) {
     // 1280×800 mentre le pagine erano 1280×768, così non si aggiornava mai e
     // ogni pagina nuova continuava a nascere nella misura di un pannello che
     // nel progetto non c'era più.
-    const layout = useAppStore.getState().project?.page_layout;
     try {
-      await salvaLayout({ size_mode: "fixed", ...layout, default_width: a.width, default_height: a.height });
+      await salvaLayout((layout) => ({ size_mode: "fixed", ...layout, default_width: a.width, default_height: a.height }));
     } catch (e) {
       setErrore(e instanceof Error ? e.message : String(e));
       return;
@@ -78,14 +81,22 @@ export function DialogoRisoluzione({ onClose }: { onClose: () => void }) {
     onClose();
   };
 
-  return (
-    <div role="dialog" aria-modal="true" data-testid="dialogo-risoluzione"
-      style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.55)", zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center" }}
-      onClick={onClose}>
-      <div onClick={(e) => e.stopPropagation()}
-        style={{ background: "var(--brand-surface, #1e293b)", color: "var(--brand-text, #e2e8f0)", border: "1px solid var(--brand-border, #475569)",
-          borderRadius: 8, padding: 16, width: 460, maxWidth: "92vw", maxHeight: "86vh", overflow: "auto", display: "flex", flexDirection: "column", gap: 10 }}>
-        <div style={{ fontSize: 15, fontWeight: 700 }}>{t("scala.titolo")}</div>
+  const contenitore = (figli: ReactNode) => inModulo
+    ? <div data-testid="dialogo-risoluzione" style={{ width: 460, maxWidth: "100%", display: "flex", flexDirection: "column", gap: 10 }}>{figli}</div>
+    : (
+      <div role="dialog" aria-modal="true" data-testid="dialogo-risoluzione"
+        style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.55)", zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center" }}
+        onClick={onClose}>
+        <div onClick={(e) => e.stopPropagation()}
+          style={{ background: "var(--brand-surface, #1e293b)", color: "var(--brand-text, #e2e8f0)", border: "1px solid var(--brand-border, #475569)",
+            borderRadius: 8, padding: 16, width: 460, maxWidth: "92vw", maxHeight: "86vh", overflow: "auto", display: "flex", flexDirection: "column", gap: 10 }}>
+          <div style={{ fontSize: 15, fontWeight: 700 }}>{t("scala.titolo")}</div>
+          {figli}
+        </div>
+      </div>
+    );
+
+  return contenitore(<>
         <p style={{ fontSize: 12, color: "var(--brand-text-muted, #94a3b8)", margin: 0 }}>{t("scala.spiegazione")}</p>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
           <div>
@@ -146,7 +157,5 @@ export function DialogoRisoluzione({ onClose }: { onClose: () => void }) {
             {t("scala.converti", { count: scelte.size })}
           </button>
         </div>
-      </div>
-    </div>
-  );
+  </>);
 }

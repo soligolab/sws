@@ -11,6 +11,21 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 
 ## [Unreleased]
 
+### Cambiato
+- **Il pannello di destra della pagina, un gruppo per voce**: senza selezione la barra dello stile VS Code (e i rami
+  in quello classico) mostra Pagina, Sfondo, Come finestra, Cornice e Faceplate, ciascuno coi suoi campi; prima era una
+  colonna sola che mescolava pagina e progetto (`GRUPPI_PAGINA`, `EditorShell.tsx`).
+- **Le impostazioni del progetto nella finestra «Impostazioni progetto»** (motore, formato predefinito,
+  dimensionamento, pagina iniziale, tutto schermo), aperta dalla riga di riepilogo in fondo al pannello. Ogni campo si
+  salva subito; il dimensionamento non ha più un bottone suo né una copia che non seguiva le modifiche. Il passaggio a
+  LVGL chiede conferma nella Finestra di avviso, col testo corretto (diceva che LVGL non disegna le foto).
+- **«Applica a tutte le pagine…»** nella finestra delle impostazioni, accanto ad «Applica alle pagine senza formato
+  proprio» (richiesta del maintainer): misura e sfondi del formato del progetto **sopra** quelli delle pagine scelte in
+  un elenco già compilato (pagine, cornici e boot spuntate; finestre e faceplate no). Gli oggetti non si spostano: per
+  riscalarli resta «Cambia risoluzione…» (`patchSovrascrittura`, `applicaATutte`).
+- **La Finestra di avviso** (F1, primo passo): `avviso`, `conferma`, `chiedi`, `scegli`, `modulo` al posto dei pop-up
+  del browser, con un host solo in `avvia()`; una richiesta aperta da dentro un modulo gli sta sopra.
+
 ### Corretto
 - **Le barre dello stile VS Code seguono la «Dimensione icone»** delle preferenze (vista collaudando la 2.25.1): le
   icone erano fisse a 24 px. Icona della misura scelta, barra larga il doppio (`larghezzaBarra`,

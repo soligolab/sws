@@ -1,3 +1,4 @@
+import { conferma, modulo } from "@/finestraAvviso/finestraAvviso";
 import { createContext, Fragment, lazy, Suspense, useCallback, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { ImgProgetto } from "@/canvas/ImmagineSvg";
 import { dimenticaImmagine } from "@/canvas/ImmagineSvg";
@@ -72,9 +73,9 @@ import { CampoFormato } from "@/components/CampoFormato";
 import type { AlignMode } from "@/store";
 import type { AlarmSeverity, ButtonAction, FunctionDef, GridCell, PageLayoutConfig, PageSizeMode, ProjectTargetKind, RadioOption, SubCellEntry, SubGrid, SynopticObject, TableRow, TagDef, TypeDef, TextListEntry, TrendTrace, XySeries } from "@/types";
 import { eBoot, paginePerNavigazione } from "@/boot/tipi";
-import { aggiornaPagina, applicaPredefinito, salvaLayout } from "@/formatoProgettoAzioni";
+import { aggiornaPagina, applicaATutte, applicaPredefinito, generePagina, salvaLayout } from "@/formatoProgettoAzioni";
 import { dalTag, descrizioniDeiTag } from "@/tag/forma";
-import { seguePredefinito } from "@/formatoProgetto";
+import { patchSovrascrittura, seguePredefinito, SPUNTATA_DI_PARTENZA, type GenerePagina } from "@/formatoProgetto";
 import { impostaBootAbilitata } from "@/boot/abilitata";
 import { AnteprimaPng } from "@/boot/AnteprimaPng";
 import { PermessoTagNota } from "@/editor/PermessoTagNota";
@@ -98,6 +99,10 @@ const RIGHT_PANEL_WIDTH_KEY = "sws.rightPanelWidth";
 /** L'ultimo ramo aperto del pannello destro, per **id** (26-09-2026: la
  *  fisarmonica è passata dalle sezioni ai rami). */
 const CHIAVE_RAMO_DESTRA = PREFISSO_MEMORIA + "destra.ramo";
+/** Il ramo scelto sulla pagina senza selezione (05-11-2026), a parte da quello
+ *  degli oggetti: scegliere «Sfondo» sulla pagina non deve far perdere
+ *  «Aspetto» al prossimo oggetto. */
+const CHIAVE_RAMO_PAGINA = PREFISSO_MEMORIA + "destra.ramoPagina";
 const CHIAVE_COLONNA_DESTRA_CHIUSA = PREFISSO_MEMORIA + "destra.vscodeChiusa";
 /** I rami appuntati 📌: restano aperti insieme a quello scelto. */
 const CHIAVE_RAMI_APPUNTATI = PREFISSO_MEMORIA + "destra.ramiAppuntati";
@@ -509,24 +514,29 @@ function SceltaMisura({ width, height, disabled, chiave, segnaposto, onChange }:
   );
 }
 
-/** «Formato predefinito del progetto», dentro la sezione delle dimensioni
- *  (21-10-2026, richiesta del maintainer). Stava in fondo a «Impostazioni
- *  pagine del progetto», lontano dalla misura della pagina che e l'unico punto
- *  in cui lo si confronta, e con un menu dei preset in meno. Qui ha lo stesso
- *  controllo della pagina sopra, e scrive subito: `page_layout` passa da
+/** «Formato predefinito del progetto»: dal 05-11-2026 nella finestra
+ *  «Impostazioni progetto» (prima stava fra i campi della pagina, e non si
+ *  capiva cosa valesse per la pagina e cosa per il progetto). Ha lo stesso
+ *  controllo della misura della pagina, e scrive subito: `page_layout` passa da
  *  `salvaLayout`, come gia faceva la prima impostazione automatica. */
 function FormatoPredefinitoProgetto() {
   const { t } = useTranslation();
   const layout = useAppStore((s) => s.project?.page_layout);
   const [applicate, setApplicate] = useState<number | null>(null);
-  const [scalaAperto, setScalaAperto] = useState(false);
   const [errore, setErrore] = useState<string | null>(null);
 
+  // «Applica a tutte le pagine» (05-11-2026): sopra le impostazioni, come modulo
+  // annidato; restituisce quante pagine ha cambiato.
+  const apriATutte = () => {
+    void modulo<number>({ titolo: t("shell.applyAllTitolo"), corpo: (fine) => <ApplicaATutte fine={fine} /> })
+      .then((n) => { if (n !== null) setApplicate(n); });
+  };
+  const apriScala = () => {
+    void modulo<null>({ titolo: t("scala.titolo"), corpo: (fine) => <DialogoRisoluzione inModulo onClose={() => fine(null)} /> });
+  };
   const scrivi = async (patch: Partial<PageLayoutConfig>): Promise<PageLayoutConfig | null> => {
     setErrore(null); setApplicate(null);
-    const base = useAppStore.getState().project?.page_layout;
-    const cfg: PageLayoutConfig = { size_mode: "fixed", ...base, ...patch };
-    try { await salvaLayout(cfg); return cfg; }
+    try { return await salvaLayout((base) => ({ size_mode: "fixed", ...base, ...patch })); }
     catch (e) { setErrore(e instanceof Error ? e.message : String(e)); return null; }
   };
 
@@ -565,6 +575,15 @@ function FormatoPredefinitoProgetto() {
       >
         {t("shell.applyFormat")}
       </button>
+      <button
+        type="button"
+        data-testid="applica-a-tutte"
+        onClick={apriATutte}
+        title={t("shell.applyAllHelp")}
+        style={{ marginTop: 6, marginLeft: 6, background: "var(--brand-surface-2, #334155)", color: "var(--brand-text-2, #cbd5e1)", border: "1px solid var(--brand-border, #475569)", borderRadius: 4, padding: "4px 10px", fontSize: 12, cursor: "pointer" }}
+      >
+        {t("shell.applyAll")}
+      </button>
       {applicate !== null && (
         <span style={{ marginLeft: 8, fontSize: 11, color: "var(--brand-text-subtle, #94a3b8)" }}>
           {t("shell.applyFormatResult", { count: applicate })}
@@ -574,7 +593,9 @@ function FormatoPredefinitoProgetto() {
         <button
           type="button"
           data-testid="apri-scala-risoluzione"
-          onClick={() => setScalaAperto(true)}
+          // Sopra la finestra delle impostazioni, come modulo annidato: Esc e
+          // Tab valgono per lei sola, e la finestra sotto resta com'era.
+          onClick={apriScala}
           title={t("scala.aiuto")}
           style={{ marginTop: 6, background: "var(--brand-surface-2, #334155)", color: "var(--brand-text-2, #cbd5e1)", border: "1px solid var(--brand-border, #475569)", borderRadius: 4, padding: "4px 10px", fontSize: 12, cursor: "pointer" }}
         >
@@ -584,7 +605,76 @@ function FormatoPredefinitoProgetto() {
       {errore && (
         <p style={{ fontSize: 10, color: "var(--brand-danger-soft, #f87171)", margin: "4px 0 0" }}>{errore}</p>
       )}
-      {scalaAperto && <DialogoRisoluzione onClose={() => setScalaAperto(false)} />}
+    </div>
+  );
+}
+
+/** L'elenco di «Applica a tutte le pagine» (05-11-2026, scelta del maintainer:
+ *  «elenco da spuntare, già compilato»). Misura e sfondi del formato del
+ *  progetto sulle pagine spuntate, anche dove ne avevano di loro; di partenza
+ *  le pagine normali, le cornici e il boot, non finestre e faceplate. */
+function ApplicaATutte({ fine }: { fine: (n: number | null) => void }) {
+  const { t } = useTranslation();
+  const nomePagina = useNomePagina();
+  const layout = useAppStore((s) => s.project?.page_layout);
+  const pages = useAppStore((s) => s.pages);
+  const [scelte, setScelte] = useState<Set<string>>(() =>
+    new Set(pages.filter((p) => SPUNTATA_DI_PARTENZA[generePagina(p)]).map((p) => p.id)));
+  const misuraOk = !!layout?.default_width && !!layout?.default_height;
+  const sfondiOk = !!layout?.default_background;
+  const [misura, setMisura] = useState(misuraOk);
+  const [sfondi, setSfondi] = useState(sfondiOk);
+  const fisso = effectiveSizeMode(layout) === "fixed";
+  const daCambiare = patchSovrascrittura(
+    pages.filter((p) => scelte.has(p.id)).map((pagina) => ({ pagina, genere: generePagina(pagina) })), layout, { misura, sfondi },
+  ).length;
+  const commuta = (id: string) => setScelte((v) => { const n = new Set(v); if (n.has(id)) n.delete(id); else n.add(id); return n; });
+  const etichettaGenere: Record<GenerePagina, string | null> = {
+    pagina: null, finestra: t("shell.genereFinestra"), cornice: t("shell.genereCornice"), faceplate: t("shell.genereFaceplate"), boot: t("shell.genereBoot"),
+  };
+  const riga: React.CSSProperties = { display: "flex", alignItems: "center", gap: 8, fontSize: 12, color: "var(--brand-text-2, #cbd5e1)", cursor: "pointer" };
+  return (
+    <div data-testid="applica-a-tutte-elenco" style={{ display: "flex", flexDirection: "column", gap: 10, width: 420, maxWidth: "100%" }}>
+      <div style={{ fontSize: 12, color: "var(--brand-text-muted, #94a3b8)" }}>
+        {t("shell.applyAllFormato", { misura: misuraOk ? `${layout!.default_width}×${layout!.default_height}` : t("shell.notSet") })}
+      </div>
+      <div style={{ display: "flex", gap: 16 }}>
+        <label style={riga}>
+          <input type="checkbox" data-testid="applica-misura" checked={misura} disabled={!misuraOk} onChange={(e) => setMisura(e.target.checked)} />
+          {t("shell.applyAllMisura")}
+        </label>
+        <label style={riga}>
+          <input type="checkbox" data-testid="applica-sfondi" checked={sfondi} disabled={!sfondiOk} onChange={(e) => setSfondi(e.target.checked)} />
+          {t("shell.applyAllSfondi")}
+        </label>
+      </div>
+      {misura && !fisso && <p style={{ fontSize: 11, color: "var(--brand-text-subtle, #94a3b8)", margin: 0 }}>{t("shell.applyAllSoloFisso")}</p>}
+      <div style={{ maxHeight: 260, overflowY: "auto", display: "flex", flexDirection: "column", gap: 4,
+        border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 4, padding: 8 }}>
+        {pages.map((p) => {
+          const genere = generePagina(p);
+          return (
+            <label key={p.id} style={riga}>
+              <input type="checkbox" data-testid={`applica-pagina-${p.id}`} checked={scelte.has(p.id)} onChange={() => commuta(p.id)} />
+              <span style={{ flex: 1 }}>{nomePagina(p.name)}{etichettaGenere[genere] ? ` (${etichettaGenere[genere]})` : ""}</span>
+              <span style={{ color: "var(--brand-text-subtle, #64748b)" }}>{p.width && p.height ? `${p.width}×${p.height}` : "—"}</span>
+            </label>
+          );
+        })}
+      </div>
+      <p style={{ fontSize: 11, color: "var(--brand-text-subtle, #94a3b8)", margin: 0 }}>{t("shell.applyAllNota")}</p>
+      <div style={{ display: "flex", justifyContent: "flex-end", gap: 8 }}>
+        <button type="button" data-testid="applica-annulla" onClick={() => fine(null)}
+          style={{ background: "var(--brand-surface-2, #334155)", color: "var(--brand-text, #e2e8f0)", border: "none", borderRadius: 5, padding: "8px 16px", fontSize: 13, fontWeight: 600, cursor: "pointer" }}>
+          {t("common.cancel")}
+        </button>
+        <button type="button" data-testid="applica-conferma" disabled={daCambiare === 0}
+          onClick={() => fine(applicaATutte([...scelte], { misura, sfondi }))}
+          style={{ background: "var(--brand-primary, #3b82f6)", color: "var(--brand-on-primary, #fff)", border: "none", borderRadius: 5, padding: "8px 16px", fontSize: 13, fontWeight: 600,
+            cursor: daCambiare === 0 ? "default" : "pointer", opacity: daCambiare === 0 ? 0.6 : 1 }}>
+          {t("shell.applyAllBottone", { count: daCambiare })}
+        </button>
+      </div>
     </div>
   );
 }
@@ -737,8 +827,11 @@ export function EditorShell() {
   const figlioAttivo = figlioProprietaAttivo(selected, selectedCellChild, selectedSubCell);
   const tipoVisto = figlioAttivo?.type ?? selected?.type;
   const paginaBoot = eBoot(currentPage);
-  const gruppiVisibili = gruppiPerTipo(tipoVisto ?? "", paginaBoot);
-  const mostraGruppi = barraGruppiVisibile(selected, multi, {
+  // Senza selezione il pannello mostra la pagina aperta, coi suoi rami
+  // (05-11-2026): si vedono quelli che hanno sezioni per quel genere di pagina.
+  const senzaSelezione = !multi && !selected;
+  const gruppiVisibili = senzaSelezione ? GRUPPI_PAGINA : gruppiPerTipo(tipoVisto ?? "", paginaBoot);
+  const mostraGruppiOggetto = barraGruppiVisibile(selected, multi, {
     cella: selectedCell?.objectId,
     intervallo: selectedCellRange?.objectId,
     sottoCella: selectedSubCell?.objectId,
@@ -1130,11 +1223,12 @@ export function EditorShell() {
         titolo={t("props.panelTitle")}
         tipo={tipoVisto ?? ""}
         gruppiVisibili={gruppiVisibili}
-        aSezioni={mostraGruppi}
-        chiaveOggetto={`${selected?.id ?? ""}|${figlioAttivo?.id ?? ""}`}
+        aSezioni={senzaSelezione || mostraGruppiOggetto}
+        chiaveOggetto={senzaSelezione ? `pagina:${currentPageId}` : `${selected?.id ?? ""}|${figlioAttivo?.id ?? ""}`}
         bloccato={!!currentPage?.locked}
         paginaBoot={paginaBoot}
         voceSingola={multi || !!selected ? "selezione" : "pagina"}
+        piede={senzaSelezione ? <RiepilogoProgetto boot={paginaBoot} /> : undefined}
       >
         {multi ? (
           <>
@@ -1386,15 +1480,26 @@ export function EditorShell() {
               formatoPredefinito={project?.page_layout?.default_width && project?.page_layout?.default_height
                 ? `${project.page_layout.default_width}×${project.page_layout.default_height}` : undefined}
             />
-            {currentPage && !currentPage.kind && <ProprietaFinestra pagina={currentPage} />}
-            {currentPage && !currentPage.kind && !currentPage.finestra && <SceltaCornice pagina={currentPage} />}
-            {currentPage && eCornice(currentPage) && <ProprietaFasce pagina={currentPage} />}
-            {currentPage && paginaFaceplate && <ProprietaFaceplate pagina={currentPage} />}
-            <span style={{ fontSize: 11, fontWeight: 700, color: "var(--brand-text-subtle, #64748b)", letterSpacing: 1, marginTop: 8, display: "block" }}>
-              {t("shell.projectSettings")}
-            </span>
-            <ProjectTargetSettings />
-            <ProjectPageLayoutSettings />
+            {currentPage && !currentPage.kind && (
+              <CollapsibleSection title={t("props.sezioneFinestra")} storageKey="finestra" gruppo="finestra">
+                <ProprietaFinestra pagina={currentPage} />
+              </CollapsibleSection>
+            )}
+            {currentPage && !currentPage.kind && !currentPage.finestra && (
+              <CollapsibleSection title={t("props.sezioneCornice")} storageKey="cornice" gruppo="cornice">
+                <SceltaCornice pagina={currentPage} />
+              </CollapsibleSection>
+            )}
+            {currentPage && eCornice(currentPage) && (
+              <CollapsibleSection title={t("props.sezioneFasce")} storageKey="fasce" gruppo="cornice">
+                <ProprietaFasce pagina={currentPage} />
+              </CollapsibleSection>
+            )}
+            {currentPage && paginaFaceplate && (
+              <CollapsibleSection title={t("props.sezioneFaceplate")} storageKey="faceplate" gruppo="faceplate">
+                <ProprietaFaceplate pagina={currentPage} />
+              </CollapsibleSection>
+            )}
           </>
         )}
       </PannelloDestro>
@@ -1578,6 +1683,25 @@ export const GRUPPI_PROPRIETA = [
 ] as const;
 export type GruppoProprieta = (typeof GRUPPI_PROPRIETA)[number]["id"];
 
+/** I rami del pannello senza selezione (05-11-2026, maintainer: «il menù a destra
+ *  per le voci di PAGES è un menù unico e ingarbugliato, non si capisce cosa è
+ *  relativo alla pagina e cosa generale per il progetto»). Ogni gruppo è una
+ *  voce della barra nello stile VS Code e un ramo in quello classico; le
+ *  impostazioni del **progetto** non stanno più qui, ma nella finestra
+ *  «Impostazioni progetto» (`apriImpostazioniProgetto`). Una pagina mostra i
+ *  rami che hanno sezioni: una cornice la sua misura e le fasce, un faceplate
+ *  la misura e i parametri, un'immagine di boot la misura e lo sfondo. */
+export const GRUPPI_PAGINA = [
+  { id: "pagina",    icona: "📄", chiave: "props.gruppoPagina" },
+  { id: "sfondo",    icona: "🌄", chiave: "props.gruppoSfondo" },
+  { id: "finestra",  icona: "🪟", chiave: "props.gruppoFinestra" },
+  { id: "cornice",   icona: "🖼", chiave: "props.gruppoCornice" },
+  { id: "faceplate", icona: "🧩", chiave: "props.gruppoFaceplate" },
+] as const;
+export type GruppoPagina = (typeof GRUPPI_PAGINA)[number]["id"];
+/** Un ramo del pannello destro: di un oggetto o della pagina. */
+export type GruppoPannello = GruppoProprieta | GruppoPagina;
+
 /** I gruppi che hanno qualcosa da mostrare per questo tipo di oggetto.
  *
  *  Una scheda vuota è peggio di una scheda assente: si clicca, non succede
@@ -1638,6 +1762,8 @@ export const ORDINE_SEZIONI: readonly string[] = [
   "filtro", "parametri", "scala", "testo", "stati", "comando", "serie", "security",
   "colori", "stile", "forma", "aspetto", "layer", "transform", // l'aspetto
   "events", "lampeggio", "motion",                          // il comportamento
+  // La pagina senza selezione (05-11-2026), ognuna nel suo ramo.
+  "nome", "misura", "navigazione", "boot", "sfondoColori", "sfondoImmagine", "finestra", "cornice", "fasce", "faceplate",
 ];
 
 /** Il ramo aperto davvero (26-09-2026, dalle sezioni ai rami): l'ultimo
@@ -1670,7 +1796,7 @@ interface StatoFisarmonica {
   gruppiVisibili: ReadonlySet<string>;
   paginaBoot: boolean;
   /** Segna la sezione come presente e restituisce il suo `order` nella colonna. */
-  registra: (chiave: string, gruppo: GruppoProprieta) => number;
+  registra: (chiave: string, gruppo: GruppoPannello) => number;
 }
 const Fisarmonica = createContext<StatoFisarmonica | null>(null);
 
@@ -1678,7 +1804,7 @@ const Fisarmonica = createContext<StatoFisarmonica | null>(null);
  *  `gruppo` diverso non si disegnano affatto — non sono nascoste con il CSS:
  *  un pannello che tiene in vita tredici sezioni per mostrarne tre paga il
  *  rendering di tutte a ogni battuta di tastiera in un campo. */
-export const GruppoAttivo = createContext<GruppoProprieta | "tutti">("aspetto");
+export const GruppoAttivo = createContext<GruppoPannello | "tutti">("aspetto");
 
 /** La barra dei gruppi si vede?
  *
@@ -1738,8 +1864,11 @@ export function avvisoRuoloMinimo(
  *  componente, il filo si può provare da solo — vedi `pannelloDestro.test.tsx`. */
 export function PannelloDestro({
   larghezza, onRidimensiona, titolo, tipo, gruppiVisibili, aSezioni, chiaveOggetto, bloccato, paginaBoot = false, children,
-  voceSingola = "pagina",
+  voceSingola = "pagina", piede,
 }: {
+  /** In fondo alla colonna, fuori dai rami e dal blocco della pagina bloccata:
+   *  il riepilogo del progetto, che una pagina in sola lettura non tocca. */
+  piede?: React.ReactNode;
   /** Disposizione «Stile VS Code», senza rami (pagina, più oggetti, cella):
    *  la voce sola della barra. */
   voceSingola?: "pagina" | "selezione";
@@ -1771,7 +1900,13 @@ export function PannelloDestro({
   // si ricorda per nome: chi stava su «Dati» e passa a un oggetto che li ha
   // resta su «Dati».
   // `ramoAttuale`: i nomi dei rami di prima del 01-11-2026 ricadono su quelli di oggi.
-  const [scelto, setScelto] = useState<string | null>(() => ramoAttuale(leggi(CHIAVE_RAMO_DESTRA, "")) || null);
+  // La pagina ha la sua memoria del ramo (`CHIAVE_RAMO_PAGINA`), gli oggetti la loro.
+  const suPagina = chiaveOggetto.startsWith("pagina:");
+  const chiaveRamo = suPagina ? CHIAVE_RAMO_PAGINA : CHIAVE_RAMO_DESTRA;
+  const [sceltoOggetto, setSceltoOggetto] = useState<string | null>(() => ramoAttuale(leggi(CHIAVE_RAMO_DESTRA, "")) || null);
+  const [sceltoPagina, setSceltoPagina] = useState<string | null>(() => leggi(CHIAVE_RAMO_PAGINA, "") || null);
+  const scelto = suPagina ? sceltoPagina : sceltoOggetto;
+  const setScelto = suPagina ? setSceltoPagina : setSceltoOggetto;
   const [appuntati, setAppuntati] = useState<Set<string>>(() => new Set((JSON.parse(leggi(CHIAVE_RAMI_APPUNTATI, "[]")) as string[]).map(ramoAttuale)));
   // «Ho chiuso tutto» vale per l'oggetto su cui lo si è fatto: al cambio di
   // oggetto si riapre il ramo ricordato (un pannello tutto chiuso sembra vuoto).
@@ -1780,13 +1915,6 @@ export function PannelloDestro({
   // I rami che hanno almeno una sezione per l'oggetto mostrato: le sezioni si
   // registrano mentre si disegnano (una tabella scritta a mano ripeterebbe le
   // condizioni del JSX), e un ramo vuoto non si mostra.
-  const presenti = useMemo(() => new Map<string, GruppoProprieta>(), [chiaveOggetto, tipo]);
-  const [conSezioni, setConSezioni] = useState<ReadonlySet<string> | null>(null);
-  useLayoutEffect(() => {
-    const n = new Set(presenti.values());
-    if (!conSezioni || n.size !== conSezioni.size || [...n].some((g) => !conSezioni.has(g))) setConSezioni(n);
-  });
-
   // La disposizione «Stile VS Code» (31-10-2026, piano
   // docs/archive/2026-10-31-ide-stile-vscode.md): i rami diventano le icone di
   // una barra sul bordo destro, la colonna ne mostra **uno** — niente 📌 e
@@ -1794,6 +1922,27 @@ export function PannelloDestro({
   // che chiude la colonna intera.
   const vscode = useAppStore((s) => s.disposizioneIde) === "vscode";
   const [colonnaChiusa, setColonnaChiusa] = useState(() => leggi(CHIAVE_COLONNA_DESTRA_CHIUSA, "0") === "1");
+  const chiusa = vscode && colonnaChiusa;
+
+  const presenti = useMemo(() => new Map<string, GruppoPannello>(), [chiaveOggetto, tipo]);
+  // Da capo a ogni disegno della colonna aperta: le sezioni montate si
+  // registrano di nuovo nello stesso giro (il contesto cambia a ogni disegno),
+  // e una sparita — «Cornice» quando la pagina diventa una finestra — non resta
+  // come ramo vuoto. A colonna chiusa no: le sezioni non si disegnano, e la
+  // barra vive di quello che c'era.
+  if (!chiusa) presenti.clear();
+  // Valgono per l'oggetto su cui sono state viste: per uno nuovo si riparte da
+  // null, cioè da tutti i gruppi, finché le sue sezioni non si registrano.
+  const chiaveViste = `${chiaveOggetto}|${tipo}`;
+  const [viste, setViste] = useState<{ chiave: string; gruppi: ReadonlySet<string> } | null>(null);
+  const conSezioni = viste?.chiave === chiaveViste ? viste.gruppi : null;
+  useLayoutEffect(() => {
+    // A colonna chiusa nessuna sezione si registra: ricalcolare vorrebbe dire
+    // una barra senza voci, e nessun modo di riaprire la colonna (05-11-2026).
+    if (chiusa) return;
+    const n = new Set(presenti.values());
+    if (!conSezioni || n.size !== conSezioni.size || [...n].some((g) => !conSezioni.has(g))) setViste({ chiave: chiaveViste, gruppi: n });
+  });
 
   const visibili = gruppiVisibili.filter((g) => !conSezioni || conSezioni.has(g.id));
   const effettivo = ramoEffettivo(scelto, visibili.map((g) => g.id), tipo, !vscode && chiusoSu === chiaveOggetto);
@@ -1820,7 +1969,7 @@ export function PannelloDestro({
       return ((indiceGruppo.get(gruppo) ?? 9) + 1) * 100 + (posizione < 0 ? 99 : posizione + 1);
     },
   };
-  const apri = (g: string) => { setScelto(g); setChiusoSu(null); scrivi(CHIAVE_RAMO_DESTRA, g); };
+  const apri = (g: string) => { setScelto(g); setChiusoSu(null); scrivi(chiaveRamo, g); };
   const commutaAppunto = (g: string) => {
     const n = new Set(appuntati);
     if (n.has(g)) n.delete(g); else n.add(g);
@@ -1835,10 +1984,12 @@ export function PannelloDestro({
   };
 
   const titoloRamo = (g: { id: string; chiave: string }) => g.id === "funzione" ? t(`editor.palette.item.${tipo}`) : t(g.chiave);
-  const vociBarra: VoceAttivita[] = aSezioni
+  // Una barra senza voci non si riapre: se i rami non ci sono, la voce sola.
+  const aRami = aSezioni && visibili.length > 0;
+  const vociBarra: VoceAttivita[] = aRami
     ? visibili.map((g) => ({ id: g.id, titolo: titoloRamo(g), spiegazione: t(`props.att.${g.id}`) }))
     : [{ id: voceSingola, titolo: t(`props.att.${voceSingola}Titolo`), spiegazione: t(`props.att.${voceSingola}`) }];
-  const voceAttiva = aSezioni ? effettivo : voceSingola;
+  const voceAttiva = aRami ? effettivo : voceSingola;
   // «Porta al campo» (01-11-2026): dai riepiloghi e dai 🔗 di «Collegamenti».
   // Il campo può stare in un ramo chiuso, e le sezioni di un ramo chiuso non
   // si disegnano: si apre un ramo dopo l'altro finché il campo compare.
@@ -1867,13 +2018,13 @@ export function PannelloDestro({
     const chiudi = id === voceAttiva && !colonnaChiusa;
     setColonnaChiusa(chiudi);
     scrivi(CHIAVE_COLONNA_DESTRA_CHIUSA, chiudi ? "1" : "0");
-    if (!chiudi && aSezioni) apri(id);
+    if (!chiudi && aRami && visibili.some((v) => v.id === id)) apri(id);
   };
   const barra = vscode && (
     <BarraAttivita voci={vociBarra} attiva={voceAttiva} aperta={!colonnaChiusa} lato="right" onScegli={scegliVoce}
       etichetta={t("props.att.barra")} />
   );
-  if (vscode && colonnaChiusa) return <aside style={{ display: "flex", flexShrink: 0 }}>{barra}</aside>;
+  if (chiusa) return <aside style={{ display: "flex", flexShrink: 0 }}>{barra}</aside>;
   const titoloColonna = vscode ? (vociBarra.find((v) => v.id === voceAttiva)?.titolo ?? titolo) : titolo;
 
   return (
@@ -1945,6 +2096,9 @@ export function PannelloDestro({
             )}
           </fieldset>
           </VaiACampo.Provider>
+          {/* `order` oltre quello di ogni ramo: la colonna è un flex, e senza
+              il piede finirebbe in cima. */}
+          {piede && <div style={{ order: 10000 }}>{piede}</div>}
         </div>
       </div>
       {barra}
@@ -2073,7 +2227,7 @@ function CollapsibleSection({
    *  sezione non appartiene a nessun gruppo e si vede sempre: è il caso delle
    *  sotto-sezioni (la tubazione) — stanno dentro «Parametri» e la seguono —
    *  e di `CollapsibleSection` usata fuori da `ObjectProps`. */
-  gruppo?: GruppoProprieta;
+  gruppo?: GruppoPannello;
   /** Right-aligned slot next to the title (e.g. count badge "(2)"). */
   headerExtra?: React.ReactNode;
   /** Shown italic below the header when the section is collapsed. Use to
@@ -2307,14 +2461,17 @@ export function PageProps({
 }) {
   const { t } = useTranslation();
   const ro = !!locked; // read-only when the page is locked
+  // Una sezione per gruppo (05-11-2026): dentro il pannello destro ogni sezione
+  // va nel suo ramo (Pagina, Sfondo); fuori, è un blocco che si apre e chiude.
   return (
     <>
-      <div style={{ fontSize: 11, color: "var(--brand-text-subtle, #94a3b8)", marginBottom: 4 }}>{t("props.pageT")}</div>
+      {/* Fuori dai rami: in testa a qualunque voce sia aperta, perché vale per tutte. */}
       {locked && (
         <div style={{ fontSize: 11, color: "var(--brand-warning, #f59e0b)", background: "#451a0322", border: "1px solid #92400e", borderRadius: 4, padding: "4px 8px", marginBottom: 8 }}>
           {t("shell.pageLockedReadOnlyUnlock")}
         </div>
       )}
+      <CollapsibleSection title={t("props.sezioneNome")} storageKey="nome" gruppo="pagina">
       <div>
         <div style={LABEL}>{t("shell.nome")}</div>
         <input
@@ -2325,6 +2482,9 @@ export function PageProps({
           onChange={(e) => onChange({ name: e.target.value })}
         />
       </div>
+      </CollapsibleSection>
+      {!cornice && (
+      <CollapsibleSection title={t("props.sezioneColoriSfondo")} storageKey="sfondoColori" gruppo="sfondo">
       {!cornice && (
       <div>
         <div style={LABEL}>{t("props.backgroundLight")}</div>
@@ -2376,6 +2536,10 @@ export function PageProps({
           </div>
         </div>
       )}
+      </CollapsibleSection>
+      )}
+      {!cornice && (
+      <CollapsibleSection title={t("props.sezioneImmagineSfondo")} storageKey="sfondoImmagine" gruppo="sfondo">
       {/* Anche sulla pagina di boot (26-10-2026): il campo Rust esiste gia'
           (`synoptic.rs`), il canvas lo disegna gia' — `corniceDellaPagina` da'
           `null` sul boot, quindi lo sfondo copre tutta la pagina — e mancava
@@ -2385,9 +2549,15 @@ export function PageProps({
       {!cornice && (
         <CampoSfondoArea boot={boot} value={sfondo_immagine} disabled={ro} onChange={(v) => onChange({ sfondo_immagine: v })} />
       )}
-      {boot && pageId && <BootEnabledToggle pageId={pageId} />}
-      {boot && pageId && <AnteprimaPng pageId={pageId} />}
-      <SottoTitolo chiave="pageSizeSection" />
+      </CollapsibleSection>
+      )}
+      {boot && pageId && (
+        <CollapsibleSection title={t("props.sezioneBoot")} storageKey="boot" gruppo="pagina">
+          <BootEnabledToggle pageId={pageId} />
+          <AnteprimaPng pageId={pageId} />
+        </CollapsibleSection>
+      )}
+      <CollapsibleSection title={t("props.sezioneMisura")} storageKey="misura" gruppo="pagina">
       {sizeMode === "fixed" && (
         <>
           <SceltaMisura
@@ -2429,8 +2599,9 @@ export function PageProps({
           {t("shell.offPage", { count: offPageCount })}
         </p>
       )}
-      <FormatoPredefinitoProgetto />
-      {!boot && !cornice && (<>
+      </CollapsibleSection>
+      {!boot && !cornice && (
+      <CollapsibleSection title={t("props.sezioneNavigazione")} storageKey="navigazione" gruppo="pagina">
       <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 8 }}>
         <input
           type="checkbox"
@@ -2459,10 +2630,8 @@ export function PageProps({
           }}
         />
       </div>
-      </>)}
-      <p style={{ fontSize: 11, color: "var(--brand-text-subtle, #94a3b8)", margin: "8px 0 0" }}>
-        {boot ? t("shell.bootPageHint") : t("shell.selectAnObjectOnThe")}
-      </p>
+      </CollapsibleSection>
+      )}
     </>
   );
 }
@@ -2495,14 +2664,12 @@ function BootEnabledToggle({ pageId }: { pageId: string }) {
 
 // ── Project-wide page layout settings ─────────────────────────────────────────
 // Size mode (Fixed/Ratio/Fluid) + aspect ratio + home page + hide-chrome. Era
-// un modale dietro un'icona ⚙ poco visibile nel pannello sinistro — spostato
-// qui, sezione a sé nel pannello destro (non fusa con "Proprietà" della
-// pagina corrente: queste impostazioni valgono per l'intero progetto, non
-// solo per la pagina selezionata). Salvataggio esplicito e separato dal
-// salvataggio a batch delle pagine — non un compromesso di comodità: lo
-// stesso store dichiara (store/index.ts) che i setter `updateProject*` sono
-// deliberatamente non dirty-tracked, per non rompere il tracking pensato per
-// `pagesRev`/`savedPagesRev`.
+// un modale dietro un'icona ⚙ nel pannello sinistro, poi una sezione in fondo
+// al pannello destro; dal 05-11-2026 sta nella finestra «Impostazioni
+// progetto», insieme al motore e al formato predefinito. Si scrive subito e
+// fuori dal salvataggio a batch delle pagine: lo store dichiara
+// (store/index.ts) che i setter `updateProject*` sono deliberatamente non
+// dirty-tracked, per non rompere il tracking pensato per `pagesRev`/`savedPagesRev`.
 /** Q38 — materializza la risoluzione di riferimento sulle pagine che non
  *  hanno misure quando il progetto è in modalità «ratio».
  *
@@ -2555,7 +2722,8 @@ function ProjectTargetSettings() {
 
   const cambia = async (nuovo: ProjectTargetKind) => {
     if (nuovo === attuale) return;
-    if (versoRischioso(attuale, nuovo) && !window.confirm(t("props.targetRiskyConfirm"))) return;
+    if (versoRischioso(attuale, nuovo)
+      && !(await conferma({ titolo: t("props.targetRiskyTitolo"), testo: t("props.targetRiskyTesto"), pericolo: true, si: t("props.targetRiskySi") }))) return;
     setSalvando(true); setErrore(null);
     const target = targetDaSalvare(nuovo);
     try {
@@ -2588,78 +2756,60 @@ function ProjectTargetSettings() {
   );
 }
 
+/** Dimensionamento, pagina iniziale e visualizzatore a tutto schermo, nella
+ *  finestra «Impostazioni progetto» (05-11-2026). Leggono dal negozio e
+ *  scrivono subito, come gli altri campi del progetto: prima tenevano una copia
+ *  presa al montaggio, che non seguiva le modifiche fatte altrove, e un bottone
+ *  di salvataggio tutto loro. Il `page_layout` si scrive intero (il server lo
+ *  sostituisce): si parte da quello attuale, così nessun campo d'altri si perde. */
 function ProjectPageLayoutSettings() {
   const { t } = useTranslation();
   // I nomi tradotti (`{{t0001}}`) come li legge chi disegna: il collaudo della
   // 2.25.0 ha trovato «Home page» che mostrava i token.
   const nomePagina = useNomePagina();
-  const project = useAppStore((s) => s.project);
+  const layout = useAppStore((s) => s.project?.page_layout);
   const pages = useAppStore((s) => s.pages);
-  const updateProjectPageLayout = useAppStore((s) => s.updateProjectPageLayout);
   const updatePageProps = useAppStore((s) => s.updatePageProps);
-  const [sizeMode, setSizeMode] = useState<PageSizeMode>(project?.page_layout?.size_mode ?? "fixed");
-  const [aspectRatio, setAspectRatio] = useState<string>(project?.page_layout?.aspect_ratio ?? ASPECT_RATIOS[0].ratio);
-  const [homePageId, setHomePageId] = useState<string>(project?.page_layout?.home_page_id ?? "");
-  const [hideChrome, setHideChrome] = useState<boolean>(project?.page_layout?.hide_viewer_chrome ?? false);
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
+  const [errore, setErrore] = useState<string | null>(null);
+  const sizeMode: PageSizeMode = layout?.size_mode ?? "fixed";
+  const aspectRatio = layout?.aspect_ratio ?? ASPECT_RATIOS[0].ratio;
   const ref = referenceResolutionFor(aspectRatio);
 
-  const costruisciCfg = (): PageLayoutConfig => {
-    const cfg: PageLayoutConfig = {
-      size_mode: sizeMode,
-      aspect_ratio: sizeMode === "ratio" ? aspectRatio : undefined,
-      home_page_id: homePageId || undefined,
-      hide_viewer_chrome: hideChrome || undefined,
-      // Non è un campo di questo modulo: si conserva, o salvare qui lo azzererebbe.
-      boot_page_id: useAppStore.getState().project?.page_layout?.boot_page_id,
-      // Idem per l'albero delle pagine (20-09-2026): senza, salvare qui lo cancellerebbe.
-      page_tree: useAppStore.getState().project?.page_layout?.page_tree,
-      // E la cornice predefinita (15-10-2026), che si sceglie dalla cornice stessa.
-      cornice_predefinita: useAppStore.getState().project?.page_layout?.cornice_predefinita,
-      // E il formato predefinito (21-10-2026), che dal 21-10 si modifica nella
-      // sezione «Dimensioni pagina» e scrive da solo: qui si conserva soltanto.
-      default_width: useAppStore.getState().project?.page_layout?.default_width,
-      default_height: useAppStore.getState().project?.page_layout?.default_height,
-      default_background: useAppStore.getState().project?.page_layout?.default_background,
-      default_background_dark: useAppStore.getState().project?.page_layout?.default_background_dark,
-    };
-    return cfg;
-  };
-
-  const handleSave = async () => {
-    setSaving(true); setError(null);
-    const cfg = costruisciCfg();
+  const cambia = async (patch: Partial<PageLayoutConfig>) => {
+    setErrore(null);
     try {
-      await api.updatePageLayout(cfg);
-      updateProjectPageLayout(cfg);
+      const cfg = await salvaLayout((base) => {
+        const c: PageLayoutConfig = { size_mode: "fixed", ...base, ...patch };
+        if (c.size_mode !== "ratio") c.aspect_ratio = undefined;
+        else c.aspect_ratio ??= ASPECT_RATIOS[0].ratio;
+        return c;
+      });
       // "Ratio" mode: every page must share the same standard reference
       // resolution — otherwise a page with a stale literal width/height
       // (e.g. 800×480, a different ratio) would letterbox-scale against the
       // WRONG aspect ratio at runtime. Client-side only; the maintainer still
       // saves the project explicitly like any other canvas edit.
-      if (sizeMode === "ratio") {
-        for (const p of paginePerNavigazione(pages)) updatePageProps(p.id, { width: ref.width, height: ref.height });
+      if (cfg.size_mode === "ratio") {
+        const r = referenceResolutionFor(cfg.aspect_ratio);
+        for (const p of paginePerNavigazione(pages)) updatePageProps(p.id, { width: r.width, height: r.height });
       }
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
-    } finally {
-      setSaving(false);
+      setErrore(e instanceof Error ? e.message : String(e));
     }
   };
 
+  const select: React.CSSProperties = { background: "var(--brand-bg, #0f172a)", color: "var(--brand-text, #e2e8f0)", border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 4, padding: "4px 8px", fontSize: 12, width: "100%" };
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 10, marginTop: 4 }}>
       <div>
         <div style={{ fontSize: 11, color: "var(--brand-text-muted, #94a3b8)", marginBottom: 6 }}>{t("shell.sizingMode")}</div>
         {([
-          { v: "fixed" as const, label: "Fisso (1:1, nessuno scaling)" },
-          { v: "ratio" as const, label: "Solo proporzioni (scala mantenendo il rapporto)" },
-          { v: "fluid" as const, label: "Fluido (nessuna dimensione dichiarata)" },
+          { v: "fixed" as const, label: t("shell.sizingFixed") },
+          { v: "ratio" as const, label: t("shell.sizingRatio") },
+          { v: "fluid" as const, label: t("shell.sizingFluid") },
         ]).map((opt) => (
           <label key={opt.v} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12, color: "var(--brand-text-2, #cbd5e1)", padding: "4px 0", cursor: "pointer" }}>
-            <input type="radio" name="sizeMode" checked={sizeMode === opt.v} onChange={() => setSizeMode(opt.v)} />
+            <input type="radio" name="sizeMode" checked={sizeMode === opt.v} onChange={() => void cambia({ size_mode: opt.v })} />
             {opt.label}
           </label>
         ))}
@@ -2668,8 +2818,7 @@ function ProjectPageLayoutSettings() {
       {sizeMode === "ratio" && (
         <div>
           <div style={{ fontSize: 11, color: "var(--brand-text-muted, #94a3b8)", marginBottom: 4 }}>{t("shell.rapporto")}</div>
-          <select value={aspectRatio} onChange={(e) => setAspectRatio(e.target.value)}
-            style={{ background: "var(--brand-bg, #0f172a)", color: "var(--brand-text, #e2e8f0)", border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 4, padding: "4px 8px", fontSize: 12, width: "100%" }}>
+          <select value={aspectRatio} onChange={(e) => void cambia({ aspect_ratio: e.target.value })} style={select}>
             {ASPECT_RATIOS.map((a) => <option key={a.ratio} value={a.ratio}>{a.label}</option>)}
           </select>
           <div style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)", marginTop: 4 }}>
@@ -2680,8 +2829,7 @@ function ProjectPageLayoutSettings() {
 
       <div>
         <div style={{ fontSize: 11, color: "var(--brand-text-muted, #94a3b8)", marginBottom: 4 }}>{t("shell.homePage")}</div>
-        <select value={homePageId} onChange={(e) => setHomePageId(e.target.value)}
-          style={{ background: "var(--brand-bg, #0f172a)", color: "var(--brand-text, #e2e8f0)", border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 4, padding: "4px 8px", fontSize: 12, width: "100%" }}>
+        <select value={layout?.home_page_id ?? ""} onChange={(e) => void cambia({ home_page_id: e.target.value || undefined })} style={select}>
           <option value="">{t("shell.firstPageInTheList")}</option>
           {paginePerNavigazione(pages).map((p) => <option key={p.id} value={p.id}>{nomePagina(p.name)}</option>)}
         </select>
@@ -2689,7 +2837,8 @@ function ProjectPageLayoutSettings() {
 
       <div>
         <label style={{ display: "flex", alignItems: "flex-start", gap: 8, fontSize: 12, color: "var(--brand-text-2, #cbd5e1)", cursor: "pointer" }}>
-          <input type="checkbox" checked={hideChrome} onChange={(e) => setHideChrome(e.target.checked)}
+          <input type="checkbox" checked={!!layout?.hide_viewer_chrome}
+            onChange={(e) => void cambia({ hide_viewer_chrome: e.target.checked || undefined })}
             style={{ marginTop: 2, accentColor: "var(--brand-primary, #3b82f6)" }} />
           <span>
             {t("shell.fullScreenViewerHideThe")}
@@ -2700,11 +2849,87 @@ function ProjectPageLayoutSettings() {
         </label>
       </div>
 
-      {error && <div style={{ color: "var(--brand-danger, #ef4444)", fontSize: 12 }}>Errore: {error}</div>}
+      {errore && <div style={{ color: "var(--brand-danger, #ef4444)", fontSize: 12 }}>{t("shell.erroreSalvataggio", { errore })}</div>}
+    </div>
+  );
+}
 
-      <button style={{ alignSelf: "flex-start", background: "var(--brand-success-bg, #166534)", color: "var(--brand-success-soft, #4ade80)", border: "1px solid #15803d", borderRadius: 4, padding: "5px 12px", cursor: "pointer", fontSize: 13 }} disabled={saving} onClick={handleSave}>
-        {saving ? t("shell.saving") : t("shell.saveProjectSettings")}
+/** La riga in fondo al pannello della pagina (05-11-2026): cosa vale per tutto
+ *  il progetto, in breve, e il bottone che apre la finestra per cambiarlo. Le
+ *  `PUT /api/project/*` sono solo per un Admin: a chi non lo è la riga lo dice. */
+function RiepilogoProgetto({ boot = false }: { boot?: boolean }) {
+  const { t } = useTranslation();
+  const nomePagina = useNomePagina();
+  const project = useAppStore((s) => s.project);
+  const pages = useAppStore((s) => s.pages);
+  const admin = useAppStore((s) => s.authRole === "Admin");
+  const l = project?.page_layout;
+  const motore: ProjectTargetKind = project?.target?.kind ?? "web";
+  const misura = l?.default_width && l?.default_height ? `${l.default_width}×${l.default_height}` : t("shell.notSet");
+  const cornice = l?.cornice_predefinita ? pages.find((p) => eCornice(p) && idCornice(p) === l.cornice_predefinita) : undefined;
+  const parti = [
+    misura,
+    t(motore === "web" ? "props.targetWeb" : motore === "lvgl_wayland" ? "props.targetLvglWayland" : "props.targetLvglFramebuffer"),
+    cornice ? t("shell.riepilogoCornice", { nome: nomePagina(cornice.name) }) : null,
+  ].filter(Boolean);
+  return (
+    <div data-testid="riepilogo-progetto" style={{
+      marginTop: SPAZIO.m, paddingTop: SPAZIO.m, borderTop: "1px solid var(--brand-surface-2, #334155)",
+      display: "flex", flexDirection: "column", gap: 6,
+    }}>
+      <p style={{ fontSize: 11, color: "var(--brand-text-subtle, #94a3b8)", margin: 0 }}>
+        {boot ? t("shell.bootPageHint") : t("shell.selectAnObjectOnThe")}
+      </p>
+      <div style={{ fontSize: 11, fontWeight: 700, color: "var(--brand-text-muted, #94a3b8)", letterSpacing: 0.5, textTransform: "uppercase" }}>
+        {t("shell.projectSettings")}
+      </div>
+      <div style={{ fontSize: 12, color: "var(--brand-text-2, #cbd5e1)" }}>{parti.join(" · ")}</div>
+      <button type="button" data-testid="apri-impostazioni-progetto" disabled={!admin}
+        onClick={() => void apriImpostazioniProgetto(t("shell.projectSettingsTitle"))}
+        style={{ alignSelf: "flex-start", background: "var(--brand-surface-2, #334155)", color: "var(--brand-text, #e2e8f0)",
+          border: "1px solid var(--brand-border, #475569)", borderRadius: 4, padding: "5px 12px", fontSize: 12,
+          cursor: admin ? "pointer" : "default", opacity: admin ? 1 : 0.6 }}>
+        {t("shell.apriImpostazioniProgetto")}
       </button>
+      {!admin && <span style={{ fontSize: 10, color: "var(--brand-text-subtle, #94a3b8)" }}>{t("shell.soloAdminProgetto")}</span>}
+    </div>
+  );
+}
+
+/** La finestra «Impostazioni progetto» (05-11-2026, piano dell'impostazione
+ *  iniziale, sessione I2): motore, formato predefinito, dimensionamento,
+ *  pagina iniziale, tutto schermo. È un `modulo` della Finestra di avviso; ogni
+ *  campo si salva subito, e la finestra lo dice. Sarà anche la finestra che si
+ *  apre da sola alla creazione di un progetto vuoto (I1). */
+export function apriImpostazioniProgetto(titolo: string): Promise<null> {
+  return modulo<null>({ titolo, corpo: (fine) => <ImpostazioniProgetto fine={() => fine(null)} /> });
+}
+
+function ImpostazioniProgetto({ fine }: { fine: () => void }) {
+  const { t } = useTranslation();
+  const blocco: React.CSSProperties = { display: "flex", flexDirection: "column", gap: 4, paddingTop: 10, borderTop: "1px solid var(--brand-surface-2, #334155)" };
+  const titolo: React.CSSProperties = { fontSize: 11, fontWeight: 700, color: "var(--brand-text-muted, #94a3b8)", letterSpacing: 0.5, textTransform: "uppercase" };
+  return (
+    <div data-testid="impostazioni-progetto" style={{ display: "flex", flexDirection: "column", gap: 12, width: 440, maxWidth: "100%" }}>
+      <p style={{ fontSize: 12, color: "var(--brand-text-subtle, #94a3b8)", margin: 0 }}>{t("shell.impostazioniSubito")}</p>
+      <div style={blocco}>
+        <div style={titolo}>{t("props.targetKind")}</div>
+        <ProjectTargetSettings />
+      </div>
+      <div style={blocco}>
+        <FormatoPredefinitoProgetto />
+      </div>
+      <div style={blocco}>
+        <div style={titolo}>{t("shell.visualizzazioneProgetto")}</div>
+        <ProjectPageLayoutSettings />
+      </div>
+      <div style={{ display: "flex", justifyContent: "flex-end" }}>
+        <button type="button" data-testid="chiudi-impostazioni-progetto" onClick={fine}
+          style={{ background: "var(--brand-primary, #3b82f6)", color: "var(--brand-on-primary, #fff)", border: "none", borderRadius: 5,
+            padding: "8px 16px", fontSize: 13, fontWeight: 600, cursor: "pointer" }}>
+          {t("common.close")}
+        </button>
+      </div>
     </div>
   );
 }
