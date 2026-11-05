@@ -1,523 +1,291 @@
 id: pro_p2
-name: "Fotovoltaico"
+name: '{{t0045}}'
 background: "#0f172a"
 width: 1280
 height: 800
 
+# Fotovoltaico: il totale in alto, le due stringhe (istanze del faceplate
+# `stringa_fv` sulle istanze pv1 e pv2 del tipo omonimo), l'andamento delle
+# correnti e, in fondo, inverter e autoconsumo.
+#
+# Il nome della pagina, la lingua e l'ora stanno nella testata della cornice,
+# il navigatore nel piede (cornici/navigazione.yaml).
+
 objects:
 
-# ── HEADER ────────────────────────────────────────────────────────────────────
-- id: pro2_title
-  type: text
-  x: 640
-  y: 26
-  text: "{{t0045}}"
-  font_size: 22
-  font_weight: bold
-  text_anchor: middle
-  color: "#e2e8f0"
-  locked: true
-
-- id: pro2_sub
-  type: text
-  x: 640
-  y: 52
-  text: "{{t0046}}"
-  font_size: 13
-  text_anchor: middle
-  color: "#475569"
-  locked: true
-
-# La navigazione in fondo alla pagina sta nella cornice (cornici/navigazione.yaml).
 # ══════════════════════════════════════════════════════════════════════════════
-# POTENZA TOTALE FV (top bar)
+# POTENZA TOTALE FV
 # ══════════════════════════════════════════════════════════════════════════════
-
 - id: pro2_tot_box
   type: rect
-  x: 142
+  x: 24
   y: 72
-  width: 996
-  height: 77
-  fill: "#052e16"
-  stroke: "#22c55e"
-  stroke_width: 2
+  width: 1232
+  height: 104
+  fill: '#052e16'
+  stroke: '#22c55e'
+  stroke_width: 1
   rx: 6
-
 - id: pro2_tot_lbl
   type: text
-  x: 253
-  y: 101
-  text: "{{t0049}}"
+  x: 40
+  y: 82
+  width: 320
+  height: 22
+  text_wrap: true
+  text_valign: middle
+  text: '{{t0049}}'
   font_size: 14
   font_weight: bold
-  text_anchor: middle
-  color: "#22c55e"
-
+  color: '#22c55e'
 - id: pro2_tot_kw
   type: text
-  x: 253
-  y: 133
+  x: 40
+  y: 106
+  width: 320
+  height: 56
+  text_wrap: true
+  text_valign: middle
   tag: pv.potenza_totale_kw
-  format: "{value:.3f} kW"
-  font_size: 28
+  format: '{value:.3f} kW'
+  font_size: 36
   font_weight: bold
-  text_anchor: middle
-  color: "#4ade80"
-
+  color: '#4ade80'
 - id: pro2_tot_prog
   type: progress_bar
-  x: 382
-  y: 85
-  width: 477
-  height: 21
+  x: 380
+  y: 114
+  width: 460
+  height: 24
   tag: pv.potenza_totale_kw
   min: 0
   max: 12
-  fill: "#22c55e"
-  background: "#14532d"
-
+  show_value: false
+  fill: '#22c55e'
+  bg_color: '#14532d'
 - id: pro2_oggi_lbl
   type: text
-  x: 885
-  y: 101
-  text: "{{t0050}}"
+  x: 870
+  y: 82
+  width: 200
+  height: 22
+  text_wrap: true
+  text_valign: middle
+  text: '{{t0050}}'
   font_size: 13
   text_anchor: middle
-  color: "#16a34a"
-
+  color: '#16a34a'
 - id: pro2_oggi_val
   type: text
-  x: 885
-  y: 133
+  x: 870
+  y: 106
+  width: 200
+  height: 56
+  text_wrap: true
+  text_valign: middle
   tag: pv.produzione_oggi_kwh
-  format: "{value:.2f} kWh"
+  format: '{value:.2f} kWh'
   font_size: 26
   font_weight: bold
   text_anchor: middle
-  color: "#86efac"
-
+  color: '#86efac'
 - id: pro2_tot_kwh_lbl
   type: text
-  x: 1066
-  y: 101
-  text: "{{t0051}}"
+  x: 1070
+  y: 82
+  width: 170
+  height: 22
+  text_wrap: true
+  text_valign: middle
+  text: '{{t0051}}'
   font_size: 13
   text_anchor: middle
-  color: "#16a34a"
-
+  color: '#16a34a'
 - id: pro2_tot_kwh
   type: text
-  x: 1066
-  y: 133
+  x: 1070
+  y: 106
+  width: 170
+  height: 56
+  text_wrap: true
+  text_valign: middle
   tag: pv.produzione_totale_kwh
-  format: "{value:.0f} kWh"
-  font_size: 23
+  format: '{value:.0f} kWh'
+  font_size: 22
   font_weight: bold
   text_anchor: middle
-  color: "#86efac"
+  color: '#86efac'
 
 # ══════════════════════════════════════════════════════════════════════════════
-# STRINGA PV1 (left column)
+# LE DUE STRINGHE — istanze del faceplate `stringa_fv`
 # ══════════════════════════════════════════════════════════════════════════════
-
-- id: pro2_pv1_hdr
-  type: text
-  x: 382
-  y: 175
-  text: "{{t0052}}"
-  font_size: 17
-  font_weight: bold
-  text_anchor: middle
-  color: "#22c55e"
-
-- id: pro2_pv1_box
-  type: rect
-  x: 142
-  y: 186
-  width: 480
-  height: 245
-  fill: "#0a1a10"
-  stroke: "#166534"
-  stroke_width: 1
-  rx: 6
-
-# V1
-- id: pro2_pv1_v_lbl
-  type: text
-  x: 253
-  y: 214
-  text: "{{t0053}}"
-  font_size: 13
-  text_anchor: middle
-  color: "#475569"
-
-- id: pro2_pv1_v
-  type: text
-  x: 253
-  y: 243
-  tag: pv1.tensione_v
-  format: "{value:.1f}"
-  font_size: 36
-  font_weight: bold
-  text_anchor: middle
-  color: "#4ade80"
-
-- id: pro2_pv1_v_u
-  type: text
-  x: 253
-  y: 263
-  text: "{{t0054}}"
-  font_size: 15
-  text_anchor: middle
-  color: "#16a34a"
-
-# gauge V1
-- id: pro2_pv1_v_g
-  type: gauge
-  x: 163
-  y: 271
-  width: 181
-  height: 65
-  tag: pv1.tensione_v
-  min: 150
-  max: 400
-  unit: "V"
-
-# A1
-- id: pro2_pv1_a_lbl
-  type: text
-  x: 498
-  y: 214
-  text: "{{t0055}}"
-  font_size: 13
-  text_anchor: middle
-  color: "#475569"
-
-- id: pro2_pv1_a
-  type: text
-  x: 498
-  y: 243
-  tag: pv1.corrente_a
-  format: "{value:.2f}"
-  font_size: 36
-  font_weight: bold
-  text_anchor: middle
-  color: "#4ade80"
-
-- id: pro2_pv1_a_u
-  type: text
-  x: 498
-  y: 263
-  text: "{{t0056}}"
-  font_size: 15
-  text_anchor: middle
-  color: "#16a34a"
-
-# gauge A1
-- id: pro2_pv1_a_g
-  type: gauge
-  x: 408
-  y: 271
-  width: 181
-  height: 65
-  tag: pv1.corrente_a
-  min: 0
-  max: 12
-  unit: "A"
-
-# kW PV1
-- id: pro2_pv1_kw_lbl
-  type: text
-  x: 382
-  y: 366
-  text: "{{t0057}}"
-  font_size: 13
-  text_anchor: middle
-  color: "#475569"
-
-- id: pro2_pv1_kw
-  type: text
-  x: 382
-  y: 392
-  tag: pv1.potenza_kw
-  format: "{value:.3f} kW"
-  font_size: 21
-  font_weight: bold
-  text_anchor: middle
-  color: "#86efac"
+- id: pro2_pv1
+  type: faceplate
+  x: 24
+  y: 188
+  width: 608
+  height: 300
+  faceplate_id: stringa_fv
+  faceplate_params:
+    p: pv1
+    titolo: '{{t0052}}'
+- id: pro2_pv2
+  type: faceplate
+  x: 648
+  y: 188
+  width: 608
+  height: 300
+  faceplate_id: stringa_fv
+  faceplate_params:
+    p: pv2
+    titolo: '{{t0058}}'
 
 # ══════════════════════════════════════════════════════════════════════════════
-# STRINGA PV2 (right column)
+# TREND CORRENTI STRINGHE — la legenda la disegna il trend
 # ══════════════════════════════════════════════════════════════════════════════
-
-- id: pro2_pv2_hdr
-  type: text
-  x: 898
-  y: 175
-  text: "{{t0058}}"
-  font_size: 17
-  font_weight: bold
-  text_anchor: middle
-  color: "#22c55e"
-
-- id: pro2_pv2_box
-  type: rect
-  x: 658
-  y: 186
-  width: 480
-  height: 245
-  fill: "#0a1a10"
-  stroke: "#166534"
-  stroke_width: 1
-  rx: 6
-
-# V2
-- id: pro2_pv2_v_lbl
-  type: text
-  x: 769
-  y: 214
-  text: "{{t0053}}"
-  font_size: 13
-  text_anchor: middle
-  color: "#475569"
-
-- id: pro2_pv2_v
-  type: text
-  x: 769
-  y: 243
-  tag: pv2.tensione_v
-  format: "{value:.1f}"
-  font_size: 36
-  font_weight: bold
-  text_anchor: middle
-  color: "#4ade80"
-
-- id: pro2_pv2_v_u
-  type: text
-  x: 769
-  y: 263
-  text: "{{t0054}}"
-  font_size: 15
-  text_anchor: middle
-  color: "#16a34a"
-
-- id: pro2_pv2_v_g
-  type: gauge
-  x: 679
-  y: 271
-  width: 181
-  height: 65
-  tag: pv2.tensione_v
-  min: 150
-  max: 400
-  unit: "V"
-
-# A2
-- id: pro2_pv2_a_lbl
-  type: text
-  x: 1014
-  y: 214
-  text: "{{t0055}}"
-  font_size: 13
-  text_anchor: middle
-  color: "#475569"
-
-- id: pro2_pv2_a
-  type: text
-  x: 1014
-  y: 243
-  tag: pv2.corrente_a
-  format: "{value:.2f}"
-  font_size: 36
-  font_weight: bold
-  text_anchor: middle
-  color: "#4ade80"
-
-- id: pro2_pv2_a_u
-  type: text
-  x: 1014
-  y: 263
-  text: "{{t0056}}"
-  font_size: 15
-  text_anchor: middle
-  color: "#16a34a"
-
-- id: pro2_pv2_a_g
-  type: gauge
-  x: 924
-  y: 271
-  width: 181
-  height: 65
-  tag: pv2.corrente_a
-  min: 0
-  max: 12
-  unit: "A"
-
-# kW PV2
-- id: pro2_pv2_kw_lbl
-  type: text
-  x: 898
-  y: 366
-  text: "{{t0059}}"
-  font_size: 13
-  text_anchor: middle
-  color: "#475569"
-
-- id: pro2_pv2_kw
-  type: text
-  x: 898
-  y: 392
-  tag: pv2.potenza_kw
-  format: "{value:.3f} kW"
-  font_size: 21
-  font_weight: bold
-  text_anchor: middle
-  color: "#86efac"
-
-# ══════════════════════════════════════════════════════════════════════════════
-# TREND CORRENTI STRINGHE (mid)
-# ══════════════════════════════════════════════════════════════════════════════
-
 - id: pro2_trend_lbl
   type: text
-  x: 640
-  y: 449
-  text: "{{t0060}}"
+  x: 24
+  y: 498
+  width: 900
+  height: 22
+  text_wrap: true
+  text_valign: middle
+  text: '{{t0060}}'
   font_size: 13
-  text_anchor: middle
-  color: "#64748b"
-
-- id: pro2_trend_pv1
+  color: '#64748b'
+- id: pro2_trend
   type: trend
-  x: 142
-  y: 459
-  width: 996
-  height: 168
-  tag: pv1.corrente_a
-  extra_tags:
-    - pv2.corrente_a
+  x: 24
+  y: 522
+  width: 1232
+  height: 140
   window_s: 3600
-  line_color: "#22c55e"
-
-- id: pro2_leg_pv1
-  type: text
-  x: 155
-  y: 643
-  text: "{{t0061}}"
-  font_size: 12
-  color: "#22c55e"
-
-- id: pro2_leg_pv2
-  type: text
-  x: 382
-  y: 643
-  text: "{{t0062}}"
-  font_size: 12
-  color: "#86efac"
+  unit: A
+  trend_tags:
+  - tag: pv1.corrente_a
+    label: '{{t0061}}'
+    color: '#22c55e'
+  - tag: pv2.corrente_a
+    label: '{{t0062}}'
+    color: '#86efac'
 
 # ══════════════════════════════════════════════════════════════════════════════
 # INVERTER TEMPERATURE + ORE GENERAZIONE
 # ══════════════════════════════════════════════════════════════════════════════
-
 - id: pro2_inv_box
   type: rect
-  x: 142
-  y: 658
-  width: 480
-  height: 62
-  fill: "#1c1917"
-  stroke: "#292524"
+  x: 24
+  y: 672
+  width: 608
+  height: 54
+  fill: '#1c1917'
+  stroke: '#292524'
   stroke_width: 1
-  rx: 4
-
+  rx: 6
 - id: pro2_inv_int_lbl
   type: text
-  x: 240
-  y: 680
-  text: "{{t0063}}"
+  x: 40
+  y: 676
+  width: 150
+  height: 46
+  text_wrap: true
+  text_valign: middle
+  text: '{{t0063}}'
   font_size: 13
-  text_anchor: middle
-  color: "#64748b"
-
+  color: '#64748b'
 - id: pro2_inv_int
   type: text
-  x: 240
-  y: 706
+  x: 190
+  y: 676
+  width: 120
+  height: 46
+  text_wrap: true
+  text_valign: middle
   tag: inverter.temp_interna
-  format: "{value:.1f}°C"
+  format: '{value:.1f}°C'
   font_size: 18
   font_weight: bold
-  text_anchor: middle
-  color: "#f97316"
-
+  color: '#f97316'
 - id: pro2_inv_mod_lbl
   type: text
-  x: 434
-  y: 680
-  text: "{{t0064}}"
+  x: 330
+  y: 676
+  width: 150
+  height: 46
+  text_wrap: true
+  text_valign: middle
+  text: '{{t0064}}'
   font_size: 13
-  text_anchor: middle
-  color: "#64748b"
-
+  color: '#64748b'
 - id: pro2_inv_mod
   type: text
-  x: 434
-  y: 706
+  x: 480
+  y: 676
+  width: 136
+  height: 46
+  text_wrap: true
+  text_valign: middle
   tag: inverter.temp_modulo
-  format: "{value:.1f}°C"
+  format: '{value:.1f}°C'
   font_size: 18
   font_weight: bold
-  text_anchor: middle
-  color: "#f97316"
-
+  color: '#f97316'
 - id: pro2_ore_box
   type: rect
-  x: 658
-  y: 658
-  width: 480
-  height: 62
-  fill: "#1c1917"
-  stroke: "#292524"
+  x: 648
+  y: 672
+  width: 608
+  height: 54
+  fill: '#1c1917'
+  stroke: '#292524'
   stroke_width: 1
-  rx: 4
-
+  rx: 6
 - id: pro2_ore_lbl
   type: text
-  x: 834
-  y: 680
-  text: "{{t0065}}"
+  x: 664
+  y: 676
+  width: 150
+  height: 46
+  text_wrap: true
+  text_valign: middle
+  text: '{{t0065}}'
   font_size: 13
-  text_anchor: middle
-  color: "#64748b"
-
+  color: '#64748b'
 - id: pro2_ore_val
   type: text
-  x: 834
-  y: 706
+  x: 814
+  y: 676
+  width: 120
+  height: 46
+  text_wrap: true
+  text_valign: middle
   tag: pv.ore_oggi_min
-  format: "{value:.0f} min"
+  format: '{value:.0f} min'
   font_size: 18
   font_weight: bold
-  text_anchor: middle
-  color: "#fbbf24"
-
+  color: '#fbbf24'
 - id: pro2_auto_lbl
   type: text
-  x: 1053
-  y: 680
-  text: "{{t0066}}"
+  x: 954
+  y: 676
+  width: 150
+  height: 46
+  text_wrap: true
+  text_valign: middle
+  text: '{{t0066}}'
   font_size: 13
-  text_anchor: middle
-  color: "#64748b"
-
+  color: '#64748b'
 - id: pro2_auto_val
   type: text
-  x: 1053
-  y: 706
+  x: 1104
+  y: 676
+  width: 136
+  height: 46
+  text_wrap: true
+  text_valign: middle
   tag: pv.autoconsumo_pct
-  format: "{value:.1f}%"
+  format: '{value:.1f}%'
   font_size: 18
   font_weight: bold
-  text_anchor: middle
-  color: "#a3e635"
+  color: '#a3e635'

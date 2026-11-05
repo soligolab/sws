@@ -5,18 +5,20 @@ objects:
   name: Sfondo — sera
   type: image
   x: 0.0
-  y: 0.0
+  y: 56.0
   width: 1280.0
-  height: 800.0
+  height: 684.0
   src: /api/project/images/sera.jpg
+  image_fit: cover
 - id: sfondo_tramonto
   name: Sfondo — alba e tramonto
   type: image
   x: 0.0
-  y: 0.0
+  y: 56.0
   width: 1280.0
-  height: 800.0
+  height: 684.0
   src: /api/project/images/tramonto.jpg
+  image_fit: cover
   opacity: 0.0
   bindings:
     opacity:
@@ -30,10 +32,11 @@ objects:
   name: Sfondo — giorno
   type: image
   x: 0.0
-  y: 0.0
+  y: 56.0
   width: 1280.0
-  height: 800.0
+  height: 684.0
   src: /api/project/images/giorno.jpg
+  image_fit: cover
   opacity: 0.0
   bindings:
     opacity:
@@ -43,27 +46,22 @@ objects:
       out_max: 1
       out_min: 0
       tag: s.luce
-- id: titolo
-  type: text
-  x: 30.0
-  y: 22.0
-  width: 620.0
-  height: 40.0
-  text: '{{t0002}}'
-  font_size: 28.0
-  font_weight: bold
 - id: sottotitolo
   type: text
   x: 30.0
-  y: 62.0
+  y: 66.0
   width: 620.0
   height: 22.0
+  # In un riquadro come il titolo della cornice: senza, il web mette `y` sulla linea di
+  # base e il testo finirebbe attaccato alla testata.
+  text_wrap: true
+  text_valign: middle
   text: '{{t0003}}'
   font_size: 14.0
 - id: bil_pannello
   type: rect
   x: 740.0
-  y: 18.0
+  y: 66.0
   width: 520.0
   height: 112.0
   fill: '#0b1526'
@@ -72,7 +70,7 @@ objects:
 - id: bil_titolo
   type: text
   x: 756.0
-  y: 24.0
+  y: 72.0
   width: 300.0
   height: 20.0
   text: '{{t0004}}'
@@ -81,7 +79,7 @@ objects:
 - id: bil_ora
   type: kpi_tile
   x: 752.0
-  y: 48.0
+  y: 96.0
   width: 160.0
   height: 72.0
   bg_color: '#0f1d33'
@@ -96,7 +94,7 @@ objects:
 - id: bil_energia
   type: kpi_tile
   x: 920.0
-  y: 48.0
+  y: 96.0
   width: 160.0
   height: 72.0
   bg_color: '#0f1d33'
@@ -111,7 +109,7 @@ objects:
 - id: bil_rete
   type: kpi_tile
   x: 1088.0
-  y: 48.0
+  y: 96.0
   width: 160.0
   height: 72.0
   bg_color: '#0f1d33'
@@ -126,7 +124,7 @@ objects:
 - id: fv_pannello
   type: rect
   x: 60.0
-  y: 455.0
+  y: 380.0
   width: 290.0
   height: 108.0
   fill: '#0b1526'
@@ -135,7 +133,7 @@ objects:
 - id: fv_titolo
   type: text
   x: 72.0
-  y: 461.0
+  y: 386.0
   width: 270.0
   height: 20.0
   text: '{{t0008}}'
@@ -144,11 +142,11 @@ objects:
 - id: fv_irraggiamento
   type: kpi_tile
   x: 72.0
-  y: 484.0
+  y: 409.0
   width: 130.0
   height: 56.0
   bg_color: '#0f1d33'
-  tag: s.fv_irraggiamento
+  tag: fv.irraggiamento
   label: '{{t0009}}'
   unit: W/m²
   decimals: 0
@@ -159,11 +157,11 @@ objects:
 - id: fv_potenza
   type: kpi_tile
   x: 210.0
-  y: 484.0
+  y: 409.0
   width: 130.0
   height: 56.0
   bg_color: '#0f1d33'
-  tag: s.fv_potenza
+  tag: fv.potenza
   label: '{{t0010}}'
   unit: kW
   decimals: 1
@@ -174,10 +172,10 @@ objects:
 - id: fv_notte
   type: text_list
   x: 72.0
-  y: 542.0
+  y: 467.0
   width: 270.0
   height: 18.0
-  tag: s.fv_irraggiamento
+  tag: fv.irraggiamento
   text_list_entries:
   - color: '#f59e0b'
     label: '{{t0011}}'
@@ -193,14 +191,14 @@ objects:
   height: 55.0
   symbol_parts:
     led:
-      tag: s.inverter_potenza
+      tag: inverter.potenza
   symbol_id: lib:electrical/pv-inverter
 - id: linea_dc
   type: pipe
   x: 230.0
   y: 660.0
   pipe_flow: true
-  pipe_flow_tag: s.fv_potenza
+  pipe_flow_tag: fv.potenza
   points:
   - x: 230
     y: 660
@@ -216,7 +214,7 @@ objects:
 - id: inv_pannello
   type: rect
   x: 60.0
-  y: 726.0
+  y: 494.0
   width: 290.0
   height: 66.0
   fill: '#0b1526'
@@ -225,7 +223,7 @@ objects:
 - id: inv_titolo
   type: text
   x: 72.0
-  y: 730.0
+  y: 498.0
   width: 270.0
   height: 16.0
   text: '{{t0013}}'
@@ -234,11 +232,11 @@ objects:
 - id: inv_potenza
   type: kpi_tile
   x: 72.0
-  y: 746.0
+  y: 514.0
   width: 130.0
   height: 42.0
   bg_color: '#0f1d33'
-  tag: s.inverter_potenza
+  tag: inverter.potenza
   label: '{{t0014}}'
   unit: kW
   decimals: 1
@@ -249,11 +247,11 @@ objects:
 - id: inv_temperatura
   type: kpi_tile
   x: 210.0
-  y: 746.0
+  y: 514.0
   width: 130.0
   height: 42.0
   bg_color: '#0f1d33'
-  tag: s.inverter_temperatura
+  tag: inverter.temperatura
   label: '{{t0015}}'
   unit: °C
   decimals: 1
@@ -266,7 +264,7 @@ objects:
   x: 170.0
   y: 713.0
   pipe_flow: true
-  pipe_flow_tag: s.inverter_potenza
+  pipe_flow_tag: inverter.potenza
   points:
   - x: 170
     y: 713
@@ -292,7 +290,7 @@ objects:
   x: 565.0
   y: 390.0
   pipe_flow: true
-  pipe_flow_tag: s.idro_portata
+  pipe_flow_tag: idro.portata
   points:
   - x: 565
     y: 390
@@ -327,10 +325,10 @@ objects:
   width: 72.0
   height: 72.0
   symbol_spin: tag
-  symbol_spin_tag: c.turbina_marcia
+  symbol_spin_tag: idro.marcia
   symbol_spin_s: 1.0
   symbol_id: prj:turbina-idro
-  state_tag: c.turbina_marcia
+  state_tag: idro.marcia
 - id: btn_turbina
   type: button
   x: 796.0
@@ -338,7 +336,7 @@ objects:
   width: 104.0
   height: 40.0
   fill: '#2563eb'
-  tag: c.turbina_marcia
+  tag: idro.marcia
   label: '{{t0017}}'
   write_value: true
   button_mode: toggle
@@ -353,7 +351,7 @@ objects:
   width: 94.0
   height: 48.0
   bg_color: '#0f1d33'
-  tag: s.idro_portata
+  tag: idro.portata
   label: '{{t0019}}'
   unit: l/s
   decimals: 0
@@ -368,7 +366,7 @@ objects:
   width: 94.0
   height: 48.0
   bg_color: '#0f1d33'
-  tag: s.condotta_pressione
+  tag: idro.pressione
   label: '{{t0020}}'
   unit: bar
   decimals: 1
@@ -383,7 +381,7 @@ objects:
   width: 94.0
   height: 48.0
   bg_color: '#0f1d33'
-  tag: s.turbina_giri
+  tag: idro.giri
   label: '{{t0021}}'
   unit: rpm
   decimals: 0
@@ -398,7 +396,7 @@ objects:
   width: 94.0
   height: 48.0
   bg_color: '#0f1d33'
-  tag: s.turbina_potenza
+  tag: idro.potenza
   label: '{{t0022}}'
   unit: kW
   decimals: 1
@@ -411,7 +409,7 @@ objects:
   x: 688.0
   y: 600.0
   pipe_flow: true
-  pipe_flow_tag: s.turbina_potenza
+  pipe_flow_tag: idro.potenza
   points:
   - x: 688
     y: 600
@@ -428,7 +426,7 @@ objects:
   height: 72.0
   symbol_parts:
     lamp:
-      tag: c.illuminazione_villaggio
+      tag: villaggio.illuminazione
   symbol_id: prj:lampione-stradale
 - id: lampione_2
   type: symbol
@@ -438,7 +436,7 @@ objects:
   height: 72.0
   symbol_parts:
     lamp:
-      tag: c.illuminazione_villaggio
+      tag: villaggio.illuminazione
   symbol_id: prj:lampione-stradale
 - id: lampione_3
   type: symbol
@@ -448,7 +446,7 @@ objects:
   height: 72.0
   symbol_parts:
     lamp:
-      tag: c.illuminazione_villaggio
+      tag: villaggio.illuminazione
   symbol_id: prj:lampione-stradale
 - id: lampione_4
   type: symbol
@@ -458,12 +456,12 @@ objects:
   height: 72.0
   symbol_parts:
     lamp:
-      tag: c.illuminazione_villaggio
+      tag: villaggio.illuminazione
   symbol_id: prj:lampione-stradale
 - id: vil_pannello
   type: rect
   x: 960.0
-  y: 640.0
+  y: 632.0
   width: 290.0
   height: 100.0
   fill: '#0b1526'
@@ -472,7 +470,7 @@ objects:
 - id: vil_titolo
   type: text
   x: 972.0
-  y: 646.0
+  y: 638.0
   width: 270.0
   height: 18.0
   text: '{{t0023}}'
@@ -481,11 +479,11 @@ objects:
 - id: vil_consumo
   type: kpi_tile
   x: 972.0
-  y: 668.0
+  y: 660.0
   width: 140.0
   height: 60.0
   bg_color: '#0f1d33'
-  tag: s.villaggio_consumo
+  tag: villaggio.consumo
   label: '{{t0024}}'
   unit: kW
   decimals: 1
@@ -496,11 +494,11 @@ objects:
 - id: btn_luci
   type: button
   x: 1122.0
-  y: 676.0
+  y: 668.0
   width: 116.0
   height: 44.0
   fill: '#d97706'
-  tag: c.illuminazione_villaggio
+  tag: villaggio.illuminazione
   label: '{{t0025}}'
   write_value: true
   button_mode: toggle

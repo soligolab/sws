@@ -4,6 +4,96 @@ meta:
   description: Un parcheggio in montagna con le pensiline fotovoltaiche, una piccola centrale idroelettrica e il villaggio
     che usano la loro energia, su tre foto della valle che si danno il cambio in dissolvenza con l'ora simulata. Due pagine
     dello stesso impianto, composte dall'assistente IA con due modelli diversi.
+# Le cose dell'impianto sono tipi e istanze (04-11-2026, regola R8 dei template): `fv.potenza`,
+# `inverter.temperatura`, `idro.marcia`, `villaggio.illuminazione`. Ogni cosa c'è una volta
+# sola, ma un secondo inverter o una seconda turbina si aggiungono con un'istanza in più.
+# Restano variabili piatte quelle che non sono una cosa dell'impianto: l'ora simulata e la
+# luce, il bilancio (`s.*`) e il cursore della pagina Lago. Lo scambio con la rete e
+# l'energia di oggi vengono da un generatore, che su un'istanza non si può mettere.
+types:
+- id: campo_fv
+  description: Pensiline fotovoltaiche del parcheggio
+  members:
+  - name: irraggiamento
+    description: Irraggiamento sulle pensiline
+    data_type: float
+    unit: W/m²
+    decimals: 0
+    range_lo: 0.0
+    range_hi: 1000.0
+  - name: potenza
+    description: Potenza delle pensiline (lato continua)
+    data_type: float
+    unit: kW
+    decimals: 1
+    range_lo: 0.0
+    range_hi: 120.0
+- id: inverter_fv
+  description: Inverter delle pensiline fotovoltaiche
+  members:
+  - name: potenza
+    description: Potenza in uscita (lato alternata)
+    data_type: float
+    unit: kW
+    decimals: 1
+    range_lo: 0.0
+    range_hi: 120.0
+  - name: temperatura
+    description: Temperatura dell'inverter
+    data_type: float
+    unit: °C
+    decimals: 1
+    range_lo: 0.0
+    range_hi: 80.0
+- id: centrale_idro
+  description: Centrale idroelettrica con la condotta forzata
+  members:
+  - name: marcia
+    description: Comando di marcia della turbina (lo può dare chiunque, anche senza accedere)
+    data_type: bool
+    write_min_role: Viewer
+  - name: portata
+    description: Portata d'acqua nella condotta forzata
+    data_type: float
+    unit: l/s
+    decimals: 0
+    range_lo: 0.0
+    range_hi: 200.0
+  - name: pressione
+    description: Pressione alla base della condotta forzata
+    data_type: float
+    unit: bar
+    decimals: 1
+    range_lo: 0.0
+    range_hi: 30.0
+  - name: giri
+    description: Velocità della turbina
+    data_type: float
+    unit: rpm
+    decimals: 0
+    range_lo: 0.0
+    range_hi: 1200.0
+  - name: potenza
+    description: Potenza elettrica della centrale
+    data_type: float
+    unit: kW
+    decimals: 1
+    range_lo: 0.0
+    range_hi: 300.0
+- id: villaggio_alpino
+  description: Il villaggio servito dall'impianto
+  members:
+  - name: consumo
+    description: Potenza consumata dal villaggio
+    data_type: float
+    unit: kW
+    decimals: 1
+    range_lo: 0.0
+    range_hi: 400.0
+  - name: illuminazione
+    description: Illuminazione pubblica (la può accendere chiunque, anche senza accedere)
+    data_type: bool
+    write_min_role: Viewer
 tags:
 - id: s.ora
   description: Ora del giorno simulata (una giornata dura 10 minuti; la scrive lo script «giornata» una volta al secondo)
@@ -19,87 +109,22 @@ tags:
   range_lo: 0.0
   range_hi: 1.0
   decimals: 2
-- id: s.fv_irraggiamento
-  description: Irraggiamento sulle pensiline
+- id: fv
+  description: Pensiline fotovoltaiche del parcheggio (le scrive lo script «giornata»)
   data_type: float
-  unit: W/m²
-  range_lo: 0.0
-  range_hi: 1000.0
-  decimals: 0
-- id: s.fv_potenza
-  description: Potenza delle pensiline fotovoltaiche del parcheggio (lato continua)
+  type_ref: campo_fv
+- id: inverter
+  description: Inverter delle pensiline (lo scrive lo script «giornata»)
   data_type: float
-  unit: kW
-  range_lo: 0.0
-  range_hi: 120.0
-  decimals: 1
-- id: s.inverter_potenza
-  description: Potenza in uscita dall'inverter (lato alternata)
+  type_ref: inverter_fv
+- id: idro
+  description: Centrale idroelettrica; lo script «giornata» fa girare la turbina quando `idro.marcia` è acceso
   data_type: float
-  unit: kW
-  range_lo: 0.0
-  range_hi: 120.0
-  decimals: 1
-- id: s.inverter_temperatura
-  description: Temperatura dell'inverter
+  type_ref: centrale_idro
+- id: villaggio
+  description: Il villaggio (il consumo lo scrive lo script «giornata»)
   data_type: float
-  unit: °C
-  range_lo: 0.0
-  range_hi: 80.0
-  decimals: 1
-  generator:
-    shape: triangle
-    period_ms: 180000
-    min: 28.0
-    max: 61.0
-    enabled: true
-- id: s.idro_portata
-  description: Portata d'acqua nella condotta forzata
-  data_type: float
-  unit: l/s
-  range_lo: 0.0
-  range_hi: 200.0
-  decimals: 0
-- id: s.condotta_pressione
-  description: Pressione alla base della condotta forzata
-  data_type: float
-  unit: bar
-  range_lo: 0.0
-  range_hi: 30.0
-  decimals: 1
-  generator:
-    shape: triangle
-    period_ms: 240000
-    min: 19.0
-    max: 23.5
-    enabled: true
-- id: s.turbina_giri
-  description: Velocità della turbina
-  data_type: float
-  unit: rpm
-  range_lo: 0.0
-  range_hi: 1200.0
-  decimals: 0
-- id: s.turbina_potenza
-  description: Potenza elettrica della centrale idroelettrica
-  data_type: float
-  unit: kW
-  range_lo: 0.0
-  range_hi: 300.0
-  decimals: 1
-- id: s.villaggio_consumo
-  description: Potenza consumata dal villaggio
-  data_type: float
-  unit: kW
-  range_lo: 0.0
-  range_hi: 400.0
-  decimals: 1
-  generator:
-    shape: triangle
-    period_ms: 90000
-    min: 110.0
-    max: 330.0
-    enabled: true
+  type_ref: villaggio_alpino
 - id: s.rete_scambio
   description: Scambio con la rete (positivo = energia ceduta alla rete)
   data_type: float
@@ -126,12 +151,6 @@ tags:
     min: 0.0
     max: 5200.0
     enabled: true
-- id: c.turbina_marcia
-  description: Comando di marcia della turbina
-  data_type: bool
-- id: c.illuminazione_villaggio
-  description: Illuminazione pubblica del villaggio
-  data_type: bool
 - id: c.giorno_notte
   description: 'Cursore della pagina Lago: 0 = notte, 100 = giorno'
   data_type: float
@@ -165,26 +184,46 @@ global_scripts:
     tags.write("s.luce", round(1.0 - abs(h - 12.0) / 12.0, 3))
     s = (h - 6.0) / 12.0
     sole = 4.0 * s * (1.0 - s) if 0.0 < s < 1.0 else 0.0
-    tags.write("s.fv_irraggiamento", round(950.0 * sole, 0))
-    tags.write("s.fv_potenza", round(112.0 * sole, 1))
-    tags.write("s.inverter_potenza", round(112.0 * 0.965 * sole, 1))
-    # La turbina gira solo col comando di marcia. Ferma: portata, giri e potenza a zero.
-    # In marcia la portata va e viene in 6 ore simulate (un triangolo: abs() c'è, sin() no).
-    if tags.read("c.turbina_marcia"):
+    p_inv = 112.0 * 0.965 * sole
+    tags.write("fv.irraggiamento", round(950.0 * sole, 0))
+    tags.write("fv.potenza", round(112.0 * sole, 1))
+    tags.write("inverter.potenza", round(p_inv, 1))
+    # Temperatura, consumo e pressione erano generatori, che su un'istanza non si
+    # mettono: ora li scrive lo script, sempre una volta al secondo. Sono triangoli
+    # (abs() c'è, sin() no) con un periodo che sta un numero intero di volte nelle
+    # 24 ore, così a mezzanotte non saltano. L'inverter scalda con la potenza, e
+    # di notte oscilla fra 28 e 34 °C; il villaggio va da 110 a 330 kW ogni 4 ore.
+    t = abs((h / 4.0) % 2.0 - 1.0)
+    tags.write("inverter.temperatura", round(28.0 + 0.25 * p_inv + 6.0 * t, 1))
+    v = abs((h / 2.0) % 2.0 - 1.0)
+    tags.write("villaggio.consumo", round(110.0 + 220.0 * v, 1))
+    # La turbina gira solo col comando di marcia. Ferma: portata, giri e potenza a zero,
+    # e alla base della condotta la pressione dell'acqua ferma.
+    # In marcia la portata va e viene in 6 ore simulate, e la pressione scende con lei.
+    if tags.read("idro.marcia"):
         f = abs((h / 6.0) % 2.0 - 1.0)
         portata = 80.0 + 100.0 * f
-        tags.write("s.idro_portata", round(portata, 0))
-        tags.write("s.turbina_giri", round(995.0 + 10.0 * f, 0))
-        tags.write("s.turbina_potenza", round(portata * 1.45, 1))
+        tags.write("idro.portata", round(portata, 0))
+        tags.write("idro.giri", round(995.0 + 10.0 * f, 0))
+        tags.write("idro.potenza", round(portata * 1.45, 1))
+        tags.write("idro.pressione", round(23.5 - 0.025 * portata, 1))
     else:
-        tags.write("s.idro_portata", 0.0)
-        tags.write("s.turbina_giri", 0.0)
-        tags.write("s.turbina_potenza", 0.0)
+        tags.write("idro.portata", 0.0)
+        tags.write("idro.giri", 0.0)
+        tags.write("idro.potenza", 0.0)
+        tags.write("idro.pressione", 23.5)
 page_layout:
   size_mode: fixed
   default_width: 1280.0
   default_height: 800.0
   home_page_id: p_impianto_opus
+  # L'ordine delle pagine: senza albero sarebbe quello alfabetico dei nomi (Kimi prima di
+  # Opus), e il navigatore della cornice metterebbe la pagina iniziale al secondo posto.
+  page_tree:
+  - id: p_impianto_opus
+  - id: p_impianto_kimi
+  - id: p_lago
+  cornice_predefinita: cornice
 languages:
   default: it
   langs:
@@ -197,11 +236,6 @@ languages:
       it: Impianto — Opus 5.5
       en: Plant — Opus 5.5
       es: Planta — Opus 5.5
-  - key: t0002
-    values:
-      it: Energia rinnovabile in montagna
-      en: Renewable energy in the mountains
-      es: Energía renovable en la montaña
   - key: t0003
     values:
       it: Pensiline fotovoltaiche del parcheggio e centrale idroelettrica
@@ -220,13 +254,13 @@ languages:
   - key: t0006
     values:
       it: Rinnovabile prodotta oggi
-      en: Renewable produced today
+      en: Renewables today
       es: Renovable producida hoy
   - key: t0007
     values:
       it: Scambio rete (+ ceduta)
-      en: Grid exchange (+ exported)
-      es: Intercambio con la red (+ cedida)
+      en: Grid (+ exported)
+      es: Red (+ cedida)
   - key: t0008
     values:
       it: Pensiline fotovoltaiche
@@ -291,12 +325,12 @@ languages:
     values:
       it: Pressione base
       en: Base pressure
-      es: Presión en la base
+      es: Presión base
   - key: t0021
     values:
       it: Giri turbina
       en: Turbine speed
-      es: Velocidad turbina
+      es: Vel. turbina
   - key: t0022
     values:
       it: Potenza idro
@@ -322,11 +356,6 @@ languages:
       it: Impianto — Kimi K3.1 Pro
       en: Plant — Kimi K3.1 Pro
       es: Planta — Kimi K3.1 Pro
-  - key: t0102
-    values:
-      it: Energia della valle
-      en: Valley energy
-      es: Energía del valle
   - key: t0103
     values:
       it: Fotovoltaico e idroelettrico per il villaggio
@@ -376,7 +405,7 @@ languages:
     values:
       it: Potenza in uscita
       en: Output power
-      es: Potencia de salida
+      es: Potencia
   - key: t0113
     values:
       it: Temperatura
@@ -457,11 +486,6 @@ languages:
       it: Lago — sfondi in due passi
       en: Lake — two-step backgrounds
       es: Lago — fondos en dos pasos
-  - key: t0202
-    values:
-      it: Lago alpino
-      en: Alpine lake
-      es: Lago alpino
   - key: t0203
     values:
       it: 'Sposta il cursore: la foto della sera è una modifica di quella del giorno, e il rifugio resta nello stesso punto.'

@@ -1300,23 +1300,13 @@ pub(crate) fn foglie_di(
 }
 
 /// Mappa tag→ruolo minimo di scrittura (F3.1), stessi punti di refresh
-/// di `build_tag_scales`.
+/// di `build_tag_scales`. La regola sta in `sws_core` dal 04-11-2026, perché
+/// la legge anche il pannello LVGL per il lucchetto.
 pub(crate) fn build_tag_write_roles(
     tags: &[sws_core::TagDef],
     types: &[sws_core::TypeDef],
 ) -> std::collections::HashMap<String, String> {
-    let mut out = std::collections::HashMap::new();
-    for t in tags {
-        if let Some(r) = &t.write_min_role {
-            out.insert(t.id.clone(), r.clone());
-        }
-        for f in foglie_di(t, types) {
-            if let Some(r) = f.membro.as_ref().and_then(|m| m.write_min_role.clone()) {
-                out.insert(f.percorso.clone(), r);
-            }
-        }
-    }
-    out
+    sws_core::soglie_di_scrittura(tags, types)
 }
 
 /// Mappa tag→`data_type` dichiarato (Q27), stessi punti di refresh di

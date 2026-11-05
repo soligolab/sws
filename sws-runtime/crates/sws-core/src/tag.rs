@@ -274,6 +274,30 @@ impl TagDb {
         None
     }
 
+    /// La qualità di una foglia: la sua, se qualcuno l'ha scritta o marcata.
+    /// Se la radice si scrive **a foglie** (la mappa c'è) e questa non è ancora
+    /// arrivata, è `Uncertain`: il suo valore è lo zero con cui la radice è
+    /// nata, non una lettura. Fino al 04-11-2026 ereditava la qualità della
+    /// radice, che è la peggiore delle foglie *già scritte* — quindi Good
+    /// appena ne arrivava una: con le stanze di Home Assistant portate a tipi,
+    /// `sala.temperatura` usciva 0.0 Good finché HA mandava solo l'umidità, e
+    /// l'allarme «troppo freddo» scattava all'avvio. Se la radice si scrive
+    /// intera (nessuna mappa) vale la sua qualità, com'era.
+    fn qualita_della_foglia(
+        per_foglia: Option<&QualitaFoglie>,
+        rel: &str,
+        q_radice: &TagQuality,
+        ts_radice: u64,
+    ) -> (TagQuality, u64) {
+        match per_foglia {
+            Some(m) => m
+                .get(rel)
+                .cloned()
+                .unwrap_or((TagQuality::Uncertain, ts_radice)),
+            None => (q_radice.clone(), ts_radice),
+        }
+    }
+
     /// La peggiore fra le qualità delle foglie, e il timestamp più recente.
     fn riepiloga(foglie: &QualitaFoglie) -> Option<(TagQuality, u64)> {
         let peso = |q: &TagQuality| match q {
@@ -476,9 +500,12 @@ impl TagDb {
                 let rel = f.percorso.strip_prefix(update.id.as_str())?;
                 let segmenti = parse_segmenti(rel)?;
                 let valore = leggi(&update.state.value, &segmenti)?.clone();
-                let (quality, timestamp_ms) = per_foglia
-                    .and_then(|m| m.get(rel).cloned())
-                    .unwrap_or((update.state.quality.clone(), update.state.timestamp_ms));
+                let (quality, timestamp_ms) = Self::qualita_della_foglia(
+                    per_foglia,
+                    rel,
+                    &update.state.quality,
+                    update.state.timestamp_ms,
+                );
                 Some((
                     f.percorso.clone(),
                     TagState {
@@ -572,13 +599,12 @@ impl TagDb {
         }
         let valore = leggi(&radice_st.value, &segmenti)?.clone();
         let rel = crate::percorso::testo_segmenti(&segmenti);
-        let (quality, timestamp_ms) = self
-            .qualita_foglie
-            .read()
-            .await
-            .get(&radice)
-            .and_then(|m| m.get(&rel).cloned())
-            .unwrap_or((radice_st.quality, radice_st.timestamp_ms));
+        let (quality, timestamp_ms) = Self::qualita_della_foglia(
+            self.qualita_foglie.read().await.get(&radice),
+            &rel,
+            &radice_st.quality,
+            radice_st.timestamp_ms,
+        );
         Some(TagState {
             value: valore,
             quality,
@@ -956,6 +982,48 @@ mod percorsi_tests {
         )
         .await;
         assert_eq!(db.get("motore1").await.unwrap().quality, TagQuality::Good);
+    }
+
+    /// Una foglia che la sorgente non ha ancora mandato è Uncertain, anche se
+    /// la radice è Good per le sorelle già arrivate (04-11-2026): il suo
+    /// valore è lo zero con cui la radice è nata, e un allarme «sotto soglia»
+    /// non deve scattare su quello.
+    #[tokio::test]
+    async fn una_foglia_mai_arrivata_e_incerta() {
+        let db = db_con_radice().await;
+        let mut rx = db.subscribe();
+        db.set(
+            "motore1.marcia".into(),
+            TagValue::Bool(true),
+            TagQuality::Good,
+        )
+        .await;
+        assert_eq!(db.get("motore1").await.unwrap().quality, TagQuality::Good);
+        let velocita = db.get("motore1.velocita").await.unwrap();
+        assert_eq!(velocita.value, TagValue::Float(0.0));
+        assert_eq!(velocita.quality, TagQuality::Uncertain);
+        // Lo stesso sul bus, che è quello che leggono allarmi e storico.
+        let update = rx.recv().await.unwrap();
+        let foglie = db.espandi_foglie(&update).await;
+        let q = |id: &str| {
+            foglie
+                .iter()
+                .find(|(i, _)| i == id)
+                .map(|(_, s)| s.quality.clone())
+        };
+        assert_eq!(q("motore1.marcia"), Some(TagQuality::Good));
+        assert_eq!(q("motore1.velocita"), Some(TagQuality::Uncertain));
+        // Quando arriva, è sua.
+        db.set(
+            "motore1.velocita".into(),
+            TagValue::Float(1500.0),
+            TagQuality::Good,
+        )
+        .await;
+        assert_eq!(
+            db.get("motore1.velocita").await.unwrap().quality,
+            TagQuality::Good
+        );
     }
 
     #[tokio::test]

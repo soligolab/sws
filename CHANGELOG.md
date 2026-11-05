@@ -11,6 +11,33 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 
 ## [Unreleased]
 
+### Aggiunto — regole R6, R7, R8 dei template (sessione T1 della serie del 04-11)
+- **Le regole**: ogni pagina ha una cornice (R6), ogni comando si usa col ruolo Viewer tranne i due template dei
+  permessi (R7), gli aggregati che si ripetono sono faceplate (R8). In `examples/templates/README.md`, controllate da
+  `scripts/check_templates.sh` con un debito per template che può solo scendere (`R678_DEBITO`, `R7_PERMESSI`) e tre
+  variabili d'ambiente per lavorare su un template alla volta (`SWS_TEMPLATE_SOLO`, `SWS_TEMPLATE_SENZA_DEBITO`,
+  `SWS_TEMPLATE_MISURA`).
+- **Sei template a zero**: `montagna-rinnovabile`, `demo-slider` (dal generatore), `grid-playground` (i modi del bottone
+  al posto delle funzioni Python), `homeassistant-demo` e `homeassistant-pro` (stanze, contatori, luci e tapparelle in
+  faceplate; R3 a zero, la pagina più piena da 106 a 60 oggetti), `openplc-laboratorio`.
+- **Il lucchetto col ruolo che serve**, sul web (`canvas/LucchettoRuolo.tsx`, `ruoloCheServe`) e su LVGL
+  (`lucchetto_ruolo`, `ruolo_che_serve`): attenuato se è l'oggetto a chiedere il ruolo, pieno se è la variabile.
+- **`ogni_pagina_del_template`** (`sws-web/src/istantanea.rs`, ignorato): ogni pagina di un template fotografata dal
+  viewer LVGL vero, in `tmp/verifica-template/<template>/`.
+
+### Corretto — trovato portando i template a tipi e faceplate
+- **Viewer web**: la soglia di scrittura del membro di un tipo non contava (`sogliaScritturaTag`), e un membro aperto
+  a Viewer apriva lo stesso l'accesso. La regola sta ora in `sws_core::soglie_di_scrittura`, una per tutti.
+- **Runtime**: la foglia di un'istanza che la sorgente non ha ancora mandato usciva Good con lo zero di nascita della
+  radice; l'allarme «Soggiorno troppo freddo: 0.0 °C» scattava all'avvio. Ora è Uncertain (`qualita_della_foglia`).
+- **Validatore**: un tag piatto sotto la radice di un'istanza (`sala.comfort_index` con `sala` istanza) non si
+  raggiunge mai; ora è un errore.
+- **Pannello LVGL**: i faceplate sostituivano i parametri solo in `tag`, `label` e `text` e ignoravano predefiniti e
+  override; ora come il web (`sostituisci_parametri`, `parametri_effettivi`). Su un runtime senza utenti il pannello dà
+  a tutti Admin, come il server: un oggetto con `min_role` non è più spento.
+- **Modello di cornice dell'IDE**: il titolo sta in un riquadro alto quanto la testata; a y 36 come testo libero usciva
+  dalla testata sul pannello.
+
 ### Corretto — collaudo della 2.25.0
 - **Chat e registro in una finestra, nel cloud**: si aprivano alla radice del sito (`/index-chat.html`,
   `/index-log.html`) e parlavano col gateway invece che col container del progetto, quindi la chat diceva «nessuna

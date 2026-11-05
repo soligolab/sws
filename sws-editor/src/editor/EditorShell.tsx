@@ -6208,7 +6208,7 @@ export function ObjectProps({
             conferma non protegge da un danno, dice una verità che altrimenti
             si scopre davanti al pannello. */}
         {(() => {
-          const ereditata = sogliaEreditata(tagsDelProgetto, obj);
+          const ereditata = sogliaEreditata(tagsDelProgetto, obj, tipiDelProgetto);
           const scende = (v: string) =>
             ereditata !== undefined && (v === "" || rangoRuolo(v) < rangoRuolo(ereditata));
           return field(t("props.minRole"), (

@@ -4,7 +4,7 @@ import { frazioneLivello } from "@/canvas/livello";
 import { ImmagineSvg } from "@/canvas/ImmagineSvg";
 import { defaultObjectSubtleColor, defaultObjectTextColor } from "@/theme";
 import { coloreEffettivo, predefinito } from "@/coloriPredefiniti";
-import { useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from "react";
+import { Fragment, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from "react";
 import { dalTag, descrizioniDeiTag, PREDEFINITI_DAL_TAG, type DescrizioneTag } from "@/tag/forma";
 import { useTranslation } from "react-i18next";
 import { PALETTE, TrendCanvas } from "@/canvas/TrendCanvas";
@@ -22,6 +22,8 @@ import { RecipePanel } from "@/components/RecipePanel";
 import { DataTable, type DataTableColumn } from "@/components/DataTable";
 import { SEV_COLOR } from "@/alarmSeverity";
 import { genId } from "@/id";
+import { ruoloCheServe } from "@/auth/permessoScrittura";
+import { LucchettoRuolo } from "./LucchettoRuolo";
 import { useAppStore } from "@/store";
 import { effectiveProjectLang, localizeObject, resolveMsg } from "@/i18n/projectI18n";
 import { useLinguaContenuti } from "@/i18n/linguaContenuti";
@@ -758,6 +760,9 @@ export function SvgCanvas({
 
   // F3.1: ruolo dell'utente del viewer per il gating per-oggetto.
   const viewerRole = useAppStore((s) => s.authRole);
+  // R7 (04-11-2026): le soglie delle variabili, per il lucchetto sui comandi.
+  const tagsProgetto = useAppStore((s) => s.project?.tags);
+  const tipiProgetto = useAppStore((s) => s.project?.types);
   // D (2026-08-23): cattura waypoint dal canvas (motion_path). Esc esce.
   const captureTarget = useAppStore((s) => s.capturePathTarget);
   // Polilinea a clic (26-09-2026): come la cattura, i clic non selezionano ma
@@ -1994,6 +1999,9 @@ export function SvgCanvas({
         // none blocca click, drag e input HTML nei foreignObject).
         const roleOk = isRoleAllowed(obj.min_role, viewerRole);
         if (!inEdit && !roleOk && obj.min_role_effect === "hide") return null;
+        // Il lucchetto col ruolo che manca (R7, 04-11-2026): solo a runtime,
+        // come l'attenuazione qui sotto.
+        const lucchetto = !inEdit ? ruoloCheServe(obj, viewerRole, tagsProgetto, tipiProgetto) : null;
         // F4 — lampeggio, stato allarme, stale e Bad-gray (tutti opt-in,
         // tutti calcolati qui una volta per ogni tipo di oggetto).
         const [ripiegoW, ripiegoH] = MISURA_DI_RIPIEGO[obj.type] ?? [100, 50];
@@ -2106,7 +2114,8 @@ export function SvgCanvas({
           }
         }
         return (
-          <g key={obj.id} style={{ ...gStyle, ...motionStyle }} data-moto={motionStyle ? obj.id : undefined} data-blink={blinkOn ? "1" : undefined} onMouseDown={obj.type !== "grid" ? onPress : undefined} onMouseUp={obj.type !== "grid" ? onRelease : undefined}>
+          <Fragment key={obj.id}>
+          <g style={{ ...gStyle, ...motionStyle }} data-moto={motionStyle ? obj.id : undefined} data-blink={blinkOn ? "1" : undefined} onMouseDown={obj.type !== "grid" ? onPress : undefined} onMouseUp={obj.type !== "grid" ? onRelease : undefined}>
             <SvgObject
               obj={obj}
               objects={objects}
@@ -2168,6 +2177,9 @@ export function SvgCanvas({
               );
             })()}
           </g>
+          {/* Fuori dal gruppo attenuato: il lucchetto si legge pieno. */}
+          {lucchetto && <LucchettoRuolo destra={obj.x + objW} alto={obj.y} ruolo={lucchetto.ruolo} />}
+          </Fragment>
         );
       })}
       </g>
@@ -3654,6 +3666,9 @@ function SvgObjectCorpo(p: ObjProps) {
   // viene innestata qui, quindi localizzare per prima cosa non l'avrebbe mai
   // vista. Era il secondo modo in cui un token poteva non risolversi.
   const projectTypes = useAppStore((s) => s.project?.types);
+  // Il lucchetto sui figli di un faceplate (R7, 04-11-2026): il gruppo della
+  // pagina non li vede, sono disegnati qui dentro.
+  const ruoloVista = useAppStore((s) => s.authRole);
   const descrizioni = projectTags ? descrizioniDeiTag(projectTags, projectTypes) : undefined;
   const conDefault = applyTagDefaults(resolved, resolved.tag ? descrizioni?.get(resolved.tag) : undefined);
   const lingua = useLinguaContenuti();
@@ -6813,20 +6828,25 @@ function SvgObjectCorpo(p: ObjProps) {
         {bgLayer(0, 0, obj.faceplate_scale ? defBox.w : w, obj.faceplate_scale ? defBox.h : h, 4)}
         {defn.objects.map((child, i) => {
           const resolved = substituteParams(child);
+          const lucchetto = ruoloCheServe(resolved, ruoloVista, projectTags, projectTypes);
           return (
-            <SvgObject
-              key={child.id ?? i}
-              obj={resolved}
-              objects={objects}
-              tagValues={tagValues}
-              selected={false}
-              isEditMode={false}
-              customSymbols={customSymbols}
-              faceplates={faceplates}
-              onWriteTag={onWriteTag}
-              onScript={onScript}
-              onNavigate={onNavigate}
-            />
+            <Fragment key={child.id ?? i}>
+              <SvgObject
+                obj={resolved}
+                objects={objects}
+                tagValues={tagValues}
+                selected={false}
+                isEditMode={false}
+                customSymbols={customSymbols}
+                faceplates={faceplates}
+                onWriteTag={onWriteTag}
+                onScript={onScript}
+                onNavigate={onNavigate}
+              />
+              {lucchetto && (
+                <LucchettoRuolo destra={resolved.x + (resolved.width ?? 100)} alto={resolved.y} ruolo={lucchetto.ruolo} />
+              )}
+            </Fragment>
           );
         })}
       </g>

@@ -8,20 +8,34 @@
 // di `tag_write_allowed` in `sws-web/src/router.rs`: una soglia assente vuol
 // dire Operator, «Viewer» vuol dire chiunque, anonimo compreso — perché per il
 // server l'anonimo è Viewer.
-import type { TagDef } from "@/types";
+import type { TagDef, TypeDef } from "@/types";
+import { foglieDiTolleranti } from "@/tag/forma";
 
 const RANGO: Record<string, number> = { Viewer: 0, Operator: 1, Supervisor: 2, Admin: 3 };
 
-/** La soglia di scrittura del tag `id`: la sua, o quella della radice
- *  dell'istanza (`motore1.marcia` → `motore1`), come `write_role_of` del
- *  server. Assente = `Operator`. */
-export function sogliaScritturaTag(tags: TagDef[] | undefined, id: string): string {
+/** La soglia di scrittura del tag `id`, nell'ordine di `write_role_of` del
+ *  server (`build_tag_write_roles`): la sua; per la foglia di un'istanza
+ *  quella del **membro** del tipo, se la dichiara; poi quella della radice
+ *  (`motore1.marcia` → `motore1`). Assente = `Operator`.
+ *
+ *  Il membro c'è dal 04-11-2026 (regola R7 dei template): fino ad allora un
+ *  membro aperto a «Chiunque» il server lo lasciava scrivere, e il viewer
+ *  apriva lo stesso il login, perché qui si guardava solo la radice. */
+export function sogliaScritturaTag(
+  tags: TagDef[] | undefined,
+  id: string,
+  types: readonly TypeDef[] = [],
+): string {
   const esatto = tags?.find((t) => t.id === id);
   if (esatto?.write_min_role) return esatto.write_min_role;
-  const punto = id.indexOf(".");
-  if (punto > 0) {
-    const radice = tags?.find((t) => t.id === id.slice(0, punto));
-    if (radice?.write_min_role) return radice.write_min_role;
+  const fine = id.search(/[.\[]/);
+  if (fine > 0) {
+    const radice = tags?.find((t) => t.id === id.slice(0, fine));
+    if (radice) {
+      const foglia = foglieDiTolleranti(radice, types).find((f) => f.percorso === id);
+      if (foglia?.membro?.write_min_role) return foglia.membro.write_min_role;
+      if (radice.write_min_role) return radice.write_min_role;
+    }
   }
   return "Operator";
 }
@@ -55,11 +69,12 @@ export function rangoRuolo(ruolo: string): number {
 export function sogliaEreditata(
   tags: TagDef[] | undefined,
   obj: Parameters<typeof tagScrittiDa>[0],
+  types: readonly TypeDef[] = [],
 ): string | undefined {
   const scritti = tagScrittiDa(obj);
   if (!scritti.length) return undefined;
   return scritti
-    .map((id) => sogliaScritturaTag(tags, id))
+    .map((id) => sogliaScritturaTag(tags, id, types))
     .reduce((a, b) => (rangoRuolo(b) > rangoRuolo(a) ? b : a));
 }
 
@@ -71,9 +86,47 @@ const SCRIVONO_IL_TAG = new Set(["button", "checkbox", "radio", "setpoint", "sli
  *  altrimenti il `command_tag` del simbolo o il `tag` dei tipi che scrivono.
  *  Vuoto per un oggetto che mostra soltanto. */
 export function tagScrittiDa(obj: {
-  type: string; tag?: string; command_tag?: string; assegnazioni?: { tag: string }[];
+  type: string; tag?: string; command_tag?: string; assegnazioni?: { tag: string }[]; read_only?: boolean;
 }): string[] {
   if (obj.assegnazioni?.length) return [...new Set(obj.assegnazioni.map((a) => a.tag).filter(Boolean))];
+  // In sola lettura l'oggetto mostra e basta: non scrive, quindi non eredita
+  // la soglia del tag (04-11-2026, come la regola R7 dei template).
+  if (obj.read_only) return [];
   if (obj.type === "symbol") return obj.command_tag ? [obj.command_tag] : [];
   return SCRIVONO_IL_TAG.has(obj.type) && obj.tag ? [obj.tag] : [];
+}
+
+/** **Il lucchetto** (regola R7 dei template, 04-11-2026): il ruolo che manca a
+ *  chi guarda per usare questo comando, o `null` se può usarlo.
+ *
+ *  Due motivi, e vince il più severo. L'oggetto chiede un ruolo (`min_role`):
+ *  allora è anche attenuato e inerte, come prima (`attenua`). Oppure è la
+ *  variabile a chiederlo: l'oggetto resta pieno, perché toccandolo si apre
+ *  l'accesso e dopo funziona. Il pannello LVGL fa lo stesso conto
+ *  (`ruolo_che_serve` in `lvgl_render.rs`). Il ruolo nullo è l'anonimo: per
+ *  l'oggetto sta sotto Viewer (come `isRoleAllowed`), per la variabile vale
+ *  Viewer (come il server). */
+export function ruoloCheServe(
+  obj: Parameters<typeof tagScrittiDa>[0] & { min_role?: string; table_rows?: { tag?: string; writable?: boolean }[] },
+  ruolo: string | null | undefined,
+  tags: TagDef[] | undefined,
+  types: readonly TypeDef[] = [],
+): { ruolo: string; attenua: boolean } | null {
+  const ho = (r: string | null | undefined) => (r ? (RANGO[r] ?? -1) : -1);
+  const perOggetto = obj.min_role && ho(ruolo) < (RANGO[obj.min_role] ?? 0) ? obj.min_role : undefined;
+  const scritti = [
+    ...tagScrittiDa(obj),
+    ...(obj.table_rows ?? []).filter((r) => r.writable && r.tag).map((r) => r.tag as string),
+  ];
+  let perVariabile: string | undefined;
+  for (const id of scritti) {
+    const soglia = sogliaScritturaTag(tags, id, types);
+    if (puoScrivere(soglia, ruolo)) continue;
+    if (perVariabile === undefined || rangoRuolo(soglia) > rangoRuolo(perVariabile)) perVariabile = soglia;
+  }
+  if (!perOggetto && !perVariabile) return null;
+  const piuAlto = !perVariabile || (perOggetto && rangoRuolo(perOggetto) >= rangoRuolo(perVariabile))
+    ? perOggetto!
+    : perVariabile;
+  return { ruolo: piuAlto, attenua: !!perOggetto };
 }

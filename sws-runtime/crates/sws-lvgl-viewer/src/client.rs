@@ -873,6 +873,36 @@ async fn fetch_home_page_id(base_url: &str) -> Option<String> {
         .home_page_id
 }
 
+/// Chi può scrivere cosa (04-11-2026, lucchetto della regola R7): la mappa
+/// percorso → ruolo del runtime (`sws_core::soglie_di_scrittura`), calcolata
+/// qui da tag e tipi del progetto. `None` se il progetto non si legge: niente
+/// lucchetti, come prima — il server resta l'unico che fa rispettare il ruolo.
+pub async fn fetch_soglie_scrittura(
+    base_url: &str,
+) -> Option<std::collections::HashMap<String, String>> {
+    #[derive(serde::Deserialize)]
+    struct Progetto {
+        #[serde(default)]
+        tags: Vec<sws_core::TagDef>,
+        #[serde(default)]
+        types: Vec<sws_core::TypeDef>,
+    }
+    let url = format!("{}/api/project", base_url.trim_end_matches('/'));
+    let client = reqwest::Client::builder()
+        .use_preconfigured_tls(pinned_client_config(base_url).ok()?)
+        .build()
+        .ok()?;
+    let p = client
+        .get(&url)
+        .send()
+        .await
+        .ok()?
+        .json::<Progetto>()
+        .await
+        .ok()?;
+    Some(sws_core::soglie_di_scrittura(&p.tags, &p.types))
+}
+
 pub async fn resolve_page_by_id(
     base_url: &str,
     target_page_id: &str,

@@ -765,7 +765,8 @@ current = tags.read(tag) or 0
 tags.write(tag, current + step)
 ```
 
-L'esempio viene dal template `grid-playground`. Gli script globali, con i loro trigger, stanno in
+Per contare o commutare non serve una funzione: bastano i modi del bottone (`increment`, `decrement`, `toggle`), che
+funzionano anche sul pannello LVGL e per chi non ha accesso. Gli script globali, con i loro trigger, stanno in
 Configurazione → Progetto → Python.
 
 ### Timer e transizioni

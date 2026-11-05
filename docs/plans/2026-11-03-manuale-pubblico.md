@@ -117,6 +117,9 @@ login si servono solo i campi del marchio in `CAMPI_PUBBLICI` (`marchi.rs:96-106
   iniziale (T02:45-94, 04:431-460, 04:514, 04:532-548, 05:224-229, T08:26-30), Logica (04:40, 04:141, 04:223-226,
   04:250-260, 04:756-769, 05:164, 05:882-898, 07:369-373, 09:219-230, 15:191-193), più un capitolo sulla Logica coi modelli
   di L3 e una sezione sull'assistente IA.
+- Le regole dei template (T1, 04-11): il tutorial T09–T11 è stato eseguito con `openplc-laboratorio` quando la pompa
+  chiedeva Operator; ora Marcia / Arresto si comanda da Viewer e solo la soglia della finestra Parametri resta a
+  Supervisor. La tabella delle voci per template in 15:150-165 è del 20-10. Le pagine dei template hanno le cornici.
 - I timbri di data in testa ai capitoli.
 - Il piano si archivia.
 

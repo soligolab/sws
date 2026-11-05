@@ -23,8 +23,8 @@
 
 | # | Ramo | Piano | Cosa si prova alla fine | Immagine |
 |---|---|---|---|---|
-| C0 | `fix/collaudo-2-25-0` | questa tabella, §Collaudo | chat e registro staccati nel cloud parlano col progetto; i menù di pagina mostrano i nomi; «Montagna» leggera sul WP630 | **2.25.1** |
-| T1 | `feat/template-regole` | questa tabella, §Regole dei template | il lucchetto «serve Supervisor» sui comandi che il ruolo non può usare (web e LVGL); R6–R8 nella guardia; i primi sei template a posto | — |
+| C0 | `fix/collaudo-2-25-0` | questa tabella, §Collaudo | chat e registro staccati nel cloud parlano col progetto; i menù di pagina mostrano i nomi; «Montagna» leggera sul WP630 — **fatta il 04-11, DoD verde, attende il collaudo** | **2.25.1** |
+| T1 | `feat/template-regole` | questa tabella, §Regole dei template | il lucchetto «🔒 Supervisor» sui comandi che il ruolo non può usare (web e LVGL); R6–R8 nella guardia; i primi sei template a posto — **fatta il 04-11, annidata su C0, DoD verde, attende il collaudo** | — |
 | T2 | `feat/template-regole-2` | idem | gli altri dieci template; la guardia a zero | sì |
 | F1 | `feat/finestra-avviso` | [Finestra di avviso](2026-11-04-finestra-di-avviso.md) | il componente; Backup, configurazione, menu ☰ senza pop-up del browser | — |
 | L0 | `fix/sandbox-python` | [Logica unificata](2026-11-04-logica-unificata.md) | `print`, `for`, `+=` negli script; i default dei parametri applicati | sì |
@@ -74,9 +74,10 @@ Decise dal maintainer il 04-11-2026, «trasformale in una condizione per tutti i
 Si scrivono in `examples/templates/README.md` accanto a R1–R5 e le controlla `scripts/check_templates.sh`.
 
 - **R6 — ogni template usa una cornice.** `page_layout.cornice_predefinita` dichiarata e il file in `cornici/`; ogni
-  pagina normale la usa (escluse le pagine-finestra e quelle di boot). Il contenuto delle pagine sta nell'area attiva,
-  fra testata e piede: aggiungere la cornice vuol dire **riposizionare** gli oggetti che oggi stanno nelle fasce (la
-  cornice si disegna sopra, non sposta niente — `sws-web/src/cornici.rs`). Misura del 04-11: **3 template su 16** hanno
+  pagina normale la usa (escluse le pagine-finestra e quelle di boot). La cornice si disegna **sotto** la pagina e non
+  sposta niente (`componi` in `sws-web/src/cornici.rs`): un oggetto della pagina dentro una fascia è lecito nello spazio
+  libero e sbagliato se copre un oggetto della cornice (la stessa regola di `oggetti_nelle_fasce`). Aggiungere la
+  cornice vuol dire quindi **riposizionare** quello che oggi sta nelle fasce. Misura del 04-11: **3 template su 16** hanno
   una cornice (`openplc-laboratorio`, `homeassistant-pro`, `tc620-sistema`). Per «Montagna» la cornice la fa la
   sessione, come le altre (decisione del maintainer: non quella fatta a mano nell'IDE).
 - **R7 — nei template ogni comando si può usare col ruolo Viewer.** Le variabili scritte da bottoni, interruttori,
@@ -104,10 +105,20 @@ cornice si controlla con le istantanee LVGL e il viewer web (come per la pagina 
 `sws-web/src/istantanea.rs`).
 
 **Da decidere all'inizio di T1** (con la proposta che vale se il maintainer non dice altro):
-1. *La regola R8 vale anche per l'assistente IA?* Proposta: sì — il prompt del sinottico intero dice di fare un
-   faceplate per i riquadri che si ripetono.
+1. *La regola R8 vale anche per l'assistente IA?* Misurato all'inizio di T1: **non è una riga di prompt**. Oggi
+   `proponi_modifica` non porta faceplate (né `ai/tools.rs` né `applyAiProposal` li conoscono), quindi l'assistente non
+   potrebbe seguirla. Proposta: in `Appunti.txt`, come funzione da fare dopo la serie.
 2. *La cornice dei template*: una sola uguale per tutti (testata con titolo, data e ora; piede con la navigazione,
-   come `openplc-laboratorio`) o una per stile di template? Proposta: una sola, coi colori del template.
+   come `openplc-laboratorio`) o una per stile di template? **Usata la proposta**: il modello di
+   `openplc-laboratorio`, coi colori del template; senza piede per i template di una pagina. Le tre cornici che
+   c'erano restano.
+3. *Il lucchetto*: dove sta e cosa dice. **Deciso dal maintainer il 04-11**: forma A (pastiglia nell'angolo in alto a
+   destra, «🔒 <ruolo>»), anche quando è la variabile a chiedere il ruolo (lì l'oggetto resta pieno); in
+   `openplc-laboratorio` la soglia chiede Supervisor anche sulla variabile; in `homeassistant-pro` via le scritte
+   «Serve il ruolo…».
+4. *Trovato in T1*: il viewer web non leggeva la soglia di scrittura **del membro** di un tipo, che il server invece
+   rispetta (`build_tag_write_roles`): un membro aperto a Viewer apriva lo stesso il login. Corretto in
+   `auth/permessoScrittura.ts`, perché R7 mette la soglia sui membri.
 
 **Piano d'esecuzione in corso dal 05-10-2026**: [il tronco cloud](2026-10-05-cloud-utenti-aziende-spazi.md)
 — utenti, aziende, spazi di lavoro, e la catena fino al pannello. Nato dalla sessione di plan

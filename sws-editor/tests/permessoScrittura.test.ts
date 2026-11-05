@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { puoScrivere, rangoRuolo, sogliaEreditata, sogliaScritturaTag } from "@/auth/permessoScrittura";
+import { puoScrivere, rangoRuolo, ruoloCheServe, sogliaEreditata, sogliaScritturaTag } from "@/auth/permessoScrittura";
 import { isRoleAllowed } from "@/canvas/SvgCanvas";
-import type { TagDef } from "@/types";
+import type { TagDef, TypeDef } from "@/types";
 
 /** La tabella del piano 2026-10-25-scrittura-senza-login: tag e oggetto valgono
  *  tutti e due, e vince il più severo. */
@@ -21,6 +21,22 @@ describe("chi comanda un tag dal viewer", () => {
     expect(sogliaScritturaTag(TAG, "pompa")).toBe("Operator");
     expect(sogliaScritturaTag(TAG, "motore1.marcia")).toBe("Supervisor");
     expect(sogliaScritturaTag(TAG, "sconosciuto")).toBe("Operator");
+  });
+
+  it("la foglia di un'istanza prende la soglia del membro, come il server (04-11-2026)", () => {
+    const tipi = [{ id: "pompa", members: [
+      { name: "comando", data_type: "bool", write_min_role: "Viewer" },
+      { name: "portata", data_type: "float" },
+    ] }] as unknown as TypeDef[];
+    const tag = [{ id: "p1", type_ref: "pompa" }, { id: "p2", type_ref: "pompa", write_min_role: "Supervisor" }] as unknown as TagDef[];
+    // Il membro aperto vince sulla radice: è `build_tag_write_roles`.
+    expect(sogliaScritturaTag(tag, "p1.comando", tipi)).toBe("Viewer");
+    expect(sogliaScritturaTag(tag, "p2.comando", tipi)).toBe("Viewer");
+    // Un membro senza soglia ripiega sulla radice, e poi su Operator.
+    expect(sogliaScritturaTag(tag, "p2.portata", tipi)).toBe("Supervisor");
+    expect(sogliaScritturaTag(tag, "p1.portata", tipi)).toBe("Operator");
+    // Senza i tipi non si vede il membro: è il difetto che c'era.
+    expect(sogliaScritturaTag(tag, "p1.comando")).toBe("Operator");
   });
 
   it("A (stanza): tag Chiunque, oggetto senza vincolo → l'anonimo comanda", () => {
@@ -75,5 +91,33 @@ describe("la soglia che l'oggetto eredita dalle sue variabili", () => {
     expect(rangoRuolo("Supervisor")).toBeGreaterThan(rangoRuolo("Operator"));
     expect(rangoRuolo("Operator")).toBeGreaterThan(rangoRuolo("Viewer"));
     expect(rangoRuolo("boh")).toBe(rangoRuolo("Viewer"));
+  });
+});
+
+/** Il lucchetto (R7, 04-11-2026): il ruolo che manca, e se l'oggetto si
+ *  attenua (lo chiede l'oggetto) o resta pieno (lo chiede la variabile). */
+describe("il lucchetto sui comandi", () => {
+  it("chi può non vede niente", () => {
+    expect(ruoloCheServe({ type: "button", tag: "luce_stanza" }, null, TAG)).toBeNull();
+    expect(ruoloCheServe({ type: "button", tag: "pompa" }, "Operator", TAG)).toBeNull();
+    expect(ruoloCheServe({ type: "gauge", tag: "motore1" }, null, TAG)).toBeNull();
+  });
+
+  it("la variabile chiede il ruolo: lucchetto, oggetto pieno", () => {
+    expect(ruoloCheServe({ type: "button", tag: "pompa" }, null, TAG)).toEqual({ ruolo: "Operator", attenua: false });
+    expect(ruoloCheServe({ type: "slider", tag: "motore1.marcia" }, "Operator", TAG)).toEqual({ ruolo: "Supervisor", attenua: false });
+  });
+
+  it("l'oggetto chiede il ruolo: lucchetto e attenuato; vince il più severo", () => {
+    expect(ruoloCheServe({ type: "button", tag: "luce_stanza", min_role: "Supervisor" }, "Operator", TAG))
+      .toEqual({ ruolo: "Supervisor", attenua: true });
+    expect(ruoloCheServe({ type: "button", tag: "motore1.marcia", min_role: "Operator" }, null, TAG))
+      .toEqual({ ruolo: "Supervisor", attenua: true });
+  });
+
+  it("in sola lettura non comanda, e le righe scrivibili di una tabella sì", () => {
+    expect(ruoloCheServe({ type: "slider", tag: "pompa", read_only: true }, null, TAG)).toBeNull();
+    expect(ruoloCheServe({ type: "table", table_rows: [{ tag: "pompa", writable: true }] }, null, TAG))
+      .toEqual({ ruolo: "Operator", attenua: false });
   });
 });

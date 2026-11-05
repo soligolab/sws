@@ -1,280 +1,145 @@
 id: ha_page1
-name: "Panoramica"
+name: "{{t0078}}"
 background: "#0f172a"
 width: 1280
 height: 800
 
+# La cornice (`cornici/cornice.yaml`) porta il nome della pagina, la lingua,
+# l'ora e la navigazione: qui c'è solo il contenuto, fra la testata (56) e il
+# piede (740). I testi hanno un riquadro (`text_wrap`) per cadere negli stessi
+# pixel sul web e sul pannello.
+
 objects:
-- id: lang_sel_auto
-  type: lang_selector
-  x: 1030
-  y: 10
-  width: 116
-  height: 34
 
-# ── HEADER ────────────────────────────────────────────────────────────────────
-- id: ha1_title
-  type: text
-  x: 640
-  y: 28
-  text: "{{t0001}}"
-  font_size: 23
-  font_weight: bold
-  text_anchor: middle
-  color: "#e2e8f0"
-  group_id: g_header
-  locked: true
-
+# ── Sottotitolo, nella testata accanto al nome della pagina ──────────────────
 - id: ha1_sub
   type: text
-  x: 640
-  y: 54
+  x: 240
+  y: 8
+  width: 660
+  height: 40
   text: "{{t0002}}"
   font_size: 14
-  text_anchor: middle
-  color: "#475569"
-  group_id: g_header
-  locked: true
-
-# ── NAV ───────────────────────────────────────────────────────────────────────
-- id: ha1_nav_panoramica
-  type: navbutton
-  x: 175
-  y: 738
-  width: 284
-  height: 44
-  label: "{{t0003}}"
-  target_page: ha_page1
-  fill: "#1e293b"
-  group_id: g_nav
-  locked: true
-
-- id: ha1_nav_controllo
-  type: navbutton
-  x: 485
-  y: 738
-  width: 284
-  height: 44
-  label: "{{t0004}}"
-  target_page: ha_page2
-  group_id: g_nav
-  locked: true
-
-- id: ha1_nav_storico
-  type: navbutton
-  x: 795
-  y: 738
-  width: 284
-  height: 44
-  label: "{{t0005}}"
-  target_page: ha_page3
-  group_id: g_nav
-  locked: true
-
-# ── SEZIONE CLIMA ─────────────────────────────────────────────────────────────
-- id: ha1_clima_lbl
-  type: text
-  x: 382
-  y: 90
-  text: "{{t0006}}"
-  font_size: 15
-  font_weight: bold
-  text_anchor: middle
+  text_wrap: true
+  text_valign: middle
   color: "#64748b"
 
-# Box interno
-- id: ha1_int_box
-  type: rect
-  x: 175
-  y: 106
-  width: 206
-  height: 142
-  fill: "#1e293b"
-  stroke: "#3b82f6"
-  stroke_width: 2
-  rx: 6
+# ── CLIMA: due istanze del faceplate «ambiente» ──────────────────────────────
+# L'ultima riga del riquadro è l'indice che ogni istanza sceglie: il comfort
+# per il soggiorno, il delta per l'esterno.
+- id: ha1_amb_sala
+  type: faceplate
+  faceplate_id: ambiente
+  faceplate_params:
+    stanza: sala
+    titolo: "{{t0007}}"
+    indice: clima.comfort_soggiorno
+    indice_nome: "{{t0008}}"
+  x: 40
+  y: 66
+  width: 290
+  height: 170
 
-- id: ha1_int_lbl
-  type: text
-  x: 279
-  y: 129
-  text: "{{t0007}}"
-  font_size: 13
-  font_weight: bold
-  text_anchor: middle
-  color: "#3b82f6"
+- id: ha1_amb_esterno
+  type: faceplate
+  faceplate_id: ambiente
+  faceplate_params:
+    stanza: esterno
+    titolo: "{{t0009}}"
+    indice: clima.delta_interno_esterno
+    indice_nome: "{{t0010}}"
+  x: 346
+  y: 66
+  width: 290
+  height: 170
 
-- id: ha1_int_temp
-  type: text
-  x: 279
-  y: 173
-  tag: sala.temperatura
-  format: "{value:.1f}°C"
-  font_size: 34
-  font_weight: bold
-  text_anchor: middle
-  color: "#93c5fd"
-
-- id: ha1_int_hum
-  type: text
-  x: 279
-  y: 206
-  tag: sala.umidita
-  format: "💧 {value:.0f}%"
-  font_size: 17
-  text_anchor: middle
-  color: "#7dd3fc"
-
-- id: ha1_int_comfort_lbl
-  type: text
-  x: 279
-  y: 232
-  text: "{{t0008}}"
-  font_size: 13
-  text_anchor: middle
-  color: "#475569"
-
-- id: ha1_int_comfort
-  type: text
-  x: 356
-  y: 232
-  tag: sala.comfort_index
-  format: "{value:.0f}/100"
-  font_size: 13
-  text_anchor: end
-  color: "#a3e635"
-
-# Box esterno
-- id: ha1_ext_box
-  type: rect
-  x: 408
-  y: 106
-  width: 206
-  height: 142
-  fill: "#1e293b"
-  stroke: "#22d3ee"
-  stroke_width: 2
-  rx: 6
-
-- id: ha1_ext_lbl
-  type: text
-  x: 511
-  y: 129
-  text: "{{t0009}}"
-  font_size: 13
-  font_weight: bold
-  text_anchor: middle
-  color: "#22d3ee"
-
-- id: ha1_ext_temp
-  type: text
-  x: 511
-  y: 173
-  tag: esterno.temperatura
-  format: "{value:.1f}°C"
-  font_size: 34
-  font_weight: bold
-  text_anchor: middle
-  color: "#67e8f9"
-
-- id: ha1_ext_hum
-  type: text
-  x: 511
-  y: 206
-  tag: esterno.umidita
-  format: "💧 {value:.0f}%"
-  font_size: 17
-  text_anchor: middle
-  color: "#a5f3fc"
-
-- id: ha1_delta_lbl
-  type: text
-  x: 511
-  y: 232
-  text: "{{t0010}}"
-  font_size: 13
-  text_anchor: middle
-  color: "#475569"
-
-- id: ha1_delta
-  type: text
-  x: 601
-  y: 232
-  tag: clima.delta_interno_esterno
-  format: "{value:+.1f}°C"
-  font_size: 13
-  text_anchor: end
-  color: "#fbbf24"
-
-# ── SEZIONE ENERGIA ───────────────────────────────────────────────────────────
-- id: ha1_energia_lbl
-  type: text
-  x: 885
-  y: 90
-  text: "{{t0011}}"
-  font_size: 15
-  font_weight: bold
-  text_anchor: middle
-  color: "#64748b"
-
+# ── ENERGIA ──────────────────────────────────────────────────────────────────
 - id: ha1_en_box
   type: rect
-  x: 679
-  y: 106
-  width: 413
-  height: 142
+  x: 652
+  y: 66
+  width: 588
+  height: 170
   fill: "#1e293b"
   stroke: "#f59e0b"
   stroke_width: 2
   rx: 6
 
+- id: ha1_energia_lbl
+  type: text
+  x: 668
+  y: 76
+  width: 380
+  height: 24
+  text: "{{t0011}}"
+  font_size: 14
+  font_weight: bold
+  text_wrap: true
+  text_valign: middle
+  color: "#f59e0b"
+
 - id: ha1_pot_lbl
   type: text
-  x: 808
-  y: 129
+  x: 668
+  y: 104
+  width: 380
+  height: 20
   text: "{{t0012}}"
-  font_size: 13
-  font_weight: bold
+  font_size: 12
   text_anchor: middle
-  color: "#f59e0b"
+  text_wrap: true
+  text_valign: middle
+  color: "#94a3b8"
 
 - id: ha1_pot_val
   type: text
-  x: 808
-  y: 178
+  x: 668
+  y: 124
+  width: 380
+  height: 52
   tag: energia.potenza_w
   format: "{value:.0f} W"
-  font_size: 39
+  font_size: 40
   font_weight: bold
   text_anchor: middle
+  text_wrap: true
+  text_valign: middle
   color: "#fbbf24"
 
 - id: ha1_kwh_lbl
   type: text
-  x: 808
-  y: 213
+  x: 668
+  y: 180
+  width: 380
+  height: 22
   tag: energia.consumo_kwh
   format: "{{t0076}}"
   font_size: 14
   text_anchor: middle
-  color: "#92400e"
+  text_wrap: true
+  text_valign: middle
+  color: "#d97706"
 
 - id: ha1_costo_lbl
   type: text
-  x: 808
-  y: 232
+  x: 668
+  y: 204
+  width: 380
+  height: 22
   tag: energia.costo_ora_eur
   format: "{{t0077}}"
   font_size: 13
   text_anchor: middle
-  color: "#78716c"
+  text_wrap: true
+  text_valign: middle
+  color: "#a8a29e"
 
 - id: ha1_en_gauge
   type: gauge
-  x: 1001
-  y: 106
-  width: 90
-  height: 142
+  x: 1074
+  y: 76
+  width: 150
+  height: 150
   tag: energia.potenza_w
   min: 0
   max: 5000
@@ -282,295 +147,243 @@ objects:
   warn_high: 3500
   alarm_high: 4500
 
-# ── SEZIONE SICUREZZA ─────────────────────────────────────────────────────────
-- id: ha1_sec_lbl
-  type: text
-  x: 382
-  y: 284
-  text: "{{t0013}}"
-  font_size: 15
-  font_weight: bold
-  text_anchor: middle
-  color: "#64748b"
-
+# ── SICUREZZA: le due porte col faceplate «contatto» (aperta = rosso, chiusa
+# = verde), movimento e modalità notturna con «indicatore» ──────────────────
 - id: ha1_sec_box
   type: rect
-  x: 175
-  y: 299
-  width: 439
-  height: 168
+  x: 40
+  y: 250
+  width: 590
+  height: 140
   fill: "#1e293b"
   stroke: "#334155"
   stroke_width: 1
   rx: 6
 
-# Porta principale
-- id: ha1_porta_lbl
+- id: ha1_sec_lbl
   type: text
-  x: 201
-  y: 333
-  text: "{{t0014}}"
-  font_size: 15
-  color: "#94a3b8"
-
-- id: ha1_porta_led
-  type: led
-  x: 408
-  y: 323
-  width: 21
-  height: 21
-  tag: porta.principale
-  on_color: "#ef4444"
-  off_color: "#22c55e"
-
-- id: ha1_porta_stato
-  type: text
-  x: 444
-  y: 338
-  tag: porta.principale
-  format: "{value}"
+  x: 56
+  y: 258
+  width: 558
+  height: 24
+  text: "{{t0013}}"
   font_size: 14
-  color: "#64748b"
-
-# Movimento ingresso
-- id: ha1_mov_lbl
-  type: text
-  x: 201
-  y: 372
-  text: "{{t0015}}"
-  font_size: 15
-  color: "#94a3b8"
-
-- id: ha1_mov_led
-  type: led
-  x: 408
-  y: 361
-  width: 21
-  height: 21
-  tag: ingresso.movimento
-  on_color: "#f59e0b"
-  off_color: "#334155"
-
-# Garage
-- id: ha1_garage_lbl
-  type: text
-  x: 201
-  y: 410
-  text: "{{t0016}}"
-  font_size: 15
-  color: "#94a3b8"
-
-- id: ha1_garage_led
-  type: led
-  x: 408
-  y: 400
-  width: 21
-  height: 21
-  tag: garage.aperto
-  on_color: "#ef4444"
-  off_color: "#22c55e"
-
-- id: ha1_garage_stato
-  type: text
-  x: 444
-  y: 415
-  tag: garage.aperto
-  format: "{value}"
-  font_size: 14
-  color: "#64748b"
-
-# Modalità notturna
-- id: ha1_notte_lbl
-  type: text
-  x: 201
-  y: 449
-  text: "{{t0017}}"
-  font_size: 15
-  color: "#94a3b8"
-
-- id: ha1_notte_led
-  type: led
-  x: 408
-  y: 439
-  width: 21
-  height: 21
-  tag: modalita.notturna
-  on_color: "#8b5cf6"
-  off_color: "#334155"
-
-# ── SEZIONE LUCI ─────────────────────────────────────────────────────────────
-- id: ha1_luci_lbl
-  type: text
-  x: 885
-  y: 284
-  text: "{{t0018}}"
-  font_size: 15
   font_weight: bold
-  text_anchor: middle
-  color: "#64748b"
+  text_wrap: true
+  text_valign: middle
+  color: "#94a3b8"
 
+- id: ha1_porta
+  type: faceplate
+  faceplate_id: contatto
+  faceplate_params:
+    etichetta: "{{t0014}}"
+    tag: porta.principale
+  x: 60
+  y: 294
+  width: 260
+  height: 30
+
+- id: ha1_mov
+  type: faceplate
+  faceplate_id: indicatore
+  faceplate_params:
+    etichetta: "{{t0015}}"
+    tag: ingresso.movimento
+  x: 345
+  y: 294
+  width: 260
+  height: 30
+
+- id: ha1_garage
+  type: faceplate
+  faceplate_id: contatto
+  faceplate_params:
+    etichetta: "{{t0016}}"
+    tag: garage.aperto
+  x: 60
+  y: 338
+  width: 260
+  height: 30
+
+- id: ha1_notte
+  type: faceplate
+  faceplate_id: indicatore
+  faceplate_params:
+    etichetta: "{{t0017}}"
+    tag: modalita.notturna
+  x: 345
+  y: 338
+  width: 260
+  height: 30
+
+# ── LUCI: quattro istanze del faceplate «indicatore» ────────────────────────
 - id: ha1_luci_box
   type: rect
-  x: 679
-  y: 299
-  width: 413
-  height: 168
+  x: 650
+  y: 250
+  width: 590
+  height: 140
   fill: "#1e293b"
   stroke: "#334155"
   stroke_width: 1
   rx: 6
 
-- id: ha1_l_sog_lbl
+- id: ha1_luci_lbl
   type: text
-  x: 705
-  y: 333
-  text: "{{t0019}}"
-  font_size: 15
-  color: "#94a3b8"
-
-- id: ha1_l_sog_led
-  type: led
-  x: 911
-  y: 323
-  width: 21
-  height: 21
-  tag: luce.soggiorno
-  on_color: "#fbbf24"
-  off_color: "#334155"
-
-- id: ha1_l_cuc_lbl
-  type: text
-  x: 705
-  y: 372
-  text: "{{t0020}}"
-  font_size: 15
-  color: "#94a3b8"
-
-- id: ha1_l_cuc_led
-  type: led
-  x: 911
-  y: 361
-  width: 21
-  height: 21
-  tag: luce.cucina
-  on_color: "#fbbf24"
-  off_color: "#334155"
-
-- id: ha1_l_est_lbl
-  type: text
-  x: 705
-  y: 410
-  text: "{{t0021}}"
-  font_size: 15
-  color: "#94a3b8"
-
-- id: ha1_l_est_led
-  type: led
-  x: 911
-  y: 400
-  width: 21
-  height: 21
-  tag: luce.esterno
-  on_color: "#fbbf24"
-  off_color: "#334155"
-
-- id: ha1_l_vent_lbl
-  type: text
-  x: 705
-  y: 449
-  text: "{{t0023}}"
-  font_size: 15
-  color: "#94a3b8"
-
-- id: ha1_l_vent_led
-  type: led
-  x: 911
-  y: 439
-  width: 21
-  height: 21
-  tag: ventilatore.camera
-  on_color: "#22d3ee"
-  off_color: "#334155"
-
-# ── SEZIONE RISCALDAMENTO ─────────────────────────────────────────────────────
-- id: ha1_risc_lbl
-  type: text
-  x: 382
-  y: 503
-  text: "{{t0024}}"
-  font_size: 15
+  x: 666
+  y: 258
+  width: 558
+  height: 24
+  text: "{{t0018}}"
+  font_size: 14
   font_weight: bold
-  text_anchor: middle
-  color: "#64748b"
+  text_wrap: true
+  text_valign: middle
+  color: "#94a3b8"
 
+- id: ha1_l_sog
+  type: faceplate
+  faceplate_id: indicatore
+  faceplate_params:
+    etichetta: "{{t0019}}"
+    tag: luce.soggiorno
+  x: 670
+  y: 294
+  width: 260
+  height: 30
+
+- id: ha1_l_cuc
+  type: faceplate
+  faceplate_id: indicatore
+  faceplate_params:
+    etichetta: "{{t0020}}"
+    tag: luce.cucina
+  x: 955
+  y: 294
+  width: 260
+  height: 30
+
+- id: ha1_l_est
+  type: faceplate
+  faceplate_id: indicatore
+  faceplate_params:
+    etichetta: "{{t0021}}"
+    tag: luce.esterno
+  x: 670
+  y: 338
+  width: 260
+  height: 30
+
+- id: ha1_l_vent
+  type: faceplate
+  faceplate_id: indicatore
+  faceplate_params:
+    etichetta: "{{t0023}}"
+    tag: ventilatore.camera
+  x: 955
+  y: 338
+  width: 260
+  height: 30
+
+# ── RISCALDAMENTO ────────────────────────────────────────────────────────────
 - id: ha1_risc_box
   type: rect
-  x: 175
-  y: 519
-  width: 439
-  height: 155
+  x: 40
+  y: 404
+  width: 590
+  height: 160
   fill: "#1e293b"
   stroke: "#dc2626"
   stroke_width: 1
   rx: 6
 
+- id: ha1_risc_lbl
+  type: text
+  x: 56
+  y: 412
+  width: 558
+  height: 24
+  text: "{{t0024}}"
+  font_size: 14
+  font_weight: bold
+  text_wrap: true
+  text_valign: middle
+  color: "#f87171"
+
 - id: ha1_risc_curr_lbl
   type: text
-  x: 201
-  y: 552
+  x: 56
+  y: 444
+  width: 340
+  height: 28
   text: "{{t0025}}"
   font_size: 14
+  text_wrap: true
+  text_valign: middle
   color: "#94a3b8"
 
 - id: ha1_risc_curr
   type: text
-  x: 588
-  y: 552
+  x: 400
+  y: 444
+  width: 214
+  height: 28
   tag: clima.temperatura_attuale
   format: "{value:.1f}°C"
   font_size: 18
   font_weight: bold
   text_anchor: end
+  text_wrap: true
+  text_valign: middle
   color: "#f87171"
 
 - id: ha1_risc_set_lbl
   type: text
-  x: 201
-  y: 591
+  x: 56
+  y: 478
+  width: 340
+  height: 28
   text: "{{t0026}}"
   font_size: 14
+  text_wrap: true
+  text_valign: middle
   color: "#94a3b8"
 
 - id: ha1_risc_set
   type: text
-  x: 588
-  y: 591
+  x: 400
+  y: 478
+  width: 214
+  height: 28
   tag: clima.setpoint
   format: "{value:.1f}°C"
   font_size: 18
   font_weight: bold
   text_anchor: end
+  text_wrap: true
+  text_valign: middle
   color: "#fb923c"
 
 - id: ha1_risc_prog
   type: progress_bar
-  x: 201
-  y: 609
-  width: 374
-  height: 21
+  x: 56
+  y: 522
+  width: 558
+  height: 22
   tag: clima.temperatura_attuale
   min: 10
   max: 30
   fill: "#dc2626"
-  background: "#374151"
+  bg_color: "#374151"
 
-# ── SOLE ──────────────────────────────────────────────────────────────────────
+# ── SOLE ─────────────────────────────────────────────────────────────────────
 - id: ha1_sole_box
   type: rect
-  x: 679
-  y: 503
-  width: 413
-  height: 155
+  x: 650
+  y: 404
+  width: 590
+  height: 160
   fill: "#1e293b"
   stroke: "#f59e0b"
   stroke_width: 1
@@ -578,56 +391,98 @@ objects:
 
 - id: ha1_sole_lbl
   type: text
-  x: 885
-  y: 529
+  x: 666
+  y: 412
+  width: 558
+  height: 24
   text: "{{t0027}}"
-  font_size: 15
+  font_size: 14
   font_weight: bold
-  text_anchor: middle
+  text_wrap: true
+  text_valign: middle
   color: "#f59e0b"
 
 - id: ha1_sole_el
   type: text
-  x: 885
-  y: 578
+  x: 666
+  y: 436
+  width: 558
+  height: 52
   tag: sole.elevazione
   format: "{value:.1f}°"
-  font_size: 39
+  font_size: 36
   font_weight: bold
   text_anchor: middle
+  text_wrap: true
+  text_valign: middle
   color: "#fbbf24"
 
 - id: ha1_sole_el_lbl
   type: text
-  x: 885
-  y: 604
+  x: 666
+  y: 490
+  width: 558
+  height: 22
   text: "{{t0028}}"
   font_size: 13
   text_anchor: middle
-  color: "#78716c"
+  text_wrap: true
+  text_valign: middle
+  color: "#a8a29e"
 
 - id: ha1_sole_prog
   type: progress_bar
-  x: 705
-  y: 619
-  width: 361
-  height: 15
+  x: 666
+  y: 522
+  width: 558
+  height: 22
   tag: sole.elevazione
   min: -30
   max: 70
   fill: "#f59e0b"
-  background: "#1c1917"
+  bg_color: "#1c1917"
+
+# ── ALLARMI ──────────────────────────────────────────────────────────────────
+# La fascia mostra l'allarme attivo più recente; la campanella apre l'elenco,
+# lo storico e la sospensione.
+# Fondo della pagina e non quello dei riquadri: la campanella ha il colore dei
+# riquadri, e lì dentro sparirebbe.
+- id: ha1_alarm_box
+  type: rect
+  x: 40
+  y: 578
+  width: 1200
+  height: 144
+  fill: "#0f172a"
+  stroke: "#334155"
+  stroke_width: 1
+  rx: 6
+
+- id: ha1_alarm_lbl
+  type: text
+  x: 56
+  y: 586
+  width: 1168
+  height: 24
+  text: "{{t0081}}"
+  font_size: 14
+  font_weight: bold
+  text_wrap: true
+  text_valign: middle
+  color: "#94a3b8"
+
 - id: ha1_alarm_bell
   type: alarm_bell
-  x: 149.7
-  y: 614.2
-  width: 167.7
-  height: 43.9
+  x: 56
+  y: 636
+  width: 180
+  height: 44
   alarm_bell_show_history: true
   alarm_bell_show_shelve: true
+
 - id: ha1_alarm_banner
   type: alarm_banner
-  x: 149.7
-  y: 683.9
-  width: 980.6
-  height: 90.3
+  x: 252
+  y: 622
+  width: 972
+  height: 72

@@ -1,5 +1,5 @@
 id: p_casa
-name: '{{t0076}}'
+name: '{{t0077}}'
 width: 1280.0
 height: 800.0
 background: '#0f172a'
@@ -7,15 +7,17 @@ objects:
 - id: tit
   type: text
   x: 40.0
-  y: 20.0
-  width: 900.0
-  height: 20.0
+  y: 62.0
+  width: 1200.0
+  height: 28.0
   text: '{{t0062}}'
   font_size: 16.0
+  text_wrap: true
+  text_valign: middle
 - id: t_ic
   type: text
   x: 40.0
-  y: 60.0
+  y: 104.0
   width: 560.0
   height: 20.0
   text: '{{t0063}}'
@@ -23,7 +25,7 @@ objects:
 - id: s_lampadina
   type: slider
   x: 40.0
-  y: 85.0
+  y: 129.0
   width: 270.0
   height: 70.0
   tag: c.luce
@@ -38,7 +40,7 @@ objects:
 - id: s_sole
   type: slider
   x: 330.0
-  y: 85.0
+  y: 129.0
   width: 270.0
   height: 70.0
   tag: c.luce_terrazzo
@@ -53,7 +55,7 @@ objects:
 - id: s_tapparella
   type: slider
   x: 40.0
-  y: 169.0
+  y: 213.0
   width: 270.0
   height: 70.0
   tag: c.tapparella
@@ -68,7 +70,7 @@ objects:
 - id: s_termometro
   type: slider
   x: 330.0
-  y: 169.0
+  y: 213.0
   width: 270.0
   height: 70.0
   tag: c.setpoint
@@ -85,7 +87,7 @@ objects:
 - id: s_ventola
   type: slider
   x: 40.0
-  y: 253.0
+  y: 297.0
   width: 270.0
   height: 70.0
   tag: c.ventola
@@ -100,7 +102,7 @@ objects:
 - id: s_presa
   type: slider
   x: 330.0
-  y: 253.0
+  y: 297.0
   width: 270.0
   height: 70.0
   tag: c.presa
@@ -115,7 +117,7 @@ objects:
 - id: s_volume
   type: slider
   x: 40.0
-  y: 337.0
+  y: 381.0
   width: 270.0
   height: 70.0
   tag: c.volume
@@ -130,7 +132,7 @@ objects:
 - id: s_goccia
   type: slider
   x: 330.0
-  y: 337.0
+  y: 381.0
   width: 270.0
   height: 70.0
   tag: c.irrigazione
@@ -145,7 +147,7 @@ objects:
 - id: t_img
   type: text
   x: 660.0
-  y: 60.0
+  y: 104.0
   width: 560.0
   height: 20.0
   text: '{{t0064}}'
@@ -153,7 +155,7 @@ objects:
 - id: s_img
   type: slider
   x: 660.0
-  y: 85.0
+  y: 129.0
   width: 560.0
   height: 110.0
   tag: c.luce
@@ -171,7 +173,7 @@ objects:
 - id: s_img2
   type: slider
   x: 660.0
-  y: 210.0
+  y: 254.0
   width: 560.0
   height: 70.0
   tag: c.tapparella
@@ -186,7 +188,7 @@ objects:
 - id: t_tag
   type: text
   x: 660.0
-  y: 300.0
+  y: 344.0
   width: 560.0
   height: 20.0
   text: '{{t0067}}'
@@ -194,7 +196,7 @@ objects:
 - id: s_tag
   type: slider
   x: 660.0
-  y: 325.0
+  y: 369.0
   width: 560.0
   height: 80.0
   tag: c.pressione
@@ -205,7 +207,7 @@ objects:
 - id: t_nn
   type: text
   x: 660.0
-  y: 425.0
+  y: 469.0
   width: 560.0
   height: 20.0
   text: '{{t0069}}'
@@ -213,7 +215,7 @@ objects:
 - id: s_nn
   type: slider
   x: 660.0
-  y: 450.0
+  y: 494.0
   width: 560.0
   height: 60.0
   tag: c.valore
@@ -228,7 +230,7 @@ objects:
 - id: t_cr
   type: text
   x: 660.0
-  y: 530.0
+  y: 574.0
   width: 560.0
   height: 20.0
   text: '{{t0070}}'
@@ -236,7 +238,7 @@ objects:
 - id: s_cr
   type: slider
   x: 660.0
-  y: 555.0
+  y: 599.0
   width: 560.0
   height: 70.0
   tag: c.critico
@@ -246,26 +248,18 @@ objects:
   unit: '%'
   label: '{{t0071}}'
   critical: true
+  require_confirm: true
+  confirm_message: '{{t0072}}'
   fill: '#ef4444'
   font_size: 18.0
   label_font_size: 13.0
 - id: l_cr
   type: text
   x: 660.0
-  y: 630.0
+  y: 674.0
   width: 200.0
   height: 18.0
   tag: c.critico
   format: '{{t0001}} {value:.0f}'
   font_size: 11.0
   color: '#94a3b8'
-- id: nav
-  type: page_navigator
-  x: 24.0
-  y: 752.0
-  width: 1232.0
-  height: 40.0
-  nav_orientation: horizontal
-  nav_fill: true
-  nav_gap: 6
-  locked: true

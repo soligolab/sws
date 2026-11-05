@@ -12,6 +12,7 @@ import type { SynopticObject } from "@/types";
 export function PermessoTagNota({ obj, progettoHaUtenti }: { obj: SynopticObject; progettoHaUtenti: boolean | null }) {
   const { t } = useTranslation();
   const tags = useAppStore((s) => s.project?.tags);
+  const tipi = useAppStore((s) => s.project?.types);
   // Senza utenti chiunque è Admin: non c'è niente da dire.
   if (progettoHaUtenti !== true) return null;
   const scritti = tagScrittiDa(obj);
@@ -20,7 +21,7 @@ export function PermessoTagNota({ obj, progettoHaUtenti }: { obj: SynopticObject
   return (
     <div style={{ fontSize: 10, color: "var(--brand-text-muted, #94a3b8)", margin: "2px 0 6px", lineHeight: 1.4 }}>
       {scritti.map((tag) => {
-        const soglia = sogliaScritturaTag(tags, tag);
+        const soglia = sogliaScritturaTag(tags, tag, tipi);
         return (
           <p key={tag} style={{ margin: "0 0 2px" }}>
             {t("props.permessoTag", { tag, ruolo: nome(soglia) })}

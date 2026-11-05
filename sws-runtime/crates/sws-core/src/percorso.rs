@@ -11,7 +11,7 @@
 //! serve a tre cose: il valore iniziale composito, l'elenco delle foglie con il
 //! loro tipo e i metadati del membro (scala, ruolo, storico), e la navigazione.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashMap};
 
 use crate::project::{Membro, TagDef, TypeDef};
 use crate::tag::TagValue;
@@ -679,5 +679,71 @@ mod tests {
             panic!()
         };
         assert_eq!(v, vec![TagValue::Float(1.0)]);
+    }
+}
+
+/// Chi può scrivere cosa (F3.1): percorso → ruolo minimo, dal tag e, per le
+/// foglie di un'istanza, dal membro del tipo. È la mappa del `TagDb`
+/// (`write_role_of`), e dal 04-11-2026 la legge anche il pannello LVGL per
+/// disegnare il lucchetto sui comandi che chi guarda non può usare: una
+/// regola, un posto.
+pub fn soglie_di_scrittura(tags: &[TagDef], types: &[TypeDef]) -> HashMap<String, String> {
+    let mut out = HashMap::new();
+    for t in tags {
+        if let Some(r) = &t.write_min_role {
+            out.insert(t.id.clone(), r.clone());
+        }
+        if let Ok(Some(f)) = Forma::da_tag(t, types) {
+            for foglia in f.foglie(&t.id, types) {
+                if let Some(r) = foglia
+                    .membro
+                    .as_ref()
+                    .and_then(|m| m.write_min_role.clone())
+                {
+                    out.insert(foglia.percorso, r);
+                }
+            }
+        }
+    }
+    out
+}
+
+/// Il ruolo che serve per scrivere `id`, come `write_role_of`: il suo (tag o
+/// foglia), poi quello della radice se `id` è un percorso, poi `Operator`.
+pub fn soglia_di_scrittura(soglie: &HashMap<String, String>, id: &str) -> String {
+    if let Some(r) = soglie.get(id) {
+        return r.clone();
+    }
+    if let Some(fine) = id.find(['.', '[']) {
+        if let Some(r) = soglie.get(&id[..fine]) {
+            return r.clone();
+        }
+    }
+    "Operator".to_string()
+}
+
+#[cfg(test)]
+mod soglie_tests {
+    use super::*;
+
+    /// Il membro vince sulla radice, la radice copre le foglie senza soglia,
+    /// e senza niente vale Operator — come `write_role_of` del `TagDb`.
+    #[test]
+    fn la_soglia_del_membro_della_radice_e_quella_predefinita() {
+        let types: Vec<TypeDef> = serde_yaml::from_str(
+            "- { id: pompa, members: [{ name: comando, data_type: bool, write_min_role: Viewer }, { name: portata, data_type: f32 }] }",
+        )
+        .unwrap();
+        let tags: Vec<TagDef> = serde_yaml::from_str(
+            "- { id: p1, type_ref: pompa, write_min_role: Supervisor }\n- { id: p2, type_ref: pompa }\n- { id: luce, write_min_role: Viewer }\n- { id: x }",
+        )
+        .unwrap();
+        let s = soglie_di_scrittura(&tags, &types);
+        assert_eq!(soglia_di_scrittura(&s, "p1.comando"), "Viewer");
+        assert_eq!(soglia_di_scrittura(&s, "p1.portata"), "Supervisor");
+        assert_eq!(soglia_di_scrittura(&s, "p2.comando"), "Viewer");
+        assert_eq!(soglia_di_scrittura(&s, "p2.portata"), "Operator");
+        assert_eq!(soglia_di_scrittura(&s, "luce"), "Viewer");
+        assert_eq!(soglia_di_scrittura(&s, "x"), "Operator");
     }
 }

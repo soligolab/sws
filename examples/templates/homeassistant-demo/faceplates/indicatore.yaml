@@ -1,0 +1,43 @@
+# Una riga «etichetta + spia» della Panoramica (R8, 04-11-2026): le luci, il
+# ventilatore, il movimento, la modalità notturna. Una istanza per segnale; il
+# tag è un parametro perché i segnali sono variabili piatte, ognuna con la sua
+# entità di HA.
+#
+# Acceso = ambra, lo stesso colore della spia del faceplate «luce» nella
+# pagina Controllo: lo stesso tag ha lo stesso colore su tutte le pagine. Le
+# porte (aperta = rosso, chiusa = verde) hanno il faceplate «contatto»: dentro
+# un faceplate i colori non sono parametri.
+id: indicatore
+label: Indicatore
+width: 260
+height: 30
+params:
+- name: etichetta
+  type: string
+  default: '{{t0019}}'
+- name: tag
+  type: tag
+  default: luce.soggiorno
+  required: true
+objects:
+- id: etichetta
+  type: text
+  x: 0
+  y: 0
+  width: 214
+  height: 30
+  text: '{etichetta}'
+  font_size: 15
+  text_anchor: start
+  text_wrap: true
+  text_valign: middle
+  color: '#94a3b8'
+- id: spia
+  type: led
+  x: 230
+  y: 4
+  width: 22
+  height: 22
+  tag: '{tag}'
+  on_color: '#fbbf24'
+  off_color: '#334155'

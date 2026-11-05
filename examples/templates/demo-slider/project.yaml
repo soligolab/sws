@@ -7,63 +7,79 @@ tags:
 - id: c.luce
   description: Luce del soggiorno (piastra)
   data_type: float
+  write_min_role: Viewer
   unit: '%'
 - id: c.luce_terrazzo
   description: Luce del terrazzo (piastra)
   data_type: float
+  write_min_role: Viewer
   unit: '%'
 - id: c.ventola
   description: Ventola (piastra)
   data_type: float
+  write_min_role: Viewer
   unit: '%'
 - id: c.tapparella
   description: Tapparella (piastra verticale)
   data_type: float
+  write_min_role: Viewer
   unit: '%'
 - id: c.presa
   description: Presa smart, limite di potenza (piastra)
   data_type: float
+  write_min_role: Viewer
   unit: '%'
 - id: c.volume
   description: Volume della musica (piastra)
   data_type: float
+  write_min_role: Viewer
   unit: '%'
 - id: c.irrigazione
   description: Irrigazione (piastra)
   data_type: float
+  write_min_role: Viewer
   unit: '%'
 - id: c.valore
   description: Il valore comune agli slider generici
   data_type: float
+  write_min_role: Viewer
   unit: '%'
 - id: c.frazione
   description: Frazione 0..1 col passo 0,05
   data_type: float
+  write_min_role: Viewer
 - id: c.offset
   description: Offset bipolare −50..50
   data_type: float
+  write_min_role: Viewer
 - id: c.setpoint
   description: Setpoint del termostato
   data_type: float
+  write_min_role: Viewer
   unit: °C
 - id: c.jog
   description: Leva a molla −100..100
   data_type: float
+  write_min_role: Viewer
 - id: c.continuo
   description: Scrittura continua con deadband 5
   data_type: float
+  write_min_role: Viewer
   unit: '%'
 - id: c.conferma
   description: Scrittura con conferma
   data_type: float
+  write_min_role: Viewer
   unit: '%'
 - id: c.verticale
   description: Slider verticali
   data_type: float
+  write_min_role: Viewer
   unit: '%'
 - id: c.pressione
   description: 'Pressione: limiti, unità e decimali presi dal tag'
   data_type: float
+  write_min_role: Viewer
   unit: bar
   range_lo: 0.0
   range_hi: 6.0
@@ -71,10 +87,12 @@ tags:
 - id: c.critico
   description: Comando critico
   data_type: float
+  write_min_role: Viewer
   unit: '%'
 - id: s.rampa
   description: 'Si muove da solo: rampa 0..100 in 40 s'
   data_type: float
+  write_min_role: Viewer
   unit: '%'
   generator:
     shape: ramp
@@ -100,6 +118,7 @@ page_layout:
   default_width: 1280.0
   default_height: 800.0
   home_page_id: p_stili
+  cornice_predefinita: cornice
 languages:
   default: it
   langs:
@@ -314,9 +333,10 @@ languages:
       es: ¿Cambiar el valor?
   - key: t0042
     values:
-      it: Bipolare, valore misurato, molla
-      en: Bipolar, measured value, spring
-      es: Bipolar, valor medido, muelle
+      it: Origine al centro, il valore misurato (PV) segnato sulla traccia, la leva che torna a zero quando la lasci
+      en: Origin in the middle, the measured value (PV) marked on the track, the lever that goes back to zero when you let
+        go
+      es: Origen en el centro, el valor medido (PV) marcado en la pista, la palanca que vuelve a cero al soltarla
   - key: t0043
     values:
       it: Offset −50..50, origine 0
@@ -374,9 +394,9 @@ languages:
       es: Bipolar vertical con el valor medido
   - key: t0054
     values:
-      it: Gli stessi stili su sfondo chiaro
-      en: The same styles on a light background
-      es: Los mismos estilos sobre fondo claro
+      it: 'Nessun colore scritto per testi e tacche: prendono il tono dallo sfondo della pagina'
+      en: 'No colour set for texts and ticks: they take their tone from the page background'
+      es: 'Ningún color fijado para textos y marcas: toman el tono del fondo de la página'
   - key: t0055
     values:
       it: Tacche e bande
@@ -464,25 +484,30 @@ languages:
       es: Potencia de la bomba
   - key: t0072
     values:
+      it: Cambiare la potenza della pompa?
+      en: Change the pump power?
+      es: ¿Cambiar la potencia de la bomba?
+  - key: t0073
+    values:
       it: Stili
       en: Styles
       es: Estilos
-  - key: t0073
+  - key: t0074
     values:
       it: Valore e tacche
       en: Value and ticks
       es: Valor y marcas
-  - key: t0074
+  - key: t0075
     values:
       it: Bipolare, PV, molla
       en: Bipolar, PV, spring
       es: Bipolar, PV, muelle
-  - key: t0075
+  - key: t0076
     values:
       it: Sfondo chiaro
       en: Light background
       es: Fondo claro
-  - key: t0076
+  - key: t0077
     values:
       it: In casa e altre opzioni
       en: At home and more options

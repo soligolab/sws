@@ -2,6 +2,83 @@ meta:
   name: homeassistant-pro
   version: 0.1.0
 
+# ── TIPI ──────────────────────────────────────────────────────────────────────
+# Le cose che si ripetono (04-11-2026, regola R8): due stringhe FV, cinque
+# stanze, due contatori. Ogni istanza tiene gli stessi percorsi dei tag piatti
+# di prima (`pv1.tensione_v`, `sala.temperatura`, `cucina.potenza_w`): le
+# entità HomeAssistant, gli allarmi, lo storico e le espressioni puntano agli
+# stessi percorsi. I faceplate in faceplates/ legano un'istanza intera con un
+# parametro solo.
+#
+# Una differenza c'è, e sta nel runtime (`TagDb::espandi_foglie`, 04-11-2026):
+# una foglia mai letta prende la qualità della radice. Se HomeAssistant manda
+# prima `sala.umidita`, finché non arriva la temperatura `sala.temperatura`
+# vale 0.0 con qualità Good — e l'allarme «Soggiorno troppo freddo» scatta,
+# lo storico registra uno zero. Con i tag piatti restava 0.0 Uncertain, che
+# allarmi e trend scartano. La correzione va nel prodotto, non qui.
+#
+# Lo storico lo accende la radice (`history: true` sull'istanza); un membro con
+# `history: false` ne resta fuori per tutte le istanze.
+types:
+  - id: stringa_fv
+    description: "Stringa fotovoltaica: tensione, corrente e potenza"
+    members:
+      - name: tensione_v
+        description: "Tensione di stringa"
+        data_type: float
+        unit: V
+        decimals: 1
+        history: false
+      - name: corrente_a
+        description: "Corrente di stringa"
+        data_type: float
+        unit: A
+        decimals: 2
+      - name: potenza_kw
+        description: "Potenza di stringa"
+        data_type: float
+        unit: kW
+        decimals: 3
+
+  - id: stanza
+    description: "Stanza con sensore Zigbee di temperatura e umidità"
+    members:
+      - name: temperatura
+        description: "Temperatura della stanza"
+        data_type: float
+        unit: "°C"
+        decimals: 1
+      - name: umidita
+        description: "Umidità relativa della stanza"
+        data_type: float
+        unit: "%"
+        decimals: 0
+
+  - id: contatore
+    description: "Carico con contatore smart (Sonoff POWR316D, Shelly EM): potenza, tensione, corrente, energia"
+    members:
+      - name: potenza_w
+        description: "Potenza attiva"
+        data_type: float
+        unit: W
+        decimals: 0
+      - name: tensione_v
+        description: "Tensione"
+        data_type: float
+        unit: V
+        decimals: 1
+      - name: corrente_a
+        description: "Corrente"
+        data_type: float
+        unit: A
+        decimals: 2
+      - name: energia_kwh
+        description: "Energia totale importata"
+        data_type: float
+        unit: kWh
+        decimals: 2
+        history: false
+
 # ── TAG ───────────────────────────────────────────────────────────────────────
 # Template showcase: sistema fotovoltaico+batteria, monitoraggio elettrico
 # multi-circuito, clima 5 stanze, sicurezza perimetrale completa, controlli
@@ -12,37 +89,18 @@ meta:
 
 tags:
 
-  # ── Fotovoltaico — Stringa 1 ───────────────────────────────────────────────
-  - id: pv1.tensione_v
-    description: "Tensione stringa FV1 (V)"
-    data_type: float
-
-  - id: pv1.corrente_a
-    description: "Corrente stringa FV1 (A)"
-    data_type: float
+  # ── Fotovoltaico — le due stringhe ────────────────────────────────────────
+  # Istanze di `stringa_fv`: i percorsi restano pv1.tensione_v, pv1.corrente_a,
+  # pv1.potenza_kw (e lo stesso per pv2). Nello storico corrente e potenza.
+  - id: pv1
+    description: "Stringa FV1"
+    type_ref: stringa_fv
     history: true
     datastore_id: sqlite-pro
 
-  - id: pv1.potenza_kw
-    description: "Potenza stringa FV1 (kW)"
-    data_type: float
-    history: true
-    datastore_id: sqlite-pro
-
-  # ── Fotovoltaico — Stringa 2 ───────────────────────────────────────────────
-  - id: pv2.tensione_v
-    description: "Tensione stringa FV2 (V)"
-    data_type: float
-
-  - id: pv2.corrente_a
-    description: "Corrente stringa FV2 (A)"
-    data_type: float
-    history: true
-    datastore_id: sqlite-pro
-
-  - id: pv2.potenza_kw
-    description: "Potenza stringa FV2 (kW)"
-    data_type: float
+  - id: pv2
+    description: "Stringa FV2"
+    type_ref: stringa_fv
     history: true
     datastore_id: sqlite-pro
 
@@ -171,107 +229,61 @@ tags:
     description: "Consumo casa lifetime (kWh)"
     data_type: float
 
-  # ── Clima — Soggiorno ──────────────────────────────────────────────────────
-  - id: sala.temperatura
-    description: "Temperatura soggiorno (°C)"
-    data_type: float
+  # ── Clima — le cinque stanze ──────────────────────────────────────────────
+  # Istanze di `stanza`: sala.temperatura, sala.umidita, … come prima. Nello
+  # storico le tre stanze del trend della pagina Clima.
+  - id: sala
+    description: "Soggiorno"
+    type_ref: stanza
     history: true
     datastore_id: sqlite-pro
 
-  - id: sala.umidita
-    description: "Umidità soggiorno (%)"
-    data_type: float
+  - id: studio
+    description: "Studio"
+    type_ref: stanza
     history: true
     datastore_id: sqlite-pro
 
-  # ── Clima — Studio ─────────────────────────────────────────────────────────
-  - id: studio.temperatura
-    description: "Temperatura studio (°C)"
-    data_type: float
+  - id: lavanderia
+    description: "Lavanderia"
+    type_ref: stanza
     history: true
     datastore_id: sqlite-pro
 
-  - id: studio.umidita
-    description: "Umidità studio (%)"
-    data_type: float
+  - id: bagno
+    description: "Bagno piano terra"
+    type_ref: stanza
 
-  # ── Clima — Lavanderia ─────────────────────────────────────────────────────
-  - id: lavanderia.temperatura
-    description: "Temperatura lavanderia (°C)"
-    data_type: float
-    history: true
-    datastore_id: sqlite-pro
+  - id: tecnico
+    description: "Locale tecnico"
+    type_ref: stanza
 
-  - id: lavanderia.umidita
-    description: "Umidità lavanderia (%)"
-    data_type: float
-
-  # ── Clima — Bagno ──────────────────────────────────────────────────────────
-  - id: bagno.temperatura
-    description: "Temperatura bagno piano terra (°C)"
-    data_type: float
-
-  - id: bagno.umidita
-    description: "Umidità bagno piano terra (%)"
-    data_type: float
-
-  # ── Clima — Locale Tecnico ─────────────────────────────────────────────────
-  - id: tecnico.temperatura
-    description: "Temperatura locale tecnico (°C)"
-    data_type: float
-
-  - id: tecnico.umidita
-    description: "Umidità locale tecnico (%)"
-    data_type: float
-
-  - id: tecnico.pressione_hpa
+  # Il sensore del locale tecnico misura anche la pressione atmosferica. Prima
+  # stava sotto la radice `tecnico`: ora che `tecnico` è un'istanza, un tag piatto
+  # sotto la stessa radice il runtime lo prende per un membro che il tipo non ha,
+  # e non lo registra (`TagDb::set`). Sta fra gli indicatori di casa, `clima.*`.
+  - id: clima.pressione_hpa
     description: "Pressione atmosferica locale tecnico (hPa)"
     data_type: float
 
-  # ── Carichi — Contatore Cucina ─────────────────────────────────────────────
-  - id: cucina.potenza_w
-    description: "Potenza contatore cucina (W)"
-    data_type: float
+  # ── Carichi — i due contatori ─────────────────────────────────────────────
+  # Istanze di `contatore`: cucina.potenza_w, cucina.tensione_v, … come prima.
+  - id: cucina
+    description: "Contatore cucina (Sonoff)"
+    type_ref: contatore
     history: true
     datastore_id: sqlite-pro
 
-  - id: cucina.tensione_v
-    description: "Tensione contatore cucina (V)"
-    data_type: float
+  - id: pompacalore
+    description: "Pompa di calore"
+    type_ref: contatore
     history: true
     datastore_id: sqlite-pro
 
-  - id: cucina.corrente_a
-    description: "Corrente contatore cucina (A)"
-    data_type: float
-    history: true
-    datastore_id: sqlite-pro
-
-  - id: cucina.frequenza_hz
-    description: "Frequenza contatore cucina (Hz)"
-    data_type: float
-
-  - id: cucina.energia_kwh
-    description: "Energia totale contatore cucina (kWh)"
-    data_type: float
-
-  # ── Carichi — Pompa di Calore ──────────────────────────────────────────────
-  - id: pompacalore.potenza_w
-    description: "Potenza pompa di calore (W)"
-    data_type: float
-    history: true
-    datastore_id: sqlite-pro
-
-  - id: pompacalore.tensione_v
-    description: "Tensione pompa di calore (V)"
-    data_type: float
-
-  - id: pompacalore.corrente_a
-    description: "Corrente pompa di calore (A)"
-    data_type: float
-
-  - id: pompacalore.energia_kwh
-    description: "Energia totale pompa di calore (kWh)"
+  # Solo il contatore della cucina misura la frequenza: variabile a parte, fuori
+  # dalla radice `cucina` per la stessa ragione della pressione, sopra.
+  - id: rete.frequenza_cucina_hz
+    description: "Frequenza di rete letta dal contatore cucina (Hz)"
     data_type: float
 
   # ── Sicurezza — Porte ──────────────────────────────────────────────────────
@@ -347,40 +359,52 @@ tags:
     data_type: bool
 
   # ── Luci Esterne — write-back ──────────────────────────────────────────────
+  # Chi può comandarle (04-11-2026, regola R7). Questo template mostra la
+  # gestione dei permessi, quindi due comandi restano sopra Viewer apposta:
+  # la luce del cancelletto (Operator) e la tapparella del garage (Supervisor).
+  # La pagina Sicurezza lo scrive accanto a ciascuno. Tutto il resto si usa
+  # senza accedere.
   - id: luce.cancelletto
     description: "Lampada cancelletto ON/OFF"
     data_type: bool
+    write_min_role: Operator     # elevato apposta: la vetrina mostra un comando che chiede di accedere
 
   - id: luce.viale
     description: "Lampada viale centrale ON/OFF"
     data_type: bool
+    write_min_role: Viewer
 
   - id: luce.strada
     description: "Lampada strada destra ON/OFF"
     data_type: bool
+    write_min_role: Viewer
 
   # ── Tapparelle — write-back cover ──────────────────────────────────────────
   # true → open_cover, false → close_cover (auto-invert nel plugin HA)
   - id: tapparella.soggiorno_sx
     description: "Tapparella soggiorno sinistra (open=true / closed=false)"
     data_type: bool
+    write_min_role: Viewer
 
   - id: tapparella.soggiorno_dx
     description: "Tapparella soggiorno destra (open=true / closed=false)"
     data_type: bool
+    write_min_role: Viewer
 
   - id: tapparella.bagno
     description: "Tapparella bagno piano terra (open=true / closed=false)"
     data_type: bool
+    write_min_role: Viewer
 
   - id: tapparella.garage
     description: "Tapparella/schermatura garage (open=true / closed=false)"
     data_type: bool
+    write_min_role: Supervisor   # elevato apposta: il garage è un accesso alla casa
 
   # ── Presenza & Sole ────────────────────────────────────────────────────────
   # person: "home" → true, "not_home" → false
-  - id: mauro.a_casa
-    description: "Mauro è a casa"
+  - id: presenza.in_casa
+    description: "Presenza in casa (person: home / not_home)"
     data_type: bool
 
   - id: sole.elevazione
@@ -413,7 +437,9 @@ tags:
       else:
           round(min(pv, casa) / casa * 100.0, 1)
 
-  - id: sala.comfort_index
+  # Prima stava sotto `sala`, che adesso è un'istanza di `stanza`: un indice
+  # calcolato sta accanto alla media, fra gli indicatori `clima.*`.
+  - id: clima.comfort_soggiorno
     description: "Indice comfort soggiorno 0-100 (T ideale 22°C, U ideale 50%)"
     data_type: float
     expression: |
@@ -615,7 +641,7 @@ sources:
       - tag: tecnico.umidita
         entity_id: sensor.sensoreambientestanzaarmadi_humidity
 
-      - tag: tecnico.pressione_hpa
+      - tag: clima.pressione_hpa
         entity_id: sensor.sensoreambientestanzaarmadi_pressure
 
       # ── Contatore Cucina ───────────────────────────────────────────────────
@@ -628,7 +654,7 @@ sources:
       - tag: cucina.corrente_a
         entity_id: sensor.contatore_cucina_contatore_cucina_current_2
 
-      - tag: cucina.frequenza_hz
+      - tag: rete.frequenza_cucina_hz
         entity_id: sensor.contatore_cucina_contatore_cucina_frequency_2
 
       - tag: cucina.energia_kwh
@@ -741,8 +767,8 @@ sources:
         write_service: open_cover
 
       # ── Presenza & Sole ────────────────────────────────────────────────────
-      # person.mauro2: "home" → true, "not_home" → false
-      - tag: mauro.a_casa
+      # person.*: "home" → true, "not_home" → false
+      - tag: presenza.in_casa
         entity_id: person.mauro2
 
       - tag: sole.elevazione
@@ -930,19 +956,9 @@ languages:
         es: "Humedad elevada en el salón: {value:.0f}%"
     - key: t0001
       values:
-        it: "HOMEASSISTANT PRO — PANORAMICA"
-        en: "HOMEASSISTANT PRO — OVERVIEW"
-        es: "HOMEASSISTANT PRO — RESUMEN"
-    - key: t0002
-      values:
-        it: "Flusso energia · Clima · Sicurezza · Presenza"
-        en: "Energy flow · Climate · Security · Presence"
-        es: "Flujo de energía · Clima · Seguridad · Presencia"
-    - key: t0003
-      values:
-        it: "◉ Panoramica"
-        en: "◉ Overview"
-        es: "◉ Resumen"
+        it: "Panoramica"
+        en: "Overview"
+        es: "Resumen"
     - key: t0004
       values:
         it: "☀ Fotovoltaico"
@@ -968,11 +984,6 @@ languages:
         it: "🔒 Sicurezza"
         en: "🔒 Security"
         es: "🔒 Seguridad"
-    - key: t0009
-      values:
-        it: "FLUSSO ENERGIA"
-        en: "ENERGY FLOW"
-        es: "FLUJO DE ENERGÍA"
     - key: t0010
       values:
         it: "☀ FOTOVOLTAICO"
@@ -1003,11 +1014,6 @@ languages:
         it: "Stanza"
         en: "Room"
         es: "Habitación"
-    - key: t0016
-      values:
-        it: "Temp."
-        en: "Temp."
-        es: "Temp."
     - key: t0017
       values:
         it: "Umidità"
@@ -1083,41 +1089,11 @@ languages:
         it: "Cucina DX"
         en: "Kitchen R"
         es: "Cocina der."
-    - key: t0032
-      values:
-        it: "Ingresso:"
-        en: "Entrance:"
-        es: "Entrada:"
-    - key: t0033
-      values:
-        it: "Esterno:"
-        en: "Outdoor:"
-        es: "Exterior:"
-    - key: t0034
-      values:
-        it: "Perimetro:"
-        en: "Perimeter:"
-        es: "Perímetro:"
-    - key: t0035
-      values:
-        it: "NE · NO · O"
-        en: "NE · NW · W"
-        es: "NE · NO · O"
     - key: t0036
       values:
         it: "PRESENZA & LUCI"
         en: "PRESENCE & LIGHTS"
         es: "PRESENCIA Y LUCES"
-    - key: t0037
-      values:
-        it: "Mauro a casa:"
-        en: "Mauro at home:"
-        es: "Mauro en casa:"
-    - key: t0038
-      values:
-        it: "Elevazione solare:"
-        en: "Solar elevation:"
-        es: "Elevación solar:"
     - key: t0039
       values:
         it: "LUCI ESTERNE"
@@ -1145,29 +1121,19 @@ languages:
         es: "PERSIANAS"
     - key: t0044
       values:
-        it: "→ Controllo completo luci e tapparelle"
-        en: "→ Full control of lights and shutters"
-        es: "→ Control completo de luces y persianas"
+        it: "Comandi luci e tapparelle"
+        en: "Light and shutter controls"
+        es: "Mandos de luces y persianas"
     - key: t0045
       values:
-        it: "FOTOVOLTAICO — Solarman 2 Stringhe"
-        en: "PHOTOVOLTAIC — Solarman 2 Strings"
-        es: "FOTOVOLTAICA — Solarman 2 cadenas"
-    - key: t0046
-      values:
-        it: "Tensione · Corrente · Potenza per stringa · Inverter · Storico"
-        en: "Voltage · Current · Power per string · Inverter · History"
-        es: "Tensión · Corriente · Potencia por cadena · Inversor · Histórico"
+        it: "Fotovoltaico"
+        en: "Photovoltaic"
+        es: "Fotovoltaica"
     - key: t0047
       values:
         it: "◎ Panoramica"
         en: "◎ Overview"
         es: "◎ Resumen"
-    - key: t0048
-      values:
-        it: "◉ Fotovoltaico"
-        en: "◉ Photovoltaic"
-        es: "◉ Fotovoltaica"
     - key: t0049
       values:
         it: "POTENZA TOTALE FV"
@@ -1180,9 +1146,9 @@ languages:
         es: "Producción de hoy"
     - key: t0051
       values:
-        it: "Lifetime"
+        it: "Totale"
         en: "Lifetime"
-        es: "Lifetime"
+        es: "Total"
     - key: t0052
       values:
         it: "STRINGA 1"
@@ -1193,36 +1159,16 @@ languages:
         it: "Tensione"
         en: "Voltage"
         es: "Tensión"
-    - key: t0054
-      values:
-        it: "V"
-        en: "V"
-        es: "V"
     - key: t0055
       values:
         it: "Corrente"
         en: "Current"
         es: "Corriente"
-    - key: t0056
-      values:
-        it: "A"
-        en: "A"
-        es: "A"
-    - key: t0057
-      values:
-        it: "Potenza PV1"
-        en: "PV1 power"
-        es: "Potencia PV1"
     - key: t0058
       values:
         it: "STRINGA 2"
         en: "STRING 2"
         es: "CADENA 2"
-    - key: t0059
-      values:
-        it: "Potenza PV2"
-        en: "PV2 power"
-        es: "Potencia PV2"
     - key: t0060
       values:
         it: "Corrente PV1 vs PV2 — 1 ora"
@@ -1230,14 +1176,14 @@ languages:
         es: "Corriente PV1 vs PV2 — 1 hora"
     - key: t0061
       values:
-        it: "— PV1 corrente (A)"
-        en: "— PV1 current (A)"
-        es: "— Corriente PV1 (A)"
+        it: "PV1 corrente (A)"
+        en: "PV1 current (A)"
+        es: "Corriente PV1 (A)"
     - key: t0062
       values:
-        it: "— PV2 corrente (A)"
-        en: "— PV2 current (A)"
-        es: "— Corriente PV2 (A)"
+        it: "PV2 corrente (A)"
+        en: "PV2 current (A)"
+        es: "Corriente PV2 (A)"
     - key: t0063
       values:
         it: "T. interna inv."
@@ -1260,19 +1206,9 @@ languages:
         es: "Autoconsumo"
     - key: t0067
       values:
-        it: "BATTERIA & RETE ELETTRICA"
-        en: "BATTERY & POWER GRID"
-        es: "BATERÍA Y RED ELÉCTRICA"
-    - key: t0068
-      values:
-        it: "SoC · Tensione · Corrente · Scambio rete · Storico"
-        en: "SoC · Voltage · Current · Grid exchange · History"
-        es: "SoC · Tensión · Corriente · Intercambio con la red · Histórico"
-    - key: t0069
-      values:
-        it: "◉ Batt & Rete"
-        en: "◉ Batt & Grid"
-        es: "◉ Bat & Red"
+        it: "Batteria e rete"
+        en: "Battery and grid"
+        es: "Batería y red"
     - key: t0070
       values:
         it: "🔋 BATTERIA LiFePO4"
@@ -1313,11 +1249,6 @@ languages:
         it: "Frequenza"
         en: "Frequency"
         es: "Frecuencia"
-    - key: t0078
-      values:
-        it: "Hz"
-        en: "Hz"
-        es: "Hz"
     - key: t0079
       values:
         it: "Scambio"
@@ -1350,9 +1281,9 @@ languages:
         es: "Inyectada hoy"
     - key: t0085
       values:
-        it: "Immessa lifetime"
+        it: "Immessa totale"
         en: "Fed-in lifetime"
-        es: "Inyectada lifetime"
+        es: "Inyectada total"
     - key: t0086
       values:
         it: "SoC batteria + Tensione rete — 1 ora"
@@ -1360,34 +1291,24 @@ languages:
         es: "SoC de la batería + Tensión de red — 1 hora"
     - key: t0087
       values:
-        it: "— SoC batteria (%)"
-        en: "— Battery SoC (%)"
-        es: "— SoC de la batería (%)"
+        it: "SoC batteria (%)"
+        en: "Battery SoC (%)"
+        es: "SoC de la batería (%)"
     - key: t0088
       values:
-        it: "— Tensione rete (V)"
-        en: "— Grid voltage (V)"
-        es: "— Tensión de red (V)"
+        it: "Tensione rete (V)"
+        en: "Grid voltage (V)"
+        es: "Tensión de red (V)"
     - key: t0089
       values:
-        it: "Positivo scambio = immissione"
-        en: "Positive exchange = feed-in"
-        es: "Intercambio positivo = inyección"
+        it: "Positivo = immissione"
+        en: "Positive = feed-in"
+        es: "Positivo = inyección"
     - key: t0090
       values:
-        it: "CLIMA — 5 Stanze"
-        en: "CLIMATE — 5 Rooms"
-        es: "CLIMA — 5 habitaciones"
-    - key: t0091
-      values:
-        it: "Temperatura · Umidità · Comfort Index · Trend storico"
-        en: "Temperature · Humidity · Comfort Index · Historical trend"
-        es: "Temperatura · Humedad · Índice de confort · Tendencia histórica"
-    - key: t0092
-      values:
-        it: "◉ Clima"
-        en: "◉ Climate"
-        es: "◉ Clima"
+        it: "Clima"
+        en: "Climate"
+        es: "Clima"
     - key: t0093
       values:
         it: "Barra"
@@ -1418,11 +1339,6 @@ languages:
         it: "GAUGE — TEMPERATURA MEDIA"
         en: "GAUGE — AVERAGE TEMPERATURE"
         es: "GAUGE — TEMPERATURA MEDIA"
-    - key: t0099
-      values:
-        it: "Comfort Index"
-        en: "Comfort Index"
-        es: "Índice de confort"
     - key: t0100
       values:
         it: "Temperature Soggiorno · Studio · Lavanderia — 2 ore"
@@ -1430,19 +1346,19 @@ languages:
         es: "Temperaturas Salón · Estudio · Lavadero — 2 horas"
     - key: t0101
       values:
-        it: "— Soggiorno (°C)"
-        en: "— Living room (°C)"
-        es: "— Salón (°C)"
+        it: "Soggiorno (°C)"
+        en: "Living room (°C)"
+        es: "Salón (°C)"
     - key: t0102
       values:
-        it: "— Studio (°C)"
-        en: "— Studio (°C)"
-        es: "— Estudio (°C)"
+        it: "Studio (°C)"
+        en: "Studio (°C)"
+        es: "Estudio (°C)"
     - key: t0103
       values:
-        it: "— Lavanderia (°C)"
-        en: "— Laundry (°C)"
-        es: "— Lavadero (°C)"
+        it: "Lavanderia (°C)"
+        en: "Laundry (°C)"
+        es: "Lavadero (°C)"
     - key: t0104
       values:
         it: "Storico SQLite 365 gg"
@@ -1450,19 +1366,9 @@ languages:
         es: "Histórico SQLite 365 días"
     - key: t0105
       values:
-        it: "CARICHI ELETTRICI"
-        en: "ELECTRICAL LOADS"
-        es: "CARGAS ELÉCTRICAS"
-    - key: t0106
-      values:
-        it: "Cucina Sonoff · Pompa di Calore · KPI Energetici"
-        en: "Sonoff kitchen · Heat pump · Energy KPIs"
-        es: "Cocina Sonoff · Bomba de calor · KPI energéticos"
-    - key: t0107
-      values:
-        it: "◉ Carichi"
-        en: "◉ Loads"
-        es: "◉ Cargas"
+        it: "Carichi elettrici"
+        en: "Electrical loads"
+        es: "Cargas eléctricas"
     - key: t0108
       values:
         it: "Consumo casa"
@@ -1488,11 +1394,6 @@ languages:
         it: "🍳 CUCINA — Contatore Sonoff"
         en: "🍳 KITCHEN — Sonoff meter"
         es: "🍳 COCINA — Contador Sonoff"
-    - key: t0113
-      values:
-        it: "W"
-        en: "W"
-        es: "W"
     - key: t0114
       values:
         it: "Energia totale"
@@ -1503,11 +1404,6 @@ languages:
         it: "🌀 POMPA DI CALORE"
         en: "🌀 HEAT PUMP"
         es: "🌀 BOMBA DE CALOR"
-    - key: t0116
-      values:
-        it: "Potenza istantanea vs consumo casa"
-        en: "Instant power vs house consumption"
-        es: "Potencia instantánea vs consumo de la casa"
     - key: t0117
       values:
         it: "Potenza Cucina vs Pompa di Calore vs Consumo Casa — 1 ora"
@@ -1515,34 +1411,24 @@ languages:
         es: "Potencia Cocina vs Bomba de calor vs Consumo de la casa — 1 hora"
     - key: t0118
       values:
-        it: "— Cucina (W)"
-        en: "— Kitchen (W)"
-        es: "— Cocina (W)"
+        it: "Cucina (W)"
+        en: "Kitchen (W)"
+        es: "Cocina (W)"
     - key: t0119
       values:
-        it: "— Pompa calore (W)"
-        en: "— Heat pump (W)"
-        es: "— Bomba de calor (W)"
+        it: "Pompa calore (W)"
+        en: "Heat pump (W)"
+        es: "Bomba de calor (W)"
     - key: t0120
       values:
-        it: "— Consumo casa (kW×1000)"
-        en: "— House consumption (kW×1000)"
-        es: "— Consumo de la casa (kW×1000)"
+        it: "Consumo casa (kW)"
+        en: "House consumption (kW)"
+        es: "Consumo de la casa (kW)"
     - key: t0121
       values:
-        it: "SICUREZZA & CONTROLLO"
-        en: "SECURITY & CONTROL"
-        es: "SEGURIDAD Y CONTROL"
-    - key: t0122
-      values:
-        it: "Porte · Finestre · Perimetro · Luci write-back · Tapparelle write-back"
-        en: "Doors · Windows · Perimeter · Lights write-back · Shutters write-back"
-        es: "Puertas · Ventanas · Perímetro · Luces write-back · Persianas write-back"
-    - key: t0123
-      values:
-        it: "◉ Sicurezza"
-        en: "◉ Security"
-        es: "◉ Seguridad"
+        it: "Sicurezza e comandi"
+        en: "Security and controls"
+        es: "Seguridad y mandos"
     - key: t0124
       values:
         it: "SENSORI SICUREZZA"
@@ -1618,26 +1504,11 @@ languages:
         it: "Piazzale"
         en: "Yard"
         es: "Explanada"
-    - key: t0139
-      values:
-        it: "Mauro a casa"
-        en: "Mauro at home"
-        es: "Mauro en casa"
     - key: t0140
       values:
         it: "💡 LUCI ESTERNE — write-back"
         en: "💡 OUTDOOR LIGHTS — write-back"
         es: "💡 LUCES EXTERIORES — write-back"
-    - key: t0141
-      values:
-        it: "ON"
-        en: "ON"
-        es: "ON"
-    - key: t0142
-      values:
-        it: "OFF"
-        en: "OFF"
-        es: "OFF"
     - key: t0143
       values:
         it: "true → HA: switch.turn_on / false → turn_off"
@@ -1648,29 +1519,9 @@ languages:
         it: "🪟 TAPPARELLE — write-back"
         en: "🪟 ROLLER SHUTTERS — write-back"
         es: "🪟 PERSIANAS — write-back"
-    - key: t0145
-      values:
-        it: "Tapparella"
-        en: "Roller shutter"
-        es: "Persiana"
-    - key: t0146
-      values:
-        it: "Stato"
-        en: "State"
-        es: "Estado"
-    - key: t0147
-      values:
-        it: "SÙ"
-        en: "UP"
-        es: "SUBIR"
-    - key: t0148
-      values:
-        it: "GIÙ"
-        en: "DOWN"
-        es: "BAJAR"
     - key: t0149
       values:
-        it: "▲ SÙ"
+        it: "▲ SU"
         en: "▲ UP"
         es: "▲ SUBIR"
     - key: t0150
@@ -1680,7 +1531,7 @@ languages:
         es: "▼ BAJAR"
     - key: t0151
       values:
-        it: "▲ SÙ → HA: cover.open_cover"
+        it: "▲ SU → HA: cover.open_cover"
         en: "▲ UP → HA: cover.open_cover"
         es: "▲ SUBIR → HA: cover.open_cover"
     - key: t0152
@@ -1693,11 +1544,6 @@ languages:
         it: "Stato: true = aperta / false = chiusa"
         en: "State: true = open / false = closed"
         es: "Estado: true = abierta / false = cerrada"
-    - key: t0154
-      values:
-        it: "Sole elevazione"
-        en: "Sun elevation"
-        es: "Elevación del sol"
     - key: t0168
       values:
         it: "Oggi: {value:.1f} kWh"
@@ -1711,13 +1557,58 @@ languages:
     - key: t0170
       values:
         it: "CI: {value:.0f}"
-        en: "AQ: {value:.0f}"
-        es: "CA: {value:.0f}"
+        en: "CI: {value:.0f}"
+        es: "IC: {value:.0f}"
     - key: t0171
       values:
         it: "Umidità soggiorno: {value:.0f}%"
         en: "Living room humidity: {value:.0f}%"
         es: "Humedad del salón: {value:.0f}%"
+    - key: t0172
+      values:
+        it: "Accendi / spegni"
+        en: "Switch on / off"
+        es: "Encender / apagar"
+    - key: t0175
+      values:
+        it: "In carica"
+        en: "Charging"
+        es: "Cargando"
+    - key: t0176
+      values:
+        it: "In scarica"
+        en: "Discharging"
+        es: "Descargando"
+    - key: t0177
+      values:
+        it: "In casa"
+        en: "At home"
+        es: "En casa"
+    - key: t0178
+      values:
+        it: "Fuori casa"
+        en: "Away"
+        es: "Fuera de casa"
+    - key: t0179
+      values:
+        it: "Elevazione solare: {value:.1f}°"
+        en: "Sun elevation: {value:.1f}°"
+        es: "Elevación solar: {value:.1f}°"
+    - key: t0180
+      values:
+        it: "Frequenza al contatore cucina: {value:.2f} Hz"
+        en: "Frequency at the kitchen meter: {value:.2f} Hz"
+        es: "Frecuencia en el contador de la cocina: {value:.2f} Hz"
+    - key: t0181
+      values:
+        it: "PRESENZA"
+        en: "PRESENCE"
+        es: "PRESENCIA"
+    - key: t0182
+      values:
+        it: "Due comandi chiedono di accedere: il lucchetto dice il ruolo che serve"
+        en: "Two commands ask you to sign in: the lock shows the role they need"
+        es: "Dos mandos piden iniciar sesión: el candado indica el rol necesario"
 
 # ── Pagina iniziale ──────────────────────────────────────────────────────────
 #
@@ -1727,7 +1618,8 @@ languages:
 # `--page` è diventato opzionale.
 page_layout:
   size_mode: fixed
-  # La cornice delle pagine (17-10-2026): testata e piede comuni, in cornici/navigazione.yaml.
+  # La cornice delle pagine, in cornici/navigazione.yaml: il piede col navigatore (17-10-2026) e
+  # la testata col nome della pagina, la lingua, data e ora (04-11-2026, regola R6).
   cornice_predefinita: navigazione
   home_page_id: pro_p1   # Panoramica
   # L'albero delle pagine: Panoramica con le sue quattro sezioni sotto, e Sicurezza a parte. Il navigatore

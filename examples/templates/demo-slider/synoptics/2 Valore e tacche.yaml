@@ -1,5 +1,5 @@
 id: p_valore
-name: '{{t0073}}'
+name: '{{t0074}}'
 width: 1280.0
 height: 800.0
 background: '#0f172a'
@@ -7,15 +7,17 @@ objects:
 - id: tit
   type: text
   x: 40.0
-  y: 20.0
-  width: 700.0
-  height: 20.0
+  y: 62.0
+  width: 1200.0
+  height: 28.0
   text: '{{t0020}}'
   font_size: 16.0
+  text_wrap: true
+  text_valign: middle
 - id: s_sotto
   type: slider
   x: 40.0
-  y: 60.0
+  y: 104.0
   width: 340.0
   height: 56.0
   tag: c.valore
@@ -27,7 +29,7 @@ objects:
 - id: s_sopra
   type: slider
   x: 40.0
-  y: 130.0
+  y: 174.0
   width: 340.0
   height: 56.0
   tag: c.valore
@@ -40,7 +42,7 @@ objects:
 - id: s_dentro
   type: slider
   x: 40.0
-  y: 200.0
+  y: 244.0
   width: 340.0
   height: 50.0
   tag: c.valore
@@ -54,7 +56,7 @@ objects:
 - id: s_curs
   type: slider
   x: 40.0
-  y: 270.0
+  y: 314.0
   width: 340.0
   height: 56.0
   tag: c.valore
@@ -67,7 +69,7 @@ objects:
 - id: s_nv
   type: slider
   x: 40.0
-  y: 340.0
+  y: 384.0
   width: 340.0
   height: 40.0
   tag: c.valore
@@ -78,7 +80,7 @@ objects:
 - id: t_nv
   type: text
   x: 40.0
-  y: 385.0
+  y: 429.0
   width: 360.0
   height: 20.0
   text: '{{t0024}}'
@@ -86,7 +88,7 @@ objects:
 - id: t_tc
   type: text
   x: 440.0
-  y: 60.0
+  y: 104.0
   width: 420.0
   height: 20.0
   text: '{{t0025}}'
@@ -94,7 +96,7 @@ objects:
 - id: s_tc
   type: slider
   x: 440.0
-  y: 85.0
+  y: 129.0
   width: 400.0
   height: 90.0
   tag: c.valore
@@ -108,7 +110,7 @@ objects:
 - id: t_ag
   type: text
   x: 440.0
-  y: 190.0
+  y: 234.0
   width: 420.0
   height: 20.0
   text: '{{t0027}}'
@@ -116,7 +118,7 @@ objects:
 - id: s_ag
   type: slider
   x: 440.0
-  y: 215.0
+  y: 259.0
   width: 400.0
   height: 90.0
   tag: c.valore
@@ -131,7 +133,7 @@ objects:
 - id: t_bs
   type: text
   x: 440.0
-  y: 320.0
+  y: 364.0
   width: 420.0
   height: 20.0
   text: '{{t0029}}'
@@ -139,7 +141,7 @@ objects:
 - id: s_bs
   type: slider
   x: 440.0
-  y: 345.0
+  y: 389.0
   width: 400.0
   height: 80.0
   tag: c.valore
@@ -157,7 +159,7 @@ objects:
 - id: t_ba
   type: text
   x: 440.0
-  y: 440.0
+  y: 484.0
   width: 420.0
   height: 20.0
   text: '{{t0031}}'
@@ -165,7 +167,7 @@ objects:
 - id: s_ba
   type: slider
   x: 440.0
-  y: 465.0
+  y: 509.0
   width: 400.0
   height: 70.0
   tag: s.rampa
@@ -182,7 +184,7 @@ objects:
 - id: t_fr
   type: text
   x: 900.0
-  y: 60.0
+  y: 104.0
   width: 340.0
   height: 20.0
   text: '{{t0033}}'
@@ -190,7 +192,7 @@ objects:
 - id: s_fr
   type: slider
   x: 900.0
-  y: 85.0
+  y: 129.0
   width: 340.0
   height: 56.0
   tag: c.frazione
@@ -201,7 +203,7 @@ objects:
 - id: l_fr
   type: text
   x: 900.0
-  y: 146.0
+  y: 190.0
   width: 340.0
   height: 18.0
   tag: c.frazione
@@ -211,7 +213,7 @@ objects:
 - id: t_ro
   type: text
   x: 900.0
-  y: 190.0
+  y: 234.0
   width: 340.0
   height: 20.0
   text: '{{t0035}}'
@@ -219,7 +221,7 @@ objects:
 - id: s_ro
   type: slider
   x: 900.0
-  y: 215.0
+  y: 259.0
   width: 340.0
   height: 56.0
   tag: s.rampa
@@ -232,7 +234,7 @@ objects:
 - id: t_ct
   type: text
   x: 900.0
-  y: 300.0
+  y: 344.0
   width: 340.0
   height: 20.0
   text: '{{t0037}}'
@@ -240,7 +242,7 @@ objects:
 - id: s_ct
   type: slider
   x: 900.0
-  y: 325.0
+  y: 369.0
   width: 340.0
   height: 56.0
   tag: c.continuo
@@ -254,7 +256,7 @@ objects:
 - id: l_ct
   type: text
   x: 900.0
-  y: 386.0
+  y: 430.0
   width: 200.0
   height: 18.0
   tag: c.continuo
@@ -264,7 +266,7 @@ objects:
 - id: t_cf
   type: text
   x: 900.0
-  y: 420.0
+  y: 464.0
   width: 340.0
   height: 20.0
   text: '{{t0039}}'
@@ -272,7 +274,7 @@ objects:
 - id: s_cf
   type: slider
   x: 900.0
-  y: 445.0
+  y: 489.0
   width: 340.0
   height: 56.0
   tag: c.conferma
@@ -286,20 +288,10 @@ objects:
 - id: l_cf
   type: text
   x: 900.0
-  y: 506.0
+  y: 550.0
   width: 200.0
   height: 18.0
   tag: c.conferma
   format: '{{t0001}} {value:.2f}'
   font_size: 11.0
   color: '#94a3b8'
-- id: nav
-  type: page_navigator
-  x: 24.0
-  y: 752.0
-  width: 1232.0
-  height: 40.0
-  nav_orientation: horizontal
-  nav_fill: true
-  nav_gap: 6
-  locked: true

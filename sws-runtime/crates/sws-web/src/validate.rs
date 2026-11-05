@@ -1090,6 +1090,37 @@ pub fn semantic(project: &Project, pages: &[SynopticPage]) -> Vec<Finding> {
             ));
         }
     }
+    // Un id piatto **sotto** un'istanza, che però non è una sua foglia
+    // (`sala.comfort_index` con `sala` di tipo `stanza` senza quel membro):
+    // il runtime lo risolve come percorso dell'istanza (`TagDb::risolvi`, il
+    // piatto esiste nello store solo dopo la prima scrittura), non trova il
+    // membro e scarta il valore. Il pannello mostra l'id e niente lo dice.
+    // Trovato il 04-11-2026 portando i template Home Assistant a tipi e istanze.
+    let radici_composte: HashSet<&str> = project
+        .tags
+        .iter()
+        .filter(|t| t.e_composito())
+        .map(|t| t.id.as_str())
+        .collect();
+    let foglie_vere: HashSet<&str> = foglie_sintetiche.iter().map(|f| f.id.as_str()).collect();
+    for t in project.tags.iter().filter(|t| !t.e_composito()) {
+        let Some(fine) = t.id.find(['.', '[']) else {
+            continue;
+        };
+        let radice = &t.id[..fine];
+        if radici_composte.contains(radice) && !foglie_vere.contains(t.id.as_str()) {
+            out.push(Finding::err(
+                format!("project.tags[{}]", t.id),
+                format!(
+                    "l'id `{}` sta sotto l'istanza `{radice}` ma non è una sua foglia: il \
+                     runtime lo cerca nell'istanza e il valore non arriva mai",
+                    t.id
+                ),
+                "rinomina la variabile piatta fuori dalla radice dell'istanza, oppure \
+                 aggiungi il membro al tipo",
+            ));
+        }
+    }
     for f in &foglie_sintetiche {
         per_id.entry(f.id.as_str()).or_insert(f);
     }
@@ -4095,6 +4126,28 @@ alarms: [{ id: al, tag: motore1.velocita, levels: [{ condition: { kind: above, t
             &pagina("- { id: t, type: text, x: 0, y: 0, tag: motore1.inesistente }"),
         );
         assert!(cita(&errori(&rs), "motore1.inesistente"), "{rs:?}");
+    }
+
+    /// Un id piatto sotto la radice di un'istanza, che non è un suo membro, il
+    /// runtime non lo raggiunge mai (04-11-2026, `sala.comfort_index`).
+    #[test]
+    fn un_piatto_sotto_un_istanza_e_un_errore() {
+        let prog = r#"
+meta: { name: prova, version: "1.0.0" }
+types:
+  - id: stanza
+    members:
+      - { name: temperatura, data_type: f32 }
+tags:
+  - { id: sala, type_ref: stanza }
+  - { id: sala.comfort_index, data_type: f32 }
+  - { id: salame.x, data_type: f32 }
+sources: []
+"#;
+        let rs = rilievi(prog, &pagina("- { id: t, type: text, x: 0, y: 0 }"));
+        assert!(cita(&errori(&rs), "sala.comfort_index"), "{rs:?}");
+        // `salame.x` non sta sotto `sala`: la radice si legge fino al punto.
+        assert!(!cita(&errori(&rs), "salame.x"), "{rs:?}");
     }
 
     /// Due livelli dello stesso allarme con la **stessa severità** sono di

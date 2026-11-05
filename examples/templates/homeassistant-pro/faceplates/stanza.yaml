@@ -1,0 +1,69 @@
+# Una riga per stanza (04-11-2026, regola R8): nome, temperatura, umidità e la
+# barra della temperatura. `p` è un'istanza del tipo `stanza` (sala, studio,
+# lavanderia, bagno, tecnico): la stessa riga serve la Panoramica e la pagina
+# Clima.
+id: stanza
+label: Riga di una stanza
+width: 384
+height: 40
+params:
+- name: p
+  type: istanza
+  type_ref: stanza
+  default: sala
+  required: true
+- name: nome
+  type: string
+  default: '{{t0018}}'
+objects:
+- id: nome
+  type: text
+  x: 0
+  y: 0
+  width: 130
+  height: 40
+  text_wrap: true
+  text_valign: middle
+  text: '{nome}'
+  font_size: 15
+  font_weight: bold
+  color: '#94a3b8'
+- id: temperatura
+  type: text
+  x: 130
+  y: 0
+  width: 100
+  height: 40
+  text_wrap: true
+  text_valign: middle
+  tag: '{p}.temperatura'
+  format: '{value:.1f}°C'
+  font_size: 19
+  font_weight: bold
+  text_anchor: middle
+  color: '#60a5fa'
+- id: umidita
+  type: text
+  x: 230
+  y: 0
+  width: 70
+  height: 40
+  text_wrap: true
+  text_valign: middle
+  tag: '{p}.umidita'
+  format: '{value:.0f}%'
+  font_size: 15
+  text_anchor: middle
+  color: '#7dd3fc'
+- id: barra
+  type: progress_bar
+  x: 304
+  y: 13
+  width: 80
+  height: 14
+  tag: '{p}.temperatura'
+  min: 10
+  max: 32
+  show_value: false
+  fill: '#3b82f6'
+  bg_color: '#1e3a5f'

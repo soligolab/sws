@@ -1,362 +1,212 @@
 id: ha_page2
-name: "Controllo"
+name: "{{t0079}}"
 background: "#0f172a"
 width: 1280
 height: 800
 
+# Ogni comando di questa pagina si usa col ruolo Viewer (R7, 04-11-2026): i
+# tag che scrive dichiarano `write_min_role: Viewer` in project.yaml. Fino a
+# quel giorno la luce esterna chiedeva Supervisor (`min_role`, Q36): la
+# gestione dei permessi la mostrano `openplc-laboratorio` e `homeassistant-pro`.
+
 objects:
 
-# ── HEADER ────────────────────────────────────────────────────────────────────
-- id: ha2_title
-  type: text
-  x: 640
-  y: 28
-  text: "{{t0029}}"
-  font_size: 23
-  font_weight: bold
-  text_anchor: middle
-  color: "#e2e8f0"
-  group_id: g_header
-  locked: true
-
+# ── Sottotitolo, nella testata accanto al nome della pagina ──────────────────
 - id: ha2_sub
   type: text
-  x: 640
-  y: 54
+  x: 240
+  y: 8
+  width: 660
+  height: 40
   text: "{{t0030}}"
   font_size: 14
-  text_anchor: middle
-  color: "#475569"
-  group_id: g_header
-  locked: true
+  text_wrap: true
+  text_valign: middle
+  color: "#64748b"
 
-# ── NAV ───────────────────────────────────────────────────────────────────────
-- id: ha2_nav_panoramica
-  type: navbutton
-  x: 175
-  y: 738
-  width: 284
-  height: 44
-  label: "{{t0031}}"
-  target_page: ha_page1
-  group_id: g_nav
-  locked: true
-
-- id: ha2_nav_controllo
-  type: navbutton
-  x: 485
-  y: 738
-  width: 284
-  height: 44
-  label: "{{t0032}}"
-  target_page: ha_page2
-  fill: "#1e293b"
-  group_id: g_nav
-  locked: true
-
-- id: ha2_nav_storico
-  type: navbutton
-  x: 795
-  y: 738
-  width: 284
-  height: 44
-  label: "{{t0005}}"
-  target_page: ha_page3
-  group_id: g_nav
-  locked: true
-
-# ── LUCI — TOGGLE BUTTON ─────────────────────────────────────────────────────
-# Scrivere true al tag → HA chiama light.turn_on (false → turn_off automatico)
-
-- id: ha2_luci_hdr
-  type: text
-  x: 382
-  y: 90
-  text: "{{t0018}}"
-  font_size: 17
-  font_weight: bold
-  text_anchor: middle
-  color: "#f59e0b"
-
+# ── LUCI: quattro istanze del faceplate «luce» ───────────────────────────────
+# Scrivere true al tag → HA chiama switch.turn_on (false → turn_off).
 - id: ha2_luci_box
   type: rect
-  x: 175
-  y: 106
-  width: 413
-  height: 258
+  x: 40
+  y: 66
+  width: 590
+  height: 274
   fill: "#1e293b"
   stroke: "#f59e0b"
   stroke_width: 1
   rx: 6
 
-# Luce soggiorno
-- id: ha2_sog_lbl
+- id: ha2_luci_hdr
   type: text
-  x: 201
-  y: 145
-  text: "{{t0019}}"
-  font_size: 17
-  color: "#e2e8f0"
+  x: 56
+  y: 76
+  width: 558
+  height: 26
+  text: "{{t0018}}"
+  font_size: 15
+  font_weight: bold
+  text_wrap: true
+  text_valign: middle
+  color: "#f59e0b"
 
-- id: ha2_sog_led
-  type: led
-  x: 382
-  y: 133
-  width: 23
-  height: 23
-  tag: luce.soggiorno
-  on_color: "#fbbf24"
-  off_color: "#374151"
+- id: ha2_sog
+  type: faceplate
+  faceplate_id: luce
+  faceplate_params:
+    etichetta: "{{t0019}}"
+    tag: luce.soggiorno
+  x: 60
+  y: 112
+  width: 550
+  height: 44
 
-- id: ha2_sog_on
-  type: button
-  x: 423
-  y: 126
-  width: 70
-  height: 36
-  label: "{{t0033}}"
-  fill: "#d97706"
-  tag: luce.soggiorno
-  write_value: true
+- id: ha2_cuc
+  type: faceplate
+  faceplate_id: luce
+  faceplate_params:
+    etichetta: "{{t0020}}"
+    tag: luce.cucina
+  x: 60
+  y: 166
+  width: 550
+  height: 44
 
-- id: ha2_sog_off
-  type: button
-  x: 503
-  y: 126
-  width: 70
-  height: 36
-  label: "{{t0034}}"
-  fill: "#374151"
-  tag: luce.soggiorno
-  write_value: false
+- id: ha2_est
+  type: faceplate
+  faceplate_id: luce
+  faceplate_params:
+    etichetta: "{{t0021}}"
+    tag: luce.esterno
+  x: 60
+  y: 220
+  width: 550
+  height: 44
 
-# Luce cucina
-- id: ha2_cuc_lbl
-  type: text
-  x: 201
-  y: 196
-  text: "{{t0020}}"
-  font_size: 17
-  color: "#e2e8f0"
-
-- id: ha2_cuc_led
-  type: led
-  x: 382
-  y: 185
-  width: 23
-  height: 23
-  tag: luce.cucina
-  on_color: "#fbbf24"
-  off_color: "#374151"
-
-- id: ha2_cuc_on
-  type: button
-  x: 423
-  y: 178
-  width: 70
-  height: 36
-  label: "{{t0033}}"
-  fill: "#d97706"
-  tag: luce.cucina
-  write_value: true
-
-- id: ha2_cuc_off
-  type: button
-  x: 503
-  y: 178
-  width: 70
-  height: 36
-  label: "{{t0034}}"
-  fill: "#374151"
-  tag: luce.cucina
-  write_value: false
-
-# Luce esterna
-- id: ha2_est_lbl
-  type: text
-  x: 201
-  y: 248
-  text: "{{t0021}}"
-  font_size: 17
-  color: "#e2e8f0"
-
-- id: ha2_est_led
-  type: led
-  x: 382
-  y: 236
-  width: 23
-  height: 23
-  tag: luce.esterno
-  on_color: "#fbbf24"
-  off_color: "#374151"
-
-# min_role (Q36) — la luce esterna è visibile da fuori casa, un solo
-# esempio nel parco template (revisione template, 15-09-2026): sotto
-# Supervisor i due pulsanti restano visibili ma disabilitati. In un
-# progetto senza utenti definiti (no-auth) l'editor avvisa già che
-# min_role non nega niente a nessuno.
-- id: ha2_est_on
-  type: button
-  x: 423
-  y: 230
-  width: 70
-  height: 36
-  label: "{{t0033}}"
-  fill: "#d97706"
-  tag: luce.esterno
-  write_value: true
-  min_role: Supervisor
-  min_role_effect: disable
-
-- id: ha2_est_off
-  type: button
-  x: 503
-  y: 230
-  width: 70
-  height: 36
-  label: "{{t0034}}"
-  fill: "#374151"
-  tag: luce.esterno
-  write_value: false
-  min_role: Supervisor
-  min_role_effect: disable
-
-- id: ha2_est_note
-  type: text
-  x: 588
-  y: 236
-  text: "{{t0022}}"
-  font_size: 13
-  color: "#64748b"
-
-# Ventilatore
-- id: ha2_vent_lbl
-  type: text
-  x: 201
-  y: 299
-  text: "{{t0023}}"
-  font_size: 17
-  color: "#e2e8f0"
-
-- id: ha2_vent_led
-  type: led
-  x: 382
-  y: 288
-  width: 23
-  height: 23
-  tag: ventilatore.camera
-  on_color: "#22d3ee"
-  off_color: "#374151"
-
-- id: ha2_vent_on
-  type: button
-  x: 423
-  y: 281
-  width: 70
-  height: 36
-  label: "{{t0033}}"
-  fill: "#0891b2"
-  tag: ventilatore.camera
-  write_value: true
-
-- id: ha2_vent_off
-  type: button
-  x: 503
-  y: 281
-  width: 70
-  height: 36
-  label: "{{t0034}}"
-  fill: "#374151"
-  tag: ventilatore.camera
-  write_value: false
+- id: ha2_vent
+  type: faceplate
+  faceplate_id: luce
+  faceplate_params:
+    etichetta: "{{t0023}}"
+    tag: ventilatore.camera
+  x: 60
+  y: 274
+  width: 550
+  height: 44
 
 # ── RISCALDAMENTO — SLIDER input_number ──────────────────────────────────────
-# Slider scrive il valore a riscaldamento.setpoint → HA chiama input_number.set_value
-
-- id: ha2_risc_hdr
-  type: text
-  x: 885
-  y: 90
-  text: "{{t0024}}"
-  font_size: 17
-  font_weight: bold
-  text_anchor: middle
-  color: "#f87171"
-
+# Lo slider scrive il valore a riscaldamento.setpoint.
 - id: ha2_risc_box
   type: rect
-  x: 679
-  y: 106
-  width: 413
-  height: 258
+  x: 650
+  y: 66
+  width: 590
+  height: 274
   fill: "#1e293b"
   stroke: "#dc2626"
   stroke_width: 1
   rx: 6
 
+- id: ha2_risc_hdr
+  type: text
+  x: 666
+  y: 76
+  width: 558
+  height: 26
+  text: "{{t0024}}"
+  font_size: 15
+  font_weight: bold
+  text_wrap: true
+  text_valign: middle
+  color: "#f87171"
+
 - id: ha2_risc_curr_lbl
   type: text
-  x: 705
-  y: 142
+  x: 666
+  y: 112
+  width: 340
+  height: 28
   text: "{{t0025}}"
   font_size: 14
+  text_wrap: true
+  text_valign: middle
   color: "#94a3b8"
 
 - id: ha2_risc_curr
   type: text
-  x: 1066
-  y: 142
+  x: 1010
+  y: 112
+  width: 214
+  height: 28
   tag: clima.temperatura_attuale
   format: "{value:.1f}°C"
   font_size: 19
   font_weight: bold
   text_anchor: end
+  text_wrap: true
+  text_valign: middle
   color: "#f87171"
 
 - id: ha2_risc_sp_lbl
   type: text
-  x: 705
-  y: 181
+  x: 666
+  y: 146
+  width: 340
+  height: 28
   text: "{{t0035}}"
   font_size: 14
+  text_wrap: true
+  text_valign: middle
   color: "#94a3b8"
 
 - id: ha2_risc_sp
   type: text
-  x: 1066
-  y: 181
+  x: 1010
+  y: 146
+  width: 214
+  height: 28
   tag: clima.setpoint
   format: "{value:.1f}°C"
   font_size: 19
   font_weight: bold
   text_anchor: end
+  text_wrap: true
+  text_valign: middle
   color: "#fb923c"
 
 - id: ha2_risc_slider_lbl
   type: text
-  x: 705
-  y: 217
+  x: 666
+  y: 180
+  width: 340
+  height: 28
   text: "{{t0036}}"
   font_size: 14
+  text_wrap: true
+  text_valign: middle
   color: "#94a3b8"
 
 - id: ha2_risc_new
   type: text
-  x: 1066
-  y: 217
+  x: 1010
+  y: 180
+  width: 214
+  height: 28
   tag: riscaldamento.setpoint
   format: "{value:.1f}°C"
   font_size: 17
   font_weight: bold
   text_anchor: end
+  text_wrap: true
+  text_valign: middle
   color: "#fbbf24"
 
 - id: ha2_risc_slider
   type: slider
-  x: 705
-  y: 230
-  width: 361
-  height: 36
+  x: 680
+  y: 228
+  width: 530
+  height: 40
   tag: riscaldamento.setpoint
   min: 15
   max: 30
@@ -365,60 +215,75 @@ objects:
 
 - id: ha2_risc_hint
   type: text
-  x: 885
-  y: 290
+  x: 666
+  y: 300
+  width: 558
+  height: 24
   text: "{{t0037}}"
   font_size: 12
   text_anchor: middle
-  color: "#475569"
+  text_wrap: true
+  text_valign: middle
+  color: "#64748b"
 
 # ── IRRIGAZIONE ───────────────────────────────────────────────────────────────
-- id: ha2_irr_hdr
-  type: text
-  x: 382
-  y: 400
-  text: "{{t0038}}"
-  font_size: 17
-  font_weight: bold
-  text_anchor: middle
-  color: "#22d3ee"
-
 - id: ha2_irr_box
   type: rect
-  x: 175
-  y: 415
-  width: 413
-  height: 206
+  x: 40
+  y: 356
+  width: 590
+  height: 228
   fill: "#1e293b"
   stroke: "#0891b2"
   stroke_width: 1
   rx: 6
 
+- id: ha2_irr_hdr
+  type: text
+  x: 56
+  y: 366
+  width: 558
+  height: 26
+  text: "{{t0038}}"
+  font_size: 15
+  font_weight: bold
+  text_wrap: true
+  text_valign: middle
+  color: "#22d3ee"
+
 - id: ha2_irr_dur_lbl
   type: text
-  x: 201
-  y: 454
+  x: 56
+  y: 404
+  width: 340
+  height: 28
   text: "{{t0039}}"
   font_size: 15
+  text_wrap: true
+  text_valign: middle
   color: "#94a3b8"
 
 - id: ha2_irr_dur
   type: text
-  x: 563
-  y: 454
+  x: 400
+  y: 404
+  width: 214
+  height: 28
   tag: irrigazione.durata_min
   format: "{value:.0f} min"
   font_size: 18
   font_weight: bold
   text_anchor: end
+  text_wrap: true
+  text_valign: middle
   color: "#67e8f9"
 
 - id: ha2_irr_slider
   type: slider
-  x: 201
-  y: 467
-  width: 361
-  height: 34
+  x: 70
+  y: 448
+  width: 530
+  height: 36
   tag: irrigazione.durata_min
   min: 1
   max: 60
@@ -427,70 +292,83 @@ objects:
 
 - id: ha2_irr_prog_lbl
   type: text
-  x: 201
-  y: 535
+  x: 56
+  y: 508
+  width: 558
+  height: 22
   text: "{{t0040}}"
   font_size: 13
-  color: "#475569"
+  text_wrap: true
+  text_valign: middle
+  color: "#64748b"
 
 - id: ha2_irr_prog
   type: progress_bar
-  x: 201
-  y: 548
-  width: 361
-  height: 18
+  x: 56
+  y: 538
+  width: 558
+  height: 22
   tag: irrigazione.durata_min
   min: 0
   max: 60
   fill: "#0891b2"
-  background: "#1c2e34"
+  bg_color: "#1c2e34"
 
 # ── MODALITÀ NOTTURNA ─────────────────────────────────────────────────────────
-- id: ha2_notte_hdr
-  type: text
-  x: 885
-  y: 400
-  text: "{{t0041}}"
-  font_size: 17
-  font_weight: bold
-  text_anchor: middle
-  color: "#8b5cf6"
-
 - id: ha2_notte_box
   type: rect
-  x: 679
-  y: 415
-  width: 413
-  height: 206
+  x: 650
+  y: 356
+  width: 590
+  height: 228
   fill: "#1e293b"
   stroke: "#7c3aed"
   stroke_width: 1
   rx: 6
 
+- id: ha2_notte_hdr
+  type: text
+  x: 666
+  y: 366
+  width: 558
+  height: 26
+  text: "{{t0041}}"
+  font_size: 15
+  font_weight: bold
+  text_wrap: true
+  text_valign: middle
+  color: "#8b5cf6"
+
 - id: ha2_notte_lbl
   type: text
-  x: 705
-  y: 462
+  x: 666
+  y: 404
+  width: 480
+  height: 30
   text: "{{t0017}}"
   font_size: 17
+  text_wrap: true
+  text_valign: middle
   color: "#e2e8f0"
 
+# Acceso = ambra come la spia della Panoramica (faceplate «indicatore»): lo
+# stesso tag ha lo stesso colore su tutte le pagine.
 - id: ha2_notte_led
   type: led
-  x: 1001
-  y: 449
+  x: 1192
+  y: 406
   width: 26
   height: 26
   tag: modalita.notturna
-  on_color: "#8b5cf6"
+  on_color: "#fbbf24"
   off_color: "#374151"
 
 - id: ha2_notte_on
   type: button
-  x: 705
-  y: 488
-  width: 142
-  height: 44
+  x: 666
+  y: 452
+  width: 200
+  height: 48
   label: "{{t0042}}"
   fill: "#7c3aed"
   tag: modalita.notturna
@@ -498,10 +376,10 @@ objects:
 
 - id: ha2_notte_off
   type: button
-  x: 872
-  y: 488
-  width: 142
-  height: 44
+  x: 882
+  y: 452
+  width: 200
+  height: 48
   label: "{{t0043}}"
   fill: "#374151"
   tag: modalita.notturna
@@ -509,37 +387,49 @@ objects:
 
 - id: ha2_notte_hint
   type: text
-  x: 885
-  y: 561
+  x: 666
+  y: 532
+  width: 558
+  height: 24
   text: "{{t0044}}"
   font_size: 12
   text_anchor: middle
-  color: "#475569"
+  text_wrap: true
+  text_valign: middle
+  color: "#64748b"
 
 # ── NOTE WRITE-BACK ───────────────────────────────────────────────────────────
 - id: ha2_note_box
   type: rect
-  x: 175
-  y: 655
-  width: 916
-  height: 62
+  x: 40
+  y: 600
+  width: 1200
+  height: 90
   fill: "#0f172a"
-  stroke: "#1e293b"
+  stroke: "#334155"
   stroke_width: 1
   rx: 4
 
 - id: ha2_note
   type: text
-  x: 201
-  y: 684
+  x: 56
+  y: 614
+  width: 1168
+  height: 28
   text: "{{t0045}}"
   font_size: 13
-  color: "#475569"
+  text_wrap: true
+  text_valign: middle
+  color: "#94a3b8"
 
 - id: ha2_note2
   type: text
-  x: 201
-  y: 707
+  x: 56
+  y: 648
+  width: 1168
+  height: 28
   text: "{{t0046}}"
   font_size: 13
-  color: "#334155"
+  text_wrap: true
+  text_valign: middle
+  color: "#64748b"

@@ -1,0 +1,107 @@
+# Il riquadro di un ambiente nella Panoramica (R8, 04-11-2026): titolo,
+# temperatura e umidità di un'istanza del tipo `ambiente` (sala, esterno…),
+# e in fondo una riga «indice» che ogni istanza sceglie: il comfort per il
+# soggiorno, il delta per l'esterno. Fino al primo giro di revisione quella
+# riga stava sulla pagina, sopra l'istanza: spostando il riquadro nell'IDE
+# restava indietro.
+#
+# Solo `tag` e `text` sono parametri: sono i campi che il pannello LVGL
+# sostituisce dentro un faceplate. Colori e formati restano fissi, uguali per
+# tutte le istanze — è il punto del faceplate. Per questo l'indice ha un
+# formato solo (`{value:.1f}`) e l'unità sta nel nome (`indice_nome`).
+id: ambiente
+label: Ambiente
+width: 290
+height: 170
+params:
+- name: stanza
+  type: istanza
+  type_ref: ambiente
+  default: sala
+  required: true
+- name: titolo
+  type: string
+  default: '{{t0007}}'
+- name: indice
+  type: tag
+  default: clima.comfort_soggiorno
+  required: true
+- name: indice_nome
+  type: string
+  default: '{{t0008}}'
+objects:
+- id: fondo
+  type: rect
+  x: 0
+  y: 0
+  width: 290
+  height: 170
+  fill: '#1e293b'
+  stroke: '#3b82f6'
+  stroke_width: 2
+  rx: 6
+- id: titolo
+  type: text
+  x: 16
+  y: 10
+  width: 258
+  height: 24
+  text: '{titolo}'
+  font_size: 13
+  font_weight: bold
+  text_anchor: middle
+  text_wrap: true
+  text_valign: middle
+  color: '#3b82f6'
+- id: temperatura
+  type: text
+  x: 16
+  y: 40
+  width: 258
+  height: 52
+  tag: '{stanza}.temperatura'
+  format: '{value:.1f}°C'
+  font_size: 34
+  font_weight: bold
+  text_anchor: middle
+  text_wrap: true
+  text_valign: middle
+  color: '#93c5fd'
+- id: umidita
+  type: text
+  x: 16
+  y: 94
+  width: 258
+  height: 28
+  tag: '{stanza}.umidita'
+  format: '💧 {value:.0f}%'
+  font_size: 17
+  text_anchor: middle
+  text_wrap: true
+  text_valign: middle
+  color: '#7dd3fc'
+- id: indice_nome
+  type: text
+  x: 16
+  y: 132
+  width: 140
+  height: 28
+  text: '{indice_nome}'
+  font_size: 13
+  text_wrap: true
+  text_valign: middle
+  color: '#64748b'
+- id: indice
+  type: text
+  x: 156
+  y: 132
+  width: 118
+  height: 28
+  tag: '{indice}'
+  format: '{value:.1f}'
+  font_size: 13
+  font_weight: bold
+  text_anchor: end
+  text_wrap: true
+  text_valign: middle
+  color: '#cbd5e1'

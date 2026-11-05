@@ -257,7 +257,7 @@ export function RuntimeView() {
     // invece di mandare una scrittura che il server rifiuterebbe. Un tag aperto
     // a «Chiunque» passa anche da anonimo — la luce della stanza. La restrizione
     // dell'oggetto, se c'è, ha già agito prima di arrivare qui.
-    if (!puoScrivere(sogliaScritturaTag(project?.tags, tagId), authRole)) {
+    if (!puoScrivere(sogliaScritturaTag(project?.tags, tagId, project?.types), authRole)) {
       loginTokenAtOpen.current = authToken;
       setLoginOpen(true);
       return;

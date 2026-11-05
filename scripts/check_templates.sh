@@ -123,10 +123,223 @@ R2_DEBITO = {
 R3_PAGINE_MAX, R3_OGGETTI_MAX = 6, 60
 R3_DEBITO = {
     # nome: (pagine, oggetti nella pagina più piena, perché)
-    "homeassistant-pro":  (6, 106, "vetrina del «cosa si può fare», non punto di partenza — "
-                                   "la parola «pro» nel nome è l'avviso (decisione del maintainer, 17-09-2026)"),
-    "homeassistant-demo": (3, 62,  "due oggetti sopra il tetto nella pagina di panoramica"),
+    # Vuoto dal 04-11-2026 (sessione T1): con i faceplate (R8) la panoramica di
+    # homeassistant-demo è scesa da 62 a 38 oggetti, e la pagina più piena di
+    # homeassistant-pro da 106 a 60.
 }
+
+# ── R6, R7, R8 (04-11-2026) ──────────────────────────────────────────────────
+#
+# Decise dal maintainer collaudando la 2.25.0: «il demo ha un difetto, non hai
+# usato i frame per le pagine […] nei demo tutti i pulsanti mettili con accesso
+# viewer, solo nei demo dove vogliamo mostrare specificatamente la gestione dei
+# permessi eleva le credenziali di qualche pulsante […] Questa regola e quella
+# del frame trasformale in una condizione per tutti i template», e poco dopo
+# «quando puoi gli aggregati di oggetti falli in un faceplates».
+#
+# R6 — ogni pagina normale ha una cornice, e niente sta sotto la testata o il
+#      piede: la cornice si disegna sopra la pagina, non sposta niente
+#      (`sws-web/src/cornici.rs`), quindi un oggetto nella fascia resta coperto.
+# R7 — ogni comando si usa col ruolo Viewer: le variabili che bottoni, cursori,
+#      interruttori e setpoint scrivono hanno soglia Viewer, nessun oggetto
+#      chiede un ruolo, nessun bottone chiama una funzione (una funzione la
+#      esegue solo un Operator, `require_operator` su `/api/script/run`).
+# R8 — gli oggetti di un'istanza, quando il tipo ne ha più d'una, stanno in un
+#      faceplate. È l'unica parte di «gli aggregati in un faceplate» che una
+#      guardia può contare; il resto lo giudica chi rivede.
+#
+# Il debito porta i numeri di oggi, come R3: un tetto per regola che può solo
+# scendere. Le sessioni T1 e T2 del piano lo portano a zero.
+R678_DEBITO = {
+    # nome: (R6, R7, R8), misurati il 04-11-2026 con SWS_TEMPLATE_MISURA=1.
+    # R6 vale 1 per un template senza cornice predefinita: le pagine si
+    # contano solo quando la cornice c'è. A zero con la sessione T1:
+    # demo-slider, grid-playground, homeassistant-demo, montagna-rinnovabile
+    # (homeassistant-pro e openplc-laboratorio non erano in debito per R6).
+    "comandi-pompa-pozzo":    (1, 17, 0),
+    "demo-items-lvgl":        (1, 7, 0),
+    "demo-items-web":         (1, 7, 0),
+    "enip-demo":              (1, 2, 0),
+    "host-monitor":           (1, 0, 0),
+    "nebulizzatore-sandokan": (1, 0, 0),
+    "opcua-demo":             (1, 0, 0),
+    "s7-demo":                (1, 2, 0),
+    "sparkplug-demo":         (1, 2, 0),
+}
+
+# I due template che mostrano la gestione dei permessi: qui qualche comando
+# resta più alto, ed è il punto. Il numero è il tetto dei comandi elevati, e
+# almeno uno ci deve essere — altrimenti l'eccezione non ha più ragione.
+R7_PERMESSI = {
+    # nome: (comandi elevati al massimo, perché)
+    # La soglia nella finestra Parametri: il setpoint chiede Supervisor (min_role)
+    # e il suo tag resta al predefinito, Operator — due rilievi, un comando.
+    "openplc-laboratorio": (2, "il laboratorio dei permessi: la finestra Parametri resta a Supervisor"),
+    # La luce del cancelletto a Operator e la tapparella del garage (su e giù) a
+    # Supervisor: due livelli di ruolo nella pagina Sicurezza.
+    "homeassistant-pro":   (3, "la vetrina dei permessi: qualche comando chiede di accedere"),
+}
+
+RANGO = {"Viewer": 0, "Operator": 1, "Supervisor": 2, "Admin": 3}
+
+# I faceplate che il runtime porta con sé (`sws-runtime/assets/faceplates/`):
+# un template li usa senza averne la copia.
+FACEPLATE_DI_SISTEMA = {}
+for _f in glob.glob(f"{root}/sws-runtime/assets/faceplates/*.yaml"):
+    _d = yaml.safe_load(open(_f)) or {}
+    FACEPLATE_DI_SISTEMA[_d.get("id")] = _d
+
+def nomi_parametri(fp):
+    """`params` di un faceplate: stringa nuda (forma storica) o oggetto con
+    `name` e `default` — stessa doppia forma di `FaceplateDef` nel Rust."""
+    out = {}
+    for p in fp.get("params") or []:
+        if isinstance(p, str):
+            out[p] = None
+        elif isinstance(p, dict) and p.get("name"):
+            out[p["name"]] = p.get("default")
+    return out
+
+def sostituisci(nodo, valori):
+    if isinstance(nodo, str):
+        for k, v in valori.items():
+            if v is not None:
+                nodo = nodo.replace("{" + k + "}", str(v))
+        return nodo
+    if isinstance(nodo, dict):
+        return {k: sostituisci(v, valori) for k, v in nodo.items()}
+    if isinstance(nodo, list):
+        return [sostituisci(x, valori) for x in nodo]
+    return nodo
+
+def figli_di_griglia(o):
+    """Gli oggetti dentro le celle di una griglia, sotto-celle comprese."""
+    def cella(c):
+        if not isinstance(c, dict):
+            return
+        if isinstance(c.get("child"), dict):
+            yield c["child"]
+        sub = c.get("sub")
+        if isinstance(sub, dict):
+            for lato in ("a", "b"):
+                yield from cella(sub.get(lato))
+    for c in o.get("grid_cells") or []:
+        yield from cella(c)
+
+def percorri(oggetti, faceplates, dentro=None):
+    """Ogni oggetto che il pannello disegna, con le istanze di faceplate
+    sciolte coi loro parametri. `dentro` è l'id dell'istanza che lo contiene."""
+    for o in oggetti or []:
+        if not isinstance(o, dict):
+            continue
+        yield o, dentro
+        yield from percorri(list(figli_di_griglia(o)), faceplates, dentro)
+        if o.get("type") == "faceplate":
+            fp = faceplates.get(o.get("faceplate_id"))
+            if fp:
+                valori = nomi_parametri(fp)
+                valori.update(o.get("faceplate_params") or {})
+                yield from percorri(sostituisci(fp.get("objects") or [], valori),
+                                    faceplates, o.get("id") or "?")
+
+def tag_scritti(o):
+    """I tag che l'oggetto scrive quando lo si usa — la stessa regola di
+    `tagScrittiDa` nell'IDE e di `comando_del_bottone` su LVGL, più le righe
+    scrivibili di una tabella."""
+    if o.get("assegnazioni"):
+        return [a.get("tag") for a in o["assegnazioni"] if a.get("tag")]
+    t = o.get("type")
+    if t == "symbol":
+        return [o["command_tag"]] if o.get("command_tag") else []
+    if o.get("read_only"):
+        return []  # uno slider o un bottone in sola lettura non scrive (`lvgl_render.rs`, `read_only`)
+    if t in ("button", "checkbox", "radio", "setpoint", "slider"):
+        return [o["tag"]] if o.get("tag") else []
+    if t == "table":
+        return [r["tag"] for r in o.get("table_rows") or [] if r.get("writable") and r.get("tag")]
+    return []
+
+def tag_letti(o):
+    """Ogni variabile citata dall'oggetto (campi `*tag`, binding,
+    assegnazioni, righe), senza scendere nelle celle di una griglia."""
+    out = set()
+    def scava(n):
+        if isinstance(n, dict):
+            for k, v in n.items():
+                if k == "grid_cells":
+                    continue
+                if k.endswith("tag") and isinstance(v, str) and v:
+                    out.add(v)
+                else:
+                    scava(v)
+        elif isinstance(n, list):
+            for x in n:
+                scava(x)
+    scava(o)
+    return out
+
+def radice(tag):
+    return re.split(r"[.\[]", tag, 1)[0]
+
+def soglie_di_scrittura(prj):
+    """Percorso → ruolo, come `build_tag_write_roles` del runtime: il tag, e
+    per un'istanza le foglie i cui membri dichiarano un ruolo."""
+    tipi = {t.get("id"): t for t in prj.get("types") or []}
+    out = {}
+    def indici(dims):
+        if not dims:
+            yield ""
+            return
+        for i in range(int(dims[0])):
+            for resto in indici(dims[1:]):
+                yield f"[{i}]{resto}"
+    def foglie(prefisso, tipo_id, prof=0):
+        if prof > 8 or tipo_id not in tipi:
+            return
+        for m in tipi[tipo_id].get("members") or []:
+            for idx in indici(m.get("array") or []):
+                p = f"{prefisso}.{m.get('name')}{idx}"
+                if m.get("type_ref"):
+                    yield from foglie(p, m["type_ref"], prof + 1)
+                else:
+                    yield p, m
+    for t in prj.get("tags") or []:
+        tid = t.get("id") or ""
+        if t.get("write_min_role"):
+            out[tid] = t["write_min_role"]
+        if t.get("type_ref"):
+            for idx in indici(t.get("array") or []):
+                for p, m in foglie(tid + idx, t["type_ref"]):
+                    if m.get("write_min_role"):
+                        out[p] = m["write_min_role"]
+    return out
+
+def soglia(soglie, tag):
+    """Il ruolo che serve per scrivere `tag`: il suo, o quello della radice
+    se è una foglia (`write_role_of` nel runtime). Assente = Operator."""
+    if tag in soglie:
+        return soglie[tag]
+    r = radice(tag)
+    if r != tag and r in soglie:
+        return soglie[r]
+    return "Operator"
+
+def riquadro(o):
+    """Il riquadro approssimato di un oggetto, lo stesso di `riquadro` in
+    `sws-web/src/cornici.rs`: un testo senza misure ha `y` sulla linea di base,
+    il corpo sta sopra e la larghezza si stima dal contenuto."""
+    x, y = float(o.get("x") or 0), float(o.get("y") or 0)
+    w, h = o.get("width"), o.get("height")
+    if w is not None and h is not None:
+        return x, y, x + float(w), y + float(h)
+    if o.get("type") == "text":
+        fs = float(o.get("font_size") or 14)
+        n = len(o["text"]) if isinstance(o.get("text"), str) else 4
+        return x, y - fs, x + float(w if w is not None else n * fs * 0.6), y
+    return x, y, x + float(w or 0), y + float(h or 0)
+
+def si_coprono(a, b):
+    return a[0] < b[2] and b[0] < a[2] and a[1] < b[3] and b[1] < a[3]
 
 # R5 — indirizzi. `localhost` e i nomi mDNS di prodotto (`homeassistant.local`)
 # sono documentazione, non la rete di qualcuno; un IP privato letterale sì.
@@ -183,7 +396,22 @@ def testi_letterali(nodo, fuori=None):
     return fuori
 
 nomi = sorted(os.path.basename(p.rstrip("/")) for p in glob.glob(f"{TPL}/*/"))
+# Un template solo, e senza il suo debito (04-11-2026): è il modo di lavorare
+# su un template alla volta, sapendo se è a zero sulle regole R6–R8 senza che
+# il tetto dichiarato lo copra. `SWS_TEMPLATE_SOLO=montagna-rinnovabile
+# SWS_TEMPLATE_SENZA_DEBITO=1 ./scripts/check_templates.sh`.
+SOLO = os.environ.get("SWS_TEMPLATE_SOLO")
+SENZA_DEBITO = os.environ.get("SWS_TEMPLATE_SENZA_DEBITO") == "1"
+if SOLO:
+    if SOLO not in nomi:
+        print(f"  \033[31m✗\033[0m SWS_TEMPLATE_SOLO={SOLO}: non c'è in examples/templates")
+        sys.exit(1)
+    nomi = [SOLO]
 print(f"\033[1m{len(nomi)} template, {len(PALETTE)} tipi in palette, {len(LVGL)} disegnabili da LVGL\033[0m\n")
+
+# I numeri di R6–R8 di ogni template, stampati con SWS_TEMPLATE_MISURA=1: sono
+# quelli da scrivere in R678_DEBITO quando un template cambia.
+MISURA_R678 = {}
 
 # Campi che il runtime vuole interi: un decimale fa rifiutare la pagina.
 INTERI = ("grid_rows", "grid_cols", "decimals", "font_weight", "colspan", "rowspan")
@@ -217,6 +445,7 @@ for nome in nomi:
     tipi_tag = {t.get("id"): t.get("data_type") for t in (prj.get("tags") or [])}
     ids, usati_tag, tipi, nav_targets = set(), set(), set(), set()
     formati, troppo_piene, letterali = [], [], []
+    caricate = []
     for f in pagine:
         base = os.path.basename(f)
         try:
@@ -227,6 +456,7 @@ for nome in nomi:
         if not isinstance(pag, dict):
             problema(f"{nome}/{base}: non è una mappa YAML")
             continue
+        caricate.append((base, pag))
         if not pag.get("id") or not pag.get("name"):
             problema(f"{nome}/{base}: manca `id` o `name` — il runtime scarta la pagina in silenzio")
         if pag.get("id"):
@@ -521,8 +751,141 @@ for nome in nomi:
                 problema(f"{nome}: R5 — `{chiave}` valorizzato in un template — "
                          f"un template si dà a chi con quell'impianto non c'entra niente")
 
+    # ── R6, R7, R8 (04-11-2026) ─────────────────────────────────────────────
+    cornici = {}
+    for fc in sorted(glob.glob(f"{d}/cornici/*.yaml")):
+        try:
+            c = yaml.safe_load(open(fc)) or {}
+        except Exception as e:
+            problema(f"{nome}/cornici/{os.path.basename(fc)}: YAML illeggibile — {e}")
+            continue
+        cornici[c.get("id") or os.path.splitext(os.path.basename(fc))[0]] = c
+    faceplates = dict(FACEPLATE_DI_SISTEMA)
+    for ff in sorted(glob.glob(f"{d}/faceplates/*.yaml")):
+        try:
+            fp = yaml.safe_load(open(ff)) or {}
+        except Exception as e:
+            problema(f"{nome}/faceplates/{os.path.basename(ff)}: YAML illeggibile — {e}")
+            continue
+        faceplates[fp.get("id") or os.path.splitext(os.path.basename(ff))[0]] = fp
+
+    # R6 — la cornice, e niente sotto le sue fasce.
+    r6 = []
+    predef = (prj.get("page_layout") or {}).get("cornice_predefinita")
+    if not predef:
+        r6.append("nessuna `page_layout.cornice_predefinita`")
+    elif predef not in cornici:
+        r6.append(f"la cornice predefinita `{predef}` non è in cornici/")
+    for cid, c in cornici.items():
+        alto = float((c.get("testata") or {}).get("altezza") or 0)
+        basso = float(c.get("altezza") or 800) - float((c.get("piede") or {}).get("altezza") or 0)
+        for o in c.get("oggetti") or []:
+            y0, y1 = float(o.get("y") or 0), float(o.get("y") or 0) + float(o.get("height") or 0)
+            if not ((y1 <= alto and alto > 0) or (y0 >= basso and basso < float(c.get("altezza") or 800))):
+                r6.append(f"cornici/{cid}: `{o.get('id')}` esce dalle fasce della cornice")
+    for base, pag in caricate:
+        if pag.get("finestra") or pag.get("kind"):
+            continue  # una finestra o una pagina speciale non hanno cornice (`cornice_della_pagina`)
+        cid = pag["cornice"] if "cornice" in pag else predef
+        if "cornice" in pag and not cid:
+            r6.append(f"{base}: `cornice: null`, la pagina è senza cornice")
+            continue
+        if cid not in cornici:
+            if cid and cid != predef:
+                r6.append(f"{base}: la cornice `{cid}` non è in cornici/")
+            continue
+        # Come `oggetti_nelle_fasce` del runtime: la cornice si disegna **sotto**
+        # la pagina, quindi un oggetto della pagina dentro una fascia è lecito
+        # nello spazio libero (il titolo accanto all'orologio) e sbagliato se
+        # copre un oggetto della cornice, che resterebbe nascosto a metà.
+        c = cornici[cid]
+        alto = float((c.get("testata") or {}).get("altezza") or 0)
+        piede = float((c.get("piede") or {}).get("altezza") or 0)
+        basso = float(c.get("altezza") or 800) - piede
+        suoi = [riquadro(o) for o in c.get("oggetti") or []]
+        for o in pag.get("objects") or []:
+            r = riquadro(o)
+            nella_fascia = (alto > 0 and r[1] < alto) or (piede > 0 and r[3] > basso)
+            sotto = next((c_o for c_o, rc in zip(c.get("oggetti") or [], suoi) if si_coprono(r, rc)), None)
+            if nella_fascia and sotto:
+                r6.append(f"{base}: `{o.get('id')}` ({o.get('type')}, y {round(r[1])}–{round(r[3])}) "
+                          f"copre `{sotto.get('id')}` della cornice «{cid}»")
+
+    # R7 — ogni comando si usa col ruolo Viewer.
+    soglie = soglie_di_scrittura(prj)
+    elevati, r7 = [], []
+    oggetti_tutti = []
+    for base, pag in caricate:
+        oggetti_tutti += [(base, o, den) for o, den in percorri(pag.get("objects") or [], faceplates)]
+    for cid, c in cornici.items():
+        oggetti_tutti += [(f"cornici/{cid}", o, den) for o, den in percorri(c.get("oggetti") or [], faceplates)]
+    for base, o, _ in oggetti_tutti:
+        chi = f"{base}: `{o.get('id')}`"
+        for tg in tag_scritti(o):
+            sg = soglia(soglie, tg)
+            if RANGO.get(sg, 1) > 0:
+                elevati.append(f"{chi} scrive `{tg}`, che chiede {sg}")
+        if o.get("min_role") and RANGO.get(o["min_role"], 0) > 0:
+            elevati.append(f"{chi} chiede il ruolo {o['min_role']}")
+        for campo in ("on_press_fn", "on_release_fn"):
+            if o.get(campo):
+                r7.append(f"{chi} chiama la funzione `{o[campo]}` — una funzione la esegue "
+                          f"solo un Operator (`/api/script/run`); su LVGL non parte affatto")
+    if nome in R7_PERMESSI:
+        tetto_el, perche_el = R7_PERMESSI[nome]
+        if not elevati:
+            nota(f"{nome}: R7 — nessun comando elevato: l'eccezione di R7_PERMESSI non serve più")
+        elif len(elevati) > tetto_el:
+            problema(f"{nome}: R7 — {len(elevati)} comandi elevati, il tetto è {tetto_el} "
+                     f"({perche_el}) → {elevati[0]}")
+        elif len(elevati) < tetto_el:
+            nota(f"{nome}: R7 — scesi a {len(elevati)} comandi elevati su {tetto_el}, abbassa R7_PERMESSI")
+    else:
+        r7 = elevati + r7
+
+    # R8 — gli oggetti di un'istanza in un faceplate, quando il tipo si ripete.
+    istanze = {t.get("id"): t.get("type_ref") for t in (prj.get("tags") or []) if t.get("type_ref")}
+    quante = {}
+    for ty in istanze.values():
+        quante[ty] = quante.get(ty, 0) + 1
+    ripetute = {r for r, ty in istanze.items() if quante[ty] >= 2}
+    r8 = []
+    for base, pag in caricate:
+        gruppi = {}
+        for o, den in percorri(pag.get("objects") or [], faceplates):
+            if den is not None or o.get("type") == "faceplate":
+                continue
+            rr = {radice(tg) for tg in tag_letti(o)}
+            if len(rr) == 1 and next(iter(rr)) in ripetute:
+                gruppi.setdefault(next(iter(rr)), []).append(o.get("id"))
+        for r, ids_r in sorted(gruppi.items()):
+            if len(ids_r) >= 2:
+                r8 += [f"{base}: `{i}` mostra `{r}` fuori da un faceplate" for i in ids_r]
+
+    conti = (len(r6), len(r7), len(r8))
+    tetti = (0, 0, 0) if SENZA_DEBITO else R678_DEBITO.get(nome, (0, 0, 0))
+    for regola, n, tetto, voci in (("R6", conti[0], tetti[0], r6),
+                                   ("R7", conti[1], tetti[1], r7),
+                                   ("R8", conti[2], tetti[2], r8)):
+        if n > tetto:
+            problema(f"{nome}: {regola} — {n} rilievi (tetto dichiarato: {tetto}) → {voci[0]}"
+                     + (f" … (+{n - 1})" if n > 1 else ""))
+            if SOLO:
+                for v in voci[1:]:
+                    print(f"      {v}")
+        elif n < tetto:
+            nota(f"{nome}: {regola} — scesi a {n} rilievi su {tetto}, abbassa R678_DEBITO")
+        elif tetto:
+            debito(f"{nome}: {regola} — {tetto} rilievi ancora da sistemare")
+    MISURA_R678[nome] = conti
+
     if not any(nome in f for f in [x for x in fail]):
         ok(f"{nome}: {len(pagine)} pagine, {len(tipi)} tipi, tutto a posto")
+
+if os.environ.get("SWS_TEMPLATE_MISURA") == "1":
+    print("\n  R6, R7, R8 per template:")
+    for n_, c_ in sorted(MISURA_R678.items()):
+        print(f"    {n_!r}: {c_},")
 
 print()
 if fail:
@@ -532,6 +895,7 @@ if debiti:
     # Il totale, perché un debito sparso in trenta righe non si percepisce come
     # un numero — e questo deve scendere a zero, non stabilizzarsi.
     print(f"\033[33m{len(debiti)} eccezioni dichiarate alle regole del parco "
-          f"(R1 formato, R2 lingue, R3 semplicità) — vedi examples/templates/README.md\033[0m")
+          f"(R1 formato, R2 lingue, R3 semplicità, R6 cornice, R7 ruolo Viewer, "
+          f"R8 faceplate) — vedi examples/templates/README.md\033[0m")
 print("\033[32mTutti i template sono allineati.\033[0m")
 PY

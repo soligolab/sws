@@ -12,7 +12,11 @@ oggetti:
 - id: titolomw03q3einjafi
   type: text
   x: 20.0
-  y: 36.0
+  y: 0.0
+  width: 700.0
+  height: 56.0
+  text_wrap: true
+  text_valign: middle
   text: '{{pagina.nome}}'
   font_size: 22.0
   font_weight: bold

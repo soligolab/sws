@@ -1,0 +1,40 @@
+# Una spia con il suo nome (04-11-2026, regola R8): porte, finestre, luci e
+# tapparelle nella Panoramica e nella pagina Sicurezza erano coppie testo + LED
+# ripetute a mano, una trentina in tutto. Acceso = ambra (aperto, acceso),
+# spento = grigio: il colore si vede solo quando c'è qualcosa da notare.
+#
+# I parametri si sostituiscono solo in `tag`, `label` e `text`, perché il
+# pannello LVGL sostituisce solo quelli: colori e formati restano fissi qui.
+id: spia
+label: Spia con nome
+width: 220
+height: 30
+params:
+- name: p
+  type: tag
+  default: porta.principale
+  required: true
+- name: nome
+  type: string
+  default: '{{t0026}}'
+objects:
+- id: led
+  type: led
+  x: 0
+  y: 5
+  width: 20
+  height: 20
+  tag: '{p}'
+  on_color: '#f59e0b'
+  off_color: '#334155'
+- id: nome
+  type: text
+  x: 28
+  y: 0
+  width: 192
+  height: 30
+  text_wrap: true
+  text_valign: middle
+  text: '{nome}'
+  font_size: 13
+  color: '#94a3b8'

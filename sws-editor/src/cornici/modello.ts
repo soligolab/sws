@@ -174,7 +174,10 @@ export function daModello(modello: ModelloCornice, id: string, nome: string, w: 
   const oggetti: SynopticObject[] = [];
   if (testata) {
     oggetti.push(
-      { id: genId("titolo"), type: "text", x: 20, y: 36, text: SEGNAPOSTI.paginaNome, font_size: 22, font_weight: "bold", text_anchor: "start", color: "#e2e8f0" },
+      // Il titolo in un riquadro alto quanto la testata, centrato (04-11-2026):
+      // un testo libero ha `y` sulla linea di base sul web e in cima su LVGL,
+      // e a y 36 sul pannello usciva dalla testata, mezzo coperto dalla pagina.
+      { id: genId("titolo"), type: "text", x: 20, y: 0, width: Math.max(200, w - 260), height: ALTEZZA_TESTATA, text_wrap: true, text_valign: "middle", text: SEGNAPOSTI.paginaNome, font_size: 22, font_weight: "bold", text_anchor: "start", color: "#e2e8f0" },
       { id: genId("data_ora"), type: "clock", x: w - 220, y: 10, width: 200, height: 36, clock_formato: "data_ora", font_size: 18, text_anchor: "end", color: "#e2e8f0" },
     );
   }

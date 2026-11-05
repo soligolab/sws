@@ -8,6 +8,7 @@ types:
   - name: comando
     data_type: bool
     history: true
+    write_min_role: Viewer
   - name: in_marcia
     data_type: bool
     history: true
@@ -33,6 +34,10 @@ tags:
   description: Soglia di livello alto
   data_type: i16
   history: false
+  # La soglia la cambia solo il Supervisor, e lo fa rispettare il server: il
+  # ruolo dell'oggetto nella finestra Parametri attenua e mostra il lucchetto,
+  # quello della variabile protegge anche dall'API (04-11-2026).
+  write_min_role: Supervisor
 - id: allarme_livello
   description: Livello oltre la soglia alta
   data_type: bool
@@ -148,7 +153,7 @@ alarms:
   - condition:
       kind: bool_false
     severity: Warning
-    message: La sorgente «openplc» non risponde da un minuto
+    message: '{{t0014}}'
   on_delay_s: 60.0
 functions: []
 custom_symbols: []
@@ -246,6 +251,26 @@ languages:
     auto:
     - es
     - en
+  - key: t0011
+    values:
+      en: Plant
+      es: Planta
+      it: Impianto
+  - key: t0012
+    values:
+      en: Trends
+      es: Tendencias
+      it: Andamento
+  - key: t0013
+    values:
+      en: Parameters
+      es: Parámetros
+      it: Parametri
+  - key: t0014
+    values:
+      en: The «openplc» source has not answered for a minute
+      es: La fuente «openplc» no responde desde hace un minuto
+      it: La sorgente «openplc» non risponde da un minuto
 page_layout:
   home_page_id: page-1a19f19beef1
   size_mode: fixed

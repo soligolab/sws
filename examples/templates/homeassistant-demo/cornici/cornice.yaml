@@ -1,0 +1,58 @@
+# La cornice delle tre pagine (R6, 04-11-2026), dal modello di
+# `openplc-laboratorio`: testata col nome della pagina, la lingua e l'ora;
+# piede col navigatore, che elenca da sé le pagine di `page_layout.page_tree`.
+# Prima ogni pagina ripeteva titolo e tre bottoni di navigazione.
+#
+# I testi hanno un riquadro (`text_wrap` con `width`/`height`) e stanno al
+# centro in verticale: così cadono negli stessi pixel sul web e sul pannello.
+# I colori sono quelli del template (ardesia: #1e293b, #e2e8f0).
+id: cornice
+nome: Cornice
+larghezza: 1280.0
+altezza: 800.0
+testata:
+  altezza: 56.0
+  sfondo: '#1e293b'
+piede:
+  altezza: 60.0
+  sfondo: '#1e293b'
+oggetti:
+- id: titolo
+  type: text
+  x: 20.0
+  y: 8.0
+  width: 200.0
+  height: 40.0
+  text: '{{pagina.nome}}'
+  font_size: 22.0
+  font_weight: bold
+  text_anchor: start
+  text_wrap: true
+  text_valign: middle
+  color: '#e2e8f0'
+- id: lingua
+  type: lang_selector
+  x: 924.0
+  y: 11.0
+  width: 116.0
+  height: 34.0
+- id: data_ora
+  type: clock
+  x: 1060.0
+  y: 10.0
+  width: 200.0
+  height: 36.0
+  font_size: 18.0
+  text_anchor: end
+  color: '#e2e8f0'
+  clock_formato: data_ora
+- id: navigatore
+  type: page_navigator
+  x: 10.0
+  y: 748.0
+  width: 1260.0
+  height: 44.0
+  nav_orientation: horizontal
+  nav_fill: true
+  nav_gap: 4.0
+  font_size: 15.0

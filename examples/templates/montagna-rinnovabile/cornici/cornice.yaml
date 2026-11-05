@@ -1,0 +1,56 @@
+# La cornice delle tre pagine (04-11-2026, regola R6 dei template), dal modello di
+# `openplc-laboratorio` con i colori di questo template: in testata il nome della pagina
+# (tradotto, perché i nomi sono token) e la data con l'ora; nel piede un bottone per
+# pagina, che il navigatore trova da sé. Le foto stanno fra le due fasce, da y 56 a 740.
+id: cornice
+nome: Cornice
+larghezza: 1280.0
+altezza: 800.0
+testata:
+  altezza: 56.0
+  sfondo: '#0b1526'
+piede:
+  altezza: 60.0
+  sfondo: '#0b1526'
+oggetti:
+# Il titolo in un riquadro alto quanto la testata e centrato in verticale: un testo
+# senza riquadro ha `y` sulla linea di base sul web e in cima sul pannello, e qui
+# finiva mezzo sotto la foto.
+- id: titolo
+  type: text
+  x: 20.0
+  y: 0.0
+  width: 700.0
+  height: 56.0
+  text_wrap: true
+  text_valign: middle
+  text: '{{pagina.nome}}'
+  font_size: 22.0
+  font_weight: bold
+  text_anchor: start
+  color: '#f1f5f9'
+- id: data_ora
+  type: clock
+  x: 1060.0
+  y: 10.0
+  width: 200.0
+  height: 36.0
+  font_size: 18.0
+  text_anchor: end
+  color: '#cbd5e1'
+  clock_formato: data_ora
+- id: navigatore
+  type: page_navigator
+  x: 10.0
+  y: 748.0
+  width: 1260.0
+  height: 44.0
+  nav_orientation: horizontal
+  nav_fill: true
+  nav_gap: 4.0
+  font_size: 13.0
+  fill: '#0f1d33'
+  stroke: '#1e3a5f'
+  color: '#cbd5e1'
+  nav_active_fill: '#2563eb'
+  nav_active_color: '#ffffff'

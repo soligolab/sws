@@ -1,0 +1,49 @@
+# Una luce esterna col suo comando (04-11-2026, regole R7 e R8): nome, stato e
+# un pulsante che la accende o la spegne (`toggle`). Prima erano due pulsanti
+# ON e OFF per luce, scritti a mano tre volte. Chi può premerlo lo decide il
+# tag (`write_min_role`), non il faceplate: la stessa riga serve la luce che
+# usa chiunque e quella che chiede di accedere.
+id: luce
+label: Luce con comando
+width: 420
+height: 44
+params:
+- name: p
+  type: tag
+  default: luce.viale
+  required: true
+- name: nome
+  type: string
+  default: '{{t0041}}'
+objects:
+- id: nome
+  type: text
+  x: 0
+  y: 0
+  width: 170
+  height: 44
+  text_wrap: true
+  text_valign: middle
+  text: '{nome}'
+  font_size: 15
+  color: '#cbd5e1'
+- id: stato
+  type: led
+  x: 176
+  y: 10
+  width: 24
+  height: 24
+  tag: '{p}'
+  on_color: '#fbbf24'
+  off_color: '#374151'
+- id: comando
+  type: button
+  x: 216
+  y: 4
+  width: 200
+  height: 36
+  label: '{{t0172}}'
+  tag: '{p}'
+  button_mode: toggle
+  fill: '#b45309'
+  color: '#fff7ed'

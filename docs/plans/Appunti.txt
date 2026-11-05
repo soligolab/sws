@@ -227,3 +227,36 @@ Annoto di seguito, uno per punto, le cose che devono essere verificate e trasfor
 - (04-11-2026) **Il prezzo di kimi-k3.1-pro** non è in `prezzi()` (`ai/client.rs`): la spesa mostrata è una stima per
   eccesso (≈). Da aggiungere quando si conosce il listino.
 
+- (04-11-2026, dalla sessione T1 della serie coordinata) **L'assistente che propone faceplate.** La regola R8 dei
+  template («gli aggregati di oggetti in un faceplate») varrebbe anche per il sinottico intero composto dall'IA, ma oggi
+  `proponi_modifica` non porta faceplate: né `ai/tools.rs` né `applyAiProposal` (`sws-editor/src/store/index.ts`) li
+  conoscono. Serve una sezione nuova della proposta (`faceplates/<id>.yaml`) e le istanze nella pagina, poi la riga nel
+  prompt (`ai/prompt.rs`, «Quando ti chiedono un sinottico intero», punto 4).
+- (04-11-2026, T1) **Riconoscere un allarme, applicare una ricetta, eseguire una funzione restano a Operator** anche in un
+  template dove ogni comando è aperto a Viewer (R7): le rotte stanno sotto `require_operator` (`router.rs`,
+  `operator_routes`). In una demo il visitatore vede gli allarmi e non li può riconoscere. Se serve, è una soglia per
+  progetto, non una modifica dei template.
+- (04-11-2026, T1) **Un testo senza riquadro: sul web `y` è la linea di base, su LVGL è il bordo alto.** Misurato dagli
+  agenti della sessione T1 su sei template: lo scarto è circa un corpo (22 px per un titolo a 22). Il titolo della
+  cornice a y 36 usciva dalla testata sul pannello. Nei template di T1 e nel modello di cornice dell'IDE
+  (`cornici/modello.ts`) i testi stanno ora in un riquadro con `text_wrap` e `text_valign: middle`, che i due motori
+  disegnano uguali. La correzione vera è nel motore LVGL (sottrarre l'ascesa del font per un `text` senza riquadro),
+  da provare con le istantanee dei due motori: cambia la posizione di ogni testo libero di ogni progetto LVGL. È la
+  stessa cosa della voce sul «Lago alpino» qui sopra.
+- (04-11-2026, T1) **Difetti del pannello LVGL visti nelle istantanee dei template**, tutti preesistenti:
+  - il figlio di una cella di griglia va nell'angolo dello slot più `x`/`y`, il web lo centra e ignora `x`/`y`
+    (`render_grid_slot`, `lvgl_render.rs`). `grid-playground` mette in `x`/`y` lo scarto che centra: se si corregge
+    LVGL, quegli scarti vanno azzerati;
+  - le celle con `bg_color` prendono il bordo chiaro arrotondato del tema di `lv_obj`; rect ed ellissi bassi (sotto
+    ~40 px) mostrano una barra di scorrimento grigia (padding del tema);
+  - `faceplate_scale` non c'è (il web scala i figli al riquadro dell'istanza);
+  - `kpi_tile` senza `color`: valore scuro su fondo scuro (il web usa #e2e8f0);
+  - la campanella degli allarmi copre la sua scritta; «Allarmi» e «Nessun allarme attivo» restano in italiano; la
+    freccia del `lang_selector` è un quadratino;
+  - slider verticale al minimo: il cursore copre l'etichetta «0 %»; `bg_image` di uno slider classico disegnata solo
+    al centro del riquadro (`demo-slider`, `s_img2`).
+- (04-11-2026, T1) **Dubbi dei template, preesistenti, da decidere col maintainer**: in `homeassistant-demo` il «Delta»
+  calcola soggiorno − studio ma i testi dicono interno − esterno, e `energia.potenza_w` vale kW mentre le pagine dicono
+  W (gauge 0–5000); in `homeassistant-pro` restano gli entity_id `person.mauro2` e `switch.lampada_cancelletto_mauro`;
+  in `demo-slider` `s.rampa` ha `write_min_role: Viewer` solo perché la guardia contava anche gli slider `read_only`
+  (corretto il 04-11: si può togliere).

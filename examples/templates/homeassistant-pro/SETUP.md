@@ -72,7 +72,7 @@ Ogni sensore ha un pattern basato sul nome assegnato in HA.
 | `lavanderia.temperatura` | `sensor.sensoreambientelavanderia_temperature` | Lavanderia |
 | `bagno.temperatura` | `sensor.sensoreambientebagnopianoterra_temperature` | Bagno PT |
 | `tecnico.temperatura` | `sensor.sensoreambientestanzaarmadi_temperature` | Locale tecnico |
-| `tecnico.pressione_hpa` | `sensor.sensoreambientestanzaarmadi_pressure` | (solo se Aqara T1) |
+| `clima.pressione_hpa` | `sensor.sensoreambientestanzaarmadi_pressure` | Locale tecnico (solo se Aqara T1) |
 
 #### Contatori elettrici
 Se non hai i contatori cucina/pompa di calore, rimuovi o commenta le entità corrispondenti.
@@ -82,6 +82,7 @@ Se non hai i contatori cucina/pompa di calore, rimuovi o commenta le entità cor
 | `cucina.potenza_w` | `sensor.contatore_cucina_contatore_cucina_active_power_2` |
 | `cucina.tensione_v` | `sensor.contatore_cucina_contatore_cucina_voltage_2` |
 | `cucina.corrente_a` | `sensor.contatore_cucina_contatore_cucina_current_2` |
+| `rete.frequenza_cucina_hz` | `sensor.contatore_cucina_contatore_cucina_frequency_2` |
 | `pompacalore.potenza_w` | `sensor.pompa_di_calore_potenza` |
 | `pompacalore.tensione_v` | `sensor.pompa_di_calore_tensione` |
 
@@ -116,7 +117,27 @@ Write-back: `true` → `open_cover`, `false` → `close_cover`
 #### Presenza
 | Tag SWS | Entity HA | Note |
 |---|---|---|
-| `mauro.a_casa` | `person.mauro2` | "home"→true, "not_home"→false |
+| `presenza.in_casa` | `person.mauro2` | "home"→true, "not_home"→false |
+
+### Stringhe, stanze e contatori sono istanze
+
+Le cose che si ripetono sono **istanze di un tipo** (`types:` in `project.yaml`): `pv1` e `pv2` di
+`stringa_fv`, le cinque stanze di `stanza`, `cucina` e `pompacalore` di `contatore`. I percorsi sono
+quelli di sempre (`pv1.tensione_v`, `sala.temperatura`, `cucina.potenza_w`), quindi gli entity_id si
+adattano allo stesso modo. Le pagine le mostrano coi **faceplate** di `faceplates/`: per aggiungere una
+stanza basta una nuova istanza di `stanza` e una riga in più nella pagina Clima.
+
+### Chi può usare i comandi
+
+Questo template mostra la gestione dei permessi. Luci e tapparelle si comandano senza accedere
+(`write_min_role: Viewer`), tranne due, apposta:
+
+| Comando | Ruolo che serve |
+|---|---|
+| Luce del cancelletto (`luce.cancelletto`) | Operator |
+| Tapparella del garage (`tapparella.garage`) | Supervisor |
+
+Il ruolo sta sul tag, in `project.yaml`: per cambiarlo si cambia `write_min_role`.
 
 ## 5. Tag derivati (nessuna modifica necessaria)
 
@@ -129,7 +150,7 @@ Non richiedono entity HA — sono calcolati a runtime:
 | `pv.autoconsumo_pct` | min(FV,casa)/casa × 100 | Autoconsumo % |
 | `energia.saldo_kw` | FV - casa | Surplus/deficit |
 | `energia.costo_ora_eur` | consumo × 0.25 | Costo €/h |
-| `sala.comfort_index` | T+U comfort 0-100 | Comfort soggiorno |
+| `clima.comfort_soggiorno` | T+U comfort 0-100 | Comfort soggiorno |
 | `batteria.in_carica` | corrente > 0 | Stato carica/scarica |
 | `rete.acquisto_kw` | max(0, -scambio) | Solo prelievo |
 | `rete.vendita_kw` | max(0, +scambio) | Solo immissione |
@@ -138,7 +159,7 @@ Non richiedono entity HA — sono calcolati a runtime:
 ## 6. Storico SQLite
 
 Il database viene creato automaticamente in `<progetto>/.history/ha-pro.db`.
-Retention: 365 giorni. Grandezze registrate: ~20 tag (V, A, kW, °C, %).
+Retention: 365 giorni. Grandezze registrate: 27 (V, A, kW, W, °C, %).
 
 Per interrogare i dati direttamente:
 ```bash
@@ -146,15 +167,13 @@ sqlite3 .run/projects/<nome-progetto>/.history/ha-pro.db \
   "SELECT tag, ts_ms, value FROM samples WHERE tag='sala.temperatura' ORDER BY ts_ms DESC LIMIT 10;"
 ```
 
-## 7. Pagine sinottiche suggerite (6 pagine)
+## 7. Le sei pagine
 
-Dopo aver applicato il template, crea le pagine nell'editor SWS:
-
-| Pagina | Elementi suggeriti |
+| Pagina | Cosa c'è |
 |---|---|
-| **1 — Panoramica** | Diagramma flusso FV→batt→casa→rete, clima riassunto 5 stanze, LED sicurezza, presenza Mauro |
-| **2 — Fotovoltaico** | Gauge V/A per stringa 1+2, grafico storico corrente, produzione oggi/totale, temp inverter |
-| **3 — Batteria & Rete** | Gauge SoC%, grafico storico SoC+tensione, V/A/Hz rete, indicator in carica/scarica |
-| **4 — Clima** | Tabella 5 stanze T+U, gauge comfort index, grafico storico temperature, pressione |
-| **5 — Carichi Elettrici** | W+V+A contatore cucina, pompa di calore, grafico potenza oraria |
-| **6 — Sicurezza & Controlli** | Mappa LED porte/finestre/motion, toggle luci ON/OFF, pulsanti tapparelle SU/GIÙ |
+| **1 — Panoramica** | Quattro KPI energia (FV, batteria, casa, rete), clima delle 5 stanze, porte/finestre/rilevatori, presenza, stato di luci e tapparelle, fascia allarmi |
+| **2 — Fotovoltaico** | Potenza totale, gauge V/A per stringa 1+2, trend delle correnti, temperature inverter, autoconsumo |
+| **3 — Batteria & Rete** | Gauge SoC%, in carica/scarica, otto grandezze della batteria, V/Hz/scambio rete, trend SoC + tensione |
+| **4 — Clima** | Le 5 stanze T+U, gauge della temperatura media, comfort del soggiorno, pressione, trend temperature |
+| **5 — Carichi Elettrici** | KPI della casa, contatore cucina e pompa di calore, trend delle potenze |
+| **6 — Sicurezza & Controllo** | Porte, finestre, perimetro e movimento, presenza, luci (accendi/spegni) e tapparelle (SU/GIÙ) con i permessi |

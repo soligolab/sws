@@ -1,0 +1,131 @@
+# Un carico col suo contatore smart (04-11-2026, regola R8): il nome, e
+# tensione, corrente ed energia a destra. `p` è un'istanza del tipo `contatore`
+# (cucina, pompacalore).
+#
+# Il quadrante della potenza non sta qui. Ogni carico ha il suo fondo scala, le
+# sue soglie e il suo colore (cucina 0–3500 W, attenzione 2800, allarme 3200,
+# ambra; pompa di calore 0–4000 W, attenzione 3200, azzurro, come nel trend), e
+# sul pannello LVGL un parametro cambia solo tag ed etichette, non numeri e
+# colori. Quindi la pagina mette il suo quadrante sotto l'etichetta «Potenza»,
+# a x 24, y 62 dell'istanza, largo 240 e alto 220. I valori qui sono chiari,
+# senza il colore di un carico.
+id: contatore
+label: Carico con contatore
+width: 608
+height: 300
+params:
+- name: p
+  type: istanza
+  type_ref: contatore
+  default: cucina
+  required: true
+- name: titolo
+  type: string
+  default: '{{t0112}}'
+objects:
+- id: sfondo
+  type: rect
+  x: 0
+  y: 0
+  width: 608
+  height: 300
+  fill: '#111827'
+  stroke: '#334155'
+  stroke_width: 1
+  rx: 6
+- id: titolo
+  type: text
+  x: 16
+  y: 8
+  width: 576
+  height: 28
+  text_wrap: true
+  text_valign: middle
+  text: '{titolo}'
+  font_size: 17
+  font_weight: bold
+  color: '#e2e8f0'
+- id: potenza_lbl
+  type: text
+  x: 24
+  y: 40
+  width: 240
+  height: 20
+  text_wrap: true
+  text_valign: middle
+  text: '{{t0071}}'
+  font_size: 13
+  text_anchor: middle
+  color: '#64748b'
+- id: tensione_lbl
+  type: text
+  x: 296
+  y: 56
+  width: 296
+  height: 20
+  text_wrap: true
+  text_valign: middle
+  text: '{{t0053}}'
+  font_size: 13
+  color: '#64748b'
+- id: tensione
+  type: text
+  x: 296
+  y: 76
+  width: 296
+  height: 40
+  text_wrap: true
+  text_valign: middle
+  tag: '{p}.tensione_v'
+  format: '{value:.1f} V'
+  font_size: 26
+  font_weight: bold
+  color: '#e2e8f0'
+- id: corrente_lbl
+  type: text
+  x: 296
+  y: 132
+  width: 296
+  height: 20
+  text_wrap: true
+  text_valign: middle
+  text: '{{t0055}}'
+  font_size: 13
+  color: '#64748b'
+- id: corrente
+  type: text
+  x: 296
+  y: 152
+  width: 296
+  height: 40
+  text_wrap: true
+  text_valign: middle
+  tag: '{p}.corrente_a'
+  format: '{value:.2f} A'
+  font_size: 26
+  font_weight: bold
+  color: '#e2e8f0'
+- id: energia_lbl
+  type: text
+  x: 296
+  y: 208
+  width: 296
+  height: 20
+  text_wrap: true
+  text_valign: middle
+  text: '{{t0114}}'
+  font_size: 13
+  color: '#64748b'
+- id: energia
+  type: text
+  x: 296
+  y: 228
+  width: 296
+  height: 40
+  text_wrap: true
+  text_valign: middle
+  tag: '{p}.energia_kwh'
+  format: '{value:.2f} kWh'
+  font_size: 22
+  font_weight: bold
+  color: '#cbd5e1'

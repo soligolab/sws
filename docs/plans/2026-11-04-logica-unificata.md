@@ -20,8 +20,9 @@
 1. **I default dei parametri non li applica nessuno.** `run_function` usa solo `body.args` (`router.rs:7492-7520`),
    l'harness inietta solo gli argomenti (`sws-pyscript/src/lib.rs:214`), `functions.run` solo i kwargs (`lib.rs:374`);
    la tela passa `on_press_args ?? {}` (`SvgCanvas.tsx:2057-2076`), le celle `{}` (`:6539`). Li riempie solo il
-   pannellino di prova (`RuntimeView.tsx:591-633`). In `grid-playground` `fnc_Inc` e `fnc_Toggle` sono su celle: con
-   ogni probabilità `NameError: tag`. HOWTO §15 (`:1134`) dice il contrario.
+   pannellino di prova (`RuntimeView.tsx:591-633`). In `grid-playground` `fnc_Inc` e `fnc_Toggle` erano su celle: con
+   ogni probabilità `NameError: tag`. HOWTO §15 (`:1134`) dice il contrario. (Dal 04-11, sessione T1, le celle usano i
+   modi del bottone e il template non ha più funzioni: la prova di L0 va fatta su un progetto di prova.)
 2. **La sandbox fornisce solo `_getattr_`, `_getitem_`, `_write_`** (`lib.rs:177-179`). RestrictedPython riscrive
    `print`, `for` e `+=` in `_print_`, `_getiter_`, `_inplacevar_`, che mancano. `NameError: _print_` è già comparso sul
    pannello (`STATUS.md:1758`). Colpisce il corpo predefinito di ogni script nuovo (`print('Hello…')`), 3 frammenti su 6
@@ -63,7 +64,8 @@
 - I default dei parametri applicati lato server, in `run_function` e in `functions.run`.
 - `schema_python` corretto (`functions`, `tr`, i parametri come globali, le costanti fuori dai `def`); HOWTO §15.
 - Test in `sws-pyscript`: `print`, `for`, `+=`, una funzione chiamata senza argomenti che usa il default.
-- Prova del maintainer: su un pannello, uno script col `print` e un `for`; una cella di `grid-playground`.
+- Prova del maintainer: su un pannello, uno script col `print` e un `for`; un bottone che chiama una funzione con un
+  parametro lasciato al predefinito (in un progetto di prova: `grid-playground` non ha più funzioni dal 04-11).
 - **Immagine** (cambia il runtime).
 
 **L1 — `feat/logica-un-ramo`: un ramo solo.**

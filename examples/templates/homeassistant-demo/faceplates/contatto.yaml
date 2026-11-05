@@ -1,0 +1,39 @@
+# Una riga «etichetta + spia» per un contatto di sicurezza della Panoramica
+# (R8, 04-11-2026): il portoncino e la porta del garage, che hanno anche un
+# allarme (`alm-porta`, `alm-garage`). Stesso disegno di «indicatore», ma con
+# i colori di prima: aperto = rosso, chiuso = verde. Sono un faceplate a parte
+# perché il pannello LVGL non sostituisce i colori dentro un faceplate.
+id: contatto
+label: Contatto
+width: 260
+height: 30
+params:
+- name: etichetta
+  type: string
+  default: '{{t0014}}'
+- name: tag
+  type: tag
+  default: porta.principale
+  required: true
+objects:
+- id: etichetta
+  type: text
+  x: 0
+  y: 0
+  width: 214
+  height: 30
+  text: '{etichetta}'
+  font_size: 15
+  text_anchor: start
+  text_wrap: true
+  text_valign: middle
+  color: '#94a3b8'
+- id: spia
+  type: led
+  x: 230
+  y: 4
+  width: 22
+  height: 22
+  tag: '{tag}'
+  on_color: '#ef4444'
+  off_color: '#22c55e'

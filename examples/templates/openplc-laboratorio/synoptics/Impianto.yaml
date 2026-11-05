@@ -1,5 +1,5 @@
 id: page-1a19f19beef1
-name: Impianto
+name: '{{t0011}}'
 objects:
 - id: mw04yyocbmcde
   type: symbol
@@ -80,6 +80,7 @@ objects:
   width: 260.0
   height: 110.0
   bg_color: '#1e293b'
+  color: '#e2e8f0'
   tag: livello
   label: '{{t0003}}'
   decimals: 0
@@ -94,6 +95,7 @@ objects:
   width: 260.0
   height: 110.0
   bg_color: '#1e293b'
+  color: '#e2e8f0'
   tag: pompa1.portata
   label: '{{t0004}}'
   decimals: 0
@@ -108,6 +110,7 @@ objects:
   width: 260.0
   height: 110.0
   bg_color: '#1e293b'
+  color: '#e2e8f0'
   tag: temperatura_esterna
   label: '{{t0005}}'
   decimals: 1

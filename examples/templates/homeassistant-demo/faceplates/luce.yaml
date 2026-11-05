@@ -1,0 +1,58 @@
+# Una luce (o una presa) della pagina Controllo (R8, 04-11-2026): nome, spia
+# e i due comandi ON/OFF, che scrivono sul tag e quindi su HomeAssistant
+# (turn_on / turn_off). Il tag dichiara `write_min_role: Viewer` (R7): i
+# bottoni funzionano senza accedere.
+id: luce
+label: Luce
+width: 550
+height: 44
+params:
+- name: etichetta
+  type: string
+  default: '{{t0019}}'
+- name: tag
+  type: tag
+  default: luce.soggiorno
+  required: true
+objects:
+- id: etichetta
+  type: text
+  x: 0
+  y: 0
+  width: 280
+  height: 44
+  text: '{etichetta}'
+  font_size: 17
+  text_anchor: start
+  text_wrap: true
+  text_valign: middle
+  color: '#e2e8f0'
+- id: spia
+  type: led
+  x: 300
+  y: 10
+  width: 24
+  height: 24
+  tag: '{tag}'
+  on_color: '#fbbf24'
+  off_color: '#374151'
+- id: accendi
+  type: button
+  x: 350
+  y: 4
+  width: 90
+  height: 36
+  label: '{{t0033}}'
+  fill: '#d97706'
+  tag: '{tag}'
+  write_value: true
+- id: spegni
+  type: button
+  x: 450
+  y: 4
+  width: 90
+  height: 36
+  label: '{{t0034}}'
+  fill: '#374151'
+  tag: '{tag}'
+  write_value: false

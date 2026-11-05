@@ -17,6 +17,11 @@
   (`openplc-opcua`, firmato e cifrato) e S7 (`openplc-s7`) che leggono il livello in variabili gemelle, e MQTT
   (`broker-lab`) che legge un sensore e pubblica lo stato della pompa.
 - **Due allarmi**: livello alto e disponibilità del PLC. Storico su pompa, livello e temperatura.
+- **I permessi** (è uno dei due template che li mostrano, regola R7): *Marcia / Arresto* si usa senza accedere — il
+  membro `comando` del tipo `pompa` ha `write_min_role: Viewer` — e chiede solo la conferma; il setpoint della soglia,
+  nella finestra *Parametri*, resta al **Supervisor**, sull'oggetto (attenuato col lucchetto) e sulla variabile
+  `soglia_alta` (così lo fa rispettare anche il server). Il tutorial (T10, T11) parte dal ruolo predefinito, Operator,
+  anche per la pompa: chi lo segue con questo template vede la pompa partire anche senza accedere.
 
 ## Per provarlo
 

@@ -1,581 +1,607 @@
 id: pro_p3
-name: "Batteria & Rete"
+name: '{{t0067}}'
 background: "#0f172a"
 width: 1280
 height: 800
 
+# Batteria e rete: la batteria a sinistra (carica, stato, otto grandezze), la
+# rete a destra (tensione, frequenza, scambio, energie del giorno), lo storico
+# in fondo. Batteria e rete sono una sola: niente da ripetere, niente faceplate.
+#
+# Il nome della pagina, la lingua e l'ora stanno nella testata della cornice,
+# il navigatore nel piede (cornici/navigazione.yaml).
+
 objects:
 
-# ── HEADER ────────────────────────────────────────────────────────────────────
-- id: pro3_title
-  type: text
-  x: 640
-  y: 26
-  text: "{{t0067}}"
-  font_size: 22
-  font_weight: bold
-  text_anchor: middle
-  color: "#e2e8f0"
-  locked: true
-
-- id: pro3_sub
-  type: text
-  x: 640
-  y: 52
-  text: "{{t0068}}"
-  font_size: 13
-  text_anchor: middle
-  color: "#475569"
-  locked: true
-
-# La navigazione in fondo alla pagina sta nella cornice (cornici/navigazione.yaml).
 # ══════════════════════════════════════════════════════════════════════════════
-# BATTERIA (left column)
+# BATTERIA
 # ══════════════════════════════════════════════════════════════════════════════
-
+- id: pro3_batt_box
+  type: rect
+  x: 24
+  y: 72
+  width: 608
+  height: 416
+  fill: '#1c1405'
+  stroke: '#92400e'
+  stroke_width: 1
+  rx: 6
 - id: pro3_batt_hdr
   type: text
-  x: 382
-  y: 77
-  text: "{{t0070}}"
+  x: 40
+  y: 80
+  width: 576
+  height: 28
+  text_wrap: true
+  text_valign: middle
+  text: '{{t0070}}'
   font_size: 17
   font_weight: bold
-  text_anchor: middle
-  color: "#f59e0b"
-
-# SoC gauge (big)
+  color: '#f59e0b'
 - id: pro3_soc_gauge
   type: gauge
-  x: 227
-  y: 93
-  width: 310
-  height: 129
+  x: 44
+  y: 120
+  width: 230
+  height: 230
   tag: batteria.percentuale
   min: 0
   max: 100
-  unit: "%"
+  decimals: 1
+  unit: '%'
   warn_low: 15
   alarm_low: 5
-
-- id: pro3_soc_val
-  type: text
-  x: 382
-  y: 240
-  tag: batteria.percentuale
-  format: "{value:.1f}%"
-  font_size: 28
-  font_weight: bold
-  text_anchor: middle
-  color: "#fbbf24"
-
-- id: pro3_in_carica_led
-  type: led
-  x: 315
-  y: 253
-  width: 23
-  height: 23
+  fill: '#f59e0b'
+- id: pro3_in_carica
+  type: state_lamp
+  x: 64
+  y: 372
+  width: 200
+  height: 24
   tag: batteria.in_carica
-  on_color: "#22c55e"
-  off_color: "#ef4444"
-
-- id: pro3_in_carica_txt
-  type: text
-  x: 350
-  y: 268
-  tag: batteria.in_carica
-  format: "{value}"
-  font_size: 14
-  color: "#64748b"
-
-# V batt
+  text_list_entries:
+  - value: true
+    label: '{{t0175}}'
+    color: '#22c55e'
+  - value: false
+    label: '{{t0176}}'
+    color: '#f59e0b'
 - id: pro3_batt_v_lbl
   type: text
-  x: 188
-  y: 299
-  text: "{{t0053}}"
-  font_size: 13
-  color: "#475569"
-
+  x: 304
+  y: 120
+  width: 150
+  height: 40
+  text_wrap: true
+  text_valign: middle
+  text: '{{t0053}}'
+  font_size: 14
+  color: '#64748b'
 - id: pro3_batt_v
   type: text
-  x: 356
-  y: 299
+  x: 454
+  y: 120
+  width: 162
+  height: 40
+  text_wrap: true
+  text_valign: middle
   tag: batteria.tensione_v
-  format: "{value:.2f} V"
-  font_size: 21
+  format: '{value:.2f} V'
+  font_size: 20
   font_weight: bold
   text_anchor: end
-  color: "#fbbf24"
-
-# A batt
+  color: '#fbbf24'
 - id: pro3_batt_a_lbl
   type: text
-  x: 188
-  y: 328
-  text: "{{t0055}}"
-  font_size: 13
-  color: "#475569"
-
+  x: 304
+  y: 164
+  width: 150
+  height: 40
+  text_wrap: true
+  text_valign: middle
+  text: '{{t0055}}'
+  font_size: 14
+  color: '#64748b'
 - id: pro3_batt_a
   type: text
-  x: 356
-  y: 328
+  x: 454
+  y: 164
+  width: 162
+  height: 40
+  text_wrap: true
+  text_valign: middle
   tag: batteria.corrente_a
-  format: "{value:+.2f} A"
-  font_size: 21
+  format: '{value:+.2f} A'
+  font_size: 20
   font_weight: bold
   text_anchor: end
-  color: "#fbbf24"
-
-# kW batt
+  color: '#fbbf24'
 - id: pro3_batt_kw_lbl
   type: text
-  x: 188
-  y: 356
-  text: "{{t0071}}"
-  font_size: 13
-  color: "#475569"
-
+  x: 304
+  y: 208
+  width: 150
+  height: 40
+  text_wrap: true
+  text_valign: middle
+  text: '{{t0071}}'
+  font_size: 14
+  color: '#64748b'
 - id: pro3_batt_kw
   type: text
-  x: 356
-  y: 356
+  x: 454
+  y: 208
+  width: 162
+  height: 40
+  text_wrap: true
+  text_valign: middle
   tag: batteria.potenza_kw
-  format: "{value:+.3f} kW"
-  font_size: 21
+  format: '{value:+.3f} kW'
+  font_size: 20
   font_weight: bold
   text_anchor: end
-  color: "#fbbf24"
-
-# Temperatura batt
+  color: '#fbbf24'
 - id: pro3_batt_t_lbl
   type: text
-  x: 188
-  y: 385
-  text: "{{t0072}}"
-  font_size: 13
-  color: "#475569"
-
+  x: 304
+  y: 252
+  width: 150
+  height: 40
+  text_wrap: true
+  text_valign: middle
+  text: '{{t0072}}'
+  font_size: 14
+  color: '#64748b'
 - id: pro3_batt_t
   type: text
-  x: 356
-  y: 385
+  x: 454
+  y: 252
+  width: 162
+  height: 40
+  text_wrap: true
+  text_valign: middle
   tag: batteria.temperatura
-  format: "{value:.1f}°C"
-  font_size: 21
+  format: '{value:.1f}°C'
+  font_size: 20
   font_weight: bold
   text_anchor: end
-  color: "#fb923c"
-
-# Cicli
+  color: '#fb923c'
 - id: pro3_batt_cicli_lbl
   type: text
-  x: 188
-  y: 413
-  text: "{{t0073}}"
-  font_size: 13
-  color: "#475569"
-
+  x: 304
+  y: 296
+  width: 150
+  height: 40
+  text_wrap: true
+  text_valign: middle
+  text: '{{t0073}}'
+  font_size: 14
+  color: '#64748b'
 - id: pro3_batt_cicli
   type: text
-  x: 356
-  y: 413
+  x: 454
+  y: 296
+  width: 162
+  height: 40
+  text_wrap: true
+  text_valign: middle
   tag: batteria.cicli
-  format: "{value:.0f}"
-  font_size: 21
+  format: '{value:.0f}'
+  font_size: 20
   font_weight: bold
   text_anchor: end
-  color: "#a3a3a3"
-
-# Carica/scarica oggi
-- id: pro3_carica_oggi_lbl
+  color: '#a3a3a3'
+- id: pro3_batt_carica_lbl
   type: text
-  x: 188
-  y: 441
-  text: "{{t0074}}"
-  font_size: 13
-  color: "#475569"
-
-- id: pro3_carica_oggi
+  x: 304
+  y: 340
+  width: 150
+  height: 40
+  text_wrap: true
+  text_valign: middle
+  text: '{{t0074}}'
+  font_size: 14
+  color: '#64748b'
+- id: pro3_batt_carica
   type: text
-  x: 356
-  y: 441
+  x: 454
+  y: 340
+  width: 162
+  height: 40
+  text_wrap: true
+  text_valign: middle
   tag: batteria.carica_oggi_kwh
-  format: "{value:.2f} kWh"
-  font_size: 17
+  format: '{value:.2f} kWh'
+  font_size: 20
   font_weight: bold
   text_anchor: end
-  color: "#22c55e"
-
-- id: pro3_scarica_oggi_lbl
+  color: '#22c55e'
+- id: pro3_batt_scarica_lbl
   type: text
-  x: 188
-  y: 465
-  text: "{{t0075}}"
-  font_size: 13
-  color: "#475569"
-
-- id: pro3_scarica_oggi
+  x: 304
+  y: 384
+  width: 150
+  height: 40
+  text_wrap: true
+  text_valign: middle
+  text: '{{t0075}}'
+  font_size: 14
+  color: '#64748b'
+- id: pro3_batt_scarica
   type: text
-  x: 356
-  y: 465
+  x: 454
+  y: 384
+  width: 162
+  height: 40
+  text_wrap: true
+  text_valign: middle
   tag: batteria.scarica_oggi_kwh
-  format: "{value:.2f} kWh"
-  font_size: 17
+  format: '{value:.2f} kWh'
+  font_size: 20
   font_weight: bold
   text_anchor: end
-  color: "#ef4444"
-
-# Capacità
+  color: '#ef4444'
 - id: pro3_batt_cap_lbl
   type: text
-  x: 188
-  y: 488
-  text: "{{t0076}}"
-  font_size: 13
-  color: "#334155"
-
+  x: 304
+  y: 428
+  width: 150
+  height: 40
+  text_wrap: true
+  text_valign: middle
+  text: '{{t0076}}'
+  font_size: 14
+  color: '#64748b'
 - id: pro3_batt_cap
   type: text
-  x: 356
-  y: 488
+  x: 454
+  y: 428
+  width: 162
+  height: 40
+  text_wrap: true
+  text_valign: middle
   tag: batteria.capacita_ah
-  format: "{value:.0f} Ah"
-  font_size: 15
+  format: '{value:.0f} Ah'
+  font_size: 20
   font_weight: bold
   text_anchor: end
-  color: "#475569"
+  color: '#94a3b8'
 
 # ══════════════════════════════════════════════════════════════════════════════
-# RETE ELETTRICA (right column)
+# RETE ELETTRICA
 # ══════════════════════════════════════════════════════════════════════════════
-
-- id: pro3_rete_hdr
-  type: text
-  x: 911
-  y: 77
-  text: "{{t0013}}"
-  font_size: 17
-  font_weight: bold
-  text_anchor: middle
-  color: "#94a3b8"
-
 - id: pro3_rete_box
   type: rect
-  x: 666
-  y: 88
-  width: 472
-  height: 413
-  fill: "#0c1017"
-  stroke: "#1e293b"
+  x: 648
+  y: 72
+  width: 608
+  height: 416
+  fill: '#0c1017'
+  stroke: '#1e293b'
   stroke_width: 1
   rx: 6
-
-# Tensione rete (big)
+- id: pro3_rete_hdr
+  type: text
+  x: 664
+  y: 80
+  width: 576
+  height: 28
+  text_wrap: true
+  text_valign: middle
+  text: '{{t0013}}'
+  font_size: 17
+  font_weight: bold
+  color: '#94a3b8'
 - id: pro3_rete_v_lbl
   type: text
-  x: 782
-  y: 119
-  text: "{{t0053}}"
+  x: 664
+  y: 112
+  width: 190
+  height: 20
+  text_wrap: true
+  text_valign: middle
+  text: '{{t0053}}'
   font_size: 13
   text_anchor: middle
-  color: "#475569"
-
-- id: pro3_rete_v
-  type: text
-  x: 782
-  y: 152
-  tag: rete.tensione_v
-  format: "{value:.1f}"
-  font_size: 36
-  font_weight: bold
-  text_anchor: middle
-  color: "#cbd5e1"
-
-- id: pro3_rete_v_u
-  type: text
-  x: 782
-  y: 173
-  text: "{{t0054}}"
-  font_size: 14
-  text_anchor: middle
-  color: "#64748b"
-
+  color: '#64748b'
 - id: pro3_rete_v_g
   type: gauge
-  x: 676
-  y: 181
-  width: 206
-  height: 59
+  x: 664
+  y: 130
+  width: 190
+  height: 190
   tag: rete.tensione_v
   min: 195
   max: 265
-  unit: "V"
+  decimals: 1
+  unit: V
   warn_low: 210
   warn_high: 250
   alarm_high: 260
-
-# Frequenza
+  fill: '#94a3b8'
 - id: pro3_rete_hz_lbl
   type: text
-  x: 1053
-  y: 119
-  text: "{{t0077}}"
+  x: 862
+  y: 112
+  width: 190
+  height: 20
+  text_wrap: true
+  text_valign: middle
+  text: '{{t0077}}'
   font_size: 13
   text_anchor: middle
-  color: "#475569"
-
-- id: pro3_rete_hz
-  type: text
-  x: 1053
-  y: 152
-  tag: rete.frequenza_hz
-  format: "{value:.2f}"
-  font_size: 36
-  font_weight: bold
-  text_anchor: middle
-  color: "#cbd5e1"
-
-- id: pro3_rete_hz_u
-  type: text
-  x: 1053
-  y: 173
-  text: "{{t0078}}"
-  font_size: 14
-  text_anchor: middle
-  color: "#64748b"
-
+  color: '#64748b'
 - id: pro3_rete_hz_g
   type: gauge
-  x: 911
-  y: 181
-  width: 206
-  height: 59
+  x: 862
+  y: 130
+  width: 190
+  height: 190
   tag: rete.frequenza_hz
   min: 49.0
   max: 51.0
-  unit: "Hz"
+  decimals: 2
+  unit: Hz
   warn_low: 49.7
   warn_high: 50.3
-
-# Corrente rete
+  fill: '#94a3b8'
 - id: pro3_rete_a_lbl
   type: text
-  x: 782
-  y: 258
-  text: "{{t0055}}"
+  x: 1064
+  y: 124
+  width: 176
+  height: 20
+  text_wrap: true
+  text_valign: middle
+  text: '{{t0055}}'
   font_size: 13
-  text_anchor: middle
-  color: "#475569"
-
+  text_anchor: end
+  color: '#64748b'
 - id: pro3_rete_a
   type: text
-  x: 782
-  y: 286
+  x: 1064
+  y: 146
+  width: 176
+  height: 40
+  text_wrap: true
+  text_valign: middle
   tag: rete.corrente_a
-  format: "{value:+.2f} A"
-  font_size: 28
+  format: '{value:+.2f} A'
+  font_size: 24
   font_weight: bold
-  text_anchor: middle
-  color: "#94a3b8"
-
-# Potenza scambio
+  text_anchor: end
+  color: '#cbd5e1'
 - id: pro3_rete_kw_lbl
   type: text
-  x: 1053
-  y: 258
-  text: "{{t0079}}"
+  x: 1064
+  y: 210
+  width: 176
+  height: 20
+  text_wrap: true
+  text_valign: middle
+  text: '{{t0079}}'
   font_size: 13
-  text_anchor: middle
-  color: "#475569"
-
+  text_anchor: end
+  color: '#64748b'
 - id: pro3_rete_kw
   type: text
-  x: 1053
-  y: 286
+  x: 1064
+  y: 232
+  width: 176
+  height: 40
+  text_wrap: true
+  text_valign: middle
   tag: rete.potenza_kw
-  format: "{value:+.3f} kW"
-  font_size: 28
+  format: '{value:+.3f} kW'
+  font_size: 24
   font_weight: bold
-  text_anchor: middle
-  color: "#94a3b8"
-
-# Acquisto / Vendita (derived)
-- id: pro3_acq_lbl
-  type: text
-  x: 743
-  y: 325
-  text: "{{t0080}}"
-  font_size: 13
-  text_anchor: middle
-  color: "#ef4444"
-
-- id: pro3_acq
-  type: text
-  x: 743
-  y: 348
-  tag: rete.acquisto_kw
-  format: "{value:.3f} kW"
-  font_size: 18
-  font_weight: bold
-  text_anchor: middle
-  color: "#f87171"
-
-- id: pro3_vend_lbl
-  type: text
-  x: 924
-  y: 325
-  text: "{{t0081}}"
-  font_size: 13
-  text_anchor: middle
-  color: "#22c55e"
-
-- id: pro3_vend
-  type: text
-  x: 924
-  y: 348
-  tag: rete.vendita_kw
-  format: "{value:.3f} kW"
-  font_size: 18
-  font_weight: bold
-  text_anchor: middle
-  color: "#4ade80"
-
-- id: pro3_saldo_lbl
-  type: text
-  x: 1105
-  y: 325
-  text: "{{t0082}}"
-  font_size: 13
-  text_anchor: middle
-  color: "#a3e635"
-
-- id: pro3_saldo
-  type: text
-  x: 1105
-  y: 348
-  tag: energia.saldo_kw
-  format: "{value:+.2f}"
-  font_size: 18
-  font_weight: bold
-  text_anchor: middle
-  color: "#a3e635"
-
-# Energie giornaliere rete
-- id: pro3_div
-  type: line
-  x: 679
-  y: 366
-  x2: 776
-  y2: 284
-  stroke: "#1e293b"
-  stroke_width: 1
-
-- id: pro3_cons_oggi_lbl
-  type: text
-  x: 743
-  y: 390
-  text: "{{t0083}}"
-  font_size: 12
-  text_anchor: middle
-  color: "#475569"
-
-- id: pro3_cons_oggi
-  type: text
-  x: 743
-  y: 413
-  tag: rete.consumo_oggi_kwh
-  format: "{value:.2f} kWh"
-  font_size: 17
-  font_weight: bold
-  text_anchor: middle
-  color: "#f87171"
-
-- id: pro3_imm_oggi_lbl
-  type: text
-  x: 924
-  y: 390
-  text: "{{t0084}}"
-  font_size: 12
-  text_anchor: middle
-  color: "#475569"
-
-- id: pro3_imm_oggi
-  type: text
-  x: 924
-  y: 413
-  tag: rete.immissione_oggi_kwh
-  format: "{value:.2f} kWh"
-  font_size: 17
-  font_weight: bold
-  text_anchor: middle
-  color: "#4ade80"
-
-- id: pro3_imm_tot_lbl
-  type: text
-  x: 1105
-  y: 390
-  text: "{{t0085}}"
-  font_size: 12
-  text_anchor: middle
-  color: "#334155"
-
-- id: pro3_imm_tot
-  type: text
-  x: 1105
-  y: 413
-  tag: rete.immissione_totale_kwh
-  format: "{value:.0f} kWh"
-  font_size: 17
-  font_weight: bold
-  text_anchor: middle
-  color: "#475569"
-
-# ══════════════════════════════════════════════════════════════════════════════
-# TREND SoC + TENSIONE RETE
-# ══════════════════════════════════════════════════════════════════════════════
-
-- id: pro3_trend_lbl
-  type: text
-  x: 640
-  y: 521
-  text: "{{t0086}}"
-  font_size: 13
-  text_anchor: middle
-  color: "#64748b"
-
-- id: pro3_trend
-  type: trend
-  x: 142
-  y: 532
-  width: 996
-  height: 168
-  tag: batteria.percentuale
-  extra_tags:
-    - rete.tensione_v
-  window_s: 3600
-  line_color: "#f59e0b"
-
-- id: pro3_leg_soc
-  type: text
-  x: 155
-  y: 715
-  text: "{{t0087}}"
-  font_size: 12
-  color: "#f59e0b"
-
-- id: pro3_leg_rete
-  type: text
-  x: 382
-  y: 715
-  text: "{{t0088}}"
-  font_size: 12
-  color: "#94a3b8"
-
+  text_anchor: end
+  color: '#cbd5e1'
+# Il segno dello scambio, sotto il suo valore (prima stava sopra il trend, che
+# lo scambio non lo disegna).
 - id: pro3_leg_note
   type: text
-  x: 898
-  y: 715
-  text: "{{t0089}}"
+  x: 1064
+  y: 274
+  width: 176
+  height: 22
+  text_wrap: true
+  text_valign: middle
+  text: '{{t0089}}'
   font_size: 12
-  color: "#334155"
+  text_anchor: end
+  color: '#64748b'
+- id: pro3_acq_lbl
+  type: text
+  x: 664
+  y: 330
+  width: 184
+  height: 20
+  text_wrap: true
+  text_valign: middle
+  text: '{{t0080}}'
+  font_size: 13
+  text_anchor: middle
+  color: '#ef4444'
+- id: pro3_acq
+  type: text
+  x: 664
+  y: 352
+  width: 184
+  height: 32
+  text_wrap: true
+  text_valign: middle
+  tag: rete.acquisto_kw
+  format: '{value:.3f} kW'
+  font_size: 19
+  font_weight: bold
+  text_anchor: middle
+  color: '#f87171'
+- id: pro3_vend_lbl
+  type: text
+  x: 860
+  y: 330
+  width: 184
+  height: 20
+  text_wrap: true
+  text_valign: middle
+  text: '{{t0081}}'
+  font_size: 13
+  text_anchor: middle
+  color: '#22c55e'
+- id: pro3_vend
+  type: text
+  x: 860
+  y: 352
+  width: 184
+  height: 32
+  text_wrap: true
+  text_valign: middle
+  tag: rete.vendita_kw
+  format: '{value:.3f} kW'
+  font_size: 19
+  font_weight: bold
+  text_anchor: middle
+  color: '#4ade80'
+- id: pro3_saldo_lbl
+  type: text
+  x: 1056
+  y: 330
+  width: 184
+  height: 20
+  text_wrap: true
+  text_valign: middle
+  text: '{{t0082}}'
+  font_size: 13
+  text_anchor: middle
+  color: '#a3e635'
+- id: pro3_saldo
+  type: text
+  x: 1056
+  y: 352
+  width: 184
+  height: 32
+  text_wrap: true
+  text_valign: middle
+  tag: energia.saldo_kw
+  format: '{value:+.3f} kW'
+  font_size: 19
+  font_weight: bold
+  text_anchor: middle
+  color: '#a3e635'
+- id: pro3_div
+  type: line
+  x: 664
+  y: 396
+  x2: 1240
+  y2: 396
+  stroke: '#1e293b'
+  stroke_width: 1
+- id: pro3_cons_oggi_lbl
+  type: text
+  x: 664
+  y: 406
+  width: 184
+  height: 20
+  text_wrap: true
+  text_valign: middle
+  text: '{{t0083}}'
+  font_size: 12
+  text_anchor: middle
+  color: '#64748b'
+- id: pro3_cons_oggi
+  type: text
+  x: 664
+  y: 428
+  width: 184
+  height: 32
+  text_wrap: true
+  text_valign: middle
+  tag: rete.consumo_oggi_kwh
+  format: '{value:.2f} kWh'
+  font_size: 18
+  font_weight: bold
+  text_anchor: middle
+  color: '#f87171'
+- id: pro3_imm_oggi_lbl
+  type: text
+  x: 860
+  y: 406
+  width: 184
+  height: 20
+  text_wrap: true
+  text_valign: middle
+  text: '{{t0084}}'
+  font_size: 12
+  text_anchor: middle
+  color: '#64748b'
+- id: pro3_imm_oggi
+  type: text
+  x: 860
+  y: 428
+  width: 184
+  height: 32
+  text_wrap: true
+  text_valign: middle
+  tag: rete.immissione_oggi_kwh
+  format: '{value:.2f} kWh'
+  font_size: 18
+  font_weight: bold
+  text_anchor: middle
+  color: '#4ade80'
+- id: pro3_imm_tot_lbl
+  type: text
+  x: 1056
+  y: 406
+  width: 184
+  height: 20
+  text_wrap: true
+  text_valign: middle
+  text: '{{t0085}}'
+  font_size: 12
+  text_anchor: middle
+  color: '#64748b'
+- id: pro3_imm_tot
+  type: text
+  x: 1056
+  y: 428
+  width: 184
+  height: 32
+  text_wrap: true
+  text_valign: middle
+  tag: rete.immissione_totale_kwh
+  format: '{value:.0f} kWh'
+  font_size: 18
+  font_weight: bold
+  text_anchor: middle
+  color: '#94a3b8'
+
+# ══════════════════════════════════════════════════════════════════════════════
+# TREND SoC + TENSIONE RETE — la tensione ha il suo asse (`own_scale`)
+# ══════════════════════════════════════════════════════════════════════════════
+- id: pro3_trend_lbl
+  type: text
+  x: 24
+  y: 498
+  width: 700
+  height: 22
+  text_wrap: true
+  text_valign: middle
+  text: '{{t0086}}'
+  font_size: 13
+  color: '#64748b'
+- id: pro3_trend
+  type: trend
+  x: 24
+  y: 522
+  width: 1232
+  height: 204
+  window_s: 3600
+  trend_tags:
+  - tag: batteria.percentuale
+    label: '{{t0087}}'
+    color: '#f59e0b'
+  - tag: rete.tensione_v
+    label: '{{t0088}}'
+    color: '#94a3b8'
+    own_scale: true

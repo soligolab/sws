@@ -7,10 +7,12 @@ description: |
   - Clima 5 stanze Zigbee (temperatura + umidità)
   - Sicurezza perimetrale completa (14 sensori porte/finestre, 5 motion, 3 perimetrali)
   - Controlli write-back: luci esterne (switch) + tapparelle motorizzate (cover)
+  - Permessi: tutto si comanda senza accedere, tranne la luce del cancelletto (Operator) e la tapparella del garage (Supervisor)
+  - Tipi e faceplate: stringhe FV, stanze e contatori sono istanze, disegnate da faceplate riusabili
   - Presenza persona (person tracker)
   - 9 tag derivati Python (autoconsumo, comfort index, saldo energetico, ecc.)
   - 13 allarmi con dead-band (batteria, tensione, frequenza, sicurezza, clima)
-  - SQLite historian (365 giorni, 20 tag registrati)
+  - SQLite historian (365 giorni, 27 grandezze registrate)
   - Pronto per 6 pagine sinottiche: Panoramica · FV · Batteria/Rete · Clima · Carichi · Sicurezza
 tags_count: 86
 requires:

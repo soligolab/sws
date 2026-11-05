@@ -1,62 +1,27 @@
 id: gp_page1
-name: "Griglia 4×4"
+name: "{{t0030}}"
 background: "#0f172a"
 width: 1280
 height: 800
+# Nome della pagina, lingua, data/ora e navigazione stanno nella cornice
+# (`cornici/cornice.yaml`, R6): qui solo l'area attiva, y 56–740.
+#
+# Le misure dei figli di cella. Il web centra da sé ogni figlio nel suo slot e
+# ignora `x`/`y`; il viewer LVGL oggi lo mette nell'angolo in alto a sinistra
+# più `x`/`y` (`render_grid_slot`). Per questo i figli con un riquadro portano
+# in `x`/`y` lo scarto che li centra, e i testi sono riquadri grandi quanto lo
+# slot (`text_wrap` + `text_valign: middle`): così le due viste coincidono.
 objects:
-- id: lang_sel_auto
-  type: lang_selector
-  x: 1031
-  y: 9
-  width: 100
-  height: 29
 
 # ══════════════════════════════════════════════════════════════════
-# HEADER (locked + grouped)
-# ══════════════════════════════════════════════════════════════════
-- id: gp_title
-  type: text
-  x: 640
-  y: 27
-  text: "{{t0001}}"
-  font_size: 20
-  font_weight: bold
-  text_anchor: middle
-  color: "#c084fc"
-  group_id: g_header
-  locked: true
-
-- id: gp_subtitle
-  type: text
-  x: 640
-  y: 49
-  text: "{{t0002}}"
-  font_size: 11
-  text_anchor: middle
-  color: "#475569"
-  group_id: g_header
-  locked: true
-
-- id: gp_nav_next
-  type: navbutton
-  x: 962
-  y: 16
-  width: 167
-  height: 33
-  label: "{{t0003}}"
-  target_page: gp_page2
-  group_id: g_header
-  locked: true
-
-# ══════════════════════════════════════════════════════════════════
-# GRID 4×4 (60..820 × 80..680 → ogni cella ≈ 190×150)
+# GRID 4×4 (24..904 × 72..724 → ogni cella 220×163)
 # ══════════════════════════════════════════════════════════════════
 - id: gp_grid
   type: grid
-  x: 207
-  y: 78
-  width: 844
-  height: 667
+  x: 24
+  y: 72
+  width: 880
+  height: 652
   grid_rows: 4
   grid_cols: 4
   grid_show_borders: true
@@ -83,11 +48,11 @@ objects:
             orientation: rows
             ratio: 0.4
             a:
-              child:
+              child:              # slot 110×65
                 id: gp_lv2_rect
                 type: rect
-                x: 0
-                y: 0
+                x: 21
+                y: 16
                 width: 67
                 height: 33
                 fill: "#3b82f6"
@@ -99,11 +64,15 @@ objects:
                 orientation: cols
                 ratio: 0.5
                 a:
-                  child:
+                  child:          # slot 55×98
                     id: gp_lv3_text
                     type: text
                     x: 0
                     y: 0
+                    width: 55
+                    height: 97
+                    text_wrap: true
+                    text_valign: middle
                     text: "{{t0004}}"
                     font_size: 13
                     font_weight: bold
@@ -115,20 +84,20 @@ objects:
                     orientation: rows
                     ratio: 0.5
                     a:
-                      child:
+                      child:      # slot 55×49
                         id: gp_lv4_ell
                         type: ellipse
-                        x: 0
-                        y: 0
+                        x: 7
+                        y: 11
                         width: 40
                         height: 27
                         fill: "#a855f7"
                     b:
-                      child:
+                      child:      # slot 55×49
                         id: gp_lv4_led
                         type: led
-                        x: 0
-                        y: 0
+                        x: 15
+                        y: 12
                         width: 24
                         height: 24
                         tag: pump.running
@@ -137,11 +106,11 @@ objects:
                         off_color: "#475569"
         b:
           bg_color: "#1e293b"
-          child:
+          child:                  # slot 110×163
             id: gp_lv1_symbol
             type: symbol
-            x: 0
-            y: 0
+            x: 5
+            y: 31
             width: 100
             height: 100
             symbol_id: pump
@@ -151,7 +120,7 @@ objects:
             state_alarm_color: "#ef4444"
             transition_duration_ms: 300
 
-    # (0,1) — Gauge figlio di cella
+    # (0,1) — Gauge figlio di cella, grande quanto la cella
     - row: 0
       col: 1
       bg_color: "#0b1220"
@@ -160,8 +129,8 @@ objects:
         type: gauge
         x: 0
         y: 0
-        width: 189
-        height: 156
+        width: 220
+        height: 163
         label: "{{t0005}}"
         tag: counter
         min: 0
@@ -179,6 +148,10 @@ objects:
         type: text
         x: 0
         y: 0
+        width: 220
+        height: 163
+        text_wrap: true
+        text_valign: middle
         tag: counter
         format: "{value}"
         font_size: 42
@@ -187,15 +160,15 @@ objects:
         color: "#fbbf24"
         transition_duration_ms: 150
 
-    # (0,3) — LED + label statico
+    # (0,3) — LED della pompa
     - row: 0
       col: 3
       bg_color: "#0b1220"
       child:
         id: gp_led_pump
         type: led
-        x: 0
-        y: 0
+        x: 79
+        y: 50
         width: 62
         height: 62
         tag: pump.running
@@ -203,25 +176,26 @@ objects:
         on_color: "#22c55e"
         off_color: "#475569"
 
-    # (1,0) — Button: incrementa counter. border_color (F7): un contorno per
-    # questa sola cella, indipendente da grid_show_borders — resterebbe
-    # acceso anche a griglia "senza bordi".
+    # (1,0) — Button: incrementa counter (modo `increment`, entro 0–100).
+    # border_color (F7): un contorno per questa sola cella, indipendente da
+    # grid_show_borders — resterebbe acceso anche a griglia "senza bordi".
     - row: 1
       col: 0
       border_color: "#ef4444"
       child:
         id: gp_btn_inc
         type: button
-        x: 0
-        y: 0
-        width: 167
+        x: 20
+        y: 53
+        width: 180
         height: 56
         fill: "#3b82f6"
         label: "{{t0006}}"
-        on_press_fn: fnc_Inc
-        on_press_args:
-          tag: counter
-          step: 1
+        tag: counter
+        button_mode: increment
+        step: 1
+        min: 0
+        max: 100
 
     # (1,1) → merged 1×2 (colspan=2) per ospitare un trend ampio
     - row: 1
@@ -233,21 +207,21 @@ objects:
         type: trend
         x: 0
         y: 0
-        width: 400
-        height: 144
+        width: 440
+        height: 163
         tag: counter
         window_s: 60
         line_color: "#fbbf24"
 
-    # (1,3) → cella libera (no child, bg_color personalizzato)
+    # (1,3) → rect col colore pilotato dalla pagina Controlli
     - row: 1
       col: 3
       bg_color: "#312e81"
       child:
         id: gp_rect_color
         type: rect
-        x: 0
-        y: 0
+        x: 38
+        y: 31
         width: 144
         height: 100
         fill: "#3b82f6"
@@ -255,38 +229,38 @@ objects:
         bindings:
           fill: demo.fill_color
 
-    # (2,0) — Button: decrementa counter
+    # (2,0) — Button: decrementa counter (modo `decrement`, entro 0–100)
     - row: 2
       col: 0
       child:
         id: gp_btn_dec
         type: button
-        x: 0
-        y: 0
-        width: 167
+        x: 20
+        y: 53
+        width: 180
         height: 56
         fill: "#dc2626"
         label: "{{t0007}}"
-        on_press_fn: fnc_Dec
-        on_press_args:
-          tag: counter
-          step: 1
+        tag: counter
+        button_mode: decrement
+        step: 1
+        min: 0
+        max: 100
 
-    # (2,1) — Toggle pump.running
+    # (2,1) — Toggle pump.running (modo `toggle`)
     - row: 2
       col: 1
       child:
         id: gp_btn_toggle
         type: button
-        x: 0
-        y: 0
-        width: 167
+        x: 20
+        y: 53
+        width: 180
         height: 56
         fill: "#0d9488"
         label: "{{t0008}}"
-        on_press_fn: fnc_Toggle
-        on_press_args:
-          tag: pump.running
+        tag: pump.running
+        button_mode: toggle
 
     # (2,2) — slider su demo.value
     - row: 2
@@ -295,9 +269,9 @@ objects:
       child:
         id: gp_slider_value
         type: slider
-        x: 0
-        y: 0
-        width: 189
+        x: 20
+        y: 61
+        width: 180
         height: 40
         tag: demo.value
         min: 0
@@ -312,9 +286,9 @@ objects:
       child:
         id: gp_pbar
         type: progress_bar
-        x: 0
-        y: 0
-        width: 178
+        x: 20
+        y: 67
+        width: 180
         height: 29
         tag: demo.value
         min: 0
@@ -334,22 +308,26 @@ objects:
         orientation: rows
         ratio: 0.4
         a:
-          child:
+          child:                  # slot 220×65
             id: gp_lbl_top
             type: text
             x: 0
             y: 0
+            width: 220
+            height: 65
+            text_wrap: true
+            text_valign: middle
             text: "{{t0009}}"
             font_size: 16
             font_weight: bold
             text_anchor: middle
             color: "#fbbf24"
         b:
-          child:
+          child:                  # slot 220×98
             id: gp_ell_bot
             type: ellipse
-            x: 0
-            y: 0
+            x: 49
+            y: 15
             width: 122
             height: 67
             fill: "#0d9488"
@@ -366,31 +344,39 @@ objects:
             orientation: rows
             ratio: 0.5
             a:
-              child:
+              child:              # slot 110×81
                 id: gp_split_a_a
                 type: text
                 x: 0
                 y: 0
+                width: 110
+                height: 81
+                text_wrap: true
+                text_valign: middle
                 text: "{{t0010}}"
                 font_size: 13
                 text_anchor: middle
                 color: "#e2e8f0"
             b:
-              child:
+              child:              # slot 110×81
                 id: gp_split_a_b
                 type: text
                 x: 0
                 y: 0
+                width: 110
+                height: 81
+                text_wrap: true
+                text_valign: middle
                 text: "{{t0011}}"
                 font_size: 13
                 text_anchor: middle
                 color: "#94a3b8"
         b:
-          child:
+          child:                  # slot 110×163
             id: gp_split_b
             type: rect
-            x: 0
-            y: 0
+            x: 16
+            y: 31
             width: 78
             height: 100
             fill: "#9333ea"
@@ -404,37 +390,45 @@ objects:
         ratio: 0.5
         a:
           visible_tag: pump.running
-          child:
+          child:                  # slot 220×81
             id: gp_visa
             type: text
             x: 0
             y: 0
+            width: 220
+            height: 81
+            text_wrap: true
+            text_valign: middle
             text: "{{t0012}}"
             font_size: 13
             font_weight: bold
             text_anchor: middle
             color: "#22c55e"
         b:
-          child:
+          child:                  # slot 220×81
             id: gp_visb
             type: text
             x: 0
             y: 0
+            width: 220
+            height: 81
+            text_wrap: true
+            text_valign: middle
             text: "{{t0013}}"
             font_size: 12
             text_anchor: middle
             color: "#94a3b8"
 
-    # (3,3) — Slider opacity + binding opacity sul rect (3,3) stesso? No, demo standalone.
+    # (3,3) — Slider opacity: lo segue la barra viola fuori dalla griglia
     - row: 3
       col: 3
       bg_color: "#1f2937"
       child:
         id: gp_opacity_slider
         type: slider
-        x: 0
-        y: 0
-        width: 178
+        x: 20
+        y: 65
+        width: 180
         height: 33
         tag: demo.opacity
         min: 0
@@ -443,33 +437,73 @@ objects:
         orientation: horizontal
 
 # ══════════════════════════════════════════════════════════════════
+# COLONNA DESTRA (locked + grouped): cosa mostra la griglia, e un
 # OGGETTO DI PAGINA che reagisce all'opacity slider della grid
 # ══════════════════════════════════════════════════════════════════
+- id: gp_subtitle
+  type: text
+  x: 928
+  y: 72
+  width: 328
+  height: 120
+  text_wrap: true
+  text: "{{t0002}}"
+  font_size: 14
+  color: "#94a3b8"
+  group_id: g_info
+  locked: true
+
+- id: gp_outside_lbl
+  type: text
+  x: 928
+  y: 208
+  width: 328
+  height: 88
+  text_wrap: true
+  text: "{{t0032}}"
+  font_size: 14
+  color: "#94a3b8"
+  group_id: g_info
+  locked: true
+
 - id: gp_outside_rect
   type: rect
-  x: 207
-  y: 767
-  width: 844
-  height: 18
+  x: 928
+  y: 302
+  width: 328
+  height: 36
   fill: "#c084fc"
   transition_duration_ms: 300
+  # Legame con scala: demo.opacity nasce a 0, e una barra a opacità 0 non si
+  # vede. Con il cursore a 0 la barra resta al 15%, a 1 è piena.
   bindings:
-    opacity: demo.opacity
+    opacity:
+      tag: demo.opacity
+      in_min: 0
+      in_max: 1
+      out_min: 0.15
+      out_max: 1
+  group_id: g_info
+  locked: true
+
+# ══════════════════════════════════════════════════════════════════
+# ALLARMI — counter > 80 (bottoni ▲ qui, preset nella pagina Controlli)
+# ══════════════════════════════════════════════════════════════════
 - id: gp1_alarm_bell
   type: alarm_bell
-  x: 162.2
-  y: 640.0
-  width: 144.4
-  height: 37.8
+  x: 928
+  y: 560
+  width: 160
+  height: 40
   alarm_bell_show_history: true
   alarm_bell_show_shelve: true
 - id: gp1_alarm_banner
   type: alarm_banner
-  x: 162.2
-  y: 700.0
-  width: 955.6
-  height: 77.8
+  x: 928
+  y: 612
+  width: 328
+  height: 112
 
 groups:
-- id: g_header
-  name: Header
+- id: g_info
+  name: Info

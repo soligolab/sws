@@ -16,4 +16,15 @@ taglia, non per principio di brevità.
 Non giudicarlo con il metro di un banco di prova (né di protocollo né di feature): qui la
 scala è voluta, è quello che lo distingue da `homeassistant-demo`.
 
+## Cosa mostra in più (04-11-2026)
+
+- **Tipi e faceplate** (regola R8): le due stringhe FV, le cinque stanze e i due contatori sono istanze
+  di un tipo (`stringa_fv`, `stanza`, `contatore`) con gli stessi percorsi di prima; le pagine le
+  disegnano coi faceplate di `faceplates/`, che servono anche porte, finestre, rilevatori, luci e
+  tapparelle.
+- **La gestione dei permessi** (regola R7, eccezione dichiarata): tutti i comandi si usano col ruolo
+  Viewer tranne due, apposta — la luce del cancelletto chiede Operator, la tapparella del garage
+  Supervisor. Il ruolo sta sul tag (`write_min_role`), e il prodotto mette sul comando un lucchetto col ruolo che
+  serve a chi non ce l'ha.
+
 _Revisione template, 2026-09-15 (`docs/archive/2026-09-14-revisione-template.md`, passo 2)._

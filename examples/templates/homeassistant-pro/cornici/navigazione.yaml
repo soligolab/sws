@@ -1,23 +1,63 @@
-# Il navigatore comune alle sei pagine (17-10-2026): prima era copiato identico in ognuna.
+# La cornice delle sei pagine. Il piede col navigatore è del 17-10-2026: prima
+# era copiato identico in ognuna. La testata è del 04-11-2026 (regola R6, dal
+# modello di `openplc-laboratorio`): il nome della pagina, la lingua, data e
+# ora. Prima ogni pagina aveva il suo titolo e una riga sotto.
+#
+# Largo quanto il contenuto delle pagine, da x 24 a x 1256. I nomi delle pagine
+# sono token di lingua, quindi `{{pagina.nome}}` esce tradotto. La voce attiva
+# del navigatore è azzurra col testo scuro: col fondo ardesia di prima, e il
+# testo di riserva blu notte, il nome della pagina attiva non si leggeva.
 id: navigazione
 nome: Navigazione
 larghezza: 1280
 altezza: 800
 testata:
-  altezza: 0
+  altezza: 56
+  sfondo: '#1e293b'
 piede:
   altezza: 62
+  sfondo: '#1e293b'
 oggetti:
+- id: titolo
+  type: text
+  x: 24
+  y: 8
+  width: 560
+  height: 40
+  text_wrap: true
+  text_valign: middle
+  text: '{{pagina.nome}}'
+  font_size: 22
+  font_weight: bold
+  text_anchor: start
+  color: '#e2e8f0'
+- id: lingua
+  type: lang_selector
+  x: 924
+  y: 11
+  width: 116
+  height: 34
+- id: data_ora
+  type: clock
+  x: 1056
+  y: 10
+  width: 200
+  height: 36
+  font_size: 18
+  text_anchor: end
+  color: '#e2e8f0'
+  clock_formato: data_ora
 - id: navigatore
   type: page_navigator
-  x: 137
-  y: 738
-  width: 993
+  x: 24
+  y: 744
+  width: 1232
   height: 44
   nav_orientation: horizontal
   nav_fill: true
   nav_gap: 12
-  nav_active_fill: '#1e293b'
+  nav_active_fill: '#38bdf8'
+  nav_active_color: '#0f172a'
   nav_items:
   - page_id: pro_p1
     label: '{{t0047}}'

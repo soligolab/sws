@@ -1,1074 +1,683 @@
 id: pro_p1
-name: "Panoramica"
+name: '{{t0001}}'
 background: "#0f172a"
 width: 1280
 height: 800
 
+# Panoramica: energia in alto, poi clima, sicurezza, presenza e luci.
+# Le righe che si ripetono sono istanze di faceplate (faceplates/): `stanza` per
+# le cinque stanze, `spia` e `spia_allarme` per porte, finestre, rilevatori,
+# luci e tapparelle. Qui si guarda soltanto: i comandi stanno in Sicurezza.
+#
+# Il nome della pagina, la lingua, data e ora stanno nella testata della
+# cornice (cornici/navigazione.yaml), il navigatore nel piede: il contenuto sta
+# fra y 72 e y 726, fra le due fasce (56 e 738).
+
 objects:
-- id: lang_sel_auto
-  type: lang_selector
-  x: 1030
-  y: 10
-  width: 116
-  height: 34
 
-# ── HEADER ────────────────────────────────────────────────────────────────────
-- id: pro1_title
-  type: text
-  x: 640
-  y: 26
-  text: "{{t0001}}"
-  font_size: 22
-  font_weight: bold
-  text_anchor: middle
-  color: "#e2e8f0"
-  locked: true
-
-- id: pro1_sub
-  type: text
-  x: 640
-  y: 52
-  text: "{{t0002}}"
-  font_size: 13
-  text_anchor: middle
-  color: "#475569"
-  locked: true
-
-# La navigazione in fondo alla pagina sta nella cornice (cornici/navigazione.yaml).
 # ══════════════════════════════════════════════════════════════════════════════
-# FLUSSO ENERGIA (top, full width)
+# FLUSSO ENERGIA — quattro riquadri KPI col loro andamento dell'ultima ora
 # ══════════════════════════════════════════════════════════════════════════════
-
-- id: pro1_en_hdr
-  type: text
-  x: 640
-  y: 80
-  text: "{{t0009}}"
-  font_size: 14
-  font_weight: bold
-  text_anchor: middle
-  color: "#64748b"
-
-# Box FV (top-left)
-- id: pro1_fv_box
-  type: rect
-  x: 142
-  y: 93
-  width: 219
-  height: 134
-  fill: "#052e16"
-  stroke: "#22c55e"
-  stroke_width: 2
-  rx: 6
-
-- id: pro1_fv_lbl
-  type: text
-  x: 252
-  y: 117
-  text: "{{t0010}}"
-  font_size: 13
-  font_weight: bold
-  text_anchor: middle
-  color: "#22c55e"
-
-- id: pro1_fv_kw
-  type: text
-  x: 252
-  y: 155
+- id: pro1_fv
+  type: kpi_tile
+  x: 24
+  y: 72
+  width: 296
+  height: 112
+  label: '{{t0010}}'
   tag: pv.potenza_totale_kw
-  format: "{value:.2f} kW"
-  font_size: 28
-  font_weight: bold
-  text_anchor: middle
-  color: "#4ade80"
-
+  unit: kW
+  format: '{value:.2f}'
+  font_size: 30
+  label_font_size: 12
+  color: '#4ade80'
+  bg_color: '#052e16'
+  spark_color: '#22c55e'
 - id: pro1_fv_oggi
   type: text
-  x: 252
-  y: 183
+  x: 24
+  y: 188
+  width: 296
+  height: 20
+  text_wrap: true
+  text_valign: middle
   tag: pv.produzione_oggi_kwh
-  format: "{{t0168}}"
-  font_size: 14
-  text_anchor: middle
-  color: "#16a34a"
-
-- id: pro1_fv_prog
-  type: progress_bar
-  x: 155
-  y: 201
-  width: 194
-  height: 13
-  tag: pv.potenza_totale_kw
-  min: 0
-  max: 12
-  fill: "#22c55e"
-  background: "#14532d"
-
-# Box BATTERIA (top-center-left)
-- id: pro1_batt_box
-  type: rect
-  x: 382
-  y: 93
-  width: 219
-  height: 134
-  fill: "#1a1a2e"
-  stroke: "#f59e0b"
-  stroke_width: 2
-  rx: 6
-
-- id: pro1_batt_lbl
-  type: text
-  x: 492
-  y: 117
-  text: "{{t0011}}"
+  format: '{{t0168}}'
   font_size: 13
-  font_weight: bold
   text_anchor: middle
-  color: "#f59e0b"
-
-- id: pro1_batt_soc
-  type: text
-  x: 492
-  y: 155
+  color: '#16a34a'
+- id: pro1_batt
+  type: kpi_tile
+  x: 336
+  y: 72
+  width: 296
+  height: 112
+  label: '{{t0011}}'
   tag: batteria.percentuale
-  format: "{value:.0f}%"
-  font_size: 28
-  font_weight: bold
-  text_anchor: middle
-  color: "#fbbf24"
-
+  unit: '%'
+  format: '{value:.0f}'
+  font_size: 30
+  label_font_size: 12
+  color: '#fbbf24'
+  bg_color: '#1c1405'
+  spark_color: '#f59e0b'
+  warn_low: 15
+  alarm_low: 5
 - id: pro1_batt_kw
   type: text
-  x: 492
-  y: 183
+  x: 336
+  y: 188
+  width: 296
+  height: 20
+  text_wrap: true
+  text_valign: middle
   tag: batteria.potenza_kw
-  format: "{value:+.2f} kW"
-  font_size: 14
-  text_anchor: middle
-  color: "#92400e"
-
-- id: pro1_batt_prog
-  type: progress_bar
-  x: 395
-  y: 201
-  width: 194
-  height: 13
-  tag: batteria.percentuale
-  min: 0
-  max: 100
-  fill: "#f59e0b"
-  background: "#292524"
-
-# Box CASA (top-center-right)
-- id: pro1_casa_box
-  type: rect
-  x: 622
-  y: 93
-  width: 219
-  height: 134
-  fill: "#1e1b4b"
-  stroke: "#818cf8"
-  stroke_width: 2
-  rx: 6
-
-- id: pro1_casa_lbl
-  type: text
-  x: 732
-  y: 117
-  text: "{{t0012}}"
+  format: '{value:+.2f} kW'
   font_size: 13
-  font_weight: bold
   text_anchor: middle
-  color: "#818cf8"
-
-- id: pro1_casa_kw
-  type: text
-  x: 732
-  y: 155
+  color: '#f59e0b'
+- id: pro1_casa
+  type: kpi_tile
+  x: 648
+  y: 72
+  width: 296
+  height: 112
+  label: '{{t0012}}'
   tag: energia.potenza_kw
-  format: "{value:.2f} kW"
-  font_size: 28
-  font_weight: bold
-  text_anchor: middle
-  color: "#a5b4fc"
-
+  unit: kW
+  format: '{value:.2f}'
+  font_size: 30
+  label_font_size: 12
+  color: '#a5b4fc'
+  bg_color: '#1e1b4b'
+  spark_color: '#818cf8'
 - id: pro1_casa_cost
   type: text
-  x: 732
-  y: 183
+  x: 648
+  y: 188
+  width: 296
+  height: 20
+  text_wrap: true
+  text_valign: middle
   tag: energia.costo_ora_eur
-  format: "{value:.4f} €/h"
-  font_size: 14
-  text_anchor: middle
-  color: "#6d28d9"
-
-- id: pro1_casa_prog
-  type: progress_bar
-  x: 635
-  y: 201
-  width: 194
-  height: 13
-  tag: energia.potenza_kw
-  min: 0
-  max: 10
-  fill: "#818cf8"
-  background: "#1e1b4b"
-
-# Box RETE (top-right)
-- id: pro1_rete_box
-  type: rect
-  x: 862
-  y: 93
-  width: 276
-  height: 134
-  fill: "#1c1917"
-  stroke: "#94a3b8"
-  stroke_width: 2
-  rx: 6
-
-- id: pro1_rete_lbl
-  type: text
-  x: 1000
-  y: 117
-  text: "{{t0013}}"
+  format: '{value:.4f} €/h'
   font_size: 13
-  font_weight: bold
   text_anchor: middle
-  color: "#94a3b8"
-
-- id: pro1_rete_kw
-  type: text
-  x: 1000
-  y: 155
+  color: '#a78bfa'
+- id: pro1_rete
+  type: kpi_tile
+  x: 960
+  y: 72
+  width: 296
+  height: 112
+  label: '{{t0013}}'
   tag: rete.potenza_kw
-  format: "{value:+.2f} kW"
-  font_size: 28
-  font_weight: bold
-  text_anchor: middle
-  color: "#cbd5e1"
-
-- id: pro1_rete_acq
+  unit: kW
+  format: '{value:+.2f}'
+  font_size: 30
+  label_font_size: 12
+  color: '#cbd5e1'
+  bg_color: '#1c1917'
+  spark_color: '#94a3b8'
+- id: pro1_saldo
   type: text
-  x: 924
-  y: 183
-  tag: rete.acquisto_kw
-  format: "↓ {value:.2f}"
-  font_size: 14
-  text_anchor: middle
-  color: "#ef4444"
-
-- id: pro1_rete_vend
-  type: text
-  x: 1079
-  y: 183
-  tag: rete.vendita_kw
-  format: "↑ {value:.2f}"
-  font_size: 14
-  text_anchor: middle
-  color: "#22c55e"
-
-- id: pro1_saldo_lbl
-  type: text
-  x: 1000
-  y: 210
+  x: 960
+  y: 188
+  width: 296
+  height: 20
+  text_wrap: true
+  text_valign: middle
   tag: energia.saldo_kw
-  format: "{{t0169}}"
+  format: '{{t0169}}'
   font_size: 13
   text_anchor: middle
-  color: "#64748b"
+  color: '#94a3b8'
 
 # ══════════════════════════════════════════════════════════════════════════════
-# CLIMA 5 STANZE (left-center block)
+# CLIMA — cinque istanze del faceplate `stanza`, poi media e comfort
 # ══════════════════════════════════════════════════════════════════════════════
-
-- id: pro1_clima_hdr
-  type: text
-  x: 408
-  y: 253
-  text: "{{t0014}}"
-  font_size: 14
-  font_weight: bold
-  text_anchor: middle
-  color: "#64748b"
-
 - id: pro1_clima_box
   type: rect
-  x: 142
-  y: 266
-  width: 532
-  height: 206
-  fill: "#0c1a2e"
-  stroke: "#1e3a5f"
+  x: 24
+  y: 220
+  width: 416
+  height: 438
+  fill: '#0c1a2e'
+  stroke: '#1e3a5f'
   stroke_width: 1
   rx: 6
-
-# Column headers
-- id: pro1_c_stanza
+- id: pro1_clima_hdr
   type: text
-  x: 240
-  y: 289
-  text: "{{t0015}}"
-  font_size: 12
+  x: 40
+  y: 228
+  width: 384
+  height: 24
+  text_wrap: true
+  text_valign: middle
+  text: '{{t0014}}'
+  font_size: 14
   font_weight: bold
-  text_anchor: middle
-  color: "#475569"
-
-- id: pro1_c_temp
-  type: text
-  x: 434
-  y: 289
-  text: "{{t0016}}"
-  font_size: 12
-  font_weight: bold
-  text_anchor: middle
-  color: "#475569"
-
-- id: pro1_c_umid
-  type: text
-  x: 550
-  y: 289
-  text: "{{t0017}}"
-  font_size: 12
-  font_weight: bold
-  text_anchor: middle
-  color: "#475569"
-
-# Row divider
-- id: pro1_c_div
+  color: '#38bdf8'
+- id: pro1_st_sala
+  type: faceplate
+  x: 40
+  y: 262
+  width: 384
+  height: 40
+  faceplate_id: stanza
+  faceplate_params:
+    p: sala
+    nome: '{{t0018}}'
+- id: pro1_st_studio
+  type: faceplate
+  x: 40
+  y: 310
+  width: 384
+  height: 40
+  faceplate_id: stanza
+  faceplate_params:
+    p: studio
+    nome: '{{t0019}}'
+- id: pro1_st_lavanderia
+  type: faceplate
+  x: 40
+  y: 358
+  width: 384
+  height: 40
+  faceplate_id: stanza
+  faceplate_params:
+    p: lavanderia
+    nome: '{{t0020}}'
+- id: pro1_st_bagno
+  type: faceplate
+  x: 40
+  y: 406
+  width: 384
+  height: 40
+  faceplate_id: stanza
+  faceplate_params:
+    p: bagno
+    nome: '{{t0021}}'
+- id: pro1_st_tecnico
+  type: faceplate
+  x: 40
+  y: 454
+  width: 384
+  height: 40
+  faceplate_id: stanza
+  faceplate_params:
+    p: tecnico
+    nome: '{{t0022}}'
+- id: pro1_div
   type: line
-  x: 155
-  y: 294
-  x2: 416
-  y2: 228
-  stroke: "#1e3a5f"
+  x: 40
+  y: 508
+  x2: 424
+  y2: 508
+  stroke: '#1e3a5f'
   stroke_width: 1
-
-# Sala
-- id: pro1_r_sala
+- id: pro1_media_lbl
   type: text
-  x: 240
-  y: 320
-  text: "{{t0018}}"
-  font_size: 14
-  text_anchor: middle
-  color: "#93c5fd"
-
-- id: pro1_t_sala
-  type: text
-  x: 434
-  y: 320
-  tag: sala.temperatura
-  format: "{value:.1f}°C"
-  font_size: 17
+  x: 40
+  y: 514
+  width: 130
+  height: 34
+  text_wrap: true
+  text_valign: middle
+  text: '{{t0023}}'
+  font_size: 15
   font_weight: bold
-  text_anchor: middle
-  color: "#60a5fa"
-
-- id: pro1_u_sala
+  color: '#64748b'
+- id: pro1_media_val
   type: text
-  x: 550
-  y: 320
-  tag: sala.umidita
-  format: "{value:.0f}%"
-  font_size: 14
-  text_anchor: middle
-  color: "#7dd3fc"
-
-- id: pro1_ci_sala
-  type: text
-  x: 640
-  y: 320
-  tag: sala.comfort_index
-  format: "★{value:.0f}"
-  font_size: 13
-  text_anchor: middle
-  color: "#a3e635"
-
-# Studio
-- id: pro1_r_studio
-  type: text
-  x: 240
-  y: 348
-  text: "{{t0019}}"
-  font_size: 14
-  text_anchor: middle
-  color: "#94a3b8"
-
-- id: pro1_t_studio
-  type: text
-  x: 434
-  y: 348
-  tag: studio.temperatura
-  format: "{value:.1f}°C"
-  font_size: 17
-  font_weight: bold
-  text_anchor: middle
-  color: "#60a5fa"
-
-- id: pro1_u_studio
-  type: text
-  x: 550
-  y: 348
-  tag: studio.umidita
-  format: "{value:.0f}%"
-  font_size: 14
-  text_anchor: middle
-  color: "#7dd3fc"
-
-# Lavanderia
-- id: pro1_r_lavand
-  type: text
-  x: 240
-  y: 377
-  text: "{{t0020}}"
-  font_size: 14
-  text_anchor: middle
-  color: "#94a3b8"
-
-- id: pro1_t_lavand
-  type: text
-  x: 434
-  y: 377
-  tag: lavanderia.temperatura
-  format: "{value:.1f}°C"
-  font_size: 17
-  font_weight: bold
-  text_anchor: middle
-  color: "#60a5fa"
-
-- id: pro1_u_lavand
-  type: text
-  x: 550
-  y: 377
-  tag: lavanderia.umidita
-  format: "{value:.0f}%"
-  font_size: 14
-  text_anchor: middle
-  color: "#7dd3fc"
-
-# Bagno
-- id: pro1_r_bagno
-  type: text
-  x: 240
-  y: 405
-  text: "{{t0021}}"
-  font_size: 14
-  text_anchor: middle
-  color: "#94a3b8"
-
-- id: pro1_t_bagno
-  type: text
-  x: 434
-  y: 405
-  tag: bagno.temperatura
-  format: "{value:.1f}°C"
-  font_size: 17
-  font_weight: bold
-  text_anchor: middle
-  color: "#60a5fa"
-
-- id: pro1_u_bagno
-  type: text
-  x: 550
-  y: 405
-  tag: bagno.umidita
-  format: "{value:.0f}%"
-  font_size: 14
-  text_anchor: middle
-  color: "#7dd3fc"
-
-# Tecnico
-- id: pro1_r_tecnico
-  type: text
-  x: 240
-  y: 434
-  text: "{{t0022}}"
-  font_size: 14
-  text_anchor: middle
-  color: "#94a3b8"
-
-- id: pro1_t_tecnico
-  type: text
-  x: 434
-  y: 434
-  tag: tecnico.temperatura
-  format: "{value:.1f}°C"
-  font_size: 17
-  font_weight: bold
-  text_anchor: middle
-  color: "#60a5fa"
-
-- id: pro1_u_tecnico
-  type: text
-  x: 550
-  y: 434
-  tag: tecnico.umidita
-  format: "{value:.0f}%"
-  font_size: 14
-  text_anchor: middle
-  color: "#7dd3fc"
-
-# Media
-- id: pro1_div2
-  type: line
-  x: 155
-  y: 449
-  x2: 416
-  y2: 348
-  stroke: "#1e3a5f"
-  stroke_width: 1
-
-- id: pro1_r_media
-  type: text
-  x: 240
-  y: 467
-  text: "{{t0023}}"
-  font_size: 14
-  font_weight: bold
-  text_anchor: middle
-  color: "#64748b"
-
-- id: pro1_t_media
-  type: text
-  x: 434
-  y: 467
+  x: 170
+  y: 514
+  width: 100
+  height: 34
+  text_wrap: true
+  text_valign: middle
   tag: clima.temp_media
-  format: "{value:.1f}°C"
-  font_size: 17
+  format: '{value:.1f}°C'
+  font_size: 19
   font_weight: bold
   text_anchor: middle
-  color: "#38bdf8"
-
+  color: '#38bdf8'
+- id: pro1_pressione_lbl
+  type: text
+  x: 40
+  y: 550
+  width: 230
+  height: 34
+  text_wrap: true
+  text_valign: middle
+  text: '{{t0095}}'
+  font_size: 14
+  color: '#64748b'
 - id: pro1_pressione
   type: text
-  x: 550
-  y: 467
-  tag: tecnico.pressione_hpa
-  format: "{value:.0f} hPa"
-  font_size: 13
-  text_anchor: middle
-  color: "#475569"
-
-# ══════════════════════════════════════════════════════════════════════════════
-# SICUREZZA (bottom-left)
-# ══════════════════════════════════════════════════════════════════════════════
-
-- id: pro1_sec_hdr
-  type: text
-  x: 408
-  y: 495
-  text: "{{t0024}}"
-  font_size: 14
-  font_weight: bold
-  text_anchor: middle
-  color: "#64748b"
-
-- id: pro1_sec_box
-  type: rect
-  x: 142
-  y: 506
-  width: 532
-  height: 217
-  fill: "#0c1017"
-  stroke: "#1e293b"
-  stroke_width: 1
-  rx: 6
-
-# Porte
-- id: pro1_s_garage_lbl
-  type: text
-  x: 266
-  y: 532
-  text: "{{t0025}}"
-  font_size: 14
-  color: "#94a3b8"
-
-- id: pro1_s_garage_led
-  type: led
-  x: 382
-  y: 520
-  width: 18
-  height: 18
-  tag: garage.aperto
-  on_color: "#ef4444"
-  off_color: "#166534"
-
-- id: pro1_s_porta_lbl
-  type: text
-  x: 266
-  y: 557
-  text: "{{t0026}}"
-  font_size: 14
-  color: "#94a3b8"
-
-- id: pro1_s_porta_led
-  type: led
-  x: 382
-  y: 546
-  width: 18
-  height: 18
-  tag: porta.principale
-  on_color: "#ef4444"
-  off_color: "#166534"
-
-- id: pro1_s_studio_lbl
-  type: text
-  x: 266
-  y: 583
-  text: "{{t0027}}"
-  font_size: 14
-  color: "#94a3b8"
-
-- id: pro1_s_studio_led
-  type: led
-  x: 382
-  y: 572
-  width: 18
-  height: 18
-  tag: porta.studio
-  on_color: "#ef4444"
-  off_color: "#166534"
-
-# Finestre (right column)
-- id: pro1_fw_sg_sx
-  type: text
-  x: 498
-  y: 532
-  text: "{{t0028}}"
-  font_size: 14
-  color: "#94a3b8"
-
-- id: pro1_fw_sg_sx_led
-  type: led
-  x: 640
-  y: 520
-  width: 18
-  height: 18
-  tag: finestra.soggiorno_sx
-  on_color: "#f59e0b"
-  off_color: "#166534"
-
-- id: pro1_fw_sg_dx
-  type: text
-  x: 498
-  y: 557
-  text: "{{t0029}}"
-  font_size: 14
-  color: "#94a3b8"
-
-- id: pro1_fw_sg_dx_led
-  type: led
-  x: 640
-  y: 546
-  width: 18
-  height: 18
-  tag: finestra.soggiorno_dx
-  on_color: "#f59e0b"
-  off_color: "#166534"
-
-- id: pro1_fw_cuc_sx
-  type: text
-  x: 498
-  y: 583
-  text: "{{t0030}}"
-  font_size: 14
-  color: "#94a3b8"
-
-- id: pro1_fw_cuc_sx_led
-  type: led
-  x: 640
-  y: 572
-  width: 18
-  height: 18
-  tag: finestra.cucina_sx
-  on_color: "#f59e0b"
-  off_color: "#166534"
-
-- id: pro1_fw_cuc_dx
-  type: text
-  x: 498
-  y: 609
-  text: "{{t0031}}"
-  font_size: 14
-  color: "#94a3b8"
-
-- id: pro1_fw_cuc_dx_led
-  type: led
-  x: 640
-  y: 597
-  width: 18
-  height: 18
-  tag: finestra.cucina_dx
-  on_color: "#f59e0b"
-  off_color: "#166534"
-
-- id: pro1_fw_lav
-  type: text
-  x: 498
-  y: 635
-  text: "{{t0020}}"
-  font_size: 14
-  color: "#94a3b8"
-
-- id: pro1_fw_lav_led
-  type: led
-  x: 640
-  y: 623
-  width: 18
-  height: 18
-  tag: finestra.lavanderia
-  on_color: "#f59e0b"
-  off_color: "#166534"
-
-# Sensori movimento
-- id: pro1_mov_lbl
-  type: text
-  x: 155
-  y: 613
-  text: "{{t0032}}"
-  font_size: 13
-  color: "#475569"
-
-- id: pro1_mov_led
-  type: led
-  x: 227
-  y: 601
-  width: 18
-  height: 18
-  tag: ingresso.movimento
-  on_color: "#f59e0b"
-  off_color: "#1e293b"
-
-- id: pro1_ext_lbl
-  type: text
-  x: 155
-  y: 639
-  text: "{{t0033}}"
-  font_size: 13
-  color: "#475569"
-
-- id: pro1_ext_led
-  type: led
-  x: 227
-  y: 627
-  width: 18
-  height: 18
-  tag: esterno.movimento
-  on_color: "#ef4444"
-  off_color: "#1e293b"
-
-- id: pro1_peri_lbl
-  type: text
-  x: 155
-  y: 665
-  text: "{{t0034}}"
-  font_size: 13
-  color: "#475569"
-
-- id: pro1_peri_ne
-  type: led
-  x: 227
-  y: 654
-  width: 15
-  height: 15
-  tag: perimetro.nordest
-  on_color: "#ef4444"
-  off_color: "#1e293b"
-
-- id: pro1_peri_no
-  type: led
-  x: 250
-  y: 654
-  width: 15
-  height: 15
-  tag: perimetro.nordovest
-  on_color: "#ef4444"
-  off_color: "#1e293b"
-
-- id: pro1_peri_o
-  type: led
-  x: 274
-  y: 654
-  width: 15
-  height: 15
-  tag: perimetro.ovest
-  on_color: "#ef4444"
-  off_color: "#1e293b"
-
-- id: pro1_peri_lbl2
-  type: text
-  x: 299
-  y: 666
-  text: "{{t0035}}"
-  font_size: 12
-  color: "#334155"
-
-# ══════════════════════════════════════════════════════════════════════════════
-# PRESENZA & LUCI (bottom-right)
-# ══════════════════════════════════════════════════════════════════════════════
-
-- id: pro1_pres_hdr
-  type: text
-  x: 916
-  y: 253
-  text: "{{t0036}}"
-  font_size: 14
-  font_weight: bold
-  text_anchor: middle
-  color: "#64748b"
-
-- id: pro1_pres_box
-  type: rect
-  x: 689
-  y: 266
-  width: 449
-  height: 457
-  fill: "#0c1017"
-  stroke: "#1e293b"
-  stroke_width: 1
-  rx: 6
-
-# Presenza
-- id: pro1_mauro_lbl
-  type: text
-  x: 705
-  y: 294
-  text: "{{t0037}}"
+  x: 270
+  y: 550
+  width: 154
+  height: 34
+  text_wrap: true
+  text_valign: middle
+  tag: clima.pressione_hpa
+  format: '{value:.0f} hPa'
   font_size: 15
-  color: "#94a3b8"
-
-- id: pro1_mauro_led
-  type: led
-  x: 841
-  y: 283
-  width: 23
-  height: 23
-  tag: mauro.a_casa
-  on_color: "#22c55e"
-  off_color: "#334155"
-
-- id: pro1_mauro_txt
-  type: text
-  x: 875
-  y: 299
-  tag: mauro.a_casa
-  format: "{value}"
-  font_size: 15
-  color: "#64748b"
-
-# Sole
-- id: pro1_sole_lbl
-  type: text
-  x: 705
-  y: 330
-  text: "{{t0038}}"
-  font_size: 15
-  color: "#94a3b8"
-
-- id: pro1_sole_val
-  type: text
-  x: 1107
-  y: 330
-  tag: sole.elevazione
-  format: "{value:.1f}°"
-  font_size: 18
   font_weight: bold
   text_anchor: end
-  color: "#fbbf24"
-
-# Luci esterne
-- id: pro1_luci_div
-  type: line
-  x: 702
-  y: 346
-  x2: 776
-  y2: 268
-  stroke: "#1e293b"
-  stroke_width: 1
-
-- id: pro1_luci_hdr2
+  color: '#94a3b8'
+- id: pro1_ci_lbl
   type: text
-  x: 916
-  y: 366
-  text: "{{t0039}}"
-  font_size: 13
+  x: 40
+  y: 586
+  width: 230
+  height: 34
+  text_wrap: true
+  text_valign: middle
+  text: '{{t0096}}'
+  font_size: 14
+  color: '#64748b'
+- id: pro1_ci_val
+  type: text
+  x: 270
+  y: 586
+  width: 154
+  height: 34
+  text_wrap: true
+  text_valign: middle
+  tag: clima.comfort_soggiorno
+  format: ★ {value:.0f}/100
+  font_size: 17
   font_weight: bold
-  text_anchor: middle
-  color: "#f59e0b"
-
-- id: pro1_lc_lbl
+  text_anchor: end
+  color: '#a3e635'
+- id: pro1_ci_note
   type: text
-  x: 705
-  y: 395
-  text: "{{t0040}}"
-  font_size: 15
-  color: "#94a3b8"
+  x: 40
+  y: 624
+  width: 384
+  height: 20
+  text_wrap: true
+  text_valign: middle
+  text: '{{t0097}}'
+  font_size: 12
+  color: '#475569'
 
-- id: pro1_lc_led
-  type: led
-  x: 841
-  y: 383
-  width: 21
-  height: 21
-  tag: luce.cancelletto
-  on_color: "#fbbf24"
-  off_color: "#374151"
-
-- id: pro1_lv_lbl
-  type: text
-  x: 705
-  y: 423
-  text: "{{t0041}}"
-  font_size: 15
-  color: "#94a3b8"
-
-- id: pro1_lv_led
-  type: led
-  x: 841
-  y: 412
-  width: 21
-  height: 21
-  tag: luce.viale
-  on_color: "#fbbf24"
-  off_color: "#374151"
-
-- id: pro1_ls_lbl
-  type: text
-  x: 705
-  y: 452
-  text: "{{t0042}}"
-  font_size: 15
-  color: "#94a3b8"
-
-- id: pro1_ls_led
-  type: led
-  x: 841
-  y: 440
-  width: 21
-  height: 21
-  tag: luce.strada
-  on_color: "#fbbf24"
-  off_color: "#374151"
-
-# Tapparelle
-- id: pro1_tapp_div
-  type: line
-  x: 702
-  y: 470
-  x2: 776
-  y2: 364
-  stroke: "#1e293b"
+# ══════════════════════════════════════════════════════════════════════════════
+# SICUREZZA — porte e finestre con `spia` (ambra = aperta), rilevatori con
+# `spia_allarme` (rosso = attivo). Il dettaglio completo è nella pagina Sicurezza.
+# ══════════════════════════════════════════════════════════════════════════════
+- id: pro1_sec_box
+  type: rect
+  x: 456
+  y: 220
+  width: 488
+  height: 438
+  fill: '#0c1017'
+  stroke: '#1e293b'
   stroke_width: 1
+  rx: 6
+- id: pro1_sec_hdr
+  type: text
+  x: 472
+  y: 228
+  width: 456
+  height: 24
+  text_wrap: true
+  text_valign: middle
+  text: '{{t0024}}'
+  font_size: 14
+  font_weight: bold
+  color: '#94a3b8'
+- id: pro1_porte_hdr
+  type: text
+  x: 472
+  y: 258
+  width: 220
+  height: 20
+  text_wrap: true
+  text_valign: middle
+  text: '{{t0125}}'
+  font_size: 12
+  font_weight: bold
+  color: '#f59e0b'
+- id: pro1_fin_hdr
+  type: text
+  x: 708
+  y: 258
+  width: 220
+  height: 20
+  text_wrap: true
+  text_valign: middle
+  text: '{{t0129}}'
+  font_size: 12
+  font_weight: bold
+  color: '#f59e0b'
+- id: pro1_s_garage
+  type: faceplate
+  x: 472
+  y: 284
+  width: 220
+  height: 30
+  faceplate_id: spia
+  faceplate_params:
+    p: garage.aperto
+    nome: '{{t0025}}'
+- id: pro1_s_porta
+  type: faceplate
+  x: 472
+  y: 318
+  width: 220
+  height: 30
+  faceplate_id: spia
+  faceplate_params:
+    p: porta.principale
+    nome: '{{t0026}}'
+- id: pro1_s_studio
+  type: faceplate
+  x: 472
+  y: 352
+  width: 220
+  height: 30
+  faceplate_id: spia
+  faceplate_params:
+    p: porta.studio
+    nome: '{{t0027}}'
+- id: pro1_fw_sg_sx
+  type: faceplate
+  x: 708
+  y: 284
+  width: 220
+  height: 30
+  faceplate_id: spia
+  faceplate_params:
+    p: finestra.soggiorno_sx
+    nome: '{{t0028}}'
+- id: pro1_fw_sg_dx
+  type: faceplate
+  x: 708
+  y: 318
+  width: 220
+  height: 30
+  faceplate_id: spia
+  faceplate_params:
+    p: finestra.soggiorno_dx
+    nome: '{{t0029}}'
+- id: pro1_fw_cuc_sx
+  type: faceplate
+  x: 708
+  y: 352
+  width: 220
+  height: 30
+  faceplate_id: spia
+  faceplate_params:
+    p: finestra.cucina_sx
+    nome: '{{t0030}}'
+- id: pro1_fw_cuc_dx
+  type: faceplate
+  x: 708
+  y: 386
+  width: 220
+  height: 30
+  faceplate_id: spia
+  faceplate_params:
+    p: finestra.cucina_dx
+    nome: '{{t0031}}'
+- id: pro1_fw_lav
+  type: faceplate
+  x: 708
+  y: 420
+  width: 220
+  height: 30
+  faceplate_id: spia
+  faceplate_params:
+    p: finestra.lavanderia
+    nome: '{{t0020}}'
+- id: pro1_fw_bagno
+  type: faceplate
+  x: 708
+  y: 454
+  width: 220
+  height: 30
+  faceplate_id: spia
+  faceplate_params:
+    p: finestra.bagno
+    nome: '{{t0021}}'
+- id: pro1_peri_hdr
+  type: text
+  x: 472
+  y: 492
+  width: 456
+  height: 20
+  text_wrap: true
+  text_valign: middle
+  text: '{{t0130}}'
+  font_size: 12
+  font_weight: bold
+  color: '#ef4444'
+- id: pro1_mov_ne
+  type: faceplate
+  x: 472
+  y: 516
+  width: 220
+  height: 30
+  faceplate_id: spia_allarme
+  faceplate_params:
+    p: perimetro.nordest
+    nome: '{{t0131}}'
+- id: pro1_mov_no
+  type: faceplate
+  x: 472
+  y: 550
+  width: 220
+  height: 30
+  faceplate_id: spia_allarme
+  faceplate_params:
+    p: perimetro.nordovest
+    nome: '{{t0132}}'
+- id: pro1_mov_o
+  type: faceplate
+  x: 472
+  y: 584
+  width: 220
+  height: 30
+  faceplate_id: spia_allarme
+  faceplate_params:
+    p: perimetro.ovest
+    nome: '{{t0133}}'
+- id: pro1_mov_ingr
+  type: faceplate
+  x: 708
+  y: 516
+  width: 220
+  height: 30
+  faceplate_id: spia_allarme
+  faceplate_params:
+    p: ingresso.movimento
+    nome: '{{t0134}}'
+- id: pro1_mov_ext
+  type: faceplate
+  x: 708
+  y: 550
+  width: 220
+  height: 30
+  faceplate_id: spia_allarme
+  faceplate_params:
+    p: esterno.movimento
+    nome: '{{t0135}}'
 
+# ══════════════════════════════════════════════════════════════════════════════
+# PRESENZA & LUCI — chi è in casa, il sole, lo stato di luci e tapparelle
+# ══════════════════════════════════════════════════════════════════════════════
+- id: pro1_pres_box
+  type: rect
+  x: 960
+  y: 220
+  width: 296
+  height: 438
+  fill: '#0c1017'
+  stroke: '#1e293b'
+  stroke_width: 1
+  rx: 6
+- id: pro1_pres_hdr
+  type: text
+  x: 976
+  y: 228
+  width: 264
+  height: 24
+  text_wrap: true
+  text_valign: middle
+  text: '{{t0036}}'
+  font_size: 14
+  font_weight: bold
+  color: '#94a3b8'
+- id: pro1_presenza
+  type: state_lamp
+  x: 976
+  y: 262
+  width: 264
+  height: 24
+  tag: presenza.in_casa
+  text_list_entries:
+  - value: true
+    label: '{{t0177}}'
+    color: '#22c55e'
+  - value: false
+    label: '{{t0178}}'
+    color: '#64748b'
+- id: pro1_sole
+  type: text
+  x: 976
+  y: 294
+  width: 264
+  height: 26
+  text_wrap: true
+  text_valign: middle
+  tag: sole.elevazione
+  format: '{{t0179}}'
+  font_size: 14
+  color: '#fbbf24'
+- id: pro1_luci_hdr
+  type: text
+  x: 976
+  y: 334
+  width: 264
+  height: 20
+  text_wrap: true
+  text_valign: middle
+  text: '{{t0039}}'
+  font_size: 12
+  font_weight: bold
+  color: '#fbbf24'
+- id: pro1_lc
+  type: faceplate
+  x: 976
+  y: 358
+  width: 220
+  height: 30
+  faceplate_id: spia
+  faceplate_params:
+    p: luce.cancelletto
+    nome: '{{t0040}}'
+- id: pro1_lv
+  type: faceplate
+  x: 976
+  y: 390
+  width: 220
+  height: 30
+  faceplate_id: spia
+  faceplate_params:
+    p: luce.viale
+    nome: '{{t0041}}'
+- id: pro1_ls
+  type: faceplate
+  x: 976
+  y: 422
+  width: 220
+  height: 30
+  faceplate_id: spia
+  faceplate_params:
+    p: luce.strada
+    nome: '{{t0042}}'
 - id: pro1_tapp_hdr
   type: text
-  x: 916
-  y: 490
-  text: "{{t0043}}"
-  font_size: 13
+  x: 976
+  y: 460
+  width: 264
+  height: 20
+  text_wrap: true
+  text_valign: middle
+  text: '{{t0043}}'
+  font_size: 12
   font_weight: bold
-  text_anchor: middle
-  color: "#38bdf8"
-
-- id: pro1_tsg_sx_lbl
-  type: text
-  x: 705
+  color: '#38bdf8'
+- id: pro1_tsg_sx
+  type: faceplate
+  x: 976
+  y: 484
+  width: 220
+  height: 30
+  faceplate_id: spia
+  faceplate_params:
+    p: tapparella.soggiorno_sx
+    nome: '{{t0028}}'
+- id: pro1_tsg_dx
+  type: faceplate
+  x: 976
   y: 516
-  text: "{{t0028}}"
-  font_size: 14
-  color: "#94a3b8"
-
-- id: pro1_tsg_sx_led
-  type: led
-  x: 841
-  y: 505
-  width: 18
-  height: 18
-  tag: tapparella.soggiorno_sx
-  on_color: "#38bdf8"
-  off_color: "#334155"
-
-- id: pro1_tsg_dx_lbl
-  type: text
-  x: 705
-  y: 542
-  text: "{{t0029}}"
-  font_size: 14
-  color: "#94a3b8"
-
-- id: pro1_tsg_dx_led
-  type: led
-  x: 841
-  y: 530
-  width: 18
-  height: 18
-  tag: tapparella.soggiorno_dx
-  on_color: "#38bdf8"
-  off_color: "#334155"
-
-- id: pro1_tb_lbl
-  type: text
-  x: 705
-  y: 568
-  text: "{{t0021}}"
-  font_size: 14
-  color: "#94a3b8"
-
-- id: pro1_tb_led
-  type: led
-  x: 841
-  y: 556
-  width: 18
-  height: 18
-  tag: tapparella.bagno
-  on_color: "#38bdf8"
-  off_color: "#334155"
-
-- id: pro1_tg_lbl
-  type: text
-  x: 705
-  y: 594
-  text: "{{t0025}}"
-  font_size: 14
-  color: "#94a3b8"
-
-- id: pro1_tg_led
-  type: led
-  x: 841
-  y: 582
-  width: 18
-  height: 18
-  tag: tapparella.garage
-  on_color: "#38bdf8"
-  off_color: "#334155"
-
-# Link a pagina controllo
+  width: 220
+  height: 30
+  faceplate_id: spia
+  faceplate_params:
+    p: tapparella.soggiorno_dx
+    nome: '{{t0029}}'
+- id: pro1_tb
+  type: faceplate
+  x: 976
+  y: 548
+  width: 220
+  height: 30
+  faceplate_id: spia
+  faceplate_params:
+    p: tapparella.bagno
+    nome: '{{t0021}}'
+- id: pro1_tg
+  type: faceplate
+  x: 976
+  y: 580
+  width: 220
+  height: 30
+  faceplate_id: spia
+  faceplate_params:
+    p: tapparella.garage
+    nome: '{{t0025}}'
 - id: pro1_ctrl_link
   type: navbutton
-  x: 702
-  y: 674
-  width: 423
-  height: 41
-  label: "{{t0044}}"
+  x: 976
+  y: 618
+  width: 264
+  height: 32
+  label: '{{t0044}}'
   target_page: pro_p6
-  fill: "#172554"
+  fill: '#172554'
   locked: true
+
+# La fascia allarmi sotto i tre riquadri, sopra il piede della cornice: copre
+# il contenuto quando c'è un allarme (è un overlay), mai la navigazione — B13
+# del piano di stabilizzazione. La campanella le sta accanto: prima era in alto,
+# dove adesso c'è la testata della cornice.
 - id: pro1_alarm_bell
   type: alarm_bell
-  x: 149.7
-  y: 614.2
-  width: 167.7
-  height: 43.9
+  x: 24
+  y: 678
+  width: 168
+  height: 40
   alarm_bell_show_history: true
   alarm_bell_show_shelve: true
 - id: pro1_alarm_banner
   type: alarm_banner
-  x: 149.7
-  # Finisce dove comincia la barra di navigazione (y 738): prima arrivava a
-  # 774 e le copriva i primi 36 pixel, cioè i pulsanti con cui si cambia
-  # pagina — B13 del piano di stabilizzazione. Che una fascia allarmi si
-  # sovrapponga al contenuto è normale, è un overlay; che copra la navigazione
-  # no, perché il pannello diventa inutilizzabile proprio quando serve.
-  y: 647.7
-  width: 980.6
-  height: 90.3
+  x: 208
+  y: 670
+  width: 1048
+  height: 56

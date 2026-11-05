@@ -29,7 +29,7 @@ pub use alarm::{
 };
 pub use geometry::{bbox_of, is_off_page, BBox, CASI_FUORI_PAGINA};
 pub use logbus::{LogBus, LogEvent, DEFAULT_LOG_CAPACITY};
-pub use percorso::{Foglia, Forma, Segmento};
+pub use percorso::{soglia_di_scrittura, soglie_di_scrittura, Foglia, Forma, Segmento};
 pub use project::{
     tag_disponibilita, AffixPosition, AreaModbus, BloccoModbus, CanaleNotifica, CanaliEvento,
     CustomSymbol, CustomSymbolAttribution, DatastoreBackendConfig, DatastoreConfig,

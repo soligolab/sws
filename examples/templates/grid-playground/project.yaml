@@ -3,22 +3,29 @@ meta:
   version: 0.1.0
 
 # Tag in-memory: nessuna sorgente, scrivibili via API o dai bottoni del template.
+# Quelli che i comandi delle pagine scrivono hanno soglia Viewer (R7): chi apre
+# il template lo prova senza accedere.
 tags:
   - id: counter
-    description: "Contatore demo (incrementato da fnc_Inc / decrementato da fnc_Dec)"
+    description: "Contatore demo 0-100 (bottoni ▲/▼ della griglia, preset della pagina Controlli)"
     data_type: float
+    write_min_role: Viewer
   - id: pump.running
     description: "Flag demo pompa ON/OFF"
     data_type: bool
+    write_min_role: Viewer
   - id: demo.value
     description: "Valore numerico generico 0-100"
     data_type: float
+    write_min_role: Viewer
   - id: demo.opacity
     description: "Opacità (0..1) per binding"
     data_type: float
+    write_min_role: Viewer
   - id: demo.fill_color
     description: "Colore CSS (#RRGGBB) per binding"
     data_type: string
+    write_min_role: Viewer
   - id: demo.label
     description: "Etichetta dinamica"
     data_type: string
@@ -34,37 +41,6 @@ alarms:
           threshold: 80.0
         severity: Warning
         message: '{{t0028}}'
-functions:
-  - id: fn_inc
-    name: fnc_Inc
-    description: "Incrementa il tag indicato di `step`"
-    code: |-
-      current = tags.read(tag) or 0
-      tags.write(tag, current + step)
-    params:
-      - name: tag
-        default: counter
-      - name: step
-        default: 1
-  - id: fn_dec
-    name: fnc_Dec
-    description: "Decrementa il tag indicato di `step`"
-    code: |-
-      current = tags.read(tag) or 0
-      tags.write(tag, current - step)
-    params:
-      - name: tag
-        default: counter
-      - name: step
-        default: 1
-  - id: fn_toggle
-    name: fnc_Toggle
-    description: "Inverte un tag bool"
-    code: |-
-      tags.write(tag, not bool(tags.read(tag)))
-    params:
-      - name: tag
-        default: pump.running
 
 languages:
   default: it
@@ -72,24 +48,29 @@ languages:
   entries:
     - key: t0028
       values:
-        it: "Counter sopra soglia (>80)"
+        it: "Contatore sopra soglia (>80)"
         en: "Counter above threshold (>80)"
         es: "Contador por encima del umbral (>80)"
-    - key: t0001
+    - key: t0030
       values:
-        it: "🗂  GRID PLAYGROUND — 4×4 con sub-cell fino a 4 livelli"
-        en: "🗂  GRID PLAYGROUND — 4×4 with sub-cells up to 4 levels"
-        es: "🗂  GRID PLAYGROUND — 4×4 con subceldas hasta 4 niveles"
+        it: "Griglia 4×4"
+        en: "Grid 4×4"
+        es: "Cuadrícula 4×4"
+    - key: t0031
+      values:
+        it: "Controlli"
+        en: "Controls"
+        es: "Controles"
     - key: t0002
       values:
-        it: "Pannello: rect / ellipse / text / gauge / led / symbol / button / slider come figli di cella"
-        en: "Panel: rect / ellipse / text / gauge / led / symbol / button / slider as cell children"
-        es: "Panel: rect / ellipse / text / gauge / led / symbol / button / slider como hijos de celda"
-    - key: t0003
+        it: "Griglia 4×4 con celle unite e sotto-celle annidate fino a 4 livelli. Figli di cella: rect, ellipse, text, gauge, led, symbol, button, slider, trend e barra."
+        en: "4×4 grid with merged cells and sub-cells nested up to 4 levels. Cell children: rect, ellipse, text, gauge, led, symbol, button, slider, trend and bar."
+        es: "Cuadrícula 4×4 con celdas combinadas y subceldas anidadas hasta 4 niveles. Hijos de celda: rect, ellipse, text, gauge, led, symbol, button, slider, trend y barra."
+    - key: t0032
       values:
-        it: "Controlli ▶"
-        en: "Controls ▶"
-        es: "Controles ▶"
+        it: "La barra qui sotto è un oggetto di pagina, fuori dalla griglia: il cursore della cella in basso a destra la porta da quasi trasparente a piena."
+        en: "The bar below is a page object, outside the grid: the slider in the bottom-right cell takes it from almost transparent to solid."
+        es: "La barra de abajo es un objeto de página, fuera de la cuadrícula: el cursor de la celda inferior derecha la lleva de casi transparente a opaca."
     - key: t0004
       values:
         it: "L3"
@@ -97,29 +78,29 @@ languages:
         es: "L3"
     - key: t0005
       values:
-        it: "Counter"
+        it: "Contatore"
         en: "Counter"
-        es: "Counter"
+        es: "Contador"
     - key: t0006
       values:
-        it: "Counter ▲ +1"
+        it: "Contatore ▲ +1"
         en: "Counter ▲ +1"
-        es: "Counter ▲ +1"
+        es: "Contador ▲ +1"
     - key: t0007
       values:
-        it: "Counter ▼ −1"
+        it: "Contatore ▼ −1"
         en: "Counter ▼ −1"
-        es: "Counter ▼ −1"
+        es: "Contador ▼ −1"
     - key: t0008
       values:
-        it: "Toggle pompa"
+        it: "Commuta pompa"
         en: "Toggle pump"
         es: "Conmutar bomba"
     - key: t0009
       values:
-        it: "TOP"
+        it: "SOPRA"
         en: "TOP"
-        es: "TOP"
+        es: "ARRIBA"
     - key: t0010
       values:
         it: "A.A"
@@ -132,24 +113,14 @@ languages:
         es: "A.B"
     - key: t0012
       values:
-        it: "ON only"
+        it: "solo se ON"
         en: "ON only"
-        es: "ON only"
+        es: "solo si ON"
     - key: t0013
       values:
-        it: "always"
+        it: "sempre"
         en: "always"
-        es: "always"
-    - key: t0014
-      values:
-        it: "🎨  Controlli — fill color + label + alarm"
-        en: "🎨  Controls — fill color + label + alarm"
-        es: "🎨  Controles — fill color + label + alarm"
-    - key: t0015
-      values:
-        it: "◀ Griglia"
-        en: "◀ Grid"
-        es: "◀ Cuadrícula"
+        es: "siempre"
     - key: t0016
       values:
         it: "demo.fill_color (pilota il rect in cella (1,3) della pagina Griglia):"
@@ -182,14 +153,14 @@ languages:
         es: "● Morado"
     - key: t0022
       values:
-        it: "Anteprima fill:"
-        en: "Fill preview:"
-        es: "Vista previa del relleno:"
+        it: "Anteprima colore:"
+        en: "Color preview:"
+        es: "Vista previa del color:"
     - key: t0023
       values:
-        it: "Trigger allarme counter>80 (scrive counter):"
-        en: "Alarm trigger counter>80 (writes counter):"
-        es: "Disparo de alarma counter>80 (escribe counter):"
+        it: "Preset del contatore (sopra 80 scatta l'allarme):"
+        en: "Counter presets (above 80 the alarm trips):"
+        es: "Valores fijos del contador (por encima de 80 salta la alarma):"
     - key: t0024
       values:
         it: "counter = 50"
@@ -202,9 +173,9 @@ languages:
         es: "counter = 95"
     - key: t0026
       values:
-        it: "Demo S-27 UX: in editor prova drag&drop nel tree (LeftPanel), tasto destro sulle righe (context menu), rulers + guide (toggle ⟂ in alto-sx)."
-        en: "S-27 UX demo: in the editor try drag&drop in the tree (LeftPanel), right-click on rows (context menu), rulers + guides (⟂ toggle top-left)."
-        es: "Demo UX S-27: en el editor prueba arrastrar y soltar en el árbol (LeftPanel), clic derecho en las filas (menú contextual), reglas + guías (interruptor ⟂ arriba a la izquierda)."
+        it: "Demo S-27 UX: nell'editor prova il drag&drop nell'albero (pannello sinistro), il tasto destro sulle righe (menù contestuale), righelli e guide (pulsante in alto a sinistra del foglio)."
+        en: "S-27 UX demo: in the editor try drag&drop in the tree (left panel), right-click on rows (context menu), rulers and guides (button at the top left of the sheet)."
+        es: "Demo UX S-27: en el editor prueba arrastrar y soltar en el árbol (panel izquierdo), clic derecho en las filas (menú contextual), reglas y guías (botón arriba a la izquierda de la hoja)."
     - key: t0027
       values:
         it: "Demo grid S-23: clicca una cella, poi 'Dividi orizzontalmente/verticalmente' nel pannello destra (split locale). Shift+click su altre celle per merge."
@@ -225,3 +196,9 @@ languages:
 page_layout:
   size_mode: fixed
   home_page_id: gp_page1   # Griglia 4×4
+  # L'ordine dei bottoni del navigatore nel piede della cornice.
+  page_tree:
+  - id: gp_page1
+  - id: gp_page2
+  # R6: la cornice di tutte e due le pagine — `cornici/cornice.yaml`.
+  cornice_predefinita: cornice

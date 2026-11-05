@@ -1,5 +1,5 @@
 id: p_chiaro
-name: '{{t0075}}'
+name: '{{t0076}}'
 width: 1280.0
 height: 800.0
 background: '#f1f5f9'
@@ -7,15 +7,17 @@ objects:
 - id: tit
   type: text
   x: 40.0
-  y: 20.0
-  width: 700.0
-  height: 20.0
+  y: 62.0
+  width: 1200.0
+  height: 28.0
   text: '{{t0054}}'
   font_size: 16.0
+  text_wrap: true
+  text_valign: middle
 - id: c_cl
   type: slider
   x: 40.0
-  y: 70.0
+  y: 114.0
   width: 340.0
   height: 56.0
   tag: c.valore
@@ -27,7 +29,7 @@ objects:
 - id: c_pi
   type: slider
   x: 40.0
-  y: 150.0
+  y: 194.0
   width: 340.0
   height: 60.0
   tag: c.valore
@@ -40,7 +42,7 @@ objects:
 - id: c_isa
   type: slider
   x: 40.0
-  y: 235.0
+  y: 279.0
   width: 340.0
   height: 56.0
   tag: c.valore
@@ -54,7 +56,7 @@ objects:
 - id: c_tc
   type: slider
   x: 40.0
-  y: 320.0
+  y: 364.0
   width: 340.0
   height: 90.0
   tag: c.valore
@@ -71,7 +73,7 @@ objects:
 - id: c_luce
   type: slider
   x: 440.0
-  y: 70.0
+  y: 114.0
   width: 340.0
   height: 72.0
   tag: c.luce_terrazzo
@@ -86,7 +88,7 @@ objects:
 - id: c_goc
   type: slider
   x: 440.0
-  y: 160.0
+  y: 204.0
   width: 340.0
   height: 72.0
   tag: c.irrigazione
@@ -101,7 +103,7 @@ objects:
 - id: c_pre
   type: slider
   x: 440.0
-  y: 250.0
+  y: 294.0
   width: 340.0
   height: 72.0
   tag: c.presa
@@ -116,7 +118,7 @@ objects:
 - id: c_tm
   type: slider
   x: 440.0
-  y: 345.0
+  y: 389.0
   width: 340.0
   height: 80.0
   tag: c.setpoint
@@ -131,7 +133,7 @@ objects:
 - id: c_tap
   type: slider
   x: 860.0
-  y: 70.0
+  y: 114.0
   width: 100.0
   height: 300.0
   tag: c.tapparella
@@ -147,7 +149,7 @@ objects:
 - id: c_jog
   type: slider
   x: 990.0
-  y: 70.0
+  y: 114.0
   width: 80.0
   height: 300.0
   tag: c.jog
@@ -158,13 +160,3 @@ objects:
   slider_origin: 0.0
   slider_rest_value: 0.0
   label: '{{t0050}}'
-- id: nav
-  type: page_navigator
-  x: 24.0
-  y: 752.0
-  width: 1232.0
-  height: 40.0
-  nav_orientation: horizontal
-  nav_fill: true
-  nav_gap: 6
-  locked: true

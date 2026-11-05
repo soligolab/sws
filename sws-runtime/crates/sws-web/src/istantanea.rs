@@ -948,3 +948,59 @@ mod tests_lago {
         }
     }
 }
+
+/// Ogni pagina di un template, fotografata dal viewer LVGL vero (04-11-2026,
+/// regole R6–R8 dei template): serve a vedere che con la cornice niente sta
+/// sotto la testata o il piede, senza aprire un pannello.
+/// `SWS_TEMPLATE=montagna-rinnovabile cargo test -p sws-web --lib ogni_pagina_del_template -- --ignored`;
+/// le foto finiscono in `tmp/verifica-template/<template>/<id pagina>.png`, le
+/// note del viewer in `note.txt` accanto.
+#[cfg(test)]
+mod tests_template {
+    use super::*;
+
+    #[tokio::test]
+    #[ignore = "avvia sws-runtime e sws-lvgl-viewer veri"]
+    async fn ogni_pagina_del_template() {
+        let Ok(nome) = std::env::var("SWS_TEMPLATE") else {
+            panic!("manca SWS_TEMPLATE=<nome del template in examples/templates>");
+        };
+        let radice = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../..");
+        let tpl = radice.join("examples/templates").join(&nome);
+        let out = radice.join("tmp/verifica-template").join(&nome);
+        std::fs::create_dir_all(&out).unwrap();
+        let mut pagine: Vec<_> = std::fs::read_dir(tpl.join("synoptics"))
+            .unwrap()
+            .filter_map(|e| e.ok().map(|e| e.path()))
+            .filter(|p| p.extension().is_some_and(|x| x == "yaml"))
+            .collect();
+        pagine.sort();
+        let mut note = String::new();
+        for f in pagine {
+            let pagina: serde_json::Value =
+                serde_yaml::from_str(&std::fs::read_to_string(&f).unwrap()).unwrap();
+            let id = pagina["id"].as_str().unwrap_or("senza-id").to_string();
+            let scatto = scatta(Richiesta {
+                progetto: tpl.clone(),
+                pagina: Some(id.clone()),
+                tocca: None,
+                ms: Some(1500),
+                simboli: vec![],
+                pagine: vec![],
+                www: Some(radice.join("sws-editor/dist")),
+                immagini: vec![],
+            })
+            .await
+            .unwrap_or_else(|e| panic!("{id}: lo scatto non è riuscito — {e}"));
+            std::fs::write(out.join(format!("{id}.png")), &scatto.png).unwrap();
+            note.push_str(&format!(
+                "== {id} ({}×{})\n",
+                scatto.larghezza, scatto.altezza
+            ));
+            for n in &scatto.note {
+                note.push_str(&format!("{n}\n"));
+            }
+        }
+        std::fs::write(out.join("note.txt"), note).unwrap();
+    }
+}

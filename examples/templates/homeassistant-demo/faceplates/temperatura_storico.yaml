@@ -1,0 +1,78 @@
+# Il riquadro «valore live» di una temperatura nella pagina Storico (R8,
+# 04-11-2026): titolo, valore, barra e la nota sullo storico, per un'istanza
+# del tipo `ambiente`. La barra ha una scala sola (−10…40 °C), buona per
+# l'interno e per l'esterno: dentro un faceplate i numeri non sono parametri.
+id: temperatura_storico
+label: Temperatura (storico)
+width: 380
+height: 160
+params:
+- name: stanza
+  type: istanza
+  type_ref: ambiente
+  default: sala
+  required: true
+- name: titolo
+  type: string
+  default: '{{t0058}}'
+objects:
+- id: fondo
+  type: rect
+  x: 0
+  y: 0
+  width: 380
+  height: 160
+  fill: '#1e293b'
+  stroke: '#3b82f6'
+  stroke_width: 1
+  rx: 6
+- id: titolo
+  type: text
+  x: 16
+  y: 10
+  width: 348
+  height: 24
+  text: '{titolo}'
+  font_size: 14
+  font_weight: bold
+  text_anchor: middle
+  text_wrap: true
+  text_valign: middle
+  color: '#3b82f6'
+- id: valore
+  type: text
+  x: 16
+  y: 40
+  width: 348
+  height: 50
+  tag: '{stanza}.temperatura'
+  format: '{value:.1f}°C'
+  font_size: 36
+  font_weight: bold
+  text_anchor: middle
+  text_wrap: true
+  text_valign: middle
+  color: '#93c5fd'
+- id: barra
+  type: progress_bar
+  x: 30
+  y: 98
+  width: 320
+  height: 20
+  tag: '{stanza}.temperatura'
+  min: -10
+  max: 40
+  fill: '#3b82f6'
+  bg_color: '#1e3a5f'
+- id: nota
+  type: text
+  x: 16
+  y: 126
+  width: 348
+  height: 24
+  text: '{{t0059}}'
+  font_size: 12
+  text_anchor: middle
+  text_wrap: true
+  text_valign: middle
+  color: '#64748b'

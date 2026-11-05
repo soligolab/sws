@@ -1,0 +1,36 @@
+# La spia dei rilevatori (04-11-2026, regola R8): perimetro, movimento e le
+# rilevazioni della telecamera. Come «spia», ma accesa è rossa: un rilevatore
+# attivo è un allarme, una finestra aperta no.
+id: spia_allarme
+label: Spia di un rilevatore
+width: 220
+height: 30
+params:
+- name: p
+  type: tag
+  default: perimetro.nordest
+  required: true
+- name: nome
+  type: string
+  default: '{{t0131}}'
+objects:
+- id: led
+  type: led
+  x: 0
+  y: 5
+  width: 20
+  height: 20
+  tag: '{p}'
+  on_color: '#ef4444'
+  off_color: '#334155'
+- id: nome
+  type: text
+  x: 28
+  y: 0
+  width: 192
+  height: 30
+  text_wrap: true
+  text_valign: middle
+  text: '{nome}'
+  font_size: 13
+  color: '#94a3b8'

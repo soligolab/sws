@@ -1,507 +1,269 @@
 id: pro_p5
-name: "Carichi Elettrici"
+name: '{{t0105}}'
 background: "#0f172a"
 width: 1280
 height: 800
 
+# Carichi: i numeri della casa in alto, i due contatori (istanze del faceplate
+# `contatore` sulle istanze cucina e pompacalore del tipo omonimo, ognuna col
+# suo quadrante della potenza), il trend.
+#
+# Il nome della pagina, la lingua e l'ora stanno nella testata della cornice,
+# il navigatore nel piede (cornici/navigazione.yaml).
+
 objects:
 
-# ── HEADER ────────────────────────────────────────────────────────────────────
-- id: pro5_title
+# ══════════════════════════════════════════════════════════════════════════════
+# KPI ENERGETICI DELLA CASA
+# ══════════════════════════════════════════════════════════════════════════════
+- id: pro5_kpi_box
+  type: rect
+  x: 24
+  y: 72
+  width: 1232
+  height: 84
+  fill: '#1a1a2e'
+  stroke: '#312e81'
+  stroke_width: 1
+  rx: 6
+- id: pro5_kpi_potenza_lbl
   type: text
-  x: 640
-  y: 26
-  text: "{{t0105}}"
+  x: 40
+  y: 80
+  width: 240
+  height: 22
+  text_wrap: true
+  text_valign: middle
+  text: '{{t0108}}'
+  font_size: 12
+  text_anchor: middle
+  color: '#64748b'
+- id: pro5_kpi_potenza
+  type: text
+  x: 40
+  y: 104
+  width: 240
+  height: 44
+  text_wrap: true
+  text_valign: middle
+  tag: energia.potenza_kw
+  format: '{value:.3f} kW'
   font_size: 22
   font_weight: bold
   text_anchor: middle
-  color: "#e2e8f0"
-  locked: true
-
-- id: pro5_sub
-  type: text
-  x: 640
-  y: 52
-  text: "{{t0106}}"
-  font_size: 13
-  text_anchor: middle
-  color: "#475569"
-  locked: true
-
-# La navigazione in fondo alla pagina sta nella cornice (cornici/navigazione.yaml).
-# ══════════════════════════════════════════════════════════════════════════════
-# KPI ENERGETICI (top bar)
-# ══════════════════════════════════════════════════════════════════════════════
-
-- id: pro5_kpi_box
-  type: rect
-  x: 142
-  y: 72
-  width: 996
-  height: 72
-  fill: "#1a1a2e"
-  stroke: "#312e81"
-  stroke_width: 1
-  rx: 6
-
-- id: pro5_kpi_potenza_lbl
-  type: text
-  x: 266
-  y: 95
-  text: "{{t0108}}"
-  font_size: 12
-  text_anchor: middle
-  color: "#475569"
-
-- id: pro5_kpi_potenza
-  type: text
-  x: 266
-  y: 124
-  tag: energia.potenza_kw
-  format: "{value:.3f} kW"
-  font_size: 21
-  font_weight: bold
-  text_anchor: middle
-  color: "#a5b4fc"
-
+  color: '#a5b4fc'
 - id: pro5_kpi_costo_lbl
   type: text
-  x: 485
-  y: 95
-  text: "{{t0109}}"
+  x: 280
+  y: 80
+  width: 240
+  height: 22
+  text_wrap: true
+  text_valign: middle
+  text: '{{t0109}}'
   font_size: 12
   text_anchor: middle
-  color: "#475569"
-
+  color: '#64748b'
 - id: pro5_kpi_costo
   type: text
-  x: 485
-  y: 124
+  x: 280
+  y: 104
+  width: 240
+  height: 44
+  text_wrap: true
+  text_valign: middle
   tag: energia.costo_ora_eur
-  format: "{value:.4f} €/h"
-  font_size: 21
+  format: '{value:.4f} €/h'
+  font_size: 22
   font_weight: bold
   text_anchor: middle
-  color: "#fbbf24"
-
+  color: '#fbbf24'
 - id: pro5_kpi_saldo_lbl
   type: text
-  x: 705
-  y: 95
-  text: "{{t0110}}"
+  x: 520
+  y: 80
+  width: 240
+  height: 22
+  text_wrap: true
+  text_valign: middle
+  text: '{{t0110}}'
   font_size: 12
   text_anchor: middle
-  color: "#475569"
-
+  color: '#64748b'
 - id: pro5_kpi_saldo
   type: text
-  x: 705
-  y: 124
+  x: 520
+  y: 104
+  width: 240
+  height: 44
+  text_wrap: true
+  text_valign: middle
   tag: energia.saldo_kw
-  format: "{value:+.3f} kW"
-  font_size: 21
+  format: '{value:+.3f} kW'
+  font_size: 22
   font_weight: bold
   text_anchor: middle
-  color: "#a3e635"
-
+  color: '#a3e635'
 - id: pro5_kpi_cons_oggi_lbl
   type: text
-  x: 924
-  y: 95
-  text: "{{t0111}}"
+  x: 760
+  y: 80
+  width: 240
+  height: 22
+  text_wrap: true
+  text_valign: middle
+  text: '{{t0111}}'
   font_size: 12
   text_anchor: middle
-  color: "#475569"
-
+  color: '#64748b'
 - id: pro5_kpi_cons_oggi
   type: text
-  x: 924
-  y: 124
+  x: 760
+  y: 104
+  width: 240
+  height: 44
+  text_wrap: true
+  text_valign: middle
   tag: energia.consumo_oggi_kwh
-  format: "{value:.2f} kWh"
-  font_size: 21
+  format: '{value:.2f} kWh'
+  font_size: 22
   font_weight: bold
   text_anchor: middle
-  color: "#94a3b8"
-
+  color: '#94a3b8'
 - id: pro5_kpi_tot_lbl
   type: text
-  x: 1105
-  y: 95
-  text: "{{t0051}}"
+  x: 1000
+  y: 80
+  width: 240
+  height: 22
+  text_wrap: true
+  text_valign: middle
+  text: '{{t0051}}'
   font_size: 12
   text_anchor: middle
-  color: "#475569"
-
+  color: '#64748b'
 - id: pro5_kpi_tot
   type: text
-  x: 1105
-  y: 124
+  x: 1000
+  y: 104
+  width: 240
+  height: 44
+  text_wrap: true
+  text_valign: middle
   tag: energia.consumo_totale_kwh
-  format: "{value:.0f} kWh"
-  font_size: 18
+  format: '{value:.0f} kWh'
+  font_size: 22
   font_weight: bold
   text_anchor: middle
-  color: "#475569"
+  color: '#94a3b8'
 
 # ══════════════════════════════════════════════════════════════════════════════
-# CUCINA SONOFF (left half)
+# I DUE CONTATORI — istanze del faceplate `contatore`
 # ══════════════════════════════════════════════════════════════════════════════
-
-- id: pro5_cuc_hdr
-  type: text
-  x: 382
-  y: 165
-  text: "{{t0112}}"
-  font_size: 15
-  font_weight: bold
-  text_anchor: middle
-  color: "#f59e0b"
-
-- id: pro5_cuc_box
-  type: rect
-  x: 142
-  y: 175
-  width: 480
-  height: 284
-  fill: "#1c1100"
-  stroke: "#92400e"
-  stroke_width: 1
-  rx: 6
-
-# Potenza
-- id: pro5_cuc_w_lbl
-  type: text
-  x: 253
-  y: 209
-  text: "{{t0071}}"
-  font_size: 13
-  text_anchor: middle
-  color: "#475569"
-
-- id: pro5_cuc_w
-  type: text
-  x: 253
-  y: 248
-  tag: cucina.potenza_w
-  format: "{value:.0f}"
-  font_size: 44
-  font_weight: bold
-  text_anchor: middle
-  color: "#fbbf24"
-
-- id: pro5_cuc_w_u
-  type: text
-  x: 253
-  y: 271
-  text: "{{t0113}}"
-  font_size: 15
-  text_anchor: middle
-  color: "#92400e"
-
+- id: pro5_cucina
+  type: faceplate
+  x: 24
+  y: 168
+  width: 608
+  height: 300
+  faceplate_id: contatore
+  faceplate_params:
+    p: cucina
+    titolo: '{{t0112}}'
+- id: pro5_pdc
+  type: faceplate
+  x: 648
+  y: 168
+  width: 608
+  height: 300
+  faceplate_id: contatore
+  faceplate_params:
+    p: pompacalore
+    titolo: '{{t0115}}'
+# Il quadrante della potenza, uno per carico: fondo scala, soglie e colore sono
+# del carico, e il faceplate non li può cambiare (faceplates/contatore.yaml).
+# Stanno sotto l'etichetta «Potenza» dell'istanza (x + 24, y + 62).
 - id: pro5_cuc_w_g
   type: gauge
-  x: 147
-  y: 281
-  width: 212
-  height: 65
+  x: 48
+  y: 230
+  width: 240
+  height: 220
   tag: cucina.potenza_w
   min: 0
   max: 3500
-  unit: "W"
+  decimals: 0
+  unit: W
   warn_high: 2800
   alarm_high: 3200
-
-# Tensione
-- id: pro5_cuc_v_lbl
-  type: text
-  x: 498
-  y: 209
-  text: "{{t0053}}"
-  font_size: 13
-  text_anchor: middle
-  color: "#475569"
-
-- id: pro5_cuc_v
-  type: text
-  x: 498
-  y: 239
-  tag: cucina.tensione_v
-  format: "{value:.1f} V"
-  font_size: 23
-  font_weight: bold
-  text_anchor: middle
-  color: "#fbbf24"
-
-# Corrente
-- id: pro5_cuc_a_lbl
-  type: text
-  x: 498
-  y: 271
-  text: "{{t0055}}"
-  font_size: 13
-  text_anchor: middle
-  color: "#475569"
-
-- id: pro5_cuc_a
-  type: text
-  x: 498
-  y: 301
-  tag: cucina.corrente_a
-  format: "{value:.2f} A"
-  font_size: 23
-  font_weight: bold
-  text_anchor: middle
-  color: "#fbbf24"
-
-# Frequenza
-- id: pro5_cuc_hz_lbl
-  type: text
-  x: 498
-  y: 333
-  text: "{{t0077}}"
-  font_size: 13
-  text_anchor: middle
-  color: "#475569"
-
-- id: pro5_cuc_hz
-  type: text
-  x: 498
-  y: 361
-  tag: cucina.frequenza_hz
-  format: "{value:.2f} Hz"
-  font_size: 19
-  font_weight: bold
-  text_anchor: middle
-  color: "#a3a3a3"
-
-# Energia
-- id: pro5_cuc_kwh_lbl
-  type: text
-  x: 253
-  y: 400
-  text: "{{t0114}}"
-  font_size: 12
-  text_anchor: middle
-  color: "#475569"
-
-- id: pro5_cuc_kwh
-  type: text
-  x: 253
-  y: 423
-  tag: cucina.energia_kwh
-  format: "{value:.2f} kWh"
-  font_size: 18
-  font_weight: bold
-  text_anchor: middle
-  color: "#d97706"
-
-# ══════════════════════════════════════════════════════════════════════════════
-# POMPA DI CALORE (right half)
-# ══════════════════════════════════════════════════════════════════════════════
-
-- id: pro5_pdc_hdr
-  type: text
-  x: 898
-  y: 165
-  text: "{{t0115}}"
-  font_size: 15
-  font_weight: bold
-  text_anchor: middle
-  color: "#38bdf8"
-
-- id: pro5_pdc_box
-  type: rect
-  x: 658
-  y: 175
-  width: 480
-  height: 284
-  fill: "#0c1a2e"
-  stroke: "#1e3a5f"
-  stroke_width: 1
-  rx: 6
-
-# Potenza
-- id: pro5_pdc_w_lbl
-  type: text
-  x: 769
-  y: 209
-  text: "{{t0071}}"
-  font_size: 13
-  text_anchor: middle
-  color: "#475569"
-
-- id: pro5_pdc_w
-  type: text
-  x: 769
-  y: 248
-  tag: pompacalore.potenza_w
-  format: "{value:.0f}"
-  font_size: 44
-  font_weight: bold
-  text_anchor: middle
-  color: "#38bdf8"
-
-- id: pro5_pdc_w_u
-  type: text
-  x: 769
-  y: 271
-  text: "{{t0113}}"
-  font_size: 15
-  text_anchor: middle
-  color: "#1e3a5f"
-
+  fill: '#f59e0b'
 - id: pro5_pdc_w_g
   type: gauge
-  x: 663
-  y: 281
-  width: 212
-  height: 65
+  x: 672
+  y: 230
+  width: 240
+  height: 220
   tag: pompacalore.potenza_w
   min: 0
   max: 4000
-  unit: "W"
+  decimals: 0
+  unit: W
   warn_high: 3200
-
-# Tensione
-- id: pro5_pdc_v_lbl
+  fill: '#38bdf8'
+- id: pro5_cuc_hz
   type: text
-  x: 1014
-  y: 209
-  text: "{{t0053}}"
+  x: 24
+  y: 472
+  width: 608
+  height: 22
+  text_wrap: true
+  text_valign: middle
+  tag: rete.frequenza_cucina_hz
+  format: '{{t0180}}'
   font_size: 13
-  text_anchor: middle
-  color: "#475569"
-
-- id: pro5_pdc_v
-  type: text
-  x: 1014
-  y: 239
-  tag: pompacalore.tensione_v
-  format: "{value:.1f} V"
-  font_size: 23
-  font_weight: bold
-  text_anchor: middle
-  color: "#38bdf8"
-
-# Corrente
-- id: pro5_pdc_a_lbl
-  type: text
-  x: 1014
-  y: 271
-  text: "{{t0055}}"
-  font_size: 13
-  text_anchor: middle
-  color: "#475569"
-
-- id: pro5_pdc_a
-  type: text
-  x: 1014
-  y: 301
-  tag: pompacalore.corrente_a
-  format: "{value:.2f} A"
-  font_size: 23
-  font_weight: bold
-  text_anchor: middle
-  color: "#38bdf8"
-
-# Energia totale
-- id: pro5_pdc_kwh_lbl
-  type: text
-  x: 1014
-  y: 333
-  text: "{{t0114}}"
-  font_size: 13
-  text_anchor: middle
-  color: "#475569"
-
-- id: pro5_pdc_kwh
-  type: text
-  x: 1014
-  y: 361
-  tag: pompacalore.energia_kwh
-  format: "{value:.1f} kWh"
-  font_size: 19
-  font_weight: bold
-  text_anchor: middle
-  color: "#0ea5e9"
-
-# Nota COP implicito
-- id: pro5_pdc_cop_lbl
-  type: text
-  x: 898
-  y: 403
-  text: "{{t0116}}"
-  font_size: 12
-  text_anchor: middle
-  color: "#334155"
-
-- id: pro5_pdc_cop_bar
-  type: progress_bar
-  x: 676
-  y: 415
-  width: 444
-  height: 15
-  tag: pompacalore.potenza_w
-  min: 0
-  max: 4000
-  fill: "#38bdf8"
-  background: "#0c2040"
+  color: '#94a3b8'
 
 # ══════════════════════════════════════════════════════════════════════════════
-# TREND POTENZE CARICHI — 1 ora
+# TREND POTENZE — il consumo della casa (kW) ha il suo asse
 # ══════════════════════════════════════════════════════════════════════════════
-
 - id: pro5_trend_lbl
   type: text
-  x: 640
-  y: 480
-  text: "{{t0117}}"
+  x: 24
+  y: 500
+  width: 900
+  height: 22
+  text_wrap: true
+  text_valign: middle
+  text: '{{t0117}}'
   font_size: 13
-  text_anchor: middle
-  color: "#64748b"
-
-- id: pro5_trend
-  type: trend
-  x: 142
-  y: 490
-  width: 996
-  height: 191
-  tag: cucina.potenza_w
-  extra_tags:
-    - pompacalore.potenza_w
-    - energia.potenza_kw
-  window_s: 3600
-  line_color: "#f59e0b"
-
-- id: pro5_leg1
-  type: text
-  x: 155
-  y: 697
-  text: "{{t0118}}"
-  font_size: 12
-  color: "#f59e0b"
-
-- id: pro5_leg2
-  type: text
-  x: 330
-  y: 697
-  text: "{{t0119}}"
-  font_size: 12
-  color: "#38bdf8"
-
-- id: pro5_leg3
-  type: text
-  x: 563
-  y: 697
-  text: "{{t0120}}"
-  font_size: 12
-  color: "#a5b4fc"
-
+  color: '#64748b'
 - id: pro5_leg_note
   type: text
-  x: 963
-  y: 697
-  text: "{{t0104}}"
+  x: 956
+  y: 500
+  width: 300
+  height: 22
+  text_wrap: true
+  text_valign: middle
+  text: '{{t0104}}'
   font_size: 12
-  color: "#334155"
+  text_anchor: end
+  color: '#475569'
+- id: pro5_trend
+  type: trend
+  x: 24
+  y: 524
+  width: 1232
+  height: 202
+  window_s: 3600
+  trend_tags:
+  - tag: cucina.potenza_w
+    label: '{{t0118}}'
+    color: '#f59e0b'
+  - tag: pompacalore.potenza_w
+    label: '{{t0119}}'
+    color: '#38bdf8'
+  - tag: energia.potenza_kw
+    label: '{{t0120}}'
+    color: '#a5b4fc'
+    own_scale: true

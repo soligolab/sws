@@ -1,6 +1,6 @@
 # Le regole del parco template
 
-> Decise dal maintainer il 17-09-2026, dopo aver misurato tutti i template.
+> Decise dal maintainer il 17-09-2026, dopo aver misurato tutti i template; R6–R8 il 04-11-2026, collaudando la 2.25.0.
 > Il referto della discussione — le misure, le alternative scartate e il perché di ogni scelta —
 > sta in [`docs/archive/2026-09-17-regole-dei-template.md`](../../docs/archive/2026-09-17-regole-dei-template.md).
 > Le regole sono verificate da [`scripts/check_templates.sh`](../../scripts/check_templates.sh),
@@ -79,6 +79,58 @@ agli indirizzi: «i segreti viaggiano col progetto» è una decisione presa e gi
 progetto**, ma un template non è un progetto — è qualcosa che si dà a chi con quell'impianto non
 c'entra niente. Vedi Q58 in [`docs/OPEN_QUESTIONS.md`](../../docs/OPEN_QUESTIONS.md).*
 
+## R6 — Ogni pagina ha una cornice
+
+`page_layout.cornice_predefinita` è dichiarata e il suo file sta in `cornici/`. Ogni pagina normale la usa: nessuna
+`cornice: null`. Restano fuori le pagine-finestra e le pagine speciali (`kind`), che una cornice non l'hanno mai.
+
+La cornice si disegna **sotto** la pagina e non sposta niente (`componi` in `sws-web/src/cornici.rs`). Quindi un oggetto
+della pagina dentro una fascia è lecito nello spazio libero — il titolo accanto all'orologio — e sbagliato quando copre
+un oggetto della cornice, che resterebbe nascosto a metà. È la stessa regola di `oggetti_nelle_fasce`, che l'IDE
+segnala. Il contenuto vero sta nell'area attiva, fra testata e piede.
+
+Una cornice nuova parte dal modello di `openplc-laboratorio`: testata con il nome della pagina (`{{pagina.nome}}`), data
+e ora; piede con la navigazione. Con una pagina sola il piede non serve. I colori sono quelli del template.
+
+*Decisa dal maintainer il 04-11-2026 collaudando la 2.25.0: «il demo ha un difetto, non hai usato i frame per le pagine,
+va corretto». Quel giorno 3 template su 16 avevano una cornice.*
+
+## R7 — Ogni comando si usa col ruolo Viewer
+
+Le variabili che bottoni, interruttori, cursori, setpoint e righe scrivibili di una tabella scrivono hanno
+`write_min_role: Viewer` (sul tag, o sul membro del tipo per un'istanza). Nessun oggetto chiede un ruolo con
+`min_role`. Nessun bottone chiama una funzione Python (`on_press_fn`): una funzione la esegue solo un Operator, e il
+pannello LVGL non la esegue affatto. Per contare, accendere o azzerare bastano i modi del bottone (`increment`,
+`toggle`, `set`, …).
+
+Chi apre un template lo prova senza accedere. Un comando che chiede il login, in una demo, sembra un difetto.
+
+**Le eccezioni sono due**: `openplc-laboratorio` e `homeassistant-pro` mostrano la gestione dei permessi. Lì qualche
+comando resta più alto, dichiarato in `R7_PERMESSI` con il suo tetto. Il lucchetto col ruolo che serve lo mette il
+prodotto, non il template: una pastiglia «🔒 Supervisor» nell'angolo del comando, sul web e su LVGL, a chi non ha quel
+ruolo. Nessuna scritta «serve il ruolo…» nelle pagine.
+
+Non si possono aprire a Viewer, perché il runtime le tiene a Operator: riconoscere un allarme, applicare una ricetta,
+eseguire una funzione.
+
+*Decisa dal maintainer il 04-11-2026: «nei demo tutti i pulsanti mettili con accesso viewer, solo nei demo dove vogliamo
+mostrare specificatamente la gestione dei permessi eleva le credenziali di qualche pulsante». Quel giorno i comandi
+erano quasi tutti al ruolo predefinito, Operator.*
+
+## R8 — Gli aggregati di oggetti stanno in un faceplate
+
+Un gruppo che si ripete è un faceplate con i suoi parametri, e la pagina ne ha le istanze. Esempi: il riquadro con il
+titolo e i valori di una macchina, una pompa col suo stato e il suo comando, una stanza con la luce e la temperatura.
+
+I faceplate legano i tag per radice comune (`motore1.velocita`, `motore1.marcia`). Quindi variabili piatte che si
+ripetono (`s.fv_potenza`, `s.inverter_potenza`) si portano prima a **tipi e istanze**.
+
+La guardia conta solo una cosa: due o più oggetti della stessa istanza, fuori da un faceplate, quando il tipo ha più di
+un'istanza. Il resto — un gruppo fatto di variabili piatte, un riquadro ripetuto due volte — lo giudica chi rivede.
+
+*Decisa dal maintainer il 04-11-2026: «vedo che non usi mai i faceplates mentre sarebbero molto comodi in tutti i
+template che hai fatto oggi, come regola quando puoi gli aggregati di oggetti falli in un faceplates».*
+
 ---
 
 ## Il debito dichiarato
@@ -90,20 +142,25 @@ template peggiora, la guardia diventa rossa; se migliora, chiede di abbassare il
 
 `./scripts/check_templates.sh` stampa il totale a ogni giro. Erano **30** quando le regole sono
 nate, la mattina del 17-09-2026; dopo il Passo 5 della revisione — lo stesso giorno — erano **6**;
-dal 18-09, con `casa-locale` uscito dal parco, sono **4**.
+dal 18-09, con `casa-locale` uscito dal parco, sono **4**. Le regole R6–R8 le hanno riportate a **25**
+il 04-11-2026, e la sessione T1 a **15**.
 
 **R1, R2 e R5 sono a zero**: ogni pagina è 1280×800, ogni testo visibile di ogni template passa dalla tabella lingue, ogni
 template dichiara `it/en/es` con tutte e tre le colonne piene, e nessuno porta l'indirizzo o le
 credenziali di una rete vera. Se una riga ricompare in `R2_DEBITO`, è un template che è tornato
 indietro.
 
-Le due che restano sono di semplicità (R3), e dal 02-11-2026 riguardano solo gli oggetti per
-pagina — col tetto delle pagine a 6, `demo-items-*` e `tc620-sistema` ci stanno dentro:
+**Anche R3 è a zero dal 04-11-2026.** Le ultime due righe erano `homeassistant-demo` (62 oggetti nella panoramica) e
+`homeassistant-pro` (106, la vetrina del «cosa si può fare», eccezione decisa dal maintainer il 17-09). Con i faceplate
+di R8 sono scese a 38 e a 60: il gruppo che si ripete conta un oggetto solo.
 
-| Template | Regola | Perché |
-|---|---|---|
-| `homeassistant-demo` | R3 | 62 oggetti nella panoramica, due sopra il tetto |
-| `homeassistant-pro` | R3 | la vetrina del «cosa si può fare» — eccezione decisa dal maintainer |
+**R6, R7 e R8** sono nate il 04-11-2026 con un debito per template, in `R678_DEBITO`: tre numeri, uno per regola, che
+possono solo scendere. La sessione T1 della [serie coordinata](../../docs/plans/README.md) ne ha portati a zero sei
+(`demo-slider`, `grid-playground`, `homeassistant-demo`, `homeassistant-pro`, `montagna-rinnovabile`,
+`openplc-laboratorio`); la T2 fa gli altri dieci.
+`SWS_TEMPLATE_MISURA=1 ./scripts/check_templates.sh` stampa i numeri di oggi, e
+`SWS_TEMPLATE_SOLO=<nome> SWS_TEMPLATE_SENZA_DEBITO=1 ./scripts/check_templates.sh` dice se un template è a zero, con
+l'elenco di quello che manca.
 
 Un debito dichiarato non è un'assoluzione. È la differenza fra sapere quanto si è indietro e non
 saperlo.

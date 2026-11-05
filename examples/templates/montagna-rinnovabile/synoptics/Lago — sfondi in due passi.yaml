@@ -1,6 +1,8 @@
 # Gli sfondi della prova vera di F6 (04-11-2026): una base del giorno e la sua variante «sera»,
 # fatta modificando la base. Il rifugio resta nello stesso punto, e la dissolvenza è pulita.
 # Il cursore in basso (c.giorno_notte, 0..100) porta la foto del giorno da trasparente a piena.
+# Con la cornice (regola R6) le foto stanno fra testata e piede, da y 56 a 740, sempre in
+# `cover`: la scala resta 0,833 e il rifugio sale di 2 px soltanto.
 id: p_lago
 name: '{{t0201}}'
 width: 1280.0
@@ -11,18 +13,18 @@ objects:
   name: Sfondo — sera
   type: image
   x: 0.0
-  y: 0.0
+  y: 56.0
   width: 1280.0
-  height: 800.0
+  height: 684.0
   src: /api/project/images/lago-sera.jpg
   image_fit: cover
 - id: lago_giorno
   name: Sfondo — giorno
   type: image
   x: 0.0
-  y: 0.0
+  y: 56.0
   width: 1280.0
-  height: 800.0
+  height: 684.0
   src: /api/project/images/lago-giorno.jpg
   image_fit: cover
   opacity: 0.0
@@ -37,35 +39,27 @@ objects:
 - id: lago_pannello
   type: rect
   x: 24.0
-  y: 18.0
+  y: 68.0
   width: 800.0
-  height: 92.0
+  height: 48.0
   fill: '#0b1526'
   corner_radius: 10.0
   opacity: 0.72
-- id: lago_titolo
-  type: text
-  x: 40.0
-  y: 26.0
-  width: 600.0
-  height: 40.0
-  text: '{{t0202}}'
-  font_size: 28.0
-  font_weight: bold
-  color: '#f1f5f9'
 - id: lago_sottotitolo
   type: text
   x: 40.0
   y: 68.0
   width: 770.0
-  height: 34.0
+  height: 48.0
+  text_wrap: true
+  text_valign: middle
   text: '{{t0203}}'
   font_size: 13.0
   color: '#cbd5e1'
 - id: lago_pannello_cursore
   type: rect
   x: 340.0
-  y: 672.0
+  y: 624.0
   width: 600.0
   height: 104.0
   fill: '#0b1526'
@@ -74,7 +68,7 @@ objects:
 - id: lago_cursore
   type: slider
   x: 360.0
-  y: 684.0
+  y: 636.0
   width: 560.0
   height: 80.0
   tag: c.giorno_notte

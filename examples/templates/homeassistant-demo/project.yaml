@@ -2,6 +2,24 @@ meta:
   name: homeassistant-demo
   version: 0.2.0
 
+# ── TIPI ──────────────────────────────────────────────────────────────────────
+# Un ambiente ha temperatura e umidità: soggiorno, studio ed esterno sono tre
+# istanze dello stesso tipo (R8, 04-11-2026). I percorsi restano quelli di
+# prima — `sala.temperatura`, `esterno.umidita` — quindi mappature, allarmi,
+# espressioni e storico non cambiano. Lo storico si accende sull'istanza e vale
+# per tutti i membri (così entra anche `studio.umidita`, che prima ne era fuori);
+# i faceplate «ambiente» e «temperatura_storico» le mostrano per radice.
+types:
+  - id: ambiente
+    description: "Temperatura e umidità di un ambiente"
+    members:
+      - name: temperatura
+        description: "Temperatura (°C)"
+        data_type: float
+      - name: umidita
+        description: "Umidità relativa (%)"
+        data_type: float
+
 # ── TAG ───────────────────────────────────────────────────────────────────────
 # Tutti gli entity_id si riferiscono a un'installazione reale con:
 #   - Sensori Zigbee (temperatura/umidità per stanza)
@@ -9,32 +27,28 @@ meta:
 #   - Sensori perimetrali (porte, finestre, cancello garage)
 #   - Switch controllabili (lampade esterne, prese)
 # Adatta gli entity_id alla tua installazione. Vedi SETUP.md.
-
 tags:
 
-  # ── Ambiente: soggiorno ────────────────────────────────────────────────────
-  - id: sala.temperatura
-    description: "Temperatura soggiorno (°C)"
-    data_type: float
+  # ── Ambienti ───────────────────────────────────────────────────────────────
+  - id: sala
+    description: "Soggiorno: temperatura e umidità"
+    type_ref: ambiente
     history: true
     datastore_id: sqlite-locale
 
-  - id: sala.umidita
-    description: "Umidità soggiorno (%)"
-    data_type: float
+  - id: studio
+    description: "Studio: temperatura e umidità"
+    type_ref: ambiente
     history: true
     datastore_id: sqlite-locale
 
-  # ── Ambiente: studio ───────────────────────────────────────────────────────
-  - id: studio.temperatura
-    description: "Temperatura studio (°C)"
-    data_type: float
+  # Nessuna entità di HA la alimenta: è il posto per un sensore esterno, da
+  # aggiungere in `sources` come gli altri (vedi SETUP.md).
+  - id: esterno
+    description: "Esterno: temperatura e umidità"
+    type_ref: ambiente
     history: true
     datastore_id: sqlite-locale
-
-  - id: studio.umidita
-    description: "Umidità studio (%)"
-    data_type: float
 
   # ── Fotovoltaico ───────────────────────────────────────────────────────────
   - id: pv.potenza_kw
@@ -110,21 +124,27 @@ tags:
   # ── Luci/switch — write-back abilitato ────────────────────────────────────
   # I tag luce.* mantengono gli ID storici del sinottico — rimappati
   # a switch reali (lampade esterne, prese) disponibili nell'installazione.
+  # `write_min_role: Viewer` (R7, 04-11-2026): chi apre il template li prova
+  # senza accedere.
   - id: luce.esterno
     description: "Lampada cancelletto ON/OFF"
     data_type: bool
+    write_min_role: Viewer
 
   - id: luce.soggiorno
     description: "Lampada viale centrale ON/OFF"
     data_type: bool
+    write_min_role: Viewer
 
   - id: luce.cucina
     description: "Lampada strada destra ON/OFF"
     data_type: bool
+    write_min_role: Viewer
 
   - id: ventilatore.camera
     description: "Presa laboratorio ON/OFF"
     data_type: bool
+    write_min_role: Viewer
 
   # ── Sole ───────────────────────────────────────────────────────────────────
   - id: sole.elevazione
@@ -143,7 +163,10 @@ tags:
     data_type: float
     expression: "round(tags['sala.temperatura'] - tags['studio.temperatura'], 1)"
 
-  - id: sala.comfort_index
+  # Fino al 04-11-2026 stava sotto la radice `sala`: da quando `sala` è
+  # un'istanza del tipo `ambiente`, un id piatto sotto la sua radice non si crea
+  # più (il TagDb lo legge come un membro di `sala` che il tipo non ha).
+  - id: clima.comfort_soggiorno
     description: "Indice comfort soggiorno 0-100 (T ideale 22°C, U ideale 50%)"
     data_type: float
     expression: |
@@ -177,18 +200,11 @@ tags:
   # I nomi si lasciano come sono: rinominarli per accorparli a quelli già
   # dichiarati (`sala.temperatura`, per dire) vorrebbe dire indovinare cosa
   # intendeva chi ha disegnato le pagine, e sbagliare in silenzio.
-  - id: esterno.temperatura
-    description: "Temperatura esterna (°C)"
-    data_type: float
-    history: true
-    datastore_id: sqlite-locale
-
-  - id: esterno.umidita
-    description: "Umidità esterna (%)"
-    data_type: float
-    history: true
-    datastore_id: sqlite-locale
-
+  # (`esterno.temperatura` ed `esterno.umidita` erano qui: dal 04-11-2026 sono
+  # i membri dell'istanza `esterno`, dichiarata con gli altri ambienti.)
+  #
+  # I tre comandi della pagina Controllo (setpoint, irrigazione, modalità
+  # notturna) si scrivono col ruolo Viewer, come le luci (R7).
   - id: clima.temperatura_attuale
     description: "Temperatura ambiente letta dal termostato (°C)"
     data_type: float
@@ -202,14 +218,17 @@ tags:
   - id: riscaldamento.setpoint
     description: "Setpoint riscaldamento scritto dall'utente (°C)"
     data_type: float
+    write_min_role: Viewer
 
   - id: irrigazione.durata_min
     description: "Durata del ciclo di irrigazione (min)"
     data_type: int
+    write_min_role: Viewer
 
   - id: modalita.notturna
     description: "Modalità notturna attiva"
     data_type: bool
+    write_min_role: Viewer
 
 datastores:
   - id: sqlite-locale
@@ -411,36 +430,11 @@ languages:
         it: "Movimento rilevato area esterna"
         en: "Motion detected in outdoor area"
         es: "Movimiento detectado en el área exterior"
-    - key: t0001
-      values:
-        it: "HOME ASSISTANT — PANORAMICA"
-        en: "HOME ASSISTANT — OVERVIEW"
-        es: "HOME ASSISTANT — RESUMEN"
     - key: t0002
       values:
         it: "Clima · Energia · Sicurezza · Luci"
         en: "Climate · Energy · Security · Lights"
         es: "Clima · Energía · Seguridad · Luces"
-    - key: t0003
-      values:
-        it: "◉ Panoramica"
-        en: "◉ Overview"
-        es: "◉ Resumen"
-    - key: t0004
-      values:
-        it: "⚙ Controllo"
-        en: "⚙ Control"
-        es: "⚙ Control"
-    - key: t0005
-      values:
-        it: "📈 Storico"
-        en: "📈 History"
-        es: "📈 Histórico"
-    - key: t0006
-      values:
-        it: "CLIMA"
-        en: "CLIMATE"
-        es: "CLIMA"
     - key: t0007
       values:
         it: "INTERNO"
@@ -448,9 +442,9 @@ languages:
         es: "INTERIOR"
     - key: t0008
       values:
-        it: "Comfort:"
-        en: "Comfort:"
-        es: "Confort:"
+        it: "Comfort (0–100):"
+        en: "Comfort (0–100):"
+        es: "Confort (0–100):"
     - key: t0009
       values:
         it: "ESTERNO"
@@ -458,9 +452,9 @@ languages:
         es: "EXTERIOR"
     - key: t0010
       values:
-        it: "Delta:"
-        en: "Delta:"
-        es: "Delta:"
+        it: "Delta (°C):"
+        en: "Delta (°C):"
+        es: "Delta (°C):"
     - key: t0011
       values:
         it: "ENERGIA"
@@ -516,11 +510,6 @@ languages:
         it: "Esterna"
         en: "Outdoor"
         es: "Exterior"
-    - key: t0022
-      values:
-        it: "richiede ruolo Supervisor+"
-        en: "requires Supervisor+ role"
-        es: "requiere rol Supervisor+"
     - key: t0023
       values:
         it: "Ventilatore"
@@ -551,26 +540,11 @@ languages:
         it: "elevazione"
         en: "elevation"
         es: "elevación"
-    - key: t0029
-      values:
-        it: "HOME ASSISTANT — CONTROLLO"
-        en: "HOME ASSISTANT — CONTROL"
-        es: "HOME ASSISTANT — CONTROL"
     - key: t0030
       values:
         it: "Attuatori con write-back diretto su HomeAssistant"
         en: "Actuators with direct write-back to HomeAssistant"
         es: "Actuadores con escritura directa en HomeAssistant"
-    - key: t0031
-      values:
-        it: "◎ Panoramica"
-        en: "◎ Overview"
-        es: "◎ Resumen"
-    - key: t0032
-      values:
-        it: "◉ Controllo"
-        en: "◉ Control"
-        es: "◉ Control"
     - key: t0033
       values:
         it: "ON"
@@ -641,21 +615,11 @@ languages:
         it: "Bool → turn_on / turn_off  •  Float/Int → service_data: {value: N}  •  Latenza tipica: < 200 ms su rete locale"
         en: "Bool → turn_on / turn_off  •  Float/Int → service_data: {value: N}  •  Typical latency: < 200 ms on local network"
         es: "Bool → turn_on / turn_off  •  Float/Int → service_data: {value: N}  •  Latencia típica: < 200 ms en red local"
-    - key: t0047
-      values:
-        it: "HOME ASSISTANT — STORICO"
-        en: "HOME ASSISTANT — HISTORY"
-        es: "HOME ASSISTANT — HISTÓRICO"
     - key: t0048
       values:
-        it: "Tag derivati · Trend · Statistiche"
-        en: "Derived tags · Trend · Statistics"
-        es: "Tags derivados · Tendencia · Estadísticas"
-    - key: t0049
-      values:
-        it: "◉ Storico"
-        en: "◉ History"
-        es: "◉ Histórico"
+        it: "Tag derivati · Valori live · Come usare lo storico"
+        en: "Derived tags · Live values · How to use the history"
+        es: "Tags derivados · Valores en vivo · Cómo usar el histórico"
     - key: t0050
       values:
         it: "TAG DERIVATI (calcolati in SWS da espressioni Python)"
@@ -668,9 +632,9 @@ languages:
         es: "Coste de la energía (€/h):"
     - key: t0052
       values:
-        it: "potenza_W × 0.25 / 1000"
-        en: "power_W × 0.25 / 1000"
-        es: "potencia_W × 0.25 / 1000"
+        it: "potenza_kW × 0.25 €/kWh"
+        en: "power_kW × 0.25 €/kWh"
+        es: "potencia_kW × 0.25 €/kWh"
     - key: t0053
       values:
         it: "Delta Int–Ext (°C):"
@@ -748,9 +712,9 @@ languages:
         es: "Tags derivados (expression): se recalculan en cada actualización de cualquier tag — no necesitan history para funcionar."
     - key: t0068
       values:
-        it: "  Esempio: energia.costo_ora_eur  =  tags['energia.potenza_w'] * 0.25 / 1000"
-        en: "  Example: energia.costo_ora_eur  =  tags['energia.potenza_w'] * 0.25 / 1000"
-        es: "  Ejemplo: energia.costo_ora_eur  =  tags['energia.potenza_w'] * 0.25 / 1000"
+        it: "  Esempio: energia.costo_ora_eur  =  round(tags['energia.potenza_w'] * 0.25, 4)"
+        en: "  Example: energia.costo_ora_eur  =  round(tags['energia.potenza_w'] * 0.25, 4)"
+        es: "  Ejemplo: energia.costo_ora_eur  =  round(tags['energia.potenza_w'] * 0.25, 4)"
     - key: t0076
       values:
         it: "Totale: {value:.2f} kWh"
@@ -761,6 +725,26 @@ languages:
         it: "Costo ora: {value:.4f} €"
         en: "Cost now: {value:.4f} €"
         es: "Coste ahora: {value:.4f} €"
+    - key: t0078
+      values:
+        it: "Panoramica"
+        en: "Overview"
+        es: "Resumen"
+    - key: t0079
+      values:
+        it: "Controllo"
+        en: "Control"
+        es: "Control"
+    - key: t0080
+      values:
+        it: "Storico"
+        en: "History"
+        es: "Histórico"
+    - key: t0081
+      values:
+        it: "ALLARMI"
+        en: "ALARMS"
+        es: "ALARMAS"
 
 # ── Pagina iniziale ──────────────────────────────────────────────────────────
 #
@@ -771,3 +755,12 @@ languages:
 page_layout:
   size_mode: fixed
   home_page_id: ha_page1   # Panoramica
+  # L'ordine delle pagine nel navigatore della cornice.
+  page_tree:
+    - id: ha_page1
+    - id: ha_page2
+    - id: ha_page3
+  # La cornice delle tre pagine (R6, 04-11-2026): nome della pagina, lingua,
+  # data e ora in testata; il navigatore nel piede. Sta in `cornici/cornice.yaml`
+  # e sostituisce titolo e bottoni di navigazione che ogni pagina ripeteva.
+  cornice_predefinita: cornice

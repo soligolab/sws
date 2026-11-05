@@ -1,0 +1,60 @@
+# Una tapparella coi suoi due comandi (04-11-2026, regole R7 e R8): nome, stato
+# e i pulsanti SU (scrive true → cover.open_cover) e GIÙ (false →
+# cover.close_cover). Come per le luci, il ruolo che serve sta sul tag.
+id: tapparella
+label: Tapparella con comandi
+width: 432
+height: 44
+params:
+- name: p
+  type: tag
+  default: tapparella.bagno
+  required: true
+- name: nome
+  type: string
+  default: '{{t0021}}'
+objects:
+- id: nome
+  type: text
+  x: 0
+  y: 0
+  width: 170
+  height: 44
+  text_wrap: true
+  text_valign: middle
+  text: '{nome}'
+  font_size: 15
+  color: '#cbd5e1'
+- id: stato
+  type: led
+  x: 176
+  y: 10
+  width: 24
+  height: 24
+  tag: '{p}'
+  on_color: '#38bdf8'
+  off_color: '#334155'
+- id: su
+  type: button
+  x: 216
+  y: 4
+  width: 104
+  height: 36
+  label: '{{t0149}}'
+  tag: '{p}'
+  button_mode: write
+  write_value: true
+  fill: '#0284c7'
+  color: '#f0f9ff'
+- id: giu
+  type: button
+  x: 328
+  y: 4
+  width: 104
+  height: 36
+  label: '{{t0150}}'
+  tag: '{p}'
+  button_mode: write
+  write_value: false
+  fill: '#374151'
+  color: '#e2e8f0'

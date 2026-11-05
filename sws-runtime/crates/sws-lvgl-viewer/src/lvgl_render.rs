@@ -12169,7 +12169,17 @@ impl ExtraTubo {
     }
 }
 
+/// Le soglie di scrittura del progetto (percorso → ruolo) e il ruolo di chi
+/// guarda: quello che serve a decidere il lucchetto (R7, 04-11-2026).
+type Lucchetti = (std::collections::HashMap<String, String>, Option<Role>);
+
 thread_local! {
+    /// Le soglie di scrittura del progetto e il ruolo di chi guarda, per il
+    /// lucchetto (R7, 04-11-2026): le prende `rendi_oggetti_in` una volta per
+    /// pagina, le leggono anche i figli dei faceplate. `None` = niente
+    /// lucchetti (runtime senza utenti, o progetto non leggibile).
+    static LUCCHETTI: RefCell<Option<Lucchetti>> = const { RefCell::new(None) };
+
     /// I diametri delle bocche ai due capi di ogni tubo della pagina in corso di
     /// disegno, per id: li calcola il ciclo, che vede tutti gli oggetti, e li
     /// legge `render_pipe`, che vede solo il suo (15-10-2026).
@@ -15179,15 +15189,120 @@ fn dispatch_render(
     result
 }
 
+/// I parametri di un'istanza con i predefiniti della definizione, come
+/// `effectiveFaceplateParams` del web (F6.2): il valore dell'istanza se c'è e
+/// non è vuoto, altrimenti il `default` dichiarato; le chiavi in più
+/// dell'istanza passano comunque. Fino al 04-11-2026 il pannello ignorava i
+/// predefiniti, e un parametro lasciato al suo valore restava `{nome}`.
+fn parametri_effettivi(
+    dichiarati: Option<&serde_json::Value>,
+    istanza: Option<&std::collections::HashMap<String, String>>,
+) -> std::collections::HashMap<String, String> {
+    let mut out = std::collections::HashMap::new();
+    for p in dichiarati.and_then(|d| d.as_array()).into_iter().flatten() {
+        let (nome, predefinito) = match p {
+            serde_json::Value::String(n) => (n.as_str(), None),
+            serde_json::Value::Object(m) => match m.get("name").and_then(|n| n.as_str()) {
+                Some(n) => (n, m.get("default")),
+                None => continue,
+            },
+            _ => continue,
+        };
+        match istanza.and_then(|i| i.get(nome)).filter(|v| !v.is_empty()) {
+            Some(v) => {
+                out.insert(nome.to_string(), v.clone());
+            }
+            None => {
+                let testo = match predefinito {
+                    Some(serde_json::Value::String(s)) => Some(s.clone()),
+                    Some(serde_json::Value::Null) | None => None,
+                    Some(altro) => Some(altro.to_string()),
+                };
+                if let Some(t) = testo {
+                    out.insert(nome.to_string(), t);
+                }
+            }
+        }
+    }
+    for (k, v) in istanza.into_iter().flatten() {
+        if !v.is_empty() {
+            out.entry(k.clone()).or_insert_with(|| v.clone());
+        }
+    }
+    out
+}
+
+/// `{param}` sostituito in **ogni** campo stringa del figlio, anche dentro
+/// binding, celle e righe, come `substituteFaceplateParams` del web (F6.1).
+/// Restano fuori i campi d'identità (`id`, `type`, `group_id`,
+/// `faceplate_id`). Un segnaposto senza valore resta com'è, `{nome}`.
+/// Fino al 04-11-2026 il pannello sostituiva solo `tag`, `label` e `text`:
+/// un `color_on: "{colore}"` o uno `state_tag` parametrizzato funzionavano sul
+/// web e non qui.
+fn sostituisci_parametri(
+    v: &serde_json::Value,
+    params: &std::collections::HashMap<String, String>,
+) -> serde_json::Value {
+    use serde_json::Value;
+    fn testo(s: &str, params: &std::collections::HashMap<String, String>) -> String {
+        let mut out = String::with_capacity(s.len());
+        let mut rest = s;
+        while let Some(open) = rest.find('{') {
+            out.push_str(&rest[..open]);
+            rest = &rest[open..];
+            let chiusa = rest[1..]
+                .find(|c: char| !(c.is_alphanumeric() || c == '_'))
+                .map(|i| i + 1)
+                .filter(|&i| rest[i..].starts_with('}') && i > 1);
+            match chiusa {
+                Some(close) => {
+                    let key = &rest[1..close];
+                    match params.get(key) {
+                        Some(val) => out.push_str(val),
+                        None => out.push_str(&rest[..=close]),
+                    }
+                    rest = &rest[close + 1..];
+                }
+                None => {
+                    out.push('{');
+                    rest = &rest[1..];
+                }
+            }
+        }
+        out.push_str(rest);
+        out
+    }
+    match v {
+        Value::String(s) if s.contains('{') => Value::String(testo(s, params)),
+        Value::Array(a) => {
+            Value::Array(a.iter().map(|x| sostituisci_parametri(x, params)).collect())
+        }
+        Value::Object(m) => Value::Object(
+            m.iter()
+                .map(|(k, x)| {
+                    let nx = if matches!(k.as_str(), "id" | "type" | "group_id" | "faceplate_id") {
+                        x.clone()
+                    } else {
+                        sostituisci_parametri(x, params)
+                    };
+                    (k.clone(), nx)
+                })
+                .collect(),
+        ),
+        altro => altro.clone(),
+    }
+}
+
 /// `faceplate`: template composito di oggetti già ordinari (`FaceplateDef`
 /// in `sws-web/src/synoptic.rs`, `objects: Vec<serde_json::Value>` —
 /// **non** contiene SVG, quindi non è bloccato dal vincolo che ferma
 /// `symbol`/Q15). Recupera la definizione via `GET /api/faceplates/:id`
 /// (`client::fetch_faceplate`, stesso endpoint anonymous-readable già usato
 /// da `fetch_page`/`fetch_tag_snapshot`), sostituisce i placeholder
-/// `{param}` nei campi stringa (`tag`/`label`/`text`, sottoinsieme di quanto
-/// fa `substituteParams` in `SvgCanvas.tsx` — solo i campi che il modello
-/// di questo motore conosce) e richiama `dispatch_render` per ciascun
+/// `{param}` in ogni campo stringa coi predefiniti della definizione
+/// (`sostituisci_parametri` e `parametri_effettivi`, come
+/// `substituteFaceplateParams` del web dal 04-11-2026), applica gli override
+/// dell'istanza e richiama `dispatch_render` per ciascun
 /// figlio, con le coordinate traslate all'origine dell'istanza. Un
 /// `fetch_faceplate` bloccante (`rt_handle.block_on`) durante il rendering
 /// della pagina, non in background: la definizione serve prima di poter
@@ -15222,41 +15337,28 @@ fn render_faceplate(
         .as_deref()
         .ok_or_else(|| anyhow::anyhow!("faceplate senza faceplate_id"))?;
     let defn = rt_handle.block_on(client::fetch_faceplate(base_url, id))?;
-    let params = obj.faceplate_params.clone().unwrap_or_default();
+    let params = parametri_effettivi(defn.params.as_ref(), obj.faceplate_params.as_ref());
     let origin_x = obj.x.unwrap_or(0.0);
     let origin_y = obj.y.unwrap_or(0.0);
 
-    // Porta `s.replace(/\{(\w+)\}/g, ...)` di `substituteParams` in
-    // `SvgCanvas.tsx`: un placeholder senza valore in `params` resta
-    // testuale (`{key}`), stesso comportamento del web.
-    let subst = |s: &str| -> String {
-        let mut out = String::with_capacity(s.len());
-        let mut rest = s;
-        while let Some(open) = rest.find('{') {
-            out.push_str(&rest[..open]);
-            rest = &rest[open..];
-            match rest.find('}') {
-                Some(close) => {
-                    let key = &rest[1..close];
-                    match params.get(key) {
-                        Some(val) => out.push_str(val),
-                        None => out.push_str(&rest[..=close]),
-                    }
-                    rest = &rest[close + 1..];
-                }
-                None => {
-                    out.push_str(rest);
-                    rest = "";
-                    break;
+    for raw_child in &defn.objects {
+        let mut v = sostituisci_parametri(raw_child, &params);
+        // F6.4 del web: gli override dell'istanza vincono sul figlio, dopo la
+        // sostituzione, ma id e tipo restano quelli della definizione.
+        if let (Some(over), Some(m)) = (
+            obj.faceplate_overrides
+                .as_ref()
+                .and_then(|o| o.get(raw_child.get("id").and_then(|i| i.as_str()).unwrap_or("")))
+                .and_then(|o| o.as_object()),
+            v.as_object_mut(),
+        ) {
+            for (k, val) in over {
+                if k != "id" && k != "type" {
+                    m.insert(k.clone(), val.clone());
                 }
             }
         }
-        out.push_str(rest);
-        out
-    };
-
-    for raw_child in &defn.objects {
-        let Ok(mut child) = serde_json::from_value::<SynopticObject>(raw_child.clone()) else {
+        let Ok(mut child) = serde_json::from_value::<SynopticObject>(v) else {
             continue; // figlio malformato: ignorato silenziosamente, stesso principio del resto del parser
         };
         let Some(child_type) = child.obj_type.clone() else {
@@ -15267,15 +15369,11 @@ fn render_faceplate(
         }
         child.x = Some(origin_x + child.x.unwrap_or(0.0));
         child.y = Some(origin_y + child.y.unwrap_or(0.0));
-        if let Some(t) = &child.tag {
-            child.tag = Some(subst(t));
-        }
-        if let Some(l) = &child.label {
-            child.label = Some(subst(l));
-        }
-        if let Some(t) = &child.text {
-            child.text = Some(subst(t));
-        }
+        let lucchetto = LUCCHETTI.with(|l| {
+            l.borrow()
+                .as_ref()
+                .and_then(|(s, chi)| ruolo_che_serve(&child, s, *chi))
+        });
         // Errori sul singolo figlio non abortiscono l'intero faceplate —
         // stesso principio di tolleranza del loop principale in
         // render_page_objects, un widget rotto non deve far sparire
@@ -15298,6 +15396,10 @@ fn render_faceplate(
             own_page_id,
             live,
         );
+        if let (Some(ruolo), Ok(r)) = (lucchetto, screen.raw()) {
+            let destra = child.x.unwrap_or(0.0) + child.width.unwrap_or(100.0);
+            unsafe { lucchetto_ruolo(r.as_ptr(), destra, child.y.unwrap_or(0.0), &ruolo) };
+        }
     }
     Ok(())
 }
@@ -15377,6 +15479,105 @@ pub fn interpret_page(
 /// binding vivi da tenere in vita, e la risoluzione (hor, ver) del display.
 type PaginaResa = (RenderSummary, Vec<Style>, Vec<LiveBinding>, u32, u32);
 
+/// I tag che l'oggetto scrive quando lo si usa: le assegnazioni se ci sono,
+/// il `command_tag` del simbolo, il `tag` dei tipi che scrivono, le righe
+/// scrivibili di una tabella; niente se è in sola lettura. Gemello di
+/// `tagScrittiDa` (`sws-editor/src/auth/permessoScrittura.ts`).
+fn tag_scritti(obj: &SynopticObject) -> Vec<String> {
+    if let Some(a) = obj.assegnazioni.as_ref().filter(|a| !a.is_empty()) {
+        return a
+            .iter()
+            .map(|x| x.tag.clone())
+            .filter(|t| !t.is_empty())
+            .collect();
+    }
+    if obj.read_only == Some(true) {
+        return Vec::new();
+    }
+    match obj.obj_type.as_deref() {
+        Some("symbol") => obj.command_tag.clone().into_iter().collect(),
+        Some("button" | "checkbox" | "radio" | "setpoint" | "slider") => obj
+            .tag
+            .clone()
+            .filter(|t| !t.is_empty())
+            .into_iter()
+            .collect(),
+        Some("table") => obj
+            .table_rows
+            .iter()
+            .flatten()
+            .filter(|r| r.writable == Some(true) && !r.tag.is_empty())
+            .map(|r| r.tag.clone())
+            .collect(),
+        _ => Vec::new(),
+    }
+}
+
+/// Il ruolo che manca a chi guarda per usare l'oggetto, o `None` (R7,
+/// 04-11-2026). Due motivi e vince il più severo: l'oggetto chiede un ruolo
+/// (`min_role`, ed è anche attenuato) o lo chiede la variabile che scrive (il
+/// server rifiuterebbe; toccandolo il pannello chiede l'accesso). Stesso conto
+/// di `ruoloCheServe` nel web.
+fn ruolo_che_serve(
+    obj: &SynopticObject,
+    soglie: &std::collections::HashMap<String, String>,
+    chi: Option<Role>,
+) -> Option<String> {
+    let rango = |r: &str| Role::parse(r).unwrap_or(Role::Viewer);
+    let per_oggetto = obj
+        .min_role
+        .as_deref()
+        .filter(|r| !r.is_empty() && !role_allowed(Some(r), chi))
+        .map(str::to_string);
+    // Per la variabile l'anonimo vale Viewer, come sul server.
+    let ho = chi.unwrap_or(Role::Viewer);
+    let per_variabile = tag_scritti(obj)
+        .iter()
+        .map(|t| sws_core::soglia_di_scrittura(soglie, t))
+        .filter(|s| rango(s) > ho)
+        .max_by_key(|s| rango(s));
+    match (per_oggetto, per_variabile) {
+        (Some(a), Some(b)) => Some(if rango(&a) >= rango(&b) { a } else { b }),
+        (a, b) => a.or(b),
+    }
+}
+
+/// La pastiglia del lucchetto nell'angolo in alto a destra dell'oggetto
+/// (forma A, scelta dal maintainer il 04-11-2026; gemello di
+/// `LucchettoRuolo.tsx`). Il 🔒 viene da Noto Emoji, il fallback di DejaVu
+/// (`lvgl_font.rs`). Non prende i tocchi: restano all'oggetto.
+unsafe fn lucchetto_ruolo(genitore: *mut lvgl_sys::lv_obj_t, destra: f64, alto: f64, ruolo: &str) {
+    let p = lvgl_sys::lv_obj_create(genitore);
+    if p.is_null() {
+        return;
+    }
+    lvgl_sys::lv_obj_remove_style(
+        p,
+        core::ptr::null_mut(),
+        (lvgl_sys::LV_PART_ANY | lvgl_sys::LV_STATE_ANY) as lvgl_sys::lv_style_selector_t,
+    );
+    let largo = (ruolo.chars().count() as f64 * 11.0 * 0.62 + 26.0).round();
+    lvgl_sys::lv_obj_set_pos(
+        p,
+        (destra + 9.0 - largo).round() as i16,
+        (alto - 9.0).round() as i16,
+    );
+    lvgl_sys::lv_obj_set_size(p, largo as i16, 18);
+    stile::sfondo(p, (0x0b, 0x12, 0x20), stile::MAIN);
+    stile::bordo(p, Some((0x7c, 0x62, 0x1f)), 1.0, stile::MAIN);
+    stile::raggio(p, 9.0, stile::MAIN);
+    lvgl_sys::lv_obj_clear_flag(p, lvgl_sys::LV_OBJ_FLAG_SCROLLABLE);
+    lvgl_sys::lv_obj_clear_flag(p, lvgl_sys::LV_OBJ_FLAG_CLICKABLE);
+    let l = lvgl_sys::lv_label_create(p);
+    if !l.is_null() {
+        let testo = text_cstring(&format!("🔒 {ruolo}"));
+        lvgl_sys::lv_label_set_text(l, testo.as_ptr());
+        stile::testo(l, (0xfb, 0xbf, 0x24), stile::MAIN);
+        stile::font(l, 11, stile::MAIN);
+        lvgl_sys::lv_obj_align(l, lvgl_sys::LV_ALIGN_CENTER as lvgl_sys::lv_align_t, 0, 0);
+    }
+}
+
 /// Il ciclo che crea i widget di una pagina **dentro un genitore qualunque**
 /// (22-10-2026, piano delle finestre modali).
 ///
@@ -15410,6 +15611,30 @@ fn rendi_oggetti_in(
     styles: &mut Vec<Style>,
     live: &mut Vec<LiveBinding>,
 ) {
+    // Un runtime senza utenti dà a tutti il ruolo Admin (l'«Admin sintetico»
+    // del server, `/me` sul web): niente da attenuare, niente lucchetti. Fino
+    // al 04-11-2026 qui l'anonimo restava sotto Viewer anche senza utenti, e un
+    // oggetto con `min_role` era spento su un pannello dove chiunque comanda.
+    let auth_required = shared_session
+        .lock()
+        .unwrap_or_else(|e| e.into_inner())
+        .auth_required;
+    let viewer_role = if auth_required {
+        viewer_role
+    } else {
+        Some(Role::Admin)
+    };
+    // Le soglie servono solo se qualcosa sulla pagina comanda.
+    let comanda = page
+        .objects
+        .iter()
+        .any(|o| !tag_scritti(o).is_empty() || o.obj_type.as_deref() == Some("faceplate"));
+    let soglie = if auth_required && comanda {
+        rt_handle.block_on(client::fetch_soglie_scrittura(base_url))
+    } else {
+        None
+    };
+    LUCCHETTI.with(|l| *l.borrow_mut() = soglie.map(|s| (s, viewer_role)));
     for obj in sort_by_z(&page.objects) {
         let (Some(id), Some(obj_type)) = (obj.id.as_deref(), obj.obj_type.as_deref()) else {
             continue; // oggetto senza id/type: dato malformato, ignorato silenziosamente
@@ -15586,6 +15811,16 @@ fn rendi_oggetti_in(
         }
         if role_factor < 1.0 {
             unsafe { disable_clickable_from(genitore_ptr, figli_prima) };
+        }
+        // Il lucchetto col ruolo che manca (R7, 04-11-2026), pieno anche
+        // sull'oggetto attenuato: si crea dopo, fuori dall'attenuazione.
+        if let Some(ruolo) = LUCCHETTI.with(|l| {
+            l.borrow()
+                .as_ref()
+                .and_then(|(s, chi)| ruolo_che_serve(obj, s, *chi))
+        }) {
+            let destra = obj.x.unwrap_or(0.0) + obj.width.unwrap_or(100.0);
+            unsafe { lucchetto_ruolo(genitore_ptr, destra, obj.y.unwrap_or(0.0), &ruolo) };
         }
         // Rotazione statica (26-09-2026): prima il campo c'era nel modello e
         // nessuno lo leggeva, e un oggetto ruotato nell'editor stava dritto
@@ -20445,5 +20680,93 @@ mod forme_svg_tests {
             "type": "polyline", "x": 0, "y": 0, "points": [{"x": 1, "y": 1}]
         })));
         assert!(una.is_none());
+    }
+}
+
+/// Il faceplate su LVGL come sul web (04-11-2026): predefiniti, ogni campo
+/// stringa, identità intatta.
+#[cfg(test)]
+mod faceplate_tests {
+    use super::*;
+
+    #[test]
+    fn il_faceplate_sostituisce_come_il_web() {
+        let dichiarati = serde_json::json!([
+            "p",
+            { "name": "colore", "default": "#22c55e" },
+            { "name": "nome" }
+        ]);
+        let istanza = std::collections::HashMap::from([
+            ("p".to_string(), "pompa1".to_string()),
+            ("nome".to_string(), String::new()),
+        ]);
+        let par = parametri_effettivi(Some(&dichiarati), Some(&istanza));
+        assert_eq!(par.get("p").map(String::as_str), Some("pompa1"));
+        assert_eq!(
+            par.get("colore").map(String::as_str),
+            Some("#22c55e"),
+            "il predefinito"
+        );
+        assert!(
+            !par.contains_key("nome"),
+            "vuoto e senza predefinito: resta il segnaposto"
+        );
+        let figlio = serde_json::json!({
+            "id": "{p}_led", "type": "led", "tag": "{p}.marcia",
+            "color_on": "{colore}", "label": "{nome}",
+            "bindings": { "opacity": { "tag": "{p}.luce" } },
+        });
+        let v = sostituisci_parametri(&figlio, &par);
+        assert_eq!(v["id"], "{p}_led", "l'identità non si parametrizza");
+        assert_eq!(v["tag"], "pompa1.marcia");
+        assert_eq!(v["color_on"], "#22c55e");
+        assert_eq!(v["label"], "{nome}");
+        assert_eq!(v["bindings"]["opacity"]["tag"], "pompa1.luce");
+        // Una graffa che non è un segnaposto passa com'è.
+        let fmt = sostituisci_parametri(&serde_json::json!("{value:.1f} {p}"), &par);
+        assert_eq!(fmt, "{value:.1f} pompa1");
+    }
+
+    /// Il lucchetto (R7, 04-11-2026): lo stesso conto di `ruoloCheServe` nel
+    /// web, con le soglie di `sws_core::soglie_di_scrittura`.
+    #[test]
+    fn il_lucchetto_dice_il_ruolo_che_manca() {
+        let soglie = std::collections::HashMap::from([
+            ("luce".to_string(), "Viewer".to_string()),
+            ("garage".to_string(), "Supervisor".to_string()),
+        ]);
+        let o = |v: serde_json::Value| serde_json::from_value::<SynopticObject>(v).unwrap();
+        let luce = o(serde_json::json!({ "id": "a", "type": "button", "tag": "luce" }));
+        let pompa = o(serde_json::json!({ "id": "b", "type": "button", "tag": "pompa" }));
+        let garage = o(serde_json::json!({ "id": "c", "type": "slider", "tag": "garage" }));
+        let sola = o(
+            serde_json::json!({ "id": "d", "type": "slider", "tag": "garage", "read_only": true }),
+        );
+        let chiesto = o(
+            serde_json::json!({ "id": "e", "type": "button", "tag": "luce", "min_role": "Operator" }),
+        );
+        assert_eq!(ruolo_che_serve(&luce, &soglie, None), None);
+        assert_eq!(
+            ruolo_che_serve(&pompa, &soglie, None).as_deref(),
+            Some("Operator")
+        );
+        assert_eq!(ruolo_che_serve(&pompa, &soglie, Some(Role::Operator)), None);
+        assert_eq!(
+            ruolo_che_serve(&garage, &soglie, Some(Role::Operator)).as_deref(),
+            Some("Supervisor")
+        );
+        assert_eq!(
+            ruolo_che_serve(&sola, &soglie, None),
+            None,
+            "in sola lettura non comanda"
+        );
+        assert_eq!(
+            ruolo_che_serve(&chiesto, &soglie, None).as_deref(),
+            Some("Operator")
+        );
+        assert_eq!(
+            ruolo_che_serve(&chiesto, &soglie, Some(Role::Supervisor)),
+            None
+        );
     }
 }
