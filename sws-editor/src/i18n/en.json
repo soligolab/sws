@@ -119,7 +119,8 @@
     "preferences": "PREFERENCES",
     "plantBadge": "Live plant",
     "plantWarnTitle": "This instance serves a plant (it has an operator viewer): you are editing the live project, and saving reloads its sources and alarms without a restart. To work on a copy, use the editor on your PC and then Deploy.",
-    "savedTags": "✓ Saved · {{n}} variables created"
+    "savedTags": "✓ Saved · {{n}} variables created",
+    "migrateSi": "Update the project"
   },
   "theme": {
     "label": "Theme",
@@ -1474,7 +1475,7 @@
     "cleanInstall": "Clean install",
     "cleanInstallHint": "Wipes projects, users, configuration and history in {{path}} before installing",
     "cleanInstallBtn": "🗑 Wipe and install",
-    "cleanInstallConfirm": "CLEAN INSTALL\n\nThe following will be permanently deleted from the device:\n  · every project\n  · users and configuration\n  · the historian archive\n\nFolder: {{path}}\n\nIf the image cannot be obtained, the install stops before deleting anything and the device is left untouched. Proceed?",
+    "cleanInstallConfirm": "The following will be permanently deleted from the device:\n  · every project\n  · users and configuration\n  · the historian archive\n\nFolder: {{path}}\n\nIf the image cannot be obtained, the install stops before deleting anything and the device is left untouched. Proceed?",
     "manageTitle": "Container management",
     "manageLocal": "Local (this machine)",
     "manageRemote": "Remote (SSH)",
@@ -1494,8 +1495,8 @@
     "uninstallPurge": "Also wipe data",
     "uninstallPurgeHint": "Wipes projects, configuration and history in {{path}} while uninstalling",
     "uninstallBtn": "🗑 Uninstall",
-    "uninstallConfirm": "UNINSTALL\n\nThe container and service will be removed. Data in {{path}} stays on disk (no \"also wipe data\" checked).\n\nProceed?",
-    "uninstallPurgeConfirm": "UNINSTALL + WIPE DATA\n\nThe container and service will be removed, and the following permanently deleted:\n  · every project\n  · configuration\n  · the historian archive\n\nFolder: {{path}}\n\nProceed?",
+    "uninstallConfirm": "The container and service will be removed. Data in {{path}} stays on disk (no \"also wipe data\" checked).\n\nProceed?",
+    "uninstallPurgeConfirm": "The container and service will be removed, and the following permanently deleted:\n  · every project\n  · configuration\n  · the historian archive\n\nFolder: {{path}}\n\nProceed?",
     "searchEntity": "Search entity_id, name, state…",
     "discoverMdns": "Search SWS runtimes on the local network via mDNS (~2 s)",
     "discoverUnreachable": "The IDE cannot reach the runtime it is pointed at — either the TLS certificate has not been accepted in this browser yet, or the host is down. If you just accepted/imported a certificate, reload the page.",
@@ -1943,7 +1944,9 @@
     "manageSezImmagini": "SWS images",
     "manageComandoAssente": "«{{comando}}» is not on this machine",
     "manageSenzaPodman": "This machine has no podman, so there is no SWS container to manage here. For a panel, untick «Local» and type its address and SSH user.",
-    "manageDalCloud": "From the cloud this tab has nothing to manage: the cloud does not get into panels over SSH, and its own container is not a panel. For the connected panel use Device → Connection (update, service configuration, OpenPLC); for commands on the container, SSH into the panel from its network."
+    "manageDalCloud": "From the cloud this tab has nothing to manage: the cloud does not get into panels over SSH, and its own container is not a panel. For the connected panel use Device → Connection (update, service configuration, OpenPLC); for commands on the container, SSH into the panel from its network.",
+    "uninstallTitolo": "Uninstall",
+    "uninstallPurgeTitolo": "Uninstall and wipe data"
   },
   "langtab": {
     "migrate": "Migrate texts…",

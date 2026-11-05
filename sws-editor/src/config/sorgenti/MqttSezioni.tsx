@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { api } from "@/api/client";
 import { useAppStore } from "@/store";
+import { conferma } from "@/finestraAvviso/finestraAvviso";
 import type { DisponibilitaMqtt, MqttLastWill, MqttSource, MqttTlsConfig, TagDef } from "@/types";
 import { S } from "@/config/comuni";
 import { PRESET_DISPONIBILITA, presetDi, tagDefDisponibilita, type PresetDisponibilita } from "@/config/sorgenti/disponibilita";
@@ -235,9 +236,10 @@ export function MqttRandomClientIdSection({
 
   const handlePush = async () => {
     const label = pushValue.trim() || t("cfg.pushMqttClientIdDefaultLabel");
-    if (!window.confirm(
-      t("cfg.pushMqttClientIdConfirm", { label, source: source.id })
-    )) return;
+    if (!(await conferma({
+      testo: t("cfg.pushMqttClientIdConfirm", { label, source: source.id }),
+      si: t("cfgUi.sendClientIdToThe"),
+    }))) return;
     setPushing(true); setPushMsg(null);
     try {
       await api.pushMqttClientIdOverride(source.id, pushValue.trim() || null);

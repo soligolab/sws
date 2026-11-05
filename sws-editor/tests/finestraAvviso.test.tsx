@@ -90,6 +90,14 @@ describe("avviso, chiedi, scegli, modulo", () => {
     await expect(p).resolves.toBe("abcd");
   });
 
+  it("chiedi: il valore iniziale è già selezionato, come in prompt", async () => {
+    const { esito: p } = await apri(() => chiedi({ testo: "Nome", iniziale: "progetto copia" }));
+    const campo = screen.getByTestId("finestra-avviso-campo") as HTMLInputElement;
+    expect([campo.selectionStart, campo.selectionEnd]).toEqual([0, "progetto copia".length]);
+    fireEvent.click(annulla());
+    await p;
+  });
+
   it("chiedi: password nasconde il testo, Annulla dà null", async () => {
     const { esito: p } = await apri(() => chiedi({ testo: "Password", password: true }));
     expect((screen.getByTestId("finestra-avviso-campo") as HTMLInputElement).type).toBe("password");

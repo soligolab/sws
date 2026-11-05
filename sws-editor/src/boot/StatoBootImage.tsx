@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { api, type BootImageStato } from "@/api/client";
+import { conferma } from "@/finestraAvviso/finestraAvviso";
 
 /** Cosa dice il dispositivo dell'immagine di boot (T-72 F5): l'esito della
  *  chiamata D-Bus al launcher, fatta dal runtime nel container. Sta nella scheda
@@ -15,7 +16,7 @@ export function StatoBootImage() {
   const [erroreReset, setErroreReset] = useState<string | null>(null);
 
   const ripristina = async () => {
-    if (!window.confirm(t("bootStatus.resetConfirm"))) return;
+    if (!(await conferma({ testo: t("bootStatus.resetConfirm"), pericolo: true, si: t("bootStatus.resetBtn") }))) return;
     setInCorso(true);
     setErroreReset(null);
     try {

@@ -8,6 +8,7 @@ import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { api, type CommitInfo, type FileCambiato } from "@/api/client";
 import { selectIsDirty, useAppStore } from "@/store";
+import { conferma } from "@/finestraAvviso/finestraAvviso";
 
 /** Cosa si sta guardando. */
 type Scelta =
@@ -96,7 +97,7 @@ export function GitStoria({ versione, pulito, inProva }: { versione: string; pul
 
   /** Aprire il fork lascia questo progetto: con bozze non salvate si chiede. */
   const apriFork = async (riferimento: string) => {
-    if (bozze && !window.confirm(t("gitFork.bozzePerse"))) return;
+    if (bozze && !(await conferma({ testo: t("gitFork.bozzePerse"), pericolo: true, si: t("gitFork.apri") }))) return;
     try {
       await api.openProject(riferimento);
       window.location.reload();
@@ -111,7 +112,10 @@ export function GitStoria({ versione, pulito, inProva }: { versione: string; pul
     setProvaErr(null);
     if (bozze) { setProvaErr(t("gitProva.primaSalva")); return; }
     if (!pulito) { setProvaErr(t("gitProva.primaCommit")); return; }
-    if (!window.confirm(t("gitProva.conferma", { short: c.short, message: c.message }))) return;
+    if (!(await conferma({
+      testo: t("gitProva.conferma", { short: c.short, message: c.message }),
+      si: t("gitProva.provaQuesta", { short: c.short }),
+    }))) return;
     try {
       await api.gitProva(c.sha);
       window.location.reload();

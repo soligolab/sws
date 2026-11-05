@@ -6,6 +6,7 @@ import "../src/i18n/index";
 import i18n from "../src/i18n/index";
 import { api, type StatoOpenplc, type SystemStatus } from "../src/api/client";
 import { OpenplcSulPannello } from "../src/boot/OpenplcSulPannello";
+import { rispondi } from "../src/finestraAvviso/finestraAvviso";
 
 afterEach(() => { vi.restoreAllMocks(); });
 
@@ -17,12 +18,18 @@ describe("OpenPLC sul pannello", () => {
   it("non installato: offre il bottone, e chiede conferma prima di installare", async () => {
     pannello({ risponde: false, si_puo_installare: true, ultimo_esito: null });
     const installa = vi.spyOn(api, "remoteInstallaOpenplc").mockResolvedValue({ avviata: true });
-    vi.spyOn(window, "confirm").mockReturnValue(true);
-    render(<OpenplcSulPannello />);
-    fireEvent.click(await screen.findByText(i18n.t("openplc.installa")));
-    await waitFor(() => expect(installa).toHaveBeenCalledTimes(1));
-    expect(await screen.findByText(i18n.t("openplc.inCorso"))).toBeTruthy();
-    expect(screen.queryByText(i18n.t("openplc.installa"))).toBeNull();
+    const r = rispondi(true);
+    try {
+      render(<OpenplcSulPannello />);
+      fireEvent.click(await screen.findByText(i18n.t("openplc.installa")));
+      await waitFor(() => expect(installa).toHaveBeenCalledTimes(1));
+      expect(r.chiamate).toHaveLength(1);
+      expect(r.chiamate[0]).toMatchObject({ tipo: "conferma", testo: i18n.t("openplc.conferma") });
+      expect(await screen.findByText(i18n.t("openplc.inCorso"))).toBeTruthy();
+      expect(screen.queryByText(i18n.t("openplc.installa"))).toBeNull();
+    } finally {
+      r.ferma();
+    }
   });
 
   it("acceso: niente bottone, e dice dove collegarsi", async () => {

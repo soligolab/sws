@@ -22,6 +22,7 @@ import { S } from "@/config/comuni";
 import { useAppStore } from "@/store";
 import { TlsSection } from "@/config/schede/SystemTab";
 import { etichettaDispositivo } from "@/ws/remoteLogStream";
+import { conferma } from "@/finestraAvviso/finestraAvviso";
 
 const SCATOLA: CSSProperties = {
   background: "var(--brand-bg, #0f172a)", border: "1px solid var(--brand-surface, #1e293b)",
@@ -70,8 +71,10 @@ function ColonnaCertificati({ remoto, titolo }: { remoto: boolean; titolo: strin
   };
   useEffect(() => { setInv(null); carica(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [remoto]);
 
-  const fai = async (azione: () => Promise<unknown>, conferma?: string) => {
-    if (conferma && !window.confirm(conferma)) return;
+  // Dimenticare un'impronta e togliere un certificato dal trust store non si
+  // annullano: la conferma è da azione pericolosa, col nome dell'azione sul bottone.
+  const fai = async (azione: () => Promise<unknown>, domanda?: { testo: string; si: string }) => {
+    if (domanda && !(await conferma({ ...domanda, pericolo: true }))) return;
     try { await azione(); carica(); } catch (e: unknown) { setErrore(e instanceof Error ? e.message : String(e)); }
   };
 
@@ -89,9 +92,9 @@ function ColonnaCertificati({ remoto, titolo }: { remoto: boolean; titolo: strin
       {inv && (
         <>
           <Impronte titolo={t("certificati.dispositivi")} spiega={t("certificati.dispositiviSpiega")} a={inv.dispositivi}
-            dimentica={(k) => fai(() => api.dimenticaImpronta(remoto, "dispositivi", k), t("certificati.dimenticaConferma", { chiave: k }))} />
+            dimentica={(k) => fai(() => api.dimenticaImpronta(remoto, "dispositivi", k), { testo: t("certificati.dimenticaConferma", { chiave: k }), si: t("certificati.dimentica") })} />
           <Impronte titolo={t("certificati.mqtt")} spiega={t("certificati.mqttSpiega")} a={inv.mqtt}
-            dimentica={(k) => fai(() => api.dimenticaImpronta(remoto, "mqtt", k), t("certificati.dimenticaConferma", { chiave: k }))} />
+            dimentica={(k) => fai(() => api.dimenticaImpronta(remoto, "mqtt", k), { testo: t("certificati.dimenticaConferma", { chiave: k }), si: t("certificati.dimentica") })} />
           <Impronte titolo={t("certificati.viewer")} spiega={inv.viewer_lvgl.disponibile ? t("certificati.viewerSpiega") : remoto ? t("certificati.viewerAssente") : t("certificati.viewerNonQui")}
             a={inv.viewer_lvgl} />
 
@@ -102,7 +105,7 @@ function ColonnaCertificati({ remoto, titolo }: { remoto: boolean; titolo: strin
                 <div style={{ fontSize: 12, color: "var(--brand-text-2, #cbd5e1)", marginBottom: 4 }}>{p.sorgente}</div>
                 <TabellaPki righe={p.certificati}
                   fidati={(f) => fai(() => api.fidatiCertificatoOpcUa(remoto, p.sorgente, f))}
-                  elimina={(f) => fai(() => api.eliminaCertificatoOpcUa(remoto, p.sorgente, f), t("certificati.eliminaConferma", { file: f }))} />
+                  elimina={(f) => fai(() => api.eliminaCertificatoOpcUa(remoto, p.sorgente, f), { testo: t("certificati.eliminaConferma", { file: f }), si: t("common.delete") })} />
               </div>
             ))}
           </Sezione>

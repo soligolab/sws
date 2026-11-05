@@ -6,6 +6,7 @@ import { useAppStore } from "@/store";
 import { S } from "@/config/comuni";
 import { prefissoGateway } from "@/api/prefisso";
 import { etichettaDispositivo } from "@/ws/remoteLogStream";
+import { conferma } from "@/finestraAvviso/finestraAvviso";
 
 // ── SYSTEM tab ───────────────────────────────────────────────────────────────
 
@@ -308,7 +309,7 @@ export function TlsSection({ remoto }: {
   if (tlsEnabled === null) return null;
 
   const handleGenerate = async () => {
-    if (!confirm(t("cfg.tlsGenerateConfirm"))) return;
+    if (!(await conferma({ testo: t("cfg.tlsGenerateConfirm"), pericolo: true, si: t("cfgUi.tlsGenera") }))) return;
     setBusy(true);
     setMsg(null);
     try {
@@ -331,7 +332,7 @@ export function TlsSection({ remoto }: {
       setMsg(t("cfgUi.errorPasteOrUploadBoth"));
       return;
     }
-    if (!confirm(t("cfg.tlsUploadConfirm"))) return;
+    if (!(await conferma({ testo: t("cfg.tlsUploadConfirm"), pericolo: true, si: t("cfgUi.uploadAndEnableHttps") }))) return;
     setBusy(true);
     setMsg(null);
     try {
@@ -344,7 +345,7 @@ export function TlsSection({ remoto }: {
   };
 
   const handleRemove = async () => {
-    if (!confirm(t("cfg.tlsDisableConfirm"))) return;
+    if (!(await conferma({ testo: t("cfg.tlsDisableConfirm"), pericolo: true, si: t("cfgUi.tlsDisabilita") }))) return;
     setBusy(true);
     setMsg(null);
     try {

@@ -4,6 +4,7 @@ import { api, dimenticaVersioneProgetto } from "@/api/client";
 import { prefissoGateway, progettoDalPercorso } from "@/api/prefisso";
 import { canConfigureProject } from "@/auth/permissions";
 import { DROP_ITEM, DROP_PANEL, DROP_SEP, HDR_BTN, useOutsideClose } from "@/components/headerStyles";
+import { chiedi, conferma } from "@/finestraAvviso/finestraAvviso";
 import { pickInitialPageId } from "@/pageLayout";
 import { selectIsDirty, useAppStore } from "@/store";
 
@@ -70,7 +71,7 @@ export function MainMenu({
 
   const handleImport = async (file: File) => {
     const msg = t("menu.importConfirm") + (includiSegreti ? t("menu.importConfirmSecretsNote") : "");
-    if (!confirm(msg)) return;
+    if (!(await conferma({ testo: msg, pericolo: true, si: t("common.import") }))) return;
     setIoBusy("import"); setIoStat(null);
     try {
       await api.importProjectZip(file, includiSegreti);
@@ -122,8 +123,14 @@ export function MainMenu({
    *  riconoscere piu' tardi. */
   const handleSalvaCome = async () => {
     const currentName = project?.meta.name ?? "";
-    if (dirty && !window.confirm(t("menu.salvaComeNonSalvato"))) return;
-    const nuovo = window.prompt(t("menu.salvaComePrompt"), `${currentName} ${t("common.copiaSuffisso")}`)?.trim();
+    // Le modifiche non salvate si perdono (la copia si apre ricaricando): come
+    // aprire un altro progetto con delle bozze, è un'azione pericolosa.
+    if (dirty && !(await conferma({ testo: t("menu.salvaComeNonSalvato"), pericolo: true }))) return;
+    const nuovo = (await chiedi({
+      testo: t("menu.salvaComePrompt"),
+      iniziale: `${currentName} ${t("common.copiaSuffisso")}`,
+      ok: t("common.save"),
+    }))?.trim();
     if (!nuovo || nuovo === currentName) return;
     setSalvandoCome(true); setIoStat(null);
     try {
@@ -150,7 +157,7 @@ export function MainMenu({
 
   const handleRename = async () => {
     const currentName = project?.meta.name ?? "";
-    const newName = window.prompt(t("menu.renamePrompt"), currentName)?.trim();
+    const newName = (await chiedi({ testo: t("menu.renamePrompt"), iniziale: currentName, ok: t("editor.rename") }))?.trim();
     if (!newName || newName === currentName) return;
     setRenaming(true); setIoStat(null);
     try {
@@ -184,7 +191,7 @@ export function MainMenu({
   };
 
   const handleReboot = async () => {
-    if (!confirm(t("header.rebootConfirm"))) return;
+    if (!(await conferma({ testo: t("header.rebootConfirm"), pericolo: true, si: t("header.reboot") }))) return;
     setRebooting(true);
     try { await api.systemReboot(); } catch { /* ignore */ }
     setTimeout(() => setRebooting(false), 3000);

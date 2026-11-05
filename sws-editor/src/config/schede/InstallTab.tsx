@@ -17,6 +17,7 @@ import {
 } from "@/config/campiDispositivo";
 import { BTN, BTN_PRIMARY, BTN_RED, INPUT } from "./stiliRuntime";
 import { CampoNumero } from "@/components/CampoNumero";
+import { conferma } from "@/finestraAvviso/finestraAvviso";
 
 export function InstallTab() {
   const { t } = useTranslation();
@@ -149,8 +150,12 @@ export function InstallTab() {
     if (containerSource === "archive" && !selectedContainerPkg) return;
     // Conferma prima di qualunque cosa, e nominando la cartella: è l'unico
     // punto della UI in cui un clic cancella i progetti di un dispositivo.
-    if (cleanInstall &&
-        !window.confirm(t("cfg.cleanInstallConfirm", { path: effectiveDataPath(dataPath) }))) return;
+    if (cleanInstall && !(await conferma({
+      titolo: t("cfg.cleanInstall"),
+      testo: t("cfg.cleanInstallConfirm", { path: effectiveDataPath(dataPath) }),
+      pericolo: true,
+      si: t("cfg.cleanInstallBtn"),
+    }))) return;
     ultimaAzione.current = "deploy";
     setContainerDeploying(true);
     setContainerLog([]);

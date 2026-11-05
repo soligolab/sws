@@ -4,6 +4,7 @@ import { api } from "@/api/client";
 import type { AvvisoRuntime } from "@/api/client";
 import { HDR_BTN, DROP_PANEL, useOutsideClose } from "@/components/headerStyles";
 import { canConfigureProject } from "@/auth/permissions";
+import { conferma } from "@/finestraAvviso/finestraAvviso";
 import { useAppStore } from "@/store";
 
 /**
@@ -168,7 +169,10 @@ export function RuntimeCtrl() {
   }
 
   const handleMigrate = async () => {
-    if (!confirm(t("header.migrateConfirm", { savedBy: savedBy ?? t("header.unknownVersion"), runtime: runtimeVersion }))) return;
+    if (!(await conferma({
+      testo: t("header.migrateConfirm", { savedBy: savedBy ?? t("header.unknownVersion"), runtime: runtimeVersion }),
+      si: t("header.migrateSi"),
+    }))) return;
     setMigrating(true);
     try {
       await api.migrateProject();

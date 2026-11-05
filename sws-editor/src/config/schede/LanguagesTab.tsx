@@ -7,6 +7,7 @@ import { contaAutomatiche, eAutomatica, marcaComeUmana } from "@/i18n/tabellaLin
 import { migraTestiProgetto } from "@/i18n/migraTesti";
 import { eFaceplateDef, idPaginaDiFaceplate } from "@/faceplate/modello";
 import { S, SaveBar } from "@/config/comuni";
+import { avviso, chiedi, conferma } from "@/finestraAvviso/finestraAvviso";
 
 // ── ConfigView root ───────────────────────────────────────────────────────────
 
@@ -80,8 +81,8 @@ export function LanguagesTab() {
     return rows;
   })();
 
-  const addLang = () => {
-    const code = window.prompt(t("langtab.langCodePrompt"))?.trim().toLowerCase();
+  const addLang = async () => {
+    const code = (await chiedi({ testo: t("langtab.langCodePrompt"), ok: t("common.add") }))?.trim().toLowerCase();
     if (!code || table.langs.includes(code)) return;
     patch({ langs: [...table.langs, code], default: table.default || code });
   };
@@ -185,11 +186,11 @@ export function LanguagesTab() {
       pages: st.pages.filter((p) => !eFaceplateDef(p)), faceplates: st.faceplates, alarms: st.project?.alarms ?? [], tabella: clean,
     });
     const r = esito.riepilogo;
-    if (r.campi === 0) { window.alert(t("langtab.migrateNothing")); return; }
-    if (!window.confirm(t("langtab.migrateConfirm", {
+    if (r.campi === 0) { void avviso(t("langtab.migrateNothing")); return; }
+    if (!(await conferma({ testo: t("langtab.migrateConfirm", {
       campi: r.campi, nuove: r.vociNuove, riusi: r.riusi,
       pagine: r.pagineToccate.length, faceplate: r.faceplateToccati.length, allarmi: r.allarmi,
-    }))) return;
+    }) }))) return;
     setMigrando(true);
     try {
       // Il backup viene prima di qualunque scrittura: se non si riesce a farlo
@@ -225,9 +226,9 @@ export function LanguagesTab() {
       const fine = useAppStore.getState();
       if (fine.saveStatus === "error") throw new Error(fine.saveError ?? "save");
       markSaveOk();
-      window.alert(t("langtab.migrateDone", { campi: r.campi }));
+      void avviso(t("langtab.migrateDone", { campi: r.campi }));
     } catch (e) {
-      window.alert(t("langtab.migrateFailed", { reason: e instanceof Error ? e.message : String(e) }));
+      void avviso({ testo: t("langtab.migrateFailed", { reason: e instanceof Error ? e.message : String(e) }), livello: "errore" });
     } finally { setMigrando(false); }
   };
 
@@ -278,7 +279,10 @@ export function LanguagesTab() {
   };
 
   const cancellaChiaveFornitore = async () => {
-    if (!window.confirm(t("langtab.confermaCancellaChiave", { fornitore: t(`langtab.fornitore.${traduttore}`) }))) return;
+    if (!(await conferma({
+      testo: t("langtab.confermaCancellaChiave", { fornitore: t(`langtab.fornitore.${traduttore}`) }),
+      pericolo: true, si: t("langtab.cancellaChiave"),
+    }))) return;
     setSalvandoFornitore(true); setEsitoFornitore(null);
     try {
       await api.deleteConfigTraduzioneChiave(traduttore);
@@ -300,10 +304,10 @@ export function LanguagesTab() {
       (e) => (e.values[table.default] ?? "").trim() !== "" && (e.values[verso] ?? "").trim() === "",
     ).length;
     if (quante === 0) {
-      window.alert(t("langtab.nothingToTranslate", { verso }));
+      void avviso(t("langtab.nothingToTranslate", { verso }));
       return;
     }
-    if (!window.confirm(t("langtab.translateConfirm", { quante, verso }))) return;
+    if (!(await conferma(t("langtab.translateConfirm", { quante, verso })))) return;
     // Si salva prima: il server traduce ciò che ha su disco, e una riga appena
     // digitata e non salvata non verrebbe tradotta — senza che nessuno capisca
     // perché.
@@ -342,14 +346,14 @@ export function LanguagesTab() {
       // quando il testo qui sotto è stato riscritto: giusto, era italiano
       // cablato in un dialogo. Ora passa dal catalogo.
       const daApprovare = r.proposte ? "\n\n" + t("langtab.daApprovare", { n: r.proposte }) : "";
-      window.alert(
+      void avviso(
         t("langtab.translatedResult", { tradotte: r.tradotte, verso, saltate: r.saltate }) +
           daApprovare +
           problemi +
           "\n\n" + t("langtab.translatedReviewWarning"),
       );
     } catch (e) {
-      window.alert(t("langtab.translationFailed", { message: e instanceof Error ? e.message : String(e) }));
+      void avviso({ testo: t("langtab.translationFailed", { message: e instanceof Error ? e.message : String(e) }), livello: "errore" });
     } finally {
       setTraducendo(null);
     }

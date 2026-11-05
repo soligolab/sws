@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { api, type SceltaConferma, type StatoConferma } from "@/api/client";
+import { conferma } from "@/finestraAvviso/finestraAvviso";
 
 const mb = (b: number) => Math.round(b / 1_000_000);
 
@@ -30,9 +31,13 @@ export function ConfermaAggiornamento() {
 
   const rispondi = async (scelta: SceltaConferma) => {
     if (!d) return;
-    if (scelta === "ritorna" && !window.confirm(t("confermaAggiornamento.confermaRitorno", {
-      da: d.da, a: d.a,
-      cosa: t(d.istantanea ? "confermaAggiornamento.cosaDati" : "confermaAggiornamento.cosaImmagine"),
+    if (scelta === "ritorna" && !(await conferma({
+      testo: t("confermaAggiornamento.confermaRitorno", {
+        da: d.da, a: d.a,
+        cosa: t(d.istantanea ? "confermaAggiornamento.cosaDati" : "confermaAggiornamento.cosaImmagine"),
+      }),
+      pericolo: true,
+      si: t("confermaAggiornamento.ritorna", { da: d.da }),
     }))) return;
     setInviando(true);
     setErrore(null);

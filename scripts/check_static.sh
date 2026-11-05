@@ -62,6 +62,7 @@ STATICHE=(
     check_i18n_parita       # web e pannello LVGL traducono lo stesso insieme di campi
     check_release_coerente  # versione, CHANGELOG e tag dicono la stessa cosa (anche su origin)
     check_i18n_ui           # l'interfaccia dell'IDE parla dal catalogo: italiano cablato per file, tetti che scendono
+    check_finestra_avviso   # i pop-up del browser (alert/confirm/prompt) non tornano: tetti per file che scendono, a zero dopo F3
     check_testi_sistema     # «Ora», «sì», «N/D»: una tabella, e le due implementazioni la contengono parola per parola
     check_campi_numerici    # i campi numerici dell'editor passano da CampoNumero: il «-» da tastiera non si perde
     check_colori            # i colori predefiniti sono una tabella sola: creazione, pannello e template senza var(--), swatch sempre hex

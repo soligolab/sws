@@ -23,8 +23,12 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
   proprio» (richiesta del maintainer): misura e sfondi del formato del progetto **sopra** quelli delle pagine scelte in
   un elenco già compilato (pagine, cornici e boot spuntate; finestre e faceplate no). Gli oggetti non si spostano: per
   riscalarli resta «Cambia risoluzione…» (`patchSovrascrittura`, `applicaATutte`).
-- **La Finestra di avviso** (F1, primo passo): `avviso`, `conferma`, `chiedi`, `scegli`, `modulo` al posto dei pop-up
-  del browser, con un host solo in `avvia()`; una richiesta aperta da dentro un modulo gli sta sopra.
+- **La Finestra di avviso** (F1): `avviso`, `conferma`, `chiedi`, `scegli`, `modulo` al posto dei pop-up del browser,
+  con un host solo in `avvia()`; una richiesta aperta da dentro un modulo gli sta sopra. Convertite le 40 chiamate di
+  configurazione e boot (Backup, Lingue, menu ☰, schermata iniziale, Sistema, Utenti, Installazione, Container,
+  Certificati, Git, OpenPLC, boot): le azioni pericolose col bottone rosso e Annulla predefinito, i titoli in maiuscolo
+  divisi in titolo e testo, il valore iniziale di `chiedi` già selezionato come in `prompt`. La guardia
+  `check_finestra_avviso.sh` conta quelle che restano (65), con un tetto per file che può solo scendere.
 
 ### Corretto
 - **Le barre dello stile VS Code seguono la «Dimensione icone»** delle preferenze (vista collaudando la 2.25.1): le

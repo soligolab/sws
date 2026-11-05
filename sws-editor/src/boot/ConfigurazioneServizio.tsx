@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { api, type StatoQuadlet } from "@/api/client";
+import { conferma } from "@/finestraAvviso/finestraAvviso";
 
 /** La configurazione del servizio del pannello collegato (02-10-2026, il quadlet
  *  che viaggia): `podman auto-update` cambia l'immagine ma non i quadlet, e da
@@ -26,7 +27,11 @@ export function ConfigurazioneServizio() {
 
   const aggiorna = async () => {
     if (!stato) return;
-    if (!window.confirm(t("configurazioneServizio.conferma", { da: stato.installata ?? "?", a: stato.attesa ?? "?" }))) return;
+    if (!(await conferma({
+      testo: t("configurazioneServizio.conferma", { da: stato.installata ?? "?", a: stato.attesa ?? "?" }),
+      pericolo: true,
+      si: t("configurazioneServizio.aggiorna"),
+    }))) return;
     setInCorso(true);
     setErrore(null);
     try {

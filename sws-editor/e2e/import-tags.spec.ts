@@ -43,8 +43,6 @@ test("import progetto via menu fa comparire i tag (issue #2)", async ({ page, re
   await request.post(`${BASE}api/projects`, { data: { name: "e2e-dst" } });
   await request.post(`${BASE}api/projects/e2e-dst/open`);
 
-  page.on("dialog", (d) => d.accept());
-
   await page.goto(BASE, { waitUntil: "networkidle" });
   await ensureLoggedIn(page);
   await page.waitForTimeout(1000);
@@ -58,6 +56,9 @@ test("import progetto via menu fa comparire i tag (issue #2)", async ({ page, re
     page.getByRole("button", { name: /Sostituisci da copia sul PC/ }).click(),
   ]);
   await chooser.setFiles(zipPath);
+  // «Sostituire l'intero progetto corrente?» è una conferma nella pagina (la
+  // Finestra di avviso), non più un `confirm` del browser: si clicca.
+  await page.getByTestId("finestra-avviso-ok").click();
   await page.waitForTimeout(2500);
 
   // 4. Il progetto attivo ora è "test" con il tag "pippo".

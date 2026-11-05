@@ -12,6 +12,7 @@ import { useTranslation } from "react-i18next";
 import { api } from "@/api/client";
 import { useAppStore } from "@/store";
 import type { StatoRitenzione, StatoRitenzioneDatastore } from "@/types";
+import { conferma as chiediConferma } from "@/finestraAvviso/finestraAvviso";
 
 /** Byte leggibili: kB sotto il mega, MB sopra, nel formato della lingua. */
 const peso = (b: number, lingua: string) => {
@@ -96,7 +97,7 @@ export function RitenzioneAutomatica() {
       righe: a ? (a.righe_per_eta + a.righe_per_numero).toLocaleString(i18n.language) : "?",
       peso: a?.byte_stimati != null ? peso(a.byte_stimati, i18n.language) : "?",
     });
-    if (!window.confirm(testo)) return;
+    if (!(await chiediConferma({ testo, pericolo: true, si: t("ritenzione.conferma") }))) return;
     setBusy(true);
     try {
       const nuovo = await api.confermaRitenzione(id, suRemoto);

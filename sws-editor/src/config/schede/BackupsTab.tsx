@@ -4,6 +4,7 @@ import { api } from "@/api/client";
 import { useAppStore } from "@/store";
 import { TRANS_COMP } from "@/config/comuni";
 import { CampoNumero } from "@/components/CampoNumero";
+import { avviso, conferma } from "@/finestraAvviso/finestraAvviso";
 
 // ── Backups tab ──────────────────────────────────────────────────────────────
 //
@@ -33,7 +34,7 @@ function triggerBlobDownload(blob: Blob, filename: string) {
 /** Riquadro elenco+azioni per un set di backup — usato due volte in
  *  `BackupsTab` (progetto locale, dispositivo remoto connesso): stesso set
  *  di azioni per entrambi (Backup adesso/Aggiorna/Ripristina/Scarica/
- *  Elimina), la logica/i confirm restano nel chiamante. */
+ *  Elimina), la logica/le conferme restano nel chiamante. */
 function BackupSection({
   title, list, busy, err, emptyHint,
   onRefresh, onCreate, onDownload, onRestore, onDelete,
@@ -191,7 +192,7 @@ export function BackupsTab() {
   };
 
   const restore = async (name: string) => {
-    if (!window.confirm(t("cfg.backupRestoreConfirm", { name }))) return;
+    if (!(await conferma({ testo: t("cfg.backupRestoreConfirm", { name }), pericolo: true, si: t("cfgUi.ripristina") }))) return;
     setBusy(true); setErr(null);
     try {
       await api.restoreBackup(name);
@@ -202,7 +203,7 @@ export function BackupsTab() {
       const pages = await Promise.all(names.map((n) => api.getSynoptic(n)));
       useAppStore.getState().setPages(pages);
       await refresh();
-      window.alert(t("cfg.backupRestoredAlert", { name }));
+      void avviso(t("cfg.backupRestoredAlert", { name }));
     } catch (e) {
       setErr(e instanceof Error ? e.message : String(e));
     } finally {
@@ -211,7 +212,7 @@ export function BackupsTab() {
   };
 
   const drop = async (name: string) => {
-    if (!window.confirm(t("cfg.backupDeleteConfirm", { name }))) return;
+    if (!(await conferma({ testo: t("cfg.backupDeleteConfirm", { name }), pericolo: true, si: t("common.delete") }))) return;
     setBusy(true); setErr(null);
     try {
       await api.deleteBackup(name);
@@ -266,12 +267,12 @@ export function BackupsTab() {
   };
 
   const restoreRemote = async (name: string) => {
-    if (!window.confirm(t("cfg.backupRestoreRemoteConfirm", { name }))) return;
+    if (!(await conferma({ testo: t("cfg.backupRestoreRemoteConfirm", { name }), pericolo: true, si: t("cfgUi.ripristina") }))) return;
     setRemoteBusy(true); setRemoteErr(null);
     try {
       await api.remoteRestoreBackup(name);
       await refreshRemote();
-      window.alert(t("cfg.backupRestoredRemoteAlert", { name }));
+      void avviso(t("cfg.backupRestoredRemoteAlert", { name }));
     } catch (e) {
       setRemoteErr(e instanceof Error ? e.message : String(e));
     } finally {
@@ -280,7 +281,7 @@ export function BackupsTab() {
   };
 
   const dropRemote = async (name: string) => {
-    if (!window.confirm(t("cfg.backupDeleteRemoteConfirm", { name }))) return;
+    if (!(await conferma({ testo: t("cfg.backupDeleteRemoteConfirm", { name }), pericolo: true, si: t("common.delete") }))) return;
     setRemoteBusy(true); setRemoteErr(null);
     try {
       await api.remoteDeleteBackup(name);

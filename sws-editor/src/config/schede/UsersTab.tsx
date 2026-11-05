@@ -4,6 +4,7 @@ import { api, type CreateUserBody, type UpdateUserBody, type UserRole, type User
 import { useAppStore } from "@/store";
 import { useFocus, usePubblicaElenco } from "@/config/fogliaConfig";
 import { TRANS_COMP, S } from "@/config/comuni";
+import { conferma } from "@/finestraAvviso/finestraAvviso";
 
 // ── Main ConfigView ───────────────────────────────────────────────────────────
 
@@ -128,7 +129,7 @@ export function UsersTab() {
       setError(t("cfgUi.youCannotDeleteYourOwn"));
       return;
     }
-    if (!confirm(t("cfg.deleteUserConfirm", { username }))) return;
+    if (!(await conferma({ testo: t("cfg.deleteUserConfirm", { username }), pericolo: true, si: t("common.delete") }))) return;
     setError(null);
     setBusy(true);
     try {

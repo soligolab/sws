@@ -8,6 +8,7 @@ import { VersioneRuntime } from "@/components/VersioneRuntime";
 import { NewProjectModal, type NewProjectTab } from "@/components/benvenuto/NuovoProgetto";
 import { InstallaRuntimeModal } from "@/components/benvenuto/InstallaRuntime";
 import { api, dimenticaVersioneProgetto } from "@/api/client";
+import { conferma } from "@/finestraAvviso/finestraAvviso";
 import type { ProjectListEntry } from "@/types";
 import { BarraIdentita } from "@/components/BarraIdentita";
 import { ChangePasswordScreen } from "@/components/ChangePasswordScreen";
@@ -208,7 +209,12 @@ export function WelcomeScreen({ onProjectOpened }: WelcomeScreenProps) {
     const confirmMsg = p.external
       ? t("welcome.confirmRemoveExternal", { name: p.name })
       : t("welcome.confirmDelete", { name: p.name });
-    if (!window.confirm(confirmMsg)) return;
+    // Eliminare è per sempre; togliere un esterno dall'elenco lascia i file dove sono.
+    if (!(await conferma({
+      testo: confirmMsg,
+      pericolo: !p.external,
+      si: p.external ? t("welcome.removeFromList") : t("common.delete"),
+    }))) return;
     setActionBusy(p.riferimento); setError(null);
     try {
       await api.deleteProject(p.riferimento);
@@ -225,7 +231,7 @@ export function WelcomeScreen({ onProjectOpened }: WelcomeScreenProps) {
   const [archiviAperti, setArchiviAperti] = useState(false);
   const archiviati = projects.filter((p) => p.archiviato);
   const handleArchivia = async (p: ProjectListEntry, archivia: boolean) => {
-    if (archivia && !window.confirm(t("welcome.confermaArchivia", { name: p.name }))) return;
+    if (archivia && !(await conferma(t("welcome.confermaArchivia", { name: p.name })))) return;
     setActionBusy(p.riferimento); setError(null);
     try {
       await (archivia ? api.archiveProject(p.riferimento) : api.unarchiveProject(p.riferimento));

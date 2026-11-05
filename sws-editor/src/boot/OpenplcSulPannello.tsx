@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { api, type StatoOpenplc } from "@/api/client";
+import { conferma } from "@/finestraAvviso/finestraAvviso";
 
 /** La casella «Installa anche OpenPLC» (30-10-2026), uguale nei due posti in cui
  *  si installa SWS via SSH: la scheda Installazione e la schermata di benvenuto.
@@ -48,7 +49,7 @@ export function OpenplcSulPannello() {
   }, [stato?.ultimo_esito]);
 
   const installa = async () => {
-    if (!window.confirm(t("openplc.conferma"))) return;
+    if (!(await conferma({ testo: t("openplc.conferma"), si: t("openplc.installa") }))) return;
     setErrore(null);
     try {
       await api.remoteInstallaOpenplc();
@@ -129,7 +130,7 @@ export function LogicaPlcDelProgetto() {
   };
 
   const carica = async (f: File) => {
-    if (!window.confirm(t("logicaPlc.conferma", { nome: f.name }))) return;
+    if (!(await conferma({ testo: t("logicaPlc.conferma", { nome: f.name }), pericolo: true }))) return;
     setMsg(null);
     setInCorso(true);
     try {

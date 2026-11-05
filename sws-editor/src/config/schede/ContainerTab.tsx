@@ -34,6 +34,7 @@ import {
 import { BTN, BTN_RED, INPUT, LOG_BOX, coloreRigaLog } from "./stiliRuntime";
 import { CampoNumero } from "@/components/CampoNumero";
 import { prefissoGateway } from "@/api/prefisso";
+import { conferma } from "@/finestraAvviso/finestraAvviso";
 
 /** Le sezioni dello stato, come le stampa `packaging.rs` («== id ==», un id
  *  stabile e non una frase), con un nome che un utente legge. */
@@ -114,10 +115,13 @@ export function ContainerTab() {
     // L'unica azione distruttiva è la disinstallazione, e solo con la
     // cancellazione dati merita un secondo avviso che nomini il percorso.
     if (action === "uninstall") {
-      const msg = uninstallPurge
-        ? t("cfg.uninstallPurgeConfirm", { path: effectiveDataPath(dataPath) })
-        : t("cfg.uninstallConfirm", { path: effectiveDataPath(dataPath) });
-      if (!window.confirm(msg)) return;
+      const path = effectiveDataPath(dataPath);
+      if (!(await conferma({
+        titolo: uninstallPurge ? t("cfg.uninstallPurgeTitolo") : t("cfg.uninstallTitolo"),
+        testo: uninstallPurge ? t("cfg.uninstallPurgeConfirm", { path }) : t("cfg.uninstallConfirm", { path }),
+        pericolo: true,
+        si: t("cfg.uninstallBtn"),
+      }))) return;
     }
     setManaging(true);
     setManageLog([]);

@@ -1,5 +1,5 @@
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
-import { describe, expect, it, beforeEach, vi } from "vitest";
+import { afterEach, describe, expect, it, beforeEach, vi } from "vitest";
 import i18n from "../src/i18n";
 
 const { certificati, dimenticaImpronta, getTlsStatus, remoteGetTlsStatus } = vi.hoisted(() => ({
@@ -16,6 +16,7 @@ vi.mock("@/api/client", async () => {
 import { CertificatiTab, impronteBreve } from "../src/config/schede/CertificatiTab";
 import { useAppStore } from "../src/store";
 import type { InventarioCertificati } from "../src/api/client";
+import { rispondi } from "../src/finestraAvviso/finestraAvviso";
 
 /** La vista dei certificati (decisioni 3 e 8 del piano dei certificati): una
  *  colonna per lato, e ogni colonna parla **col suo** lato — con un pannello
@@ -34,11 +35,13 @@ function inventario(chiave: string): InventarioCertificati {
 }
 
 describe("Sicurezza → Certificati", () => {
+  let risposte: ReturnType<typeof rispondi>;
   beforeEach(() => {
     vi.clearAllMocks();
     certificati.mockImplementation((remoto: boolean) => Promise.resolve(inventario(remoto ? "remoto:7444" : "locale:8444")));
-    vi.spyOn(window, "confirm").mockReturnValue(true);
+    risposte = rispondi(true);
   });
+  afterEach(() => risposte.ferma());
 
   it("senza pannello collegato c'è una colonna sola", async () => {
     useAppStore.setState({ remoteConnected: false });
@@ -63,6 +66,22 @@ describe("Sicurezza → Certificati", () => {
     await waitFor(() => expect(dimenticaImpronta).toHaveBeenCalledWith(true, "dispositivi", "remoto:7444"));
     fireEvent.click(locale);
     await waitFor(() => expect(dimenticaImpronta).toHaveBeenCalledWith(false, "dispositivi", "locale:8444"));
+    // La conferma nomina la chiave che si dimentica.
+    expect(risposte.chiamate.map((r) => r.tipo === "conferma" && r.testo)).toEqual([
+      i18n.t("certificati.dimenticaConferma", { chiave: "remoto:7444" }),
+      i18n.t("certificati.dimenticaConferma", { chiave: "locale:8444" }),
+    ]);
+  });
+
+  it("se la conferma si annulla, l'impronta resta", async () => {
+    risposte.ferma();
+    risposte = rispondi(false);
+    useAppStore.setState({ remoteConnected: false });
+    render(<CertificatiTab />);
+    await screen.findByText("locale:8444");
+    fireEvent.click(screen.getByText(i18n.t("certificati.dimentica")));
+    await waitFor(() => expect(risposte.chiamate).toHaveLength(1));
+    expect(dimenticaImpronta).not.toHaveBeenCalled();
   });
 
   it("nel cloud la colonna del pannello porta il suo nome, non quello del gateway", async () => {

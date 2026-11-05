@@ -83,6 +83,9 @@ function Finestra({ r, attiva = true, livello = 0 }: { r: Richiesta; attiva?: bo
     const prima = r0 instanceof HTMLElement && r0.isConnected ? r0 : document.activeElement;
     const el = predefinito.current ?? scatola.current?.querySelector<HTMLElement>(FOCALIZZABILI) ?? scatola.current;
     el?.focus();
+    // Come `prompt`: il valore iniziale di `chiedi` già selezionato, così chi
+    // scrive un nome nuovo lo sostituisce invece di aggiungerlo.
+    if (el instanceof HTMLInputElement) el.select();
     return () => {
       queueMicrotask(() => { if (prima instanceof HTMLElement && prima.isConnected) prima.focus(); });
     };
