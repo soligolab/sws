@@ -11,7 +11,7 @@
  *  regole di sicurezza (conferma, password) restano a `guardedWrite`. */
 import { htmlStabile } from "@/canvas/htmlStabile";
 import { useEffect, useRef, useState } from "react";
-import { useTrascinamento } from "@/canvas/puntatore";
+import { useDitoTrattenuto, useTrascinamento } from "@/canvas/puntatore";
 import { altezzaValore } from "@/canvas/geometriaTesto";
 import { corpoSecondario } from "@/canvas/geometriaTesto";
 import {
@@ -178,6 +178,7 @@ export function SliderSvg(p: PropsSlider) {
 
   const ultimaBozza = useRef<number | null>(null);
   ultimaBozza.current = bozza;
+  useDitoTrattenuto(area, interattivo);
   const gesto = useTrascinamento({
     riferimento: () => area.current,
     muovi: ({ x, y }) => {
@@ -344,7 +345,7 @@ export function SliderSvg(p: PropsSlider) {
       {interattivo && (
         <rect ref={area}
           x={(p.w - toccoW) / 2} y={(p.h - toccoH) / 2} width={toccoW} height={toccoH}
-          fill="transparent" style={{ cursor: "pointer", touchAction: "none" }} data-slider-area=""
+          fill="transparent" style={{ cursor: "pointer", touchAction: "none" }} data-slider-area="" data-gesto-proprio=""
           {...gesto}
         />
       )}

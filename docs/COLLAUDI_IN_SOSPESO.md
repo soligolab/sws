@@ -10,6 +10,8 @@
 >
 > **Come si usa**: si spunta quello che passa, si annota quello che non passa. Una voce che non
 > passa non blocca le altre: sono indipendenti, e ognuna dice cosa vuol dire se fallisce.
+> Il collaudo si fa con la skill **`/test-changes`** (dal 05-11-2026): propone le voci una alla
+> volta e, a fine sessione, le spunta qui con la data.
 >
 > Quando l'elenco è vuoto (o quello che resta è dichiarato accettabile), si costruisce l'immagine
 > e **solo allora** si tagga — regola «si tagga quando si costruisce», `CLAUDE.md`.
@@ -24,6 +26,35 @@
 | nient'altro che l'IDE | il PC | la maggior parte delle voci «IDE» |
 
 ---
+
+## La 2.25.1 (05-11-2026) — anomalie del collaudo 2.25.0, regole dei template, lucchetto
+
+Sul WP630 (`pixsys@wp630-a-p3-07a077.local`, canale `rc-arm64`) e su `sws.soligo.net`. Le correzioni trovate
+collaudando stanno sul ramo `fix/collaudo-2-25-1` e vanno nella **2.25.2**; le voci 4–8 sono state provate il 05-11
+con la SPA del ramo copiata nel container del pannello (prova sola, sparisce col container), quindi vanno ricontrollate
+sull'immagine 2.25.2.
+
+1. [ ] **Chat e registro in una finestra, nel cloud** (C0): sulla 2.25.1 danno **HTTP 401** — il gateway serviva in
+       chiaro solo la radice del progetto. Corretto sul ramo (`guscio_di`, prova `prove_finestre_staccate`): da
+       ricontrollare sulla 2.25.2 sul VPS.
+2. [x] **Le scelte di pagina mostrano il nome** e non `{{t0001}}` (C0) — confermato dal maintainer il 05-11-2026.
+3. [x] **«Montagna» sul WP630 non rallenta** (C0) — «va molto meglio», 05-11-2026; misurato: a riposo Chromium sotto
+       lo 0,5% di un core (prima ~1,2 core).
+4. [x] **Lo slider del lago non cambia pagina** trascinandolo — confermato il 05-11 (SPA del ramo).
+5. [x] **Niente riquadro semitrasparente al tocco** — confermato il 05-11 (SPA del ramo).
+6. [x] **La foto non lampeggia** passando da giorno a notte — confermato il 05-11 (SPA del ramo).
+7. [x] **Il pallino segue il dito** fino in fondo — confermato il 05-11 (SPA del ramo): prima si muoveva di pochi pixel
+       e perdeva il dito.
+8. [x] **La dissolvenza segue lo slider senza scatti** — «ora funziona benissimo tutto», 05-11 (SPA del ramo).
+9. [ ] **Aggiornamento dall'IDE**: prima di confermare compaiono le novità della versione, e il pannello si ricollega.
+10. [ ] **Il lucchetto** (T1): `homeassistant-pro` senza accesso, pagina Sicurezza — «🔒 Operator» sul cancelletto,
+        «🔒 Supervisor» sulla tapparella del garage, sul web e sul pannello; da Operator il primo sparisce.
+11. [ ] **Niente allarmi falsi all'avvio** (T1): `homeassistant-pro` non dà «Soggiorno troppo freddo: 0.0 °C».
+12. [ ] **I template con la cornice** (T1 e T2): titolo, ora e navigazione su ogni pagina, comandi senza accedere, il
+        titolo tradotto cambiando lingua; `tc620-sistema` con data e ora.
+13. [ ] **Faceplate**: in `tc620-sistema` il faceplate di un'interfaccia propone `tc620.ethernet0`; `motor_basic` e
+        `tank_level` mostrano «1450 rpm» e «62.5 %».
+14. [ ] **L'assistente e i nomi tradotti** (T2): trova una pagina dal nome tradotto, e il riepilogo non mostra `{{t0069}}`.
 
 ## Prestazioni: dove se ne va il tempo (26-10-2026)
 

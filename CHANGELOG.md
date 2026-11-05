@@ -11,6 +11,29 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 
 ## [Unreleased]
 
+### Corretto — collaudo della 2.25.1
+- **Chat e registro in una finestra, nel cloud: 401.** Dalla 2.25.1 si aprono sotto il prefisso del progetto
+  (`/p/<azienda>/<progetto>/index-chat.html`), ma lì era pubblica solo la radice: il resto passa da `require_auth`, e
+  una navigazione non porta il token. Ora le due pagine le serve il gateway come il guscio dell'IDE (`guscio_di` in
+  `gateway/rotte.rs`, due rotte aperte in `router.rs`); i dati restano dietro il token. Prova sul router vero del
+  gateway (`prove_finestre_staccate`).
+- **Trascinare uno slider cambiava pagina** (pagina Lago di «Montagna» sul WP630): il cambio di pagina col dito
+  (T-19) scattava con qualunque scorrimento orizzontale di 50 px, anche partito sullo slider. Ora si ignora quando il
+  dito parte dentro un elemento con `data-gesto-proprio` (lo slider, una finestra aperta sopra la pagina, la fila
+  delle pagine), e passa solo dalle pagine della barra, non da quelle di boot o che si aprono come finestra
+  (`runtime-view/scorrimentoPagine.ts`).
+- **Il riquadro semitrasparente al tocco**: Chromium colora per un istante l'elemento toccato;
+  `-webkit-tap-highlight-color: transparent` nelle cinque pagine.
+- **Lo slider perdeva il dito sul pannello**: trascinando il pallino si muoveva di pochi pixel e tornava indietro.
+  `touch-action: none` sul rettangolo SVG non fermava Chromium, che prendeva il movimento per uno scorrimento e
+  mandava `pointercancel`; prima lo nascondeva il cambio di pagina subito dopo. `useDitoTrattenuto`
+  (`canvas/puntatore.ts`): un `touchmove` non passivo sull'area che chiama `preventDefault`.
+- **La dissolvenza andava a scatti**: la foto a tutta pagina si ridisegnava a ogni passo dello slider. Il `<g>` di un
+  oggetto con l'opacità legata porta `will-change: opacity`.
+- **La foto del lago lampeggiava** passando dal giorno alla notte: il `<g>` dell'opacità compariva solo sotto 1, e a
+  ogni passaggio per 1 React rimontava l'immagine. Con l'opacità o la luminosità legate a un tag il `<g>` resta
+  (`SvgObjectBase`, `tests/opacitaLegataStabile.test.tsx`).
+
 ## [2.25.1] — 2026-11-05
 
 ### Aggiunto — regole R6, R7, R8 dei template (sessione T1 della serie del 04-11)

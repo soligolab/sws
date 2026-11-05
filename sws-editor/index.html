@@ -101,8 +101,14 @@
          dice al browser di non interpretare affatto quel tocco, cosi' il primo
          movimento non diventa uno scorrimento e lo slider non perde il dito.
          Vale per tutti e tre gli `input[type=range]` dell'app — lo slider del
-         sinottico, il volume degli stili simbolo, lo zoom della barra. */
-      html, body { overscroll-behavior: none; }
+         sinottico, il volume degli stili simbolo, lo zoom della barra.
+
+         Il riquadro del tocco (05-11-2026): Chromium, a un tocco su un
+         elemento che ascolta il clic, lo colora per un istante con un
+         rettangolo semitrasparente. Sul WP630 lo si vedeva attorno allo
+         slider del lago a ogni pressione. Un pannello non ne ha bisogno:
+         ogni controllo dice già da sé che è stato toccato. */
+      html, body { overscroll-behavior: none; -webkit-tap-highlight-color: transparent; }
       input[type="range"] { touch-action: none; }
       /* Spinner dei campi numerici: Chromium li disegna minuscoli e solo in
          hover — bersaglio troppo piccolo col mouse (richiesta 2026-08-23).

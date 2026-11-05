@@ -102,8 +102,11 @@ b. **Branch dedicato**: `git checkout main && git checkout -b feat/T-XX-slug` (o
 c. **Implementa** seguendo il piano confermato.
 
 d. **Testa** — definition of done da `CLAUDE.md`: `cargo check` verde **e**
-   `pnpm build` verde **e** `./scripts/check_static.sh` verde **e** conferma esplicita del
-   maintainer che la funzionalità funziona. Tutti e quattro, non tre o due.
+   `pnpm build` verde **e** `./scripts/check_static.sh` verde **e** `cargo test` +
+   `pnpm exec vitest run` verdi **e** conferma esplicita del maintainer che la funzionalità
+   funziona. Tutti e cinque, non quattro o tre.
+   La conferma del maintainer passa dalla skill **`/test-changes`**: un test alla volta, sul
+   pannello o nell'IDE, con l'esito scritto in `docs/COLLAUDI_IN_SOSPESO.md` e in `STATUS.md`.
 
 e. **Commit, squash-merge, push**:
    - Commit sul branch di sviluppo con `-s`.

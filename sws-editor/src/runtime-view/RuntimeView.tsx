@@ -7,6 +7,7 @@ import { getBrand } from "@/branding";
 import { SvgCanvas } from "@/canvas/SvgCanvas";
 import { collectTagIds } from "@/runtime-view/collectTagIds";
 import { pagineNavigabili } from "@/boot/tipi";
+import { useScorrimentoPagine } from "@/runtime-view/scorrimentoPagine";
 import { viewerFitScale, effectiveSizeMode } from "@/pageLayout";
 import { sfondoPagina } from "@/theme";
 import { LoginScreen } from "@/components/LoginScreen";
@@ -368,20 +369,8 @@ export function RuntimeView() {
     }
   };
 
-  // T-19: touch swipe navigation between pages.
-  const touchStartX = useRef<number | null>(null);
-  const handleTouchStart = (e: React.TouchEvent) => {
-    touchStartX.current = e.touches[0]?.clientX ?? null;
-  };
-  const handleTouchEnd = (e: React.TouchEvent) => {
-    if (touchStartX.current === null) return;
-    const dx = (e.changedTouches[0]?.clientX ?? 0) - touchStartX.current;
-    touchStartX.current = null;
-    if (Math.abs(dx) < 50) return; // threshold 50px
-    const idx = pages.findIndex((p) => p.id === currentPageId);
-    if (dx < 0 && idx < pages.length - 1) setCurrentPage(pages[idx + 1].id);
-    if (dx > 0 && idx > 0) setCurrentPage(pages[idx - 1].id);
-  };
+  // T-19: il cambio di pagina col dito (scorrimentoPagine.ts).
+  const scorrimento = useScorrimentoPagine(pagineNavigabili(pages), currentPageId, setCurrentPage);
 
   return (
     <LinguaContenutiProvider value={lingua}>
@@ -390,15 +379,15 @@ export function RuntimeView() {
     <AvvisoAggiornamento />
     <div
       style={{ display: "flex", flexDirection: "column", flex: 1, overflow: "hidden" }}
-      onTouchStart={handleTouchStart}
-      onTouchEnd={handleTouchEnd}
+      onTouchStart={scorrimento.onTouchStart}
+      onTouchEnd={scorrimento.onTouchEnd}
     >
       {/* Page navigation bar — assente in modalità "viewer a schermo pieno"
           (impostazione di progetto hide_viewer_chrome): sul pannello si
           renderizza solo l'area della pagina. boxSizing perché senza, i 36px
           dichiarati diventano 37 col bordo e la pagina non torna. */}
       {pages.length > 1 && !hideChrome && (
-        <nav style={{
+        <nav data-gesto-proprio="" style={{
           display: "flex",
           alignItems: "center",
           gap: 2,

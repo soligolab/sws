@@ -3628,10 +3628,20 @@ function SvgObjectBase(p: ObjProps) {
   const opacita = typeof r.opacity === "number" && Number.isFinite(r.opacity) ? Math.max(0, Math.min(1, r.opacity)) : 1;
   const luce = parametriLuminosita(luminositaValida(r.brightness));
   const corpo = <SvgObjectCorpo {...p} />;
-  if (opacita >= 1 && !luce && !transitionStyle(r)) return corpo;
+  // Con l'opacità o la luminosità legate a un tag, il `<g>` resta sempre: se
+  // comparisse e sparisse a ogni passaggio per 1, React rifarebbe il corpo da
+  // capo, e una foto a tutta pagina si ridisegna da zero. Sul WP630 era un lampo
+  // a ogni giro dello slider del lago, da giorno a notte (collaudo della 2.25.1).
+  const legata = p.obj.bindings?.opacity !== undefined || p.obj.bindings?.brightness !== undefined;
+  if (opacita >= 1 && !luce && !transitionStyle(r) && !legata) return corpo;
   const idFiltro = luce ? `sws-luce-${r.id}` : undefined;
+  // L'opacità legata a un tag cambia a ogni scrittura: con uno strato suo il
+  // browser la cambia componendo, senza ridisegnare il corpo. Sul WP630 una
+  // foto a tutta pagina ridisegnata a ogni passo dello slider andava a scatti.
+  const strato = p.obj.bindings?.opacity !== undefined ? { willChange: "opacity" } : undefined;
   return (
-    <g opacity={opacita < 1 ? opacita : undefined} filter={idFiltro ? `url(#${idFiltro})` : undefined} style={transitionStyle(r)}>
+    <g opacity={opacita < 1 ? opacita : undefined} filter={idFiltro ? `url(#${idFiltro})` : undefined}
+      style={strato || transitionStyle(r) ? { ...transitionStyle(r), ...strato } : undefined}>
       {luce && (
         <defs>
           <filter id={idFiltro} colorInterpolationFilters="sRGB">

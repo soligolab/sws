@@ -6,9 +6,11 @@
  *
  *  `setPointerCapture` tiene il gesto anche quando il dito esce dall'oggetto,
  *  come fa un controllo nativo; chi lo usa mette `touch-action: none`
- *  sull'elemento, altrimenti su un pannello touch il trascinamento diventa
- *  lo scorrimento della pagina. */
-import { useRef } from "react";
+ *  sull'elemento e chiama `useDitoTrattenuto`, altrimenti su un pannello
+ *  touch il trascinamento diventa lo scorrimento della pagina. Su un elemento
+ *  SVG il solo `touch-action` non basta (vedi `useDitoTrattenuto`). */
+import { useEffect, useRef } from "react";
+import type { RefObject } from "react";
 
 /** Il punto del puntatore nelle coordinate dell'elemento SVG che lo riceve
  *  (quelle del disegno, non dello schermo): tiene conto di zoom e pan. */
@@ -60,4 +62,22 @@ export function useTrascinamento(t: Trascinamento) {
     onPointerUp: (e: Ev) => chiudi(e, false),
     onPointerCancel: (e: Ev) => chiudi(e, true),
   };
+}
+
+/** Il dito che resta al trascinamento anche su un pannello touch.
+ *
+ *  `touch-action: none` sull'elemento SVG non basta: sul WP630 Chromium,
+ *  dopo pochi pixel, prendeva il movimento per uno scorrimento della pagina,
+ *  mandava `pointercancel` e lo slider perdeva il dito (collaudo della
+ *  2.25.1, 05-11-2026). Un `touchmove` che chiama `preventDefault` glielo
+ *  toglie. Serve un ascoltatore vero e non passivo: React registra quelli
+ *  touch come passivi, e lì `preventDefault` non conta. */
+export function useDitoTrattenuto(ref: RefObject<Element | null>, attivo: boolean) {
+  useEffect(() => {
+    const el = ref.current;
+    if (!el || !attivo) return;
+    const trattieni = (e: Event) => { if (e.cancelable) e.preventDefault(); };
+    el.addEventListener("touchmove", trattieni, { passive: false });
+    return () => el.removeEventListener("touchmove", trattieni);
+  }, [ref, attivo]);
 }

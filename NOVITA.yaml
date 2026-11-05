@@ -33,6 +33,14 @@
 # successivo.
 
 versioni:
+  - versione: "Unreleased"
+    voci:
+      - it: "Nel cloud la chat e il registro in una finestra a parte si aprono davvero: nella 2.25.1 davano l'errore 401."
+        en: "In the cloud, the chat and the log in a separate window really open: in 2.25.1 they gave a 401 error."
+      - it: "Sul pannello lo slider segue il dito fino in fondo, non cambia più pagina e al tocco non mostra un riquadro grigio."
+        en: "On the panel the slider follows your finger all the way, no longer changes page and shows no grey box when touched."
+      - it: "Una foto che cambia trasparenza con uno slider segue il cursore senza scatti e senza lampi."
+        en: "A photo whose transparency follows a slider tracks it smoothly, without jumps or flashes."
   - versione: "2.25.1"
     voci:
       - it: "Nel cloud l'assistente IA e il registro aperti in una finestra a parte parlano col progetto: prima la chat diceva «nessuna chiave»."

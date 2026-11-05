@@ -1517,13 +1517,19 @@ pub fn build(
     // sessione valida. Il guscio non è privato: è la stessa SPA che la console
     // serve a chiunque.
     //
+    // Lo stesso vale per le due finestre staccate, la chat e il registro: si
+    // aprono con una navigazione sotto il prefisso (`percorsoFinestra`), e
+    // dietro `require_auth` rispondevano 401 (collaudo della 2.25.1).
+    //
     // Tutto il resto — `/api/…`, `/ws/…` — è il progetto, e lì il token c'è.
     let (gateway_aperto, gateway_protetto) = if state.regia.is_some() {
         let al_progetto = crate::gateway::rotte::inoltra_al_progetto;
         (
             Router::new()
                 .route("/p/:azienda/:progetto", any(al_progetto))
-                .route("/p/:azienda/:progetto/", any(al_progetto)),
+                .route("/p/:azienda/:progetto/", any(al_progetto))
+                .route("/p/:azienda/:progetto/index-chat.html", any(al_progetto))
+                .route("/p/:azienda/:progetto/index-log.html", any(al_progetto)),
             Router::new()
                 .route("/p/:azienda/:progetto/*resto", any(al_progetto))
                 .route_layer(middleware::from_fn_with_state(state.clone(), require_auth)),
@@ -13968,6 +13974,17 @@ mod tests_ripiego_spa {
 /// ci avesse rimesso il ruolo dell'handshake non se ne sarebbe accorto.
 #[cfg(test)]
 pub(crate) async fn stato_di_prova(dir: &std::path::Path) -> AppState {
+    build_di_prova(dir, None, None).await.2
+}
+
+/// `build` con i valori di prova di `stato_di_prova`, più la cartella della
+/// SPA e la regia del gateway quando una prova le vuole.
+#[cfg(test)]
+pub(crate) async fn build_di_prova(
+    dir: &std::path::Path,
+    www_dir: Option<std::path::PathBuf>,
+    regia: Option<Arc<crate::gateway::progetti::Regia>>,
+) -> (Router, Router, AppState) {
     let db = Arc::new(TagDb::new(64));
     let bus = Arc::new(TagWriteBus::new());
     let certificati = Arc::new(sws_core::pin_tls::ImprontaStore::in_config(
@@ -13975,7 +13992,7 @@ pub(crate) async fn stato_di_prova(dir: &std::path::Path) -> AppState {
         "mqtt_broker_conosciuti.yaml",
     ));
     let supervisor = SourceSupervisor::new(db.clone(), bus.clone(), certificati);
-    let (_, _, stato) = build(
+    build(
         db.clone(),
         bus.clone(),
         Arc::new(AlarmDb::new(16)),
@@ -14002,7 +14019,7 @@ pub(crate) async fn stato_di_prova(dir: &std::path::Path) -> AppState {
         Arc::new(Vec::new()),
         Arc::new(dir.to_path_buf()),
         None,
-        None,
+        www_dir,
         false,
         false,
         Arc::new(sws_audit::AuditLog::open(dir.join("audit.jsonl"), None)),
@@ -14012,10 +14029,9 @@ pub(crate) async fn stato_di_prova(dir: &std::path::Path) -> AppState {
         false,
         None,
         None,
+        regia,
         None,
-        None,
-    );
-    stato
+    )
 }
 
 #[cfg(test)]
@@ -14224,5 +14240,64 @@ mod prove_sessione_ide {
             "il login normale chiude, come dal 07-10"
         );
         let _ = std::fs::remove_dir_all(dir);
+    }
+}
+
+/// Le due finestre staccate di un progetto nel cloud — la chat e il registro —
+/// si aprono con una navigazione sotto `/p/<azienda>/<progetto>/`, che non
+/// porta il token: il gateway le serve da sé, come il guscio dell'IDE. Dietro
+/// `require_auth` rispondevano 401 (collaudo della 2.25.1, 05-11-2026).
+#[cfg(test)]
+mod prove_finestre_staccate {
+    use super::*;
+    use crate::gateway::{
+        podman::Podman,
+        progetti::{ComeRaggiungere, Regia},
+    };
+
+    #[tokio::test]
+    async fn la_chat_e_il_registro_si_aprono_senza_token() {
+        let dir = std::env::temp_dir().join(format!("sws-finestre-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        let www = dir.join("www");
+        std::fs::create_dir_all(&www).unwrap();
+        for f in ["index-admin.html", "index-chat.html", "index-log.html"] {
+            std::fs::write(www.join(f), f).unwrap();
+        }
+        // La regia non tocca podman finché nessuno apre un progetto.
+        let regia = Regia::nuova(
+            Podman::nuovo(dir.join("podman.sock")),
+            "immagine-di-prova",
+            &dir,
+            ComeRaggiungere::PortaPubblicata,
+            "segretolungoabbastanza0123",
+        );
+        let (_, admin, _) = build_di_prova(&dir, Some(www), Some(Arc::new(regia))).await;
+        let l = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let porta = l.local_addr().unwrap().port();
+        tokio::spawn(async move { axum::serve(l, admin).await.unwrap() });
+
+        let chiedi = |percorso: &'static str| async move {
+            let r = reqwest::get(format!("http://127.0.0.1:{porta}{percorso}"))
+                .await
+                .unwrap();
+            (r.status().as_u16(), r.text().await.unwrap())
+        };
+        assert_eq!(
+            chiedi("/p/-/Prova/index-chat.html").await,
+            (200, "index-chat.html".into())
+        );
+        assert_eq!(
+            chiedi("/p/-/Prova/index-log.html").await,
+            (200, "index-log.html".into())
+        );
+        assert_eq!(
+            chiedi("/p/-/Prova/").await,
+            (200, "index-admin.html".into())
+        );
+        // Il resto sotto il prefisso è del progetto, e senza token resta chiuso.
+        assert_eq!(chiedi("/p/-/Prova/api/project").await.0, 401);
+        assert_eq!(chiedi("/p/-/Prova/index-admin.html").await.0, 401);
+        let _ = std::fs::remove_dir_all(&dir);
     }
 }

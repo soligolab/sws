@@ -55,7 +55,7 @@ export function PaginaFinestra({ pagina, oggetti, parametri, sfondo, tagValues, 
   const titolo = useMemo(() => titoloFinestra(pagina, parametri), [pagina, parametri]);
 
   const finestra = (
-    <div data-testid="pagina-finestra" data-modale={modale ? "1" : "0"}
+    <div data-testid="pagina-finestra" data-modale={modale ? "1" : "0"} data-gesto-proprio=""
       style={{ position: "fixed", left: pos.x, top: pos.y, width: larg, zIndex: 9400,
         background: "var(--brand-bg, #0f172a)", border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 8,
         boxShadow: "0 12px 40px rgba(0,0,0,0.55)", overflow: "hidden" }}

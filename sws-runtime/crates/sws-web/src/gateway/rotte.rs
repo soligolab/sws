@@ -5,9 +5,10 @@
 //! **La pagina la serve il gateway.** La richiesta del documento HTML arriva
 //! da una navigazione del browser, e una navigazione non porta nessun token:
 //! quello vive in `localStorage` e lo aggiunge il codice della pagina, che
-//! però non è ancora stato caricato. Quindi il guscio — `index-admin.html` e i
-//! file in `/assets/` — è pubblico e lo serve il gateway, esattamente come la
-//! console. Dentro non c'è niente di privato: è la SPA, uguale per tutti.
+//! però non è ancora stato caricato. Quindi il guscio — `index-admin.html`, i
+//! documenti delle due finestre staccate e i file in `/assets/` — è pubblico e
+//! lo serve il gateway, esattamente come la console. Dentro non c'è niente di
+//! privato: è la SPA, uguale per tutti.
 //!
 //! **I dati li serve il container.** Tutto quello che sta sotto il prefisso e
 //! non è il guscio viene rigirato al progetto, e lì il token serve e c'è,
@@ -44,16 +45,24 @@ fn cliente() -> &'static reqwest::Client {
     })
 }
 
-/// `true` se questo percorso, sotto il prefisso, è il guscio della SPA.
+/// Il documento della SPA che questo percorso, sotto il prefisso, chiede: il
+/// nome del file da prendere in `--www`, o `None` se non è un guscio.
 ///
-/// Solo la radice del progetto: `/p/<azienda>/<progetto>` e la stessa con la
-/// barra. Un file dentro — `/api/…`, `/ws/…` — non lo è mai.
-pub fn e_il_guscio(resto: &str) -> bool {
-    resto == "/" || resto.is_empty()
+/// La radice del progetto (`/p/<azienda>/<progetto>` e la stessa con la barra)
+/// è l'IDE; `index-chat.html` e `index-log.html` sono le due finestre staccate
+/// (`percorsoFinestra` nella SPA). Nient'altro: un file dentro — `/api/…`,
+/// `/ws/…` — non lo è mai.
+pub fn guscio_di(resto: &str) -> Option<&'static str> {
+    match resto {
+        "" | "/" => Some("index-admin.html"),
+        "/index-chat.html" => Some("index-chat.html"),
+        "/index-log.html" => Some("index-log.html"),
+        _ => None,
+    }
 }
 
-/// Il documento HTML dell'IDE, preso dalla cartella `--www` del gateway.
-async fn guscio(s: &AppState) -> Response {
+/// Un documento HTML della SPA, preso dalla cartella `--www` del gateway.
+async fn guscio(s: &AppState, nome: &str) -> Response {
     let Some(dir) = s.www_dir.as_ref() else {
         return (
             StatusCode::NOT_FOUND,
@@ -61,7 +70,7 @@ async fn guscio(s: &AppState) -> Response {
         )
             .into_response();
     };
-    let file = dir.join("index-admin.html");
+    let file = dir.join(nome);
     match tokio::fs::read(&file).await {
         Ok(b) => (
             [(axum::http::header::CONTENT_TYPE, "text/html; charset=utf-8")],
@@ -154,8 +163,8 @@ pub async fn inoltra_al_progetto(
         return (StatusCode::NOT_FOUND, "indirizzo di progetto non valido").into_response();
     };
 
-    if e_il_guscio(&resto) {
-        return guscio(&s).await;
+    if let Some(nome) = guscio_di(&resto) {
+        return guscio(&s, nome).await;
     }
 
     if s.regia.is_none() {
@@ -225,16 +234,19 @@ pub async fn inoltra_al_progetto(
 
 #[cfg(test)]
 mod tests {
-    use super::e_il_guscio;
+    use super::guscio_di;
 
     #[test]
-    fn il_guscio_e_solo_la_radice() {
-        assert!(e_il_guscio("/"));
-        assert!(e_il_guscio(""));
-        assert!(!e_il_guscio("/api/project"));
-        assert!(!e_il_guscio("/ws/tags"));
-        // Il documento si serve solo alla radice: un .html più in fondo
-        // sarebbe un file del progetto, e quello lo serve il container.
-        assert!(!e_il_guscio("/index-admin.html"));
+    fn il_guscio_e_la_radice_e_le_due_finestre() {
+        assert_eq!(guscio_di("/"), Some("index-admin.html"));
+        assert_eq!(guscio_di(""), Some("index-admin.html"));
+        assert_eq!(guscio_di("/index-chat.html"), Some("index-chat.html"));
+        assert_eq!(guscio_di("/index-log.html"), Some("index-log.html"));
+        assert_eq!(guscio_di("/api/project"), None);
+        assert_eq!(guscio_di("/ws/tags"), None);
+        // Il documento dell'IDE si serve solo alla radice, e un altro .html
+        // non è un guscio: lo serve il container, col token.
+        assert_eq!(guscio_di("/index-admin.html"), None);
+        assert_eq!(guscio_di("/index-chat.html/altro"), None);
     }
 }
