@@ -12,7 +12,35 @@
 > resta in «Storico». Qui vive solo ciò che serve a riprendere il lavoro.
 
 
-## ▶ Riprendere da qui — 2.25.1 rilasciata, attende il collaudo (2026-11-05 mattina, theobroma)
+## ▶ Riprendere da qui — 2.25.2 registrata senza immagine, tutto pushato (2026-11-05, theobroma)
+
+**`main` = origin** (`c2db13ec`), tag `2.25.1` e `2.25.2` su origin. Nessun ramo di lavoro aperto.
+
+- **2.25.1**: rilasciata stamattina (immagini, VPS alle 08:20). Collaudo in corso: esiti in
+  [`docs/COLLAUDI_IN_SOSPESO.md`](docs/COLLAUDI_IN_SOSPESO.md), sezione «La 2.25.1» (7 voci confermate, 7 da fare:
+  chat in finestra nel cloud, aggiornamento dall'IDE, lucchetto, allarmi all'avvio, cornici dei template, faceplate,
+  assistente coi nomi tradotti).
+- **2.25.2**: le correzioni del collaudo — slider sul pannello touch (non cambia pagina, tiene il dito: `touch-action`
+  sul rettangolo SVG non fermava Chromium; niente riquadro al tocco), foto con l'opacità legata senza lampi né scatti
+  (`<g>` stabile e `will-change: opacity`), chat e registro in finestra nel cloud senza 401 (`guscio_di`). **Per
+  scelta del maintainer registrata senza immagine**: pannelli e VPS restano sulla 2.25.1, e le voci NOVITA della
+  2.25.2 sono riportate in «Unreleased» per la prossima immagine. Il cambio di pagina col dito resta, fuori dagli
+  slider (decisione del maintainer).
+- **Sul WP630** gira una copia di prova della SPA della 2.25.2 dentro il container (`podman cp`): sparisce quando il
+  container viene ricreato. Le regole di permesso per `ssh`/`scp` verso `pixsys@*.local` e `user@*.local` le ha
+  scritte il maintainer in `.claude/settings.json`.
+- **Disco di theobroma** pieno a metà giornata: liberati 147 GB dentro `~/sws` (cache incrementale, `target/debug`,
+  archivi in `dist/`, cache della vecchia build QEMU, due cartelle di compilazione in `tmp/`). Tenuti `target/release`
+  (lo usa la prova OpenPLC che gira da 15 giorni) e le cache delle immagini container.
+- **Semi nuovi**: [build veloce e due portali](docs/plans/2026-11-05-build-veloce-e-due-portali.md); nello
+  [stile sobrio](docs/plans/2026-11-04-stile-sobrio.md) la misura delle icone che non vale nelle barre dello stile VS
+  Code. In `Appunti.txt`: la CI di GitHub rossa dal 05-10 al passo clippy.
+
+**Prossimo** (proposta al maintainer, da confermare): le icone dello stile VS Code (chiude il piano già archiviato),
+poi **F1**, la Finestra di avviso; la sessione di plan dello stile sobrio a parte, senza codice; l'impostazione
+iniziale (I1–I2) dopo F1 (e F2), perché il suo modulo è la Finestra di avviso.
+
+## Sessione precedente — 2.25.1 rilasciata, collaudo della mattina (2026-11-05, theobroma)
 
 **Su richiesta del maintainer («fai il merge su main e rilascia l'immagine completa che poi collaudo») la catena è
 mergiata prima del collaudo**: tre squash in ordine — C0 `814cbdd1`, T1 `16d7c390`, T2 `323d1c1c`, ognuno con
