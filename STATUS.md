@@ -43,8 +43,8 @@ tunnel del `tc620-garage` riaperto. Il `wp630-ufficio` non si è ricollegato: in
 - **T2**: gli altri dieci template con la cornice e i faceplate (foto LVGL in `tmp/verifica-template/`), l'assistente
   IA che riconosce le pagine col nome tradotto, il selettore dell'istanza annidata in un faceplate.
 
-**Build più veloce in sviluppo — domanda del maintainer, analisi fatta, niente deciso** (dettaglio su theobroma in
-`tmp/build-veloce/analisi.md`). La 2.25.1 ha preso 60 minuti: **19 per ricostruire il builder aarch64**, che non
+**Build più veloce in sviluppo — domanda del maintainer, salvata come seme** insieme ai due portali (stabile e di
+sviluppo): [`docs/plans/2026-11-05-build-veloce-e-due-portali.md`](docs/plans/2026-11-05-build-veloce-e-due-portali.md). La 2.25.1 ha preso 60 minuti: **19 per ricostruire il builder aarch64**, che non
 serviva, 16 + 5 + 16 di cargo, 3 di immagini e push. Il builder si rifà perché il suo stadio `sysroot`
 (`Containerfile.aarch64-cross.builder:45`) è un'immagine senza nome: la pulizia delle immagini podman la cancella
 (`clean_disk_space.sh:111` e la memoria «immagini vecchie»), e fino al 28-10 il builder prendeva un minuto. Anche

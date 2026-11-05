@@ -270,3 +270,11 @@ Annoto di seguito, uno per punto, le cose che devono essere verificate e trasfor
 - (04-11-2026, T2) **Due scelte lasciate al maintainer** dai template: `nebulizzatore-sandokan` non ha comandi, anche se
   la sorgente MQTT sa scrivere lo stato della presa (un bottone accendi/spegni?); «Stato:» resta vuoto finché non arriva
   un dato (un testo d'attesa?).
+
+- CI di GitHub rossa dal 05-10-2026, anche dopo «la CI torna verde» (72466f1a): le ultime 100
+  esecuzioni sono fallite, compresa quella della 2.25.0 (b8849b4d, 04-11), sempre al passo
+  «cargo clippy -- -D warnings» del lavoro «Rust lint»; per questo «Rust build & test» e l'SBOM
+  vengono saltati. In locale lo stesso comando e' verde (05-11, theobroma). Ipotesi da
+  verificare: la CI usa una clippy piu' nuova (stable dell'ultimo giorno) con avvisi nuovi.
+  Rimedio possibile: fissare la toolchain anche nella CI, o correggere gli avvisi nuovi. Il log
+  dell'esecuzione 41859020115 si legge solo autenticati. Misura del 05-11-2026 dall'API pubblica.
