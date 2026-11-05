@@ -11,6 +11,8 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 
 ## [Unreleased]
 
+## [2.25.1] — 2026-11-05
+
 ### Aggiunto — regole R6, R7, R8 dei template (sessione T1 della serie del 04-11)
 - **Le regole**: ogni pagina ha una cornice (R6), ogni comando si usa col ruolo Viewer tranne i due template dei
   permessi (R7), gli aggregati che si ripetono sono faceplate (R8). In `examples/templates/README.md`, controllate da

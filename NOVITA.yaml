@@ -33,7 +33,7 @@
 # successivo.
 
 versioni:
-  - versione: "Unreleased"
+  - versione: "2.25.1"
     voci:
       - it: "Nel cloud l'assistente IA e il registro aperti in una finestra a parte parlano col progetto: prima la chat diceva «nessuna chiave»."
         en: "In the cloud, the AI assistant and the log opened in a separate window talk to the project: the chat used to say «no key»."
