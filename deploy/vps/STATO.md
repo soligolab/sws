@@ -168,7 +168,15 @@ con la pagina dentro, perché `ServeDir` serviva il guscio della SPA come rispos
 Ora una rotta della SPA (una richiesta di navigazione) ha 200, mentre un file davvero mancante
 resta 404: così un bundle che manca non torna come HTML con stato 200.
 
-**Versione in esecuzione: `2.25.0-amd64`** dal 04-11-2026, 16:50: l'assistente IA che disegna i simboli e compone il
+**Versione in esecuzione: `2.25.1-amd64`** dal 05-11-2026, 08:20: le anomalie del collaudo 2.25.0 (chat e registro in
+una finestra a parte che nel cloud parlano col progetto, menù di pagina col nome tradotto), le regole R6/R7/R8 su tutti
+i template, il lucchetto col ruolo che serve. Quadlet, `identita.db` e `audit.jsonl` di prima in
+`~/sws-vps/backup-prima-di-2.25.1/`; immagine scaricata prima del riavvio (ID `01e4377d94c3`, lo stesso costruito su
+theobroma). Verificato: gateway `healthy` sulla 2.25.1 (log «SWS runtime starting, version 2.25.1»), radice, `/health`
+e `/api/identita/stato` 200, tunnel di `tc620-garage` riaperto da solo. Tenuta come ripiego la `2.25.0-amd64`, tolta
+la `2.24.1-amd64`; disco a 8,9 GB usati.
+
+Prima: **Versione in esecuzione: `2.25.0-amd64`** dal 04-11-2026, 16:50: l'assistente IA che disegna i simboli e compone il
 sinottico, il menù IA con un modello per scopo, gli sfondi in due passi, le foto negli `image` anche su LVGL, il template
 «Montagna — fotovoltaico e idroelettrico». Quadlet, `identita.db` e `audit.jsonl` di prima in
 `~/sws-vps/backup-prima-di-2.25.0/`; immagine scaricata prima del riavvio. Verificato: gateway `healthy` sulla 2.25.0

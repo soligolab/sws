@@ -12,45 +12,53 @@
 > resta in «Storico». Qui vive solo ciò che serve a riprendere il lavoro.
 
 
-## ▶ Riprendere da qui — la serie coordinata: C0 pronta, T1 e T2 fatte (2026-11-04 sera, theobroma)
+## ▶ Riprendere da qui — 2.25.1 rilasciata, attende il collaudo (2026-11-05 mattina, theobroma)
 
-**Tre rami annidati, nessuno mergiato né pushato** (aspettano il collaudo del maintainer):
+**Su richiesta del maintainer («fai il merge su main e rilascia l'immagine completa che poi collaudo») la catena è
+mergiata prima del collaudo**: tre squash in ordine — C0 `814cbdd1`, T1 `16d7c390`, T2 `323d1c1c`, ognuno con
+l'albero identico al ramo e il ramo eliminato — poi `chore(release): 2.25.1` (`02a5823b`) e il tag annotato `2.25.1`.
+Nessun ramo di lavoro aperto. DoD sul `main` con la versione nuova: tutto verde (vitest 2043, cargo test, clippy,
+fmt, lint, build), e delle guardie statiche l'unica rossa è «tag di versione che origin non ha: 2.25.1».
 
-| Ramo | Cosa | Stato |
-|---|---|---|
-| `fix/collaudo-2-25-0` | **C0**: le anomalie 1, 2, 4 del collaudo 2.25.0 (chat e registro staccati nel cloud, menù di pagina col token, «Montagna» lenta sul WP630) e le note della 2.25.1 | DoD verde; **manca la conferma**, poi squash, release **2.25.1** (tag alla build, immagini da un worktree, VPS) e rimisura del WP630 |
-| `feat/template-regole` (figlio del primo) | **T1**: regole R6/R7/R8 nella guardia e nel README dei template, sei template a zero, il **lucchetto** col ruolo (forma A, scelta dal maintainer) sul web e su LVGL, cinque difetti del prodotto trovati per strada | DoD verde; da collaudare |
-| `feat/template-regole-2` (figlio del secondo) | **T2**: gli altri dieci template a zero, `R678_DEBITO` vuoto; l'assistente IA con le pagine dal nome tradotto (`titolo`, id nelle proposte, diff leggibile); il selettore dell'istanza annidata; i formati dei faceplate di sistema | DoD verde; da collaudare. **Immagine** quando la catena è mergiata |
+**Niente pushato.** `main` è avanti di cinque commit su origin (`43fb7dab` della documentazione del VPS e i quattro di
+oggi) e il tag `2.25.1` è solo locale: `check_release_coerente.sh` resta rosso finché non si pusha. Il push va chiesto.
 
-`main` ha un commit non pushato (`43fb7dab`, documentazione del VPS sulla 2.25.0).
+**Immagini**: `2.25.1-arm64`, `2.25.1-arm64-generic`, `2.25.1-amd64`, `02a5823b-*`, e spostati `latest-*` e `rc-*`.
+Archivi in `dist/`. Costruite da un worktree sul tag con le **cache di compilazione spostate** (`mv`, non copiate:
+27 GB, e il disco ha 9 GB liberi) dal checkout al worktree e poi riportate: 16 minuti il runtime aarch64, 5 il viewer,
+16 l'x86_64, contro i ~50 della 2.25.0 partita da cache vuote. Il builder aarch64 si è ricostruito lo stesso (2,6 GB
+di immagine orfana tolti dopo).
 
-**La serie**: in testa a `docs/plans/README.md`, sessioni C0, T1, T2, F1, L0, M1, M2, F2, F3, I1, I2, L1, L2, L3,
-M3–M5. I quattro piani (Finestra di avviso, Impostazione iniziale, Logica unificata, Manuale pubblico) sono piani
-d'esecuzione con le decisioni del 04-11 e, per ogni sessione, cosa si consegna e cosa resta da decidere (con la
-proposta che vale se il maintainer non dice altro). Misure in `tmp/piani-misure/` (solo su theobroma).
+**VPS sulla 2.25.1 dalle 08:20** (`deploy/vps/STATO.md`): healthy, radice, `/health`, `/api/identita/stato` 200,
+tunnel del `tc620-garage` riaperto. Il `wp630-ufficio` non si è ricollegato: in rete non risponde nemmeno al nome
+(spento?). Ripiego la `2.25.0-amd64`, tolta la `2.24.1-amd64`. IDE 8460 rifatto su `main`, marchio Pixsys.
 
-**T1 nel dettaglio** (risultati degli agenti in `tmp/c0/t1-risultati.txt`, foto in `tmp/verifica-template/`):
-- template: `montagna-rinnovabile` (cornice, tipi e istanze, foto nell'area attiva), `demo-slider` (dal generatore),
-  `grid-playground` (modi del bottone al posto delle funzioni), `homeassistant-demo` e `homeassistant-pro` (faceplate;
-  R3 a zero), `openplc-laboratorio` (pompa per Viewer, soglia a Supervisor anche sulla variabile);
-- prodotto: soglia del membro di un tipo nel viewer web; foglia mai arrivata ora Uncertain (niente allarmi falsi
-  all'avvio); validatore sul tag piatto sotto un'istanza; faceplate LVGL come il web (parametri ovunque, predefiniti,
-  override); LVGL senza utenti = Admin; titolo del modello di cornice in un riquadro;
-- il lucchetto si vede nelle foto LVGL (il banco delle istantanee ha utenti, e chi guarda è anonimo): pagina
-  Sicurezza di `homeassistant-pro`, «🔒 Operator» sul cancelletto e «🔒 Supervisor» sulla tapparella del garage. Sul web
-  lo provano i test di render (`tests/lucchettoRuolo.test.tsx`); da guardare in un viewer vero con utenti.
+**Il collaudo, cosa guardare** (le tre sessioni sono nella stessa immagine):
+- **C0**: nel cloud la chat e il registro aperti in una finestra a parte parlano col progetto; «Pagina iniziale» e le
+  altre scelte di pagina mostrano il nome; «Montagna» sul WP630 non rallenta (rimisura: chiedere prima di entrare
+  in SSH);
+- **T1**: il lucchetto «🔒 <ruolo>» nell'angolo dei comandi che il ruolo non può usare, sul web e sul pannello (pagina
+  Sicurezza di `homeassistant-pro`: «🔒 Operator» sul cancelletto, «🔒 Supervisor» sulla tapparella del garage);
+  i sei template di T1 con la cornice; le variabili strutturate senza allarmi falsi all'avvio;
+- **T2**: gli altri dieci template con la cornice e i faceplate (foto LVGL in `tmp/verifica-template/`), l'assistente
+  IA che riconosce le pagine col nome tradotto, il selettore dell'istanza annidata in un faceplate.
 
-**T2** (risultati in `tmp/c0/t2-risultati.txt`): i gemelli `demo-items-*` restano gemelli (`check_demo_templates.sh`
-verde), i banchi di protocollo hanno righe di valore e spia in faceplate, `tc620-sistema` ha ora e data dai `clock` della
-cornice e i nomi di pagina tradotti. Un test vitest (`avvisoAggiornamento`) è caduto una volta sotto carico e passa da
-solo e nell'intera suite: da tenere d'occhio.
+**Build più veloce in sviluppo — domanda del maintainer, analisi fatta, niente deciso** (dettaglio su theobroma in
+`tmp/build-veloce/analisi.md`). La 2.25.1 ha preso 60 minuti: **19 per ricostruire il builder aarch64**, che non
+serviva, 16 + 5 + 16 di cargo, 3 di immagini e push. Il builder si rifà perché il suo stadio `sysroot`
+(`Containerfile.aarch64-cross.builder:45`) è un'immagine senza nome: la pulizia delle immagini podman la cancella
+(`clean_disk_space.sh:111` e la memoria «immagini vecchie»), e fino al 28-10 il builder prendeva un minuto. Anche
+il 05-11, dopo la build, l'ho cancellata io: la prossima build arm64 ripaga i 19 minuti. Le proposte, dalla più
+piccola: nome allo stadio sysroot e toolchain Rust fissata; un worktree di build fisso con le sue cache; la SPA
+copiata nel gateway senza immagine per i giri solo React; immagini `dev-<sha>-<arch>` di una sola architettura che
+non spostano `latest`/`rc`; le due architetture in parallelo; un profilo cargo leggero solo per le immagini di
+sviluppo. Trovato per strada: `build_containers_all.sh --no-rust` (documentato in HOWTO §5) pubblica l'arm64 con la
+SPA **vecchia**, perché in `build_container.sh` la `pnpm build` sta dentro il blocco Rust.
 
-**Dopo il collaudo**: squash in ordine C0 → T1 → T2, release 2.25.1 (con le voci di T1 e T2 se il maintainer le vuole
-nella stessa immagine, altrimenti C0 da sola), VPS, rimisura del WP630. **Prossima sessione della serie**: F1, la
-Finestra di avviso.
-Residui in `docs/plans/Appunti.txt` (voci del 04-11, T1): testo libero web/LVGL (y di base contro y in alto), difetti
-LVGL visti nelle foto, l'assistente che propone faceplate, allarmi e ricette a Operator nei template, dubbi dei
-template HA. Il manuale T09–T11 non torna più con `openplc-laboratorio` (pompa per Viewer): è nella lista di M5.
+**Dopo il collaudo**: le anomalie che trova diventano una 2.25.2; poi **F1**, la Finestra di avviso (prima riga della
+serie in `docs/plans/README.md`). Residui in `docs/plans/Appunti.txt` (voci del 04-11, T1 e T2): testo libero
+web/LVGL, difetti LVGL visti nelle foto, la finestra «Pompa» che mostra «{nome}», i comandi del nebulizzatore,
+l'assistente che propone faceplate; il manuale T09–T11 e il capitolo 04 righe 465-466 sono nella lista di M5.
 
 ## Sessione precedente — menù IA, sfondi in due passi, template «Montagna»; catena mergiata (2026-11-04 pomeriggio, theobroma)
 
