@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { prefissoGateway, prefissoSchermo, progettoDalPercorso } from "@/api/prefisso";
+import { percorsoFinestra, prefissoGateway, prefissoSchermo, progettoDalPercorso } from "@/api/prefisso";
 import { pannelloDelTunnel } from "@/components/ViewerLink";
 
 describe("prefissoGateway", () => {
@@ -65,5 +65,18 @@ describe("pannelloDelTunnel", () => {
     expect(pannelloDelTunnel("https://sws.soligo.net/dev/x/api", origine)).toBeNull();
     expect(pannelloDelTunnel(null, origine)).toBeNull();
     expect(pannelloDelTunnel("non un indirizzo", origine)).toBeNull();
+  });
+});
+
+// Collaudo della 2.25.0: nel cloud la chat e il registro staccati si aprivano
+// alla radice, cioè sul gateway, invece che sul progetto.
+describe("percorsoFinestra", () => {
+  it("nel cloud la finestra resta nel progetto", () => {
+    expect(percorsoFinestra("/index-chat.html#e=abc", "/p/acme/impianto/index-admin.html"))
+      .toBe("/p/acme/impianto/index-chat.html#e=abc");
+    expect(percorsoFinestra("/index-log.html", "/p/acme/impianto/")).toBe("/p/acme/impianto/index-log.html");
+  });
+  it("in locale resta alla radice", () => {
+    expect(percorsoFinestra("/index-chat.html", "/index-admin.html")).toBe("/index-chat.html");
   });
 });

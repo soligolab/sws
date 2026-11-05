@@ -65,6 +65,7 @@ import { cosaCancella, eliminaWaypoint, percorsoDaSalvare, puntiMovimento } from
 import { targetDaSalvare, versoRischioso } from "./targetProgetto";
 import { LinguaContenutiProvider } from "@/i18n/linguaContenuti";
 import { TEXT_FIELDS } from "@/i18n/projectI18n";
+import { useNomePagina } from "@/i18n/nomePagina";
 import { NavigatorProperties } from "./NavigatorProperties";
 import { CampoTestoTradotto } from "@/editor/CampoTestoTradotto";
 import { CampoFormato } from "@/components/CampoFormato";
@@ -2589,6 +2590,9 @@ function ProjectTargetSettings() {
 
 function ProjectPageLayoutSettings() {
   const { t } = useTranslation();
+  // I nomi tradotti (`{{t0001}}`) come li legge chi disegna: il collaudo della
+  // 2.25.0 ha trovato «Home page» che mostrava i token.
+  const nomePagina = useNomePagina();
   const project = useAppStore((s) => s.project);
   const pages = useAppStore((s) => s.pages);
   const updateProjectPageLayout = useAppStore((s) => s.updateProjectPageLayout);
@@ -2679,7 +2683,7 @@ function ProjectPageLayoutSettings() {
         <select value={homePageId} onChange={(e) => setHomePageId(e.target.value)}
           style={{ background: "var(--brand-bg, #0f172a)", color: "var(--brand-text, #e2e8f0)", border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 4, padding: "4px 8px", fontSize: 12, width: "100%" }}>
           <option value="">{t("shell.firstPageInTheList")}</option>
-          {paginePerNavigazione(pages).map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+          {paginePerNavigazione(pages).map((p) => <option key={p.id} value={p.id}>{nomePagina(p.name)}</option>)}
         </select>
       </div>
 
@@ -3133,6 +3137,7 @@ export function ObjectProps({
     return estraiHex(resolvePageBackground(pg?.background, pg?.background_dark, st.themeMode)) ?? "#1a1a2e";
   });
   const { t } = useTranslation();
+  const nomePagina = useNomePagina();
   // Il fatto «il progetto ha utenti», non la modalità dell'istanza: vedi
   // `avvisoRuoloMinimo`.
   const progettoHaUtenti = useAppStore((st) => st.progettoHaUtenti);
@@ -3773,7 +3778,7 @@ export function ObjectProps({
                   <select style={{ ...INPUT, cursor: "pointer" }} value={act.page} data-testid="azione-finestra"
                     onChange={(e) => onChange({ button_action: { ...act, page: e.target.value, params: {} } })}>
                     <option value="">{t("finestraPopup.scegli")}</option>
-                    {finestre.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+                    {finestre.map((p) => <option key={p.id} value={p.id}>{nomePagina(p.name)}</option>)}
                   </select>
                   {finestre.length === 0 && (
                     <span style={{ fontSize: 10, color: "var(--brand-text-subtle, #94a3b8)" }}>{t("finestraPopup.nessuna")}</span>
@@ -3884,7 +3889,7 @@ export function ObjectProps({
           >
             <option value="">{t("props.dashSelect")}</option>
             {pages.map((p) => (
-              <option key={p.id} value={p.id}>{p.name}</option>
+              <option key={p.id} value={p.id}>{nomePagina(p.name)}</option>
             ))}
             {targetMissing && (
               <option value={obj.target_page} disabled>

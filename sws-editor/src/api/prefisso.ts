@@ -22,6 +22,16 @@ export function prefissoGateway(percorso?: string): string {
   return m ? `/p/${m[1]}/${m[2]}` : "";
 }
 
+/** L'indirizzo di una finestra dell'IDE (`/index-chat.html`, `/index-log.html`)
+ *  **dello stesso progetto**: nel cloud sotto `/p/<azienda>/<progetto>`.
+ *
+ *  Collaudo della 2.25.0 (04-11-2026): la chat staccata si apriva alla radice,
+ *  cioè sul gateway, e diceva «nessuna chiave» — le chiavi stanno nel container
+ *  del progetto. Il registro staccato mostrava i log del gateway. */
+export function percorsoFinestra(percorso: string, pagina?: string): string {
+  return prefissoGateway(pagina) + percorso;
+}
+
 /** `/schermo/<pannello>` se questa pagina è **lo schermo di un pannello**
  *  aperto dal cloud (29-10-2026, `docs/archive/2026-10-29-schermo-remoto.md`),
  *  `""` altrove.

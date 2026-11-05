@@ -11,6 +11,16 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 
 ## [Unreleased]
 
+### Corretto — collaudo della 2.25.0
+- **Chat e registro in una finestra, nel cloud**: si aprivano alla radice del sito (`/index-chat.html`,
+  `/index-log.html`) e parlavano col gateway invece che col container del progetto, quindi la chat diceva «nessuna
+  chiave». Ora passano dal prefisso del progetto (`percorsoFinestra` in `sws-editor/src/api/prefisso.ts`).
+- **I menù di pagina mostravano il token** (`{{t0001}}`) invece del nome: «Pagina iniziale», la pagina da aprire come
+  finestra e la destinazione di un navbutton usano `useNomePagina` (`editor/EditorShell.tsx`).
+- **«Montagna» lenta sul WP630**: la luce si aggiornava 10 volte al secondo (generatore a 100 ms) e ogni volta
+  cambiava l'opacità di tre foto a tutta pagina — Chromium a ~1,2 core. Ora ora e luce le scrive lo script
+  «giornata» una volta al secondo.
+
 ## [2.25.0] — 2026-11-04
 
 ### Changed

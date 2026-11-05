@@ -2,7 +2,7 @@ import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { azioneDi } from "@/scorciatoie/registro";
 import { api, AuthError, NoProjectError, PasswordChangeRequiredError, RuntimeUnavailableError } from "@/api/client";
-import { prefissoGateway } from "@/api/prefisso";
+import { percorsoFinestra, prefissoGateway } from "@/api/prefisso";
 import { BarraAvviso } from "@/components/BarraAvviso";
 import { BannerProvaGit } from "@/components/BannerProvaGit";
 import { ChangePasswordScreen } from "@/components/ChangePasswordScreen";
@@ -154,7 +154,7 @@ export function App() {
   const [logStaccatoErrore, setLogStaccatoErrore] = useState<string | null>(null);
 
   const staccaLog = () => {
-    const esito = apriFinestra("/index-log.html", "sws-log", {
+    const esito = apriFinestra(percorsoFinestra("/index-log.html"), "sws-log", {
       larghezza: 900, altezza: 520, handle: finestraLog.current,
     });
     if (esito.bloccata) {
@@ -242,7 +242,7 @@ export function App() {
   }, [ponte]);
 
   const staccaChatQui = () => {
-    const esito = apriFinestra(`/index-chat.html#e=${encodeURIComponent(ponte.mio)}`,
+    const esito = apriFinestra(percorsoFinestra(`/index-chat.html#e=${encodeURIComponent(ponte.mio)}`),
                                "sws-chat", { larghezza: 460, altezza: 760,
                                              handle: finestraChat.current });
     if (esito.bloccata) {

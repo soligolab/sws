@@ -6,30 +6,19 @@ meta:
     dello stesso impianto, composte dall'assistente IA con due modelli diversi.
 tags:
 - id: s.ora
-  description: Ora del giorno simulata (una giornata dura 10 minuti)
+  description: Ora del giorno simulata (una giornata dura 10 minuti; la scrive lo script «giornata» una volta al secondo)
   data_type: float
   unit: h
   range_lo: 0.0
   range_hi: 24.0
   decimals: 1
-  generator:
-    shape: ramp
-    period_ms: 600000
-    min: 0.0
-    max: 24.0
-    enabled: true
 - id: s.luce
-  description: Luce del giorno simulata (0 a mezzanotte, 1 a mezzogiorno); comanda la dissolvenza dei tre sfondi
+  description: Luce del giorno simulata (0 a mezzanotte, 1 a mezzogiorno); comanda la dissolvenza dei tre sfondi. La scrive
+    lo script «giornata» una volta al secondo
   data_type: float
   range_lo: 0.0
   range_hi: 1.0
   decimals: 2
-  generator:
-    shape: triangle
-    period_ms: 600000
-    min: 0.0
-    max: 1.0
-    enabled: true
 - id: s.fv_irraggiamento
   description: Irraggiamento sulle pensiline
   data_type: float
@@ -160,16 +149,37 @@ global_scripts:
   trigger:
     kind: interval
     interval_s: 1
-  code: "# Il fotovoltaico segue l'ora simulata (s.ora): zero dalle 18 alle 6, il massimo a\n# mezzogiorno. Una parabola invece\
-    \ di un seno, perché nel runtime `import` non c'è.\nh = tags.read(\"s.ora\")\nh = 0.0 if h is None else float(h)\ns =\
-    \ (h - 6.0) / 12.0\nsole = 4.0 * s * (1.0 - s) if 0.0 < s < 1.0 else 0.0\ntags.write(\"s.fv_irraggiamento\", round(950.0\
-    \ * sole, 0))\ntags.write(\"s.fv_potenza\", round(112.0 * sole, 1))\ntags.write(\"s.inverter_potenza\", round(112.0 *\
-    \ 0.965 * sole, 1))\n# La turbina gira solo col comando di marcia. Ferma: portata, giri e potenza a zero.\n# In marcia\
-    \ la portata va e viene in 6 ore simulate (un triangolo: abs() c'è, sin() no).\nif tags.read(\"c.turbina_marcia\"):\n\
-    \    f = abs((h / 6.0) % 2.0 - 1.0)\n    portata = 80.0 + 100.0 * f\n    tags.write(\"s.idro_portata\", round(portata,\
-    \ 0))\n    tags.write(\"s.turbina_giri\", round(995.0 + 10.0 * f, 0))\n    tags.write(\"s.turbina_potenza\", round(portata\
-    \ * 1.45, 1))\nelse:\n    tags.write(\"s.idro_portata\", 0.0)\n    tags.write(\"s.turbina_giri\", 0.0)\n    tags.write(\"\
-    s.turbina_potenza\", 0.0)\n"
+  code: |
+    # Il fotovoltaico segue l'ora simulata (s.ora): zero dalle 18 alle 6, il massimo a
+    # mezzogiorno. Una parabola invece di un seno, perché nel runtime `import` non c'è.
+    # L'ora e la luce le scrive lo script, una volta al secondo: col generatore
+    # del runtime cambiavano 10 volte al secondo, e a ogni cambio il pannello
+    # ridisegnava tre foto a tutta pagina. Sul WP630 Chromium occupava un core e
+    # mezzo (collaudo della 2.25.0). 24 ore in 600 secondi = 0,04 ore al secondo.
+    h = tags.read("s.ora")
+    h = 0.0 if h is None else float(h)
+    h = h + 0.04
+    if h >= 24.0:
+        h = h - 24.0
+    tags.write("s.ora", round(h, 2))
+    tags.write("s.luce", round(1.0 - abs(h - 12.0) / 12.0, 3))
+    s = (h - 6.0) / 12.0
+    sole = 4.0 * s * (1.0 - s) if 0.0 < s < 1.0 else 0.0
+    tags.write("s.fv_irraggiamento", round(950.0 * sole, 0))
+    tags.write("s.fv_potenza", round(112.0 * sole, 1))
+    tags.write("s.inverter_potenza", round(112.0 * 0.965 * sole, 1))
+    # La turbina gira solo col comando di marcia. Ferma: portata, giri e potenza a zero.
+    # In marcia la portata va e viene in 6 ore simulate (un triangolo: abs() c'è, sin() no).
+    if tags.read("c.turbina_marcia"):
+        f = abs((h / 6.0) % 2.0 - 1.0)
+        portata = 80.0 + 100.0 * f
+        tags.write("s.idro_portata", round(portata, 0))
+        tags.write("s.turbina_giri", round(995.0 + 10.0 * f, 0))
+        tags.write("s.turbina_potenza", round(portata * 1.45, 1))
+    else:
+        tags.write("s.idro_portata", 0.0)
+        tags.write("s.turbina_giri", 0.0)
+        tags.write("s.turbina_potenza", 0.0)
 page_layout:
   size_mode: fixed
   default_width: 1280.0

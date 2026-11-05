@@ -33,6 +33,14 @@
 # successivo.
 
 versioni:
+  - versione: "Unreleased"
+    voci:
+      - it: "Nel cloud l'assistente IA e il registro aperti in una finestra a parte parlano col progetto: prima la chat diceva «nessuna chiave»."
+        en: "In the cloud, the AI assistant and the log opened in a separate window talk to the project: the chat used to say «no key»."
+      - it: "«Pagina iniziale» e le altre scelte di pagina mostrano il nome tradotto, non la chiave {{t0001}}."
+        en: "«Home page» and the other page pickers show the translated name, not the {{t0001}} key."
+      - it: "Template «Montagna»: la luce cambia una volta al secondo, e il pannello non si rallenta più."
+        en: "«Montagna» template: the light changes once a second, and the panel no longer slows down."
   - versione: "2.25.0"
     voci:
       - it: "L'assistente IA disegna i simboli che mancano e compone un sinottico intero, con un tetto di spesa sempre in vista nella chat."
