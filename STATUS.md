@@ -46,9 +46,13 @@
 - la Finestra di avviso, primo passo di F1: il componente, `avviso`/`conferma`/`chiedi`/`scegli`/`modulo`, l'host in
   `avvia()`; le richieste aperte da un modulo gli stanno sopra.
 
-**Prossimo**: il resto di **F1** su `feat/finestra-avviso`, cioè le 40 chiamate ai pop-up del browser di configurazione
-e boot, la guardia coi tetti, `common.ok` già fatto; poi F2 e F3. Lo stile sobrio: sessione di plan, senza codice.
-I1 (la finestra che si apre da sola per un progetto vuoto) dopo F1.
+- **F1 fatta e collaudata** (`eaef15c3`): le 40 chiamate di configurazione e boot nella Finestra di avviso, la guardia
+  `check_finestra_avviso.sh` in STATICHE (65 chiamate restano, per F2 e F3).
+
+`main` ha 4 commit che origin non ha (`4d918f75`, `b24193d7`, `96e361a7`, `eaef15c3`): il push va chiesto.
+
+**Prossimo**, secondo la serie in `docs/plans/README.md`: **L0** (la sandbox Python: `print`, `for`, `+=`, i default dei
+parametri), poi M1, M2, F2, F3, I1. Lo stile sobrio: sessione di plan, senza codice.
 
 ## Sessione precedente — 2.25.1 rilasciata, collaudo della mattina (2026-11-05, theobroma)
 
