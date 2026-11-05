@@ -36,9 +36,19 @@
   [stile sobrio](docs/plans/2026-11-04-stile-sobrio.md) la misura delle icone che non vale nelle barre dello stile VS
   Code. In `Appunti.txt`: la CI di GitHub rossa dal 05-10 al passo clippy.
 
-**Prossimo** (proposta al maintainer, da confermare): le icone dello stile VS Code (chiude il piano già archiviato),
-poi **F1**, la Finestra di avviso; la sessione di plan dello stile sobrio a parte, senza codice; l'impostazione
-iniziale (I1–I2) dopo F1 (e F2), perché il suo modulo è la Finestra di avviso.
+**Pomeriggio (in `main`, non pushato: `4d918f75`, `b24193d7`)**, tutto collaudato dal maintainer:
+- le barre dello stile VS Code seguono la «Dimensione icone» (il piano dello stile VS Code ha la sua sezione
+  «Completamento»);
+- il pannello destro senza selezione per gruppi (Pagina, Sfondo, Come finestra, Cornice, Faceplate) e le impostazioni del
+  progetto nella finestra «Impostazioni progetto» (parte di I2, anticipata: nel piano dell'impostazione iniziale), con
+  «Applica a tutte le pagine…» (nuovo, elenco da spuntare); 15 difetti trovati da una revisione indipendente e corretti
+  prima del collaudo;
+- la Finestra di avviso, primo passo di F1: il componente, `avviso`/`conferma`/`chiedi`/`scegli`/`modulo`, l'host in
+  `avvia()`; le richieste aperte da un modulo gli stanno sopra.
+
+**Prossimo**: il resto di **F1** su `feat/finestra-avviso`, cioè le 40 chiamate ai pop-up del browser di configurazione
+e boot, la guardia coi tetti, `common.ok` già fatto; poi F2 e F3. Lo stile sobrio: sessione di plan, senza codice.
+I1 (la finestra che si apre da sola per un progetto vuoto) dopo F1.
 
 ## Sessione precedente — 2.25.1 rilasciata, collaudo della mattina (2026-11-05, theobroma)
 
