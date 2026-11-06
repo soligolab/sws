@@ -66,7 +66,7 @@ modulo<T>({ titolo, corpo: (fine: (v: T | null) => void) => ReactNode, chiudibil
 - Prova del maintainer: ripristinare ed eliminare un backup, Salva come e Rinomina, un'azione di Sistema; Esc, Invio,
   Tab; la finestra sta sopra le altre.
 
-**F2 — `feat/finestra-avviso-2`: deploy ed editor (≈48 chiamate).**
+**F2 — `feat/finestra-avviso-2`: deploy ed editor (≈48 chiamate).** — *fatta il 05-11-2026: la catena del 428 in `store/conferme428.ts`, `deployServeAdmin.ts` assorbito.*
 - Deploy (17): **una funzione sola** per la catena di conferme dopo il 428, usata dai tre percorsi; `deployServeAdmin`,
   `App.tsx:933` e `:998`, `AggiornamentoRuntime` (la firma che cambia), `FinestraAggiornamento`.
 - Editor (31): LeftPanel 10, EditorShell 5 (con il testo di `targetRiskyConfirm` corretto), CampoTestoTradotto 2 (con
@@ -76,7 +76,7 @@ modulo<T>({ titolo, corpo: (fine: (v: T | null) => void) => ReactNode, chiudibil
 - Test: `campoTestoTradotto`, `cardSorgenti`, `planimetrieEditor`.
 - Prima: un pannello raggiungibile per provare il deploy (l'indirizzo lo dà il maintainer).
 
-**F3 — `feat/finestra-avviso-3`: viewer, console, finestre fatte a mano (≈18 chiamate + 8 finestre).**
+**F3 — `feat/finestra-avviso-3`: viewer, console, finestre fatte a mano (≈18 chiamate + 8 finestre).** — *fatta il 05-11-2026: le finestre fatte a mano sulla `Cornice` (in `FinestraAvviso.tsx`), la guardia a zero e `no-alert`. Decisioni 1, 3, 4, 5 come proposte; la 2 (password anche su LVGL) in `Appunti.txt`. Il piano si archivia al merge, dopo il collaudo.*
 - Viewer (11): `guardedWrites` diventa `Promise<boolean>` coi 17 chiamanti e il contratto `scrivi` dello slider; la
   password con `chiedi({ password: true })` (o `ReAuthModal`); i motivi obbligatori con `valida`.
 - Console (7).

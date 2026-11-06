@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { api, type ProgettoAperto, type RisorseConsole } from "@/api/client";
 import { avviso, errore as stileErrore, scheda, titoletto } from "@/ui/base";
+import { conferma } from "@/finestraAvviso/finestraAvviso";
 
 /**
  * Il sinottico delle risorse: la prima pagina della console.
@@ -65,7 +66,7 @@ export function Risorse() {
     const domanda = p.collegati > 0
       ? t("console.risorse.chiudiConCollegati", { progetto: p.progetto, n: p.collegati })
       : t("console.risorse.chiudiDomanda", { progetto: p.progetto });
-    if (!window.confirm(domanda)) return;
+    if (!(await conferma({ testo: domanda, pericolo: p.collegati > 0 }))) return;
     setChiudendo(p.riferimento);
     try {
       await api.chiudiProgettoAperto(p.azienda, p.progetto, p.collegati > 0);

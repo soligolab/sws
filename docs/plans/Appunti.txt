@@ -1,17 +1,8 @@
 Annoto di seguito, uno per punto, le cose che devono essere verificate e trasformate in plan da eseguire:
 
-- Traduzioni inglesi dell'IDE: nessuno ha mai letto le voci in inglese, e nessuno ha mai girato
-  l'IDE in inglese a schermo. Non e' lavoro di codice, e' verifica, ed e' per questo che sta qui
-  (piano 2026-09-19 archiviato il 22-10-2026). Le misure di oggi: en.json ha 3187 chiavi foglia
-  (erano ~1900 quando il piano e' nato, quindi il catalogo e' cresciuto del 67% e le ~400 voci
-  mai riviste sono ormai una frazione di un file che nessuno ha letto per intero); 352 chiavi
-  `cfgUi.*`, che nel NOME portano l'inglese invece della funzione; 25 paragrafi <Trans>, quasi
-  tutti in config/schede/. Quello che le guardie automatiche gia' coprono: la parita' delle
-  CHIAVI it/en (tests/i18nParita.test.ts) e la copertura, cioe' nessun italiano cablato fuori da
-  t() (check_i18n_ui.sh, tetti vuoti e verde). Nessuna delle due guarda la QUALITA' dell'inglese:
-  una voce puo' contenere italiano copiato e i test restano verdi. Il collaudo che manca e' un
-  giro dell'IDE in inglese piu' le lingue dei contenuti (viewer in `de`, traduzione automatica,
-  email, Telegram in `es`, e la chiave Google che deve sopravvivere a un ricaricamento).
+- (05-11-2026) Le lingue dei contenuti che restano da guardare: email e Telegram in `es`, e la chiave Google della
+  traduzione automatica che deve sopravvivere a un ricaricamento. L'IDE in inglese e' stato letto a schermo dal
+  maintainer il 05-11-2026 (barra di attivita', Configurazione, Git, Allarmi, Backup, Notifiche, Connessione): passa.
 
 - MCP: se un giorno debba anche SCRIVERE, e non solo leggere. Dal 22-10-2026 `sws-runtime --mcp`
   espone undici strumenti di lettura e nessuno che scrive (piano archiviato
@@ -215,8 +206,10 @@ Annoto di seguito, uno per punto, le cose che devono essere verificate e trasfor
 - (04-11-2026) **Una conversazione intera con gli sfondi**, provata dall'IDE: genera_sfondo → «Usa come base» → varia_sfondo
   → proposta → Applica → Salva → le foto in images/. Provati a pezzi (API vera di gpt-image-2, test del flusso, la pagina
   Lago su web e LVGL), non tutti insieme in chat con un modello vero.
-- (04-11-2026) **Il testo grande sul web sta più in alto del suo riquadro che su LVGL** (titolo «Lago alpino»: a cavallo
-  del bordo del pannello sul web, dentro su LVGL). Da misurare con le istantanee dei due motori prima di toccare niente.
+  **Provata il 05-11-2026 sull'IDE 8460, e non passa.** (a) «Usa come base» non fa niente al primo clic: risponde solo
+  dopo vari tentativi, e la chat sembra lenta a reagire. (b) `istantanea_pagina` va in timeout tre volte («il viewer non
+  ha finito entro 60 s»): cinque foto a tutta pagina sono troppe per il banco di prova, che ci rinuncia. L'assistente ha
+  proposto lo stesso la pagina, validata ma mai fotografata. Il maintainer la riprova da casa, sul TC620.
 - (04-11-2026) **Un template salvato la prima volta rinomina i file delle pagine col nome tradotto**: `Impianto.yaml`
   (name `{{t0001}}`) diventa `{{t0001}}.yaml`. Estetico; la correzione provata (il file col testo del token) cancellava
   pagine nei rinomini e dava 409 falsi, ed è stata tolta. Se serve, va pensata con `list_synoptics` e le versioni Q30.
@@ -241,8 +234,10 @@ Annoto di seguito, uno per punto, le cose che devono essere verificate e trasfor
   cornice a y 36 usciva dalla testata sul pannello. Nei template di T1 e nel modello di cornice dell'IDE
   (`cornici/modello.ts`) i testi stanno ora in un riquadro con `text_wrap` e `text_valign: middle`, che i due motori
   disegnano uguali. La correzione vera è nel motore LVGL (sottrarre l'ascesa del font per un `text` senza riquadro),
-  da provare con le istantanee dei due motori: cambia la posizione di ogni testo libero di ogni progetto LVGL. È la
-  stessa cosa della voce sul «Lago alpino» qui sopra.
+  da provare con le istantanee dei due motori: cambia la posizione di ogni testo libero di ogni progetto LVGL. Il caso
+  da riprodurre: il titolo «Lago alpino» (`lago_titolo`, y 26, corpo 28, senza text_wrap) della pagina Lago di
+  `montagna-rinnovabile` al commit `3822170c` — sul web a cavallo del bordo del pannello scuro, dentro su LVGL (oggi
+  quel titolo non c'è più: lo dà la cornice).
 - (04-11-2026, T1) **Difetti del pannello LVGL visti nelle istantanee dei template**, tutti preesistenti:
   - il figlio di una cella di griglia va nell'angolo dello slot più `x`/`y`, il web lo centra e ignora `x`/`y`
     (`render_grid_slot`, `lvgl_render.rs`). `grid-playground` mette in `x`/`y` lo scarto che centra: se si corregge
@@ -278,3 +273,75 @@ Annoto di seguito, uno per punto, le cose che devono essere verificate e trasfor
   verificare: la CI usa una clippy piu' nuova (stable dell'ultimo giorno) con avvisi nuovi.
   Rimedio possibile: fissare la toolchain anche nella CI, o correggere gli avvisi nuovi. Il log
   dell'esecuzione 41859020115 si legge solo autenticati. Misura del 05-11-2026 dall'API pubblica.
+
+- (05-11-2026, L0) **Le espressioni dei tag girano senza sandbox e senza timeout.** `eval_expression`
+  (`sws-runtime/crates/sws-pyscript/src/lib.rs`, la funzione e il suo harness `EVAL_HARNESS` poco
+  sopra) valuta il campo `expression` di un tag con `eval` normale: niente RestrictedPython, niente
+  `__sws_kill_switch__`. Un'espressione la scrive chi progetta, come uno script, ma non passa
+  dall'editor del codice, ed e' per questo che e' rimasta fuori da L0 (decisione del 04-11). Da
+  decidere: la stessa sandbox degli script, o un sottoinsieme ancora piu' stretto (solo aritmetica e
+  i tag).
+- (05-11-2026, L0) **Tre cose della sandbox viste facendo L0, non toccate.** (1) `_getattr_` e'
+  `getattr` normale e non `safer_getattr` di RestrictedPython: `"{0.__class__}".format(x)` arriva
+  agli attributi privati dentro una stringa (si legge, non si chiama). La revisione di L0 ci e'
+  arrivata fino a `os.environ` (`'{0.__globals__[__loader__]…environ[HOME]}'.format(setattr)`
+  stampa la HOME), e c'era gia' prima di L0: uno script puo' leggere le variabili d'ambiente del
+  runtime. `safer_getattr` lo chiude ma vieta anche `"...".format(...)`, che negli script
+  esistenti si usa: va misurato prima. (2) Manca
+  `_apply_`, quindi `f(*lista)` e `f(**diz)` danno NameError sul pannello. (3) Le costanti di primo
+  livello non si vedono dentro un `def` per via di `exec(codice, globali, {})`; con un dizionario
+  solo si vedrebbero, come in Python normale. Oggi e' scritto in `schema_python` e in HOWTO §15.
+  Dalla stessa revisione, tre minori: (4) un parametro di funzione puo' chiamarsi `_print_`,
+  `__builtins__` o `state` e coprire la guardia o il nome fornito (rompe solo quella funzione;
+  `is_valid_python_identifier` in `router.rs` potrebbe rifiutare `_…` e i `NOMI_FORNITI`);
+  (5) l'harness redirige `sys.stdout`/`sys.stderr` del processo, quindi due script insieme si
+  scambiano ancora lo stderr e uno puo' lasciare `sys.stdout` su un buffer morto (il `print` non
+  ci passa piu'; misurato il 05-11: `tags.read` rilascia il GIL, e con due giri sovrapposti il secondo
+  ripristina come originale lo StringIO del primo, cosi' il processo resta con quello); (6) `sum(range(10**12))` o `list(range(10**9))` girano in C e non sentono il
+  timeout, come gia' `pow` e `'x' * 10**10`: un limite di memoria per gli script non c'e'.
+
+- (05-11-2026, F3) **Un comando critico su LVGL chiede una conferma, sul web la password.** La decisione 2 di F3
+  proponeva la password su tutti e due: sul web c'era gia', su LVGL manca una tastiera e una sessione autenticata nel
+  viewer (`regola_conferma` in `lvgl_render.rs`, il commento lo dice). Resta da fare li', ed e' lavoro vero.
+- (05-11-2026, F3) **Un momentaneo critico sul web e' un impulso**: password alla pressione, poi pressione e rilascio
+  scritti insieme (`comando` in `SvgCanvas.tsx`). Sul pannello LVGL il momentaneo non chiede niente, nemmeno se
+  critico. Da vedere col maintainer se un momentaneo critico debba esistere.
+
+- (05-11-2026, misure dei valori sul codice) **Il trace del kill switch costa ~6 ms per giro**: e' installato prima di
+  `compile_restricted` e ne traccia circa 19.000 eventi, contro i 25 dello script (giornata: 8,7 ms per giro col trace
+  di oggi, 2,9 ms col trace messo subito prima di `exec`, x86 nell'immagine 2.25.1). Spostarlo lascia la compilazione
+  senza kill switch: da decidere. Anche il testo dell'HARNESS e `compile_restricted` si ricompilano a ogni giro.
+  Misure in `tmp/debug-inline/esito-py312-container.txt` (solo su theobroma).
+- (05-11-2026, stesse misure) **Lo stdout di un giro fallito si perde**: `run_in_python` restituisce solo `Err(String)`,
+  quindi il `print` di diagnosi non arriva proprio nei giri che vanno male. Cambio piccolo.
+- (05-11-2026, stesse misure) **Ogni giro di script avvia un thread che dorme per tutto il timeout** (5 s) e non viene
+  annullato (`run_in_python`, il timer del kill switch): con `interval_ms` a 50 sono circa 100 thread per script.
+- (05-11-2026, dal piano «tronco cloud» archiviato, decisione 27) **La guardia del self-host non esiste.** Doveva avviare
+  l'IDE senza gateway e senza azienda, entrare con un utente dell'installazione e aprire un progetto: se una dipendenza
+  dal cloud entra nel nucleo, diventa rossa. Quasi tutto lo fa gia' `scripts/check_primo_utente.sh` (guardia manuale,
+  elenco CON_STACK di `check_static.sh`): avvia un IDE con la sola `--admin-port`, crea il primo amministratore e apre il
+  progetto «prova», ma `prepara()` butta via le risposte e non controlla che l'apertura riesca. Basta estenderla.
+- (05-11-2026, dal piano «tronco cloud» archiviato, Q44 punto 4) **Backup e ripristino per azienda.** Oggi i backup sono
+  per progetto (`sws-web/src/backups.rs` non sa niente dell'azienda); nel cloud servirebbe salvare e ripristinare
+  insieme tutti i progetti di un'azienda. Il testo della domanda: `docs/archive/2026-09-18-identita-utenti-istanze.md`
+  (Q44, punto 4). Non e' piccolo: prima una sessione di plan.
+- (05-11-2026, archiviando la fiducia del browser) **«Disabilita TLS» non torna in chiaro, e il difetto e' certo dal
+  codice.** `remove_tls_cert` (`system.rs`) cancella `tls.crt`/`tls.key` e riesegue il runtime; al nuovo avvio
+  `main.rs` trova il marcatore `fiducia-browser` senza certificato, ne genera uno e riparte in HTTPS. I testi promettono
+  il chiaro (it.json, `system.rs`, `remote.rs`, `fiducia-browser.sh`). Da decidere cosa vuol dire «disabilitare» dove il
+  TLS e' acceso di default; il marcatore `tls-scelta` non si riusa com'e', perche' `install-container.sh` lo cancella a
+  ogni installazione. Ramo piccolo (runtime, installatore, testi), provabile solo dopo una build.
+- (05-11-2026, tolto da COLLAUDI §A-quinquies) **Prova vera di SMS, chiamate e reperibilita' Twilio** (piano archiviato
+  `docs/archive/2026-10-26-sms-voce-reperibilita.md`), appena l'account Twilio passa a pagamento: l'account di prova manda
+  solo i messaggi predefiniti di Twilio e risponde 572006 a un testo di SWS. Serve un pannello collegato al cloud. Da
+  provare: «Invia SMS di prova» con Account SID e token, poi con una chiave API «Standard» riscrivendo una volta il
+  segreto (correzione `2607e411`: si perdeva salvando); due reperibili di turno con 2 minuti di attesa e Voce sullo
+  scatto: squilla il primo, poi il secondo, il tasto 1 riconosce l'allarme («telefono: …» nel registro) e ferma la
+  catena; webhook SMS `https://<gateway>/telefono/<pannello>/sms` con SMS sullo scatto, risposta «OK» → riconosciuto;
+  senza reperibili di turno nessuno viene chiamato e il log lo dice.
+- (05-11-2026, dal censimento dei collaudi) **Un deploy con un nome nuovo cancella anche gli account del pannello.** La
+  cartella del progetto vecchio se ne va col suo `users.yaml`, e con «Invia ora» gli utenti del progetto nuovo non
+  arrivano mai (`remote.rs`, `projects.rs`): un pannello senza Admin del dispositivo torna «in attesa» e chiede il codice
+  di abbinamento. Il deploy scrive «Utenti: non toccati», che non e' vero, e la conferma «sostituisce-progetti» parla
+  solo dello storico.
+

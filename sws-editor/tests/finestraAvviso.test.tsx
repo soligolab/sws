@@ -4,12 +4,15 @@ import { render, screen, fireEvent, act, cleanup } from "@testing-library/react"
 import { StrictMode } from "react";
 import { describe, it, expect, afterEach, vi } from "vitest";
 import "../src/i18n/index";
-import { FinestraAvviso } from "../src/finestraAvviso/FinestraAvviso";
+import { Cornice, FinestraAvviso } from "../src/finestraAvviso/FinestraAvviso";
 import { avviso, chiedi, conferma, modulo, rispondi, scegli, svuotaCoda, type Richiesta } from "../src/finestraAvviso/finestraAvviso";
 
 afterEach(async () => {
   // Una richiesta lasciata aperta da un test non deve restare in coda per il prossimo.
   await act(async () => { svuotaCoda(); });
+  // Un Invio premuto da un test e mai rilasciato (in jsdom il keyup non arriva
+  // da solo) farebbe credere alla prossima finestra di essere aperta da Invio.
+  fireEvent.keyUp(window, { key: "Enter" });
   cleanup();
 });
 
@@ -113,6 +116,21 @@ describe("avviso, chiedi, scegli, modulo", () => {
     await act(async () => { q = scegli({ testo: "Ancora?", scelte: [{ valore: "a", etichetta: "A" }] }); });
     fireEvent.keyDown(finestra(), { key: "Escape" });
     await expect(q).resolves.toBeNull();
+  });
+
+  it("aperta da Invio: il fuoco va al predefinito solo quando il tasto si alza", async () => {
+    // Collaudo F2.7 (06-11-2026): il campo testo conferma col blur su Invio, la
+    // domanda nasce durante quel tasto, e il keypress che segue premeva Annulla.
+    render(<FinestraAvviso />);
+    fireEvent.keyDown(window, { key: "Enter" });
+    let p!: Promise<string | null>;
+    await act(async () => { p = scegli({ testo: "Dove?", scelte: [{ valore: "qui", etichetta: "Qui" }] }); });
+    expect(document.activeElement).toBe(finestra());
+    fireEvent.keyDown(finestra(), { key: "Enter", repeat: true });
+    fireEvent.keyUp(window, { key: "Enter" });
+    expect(document.activeElement).toBe(annulla());
+    fireEvent.click(screen.getByTestId("finestra-avviso-scelta-0"));
+    await expect(p).resolves.toBe("qui");
   });
 
   it("modulo: il corpo chiude con il suo valore; non chiudibile resiste a Esc", async () => {
@@ -226,5 +244,58 @@ describe("rispondi, l'aiuto per i test", () => {
     await expect(chiedi("Nome?")).resolves.toBe("nome");
     await expect(conferma("No?")).resolves.toBe(false);
     r.ferma();
+  });
+});
+
+describe("Cornice, per le finestre che vivono in chi le apre (F3)", () => {
+  it("Esc chiude, il velo solo se lo si chiede, e Tab resta dentro", () => {
+    const chiudi = vi.fn();
+    render(
+      <Cornice titolo="Rinomina" onChiudi={chiudi} testid="c">
+        <input data-testid="uno" /><button type="button" data-testid="due">ok</button>
+      </Cornice>,
+    );
+    const c = screen.getByTestId("c");
+    expect(screen.getByRole("dialog", { name: "Rinomina" })).toBe(c);
+    expect(document.activeElement).toBe(screen.getByTestId("uno"));
+    screen.getByTestId("due").focus();
+    fireEvent.keyDown(screen.getByTestId("due"), { key: "Tab" });
+    expect(document.activeElement).toBe(screen.getByTestId("uno"));
+    fireEvent.mouseDown(screen.getByTestId("c-velo"));
+    expect(chiudi).not.toHaveBeenCalled();
+    fireEvent.keyDown(c, { key: "Escape" });
+    expect(chiudi).toHaveBeenCalledTimes(1);
+  });
+
+  it("non chiudibile resiste a Esc; sotto una conferma della coda, i tasti sono della conferma", async () => {
+    const chiudi = vi.fn();
+    render(<><FinestraAvviso /><Cornice onChiudi={chiudi} chiudibile={false} testid="c"><button type="button">x</button></Cornice></>);
+    fireEvent.keyDown(screen.getByTestId("c"), { key: "Escape" });
+    expect(chiudi).not.toHaveBeenCalled();
+    let p!: Promise<boolean>;
+    await act(async () => { p = conferma("Sopra?"); });
+    expect(screen.getByTestId("c-velo").hasAttribute("inert")).toBe(true);
+    fireEvent.keyDown(finestra(), { key: "Escape" });
+    await expect(p).resolves.toBe(false);
+  });
+
+  it("due cornici: i tasti sono di quella aperta dopo, e il fuoco torna a chi le ha aperte", async () => {
+    const chiudiA = vi.fn(), chiudiB = vi.fn();
+    render(<><button type="button" data-testid="origine">apri</button></>);
+    screen.getByTestId("origine").focus();
+    const { rerender } = render(<Cornice onChiudi={chiudiA} testid="a"><input data-testid="campo-a" autoFocus /></Cornice>);
+    rerender(<>
+      <Cornice onChiudi={chiudiA} testid="a"><input data-testid="campo-a" autoFocus /></Cornice>
+      <Cornice onChiudi={chiudiB} testid="b"><input data-testid="campo-b" autoFocus /></Cornice>
+    </>);
+    screen.getByTestId("campo-b").focus();
+    fireEvent.keyDown(screen.getByTestId("campo-b"), { key: "x" });
+    expect(document.activeElement).toBe(screen.getByTestId("campo-b"));
+    fireEvent.keyDown(screen.getByTestId("b"), { key: "Escape" });
+    expect(chiudiB).toHaveBeenCalledTimes(1);
+    expect(chiudiA).not.toHaveBeenCalled();
+    rerender(<></>);
+    await act(async () => {});
+    expect(document.activeElement).toBe(screen.getByTestId("origine"));
   });
 });

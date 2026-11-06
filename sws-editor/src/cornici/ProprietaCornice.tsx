@@ -8,6 +8,7 @@ import type { FasciaCornice, SynopticPage } from "@/types";
 import { SEGNAPOSTI, idCornice, pagineCornice } from "./modello";
 import { impostaCornicePredefinita } from "./predefinita";
 import { CampoNumero } from "@/components/CampoNumero";
+import { avviso } from "@/finestraAvviso/finestraAvviso";
 
 const LABEL: React.CSSProperties = { fontSize: 11, color: "var(--brand-text-muted, #94a3b8)", marginBottom: 2 };
 const INPUT: React.CSSProperties = {
@@ -102,7 +103,7 @@ export function ProprietaFasce({ pagina }: { pagina: SynopticPage }) {
         <input type="checkbox" checked={predefinita === id}
           onChange={(e) => {
             impostaCornicePredefinita(e.target.checked ? id : undefined).catch((err) =>
-              window.alert(t("cornici.predefinitaFallita", { err: err instanceof Error ? err.message : String(err) })));
+              void avviso({ testo: t("cornici.predefinitaFallita", { err: err instanceof Error ? err.message : String(err) }), livello: "errore" }));
           }} />
         {t("cornici.predefinitaCheckbox")}
       </label>

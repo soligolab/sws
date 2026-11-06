@@ -1,7 +1,10 @@
 # Seme — un dispositivo che si crea utenti propri: chi vince al deploy successivo?
 
+> **Seme lasciato il 05-11-2026** (decisione del maintainer, banco di collaudo): per ora non si fa. Il caso non è
+> ancora possibile: sul pannello non c'è un componente che crea account.
+
 **Stato: seme — decisione.** Estratto il 22-10-2026 da
-[identità, utenti e istanze](../archive/2026-09-18-identita-utenti-istanze.md), archiviato quel
+[identità, utenti e istanze](2026-09-18-identita-utenti-istanze.md), archiviato quel
 giorno: delle sue tre domande, Q56 è stata costruita (`sws-identita`) e Q44 è diventata il piano
 cloud e quattro piani archiviati. **Q54 è l'unica rimasta aperta**, e sta qui perché non resti
 sepolta in 852 righe che descrivono un mondo che non c'è più.
@@ -31,8 +34,8 @@ se lo porta via. Lo gestisce `sws-web/src/router.rs` (cerca `utenti_dispositivo`
 **Quello che non c'è** è la marcatura dentro `users.yaml` — la decisione 21 del piano identità,
 opzione 3 della scheda: un campo `origine: dispositivo` che distingua gli account nati sul
 pannello da quelli arrivati col deploy, e un deploy che sostituisce i primi e non tocca i
-secondi. **Nel codice non esiste nessun campo `origine`.** Resta elencato fra le cose da fare
-anche in `2026-10-05-cloud-utenti-aziende-spazi.md`.
+secondi. **Nel codice non esiste nessun campo `origine`.** Era elencato fra le cose da fare anche nel tronco
+cloud, archiviato il 05-11-2026 (`docs/archive/2026-10-05-cloud-utenti-aziende-spazi.md`).
 
 **E il caso non è ancora materialmente possibile**: sul pannello non esiste un componente
 sinottico «gestione utenti», quindi nessun account nasce lì. È questo che rende la domanda
@@ -52,7 +55,7 @@ componente si disegna.
 
 - `sws-auth`: lo schema di `users.yaml` e `swap_store`, che dal 22-10-2026 sa già **tenere le
   sessioni degli utenti invariati** fra un deploy e l'altro (vedi
-  [la sessione che non sopravvive a un deploy](../archive/2026-10-22-sessione-che-non-sopravvive-al-deploy.md)):
+  [la sessione che non sopravvive a un deploy](2026-10-22-sessione-che-non-sopravvive-al-deploy.md)):
   quella funzione è il posto naturale dove un `origine` verrebbe letto.
 - Il percorso del deploy in `sws-web/src/projects.rs`, e la spunta «Sostituisci anche gli utenti»
   che oggi decide in blocco.

@@ -17,6 +17,7 @@ vi.mock("@/api/client", async () => {
 import { CorpoPlanimetrie } from "../src/editor/LeftPanel";
 import { PlanimetriaEditor } from "../src/planimetrie/PlanimetriaEditor";
 import { useAppStore } from "../src/store";
+import { rispondi } from "../src/finestraAvviso/finestraAvviso";
 
 const CASA = {
   id: "casa", nome: "Casa", unita_px_m: 50,
@@ -37,13 +38,15 @@ describe("Planimetrie", () => {
 
   it("una nuova prende l'id dal nome e si apre", async () => {
     planimetrie.mockResolvedValue([{ id: "garage", nome: "Garage" }]);
-    vi.spyOn(window, "prompt").mockReturnValue("Casa — piano terra");
+    const r = rispondi("Casa — piano terra");
     render(<CorpoPlanimetrie />);
     await screen.findByTestId("planimetria-garage");
     fireEvent.click(screen.getByTestId("nuova-planimetria"));
     await waitFor(() => expect(salvaPlanimetria).toHaveBeenCalled());
+    expect(r.chiamate[0]).toMatchObject({ tipo: "chiedi" });
     expect(salvaPlanimetria.mock.calls[0][0]).toMatchObject({ id: "casa-piano-terra", nome: "Casa — piano terra", muri: [] });
     expect(useAppStore.getState().planimetriaAperta).toBe("casa-piano-terra");
+    r.ferma();
   });
 
   it("l'editor la disegna, una modifica la sporca, salvare toglie gli orfani", async () => {

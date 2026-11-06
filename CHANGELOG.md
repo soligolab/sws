@@ -11,6 +11,11 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 
 ## [Unreleased]
 
+### Aggiunto
+- **Il banco di collaudo** (`scripts/banco_collaudo/`, per chi sviluppa): una pagina servita da `server.py` (solo
+  libreria standard, porta 8471) con le prove da fare in gruppi, l'esito a un tasto e una nota; gli esiti in
+  `esiti.json` fuori da git, da cui si spuntano `COLLAUDI_IN_SOSPESO.md`, i piani e `Appunti.txt`.
+
 ### Cambiato
 - **Il pannello di destra della pagina, un gruppo per voce**: senza selezione la barra dello stile VS Code (e i rami
   in quello classico) mostra Pagina, Sfondo, Come finestra, Cornice e Faceplate, ciascuno coi suoi campi; prima era una
@@ -29,8 +34,64 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
   Certificati, Git, OpenPLC, boot): le azioni pericolose col bottone rosso e Annulla predefinito, i titoli in maiuscolo
   divisi in titolo e testo, il valore iniziale di `chiedi` già selezionato come in `prompt`. La guardia
   `check_finestra_avviso.sh` conta quelle che restano (65), con un tetto per file che può solo scendere.
+- **La Finestra di avviso, F2: deploy ed editor.** Le 17 chiamate del deploy passano da **una catena sola** di conferme
+  dopo il 428 (`store/conferme428.ts`: simboli mancanti, serve un Admin, progetti sostituiti, utenti vuoti), usata
+  dalla testata, da Connessione e da Dispositivi; prima ognuno aveva la sua copia, e `deployServeAdmin.ts` è assorbito
+  lì. Le 30 dell'editor (pagine, cornici, faceplate, planimetrie, gruppi, ruolo minimo, allarmi, Git, MQTT, storico)
+  diventano `avviso`, `conferma`, `chiedi`, con le cancellazioni irreversibili in rosso. La scelta dei testi tradotti
+  usa `scegli`: Annulla ed Esc lasciano il campo com'era, mentre con `confirm` Annulla voleva dire «cambia
+  dappertutto». Il caricamento del database chiede prima di aprire il selettore di file, come prima. Restano 18 pop-up
+  (viewer e console, F3).
+  Una finestra aperta **da** Invio (il campo testo conferma col `blur`) aspetta che il tasto si alzi prima di dare
+  il fuoco al predefinito: il `keypress` dello stesso Invio premeva Annulla e la domanda spariva da sola (collaudo
+  F2.7, 06-11-2026).
+- **Gli sfondi dell'assistente, dal collaudo del 05-11.** «Usa come base» cliccato mentre il modello lavora non si
+  perde più: la scelta resta in coda («scelta: parte appena l'assistente finisce questo turno») e parte col frame
+  `fine`; prima il bottone era spento senza dirlo. In un turno che ha generato le basi `istantanea_pagina` è rifiutata
+  (il modello si ferma invece di fotografare). L'istantanea non ha più un tempo totale fisso di 60 s: l'attesa riparte a
+  ogni riga del viewer (30 s di silenzio, `SWS_ISTANTANEA_ATTESA_S`; tetto 5 min), le righe arrivano in chat sotto lo
+  strumento, il viewer LVGL scrive «[sfondo] … pronto in N ms», e a tempo scaduto viene **fermato** (prima restava
+  acceso) con le sue ultime righe nell'errore. `SWS_AI_DEBUG=1` mette nel log una riga per messaggio della chat, per
+  strumento e per risposta del modello, coi tempi; il browser le stesse in `console.debug` («[chat]»).
+- **L'assistente compone le pagine coi faceplate** (richiesta del maintainer, 06-11-2026). Strumento nuovo
+  `leggi_faceplate` (elenco con misura e parametri, o il faceplate intero; anche via MCP), campo `faceplates` in
+  `valida`, `istantanea_pagina` e `proponi_modifica`. La validazione dice le istanze che nominano un faceplate che non
+  c'è e applica `rilievi_faceplate` ai proposti; l'istantanea li scrive nella copia. Nel browser i faceplate proposti
+  diventano pagine-faceplate (un predefinito cambiato diventa «personalizzato») e il diff li elenca. Il prompt del
+  sinottico intero ha un passo nuovo: una macchina ripetuta si disegna una volta come faceplate, con un parametro
+  `istanza`/`type_ref`, e si posa come istanze.
+- **La Finestra di avviso, F3: viewer, console e le finestre fatte a mano.** `guardedWrites` scrive subito e dà `true`
+  nello stesso giro quando non c'è niente da chiedere (lo slider non perde il cursore per un fotogramma), e la
+  Promise della risposta con conferma, password (`chiedi` con `password`) o motivo (`valida`); i bottoni nella lingua
+  dei contenuti (`annulla`, `conferma` nei testi di sistema). Il toggle ricalcola il valore alla conferma. Il
+  momentaneo non chiede conferma, come LVGL; un momentaneo **critico** chiede la password alla pressione e dà un
+  impulso, invece di chiederla anche al rilascio e lasciare scritto il valore se la si annullava. Lo slider non accoda
+  una domanda ogni 200 ms. Console: pannelli, aziende, persone, risorse. Le otto finestre fatte a mano stanno sulla
+  stessa cornice: le modifiche non salvate diventano `scegli`, il pull un `modulo`, e `QuickCreateTagModal`,
+  `RinominaTagModal`, `ReAuthModal`, `ChiudiAccount`, `DialogoRisoluzione` e le tre di `AvvisoAggiornamento` usano
+  `Cornice` (stesso velo, Esc, Tab tenuto dentro, fuoco che torna). La guardia è a zero, e ESLint ha `no-alert`.
+  Dalla revisione indipendente: l'impulso del momentaneo critico va tutto via HTTP, in ordine, largo 500 ms e col
+  motivo (prima il rilascio passava dal socket e poteva arrivare prima della pressione); il toggle confermato mentre il
+  tag cambia non scrive l'opposto di quello letto; lo slider a molla torna sempre a riposo, e con una domanda lo slider
+  scrive al rilascio e tiene il cursore dov'è mentre la finestra è aperta; solo la cornice in cima sente i tasti, e un
+  campo di qualcosa che le sta sopra (il login del viewer) si può scrivere; «Salva e chiudi» tiene la finestra finché
+  il salvataggio non è finito.
 
 ### Corretto
+- **La sandbox Python dà quello che RestrictedPython riscrive** (L0, piano `2026-11-04-logica-unificata.md`): `print`,
+  `for`, `+=`, `a, b = …` e le comprensioni davano `NameError` (`_print_`, `_getiter_`, `_inplacevar_`) **solo sul
+  pannello**, perché sul PC di sviluppo RestrictedPython manca. Ora l'harness ha le guardie standard
+  (`PrintCollector`, `default_guarded_getiter`, `guarded_iter_unpack_sequence`, `guarded_unpack_sequence`) e un
+  `_inplacevar_` per i soli nomi; ai `safe_builtins` si aggiungono `min`, `max`, `sum`, `list`, `dict`, `enumerate`,
+  `any`, `all`, `sorted`. Il testo di `print` va nel log del runtime col nome dello script o della funzione (troncato
+  a 2000 byte), e per una funzione resta nella risposta di «Prova».
+- **I default dei parametri di una funzione li applica il runtime** (`FunctionDef::argomenti`), in
+  `POST /api/script/run/:name` e in `functions.run`: un pulsante senza `on_press_args` e una cella mandavano `{}`, e la
+  funzione finiva in `NameError`. Un parametro senza default e non passato resta indefinito, come prima.
+- **Un elenco solo dei nomi forniti agli script**, `NOMI_FORNITI` in `sws-pyscript`: l'harness costruisce i globali
+  scorrendolo, il controllo (`/api/script/check`) e `schema_python` lo leggono, e `GET /api/script/nomi` lo dà
+  all'IDE. Prima erano quattro elenchi diversi; `schema_python` non aveva `functions` e `tr`, e ora dice anche che i
+  parametri sono globali e che le costanti di primo livello non si vedono dentro un `def`. HOWTO §15 aggiornato.
 - **Le barre dello stile VS Code seguono la «Dimensione icone»** delle preferenze (vista collaudando la 2.25.1): le
   icone erano fisse a 24 px. Icona della misura scelta, barra larga il doppio (`larghezzaBarra`,
   `editor/BarraAttivita.tsx`); alla misura predefinita non cambia niente.
@@ -1702,7 +1763,7 @@ e sul VPS resta la 2.25.1. Le sue voci di `NOVITA.yaml` sono riportate in «Unre
   cancellata, `ide_only` diventato `FonteAutenticazione`), `2026-09-18-workspace-dei-progetti.md`
   e `2026-09-19-traduzioni-inglesi-revisione.md` sono in `docs/archive/`. Di Q54 — se un domani il
   pannello creasse account da solo, al deploy successivo chi vince — resta il seme
-  `docs/plans/2026-10-22-utenti-nati-sul-dispositivo.md`; i dettagli residui sono in
+  `docs/archive/2026-10-22-utenti-nati-sul-dispositivo.md`; i dettagli residui sono in
   `docs/plans/Appunti.txt`.
 
 - I due campi `finestra_parametri` e `modale` del modello LVGL dicono ora **perché** nessuno li

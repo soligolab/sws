@@ -197,8 +197,9 @@ global_scripts:
       # e poi si rompe sul pannello. Misurato il 2026-08-25, e costato un giro
       # di deploy.
       #
-      # Concessi da safe_builtins: int float round abs len range bool str pow
-      # divmod. BLOCCATI, fra gli altri: min max list enumerate sum.
+      # Concessi: quelli di safe_builtins (int float round abs len range bool
+      # str pow divmod…) e, dal 05-11-2026, min max sum list dict enumerate any
+      # all sorted. `for`, `+=` e `print` funzionano anche sul pannello.
       #
       # Il tempo viene dal contatore, non dall'orologio: così l'andamento è
       # ripetibile e non dipende da quando è stato aperto il progetto.

@@ -1,9 +1,9 @@
 import { AbbinaPannelloCloud } from "@/config/schede/AbbinaPannelloCloud";
-import { gestisciServeAdmin } from "@/deployServeAdmin";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { Trans, useTranslation } from "react-i18next";
 import { api, getAuthToken, getBaseUrl, RuntimeUnavailableError, type DiscoveredRuntime, dimenticaVersioneProgetto } from "@/api/client";
-import { testoSimboliMancanti, testoSostituzione } from "@/store";
+import { confermaDopo428, NESSUNA_CONFERMA } from "@/store/conferme428";
+import { conferma, modulo } from "@/finestraAvviso/finestraAvviso";
 import { dispositivoDaRuntime } from "@/config/dispositiviRegistrati";
 import { selectIsDirty, useAppStore } from "@/store";
 import { INSTALL_HOST, ricorda } from "@/config/campiDispositivo";
@@ -17,6 +17,87 @@ import { StoricoDispositivo } from "@/boot/StoricoDispositivo";
 import { ConfermaAggiornamento } from "@/boot/ConfermaAggiornamento";
 import { TRANS_COMP } from "@/config/comuni";
 import { registraDispositivo, flushBeforeDeploy } from "@/config/schede/DevicesTab";
+
+const CAMPO_PULL: React.CSSProperties = {
+  background: "var(--brand-bg, #020617)", color: "var(--brand-text, #e2e8f0)", border: "1px solid var(--brand-surface-2, #334155)",
+  borderRadius: 4, padding: "6px 8px", fontSize: 13,
+};
+const BOTTONE_PULL: React.CSSProperties = {
+  padding: "6px 14px", borderRadius: 5, cursor: "pointer", fontSize: 13,
+  border: "1px solid var(--brand-surface-2, #334155)", background: "var(--brand-surface, #1e293b)", color: "var(--brand-text, #e2e8f0)",
+};
+
+/** Il modulo del pull (passo 1 → 2): il nome con cui aprire il progetto del
+ *  dispositivo, l'omonimo che c'è già, e cosa fare delle modifiche non
+ *  salvate. Dentro la cornice della Finestra di avviso (`modulo`, F3). */
+function ModuloPull({ iniziale, fine }: { iniziale: PullPrompt; fine: (v: PullPrompt | null) => void }) {
+  const { t } = useTranslation();
+  const [ask, setAsk] = useState(iniziale);
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 10, width: 528, maxWidth: "100%" }}>
+      {ask.savedBy && ask.localVersion && ask.savedBy !== ask.localVersion && (
+        <div style={{ fontSize: 12, color: "var(--brand-warning-soft, #fbbf24)", background: "var(--brand-warning-bg, #78350f)", border: "1px solid var(--brand-warning, #f59e0b)", borderRadius: 4, padding: "6px 8px" }}>
+          {t("header.migrateConfirm", { savedBy: ask.savedBy, runtime: ask.localVersion })}
+          {" "}{t("cfgUi.aggiornamentoDopoApertura")}
+        </div>
+      )}
+
+      <label style={{ fontSize: 12, color: "var(--brand-text-muted, #94a3b8)", display: "flex", flexDirection: "column", gap: 4 }}>
+        {t("cfgUi.importAs")}
+        <input
+          style={CAMPO_PULL}
+          value={ask.name}
+          autoFocus
+          onChange={(e) => setAsk({ ...ask, name: e.target.value })}
+          spellCheck={false}
+        />
+      </label>
+      {ask.localNames.includes(ask.name.trim()) ? (
+        <div style={{ fontSize: 12, color: "var(--brand-danger-soft, #fca5a5)" }}>
+          <Trans i18nKey="cfgUi.pullExists" values={{ name: ask.name.trim() }} components={TRANS_COMP} />
+        </div>
+      ) : (
+        <div style={{ fontSize: 12, color: "var(--brand-text-subtle, #64748b)" }}>
+          {t("cfgUi.noLocalProjectWithThis")}
+        </div>
+      )}
+
+      <div style={{ fontSize: 12, color: "var(--brand-warning-soft, #fbbf24)" }}>
+        <Trans i18nKey="cfgUi.pullBundleCreds" components={TRANS_COMP} />
+      </div>
+
+      {ask.dirty && (
+        <div style={{ borderTop: "1px solid var(--brand-surface-2, #334155)", paddingTop: 10, display: "flex", flexDirection: "column", gap: 6 }}>
+          <div style={{ fontSize: 12, color: "var(--brand-text-muted, #94a3b8)" }}>
+            {t("cfgUi.theCurrentlyOpenProjectHas")}
+          </div>
+          <label style={{ fontSize: 12, color: "var(--brand-text-2, #cbd5e1)", cursor: "pointer" }}>
+            <input type="radio" checked={ask.saveFirst} onChange={() => setAsk({ ...ask, saveFirst: true })} style={{ marginRight: 6 }} />
+            {t("cfgUi.saveBeforeClosing")}
+          </label>
+          <label style={{ fontSize: 12, color: "var(--brand-danger-soft, #fca5a5)", cursor: "pointer" }}>
+            <input type="radio" checked={!ask.saveFirst} onChange={() => setAsk({ ...ask, saveFirst: false })} style={{ marginRight: 6 }} />
+            {t("cfgUi.closeWithoutSavingChangesAre")}
+          </label>
+        </div>
+      )}
+
+      <div style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)" }}>
+        {t("cfgUi.theZipCopyOfThe")}
+      </div>
+
+      <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
+        <button type="button" style={BOTTONE_PULL} onClick={() => fine(null)}>{t("common.cancel")}</button>
+        <button type="button" data-testid="pull-apri"
+          style={{ ...BOTTONE_PULL, background: "var(--brand-primary, #1d4ed8)", border: "1px solid var(--brand-primary-hover, #2563eb)",
+            color: "var(--brand-on-primary, #fff)", fontWeight: 600, opacity: ask.name.trim() ? 1 : 0.6 }}
+          onClick={() => fine(ask)} disabled={!ask.name.trim()}>
+          {t("cfgUi.openInTheIde")}
+        </button>
+      </div>
+    </div>
+  );
+}
 
 // ── RuntimeConnectionTab ─────────────────────────────────────────────────────
 
@@ -116,7 +197,6 @@ export function RuntimeConnectionTab() {
   const [pullLog, setPullLog]       = useState<string[]>([]);
   const [pulling, setPulling]       = useState(false);
   const [pullDone, setPullDone]     = useState(false);
-  const [pullAsk, setPullAsk]       = useState<PullPrompt | null>(null);
   const [discovering, setDiscovering] = useState(false);
   const [discovered, setDiscovered]   = useState<DiscoveredRuntime[] | null>(null);
   // "unreachable" = la fetch verso il runtime a cui l'IDE punta e' fallita
@@ -337,51 +417,23 @@ export function RuntimeConnectionTab() {
 
 
 
-  /** La metà che parla col server. `confermato` diventa vero solo dopo che
-   *  l'utente ha risposto al `window.confirm` del 428, e allora la funzione si
-   *  richiama **una sola volta**: il flag è già a `true` e il server non può
-   *  chiedere di nuovo. */
-  const eseguiDeploy = async (confermato: boolean, sostituzioneConfermata = false, simboliConfermati = false): Promise<void> => {
-      const res = await api.deployToRuntime({
-        replaceUsers: sostituisciUtenti,
-        confirmNoUsers: confermato,
-        confirmReplace: sostituzioneConfermata,
-        confirmMissingSymbols: simboliConfermati,
-      });
-
+  /** La metà che parla col server. Dopo un 428 si chiede a chi guarda
+   *  (`confermaDopo428`, la stessa catena della testata e di Dispositivi) e si
+   *  rifà la richiesta con la conferma data: il server non chiede due volte la
+   *  stessa cosa. */
+  const eseguiDeploy = async (): Promise<void> => {
+      let conferme = NESSUNA_CONFERMA;
+      let res: Response;
       // 428: il server ha guardato e si è fermato **prima** di toccare qualcosa.
-      // Due casi: il deploy cancellerebbe progetti con un altro nome (03-10-2026),
-      // o il progetto non ha utenti e il dispositivo ne ha. La decisione è di
-      // chi guarda lo schermo, non del codice.
-      const d428 = res.status === 428 ? await res.clone().json().catch(() => ({} as any)) : null;
-      if (d428?.conferma === "simboli-mancanti" && !simboliConfermati) {
-        if (!window.confirm(testoSimboliMancanti(d428.simboli ?? [], !!d428.non_verificabile, d428.versione_pannello))) {
-          setDeployLog((l) => [...l, "✗ " + t("cfg.deployAnnullato")]);
-          return;
-        }
-        return eseguiDeploy(confermato, sostituzioneConfermata, true);
-      }
-      if (gestisciServeAdmin(d428)) {
-        setDeployLog((l) => [...l, "✗ " + t("abbinamento.serveAdminBreve")]);
-        return;
-      }
-      if (d428?.conferma === "sostituisce-progetti" && !sostituzioneConfermata) {
-        if (!window.confirm(testoSostituzione(d428.progetto, d428.progetti ?? []))) {
-          setDeployLog((l) => [...l, "✗ " + t("cfg.deployAnnullato")]);
-          return;
-        }
-        return eseguiDeploy(confermato, true, simboliConfermati);
-      }
-      if (res.status === 428 && !confermato) {
-        const d = d428 ?? {};
-        const elenco = Array.isArray(d?.utenti_dispositivo) && d.utenti_dispositivo.length
-          ? d.utenti_dispositivo.join(", ")
-          : t("cfg.deployNoUsersUnknown");
-        if (!window.confirm(t("cfg.deployNoUsersConfirm", { utenti: elenco }))) {
-          setDeployLog((l) => [...l, "✗ " + t("cfg.deployAnnullato")]);
-          return;
-        }
-        return eseguiDeploy(true, sostituzioneConfermata, simboliConfermati);
+      // La decisione è di chi guarda lo schermo, non del codice.
+      for (;;) {
+        res = await api.deployToRuntime({ replaceUsers: sostituisciUtenti, ...conferme });
+        if (res.status !== 428) break;
+        const esito = await confermaDopo428(await res.clone().json().catch(() => ({})), conferme);
+        if (esito.tipo === "riprova") { conferme = esito.conferme; continue; }
+        if (esito.tipo === "annullato") { setDeployLog((l) => [...l, "✗ " + t("cfg.deployAnnullato")]); return; }
+        if (esito.tipo === "serve-admin") { setDeployLog((l) => [...l, "✗ " + t("abbinamento.serveAdminBreve")]); return; }
+        break;
       }
 
       if (!res.ok || !res.body) {
@@ -412,7 +464,7 @@ export function RuntimeConnectionTab() {
     try {
       const ok = await flushBeforeDeploy((m) => setDeployLog((l) => [...l, m]));
       if (!ok) { setDeploying(false); return; }
-      await eseguiDeploy(false);
+      await eseguiDeploy();
       setDeployDone(true);
     } catch (e: any) {
       setDeployLog((l) => [...l, `✗ ${e?.message ?? String(e)}`]);
@@ -457,19 +509,29 @@ export function RuntimeConnectionTab() {
       log(t("cfgUi.copiaSicurezzaScaricata", { file: `${suggested}-dal-runtime-${stamp}.zip` }));
 
       const locals = await api.listProjects().catch(() => []);
-      setPullAsk({
-        blob,
-        name: suggested,
-        // Solo quelli in RADICE: l'importazione crea li, quindi solo li puo
-        // esserci un omonimo da sostituire. Un progetto con lo stesso nome in
-        // una cartella d'azienda non e in conflitto con niente, e offrirsi di
-        // cancellarlo sarebbe offrirsi di cancellare il progetto sbagliato.
-        localNames: locals.filter((p) => p.riferimento?.startsWith("-/")).map((p) => p.name),
-        savedBy,
-        localVersion,
-        dirty: selectIsDirty(useAppStore.getState()),
-        saveFirst: true,
+      // Una finestra e non tre `confirm()` di fila: il nome, l'avviso che c'è
+      // già in locale e la scelta sulle modifiche non salvate vanno visti
+      // insieme. Dal 05-11-2026 sta nella cornice della Finestra di avviso (F3).
+      const ask = await modulo<PullPrompt>({
+        titolo: t("cfgUi.reopenTheDeviceSProject"),
+        corpo: (fine) => (
+          <ModuloPull fine={fine} iniziale={{
+            blob,
+            name: suggested,
+            // Solo quelli in RADICE: l'importazione crea li, quindi solo li puo
+            // esserci un omonimo da sostituire. Un progetto con lo stesso nome in
+            // una cartella d'azienda non e in conflitto con niente, e offrirsi di
+            // cancellarlo sarebbe offrirsi di cancellare il progetto sbagliato.
+            localNames: locals.filter((p) => p.riferimento?.startsWith("-/")).map((p) => p.name),
+            savedBy,
+            localVersion,
+            dirty: selectIsDirty(useAppStore.getState()),
+            saveFirst: true,
+          }} />
+        ),
       });
+      if (!ask) { setPullDone(true); return; }
+      await handlePullConfirm(ask);
     } catch (e: any) {
       log(`✗ ${e?.message ?? String(e)}`);
       setPullDone(true);
@@ -478,12 +540,9 @@ export function RuntimeConnectionTab() {
     }
   };
 
-  /** Passo 2 del pull: da qui in poi si scrive. Confermato dal modale. */
-  const handlePullConfirm = async () => {
-    const ask = pullAsk;
-    if (!ask) return;
+  /** Passo 2 del pull: da qui in poi si scrive. Confermato dal modulo. */
+  const handlePullConfirm = async (ask: PullPrompt) => {
     const name = ask.name.trim();
-    setPullAsk(null);
     setPulling(true);
     const log = (m: string) => setPullLog((l) => [...l, m]);
     try {
@@ -544,7 +603,7 @@ export function RuntimeConnectionTab() {
   };
 
   const handleDeleteRemoteProject = async () => {
-    if (!window.confirm(t("cfg.deleteRemoteProjectConfirm"))) return;
+    if (!(await conferma({ testo: t("cfg.deleteRemoteProjectConfirm"), pericolo: true, si: t("cfgUi.deleteProjectOnTheRuntime") }))) return;
     setDeletingRemote(true); setRemoteMsg(null);
     try {
       await api.remoteDeleteProject();
@@ -562,7 +621,7 @@ export function RuntimeConnectionTab() {
   // cambiate solo le password. Chiede conferma perché invalida le sessioni
   // aperte sul dispositivo.
   const handlePushUsers = async () => {
-    if (!window.confirm(t("cfg.pushUsersConfirm"))) return;
+    if (!(await conferma({ testo: t("cfg.pushUsersConfirm"), si: t("cfgUi.updateUsersOnTheDevice") }))) return;
     setPushingUsers(true); setRemoteMsg(null);
     try {
       const res = await api.pushUsersToRuntime();
@@ -941,85 +1000,6 @@ export function RuntimeConnectionTab() {
         </section>
       )}
 
-      {/* Conferma del pull. Un modale e non tre `confirm()` di fila perché le
-          decisioni sono legate fra loro: con che nome importare dipende da cosa
-          c'è già in locale, e la scelta sulle modifiche non salvate va vista
-          insieme al resto, non in un popup che è già sparito quando arriva il
-          successivo. */}
-      {pullAsk && (
-        <div style={{
-          position: "fixed", inset: 0, zIndex: 8000,
-          background: "rgba(0,0,0,0.6)",
-          display: "flex", alignItems: "center", justifyContent: "center",
-        }}
-          onClick={(e) => { if (e.target === e.currentTarget) setPullAsk(null); }}
-        >
-          <div style={{ background: "var(--brand-bg, #0f172a)", border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 8, width: 560, display: "flex", flexDirection: "column", gap: 10, padding: 16 }}>
-            <div style={{ fontSize: 13, fontWeight: 700, color: "var(--brand-text-2, #cbd5e1)" }}>
-              {t("cfgUi.reopenTheDeviceSProject")}
-            </div>
-
-            {pullAsk.savedBy && pullAsk.localVersion && pullAsk.savedBy !== pullAsk.localVersion && (
-              <div style={{ fontSize: 12, color: "var(--brand-warning-soft, #fbbf24)", background: "var(--brand-warning-bg, #78350f)", border: "1px solid var(--brand-warning, #f59e0b)", borderRadius: 4, padding: "6px 8px" }}>
-                {t("header.migrateConfirm", { savedBy: pullAsk.savedBy, runtime: pullAsk.localVersion })}
-                {" "}{t("cfgUi.aggiornamentoDopoApertura")}
-              </div>
-            )}
-
-            <label style={{ fontSize: 12, color: "var(--brand-text-muted, #94a3b8)", display: "flex", flexDirection: "column", gap: 4 }}>
-              {t("cfgUi.importAs")}
-              <input
-                style={INPUT}
-                value={pullAsk.name}
-                autoFocus
-                onChange={(e) => setPullAsk({ ...pullAsk, name: e.target.value })}
-                spellCheck={false}
-              />
-            </label>
-            {pullAsk.localNames.includes(pullAsk.name.trim()) ? (
-              <div style={{ fontSize: 12, color: "var(--brand-danger-soft, #fca5a5)" }}>
-                <Trans i18nKey="cfgUi.pullExists" values={{ name: pullAsk.name.trim() }} components={TRANS_COMP} />
-              </div>
-            ) : (
-              <div style={{ fontSize: 12, color: "var(--brand-text-subtle, #64748b)" }}>
-                {t("cfgUi.noLocalProjectWithThis")}
-              </div>
-            )}
-
-            <div style={{ fontSize: 12, color: "var(--brand-warning-soft, #fbbf24)" }}>
-              <Trans i18nKey="cfgUi.pullBundleCreds" components={TRANS_COMP} />
-            </div>
-
-            {pullAsk.dirty && (
-              <div style={{ borderTop: "1px solid var(--brand-surface-2, #334155)", paddingTop: 10, display: "flex", flexDirection: "column", gap: 6 }}>
-                <div style={{ fontSize: 12, color: "var(--brand-text-muted, #94a3b8)" }}>
-                  {t("cfgUi.theCurrentlyOpenProjectHas")}
-                </div>
-                <label style={{ fontSize: 12, color: "var(--brand-text-2, #cbd5e1)", cursor: "pointer" }}>
-                  <input type="radio" checked={pullAsk.saveFirst} onChange={() => setPullAsk({ ...pullAsk, saveFirst: true })} style={{ marginRight: 6 }} />
-                  {t("cfgUi.saveBeforeClosing")}
-                </label>
-                <label style={{ fontSize: 12, color: "var(--brand-danger-soft, #fca5a5)", cursor: "pointer" }}>
-                  <input type="radio" checked={!pullAsk.saveFirst} onChange={() => setPullAsk({ ...pullAsk, saveFirst: false })} style={{ marginRight: 6 }} />
-                  {t("cfgUi.closeWithoutSavingChangesAre")}
-                </label>
-              </div>
-            )}
-
-            <div style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)" }}>
-              {t("cfgUi.theZipCopyOfThe")}
-            </div>
-
-            <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
-              <button style={BTN} onClick={() => { setPullAsk(null); setPullDone(true); }}>{t("common.cancel")}</button>
-              <button style={{ ...BTN_PRIMARY, opacity: pullAsk.name.trim() ? 1 : 0.6 }}
-                onClick={handlePullConfirm} disabled={!pullAsk.name.trim()}>
-                {t("cfgUi.openInTheIde")}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* Remote logs: non più un pannello a parte — confluiscono nello stesso
           log viewer dei log locali (cassetto in basso, ☰ Menu → Log), con

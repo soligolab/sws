@@ -122,6 +122,10 @@ login si servono solo i campi del marchio in `CAMPI_PUBBLICI` (`marchi.rs:96-106
   Supervisor. La tabella delle voci per template in 15:150-165 è del 20-10. Le pagine dei template hanno le cornici, e
   i nomi delle pagine sono token: 04:465-466 dice che il nome della pagina non si traduce e cita `tc620-sistema` come
   esempio del titolo tenuto sulla pagina, e dal 04-11 è il contrario.
+- **I tutorial che mancano** (dal [manuale rifatto](../archive/2026-10-19-manuale-rifatto.md), archiviato il 05-11-2026):
+  T12 il pannello dal cloud (abbinamento, tunnel, deploy remoto; `T11_pannello.md:1` e `:98` lo citano già come
+  `T12_cloud.md`), T13 aggiornare il pannello, T14 facoltativo (EtherNet/IP: OpenPLC v4 non ce l'ha, va fatto in un altro
+  modo o tolto). Come T01–T11: ogni passo eseguito davvero contro il laboratorio e fotografato.
 - I timbri di data in testa ai capitoli.
 - Il piano si archivia.
 
@@ -159,8 +163,8 @@ La proposta vale se il maintainer non dice altro.
 
 **M5**
 1. Le schermate: *proposta: stile VS Code; si aspetta lo stile sobrio solo se è già deciso.*
-2. T12–T14 e il ramo 4 del [manuale rifatto](2026-10-19-manuale-rifatto.md): *proposta: entrano qui, e quel piano si
-   archivia con questo.*
+2. T12–T14 e il ramo 4 del [manuale rifatto](../archive/2026-10-19-manuale-rifatto.md): **deciso il 05-11-2026: entrano qui**, e quel
+   piano è già archiviato.
 
 ## Cosa non fa questo piano
 - Non traduce il manuale in inglese.

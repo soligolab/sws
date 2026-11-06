@@ -63,6 +63,7 @@ import { useBuildWatcher } from "@/ws/buildWatcher";
 import { useCertWatcher } from "@/ws/certWatcher";
 import { canEditProject, canConfigureProject } from "@/auth/permissions";
 import { useMarchioDellAzienda } from "@/branding/perAzienda";
+import { conferma, modulo, scegli } from "@/finestraAvviso/finestraAvviso";
 
 // Port 7444 — full IDE (canvas editor + ConfigView + project management).
 // Served via admin-main.tsx which calls setForceLocalApi(true) before render.
@@ -97,6 +98,30 @@ function AccessDenied({ role, onLogout }: { role: string; onLogout: () => void }
 
 const LOG_PANEL_KEY = "sws.logPanel.open";
 const CHAT_PANEL_KEY = "sws.chatPanel.open";
+
+
+/** Dentro un `modulo`: aspetta `esito` e chiude con il suo valore. */
+function AttesaDel({ esito, fine, testo }: { esito: Promise<boolean>; fine: (v: boolean) => void; testo: string }) {
+  // Una volta sola: `fine` cambia a ogni disegno dell'host, `esito` no.
+  useEffect(() => { void esito.then(fine); }, [esito]);
+  return <div style={{ fontSize: 13, color: "var(--brand-text-muted, #94a3b8)", minWidth: 240 }}>{testo}</div>;
+}
+
+/** Salva tutto e dice se è andata: `true` a salvataggio riuscito, `false` se
+ *  è fallito. Se un salvataggio era già in corso, aspetta quello. */
+async function salvataggioRiuscito(): Promise<boolean> {
+  await useAppStore.getState().saveAll();
+  return new Promise((fine) => {
+    const guarda = () => {
+      const st = useAppStore.getState().saveStatus;
+      if (st === "saving") return false;
+      fine(st === "ok");
+      return true;
+    };
+    if (guarda()) return;
+    const smetti = useAppStore.subscribe(() => { if (guarda()) smetti(); });
+  });
+}
 
 export function App() {
   const { t } = useTranslation();
@@ -209,7 +234,7 @@ export function App() {
           const st = useAppStore.getState();
           try {
             const diff = riassumi(m.proposta.project ?? null, m.proposta.pages ?? null,
-                                  st.project, st.pages);
+                                  st.project, st.pages, m.proposta.faceplates);
             ponte.manda({ t: "diff-ok", a: m.da, rid: m.rid, diff });
           } catch (e: any) {
             // Si **dice** che non si sa, invece di mandare un elenco vuoto: `[]`
@@ -309,7 +334,6 @@ export function App() {
   const setProject          = useAppStore((s) => s.setProject);
   const setProjectLoadError = useAppStore((s) => s.setProjectLoadError);
   const isDirty             = useAppStore(selectIsDirty);
-  const saveAll             = useAppStore((s) => s.saveAll);
   const resetDirty          = useAppStore((s) => s.resetDirty);
   const saveStatus          = useAppStore((s) => s.saveStatus);
   const remoteDeployStatus  = useAppStore((s) => s.remoteDeployStatus);
@@ -332,7 +356,6 @@ export function App() {
   // comparso dal nulla senza spiegazione è già di per sé il difetto.
   const [motivoAccesso, setMotivoAccesso] = useState<string | null>(null);
 
-  const [confirmPending, setConfirmPending] = useState<"close" | "logout" | "reload" | null>(null);
   // Il progetto sul runtime è cambiato sotto di noi (deploy da un altro IDE,
   // pull GitOps, modifica dei file sul dispositivo). NON si ricarica da soli:
   // in editor ci può essere lavoro non salvato, e sovrascriverlo senza chiedere
@@ -348,7 +371,6 @@ export function App() {
   // Il runtime remoto era irraggiungibile (tipicamente: cert self-signed non
   // accettato) ed e' tornato a rispondere — serve un reload per riconnettersi.
   const [runtimeBackReload, setRuntimeBackReload] = useState(false);
-  const [waitingForSave, setWaitingForSave] = useState(false);
 
   // Remote deploy target connection state — letto direttamente dallo store
   // (aggiornato da RuntimeConnectionTab/DevicesTab in ConfigView.tsx), non più
@@ -679,39 +701,35 @@ export function App() {
     resetDirty();
     window.location.reload();
   };
-  const handleReload = () => {
-    if (isDirty) { setConfirmPending("reload"); return; }
-    executeReload();
+  /** Le modifiche non salvate prima di chiudere, ricaricare o uscire (F3:
+   *  sulla Finestra di avviso, con le sue tre strade). «Salva» aspetta l'esito
+   *  del salvataggio: se fallisce non si chiude niente, e l'errore resta nella
+   *  testata. L'esito si legge da `saveStatus` e non da `isDirty`: una sezione
+   *  che resta sporca altrimenti terrebbe qui per sempre. */
+  const primaSalva = async (ricarica: boolean, esegui: () => void) => {
+    if (!isDirty) { esegui(); return; }
+    const scelta = await scegli({
+      titolo: t("unsaved.title"),
+      testo: t("unsaved.body"),
+      scelte: [
+        { valore: "scarta", etichetta: t(ricarica ? "unsaved.discardReload" : "unsaved.discard"), pericolo: true },
+        { valore: "salva", etichetta: t(ricarica ? "unsaved.saveReload" : "unsaved.saveClose") },
+      ],
+    });
+    if (scelta === "scarta") { esegui(); return; }
+    if (scelta !== "salva") return;
+    // Mentre salva la finestra resta, come prima: una modifica fatta durante il
+    // salvataggio andrebbe persa alla chiusura (revisione di F3).
+    const salvato = salvataggioRiuscito();
+    const ok = await modulo<boolean>({
+      titolo: t("unsaved.title"), chiudibile: false,
+      corpo: (fine) => <AttesaDel esito={salvato} fine={fine} testo={t("header.saving")} />,
+    });
+    if (ok) esegui();
   };
-
-  const handleLogout = () => {
-    if (isDirty) { setConfirmPending("logout"); return; }
-    executeLogout();
-  };
-
-  const handleCloseProject = () => {
-    if (isDirty) { setConfirmPending("close"); return; }
-    executeClose();
-  };
-
-  // After triggering saveAll(), wait for saveStatus "ok" (save succeeded) or
-  // "error" (save failed) before closing. Keyed on saveStatus rather than on
-  // isDirty: a section that stays dirty would otherwise hang here forever.
-  useEffect(() => {
-    if (!waitingForSave) return;
-    if (saveStatus === "ok") {
-      setWaitingForSave(false);
-      const pending = confirmPending;
-      setConfirmPending(null);
-      if (pending === "close") executeClose();
-      else if (pending === "logout") executeLogout();
-      else if (pending === "reload") executeReload();
-    } else if (saveStatus === "error") {
-      setWaitingForSave(false);
-      setConfirmPending(null);
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [waitingForSave, saveStatus]);
+  const handleReload = () => void primaSalva(true, executeReload);
+  const handleLogout = () => void primaSalva(false, executeLogout);
+  const handleCloseProject = () => void primaSalva(false, executeClose);
 
   // I salvataggi dell'autore cambiano il fingerprint tanto quanto un deploy
   // esterno: senza questa guardia l'avviso comparirebbe dopo ogni Ctrl+S.
@@ -930,7 +948,7 @@ export function App() {
             <button
               onClick={async () => {
                 if (remoteConnected) {
-                  if (window.confirm(t("header.deployDisconnectConfirm"))) {
+                  if (await conferma({ testo: t("header.deployDisconnectConfirm"), si: t("cfg.disconnect") })) {
                     try { await api.remoteDisconnect(); } catch { /* già scollegato lato server, ignora */ }
                     setRemoteConnected(false);
                   }
@@ -995,7 +1013,9 @@ export function App() {
             <button
               data-testid="deploy-utenti-segreti"
               disabled={remoteDeployStatus === "syncing"}
-              onClick={() => { if (window.confirm(t("header.deployCompletoConfirm"))) void deployOra(true); }}
+              onClick={async () => {
+                if (await conferma({ testo: t("header.deployCompletoConfirm"), pericolo: true, si: t("header.deployOra") })) void deployOra(true);
+              }}
               title={t("header.deployCompletoTitle")}
               style={{ ...HDR_BTN }}
             >👥🔑 {t("header.deployCompleto")}</button>
@@ -1142,42 +1162,6 @@ export function App() {
       {/* Re-auth overlay — session expired mid-use */}
       {reAuthNeeded && <ReAuthModal />}
 
-      {/* Unsaved-changes confirmation dialog */}
-      {confirmPending && (
-        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 9999 }}>
-          <div style={{ background: "var(--brand-surface, #1e293b)", border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 8, padding: "24px 28px", maxWidth: 360, width: "90%", display: "flex", flexDirection: "column", gap: 16 }}>
-            <div style={{ fontSize: 15, fontWeight: 600, color: "var(--brand-text, #e2e8f0)" }}>{t("unsaved.title")}</div>
-            <div style={{ fontSize: 13, color: "var(--brand-text-muted, #94a3b8)" }}>{t("unsaved.body")}</div>
-            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-              <button
-                style={{ ...HDR_BTN, background: "#1d4ed8", color: "#fff", border: "1px solid var(--brand-primary-hover, #2563eb)", padding: "8px 16px", fontSize: 13 }}
-                disabled={waitingForSave}
-                onClick={() => { void saveAll(); setWaitingForSave(true); }}
-              >
-                {waitingForSave ? t("header.saving") : confirmPending === "reload" ? t("unsaved.saveReload") : t("unsaved.saveClose")}
-              </button>
-              <button
-                style={{ ...HDR_BTN, background: "var(--brand-danger-bg, #7f1d1d)", color: "var(--brand-danger-soft, #fca5a5)", border: "1px solid #991b1b", padding: "8px 16px", fontSize: 13 }}
-                onClick={() => {
-                  const pending = confirmPending;
-                  setConfirmPending(null);
-                  if (pending === "close") executeClose();
-                  else if (pending === "reload") executeReload();
-                  else executeLogout();
-                }}
-              >
-                {confirmPending === "reload" ? t("unsaved.discardReload") : t("unsaved.discard")}
-              </button>
-              <button
-                style={{ ...HDR_BTN, padding: "8px 16px", fontSize: 13 }}
-                onClick={() => { setConfirmPending(null); setWaitingForSave(false); }}
-              >
-                {t("common.cancel")}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

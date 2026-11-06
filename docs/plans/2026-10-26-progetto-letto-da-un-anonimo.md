@@ -22,6 +22,8 @@ Ma «segreti mascherati» non vuol dire «niente di riservato». Escono anche:
 - `notifications.destinatari_email`: indirizzi email di persone;
 - **`notifications.reperibili`** (P4, da oggi): nomi, numeri di telefono e turni di chi è reperibile — dati
   personali, su una porta che sta sulla LAN dell'impianto.
+- *(aggiunto il 05-11-2026, misurando gli script Python)* **il codice di funzioni e script** (`functions`,
+  `global_scripts`): una password o un token scritto a mano dentro uno script è leggibile da chiunque raggiunga la 7443.
 
 ## Le strade che si vedono
 

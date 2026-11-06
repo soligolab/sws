@@ -42,7 +42,7 @@ export interface EditorAi {
 export const editorLocale: EditorAi = {
   async diff(p) {
     const s = useAppStore.getState();
-    return riassumi(p.project ?? null, p.pages ?? null, s.project, s.pages);
+    return riassumi(p.project ?? null, p.pages ?? null, s.project, s.pages, p.faceplates);
   },
   async applica(p) {
     return useAppStore.getState().applyAiProposal(p);

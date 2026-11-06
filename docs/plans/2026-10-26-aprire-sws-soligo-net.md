@@ -1,7 +1,7 @@
 # Aprire sws.soligo.net a utenti esterni
 
 > **Piano d'esecuzione**, approvato il 26-10-2026. È il dettaglio della **Fase 5** del piano
-> cloud [il tronco cloud](2026-10-05-cloud-utenti-aziende-spazi.md) — registrazione, posta,
+> cloud [il tronco cloud](../archive/2026-10-05-cloud-utenti-aziende-spazi.md) — registrazione, posta,
 > accesso — più una fase di interfaccia che quel piano non aveva.
 >
 > Le misure qui dentro sono del **26-10-2026**, lette dal codice da tre esplorazioni parallele.
@@ -168,7 +168,7 @@ Il `None` codificato per l'azienda implicita (`gateway/rotte.rs:82-84`) resta: l
 progetti del maintainer. Con un'azienda a testa, nessun esterno ci finisce.
 
 **Non si fa qui**: `max_pannelli` resta un dato mostrato e non applicato — è una decisione già
-rimandata (`docs/plans/2026-10-21-quando-si-libera-una-licenza.md`).
+rimandata (`docs/archive/2026-10-21-quando-si-libera-una-licenza.md`).
 
 ---
 
@@ -456,7 +456,9 @@ Per ogni ramo, le cinque voci di `CLAUDE.md`. In più, per questo lavoro:
 
 ## Aggiornamenti ai piani esistenti
 
-Alla fine del lavoro, in `docs/plans/2026-10-05-cloud-utenti-aziende-spazi.md`:
+Fatto il 05-11-2026, archiviando il tronco cloud: le tre cose sono scritte nella sua riga di
+`docs/archive/README.md` (il piano si ferma al 09-10 e non le riporta). Erano, per
+`docs/archive/2026-10-05-cloud-utenti-aziende-spazi.md`:
 - la **Fase 5** rimanda a questo piano;
 - l'SMTP d'installazione **non è più «un pezzo nuovo»**: esiste;
 - la **decisione 39** sulla porta 25 bloccata sui VPS OVH è **falsa su questa macchina** —

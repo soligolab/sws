@@ -1,7 +1,10 @@
 # Quando si consuma, e quando si libera, una licenza di pannello — seme
 
+> **Seme lasciato il 05-11-2026** (decisione del maintainer, banco di collaudo): per ora non si fa. `max_pannelli`
+> resta una nota nella console, non un tetto.
+
 > Nato il 21-10-2026, chiudendo il piano
-> [licenze, pannelli contesi, e cosa ci dice il loro numero](../archive/2026-10-21-licenze-e-pannelli-contesi.md).
+> [licenze, pannelli contesi, e cosa ci dice il loro numero](2026-10-21-licenze-e-pannelli-contesi.md).
 > Due domande di quel piano sono state decise e attuate; questa è rimasta aperta per scelta del
 > maintainer, perché `max_pannelli` può diventare una quota vera solo dopo che è decisa.
 >

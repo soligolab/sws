@@ -9,6 +9,7 @@ import { api } from "@/api/client";
 import { selectIsDirty, useAppStore } from "@/store";
 import { motivoIdNonValido, rinomina, type EsitoRinomina } from "@/tag/rinominaTag";
 import type { RecipeDef } from "@/types";
+import { Cornice } from "@/finestraAvviso/FinestraAvviso";
 
 const INPUT: React.CSSProperties = {
   width: "100%", boxSizing: "border-box", background: "var(--brand-bg, #0f172a)",
@@ -82,17 +83,13 @@ export function RinominaTagModal({ vecchio, onDone, onClose }: {
   };
 
   return (
-    <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 10000 }}
-         onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}>
-      <div style={{ background: "var(--brand-surface, #1e293b)", border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 8, padding: 20, width: 520, maxWidth: "95vw", maxHeight: "85vh", display: "flex", flexDirection: "column", gap: 12 }}>
-        <div style={{ fontSize: 13, fontWeight: 700, color: "var(--brand-text, #e2e8f0)" }}>
-          {t("rinomina.title")} · <span style={{ fontFamily: "monospace", fontWeight: 400 }}>{vecchio}</span>
-        </div>
+    <Cornice titolo={<>{t("rinomina.title")} · <span style={{ fontFamily: "monospace", fontWeight: 400 }}>{vecchio}</span></>}
+      onChiudi={onClose} veloChiude={!inCorso} chiudibile={!inCorso} larghezza={520} testid="rinomina-tag">
         <div>
           <label style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)", display: "block", marginBottom: 3 }}>{t("rinomina.nuovoId")}</label>
           <input style={{ ...INPUT, ...(motivo && nuovo !== vecchio ? { borderColor: "var(--brand-danger, #ef4444)" } : {}) }} value={nuovo}
                  onChange={(e) => setNuovo(e.target.value)} autoFocus spellCheck={false}
-                 onKeyDown={(e) => { if (e.key === "Enter") void conferma(); if (e.key === "Escape") onClose(); }} />
+                 onKeyDown={(e) => { if (e.key === "Enter") void conferma(); }} />
           {motivo && nuovo !== vecchio && <div style={{ fontSize: 11, color: "var(--brand-danger-soft, #f87171)", marginTop: 3 }}>{motivo}</div>}
         </div>
         {sporco && (
@@ -130,7 +127,6 @@ export function RinominaTagModal({ vecchio, onDone, onClose }: {
             {inCorso ? t("rinomina.inCorso") : t("rinomina.conferma")}
           </button>
         </div>
-      </div>
-    </div>
+    </Cornice>
   );
 }

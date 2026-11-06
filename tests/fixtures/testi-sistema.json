@@ -294,6 +294,20 @@
       "es": "Cerrar",
       "en": "Close"
     },
+    "annulla": {
+      "it": "Annulla",
+      "de": "Abbrechen",
+      "fr": "Annuler",
+      "es": "Cancelar",
+      "en": "Cancel"
+    },
+    "conferma": {
+      "it": "Conferma",
+      "de": "Bestätigen",
+      "fr": "Confirmer",
+      "es": "Confirmar",
+      "en": "Confirm"
+    },
     "trend_nessun_tag": {
       "it": "Tag non configurato",
       "de": "Kein Tag konfiguriert",

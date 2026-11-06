@@ -33,6 +33,9 @@ export default [
         { argsIgnorePattern: "^_", varsIgnorePattern: "^_" },
       ],
       "@typescript-eslint/no-explicit-any": "off",
+      // I pop-up del browser sembrano errori: si usa la Finestra di avviso
+      // (src/finestraAvviso/, piano 2026-11-04-finestra-di-avviso.md).
+      "no-alert": "error",
     },
   },
   prettier,

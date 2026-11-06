@@ -86,7 +86,17 @@ pub struct Richiesta {
     /// (04-11-2026). Senza, la pagina composta sopra uno sfondo si fotografa
     /// sul colore di fondo.
     pub immagini: Vec<(String, Vec<u8>)>,
+    /// Chi vuole sapere a che punto è il viewer: riceve ogni riga che scrive
+    /// (la pagina caricata, uno sfondo decodificato…). La chat la mostra sotto
+    /// lo strumento, così un'attesa lunga si vede lavorare.
+    pub avanzamento: Option<Avanzamento>,
+    /// Faceplate da scrivere nella copia, al posto di quelli con lo stesso id:
+    /// quelli che l'assistente propone insieme alla pagina che li usa.
+    pub faceplates: Vec<crate::synoptic::FaceplateDef>,
 }
+
+/// Una riga del viewer, appena la scrive.
+pub type Avanzamento = std::sync::Arc<dyn Fn(&str) + Send + Sync>;
 
 /// Lo scatto.
 pub struct Scatto {
@@ -103,10 +113,25 @@ pub struct Scatto {
 
 /// Quanto si aspetta il runtime del banco di prova prima di rinunciare.
 const ATTESA_RUNTIME: Duration = Duration::from_secs(20);
-/// Quanto si concede al viewer per disegnare e uscire. Generoso rispetto ai
-/// 500 ms di rendering: la prima volta deve anche caricare il progetto via
-/// HTTP, e su un dispositivo lento non è istantaneo.
-const ATTESA_VIEWER: Duration = Duration::from_secs(60);
+/// Quanto il viewer può restare **zitto** prima che lo si consideri fermo.
+/// L'attesa non è più un tempo totale fisso: ogni riga che il viewer scrive
+/// (pagina caricata, uno sfondo decodificato, i widget creati) la fa ripartire.
+/// Il 05-11-2026 una pagina con cinque sfondi JPEG non è stata fotografata in
+/// 60 s sull'IDE di sviluppo (`target/debug/`, dove la decodifica è lentissima),
+/// e l'errore non diceva se il viewer fosse bloccato o solo lento.
+const SILENZIO_VIEWER: Duration = Duration::from_secs(30);
+/// Il tetto, anche con un viewer che continua a parlare.
+const TETTO_VIEWER: Duration = Duration::from_secs(300);
+
+/// `SWS_ISTANTANEA_ATTESA_S` cambia il silenzio concesso (il tetto resta).
+fn silenzio_viewer() -> Duration {
+    std::env::var("SWS_ISTANTANEA_ATTESA_S")
+        .ok()
+        .and_then(|v| v.trim().parse::<u64>().ok())
+        .filter(|&s| s > 0)
+        .map(Duration::from_secs)
+        .unwrap_or(SILENZIO_VIEWER)
+}
 
 /// Scatta. Errori come `Err(String)` leggibile: finiscono davanti al modello e
 /// all'utente, non in un log.
@@ -132,6 +157,26 @@ pub async fn scatta(r: Richiesta) -> Result<Scatto, String> {
             tokio::fs::write(dir.join(crate::synoptic::safe_filename(nome)), byte)
                 .await
                 .map_err(|e| format!("non riesco a scrivere {nome} nella copia: {e}"))?;
+        }
+    }
+    if !r.faceplates.is_empty() {
+        let dir = copia.join("faceplates");
+        tokio::fs::create_dir_all(&dir)
+            .await
+            .map_err(|e| format!("non riesco a creare faceplates/ nella copia: {e}"))?;
+        for fp in &r.faceplates {
+            let testo = serde_yaml::to_string(fp).map_err(|e| e.to_string())?;
+            tokio::fs::write(
+                dir.join(format!("{}.yaml", crate::synoptic::safe_filename(&fp.id))),
+                testo,
+            )
+            .await
+            .map_err(|e| {
+                format!(
+                    "non riesco a scrivere il faceplate {} nella copia: {e}",
+                    fp.id
+                )
+            })?;
         }
     }
     ritocca(&copia, &r.simboli, &r.pagine).await?;
@@ -185,21 +230,83 @@ pub async fn scatta(r: Richiesta) -> Result<Scatto, String> {
     if let Some(t) = &r.tocca {
         cmd.arg("--tocca").arg(t);
     }
-    let uscita = tokio::time::timeout(ATTESA_VIEWER, cmd.output())
-        .await
-        .map_err(|_| {
-            format!(
-                "il viewer non ha finito entro {} s",
-                ATTESA_VIEWER.as_secs()
-            )
-        })?
+    // `kill_on_drop` anche qui: prima, scaduta l'attesa, il viewer restava vivo
+    // e continuava a macinare dopo che il banco di prova era morto. Tre timeout
+    // di fila (05-11-2026) erano tre viewer accesi sotto la chat.
+    let mut viewer = cmd
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::piped())
+        .kill_on_drop(true)
+        .spawn()
         .map_err(|e| format!("non riesco ad avviare il viewer LVGL: {e}"))?;
+    // Lo stderr si legge riga per riga: ogni riga rinnova l'attesa e va a chi
+    // segue l'avanzamento; a tempo scaduto le ultime dicono dov'era arrivato.
+    let err_viewer = viewer.stderr.take();
+    let (riga_tx, mut riga_rx) = tokio::sync::mpsc::unbounded_channel::<String>();
+    let lettore = tokio::spawn(async move {
+        use tokio::io::AsyncBufReadExt;
+        let mut tutto = Vec::new();
+        if let Some(e) = err_viewer {
+            let mut righe = tokio::io::BufReader::new(e).lines();
+            while let Ok(Some(r)) = righe.next_line().await {
+                let _ = riga_tx.send(r.clone());
+                tutto.extend_from_slice(r.as_bytes());
+                tutto.push(b'\n');
+            }
+        }
+        tutto
+    });
+    let silenzio = silenzio_viewer();
+    let inizio = std::time::Instant::now();
+    let fermo = |motivo: String| async {
+        tracing::warn!(motivo = %motivo, "istantanea: viewer fermato");
+        motivo
+    };
+    // Chiuso lo stderr, `recv` darebbe `None` all'infinito: si smette di chiedere.
+    let mut aperto = true;
+    let stato = loop {
+        let resta = TETTO_VIEWER.saturating_sub(inizio.elapsed());
+        tokio::select! {
+            fine = viewer.wait() => {
+                break fine.map_err(|e| format!("il viewer LVGL non risponde: {e}"))?;
+            }
+            riga = riga_rx.recv(), if aperto => {
+                match riga.as_deref() {
+                    Some(testo) => if let Some(cb) = r.avanzamento.as_ref() { cb(testo) },
+                    None => aperto = false,
+                }
+            }
+            _ = tokio::time::sleep(silenzio.min(resta)) => {
+                let _ = viewer.kill().await;
+                let err = lettore.await.unwrap_or_default();
+                let quale = if resta <= silenzio {
+                    format!("il viewer non ha finito entro {} s", TETTO_VIEWER.as_secs())
+                } else {
+                    format!(
+                        "il viewer non ha scritto niente per {} s (SWS_ISTANTANEA_ATTESA_S per \
+                         allungare)",
+                        silenzio.as_secs()
+                    )
+                };
+                return Err(fermo(format!(
+                    "{quale}. Ultime righe:\n{}",
+                    ultime_righe(&String::from_utf8_lossy(&err), 8)
+                ))
+                .await);
+            }
+        }
+    };
+    let stderr = lettore.await.unwrap_or_default();
+    tracing::debug!(
+        ms = inizio.elapsed().as_millis() as u64,
+        "istantanea: viewer finito"
+    );
 
-    if !uscita.status.success() {
-        let err = String::from_utf8_lossy(&uscita.stderr);
+    if !stato.success() {
+        let err = String::from_utf8_lossy(&stderr);
         return Err(format!(
             "il viewer LVGL è uscito con errore ({}). Ultime righe:\n{}",
-            uscita.status,
+            stato,
             ultime_righe(&err, 8)
         ));
     }
@@ -214,7 +321,7 @@ pub async fn scatta(r: Richiesta) -> Result<Scatto, String> {
         png,
         larghezza,
         altezza,
-        note: note_utili(&String::from_utf8_lossy(&uscita.stderr)),
+        note: note_utili(&String::from_utf8_lossy(&stderr)),
     })
 }
 
@@ -617,6 +724,8 @@ mod tests {
         .unwrap();
 
         let scatto = scatta(Richiesta {
+            avanzamento: None,
+            faceplates: vec![],
             progetto: p.to_path_buf(),
             pagina: Some("Prova".into()),
             tocca: None,
@@ -680,6 +789,8 @@ mod tests {
                 { "id": "g", "type": "symbol", "symbol_id": "prj:gabbia-laminazione", "x": 250, "y": 40, "width": 220, "height": 180 } ] });
         let www = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../sws-editor/dist");
         let scatto = scatta(Richiesta {
+            avanzamento: None,
+            faceplates: vec![],
             progetto: p.to_path_buf(),
             pagina: Some("Prova".into()),
             tocca: None,
@@ -929,6 +1040,8 @@ mod tests_lago {
                 }
             }
             let scatto = scatta(Richiesta {
+                avanzamento: None,
+                faceplates: vec![],
                 progetto: tpl.clone(),
                 pagina: Some(p["name"].as_str().unwrap().to_string()),
                 tocca: None,
@@ -981,6 +1094,8 @@ mod tests_template {
                 serde_yaml::from_str(&std::fs::read_to_string(&f).unwrap()).unwrap();
             let id = pagina["id"].as_str().unwrap_or("senza-id").to_string();
             let scatto = scatta(Richiesta {
+                avanzamento: None,
+                faceplates: vec![],
                 progetto: tpl.clone(),
                 pagina: Some(id.clone()),
                 tocca: None,

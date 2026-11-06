@@ -10,7 +10,7 @@
 > **La sessione di plan si è tenuta il 21-10-2026**, lo stesso giorno: due domande su tre hanno
 > avuto risposta e sono state attuate. La terza — quando si consuma e quando si libera una
 > licenza — è rimasta aperta per scelta, ed è nel seme
-> [quando si libera una licenza](../plans/2026-10-21-quando-si-libera-una-licenza.md). L'esito è
+> [quando si libera una licenza](2026-10-21-quando-si-libera-una-licenza.md). L'esito è
 > in fondo a questo file.
 
 ## Le tre domande
@@ -84,6 +84,6 @@ per l'azienda di prima.
 **Quello che resta aperto, per scelta.** Quando una licenza si consuma e quando si libera: finché
 non è deciso, `max_pannelli` non può diventare una quota vera, perché un tetto che nessuno
 libera è un tetto che prima o poi blocca un cliente che non ha fatto niente di male. Seme:
-[quando si libera una licenza](../plans/2026-10-21-quando-si-libera-una-licenza.md).
+[quando si libera una licenza](2026-10-21-quando-si-libera-una-licenza.md).
 
 Attuato nel ramo `feat/pannelli-conteggio-e-spostamento`.

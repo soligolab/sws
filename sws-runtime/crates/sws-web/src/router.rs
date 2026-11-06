@@ -715,6 +715,7 @@ pub fn build(
         .route("/api/recipes/:id/apply", post(apply_recipe))
         // Compila e non esegue: strumento di progettazione, nessun effetto.
         .route("/api/script/check", post(check_script))
+        .route("/api/script/nomi", get(nomi_script))
         .route("/api/script/run/:name", post(run_function))
         // Logs — read-only but Operator+ so the audit surface stays
         // narrow (logs may include schema/secret hints).
@@ -3841,6 +3842,18 @@ async fn check_script(
     // Nessuna voce di audit: non c'è niente da attribuire, non essendoci nessun
     // effetto. `script.exec` la registra perché quella esegue.
     Json(s.py.check(body.code).await)
+}
+
+/// `GET /api/script/nomi` — i nomi che uno script trova già pronti
+/// (`NOMI_FORNITI`) e i builtin che la sandbox aggiunge. Per l'IDE: il
+/// completamento mentre si scrive (L2) e l'aiuto dell'editor leggono da qui,
+/// invece di tenere un quinto elenco da allineare a mano.
+async fn nomi_script(State(s): State<AppState>) -> Json<serde_json::Value> {
+    Json(serde_json::json!({
+        "forniti": sws_pyscript::NOMI_FORNITI,
+        "builtin_aggiunti": sws_pyscript::BUILTIN_AGGIUNTI,
+        "sandbox_attiva": s.py.is_sandboxed(),
+    }))
 }
 
 // ── Historian endpoints ──────────────────────────────────────────────────────
@@ -7506,17 +7519,20 @@ async fn run_function(
         Some(user.username),
         serde_json::json!({"name": name.clone()}),
     );
-    let code = {
+    let passati = body.map(|Json(b)| b.args).unwrap_or_default();
+    // Il codice e gli argomenti, coi default dei parametri che il chiamante non
+    // ha passato (L0, 05-11-2026): un pulsante manda `on_press_args ?? {}`, una
+    // cella `{}`, e prima la funzione finiva in `NameError` sul parametro.
+    let (code, args) = {
         let map = s.functions.read().await;
         match map.get(&name) {
-            Some(f) => f.code.clone(),
+            Some(f) => (f.code.clone(), f.argomenti(passati)),
             None => {
                 return (StatusCode::NOT_FOUND, format!("no function named '{name}'"))
                     .into_response()
             }
         }
     };
-    let args = body.map(|Json(b)| b.args).unwrap_or_default();
     // T-69: `name` è l'identità per `uptime_ms()`/`delta_ms()`/`state` — così
     // una funzione richiamata da più punti (pulsante, `functions.run` di uno
     // script globale, questa stessa rotta) mantiene il proprio stato ritenuto
@@ -8328,6 +8344,35 @@ async fn list_faceplates(
         return Json(elenco).into_response();
     }
     Json(elenco.into_iter().map(|f| f.id).collect::<Vec<String>>()).into_response()
+}
+
+/// Tutti i faceplate che una pagina di questo progetto può usare: quelli in
+/// `faceplates/` e i predefiniti del runtime (il file del progetto vince), con
+/// accanto se è predefinito. Per l'assistente (`leggi_faceplate`, `valida`).
+pub(crate) async fn faceplate_disponibili(
+    project_dir: &std::path::Path,
+) -> Vec<(FaceplateDef, bool)> {
+    let mut out: std::collections::BTreeMap<String, (FaceplateDef, bool)> = Default::default();
+    for (id, yaml) in BUILTIN_FACEPLATES {
+        if let Ok(fp) = serde_yaml::from_str::<FaceplateDef>(yaml) {
+            out.insert(id.to_string(), (fp, true));
+        }
+    }
+    if let Ok(mut entries) = tokio::fs::read_dir(faceplates_dir_at(project_dir)).await {
+        while let Ok(Some(e)) = entries.next_entry().await {
+            let path = e.path();
+            if path.extension().and_then(|x| x.to_str()) != Some("yaml") {
+                continue;
+            }
+            if let Ok(testo) = tokio::fs::read_to_string(&path).await {
+                if let Ok(fp) = serde_yaml::from_str::<FaceplateDef>(&testo) {
+                    let predefinito = testo_builtin_faceplate(&fp.id).is_some();
+                    out.insert(fp.id.clone(), (fp, predefinito));
+                }
+            }
+        }
+    }
+    out.into_values().collect()
 }
 
 /// Il testo di un faceplate builtin, se `id` è uno di loro.
@@ -14298,6 +14343,93 @@ mod prove_finestre_staccate {
         // Il resto sotto il prefisso è del progetto, e senza token resta chiuso.
         assert_eq!(chiedi("/p/-/Prova/api/project").await.0, 401);
         assert_eq!(chiedi("/p/-/Prova/index-admin.html").await.0, 401);
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+}
+
+#[cfg(test)]
+mod prove_run_function {
+    use super::*;
+
+    /// Un pulsante chiama la funzione senza argomenti (`on_press_args ?? {}`):
+    /// il default del parametro deve arrivare lo stesso (L0, 05-11-2026). Prima
+    /// la funzione finiva in `NameError`.
+    #[tokio::test]
+    async fn senza_argomenti_la_funzione_riceve_i_default() {
+        let dir = std::env::temp_dir().join(format!("sws-prova-run-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        let s = stato_di_prova(&dir).await;
+        s.functions.write().await.insert(
+            "saluta".into(),
+            sws_core::FunctionDef {
+                id: "f1".into(),
+                name: "saluta".into(),
+                description: None,
+                code: "tags.write('chi', chi)\nprint('ciao', chi)\n".into(),
+                params: vec![sws_core::FunctionParam {
+                    name: "chi".into(),
+                    default: Some("operatore".into()),
+                }],
+            },
+        );
+        let utente = AuthUser {
+            username: "op".into(),
+            role: Role::Operator,
+            must_change_password: false,
+            allowed_zones: vec![],
+            amministratore_piattaforma: false,
+        };
+        let r = run_function(
+            State(s.clone()),
+            Extension(utente),
+            Path("saluta".into()),
+            None,
+        )
+        .await;
+        let corpo = axum::body::to_bytes(r.into_body(), 1 << 16).await.unwrap();
+        let v: serde_json::Value = serde_json::from_slice(&corpo).unwrap();
+        assert_eq!(v["ok"], true, "{v}");
+        assert_eq!(
+            v["stdout"], "ciao operatore\n",
+            "il print torna a «Prova»: {v}"
+        );
+        let dopo = s.db.snapshot().await;
+        assert_eq!(
+            dopo.get("chi").map(|x| x.value.clone()),
+            Some(TagValue::Str("operatore".into()))
+        );
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// La rotta per l'IDE dà l'elenco unico, con la firma e senza la
+    /// spiegazione per l'assistente (quella è in italiano, l'IDE ha la sua).
+    #[tokio::test]
+    async fn la_rotta_dei_nomi_da_l_elenco_unico() {
+        let dir = std::env::temp_dir().join(format!("sws-prova-nomi-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        let s = stato_di_prova(&dir).await;
+        let Json(v) = nomi_script(State(s)).await;
+        let forniti = v["forniti"].as_array().unwrap();
+        assert_eq!(forniti.len(), sws_pyscript::NOMI_FORNITI.len());
+        for atteso in ["tags", "print", "functions", "tr"] {
+            assert!(
+                forniti.iter().any(|n| n["nome"] == atteso),
+                "{atteso} manca: {v}"
+            );
+        }
+        assert!(
+            forniti
+                .iter()
+                .all(|n| n["uso"].is_string() && n.get("cosa").is_none()),
+            "{v}"
+        );
+        assert!(v["builtin_aggiunti"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|b| b == "enumerate"));
         let _ = std::fs::remove_dir_all(&dir);
     }
 }

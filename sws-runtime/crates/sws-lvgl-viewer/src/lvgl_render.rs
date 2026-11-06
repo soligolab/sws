@@ -3369,6 +3369,10 @@ fn sfondo_del_rect(
     // quanto la pagina — uno solo, perché gli sfondi sono uno per pagina.
     let w = obj.width.unwrap_or(100.0).round().clamp(1.0, 4096.0) as i16;
     let h = obj.height.unwrap_or(50.0).round().clamp(1.0, 4096.0) as i16;
+    // Una riga prima e una dopo: decodificare uno sfondo grande può durare, e
+    // l'istantanea dell'assistente rinnova l'attesa a ogni riga del viewer.
+    let t0 = std::time::Instant::now();
+    eprintln!("[sfondo] carico {src}");
     let fonte = crate::svg_assets::SvgSource::Url(src.to_string());
     let byte = crate::svg_assets::bytes_for(base_url, rt_handle, &fonte)?;
     let svg = match crate::svg_assets::tipo_raster(src) {
@@ -3387,6 +3391,7 @@ fn sfondo_del_rect(
         crate::svg_raster::MAX_SIDE_SFONDO,
     ) {
         Ok(b) => {
+            eprintln!("[sfondo] {src} pronto in {} ms", t0.elapsed().as_millis());
             // `bg_image_opacity` (fase 3 dello slider, 30-10-2026, universale):
             // l'immagine in trasparenza. Il canvas appena creato è l'ultimo figlio.
             if let Some(o) = obj.bg_image_opacity.filter(|o| *o < 100.0) {

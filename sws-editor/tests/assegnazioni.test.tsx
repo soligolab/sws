@@ -1,13 +1,14 @@
 /** Il bottone che assegna (11-10-2026, piano docs/plans/2026-10-11-colore-e-assegnazioni.md):
  *  al clic scrive ogni variabile del suo elenco, una conferma sola; l'editor
  *  propone il campo giusto per il tipo della variabile. */
-import { render, screen, fireEvent } from "@testing-library/react";
+import { render, screen, fireEvent, act } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import "../src/i18n/index";
 import { SvgObject } from "../src/canvas/SvgCanvas";
 import { EditorAssegnazioni, valoreIniziale } from "../src/editor/EditorAssegnazioni";
 import { normalizzaColore } from "../src/tag/tipiScalari";
 import { useAppStore } from "../src/store";
+import { rispondi } from "../src/finestraAvviso/finestraAvviso";
 import type { SynopticObject } from "../src/types";
 
 function bottone(extra: Partial<SynopticObject>): SynopticObject {
@@ -36,16 +37,17 @@ describe("bottone con assegnazioni", () => {
     expect(scritte).toEqual([["sfondo", "#7f1d1d"], ["modo", 2]]);
   });
 
-  it("con la conferma, una domanda sola per tutto il clic", () => {
-    const conferma = vi.spyOn(window, "confirm").mockReturnValue(true);
+  it("con la conferma, una domanda sola per tutto il clic", async () => {
+    const r = rispondi(true);
     const scritte: string[] = [];
     const { container } = disegna(
       bottone({ require_confirm: true, assegnazioni: [{ tag: "a", valore: 1 }, { tag: "b", valore: 2 }] }),
       (id) => scritte.push(id),
     );
-    fireEvent.click(container.querySelector("g")!);
-    expect(conferma).toHaveBeenCalledTimes(1);
+    await act(async () => { fireEvent.click(container.querySelector("g")!); });
+    expect(r.chiamate).toHaveLength(1);
     expect(scritte).toEqual(["a", "b"]);
+    r.ferma();
   });
 
   it("senza assegnazioni resta il comportamento di prima", () => {

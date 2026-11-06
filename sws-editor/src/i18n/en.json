@@ -434,6 +434,7 @@
     "sfondoBase": "Candidate base · {{id}}",
     "sfondoVariante": "«{{luce}}» variant · {{id}}",
     "sfondoApprovato": "base chosen",
+    "sfondoInCoda": "chosen: it goes as soon as the assistant finishes this turn",
     "usaComeBase": "Use as base"
   },
   "viewer": {
@@ -1756,7 +1757,8 @@
     "sshCredentialsHint": "The device's operating-system user, the same one you use with “ssh”: not the SWS application user of the “Remote runtime connection” panel.",
     "deployReplaceUsers": "Replace users too",
     "deployReplaceUsersHint": "Users belong to the project: the deploy carries them to the device just like the pages. Turn it off to leave the device's accounts untouched.",
-    "deployNoUsersConfirm": "THIS PROJECT HAS NO USERS\n\nThe existing accounts on the device ({{utenti}}) will be removed and the panel will be reachable WITHOUT A PASSWORD by anyone on its network.\n\nProceed?",
+    "deployNoUsersTitolo": "This project has no users",
+    "deployNoUsersConfirm": "The existing accounts on the device ({{utenti}}) will be removed and the panel will be reachable WITHOUT A PASSWORD by anyone on its network.\n\nProceed?",
     "deployNoUsersUnknown": "list not readable from here",
     "connecting": "Connecting…",
     "connectOk": "Connected.",
@@ -2037,8 +2039,12 @@
   "campoTradotto": {
     "riusoTitolo": "“{{testo}}” is already in the language table ({{key}}).",
     "riusoDove": "\n\nThat entry is already used {{usi}} time(s): translating it once changes them all.",
-    "riusoScelta": "\n\nOK = reuse that entry\nCancel = create a new one (right when the two sentences diverge in another language)",
-    "scissione": "Entry {{key}} is used in {{altri}} other places in the project.\n\nOK = change HERE only (a new entry is created, to be translated)\nCancel = change everywhere, and the other languages' translations go back to proposals awaiting approval"
+    "riusoNuovaQuando": "\n\nA new entry is right when the two sentences diverge in another language.",
+    "riusoSi": "Reuse that entry",
+    "riusoNo": "Create a new one",
+    "scissione": "Entry {{key}} is used in {{altri}} other places in the project.\n\n«Change here only» creates a new entry, to be translated. «Change everywhere» changes the other places too, and the other languages' translations go back to proposals awaiting approval.",
+    "scissioneQui": "Change here only",
+    "scissioneOvunque": "Change everywhere"
   },
   "functionEditor": {
     "title": "Python function",
@@ -2524,6 +2530,7 @@
   },
   "riassunto": {
     "page": "page «{{name}}» ({{count}} objects)",
+    "faceplate": "faceplate `{{id}}` ({{count}} objects)",
     "funzioneRighe": "function `{{nome}}` ({{n}} lines)",
     "funzione": "function `{{nome}}`",
     "scriptRighe": "global script `{{id}}` ({{n}} lines)",
@@ -3515,6 +3522,7 @@
     "fattoLocale": "Panel «{{nome}}» has its administrator: the code is no longer needed. Sign in with its credentials.",
     "continua": "Continue",
     "serveAdmin": "The panel has no users yet: the first project must bring at least one with the Admin role, otherwise nobody could get in on site (screen included).\n\nOpen the project's Users tab?",
+    "serveAdminApri": "Open Users",
     "serveAdminBreve": "deploy stopped: the project needs at least one Admin user (the panel has no users yet)",
     "cloudUtentiDalProgetto": "The panel's users come with the first project you deploy to it: until then nobody can get in on site, and you reach it only from here.",
     "cloudCredenzialiEsistenti": "This panel already has users: pairing it needs the user and password of one of its administrators.",

@@ -259,7 +259,7 @@ The original spec lists a full CRA compliance program. For the PoC, **CRA is an 
 ### IN scope for PoC (done or doing)
 
 - **HTTPS/WSS** with a self-signed cert auto-generated on first run and reused across restarts. ⚠️ — *not* "no plain HTTP": `main.rs:371-382` falls back to a **plain HTTP mode** when no certificate is present, and the HTTP companion port (`:8080`/`:8090`) is plain by design, since it exists to hand the certificate to the browser.
-- **No default credentials**. ❌ — this line was wrong. `deploy/yocto/sws-runtime-launch.sh:23-24` defaults `SWS_ADMIN_USER=admin` / `SWS_ADMIN_PASSWORD=admin`, and the recovery seed applies them exactly when a fresh panel would otherwise have zero users. Worse, with **zero users nothing is asked at all**: `senza_autenticazione(ide_only, ha_utenti)` (`router.rs:1305`) injects a synthetic Admin. Being fixed by the first access via pairing code — [piano del tronco cloud](plans/2026-10-05-cloud-utenti-aziende-spazi.md), Fase 6.
+- **No default credentials**. ❌ — this line was wrong. `deploy/yocto/sws-runtime-launch.sh:23-24` defaults `SWS_ADMIN_USER=admin` / `SWS_ADMIN_PASSWORD=admin`, and the recovery seed applies them exactly when a fresh panel would otherwise have zero users. Worse, with **zero users nothing is asked at all**: `senza_autenticazione(ide_only, ha_utenti)` (`router.rs:1305`) injects a synthetic Admin. Fixed by the first access via pairing code (11-10-2026, `d9c6418e`) — [piano del tronco cloud](archive/2026-10-05-cloud-utenti-aziende-spazi.md), Fase 6, archived.
 - **Argon2id** password hashing, never plain or weak hashes. ✅
 - **Non-root container user**, capabilities dropped where reasonable. ✅
 - **Pinned dependencies** (`Cargo.lock`, `pnpm-lock.yaml` always committed). ✅

@@ -12,7 +12,68 @@
 > resta in «Storico». Qui vive solo ciò che serve a riprendere il lavoro.
 
 
-## ▶ Riprendere da qui — 2.25.2 registrata senza immagine, tutto pushato (2026-11-05, theobroma)
+## ▶ Riprendere da qui — L0, F2 e F3 sul ramo pushato, collaudo a metà col banco (2026-11-05 notte, theobroma)
+
+**`main` = origin** (`afb40027`). **Tre rami annidati aperti**, uno dentro l'altro (regola «annidare»):
+`fix/sandbox-python` (L0) → `feat/finestra-avviso-2` (F2) → `feat/finestra-avviso-3` (F3). Si mergia con **uno squash
+solo del più interno** (`feat/finestra-avviso-3` contiene gli altri due), poi si eliminano tutti e tre.
+
+- **L0, la sandbox Python**: `print`, `for`, `+=`, `a, b = …`, le comprensioni e `min`/`max`/`sum`/`list`/`dict`/
+  `enumerate`/`any`/`all`/`sorted` sul pannello; i default dei parametri applicati dal runtime
+  (`FunctionDef::argomenti`); un elenco solo dei nomi forniti (`NOMI_FORNITI`, rotta `GET /api/script/nomi`);
+  `schema_python` e HOWTO §15. Revisione indipendente: il `print` di due script insieme si mescolava (scriveva in
+  `sys.stdout` del processo) e `flush=True` falliva, corretti con un test che col codice vecchio fallisce.
+- **F2**: deploy ed editor sulla Finestra di avviso; la catena del 428 in una funzione sola (`store/conferme428.ts`).
+  Revisione indipendente: nessun difetto vero; due cose viste in `CampoTestoTradotto` (Esc salvava la bozza, il campo
+  mostrava il testo vecchio durante la domanda) corrette in F3.
+- **F3**: viewer (`guardedWrites` subito o con la Promise della risposta), console, le otto finestre fatte a mano sulla
+  `Cornice`, guardia a zero e `no-alert` in ESLint. Le note su LVGL (password dei comandi critici, momentaneo critico)
+  in `Appunti.txt`.
+- I test di `sws-pyscript` con la sandbox vera si lanciano con un venv: `PYTHONPATH=tmp/venv-rp/lib/python3.11/site-packages
+  cargo test -p sws-pyscript` (il venv è in `sws/tmp/`, si rifà con `python3 -m venv` + `pip install RestrictedPython`).
+
+- **IDE 8460** ricompilato su `feat/finestra-avviso-3` (`2.25.2-12-g9af62644`, marchio Pixsys) e avviato **con la
+  sandbox vera**: `PYTHONPATH=tmp/venv-rp/lib/python3.11/site-packages ./scripts/start_editor.sh`. Le voci L0 1–3 si
+  possono provare anche lì, prima del pannello.
+- La revisione di F3 ha trovato sette cose, corrette in `9af62644`: le due serie erano l'impulso del momentaneo
+  critico (rilascio via socket che poteva arrivare prima della pressione) e la molla che non tornava a riposo se
+  rilasciata durante la password.
+
+**Il collaudo, cosa guardare**: le 16 voci della sezione «La serie L0 → F2 → F3» di
+[`docs/COLLAUDI_IN_SOSPESO.md`](docs/COLLAUDI_IN_SOSPESO.md). L0 e F3 cambiano runtime e viewer: le voci del pannello
+vogliono l'immagine nuova (la prossima versione, con le voci della 2.25.2 riportate in «Unreleased»).
+
+**Il banco di collaudo** (chiesto dal maintainer per fare pulizia in fretta, «accettando piccoli rischi»): ora sta in
+[`scripts/banco_collaudo/`](scripts/banco_collaudo/LEGGIMI.md) e viaggia con git. Si avvia con
+`python3 scripts/banco_collaudo/server.py` → `http://<macchina>:8471`; gli esiti vanno in `esiti.json` accanto al server,
+**fuori da git**: vanno letti e lavorati nella stessa sessione. Il giro del 05-11 in ufficio (40 voci su 71, gli esiti
+grezzi in `tmp/collaudo/esiti-05-11-ufficio.json`, solo su theobroma) è già lavorato in `4c9d7460`:
+- **archiviati** il [manuale rifatto](docs/archive/2026-10-19-manuale-rifatto.md) (T12–T14 e le schermate passano in M5
+  del manuale pubblico) e **tre semi lasciati**: CasaDomotica versionata e separata (rimando in `CLAUDE.md` aggiornato),
+  quando si libera una licenza, utenti nati sul dispositivo. Gli altri 19 semi giudicati **si tengono**;
+- **spuntati** in COLLAUDI A-octies 1–3/5/6 e A-septies 2–3 (visti il 29-10), A-nonies 1–7, A-decies 3, F.20b (coperta),
+  F.22, 2.25.1.11 (test unitario) e .13; G-ter ripulito; di F3.15 la chiusura con modifiche e la console;
+- **Appunti**: l'IDE in inglese passa (resta una riga sulle lingue dei contenuti). **Gli sfondi non passano**: «Usa
+  come base» risponde solo dopo vari clic e `istantanea_pagina` va in timeout (60 s) con cinque foto; il maintainer li
+  riprova da casa, sul TC620.
+
+**Restano 35 prove** in `scripts/banco_collaudo/prove.json`: 3 semi, 11 IDE (L0 1 e 3, F2 6–8, F3.15b, G-ter 34,
+2.25.1.14, A-octies 4, A-decies 2, sfondi), 2 cloud (regole IA, `/api/history`), e 19 sul **WP630 dell'ufficio**
+(senza deploy, con deploy, certificati). **Da casa** si fanno le prime tre parti: `/riprendi`, checkout di
+`feat/finestra-avviso-3`, IDE con `./scripts/start_editor.sh` (per L0 serve RestrictedPython: vedi il LEGGIMI del banco),
+poi il banco. I gruppi WP630 aspettano l'ufficio.
+
+**Prossimo — rimandato dal maintainer il 05-11 sera («troppa roba, registra per dopo»)**: lo squash della catena in
+`main` (un commit solo dal ramo più interno, `feat/finestra-avviso-3`), la build della **2.26.0** con le voci
+«Unreleased» di `NOVITA.yaml` (tag alla costruzione), il VPS, il collaudo. **Su origin c'è solo
+`feat/finestra-avviso-3`** (pushato il 05-11 notte con `/finalizza-giornata`): gli altri due rami sono suoi antenati e
+restano solo su theobroma — si eliminano con lo squash. Nella serie restano M1, M2, I1, I2, L1–L3, M3–M5.
+
+**Da chiarire**: il 05-11 sera il maintainer ha visto «più di 10K file cambiati da committare». Su theobroma git era
+pulito (nessun repo annidato, reflog normale): non si sa ancora dove li vedesse (VS Code? la scheda Git di un progetto
+nell'IDE?).
+
+## Sessione precedente — 2.25.2 registrata senza immagine, tutto pushato (2026-11-05, theobroma)
 
 **`main` = origin** (`c2db13ec`), tag `2.25.1` e `2.25.2` su origin. Nessun ramo di lavoro aperto.
 
@@ -282,7 +343,7 @@ Manca la conferma del maintainer.
    - le parti fisse del pannello sono in inglese («Change password», «Confirm the command?»).
 
 **Mancano ancora**: T12–T14, l'indice della Parte II in `MAIN.md`, lo stato del piano
-`docs/plans/2026-10-19-manuale-rifatto.md`.
+`docs/archive/2026-10-19-manuale-rifatto.md`.
 
 **Per rieseguire i tutorial**, gli script Playwright sono in `tmp/tutorial/` (`passo.cjs`, `viewer.cjs`,
 `pubblica.py`) e restano solo su questa macchina. Il laboratorio si rialza con `examples/laboratorio/laboratorio.sh
@@ -1239,7 +1300,7 @@ riletti:
   `senza_autenticazione()` è stata cancellata, `ide_only` è diventato `FonteAutenticazione` con
   cinque varianti. Delle sue tre domande: **Q56 è costruita** (`sws-identita`), **Q44** vive nel
   piano cloud e in quattro piani archiviati, **Q54** è l'unica rimasta aperta ed è diventata il
-  seme [utenti nati sul dispositivo](docs/plans/2026-10-22-utenti-nati-sul-dispositivo.md).
+  seme [utenti nati sul dispositivo](docs/archive/2026-10-22-utenti-nati-sul-dispositivo.md).
 - `2026-09-18-workspace-dei-progetti.md` — chiuso dalla decisione «una radice alla volta».
 - `2026-09-19-traduzioni-inglesi-revisione.md` — le voci inglesi dell'IDE, verificate.
 
@@ -1645,7 +1706,7 @@ ripubblicando il tag dall'immagine vera. Dopo un rilascio, **alzare subito la ve
 - Funziona tutto il giro senza interfaccia grafica: `openplc-cli create/compile` (AppImage dell'Editor 4.3.2, da
   lanciare **senza `ELECTRON_RUN_AS_NODE`**, che l'estensione di VS Code mette nell'ambiente), poi `program.zip` dalla
   cartella `build/…/src` caricato con l'API REST del runtime (`/api/upload-file`), perché la CLI carica solo sulla
-  porta 8443, quella del viewer SWS. Dettagli nel [piano del manuale](docs/plans/2026-10-19-manuale-rifatto.md),
+  porta 8443, quella del viewer SWS. Dettagli nel [piano del manuale](docs/archive/2026-10-19-manuale-rifatto.md),
   §«La misura, fatta il 20-10-2026».
 - Il progetto di prova (pompa, serbatoio, allarme; server Modbus, S7, OPC UA) è allegato al piano in
   [`docs/plans/allegati/2026-10-20-laboratorio-openplc/`](docs/plans/allegati/2026-10-20-laboratorio-openplc/README.md),
@@ -1667,7 +1728,7 @@ ripubblicando il tag dall'immagine vera. Dopo un rilascio, **alzare subito la ve
 
 ### Fatto, tutto su `main` (non pushato)
 
-- **Ramo 2 del [piano del manuale](docs/plans/2026-10-19-manuale-rifatto.md) chiuso**: capitoli 01–17 e l'indice
+- **Ramo 2 del [piano del manuale](docs/archive/2026-10-19-manuale-rifatto.md) chiuso**: capitoli 01–17 e l'indice
   `MAIN.md` rimisurati contro il codice, un ramo e uno squash per capitolo, ognuno letto dal maintainer prima del
   merge (sul cellulare, coi file mandati in visione). Riscritti 02 (ora «installa, entra, abbina»), 03 (18 crate, le
   porte col rimando al 18) e 12 (la scheda Git di oggi: chiave del progetto, prova, fork, tag, firma); gli altri
@@ -1738,7 +1799,7 @@ nel frattempo si lavora ad altro.
 
 ## ▶ Riprendere da qui — il manuale rifatto: capitolo 18 fatto, poi revisione e tutorial (2026-10-19)
 
-Piano: **`docs/plans/2026-10-19-manuale-rifatto.md`** (decisioni del maintainer già scritte lì).
+Piano: **`docs/archive/2026-10-19-manuale-rifatto.md`** (decisioni del maintainer già scritte lì).
 
 - **Fatto**: capitolo 18 «Il container e la comunicazione» (`docs/manual/18_container_e_comunicazione.md`,
   `71194e9b`) — immagine sws-runtime nei tre ruoli, porte, flussi, tunnel, identità, TLS, variabili, diagnosi. **Da

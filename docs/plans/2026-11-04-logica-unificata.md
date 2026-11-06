@@ -56,7 +56,7 @@
 
 ## Le sessioni
 
-**L0 — `fix/sandbox-python`: la sandbox e i default (Rust, piccola).**
+**L0 — `fix/sandbox-python`: la sandbox e i default (Rust, piccola).** — *fatta il 05-11-2026 sul ramo; la revisione ha trovato il `print` che si mescolava fra due script insieme e `flush=True`, corretti. Collaudo sull'immagine.*
 - L'harness fornisce `_print_` (PrintCollector), `_getiter_`, `_iter_unpack_sequence_`, `_inplacevar_`; i builtin sicuri
   che mancano (vedi decisioni).
 - **Una costante Rust sola** coi nomi forniti, usata dall'harness, dal controllo e da `schema_python`; una rotta GET che

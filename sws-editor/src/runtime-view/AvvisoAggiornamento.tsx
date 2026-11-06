@@ -33,6 +33,7 @@ import { useLinguaContenuti } from "@/i18n/linguaContenuti";
 import { testoSistema, testoSistemaCon } from "@/i18n/testiSistema";
 import { useAppStore } from "@/store";
 import { LoginScreen } from "@/components/LoginScreen";
+import { Cornice } from "@/finestraAvviso/FinestraAvviso";
 
 const IGNORATA = "sws.aggiornamento.ignorata";
 /** L'esito chiuso: «chiuso una volta non ricompare per quell'aggiornamento»
@@ -66,6 +67,9 @@ export const RICHIESTA_ESITO_MS = 30_000;
 export function ripartito(prima: number | null, adesso: number): boolean {
   return prima !== null && adesso < prima;
 }
+
+/** Sotto il login del viewer (9600), che si apre sopra per chiedere un Admin. */
+const Z_AVVISO = 9000;
 
 export function AvvisoAggiornamento() {
   // Dal 29-09-2026 le parole vengono dalla tabella del testo di sistema
@@ -254,15 +258,9 @@ export function AvvisoAggiornamento() {
       }
     };
     return conLogin(
-      <div role="dialog" aria-modal="true" aria-label={testoSistema("quadlet_titolo", lang)}
-        style={{ position: "fixed", inset: 0, zIndex: 9000, background: "rgba(2, 6, 23, 0.72)", display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}>
-        <div style={{
-          background: "var(--brand-surface, #1e293b)", border: "1px solid var(--brand-surface-2, #334155)",
-          borderRadius: 8, padding: 20, maxWidth: 520, width: "100%", boxShadow: "0 10px 40px rgba(0,0,0,0.5)",
-        }}>
-          <div style={{ fontSize: 16, fontWeight: 700, color: "var(--brand-text, #e2e8f0)", marginBottom: 6 }}>
-            ⚙ {testoSistema("quadlet_titolo", lang)}
-          </div>
+      <Cornice titolo={<>⚙ {testoSistema("quadlet_titolo", lang)}</>} z={Z_AVVISO} larghezza={520} sotto={!!login}
+        onChiudi={() => setQuadletRimandato(true)} chiudibile={!inCorso}>
+        <div>
           <div style={{ fontSize: 13, color: "var(--brand-text-muted, #94a3b8)" }}>
             {testoSistemaCon("quadlet_spiega", lang, daA)}
           </div>
@@ -277,7 +275,7 @@ export function AvvisoAggiornamento() {
             </button>
           </div>
         </div>
-      </div>
+      </Cornice>
     );
   }
 
@@ -299,16 +297,10 @@ export function AvvisoAggiornamento() {
         setInCorso(false);
       }
     };
+    // Non si chiude con Esc: è una domanda a cui si risponde coi bottoni.
     return conLogin(
-      <div role="dialog" aria-modal="true" aria-label={testoSistema("conf_titolo", lang)}
-        style={{ position: "fixed", inset: 0, zIndex: 9000, background: "rgba(2, 6, 23, 0.72)", display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}>
-        <div style={{
-          background: "var(--brand-surface, #1e293b)", border: "1px solid var(--brand-surface-2, #334155)",
-          borderRadius: 8, padding: 20, maxWidth: 560, width: "100%", boxShadow: "0 10px 40px rgba(0,0,0,0.5)",
-        }}>
-          <div style={{ fontSize: 16, fontWeight: 700, color: "var(--brand-text, #e2e8f0)", marginBottom: 6 }}>
-            {testoSistema("conf_titolo", lang)}
-          </div>
+      <Cornice titolo={testoSistema("conf_titolo", lang)} z={Z_AVVISO} larghezza={560} sotto={!!login} chiudibile={false}>
+        <div>
           <div style={{ fontSize: 13, color: "var(--brand-text-muted, #94a3b8)" }}>
             {testoSistemaCon("conf_spiega", lang, daA)}
           </div>
@@ -353,7 +345,7 @@ export function AvvisoAggiornamento() {
             )}
           </div>
         </div>
-      </div>
+      </Cornice>
     );
   }
 
@@ -394,26 +386,9 @@ export function AvvisoAggiornamento() {
   };
 
   return conLogin(
-    <div
-      role="dialog"
-      aria-modal="true"
-      aria-label={testoSistemaCon("agg_titolo", lang, { a: nuova })}
-      style={{
-        position: "fixed", inset: 0, zIndex: 9000,
-        background: "rgba(2, 6, 23, 0.72)",
-        display: "flex", alignItems: "center", justifyContent: "center", padding: 16,
-      }}
-    >
-      <div style={{
-        background: "var(--brand-surface, #1e293b)",
-        border: "1px solid var(--brand-surface-2, #334155)",
-        borderRadius: 8, padding: 20, maxWidth: 520, width: "100%",
-        maxHeight: "80vh", overflowY: "auto",
-        boxShadow: "0 10px 40px rgba(0,0,0,0.5)",
-      }}>
-        <div style={{ fontSize: 16, fontWeight: 700, color: "var(--brand-text, #e2e8f0)", marginBottom: 6 }}>
-          {testoSistemaCon("agg_titolo", lang, { a: nuova })}
-        </div>
+    <Cornice titolo={testoSistemaCon("agg_titolo", lang, { a: nuova })} z={Z_AVVISO} larghezza={520} sotto={!!login}
+      onChiudi={() => setChiuso(true)} chiudibile={!inCorso}>
+      <div>
         <div style={{ fontSize: 13, color: "var(--brand-text-muted, #94a3b8)" }}>
           {testoSistemaCon("agg_da", lang, { da: stato?.versione ?? "?" })}
         </div>
@@ -477,6 +452,6 @@ export function AvvisoAggiornamento() {
           </button>
         </div>
       </div>
-    </div>
+    </Cornice>
   );
 }

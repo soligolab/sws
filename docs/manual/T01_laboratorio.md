@@ -178,7 +178,7 @@ Fermato il laboratorio, il programma va ricaricato con `carica` al prossimo `avv
 |---|---|
 | Il laboratorio | [`examples/laboratorio/`](../../examples/laboratorio/README.md) |
 | OpenPLC sul pannello | `deploy/container/install-container.sh` (`--con-openplc`), HOWTO §OpenPLC |
-| La misura di OpenPLC v4 | [`docs/plans/2026-10-19-manuale-rifatto.md`](../plans/2026-10-19-manuale-rifatto.md), §«La misura, fatta il 20-10-2026» |
+| La misura di OpenPLC v4 | [`docs/archive/2026-10-19-manuale-rifatto.md`](../archive/2026-10-19-manuale-rifatto.md), §«La misura, fatta il 20-10-2026» |
 
 ---
 

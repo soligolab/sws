@@ -1134,6 +1134,31 @@ In tutti e tre i casi, dentro allo script i parametri sono variabili come `chi` 
 nome dichiarato, valore passato o default se assente. Non esiste una quarta via che passi i
 parametri diversamente.
 
+**Il default lo mette il runtime**, dal 05-11-2026 (L0): prima lo riempiva solo il pannellino di
+prova del viewer, e un pulsante senza `on_press_args` mandava la funzione in `NameError` sul
+parametro. Un parametro **senza** default che il chiamante non passa resta indefinito: usarlo dà
+ancora `NameError`, quindi a un parametro che un pulsante può lasciare vuoto conviene dare un
+default.
+
+### Cosa c'è dentro una funzione o uno script
+
+- I nomi pronti, senza `import`: `tags`, `print`, `send_telegram`, `now_ms`, `uptime_ms`,
+  `delta_ms`, `state`, `functions`, `tr`. L'elenco vero è uno solo, `NOMI_FORNITI` in
+  `sws-runtime/crates/sws-pyscript/src/lib.rs`, e l'IDE lo legge da `GET /api/script/nomi`.
+- `print` va nel log del runtime col nome della funzione o dello script; per una funzione anche
+  nella risposta di `POST /api/script/run/:name`, cioè nel risultato di «Prova».
+- `for`, `+=`, `a, b = …` e le comprensioni funzionano come in Python normale, anche sul
+  pannello. Fino al 05-11-2026 davano `NameError` (`_print_`, `_getiter_`, `_inplacevar_`) **solo
+  sul pannello**: sul PC di sviluppo RestrictedPython di solito manca, e lì passavano. Un limite
+  resta: `+=` va solo su un nome (`n += 1`); `conteggi['k'] += 1` e `o.x += 1` la sandbox li
+  rifiuta, e si scrivono `conteggi['k'] = conteggi['k'] + 1`.
+- I builtin: quelli di `safe_builtins` (`int`, `float`, `str`, `len`, `range`, `round`…) più
+  `min`, `max`, `sum`, `list`, `dict`, `enumerate`, `any`, `all`, `sorted`.
+- **Le costanti di primo livello non si vedono dentro un `def`** dello stesso script: il codice
+  gira con `exec(codice, globali, {})`, e le assegnazioni di primo livello finiscono nel
+  dizionario locale. Dentro una funzione definita nello script, la costante va definita dentro o
+  passata come argomento (è il motivo per cui la tabella di `demo-sim` sta dentro `wave`).
+
 ### Cosa NON fare
 
 `functions.run` esiste solo per gli script globali — chiamarlo da **dentro un'altra funzione**

@@ -9,11 +9,13 @@ import { ChiudiAccount } from "../src/components/accesso/ChiudiAccount";
 
 afterEach(() => { vi.restoreAllMocks(); });
 
+// La finestra sta nella cornice della Finestra di avviso, in un portale su `body`:
+// si cerca in `baseElement`, non nel contenitore del render (F3, 05-11-2026).
 describe("chiudi l'account", () => {
   it("con la password giusta chiude ed esce", async () => {
     const chiudi = vi.spyOn(api, "chiudiAccount").mockResolvedValue(undefined);
     const onChiuso = vi.fn();
-    const { container } = render(<ChiudiAccount onAnnulla={vi.fn()} onChiuso={onChiuso} />);
+    const { baseElement: container } = render(<ChiudiAccount onAnnulla={vi.fn()} onChiuso={onChiuso} />);
     const conferma = screen.getByText(i18n.t("accesso.chiudiConferma"), { selector: "button" }) as HTMLButtonElement;
     expect(conferma.disabled).toBe(true);
     fireEvent.change(container.querySelector('input[type="password"]')!, { target: { value: "password-lunga" } });
@@ -25,7 +27,7 @@ describe("chiudi l'account", () => {
   it("se il server rifiuta resta aperta e dice perché", async () => {
     vi.spyOn(api, "chiudiAccount").mockRejectedValue(new Error("la password non è corretta"));
     const onChiuso = vi.fn();
-    const { container } = render(<ChiudiAccount onAnnulla={vi.fn()} onChiuso={onChiuso} />);
+    const { baseElement: container } = render(<ChiudiAccount onAnnulla={vi.fn()} onChiuso={onChiuso} />);
     fireEvent.change(container.querySelector('input[type="password"]')!, { target: { value: "sbagliata" } });
     fireEvent.submit(container.querySelector("form")!);
     await screen.findByText(/la password non è corretta/);

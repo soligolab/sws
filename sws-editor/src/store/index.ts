@@ -3,6 +3,7 @@ import { create } from "zustand";
 import { impostaStileProgetto } from "@/symbols/stileProgetto";
 import i18n from "i18next";
 import { api, setAuthToken, ProjectChangedError, type RilievoProgetto } from "@/api/client";
+import { confermaDopo428, NESSUNA_CONFERMA } from "./conferme428";
 import { segnaPannelloCollegato } from "@/api/pannello";
 import { aggiungi, ordinaPagine, posizioneDi, riconcilia, rimuovi, sposta } from "@/pageTree";
 import { applyAppearance, getStoredMode, type ThemeMode } from "@/theme";
@@ -29,7 +30,7 @@ import {
   type ModelloCornice,
 } from "@/cornici/modello";
 import {
-  contieneFaceplate, eFaceplateDef, faceplateAPagina, firmaFaceplate, idFaceplate, idFaceplateLibero,
+  contieneFaceplate, eFaceplateDef, faceplateAPagina, firmaFaceplate, idFaceplate, idFaceplateLibero, idPaginaDiFaceplate,
   paginaAFaceplate, pagineFaceplate,
 } from "@/faceplate/modello";
 import { scalaCornice, scalaPagina, type Misura } from "@/scala/scalaPagina";
@@ -113,6 +114,9 @@ export interface AiProposta {
   /** Gli sfondi generati che le pagine usano (JPEG base64): si scrivono in
    *  images/ del progetto al Salva, come le altre sezioni dell'assistente. */
   sfondi?: { file: string; jpg: string }[] | null;
+  /** I faceplate nuovi o cambiati, interi (06-11-2026): diventano pagine-faceplate
+   *  e il Salva li scrive in faceplates/ come quelli disegnati a mano. */
+  faceplates?: FaceplateDef[] | null;
 }
 
 /** Esito di `applyAiProposal`. `avviso` non blocca: informa. */
@@ -859,6 +863,10 @@ const CHIAVE_DEPLOY_AL_SALVATAGGIO = "sws.deploy.alSalvataggio";
  *  far partire anche il deploy automatico. */
 let saltaDeployAutomatico = false;
 
+// I testi e la catena delle conferme dopo un 428 stanno in `conferme428.ts`,
+// un posto solo per i tre percorsi di deploy (F2, 05-11-2026).
+export { testoSostituzione, testoSimboliMancanti } from "./conferme428";
+
 /** L'unico punto che manda il progetto al runtime connesso (26-09-2026).
  *  - progetto (`completo = false`, pulsante «Invia ora» e salvataggio):
  *    niente utenti né segreti — il dispositivo tiene i suoi;
@@ -866,74 +874,25 @@ let saltaDeployAutomatico = false;
  *    progetto non ha utenti il server risponde 428 e chi guarda decide.
  *  Il registro in streaming si legge fino in fondo: l'ultima riga che inizia
  *  con ✗ è il motivo, e finisce nel tooltip della testata. */
-/** Il testo della conferma prima di un deploy che cancella dal pannello
- *  progetti con un altro nome (03-10-2026). Puro, per i test. */
-export function testoSostituzione(
-  progetto: string | null | undefined,
-  progetti: { nome: string; storico_byte?: number | null }[],
-): string {
-  const elenco = progetti
-    .map((p) => (p.storico_byte != null
-      ? i18n.t("cfg.deploySostituisceVoce", { nome: p.nome, mb: (p.storico_byte / 1_000_000).toFixed(1) })
-      : i18n.t("cfg.deploySostituisceVoceSenzaPeso", { nome: p.nome })))
-    .join("\n");
-  return i18n.t("cfg.deploySostituisceConfirm", { progetto: progetto ?? "?", elenco });
-}
-
-/** Il testo della conferma quando il pannello non conosce dei simboli di
- *  libreria usati dal progetto (M9, 14-10-2026). Puro, per i test. */
-export function testoSimboliMancanti(simboli: string[], nonVerificabile: boolean, versione?: string | null): string {
-  const elenco = simboli.map((s) => `• ${s}`).join("\n");
-  // Il pannello non dice quali simboli ha (02-11-2026): prima il testo diceva
-  // «senza la libreria di simboli», che era falso — era la porta di gestione a
-  // non servire il manifesto.
-  return i18n.t(nonVerificabile ? "cfg.deploySimboliNonVerificabili" : "cfg.deploySimboliMancanti",
-    { n: simboli.length, elenco, versione: versione ?? "?" });
-}
-
-async function eseguiDeploy(completo: boolean, confermato = false, sostituzioneConfermata = false, simboliConfermati = false): Promise<void> {
+async function eseguiDeploy(completo: boolean): Promise<void> {
   useAppStore.setState({ remoteDeployStatus: "syncing", remoteDeployErrore: null });
   let errore: string | null = null;
   try {
-    const res = await api.deployToRuntime({
-      replaceUsers: completo, conSegreti: completo, confirmNoUsers: confermato, confirmReplace: sostituzioneConfermata,
-      confirmMissingSymbols: simboliConfermati,
-    });
-    if (res.status === 428) {
-      const d = await res.json().catch(() => ({} as Record<string, unknown>)) as {
-        conferma?: string; utenti_dispositivo?: string[]; progetto?: string;
-        progetti?: { nome: string; storico_byte?: number | null }[];
-        simboli?: string[]; non_verificabile?: boolean; versione_pannello?: string | null;
-      };
-      // Il pannello non conosce dei simboli di libreria (M9): si avvisa, e si
-      // può procedere — li disegnerà come segnaposto.
-      if (d.conferma === "simboli-mancanti" && !simboliConfermati) {
-        if (window.confirm(testoSimboliMancanti(d.simboli ?? [], !!d.non_verificabile, d.versione_pannello))) return eseguiDeploy(completo, confermato, sostituzioneConfermata, true);
-        useAppStore.setState({ remoteDeployStatus: "idle" });
-        return;
-      }
-      // Il pannello non ha utenti e il progetto non porta un Admin (fetta E):
-      // non si conferma, si corregge il progetto.
-      if (d.conferma === "serve-admin") {
-        const { gestisciServeAdmin } = await import("@/deployServeAdmin");
-        gestisciServeAdmin(d);
+    let conferme = NESSUNA_CONFERMA;
+    let res: Response;
+    // Il server chiede una conferma alla volta (428): si chiede a chi guarda e
+    // si rifà la richiesta coi flag già dati, finché non ne chiede più.
+    for (;;) {
+      res = await api.deployToRuntime({ replaceUsers: completo, conSegreti: completo, ...conferme });
+      if (res.status !== 428) break;
+      const esito = await confermaDopo428(await res.clone().json().catch(() => ({})), conferme);
+      if (esito.tipo === "riprova") { conferme = esito.conferme; continue; }
+      if (esito.tipo === "annullato") { useAppStore.setState({ remoteDeployStatus: "idle" }); return; }
+      if (esito.tipo === "serve-admin") {
         useAppStore.setState({ remoteDeployStatus: "error", remoteDeployErrore: i18n.t("abbinamento.serveAdminBreve") });
         return;
       }
-      // Il deploy cancellerebbe progetti con un altro nome: si chiede, e
-      // annullando non si tocca niente.
-      if (d.conferma === "sostituisce-progetti" && !sostituzioneConfermata) {
-        if (window.confirm(testoSostituzione(d.progetto, d.progetti ?? []))) return eseguiDeploy(completo, confermato, true, simboliConfermati);
-        useAppStore.setState({ remoteDeployStatus: "idle" });
-        return;
-      }
-      if (completo && !confermato) {
-        const elenco = Array.isArray(d?.utenti_dispositivo) && d.utenti_dispositivo.length
-          ? d.utenti_dispositivo.join(", ") : i18n.t("cfg.deployNoUsersUnknown");
-        if (window.confirm(i18n.t("cfg.deployNoUsersConfirm", { utenti: elenco }))) return eseguiDeploy(true, true, sostituzioneConfermata, simboliConfermati);
-        useAppStore.setState({ remoteDeployStatus: "idle" });
-        return;
-      }
+      break; // un 428 che non chiede niente: è l'errore qui sotto
     }
     if (!res.ok || !res.body) {
       errore = (await res.text().catch(() => "")).trim() || `${res.status} ${res.statusText}`;
@@ -2663,6 +2622,18 @@ export const useAppStore = create<AppState>((set, get) => {
         }),
         ...proposte.filter((q) => !s.pages.some((pg) => !pg.kind && pg.name === q.name)),
       ]);
+      // I faceplate proposti (06-11-2026): uno con l'id di uno esistente lo
+      // sostituisce, tenendo l'origine (un predefinito cambiato diventa
+      // «personalizzato», come quando lo si ritocca a mano); gli altri si
+      // aggiungono. Il Salva li scrive perché la firma non è più quella del disco.
+      for (const def of p.faceplates ?? []) {
+        const pid = idPaginaDiFaceplate(def.id);
+        const i = nuovePages.findIndex((pg) => pg.id === pid);
+        const origine = i >= 0 && nuovePages[i].faceplate_predefinito ? "personalizzato" : undefined;
+        const pagina = faceplateAPagina(def, origine);
+        if (i >= 0) nuovePages[i] = pagina;
+        else nuovePages.push(pagina);
+      }
 
       // ── 3. Un solo passo, con dentro anche il progetto ────────────────────
       pushHistoryUnconditional("history.assistant", prima, { motivo: p.motivo });

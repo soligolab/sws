@@ -31,7 +31,7 @@ describe("il modale «Sessione scaduta»", () => {
     stato(true);
     vi.spyOn(api, "chiediPin").mockResolvedValue(undefined);
     const accedi = vi.spyOn(api, "accediConPin").mockResolvedValue({ ...OK, progetto_aperto: true });
-    const { container } = render(<ReAuthModal />);
+    const { baseElement: container } = render(<ReAuthModal />);
     fireEvent.click(await screen.findByText(i18n.t("accesso.conPin")));
     expect((container.querySelector('input[type="email"]') as HTMLInputElement).value).toBe("anna@sws.it");
     fireEvent.click(screen.getByText(i18n.t("accesso.mandaPin")));
@@ -50,7 +50,7 @@ describe("il modale «Sessione scaduta»", () => {
   it("se il server ha chiuso il progetto si torna all'elenco", async () => {
     stato(false);
     const login = vi.spyOn(api, "login").mockResolvedValue({ ...OK, progetto_aperto: false });
-    const { container } = render(<ReAuthModal />);
+    const { baseElement: container } = render(<ReAuthModal />);
     fireEvent.change(container.querySelector('input[type="password"]')!, { target: { value: "password-lunga" } });
     fireEvent.submit(container.querySelector("form")!);
     await waitFor(() => expect(login).toHaveBeenCalledWith("anna@sws.it", "password-lunga", false, true));

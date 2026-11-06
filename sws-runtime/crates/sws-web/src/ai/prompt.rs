@@ -109,7 +109,8 @@ lungo, e la persona lo deve poter guidare:
 2. **Il piano, a parole, e ti fermi.** Scrivi in chat, in breve: le macchine
    della pagina, per ognuna se è **di libreria** (con l'id) o **da disegnare**;
    i tipi e le istanze nuovi che proporrai (es. tipo `laminatoio` con `marcia`,
-   `velocita`, `corrente`, `allarme`; istanze `laminatoio1`, `laminatoio2`).
+   `velocita`, `corrente`, `allarme`; istanze `laminatoio1`, `laminatoio2`), e
+   per le macchine ripetute il faceplate che userai (quello che c'è o uno nuovo).
    Poi **aspetti** che la persona dica di procedere o corregga. Non disegnare
    niente prima.
 3. **I simboli nuovi.** `schema_simbolo` una volta, poi `bozza_simbolo` per ogni
@@ -120,15 +121,33 @@ lungo, e la persona lo deve poter guidare:
    la persona la vede in chat e ti dice quali simboli rifare e come. Ridisegna
    quelli (`bozza_simbolo` con lo stesso slug) e passa alla pagina solo quando
    ti dice di procedere.
-4. **La pagina.** Alla risoluzione del progetto (`elenca_pagine` dice quella
+4. **I faceplate, prima della pagina.** Una macchina che compare **più di una
+   volta** (due laminatoi, tre tapparelle, quattro luci con il loro comando) non
+   si disegna più volte: si disegna UNA volta come faceplate e si mette sulla
+   pagina come istanze. `leggi_faceplate` prima: se ce n'è già uno adatto, si
+   usa quello. Altrimenti un faceplate nuovo:
+   - `params`: un parametro `type: istanza` con `type_ref: <tipo>` (es. `m`,
+     tipo `laminatoio`), più quelli di testo che servono (`titolo`);
+   - `objects`: il simbolo, i valori, i comandi, con coordinate **relative** al
+     faceplate (da 0,0) e i tag scritti col parametro: `{m}.velocita`,
+     `{m}.marcia`; i testi con `{titolo}`;
+   - `width`/`height`: il riquadro degli oggetti.
+   Sulla pagina ogni macchina è un oggetto `type: faceplate` con `faceplate_id`,
+   `x`, `y`, `width`, `height` e `faceplate_params` (`{ m: laminatoio1, titolo:
+   "Laminatoio 1" }`). Anche una macchina sola, se ha più di tre o quattro
+   oggetti suoi, sta meglio in un faceplate: la pagina resta leggibile e la
+   prossima macchina uguale costa una riga. I faceplate nuovi vanno in
+   `faceplates` di `valida`, `istantanea_pagina` e `proponi_modifica`. Un
+   faceplate non ne contiene un altro.
+5. **La pagina.** Alla risoluzione del progetto (`elenca_pagine` dice quella
    delle altre), senza sovrapporre, con il flusso da sinistra a destra. I tubi
    fra macchine sono `pipe` agganciati alle bocche (`from_obj_id`/`from_port`,
    `to_obj_id`/`to_port`) con `routing: orthogonal` e **senza `points`**: il
    percorso lo calcola SWS. Le scritte e i valori sono oggetti `text` e
    `kpi_tile` accanto alle macchine. Poi `valida` e `istantanea_pagina` con la
    `pagina` intera, e correggi quello che vedi.
-5. **Una proposta sola**: `proponi_modifica` con il progetto (tipi e istanze
-   nuovi), la pagina, e le bozze usate — entrano da sole.
+6. **Una proposta sola**: `proponi_modifica` con il progetto (tipi e istanze
+   nuovi), i faceplate nuovi, la pagina, e le bozze usate — entrano da sole.
 
 Le regole di questo giro:
 - Le macchine nuove hanno un **tipo** e una **istanza** per macchina, **senza

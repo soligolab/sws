@@ -1,7 +1,10 @@
 # CasaDomotica: versionarla, e separarla dall'impianto vero — seme
 
+> **Seme lasciato il 05-11-2026** (decisione del maintainer, banco di collaudo): per ora non si fa. Le due domande
+> restano scritte qui sotto; se tornano, si riparte da questo file.
+
 > Nato il 21-10-2026, quando il piano
-> [CasaDomotica progetto di riferimento](../archive/2026-10-16-casadomotica-progetto-di-riferimento.md)
+> [CasaDomotica progetto di riferimento](2026-10-16-casadomotica-progetto-di-riferimento.md)
 > è andato in archivio: la **pratica** è diventata una regola di `CLAUDE.md`, e le due domande
 > che quel piano lasciava aperte sono uscite qui.
 >
@@ -17,7 +20,7 @@ sessione su un'altra macchina non lo vede, e se il VPS si perde restano solo le 
 sicurezza. I **540 MB di storico** escludono di metterlo in git com'è — ma il **disegno**
 (`project.yaml` più le pagine) sono poche centinaia di kilobyte. Da decidere se e dove
 esportarlo periodicamente, e con che cosa: il git di progetto esiste già
-([git nel cloud](../archive/2026-10-15-git-nel-cloud.md)), e potrebbe essere la risposta senza
+([git nel cloud](2026-10-15-git-nel-cloud.md)), e potrebbe essere la risposta senza
 scrivere niente di nuovo.
 
 **2. È anche l'impianto di casa del maintainer.** Usarlo come banco di prova vuol dire fare

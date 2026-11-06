@@ -1,0 +1,462 @@
+{
+ "titolo": "Collaudo del 05-11 — chiudere e archiviare",
+ "prove": [
+  {
+   "id": "gter34",
+   "n": 12,
+   "dove": "3 · IDE 8460 (nessun rischio per l'impianto)",
+   "titolo": "Un faceplate «per un motore»: scegli il motore e si collega da solo",
+   "rif": "G-ter 34 — i tag compositi nell'editor",
+   "scopo": "Un faceplate può avere un parametro di tipo «istanza»: invece di scrivere il nome di ogni variabile, scegli da una tendina un motore intero (motore1, motore2…) e tutti gli oggetti dentro il faceplate si collegano alle sue variabili.",
+   "prima": "Configurazione → Progetto → Tipi: un tipo Motore con un membro velocita (numero). Configurazione → Progetto → Variabili: due variabili di tipo Motore, motore1 e motore2. Salva.",
+   "passi": [
+    "Albero delle pagine, ramo 🧩 Faceplate → «+ Nuovo faceplate».",
+    "Nel pannello destro, Parametri: il parametro tag_prefix ha tipo «istanza»; nel campo «tipo di struttura» scrivi Motore.",
+    "Nel faceplate metti un valore numerico con variabile {tag_prefix}.velocita. Salva.",
+    "Trascina il faceplate dal ramo su una pagina.",
+    "Nelle proprietà dell'istanza, la tendina del parametro: scegli motore1, poi motore2."
+   ],
+   "atteso": [
+    "La tendina propone solo motore1 e motore2 (le variabili di tipo Motore).",
+    "Scelto il motore, il valore dentro il faceplate mostra la velocità di quel motore, senza scrivere niente a mano."
+   ],
+   "sblocca": "G-ter 34",
+   "link": [
+    {
+     "testo": "IDE 8460",
+     "url": "https://{host}:8460"
+    }
+   ]
+  },
+  {
+   "id": "1125-14",
+   "n": 13,
+   "dove": "3 · IDE 8460 (nessun rischio per l'impianto)",
+   "titolo": "L'assistente trova una pagina col suo nome tradotto",
+   "rif": "2.25.1.14 — l'assistente e i nomi tradotti",
+   "scopo": "Nei progetti con le lingue, il nome di una pagina è salvato come codice ({{t0069}}) e tradotto a schermo. L'assistente vedeva solo il codice: non trovava «la pagina Soggiorno» e nei riepiloghi scriveva {{t0069}}.",
+   "prima": "Un progetto con le lingue e almeno una pagina col nome tradotto (es. un template). L'assistente acceso (Configurazione → IA). Costa qualche centesimo.",
+   "passi": [
+    "Apri l'assistente (la chat).",
+    "Chiedi: «aggiungi un'etichetta con scritto Prova nella pagina <nome della pagina come lo vedi tu>».",
+    "Guarda la proposta che ti fa (non serve applicarla)."
+   ],
+   "atteso": [
+    "Trova la pagina giusta dal nome che hai scritto.",
+    "Nel riepilogo della proposta il nome della pagina è leggibile, non un codice come {{t0069}}."
+   ],
+   "sblocca": "2.25.1.14",
+   "link": [
+    {
+     "testo": "IDE 8460",
+     "url": "https://{host}:8460"
+    }
+   ]
+  },
+  {
+   "id": "ap-sfondi",
+   "n": 14,
+   "dove": "3 · IDE 8460 (nessun rischio per l'impianto)",
+   "titolo": "L'assistente fa uno sfondo, poi la variante sera",
+   "rif": "Appunti — una conversazione intera con gli sfondi",
+   "scopo": "L'assistente può generare uno sfondo fotografico per una pagina e poi le sue varianti di luce (sera, notte). Il 05-11 in ufficio non è andata: «Usa come base» rispondeva solo dopo vari clic e la foto di controllo andava in timeout. Riproviamo da capo.",
+   "prima": "Un progetto nuovo creato dall'IDE (non una copia di montagna). Costa circa 1 $ di immagini.",
+   "passi": [
+    "Apri l'assistente e chiedi uno sfondo per la pagina (es. «uno sfondo con una casa di montagna»).",
+    "Sotto l'immagine proposta premi «Usa come base», una volta sola.",
+    "Chiedi la variante sera.",
+    "Premi Applica sulla proposta, poi Salva il progetto.",
+    "Se vuoi vederla sul TC620: deploy al pannello e guarda lo schermo."
+   ],
+   "atteso": [
+    "«Usa come base» risponde al primo clic.",
+    "La conversazione arriva in fondo senza errori di timeout.",
+    "Dopo il Salva, fra le immagini del progetto ci sono ai-sfondo-<sigla>.jpg e ai-sfondo-<sigla>-sera.jpg."
+   ],
+   "sblocca": "si toglie la voce «Una conversazione intera con gli sfondi» da Appunti",
+   "link": [
+    {
+     "testo": "IDE 8460",
+     "url": "https://{host}:8460"
+    }
+   ]
+  },
+  {
+   "id": "ap-regole",
+   "n": 15,
+   "dove": "4 · Dal cloud (sws.soligo.net, 2.25.1)",
+   "titolo": "Le regole del progetto per l'IA si salvano",
+   "rif": "Appunti — le regole del progetto in CasaDomotica",
+   "scopo": "Nella Configurazione c'è una scheda dove scrivi cosa devono sapere i modelli IA del tuo impianto (che tipo di impianto è, regole generali). Stanno nel progetto. Controlliamo che nel cloud si salvino davvero.",
+   "prima": "Attento: se sul progetto è acceso «deploy al salvataggio», salvare manda il progetto al pannello di casa.",
+   "passi": [
+    "IDE nel cloud, progetto CasaDomotica: Configurazione → IA → Regole del progetto.",
+    "Scrivi qualcosa in «Tipo di impianto, in una riga» (es. casa su due piani con fotovoltaico) e in «Regole per tutti i modelli».",
+    "Salva il progetto.",
+    "Vai su un'altra scheda e torna su Regole del progetto (o ricarica la pagina del browser)."
+   ],
+   "atteso": [
+    "Dopo il Salva compare «✓ Salvato» per un paio di secondi.",
+    "Tornando sulla scheda i testi ci sono ancora."
+   ],
+   "sblocca": "si toglie la voce delle regole da Appunti e la riga di STATUS",
+   "link": [
+    {
+     "testo": "sws.soligo.net",
+     "url": "https://sws.soligo.net"
+    }
+   ]
+  },
+  {
+   "id": "ap-history",
+   "n": 16,
+   "dove": "4 · Dal cloud (sws.soligo.net, 2.25.1)",
+   "titolo": "I grafici smettono di chiedere dati quando la scheda è nascosta",
+   "rif": "Appunti — ricontare le richieste /api/history",
+   "scopo": "I grafici con lo storico chiedono dati al server. Se la scheda del browser non è visibile non devono chiederne: è traffico e lavoro per niente. Quando torni, devono aggiornarsi subito.",
+   "passi": [
+    "IDE nel cloud, CasaDomotica_WP630, apri la pagina SystemInfo in modifica.",
+    "F12 → Network (Rete). Filtro: history. Spunta «Preserve log» (Conserva registro).",
+    "Resta 60 secondi sulla pagina e guarda le richieste.",
+    "Passa a un'altra scheda del browser per 60 secondi.",
+    "Torna e guarda le richieste arrivate mentre eri via."
+   ],
+   "atteso": [
+    "Mentre eri sull'altra scheda: nessuna richiesta /api/history/<variabile>?from=…",
+    "Le richieste …/stats ogni 30 secondi (i KPI) sono normali: non contano.",
+    "Al ritorno: un gruppo di richieste tutte insieme."
+   ],
+   "sblocca": "si toglie la voce «Ricontare le richieste /api/history» da Appunti",
+   "link": [
+    {
+     "testo": "sws.soligo.net",
+     "url": "https://sws.soligo.net"
+    }
+   ]
+  },
+  {
+   "id": "prest-1",
+   "n": 17,
+   "dove": "5 · WP630 senza deploy (Montagna resta)",
+   "titolo": "Prestazioni: la colonna del pannello mostra cosa gira lì",
+   "rif": "Prestazioni 1 — dove se ne va il tempo",
+   "scopo": "La scheda Prestazioni mostra quanto tempo prendono i lavori di SWS: una colonna per l'IDE e una per il pannello collegato. Controlliamo che la colonna del pannello mostri il runtime, e il viewer LVGL solo se è lui a disegnare lo schermo.",
+   "prima": "IDE 8460 collegato al WP630 (Configurazione → Istanza → Device → Connessione → «Connetti»). Entrato come Admin.",
+   "passi": [
+    "Configurazione → Istanza → Prestazioni.",
+    "Guarda la colonna del pannello."
+   ],
+   "atteso": [
+    "La colonna del pannello ha le righe del runtime.",
+    "Con Montagna (viewer web) non c'è il viewer LVGL. Compare solo quando il pannello disegna in LVGL (lo si vede nella prova 32)."
+   ],
+   "sblocca": "Prestazioni 1 (parte web)",
+   "link": [
+    {
+     "testo": "viewer WP630",
+     "url": "https://wp630-a-p3-07a077.local:7443"
+    }
+   ],
+   "sonda": "https://wp630-a-p3-07a077.local:7443/health"
+  },
+  {
+   "id": "prest-5",
+   "n": 18,
+   "dove": "5 · WP630 senza deploy (Montagna resta)",
+   "titolo": "Prestazioni: chiusa la pagina, il pannello smette di misurare",
+   "rif": "Prestazioni 5",
+   "scopo": "Mentre la pagina Prestazioni è aperta, il pannello misura i suoi lavori. Quando la chiudi deve smettere da solo entro un minuto, per non pesare per niente.",
+   "passi": [
+    "Apri Configurazione → Istanza → Prestazioni (come nella prova prima).",
+    "Qui sul banco premi «Controlla da qui»: deve dire {\"attiva\":true}.",
+    "Chiudi la scheda Prestazioni (vai su un'altra scheda della Configurazione).",
+    "Aspetta più di 60 secondi e premi di nuovo «Controlla da qui»."
+   ],
+   "atteso": [
+    "Con la pagina aperta: {\"attiva\":true}.",
+    "Più di un minuto dopo averla chiusa: {\"attiva\":false}."
+   ],
+   "sblocca": "Prestazioni 5",
+   "sonda": "https://wp630-a-p3-07a077.local:7443/api/prestazioni/richiesta"
+  },
+  {
+   "id": "abis-3",
+   "n": 19,
+   "dove": "5 · WP630 senza deploy (Montagna resta)",
+   "titolo": "Certificati: la card dice che il browser del pannello si fida",
+   "rif": "A-bis 3 — la fiducia del browser del pannello",
+   "scopo": "Con il TLS acceso, il browser sullo schermo del pannello si fida del certificato da solo (niente più «La connessione non è privata»). La card dei certificati deve dirlo, e non proporre più le vecchie procedure da fare a mano.",
+   "prima": "IDE collegato al WP630, entrato come Admin.",
+   "passi": [
+    "Configurazione → Sicurezza → Certificati.",
+    "Leggi la colonna del pannello."
+   ],
+   "atteso": [
+    "C'è scritto «Il browser del pannello si fida del certificato…».",
+    "Nessuna proposta da accettare e nessun comando da copiare.",
+    "C'è il bottone «Disabilita TLS» (non premerlo adesso: è la prova 33)."
+   ],
+   "sblocca": "A-bis 3",
+   "link": [
+    {
+     "testo": "viewer WP630",
+     "url": "https://wp630-a-p3-07a077.local:7443"
+    }
+   ]
+  },
+  {
+   "id": "abis-1",
+   "n": 20,
+   "dove": "5 · WP630 senza deploy (Montagna resta)",
+   "titolo": "Sul pannello c'è il «guardiano» che aggiorna la fiducia del browser",
+   "rif": "A-bis 1 — da terminale (SSH)",
+   "scopo": "Un piccolo servizio sul pannello (sws-fiducia.path) guarda il certificato: se cambia, lo rimette fra quelli di cui il browser del pannello si fida. Controlliamo che sia installato e acceso. Si fa da terminale: se preferisci, dimmelo e lo faccio io via SSH.",
+   "passi": [
+    "Entra nel pannello: ssh user@wp630-a-p3-07a077.local",
+    "Scrivi: cat /data/user/sws/config/fiducia-browser",
+    "Scrivi: XDG_RUNTIME_DIR=/run/user/$(id -u) systemctl --user status sws-fiducia.path"
+   ],
+   "atteso": [
+    "Il primo comando stampa «fiducia-browser» (il file esiste).",
+    "Il secondo dice «active» (verde)."
+   ],
+   "sblocca": "A-bis 1"
+  },
+  {
+   "id": "d13",
+   "n": 22,
+   "dove": "5 · WP630 senza deploy (Montagna resta)",
+   "titolo": "Ricollegandosi, l'IDE riconosce il certificato del pannello",
+   "rif": "D 13 — l'impronta al collegamento",
+   "scopo": "Al primo collegamento l'IDE memorizza l'«impronta» del certificato del pannello (come SSH). Al collegamento dopo deve dire che è la stessa di prima.",
+   "passi": [
+    "Configurazione → Istanza → Device → Connessione.",
+    "Premi «Disconnetti», poi «Connetti» di nuovo.",
+    "Guarda sotto lo stato della connessione."
+   ],
+   "atteso": [
+    "C'è la riga «Impronta del certificato» con un valore.",
+    "Sotto, una riga grigia: «Già memorizzata da un collegamento precedente…»."
+   ],
+   "sblocca": "D 13"
+  },
+  {
+   "id": "d14",
+   "n": 23,
+   "dove": "5 · WP630 senza deploy (Montagna resta)",
+   "titolo": "Collegandosi in http non compare nessuna impronta",
+   "rif": "D 14 — l'impronta al collegamento",
+   "scopo": "In http non c'è un certificato, quindi non c'è niente da verificare: la riga dell'impronta non deve comparire. Se compare, è un errore che fa credere a una sicurezza che non c'è.",
+   "passi": [
+    "Connessione: «Disconnetti».",
+    "Collegati al WP630 con un indirizzo http:// (es. http://wp630-a-p3-07a077.local:8080, se risponde).",
+    "Guarda sotto lo stato.",
+    "Disconnetti e ricollegati in https come prima."
+   ],
+   "atteso": [
+    "In http: nessuna riga «Impronta del certificato».",
+    "Alla fine sei di nuovo collegato in https."
+   ],
+   "sblocca": "D 14"
+  },
+  {
+   "id": "x-prep",
+   "n": 24,
+   "dove": "6 · WP630 con deploy (cancella il progetto del pannello)",
+   "titolo": "Prima di tutto: un progetto con gli utenti",
+   "rif": "preparazione",
+   "scopo": "Le prove di questo gruppo mandano progetti diversi al WP630. Un deploy con un progetto diverso cancella dal pannello il progetto di prima, e con «Utenti e segreti» anche i suoi account. Per non restare chiuso fuori, usiamo un progetto che porta già un Admin e un Operator.",
+   "passi": [
+    "IDE 8460, apri homeassistant-pro.",
+    "Configurazione → Sicurezza → Utenti: aggiungi un Admin e un Operator (password che ricordi). Salva.",
+    "D'ora in poi, in questo gruppo, invia sempre con «Utenti e segreti»."
+   ],
+   "atteso": [
+    "homeassistant-pro ha un Admin e un Operator."
+   ],
+   "sblocca": "rende sicuri i deploy che seguono"
+  },
+  {
+   "id": "f2-5",
+   "n": 25,
+   "dove": "6 · WP630 con deploy (cancella il progetto del pannello)",
+   "titolo": "Inviare un progetto senza utenti avvisa che il pannello resterà aperto",
+   "rif": "F2.5 — la Finestra di avviso",
+   "scopo": "Se invii con «Utenti e segreti» un progetto che non ha utenti, gli account del pannello vengono tolti e il pannello resta senza password per chiunque. SWS deve chiederlo due volte, con finestre chiare. In questa prova si preme sempre Annulla: non si invia niente.",
+   "prima": "Un progetto SENZA utenti aperto nell'IDE, collegato al WP630 (che ha utenti suoi).",
+   "passi": [
+    "Nella barra in alto premi «Utenti e segreti».",
+    "Prima finestra (rossa): leggila e premi Conferma.",
+    "Seconda finestra, «Questo progetto non ha utenti»: premi ANNULLA."
+   ],
+   "atteso": [
+    "Prima la conferma rossa «Inviare progetto, utenti e segreti…».",
+    "Poi «Questo progetto non ha utenti», con l'elenco degli account che verrebbero tolti.",
+    "Dopo Annulla non è partito niente: il pannello ha ancora il suo progetto e i suoi utenti."
+   ],
+   "sblocca": "F2.5"
+  },
+  {
+   "id": "f2-4",
+   "n": 26,
+   "dove": "6 · WP630 con deploy (cancella il progetto del pannello)",
+   "titolo": "Il deploy che sostituisce il progetto del pannello chiede conferma",
+   "rif": "F2.4 — la Finestra di avviso",
+   "scopo": "Inviare un progetto diverso da quello del pannello cancella il vecchio progetto e il suo storico. Ci sono tre punti da cui si può inviare: testata, Connessione, Dispositivi. Tutti e tre devono chiedere con la stessa finestra rossa.",
+   "prima": "homeassistant-pro aperto (la prova 24), WP630 collegato con un altro progetto (Montagna).",
+   "passi": [
+    "Nella testata premi «Invia ora». Alla finestra premi Annulla.",
+    "Configurazione → Istanza → Device → Connessione: il bottone di deploy. Annulla.",
+    "Configurazione → Istanza → Device → Dispositivi: il deploy sulla riga del WP630. Annulla.",
+    "Ora invia davvero: testata → «Utenti e segreti», e conferma."
+   ],
+   "atteso": [
+    "Tutte e tre le volte: finestra rossa «Il deploy di «homeassistant-pro» cancella dal pannello: • «Montagna», con N MB di storico…», con Annulla già selezionato.",
+    "Annulla non manda niente.",
+    "La conferma finale manda il progetto: sul WP630 c'è homeassistant-pro."
+   ],
+   "sblocca": "F2.4"
+  },
+  {
+   "id": "1125-10",
+   "n": 27,
+   "dove": "6 · WP630 con deploy (cancella il progetto del pannello)",
+   "titolo": "Il lucchetto sui comandi che richiedono un ruolo",
+   "rif": "2.25.1.10 — il lucchetto",
+   "scopo": "Un comando che richiede un ruolo (es. Operator) mostra un lucchetto col ruolo, finché non entri con un utente che ce l'ha. Così l'operatore capisce perché il bottone non risponde.",
+   "prima": "homeassistant-pro sul WP630 (prova 26). Per vedere anche il lucchetto LVGL: prima del deploy, nel progetto, motore LVGL (lvgl_framebuffer).",
+   "passi": [
+    "Sullo schermo del WP630, senza aver fatto l'accesso: vai alla pagina Sicurezza.",
+    "Guarda il cancelletto e la tapparella del garage.",
+    "Fai l'accesso come Operator e guarda di nuovo."
+   ],
+   "atteso": [
+    "Senza accesso: «🔒 Operator» sul cancelletto, «🔒 Supervisor» sulla tapparella.",
+    "Da Operator: il lucchetto del cancelletto sparisce, quello della tapparella resta."
+   ],
+   "sblocca": "2.25.1.10 (con la 28 chiude T1)"
+  },
+  {
+   "id": "prest-3",
+   "n": 29,
+   "dove": "6 · WP630 con deploy (cancella il progetto del pannello)",
+   "titolo": "Prestazioni: si vedono le sorgenti del pannello",
+   "rif": "Prestazioni 3",
+   "scopo": "Nella colonna del pannello, oltre al runtime, devono comparire le sorgenti (i protocolli che leggono i dati) con quanto tempo prende ogni loro giro.",
+   "passi": [
+    "Manda al WP630 il progetto «OpenPLC — impianto di prova» con «Utenti e segreti».",
+    "Configurazione → Istanza → Prestazioni, colonna del pannello."
+   ],
+   "atteso": [
+    "Ci sono le righe delle sorgenti (Modbus verso OpenPLC) coi tempi dei loro giri."
+   ],
+   "sblocca": "Prestazioni 3 (con 1 e 5 la sezione è chiusa)"
+  },
+  {
+   "id": "quater",
+   "n": 30,
+   "dove": "6 · WP630 con deploy (cancella il progetto del pannello)",
+   "titolo": "I report programmati arrivano per mail e si fanno da soli",
+   "rif": "A-quater 3 e 4 — i report programmati",
+   "scopo": "Un report (PDF + Excel) si può generare a mano o a orari fissi, mandare per mail, e tenere solo gli ultimi N file. Generarlo a mano l'abbiamo già visto: mancano la mail e la programmazione.",
+   "prima": "Un progetto con un report (Configurazione → Progetto → Report) e la posta configurata (Configurazione → Progetto → SMTP).",
+   "passi": [
+    "Nel report metti il tuo indirizzo come destinatario.",
+    "Programmazione: */15 * * * * (ogni 15 minuti). «File da tenere» = 2.",
+    "Manda al WP630 con «Utenti e segreti».",
+    "Premi «▶ Genera ora» e controlla la mail.",
+    "Lascia acceso per più di 30 minuti, poi guarda i file del report."
+   ],
+   "atteso": [
+    "Arriva una mail con il PDF e l'Excel allegati.",
+    "Ogni 15 minuti nasce un report nuovo da solo.",
+    "Restano solo gli ultimi due."
+   ],
+   "sblocca": "A-quater (la sezione è chiusa)"
+  },
+  {
+   "id": "septies-10",
+   "n": 31,
+   "dove": "6 · WP630 con deploy (cancella il progetto del pannello)",
+   "titolo": "Se il PLC si stacca, SWS lo dice",
+   "rif": "A-septies 10 — la disponibilità delle sorgenti",
+   "scopo": "Ogni sorgente ha una variabile <sorgente>.disponibile che dice se il dispositivo dall'altra parte risponde. Va vista con un dispositivo vero.",
+   "prima": "«OpenPLC — impianto di prova» sul WP630 (prova 29).",
+   "passi": [
+    "Nell'IDE apri Configurazione → Progetto → Protocolli e guarda la card della sorgente Modbus (o la variabile <sorgente>.disponibile in Variabili).",
+    "Ferma OpenPLC. Dall'IDE non c'è un bottone per farlo: o «Stop PLC» dall'Editor di OpenPLC, o chiedimi di fermare il suo container via SSH.",
+    "Aspetta un minuto e guarda la card.",
+    "Riaccendi OpenPLC (o chiedimi di farlo)."
+   ],
+   "atteso": [
+    "Con OpenPLC fermo: disponibile = falso, la card dice «non risponde», le variabili della sorgente diventano di qualità Bad.",
+    "Riacceso: disponibile = vero e le variabili tornano buone."
+   ],
+   "sblocca": "A-septies 10"
+  },
+  {
+   "id": "abis-4",
+   "n": 33,
+   "dove": "7 · WP630 certificati (cambiano il TLS: per ultimi)",
+   "titolo": "Cambiato il certificato, lo schermo del pannello non dà avvisi",
+   "rif": "A-bis 4 e 6 — il guardiano segue il cambio",
+   "scopo": "Quando il certificato del pannello cambia, il guardiano (prova 20) deve rimetterlo fra quelli di cui si fida il browser dello schermo, senza riavviare niente. Oggi «Disabilita TLS» di fatto genera un certificato nuovo (è un difetto noto): lo usiamo per provocare il cambio.",
+   "prima": "Si fa per ultima: cambia il certificato e le prove dopo ne dipendono.",
+   "passi": [
+    "Configurazione → Sicurezza → Certificati: premi «Disabilita TLS» e conferma.",
+    "Guarda lo schermo del WP630.",
+    "Da terminale sul pannello (o lo faccio io): fiducia-browser.sh /data/user/sws/config --verifica"
+   ],
+   "atteso": [
+    "Il pannello resta in https, con un'impronta nuova (è il difetto noto, va bene così).",
+    "Il comando elenca «SWS pannello».",
+    "Lo schermo mostra il sinottico senza «La connessione non è privata», e senza riavviare il pannello."
+   ],
+   "sblocca": "A-bis 4 e 6"
+  },
+  {
+   "id": "c10-11",
+   "n": 34,
+   "dove": "7 · WP630 certificati (cambiano il TLS: per ultimi)",
+   "titolo": "Dopo il cambio, l'IDE rifiuta il certificato nuovo finché non dici di fidarti",
+   "rif": "C 10–11, D 12 — governare il certificato da remoto",
+   "scopo": "L'IDE ricorda l'impronta del certificato. Se cambia, potrebbe essere un impostore: l'IDE deve rifiutare e offrire «Dimentica certificato». Non deve mai farlo da solo. Controlliamo anche che il cambio abbia toccato solo il pannello e non il PC.",
+   "prima": "Subito dopo la prova 33.",
+   "passi": [
+    "Connessione: «Disconnetti», poi «Connetti».",
+    "Leggi l'errore e premi «Dimentica certificato».",
+    "Ricollegati e guarda la riga dell'impronta.",
+    "Controlla che l'IDE 8460 sul PC risponda ancora come prima (qui sul banco, il link IDE 8460)."
+   ],
+   "atteso": [
+    "Al primo tentativo: errore «certificato cambiato» e il bottone «Dimentica certificato».",
+    "Dopo: collegato, con la riga gialla «Memorizzata adesso, al primo contatto…».",
+    "L'IDE sul PC risponde come prima: il cambio ha toccato solo il pannello."
+   ],
+   "sblocca": "C 10, C 11, D 12",
+   "link": [
+    {
+     "testo": "IDE 8460",
+     "url": "https://{host}:8460"
+    }
+   ]
+  },
+  {
+   "id": "h31",
+   "n": 35,
+   "dove": "7 · WP630 certificati (cambiano il TLS: per ultimi)",
+   "titolo": "Le operazioni sui certificati finiscono nel registro di audit",
+   "rif": "H 31 — ruoli e registro",
+   "scopo": "Chi tocca i certificati deve lasciare traccia: ogni operazione va nel registro di audit, col nome di chi l'ha fatta.",
+   "prima": "Dopo le prove 33 e 34.",
+   "passi": [
+    "Apri il registro di audit del WP630 (IDE del pannello, porta 7444, da Admin) — o da terminale: /data/user/sws/config/audit.jsonl.",
+    "Cerca le operazioni di oggi sui certificati."
+   ],
+   "atteso": [
+    "Una voce per ogni operazione (disabilita TLS, dimentica…), ognuna col nome di chi l'ha fatta (dall'IDE 8460: mauro@soligo.net)."
+   ],
+   "sblocca": "H 31"
+  }
+ ]
+}

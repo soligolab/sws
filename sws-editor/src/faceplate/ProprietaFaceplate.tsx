@@ -9,6 +9,7 @@ import { useTranslation } from "react-i18next";
 import { useAppStore } from "@/store";
 import type { FaceplateDef, FaceplateParamDef, SynopticPage } from "@/types";
 import { contieneFaceplate, idFaceplate, paginaAFaceplate, usiDelFaceplate } from "./modello";
+import { conferma } from "@/finestraAvviso/finestraAvviso";
 
 const LABEL: React.CSSProperties = { fontSize: 11, color: "var(--brand-text-muted, #94a3b8)", marginBottom: 2 };
 const INPUT: React.CSSProperties = {
@@ -165,8 +166,8 @@ export function ProprietaFaceplate({ pagina }: { pagina: SynopticPage }) {
           onClick={() => setJsonAperto(true)} disabled={ro}>{t("faceplate.json.pulsante")}</button>
         {pagina.faceplate_predefinito === "personalizzato" && (
           <button type="button" style={{ ...PULSANTE, borderStyle: "solid" }} data-testid="faceplate-ripristina" disabled={ro}
-            onClick={() => {
-              if (!window.confirm(t("faceplate.ripristinaConferma", { nome: pagina.name }))) return;
+            onClick={async () => {
+              if (!(await conferma({ testo: t("faceplate.ripristinaConferma", { nome: pagina.name }), pericolo: true, si: t("faceplate.ripristina") }))) return;
               setErrore(null);
               ripristina(pagina.id).catch((e) => setErrore(e instanceof Error ? e.message : String(e)));
             }}>{t("faceplate.ripristina")}</button>

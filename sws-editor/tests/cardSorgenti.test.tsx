@@ -2,7 +2,7 @@
  *  `docs/archive/2026-10-29-card-delle-sorgenti.md`): lo stato in testata con
  *  l'ora, le sezioni che si aprono, Sparkplug B come modo della mappatura, e
  *  la disponibilità **dentro** la card invece che in una riga sotto. */
-import { render, screen, fireEvent, waitFor, within } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor, within, act } from "@testing-library/react";
 import { beforeAll, describe, expect, it, vi } from "vitest";
 import i18n from "../src/i18n";
 
@@ -17,6 +17,7 @@ vi.mock("@/api/client", async () => {
 import { oraDello, PastigliaStato } from "../src/config/sorgenti/card/PastigliaStato";
 import { SezioneSorgente } from "../src/config/sorgenti/card/SezioneSorgente";
 import { MqttSourceCard } from "../src/config/sorgenti/MqttSourceCard";
+import { rispondi } from "../src/finestraAvviso/finestraAvviso";
 import { ProtocolsTab } from "../src/config/schede/ProtocolsTab";
 import { useAppStore } from "../src/store";
 import type { MqttSource } from "../src/types";
@@ -83,15 +84,15 @@ describe("la card MQTT", () => {
     expect((onChange.mock.calls[1][0] as MqttSource).sparkplug).toBeUndefined();
   });
 
-  it("con delle metriche, tornare ai topic chiede, e un no non tocca niente", () => {
+  it("con delle metriche, tornare ai topic chiede, e un no non tocca niente", async () => {
     const onChange = vi.fn();
     const conMetriche = { ...mqtt, sparkplug: { group_id: "g", host_id: "h", metrics: [{ name: "m", tag: "t" }] } } as unknown as MqttSource;
-    const conferma = vi.spyOn(window, "confirm").mockReturnValue(false);
+    const r = rispondi(false);
     render(<MqttSourceCard source={conMetriche} onChange={onChange} onDelete={() => {}} onCreateTag={() => {}} />);
-    fireEvent.click(screen.getByTestId("modo-topic"));
-    expect(conferma).toHaveBeenCalled();
+    await act(async () => { fireEvent.click(screen.getByTestId("modo-topic")); });
+    expect(r.chiamate).toHaveLength(1);
     expect(onChange).not.toHaveBeenCalled();
-    conferma.mockRestore();
+    r.ferma();
   });
 
   it("con Sparkplug B la disponibilità non c'è", () => {

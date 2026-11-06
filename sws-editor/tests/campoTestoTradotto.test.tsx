@@ -1,4 +1,4 @@
-import { render, screen, fireEvent } from "@testing-library/react";
+import { render, screen, fireEvent, act, cleanup } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
 // `vi.mock` è issato in cima al file, prima delle costanti: la spia va creata
@@ -17,6 +17,7 @@ const aggiornaLingue = api.updateLanguages as unknown as ReturnType<typeof vi.fn
 
 import { CampoTestoTradotto } from "../src/editor/CampoTestoTradotto";
 import { useAppStore } from "../src/store";
+import { rispondi } from "../src/finestraAvviso/finestraAvviso";
 import type { ProjectInfo } from "../src/types";
 
 /** Il testo digitato nel pannello proprietà diventa una voce della tabella
@@ -41,19 +42,21 @@ beforeEach(() => {
   useAppStore.setState({ project: progetto(), pages: [] });
 });
 
-function digita(valore: string | undefined, testo: string) {
+/** Scrive e lascia il campo. `async`: la scelta fra due strade passa dalla
+ *  Finestra di avviso, che risponde con una Promise. */
+async function digita(valore: string | undefined, testo: string) {
   const onChange = vi.fn();
   render(<CampoTestoTradotto valore={valore} onChange={onChange} />);
   const input = screen.getByRole("textbox");
   fireEvent.focus(input);
   fireEvent.change(input, { target: { value: testo } });
-  fireEvent.blur(input);
+  await act(async () => { fireEvent.blur(input); });
   return onChange;
 }
 
 describe("digitare un testo crea la voce e scrive il token", () => {
-  it("il campo riceve {{t0001}} e la tabella riceve il testo", () => {
-    const onChange = digita(undefined, "Avvio pompa");
+  it("il campo riceve {{t0001}} e la tabella riceve il testo", async () => {
+    const onChange = await digita(undefined, "Avvio pompa");
     expect(onChange).toHaveBeenCalledWith("{{t0001}}");
     const t = useAppStore.getState().project!.languages!;
     expect(t.entries).toHaveLength(1);
@@ -75,8 +78,8 @@ describe("digitare un testo crea la voce e scrive il token", () => {
     expect(useAppStore.getState().project!.languages!.entries).toHaveLength(0);
   });
 
-  it("un testo che non si traduce resta testo", () => {
-    const onChange = digita(undefined, "42");
+  it("un testo che non si traduce resta testo", async () => {
+    const onChange = await digita(undefined, "42");
     expect(onChange).toHaveBeenCalledWith("42");
     expect(useAppStore.getState().project!.languages!.entries).toHaveLength(0);
   });
@@ -91,7 +94,7 @@ describe("il salvataggio si dichiara come nostro", () => {
     // Il maintainer ci ha perso degli oggetti appena inseriti, il 15-09-2026.
     const segno = vi.fn();
     useAppStore.setState({ markSaveOk: segno });
-    digita(undefined, "Avvio pompa");
+    await digita(undefined, "Avvio pompa");
     // `updateLanguages` è una promessa: il segno arriva dopo.
     await vi.waitFor(() => expect(segno).toHaveBeenCalled());
   });
@@ -108,31 +111,107 @@ describe("il campo mostra il testo, non la chiave", () => {
 });
 
 describe("il riuso si propone", () => {
-  it("accettando, il campo punta alla voce che c'era gia e non se ne crea una seconda", () => {
+  it("accettando, il campo punta alla voce che c'era gia e non se ne crea una seconda", async () => {
     useAppStore.setState({
       project: progetto([{ key: "t0001", values: { it: "Avvio pompa" } }]),
     });
-    const conferma = vi.spyOn(window, "confirm").mockReturnValue(true);
-    const onChange = digita(undefined, "Avvio pompa");
-    expect(conferma).toHaveBeenCalled();
+    const r = rispondi("riusa");
+    const onChange = await digita(undefined, "Avvio pompa");
+    expect(r.chiamate).toHaveLength(1);
+    expect(r.chiamate[0].tipo).toBe("scegli");
     expect(onChange).toHaveBeenCalledWith("{{t0001}}");
     expect(useAppStore.getState().project!.languages!.entries).toHaveLength(1);
-    conferma.mockRestore();
+    r.ferma();
   });
 
-  it("rifiutando, si crea una voce nuova con lo stesso testo", () => {
+  it("rifiutando, si crea una voce nuova con lo stesso testo", async () => {
     // È il caso che rende il riuso una PROPOSTA e non una regola: due «Avvio»
     // identici in italiano possono divergere in tedesco.
     useAppStore.setState({
       project: progetto([{ key: "t0001", values: { it: "Avvio pompa" } }]),
     });
-    const conferma = vi.spyOn(window, "confirm").mockReturnValue(false);
-    const onChange = digita(undefined, "Avvio pompa");
+    const r = rispondi("nuova");
+    const onChange = await digita(undefined, "Avvio pompa");
     expect(onChange).toHaveBeenCalledWith("{{t0002}}");
     const t = useAppStore.getState().project!.languages!;
     expect(t.entries).toHaveLength(2);
     expect(t.entries[1].values.it).toBe("Avvio pompa");
-    conferma.mockRestore();
+    r.ferma();
+  });
+
+  it("annullando (Esc), non succede niente: né riuso né voce nuova", async () => {
+    useAppStore.setState({
+      project: progetto([{ key: "t0001", values: { it: "Avvio pompa" } }]),
+    });
+    const r = rispondi(null);
+    const onChange = await digita(undefined, "Avvio pompa");
+    expect(onChange).not.toHaveBeenCalled();
+    expect(useAppStore.getState().project!.languages!.entries).toHaveLength(1);
+    r.ferma();
+  });
+});
+
+describe("Esc e la domanda", () => {
+  it("Esc nel campo butta il testo digitato, non lo salva", async () => {
+    const onChange = vi.fn();
+    render(<CampoTestoTradotto valore={undefined} onChange={onChange} />);
+    const input = screen.getByRole("textbox") as HTMLInputElement;
+    fireEvent.focus(input);
+    fireEvent.change(input, { target: { value: "Pompa 2" } });
+    await act(async () => { fireEvent.keyDown(input, { key: "Escape" }); fireEvent.blur(input); });
+    expect(onChange).not.toHaveBeenCalled();
+    expect(useAppStore.getState().project!.languages!.entries).toHaveLength(0);
+    expect(input.value).toBe("");
+  });
+
+  it("mentre la finestra chiede, il campo mostra il testo nuovo", async () => {
+    useAppStore.setState({ project: progetto([{ key: "t0001", values: { it: "Avvio pompa 2" } }]) });
+    // La risposta arriva dopo un giro, come da una persona: intanto React ha
+    // ridisegnato, e il campo deve avere ancora il testo nuovo.
+    let visto = "";
+    const r = rispondi(() => new Promise((fatto) => setTimeout(() => {
+      visto = (screen.getByRole("textbox") as HTMLInputElement).value;
+      fatto("riusa");
+    }, 10)));
+    const onChange = await digita(undefined, "Avvio pompa 2");
+    await act(async () => { await new Promise((ok) => setTimeout(ok, 30)); });
+    expect(r.chiamate.map((c) => c.tipo)).toEqual(["scegli"]);
+    expect(visto).toBe("Avvio pompa 2");
+    expect(onChange).toHaveBeenCalled();
+    r.ferma();
+  });
+});
+
+describe("la scissione di una voce usata altrove", () => {
+  const conDueUsi = () => useAppStore.setState({
+    project: progetto([{ key: "t0001", values: { it: "Avvio pompa", de: "Pumpe Start" } }]),
+    pages: [{ id: "p", name: "p", objects: [{ id: "a", type: "label", text: "{{t0001}}" }, { id: "b", type: "label", text: "{{t0001}}" }] }] as never,
+  });
+
+  it("«solo qui» crea una voce nuova; «dappertutto» cambia la voce; Annulla niente", async () => {
+    conDueUsi();
+    let r = rispondi("qui");
+    let onChange = await digita("{{t0001}}", "Avvio pompa 1");
+    expect(onChange).toHaveBeenCalledWith("{{t0002}}");
+    r.ferma();
+    expect(useAppStore.getState().project!.languages!.entries[0].values.it).toBe("Avvio pompa");
+
+    cleanup();
+    conDueUsi();
+    r = rispondi("ovunque");
+    onChange = await digita("{{t0001}}", "Avvio pompa 1");
+    expect(onChange).not.toHaveBeenCalled();
+    expect(useAppStore.getState().project!.languages!.entries[0].values.it).toBe("Avvio pompa 1");
+    r.ferma();
+
+    cleanup();
+    conDueUsi();
+    r = rispondi(null);
+    onChange = await digita("{{t0001}}", "Avvio pompa 1");
+    expect(onChange).not.toHaveBeenCalled();
+    expect(useAppStore.getState().project!.languages!.entries).toHaveLength(1);
+    expect(useAppStore.getState().project!.languages!.entries[0].values.it).toBe("Avvio pompa");
+    r.ferma();
   });
 });
 

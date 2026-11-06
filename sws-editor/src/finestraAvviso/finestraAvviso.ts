@@ -32,8 +32,11 @@ export interface OpzioniChiedi extends OpzioniBase {
   /** Il messaggio d'errore da mostrare, o `null` se il valore va bene. */
   valida?: (v: string) => string | null;
   ok?: string;
+  no?: string;
 }
-export interface OpzioniScegli<K> extends OpzioniBase { scelte: Scelta<K>[] }
+/** `no`: l'etichetta di Annulla. Il viewer la passa nella lingua dei contenuti
+ *  (`testoSistema`), come le altre etichette del pannello (F3). */
+export interface OpzioniScegli<K> extends OpzioniBase { scelte: Scelta<K>[]; no?: string }
 export interface OpzioniModulo<T> {
   titolo: string;
   corpo: (fine: (v: T | null) => void) => ReactNode;

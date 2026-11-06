@@ -7,6 +7,7 @@ import { eModificato, useFocus, usePubblicaElenco } from "@/config/fogliaConfig"
 import { TRANS_COMP, SaveBar } from "@/config/comuni";
 import { RitenzioneAutomatica } from "./RitenzioneAutomatica";
 import { CampoNumero } from "@/components/CampoNumero";
+import { conferma } from "@/finestraAvviso/finestraAvviso";
 
 // ── DATASTORES tab ────────────────────────────────────────────────────────────
 
@@ -125,7 +126,7 @@ export function DatastoresTab() {
     }
   };
 
-  const doPurge = (ds: DatastoreConfig) => {
+  const doPurge = async (ds: DatastoreConfig) => {
     // Si riusa la retention già configurata per il backend: una pulizia manuale
     // che applicasse regole diverse da quelle automatiche sarebbe una sorpresa.
     const rows = ds.retention_rows, days = ds.retention_days;
@@ -134,7 +135,7 @@ export function DatastoresTab() {
       return;
     }
     const desc = [rows ? t("cfgUi.righePerTag", { n: rows }) : null, days ? t("cfgUi.giorniN", { n: days }) : null].filter(Boolean).join(" · ");
-    if (!window.confirm(t("cfg.purgeHistoryConfirm", { id: ds.id, desc }))) return;
+    if (!(await conferma({ testo: t("cfg.purgeHistoryConfirm", { id: ds.id, desc }), pericolo: true }))) return;
     void withBusy(ds.id, async () => {
       const r = await api.purgeDatastore(ds.id, { retention_rows: rows, retention_days: days });
       await loadStats(ds.id);
@@ -173,8 +174,8 @@ export function DatastoresTab() {
         : t("cfgUi.tagOrfaniSu", { n: r.orphan_tags.length, tot: r.db_tags.length });
     });
 
-  const doDeleteTag = (ds: DatastoreConfig, tag: string) => {
-    if (!window.confirm(t("cfg.deleteTagHistoryConfirm", { tag }))) return;
+  const doDeleteTag = async (ds: DatastoreConfig, tag: string) => {
+    if (!(await conferma({ testo: t("cfg.deleteTagHistoryConfirm", { tag }), pericolo: true }))) return;
     void withBusy(ds.id, async () => {
       const r = await api.deleteTagHistory(ds.id, tag);
       const fresh = await api.listDatastoreTags(ds.id);
@@ -193,8 +194,10 @@ export function DatastoresTab() {
       const prova = await api.pulisciStorico(ds.id, true, remoto);
       const { non_storicizzati, ripetuti, restanti } = prova.esito;
       if (non_storicizzati + ripetuti === 0) return t("cfg.pulisciNienteDaFare");
-      if (!window.confirm(t(remoto ? "cfg.pulisciConfermaRemoto" : "cfg.pulisciConferma", {
-        non: n(non_storicizzati), rip: n(ripetuti), restano: n(restanti),
+      if (!(await conferma({
+        testo: t(remoto ? "cfg.pulisciConfermaRemoto" : "cfg.pulisciConferma", {
+          non: n(non_storicizzati), rip: n(ripetuti), restano: n(restanti),
+        }),
       }))) return t("cfg.pulisciAnnullata");
       const r = await api.pulisciStorico(ds.id, false, remoto);
       if (!remoto) await loadStats(ds.id);
@@ -238,10 +241,14 @@ export function DatastoresTab() {
   const [uploadTarget, setUploadTarget] = useState<{ id: string; remote: boolean } | null>(null);
   const dbFileRef = useRef<HTMLInputElement | null>(null);
 
-  const askUploadDb = (ds: DatastoreConfig, remote: boolean) => {
-    if (!window.confirm(
-      remote ? t("cfg.uploadDbConfirmRemote", { id: ds.id }) : t("cfg.uploadDbConfirm", { id: ds.id })
-    )) return;
+  /** La conferma **prima** di scegliere il file, come con `confirm` (F2,
+   *  decisione 3). Il selettore si apre dopo una risposta asincrona: regge
+   *  perché il clic sul bottone della finestra è un gesto dell'utente, e il
+   *  browser lo conta per qualche secondo. */
+  const askUploadDb = async (ds: DatastoreConfig, remote: boolean) => {
+    if (!(await conferma({
+      testo: remote ? t("cfg.uploadDbConfirmRemote", { id: ds.id }) : t("cfg.uploadDbConfirm", { id: ds.id }),
+    }))) return;
     setUploadTarget({ id: ds.id, remote });
     dbFileRef.current?.click();
   };
@@ -351,7 +358,7 @@ export function DatastoresTab() {
                 {t("cfgUi.gestioneDatabase")}
               </div>
               <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
-                <button onClick={() => doPurge(ds)} disabled={busyMgmt[ds.id]}
+                <button onClick={() => void doPurge(ds)} disabled={busyMgmt[ds.id]}
                   title={t("cfg.purgeNowTitle")}
                   style={{ background: "var(--brand-surface, #1e293b)", color: "var(--brand-text, #e2e8f0)", border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 4, padding: "3px 8px", cursor: "pointer", fontSize: 11 }}>
                   {t("cfgUi.pulisciOra")}
@@ -381,7 +388,7 @@ export function DatastoresTab() {
                   style={{ background: "var(--brand-surface, #1e293b)", color: "var(--brand-text, #e2e8f0)", border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 4, padding: "3px 8px", cursor: "pointer", fontSize: 11 }}>
                   {t("cfgUi.downloadDatabase")}
                 </button>
-                <button onClick={() => askUploadDb(ds, false)} disabled={busyMgmt[ds.id]}
+                <button onClick={() => void askUploadDb(ds, false)} disabled={busyMgmt[ds.id]}
                   title={t("cfg.uploadDbTitle")}
                   style={{ background: "var(--brand-surface, #1e293b)", color: "var(--brand-text, #e2e8f0)", border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 4, padding: "3px 8px", cursor: "pointer", fontSize: 11 }}>
                   {t("cfgUi.uploadDatabase")}
@@ -399,7 +406,7 @@ export function DatastoresTab() {
                       style={{ background: "var(--brand-surface, #1e293b)", color: "var(--brand-text, #e2e8f0)", border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 4, padding: "3px 8px", cursor: "pointer", fontSize: 11 }}>
                       🧹 {t("cfg.pulisci")}
                     </button>
-                    <button onClick={() => askUploadDb(ds, true)} disabled={busyMgmt[ds.id]}
+                    <button onClick={() => void askUploadDb(ds, true)} disabled={busyMgmt[ds.id]}
                       title={t("cfg.uploadRemoteDbTitle")}
                       style={{ background: "var(--brand-surface, #1e293b)", color: "var(--brand-text, #e2e8f0)", border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 4, padding: "3px 8px", cursor: "pointer", fontSize: 11 }}>
                       {t("cfgUi.uploadRemote")}
@@ -423,7 +430,7 @@ export function DatastoresTab() {
                   {tagsMap[ds.id]!.orphan_tags.map((tag) => (
                     <div key={tag} style={{ display: "flex", gap: 6, alignItems: "center", marginBottom: 2 }}>
                       <code style={{ fontSize: 11, color: "var(--brand-text, #e2e8f0)" }}>{tag}</code>
-                      <button onClick={() => doDeleteTag(ds, tag)} disabled={busyMgmt[ds.id]}
+                      <button onClick={() => void doDeleteTag(ds, tag)} disabled={busyMgmt[ds.id]}
                         style={{ background: "var(--brand-danger, #ef4444)", color: "var(--brand-on-danger, #fff)", border: "none", borderRadius: 4, padding: "1px 6px", cursor: "pointer", fontSize: 10 }}>
                         {t("cfgUi.deleteHistory")}
                       </button>

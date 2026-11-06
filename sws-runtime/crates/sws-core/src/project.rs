@@ -1648,8 +1648,8 @@ pub struct EnIpConfig {
     pub tags: Vec<EnIpTagMapping>,
 }
 
-/// One named parameter on a `FunctionDef`. Parameters become Python locals
-/// when the function runs. Default is a JSON value so we can carry the
+/// One named parameter on a `FunctionDef`. Parameters become Python globals
+/// when the function runs (`FunctionDef::argomenti` adds the defaults). Default is a JSON value so we can carry the
 /// natural type (bool / int / float / string) without a tagged union.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct FunctionParam {
@@ -1677,6 +1677,77 @@ pub struct FunctionDef {
     pub code: String,
     #[serde(default)]
     pub params: Vec<FunctionParam>,
+}
+
+impl FunctionDef {
+    /// Gli argomenti con cui la funzione gira: quelli passati, più il default
+    /// di ogni parametro che il chiamante non ha passato.
+    ///
+    /// Prima del 05-11-2026 il default non lo applicava nessuno: lo riempiva
+    /// solo il pannellino di prova del viewer, mentre un pulsante passa
+    /// `on_press_args ?? {}` e una cella `{}`, e la funzione finiva in
+    /// `NameError` sul parametro. Un parametro senza default e non passato
+    /// resta assente, com'era: aggiungerlo come `None` cambierebbe il guasto,
+    /// non lo toglierebbe.
+    pub fn argomenti(
+        &self,
+        mut passati: serde_json::Map<String, serde_json::Value>,
+    ) -> serde_json::Map<String, serde_json::Value> {
+        for p in &self.params {
+            if let Some(d) = &p.default {
+                // Un `null` passato vale come non passato: arriverebbe come la
+                // stringa "null" e vincerebbe sul default.
+                let manca = passati.get(&p.name).is_none_or(|v| v.is_null());
+                if manca {
+                    passati.insert(p.name.clone(), d.clone());
+                }
+            }
+        }
+        passati
+    }
+}
+
+#[cfg(test)]
+mod tests_argomenti {
+    use super::*;
+
+    #[test]
+    fn il_default_riempie_solo_quello_che_manca() {
+        let f = FunctionDef {
+            id: "f".into(),
+            name: "saluta".into(),
+            description: None,
+            code: String::new(),
+            params: vec![
+                FunctionParam {
+                    name: "chi".into(),
+                    default: Some("operatore".into()),
+                },
+                FunctionParam {
+                    name: "volte".into(),
+                    default: Some(2.into()),
+                },
+                FunctionParam {
+                    name: "senza".into(),
+                    default: None,
+                },
+            ],
+        };
+        let passati = serde_json::Map::from_iter([
+            ("volte".to_string(), 5.into()),
+            ("chi".to_string(), serde_json::Value::Null),
+        ]);
+        let a = f.argomenti(passati);
+        assert_eq!(
+            a["chi"], "operatore",
+            "il default arriva dove manca, anche su un null"
+        );
+        assert_eq!(a["volte"], 5, "il valore passato vince sul default");
+        assert!(
+            !a.contains_key("senza"),
+            "senza default e non passato resta assente"
+        );
+    }
 }
 
 /// Hard cap on `FunctionDef::code.len()` enforced by the web layer.

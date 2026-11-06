@@ -434,6 +434,7 @@
     "sfondoBase": "Base candidata · {{id}}",
     "sfondoVariante": "Variante «{{luce}}» · {{id}}",
     "sfondoApprovato": "base scelta",
+    "sfondoInCoda": "scelta: parte appena l'assistente finisce questo turno",
     "usaComeBase": "Usa come base"
   },
   "viewer": {
@@ -1756,7 +1757,8 @@
     "sshCredentialsHint": "Utente del sistema operativo del dispositivo, lo stesso di «ssh»: non l'utente applicativo SWS del pannello «Connessione runtime remoto».",
     "deployReplaceUsers": "Sostituisci anche gli utenti",
     "deployReplaceUsersHint": "Gli utenti appartengono al progetto: il deploy li porta sul dispositivo come le pagine. Spegni per lasciare intatti gli account del dispositivo.",
-    "deployNoUsersConfirm": "QUESTO PROGETTO NON HA UTENTI\n\nSul dispositivo verranno rimossi gli account esistenti ({{utenti}}) e il pannello resterà accessibile SENZA PASSWORD a chiunque raggiunga la sua rete.\n\nProcedere?",
+    "deployNoUsersTitolo": "Questo progetto non ha utenti",
+    "deployNoUsersConfirm": "Sul dispositivo verranno rimossi gli account esistenti ({{utenti}}) e il pannello resterà accessibile SENZA PASSWORD a chiunque raggiunga la sua rete.\n\nProcedere?",
     "deployNoUsersUnknown": "elenco non leggibile da qui",
     "connecting": "Connessione…",
     "connectOk": "Connesso.",
@@ -2037,8 +2039,12 @@
   "campoTradotto": {
     "riusoTitolo": "«{{testo}}» esiste già nella tabella lingue ({{key}}).",
     "riusoDove": "\n\nQuella voce è già usata {{usi}} volta/e: tradurla una volta le cambia tutte.",
-    "riusoScelta": "\n\nOK = riusa quella voce\nAnnulla = creane una nuova (giusto se in un'altra lingua le due frasi divergono)",
-    "scissione": "La voce {{key}} è usata in altri {{altri}} punti del progetto.\n\nOK = cambia SOLO qui (nasce una voce nuova, da tradurre)\nAnnulla = cambia dappertutto, e le traduzioni delle altre lingue tornano proposte da approvare"
+    "riusoNuovaQuando": "\n\nUna voce nuova serve quando, in un'altra lingua, le due frasi divergono.",
+    "riusoSi": "Riusa quella voce",
+    "riusoNo": "Creane una nuova",
+    "scissione": "La voce {{key}} è usata in altri {{altri}} punti del progetto.\n\n«Cambia solo qui» crea una voce nuova, da tradurre. «Cambia dappertutto» cambia anche gli altri punti, e le traduzioni delle altre lingue tornano proposte da approvare.",
+    "scissioneQui": "Cambia solo qui",
+    "scissioneOvunque": "Cambia dappertutto"
   },
   "functionEditor": {
     "title": "Funzione Python",
@@ -2524,6 +2530,7 @@
   },
   "riassunto": {
     "page": "pagina «{{name}}» ({{count}} oggetti)",
+    "faceplate": "faceplate `{{id}}` ({{count}} oggetti)",
     "funzioneRighe": "funzione `{{nome}}` ({{n}} righe)",
     "funzione": "funzione `{{nome}}`",
     "scriptRighe": "script globale `{{id}}` ({{n}} righe)",
@@ -3515,6 +3522,7 @@
     "fattoLocale": "Il pannello «{{nome}}» ha il suo amministratore: il codice non serve più. Si entra con le sue credenziali.",
     "continua": "Continua",
     "serveAdmin": "Il pannello non ha ancora utenti: il primo progetto deve portarne almeno uno con ruolo Admin, altrimenti in impianto non entrerebbe nessuno (schermo compreso).\n\nAprire la scheda Utenti del progetto?",
+    "serveAdminApri": "Apri Utenti",
     "serveAdminBreve": "deploy fermato: il progetto deve avere almeno un utente Admin (il pannello non ha ancora utenti)",
     "cloudUtentiDalProgetto": "Gli utenti del pannello li porta il primo progetto che gli distribuisci: fino ad allora in impianto non entra nessuno, e lo raggiungi solo da qui.",
     "cloudCredenzialiEsistenti": "Questo pannello ha già degli utenti: per abbinarlo servono utente e password di un suo amministratore.",

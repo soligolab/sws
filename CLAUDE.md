@@ -42,8 +42,9 @@ funzione regge in un impianto che gira. Il 16-10-2026 usava 16 tipi su 39.
 Era un piano (`docs/plans/`), ma un piano che non finisce mai non è un piano: dal 21-10-2026 è
 una regola, e il piano è in
 [archivio](docs/archive/2026-10-16-casadomotica-progetto-di-riferimento.md). Le due domande che
-lasciava aperte — versionarla, e separarla dall'impianto di casa del maintainer — stanno nel
-seme [CasaDomotica versionata e separata](docs/plans/2026-10-21-casadomotica-versionata-e-separata.md).
+lasciava aperte — versionarla, e separarla dall'impianto di casa del maintainer — erano nel
+seme [CasaDomotica versionata e separata](docs/archive/2026-10-21-casadomotica-versionata-e-separata.md),
+lasciato il 05-11-2026: per ora non si fanno.
 
 ## I file di lavoro stanno in `sws/tmp/` (regola del maintainer, 2026-10-22)
 

@@ -10,6 +10,7 @@ import { useAppStore } from "@/store";
 import { OpzioniTipo } from "./OpzioniTipo";
 import { normalizzaTipo } from "@/tag/tipiScalari";
 import type { TagDataType, TagDef } from "@/types";
+import { Cornice } from "@/finestraAvviso/FinestraAvviso";
 
 const INPUT: React.CSSProperties = {
   width: "100%", boxSizing: "border-box", background: "var(--brand-bg, #0f172a)",
@@ -60,13 +61,12 @@ export function QuickCreateTagModal({
     });
     onClose();
   };
-  const tasti = (e: React.KeyboardEvent) => { if (e.key === "Enter") create(); if (e.key === "Escape") onClose(); };
+  // Esc lo gestisce la cornice.
+  const tasti = (e: React.KeyboardEvent) => { if (e.key === "Enter") create(); };
 
   return (
-    <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 10000 }}
-         onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}>
-      <div style={{ background: "var(--brand-surface, #1e293b)", border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 8, padding: 20, minWidth: 340, maxWidth: 460 }}>
-        <div style={{ fontSize: 13, fontWeight: 700, color: "var(--brand-text, #e2e8f0)", marginBottom: 4 }}>{t("cfgUi.createVariable")}</div>
+    <Cornice titolo={t("cfgUi.createVariable")} onChiudi={onClose} veloChiude larghezza={420} testid="quick-tag">
+      <div>
         <div style={{ fontSize: 11, color: "var(--brand-text-muted, #94a3b8)", marginBottom: 14 }}>{t("quickTag.intro")}</div>
         <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
           <div>
@@ -101,6 +101,6 @@ export function QuickCreateTagModal({
           <button style={{ ...BTN(true), opacity: puoCreare ? 1 : 0.5 }} onClick={create} disabled={!puoCreare}>{t("quickTag.create")}</button>
         </div>
       </div>
-    </div>
+    </Cornice>
   );
 }

@@ -4,6 +4,7 @@ import { api } from "@/api/client";
 import { TRANS_COMP } from "@/config/comuni";
 import { GitStoria } from "./GitStoria";
 import { CHIAVE_PROGETTO, ChiaveProgetto } from "./ChiaveProgetto";
+import { conferma } from "@/finestraAvviso/finestraAvviso";
 
 /** Il versionamento git del **progetto**, foglia «Git» del ramo Progetto
  *  (26-09-2026: prima stava in fondo a Istanza → Device → Stato, fra CPU e
@@ -137,7 +138,7 @@ export function GitTab() {
   };
 
   const deleteTag = async (name: string) => {
-    if (!window.confirm(t("cfg.deleteTagConfirm", { name }))) return;
+    if (!(await conferma({ testo: t("cfg.deleteTagConfirm", { name }), pericolo: true }))) return;
     setTagBusy(true);
     setTagErr(null);
     try {
@@ -333,13 +334,13 @@ export function GitTab() {
           </button>
           {gitStatus.sha && <button
             disabled={busy || inProva}
-            onClick={() => {
+            onClick={async () => {
               // Se l'ultimo commit è già sul remote, toglierlo qui fa divergere
               // le due storie: il Push dopo verrà rifiutato. Va detto prima.
               const pubblicato = !!gitStatus.remote_url && gitStatus.unpushed_commits === 0;
               const testo = t("cfg.gitResetConfirm", { message: gitStatus.message })
                 + (pubblicato ? "\n\n" + t("cfg.gitResetConfirmPubblicato") : "");
-              if (confirm(testo)) runOp(() => api.triggerRollback(), "Rollback");
+              if (await conferma({ testo, pericolo: true, si: "Rollback" })) runOp(() => api.triggerRollback(), "Rollback");
             }}
             title={t("gitAiuto.rollback")}
             style={{ flex: 1, minWidth: 100, padding: "6px 10px", background: "var(--brand-danger, #ef4444)", border: "none", borderRadius: 4, color: "var(--brand-on-danger, #fff)", fontSize: 12, cursor: busy ? "not-allowed" : "pointer", opacity: busy ? 0.6 : 1 }}
@@ -357,8 +358,8 @@ export function GitTab() {
           {gitStatus?.remote_url && (
             <button
               disabled={busy || inProva}
-              onClick={() => {
-                if (confirm(t("cfg.gitPushConfirm"))) {
+              onClick={async () => {
+                if (await conferma({ testo: t("cfg.gitPushConfirm"), si: "Push" })) {
                   runOp(() => api.pushProject(), "Push");
                 }
               }}

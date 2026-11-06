@@ -8,6 +8,7 @@ import { describe, it, expect, vi, afterEach } from "vitest";
 import "../src/i18n/index";
 import { SvgObject } from "../src/canvas/SvgCanvas";
 import type { SynopticObject, TagState } from "../src/types";
+import { rispondi } from "../src/finestraAvviso/finestraAvviso";
 
 // jsdom non ha `PointerEvent`: un ripiego su `MouseEvent`, che porta
 // coordinate e pulsante, con `pointerId` e `pointerType` in più.
@@ -77,13 +78,27 @@ describe("lo slider web dopo la scrittura", () => {
     expect(d.valore()).toBe("0.35");
   });
 
-  it("una conferma annullata non scrive e non lascia niente in attesa", () => {
-    vi.spyOn(window, "confirm").mockReturnValue(false);
+  it("una conferma annullata non scrive e non lascia niente in attesa", async () => {
+    const r = rispondi(false);
     const d = disegna(slider({ require_confirm: true }), valore(0.35));
     d.trascina(0.8);
+    await act(async () => {});
+    expect(r.chiamate).toHaveLength(1);
     expect(d.onWriteTag).not.toHaveBeenCalled();
     expect(d.container.querySelector("[data-slider-in-attesa]")).toBeNull();
     expect(d.valore()).toBe("0.35");
+    r.ferma();
+  });
+
+  it("una conferma data scrive, e il cursore resta dove l'ha lasciato", async () => {
+    const r = rispondi(true);
+    const d = disegna(slider({ require_confirm: true }), valore(0.35));
+    d.trascina(0.8);
+    await act(async () => {});
+    expect(d.onWriteTag).toHaveBeenCalledWith("t", 0.8);
+    expect(d.container.querySelector("[data-slider-in-attesa]")).not.toBeNull();
+    expect(d.valore()).toBe("0.8");
+    r.ferma();
   });
 
   it("un valore non numerico si scrive «—», non NaN", () => {

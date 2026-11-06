@@ -264,9 +264,8 @@ async fn exec_once_(id: &str, code: &str, py: &PyEngine, throttle: &mut FailureT
             if falliti > 0 {
                 info!(id = %id, falliti, "lo script è tornato a funzionare");
             }
-            if !out.stdout.is_empty() {
-                info!(id = %id, stdout = %out.stdout.trim_end(), "global script output");
-            }
+            // Il testo dei `print` lo scrive già il motore, col nome dello
+            // script (`execute_with_args`): una seconda riga qui lo raddoppiava.
             if !out.stderr.is_empty() {
                 warn!(id = %id, stderr = %out.stderr.trim_end(), "global script stderr");
             }

@@ -1,4 +1,4 @@
-import { conferma, modulo } from "@/finestraAvviso/finestraAvviso";
+import { avviso, chiedi, conferma, modulo } from "@/finestraAvviso/finestraAvviso";
 import { createContext, Fragment, lazy, Suspense, useCallback, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { ImgProgetto } from "@/canvas/ImmagineSvg";
 import { dimenticaImmagine } from "@/canvas/ImmagineSvg";
@@ -806,12 +806,15 @@ export function EditorShell() {
   // prima istanza di un faceplate nuovo. Dal 29-10-2026 il faceplate nasce
   // come pagina nello store, nello stesso passo di cronologia, e si salva col
   // Salva di tutto il resto — prima si scriveva subito sul disco.
-  const creaFaceplate = () => {
-    const st = useAppStore.getState();
-    const scelti = (st.pages.find((p) => p.id === st.currentPageId)?.objects ?? []).filter((o) => selectedIds.includes(o.id));
+  const creaFaceplate = async () => {
+    const scelti = (useAppStore.getState().pages.find((p) => p.id === useAppStore.getState().currentPageId)?.objects ?? [])
+      .filter((o) => selectedIds.includes(o.id));
     if (scelti.length === 0) return;
-    const nome = window.prompt(t("shell.creaFaceplatePrompt"), t("shell.creaFaceplateNome"))?.trim();
+    const nome = (await chiedi({ testo: t("shell.creaFaceplatePrompt"), iniziale: t("shell.creaFaceplateNome") }))?.trim();
     if (!nome) return;
+    // Lo store di adesso, non quello di prima della domanda: intanto può
+    // essere nato un altro faceplate.
+    const st = useAppStore.getState();
     const esistenti = new Set(st.faceplates.map((f) => f.id));
     const base = nome.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "") || "faceplate";
     let id = base;
@@ -1395,7 +1398,7 @@ export function EditorShell() {
                 <CellRangeMergeActions
                   onMerge={() => {
                     const err = mergeCellRange(currentPageId, selected.id, r1, c1, r2, c2);
-                    if (err) alert(t(err.key, err.args));
+                    if (err) void avviso({ testo: t(err.key, err.args), livello: "errore" });
                   }}
                   onCancel={() => setSelectedCellRange(null)}
                 />
@@ -6127,7 +6130,7 @@ export function ObjectProps({
                       onChange({ bg_image: res.url });
                       setProjectImages(null); // ricarica la lista al prossimo focus
                     } catch (err: any) {
-                      alert(t("editor.uploadImageFailed", { err: err?.message ?? err }));
+                      void avviso({ testo: t("editor.uploadImageFailed", { err: err?.message ?? err }), livello: "errore" });
                     } finally {
                       setBgUploading(false);
                     }
@@ -6463,9 +6466,9 @@ export function ObjectProps({
             ereditata !== undefined && (v === "" || rangoRuolo(v) < rangoRuolo(ereditata));
           return field(t("props.minRole"), (
             <select style={{ ...INPUT, cursor: "pointer" }} value={obj.min_role ?? ""}
-              onChange={(e) => {
+              onChange={async (e) => {
                 const v = e.target.value;
-                if (scende(v) && !window.confirm(t("props.minRoleSottoVariabile", { ruolo: ereditata }))) return;
+                if (scende(v) && !(await conferma({ testo: t("props.minRoleSottoVariabile", { ruolo: ereditata }) }))) return;
                 onChange({ min_role: (v || undefined) as SynopticObject["min_role"] });
               }}>
               <option value="">
@@ -6767,6 +6770,14 @@ function EventFunctionPicker({
   const fn = functions.find((f) => f.name === fnName);
 
   const setArg = (paramName: string, raw: string) => {
+    // Un campo svuotato toglie il valore, non lo mette a "": il segnaposto
+    // mostra il default, e dal 05-11-2026 il default lo applica il runtime
+    // solo ai parametri che il pulsante non passa (L0).
+    if (raw === "") {
+      const { [paramName]: _tolto, ...resto } = args ?? {};
+      onChange(fnName, Object.keys(resto).length > 0 ? resto : undefined);
+      return;
+    }
     const v: string | number | boolean =
       raw === "true"  ? true :
       raw === "false" ? false :

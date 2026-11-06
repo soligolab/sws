@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { api, type Azienda, type UtenteInstallazione } from "@/api/client";
+import { conferma } from "@/finestraAvviso/finestraAvviso";
 import {
   avviso, campo, elencoEDettaglio, errore as stileErrore,
   pulsante, riga, rigaElenco, scheda, titoletto,
@@ -93,9 +94,9 @@ export function Persone() {
     !!bozza && !!originale && JSON.stringify(bozza) !== JSON.stringify(originale);
 
   /** Cambiare utente con modifiche non salvate le butterebbe via in silenzio. */
-  const scegli = (id: number) => {
+  const scegli = async (id: number) => {
     if (id === sceltaId) return;
-    if (sporca && !window.confirm(t("console.persone.abbandona"))) return;
+    if (sporca && !(await conferma({ testo: t("console.persone.abbandona"), pericolo: true, si: t("unsaved.discard") }))) return;
     setSceltaId(id);
   };
 

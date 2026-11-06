@@ -12,7 +12,8 @@
 import { uguale } from "@/ai/confronto";
 import { diffRighe } from "@/ai/diffRighe";
 import type { VoceDiff } from "@/types/ai";
-import type { ProjectInfo, SynopticPage } from "@/types";
+import type { FaceplateDef, ProjectInfo, SynopticPage } from "@/types";
+import { faceplateAPagina, idPaginaDiFaceplate } from "@/faceplate/modello";
 import i18n from "i18next";
 import { effectiveProjectLang, localizePageName } from "@/i18n/projectI18n";
 
@@ -21,6 +22,7 @@ export function riassumi(
   propPages: SynopticPage[] | null,
   project: ProjectInfo | null,
   pages: SynopticPage[],
+  propFaceplates?: FaceplateDef[] | null,
 ): VoceDiff[] {
   const out: VoceDiff[] = [];
   // `uguale` e non `JSON.stringify`: l'ordine delle chiavi differisce fra
@@ -103,6 +105,21 @@ export function riassumi(
       }
       for (const id of prima.keys()) {
         if (!dopo.has(id)) out.push({ verso: "-", testo: i18n.t("riassunto.script", { id }) });
+      }
+    }
+  }
+
+  // I faceplate (06-11-2026): nuovi, o cambiati rispetto alla pagina-faceplate
+  // che l'editor ha già (il confronto è sulla stessa forma, `faceplateAPagina`).
+  for (const def of propFaceplates ?? []) {
+    const attuale = pages.find((p) => p.id === idPaginaDiFaceplate(def.id));
+    const n = def.objects?.length ?? 0;
+    if (!attuale) {
+      out.push({ verso: "+", testo: i18n.t("riassunto.faceplate", { id: def.id, count: n }) });
+    } else {
+      const nuova = faceplateAPagina(def, attuale.faceplate_predefinito);
+      if (!stessa({ ...attuale, faceplate_predefinito: undefined }, { ...nuova, faceplate_predefinito: undefined })) {
+        out.push({ verso: "~", testo: i18n.t("riassunto.faceplate", { id: def.id, count: n }) });
       }
     }
   }

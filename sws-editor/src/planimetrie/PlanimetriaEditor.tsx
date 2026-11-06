@@ -26,6 +26,7 @@ import {
   type Apertura, type Area, type Blocco, type Muro, type Planimetria, type Punto,
 } from "./modello";
 import { CampoNumero } from "@/components/CampoNumero";
+import { conferma } from "@/finestraAvviso/finestraAvviso";
 
 type Strumento = "seleziona" | "muro" | "porta" | "finestra" | "area" | "blocco";
 type Scelto = { tipo: "muro" | "apertura" | "area" | "blocco"; id: string } | null;
@@ -100,8 +101,8 @@ export function PlanimetriaEditor({ id }: { id: string }) {
     return () => registerPendingSection(`planimetria:${id}`, null);
   }, [id, sporca, salva, registerPendingSection]);
 
-  const chiudi = () => {
-    if (sporca && !window.confirm(t("planimetrie.sporcaChiudi"))) return;
+  const chiudi = async () => {
+    if (sporca && !(await conferma({ testo: t("planimetrie.sporcaChiudi"), pericolo: true, si: t("unsaved.discard") }))) return;
     apri(null);
   };
 

@@ -1,6 +1,10 @@
 # Piano — il manuale rifatto, e un capitolo nuovo su container e comunicazione
 
-> 19-10-2026. Dal seme [`2026-09-19-screenshot-del-manuale.md`](../archive/2026-09-19-screenshot-del-manuale.md)
+> **Archiviato il 05-11-2026** (decisione del maintainer, banco di collaudo). Fatti i rami 1 e 2 e i tutorial
+> T01–T11. Quello che resta — i tutorial T12–T14 e il ramo 4 delle schermate — è passato nella sessione **M5** del
+> [manuale pubblico](../plans/2026-11-03-manuale-pubblico.md).
+
+> 19-10-2026. Dal seme [`2026-09-19-screenshot-del-manuale.md`](2026-09-19-screenshot-del-manuale.md)
 > (rimandato «a progetto stabilizzato»): il maintainer avvia il lavoro sulla documentazione e chiede in più «un
 > capitolo molto esaustivo su come è organizzato il container runtime, e tutto quello che riguarda la comunicazione».
 
@@ -238,7 +242,7 @@ Il maintainer, davanti all'alternativa v3: «No, vorrei stare sul 4».
 - **Protocolli** (`plugins_default.conf`, tutti spenti finché il programma non li accende): `modbus_slave` (Python,
   502), `s7comm` (nativo con Snap7, 102), `opcua` (Python, 4840), più `modbus_master` ed EtherCAT. **EtherNet/IP non
   c'è** nella v4: il T14 facoltativo, se resta, va fatto in un altro modo.
-- **Il materiale della prova** (progetto dell'Editor, script) è in [`allegati/2026-10-20-laboratorio-openplc/`](allegati/2026-10-20-laboratorio-openplc/README.md).
+- **Il materiale della prova** (progetto dell'Editor, script) è in [`allegati/2026-10-20-laboratorio-openplc/`](../plans/allegati/2026-10-20-laboratorio-openplc/README.md).
 - **Da misurare al prossimo passo**: il formato del progetto dell'Editor (dove stanno POU in ST e le configurazioni
   di Modbus, S7 e OPC UA), un `create` + `compile` + `upload` dal vivo, e la mappa degli indirizzi (`%IX/%QX/%IW/%QW`
   → registri Modbus, DB S7, nodi OPC UA) che i capitoli T04-T06 useranno.
@@ -267,6 +271,6 @@ citate da nessun capitolo.
   il widget «Valore» del 05 (non è un tipo), `/ws/history` dell'08 (non esiste), PostgreSQL dato per mancante,
   Telegram «feed globale» e `until_ms` del 07, le emoji «non disegnate» del 15 (lo sono dal T-71). Il rilievo di
   `STATUS.md:3274` sul 15 non vale più: i 13 template sono completi in it/en/es. Le cose **di codice** emerse sono
-  nel seme [residui dal manuale](../archive/2026-10-20-residui-dal-manuale.md).
+  nel seme [residui dal manuale](2026-10-20-residui-dal-manuale.md).
 - Prossimo: il ramo 3 (tutorial), il cui primo passo è misurare l'installazione di OpenPLC Runtime v4 in container;
   poi il 4 (schermate dei capitoli di riferimento, che potranno riusare quelle del tutorial).

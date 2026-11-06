@@ -12,6 +12,7 @@ import { TRANS_COMP, BarraConflittoSezione, S, SaveBar } from "@/config/comuni";
 import { livelliDi, unisciAllarmi } from "./unisciAllarmi";
 import { segnalaSalvataggioFallito } from "@/config/salvataggioFallito";
 import { CampoNumero } from "@/components/CampoNumero";
+import { conferma } from "@/finestraAvviso/finestraAvviso";
 
 // ── ALARMS tab ────────────────────────────────────────────────────────────────
 
@@ -94,7 +95,7 @@ export function AlarmsTab() {
   /** Unisce in `idx` gli altri allarmi sullo stesso tag (vedi
    *  `unisciAllarmi.ts`). Se l'allarme tolto aveva impostazioni sue (ritardi,
    *  notifiche…) diverse da questo, si chiede prima: quelle si perdono. */
-  const unisciQui = (idx: number) => {
+  const unisciQui = async (idx: number) => {
     const resta = alarms[idx];
     const tag = resta.tag.trim();
     const altri = alarms.filter((a, j) => j !== idx && a.tag.trim() === tag);
@@ -102,7 +103,7 @@ export function AlarmsTab() {
     const { unito, perse } = unisciAllarmi(resta, altri);
     const domanda = t("cfgUi.alarmMergeConfirm", { id: resta.id, altri: altri.map((a) => a.id).join(", "), n: unito.levels?.length ?? 0 })
       + (perse.length ? "\n\n" + t("cfgUi.alarmMergeLost", { elenco: perse.map((p) => `${p.id}: ${p.campi.join(", ")}`).join("\n") }) : "");
-    if (!window.confirm(domanda)) return;
+    if (!(await conferma({ testo: domanda, pericolo: perse.length > 0, si: t("cfgUi.alarmMerge") }))) return;
     setTouched(true);
     setAlarms((prev) => prev.flatMap((a, j) => (j === idx ? [unito] : altri.includes(a) ? [] : [a])));
   };
@@ -271,7 +272,7 @@ export function AlarmsTab() {
                     {altri.length > 0 && (
                       <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
                         ⚠ {t("cfgUi.alarmDuplicateTag", { tag: alm.tag, altri: altri.join(", ") })}
-                        <button type="button" style={S.btn("ghost")} onClick={() => unisciQui(i)} data-testid={`alarm-unisci-${i}`}>
+                        <button type="button" style={S.btn("ghost")} onClick={() => void unisciQui(i)} data-testid={`alarm-unisci-${i}`}>
                           {t("cfgUi.alarmMerge")}
                         </button>
                       </span>

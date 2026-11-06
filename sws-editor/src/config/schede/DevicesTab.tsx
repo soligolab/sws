@@ -1,4 +1,3 @@
-import { gestisciServeAdmin } from "@/deployServeAdmin";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { api, RuntimeUnavailableError, type DispositivoRete } from "@/api/client";
@@ -6,7 +5,8 @@ import { TabellaDispositivi } from "@/config/installazione/TabellaDispositivi";
 import { modoAccesso, spiegaCredenzialiMancanti } from "@/config/credenzialiDispositivo";
 import { CHIAVE_LEGACY, chiaveUrl, dispositivoDaRete, eGiaInLista, leggiListaLegacy, unisciDispositivo } from "@/config/dispositiviRegistrati";
 import type { SavedDevice } from "@/types";
-import { selectIsDirty, testoSostituzione, useAppStore, testoSimboliMancanti } from "@/store";
+import { selectIsDirty, useAppStore } from "@/store";
+import { confermaDopo428, NESSUNA_CONFERMA } from "@/store/conferme428";
 import i18n from "@/i18n";
 import { RT_URL_KEY, RT_USER_KEY } from "@/config/schede/RuntimeConnectionTab";
 
@@ -71,37 +71,15 @@ async function deployToTarget(
       throw new Error(conn.error ?? i18n.t("cfgUi.unknownError"));
     }
     useAppStore.getState().setRemoteConnected(true, target);
-    let confermaUtenti = false;
-    let confermaSostituzione = false;
-    let confermaSimboli = false;
+    let conferme = NESSUNA_CONFERMA;
     for (;;) {
-      const res = await api.deployToRuntime({
-        replaceUsers: true, conSegreti: true, confirmNoUsers: confermaUtenti, confirmReplace: confermaSostituzione,
-        confirmMissingSymbols: confermaSimboli,
-      });
+      const res = await api.deployToRuntime({ replaceUsers: true, conSegreti: true, ...conferme });
       if (res.status === 428) {
-        const d = await res.json().catch(() => ({})) as {
-          conferma?: string; utenti_dispositivo?: string[]; progetto?: string;
-          progetti?: { nome: string; storico_byte?: number | null }[];
-          simboli?: string[]; non_verificabile?: boolean; versione_pannello?: string | null;
-        };
-        if (d.conferma === "simboli-mancanti" && !confermaSimboli) {
-          if (!window.confirm(testoSimboliMancanti(d.simboli ?? [], !!d.non_verificabile, d.versione_pannello))) throw new Error(i18n.t("cfg.deployAnnullato"));
-          confermaSimboli = true;
-          continue;
-        }
-        if (gestisciServeAdmin(d)) throw new Error(i18n.t("abbinamento.serveAdminBreve"));
-        if (d.conferma === "sostituisce-progetti" && !confermaSostituzione) {
-          if (!window.confirm(testoSostituzione(d.progetto, d.progetti ?? []))) throw new Error(i18n.t("cfg.deployAnnullato"));
-          confermaSostituzione = true;
-          continue;
-        }
-        if (!confermaUtenti) {
-          const elenco = d.utenti_dispositivo?.length ? d.utenti_dispositivo.join(", ") : i18n.t("cfg.deployNoUsersUnknown");
-          if (!window.confirm(i18n.t("cfg.deployNoUsersConfirm", { utenti: elenco }))) throw new Error(i18n.t("cfg.deployAnnullato"));
-          confermaUtenti = true;
-          continue;
-        }
+        // La stessa catena di conferme della testata e di Connessione.
+        const esito = await confermaDopo428(await res.clone().json().catch(() => ({})), conferme);
+        if (esito.tipo === "riprova") { conferme = esito.conferme; continue; }
+        if (esito.tipo === "annullato") throw new Error(i18n.t("cfg.deployAnnullato"));
+        if (esito.tipo === "serve-admin") throw new Error(i18n.t("abbinamento.serveAdminBreve"));
       }
       if (!res.ok || !res.body) {
         const dett = (await res.text().catch(() => "")).trim();

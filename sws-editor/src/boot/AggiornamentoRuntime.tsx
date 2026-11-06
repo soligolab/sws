@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import { api, novitaNellaLingua, type NovitaVersione, type StatoAggiornamento } from "@/api/client";
 import { FinestraAggiornamento } from "./FinestraAggiornamento";
 import { useAppStore } from "@/store";
+import { conferma } from "@/finestraAvviso/finestraAvviso";
 // Le due frasi sull'esito le scrive il runtime e le mostrano tre posti (qui,
 // il viewer web, il pannello LVGL): stanno nella tabella del testo di sistema,
 // una volta sola. Qui però la lingua è quella dell'**IDE** — questa è una
@@ -32,20 +33,21 @@ export function AggiornamentoRuntime() {
   }, []);
 
   // Le conferme valgono uguali per «Aggiorna ora» e per «Programma» (Fase 2).
-  const conferma = (): boolean => {
+  const confermaAggiornamento = async (): Promise<boolean> => {
     if (!stato?.disponibile) return false;
-    if (!window.confirm(t("aggiornamento.conferma", { da: stato.versione, a: stato.disponibile }))) return false;
+    if (!(await conferma({ testo: t("aggiornamento.conferma", { da: stato.versione, a: stato.disponibile }) }))) return false;
     // Con avvisi di compatibilità si chiede una conferma in più (decisione
     // 43): quegli avvisi dicono che dopo l'aggiornamento qualcosa va rifatto,
     // e una sola conferma la si dà per abitudine.
     const avvisi = (stato.novita ?? [])
       .filter((n) => nl(n).compatibilita)
       .map((n) => `${n.versione}: ${nl(n).compatibilita}`);
-    return !(avvisi.length > 0 && !window.confirm(t("aggiornamento.confermaCompat", { avvisi: avvisi.join("\n\n") })));
+    return avvisi.length === 0
+      || conferma({ testo: t("aggiornamento.confermaCompat", { avvisi: avvisi.join("\n\n") }), pericolo: true });
   };
 
   const aggiorna = async () => {
-    if (!conferma()) return;
+    if (!(await confermaAggiornamento())) return;
     setInCorso(true);
     try {
       await api.remoteAvviaAggiornamento();
@@ -164,7 +166,7 @@ export function AggiornamentoRuntime() {
 
       {/* La finestra (Fase 2): solo per chi segue un canale del registry. */}
       {stato && !avviato && !errore && (stato.canale === "stabile" || stato.canale === "prova") && (
-        <FinestraAggiornamento stato={stato} conferma={conferma} />
+        <FinestraAggiornamento stato={stato} conferma={confermaAggiornamento} />
       )}
     </section>
   );

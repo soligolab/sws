@@ -75,11 +75,20 @@ export interface PropsSlider {
   inEdit: boolean;
   scriviAlRilascio: boolean;
   deadband?: number;
-  /** Scrive; vero se la scrittura è partita (falso = annullata dall'operatore). */
-  scrivi: (v: number) => boolean;
+  /** Scrive; vero se la scrittura è partita (falso = annullata dall'operatore).
+   *  Una Promise quando c'è da chiedere qualcosa (conferma, password).
+   *  `molla`: la scrittura di uno slider a molla, che non chiede conferma come
+   *  il bottone momentaneo; `riposo`: il ritorno a riposo, che non chiede niente. */
+  scrivi: (v: number, come?: "molla" | "riposo") => EsitoScrittura;
   /** Per i lettori di schermo. */
   nome?: string;
 }
+
+/** L'esito di una scrittura dal viewer (`guardedWrite` in SvgCanvas): un
+ *  booleano **subito** quando non c'è niente da chiedere — il cursore resta
+ *  dov'è senza un fotogramma di ritorno — la Promise della risposta quando la
+ *  Finestra di avviso chiede una conferma o la password (F3, 05-11-2026). */
+export type EsitoScrittura = boolean | Promise<boolean>;
 
 export function SliderSvg(p: PropsSlider) {
   const [bozza, setBozza] = useState<number | null>(null);
@@ -92,6 +101,38 @@ export function SliderSvg(p: PropsSlider) {
   const ritorno = useRef<number | null>(null);
   useEffect(() => () => { if (ritorno.current !== null) cancelAnimationFrame(ritorno.current); }, []);
   const area = useRef<SVGRectElement | null>(null);
+  // Una domanda della Finestra di avviso aperta (conferma, password): finché
+  // non ha risposta non se ne accoda un'altra. Con `confirm` del browser la
+  // pagina si fermava da sola; la finestra in pagina no, e la molla o la
+  // scrittura durante il trascinamento ne aprirebbero una ogni 200 ms.
+  const inSospeso = useRef(false);
+  // Il valore su cui si sta chiedendo: il cursore resta lì finché la finestra
+  // è aperta, invece di tornare al tag e saltare avanti dopo l'OK.
+  const [inDomanda, setInDomanda] = useState<number | null>(null);
+  // La molla rilasciata mentre una domanda è aperta (la password di uno slider
+  // critico): il riposo si scrive dopo la risposta, qualunque sia — un comando
+  // a molla non deve restare lontano dal riposo.
+  const riposoDopo = useRef(false);
+  /** Scrive `v` e fa `fatto` quando la scrittura è partita: subito, o alla risposta. */
+  const quandoParte = (v: number, fatto: () => void, come?: "molla" | "riposo") => {
+    if (inSospeso.current) return;
+    const esito = p.scrivi(v, come);
+    if (esito === true) fatto();
+    else if (esito !== false) {
+      inSospeso.current = true;
+      setInDomanda(v);
+      void esito.then((ok) => {
+        inSospeso.current = false;
+        setInDomanda(null);
+        if (ok) fatto();
+        if (riposoDopo.current) {
+          riposoDopo.current = false;
+          const r = p.riposo!;
+          quandoParte(r, () => { ultimoScritto.current = r; setInAttesa(r); }, "riposo");
+        }
+      });
+    }
+  };
 
   // Dopo una scrittura il cursore resta dov'è finché il tag non riporta quel
   // valore, o per 3 s (fase 1).
@@ -124,7 +165,7 @@ export function SliderSvg(p: PropsSlider) {
   const aspetto = aspettoStile(p.stile);
   const isa = p.stile === "isa";
   const opacitaVuota = Math.min(100, Math.max(0, p.opacitaTraccia ?? 100)) / 100;
-  const mostrato = bozza ?? inAttesa ?? p.valoreTag ?? p.min;
+  const mostrato = bozza ?? inDomanda ?? inAttesa ?? p.valoreTag ?? p.min;
   const f = frazioneDaValore(mostrato, p.min, p.max);
   const c = centroCursore(g, f);
   const t = g.traccia;
@@ -133,10 +174,10 @@ export function SliderSvg(p: PropsSlider) {
   const scrivi = (v: number) => {
     const u = ultimoScritto.current;
     if (p.deadband && u !== null && Math.abs(v - u) < p.deadband) return;
-    if (p.scrivi(v)) {
+    quandoParte(v, () => {
       ultimoScritto.current = v;
       setInAttesa(v);
-    }
+    });
   };
   const molla = p.riposo !== undefined;
   const cambia = (v: number) => {
@@ -145,7 +186,9 @@ export function SliderSvg(p: PropsSlider) {
     if (molla) {
       // Mentre si tiene: al massimo una scrittura ogni 200 ms.
       const ora = Date.now();
-      if (v !== bozza && ora - ultimaMolla.current >= INTERVALLO_MOLLA_MS && p.scrivi(v)) ultimaMolla.current = ora;
+      if (v !== bozza && ora - ultimaMolla.current >= INTERVALLO_MOLLA_MS) {
+        quandoParte(v, () => { ultimaMolla.current = ora; }, "molla");
+      }
       return;
     }
     if (!p.scriviAlRilascio && v !== bozza) scrivi(v);
@@ -169,7 +212,8 @@ export function SliderSvg(p: PropsSlider) {
         else { ritorno.current = null; setBozza(null); }
       };
       ritorno.current = requestAnimationFrame(passo);
-      if (p.scrivi(riposo)) { ultimoScritto.current = riposo; setInAttesa(riposo); }
+      if (inSospeso.current) riposoDopo.current = true;
+      else quandoParte(riposo, () => { ultimoScritto.current = riposo; setInAttesa(riposo); }, "riposo");
       return;
     }
     setBozza(null);

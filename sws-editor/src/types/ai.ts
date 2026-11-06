@@ -2,7 +2,7 @@
 // `sws-web/src/ai/mod.rs`: se cambia lì, cambia qui — sono due elenchi che
 // devono restare d'accordo, e non c'è una guardia che lo verifichi.
 
-import type { ProjectInfo, SynopticPage } from "@/types";
+import type { FaceplateDef, ProjectInfo, SynopticPage } from "@/types";
 
 /** Un rilievo della validazione, come lo produce `sws-web/src/validate.rs`. */
 export interface Rilievo {
@@ -36,7 +36,9 @@ export type MsgIn =
       simboli?: { slug: string; it: string; en: string; svg: string }[];
       /** Gli sfondi generati che le pagine della proposta usano (F6): JPEG in
        *  base64, da scrivere in images/ del progetto quando si applica. */
-      sfondi?: { file: string; jpg: string }[] }
+      sfondi?: { file: string; jpg: string }[];
+      /** I faceplate nuovi o cambiati (06-11-2026), interi. */
+      faceplates?: FaceplateDef[] | null }
   /** Una bozza di simbolo appena disegnata dall'assistente. */
   | { t: "simbolo"; slug: string; it: string; en: string; svg: string }
   /** Un'istantanea del pannello che l'assistente ha scattato: la vede anche chi chatta. */

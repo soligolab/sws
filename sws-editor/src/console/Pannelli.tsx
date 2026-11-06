@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { api } from "@/api/client";
 import { scheda, titoletto } from "@/ui/base";
+import { avviso, chiedi, conferma } from "@/finestraAvviso/finestraAvviso";
 
 /**
  * I pannelli del gateway (11-10-2026, fetta D dell'abbinamento): chi è
@@ -67,7 +68,7 @@ export function Pannelli() {
   }, [t]);
 
   const cambia = async (nome: string, stato: Riga["stato"]) => {
-    if (stato === "bandito" && !window.confirm(t("console.pannelli.confermaBan", { nome }))) return;
+    if (stato === "bandito" && !(await conferma({ testo: t("console.pannelli.confermaBan", { nome }), pericolo: true }))) return;
     try {
       await api.statoPannello(nome, stato);
       carica();
@@ -77,7 +78,7 @@ export function Pannelli() {
   };
 
   const sposta = async (nome: string, azienda: string) => {
-    if (!window.confirm(t("console.pannelli.confermaSposta", { nome, azienda }))) return;
+    if (!(await conferma(t("console.pannelli.confermaSposta", { nome, azienda })))) return;
     try {
       await api.spostaPannelloAzienda(nome, azienda);
       carica();
@@ -87,7 +88,7 @@ export function Pannelli() {
   };
 
   const rinomina = async (nome: string) => {
-    const nuovo = window.prompt(t("console.pannelli.nuovoNome", { nome }), nome);
+    const nuovo = await chiedi({ testo: t("console.pannelli.nuovoNome", { nome }), iniziale: nome });
     if (!nuovo || nuovo.trim() === nome) return;
     try {
       await api.rinominaPannelloGateway(nome, nuovo.trim());
@@ -122,7 +123,7 @@ export function Pannelli() {
       }
     } catch (e: unknown) {
       w?.close();
-      window.alert(e instanceof Error ? e.message : String(e));
+      void avviso({ testo: e instanceof Error ? e.message : String(e), livello: "errore" });
     }
   };
 

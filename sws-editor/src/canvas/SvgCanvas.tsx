@@ -13,6 +13,7 @@ import { XyPlotCanvas, type XyPlotSeriesLive } from "@/canvas/XyPlotCanvas";
 import { altezzaEtichetta, altezzaMinimaSetpoint, corpoAnnotazione, corpoSecondario, passoRiga } from "@/canvas/geometriaTesto";
 import { dividiSegmento, aggiungiInCoda, percorsoDaSalvare, puntiMovimento, tracciatoVisibile } from "@/canvas/percorsoMovimento";
 import { api } from "@/api/client";
+import { avviso, chiedi, conferma } from "@/finestraAvviso/finestraAvviso";
 import { useAlarmStream } from "@/ws/alarmStream";
 import { AlarmBellPanel } from "@/components/AlarmBellPanel";
 import { NumericKeypad } from "@/components/NumericKeypad";
@@ -58,7 +59,17 @@ import { TRASCINA_FACEPLATE } from "@/faceplate/modello";
 import { larghezzaTubo, stileTubo, svgTubo } from "./stiliTubo";
 import { useManifestoLib } from "@/symbols/lib/libreria";
 import { cssFamiglia } from "@/font/famiglie";
-import { SliderSvg } from "./slider/SliderSvg";
+import { SliderSvg, type EsitoScrittura } from "./slider/SliderSvg";
+/** Il valore che un oggetto del viewer scrive in un tag. */
+type ValoreScritto = string | number | boolean;
+/** - `senzaConferma`: niente `require_confirm` (il momentaneo, la molla);
+ *  - `diretta`: niente domande di nessun tipo — il ritorno a riposo di uno
+ *    slider a molla, che è lo stato sicuro e non deve restare indietro;
+ *  - `impulso`: dopo la scrittura, questo valore (il rilascio di un momentaneo
+ *    critico). */
+type OpzioniScrittura = { senzaConferma?: boolean; diretta?: boolean; impulso?: ValoreScritto };
+/** Quanto dura l'impulso di un momentaneo critico: abbastanza perché un PLC lo veda. */
+const DURATA_IMPULSO_MS = 500;
 import { CampoNumero } from "@/components/CampoNumero";
 
 /** La misura che ogni ramo di disegno usa quando l'oggetto non la scrive. Il
@@ -3287,13 +3298,20 @@ function AlarmViewerWidget({ width, height, mode, maxRows, prefix, allowedSev, s
     } catch (err) { console.error(err); }
   }, []);
 
+  // Il motivo obbligatorio lo controlla la finestra (`valida`): un motivo vuoto
+  // la tiene aperta con l'errore, invece di chiuderla e dirlo dopo (F3).
+  const chiediMotivo = useCallback((testo: string) => chiedi({
+    testo,
+    ok: testoSistema("conferma", msgLang), no: testoSistema("annulla", msgLang),
+    valida: (v) => (v.trim() ? null : t("alarm.reasonRequired")),
+  }), [msgLang, t]);
+
   const ackWithReason = useCallback(async (id: string) => {
     if (!askReason) { await handleAck(id); return; }
-    const reason = window.prompt(t("alarm.ackReasonPrompt"));
+    const reason = await chiediMotivo(t("alarm.ackReasonPrompt"));
     if (reason === null) return;             // annullato
-    if (!reason.trim()) { window.alert(t("alarm.reasonRequired")); return; }
     await handleAck(id, reason.trim());
-  }, [askReason, handleAck]);
+  }, [askReason, handleAck, chiediMotivo, t]);
 
   // F7.5 — ACK massivo: su un impianto che parte con venti allarmi insieme,
   // confermarli uno per uno è il momento in cui l'operatore smette di guardare
@@ -3304,24 +3322,24 @@ function AlarmViewerWidget({ width, height, mode, maxRows, prefix, allowedSev, s
     // sarebbe la ragione per cui nessuno lo compila.
     let reason: string | undefined;
     if (askReason && ids.length > 0) {
-      const r = window.prompt(t("alarm.ackAllReasonPrompt"));
+      const r = await chiediMotivo(t("alarm.ackAllReasonPrompt"));
       if (r === null) return;
-      if (!r.trim()) { window.alert(t("alarm.reasonRequired")); return; }
       reason = r.trim();
     }
     for (const id of ids) await handleAck(id, reason);
-  }, [handleAck, askReason]);
+  }, [handleAck, askReason, chiediMotivo, t]);
 
   // F7.5 — shelve dal viewer: mette a tacere un allarme noto per un tempo
   // limitato, con motivo registrato (l'API lo richiede e finisce nel journal).
   const handleShelve = useCallback(async (id: string) => {
-    const reason = window.prompt(t("alarm.shelveReasonPrompt"));
+    // L'API vuole il motivo: vuoto, la finestra resta aperta e lo dice.
+    const reason = (await chiediMotivo(t("alarm.shelveReasonPrompt")))?.trim();
     if (!reason) return;
     try {
       await api.shelveAlarm(id, reason, Math.max(1, shelveMinutes ?? 15) * 60_000,
         useAppStore.getState().authUser ?? "operatore");
     } catch (err) { console.error(err); }
-  }, [shelveMinutes]);
+  }, [shelveMinutes, chiediMotivo, t]);
 
   const containerStyle: React.CSSProperties = {
     width, height,
@@ -3699,61 +3717,112 @@ function SvgObjectCorpo(p: ObjProps) {
   // F3.2/F3.3: ogni scrittura originata da questo oggetto passa da qui —
   // conferma configurabile, e per i comandi critici re-auth (password della
   // sessione) + motivo obbligatorio, entrambi registrati nell'audit.
-  /** Vero se la scrittura è partita (o partirà dopo la password): falso se
-   *  l'operatore l'ha annullata, così chi la chiama non la dà per fatta. */
-  const guardedWrite = (tagId: string | undefined, value: string | number | boolean): boolean => {
+  //
+  // Dal 05-11-2026 (F3 della Finestra di avviso) le domande passano dalla
+  // finestra in pagina e non dai pop-up del browser, quindi rispondono con una
+  // Promise. **Senza domande la scrittura parte subito e l'esito è un `true`
+  // nudo**, nello stesso giro: lo slider ci conta per non far tornare indietro
+  // il cursore per un fotogramma (il lampo che il maintainer aveva visto sul
+  // lago). Con una domanda, l'esito è la Promise della risposta.
+  /** Vero se la scrittura è partita: falso se l'operatore l'ha annullata (o la
+   *  password era sbagliata), così chi la chiama non la dà per fatta. */
+  const guardedWrite = (
+    tagId: string | undefined,
+    value: ValoreScritto | (() => ValoreScritto),
+    opzioni?: OpzioniScrittura,
+  ): EsitoScrittura => {
     if (!tagId) return false;
-    return guardedWrites([[tagId, value]]);
+    return guardedWrites([[tagId, value]], opzioni);
   };
+  // L'ultimo valore dei tag, per chi lo legge dopo una domanda: il toggle si
+  // ricalcola alla conferma, non al clic (F3, decisione 3).
+  const valoriVivi = useRef(tagValues);
+  valoriVivi.current = tagValues;
+  const etichette = { si: testoSistema("conferma", lingua.lang), no: testoSistema("annulla", lingua.lang) };
 
   /** Più scritture con un gesto solo (le assegnazioni di un bottone): una
-   *  conferma, una verifica della password e un motivo per tutte. */
-  const guardedWrites = (scritture: [string, string | number | boolean][]): boolean => {
+   *  conferma, una verifica della password e un motivo per tutte. Un valore
+   *  può essere una funzione: la si chiama al momento di scrivere. */
+  const guardedWrites = (
+    scritture: [string, ValoreScritto | (() => ValoreScritto)][],
+    opzioni?: OpzioniScrittura,
+  ): EsitoScrittura => {
     const valide = scritture.filter(([id]) => !!id);
     if (!valide.length || isEditMode) return false;
-    const descrizione = valide.length === 1
-      ? String(valide[0][1])
-      : valide.map(([id, v]) => `${id} = ${String(v)}`).join(", ");
-    if (obj.require_confirm) {
-      const base = t("viewer.confirmWrite", { value: descrizione });
-      const msg = obj.confirm_message?.trim() ? `${obj.confirm_message}\n\n${base}` : base;
-      if (!window.confirm(msg)) return false;
-    }
-    if (obj.critical) {
+    const valore = (v: ValoreScritto | (() => ValoreScritto)) => (typeof v === "function" ? v() : v);
+    const scrivi = () => {
+      // Una scrittura rifiutata non ferma le altre: ognuna va per conto suo.
+      for (const [id, v] of valide) onWriteTag?.(id, valore(v));
+    };
+    if (opzioni?.diretta) { scrivi(); return true; }
+    const chiediConferma = !!obj.require_confirm && !opzioni?.senzaConferma;
+    if (!chiediConferma && !obj.critical) { scrivi(); return true; }
+
+    return (async () => {
+      // Il valore che la domanda mostra. Uno calcolato al momento (il toggle)
+      // che alla risposta è cambiato vuol dire che il tag è già arrivato dove
+      // chi ha confermato voleva: non si scrive l'opposto di quello che ha
+      // letto nella finestra (dalla revisione di F3).
+      const mostrati = valide.map(([, v]) => valore(v));
+      const daScrivereOra = () => valide
+        .map(([id, v], i) => [id, valore(v), mostrati[i]] as const)
+        .filter(([, ora, prima]) => ora === prima)
+        .map(([id, ora]) => [id, ora] as [string, ValoreScritto]);
+      if (chiediConferma) {
+        const descrizione = valide.length === 1
+          ? String(mostrati[0])
+          : valide.map(([id], i) => `${id} = ${String(mostrati[i])}`).join(", ");
+        const base = t("viewer.confirmWrite", { value: descrizione });
+        const testo = obj.confirm_message?.trim() ? `${obj.confirm_message}\n\n${base}` : base;
+        if (!(await conferma({ testo, ...etichette }))) return false;
+      }
+      if (!obj.critical) {
+        for (const [id, v] of daScrivereOra()) onWriteTag?.(id, v);
+        return true;
+      }
       // In no-auth mode non esistono password: il flusso salta la verifica
       // (il server risponderebbe comunque 204) ma il motivo resta richiesto.
-      const st = useAppStore.getState();
-      const noAuth = st.authToken === "no-auth";
-      const finish = (reason?: string) => {
-        if (obj.require_reason && !reason?.trim()) {
-          window.alert(t("viewer.reasonRequired"));
-          return;
+      if (useAppStore.getState().authToken !== "no-auth") {
+        const pw = await chiedi({ testo: t("viewer.reauthPrompt"), password: true, ok: etichette.si, no: etichette.no });
+        if (pw === null) return false;
+        try {
+          await api.verifyPassword(pw);
+        } catch {
+          void avviso({ testo: t("viewer.reauthFailed"), livello: "errore" });
+          return false;
         }
-        // Sempre via HTTP: il motivo viaggia nel body e finisce nell'audit.
-        for (const [id, v] of valide) {
-          api.writeTag(id, v, reason?.trim() || undefined)
-            .catch((e: unknown) => window.alert(
-              t("viewer.writeFailedDetail", { tag: id, message: e instanceof Error ? e.message : String(e) })));
-        }
-      };
-      const askReason = () => {
-        const reason = obj.require_reason
-          ? window.prompt(t("viewer.reasonPrompt")) ?? undefined
-          : undefined;
-        if (obj.require_reason && reason === undefined) return; // annullato
-        finish(reason);
-      };
-      if (noAuth) { askReason(); return true; }
-      const pw = window.prompt(t("viewer.reauthPrompt"));
-      if (pw === null) return false; // annullato
-      api.verifyPassword(pw)
-        .then(() => askReason())
-        .catch(() => window.alert(t("viewer.reauthFailed")));
+      }
+      let motivo: string | undefined;
+      if (obj.require_reason) {
+        const r = await chiedi({
+          testo: t("viewer.reasonPrompt"), ok: etichette.si, no: etichette.no,
+          valida: (v) => (v.trim() ? null : t("viewer.reasonRequired")),
+        });
+        if (r === null) return false;
+        motivo = r.trim();
+      }
+      // Sempre via HTTP: il motivo viaggia nel body e finisce nell'audit. Si
+      // aspetta che le scritture siano arrivate: chi scrive dopo (il rilascio
+      // di un impulso) deve arrivare dopo.
+      const viaHttp = (righe: [string, ValoreScritto][]) => Promise.all(righe.map(([id, v]) =>
+        api.writeTag(id, v, motivo).then(() => true, (e: unknown) => {
+          void avviso({
+            testo: t("viewer.writeFailedDetail", { tag: id, message: e instanceof Error ? e.message : String(e) }),
+            livello: "errore",
+          });
+          return false;
+        })));
+      const daScrivere = daScrivereOra();
+      const scritte = await viaHttp(daScrivere);
+      // L'impulso di un momentaneo critico: il valore di rilascio, dopo il
+      // tempo che serve a un PLC per vederlo, con lo stesso motivo.
+      const impulso = opzioni?.impulso;
+      if (impulso !== undefined && scritte.every(Boolean)) {
+        await new Promise((fatto) => setTimeout(fatto, DURATA_IMPULSO_MS));
+        await viaHttp(daScrivere.map(([id]) => [id, impulso]));
+      }
       return true;
-    }
-    // Una scrittura rifiutata non ferma le altre: ognuna va per conto suo.
-    for (const [id, v] of valide) onWriteTag?.(id, v);
-    return true;
+    })();
   };
 
   /** Il comando di un bottone, o di un simbolo che comanda (14-10-2026):
@@ -3774,8 +3843,13 @@ function SvgObjectCorpo(p: ObjProps) {
       switch (mode) {
         case "write":     guardedWrite(bersaglio, obj.write_value ?? true); break;
         case "toggle": {
-          const on = typeof cur === "boolean" ? cur : typeof cur === "number" ? cur !== 0 : String(cur ?? "").length > 0;
-          guardedWrite(bersaglio, !on); break;
+          // Il valore si calcola quando si scrive, non al clic: con una
+          // conferma in mezzo il tag può essere cambiato (F3, decisione 3).
+          const inverso = () => {
+            const c = valoriVivi.current[bersaglio]?.value;
+            return !(typeof c === "boolean" ? c : typeof c === "number" ? c !== 0 : String(c ?? "").length > 0);
+          };
+          guardedWrite(bersaglio, inverso); break;
         }
         case "set":       guardedWrite(bersaglio, obj.write_value ?? true); break;
         case "reset":     guardedWrite(bersaglio, obj.release_value ?? false); break;
@@ -3792,11 +3866,25 @@ function SvgObjectCorpo(p: ObjProps) {
       }
     };
     const momentaneo = mode === "momentary" && !obj.assegnazioni?.length && !!bersaglio;
+    // Il momentaneo non chiede conferma, come sul pannello LVGL (F3, decisione
+    // 1): una finestra fra pressione e rilascio renderebbe il comando
+    // impossibile da tenere premuto. Un momentaneo **critico** chiede la
+    // password alla pressione e poi dà un impulso — pressione e rilascio
+    // insieme, a `DURATA_IMPULSO_MS` l'uno dall'altro e con lo stesso motivo —
+    // perché il dito, a password data, non è più sul bottone; il rilascio vero
+    // allora non scrive niente. Prima restava scritto il valore
+    // della pressione se si annullava la seconda password, quella del rilascio.
+    const premi = () => {
+      if (!momentaneo) return;
+      guardedWrite(bersaglio, obj.write_value ?? true, obj.critical
+        ? { senzaConferma: true, impulso: obj.release_value ?? false }
+        : { senzaConferma: true });
+    };
     return {
       mode,
       doCommand,
-      premi: () => { if (momentaneo) guardedWrite(bersaglio, obj.write_value ?? true); },
-      rilascia: () => { if (momentaneo) guardedWrite(bersaglio, obj.release_value ?? false); },
+      premi,
+      rilascia: () => { if (momentaneo && !obj.critical) guardedWrite(bersaglio, obj.release_value ?? false, { senzaConferma: true }); },
     };
   };
 
@@ -4510,19 +4598,19 @@ function SvgObjectCorpo(p: ObjProps) {
     const w = obj.width ?? 120; const h = obj.height ?? 40;
     // F3.5 — modalità comando: write (storica), momentary, toggle, set/reset,
     // increment/decrement. Il momentary usa press/release; le altre il click.
-    const { mode, doCommand } = comando(obj.tag);
+    const { doCommand, premi, rilascia } = comando(obj.tag);
     return (
       <g style={{ cursor: isEditMode ? editCursor : "pointer" }}
         onMouseDown={(e) => {
           if (isEditMode) { handleMouseDown(e); return; }
-          if (mode === "momentary" && obj.tag) guardedWrite(obj.tag, obj.write_value ?? true);
+          premi();
         }}
         onMouseUp={() => {
-          if (!isEditMode && mode === "momentary" && obj.tag) guardedWrite(obj.tag, obj.release_value ?? false);
+          if (!isEditMode) rilascia();
         }}
         onMouseLeave={() => {
           // Il dito/mouse che scivola fuori NON deve lasciare il comando attivo.
-          if (!isEditMode && mode === "momentary" && obj.tag) guardedWrite(obj.tag, obj.release_value ?? false);
+          if (!isEditMode) rilascia();
         }}
         onClick={(e) => {
           e.stopPropagation();
@@ -5051,9 +5139,13 @@ function SvgObjectCorpo(p: ObjProps) {
           // `read_only`, e così fa anche il pannello LVGL (31-10-2026).
           sola={!!obj.read_only || !obj.tag?.trim()}
           inEdit={isEditMode}
-          scriviAlRilascio={obj.write_on_release !== false}
+          // Con una domanda (conferma, password) si scrive al rilascio, sempre:
+          // durante il trascinamento la finestra chiederebbe del primo valore
+          // toccato e il resto del gesto andrebbe perso (revisione di F3).
+          scriviAlRilascio={obj.write_on_release !== false || !!obj.require_confirm || !!obj.critical}
           deadband={obj.write_deadband}
-          scrivi={(v) => guardedWrite(obj.tag, v)}
+          scrivi={(v, come) => guardedWrite(obj.tag, v,
+            come === "riposo" ? { diretta: true } : come === "molla" ? { senzaConferma: true } : undefined)}
           nome={obj.label || obj.tag}
         />
         {hitRect(obj.x, obj.y, w, h)}

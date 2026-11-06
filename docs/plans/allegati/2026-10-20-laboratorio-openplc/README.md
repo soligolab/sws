@@ -1,6 +1,6 @@
 # Laboratorio OpenPLC v4 — la prova del 20-10-2026
 
-Il materiale della misura descritta nel [piano del manuale](../../2026-10-19-manuale-rifatto.md), §«La misura, fatta
+Il materiale della misura descritta nel [piano del manuale](../../../archive/2026-10-19-manuale-rifatto.md), §«La misura, fatta
 il 20-10-2026». **Non è ancora il laboratorio del tutorial**: è quello che il T01 porterà in `examples/laboratorio/`
 con uno script di avvio. Sta qui perché la prova è stata fatta su una macchina sola e deve viaggiare con git.
 

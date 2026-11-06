@@ -42,6 +42,10 @@ export type VoceSistema =
   | "esito_versioni"
   | "esito_spiega"
   | "esito_chiudi"
+  // I bottoni della Finestra di avviso nel viewer (F3, 05-11-2026): nella
+  // lingua dei contenuti, come il resto dello schermo dell'impianto.
+  | "annulla"
+  | "conferma"
   // Il trend senza dati (30-09-2026): lo scrive il motore dentro il grafico.
   // «Attuale:» nel setpoint (22-10-2026): era in `viewer.currentValue`, due
   // lingue e la lingua dell'IDE.
@@ -151,6 +155,8 @@ export const TESTI_SISTEMA: Record<VoceSistema, Record<LinguaSistema, string>> =
     en: "The panel tried to move to {a}: the new version did not start properly, and it went back to {da} by itself. Nothing to do here: whoever manages the panel will take care of it.",
   },
   esito_chiudi: { it: "Chiudi", de: "Schließen", fr: "Fermer", es: "Cerrar", en: "Close" },
+  annulla: { it: "Annulla", de: "Abbrechen", fr: "Annuler", es: "Cancelar", en: "Cancel" },
+  conferma: { it: "Conferma", de: "Bestätigen", fr: "Confirmer", es: "Confirmar", en: "Confirm" },
   sp_attuale: { it: "Attuale:", de: "Aktuell:", fr: "Actuel :", es: "Actual:", en: "Current:" },
   trend_nessun_tag: { it: "Tag non configurato", de: "Kein Tag konfiguriert", fr: "Aucun tag configuré", es: "Tag no configurado", en: "No tag configured" },
   trend_in_attesa: { it: "In attesa di campioni…", de: "Warte auf Messwerte…", fr: "En attente d'échantillons…", es: "Esperando muestras…", en: "Waiting for samples…" },

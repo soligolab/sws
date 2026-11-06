@@ -46,6 +46,11 @@ use crate::synoptic::SynopticPage;
 use crate::synoptic_schema as sch;
 use crate::validate::{semantic, unknown_fields};
 
+/// Il campo `faceplates` di `valida` e `proponi_modifica`.
+const FACEPLATES_DESCR: &str = "I faceplate nuovi o cambiati, INTERI: id, label, width, height, \
+     params ([{name, type, type_ref?, default?, required?}]) e objects (coordinate relative al faceplate). \
+     Uno con l'id di uno esistente lo sostituisce. Ometti quelli che non tocchi.";
+
 /// Le definizioni per l'API. L'ordine è stabile: entra nel prefisso della
 /// cache, e un ordine che cambia butterebbe la cache a ogni turno.
 pub fn definizioni() -> Vec<Value> {
@@ -110,7 +115,9 @@ pub fn definizioni() -> Vec<Value> {
                         "project": { "type": "object",
                             "description": "Il progetto intero, modificato. Ometti se non lo tocchi." },
                         "pages": { "type": "array", "items": { "type": "object" },
-                            "description": "Le pagine intere, modificate. Ometti quelle che non tocchi." } } }),
+                            "description": "Le pagine intere, modificate. Ometti quelle che non tocchi." },
+                        "faceplates": { "type": "array", "items": { "type": "object" },
+                            "description": FACEPLATES_DESCR } } }),
         ),
         strumento(
             "proponi_modifica",
@@ -128,6 +135,8 @@ pub fn definizioni() -> Vec<Value> {
                             "description": "Il progetto intero, modificato. Ometti se non lo tocchi." },
                         "pages": { "type": "array", "items": { "type": "object" },
                             "description": "Le pagine intere, modificate." },
+                        "faceplates": { "type": "array", "items": { "type": "object" },
+                            "description": FACEPLATES_DESCR },
                         "simboli": { "type": "array", "items": { "type": "string" },
                             "description": "Gli slug delle bozze di simbolo (bozza_simbolo) da \
                                             portare nel progetto. Se manca: quelle che le pagine \
@@ -200,7 +209,10 @@ pub fn definizioni() -> Vec<Value> {
                                     posto di quella sul disco con lo stesso nome. Le bozze di \
                                     simbolo della conversazione ci sono sempre. Senza `nome` e \
                                     senza `pagina`, con delle bozze, fotografa la TAVOLA delle \
-                                    bozze: è il modo di guardare i simboli che hai disegnato." } } }),
+                                    bozze: è il modo di guardare i simboli che hai disegnato." },
+                "faceplates": { "type": "array", "items": { "type": "object" },
+                    "description": "I faceplate nuovi o cambiati che la `pagina` usa: senza, le sue \
+                                    istanze si fotografano vuote." } } }),
         ),
         strumento(
             "controlla_python",
@@ -239,6 +251,22 @@ pub fn definizioni() -> Vec<Value> {
              di disegno della libreria e tre esempi veri. CHIAMALO prima di bozza_simbolo: un \
              simbolo non si scrive in SVG, si descrive, e SWS lo compila come quelli di libreria.",
             json!({ "type": "object", "properties": {}, "additionalProperties": false }),
+        ),
+        // ── Faceplate (06-11-2026). Prima di bozza_simbolo, che deve restare l'ultimo:
+        // `definizioni_per` lo toglie quando c'è `disegna_simbolo`, e il prefisso in cache
+        // resta quello. ──────────────────
+        strumento(
+            "leggi_faceplate",
+            "I faceplate: gruppi di oggetti disegnati UNA volta (una macchina con il suo \
+             simbolo, i valori e i comandi) e messi sulle pagine come istanze — un oggetto \
+             `type: faceplate` con `faceplate_id` e `faceplate_params`. Senza `id`: l'elenco, \
+             con misura, parametri e quanti oggetti; con `id`: il faceplate intero. CHIAMALO \
+             prima di comporre una pagina con macchine ripetute: se ce n'è già uno adatto, si \
+             usa quello. Dentro un faceplate i tag si scrivono col parametro fra graffe \
+             (`{motore}.velocita`): un parametro `type: istanza` con `type_ref: <tipo>` \
+             fa scegliere all'istanza una variabile di quel tipo.",
+            json!({ "type": "object", "additionalProperties": false, "properties": {
+                "id": { "type": "string", "description": "L'id del faceplate da leggere intero." } } }),
         ),
         strumento(
             "bozza_simbolo",
@@ -342,7 +370,7 @@ fn strumento(nome: &str, descrizione: &str, schema: Value) -> Value {
 /// `match`. Il test `nessuno_strumento_sfugge_alla_classificazione` tiene i due
 /// elenchi uguali all'insieme di `definizioni()`: aggiungere uno strumento
 /// senza decidere da che parte sta fa diventare rosso quel test, che è il punto.
-pub const SOLA_LETTURA: [&str; 13] = [
+pub const SOLA_LETTURA: [&str; 14] = [
     "elenca_pagine",
     "leggi_pagina",
     "leggi_progetto",
@@ -356,6 +384,7 @@ pub const SOLA_LETTURA: [&str; 13] = [
     "controlla_python",
     "cerca_simboli",
     "schema_simbolo",
+    "leggi_faceplate",
 ];
 
 /// I due che **non** passano da `esegui`, e perché.
@@ -413,6 +442,7 @@ pub async fn esegui(s: &AppState, nome: &str, input: &Value) -> Esito {
         "controlla_python" => controlla_python(s, arg_str(input, "codice")?).await,
         "cerca_simboli" => cerca_simboli(s, input).await,
         "schema_simbolo" => schema_simbolo(),
+        "leggi_faceplate" => leggi_faceplate(s, input).await,
         // `proponi_modifica` non passa di qui: la intercetta il ciclo, perché
         // è l'unica che non produce un risultato da rimandare al modello ma
         // chiude il turno verso il browser.
@@ -819,10 +849,23 @@ pub async fn valida_interna(
 
     findings.extend(semantic(&project, &pagine));
 
+    // I faceplate: quelli del disco e i predefiniti, con sopra i proposti.
+    let proposti = faceplate_proposti(input)?;
+    let disponibili = crate::router::faceplate_disponibili(&dir).await;
+    let ids_disco: std::collections::HashSet<String> =
+        disponibili.iter().map(|(f, _)| f.id.clone()).collect();
+    let mut ids = ids_disco.clone();
+    ids.extend(proposti.iter().map(|f| f.id.clone()));
+    findings.extend(istanze_senza_faceplate(&pagine, &ids));
+    findings.extend(crate::validate::rilievi_faceplate(&project, &proposti));
+
     let mut prima = std::collections::HashSet::new();
     {
         let pg0 = carica_pagine(s).await.unwrap_or_default();
-        for f in semantic(&disco, &pg0) {
+        for f in semantic(&disco, &pg0)
+            .into_iter()
+            .chain(istanze_senza_faceplate(&pg0, &ids_disco))
+        {
             prima.insert(format!("{}\u{1}{}", f.path, f.message));
         }
     }
@@ -860,6 +903,82 @@ pub async fn valida_interna(
         }),
         normalizzato,
     ))
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Faceplate (06-11-2026)
+// ─────────────────────────────────────────────────────────────────────────────
+
+async fn leggi_faceplate(s: &AppState, input: &Value) -> Esito {
+    let dir = dir_progetto(s).await?;
+    let tutti = crate::router::faceplate_disponibili(&dir).await;
+    if let Some(id) = input.get("id").and_then(Value::as_str) {
+        let (fp, predefinito) = tutti.into_iter().find(|(f, _)| f.id == id).ok_or_else(|| {
+            format!("nessun faceplate con id `{id}`: leggi_faceplate senza id li elenca")
+        })?;
+        let mut v = serde_json::to_value(&fp).map_err(|e| e.to_string())?;
+        v["predefinito"] = json!(predefinito);
+        return Ok(v);
+    }
+    Ok(
+        json!({ "faceplate": tutti.iter().map(|(f, predefinito)| json!({
+        "id": f.id, "label": f.label, "width": f.width, "height": f.height,
+        "params": f.params, "oggetti": f.objects.len(), "predefinito": predefinito,
+    })).collect::<Vec<_>>() }),
+    )
+}
+
+/// I faceplate proposti, letti: un errore di forma torna al modello con l'indice.
+pub fn faceplate_proposti(input: &Value) -> Result<Vec<crate::synoptic::FaceplateDef>, String> {
+    let Some(a) = input.get("faceplates").and_then(Value::as_array) else {
+        return Ok(Vec::new());
+    };
+    a.iter()
+        .enumerate()
+        .map(|(i, v)| {
+            serde_json::from_value(v.clone()).map_err(|e| {
+                format!(
+                    "faceplates[{i}] non si legge come faceplate: {e}. Servono `id`, \
+                         `label` e `objects`."
+                )
+            })
+        })
+        .collect()
+}
+
+/// Le istanze (`type: faceplate`) che nominano un faceplate che non c'è: sul
+/// pannello sono un riquadro vuoto, e nessun altro controllo lo dice.
+pub fn istanze_senza_faceplate(
+    pagine: &[SynopticPage],
+    ids: &std::collections::HashSet<String>,
+) -> Vec<crate::validate::Finding> {
+    let mut out = Vec::new();
+    for p in pagine {
+        for o in &p.objects {
+            let v = serde_json::to_value(o).unwrap_or(Value::Null);
+            if v.get("type").and_then(Value::as_str) != Some("faceplate") {
+                continue;
+            }
+            let fid = v.get("faceplate_id").and_then(Value::as_str).unwrap_or("");
+            if !ids.contains(fid) {
+                out.push(crate::validate::Finding {
+                    severity: crate::validate::Severity::Error,
+                    path: format!(
+                        "pages[{}].objects[{}].faceplate_id",
+                        p.name,
+                        v.get("id").and_then(Value::as_str).unwrap_or("?")
+                    ),
+                    message: format!("il faceplate `{fid}` non esiste"),
+                    hint: Some(
+                        "usa un id da leggi_faceplate, oppure manda il faceplate nuovo in \
+                         `faceplates` nella stessa chiamata"
+                            .into(),
+                    ),
+                });
+            }
+        }
+    }
+    out
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -1131,32 +1250,31 @@ fn elenco_o_nessuno<'a>(it: impl Iterator<Item = &'a str>) -> String {
 /// ed e' esattamente il genere di testo che resta indietro quando il codice
 /// cambia, senza che niente lo segnali.
 fn schema_python(sandbox_attiva: bool) -> Esito {
+    // Da `NOMI_FORNITI`, lo stesso elenco da cui l'harness costruisce i
+    // globali: prima questo era un elenco a parte, senza `functions` e `tr`.
+    let disponibili: Vec<Value> = sws_pyscript::NOMI_FORNITI
+        .iter()
+        .map(|n| json!({ "nome": n.nome, "cosa": n.cosa }))
+        .collect();
     Ok(json!({
-        "disponibili": [
-            { "nome": "tags", "cosa": "I tag del progetto. `tags.read('id')` legge \
-                (None se il tag non esiste), `tags.write('id', valore)` scrive. NON è \
-                indicizzabile: `tags['id']` solleva TypeError, non è mai stato il modo \
-                giusto. Un tag con `expression` o con `generator` attivo è calcolato: \
-                scriverlo viene rifiutato." },
-            { "nome": "print", "cosa": "Finisce nello stdout catturato e nel log. \
-                Serve per la diagnosi, non per comunicare con l'operatore." },
-            { "nome": "send_telegram", "cosa": "`send_telegram('testo')`. Funziona solo \
-                se il canale Telegram è configurato nelle notifiche del progetto." },
-            { "nome": "now_ms", "cosa": "`now_ms()` — millisecondi dall'epoch Unix \
-                (T-69). Congelato all'inizio di questa esecuzione, non cambia se \
-                chiamato più volte nello stesso giro." },
-            { "nome": "uptime_ms", "cosa": "`uptime_ms()` — millisecondi dalla PRIMA \
-                volta che questo script/funzione è girato in questo processo (T-69), \
-                non dall'avvio del runtime." },
-            { "nome": "delta_ms", "cosa": "`delta_ms()` — millisecondi dall'ULTIMA \
-                invocazione di questo script/funzione (T-69). Vale 0 al primo giro: \
-                una rampa scritta come `pos += delta_ms() / periodo` resta ferma al \
-                primo giro invece di saltare, e si muove a cadenza reale indipendente \
-                da quanto spesso il trigger la richiama." },
-            { "nome": "state", "cosa": "`state.get('chiave', default=None)` / \
-                `state.set('chiave', valore)` (T-69) — memoria persistente fra un giro \
-                e l'altro dello STESSO script/funzione (es. la direzione di una \
-                rampa), senza bisogno di un tag di servizio. Solo bool/int/float/str." },
+        "disponibili": disponibili,
+        "builtin": format!(
+            "Quelli di `safe_builtins` di RestrictedPython (int, float, str, bool, \
+             len, range, abs, round, isinstance…) più {}. `for`, `a, b = …` e le \
+             comprensioni funzionano come in Python. `+=` (e gli altri `-=`, `*=`…) \
+             solo su un nome: `n += 1` va, `conteggi['k'] += 1` e `o.x += 1` sono \
+             rifiutati dalla sandbox — si scrive `conteggi['k'] = conteggi['k'] + 1`.",
+            sws_pyscript::BUILTIN_AGGIUNTI.join(", ")
+        ),
+        "come_gira": [
+            "I parametri di una funzione sono **variabili globali** col loro nome \
+             (`chi`, non `args['chi']`). Un parametro non passato prende il suo \
+             default; senza default resta indefinito (NameError se lo si usa).",
+            "Le assegnazioni di primo livello NON si vedono dentro un `def` dello \
+             stesso script: lo script gira con `exec(codice, globali, {})`, e quelle \
+             finiscono nel dizionario locale. Dentro una funzione definita nello \
+             script, porta con te le costanti (definiscile dentro, o passale come \
+             argomenti).",
         ],
         "vietati": [
             "`import` di qualunque modulo — niente `os`, `time`, `requests`, `math`.",
@@ -1592,6 +1710,23 @@ mod tests {
         );
         // Il tetto di byte viene dalla costante, non da un numero copiato.
         assert!(tutto.contains(&sws_core::project::MAX_FUNCTION_CODE_BYTES.to_string()));
+        // 4. Ogni nome fornito, dall'elenco unico: prima `functions` e `tr`
+        //    mancavano, e l'assistente non li usava.
+        for n in sws_pyscript::NOMI_FORNITI {
+            assert!(
+                v["disponibili"]
+                    .as_array()
+                    .unwrap()
+                    .iter()
+                    .any(|d| d["nome"] == n.nome),
+                "`{}` manca fra i disponibili",
+                n.nome
+            );
+        }
+        // 5. I due modi in cui non è Python normale: i parametri sono globali,
+        //    e le costanti di primo livello non si vedono dentro un `def`.
+        assert!(tutto.contains("globali"), "{tutto}");
+        assert!(tutto.contains("`def`"), "{tutto}");
     }
 
     /// E il verso che conta di piu': senza sandbox non deve **far credere** di
@@ -1673,5 +1808,32 @@ mod tests_opzioni {
         // Il prefisso resta quello di sempre (tolto bozza_simbolo, che è l'ultimo).
         assert_eq!(base.last().map(String::as_str), Some("bozza_simbolo"));
         assert_eq!(&tutti[..base.len() - 1], &base[..base.len() - 1]);
+    }
+
+    #[test]
+    fn un_istanza_di_un_faceplate_che_non_ce_si_dice() {
+        let p: SynopticPage = serde_json::from_value(json!({
+            "id": "p", "name": "Linea", "objects": [
+                { "id": "l1", "type": "faceplate", "x": 0, "y": 0, "faceplate_id": "laminatoio" },
+                { "id": "m1", "type": "faceplate", "x": 0, "y": 0, "faceplate_id": "motor_basic" }
+            ]
+        }))
+        .unwrap();
+        let ids: std::collections::HashSet<String> = ["motor_basic".to_string()].into();
+        let r = istanze_senza_faceplate(std::slice::from_ref(&p), &ids);
+        assert_eq!(r.len(), 1);
+        assert_eq!(r[0].path, "pages[Linea].objects[l1].faceplate_id");
+    }
+
+    #[test]
+    fn i_faceplate_proposti_si_leggono_o_dicono_quale() {
+        let buono = json!({ "faceplates": [{ "id": "laminatoio", "label": "Laminatoio",
+                                             "objects": [] }] });
+        assert_eq!(faceplate_proposti(&buono).unwrap()[0].id, "laminatoio");
+        let rotto = json!({ "faceplates": [{ "label": "senza id" }] });
+        assert!(faceplate_proposti(&rotto)
+            .unwrap_err()
+            .contains("faceplates[0]"));
+        assert!(faceplate_proposti(&json!({})).unwrap().is_empty());
     }
 }

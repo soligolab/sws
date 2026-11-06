@@ -82,6 +82,7 @@ async fn sessione(socket: WebSocket, s: AppState) {
     // sincrona, che non può await sul socket.
     let inoltro = tokio::spawn(async move {
         while let Some(m) = rx.recv().await {
+            traccia("→", &m);
             if ws_tx.send(Message::Text(m)).await.is_err() {
                 break;
             }
@@ -151,6 +152,7 @@ async fn sessione(socket: WebSocket, s: AppState) {
 
     while let Some(Ok(msg)) = ws_rx.next().await {
         let Message::Text(testo) = msg else { continue };
+        traccia("←", &testo);
         let Ok(v): Result<Value, _> = serde_json::from_str(&testo) else {
             invia(
                 &tx,
@@ -281,6 +283,31 @@ impl Misure {
     }
 }
 
+/// `SWS_AI_DEBUG=1`: una riga di log per ogni messaggio della chat e per ogni
+/// strumento, col tipo, i byte e i tempi. Nata dagli sfondi del 05-11-2026: «Usa
+/// come base» sembrava non rispondere e non c'era modo di sapere se il clic
+/// fosse arrivato, se il turno fosse ancora in corso o dove si fosse fermato.
+/// Senza la variabile le stesse righe escono a livello `debug`.
+fn debug_ai() -> bool {
+    static ACCESO: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
+    *ACCESO.get_or_init(|| std::env::var("SWS_AI_DEBUG").is_ok_and(|v| !v.is_empty() && v != "0"))
+}
+
+/// Una riga per un messaggio del socket: la direzione, il tipo, i byte. Il
+/// contenuto no: dentro ci sono immagini in base64 e testi del progetto.
+fn traccia(verso: &str, m: &str) {
+    let tipo = serde_json::from_str::<Value>(m)
+        .ok()
+        .and_then(|v| v.get("t").and_then(Value::as_str).map(str::to_string))
+        .unwrap_or_default();
+    // I delta di testo sono centinaia per risposta: solo in debug vero.
+    if debug_ai() && tipo != "testo" && tipo != "pensiero" {
+        tracing::info!(target: "sws_ai", verso, tipo, byte = m.len(), "chat");
+    } else {
+        tracing::debug!(target: "sws_ai", verso, tipo, byte = m.len(), "chat");
+    }
+}
+
 fn invia(tx: &mpsc::UnboundedSender<String>, v: Value) {
     let _ = tx.send(v.to_string());
 }
@@ -383,6 +410,10 @@ async fn vero_giro(
         };
         let costo = client::costo_usd(&scelta.modello, &risposta.usage);
         misure.giro(&risposta.usage, costo, inizio_giro.elapsed().as_secs_f64());
+        if debug_ai() {
+            tracing::info!(target: "sws_ai", giro, ms = inizio_giro.elapsed().as_millis() as u64,
+                           costo_usd = costo, "risposta del modello");
+        }
         invia(
             tx,
             json!({ "t": "risorse",
@@ -432,6 +463,23 @@ async fn vero_giro(
                 ));
                 continue;
             }
+            // Le basi aspettano la persona: niente istantanee nello stesso turno.
+            // Il 05-11-2026 il modello, invece di fermarsi, ha fotografato tre
+            // volte (60 s ciascuna), e per tutto quel tempo «Usa come base» non
+            // poteva partire.
+            if nome == "istantanea_pagina" && sfondi_in_questo_turno {
+                risultati.push(risultato(
+                    id,
+                    &json!({
+                        "eseguita": false,
+                        "motivo": "in questo turno hai generato delle basi di sfondo: fermati e \
+                                   lascia scegliere la persona («Usa come base»). La pagina si \
+                                   fotografa nel turno delle varianti.",
+                    }),
+                    true,
+                ));
+                continue;
+            }
             if nome == "proponi_modifica" {
                 match proponi(
                     s,
@@ -464,7 +512,7 @@ async fn vero_giro(
                     tx,
                     json!({ "t": "strumento", "nome": nome, "stato": "eseguo" }),
                 );
-                match istantanea_per_il_modello(s, input, banco).await {
+                match istantanea_per_il_modello(s, tx, input, banco).await {
                     Ok(blocchi) => {
                         invia(
                             tx,
@@ -497,6 +545,7 @@ async fn vero_giro(
                 tx,
                 json!({ "t": "strumento", "nome": nome, "stato": "eseguo" }),
             );
+            let inizio_strumento = std::time::Instant::now();
             // Le bozze di simbolo vivono qui, nel banco della conversazione:
             // `bozza_simbolo` ci scrive, e `valida` le deve vedere.
             let esito = match nome {
@@ -542,6 +591,12 @@ async fn vero_giro(
                     .map(|(g, _)| g),
                 _ => tools::esegui(s, nome, input).await,
             };
+            let ms = inizio_strumento.elapsed().as_millis() as u64;
+            if debug_ai() {
+                tracing::info!(target: "sws_ai", strumento = nome, ms, ok = esito.is_ok(), "strumento");
+            } else {
+                tracing::debug!(target: "sws_ai", strumento = nome, ms, ok = esito.is_ok(), "strumento");
+            }
             match esito {
                 Ok(v) => {
                     invia(
@@ -573,6 +628,7 @@ async fn vero_giro(
 /// l'unica prova di cosa il tocco ha fatto davvero.
 async fn istantanea_per_il_modello(
     s: &AppState,
+    tx: &mpsc::UnboundedSender<String>,
     input: &Value,
     banco: &Banco,
 ) -> Result<Value, String> {
@@ -603,6 +659,7 @@ async fn istantanea_per_il_modello(
             .collect(),
         pagine,
         www: s.www_dir.as_deref().cloned(),
+        faceplates: crate::ai::tools::faceplate_proposti(input)?,
         pagina: nome,
         tocca: input
             .get("tocca")
@@ -614,6 +671,17 @@ async fn istantanea_per_il_modello(
             .iter()
             .map(|f| (f.file(), f.jpg.clone()))
             .collect(),
+        avanzamento: Some({
+            let tx = tx.clone();
+            std::sync::Arc::new(move |riga: &str| {
+                let breve: String = riga.chars().take(120).collect();
+                invia(
+                    &tx,
+                    json!({ "t": "strumento", "nome": "istantanea_pagina",
+                                   "stato": "eseguo", "messaggio": breve }),
+                );
+            })
+        }),
     })
     .await?;
     Ok(blocchi_istantanea(&scatto))
@@ -714,6 +782,9 @@ async fn proponi(
             "motivo": input.get("motivo").and_then(Value::as_str).unwrap_or("modifica"),
             "project": normalizzato.as_ref().or_else(|| input.get("project")),
             "pages": input.get("pages"),
+            // I faceplate nuovi o cambiati (06-11-2026): il browser li mette fra
+            // le pagine-faceplate, e il Salva li scrive in faceplates/.
+            "faceplates": input.get("faceplates"),
             "impronta": impronta_iniziale,
             "giudizio": giudizio,
             "simboli": simboli_della_proposta(input, bozze),

@@ -12,6 +12,7 @@ import { useTranslation } from "react-i18next";
 import { api } from "@/api/client";
 import type { ProvaInfo } from "@/types";
 import { useAppStore } from "@/store";
+import { conferma } from "@/finestraAvviso/finestraAvviso";
 
 export function BannerProvaGit({ stileBottone }: { stileBottone: React.CSSProperties }) {
   const { t } = useTranslation();
@@ -59,7 +60,11 @@ export function BannerProvaGit({ stileBottone }: { stileBottone: React.CSSProper
       </button>
       <button
         type="button" style={bottone} disabled={occupato}
-        onClick={() => { if (window.confirm(t("gitProva.confermaRiparti", { short: prova.short, ramo: prova.ramo }))) void agisci(() => api.gitProvaRiparti()); }}
+        onClick={async () => {
+          if (await conferma({ testo: t("gitProva.confermaRiparti", { short: prova.short, ramo: prova.ramo }), si: t("gitProva.riparti") })) {
+            void agisci(() => api.gitProvaRiparti());
+          }
+        }}
       >
         {t("gitProva.riparti")}
       </button>

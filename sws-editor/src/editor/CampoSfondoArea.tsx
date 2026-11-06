@@ -7,6 +7,7 @@ import { dimenticaImmagine } from "@/canvas/ImmagineSvg";
 import { useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { api } from "@/api/client";
+import { avviso } from "@/finestraAvviso/finestraAvviso";
 
 const INPUT: React.CSSProperties = {
   width: "100%", background: "var(--brand-bg, #0f172a)", border: "1px solid var(--brand-border, #475569)",
@@ -56,7 +57,7 @@ export function CampoSfondoArea({ value, disabled, onChange, boot }: {
             onChange(res.url);
             setImmagini(null);
           } catch (err: unknown) {
-            alert(t("editor.uploadImageFailed", { err: err instanceof Error ? err.message : String(err) }));
+            void avviso({ testo: t("editor.uploadImageFailed", { err: err instanceof Error ? err.message : String(err) }), livello: "errore" });
           } finally {
             setCarica(false);
           }

@@ -19,6 +19,7 @@ import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useAppStore } from "@/store";
 import { api } from "@/api/client";
+import { scegli } from "@/finestraAvviso/finestraAvviso";
 import {
   chiaveDi, conSorgenteCambiata, conTesto, contaUsi, decidiChiave, prossimaChiave, testoSorgente,
 } from "@/i18n/chiaviAutomatiche";
@@ -77,10 +78,15 @@ export function CampoTestoTradotto({
     onChange(`{{${key}}}`);
   };
 
-  const conferma = () => {
-    setAttivo(false);
+  // Esc vuol dire «lascia com'era»: il `blur` che segue chiama `conferma` di
+  // questo stesso render, che ha ancora la bozza digitata. Senza questo segno
+  // Esc salvava il testo invece di buttarlo (visto nella revisione di F2).
+  const annullato = useRef(false);
+
+  const conferma = async () => {
     const testo = bozza;
-    if (testo === mostrato) return;
+    if (annullato.current) { annullato.current = false; setAttivo(false); return; }
+    if (testo === mostrato) { setAttivo(false); return; }
 
     const usiDi = (k: string) => {
       const pagine = useAppStore.getState().pages ?? [];
@@ -90,6 +96,10 @@ export function CampoTestoTradotto({
     // è indistinguibile dallo scriverne uno nuovo.
     const corrente = chiaveDi(valore);
     const d = decidiChiave(testo, tabella, usiDi, corrente);
+    // Mentre la finestra chiede, il campo mostra ancora il testo nuovo: la
+    // domanda è su quello. Il campo torna a seguire il progetto dopo la risposta.
+    const chiede = d.azione === "proponi-scissione" || d.azione === "proponi-riuso";
+    if (!chiede) setAttivo(false);
 
     if (d.azione === "lascia") {
       onChange(testo);
@@ -100,21 +110,34 @@ export function CampoTestoTradotto({
       salvaTabella(conSorgenteCambiata(tabella, d.key, testo));
       return;
     }
+    // Due strade, e Annulla (o Esc) che non ne prende nessuna: il campo torna
+    // com'era. Con `confirm` Annulla era una delle due strade, e un Esc dato per
+    // tirarsi indietro cambiava il testo dappertutto (F2, 05-11-2026).
     if (d.azione === "proponi-scissione") {
-      const separa = window.confirm(
-        t("campoTradotto.scissione", { key: d.key, altri: d.altriUsi }),
-      );
-      if (separa) creaNuova(testo);
-      else salvaTabella(conSorgenteCambiata(tabella, d.key, testo));
+      const dove = await scegli({
+        testo: t("campoTradotto.scissione", { key: d.key, altri: d.altriUsi }),
+        scelte: [
+          { valore: "ovunque", etichetta: t("campoTradotto.scissioneOvunque") },
+          { valore: "qui", etichetta: t("campoTradotto.scissioneQui") },
+        ],
+      });
+      setAttivo(false);
+      if (dove === "qui") creaNuova(testo);
+      else if (dove === "ovunque") salvaTabella(conSorgenteCambiata(tabella, d.key, testo));
       return;
     }
     if (d.azione === "proponi-riuso") {
       const dove = d.usiEsistenti > 0 ? t("campoTradotto.riusoDove", { usi: d.usiEsistenti }) : "";
-      const riusa = window.confirm(
-        t("campoTradotto.riusoTitolo", { testo, key: d.key }) + dove + t("campoTradotto.riusoScelta"),
-      );
-      if (riusa) onChange(`{{${d.key}}}`);
-      else creaNuova(testo);
+      const scelta = await scegli({
+        testo: t("campoTradotto.riusoTitolo", { testo, key: d.key }) + dove + t("campoTradotto.riusoNuovaQuando"),
+        scelte: [
+          { valore: "nuova", etichetta: t("campoTradotto.riusoNo") },
+          { valore: "riusa", etichetta: t("campoTradotto.riusoSi") },
+        ],
+      });
+      setAttivo(false);
+      if (scelta === "riusa") onChange(`{{${d.key}}}`);
+      else if (scelta === "nuova") creaNuova(testo);
       return;
     }
     creaNuova(testo);
@@ -150,8 +173,8 @@ export function CampoTestoTradotto({
         onKeyDown={(e) => {
           if (e.key === "Enter") (e.target as HTMLInputElement).blur();
           if (e.key === "Escape") {
+            annullato.current = true;
             setBozza(mostrato);
-            setAttivo(false);
             (e.target as HTMLInputElement).blur();
           }
         }}

@@ -45,6 +45,118 @@ use tokio::sync::mpsc;
 pub type FunctionsRegistry =
     Arc<tokio::sync::RwLock<std::collections::HashMap<String, FunctionDef>>>;
 
+/// Un nome che uno script o una funzione trova già pronto, senza `import`.
+#[derive(Debug, Clone, Copy, Serialize)]
+pub struct NomeFornito {
+    pub nome: &'static str,
+    /// Come si scrive: la firma, non una spiegazione. È quello che l'IDE mostra
+    /// accanto al nome (la spiegazione, nella sua lingua, la mette l'IDE).
+    pub uso: &'static str,
+    /// La spiegazione per l'assistente (`schema_python`), in italiano come il
+    /// resto dei suoi strumenti.
+    #[serde(skip)]
+    pub cosa: &'static str,
+}
+
+/// **L'elenco unico** dei nomi forniti (L0, 05-11-2026). Prima erano quattro
+/// elenchi che non coincidevano: l'harness, il controllo (che aveva `print` in
+/// più), `schema_python` (senza `functions` e `tr`) e il testo dell'editor.
+/// Ora l'harness costruisce i suoi globali scorrendo questo elenco
+/// (`run_in_python`), il controllo lo riceve, `schema_python` lo legge e la
+/// rotta `GET /api/script/nomi` lo dà all'IDE.
+pub const NOMI_FORNITI: &[NomeFornito] = &[
+    NomeFornito {
+        nome: "tags",
+        uso: "tags.read(id) · tags.write(id, valore)",
+        cosa: "I tag del progetto. `tags.read('id')` legge (None se il tag non esiste), \
+               `tags.write('id', valore)` scrive. NON è indicizzabile: `tags['id']` solleva \
+               TypeError, non è mai stato il modo giusto. Un tag con `expression` o con \
+               `generator` attivo è calcolato: scriverlo viene rifiutato.",
+    },
+    NomeFornito {
+        nome: "print",
+        uso: "print(...)",
+        cosa: "Il testo va nel log del runtime, col nome dello script o della funzione, e \
+               per una funzione anche nella risposta (la vede «Prova»). Serve per la \
+               diagnosi, non per comunicare con l'operatore.",
+    },
+    NomeFornito {
+        nome: "send_telegram",
+        uso: "send_telegram(testo)",
+        cosa: "`send_telegram('testo')`. Funziona solo se il canale Telegram è configurato \
+               nelle notifiche del progetto.",
+    },
+    NomeFornito {
+        nome: "now_ms",
+        uso: "now_ms()",
+        cosa: "`now_ms()` — millisecondi dall'epoch Unix (T-69). Congelato all'inizio di \
+               questa esecuzione, non cambia se chiamato più volte nello stesso giro.",
+    },
+    NomeFornito {
+        nome: "uptime_ms",
+        uso: "uptime_ms()",
+        cosa: "`uptime_ms()` — millisecondi dalla PRIMA volta che questo script/funzione è \
+               girato in questo processo (T-69), non dall'avvio del runtime.",
+    },
+    NomeFornito {
+        nome: "delta_ms",
+        uso: "delta_ms()",
+        cosa: "`delta_ms()` — millisecondi dall'ULTIMA invocazione di questo script/funzione \
+               (T-69). Vale 0 al primo giro: una rampa scritta come `pos += delta_ms() / \
+               periodo` resta ferma al primo giro invece di saltare, e si muove a cadenza \
+               reale indipendente da quanto spesso il trigger la richiama.",
+    },
+    NomeFornito {
+        nome: "state",
+        uso: "state.get(chiave, default=None) · state.set(chiave, valore)",
+        cosa: "`state.get('chiave', default=None)` / `state.set('chiave', valore)` (T-69) — \
+               memoria persistente fra un giro e l'altro dello STESSO script/funzione (es. la \
+               direzione di una rampa), senza bisogno di un tag di servizio. Solo \
+               bool/int/float/str. Si perde al riavvio del runtime: un contatore che deve \
+               sopravvivere va in un tag.",
+    },
+    NomeFornito {
+        nome: "functions",
+        uso: "functions.run(nome, **parametri)",
+        cosa: "`functions.run('nome', parametro=valore)` — esegue una funzione di progetto \
+               dentro lo stesso processo, coi default per i parametri non passati. Solo dagli \
+               script globali: da dentro un'altra funzione solleva un errore esplicito.",
+    },
+    NomeFornito {
+        nome: "tr",
+        uso: "tr(chiave)",
+        cosa: "`tr('chiave')` — il segnaposto `{{chiave}}` della tabella lingue: scritto in un \
+               tag di testo, il pannello lo mostra nella lingua di chi guarda. Non traduce \
+               qui: restituisce il segnaposto.",
+    },
+];
+
+/// I builtin che la sandbox aggiunge a `safe_builtins` di RestrictedPython
+/// (L0, decisione del 04-11-2026). `safe_builtins` non ha `min`, `max`, `sum`,
+/// `list`, `enumerate`…, e la gente li scrive senza pensarci; nessuno di questi
+/// tocca file, rete o interprete. `abs`, `round`, `len` e `range` ci sono già:
+/// stanno qui lo stesso perché questo è l'elenco promesso, non la differenza.
+pub const BUILTIN_AGGIUNTI: &[&str] = &[
+    "min",
+    "max",
+    "sum",
+    "abs",
+    "round",
+    "len",
+    "list",
+    "dict",
+    "enumerate",
+    "range",
+    "any",
+    "all",
+    "sorted",
+];
+
+/// I nomi di `NOMI_FORNITI`, per i due harness.
+fn nomi_forniti() -> Vec<&'static str> {
+    NOMI_FORNITI.iter().map(|n| n.nome).collect()
+}
+
 /// `TagValue` → oggetto Python. Una sola conversione per i quattro tipi: prima
 /// la stessa `match` viveva in due punti del file, e ogni cambio di API pyo3
 /// andava fatto due volte (pyo3 0.25: `into_py` è sparito a favore di
@@ -137,8 +249,21 @@ const DEFAULT_TIMEOUT_MS: u64 = 5_000;
 
 /// Wraps the user source in stdout/stderr capture + restricted compile.
 /// The user source is injected as `__sws_user_source__` (a Python str)
-/// alongside `__sws_sandbox__` (a bool flag), `tags` (the API), and
-/// `__sws_kill_switch__` (a Rust-backed object polled by the trace fn).
+/// alongside `__sws_sandbox__` (a bool flag), `__sws_api__` (the objects of
+/// `NOMI_FORNITI`, by name), `__sws_builtin_aggiunti__` (`BUILTIN_AGGIUNTI`)
+/// and `__sws_kill_switch__` (a Rust-backed object polled by the trace fn).
+///
+/// In the sandbox branch the globals also carry the guards RestrictedPython
+/// rewrites code into: `_print_`, `_getiter_` (`for`, comprehensions),
+/// `_iter_unpack_sequence_` / `_unpack_sequence_` (`for a, b in …`,
+/// `a, b = …`) and `_inplacevar_` (`+=`). Until L0 (05-11-2026) only
+/// `_getattr_`, `_getitem_` and `_write_` were there, so `print`, `for` and
+/// `+=` failed with `NameError` on every panel — and passed on a development
+/// PC, where RestrictedPython is usually missing.
+///
+/// Top-level assignments land in the throw-away locals dict of
+/// `exec(code, globals, {})`, so a `def` in the script does not see them:
+/// `schema_python` says so, and `demo-sim` keeps its table inside the `def`.
 ///
 /// Preemption: `sys.settrace` installs a per-bytecode-boundary trace function
 /// that checks `__sws_kill_switch__.is_set()`.  A Rust timer thread sets the
@@ -171,37 +296,76 @@ __sws_compiled__ = None
 
 try:
     if __sws_sandbox__:
+        import builtins as __sws_b__, operator as __sws_op__, warnings as __sws_w__
         from RestrictedPython import compile_restricted, safe_builtins
+        from RestrictedPython.Eval import default_guarded_getiter
+        from RestrictedPython.Guards import guarded_iter_unpack_sequence, guarded_unpack_sequence
+        from RestrictedPython.PrintCollector import PrintCollector
+
+        # `print` riscritto da RestrictedPython: raccoglie in `printed` come
+        # vuole lei, e scrive anche nello stdout catturato **di questa
+        # esecuzione**, dove lo legge Rust (il log, e la risposta di una
+        # funzione). Senza `_print_` il primo `print` dava NameError (L0,
+        # 05-11-2026). `__sws_out__` e non `sys.stdout`: quello è del processo,
+        # e due script che girano insieme (`tags.read` rilascia il GIL) si
+        # mescolavano i testi. `flush` perché `print(..., flush=True)` lo chiede.
+        class __SwsPrint__(PrintCollector):
+            def write(self, text):
+                PrintCollector.write(self, text)
+                __sws_out__.write(text)
+            def flush(self):
+                pass
+
+        # `x += 1` diventa `x = _inplacevar_('+=', x, 1)`. RestrictedPython lo
+        # chiede solo per i nomi: `a.b += 1` e `a[k] += 1` li rifiuta già in
+        # compilazione, quindi qui non passa mai un attributo.
+        __sws_inplace__ = {
+            '+=': __sws_op__.iadd, '-=': __sws_op__.isub, '*=': __sws_op__.imul,
+            '/=': __sws_op__.itruediv, '//=': __sws_op__.ifloordiv, '%=': __sws_op__.imod,
+            '**=': __sws_op__.ipow, '<<=': __sws_op__.ilshift, '>>=': __sws_op__.irshift,
+            '&=': __sws_op__.iand, '|=': __sws_op__.ior, '^=': __sws_op__.ixor,
+        }
+        def __sws_inplacevar__(op, x, y):
+            f = __sws_inplace__.get(op)
+            if f is None:
+                raise SyntaxError(f'operatore {op} non disponibile nella sandbox')
+            return f(x, y)
+
+        __sws_builtins__ = dict(safe_builtins)
+        for __sws_n__ in __sws_builtin_aggiunti__:
+            __sws_builtins__[__sws_n__] = getattr(__sws_b__, __sws_n__)
+
         __sws_globals__ = {
-            '__builtins__': safe_builtins,
+            '__builtins__': __sws_builtins__,
             '_getattr_':   getattr,
             '_getitem_':   lambda o, k: o[k],
             '_write_':     lambda x: x,
-            'tags':        tags,
-            'send_telegram': send_telegram,
-            'now_ms':      now_ms,
-            'uptime_ms':   uptime_ms,
-            'delta_ms':    delta_ms,
-            'state':       state,
-            'functions':   functions,
-            'tr':          tr,
+            '_print_':     __SwsPrint__,
+            '_getiter_':   default_guarded_getiter,
+            '_iter_unpack_sequence_': guarded_iter_unpack_sequence,
+            '_unpack_sequence_':      guarded_unpack_sequence,
+            '_inplacevar_': __sws_inplacevar__,
         }
+        __sws_globals__.update(__sws_api__)
         try:
-            __sws_compiled__ = compile_restricted(__sws_user_source__, '<inline>', 'exec')
+            # Gli avvisi di RestrictedPython («Prints, but never reads
+            # 'printed'») sono benigni e finirebbero sullo stderr del processo
+            # a ogni giro: lo stesso filtro del controllo.
+            with __sws_w__.catch_warnings():
+                __sws_w__.simplefilter('ignore')
+                __sws_compiled__ = compile_restricted(__sws_user_source__, '<inline>', 'exec')
         except SyntaxError as _e:
             __sws_error__ = f'SyntaxError: {_e}'
     else:
-        __sws_globals__ = {
-            '__builtins__': __builtins__,
-            'tags':          tags,
-            'send_telegram': send_telegram,
-            'now_ms':        now_ms,
-            'uptime_ms':     uptime_ms,
-            'delta_ms':      delta_ms,
-            'state':         state,
-            'functions':     functions,
-            'tr':            tr,
-        }
+        # Lo stesso `print` della sandbox: nello stdout di questa esecuzione,
+        # non in `sys.stdout`, che è del processo.
+        def __sws_print__(*a, **k):
+            if k.get('file') is None:
+                k['file'] = __sws_out__
+            print(*a, **k)
+        __sws_globals__ = {'__builtins__': __builtins__}
+        __sws_globals__.update(__sws_api__)
+        __sws_globals__['print'] = __sws_print__
         try:
             __sws_compiled__ = compile(__sws_user_source__, '<inline>', 'exec')
         except SyntaxError as _e:
@@ -373,17 +537,21 @@ impl FunctionsApi {
         let args = pydict_to_json_map(kwargs)?;
 
         let name_owned = name.to_string();
-        let code = py.detach(|| {
+        let trovata = py.detach(|| {
             self.handle.block_on(async move {
                 let map = registry.read().await;
-                map.get(&name_owned).map(|f| f.code.clone())
+                map.get(&name_owned).cloned()
             })
         });
-        let code = code.ok_or_else(|| {
+        let funzione = trovata.ok_or_else(|| {
             PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(format!(
                 "functions.run: nessuna funzione '{name}'"
             ))
         })?;
+        // I default dei parametri non passati, come per un pulsante
+        // (`FunctionDef::argomenti`, L0).
+        let args = funzione.argomenti(args);
+        let code = funzione.code;
 
         // Identità = il nome nudo della funzione, non quello dello script
         // chiamante: la funzione tiene il proprio delta_ms()/state a
@@ -846,10 +1014,16 @@ impl Engine {
                 // lì c'è del contenuto che qualcuno ha voluto mettere, e
                 // tacerlo sarebbe perdere l'unica traccia di un `print` di
                 // diagnosi. Il fallimento resta `warn` qui sotto, sempre.
+                //
+                // Dal 05-11-2026 (L0) la riga porta il testo stampato e il nome
+                // di chi l'ha stampato: prima diceva solo quanti byte, e il
+                // `print` di una funzione non arrivava da nessuna parte se non
+                // nella risposta HTTP. Il testo si tronca: un `for` che stampa a
+                // ogni giro non deve diventare una riga di megabyte.
                 if out.stdout.is_empty() {
-                    debug!("python script ran cleanly");
+                    debug!(nome = %identity, "python script ran cleanly");
                 } else {
-                    info!(stdout_bytes = out.stdout.len(), "python script ran cleanly");
+                    info!(nome = %identity, testo = %testo_per_il_log(&out.stdout), "print");
                 }
                 Ok(out)
             }
@@ -872,6 +1046,21 @@ impl Engine {
             Err(_) => Err(format!("script timed out after {} ms", timeout.as_millis())),
         }
     }
+}
+
+/// Quanto di un `print` finisce in una riga di log.
+const LOG_PRINT_MAX: usize = 2_000;
+
+fn testo_per_il_log(stdout: &str) -> String {
+    let t = stdout.trim_end();
+    if t.len() <= LOG_PRINT_MAX {
+        return t.to_string();
+    }
+    let mut fine = LOG_PRINT_MAX;
+    while !t.is_char_boundary(fine) {
+        fine -= 1;
+    }
+    format!("{}… (altri {} byte)", &t[..fine], t.len() - fine)
 }
 
 /// Python harness used by `eval_expression`.
@@ -1031,23 +1220,37 @@ fn run_in_python(
                 handle: handle_for_functions,
             },
         )?;
-        let globals = PyDict::new(py);
-        globals.set_item("tags", api)?;
-        globals.set_item("send_telegram", notifier)?;
-        globals.set_item("now_ms", now_ms_obj)?;
-        globals.set_item("uptime_ms", uptime_ms_obj)?;
-        globals.set_item("delta_ms", delta_ms_obj)?;
-        globals.set_item("state", state_obj)?;
-        globals.set_item("functions", functions_obj)?;
-        globals.set_item(
-            "tr",
-            Py::new(
-                py,
-                Traduttore {
-                    chiavi: chiavi_lingua.clone(),
-                },
-            )?,
+        let tr = Py::new(
+            py,
+            Traduttore {
+                chiavi: chiavi_lingua.clone(),
+            },
         )?;
+        // I globali forniti si costruiscono scorrendo `NOMI_FORNITI`, non a
+        // mano: un nome aggiunto all'elenco senza il suo oggetto si ferma qui
+        // al primo script (e al primo test), invece di finire in un elenco che
+        // promette quello che l'harness non dà.
+        let forniti = PyDict::new(py);
+        for n in NOMI_FORNITI {
+            let oggetto: Py<PyAny> = match n.nome {
+                "tags" => api.clone_ref(py).into_any(),
+                "send_telegram" => notifier.clone_ref(py).into_any(),
+                "now_ms" => now_ms_obj.clone_ref(py).into_any(),
+                "uptime_ms" => uptime_ms_obj.clone_ref(py).into_any(),
+                "delta_ms" => delta_ms_obj.clone_ref(py).into_any(),
+                "state" => state_obj.clone_ref(py).into_any(),
+                "functions" => functions_obj.clone_ref(py).into_any(),
+                "tr" => tr.clone_ref(py).into_any(),
+                // Lo fornisce la sandbox (`_print_` nell'harness), o Python
+                // stesso quando la sandbox manca.
+                "print" => continue,
+                altro => unreachable!("NOMI_FORNITI: `{altro}` non ha un oggetto in run_in_python"),
+            };
+            forniti.set_item(n.nome, oggetto)?;
+        }
+        let globals = PyDict::new(py);
+        globals.set_item("__sws_api__", forniti)?;
+        globals.set_item("__sws_builtin_aggiunti__", BUILTIN_AGGIUNTI.to_vec())?;
         globals.set_item("__sws_kill_switch__", kill_switch)?;
         globals.set_item("__sws_user_source__", user_source)?;
         globals.set_item("__sws_sandbox__", sandbox)?;
@@ -1165,7 +1368,9 @@ except BaseException as _e:
 if __sws_syntax__ is None and __sws_sandbox__:
     try:
         from RestrictedPython import compile_restricted, safe_builtins
-        __sws_safe__ = safe_builtins
+        # Gli stessi builtin dell'esecuzione: `safe_builtins` più quelli che
+        # l'harness aggiunge (`BUILTIN_AGGIUNTI`, da Rust).
+        __sws_safe__ = set(safe_builtins) | set(__sws_builtin_aggiunti__)
         with warnings.catch_warnings():
             # RestrictedPython avvisa di cose benigne (per esempio «Prints, but
             # never reads 'printed' variable»): non sono divieti, e riportarli
@@ -1190,8 +1395,8 @@ if __sws_syntax__ is None and __sws_vietato__ is None and __sws_albero__ is not 
     __sws_candidati__ = ['open', '__import__', 'compile', 'input', 'globals',
                          'locals', 'vars', 'dir', 'eval', 'exec', 'breakpoint',
                          'memoryview', 'help', 'exit', 'quit']
-    __sws_forniti__ = ['tags', 'send_telegram', 'tr', 'print',
-                       'now_ms', 'uptime_ms', 'delta_ms', 'state', 'functions']
+    # `__sws_forniti__` arriva da Rust: è `NOMI_FORNITI`, lo stesso elenco da
+    # cui l'harness di esecuzione costruisce i suoi globali.
     for _n in ast.walk(__sws_albero__):
         if isinstance(_n, (ast.Import, ast.ImportFrom)):
             _quali = ', '.join(a.name for a in _n.names) if _n.names else '?'
@@ -1286,6 +1491,8 @@ fn check_in_python(sandbox: bool, code: String) -> CheckOutput {
         let globals = PyDict::new(py);
         globals.set_item("__sws_user_source__", &code)?;
         globals.set_item("__sws_sandbox__", sandbox)?;
+        globals.set_item("__sws_forniti__", nomi_forniti())?;
+        globals.set_item("__sws_builtin_aggiunti__", BUILTIN_AGGIUNTI.to_vec())?;
 
         let c = CString::new(CHECK_HARNESS)
             .expect("CHECK_HARNESS contains a NUL byte — should not happen");
@@ -1877,5 +2084,201 @@ mod tests_sandbox_obbligatoria {
             .await;
         imposta_sandbox_obbligatoria(false);
         assert_eq!(r.unwrap_err(), MOTIVO_SENZA_SANDBOX);
+    }
+}
+
+/// L0 (05-11-2026): la sandbox dà quello che RestrictedPython riscrive, e i
+/// default dei parametri arrivano alla funzione.
+///
+/// Girano con e senza RestrictedPython, e asseriscono la stessa cosa nei due
+/// rami: senza, `print`, `for` e `+=` sono Python normale e passano comunque;
+/// con, passano solo se le guardie ci sono. È il secondo ramo quello che conta,
+/// e sul PC di sviluppo va acceso a mano:
+/// `PYTHONPATH=<venv>/lib/python3.11/site-packages cargo test -p sws-pyscript`
+/// (un venv con `pip install RestrictedPython`, per esempio in `sws/tmp/`).
+#[cfg(test)]
+mod tests_sandbox_l0 {
+    use super::*;
+
+    fn motore() -> (Engine, Arc<TagDb>) {
+        let db = Arc::new(TagDb::new(16));
+        (Engine::new(db.clone(), Arc::new(TagWriteBus::new())), db)
+    }
+
+    async fn valore(db: &TagDb, id: &str) -> Option<TagValue> {
+        db.snapshot().await.get(id).map(|s| s.value.clone())
+    }
+
+    #[tokio::test]
+    async fn print_arriva_nello_stdout() {
+        let (e, _) = motore();
+        let out = e
+            .execute(
+                "print('ciao', 1 + 1)\ndef f():\n    print('dentro')\nf()\n".into(),
+                "s",
+            )
+            .await
+            .expect("print non deve dare NameError");
+        assert_eq!(out.stdout, "ciao 2\ndentro\n");
+    }
+
+    #[tokio::test]
+    async fn print_con_flush_come_in_python() {
+        let (e, _) = motore();
+        let out = e
+            .execute("print('ciao', flush=True)\n".into(), "s")
+            .await
+            .expect("flush=True non deve fallire nella sandbox");
+        assert_eq!(out.stdout, "ciao\n");
+    }
+
+    /// Due esecuzioni insieme non si mescolano i `print`: ognuna scrive nel
+    /// suo stdout, non in `sys.stdout` del processo (dalla revisione di L0:
+    /// `tags.read` rilascia il GIL, e i testi finivano nell'altra).
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn i_print_di_due_esecuzioni_non_si_mescolano() {
+        let (e, _) = motore();
+        let codice =
+            |nome: &str| format!("for i in range(200):\n    tags.read('x')\n    print('{nome}')\n");
+        let (a, b) = tokio::join!(e.execute(codice("a"), "a"), e.execute(codice("b"), "b"));
+        let (a, b) = (a.expect("a"), b.expect("b"));
+        assert_eq!(a.stdout, "a\n".repeat(200));
+        assert_eq!(b.stdout, "b\n".repeat(200));
+    }
+
+    #[tokio::test]
+    async fn for_piu_uguale_e_spacchettamento() {
+        let (e, db) = motore();
+        let codice = "\
+tot = 0
+for i in range(4):
+    tot += i
+for a, b in [(1, 2), (3, 4)]:
+    tot += a * b
+x, y = 10, 20
+tot -= x
+tot *= 2
+quadrati = [k * k for k in range(3)]
+tags.write('tot', tot + sum(quadrati) + y)
+";
+        e.execute(codice.into(), "s")
+            .await
+            .expect("lo script deve girare");
+        // (0+1+2+3 + 1*2 + 3*4 - 10) * 2 + (0+1+4) + 20 = 20 + 5 + 20
+        assert_eq!(valore(&db, "tot").await, Some(TagValue::Int(45)));
+    }
+
+    #[tokio::test]
+    async fn i_builtin_aggiunti_ci_sono() {
+        let (e, db) = motore();
+        let codice = "\
+v = [3, 1, 2]
+ok = (min(v) == 1 and max(v) == 3 and sum(v) == 6 and sorted(v) == [1, 2, 3]
+      and list(enumerate('ab')) == [(0, 'a'), (1, 'b')] and any(v) and all(v)
+      and dict(a=1)['a'] == 1 and len(v) == 3 and abs(-2) == 2 and round(2.6) == 3)
+tags.write('ok', ok)
+";
+        e.execute(codice.into(), "s")
+            .await
+            .expect("lo script deve girare");
+        assert_eq!(valore(&db, "ok").await, Some(TagValue::Bool(true)));
+    }
+
+    /// Le guardie non aprono quello che la sandbox chiude: un attributo privato
+    /// resta rifiutato in compilazione, anche dentro un `+=`.
+    #[tokio::test]
+    async fn la_sandbox_resta_chiusa() {
+        let (e, _) = motore();
+        if !e.is_sandboxed() {
+            return; // senza RestrictedPython non c'è niente da chiudere
+        }
+        let r = e.execute("x = 1\nx += (1).__class__\n".into(), "s").await;
+        assert!(
+            r.unwrap_err().contains("SyntaxError"),
+            "un dunder va rifiutato"
+        );
+        let r = e.execute("import os\n".into(), "s").await;
+        assert!(r.is_err(), "un import resta vietato");
+    }
+
+    /// Ogni nome dell'elenco unico esiste davvero a esecuzione: l'harness li
+    /// costruisce da `NOMI_FORNITI`, e un nome senza oggetto si fermerebbe qui.
+    #[tokio::test]
+    async fn ogni_nome_fornito_esiste_a_esecuzione() {
+        let (e, db) = motore();
+        let nomi = NOMI_FORNITI
+            .iter()
+            .map(|n| n.nome)
+            .collect::<Vec<_>>()
+            .join(", ");
+        e.execute(format!("n = len([{nomi}])\ntags.write('n', n)\n"), "s")
+            .await
+            .expect("tutti i nomi forniti devono esistere");
+        assert_eq!(
+            valore(&db, "n").await,
+            Some(TagValue::Int(NOMI_FORNITI.len() as i64))
+        );
+    }
+
+    /// Un pulsante passa `{}`: il default del parametro deve arrivare lo
+    /// stesso. Qui per `functions.run`; per la rotta HTTP vale lo stesso
+    /// `FunctionDef::argomenti`.
+    #[tokio::test]
+    async fn functions_run_applica_il_default_dei_parametri() {
+        let (e, db) = motore();
+        let registry: FunctionsRegistry =
+            Arc::new(tokio::sync::RwLock::new(std::collections::HashMap::from([
+                (
+                    "saluta".to_string(),
+                    sws_core::FunctionDef {
+                        id: "f1".into(),
+                        name: "saluta".into(),
+                        description: None,
+                        code: "tags.write('chi', chi)\ntags.write('volte', volte)\n".into(),
+                        params: vec![
+                            sws_core::FunctionParam {
+                                name: "chi".into(),
+                                default: Some("operatore".into()),
+                            },
+                            sws_core::FunctionParam {
+                                name: "volte".into(),
+                                default: Some(2.into()),
+                            },
+                        ],
+                    },
+                ),
+            ])));
+        e.set_functions_registry(Some(registry));
+
+        e.execute("functions.run('saluta', volte=5)".into(), "script-a")
+            .await
+            .expect("il parametro non passato deve avere il suo default");
+        assert_eq!(
+            valore(&db, "chi").await,
+            Some(TagValue::Str("operatore".into()))
+        );
+        assert_eq!(
+            valore(&db, "volte").await,
+            Some(TagValue::Int(5)),
+            "il passato vince"
+        );
+    }
+
+    #[tokio::test]
+    async fn il_controllo_non_segnala_i_builtin_aggiunti() {
+        let (e, _) = motore();
+        let out = e
+            .check("v = [1, 2]\nfor i, x in enumerate(v):\n    print(i, min(v), sum(v))\n".into())
+            .await;
+        assert!(out.ok, "rilievi inattesi: {:?}", out.rilievi);
+    }
+
+    #[test]
+    fn il_testo_di_un_print_lungo_si_tronca_nel_log() {
+        let corto = testo_per_il_log("ciao\n");
+        assert_eq!(corto, "ciao");
+        let lungo = testo_per_il_log(&"è".repeat(LOG_PRINT_MAX));
+        assert!(lungo.len() < LOG_PRINT_MAX + 40, "{}", lungo.len());
+        assert!(lungo.ends_with("byte)"), "{lungo}");
     }
 }

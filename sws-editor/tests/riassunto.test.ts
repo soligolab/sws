@@ -152,3 +152,42 @@ describe("il diff nomina la pagina per come si legge", () => {
     expect(d.map((v) => v.testo)).toContain("button `b1` in «Indicatori»");
   });
 });
+
+describe("i faceplate della proposta (06-11-2026)", () => {
+  const fp = { id: "laminatoio", label: "Laminatoio", width: 200, height: 120,
+               params: [{ name: "m", type: "istanza" as const, type_ref: "laminatoio" }],
+               objects: [{ id: "v", type: "text" as const, x: 0, y: 0, tag: "{m}.velocita" }] };
+
+  it("uno nuovo compare nel diff col numero di oggetti", () => {
+    const d = riassumi(null, null, base(), [], [fp]);
+    expect(d).toEqual([{ verso: "+", testo: "faceplate `laminatoio` (1 oggetti)" }]);
+  });
+
+  it("uno uguale a quello dell'editor non compare, uno cambiato sì", async () => {
+    const { faceplateAPagina } = await import("@/faceplate/modello");
+    const pagine = [faceplateAPagina(fp)];
+    expect(riassumi(null, null, base(), pagine, [fp])).toEqual([]);
+    const cambiato = { ...fp, objects: [...fp.objects, { id: "w", type: "rect" as const, x: 0, y: 0 }] };
+    expect(riassumi(null, null, base(), pagine, [cambiato])[0].verso).toBe("~");
+  });
+});
+
+describe("applicare una proposta con un faceplate", () => {
+  it("diventa una pagina-faceplate, e un predefinito cambiato diventa personalizzato", async () => {
+    const { useAppStore } = await import("@/store");
+    const { faceplateAPagina, idPaginaDiFaceplate } = await import("@/faceplate/modello");
+    const motore = { id: "motor_basic", label: "Motor", params: [], objects: [] };
+    useAppStore.setState({ project: base(), pages: [faceplateAPagina(motore, "intatto")] });
+    const nuovo = { id: "laminatoio", label: "Laminatoio", params: [], objects: [] };
+    const esito = await useAppStore.getState().applyAiProposal({
+      id: "x", motivo: "prova",
+      faceplates: [nuovo, { ...motore, label: "Motore" }],
+    });
+    expect(esito.ok).toBe(true);
+    const pg = useAppStore.getState().pages;
+    expect(pg.find((p) => p.id === idPaginaDiFaceplate("laminatoio"))?.kind).toBe("faceplate");
+    const m = pg.find((p) => p.id === idPaginaDiFaceplate("motor_basic"));
+    expect(m?.name).toBe("Motore");
+    expect(m?.faceplate_predefinito).toBe("personalizzato");
+  });
+});

@@ -1,5 +1,8 @@
 # La fiducia nel browser del pannello, al posto della chiave del dispositivo
 
+> **Archiviato il 05-11-2026: fatto, uscito nella 2.23.0** (`540ed9b3`), anche se qui sotto si chiama ancora «seme».
+> Il collaudo resta in `docs/COLLAUDI_IN_SOSPESO.md` §A-bis; «Disabilita TLS» che non torna in chiaro è in `docs/plans/Appunti.txt`.
+
 > **Seme — decisione.** Nato il 26-10-2026. La strada è **provata sul WP630** ed è quella che indica
 > chi sviluppa PixsysOS. Restano da decidere i dettagli.
 >

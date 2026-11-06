@@ -20,7 +20,7 @@ questa nota direbbe il falso:
   su 6 milioni di righe.
 - **Licenze** (§ relativo): metà fatta — `max_pannelli` si mostra. Quando si **consuma** e
   soprattutto quando si **libera** una licenza resta aperto, ed è un seme suo:
-  [quando si libera una licenza](../plans/2026-10-21-quando-si-libera-una-licenza.md).
+  [quando si libera una licenza](2026-10-21-quando-si-libera-una-licenza.md).
 
 Il resto della mappa vale ancora. Chi la rilegge per decidere la seconda o la terza fascia
 riparta da qui, non dalle righe singole: una mappa misurata su `main 0637bf82` ha ormai qualche

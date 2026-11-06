@@ -15,6 +15,7 @@ import { DisponibilitaSezione } from "@/config/sorgenti/card/DisponibilitaSezion
 import { SparkplugSection } from "@/config/sorgenti/SparkplugSection";
 import { compilaRichiesteZigbee2mqtt, pubblicabile, richiestaZigbee2mqtt } from "@/config/sorgenti/richiestaStato";
 import { CampoNumero } from "@/components/CampoNumero";
+import { conferma } from "@/finestraAvviso/finestraAvviso";
 
 // ── MQTT card ─────────────────────────────────────────────────────────────────
 //
@@ -41,13 +42,14 @@ function ModoMappatura({ source, onChange }: { source: MqttSource; onChange: (s:
     <span role="group" aria-label={t("sorgenti.modo.titolo")} title={t("sorgenti.modo.titolo")}
       style={{ display: "inline-flex", border: "1px solid var(--brand-border, #475569)", borderRadius: 5, overflow: "hidden" }}>
       <button type="button" data-testid="modo-topic" aria-pressed={!sparkplug} style={bottone(!sparkplug)}
-        onClick={() => {
+        onClick={async () => {
           if (!sparkplug) return;
           // Tornare ai topic butta la configurazione Sparkplug, come la casella
           // di prima. Con delle metriche dentro si chiede: un clic su un
           // interruttore è più facile da sbagliare di una casella con la sua
           // scritta accanto.
-          if ((source.sparkplug?.metrics.length ?? 0) > 0 && !window.confirm(t("sorgenti.modo.confermaTopic"))) return;
+          if ((source.sparkplug?.metrics.length ?? 0) > 0
+            && !(await conferma({ testo: t("sorgenti.modo.confermaTopic"), pericolo: true, si: t("sorgenti.modo.topic") }))) return;
           onChange({ ...source, sparkplug: undefined });
         }}>{t("sorgenti.modo.topic")}</button>
       <button type="button" data-testid="modo-sparkplug" aria-pressed={sparkplug} style={bottone(sparkplug)}

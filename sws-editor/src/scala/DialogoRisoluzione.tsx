@@ -13,6 +13,7 @@ import { eFaceplateDef } from "@/faceplate/modello";
 import { salvaLayout } from "@/formatoProgettoAzioni";
 import { fattore, misuraDaProporre, type Misura } from "./scalaPagina";
 import { CampoNumero } from "@/components/CampoNumero";
+import { Cornice } from "@/finestraAvviso/FinestraAvviso";
 
 const INPUT: React.CSSProperties = {
   width: "100%", background: "var(--brand-bg, #0f172a)", color: "var(--brand-text, #e2e8f0)",
@@ -29,7 +30,8 @@ const uguale = (a: Misura | null, w?: number, h?: number) => !!a && a.width === 
 
 /** `inModulo` (05-11-2026): aperto come `modulo` della Finestra di avviso, sopra
  *  la finestra «Impostazioni progetto». Lì velo, titolo, Esc e Tab li dà la
- *  finestra: qui resta solo il contenuto. */
+ *  finestra: qui resta solo il contenuto. Da solo, sta nella stessa cornice
+ *  (`Cornice`, F3). */
 export function DialogoRisoluzione({ onClose, inModulo = false }: { onClose: () => void; inModulo?: boolean }) {
   const { t } = useTranslation();
   // I faceplate non si scalano col progetto (29-10-2026): le istanze li
@@ -84,16 +86,9 @@ export function DialogoRisoluzione({ onClose, inModulo = false }: { onClose: () 
   const contenitore = (figli: ReactNode) => inModulo
     ? <div data-testid="dialogo-risoluzione" style={{ width: 460, maxWidth: "100%", display: "flex", flexDirection: "column", gap: 10 }}>{figli}</div>
     : (
-      <div role="dialog" aria-modal="true" data-testid="dialogo-risoluzione"
-        style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.55)", zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center" }}
-        onClick={onClose}>
-        <div onClick={(e) => e.stopPropagation()}
-          style={{ background: "var(--brand-surface, #1e293b)", color: "var(--brand-text, #e2e8f0)", border: "1px solid var(--brand-border, #475569)",
-            borderRadius: 8, padding: 16, width: 460, maxWidth: "92vw", maxHeight: "86vh", overflow: "auto", display: "flex", flexDirection: "column", gap: 10 }}>
-          <div style={{ fontSize: 15, fontWeight: 700 }}>{t("scala.titolo")}</div>
-          {figli}
-        </div>
-      </div>
+      <Cornice titolo={t("scala.titolo")} onChiudi={onClose} veloChiude larghezza={460}>
+        <div data-testid="dialogo-risoluzione" style={{ display: "flex", flexDirection: "column", gap: 10 }}>{figli}</div>
+      </Cornice>
     );
 
   return contenitore(<>

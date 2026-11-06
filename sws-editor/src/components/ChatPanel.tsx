@@ -32,6 +32,13 @@ import type { MsgIn, Riga } from "@/types/ai";
  * dell'IDE non cambia niente.
  */
 /** 1234 → "1.2k": la riga risorse deve restare una riga. */
+/** Le tracce della chat in console (`console.debug`, livello «Dettagliato»):
+ *  il clic, l'invio, la risposta. Nate dagli sfondi del 05-11-2026, quando «Usa
+ *  come base» sembrava non rispondere e non si sapeva dove si fosse fermato. */
+function traccia(...a: unknown[]): void {
+  console.debug("[chat]", ...a);
+}
+
 function kTok(n: number): string {
   return n >= 10000 ? `${Math.round(n / 1000)}k`
        : n >= 1000  ? `${(n / 1000).toFixed(1)}k`
@@ -85,6 +92,26 @@ export function ChatPanel({ open, onClose, editor = editorLocale, avviso, blocca
     return !m;
   });
   const fondo = useRef<HTMLDivElement | null>(null);
+  // La base scelta mentre il modello sta ancora lavorando: parte a fine turno.
+  // Prima il bottone era spento per tutto il turno, senza dirlo, e il clic
+  // sembrava perso (collaudo degli sfondi, 05-11-2026).
+  const [baseInCoda, setBaseInCoda] = useState<string | null>(null);
+  const baseInCodaRef = useRef<string | null>(null);
+
+  /** Approva la base e chiede le varianti: due messaggi, nell'ordine. */
+  function mandaBase(id: string) {
+    const okApprova = approvaSfondo(id);
+    traccia("approva_sfondo", id, okApprova);
+    if (!okApprova) {
+      setRighe((x) => [...x, { tipo: "errore", testo: t("chat.noConnection") }]);
+      return;
+    }
+    const testo = t("chat.sfondoScelto", { id });
+    if (chiedi(testo)) {
+      setRighe((x) => [...x, { tipo: "utente", testo }]);
+      setAttesa(true);
+    }
+  }
 
   useEffect(() => {
     if (!open) return;
@@ -135,7 +162,7 @@ export function ChatPanel({ open, onClose, editor = editorLocale, avviso, blocca
           // oppure un errore: mai `[]` per un calcolo mancato.
           setRighe((r) => [...r, { tipo: "proposta", msg: m, diff: null }]);
           void editor
-            .diff({ id: m.id, motivo: m.motivo, project: m.project,
+            .diff({ id: m.id, motivo: m.motivo, project: m.project, faceplates: m.faceplates,
                     pages: m.pages, impronta: m.impronta })
             .then((diff) => {
               setRighe((r) => r.map((x) =>
@@ -167,14 +194,23 @@ export function ChatPanel({ open, onClose, editor = editorLocale, avviso, blocca
             { tipo: "sfondo", id: m.id, base: m.base, luce: m.luce, approvata: m.approvata, jpg: m.jpg }]);
           break;
         case "sfondo_approvato":
+          traccia("sfondo_approvato", m.id, m.ok);
           if (m.ok) setRighe((r) => r.map((x) => x.tipo === "sfondo" && x.id === m.id ? { ...x, approvata: true } : x));
           break;
         case "risorse_extra":
           setSpesa((s) => s ? { ...s, speso: m.speso } : s);
           break;
-        case "fine":
+        case "fine": {
+          traccia("fine", baseInCodaRef.current ?? "");
           setAttesa(false);
+          const id = baseInCodaRef.current;
+          if (id) {
+            baseInCodaRef.current = null;
+            setBaseInCoda(null);
+            mandaBase(id);
+          }
           break;
+        }
       }
     });
   }, [open, editor]);
@@ -207,6 +243,7 @@ export function ChatPanel({ open, onClose, editor = editorLocale, avviso, blocca
       pages: riga.msg.pages,
       impronta: riga.msg.impronta,
       sfondi: riga.msg.sfondi,
+      faceplates: riga.msg.faceplates,
     });
     setRighe((r) => r.map((x, i) => i !== indice || x.tipo !== "proposta" ? x : {
       ...x,
@@ -336,15 +373,13 @@ export function ChatPanel({ open, onClose, editor = editorLocale, avviso, blocca
             // partono (regola dei due passi, 04-11-2026).
             const src = `data:image/jpeg;base64,${r.jpg}`;
             const usa = () => {
-              if (!approvaSfondo(r.id)) {
-                setRighe((x) => [...x, { tipo: "errore", testo: t("chat.noConnection") }]);
+              if (attesa) {
+                traccia("approva_sfondo:coda", r.id);
+                baseInCodaRef.current = r.id;
+                setBaseInCoda(r.id);
                 return;
               }
-              const testo = t("chat.sfondoScelto", { id: r.id });
-              if (chiedi(testo)) {
-                setRighe((x) => [...x, { tipo: "utente", testo }]);
-                setAttesa(true);
-              }
+              mandaBase(r.id);
             };
             return (
               <div key={i} style={{ margin: "4px 10px" }} data-testid={`sfondo-${r.id}`}>
@@ -357,8 +392,10 @@ export function ChatPanel({ open, onClose, editor = editorLocale, avviso, blocca
                   <span>{r.base ? t("chat.sfondoBase", { id: r.id }) : t("chat.sfondoVariante", { id: r.id, luce: r.luce ?? "" })}</span>
                   {r.base && (r.approvata
                     ? <span style={{ color: "var(--brand-success, #22c55e)" }}>✓ {t("chat.sfondoApprovato")}</span>
-                    : <button style={BOTTONE_PICCOLO} disabled={attesa} onClick={usa}
-                              data-testid={`usa-base-${r.id}`}>{t("chat.usaComeBase")}</button>)}
+                    : baseInCoda === r.id
+                      ? <span data-testid={`base-in-coda-${r.id}`}>⏳ {t("chat.sfondoInCoda")}</span>
+                      : <button style={BOTTONE_PICCOLO} onClick={usa}
+                                data-testid={`usa-base-${r.id}`}>{t("chat.usaComeBase")}</button>)}
                 </div>
               </div>
             );

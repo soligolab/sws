@@ -29,6 +29,7 @@ import { idNuovo, nuovaPlanimetria } from "@/planimetrie/modello";
 import { impostaBootAbilitata } from "@/boot/abilitata";
 import { useNomePagina } from "@/i18n/nomePagina";
 import { discendentiDi, riconcilia, righe, spostaRispettoA, type ZonaRilascio } from "@/pageTree";
+import { avviso, chiedi, conferma } from "@/finestraAvviso/finestraAvviso";
 
 // ── Shared styles ─────────────────────────────────────────────────────────────
 
@@ -261,7 +262,7 @@ function PagesSection() {
       a.remove();
       URL.revokeObjectURL(url);
     } catch (e) {
-      window.alert(t("editor.exportFailed", { err: e instanceof Error ? e.message : String(e) }));
+      void avviso({ testo: t("editor.exportFailed", { err: e instanceof Error ? e.message : String(e) }), livello: "errore" });
     }
   };
 
@@ -279,7 +280,7 @@ function PagesSection() {
       useAppStore.getState().setPages(pagesLoaded);
       useAppStore.getState().setCurrentPage(res.id);
     } catch (e) {
-      window.alert(t("editor.importFailed", { err: e instanceof Error ? e.message : String(e) }));
+      void avviso({ testo: t("editor.importFailed", { err: e instanceof Error ? e.message : String(e) }), livello: "errore" });
     }
   };
 
@@ -446,9 +447,9 @@ function PagesSection() {
                         onClick={(e) => { e.stopPropagation(); beginRename(p.id, p.name); }}>✎</button>
                       {pages.length > 1 && (
                         <button style={S.iconBtn} title={t("editor.deletePage")}
-                          onClick={(e) => {
+                          onClick={async (e) => {
                             e.stopPropagation();
-                            if (window.confirm(t("editor.deletePageConfirm", { name: p.name }))) deletePage(p.id);
+                            if (await conferma({ testo: t("editor.deletePageConfirm", { name: p.name }), si: t("editor.deletePage") })) deletePage(p.id);
                           }}>×</button>
                       )}
                     </span>
@@ -528,7 +529,7 @@ function PagesSection() {
                       checked={bootPageId === p.id}
                       onChange={() => {
                         impostaBootAbilitata(p.id).catch((e) =>
-                          window.alert(t("leftPanel.bootEnableFailed", { err: e instanceof Error ? e.message : String(e) })));
+                          void avviso({ testo: t("leftPanel.bootEnableFailed", { err: e instanceof Error ? e.message : String(e) }), livello: "errore" }));
                       }}
                     />
                     <span aria-hidden="true">⭐</span>
@@ -536,9 +537,9 @@ function PagesSection() {
                   <button style={S.iconBtn} title={t("editor.rename")} disabled={p.locked}
                     onClick={(e) => { e.stopPropagation(); beginRename(p.id, p.name); }}>✎</button>
                   <button style={S.iconBtn} title={t("editor.deletePage")}
-                    onClick={(e) => {
+                    onClick={async (e) => {
                       e.stopPropagation();
-                      if (!window.confirm(t("editor.deletePageConfirm", { name: p.name }))) return;
+                      if (!(await conferma({ testo: t("editor.deletePageConfirm", { name: p.name }), si: t("editor.deletePage") }))) return;
                       deletePage(p.id);
                       // Eliminare la pagina abilitata azzera il puntatore: senza, il
                       // progetto punterebbe a una pagina che non esiste più.
@@ -603,9 +604,9 @@ function PagesSection() {
                   <button style={S.iconBtn} title={t("editor.rename")}
                     onClick={(e) => { e.stopPropagation(); beginRename(p.id, p.name); }}>✎</button>
                   <button style={S.iconBtn} title={t("cornici.elimina")}
-                    onClick={(e) => {
+                    onClick={async (e) => {
                       e.stopPropagation();
-                      if (!window.confirm(t("cornici.eliminaConferma", { name: p.name }))) return;
+                      if (!(await conferma({ testo: t("cornici.eliminaConferma", { name: p.name }), si: t("cornici.elimina") }))) return;
                       deletePage(p.id);
                     }}>×</button>
                 </span>
@@ -699,13 +700,17 @@ function PagesSection() {
                       ripristina dalle sue proprietà. */}
                   {!p.faceplate_predefinito && (
                     <button style={S.iconBtn} title={t("faceplate.elimina")}
-                      onClick={(e) => {
+                      onClick={async (e) => {
                         e.stopPropagation();
                         const u = usiDelFaceplate(tutte, idFaceplate(p));
                         const n = u.istanze + u.popup;
-                        if (!window.confirm(n > 0
-                          ? t("faceplate.eliminaConfermaUsato", { name: p.name, n })
-                          : t("faceplate.eliminaConferma", { name: p.name }))) return;
+                        if (!(await conferma({
+                          testo: n > 0
+                            ? t("faceplate.eliminaConfermaUsato", { name: p.name, n })
+                            : t("faceplate.eliminaConferma", { name: p.name }),
+                          pericolo: n > 0,
+                          si: t("faceplate.elimina"),
+                        }))) return;
                         deletePage(p.id);
                       }}>×</button>
                   )}
@@ -786,7 +791,7 @@ export function CorpoPlanimetrie() {
   useEffect(ricarica, [ricarica, progetto, aperta]);
 
   const nuova = async () => {
-    const nome = window.prompt(t("planimetrie.nomeNuova"), t("planimetrie.nomePredefinito"))?.trim();
+    const nome = (await chiedi({ testo: t("planimetrie.nomeNuova"), iniziale: t("planimetrie.nomePredefinito") }))?.trim();
     if (!nome) return;
     const base = nome.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "planimetria";
     // L'id viene dal nome («Casa — piano terra» → `casa-piano-terra`); se c'è
@@ -807,7 +812,7 @@ export function CorpoPlanimetrie() {
           <button style={S.iconBtn} title={t("planimetrie.elimina")}
             onClick={async (e) => {
               e.stopPropagation();
-              if (!window.confirm(t("planimetrie.eliminaConferma", { name: p.nome || p.id }))) return;
+              if (!(await conferma({ testo: t("planimetrie.eliminaConferma", { name: p.nome || p.id }), pericolo: true, si: t("planimetrie.elimina") }))) return;
               await api.eliminaPlanimetria(p.id);
               if (aperta === p.id) apri(null);
               ricarica();
@@ -1889,9 +1894,9 @@ function ObjectsSection() {
                   >✎</button>
                   <button
                     style={{ ...S.iconBtn, color: "var(--brand-warning, #f59e0b)" }} title={t("editor.ungroup")}
-                    onClick={(e) => {
+                    onClick={async (e) => {
                       e.stopPropagation();
-                      if (window.confirm(t("editor.ungroupConfirm", { name: group.name }))) {
+                      if (await conferma({ testo: t("editor.ungroupConfirm", { name: group.name }), si: t("editor.ungroup") })) {
                         ungroupObjects(group.id);
                       }
                     }}

@@ -4,28 +4,12 @@ import { api, NoProjectError, RateLimitedError, RuntimeUnavailableError, type Lo
 import { AccessoPin } from "@/components/accesso/AccessoPin";
 import { casellaAccesso, collegamentoAccesso } from "@/components/schermataAccesso";
 import { useAppStore } from "@/store";
+import { Cornice } from "@/finestraAvviso/FinestraAvviso";
 
-const OVERLAY: React.CSSProperties = {
-  position: "fixed",
-  inset: 0,
-  background: "rgba(0,0,0,0.65)",
-  display: "flex",
-  alignItems: "center",
-  justifyContent: "center",
-  zIndex: 9000,
-};
-
-const CARD: React.CSSProperties = {
-  background: "var(--brand-surface, #1e293b)",
-  border: "1px solid var(--brand-surface-2, #334155)",
-  borderRadius: 10,
-  padding: "28px 32px",
-  width: 320,
-  display: "flex",
-  flexDirection: "column",
-  gap: 14,
-  boxShadow: "0 8px 32px rgba(0,0,0,0.5)",
-};
+// La cornice è quella della Finestra di avviso (F3, 05-11-2026): prima un velo
+// suo a z-index 9000, senza Tab tenuto dentro. Non si chiude con Esc: una
+// sessione scaduta si rinnova o si esce, e le due strade sono i bottoni.
+const CORPO: React.CSSProperties = { width: 256, display: "flex", flexDirection: "column", gap: 14 };
 
 const LABEL: React.CSSProperties = { fontSize: 12, color: "var(--brand-text-muted, #94a3b8)", marginBottom: 4 };
 
@@ -141,37 +125,27 @@ export function ReAuthModal() {
 
   if (noProject) {
     return (
-      <div style={OVERLAY}>
-        <div style={CARD}>
-          <div>
-            <div style={{ fontSize: 15, fontWeight: 700, color: "var(--brand-text, #e2e8f0)", marginBottom: 4 }}>
-              {t("reauth.noActiveProject")}
-            </div>
-            <div style={{ fontSize: 12, color: "var(--brand-text-subtle, #64748b)" }}>
-              {t("reauth.theRuntimeRestartedWithoutAn")}
-            </div>
+      <Cornice titolo={t("reauth.noActiveProject")} chiudibile={false} testid="reauth">
+        <div style={CORPO}>
+          <div style={{ fontSize: 12, color: "var(--brand-text-subtle, #64748b)" }}>
+            {t("reauth.theRuntimeRestartedWithoutAn")}
           </div>
           <button style={BTN_PRIMARY} onClick={handleGoToWelcome}>
             {t("reauth.vaiAlBenvenuto")}
           </button>
         </div>
-      </div>
+      </Cornice>
     );
   }
 
   return (
-    <div style={OVERLAY}>
-      <div style={CARD}>
-        <div>
-          <div style={{ fontSize: 15, fontWeight: 700, color: "var(--brand-text, #e2e8f0)", marginBottom: 4 }}>
-            {t("reauth.sessioneScaduta")}
+    <Cornice titolo={t("reauth.sessioneScaduta")} chiudibile={false} testid="reauth">
+      <div style={CORPO}>
+        {vista === "password" && (
+          <div style={{ fontSize: 12, color: "var(--brand-text-subtle, #64748b)" }}>
+            {t("reauth.enterPasswordAs")} <strong style={{ color: "var(--brand-text-muted, #94a3b8)" }}>{authUser}</strong>.
           </div>
-          {vista === "password" && (
-            <div style={{ fontSize: 12, color: "var(--brand-text-subtle, #64748b)" }}>
-              {t("reauth.enterPasswordAs")} <strong style={{ color: "var(--brand-text-muted, #94a3b8)" }}>{authUser}</strong>.
-            </div>
-          )}
-        </div>
+        )}
 
         {vista === "pin" ? (
           <AccessoPin emailIniziale={authUser ?? ""} riautentica onEntrato={entrato} onIndietro={() => setVista("password")} />
@@ -217,6 +191,6 @@ export function ReAuthModal() {
           {t("reauth.esciAlLogin")}
         </button>
       </div>
-    </div>
+    </Cornice>
   );
 }

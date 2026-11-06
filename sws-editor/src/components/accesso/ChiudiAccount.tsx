@@ -6,6 +6,7 @@ import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { api } from "@/api/client";
 import { campoAccesso, erroreAccesso, etichettaAccesso, pulsanteAccesso } from "@/components/schermataAccesso";
+import { Cornice } from "@/finestraAvviso/FinestraAvviso";
 
 export function ChiudiAccount({ onAnnulla, onChiuso }: { onAnnulla: () => void; onChiuso: () => void }) {
   const { t } = useTranslation();
@@ -29,15 +30,8 @@ export function ChiudiAccount({ onAnnulla, onChiuso }: { onAnnulla: () => void; 
 
   const spento = occupato || password.length === 0;
   return (
-    <div role="dialog" aria-modal="true"
-      style={{ position: "fixed", inset: 0, background: "#0009", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 50, padding: 16 }}>
-      <form onSubmit={chiudi}
-        style={{
-          display: "flex", flexDirection: "column", gap: 14, width: "100%", maxWidth: 420, boxSizing: "border-box",
-          background: "var(--brand-surface, #1e293b)", border: "1px solid var(--brand-surface-2, #334155)",
-          borderRadius: 8, padding: 20, color: "var(--brand-text, #e2e8f0)",
-        }}>
-        <div style={{ fontSize: 15, fontWeight: 600 }}>{t("accesso.chiudiTitolo")}</div>
+    <Cornice titolo={t("accesso.chiudiTitolo")} onChiudi={onAnnulla} chiudibile={!occupato} larghezza={420} testid="chiudi-account">
+      <form onSubmit={chiudi} style={{ display: "flex", flexDirection: "column", gap: 14 }}>
         <div style={{ fontSize: 13, lineHeight: 1.5, color: "var(--brand-text-2, #cbd5e1)" }}>{t("accesso.chiudiSpiegazione")}</div>
         <div>
           <label style={etichettaAccesso}>{t("accesso.chiudiPassword")}</label>
@@ -56,6 +50,6 @@ export function ChiudiAccount({ onAnnulla, onChiuso }: { onAnnulla: () => void; 
           </button>
         </div>
       </form>
-    </div>
+    </Cornice>
   );
 }

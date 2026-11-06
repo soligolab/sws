@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { api, type Azienda, type Marchio } from "@/api/client";
+import { conferma } from "@/finestraAvviso/finestraAvviso";
 import {
   avviso, campo, coloreStato, elencoEDettaglio, errore as stileErrore,
   pulsante, riga, rigaElenco, scheda, titoletto,
@@ -117,9 +118,9 @@ export function Aziende({ piattaforma = true }: { piattaforma?: boolean }) {
     !!bozza && !!originale && JSON.stringify(bozza) !== JSON.stringify(originale);
 
   /** Cambiare azienda con modifiche non salvate le butterebbe via in silenzio. */
-  const scegli = (id: number) => {
+  const scegli = async (id: number) => {
     if (id === sceltaId) return;
-    if (sporca && !window.confirm(t("console.aziende.abbandona"))) return;
+    if (sporca && !(await conferma({ testo: t("console.aziende.abbandona"), pericolo: true, si: t("unsaved.discard") }))) return;
     setSceltaId(id);
   };
 

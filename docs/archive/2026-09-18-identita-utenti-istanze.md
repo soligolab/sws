@@ -21,8 +21,8 @@ qualcuno che le rileggesse ripartirebbe da OpenVPN e dalla porta 8444.
 | | dove è finita |
 |---|---|
 | **Q56** — un IDE che non si autentica più | **Costruita.** È il crate `sws-identita`, che nel suo commento di modulo cita la decisione 22 di questo piano: «due archivi, due scopi». Utenti dell'installazione in `identita.db`, separati dal `users.yaml` che viaggia col deploy. Era l'opzione 2 della scheda |
-| **Q44** — ospitare l'editor come servizio | **In gran parte costruita**, e il resto vive altrove: [cloud, utenti, aziende e spazi](../plans/2026-10-05-cloud-utenti-aziende-spazi.md) (vivo) più quattro piani archiviati — [gateway](2026-10-09-fase-4-gateway.md), [tunnel dei pannelli](2026-10-09-fase-6-tunnel-dei-pannelli.md), [abbinamento e primo accesso](2026-10-11-abbinamento-e-primo-accesso.md), [aggiornamento runtime](2026-09-27-aggiornamento-runtime-e-bus-utente.md) |
-| **Q54** — utenti nati sul dispositivo | **Ancora aperta**, ed è l'unica: [utenti nati sul dispositivo](../plans/2026-10-22-utenti-nati-sul-dispositivo.md) |
+| **Q44** — ospitare l'editor come servizio | **In gran parte costruita**, e il resto vive altrove: [cloud, utenti, aziende e spazi](2026-10-05-cloud-utenti-aziende-spazi.md) (archiviato il 05-11-2026) più quattro piani archiviati — [gateway](2026-10-09-fase-4-gateway.md), [tunnel dei pannelli](2026-10-09-fase-6-tunnel-dei-pannelli.md), [abbinamento e primo accesso](2026-10-11-abbinamento-e-primo-accesso.md), [aggiornamento runtime](2026-09-27-aggiornamento-runtime-e-bus-utente.md) |
+| **Q54** — utenti nati sul dispositivo | **Ancora aperta**, ed è l'unica: [utenti nati sul dispositivo](2026-10-22-utenti-nati-sul-dispositivo.md) |
 
 ### Cosa in questo file è FALSO, e va saputo prima di leggerlo
 

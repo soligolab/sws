@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { api, type StatoAggiornamento, type VistaFinestra, type RichiestaFinestra } from "@/api/client";
+// `conferma` è già il nome della prop: quella della Finestra di avviso si chiama così qui.
+import { conferma as chiediConferma } from "@/finestraAvviso/finestraAvviso";
 
 /** La finestra dell'aggiornamento (piano 2026-09-27, Fase 2, decisioni 46-51).
  *
@@ -40,7 +42,7 @@ const SETTIMANA = [1, 2, 3, 4, 5, 6, 0]; // da lunedì, come la si legge
 export function FinestraAggiornamento({ stato, conferma }: {
   stato: StatoAggiornamento;
   /** Le conferme di «Aggiorna ora», compresa quella per gli avvisi di compatibilità. */
-  conferma: () => boolean;
+  conferma: () => Promise<boolean>;
 }) {
   const { t } = useTranslation();
   const [vista, setVista] = useState<VistaFinestra | null>(null);
@@ -101,15 +103,15 @@ export function FinestraAggiornamento({ stato, conferma }: {
   };
 
   const versioneDaProgrammare = p.approvazione?.versione ?? stato.disponibile;
-  const salvaApprovazione = () => {
+  const salvaApprovazione = async () => {
     if (!versioneDaProgrammare) return;
     // Una modifica della stessa versione non richiede di rileggere le novità.
-    if (!p.approvazione && !conferma()) return;
+    if (!p.approvazione && !(await conferma())) return;
     const g = giorno === "oggi" || giorno === "domani" ? giorno : Number(giorno);
     void scrivi({ ...base(), approvazione: { versione: versioneDaProgrammare, giorno: g, ora } });
   };
-  const salvaPilota = () => {
-    if (!p.pilota && !window.confirm(t("finestra.pilotaConferma"))) return;
+  const salvaPilota = async () => {
+    if (!p.pilota && !(await chiediConferma({ testo: t("finestra.pilotaConferma"), pericolo: true }))) return;
     void scrivi({ ...base(), pilota: { giorni: pilotaGiorni, ora: pilotaOra } });
   };
 
@@ -159,7 +161,7 @@ export function FinestraAggiornamento({ stato, conferma }: {
                 {SETTIMANA.map((g) => <option key={g} value={String(g)}>{t(`finestra.giorni.${g}`)}</option>)}
               </select>
               {campoOra(ora, setOra)}
-              <button type="button" onClick={salvaApprovazione}>{t("finestra.salva")}</button>
+              <button type="button" onClick={() => void salvaApprovazione()}>{t("finestra.salva")}</button>
               <button type="button" onClick={() => setApriApprovazione(false)}>{t("finestra.chiudi")}</button>
             </div>
           )}
@@ -203,7 +205,7 @@ export function FinestraAggiornamento({ stato, conferma }: {
             </div>
             <div style={riga}>
               {campoOra(pilotaOra, setPilotaOra)}
-              <button type="button" onClick={salvaPilota}>{t("finestra.salva")}</button>
+              <button type="button" onClick={() => void salvaPilota()}>{t("finestra.salva")}</button>
               <button type="button" onClick={() => setApriPilota(false)}>{t("finestra.chiudi")}</button>
             </div>
           </div>

@@ -1,0 +1,221 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Banco di collaudo</title>
+<style>
+  :root {
+    --bg: #f6f7f9; --carta: #ffffff; --testo: #1b2430; --tenue: #5b6675; --bordo: #d9dee5;
+    --accento: #2563eb; --ok: #15803d; --ok-bg: #e7f6ec; --ko: #b91c1c; --ko-bg: #fdecec;
+    --dopo: #a16207; --dopo-bg: #fdf6e3; --sel: #eef3ff;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0f141a; --carta: #171e26; --testo: #e3e8ee; --tenue: #93a0b0; --bordo: #2a3440;
+      --accento: #60a5fa; --ok: #4ade80; --ok-bg: #13261b; --ko: #f87171; --ko-bg: #2a1515;
+      --dopo: #fbbf24; --dopo-bg: #2a2412; --sel: #1b2636;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--testo); font: 15px/1.45 system-ui, sans-serif; }
+  header { position: sticky; top: 0; z-index: 2; background: var(--carta); border-bottom: 1px solid var(--bordo); padding: 10px 16px; }
+  .riga { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+  h1 { font-size: 17px; margin: 0; }
+  .barra { flex: 1; min-width: 140px; height: 8px; background: var(--bordo); border-radius: 4px; overflow: hidden; display: flex; }
+  .barra span { display: block; height: 100%; }
+  .filtri button, .azioni button { font: inherit; border: 1px solid var(--bordo); background: var(--carta); color: var(--testo); border-radius: 6px; padding: 4px 10px; cursor: pointer; }
+  .filtri button[aria-pressed="true"] { border-color: var(--accento); color: var(--accento); font-weight: 600; }
+  .aiuto { color: var(--tenue); font-size: 12px; margin-top: 6px; }
+  main { max-width: 900px; margin: 0 auto; padding: 12px 16px 80px; }
+  .gruppo { margin: 22px 0 8px; font-size: 13px; text-transform: uppercase; letter-spacing: .04em; color: var(--tenue); }
+  .prova { background: var(--carta); border: 1px solid var(--bordo); border-radius: 10px; padding: 12px 14px; margin: 8px 0; scroll-margin-top: 110px; }
+  .prova.attiva { outline: 2px solid var(--accento); background: var(--sel); }
+  .prova.ok { border-left: 5px solid var(--ok); }
+  .prova.ko { border-left: 5px solid var(--ko); }
+  .prova.dopo { border-left: 5px solid var(--dopo); }
+  .titolo { font-weight: 650; }
+  .num { color: var(--tenue); font-variant-numeric: tabular-nums; margin-right: 6px; }
+  .sblocca { font-size: 13px; color: var(--tenue); margin: 2px 0 6px; }
+  ol { margin: 6px 0 6px 20px; padding: 0; }
+  .rif { font-size: 12px; color: var(--tenue); margin: 1px 0 4px; font-family: ui-monospace, monospace; }
+  .scopo { font-size: 14px; margin: 6px 0; }
+  .prima { font-size: 14px; margin: 6px 0; padding: 6px 10px; border-radius: 6px; background: var(--dopo-bg); }
+  .etichetta { display: block; font-size: 12px; font-weight: 650; text-transform: uppercase; letter-spacing: .04em; color: var(--tenue); margin-top: 8px; }
+  ol li, .atteso li { white-space: pre-line; margin: 2px 0; }
+  .atteso { font-size: 14px; margin: 4px 0; }
+  .atteso ul { margin: 4px 0 4px 20px; padding: 0; }
+  .atteso .etichetta { color: var(--ok); }
+  .link a { color: var(--accento); margin-right: 12px; font-size: 13px; }
+  .azioni { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 8px; align-items: center; }
+  .azioni .b-ok[aria-pressed="true"] { background: var(--ok-bg); border-color: var(--ok); color: var(--ok); font-weight: 600; }
+  .azioni .b-ko[aria-pressed="true"] { background: var(--ko-bg); border-color: var(--ko); color: var(--ko); font-weight: 600; }
+  .azioni .b-dopo[aria-pressed="true"] { background: var(--dopo-bg); border-color: var(--dopo); color: var(--dopo); font-weight: 600; }
+  textarea { width: 100%; margin-top: 8px; font: inherit; font-size: 14px; border: 1px solid var(--bordo); border-radius: 6px; padding: 6px 8px; background: var(--bg); color: var(--testo); min-height: 34px; resize: vertical; }
+  .sonda { font-size: 13px; color: var(--tenue); }
+  .sonda.ok { color: var(--ok); } .sonda.ko { color: var(--ko); }
+  .salvato { font-size: 12px; color: var(--tenue); }
+  code { background: var(--bg); border: 1px solid var(--bordo); border-radius: 4px; padding: 0 4px; font-size: 13px; }
+  @media (max-width: 600px) { .aiuto { display: none; } }
+</style>
+</head>
+<body>
+<header>
+  <div class="riga">
+    <h1 id="titolo">Banco di collaudo</h1>
+    <div class="barra" id="barra" aria-hidden="true"></div>
+    <span id="conto" style="font-variant-numeric: tabular-nums"></span>
+  </div>
+  <div class="riga filtri" id="filtri" style="margin-top:8px"></div>
+  <div class="aiuto">Tasti: <code>j</code>/<code>k</code> voce dopo/prima · <code>p</code> primo bottone (passa / sì / tieni) · <code>f</code> secondo (non passa / no / archivia) · <code>d</code> dopo · <code>n</code> nota · gli esiti si salvano da soli in <code>scripts/banco_collaudo/esiti.json</code>, sulla macchina che serve il banco, e li leggo io.</div>
+</header>
+<main id="elenco"><p>Carico le prove…</p></main>
+<script>
+(() => {
+  let prove = [], esiti = {}, filtro = "tutte", soloDaFare = false, attiva = 0;
+  const $ = (s, el = document) => el.querySelector(s);
+  const el = (tag, attr = {}, ...figli) => {
+    const e = document.createElement(tag);
+    for (const [k, v] of Object.entries(attr)) {
+      if (k === "class") e.className = v; else if (k.startsWith("on")) e.addEventListener(k.slice(2), v); else e.setAttribute(k, v);
+    }
+    for (const f of figli) if (f != null) e.append(f);
+    return e;
+  };
+  // Il `codice` fra apici inversi diventa <code>.
+  const testo = (s) => { const f = document.createDocumentFragment(); String(s).split("`").forEach((t, i) => f.append(i % 2 ? el("code", {}, t) : t)); return f; };
+  const visibili = () => prove.filter((p) => (filtro === "tutte" || p.dove === filtro) && (!soloDaFare || !esiti[p.id]?.esito));
+
+  async function carica() {
+    const [r1, r2] = await Promise.all([fetch("/prove"), fetch("/esiti")]);
+    const d = await r1.json();
+    prove = d.prove || [];
+    if (d.titolo) { $("#titolo").textContent = d.titolo; document.title = d.titolo; }
+    esiti = await r2.json();
+    disegnaFiltri(); disegna();
+    const prima = visibili().findIndex((p) => !esiti[p.id]?.esito);
+    attiva = prima < 0 ? 0 : prima; evidenzia(false);
+  }
+
+  async function salva(id, esito, nota) {
+    const vecchio = esiti[id] || {};
+    const nuovo = { esito: esito === undefined ? vecchio.esito ?? null : esito, nota: nota === undefined ? vecchio.nota ?? "" : nota };
+    esiti[id] = { ...nuovo, quando: new Date().toLocaleTimeString("it-IT") };
+    try {
+      const r = await fetch("/esito", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id, ...nuovo }) });
+      if (!r.ok) throw new Error(r.status);
+    } catch (e) {
+      alert("Non riesco a salvare sulla macchina del banco: l'esito resta solo in questa pagina. (" + e + ")");
+    }
+  }
+
+  function disegnaFiltri() {
+    const luoghi = ["tutte", ...new Set(prove.map((p) => p.dove))];
+    const f = $("#filtri"); f.replaceChildren();
+    for (const l of luoghi) {
+      const n = prove.filter((p) => l === "tutte" || p.dove === l).length;
+      f.append(el("button", { "aria-pressed": String(filtro === l), onclick: () => { filtro = l; attiva = 0; disegnaFiltri(); disegna(); } }, `${l === "tutte" ? "Tutte" : l} (${n})`));
+    }
+    f.append(el("button", { "aria-pressed": String(soloDaFare), onclick: () => { soloDaFare = !soloDaFare; attiva = 0; disegnaFiltri(); disegna(); } }, "Solo da fare"));
+  }
+
+  function contatori() {
+    const c = { ok: 0, ko: 0, dopo: 0 };
+    for (const p of prove) { const e = esiti[p.id]?.esito; if (e) c[e]++; }
+    const tot = prove.length || 1;
+    $("#conto").textContent = `${c.ok} ✓ · ${c.ko} ✗ · ${c.dopo} dopo · ${prove.length - c.ok - c.ko - c.dopo} da fare`;
+    const b = $("#barra"); b.replaceChildren(
+      el("span", { style: `width:${(100 * c.ok) / tot}%;background:var(--ok)` }),
+      el("span", { style: `width:${(100 * c.ko) / tot}%;background:var(--ko)` }),
+      el("span", { style: `width:${(100 * c.dopo) / tot}%;background:var(--dopo)` }));
+  }
+
+  function scheda(p) {
+    const e = esiti[p.id] || {};
+    const div = el("section", { class: `prova ${e.esito || ""}`, id: `p-${p.id}`, "data-id": p.id });
+    div.addEventListener("click", (ev) => { if (ev.target.closest("button,a,textarea")) return; attiva = visibili().indexOf(p); evidenzia(false); });
+    div.append(el("div", { class: "titolo" }, el("span", { class: "num" }, String(p.n)), p.titolo));
+    if (p.rif) div.append(el("div", { class: "rif" }, p.rif));
+    if (p.scopo) div.append(el("div", { class: "scopo" }, el("span", { class: "etichetta" }, "A cosa serve"), testo(p.scopo)));
+    if (p.prima) div.append(el("div", { class: "prima" }, el("b", {}, "Prima di cominciare: "), testo(p.prima)));
+    if (p.passi?.length) div.append(el("span", { class: "etichetta" }, "Cosa fare"), el("ol", {}, ...p.passi.map((s) => el("li", {}, testo(s)))));
+    if (p.atteso) {
+      const voci = Array.isArray(p.atteso) ? p.atteso : [p.atteso];
+      div.append(el("div", { class: "atteso" }, el("span", { class: "etichetta" }, p.etichette ? "In breve" : "Cosa devi vedere"), el("ul", {}, ...voci.map((s) => el("li", {}, testo(s))))));
+    }
+    if (p.sblocca) div.append(el("div", { class: "sblocca" }, (p.etichette ? "Effetto: " : "Se passa: ") + p.sblocca));
+    if (p.link?.length) div.append(el("div", { class: "link" }, ...p.link.map((l) => el("a", { href: l.url.replace("{host}", location.hostname), target: "_blank", rel: "noopener" }, l.testo + " ↗"))));
+    const az = el("div", { class: "azioni" });
+    const bottone = (cls, esito, testo) => el("button", { class: cls, "aria-pressed": String(e.esito === esito), onclick: () => segna(p, e.esito === esito ? null : esito) }, testo);
+    const et = { ok: "✓ Passa", ko: "✗ Non passa", dopo: "↷ Dopo", ...(p.etichette || {}) };
+    az.append(bottone("b-ok", "ok", et.ok), bottone("b-ko", "ko", et.ko), bottone("b-dopo", "dopo", et.dopo));
+    if (p.sonda) {
+      const out = el("span", { class: "sonda" });
+      az.append(el("button", { onclick: async () => {
+        out.textContent = "provo…"; out.className = "sonda";
+        try {
+          const r = await (await fetch("/sonda", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: p.id }) })).json();
+          out.textContent = `${r.ok ? "risponde" : "non risponde"} (${r.stato ?? "—"}, ${r.ms} ms) ${r.corpo || ""}`;
+          out.className = "sonda " + (r.ok ? "ok" : "ko");
+        } catch (err) { out.textContent = String(err); out.className = "sonda ko"; }
+      } }, "Controlla da qui"), out);
+    }
+    if (e.quando) az.append(el("span", { class: "salvato" }, "salvato alle " + e.quando));
+    div.append(az);
+    const nota = el("textarea", { placeholder: "Nota (cosa hai visto, se non passa)", rows: "1" });
+    nota.value = e.nota || "";
+    nota.addEventListener("change", () => salva(p.id, undefined, nota.value).then(contatori));
+    div.append(nota);
+    return div;
+  }
+
+  function disegna() {
+    const m = $("#elenco"); m.replaceChildren();
+    let gruppo = null;
+    for (const p of visibili()) {
+      if (p.dove !== gruppo) { gruppo = p.dove; m.append(el("h2", { class: "gruppo" }, gruppo)); }
+      m.append(scheda(p));
+    }
+    if (!visibili().length) m.append(el("p", {}, "Niente da mostrare con questo filtro."));
+    contatori();
+  }
+
+  async function segna(p, esito) {
+    await salva(p.id, esito);
+    const v = visibili();
+    disegna();
+    if (esito) {
+      const dopo = v.findIndex((q, i) => i > v.indexOf(p) && !esiti[q.id]?.esito);
+      attiva = dopo < 0 ? Math.min(v.indexOf(p), visibili().length - 1) : visibili().indexOf(v[dopo]);
+    }
+    evidenzia(true);
+  }
+
+  function evidenzia(scorri) {
+    document.querySelectorAll(".prova.attiva").forEach((x) => x.classList.remove("attiva"));
+    const p = visibili()[attiva]; if (!p) return;
+    const s = document.getElementById(`p-${p.id}`); if (!s) return;
+    s.classList.add("attiva");
+    if (scorri) s.scrollIntoView({ block: "start", behavior: "smooth" });
+  }
+
+  document.addEventListener("keydown", (ev) => {
+    const dentroUnCampo = ev.target instanceof Element && ev.target.closest("textarea,input");
+    if (dentroUnCampo || ev.ctrlKey || ev.metaKey || ev.altKey) {
+      if (ev.key === "Escape" && dentroUnCampo) ev.target.blur();
+      return;
+    }
+    const v = visibili(); const p = v[attiva];
+    if (ev.key === "j") { attiva = Math.min(attiva + 1, v.length - 1); evidenzia(true); }
+    else if (ev.key === "k") { attiva = Math.max(attiva - 1, 0); evidenzia(true); }
+    else if (p && ev.key === "p") segna(p, "ok");
+    else if (p && ev.key === "f") { segna(p, "ko").then(() => document.querySelector(`#p-${p.id} textarea`)?.focus()); }
+    else if (p && ev.key === "d") segna(p, "dopo");
+    else if (p && ev.key === "n") { ev.preventDefault(); document.querySelector(`#p-${p.id} textarea`)?.focus(); }
+  });
+
+  carica().catch((e) => { $("#elenco").textContent = "Non riesco a leggere le prove: " + e; });
+})();
+</script>
+</body>
+</html>

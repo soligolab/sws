@@ -27,11 +27,11 @@
 | T1 | `feat/template-regole` | questa tabella, §Regole dei template | il lucchetto «🔒 Supervisor» sui comandi che il ruolo non può usare (web e LVGL); R6–R8 nella guardia; i primi sei template a posto — **fatta il 04-11, mergiata il 05-11 nella 2.25.1, collaudo sull'immagine** | — |
 | T2 | `feat/template-regole-2` | idem | gli altri dieci template; la guardia a zero — **fatta il 04-11, mergiata il 05-11 nella 2.25.1, collaudo sull'immagine** | sì |
 | F1 | `feat/finestra-avviso` | [Finestra di avviso](2026-11-04-finestra-di-avviso.md) | il componente; Backup, configurazione, menu ☰ senza pop-up del browser — **il componente in `main` dal 05-11** (`b24193d7`, collaudato con la finestra delle impostazioni del progetto); le 40 chiamate convertite e la guardia `check_finestra_avviso.sh` (65 restano) — **fatta e collaudata il 05-11, in `main`** (`eaef15c3`) | — |
-| L0 | `fix/sandbox-python` | [Logica unificata](2026-11-04-logica-unificata.md) | `print`, `for`, `+=` negli script; i default dei parametri applicati | sì |
+| L0 | `fix/sandbox-python` | [Logica unificata](2026-11-04-logica-unificata.md) | `print`, `for`, `+=` negli script; i default dei parametri applicati — **fatta il 05-11 sul ramo, con la revisione; collaudo sull'immagine** (`COLLAUDI_IN_SOSPESO.md`, serie L0→F3) | sì |
 | M1 | `feat/manuale-sito` | [Manuale pubblico](2026-11-03-manuale-pubblico.md) | il sito generato in `sws/tmp/manuale-sito/`, nessun link rotto | — |
 | M2 | `feat/manuale-vps` | idem | `sws.soligo.net/manuale/` online, i crawler IA respinti | — |
-| F2 | `feat/finestra-avviso-2` | Finestra di avviso | deploy ed editor senza pop-up del browser | — |
-| F3 | `feat/finestra-avviso-3` | idem | viewer e console; le finestre fatte a mano sulla stessa cornice; guardia a zero; **piano archiviato** | sì |
+| F2 | `feat/finestra-avviso-2` | Finestra di avviso | deploy ed editor senza pop-up del browser — **fatta il 05-11, annidata su L0, con la revisione** | — |
+| F3 | `feat/finestra-avviso-3` | idem | viewer e console; le finestre fatte a mano sulla stessa cornice; guardia a zero; **piano archiviato** — **fatta il 05-11, annidata su F2; il piano si archivia al merge, dopo il collaudo** | sì |
 | I1 | `feat/impostazione-iniziale` | [Impostazione iniziale](2026-11-04-impostazione-iniziale-del-progetto.md) | progetto vuoto → la finestra → pagine nate giuste | — |
 | I2 | `feat/impostazioni-progetto` | idem | il pannello Proprietà con la sola pagina; «Impostazioni progetto…» riapre la finestra; **piano archiviato** | — |
 | L1 | `feat/logica-un-ramo` | Logica unificata | il ramo Logica (funzioni, script, ricette) nei due stili, niente scheda «Python» | — |
@@ -49,8 +49,8 @@ del maintainer: non toccano i file degli altri piani. Testi e schermate del manu
 finestre e Logica sono definitivi.
 
 **Fuori dalla serie, e restano vivi**: [l'assistente che disegna i simboli](2026-11-03-assistente-genera-simboli-e-sinottici.md)
-(F5–F7), [il manuale rifatto](2026-10-19-manuale-rifatto.md) (T12–T14 e il ramo 4 delle schermate: si decide in M5 se
-entrano lì), [lo stile sobrio](2026-11-04-stile-sobrio.md) (se arriva prima di M5, le schermate aspettano lui).
+(F5–F7) e [lo stile sobrio](2026-11-04-stile-sobrio.md) (se arriva prima di M5, le schermate aspettano lui). Il [manuale rifatto](../archive/2026-10-19-manuale-rifatto.md) è
+archiviato dal 05-11-2026: T12–T14 e le schermate sono passati in M5.
 
 ### §Collaudo — le anomalie della 2.25.0 (sessione C0)
 
@@ -120,37 +120,11 @@ cornice si controlla con le istantanee LVGL e il viewer web (come per la pagina 
    rispetta (`build_tag_write_roles`): un membro aperto a Viewer apriva lo stesso il login. Corretto in
    `auth/permessoScrittura.ts`, perché R7 mette la soglia sui membri.
 
-**Piano d'esecuzione in corso dal 05-10-2026**: [il tronco cloud](2026-10-05-cloud-utenti-aziende-spazi.md)
-— utenti, aziende, spazi di lavoro, e la catena fino al pannello. Nato dalla sessione di plan
-approfondita che il seme [identità, utenti e istanze](../archive/2026-09-18-identita-utenti-istanze.md)
-chiedeva. Quel seme è **in archivio dal 22-10-2026**: le sue decisioni numerate (1-39) sono state
-misurate contro il codice e o costruite o superate, Q56 è `sws-identita`, Q44 vive qui, e Q54 —
-l'unica rimasta aperta — è diventata il seme [utenti nati sul
-dispositivo](2026-10-22-utenti-nati-sul-dispositivo.md). Chiude anche Q60.
-
-**Fasi 1, 2, 3a e 3b chiuse.** 1 e 2 il 06-10-2026 (squash `9591acaf`): l'IDE ha i suoi utenti e le
-rotte aperte sono una lista dichiarata. **3a e 3b** l'08-10-2026 (squash `59eb0ed6`), con un piano
-ciascuna, ora in archivio: [aziende e console](../archive/2026-10-06-aziende-e-console.md) e
-[i progetti nell'azienda](../archive/2026-10-07-progetti-per-azienda-fase-3b.md). Le aziende
-esistono (l'implicita non si mostra), la console di amministrazione è un'applicazione a sé, e i
-progetti si indirizzano `/<azienda>/<nome>` passando da un risolutore che verifica l'appartenenza.
-
-**Fase 3 chiusa per intero** il 09-10-2026: 3a, 3b e
-[3c](../archive/2026-10-08-fase-3c-ruoli-confinati-e-quote.md) sono in archivio. Le aziende
-esistono, la console è confinata, i progetti si indirizzano per azienda e le quote di spazio
-fermano davvero. Resta dichiaratamente al gateway il tetto sui **progetti aperti**: è un limite su
-ciò che gira, non un conteggio in un database.
-
-**Fase 4 — il gateway: fatta, e il piano è in archivio dal 21-10-2026**
-([il gateway](../archive/2026-10-09-fase-4-gateway.md)). Il gateway esiste, gira su
-`sws.soligo.net`, avvia un container per progetto e lo indirizza `/p/<azienda>/<progetto>/`.
-Delle tre code, due sono fatte (il tetto dei progetti aperti visibile in console e la chiusura a
-mano, ramo 1 della [chiusura dei residui](../archive/2026-10-19-chiusura-dei-residui.md), squash
-`ec6f9d2d`); resta il **branding prima del login**, che è il ramo 2 dello stesso piano. L'unica
-domanda senza risposta — cosa ci dice il numero di pannelli — è uscita in un seme suo, qui sotto.
-*(Questo paragrafo ha detto «non è approvato, l'immagine amd64 non esiste» fino al 19-10-2026,
-dieci giorni dopo che tutt'e due le cose erano diventate false. È la prima cosa che legge chi
-riprende il lavoro.)*
+**Il tronco cloud è in archivio dal 05-11-2026** ([il tronco cloud](../archive/2026-10-05-cloud-utenti-aziende-spazi.md)):
+fasi 0, 1, 2, 3 (3a, 3b, 3c), 4 e 6 fatte e in archivio, ognuna col suo piano; la Fase 5 è il piano vivo
+[aprire sws.soligo.net](2026-10-26-aprire-sws-soligo-net.md); la 2FA è la voce P6 della
+[prima fascia e CRA](2026-10-15-piano-prima-fascia-e-cra.md); la guardia del self-host e i backup per azienda sono in
+`Appunti.txt`.
 
 (Questa riga diceva «nessun piano d'esecuzione in corso» dal 26-09.)
 
@@ -168,6 +142,7 @@ c'è già, manca solo la conferma a schermo prima di archiviare la scheda in
 
 | Piano | Origine | Cosa resta |
 |---|---|---|
+| [2026-11-05-valori-sul-codice-python.md](2026-11-05-valori-sul-codice-python.md) | domanda del maintainer guardando lo script «giornata» di Montagna, 05-11-2026 | **seme — decisione** — i valori delle variabili accanto alle righe del codice Python: l'ultimo giro dello script vero (A), una prova a secco nell'editor (B), il valore dei tag accanto a `tags.read` (A0), il debug a passi (no sull'impianto). Prototipo del raccoglitore e del widget provati; due verifiche indipendenti: il raccoglitore non deve mai togliere il kill switch, e B riapre Q47 |
 | [2026-11-05-build-veloce-e-due-portali.md](2026-11-05-build-veloce-e-due-portali.md) | domanda del maintainer mentre si costruiva la 2.25.1, 05-11-2026 | **seme — decisione** — build e rilascio più veloci in sviluppo (la 2.25.1 ha preso 60 minuti, 19 dei quali per un builder che non serviva rifare) e due portali: `sws.soligo.net` stabile per i clienti e uno di sviluppo con sempre l'ultimo codice. Misure, sette strade per la build verificate contro il codice, i vincoli del secondo gateway (oggi due gateway sullo stesso podman si cancellano i container a vicenda) |
 | [2026-11-03-assistente-genera-simboli-e-sinottici.md](2026-11-03-assistente-genera-simboli-e-sinottici.md) | richiesta del maintainer, 03-11-2026 | **piano d'esecuzione — in corso**: F0–F4 mergiate nella 2.25.0 (il ramo `feat/assistente-sinottici` non c'è più); restano il collaudo del maintainer e F5–F7 — l'assistente disegna i simboli del progetto (`prj:`, una descrizione compilata in Rust nello stesso SVG di `genera.py`, più l'SVG libero), propone tipi e istanze e compone la pagina intera, con tetto di spesa; due banchi: tubi d'acciaio e planimetria di casa. Fasi F0–F7 |
 | [2026-11-03-libreria-simboli-piu-ricca.md](2026-11-03-libreria-simboli-piu-ricca.md) | dalle prime bozze dell'assistente, 03-11-2026 | **seme — decisione** — la libreria dei 195 simboli (mediana 16 operazioni) va resa più ricca di dettaglio, e l'assistente la segue; da misurare il costo su LVGL e la leggibilità a volume 0 |
@@ -185,17 +160,12 @@ c'è già, manca solo la conferma a schermo prima di archiviare la scheda in
 | [2026-10-29-schermo-su-un-origine-sua.md](2026-10-29-schermo-su-un-origine-sua.md) | chiudendo il piano dello schermo remoto, validato il 29-10-2026 | **seme — decisione** — la pagina del pannello gira sull'origine `sws.soligo.net`: un pannello manomesso potrebbe leggere dal `localStorage` il gettone cloud di chi apre il suo schermo. Un nome per tutti gli schermi (HTTP-01, come oggi), uno per pannello (certificato jolly con DNS-01), o lasciare com'è finché i pannelli sono di prova. Da decidere prima che lo schermo esca dalla prova |
 | [2026-10-29-licenza-del-software.md](2026-10-29-licenza-del-software.md) | risposta del maintainer alle domande per le condizioni d'uso, 29-10-2026 | **seme — decisione** — la licenza va cambiata: oggi AGPL-3.0-only, che col cloud aperto obbliga a offrire il sorgente a chi usa il servizio. Quale licenza, per runtime e IDE, chi deve acconsentire, le dipendenze, le versioni già pubblicate. Le condizioni d'uso hanno un segnaposto al punto 11 |
 | [2026-10-26-progetto-letto-da-un-anonimo.md](2026-10-26-progetto-letto-da-un-anonimo.md) | la guardia delle rotte pre-auth corretta, 26-10-2026 | **seme — decisione** — `GET /api/project` sulla porta del viewer (7443) dà a un anonimo il progetto intero coi segreti mascherati, compresi destinatari email e numeri dei reperibili: vista ridotta, togliere i dati personali, o dichiararlo |
-| [2026-10-26-fiducia-nel-browser-del-pannello.md](2026-10-26-fiducia-nel-browser-del-pannello.md) | risposta di chi sviluppa PixsysOS e prova sul WP630, 26-10-2026 | **seme — decisione** — la chiave del dispositivo in `/mnt/protected/ssl` è un errore di PixsysOS e potrebbe sparire: il TLS del pannello passa al **nostro certificato reso fidato** nell'archivio NSS di `user` (`certutil`, senza root), che sopravvive agli aggiornamenti. **Provato sul WP630**: sinottico senza avviso dopo il riavvio. Rivede la regola del 25-10 di C4 (TLS di default solo col certificato del dispositivo) e ritira `certificato-dispositivo.sh` |
 | [2026-10-26-aprire-sws-soligo-net.md](2026-10-26-aprire-sws-soligo-net.md) | richiesta del maintainer, 26-10-2026: far provare SWS a persone esterne su `sws.soligo.net` | **piano d'esecuzione — PARZIALE**: **A**, **B** e **D** fatti (28-29-10), **C** fatto nei punti 1-3 con le schermate (30-10, registrazione spenta di default dietro `--gateway-registrazione`); restano l'SMTP per azienda, inattività e chiusura dell'account, e — fuori dal codice — revisione dei testi e prova di consegna. È il dettaglio della **Fase 5** del tronco cloud. Quattro rami: **A** un'azienda a testa per chi si registra, quota di tre progetti, il buco di `create_project` chiuso e i tetti sui container; **B** le due schermate (accesso e scelta progetto) responsive, con icone vere e il marchio al posto dello «SWS» cablato; **C** registrazione con verifica, PIN monouso via e-mail **in aggiunta** alla password, sessione di 30 giorni, SMTP per azienda su Infomaniak; **D** anteprima della prima pagina. Il cardine: marchio, isolamento, abbinamento pannello e console confinata **esistono già** e passano tutti dall'azienda — basta che chi si registra ne abbia una sua. **Non più bloccato dal 28-10-2026** (il ramo `feat/accesso-lvgl-due-campi` non esiste più); il ramo **B** ha preso la versione del runtime visibile **dopo** il login, e il perché non prima |
 | [2026-10-23-server-modbus.md](2026-10-23-server-modbus.md) | nato decidendo OpenPLC, 23-10-2026 | **seme — decisione** — SWS parla Modbus **solo da client**: un PLC o uno SCADA che voglia venire a prendersi i dati non ha come farlo. Delle quattro combinazioni «chi legge chi» fra SWS e OpenPLC due funzionano e due no, e di quelle due **una sola è nostra**: l'altra vuole un client OPC-UA che OpenPLC non ha. Il mattone c'è già — `tokio-modbus` ha la feature `server`, e i test di Fase 3 la usano. Il solo precedente di «SWS che serve dati» è il server OPC-UA, ed è lì che stanno le scelte da riusare |
 | [2026-10-25-strutture-sugli-altri-protocolli.md](2026-10-25-strutture-sugli-altri-protocolli.md) | chiudendo il piano dei tag, 25-10-2026 | **seme — decisione** — tipi compositi e array su S7, EtherNet/IP, MQTT, Home Assistant e Host: le code «non pianificate» del piano dei tag, ora che Modbus e OPC-UA sono fatti |
 | [2026-10-24-il-gateway-non-dice-chi-bussa.md](2026-10-24-il-gateway-non-dice-chi-bussa.md) | trovato misurando la stabilità del tunnel sul VPS, 23-10-2026 | **seme — decisione**: il gateway logga solo `tunnel aperto` e `tunnel chiuso`, quindi un pannello spento e uno che bussa senza entrare danno lo **stesso** log, cioè nessuno. Ha reso non concludibile metà di una prova di stabilità. Due trappole da sciogliere prima di scrivere: il rumore (migliaia di righe) e il token dentro un tentativo fallito |
-| [2026-10-22-utenti-nati-sul-dispositivo.md](2026-10-22-utenti-nati-sul-dispositivo.md) | estratto dal piano identità, archiviato il 22-10-2026 | **seme — decisione** — se un domani il pannello sapesse creare account da solo, al deploy successivo chi vince? Mezzo passo è fatto (l'Admin dell'abbinamento vive fuori dal progetto, in `utenti_dispositivo.yaml`), ma la marcatura `origine: dispositivo` della decisione 21 non esiste nel codice. Il caso non è ancora materialmente possibile — sul pannello non c'è un componente «gestione utenti» — ed è questo che lo rende rimandabile senza rischio |
-| [2026-10-19-manuale-rifatto.md](2026-10-19-manuale-rifatto.md) | avvio del lavoro sulla documentazione, 19-10-2026 | **rami 1 e 2 fatti; il 25-10-2026 il maintainer ha chiesto tutti e 14 i tutorial** (ramo 3: laboratorio OpenPLC v4 + Mosquitto, ogni passo eseguito e fotografato), poi il ramo 4 delle schermate |
 | [2026-11-01-gestione-energia.md](2026-11-01-gestione-energia.md) | idea del maintainer, 01-11-2026, dalla domotica di CasaDomotica | **seme — decisione** (con analisi e specifica proposta) — contatori di energia su un numero libero di tag (potenza integrata nel tempo o contatore cumulativo), quarti d'ora salvati nel fuso locale, gruppi ad albero con «non attribuito», tag esposti (oggi, mese, costo), poi barre per periodo, tariffe F1/F2/F3, fotovoltaico, limite di potenza e distacco carichi, cicli degli elettrodomestici. Sei domande aperte in fondo |
 | [2026-11-01-hmify.md](2026-11-01-hmify.md) | scelta del nome del maintainer, 01-11-2026: domini hmify .com/.net/.eu/.cloud registrati | **seme — decisione** — tutto su hmify: nome e slogan «hmify your data», domini e account (GitHub `hmify` libero), il marchio da verificare (vicino: Homify), la vetrina Bootstrap su `hmify.com` da un repository git (proposta: GitHub Pages), il bottone «hmify login» (proposta: `app.hmify.com`, con `sws.soligo.net` che resta per i pannelli già collegati), il perimetro del rinomino |
-| [2026-10-21-quando-si-libera-una-licenza.md](2026-10-21-quando-si-libera-una-licenza.md) | la domanda rimasta aperta chiudendo il piano sulle licenze, 21-10-2026 | **seme — decisione** — `max_pannelli` si mostra ma non ferma: per farlo valere serve sapere quando una licenza si consuma e **quando si libera**. Un tetto che nessuno libera prima o poi blocca un cliente che non ha fatto niente. `abbinato_ms` e `ultimo_ms` ci sono già; manca uno stato «dismesso», distinto da sospeso e da bandito |
-| [2026-10-21-casadomotica-versionata-e-separata.md](2026-10-21-casadomotica-versionata-e-separata.md) | le due domande che il piano di CasaDomotica lasciava aperte, 21-10-2026 | **seme — decisione** — il progetto di riferimento vive solo sul VPS (540 MB di storico, ma il disegno sono poche centinaia di kB) ed è anche l'impianto di casa del maintainer. Versionarlo e separarlo dall'impianto vero vanno decisi insieme: se il disegno finisce nel git di progetto, la copia di lavoro è un clone e l'allineamento è un `pull`. La **pratica** è diventata una regola di `CLAUDE.md` |
 | [2026-10-21-due-editor-sullo-stesso-progetto.md](2026-10-21-due-editor-sullo-stesso-progetto.md) | prova del maintainer, 21-10-2026: stesso progetto aperto da due browser in due sedi | **seme — decisione** — non c'è nessun lock: i tre `Mutex` del runtime sono interni a un processo e servono a non corrompere un file, non a dire «c'è già qualcuno». L'unico accorgimento è l'avviso «il progetto è cambiato», che ha una finestra di 20 s in cui attribuisce a sé **qualunque** cambio: due salvataggi ravvicinati si sovrascrivono in silenzio. Il dato per una presenza esiste già (`Aperto.collegati`) |
 | [2026-10-18-indirizzo-vero-dietro-traefik.md](2026-10-18-indirizzo-vero-dietro-traefik.md) | limiti per indirizzo dell'onda 2, 18-10-2026 | **seme — decisione** — Traefik rootless vede ogni visitatore come `10.89.0.89` (rootlessport): il gateway non conta gli indirizzi privati e oggi il cloud non ha limiti. Strade: pasta, port handler, Traefik di sistema, PROXY protocol |
 | [2026-10-17-tag-uguali-ritrasmessi.md](2026-10-17-tag-uguali-ritrasmessi.md) | trovato col banco di prestazioni, 17-10-2026 | **seme — decisione** — `TagDb::set` ritrasmette anche i valori invariati, e i generatori (ricalcolo a 100 ms) fanno 10 aggiornamenti/s per tag verso ogni client |

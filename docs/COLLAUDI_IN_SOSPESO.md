@@ -27,6 +27,52 @@
 
 ---
 
+## La serie L0 → F2 → F3 (05-11-2026) — la sandbox Python e la Finestra di avviso dappertutto
+
+Sui rami annidati `fix/sandbox-python` → `feat/finestra-avviso-2` → `feat/finestra-avviso-3` (non ancora in `main`).
+L0 cambia il runtime e F3 il viewer: le voci del pannello vogliono l'immagine nuova. Le voci IDE si provano sull'IDE
+locale (8460) o sul VPS dopo il rilascio.
+
+**L0 — la sandbox Python** (su un pannello, in un progetto di prova: `grid-playground` non ha più funzioni)
+1. [ ] Uno script globale con `print('ciao')` e un `for i in range(3): tot += i`: gira senza `NameError`, e nel
+       registro del runtime compare la riga `print` col nome dello script e il testo. **Passata sull'IDE 8460 il
+       06-11-2026**; resta da provare sul pannello.
+2. [ ] Una funzione con un parametro col predefinito (`chi`, predefinito `operatore`) chiamata da un bottone senza
+       argomenti: usa il predefinito. «Prova» della funzione mostra il testo dei `print`.
+3. [ ] `min`, `max`, `sum`, `sorted`, `enumerate` in uno script: girano sul pannello. **Passata sull'IDE 8460 il
+       06-11-2026** (`ciao 3 1 3 3 [1, 2] [(0, 'a'), (1, 'b')]` nel registro); resta da provare sul pannello.
+
+**F2 — deploy ed editor** (IDE; il deploy vuole un pannello raggiungibile)
+4. [ ] Deploy verso un pannello con un altro progetto: la conferma «cancella dal pannello…» è una finestra rossa con
+       Annulla predefinito; Annulla non tocca niente, Conferma procede. Lo stesso da Connessione e da Dispositivi.
+5. [ ] «Utenti e segreti» in testata: la conferma, e poi (progetto senza utenti) «Questo progetto non ha utenti».
+6. [x] Eliminare una pagina, una cornice, un faceplate usato, una planimetria; separare un gruppo; «Ruolo minimo» sotto
+       la soglia della variabile (la tendina torna com'era se si annulla). Confermato il 06-11-2026 sull'8460.
+7. [x] Un testo tradotto usato in due punti, cambiato in uno: «Cambia solo qui» / «Cambia dappertutto»; **Esc o
+       Annulla lascia il testo com'era** (prima cambiava dappertutto). Esc nel campo butta quello che si è scritto.
+       **Non passata il 06-11-2026**: confermando il campo con Invio la domanda si apriva e si richiudeva da sola
+       (il `keypress` dello stesso Invio premeva Annulla, il predefinito di `scegli`). Corretto in
+       `FinestraAvviso.tsx` (il fuoco va al predefinito solo quando Invio si alza) e provato col browser
+       sull'IDE di prova, anche dentro un faceplate. **Riprovata e passata il 06-11-2026 sera.**
+8. [x] Storico: «Carica database» chiede prima e poi apre il selettore di file — **in Chrome e in Firefox**.
+       Confermato il 06-11-2026 sull'8460.
+
+**F3 — viewer, console, finestre** (viewer sul pannello, kiosk WebKit: WP630 o TC620)
+9. [ ] Un bottone con `require_confirm`: la finestra con Annulla/Conferma nella lingua dei contenuti; Annulla non scrive.
+10. [ ] Un comando `critical`: la password in una finestra (campo nascosto), sbagliata dà errore e non scrive; con
+       `require_reason` il motivo vuoto tiene aperta la finestra.
+11. [ ] Un bottone momentaneo con `require_confirm`: non chiede più niente e si tiene premuto.
+12. [ ] Un toggle con conferma: scrive l'inverso del valore **al momento della conferma**.
+13. [ ] Allarmi: «Conferma» con motivo obbligatorio, «Conferma tutti», «Metti a tacere».
+14. [ ] Uno slider con `require_confirm`: una domanda sola al rilascio, e il cursore resta dove l'ha lasciato.
+15. [ ] IDE. **Già passati il 05-11-2026 sull'8460**: chiudere il progetto con modifiche non salvate (Salva e chiudi /
+       Chiudi senza salvare / Annulla) e la console (abbandonare le modifiche in Aziende e Persone); **il 06-11**
+       «Crea variabile», «Rinomina tag» (da Progetto → Variabili, «Tags» con l'IDE in inglese) e «Cambia risoluzione».
+       Restano: il pull dal dispositivo nella finestra nuova, sessione scaduta, chiusura dell'account: stessa cornice,
+       Esc, Tab che resta dentro.
+16. [ ] L'avviso di aggiornamento sul pannello (versione nuova, conferma dopo l'aggiornamento) con il login per Admin
+       che gli si apre sopra: si scrive nel login.
+
 ## La 2.25.1 (05-11-2026) — anomalie del collaudo 2.25.0, regole dei template, lucchetto
 
 Sul WP630 (`pixsys@wp630-a-p3-07a077.local`, canale `rc-arm64`) e su `sws.soligo.net`. Le correzioni trovate
@@ -49,64 +95,33 @@ sull'immagine 2.25.2.
 9. [ ] **Aggiornamento dall'IDE**: prima di confermare compaiono le novità della versione, e il pannello si ricollega.
 10. [ ] **Il lucchetto** (T1): `homeassistant-pro` senza accesso, pagina Sicurezza — «🔒 Operator» sul cancelletto,
         «🔒 Supervisor» sulla tapparella del garage, sul web e sul pannello; da Operator il primo sparisce.
-11. [ ] **Niente allarmi falsi all'avvio** (T1): `homeassistant-pro` non dà «Soggiorno troppo freddo: 0.0 °C».
-12. [ ] **I template con la cornice** (T1 e T2): titolo, ora e navigazione su ogni pagina, comandi senza accedere, il
-        titolo tradotto cambiando lingua; `tc620-sistema` con data e ora.
-13. [ ] **Faceplate**: in `tc620-sistema` il faceplate di un'interfaccia propone `tc620.ethernet0`; `motor_basic` e
+11. [x] **Niente allarmi falsi all'avvio** (T1) (il 05-11-2026 il maintainer accetta il test unitario al posto della prova a mano): `homeassistant-pro` non dà «Soggiorno troppo freddo: 0.0 °C».
+12. [x] **I template con la cornice** (T1 e T2): titolo, ora e navigazione su ogni pagina, comandi senza accedere, il
+        titolo tradotto cambiando lingua; `tc620-sistema` con data e ora. Confermato il 06-11-2026.
+13. [x] (05-11-2026, IDE 8460) **Faceplate**: in `tc620-sistema` il faceplate di un'interfaccia propone `tc620.ethernet0`; `motor_basic` e
         `tank_level` mostrano «1450 rpm» e «62.5 %».
 14. [ ] **L'assistente e i nomi tradotti** (T2): trova una pagina dal nome tradotto, e il riepilogo non mostra `{{t0069}}`.
 
 ## Prestazioni: dove se ne va il tempo (26-10-2026)
 
-Serve la build (2.23.1). Sul TC620 con la pagina della pompa che scorre lungo il percorso.
+Sul WP630 (o sul TC620) dall'IDE collegato. *(05-11-2026: la 2 è misurata, la 4 confermata; restano 1, 3, 5.)*
 
 1. [ ] Dall'IDE collegato al TC620: Configurazione → Istanza → Prestazioni. La colonna del pannello mostra il runtime;
        il viewer LVGL compare solo se è quello che disegna lo schermo.
-2. [ ] (Solo su un pannello col viewer LVGL; il TC620 oggi usa il viewer web.) Far scorrere la pompa: compaiono
-       «Tubo: corpo (SVG)» e «Tubo: bocchettoni», con per fotogramma e p95.
+2. [x] (Solo su un pannello col viewer LVGL.) «Tubo: corpo (SVG)» con per fotogramma e p95 — **misurato il 27-10-2026
+       sul WP630 in LVGL** (4,9 ms per fotogramma, p95 15; `docs/archive/2026-10-26-dove-se-ne-va-il-tempo.md`).
+       «Tubo: bocchettoni» compare solo quando i bocchettoni si ridisegnano.
 3. [ ] La colonna del runtime mostra le sorgenti di CasaDomotica (MQTT, Modbus) con i loro giri, e lo storico.
 4. [x] **Il tubo segue la pompa** (sul TC620, viewer web) — **confermato dal maintainer il 27-10-2026**, «sullo schermo ora si muove perfettamente», dopo il `flushSync` in `useSegueIlMoto`: con lo slider, la pompa che scorre lungo il percorso non si
        stacca più dal tubo mentre si muove (prima 10-15 px nella direzione del moto).
-5. [ ] Chiudere la pagina: dopo un minuto il viewer smette di mandare (nel log del runtime nessuna
-       `POST /api/prestazioni/viewer`).
+5. [ ] Chiudere la pagina: dopo un minuto il viewer smette di mandare. Nel log non si vede (nessuno scrive una riga
+       per quella POST): si guarda la richiesta, `curl -sk https://<pannello>:7443/api/prestazioni/richiesta` →
+       `{"attiva":true}` con la pagina aperta, `{"attiva":false}` più di 60 s dopo averla chiusa. *(Corretto il 05-11.)*
 
-## A. La misura che blocca C4 — il browser del pannello davanti al proprio certificato
+## A. La misura che blocca C4 — chiusa
 
-**È la più importante, ed è una misura, non un sì/no.** Da lei dipende se il TLS si può accendere
-di default sul pannello (voce C4 del piano CRA). Finché non è fatta, le altre tre risposte già date
-— solo il ruolo «pannello», marcatore in `config/`, impronta mostrata — non si possono mettere in
-codice: seminare un certificato su un pannello il cui browser poi non lo accetta vuol dire **un
-interstiziale al posto del sinottico**.
-
-Il launcher è di PixsysOS e riceve **solo un URL via D-Bus**: in tutto il repo non c'è un flag di
-chromium. Quindi la via «gli passiamo un argomento» va verificata prima di prometterla.
-
-> **24-10-2026**: punti 1, 2 e 4 fatti — interstiziale, «Procedi» funziona, NSS scrivibile, e il certificato
-> del dispositivo Pixsys in `/mnt/protected/ssl/`. Risultati e strade nel [piano C4](plans/2026-10-23-c4-tls-di-default.md).
-> Punto 3 fatto: riavvio a freddo col TLS acceso, `active` con `NRestarts=0`. E con il certificato del
-> dispositivo (HOWTO §29) lo schermo mostra il sinottico **senza avvisi**.
-
-1. [x] Sul TC620, con un progetto **web** attivo, accendere il TLS: IDE → Configurazione →
-       Istanza → Device → Stato → **Certificato TLS** → «Genera certificato self-signed».
-       Il pannello riparte da solo.
-2. [x] **Guardare lo schermo del pannello.** Cosa compare?
-       - il sinottico, come prima → il browser accetta l'autofirmato su loopback: C4 è fattibile
-         come sperato, e la risposta alla domanda 2 è «niente da fare»;
-       - l'interstiziale «La connessione non è privata» → si può passare oltre **toccando**
-         Avanzate → Procedi? Se sì, resta da decidere se è accettabile che lo faccia un operatore
-         una volta; se no, serve la via «il pannello si fida del proprio certificato»;
-       - pagina bianca o errore di rete → vuol dire che l'URL è ancora `http://` da qualche parte:
-         annotare **esattamente** cosa dice la pagina.
-3. [x] **Riavviare il pannello** (`reboot`) con il TLS ancora acceso. Il container deve tornare
-       `healthy` e il servizio avviarsi. **Questo è il difetto corretto il 23-10-2026**: prima il
-       controllo di salute chiedeva `/health` solo in chiaro e, con `Notify=healthy`, l'unità non
-       sarebbe mai diventata sana — riavvio ogni cinque secondi. Verifica:
-       `podman healthcheck run sws-runtime` e `systemctl --user status sws-runtime`.
-       (Se il bus non si trova: `XDG_RUNTIME_DIR=/run/user/$(id -u)` davanti, HOWTO §27.)
-4. [x] Annotare se chromium ha un archivio di fiducia scrivibile sul pannello
-       (`/` è in sola lettura fuori da `/data`): serve solo se il punto 2 è andato male.
-
-**Dove finisce il risultato**: `docs/archive/2026-10-23-c4-tls-di-default.md`, domanda 2.
+Le quattro voci spuntate il 24-10-2026; il piano C4 è archiviato come fatto il 25-10
+(`docs/archive/2026-10-23-c4-tls-di-default.md`). Sezione tolta il 05-11-2026: il testo è nella storia git.
 
 ---
 
@@ -126,11 +141,14 @@ va rifatta anche la configurazione del servizio).
        e lo schermo deve mostrare il sinottico **senza** «La connessione non è privata».
 3. [ ] Sicurezza → Certificati, colonna del pannello: la card dice che il browser si fida. Non
        deve esserci nessuna proposta da accettare né nessun comando da copiare.
-4. [ ] **Il guardiano segue il cambio**: premere «Genera certificato self-signed». Dopo il
-       riavvio lo schermo deve essere ancora senza avvisi — è il punto che l'installatore da solo
-       non coprirebbe, ed è il motivo per cui esiste `sws-fiducia.path`.
-5. [ ] **Rimuovi** il certificato: il pannello torna in chiaro, e
-       `fiducia-browser.sh <config> --verifica` non deve più elencare «SWS pannello».
+4. [ ] **Il guardiano segue il cambio**: con il TLS acceso «Genera» non c'è (compare solo a TLS spento), quindi la
+       prova si fa con **«Disabilita TLS»**, che di fatto rigenera il certificato (punto 5). Atteso: il pannello resta
+       in HTTPS con un'impronta nuova, l'IDE chiede di dimenticare quella vecchia in Connessione,
+       `fiducia-browser.sh <config> --verifica` elenca ancora «SWS pannello» e lo schermo resta senza avvisi. Se
+       compare l'avviso e `--verifica` non elenca il certificato, il `PathChanged` di `sws-fiducia.path` si è perso fra
+       cancellazione e ricreazione (meno di un secondo). *(Corretto il 05-11-2026.)*
+5. [ ] **Rimuovi** il certificato: oggi il pannello **non** torna in chiaro — col marcatore `fiducia-browser` il
+       runtime ne genera subito uno nuovo. Difetto noto (in `Appunti.txt`, 05-11-2026): si riprova quando è corretto.
 6. [ ] **Non misurato, da misurare qui**: dopo un cambio di certificato basta riavviare il solo
        kiosk, o serve tutto il pannello? Nella prova del 26-10 si era riavviato tutto.
 7. [ ] Su un dispositivo **senza `certutil`** (o fingendolo): l'installatore deve dirlo, il
@@ -160,20 +178,6 @@ fatta il 24-10. Va tolta — era un'eccezione a una strada che non esiste più.
 4. [ ] Lasciare il pannello acceso oltre l'ora del cron (es. `*/15 * * * *` per provare): i file nascono da soli; con
        «File da tenere» = 2 restano solo le ultime due generazioni.
 
-## A-quinquies. SMS, voce e reperibilità (26-10-2026)
-
-Serve un account Twilio (anche di prova: chiama e scrive solo ai numeri verificati) e il TC620 collegato al cloud.
-
-1. [ ] Configurazione → Progetto → Notifiche → Telefono: Account SID, token, numero Twilio; salvare; «Invia SMS di
-       prova» al proprio cellulare → arriva.
-2. [ ] Due reperibili di turno adesso (il proprio numero e un secondo), attesa 2 minuti; in **Cosa e dove** spuntare
-       Voce sullo scatto. Far scattare un allarme: squilla il primo, si sente il messaggio.
-3. [ ] Non rispondere: dopo 2 minuti tocca al secondo. Premere 1: l'allarme risulta riconosciuto da «telefono: …»
-       nel registro e la catena si ferma.
-4. [ ] SMS: impostare nella console di Twilio il webhook `https://<gateway>/telefono/<pannello>/sms`, spuntare SMS
-       sullo scatto, far scattare un allarme e rispondere «OK» → riconosciuto.
-5. [ ] Togliere i reperibili di turno (fascia diversa da adesso): l'allarme non chiama nessuno e il log lo dice.
-
 ## A-sexies. Il tunnel: vivo, spento o perso (26-10-2026)
 
 1. [ ] Console → Pannelli con il TC620 collegato: pallino verde. `sudo systemctl --user stop sws-runtime` sul
@@ -195,9 +199,9 @@ ignora `disponibilita:` e la cancella al primo salvataggio, senza avvisare.
        pallino rosso, e il motivo nel suggerimento. Aperta: la sezione **DISPONIBILITÀ** sta fra Autenticazione e
        Mappatura, con lo stato a destra del titolo e il pulsante «⚠ Crea l'allarme di disponibilità». Sotto la
        card non c'è più nessuna riga.
-2. [ ] Sezione **DISPONIBILITÀ** → «Chi dice se è vivo» → Zigbee2MQTT: si compilano topic, campo e valore. Salvare: in
+2. [x] (29-10-2026) Sezione **DISPONIBILITÀ** → «Chi dice se è vivo» → Zigbee2MQTT: si compilano topic, campo e valore. Salvare: in
        Variabili compare il tag `<sorgente>.disponibile`.
-3. [ ] «⚠ Crea l'allarme di disponibilità», dentro la sezione: la scheda Allarmi si apre con l'allarme in bozza
+3. [x] (29-10-2026) «⚠ Crea l'allarme di disponibilità», dentro la sezione: la scheda Allarmi si apre con l'allarme in bozza
        (`bool_false`, 60 s, Warning, il nome della sorgente nel messaggio). Salvare. Tornando alla card, al posto
        del pulsante c'è «Vai all'allarme».
 4. [ ] «Personalizzato…» con un topic e **senza** valore «vivo»: la validazione avvisa.
@@ -225,17 +229,18 @@ Piano `docs/archive/2026-10-29-card-delle-sorgenti.md`. Nasce dal collaudo a sch
 dell'allarme troppo nascosto, i titoli delle sezioni dello stesso colore delle etichette, il watchdog da solo su una
 riga. Basta l'8460 sul ramo; un progetto con una sorgente per tipo aiuta.
 
-1. [ ] **Le nove testate uguali**: tipo colorato · id · riepilogo · stato · azioni · ▲. Host e server OPC-UA senza
+1. [x] **Le nove testate uguali** (visto il 29-10-2026, spuntato il 05-11): tipo colorato · id · riepilogo · stato · azioni · ▲. Host e server OPC-UA senza
        stato (non hanno un altro capo).
-2. [ ] **L'ordine dei campi**: in ogni card l'indirizzo (host, porta seriale, IP, endpoint, URL) viene per primo,
+2. [x] **L'ordine dei campi** (visto il 29-10-2026): in ogni card l'indirizzo (host, porta seriale, IP, endpoint, URL) viene per primo,
        l'ID sorgente per ultimo nella prima riga.
-3. [ ] **MQTT → AVANZATE** parte chiusa e dice cosa c'è dentro; aperta, keep-alive, QoS, clean session e
+3. [x] **MQTT → AVANZATE** (visto il 29-10-2026) parte chiusa e dice cosa c'è dentro; aperta, keep-alive, QoS, clean session e
        **watchdog** stanno su una riga sola.
-4. [ ] **MQTT → MAPPATURA**: l'interruttore `[Topic | Sparkplug B]` nel titolo. Sparkplug B sostituisce la tabella
-       dei topic e fa sparire DISPONIBILITÀ; tornare a Topic con delle metriche chiede conferma.
-5. [ ] **Il contrasto, nei due temi**: i titoli di sezione si staccano dalle etichette; i campi hanno un fondo
+4. [x] **MQTT → MAPPATURA**: l'interruttore `[Topic | Sparkplug B]` nel titolo. Sparkplug B sostituisce la tabella
+       dei topic e fa sparire DISPONIBILITÀ; tornare a Topic con delle metriche chiede conferma. Confermato il
+       06-11-2026 sull'8460.
+5. [x] **Il contrasto, nei due temi** (visto il 29-10-2026): i titoli di sezione si staccano dalle etichette; i campi hanno un fondo
        diverso dalla card; nel tema chiaro la card si stacca dal grigio della pagina (bordo e ombra).
-6. [ ] **OPC-UA client**: la security policy e i certificati stanno in AVANZATE, chiusa, col riepilogo «Security
+6. [x] **OPC-UA client** (visto il 29-10-2026): la security policy e i certificati stanno in AVANZATE, chiusa, col riepilogo «Security
        policy: …»; utente e password si scelgono in AUTENTICAZIONE.
 
 ## A-nonies. Un faceplate si disegna sul canvas (29-10-2026)
@@ -243,21 +248,21 @@ riga. Basta l'8460 sul ramo; un progetto con una sorgente per tipo aiuta.
 Piano `docs/archive/2026-10-27-faceplate-disegnato-sul-canvas.md`. Basta l'8460 sul ramo, con un progetto che usa un
 faceplate (il dimostrativo ha `tank_level`).
 
-1. [ ] Albero delle pagine: il ramo **🧩 Faceplate** con i tre predefiniti (◇). Configurazione non ha più la scheda
+1. [x] (05-11-2026, IDE 8460) Albero delle pagine: il ramo **🧩 Faceplate** con i tre predefiniti (◇). Configurazione non ha più la scheda
        Faceplates.
-2. [ ] Aprire `tank_level`: il foglio ha la misura del faceplate, i testi `{label}` si leggono «label» (o il
+2. [x] (05-11-2026, IDE 8460) Aprire `tank_level`: il foglio ha la misura del faceplate, i testi `{label}` si leggono «label» (o il
        predefinito). Con una cornice predefinita nel progetto, sotto il faceplate **non** c'è la cornice.
-3. [ ] Trascinare un figlio, poi aprire una pagina con un'istanza di `tank_level`: **l'istanza è già cambiata**, prima
+3. [x] (05-11-2026, IDE 8460) Trascinare un figlio, poi aprire una pagina con un'istanza di `tank_level`: **l'istanza è già cambiata**, prima
        di salvare. Ctrl+Z la rimette.
-4. [ ] Salvare: `tank_level` diventa ◆ (personalizzato). Nelle proprietà, «Ripristina il predefinito» lo riporta com'era
+4. [x] (05-11-2026, IDE 8460) Salvare: `tank_level` diventa ◆ (personalizzato). Nelle proprietà, «Ripristina il predefinito» lo riporta com'era
        e il ◇ torna.
-5. [ ] «+ Nuovo faceplate», disegnarlo, aggiungere un parametro dalle proprietà, salvare e ricaricare la pagina del
+5. [x] (05-11-2026, IDE 8460) «+ Nuovo faceplate», disegnarlo, aggiungere un parametro dalle proprietà, salvare e ricaricare la pagina del
        browser: c'è ancora. **Trascinarlo dal ramo su una pagina**: l'istanza nasce dove lo si lascia, col faceplate
        giusto e della sua misura. Il ＋ della riga fa lo stesso al centro della vista; su un faceplate aperto è spento.
        Fra gli strumenti, «Faceplate» non c'è più.
-6. [ ] «{ } JSON»: cambiare il nome nella definizione e «Applica»; scrivere un JSON rotto: «Applica» resta spento. Con
+6. [x] (05-11-2026, IDE 8460) «{ } JSON»: cambiare il nome nella definizione e «Applica»; scrivere un JSON rotto: «Applica» resta spento. Con
        un oggetto `type: faceplate` dentro, lo dice e non applica.
-7. [ ] Selezionare due oggetti su una pagina → «⧉ Crea faceplate dalla selezione»: il faceplate compare nel ramo, la
+7. [x] (05-11-2026, IDE 8460) Selezionare due oggetti su una pagina → «⧉ Crea faceplate dalla selezione»: il faceplate compare nel ramo, la
        selezione diventa un'istanza, un Ctrl+Z toglie tutti e due.
 8. [ ] **CasaDomotica** (dopo il rilascio, regola del 16-10): ridisegnare `tank_level` dal canvas e vederlo sul WP630.
 
@@ -265,45 +270,36 @@ faceplate (il dimostrativo ha `tank_level`).
 
 Ramo D del piano `docs/plans/2026-10-26-aprire-sws-soligo-net.md`.
 
-1. [ ] Aprire un progetto, cambiare qualcosa nella pagina iniziale, salvare, chiudere il progetto: la sua scheda
-       mostra la miniatura, con la cornice, nelle due viste (griglia ed elenco) e su un telefono.
-2. [ ] Salvare una modifica a un'altra pagina: la miniatura non si rifà (nella scheda Network non parte il `PUT`).
-3. [ ] Nel cloud: la miniatura si vede nell'elenco servito dal gateway, e `anteprima.png` non compare in un commit Git
+1. [x] Aprire un progetto, cambiare qualcosa nella pagina iniziale, salvare, chiudere il progetto: la sua scheda
+       mostra la miniatura, con la cornice, nelle due viste (griglia ed elenco) — **approvata a schermo il 29-10-2026**
+       (homeassistant-pro); il telefono non è stato guardato.
+2. [x] Salvare una modifica a un'altra pagina: la miniatura non si rifà (nella scheda Network non parte il `PUT`).
+       Confermato il 06-11-2026.
+3. [x] (05-11-2026) Nel cloud: la miniatura si vede nell'elenco servito dal gateway, e `anteprima.png` non compare in un commit Git
        del progetto.
 
-## A-undecies. Lo schermo del pannello dal cloud (29-10-2026)
+## A-undecies. Lo schermo del pannello dal cloud — validato
 
-Piano `docs/archive/2026-10-29-schermo-remoto.md`. Serve un pannello **e** il gateway alla stessa versione (dopo il
-rilascio che lo porta).
-
-**Validato dal maintainer il 29-10-2026 sera**, sulla 2.23.7: «funziona perfettamente lo schermo remoto». Le voci
-restano come traccia per chi lo riprova; non sono state spuntate una per una.
-
-1. [ ] Dal cloud, IDE collegato a `tc620-garage`, tasto **Viewer**: si apre una scheda con la pagina operatore di
-       CasaDomotica, coi valori veri che si muovono.
-2. [ ] Un comando dalla scheda (un pulsante, uno slider) arriva al campo come dal pannello.
-3. [ ] Login con un utente del progetto e uscita, nella scheda dello schermo: l'IDE nell'altra scheda resta collegato.
-4. [ ] Console → *Pannelli* → *Schermo remoto* spento: il tasto Viewer dice perché non si apre, e la scheda già
-       aperta smette di rispondere al primo ricaricamento.
-5. [ ] Logout dall'IDE: lo schermo aperto smette di rispondere.
-6. [ ] Un utente di un'altra azienda, con l'indirizzo `/schermo/<pannello>/` copiato: non entra.
-7. [ ] Un pannello ancora alla versione di prima: il tasto apre una pagina che dice «va aggiornato».
+**Validato dal maintainer il 29-10-2026 sera**, sulla 2.23.7 («funziona perfettamente lo schermo remoto»); piano in
+`docs/archive/2026-10-29-schermo-remoto.md`. Le sette voci di traccia sono tolte il 05-11-2026 (sono nella storia git).
+L'unica che varrebbe ancora la pena di fare è di sicurezza: un utente di un'altra azienda, con l'indirizzo
+`/schermo/<pannello>/` copiato, non entra (serve un secondo account in un'altra azienda).
 
 ## A-duodecies. I corpi del testo e i testi che LVGL non disegnava (25-10-2026)
 
 Piano `docs/archive/2026-10-25-corpi-e-parita-lvgl.md`, archiviato il 30-10-2026 con questo collaudo come unico
 residuo. Serve un pannello in **modalità LVGL** (WP630, o TC620 commutato) col progetto `demo-items-lvgl`, che usa
-tutti questi tipi.
+tutti questi tipi. **Tutte e sei confermate a schermo il 06-11-2026.**
 
-1. [ ] Cambiare il corpo del valore e quello dell'unità (`unit_font_size`) su un gauge e su un kpi: sul pannello
+1. [x] Cambiare il corpo del valore e quello dell'unità (`unit_font_size`) su un gauge e su un kpi: sul pannello
        cambiano tutt'e due, e l'unità segue il valore (nel kpi accanto, nel gauge sotto).
-2. [ ] Sotto un **symbol** compare l'etichetta dello stato attivo; in una **sparkline** l'ultimo valore in alto a
+2. [x] Sotto un **symbol** compare l'etichetta dello stato attivo; in una **sparkline** l'ultimo valore in alto a
        destra.
-3. [ ] **alarm_banner**: la pillola ISA (piena per l'attivo, col bordo per il rientrato) e il tasto ACK sulla riga.
-4. [ ] **Storico allarmi** e **registro dati**: la tabella scorre col dito fino all'ultima riga; titolo «STORICO
+3. [x] **alarm_banner**: la pillola ISA (piena per l'attivo, col bordo per il rientrato) e il tasto ACK sulla riga.
+4. [x] **Storico allarmi** e **registro dati**: la tabella scorre col dito fino all'ultima riga; titolo «STORICO
        ALLARMI». Il messaggio e lo stato stanno in due colonne, non in una sottoriga (dichiarato: resta del web).
-5. [ ] **alarm_bell**: la campana si vede (non un quadratino); **lang_selector**: codici in maiuscolo.
-6. [ ] **recipe_panel**: senza ricette dice che è vuoto; applicandone una, la riga d'esito.
+5. [x] **alarm_bell**: la campana si vede (non un quadratino); **lang_selector**: codici in maiuscolo.
+6. [x] **recipe_panel**: senza ricette dice che è vuoto; applicandone una, la riga d'esito.
 
 ## A-terdecies. L'impianto lo tocca il pannello, anche dal cloud (25-10-2026)
 
@@ -326,7 +322,7 @@ pannello in chiaro**: se il TLS è spento, tutto deve funzionare esattamente com
 6. [ ] **Pannello con TLS acceso**: rilanciare `install-container.sh` e verificare che adesso
        stampi `https://`, che punti il browser su `https://127.0.0.1:7443` e che il codice di
        abbinamento lo legga lo stesso (prima due sonde su tre erano mute).
-7. [ ] **Pannello LVGL con TLS acceso e quadlet vecchio**: il viewer deve ripartire lo stesso. Nel
+7. [x] **Pannello LVGL con TLS acceso e quadlet vecchio** (lo schermo LVGL col sinottico, collaudo del 06-11-2026): il viewer deve ripartire lo stesso. Nel
        log (`journalctl --user -u sws-lvgl-viewer`) deve comparire
        `[base-url] http://… non risponde, https://… sì: uso quello` e lo schermo deve mostrare il
        sinottico. Se resta nero, il ripiego di schema non ha funzionato.
@@ -335,14 +331,15 @@ pannello in chiaro**: se il TLS è spento, tutto deve funzionare esattamente com
 
 ## C. Il certificato: nome vero, e governo da remoto
 
-8. [ ] **Rigenerare** il certificato sul pannello e guardarne il soggetto:
+8. [x] *(Misurato il 05-11-2026 sul WP630: `CN = wp630-a-p3-07a077, O = SWS`, SAN `localhost`, il nome, il nome
+       `.local`, `127.0.0.1` e l'IP.)* **Rigenerare** il certificato sul pannello e guardarne il soggetto:
        `openssl s_client -connect <pannello>:7443 </dev/null 2>/dev/null | openssl x509 -noout -subject -ext subjectAltName`
        Deve dire `CN = <nome del pannello>` (non più `rcgen self signed cert`) e i SAN devono
        contenere `localhost`, `<nome>` e `<nome>.local` oltre agli IP.
-9. [ ] **La card «Certificato TLS» con un pannello connesso** (Configurazione → Istanza → Device):
+9. [x] **La card «Certificato TLS» con un pannello connesso** (Configurazione → Istanza → Device):
        in testa deve dire «Dispositivo connesso — `<host:porta>`», non «Questa istanza», e deve
        mostrare le tre righe gialle (riavvio, impronta che cambia, schema che cambia).
-       **Prima questa card governava il PC su cui gira l'IDE.**
+       **Prima questa card governava il PC su cui gira l'IDE.** Confermato il 06-11-2026.
 10. [ ] Premere «Genera certificato self-signed» **da lì**: deve agire sul **pannello**. Il PC
        dell'IDE non deve cambiare stato TLS.
 11. [ ] Dopo il punto 10, riconnettersi: deve comparire l'errore «certificato cambiato» e il
@@ -358,32 +355,17 @@ pannello in chiaro**: se il TLS è spento, tutto deve funzionare esattamente com
         memorizzata da un collegamento precedente».
 14. [ ] **Collegamento in `http://`**: **nessuna** riga dell'impronta. Se compare, è un difetto:
         non c'è nessuna identità da verificare.
-15. [ ] Confrontare l'impronta con quella che il pannello dice di sé —
+15. [x] *(Misurato il 05-11-2026: l'impronta memorizzata dall'IDE 8460 per il WP630 è quella servita sulla 7443 e
+        sulla 7444.)* Confrontare l'impronta con quella che il pannello dice di sé —
         `openssl x509 -in /data/user/sws/config/tls.crt -noout -fingerprint -sha256`. Devono
         coincidere. *(È la cosa che rende utile tutta la funzione: se non coincidono, il confronto
         che l'IDE propone è teatro.)*
 
 ---
 
-## E. Accesso dal pannello LVGL — la tastiera
+## E. Accesso dal pannello LVGL — chiusa
 
-Il difetto segnalato il 23-10-2026: «se premo *Aggiorna ora* mi compare direttamente *Per
-aggiornare serve un amministratore del pannello* col solo bottone annulla, non c'è modo di fare il
-login».
-
-16. [x] Su un pannello **LVGL** con un aggiornamento disponibile, premere «Aggiorna ora».
-        Deve comparire il **form di accesso**, non il rifiuto secco. **Passa** (26-10-2026, WP630
-        sulla 2.22.0).
-17. [x] La **tastiera a schermo** deve vedersi (contrasto vero, non testo su fondo dello stesso
-        colore), deve **scrivere** nei campi, e il tasto di chiusura deve farla sparire.
-        **Passa** (26-10-2026).
-18. [x] «Annulla» deve riportare al sinottico, non lasciare il pannello bloccato. **Passa**
-        (26-10-2026).
-
-    > **Chiusa il 26-10-2026**, con la 2.22.0 sul WP630. Parole del maintainer: «il menù di login
-    > per diventare admin ora funziona come mi aspettavo». La schermata e cambiata nel frattempo:
-    > i due campi stanno insieme in una colonna centrata, e ci sono «Annulla» e «Accedi» — prima
-    > si confermava solo col ✓ della tastiera. Guardia `check_accesso_lvgl.sh`.
+Chiusa il 26-10-2026 sulla 2.22.0, con la guardia `check_accesso_lvgl.sh`. Sezione tolta il 05-11-2026.
 
 ---
 
@@ -398,13 +380,13 @@ SWS (`soglia_alta` = 900). Il riavvio (24) l'ha fatto Claude via SSH, col progra
 19. [x] Senza `--con-openplc` OpenPLC non c'è: nessun container, nessun quadlet (WP630, 30-10-2026).
 20. [x] **Dall'IDE, pannello già installato**: Istanza → Connessione → «OpenPLC sul pannello» →
         Installa. Il riquadro passa da «in corso» ad «Acceso» senza che SWS si fermi.
-20b. [ ] **Dall'IDE, installando SWS**: scheda Installazione, «Installa anche OpenPLC» spuntata. Alla
+20b. [x] **Dichiarata coperta il 05-11-2026** (20 e 20c passate, il flag ha un test). **Dall'IDE, installando SWS**: scheda Installazione, «Installa anche OpenPLC» spuntata. Alla
         fine il riquadro della Connessione dice «Acceso».
 20c. [x] **Dalla guida del cloud** (WP630, 02-11-2026: aggiornato alla 2.24.0 col comando della guida, OpenPLC e programma tenuti): la casella aggiunge `--con-openplc` all'ultimo comando. Si prova
         dopo una release: lo script viene dall'immagine del registry.
 21. [x] L'Editor di OpenPLC **dal PC Windows**, sulla stessa rete, si collega alla 8443 del pannello
         senza tunnel, crea l'utente e carica un programma. La logica sta in `<progetto>/openplc/`.
-22. [ ] La logica viaggia col progetto: backup, export e deploy la portano; `git` la prende da sé.
+22. [x] (05-11-2026, IDE 8460) La logica viaggia col progetto: backup, export e deploy la portano; `git` la prende da sé.
 22b. [x] **Dall'IDE** (03-11-2026; fatto lo stesso giorno sul WP630 2.24.1: zip di 39 file caricato, riscaricato
         uguale e arrivato col deploy, `program.st` identico; trovati e corretti la codifica dei nomi nel deploy e lo zip
         non compresso): Connessione → «Logica PLC del progetto» → «Scarica (zip)», aprirla
@@ -416,15 +398,10 @@ SWS (`soglia_alta` = 900). Il riavvio (24) l'ha fatto Claude via SSH, col progra
 
 ---
 
-## F-bis. Il tubo che segue un oggetto mosso da una variabile
+## F-bis. Il tubo che segue un oggetto mosso da una variabile — chiusa
 
-Uscito nella 2.19.0, mai visto su uno schermo vero.
-
-37. [ ] Su un pannello **LVGL**, un tubo agganciato alla bocca di un simbolo che una variabile
-        sposta: il tubo deve seguirlo **dal vivo**, non restare dov'era. Sul web funzionava già
-        perché le posizioni risolte dai binding ci sono; su LVGL andava ricalcolato al cambio.
-38. [ ] E non deve staccarsi al **primo fotogramma** (la Fase 1 del piano): all'apertura della
-        pagina il tubo deve essere già attaccato, non attaccarsi dopo il primo aggiornamento.
+Confermato dal maintainer su tutti e due i motori, LVGL compreso sul WP630
+(`docs/archive/2026-10-21-tubo-che-segue-gli-oggetti.md`), con la guardia `check_tubo_segue_lvgl.sh`. Tolta il 05-11.
 
 ---
 
@@ -495,7 +472,7 @@ Si fa sul PC, nell'IDE.
     > **con uno spazio in coda**, e lo spazio è finito nel percorso della foglia. Un id così non
     > lo ridigita giusto nessuno. I nomi dei membri vanno ripuliti in ingresso.
     >
-    > **Da ripulire**: la prova è stata fatta dentro `CasaDomotica`, il progetto di riferimento.
+    > **Ripulito il 05-11-2026** dal maintainer. Era: la prova è stata fatta dentro `CasaDomotica`, il progetto di riferimento.
     > Vanno tolti il tipo `motore`, il tag `Pompa2`, il tag orfano `'motore1.velocita '` e
     > l'oggetto in `Home.yaml:79`.
 34. [ ] Un faceplate con parametro `istanza(Motore)`: scegliendo l'istanza, i campi si legano da soli.
@@ -523,8 +500,8 @@ se un impianto vero parla come la specifica dice.**
 
 ## H. Ruoli e registro
 
-30. [ ] Entrare come **Supervisore** e aprire una sorgente OPC-UA: al posto del trust store deve
-        comparire una riga che dice che è riservato all'Amministratore. **Non** un errore 403.
+30. [x] **Superata dal codice il 25-10-2026** (`9d58dbf3`): il trust store non sta più nella card della sorgente, che
+        manda a Sicurezza → Certificati (solo Admin). Per un Supervisore il link porta in silenzio alle Variabili.
 31. [ ] Generare, caricare e togliere un certificato, e fidarsi/eliminare un certificato OPC-UA:
         ognuna delle operazioni deve lasciare una voce nel **registro di audit**, **con il nome**
         di chi l'ha fatta.

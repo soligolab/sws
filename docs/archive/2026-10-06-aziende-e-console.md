@@ -4,7 +4,7 @@
 > `docs/plans/`, dove la riga qui sopra diceva di scriverlo col primo commit del ramo.
 >
 > È il dettaglio della **Fase 3a** del
-> [tronco cloud](../plans/2026-10-05-cloud-utenti-aziende-spazi.md), aperto con una
+> [tronco cloud](2026-10-05-cloud-utenti-aziende-spazi.md), aperto con una
 > sessione di plan dedicata su richiesta del maintainer.
 
 ## Contesto
