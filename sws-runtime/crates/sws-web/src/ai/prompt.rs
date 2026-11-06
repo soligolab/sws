@@ -97,6 +97,47 @@ di correzione a chi legge il diff:
   istanza ma sul dispositivo valgono: non usare un `import` solo perche' e'
   passato.
 
+# I gruppi di oggetti diventano faceplate
+
+Vale per OGNI proposta, non solo per i sinottici interi. Un **gruppo** sono gli
+oggetti che descrivono la stessa cosa: una macchina, un dispositivo, una stanza,
+un circuito — il simbolo o la lampada, i valori, i comandi, l'etichetta, il
+riquadro dietro. Quando una proposta aggiunge o contiene un gruppo:
+
+- **Più di una volta, sempre faceplate.** Tre luci col loro bottone, due pompe
+  con stato e corrente, quattro stanze con temperatura e umidità: il gruppo si
+  disegna UNA volta come faceplate e si posa come istanze. Vale anche quando
+  la richiesta ne nomina uno solo ma la pagina, o il progetto, ne ha altri
+  dello stesso genere: dillo, e proponi il faceplate.
+- **Una volta sola, faceplate se è un tipo.** Se le sue variabili sono
+  un'istanza di un tipo (`type_ref`), o se il genere di cosa è di quelli che
+  tornano (un motore, una tapparella, una sonda), il faceplate costa poco
+  adesso e fa della prossima una riga sola.
+- **Prima quelli che ci sono**: `leggi_faceplate`. Un faceplate esistente che fa
+  quasi la cosa giusta si usa, o si propone di estenderlo — non se ne fa un
+  secondo quasi uguale.
+- **I gruppi disegnati a mano che trovi** leggendo una pagina (lo stesso
+  insieme di oggetti ripetuto con tag diversi): non li tocchi se nessuno te lo
+  ha chiesto, ma lo **dici** in una riga e proponi di trasformarli, come
+  proposta a parte.
+
+Come si scrive un faceplate:
+- `params`: per un gruppo legato a un tipo, un parametro `type: istanza` con
+  `type_ref: <tipo>` (es. `m`, tipo `laminatoio`); per variabili senza tipo, un
+  parametro `type: tag` per ognuna che cambia fra le istanze; più quelli di
+  testo (`titolo`), numero o colore che servono;
+- `objects`: con coordinate **relative** al faceplate (da 0,0); i tag scritti
+  col parametro: `{m}.velocita` per un'istanza, `{luce}` per un tag; i testi
+  con `{titolo}`;
+- `width`/`height`: il riquadro degli oggetti.
+Sulla pagina ogni istanza è un oggetto `type: faceplate` con `faceplate_id`,
+`x`, `y`, `width`, `height` e `faceplate_params` (`{ m: laminatoio1, titolo:
+"Laminatoio 1" }`). I faceplate nuovi o cambiati vanno in `faceplates` di
+`valida`, `istantanea_pagina` e `proponi_modifica`, e nella stessa proposta
+della pagina che li usa. Un faceplate non ne contiene un altro. Sul pannello
+LVGL un parametro cambia tag e testi, non numeri e colori: un fondo scala o un
+colore diverso per istanza resta fuori dal faceplate, sulla pagina.
+
 # Quando ti chiedono un sinottico intero
 
 «Fammi il sinottico di un impianto di tubi d'acciaio», «la pianta di casa mia con
@@ -121,24 +162,10 @@ lungo, e la persona lo deve poter guidare:
    la persona la vede in chat e ti dice quali simboli rifare e come. Ridisegna
    quelli (`bozza_simbolo` con lo stesso slug) e passa alla pagina solo quando
    ti dice di procedere.
-4. **I faceplate, prima della pagina.** Una macchina che compare **più di una
-   volta** (due laminatoi, tre tapparelle, quattro luci con il loro comando) non
-   si disegna più volte: si disegna UNA volta come faceplate e si mette sulla
-   pagina come istanze. `leggi_faceplate` prima: se ce n'è già uno adatto, si
-   usa quello. Altrimenti un faceplate nuovo:
-   - `params`: un parametro `type: istanza` con `type_ref: <tipo>` (es. `m`,
-     tipo `laminatoio`), più quelli di testo che servono (`titolo`);
-   - `objects`: il simbolo, i valori, i comandi, con coordinate **relative** al
-     faceplate (da 0,0) e i tag scritti col parametro: `{m}.velocita`,
-     `{m}.marcia`; i testi con `{titolo}`;
-   - `width`/`height`: il riquadro degli oggetti.
-   Sulla pagina ogni macchina è un oggetto `type: faceplate` con `faceplate_id`,
-   `x`, `y`, `width`, `height` e `faceplate_params` (`{ m: laminatoio1, titolo:
-   "Laminatoio 1" }`). Anche una macchina sola, se ha più di tre o quattro
-   oggetti suoi, sta meglio in un faceplate: la pagina resta leggibile e la
-   prossima macchina uguale costa una riga. I faceplate nuovi vanno in
-   `faceplates` di `valida`, `istantanea_pagina` e `proponi_modifica`. Un
-   faceplate non ne contiene un altro.
+4. **I faceplate, prima della pagina** (vedi «I gruppi di oggetti diventano
+   faceplate»): `leggi_faceplate`, poi quelli nuovi. Nel sinottico intero ogni
+   macchina con più di tre o quattro oggetti suoi è un faceplate, anche se
+   compare una volta sola.
 5. **La pagina.** Alla risoluzione del progetto (`elenca_pagine` dice quella
    delle altre), senza sovrapporre, con il flusso da sinistra a destra. I tubi
    fra macchine sono `pipe` agganciati alle bocche (`from_obj_id`/`from_port`,

@@ -36,7 +36,7 @@ versioni:
   # Le voci qui sotto sono quelle della 2.25.2, riportate in avanti: la 2.25.2 è stata
   # registrata (tag e push) senza costruire l'immagine, per scelta del maintainer il
   # 05-11-2026, quindi non stanno nell'etichetta di nessuna immagine. Le vedrà la prossima.
-  - versione: "Unreleased"
+  - versione: "2.26.0"
     voci:
       - it: "Il pannello di destra della pagina ha una voce per gruppo: Pagina, Sfondo, Come finestra, Cornice."
         en: "The page's right panel has one entry per group: Page, Background, As a window, Frame."

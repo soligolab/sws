@@ -261,8 +261,9 @@ pub fn definizioni() -> Vec<Value> {
              simbolo, i valori e i comandi) e messi sulle pagine come istanze — un oggetto \
              `type: faceplate` con `faceplate_id` e `faceplate_params`. Senza `id`: l'elenco, \
              con misura, parametri e quanti oggetti; con `id`: il faceplate intero. CHIAMALO \
-             prima di comporre una pagina con macchine ripetute: se ce n'è già uno adatto, si \
-             usa quello. Dentro un faceplate i tag si scrivono col parametro fra graffe \
+             prima di aggiungere un gruppo di oggetti che descrivono la stessa cosa (una macchina, \
+             un dispositivo, una stanza, una luce col suo comando): se ce n'è già uno adatto, si \
+             usa quello; se no, il gruppo diventa un faceplate nuovo. Dentro un faceplate i tag si scrivono col parametro fra graffe \
              (`{motore}.velocita`): un parametro `type: istanza` con `type_ref: <tipo>` \
              fa scegliere all'istanza una variabile di quel tipo.",
             json!({ "type": "object", "additionalProperties": false, "properties": {

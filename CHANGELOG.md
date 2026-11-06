@@ -59,7 +59,10 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
   c'è e applica `rilievi_faceplate` ai proposti; l'istantanea li scrive nella copia. Nel browser i faceplate proposti
   diventano pagine-faceplate (un predefinito cambiato diventa «personalizzato») e il diff li elenca. Il prompt del
   sinottico intero ha un passo nuovo: una macchina ripetuta si disegna una volta come faceplate, con un parametro
-  `istanza`/`type_ref`, e si posa come istanze.
+  `istanza`/`type_ref`, e si posa come istanze. La regola vale per ogni proposta, non solo per il sinottico intero
+  (sezione «I gruppi di oggetti diventano faceplate»): un gruppo ripetuto è sempre un faceplate, uno solo lo è se è di
+  un tipo; i gruppi disegnati a mano che l'assistente trova li dice e ne propone la trasformazione a parte; per
+  variabili senza tipo, un parametro `type: tag` per ognuna.
 - **La Finestra di avviso, F3: viewer, console e le finestre fatte a mano.** `guardedWrites` scrive subito e dà `true`
   nello stesso giro quando non c'è niente da chiedere (lo slider non perde il cursore per un fotogramma), e la
   Promise della risposta con conferma, password (`chiedi` con `password`) o motivo (`valida`); i bottoni nella lingua
