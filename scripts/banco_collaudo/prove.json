@@ -1,41 +1,369 @@
 {
- "titolo": "Collaudo del 05-11 — chiudere e archiviare",
+ "titolo": "Collaudo del 07-11 — TC620 di casa con CasaDomotica, e la 2.26.0-rc.1",
  "prove": [
   {
-   "id": "gter34",
-   "n": 12,
-   "dove": "3 · IDE 8460 (nessun rischio per l'impianto)",
-   "titolo": "Un faceplate «per un motore»: scegli il motore e si collega da solo",
-   "rif": "G-ter 34 — i tag compositi nell'editor",
-   "scopo": "Un faceplate può avere un parametro di tipo «istanza»: invece di scrivere il nome di ogni variabile, scegli da una tendina un motore intero (motore1, motore2…) e tutti gli oggetti dentro il faceplate si collegano alle sue variabili.",
-   "prima": "Configurazione → Progetto → Tipi: un tipo Motore con un membro velocita (numero). Configurazione → Progetto → Variabili: due variabili di tipo Motore, motore1 e motore2. Salva.",
+   "id": "tc-agg",
+   "dove": "1 · TC620 di casa · CasaDomotica (2.26.0-rc.1)",
+   "titolo": "Il TC620 si aggiorna alla 2.26.0-rc.1 e mostra le Novità",
+   "rif": "F3.16 e 2.25.1.9 — l'aggiornamento",
+   "scopo": "La prima prova, perché tutte le altre del gruppo vogliono la versione nuova sul pannello. Si guarda anche come il pannello presenta l'aggiornamento: le Novità prima di confermare, e il login che si apre sopra l'avviso.",
+   "prima": "IDE nel cloud (sws.soligo.net), progetto CasaDomotica, collegato al TC620 (Configurazione → Istanza → Device → Connessione).",
    "passi": [
-    "Albero delle pagine, ramo 🧩 Faceplate → «+ Nuovo faceplate».",
-    "Nel pannello destro, Parametri: il parametro tag_prefix ha tipo «istanza»; nel campo «tipo di struttura» scrivi Motore.",
-    "Nel faceplate metti un valore numerico con variabile {tag_prefix}.velocita. Salva.",
-    "Trascina il faceplate dal ramo su una pagina.",
-    "Nelle proprietà dell'istanza, la tendina del parametro: scegli motore1, poi motore2."
+    "Configurazione → Istanza → Device → Connessione → riquadro «Aggiornamento del runtime».",
+    "Deve proporre la `2.26.0-rc.1`. Leggi le Novità, poi «Aggiorna ora».",
+    "Aspetta che il pannello si ricolleghi (un paio di minuti).",
+    "Sullo schermo del TC620: se compare l'avviso di aggiornamento, tocca per fare l'accesso e scrivi nel login."
    ],
    "atteso": [
-    "La tendina propone solo motore1 e motore2 (le variabili di tipo Motore).",
-    "Scelto il motore, il valore dentro il faceplate mostra la velocità di quel motore, senza scrivere niente a mano."
+    "Prima di confermare: l'elenco delle Novità (fra le altre: «L'assistente, componendo una pagina, mette le macchine ripetute in un faceplate…»).",
+    "Dopo: l'IDE si ricollega da solo e Device → Stato dice 2.26.0-rc.1.",
+    "Sullo schermo: il login si apre SOPRA l'avviso e si riesce a scriverci."
    ],
-   "sblocca": "G-ter 34",
+   "sblocca": "F3.16, 2.25.1.9",
    "link": [
     {
-     "testo": "IDE 8460",
-     "url": "https://{host}:8460"
+     "testo": "viewer TC620",
+     "url": "https://tc620-a-p3-c6-07aff9.local:7443"
     }
-   ]
+   ],
+   "sonda": "https://tc620-a-p3-c6-07aff9.local:7443/health",
+   "n": 1
+  },
+  {
+   "id": "tc-deploy",
+   "dove": "1 · TC620 di casa · CasaDomotica (2.26.0-rc.1)",
+   "titolo": "CasaDomotica con la pagina «Collaudo 2.26» arriva sul TC620",
+   "rif": "preparazione",
+   "scopo": "Stasera ho aggiunto a CasaDomotica (nel cloud) la pagina «Collaudo 2.26»: un tipo `tapparella`, cinque variabili interne `collaudo.*`, un allarme, la funzione `collaudo_saluta` e il faceplate `collaudo_tapparella`. Tutto interno, nessuna sorgente nuova. La copia di prima è `project.yaml.prima-collaudo-2-26-*` accanto al progetto.",
+   "prima": "Dopo la prova di aggiornamento.",
+   "passi": [
+    "IDE nel cloud, CasaDomotica: apri la pagina «Collaudo 2.26» e guardala (è anche la prova WYSIWYG dell'editor).",
+    "Manda al TC620 come al solito (deploy)."
+   ],
+   "atteso": [
+    "Sul TC620 la pagina c'è, con otto schede, il riquadro degli allarmi e due tapparelle."
+   ],
+   "sblocca": "le prove che seguono",
+   "link": [
+    {
+     "testo": "viewer TC620",
+     "url": "https://tc620-a-p3-c6-07aff9.local:7443"
+    }
+   ],
+   "sonda": null,
+   "n": 2
+  },
+  {
+   "id": "tc-conferma",
+   "dove": "1 · TC620 di casa · CasaDomotica (2.26.0-rc.1)",
+   "titolo": "Un bottone con conferma (luce 1 del garage)",
+   "rif": "F3.9 — la Finestra di avviso nel viewer",
+   "scopo": "Nel viewer le conferme non sono più i pop-up del browser ma una finestra della pagina, con i bottoni nella lingua dei contenuti.",
+   "prima": "Sul TC620 apri la pagina «Collaudo 2.26» (in fondo alla navigazione). Le prove della pagina vogliono l'accesso come Admin sullo schermo: senza, ogni comando mostra «🔒 Operator».",
+   "passi": [
+    "Scheda «F3.9»: premi «Luce garage 1», poi Annulla.",
+    "Ripremi e Conferma.",
+    "Ripremi e Conferma per rispegnerla."
+   ],
+   "atteso": [
+    "La domanda «Accendere o spegnere la luce 1 del garage?» in una finestra della pagina.",
+    "Annulla: la luce non cambia.",
+    "Conferma: la luce cambia e la spia accanto la segue."
+   ],
+   "sblocca": "F3.9",
+   "link": [
+    {
+     "testo": "viewer TC620",
+     "url": "https://tc620-a-p3-c6-07aff9.local:7443"
+    }
+   ],
+   "sonda": null,
+   "n": 3
+  },
+  {
+   "id": "tc-critico",
+   "dove": "1 · TC620 di casa · CasaDomotica (2.26.0-rc.1)",
+   "titolo": "Un comando critico: password, e il motivo",
+   "rif": "F3.10",
+   "scopo": "Un comando critico chiede la password di chi è entrato; con `require_reason` anche il motivo. Il generale è una variabile demo: non comanda niente di vero.",
+   "prima": "Sul TC620 apri la pagina «Collaudo 2.26» (in fondo alla navigazione). Le prove della pagina vogliono l'accesso come Admin sullo schermo: senza, ogni comando mostra «🔒 Operator».",
+   "passi": [
+    "Scheda «F3.10»: «Chiudi generale», scrivi una password sbagliata.",
+    "Rifallo con quella giusta.",
+    "«Apri generale»: password giusta e motivo vuoto, poi un motivo."
+   ],
+   "atteso": [
+    "La password in un campo nascosto; sbagliata dà errore e il led non cambia.",
+    "Giusta: il led si accende.",
+    "Con il motivo vuoto la finestra resta aperta; col motivo, il led si spegne."
+   ],
+   "sblocca": "F3.10",
+   "link": [
+    {
+     "testo": "viewer TC620",
+     "url": "https://tc620-a-p3-c6-07aff9.local:7443"
+    }
+   ],
+   "sonda": null,
+   "n": 4
+  },
+  {
+   "id": "tc-momentaneo",
+   "dove": "1 · TC620 di casa · CasaDomotica (2.26.0-rc.1)",
+   "titolo": "Un momentaneo con conferma si tiene premuto senza domande",
+   "rif": "F3.11",
+   "scopo": "Un bottone a impulso non chiede conferma (come su LVGL): altrimenti non lo si potrebbe tenere premuto.",
+   "prima": "Sul TC620 apri la pagina «Collaudo 2.26» (in fondo alla navigazione). Le prove della pagina vogliono l'accesso come Admin sullo schermo: senza, ogni comando mostra «🔒 Operator».",
+   "passi": [
+    "Scheda «F3.11»: tieni premuto «Tieni premuto» per due secondi, poi rilascia."
+   ],
+   "atteso": [
+    "Nessuna domanda.",
+    "La luce 3 del garage è accesa finché tieni premuto e si spegne al rilascio."
+   ],
+   "sblocca": "F3.11",
+   "link": [
+    {
+     "testo": "viewer TC620",
+     "url": "https://tc620-a-p3-c6-07aff9.local:7443"
+    }
+   ],
+   "sonda": null,
+   "n": 5
+  },
+  {
+   "id": "tc-toggle",
+   "dove": "1 · TC620 di casa · CasaDomotica (2.26.0-rc.1)",
+   "titolo": "Un toggle con conferma scrive l'inverso al momento della conferma",
+   "rif": "F3.12",
+   "scopo": "Se mentre la domanda è aperta il valore cambia, il toggle deve invertire quello di adesso, non quello di quando hai premuto.",
+   "prima": "Sul TC620 apri la pagina «Collaudo 2.26» (in fondo alla navigazione). Le prove della pagina vogliono l'accesso come Admin sullo schermo: senza, ogni comando mostra «🔒 Operator».",
+   "passi": [
+    "Scheda «F3.12»: premi «Linea 1 (demo)», aspetta qualche secondo, Conferma.",
+    "Ripremi e Conferma."
+   ],
+   "atteso": [
+    "Ogni conferma inverte il led.",
+    "(Per la variante dura: mentre la domanda è aperta cambia la variabile dall'IDE, in Variabili; alla conferma deve invertire il valore nuovo.)"
+   ],
+   "sblocca": "F3.12",
+   "link": [
+    {
+     "testo": "viewer TC620",
+     "url": "https://tc620-a-p3-c6-07aff9.local:7443"
+    }
+   ],
+   "sonda": null,
+   "n": 6
+  },
+  {
+   "id": "tc-slider",
+   "dove": "1 · TC620 di casa · CasaDomotica (2.26.0-rc.1)",
+   "titolo": "Uno slider con conferma: una domanda sola, al rilascio",
+   "rif": "F3.14",
+   "scopo": "Prima lo slider poteva chiedere a ogni passo, o tornare indietro mentre la domanda era aperta.",
+   "prima": "Sul TC620 apri la pagina «Collaudo 2.26» (in fondo alla navigazione). Le prove della pagina vogliono l'accesso come Admin sullo schermo: senza, ogni comando mostra «🔒 Operator».",
+   "passi": [
+    "Scheda «F3.14»: trascina il cursore a metà e rilascia.",
+    "Annulla. Poi rifallo e Conferma."
+   ],
+   "atteso": [
+    "Una sola domanda, al rilascio.",
+    "Mentre chiede, il cursore resta dove l'hai lasciato.",
+    "Annulla: torna al valore di prima. Conferma: «valore: …» cambia."
+   ],
+   "sblocca": "F3.14",
+   "link": [
+    {
+     "testo": "viewer TC620",
+     "url": "https://tc620-a-p3-c6-07aff9.local:7443"
+    }
+   ],
+   "sonda": null,
+   "n": 7
+  },
+  {
+   "id": "tc-funzione",
+   "dove": "1 · TC620 di casa · CasaDomotica (2.26.0-rc.1)",
+   "titolo": "Una funzione col parametro predefinito, chiamata da un bottone",
+   "rif": "L0.2 (e L0.1, L0.3 sul pannello)",
+   "scopo": "Sul pannello gira la sandbox Python vera dell'immagine: è qui che print, for e i default dei parametri si provano davvero.",
+   "prima": "Sul TC620 apri la pagina «Collaudo 2.26» (in fondo alla navigazione). Le prove della pagina vogliono l'accesso come Admin sullo schermo: senza, ogni comando mostra «🔒 Operator».",
+   "passi": [
+    "Scheda «L0.2»: «Senza argomenti».",
+    "Poi «chi = Mauro».",
+    "Nell'IDE: menu ☰ → «Pannello log», filtro `collaudo_saluta`.",
+    "Per L0.1 e L0.3: Configurazione → Progetto → Python → «+ Nuovo» script globale, «Intervallo (secondi)» 60, codice: `tot = 0` · `for i in range(3): tot += i` · `print('ciao', tot, min(1, 3), max(1, 3), sorted([2, 1]), list(enumerate('ab')))`. Manda al pannello, guarda il log, poi cancella lo script e rimanda."
+   ],
+   "atteso": [
+    "Sotto i bottoni: «ciao operatore», poi «ciao Mauro».",
+    "Nel log del pannello le righe `print` col nome della funzione.",
+    "Lo script globale sul pannello stampa `ciao 3 1 3 [1, 2] [(0, 'a'), (1, 'b')]` senza errori."
+   ],
+   "sblocca": "L0.1, L0.2, L0.3",
+   "link": [
+    {
+     "testo": "viewer TC620",
+     "url": "https://tc620-a-p3-c6-07aff9.local:7443"
+    }
+   ],
+   "sonda": null,
+   "n": 8
+  },
+  {
+   "id": "tc-lucchetto",
+   "dove": "1 · TC620 di casa · CasaDomotica (2.26.0-rc.1)",
+   "titolo": "Il lucchetto sui comandi che richiedono un ruolo",
+   "rif": "2.25.1.10 — il lucchetto",
+   "scopo": "Un comando che vuole un ruolo più alto di chi guarda mostra il ruolo che serve.",
+   "prima": "Pagina «Collaudo 2.26» sul TC620, prima SENZA fare l'accesso.",
+   "passi": [
+    "Scheda «2.25.1.10»: guarda i due bottoni.",
+    "Fai l'accesso come Admin e guarda di nuovo."
+   ],
+   "atteso": [
+    "Senza accesso: «🔒 Operator» su «Linea 2», «🔒 Supervisor» su «Linea 3».",
+    "Da Admin i lucchetti spariscono.",
+    "(Il passaggio da Operator, dove resta solo quello di Supervisor, vuole un utente Operator: se vuoi, crealo da «Utenti e segreti».)"
+   ],
+   "sblocca": "2.25.1.10",
+   "link": [
+    {
+     "testo": "viewer TC620",
+     "url": "https://tc620-a-p3-c6-07aff9.local:7443"
+    }
+   ],
+   "sonda": null,
+   "n": 9
+  },
+  {
+   "id": "tc-allarmi",
+   "dove": "1 · TC620 di casa · CasaDomotica (2.26.0-rc.1)",
+   "titolo": "Allarmi: conferma con motivo, conferma tutti, metti a tacere",
+   "rif": "F3.13",
+   "scopo": "Le azioni sugli allarmi del viewer passano dalla Finestra di avviso; il riquadro chiede il motivo alla conferma.",
+   "prima": "Sul TC620 apri la pagina «Collaudo 2.26» (in fondo alla navigazione). Le prove della pagina vogliono l'accesso come Admin sullo schermo: senza, ogni comando mostra «🔒 Operator».",
+   "passi": [
+    "Scheda «F3.13»: «Accendi allarme».",
+    "Nel riquadro degli allarmi: conferma l'allarme, prima col motivo vuoto poi con un motivo.",
+    "«Spegni allarme», «Accendi allarme» di nuovo, poi «Conferma tutti».",
+    "Poi «Metti a tacere»."
+   ],
+   "atteso": [
+    "«Collaudo 2.26: allarme di prova» compare nel riquadro.",
+    "Il motivo vuoto non conferma; col motivo sì.",
+    "«Conferma tutti» e «Metti a tacere» chiedono nella finestra della pagina e funzionano."
+   ],
+   "sblocca": "F3.13",
+   "link": [
+    {
+     "testo": "viewer TC620",
+     "url": "https://tc620-a-p3-c6-07aff9.local:7443"
+    }
+   ],
+   "sonda": null,
+   "n": 10
+  },
+  {
+   "id": "tc-faceplate",
+   "dove": "1 · TC620 di casa · CasaDomotica (2.26.0-rc.1)",
+   "titolo": "Un faceplate per tipo: scegli la tapparella e si collega da sola",
+   "rif": "G-ter 34 — i tag compositi nell'editor",
+   "scopo": "Il faceplate `collaudo_tapparella` ha un parametro di tipo «istanza» del tipo `tapparella`: l'istanza si sceglie da una tendina, e i suoi valori si collegano da soli.",
+   "prima": "IDE nel cloud, CasaDomotica, pagina «Collaudo 2.26».",
+   "passi": [
+    "Le due tapparelle in basso: muovi i cursori sul pannello (o nell'IDE in esecuzione).",
+    "Nell'IDE trascina «Tapparella (collaudo)» dal ramo 🧩 Faceplate sulla pagina.",
+    "Nelle proprietà dell'istanza, il parametro «p»: apri la tendina."
+   ],
+   "atteso": [
+    "La tendina propone solo `collaudo.tapparella_cucina`, `_sala`, `_bagno`.",
+    "Scelta `_bagno`, la barra e il cursore della nuova istanza seguono quella e non le altre."
+   ],
+   "sblocca": "G-ter 34",
+   "link": null,
+   "sonda": null,
+   "n": 11
+  },
+  {
+   "id": "tc-prest",
+   "dove": "1 · TC620 di casa · CasaDomotica (2.26.0-rc.1)",
+   "titolo": "Prestazioni: la colonna del pannello, le sorgenti, e quando smette",
+   "rif": "Prestazioni 1, 3, 5",
+   "scopo": "La scheda Prestazioni ha una colonna per il pannello collegato: il runtime, le sorgenti di CasaDomotica (MQTT) coi loro giri, e smette di misurare quando nessuno guarda.",
+   "prima": "IDE nel cloud collegato al TC620, entrato come Admin.",
+   "passi": [
+    "Configurazione → Istanza → Prestazioni: guarda la colonna del pannello.",
+    "Qui sul banco «Controlla da qui» (o dall'IDE): con la scheda aperta.",
+    "Chiudi la scheda Prestazioni, aspetta più di 60 s, ricontrolla."
+   ],
+   "atteso": [
+    "Il runtime; il viewer LVGL solo se il TC620 disegna in LVGL.",
+    "Le sorgenti MQTT di CasaDomotica con i loro giri, e lo storico.",
+    "{\"attiva\":true} con la pagina aperta, {\"attiva\":false} un minuto dopo averla chiusa."
+   ],
+   "sblocca": "Prestazioni 1, 3, 5",
+   "link": [
+    {
+     "testo": "viewer TC620",
+     "url": "https://tc620-a-p3-c6-07aff9.local:7443"
+    }
+   ],
+   "sonda": "https://tc620-a-p3-c6-07aff9.local:7443/api/prestazioni/richiesta",
+   "n": 12
+  },
+  {
+   "id": "tc-report",
+   "dove": "1 · TC620 di casa · CasaDomotica (2.26.0-rc.1)",
+   "titolo": "I report programmati arrivano per mail e si fanno da soli",
+   "rif": "A-quater 3 e 4",
+   "scopo": "CasaDomotica ha già un report (`report_1`) e la posta configurata: si prova sul pannello vero.",
+   "prima": "IDE nel cloud, CasaDomotica, Configurazione → Progetto → Report.",
+   "passi": [
+    "Nel report: il tuo indirizzo, programmazione `*/15 * * * *`, «File da tenere» = 2.",
+    "Manda al TC620 con «Utenti e segreti».",
+    "«▶ Genera ora» e controlla la mail.",
+    "Dopo più di 30 minuti guarda i file del report."
+   ],
+   "atteso": [
+    "Arriva la mail con PDF ed Excel.",
+    "Ogni 15 minuti un report nuovo da solo; restano gli ultimi due.",
+    "(Finita la prova, rimetti la programmazione di prima.)"
+   ],
+   "sblocca": "A-quater",
+   "link": null,
+   "sonda": null,
+   "n": 13
+  },
+  {
+   "id": "tc-sorgente",
+   "dove": "1 · TC620 di casa · CasaDomotica (2.26.0-rc.1)",
+   "titolo": "Se un dispositivo si stacca, SWS lo dice",
+   "rif": "A-septies 10 — la disponibilità delle sorgenti",
+   "scopo": "Ogni sorgente ha la variabile `<sorgente>.disponibile`. In CasaDomotica: `mqtt-sandokan.disponibile`, `mqtt-switch-garage.disponibile`…",
+   "prima": "Scegli un dispositivo che puoi staccare un minuto senza danni (per esempio la presa Sandokan). Niente inverter.",
+   "passi": [
+    "Nell'IDE collegato al TC620: Configurazione → Progetto → Protocolli, la card di quella sorgente (o la sua variabile `.disponibile` in Variabili).",
+    "Stacca il dispositivo, aspetta un minuto, guarda.",
+    "Riattaccalo."
+   ],
+   "atteso": [
+    "Staccato: `disponibile` = falso, la card dice «non risponde», le sue variabili diventano di qualità Bad.",
+    "Riattaccato: tutto torna buono."
+   ],
+   "sblocca": "A-septies 10",
+   "link": null,
+   "sonda": null,
+   "n": 14
   },
   {
    "id": "1125-14",
-   "n": 13,
-   "dove": "3 · IDE 8460 (nessun rischio per l'impianto)",
+   "n": 15,
+   "dove": "2 · Dal cloud · CasaDomotica (sws.soligo.net)",
    "titolo": "L'assistente trova una pagina col suo nome tradotto",
    "rif": "2.25.1.14 — l'assistente e i nomi tradotti",
    "scopo": "Nei progetti con le lingue, il nome di una pagina è salvato come codice ({{t0069}}) e tradotto a schermo. L'assistente vedeva solo il codice: non trovava «la pagina Soggiorno» e nei riepiloghi scriveva {{t0069}}.",
-   "prima": "Un progetto con le lingue e almeno una pagina col nome tradotto (es. un template). L'assistente acceso (Configurazione → IA). Costa qualche centesimo.",
+   "prima": "IDE nel cloud, CasaDomotica (ha pagine col nome tradotto). L'assistente acceso. Costa qualche centesimo.",
    "passi": [
     "Apri l'assistente (la chat).",
     "Chiedi: «aggiungi un'etichetta con scritto Prova nella pagina <nome della pagina come lo vedi tu>».",
@@ -54,37 +382,35 @@
    ]
   },
   {
-   "id": "ap-sfondi",
-   "n": 14,
-   "dove": "3 · IDE 8460 (nessun rischio per l'impianto)",
-   "titolo": "L'assistente fa uno sfondo, poi la variante sera",
-   "rif": "Appunti — una conversazione intera con gli sfondi",
-   "scopo": "L'assistente può generare uno sfondo fotografico per una pagina e poi le sue varianti di luce (sera, notte). Il 05-11 in ufficio non è andata: «Usa come base» rispondeva solo dopo vari clic e la foto di controllo andava in timeout. Riproviamo da capo.",
-   "prima": "Un progetto nuovo creato dall'IDE (non una copia di montagna). Costa circa 1 $ di immagini.",
+   "id": "cl-temperature",
+   "dove": "2 · Dal cloud · CasaDomotica (sws.soligo.net)",
+   "titolo": "L'assistente fa la pagina Temperature: faceplate, sfondo, giorno e notte",
+   "rif": "Assistente — faceplate e sfondi (06-11-2026)",
+   "scopo": "La tua idea del 06-11: una pagina che raccoglie le temperature del broker MQTT, con uno sfondo bello e la variante notte. Prova insieme le due cose nuove: le sonde ripetute diventano UN faceplate con le istanze, e «Usa come base» si può premere anche mentre l'assistente lavora.",
+   "prima": "IDE nel cloud aggiornato alla rc, progetto CasaDomotica, l'assistente acceso con le immagini. Tieni sotto mano i topic delle sonde (il cloud non vede il broker di casa: i valori si vedono sul TC620 dopo il deploy). Costa qualche dollaro. Per il debug: F12 → Console, livello «Dettagliato», filtro `[chat]`.",
    "passi": [
-    "Apri l'assistente e chiedi uno sfondo per la pagina (es. «uno sfondo con una casa di montagna»).",
-    "Sotto l'immagine proposta premi «Usa come base», una volta sola.",
-    "Chiedi la variante sera.",
-    "Premi Applica sulla proposta, poi Salva il progetto.",
-    "Se vuoi vederla sul TC620: deploy al pannello e guarda lo schermo."
+    "Apri l'assistente e chiedi: «Fammi una pagina Temperature con le temperature delle stanze dal broker MQTT (topic: …), con uno sfondo bello della casa e la variante notte».",
+    "Al piano: controlla che dica un faceplate per la sonda. Rispondi «procedi».",
+    "Alle basi dello sfondo: premi «Usa come base» SUBITO, anche se l'assistente sta ancora scrivendo.",
+    "Arrivano le varianti, poi la proposta: guarda il diff, Applica, Salva.",
+    "Deploy al TC620 e guarda la pagina, di giorno e (se la pagina lo prevede) col cambio notte."
    ],
    "atteso": [
-    "«Usa come base» risponde al primo clic.",
-    "La conversazione arriva in fondo senza errori di timeout.",
-    "Dopo il Salva, fra le immagini del progetto ci sono ai-sfondo-<sigla>.jpg e ai-sfondo-<sigla>-sera.jpg."
+    "Il piano nomina un faceplate (es. `sonda_temperatura`) con un parametro istanza.",
+    "«Usa come base» durante il turno mostra «⏳ scelta: parte appena l'assistente finisce questo turno», e poi parte da sola.",
+    "Nessun timeout dell'istantanea; se è lenta, sotto lo strumento compaiono le righe «[sfondo] … pronto in N ms».",
+    "Il diff ha la riga «+ faceplate `…`» e la pagina usa le istanze.",
+    "Dopo il Salva: il faceplate in faceplates/, le foto ai-sfondo-*.jpg in images/."
    ],
-   "sblocca": "si toglie la voce «Una conversazione intera con gli sfondi» da Appunti",
-   "link": [
-    {
-     "testo": "IDE 8460",
-     "url": "https://{host}:8460"
-    }
-   ]
+   "sblocca": "il passo «faceplate» del prompt; ap-sfondi (gli sfondi del 05-11)",
+   "link": null,
+   "sonda": null,
+   "n": 16
   },
   {
    "id": "ap-regole",
-   "n": 15,
-   "dove": "4 · Dal cloud (sws.soligo.net, 2.25.1)",
+   "n": 17,
+   "dove": "2 · Dal cloud · CasaDomotica (sws.soligo.net)",
    "titolo": "Le regole del progetto per l'IA si salvano",
    "rif": "Appunti — le regole del progetto in CasaDomotica",
    "scopo": "Nella Configurazione c'è una scheda dove scrivi cosa devono sapere i modelli IA del tuo impianto (che tipo di impianto è, regole generali). Stanno nel progetto. Controlliamo che nel cloud si salvino davvero.",
@@ -109,8 +435,8 @@
   },
   {
    "id": "ap-history",
-   "n": 16,
-   "dove": "4 · Dal cloud (sws.soligo.net, 2.25.1)",
+   "n": 18,
+   "dove": "2 · Dal cloud · CasaDomotica (sws.soligo.net)",
    "titolo": "I grafici smettono di chiedere dati quando la scheda è nascosta",
    "rif": "Appunti — ricontare le richieste /api/history",
    "scopo": "I grafici con lo storico chiedono dati al server. Se la scheda del browser non è visibile non devono chiederne: è traffico e lavoro per niente. Quando torni, devono aggiornarsi subito.",
@@ -135,54 +461,9 @@
    ]
   },
   {
-   "id": "prest-1",
-   "n": 17,
-   "dove": "5 · WP630 senza deploy (Montagna resta)",
-   "titolo": "Prestazioni: la colonna del pannello mostra cosa gira lì",
-   "rif": "Prestazioni 1 — dove se ne va il tempo",
-   "scopo": "La scheda Prestazioni mostra quanto tempo prendono i lavori di SWS: una colonna per l'IDE e una per il pannello collegato. Controlliamo che la colonna del pannello mostri il runtime, e il viewer LVGL solo se è lui a disegnare lo schermo.",
-   "prima": "IDE 8460 collegato al WP630 (Configurazione → Istanza → Device → Connessione → «Connetti»). Entrato come Admin.",
-   "passi": [
-    "Configurazione → Istanza → Prestazioni.",
-    "Guarda la colonna del pannello."
-   ],
-   "atteso": [
-    "La colonna del pannello ha le righe del runtime.",
-    "Con Montagna (viewer web) non c'è il viewer LVGL. Compare solo quando il pannello disegna in LVGL (lo si vede nella prova 32)."
-   ],
-   "sblocca": "Prestazioni 1 (parte web)",
-   "link": [
-    {
-     "testo": "viewer WP630",
-     "url": "https://wp630-a-p3-07a077.local:7443"
-    }
-   ],
-   "sonda": "https://wp630-a-p3-07a077.local:7443/health"
-  },
-  {
-   "id": "prest-5",
-   "n": 18,
-   "dove": "5 · WP630 senza deploy (Montagna resta)",
-   "titolo": "Prestazioni: chiusa la pagina, il pannello smette di misurare",
-   "rif": "Prestazioni 5",
-   "scopo": "Mentre la pagina Prestazioni è aperta, il pannello misura i suoi lavori. Quando la chiudi deve smettere da solo entro un minuto, per non pesare per niente.",
-   "passi": [
-    "Apri Configurazione → Istanza → Prestazioni (come nella prova prima).",
-    "Qui sul banco premi «Controlla da qui»: deve dire {\"attiva\":true}.",
-    "Chiudi la scheda Prestazioni (vai su un'altra scheda della Configurazione).",
-    "Aspetta più di 60 secondi e premi di nuovo «Controlla da qui»."
-   ],
-   "atteso": [
-    "Con la pagina aperta: {\"attiva\":true}.",
-    "Più di un minuto dopo averla chiusa: {\"attiva\":false}."
-   ],
-   "sblocca": "Prestazioni 5",
-   "sonda": "https://wp630-a-p3-07a077.local:7443/api/prestazioni/richiesta"
-  },
-  {
    "id": "abis-3",
    "n": 19,
-   "dove": "5 · WP630 senza deploy (Montagna resta)",
+   "dove": "9 · Solo ufficio (WP630) — WP630 senza deploy (Montagna resta)",
    "titolo": "Certificati: la card dice che il browser del pannello si fida",
    "rif": "A-bis 3 — la fiducia del browser del pannello",
    "scopo": "Con il TLS acceso, il browser sullo schermo del pannello si fida del certificato da solo (niente più «La connessione non è privata»). La card dei certificati deve dirlo, e non proporre più le vecchie procedure da fare a mano.",
@@ -207,7 +488,7 @@
   {
    "id": "abis-1",
    "n": 20,
-   "dove": "5 · WP630 senza deploy (Montagna resta)",
+   "dove": "9 · Solo ufficio (WP630) — WP630 senza deploy (Montagna resta)",
    "titolo": "Sul pannello c'è il «guardiano» che aggiorna la fiducia del browser",
    "rif": "A-bis 1 — da terminale (SSH)",
    "scopo": "Un piccolo servizio sul pannello (sws-fiducia.path) guarda il certificato: se cambia, lo rimette fra quelli di cui il browser del pannello si fida. Controlliamo che sia installato e acceso. Si fa da terminale: se preferisci, dimmelo e lo faccio io via SSH.",
@@ -224,8 +505,8 @@
   },
   {
    "id": "d13",
-   "n": 22,
-   "dove": "5 · WP630 senza deploy (Montagna resta)",
+   "n": 21,
+   "dove": "9 · Solo ufficio (WP630) — WP630 senza deploy (Montagna resta)",
    "titolo": "Ricollegandosi, l'IDE riconosce il certificato del pannello",
    "rif": "D 13 — l'impronta al collegamento",
    "scopo": "Al primo collegamento l'IDE memorizza l'«impronta» del certificato del pannello (come SSH). Al collegamento dopo deve dire che è la stessa di prima.",
@@ -242,8 +523,8 @@
   },
   {
    "id": "d14",
-   "n": 23,
-   "dove": "5 · WP630 senza deploy (Montagna resta)",
+   "n": 22,
+   "dove": "9 · Solo ufficio (WP630) — WP630 senza deploy (Montagna resta)",
    "titolo": "Collegandosi in http non compare nessuna impronta",
    "rif": "D 14 — l'impronta al collegamento",
    "scopo": "In http non c'è un certificato, quindi non c'è niente da verificare: la riga dell'impronta non deve comparire. Se compare, è un errore che fa credere a una sicurezza che non c'è.",
@@ -261,8 +542,8 @@
   },
   {
    "id": "x-prep",
-   "n": 24,
-   "dove": "6 · WP630 con deploy (cancella il progetto del pannello)",
+   "n": 23,
+   "dove": "9 · Solo ufficio (WP630) — WP630 con deploy (cancella il progetto del pannello)",
    "titolo": "Prima di tutto: un progetto con gli utenti",
    "rif": "preparazione",
    "scopo": "Le prove di questo gruppo mandano progetti diversi al WP630. Un deploy con un progetto diverso cancella dal pannello il progetto di prima, e con «Utenti e segreti» anche i suoi account. Per non restare chiuso fuori, usiamo un progetto che porta già un Admin e un Operator.",
@@ -278,8 +559,8 @@
   },
   {
    "id": "f2-5",
-   "n": 25,
-   "dove": "6 · WP630 con deploy (cancella il progetto del pannello)",
+   "n": 24,
+   "dove": "9 · Solo ufficio (WP630) — WP630 con deploy (cancella il progetto del pannello)",
    "titolo": "Inviare un progetto senza utenti avvisa che il pannello resterà aperto",
    "rif": "F2.5 — la Finestra di avviso",
    "scopo": "Se invii con «Utenti e segreti» un progetto che non ha utenti, gli account del pannello vengono tolti e il pannello resta senza password per chiunque. SWS deve chiederlo due volte, con finestre chiare. In questa prova si preme sempre Annulla: non si invia niente.",
@@ -298,8 +579,8 @@
   },
   {
    "id": "f2-4",
-   "n": 26,
-   "dove": "6 · WP630 con deploy (cancella il progetto del pannello)",
+   "n": 25,
+   "dove": "9 · Solo ufficio (WP630) — WP630 con deploy (cancella il progetto del pannello)",
    "titolo": "Il deploy che sostituisce il progetto del pannello chiede conferma",
    "rif": "F2.4 — la Finestra di avviso",
    "scopo": "Inviare un progetto diverso da quello del pannello cancella il vecchio progetto e il suo storico. Ci sono tre punti da cui si può inviare: testata, Connessione, Dispositivi. Tutti e tre devono chiedere con la stessa finestra rossa.",
@@ -318,86 +599,9 @@
    "sblocca": "F2.4"
   },
   {
-   "id": "1125-10",
-   "n": 27,
-   "dove": "6 · WP630 con deploy (cancella il progetto del pannello)",
-   "titolo": "Il lucchetto sui comandi che richiedono un ruolo",
-   "rif": "2.25.1.10 — il lucchetto",
-   "scopo": "Un comando che richiede un ruolo (es. Operator) mostra un lucchetto col ruolo, finché non entri con un utente che ce l'ha. Così l'operatore capisce perché il bottone non risponde.",
-   "prima": "homeassistant-pro sul WP630 (prova 26). Per vedere anche il lucchetto LVGL: prima del deploy, nel progetto, motore LVGL (lvgl_framebuffer).",
-   "passi": [
-    "Sullo schermo del WP630, senza aver fatto l'accesso: vai alla pagina Sicurezza.",
-    "Guarda il cancelletto e la tapparella del garage.",
-    "Fai l'accesso come Operator e guarda di nuovo."
-   ],
-   "atteso": [
-    "Senza accesso: «🔒 Operator» sul cancelletto, «🔒 Supervisor» sulla tapparella.",
-    "Da Operator: il lucchetto del cancelletto sparisce, quello della tapparella resta."
-   ],
-   "sblocca": "2.25.1.10 (con la 28 chiude T1)"
-  },
-  {
-   "id": "prest-3",
-   "n": 29,
-   "dove": "6 · WP630 con deploy (cancella il progetto del pannello)",
-   "titolo": "Prestazioni: si vedono le sorgenti del pannello",
-   "rif": "Prestazioni 3",
-   "scopo": "Nella colonna del pannello, oltre al runtime, devono comparire le sorgenti (i protocolli che leggono i dati) con quanto tempo prende ogni loro giro.",
-   "passi": [
-    "Manda al WP630 il progetto «OpenPLC — impianto di prova» con «Utenti e segreti».",
-    "Configurazione → Istanza → Prestazioni, colonna del pannello."
-   ],
-   "atteso": [
-    "Ci sono le righe delle sorgenti (Modbus verso OpenPLC) coi tempi dei loro giri."
-   ],
-   "sblocca": "Prestazioni 3 (con 1 e 5 la sezione è chiusa)"
-  },
-  {
-   "id": "quater",
-   "n": 30,
-   "dove": "6 · WP630 con deploy (cancella il progetto del pannello)",
-   "titolo": "I report programmati arrivano per mail e si fanno da soli",
-   "rif": "A-quater 3 e 4 — i report programmati",
-   "scopo": "Un report (PDF + Excel) si può generare a mano o a orari fissi, mandare per mail, e tenere solo gli ultimi N file. Generarlo a mano l'abbiamo già visto: mancano la mail e la programmazione.",
-   "prima": "Un progetto con un report (Configurazione → Progetto → Report) e la posta configurata (Configurazione → Progetto → SMTP).",
-   "passi": [
-    "Nel report metti il tuo indirizzo come destinatario.",
-    "Programmazione: */15 * * * * (ogni 15 minuti). «File da tenere» = 2.",
-    "Manda al WP630 con «Utenti e segreti».",
-    "Premi «▶ Genera ora» e controlla la mail.",
-    "Lascia acceso per più di 30 minuti, poi guarda i file del report."
-   ],
-   "atteso": [
-    "Arriva una mail con il PDF e l'Excel allegati.",
-    "Ogni 15 minuti nasce un report nuovo da solo.",
-    "Restano solo gli ultimi due."
-   ],
-   "sblocca": "A-quater (la sezione è chiusa)"
-  },
-  {
-   "id": "septies-10",
-   "n": 31,
-   "dove": "6 · WP630 con deploy (cancella il progetto del pannello)",
-   "titolo": "Se il PLC si stacca, SWS lo dice",
-   "rif": "A-septies 10 — la disponibilità delle sorgenti",
-   "scopo": "Ogni sorgente ha una variabile <sorgente>.disponibile che dice se il dispositivo dall'altra parte risponde. Va vista con un dispositivo vero.",
-   "prima": "«OpenPLC — impianto di prova» sul WP630 (prova 29).",
-   "passi": [
-    "Nell'IDE apri Configurazione → Progetto → Protocolli e guarda la card della sorgente Modbus (o la variabile <sorgente>.disponibile in Variabili).",
-    "Ferma OpenPLC. Dall'IDE non c'è un bottone per farlo: o «Stop PLC» dall'Editor di OpenPLC, o chiedimi di fermare il suo container via SSH.",
-    "Aspetta un minuto e guarda la card.",
-    "Riaccendi OpenPLC (o chiedimi di farlo)."
-   ],
-   "atteso": [
-    "Con OpenPLC fermo: disponibile = falso, la card dice «non risponde», le variabili della sorgente diventano di qualità Bad.",
-    "Riacceso: disponibile = vero e le variabili tornano buone."
-   ],
-   "sblocca": "A-septies 10"
-  },
-  {
    "id": "abis-4",
-   "n": 33,
-   "dove": "7 · WP630 certificati (cambiano il TLS: per ultimi)",
+   "n": 26,
+   "dove": "9 · Solo ufficio (WP630) — WP630 certificati (cambiano il TLS: per ultimi)",
    "titolo": "Cambiato il certificato, lo schermo del pannello non dà avvisi",
    "rif": "A-bis 4 e 6 — il guardiano segue il cambio",
    "scopo": "Quando il certificato del pannello cambia, il guardiano (prova 20) deve rimetterlo fra quelli di cui si fida il browser dello schermo, senza riavviare niente. Oggi «Disabilita TLS» di fatto genera un certificato nuovo (è un difetto noto): lo usiamo per provocare il cambio.",
@@ -416,8 +620,8 @@
   },
   {
    "id": "c10-11",
-   "n": 34,
-   "dove": "7 · WP630 certificati (cambiano il TLS: per ultimi)",
+   "n": 27,
+   "dove": "9 · Solo ufficio (WP630) — WP630 certificati (cambiano il TLS: per ultimi)",
    "titolo": "Dopo il cambio, l'IDE rifiuta il certificato nuovo finché non dici di fidarti",
    "rif": "C 10–11, D 12 — governare il certificato da remoto",
    "scopo": "L'IDE ricorda l'impronta del certificato. Se cambia, potrebbe essere un impostore: l'IDE deve rifiutare e offrire «Dimentica certificato». Non deve mai farlo da solo. Controlliamo anche che il cambio abbia toccato solo il pannello e non il PC.",
@@ -443,8 +647,8 @@
   },
   {
    "id": "h31",
-   "n": 35,
-   "dove": "7 · WP630 certificati (cambiano il TLS: per ultimi)",
+   "n": 28,
+   "dove": "9 · Solo ufficio (WP630) — WP630 certificati (cambiano il TLS: per ultimi)",
    "titolo": "Le operazioni sui certificati finiscono nel registro di audit",
    "rif": "H 31 — ruoli e registro",
    "scopo": "Chi tocca i certificati deve lasciare traccia: ogni operazione va nel registro di audit, col nome di chi l'ha fatta.",
