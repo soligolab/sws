@@ -12,6 +12,19 @@
 > resta in «Storico». Qui vive solo ciò che serve a riprendere il lavoro.
 
 
+## ▶ Il collaudo del 07-11 sul TC620 — in corso, i difetti per la rc.3
+
+Il TC620 è sulla **2.26.0-rc.2**, aggiornato da «Aggiorna ora» nel viewer (F3.16 passata). Difetti trovati:
+1. **«Aggiorna» dall'IDE nel cloud dà «Dispositivo non raggiungibile: error sending request»**: il pannello prende
+   l'istantanea dei dati (con lo storico di CasaDomotica) *prima* di rispondere, e l'IDE aspetta al massimo 60 s
+   (`make_remote_client`, `remote.rs`). Dal viewer, che non ha quel tetto, è andato. Da fare: tempo lungo per
+   `update/apply` (o risposta prima dell'istantanea) e un messaggio «preparo l'istantanea…».
+2. **Il deploy con «Sostituisci anche gli utenti» ha portato un `admin` col cambio password obbligatorio**
+   (`users.yaml` di CasaDomotica nel cloud, segno attivo dal 12-10) e ha tolto gli account del pannello senza dirlo.
+   Da fare: l'avviso prima della sostituzione. Il segno nel cloud **non** è stato toccato.
+3. **Il cambio password rimandabile** («Più tardi»), chiesto dal maintainer; il «per sempre» e il CRA sono nel seme
+   [credenziali e CRA](docs/plans/2026-11-07-credenziali-cra.md).
+
 ## ▶ Riprendere da qui — la 2.26.0-rc.2 pubblicata, domani il collaudo sul TC620 con CasaDomotica (2026-11-06 notte, ufficio)
 
 **`main` = origin**, nessun ramo aperto. L0, F2 e F3 sono in `main` (`630a0f30`), insieme a:
