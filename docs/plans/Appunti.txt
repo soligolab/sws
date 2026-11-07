@@ -363,3 +363,15 @@ Annoto di seguito, uno per punto, le cose che devono essere verificate e trasfor
   quando lo si fa: cosa succede ai tag della sorgente spenta (qualita' «non collegata»/stale, non valori vecchi buoni),
   cosa dice `<sorgente>.disponibile`, se il validatore deve ancora controllarne i tag, e l'interruttore nell'IDE
   (elenco sorgenti, uguale nel pannello proprieta'). Ramo piccolo-medio: runtime, IDE, validatore, NOVITA.
+
+- (07-11-2026, dal collaudo della rc.3) **Alla connessione il registro ci mette molto a mostrare le righe di prima.**
+  Non e' un file: e' l'anello in memoria del `LogBus` del pannello (`DEFAULT_LOG_CAPACITY` = 1000 righe), che
+  `handle_logs_ws` (`sws-web/src/router.rs`) manda un frame per riga prima della coda dal vivo; il relay le inoltra
+  una per una. La rete non e' il collo (i frame viaggiano in fila, senza andata e ritorno): il costo e' nell'IDE.
+  Ogni frame chiama `appendLog` (`store/index.ts`), che copia tutto l'array (fino a `LOG_LIMIT` = 2000) e aggiorna lo
+  store; `LogPanel.tsx` si ridisegna per intero a ogni riga — rifiltra tutto, `LogRow` non e' memoizzata, nessuna
+  virtualizzazione, chiave `${ts}-${indice}` che allo scorrimento oltre 2000 rimonta ogni riga, e lo scroll in fondo
+  forza un layout. Mille righe = mille ridisegni di una lista fino a 2000 righe. Rimedio probabile, da misurare
+  prima e dopo: raccogliere le righe in arrivo e versarle nello store una volta per fotogramma (`appendLogs(lista)`),
+  `memo` su `LogRow` con chiave stabile, e se non basta una lista virtualizzata. Vale anche per il log locale
+  (`logStream.ts`), stessa strada. Diagnosi dalla lettura del codice, non ancora misurata.
