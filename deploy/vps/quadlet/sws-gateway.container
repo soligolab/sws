@@ -38,7 +38,7 @@ After=network-online.target
 # si costruisce un'immagine sola, quindi i due dicono la stessa cosa — ma il
 # numero di versione e' quello che il pannello e la console confrontano, e
 # ritrovarlo qui evita di dover tradurre un sha per sapere cosa sta girando.
-Image=ghcr.io/soligolab/sws-runtime:f4627806-amd64
+Image=ghcr.io/soligolab/sws-runtime:57af9904-amd64
 
 # ── Le etichette delle Novità non entrano nel container (22-10-2026) ─────────
 #

@@ -12,18 +12,43 @@
 > resta in «Storico». Qui vive solo ciò che serve a riprendere il lavoro.
 
 
-## ▶ Il collaudo del 07-11 sul TC620 — in corso, i difetti per la rc.3
+## ▶ Riprendere da qui — la 2.26.0-rc.3 pubblicata, il secondo giro sul TC620 (2026-11-07 pomeriggio, ufficio)
 
-Il TC620 è sulla **2.26.0-rc.2**, aggiornato da «Aggiorna ora» nel viewer (F3.16 passata). Difetti trovati:
-1. **«Aggiorna» dall'IDE nel cloud dà «Dispositivo non raggiungibile: error sending request»**: il pannello prende
-   l'istantanea dei dati (con lo storico di CasaDomotica) *prima* di rispondere, e l'IDE aspetta al massimo 60 s
-   (`make_remote_client`, `remote.rs`). Dal viewer, che non ha quel tetto, è andato. Da fare: tempo lungo per
-   `update/apply` (o risposta prima dell'istantanea) e un messaggio «preparo l'istantanea…».
-2. **Il deploy con «Sostituisci anche gli utenti» ha portato un `admin` col cambio password obbligatorio**
-   (`users.yaml` di CasaDomotica nel cloud, segno attivo dal 12-10) e ha tolto gli account del pannello senza dirlo.
-   Da fare: l'avviso prima della sostituzione. Il segno nel cloud **non** è stato toccato.
-3. **Il cambio password rimandabile** («Più tardi»), chiesto dal maintainer; il «per sempre» e il CRA sono nel seme
-   [credenziali e CRA](docs/plans/2026-11-07-credenziali-cra.md).
+**`main` ha due commit e un tag che origin non ha** (`eb61de8f` le correzioni, `57af9904` la versione, tag
+`2.26.0-rc.3`), più questo commit di documenti: **il push aspetta il via del maintainer**. Finché manca,
+`check_release_coerente` dice «tag solo qui». Nessun ramo aperto.
+
+**Il collaudo di stamattina** (banco, esiti in `tmp/collaudo/esiti-07-11-mattina-rc2.json`): sul TC620 aggiornato alla
+rc.2 dal viewer passano F3.9, F3.12, F3.14, F3.16, L0.2 e G-ter 34. I difetti trovati, tutti corretti nella **rc.3**:
+1. **i log del pannello non arrivavano all'IDE del cloud**: `/ws/remote/logs` senza il prefisso `/p/<azienda>/<progetto>`
+   andava al gateway. Ora il prefisso c'è, la finestra staccata del log li riceve, e il registro dice lo stato del
+   canale;
+2. **«Aggiorna ora» dall'IDE dava «non raggiungibile» dopo 60 s**: il pannello risponde dopo l'istantanea dei dati
+   (540 MB di storico). Ora 15 minuti, e l'IDE dice che sta copiando;
+3. **il deploy ha portato un `admin` col cambio password obbligatorio** senza dirlo: ora un 428 `utenti-da-cambiare`;
+   **il cambio si può rimandare** («Più tardi» per la sessione, «Non chiedere più» per l'Admin, nell'audit). Il CRA
+   è un seme: [credenziali e CRA](docs/plans/2026-11-07-credenziali-cra.md). Il segno di `admin` in `users.yaml` di
+   CasaDomotica nel cloud **non** è stato toccato;
+4. **il momentaneo sul touch** (il TC620 disegna con Chromium in kiosk): solo eventi del mouse, la pressione lunga non
+   mandava niente. Ora eventi pointer;
+5. **l'elenco allarmi** senza «ACK tutti» e «metti a tacere»; **il comando critico senza accesso** dava «403» (il
+   registro di audit del pannello lo conferma: scritture anonime alle 12:44 e 12:46, accesso alle 12:48);
+6. il validatore segnalava come «senza tag» un bottone che chiama una funzione.
+
+Non era un difetto: i bottoni del lucchetto scrivevano (linea 3 alle 12:53, linea 2 alle 12:54) ma la scheda mostrava
+le luci, che dipendono dal generale. La pagina «Collaudo 2.26» sul VPS ha ora «Accedi» ed «Esci» e le spie di linea 2
+e 3 (copia di prima: `Collaudo 2.26.yaml.prima-rc3-*`).
+
+**Pubblicato**: immagini `2.26.0-rc.3` e `57af9904` arm64/amd64, `rc-arm64` spostato; il gateway del VPS gira
+`57af9904-amd64` (quadlet di prima: `sws-gateway.container.prima-2.26.0-rc.3`), container di CasaDomotica ricreato.
+
+**Il collaudo, cosa guardare**: il banco (porta 8471) apre col gruppo «0 · il giro della 2.26.0-rc.3»: `r3-agg`
+(aggiornare dall'IDE, prima rifare «Connetti» con la password nuova di admin), `r3-log`, `r3-deploy` (deploy con la
+casella degli utenti accesa → Annulla, poi senza), `r3-piutardi` (facoltativa: sostituisce gli utenti del pannello),
+`r3-critico`, `r3-momentaneo`, `r3-lucchetto`, `r3-allarmi`; poi `tc-prest`, `tc-report`, `tc-sorgente`, il cloud e
+l'ufficio come prima. **Il TC620 si aggiorna dall'IDE**: è la prova stessa.
+
+Nuovo in Appunti: una PUT del viewer lascia scrivere chi ha il cambio password in sospeso (il socket no).
 
 ## ▶ Riprendere da qui — la 2.26.0-rc.2 pubblicata, domani il collaudo sul TC620 con CasaDomotica (2026-11-06 notte, ufficio)
 

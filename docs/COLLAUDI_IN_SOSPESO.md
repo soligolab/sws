@@ -37,8 +37,10 @@ locale (8460) o sul VPS dopo il rilascio.
 1. [ ] Uno script globale con `print('ciao')` e un `for i in range(3): tot += i`: gira senza `NameError`, e nel
        registro del runtime compare la riga `print` col nome dello script e il testo. **Passata sull'IDE 8460 il
        06-11-2026**; resta da provare sul pannello.
-2. [ ] Una funzione con un parametro col predefinito (`chi`, predefinito `operatore`) chiamata da un bottone senza
-       argomenti: usa il predefinito. «Prova» della funzione mostra il testo dei `print`.
+2. [x] Una funzione con un parametro col predefinito (`chi`, predefinito `operatore`) chiamata da un bottone senza
+       argomenti: usa il predefinito. «Prova» della funzione mostra il testo dei `print`. **Passata il 07-11-2026 sul
+       TC620** (rc.2, CasaDomotica): «ciao operatore» e «ciao Mauro», righe `print` nel registro del pannello. Il log
+       non arrivava all'IDE del cloud: difetto del canale, corretto nella rc.3 (banco `r3-log`).
 3. [ ] `min`, `max`, `sum`, `sorted`, `enumerate` in uno script: girano sul pannello. **Passata sull'IDE 8460 il
        06-11-2026** (`ciao 3 1 3 3 [1, 2] [(0, 'a'), (1, 'b')]` nel registro); resta da provare sul pannello.
 
@@ -58,20 +60,25 @@ locale (8460) o sul VPS dopo il rilascio.
        Confermato il 06-11-2026 sull'8460.
 
 **F3 — viewer, console, finestre** (viewer sul pannello, kiosk WebKit: WP630 o TC620)
-9. [ ] Un bottone con `require_confirm`: la finestra con Annulla/Conferma nella lingua dei contenuti; Annulla non scrive.
+9. [x] Un bottone con `require_confirm`: la finestra con Annulla/Conferma nella lingua dei contenuti; Annulla non scrive.
 10. [ ] Un comando `critical`: la password in una finestra (campo nascosto), sbagliata dà errore e non scrive; con
-       `require_reason` il motivo vuoto tiene aperta la finestra.
-11. [ ] Un bottone momentaneo con `require_confirm`: non chiede più niente e si tiene premuto.
-12. [ ] Un toggle con conferma: scrive l'inverso del valore **al momento della conferma**.
-13. [ ] Allarmi: «Conferma» con motivo obbligatorio, «Conferma tutti», «Metti a tacere».
-14. [ ] Uno slider con `require_confirm`: una domanda sola al rilascio, e il cursore resta dove l'ha lasciato.
+       `require_reason` il motivo vuoto tiene aperta la finestra. **07-11 (rc.2): «403 forbidden»** — premuto prima
+       di fare l'accesso, e il viewer mandava la scrittura senza credenziali. Nella rc.3 dice di accedere (`r3-critico`).
+11. [ ] Un bottone momentaneo con `require_confirm`: non chiede più niente e si tiene premuto. **07-11 (rc.2) non
+       passa sul touch del TC620**: la pressione lunga non mandava niente (solo eventi del mouse). Rc.3: eventi pointer
+       (`r3-momentaneo`).
+12. [x] Un toggle con conferma: scrive l'inverso del valore **al momento della conferma**.
+13. [ ] Allarmi: «Conferma» con motivo obbligatorio, «Conferma tutti», «Metti a tacere». **07-11 (rc.2)**: la conferma
+       col motivo passa; «Conferma tutti» e «Metti a tacere» non c'erano nella modalità elenco. Rc.3 (`r3-allarmi`).
+14. [x] Uno slider con `require_confirm`: una domanda sola al rilascio, e il cursore resta dove l'ha lasciato.
 15. [ ] IDE. **Già passati il 05-11-2026 sull'8460**: chiudere il progetto con modifiche non salvate (Salva e chiudi /
        Chiudi senza salvare / Annulla) e la console (abbandonare le modifiche in Aziende e Persone); **il 06-11**
        «Crea variabile», «Rinomina tag» (da Progetto → Variabili, «Tags» con l'IDE in inglese) e «Cambia risoluzione».
        Restano: il pull dal dispositivo nella finestra nuova, sessione scaduta, chiusura dell'account: stessa cornice,
        Esc, Tab che resta dentro.
-16. [ ] L'avviso di aggiornamento sul pannello (versione nuova, conferma dopo l'aggiornamento) con il login per Admin
-       che gli si apre sopra: si scrive nel login.
+16. [x] L'avviso di aggiornamento sul pannello (versione nuova, conferma dopo l'aggiornamento) con il login per Admin
+       che gli si apre sopra: si scrive nel login. **Passata il 07-11-2026 sul TC620** (2.25.1 → rc.2 dal viewer). Dall'IDE
+       del cloud falliva dopo 60 s (l'istantanea dei dati): corretto nella rc.3 (`r3-agg`).
 
 ## La 2.25.1 (05-11-2026) — anomalie del collaudo 2.25.0, regole dei template, lucchetto
 
@@ -475,7 +482,7 @@ Si fa sul PC, nell'IDE.
     > **Ripulito il 05-11-2026** dal maintainer. Era: la prova è stata fatta dentro `CasaDomotica`, il progetto di riferimento.
     > Vanno tolti il tipo `motore`, il tag `Pompa2`, il tag orfano `'motore1.velocita '` e
     > l'oggetto in `Home.yaml:79`.
-34. [ ] Un faceplate con parametro `istanza(Motore)`: scegliendo l'istanza, i campi si legano da soli.
+34. [x] (07-11-2026, TC620, tapparelle di «Collaudo 2.26») Un faceplate con parametro `istanza(Motore)`: scegliendo l'istanza, i campi si legano da soli.
 
 ---
 
