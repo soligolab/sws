@@ -1,22 +1,20 @@
 {
-  "titolo": "Collaudo del 07-11, secondo giro — TC620 di casa con CasaDomotica, la 2.26.0-rc.3",
+  "titolo": "Collaudo del 07-11, terzo giro — TC620 di casa con CasaDomotica, la 2.26.0-rc.4",
   "prove": [
     {
-      "id": "r3-agg",
-      "dove": "0 · TC620 di casa · il giro della 2.26.0-rc.3",
-      "titolo": "«Aggiorna ora» dall'IDE nel cloud porta il TC620 alla rc.3",
-      "rif": "difetto del 07-11: «Dispositivo non raggiungibile» dopo 60 s",
-      "scopo": "Stamattina l'IDE rinunciava dopo un minuto mentre il pannello copiava i dati (l'istantanea per poter tornare indietro, con tutto lo storico di CasaDomotica). Ora aspetta fino a 15 minuti e dice cosa sta succedendo.",
-      "prima": "IDE nel cloud, CasaDomotica. Se il pallino del pannello non è verde, rifai «Connetti» con la password di admin che hai messo stamattina (quella vecchia l'IDE non la sa: è per questo che dopo l'aggiornamento non era più rientrato da solo).",
+      "id": "r4-agg",
+      "dove": "0 · TC620 di casa · il giro della 2.26.0-rc.4",
+      "titolo": "«Aggiorna ora» dall'IDE nel cloud porta il TC620 alla rc.4",
+      "rif": "r3-agg (rifatta: l'IDE nel cloud era rimasto sulla rc.2)",
+      "scopo": "Nel pomeriggio l'IDE di CasaDomotica nel cloud girava ancora la rc.2: nel quadlet del VPS avevo cambiato l'immagine del gateway ma non quella dei progetti. Ora sono tutte e due sulla rc.4, e una guardia lo controlla.",
+      "prima": "Ricarica la pagina dell'IDE nel cloud (il container del progetto rinasce sulla rc.4). In basso a sinistra o in Informazioni la versione deve dire 2.26.0-rc.4. Se il pallino del pannello non è verde, «Connetti» con la password di admin del pannello.",
       "passi": [
-        "Configurazione → Istanza → Device → Connessione → «Aggiornamento del runtime»: deve proporre la `2.26.0-rc.3`.",
-        "«Aggiorna ora» e conferma.",
-        "Aspetta senza ripremere."
+        "Configurazione → Istanza → Device → Connessione → «Aggiornamento del runtime»: deve proporre la `2.26.0-rc.4`.",
+        "«Aggiorna ora» e conferma. Aspetta senza ripremere."
       ],
       "atteso": [
-        "Sotto compare «Il pannello sta copiando i suoi dati prima di aggiornarsi…», anche per un paio di minuti.",
-        "Poi «aggiornamento avviato», nessun «non raggiungibile».",
-        "Il TC620 si riavvia sulla rc.3; al ritorno chiede di confermare l'aggiornamento."
+        "«Il pannello sta copiando i suoi dati prima di aggiornarsi…», poi «aggiornamento avviato», nessun «non raggiungibile».",
+        "Il TC620 si riavvia sulla rc.4 e chiede di confermare l'aggiornamento."
       ],
       "sblocca": "F3.16 dall'IDE",
       "link": [
@@ -28,23 +26,23 @@
       "n": 1
     },
     {
-      "id": "r3-log",
-      "dove": "0 · TC620 di casa · il giro della 2.26.0-rc.3",
-      "titolo": "Il registro dell'IDE nel cloud mostra i log del pannello",
-      "rif": "difetto del 07-11: tc-funzione, nessuna riga nel log",
-      "scopo": "Il canale dei log del pannello si apriva all'indirizzo sbagliato nel cloud (senza `/p/-/CasaDomotica`), e non arrivava niente. Ora il registro dice anche quando il canale si apre o si interrompe, e perché.",
-      "prima": "Dopo r3-agg, con l'IDE ricollegato al TC620.",
+      "id": "r4-log",
+      "dove": "0 · TC620 di casa · il giro della 2.26.0-rc.4",
+      "titolo": "Il log: si apre subito, si filtra al contrario, l'inverter non fa rumore",
+      "rif": "r3-agg (le note sul log), osservazioni del 07-11",
+      "scopo": "Il log si apriva lentamente perché ogni riga ridisegnava tutto il pannello, e a ogni riconnessione le stesse mille righe tornavano doppie. Le perdite di risposta della chiavetta Solarman scrivevano quattro righe ogni minuto o due. Ora le righe arrivano a blocchi, i doppioni si scartano, una risposta persa non è un guasto (si dice al terzo giro muto) e nelle caselle «-parola» esclude.",
+      "prima": "IDE nel cloud collegato al TC620 sulla rc.4.",
       "passi": [
-        "Menu ☰ → Pannello log: cerca una riga `tc620-garage:collegamento` «log del pannello collegati».",
-        "Sul TC620, scheda «L0.2»: premi «Senza argomenti» e «chi = Mauro».",
-        "Nel log filtra `collaudo_saluta`.",
-        "Rifallo con il log aperto in una finestra a parte (☰ → «Log in una finestra»)."
+        "Apri il log (anche nella finestra staccata): conta quanto ci mette a riempirsi.",
+        "Nella casella del messaggio scrivi `-modbus`; poi nella casella target `-inverter-zcs`.",
+        "Lascia il log aperto qualche minuto."
       ],
       "atteso": [
-        "Due righe `print` col nome `collaudo_saluta` e il testo «ciao operatore», «ciao Mauro», etichettate col nome del pannello.",
-        "Le stesse righe anche nella finestra a parte (prima diceva che lì non arrivavano)."
+        "Il log si riempie in un attimo, senza righe doppie.",
+        "Le righe che contengono la parola esclusa spariscono; togliendo il filtro tornano.",
+        "Dall'inverter, al massimo una riga «non risponde da 3 giri» e una «risponde di nuovo, dopo …»: non più quattro righe a ogni risposta persa."
       ],
-      "sblocca": "L0.2 e il log remoto nel cloud",
+      "sblocca": "osservazioni sul log del 07-11",
       "link": [
         {
           "testo": "IDE nel cloud",
@@ -54,23 +52,23 @@
       "n": 2
     },
     {
-      "id": "r3-deploy",
-      "dove": "0 · TC620 di casa · il giro della 2.26.0-rc.3",
-      "titolo": "Il deploy avvisa se porta utenti col cambio password, e la pagina ha «Accedi» ed «Esci»",
-      "rif": "difetto del 07-11: l'admin col cambio obbligatorio arrivato senza avviso",
-      "scopo": "Nel cloud l'utente `admin` di CasaDomotica ha ancora il cambio password obbligatorio (dal 12-10). Il deploy con «Sostituisci anche gli utenti» ora lo dice prima. Nella pagina «Collaudo 2.26» ho aggiunto «Accedi» ed «Esci» in alto, e le spie di linea 2 e 3 nella scheda del lucchetto.",
-      "prima": "IDE nel cloud, CasaDomotica, TC620 sulla rc.3.",
+      "id": "r4-deploy",
+      "dove": "0 · TC620 di casa · il giro della 2.26.0-rc.4",
+      "titolo": "Il deploy dice che sostituisce gli utenti; il log riparte col progetto nuovo",
+      "rif": "r3-deploy (rifatta: nessun avviso)",
+      "scopo": "Una password reimpostata nell'IDE aveva sostituito quella del pannello senza una parola. Ora il deploy che sostituisce gli utenti di un pannello che ne ha lo chiede sempre, dicendo chi sostituisce chi. Questo deploy porta anche la pagina «Collaudo 2.26» corretta (luce 3 con ON/OFF). Dopo l'apertura del progetto il log del pannello riparte da una riga «— progetto aperto —».",
+      "prima": "IDE nel cloud, CasaDomotica, TC620 sulla rc.4, log aperto.",
       "passi": [
-        "Deploy con la casella «Sostituisci anche gli utenti» ACCESA: leggi la domanda e premi Annulla.",
-        "Togli la casella e rifai il deploy: deve partire senza quella domanda.",
-        "Sul TC620 la pagina «Collaudo 2.26» ha «Accedi» ed «Esci» in alto a destra."
+        "Deploy con «Sostituisci anche gli utenti» ACCESA: leggi la domanda e premi Annulla.",
+        "Rifai il deploy e rispondi Sì (oppure togli la casella: allora niente domanda).",
+        "Guarda il log quando il pannello ha aperto il progetto."
       ],
       "atteso": [
-        "La domanda nomina `admin` (che arriva col cambio password) e gli utenti del pannello che sostituirebbe.",
-        "Annulla: non è stato toccato niente.",
-        "Senza la casella il pannello tiene la password che hai messo stamattina."
+        "La domanda nomina gli utenti del pannello e quelli del progetto e dice che varranno le password del progetto.",
+        "Con Annulla non cambia niente.",
+        "Il log si svuota e riparte da «— progetto aperto: il registro riparte da qui —»; nel log c'è anche la riga della domanda con la tua risposta (target `schermo`)."
       ],
-      "sblocca": "avviso del deploy",
+      "sblocca": "r3-deploy",
       "link": [
         {
           "testo": "IDE nel cloud",
@@ -80,23 +78,22 @@
       "n": 3
     },
     {
-      "id": "r3-piutardi",
-      "dove": "0 · TC620 di casa · il giro della 2.26.0-rc.3",
-      "titolo": "Il cambio password obbligatorio si rimanda con «Più tardi»",
-      "rif": "richiesta del 07-11 (caso «C»); seme credenziali e CRA",
-      "scopo": "«Più tardi» vale per la sessione: si comanda col proprio ruolo, e al prossimo accesso la domanda torna. «Non chiedere più» c'è solo per un Admin, chiede conferma e finisce nell'audit.",
-      "prima": "Serve un utente col cambio obbligatorio SUL PANNELLO. Il modo più semplice: IDE nel cloud → Utenti → nuovo utente `prova` (Operator) con «forza cambio password», poi Connessione → «Update users on the device». Attenzione: così il pannello prende TUTTI gli utenti del cloud, admin compreso con la sua password del cloud — se non lo vuoi, salta questa prova.",
+      "id": "r4-momentaneo",
+      "dove": "0 · TC620 di casa · il giro della 2.26.0-rc.4",
+      "titolo": "Il momentaneo tenuto premuto col dito, e il suo errore nel log",
+      "rif": "F3.11 (rifatta: «il tag garage.luce_3 è dichiarato come string, ricevuto bool»)",
+      "scopo": "Il difetto era nella pagina che ho fatto io: il bottone scriveva true/false su un tag di zigbee2mqtt che vuole ON/OFF. Il validatore lo segnalava e non l'ho visto. Corretta la pagina (anche le spie della luce 1 e della luce 3, che confrontavano true/false). E da ora un messaggio come quello finisce anche nel log.",
+      "prima": "Dopo r4-deploy. Sul touch del TC620, pagina «Collaudo 2.26», «Accedi» come admin.",
       "passi": [
-        "Sul TC620: «Esci», poi «Accedi» come `prova`: compare il cambio password con «Più tardi».",
-        "«Più tardi»: si entra; la scheda F3.12 (toggle) comanda.",
-        "«Esci» e rientra come `prova`: la domanda torna.",
-        "Come admin (se ha il cambio obbligatorio): c'è anche «Non chiedere più», che chiede conferma."
+        "Scheda «F3.11»: tieni premuto «Tieni premuto» per tre secondi col dito, poi alza.",
+        "Prova anche a premere e far scivolare il dito fuori dal bottone."
       ],
       "atteso": [
-        "«Più tardi» c'è per tutti, «Non chiedere più» solo per un Admin.",
-        "Dopo «Non chiedere più» la domanda non torna più per quell'utente."
+        "Nessuna domanda; la luce 3 accesa finché tieni premuto, spenta al rilascio; la spia dice ACCESA/SPENTA.",
+        "Scivolando fuori si spegne.",
+        "Se compare un messaggio a video, lo ritrovi nel log dell'IDE col target `schermo`."
       ],
-      "sblocca": "cambio password rimandabile",
+      "sblocca": "F3.11",
       "link": [
         {
           "testo": "viewer TC620",
@@ -107,7 +104,7 @@
     },
     {
       "id": "r3-critico",
-      "dove": "0 · TC620 di casa · il giro della 2.26.0-rc.3",
+      "dove": "0 · TC620 di casa · il giro della 2.26.0-rc.4",
       "titolo": "Comando critico: senza accesso lo dice; con l'accesso password e motivo",
       "rif": "F3.10 (rifatta: stamattina 403 forbidden)",
       "scopo": "Stamattina i due comandi partivano senza credenziali (non avevi ancora fatto l'accesso: lo dice il registro di audit del pannello) e tornavano «403 forbidden». Ora senza accesso il comando dice di accedere.",
@@ -132,33 +129,8 @@
       "n": 5
     },
     {
-      "id": "r3-momentaneo",
-      "dove": "0 · TC620 di casa · il giro della 2.26.0-rc.3",
-      "titolo": "Il momentaneo si tiene premuto col dito",
-      "rif": "F3.11 (rifatta: stamattina la pressione lunga non faceva niente)",
-      "scopo": "Il bottone ascoltava solo il mouse: sul touch la pressione arrivava solo quando il dito si alzava. Ora usa gli eventi del tocco.",
-      "prima": "Sul touch del TC620, pagina «Collaudo 2.26». Prima premi «Accedi» (in alto a destra) ed entra come admin.",
-      "passi": [
-        "Scheda «F3.11»: tieni premuto «Tieni premuto» per tre secondi col dito, poi alza.",
-        "Prova anche a premere e far scivolare il dito fuori dal bottone."
-      ],
-      "atteso": [
-        "Nessuna domanda.",
-        "La luce 3 del garage accesa finché tieni premuto, spenta al rilascio.",
-        "Scivolando fuori si spegne; nessun menu della pressione lunga."
-      ],
-      "sblocca": "F3.11",
-      "link": [
-        {
-          "testo": "viewer TC620",
-          "url": "https://tc620-a-p3-c6-07aff9.local:7443"
-        }
-      ],
-      "n": 6
-    },
-    {
       "id": "r3-lucchetto",
-      "dove": "0 · TC620 di casa · il giro della 2.26.0-rc.3",
+      "dove": "0 · TC620 di casa · il giro della 2.26.0-rc.4",
       "titolo": "Il lucchetto: senza accesso e da admin, con le spie che seguono i comandi",
       "rif": "2.25.1.10 (rifatta: stamattina le spie guardavano la luce, che dipende dal generale)",
       "scopo": "Stamattina i bottoni scrivevano davvero (linea 3 alle 12:53, linea 2 alle 12:54) ma le spie della scheda erano quelle della luce, accese solo col generale chiuso. Ora la scheda ha le spie di linea 2 e linea 3.",
@@ -178,11 +150,11 @@
           "url": "https://tc620-a-p3-c6-07aff9.local:7443"
         }
       ],
-      "n": 7
+      "n": 6
     },
     {
       "id": "r3-allarmi",
-      "dove": "0 · TC620 di casa · il giro della 2.26.0-rc.3",
+      "dove": "0 · TC620 di casa · il giro della 2.26.0-rc.4",
       "titolo": "Allarmi: «ACK tutti» e «metti a tacere» anche nell'elenco",
       "rif": "F3.13 (completata: stamattina mancava «Conferma tutti»)",
       "scopo": "Il riquadro della pagina è in modalità elenco, dove «ACK tutti» e «metti a tacere» non c'erano (c'erano solo nella tabella).",
@@ -203,7 +175,7 @@
           "url": "https://tc620-a-p3-c6-07aff9.local:7443"
         }
       ],
-      "n": 8
+      "n": 7
     },
     {
       "id": "tc-prest",
@@ -230,7 +202,7 @@
         }
       ],
       "sonda": "https://tc620-a-p3-c6-07aff9.local:7443/api/prestazioni/richiesta",
-      "n": 9
+      "n": 8
     },
     {
       "id": "tc-report",
@@ -253,7 +225,7 @@
       "sblocca": "A-quater",
       "link": null,
       "sonda": null,
-      "n": 10
+      "n": 9
     },
     {
       "id": "tc-sorgente",
@@ -274,11 +246,11 @@
       "sblocca": "A-septies 10",
       "link": null,
       "sonda": null,
-      "n": 11
+      "n": 10
     },
     {
       "id": "1125-14",
-      "n": 12,
+      "n": 11,
       "dove": "2 · Dal cloud · CasaDomotica (sws.soligo.net)",
       "titolo": "L'assistente trova una pagina col suo nome tradotto",
       "rif": "2.25.1.14 — l'assistente e i nomi tradotti",
@@ -325,11 +297,11 @@
       "sblocca": "il passo «faceplate» del prompt; ap-sfondi (gli sfondi del 05-11)",
       "link": null,
       "sonda": null,
-      "n": 13
+      "n": 12
     },
     {
       "id": "ap-regole",
-      "n": 14,
+      "n": 13,
       "dove": "2 · Dal cloud · CasaDomotica (sws.soligo.net)",
       "titolo": "Le regole del progetto per l'IA si salvano",
       "rif": "Appunti — le regole del progetto in CasaDomotica",
@@ -355,7 +327,7 @@
     },
     {
       "id": "ap-history",
-      "n": 15,
+      "n": 14,
       "dove": "2 · Dal cloud · CasaDomotica (sws.soligo.net)",
       "titolo": "I grafici smettono di chiedere dati quando la scheda è nascosta",
       "rif": "Appunti — ricontare le richieste /api/history",
@@ -382,7 +354,7 @@
     },
     {
       "id": "abis-3",
-      "n": 16,
+      "n": 15,
       "dove": "9 · Solo ufficio (WP630) — WP630 senza deploy (Montagna resta)",
       "titolo": "Certificati: la card dice che il browser del pannello si fida",
       "rif": "A-bis 3 — la fiducia del browser del pannello",
@@ -407,7 +379,7 @@
     },
     {
       "id": "abis-1",
-      "n": 17,
+      "n": 16,
       "dove": "9 · Solo ufficio (WP630) — WP630 senza deploy (Montagna resta)",
       "titolo": "Sul pannello c'è il «guardiano» che aggiorna la fiducia del browser",
       "rif": "A-bis 1 — da terminale (SSH)",
@@ -425,7 +397,7 @@
     },
     {
       "id": "d13",
-      "n": 18,
+      "n": 17,
       "dove": "9 · Solo ufficio (WP630) — WP630 senza deploy (Montagna resta)",
       "titolo": "Ricollegandosi, l'IDE riconosce il certificato del pannello",
       "rif": "D 13 — l'impronta al collegamento",
@@ -443,7 +415,7 @@
     },
     {
       "id": "d14",
-      "n": 19,
+      "n": 18,
       "dove": "9 · Solo ufficio (WP630) — WP630 senza deploy (Montagna resta)",
       "titolo": "Collegandosi in http non compare nessuna impronta",
       "rif": "D 14 — l'impronta al collegamento",
@@ -462,7 +434,7 @@
     },
     {
       "id": "x-prep",
-      "n": 20,
+      "n": 19,
       "dove": "9 · Solo ufficio (WP630) — WP630 con deploy (cancella il progetto del pannello)",
       "titolo": "Prima di tutto: un progetto con gli utenti",
       "rif": "preparazione",
@@ -479,7 +451,7 @@
     },
     {
       "id": "f2-5",
-      "n": 21,
+      "n": 20,
       "dove": "9 · Solo ufficio (WP630) — WP630 con deploy (cancella il progetto del pannello)",
       "titolo": "Inviare un progetto senza utenti avvisa che il pannello resterà aperto",
       "rif": "F2.5 — la Finestra di avviso",
@@ -499,7 +471,7 @@
     },
     {
       "id": "f2-4",
-      "n": 22,
+      "n": 21,
       "dove": "9 · Solo ufficio (WP630) — WP630 con deploy (cancella il progetto del pannello)",
       "titolo": "Il deploy che sostituisce il progetto del pannello chiede conferma",
       "rif": "F2.4 — la Finestra di avviso",
@@ -520,7 +492,7 @@
     },
     {
       "id": "abis-4",
-      "n": 23,
+      "n": 22,
       "dove": "9 · Solo ufficio (WP630) — WP630 certificati (cambiano il TLS: per ultimi)",
       "titolo": "Cambiato il certificato, lo schermo del pannello non dà avvisi",
       "rif": "A-bis 4 e 6 — il guardiano segue il cambio",
@@ -540,7 +512,7 @@
     },
     {
       "id": "c10-11",
-      "n": 24,
+      "n": 23,
       "dove": "9 · Solo ufficio (WP630) — WP630 certificati (cambiano il TLS: per ultimi)",
       "titolo": "Dopo il cambio, l'IDE rifiuta il certificato nuovo finché non dici di fidarti",
       "rif": "C 10–11, D 12 — governare il certificato da remoto",
@@ -567,7 +539,7 @@
     },
     {
       "id": "h31",
-      "n": 25,
+      "n": 24,
       "dove": "9 · Solo ufficio (WP630) — WP630 certificati (cambiano il TLS: per ultimi)",
       "titolo": "Le operazioni sui certificati finiscono nel registro di audit",
       "rif": "H 31 — ruoli e registro",

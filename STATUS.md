@@ -12,6 +12,31 @@
 > resta in «Storico». Qui vive solo ciò che serve a riprendere il lavoro.
 
 
+## ▶ Riprendere da qui — la 2.26.0-rc.4 pubblicata, il terzo giro sul TC620 (2026-11-07 sera, ufficio)
+
+**`main` ha commit e due tag che origin non ha** (`2.26.0-rc.3`, `2.26.0-rc.4`): **il push aspetta il via del
+maintainer**. Nessun ramo aperto. VPS: gateway **e** progetti su `288b305e-amd64` (rc.4); `rc-arm64` è la rc.4.
+
+**Il giro della rc.3** (esiti in `tmp/collaudo/esiti-07-11-pomeriggio-rc3.json`): passano r3-log e r3-piutardi. Il resto
+era falsato da **un mio errore sul VPS**: alla rc.3 avevo cambiato `Image=` nel quadlet ma non `--gateway-immagine`, e
+l'IDE di CasaDomotica è rinato sulla **rc.2**. Ora la guardia `check_gateway_immagine.sh` lo impedisce. Corretti nella
+**rc.4** (`eb4bad70`, ramo `fix/registro-log` mergiato ed eliminato):
+1. **il log**: i messaggi a video (avvisi, conferme con la risposta, toast del viewer) vanno nel registro col target
+   `schermo` (`POST /api/registro/schermo`); il registro riparte all'apertura di un progetto (riga `registro_riparte`,
+   che svuota anche l'elenco dell'IDE); le righe arrivano a blocchi senza i doppioni delle riconnessioni; `-parola`
+   esclude nelle caselle di filtro;
+2. **le assenze**: la chiavetta Solarman perde una risposta ogni minuto o due — non era l'inverter spento. Un timeout
+   ora si dice al terzo giro muto, il ritorno con la durata; assente da 5 min = interrogato ogni 60 s; la stessa caduta
+   di sessione (tutti i protocolli) si riscrive solo dopo un'ora. **Livelli 2 e 3** (i tag Bad a ogni risposta persa,
+   l'assenza prevista) in `docs/plans/Appunti.txt`, da trattare insieme alle sorgenti disattivabili;
+3. **il deploy** chiede sempre prima di sostituire gli utenti di un pannello che ne ha (428 `utenti-sostituiti`);
+4. **la pagina «Collaudo 2.26»** sul VPS: il momentaneo e le spie della luce 1 e 3 usavano true/false su tag
+   zigbee2mqtt `string` (ON/OFF). Errore mio, il validatore lo segnalava. Corretta (copia `…prima-on-off-*`); arriva
+   al TC620 col deploy di r4-deploy.
+
+**Il collaudo, cosa guardare**: banco, gruppo «0 · il giro della 2.26.0-rc.4» — r4-agg (ricarica l'IDE nel cloud, poi
+«Aggiorna ora»), r4-log, r4-deploy, r4-momentaneo, poi r3-critico, r3-lucchetto, r3-allarmi.
+
 ## ▶ Riprendere da qui — la 2.26.0-rc.3 pubblicata, il secondo giro sul TC620 (2026-11-07 pomeriggio, ufficio)
 
 **`main` ha due commit e un tag che origin non ha** (`eb61de8f` le correzioni, `57af9904` la versione, tag
