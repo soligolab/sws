@@ -354,3 +354,12 @@ Annoto di seguito, uno per punto, le cose che devono essere verificate e trasfor
   o la PUT guarda `must_change_password` come il socket, o si decide che sul viewer il blocco non serve (con il
   «Più tardi» della rc.3 la sessione rimandata comanda comunque). Visto con un Operator creato via API su un runtime
   di prova, non sul pannello.
+
+- (07-11-2026, dal collaudo della rc.3) **Le sorgenti (protocolli) non si possono disattivare senza cancellarle.**
+  `SourceDef` in `sws-core/src/project.rs` non ha un campo `enabled` su nessuna variante (Modbus TCP/RTU, OPC UA
+  client/server, MQTT, Home Assistant, S7, EtherNet/IP, host): l'unico modo per fermarne una e' toglierla, e con lei la
+  sua configurazione. Gli script globali e il generatore ce l'hanno gia' (`GlobalScriptDef.enabled`, default `true`),
+  ed e' il modello da copiare: `#[serde(default = "bool_true")]`, cosi' i progetti esistenti non cambiano. Da decidere
+  quando lo si fa: cosa succede ai tag della sorgente spenta (qualita' «non collegata»/stale, non valori vecchi buoni),
+  cosa dice `<sorgente>.disponibile`, se il validatore deve ancora controllarne i tag, e l'interruttore nell'IDE
+  (elenco sorgenti, uguale nel pannello proprieta'). Ramo piccolo-medio: runtime, IDE, validatore, NOVITA.
