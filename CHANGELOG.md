@@ -103,6 +103,37 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
   - **un comando critico senza accesso** su un pannello con utenti dice di accedere: il sentinella `"no-auth"` senza
     nome è un anonimo, e la scrittura partiva senza credenziali per tornare «403 forbidden»;
   - **il validatore** non dà più «un `button` senza tag non comanda niente» a un bottone che chiama una funzione.
+- **Il registro, dal secondo giro del collaudo del 07-11 (2.26.0-rc.4)**:
+  - **i messaggi a video finiscono nel registro**: `POST /api/registro/schermo` (tutte e due le porte, anche da
+    anonimi, testo troncato a 500 caratteri e un tetto di 60 righe al minuto) scrive col target `schermo` chi era
+    davanti e dove è comparso. Ci passano gli avvisi della Finestra di avviso (quando compaiono), le conferme e le
+    scelte (con la risposta), mai `chiedi`, che può essere una password, e i toast del viewer;
+  - **il registro riparte quando si apre un progetto**: `LogBus::svuota` in `open_project`, dopo che il progetto
+    nuovo si è caricato, e una riga «— progetto aperto —» col campo `registro_riparte`, che l'IDE usa per svuotare il
+    suo elenco: dopo un deploy le righe del progetto vecchio non si mescolano più a quelle del nuovo;
+  - **la connessione non è più lenta**: le righe arrivavano una per frame e ognuna copiava l'elenco e ridisegnava il
+    pannello del log; ora `ws/versaLog.ts` le versa a blocchi ogni 100 ms, `LogRow` è memoizzata con una chiave
+    stabile, e lo scroll in fondo segue anche quando l'elenco è al tetto delle 2000 righe. Le righe che il server
+    rimanda a ogni riapertura del socket si scartano (prima un pannello che si riavviava raddoppiava l'elenco), e il
+    log locale non le scarica più due volte (`GET /api/logs` più l'anello del socket);
+  - **un'assenza si dice una volta** (Modbus, e la riconnessione di tutti i protocolli): la chiavetta Solarman
+    dell'inverter di casa perde una risposta ogni minuto o due, e ogni volta il registro scriveva due WARN («il blocco
+    non risponde», «il dispositivo non risponde») e due INFO dieci secondi dopo — circa mille righe a notte, tutto
+    l'anello del pannello. Ora un timeout si dice dopo 3 giri di fila (`GIRI_PER_DIRLO`, struttura `Errori` al posto
+    dell'insieme `in_errore`), il ritorno dice quanto è durata l'assenza, lo stato del dispositivo diventa «non
+    risponde» solo allora (niente spia che lampeggia), e «il dispositivo risponde» non compare più due volte quando
+    cambia solo il testo dell'errore. Un dispositivo assente da 5 minuti si interroga ogni 60 s; durante l'assenza
+    le righe di connessione vanno a DEBUG. In `riconnessione.rs` una caduta con lo stesso motivo della precedente si
+    riscrive solo dopo un'ora, dicendo quante se ne sono taciute (`da_dire`). I tag diventano ancora Bad alla prima
+    risposta persa: è il secondo livello, da decidere;
+  - **il filtro che esclude**: nelle due caselle del pannello del log una parola che comincia con `-` toglie le righe
+    che la contengono (`-modbus -inverter`), il resto si cerca come prima (`filtroLog` in `LogPanel.tsx`);
+  - **il deploy dice sempre quando sostituisce gli utenti di un pannello che ne ha** (428 `utenti-sostituiti`, che
+    prende il posto di `utenti-da-cambiare` della rc.3; l'IDE capisce tutti e due): chi sostituisce chi, che sul
+    pannello varranno le password del progetto, e chi arriva col cambio obbligatorio. Nel collaudo una password
+    reimpostata nell'IDE aveva sostituito quella del pannello senza una parola;
+  - **guardia `check_gateway_immagine.sh`**: nel quadlet del VPS `Image=` e `--gateway-immagine` vanno cambiati
+    insieme. Il 07-11 la rc.3 è andata sul VPS col solo `Image=`, e l'IDE di CasaDomotica è rinato sulla rc.2.
 - **La sandbox Python dà quello che RestrictedPython riscrive** (L0, piano `2026-11-04-logica-unificata.md`): `print`,
   `for`, `+=`, `a, b = …` e le comprensioni davano `NameError` (`_print_`, `_getiter_`, `_inplacevar_`) **solo sul
   pannello**, perché sul PC di sviluppo RestrictedPython manca. Ora l'harness ha le guardie standard

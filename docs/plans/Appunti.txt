@@ -364,22 +364,12 @@ Annoto di seguito, uno per punto, le cose che devono essere verificate e trasfor
   cosa dice `<sorgente>.disponibile`, se il validatore deve ancora controllarne i tag, e l'interruttore nell'IDE
   (elenco sorgenti, uguale nel pannello proprieta'). Ramo piccolo-medio: runtime, IDE, validatore, NOVITA.
 
-- (07-11-2026, dal collaudo della rc.3) **Alla connessione il registro ci mette molto a mostrare le righe di prima.**
-  Non e' un file: e' l'anello in memoria del `LogBus` del pannello (`DEFAULT_LOG_CAPACITY` = 1000 righe), che
-  `handle_logs_ws` (`sws-web/src/router.rs`) manda un frame per riga prima della coda dal vivo; il relay le inoltra
-  una per una. La rete non e' il collo (i frame viaggiano in fila, senza andata e ritorno): il costo e' nell'IDE.
-  Ogni frame chiama `appendLog` (`store/index.ts`), che copia tutto l'array (fino a `LOG_LIMIT` = 2000) e aggiorna lo
-  store; `LogPanel.tsx` si ridisegna per intero a ogni riga — rifiltra tutto, `LogRow` non e' memoizzata, nessuna
-  virtualizzazione, chiave `${ts}-${indice}` che allo scorrimento oltre 2000 rimonta ogni riga, e lo scroll in fondo
-  forza un layout. Mille righe = mille ridisegni di una lista fino a 2000 righe. Rimedio probabile, da misurare
-  prima e dopo: raccogliere le righe in arrivo e versarle nello store una volta per fotogramma (`appendLogs(lista)`),
-  `memo` su `LogRow` con chiave stabile, e se non basta una lista virtualizzata. Vale anche per il log locale
-  (`logStream.ts`), stessa strada. Diagnosi dalla lettura del codice, non ancora misurata.
-
-- (07-11-2026, dal collaudo della rc.3) **Il registro va azzerato quando si carica un progetto nuovo** (deploy dall'IDE):
-  ora le righe dell'applicativo vecchio e del nuovo restano mescolate e non si distinguono. Parole del maintainer: «servirebbe
-  anche un reset del log al nuovo upload di un progetto». Da decidere quando lo si fa: azzerare l'elenco nell'IDE
-  (`clearLogs` dopo un deploy riuscito, nei tre percorsi che passano da `conferme428.ts`) e/o l'anello del `LogBus` del
-  pannello, che altrimenti alla riconnessione rimanda le righe di prima; oppure, in alternativa o in piu', una riga
-  di separazione «— progetto <nome> caricato alle hh:mm —» che tiene leggibili gli errori del vecchio. Si lega
-  all'appunto del registro lento alla connessione: se l'anello si svuota al deploy, c'e' anche meno da rimandare.
+- (07-11-2026) **Dispositivi che mancano per natura (l'inverter di notte): livelli 2 e 3**, dopo il livello 1 fatto sul
+  ramo `fix/registro-log` (un'assenza si dice una volta, si interroga ogni 60 s). Misurato sul TC620 alle 17: l'inverter
+  ZCS non era spento, la chiavetta Solarman perdeva una risposta ogni 30-90 s. **Ogni risposta persa porta ancora i tag a
+  Bad per un giro** (`marca_bad` in `leggi_giro`): storico con buchi e riquadri che lampeggiano. Livello 2: un tag tiene
+  l'ultimo valore per qualche giro, segnato come non aggiornato, prima di diventare Bad; e per i contatori (energia del
+  giorno, totale) un «tieni l'ultimo valore» anche di notte. Gli allarmi si possono gia' inibire con
+  `<sorgente>.disponibile`. Livello 3: un'assenza **prevista** dichiarata nella sorgente (fascia oraria o condizione su un
+  tag, es. potenza FV a zero): niente avvisi, stato «a riposo» grigio, allarmi fermi. E' la stessa domanda
+  dell'appunto sulle sorgenti disattivabili («sempre / mai / solo quando…»): da trattare insieme, come seme.

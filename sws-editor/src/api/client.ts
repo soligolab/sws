@@ -1380,6 +1380,21 @@ export const api = {
 
   /** «Più tardi» (questa sessione) o, per un Admin, «Non chiedere più»
    *  (07-11-2026): il cambio password obbligatorio si rimanda. */
+  /** Un messaggio comparso a video, nel registro del server (07-11-2026):
+   *  prima avvisi e toast nascevano e morivano nel browser, e il log non ne
+   *  sapeva niente. `fetch` diretta e non `request`: non deve mai fallire con
+   *  un errore né aprire il «Sessione scaduta» — un avviso sull'avviso. */
+  rigaSchermo: (livello: "info" | "errore", testo: string, dove: string): void => {
+    const path = "/api/registro/schermo";
+    const headers: Record<string, string> = { "Content-Type": "application/json" };
+    if (TOKEN) headers.Authorization = `Bearer ${TOKEN}`;
+    void fetch(`${baseDi(path)}${path}`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({ livello, testo: testo.slice(0, 500), dove }),
+    }).catch(() => { /* il registro è un di più */ });
+  },
+
   rimandaCambioPassword: (perSempre: boolean) =>
     request<void>("/api/auth/rimanda-cambio-password", {
       method: "POST",

@@ -27,6 +27,7 @@ import i18n from "i18next";
 import { useAppStore } from "@/store";
 import type { LogEvent } from "@/types";
 import { ReconnectingWs } from "@/ws/reconnectingWs";
+import { creaVersatore } from "@/ws/versaLog";
 
 let rws: ReconnectingWs | null = null;
 
@@ -83,7 +84,8 @@ export function useRemoteLogStream(): void {
   const remoteConnected = useAppStore((s) => s.remoteConnected);
   const remoteUrl        = useAppStore((s) => s.remoteUrl);
   const debug            = useAppStore((s) => s.logDispositivoDebug);
-  const appendLog        = useAppStore((s) => s.appendLog);
+  const appendLogs       = useAppStore((s) => s.appendLogs);
+  const clearLogs        = useAppStore((s) => s.clearLogs);
 
   useEffect(() => {
     if (!remoteConnected) {
@@ -93,12 +95,19 @@ export function useRemoteLogStream(): void {
     }
 
     let etichetta = etichettaDispositivo(remoteUrl, []);
+    // A blocchi, senza le righe già viste; e una riga `registro_riparte` del
+    // pannello (un progetto appena aperto, di solito un deploy) svuota l'elenco:
+    // le righe del progetto vecchio non si mescolano a quelle del nuovo.
+    const versatore = creaVersatore(appendLogs, clearLogs);
+    // Le righe del canale hanno l'orologio dell'IDE, non del pannello: fuori
+    // dal versatore, che scarta per istante e ne butterebbe di vere.
+    const rigaCanale = (ev: LogEvent) => appendLogs([ev]);
     // Una riga per cambio di stato, non per tentativo: un pannello che si
     // riavvia non deve riempire il registro di righe uguali.
     let aperto = false;
     rws = new ReconnectingWs(
       () => buildRemoteLogsUrl(debug),
-      (motivo) => appendLog(rigaDelCanale(etichetta, "WARN", i18n.t("logRemoto.resa", { motivo }))),
+      (motivo) => rigaCanale(rigaDelCanale(etichetta, "WARN", i18n.t("logRemoto.resa", { motivo }))),
     );
     const stream = rws;
     api.listDevices()
@@ -111,7 +120,7 @@ export function useRemoteLogStream(): void {
         if (event?.ts_ms === undefined || !event?.level) return;
         // Il dispositivo filtra già; un pannello di prima manderebbe tutto.
         if (!debug && /^(TRACE|DEBUG)$/i.test(event.level)) return;
-        appendLog({ ...event, target: `${etichetta}:${event.target}` });
+        versatore.metti({ ...event, target: `${etichetta}:${event.target}` });
       } catch {
         // ignore malformed frames
       }
@@ -120,12 +129,12 @@ export function useRemoteLogStream(): void {
     const onOpen = () => {
       if (aperto) return;
       aperto = true;
-      appendLog(rigaDelCanale(etichetta, "INFO", i18n.t("logRemoto.aperto")));
+      rigaCanale(rigaDelCanale(etichetta, "INFO", i18n.t("logRemoto.aperto")));
     };
     const onClose = (ev: CloseEvent) => {
       if (!aperto) return;
       aperto = false;
-      appendLog(rigaDelCanale(etichetta, "WARN", i18n.t("logRemoto.chiuso", {
+      rigaCanale(rigaDelCanale(etichetta, "WARN", i18n.t("logRemoto.chiuso", {
         motivo: ev.reason || i18n.t("ws.refused", { code: ev.code }),
       })));
     };
@@ -138,7 +147,8 @@ export function useRemoteLogStream(): void {
       stream.off("open", onOpen);
       stream.off("close", onClose);
       stream.destroy();
+      versatore.ferma();
       if (rws === stream) rws = null;
     };
-  }, [remoteConnected, remoteUrl, debug, appendLog]);
+  }, [remoteConnected, remoteUrl, debug, appendLogs, clearLogs]);
 }

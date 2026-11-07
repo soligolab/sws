@@ -235,6 +235,10 @@ export function RuntimeView() {
   }, [pageTagIds]);
 
   const addToast = (toast: ScriptToast, ttlMs: number) => {
+    // Anche nel registro del pannello (07-11-2026): il toast sparisce dopo
+    // pochi secondi, la riga resta.
+    const errore = toast.error ?? toast.stderr;
+    api.rigaSchermo(errore ? "errore" : "info", [toast.fn, errore ?? toast.stdout].filter(Boolean).join(": "), "toast");
     setToasts((ts) => [...ts, toast]);
     setTimeout(() => setToasts((ts) => ts.filter((t) => t.id !== toast.id)), ttlMs);
   };

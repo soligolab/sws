@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { memo, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { api } from "@/api/client";
 import { useAppStore } from "@/store";
@@ -13,6 +13,33 @@ const LEVEL_COLOR: Record<LogLevel, string> = {
   WARN:  "var(--brand-warning, #f59e0b)",
   ERROR: "var(--brand-danger, #ef4444)",
 };
+
+/** Una chiave stabile per ogni riga (07-11-2026). Con `${ts}-${indice}`, appena
+ *  l'elenco arrivava al tetto e cominciava a scorrere, ogni indice cambiava e
+ *  React rifaceva da capo tutte le righe a ogni riga nuova. Le righe sono
+ *  oggetti che non cambiano: la chiave si lega all'oggetto. */
+const chiaviRighe = new WeakMap<LogEvent, number>();
+let prossimaChiave = 1;
+function chiaveRiga(ev: LogEvent): number {
+  let k = chiaviRighe.get(ev);
+  if (k === undefined) { k = prossimaChiave++; chiaviRighe.set(ev, k); }
+  return k;
+}
+
+/** Il testo di una casella di filtro (07-11-2026, collaudo sul TC620: «servirebbe
+ *  un modo per filtrare al contrario»): le parole che cominciano con `-`
+ *  **escludono** le righe che le contengono, il resto si cerca come prima,
+ *  frase intera. `-modbus -inverter` toglie il rumore di una sorgente. */
+export function filtroLog(testo: string): { cerca: string; vuoto: boolean; passa: (hay: string) => boolean } {
+  const parole = testo.trim().toLowerCase().split(/\s+/).filter(Boolean);
+  const via = parole.filter((p) => p.length > 1 && p.startsWith("-")).map((p) => p.slice(1));
+  const cerca = parole.filter((p) => !(p.length > 1 && p.startsWith("-"))).join(" ");
+  return {
+    cerca,
+    vuoto: !cerca && via.length === 0,
+    passa: (hay) => (!cerca || hay.includes(cerca)) && !via.some((v) => hay.includes(v)),
+  };
+}
 
 /** Default-enabled levels. TRACE/DEBUG off by default — too chatty. */
 const DEFAULT_LEVELS = new Set<LogLevel>(["INFO", "WARN", "ERROR"]);
@@ -106,27 +133,26 @@ export function LogPanel({ open, onClose, variant = "drawer", vaiA = null }: Log
 
   const source = isHistMode ? histEvents! : (paused ? pausedSnapshot : logs);
 
+  const cercato = useMemo(() => filtroLog(search), [search]);
   const filtered = useMemo(() => {
-    const s = search.trim().toLowerCase();
-    const t = targetFilter.trim().toLowerCase();
+    const s = cercato;
+    const t = filtroLog(targetFilter);
     return source.filter((ev) => {
       if (!levels.has(ev.level)) return false;
-      if (t && !ev.target.toLowerCase().includes(t)) return false;
-      if (s) {
-        const hay =
-          ev.message.toLowerCase() +
-          "\n" +
-          (ev.fields
-            ? Object.entries(ev.fields)
-                .map(([k, v]) => `${k}=${v}`)
-                .join(" ")
-                .toLowerCase()
-            : "");
-        if (!hay.includes(s)) return false;
-      }
-      return true;
+      if (!t.passa(ev.target.toLowerCase())) return false;
+      if (s.vuoto) return true;
+      const hay =
+        ev.message.toLowerCase() +
+        "\n" +
+        (ev.fields
+          ? Object.entries(ev.fields)
+              .map(([k, v]) => `${k}=${v}`)
+              .join(" ")
+              .toLowerCase()
+          : "");
+      return s.passa(hay);
     });
-  }, [source, levels, search, targetFilter]);
+  }, [source, levels, cercato, targetFilter]);
 
   // Auto-scroll: only stick to the bottom when the user hasn't scrolled up.
   const listRef = useRef<HTMLDivElement>(null);
@@ -135,7 +161,9 @@ export function LogPanel({ open, onClose, variant = "drawer", vaiA = null }: Log
     const el = listRef.current;
     if (!el || !stickRef.current) return;
     el.scrollTop = el.scrollHeight;
-  }, [filtered.length]);
+    // `filtered` e non `filtered.length`: arrivato al tetto, l'elenco scorre
+    // a lunghezza costante, e la lunghezza non diceva più che c'era del nuovo.
+  }, [filtered]);
 
   const onScroll = (e: React.UIEvent<HTMLDivElement>) => {
     const el = e.currentTarget;
@@ -292,8 +320,8 @@ export function LogPanel({ open, onClose, variant = "drawer", vaiA = null }: Log
         </div>
       ) : (
         <div ref={listRef} onScroll={onScroll} style={listStyle}>
-          {filtered.map((ev, i) => (
-            <LogRow key={`${ev.ts_ms}-${i}`} ev={ev} search={search} indicata={ev.ts_ms === vaiA} />
+          {filtered.map((ev) => (
+            <LogRow key={chiaveRiga(ev)} ev={ev} search={cercato.cerca} indicata={ev.ts_ms === vaiA} />
           ))}
         </div>
       )}
@@ -301,7 +329,8 @@ export function LogPanel({ open, onClose, variant = "drawer", vaiA = null }: Log
   );
 }
 
-function LogRow({ ev, search, indicata }: { ev: LogEvent; search: string; indicata?: boolean }) {
+// `memo`: una riga già disegnata non si ridisegna quando ne arrivano altre.
+const LogRow = memo(function LogRow({ ev, search, indicata }: { ev: LogEvent; search: string; indicata?: boolean }) {
   const fieldEntries = ev.fields ? Object.entries(ev.fields) : [];
   return (
     <div
@@ -329,7 +358,7 @@ function LogRow({ ev, search, indicata }: { ev: LogEvent; search: string; indica
       </span>
     </div>
   );
-}
+});
 
 /** Wrap matches in <mark>. Empty search → return plain string. */
 function highlight(text: string, search: string): React.ReactNode {

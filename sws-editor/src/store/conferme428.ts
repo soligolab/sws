@@ -35,6 +35,7 @@ export interface Dati428 {
   non_verificabile?: boolean;
   versione_pannello?: string | null;
   utenti?: string[];
+  utenti_progetto?: string[];
 }
 
 /** - `riprova`: chi guarda ha confermato, si rifà la richiesta con `conferme`;
@@ -73,6 +74,16 @@ export function testoSimboliMancanti(simboli: string[], nonVerificabile: boolean
     { n: simboli.length, elenco, versione: versione ?? "?" });
 }
 
+/** Il testo della conferma prima di un deploy che sostituisce gli utenti del
+ *  pannello (07-11-2026). Puro, per i test. */
+export function testoSostituzioneUtenti(d: Dati428): string {
+  const pannello = d.utenti_dispositivo?.length ? d.utenti_dispositivo.join(", ") : i18n.t("cfg.deployNoUsersUnknown");
+  const progetto = (d.utenti_progetto ?? []).join(", ");
+  const base = i18n.t("cfg.deployUtentiSostituiti", { pannello, progetto: progetto || "?" });
+  const cambio = d.utenti?.length ? `\n\n${i18n.t("cfg.deployUtentiDaCambiare", { utenti: d.utenti.join(", ") })}` : "";
+  return `${base}${cambio}\n\n${i18n.t("cfg.deployUtentiTieni")}`;
+}
+
 /** Chiede quello che il 428 chiede, e dice come proseguire. */
 export async function confermaDopo428(d: Dati428, gia: ConfermeDeploy): Promise<Esito428> {
   // Il pannello non conosce dei simboli di libreria (M9): si avvisa, e si può
@@ -91,13 +102,11 @@ export async function confermaDopo428(d: Dati428, gia: ConfermeDeploy): Promise<
     }
     return { tipo: "serve-admin" };
   }
-  // Arrivano utenti col cambio password obbligatorio, al posto di quelli del
-  // pannello (collaudo del 07-11-2026): lo si dice prima.
-  if (d.conferma === "utenti-da-cambiare" && !gia.confirmUsersChange) {
-    const pannello = d.utenti_dispositivo?.length ? d.utenti_dispositivo.join(", ") : i18n.t("cfg.deployNoUsersUnknown");
-    const si = await conferma({
-      testo: i18n.t("cfg.deployUtentiDaCambiare", { utenti: (d.utenti ?? []).join(", "), pannello }),
-    });
+  // Gli utenti del progetto al posto di quelli del pannello (collaudo del
+  // 07-11-2026): lo si dice prima. `utenti-da-cambiare` è il nome della rc.3,
+  // che chiedeva solo per gli utenti col cambio password obbligatorio.
+  if ((d.conferma === "utenti-sostituiti" || d.conferma === "utenti-da-cambiare") && !gia.confirmUsersChange) {
+    const si = await conferma({ testo: testoSostituzioneUtenti(d) });
     return si ? { tipo: "riprova", conferme: { ...gia, confirmUsersChange: true } } : { tipo: "annullato" };
   }
   // Il deploy cancellerebbe progetti con un altro nome, storico compreso.

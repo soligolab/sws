@@ -1680,6 +1680,18 @@ pub async fn open_project(
                 .into_response();
         }
     };
+    // Il registro riparte da qui (07-11-2026, collaudo sul TC620): dopo un
+    // deploy le righe del progetto vecchio e del nuovo erano mescolate. Solo
+    // dopo che il progetto nuovo si è caricato: un deploy rifiutato lascia il
+    // registro com'era, con l'errore che spiega perché.
+    s.logs.svuota();
+    // `registro_riparte`: l'IDE che segue questo registro, vedendolo, svuota il
+    // suo elenco (`ws/versaLog.ts`).
+    info!(
+        progetto = %project.meta.name,
+        registro_riparte = true,
+        "— progetto aperto: il registro riparte da qui —"
+    );
     // Retroactively add the per-project default datastore for legacy projects
     // that were created before this field existed (datastores: []).
     // This ensures every project records history into its own history/

@@ -85,7 +85,7 @@ Exec=--config /var/sws/config \
      --www /var/sws/www \
      --admin-port 8444 \
      --gateway \
-     --gateway-immagine ghcr.io/soligolab/sws-runtime:f4627806-amd64 \
+     --gateway-immagine ghcr.io/soligolab/sws-runtime:57af9904-amd64 \
      --gateway-rete sws-rete
 
 [Service]

@@ -1271,6 +1271,7 @@ pub fn build(
     let self_service = Router::new()
         .route("/api/auth/whoami", get(whoami))
         .route("/api/auth/logout", post(logout))
+        .route("/api/registro/schermo", post(riga_dallo_schermo))
         .route(
             "/api/identita/account",
             get(crate::ciclo_account::stato_account),
@@ -2113,6 +2114,7 @@ fn build_runtime_inner(state: AppState, www_dir: Option<PathBuf>) -> Router {
     let self_service = Router::new()
         .route("/api/auth/whoami", get(whoami))
         .route("/api/auth/logout", post(logout))
+        .route("/api/registro/schermo", post(riga_dallo_schermo))
         .route("/api/auth/change-password", post(change_password))
         .route(
             "/api/auth/rimanda-cambio-password",
@@ -3643,6 +3645,76 @@ async fn change_password(State(s): State<AppState>, req: Request) -> Response {
         Ok(()) => StatusCode::NO_CONTENT.into_response(),
         Err(e) => user_error_to_response(e),
     }
+}
+
+/// Un messaggio comparso a video, come lo manda il browser.
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct RigaSchermo {
+    /// `errore` → WARN; qualunque altro → INFO.
+    #[serde(default)]
+    livello: String,
+    testo: String,
+    /// Dove è comparso: «finestra», «toast», il nome di una funzione…
+    #[serde(default)]
+    dove: String,
+}
+
+/// Quante righe dallo schermo si accettano al minuto, per tutto il processo:
+/// un client che si incanta in un ciclo d'errore non deve riempire il registro.
+const RIGHE_SCHERMO_AL_MINUTO: u32 = 60;
+/// La lunghezza massima di un testo, in caratteri.
+const RIGA_SCHERMO_MAX: usize = 500;
+
+static FINESTRA_SCHERMO: std::sync::Mutex<(Option<std::time::Instant>, u32)> =
+    std::sync::Mutex::new((None, 0));
+
+/// Il limite di `RIGHE_SCHERMO_AL_MINUTO`, a finestre fisse di 60 s.
+fn riga_schermo_ammessa(adesso: std::time::Instant) -> bool {
+    let mut f = FINESTRA_SCHERMO.lock().unwrap_or_else(|e| e.into_inner());
+    match f.0 {
+        Some(inizio) if adesso.duration_since(inizio) < std::time::Duration::from_secs(60) => {
+            f.1 += 1;
+            f.1 <= RIGHE_SCHERMO_AL_MINUTO
+        }
+        _ => {
+            *f = (Some(adesso), 1);
+            true
+        }
+    }
+}
+
+/// `POST /api/registro/schermo` (07-11-2026): un messaggio comparso a video
+/// finisce anche nel registro. Prima gli avvisi e i toast nascevano e morivano
+/// nel browser — il collaudo sul TC620 vedeva un errore sul touch e nel log
+/// dell'IDE non ce n'era traccia. Target `schermo`, con chi era davanti
+/// (vuoto = anonimo). Aperta anche agli anonimi, come il viewer: per questo il
+/// testo si tronca e le righe hanno un tetto al minuto.
+async fn riga_dallo_schermo(req: Request) -> Response {
+    let utente = req
+        .extensions()
+        .get::<AuthUser>()
+        .map(|u| u.username.clone())
+        .unwrap_or_default();
+    let bytes = match axum::body::to_bytes(req.into_body(), 8 * 1024).await {
+        Ok(b) => b,
+        Err(_) => return StatusCode::PAYLOAD_TOO_LARGE.into_response(),
+    };
+    let riga: RigaSchermo = match serde_json::from_slice(&bytes) {
+        Ok(r) => r,
+        Err(e) => return (StatusCode::BAD_REQUEST, format!("json: {e}")).into_response(),
+    };
+    if !riga_schermo_ammessa(std::time::Instant::now()) {
+        return StatusCode::TOO_MANY_REQUESTS.into_response();
+    }
+    let testo: String = riga.testo.chars().take(RIGA_SCHERMO_MAX).collect();
+    let dove: String = riga.dove.chars().take(60).collect();
+    if riga.livello == "errore" {
+        warn!(target: "schermo", utente = %utente, dove = %dove, "{testo}");
+    } else {
+        info!(target: "schermo", utente = %utente, dove = %dove, "{testo}");
+    }
+    StatusCode::NO_CONTENT.into_response()
 }
 
 #[derive(Deserialize, Default)]
@@ -14523,5 +14595,34 @@ mod prove_run_function {
             .iter()
             .any(|b| b == "enumerate"));
         let _ = std::fs::remove_dir_all(&dir);
+    }
+}
+
+#[cfg(test)]
+mod riga_schermo_tests {
+    use super::*;
+
+    /// Il tetto delle righe dallo schermo: 60 in un minuto, poi no, e alla
+    /// finestra dopo si riparte.
+    #[test]
+    fn le_righe_dallo_schermo_hanno_un_tetto_al_minuto() {
+        let t0 = std::time::Instant::now();
+        let ammesse = (0..100).filter(|_| riga_schermo_ammessa(t0)).count();
+        assert_eq!(ammesse, RIGHE_SCHERMO_AL_MINUTO as usize);
+        assert!(riga_schermo_ammessa(
+            t0 + std::time::Duration::from_secs(61)
+        ));
+    }
+
+    /// La rotta c'è su tutte e due le porte, nel gruppo self-service: anche chi
+    /// ha il cambio password in sospeso deve poter lasciare traccia di cosa vede.
+    #[test]
+    fn la_riga_dallo_schermo_e_su_tutte_e_due_le_porte() {
+        let src = include_str!("router.rs");
+        assert_eq!(
+            src.matches(".route(\"/api/registro/schermo\", post(riga_dallo_schermo))")
+                .count(),
+            2
+        );
     }
 }

@@ -113,6 +113,16 @@ impl LogBus {
             .unwrap_or_default()
     }
 
+    /// Svuota l'anello (07-11-2026): all'apertura di un progetto il registro
+    /// riparte, così chi si collega dopo un deploy non riceve le righe
+    /// dell'applicativo di prima mescolate a quelle nuove. Chi è già collegato
+    /// non perde niente: la coda dal vivo continua.
+    pub fn svuota(&self) {
+        if let Ok(mut q) = self.buffer.lock() {
+            q.clear();
+        }
+    }
+
     pub fn subscribe(&self) -> broadcast::Receiver<LogEvent> {
         self.tx.subscribe()
     }
@@ -120,6 +130,19 @@ impl LogBus {
 
 #[cfg(test)]
 mod tests {
+
+    /// `svuota` toglie le righe vecchie ma non stacca chi segue la coda.
+    #[test]
+    fn svuota_toglie_le_righe_e_lascia_la_coda() {
+        let bus = LogBus::new(10);
+        bus.record(ev("vecchio"));
+        let mut rx = bus.subscribe();
+        bus.svuota();
+        assert!(bus.snapshot().is_empty());
+        bus.record(ev("nuovo"));
+        assert_eq!(bus.snapshot().len(), 1);
+        assert_eq!(rx.try_recv().unwrap().message, "nuovo");
+    }
 
     /// Il DEBUG a richiesta (18-10-2026): si alza alla prima richiesta, si
     /// abbassa quando cade l'ultima, non a ogni richiesta.

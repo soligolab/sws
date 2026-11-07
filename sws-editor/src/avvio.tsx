@@ -7,13 +7,14 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
 import "./i18n/index";
-import { setForceLocalApi } from "@/api/client";
+import { api, setForceLocalApi } from "@/api/client";
 import { applyBranding, loadBranding } from "@/branding";
 import { applyAppearance, getStoredMode, initThemeStorageListener, initThemeSystemListener } from "@/theme";
 import { dimenticaPasswordLegacy } from "@/passwordNelBrowser";
 import { useAppStore } from "@/store";
 import { CancelloAbbinamento } from "@/components/AbbinamentoScreen";
 import { FinestraAvviso } from "@/finestraAvviso/FinestraAvviso";
+import { registraNelLog } from "@/finestraAvviso/finestraAvviso";
 
 export async function avvia(Radice: React.ComponentType, opzioni: { apiLocale?: boolean } = {}): Promise<void> {
   // Le pagine dell'IDE parlano sempre con il runtime che le serve, anche se
@@ -22,6 +23,9 @@ export async function avvia(Radice: React.ComponentType, opzioni: { apiLocale?: 
   // Le versioni fino alla 2.6.6 lasciavano password in chiaro nel profilo del
   // browser: si tolgono prima di disegnare qualunque cosa.
   dimenticaPasswordLegacy();
+  // Quello che compare nella Finestra di avviso finisce anche nel registro del
+  // server (07-11-2026): così un errore visto sul touch si ritrova nel log.
+  registraNelLog((r) => api.rigaSchermo(r.livello, r.testo, r.dove));
   applyBranding(await loadBranding());
   applyAppearance(getStoredMode());
   initThemeSystemListener(() => useAppStore.getState().themeMode);

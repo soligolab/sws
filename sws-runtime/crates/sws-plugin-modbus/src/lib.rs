@@ -44,7 +44,7 @@ use tokio::time::Instant;
 use tokio_modbus::prelude::*;
 use tokio_serial::{DataBits, Parity, SerialPortBuilderExt, StopBits};
 use tokio_util::sync::CancellationToken;
-use tracing::{info, warn};
+use tracing::{debug, info, warn};
 
 use codec::Slot;
 
@@ -52,6 +52,81 @@ use codec::Slot;
 /// allora non è un registro sbagliato, è il dispositivo che non c'è. Se tacciono
 /// così **tutti** i dispositivi del bus, si riconnette.
 const GIRI_MUTI_PER_RICONNETTERE: u32 = 3;
+
+/// Giri consecutivi senza risposta prima di **dirlo** (07-11-2026). Una risposta
+/// persa ogni tanto è normale per certi dispositivi — la chiavetta Solarman
+/// dell'inverter di casa ne perde una ogni minuto o due — e scriverla come
+/// guasto riempiva il registro di WARN e di «risponde di nuovo» dieci secondi
+/// dopo: mille righe a notte, tutto l'anello del pannello.
+const GIRI_PER_DIRLO: u32 = 3;
+
+/// Muto da così tanto, un dispositivo si interroga più di rado: è spento (un
+/// inverter di notte), non in difficoltà.
+const ASSENZA_LUNGA: Duration = Duration::from_secs(5 * 60);
+/// L'intervallo di un dispositivo assente da più di [`ASSENZA_LUNGA`].
+const INTERVALLO_ASSENTE: Duration = Duration::from_secs(60);
+
+/// INFO, o DEBUG se `quieto`: le righe di connessione di un bus i cui
+/// dispositivi sono tutti assenti, e già detti, non si ripetono a ogni
+/// riconnessione (07-11-2026).
+macro_rules! racconta {
+    ($quieto:expr, $($t:tt)*) => {
+        if $quieto { debug!($($t)*) } else { info!($($t)*) }
+    };
+}
+
+/// Una durata in parole brevi, per il registro: «40 s», «12 min», «14 h 5 min».
+pub fn durata_breve(d: Duration) -> String {
+    let s = d.as_secs();
+    match s {
+        0..=89 => format!("{s} s"),
+        90..=5399 => format!("{} min", (s + 30) / 60),
+        _ => format!("{} h {} min", s / 3600, (s % 3600) / 60),
+    }
+}
+
+/// Cosa si è già detto nel registro di un dispositivo (07-11-2026): gli errori
+/// detti una volta sola, e i silenzi che diventano un avviso solo dopo
+/// [`GIRI_PER_DIRLO`] giri di fila.
+#[derive(Debug, Default)]
+pub struct Errori {
+    detti: HashSet<String>,
+    /// Giri muti di fila, e da quando.
+    silenzi: HashMap<String, (u32, Instant)>,
+}
+
+impl Errori {
+    /// Un errore che si dice subito (una risposta d'errore del dispositivo, un
+    /// valore fuori dai limiti): `true` la prima volta.
+    pub fn errore(&mut self, k: impl Into<String>) -> bool {
+        self.detti.insert(k.into())
+    }
+
+    /// Un giro senza risposta: `true` al giro in cui va detto.
+    pub fn silenzio(&mut self, k: &str) -> bool {
+        let n = {
+            let s = self
+                .silenzi
+                .entry(k.to_string())
+                .or_insert((0, Instant::now()));
+            s.0 += 1;
+            s.0
+        };
+        n >= GIRI_PER_DIRLO && self.detti.insert(k.to_string())
+    }
+
+    /// Una risposta: se il guasto era stato detto, da quanto durava (zero per
+    /// un errore senza silenzio).
+    pub fn risposta(&mut self, k: &str) -> Option<Duration> {
+        let da = self.silenzi.remove(k).map(|(_, da)| da.elapsed());
+        self.detti.remove(k).then(|| da.unwrap_or_default())
+    }
+
+    /// Detto, cioè nel registro come guasto.
+    pub fn detto(&self, k: &str) -> bool {
+        self.detti.contains(k)
+    }
+}
 
 /// Quel che arriva da una lettura.
 #[derive(Debug, Clone, PartialEq)]
@@ -311,7 +386,7 @@ pub async fn leggi_giro<D: Dispositivo>(
     mappature: &[Mappatura],
     ordine: OrdineModbus,
     timeout: Duration,
-    in_errore: &mut HashSet<String>,
+    in_errore: &mut Errori,
     sorgente: &str,
     blocchi: &[BloccoModbus],
     giro: u64,
@@ -334,7 +409,7 @@ pub async fn leggi_giro<D: Dispositivo>(
             Ok(Err(e)) if e_trasporto(&e) => return Err(anyhow::anyhow!("lettura del blocco @{}..{}: {e}", b.da, b.a)),
             Ok(Err(e)) => {
                 let chiave = format!("blocco@{}", b.da);
-                if in_errore.insert(chiave) {
+                if in_errore.errore(chiave) {
                     warn!(source = %sorgente, da = b.da, a = b.a, "Modbus: il blocco risponde con un errore: {e} — i suoi tag Bad");
                 }
                 esito_giro.errore.get_or_insert_with(|| format!("blocco @{}..{}: {e}", b.da, b.a));
@@ -342,8 +417,10 @@ pub async fn leggi_giro<D: Dispositivo>(
             }
             Err(_) => {
                 let chiave = format!("blocco@{}", b.da);
-                if in_errore.insert(chiave) {
-                    warn!(source = %sorgente, da = b.da, a = b.a, "Modbus: il blocco non risponde in {} ms — i suoi tag Bad", timeout.as_millis());
+                if in_errore.silenzio(&chiave) {
+                    warn!(source = %sorgente, da = b.da, a = b.a, "Modbus: il blocco non risponde da {GIRI_PER_DIRLO} giri (timeout {} ms) — i suoi tag Bad", timeout.as_millis());
+                } else if !in_errore.detto(&chiave) {
+                    debug!(source = %sorgente, da = b.da, a = b.a, "Modbus: il blocco non ha risposto in {} ms", timeout.as_millis());
                 }
                 esito_giro.errore.get_or_insert_with(|| format!("nessuna risposta in {} ms", timeout.as_millis()));
                 None
@@ -352,9 +429,10 @@ pub async fn leggi_giro<D: Dispositivo>(
         if letti_blocchi
             .last()
             .is_some_and(|l| l.as_ref().is_some_and(Option::is_some))
-            && in_errore.remove(&format!("blocco@{}", b.da))
         {
-            info!(source = %sorgente, da = b.da, "Modbus: il blocco risponde di nuovo");
+            if let Some(d) = in_errore.risposta(&format!("blocco@{}", b.da)) {
+                info!(source = %sorgente, da = b.da, "Modbus: il blocco risponde di nuovo, dopo {}", durata_breve(d));
+            }
         }
     }
     // Una lettura per blocco in un giro: dieci bit della stessa word sono una
@@ -405,7 +483,7 @@ pub async fn leggi_giro<D: Dispositivo>(
                 }
                 Ok(Err(e)) => {
                     muti.insert(chiave);
-                    if in_errore.insert(m.tag.clone()) {
+                    if in_errore.errore(m.tag.clone()) {
                         warn!(source = %sorgente, tag = %m.tag, address = m.address, "Modbus: il dispositivo risponde con un errore: {e} — tag Bad, gli altri continuano");
                     }
                     esito_giro
@@ -416,8 +494,10 @@ pub async fn leggi_giro<D: Dispositivo>(
                 }
                 Err(_) => {
                     muti.insert(chiave);
-                    if in_errore.insert(m.tag.clone()) {
-                        warn!(source = %sorgente, tag = %m.tag, address = m.address, "Modbus: nessuna risposta in {} ms — tag Bad", timeout.as_millis());
+                    if in_errore.silenzio(&m.tag) {
+                        warn!(source = %sorgente, tag = %m.tag, address = m.address, "Modbus: nessuna risposta da {GIRI_PER_DIRLO} giri (timeout {} ms) — tag Bad", timeout.as_millis());
+                    } else if !in_errore.detto(&m.tag) {
+                        debug!(source = %sorgente, tag = %m.tag, address = m.address, "Modbus: nessuna risposta in {} ms", timeout.as_millis());
                     }
                     esito_giro.errore.get_or_insert_with(|| {
                         format!("nessuna risposta in {} ms", timeout.as_millis())
@@ -428,8 +508,8 @@ pub async fn leggi_giro<D: Dispositivo>(
             }
         };
         esito_giro.risposte += 1;
-        if in_errore.remove(&m.tag) {
-            info!(source = %sorgente, tag = %m.tag, "Modbus: la mappatura risponde di nuovo");
+        if let Some(d) = in_errore.risposta(&m.tag) {
+            info!(source = %sorgente, tag = %m.tag, "Modbus: la mappatura risponde di nuovo, dopo {}", durata_breve(d));
         }
         for s in &m.slots {
             let (a, b) = (s.offset as usize, (s.offset + s.n) as usize);
@@ -456,14 +536,14 @@ pub async fn leggi_giro<D: Dispositivo>(
             match valore {
                 Ok(v) if fuori_limiti(m, &v) => {
                     esito_giro.diagnostica.non_plausibili += 1;
-                    if in_errore.insert(format!("plausibile:{}", s.percorso)) {
+                    if in_errore.errore(format!("plausibile:{}", s.percorso)) {
                         warn!(source = %sorgente, tag = %s.percorso, valore = ?v, min = ?m.min, max = ?m.max,
                             "Modbus: valore fuori dai limiti di plausibilità — tag Bad (registro o mappa sbagliati?)");
                     }
                     db.marca_qualita(&s.percorso, TagQuality::Bad).await;
                 }
                 Ok(v) => {
-                    in_errore.remove(&format!("plausibile:{}", s.percorso));
+                    in_errore.risposta(&format!("plausibile:{}", s.percorso));
                     let v = match &m.testi {
                         Some(t) => testo_di(t, &v),
                         None => v,
@@ -658,8 +738,13 @@ pub struct Unita {
     /// ricollegamento, perché è il momento in cui un modulo può essere stato
     /// sostituito o spento.
     setup_fatto: bool,
-    in_errore: HashSet<String>,
+    in_errore: Errori,
     giri_muti: u32,
+    /// Da quando non risponde nessuna sua mappatura; resta fra una sessione e
+    /// l'altra, perché un'assenza vera attraversa le riconnessioni.
+    muto_da: Option<Instant>,
+    /// L'assenza è stata detta nel registro (e nello stato delle sorgenti).
+    detto_muto: bool,
     prossimo: Instant,
     /// I blocchi letti con una richiesta sola, e il numero del giro per quelli
     /// che si leggono un giro su n (01-11-2026).
@@ -681,8 +766,10 @@ impl Unita {
             registri: d.registers.clone(),
             setup: d.setup.clone(),
             setup_fatto: false,
-            in_errore: HashSet::new(),
+            in_errore: Errori::default(),
             giri_muti: 0,
+            muto_da: None,
+            detto_muto: false,
             prossimo: Instant::now(),
             blocchi: d.blocchi.clone(),
             giro: 0,
@@ -694,6 +781,22 @@ impl Unita {
     /// Muto da abbastanza giri da far pensare che il guasto sia del bus.
     pub fn muto(&self) -> bool {
         self.giri_muti >= GIRI_MUTI_PER_RICONNETTERE
+    }
+
+    /// L'intervallo di adesso: quello suo, o [`INTERVALLO_ASSENTE`] se è
+    /// assente da più di [`ASSENZA_LUNGA`].
+    pub fn intervallo_adesso(&self) -> Duration {
+        match self.muto_da {
+            Some(da) if self.detto_muto && da.elapsed() >= ASSENZA_LUNGA => {
+                self.intervallo.max(INTERVALLO_ASSENTE)
+            }
+            _ => self.intervallo,
+        }
+    }
+
+    /// Assente e già detto: le riconnessioni non vanno raccontate di nuovo.
+    pub fn assente(&self) -> bool {
+        self.detto_muto
     }
 
     fn possiede(&self, tag: &str) -> bool {
@@ -741,13 +844,25 @@ pub async fn giro_unita<D: Dispositivo>(
     }
     if esito.risposte == 0 {
         u.giri_muti += 1;
-        if stato.dispositivo(sorgente, u.unit_id, Collegamento::NonRisponde, esito.errore) {
-            warn!(source = %sorgente, unit_id = u.unit_id, "Modbus: il dispositivo non risponde — i suoi tag Bad, gli altri continuano");
+        let da = *u.muto_da.get_or_insert_with(Instant::now);
+        // Si dice dopo qualche giro, e una volta sola per assenza: le
+        // riconnessioni in mezzo non la ripetono (07-11-2026).
+        if u.giri_muti >= GIRI_PER_DIRLO && !u.detto_muto {
+            u.detto_muto = true;
+            stato.dispositivo(sorgente, u.unit_id, Collegamento::NonRisponde, esito.errore);
+            warn!(source = %sorgente, unit_id = u.unit_id,
+                "Modbus: il dispositivo non risponde da {} — i suoi tag Bad, gli altri continuano; lo interrogo più di rado dopo {}",
+                durata_breve(da.elapsed()), durata_breve(ASSENZA_LUNGA));
         }
     } else {
         u.giri_muti = 0;
-        if stato.dispositivo(sorgente, u.unit_id, Collegamento::Ok, esito.errore) {
-            info!(source = %sorgente, unit_id = u.unit_id, "Modbus: il dispositivo risponde");
+        let assente_da = u.muto_da.take();
+        // Lo stato si aggiorna sempre (una riconnessione lo segna «non
+        // risponde»); il registro solo se l'assenza era stata detta.
+        stato.dispositivo(sorgente, u.unit_id, Collegamento::Ok, None);
+        if std::mem::take(&mut u.detto_muto) {
+            info!(source = %sorgente, unit_id = u.unit_id, "Modbus: il dispositivo risponde di nuovo, dopo {}",
+                durata_breve(assente_da.map(|d| d.elapsed()).unwrap_or_default()));
         }
     }
     Ok(())
@@ -844,7 +959,7 @@ pub async fn sessione<D: Dispositivo>(
                 let adesso = Instant::now();
                 for u in unita.iter_mut().filter(|u| u.prossimo <= adesso) {
                     giro_unita(&mut dev, db, u, stato, sorgente).await?;
-                    u.prossimo = Instant::now() + u.intervallo;
+                    u.prossimo = Instant::now() + u.intervallo_adesso();
                 }
                 if unita.iter().any(|u| u.pubblica_diagnostica) {
                     let mut tot = Diagnostica::default();
@@ -962,7 +1077,8 @@ pub async fn run(
         &cfg.id,
         cancel.clone(),
         || async {
-            info!(source = %cfg.id, %indirizzo, trasporto = ?cfg.trasporto, dispositivi = dispositivi.len(), "Modbus TCP: connessione");
+            let quieto = unita.lock().await.iter().all(|x| x.assente());
+            racconta!(quieto, source = %cfg.id, %indirizzo, trasporto = ?cfg.trasporto, dispositivi = dispositivi.len(), "Modbus TCP: connessione");
             let r = async {
                 let addr = tokio::net::lookup_host(&indirizzo)
                     .await
@@ -976,7 +1092,7 @@ pub async fn run(
                         let ctx = tcp::connect_slave(addr, Slave(primo))
                             .await
                             .map_err(|e| anyhow::anyhow!("connessione a {addr}: {e}"))?;
-                        info!(source = %cfg.id, "Modbus TCP: connesso");
+                        racconta!(quieto, source = %cfg.id, "Modbus TCP: connesso");
                         stato.bus(&cfg.id, Collegamento::Ok, None);
                         sessione(trasporti::Ritmato::nuovo(ctx, pausa, tentativi), &cfg.id, u.as_mut_slice(), &db, &stato, &rx, &cancel).await
                     }
@@ -987,7 +1103,7 @@ pub async fn run(
                         let ctx = rtu::connect_slave(s, Slave(primo))
                             .await
                             .map_err(|e| anyhow::anyhow!("RTU su TCP {addr}: {e}"))?;
-                        info!(source = %cfg.id, "Modbus RTU su TCP: connesso");
+                        racconta!(quieto, source = %cfg.id, "Modbus RTU su TCP: connesso");
                         stato.bus(&cfg.id, Collegamento::Ok, None);
                         sessione(trasporti::Ritmato::nuovo(ctx, pausa, tentativi), &cfg.id, u.as_mut_slice(), &db, &stato, &rx, &cancel).await
                     }
@@ -1003,7 +1119,7 @@ pub async fn run(
                                 client = client.con_ripetizione(t / 2);
                             }
                         }
-                        info!(source = %cfg.id, "Modbus su Solarman V5: connesso");
+                        racconta!(quieto, source = %cfg.id, "Modbus su Solarman V5: connesso");
                         stato.bus(&cfg.id, Collegamento::Ok, None);
                         sessione(trasporti::Ritmato::nuovo(client, pausa, tentativi), &cfg.id, u.as_mut_slice(), &db, &stato, &rx, &cancel).await
                     }
@@ -1055,7 +1171,8 @@ pub async fn run_rtu(
         &cfg.id,
         cancel.clone(),
         || async {
-            info!(source = %cfg.id, device = %cfg.device, baud = cfg.baud_rate, dispositivi = dispositivi.len(), "Modbus RTU: apertura");
+            let quieto = unita.lock().await.iter().all(|x| x.assente());
+            racconta!(quieto, source = %cfg.id, device = %cfg.device, baud = cfg.baud_rate, dispositivi = dispositivi.len(), "Modbus RTU: apertura");
             let r = async {
                 let stream = tokio_serial::new(&cfg.device, cfg.baud_rate)
                     .parity(parity)
@@ -1066,7 +1183,7 @@ pub async fn run_rtu(
                 let ctx = rtu::connect_slave(stream, Slave(primo))
                     .await
                     .map_err(|e| anyhow::anyhow!("connessione RTU {}: {e}", cfg.device))?;
-                info!(source = %cfg.id, "Modbus RTU: porta aperta");
+                racconta!(quieto, source = %cfg.id, "Modbus RTU: porta aperta");
                 stato.bus(&cfg.id, Collegamento::Ok, None);
                 let mut u = unita.lock().await;
                 sessione(ctx, &cfg.id, u.as_mut_slice(), &db, &stato, &rx, &cancel).await

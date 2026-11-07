@@ -153,7 +153,18 @@ async fn giro(
     ordine: OrdineModbus,
 ) -> anyhow::Result<EsitoGiro> {
     let m = prepara(db, regs).await;
-    leggi_giro(dev, db, &m, ordine, T, &mut HashSet::new(), "prova", &[], 0).await
+    leggi_giro(
+        dev,
+        db,
+        &m,
+        ordine,
+        T,
+        &mut Errori::default(),
+        "prova",
+        &[],
+        0,
+    )
+    .await
 }
 
 async fn val(db: &TagDb, id: &str) -> (TagValue, TagQuality) {
@@ -855,7 +866,7 @@ async fn giro_con_blocchi(
         &m,
         OrdineModbus::Abcd,
         T,
-        &mut HashSet::new(),
+        &mut Errori::default(),
         "prova",
         blocchi,
         n,
@@ -1068,4 +1079,78 @@ async fn la_diagnostica_si_pubblica_solo_se_chiesta() {
     .await
     .unwrap();
     assert!(db2.get(&tag_diagnostica("bus")[0]).await.is_none());
+}
+
+/// Una risposta persa non è un'assenza (07-11-2026): la chiavetta Solarman
+/// dell'inverter di casa ne perde una ogni minuto o due. Si dice al terzo
+/// giro muto di fila, una volta; la risposta dopo la toglie senza rumore se
+/// non era stata detta.
+#[tokio::test(start_paused = true)]
+async fn un_silenzio_si_dice_al_terzo_giro_e_una_volta() {
+    let mut e = Errori::default();
+    assert!(!e.silenzio("blocco@512"));
+    assert_eq!(
+        e.risposta("blocco@512"),
+        None,
+        "un giro muto e poi la risposta: niente da dire"
+    );
+    assert!(!e.silenzio("blocco@512"));
+    assert!(!e.silenzio("blocco@512"));
+    assert!(e.silenzio("blocco@512"), "il terzo di fila si dice");
+    assert!(!e.silenzio("blocco@512"), "e non si ripete");
+    tokio::time::advance(Duration::from_secs(40)).await;
+    assert_eq!(e.risposta("blocco@512"), Some(Duration::from_secs(40)));
+}
+
+/// Il dispositivo assente: lo stato lo dice al terzo giro, non al primo (niente
+/// spia che lampeggia); dopo cinque minuti si interroga ogni minuto; alla
+/// risposta torna Ok e al suo ritmo.
+#[tokio::test(start_paused = true)]
+async fn un_dispositivo_assente_si_dice_tardi_e_si_interroga_di_rado() {
+    let db = db_con(&[tag("a", "u16")], &[]).await;
+    let stato = StatoSorgenti::new();
+    stato.registra("bus", [1]);
+    let mut dev = Finto::default();
+    dev.registri.insert(0, 7);
+    dev.mute.insert(1);
+    let mut u = Unita::da(&disp(1, vec![mappa("a", 0, AreaModbus::Holding)]), 1000);
+    for _ in 0..2 {
+        giro_unita(&mut dev, &db, &mut u, &stato, "bus")
+            .await
+            .unwrap();
+    }
+    assert_ne!(
+        stato.istantanea()["bus"].dispositivi[&1].stato,
+        Collegamento::NonRisponde
+    );
+    giro_unita(&mut dev, &db, &mut u, &stato, "bus")
+        .await
+        .unwrap();
+    assert_eq!(
+        stato.istantanea()["bus"].dispositivi[&1].stato,
+        Collegamento::NonRisponde
+    );
+    assert_eq!(u.intervallo_adesso(), Duration::from_millis(1000));
+    tokio::time::advance(ASSENZA_LUNGA).await;
+    assert_eq!(u.intervallo_adesso(), INTERVALLO_ASSENTE);
+    dev.mute.clear();
+    giro_unita(&mut dev, &db, &mut u, &stato, "bus")
+        .await
+        .unwrap();
+    assert_eq!(
+        stato.istantanea()["bus"].dispositivi[&1].stato,
+        Collegamento::Ok
+    );
+    assert!(!u.assente());
+    assert_eq!(u.intervallo_adesso(), Duration::from_millis(1000));
+}
+
+#[test]
+fn le_durate_brevi() {
+    assert_eq!(durata_breve(Duration::from_secs(40)), "40 s");
+    assert_eq!(durata_breve(Duration::from_secs(12 * 60)), "12 min");
+    assert_eq!(
+        durata_breve(Duration::from_secs(14 * 3600 + 5 * 60)),
+        "14 h 5 min"
+    );
 }

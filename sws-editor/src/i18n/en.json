@@ -603,8 +603,8 @@
     "history": "History…",
     "load": "Load",
     "downloadTitle": "Download the shown logs (filters applied) as a JSONL file",
-    "searchPlaceholder": "Search in message…",
-    "targetPlaceholder": "target (e.g. mqtt)",
+    "searchPlaceholder": "Search the message… (-word excludes)",
+    "targetPlaceholder": "target (e.g. mqtt, -modbus excludes)",
     "closeTitle": "Close panel",
     "empty": "No logs received. Trigger an action to see events arrive.",
     "noMatch": "No log matches the current filters."
@@ -1953,7 +1953,9 @@
     "manageDalCloud": "From the cloud this tab has nothing to manage: the cloud does not get into panels over SSH, and its own container is not a panel. For the connected panel use Device → Connection (update, service configuration, OpenPLC); for commands on the container, SSH into the panel from its network.",
     "uninstallTitolo": "Uninstall",
     "uninstallPurgeTitolo": "Uninstall and wipe data",
-    "deployUtentiDaCambiare": "This project's users will replace the panel's ({{pannello}}).\n\nThese arrive with a mandatory password change: {{utenti}}. At the first login on the panel a new password will be asked (it can be postponed).\n\nTo keep the panel's users, cancel and untick «Replace users too». Continue?"
+    "deployUtentiDaCambiare": "These arrive with a mandatory password change: {{utenti}}. At the first login on the panel a new password will be asked (it can be postponed).",
+    "deployUtentiSostituiti": "This deploy replaces the panel's users ({{pannello}}) with the project's ({{progetto}}). The project's passwords will apply on the panel: a password changed on the panel will be lost.",
+    "deployUtentiTieni": "To keep the panel's users, cancel and untick «Replace users too». Continue?"
   },
   "langtab": {
     "migrate": "Migrate texts…",
@@ -4598,6 +4600,9 @@
     "canale": "link",
     "aperto": "panel logs connected",
     "chiuso": "panel logs interrupted: {{motivo}} — retrying",
-    "resa": "panel logs stopped: {{motivo}}"
+    "resa": "panel logs stopped: {{motivo}}",
+    "rispostaSi": "yes",
+    "rispostaNo": "no",
+    "rispostaAnnullata": "cancelled"
   }
 }

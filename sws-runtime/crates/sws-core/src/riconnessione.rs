@@ -23,6 +23,35 @@ pub const ATTESA_MAX: Duration = Duration::from_secs(30);
 /// [`ATTESA_MIN`] invece di continuare a raddoppiare.
 pub const SESSIONE_SANA: Duration = Duration::from_secs(60);
 
+/// Una caduta con lo stesso motivo della precedente non si riscrive prima di
+/// così (07-11-2026): un dispositivo spento la notte faceva una riga ogni mezzo
+/// minuto. Dopo, una riga dice quante ne sono state taciute.
+pub const RIPETI_DOPO: Duration = Duration::from_secs(3600);
+
+/// Cosa dire di una caduta: `Some(taciute)` = scriverla (con quante uguali si
+/// sono taciute dall'ultima volta), `None` = è la stessa di prima, si tace.
+/// `ultima`: il motivo dell'ultima detta, quando, e le taciute da allora.
+pub fn da_dire(
+    ultima: &mut Option<(String, Instant, u32)>,
+    motivo: &str,
+    adesso: Instant,
+) -> Option<u32> {
+    match ultima {
+        Some((m, quando, n)) if m == motivo && adesso.duration_since(*quando) < RIPETI_DOPO => {
+            *n += 1;
+            None
+        }
+        _ => {
+            let taciute = ultima
+                .as_ref()
+                .filter(|(m, ..)| m == motivo)
+                .map_or(0, |u| u.2);
+            *ultima = Some((motivo.to_string(), adesso, 0));
+            Some(taciute)
+        }
+    }
+}
+
 /// L'attesa dopo una caduta, data quella di prima e quanto è durata la
 /// sessione appena caduta. Pura.
 pub fn prossima_attesa(prima: Option<Duration>, durata_sessione: Duration) -> Duration {
@@ -86,6 +115,7 @@ async fn giro<S, Fut, C, FutC>(
     FutC: Future<Output = ()>,
 {
     let mut attesa: Option<Duration> = None;
+    let mut ultima: Option<(String, Instant, u32)> = None;
     loop {
         let inizio = Instant::now();
         let esito = tokio::select! {
@@ -101,7 +131,17 @@ async fn giro<S, Fut, C, FutC>(
                 alla_caduta().await;
                 let a = prossima_attesa(attesa, inizio.elapsed());
                 attesa = Some(a);
-                tracing::warn!(source = %sorgente, "sessione caduta: {e:#} — riprovo fra {} s", a.as_secs());
+                let motivo = format!("{e:#}");
+                match da_dire(&mut ultima, &motivo, Instant::now()) {
+                    Some(0) => {
+                        tracing::warn!(source = %sorgente, "sessione caduta: {motivo} — riprovo fra {} s", a.as_secs())
+                    }
+                    Some(n) => tracing::warn!(source = %sorgente,
+                        "sessione caduta: {motivo} — riprovo fra {} s (ancora: {n} volte nell'ultima ora, taciute)", a.as_secs()),
+                    None => {
+                        tracing::debug!(source = %sorgente, "sessione caduta: {motivo} — riprovo fra {} s", a.as_secs())
+                    }
+                }
                 tokio::select! {
                     _ = cancel.cancelled() => return,
                     _ = tokio::time::sleep(a) => {}
@@ -116,6 +156,20 @@ mod tests {
     use super::*;
     use std::sync::atomic::{AtomicU32, Ordering};
     use std::sync::Arc;
+
+    /// La stessa caduta si dice una volta l'ora, con quante se ne sono taciute;
+    /// un motivo diverso si dice subito.
+    #[test]
+    fn la_stessa_caduta_si_dice_una_volta_l_ora() {
+        let t0 = Instant::now();
+        let mut u = None;
+        assert_eq!(da_dire(&mut u, "muto", t0), Some(0));
+        assert_eq!(da_dire(&mut u, "muto", t0 + Duration::from_secs(30)), None);
+        assert_eq!(da_dire(&mut u, "muto", t0 + Duration::from_secs(60)), None);
+        assert_eq!(da_dire(&mut u, "muto", t0 + RIPETI_DOPO), Some(2));
+        assert_eq!(da_dire(&mut u, "rifiutata", t0 + RIPETI_DOPO), Some(0));
+        assert_eq!(da_dire(&mut u, "muto", t0 + RIPETI_DOPO), Some(0));
+    }
 
     #[test]
     fn le_attese_crescono_fino_al_tetto_e_ripartono_dopo_una_sessione_sana() {

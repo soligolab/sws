@@ -750,6 +750,8 @@ interface AppState {
   // Logs
   setLogs: (list: LogEvent[]) => void;
   appendLog: (ev: LogEvent) => void;
+  /** Più righe in un colpo solo: un `set`, un ridisegno (`ws/versaLog.ts`). */
+  appendLogs: (evs: LogEvent[]) => void;
   clearLogs: () => void;
   /** Azzera la spia: il log è stato guardato. */
   segnaLogVisti: () => void;
@@ -2766,22 +2768,22 @@ export const useAppStore = create<AppState>((set, get) => {
       set({ logs: trimmed });
     },
 
-    appendLog: (ev) =>
+    appendLog: (ev) => get().appendLogs([ev]),
+
+    appendLogs: (evs) =>
       set((s) => {
-        const next = s.logs.length >= LOG_LIMIT
-          ? [...s.logs.slice(s.logs.length - LOG_LIMIT + 1), ev]
-          : [...s.logs, ev];
+        if (evs.length === 0) return {};
+        const tutte = s.logs.concat(evs);
+        const next = tutte.length > LOG_LIMIT ? tutte.slice(tutte.length - LOG_LIMIT) : tutte;
         // L'oggetto si ricrea **solo** quando cambia davvero: la spia lo
         // osserva per identità, e un nuovo oggetto a ogni riga INFO la
         // farebbe ridisegnare per niente.
-        if (ev.level !== "ERROR" && ev.level !== "WARN") return { logs: next };
-        const v = s.logNonVisti;
-        return {
-          logs: next,
-          logNonVisti: ev.level === "ERROR"
-            ? { ...v, errori: v.errori + 1, primoErroreTs: v.primoErroreTs ?? ev.ts_ms }
-            : { ...v, avvisi: v.avvisi + 1, primoAvvisoTs: v.primoAvvisoTs ?? ev.ts_ms },
-        };
+        let v = s.logNonVisti;
+        for (const ev of evs) {
+          if (ev.level === "ERROR") v = { ...v, errori: v.errori + 1, primoErroreTs: v.primoErroreTs ?? ev.ts_ms };
+          else if (ev.level === "WARN") v = { ...v, avvisi: v.avvisi + 1, primoAvvisoTs: v.primoAvvisoTs ?? ev.ts_ms };
+        }
+        return v === s.logNonVisti ? { logs: next } : { logs: next, logNonVisti: v };
       }),
 
     clearLogs: () => set({ logs: [], logNonVisti: { errori: 0, avvisi: 0, primoErroreTs: null, primoAvvisoTs: null } }),

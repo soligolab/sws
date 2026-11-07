@@ -603,8 +603,8 @@
     "history": "Storico…",
     "load": "Carica",
     "downloadTitle": "Scarica i log visualizzati (rispetta i filtri) come file JSONL",
-    "searchPlaceholder": "Cerca nel messaggio…",
-    "targetPlaceholder": "target (es. mqtt)",
+    "searchPlaceholder": "Cerca nel messaggio… (-parola esclude)",
+    "targetPlaceholder": "target (es. mqtt, -modbus esclude)",
     "closeTitle": "Chiudi pannello",
     "empty": "Nessun log ricevuto. Avvia un'azione per vedere arrivare gli eventi.",
     "noMatch": "Nessun log corrisponde ai filtri correnti."
@@ -1953,7 +1953,9 @@
     "manageDalCloud": "Dal cloud questa scheda non ha niente da gestire: il cloud non entra nei pannelli via SSH, e il suo container non è un pannello. Per il pannello collegato usa Device → Connessione (aggiornamento, configurazione del servizio, OpenPLC); per comandi sul container, entra nel pannello via SSH dalla sua rete.",
     "uninstallTitolo": "Disinstallazione",
     "uninstallPurgeTitolo": "Disinstallazione e cancellazione dati",
-    "deployUtentiDaCambiare": "Gli utenti di questo progetto prenderanno il posto di quelli del pannello ({{pannello}}).\n\nQuesti arrivano col cambio password obbligatorio: {{utenti}}. Al primo accesso sul pannello verrà chiesta una password nuova (si potrà rimandare).\n\nSe vuoi che il pannello tenga i suoi utenti, annulla e togli «Sostituisci anche gli utenti». Continuare?"
+    "deployUtentiDaCambiare": "Questi arrivano col cambio password obbligatorio: {{utenti}}. Al primo accesso sul pannello verrà chiesta una password nuova (si potrà rimandare).",
+    "deployUtentiSostituiti": "Questo deploy sostituisce gli utenti del pannello ({{pannello}}) con quelli del progetto ({{progetto}}). Sul pannello varranno le password del progetto: una password cambiata sul pannello andrà persa.",
+    "deployUtentiTieni": "Se vuoi che il pannello tenga i suoi utenti, annulla e togli «Sostituisci anche gli utenti». Continuare?"
   },
   "langtab": {
     "migrate": "Migra i testi…",
@@ -4598,6 +4600,9 @@
     "canale": "collegamento",
     "aperto": "log del pannello collegati",
     "chiuso": "log del pannello interrotti: {{motivo}} — riprovo",
-    "resa": "log del pannello fermi: {{motivo}}"
+    "resa": "log del pannello fermi: {{motivo}}",
+    "rispostaSi": "sì",
+    "rispostaNo": "no",
+    "rispostaAnnullata": "annullato"
   }
 }

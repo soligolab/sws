@@ -2817,6 +2817,18 @@ pub struct DeployBody {
     pub confirm_users_change: bool,
 }
 
+/// Il deploy che sostituisce gli utenti chiede conferma (07-11-2026): quando il
+/// pannello ne ha già (le sue password andranno perse) o quando ne arrivano col
+/// cambio obbligatorio. Un progetto senza utenti lo copre già `utenti-vuoti`.
+pub fn chiede_sostituzione_utenti(
+    utenti_progetto: usize,
+    utenti_dispositivo: Option<&[String]>,
+    da_cambiare: usize,
+) -> bool {
+    let pannello_ne_ha = utenti_dispositivo.is_some_and(|u| !u.is_empty());
+    (pannello_ne_ha && utenti_progetto > 0) || da_cambiare > 0
+}
+
 /// Gli utenti del progetto col cambio password obbligatorio (`users.yaml`).
 /// Collaudo del 07-11-2026: il deploy di CasaDomotica dal cloud ha portato sul
 /// TC620 un `admin` creato un mese prima col segno acceso — nel cloud nessuno
@@ -3195,20 +3207,28 @@ pub async fn remote_deploy(
             .into_response();
     }
 
-    // Gli utenti che arrivano col cambio password obbligatorio, al posto di
-    // quelli del pannello: lo si dice prima (07-11-2026).
+    // Gli utenti del progetto al posto di quelli del pannello: lo si dice
+    // prima (07-11-2026). All'inizio solo per chi arriva col cambio password
+    // obbligatorio; dal secondo giro del collaudo **sempre**, se il pannello ha
+    // già degli utenti: una password reimpostata nell'IDE aveva sostituito
+    // quella del pannello senza una parola.
     if opz.replace_users && !opz.confirm_users_change {
         let da_cambiare = utenti_col_cambio(
             &tokio::fs::read_to_string(proj_dir.join("users.yaml"))
                 .await
                 .unwrap_or_default(),
         );
-        if !da_cambiare.is_empty() {
+        if chiede_sostituzione_utenti(
+            utenti_progetto.len(),
+            utenti_dispositivo.as_deref(),
+            da_cambiare.len(),
+        ) {
             return (
                 StatusCode::PRECONDITION_REQUIRED,
                 Json(serde_json::json!({
-                    "conferma": "utenti-da-cambiare",
+                    "conferma": "utenti-sostituiti",
                     "utenti": da_cambiare,
+                    "utenti_progetto": utenti_progetto,
                     "utenti_dispositivo": utenti_dispositivo,
                 })),
             )
@@ -3872,6 +3892,21 @@ mod tests {
     }
 
     use super::*;
+
+    /// Sostituire gli utenti di un pannello che ne ha si chiede sempre; su un
+    /// pannello vuoto solo se arrivano utenti col cambio obbligatorio.
+    #[test]
+    fn la_sostituzione_degli_utenti_si_chiede() {
+        let admin = vec!["admin".to_string()];
+        assert!(chiede_sostituzione_utenti(1, Some(&admin), 0));
+        assert!(!chiede_sostituzione_utenti(1, Some(&[]), 0));
+        assert!(!chiede_sostituzione_utenti(1, None, 0));
+        assert!(chiede_sostituzione_utenti(1, None, 1));
+        assert!(
+            !chiede_sostituzione_utenti(0, Some(&admin), 0),
+            "lo copre utenti-vuoti"
+        );
+    }
 
     #[test]
     fn utenti_col_cambio_obbligatorio() {

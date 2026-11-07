@@ -10,6 +10,8 @@
  *  (una conferma chiesta dalla finestra delle impostazioni): quella va sopra
  *  di lui, e il modulo resta montato sotto, perché dentro c'è chi aspetta. */
 import type { ReactNode } from "react";
+// `i18next` e non `@/i18n`: questo modulo lo importa lo store (vedi `conferme428.ts`).
+import i18n from "i18next";
 
 export type Livello = "info" | "errore";
 
@@ -122,8 +124,50 @@ export function rispondi(risposta: Risposta): { chiamate: Richiesta[]; ferma: ()
   return { chiamate, ferma: () => { automatica = null; } };
 }
 
+// ── Il registro (07-11-2026) ────────────────────────────────────────────────
+
+/** Una riga per il registro: cosa è comparso a video e, per le domande, cosa
+ *  si è risposto. */
+export interface RigaRegistro { livello: "info" | "errore"; testo: string; dove: string }
+let registro: ((r: RigaRegistro) => void) | null = null;
+
+/** Chi scrive nel registro i messaggi della finestra: lo registra `avvia()`
+ *  (qui non si importa il client, che importa lo store, che importa questo
+ *  modulo). `null` per smettere. */
+export function registraNelLog(f: ((r: RigaRegistro) => void) | null): void {
+  registro = f;
+}
+
+/** Il testo di una richiesta in una riga: titolo e testo, senza a capo. */
+function inUnaRiga(r: OpzioniBase): string {
+  return [r.titolo, r.testo].filter(Boolean).join(" — ").replace(/\s*\n\s*/g, " · ");
+}
+
+/** Cosa va nel registro e quando: l'avviso quando compare, la domanda quando
+ *  ha una risposta. `chiedi` no — può essere una password — e `modulo` no. */
+function registra(richiesta: Richiesta, p: Promise<unknown>): void {
+  if (!registro) return;
+  const scrivi = registro;
+  if (richiesta.tipo === "avviso") {
+    scrivi({ livello: richiesta.livello === "errore" ? "errore" : "info", testo: inUnaRiga(richiesta), dove: "avviso" });
+  } else if (richiesta.tipo === "conferma") {
+    void p.then((v) => scrivi({ livello: "info", testo: `${inUnaRiga(richiesta)} → ${i18n.t(v ? "logRemoto.rispostaSi" : "logRemoto.rispostaNo")}`, dove: "conferma" }));
+  } else if (richiesta.tipo === "scegli") {
+    void p.then((v) => {
+      const scelta = richiesta.scelte.find((c) => c.valore === v)?.etichetta ?? i18n.t("logRemoto.rispostaAnnullata");
+      scrivi({ livello: "info", testo: `${inUnaRiga(richiesta)} → ${scelta}`, dove: "scelta" });
+    });
+  }
+}
+
 function apri<T>(r: Omit<Richiesta, "id">): Promise<T> {
   const richiesta = { ...r, id: prossimoId++ } as Richiesta;
+  const p = metti<T>(richiesta);
+  registra(richiesta, p);
+  return p;
+}
+
+function metti<T>(richiesta: Richiesta) {
   if (automatica) {
     automatica.chiamate.push(richiesta);
     const v = typeof automatica.risposta === "function"
