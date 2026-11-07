@@ -1,22 +1,22 @@
 {
- "titolo": "Collaudo del 07-11 — TC620 di casa con CasaDomotica, e la 2.26.0-rc.1",
+ "titolo": "Collaudo del 07-11 — TC620 di casa con CasaDomotica, e la 2.26.0-rc.2",
  "prove": [
   {
    "id": "tc-agg",
-   "dove": "1 · TC620 di casa · CasaDomotica (2.26.0-rc.1)",
-   "titolo": "Il TC620 si aggiorna alla 2.26.0-rc.1 e mostra le Novità",
+   "dove": "1 · TC620 di casa · CasaDomotica (2.26.0-rc.2)",
+   "titolo": "Il TC620 si aggiorna alla 2.26.0-rc.2 e mostra le Novità",
    "rif": "F3.16 e 2.25.1.9 — l'aggiornamento",
    "scopo": "La prima prova, perché tutte le altre del gruppo vogliono la versione nuova sul pannello. Si guarda anche come il pannello presenta l'aggiornamento: le Novità prima di confermare, e il login che si apre sopra l'avviso.",
    "prima": "IDE nel cloud (sws.soligo.net), progetto CasaDomotica, collegato al TC620 (Configurazione → Istanza → Device → Connessione).",
    "passi": [
     "Configurazione → Istanza → Device → Connessione → riquadro «Aggiornamento del runtime».",
-    "Deve proporre la `2.26.0-rc.1`. Leggi le Novità, poi «Aggiorna ora».",
+    "Deve proporre la `2.26.0-rc.2`. Leggi le Novità, poi «Aggiorna ora».",
     "Aspetta che il pannello si ricolleghi (un paio di minuti).",
     "Sullo schermo del TC620: se compare l'avviso di aggiornamento, tocca per fare l'accesso e scrivi nel login."
    ],
    "atteso": [
     "Prima di confermare: l'elenco delle Novità (fra le altre: «L'assistente, componendo una pagina, mette le macchine ripetute in un faceplate…»).",
-    "Dopo: l'IDE si ricollega da solo e Device → Stato dice 2.26.0-rc.1.",
+    "Dopo: l'IDE si ricollega da solo e Device → Stato dice 2.26.0-rc.2.",
     "Sullo schermo: il login si apre SOPRA l'avviso e si riesce a scriverci."
    ],
    "sblocca": "F3.16, 2.25.1.9",
@@ -31,7 +31,7 @@
   },
   {
    "id": "tc-deploy",
-   "dove": "1 · TC620 di casa · CasaDomotica (2.26.0-rc.1)",
+   "dove": "1 · TC620 di casa · CasaDomotica (2.26.0-rc.2)",
    "titolo": "CasaDomotica con la pagina «Collaudo 2.26» arriva sul TC620",
    "rif": "preparazione",
    "scopo": "Stasera ho aggiunto a CasaDomotica (nel cloud) la pagina «Collaudo 2.26»: un tipo `tapparella`, cinque variabili interne `collaudo.*`, un allarme, la funzione `collaudo_saluta` e il faceplate `collaudo_tapparella`. Tutto interno, nessuna sorgente nuova. La copia di prima è `project.yaml.prima-collaudo-2-26-*` accanto al progetto.",
@@ -41,7 +41,8 @@
     "Manda al TC620 come al solito (deploy)."
    ],
    "atteso": [
-    "Sul TC620 la pagina c'è, con otto schede, il riquadro degli allarmi e due tapparelle."
+    "Sul TC620 la pagina c'è, con otto schede, il riquadro degli allarmi e due tapparelle.",
+    "Nell'IDE, sulla pagina, solo due avvisi: «un button senza tag» sui due bottoni della funzione. È un falso positivo del validatore (chiamano una funzione), annotato."
    ],
    "sblocca": "le prove che seguono",
    "link": [
@@ -55,7 +56,7 @@
   },
   {
    "id": "tc-conferma",
-   "dove": "1 · TC620 di casa · CasaDomotica (2.26.0-rc.1)",
+   "dove": "1 · TC620 di casa · CasaDomotica (2.26.0-rc.2)",
    "titolo": "Un bottone con conferma (luce 1 del garage)",
    "rif": "F3.9 — la Finestra di avviso nel viewer",
    "scopo": "Nel viewer le conferme non sono più i pop-up del browser ma una finestra della pagina, con i bottoni nella lingua dei contenuti.",
@@ -82,7 +83,7 @@
   },
   {
    "id": "tc-critico",
-   "dove": "1 · TC620 di casa · CasaDomotica (2.26.0-rc.1)",
+   "dove": "1 · TC620 di casa · CasaDomotica (2.26.0-rc.2)",
    "titolo": "Un comando critico: password, e il motivo",
    "rif": "F3.10",
    "scopo": "Un comando critico chiede la password di chi è entrato; con `require_reason` anche il motivo. Il generale è una variabile demo: non comanda niente di vero.",
@@ -109,7 +110,7 @@
   },
   {
    "id": "tc-momentaneo",
-   "dove": "1 · TC620 di casa · CasaDomotica (2.26.0-rc.1)",
+   "dove": "1 · TC620 di casa · CasaDomotica (2.26.0-rc.2)",
    "titolo": "Un momentaneo con conferma si tiene premuto senza domande",
    "rif": "F3.11",
    "scopo": "Un bottone a impulso non chiede conferma (come su LVGL): altrimenti non lo si potrebbe tenere premuto.",
@@ -133,7 +134,7 @@
   },
   {
    "id": "tc-toggle",
-   "dove": "1 · TC620 di casa · CasaDomotica (2.26.0-rc.1)",
+   "dove": "1 · TC620 di casa · CasaDomotica (2.26.0-rc.2)",
    "titolo": "Un toggle con conferma scrive l'inverso al momento della conferma",
    "rif": "F3.12",
    "scopo": "Se mentre la domanda è aperta il valore cambia, il toggle deve invertire quello di adesso, non quello di quando hai premuto.",
@@ -158,7 +159,7 @@
   },
   {
    "id": "tc-slider",
-   "dove": "1 · TC620 di casa · CasaDomotica (2.26.0-rc.1)",
+   "dove": "1 · TC620 di casa · CasaDomotica (2.26.0-rc.2)",
    "titolo": "Uno slider con conferma: una domanda sola, al rilascio",
    "rif": "F3.14",
    "scopo": "Prima lo slider poteva chiedere a ogni passo, o tornare indietro mentre la domanda era aperta.",
@@ -184,7 +185,7 @@
   },
   {
    "id": "tc-funzione",
-   "dove": "1 · TC620 di casa · CasaDomotica (2.26.0-rc.1)",
+   "dove": "1 · TC620 di casa · CasaDomotica (2.26.0-rc.2)",
    "titolo": "Una funzione col parametro predefinito, chiamata da un bottone",
    "rif": "L0.2 (e L0.1, L0.3 sul pannello)",
    "scopo": "Sul pannello gira la sandbox Python vera dell'immagine: è qui che print, for e i default dei parametri si provano davvero.",
@@ -212,7 +213,7 @@
   },
   {
    "id": "tc-lucchetto",
-   "dove": "1 · TC620 di casa · CasaDomotica (2.26.0-rc.1)",
+   "dove": "1 · TC620 di casa · CasaDomotica (2.26.0-rc.2)",
    "titolo": "Il lucchetto sui comandi che richiedono un ruolo",
    "rif": "2.25.1.10 — il lucchetto",
    "scopo": "Un comando che vuole un ruolo più alto di chi guarda mostra il ruolo che serve.",
@@ -238,7 +239,7 @@
   },
   {
    "id": "tc-allarmi",
-   "dove": "1 · TC620 di casa · CasaDomotica (2.26.0-rc.1)",
+   "dove": "1 · TC620 di casa · CasaDomotica (2.26.0-rc.2)",
    "titolo": "Allarmi: conferma con motivo, conferma tutti, metti a tacere",
    "rif": "F3.13",
    "scopo": "Le azioni sugli allarmi del viewer passano dalla Finestra di avviso; il riquadro chiede il motivo alla conferma.",
@@ -266,7 +267,7 @@
   },
   {
    "id": "tc-faceplate",
-   "dove": "1 · TC620 di casa · CasaDomotica (2.26.0-rc.1)",
+   "dove": "1 · TC620 di casa · CasaDomotica (2.26.0-rc.2)",
    "titolo": "Un faceplate per tipo: scegli la tapparella e si collega da sola",
    "rif": "G-ter 34 — i tag compositi nell'editor",
    "scopo": "Il faceplate `collaudo_tapparella` ha un parametro di tipo «istanza» del tipo `tapparella`: l'istanza si sceglie da una tendina, e i suoi valori si collegano da soli.",
@@ -287,7 +288,7 @@
   },
   {
    "id": "tc-prest",
-   "dove": "1 · TC620 di casa · CasaDomotica (2.26.0-rc.1)",
+   "dove": "1 · TC620 di casa · CasaDomotica (2.26.0-rc.2)",
    "titolo": "Prestazioni: la colonna del pannello, le sorgenti, e quando smette",
    "rif": "Prestazioni 1, 3, 5",
    "scopo": "La scheda Prestazioni ha una colonna per il pannello collegato: il runtime, le sorgenti di CasaDomotica (MQTT) coi loro giri, e smette di misurare quando nessuno guarda.",
@@ -314,11 +315,11 @@
   },
   {
    "id": "tc-report",
-   "dove": "1 · TC620 di casa · CasaDomotica (2.26.0-rc.1)",
+   "dove": "1 · TC620 di casa · CasaDomotica (2.26.0-rc.2)",
    "titolo": "I report programmati arrivano per mail e si fanno da soli",
    "rif": "A-quater 3 e 4",
    "scopo": "CasaDomotica ha già un report (`report_1`) e la posta configurata: si prova sul pannello vero.",
-   "prima": "IDE nel cloud, CasaDomotica, Configurazione → Progetto → Report.",
+   "prima": "IDE nel cloud, CasaDomotica, Configurazione → Progetto → Report. Attenzione: oggi `report_1` nomina `core2.cpu0` e `core2.cpu1`, che non esistono (la validazione li dà come errori): sceglile di nuovo, per esempio `host.totalCPU` e `host.RAM`.",
    "passi": [
     "Nel report: il tuo indirizzo, programmazione `*/15 * * * *`, «File da tenere» = 2.",
     "Manda al TC620 con «Utenti e segreti».",
@@ -337,7 +338,7 @@
   },
   {
    "id": "tc-sorgente",
-   "dove": "1 · TC620 di casa · CasaDomotica (2.26.0-rc.1)",
+   "dove": "1 · TC620 di casa · CasaDomotica (2.26.0-rc.2)",
    "titolo": "Se un dispositivo si stacca, SWS lo dice",
    "rif": "A-septies 10 — la disponibilità delle sorgenti",
    "scopo": "Ogni sorgente ha la variabile `<sorgente>.disponibile`. In CasaDomotica: `mqtt-sandokan.disponibile`, `mqtt-switch-garage.disponibile`…",

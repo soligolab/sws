@@ -12,6 +12,47 @@
 > resta in «Storico». Qui vive solo ciò che serve a riprendere il lavoro.
 
 
+## ▶ Riprendere da qui — la 2.26.0-rc.2 pubblicata, domani il collaudo sul TC620 con CasaDomotica (2026-11-06 notte, ufficio)
+
+**`main` = origin**, nessun ramo aperto. L0, F2 e F3 sono in `main` (`630a0f30`), insieme a:
+- la correzione del collaudo F2.7 (una domanda aperta da Invio non si risponde da sola);
+- gli sfondi dell'assistente: «Usa come base» in coda durante il turno; istantanea con attesa per inattività (30 s di
+  silenzio, tetto 5 min) e viewer fermato a tempo scaduto; `SWS_AI_DEBUG=1`; `console.debug` `[chat]`;
+- **l'assistente coi faceplate**: `leggi_faceplate`, `faceplates` nelle proposte, nel diff e nell'applicazione, e la
+  regola generale del prompt «I gruppi di oggetti diventano faceplate» (`1e34abdf`).
+
+**La release**:
+- **`2.26.0-rc.2`** costruita e pubblicata (`f4627806`, arm64 + amd64, `rc-arm64` spostato);
+- la `rc.1` è un tag mai costruito: la build è stata fermata per mettere dentro la regola dei faceplate;
+- con una `-rc` le Novità stanno sotto la release a cui porta (`2.26.0`), non sotto «Unreleased»: lo vuole
+  `check_novita`.
+
+**Il VPS** gira la rc.2. Il quadlet di prima è `sws-gateway.container.prima-2.26.0-rc.2`; la copia maestra in
+`deploy/vps/quadlet/` è aggiornata.
+
+**CasaDomotica nel cloud** ha la pagina **«Collaudo 2.26»**: otto schede, gli allarmi e due istanze del faceplate
+`collaudo_tapparella`. Aggiunti:
+- il tipo `tapparella`;
+- cinque variabili interne `collaudo.*`;
+- l'allarme `collaudo_allarme`;
+- la funzione `collaudo_saluta`.
+
+Usa anche le luci del garage e le variabili demo del quadro; niente inverter. Il `project.yaml` di prima è accanto,
+`project.yaml.prima-collaudo-2-26-*`. Validata con la rc.2 in un container usa e getta: solo i due avvisi falsi sui
+bottoni-funzione, annotati in Appunti.
+
+**Il collaudo, cosa guardare**:
+- **il banco** (`python3 scripts/banco_collaudo/server.py` → `:8471`). Il gruppo **«TC620 di casa · CasaDomotica»** ha
+  14 prove e comincia dall'aggiornamento alla rc.2 con «Aggiorna ora»: nel TC620 non sono entrato. Poi il gruppo cloud,
+  con la pagina **Temperature** fatta dall'assistente (idea del maintainer: faceplate, sfondo, giorno/notte), e il
+  gruppo «Solo ufficio» (certificati e deploy distruttivi, WP630);
+- gli esiti di ieri sera sono in `tmp/collaudo/esiti-06-11-casa.json`, già lavorati;
+- `esiti.json` è vuoto, pronto per domani.
+
+**Dopo il collaudo**:
+- se passa, la **2.26.0 vera**; poi si archivia il piano della Finestra di avviso;
+- i difetti trovati diventano la rc.3.
+
 ## ▶ Riprendere da qui — L0, F2 e F3 sul ramo pushato, collaudo a metà col banco (2026-11-05 notte, theobroma)
 
 **`main` = origin** (`afb40027`). **Tre rami annidati aperti**, uno dentro l'altro (regola «annidare»):

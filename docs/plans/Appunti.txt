@@ -345,3 +345,9 @@ Annoto di seguito, uno per punto, le cose che devono essere verificate e trasfor
   di abbinamento. Il deploy scrive «Utenti: non toccati», che non e' vero, e la conferma «sostituisce-progetti» parla
   solo dello storico.
 
+- (06-11-2026) **Il validatore dà «un `button` senza tag non comanda niente» anche a un bottone che chiama una
+  funzione** (`on_press_fn`, senza `tag`): falso positivo, visto sulla pagina «Collaudo 2.26» di CasaDomotica. La
+  regola in `sws-web/src/validate.rs` (vicino al caso del faceplate, «fa già qualcosa: il tag non gli serve») dovrebbe
+  esentare anche `on_press_fn`/`on_release_fn` e `button_action`.
+- (06-11-2026) **CasaDomotica: `report_1` nomina `core2.cpu0` e `core2.cpu1`, che non esistono** (due errori della
+  validazione, preesistenti). Da sistemare col maintainer, nel progetto nel cloud: la scheda «tc-report» del banco lo dice.
