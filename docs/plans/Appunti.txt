@@ -375,3 +375,11 @@ Annoto di seguito, uno per punto, le cose che devono essere verificate e trasfor
   prima e dopo: raccogliere le righe in arrivo e versarle nello store una volta per fotogramma (`appendLogs(lista)`),
   `memo` su `LogRow` con chiave stabile, e se non basta una lista virtualizzata. Vale anche per il log locale
   (`logStream.ts`), stessa strada. Diagnosi dalla lettura del codice, non ancora misurata.
+
+- (07-11-2026, dal collaudo della rc.3) **Il registro va azzerato quando si carica un progetto nuovo** (deploy dall'IDE):
+  ora le righe dell'applicativo vecchio e del nuovo restano mescolate e non si distinguono. Parole del maintainer: «servirebbe
+  anche un reset del log al nuovo upload di un progetto». Da decidere quando lo si fa: azzerare l'elenco nell'IDE
+  (`clearLogs` dopo un deploy riuscito, nei tre percorsi che passano da `conferme428.ts`) e/o l'anello del `LogBus` del
+  pannello, che altrimenti alla riconnessione rimanda le righe di prima; oppure, in alternativa o in piu', una riga
+  di separazione «— progetto <nome> caricato alle hh:mm —» che tiene leggibili gli errori del vecchio. Si lega
+  all'appunto del registro lento alla connessione: se l'anello si svuota al deploy, c'e' anche meno da rimandare.
