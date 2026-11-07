@@ -49,8 +49,8 @@ describe("simbolo che comanda", () => {
 
   it("momentaneo: pressione e rilascio", () => {
     const { area, scritte } = disegna(simbolo({ command_tag: "start", button_mode: "momentary" }));
-    fireEvent.mouseDown(area!);
-    fireEvent.mouseUp(area!);
+    fireEvent.pointerDown(area!);
+    fireEvent.pointerUp(area!);
     fireEvent.click(area!);
     expect(scritte).toEqual([["start", true], ["start", false]]);
   });

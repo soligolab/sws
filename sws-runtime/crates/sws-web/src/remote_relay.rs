@@ -66,7 +66,13 @@ pub async fn ws_relay_handler(
     let target = match s.remote_target.read().await.clone() {
         Some(t) => t,
         None => {
-            tracing::debug!("ws/remote/{sub}: no remote target connected");
+            // Per i log a INFO: è la risposta a «perché non vedo le righe del
+            // pannello?», e il client lo dice anche nel suo registro.
+            if sub == "logs" {
+                tracing::info!("ws/remote/logs: nessun pannello collegato, niente log da girare");
+            } else {
+                tracing::debug!("ws/remote/{sub}: no remote target connected");
+            }
             return StatusCode::NOT_FOUND.into_response();
         }
     };
@@ -436,6 +442,13 @@ async fn run_relay(
     };
 
     tracing::debug!(url = %remote_url, "ws relay established");
+    // I log del pannello si aprono una volta per scheda dell'IDE: una riga a
+    // INFO dice che il canale c'è (collaudo del 07-11-2026, quando nel registro
+    // del progetto si vedevano tags e alarms e dei log non c'era traccia). Senza
+    // l'URL: porta il gettone della sessione sul pannello.
+    if sub == "logs" {
+        tracing::info!(pannello = %target.url, "ws relay: log del pannello collegati");
+    }
 
     let (mut local_tx, mut local_rx) = local.split();
     let (mut remote_tx, mut remote_rx) = remote.split();

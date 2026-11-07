@@ -202,6 +202,10 @@ struct Session {
     expires_at: Option<Instant>,
     /// None = infinite; Some(d) = sliding window duration.
     effective_ttl: Option<Duration>,
+    /// Il cambio password obbligatorio rimandato a un altro accesso («Più
+    /// tardi», 07-11-2026): vale solo per questa sessione, e il segno
+    /// dell'utente resta dov'è — al prossimo accesso la domanda torna.
+    rimandato: bool,
 }
 
 #[derive(Debug, Default)]
@@ -621,6 +625,7 @@ impl AuthState {
                 role: user.role,
                 expires_at,
                 effective_ttl,
+                rimandato: false,
             },
         );
         self.failures.write().await.remove(&creds.username);
@@ -671,6 +676,7 @@ impl AuthState {
         }
         let username = session.username.clone();
         let role = session.role;
+        let rimandato = session.rimandato;
         drop(sessions);
 
         let (must_change, allowed_zones) = {
@@ -684,9 +690,35 @@ impl AuthState {
         Some(SessionInfo {
             username,
             role,
-            must_change_password: must_change,
+            must_change_password: must_change && !rimandato,
             allowed_zones,
         })
+    }
+
+    /// «Più tardi»: questa sessione lavora col suo ruolo anche se il cambio
+    /// password è dovuto. Il segno dell'utente non cambia, quindi la domanda
+    /// torna al prossimo accesso. Falso se la sessione non c'è più.
+    pub async fn rimanda_cambio_password(&self, token: &str) -> bool {
+        match self.sessions.write().await.get_mut(token) {
+            Some(sess) => {
+                sess.rimandato = true;
+                true
+            }
+            None => false,
+        }
+    }
+
+    /// «Non chiedere più»: toglie il cambio obbligatorio senza cambiare la
+    /// password. Chi lo può chiedere (solo un Admin, per sé) lo decide chi
+    /// chiama; qui si scrive e basta.
+    pub async fn togli_cambio_password(&self, username: &str) -> Result<(), UserError> {
+        let mut users = self.users.write().await;
+        let user = users.get_mut(username).ok_or(UserError::NotFound)?;
+        user.must_change_password = false;
+        user.updated_at_ms = now_unix_ms();
+        self.flush_locked(&users).await?;
+        info!(user = %username, "auth: cambio password obbligatorio tolto senza cambiarla");
+        Ok(())
     }
 
     pub async fn logout(&self, token: &str) -> bool {
@@ -1379,6 +1411,42 @@ mod tests {
             .await,
             Err(UserError::LastAdmin)
         ));
+    }
+
+    #[tokio::test]
+    async fn piu_tardi_vale_per_la_sessione_e_non_chiedere_piu_per_sempre() {
+        let auth = admin_only("admin");
+        auth.create_user(CreateUser {
+            username: "bob".into(),
+            password: "init".into(),
+            role: Role::Operator,
+            must_change_password: true,
+            allowed_zones: vec![],
+        })
+        .await
+        .unwrap();
+        let entra = || async {
+            auth.login(&Credentials {
+                username: "bob".into(),
+                password: "init".into(),
+            })
+            .await
+            .unwrap()
+            .token
+        };
+        let t1 = entra().await;
+        assert!(auth.validate(&t1).await.unwrap().must_change_password);
+        // «Più tardi»: questa sessione lavora…
+        assert!(auth.rimanda_cambio_password(&t1).await);
+        assert!(!auth.validate(&t1).await.unwrap().must_change_password);
+        // …ma al prossimo accesso la domanda torna.
+        let t2 = entra().await;
+        assert!(auth.validate(&t2).await.unwrap().must_change_password);
+        assert!(!auth.rimanda_cambio_password("non-esiste").await);
+        // «Non chiedere più»: il segno sparisce, la password resta quella.
+        auth.togli_cambio_password("bob").await.unwrap();
+        let t3 = entra().await;
+        assert!(!auth.validate(&t3).await.unwrap().must_change_password);
     }
 
     #[tokio::test]

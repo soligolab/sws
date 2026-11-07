@@ -1378,6 +1378,14 @@ export const api = {
       body: JSON.stringify({ password }),
     }),
 
+  /** «Più tardi» (questa sessione) o, per un Admin, «Non chiedere più»
+   *  (07-11-2026): il cambio password obbligatorio si rimanda. */
+  rimandaCambioPassword: (perSempre: boolean) =>
+    request<void>("/api/auth/rimanda-cambio-password", {
+      method: "POST",
+      body: JSON.stringify({ per_sempre: perSempre }),
+    }),
+
   changePassword: (oldPassword: string, newPassword: string) =>
     request<void>("/api/auth/change-password", {
       method: "POST",
@@ -2677,7 +2685,7 @@ export const api = {
    *  Unico punto in cui si compone il corpo: prima la `fetch` era scritta due
    *  volte (qui e nell'auto-deploy dello store), ed è così che i due percorsi
    *  divergono senza che nessuno se ne accorga. */
-  deployToRuntime: async (opts: { replaceUsers: boolean; confirmNoUsers?: boolean; conSegreti?: boolean; confirmReplace?: boolean; confirmMissingSymbols?: boolean }): Promise<Response> => {
+  deployToRuntime: async (opts: { replaceUsers: boolean; confirmNoUsers?: boolean; conSegreti?: boolean; confirmReplace?: boolean; confirmMissingSymbols?: boolean; confirmUsersChange?: boolean }): Promise<Response> => {
     const headers: Record<string, string> = { "Content-Type": "application/json" };
     if (TOKEN) headers["Authorization"] = `Bearer ${TOKEN}`;
     return fetch(`${getBaseUrl()}/api/remote/deploy`, {
@@ -2694,6 +2702,8 @@ export const api = {
         confirm_replace: opts.confirmReplace ?? false,
         // Il pannello non conosce dei simboli di libreria e l'utente procede (M9).
         confirm_missing_symbols: opts.confirmMissingSymbols ?? false,
+        // Arrivano utenti col cambio password obbligatorio (07-11-2026).
+        confirm_users_change: opts.confirmUsersChange ?? false,
       }),
     });
   },

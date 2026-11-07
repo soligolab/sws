@@ -1649,6 +1649,18 @@ async fn inoltra_aggiornamento(
     corpo: Option<serde_json::Value>,
     url: impl Fn(&str) -> String,
 ) -> Response {
+    inoltra_aggiornamento_con_attesa(s, user, metodo, corpo, url, 60).await
+}
+
+/// Come [`inoltra_aggiornamento`], con un'attesa scelta da chi chiama.
+async fn inoltra_aggiornamento_con_attesa(
+    s: &AppState,
+    user: &AuthUser,
+    metodo: reqwest::Method,
+    corpo: Option<serde_json::Value>,
+    url: impl Fn(&str) -> String,
+    attesa_s: u64,
+) -> Response {
     ripristina_se_serve(s).await;
     let target = match s.remote_target.read().await.clone() {
         Some(t) => t,
@@ -1661,7 +1673,7 @@ async fn inoltra_aggiornamento(
             serde_json::json!({ "url": target.url, "metodo": metodo.as_str() }),
         );
     }
-    let client = make_remote_client(s, &target.url);
+    let client = costruisci_client(s, &target.url, attesa_s).expect("reqwest client");
     let base = target.url.trim_end_matches('/');
     let mut req = client.request(metodo, url(base));
     if let Some(c) = corpo {
@@ -1695,6 +1707,16 @@ async fn inoltra_aggiornamento(
             let testo = r.text().await.unwrap_or_default();
             (StatusCode::BAD_GATEWAY, format!("Il dispositivo ha risposto {code}: {testo}")).into_response()
         }
+        // `reqwest` dice «error sending request» sia per un pannello spento sia
+        // per uno che non ha risposto in tempo: il secondo caso si dice com'è.
+        Err(e) if e.is_timeout() => (
+            StatusCode::GATEWAY_TIMEOUT,
+            format!(
+                "Il dispositivo non ha risposto entro {attesa_s} s: può essere ancora al lavoro. \
+                 Controlla il suo stato prima di riprovare."
+            ),
+        )
+            .into_response(),
         Err(e) => (StatusCode::BAD_GATEWAY, format!("Dispositivo non raggiungibile: {e}")).into_response(),
     }
 }
@@ -1860,14 +1882,27 @@ pub async fn remote_istantanea_dati(
     .await
 }
 
+/// Quanto si aspetta la risposta di `update/apply`. Il pannello risponde dopo
+/// aver preso l'istantanea dei dati (config e progetti, storico compreso): con i
+/// 540 MB di CasaDomotica sul TC620 ci vuole più di un minuto, e coi 60 s di
+/// prima l'IDE nel cloud dava «Dispositivo non raggiungibile» mentre il pannello
+/// stava ancora copiando (collaudo del 07-11-2026). Dal viewer, che non aveva
+/// quel tetto, lo stesso aggiornamento è andato.
+const ATTESA_AGGIORNAMENTO_S: u64 = 15 * 60;
+
 /// `POST /api/remote/update/apply`
 pub async fn remote_update_apply(
     State(s): State<AppState>,
     Extension(user): Extension<AuthUser>,
 ) -> Response {
-    inoltra_aggiornamento(&s, &user, reqwest::Method::POST, None, |base| {
-        format!("{base}/api/update/apply")
-    })
+    inoltra_aggiornamento_con_attesa(
+        &s,
+        &user,
+        reqwest::Method::POST,
+        None,
+        |base| format!("{base}/api/update/apply"),
+        ATTESA_AGGIORNAMENTO_S,
+    )
     .await
 }
 
@@ -2775,6 +2810,31 @@ pub struct DeployBody {
     /// caso si ferma con un 428 `simboli-mancanti`.
     #[serde(default)]
     pub confirm_missing_symbols: bool,
+    /// L'editor ha mostrato «questi utenti arrivano sul pannello col cambio
+    /// password obbligatorio» e l'utente ha detto sì (07-11-2026). Senza, il
+    /// caso si ferma con un 428 `utenti-da-cambiare`.
+    #[serde(default)]
+    pub confirm_users_change: bool,
+}
+
+/// Gli utenti del progetto col cambio password obbligatorio (`users.yaml`).
+/// Collaudo del 07-11-2026: il deploy di CasaDomotica dal cloud ha portato sul
+/// TC620 un `admin` creato un mese prima col segno acceso — nel cloud nessuno
+/// entra con lui, quindi nessuno l'aveva mai tolto — e ha sostituito gli account
+/// del pannello senza dire niente. Al primo accesso, la password andava
+/// cambiata prima di poter fare qualunque cosa.
+pub fn utenti_col_cambio(yaml: &str) -> Vec<String> {
+    serde_yaml::from_str::<serde_yaml::Value>(yaml)
+        .ok()
+        .and_then(|v| {
+            v["users"].as_sequence().map(|seq| {
+                seq.iter()
+                    .filter(|u| u["must_change_password"].as_bool() == Some(true))
+                    .filter_map(|u| u["username"].as_str().map(|s| s.to_string()))
+                    .collect()
+            })
+        })
+        .unwrap_or_default()
 }
 
 /// Gli id `lib:` usati dalle pagine, dai faceplate e dalle cornici del progetto, in ordine.
@@ -2973,6 +3033,7 @@ impl Default for DeployBody {
             con_segreti: true,
             confirm_replace: false,
             confirm_missing_symbols: false,
+            confirm_users_change: false,
         }
     }
 }
@@ -3132,6 +3193,27 @@ pub async fn remote_deploy(
             })),
         )
             .into_response();
+    }
+
+    // Gli utenti che arrivano col cambio password obbligatorio, al posto di
+    // quelli del pannello: lo si dice prima (07-11-2026).
+    if opz.replace_users && !opz.confirm_users_change {
+        let da_cambiare = utenti_col_cambio(
+            &tokio::fs::read_to_string(proj_dir.join("users.yaml"))
+                .await
+                .unwrap_or_default(),
+        );
+        if !da_cambiare.is_empty() {
+            return (
+                StatusCode::PRECONDITION_REQUIRED,
+                Json(serde_json::json!({
+                    "conferma": "utenti-da-cambiare",
+                    "utenti": da_cambiare,
+                    "utenti_dispositivo": utenti_dispositivo,
+                })),
+            )
+                .into_response();
+        }
     }
 
     // Il deploy di un progetto con un altro nome cancella dal pannello quello
@@ -3790,6 +3872,15 @@ mod tests {
     }
 
     use super::*;
+
+    #[test]
+    fn utenti_col_cambio_obbligatorio() {
+        let y = "users:\n- username: admin\n  role: Admin\n  must_change_password: true\n\
+                 - username: mauro\n  role: Admin\n  must_change_password: false\n\
+                 - username: op\n  role: Operator\n";
+        assert_eq!(utenti_col_cambio(y), vec!["admin".to_string()]);
+        assert!(utenti_col_cambio("").is_empty());
+    }
     use std::io::Write;
 
     fn progetto_con_segreti() -> sws_core::project::Project {

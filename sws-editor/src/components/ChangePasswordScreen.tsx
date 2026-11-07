@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { api } from "@/api/client";
 import { useAppStore } from "@/store";
+import { conferma } from "@/finestraAvviso/finestraAvviso";
 import { paginaCentrata, schedaModulo } from "@/components/schermataAccesso";
 
 /**
@@ -30,9 +31,16 @@ function dettaglio(msg: string): string | null {
   }
 }
 
-export function ChangePasswordScreen({ onAnnulla }: { onAnnulla?: () => void } = {}) {
+export function ChangePasswordScreen({ onAnnulla, rimandabile }: {
+  onAnnulla?: () => void;
+  /** Il cambio obbligatorio si può rimandare (07-11-2026): «Più tardi» per
+   *  tutti, «Non chiedere più» solo per un Admin. Sul pannello sì; nell'IDE
+   *  dell'installazione la password va cambiata. */
+  rimandabile?: boolean;
+} = {}) {
   const { t } = useTranslation();
   const authUser              = useAppStore((s) => s.authUser);
+  const authRole              = useAppStore((s) => s.authRole);
   const setMustChangePassword = useAppStore((s) => s.setMustChangePassword);
   const clearAuth             = useAppStore((s) => s.clearAuth);
 
@@ -82,6 +90,20 @@ export function ChangePasswordScreen({ onAnnulla }: { onAnnulla?: () => void } =
         setError(dettaglio(msg) ?? t("auth.pwChangeError"));
         console.warn("change-password failed:", e);
       }
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const rimanda = async (perSempre: boolean) => {
+    if (perSempre && !(await conferma({ testo: t("auth.nonChiederePiuConferma"), pericolo: true }))) return;
+    setError(null);
+    setBusy(true);
+    try {
+      await api.rimandaCambioPassword(perSempre);
+      setMustChangePassword(false);
+    } catch (e: any) {
+      setError(dettaglio(String(e?.message ?? "")) ?? t("auth.pwChangeError"));
     } finally {
       setBusy(false);
     }
@@ -148,10 +170,30 @@ export function ChangePasswordScreen({ onAnnulla }: { onAnnulla?: () => void } =
             {onAnnulla ? t("auth.annulla") : t("auth.logout")}
           </button>
         </div>
+        {rimandabile && !onAnnulla && (
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+            <button type="button" data-testid="cambio-piu-tardi" disabled={busy}
+                    onClick={() => void rimanda(false)} style={secondario}>
+              {t("auth.piuTardi")}
+            </button>
+            {authRole === "Admin" && (
+              <button type="button" data-testid="cambio-non-chiedere-piu" disabled={busy}
+                      onClick={() => void rimanda(true)} style={secondario}>
+                {t("auth.nonChiederePiu")}
+              </button>
+            )}
+          </div>
+        )}
       </form>
     </div>
   );
 }
+
+const secondario: React.CSSProperties = {
+  background: "transparent", color: "var(--brand-text-muted, #94a3b8)",
+  border: "1px solid var(--brand-border, #475569)", borderRadius: 4,
+  padding: "6px 10px", cursor: "pointer", fontSize: 12,
+};
 
 const label: React.CSSProperties = {
   fontSize: 11, color: "var(--brand-text-muted, #94a3b8)", display: "block", marginBottom: 4,

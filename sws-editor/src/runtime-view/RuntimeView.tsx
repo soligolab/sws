@@ -561,7 +561,7 @@ export function RuntimeView() {
           cambia, e qui la cambia. */}
       {authToken && authToken !== "no-auth" && mustChangePassword && (
         <div data-testid="cambio-password-pannello" style={{ position: "fixed", inset: 0, zIndex: 9700, background: "var(--brand-bg, #0f172a)" }}>
-          <ChangePasswordScreen />
+          <ChangePasswordScreen rimandabile />
         </div>
       )}
     </div>

@@ -112,6 +112,12 @@ export function AggiornamentoRuntime() {
           </button>
         </div>
       )}
+      {/* Il pannello risponde dopo aver copiato i dati (l'istantanea per il
+          ritorno): con uno storico grande sono minuti, e senza questa riga il
+          bottone fermo su «in corso» sembrava un IDE bloccato (07-11-2026). */}
+      {inCorso && (
+        <div style={{ marginBottom: 8, fontSize: 12, color: "var(--brand-warning, #f59e0b)" }}>{t("aggiornamento.istantaneaInCorso")}</div>
+      )}
       {stato?.in_corso && !avviato && (
         <div style={{ marginBottom: 8, fontSize: 12, color: "var(--brand-warning, #f59e0b)" }}>{t("aggiornamento.inCorsoSulPannello")}</div>
       )}

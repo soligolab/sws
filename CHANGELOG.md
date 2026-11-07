@@ -81,6 +81,28 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
   il salvataggio non è finito.
 
 ### Corretto
+- **Collaudo del 07-11 sul TC620 (2.26.0-rc.3)**:
+  - **i log del pannello nell'IDE del cloud**: `remoteLogStream.ts` apriva `/ws/remote/logs` senza il prefisso del
+    gateway (`/p/<azienda>/<progetto>`), quindi il socket andava al gateway e non al container del progetto, e nessuna
+    riga del pannello arrivava (tags e allarmi passano da `buildWsUrl`, che il prefisso lo mette). La finestra staccata
+    del log ora chiede `/api/remote/status` e apre lo stesso canale. Il registro dice quando il canale si apre, si
+    interrompe o si arrende, col motivo; il relay scrive a INFO l'apertura e la mancanza di un pannello;
+  - **«Aggiorna ora» dall'IDE**: `update/apply` aspetta il pannello fino a 15 minuti (prima 60 s), perché il pannello
+    risponde dopo l'istantanea dei dati; un tempo scaduto dice «non ha risposto entro…» invece di «non raggiungibile»,
+    e l'IDE scrive che il pannello sta copiando i dati;
+  - **il cambio password obbligatorio si può rimandare** (`POST /api/auth/rimanda-cambio-password`): «Più tardi» vale per
+    la sessione (`Session.rimandato` in `sws-auth`), «Non chiedere più» toglie il segno ed è solo dell'Admin; tutti e
+    due nell'audit. Sul viewer del pannello, non nell'IDE dell'installazione. Seme sul CRA:
+    `docs/plans/2026-11-07-credenziali-cra.md`;
+  - **il deploy avvisa se porta utenti col cambio password obbligatorio** (428 `utenti-da-cambiare`), nominando chi
+    sostituiscono sul pannello;
+  - **il momentaneo sul touch**: il bottone e il simbolo che comanda usano gli eventi pointer a runtime (più
+    `pointercancel`, `touch-action: none`, niente menu della pressione lunga); coi soli eventi del mouse una pressione
+    lunga sul TC620 non mandava niente;
+  - **l'elenco allarmi** ha «ACK tutti» e «metti a tacere», che c'erano solo in modalità tabella;
+  - **un comando critico senza accesso** su un pannello con utenti dice di accedere: il sentinella `"no-auth"` senza
+    nome è un anonimo, e la scrittura partiva senza credenziali per tornare «403 forbidden»;
+  - **il validatore** non dà più «un `button` senza tag non comanda niente» a un bottone che chiama una funzione.
 - **La sandbox Python dà quello che RestrictedPython riscrive** (L0, piano `2026-11-04-logica-unificata.md`): `print`,
   `for`, `+=`, `a, b = …` e le comprensioni davano `NameError` (`_print_`, `_getiter_`, `_inplacevar_`) **solo sul
   pannello**, perché sul PC di sviluppo RestrictedPython manca. Ora l'harness ha le guardie standard

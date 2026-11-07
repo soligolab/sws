@@ -468,7 +468,8 @@
     "reasonPrompt": "Motivo del comando (registrato nell'audit):",
     "reasonRequired": "Il motivo è obbligatorio per questo comando.",
     "silence": "Tacita il suono degli allarmi in corso",
-    "silenced": "Suono tacitato (un allarme nuovo lo riattiva)"
+    "silenced": "Suono tacitato (un allarme nuovo lo riattiva)",
+    "serveAccesso": "Questo comando chiede l'accesso: entra con il tuo utente, poi riprova."
   },
   "alarm": {
     "noAlarms": "Nessun allarme attivo",
@@ -693,7 +694,10 @@
     "mustSetNewPassword": ". Per continuare devi impostare una nuova password.",
     "email": "Email",
     "annulla": "Annulla",
-    "logout": "Esci"
+    "logout": "Esci",
+    "piuTardi": "Più tardi",
+    "nonChiederePiu": "Non chiedere più",
+    "nonChiederePiuConferma": "La password resterà quella attuale e il pannello non chiederà più di cambiarla. Fallo solo se la password l'hai scelta tu e nessun altro la conosce: chi la conosce entra come te. Continuare?"
   },
   "props": {
     "diag45": "45° diagonale",
@@ -1948,7 +1952,8 @@
     "manageSenzaPodman": "Su questa macchina non c'è podman, quindi non c'è un container di SWS da gestire. Per un pannello, togli la spunta «Locale» e scrivi il suo indirizzo e l'utente SSH.",
     "manageDalCloud": "Dal cloud questa scheda non ha niente da gestire: il cloud non entra nei pannelli via SSH, e il suo container non è un pannello. Per il pannello collegato usa Device → Connessione (aggiornamento, configurazione del servizio, OpenPLC); per comandi sul container, entra nel pannello via SSH dalla sua rete.",
     "uninstallTitolo": "Disinstallazione",
-    "uninstallPurgeTitolo": "Disinstallazione e cancellazione dati"
+    "uninstallPurgeTitolo": "Disinstallazione e cancellazione dati",
+    "deployUtentiDaCambiare": "Gli utenti di questo progetto prenderanno il posto di quelli del pannello ({{pannello}}).\n\nQuesti arrivano col cambio password obbligatorio: {{utenti}}. Al primo accesso sul pannello verrà chiesta una password nuova (si potrà rimandare).\n\nSe vuoi che il pannello tenga i suoi utenti, annulla e togli «Sostituisci anche gli utenti». Continuare?"
   },
   "langtab": {
     "migrate": "Migra i testi…",
@@ -2016,7 +2021,6 @@
   },
   "logWindow": {
     "open": "Log in una finestra",
-    "localOnly": "Solo log di questo runtime — le righe di un runtime remoto collegato si vedono nella finestra dell'editor.",
     "noAuth": "Non risulta nessun accesso",
     "noAuthHint": "Accedi nella finestra dell'editor, poi ricarica questa.",
     "reload": "Ricarica",
@@ -3267,7 +3271,8 @@
     "avviato": "Aggiornamento alla {{a}} avviato: il runtime si sta riavviando. Riconnettiti fra un minuto per vedere la versione nuova.",
     "tornatoAlla": "il pannello è tornato alla {{da}}",
     "inCorsoSulPannello": "Un aggiornamento è in corso sul pannello: l'esito compare qui fra un paio di minuti.",
-    "apriInstallazione": "Apri Installazione"
+    "apriInstallazione": "Apri Installazione",
+    "istantaneaInCorso": "Il pannello sta copiando i suoi dati prima di aggiornarsi (servono per tornare indietro): con molto storico può volerci qualche minuto."
   },
   "finestra": {
     "orologio": "Orologio del pannello: {{locale}} (UTC{{scostamento}}) · {{utc}} UTC",
@@ -4588,5 +4593,11 @@
       "lunghezza": "{{n}} / {{max}} caratteri",
       "nonScavalcano": "Le regole del progetto non scavalcano quelle di SWS: un modello non applica mai una modifica da solo, e gli sfondi si fanno sempre in due passi."
     }
+  },
+  "logRemoto": {
+    "canale": "collegamento",
+    "aperto": "log del pannello collegati",
+    "chiuso": "log del pannello interrotti: {{motivo}} — riprovo",
+    "resa": "log del pannello fermi: {{motivo}}"
   }
 }

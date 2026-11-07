@@ -1280,6 +1280,10 @@ pub fn build(
             post(crate::ciclo_account::chiudi_account),
         )
         .route("/api/auth/change-password", post(change_password))
+        .route(
+            "/api/auth/rimanda-cambio-password",
+            post(rimanda_cambio_password),
+        )
         .route("/api/auth/verify-password", post(verify_password_handler))
         .route("/api/auth/refresh", post(refresh_session))
         // Le proprie aziende: serve a decidere se mostrare una scelta, quindi
@@ -2110,6 +2114,10 @@ fn build_runtime_inner(state: AppState, www_dir: Option<PathBuf>) -> Router {
         .route("/api/auth/whoami", get(whoami))
         .route("/api/auth/logout", post(logout))
         .route("/api/auth/change-password", post(change_password))
+        .route(
+            "/api/auth/rimanda-cambio-password",
+            post(rimanda_cambio_password),
+        )
         .route("/api/auth/verify-password", post(verify_password_handler))
         .route("/api/auth/refresh", post(refresh_session));
 
@@ -3635,6 +3643,90 @@ async fn change_password(State(s): State<AppState>, req: Request) -> Response {
         Ok(()) => StatusCode::NO_CONTENT.into_response(),
         Err(e) => user_error_to_response(e),
     }
+}
+
+#[derive(Deserialize, Default)]
+#[serde(deny_unknown_fields)]
+struct RimandaCambio {
+    /// `true` = «Non chiedere più»: solo un Admin, per sé.
+    #[serde(default)]
+    per_sempre: bool,
+}
+
+/// `POST /api/auth/rimanda-cambio-password` (07-11-2026). Il cambio password
+/// obbligatorio si può rimandare: «Più tardi» vale per questa sessione e la
+/// domanda torna al prossimo accesso; «Non chiedere più» toglie il segno senza
+/// cambiare la password, ed è solo dell'Admin. Nato dal collaudo sul TC620: un
+/// deploy aveva portato un `admin` col cambio obbligatorio, e per aggiornare il
+/// pannello bisognava prima inventarsi una password nuova. Tutti e due finiscono
+/// nell'audit. Il seme `docs/plans/2026-11-07-credenziali-cra.md` tiene la
+/// domanda sul CRA.
+async fn rimanda_cambio_password(State(s): State<AppState>, req: Request) -> Response {
+    let user = match req.extensions().get::<AuthUser>().cloned() {
+        Some(u) => u,
+        None => return StatusCode::UNAUTHORIZED.into_response(),
+    };
+    let Some(token) = token_della_richiesta(&req) else {
+        return StatusCode::UNAUTHORIZED.into_response();
+    };
+    let bytes = match axum::body::to_bytes(req.into_body(), 4 * 1024).await {
+        Ok(b) => b,
+        Err(e) => return (StatusCode::BAD_REQUEST, format!("body: {e}")).into_response(),
+    };
+    let body: RimandaCambio = if bytes.is_empty() {
+        RimandaCambio::default()
+    } else {
+        match serde_json::from_slice(&bytes) {
+            Ok(b) => b,
+            Err(e) => return (StatusCode::BAD_REQUEST, format!("json: {e}")).into_response(),
+        }
+    };
+    // L'archivio dell'installazione (l'IDE) ha le sue regole: qui no.
+    if fonte_auth_corrente(&s).await == FonteAutenticazione::Installazione {
+        return (
+            StatusCode::CONFLICT,
+            "su questa installazione la password va cambiata",
+        )
+            .into_response();
+    }
+    let archivio = if s
+        .auth
+        .list_users()
+        .await
+        .iter()
+        .any(|u| u.username == user.username)
+    {
+        &s.auth
+    } else {
+        &s.auth_dispositivo
+    };
+    if body.per_sempre {
+        if user.role < Role::Admin {
+            return (
+                StatusCode::FORBIDDEN,
+                "solo un Admin può smettere di farsi chiedere il cambio password",
+            )
+                .into_response();
+        }
+        if let Err(e) = archivio.togli_cambio_password(&user.username).await {
+            return user_error_to_response(e);
+        }
+        s.audit.log(
+            "auth.cambio_password_tolto",
+            Some(user.username),
+            serde_json::json!({}),
+        );
+        return StatusCode::NO_CONTENT.into_response();
+    }
+    if !archivio.rimanda_cambio_password(&token).await {
+        return StatusCode::UNAUTHORIZED.into_response();
+    }
+    s.audit.log(
+        "auth.cambio_password_rimandato",
+        Some(user.username),
+        serde_json::json!({}),
+    );
+    StatusCode::NO_CONTENT.into_response()
 }
 
 fn user_error_to_response(e: sws_auth::UserError) -> Response {

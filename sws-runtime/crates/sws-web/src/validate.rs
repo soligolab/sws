@@ -2078,10 +2078,16 @@ fn controlla_oggetto(
                 "lega il comando al tag che il driver scrive davvero, non al calcolato",
             )),
             // Un bottone con un'azione predefinita (finestra, login, navigazione,
-            // faceplate) fa già qualcosa: il tag non gli serve (18-10-2026).
+            // faceplate) fa già qualcosa: il tag non gli serve (18-10-2026). Lo
+            // stesso vale per uno che chiama una funzione (07-11-2026: due avvisi
+            // falsi sulla pagina «Collaudo 2.26» di CasaDomotica).
             None if tag_scritto.unwrap_or("").is_empty()
                 && !ha_assegnazioni
-                && !(t == "button" && o.button_action.is_some()) =>
+                && !(t == "button"
+                    && (o.button_action.is_some()
+                        || [&o.on_press_fn, &o.on_release_fn]
+                            .iter()
+                            .any(|f| f.as_deref().is_some_and(|n| !n.is_empty())))) =>
             {
                 out.push(Finding::warn(
                     format!("{base}.{campo_scritto}"),
@@ -3297,6 +3303,25 @@ alarms: []
         assert!(!fa("ratio", "web")
             .iter()
             .any(|f| f.path == "page_layout.size_mode"));
+    }
+
+    /// «Collaudo 2.26» di CasaDomotica, 07-11-2026: un bottone che chiama una
+    /// funzione fa già qualcosa, come uno con un'azione predefinita.
+    #[test]
+    fn un_bottone_che_chiama_una_funzione_non_e_senza_tag() {
+        let prog = "meta: { name: p, version: '1' }\ntags: []\nsources: []\nalarms: []\nfunctions:\n- { id: f, name: saluta, code: 'pass' }\n";
+        let p: Project = serde_yaml::from_str(prog).unwrap();
+        let pagina: SynopticPage = serde_yaml::from_str(
+            "id: h\nname: Home\nwidth: 1280\nheight: 800\nobjects:\n- { id: b, type: button, x: 10, y: 10, width: 100, height: 40, on_press_fn: saluta }\n- { id: c, type: button, x: 10, y: 60, width: 100, height: 40 }",
+        )
+        .unwrap();
+        let rs = semantic(&p, &[pagina]);
+        let senza: Vec<_> = rs
+            .iter()
+            .filter(|f| f.message.contains("senza tag"))
+            .collect();
+        assert_eq!(senza.len(), 1, "{rs:?}");
+        assert!(senza[0].path.contains("objects[c]"), "{senza:?}");
     }
 
     /// CasaDomotica, 18-10-2026: il navigatore sta nel piede della cornice, la

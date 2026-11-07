@@ -15,12 +15,14 @@ export interface ConfermeDeploy {
   confirmNoUsers: boolean;
   confirmReplace: boolean;
   confirmMissingSymbols: boolean;
+  confirmUsersChange: boolean;
 }
 
 export const NESSUNA_CONFERMA: ConfermeDeploy = {
   confirmNoUsers: false,
   confirmReplace: false,
   confirmMissingSymbols: false,
+  confirmUsersChange: false,
 };
 
 /** Il corpo di un 428 di `/api/remote/deploy` (`remote.rs`). */
@@ -32,6 +34,7 @@ export interface Dati428 {
   simboli?: string[];
   non_verificabile?: boolean;
   versione_pannello?: string | null;
+  utenti?: string[];
 }
 
 /** - `riprova`: chi guarda ha confermato, si rifà la richiesta con `conferme`;
@@ -87,6 +90,15 @@ export async function confermaDopo428(d: Dati428, gia: ConfermeDeploy): Promise<
       useAppStore.getState().navigateToConfig("users");
     }
     return { tipo: "serve-admin" };
+  }
+  // Arrivano utenti col cambio password obbligatorio, al posto di quelli del
+  // pannello (collaudo del 07-11-2026): lo si dice prima.
+  if (d.conferma === "utenti-da-cambiare" && !gia.confirmUsersChange) {
+    const pannello = d.utenti_dispositivo?.length ? d.utenti_dispositivo.join(", ") : i18n.t("cfg.deployNoUsersUnknown");
+    const si = await conferma({
+      testo: i18n.t("cfg.deployUtentiDaCambiare", { utenti: (d.utenti ?? []).join(", "), pannello }),
+    });
+    return si ? { tipo: "riprova", conferme: { ...gia, confirmUsersChange: true } } : { tipo: "annullato" };
   }
   // Il deploy cancellerebbe progetti con un altro nome, storico compreso.
   if (d.conferma === "sostituisce-progetti" && !gia.confirmReplace) {

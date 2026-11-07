@@ -22,6 +22,8 @@
 
 import { useEffect } from "react";
 import { api, getAuthToken } from "@/api/client";
+import { prefissoGateway } from "@/api/prefisso";
+import i18n from "i18next";
 import { useAppStore } from "@/store";
 import type { LogEvent } from "@/types";
 import { ReconnectingWs } from "@/ws/reconnectingWs";
@@ -47,16 +49,34 @@ export function etichettaDispositivo(url: string | null, registrati: { label?: s
   }
 }
 
-function buildRemoteLogsUrl(debug: boolean): string {
-  const scheme = typeof window !== "undefined" && window.location.protocol === "https:" ? "wss" : "ws";
-  const host   = typeof window !== "undefined" ? window.location.host : "localhost";
-  const token  = getAuthToken();
+/** L'indirizzo del relay dei log. **Col prefisso del gateway** (`/p/<azienda>/
+ *  <progetto>`): fino al 07-11-2026 mancava, e nel cloud il socket andava alla
+ *  radice del gateway invece che al container del progetto — le righe del
+ *  pannello non arrivavano mai, mentre tags e allarmi (che passano da
+ *  `buildWsUrl`, col prefisso) funzionavano. In locale il prefisso è vuoto, ed è
+ *  per questo che nessuna prova sul PC l'aveva visto. */
+export function urlLogRemoti(
+  scheme: string, host: string, prefisso: string, token: string | null, debug: boolean,
+): string {
   const q = new URLSearchParams();
   if (token) q.set("token", token);
   // Il relay lo rispetta solo per un amministratore di piattaforma.
   if (debug) q.set("livello", "debug");
   const qs = q.toString();
-  return `${scheme}://${host}/ws/remote/logs${qs ? `?${qs}` : ""}`;
+  return `${scheme}://${host}${prefisso}/ws/remote/logs${qs ? `?${qs}` : ""}`;
+}
+
+function buildRemoteLogsUrl(debug: boolean): string {
+  const scheme = typeof window !== "undefined" && window.location.protocol === "https:" ? "wss" : "ws";
+  const host   = typeof window !== "undefined" ? window.location.host : "localhost";
+  return urlLogRemoti(scheme, host, prefissoGateway(), getAuthToken(), debug);
+}
+
+/** Una riga del log scritta dall'IDE stesso sullo stato del canale: se i log
+ *  del pannello non arrivano, il registro deve dire perché, non restare muto
+ *  (collaudo del 07-11-2026: il «rifai Connetti» stava solo nel log del server). */
+function rigaDelCanale(etichetta: string, level: "INFO" | "WARN", message: string): LogEvent {
+  return { ts_ms: Date.now(), level, target: `${etichetta}:${i18n.t("logRemoto.canale")}`, message, fields: {} };
 }
 
 export function useRemoteLogStream(): void {
@@ -72,9 +92,15 @@ export function useRemoteLogStream(): void {
       return;
     }
 
-    rws = new ReconnectingWs(() => buildRemoteLogsUrl(debug));
-    const stream = rws;
     let etichetta = etichettaDispositivo(remoteUrl, []);
+    // Una riga per cambio di stato, non per tentativo: un pannello che si
+    // riavvia non deve riempire il registro di righe uguali.
+    let aperto = false;
+    rws = new ReconnectingWs(
+      () => buildRemoteLogsUrl(debug),
+      (motivo) => appendLog(rigaDelCanale(etichetta, "WARN", i18n.t("logRemoto.resa", { motivo }))),
+    );
+    const stream = rws;
     api.listDevices()
       .then((l) => { etichetta = etichettaDispositivo(remoteUrl, l as { label?: string; url: string }[]); })
       .catch(() => { /* resta l'host */ });
@@ -91,9 +117,26 @@ export function useRemoteLogStream(): void {
       }
     };
 
+    const onOpen = () => {
+      if (aperto) return;
+      aperto = true;
+      appendLog(rigaDelCanale(etichetta, "INFO", i18n.t("logRemoto.aperto")));
+    };
+    const onClose = (ev: CloseEvent) => {
+      if (!aperto) return;
+      aperto = false;
+      appendLog(rigaDelCanale(etichetta, "WARN", i18n.t("logRemoto.chiuso", {
+        motivo: ev.reason || i18n.t("ws.refused", { code: ev.code }),
+      })));
+    };
+
     stream.on("message", onMessage);
+    stream.on("open", onOpen);
+    stream.on("close", onClose);
     return () => {
       stream.off("message", onMessage);
+      stream.off("open", onOpen);
+      stream.off("close", onClose);
       stream.destroy();
       if (rws === stream) rws = null;
     };

@@ -6,6 +6,7 @@ import { describe, it, expect, vi, afterEach } from "vitest";
 import "../src/i18n/index";
 import { SvgObject } from "../src/canvas/SvgCanvas";
 import { api } from "../src/api/client";
+import { useAppStore } from "../src/store";
 import { rispondi, type Richiesta } from "../src/finestraAvviso/finestraAvviso";
 import type { SynopticObject, TagState } from "../src/types";
 
@@ -49,12 +50,46 @@ describe("le domande del viewer", () => {
       critical: true, write_value: true, release_value: false } as SynopticObject;
     const d = disegna(obj, stato(false));
     const g = d.container.querySelector("g")!;
-    await act(async () => { fireEvent.mouseDown(g); });
-    await act(async () => { fireEvent.mouseUp(g); });
+    await act(async () => { fireEvent.pointerDown(g); });
+    await act(async () => { fireEvent.pointerUp(g); });
     expect(scritte).toEqual([["t", true]]);
     await act(async () => { await vi.advanceTimersByTimeAsync(600); });
     expect(scritte).toEqual([["t", true], ["t", false]]);
     expect(d.onWriteTag).not.toHaveBeenCalled();
+  });
+
+  it("un momentaneo col dito: scrive alla pressione, una volta al rilascio, senza domande", async () => {
+    // Collaudo del 07-11-2026 sul touch del TC620: coi soli eventi del mouse la
+    // pressione lunga non mandava niente.
+    const obj = { id: "b", type: "button", x: 0, y: 0, width: 100, height: 30, tag: "t", button_mode: "momentary",
+      require_confirm: true, write_value: true, release_value: false } as SynopticObject;
+    r = rispondi(() => true);
+    const d = disegna(obj, stato(false));
+    const g = d.container.querySelector("g")!;
+    await act(async () => { fireEvent.pointerDown(g, { pointerType: "touch" }); });
+    expect(d.onWriteTag.mock.calls).toEqual([["t", true]]);
+    await act(async () => { fireEvent.pointerUp(g, { pointerType: "touch" }); });
+    await act(async () => { fireEvent.pointerLeave(g, { pointerType: "touch" }); });
+    expect(d.onWriteTag.mock.calls).toEqual([["t", true], ["t", false]]);
+    expect(r.chiamate).toHaveLength(0);
+  });
+
+  it("un comando critico senza accesso dice che serve l'accesso, invece del 403", async () => {
+    // Collaudo del 07-11-2026: il sentinella «no-auth» senza nome è un anonimo
+    // su un pannello con utenti, non un pannello senza password.
+    useAppStore.setState({ authToken: "no-auth", authUser: null });
+    try {
+      const scrivi = vi.spyOn(api, "writeTag").mockResolvedValue(undefined as never);
+      r = rispondi(() => true);
+      const obj = { id: "b", type: "button", x: 0, y: 0, width: 100, height: 30, tag: "t", button_mode: "write",
+        critical: true, write_value: true } as SynopticObject;
+      const d = disegna(obj, stato(false));
+      await act(async () => { fireEvent.click(d.container.querySelector("g")!); });
+      expect(scrivi).not.toHaveBeenCalled();
+      expect(r.chiamate.map((c) => c.tipo)).toEqual(["avviso"]);
+    } finally {
+      useAppStore.setState({ authToken: null, authUser: null });
+    }
   });
 
   it("un toggle confermato mentre il tag cambia non scrive l'opposto", async () => {

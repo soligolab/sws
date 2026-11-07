@@ -3454,8 +3454,25 @@ function AlarmViewerWidget({ width, height, mode, maxRows, prefix, allowedSev, s
     );
   }
 
+  // L'elenco ha le stesse azioni della tabella (collaudo del 07-11-2026): «ACK
+  // tutti» e «metti a tacere» c'erano solo in modalità tabella, e nell'elenco
+  // — il modo predefinito — le due caselle del pannello proprietà non facevano
+  // niente.
+  const daConfermare = filtered.filter((a) => !a.acknowledged).map((a) => a.def.id);
   return (
     <div style={{ ...containerStyle, overflowY: "auto" }}>
+      {showAckAll && canAck && (
+        <div style={{ display: "flex", justifyContent: "flex-end", padding: "2px 4px", borderBottom: "1px solid #1e293b" }}>
+          <button
+            data-testid="allarmi-ack-tutti"
+            onClick={() => void handleAckAll(daConfermare)}
+            disabled={daConfermare.length === 0}
+            title={t("alarm.ackAllTitle")}
+            style={{ fontSize: corpoSecondario(corpo), padding: "1px 8px", background: "#1e293b",
+                     border: "1px solid #334155", borderRadius: 3, color: "#94a3b8", cursor: "pointer" }}
+          >✓ ACK tutti ({daConfermare.length})</button>
+        </div>
+      )}
       {filtered.map((a) => {
         const sev = a.def.severity ?? "Warning";
         return (
@@ -3473,6 +3490,15 @@ function AlarmViewerWidget({ width, height, mode, maxRows, prefix, allowedSev, s
           <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
             {locMsg(a.def.message) || a.def.id}
           </span>
+          {showShelve && canAck && (
+            <button
+              data-testid={`allarme-tacere-${a.def.id}`}
+              onClick={(e) => { e.stopPropagation(); void handleShelve(a.def.id); }}
+              title={t("alarm.shelveTitle")}
+              style={{ fontSize: corpoAnnotazione(corpo), padding: "1px 4px", background: "transparent", border: "none", color: "#94a3b8", cursor: "pointer", flexShrink: 0 }}>
+              🔇
+            </button>
+          )}
           {showAck && canAck && !a.acknowledged && (
             <button
               onClick={(e) => { e.stopPropagation(); void ackWithReason(a.def.id); }}
@@ -3485,6 +3511,28 @@ function AlarmViewerWidget({ width, height, mode, maxRows, prefix, allowedSev, s
       })}
     </div>
   );
+}
+
+/** Pressione e rilascio di un comando a runtime, uguali per mouse, dito e
+ *  penna. Il menu della pressione lunga non si apre: sul pannello è il gesto
+ *  stesso del momentaneo. */
+function gestiPressione(premi: () => void, rilascia: () => void) {
+  // Il rilascio una volta sola: col dito `pointerleave` arriva anche dopo
+  // `pointerup`. Lo stato sta sull'elemento, perché fra pressione e rilascio
+  // il componente si ridisegna (il valore del tag cambia).
+  const lascia = (e: React.PointerEvent<SVGElement>) => {
+    const el = e.currentTarget;
+    if (el.dataset.premuto !== "1") return;
+    delete el.dataset.premuto;
+    rilascia();
+  };
+  return {
+    onPointerDown: (e: React.PointerEvent<SVGElement>) => { e.currentTarget.dataset.premuto = "1"; premi(); },
+    onPointerUp: lascia,
+    onPointerLeave: lascia,
+    onPointerCancel: lascia,
+    onContextMenu: (e: React.MouseEvent) => e.preventDefault(),
+  };
 }
 
 /** Substitute `{param}` placeholders in a faceplate child's `tag`/`label`/
@@ -3780,9 +3828,19 @@ function SvgObjectCorpo(p: ObjProps) {
         for (const [id, v] of daScrivereOra()) onWriteTag?.(id, v);
         return true;
       }
+      // Il sentinella `"no-auth"` vuol dire due cose: un pannello senza utenti
+      // (whoami risponde l'admin sintetico, con un nome) oppure **nessuno ha
+      // fatto l'accesso** su un pannello che gli utenti li ha (nome vuoto). Nel
+      // secondo caso la scrittura partiva senza credenziali e tornava «403
+      // forbidden» (collaudo del 07-11-2026 sul TC620): si dice cosa manca.
+      const sessione = useAppStore.getState();
+      if (sessione.authToken === "no-auth" && !sessione.authUser) {
+        void avviso({ testo: t("viewer.serveAccesso"), livello: "errore" });
+        return false;
+      }
       // In no-auth mode non esistono password: il flusso salta la verifica
       // (il server risponderebbe comunque 204) ma il motivo resta richiesto.
-      if (useAppStore.getState().authToken !== "no-auth") {
+      if (sessione.authToken !== "no-auth") {
         const pw = await chiedi({ testo: t("viewer.reauthPrompt"), password: true, ok: etichette.si, no: etichette.no });
         if (pw === null) return false;
         try {
@@ -4600,18 +4658,18 @@ function SvgObjectCorpo(p: ObjProps) {
     // increment/decrement. Il momentary usa press/release; le altre il click.
     const { doCommand, premi, rilascia } = comando(obj.tag);
     return (
-      <g style={{ cursor: isEditMode ? editCursor : "pointer" }}
+      <g style={{ cursor: isEditMode ? editCursor : "pointer", touchAction: isEditMode ? undefined : "none" }}
         onMouseDown={(e) => {
-          if (isEditMode) { handleMouseDown(e); return; }
-          premi();
+          if (isEditMode) handleMouseDown(e);
         }}
-        onMouseUp={() => {
-          if (!isEditMode) rilascia();
-        }}
-        onMouseLeave={() => {
-          // Il dito/mouse che scivola fuori NON deve lasciare il comando attivo.
-          if (!isEditMode) rilascia();
-        }}
+        // A runtime pressione e rilascio sono eventi **pointer** (07-11-2026):
+        // coi soli eventi del mouse, sullo schermo touch del TC620 una pressione
+        // lunga non mandava niente finché il dito non si alzava, e un tocco
+        // breve mandava pressione e rilascio insieme — il momentaneo accendeva
+        // la luce per un istante e tenendo premuto non faceva nulla.
+        // `pointercancel` è il browser che si prende il gesto (uno scorrimento):
+        // il comando non deve restare attivo.
+        {...(isEditMode ? {} : gestiPressione(premi, rilascia))}
         onClick={(e) => {
           e.stopPropagation();
           if (!isEditMode) doCommand();
@@ -6483,11 +6541,11 @@ function SvgObjectCorpo(p: ObjProps) {
             In runtime, se il simbolo comanda (14-10-2026), è anche il pulsante. */}
         <rect x={obj.x} y={obj.y} width={w} height={h} fill="transparent"
           data-testid={comandaSimbolo && !isEditMode ? `simbolo-comando-${obj.id}` : undefined}
-          onMouseDown={(e) => { if (isEditMode || !comandaSimbolo) handleMouseDown(e); else cmdSimbolo.premi(); }}
-          onMouseUp={() => { if (!isEditMode && comandaSimbolo) cmdSimbolo.rilascia(); }}
-          onMouseLeave={() => { if (!isEditMode && comandaSimbolo) cmdSimbolo.rilascia(); }}
+          onMouseDown={(e) => { if (isEditMode || !comandaSimbolo) handleMouseDown(e); }}
+          {...(!isEditMode && comandaSimbolo ? gestiPressione(cmdSimbolo.premi, cmdSimbolo.rilascia) : {})}
           onClick={(e) => { e.stopPropagation(); if (!isEditMode && comandaSimbolo) cmdSimbolo.doCommand(); }}
-          style={{ cursor: !isEditMode && comandaSimbolo ? "pointer" : editCursor }} />
+          style={{ cursor: !isEditMode && comandaSimbolo ? "pointer" : editCursor,
+                   touchAction: !isEditMode && comandaSimbolo ? "none" : undefined }} />
         {applyTransform(obj, w, h, <>
           {bgLayer(obj.x, obj.y, w, h, 4)}
           {customEntry?.svg ? (

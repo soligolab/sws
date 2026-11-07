@@ -468,7 +468,8 @@
     "reasonPrompt": "Reason for the command (recorded in the audit log):",
     "reasonRequired": "A reason is required for this command.",
     "silence": "Silence the sound for current alarms",
-    "silenced": "Sound silenced (a new alarm re-enables it)"
+    "silenced": "Sound silenced (a new alarm re-enables it)",
+    "serveAccesso": "This command needs a login: sign in with your user, then try again."
   },
   "alarm": {
     "noAlarms": "No active alarms",
@@ -693,7 +694,10 @@
     "mustSetNewPassword": ". To continue you must set a new password.",
     "email": "Email",
     "annulla": "Cancel",
-    "logout": "Log out"
+    "logout": "Log out",
+    "piuTardi": "Later",
+    "nonChiederePiu": "Don't ask again",
+    "nonChiederePiuConferma": "The password will stay as it is and the panel will stop asking to change it. Only do this if you chose the password yourself and nobody else knows it: whoever knows it gets in as you. Continue?"
   },
   "props": {
     "diag45": "45° diagonal",
@@ -1948,7 +1952,8 @@
     "manageSenzaPodman": "This machine has no podman, so there is no SWS container to manage here. For a panel, untick «Local» and type its address and SSH user.",
     "manageDalCloud": "From the cloud this tab has nothing to manage: the cloud does not get into panels over SSH, and its own container is not a panel. For the connected panel use Device → Connection (update, service configuration, OpenPLC); for commands on the container, SSH into the panel from its network.",
     "uninstallTitolo": "Uninstall",
-    "uninstallPurgeTitolo": "Uninstall and wipe data"
+    "uninstallPurgeTitolo": "Uninstall and wipe data",
+    "deployUtentiDaCambiare": "This project's users will replace the panel's ({{pannello}}).\n\nThese arrive with a mandatory password change: {{utenti}}. At the first login on the panel a new password will be asked (it can be postponed).\n\nTo keep the panel's users, cancel and untick «Replace users too». Continue?"
   },
   "langtab": {
     "migrate": "Migrate texts…",
@@ -2016,7 +2021,6 @@
   },
   "logWindow": {
     "open": "Logs in a window",
-    "localOnly": "Local runtime logs only — lines from a connected remote runtime appear in the editor window.",
     "noAuth": "Not signed in",
     "noAuthHint": "Sign in from the editor window, then reload this one.",
     "reload": "Reload",
@@ -3267,7 +3271,8 @@
     "avviato": "Update to {{a}} started: the runtime is restarting. Reconnect in a minute to see the new version.",
     "tornatoAlla": "the panel went back to {{da}}",
     "inCorsoSulPannello": "An update is in progress on the panel: the outcome shows here in a couple of minutes.",
-    "apriInstallazione": "Open Install"
+    "apriInstallazione": "Open Install",
+    "istantaneaInCorso": "The panel is copying its data before updating (it is what a rollback needs): with a lot of history this can take a few minutes."
   },
   "finestra": {
     "orologio": "Panel clock: {{locale}} (UTC{{scostamento}}) · {{utc}} UTC",
@@ -4588,5 +4593,11 @@
       "lunghezza": "{{n}} / {{max}} characters",
       "nonScavalcano": "Project rules never override SWS's own: a model never applies a change by itself, and backgrounds are always made in two steps."
     }
+  },
+  "logRemoto": {
+    "canale": "link",
+    "aperto": "panel logs connected",
+    "chiuso": "panel logs interrupted: {{motivo}} — retrying",
+    "resa": "panel logs stopped: {{motivo}}"
   }
 }
