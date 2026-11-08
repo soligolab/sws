@@ -25,33 +25,6 @@
       "n": 1
     },
     {
-      "id": "tc-prest",
-      "dove": "0 · TC620 di casa · il giro della 2.26.0-rc.6",
-      "titolo": "Prestazioni: la colonna del pannello, le sorgenti, e la misura che si spegne",
-      "rif": "Prestazioni 1, 3, 5 (il 08-11 il punto 5 non passava: corretto nella rc.6)",
-      "scopo": "La scheda Prestazioni ha una colonna per il pannello collegato: il runtime e le sorgenti di CasaDomotica coi loro giri. Il pannello misura solo mentre qualcuno guarda. Il 08-11 la misura non si spegneva mai: la Configurazione resta montata dietro l'editor e la scheda nascosta continuava a chiedere i dati ogni 2 s. Ora smette appena è nascosta. Il lato IDE è già verificato da Claude l'08-11 (in vista 5 letture in 10 s, nascosta dietro l'editor nessuna, tornando riprende): resta da vedere sul pannello vero.",
-      "prima": "IDE nel cloud sulla rc.6 (ricarica la pagina), CasaDomotica aperto, collegato al TC620, entrato come Admin.",
-      "passi": [
-        "Configurazione → Istanza → Prestazioni: guarda la colonna del pannello.",
-        "Sul banco «Controlla da qui», con la scheda aperta (o chiedi a Claude, che dalla macchina `ufficio` raggiunge il TC620).",
-        "Passa all'editor (una pagina qualunque), **senza** ricaricare il browser. Aspetta più di 60 s e ricontrolla."
-      ],
-      "atteso": [
-        "Il runtime del pannello; niente viewer LVGL (CasaDomotica è web).",
-        "Le sorgenti di CasaDomotica coi loro giri, e lo storico.",
-        "{\"attiva\":true} con la scheda aperta, {\"attiva\":false} un minuto dopo essere passato all'editor."
-      ],
-      "sblocca": "Prestazioni 1, 3, 5",
-      "link": [
-        {
-          "testo": "viewer TC620",
-          "url": "https://tc620-a-p3-c6-07aff9.local:7443"
-        }
-      ],
-      "sonda": "https://tc620-a-p3-c6-07aff9.local:7443/api/prestazioni/richiesta",
-      "n": 2
-    },
-    {
       "id": "tc-sorgente",
       "dove": "2 · TC620 di casa · CasaDomotica",
       "titolo": "Se un dispositivo si stacca, SWS lo dice",

@@ -110,23 +110,11 @@ sull'immagine 2.25.2.
         `tank_level` mostrano «1450 rpm» e «62.5 %».
 14. [ ] **L'assistente e i nomi tradotti** (T2): trova una pagina dal nome tradotto, e il riepilogo non mostra `{{t0069}}`.
 
-## Prestazioni: dove se ne va il tempo (26-10-2026)
+## Prestazioni: dove se ne va il tempo (26-10-2026) — chiusa
 
-Sul WP630 (o sul TC620) dall'IDE collegato. *(05-11-2026: la 2 è misurata, la 4 confermata; restano 1, 3, 5.)*
-
-1. [ ] Dall'IDE collegato al TC620: Configurazione → Istanza → Prestazioni. La colonna del pannello mostra il runtime;
-       il viewer LVGL compare solo se è quello che disegna lo schermo.
-2. [x] (Solo su un pannello col viewer LVGL.) «Tubo: corpo (SVG)» con per fotogramma e p95 — **misurato il 27-10-2026
-       sul WP630 in LVGL** (4,9 ms per fotogramma, p95 15; `docs/archive/2026-10-26-dove-se-ne-va-il-tempo.md`).
-       «Tubo: bocchettoni» compare solo quando i bocchettoni si ridisegnano.
-3. [ ] La colonna del runtime mostra le sorgenti di CasaDomotica (MQTT, Modbus) con i loro giri, e lo storico.
-4. [x] **Il tubo segue la pompa** (sul TC620, viewer web) — **confermato dal maintainer il 27-10-2026**, «sullo schermo ora si muove perfettamente», dopo il `flushSync` in `useSegueIlMoto`: con lo slider, la pompa che scorre lungo il percorso non si
-       stacca più dal tubo mentre si muove (prima 10-15 px nella direzione del moto).
-5. [ ] Chiudere la pagina: dopo un minuto il viewer smette di mandare. Nel log non si vede (nessuno scrive una riga
-       per quella POST): si guarda la richiesta, `curl -sk https://<pannello>:7443/api/prestazioni/richiesta` →
-       `{"attiva":true}` con la pagina aperta, `{"attiva":false}` più di 60 s dopo averla chiusa. *(Corretto il 05-11.)*
-       *(08-11: non passava dal cloud — la scheda nascosta dietro l'editor leggeva ancora ogni 2 s. Corretto nella
-       2.26.0-rc.6 (`useInVista`), il lato IDE verificato in automatico; resta il `curl` sul pannello.)*
+Le cinque voci passate: 2 e 4 il 27-10, 1, 3 e 5 l'08-11-2026 sul TC620 di casa con CasaDomotica dall'IDE nel cloud
+(2.26.0-rc.6): colonna del pannello col runtime e le sorgenti, e la misura che si spegne circa un minuto dopo essere
+passati all'editor (`curl …/api/prestazioni/richiesta` → `{"attiva":false}`). Il testo delle voci è nella storia git.
 
 ## A. La misura che blocca C4 — chiusa
 
