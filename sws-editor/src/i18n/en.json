@@ -222,7 +222,8 @@
       "ia_assistente": "Assistant",
       "ia_fornitori": "Providers and keys",
       "ia_scopi": "A model per purpose",
-      "ia_regole": "Project rules"
+      "ia_regole": "Project rules",
+      "impostazioni": "Settings"
     },
     "sottorami": {
       "device": "Device",
@@ -4605,5 +4606,9 @@
     "rispostaSi": "yes",
     "rispostaNo": "no",
     "rispostaAnnullata": "cancelled"
+  },
+  "impostazioniTab": {
+    "testo": "What applies to every page of the project. It is changed in the «Project settings» window, which also opens from a page's panel.",
+    "tuttoSchermo": "Full-screen viewer"
   }
 }

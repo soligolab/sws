@@ -222,7 +222,8 @@
       "ia_assistente": "Assistente",
       "ia_fornitori": "Fornitori e chiavi",
       "ia_scopi": "Un modello per scopo",
-      "ia_regole": "Regole del progetto"
+      "ia_regole": "Regole del progetto",
+      "impostazioni": "Impostazioni"
     },
     "sottorami": {
       "device": "Device",
@@ -4605,5 +4606,9 @@
     "rispostaSi": "sì",
     "rispostaNo": "no",
     "rispostaAnnullata": "annullato"
+  },
+  "impostazioniTab": {
+    "testo": "Quello che vale per tutte le pagine del progetto. Si cambia nella finestra «Impostazioni progetto», che si apre anche dal pannello di una pagina.",
+    "tuttoSchermo": "Visualizzatore a tutto schermo"
   }
 }

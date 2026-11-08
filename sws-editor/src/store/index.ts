@@ -1,4 +1,5 @@
 import { prefissoSchermo } from "@/api/prefisso";
+import { inCodaLayout } from "@/layoutInCoda";
 import { create } from "zustand";
 import { impostaStileProgetto } from "@/symbols/stileProgetto";
 import i18n from "i18next";
@@ -3148,8 +3149,15 @@ export const useAppStore = create<AppState>((set, get) => {
       const layoutOra = get().project?.page_layout;
       if (layoutOra && alberoCambiato(get())) {
         try {
-          await api.updatePageLayout(layoutOra);
-          set({ savedPageTree: layoutOra.page_tree ?? [] });
+          // Dalla coda delle scritture di `page_layout` (08-11-2026): il layout
+          // si rilegge quando tocca a lui, così una scrittura della finestra
+          // «Impostazioni progetto» partita prima non va persa.
+          const scritto = await inCodaLayout(async () => {
+            const l = get().project?.page_layout ?? layoutOra;
+            await api.updatePageLayout(l);
+            return l;
+          });
+          set({ savedPageTree: scritto.page_tree ?? [] });
         } catch (e) {
           set({
             saveStatus: "error",

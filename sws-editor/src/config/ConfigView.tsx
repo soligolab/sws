@@ -30,6 +30,7 @@ import { LanguagesTab } from "@/config/schede/LanguagesTab";
 import { StileSimboliTab } from "@/config/schede/StileSimboliTab";
 import { BackupsTab } from "@/config/schede/BackupsTab";
 import { GitTab } from "@/config/schede/GitTab";
+import { ImpostazioniProgettoTab } from "@/config/schede/ImpostazioniProgettoTab";
 
 /** Il componente di ogni scheda. Un `Record` e non un elenco: se una scheda
  *  entra in `SCHEDE` e non qui, è il compilatore a dirlo. Le schede ospitate
@@ -37,6 +38,7 @@ import { GitTab } from "@/config/schede/GitTab";
  *  riceve la scheda scelta e sa quale delle sue viste mostrare. */
 type IdConComponente = Exclude<IdScheda, IdOspitato>;
 const COMPONENTI: Record<IdConComponente, React.ComponentType<{ scheda: IdScheda }>> = {
+  impostazioni: ImpostazioniProgettoTab,
   reports: ReportsTab,
   certificati: CertificatiTab,
   prestazioni: PrestazioniTab,

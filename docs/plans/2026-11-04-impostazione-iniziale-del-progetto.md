@@ -122,6 +122,13 @@ via API su un runtime di prova; la prova nell'IDE è del maintainer.
   `router.rs:11389-11394`).
 - Il piano si archivia.
 
+*Fatta l'08-11-2026 sul ramo `feat/impostazioni-progetto`, annidato su I1*: la foglia Configurazione → Progetto →
+Impostazioni (`ImpostazioniProgettoTab`: il riepilogo e il bottone che apre la finestra; nello stile VS Code sotto la
+voce Progetto); **una coda sola per le scritture di `page_layout`** (`layoutInCoda.ts`: `salvaLayout`, la prima
+impostazione di una pagina, il boot abilitato, la cornice predefinita e l'albero delle pagine nel Salva; il test
+`scrittoriLayout.test.ts` vieta un `updatePageLayout` fuori coda). `PropostaCornice` era già uscita con I1. Il piano si
+archivia dopo il collaudo del maintainer.
+
 ## Da decidere all'inizio di ogni sessione
 
 La proposta vale se il maintainer non dice altro.

@@ -112,7 +112,7 @@ describe("nello store", () => {
 
   beforeEach(() => reset(undefined, [sin("a"), sin("b"), boot("z")]));
 
-  it("impostare le misure sulla prima pagina le porta sull'altra, in un solo passo di cronologia, e salva il predefinito", () => {
+  it("impostare le misure sulla prima pagina le porta sull'altra, in un solo passo di cronologia, e salva il predefinito", async () => {
     aggiornaPagina("a", { width: 1024, height: 600 });
     expect(stato().pages.find((p) => p.id === "a")).toMatchObject({ width: 1024, height: 600 });
     expect(stato().pages.find((p) => p.id === "b")).toMatchObject({ width: 1024, height: 600 });
@@ -120,7 +120,8 @@ describe("nello store", () => {
     // definisce lo stile dell'altra» fra le due pagine con cui nasce un progetto.
     expect(stato().pages.find((p) => p.id === "z")).toMatchObject({ width: 1024, height: 600 });
     expect(stato().past).toHaveLength(1);
-    expect(api.updatePageLayout).toHaveBeenCalledWith(expect.objectContaining({ default_width: 1024, default_height: 600 }));
+    // Dalla coda delle scritture di `page_layout` (08-11-2026): parte appena tocca a lei.
+    await vi.waitFor(() => expect(api.updatePageLayout).toHaveBeenCalledWith(expect.objectContaining({ default_width: 1024, default_height: 600 })));
     expect(stato().project?.page_layout?.default_width).toBe(1024);
   });
 

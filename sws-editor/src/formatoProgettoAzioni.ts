@@ -1,16 +1,11 @@
 import { api } from "@/api/client";
+import { inCodaLayout } from "@/layoutInCoda";
 import { patchDaPredefinito, patchSovrascrittura, primaImpostazione, type FormatoPagina, type GenerePagina } from "@/formatoProgetto";
 import { eBoot } from "@/boot/tipi";
 import { eCornice } from "@/cornici/modello";
 import { eFaceplateDef } from "@/faceplate/modello";
 import { useAppStore } from "@/store";
 import type { PageLayoutConfig, SynopticPage } from "@/types";
-
-/** Le scritture di `page_layout`, una dopo l'altra (05-11-2026). Ogni `PUT` è
- *  versionata: due modifiche ravvicinate nella finestra «Impostazioni
- *  progetto» partivano dalla stessa versione, la seconda prendeva un 409
- *  «modificato da qualcun altro» e si perdeva. */
-let inCoda: Promise<unknown> = Promise.resolve();
 
 /** Scrive `page_layout` sul server e nello store. Una modifica nostra a
  *  `project.yaml` fuori da «Salva»: l'evento rifissa la baseline del watcher, o
@@ -20,15 +15,13 @@ let inCoda: Promise<unknown> = Promise.resolve();
 export function salvaLayout(
   cfg: PageLayoutConfig | ((attuale: PageLayoutConfig | undefined) => PageLayoutConfig),
 ): Promise<PageLayoutConfig> {
-  const giro = inCoda.catch(() => undefined).then(async () => {
+  return inCodaLayout(async () => {
     const nuovo = typeof cfg === "function" ? cfg(useAppStore.getState().project?.page_layout) : cfg;
     await api.updatePageLayout(nuovo);
     useAppStore.getState().updateProjectPageLayout(nuovo);
     try { window.dispatchEvent(new CustomEvent("sws:project-switched")); } catch { /* test */ }
     return nuovo;
   });
-  inCoda = giro;
-  return giro;
 }
 
 /** Modifica le proprietà di una pagina applicando la regola «la prima pagina
@@ -49,10 +42,10 @@ export function aggiornaPagina(id: string, patch: Partial<SynopticPage>): void {
   st.updatePagesProps([{ id, patch }, ...altre]);
   // Subito nello store (una seconda modifica prima della risposta del server non
   // deve rifare la «prima impostazione»), poi sul server.
-  const cfg = nuovo as PageLayoutConfig;
-  st.updateProjectPageLayout(cfg);
-  api.updatePageLayout(cfg)
-    .then(() => { try { window.dispatchEvent(new CustomEvent("sws:project-switched")); } catch { /* test */ } })
+  // Sul server si scrive quello che c'è nello store quando tocca a lui: una
+  // scrittura in coda prima di questa non va persa.
+  st.updateProjectPageLayout(nuovo as PageLayoutConfig);
+  salvaLayout((attuale) => attuale ?? (nuovo as PageLayoutConfig))
     .catch(() => { /* il predefinito si riprova alla prossima modifica */ });
 }
 

@@ -71,6 +71,9 @@ export interface SchedaConfig {
 
 /** In ordine di barra. */
 export const SCHEDE = [
+  // Le impostazioni che valgono per tutte le pagine (08-11-2026): un
+  // riepilogo e il bottone che apre la finestra «Impostazioni progetto».
+  { id: "impostazioni",  ramo: "progetto",  icona: "⚙", soloAdmin: false, portaBozza: false, richiedeProgetto: true },
   { id: "tags",          ramo: "progetto",  icona: "🏷", soloAdmin: false, portaBozza: true,  richiedeProgetto: true, sezione: "tags"  },
   { id: "types",         ramo: "progetto",  icona: "🧬", soloAdmin: false, portaBozza: true,  richiedeProgetto: true,  ospite: "tags", sezione: "types" },
   { id: "protocols",     ramo: "progetto",  icona: "🔌", soloAdmin: false, portaBozza: true,  richiedeProgetto: true,  elementi: true, sezione: "sources" },
