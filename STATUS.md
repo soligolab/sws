@@ -12,6 +12,33 @@
 > resta in «Storico». Qui vive solo ciò che serve a riprendere il lavoro.
 
 
+## ▶ Riprendere da qui — la 2.26.0-rc.8: dispositivi MQTT, e CasaDomotica con una sorgente MQTT sola (2026-11-08 sera, ufficio)
+
+**`main` e il tag `2.26.0-rc.8` su origin**, immagini arm64 e amd64 pubblicate. Il tag `2.26.0-rc.7` è su origin
+**senza immagine**: la build è stata fermata prima di pubblicare, perché provando la parte B è uscito il difetto delle
+sottoscrizioni (sotto); la rc.8 porta lo stesso blocco Novità 2.26.0, quindi non si perde niente. VPS: gateway e
+progetti su **`288b6e4e-amd64`** (rc.8), copia del quadlet accanto (`.prima-rc8-…`). Il TC620 è sulla rc.5 o rc.6.
+
+Fatto in sessione ([piano](docs/plans/2026-11-08-mqtt-dispositivi.md)):
+1. **Parte A** (`6b66e9d7`): disponibilità per dispositivo dentro una sorgente MQTT — `dispositivi` + `dispositivo`
+   sulle righe, Bad solo sulle righe del dispositivo morto, tag `<sorgente>.<dispositivo>.disponibile`, sezione
+   DISPOSITIVI e colonna nella card, «Raggruppa per dispositivo».
+2. **Il difetto** (`8872a435`): una sorgente con più di ~30 righe restava «mai collegata» (una SUBSCRIBE per riga in
+   una coda da 32 prima di leggere l'eventloop). Ora un topic una volta, coda dimensionata.
+3. **Parte B applicata sul VPS** (generatore `tmp/casadomotica-mqtt/gen.py` + `applica.py`, copia
+   `project.yaml.prima-mqtt-unica-20261108-202659`): una sorgente `mqtt-casa` con 29 dispositivi e 116 righe al posto
+   di quattro; tipi `smart_plug` (plug_tv, plug_hob, plug_lab) e `shutter` (tre tapparelle); id già usati tenuti;
+   7 allarmi di disponibilità (4 prese, 3 tapparelle). Provata su un runtime di prova col broker vero: 24 dispositivi
+   rispondono, 5 offline davvero, zero rilievi. **Non ancora aperta nel cloud né mandata al pannello.**
+
+**Da fare, in quest'ordine:**
+1. Il maintainer apre CasaDomotica nel cloud e guarda la card `mqtt-casa` (pallini, valori) e le pagine Sandokan,
+   Home, Garage, «Finestre e porte».
+2. **TC620 alla rc.8 con «Aggiorna ora» prima del deploy**: un runtime vecchio ignorerebbe i dispositivi.
+3. Deploy sul TC620, poi il collaudo «stacca Sandokan» rifatto: Bad solo `sandokan.*`.
+4. Le finestre del MCM260 sono Bad perché il bridge pubblica `0`/`1` numerici (SWS li rifiuta per un bool, di
+   proposito): la correzione la fa il maintainer sul bridge (`tmp/richiesta-bridge-mcm260.md`).
+
 ## ▶ Riprendere da qui — la 2.26.0-rc.6 pubblicata: le due correzioni del collaudo dell'08-11 (2026-11-08, ufficio)
 
 **`main` e i tag `2.26.0-rc.3` … `rc.6` sono su origin** (push dell'08-11, `check_static` tutto verde). Nessun ramo
