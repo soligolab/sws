@@ -31,13 +31,13 @@ Fatto in sessione ([piano](docs/plans/2026-11-08-mqtt-dispositivi.md)):
    7 allarmi di disponibilità (4 prese, 3 tapparelle). Provata su un runtime di prova col broker vero: 24 dispositivi
    rispondono, 5 offline davvero, zero rilievi. **Non ancora aperta nel cloud né mandata al pannello.**
 
-**Da fare, in quest'ordine:**
-1. Il maintainer apre CasaDomotica nel cloud e guarda la card `mqtt-casa` (pallini, valori) e le pagine Sandokan,
-   Home, Garage, «Finestre e porte».
-2. **TC620 alla rc.8 con «Aggiorna ora» prima del deploy**: un runtime vecchio ignorerebbe i dispositivi.
-3. Deploy sul TC620, poi il collaudo «stacca Sandokan» rifatto: Bad solo `sandokan.*`.
-4. Le finestre del MCM260 sono Bad perché il bridge pubblica `0`/`1` numerici (SWS li rifiuta per un bool, di
-   proposito): la correzione la fa il maintainer sul bridge (`tmp/richiesta-bridge-mcm260.md`).
+**Fatto la sera stessa:** il bridge pubblica gli ingressi del MCM260 come `true`/`false` (true = aperta / contatto
+aperto, descrizioni aggiornate) e non pubblica più `e_rev`; il TC620 è sulla **rc.8**, CasaDomotica col `mqtt-casa`
+unico è deployato e «tutto funziona regolarmente» (maintainer, 08-11). Il contatore del rack del garage è rotto:
+`garage_meter.*` restano senza valore finché non arriva il ricambio, e il progetto non va toccato.
+
+**Resta**: il collaudo «stacca Sandokan» con la sorgente unica (Bad solo `sandokan.*`, il resto Good), poi il piano
+si archivia.
 
 ## ▶ Riprendere da qui — la 2.26.0-rc.6 pubblicata: le due correzioni del collaudo dell'08-11 (2026-11-08, ufficio)
 
