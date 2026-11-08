@@ -198,7 +198,7 @@
       "protocols": "Protocols",
       "alarms": "Alarms",
       "datastores": "Datastore",
-      "scripts": "Python",
+      "scripts": "Scripts",
       "recipes": "Recipes",
       "notifications": "SMTP",
       "users": "Users",
@@ -236,7 +236,8 @@
       "sicurezza": "Security",
       "istanza": "Instance",
       "ide": "IDE",
-      "ia": "AI"
+      "ia": "AI",
+      "logica": "Logic"
     }
   },
   "editor": {
@@ -269,7 +270,6 @@
     "paletteLvglHint": "LVGL project: only objects already supported by the engine are shown.",
     "paletteLvglBadgeTitle": "Also available for LVGL projects",
     "sectionPageObjects": "Page objects",
-    "sectionFunctions": "FUNCTIONS",
     "historyBack": "Back to: {{label}}",
     "historyRestore": "Restore: {{label}}",
     "exportFailed": "Export failed: {{err}}",
@@ -337,7 +337,7 @@
     "match_tag": "tag",
     "match_type": "type",
     "tagUnused": "No reference found in pages, alarms, expressions or scripts.",
-    "tagUsageScope": "Recipes and Python functions are not checked.",
+    "tagUsageScope": "Recipes not checked; in functions and scripts only names written in quotes.",
     "raggruppaPer": "Group by:",
     "raggruppaAltro": "Other",
     "raggruppaSemplici": "Simple",
@@ -352,7 +352,8 @@
       "pagina": "Pages",
       "allarme": "Alarms",
       "espressione": "Expressions",
-      "script": "Scripts"
+      "script": "Scripts",
+      "funzione": "Functions"
     },
     "historyTitle": "History",
     "historyList": "Change history ({{n}} steps)",
@@ -1680,7 +1681,7 @@
     "useUnused": "Unused only",
     "useUsed": "Used only",
     "unusedLegend": "● amber = variable not referenced by pages, alarms, expressions or scripts (recipes and functions not checked)",
-    "unusedHint": "Not referenced by pages, alarms, expressions or scripts. Recipes and Python functions are not checked: verify before deleting.",
+    "unusedHint": "Not referenced by pages, alarms, expressions, scripts or functions. Recipes and names built in code are not checked: verify before deleting.",
     "usedIn": "Used in",
     "hostKeyChanged": "The host key of {{host}} does not match the one stored on this PC. This happens after every factory reset or reinstall of the panel, which generates new ones. If you just reset the device yourself, you can forget the old key and retry; otherwise stop and check you are talking to the right machine.",
     "hostKeyForget": "Forget the old key and retry",
@@ -1810,7 +1811,6 @@
     "uploadDbTitle": "Replaces the database file with one uploaded here (automatic backup of the previous one, needs a runtime restart).",
     "downloadRemoteDbTitle": "Download the database of the same datastore, but from the connected remote device (not from this local project).",
     "uploadRemoteDbTitle": "Replaces the database on the connected remote device (automatic backup of the previous one, needs a restart of the remote runtime).",
-    "openFunctionEditorTitle": "Open in the full-screen editor (parameters and snippets)",
     "telegramBotTrovato": "✓ Bot: {{nome}} · @{{username}}",
     "telegramBotNonRaggiunto": "Cannot identify the bot: {{errore}}",
     "telegramPasso1": "Open the chat with the bot and press Start (or add it to a group and send a message):",
@@ -2146,7 +2146,8 @@
     "faceplateDaSelezione": "Create faceplate from selection",
     "newFaceplate": "New faceplate",
     "faceplateBaseName": "Faceplate",
-    "faceplateJson": "Faceplate definition"
+    "faceplateJson": "Faceplate definition",
+    "renameFunction": "Rename function"
   },
   "storeErr": {
     "invalidRange": "Invalid range.",
@@ -2179,7 +2180,6 @@
     "noGroup": "no group",
     "delete": "Delete",
     "noFunctionsCreateOneBelow": "No functions. Create one below and link it to object events.",
-    "forScriptsThatStartOn": "For scripts that start on their own (at startup, at an interval, when a tag changes) see",
     "newFunction": "+ New function",
     "noTagsLoadAProject": "No tags — load a project.",
     "pointsToMissingPage": "points to a missing page",
@@ -2202,7 +2202,6 @@
     "senzaGruppo": "⤓ No group",
     "rinominaGruppo": "Rename group",
     "separaGruppo": "Ungroup",
-    "configurazionePython": "Configuration → Python",
     "att": {
       "barra": "Activity bar",
       "cerca": "Search",
@@ -2234,7 +2233,8 @@
       "ia": "AI",
       "iaNota": "The AI assistant and its models: chat, providers and keys, one model per purpose."
     },
-    "tagModifica": "Edit the tag"
+    "tagModifica": "Edit the tag",
+    "logica": "Logic"
   },
   "shell": {
     "offPage_one": "⚠ {{count}} object is off the sheet and will not be drawn at runtime. Drag it inside the dashed border to re-enable it, or enlarge the page.",
@@ -2523,7 +2523,8 @@
     "source": "source \"{{name}}\"",
     "expression": "expression of \"{{id}}\"",
     "script": "script \"{{id}}\"",
-    "recipe": "recipe \"{{name}}\""
+    "recipe": "recipe \"{{name}}\"",
+    "function": "function \"{{name}}\""
   },
   "ws": {
     "refused": "connection refused (code {{code}})",
@@ -2781,15 +2782,11 @@
     "deleteHistory": "Delete history",
     "scriptThatRunsWhenThe": "# Script that runs when the project opens\nprint('Hello from global script!')\n",
     "startup": "Startup",
-    "noFunctions": "No functions.",
-    "functionsAreEditedInThe": "Functions are edited in the editor: click an entry to open it.",
     "saved": "Saved.",
     "saveAll": "Save all",
     "new": "+ New",
-    "noScripts": "No scripts.",
     "msOptionalTakesPrecedence": "ms (optional, takes precedence)",
     "everyValue": "* every value\n",
-    "selectOrCreateAScript": "Select or create a script",
     "saved2": "✓ Saved",
     "noRecipes": "No recipes.",
     "selectOrCreateARecipe": "Select or create a recipe to edit it.",
@@ -2930,10 +2927,7 @@
     "firmaLocale": "Local fingerprint:",
     "ogniMs": "Every {{n}}ms",
     "ogniS": "Every {{n}}s",
-    "funzioniTitolo": "FUNCTIONS",
     "senzaNome": "(unnamed)",
-    "chiamataDaOggetto": "called by an object",
-    "parametriN": "{{n}} parameters",
     "abilitato": "Enabled",
     "disabilitato": "Disabled",
     "intervalloSecondi": "Interval (seconds)",
@@ -4610,5 +4604,34 @@
   "impostazioniTab": {
     "testo": "What applies to every page of the project. It is changed in the «Project settings» window, which also opens from a page's panel.",
     "tuttoSchermo": "Full-screen viewer"
+  },
+  "logica": {
+    "funzioni": "Functions ({{n}})",
+    "script": "Scripts ({{n}})",
+    "nessunoScript": "No scripts. A script starts on its own: at startup, at an interval, on a schedule or when a tag changes.",
+    "nuovoScript": "+ New script",
+    "cancellaFunzione": "Delete the function «{{nome}}»? The objects that call it will be left without it.",
+    "cancellaScript": "Delete the script «{{nome}}»? It goes away at the next Save.",
+    "triggerAvvio": "startup",
+    "titoloScript": "Python script",
+    "nomeGiaUsato": "The name «{{nome}}» is already used.",
+    "controlla": "Check",
+    "controllaAiuto": "Compiles the code without running it: no tag is read or written.",
+    "prova": "Try",
+    "provaAiuto": "Runs the saved function with its default parameters.",
+    "provaTitolo": "Run the function?",
+    "provaTesto": "«{{nome}}» really runs, with its default parameters: the tags it writes change on the connected plant. Pending changes are saved first.",
+    "salvaScript": "Save scripts",
+    "nomiForniti": "Names ready to use:",
+    "controlloOk": "No problems.",
+    "controlloKo": "To fix:",
+    "provaOk": "Done.",
+    "provaKo": "Failed:",
+    "senzaSandbox": "There is no sandbox on this machine: a forbidden statement passes here and will be refused on the panel.",
+    "riga": "line {{n}}",
+    "vietato": "forbidden:",
+    "nessunaUscita": "(no output)",
+    "scriptSpostati": "Scripts are written in the Logic section of the left panel, together with functions: they open in place of the synoptic.",
+    "lvglNonEsegue": "On the LVGL panel this function does not run: only the web viewer runs it."
   }
 }

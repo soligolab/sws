@@ -76,9 +76,9 @@ export function AlberoTagLive({ rientro = 20, puoAprire = true, esplora = false 
   const usage = useMemo(
     () => buildTagUsage({
       pages, faceplates, alarms: project?.alarms, tags,
-      globalScripts: project?.global_scripts,
+      globalScripts: project?.global_scripts, functions: project?.functions,
     }),
-    [pages, faceplates, project?.alarms, project?.global_scripts, tags],
+    [pages, faceplates, project?.alarms, project?.global_scripts, project?.functions, tags],
   );
   const usiDi = (id: string): TagUse[] => usage.get(id) ?? [];
 

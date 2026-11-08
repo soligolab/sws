@@ -25,7 +25,15 @@ export function RilieviProgetto() {
   // proprio il modulo da correggere. Riaprirla per il rilievo dopo è un clic.
   const vai = (d: Destinazione) => {
     if (d.kind === "config") navigateToConfig(d.tab, d.focus);
-    else {
+    else if (d.kind === "logica") {
+      const st = useAppStore.getState();
+      setAppMode("edit");
+      if (d.tipo === "script") st.selectScript(d.chiave);
+      else {
+        const f = st.project?.functions?.find((x) => x.id === d.chiave) ?? st.project?.functions?.find((x) => x.name === d.chiave);
+        if (f) st.selectFunction(f.id);
+      }
+    } else {
       setAppMode("edit");
       setCurrentPage(d.pageId);
       if (d.objectId) selectObject(d.objectId);

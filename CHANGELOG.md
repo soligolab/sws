@@ -17,6 +17,26 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
   `esiti.json` fuori da git, da cui si spuntano `COLLAUDI_IN_SOSPESO.md`, i piani e `Appunti.txt`.
 
 ### Cambiato
+- **Un progetto vuoto nasce impostato** (sessione I1 del piano dell'impostazione iniziale, 08-11-2026): «Nuovo
+  progetto» non chiede più il motore; il progetto nasce col segnale `impostazione_iniziale` e l'IDE apre da sé la
+  finestra «Impostazioni progetto» (motore, formato, sfondi, cornice). Alla chiusura il formato va su «Pagina 1» e sul
+  boot, si salva, e il segnale si spegne (`DELETE /api/project/impostazione-iniziale`). Le due pagine nascono coi nomi
+  della lingua principale e lo sfondo `#0f172a`, ora lo sfondo predefinito unico (`SFONDO_PREDEFINITO`, prima l'editor
+  usava `#1a1a2e`). Il dispositivo scelto si ricorda (`page_layout.dispositivo`): un WP630 non torna «Full HD 16:9».
+- **La cornice predefinita si sceglie solo nella finestra** (campo Cornice: nessuna, una esistente, una nuova da
+  modello); via la proposta nel ramo Cornici e la spunta nelle proprietà della cornice (regola UI n. 2).
+- **Configurazione → Progetto → Impostazioni** (I2): il riepilogo di quello che vale per tutte le pagine e il bottone
+  che apre la finestra. Le cinque scritture di `page_layout` passano da una coda sola (`layoutInCoda.ts`): due `PUT`
+  versionate partite insieme davano un 409 o si cancellavano a vicenda.
+- **La logica in un ramo solo** (sessione L1 del piano della logica unificata): la sezione Logica (Funzioni, Script,
+  Ricette) al posto di «ƒ Funzioni» e di Configurazione → Python e Ricette, nei due stili. Funzioni e script si aprono
+  nello stesso editor al centro (`LogicaEditor.tsx`), con **Controlla** (compila senza eseguire) e **Prova** (esegue la
+  funzione salvata, dopo una conferma); i rilievi portano alla riga. Gli script li scrive il Salva unico, solo se
+  cambiati. Le cancellazioni chiedono. `description` anche sugli script.
+- **Rinominare una funzione aggiorna chi la chiama** (`on_press_fn`/`on_release_fn` su oggetti, celle, sottocelle).
+- **Il codice delle funzioni entra nella ricerca degli usi di un tag e nella sua rinomina**, come quello degli script.
+- **I rilievi del validatore su funzioni e script** aprono l'editor della logica.
+
 - **Il pannello di destra della pagina, un gruppo per voce**: senza selezione la barra dello stile VS Code (e i rami
   in quello classico) mostra Pagina, Sfondo, Come finestra, Cornice e Faceplate, ciascuno coi suoi campi; prima era una
   colonna sola che mescolava pagina e progetto (`GRUPPI_PAGINA`, `EditorShell.tsx`).
@@ -81,6 +101,11 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
   il salvataggio non è finito.
 
 ### Corretto
+- **Uno ZIP caricato da «Nuovo progetto» va nell'azienda scelta** (`UploadQuery::azienda_id`): finiva sempre in
+  quella implicita. Il nome del progetto si controlla prima di mandarlo, con le regole del server: l'anteprima mostrava
+  un nome «ripulito» che il server poi rifiutava.
+- `framebuffer_device` esce dal modello: si chiedeva alla creazione e non lo leggeva nessuno. I progetti che lo portano
+  si leggono uguale.
 - **Collaudo del 07-11 sul TC620 (2.26.0-rc.3)**:
   - **i log del pannello nell'IDE del cloud**: `remoteLogStream.ts` apriva `/ws/remote/logs` senza il prefisso del
     gateway (`/p/<azienda>/<progetto>`), quindi il socket andava al gateway e non al container del progetto, e nessuna

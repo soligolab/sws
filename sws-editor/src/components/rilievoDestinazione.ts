@@ -8,7 +8,10 @@ import type { AppConfigTab } from "@/config/schede";
 
 export type Destinazione =
   | { kind: "config"; tab: AppConfigTab; focus: string | null }
-  | { kind: "page"; pageId: string; objectId: string | null };
+  | { kind: "page"; pageId: string; objectId: string | null }
+  /** Una funzione o uno script, nell'editor della logica (08-11-2026). Il
+   *  validatore nomina una funzione per id o, se manca, per nome. */
+  | { kind: "logica"; tipo: "funzione" | "script"; chiave: string };
 
 /** Sezione di `project.yaml` → scheda della Configurazione, e se l'id fra
  *  parentesi è un elemento che quella scheda sa aprire (foglia dell'albero). */
@@ -19,7 +22,6 @@ const SEZIONI: Record<string, { tab: AppConfigTab; conElemento: boolean }> = {
   // La scheda Allarmi non ha foglie nell'albero, ma evidenzia e scorre fino
   // alla riga dell'allarme che le si passa (26-09-2026).
   alarms: { tab: "alarms", conElemento: true },
-  global_scripts: { tab: "scripts", conElemento: true },
   datastores: { tab: "datastores", conElemento: true },
   notifications: { tab: "notifications", conElemento: false },
   languages: { tab: "languages", conElemento: false },
@@ -32,6 +34,9 @@ export function destinazioneRilievo(
   // Gli id stanno fra parentesi quadre e possono contenere punti
   // (`sandokan.power`): si legge fino alla prima `]`, non fino al punto.
   const p = /^project\.(\w+)(?:\[([^\]]*)\])?/.exec(path);
+  if (p && (p[1] === "functions" || p[1] === "global_scripts")) {
+    return p[2] ? { kind: "logica", tipo: p[1] === "functions" ? "funzione" : "script", chiave: p[2] } : null;
+  }
   if (p) {
     const sez = SEZIONI[p[1]];
     if (!sez) return null;

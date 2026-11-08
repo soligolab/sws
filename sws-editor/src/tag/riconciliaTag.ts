@@ -47,6 +47,7 @@ export function riferimentiDelProgetto(
     alarms: project.alarms ?? [],
     tags: project.tags ?? [],
     globalScripts: project.global_scripts ?? [],
+    functions: project.functions ?? [],
   });
   for (const id of usi.keys()) out.add(id);
   for (const id of sourceTagIds(project).keys()) out.add(id);

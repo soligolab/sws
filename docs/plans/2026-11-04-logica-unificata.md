@@ -81,6 +81,16 @@
   delle funzioni, rilievi cliccabili, i commenti sbagliati.
 - Test: `pannelloSinistro.test.tsx` (ordine e foglie), uno nuovo sulla rinomina di una funzione.
 
+*Fatta l'08-11-2026 sul ramo `feat/logica-un-ramo`, annidato su I2.* Decisioni del maintainer quel giorno: **l'editor
+si apre al centro** (come le funzioni), quindi anche gli script escono dalla Configurazione; **l'avviso LVGL** sul
+bottone, e il viewer LVGL che esegue `on_press_fn` in `Appunti.txt`. Fatto: `editor/LogicaEditor.tsx` (funzioni e
+script, Controlla, Prova con conferma, i rilievi cliccabili portano alla riga), la sezione Logica nei due stili
+(Funzioni, Script, Ricette; cancellazioni con conferma), gli script nello store (`selectedScriptId`, scritti dal Salva
+unico solo se cambiati: `scriptCambiati`), `description?` su `GlobalScriptDef`, la rinomina di una funzione che
+aggiorna le chiamate (`logica/rinominaFunzione.ts`), il codice delle funzioni nella ricerca degli usi e nella rinomina
+dei tag, i rilievi su `functions`/`global_scripts` che aprono l'editor, la scheda `scripts` ridotta a un rimando (gli
+id restano, decisione L1.1), i commenti sbagliati. `FunctionEditor.tsx` e `FunctionsInventory` non ci sono più.
+
 **L2 — `feat/logica-completamento`: i suggerimenti mentre si scrive.**
 - `@codemirror/autocomplete` e `@codemirror/lint` in `package.json`.
 - In quest'ordine: `tags.read("`/`tags.write("` propongono i tag di `tagCatalog` (foglie comprese, tipo, unità,

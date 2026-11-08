@@ -218,7 +218,7 @@ pub fn unknown_fields(raw_project: Option<&Value>, raw_pages: &[Value]) -> Vec<F
 /// aggiungere un campo e non aggiornare queste costanti fa diventare rosso
 /// `cargo test`, non silenzioso il validatore.
 const CAMPI_FUNZIONE: &[&str] = &["id", "name", "description", "code", "params"];
-const CAMPI_SCRIPT_GLOBALE: &[&str] = &["id", "trigger", "code", "enabled"];
+const CAMPI_SCRIPT_GLOBALE: &[&str] = &["id", "trigger", "code", "enabled", "description"];
 
 /// Campi inventati dentro `functions` e `global_scripts`. Stessa logica di
 /// [`unknown_fields`], tenuta separata perché lavora sul progetto e non sulle
@@ -3010,6 +3010,7 @@ global_scripts:
             trigger: sws_core::ScriptTrigger::Startup,
             code: "c".into(),
             enabled: true,
+            description: Some("d".into()),
         };
         let v = serde_json::to_value(&g).unwrap();
         let mut chiavi: Vec<&str> = v

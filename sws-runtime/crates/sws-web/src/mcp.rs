@@ -3,7 +3,7 @@
 //! # Cos'è, e cosa non è
 //!
 //! Espone a un assistente esterno (`claude` da terminale, o qualunque altro
-//! client MCP) gli **undici strumenti di lettura** che la chat dell'IDE usa già:
+//! client MCP) gli **strumenti di lettura** che la chat dell'IDE usa già:
 //! le pagine, il progetto, i tag, gli schemi, il validatore, gli script Python.
 //! Niente di più. `tools::SOLA_LETTURA` dice quali sono, e un test tiene
 //! quell'elenco allineato a `tools::definizioni()`.

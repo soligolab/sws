@@ -447,9 +447,10 @@ export function App() {
   // selezione rimasta da prima non deve strappare via dalla Configurazione.
   const selezioneOggetto = useAppStore((s) => s.selectedObjectId);
   const selezioneFunzione = useAppStore((s) => s.selectedFunctionId);
+  const selezioneScript = useAppStore((s) => s.selectedScriptId);
   useEffect(() => {
-    if ((selezioneOggetto || selezioneFunzione) && useAppStore.getState().appMode === "config") setMode("edit");
-  }, [selezioneOggetto, selezioneFunzione]);
+    if ((selezioneOggetto || selezioneFunzione || selezioneScript) && useAppStore.getState().appMode === "config") setMode("edit");
+  }, [selezioneOggetto, selezioneFunzione, selezioneScript]);
   const effectiveMode: Mode =
     (mode === "edit"   && !canEdit)      ? "config" :
     mode;

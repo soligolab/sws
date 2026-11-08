@@ -2063,6 +2063,19 @@ export const api = {
   },
 
 
+  /** Compila senza eseguire (`POST /api/script/check`): nessun tag letto o
+   *  scritto. Il bottone «Controlla» dell'editor della logica (08-11-2026). */
+  checkScript: (code: string) =>
+    request<{
+      ok: boolean;
+      sandbox_verificata: boolean;
+      rilievi: { riga?: number; colonna?: number; messaggio: string; vietato: boolean }[];
+    }>("/api/script/check", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ code }),
+    }),
+
   runFunction: (name: string, args?: Record<string, string | number | boolean>) =>
     request<{
       ok: boolean;

@@ -16,10 +16,10 @@
 import i18n from "i18next";
 import { TAG_FIELDS, collectTagIds } from "@/runtime-view/collectTagIds";
 import type {
-  AlarmDef, FaceplateDef, GlobalScriptDef, RecipeDef, SourceDef, SynopticPage, TagDef,
+  AlarmDef, FaceplateDef, FunctionDef, GlobalScriptDef, RecipeDef, SourceDef, SynopticPage, TagDef,
 } from "@/types";
 
-export type TipoPunto = "pagina" | "faceplate" | "sorgente" | "allarme" | "espressione" | "script" | "ricetta";
+export type TipoPunto = "pagina" | "faceplate" | "sorgente" | "allarme" | "espressione" | "script" | "funzione" | "ricetta";
 
 /** Un posto in cui il tag compare: dove, e quante occorrenze lì. */
 export interface Punto {
@@ -36,6 +36,9 @@ export interface StatoRinomina {
   sources: readonly SourceDef[];
   alarms: readonly AlarmDef[];
   globalScripts: readonly GlobalScriptDef[];
+  /** Il codice delle funzioni (08-11-2026, piano della logica unificata): i
+   *  `tags.read("…")`/`tags.write("…", …)` letterali, come negli script. */
+  functions?: readonly FunctionDef[];
   recipes: readonly RecipeDef[];
 }
 
@@ -46,6 +49,7 @@ export interface EsitoRinomina extends StatoRinomina {
   sources: SourceDef[];
   alarms: AlarmDef[];
   globalScripts: GlobalScriptDef[];
+  functions: FunctionDef[];
   recipes: RecipeDef[];
   /** Dove il tag è stato rinominato. */
   punti: Punto[];
@@ -59,6 +63,7 @@ export interface EsitoRinomina extends StatoRinomina {
   sourcesCambiate: boolean;
   alarmsCambiati: boolean;
   scriptCambiati: boolean;
+  funzioniCambiate: boolean;
 }
 
 /** L'id nuovo di un riferimento, o `null` se il riferimento non è a questo tag.
@@ -299,6 +304,16 @@ export function rinomina(vecchio: string, nuovo: string, s: StatoRinomina, radic
     return out;
   });
 
+  // ── Funzioni: il codice, come negli script ────────────────────────────────
+  let funzioniCambiate = false;
+  const functions = (s.functions ?? []).map((f) => {
+    const r = sostituisciNelCodice(f.code, vecchio, nuovo, eRadice);
+    if (r.n === 0) return f;
+    funzioniCambiate = true;
+    punti.push({ tipo: "funzione", dove: dove("tagUsage.function", { name: f.name }), n: r.n });
+    return { ...f, code: r.testo };
+  });
+
   // ── Ricette ─────────────────────────────────────────────────────────────
   const ricetteCambiate = new Set<string>();
   const recipes = s.recipes.map((r) => {
@@ -315,9 +330,9 @@ export function rinomina(vecchio: string, nuovo: string, s: StatoRinomina, radic
   });
 
   return {
-    pages, faceplates, tags, sources, alarms, globalScripts, recipes,
+    pages, faceplates, tags, sources, alarms, globalScripts, functions, recipes,
     punti, nonRinominabili, pagineCambiate, faceplateCambiati, ricetteCambiate,
-    tagsCambiati, sourcesCambiate, alarmsCambiati, scriptCambiati,
+    tagsCambiati, sourcesCambiate, alarmsCambiati, scriptCambiati, funzioniCambiate,
   };
 }
 

@@ -10,6 +10,9 @@ export interface PythonEditorHandle {
   insertAtCursor: (text: string) => void;
   /** Focus the editor surface. */
   focus: () => void;
+  /** Porta il cursore all'inizio della riga `riga` (1-based) e la mostra: il
+   *  clic su un rilievo di «Controlla» (08-11-2026). */
+  vaiARiga: (riga: number) => void;
 }
 
 interface PythonEditorProps {
@@ -23,8 +26,8 @@ interface PythonEditorProps {
 }
 
 /**
- * CodeMirror 6 wrapper for Python code. Used by FunctionEditor for the
- * full-screen function body and (via PythonCodeModal) for quick edits.
+ * CodeMirror 6 wrapper for Python code. Used by the logic editor
+ * (`editor/LogicaEditor.tsx`) for the body of functions and scripts.
  *
  * Keeps state in a single EditorView instance so undo/redo within the
  * editor survives React re-renders. External `value` changes are diffed
@@ -105,6 +108,14 @@ export const PythonEditor = forwardRef<PythonEditorHandle, PythonEditorProps>(
         view.focus();
       },
       focus: () => viewRef.current?.focus(),
+      vaiARiga: (riga: number) => {
+        const view = viewRef.current;
+        if (!view) return;
+        const n = Math.min(Math.max(1, riga), view.state.doc.lines);
+        const pos = view.state.doc.line(n).from;
+        view.dispatch({ selection: { anchor: pos }, effects: EditorView.scrollIntoView(pos, { y: "center" }) });
+        view.focus();
+      },
     }), []);
 
     return (

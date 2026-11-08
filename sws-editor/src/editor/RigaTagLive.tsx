@@ -23,7 +23,7 @@ import type { CategoriaUso, TagUse } from "@/search/tagUsage";
 import type { TagDef, TagState } from "@/types";
 
 /** L'ordine in cui compaiono i gruppi: prima dove si guarda più spesso. */
-const ORDINE: readonly CategoriaUso[] = ["pagina", "allarme", "espressione", "script"];
+const ORDINE: readonly CategoriaUso[] = ["pagina", "allarme", "espressione", "script", "funzione"];
 
 function colorePallino(q: string | undefined): string {
   if (q === "Good") return "var(--brand-success, #22c55e)";

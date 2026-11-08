@@ -308,7 +308,8 @@ describe("gli script del progetto non si perdono per strada", () => {
 
   function resetConScript() {
     reset();
-    useAppStore.setState({ project: structuredClone(CON_SCRIPT) });
+    // Come `setProject`: gli script appena letti sono quelli su disco.
+    useAppStore.setState({ project: structuredClone(CON_SCRIPT), savedGlobalScripts: JSON.stringify(CON_SCRIPT.global_scripts) });
   }
 
   beforeEach(() => { resetConScript(); vi.clearAllMocks(); });

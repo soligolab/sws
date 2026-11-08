@@ -35,7 +35,9 @@ describe("destinazioneRilievo", () => {
 
   it("quello che non si riconosce non è cliccabile", () => {
     expect(destinazioneRilievo("pages[Sparita].objects[x]", pagine)).toBeNull();
-    expect(destinazioneRilievo("project.functions[f].code", pagine)).toBeNull();
+    // Funzioni e script si aprono nell'editor della logica (08-11-2026).
+    expect(destinazioneRilievo("project.functions[f].code", pagine)).toEqual({ kind: "logica", tipo: "funzione", chiave: "f" });
+    expect(destinazioneRilievo("project.global_scripts[giornata].code", pagine)).toEqual({ kind: "logica", tipo: "script", chiave: "giornata" });
     expect(destinazioneRilievo("qualcos'altro", pagine)).toBeNull();
   });
 });

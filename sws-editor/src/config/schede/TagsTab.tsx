@@ -203,8 +203,9 @@ export function TagsTab({ scheda }: { scheda: IdScheda }) {
     () => buildTagUsage({
       pages: allPages, faceplates: allFaceplates,
       alarms: storeProject?.alarms, tags, globalScripts: storeProject?.global_scripts,
+      functions: storeProject?.functions,
     }),
-    [allPages, allFaceplates, storeProject?.alarms, storeProject?.global_scripts, tags],
+    [allPages, allFaceplates, storeProject?.alarms, storeProject?.global_scripts, storeProject?.functions, tags],
   );
 
   // Vista derivata: filtro → sort; ogni riga conserva origIdx per l'editing.

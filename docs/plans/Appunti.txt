@@ -373,3 +373,9 @@ Annoto di seguito, uno per punto, le cose che devono essere verificate e trasfor
   `<sorgente>.disponibile`. Livello 3: un'assenza **prevista** dichiarata nella sorgente (fascia oraria o condizione su un
   tag, es. potenza FV a zero): niente avvisi, stato «a riposo» grigio, allarmi fermi. E' la stessa domanda
   dell'appunto sulle sorgenti disattivabili («sempre / mai / solo quando…»): da trattare insieme, come seme.
+
+- (08-11-2026, dalla sessione L1 della logica unificata, decisione del maintainer) **Il viewer LVGL non esegue
+  `on_press_fn`/`on_release_fn`** (`lvgl_render.rs`, il ramo dei bottoni): un bottone che chiama una funzione Python
+  funziona solo nel viewer web. Da L1 l'editor lo dice sotto la scelta della funzione, su un progetto LVGL. Farlo
+  eseguire al pannello vuol dire che il viewer LVGL chiami `POST /api/script/run/<nome>` coi parametri del bottone
+  (ha già un client HTTP verso il runtime per le scritture), e decidere cosa mostra se la funzione fallisce.

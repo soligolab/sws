@@ -19,7 +19,10 @@
  *  modulo di sole dichiarazioni non può creare cicli.
  */
 
-export type RamoConfig = "progetto" | "dati" | "sicurezza" | "istanza" | "ia" | "ide";
+/** `logica` (08-11-2026) non è un ramo dell'albero ⚙: script e ricette stanno
+ *  nella sezione Logica del pannello sinistro, con le funzioni. Per questo non
+ *  è in `RAMI`. */
+export type RamoConfig = "progetto" | "dati" | "sicurezza" | "istanza" | "ia" | "ide" | "logica";
 
 /** Un raggruppamento **dentro** un ramo (25-09-2026). Nasce perché il ramo
  *  Istanza aveva cinque foglie piatte di cui tre parlavano tutte del
@@ -78,12 +81,14 @@ export const SCHEDE = [
   { id: "types",         ramo: "progetto",  icona: "🧬", soloAdmin: false, portaBozza: true,  richiedeProgetto: true,  ospite: "tags", sezione: "types" },
   { id: "protocols",     ramo: "progetto",  icona: "🔌", soloAdmin: false, portaBozza: true,  richiedeProgetto: true,  elementi: true, sezione: "sources" },
   { id: "alarms",        ramo: "progetto",  icona: "🔔", soloAdmin: false, portaBozza: true,  richiedeProgetto: true, sezione: "alarms"  },
-  { id: "scripts",       ramo: "progetto",  icona: "🐍", soloAdmin: false, portaBozza: true,  richiedeProgetto: false, elementi: true, sezione: "global_scripts" },
+  // Gli script si scrivono nell'editor della logica (08-11-2026): la scheda
+  // resta per i collegamenti `#config/scripts` e rimanda lì.
+  { id: "scripts",       ramo: "logica",    icona: "🐍", soloAdmin: false, portaBozza: false, richiedeProgetto: false },
   // I faceplate non sono più una scheda (29-10-2026): si disegnano sul canvas,
   // dal ramo Faceplate dell'albero delle pagine.
   // I report programmati (P3, 26-10-2026).
   { id: "reports",       ramo: "progetto",  icona: "📑", soloAdmin: false, portaBozza: true,  richiedeProgetto: true, sezione: "reports" },
-  { id: "recipes",       ramo: "progetto",  icona: "📋", soloAdmin: false, portaBozza: true,  richiedeProgetto: false, elementi: true, sezione: "recipes" },
+  { id: "recipes",       ramo: "logica",    icona: "📋", soloAdmin: false, portaBozza: true,  richiedeProgetto: false, elementi: true, sezione: "recipes" },
   { id: "notifications", ramo: "progetto",  icona: "✉", soloAdmin: false, portaBozza: true,  richiedeProgetto: false, sezione: "notifications", sottoRamo: "notifiche" },
   { id: "telegram",      ramo: "progetto",  icona: "💬", soloAdmin: false, portaBozza: true,  richiedeProgetto: false, sezione: "notifications", sottoRamo: "notifiche", ospite: "notifications" },
   // SMS, chiamate e reperibilità (P4, 26-10-2026).

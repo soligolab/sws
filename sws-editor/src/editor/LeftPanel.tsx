@@ -1,6 +1,7 @@
 import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
 import { ImgProgetto } from "@/canvas/ImmagineSvg";
 import { useTranslation } from "react-i18next";
+import type { TFunction } from "i18next";
 import { api } from "@/api/client";
 import { useAppStore } from "@/store";
 import { findObjects } from "@/search/findObjects";
@@ -20,7 +21,7 @@ import { etichettaSimbolo, useManifestoLib, useSimboliProgetto } from "@/symbols
 import type { SimboloLib } from "@/symbols/lib/manifest";
 import { canConfigureProject, canEditProject } from "@/auth/permissions";
 import { IntestazioneSezione, PREFISSO_MEMORIA, TitoloVista, useSezioneAperta, colonneGuide, guideAlbero } from "./stilePannelli";
-import type { ObjectGroup, SynopticObject, SynopticPage } from "@/types";
+import type { ObjectGroup, ScriptTriggerKind, SynopticObject, SynopticPage } from "@/types";
 import { BOOT_TYPES, eBoot, paginePerNavigazione, pagineDiBoot } from "@/boot/tipi";
 import { TRASCINA_FACEPLATE, eFaceplateDef, idFaceplate, pagineFaceplate, usiDelFaceplate } from "@/faceplate/modello";
 import { MODELLI_CORNICE, idCornice, pagineCornice, type ModelloCornice } from "@/cornici/modello";
@@ -2046,28 +2047,38 @@ function ObjectsContextMenu({
   );
 }
 
-// ── Functions section ─────────────────────────────────────────────────────────
+// ── La logica: funzioni, script e ricette ─────────────────────────────────────
 //
-// Lists every project-level Python function. Click a row to open its editor
-// in the right-side properties panel. Each row has inline rename, duplicate,
-// and delete. After every CRUD verb we call `onFunctionsChanged()` so the
-// host can persist the new list to PUT /api/project/functions.
+// Un ramo solo (08-11-2026, piano della logica unificata, L1). Prima le
+// funzioni stavano in cima all'albero, gli script in Configurazione → Python e
+// le ricette in Configurazione → Ricette: tre posti per «il Python del
+// progetto». Funzioni e script si aprono nello stesso editor al centro; le
+// ricette restano la loro scheda, raggiunta da qui.
+//
+// Le funzioni si scrivono subito sul server a ogni aggiunta, copia o
+// cancellazione (`onFunctionsChanged`), come prima. Gli script col Salva: uno
+// script nuovo salvato da sé partirebbe sul runtime prima che lo si scriva.
 
-function FunctionsSection({ onFunctionsChanged }: { onFunctionsChanged: () => void }) {
+function SezioneLogica({ onFunctionsChanged }: { onFunctionsChanged: () => void }) {
   const corpo = useCorpo(240);
   const { t } = useTranslation();
   const project          = useAppStore((s) => s.project);
   const selectedFnId     = useAppStore((s) => s.selectedFunctionId);
+  const selectedScriptId = useAppStore((s) => s.selectedScriptId);
   const selectFunction   = useAppStore((s) => s.selectFunction);
+  const selectScript     = useAppStore((s) => s.selectScript);
   const addFunction      = useAppStore((s) => s.addFunction);
   const duplicateFunction = useAppStore((s) => s.duplicateFunction);
   const renameFunction   = useAppStore((s) => s.renameFunction);
   const deleteFunction   = useAppStore((s) => s.deleteFunction);
+  const addScript        = useAppStore((s) => s.addScript);
+  const deleteScript     = useAppStore((s) => s.deleteScript);
 
   const [renaming, setRenaming] = useState<string | null>(null);
   const [draft, setDraft]       = useState("");
 
   const functions = project?.functions ?? [];
+  const scripts = project?.global_scripts ?? [];
 
   const handleAdd = () => {
     addFunction();
@@ -2077,9 +2088,16 @@ function FunctionsSection({ onFunctionsChanged }: { onFunctionsChanged: () => vo
     duplicateFunction(id);
     onFunctionsChanged();
   };
-  const handleDelete = (id: string) => {
+  // Le cancellazioni chiedono (08-11-2026): una funzione se ne andava dal
+  // disco al primo clic, senza dire niente.
+  const handleDelete = async (id: string, nome: string) => {
+    if (!(await conferma({ testo: t("logica.cancellaFunzione", { nome }), si: t("editor.delete"), pericolo: true }))) return;
     deleteFunction(id);
     onFunctionsChanged();
+  };
+  const cancellaScript = async (id: string) => {
+    if (!(await conferma({ testo: t("logica.cancellaScript", { nome: id }), si: t("editor.delete"), pericolo: true }))) return;
+    deleteScript(id);
   };
   const startRename = (id: string, name: string) => {
     setRenaming(id);
@@ -2088,35 +2106,36 @@ function FunctionsSection({ onFunctionsChanged }: { onFunctionsChanged: () => vo
   const commitRename = () => {
     if (renaming) {
       const next = draft.trim();
-      if (next) renameFunction(renaming, next);
+      if (next && !functions.some((f) => f.id !== renaming && f.name === next)) renameFunction(renaming, next);
       onFunctionsChanged();
     }
     setRenaming(null);
     setDraft("");
   };
+  const titoloGruppo: React.CSSProperties = {
+    padding: "6px 12px 2px", fontSize: 10, fontWeight: 700, letterSpacing: 0.5,
+    color: "var(--brand-text-subtle, #94a3b8)", textTransform: "uppercase",
+  };
+  const bottoneNuovo: React.CSSProperties = {
+    ...S.objBtn, flex: "none", width: "100%", borderStyle: "dashed", color: "var(--brand-text-subtle, #64748b)",
+  };
 
   return (
-    <Section title={`${t("editor.sectionFunctions")} (${functions.length})`} defaultOpen={false} memoria="sinistra.funzioni" icona="ƒ">
-      <div style={corpo}>
+    <Section title={t("leftPanel.logica")} defaultOpen={false} memoria="sinistra.funzioni" icona="ƒ">
+      <div style={corpo} data-testid="sezione-logica">
+        <div style={titoloGruppo}>{t("logica.funzioni", { n: functions.length })}</div>
         {functions.length === 0 && (
-          <p style={{ padding: "8px 12px", fontSize: 11, color: "var(--brand-text-subtle, #94a3b8)", margin: 0 }}>
+          <p style={{ padding: "2px 12px 4px", fontSize: 11, color: "var(--brand-text-subtle, #94a3b8)", margin: 0 }}>
             {t("leftPanel.noFunctionsCreateOneBelow")}
           </p>
         )}
-        {/* Rimando all'altra superficie Python del progetto (Q21). Le funzioni
-            aspettano di essere chiamate da un oggetto; gli script partono da
-            soli, a tempo o su evento. Sono cose diverse, ma chi cerca "il
-            Python del progetto" le cerca insieme — e prima nessuno dei due
-            punti diceva che l'altro esistesse. */}
-        <p style={{ padding: "4px 12px 8px", fontSize: 11, color: "var(--brand-text-subtle, #64748b)", margin: 0 }}>
-          {t("leftPanel.forScriptsThatStartOn")} <strong>{t("leftPanel.configurazionePython")}</strong>.
-        </p>
         {functions.map((f) => {
           const isSel = f.id === selectedFnId;
           const isRen = f.id === renaming;
           return (
             <div
               key={f.id}
+              data-testid={`logica-funzione-${f.name}`}
               onClick={() => !isRen && selectFunction(f.id)}
               style={{ ...S.row(isSel), gap: 4, paddingRight: 4,
                 ...guideAlbero([], { x: 13, finoA: 20, ultimo: f === functions[functions.length - 1] }) }}
@@ -2172,28 +2191,66 @@ function FunctionsSection({ onFunctionsChanged }: { onFunctionsChanged: () => vo
               <button
                 style={{ ...S.iconBtn, color: "var(--brand-danger, #ef4444)" }}
                 title={t("editor.delete")}
-                onClick={(e) => { e.stopPropagation(); handleDelete(f.id); }}
+                onClick={(e) => { e.stopPropagation(); void handleDelete(f.id, f.name); }}
               >×</button>
             </div>
           );
         })}
         <div style={{ padding: "4px 8px" }}>
-          <button
-            onClick={handleAdd}
-            style={{
-              ...S.objBtn,
-              flex: "none",
-              width: "100%",
-              borderStyle: "dashed",
-              color: "var(--brand-text-subtle, #64748b)",
-            }}
-          >
-            {t("leftPanel.newFunction")}
-          </button>
+          <button onClick={handleAdd} data-testid="logica-nuova-funzione" style={bottoneNuovo}>{t("leftPanel.newFunction")}</button>
         </div>
+
+        <div style={titoloGruppo}>{t("logica.script", { n: scripts.length })}</div>
+        {scripts.length === 0 && (
+          <p style={{ padding: "2px 12px 4px", fontSize: 11, color: "var(--brand-text-subtle, #94a3b8)", margin: 0 }}>
+            {t("logica.nessunoScript")}
+          </p>
+        )}
+        {scripts.map((g) => (
+          <div
+            key={g.id}
+            data-testid={`logica-script-${g.id}`}
+            onClick={() => selectScript(g.id)}
+            style={{ ...S.row(g.id === selectedScriptId), gap: 4, paddingRight: 4,
+              ...guideAlbero([], { x: 13, finoA: 20, ultimo: g === scripts[scripts.length - 1] }) }}
+            title={g.description ?? g.id}
+          >
+            <span style={{
+              fontSize: 9, width: 24, flexShrink: 0, textTransform: "uppercase", letterSpacing: 0.5,
+              color: g.enabled ? "var(--brand-accent, #38bdf8)" : "var(--brand-text-subtle, #64748b)",
+            }}>
+              {g.enabled ? "py" : "off"}
+            </span>
+            <span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontSize: 11 }}>
+              {g.id}
+            </span>
+            <span style={{ fontSize: 10, color: "var(--brand-text-subtle, #64748b)", flexShrink: 0 }}>{etichettaTrigger(g.trigger, t)}</span>
+            <button
+              style={{ ...S.iconBtn, color: "var(--brand-danger, #ef4444)" }}
+              title={t("editor.delete")}
+              onClick={(e) => { e.stopPropagation(); void cancellaScript(g.id); }}
+            >×</button>
+          </div>
+        ))}
+        <div style={{ padding: "4px 8px" }}>
+          <button onClick={() => addScript()} data-testid="logica-nuovo-script" style={bottoneNuovo}>{t("logica.nuovoScript")}</button>
+        </div>
+
+        {/* Le ricette restano la loro scheda: un editor di setpoint, non di codice. */}
+        <FoglieConfigurazione schede={["recipes"]} />
       </div>
     </Section>
   );
+}
+
+/** Quando parte uno script, in breve, per la riga dell'albero. */
+function etichettaTrigger(tr: ScriptTriggerKind, t: TFunction): string {
+  switch (tr.kind) {
+    case "startup":    return t("logica.triggerAvvio");
+    case "interval":   return tr.interval_ms ? `${tr.interval_ms} ms` : `${tr.interval_s} s`;
+    case "cron":       return "cron";
+    case "tag_change": return tr.tag || "tag";
+  }
 }
 
 // ── Tags section ──────────────────────────────────────────────────────────────
@@ -2283,7 +2340,7 @@ export function LeftPanel() {
             {conPagine && <PagesSection />}
             {conPagine && <RamoStrumenti />}
             {conPagine && <ObjectsSection />}
-            {conPagine && <FunctionsSection onFunctionsChanged={persistiFunzioni} />}
+            {conPagine && <SezioneLogica onFunctionsChanged={persistiFunzioni} />}
             {/* Le variabili non hanno più un ramo loro: stanno sotto
                 «Progetto › Variabili», dove si modificano (25-09-2026). Chi
                 non può configurare vede quella foglia e basta. */}
@@ -2416,7 +2473,8 @@ function SinistraVscode({ larghezza, colonna, maniglia, conPagine, puoConfigurar
       );
       break;
     case "logica":
-      corpo = scorre(<><FunctionsSection onFunctionsChanged={persistiFunzioni} />{foglie(voce)}</>);
+      // La sezione porta già script e ricette: le foglie della voce no.
+      corpo = scorre(<SezioneLogica onFunctionsChanged={persistiFunzioni} />);
       break;
     default:
       corpo = scorre(foglie(voce));

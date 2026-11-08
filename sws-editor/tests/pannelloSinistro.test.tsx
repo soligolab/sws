@@ -76,10 +76,11 @@ describe("pannello sinistro — un albero solo", () => {
   it("una foglia porta in Configurazione, sulla sua scheda", () => {
     monta();
     // Era «faceplates», scheda che dal 29-10-2026 non c'è più: i faceplate
-    // sono pagine. Gli script sono una foglia con elementi come era quella.
-    fireEvent.click(screen.getByTestId("foglia-config-scripts"));
+    // sono pagine. Poi gli script, che dall'08-11-2026 stanno nella sezione
+    // Logica. Le sorgenti sono una foglia con elementi come erano quelle.
+    fireEvent.click(screen.getByTestId("foglia-config-protocols"));
     expect(useAppStore.getState().appMode).toBe("config");
-    expect(useAppStore.getState().configTab).toBe("scripts");
+    expect(useAppStore.getState().configTab).toBe("protocols");
   });
 
   it("«Tipi» è una foglia sua", () => {
@@ -267,9 +268,9 @@ describe("pannello sinistro — i pallini «modificato» (25-09-2026)", () => {
   });
 
   it("una scheda senza elementi prende il pallino dalla sua sezione pendente", () => {
-    useAppStore.setState({ pendingSections: { global_scripts: async () => {} } });
+    useAppStore.setState({ pendingSections: { alarms: async () => {} } });
     monta();
-    expect(screen.getByTestId("dirty-config-scripts")).toBeTruthy();
+    expect(screen.getByTestId("dirty-config-alarms")).toBeTruthy();
     expect(screen.queryByTestId("dirty-config-tags")).toBeNull();
   });
 

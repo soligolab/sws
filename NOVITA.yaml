@@ -38,10 +38,10 @@ versioni:
   # 05-11-2026, quindi non stanno nell'etichetta di nessuna immagine. Le vedrà la prossima.
   - versione: "2.26.0"
     voci:
-      - it: "Il pannello di destra della pagina ha una voce per gruppo: Pagina, Sfondo, Come finestra, Cornice."
-        en: "The page's right panel has one entry per group: Page, Background, As a window, Frame."
-      - it: "Le impostazioni del progetto stanno in una finestra a parte, «Impostazioni progetto», e si salvano subito."
-        en: "Project settings live in their own window, «Project settings», and are saved at once."
+      - it: "Pannello di destra con una voce per gruppo; le impostazioni del progetto in una finestra che si apre da sola su un progetto nuovo, e da Progetto → Impostazioni."
+        en: "Right panel with one entry per group; project settings in a window that opens by itself on a new project, and from Project → Settings."
+      - it: "Funzioni e script insieme nel ramo Logica, nello stesso editor con «Controlla» e «Prova»; rinominare una funzione aggiorna i pulsanti che la chiamano."
+        en: "Functions and scripts together in the Logic branch, in the same editor with «Check» and «Try»; renaming a function updates the buttons that call it."
       - it: "Conferme e avvisi (configurazione, backup, menu, deploy, editor) compaiono in una finestra dell'IDE, non più nei pop-up del browser."
         en: "Confirmations and notices (configuration, backup, menu, deploy, editor) appear in an IDE window, no longer in browser pop-ups."
       - it: "«Applica a tutte le pagine…» porta misura e sfondi del progetto sulle pagine che scegli, anche dove ne avevano di propri."

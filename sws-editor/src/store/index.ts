@@ -1,4 +1,5 @@
 import { prefissoSchermo } from "@/api/prefisso";
+import { sostituisciFunzione } from "@/logica/rinominaFunzione";
 import { inCodaLayout } from "@/layoutInCoda";
 import { create } from "zustand";
 import { impostaStileProgetto } from "@/symbols/stileProgetto";
@@ -36,6 +37,7 @@ import {
 } from "@/faceplate/modello";
 import { scalaCornice, scalaPagina, type Misura } from "@/scala/scalaPagina";
 import type {
+  GlobalScriptDef,
   AlarmDef,
   PipePoint,
   LanguageTable,
@@ -344,6 +346,15 @@ interface AppState {
   /** Currently-focused FunctionDef.id (when editing a function). Mutually
    *  exclusive with object selection — selecting one clears the other. */
   selectedFunctionId: string | null;
+  /** Lo script aperto nell'editor della logica (08-11-2026, piano della logica
+   *  unificata, L1): come una funzione, prende il posto del sinottico. Esclude
+   *  la funzione aperta e la selezione di oggetti. È l'`id` dello script, che
+   *  ne è anche il nome. */
+  selectedScriptId: string | null;
+  /** Gli script come sono su disco (JSON), dall'ultima lettura o scrittura:
+   *  il Salva li scrive solo se sono cambiati. Riscriverli uguali li
+   *  riavvierebbe sul runtime, e uno script perde il suo `state`. */
+  savedGlobalScripts: string | null;
   /** Currently-selected grid cell in edit mode (moved from EditorShell local state). */
   selectedCell: { objectId: string; row: number; col: number } | null;
   /** The child object inside the selected cell that has been individually clicked. */
@@ -570,6 +581,12 @@ interface AppState {
   renameFunction: (id: string, name: string) => void;
   deleteFunction: (id: string) => void;
   selectFunction: (id: string | null) => void;
+  selectScript: (id: string | null) => void;
+  /** Uno script nuovo, aperto nell'editor; restituisce il suo id. */
+  addScript: () => string;
+  /** Cambia uno script; con `patch.id` lo rinomina, e la selezione lo segue. */
+  updateScript: (id: string, patch: Partial<GlobalScriptDef>) => void;
+  deleteScript: (id: string) => void;
   /** La planimetria aperta nell'editor (29-10-2026): quando c'è, prende il
    *  posto del canvas come fa l'editor delle funzioni. */
   planimetriaAperta: string | null;
@@ -942,7 +959,15 @@ function spostaPunti(punti: PipePoint[] | undefined, d: number): PipePoint[] | u
 export const selectIsDirty = (s: AppState) =>
   s.pagesRev !== s.savedPagesRev
   || Object.keys(s.pendingSections).length > 0
-  || alberoCambiato(s);
+  || alberoCambiato(s)
+  || scriptCambiati(s);
+
+/** Gli script in memoria differiscono da quelli su disco? Dall'08-11-2026 si
+ *  modificano nell'editor della logica, come le funzioni, e li scrive il Salva
+ *  unico — non più una bozza della loro scheda. */
+export function scriptCambiati(s: Pick<AppState, "savedGlobalScripts" | "project">): boolean {
+  return s.savedGlobalScripts !== null && JSON.stringify(s.project?.global_scripts ?? []) !== s.savedGlobalScripts;
+}
 
 /** L'albero in memoria differisce da quello sul server?
  *
@@ -1100,6 +1125,8 @@ export const useAppStore = create<AppState>((set, get) => {
     selectedObjectId: null,
     selectedObjectIds: [],
     selectedFunctionId: null,
+    selectedScriptId: null,
+    savedGlobalScripts: null,
     planimetriaAperta: null,
     selectedCell: null,
     selectedCellChild: null,
@@ -1217,6 +1244,7 @@ export const useAppStore = create<AppState>((set, get) => {
         // Appena letto dal server: è questo l'albero che sta su disco, e da
         // qui si misura se il Salva ha qualcosa da scrivere.
         savedPageTree: project.page_layout?.page_tree ?? [],
+        savedGlobalScripts: JSON.stringify(project.global_scripts ?? []),
       }));
     },
     setProjectLoadError: (msg) => set({ projectLoadError: msg }),
@@ -1326,7 +1354,16 @@ export const useAppStore = create<AppState>((set, get) => {
           : s.project,
       })),
 
-    renameFunction: (id, name) =>
+    // Rinominare una funzione aggiorna gli oggetti che la chiamano per nome
+    // (08-11-2026, piano della logica unificata): prima restavano a chiamare
+    // una funzione che non c'era più. Le pagine si salvano col Salva.
+    renameFunction: (id, name) => {
+      const s0 = get();
+      const vecchio = s0.project?.functions?.find((f) => f.id === id)?.name;
+      const pagine = vecchio && vecchio !== name
+        ? s0.pages.map((p) => sostituisciFunzione(p, vecchio, name))
+        : [];
+      if (pagine.some((r) => r.n > 0)) pushHistory("history.renameFunction");
       set((s) => ({
         project: s.project
           ? {
@@ -1335,7 +1372,9 @@ export const useAppStore = create<AppState>((set, get) => {
                 f.id === id ? { ...f, name } : f),
             }
           : s.project,
-      })),
+        ...(pagine.some((r) => r.n > 0) ? { pages: pagine.map((r) => r.valore) } : {}),
+      }));
+    },
 
     deleteFunction: (id) =>
       set((s) => ({
@@ -1935,6 +1974,7 @@ export const useAppStore = create<AppState>((set, get) => {
       selectedObjectId: null,
       selectedObjectIds: [],
       selectedFunctionId: null,
+      selectedScriptId: null,
       selectedCell: null,
       selectedCellChild: null,
       selectedCellRange: null,
@@ -1948,6 +1988,7 @@ export const useAppStore = create<AppState>((set, get) => {
         selectedObjectId: id,
         selectedObjectIds: id ? [id] : [],
         selectedFunctionId: null,
+        selectedScriptId: null,
         selectedCell: null,
         selectedCellChild: null,
         selectedCellRange: null,
@@ -1965,6 +2006,7 @@ export const useAppStore = create<AppState>((set, get) => {
         selectedObjectIds: ids,
         selectedObjectId: ids.length === 1 ? ids[0] : null,
         selectedFunctionId: null,
+        selectedScriptId: null,
       };
     }),
 
@@ -1973,22 +2015,59 @@ export const useAppStore = create<AppState>((set, get) => {
         selectedObjectIds: [...ids],
         selectedObjectId: ids.length === 1 ? ids[0] : null,
         selectedFunctionId: null,
+        selectedScriptId: null,
       }),
 
     clearSelection: () =>
-      set({ selectedObjectId: null, selectedObjectIds: [], selectedFunctionId: null,
+      set({ selectedObjectId: null, selectedObjectIds: [], selectedFunctionId: null, selectedScriptId: null,
             selectedCell: null, selectedCellChild: null,
             selectedCellRange: null, selectedSubCell: null }),
 
-    apriPlanimetria: (id) => set({ planimetriaAperta: id, selectedFunctionId: null }),
+    apriPlanimetria: (id) => set({ planimetriaAperta: id, selectedFunctionId: null, selectedScriptId: null }),
     selectFunction: (id) =>
       set({
         selectedFunctionId: id,
+        selectedScriptId: null,
         planimetriaAperta: null,
         // Editing a function preempts the object/page properties panel.
         selectedObjectId: null,
         selectedObjectIds: [],
       }),
+    selectScript: (id) =>
+      set({
+        selectedScriptId: id,
+        selectedFunctionId: null,
+        planimetriaAperta: null,
+        selectedObjectId: null,
+        selectedObjectIds: [],
+      }),
+
+    addScript: () => {
+      const usati = new Set((get().project?.global_scripts ?? []).map((g) => g.id));
+      let n = usati.size + 1;
+      while (usati.has(`script_${n}`)) n++;
+      const id = `script_${n}`;
+      const nuovo: GlobalScriptDef = { id, trigger: { kind: "startup" }, code: i18n.t("cfgUi.scriptThatRunsWhenThe"), enabled: true };
+      set((s) => ({
+        project: s.project ? { ...s.project, global_scripts: [...(s.project.global_scripts ?? []), nuovo] } : s.project,
+        selectedScriptId: id, selectedFunctionId: null, planimetriaAperta: null, selectedObjectId: null, selectedObjectIds: [],
+      }));
+      return id;
+    },
+
+    updateScript: (id, patch) =>
+      set((s) => ({
+        project: s.project
+          ? { ...s.project, global_scripts: (s.project.global_scripts ?? []).map((g) => (g.id === id ? { ...g, ...patch } : g)) }
+          : s.project,
+        selectedScriptId: patch.id !== undefined && s.selectedScriptId === id ? patch.id : s.selectedScriptId,
+      })),
+
+    deleteScript: (id) =>
+      set((s) => ({
+        project: s.project ? { ...s.project, global_scripts: (s.project.global_scripts ?? []).filter((g) => g.id !== id) } : s.project,
+        selectedScriptId: s.selectedScriptId === id ? null : s.selectedScriptId,
+      })),
 
     addObject: (partial) => {
       // Una pagina di boot ammette solo oggetti statici (`BOOT_TYPES`): il server
@@ -2736,8 +2815,11 @@ export const useAppStore = create<AppState>((set, get) => {
         // Configurazione, e `saveAll` non lo chiama affatto. Una proposta che
         // cambiava uno script globale finiva nello store, si vedeva sul canvas
         // — e al reload non c'era più. Approvata e sparita.
-        registra("ai:global_scripts",
-          async () => { await api.saveGlobalScripts(get().project?.global_scripts ?? []); });
+        registra("ai:global_scripts", async () => {
+          const scritti = get().project?.global_scripts ?? [];
+          await api.saveGlobalScripts(scritti);
+          set({ savedGlobalScripts: JSON.stringify(scritti) });
+        });
       }
 
       // ── 5. Quello che questo controllo NON copre ──────────────────────────
@@ -2943,7 +3025,8 @@ export const useAppStore = create<AppState>((set, get) => {
       // le conosce già come definizioni.
       const e = rinomina(vecchio, nuovo.trim(), {
         pages: s.pages.filter((p) => !eFaceplateDef(p)), faceplates: s.faceplates, tags: s.project.tags, sources: s.project.sources,
-        alarms: s.project.alarms ?? [], globalScripts: s.project.global_scripts ?? [], recipes,
+        alarms: s.project.alarms ?? [], globalScripts: s.project.global_scripts ?? [],
+        functions: s.project.functions ?? [], recipes,
       });
       // In serie: tutto ciò che passa da project.yaml prima (Q30), poi i file
       // distinti. Un errore a metà lascia il progetto parzialmente rinominato:
@@ -2953,7 +3036,11 @@ export const useAppStore = create<AppState>((set, get) => {
         if (e.tagsCambiati) await api.updateTags(e.tags);
         if (e.sourcesCambiate) await api.updateSources(e.sources);
         if (e.alarmsCambiati) await api.updateAlarms(e.alarms);
-        if (e.scriptCambiati) await api.saveGlobalScripts(e.globalScripts);
+        if (e.scriptCambiati) {
+          await api.saveGlobalScripts(e.globalScripts);
+          set({ savedGlobalScripts: JSON.stringify(e.globalScripts) });
+        }
+        if (e.funzioniCambiate) await api.updateFunctions(e.functions);
         for (const pg of e.pages) {
           if (!e.pagineCambiate.has(pg.id)) continue;
           if (eBoot(pg)) await api.saveBootPage(pg);
@@ -2975,6 +3062,7 @@ export const useAppStore = create<AppState>((set, get) => {
       set((st) => ({
         project: st.project ? {
           ...st.project, tags: e.tags, sources: e.sources, alarms: e.alarms, global_scripts: e.globalScripts,
+          functions: e.functions,
         } : st.project,
         pages: [...e.pages, ...pagineFp],
         faceplateFirme: { ...st.faceplateFirme, ...Object.fromEntries(pagineFp.map((p) => [p.id, firmaFaceplate(p)])) },
@@ -3099,6 +3187,13 @@ export const useAppStore = create<AppState>((set, get) => {
         tasks.push((async () => {
           await api.updateFunctions(state.project?.functions ?? []);
           await api.updateCustomSymbols(state.customSymbols ?? []);
+          // Gli script solo se cambiati (08-11-2026): riscritti uguali
+          // ripartirebbero sul runtime.
+          if (scriptCambiati(state)) {
+            const scritti = state.project?.global_scripts ?? [];
+            await api.saveGlobalScripts(scritti);
+            set({ savedGlobalScripts: JSON.stringify(scritti) });
+          }
         })());
       }
       // Names present when pages were last loaded but missing from the

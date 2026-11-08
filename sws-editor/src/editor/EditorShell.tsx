@@ -27,8 +27,8 @@ import { PageTabs } from "@/editor/PageTabs";
  *  Il ramo che lo rende è già isolato — `if (selectedFn) return (…)` — quindi il
  *  differimento non cambia niente di quel che si vede: quando serve, il pezzo
  *  arriva dallo stesso server che ha appena servito la pagina. */
-const FunctionEditor = lazy(() =>
-  import("@/editor/FunctionEditor").then((m) => ({ default: m.FunctionEditor })));
+const LogicaEditor = lazy(() =>
+  import("@/editor/LogicaEditor").then((m) => ({ default: m.LogicaEditor })));
 // L'editor delle planimetrie (29-10-2026): chunk suo, come quello delle funzioni.
 const PlanimetriaEditor = lazy(() =>
   import("@/planimetrie/PlanimetriaEditor").then((m) => ({ default: m.PlanimetriaEditor })));
@@ -705,7 +705,6 @@ export function EditorShell() {
   const project         = useAppStore((s) => s.project);
   const customSymbols   = useAppStore((s) => s.customSymbols);
   const faceplates      = useAppStore((s) => s.faceplates);
-  const updateFunction  = useAppStore((s) => s.updateFunction);
   const tagValues       = useAppStore((s) => s.tagValues);
   const gridSize        = useAppStore((s) => s.gridSize);
   const snapEnabled     = useAppStore((s) => s.snapEnabled);
@@ -852,6 +851,8 @@ export function EditorShell() {
   });
   const functions   = project?.functions ?? [];
   const selectedFn  = functions.find((f) => f.id === selectedFnId) ?? null;
+  const selectedScriptId = useAppStore((s) => s.selectedScriptId);
+  const selectedScript = (project?.global_scripts ?? []).find((g) => g.id === selectedScriptId) ?? null;
 
   // Multi-selection derived state
   const selectedObjects = useMemo(
@@ -1113,14 +1114,9 @@ export function EditorShell() {
   });
   useEffect(() => () => registraAggiunta(null), []);
 
-  // When a project-level function is selected, take over the whole main
-  // area with the full-screen FunctionEditor. The LeftPanel stays on the
-  // left (so the user can keep navigating between functions) but canvas
-  // and properties panel are hidden.
-  const persistFunctionsAsync = async () => {
-    const list = useAppStore.getState().project?.functions ?? [];
-    await api.updateFunctions(list);
-  };
+  // Una funzione o uno script aperti prendono tutta l'area centrale con
+  // l'editor della logica (L1, 08-11-2026). Il pannello sinistro resta, per
+  // passare dall'uno all'altro; tela e proprietà spariscono.
 
   if (planimetriaAperta) {
     return (
@@ -1132,7 +1128,7 @@ export function EditorShell() {
     );
   }
 
-  if (selectedFn) {
+  if (selectedFn || selectedScript) {
     return (
       <div style={{ display: "flex", flex: 1, overflow: "hidden" }}>
         <Suspense fallback={
@@ -1140,11 +1136,9 @@ export function EditorShell() {
             {t("editor.loadingPythonEditor")}
           </div>
         }>
-          <FunctionEditor
-            fn={selectedFn}
-            onPatch={(patch) => updateFunction(selectedFn.id, patch)}
-            onPersist={persistFunctionsAsync}
-            onClose={() => useAppStore.getState().selectFunction(null)}
+          <LogicaEditor
+            voce={selectedFn ? { tipo: "funzione", fn: selectedFn } : { tipo: "script", script: selectedScript! }}
+            onClose={() => { const st = useAppStore.getState(); st.selectFunction(null); st.selectScript(null); }}
           />
         </Suspense>
       </div>
@@ -6826,6 +6820,11 @@ function EventFunctionPicker({
 }) {
   const { t } = useTranslation();
   const fn = functions.find((f) => f.name === fnName);
+  // Il pannello LVGL non esegue `on_press_fn` (`lvgl_render.rs`): una funzione
+  // scelta qui parte solo nel viewer web, e va detto dove la si sceglie
+  // (08-11-2026, piano della logica unificata, decisione L1.2).
+  const motore = useAppStore((s) => s.project?.target?.kind);
+  const lvgl = motore === "lvgl_framebuffer" || motore === "lvgl_wayland";
 
   const setArg = (paramName: string, raw: string) => {
     // Un campo svuotato toglie il valore, non lo mette a "": il segnaposto
@@ -6862,6 +6861,11 @@ function EventFunctionPicker({
           <option key={f.id} value={f.name}>{f.name}</option>
         ))}
       </select>
+      {fnName && lvgl && (
+        <p data-testid="avviso-funzione-lvgl" style={{ fontSize: 10, color: "var(--brand-warning-soft, #fbbf24)", margin: "3px 0 0" }}>
+          {t("logica.lvglNonEsegue")}
+        </p>
+      )}
       {fn && fn.params.length > 0 && (
         <div style={{ marginTop: 4, paddingLeft: 6, borderLeft: "2px solid var(--brand-surface-2, #334155)" }}>
           {fn.params.map((p) => {

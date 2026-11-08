@@ -1312,9 +1312,9 @@ fn schema_python(sandbox_attiva: bool) -> Esito {
         "dove_va_il_codice": {
             "functions[]": "funzioni richiamabili dagli oggetti (`on_press_fn`, \
                             `on_release_fn`) e da `POST /api/script/run/<nome>`. \
-                            Campi: `id`, `name`, `code`, `params`.",
+                            Campi: `id`, `name`, `description`, `code`, `params`.",
             "global_scripts[]": "script con un trigger proprio. Campi: `id`, `trigger`, \
-                                 `code`, `enabled`.",
+                                 `code`, `enabled`, `description`.",
         },
     }))
 }

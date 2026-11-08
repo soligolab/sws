@@ -7,18 +7,19 @@
 //
 // Copertura dichiarata: oggetti delle pagine (compresi i figli dei faceplate,
 // via collectTagIds), tag e inhibit_tag degli allarmi, espressioni dei tag
-// calcolati, script globali. NON coperti: ricette e funzioni Python — il
-// riferimento lì è dinamico e cercarlo per sottostringa darebbe falsi positivi.
+// calcolati, script globali e — dall'08-11-2026 — funzioni Python, coi soli
+// riferimenti letterali (`tags.read("x")`): una variabile (`tags.read(tag)`)
+// resta fuori, come negli script. NON coperte le ricette.
 
 import { collectTagIds } from "@/runtime-view/collectTagIds";
 import { foglieDiTolleranti } from "@/tag/forma";
-import type { AlarmDef, FaceplateDef, GlobalScriptDef, SynopticPage, TagDef, TypeDef } from "@/types";
+import type { AlarmDef, FaceplateDef, FunctionDef, GlobalScriptDef, SynopticPage, TagDef, TypeDef } from "@/types";
 import i18n from "i18next";
 
 /** Dove vive un riferimento. Serve a raggruppare l'elenco invece di
  *  sciorinarlo: «Pagine (2)», «Allarmi (1)» dice a colpo d'occhio da dove
  *  arriva il grosso, un elenco piatto no (maintainer, 25-09-2026). */
-export type CategoriaUso = "pagina" | "allarme" | "espressione" | "script";
+export type CategoriaUso = "pagina" | "allarme" | "espressione" | "script" | "funzione";
 
 /** Riferimenti trovati per un tag: dove, e (per le pagine) l'oggetto. */
 export interface TagUse {
@@ -67,6 +68,7 @@ export interface TagUsageInput {
   alarms?: AlarmDef[];
   tags?: TagDef[];
   globalScripts?: GlobalScriptDef[];
+  functions?: FunctionDef[];
 }
 
 /** Riferimenti a `tags["..."]`/`tags['...']` (espressioni) e a
@@ -81,7 +83,7 @@ const EXPR_RE = /tags\[(['"])([^'"]+)\1\]|tags\.(?:read|write)\(\s*(['"])([^'"]+
 
 /** Costruisce la mappa tagId → elenco dei punti che lo usano. */
 export function buildTagUsage({
-  pages, faceplates = [], alarms = [], tags = [], globalScripts = [],
+  pages, faceplates = [], alarms = [], tags = [], globalScripts = [], functions = [],
 }: TagUsageInput): Map<string, TagUse[]> {
   const m = new Map<string, TagUse[]>();
   const add = (id: string, use: TagUse) => {
@@ -135,6 +137,13 @@ export function buildTagUsage({
     for (const mm of gs.code.matchAll(EXPR_RE)) {
       add(mm[2] ?? mm[4] ?? "", {
         where: i18n.t("tagUsage.script", { id: gs.id }), categoria: "script",
+      });
+    }
+  }
+  for (const f of functions) {
+    for (const mm of f.code.matchAll(EXPR_RE)) {
+      add(mm[2] ?? mm[4] ?? "", {
+        where: i18n.t("tagUsage.function", { name: f.name }), categoria: "funzione",
       });
     }
   }

@@ -1903,8 +1903,14 @@ mod script_trigger_tests {
 pub struct GlobalScriptDef {
     pub id: String,
     pub trigger: ScriptTrigger,
-    /// Python code. Has access to `tags` (read/write), `log(msg)`.
+    /// Python code. Ha a disposizione i nomi di `sws_pyscript::NOMI_FORNITI`
+    /// (`tags`, `print`, `state`, `functions`, …): un `log(msg)` non esiste.
     pub code: String,
+    /// A cosa serve, per chi lo rilegge (08-11-2026, piano della logica
+    /// unificata, L1): le funzioni l'avevano, gli script no. Facoltativo, e un
+    /// progetto che non lo porta si legge uguale.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub description: Option<String>,
     /// When false, the script is loaded but never scheduled.
     #[serde(default = "bool_true")]
     pub enabled: bool,

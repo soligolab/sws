@@ -2420,6 +2420,8 @@ export interface GlobalScriptDef {
   trigger: ScriptTriggerKind;
   code: string;
   enabled: boolean;
+  /** A cosa serve (08-11-2026): le funzioni l'avevano, gli script no. */
+  description?: string;
 }
 
 // ── GitOps (T-20) ─────────────────────────────────────────────────────────────

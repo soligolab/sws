@@ -198,7 +198,7 @@
       "protocols": "Protocolli",
       "alarms": "Allarmi",
       "datastores": "Datastore",
-      "scripts": "Python",
+      "scripts": "Script",
       "recipes": "Ricette",
       "notifications": "SMTP",
       "users": "Utenti",
@@ -236,7 +236,8 @@
       "sicurezza": "Sicurezza",
       "istanza": "Istanza",
       "ide": "IDE",
-      "ia": "IA"
+      "ia": "IA",
+      "logica": "Logica"
     }
   },
   "editor": {
@@ -269,7 +270,6 @@
     "paletteLvglHint": "Progetto LVGL: solo gli oggetti già supportati dal motore sono mostrati.",
     "paletteLvglBadgeTitle": "Disponibile anche per i progetti LVGL",
     "sectionPageObjects": "Oggetti della pagina",
-    "sectionFunctions": "FUNZIONI",
     "historyBack": "Torna a: {{label}}",
     "historyRestore": "Ripristina: {{label}}",
     "exportFailed": "Esportazione fallita: {{err}}",
@@ -337,7 +337,7 @@
     "match_tag": "tag",
     "match_type": "tipo",
     "tagUnused": "Nessun riferimento trovato in pagine, allarmi, espressioni o script.",
-    "tagUsageScope": "Ricette e funzioni Python non sono controllate.",
+    "tagUsageScope": "Ricette non controllate; nelle funzioni e negli script solo i nomi scritti fra apici.",
     "raggruppaPer": "Raggruppa:",
     "raggruppaAltro": "Altri",
     "raggruppaSemplici": "Semplici",
@@ -352,7 +352,8 @@
       "pagina": "Pagine",
       "allarme": "Allarmi",
       "espressione": "Espressioni",
-      "script": "Script"
+      "script": "Script",
+      "funzione": "Funzioni"
     },
     "historyTitle": "Cronologia",
     "historyList": "Cronologia delle modifiche ({{n}} passi)",
@@ -1680,7 +1681,7 @@
     "useUnused": "Solo non usate",
     "useUsed": "Solo usate",
     "unusedLegend": "● ambra = variabile non referenziata da pagine, allarmi, espressioni o script (ricette e funzioni non verificate)",
-    "unusedHint": "Non referenziata da pagine, allarmi, espressioni o script. Ricette e funzioni Python non sono verificate: controlla prima di eliminarla.",
+    "unusedHint": "Non referenziata da pagine, allarmi, espressioni, script o funzioni. Le ricette e i nomi composti nel codice non sono verificati: controlla prima di eliminarla.",
     "usedIn": "Usata in",
     "hostKeyChanged": "La chiave host di {{host}} non combacia con quella memorizzata su questo PC. Succede a ogni factory reset o reinstallazione del pannello, che se ne genera di nuove. Se hai appena resettato tu il dispositivo, puoi dimenticare la vecchia chiave e riprovare; altrimenti fermati e verifica di stare parlando con la macchina giusta.",
     "hostKeyForget": "Dimentica la vecchia chiave e riprova",
@@ -1810,7 +1811,6 @@
     "uploadDbTitle": "Sostituisce il file database con uno caricato da qui (backup automatico del precedente, serve un riavvio del runtime).",
     "downloadRemoteDbTitle": "Scarica il database dello stesso datastore, ma dal dispositivo remoto connesso (non da questo progetto locale).",
     "uploadRemoteDbTitle": "Sostituisce il database sul dispositivo remoto connesso (backup automatico del precedente, serve un riavvio del runtime remoto).",
-    "openFunctionEditorTitle": "Apri nell'editor a schermo intero (parametri e snippet)",
     "telegramBotTrovato": "✓ Bot: {{nome}} · @{{username}}",
     "telegramBotNonRaggiunto": "Non riesco a identificare il bot: {{errore}}",
     "telegramPasso1": "Apri la chat col bot e premi Avvia (oppure aggiungilo a un gruppo e scrivi un messaggio):",
@@ -2146,7 +2146,8 @@
     "faceplateDaSelezione": "Crea faceplate dalla selezione",
     "newFaceplate": "Nuovo faceplate",
     "faceplateBaseName": "Faceplate",
-    "faceplateJson": "Definizione del faceplate"
+    "faceplateJson": "Definizione del faceplate",
+    "renameFunction": "Rinomina funzione"
   },
   "storeErr": {
     "invalidRange": "Range non valido.",
@@ -2179,7 +2180,6 @@
     "noGroup": "nessun gruppo",
     "delete": "Elimina",
     "noFunctionsCreateOneBelow": "Nessuna funzione. Crea una funzione qui sotto e collegala agli eventi degli oggetti.",
-    "forScriptsThatStartOn": "Per gli script che partono da soli (all'avvio, a intervallo, quando cambia un tag) vedi",
     "newFunction": "+ Nuova funzione",
     "noTagsLoadAProject": "Nessun tag — carica un progetto.",
     "pointsToMissingPage": "punta a pagina inesistente",
@@ -2202,7 +2202,6 @@
     "senzaGruppo": "⤓ Senza gruppo",
     "rinominaGruppo": "Rinomina gruppo",
     "separaGruppo": "Separa gruppo",
-    "configurazionePython": "Configurazione → Python",
     "att": {
       "barra": "Barra delle attività",
       "cerca": "Cerca",
@@ -2234,7 +2233,8 @@
       "ia": "IA",
       "iaNota": "L'assistente IA e i modelli: chat, fornitori e chiavi, un modello per ogni scopo."
     },
-    "tagModifica": "Modifica il tag"
+    "tagModifica": "Modifica il tag",
+    "logica": "Logica"
   },
   "shell": {
     "offPage_one": "⚠ {{count}} oggetto è fuori dal foglio e non verrà disegnato a runtime. Trascinalo dentro il bordo tratteggiato per riattivarlo, oppure allarga la pagina.",
@@ -2523,7 +2523,8 @@
     "source": "sorgente \"{{name}}\"",
     "expression": "espressione di \"{{id}}\"",
     "script": "script \"{{id}}\"",
-    "recipe": "ricetta \"{{name}}\""
+    "recipe": "ricetta \"{{name}}\"",
+    "function": "funzione \"{{name}}\""
   },
   "ws": {
     "refused": "collegamento rifiutato (codice {{code}})",
@@ -2781,15 +2782,11 @@
     "deleteHistory": "Elimina storico",
     "scriptThatRunsWhenThe": "# Script avviato all'apertura del progetto\nprint('Hello from global script!')\n",
     "startup": "Avvio",
-    "noFunctions": "Nessuna funzione.",
-    "functionsAreEditedInThe": "Le funzioni si modificano nell'editor: clicca una voce per aprirla.",
     "saved": "Salvato.",
     "saveAll": "Salva tutti",
     "new": "+ Nuovo",
-    "noScripts": "Nessuno script.",
     "msOptionalTakesPrecedence": "ms (opzionale, ha priorità)",
     "everyValue": "*        ogni valore\n",
-    "selectOrCreateAScript": "Seleziona o crea uno script",
     "saved2": "✓ Salvato",
     "noRecipes": "Nessuna ricetta.",
     "selectOrCreateARecipe": "Seleziona o crea una ricetta per modificarla.",
@@ -2930,10 +2927,7 @@
     "firmaLocale": "Firma locale:",
     "ogniMs": "Ogni {{n}}ms",
     "ogniS": "Ogni {{n}}s",
-    "funzioniTitolo": "FUNZIONI",
     "senzaNome": "(senza nome)",
-    "chiamataDaOggetto": "chiamata da un oggetto",
-    "parametriN": "{{n}} parametri",
     "abilitato": "Abilitato",
     "disabilitato": "Disabilitato",
     "intervalloSecondi": "Intervallo (secondi)",
@@ -4610,5 +4604,34 @@
   "impostazioniTab": {
     "testo": "Quello che vale per tutte le pagine del progetto. Si cambia nella finestra «Impostazioni progetto», che si apre anche dal pannello di una pagina.",
     "tuttoSchermo": "Visualizzatore a tutto schermo"
+  },
+  "logica": {
+    "funzioni": "Funzioni ({{n}})",
+    "script": "Script ({{n}})",
+    "nessunoScript": "Nessuno script. Uno script parte da solo: all'avvio, a intervallo, a orario o quando cambia un tag.",
+    "nuovoScript": "+ Nuovo script",
+    "cancellaFunzione": "Cancellare la funzione «{{nome}}»? Gli oggetti che la chiamano resteranno senza.",
+    "cancellaScript": "Cancellare lo script «{{nome}}»? Sparisce al prossimo Salva.",
+    "triggerAvvio": "avvio",
+    "titoloScript": "Script Python",
+    "nomeGiaUsato": "Il nome «{{nome}}» è già usato.",
+    "controlla": "Controlla",
+    "controllaAiuto": "Compila il codice senza eseguirlo: nessun tag letto o scritto.",
+    "prova": "Prova",
+    "provaAiuto": "Esegue la funzione salvata, coi parametri predefiniti.",
+    "provaTitolo": "Eseguire la funzione?",
+    "provaTesto": "«{{nome}}» viene eseguita davvero, coi parametri predefiniti: i tag che scrive cambiano sull'impianto collegato. Se ci sono modifiche, prima si salvano.",
+    "salvaScript": "Salva script",
+    "nomiForniti": "Nomi già pronti:",
+    "controlloOk": "Nessun problema.",
+    "controlloKo": "Da correggere:",
+    "provaOk": "Eseguita.",
+    "provaKo": "Non riuscita:",
+    "senzaSandbox": "La sandbox non c'è su questa macchina: un'istruzione vietata passa qui e verrà rifiutata sul pannello.",
+    "riga": "riga {{n}}",
+    "vietato": "vietato:",
+    "nessunaUscita": "(nessuna uscita)",
+    "scriptSpostati": "Gli script si scrivono nella sezione Logica del pannello a sinistra, insieme alle funzioni: si aprono al posto del sinottico.",
+    "lvglNonEsegue": "Sul pannello LVGL questa funzione non parte: la esegue solo il viewer web."
   }
 }
