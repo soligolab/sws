@@ -290,17 +290,19 @@
       "titolo": "Rinominare o cancellare una funzione: i bottoni la seguono, la cancellazione chiede",
       "rif": "piano 2026-11-04 (sessione del 08-11)",
       "scopo": "Rinominando una funzione, i bottoni (e le celle delle griglie) che la chiamano prendono il nome nuovo. Cancellare una funzione o uno script chiede conferma.",
-      "prima": "`prova-rc5` con la funzione `accendi` di n4.",
+      "prima": "Il progetto `prova-rc5`: se non c'è, crealo come nella prova 8 (Progetti → «Nuovo progetto» → vuoto, nome `prova-rc5`, nella finestra «Imposta il progetto» motore web e «Fatto»). Non si usa CasaDomotica.",
       "passi": [
-        "Metti un bottone in «Pagina 1» con «Alla pressione» = `accendi`.",
-        "Nell'editor della logica rinomina la funzione in `luce_on` (esci dal campo). Prova anche a rinominarla col nome di una funzione che esiste già.",
-        "Seleziona il bottone e guarda la funzione. (Non premere Ctrl+Z: annulla il bottone ma non la funzione, difetto noto da correggere.)",
-        "Nella sezione Logica cancella lo script di n4: rispondi prima no, poi sì."
+        "In `prova-rc5`, a sinistra apri «ƒ Logica» → Funzioni → «+» e chiama la funzione `accendi`. Nel codice scrivi `print(\"ciao\")`.",
+        "Torna su «Pagina 1» (chiudi l'editor con la X), metti un bottone; nelle sue proprietà, «Alla pressione» → scegli `accendi`.",
+        "Riapri `accendi` dalla sezione Logica, cambia il nome in `luce_on` e clicca fuori dal campo.",
+        "Seleziona di nuovo il bottone e guarda «Alla pressione». (Non premere Ctrl+Z: annulla il bottone ma non la funzione, difetto noto.)",
+        "Crea una seconda funzione `spegni` e prova a rinominarla `luce_on`.",
+        "Nella sezione Logica, clicca il cestino di `spegni`: rispondi prima «no», poi rifallo e rispondi «sì»."
       ],
       "atteso": [
-        "Il bottone dice `luce_on`; un nome già usato è rifiutato con un avviso.",
-        "Il bottone resta coerente col nome della funzione.",
-        "La cancellazione chiede; col no non succede niente."
+        "Il bottone dice `luce_on`, non `accendi`.",
+        "Il nome `luce_on` per la seconda funzione è rifiutato: «Il nome «luce_on» è già usato.»",
+        "Il cestino chiede conferma; col «no» la funzione resta, col «sì» sparisce."
       ],
       "sblocca": "L1",
       "link": [
@@ -317,10 +319,11 @@
       "titolo": "Il codice delle funzioni conta negli usi di un tag e nella sua rinomina",
       "rif": "piano 2026-11-04 (sessione del 08-11)",
       "scopo": "Prima, un tag usato solo dentro una funzione risultava «non usato» e la rinomina del tag lasciava la funzione col nome vecchio.",
-      "prima": "`prova-rc5` con `prova_bool` usata solo dalla funzione.",
+      "prima": "`prova-rc5` con la funzione `luce_on` della prova 12.",
       "passi": [
-        "Nelle variabili cerca gli usi di `prova_bool`.",
-        "Rinomina `prova_bool` in `prova_luce`, poi riapri la funzione."
+        "Crea una variabile interna `prova_bool` (bool) e scrivi nel codice di `luce_on`: `tags.write(\"prova_bool\", True)`. Salva.",
+        "Nelle variabili, cerca gli usi di `prova_bool`.",
+        "Rinomina `prova_bool` in `prova_luce`, poi riapri `luce_on`."
       ],
       "atteso": [
         "Fra gli usi c'è la funzione.",
@@ -341,7 +344,7 @@
       "titolo": "Gli script si salvano col Salva, e solo se sono cambiati",
       "rif": "piano 2026-11-04 (sessione del 08-11)",
       "scopo": "Gli script non si scrivono più da soli a ogni modifica: li scrive il Salva unico, e solo quando sono cambiati, perché riscriverli uguali li fa ripartire sul runtime.",
-      "prima": "`prova-rc5` con uno script a intervallo che scrive una riga nel log (`print(\"giro\")`).",
+      "prima": "`prova-rc5`. Nella sezione Logica → Script, «+ Nuovo script» a intervallo (5 s) con `print(\"giro\")`.",
       "passi": [
         "Cambia lo script: il progetto risulta da salvare? Salva.",
         "Cambia una pagina (non lo script) e salva; guarda il log."
@@ -368,7 +371,7 @@
       "prima": "`prova-rc5`.",
       "passi": [
         "Configurazione → Progetto → Impostazioni: motore LVGL.",
-        "Seleziona il bottone di n5 e guarda la funzione «Alla pressione».",
+        "Seleziona il bottone della prova 12 e guarda «Alla pressione».",
         "Alla fine cancella `prova-rc5`."
       ],
       "atteso": [
