@@ -979,6 +979,67 @@ impl AlarmDb {
         }
     }
 
+    /// I ritardi che scadono senza che il tag cambi (08-11-2026). `evaluate`
+    /// gira solo quando arriva un valore: un `on_delay_s` di 60 s su un tag che
+    /// diventa falso **una volta** e poi tace — il tag di disponibilità di una
+    /// presa staccata, scritto solo ai cambi — non scattava mai, perché nessuno
+    /// lo ricontrollava al sessantesimo secondo. Trovato collaudando la presa
+    /// del laboratorio su CasaDomotica: falsa da dieci minuti, nessun allarme.
+    ///
+    /// Si chiama a intervalli (ogni secondo dal runtime) e rivaluta **solo** gli
+    /// allarmi con un ritardo in corso, col loro ultimo valore, come il ramo
+    /// dell'inibizione: niente valore nuovo, niente `last_value` da aggiornare.
+    pub async fn scadenze(&self) {
+        let pendenti: Vec<String> = {
+            let timers = self.timers.read().await;
+            timers
+                .iter()
+                .filter(|(_, t)| {
+                    t.condition_true_since_ms.is_some() || t.condition_false_since_ms.is_some()
+                })
+                .map(|(id, _)| id.clone())
+                .collect()
+        };
+        if pendenti.is_empty() {
+            return;
+        }
+        let now = now_ms();
+        let shelved_ids: HashSet<String> = self.shelved.read().await.keys().cloned().collect();
+        let inhibit_values: HashMap<TagId, TagValue> = self.inhibit_values.read().await.clone();
+        let mut to_emit: Vec<AlarmState> = Vec::new();
+        let mut completed_events: Vec<AlarmEvent> = Vec::new();
+        {
+            let mut states = self.states.write().await;
+            let mut timers = self.timers.write().await;
+            let mut open_events = self.open_events.write().await;
+            for id in &pendenti {
+                if shelved_ids.contains(id) {
+                    continue;
+                }
+                let Some(valore) = states.get(id).and_then(|s| s.last_value.clone()) else {
+                    continue;
+                };
+                eval_one(
+                    id,
+                    &valore,
+                    now,
+                    false,
+                    &mut states,
+                    &mut timers,
+                    &mut open_events,
+                    &inhibit_values,
+                    &shelved_ids,
+                    &mut to_emit,
+                    &mut completed_events,
+                );
+            }
+        }
+        self.registra(completed_events).await;
+        for st in to_emit {
+            let _ = self.tx.send(st);
+        }
+    }
+
     pub async fn ack(&self, id: &str, by: Option<String>) -> bool {
         let mut states = self.states.write().await;
         let Some(s) = states.get_mut(id) else {
@@ -1579,6 +1640,29 @@ mod tests {
         // Pump on → clear
         db.evaluate("pump.running", &ts(TagValue::Bool(true))).await;
         assert_eq!(db.snapshot().await[0].isa_state, IsaState::NormalUnacked);
+    }
+
+    /// La presa del laboratorio staccata (08-11-2026): il tag di disponibilità
+    /// diventa falso una volta e poi non cambia più. L'allarme con ritardo
+    /// deve scattare lo stesso, quando il ritardo scade — e nemmeno un istante
+    /// prima.
+    #[tokio::test]
+    async fn il_ritardo_scade_anche_se_il_tag_tace() {
+        let db = AlarmDb::new(8);
+        let mut alarm = def("d", "presa.disponibile", AlarmCondition::BoolFalse);
+        alarm.on_delay_s = Some(0.05);
+        db.load(vec![alarm]).await;
+        db.evaluate("presa.disponibile", &ts(TagValue::Bool(false)))
+            .await;
+        db.scadenze().await;
+        assert_eq!(
+            db.snapshot().await[0].isa_state,
+            IsaState::Normal,
+            "ritardo non ancora scaduto"
+        );
+        tokio::time::sleep(std::time::Duration::from_millis(80)).await;
+        db.scadenze().await;
+        assert_eq!(db.snapshot().await[0].isa_state, IsaState::ActiveUnacked);
     }
 
     #[tokio::test]

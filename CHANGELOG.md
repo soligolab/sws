@@ -111,6 +111,11 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
   il salvataggio non è finito.
 
 ### Corretto
+- **Un allarme con ritardo su una variabile che non cambia più non scattava mai** (08-11-2026, collaudando la presa
+  del laboratorio staccata su CasaDomotica: falsa da dieci minuti, nessun allarme). `on_delay_s` e `off_delay_s` si
+  ricontrollavano solo all'arrivo di un valore nuovo, e un tag di disponibilità si scrive solo ai cambi. Ora
+  `AlarmDb::scadenze`, ogni secondo, rivaluta gli allarmi con un ritardo in corso col loro ultimo valore. Toccava
+  tutti gli allarmi di disponibilità creati dall'IDE (60 s di ritardo).
 - **MQTT, una sorgente con molte righe restava «mai collegata»** (08-11-2026, trovato preparando la sorgente unica
   di CasaDomotica, 116 righe): il plugin sottoscriveva **una volta per riga**, anche sei volte lo stesso topic, e
   accodava SUBSCRIBE e richieste di stato prima di leggere l'eventloop, in una coda da 32. Alla 33ª la sessione si

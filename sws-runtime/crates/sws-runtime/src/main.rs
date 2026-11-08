@@ -948,6 +948,20 @@ async fn main() -> anyhow::Result<()> {
         });
     }
 
+    // I ritardi degli allarmi che scadono senza un valore nuovo (08-11-2026):
+    // vedi `AlarmDb::scadenze`. Un secondo di granularità basta a un ritardo
+    // che si scrive in secondi.
+    {
+        let adb = alarm_db.clone();
+        tokio::spawn(async move {
+            let mut tick = tokio::time::interval(std::time::Duration::from_secs(1));
+            loop {
+                tick.tick().await;
+                adb.scadenze().await;
+            }
+        });
+    }
+
     // Derived tag evaluator: on every TagDb update, re-evaluate all expressions
     // whose result may have changed.  Each expression runs in spawn_blocking
     // (PyO3 requires a non-async context) and updates the tag with Good/Bad

@@ -66,8 +66,8 @@ versioni:
         en: "The first-login password change can be postponed with «Later»; deploy warns first when it brings users who will have to change it."
       - it: "Registro più rapido e quieto: azzerato al deploy, coi messaggi a video, nel cloud anche il pannello; «Aggiorna ora» aspetta il pannello."
         en: "Faster, quieter log: cleared on deploy, with on-screen messages, panel lines in the cloud too; «Update now» waits for the panel."
-      - it: "L'elenco allarmi ha anche «ACK tutti» e «metti a tacere», come la tabella; un comando critico senza accesso dice di accedere."
-        en: "The alarm list also has «ACK all» and «shelve», like the table; a critical command without a login says to sign in."
+      - it: "L'elenco allarmi ha «ACK tutti» e «metti a tacere»; un allarme con ritardo scatta anche se la variabile poi non cambia più; un comando critico senza accesso dice di accedere."
+        en: "The alarm list has «ACK all» and «shelve»; an alarm with a delay fires even if the variable then stops changing; a critical command without access asks you to log in."
   - versione: "2.25.2"
     voci:
       - it: "Nel cloud la chat e il registro in una finestra a parte si aprono davvero: nella 2.25.1 davano l'errore 401."
