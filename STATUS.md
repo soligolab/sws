@@ -14,8 +14,8 @@
 
 ## ▶ Riprendere da qui — la 2.26.0-rc.6 pubblicata: le due correzioni del collaudo dell'08-11 (2026-11-08, ufficio)
 
-**`main` ha commit e quattro tag che origin non ha** (`2.26.0-rc.3` … `rc.6`): **il push aspetta il via del
-maintainer**. Nessun ramo aperto. VPS: gateway **e** progetti su `fb36fa4f-amd64` (rc.6, guardia verde); ripiego la
+**`main` e i tag `2.26.0-rc.3` … `rc.6` sono su origin** (push dell'08-11, `check_static` tutto verde). Nessun ramo
+aperto. VPS: gateway **e** progetti su `fb36fa4f-amd64` (rc.6, guardia verde); ripiego la
 rc.5 `9a7fcd98-amd64` (tolta la rc.4). `rc-arm64` è la rc.6. Il TC620 è sulla **rc.5** (r5-agg passata): la rc.6 la
 porta «Aggiorna ora» (prova `r6-agg`).
 
