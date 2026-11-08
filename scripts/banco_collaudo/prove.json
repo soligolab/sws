@@ -25,36 +25,11 @@
       "n": 1
     },
     {
-      "id": "r6-ctrlz",
-      "dove": "0 · TC620 di casa · il giro della 2.26.0-rc.6",
-      "titolo": "Ctrl+Z dopo la rinomina di una funzione riporta funzione e bottone insieme",
-      "rif": "n5-rinomina (il difetto noto della rc.5)",
-      "scopo": "Nella rc.5 Ctrl+Z dopo «rinomina funzione» rimetteva il nome vecchio sul bottone ma non sulla funzione: il bottone restava a chiamare una funzione che non c'era. Ora la voce di cronologia porta anche le funzioni.",
-      "prima": "Il progetto `prova-rc5` (se l'hai già cancellato, ricrealo come nella prova n1), con una funzione chiamata da un bottone in «Pagina 1». IDE nel cloud sulla rc.6.",
-      "passi": [
-        "Dalla sezione «ƒ Logica» rinomina la funzione (per esempio `luce_on` → `luce_on_2`) e clicca fuori dal campo.",
-        "Torna su «Pagina 1» e premi Ctrl+Z.",
-        "Guarda il nome della funzione nella sezione Logica e «Alla pressione» del bottone. Poi Ctrl+Y."
-      ],
-      "atteso": [
-        "Dopo Ctrl+Z la funzione e il bottone dicono tutti e due il nome di prima.",
-        "Dopo Ctrl+Y dicono tutti e due il nome nuovo."
-      ],
-      "sblocca": "L1",
-      "link": [
-        {
-          "testo": "IDE nel cloud",
-          "url": "https://sws.soligo.net/"
-        }
-      ],
-      "n": 2
-    },
-    {
       "id": "tc-prest",
       "dove": "0 · TC620 di casa · il giro della 2.26.0-rc.6",
       "titolo": "Prestazioni: la colonna del pannello, le sorgenti, e la misura che si spegne",
       "rif": "Prestazioni 1, 3, 5 (il 08-11 il punto 5 non passava: corretto nella rc.6)",
-      "scopo": "La scheda Prestazioni ha una colonna per il pannello collegato: il runtime e le sorgenti di CasaDomotica coi loro giri. Il pannello misura solo mentre qualcuno guarda. Il 08-11 la misura non si spegneva mai: la Configurazione resta montata dietro l'editor e la scheda nascosta continuava a chiedere i dati ogni 2 s. Ora smette appena è nascosta.",
+      "scopo": "La scheda Prestazioni ha una colonna per il pannello collegato: il runtime e le sorgenti di CasaDomotica coi loro giri. Il pannello misura solo mentre qualcuno guarda. Il 08-11 la misura non si spegneva mai: la Configurazione resta montata dietro l'editor e la scheda nascosta continuava a chiedere i dati ogni 2 s. Ora smette appena è nascosta. Il lato IDE è già verificato da Claude l'08-11 (in vista 5 letture in 10 s, nascosta dietro l'editor nessuna, tornando riprende): resta da vedere sul pannello vero.",
       "prima": "IDE nel cloud sulla rc.6 (ricarica la pagina), CasaDomotica aperto, collegato al TC620, entrato come Admin.",
       "passi": [
         "Configurazione → Istanza → Prestazioni: guarda la colonna del pannello.",
@@ -74,56 +49,7 @@
         }
       ],
       "sonda": "https://tc620-a-p3-c6-07aff9.local:7443/api/prestazioni/richiesta",
-      "n": 3
-    },
-    {
-      "id": "n7-salva",
-      "dove": "1 · Dal cloud · le novità della rc.5 (progetto nuovo, impostazioni, logica)",
-      "titolo": "Gli script si salvano col Salva, e solo se sono cambiati",
-      "rif": "piano 2026-11-04 (sessione del 08-11)",
-      "scopo": "Gli script non si scrivono più da soli a ogni modifica: li scrive il Salva unico, e solo quando sono cambiati, perché riscriverli uguali li fa ripartire sul runtime.",
-      "prima": "`prova-rc5`. Nella sezione Logica → Script, «+ Nuovo script» a intervallo (5 s) con `print(\"giro\")`.",
-      "passi": [
-        "Cambia lo script: il progetto risulta da salvare? Salva.",
-        "Cambia una pagina (non lo script) e salva; guarda il log."
-      ],
-      "atteso": [
-        "Una modifica allo script accende il «da salvare»; dopo il Salva lo script gira con la modifica.",
-        "Salvando solo la pagina, nel log non c'è nessuna ripartenza degli script."
-      ],
-      "sblocca": "L1",
-      "link": [
-        {
-          "testo": "IDE nel cloud",
-          "url": "https://sws.soligo.net/"
-        }
-      ],
-      "n": 4
-    },
-    {
-      "id": "n8-lvgl",
-      "dove": "1 · Dal cloud · le novità della rc.5 (progetto nuovo, impostazioni, logica)",
-      "titolo": "Su un progetto LVGL, la funzione di un bottone avvisa che il pannello non la esegue",
-      "rif": "piano 2026-11-04 (sessione del 08-11)",
-      "scopo": "Il viewer LVGL non esegue `on_press_fn`: lo dice l'editor, sotto la funzione scelta. Far eseguire la funzione al viewer LVGL è annotato in Appunti.txt.",
-      "prima": "`prova-rc5`.",
-      "passi": [
-        "Configurazione → Progetto → Impostazioni: motore LVGL.",
-        "Seleziona il bottone della prova 12 e guarda «Alla pressione».",
-        "Alla fine cancella `prova-rc5`."
-      ],
-      "atteso": [
-        "Sotto la funzione: «Sul pannello LVGL questa funzione non parte: la esegue solo il viewer web.»",
-        "Tornando al motore web l'avviso sparisce."
-      ],
-      "sblocca": "L1",
-      "link": [
-        {
-          "testo": "IDE nel cloud",
-          "url": "https://sws.soligo.net/"
-        }
-      ],
-      "n": 5
+      "n": 2
     },
     {
       "id": "tc-report",
@@ -146,7 +72,7 @@
       "sblocca": "A-quater",
       "link": null,
       "sonda": null,
-      "n": 6
+      "n": 3
     },
     {
       "id": "tc-sorgente",
@@ -167,11 +93,11 @@
       "sblocca": "A-septies 10",
       "link": null,
       "sonda": null,
-      "n": 7
+      "n": 4
     },
     {
       "id": "1125-14",
-      "n": 8,
+      "n": 5,
       "dove": "3 · Dal cloud · CasaDomotica (sws.soligo.net)",
       "titolo": "L'assistente trova una pagina col suo nome tradotto",
       "rif": "2.25.1.14 — l'assistente e i nomi tradotti",
@@ -218,37 +144,11 @@
       "sblocca": "il passo «faceplate» del prompt; ap-sfondi (gli sfondi del 05-11)",
       "link": null,
       "sonda": null,
-      "n": 9
-    },
-    {
-      "id": "ap-regole",
-      "n": 10,
-      "dove": "3 · Dal cloud · CasaDomotica (sws.soligo.net)",
-      "titolo": "Le regole del progetto per l'IA si salvano",
-      "rif": "Appunti — le regole del progetto in CasaDomotica",
-      "scopo": "Nella Configurazione c'è una scheda dove scrivi cosa devono sapere i modelli IA del tuo impianto (che tipo di impianto è, regole generali). Stanno nel progetto. Controlliamo che nel cloud si salvino davvero.",
-      "prima": "Attento: se sul progetto è acceso «deploy al salvataggio», salvare manda il progetto al pannello di casa.",
-      "passi": [
-        "IDE nel cloud, progetto CasaDomotica: Configurazione → IA → Regole del progetto.",
-        "Scrivi qualcosa in «Tipo di impianto, in una riga» (es. casa su due piani con fotovoltaico) e in «Regole per tutti i modelli».",
-        "Salva il progetto.",
-        "Vai su un'altra scheda e torna su Regole del progetto (o ricarica la pagina del browser)."
-      ],
-      "atteso": [
-        "Dopo il Salva compare «✓ Salvato» per un paio di secondi.",
-        "Tornando sulla scheda i testi ci sono ancora."
-      ],
-      "sblocca": "si toglie la voce delle regole da Appunti e la riga di STATUS",
-      "link": [
-        {
-          "testo": "sws.soligo.net",
-          "url": "https://sws.soligo.net"
-        }
-      ]
+      "n": 6
     },
     {
       "id": "ap-history",
-      "n": 11,
+      "n": 7,
       "dove": "3 · Dal cloud · CasaDomotica (sws.soligo.net)",
       "titolo": "I grafici smettono di chiedere dati quando la scheda è nascosta",
       "rif": "Appunti — ricontare le richieste /api/history",
@@ -275,7 +175,7 @@
     },
     {
       "id": "abis-3",
-      "n": 12,
+      "n": 8,
       "dove": "9 · Solo ufficio (WP630) — WP630 senza deploy (Montagna resta)",
       "titolo": "Certificati: la card dice che il browser del pannello si fida",
       "rif": "A-bis 3 — la fiducia del browser del pannello",
@@ -300,7 +200,7 @@
     },
     {
       "id": "abis-1",
-      "n": 13,
+      "n": 9,
       "dove": "9 · Solo ufficio (WP630) — WP630 senza deploy (Montagna resta)",
       "titolo": "Sul pannello c'è il «guardiano» che aggiorna la fiducia del browser",
       "rif": "A-bis 1 — da terminale (SSH)",
@@ -318,7 +218,7 @@
     },
     {
       "id": "d13",
-      "n": 14,
+      "n": 10,
       "dove": "9 · Solo ufficio (WP630) — WP630 senza deploy (Montagna resta)",
       "titolo": "Ricollegandosi, l'IDE riconosce il certificato del pannello",
       "rif": "D 13 — l'impronta al collegamento",
@@ -336,7 +236,7 @@
     },
     {
       "id": "d14",
-      "n": 15,
+      "n": 11,
       "dove": "9 · Solo ufficio (WP630) — WP630 senza deploy (Montagna resta)",
       "titolo": "Collegandosi in http non compare nessuna impronta",
       "rif": "D 14 — l'impronta al collegamento",
@@ -355,7 +255,7 @@
     },
     {
       "id": "x-prep",
-      "n": 16,
+      "n": 12,
       "dove": "9 · Solo ufficio (WP630) — WP630 con deploy (cancella il progetto del pannello)",
       "titolo": "Prima di tutto: un progetto con gli utenti",
       "rif": "preparazione",
@@ -372,7 +272,7 @@
     },
     {
       "id": "f2-5",
-      "n": 17,
+      "n": 13,
       "dove": "9 · Solo ufficio (WP630) — WP630 con deploy (cancella il progetto del pannello)",
       "titolo": "Inviare un progetto senza utenti avvisa che il pannello resterà aperto",
       "rif": "F2.5 — la Finestra di avviso",
@@ -392,7 +292,7 @@
     },
     {
       "id": "f2-4",
-      "n": 18,
+      "n": 14,
       "dove": "9 · Solo ufficio (WP630) — WP630 con deploy (cancella il progetto del pannello)",
       "titolo": "Il deploy che sostituisce il progetto del pannello chiede conferma",
       "rif": "F2.4 — la Finestra di avviso",
@@ -413,7 +313,7 @@
     },
     {
       "id": "abis-4",
-      "n": 19,
+      "n": 15,
       "dove": "9 · Solo ufficio (WP630) — WP630 certificati (cambiano il TLS: per ultimi)",
       "titolo": "Cambiato il certificato, lo schermo del pannello non dà avvisi",
       "rif": "A-bis 4 e 6 — il guardiano segue il cambio",
@@ -433,7 +333,7 @@
     },
     {
       "id": "c10-11",
-      "n": 20,
+      "n": 16,
       "dove": "9 · Solo ufficio (WP630) — WP630 certificati (cambiano il TLS: per ultimi)",
       "titolo": "Dopo il cambio, l'IDE rifiuta il certificato nuovo finché non dici di fidarti",
       "rif": "C 10–11, D 12 — governare il certificato da remoto",
@@ -460,7 +360,7 @@
     },
     {
       "id": "h31",
-      "n": 21,
+      "n": 17,
       "dove": "9 · Solo ufficio (WP630) — WP630 certificati (cambiano il TLS: per ultimi)",
       "titolo": "Le operazioni sui certificati finiscono nel registro di audit",
       "rif": "H 31 — ruoli e registro",

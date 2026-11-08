@@ -124,6 +124,8 @@ Sul WP630 (o sul TC620) dall'IDE collegato. *(05-11-2026: la 2 è misurata, la 4
 5. [ ] Chiudere la pagina: dopo un minuto il viewer smette di mandare. Nel log non si vede (nessuno scrive una riga
        per quella POST): si guarda la richiesta, `curl -sk https://<pannello>:7443/api/prestazioni/richiesta` →
        `{"attiva":true}` con la pagina aperta, `{"attiva":false}` più di 60 s dopo averla chiusa. *(Corretto il 05-11.)*
+       *(08-11: non passava dal cloud — la scheda nascosta dietro l'editor leggeva ancora ogni 2 s. Corretto nella
+       2.26.0-rc.6 (`useInVista`), il lato IDE verificato in automatico; resta il `curl` sul pannello.)*
 
 ## A. La misura che blocca C4 — chiusa
 
