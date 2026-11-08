@@ -34,7 +34,7 @@ collaudate). Logica unificata resta viva: n7–n8 da fare, poi L2–L3.
 r6-ctrlz, n7, n8, ap-regole passate; Prestazioni 5 verificata lato IDE (nascosta = zero letture). **L1 collaudata.**
 
 **Il collaudo, cosa guardare**: banco, gruppo «0 · il giro della 2.26.0-rc.6» — r6-agg sul TC620 (tc-prest **passata**
-l'08-11 alle 18:32: sezione Prestazioni chiusa); poi i gruppi 2 e 3 (report, sorgente staccata, assistente, ap-history).
+l'08-11 alle 18:32: sezione Prestazioni chiusa; tc-sorgente passata alle 18:55 con la presa Sandokan); poi i gruppi 2 e 3 (report, sorgente staccata, assistente, ap-history).
 Dopo il cambio d'immagine, l'IDE nel cloud va ricaricato (e il pannello ricollegato con «Connetti» se il pallino non è
 verde).
 

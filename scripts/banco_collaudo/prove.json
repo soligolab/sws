@@ -25,27 +25,6 @@
       "n": 1
     },
     {
-      "id": "tc-sorgente",
-      "dove": "2 · TC620 di casa · CasaDomotica",
-      "titolo": "Se un dispositivo si stacca, SWS lo dice",
-      "rif": "A-septies 10 — la disponibilità delle sorgenti",
-      "scopo": "Ogni sorgente ha la variabile `<sorgente>.disponibile`. In CasaDomotica: `mqtt-sandokan.disponibile`, `mqtt-switch-garage.disponibile`…",
-      "prima": "Scegli un dispositivo che puoi staccare un minuto senza danni (per esempio la presa Sandokan). Niente inverter.",
-      "passi": [
-        "Nell'IDE collegato al TC620: Configurazione → Progetto → Protocolli, la card di quella sorgente (o la sua variabile `.disponibile` in Variabili).",
-        "Stacca il dispositivo, aspetta un minuto, guarda.",
-        "Riattaccalo."
-      ],
-      "atteso": [
-        "Staccato: `disponibile` = falso, la card dice «non risponde», le sue variabili diventano di qualità Bad.",
-        "Riattaccato: tutto torna buono."
-      ],
-      "sblocca": "A-septies 10",
-      "link": null,
-      "sonda": null,
-      "n": 3
-    },
-    {
       "id": "1125-14",
       "n": 4,
       "dove": "3 · Dal cloud · CasaDomotica (sws.soligo.net)",

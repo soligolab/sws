@@ -195,7 +195,7 @@ ignora `disponibilita:` e la cancella al primo salvataggio, senza avvisare.
 
 **Nell'IDE, subito** (basta l'8460 sul ramo, progetto `casa-locale`, che punta a un broker che non esiste):
 
-1. [ ] Configurazione → Protocolli → una card MQTT, **chiusa**: la testata dice «non risponde dalle HH:MM» col
+1. [x] *(08-11-2026, dal vivo su CasaDomotica: vedi la nota sotto la 10.)* Configurazione → Protocolli → una card MQTT, **chiusa**: la testata dice «non risponde dalle HH:MM» col
        pallino rosso, e il motivo nel suggerimento. Aperta: la sezione **DISPONIBILITÀ** sta fra Autenticazione e
        Mappatura, con lo stato a destra del titolo e il pulsante «⚠ Crea l'allarme di disponibilità». Sotto la
        card non c'è più nessuna riga.
@@ -213,7 +213,8 @@ ignora `disponibilita:` e la cancella al primo salvataggio, senza avvisare.
 6. [ ] Allarme di disponibilità creato dal pulsante, e Telegram acceso per il suo scatto nella tabella eventi.
 7. [ ] **Fermare Zigbee2MQTT**: entro un minuto e qualche secondo arriva il messaggio Telegram; i tag della sorgente
        nel sinottico sono non aggiornati (stale); un allarme di soglia su uno di quei tag **non** scatta.
-8. [ ] Riavviare Zigbee2MQTT: la disponibilità torna vera, ma i tag restano `Bad` finché ognuno non riceve un valore
+8. [ ] *(08-11-2026: provato col singolo dispositivo, non con Zigbee2MQTT fermo — riattaccata la presa le variabili sono
+       tornate buone subito, perché Z2M ripubblica lo stato al ritorno; il caso «Z2M riavviato» resta.)* Riavviare Zigbee2MQTT: la disponibilità torna vera, ma i tag restano `Bad` finché ognuno non riceve un valore
        vero — premere un interruttore e vederlo tornare buono.
 9. [ ] Con Zigbee2MQTT fermo, premere un pulsante del sinottico: il comando **parte lo stesso** (si vede nel log
        del runtime). È voluto: un falso «morto» non deve bloccare i comandi.
@@ -222,6 +223,13 @@ ignora `disponibilita:` e la cancella al primo salvataggio, senza avvisare.
 
 10. [ ] Una sorgente Modbus o S7 verso un dispositivo vero: staccarlo → `<sorgente>.disponibile` falso e tag `Bad`;
         riattaccarlo → vero, e i tag tornano buoni alla prima lettura.
+
+*(08-11-2026, col maintainer, TC620 con CasaDomotica dall'IDE nel cloud 2.26.0-rc.6 — la variante **per dispositivo**,
+non prevista dalla lista: `mqtt-sandokan` con disponibilità «Personalizzato…» sul topic
+`zigbee2mqtt/presa.sandokan/availability`, campo `state`, vivo `online`. In Zigbee2MQTT è stata abilitata la
+disponibilità (era spenta; timeout attivo 2 min). Presa staccata: `offline` sul broker alle 18:49:56, la card dice
+«not responding since 06:49 PM» col motivo letto dal topic, pallino rosso nell'albero, allarme di disponibilità
+scattato, `sandokan.*` Bad. Riattaccata: `online` alle 18:55:05, tutto verde e Good. La 10 su Modbus/S7 resta.)*
 
 ## A-octies. Le card delle sorgenti, ridisegnate (29-10-2026)
 
