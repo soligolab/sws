@@ -168,3 +168,17 @@ describe("il Salva unico e gli script", () => {
     expect(scriptCambiati(useAppStore.getState())).toBe(false);
   });
 });
+
+describe("Ctrl+Z dopo una rinomina", () => {
+  it("riporta insieme il nome della funzione e i bottoni, e Ctrl+Y li rifà", () => {
+    useAppStore.getState().renameFunction("f1", "luce_on");
+    useAppStore.getState().undo();
+    let st = useAppStore.getState();
+    expect(st.project?.functions?.[0].name).toBe("accendi");
+    expect(JSON.stringify(st.pages)).not.toContain("\"luce_on\"");
+    useAppStore.getState().redo();
+    st = useAppStore.getState();
+    expect(st.project?.functions?.[0].name).toBe("luce_on");
+    expect(JSON.stringify(st.pages)).toContain("\"luce_on\"");
+  });
+});

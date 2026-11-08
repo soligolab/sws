@@ -14,6 +14,7 @@ import { useTranslation } from "react-i18next";
 import { api, SOGLIE_PRESTAZIONI_MS, type Prestazioni, type VocePrestazioni } from "@/api/client";
 import { S } from "@/config/comuni";
 import { useAppStore } from "@/store";
+import { useInVista } from "@/components/Tenuta";
 import { etichettaDispositivo } from "@/ws/remoteLogStream";
 
 const SCATOLA: CSSProperties = {
@@ -78,7 +79,12 @@ export function ColonnaPrestazioni({ remoto, titolo }: { remoto: boolean; titolo
   const [dati, setDati] = useState<Prestazioni | null>(null);
   const [errore, setErrore] = useState<string | null>(null);
 
+  // Solo in vista: la Configurazione resta montata dietro l'editor, e ogni
+  // lettura tiene accesa la misura sul pannello per un minuto.
+  const inVista = useInVista();
+
   useEffect(() => {
+    if (!inVista) return;
     let vivo = true;
     const leggi = () => {
       api.prestazioni(remoto)
@@ -88,7 +94,7 @@ export function ColonnaPrestazioni({ remoto, titolo }: { remoto: boolean; titolo
     leggi();
     const id = setInterval(leggi, 2000);
     return () => { vivo = false; clearInterval(id); };
-  }, [remoto]);
+  }, [remoto, inVista]);
 
   return (
     <div data-testid={remoto ? "colonna-remota" : "colonna-locale"}>

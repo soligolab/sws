@@ -91,6 +91,12 @@ export interface HistoryEntry {
    *  progetto; il valore in vigore è quello della voce più vicina che ne porta
    *  uno. */
   project?: ProjectInfo | null;
+  /** Le **funzioni** di prima, solo nelle voci di «rinomina funzione»
+   *  (08-11-2026): la rinomina cambia insieme la funzione e i bottoni che la
+   *  chiamano, e un Ctrl+Z che riportasse solo i bottoni li lascerebbe a
+   *  chiamare un nome che non c'è più. Stessa regola di `pageTree`: la
+   *  controparte nell'altra pila porta le funzioni di adesso. */
+  functions?: FunctionDef[];
   /** Snapshot dell'**albero delle pagine**, presente solo nelle voci che lo
    *  cambiano (spostamento, aggiunta, eliminazione, duplicazione).
    *
@@ -998,6 +1004,16 @@ function alberoDi(pages: readonly SynopticPage[], layout: PageLayoutConfig | nul
 /** Cosa cambia in `set` per rimettere l'albero di una voce di cronologia:
  *  niente se la voce non lo porta. Le pagine si riordinano di conseguenza,
  *  perché l'ordine dell'array è quello dell'albero (`conOrdineAlbero`). */
+/** L'albero e le funzioni che la voce porta, sopra il progetto di adesso. */
+function ripristinaVoce(
+  voce: HistoryEntry,
+): { project?: ProjectInfo | null; pages?: SynopticPage[] } {
+  const albero = ripristinaAlbero(voce);
+  if (voce.functions === undefined) return albero;
+  const base = albero.project ?? useAppStore.getState().project;
+  return base ? { ...albero, project: { ...base, functions: voce.functions } } : albero;
+}
+
 function ripristinaAlbero(
   voce: HistoryEntry,
 ): { project?: ProjectInfo | null; pages?: SynopticPage[] } {
@@ -1363,7 +1379,16 @@ export const useAppStore = create<AppState>((set, get) => {
       const pagine = vecchio && vecchio !== name
         ? s0.pages.map((p) => sostituisciFunzione(p, vecchio, name))
         : [];
-      if (pagine.some((r) => r.n > 0)) pushHistory("history.renameFunction");
+      if (pagine.some((r) => r.n > 0)) {
+        pushHistory("history.renameFunction");
+        // La voce appena spinta porta anche le funzioni di prima (vedi
+        // `HistoryEntry.functions`). Dentro un'interazione non se ne spinge.
+        const past = get().past;
+        if (past !== s0.past) {
+          const cima = past[past.length - 1];
+          set({ past: [...past.slice(0, -1), { ...cima, functions: s0.project?.functions ?? [] }] });
+        }
+      }
       set((s) => ({
         project: s.project
           ? {
@@ -2486,13 +2511,14 @@ export const useAppStore = create<AppState>((set, get) => {
       // portare quello di adesso: altrimenti il giro inverso riporterebbe le
       // pagine e non il loro ordine, cioè metà annullamento.
       if (prev.pageTree !== undefined) controparte.pageTree = project?.page_layout?.page_tree ?? [];
+      if (prev.functions !== undefined) controparte.functions = project?.functions ?? [];
       set({
         past: past.slice(0, past.length - 1),
         future: [controparte, ...future].slice(0, HISTORY_LIMIT),
         pages: prev.pages,
         pagesRev: prev.rev,
         ...(prev.project !== undefined ? { project: prev.project } : {}),
-        ...ripristinaAlbero(prev),
+        ...ripristinaVoce(prev),
         selectedObjectId: null,
         selectedObjectIds: [],
         selectedCell: null,
@@ -2514,13 +2540,14 @@ export const useAppStore = create<AppState>((set, get) => {
       // portare quello di adesso: altrimenti il giro inverso riporterebbe le
       // pagine e non il loro ordine, cioè metà annullamento.
       if (next.pageTree !== undefined) controparte.pageTree = project?.page_layout?.page_tree ?? [];
+      if (next.functions !== undefined) controparte.functions = project?.functions ?? [];
       set({
         past: [...past, controparte].slice(-HISTORY_LIMIT),
         future: future.slice(1),
         pages: next.pages,
         pagesRev: next.rev,
         ...(next.project !== undefined ? { project: next.project } : {}),
-        ...ripristinaAlbero(next),
+        ...ripristinaVoce(next),
         selectedObjectId: null,
         selectedObjectIds: [],
         selectedCell: null,

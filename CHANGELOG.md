@@ -101,6 +101,11 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
   il salvataggio non è finito.
 
 ### Corretto
+- **Ctrl+Z dopo «rinomina funzione»** riporta insieme il nome della funzione e i bottoni che la chiamano
+  (`HistoryEntry.functions`): annullava solo i bottoni, che restavano a chiamare un nome che non c'era più.
+- **La scheda Prestazioni nascosta non interroga più il pannello** (`useInVista` di `Tenuta`): la Configurazione
+  resta montata dietro l'editor, e ogni lettura ogni 2 s teneva accesa la misura sul pannello, che non smetteva mai
+  (collaudo del 08-11, Prestazioni 5).
 - **Uno ZIP caricato da «Nuovo progetto» va nell'azienda scelta** (`UploadQuery::azienda_id`): finiva sempre in
   quella implicita. Il nome del progetto si controlla prima di mandarlo, con le regole del server: l'anteprima mostrava
   un nome «ripulito» che il server poi rifiutava.
