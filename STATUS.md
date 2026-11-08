@@ -12,6 +12,32 @@
 > resta in «Storico». Qui vive solo ciò che serve a riprendere il lavoro.
 
 
+## ▶ Riprendere da qui — la 2.26.0-rc.5 pubblicata: I1, I2, L1 (2026-11-08, ufficio)
+
+**`main` ha commit e tre tag che origin non ha** (`2.26.0-rc.3`, `rc.4`, `rc.5`): **il push aspetta il via del
+maintainer**. Nessun ramo aperto. VPS: gateway **e** progetti su `9a7fcd98-amd64` (rc.5, `check_gateway_immagine`
+verde, tunnel del TC620 aperto); `rc-arm64` è la rc.5. Tolte dal VPS le `57af9904`/`f4627806-amd64`; resta la rc.4 come
+ripiego.
+
+**Dentro la rc.5** (squash di tre rami annidati, alberi verificati, rami eliminati):
+- `00c0e06c` **I1**: un progetto vuoto apre da solo «Imposta il progetto» (motore, pannello, sfondi, cornice); «Fatto»
+  formatta «Pagina 1» e la pagina di boot; il pannello scelto si ricorda (`page_layout.dispositivo`); la cornice
+  predefinita si sceglie solo lì; `framebuffer_device` tolto dal modello (il vecchio campo si accetta e si ignora);
+- `adab8a65` **I2**: Configurazione → Progetto → Impostazioni, e una coda sola per ogni scrittura di `page_layout`;
+- `29912c02` **L1**: la Logica in un ramo (funzioni, script, ricette), editor al centro con Controlla/Prova, la rinomina
+  di una funzione segue i bottoni, il codice delle funzioni negli usi e nella rinomina dei tag, script scritti dal Salva
+  solo se cambiati, avviso LVGL.
+
+**Il TC620 non si aggiorna più da solo**: tolto il blocco `pilota` da `aggiornamento.yaml` (copia
+`aggiornamento.yaml.prima-pilota-spento`). È sulla rc.4; la rc.5 la porta «Aggiorna ora» (prova `r5-agg`).
+
+**Difetto noto, da correggere per primo**: dopo «rinomina funzione», Ctrl+Z riporta il nome vecchio sulle pagine ma non
+sulla funzione (`renameFunction` usa `pushHistory`, che fotografa solo le pagine): i bottoni chiamano una funzione che non
+c'è più. La correzione: la voce di cronologia porta anche le funzioni. Nel banco, n5 dice di non premere Ctrl+Z.
+
+**Il collaudo, cosa guardare**: banco, gruppo «0 · il giro della 2.26.0-rc.5» (r5-agg, poi il giro della rc.4 mai fatto)
+e gruppo «1 · Dal cloud · le novità della rc.5» (n1–n8, su un progetto usa e getta `prova-rc5`).
+
 ## ▶ Riprendere da qui — la 2.26.0-rc.4 pubblicata, il terzo giro sul TC620 (2026-11-07 sera, ufficio)
 
 **`main` ha commit e due tag che origin non ha** (`2.26.0-rc.3`, `2.26.0-rc.4`): **il push aspetta il via del
