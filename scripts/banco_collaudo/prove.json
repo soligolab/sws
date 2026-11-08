@@ -52,29 +52,6 @@
       "n": 2
     },
     {
-      "id": "tc-report",
-      "dove": "2 · TC620 di casa · CasaDomotica",
-      "titolo": "I report programmati arrivano per mail e si fanno da soli",
-      "rif": "A-quater 3 e 4",
-      "scopo": "CasaDomotica ha già un report (`report_1`) e la posta configurata: si prova sul pannello vero.",
-      "prima": "IDE nel cloud, CasaDomotica, Configurazione → Progetto → Report. Attenzione: oggi `report_1` nomina `core2.cpu0` e `core2.cpu1`, che non esistono (la validazione li dà come errori): sceglile di nuovo, per esempio `host.totalCPU` e `host.RAM`.",
-      "passi": [
-        "Nel report: il tuo indirizzo, programmazione `*/15 * * * *`, «File da tenere» = 2.",
-        "Manda al TC620 con «Utenti e segreti».",
-        "«▶ Genera ora» e controlla la mail.",
-        "Dopo più di 30 minuti guarda i file del report."
-      ],
-      "atteso": [
-        "Arriva la mail con PDF ed Excel.",
-        "Ogni 15 minuti un report nuovo da solo; restano gli ultimi due.",
-        "(Finita la prova, rimetti la programmazione di prima.)"
-      ],
-      "sblocca": "A-quater",
-      "link": null,
-      "sonda": null,
-      "n": 3
-    },
-    {
       "id": "tc-sorgente",
       "dove": "2 · TC620 di casa · CasaDomotica",
       "titolo": "Se un dispositivo si stacca, SWS lo dice",
@@ -93,11 +70,11 @@
       "sblocca": "A-septies 10",
       "link": null,
       "sonda": null,
-      "n": 4
+      "n": 3
     },
     {
       "id": "1125-14",
-      "n": 5,
+      "n": 4,
       "dove": "3 · Dal cloud · CasaDomotica (sws.soligo.net)",
       "titolo": "L'assistente trova una pagina col suo nome tradotto",
       "rif": "2.25.1.14 — l'assistente e i nomi tradotti",
@@ -144,11 +121,11 @@
       "sblocca": "il passo «faceplate» del prompt; ap-sfondi (gli sfondi del 05-11)",
       "link": null,
       "sonda": null,
-      "n": 6
+      "n": 5
     },
     {
       "id": "ap-history",
-      "n": 7,
+      "n": 6,
       "dove": "3 · Dal cloud · CasaDomotica (sws.soligo.net)",
       "titolo": "I grafici smettono di chiedere dati quando la scheda è nascosta",
       "rif": "Appunti — ricontare le richieste /api/history",
@@ -175,7 +152,7 @@
     },
     {
       "id": "abis-3",
-      "n": 8,
+      "n": 7,
       "dove": "9 · Solo ufficio (WP630) — WP630 senza deploy (Montagna resta)",
       "titolo": "Certificati: la card dice che il browser del pannello si fida",
       "rif": "A-bis 3 — la fiducia del browser del pannello",
@@ -200,7 +177,7 @@
     },
     {
       "id": "abis-1",
-      "n": 9,
+      "n": 8,
       "dove": "9 · Solo ufficio (WP630) — WP630 senza deploy (Montagna resta)",
       "titolo": "Sul pannello c'è il «guardiano» che aggiorna la fiducia del browser",
       "rif": "A-bis 1 — da terminale (SSH)",
@@ -218,7 +195,7 @@
     },
     {
       "id": "d13",
-      "n": 10,
+      "n": 9,
       "dove": "9 · Solo ufficio (WP630) — WP630 senza deploy (Montagna resta)",
       "titolo": "Ricollegandosi, l'IDE riconosce il certificato del pannello",
       "rif": "D 13 — l'impronta al collegamento",
@@ -236,7 +213,7 @@
     },
     {
       "id": "d14",
-      "n": 11,
+      "n": 10,
       "dove": "9 · Solo ufficio (WP630) — WP630 senza deploy (Montagna resta)",
       "titolo": "Collegandosi in http non compare nessuna impronta",
       "rif": "D 14 — l'impronta al collegamento",
@@ -255,7 +232,7 @@
     },
     {
       "id": "x-prep",
-      "n": 12,
+      "n": 11,
       "dove": "9 · Solo ufficio (WP630) — WP630 con deploy (cancella il progetto del pannello)",
       "titolo": "Prima di tutto: un progetto con gli utenti",
       "rif": "preparazione",
@@ -272,7 +249,7 @@
     },
     {
       "id": "f2-5",
-      "n": 13,
+      "n": 12,
       "dove": "9 · Solo ufficio (WP630) — WP630 con deploy (cancella il progetto del pannello)",
       "titolo": "Inviare un progetto senza utenti avvisa che il pannello resterà aperto",
       "rif": "F2.5 — la Finestra di avviso",
@@ -292,7 +269,7 @@
     },
     {
       "id": "f2-4",
-      "n": 14,
+      "n": 13,
       "dove": "9 · Solo ufficio (WP630) — WP630 con deploy (cancella il progetto del pannello)",
       "titolo": "Il deploy che sostituisce il progetto del pannello chiede conferma",
       "rif": "F2.4 — la Finestra di avviso",
@@ -313,7 +290,7 @@
     },
     {
       "id": "abis-4",
-      "n": 15,
+      "n": 14,
       "dove": "9 · Solo ufficio (WP630) — WP630 certificati (cambiano il TLS: per ultimi)",
       "titolo": "Cambiato il certificato, lo schermo del pannello non dà avvisi",
       "rif": "A-bis 4 e 6 — il guardiano segue il cambio",
@@ -333,7 +310,7 @@
     },
     {
       "id": "c10-11",
-      "n": 16,
+      "n": 15,
       "dove": "9 · Solo ufficio (WP630) — WP630 certificati (cambiano il TLS: per ultimi)",
       "titolo": "Dopo il cambio, l'IDE rifiuta il certificato nuovo finché non dici di fidarti",
       "rif": "C 10–11, D 12 — governare il certificato da remoto",
@@ -360,7 +337,7 @@
     },
     {
       "id": "h31",
-      "n": 17,
+      "n": 16,
       "dove": "9 · Solo ufficio (WP630) — WP630 certificati (cambiano il TLS: per ultimi)",
       "titolo": "Le operazioni sui certificati finiscono nel registro di audit",
       "rif": "H 31 — ruoli e registro",

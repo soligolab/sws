@@ -183,9 +183,11 @@ fatta il 24-10. Va tolta — era un'eccezione a una strada che non esiste più.
        progetto, e senza deploy risponde «nessun progetto aperto» o «report sconosciuto» (29-10-2026).
 2. [x] «▶ Genera ora»: compaiono un PDF e un Excel; scaricarli (visto il 29-10-2026 su `tc620-garage`). Il PDF ha riepilogo, andamento e allarmi con i valori
        veri; l'Excel si apre e i numeri si sommano.
-3. [ ] Con un destinatario email e l'SMTP delle Notifiche configurato: la mail arriva con i due allegati.
-4. [ ] Lasciare il pannello acceso oltre l'ora del cron (es. `*/15 * * * *` per provare): i file nascono da soli; con
-       «File da tenere» = 2 restano solo le ultime due generazioni.
+3. [x] Con un destinatario email e l'SMTP delle Notifiche configurato: la mail arriva con i due allegati — **confermato
+       dal maintainer l'08-11-2026**: su CasaDomotica le mail dei report arrivano regolarmente.
+4. [x] Lasciare il pannello acceso oltre l'ora del cron (es. `*/15 * * * *` per provare): i file nascono da soli; con
+       «File da tenere» = 2 restano solo le ultime due generazioni. *(08-11: la generazione da sola è confermata dalle mail
+       regolari di CasaDomotica; la rotazione dei file non è stata guardata a parte.)*
 
 ## A-sexies. Il tunnel: vivo, spento o perso (26-10-2026)
 
