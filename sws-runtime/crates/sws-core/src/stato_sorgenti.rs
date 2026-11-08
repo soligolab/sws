@@ -3,8 +3,8 @@
 //! **ai cambi** (non a ogni giro), lo legge l'IDE per il pallino nell'albero
 //! della Configurazione.
 //!
-//! Generico per sorgente: oggi solo Modbus riempie il livello dei dispositivi;
-//! gli altri protocolli possono riempire quello del bus quando toccherà a loro.
+//! Generico per sorgente: Modbus riempie il livello dei dispositivi con le
+//! unità (`"1"`), MQTT dall'08-11-2026 coi suoi dispositivi (`presa.sandokan`).
 
 use serde::Serialize;
 use std::collections::{BTreeMap, HashMap};
@@ -34,7 +34,11 @@ pub struct StatoSorgente {
     #[serde(flatten)]
     pub bus: Stato,
     #[serde(skip_serializing_if = "BTreeMap::is_empty")]
-    pub dispositivi: BTreeMap<u8, Stato>,
+    pub dispositivi: BTreeMap<String, Stato>,
+    /// Vero per le sorgenti i cui dispositivi hanno un tag di disponibilità
+    /// ciascuno (MQTT, 08-11-2026). Le unità Modbus non ce l'hanno.
+    #[serde(skip)]
+    pub tag_per_dispositivo: bool,
 }
 
 #[derive(Debug, Default)]
@@ -68,7 +72,7 @@ impl StatoSorgenti {
     }
 
     /// Una sorgente che parte: il bus e i dispositivi dichiarati, mai collegati.
-    pub fn registra(&self, sorgente: &str, dispositivi: impl IntoIterator<Item = u8>) {
+    pub fn registra(&self, sorgente: &str, dispositivi: impl IntoIterator<Item = String>) {
         let da_ms = adesso_ms();
         let nuovo = Stato {
             stato: Collegamento::MaiConnesso,
@@ -76,6 +80,7 @@ impl StatoSorgenti {
             da_ms,
         };
         let s = StatoSorgente {
+            tag_per_dispositivo: false,
             bus: nuovo.clone(),
             dispositivi: dispositivi
                 .into_iter()
@@ -86,6 +91,15 @@ impl StatoSorgenti {
             .write()
             .unwrap_or_else(|e| e.into_inner())
             .insert(sorgente.to_string(), s);
+    }
+
+    /// Da qui in poi i dispositivi di `sorgente` hanno il loro tag
+    /// `<sorgente>.<dispositivo>.disponibile`. Si chiama dopo `registra`.
+    pub fn con_tag_per_dispositivo(&self, sorgente: &str) {
+        let mut m = self.inner.write().unwrap_or_else(|e| e.into_inner());
+        m.entry(sorgente.to_string())
+            .or_default()
+            .tag_per_dispositivo = true;
     }
 
     /// Lo stato del bus (la connessione). Vero se è cambiato.
@@ -102,13 +116,17 @@ impl StatoSorgenti {
     pub fn dispositivo(
         &self,
         sorgente: &str,
-        unita: u8,
+        dispositivo: impl ToString,
         stato: Collegamento,
         errore: Option<String>,
     ) -> bool {
         let mut m = self.inner.write().unwrap_or_else(|e| e.into_inner());
         let s = m.entry(sorgente.to_string()).or_default();
-        aggiorna(s.dispositivi.entry(unita).or_default(), stato, errore)
+        aggiorna(
+            s.dispositivi.entry(dispositivo.to_string()).or_default(),
+            stato,
+            errore,
+        )
     }
 
     /// Il bus caduto: lui e tutti i suoi dispositivi non rispondono.
@@ -147,7 +165,7 @@ mod tests {
     #[test]
     fn cambia_solo_ai_cambi_e_la_caduta_spegne_i_dispositivi_vivi() {
         let s = StatoSorgenti::new();
-        s.registra("linea", [1, 2]);
+        s.registra("linea", ["1".into(), "2".into()]);
         assert!(s.bus("linea", Collegamento::Ok, None));
         assert!(
             !s.bus("linea", Collegamento::Ok, None),
@@ -158,9 +176,9 @@ mod tests {
         let i = s.istantanea();
         let l = &i["linea"];
         assert_eq!(l.bus.stato, Collegamento::NonRisponde);
-        assert_eq!(l.dispositivi[&1].stato, Collegamento::NonRisponde);
+        assert_eq!(l.dispositivi["1"].stato, Collegamento::NonRisponde);
         assert_eq!(
-            l.dispositivi[&2].stato,
+            l.dispositivi["2"].stato,
             Collegamento::MaiConnesso,
             "mai collegato resta tale"
         );

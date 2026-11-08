@@ -423,8 +423,8 @@ async fn due_dispositivi_sullo_stesso_bus_ognuno_col_suo_ordine() {
         (TagValue::Float(1.5), TagQuality::Good)
     );
     let s = stato.istantanea();
-    assert_eq!(s["bus"].dispositivi[&1].stato, Collegamento::Ok);
-    assert_eq!(s["bus"].dispositivi[&2].stato, Collegamento::Ok);
+    assert_eq!(s["bus"].dispositivi["1"].stato, Collegamento::Ok);
+    assert_eq!(s["bus"].dispositivi["2"].stato, Collegamento::Ok);
 }
 
 #[tokio::test(start_paused = true)]
@@ -448,9 +448,9 @@ async fn uno_slave_muto_non_ferma_il_bus_tutti_muti_si() {
     assert_eq!(val(&db, "a").await, (TagValue::Int(7), TagQuality::Good));
     assert_eq!(val(&db, "b").await.1, TagQuality::Bad);
     let s = stato.istantanea();
-    assert_eq!(s["bus"].dispositivi[&1].stato, Collegamento::Ok);
-    assert_eq!(s["bus"].dispositivi[&2].stato, Collegamento::NonRisponde);
-    assert!(s["bus"].dispositivi[&2]
+    assert_eq!(s["bus"].dispositivi["1"].stato, Collegamento::Ok);
+    assert_eq!(s["bus"].dispositivi["2"].stato, Collegamento::NonRisponde);
+    assert!(s["bus"].dispositivi["2"]
         .errore
         .as_deref()
         .unwrap()
@@ -1109,7 +1109,7 @@ async fn un_silenzio_si_dice_al_terzo_giro_e_una_volta() {
 async fn un_dispositivo_assente_si_dice_tardi_e_si_interroga_di_rado() {
     let db = db_con(&[tag("a", "u16")], &[]).await;
     let stato = StatoSorgenti::new();
-    stato.registra("bus", [1]);
+    stato.registra("bus", ["1".into()]);
     let mut dev = Finto::default();
     dev.registri.insert(0, 7);
     dev.mute.insert(1);
@@ -1120,14 +1120,14 @@ async fn un_dispositivo_assente_si_dice_tardi_e_si_interroga_di_rado() {
             .unwrap();
     }
     assert_ne!(
-        stato.istantanea()["bus"].dispositivi[&1].stato,
+        stato.istantanea()["bus"].dispositivi["1"].stato,
         Collegamento::NonRisponde
     );
     giro_unita(&mut dev, &db, &mut u, &stato, "bus")
         .await
         .unwrap();
     assert_eq!(
-        stato.istantanea()["bus"].dispositivi[&1].stato,
+        stato.istantanea()["bus"].dispositivi["1"].stato,
         Collegamento::NonRisponde
     );
     assert_eq!(u.intervallo_adesso(), Duration::from_millis(1000));
@@ -1138,7 +1138,7 @@ async fn un_dispositivo_assente_si_dice_tardi_e_si_interroga_di_rado() {
         .await
         .unwrap();
     assert_eq!(
-        stato.istantanea()["bus"].dispositivi[&1].stato,
+        stato.istantanea()["bus"].dispositivi["1"].stato,
         Collegamento::Ok
     );
     assert!(!u.assente());

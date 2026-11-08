@@ -8,6 +8,7 @@
 //   - Sparkplug B encoding is Phase 3, not handled here
 
 use rumqttc::{AsyncClient, Event, MqttOptions, Packet, QoS};
+use std::collections::HashMap;
 use std::{sync::Arc, time::Duration};
 use sws_core::stato_sorgenti::{Collegamento, StatoSorgenti};
 use sws_core::{MqttConfig, TagDb, TagQuality, TagValue, TagWriteBus, WriteRequest};
@@ -212,7 +213,8 @@ pub async fn run(
     }
     // Il «risponde / non risponde» della sorgente (28-10-2026, piano «chi sta
     // dall'altra parte»): da qui nasce il tag `<id>.disponibile`.
-    stato.registra(&cfg.id, []);
+    stato.registra(&cfg.id, cfg.dispositivi.iter().map(|d| d.id.clone()));
+    stato.con_tag_per_dispositivo(&cfg.id);
     // Pre-build a (tag → publish_topic) lookup for the writable subset.
     let writers: Vec<(String, String)> = cfg
         .topics
@@ -421,6 +423,39 @@ async fn run_session(
     // disponibilità resta vero: c'è solo il broker da guardare.
     let mut altro_capo_vivo = cfg.disponibilita.is_none();
 
+    // I dispositivi (08-11-2026): ognuno il suo topic, sottoscritto una volta
+    // sola anche quando è condiviso (`modbus/status` per quattro contatori).
+    // Come la sorgente, ognuno «non risponde» finché il suo topic non dice vivo.
+    let mut vivi: HashMap<String, bool> = HashMap::new();
+    let mut gia_sottoscritti: std::collections::HashSet<&str> = std::collections::HashSet::new();
+    for d in &cfg.dispositivi {
+        let t = d.disponibilita.topic.as_str();
+        if !sottoscrivibile(t) {
+            // Senza un topic non si può sapere: vivo, e la validazione avvisa.
+            vivi.insert(d.id.clone(), true);
+            continue;
+        }
+        if gia_sottoscritti.insert(t) {
+            client
+                .subscribe(t, source_qos)
+                .await
+                .map_err(|e| anyhow::anyhow!("subscribe '{t}': {e}"))?;
+        }
+        vivi.insert(d.id.clone(), false);
+        stato.dispositivo(
+            &cfg.id,
+            &d.id,
+            Collegamento::NonRisponde,
+            Some(format!("nessun messaggio su «{t}»")),
+        );
+    }
+    // Di quale dispositivo è ogni tag: serve all'eco dei comandi.
+    let dispositivo_del_tag: HashMap<&str, &str> = cfg
+        .topics
+        .iter()
+        .filter_map(|t| t.dispositivo.as_deref().map(|d| (t.tag.as_str(), d)))
+        .collect();
+
     // Lo stato iniziale (25-10-2026): un broker senza `retain` non ha niente da
     // consegnare alla sottoscrizione, e il tag resterebbe senza valore finché lo
     // stato non cambia. Le richieste partono dopo le SUBSCRIBE, nella stessa coda
@@ -591,10 +626,15 @@ async fn run_session(
                     // capo morto** (28-10-2026): il comando parte lo stesso, ma
                     // scrivere `Good` il valore mandato direbbe che è stato
                     // eseguito, e nessuno lo ha ricevuto.
-                    if altro_capo_vivo {
+                    // Lo stesso per il dispositivo della riga (08-11-2026).
+                    let vivo = altro_capo_vivo
+                        && dispositivo_del_tag
+                            .get(tag.as_str())
+                            .is_none_or(|d| vivi.get(*d).copied().unwrap_or(true));
+                    if vivo {
                         db.ingest(tag.clone(), value, TagQuality::Good).await;
                     }
-                    info!(source = %cfg.id, %tag, %pt, payload, vivo = altro_capo_vivo, "MQTT publish");
+                    info!(source = %cfg.id, %tag, %pt, payload, vivo, "MQTT publish");
                 }
             }
 
@@ -630,6 +670,9 @@ async fn run_session(
                         }
                         altro_capo_vivo = vivo;
                     }
+                    if disponibilita_dei_dispositivi(cfg, &p.topic, &p.payload, &mut vivi, stato, db).await {
+                        matched = true;
+                    }
                     for topic in &cfg.topics {
                         if topic.topic == p.topic {
                             matched = true;
@@ -659,6 +702,57 @@ async fn run_session(
             }
         }
     }
+}
+
+/// Un messaggio sul topic di disponibilità di uno o più dispositivi
+/// (08-11-2026): aggiorna il loro stato e, per quelli morti, passa a `Bad`
+/// **solo le righe che li nominano** — il resto della sorgente non c'entra.
+/// Come per la sorgente, i valori tornano `Good` col primo valore vero.
+/// Vero se il topic era di qualche dispositivo.
+async fn disponibilita_dei_dispositivi(
+    cfg: &MqttConfig,
+    topic: &str,
+    payload: &[u8],
+    vivi: &mut HashMap<String, bool>,
+    stato: &StatoSorgenti,
+    db: &TagDb,
+) -> bool {
+    let mut trovato = false;
+    for d in cfg
+        .dispositivi
+        .iter()
+        .filter(|d| d.disponibilita.topic == topic)
+    {
+        trovato = true;
+        let vivo = d.disponibilita.e_vivo(payload);
+        vivi.insert(d.id.clone(), vivo);
+        if vivo {
+            if stato.dispositivo(&cfg.id, &d.id, Collegamento::Ok, None) {
+                info!(source = %cfg.id, dispositivo = %d.id, "MQTT: il dispositivo è di nuovo vivo");
+            }
+            continue;
+        }
+        let detto = String::from_utf8_lossy(payload)
+            .chars()
+            .take(120)
+            .collect::<String>();
+        if stato.dispositivo(
+            &cfg.id,
+            &d.id,
+            Collegamento::NonRisponde,
+            Some(format!("«{topic}» dice {detto}")),
+        ) {
+            warn!(source = %cfg.id, dispositivo = %d.id, payload = %detto, "MQTT: il dispositivo non c'è — i suoi tag passano a Bad");
+        }
+        for riga in cfg
+            .topics
+            .iter()
+            .filter(|t| mappata(&t.tag) && t.dispositivo.as_deref() == Some(d.id.as_str()))
+        {
+            db.marca_qualita(&riga.tag, TagQuality::Bad).await;
+        }
+    }
+    trovato
 }
 
 /// Render a TagValue as the raw string payload for MQTT publish.
@@ -876,7 +970,7 @@ pub async fn browse(params: BrowseParams) -> Vec<BrowsedTopic> {
 
 #[cfg(test)]
 mod tests_righe {
-    use super::{mappata, pubblicabile, richieste_di_stato, sottoscrivibile};
+    use super::*;
     use sws_core::{RichiestaStato, TopicMapping};
 
     /// Il caso vero, dal progetto Sandokan del 2026-09-07: la prima riga della
@@ -921,7 +1015,87 @@ mod tests_righe {
                 topic: t.into(),
                 payload: p.into(),
             }),
+            dispositivo: None,
         }
+    }
+
+    /// Due prese nella stessa sorgente (08-11-2026, la presa Sandokan staccata
+    /// il pomeriggio stesso): quando una dice `offline` diventano `Bad` solo i
+    /// suoi tag; l'altra e la riga senza dispositivo restano `Good`. Torna
+    /// `online`: lo stato torna Ok, i valori aspettano il loro prossimo messaggio.
+    #[tokio::test]
+    async fn un_dispositivo_morto_spegne_solo_i_suoi_tag() {
+        let cfg: MqttConfig = serde_json::from_value(serde_json::json!({
+            "id": "mqtt-casa", "host": "h",
+            "topics": [
+                {"tag": "sandokan.power", "topic": "zigbee2mqtt/presa.sandokan", "json_path": "power", "dispositivo": "presa.sandokan"},
+                {"tag": "tv.power", "topic": "zigbee2mqtt/presa.tv", "json_path": "power", "dispositivo": "presa.tv"},
+                {"tag": "meteo", "topic": "casa/meteo"}
+            ],
+            "dispositivi": [
+                {"id": "presa.sandokan", "disponibilita": {"topic": "zigbee2mqtt/presa.sandokan/availability", "json_path": "state", "vivo": "online"}},
+                {"id": "presa.tv", "disponibilita": {"topic": "zigbee2mqtt/presa.tv/availability", "json_path": "state", "vivo": "online"}}
+            ]
+        }))
+        .unwrap();
+        let db = TagDb::new(16);
+        for t in ["sandokan.power", "tv.power", "meteo"] {
+            db.ingest(t.into(), TagValue::Float(1.0), TagQuality::Good)
+                .await;
+        }
+        let stato = StatoSorgenti::new();
+        stato.registra("mqtt-casa", cfg.dispositivi.iter().map(|d| d.id.clone()));
+        let mut vivi = HashMap::new();
+        let t = "zigbee2mqtt/presa.sandokan/availability";
+        assert!(
+            disponibilita_dei_dispositivi(
+                &cfg,
+                t,
+                br#"{"state":"offline"}"#,
+                &mut vivi,
+                &stato,
+                &db
+            )
+            .await
+        );
+        assert_eq!(
+            db.get("sandokan.power").await.unwrap().quality,
+            TagQuality::Bad
+        );
+        assert_eq!(db.get("tv.power").await.unwrap().quality, TagQuality::Good);
+        assert_eq!(db.get("meteo").await.unwrap().quality, TagQuality::Good);
+        let s = &stato.istantanea()["mqtt-casa"];
+        assert_eq!(
+            s.dispositivi["presa.sandokan"].stato,
+            Collegamento::NonRisponde
+        );
+        assert!(s.dispositivi["presa.sandokan"]
+            .errore
+            .as_deref()
+            .unwrap()
+            .contains("offline"));
+        assert_eq!(vivi["presa.sandokan"], false);
+
+        assert!(
+            disponibilita_dei_dispositivi(
+                &cfg,
+                t,
+                br#"{"state":"online"}"#,
+                &mut vivi,
+                &stato,
+                &db
+            )
+            .await
+        );
+        assert_eq!(
+            stato.istantanea()["mqtt-casa"].dispositivi["presa.sandokan"].stato,
+            Collegamento::Ok
+        );
+        assert_eq!(vivi["presa.sandokan"], true);
+        assert!(
+            !disponibilita_dei_dispositivi(&cfg, "casa/meteo", b"12", &mut vivi, &stato, &db).await,
+            "un topic di dati non è di nessun dispositivo"
+        );
     }
 
     /// Lo switch a tre vie del garage (25-10-2026): tre righe sullo stesso

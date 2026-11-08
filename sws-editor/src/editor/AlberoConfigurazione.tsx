@@ -32,7 +32,7 @@ import { AlberoTagLive } from "./AlberoTagLive";
 import { chiaveRilievi, contaRilievi, type ConteggioRilievi } from "@/components/rilievoDestinazione";
 import { IntestazioneSezione, SPAZIO, TESTO, guideAlbero, useSezioneAperta } from "./stilePannelli";
 import { PallinoStato } from "@/config/sorgenti/DispositiviModbus";
-import { statoDispositivo, useStatoSorgenti } from "@/config/sorgenti/statoSorgenti";
+import { statoComplessivo, statoDispositivo, useStatoSorgenti } from "@/config/sorgenti/statoSorgenti";
 import { busImplicito, dispositiviDi, eBusModbus, etichettaDispositivo, focusDispositivo } from "@/config/sorgenti/modbusDispositivi";
 import { IconaCatalogo, useElencoCatalogo, voceDelModello } from "@/config/sorgenti/CatalogoDispositiviModal";
 
@@ -118,7 +118,7 @@ function SegnoRilievi({ c, testid }: { c: ConteggioRilievi | undefined; testid: 
  *  componente a sé perché il polling parta solo con la foglia Protocolli aperta. */
 function StatoProtocollo({ bus, unit }: { bus: string; unit?: number }) {
   const s = useStatoSorgenti()[bus];
-  return <PallinoStato stato={unit === undefined ? s : statoDispositivo(s, unit)}
+  return <PallinoStato stato={unit === undefined ? statoComplessivo(s) : statoDispositivo(s, unit)}
     testid={unit === undefined ? `stato-albero-${bus}` : `stato-albero-${bus}-${unit}`} />;
 }
 

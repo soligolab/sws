@@ -12,6 +12,7 @@ import { SezioneSorgente } from "@/config/sorgenti/card/SezioneSorgente";
 import { MqttPubblicazioniSection } from "@/config/sorgenti/MqttPubblicazioni";
 import { TestataSorgente } from "@/config/sorgenti/card/TestataSorgente";
 import { DisponibilitaSezione } from "@/config/sorgenti/card/DisponibilitaSezione";
+import { MqttDispositiviSection } from "@/config/sorgenti/MqttDispositivi";
 import { SparkplugSection } from "@/config/sorgenti/SparkplugSection";
 import { compilaRichiesteZigbee2mqtt, pubblicabile, richiestaZigbee2mqtt } from "@/config/sorgenti/richiestaStato";
 import { CampoNumero } from "@/components/CampoNumero";
@@ -99,6 +100,10 @@ export function MqttSourceCard({
 
   const etichetta = { fontSize: 11, color: "var(--brand-text-subtle, #64748b)", display: "block", marginBottom: 3 } as const;
   const nMappatura = source.sparkplug ? source.sparkplug.metrics.length : source.topics.length;
+  // La colonna «Dispositivo» compare quando la sorgente ne ha (08-11-2026):
+  // senza, la tabella resta quella di sempre.
+  const dispositivi = source.dispositivi ?? [];
+  const conDispositivi = dispositivi.length > 0;
 
   return (
     <div style={S.card}>
@@ -168,6 +173,9 @@ export function MqttSourceCard({
               />
             </DisponibilitaSezione>
           )}
+          {!source.sparkplug && (
+            <MqttDispositiviSection source={source} onChange={onChange} onCreateTag={onCreateTag} />
+          )}
 
           <SezioneSorgente
             titolo={`${t("sorgenti.sezioni.mappatura")} (${nMappatura})`}
@@ -195,13 +203,14 @@ export function MqttSourceCard({
                 <th style={{ ...S.th, width: "14%" }}>{t("cfg.jsonPathOpt")}</th>
                 <th style={{ ...S.th, width: "22%" }}>{t("cfg.topicOut")}</th>
                 <th style={{ ...S.th, width: "6%" }}>QoS</th>
+                {conDispositivi && <th style={{ ...S.th, width: "12%" }}>{t("sorgenti.dispositivi.colonna")}</th>}
                 <th style={S.th} />
               </tr>
             </thead>
             <tbody>
               {source.topics.length === 0 && (
                 <tr>
-                  <td colSpan={6} style={{ ...S.td, color: "var(--brand-text-subtle, #94a3b8)", textAlign: "center", padding: 12 }}>
+                  <td colSpan={conDispositivi ? 7 : 6} style={{ ...S.td, color: "var(--brand-text-subtle, #94a3b8)", textAlign: "center", padding: 12 }}>
                     {t("cfgUi.noTopicsAddAMapping")}
                   </td>
                 </tr>
@@ -263,6 +272,24 @@ export function MqttSourceCard({
                       <option value="2">2</option>
                     </select>
                   </td>
+                  {conDispositivi && (
+                    <td style={S.td}>
+                      <select
+                        style={{ ...S.inputSm, cursor: "pointer" }}
+                        data-testid={`riga-dispositivo-${i}`}
+                        value={tp.dispositivo ?? ""}
+                        onChange={(e) => setTopic(i, { dispositivo: e.target.value || undefined })}
+                      >
+                        <option value="">—</option>
+                        {/* Un dispositivo nominato ma tolto resta visibile:
+                            la validazione lo segnala, qui non sparisce in silenzio. */}
+                        {tp.dispositivo && !dispositivi.some((d) => d.id === tp.dispositivo) && (
+                          <option value={tp.dispositivo}>{tp.dispositivo} ⚠</option>
+                        )}
+                        {dispositivi.map((d) => <option key={d.id} value={d.id}>{d.id}</option>)}
+                      </select>
+                    </td>
+                  )}
                   <td style={{ ...S.td, textAlign: "right", whiteSpace: "nowrap" }}>
                     <button
                       style={{ ...S.btn(tp.richiesta_stato ? "primary" : "ghost"), marginRight: 4 }}
@@ -287,7 +314,7 @@ export function MqttSourceCard({
                         spellCheck={false}
                       />
                     </td>
-                    <td colSpan={3} style={S.td}>
+                    <td colSpan={conDispositivi ? 4 : 3} style={S.td}>
                       <input
                         style={S.inputSm}
                         value={tp.richiesta_stato.payload}

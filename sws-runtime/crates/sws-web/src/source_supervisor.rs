@@ -133,18 +133,13 @@ impl SourceSupervisor {
             // allarmi di disponibilità e la disponibilità pubblicata su MQTT
             // (trovato col tutorial del manuale, T07, 03-11-2026).
             let mut spariti = Vec::new();
-            for id in scritti.keys() {
-                if self
-                    .db
-                    .get(&sws_core::tag_disponibilita(id))
-                    .await
-                    .is_none()
-                {
-                    spariti.push(id.clone());
+            for tag in scritti.keys() {
+                if self.db.get(tag).await.is_none() {
+                    spariti.push(tag.clone());
                 }
             }
-            for id in spariti {
-                scritti.remove(&id);
+            for tag in spariti {
+                scritti.remove(&tag);
             }
             for (tag, vivo) in disponibilita_da_scrivere(&self.stato.istantanea(), &mut scritti) {
                 self.db
@@ -587,21 +582,37 @@ fn default_pki_root() -> std::path::PathBuf {
 
 /// Store di prova per i test: mai letto né scritto davvero (nessun test qui
 /// avvia una sessione MQTT), un percorso qualunque in temp basta.
-/// Quali tag di disponibilità scrivere adesso: quelli delle sorgenti il cui
-/// «risponde» è cambiato da quanto scritto l'ultima volta. Una sorgente che
-/// non c'è più si dimentica, così se ritorna si riscrive.
+/// Quali tag di disponibilità scrivere adesso: quelli il cui «risponde» è
+/// cambiato da quanto scritto l'ultima volta, per tag. Una sorgente o un
+/// dispositivo che non c'è più si dimentica, così se ritorna si riscrive.
+///
+/// Dall'08-11-2026 anche i dispositivi MQTT: `<sorgente>.<dispositivo>.disponibile`
+/// è vero quando rispondono **lui e la sorgente** — col broker caduto nessun
+/// dispositivo si può dire vivo.
 fn disponibilita_da_scrivere(
     stato: &std::collections::BTreeMap<String, sws_core::stato_sorgenti::StatoSorgente>,
     scritti: &mut HashMap<String, bool>,
 ) -> Vec<(String, bool)> {
     use sws_core::stato_sorgenti::Collegamento;
-    scritti.retain(|id, _| stato.contains_key(id));
-    let mut fuori = Vec::new();
+    let mut adesso: Vec<(String, bool)> = Vec::new();
     for (id, s) in stato {
         let vivo = s.bus.stato == Collegamento::Ok;
-        if scritti.get(id) != Some(&vivo) {
-            scritti.insert(id.clone(), vivo);
-            fuori.push((sws_core::tag_disponibilita(id), vivo));
+        adesso.push((sws_core::tag_disponibilita(id), vivo));
+        if s.tag_per_dispositivo {
+            for (dev, d) in &s.dispositivi {
+                adesso.push((
+                    sws_core::tag_disponibilita_dispositivo(id, dev),
+                    vivo && d.stato == Collegamento::Ok,
+                ));
+            }
+        }
+    }
+    scritti.retain(|tag, _| adesso.iter().any(|(t, _)| t == tag));
+    let mut fuori = Vec::new();
+    for (tag, vivo) in adesso {
+        if scritti.get(&tag) != Some(&vivo) {
+            scritti.insert(tag.clone(), vivo);
+            fuori.push((tag, vivo));
         }
     }
     fuori
@@ -638,6 +649,46 @@ mod prove_disponibilita {
         assert_eq!(
             disponibilita_da_scrivere(&st.istantanea(), &mut scritti),
             vec![("mqtt-garage.disponibile".to_string(), false)]
+        );
+    }
+
+    #[test]
+    fn i_dispositivi_mqtt_hanno_il_loro_tag_e_le_unita_modbus_no() {
+        let st = StatoSorgenti::new();
+        st.registra("mqtt-casa", ["presa.sandokan".into(), "frigo".into()]);
+        st.con_tag_per_dispositivo("mqtt-casa");
+        st.registra("bus", ["1".into()]);
+        let mut scritti = HashMap::new();
+        let primi = disponibilita_da_scrivere(&st.istantanea(), &mut scritti);
+        let tag: Vec<&str> = primi.iter().map(|(t, _)| t.as_str()).collect();
+        assert!(
+            tag.contains(&"mqtt-casa.presa_sandokan.disponibile"),
+            "{tag:?}"
+        );
+        assert!(tag.contains(&"mqtt-casa.frigo.disponibile"));
+        assert!(!tag.iter().any(|t| t.starts_with("bus.1")), "{tag:?}");
+        st.bus("mqtt-casa", Collegamento::Ok, None);
+        st.dispositivo("mqtt-casa", "presa.sandokan", Collegamento::Ok, None);
+        let mut cambi = disponibilita_da_scrivere(&st.istantanea(), &mut scritti);
+        cambi.sort();
+        assert_eq!(
+            cambi,
+            vec![
+                ("mqtt-casa.disponibile".to_string(), true),
+                ("mqtt-casa.presa_sandokan.disponibile".to_string(), true),
+            ],
+            "il frigo non ha mai risposto: resta falso, e non si riscrive"
+        );
+        // Il broker cade: la presa non si può più dire viva.
+        st.caduta("mqtt-casa", "connessione chiusa".into());
+        let mut cambi = disponibilita_da_scrivere(&st.istantanea(), &mut scritti);
+        cambi.sort();
+        assert_eq!(
+            cambi,
+            vec![
+                ("mqtt-casa.disponibile".to_string(), false),
+                ("mqtt-casa.presa_sandokan.disponibile".to_string(), false),
+            ]
         );
     }
 

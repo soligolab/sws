@@ -1042,6 +1042,14 @@ pub struct MqttConfig {
     /// disponibilità deve dire vivo.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub disponibilita: Option<DisponibilitaMqtt>,
+    /// I dispositivi dietro il broker, ognuno col suo topic di disponibilità
+    /// (08-11-2026, piano `docs/plans/2026-11-08-mqtt-dispositivi.md`). Una
+    /// sorgente sola per tutta casa: quando una presa sparisce diventano `Bad`
+    /// solo le righe che hanno `dispositivo` uguale al suo id, non tutta la
+    /// sorgente. Un blocco per dispositivo, perché nella stessa sorgente
+    /// Zigbee2MQTT, Tuya e Tasmota dicono «vivo» in tre modi diversi.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub dispositivi: Vec<DispositivoMqtt>,
     /// Lo stato dei tag pubblicato sul broker (01-11-2026, piano
     /// `docs/archive/2026-11-01-inverter-solarman.md`, fase 5): SWS come lettore
     /// unico di un dispositivo, e gli altri (Home Assistant) che leggono da qui.
@@ -1171,6 +1179,32 @@ pub fn tag_disponibilita(sorgente: &str) -> String {
     format!("{sorgente}.disponibile")
 }
 
+/// Un dispositivo dentro una sorgente MQTT: vedi `MqttConfig::dispositivi`.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct DispositivoMqtt {
+    /// Il nome con cui le righe della mappatura lo indicano (`presa.sandokan`).
+    pub id: String,
+    pub disponibilita: DisponibilitaMqtt,
+}
+
+/// Il tag di disponibilità di un dispositivo: `<sorgente>.<dispositivo>.disponibile`,
+/// con l'id ridotto a minuscole, cifre e `_` (`presa.sandokan` → `presa_sandokan`),
+/// perché un punto in più cambierebbe l'albero dei tag.
+pub fn tag_disponibilita_dispositivo(sorgente: &str, dispositivo: &str) -> String {
+    let pulito: String = dispositivo
+        .chars()
+        .map(|c| {
+            if c.is_ascii_alphanumeric() {
+                c.to_ascii_lowercase()
+            } else {
+                '_'
+            }
+        })
+        .collect();
+    format!("{sorgente}.{pulito}.disponibile")
+}
+
 /// See `MqttConfig::random_client_id`.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RandomClientId {
@@ -1277,6 +1311,10 @@ pub struct TopicMapping {
     /// `<topic>/get`, payload `{"<json_path>":""}`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub richiesta_stato: Option<RichiestaStato>,
+    /// L'id del dispositivo (`MqttConfig::dispositivi`) a cui la riga
+    /// appartiene: quando quel dispositivo è morto, il suo tag diventa `Bad`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub dispositivo: Option<String>,
 }
 
 /// Vedi `TopicMapping::richiesta_stato`.
@@ -3178,6 +3216,33 @@ mod prove_disponibilita {
         let con = "id: m\nhost: h\ntopics: []\ndisponibilita:\n  topic: zigbee2mqtt/bridge/state\n  json_path: state\n  vivo: online\n";
         let c: MqttConfig = serde_yaml::from_str(con).unwrap();
         assert_eq!(c.disponibilita.unwrap().vivo, "online");
+    }
+
+    #[test]
+    fn il_tag_di_un_dispositivo_ha_un_segmento_solo() {
+        assert_eq!(
+            tag_disponibilita_dispositivo("mqtt-casa", "presa.sandokan"),
+            "mqtt-casa.presa_sandokan.disponibile"
+        );
+        assert_eq!(
+            tag_disponibilita_dispositivo("mqtt-casa", "Tapparella.PianoTerra.Bagno"),
+            "mqtt-casa.tapparella_pianoterra_bagno.disponibile"
+        );
+    }
+
+    #[test]
+    fn i_dispositivi_e_la_riga_che_li_nomina() {
+        let senza = "id: m\nhost: h\ntopics:\n- tag: a\n  topic: t\n";
+        let c: MqttConfig = serde_yaml::from_str(senza).unwrap();
+        let y = serde_yaml::to_string(&c).unwrap();
+        assert!(!y.contains("dispositiv"), "{y}");
+        let con = "id: m\nhost: h\ntopics:\n- tag: a\n  topic: zigbee2mqtt/presa\n  dispositivo: presa\ndispositivi:\n- id: presa\n  disponibilita:\n    topic: zigbee2mqtt/presa/availability\n    json_path: state\n    vivo: online\n";
+        let c: MqttConfig = serde_yaml::from_str(con).unwrap();
+        assert_eq!(c.dispositivi.len(), 1);
+        assert_eq!(c.topics[0].dispositivo.as_deref(), Some("presa"));
+        let di_nuovo: MqttConfig =
+            serde_yaml::from_str(&serde_yaml::to_string(&c).unwrap()).unwrap();
+        assert_eq!(di_nuovo.dispositivi, c.dispositivi);
     }
 }
 

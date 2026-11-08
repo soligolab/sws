@@ -2615,10 +2615,62 @@ fn mappature_tag(src: &SourceDef) -> Vec<(String, &str)> {
 /// direbbe «non risponde» per sempre.
 fn controlli_disponibilita(src: &SourceDef, id: &str, out: &mut Vec<Finding>) {
     let SourceDef::Mqtt(c) = src else { return };
-    let Some(d) = c.disponibilita.as_ref() else {
-        return;
-    };
-    let campo = format!("project.sources[{id}].disponibilita");
+    if let Some(d) = c.disponibilita.as_ref() {
+        controlli_un_topic(d, &format!("project.sources[{id}].disponibilita"), out);
+    }
+    controlli_dispositivi(c, id, out);
+}
+
+/// I dispositivi di una sorgente MQTT (08-11-2026): ognuno coi tre controlli
+/// del topic, più i modi di sbagliare il legame con le righe — un id ripetuto
+/// (due dispositivi, un tag solo), una riga che nomina un dispositivo che non
+/// c'è (non diventerebbe mai `Bad`), un dispositivo senza righe (si guarda
+/// senza che niente dipenda da lui).
+fn controlli_dispositivi(c: &sws_core::MqttConfig, id: &str, out: &mut Vec<Finding>) {
+    let mut visti = std::collections::HashSet::new();
+    for (i, d) in c.dispositivi.iter().enumerate() {
+        let campo = format!("project.sources[{id}].dispositivi[{i}]");
+        if !visti.insert(d.id.as_str()) {
+            out.push(Finding::warn(
+                &campo,
+                format!("il dispositivo `{}` compare due volte", d.id),
+                "togli il doppione: i due avrebbero lo stesso tag di disponibilità",
+            ));
+        }
+        controlli_un_topic(&d.disponibilita, &format!("{campo}.disponibilita"), out);
+        if !c
+            .topics
+            .iter()
+            .any(|t| t.dispositivo.as_deref() == Some(d.id.as_str()))
+        {
+            out.push(Finding::warn(
+                &campo,
+                format!(
+                    "nessuna riga della mappatura appartiene al dispositivo `{}`",
+                    d.id
+                ),
+                "assegna le sue righe nella colonna «Dispositivo», o togli il dispositivo",
+            ));
+        }
+    }
+    for (i, t) in c.topics.iter().enumerate() {
+        if let Some(dev) = t.dispositivo.as_deref() {
+            if !visti.contains(dev) {
+                out.push(Finding::warn(
+                    format!("project.sources[{id}].topics[{i}].dispositivo"),
+                    format!(
+                        "la riga di `{}` nomina il dispositivo `{dev}`, che non c'è",
+                        t.tag
+                    ),
+                    "aggiungi il dispositivo nella sezione «Dispositivi», o togli il riferimento",
+                ));
+            }
+        }
+    }
+}
+
+fn controlli_un_topic(d: &sws_core::DisponibilitaMqtt, campo: &str, out: &mut Vec<Finding>) {
+    let campo = campo.to_string();
     if d.topic.contains("{nome}") {
         out.push(Finding::warn(
             &campo,
@@ -2668,6 +2720,26 @@ mod prove_disponibilita {
             controlli_disponibilita(&con(topic, vivo), "m", &mut out);
             assert_eq!(out.len(), attesi, "{topic:?} / {vivo:?}");
         }
+    }
+
+    #[test]
+    fn i_dispositivi_e_le_righe() {
+        let y = "kind: mqtt\nid: m\nhost: h\ntopics:\n\
+                 - {tag: a, topic: x, dispositivo: presa}\n\
+                 - {tag: b, topic: y, dispositivo: fantasma}\n\
+                 dispositivi:\n\
+                 - {id: presa, disponibilita: {topic: x/availability, vivo: online}}\n\
+                 - {id: presa, disponibilita: {topic: x/availability, vivo: online}}\n\
+                 - {id: muto, disponibilita: {topic: 'tele/{nome}/LWT', vivo: online}}\n";
+        let src: SourceDef = serde_yaml::from_str(y).unwrap();
+        let mut out = Vec::new();
+        controlli_disponibilita(&src, "m", &mut out);
+        let testi: Vec<String> = out.iter().map(|f| format!("{f:?}")).collect();
+        // doppione, `{nome}` e «nessuna riga» del muto, la riga fantasma.
+        assert_eq!(out.len(), 4, "{testi:#?}");
+        assert!(testi.iter().any(|t| t.contains("due volte")));
+        assert!(testi.iter().any(|t| t.contains("fantasma")));
+        assert!(testi.iter().any(|t| t.contains("muto")));
     }
 }
 

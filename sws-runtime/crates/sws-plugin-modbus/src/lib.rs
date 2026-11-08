@@ -1052,7 +1052,7 @@ pub async fn run(
 ) {
     let dispositivi = cfg.dispositivi();
     let registri = tutti_i_registri(&dispositivi);
-    stato.registra(&cfg.id, dispositivi.iter().map(|d| d.unit_id));
+    stato.registra(&cfg.id, dispositivi.iter().map(|d| d.unit_id.to_string()));
     let rx = registra(&bus, &registri).await;
     let indirizzo = format!("{}:{}", cfg.host, cfg.port);
     if cfg.trasporto == TrasportoTcp::SolarmanV5 && cfg.seriale_logger.is_none() {
@@ -1144,7 +1144,7 @@ pub async fn run_rtu(
 ) {
     let dispositivi = cfg.dispositivi();
     let registri = tutti_i_registri(&dispositivi);
-    stato.registra(&cfg.id, dispositivi.iter().map(|d| d.unit_id));
+    stato.registra(&cfg.id, dispositivi.iter().map(|d| d.unit_id.to_string()));
     let rx = registra(&bus, &registri).await;
     let parity = match cfg.parity.to_ascii_uppercase().as_str() {
         "E" => Parity::Even,

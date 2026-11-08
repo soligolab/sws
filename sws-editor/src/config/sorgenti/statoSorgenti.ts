@@ -70,7 +70,18 @@ export const COLORI_STATO: Record<ColoreStato, string> = {
   spento: "var(--brand-text-subtle, #64748b)",
 };
 
-/** Lo stato di un dispositivo dentro lo stato del suo bus. */
-export function statoDispositivo(s: StatoSorgente | undefined, unit: number): StatoCollegamento | undefined {
-  return s?.dispositivi?.[String(unit)];
+/** Lo stato di un dispositivo dentro lo stato del suo bus: l'unità Modbus o
+ *  l'id di un dispositivo MQTT (08-11-2026). */
+export function statoDispositivo(s: StatoSorgente | undefined, dispositivo: number | string): StatoCollegamento | undefined {
+  return s?.dispositivi?.[String(dispositivo)];
+}
+
+/** Lo stato di una sorgente contando i suoi dispositivi (08-11-2026): il bus
+ *  risponde ma un dispositivo no → «risponde, con errori», col nome di chi
+ *  manca nel motivo. Prima una presa staccata dentro una sorgente di trenta
+ *  dispositivi lasciava il pallino verde. */
+export function statoComplessivo(s: StatoSorgente | undefined): StatoCollegamento | undefined {
+  if (!s || s.stato !== "ok" || s.errore) return s;
+  const muti = Object.entries(s.dispositivi ?? {}).filter(([, d]) => d.stato === "non_risponde").map(([id]) => id);
+  return muti.length ? { ...s, errore: muti.join(", ") } : s;
 }

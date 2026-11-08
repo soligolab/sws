@@ -1,6 +1,6 @@
 import { useTranslation } from "react-i18next";
 import type { StatoCollegamento } from "@/types";
-import { COLORI_STATO, coloreStato, useStatoSorgenti } from "@/config/sorgenti/statoSorgenti";
+import { COLORI_STATO, coloreStato, statoComplessivo, useStatoSorgenti } from "@/config/sorgenti/statoSorgenti";
 
 /** L'ora da cui una sorgente è in quello stato, scritta come la dice una
  *  persona: «14:09» se è oggi, «27/10 14:09» se no. Esportata per le prove. */
@@ -38,7 +38,7 @@ export function PastigliaStato({
 }) {
   const { t, i18n } = useTranslation();
   const tutti = useStatoSorgenti();
-  const stato = statoDato ?? tutti[id];
+  const stato = statoDato ?? statoComplessivo(tutti[id]);
   const c = coloreStato(stato);
   const testo =
     c === "ok" ? t("sorgenti.stato.risponde")

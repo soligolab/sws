@@ -1433,6 +1433,9 @@ export interface TopicMapping {
    *  `payload` su `topic` dopo le sottoscrizioni. Gemello di
    *  `sws_core::RichiestaStato`. */
   richiesta_stato?: RichiestaStato;
+  /** L'id del dispositivo (`MqttSource.dispositivi`) a cui la riga appartiene
+   *  (08-11-2026): quando è morto, il suo tag diventa Bad. */
+  dispositivo?: string;
 }
 
 export interface RichiestaStato {
@@ -1518,8 +1521,16 @@ export interface MqttSource {
    *  dall'altra parte»): il topic che dice se è vivo. Gemello di
    *  `sws_core::DisponibilitaMqtt`. */
   disponibilita?: DisponibilitaMqtt;
+  /** I dispositivi dietro il broker, ognuno col suo topic di disponibilità
+   *  (08-11-2026). Gemello di `sws_core::DispositivoMqtt`. */
+  dispositivi?: DispositivoMqtt[];
   /** I tag che SWS pubblica sul broker (01-11-2026). */
   pubblica?: PubblicazioneMqtt[];
+}
+
+export interface DispositivoMqtt {
+  id: string;
+  disponibilita: DisponibilitaMqtt;
 }
 
 export interface DisponibilitaMqtt {

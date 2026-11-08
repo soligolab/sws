@@ -12,6 +12,16 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 ## [Unreleased]
 
 ### Aggiunto
+- **MQTT, la disponibilità per dispositivo** (piano `docs/plans/2026-11-08-mqtt-dispositivi.md`, nato dal collaudo
+  della presa Sandokan dell'08-11): `MqttConfig.dispositivi` (`id` + `disponibilita`, la stessa struct della
+  sorgente) e `TopicMapping.dispositivo`. Il plugin sottoscrive ogni topic di disponibilità una volta sola; un
+  dispositivo morto passa a `Bad` solo le righe che lo nominano, e l'eco di un comando verso di lui non scrive
+  `Good`. Il supervisore scrive `<sorgente>.<dispositivo>.disponibile` (id ridotto a `[a-z0-9_]`), vero se rispondono
+  lui e la sorgente. `StatoSorgente.dispositivi` ha chiavi stringa (Modbus `"1"`, MQTT l'id). Nell'IDE la sezione
+  DISPOSITIVI della card (impostazioni pronte Zigbee2MQTT, Tuya, Tasmota, Shelly, ESPHome, bridge Modbus, Frigate;
+  pallino, righe, allarme), la colonna «Dispositivo» della mappatura e «Raggruppa per dispositivo» dai topic; una
+  sorgente col bus vivo e un dispositivo muto è «risponde, con errori» in testata e nell'albero. La validazione
+  avvisa di doppioni, righe che nominano dispositivi assenti e dispositivi senza righe.
 - **Il banco di collaudo** (`scripts/banco_collaudo/`, per chi sviluppa): una pagina servita da `server.py` (solo
   libreria standard, porta 8471) con le prove da fare in gruppi, l'esito a un tasto e una nota; gli esiti in
   `esiti.json` fuori da git, da cui si spuntano `COLLAUDI_IN_SOSPESO.md`, i piani e `Appunti.txt`.

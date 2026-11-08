@@ -14,6 +14,17 @@ export function tagDisponibilita(sorgente: string): string {
   return [sorgente, "disponibile"].join(".");
 }
 
+/** Gemello di `sws_core::tag_disponibilita_dispositivo` (08-11-2026): l'id del
+ *  dispositivo ridotto a minuscole, cifre e `_`, perché un punto in più
+ *  cambierebbe l'albero dei tag (`presa.sandokan` → `presa_sandokan`). */
+export function tagDisponibilitaDispositivo(sorgente: string, dispositivo: string): string {
+  return [sorgente, idPulito(dispositivo), "disponibile"].join(".");
+}
+
+function idPulito(dispositivo: string): string {
+  return dispositivo.replace(/[^A-Za-z0-9]/g, "_").toLowerCase();
+}
+
 /** Le sorgenti che scrivono lo stato del collegamento. Il server OPC-UA è SWS
  *  stesso, e la sorgente host non ha un altro capo; Sparkplug B ancora no. */
 export function haDisponibilita(src: SourceDef): boolean {
@@ -47,6 +58,15 @@ export function allarmeDisponibilita(sorgente: string, messaggio: string): Alarm
     // singola lì è «vecchia» e chiede di essere convertita.
     levels: [{ condition: { kind: "bool_false" }, severity: "Warning", message: messaggio }],
     on_delay_s: 60,
+  };
+}
+
+/** L'allarme di un dispositivo: lo stesso della sorgente, sul suo tag. */
+export function allarmeDisponibilitaDispositivo(sorgente: string, dispositivo: string, messaggio: string): AlarmDef {
+  return {
+    ...allarmeDisponibilita(sorgente, messaggio),
+    id: `disponibilita-${sorgente}-${idPulito(dispositivo)}`,
+    tag: tagDisponibilitaDispositivo(sorgente, dispositivo),
   };
 }
 

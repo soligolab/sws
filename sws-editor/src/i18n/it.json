@@ -4271,6 +4271,32 @@
       "daCollegamento": "Lo dice il collegamento col dispositivo.",
       "tag": "Tag"
     },
+    "dispositivi": {
+      "titolo": "DISPOSITIVI",
+      "riepilogo_one": "{{count}} dispositivo",
+      "riepilogo_other": "{{count}} dispositivi",
+      "nota": "Uno per dispositivo dietro il broker, ognuno col topic che dice se è vivo. Quando uno dice «morto» passano a qualità Bad solo le righe che hanno lui nella colonna «Dispositivo», e il suo tag di disponibilità va a falso. Il resto della sorgente non cambia.",
+      "id": "Dispositivo",
+      "righe": "Righe",
+      "colonna": "Dispositivo",
+      "senzaRighe": "Nessuna riga della mappatura appartiene a questo dispositivo.",
+      "aggiungi": "+ Aggiungi dispositivo",
+      "raggruppa_one": "Raggruppa per dispositivo: {{count}} riga",
+      "raggruppa_other": "Raggruppa per dispositivo: {{count}} righe",
+      "raggruppaTitolo": "Dai topic delle righe senza dispositivo (zigbee2mqtt/<nome>, tuya/<nome>/…, Tasmota, modbus/<nome>/…, frigate/<telecamera>/…) crea i dispositivi che mancano e assegna le righe.",
+      "allarme": "Allarme",
+      "descrizioneTag": "Vero quando il dispositivo «{{id}}» della sorgente «{{sorgente}}» risponde (scritto dal runtime)",
+      "messaggio": "Il dispositivo «{{id}}» non risponde da un minuto",
+      "preset": {
+        "zigbee2mqtt": "Zigbee2MQTT",
+        "tuya": "Tuya",
+        "tasmota": "Tasmota",
+        "shelly": "Shelly",
+        "esphome": "ESPHome",
+        "modbus": "Bridge Modbus",
+        "frigate": "Frigate"
+      }
+    },
     "stato": {
       "risponde": "risponde",
       "parziale": "risponde, con errori",

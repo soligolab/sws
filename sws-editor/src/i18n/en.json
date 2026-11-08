@@ -4271,6 +4271,32 @@
       "daCollegamento": "It is the connection to the device that tells.",
       "tag": "Tag"
     },
+    "dispositivi": {
+      "titolo": "DEVICES",
+      "riepilogo_one": "{{count}} device",
+      "riepilogo_other": "{{count}} devices",
+      "nota": "One per device behind the broker, each with the topic that tells whether it is alive. When one says «dead», only the rows that name it in the «Device» column go to Bad quality, and its availability tag goes false. The rest of the source is unaffected.",
+      "id": "Device",
+      "righe": "Rows",
+      "colonna": "Device",
+      "senzaRighe": "No mapping row belongs to this device.",
+      "aggiungi": "+ Add device",
+      "raggruppa_one": "Group by device: {{count}} row",
+      "raggruppa_other": "Group by device: {{count}} rows",
+      "raggruppaTitolo": "From the topics of the rows without a device (zigbee2mqtt/<name>, tuya/<name>/…, Tasmota, modbus/<name>/…, frigate/<camera>/…) creates the missing devices and assigns the rows.",
+      "allarme": "Alarm",
+      "descrizioneTag": "True when device «{{id}}» of source «{{sorgente}}» responds (written by the runtime)",
+      "messaggio": "Device «{{id}}» has not responded for a minute",
+      "preset": {
+        "zigbee2mqtt": "Zigbee2MQTT",
+        "tuya": "Tuya",
+        "tasmota": "Tasmota",
+        "shelly": "Shelly",
+        "esphome": "ESPHome",
+        "modbus": "Modbus bridge",
+        "frigate": "Frigate"
+      }
+    },
     "stato": {
       "risponde": "responding",
       "parziale": "responding, with errors",
