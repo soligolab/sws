@@ -260,20 +260,20 @@
     {
       "id": "n4-logica",
       "dove": "1 · Dal cloud · le novità della rc.5 (progetto nuovo, impostazioni, logica)",
-      "titolo": "La Logica in un ramo solo: funzioni e script nello stesso editor",
-      "rif": "piano 2026-11-04 (sessione del 08-11)",
-      "scopo": "Funzioni, script e ricette stanno nella sezione Logica del pannello sinistro (nei due stili). Funzioni e script si aprono al centro, al posto del sinottico, con «Controlla» (compila senza eseguire) e, per le funzioni, «Prova» (esegue davvero, dopo una conferma).",
-      "prima": "Prima su CasaDomotica, solo guardando; poi su `prova-rc5`.",
+      "titolo": "La sezione «Logica» a sinistra: funzioni e script si aprono al centro",
+      "rif": "L1 (logica in un ramo solo)",
+      "scopo": "Prima le funzioni stavano in un posto e gli script in Configurazione. Ora sono tutti e due nella sezione «Logica» del pannello a sinistra, e cliccandoli si aprono al centro, al posto della pagina disegnata. Solo guardare: non si cambia niente di CasaDomotica.",
+      "prima": "CasaDomotica aperto nell'IDE nel cloud, ricaricato (versione 2.26.0-rc.5), in modalità modifica.",
       "passi": [
-        "CasaDomotica: apri la sezione Logica. Apri la funzione della pagina «Collaudo 2.26» e premi «Controlla». Non premere «Prova».",
-        "Passa allo stile dell'albero di Configurazione e ritrova la Logica.",
-        "`prova-rc5`: crea una variabile interna `prova_bool` (bool), una funzione `accendi` con `tags.write(\"prova_bool\", True)` e uno script nuovo. Nello script scrivi un nome sconosciuto e premi «Controlla»; clicca il rilievo.",
-        "Sulla funzione premi «Prova» e conferma."
+        "Nel pannello di sinistra, sotto le pagine, apri la sezione «ƒ Logica».",
+        "Clicca la funzione `collaudo_saluta`: si apre al centro. Premi «Controlla» (non «Prova»).",
+        "Clicca lo script `script_1788621349823`: si apre nello stesso posto. Premi «Controlla».",
+        "Chiudi l'editor (la X in alto): torna la pagina disegnata."
       ],
       "atteso": [
-        "Funzioni e script compaiono nello stesso ramo, si aprono al centro, «Controlla» dice «Nessun problema.».",
-        "Il rilievo dice la riga e il clic porta il cursore lì.",
-        "«Prova» chiede prima conferma; dopo, `prova_bool` vale true."
+        "Nella sezione ci sono «Funzioni (2)», «Script (1)» e «Ricette».",
+        "Funzione e script si aprono al centro col nome, il codice e i bottoni; «Controlla» risponde «Nessun problema.» (o elenca le righe da correggere, cliccabili).",
+        "Configurazione → Script non ha più l'elenco: rimanda alla sezione Logica."
       ],
       "sblocca": "L1",
       "link": [
