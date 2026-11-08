@@ -9,7 +9,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { api } from "@/api/client";
-import type { ProjectTargetKind, TemplateEntry } from "@/types";
+import type { TemplateEntry } from "@/types";
 import { campoAmpio, pulsantePrimario, pulsanteSecondario } from "@/ui/base";
 import { DirectoryBrowser } from "@/components/benvenuto/SfogliaCartelle";
 
@@ -22,12 +22,18 @@ const INPUT = campoAmpio;
 /** Le tre schede del modale. Esportato: `WelcomeScreen` sceglie quale aprire. */
 export type NewProjectTab = "empty" | "template" | "zip";
 
-/** JS-side mirror of the server's `safe_project_name` — display-only preview
- *  of the final folder name; the real validation always happens server-side. */
-function previewSafeName(raw: string): string {
-  const trimmed = raw.trim();
-  if (!trimmed || trimmed === "." || trimmed === "..") return "";
-  return trimmed.replace(/[/\\:*?"<>|\x00]/g, "");
+/** Le regole di `safe_project_name` del server, dette prima di mandare
+ *  (08-11-2026): l'anteprima toglieva i caratteri vietati e mostrava un nome
+ *  che il server poi **rifiutava**, perché lui non li toglie. Restituisce la
+ *  chiave del messaggio, o `null` se il nome va bene (vuoto compreso: lo dice
+ *  il bottone). */
+export function erroreNomeProgetto(raw: string): string | null {
+  const nome = raw.trim();
+  if (!nome) return null;
+  if (nome.startsWith(".")) return "welcome.nomePunto";
+  if (nome.length > 64) return "welcome.nomeLungo";
+  if (/[/\\:*?"<>|\x00]/.test(nome)) return "welcome.nomeCaratteri";
+  return null;
 }
 
 // ── DirectoryBrowser ──────────────────────────────────────────────────────────
@@ -65,8 +71,6 @@ export function NewProjectModal({
   const [templates, setTemplates]     = useState<TemplateEntry[]>([]);
   const [selectedTpl, setSelectedTpl] = useState<string>("");
   const [zipFile, setZipFile]         = useState<File | null>(null);
-  const [targetKind, setTargetKind]   = useState<ProjectTargetKind>("web");
-  const [fbDevice, setFbDevice]       = useState("");
   const [parentPath, setParentPath]   = useState("");
   const [showBrowser, setShowBrowser] = useState(false);
   const [busy, setBusy]               = useState(false);
@@ -85,6 +89,8 @@ export function NewProjectModal({
   }, []);
 
   const handleCreate = async () => {
+    const nomeSbagliato = erroreNomeProgetto(name);
+    if (nomeSbagliato) { setError(t(nomeSbagliato)); return; }
     setBusy(true); setError(null);
     const trimmedParent = parentPath.trim() || undefined;
     try {
@@ -92,19 +98,20 @@ export function NewProjectModal({
         if (!zipFile) { setError(t("welcome.errNoZip")); setBusy(false); return; }
         // name is optional — backend reads it from manifest.json if blank
         const nameOverride = name.trim() || undefined;
-        const result = await api.uploadProjectZip(zipFile, nameOverride, trimmedParent);
+        const result = await api.uploadProjectZip(zipFile, nameOverride, trimmedParent, aziendaScelta ?? undefined);
         onCreate(result.riferimento, result.name);
       } else {
         const trimmed = name.trim();
         if (!trimmed) { setError(t("welcome.errNoName")); setBusy(false); return; }
-        // Il target si sceglie solo per progetti vuoti — un template porta
-        // già con sé oggetti/pagine pensati per il web (vedi ADR 0002).
-        const target = tab === "empty" && targetKind !== "web"
-          ? { kind: targetKind, framebuffer_device: targetKind === "lvgl_framebuffer" ? (fbDevice.trim() || undefined) : undefined }
-          : undefined;
         // La lingua dell'IDE diventa la lingua principale del progetto nuovo: un
         // progetto che nasce senza lingua non può ancora dire niente (18-09-2026).
-        const creato = await api.createProject({ name: trimmed, template: tab === "template" ? selectedTpl : undefined, parent_path: trimmedParent, target, lang: i18n.language, azienda_id: aziendaScelta ?? undefined });
+        // Il motore non si chiede più qui (08-11-2026): un progetto vuoto apre da
+        // sé la finestra «Impostazioni progetto», che lo chiede insieme a misura,
+        // sfondi e cornice — un solo posto per lo stesso dato.
+        const creato = await api.createProject({
+          name: trimmed, template: tab === "template" ? selectedTpl : undefined, parent_path: trimmedParent,
+          lang: i18n.language, azienda_id: aziendaScelta ?? undefined, impostazione_iniziale: tab === "empty",
+        });
         // Il riferimento lo decide il SERVER: dipende dall'azienda scelta, e
         // ricostruirlo qui vorrebbe dire conoscere la cartella di ogni
         // azienda — un secondo posto che dice la stessa cosa.
@@ -228,8 +235,9 @@ export function NewProjectModal({
               placeholder={t("welcome.namePlaceholder")}
               onKeyDown={(e) => { if (e.key === "Enter") handleCreate(); if (e.key === "Escape") onClose(); }}
             />
-            <div style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)", marginTop: 4 }}>
-              {t("welcome.folderNameHint")}
+            <div style={{ fontSize: 11, marginTop: 4,
+              color: erroreNomeProgetto(name) ? "var(--brand-danger-soft, #fca5a5)" : "var(--brand-text-subtle, #64748b)" }}>
+              {t(erroreNomeProgetto(name) ?? "welcome.folderNameHint")}
             </div>
           </div>
         )}
@@ -252,42 +260,6 @@ export function NewProjectModal({
                 </option>
               ))}
             </select>
-          </div>
-        )}
-
-        {/* target: solo per progetti vuoti (vedi ADR 0002) */}
-        {tab === "empty" && (
-          <div style={{ marginBottom: 16 }}>
-            <label style={{ fontSize: 12, color: "var(--brand-text-muted, #94a3b8)", display: "block", marginBottom: 6 }}>
-              {t("welcome.target")}
-            </label>
-            <select
-              style={{ ...INPUT, cursor: "pointer" }}
-              value={targetKind}
-              onChange={(e) => setTargetKind(e.target.value as ProjectTargetKind)}
-            >
-              <option value="web">{t("welcome.targetWeb")}</option>
-              <option value="lvgl_framebuffer">{t("welcome.targetLvglFramebuffer")}</option>
-              <option value="lvgl_wayland">{t("welcome.targetLvglWayland")}</option>
-            </select>
-            {targetKind !== "web" && (
-              <div style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)", marginTop: 6 }}>
-                {t("welcome.targetHint")}
-              </div>
-            )}
-            {targetKind === "lvgl_framebuffer" && (
-              <div style={{ marginTop: 10 }}>
-                <label style={{ fontSize: 12, color: "var(--brand-text-muted, #94a3b8)", display: "block", marginBottom: 6 }}>
-                  {t("welcome.framebufferDeviceLabel")}
-                </label>
-                <input
-                  style={{ ...INPUT, fontFamily: "monospace", fontSize: 13 }}
-                  value={fbDevice}
-                  onChange={(e) => setFbDevice(e.target.value)}
-                  placeholder={t("welcome.framebufferDevicePlaceholder")}
-                />
-              </div>
-            )}
           </div>
         )}
 
@@ -342,7 +314,7 @@ export function NewProjectModal({
                 prima si leggeva «Predefinita (la cartella dei progetti)/impianto»,
                 la scritta tradotta incollata come se fosse una cartella. */}
             {(() => {
-              const nome = previewSafeName(name) || (tab === "zip" ? t("welcome.nameFromZipPlaceholder") : "…");
+              const nome = (erroreNomeProgetto(name) ? "" : name.trim()) || (tab === "zip" ? t("welcome.nameFromZipPlaceholder") : "…");
               if (parentPath.trim()) return t("welcome.finalPathPreview", { path: `${parentPath.trim()}/${nome}` });
               const azienda = mieAziende.find((a) => a.id === aziendaScelta);
               return azienda && !azienda.implicita

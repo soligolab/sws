@@ -47,6 +47,7 @@ import {
   pageFillEnabled,
   riquadroTestoSemplice,
   softClampToPage,
+  SFONDO_PREDEFINITO,
 } from "@/pageLayout";
 import { faceplateDefBBox, normalizeFaceplateParams } from "@/faceplate/definizione";
 import type { AlarmSeverity, AlarmState, CustomSymbol, FaceplateDef, GridCell, PageSizeMode, PipePoint, Sample, SynopticObject, SynopticObjectType, TableRow, TagState } from "@/types";
@@ -763,7 +764,7 @@ export function SvgCanvas({
   // Il default storico del componente, ripristinato subito: tutto il resto del
   // file lo usa come prima. L'unico posto che guarda `backgroundProp` grezzo è
   // `pageFillOn`.
-  const background = backgroundProp ?? "#1a1a2e";
+  const background = backgroundProp ?? SFONDO_PREDEFINITO;
   // Resolved selection set: prefer the explicit array, fall back to the
   // legacy single-id prop, then to "nothing selected".
   const selIds = selectedIds ?? (selectedId ? [selectedId] : []);

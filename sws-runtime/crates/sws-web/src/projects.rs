@@ -334,6 +334,12 @@ pub struct CreateProjectRequest {
     /// i progetti da template restano sempre Web per ora, vedi ADR 0002.
     #[serde(default)]
     pub target: Option<ProjectTarget>,
+    /// Lo manda solo «Nuovo progetto» dell'IDE, per un progetto vuoto: accende
+    /// `Project::impostazione_iniziale`, così all'apertura l'IDE chiede misura,
+    /// sfondi, motore e cornice; e le pagine nascono coi nomi nella lingua
+    /// principale (08-11-2026). Chi crea via API senza dirlo non lo trova.
+    #[serde(default)]
+    pub impostazione_iniziale: bool,
 }
 
 #[derive(Serialize)]
@@ -1169,6 +1175,7 @@ pub async fn create_project(
                 tags: vec![],
                 // Progetto vuoto: sorgenti non ce ne sono, niente da rivedere.
                 sorgenti_da_rivedere: false,
+                impostazione_iniziale: req.impostazione_iniziale,
                 sources: vec![],
                 alarms: vec![],
                 functions: vec![],
@@ -1205,7 +1212,12 @@ pub async fn create_project(
             }
             info!(name = %safe_name, "project created (empty)");
             // T-72: una pagina di boot e una sinottica vuota, subito.
-            if let Err(e) = crate::boot::semina(&target, true).await {
+            let seminate = if req.impostazione_iniziale {
+                crate::boot::semina_impostata(&target, &project.languages.default).await
+            } else {
+                crate::boot::semina(&target, true).await
+            };
+            if let Err(e) = seminate {
                 warn!("create_project: pagine iniziali: {e}");
             }
         }
@@ -2894,6 +2906,12 @@ pub struct UploadQuery {
     /// (unchanged behavior).
     #[serde(default)]
     pub parent_path: Option<String>,
+    /// L'azienda scelta in «Nuovo progetto» → «Da ZIP», come
+    /// `CreateProjectRequest::azienda_id`: senza `parent_path` il progetto va
+    /// nella sua cartella. Fino all'08-11-2026 lo ZIP la ignorava e il progetto
+    /// finiva sempre nell'azienda implicita.
+    #[serde(default)]
+    pub azienda_id: Option<i64>,
     /// `true` → questa è la seconda metà di un deploy: la cartella target
     /// **esiste già** (l'ha appena svuotata dei soli file di progettazione
     /// `DELETE …?preserve_state=true`) e va riempita senza rifiutare il conflitto.
@@ -2967,7 +2985,10 @@ pub async fn upload_project_zip(
     // percorso. Addebitare sempre all'implicita voleva dire che un upload
     // dentro una cartella d'azienda non toccava mai la sua quota.
     if !q.deploy {
-        let addebito = azienda_di_destinazione(&s, q.parent_path.as_deref()).await;
+        let addebito = match q.parent_path.as_deref().filter(|p| !p.trim().is_empty()) {
+            Some(p) => azienda_di_destinazione(&s, Some(p)).await,
+            None => q.azienda_id,
+        };
         // **Tutte e due le quote, da tutte e due le porte.** Il numero di
         // progetti ha la stessa forma dello spazio, e la stessa ragione per
         // stare qui: un limite che si aggira caricando uno zip non e un
@@ -3075,7 +3096,10 @@ pub async fn upload_project_zip(
             }
             parent
         }
-        None => s.projects_root.as_ref().clone(),
+        None => match cartella_dell_azienda(&s, q.azienda_id).await {
+            Ok(p) => p,
+            Err(m) => return (StatusCode::BAD_REQUEST, m).into_response(),
+        },
     };
     // In deploy la cartella DEVE esistere già: il conflitto non è un errore.
     let chiave_caricato = crate::project_registry::riferimento(

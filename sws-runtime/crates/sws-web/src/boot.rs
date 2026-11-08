@@ -46,6 +46,7 @@ const PNG_MAGIC: [u8; 8] = [0x89, b'P', b'N', b'G', 0x0D, 0x0A, 0x1A, 0x0A];
 pub const NOME_BOOT_INIZIALE: &str = "Immagine di boot";
 const LARGHEZZA_INIZIALE: f64 = 1280.0;
 const ALTEZZA_INIZIALE: f64 = 800.0;
+const SFONDO_INIZIALE: &str = "#0f172a";
 
 pub fn boot_dir_at(project_dir: &FsPath) -> PathBuf {
     project_dir.join("boot")
@@ -217,7 +218,7 @@ pub fn pagina_di_boot_iniziale() -> SynopticPage {
         id: format!("boot-{}", crate::synoptic::nuovo_id_pagina()),
         name: NOME_BOOT_INIZIALE.to_string(),
         objects: vec![],
-        background: Some("#0f172a".to_string()),
+        background: Some(SFONDO_INIZIALE.to_string()),
         background_dark: None,
         background_tag: None,
         sfondo_immagine: None,
@@ -261,20 +262,57 @@ pub fn pagina_uno_iniziale() -> SynopticPage {
 /// vuota; se `con_pagina_uno` e manca `synoptics/`, anche `Page 1`. Non
 /// sovrascrive niente: un template che porta già le sue pagine le tiene.
 pub async fn semina(dir: &FsPath, con_pagina_uno: bool) -> std::io::Result<()> {
+    semina_con(
+        dir,
+        pagina_di_boot_iniziale(),
+        con_pagina_uno.then(pagina_uno_iniziale),
+    )
+    .await
+}
+
+/// I nomi della prima pagina e della pagina di boot nella lingua principale del
+/// progetto (piano dell'impostazione iniziale, 08-11-2026). Due sole lingue:
+/// l'italiano, e l'inglese per tutte le altre.
+pub fn nomi_iniziali(lingua: &str) -> (&'static str, &'static str) {
+    match lingua {
+        "it" => ("Pagina 1", NOME_BOOT_INIZIALE),
+        _ => ("Page 1", "Boot image"),
+    }
+}
+
+/// Le pagine di un progetto vuoto creato da «Nuovo progetto», quello che apre
+/// da sé la finestra «Impostazioni progetto»: i nomi nella lingua principale e
+/// la prima pagina con lo stesso sfondo della pagina di boot, `#0f172a`, lo
+/// sfondo predefinito unico deciso l'08-11-2026. I progetti vuoti creati via API
+/// (e2e, script) restano come prima: `semina`.
+pub async fn semina_impostata(dir: &FsPath, lingua: &str) -> std::io::Result<()> {
+    let (pagina, boot) = nomi_iniziali(lingua);
+    let mut uno = pagina_uno_iniziale();
+    uno.name = pagina.to_string();
+    uno.background = Some(SFONDO_INIZIALE.to_string());
+    let mut di_boot = pagina_di_boot_iniziale();
+    di_boot.name = boot.to_string();
+    semina_con(dir, di_boot, Some(uno)).await
+}
+
+async fn semina_con(
+    dir: &FsPath,
+    di_boot: SynopticPage,
+    pagina_uno: Option<SynopticPage>,
+) -> std::io::Result<()> {
     if !tokio::fs::try_exists(boot_dir_at(dir))
         .await
         .unwrap_or(false)
     {
-        let page = pagina_di_boot_iniziale();
+        let page = di_boot;
         let yaml = serde_yaml::to_string(&page)
             .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e))?;
         tokio::fs::create_dir_all(boot_dir_at(dir)).await?;
         tokio::fs::write(yaml_path(dir, &page.name), yaml).await?;
     }
-    if con_pagina_uno {
+    if let Some(page) = pagina_uno {
         let syn = crate::router::synoptics_dir_at(dir);
         if !tokio::fs::try_exists(&syn).await.unwrap_or(false) {
-            let page = pagina_uno_iniziale();
             let yaml = serde_yaml::to_string(&page)
                 .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e))?;
             tokio::fs::create_dir_all(&syn).await?;
@@ -697,6 +735,23 @@ mod tests {
             .unwrap();
         semina(d.path(), true).await.unwrap();
         assert_eq!(elenca(d.path()).await.len(), 2);
+    }
+
+    #[tokio::test]
+    async fn il_progetto_da_impostare_nasce_coi_nomi_della_sua_lingua() {
+        let d = tempfile::tempdir().unwrap();
+        semina_impostata(d.path(), "it").await.unwrap();
+        let uno: SynopticPage = serde_yaml::from_str(
+            &std::fs::read_to_string(d.path().join("synoptics/Pagina 1.yaml")).unwrap(),
+        )
+        .unwrap();
+        assert_eq!(uno.background.as_deref(), Some("#0f172a"));
+        assert_eq!(elenca(d.path()).await, vec![NOME_BOOT_INIZIALE.to_string()]);
+
+        let e = tempfile::tempdir().unwrap();
+        semina_impostata(e.path(), "de").await.unwrap();
+        assert!(e.path().join("synoptics/Page 1.yaml").is_file());
+        assert_eq!(elenca(e.path()).await, vec!["Boot image".to_string()]);
     }
 
     fn progetto_minimo(dir: &FsPath) {

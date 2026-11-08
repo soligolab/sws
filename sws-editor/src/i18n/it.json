@@ -518,14 +518,7 @@
     "projectNameLabel": "Nome progetto",
     "projectNameZipOptional": "(opzionale — usa il nome dal ZIP se vuoto)",
     "deployDone": "Deploy completato",
-    "folderNameHint": "Sarà usato come nome della cartella. Solo lettere, cifre, trattini e underscore.",
-    "target": "Target",
-    "targetWeb": "Web (browser)",
-    "targetLvglFramebuffer": "LVGL — Framebuffer",
-    "targetLvglWayland": "LVGL — Wayland",
-    "targetHint": "LVGL: oggetti disponibili limitati al sottoinsieme già implementato (rect, testo, bottone, led, slider). Vedi docs/OPEN_QUESTIONS.md Q14 per lo stato del motore.",
-    "framebufferDeviceLabel": "Device framebuffer",
-    "framebufferDevicePlaceholder": "/dev/fb0",
+    "folderNameHint": "Sarà il nome della cartella: fino a 64 caratteri, senza / \\ : * ? \" < > | e senza un punto all'inizio.",
     "template": "Template",
     "selectOrCreate": "Seleziona o crea un progetto per iniziare",
     "noProjects": "Nessun progetto trovato. Crea il tuo primo progetto.",
@@ -597,7 +590,10 @@
     "archiviati": "Archiviati ({{n}})",
     "archiviatoIl": "archiviato il {{date}} da {{da}}",
     "ripristina": "Ripristina",
-    "streamingNonSupportato": "ERRORE: streaming non supportato"
+    "streamingNonSupportato": "ERRORE: streaming non supportato",
+    "nomePunto": "Il nome non può iniziare con un punto.",
+    "nomeLungo": "Il nome è troppo lungo: al massimo 64 caratteri.",
+    "nomeCaratteri": "Il nome contiene un carattere che una cartella non può avere: / \\ : * ? \" < > |"
   },
   "logs": {
     "history": "Storico…",
@@ -2396,7 +2392,10 @@
     "genereFinestra": "finestra",
     "genereCornice": "cornice",
     "genereFaceplate": "faceplate",
-    "genereBoot": "immagine di boot"
+    "genereBoot": "immagine di boot",
+    "impostazioneInizialeTitolo": "Imposta il progetto",
+    "impostazioneInizialeTesto": "Prima di disegnare: motore, misura delle pagine, sfondi e cornice valgono per tutte le pagine. Si possono cambiare quando vuoi da Impostazioni progetto.",
+    "impostazioneInizialeFine": "Fatto"
   },
   "credenziali": {
     "waitWithoutRetryingEveryNew": "Aspetta **senza** riprovare: ogni nuovo tentativo allunga il blocco. ",
@@ -4039,13 +4038,15 @@
     "testata": "Testata",
     "piede": "Piede",
     "spiegazione": "Testata e piede si vedono sotto ogni pagina che usa questa cornice. Metti gli oggetti dentro le due fasce.",
-    "predefinitaCheckbox": "Cornice predefinita del progetto",
     "predefinitaFallita": "Impossibile impostare la cornice predefinita: {{err}}",
     "segnaposti": "Nei testi: {{a}}, {{b}}, {{c}}.",
-    "proposta": {
-      "testo": "Una cornice comune alle pagine? Testata e piede si disegnano una volta sola, per tutte.",
-      "no": "No, grazie"
-    }
+    "campoTitolo": "Cornice predefinita",
+    "nessunaPredefinita": "Nessuna",
+    "esistenti": "Cornici del progetto",
+    "nuovaDaModello": "Nuova da un modello",
+    "campoAiuto": "La cornice delle pagine che non ne scelgono una: testata e piede si disegnano una volta sola.",
+    "questaPredefinita": "⭐ È la cornice predefinita del progetto.",
+    "nonPredefinita": "Non è la cornice predefinita del progetto."
   },
   "scala": {
     "apri": "Cambia risoluzione del progetto…",

@@ -518,14 +518,7 @@
     "projectNameLabel": "Project name",
     "projectNameZipOptional": "(optional — uses the name from the ZIP if empty)",
     "deployDone": "Deploy complete",
-    "folderNameHint": "It will be used as the folder name. Letters, digits, hyphens and underscores only.",
-    "target": "Target",
-    "targetWeb": "Web (browser)",
-    "targetLvglFramebuffer": "LVGL — Framebuffer",
-    "targetLvglWayland": "LVGL — Wayland",
-    "targetHint": "LVGL: available objects limited to the subset already implemented (rect, text, button, led, slider). See docs/OPEN_QUESTIONS.md Q14 for the engine's status.",
-    "framebufferDeviceLabel": "Framebuffer device",
-    "framebufferDevicePlaceholder": "/dev/fb0",
+    "folderNameHint": "It will be the folder name: up to 64 characters, without / \\ : * ? \" < > | and not starting with a dot.",
     "template": "Template",
     "selectOrCreate": "Select or create a project to start",
     "noProjects": "No projects found. Create your first project.",
@@ -597,7 +590,10 @@
     "archiviati": "Archived ({{n}})",
     "archiviatoIl": "archived on {{date}} by {{da}}",
     "ripristina": "Restore",
-    "streamingNonSupportato": "ERROR: streaming not supported"
+    "streamingNonSupportato": "ERROR: streaming not supported",
+    "nomePunto": "The name cannot start with a dot.",
+    "nomeLungo": "The name is too long: 64 characters at most.",
+    "nomeCaratteri": "The name contains a character a folder cannot have: / \\ : * ? \" < > |"
   },
   "logs": {
     "history": "History…",
@@ -2396,7 +2392,10 @@
     "genereFinestra": "window",
     "genereCornice": "frame",
     "genereFaceplate": "faceplate",
-    "genereBoot": "boot image"
+    "genereBoot": "boot image",
+    "impostazioneInizialeTitolo": "Set up the project",
+    "impostazioneInizialeTesto": "Before drawing: engine, page size, backgrounds and frame apply to every page. You can change them any time from Project settings.",
+    "impostazioneInizialeFine": "Done"
   },
   "credenziali": {
     "waitWithoutRetryingEveryNew": "Wait **without** retrying: every new attempt lengthens the lockout. ",
@@ -4039,13 +4038,15 @@
     "testata": "Header",
     "piede": "Footer",
     "spiegazione": "Header and footer appear under every page using this frame. Keep the objects inside the two bands.",
-    "predefinitaCheckbox": "Project default frame",
     "predefinitaFallita": "Could not set the default frame: {{err}}",
     "segnaposti": "In texts: {{a}}, {{b}}, {{c}}.",
-    "proposta": {
-      "testo": "A frame shared by the pages? Header and footer are drawn once, for all of them.",
-      "no": "No, thanks"
-    }
+    "campoTitolo": "Default frame",
+    "nessunaPredefinita": "None",
+    "esistenti": "Project frames",
+    "nuovaDaModello": "New from a template",
+    "campoAiuto": "The frame of pages that don't choose one: header and footer are drawn once for all of them.",
+    "questaPredefinita": "⭐ This is the project's default frame.",
+    "nonPredefinita": "This is not the project's default frame."
   },
   "scala": {
     "apri": "Change project resolution…",

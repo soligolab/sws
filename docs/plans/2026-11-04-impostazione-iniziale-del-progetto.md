@@ -14,6 +14,22 @@
 - La finestra **compare da sola solo per un progetto vuoto appena creato**, e **si riapre quando si vuole** (Progetto →
   Impostazioni). Per un template o uno ZIP non compare: le scelte le ha già fatte chi l'ha scritto.
 
+## Decisioni dell'08-11-2026, all'inizio di I1
+
+Il maintainer, chiedendo la rc.5: «inizia e fammi le domande che ti servono».
+- **Il preset si ricorda**: `page_layout.dispositivo` (l'etichetta del preset); vince sugli altri con la stessa misura.
+- **Uno sfondo predefinito solo, `#0f172a`**: `SFONDO_PREDEFINITO` in `pageLayout.ts` (= `BOOT_SFONDO`), usato da editor
+  e canvas al posto di `#1a1a2e`.
+- **`framebuffer_device` esce anche dal modello**: i progetti che lo portano si leggono uguale, la `PUT
+  /api/project/target` lo accetta e lo butta (un IDE di prima non prende un 400).
+- **La cornice predefinita si sceglie solo nella finestra** (campo Cornice: nessuna, una esistente, una nuova da
+  modello): via `PropostaCornice` e la spunta «predefinita» nelle proprietà della cornice, che ora dicono com'è e aprono
+  la finestra. Regola UI n. 2.
+- **Lingue e tipo di impianto per l'IA restano fuori dalla finestra**, del tutto: hanno già la loro scheda, e la
+  finestra sarebbe stato un secondo scrittore dello stesso dato. Il progetto nasce già con la lingua dell'IDE.
+- Il resto come le proposte del piano: chi non è Admin non apre la finestra; «Pagina 1» e il boot nella lingua
+  principale (italiano, inglese per le altre); ZIP e azienda e l'anteprima del nome corretti qui.
+
 ## La misura (04-11-2026)
 
 - «Nuovo progetto» (`components/benvenuto/NuovoProgetto.tsx`) chiede nome, azienda, **motore**, dispositivo framebuffer,
@@ -90,6 +106,12 @@ finestra. I1 resta com'è (la finestra che si apre da sola per un progetto vuoto
 - Prova del maintainer: progetto vuoto → finestra → «Page 1» e il boot nascono con misura, sfondi, motore e cornice
   giusti; anche nel cloud (dove la pagina si ricarica).
 - CasaDomotica: non si applica (esiste già); annotato.
+
+*Fatta l'08-11-2026 sul ramo `feat/impostazione-iniziale`*: il segnale `impostazione_iniziale` (acceso da
+`NuovoProgetto`, spento da `DELETE /api/project/impostazione-iniziale` alla chiusura della finestra), le pagine
+`semina_impostata`, la chiusura `chiudiImpostazioneIniziale` (formato su «Pagina 1» e sul boot, Salva, segnale spento),
+il campo Cornice, lo ZIP che rispetta l'azienda (`UploadQuery::azienda_id`), `erroreNomeProgetto`. Provato dal vivo
+via API su un runtime di prova; la prova nell'IDE è del maintainer.
 
 **I2 — `feat/impostazioni-progetto`.**
 - Nel pannello Proprietà restano i soli campi della **pagina**; al posto di «Formato predefinito» e «Impostazioni

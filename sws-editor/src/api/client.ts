@@ -40,7 +40,6 @@ import type {
   ProjectInfo,
   ProjectListEntry,
   ProjectTargetKind,
-  ProjectTarget,
   Sample,
   SourceDef,
   StatoSorgente,
@@ -731,7 +730,7 @@ const PATH_VERSIONATI = [
   "/api/project/datastores", "/api/project/global-scripts", "/api/project/reports",
   "/api/project/notifications", "/api/project/page-layout", "/api/project/target", "/api/project/symbol-style",
   "/api/project/backup-config", "/api/project/retention-time", "/api/project/tags/import-csv",
-  "/api/project/simboli", "/api/project/ai",
+  "/api/project/simboli", "/api/project/ai", "/api/project/impostazione-iniziale",
 ];
 
 /** L'header `If-Match` da mettere su un salvataggio di sezione, se sappiamo su
@@ -2081,7 +2080,7 @@ export const api = {
   listProjects: () =>
     request<ProjectListEntry[]>("/api/projects"),
 
-  createProject: async (req: { name: string; template?: string; parent_path?: string; target?: ProjectTarget; lang?: string; azienda_id?: number }) => {
+  createProject: async (req: { name: string; template?: string; parent_path?: string; lang?: string; azienda_id?: number; impostazione_iniziale?: boolean }) => {
     const r = await request<{ name: string; riferimento: string }>("/api/projects", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -2605,7 +2604,7 @@ export const api = {
    *
    *  Non è decorativo: il runtime del pannello commuta lo schermo fra browser e
    *  viewer LVGL (via D-Bus, dal 29-09-2026) al deploy successivo. */
-  updateProjectTarget: (target: { kind: ProjectTargetKind; framebuffer_device?: string } | null) =>
+  updateProjectTarget: (target: { kind: ProjectTargetKind } | null) =>
     request<void>("/api/project/target", {
       method: "PUT",
       headers: { "Content-Type": "application/json", ...seVersionato("/api/project/target") },
@@ -2625,6 +2624,14 @@ export const api = {
       method: "PUT",
       headers: { "Content-Type": "application/json", ...seVersionato("/api/project/symbol-style") },
       body: JSON.stringify(stile),
+    }),
+
+  /** La finestra «Impostazioni progetto» aperta da sola su un progetto appena
+   *  creato è stata chiusa: non si riapre più da sola (08-11-2026). */
+  fineImpostazioneIniziale: () =>
+    request<void>("/api/project/impostazione-iniziale", {
+      method: "DELETE",
+      headers: { ...seVersionato("/api/project/impostazione-iniziale") },
     }),
 
   updatePageLayout: (config: PageLayoutConfig | null) =>
@@ -2733,10 +2740,13 @@ export const api = {
     });
   },
 
-  uploadProjectZip: async (file: Blob, name?: string, parentPath?: string): Promise<{ name: string; riferimento: string }> => {
+  uploadProjectZip: async (file: Blob, name?: string, parentPath?: string, aziendaId?: number): Promise<{ name: string; riferimento: string }> => {
     const params = new URLSearchParams();
     if (name) params.set("name", name);
     if (parentPath) params.set("parent_path", parentPath);
+    // L'azienda scelta nel modale (08-11-2026): senza, lo ZIP finiva sempre
+    // nell'azienda implicita.
+    if (aziendaId !== undefined) params.set("azienda_id", String(aziendaId));
     const qs = params.toString();
     const url = `${getBaseUrl()}/api/projects/upload${qs ? `?${qs}` : ""}`;
     const headers = new Headers({ "Content-Type": "application/zip" });

@@ -42,7 +42,7 @@ import { AnteprimaTubo } from "@/editor/AnteprimaTubo";
 import { ESTREMITA_TUBO, STILI_TUBO, stileTubo } from "@/canvas/stiliTubo";
 import { BindableInput } from "@/components/BindableInput";
 import { ImageBrowser } from "@/components/ImageBrowser";
-import { ASPECT_RATIOS, editorFitSize, effectiveSizeMode, getDevicePresets, isOffPage, referenceResolutionFor, STANDARD_DEVICE_PRESETS, translateObject } from "@/pageLayout";
+import { ASPECT_RATIOS, editorFitSize, effectiveSizeMode, getDevicePresets, isOffPage, referenceResolutionFor, SFONDO_PREDEFINITO, STANDARD_DEVICE_PRESETS, translateObject } from "@/pageLayout";
 import { getBrand, type DevicePreset } from "@/branding";
 import { genId } from "@/id";
 import { faceplateDallaSelezione } from "@/editor/faceplateDaSelezione";
@@ -77,6 +77,7 @@ import { aggiornaPagina, applicaATutte, applicaPredefinito, generePagina, salvaL
 import { dalTag, descrizioniDeiTag } from "@/tag/forma";
 import { patchSovrascrittura, seguePredefinito, SPUNTATA_DI_PARTENZA, type GenerePagina } from "@/formatoProgetto";
 import { impostaBootAbilitata } from "@/boot/abilitata";
+import { CampoCornice } from "@/cornici/CampoCornice";
 import { AnteprimaPng } from "@/boot/AnteprimaPng";
 import { PermessoTagNota } from "@/editor/PermessoTagNota";
 import { rangoRuolo, sogliaEreditata } from "@/auth/permessoScrittura";
@@ -448,10 +449,18 @@ function SceltaMisura({ width, height, disabled, chiave, segnaposto, onChange }:
    *  «Personalizzato...» allo stato che descrive la misura nuova. */
   chiave?: string;
   segnaposto?: string;
-  onChange: (m: { width: number | undefined; height: number | undefined }) => void;
+  /** `dispositivo`: l'etichetta del preset scelto, `undefined` se la misura è
+   *  scritta a mano. */
+  onChange: (m: { width: number | undefined; height: number | undefined; dispositivo?: string }) => void;
 }) {
   const { t } = useTranslation();
-  const preset = getDevicePresets().find((d) => d.width === width && d.height === height);
+  // Più preset hanno la stessa misura (un WP630 e «Full HD 16:9»): vince quello
+  // scelto per il progetto, se combacia (08-11-2026). Prima vinceva il primo
+  // dell'elenco, e un WP630 riaperto diventava «Full HD 16:9».
+  const scelto = useAppStore((s) => s.project?.page_layout?.dispositivo);
+  const presets = getDevicePresets();
+  const combacia = (d: DevicePreset) => d.width === width && d.height === height;
+  const preset = presets.find((d) => d.label === scelto && combacia(d)) ?? presets.find(combacia);
   // Scelta esplicita di «Personalizzato...»: tiene i campi aperti anche se la
   // misura che si sta scrivendo passa per caso sopra un preset.
   const [manuale, setManuale] = useState(false);
@@ -465,8 +474,8 @@ function SceltaMisura({ width, height, disabled, chiave, segnaposto, onChange }:
           style={{ ...INPUT, cursor: disabled ? "default" : "pointer" }}
           value={manuale ? "" : (preset?.label ?? "")}
           onChange={(e) => {
-            const scelto = getDevicePresets().find((d) => d.label === e.target.value);
-            if (scelto) { setManuale(false); onChange({ width: scelto.width, height: scelto.height }); }
+            const voce = presets.find((d) => d.label === e.target.value);
+            if (voce) { setManuale(false); onChange({ width: voce.width, height: voce.height, dispositivo: voce.label }); }
             else setManuale(true);
           }}
         >
@@ -552,7 +561,7 @@ function FormatoPredefinitoProgetto() {
         width={layout?.default_width}
         height={layout?.default_height}
         segnaposto={t("shell.notSet")}
-        onChange={(m) => { void scrivi({ default_width: m.width, default_height: m.height }); }}
+        onChange={(m) => { void scrivi({ default_width: m.width, default_height: m.height, dispositivo: m.dispositivo }); }}
       />
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6, marginTop: 6 }}>
         <div style={{ minWidth: 0 }}>
@@ -680,6 +689,7 @@ function ApplicaATutte({ fine }: { fine: (n: number | null) => void }) {
 }
 
 export function EditorShell() {
+  useImpostazioneIniziale();
   const { t } = useTranslation();
   useMaterializzaRatio(); // Q38 — vedi il commento sulla funzione
   // Una volta per montaggio, non per render: sposta le memorie delle sezioni
@@ -1459,7 +1469,7 @@ export function EditorShell() {
           <>
             <PageProps
               name={currentPage?.name ?? ""}
-              background={currentPage?.background ?? "#1a1a2e"}
+              background={currentPage?.background ?? SFONDO_PREDEFINITO}
               background_dark={currentPage?.background_dark}
               background_tag={currentPage?.background_tag}
               sfondo_immagine={currentPage?.sfondo_immagine}
@@ -2900,20 +2910,64 @@ function RiepilogoProgetto({ boot = false }: { boot?: boolean }) {
 }
 
 /** La finestra «Impostazioni progetto» (05-11-2026, piano dell'impostazione
- *  iniziale, sessione I2): motore, formato predefinito, dimensionamento,
- *  pagina iniziale, tutto schermo. È un `modulo` della Finestra di avviso; ogni
- *  campo si salva subito, e la finestra lo dice. Sarà anche la finestra che si
- *  apre da sola alla creazione di un progetto vuoto (I1). */
-export function apriImpostazioniProgetto(titolo: string): Promise<null> {
-  return modulo<null>({ titolo, corpo: (fine) => <ImpostazioniProgetto fine={() => fine(null)} /> });
+ *  iniziale, sessione I2): motore, formato predefinito, cornice,
+ *  dimensionamento, pagina iniziale, tutto schermo. È un `modulo` della
+ *  Finestra di avviso; ogni campo si salva subito, e la finestra lo dice.
+ *
+ *  `iniziale` (sessione I1, 08-11-2026): la finestra che si apre da sola su un
+ *  progetto vuoto appena creato. Alla chiusura — col bottone, con Esc o con la
+ *  ✕ — il formato scelto va sulle pagine con cui il progetto è nato, si salva,
+ *  e il segnale si spegne: non si riapre più da sola. */
+export async function apriImpostazioniProgetto(titolo: string, opzioni: { iniziale?: boolean } = {}): Promise<null> {
+  await modulo<null>({ titolo, corpo: (fine) => <ImpostazioniProgetto iniziale={opzioni.iniziale} fine={() => fine(null)} /> });
+  if (opzioni.iniziale) await chiudiImpostazioneIniziale();
+  return null;
 }
 
-function ImpostazioniProgetto({ fine }: { fine: () => void }) {
+/** Il formato del progetto sulle pagine nate col progetto («Pagina 1» e il
+ *  boot), il salvataggio, e il segnale spento. Le pagine nascono senza misura:
+ *  senza questo passo la prima pagina restava fluida qualunque cosa si
+ *  scegliesse nella finestra. */
+export async function chiudiImpostazioneIniziale(): Promise<void> {
+  const st = useAppStore.getState();
+  const nate = st.pages.filter((p) => { const g = generePagina(p); return g === "pagina" || g === "boot"; }).map((p) => p.id);
+  if (applicaATutte(nate, { misura: true, sfondi: true }) > 0) {
+    try { await useAppStore.getState().saveAll(); } catch { /* resta da salvare: lo dice l'editor */ }
+  }
+  try {
+    await api.fineImpostazioneIniziale();
+    useAppStore.setState((s) => (s.project ? { project: { ...s.project, impostazione_iniziale: undefined } } : {}));
+    try { window.dispatchEvent(new CustomEvent("sws:project-switched")); } catch { /* test */ }
+  } catch { /* si riaprirà al prossimo caricamento: meglio di un progetto che non la mostra mai */ }
+}
+
+/** Una volta per progetto caricato: la finestra aperta da sé non deve
+ *  riaprirsi mentre si chiude (il segnale si spegne dopo il salvataggio). */
+let impostazioneAperta: string | null = null;
+
+/** Apre da sé la finestra su un progetto appena creato vuoto. Solo a un Admin:
+ *  le `PUT /api/project/*` sono sue, e una finestra che non può salvare niente
+ *  sarebbe solo d'intralcio. */
+function useImpostazioneIniziale() {
+  const { t } = useTranslation();
+  const progetto = useAppStore((s) => s.project);
+  const ciSonoPagine = useAppStore((s) => s.pages.length > 0);
+  const admin = useAppStore((s) => s.authRole === "Admin");
+  useEffect(() => {
+    const nome = progetto?.meta?.name;
+    if (!progetto?.impostazione_iniziale || !admin || !ciSonoPagine || !nome || impostazioneAperta === nome) return;
+    impostazioneAperta = nome;
+    void apriImpostazioniProgetto(t("shell.impostazioneInizialeTitolo"), { iniziale: true });
+  }, [progetto, admin, ciSonoPagine, t]);
+}
+
+function ImpostazioniProgetto({ fine, iniziale }: { fine: () => void; iniziale?: boolean }) {
   const { t } = useTranslation();
   const blocco: React.CSSProperties = { display: "flex", flexDirection: "column", gap: 4, paddingTop: 10, borderTop: "1px solid var(--brand-surface-2, #334155)" };
   const titolo: React.CSSProperties = { fontSize: 11, fontWeight: 700, color: "var(--brand-text-muted, #94a3b8)", letterSpacing: 0.5, textTransform: "uppercase" };
   return (
     <div data-testid="impostazioni-progetto" style={{ display: "flex", flexDirection: "column", gap: 12, width: 440, maxWidth: "100%" }}>
+      {iniziale && <p data-testid="impostazione-iniziale" style={{ fontSize: 13, color: "var(--brand-text-2, #cbd5e1)", margin: 0 }}>{t("shell.impostazioneInizialeTesto")}</p>}
       <p style={{ fontSize: 12, color: "var(--brand-text-subtle, #94a3b8)", margin: 0 }}>{t("shell.impostazioniSubito")}</p>
       <div style={blocco}>
         <div style={titolo}>{t("props.targetKind")}</div>
@@ -2923,6 +2977,10 @@ function ImpostazioniProgetto({ fine }: { fine: () => void }) {
         <FormatoPredefinitoProgetto />
       </div>
       <div style={blocco}>
+        <div style={titolo}>{t("cornici.campoTitolo")}</div>
+        <CampoCornice />
+      </div>
+      <div style={blocco}>
         <div style={titolo}>{t("shell.visualizzazioneProgetto")}</div>
         <ProjectPageLayoutSettings />
       </div>
@@ -2930,7 +2988,7 @@ function ImpostazioniProgetto({ fine }: { fine: () => void }) {
         <button type="button" data-testid="chiudi-impostazioni-progetto" onClick={fine}
           style={{ background: "var(--brand-primary, #3b82f6)", color: "var(--brand-on-primary, #fff)", border: "none", borderRadius: 5,
             padding: "8px 16px", fontSize: 13, fontWeight: 600, cursor: "pointer" }}>
-          {t("common.close")}
+          {t(iniziale ? "shell.impostazioneInizialeFine" : "common.close")}
         </button>
       </div>
     </div>
@@ -3198,7 +3256,7 @@ function CrossTypeProps({
   // automatici. La prop `pages` non basta — esclude la pagina corrente.
   const sfondoPagina = useAppStore((st) => {
     const pg = st.pages.find((x) => x.id === st.currentPageId);
-    return estraiHex(resolvePageBackground(pg?.background, pg?.background_dark, st.themeMode)) ?? "#1a1a2e";
+    return estraiHex(resolvePageBackground(pg?.background, pg?.background_dark, st.themeMode)) ?? SFONDO_PREDEFINITO;
   });
   // Selezione di tipi diversi: nessuna regola «auto» (dipenderebbe dal
   // tipo), il ripiego è quello del tipo `*` della tabella.
@@ -3387,7 +3445,7 @@ export function ObjectProps({
   // automatici. La prop `pages` non basta — esclude la pagina corrente.
   const sfondoPagina = useAppStore((st) => {
     const pg = st.pages.find((x) => x.id === st.currentPageId);
-    return estraiHex(resolvePageBackground(pg?.background, pg?.background_dark, st.themeMode)) ?? "#1a1a2e";
+    return estraiHex(resolvePageBackground(pg?.background, pg?.background_dark, st.themeMode)) ?? SFONDO_PREDEFINITO;
   });
   const { t } = useTranslation();
   const nomePagina = useNomePagina();

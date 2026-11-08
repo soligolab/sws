@@ -515,6 +515,10 @@ pub fn build(
         // aggiorna, e `display_target::publish` riscrive `display-target` da sé.
         .route("/api/project/target", put(update_project_target))
         .route(
+            "/api/project/impostazione-iniziale",
+            delete(fine_impostazione_iniziale),
+        )
+        .route(
             "/api/project/backup-config",
             put(update_project_backup_config),
         )
@@ -5593,6 +5597,7 @@ where
             },
             // Progetto vuoto: sorgenti non ce ne sono, niente da rivedere.
             sorgenti_da_rivedere: false,
+            impostazione_iniziale: false,
             types: vec![],
             tags: vec![],
             sources: vec![],
@@ -11566,6 +11571,8 @@ struct PageLayoutBody {
     page_tree: Option<Vec<sws_core::PageTreeNode>>,
     #[serde(default)]
     cornice_predefinita: Option<String>,
+    #[serde(default)]
+    dispositivo: Option<String>,
 }
 
 impl From<PageLayoutBody> for PageLayoutConfig {
@@ -11582,6 +11589,7 @@ impl From<PageLayoutBody> for PageLayoutConfig {
             default_background_dark: b.default_background_dark,
             page_tree: b.page_tree,
             cornice_predefinita: b.cornice_predefinita,
+            dispositivo: b.dispositivo,
         }
     }
 }
@@ -11793,18 +11801,36 @@ impl StileSimboliBody {
 #[serde(deny_unknown_fields)] // Q9: payload solo-API, campi ignoti = 400
 struct ProjectTargetBody {
     kind: sws_core::project::ProjectTargetKind,
-    /// Significativo solo per `lvgl_framebuffer`; ignorato altrimenti.
-    #[serde(default)]
-    framebuffer_device: Option<String>,
+    /// Tolto dal modello l'08-11-2026 (non lo leggeva nessuno). Si accetta
+    /// ancora e si butta: un IDE di prima che lo manda non deve prendere un 400.
+    #[serde(default, rename = "framebuffer_device")]
+    _framebuffer_device: Option<serde::de::IgnoredAny>,
 }
 
 impl From<ProjectTargetBody> for sws_core::project::ProjectTarget {
     fn from(b: ProjectTargetBody) -> Self {
-        sws_core::project::ProjectTarget {
-            kind: b.kind,
-            framebuffer_device: b.framebuffer_device,
-        }
+        sws_core::project::ProjectTarget { kind: b.kind }
     }
+}
+
+/// `DELETE /api/project/impostazione-iniziale` — la finestra «Impostazioni
+/// progetto» aperta da sola su un progetto appena creato è stata chiusa: non
+/// si riapre più da sola (`Project::impostazione_iniziale`).
+async fn fine_impostazione_iniziale(
+    State(s): State<AppState>,
+    headers: axum::http::HeaderMap,
+) -> Response {
+    let dir = match active_dir(&s).await {
+        Ok(d) => d,
+        Err(c) => return c.into_response(),
+    };
+    patch_project_se(
+        &s.project_write_lock,
+        &dir,
+        versione_attesa(&headers),
+        |p| p.impostazione_iniziale = false,
+    )
+    .await
 }
 
 /// `PUT /api/project/target` — cambia il motore di rendering del progetto
@@ -12742,6 +12768,7 @@ mod write_safety_tests {
             default_background_dark: None,
             page_tree: None,
             cornice_predefinita: None,
+            dispositivo: None,
         };
         let y = serde_yaml::to_string(&solo).unwrap();
         assert!(

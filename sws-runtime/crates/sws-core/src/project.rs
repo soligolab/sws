@@ -2329,6 +2329,18 @@ pub struct Project {
     /// cioè si comportano esattamente come prima.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub sorgenti_da_rivedere: bool,
+    /// Il progetto è appena nato vuoto da «Nuovo progetto» e nessuno ha ancora
+    /// scelto misura, sfondi, motore e cornice (piano dell'impostazione
+    /// iniziale, 08-11-2026): l'IDE apre da sé la finestra «Impostazioni
+    /// progetto» e la chiusura lo spegne.
+    ///
+    /// **Su disco e non nel browser** perché nel cloud aprire un progetto
+    /// ricarica la pagina; **acceso solo su richiesta** di `NuovoProgetto`
+    /// (`CreateProjectRequest::impostazione_iniziale`), così i progetti vuoti
+    /// creati via API — gli e2e, gli script — non trovano una finestra che li
+    /// blocca. Stesso disegno di `sorgenti_da_rivedere`.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub impostazione_iniziale: bool,
     /// Version of the runtime that last wrote this file (CARGO_PKG_VERSION).
     /// Informational only — used by the IDE to warn when a project on disk was
     /// saved by a different runtime build and offer a one-click re-save.
@@ -2408,10 +2420,9 @@ pub enum ProjectTargetKind {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ProjectTarget {
     pub kind: ProjectTargetKind,
-    /// Percorso del device framebuffer (es. "/dev/fb0"). Significativo solo
-    /// per `kind == LvglFramebuffer`; ignorato altrimenti.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub framebuffer_device: Option<String>,
+    // `framebuffer_device` c'era fino al 08-11-2026: si chiedeva alla creazione
+    // e non lo leggeva nessuno (il device lo sceglie il viewer, `--drm-device`).
+    // I progetti che lo portano ancora si leggono uguale: serde ignora il campo.
 }
 
 /// How synoptic pages are sized and scaled at runtime.
@@ -2617,6 +2628,12 @@ pub struct PageLayoutConfig {
     /// `sws-web/src/cornici.rs`). Assente = nessuna.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub cornice_predefinita: Option<String>,
+    /// Il dispositivo scelto per il formato predefinito (l'etichetta del preset,
+    /// es. «WP630 …»), 08-11-2026. Più preset hanno la stessa risoluzione, e
+    /// dalla sola misura l'IDE riapriva un WP630 come «Full HD 16:9». Solo
+    /// informativo: contano `default_width`/`default_height`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub dispositivo: Option<String>,
 }
 
 /// Tabella lingue di progetto: messaggi nativi + traduzioni, indicizzati per
@@ -2877,6 +2894,40 @@ mod sorgenti_da_rivedere_tests {
             ri.sorgenti_da_rivedere,
             "perso nel salva-e-rileggi:\n{fuori}"
         );
+    }
+}
+
+#[cfg(test)]
+mod impostazione_iniziale_tests {
+    use super::*;
+
+    #[test]
+    fn spenta_non_si_scrive_e_accesa_si_rilegge() {
+        let mut p: Project = serde_yaml::from_str("meta:\n  name: x\n  version: '1'\n").unwrap();
+        assert!(!p.impostazione_iniziale);
+        assert!(!serde_yaml::to_string(&p)
+            .unwrap()
+            .contains("impostazione_iniziale"));
+        p.impostazione_iniziale = true;
+        let ri: Project = serde_yaml::from_str(&serde_yaml::to_string(&p).unwrap()).unwrap();
+        assert!(ri.impostazione_iniziale);
+    }
+
+    /// `framebuffer_device` è uscito dal modello l'08-11-2026: un progetto che
+    /// lo porta ancora si apre, e al primo salvataggio il campo sparisce.
+    #[test]
+    fn il_framebuffer_device_di_prima_si_legge_e_si_perde() {
+        let p: Project = serde_yaml::from_str(
+            "meta:\n  name: x\n  version: '1'\ntarget:\n  kind: lvgl_framebuffer\n  framebuffer_device: /dev/fb0\n",
+        )
+        .unwrap();
+        assert_eq!(
+            p.target.as_ref().unwrap().kind,
+            ProjectTargetKind::LvglFramebuffer
+        );
+        assert!(!serde_yaml::to_string(&p)
+            .unwrap()
+            .contains("framebuffer_device"));
     }
 }
 

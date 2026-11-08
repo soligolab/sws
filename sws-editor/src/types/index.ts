@@ -2013,6 +2013,10 @@ export interface PageLayoutConfig {
   page_tree?: PageTreeNode[];
   /** La cornice delle pagine che non ne dichiarano una (15-10-2026). */
   cornice_predefinita?: string;
+  /** L'etichetta del preset scelto per il formato predefinito (08-11-2026):
+   *  più preset hanno la stessa misura, e dalla sola misura un WP630 tornava
+   *  «Full HD 16:9». Solo per la finestra; contano le misure. */
+  dispositivo?: string;
 }
 
 /** Motore di rendering a cui è destinato il progetto — vedi
@@ -2022,8 +2026,6 @@ export type ProjectTargetKind = "web" | "lvgl_framebuffer" | "lvgl_wayland";
 
 export interface ProjectTarget {
   kind: ProjectTargetKind;
-  /** Solo per kind === "lvgl_framebuffer" (es. "/dev/fb0"). */
-  framebuffer_device?: string;
 }
 
 /** Un simbolo disegnato nel progetto: la descrizione, cioè le chiamate del
@@ -2086,6 +2088,9 @@ export interface ProjectInfo {
    *  un template e porta gli indirizzi dell'esempio. Finché è acceso il runtime
    *  **non le avvia**, e salvare dalla scheda Sorgenti lo spegne. */
   sorgenti_da_rivedere?: boolean;
+  /** Il progetto è nato vuoto da «Nuovo progetto» e la finestra «Impostazioni
+   *  progetto» non è ancora stata chiusa: l'IDE la apre da sé (08-11-2026). */
+  impostazione_iniziale?: boolean;
 }
 
 // ── Project language table (T-40) ──────────────────────────────────────────

@@ -24,7 +24,6 @@ import type { ObjectGroup, SynopticObject, SynopticPage } from "@/types";
 import { BOOT_TYPES, eBoot, paginePerNavigazione, pagineDiBoot } from "@/boot/tipi";
 import { TRASCINA_FACEPLATE, eFaceplateDef, idFaceplate, pagineFaceplate, usiDelFaceplate } from "@/faceplate/modello";
 import { MODELLI_CORNICE, idCornice, pagineCornice, type ModelloCornice } from "@/cornici/modello";
-import { PropostaCornice } from "@/cornici/PropostaCornice";
 import { idNuovo, nuovaPlanimetria } from "@/planimetrie/modello";
 import { impostaBootAbilitata } from "@/boot/abilitata";
 import { useNomePagina } from "@/i18n/nomePagina";
@@ -618,11 +617,6 @@ function PagesSection() {
           <div style={{ padding: "2px 8px", fontSize: 11, color: "var(--brand-text-subtle, #64748b)" }}>
             {t("cornici.nessuna")}
           </div>
-        )}
-        {/* La proposta alla prima pagina (piano delle cornici): solo se il
-            progetto ha pagine e nessuna cornice, nemmeno come predefinita. */}
-        {cornici.length === 0 && pages.length > 0 && !corniceDefault && project?.meta?.name && (
-          <PropostaCornice progetto={project.meta.name} />
         )}
         <div style={{ padding: "4px 8px" }}>
           <select

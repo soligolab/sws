@@ -6,9 +6,7 @@ import { SelettoreColore } from "@/editor/CampoColore";
 import { useAppStore } from "@/store";
 import type { FasciaCornice, SynopticPage } from "@/types";
 import { SEGNAPOSTI, idCornice, pagineCornice } from "./modello";
-import { impostaCornicePredefinita } from "./predefinita";
 import { CampoNumero } from "@/components/CampoNumero";
-import { avviso } from "@/finestraAvviso/finestraAvviso";
 
 const LABEL: React.CSSProperties = { fontSize: 11, color: "var(--brand-text-muted, #94a3b8)", marginBottom: 2 };
 const INPUT: React.CSSProperties = {
@@ -99,14 +97,17 @@ export function ProprietaFasce({ pagina }: { pagina: SynopticPage }) {
         onChange={(f) => updatePageProps(pagina.id, { cornice_testata: f })} />
       <Fascia titolo={t("cornici.piede")} fascia={pagina.cornice_piede ?? { altezza: 0 }}
         onChange={(f) => updatePageProps(pagina.id, { cornice_piede: f })} />
-      <label style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 8, fontSize: 12, color: "var(--brand-text-2, #cbd5e1)", cursor: "pointer" }}>
-        <input type="checkbox" checked={predefinita === id}
-          onChange={(e) => {
-            impostaCornicePredefinita(e.target.checked ? id : undefined).catch((err) =>
-              void avviso({ testo: t("cornici.predefinitaFallita", { err: err instanceof Error ? err.message : String(err) }), livello: "errore" }));
-          }} />
-        {t("cornici.predefinitaCheckbox")}
-      </label>
+      {/* La predefinita si sceglie solo nella finestra «Impostazioni progetto»
+          (08-11-2026): qui si dice com'è, e il bottone la apre. */}
+      <div data-testid="cornice-predefinita-stato" style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 8, fontSize: 12, color: "var(--brand-text-2, #cbd5e1)" }}>
+        <span style={{ flex: 1 }}>{t(predefinita === id ? "cornici.questaPredefinita" : "cornici.nonPredefinita")}</span>
+        <button type="button" data-testid="cornice-apri-impostazioni"
+          onClick={() => { void import("@/editor/EditorShell").then((m) => m.apriImpostazioniProgetto(t("shell.projectSettingsTitle"))); }}
+          style={{ background: "var(--brand-surface-2, #334155)", color: "var(--brand-text, #e2e8f0)", border: "1px solid var(--brand-border, #475569)",
+            borderRadius: 4, padding: "3px 10px", fontSize: 11, cursor: "pointer" }}>
+          {t("shell.apriImpostazioniProgetto")}
+        </button>
+      </div>
       <p style={NOTA}>{t("cornici.segnaposti", { a: SEGNAPOSTI.paginaNome, b: SEGNAPOSTI.paginaId, c: SEGNAPOSTI.progettoNome })}</p>
     </div>
   );

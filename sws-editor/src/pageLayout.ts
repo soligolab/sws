@@ -5,7 +5,7 @@
 
 import { vociNavigatore } from "@/pageNavigator";
 import type { PageLayoutConfig, PageTreeNode, PageSizeMode, PipePoint, SynopticObject, SynopticPage } from "@/types";
-import { paginePerNavigazione } from "@/boot/tipi";
+import { BOOT_SFONDO, paginePerNavigazione } from "@/boot/tipi";
 import { corniceDellaPagina, eCornice, idCornice } from "@/cornici/modello";
 import { getBrand } from "@/branding";
 
@@ -36,6 +36,12 @@ export function referenceResolutionFor(aspectRatio: string | undefined): { width
 
 /** Generic standard resolutions for "Fisso" mode — always available
  *  regardless of the active brand. */
+/** Lo sfondo di una pagina che non ne dichiara uno, uguale nell'editor, nel
+ *  viewer e sulla pagina di boot (08-11-2026, piano dell'impostazione iniziale).
+ *  Prima l'editor e il canvas usavano `#1a1a2e` e il boot `#0f172a`: una pagina
+ *  appena creata aveva un colore diverso da quella di boot accanto. */
+export const SFONDO_PREDEFINITO = BOOT_SFONDO;
+
 export const STANDARD_DEVICE_PRESETS: { label: string; width: number; height: number }[] = [
   // Risoluzioni senza un prodotto che le porti. Tre vengono dalla tabella di
   // `docs/branding/BRAND_SWS.md`, dove sono rimaste per mesi «da confermare»

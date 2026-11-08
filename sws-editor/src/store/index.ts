@@ -584,7 +584,9 @@ interface AppState {
    *  scala uniforme e centrata (`scala/scalaPagina.ts`): un passo di cronologia. */
   scalaProgetto: (ids: string[], a: Misura) => void;
   /** Una cornice nuova da un modello, aperta sul canvas (15-10-2026). */
-  addCornice: (modello: ModelloCornice) => void;
+  /** `misura`: quella con cui nasce; senza, la pagina aperta o il formato del
+   *  progetto. */
+  addCornice: (modello: ModelloCornice, misura?: { width: number; height: number }) => void;
   /** Un faceplate nuovo, aperto sul canvas come pagina (29-10-2026). */
   addFaceplate: () => void;
   /** Un faceplate predefinito personalizzato torna com'è nel runtime: il file
@@ -1478,7 +1480,7 @@ export const useAppStore = create<AppState>((set, get) => {
       });
     },
 
-    addCornice: (modello) => {
+    addCornice: (modello, misura) => {
       pushHistory("history.newCornice");
       const s0 = get();
       const usati = new Set(pagineCornice(s0.pages).map(idCornice));
@@ -1488,8 +1490,8 @@ export const useAppStore = create<AppState>((set, get) => {
       const nascita = valoriDiNascita(s0.project?.page_layout, "sinottica");
       const corrente = s0.pages.find((p) => p.id === s0.currentPageId);
       const sinottica = corrente && !corrente.kind ? corrente : undefined;
-      const w = sinottica?.width ?? nascita.width ?? 1280;
-      const h = sinottica?.height ?? nascita.height ?? 800;
+      const w = misura?.width ?? sinottica?.width ?? nascita.width ?? 1280;
+      const h = misura?.height ?? sinottica?.height ?? nascita.height ?? 800;
       const page = corniceAPagina(daModello(modello, idLibero(nome, usati), nome, w, h));
       if (nascita.background) page.background = nascita.background;
       set((s) => ({
