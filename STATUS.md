@@ -30,7 +30,11 @@ nella **rc.6** (`5666cd59`):
 Piano [impostazione iniziale](docs/archive/2026-11-04-impostazione-iniziale-del-progetto.md) **archiviato** (I1–I2
 collaudate). Logica unificata resta viva: n7–n8 da fare, poi L2–L3.
 
-**Il collaudo, cosa guardare**: banco, gruppo «0 · il giro della 2.26.0-rc.6» — r6-agg, r6-ctrlz, tc-prest; poi n7–n8.
+**Fatte in automatico l'08-11 pomeriggio** (Playwright su un runtime di prova rc.6, foto in `tmp/prova-rc6/foto/`):
+r6-ctrlz, n7, n8, ap-regole passate; Prestazioni 5 verificata lato IDE (nascosta = zero letture). **L1 collaudata.**
+
+**Il collaudo, cosa guardare**: banco, gruppo «0 · il giro della 2.26.0-rc.6» — r6-agg e tc-prest sul TC620; poi i
+gruppi 2 e 3 (report, sorgente staccata, assistente, ap-history).
 Dopo il cambio d'immagine, l'IDE nel cloud va ricaricato (e il pannello ricollegato con «Connetti» se il pallino non è
 verde).
 

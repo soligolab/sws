@@ -34,7 +34,7 @@
 | F3 | `feat/finestra-avviso-3` | idem | viewer e console; le finestre fatte a mano sulla stessa cornice; guardia a zero; **piano archiviato** — **in `main` dal 06-11, nella 2.26.0-rc.2; il viewer si collauda domani sul TC620, poi il piano si archivia** | sì |
 | I1 | `feat/impostazione-iniziale` | [Impostazione iniziale](../archive/2026-11-04-impostazione-iniziale-del-progetto.md) | progetto vuoto → la finestra → pagine nate giuste — **in `main` dall'08-11 (`00c0e06c`), nella 2.26.0-rc.5; n1–n2 passate nel cloud l'08-11** | — |
 | I2 | `feat/impostazioni-progetto` | idem | il pannello Proprietà con la sola pagina; «Impostazioni progetto…» riapre la finestra; **piano archiviato** — **in `main` dall'08-11 (`adab8a65`), nella rc.5; n3 passata, piano archiviato l'08-11** | — |
-| L1 | `feat/logica-un-ramo` | Logica unificata | il ramo Logica (funzioni, script, ricette) nei due stili, niente scheda «Python» — **in `main` dall'08-11 (`29912c02`), nella rc.5; n4–n6 passate, Ctrl+Z della rinomina corretto nella rc.6; restano n7–n8** | — |
+| L1 | `feat/logica-un-ramo` | Logica unificata | il ramo Logica (funzioni, script, ricette) nei due stili, niente scheda «Python» — **in `main` dall'08-11 (`29912c02`), nella rc.5; n4–n8 passate, Ctrl+Z della rinomina corretto nella rc.6 e verificato: **L1 collaudata** | — |
 | L2 | `feat/logica-completamento` | idem | `tags.read("` propone i tag; gli avvisi della sandbox mentre si scrive | — |
 | L3 | `feat/logica-modelli` | idem | «Nuovo da modello» coi tag del progetto; tre modelli in CasaDomotica; **piano archiviato** | sì |
 | M3 | `feat/manuale-letture` | Manuale pubblico | le letture per capitolo nella console | sì (gateway) |
