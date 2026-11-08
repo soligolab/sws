@@ -1,23 +1,21 @@
 {
-  "titolo": "Collaudo della 2.26.0-rc.5 — TC620 di casa con CasaDomotica, e le novità dal cloud",
+  "titolo": "Collaudo della 2.26.0-rc.6 — TC620 di casa con CasaDomotica, e le novità dal cloud",
   "prove": [
     {
-      "id": "r5-agg",
-      "dove": "0 · TC620 di casa · il giro della 2.26.0-rc.5",
-      "titolo": "«Aggiorna ora» dall'IDE nel cloud porta il TC620 alla rc.5",
-      "rif": "r4-agg (il TC620 era passato alla rc.4 da solo, col pilota automatico ora spento)",
-      "scopo": "La notte del 07-11 il TC620 si è aggiornato da solo alla rc.4 (il «pilota» di aggiornamento.yaml, alle 22:00), quindi «Aggiorna ora» non è mai stato provato. Il pilota ora è spento: la rc.5 arriva solo da qui.",
-      "prima": "Ricarica la pagina dell'IDE nel cloud: in Informazioni la versione deve dire 2.26.0-rc.5. Il TC620 deve essere ancora sulla rc.5. Se il pallino del pannello non è verde, «Connetti» con la password di admin del pannello.",
+      "id": "r6-agg",
+      "dove": "0 · TC620 di casa · il giro della 2.26.0-rc.6",
+      "titolo": "Il TC620 alla rc.6, da «Aggiorna ora»",
+      "rif": "r5-agg (passata il 08-11)",
+      "scopo": "La rc.6 corregge i due difetti trovati il 08-11 (Ctrl+Z dopo la rinomina di una funzione, la misura delle Prestazioni che non si spegneva). Il pilota automatico del TC620 è spento: l'aggiornamento parte solo da qui.",
+      "prima": "Ricarica la pagina dell'IDE nel cloud: in Informazioni deve dire 2.26.0-rc.6. Il TC620 è sulla rc.5.",
       "passi": [
-        "Configurazione → Istanza → Device → Connessione → «Aggiornamento del runtime»: deve proporre la `2.26.0-rc.5`, con le Novità (la logica in un ramo solo, la finestra «Imposta il progetto»).",
-        "«Aggiorna ora» e conferma. Aspetta senza ripremere."
+        "Configurazione → Istanza → Device → Connessione → «Aggiornamento del runtime»: deve proporre la `2.26.0-rc.6`.",
+        "«Aggiorna ora» e conferma."
       ],
       "atteso": [
-        "«Il pannello sta copiando i suoi dati prima di aggiornarsi…», poi «aggiornamento avviato», nessun «non raggiungibile».",
-        "Il TC620 si riavvia sulla rc.5 e chiede di confermare l'aggiornamento.",
-        "Il giorno dopo, alle 22:00, il TC620 non si aggiorna da solo."
+        "Il TC620 si riavvia sulla rc.6 e chiede di confermare l'aggiornamento."
       ],
-      "sblocca": "F3.16 dall'IDE",
+      "sblocca": "—",
       "link": [
         {
           "testo": "IDE nel cloud",
@@ -27,23 +25,22 @@
       "n": 1
     },
     {
-      "id": "r4-log",
-      "dove": "0 · TC620 di casa · il giro della 2.26.0-rc.5",
-      "titolo": "Il log: si apre subito, si filtra al contrario, l'inverter non fa rumore",
-      "rif": "r3-agg (le note sul log), osservazioni del 07-11",
-      "scopo": "Il log si apriva lentamente perché ogni riga ridisegnava tutto il pannello, e a ogni riconnessione le stesse mille righe tornavano doppie. Le perdite di risposta della chiavetta Solarman scrivevano quattro righe ogni minuto o due. Ora le righe arrivano a blocchi, i doppioni si scartano, una risposta persa non è un guasto (si dice al terzo giro muto) e nelle caselle «-parola» esclude.",
-      "prima": "IDE nel cloud collegato al TC620 sulla rc.5.",
+      "id": "r6-ctrlz",
+      "dove": "0 · TC620 di casa · il giro della 2.26.0-rc.6",
+      "titolo": "Ctrl+Z dopo la rinomina di una funzione riporta funzione e bottone insieme",
+      "rif": "n5-rinomina (il difetto noto della rc.5)",
+      "scopo": "Nella rc.5 Ctrl+Z dopo «rinomina funzione» rimetteva il nome vecchio sul bottone ma non sulla funzione: il bottone restava a chiamare una funzione che non c'era. Ora la voce di cronologia porta anche le funzioni.",
+      "prima": "Il progetto `prova-rc5` (se l'hai già cancellato, ricrealo come nella prova n1), con una funzione chiamata da un bottone in «Pagina 1». IDE nel cloud sulla rc.6.",
       "passi": [
-        "Apri il log (anche nella finestra staccata): conta quanto ci mette a riempirsi.",
-        "Nella casella del messaggio scrivi `-modbus`; poi nella casella target `-inverter-zcs`.",
-        "Lascia il log aperto qualche minuto."
+        "Dalla sezione «ƒ Logica» rinomina la funzione (per esempio `luce_on` → `luce_on_2`) e clicca fuori dal campo.",
+        "Torna su «Pagina 1» e premi Ctrl+Z.",
+        "Guarda il nome della funzione nella sezione Logica e «Alla pressione» del bottone. Poi Ctrl+Y."
       ],
       "atteso": [
-        "Il log si riempie in un attimo, senza righe doppie.",
-        "Le righe che contengono la parola esclusa spariscono; togliendo il filtro tornano.",
-        "Dall'inverter, al massimo una riga «non risponde da 3 giri» e una «risponde di nuovo, dopo …»: non più quattro righe a ogni risposta persa."
+        "Dopo Ctrl+Z la funzione e il bottone dicono tutti e due il nome di prima.",
+        "Dopo Ctrl+Y dicono tutti e due il nome nuovo."
       ],
-      "sblocca": "osservazioni sul log del 07-11",
+      "sblocca": "L1",
       "link": [
         {
           "testo": "IDE nel cloud",
@@ -53,290 +50,31 @@
       "n": 2
     },
     {
-      "id": "r4-deploy",
-      "dove": "0 · TC620 di casa · il giro della 2.26.0-rc.5",
-      "titolo": "Il deploy dice che sostituisce gli utenti; il log riparte col progetto nuovo",
-      "rif": "r3-deploy (rifatta: nessun avviso)",
-      "scopo": "Una password reimpostata nell'IDE aveva sostituito quella del pannello senza una parola. Ora il deploy che sostituisce gli utenti di un pannello che ne ha lo chiede sempre, dicendo chi sostituisce chi. Questo deploy porta anche la pagina «Collaudo 2.26» corretta (luce 3 con ON/OFF). Dopo l'apertura del progetto il log del pannello riparte da una riga «— progetto aperto —».",
-      "prima": "IDE nel cloud, CasaDomotica, TC620 sulla rc.5, log aperto.",
+      "id": "tc-prest",
+      "dove": "0 · TC620 di casa · il giro della 2.26.0-rc.6",
+      "titolo": "Prestazioni: la colonna del pannello, le sorgenti, e la misura che si spegne",
+      "rif": "Prestazioni 1, 3, 5 (il 08-11 il punto 5 non passava: corretto nella rc.6)",
+      "scopo": "La scheda Prestazioni ha una colonna per il pannello collegato: il runtime e le sorgenti di CasaDomotica coi loro giri. Il pannello misura solo mentre qualcuno guarda. Il 08-11 la misura non si spegneva mai: la Configurazione resta montata dietro l'editor e la scheda nascosta continuava a chiedere i dati ogni 2 s. Ora smette appena è nascosta.",
+      "prima": "IDE nel cloud sulla rc.6 (ricarica la pagina), CasaDomotica aperto, collegato al TC620, entrato come Admin.",
       "passi": [
-        "Deploy con «Sostituisci anche gli utenti» ACCESA: leggi la domanda e premi Annulla.",
-        "Rifai il deploy e rispondi Sì (oppure togli la casella: allora niente domanda).",
-        "Guarda il log quando il pannello ha aperto il progetto."
+        "Configurazione → Istanza → Prestazioni: guarda la colonna del pannello.",
+        "Sul banco «Controlla da qui», con la scheda aperta (o chiedi a Claude, che dalla macchina `ufficio` raggiunge il TC620).",
+        "Passa all'editor (una pagina qualunque), **senza** ricaricare il browser. Aspetta più di 60 s e ricontrolla."
       ],
       "atteso": [
-        "La domanda nomina gli utenti del pannello e quelli del progetto e dice che varranno le password del progetto.",
-        "Con Annulla non cambia niente.",
-        "Il log si svuota e riparte da «— progetto aperto: il registro riparte da qui —»; nel log c'è anche la riga della domanda con la tua risposta (target `schermo`)."
+        "Il runtime del pannello; niente viewer LVGL (CasaDomotica è web).",
+        "Le sorgenti di CasaDomotica coi loro giri, e lo storico.",
+        "{\"attiva\":true} con la scheda aperta, {\"attiva\":false} un minuto dopo essere passato all'editor."
       ],
-      "sblocca": "r3-deploy",
+      "sblocca": "Prestazioni 1, 3, 5",
       "link": [
         {
-          "testo": "IDE nel cloud",
-          "url": "https://sws.soligo.net/"
+          "testo": "viewer TC620",
+          "url": "https://tc620-a-p3-c6-07aff9.local:7443"
         }
       ],
+      "sonda": "https://tc620-a-p3-c6-07aff9.local:7443/api/prestazioni/richiesta",
       "n": 3
-    },
-    {
-      "id": "r4-momentaneo",
-      "dove": "0 · TC620 di casa · il giro della 2.26.0-rc.5",
-      "titolo": "Il momentaneo tenuto premuto col dito, e il suo errore nel log",
-      "rif": "F3.11 (rifatta: «il tag garage.luce_3 è dichiarato come string, ricevuto bool»)",
-      "scopo": "Il difetto era nella pagina che ho fatto io: il bottone scriveva true/false su un tag di zigbee2mqtt che vuole ON/OFF. Il validatore lo segnalava e non l'ho visto. Corretta la pagina (anche le spie della luce 1 e della luce 3, che confrontavano true/false). E da ora un messaggio come quello finisce anche nel log.",
-      "prima": "Dopo r4-deploy. Sul touch del TC620, pagina «Collaudo 2.26», «Accedi» come admin.",
-      "passi": [
-        "Scheda «F3.11»: tieni premuto «Tieni premuto» per tre secondi col dito, poi alza.",
-        "Prova anche a premere e far scivolare il dito fuori dal bottone."
-      ],
-      "atteso": [
-        "Nessuna domanda; la luce 3 accesa finché tieni premuto, spenta al rilascio; la spia dice ACCESA/SPENTA.",
-        "Scivolando fuori si spegne.",
-        "Se compare un messaggio a video, lo ritrovi nel log dell'IDE col target `schermo`."
-      ],
-      "sblocca": "F3.11",
-      "link": [
-        {
-          "testo": "viewer TC620",
-          "url": "https://tc620-a-p3-c6-07aff9.local:7443"
-        }
-      ],
-      "n": 4
-    },
-    {
-      "id": "r3-critico",
-      "dove": "0 · TC620 di casa · il giro della 2.26.0-rc.5",
-      "titolo": "Comando critico: senza accesso lo dice; con l'accesso password e motivo",
-      "rif": "F3.10 (rifatta: stamattina 403 forbidden)",
-      "scopo": "Stamattina i due comandi partivano senza credenziali (non avevi ancora fatto l'accesso: lo dice il registro di audit del pannello) e tornavano «403 forbidden». Ora senza accesso il comando dice di accedere.",
-      "prima": "Sul touch del TC620, pagina «Collaudo 2.26», prima SENZA accesso («Esci» se serve).",
-      "passi": [
-        "Scheda «F3.10»: «Chiudi generale» senza accesso.",
-        "«Accedi» come admin, poi «Chiudi generale»: password sbagliata, poi giusta.",
-        "«Apri generale»: password giusta, motivo vuoto, poi un motivo."
-      ],
-      "atteso": [
-        "Senza accesso: «Questo comando chiede l'accesso…», niente scritto.",
-        "Password sbagliata: errore e il led non cambia; giusta: il led si accende.",
-        "Motivo vuoto: la finestra resta aperta; col motivo il led si spegne."
-      ],
-      "sblocca": "F3.10",
-      "link": [
-        {
-          "testo": "viewer TC620",
-          "url": "https://tc620-a-p3-c6-07aff9.local:7443"
-        }
-      ],
-      "n": 5
-    },
-    {
-      "id": "r3-lucchetto",
-      "dove": "0 · TC620 di casa · il giro della 2.26.0-rc.5",
-      "titolo": "Il lucchetto: senza accesso e da admin, con le spie che seguono i comandi",
-      "rif": "2.25.1.10 (rifatta: stamattina le spie guardavano la luce, che dipende dal generale)",
-      "scopo": "Stamattina i bottoni scrivevano davvero (linea 3 alle 12:53, linea 2 alle 12:54) ma le spie della scheda erano quelle della luce, accese solo col generale chiuso. Ora la scheda ha le spie di linea 2 e linea 3.",
-      "prima": "Sul TC620, pagina «Collaudo 2.26», SENZA accesso.",
-      "passi": [
-        "Scheda «2.25.1.10»: guarda i due bottoni.",
-        "«Accedi» come admin: guarda di nuovo, premi i due bottoni."
-      ],
-      "atteso": [
-        "Senza accesso: «🔒 Operator» su «Linea 2», «🔒 Supervisor» su «Linea 3».",
-        "Da admin i lucchetti spariscono e le spie «linea 2» e «linea 3» seguono i bottoni."
-      ],
-      "sblocca": "2.25.1.10",
-      "link": [
-        {
-          "testo": "viewer TC620",
-          "url": "https://tc620-a-p3-c6-07aff9.local:7443"
-        }
-      ],
-      "n": 6
-    },
-    {
-      "id": "r3-allarmi",
-      "dove": "0 · TC620 di casa · il giro della 2.26.0-rc.5",
-      "titolo": "Allarmi: «ACK tutti» e «metti a tacere» anche nell'elenco",
-      "rif": "F3.13 (completata: stamattina mancava «Conferma tutti»)",
-      "scopo": "Il riquadro della pagina è in modalità elenco, dove «ACK tutti» e «metti a tacere» non c'erano (c'erano solo nella tabella).",
-      "prima": "Sul touch del TC620, pagina «Collaudo 2.26». Prima premi «Accedi» (in alto a destra) ed entra come admin.",
-      "passi": [
-        "Scheda «F3.13»: «Accendi allarme».",
-        "Nel riquadro allarmi: «✓ ACK tutti», motivo vuoto poi un motivo.",
-        "«Spegni», «Accendi» di nuovo, poi 🔇 sulla riga."
-      ],
-      "atteso": [
-        "«ACK tutti (n)» in alto nel riquadro; col motivo vuoto non conferma.",
-        "🔇 chiede il motivo e mette a tacere l'allarme."
-      ],
-      "sblocca": "F3.13",
-      "link": [
-        {
-          "testo": "viewer TC620",
-          "url": "https://tc620-a-p3-c6-07aff9.local:7443"
-        }
-      ],
-      "n": 7
-    },
-    {
-      "id": "n1-nuovo",
-      "dove": "1 · Dal cloud · le novità della rc.5 (progetto nuovo, impostazioni, logica)",
-      "titolo": "Un progetto vuoto chiede il formato una volta sola, con la finestra «Imposta il progetto»",
-      "rif": "piano 2026-11-04 (sessione del 08-11)",
-      "scopo": "«Nuovo progetto» non chiede più il motore: un progetto vuoto apre da solo la finestra «Imposta il progetto» (motore, pannello, sfondi, cornice). Con «Fatto» il formato va su «Pagina 1» e sulla pagina di boot, e la finestra non si riapre più da sola.",
-      "prima": "IDE nel cloud aggiornato alla rc.5, accesso da Admin.",
-      "passi": [
-        "Progetti → «Nuovo progetto» → vuoto. Scrivi prima un nome non valido (`prova rc5!`), poi `prova-rc5`.",
-        "Aperto il progetto, nella finestra «Imposta il progetto» scegli il motore web, il pannello TC620 e lascia gli sfondi come sono. «Fatto».",
-        "Ricarica la pagina del browser.",
-        "Configurazione → Progetto → Impostazioni."
-      ],
-      "atteso": [
-        "Il nome non valido è segnalato sotto il campo prima di premere Crea; nessuna domanda sul motore.",
-        "La finestra si apre da sola. Dopo «Fatto» ci sono «Pagina 1» e «Immagine di boot» (nomi in italiano), alla misura del TC620, sfondo blu notte `#0f172a`.",
-        "Dopo il ricaricamento la finestra non si riapre.",
-        "Il riepilogo dice TC620, non «Full HD» o «personalizzato»."
-      ],
-      "sblocca": "I1",
-      "link": [
-        {
-          "testo": "IDE nel cloud",
-          "url": "https://sws.soligo.net/"
-        }
-      ],
-      "n": 8
-    },
-    {
-      "id": "n2-cornice",
-      "dove": "1 · Dal cloud · le novità della rc.5 (progetto nuovo, impostazioni, logica)",
-      "titolo": "La cornice predefinita si sceglie in un posto solo",
-      "rif": "piano 2026-11-04 (sessione del 08-11)",
-      "scopo": "La proposta di cornice nel ramo Cornici e la spunta «predefinita» nelle proprietà della cornice sono state tolte: la cornice predefinita ora è un campo della finestra «Imposta il progetto».",
-      "prima": "Un progetto di prova nel cloud, `prova-rc5`, da cancellare alla fine: CasaDomotica non si tocca.",
-      "passi": [
-        "Configurazione → Progetto → Impostazioni → apri la finestra. Nel campo Cornice creane una nuova.",
-        "Torna all'editor: ramo Cornici del pannello sinistro, poi seleziona la cornice e guarda le proprietà.",
-        "Aggiungi una pagina nuova."
-      ],
-      "atteso": [
-        "La cornice nasce, è predefinita, e la pagina aperta resta quella di prima.",
-        "Nel ramo Cornici nessuna proposta; nelle proprietà della cornice nessuna spunta «predefinita».",
-        "La pagina nuova ha la cornice."
-      ],
-      "sblocca": "I1",
-      "link": [
-        {
-          "testo": "IDE nel cloud",
-          "url": "https://sws.soligo.net/"
-        }
-      ],
-      "n": 9
-    },
-    {
-      "id": "n3-impostazioni",
-      "dove": "1 · Dal cloud · le novità della rc.5 (progetto nuovo, impostazioni, logica)",
-      "titolo": "Configurazione → Progetto → Impostazioni, e le modifiche ravvicinate che non si perdono",
-      "rif": "piano 2026-11-04 (sessione del 08-11)",
-      "scopo": "Le scritture del formato di progetto (misura, sfondi, cornice, pagina di boot attiva) passano ora da una coda sola: prima, due modifiche ravvicinate potevano cancellarsi a vicenda.",
-      "prima": "Un progetto di prova nel cloud, `prova-rc5`, da cancellare alla fine: CasaDomotica non si tocca.",
-      "passi": [
-        "Configurazione → Progetto → Impostazioni: leggi il riepilogo, poi apri la finestra col bottone.",
-        "Cambia lo sfondo chiaro e, subito dopo, disattiva e riattiva la pagina di boot (o cambia cornice). Chiudi.",
-        "Ricarica la pagina e riapri le Impostazioni."
-      ],
-      "atteso": [
-        "Il riepilogo dice motore, pannello, misura, sfondi e cornice; il bottone apre la stessa finestra di n1.",
-        "Dopo il ricaricamento ci sono tutte le modifiche, nessuna persa."
-      ],
-      "sblocca": "I2",
-      "link": [
-        {
-          "testo": "IDE nel cloud",
-          "url": "https://sws.soligo.net/"
-        }
-      ],
-      "n": 10
-    },
-    {
-      "id": "n4-logica",
-      "dove": "1 · Dal cloud · le novità della rc.5 (progetto nuovo, impostazioni, logica)",
-      "titolo": "La sezione «Logica» a sinistra: funzioni e script si aprono al centro",
-      "rif": "L1 (logica in un ramo solo)",
-      "scopo": "Prima le funzioni stavano in un posto e gli script in Configurazione. Ora sono tutti e due nella sezione «Logica» del pannello a sinistra, e cliccandoli si aprono al centro, al posto della pagina disegnata. Solo guardare: non si cambia niente di CasaDomotica.",
-      "prima": "CasaDomotica aperto nell'IDE nel cloud, ricaricato (versione 2.26.0-rc.5), in modalità modifica.",
-      "passi": [
-        "Nel pannello di sinistra, sotto le pagine, apri la sezione «ƒ Logica».",
-        "Clicca la funzione `collaudo_saluta`: si apre al centro. Premi «Controlla» (non «Prova»).",
-        "Clicca lo script `script_1788621349823`: si apre nello stesso posto. Premi «Controlla».",
-        "Chiudi l'editor (la X in alto): torna la pagina disegnata."
-      ],
-      "atteso": [
-        "Nella sezione ci sono «Funzioni (2)», «Script (1)» e «Ricette».",
-        "Funzione e script si aprono al centro col nome, il codice e i bottoni; «Controlla» risponde «Nessun problema.» (o elenca le righe da correggere, cliccabili).",
-        "Configurazione → Script non ha più l'elenco: rimanda alla sezione Logica."
-      ],
-      "sblocca": "L1",
-      "link": [
-        {
-          "testo": "IDE nel cloud",
-          "url": "https://sws.soligo.net/"
-        }
-      ],
-      "n": 11
-    },
-    {
-      "id": "n5-rinomina",
-      "dove": "1 · Dal cloud · le novità della rc.5 (progetto nuovo, impostazioni, logica)",
-      "titolo": "Rinominare o cancellare una funzione: i bottoni la seguono, la cancellazione chiede",
-      "rif": "piano 2026-11-04 (sessione del 08-11)",
-      "scopo": "Rinominando una funzione, i bottoni (e le celle delle griglie) che la chiamano prendono il nome nuovo. Cancellare una funzione o uno script chiede conferma.",
-      "prima": "Il progetto `prova-rc5`: se non c'è, crealo come nella prova 8 (Progetti → «Nuovo progetto» → vuoto, nome `prova-rc5`, nella finestra «Imposta il progetto» motore web e «Fatto»). Non si usa CasaDomotica.",
-      "passi": [
-        "In `prova-rc5`, a sinistra apri «ƒ Logica» → Funzioni → «+» e chiama la funzione `accendi`. Nel codice scrivi `print(\"ciao\")`.",
-        "Torna su «Pagina 1» (chiudi l'editor con la X), metti un bottone; nelle sue proprietà, «Alla pressione» → scegli `accendi`.",
-        "Riapri `accendi` dalla sezione Logica, cambia il nome in `luce_on` e clicca fuori dal campo.",
-        "Seleziona di nuovo il bottone e guarda «Alla pressione». (Non premere Ctrl+Z: annulla il bottone ma non la funzione, difetto noto.)",
-        "Crea una seconda funzione `spegni` e prova a rinominarla `luce_on`.",
-        "Nella sezione Logica, clicca il cestino di `spegni`: rispondi prima «no», poi rifallo e rispondi «sì»."
-      ],
-      "atteso": [
-        "Il bottone dice `luce_on`, non `accendi`.",
-        "Il nome `luce_on` per la seconda funzione è rifiutato: «Il nome «luce_on» è già usato.»",
-        "Il cestino chiede conferma; col «no» la funzione resta, col «sì» sparisce."
-      ],
-      "sblocca": "L1",
-      "link": [
-        {
-          "testo": "IDE nel cloud",
-          "url": "https://sws.soligo.net/"
-        }
-      ],
-      "n": 12
-    },
-    {
-      "id": "n6-usi",
-      "dove": "1 · Dal cloud · le novità della rc.5 (progetto nuovo, impostazioni, logica)",
-      "titolo": "Il codice delle funzioni conta negli usi di un tag e nella sua rinomina",
-      "rif": "piano 2026-11-04 (sessione del 08-11)",
-      "scopo": "Prima, un tag usato solo dentro una funzione risultava «non usato» e la rinomina del tag lasciava la funzione col nome vecchio.",
-      "prima": "`prova-rc5` con la funzione `luce_on` della prova 12.",
-      "passi": [
-        "Crea una variabile interna `prova_bool` (bool) e scrivi nel codice di `luce_on`: `tags.write(\"prova_bool\", True)`. Salva.",
-        "Nelle variabili, cerca gli usi di `prova_bool`.",
-        "Rinomina `prova_bool` in `prova_luce`, poi riapri `luce_on`."
-      ],
-      "atteso": [
-        "Fra gli usi c'è la funzione.",
-        "Il codice della funzione dice `prova_luce`."
-      ],
-      "sblocca": "L1",
-      "link": [
-        {
-          "testo": "IDE nel cloud",
-          "url": "https://sws.soligo.net/"
-        }
-      ],
-      "n": 13
     },
     {
       "id": "n7-salva",
@@ -360,7 +98,7 @@
           "url": "https://sws.soligo.net/"
         }
       ],
-      "n": 14
+      "n": 4
     },
     {
       "id": "n8-lvgl",
@@ -385,38 +123,11 @@
           "url": "https://sws.soligo.net/"
         }
       ],
-      "n": 15
-    },
-    {
-      "id": "tc-prest",
-      "dove": "2 · TC620 di casa · CasaDomotica (2.26.0-rc.2)",
-      "titolo": "Prestazioni: la colonna del pannello, le sorgenti, e quando smette",
-      "rif": "Prestazioni 1, 3, 5",
-      "scopo": "La scheda Prestazioni ha una colonna per il pannello collegato: il runtime, le sorgenti di CasaDomotica (MQTT) coi loro giri, e smette di misurare quando nessuno guarda.",
-      "prima": "IDE nel cloud collegato al TC620, entrato come Admin.",
-      "passi": [
-        "Configurazione → Istanza → Prestazioni: guarda la colonna del pannello.",
-        "Qui sul banco «Controlla da qui» (o dall'IDE): con la scheda aperta.",
-        "Chiudi la scheda Prestazioni, aspetta più di 60 s, ricontrolla."
-      ],
-      "atteso": [
-        "Il runtime; il viewer LVGL solo se il TC620 disegna in LVGL.",
-        "Le sorgenti MQTT di CasaDomotica con i loro giri, e lo storico.",
-        "{\"attiva\":true} con la pagina aperta, {\"attiva\":false} un minuto dopo averla chiusa."
-      ],
-      "sblocca": "Prestazioni 1, 3, 5",
-      "link": [
-        {
-          "testo": "viewer TC620",
-          "url": "https://tc620-a-p3-c6-07aff9.local:7443"
-        }
-      ],
-      "sonda": "https://tc620-a-p3-c6-07aff9.local:7443/api/prestazioni/richiesta",
-      "n": 16
+      "n": 5
     },
     {
       "id": "tc-report",
-      "dove": "2 · TC620 di casa · CasaDomotica (2.26.0-rc.2)",
+      "dove": "2 · TC620 di casa · CasaDomotica",
       "titolo": "I report programmati arrivano per mail e si fanno da soli",
       "rif": "A-quater 3 e 4",
       "scopo": "CasaDomotica ha già un report (`report_1`) e la posta configurata: si prova sul pannello vero.",
@@ -435,11 +146,11 @@
       "sblocca": "A-quater",
       "link": null,
       "sonda": null,
-      "n": 17
+      "n": 6
     },
     {
       "id": "tc-sorgente",
-      "dove": "2 · TC620 di casa · CasaDomotica (2.26.0-rc.2)",
+      "dove": "2 · TC620 di casa · CasaDomotica",
       "titolo": "Se un dispositivo si stacca, SWS lo dice",
       "rif": "A-septies 10 — la disponibilità delle sorgenti",
       "scopo": "Ogni sorgente ha la variabile `<sorgente>.disponibile`. In CasaDomotica: `mqtt-sandokan.disponibile`, `mqtt-switch-garage.disponibile`…",
@@ -456,11 +167,11 @@
       "sblocca": "A-septies 10",
       "link": null,
       "sonda": null,
-      "n": 18
+      "n": 7
     },
     {
       "id": "1125-14",
-      "n": 19,
+      "n": 8,
       "dove": "3 · Dal cloud · CasaDomotica (sws.soligo.net)",
       "titolo": "L'assistente trova una pagina col suo nome tradotto",
       "rif": "2.25.1.14 — l'assistente e i nomi tradotti",
@@ -507,11 +218,11 @@
       "sblocca": "il passo «faceplate» del prompt; ap-sfondi (gli sfondi del 05-11)",
       "link": null,
       "sonda": null,
-      "n": 20
+      "n": 9
     },
     {
       "id": "ap-regole",
-      "n": 21,
+      "n": 10,
       "dove": "3 · Dal cloud · CasaDomotica (sws.soligo.net)",
       "titolo": "Le regole del progetto per l'IA si salvano",
       "rif": "Appunti — le regole del progetto in CasaDomotica",
@@ -537,7 +248,7 @@
     },
     {
       "id": "ap-history",
-      "n": 22,
+      "n": 11,
       "dove": "3 · Dal cloud · CasaDomotica (sws.soligo.net)",
       "titolo": "I grafici smettono di chiedere dati quando la scheda è nascosta",
       "rif": "Appunti — ricontare le richieste /api/history",
@@ -564,7 +275,7 @@
     },
     {
       "id": "abis-3",
-      "n": 23,
+      "n": 12,
       "dove": "9 · Solo ufficio (WP630) — WP630 senza deploy (Montagna resta)",
       "titolo": "Certificati: la card dice che il browser del pannello si fida",
       "rif": "A-bis 3 — la fiducia del browser del pannello",
@@ -589,7 +300,7 @@
     },
     {
       "id": "abis-1",
-      "n": 24,
+      "n": 13,
       "dove": "9 · Solo ufficio (WP630) — WP630 senza deploy (Montagna resta)",
       "titolo": "Sul pannello c'è il «guardiano» che aggiorna la fiducia del browser",
       "rif": "A-bis 1 — da terminale (SSH)",
@@ -607,7 +318,7 @@
     },
     {
       "id": "d13",
-      "n": 25,
+      "n": 14,
       "dove": "9 · Solo ufficio (WP630) — WP630 senza deploy (Montagna resta)",
       "titolo": "Ricollegandosi, l'IDE riconosce il certificato del pannello",
       "rif": "D 13 — l'impronta al collegamento",
@@ -625,7 +336,7 @@
     },
     {
       "id": "d14",
-      "n": 26,
+      "n": 15,
       "dove": "9 · Solo ufficio (WP630) — WP630 senza deploy (Montagna resta)",
       "titolo": "Collegandosi in http non compare nessuna impronta",
       "rif": "D 14 — l'impronta al collegamento",
@@ -644,7 +355,7 @@
     },
     {
       "id": "x-prep",
-      "n": 27,
+      "n": 16,
       "dove": "9 · Solo ufficio (WP630) — WP630 con deploy (cancella il progetto del pannello)",
       "titolo": "Prima di tutto: un progetto con gli utenti",
       "rif": "preparazione",
@@ -661,7 +372,7 @@
     },
     {
       "id": "f2-5",
-      "n": 28,
+      "n": 17,
       "dove": "9 · Solo ufficio (WP630) — WP630 con deploy (cancella il progetto del pannello)",
       "titolo": "Inviare un progetto senza utenti avvisa che il pannello resterà aperto",
       "rif": "F2.5 — la Finestra di avviso",
@@ -681,7 +392,7 @@
     },
     {
       "id": "f2-4",
-      "n": 29,
+      "n": 18,
       "dove": "9 · Solo ufficio (WP630) — WP630 con deploy (cancella il progetto del pannello)",
       "titolo": "Il deploy che sostituisce il progetto del pannello chiede conferma",
       "rif": "F2.4 — la Finestra di avviso",
@@ -702,7 +413,7 @@
     },
     {
       "id": "abis-4",
-      "n": 30,
+      "n": 19,
       "dove": "9 · Solo ufficio (WP630) — WP630 certificati (cambiano il TLS: per ultimi)",
       "titolo": "Cambiato il certificato, lo schermo del pannello non dà avvisi",
       "rif": "A-bis 4 e 6 — il guardiano segue il cambio",
@@ -722,7 +433,7 @@
     },
     {
       "id": "c10-11",
-      "n": 31,
+      "n": 20,
       "dove": "9 · Solo ufficio (WP630) — WP630 certificati (cambiano il TLS: per ultimi)",
       "titolo": "Dopo il cambio, l'IDE rifiuta il certificato nuovo finché non dici di fidarti",
       "rif": "C 10–11, D 12 — governare il certificato da remoto",
@@ -749,7 +460,7 @@
     },
     {
       "id": "h31",
-      "n": 32,
+      "n": 21,
       "dove": "9 · Solo ufficio (WP630) — WP630 certificati (cambiano il TLS: per ultimi)",
       "titolo": "Le operazioni sui certificati finiscono nel registro di audit",
       "rif": "H 31 — ruoli e registro",

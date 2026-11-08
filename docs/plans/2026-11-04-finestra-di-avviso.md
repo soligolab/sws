@@ -4,7 +4,7 @@
 > Nato come seme il 04-11-2026 da una richiesta del maintainer: «ora per i pop-up usi quelli nativi del browser e sembrano
 > errori, la gente diffida dei pop-up del browser. Implementerei una funzione "Finestra di avviso" che apra un'area in
 > centro alla pagina, in cui presentare tutto quello che ora viene mostrato come pop-up. La stessa funzione sarà usata
-> anche per spostare alcune configurazioni» (l'[impostazione iniziale del progetto](2026-11-04-impostazione-iniziale-del-progetto.md)).
+> anche per spostare alcune configurazioni» (l'[impostazione iniziale del progetto](../archive/2026-11-04-impostazione-iniziale-del-progetto.md)).
 > Diventato piano lo stesso giorno, con la misura del codice (`tmp/piani-misure/finestra-avviso.md`, solo su theobroma)
 > e le decisioni qui sotto.
 

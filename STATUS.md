@@ -12,7 +12,29 @@
 > resta in «Storico». Qui vive solo ciò che serve a riprendere il lavoro.
 
 
-## ▶ Riprendere da qui — la 2.26.0-rc.5 pubblicata: I1, I2, L1 (2026-11-08, ufficio)
+## ▶ Riprendere da qui — la 2.26.0-rc.6 pubblicata: le due correzioni del collaudo dell'08-11 (2026-11-08, ufficio)
+
+**`main` ha commit e quattro tag che origin non ha** (`2.26.0-rc.3` … `rc.6`): **il push aspetta il via del
+maintainer**. Nessun ramo aperto. VPS: gateway **e** progetti su `fb36fa4f-amd64` (rc.6, guardia verde); ripiego la
+rc.5 `9a7fcd98-amd64` (tolta la rc.4). `rc-arm64` è la rc.6. Il TC620 è sulla **rc.5** (r5-agg passata): la rc.6 la
+porta «Aggiorna ora» (prova `r6-agg`).
+
+**Il collaudo dell'08-11 mattina** (esiti in `tmp/collaudo/esiti-08-11-rc5.json`): **13 su 13 passate** — r5-agg,
+il giro della rc.4 (log, deploy, momentaneo, critico, lucchetto, allarmi), n1–n6 (I1, I2, L1). Due difetti, corretti
+nella **rc.6** (`5666cd59`):
+1. **Ctrl+Z dopo «rinomina funzione»** riportava i bottoni ma non la funzione: ora la voce porta anche le funzioni
+   (`HistoryEntry.functions`);
+2. **Prestazioni 5**: la misura sul TC620 non si spegneva mai (`{"attiva":true}` per 100 s dopo il cambio di pagina).
+   La Configurazione resta montata dietro l'editor (`Tenuta`) e la scheda nascosta leggeva ogni 2 s. Ora `useInVista`.
+
+Piano [impostazione iniziale](docs/archive/2026-11-04-impostazione-iniziale-del-progetto.md) **archiviato** (I1–I2
+collaudate). Logica unificata resta viva: n7–n8 da fare, poi L2–L3.
+
+**Il collaudo, cosa guardare**: banco, gruppo «0 · il giro della 2.26.0-rc.6» — r6-agg, r6-ctrlz, tc-prest; poi n7–n8.
+Dopo il cambio d'immagine, l'IDE nel cloud va ricaricato (e il pannello ricollegato con «Connetti» se il pallino non è
+verde).
+
+## ▶ La 2.26.0-rc.5 pubblicata: I1, I2, L1 (2026-11-08, ufficio)
 
 **`main` ha commit e tre tag che origin non ha** (`2.26.0-rc.3`, `rc.4`, `rc.5`): **il push aspetta il via del
 maintainer**. Nessun ramo aperto. VPS: gateway **e** progetti su `9a7fcd98-amd64` (rc.5, `check_gateway_immagine`
