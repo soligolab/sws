@@ -111,6 +111,11 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
   il salvataggio non è finito.
 
 ### Corretto
+- **MQTT, una sorgente con molte righe restava «mai collegata»** (08-11-2026, trovato preparando la sorgente unica
+  di CasaDomotica, 116 righe): il plugin sottoscriveva **una volta per riga**, anche sei volte lo stesso topic, e
+  accodava SUBSCRIBE e richieste di stato prima di leggere l'eventloop, in una coda da 32. Alla 33ª la sessione si
+  fermava per sempre, senza una riga nel registro. Ora un topic si sottoscrive una volta (al QoS più alto fra le sue
+  righe) e la coda è grande quanto quello che si manda prima di leggere.
 - **Ctrl+Z dopo «rinomina funzione»** riporta insieme il nome della funzione e i bottoni che la chiamano
   (`HistoryEntry.functions`): annullava solo i bottoni, che restavano a chiamare un nome che non c'era più.
 - **La scheda Prestazioni nascosta non interroga più il pannello** (`useInVista` di `Tenuta`): la Configurazione

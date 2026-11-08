@@ -372,11 +372,22 @@ async fn run_session(
         ));
     }
 
-    let (client, mut eventloop) = AsyncClient::new(opts, 32);
-
     // Subscribe with per-topic QoS, falling back to the source-level QoS,
     // then to 0.
     let source_qos = qos_from_u8(cfg.qos.unwrap_or(0));
+    let sottoscrizioni = sottoscrizioni(&cfg.topics, source_qos);
+    let richieste = richieste_di_stato(&cfg.topics);
+
+    // La coda delle richieste deve contenere tutto quello che si manda **prima**
+    // di leggere la prima risposta del broker (08-11-2026). Le SUBSCRIBE e le
+    // richieste di stato si accodano qui sotto, e l'eventloop — che svuota la
+    // coda — si legge solo dopo: con 32 posti, la sorgente di tutta casa
+    // (116 righe) restava ferma sulla 33ª SUBSCRIBE per sempre, «mai collegata»,
+    // senza una riga nel registro. Le sorgenti fino ad allora avevano al più 13
+    // righe, e nessuno l'aveva visto.
+    let da_mandare = sottoscrizioni.len() + cfg.dispositivi.len() + 1 + richieste.len();
+    let (client, mut eventloop) = AsyncClient::new(opts, (da_mandare + 16).max(32));
+
     let senza_filtro = cfg
         .topics
         .iter()
@@ -390,12 +401,11 @@ async fn run_session(
              protocollo) e morirebbe l'intera sorgente. Toglile nell'IDE, in Comunicazione."
         );
     }
-    for topic in cfg.topics.iter().filter(|t| sottoscrivibile(&t.topic)) {
-        let qos = topic.qos.map(qos_from_u8).unwrap_or(source_qos);
+    for (topic, qos) in &sottoscrizioni {
         client
-            .subscribe(&topic.topic, qos)
+            .subscribe(topic, *qos)
             .await
-            .map_err(|e| anyhow::anyhow!("subscribe '{}': {e}", topic.topic))?;
+            .map_err(|e| anyhow::anyhow!("subscribe '{topic}': {e}"))?;
     }
 
     // Chi sta dall'altra parte (28-10-2026): il topic di disponibilità si
@@ -461,7 +471,7 @@ async fn run_session(
     // stato non cambia. Le richieste partono dopo le SUBSCRIBE, nella stessa coda
     // del client: il broker le tratta in ordine, quindi la risposta trova la
     // sottoscrizione già attiva. A ogni sessione, cioè anche dopo un ricollegamento.
-    for r in richieste_di_stato(&cfg.topics) {
+    for r in richieste {
         client
             .publish(&r.topic, source_qos, false, r.payload.clone().into_bytes())
             .await
@@ -828,6 +838,23 @@ fn tagvalue_from_json(v: &serde_json::Value) -> TagValue {
 
 /// QoS conversion. MQTT defines only 0 / 1 / 2; anything else falls back to 0
 /// rather than fail — broker-side rejection on bad QoS is just noise here.
+/// I topic da sottoscrivere, **una volta ciascuno** (08-11-2026): una presa
+/// mappata in sei righe ha un topic solo, e prima si sottoscriveva sei volte.
+/// Se le righe dello stesso topic chiedono QoS diversi vale il più alto.
+/// Nell'ordine della prima riga che lo nomina.
+fn sottoscrizioni(righe: &[sws_core::TopicMapping], source_qos: QoS) -> Vec<(String, QoS)> {
+    let mut fuori: Vec<(String, QoS)> = Vec::new();
+    for r in righe.iter().filter(|t| sottoscrivibile(&t.topic)) {
+        let qos = r.qos.map(qos_from_u8).unwrap_or(source_qos);
+        match fuori.iter_mut().find(|(t, _)| t == &r.topic) {
+            Some((_, q)) if qos > *q => *q = qos,
+            Some(_) => {}
+            None => fuori.push((r.topic.clone(), qos)),
+        }
+    }
+    fuori
+}
+
 fn qos_from_u8(v: u8) -> QoS {
     match v {
         1 => QoS::AtLeastOnce,
@@ -1017,6 +1044,24 @@ mod tests_righe {
             }),
             dispositivo: None,
         }
+    }
+
+    /// Sei righe su un topic solo, una con QoS 1: una sottoscrizione, a QoS 1.
+    #[test]
+    fn un_topic_si_sottoscrive_una_volta() {
+        let mut righe: Vec<TopicMapping> =
+            (0..6).map(|_| riga("zigbee2mqtt/presa", None)).collect();
+        righe[3].qos = Some(1);
+        righe.push(riga("casa/meteo", None));
+        righe.push(riga("", None));
+        let s = sottoscrizioni(&righe, QoS::AtMostOnce);
+        assert_eq!(
+            s,
+            vec![
+                ("zigbee2mqtt/presa".to_string(), QoS::AtLeastOnce),
+                ("casa/meteo".to_string(), QoS::AtMostOnce)
+            ]
+        );
     }
 
     /// Due prese nella stessa sorgente (08-11-2026, la presa Sandokan staccata
