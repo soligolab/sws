@@ -29,7 +29,8 @@
 
 ## La serie L0 → F2 → F3 (05-11-2026) — la sandbox Python e la Finestra di avviso dappertutto
 
-Sui rami annidati `fix/sandbox-python` → `feat/finestra-avviso-2` → `feat/finestra-avviso-3` (non ancora in `main`).
+In `main` dal 06-11-2026 (2.26.0-rc.2). *(08-11: il piano della Finestra di avviso è archiviato; restano qui L0.1 e L0.3
+sul pannello, F2.4–5 sul WP630 e il residuo della 15.)*
 L0 cambia il runtime e F3 il viewer: le voci del pannello vogliono l'immagine nuova. Le voci IDE si provano sull'IDE
 locale (8460) o sul VPS dopo il rilascio.
 
@@ -61,15 +62,15 @@ locale (8460) o sul VPS dopo il rilascio.
 
 **F3 — viewer, console, finestre** (viewer sul pannello, kiosk WebKit: WP630 o TC620)
 9. [x] Un bottone con `require_confirm`: la finestra con Annulla/Conferma nella lingua dei contenuti; Annulla non scrive.
-10. [ ] Un comando `critical`: la password in una finestra (campo nascosto), sbagliata dà errore e non scrive; con
+10. [x] Un comando `critical`: la password in una finestra (campo nascosto), sbagliata dà errore e non scrive; con
        `require_reason` il motivo vuoto tiene aperta la finestra. **07-11 (rc.2): «403 forbidden»** — premuto prima
-       di fare l'accesso, e il viewer mandava la scrittura senza credenziali. Nella rc.3 dice di accedere (`r3-critico`).
-11. [ ] Un bottone momentaneo con `require_confirm`: non chiede più niente e si tiene premuto. **07-11 (rc.2) non
+       di fare l'accesso, e il viewer mandava la scrittura senza credenziali. Nella rc.3 dice di accedere (`r3-critico`). **Passata l'08-11-2026 sul TC620** (rc.4/rc.5).
+11. [x] Un bottone momentaneo con `require_confirm`: non chiede più niente e si tiene premuto. **07-11 (rc.2) non
        passa sul touch del TC620**: la pressione lunga non mandava niente (solo eventi del mouse). Rc.3: eventi pointer
-       (`r3-momentaneo`).
+       (`r3-momentaneo`). **Passata l'08-11-2026 sul TC620** (`r4-momentaneo`).
 12. [x] Un toggle con conferma: scrive l'inverso del valore **al momento della conferma**.
-13. [ ] Allarmi: «Conferma» con motivo obbligatorio, «Conferma tutti», «Metti a tacere». **07-11 (rc.2)**: la conferma
-       col motivo passa; «Conferma tutti» e «Metti a tacere» non c'erano nella modalità elenco. Rc.3 (`r3-allarmi`).
+13. [x] Allarmi: «Conferma» con motivo obbligatorio, «Conferma tutti», «Metti a tacere». **07-11 (rc.2)**: la conferma
+       col motivo passa; «Conferma tutti» e «Metti a tacere» non c'erano nella modalità elenco. Rc.3 (`r3-allarmi`). **Passata l'08-11-2026 sul TC620**.
 14. [x] Uno slider con `require_confirm`: una domanda sola al rilascio, e il cursore resta dove l'ha lasciato.
 15. [ ] IDE. **Già passati il 05-11-2026 sull'8460**: chiudere il progetto con modifiche non salvate (Salva e chiudi /
        Chiudi senza salvare / Annulla) e la console (abbandonare le modifiche in Aziende e Persone); **il 06-11**
@@ -78,7 +79,7 @@ locale (8460) o sul VPS dopo il rilascio.
        Esc, Tab che resta dentro.
 16. [x] L'avviso di aggiornamento sul pannello (versione nuova, conferma dopo l'aggiornamento) con il login per Admin
        che gli si apre sopra: si scrive nel login. **Passata il 07-11-2026 sul TC620** (2.25.1 → rc.2 dal viewer). Dall'IDE
-       del cloud falliva dopo 60 s (l'istantanea dei dati): corretto nella rc.3 (`r3-agg`).
+       del cloud falliva dopo 60 s (l'istantanea dei dati): corretto nella rc.3 (`r3-agg`). **Dall'IDE del cloud passata l'08-11-2026** (rc.4 → rc.5, `r5-agg`).
 
 ## La 2.25.1 (05-11-2026) — anomalie del collaudo 2.25.0, regole dei template, lucchetto
 

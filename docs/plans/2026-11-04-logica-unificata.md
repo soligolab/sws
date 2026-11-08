@@ -5,7 +5,7 @@
 > che sono python e poi un sotto menù "Python" in cui ci sono delle funzioni… unificherei script e funzioni in un
 > contesto unico nel ramo principale assieme alle Ricette. Rivedrei meglio i suggerimenti di codice e i template per
 > renderli più utili». Diventato piano lo stesso giorno, con la misura del codice (`tmp/piani-misure/logica.md`, solo su
-> theobroma). **L1 e L3 dipendono da** [la Finestra di avviso](2026-11-04-finestra-di-avviso.md) (le conferme sulle
+> theobroma). **L1 e L3 dipendono da** [la Finestra di avviso](../archive/2026-11-04-finestra-di-avviso.md) (le conferme sulle
 > cancellazioni e il `modulo` per «Nuovo da modello»); L0 non dipende da niente.
 
 ## Decisioni del maintainer (04-11-2026)

@@ -1,4 +1,4 @@
-/** La Finestra di avviso (piano docs/plans/2026-11-04-finestra-di-avviso.md, F1):
+/** La Finestra di avviso (piano docs/archive/2026-11-04-finestra-di-avviso.md, F1):
  *  le cinque funzioni, i tasti, il velo, la coda, l'aiuto per i test. */
 import { render, screen, fireEvent, act, cleanup } from "@testing-library/react";
 import { StrictMode } from "react";

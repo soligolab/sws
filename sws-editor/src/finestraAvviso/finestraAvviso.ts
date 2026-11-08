@@ -1,4 +1,4 @@
-/** La «Finestra di avviso» (piano docs/plans/2026-11-04-finestra-di-avviso.md,
+/** La «Finestra di avviso» (piano docs/archive/2026-11-04-finestra-di-avviso.md,
  *  sessione F1): un'area al centro della pagina al posto di `alert`, `confirm`
  *  e `prompt` del browser, che sembrano errori e di cui la gente diffida.
  *

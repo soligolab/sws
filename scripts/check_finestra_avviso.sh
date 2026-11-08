@@ -7,7 +7,7 @@
 # Il 04-11-2026 il maintainer: «ora per i pop-up usi quelli nativi del browser e
 # sembrano errori, la gente diffida dei pop-up del browser». Al loro posto c'è la
 # Finestra di avviso (`sws-editor/src/finestraAvviso/`: `avviso`, `conferma`,
-# `chiedi`, `scegli`, `modulo`), piano docs/plans/2026-11-04-finestra-di-avviso.md.
+# `chiedi`, `scegli`, `modulo`), piano docs/archive/2026-11-04-finestra-di-avviso.md.
 # Quel giorno le chiamate erano 106 in 41 file; si tolgono in tre sessioni
 # (F1, F2, F3). Questa guardia contava, file per file, quelle che restavano:
 # ogni file col suo tetto, che poteva solo scendere. Dal 05-11-2026 (fine F3)
